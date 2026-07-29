@@ -149,6 +149,63 @@
     verdict=`not-supported`；Gate 1 保留 mechanism verdict，causal 主张
     收缩为“PE 是可审计原始信号”。artifact：
     `artifacts/gate1_pe_causal_20260730`。
+- Gate 4/5/6 共享真 trace 工厂使用 schema
+  `gate456-shared-settled-trace.v1`，在实现与生成前冻结以下契约：
+  - 本工厂是 `vz-runtime` 对既有 session/public snapshot 的 out-of-turn
+    export，不新增 runtime slot 或第二 learning owner。每个正式样本是独立
+    两 turn 微会话：第一 turn 走正式 `AgentSessionRunner.run_turn()` 发布
+    owner prediction；环境 adapter 随后通过
+    `submit_environment_outcome()` 提交携带该 `prediction_id` 的 typed
+    outcome；第二 turn 再走正式主链结算 actual、PE、credit 与 temporal
+    snapshot。bootstrap turn 不计 transition。
+  - substrate 固定为本机缓存的
+    `Qwen/Qwen2.5-0.5B-Instruct`、CPU、`strict-local`、frozen、
+    fallback denied；任何 seed 出现非 `hf-local` origin、fallback、
+    live substrate mutation、空 residual sequence 或 substrate
+    fingerprint 漂移均 fail closed。
+  - seed schedule 固定为 `401 / 409 / 419`，每 seed 精确生成 `510`
+    settled transitions：`trace-train=300`、`trace-heldout-context=150`、
+    `trace-locked-confirmation=60`。三分区按 registry 顺序整体生成，
+    consumer 只能按 manifest 的完整 partition 加载，禁止逐条挑选。
+  - corpus registry 固定为 18 个 user/context block：train 10 个、
+    heldout 5 个、locked 3 个；每个 block 内交错
+    `old-recall / new-introduce / new-revision / old-retention` 四类 episode，
+    并同时发布 knowledge key、context/user id 与可观察 environment
+    measurement。locked 分区只允许生成、指纹和契约验收，本包不得根据其
+    指标修改 corpus、阈值或实现。
+  - append/resume 单位是一个已结算 transition：只有两 turn、typed
+    outcome、session-post slow loop 全部完成后，才向
+    `transitions.jsonl` 追加一条 canonical record 并刷新 progress；重启
+    必须验证已有 prefix 的 transition id、seed、partition 与 digest，
+    然后从下一条继续，不重算已完成样本。
+  - 每条 transition 必须携带 `session_id / prediction_id /
+    prediction_ref /
+    environment_event_id / environment_outcome_id / observed_at`，以及
+    prediction、actual、PE、credit、temporal segment/action、memory 与
+    substrate public readout；lineage join coverage 必须 `1.0`，accepted
+    mismatch 与 duplicate settlement 必须 `0`。每 seed settled count
+    必须 `510`，三 seed substrate fingerprint 必须相同。
+    `PredictionErrorModule` 的 owner-issued `prediction_id` 作用域是单
+    session，因此跨微会话 join 的主键固定为
+    `prediction_ref = session_id + "::" + prediction_id`；原始
+    `prediction_id` 仍逐字保留，禁止改写 owner id 冒充全局 id。
+  - turn latency 与 session-post slow-job latency 分开统计；它们只作运行
+    诊断，不进入 learning verdict。通过本包只产
+    `trace-contract-supported`，不得产 Gate 4/5/6 causal verdict。
+  - `transitions.jsonl` 是不可变 source corpus；常规 12 文件 evidence
+    packet 由它确定性派生。回滚为停止生成并保留已完成 prefix；任何未达门
+    corpus 标记 invalid，Gate 4/5/6 禁止消费。
+  - 2026-07-30 实跑：seed `401 / 409 / 419` 各生成 `510` 条、合计
+    `1530` 条 settled Qwen trace；aggregate 分区为
+    `trace-train=900 / trace-heldout-context=450 /
+    trace-locked-confirmation=180`。三 seed lineage coverage 均为
+    `1.0`、mismatch/duplicate 均为 `0/0`，runtime origin 均为
+    `hf-local`，fallback/empty-residual/substrate-mutation 均为 `0`，
+    runtime fingerprint 统一为
+    `runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966`。
+    aggregate verdict=`trace-contract-supported`、consumer
+    admission=`allowed`；本包没有产 Gate 4/5/6 causal verdict。artifact：
+    `artifacts/gate456_shared_settled_trace_20260730`。
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - ETA Gate 2 residual causal packet 使用
   `volvence_zero.agent.eta_gate2_residual_evidence` 冻结

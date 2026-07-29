@@ -1,0 +1,40 @@
+{
+  "completed_transition_count": 510,
+  "expected_transition_count": 510,
+  "gates": {
+    "duplicate_settlement_zero": true,
+    "empty_residual_zero": true,
+    "fallback_zero": true,
+    "lineage_coverage_100_percent": true,
+    "lineage_mismatch_zero": true,
+    "partition_counts_exact": true,
+    "runtime_origin_hf_local": true,
+    "settled_count_510": true,
+    "substrate_mutation_zero": true
+  },
+  "latency_diagnostic": {
+    "mean_prediction_turn_ms": 680.0324215366524,
+    "mean_session_post_slow_job_ms": 4.021293537659278,
+    "mean_settlement_turn_ms": 599.9520336514609
+  },
+  "lineage": {
+    "accepted_mismatch_count": 0,
+    "coverage": 1.0,
+    "duplicate_settlement_count": 0
+  },
+  "partition_counts": {
+    "trace-heldout-context": 150,
+    "trace-locked-confirmation": 60,
+    "trace-train": 300
+  },
+  "schema_version": "gate456-shared-settled-trace.v1",
+  "status": "trace-contract-supported",
+  "substrate": {
+    "empty_residual_count": 0,
+    "fallback_count": 0,
+    "mutation_count": 0,
+    "runtime_origins": [
+      "hf-local"
+    ]
+  }
+}

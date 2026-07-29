@@ -1,0 +1,95 @@
+{
+  "campaign_id": "gate456-shared-settled-trace-20260730",
+  "consumer_loading_rule": "whole-partition-only",
+  "expected_partition_totals": {
+    "trace-heldout-context": 450,
+    "trace-locked-confirmation": 180,
+    "trace-train": 900
+  },
+  "expected_transition_count": 1530,
+  "locked_confirmation": true,
+  "runtime_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+  "schema_version": "gate456-shared-settled-trace.v1",
+  "seed_schedule": [
+    401,
+    409,
+    419
+  ],
+  "seed_summaries": [
+    {
+      "lineage": {
+        "accepted_mismatch_count": 0,
+        "coverage": 1.0,
+        "duplicate_settlement_count": 0
+      },
+      "partition_counts": {
+        "trace-heldout-context": 150,
+        "trace-locked-confirmation": 60,
+        "trace-train": 300
+      },
+      "runtime_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+      "seed": 401,
+      "status": "trace-contract-supported",
+      "substrate": {
+        "empty_residual_count": 0,
+        "fallback_count": 0,
+        "mutation_count": 0,
+        "runtime_origins": [
+          "hf-local"
+        ]
+      },
+      "trace_sha256": "66724f38953553c6ca74cca121b6080c385d17104cb1a0117b2d289c70fd3d1d",
+      "transition_count": 510
+    },
+    {
+      "lineage": {
+        "accepted_mismatch_count": 0,
+        "coverage": 1.0,
+        "duplicate_settlement_count": 0
+      },
+      "partition_counts": {
+        "trace-heldout-context": 150,
+        "trace-locked-confirmation": 60,
+        "trace-train": 300
+      },
+      "runtime_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+      "seed": 409,
+      "status": "trace-contract-supported",
+      "substrate": {
+        "empty_residual_count": 0,
+        "fallback_count": 0,
+        "mutation_count": 0,
+        "runtime_origins": [
+          "hf-local"
+        ]
+      },
+      "trace_sha256": "a87c195d7088bcbaee0377dbff341a153643294b5a33c8cf44dad708286a185b",
+      "transition_count": 510
+    },
+    {
+      "lineage": {
+        "accepted_mismatch_count": 0,
+        "coverage": 1.0,
+        "duplicate_settlement_count": 0
+      },
+      "partition_counts": {
+        "trace-heldout-context": 150,
+        "trace-locked-confirmation": 60,
+        "trace-train": 300
+      },
+      "runtime_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+      "seed": 419,
+      "status": "trace-contract-supported",
+      "substrate": {
+        "empty_residual_count": 0,
+        "fallback_count": 0,
+        "mutation_count": 0,
+        "runtime_origins": [
+          "hf-local"
+        ]
+      },
+      "trace_sha256": "843561ca0cfaeba924146179d62c4c3eed65363788d204ff093767cd92efa2fc",
+      "transition_count": 510
+    }
+  ]
+}

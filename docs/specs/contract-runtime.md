@@ -193,6 +193,26 @@ temporal/Internal-RL、memory、PE、credit、regime、dual-track gate 与 refle
 - out-of-turn artifact 固定排除 pending capture、staged rollout 等 episode-local runtime replay；
   同 episode 的内存 checkpoint 可显式包含 replay，但不能落入该持久格式。
 
+### 共享 settled trace export（out-of-turn）
+
+`volvence_zero.agent.shared_settled_trace` 为 Gate 4/5/6 导出可恢复的真实
+substrate trace。它不是 runtime slot，也不是 prediction、PE、credit、temporal
+或 memory 的第二 owner：
+
+- 每个 append 单位是独立两 turn 微会话；第一 turn 发布 owner prediction，
+  环境通过 `submit_environment_outcome()` 回传带 prediction ref 的 typed
+  outcome，第二 turn 由正式主链结算。
+- exporter 只读取 `AgentTurnResult` 与公开 snapshot value，不能从 artifact
+  反建或回写 owner 内部状态。
+- `transitions.jsonl` 只在两 turn、typed outcome 与 session-post slow loop
+  全部完成后追加；resume 校验已有 prefix 的 id、分区、seed 与逐条 digest。
+- owner-issued `prediction_id` 的作用域是 session；跨微会话 lineage 使用
+  `(session_id, prediction_id)` 的显式 `prediction_ref`，同时原样保留 owner id。
+- consumer 只能整体加载 manifest 冻结的 partition；locked confirmation
+  只能按 evidence preregistration 消费，禁止逐条挑选。
+- substrate fail closed 条件、规模、分区和实跑 verdict 见
+  [`evidence_program.md`](./evidence_program.md)。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
@@ -202,6 +222,9 @@ temporal/Internal-RL、memory、PE、credit、regime、dual-track gate 与 refle
 
 ## 变更日志
 
+- 2026-07-30: 新增 Gate 4/5/6 共享 settled trace 的 out-of-turn export 边界，
+  冻结两 turn typed outcome settlement、scoped prediction ref、append/resume
+  与 whole-partition consumer 纪律；未新增 runtime slot。
 - 2026-07-20: learning checkpoint 持久化改为 owner-authored canonical JSON archive，并补充单 agent / colony 事务回滚。
 - 2026-07-19: 新增 session aggregate learning checkpoint facade，用于共享初始状态的公平 held-out 分叉；所有状态仍由原 owner export/restore。
 - 2026-04-25: 同步当前 runtime kernel 口径：模块基类为 `RuntimeModule`，`propagate(auto_sort=True)` 默认拓扑排序且 cycle 时回退输入顺序；补充 adaptive owners 默认 `SHADOW` 接线

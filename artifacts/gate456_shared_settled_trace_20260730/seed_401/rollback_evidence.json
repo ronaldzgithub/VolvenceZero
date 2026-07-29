@@ -1,0 +1,7 @@
+{
+  "consumer_admission": "allowed",
+  "rollback_action": "stop generation and retain settled prefix",
+  "runtime_owner_mutated_by_export": false,
+  "schema_version": "gate456-shared-settled-trace.v1",
+  "substrate_mutation_count": 0
+}

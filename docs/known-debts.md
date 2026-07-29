@@ -2476,6 +2476,14 @@ return (
 
 ### Gate 4 — 在 ETA 抽象段之上的主动学习
 
+- **共享前置 trace（2026-07-30 已完成）**：
+  `gate456-shared-settled-trace.v1` 已通过正式
+  `AgentSessionRunner → typed EnvironmentOutcome → PE/credit/temporal`
+  路径生成 seed `401 / 409 / 419` 共 `1530` 条 frozen Qwen2.5-0.5B
+  settled transitions，分区 `900/450/180`，lineage 全绿且三 seed
+  substrate fingerprint 相同；aggregate consumer admission=`allowed`。
+  本结果只关闭 Gate 4/5/6 的共同语料前置，不构成任一 causal verdict。
+  artifact：`artifacts/gate456_shared_settled_trace_20260730`。
 - **命题**：主动学习 scheduler 位于 cognition/runtime 层，但以 ETA `closed_segments / z-family / beta_t` 为经验单位，结合 PE、uncertainty、risk 与 credit 决定何时请求反馈和把学习路由给哪个 owner。
 - **必须测试**：
   - 相同标签预算下比较 `segment-aware active`、`turn-level active`、`random-feedback`、`no-feedback`。
