@@ -1,0 +1,518 @@
+{
+  "completed_seeds": [
+    101
+  ],
+  "gates": {
+    "builtin_substrate_fingerprint_shared": true,
+    "full_matrix_complete": false,
+    "heldout_scenarios_match_preregistration": true,
+    "mean_gain_meets_min_effect": false,
+    "probe_seed_101_passed": false,
+    "profiles_match_preregistration": true,
+    "three_seed_direction_and_min_effect": false
+  },
+  "mean_heldout_learning_gain": 0.0,
+  "requested_full_matrix": true,
+  "schema_version": "gate1-pe-causal.v1",
+  "seed_results": [
+    {
+      "case_results": [
+        {
+          "acceptance_checks": [
+            [
+              "episode-runs-to-completion",
+              true
+            ],
+            [
+              "repair-observable-when-expected",
+              true
+            ],
+            [
+              "runtime-adaptation-evidence-observed",
+              true
+            ],
+            [
+              "prediction-chain-present",
+              true
+            ],
+            [
+              "pe-schedule-observed",
+              true
+            ],
+            [
+              "temporal-trajectory-nonconstant",
+              true
+            ],
+            [
+              "multi-timescale-evidence-observed",
+              true
+            ],
+            [
+              "runtime-backbone-evidence-observed",
+              true
+            ],
+            [
+              "late-episode-stabilization-or-improvement",
+              true
+            ],
+            [
+              "emotional-decision-support-observed",
+              true
+            ]
+          ],
+          "delayed_improvement_observed": true,
+          "late_episode_stability_score": 1.0,
+          "online_learning_turn_count": 4,
+          "open_case_passed": true,
+          "pe_triggered_turn_count": 1,
+          "prediction_chain_turn_count": 4,
+          "primary_check_passed": true,
+          "profile_label": "pe-eta",
+          "reasons": [],
+          "scenario_id": "open_repair_heldout",
+          "seed": 101,
+          "split": "open_heldout",
+          "temporal_change_count": 4,
+          "turn_count": 4
+        },
+        {
+          "acceptance_checks": [
+            [
+              "episode-runs-to-completion",
+              true
+            ],
+            [
+              "repair-observable-when-expected",
+              true
+            ],
+            [
+              "runtime-adaptation-evidence-observed",
+              true
+            ],
+            [
+              "prediction-chain-present",
+              true
+            ],
+            [
+              "pe-schedule-observed",
+              true
+            ],
+            [
+              "temporal-trajectory-nonconstant",
+              true
+            ],
+            [
+              "multi-timescale-evidence-observed",
+              true
+            ],
+            [
+              "runtime-backbone-evidence-observed",
+              true
+            ],
+            [
+              "late-episode-stabilization-or-improvement",
+              true
+            ],
+            [
+              "emotional-decision-support-observed",
+              true
+            ]
+          ],
+          "delayed_improvement_observed": true,
+          "late_episode_stability_score": 1.0,
+          "online_learning_turn_count": 4,
+          "open_case_passed": true,
+          "pe_triggered_turn_count": 1,
+          "prediction_chain_turn_count": 4,
+          "primary_check_passed": true,
+          "profile_label": "pe-eta",
+          "reasons": [],
+          "scenario_id": "open_clarification_heldout",
+          "seed": 101,
+          "split": "open_heldout",
+          "temporal_change_count": 3,
+          "turn_count": 4
+        },
+        {
+          "acceptance_checks": [
+            [
+              "episode-runs-to-completion",
+              true
+            ],
+            [
+              "repair-observable-when-expected",
+              true
+            ],
+            [
+              "runtime-adaptation-evidence-observed",
+              true
+            ],
+            [
+              "prediction-chain-present",
+              true
+            ],
+            [
+              "pe-schedule-observed",
+              true
+            ],
+            [
+              "temporal-trajectory-nonconstant",
+              true
+            ],
+            [
+              "multi-timescale-evidence-observed",
+              true
+            ],
+            [
+              "runtime-backbone-evidence-observed",
+              true
+            ],
+            [
+              "late-episode-stabilization-or-improvement",
+              true
+            ],
+            [
+              "emotional-decision-support-observed",
+              true
+            ]
+          ],
+          "delayed_improvement_observed": true,
+          "late_episode_stability_score": 0.6666666666666666,
+          "online_learning_turn_count": 5,
+          "open_case_passed": true,
+          "pe_triggered_turn_count": 2,
+          "prediction_chain_turn_count": 5,
+          "primary_check_passed": true,
+          "profile_label": "pe-eta",
+          "reasons": [],
+          "scenario_id": "open_failure_loop_heldout",
+          "seed": 101,
+          "split": "open_heldout",
+          "temporal_change_count": 5,
+          "turn_count": 5
+        },
+        {
+          "acceptance_checks": [
+            [
+              "episode-runs-to-completion",
+              true
+            ],
+            [
+              "repair-observable-when-expected",
+              true
+            ],
+            [
+              "runtime-adaptation-evidence-observed",
+              true
+            ],
+            [
+              "prediction-chain-present",
+              true
+            ],
+            [
+              "pe-schedule-observed",
+              true
+            ],
+            [
+              "temporal-trajectory-nonconstant",
+              true
+            ],
+            [
+              "multi-timescale-evidence-observed",
+              true
+            ],
+            [
+              "runtime-backbone-evidence-observed",
+              true
+            ],
+            [
+              "late-episode-stabilization-or-improvement",
+              true
+            ],
+            [
+              "emotional-decision-support-observed",
+              true
+            ]
+          ],
+          "delayed_improvement_observed": true,
+          "late_episode_stability_score": 1.0,
+          "online_learning_turn_count": 4,
+          "open_case_passed": true,
+          "pe_triggered_turn_count": 1,
+          "prediction_chain_turn_count": 4,
+          "primary_check_passed": true,
+          "profile_label": "pe-eta",
+          "reasons": [],
+          "scenario_id": "open_goal_shift_heldout",
+          "seed": 101,
+          "split": "open_heldout",
+          "temporal_change_count": 3,
+          "turn_count": 4
+        },
+        {
+          "acceptance_checks": [
+            [
+              "episode-runs-to-completion",
+              true
+            ],
+            [
+              "repair-observable-when-expected",
+              true
+            ],
+            [
+              "runtime-adaptation-evidence-observed",
+              true
+            ],
+            [
+              "prediction-chain-present",
+              true
+            ],
+            [
+              "pe-schedule-observed",
+              false
+            ],
+            [
+              "temporal-trajectory-nonconstant",
+              true
+            ],
+            [
+              "multi-timescale-evidence-observed",
+              true
+            ],
+            [
+              "runtime-backbone-evidence-observed",
+              false
+            ],
+            [
+              "late-episode-stabilization-or-improvement",
+              true
+            ],
+            [
+              "emotional-decision-support-observed",
+              true
+            ]
+          ],
+          "delayed_improvement_observed": true,
+          "late_episode_stability_score": 1.0,
+          "online_learning_turn_count": 4,
+          "open_case_passed": false,
+          "pe_triggered_turn_count": 0,
+          "prediction_chain_turn_count": 4,
+          "primary_check_passed": true,
+          "profile_label": "pe-drive-off",
+          "reasons": [
+            "pe-schedule-observed",
+            "runtime-backbone-evidence-observed"
+          ],
+          "scenario_id": "open_repair_heldout",
+          "seed": 101,
+          "split": "open_heldout",
+          "temporal_change_count": 4,
+          "turn_count": 4
+        },
+        {
+          "acceptance_checks": [
+            [
+              "episode-runs-to-completion",
+              true
+            ],
+            [
+              "repair-observable-when-expected",
+              true
+            ],
+            [
+              "runtime-adaptation-evidence-observed",
+              true
+            ],
+            [
+              "prediction-chain-present",
+              true
+            ],
+            [
+              "pe-schedule-observed",
+              false
+            ],
+            [
+              "temporal-trajectory-nonconstant",
+              true
+            ],
+            [
+              "multi-timescale-evidence-observed",
+              true
+            ],
+            [
+              "runtime-backbone-evidence-observed",
+              false
+            ],
+            [
+              "late-episode-stabilization-or-improvement",
+              true
+            ],
+            [
+              "emotional-decision-support-observed",
+              true
+            ]
+          ],
+          "delayed_improvement_observed": true,
+          "late_episode_stability_score": 1.0,
+          "online_learning_turn_count": 4,
+          "open_case_passed": false,
+          "pe_triggered_turn_count": 0,
+          "prediction_chain_turn_count": 4,
+          "primary_check_passed": true,
+          "profile_label": "pe-drive-off",
+          "reasons": [
+            "pe-schedule-observed",
+            "runtime-backbone-evidence-observed"
+          ],
+          "scenario_id": "open_clarification_heldout",
+          "seed": 101,
+          "split": "open_heldout",
+          "temporal_change_count": 3,
+          "turn_count": 4
+        },
+        {
+          "acceptance_checks": [
+            [
+              "episode-runs-to-completion",
+              true
+            ],
+            [
+              "repair-observable-when-expected",
+              true
+            ],
+            [
+              "runtime-adaptation-evidence-observed",
+              true
+            ],
+            [
+              "prediction-chain-present",
+              true
+            ],
+            [
+              "pe-schedule-observed",
+              false
+            ],
+            [
+              "temporal-trajectory-nonconstant",
+              true
+            ],
+            [
+              "multi-timescale-evidence-observed",
+              true
+            ],
+            [
+              "runtime-backbone-evidence-observed",
+              false
+            ],
+            [
+              "late-episode-stabilization-or-improvement",
+              true
+            ],
+            [
+              "emotional-decision-support-observed",
+              true
+            ]
+          ],
+          "delayed_improvement_observed": true,
+          "late_episode_stability_score": 0.6666666666666666,
+          "online_learning_turn_count": 5,
+          "open_case_passed": false,
+          "pe_triggered_turn_count": 0,
+          "prediction_chain_turn_count": 5,
+          "primary_check_passed": true,
+          "profile_label": "pe-drive-off",
+          "reasons": [
+            "pe-schedule-observed",
+            "runtime-backbone-evidence-observed"
+          ],
+          "scenario_id": "open_failure_loop_heldout",
+          "seed": 101,
+          "split": "open_heldout",
+          "temporal_change_count": 5,
+          "turn_count": 5
+        },
+        {
+          "acceptance_checks": [
+            [
+              "episode-runs-to-completion",
+              true
+            ],
+            [
+              "repair-observable-when-expected",
+              true
+            ],
+            [
+              "runtime-adaptation-evidence-observed",
+              true
+            ],
+            [
+              "prediction-chain-present",
+              true
+            ],
+            [
+              "pe-schedule-observed",
+              false
+            ],
+            [
+              "temporal-trajectory-nonconstant",
+              true
+            ],
+            [
+              "multi-timescale-evidence-observed",
+              true
+            ],
+            [
+              "runtime-backbone-evidence-observed",
+              false
+            ],
+            [
+              "late-episode-stabilization-or-improvement",
+              true
+            ],
+            [
+              "emotional-decision-support-observed",
+              true
+            ]
+          ],
+          "delayed_improvement_observed": true,
+          "late_episode_stability_score": 1.0,
+          "online_learning_turn_count": 4,
+          "open_case_passed": false,
+          "pe_triggered_turn_count": 0,
+          "prediction_chain_turn_count": 4,
+          "primary_check_passed": true,
+          "profile_label": "pe-drive-off",
+          "reasons": [
+            "pe-schedule-observed",
+            "runtime-backbone-evidence-observed"
+          ],
+          "scenario_id": "open_goal_shift_heldout",
+          "seed": 101,
+          "split": "open_heldout",
+          "temporal_change_count": 3,
+          "turn_count": 4
+        }
+      ],
+      "full_learning_success_rate": 1.0,
+      "full_open_pass_rate": 1.0,
+      "heldout_learning_gain": 0.0,
+      "no_pe_drive_learning_success_rate": 1.0,
+      "no_pe_drive_open_pass_rate": 0.0,
+      "passed": false,
+      "profile_labels": [
+        "pe-eta",
+        "pe-drive-off"
+      ],
+      "runtime_origin": "builtin-fallback",
+      "scenario_ids": [
+        "open_repair_heldout",
+        "open_clarification_heldout",
+        "open_failure_loop_heldout",
+        "open_goal_shift_heldout"
+      ],
+      "seed": 101,
+      "substrate_fingerprint": "8d1346228555b0e9db902c447293cd2a9840cfdf8d1a0ca114bbcfb1556e37b7"
+    }
+  ]
+}

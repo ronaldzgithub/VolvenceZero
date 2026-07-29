@@ -1,0 +1,16 @@
+{
+  "causal_status": "not-supported",
+  "claim_if_not_supported": "PE is an auditable primary signal",
+  "failed_gates": [
+    "probe_seed_101_passed",
+    "full_matrix_complete",
+    "three_seed_direction_and_min_effect",
+    "mean_gain_meets_min_effect"
+  ],
+  "gate_scope": "Gate 1 PE drive causal contribution",
+  "longitudinal_status": "not-evaluated",
+  "mechanism_status": "mechanism-supported",
+  "schema_version": "gate1-pe-causal.v1",
+  "status": "not-supported",
+  "thesis_status": "not-evaluated"
+}

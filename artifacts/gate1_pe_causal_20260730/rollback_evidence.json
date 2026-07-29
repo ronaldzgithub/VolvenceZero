@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "rollback_action": "retain mechanism verdict and shrink causal claim",
+  "rollback_profile": "pe-drive-off",
+  "runtime_owner_mutated_by_evidence": false,
+  "schema_version": "gate1-pe-causal.v1"
+}

@@ -2178,6 +2178,17 @@ return (
   只有在下一包 `full` vs `full-no-pe-drive` 的 3-seed matched run 通过后
   才能升级“PE 是有效学习源”。artifact：
   `artifacts/gate1_pe_mechanism_20260730`。
+- **2026-07-30 causal verdict（NO-GO）**：`gate1-pe-causal.v1` 在实现前
+  冻结既有 dialogue `pe-eta / pe-drive-off` 两臂、四个
+  `open_heldout` case、seed `101 / 211 / 307` 与一个 case 的最小效应
+  `0.25`。正式 seed `101` 上两臂的纯行为
+  `late-episode-stabilization-or-improvement` 成功率均为 `1.0`，
+  gain=`0.0`，因此按预注册立即停止，未运行其余 seed、未调参重跑。
+  通用 open pass 的 `1.0 vs 0.0` 仅由 PE schedule 与 runtime-backbone
+  机制检查造成，不能充当 PE 学习增益。machine
+  status=`not-supported`；本门当前只支持“PE 是可审计原始信号”，不支持
+  “PE 驱动在该 held-out 行为面产生已测得增益”。artifact：
+  `artifacts/gate1_pe_causal_20260730`。
 
 ### Gate 2 — ETA 的 `z_t / beta_t` 涌现与因果残差控制
 

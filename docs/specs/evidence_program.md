@@ -107,6 +107,48 @@
     `1151657afa05b76671d9196d00e1b50c2d3e64c1bf4297610233865cfd7a9537`。
     verdict=`mechanism-supported`，artifact：
     `artifacts/gate1_pe_mechanism_20260730`。causal 层仍由包 1b 单独判定。
+- Gate 1 PE causal packet 使用 schema `gate1-pe-causal.v1`，在实现与
+  evidence run 前冻结以下门：
+  - matched arms 固定为 dialogue owner 的 `pe-eta`（full）与
+    `pe-drive-off`（full-no-pe-drive）；两臂共享同一个 frozen builtin
+    substrate runtime、同一 seed、同一 scenario 和相同 turn budget，唯一
+    行为差异是 PE 是否驱动 schedule、credit 与 optimizer。
+  - primary split 只含现有 dialogue suite 中
+    `split == "open_heldout"` 的四个冻结场景：
+    `open_repair_heldout / open_clarification_heldout /
+    open_failure_loop_heldout / open_goal_shift_heldout`。不得混入
+    `open_core / open_families / demo`，也不得按实跑结果删选场景。
+  - primary metric 沿用 open dialogue owner 已有的行为 acceptance check
+    `late-episode-stabilization-or-improvement`，定义
+    `heldout_learning_success_rate` 为四个 held-out case 中该检查的通过率，
+    `heldout_learning_gain = rate(pe-eta) - rate(pe-drive-off)`。通用
+    `open_pass_rate` 含 `pe-schedule-observed` 机制检查，会与 PE-off 干预
+    形成循环，因此只作诊断、禁止进入本 causal gate。seed schedule 冻结为
+    `101 / 211 / 307`；最小效应冻结为一个 held-out case，即每个 seed 的 gain
+    `>= 0.25`，且三 seed 必须全部同向达到门槛；跨 seed mean gain
+    `>= 0.25`。均值、逐 case acceptance checks 与 metric means 同时发布，
+    但不替代 primary gate。
+  - 单 seed `101` 是预注册 GO/NO-GO 探针，也同时是三 seed 矩阵的第一个
+    正式 seed：若 gain `< 0.25`，立即停止，不运行其余 seed，不调参重跑，
+    causal verdict=`not-supported`；Gate 1 主张收缩为“PE 是可审计原始
+    信号”，保留 `gate1-pe-mechanism.v1` 的 mechanism verdict。
+  - 若探针通过，才运行 `211 / 307`；任一 seed 不达门或场景/profile/
+    runtime fingerprint 不匹配均判 `not-supported`。三 seed 全通过时最多
+    产 `causal-supported`，不得自动升级为纵向或 thesis verdict。
+  - packet 复用同一 12 文件名；逐 seed/profile/scenario 的 pass、reasons、
+    acceptance checks 与 owner telemetry 落入 jsonl，bundle 必须能从这些
+    原始记录重算 verdict。rollback 是保持 `pe-drive-off` 臂可用并将 causal
+    claim 收缩，不修改 runtime owner。
+  - 2026-07-30 实跑：正式 GO/NO-GO seed `101` 在四个
+    `open_heldout` case 上，`pe-eta` 与 `pe-drive-off` 的
+    `heldout_learning_success_rate` 均为 `1.0`，primary gain=`0.0`，
+    未达到预注册最小效应 `0.25`，因此立即停止且未运行 `211 / 307`。
+    作为诊断，通用 `open_pass_rate` 为 `1.0 vs 0.0`，但 PE-off 的失败
+    reasons 仅来自 `pe-schedule-observed` 与
+    `runtime-backbone-evidence-observed`，不能作为行为学习增益。
+    verdict=`not-supported`；Gate 1 保留 mechanism verdict，causal 主张
+    收缩为“PE 是可审计原始信号”。artifact：
+    `artifacts/gate1_pe_causal_20260730`。
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - ETA Gate 2 residual causal packet 使用
   `volvence_zero.agent.eta_gate2_residual_evidence` 冻结

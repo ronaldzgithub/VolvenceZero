@@ -1,0 +1,47 @@
+{
+  "baseline_label": "pe-eta",
+  "minimum_effect": 0.25,
+  "owner": "dialogue open benchmark evidence harness",
+  "primary_check": "late-episode-stabilization-or-improvement",
+  "primary_metric": "heldout_learning_gain",
+  "profiles": [
+    "pe-eta",
+    "pe-drive-off"
+  ],
+  "provenance": {
+    "git_branch": "main",
+    "git_sha": "000a98864fa4a5da251146b491a553008a4564f8",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "working_tree_dirty": true
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "runtime_mode": "builtin-only",
+  "scenario_ids": [
+    "open_repair_heldout",
+    "open_clarification_heldout",
+    "open_failure_loop_heldout",
+    "open_goal_shift_heldout"
+  ],
+  "scenario_split": "open_heldout",
+  "schema_version": "gate1-pe-causal.v1",
+  "seed_schedule": [
+    101,
+    211,
+    307
+  ],
+  "suite_id": "gate1-pe-causal"
+}
