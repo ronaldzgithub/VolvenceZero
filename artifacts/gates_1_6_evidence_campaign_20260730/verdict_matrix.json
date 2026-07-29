@@ -1,0 +1,70 @@
+{
+  "schema_version": "gates-1-6-verdict-matrix.v1",
+  "overall_status": "mechanism-supported",
+  "rows": [
+    {
+      "gate": 1,
+      "claim": "PE is an auditable primary signal and an effective learning source.",
+      "mechanism": "mechanism-supported",
+      "causal": "not-supported",
+      "longitudinal": "not-evaluated",
+      "retained_claim": "PE is an auditable primary signal grounded to true LSS.",
+      "rejected_claim": "The tested PE-driven arm improves held-out behavior over PE-drive-off.",
+      "key_result": "seed 101 behavioral success was 1.0 vs 1.0; gain 0.0 < 0.25; remaining seeds stopped by preregistration."
+    },
+    {
+      "gate": 2,
+      "claim": "Conditional z-space action value causally controls frozen residual behavior.",
+      "mechanism": "mechanism-supported",
+      "causal": "causal-supported",
+      "shadow_observation": "not-supported",
+      "longitudinal": "not-evaluated",
+      "retained_claim": "The v35 train-fit selector beat its preregistered permutation null on train, fresh validation, and locked confirmation.",
+      "rejected_claim": "The v36 closed-loop shadow selector is ready for runtime SHADOW or live wiring.",
+      "key_result": "v35 deltas were +0.0020/+0.0146/+0.0061; v36 fresh validation selector-permutation was -0.040979."
+    },
+    {
+      "gate": 4,
+      "claim": "Segment-aware active learning saves labels because it uses emergent temporal abstraction.",
+      "mechanism": "mechanism-supported",
+      "causal": "not-supported",
+      "longitudinal": "not-evaluated",
+      "retained_claim": "Typed feedback request and OpenLoop actuation are runnable, auditable, boundary-safe, and rollback-capable.",
+      "rejected_claim": "Segment-aware or PE-driven selection saves labels on the locked corpus.",
+      "key_result": "All arms had balanced accuracy 0.5 and labels-needed 61; segment gains versus turn/random/shuffled were 0."
+    },
+    {
+      "gate": 5,
+      "claim": "Multi-frequency nested CMS improves the absorption-retention Pareto over matched single-timescale memory.",
+      "mechanism": "mechanism-supported",
+      "causal": "not-supported",
+      "longitudinal": "not-evaluated",
+      "retained_claim": "Multi-frequency CMS cadence, replay, rollback, and frozen-substrate boundaries are runnable and auditable.",
+      "rejected_claim": "The measured multi-frequency Pareto gain reaches the preregistered minimum effect.",
+      "key_result": "Absorption/retention gains versus single-timescale were +2.508e-7/+1.173e-6 < 0.02."
+    },
+    {
+      "gate": 6,
+      "claim": "Slow learned meta-init transfers knowledge and adapts faster than copy, random, and zero initialization.",
+      "mechanism": "mechanism-supported",
+      "causal": "not-supported",
+      "longitudinal": "not-evaluated",
+      "retained_claim": "Nested initialization is owner-controlled, zero-leakage, auditable, and checkpoint rollback-capable.",
+      "rejected_claim": "Meta-init is faster than direct copy or contains a distinguishable user-related prior.",
+      "key_result": "Meta and copy both reached target at step 0; meta AUC was lower by 0.000171; paired/swapped AUC differed by about 1.18e-6."
+    }
+  ],
+  "counts": {
+    "target_gate_count": 5,
+    "mechanism_supported": 5,
+    "causal_supported": 1,
+    "causal_not_supported": 4,
+    "longitudinal_supported": 0
+  },
+  "promotion_boundary": {
+    "campaign_highest_common_level": "mechanism-supported",
+    "runtime_shadow_promotion_allowed": false,
+    "thesis_retained": false,
+    "known_debt_92_closed": false
+  }
+}

@@ -2127,6 +2127,18 @@ return (
 
 > **状态（2026-07-29）**：OPEN / evidence design frozen，尚未形成统一真 substrate、长轨迹、多 seed 的总验收 verdict。Gate 2 于 2026-07-29 新增 v31 environment-outcome packet 与 max-of-noise 诊断（NLL selector 路线定性关闭），同日 v32 oracle-vs-permutation-null 门、v33 realized-continuation 去天花板 packet 与 v34 learned-control-basis packet 落地：效应全距已达 `0.02` 门槛（134/134 前缀）；v34 换掉任意正弦执行器坐标系后，v32 严格 selector 门首次四个冻结分区全绿（audit selected credit `+0.006~+0.017`，SHADOW 级注入许可），但 oracle 边际迁移门在 validation 仍失败，promotion 维持拒绝，主张更新为「行为级因果功率已证明、可迁移动作价值以 train-fit selector 为载体首次获得正向证据、oracle 边际迁移未证明」（见 Gate 2 段）。同日 v35 selector-vs-permutation-null packet 预注册并完成（新正式门 + 4 条 fresh validation + 4 条 locked confirmation routes，完整分析计划见 `.cursor/plans/eta-gate2-v35-selector-null_e4a91f27.plan.md`）：预注册门三个正式分区全部通过（train `+0.0020` / fresh validation `+0.0146` / locked confirmation `+0.0061`），machine verdict 首次升为 `causal-supported`、`promotion_allowed=true`——Gate 2 causal 层在本 packet 范围内闭合，主张升级为「条件化动作价值在从未观察分区通过预注册置换零假设检验」。随后 v36 闭环 SHADOW 注入包完成实现与单 seed GO/NO-GO 探针：train/confirmation 均超过 zero 与 permutation-null，但 fresh validation 相对 permutation-null 为 `-0.040979`，故 `shadow_observation_passed=false`，按预注册止损不启动三 seed；这不撤销 v35 causal promotion，但冻结 runtime SHADOW/live wiring。Gate 2 仍是 CPU、合成语料、短前缀，longitudinal 层与 EXIT 其余条款未闭合（见 Gate 2 段 v35/v36 bullets）。已有单元测试、synthetic proof、SHADOW artifact 和局部真 trace 只能作为子证据；本债关闭前，对外只能说“架构链与局部机制已实现/待系统验证”，不能说“Volvence 整体 thesis 已被证明”。
 
+> **2026-07-30 Gate 1–6 战役 checkpoint**：目标 Gate `1/2/4/5/6`
+> 均已有 mechanism + causal machine verdict；mechanism `5/5` 支持，
+> causal 仅 Gate 2 v35 `1/5` 支持，Gate 1/4/5/6 按冻结门 NO-GO，
+> Gate 2 v36 SHADOW observation 也失败，longitudinal 支持数为 `0`。
+> 战役统一等级为 `mechanism-supported`，不是 `thesis-retained` 或
+> `thesis-rejected`；四个局部 NO-GO 已收缩对应主张，但尚未裁判
+> Gate 7–11 的整体链。#92 继续 OPEN，runtime SHADOW/live promotion 保持
+> 冻结。只读对账 artifact：
+> `artifacts/gates_1_6_evidence_campaign_20260730`。下一顺序为 Gate 7
+> causal takeover → Gate 8 wake/sleep；现有 locked 已被观察，只能作
+> development，正式确认必须新建 fresh locked。
+
 - **路径**：
   - 总论与需求：[`docs/volvence-thesis.md`](volvence-thesis.md) · [`docs/next_gen_emogpt.md`](next_gen_emogpt.md)
   - PE / LSS：[`docs/specs/prediction-error-loop.md`](specs/prediction-error-loop.md)

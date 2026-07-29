@@ -1,0 +1,65 @@
+{
+  "schema_version": "gates-1-6-evidence-campaign.v1",
+  "artifact_kind": "read-only-campaign-reconciliation",
+  "campaign_id": "gates-1-6-evidence-campaign-20260730",
+  "created_on": "2026-07-30",
+  "gate_scope": [1, 2, 4, 5, 6],
+  "gate_3_note": "Gate numbering follows known debt #92, which has no Gate 3 section.",
+  "overall_status": "mechanism-supported",
+  "mechanism_verdict_count": 5,
+  "mechanism_supported_count": 5,
+  "causal_verdict_count": 5,
+  "causal_supported_count": 1,
+  "causal_not_supported_count": 4,
+  "longitudinal_supported_count": 0,
+  "thesis_retained": false,
+  "known_debt_92_closed": false,
+  "source_policy": "Read-only aggregation of immutable promotion_verdict.json files; no gate metric is recomputed or promoted.",
+  "source_verdicts": [
+    {
+      "gate": 1,
+      "layer": "mechanism",
+      "path": "artifacts/gate1_pe_mechanism_20260730/promotion_verdict.json",
+      "sha256": "8211b24b3293f3ed39042f333b85f76702d66154bc6755c18a0c61ebfe08d28d"
+    },
+    {
+      "gate": 1,
+      "layer": "causal",
+      "path": "artifacts/gate1_pe_causal_20260730/promotion_verdict.json",
+      "sha256": "39653194d4500fbe3df60417c6b097e5fa296be2921986c4395eab2de9a044b2"
+    },
+    {
+      "gate": 2,
+      "layer": "causal",
+      "path": "artifacts/eta_gate2_residual_causal_v35_selector_null_fresh_fullwidth896_qwen25_05b_cpu_1seed_20260729/promotion_verdict.json",
+      "sha256": "8dfc7ce9d45fdd1a8f97d1da433b213e922d7fdbe23456bbb2018d8b314e5335"
+    },
+    {
+      "gate": 2,
+      "layer": "shadow-observation",
+      "path": "artifacts/eta_gate2_residual_causal_v36_shadow_fullwidth896_qwen25_05b_cpu_1seed_probe_20260729/promotion_verdict.json",
+      "sha256": "2d7c4de96eef2db8eb6cac32cf8650f49626df2e58c2e5b160b0602b4fc64ca8"
+    },
+    {
+      "gate": 4,
+      "layer": "mechanism-and-causal",
+      "path": "artifacts/gate4_active_learning_20260730/promotion_verdict.json",
+      "sha256": "9b614e69d2f19c628716504a939df1d6c23f92fe33704262d4b78ff70ec19b94"
+    },
+    {
+      "gate": 5,
+      "layer": "mechanism-and-causal",
+      "path": "artifacts/gate5_cms_pareto_20260730/promotion_verdict.json",
+      "sha256": "4418e4eec24251287b8b226f0dfa72fa01c28c15b330e160dfc509a20b3de2c8"
+    },
+    {
+      "gate": 6,
+      "layer": "mechanism-and-causal",
+      "path": "artifacts/gate6_meta_init_20260730/promotion_verdict.json",
+      "sha256": "fa8ccbbb2ee88f81d629d413c080d398eeba8c90daf34064947fb71f2ff3145c"
+    }
+  ],
+  "next_gate_order": [7, 8],
+  "remaining_gate_scope": [7, 8, 9, 10, 11],
+  "locked_reuse_policy": "Existing locked partitions are immutable and consumed. Gate 7/8 may use their train/heldout rows for development only; formal causal confirmation requires a fresh locked split."
+}

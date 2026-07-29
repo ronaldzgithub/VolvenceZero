@@ -351,6 +351,15 @@
     context-centroid 最大 pairwise MAE 仅约 `2.27e-6`，不得外推为
     context-diverse/user-related meta-prior；不调参、不重跑 locked。
     artifact：`artifacts/gate6_meta_init_20260730`。
+- Gate 1–6 战役于 2026-07-30 完成只读总对账。目标 gate 按 #92 编号为
+  `1 / 2 / 4 / 5 / 6`（#92 没有 Gate 3 小节）：五门 mechanism verdict
+  全部支持；causal 仅 Gate 2 v35 支持，Gate 1/4/5/6 均
+  `not-supported`；Gate 2 v36 SHADOW observation 也未通过；没有一门获得
+  longitudinal-supported。因此共同最高证据等级固定为
+  `mechanism-supported`，`thesis-retained=false`、#92 保持 OPEN，
+  runtime SHADOW/live promotion 不获授权。总对账只读取并 SHA256 绑定原
+  verdict，不重算或抬高门级结论。artifact：
+  `artifacts/gates_1_6_evidence_campaign_20260730`。
 - Gate 4 主动学习使用 schema `gate4-active-learning.v1`，在实现与首次读取
   `trace-locked-confirmation` label 前冻结以下协议：
   - 原 `artifacts/gate456_shared_settled_trace_20260730` 保持不可变。前置
