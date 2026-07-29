@@ -124,6 +124,12 @@ y_t = MLP^(ν_K)(MLP^(ν_{K-1})(... MLP^(ν_1)(x_t)))
   parameter state（reset decision telemetry 仍按 owner 规则更新）。生产
   `reset_nested_context()` 仍只委托 `meta-init`；其余模式不能成为 live
   policy 或第二 memory owner。
+- 2026-07-30 `gate6-meta-init.v1` 正式结果为 mechanism PASS / causal
+  NO-GO：meta-init 胜过 random/no-init，但与 copy-init 的 locked
+  steps-to-target 均为 `0`，早期 AUC 还低 `0.000171`；paired/swapped
+  diagnostic 无可区分优势。当前只能证明 owner-side nested initializer
+  可运行、可审计、零事实泄漏且可 checkpoint rollback，不能声称 slow
+  meta-prior 相比直接复制更快适应，也不能声称 user-related prior。
 
 ## 当前 proof surface
 

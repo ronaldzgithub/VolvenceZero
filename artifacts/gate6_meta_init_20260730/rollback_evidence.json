@@ -1,0 +1,1163 @@
+{
+  "episodes": [
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-401-global-train",
+      "seed": 401
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-409-global-train",
+      "seed": 409
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-apiary",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-brewery",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-museum",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-theater",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "heldout-geology",
+      "partition": "trace-heldout-context",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-luthiery",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-bathymetry",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "meta-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "copy-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "random-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "no-init",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "paired-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    },
+    {
+      "arm": "swapped-user-slow-state",
+      "checkpoint_restore_exact": true,
+      "context_id": "locked-mycology",
+      "partition": "trace-locked-confirmation",
+      "rollback_target": "gate6-419-global-train",
+      "seed": 419
+    }
+  ],
+  "passed": true,
+  "production_rollback": {
+    "disable": "nested_profile=False",
+    "restore": "MemoryStoreCheckpoint"
+  },
+  "schema_version": "gate6-meta-init.v1",
+  "substrate_mutated": false
+}

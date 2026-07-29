@@ -335,6 +335,22 @@
     且若 swapped diagnostic 失败，不得声称 user-related prior。回滚为恢复
     episode 前 `MemoryStoreCheckpoint` 或关闭 nested profile，不修改 frozen
     substrate；locked 失败后不调参、不重跑同一分区。
+  - 2026-07-30 正式 run 已完成，locked 分区按协议仅消费一次。三 seed
+    train checkpoint、四个 primary 臂与 paired/swapped diagnostic 共完成
+    `54` 个 locked episodes；lineage、用户/情境隔离、事实泄漏=`0`、frozen
+    substrate mutation=`0`、initializer 不改 slow/learned parameters、
+    matched 参数预算和 checkpoint rollback 全绿，故 mechanism PASS。
+    meta-init 相对 random/no-init 的 locked steps gain 分别为
+    `4.666667 / 4.0`，AUC gain 为 `0.260020 / 0.225409`；但相对最强
+    `copy-init` 的 steps gain=`0.0`，AUC gain=`-0.000171`，未达到任一
+    冻结最小效应。final-error non-inferiority 与负迁移率=`0.0` 均通过，
+    不能补救 primary 对 copy-init 的失败。因此 verdict=`not-supported`，
+    主张只保留“nested initialization mechanism 可运行、可审计且可回滚”。
+    paired-minus-swapped AUC 仅 `-0.00000118`、steps 差=`0.0`，故
+    `user_related_prior_supported=false`。source diagnostic 显示三分区
+    context-centroid 最大 pairwise MAE 仅约 `2.27e-6`，不得外推为
+    context-diverse/user-related meta-prior；不调参、不重跑 locked。
+    artifact：`artifacts/gate6_meta_init_20260730`。
 - Gate 4 主动学习使用 schema `gate4-active-learning.v1`，在实现与首次读取
   `trace-locked-confirmation` label 前冻结以下协议：
   - 原 `artifacts/gate456_shared_settled_trace_20260730` 保持不可变。前置

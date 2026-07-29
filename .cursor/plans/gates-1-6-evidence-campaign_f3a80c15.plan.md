@@ -1,7 +1,7 @@
 # Gate 1–6 证据战役：长周期完整执行计划
 
-> 状态：执行中（Phase 0–4 已完成；Gate 1 / Gate 4 / Gate 5 causal 按
-> 预注册 NO-GO 收缩；Phase 5 Gate 6 数值门已冻结，进入实现）。
+> 状态：执行中（Phase 0–5 已完成；Gate 1 / Gate 4 / Gate 5 / Gate 6
+> causal 按预注册 NO-GO 收缩；进入 Phase 6 总对账）。
 > 目标：把 `docs/known-debts.md` #92 的系统级证据门推进到
 > **Gate 1、2、4、5、6 全部拿到 mechanism + causal verdict**（Gate 2 另加
 > SHADOW 观测闭环）。注：known-debts 当前没有 `### Gate 3` 小节（编号从 2 跳到
@@ -246,5 +246,5 @@ longitudinal）全部离线 replay 它，保证「同经历」。
 | Phase 2 trace 工厂 | 已完成（PASS） | `gate456-shared-settled-trace.v1`：Qwen2.5-0.5B strict-local 三 seed 各 510、合计 1530 settled transitions；分区 900/450/180，lineage `1.0`、mismatch/duplicate `0/0`，fallback/empty residual/mutation 均 0，跨 seed fingerprint 一致；consumer admission allowed。artifact `artifacts/gate456_shared_settled_trace_20260730` |
 | Phase 3 Gate 5 Pareto | 已完成（NO-GO） | `gate5-cms-pareto.v1`：五臂 × 三 seed 共 7650 arm-transitions；mechanism/cadence/rollback 全绿，full 对所有 control Pareto 不劣，但相对 single-timescale 双指标增益 `+2.508e-7 / +1.173e-6 < 0.02`，causal claim 收缩；artifact `artifacts/gate5_cms_pareto_20260730` |
 | Phase 4 Gate 4 四臂 | 已完成（NO-GO） | `gate4-active-learning.v1`：修正版 adjunct trace 三 seed × 510 closure coverage 全绿；五臂 typed request/OpenLoop/no-write 机制门通过，但所有 heldout/locked balanced accuracy=`0.5`、labels-needed=`61`，segment 对 turn/random/shuffled gain 均 0，PE-driven diagnostic 也失败；主张收缩为 typed request 机制可运行。artifacts `artifacts/gate4_segment_settled_trace_20260730`、`artifacts/gate4_active_learning_20260730` |
-| Phase 5 Gate 6 四臂 | 预注册已冻结，实施中 | `gate6-meta-init.v1`：四个 primary 初始化臂 + swapped-user diagnostic；locked 尚未读取 |
-| Phase 6 总对账 | 未开始 | — |
+| Phase 5 Gate 6 四臂 | 已完成（NO-GO） | `gate6-meta-init.v1`：54 locked episodes，mechanism 全绿；meta 胜 random/no-init，但对 copy-init steps=0 平局、AUC `-0.000171`，paired/swapped 不可区分，causal 与 user-related prior 均不支持；artifact `artifacts/gate6_meta_init_20260730` |
+| Phase 6 总对账 | 进行中 | 汇总 Gate 1/2/4/5/6 mechanism/causal verdict 与后续 Gate 7/8 路径 |

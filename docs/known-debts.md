@@ -2542,6 +2542,17 @@ return (
   - 测达到目标误差所需步数、前 K 步 adaptation AUC、最终质量、负迁移率；held-out 用户/情境不得出现在 slow target 的训练标签中。
   - 用 swapped-user slow state 做污染负对照；具体事实泄漏必须为 0，跨用户可迁移的只能是抽象初始化先验。
 - **EXIT**：meta-init 在多 seed held-out context 上减少适应步数或提高前 K 步 AUC，且不增加最终误差、事实泄漏或负迁移；仅“reset 后状态不同”不算通过。
+- **2026-07-30 verdict（NO-GO，主张已收缩）**：
+  `gate6-meta-init.v1` 完成三 seed、`54` 个 locked episodes。owner-side
+  initializer、lineage/隔离、零事实泄漏、frozen substrate、同参数预算与
+  checkpoint rollback 机制门全绿。meta-init 相对 random/no-init 分别少
+  `4.666667 / 4.0` 步，但相对 copy-init 为 `0` 步平局，且前 8 步 AUC
+  低 `0.000171`，未满足“优于每个 control”的冻结最小效应；
+  verdict=`not-supported`。paired/swapped AUC 差仅 `1.18e-6`，
+  `user_related_prior_supported=false`。共享 digest 的 context-centroid
+  最大 pairwise MAE 仅约 `2.27e-6`，后续若重开必须使用全新、
+  context-diverse 且可审计 user-prior 的 corpus，禁止重跑本 locked。
+  artifact：`artifacts/gate6_meta_init_20260730`。
 
 ### Gate 7 — SSL→Internal RL 交替与 causal takeover
 

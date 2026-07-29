@@ -1,0 +1,73 @@
+{
+  "diagnostic_arm_schedule": [
+    "paired-user-slow-state",
+    "swapped-user-slow-state"
+  ],
+  "early_k": 8,
+  "error_scale": 0.1,
+  "final_error_tolerance": 0.01,
+  "minimum_auc_gain": 0.05,
+  "minimum_step_gain": 2.0,
+  "model_and_adapter_ids": {
+    "adapter_ids": [],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "substrate_mode": "frozen strict-local source trace"
+  },
+  "negative_transfer_limit": 0.0,
+  "owner": "vz-memory.MemoryStore/CMSMemoryCore",
+  "partition_schedule": {
+    "trace-heldout-context": 150,
+    "trace-locked-confirmation": 60,
+    "trace-train": 300
+  },
+  "primary_arm_schedule": [
+    "meta-init",
+    "copy-init",
+    "random-init",
+    "no-init"
+  ],
+  "primary_partition": "trace-locked-confirmation",
+  "provenance": {
+    "git_branch": "main",
+    "git_sha": "f1ab8389a6771a2d5889467774342b330b3cb718",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "working_tree_dirty": true
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate6-meta-init.v1",
+  "seed_schedule": [
+    401,
+    409,
+    419
+  ],
+  "signal_source": "memory_snapshot.attribute_summary.latest.substrate_feature_digest",
+  "source_trace_sha256_by_seed": {
+    "401": "66724f38953553c6ca74cca121b6080c385d17104cb1a0117b2d289c70fd3d1d",
+    "409": "a87c195d7088bcbaee0377dbff341a153643294b5a33c8cf44dad708286a185b",
+    "419": "843561ca0cfaeba924146179d62c4c3eed65363788d204ff093767cd92efa2fc"
+  },
+  "substrate_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+  "suite_id": "gate6-meta-init",
+  "target_error": 0.02,
+  "trace_root": "artifacts/gate456_shared_settled_trace_20260730",
+  "trace_schema_version": "gate456-shared-settled-trace.v1",
+  "wiring_levels": {
+    "memory_owner": "matched nested CMS episode replay",
+    "source_runtime": "ACTIVE frozen trace",
+    "substrate_mutation": "DISABLED"
+  }
+}

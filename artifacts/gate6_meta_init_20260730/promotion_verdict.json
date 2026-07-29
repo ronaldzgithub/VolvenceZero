@@ -1,0 +1,16 @@
+{
+  "causal_passed": false,
+  "claim": "nested initialization is runnable, auditable, and rollback-capable",
+  "failed_gates": [
+    "meta_minimum_effect_all_controls"
+  ],
+  "gate5_pareto_claim_inherited": false,
+  "gate_scope": "Gate 6 nested meta-init slow-to-fast transfer",
+  "invalid_gates": [],
+  "locked_partition_consumed_once": true,
+  "mechanism_passed": true,
+  "same_locked_partition_rerun_allowed": false,
+  "schema_version": "gate6-meta-init.v1",
+  "status": "not-supported",
+  "user_related_prior_supported": false
+}
