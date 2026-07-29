@@ -20,7 +20,6 @@ ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
 # cross-episode checkpoint before it ever reaches the optimizer.
 ANT_RUNTIME_SEGMENT_MAX_STEPS = 16
 ANT_RUNTIME_BATCH_TRANSITION_SIZE = 4
-ANT_PREDICTION_ERROR_BOUNDARY_FLOOR = 0.45
 ANT_CAUSAL_ACTION_HEAD_STRENGTH = 1.0
 ANT_CAUSAL_ACTION_HEAD_RANK = 16
 # Frozen motor_decode consumes steering in z[0:2] and speed in z[2].
@@ -90,6 +89,9 @@ def ant_runtime_replay_rollout_config(
     lever: the temporal switch stops consuming external prediction-error
     pressure while every other owner, budget and layout stays matched. True is
     the exact rollback path and the only setting a formal learned arm may use.
+    The lever gates only the additive PE prior; typed milestone boundaries
+    (``environment_milestone_temporal_switch``) are not a PE readout and stay
+    ACTIVE in both arms.
     """
 
     requested_device = os.environ.get("VZ_TENSOR_DEVICE", "cpu").strip().lower()
@@ -177,10 +179,20 @@ def ant_runtime_replay_rollout_config(
             if enable_prediction_error_switch
             else WiringLevel.DISABLED
         ),
+        # Additive-only PE prior at the generic default floor. The ant no
+        # longer overrides the floor: the v30 frozen-replay measurement
+        # (scripts/measure_ant_pe_boundary_margin.py; verdict in
+        # research/ant/06_ecology_implementation_status.md) showed routine PE
+        # (p50 0.508, p99 0.701) overlaps event PE (natural pickups settle at
+        # ~0.32), so a "calibrated" 0.45 floor was routine-noise territory and
+        # carried no event information. Boundaries come from the typed
+        # milestone channel below instead.
         prediction_error_temporal_switch_strength=0.35,
-        prediction_error_temporal_switch_floor=(
-            ANT_PREDICTION_ERROR_BOUNDARY_FLOOR
-        ),
+        # Typed boundary events: the ant session declares pickup/delivery as
+        # ``EnvironmentMeasurement.discrete_milestone``; the temporal owner
+        # closes the running action segment on the next decision. This is the
+        # structural replacement for the refuted PE-magnitude boundary.
+        environment_milestone_temporal_switch=WiringLevel.ACTIVE,
     )
 
 
@@ -195,7 +207,6 @@ __all__ = [
     "ANT_RUNTIME_EXPLORATION_STRENGTH",
     "ANT_RUNTIME_BATCH_TRANSITION_SIZE",
     "ANT_RUNTIME_MODULATION_STRENGTH",
-    "ANT_PREDICTION_ERROR_BOUNDARY_FLOOR",
     "ANT_RUNTIME_SEGMENT_MAX_STEPS",
     "ant_runtime_replay_rollout_config",
 ]

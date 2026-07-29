@@ -410,27 +410,31 @@ class FinalRolloutConfig:
     internal_rl_runtime_exploration_strength: float = 0.0
     # Optional direction-free PE→beta bridge. ACTIVE converts only the
     # previous turn's prediction-error magnitude above the configured floor
-    # into bounded switch pressure; it never supplies an action or target
-    # direction. DISABLED is the byte-stable default.
+    # into bounded ADDITIVE switch pressure; it never supplies an action or
+    # target direction. DISABLED is the byte-stable default.
     #
-    # The pressure carries value/sign dual semantics and only the SIGN
-    # reaches the boundary decision: pressure > 0 (iff magnitude > floor)
-    # requests a temporal boundary that forces the switch, while the additive
-    # VALUE is published as observable intensity with no marginal effect on
-    # the decision (below the floor it is exactly zero; above it the boundary
-    # is already forced). ``_floor`` is therefore the ONLY boundary
-    # calibration knob. ``_strength`` acts as a channel switch (0.0 disables
-    # the boundary even above the floor) plus readout scale; sweeping it in
-    # (0, 1] never changes a decision. Pinned by
-    # tests/test_temporal_contracts.py::
-    # test_pe_switch_strength_value_is_inert_for_boundary_decisions.
-    #
-    # The generic default floor is 0.5; the digital-ant profile overrides it
-    # to ANT_PREDICTION_ERROR_BOUNDARY_FLOOR = 0.45 (volvence_ant
-    # evidence/runtime_profile.py) to sit below its measured pickup PE.
+    # This channel is a readout-scaled prior only: it NEVER decides a
+    # temporal boundary. The v30 frozen-replay measurement
+    # (scripts/measure_ant_pe_boundary_margin.py; verdict in
+    # research/ant/06_ecology_implementation_status.md) found routine PE
+    # (p50 0.508, p99 0.701) overlapping and even exceeding event PE
+    # (natural pickups settle at ~0.32), so no magnitude floor can act as an
+    # event detector. Typed boundary events own boundaries instead:
+    # ``environment_milestone_temporal_switch`` below.
     prediction_error_temporal_switch: WiringLevel = WiringLevel.DISABLED
     prediction_error_temporal_switch_strength: float = 0.35
     prediction_error_temporal_switch_floor: float = 0.5
+    # Typed boundary events (R-PE: which event closes a segment is a typed
+    # readout, not an inference from raw amplitude). ACTIVE lets an
+    # owner-declared discrete environment milestone
+    # (``EnvironmentMeasurement.discrete_milestone``, e.g. the ant's
+    # pickup/delivery) request a temporal boundary on the next decision; the
+    # temporal owner resolves the request against its current learned beta
+    # threshold, so calibrated beta can never permanently outrun a confirmed
+    # milestone. Dense progress readings (``task_progress`` published every
+    # step) never qualify: only the environment owner's explicit declaration
+    # does. DISABLED is the byte-stable default and exact rollback.
+    environment_milestone_temporal_switch: WiringLevel = WiringLevel.DISABLED
     # Phase 2 W2.B of the EQ-owner uplift: session_post_slow_loop is
     # ACTIVE by default. The module's own ``default_wiring_level`` is
     # already ACTIVE; the previous SHADOW override was a treatment-mode

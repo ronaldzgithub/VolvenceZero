@@ -441,6 +441,68 @@ def test_environment_publishes_local_valence_without_target_direction() -> None:
     assert dense_local_shaping_off.measurement is None
 
 
+def test_ecology_outcome_declares_discrete_milestone_only_on_pickup() -> None:
+    """The environment owner types its boundary events; nothing is inferred.
+
+    ``EnvironmentMeasurement.discrete_milestone`` is the owner-declared typed
+    boundary event that replaces the refuted PE-magnitude event detector:
+    only the discrete pickup/delivery state transitions set it, while dense
+    local-valence ticks publish measurements WITHOUT it.
+    """
+
+    config = AntSessionConfig(
+        objective=AntObjectiveKind.ECOLOGY,
+        sense_schema=AntSenseSchema.ECOLOGY_V2,
+        ecology_local_valence_enabled=True,
+    )
+    source = ButterSource(
+        object_id="butter",
+        x=2.0,
+        y=0.0,
+        strength=2.2,
+        decay=2.4,
+        radius=0.2,
+    )
+
+    pickup_world = AntWorld(
+        config=AntWorldConfig(seed=0, step_size=0.4),
+        world_objects=(source,),
+    )
+    # One step ends inside the ButterSource's own contact radius (0.2).
+    pickup_world.set_body_pose(x=1.5, y=0.0, heading=0.0)
+    pickup_world.act(turn_command=0.0, step_command=0.4)
+    pickup_transition = pickup_world.last_transition()
+    assert pickup_transition.picked_up
+    pickup_outcome = AntSession(
+        pickup_world,
+        config=config,
+    )._ecology_environment_outcome(
+        transition=pickup_transition,
+        prediction_id="pickup",
+    )
+    assert pickup_outcome.measurement is not None
+    assert pickup_outcome.measurement.discrete_milestone is True
+
+    routine_world = AntWorld(
+        config=AntWorldConfig(seed=0, step_size=0.4),
+        world_objects=(source,),
+    )
+    # Approaches the source (positive dense local valence) without pickup.
+    routine_world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    routine_world.act(turn_command=0.0, step_command=0.4)
+    routine_transition = routine_world.last_transition()
+    assert not routine_transition.picked_up
+    routine_outcome = AntSession(
+        routine_world,
+        config=config,
+    )._ecology_environment_outcome(
+        transition=routine_transition,
+        prediction_id="routine",
+    )
+    assert routine_outcome.measurement is not None
+    assert routine_outcome.measurement.discrete_milestone is False
+
+
 def test_ecology_neutral_stick_contact_is_observable_but_valence_free() -> None:
     """Wood-stick contact stays a physical fact and never enters payoff.
 

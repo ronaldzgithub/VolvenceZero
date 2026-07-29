@@ -1013,6 +1013,9 @@ class AgentSessionRunner(
             prediction_error_temporal_switch_floor=(
                 self._config.prediction_error_temporal_switch_floor
             ),
+            environment_milestone_temporal_switch=(
+                self._config.environment_milestone_temporal_switch
+            ),
         )
         if (
             self._joint_loop.internal_rl_runtime_replay
@@ -1835,6 +1838,25 @@ class AgentSessionRunner(
             pe_regime_error = self._previous_prediction_error.regime_error if self._previous_prediction_error is not None else 0.0
             pe_action_error = self._previous_prediction_error.action_error if self._previous_prediction_error is not None else 0.0
             experience_eta_signals = self._experience_eta_signals()
+            # Typed boundary events: last turn's still-buffered environment
+            # outcome (consumed for PE settlement later this turn) may carry
+            # an owner-declared discrete milestone. Forward it as a typed
+            # fact; the joint loop's own wiring decides whether it becomes a
+            # boundary request. This is independent of
+            # ``external_prediction_error_drive`` because a milestone is an
+            # environment-published fact, not a prediction-error readout.
+            pending_outcome_for_boundary = self._pending_environment_outcome
+            milestone_boundary_signals = (
+                {"environment_milestone_boundary": 1.0}
+                if (
+                    pending_outcome_for_boundary is not None
+                    and pending_outcome_for_boundary.outcome.measurement
+                    is not None
+                    and pending_outcome_for_boundary.outcome.measurement
+                    .discrete_milestone
+                )
+                else {}
+            )
             if self._external_prediction_error_drive:
                 pe_signals = (
                     {
@@ -1855,6 +1877,7 @@ class AgentSessionRunner(
                     {
                         **experience_eta_signals,
                         **pe_signals,
+                        **milestone_boundary_signals,
                     }
                 )
             else:
@@ -1870,7 +1893,12 @@ class AgentSessionRunner(
                         "prediction_error_reward_readout": self._previous_prediction_reward,
                         "prediction_error_magnitude_readout": min(self._previous_prediction_magnitude / 4.0, 1.0),
                     }
-                self._joint_loop.set_external_learning_signals(readout_only_signals)
+                self._joint_loop.set_external_learning_signals(
+                    {
+                        **readout_only_signals,
+                        **milestone_boundary_signals,
+                    }
+                )
             joint_result = await self._joint_loop.run_scheduled_step(
                 turn_index=self._turn_index,
                 trace=trace,

@@ -100,12 +100,20 @@ FSM 手写的梯度跟随答案直接喂给控制器，而"如何朝食物走"�
 禁止 `AntWorld` 直接传 reward 给 temporal/Internal RL，禁止 evaluation 反灌 reward，禁止 runtime
 另建 mismatch slot。历史上只依赖 drive PE 的结果可以保留为机制 smoke，但不是 learned foraging 证据。
 
-ecology evidence profile 将 `prediction_error_temporal_switch` 设为 `ACTIVE`，并把方向无关的
-PE boundary floor 冻结为 `0.45`。超过该值只表示“上一动作产生了足够大的状态突变，需要关闭旧
-segment”；它不携带食物、巢穴、左右或动作标签。temporal owner 必须相对当前 learned
-`beta_threshold` 完成边界请求，不能只叠加一个固定上限的 logit pressure——否则 threshold 校准可让
-真实 pickup 的 `carrying_food: False→True` 继续沿用 outbound action family，并把 carrying credit
-混回拾取前 segment。低于 floor 的普通扰动不得强制切段；PE-off/SHADOW 仍是原有回滚与因果对照。
+ecology evidence profile 将 `prediction_error_temporal_switch` 设为 `ACTIVE`，但它只是**加性
+prior**（floor 用内核通用默认 0.5），从不决定边界。曾经冻结的 `0.45` PE boundary floor 已被
+v30 冻结重放实测整体否定（`scripts/measure_ant_pe_boundary_margin.py`：日常拍 PE p50 0.508、
+p99 0.701，68% 超过 0.45，而自然 medium 拾取下一拍只有 ~0.32——任何幅度阈值都无法分离事件与
+日常预测误差；判词见 `research/ant/06_ecology_implementation_status.md` v31 段）。
+
+边界改由**类型化里程碑**承载：ant session（环境 owner）在 pickup/delivery 的 outcome 上声明
+`EnvironmentMeasurement.discrete_milestone=True`（稠密 local-valence 拍不声明），profile 将
+`environment_milestone_temporal_switch` 设为 `ACTIVE`，temporal owner 在下一拍决策时相对当前
+learned `beta_threshold` 解析该请求并关闭旧 segment——threshold 校准不能把已确认的里程碑永久
+屏蔽，否则真实 pickup 的 `carrying_food: False→True` 会继续沿用 outbound action family，把
+carrying credit 混回拾取前 segment。该声明只标记“这是离散任务里程碑”，不携带食物、巢穴、左右
+或动作标签；DISABLED 是逐字节回滚。PE-off 匹配对照臂只关加性 PE prior，里程碑通道在两臂保持
+一致（它是环境发布的事实，不是 PE readout）。
 
 这里的“只有两个 task milestone”不等于系统其余 PE 必须为零：局部 food/pheromone/heading 感知仍会
 产生 substrate prediction mismatch，Internal-RL 可把它作为内在 PE 信号。它不读取食物坐标或全局距离，

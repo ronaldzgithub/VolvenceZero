@@ -428,6 +428,10 @@ class AntSession:
                     rollout.prediction_error_temporal_switch.value,
                 ),
                 (
+                    "environment_milestone_temporal_switch",
+                    rollout.environment_milestone_temporal_switch.value,
+                ),
+                (
                     "internal_rl_runtime_exploration_strength",
                     f"{rollout.internal_rl_runtime_exploration_strength:.6f}",
                 ),
@@ -586,10 +590,24 @@ class AntSession:
         # hand the controller the gradient-following answer the FSM hardcodes,
         # which is exactly the skill the controller is supposed to LEARN.
         status = "delivered" if transition.delivered else ("picked_up" if transition.picked_up else "moved")
+        # ``discrete_milestone`` is the owner's typed boundary declaration:
+        # pickup and delivery are the only discrete task milestones, so they
+        # are the only outcomes allowed to close a temporal segment. Dense
+        # readings never set it.
         if transition.delivered:
-            measurement = EnvironmentMeasurement(task_progress=1.0, action_payoff=1.0, terminal=True)
+            measurement = EnvironmentMeasurement(
+                task_progress=1.0,
+                action_payoff=1.0,
+                terminal=True,
+                discrete_milestone=True,
+            )
         elif transition.picked_up:
-            measurement = EnvironmentMeasurement(task_progress=0.5, action_payoff=0.5, terminal=False)
+            measurement = EnvironmentMeasurement(
+                task_progress=0.5,
+                action_payoff=0.5,
+                terminal=False,
+                discrete_milestone=True,
+            )
         else:
             measurement = None
         return EnvironmentOutcome(
@@ -666,11 +684,19 @@ class AntSession:
                 if not facts:
                     facts.append("local_valence")
         status = "+".join(facts) if facts else "moved"
+        # Owner-typed boundary declaration: only the discrete pickup /
+        # delivery state transitions are milestones. Heat threshold
+        # crossings and bounded local-valence deltas stay observable facts
+        # without segment-boundary semantics -- extending the milestone set
+        # is an owner-side contract change, not a consumer inference.
         measurement = (
             EnvironmentMeasurement(
                 task_progress=task_progress,
                 action_payoff=max(-1.0, min(1.0, payoff)),
                 terminal=terminal,
+                discrete_milestone=(
+                    transition.delivered or transition.picked_up
+                ),
             )
             if valenced
             else None

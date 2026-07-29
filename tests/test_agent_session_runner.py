@@ -29,6 +29,8 @@ from volvence_zero.environment import (
     EnvironmentEvent,
     EnvironmentEventKind,
     EnvironmentFrame,
+    EnvironmentMeasurement,
+    EnvironmentOutcome,
 )
 from volvence_zero.dialogue_trace import (
     DialogueOutcomeKind,
@@ -109,6 +111,81 @@ def test_agent_session_runner_wires_rl_batch_accumulation_config():
     )
 
     assert runner._joint_loop.rl_batch_accumulation_size == 4
+
+
+def _milestone_environment_outcome(*, discrete_milestone: bool) -> EnvironmentOutcome:
+    return EnvironmentOutcome(
+        outcome_id="milestone-outcome",
+        event_id="milestone-event",
+        outcome_kind=EnvironmentEventKind.SCENE_EVENT,
+        action_id="milestone-action",
+        status="picked_up",
+        summary="typed milestone outcome",
+        detail="owner-declared discrete task milestone",
+        environment_state_delta_kind="picked_up",
+        measurement=EnvironmentMeasurement(
+            task_progress=0.5,
+            action_payoff=0.5,
+            discrete_milestone=discrete_milestone,
+        ),
+    )
+
+
+def test_environment_milestone_boundary_forces_next_turn_temporal_switch():
+    """Owner-declared milestones close the running temporal segment.
+
+    The submitted outcome's ``discrete_milestone`` reaches the temporal owner
+    as a typed boundary request on the NEXT turn (the turn that settles the
+    outcome), resolved against the current learned beta threshold -- so a
+    calibrated threshold can never permanently outrun a confirmed milestone.
+    """
+
+    runner = AgentSessionRunner(
+        session_id="milestone-boundary",
+        config=FinalRolloutConfig(
+            environment_milestone_temporal_switch=WiringLevel.ACTIVE,
+        ),
+    )
+    asyncio.run(runner.run_turn("Establish a running action segment."))
+
+    world_store = runner._joint_loop.world_temporal_policy.parameter_store
+    self_store = runner._joint_loop.self_temporal_policy.parameter_store
+    world_store.beta_threshold = 0.95
+    self_store.beta_threshold = 0.95
+
+    quiet = asyncio.run(runner.run_turn("A quiet turn without any milestone."))
+    assert world_store.external_boundary_requested() is False
+    quiet_state = quiet.active_snapshots["temporal_abstraction"].value.controller_state
+    assert quiet_state.is_switching is False
+
+    runner.submit_environment_outcome(
+        _milestone_environment_outcome(discrete_milestone=True)
+    )
+    settled = asyncio.run(runner.run_turn("This turn settles the milestone."))
+    assert world_store.external_boundary_requested() is True
+    assert self_store.external_boundary_requested() is True
+    settled_state = settled.active_snapshots["temporal_abstraction"].value.controller_state
+    assert settled_state.is_switching is True
+    assert settled_state.switch_gate >= 0.95
+
+
+def test_environment_milestone_boundary_stays_closed_without_active_wiring():
+    """DISABLED wiring (the default) is the exact rollback: no boundary."""
+
+    runner = AgentSessionRunner(session_id="milestone-boundary-disabled")
+    asyncio.run(runner.run_turn("Establish a running action segment."))
+
+    world_store = runner._joint_loop.world_temporal_policy.parameter_store
+    world_store.beta_threshold = 0.95
+    runner._joint_loop.self_temporal_policy.parameter_store.beta_threshold = 0.95
+
+    runner.submit_environment_outcome(
+        _milestone_environment_outcome(discrete_milestone=True)
+    )
+    settled = asyncio.run(runner.run_turn("This turn settles the milestone."))
+    assert world_store.external_boundary_requested() is False
+    settled_state = settled.active_snapshots["temporal_abstraction"].value.controller_state
+    assert settled_state.is_switching is False
 
 
 def test_agent_session_runner_exposes_primary_social_scope_from_active_owner():

@@ -215,6 +215,17 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         prediction_error_temporal_switch: WiringLevel = WiringLevel.DISABLED,
         prediction_error_temporal_switch_strength: float = 0.35,
         prediction_error_temporal_switch_floor: float = 0.5,
+        # Typed boundary events. When ACTIVE, an owner-declared discrete
+        # environment milestone (``environment_milestone_boundary`` in the
+        # external learning signals) requests a temporal boundary that the
+        # temporal owner resolves against its current learned beta threshold.
+        # This replaces the refuted magnitude-threshold event detector: the
+        # v30 replay measurement showed routine PE overlaps event PE, so PE
+        # magnitude cannot decide boundaries (see
+        # research/ant/06_ecology_implementation_status.md, v31 verdict).
+        environment_milestone_temporal_switch: WiringLevel = (
+            WiringLevel.DISABLED
+        ),
     ) -> None:
         self._world_policy = world_policy or policy or FullLearnedTemporalPolicy()
         self._self_policy = self_policy or FullLearnedTemporalPolicy(
@@ -289,6 +300,9 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         )
         self._prediction_error_temporal_switch_floor = float(
             prediction_error_temporal_switch_floor
+        )
+        self._environment_milestone_temporal_switch = (
+            environment_milestone_temporal_switch
         )
         self._primary_prediction_error_dominance_enabled = primary_prediction_error_dominance_enabled
         self._last_schedule_action = "evidence-only"
@@ -373,8 +387,23 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
 
     def set_external_learning_signals(self, signals: dict[str, float]) -> None:
         self._external_learning_signals = dict(signals)
+        # Typed boundary events: the environment owner declared last turn's
+        # outcome a discrete milestone. The request is turn-scoped and is
+        # refreshed (or cleared) on every call, so a milestone never leaks
+        # into later decisions.
+        milestone_boundary = (
+            self._environment_milestone_temporal_switch is WiringLevel.ACTIVE
+            and float(signals.get("environment_milestone_boundary", 0.0))
+            > 0.0
+        )
+        for policy in (self._world_policy, self._self_policy):
+            policy.parameter_store.record_external_boundary_request(
+                milestone_boundary
+            )
         if self._prediction_error_temporal_switch is WiringLevel.DISABLED:
             return
+        # Additive-only PE switch prior (a readout-scaled bias, never a
+        # boundary decision; the typed milestone path above owns boundaries).
         magnitude = abs(float(signals.get("prediction_error_magnitude", 0.0)))
         excess = max(
             0.0,
@@ -396,6 +425,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     @property
     def internal_rl_runtime_replay(self) -> WiringLevel:
         return self._internal_rl_runtime_replay
+
+    @property
+    def environment_milestone_temporal_switch(self) -> WiringLevel:
+        return self._environment_milestone_temporal_switch
 
     @property
     def runtime_replay_reward_eligibility(

@@ -46,11 +46,17 @@ from volvence_ant.runtime import (
 )
 
 
-# v14 binds the PE-triggered temporal-boundary contract used by real pickup:
-# a qualifying direction-free prediction error must request a segment boundary
-# relative to the current learned beta threshold. v13 used a fixed additive
-# pressure that could remain below a calibrated threshold, so its carrying
-# credit could stay mixed into the outbound segment.
+# v14 binds the typed milestone-boundary contract used by real pickup: the
+# environment owner declares pickup/delivery as a discrete milestone
+# (``EnvironmentMeasurement.discrete_milestone``) and the temporal owner must
+# close the running action segment on the next decision, resolved against the
+# current learned beta threshold. v13 used a fixed additive PE pressure that
+# could remain below a calibrated threshold, so its carrying credit could
+# stay mixed into the outbound segment. An interim v14 draft derived the
+# boundary from PE magnitude crossing a floor; the v30 frozen-replay
+# measurement refuted any magnitude threshold as an event detector before a
+# v14 journal existed (routine PE overlaps event PE), so the binding contract
+# is the typed milestone, and PE remains an additive-only prior.
 #
 # v13 makes forced-return train the transition that its frozen gate grades:
 # every body starts unladen on a dedicated source, picks up through the real
@@ -1224,7 +1230,10 @@ def _session_config(
     * ``prediction_error_enabled=False`` -- PE-off. Prediction error stops
       driving joint-loop learning signals and stops pressuring the temporal
       switch; it remains a readout, matching R-PE (evaluation and credit are
-      downstream of PE and never feed back into it).
+      downstream of PE and never feed back into it). Typed milestone
+      boundaries (``environment_milestone_temporal_switch``) are an
+      environment-published fact, not a PE readout, so they stay ACTIVE in
+      both arms and the ablation isolates PE's own contribution.
     * ``temporal_writeback_enabled=False`` -- ETA-off. Bounded writeback of
       the learned temporal metacontroller is withheld, so the emergent
       temporal abstraction cannot adapt while Internal-RL policy optimization

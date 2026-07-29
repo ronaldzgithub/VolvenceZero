@@ -120,6 +120,15 @@ class EnvironmentMeasurement:
     task_progress: float | None = None
     action_payoff: float | None = None
     terminal: bool = False
+    # Owner-declared typed boundary event: True marks this outcome as a
+    # discrete task milestone (e.g. a pickup or a delivery), as opposed to a
+    # dense progress reading published every step. Only the environment owner
+    # may set it -- consumers must not reconstruct "is this a milestone" from
+    # magnitudes or from ``task_progress`` being present (R-PE: which event
+    # closes a segment is a typed readout, not an inference from raw
+    # amplitude). The temporal owner consumes it, gated by its own wiring, as
+    # a segment-boundary request for the next decision.
+    discrete_milestone: bool = False
     unit: str = "normalized"
 
     def __post_init__(self) -> None:

@@ -53,10 +53,16 @@ from volvence_ant.runtime import AntLearningCheckpoint, KernelColonyRunner
 from volvence_ant.substrate import AntSenseSchema, sense_channels
 
 
-# v31 binds curriculum v14's threshold-relative PE boundary request. v30
-# observed real pickup but its PE magnitude remained below the profile floor;
-# even a positive fixed pressure could be outrun by a learned beta threshold,
-# so outbound and carrying credit were still allowed to share one segment.
+# v31 binds curriculum v14's typed milestone boundary: the environment owner
+# declares pickup/delivery as ``EnvironmentMeasurement.discrete_milestone``
+# and the temporal owner closes the running action segment on the next
+# decision, resolved against its current learned beta threshold. v30 let
+# outbound and carrying credit share one segment because no mechanism closed
+# the segment at pickup; the interim PE-magnitude floor design was refuted
+# before any v31 journal existed (routine PE p50 0.508 overlaps event PE;
+# natural pickups settle at ~0.32 -- see
+# research/ant/06_ecology_implementation_status.md), so PE stays an
+# additive-only prior and never decides boundaries.
 #
 # v30 binds curriculum v13's real pickup-to-return training transition,
 # pickup-triggered frozen switch requirement and late interleaved return
@@ -87,9 +93,9 @@ from volvence_ant.substrate import AntSenseSchema, sense_channels
 #   * the held-out budget is aligned to P2's frozen 120 rounds.
 ECOLOGY_P1_SCHEMA_VERSION = "digital-ant-ecology-p1-development.v31"
 # v28 follows curriculum v14 / P1 v31. The same physical schedule now closes
-# a qualifying PE boundary relative to the current learned beta threshold, so
-# v27 optimizer state contains differently segmented action credit and cannot
-# be resumed.
+# a typed pickup/delivery milestone boundary relative to the current learned
+# beta threshold, so v27 optimizer state contains differently segmented
+# action credit and cannot be resumed.
 # v27 follows curriculum v13 / P1 v30. The forced-return world and schedule
 # now contain real pickup transitions plus late rehearsal, so v26 optimizer
 # state is from a different experiment and must never be resumed.

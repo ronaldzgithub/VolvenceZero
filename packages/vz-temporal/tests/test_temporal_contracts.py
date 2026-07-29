@@ -740,10 +740,10 @@ def test_full_policy_episode_transfer_reset_clears_only_recurrent_state() -> Non
     "runtime_backend",
     (WiringLevel.DISABLED, WiringLevel.ACTIVE),
 )
-def test_prediction_error_boundary_request_crosses_learned_beta_threshold(
+def test_external_boundary_request_crosses_learned_beta_threshold(
     runtime_backend: WiringLevel,
 ) -> None:
-    snapshot = _trace_step_snapshot(_trace("pe-boundary-request"))
+    snapshot = _trace_step_snapshot(_trace("typed-boundary-request"))
     store = MetacontrollerParameterStore(n_z=_NDIM)
     policy = FullLearnedTemporalPolicy(
         parameter_store=store,
@@ -763,10 +763,22 @@ def test_prediction_error_boundary_request_crosses_learned_beta_threshold(
     )
     assert without_request.controller_state.is_switching is False
 
-    # PE publishes only a direction-free boundary request. The temporal owner
-    # resolves it against the current learned threshold instead of relying on
-    # a fixed additive bias that calibrated beta can outrun.
-    store.record_prediction_error_switch_pressure(1e-6)
+    # A raw prediction-error magnitude must never decide a boundary: even the
+    # maximum additive PE pressure stays a prior below the learned threshold.
+    # The v30 frozen-replay measurement (routine PE p50 0.508 overlapping
+    # event PE) refuted magnitude thresholds as event detectors.
+    store.record_prediction_error_switch_pressure(0.18)
+    with_pe_pressure_only = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=None,
+    )
+    assert with_pe_pressure_only.controller_state.is_switching is False
+
+    # A typed boundary request (owner-declared discrete event) is resolved
+    # against the current learned threshold instead of relying on a fixed
+    # additive bias that calibrated beta can outrun.
+    store.record_prediction_error_switch_pressure(0.0)
+    store.record_external_boundary_request(True)
     with_request = policy.step(
         substrate_snapshot=snapshot,
         previous_snapshot=None,
@@ -774,6 +786,14 @@ def test_prediction_error_boundary_request_crosses_learned_beta_threshold(
 
     assert with_request.controller_state.is_switching is True
     assert with_request.controller_state.switch_gate >= store.beta_threshold
+
+    # The request is an explicit turn-scoped record, not a sticky mode.
+    store.record_external_boundary_request(False)
+    after_clear = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=None,
+    )
+    assert after_clear.controller_state.is_switching is False
 
 
 @torch_only
@@ -2036,37 +2056,44 @@ def test_mirror_lane_advantage_matches_direct_lane(
     assert mirror_lanes == direct_lanes
 
 
-def test_pe_switch_strength_value_is_inert_for_boundary_decisions() -> None:
-    """Sweeping strength never changes a decision; crossing the floor does.
+def test_pe_magnitude_is_inert_for_boundaries_and_milestone_owns_them() -> None:
+    """PE magnitude never decides a boundary; the typed milestone does.
 
-    Contract-honesty check for the dual-semantics PE switch knob.
-    ``prediction_error_temporal_switch_strength`` scales the ADDITIVE switch
-    pressure VALUE, but the boundary decision consumes only its SIGN
-    (``pressure > 0`` iff ``magnitude > floor``): below the floor the
-    pressure is exactly zero for every strength, and above the floor the
-    boundary request already forces ``is_switching`` so the additive value
-    has no marginal effect. The one behavioural cliff inside the strength
-    range is ``strength == 0.0``, which zeroes the pressure and silently
-    disables the boundary channel even above the floor.
+    The v30 frozen-replay measurement
+    (scripts/measure_ant_pe_boundary_margin.py; verdict in
+    research/ant/06_ecology_implementation_status.md) showed routine PE (p50
+    0.508, p99 0.701) overlaps event PE (natural pickups settle at ~0.32), so
+    the earlier floor-crossing boundary semantics were removed before any
+    journal used them. The PE channel is now additive-only readout pressure:
+    sweeping strength OR magnitude across the floor never changes a decision.
+    Boundaries belong to the typed ``environment_milestone_boundary`` signal,
+    gated by ``environment_milestone_temporal_switch``.
     """
 
     from volvence_zero.joint_loop import ETANLJointLoop
 
-    floor = 0.45
+    floor = 0.5
     snapshot = _trace_step_snapshot(_trace())
 
     def run(
         strength: float,
         magnitude: float,
+        *,
+        milestone: float = 0.0,
+        milestone_wiring: WiringLevel = WiringLevel.DISABLED,
     ) -> tuple[tuple[bool, ...], bool, float]:
         loop = ETANLJointLoop(
             prediction_error_temporal_switch=WiringLevel.ACTIVE,
             prediction_error_temporal_switch_strength=strength,
             prediction_error_temporal_switch_floor=floor,
+            environment_milestone_temporal_switch=milestone_wiring,
         )
         policy = loop.world_temporal_policy
         loop.set_external_learning_signals(
-            {"prediction_error_magnitude": magnitude}
+            {
+                "prediction_error_magnitude": magnitude,
+                "environment_milestone_boundary": milestone,
+            }
         )
         decisions = tuple(
             policy.step(
@@ -2078,7 +2105,7 @@ def test_pe_switch_strength_value_is_inert_for_boundary_decisions() -> None:
         store = policy.parameter_store
         return (
             decisions,
-            store.prediction_error_boundary_requested(),
+            store.external_boundary_requested(),
             store.prediction_error_switch_pressure_delta(),
         )
 
@@ -2086,32 +2113,40 @@ def test_pe_switch_strength_value_is_inert_for_boundary_decisions() -> None:
     below = tuple(run(strength, 0.44) for strength in strengths)
     above = tuple(run(strength, 0.60) for strength in strengths)
 
+    # Below the floor the additive pressure is exactly zero; above it the
+    # pressure is alive (monotone in strength). Neither side requests a
+    # boundary and the decision trajectory is identical across the floor:
+    # PE magnitude carries no boundary information.
     for decisions, boundary, pressure in below:
         assert pressure == 0.0
         assert boundary is False
-        # This fixture never switches naturally, so the all-switching
-        # trajectory above the floor is attributable to the boundary alone.
-        assert not any(decisions)
-
+        assert decisions == below[0][0]
     for decisions, boundary, _pressure in above:
-        assert boundary is True
-        assert all(decisions)
-        assert decisions == above[0][0]
-
-    # The additive VALUE is alive (monotone in strength) yet inert for the
-    # decision (asserted identical above): value/sign dual semantics.
+        assert boundary is False
+        assert decisions == below[0][0]
     above_pressures = tuple(pressure for _, _, pressure in above)
     assert above_pressures[0] < above_pressures[1] < above_pressures[2]
 
-    # At fixed strength, crossing the floor is what flips the decision.
-    assert below[1][1] is False
-    assert above[1][1] is True
+    # The typed milestone is what requests the boundary -- and only under
+    # ACTIVE wiring. The first decision after a milestone must switch.
+    decisions, boundary, _ = run(
+        0.35,
+        0.0,
+        milestone=1.0,
+        milestone_wiring=WiringLevel.ACTIVE,
+    )
+    assert boundary is True
+    assert decisions[0] is True
 
-    # strength == 0.0 is the sign-semantics cliff: it disables the boundary
-    # channel even for a magnitude above the floor.
-    _, zero_boundary, zero_pressure = run(0.0, 0.60)
-    assert zero_pressure == 0.0
-    assert zero_boundary is False
+    for gated_wiring in (WiringLevel.SHADOW, WiringLevel.DISABLED):
+        decisions, boundary, _ = run(
+            0.35,
+            0.0,
+            milestone=1.0,
+            milestone_wiring=gated_wiring,
+        )
+        assert boundary is False
+        assert decisions == below[0][0]
 
 
 def test_clone_temporal_policy_preserves_mode_and_splits_the_store() -> None:

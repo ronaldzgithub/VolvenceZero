@@ -21,7 +21,6 @@ from volvence_ant.evidence.provenance import (
     verify_ant_artifact_manifest,
 )
 from volvence_ant.evidence.runtime_profile import (
-    ANT_PREDICTION_ERROR_BOUNDARY_FLOOR,
     ant_runtime_replay_rollout_config,
 )
 from volvence_ant.experiments.ecology_mechanism_audit import (
@@ -414,13 +413,27 @@ def test_prediction_error_bridge_adds_only_active_switch_pressure() -> None:
     )
 
 
-def test_ant_prediction_error_boundary_floor_separates_pickup_from_quiet_noise() -> None:
+def test_ant_milestone_boundary_replaces_pe_magnitude_event_detector() -> None:
+    """The ant closes segments on typed pickup/delivery milestones, not PE.
+
+    The v30 replay measurement (scripts/measure_ant_pe_boundary_margin.py ->
+    research/ant/results/.partials/pe_boundary_margin.v30.json) found the
+    routine PE distribution sits ON any plausible floor (p50 0.508, 68% of
+    ticks above 0.45) while natural medium pickups settle at 0.32 on the next
+    tick, so NO magnitude floor separates pickup events from routine
+    prediction error. The profile therefore keeps PE additive-only at the
+    generic default floor and delegates boundaries to the owner-declared
+    ``EnvironmentMeasurement.discrete_milestone`` channel.
+    """
+
     profile = ant_runtime_replay_rollout_config(
         enable_sparse_exploration=False,
     )
-    assert ANT_PREDICTION_ERROR_BOUNDARY_FLOOR == pytest.approx(0.45)
-    assert profile.prediction_error_temporal_switch_floor == pytest.approx(
-        ANT_PREDICTION_ERROR_BOUNDARY_FLOOR
+    # No ant-specific floor calibration survives: the additive prior uses the
+    # kernel default, and the boundary channel is the typed milestone.
+    assert profile.prediction_error_temporal_switch_floor == pytest.approx(0.5)
+    assert (
+        profile.environment_milestone_temporal_switch is WiringLevel.ACTIVE
     )
 
     loop = ETANLJointLoop(
@@ -431,36 +444,36 @@ def test_ant_prediction_error_boundary_floor_separates_pickup_from_quiet_noise()
         prediction_error_temporal_switch_floor=(
             profile.prediction_error_temporal_switch_floor
         ),
+        environment_milestone_temporal_switch=(
+            profile.environment_milestone_temporal_switch
+        ),
     )
-    loop.set_external_learning_signals(
-        {"prediction_error_magnitude": 0.44}
-    )
-    assert (
-        loop.world_temporal_policy.parameter_store
-        .prediction_error_boundary_requested()
-        is False
-    )
+    store = loop.world_temporal_policy.parameter_store
 
-    # These two magnitudes pin the strict threshold MECHANISM (below the
-    # floor never requests, above always does), NOT a validated calibration.
-    # 0.4789 came from v30's frozen medium trace read AT the pickup tick --
-    # which by settlement timing is the PE of the PRE-pickup approach
-    # outcome, i.e. a routine value. The v30 replay measurement
-    # (scripts/measure_ant_pe_boundary_margin.py ->
-    # research/ant/results/.partials/pe_boundary_margin.v30.json) found the
-    # routine distribution sits ON the floor (p50 0.508, 68% of ticks above
-    # 0.45) while natural medium pickups settle at 0.32 on the next tick, so
-    # NO magnitude floor separates pickup events from routine prediction
-    # error. See research/ant/06_ecology_implementation_status.md (v31
-    # margin verdict) before treating the floor as calibrated.
+    # Routine PE around and above the retired 0.45 "calibration" (0.4789 was
+    # the pre-pickup approach outcome, i.e. a routine value) never requests
+    # a boundary, no matter how large the magnitude.
+    for routine_magnitude in (0.44, 0.4789, 0.701, 1.0):
+        loop.set_external_learning_signals(
+            {"prediction_error_magnitude": routine_magnitude}
+        )
+        assert store.external_boundary_requested() is False
+
+    # A typed pickup/delivery milestone requests the boundary even when the
+    # settled PE is the LOW value natural medium pickups actually produce.
     loop.set_external_learning_signals(
-        {"prediction_error_magnitude": 0.4789}
+        {
+            "prediction_error_magnitude": 0.32,
+            "environment_milestone_boundary": 1.0,
+        }
     )
-    assert (
-        loop.world_temporal_policy.parameter_store
-        .prediction_error_boundary_requested()
-        is True
+    assert store.external_boundary_requested() is True
+
+    # And the next quiet turn clears it: the request is turn-scoped.
+    loop.set_external_learning_signals(
+        {"prediction_error_magnitude": 0.32}
     )
+    assert store.external_boundary_requested() is False
 
 
 def test_p0_thresholds_are_frozen_in_the_config_contract() -> None:

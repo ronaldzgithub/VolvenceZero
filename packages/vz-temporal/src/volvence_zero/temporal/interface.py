@@ -945,6 +945,7 @@ class MetacontrollerParameterStore:
         self._protocol_prior_strength: float = 0.0
         self._protocol_prior_applied: bool = False
         self._prediction_error_switch_pressure_delta: float = 0.0
+        self._external_boundary_requested: bool = False
 
     @property
     def n_z(self) -> int:
@@ -1007,6 +1008,15 @@ class MetacontrollerParameterStore:
         self._protocol_prior_strength = 0.0
         self._protocol_prior_applied = False
         self._prediction_error_switch_pressure_delta = 0.0
+        # ``_external_boundary_requested`` is deliberately NOT cleared here.
+        # SSL's expert-action family discovery calls this reset mid-turn (on
+        # full-cycle turns, BEFORE the live decision), and clearing the
+        # typed boundary request there would silently drop an owner-confirmed
+        # milestone exactly on learning turns -- the same failure mode the
+        # request exists to fix. The request is turn-scoped by construction:
+        # its only writer is the orchestrating loop's per-turn
+        # ``record_external_boundary_request`` refresh, which always runs
+        # before the decision that consumes it.
 
     def learning_parameter_fingerprint(self) -> str:
         """Hash owned learning parameters while excluding turn-local adaptation.
@@ -2194,7 +2204,14 @@ class MetacontrollerParameterStore:
         self,
         switch_pressure_delta: float,
     ) -> None:
-        """Record a direction-free, runtime-only PE boundary signal."""
+        """Record a direction-free, additive-only PE switch prior.
+
+        This VALUE never decides a boundary. The v30 replay measurement
+        (research/ant/06_ecology_implementation_status.md, v31 margin
+        verdict) showed routine prediction error overlaps event prediction
+        error, so no magnitude threshold can act as an event detector.
+        Boundary events arrive typed via ``record_external_boundary_request``.
+        """
 
         self._prediction_error_switch_pressure_delta = max(
             0.0,
@@ -2204,16 +2221,27 @@ class MetacontrollerParameterStore:
     def prediction_error_switch_pressure_delta(self) -> float:
         return self._prediction_error_switch_pressure_delta
 
-    def prediction_error_boundary_requested(self) -> bool:
-        """Return whether the PE owner requested a temporal boundary.
+    def record_external_boundary_request(self, requested: bool) -> None:
+        """Record a typed, turn-scoped boundary request from an upstream owner.
 
-        A qualifying prediction error is a boundary event, not merely another
+        The request originates from an owner-published discrete event (e.g.
+        the environment declaring a pickup/delivery milestone), never from a
+        raw prediction-error magnitude crossing a threshold. It is refreshed
+        every turn by the orchestrating loop before the switch decision.
+        """
+
+        self._external_boundary_requested = bool(requested)
+
+    def external_boundary_requested(self) -> bool:
+        """Return whether an upstream owner requested a temporal boundary.
+
+        A typed boundary event is a boundary request, not merely another
         fixed logit bias. The learned beta threshold may move during SSL or
         reflection, so the temporal owner resolves this request relative to
         its current threshold when it makes the switch decision.
         """
 
-        return self._prediction_error_switch_pressure_delta > 0.0
+        return self._external_boundary_requested
 
     def record_protocol_prior_signals(
         self,
@@ -4576,8 +4604,8 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             + self._protocol_prior_switch_delta()
             + self._thinking_advisory_switch_delta()
         )
-        prediction_error_boundary_requested = (
-            self._parameter_store.prediction_error_boundary_requested()
+        external_boundary_requested = (
+            self._parameter_store.external_boundary_requested()
         )
         if self._runtime_backend is WiringLevel.SHADOW:
             from volvence_zero.temporal.backend_ndim_runtime import (
@@ -4597,7 +4625,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 active_family_persistence=active_family_persistence,
                 external_switch_pressure_delta=fast_prior_switch_pressure_delta,
                 external_boundary_request=(
-                    prediction_error_boundary_requested
+                    external_boundary_requested
                 ),
                 # CP-06 (GAP-09): behaviour-level comparison — segment-closure
                 # decision and nearest action family per backend.
@@ -4798,7 +4826,7 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                     scalar_beta,
                     self._parameter_store.beta_threshold,
                 )
-                if prediction_error_boundary_requested
+                if external_boundary_requested
                 else scalar_beta
             )
             is_switching_scalar = (
@@ -4940,8 +4968,8 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             + self._protocol_prior_switch_delta()
             + self._thinking_advisory_switch_delta()
         )
-        prediction_error_boundary_requested = (
-            self._parameter_store.prediction_error_boundary_requested()
+        external_boundary_requested = (
+            self._parameter_store.external_boundary_requested()
         )
         switch_decision = self._switch_unit.compute_decision(
             previous_code=previous_code,
@@ -4982,11 +5010,11 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                     switch_decision.beta_continuous,
                     self._parameter_store.beta_threshold,
                 )
-                if prediction_error_boundary_requested
+                if external_boundary_requested
                 else switch_decision.beta_continuous
             )
             is_switching = (
-                prediction_error_boundary_requested
+                external_boundary_requested
                 or bool(switch_decision.beta_binary)
             )
             mean_persistence_window = switch_decision.mean_persistence_window
