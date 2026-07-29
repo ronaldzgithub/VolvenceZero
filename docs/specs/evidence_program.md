@@ -271,6 +271,70 @@
     主张收缩为“多频 CMS 可运行、可审计且可回滚”。diagnostic 中五臂
     retrieval hit 均为 `1.0`、错误晋升率均为 `0.0`，不能补救 primary
     effect 缺失。artifact：`artifacts/gate5_cms_pareto_20260730`。
+- Gate 6 nested meta-init 使用 schema `gate6-meta-init.v1`。Gate 5 已对
+  “多频 CMS Pareto 优于单频”给出 NO-GO，因此本门只独立检验现有 nested
+  reset 是否形成跨 context 的快速适应初始化优势，不得把通过结果上推为
+  Gate 5、多时间尺度最优性或用户事实记忆证据。首次读取
+  `trace-locked-confirmation` 指标前冻结以下协议：
+  - source 固定为已 admission 的
+    `artifacts/gate456_shared_settled_trace_20260730`。每 seed 必须完整、
+    顺序加载 `trace-train=300 / trace-heldout-context=150 /
+    trace-locked-confirmation=60`；学习与目标向量只取每条 public
+    `memory_snapshot.attribute_summary` 最新
+    `substrate_feature_digest`，保留
+    `transition_id / prediction_ref / record_sha256` lineage。禁止读取文本、
+    private runtime state 或 future outcome 重建学习信号。
+  - 每 seed 先以 train 300 条训练一个相同 nested CMS checkpoint；heldout
+    与 locked 各 context 都从该 checkpoint 独立 restore，随后执行一种
+    初始化再按原序适应。四个 primary 臂固定为：`meta-init`（调用 owner
+    既有 nested learned target reset）、`copy-init`（保留 train 结束时
+    online/session 终态）、`random-init`（由 `seed + context ordinal`
+    决定、每维均匀落在 `[-0.125, 0.125]`）与 `no-init`（online/session
+    置零）。四臂使用同一 MLP 参数预算、train checkpoint、可见历史、
+    cadence `1/2/4`、ATLAS `8/4/2` 和 Titans PE feature 配置；唯一变量是
+    owner 内 fast/session initialization。control 不得清除慢层、nested
+    targets、MLP 权重或 updater state。
+  - 一个 adaptation episode 对应 source 的一个 context。评估 target 是该
+    context 全部 public digest 的逐维算术均值，只用于只读打分，不进入
+    owner update。第 `k` 步误差定义为 online-fast public vector 到该 target
+    的 mean absolute error；目标误差冻结为 `<=0.02`。`steps_to_target`
+    是初始化态 `k=0` 到 episode 末首次达标的步数，未达标记为
+    `episode_length + 1`。前 `K=8` 步 AUC 包含 `k=0` 初始化态与前 7 次
+    observation 后状态，单点评分为
+    `1 - min(mean_absolute_error / 0.10, 1)`；最终质量为
+    `1 - min(final_error / 0.10, 1)`。
+  - causal primary 只读 locked 60 条，heldout 150 条仅作 development
+    probe。meta-init 必须相对 `copy-init / random-init / no-init` 每个
+    control 都满足以下二选一最小效应：三 seed aggregate
+    `steps_to_target` 至少少 `2.0` 且逐 seed gain 全部 `>0`，或前 8 步
+    AUC aggregate 至少高 `0.05` 且逐 seed gain 全部 `>0`。同时
+    meta-init 每 seed 与 aggregate final error 不得高于该 control 超过
+    `0.01`。负迁移定义为某 episode 的 meta final error 高于同 episode
+    最佳 control 超过 `0.01`，locked 负迁移率必须为 `0.0`。
+  - `swapped-user-slow-state` 是非晋升 diagnostic：按 context ordinal
+    分别从只见一个 train user 的 matched 30 条 checkpoint 取 nested target，
+    “paired” donor 为同 ordinal train user，“swapped” donor 为下一 ordinal
+    train user；两者都从相同 global train checkpoint 恢复后只替换 reset
+    target。若两者 aggregate AUC 差 `<0.01` 且 steps 差 `<1.0`，必须记录
+    `user_related_prior_supported=false`，但不反向改 primary。因为 source
+    的 heldout/locked user 从未出现在 train，具体事实泄漏计数定义为
+    initialization provenance 与目标分区
+    `user_id/context_id/knowledge_key` 的交集，加非有限/非数值初始化字段数；
+    mechanism 与 causal verdict 都要求该计数严格为 `0`。
+  - mechanism 门还要求每臂 lineage coverage=`1.0`、train/target 用户与
+    context overlap=`0`、初始化模式与 public reset state 可审计、每臂
+    frozen substrate mutation count=`0`、checkpoint restore 精确、
+    background work 不并入 turn latency。单 seed `401` 可在
+    train+heldout 上作实现探针，但不得读取 locked；探针后不能修改臂、
+    指标、阈值或最小效应。正式 run 首次且仅一次消费三 seed locked，并产
+    强制 12 文件 bundle。
+  - 任一 source/lineage/隔离/leakage/rollback/frozen-substrate 门失败则
+    verdict=`invalid`；机制全绿但 causal primary 失败则
+    verdict=`not-supported`，主张收缩为“nested initialization mechanism
+    可运行、可审计且可回滚”。全部通过最多得到 `causal-supported`，
+    且若 swapped diagnostic 失败，不得声称 user-related prior。回滚为恢复
+    episode 前 `MemoryStoreCheckpoint` 或关闭 nested profile，不修改 frozen
+    substrate；locked 失败后不调参、不重跑同一分区。
 - Gate 4 主动学习使用 schema `gate4-active-learning.v1`，在实现与首次读取
   `trace-locked-confirmation` label 前冻结以下协议：
   - 原 `artifacts/gate456_shared_settled_trace_20260730` 保持不可变。前置
