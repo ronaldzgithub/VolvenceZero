@@ -78,6 +78,16 @@ from volvence_zero.substrate.rare_heavy_training import (
     RareHeavyAdapterTrainingResult,
     RareHeavyTrainingRequest,
 )
+from volvence_zero.substrate.control_basis import (
+    CONTROL_BASIS_ARTIFACT_SCHEMA_VERSION,
+    FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE,
+    FULL_CODE_SINUSOID_CONTROL_BASIS_MODE,
+    TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE,
+    ControlBasisArtifact,
+    build_sinusoid_control_basis,
+    control_basis_fingerprint,
+    fit_transition_control_basis,
+)
 from volvence_zero.substrate.residual_backend import (
     build_builtin_transformers_runtime,
     build_transformers_runtime_with_fallback,
@@ -135,7 +145,15 @@ from volvence_zero.substrate.text_generation import (
 
 __all__ = [
     "ContinuationScore",
+    "CONTROL_BASIS_ARTIFACT_SCHEMA_VERSION",
+    "ControlBasisArtifact",
     "ExpertActionTarget",
+    "FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE",
+    "FULL_CODE_SINUSOID_CONTROL_BASIS_MODE",
+    "TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE",
+    "build_sinusoid_control_basis",
+    "control_basis_fingerprint",
+    "fit_transition_control_basis",
     "FeatureSignal",
     "feature_signal_map",
     "feature_signal_value",

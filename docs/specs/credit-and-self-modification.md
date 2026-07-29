@@ -43,6 +43,8 @@
 - `credit` owner 当前会把 delayed regime / delayed abstract action 转成 session-level 与 abstract-action-level `CreditRecord`
 - 当前 delayed path 已扩成 multi-step ledger：`credit` owner 不只读取本轮 freshly-resolved attribution，也读取 regime owner 发布的 rolling payoff summary，以支持更长时间跨度的 credit accumulation
 - background self-modification 当前不再只做数值调参：在 gate 允许时，slow reflection 可发出 bounded structural temporal proposal（`merge` / `split` / `prune`），仍受 target-specific gate 和可回滚审计约束
+- State KV P5-b：`CreditRecord` 新增 typed 归因字段 `conditioning_bank_set` / `conditioning_bank_fingerprints`，由 `derive_prediction_error_credit_records` / `derive_segment_closure_credit_records` 从 `PredictionActionContext` 原样拷贝（context 文本同时追加 `conditioning_banks=a+b` 便于 grep）。上游填充走既有 temporal 通道：runtime context builder 用 `summarize_conditioning_lineage_refs`（vz-contracts）归约 `TemporalAbstractionSnapshot.conditioning_lineage_refs`；延迟 dialogue outcome 则从 turn trace 解析被评分动作的 lineage，禁止错归到当前轮。空 tuple = 该动作无 live bank（有意义负样本）。`CreditSnapshot.recent_action_lineage_credits` 有界保留环境 action lineage 或 typed bank lineage，避免通用 recent 窗口截断 attribution；credit 不因此新建任何 PE 计算或第二 lineage owner
+- State KV P5-c：conditioning bank owner（Personal / Relationship）作为 `credit` 快照的下游 readout consumer，把 `recent_action_lineage_credits` 中本 bank 归因的 `CreditRecord.credit_value` 经有界 EMA 折算成 `credit_confidence_delta`（±0.15 硬上限，`FinalRolloutConfig.conditioning_credit_feedback` 门控，默认 SHADOW 只发布不施加）。credit owner 不反向感知 conditioning；消费方向保持单向快照读
 
 ### Internal RL 时间抽象信用分配（ETA 附录 B.5）
 

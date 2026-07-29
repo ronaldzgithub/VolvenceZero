@@ -28,6 +28,7 @@ from volvence_ant.experiments.ecology_p1 import (
     ECOLOGY_P1_FORMAL_MIN_TRAINING_ROUNDS,
     EcologyP1Config,
     EcologyP1ProgressPaused,
+    ecology_p1_progress_writer_lock,
     run_ecology_p1,
     run_ecology_p1_diagnostics,
 )
@@ -83,22 +84,23 @@ async def _run(args: argparse.Namespace) -> int:
     )
     # Refuse a colliding artifact before spending the run's budget, not after.
     ensure_artifact_writable(output, overwrite=args.overwrite)
-    try:
-        report = (
-            run_ecology_p1_diagnostics(config)
-            if args.diagnostics_only
-            else await run_ecology_p1(
-                config,
-                progress_dir=progress_dir,
-                max_new_work_items=args.max_new_work_items,
-                repeat_reference_report=repeat_reference_report,
-                repo_root=_ROOT,
+    with ecology_p1_progress_writer_lock(progress_dir):
+        try:
+            report = (
+                run_ecology_p1_diagnostics(config)
+                if args.diagnostics_only
+                else await run_ecology_p1(
+                    config,
+                    progress_dir=progress_dir,
+                    max_new_work_items=args.max_new_work_items,
+                    repeat_reference_report=repeat_reference_report,
+                    repo_root=_ROOT,
+                )
             )
-        )
-    except EcologyP1ProgressPaused as paused:
-        print(str(paused))
-        print(f"progress: {progress_dir.relative_to(_ROOT)}")
-        return 0
+        except EcologyP1ProgressPaused as paused:
+            print(str(paused))
+            print(f"progress: {progress_dir.relative_to(_ROOT)}")
+            return 0
     payload = report.to_dict()
     rows = (
         report.results

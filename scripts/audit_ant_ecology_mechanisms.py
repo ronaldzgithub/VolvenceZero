@@ -261,6 +261,13 @@ async def _run(args: argparse.Namespace) -> int:
     # Refuse the name BEFORE paying for a training schedule: a collision that
     # is only discovered at write time has already burnt the budget.
     ensure_artifact_writable(artifact_path, overwrite=args.overwrite)
+    # Validate and freeze the exact seed namespaces before paying for the
+    # audit. This used to run only while assembling provenance after the full
+    # learned/no-optimize workload, so the default seed-0 run spent its whole
+    # budget before reporting the training/held-out collision at seed 101.
+    training_seeds, layout_seeds = ecology_mechanism_audit_seed_schedule(
+        config
+    )
 
     report = await run_ecology_mechanism_audit(config)
 
@@ -268,7 +275,6 @@ async def _run(args: argparse.Namespace) -> int:
     raw_trace_path = run_directory / _RAW_TRACE_NAME
     _write_raw_temporal_trace(path=raw_trace_path, report=report)
 
-    training_seeds, layout_seeds = ecology_mechanism_audit_seed_schedule(config)
     provenance = collect_ant_provenance(
         repo_root=_REPO_ROOT,
         seeds=training_seeds + layout_seeds,

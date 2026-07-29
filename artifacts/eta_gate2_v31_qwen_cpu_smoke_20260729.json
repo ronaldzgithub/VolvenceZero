@@ -1,0 +1,21 @@
+{
+  "elapsed_seconds": 30.29,
+  "runtime_origin": "hf-local",
+  "fallback_active": false,
+  "device": "cpu-after-mps-unavailable",
+  "records": 242,
+  "primary_unique": 232,
+  "audit_unique": 232,
+  "primary_min": -0.00020290541355239,
+  "primary_max": 0.0006341983486453096,
+  "audit_min": -0.0008204501909709894,
+  "audit_max": 0.000556235347043299,
+  "target_overlap_rate": 0.0,
+  "metrics": {
+    "counterfactual_environment_outcome_target_active": 1.0,
+    "counterfactual_environment_application_count": 242.0,
+    "counterfactual_environment_pe_credit_transition_count": 4.0,
+    "continuation_pe_training_mean_raw_delta": 5.1097797895393645e-05,
+    "continuation_pe_training_positive_rate": 0.5681818181818182
+  }
+}

@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from volvence_zero.conditioning_bank_contracts import ConditioningBankType
+from volvence_zero.conditioning_credit_feedback import (
+    BankCreditFeedbackState,
+    consume_bank_credit_feedback,
+)
+from volvence_zero.credit import CreditSnapshot
 from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_SCHEMA_VERSION,
     PERSONAL_CONDITIONING_VECTOR_LABELS,
@@ -34,8 +40,26 @@ class PersonalConditioningModule(RuntimeModule[PersonalConditioningSnapshot]):
         "relationship_state",
         "goal_value",
         "boundary_consent",
+        # State KV P5-c: bank-attributed credit readout. Optional -- the
+        # credit slot may be SHADOW/absent, in which case the feedback
+        # state simply persists unchanged.
+        "credit",
     )
     default_wiring_level = WiringLevel.SHADOW
+
+    def __init__(
+        self,
+        *,
+        wiring_level: WiringLevel | None = None,
+        credit_feedback_state: BankCreditFeedbackState | None = None,
+        credit_feedback_level: WiringLevel = WiringLevel.SHADOW,
+    ) -> None:
+        super().__init__(wiring_level=wiring_level)
+        # Session-lived bounded state injected by the runner so the EMA
+        # survives per-turn module reconstruction; standalone/test callers
+        # that pass nothing get a private per-instance state.
+        self._credit_feedback_state = credit_feedback_state or BankCreditFeedbackState()
+        self._credit_feedback_level = credit_feedback_level
 
     async def process(
         self, upstream: Mapping[str, Snapshot[Any]]
@@ -117,7 +141,7 @@ class PersonalConditioningModule(RuntimeModule[PersonalConditioningSnapshot]):
                 stable_value_hash(boundary.value),
             )
         )
-        confidence = 0.0 if is_cold_start else _clamp(
+        base_confidence = 0.0 if is_cold_start else _clamp(
             coverage
             * (
                 0.35
@@ -125,6 +149,34 @@ class PersonalConditioningModule(RuntimeModule[PersonalConditioningSnapshot]):
                 + 0.20 * relationship.value.continuity_level
                 + 0.20 * boundary.value.consent_clarity
             )
+        )
+        # State KV P5-c: fold bank-attributed credit into a bounded
+        # confidence delta. SHADOW computes and publishes the delta without
+        # applying it (report-only); ACTIVE applies it on top of the
+        # evidence-derived base; DISABLED skips consumption entirely so the
+        # feedback state stops advancing (rollback point). Cold start is
+        # always exempt -- an unevidenced bank cannot earn or owe credit.
+        credit_confidence_delta = 0.0
+        if (
+            self._credit_feedback_level is not WiringLevel.DISABLED
+            and not is_cold_start
+        ):
+            credit_snapshot = upstream.get("credit")
+            credit_value = (
+                credit_snapshot.value
+                if credit_snapshot is not None
+                and isinstance(credit_snapshot.value, CreditSnapshot)
+                else None
+            )
+            credit_confidence_delta = consume_bank_credit_feedback(
+                self._credit_feedback_state,
+                bank_name=ConditioningBankType.PERSONAL.value,
+                credit_snapshot=credit_value,
+            )
+        confidence = (
+            _clamp(base_confidence + credit_confidence_delta)
+            if self._credit_feedback_level is WiringLevel.ACTIVE
+            else base_confidence
         )
         rendered_statement = render_personal_conditioning_statement(
             state_vector=state_vector,
@@ -144,9 +196,12 @@ class PersonalConditioningModule(RuntimeModule[PersonalConditioningSnapshot]):
                 description=(
                     "Personal conditioning compiled from four typed semantic "
                     f"owners; coverage={coverage:.2f} confidence={confidence:.2f} "
-                    f"cold_start={is_cold_start}."
+                    f"cold_start={is_cold_start} "
+                    f"credit_delta={credit_confidence_delta:+.3f}"
+                    f"[{self._credit_feedback_level.value}]."
                 ),
                 rendered_statement=rendered_statement,
+                credit_confidence_delta=credit_confidence_delta,
             )
         )
 

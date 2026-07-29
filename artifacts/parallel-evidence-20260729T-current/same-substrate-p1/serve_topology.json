@@ -1,0 +1,21 @@
+{
+  "schema_version": "companion-ablation-serving-topology.v1",
+  "serving_topology": "single-lifeform-ablation-bundle",
+  "lifeform_owner_pid": 52463,
+  "process_count": 5,
+  "ports": [
+    8000,
+    8500,
+    8501,
+    8502,
+    8600
+  ],
+  "ablation_verticals": [
+    "companion",
+    "companion-cold",
+    "companion-pe-drive-off",
+    "companion-eta-off",
+    "companion-active-learning-off",
+    "companion-lora-adapter"
+  ]
+}

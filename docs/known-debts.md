@@ -2115,7 +2115,7 @@ return (
 
 ## 92. Volvence 整体 thesis 的 ETA + NL 系统级证据门尚未闭合（局部机制存在 ≠ 整体因果链成立）
 
-> **状态（2026-07-29）**：OPEN / evidence design frozen，尚未形成统一真 substrate、长轨迹、多 seed 的总验收 verdict。Gate 2 于 2026-07-29 新增 v31 environment-outcome packet 与 max-of-noise 诊断（NLL selector 路线定性关闭，见 Gate 2 段）。已有单元测试、synthetic proof、SHADOW artifact 和局部真 trace 只能作为子证据；本债关闭前，对外只能说“架构链与局部机制已实现/待系统验证”，不能说“Volvence 整体 thesis 已被证明”。
+> **状态（2026-07-29）**：OPEN / evidence design frozen，尚未形成统一真 substrate、长轨迹、多 seed 的总验收 verdict。Gate 2 于 2026-07-29 新增 v31 environment-outcome packet 与 max-of-noise 诊断（NLL selector 路线定性关闭），同日 v32 oracle-vs-permutation-null 门、v33 realized-continuation 去天花板 packet 与 v34 learned-control-basis packet 落地：效应全距已达 `0.02` 门槛（134/134 前缀）；v34 换掉任意正弦执行器坐标系后，v32 严格 selector 门首次四个冻结分区全绿（audit selected credit `+0.006~+0.017`，SHADOW 级注入许可），但 oracle 边际迁移门在 validation 仍失败，promotion 维持拒绝，主张更新为「行为级因果功率已证明、可迁移动作价值以 train-fit selector 为载体首次获得正向证据、oracle 边际迁移未证明」（见 Gate 2 段）。同日 v35 selector-vs-permutation-null packet 预注册并完成（新正式门 + 4 条 fresh validation + 4 条 locked confirmation routes，完整分析计划见 `.cursor/plans/eta-gate2-v35-selector-null_e4a91f27.plan.md`）：预注册门三个正式分区全部通过（train `+0.0020` / fresh validation `+0.0146` / locked confirmation `+0.0061`），machine verdict 首次升为 `causal-supported`、`promotion_allowed=true`——Gate 2 causal 层在本 packet 范围内闭合，主张升级为「条件化动作价值在从未观察分区通过预注册置换零假设检验」；但仍是单 seed、CPU、合成语料、SHADOW 级许可，live injection 未开，longitudinal 层与 Gate 2 EXIT 其余条款未闭合（见 Gate 2 段 v35 bullet）。已有单元测试、synthetic proof、SHADOW artifact 和局部真 trace 只能作为子证据；本债关闭前，对外只能说“架构链与局部机制已实现/待系统验证”，不能说“Volvence 整体 thesis 已被证明”。
 
 - **路径**：
   - 总论与需求：[`docs/volvence-thesis.md`](volvence-thesis.md) · [`docs/next_gen_emogpt.md`](next_gen_emogpt.md)
@@ -2272,9 +2272,153 @@ return (
   `test_eta_gate2_signal_gates_reject_max_of_noise_oracle` +
   `test_eta_gate2_reachable_solution_evidence_gates_causal_promotion`
   全绿（13/13），spec 同步 `evidence_program.md` v32 段；(2) 环境去天花板 +
-  扩前缀，检验可复现效应全距能否向 `0.02` 增长（下一收敛包）；(3) 若去
-  天花板后效应仍停留 `1e-3` 量级，按预注册 kill condition 收缩「3 维
-  `z_t` 残差注入在 0.5B 基底上具有可用因果功率」的主张。
+  扩前缀——**已 land（2026-07-29，schema v33，见下一 bullet）**，效应
+  全距 134/134 前缀 ≥ `0.02`；(3) 去天花板后效应未停留 `1e-3` 量级
+  （median `0.071~0.084`），该 kill condition 不触发；但 v32 门暴露了
+  新的收缩点：动作效应不跨段迁移，「可用因果功率」主张按 v33 bullet
+  收缩为「行为级因果功率已证明、可复用动作价值未证明」。
+- **2026-07-29 v33 realized-continuation packet：环境去天花板（latest falsification）**：
+  `artifacts/eta_gate2_residual_causal_v33_realized_continuation_fullwidth896_qwen25_05b_cpu_1seed_20260729`
+  （Qwen2.5-0.5B、full-width 896、CPU、单 seed、`--max-prefix-steps 8`，
+  运行 77 min）。**根因修正**：v31 的「天花板」不是任务基线接近 1，而是
+  结局读出链路对执行器近盲——(a) 逐层 896 维取均值的 DC 读出与近零均值
+  单位范数正弦 control basis 近正交；(b) 摘要 max/spread 两维被
+  `clamp_unit` 饱和在 1.0 失灵；(c) `(cos+1)/2` 再压一半动态范围（实测
+  cos=0.905→progress=0.9525 与 v31 落盘值逐字节一致）；最强候选
+  `(1,1,1)×0.7` 也只能移动摘要签名 ~1.3e-4，oracle 物理全距被封在
+  3e-4 以下，任何 selector 都不可能在该通道展示 `0.02`。v33 把环境结局
+  迁到 realized-continuation NLL：primary = 候选控制下 route 真实下一段
+  的 teacher-forced 逐 token NLL 相对冻结 zero-control 的带符号改进
+  （确定性、零采样噪声、NLL 单位斜率 1，`0.02` 阈值直接可比），audit =
+  同一控制在下一 prefix 对 subsequent realized segment 的同款测量
+  （跨段迁移审计）；环境 owner 新增
+  `measure_realized_continuation_outcome`，PE→credit 链路与 v32 signal
+  gates 不变。**结果**：134 前缀 × 22 候选（2948 行），效应全距 median
+  train/eval/heldout/validation = `0.071/0.079/0.074/0.084`，134/134
+  ≥ `0.02`（较 v31 `~7e-4` 增长约 100 倍）——去天花板完成。oracle
+  target 均值 `+0.023~+0.046` 全部为正，但 v32
+  oracle-vs-permutation-null 门 validation 失败（train excess
+  `+0.0025` 通过；validation `-0.0024`，eval `-0.0025`、heldout
+  `-0.0065` 诊断同为负），`reachable_solution_evidence=false`，verdict
+  `mechanism-supported`、`promotion_allowed=false`。由于测量是确定性的，
+  这次失败不是 v30 式测量噪声，而是**上下文特异性**：每个前缀内动作
+  效应真实且大，但同一动作的收益不跨 realized segment 迁移（与真 Qwen
+  探针跨前缀候选排序 Spearman 中位数 ~0.14 一致）。**主张收缩**：0.5B
+  上 3 维 `z_t` 残差注入具有可测的行为级因果功率（每前缀全距 ≥
+  `0.02`），但「可复用（跨段迁移）动作价值」无证据；动作好坏是前缀
+  条件化的，边际动作值≈0。selector 注入维持禁止。若继续，下一收敛包
+  方向：(prefix, action) 条件化动作价值的迁移检验（而非动作边际），
+  或注册更强 actuator（`control_scale` 钳制上限 `0.30`，当前 `0.12`）/
+  更大基底复测跨段迁移是否出现。——已由 v34 learned-control-basis
+  packet 执行（换执行器坐标系，见下一 bullet）。
+- **2026-07-29 v34 learned-control-basis packet：执行器坐标系修正（latest falsification）**：
+  `artifacts/eta_gate2_residual_causal_v34_learned_control_basis_fullwidth896_qwen25_05b_cpu_1seed_20260729`
+  （同 v33 配置：Qwen2.5-0.5B、full-width 896、CPU、单 seed、
+  `--max-prefix-steps 8`，运行 14 min）。**根因修正**：v33 方差分解
+  显示迁移失败不是测量噪声而是执行器方向任意——固定正弦 control
+  basis 与行为意义子空间无关（global action-main train→validation
+  R² `-0.0103`、within-route leave-one-prefix-out R² 中位 `-0.3063`、
+  相邻段 Spearman `-0.039`、credit 与控制强度相关 `-0.059`），等价
+  「随机转向」：局部效应真实但不组成一致动作价值。v34 把 basis 换成
+  从冻结基底自身学的 train-transition PCA（substrate owner
+  `fit_transition_control_basis`：状态坐标 = hook 层最后 token 隐态
+  逐层均值，样本 = train-split 相邻前缀转移增量 `h_{i+1}-h_i`，
+  row0 = 归一化均值转移方向，row1-2 = 居中增量主成分对 row0 正交化；
+  纯 Python 固定种子幂迭代逐位确定，fingerprint
+  `326aecdd…` 进 provenance，探针与正式 run 复现同一指纹）。运行时经
+  `install_control_basis` 安装，仅旋转有界 `applied_control` 的可写
+  方向；manifest 预注册 `control_basis_mode/fit_split/rank/
+  state_coordinate`，v33 测量、PE→credit、v32 双门全部原样保留。
+  GO 探针（47 上下文成对比较，validation 未触碰）先行：train→dev
+  动作排序 Spearman `0.257→0.597`、跨前缀两两 Spearman
+  `-0.011→+0.098`、效应全距中位 `0.075→0.091`。**结果**：效应全距
+  134/134 前缀 ≥ `0.02`（median train/eval/heldout/validation =
+  `0.074/0.098/0.070/0.095`，因果功率不缩水）。v32 严格 selector 门
+  **首次全绿**——train-only 拟合的 selector 在四个冻结分区的独立
+  audit selected credit 全为正：train `+0.0062` / eval `+0.0135` /
+  heldout `+0.0072` / validation `+0.0173`（v33 同项
+  `+0.000044/-0.00013/+0.00014/+0.0000155`，提升约两个数量级且
+  eval 由负转正），`selector_ready_for_shadow_injection=true`、
+  `selector_injection_allowed=true`——仅为 SHADOW 级许可，manifest
+  仍 `counterfactual_action_selector_live_injection=disabled`，线上
+  wiring 未开。oracle-vs-permutation-null 门：train `+0.0056`
+  （v33 的 2.2 倍）与 heldout `+0.0022`（由负转正）通过，但 eval
+  `-0.0081`、validation `-0.0049` 仍为负，validation 门失败 →
+  `reachable_solution_evidence=false`、verdict `mechanism-supported`、
+  `promotion_allowed=false`。**诊断解读（非门槛依据）**：oracle 门
+  检验每前缀 argmax 动作的跨段迁移，在效应真实但上下文条件化时
+  argmax 恰是对 max-of-noise 最脆弱的读出；同一 artifact 内
+  selector 的 audit 均值在全部四分区超过同一 permutation null
+  （validation `+0.0173` vs null `+0.0058`），说明可迁移动作价值
+  存在但载体是条件化 selector，不是动作边际。**主张更新**：
+  「可复用动作价值」以 train-fit selector 为载体首次获得四个冻结
+  分区一致正向证据；oracle 边际迁移主张维持收缩。**纪律**：预注册
+  v32 oracle 门在 validation 失败即 promotion 拒绝，不回溯改门；
+  本轮 validation routes 已被观察两次（v33/v34），若推进 v35
+  selector-vs-permutation-null 门，必须在运行前预注册该门并配一批
+  从未观察的 fresh validation routes（或 locked confirmation
+  split），不得复用本轮 validation 做设计决策。
+- **2026-07-29 v35 selector-vs-permutation-null packet：完整分析计划（预注册，run 进行中）**：
+  完整计划见 [`.cursor/plans/eta-gate2-v35-selector-null_e4a91f27.plan.md`](../.cursor/plans/eta-gate2-v35-selector-null_e4a91f27.plan.md)，
+  本 bullet 在读取结果**之前**写定，判定标准不回溯修改。**问题定位**：
+  v34 已证明 (a) 行为级因果功率（134/134 前缀效应全距 ≥ `0.02`）与
+  (b) train-fit selector 在四个冻结分区独立 audit 全正的诊断证据，但
+  预注册 v32 oracle 门检验的是「动作边际迁移」，与系统实际的迁移机制
+  「条件化动作价值」不匹配；且 v33/v34 validation 已被观察两次不可再用。
+  **v35 设计**：(1) 预注册 `selector-vs-permutation-null-v1` 正式门——
+  对每条 train-only selector 选择，null = 同一 `(split, route, prefix)`
+  反事实格点全部候选独立 audit credit 的均值（可交换零假设下无信号
+  selector 的期望），要求 train / fresh validation / locked confirmation
+  三分区 `selected_excess_over_null_mean ≥ 1e-6` 才产
+  `reachable_solution_evidence=true`；(2) 新造 4 条从未观察的 fresh
+  validation routes（`validation-v35-*`）+ 4 条 locked confirmation
+  routes（`confirmation-v35-*`，manifest 声明
+  `confirmation_split_locked=true`），旧 validation 降级为
+  `superseded_validation_route_ids` 只作诊断，词汇新鲜度契约测试保证
+  fresh 源文本与全部既有 case 内容词不相交；(3) v34 learned basis、
+  v33 realized-continuation 结局、PE→credit、v32 双门、
+  live injection disabled 全部原样冻结。**修改之后的目标**：
+  （通过时）把 v34 的 selector 诊断证据升级为「条件化动作价值在从未
+  观察分区通过预注册置换零假设检验」的正式证据，verdict 升
+  `causal-supported`、`promotion_allowed=true`——仅闭合 causal 层，
+  longitudinal（≥500 real-trace、跨 session）仍是独立前置；随后按序
+  推进 SHADOW 注入观测 → 多 seed/更长轨迹 → Gate 2 EXIT 对表。
+  （失败时）不加语义 label、不降阈值、不复用已观察分区；后续仅允许
+  读出坐标系对齐（selector 特征投影到 learned basis）与
+  `control_scale` 上限 `0.12→0.30` 两个方向，各一轮仍无法使 fresh
+  分区 excess 为正、或出现 train 正/fresh 系统性负的过拟合翻转、或
+  累计消耗 12 条 fresh route 无一通过，即触发 kill condition：主张
+  长期收缩为「行为级因果功率已证明；可复用动作价值在 0.5B 无证据」，
+  复测挂到更大基底 rare-heavy 计划。回滚方式：v35 仅改 evidence
+  契约与判定逻辑，线上 wiring 零改动，fresh routes 为纯新增可直接
+  移除。契约测试与 lint 已通过。**结果（run 完成后回写）**：
+  `artifacts/eta_gate2_residual_causal_v35_selector_null_fresh_fullwidth896_qwen25_05b_cpu_1seed_20260729`
+  （同 v33/v34 配置，运行 36 min）。预注册
+  selector-vs-permutation-null 门**三个正式分区全部通过**：train
+  excess `+0.0020`、fresh validation `+0.0146`、locked confirmation
+  `+0.0061`（诊断分区 eval `+0.0240`、heldout `+0.0042` 同为正，
+  五分区 selected excess 全正；selected positive rate
+  `0.50~0.73`）。因果功率不变量保持：160/160 前缀效应全距 ≥
+  `0.02`（median train/eval/heldout/validation/confirmation =
+  `0.074/0.098/0.070/0.076/0.081`），basis fingerprint 与 v34 逐位
+  一致（`train-transition-pca-v1:326aecdd…`），fallback=0、hook
+  coverage=1.0。oracle 边际诊断（非门槛）依旧混合：validation
+  `+0.0107` 正但 eval `-0.0081`、confirmation `-0.0055` 负——继续
+  印证「迁移载体是条件化 selector，不是动作边际」。machine verdict
+  首次升为 **`causal-supported`、`promotion_allowed=true`、
+  `reachable_solution_evidence=true`**：Gate 2 causal 层（本 packet
+  范围内）闭合。**主张更新**：0.5B 上 3 维 `z_t` 残差注入的条件化
+  动作价值在从未观察的 fresh validation + locked confirmation 上
+  通过预注册置换零假设检验，「可复用动作价值」首次获得正式证据级
+  支持。**边界不扩大**：仍是单 seed、CPU、ci-smoke 短前缀、合成
+  hierarchical 语料；`selector_injection_allowed=true` 仅为 SHADOW
+  级许可，`counterfactual_action_selector_live_injection=disabled`
+  不变；longitudinal 层（≥500 real-trace、跨 session）与 Gate 2
+  EXIT 其余条款仍未闭合。下一收敛包按计划 §4.2 顺序推进：SHADOW
+  注入观测 → 多 seed / 更长轨迹 → EXIT 对表；v36 SHADOW 注入观测包
+  的实现计划已写定（selector artifact 序列化 + 闭环 SHADOW arm +
+  v36 fresh 分区 + 3 seed + 预注册 `shadow-closed-loop-v1` 门，见
+  [`.cursor/plans/eta-gate2-v36-shadow-injection_b82d47c9.plan.md`](../.cursor/plans/eta-gate2-v36-shadow-injection_b82d47c9.plan.md)）。
 - **证据污染约束**：现有 heldout 已在 v1-v15 调参中反复观察，只能记为
   `development-heldout`。v16 晋升必须同时满足 eval 方向为正，以及一个
   从未用于本轮设计/停止决策的 locked `confirmation` split 相对最佳
@@ -2286,10 +2430,18 @@ return (
 	  动作 target 迁到真实 downstream outcome / environment PE 的要求
 	  （动作时刻冻结 prediction，环境结果到达后经 PE owner 与 segment
 	  credit 回写 `z_t` action value；模型自身 continuation NLL 仅保留辅助
-	  readout）已由 v31 落地；oracle-vs-permutation-null 门已由 v32 落地，
-	  下一收敛包为环境去天花板（见上方 v31 bullet）。现有 eval/development-heldout
+	  readout）已由 v31 落地；oracle-vs-permutation-null 门已由 v32 落地；
+	  环境去天花板已由 v33 落地（realized-continuation NLL 结局，效应全距
+	  134/134 前缀 ≥ 0.02，但可迁移动作信号未通过 v32 门，见上方 v33
+	  bullet）；learned control basis 已由 v34 落地（v32 严格 selector 门
+	  首次四分区全绿，oracle 门 validation 仍失败，见上方 v34 bullet）。
+	  现有 eval/development-heldout
 	  继续只作 development 诊断，新 outcome selector 仍须 train route-CV
 	  后在另一组新鲜 validation 一次性检验，稳定为正前不得注入 substrate。
+	  v33/v34 已观察过的 validation routes 不得再作为 v35+ 的一次性检验
+	  分区——v35 已照此执行：旧 validation 降级为
+	  `superseded_validation_route_ids`，新造 fresh validation +
+	  locked confirmation 分区（见上方 v35 bullet）。
 - **必须测试**：
   - `alpha`/KL 权重 sweep：压缩率与 switch sparsity 随 rate pressure 有方向变化，同时 held-out action prediction / family reuse 不塌缩。
   - 与人工 causal boundary 只用于评估的 held-out episode 比较 `beta_t` boundary precision/recall/F1；增加 text/topic boundary 干扰，检查 `beta_t` 没有只学到段落或 token 边界。

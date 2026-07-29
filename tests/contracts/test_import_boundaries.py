@@ -192,6 +192,10 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
             # Strict owner-authored checkpoint payload codec (vz-contracts).
             "canonical_json", "owner_hydration",
+            # State KV P4-c: temporal owns the Top-K bank-selection policy.
+            # It consumes immutable bank snapshots plus the shared semantic
+            # embedding seam, both published by vz-contracts.
+            "conditioning_bank_contracts", "semantic_embedding",
             # everything in vz-cognition:
             "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
@@ -228,6 +232,14 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             "audit", "dual_track", "evaluation", "credit", "regime", "prediction",
             "reflection", "semantic_state", "rupture_state",
             "personal_conditioning",
+            # State KV P4-a: relationship conditioning bank owner lives in
+            # vz-cognition next to personal_conditioning; vz-runtime only
+            # registers it into the kernel graph.
+            "relationship_conditioning",
+            # State KV P5-c: session-lived bounded credit-feedback state
+            # type; the runner holds instances and injects them into the
+            # per-turn conditioning owner rebuilds.
+            "conditioning_credit_feedback",
             # decision_workspace owner (docs/specs/cognitive-regime.md
             # §Panorama 参与门). Lives in vz-cognition alongside regime,
             # whose panorama gate it subscribes to; vz-runtime only

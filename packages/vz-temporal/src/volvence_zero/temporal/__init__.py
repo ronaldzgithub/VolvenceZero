@@ -69,6 +69,10 @@ from volvence_zero.temporal.tensor_ops import (
     zeros,
 )
 from volvence_zero.temporal.training import fit_policy_from_trace_dataset
+from volvence_zero.temporal.conditioning_router import (
+    TOPK_SEMANTIC_ROUTER_VERSION,
+    select_conditioning_banks,
+)
 
 __all__ = [
     "AffordanceSelectionState",
@@ -114,6 +118,7 @@ __all__ = [
     "TemporalModule",
     "TemporalPolicy",
     "TemporalStep",
+    "TOPK_SEMANTIC_ROUTER_VERSION",
     "TrackTemporalModule",
     "TrackTemporalConsolidationModule",
     "build_bootstrapped_parameter_store",
@@ -135,4 +140,5 @@ __all__ = [
     "vec_sigmoid",
     "vec_tanh",
     "zeros",
+    "select_conditioning_banks",
 ]

@@ -11,10 +11,12 @@ if TYPE_CHECKING:
     from volvence_zero.owner_hydration_store import OwnerHydrationStore
 
 from volvence_zero.dialogue_trace import (
+    ConditioningLineage,
     DialogueActionTrace,
     DialogueOutcomeResolution,
     DialogueTraceSnapshot,
 )
+from volvence_zero.conditioning_credit_feedback import BankCreditFeedbackState
 from volvence_zero.conditioning_bank_contracts import (
     ConditioningRevocationState,
 )
@@ -877,6 +879,9 @@ class AgentSessionRunner(
         # can carry the affordance call's plan_ref.
         self._pending_environment_prediction_id: str = ""
         self._dialogue_trace_store = DialogueTraceStore()
+        self._pending_external_outcome_lineages: list[
+            ConditioningLineage
+        ] = []
         self._credit_proposals = credit_proposals
         if response_synthesizer is not None:
             self._response_synthesizer = response_synthesizer
@@ -945,6 +950,13 @@ class AgentSessionRunner(
             self._owner_hydration_store.hydrate_owner_if_present(
                 self._prediction_module, "prediction_error_heads"
             )
+        # State KV P5-c: session-held bounded credit-feedback states so the
+        # conditioning bank owners' online-fast EMA survives the per-turn
+        # module rebuild (same lifetime pattern as the gate/consolidation
+        # learners above). The states are only ever written inside the
+        # owning conditioning modules.
+        self._personal_conditioning_credit_state = BankCreditFeedbackState()
+        self._relationship_conditioning_credit_state = BankCreditFeedbackState()
         self._dialogue_external_outcome_module = DialogueExternalOutcomeModule(
             wiring_level=self._config.level_for(
                 "dialogue_external_outcome", WiringLevel.ACTIVE
@@ -1963,6 +1975,9 @@ class AgentSessionRunner(
                 environment_outcome_id=environment_outcome_id,
                 environment_outcome=environment_outcome,
                 environment_prediction_id=environment_prediction_id,
+                external_outcome_lineages=tuple(
+                    self._pending_external_outcome_lineages
+                ),
                 apprenticeship_turn=apprenticeship_turn,
                 apprenticeship_feedback_policy=self._apprenticeship_feedback_policy,
                 apprenticeship_constraint_extractor=self._apprenticeship_constraint_extractor,
@@ -1987,7 +2002,10 @@ class AgentSessionRunner(
                 dual_track_gate_learner=self._dual_track_gate_learner,
                 social_record_store=self._social_record_store,
                 reflection_consolidation_learner=self._reflection_consolidation_learner,
+                personal_conditioning_credit_state=self._personal_conditioning_credit_state,
+                relationship_conditioning_credit_state=self._relationship_conditioning_credit_state,
             )
+            self._pending_external_outcome_lineages.clear()
             self._last_session_post_writeback_request = integration_result.session_post_writeback_request
             self._upstream_snapshots = {
                 **integration_result.active_snapshots,

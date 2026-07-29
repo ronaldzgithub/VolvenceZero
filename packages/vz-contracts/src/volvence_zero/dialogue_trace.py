@@ -266,6 +266,18 @@ class ConditioningLineage:
     state_encoder_version: str = ""
     prefix_generator_version: str = ""
     router_version: str = ""
+    # State KV P4-c: per-bank scores from the routing policy named by
+    # ``router_version`` when that policy actually scored candidates (the
+    # Top-K router). Empty for the deterministic select-all policy, which
+    # has no scores by construction.
+    router_scores: tuple[tuple[str, float], ...] = ()
+    # State KV P4-c SHADOW audit: when the Top-K router runs report-only
+    # (behaviour stays select-all), its would-be decision is recorded here
+    # so negative-control evidence can verify that an irrelevant bank
+    # scores low without flipping the policy live. Empty when no shadow
+    # evaluation happened this turn.
+    shadow_router_version: str = ""
+    shadow_router_scores: tuple[tuple[str, float], ...] = ()
 
     def __post_init__(self) -> None:
         _require_non_empty("session_scope", self.session_scope)
@@ -285,6 +297,29 @@ class ConditioningLineage:
             raise ValueError(
                 "ConditioningLineage selected_bank_set entries must each have a "
                 f"fingerprint; missing: {sorted(missing)}."
+            )
+        for label, scores in (
+            ("router_scores", self.router_scores),
+            ("shadow_router_scores", self.shadow_router_scores),
+        ):
+            banks_scored = tuple(bank for bank, _ in scores)
+            if scores:
+                _require_unique_non_empty(f"{label}.bank", banks_scored)
+            for bank, score in scores:
+                if not 0.0 <= score <= 1.0:
+                    raise ValueError(
+                        f"ConditioningLineage {label} must be in [0, 1]; "
+                        f"got {score!r} for {bank!r}."
+                    )
+        if self.shadow_router_scores and not self.shadow_router_version:
+            raise ValueError(
+                "ConditioningLineage shadow_router_scores require a "
+                "non-empty shadow_router_version naming the policy."
+            )
+        if self.router_scores and not self.router_version:
+            raise ValueError(
+                "ConditioningLineage router_scores require a non-empty "
+                "router_version naming the policy."
             )
 
 

@@ -81,6 +81,7 @@ ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS = 3
 # observation. The first two subsequent actions are the bounded window in
 # which the persisted action family must acknowledge carrying_food=True.
 ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY = 2
+ECOLOGY_POST_PICKUP_MIN_FAMILY_PERSISTENCE_ACTIONS = 3
 _ECOLOGY_POST_PICKUP_UTURN_START_DISTANCE = 2.0
 _ECOLOGY_POST_PICKUP_UTURN_SOURCE_RADIUS = 0.7
 
@@ -147,6 +148,10 @@ class EcologyPostPickupUTurnLane:
     switch_steps_after_pickup: tuple[int, ...]
     first_post_pickup_switch_step: int | None
     post_pickup_switch_observed: bool
+    action_families_after_pickup: tuple[str, ...]
+    first_post_pickup_switch_family: str | None
+    post_switch_family_survival_actions: int
+    post_switch_family_observation_censored: bool
     net_home_progress: float
     max_consecutive_approach_steps: int
     policy_fingerprint_stable: bool
@@ -1018,6 +1023,53 @@ def _max_consecutive_approach_steps(
     return longest
 
 
+def _post_switch_family_survival(
+    *,
+    action_families: Sequence[str],
+    switch_steps: Sequence[int],
+) -> tuple[str | None, int, bool]:
+    """Count the exact selected family after the first post-pickup switch.
+
+    ``action_families`` starts at the first action selected from the carrying
+    observation; switch steps are one-based from the pickup action. The switch
+    action itself is the first survival action. A second beta switch ends the
+    run even if the owner selects the same family label again: that is the
+    t+2 re-selection/back-jump D4 is meant to detect. A run with no second
+    switch that keeps the exact family through the frozen lane is
+    right-censored rather than pretending it ended at the probe horizon.
+    """
+
+    if not switch_steps:
+        return None, 0, False
+    first_switch_step = switch_steps[0]
+    family_index = first_switch_step - 1
+    if family_index < 0 or family_index >= len(action_families):
+        raise ValueError(
+            "post-pickup switch step is outside the published action-family "
+            f"trace: step={first_switch_step}, trace={len(action_families)}"
+        )
+    family = action_families[family_index]
+    survival = 0
+    next_switch_step = next(
+        (step for step in switch_steps[1:] if step > first_switch_step),
+        None,
+    )
+    family_limit = (
+        len(action_families)
+        if next_switch_step is None
+        else next_switch_step - 1
+    )
+    for selected in action_families[family_index:family_limit]:
+        if selected != family:
+            break
+        survival += 1
+    censored = (
+        next_switch_step is None
+        and family_index + survival == len(action_families)
+    )
+    return family, survival, censored
+
+
 async def _run_post_pickup_uturn_lane(
     *,
     checkpoint: AntLearningCheckpoint,
@@ -1085,6 +1137,7 @@ async def _run_post_pickup_uturn_lane(
     distances: list[float] = []
     turns: list[float] = []
     switch_steps: list[int] = []
+    action_families: list[str] = []
     for step_index in range(ECOLOGY_POST_PICKUP_UTURN_HORIZON):
         record = await session.step()
         if record.picked_up and pickup_tick is None:
@@ -1098,6 +1151,8 @@ async def _run_post_pickup_uturn_lane(
                 )
             )
             turns.append(record.command.turn_command)
+        if pickup_step is not None and step_index > pickup_step:
+            action_families.append(record.abstract_action)
         # Do not count the pickup act itself: its action was selected from the
         # unladen observation. Only a later switch can prove that the policy
         # reacted to the carrying-state transition.
@@ -1130,6 +1185,14 @@ async def _run_post_pickup_uturn_lane(
     consecutive = _max_consecutive_approach_steps(distances)
     delivered = delivery_tick is not None
     first_switch_step = switch_steps[0] if switch_steps else None
+    (
+        first_switch_family,
+        family_survival_actions,
+        family_observation_censored,
+    ) = _post_switch_family_survival(
+        action_families=action_families,
+        switch_steps=switch_steps,
+    )
     prompt_switch = (
         first_switch_step is not None
         and first_switch_step
@@ -1138,6 +1201,8 @@ async def _run_post_pickup_uturn_lane(
     passed = (
         pickup_tick is not None
         and prompt_switch
+        and family_survival_actions
+        >= ECOLOGY_POST_PICKUP_MIN_FAMILY_PERSISTENCE_ACTIONS
         and policy_stable
         and temporal_stable
         and (
@@ -1164,6 +1229,12 @@ async def _run_post_pickup_uturn_lane(
         switch_steps_after_pickup=tuple(switch_steps),
         first_post_pickup_switch_step=first_switch_step,
         post_pickup_switch_observed=prompt_switch,
+        action_families_after_pickup=tuple(action_families),
+        first_post_pickup_switch_family=first_switch_family,
+        post_switch_family_survival_actions=family_survival_actions,
+        post_switch_family_observation_censored=(
+            family_observation_censored
+        ),
         net_home_progress=net_progress,
         max_consecutive_approach_steps=consecutive,
         policy_fingerprint_stable=policy_stable,
@@ -1214,6 +1285,7 @@ __all__ = [
     "ECOLOGY_PROBE_STEP_SIZE",
     "ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET",
     "ECOLOGY_POST_PICKUP_UTURN_HORIZON",
+    "ECOLOGY_POST_PICKUP_MIN_FAMILY_PERSISTENCE_ACTIONS",
     "ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS",
     "ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY",
     "ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS",

@@ -385,11 +385,24 @@ promotion gate：
   optimization 与 joint learning；两条 lane 都必须保持 policy 与 temporal-learning
   fingerprint 不变，并在拾取后的前 2 个 action 内发布一次真实 `is_switching`，随后实际
   交付，或使拾取后巢距净下降至少一个 plant step（0.4）且连续
-  至少 3 步下降。左右任一失败即该 body 失败；正式门仍要求至少 60% body 通过。该门读取
+  至少 3 步下降。lane 同时发布拾取后逐 action 的 exact `active_abstract_action`、第一次
+  switch 选中的 family、该 family 连续存活的 action 数，以及存活观测是否被 16-tick
+  horizon / 提前交付右截断；`scripts/measure_ant_post_pickup_family_persistence.py`
+  从 journal checkpoint 复用这条冻结回放，结构验收要求 8/8 lane 在 2 action 内切换且
+  新 family 至少持续 3 action。左右任一失败即该 body 失败；正式门仍要求至少 60% body 通过。该门读取
   embodiment owner 发布的真实 pickup/delivery 与逐 tick pose，只作冻结 evaluation readout，
   不向 PE、credit 或训练链回灌。这样“单步方向正确但转角几乎为零、随后持续远离巢”的策略
   无法再通过 home gate。
-- training、validation、正式 held-out 使用三个不重叠的 seed/布局命名空间。held-out 拆成
+- resumable P1 journal 是单写者资源。CLI 在任何训练/恢复预算消耗前对
+  `<progress-dir>/.writer.lock` 获取非阻塞进程级 `flock`，第二个 writer 必须 fail loudly
+  并报告持锁 PID；锁由内核随文件描述符/进程退出释放，禁止用可能在崩溃后残留的 sentinel
+  文件模拟租约。checkpoint 仍以双槽 archive + 原子 JSON pointer 提供恢复；锁只阻止并发写，
+  不改变 archive schema 或只读 probe。
+- training、validation、正式 held-out 使用三个不重叠的 seed/布局命名空间。P0 audit 的
+  frozen held-out repro 固定为 literal seed `101/307`，validation 使用 `config.seed+43`，
+  training 由唯一 schedule owner 放入 `config.seed+1_000_003` 高位命名空间；driver 必须在
+  消耗训练预算前调用同一 schedule owner 做 overlap preflight，禁止等 artifact provenance
+  阶段才发现冲突。held-out 拆成
   butter-only、butter-with-neutral-stick、burning-match route avoidance、burning-match forced
   escape 和 composite 五类：butter-with-neutral-stick 只验证有中性物理阻挡时觅食仍成功（不比
   contact 率、不与 no-optimize 比"回避能力"）；主动避热不要求先进入热区；强制逃逸从有害区内的

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 import hashlib
 from itertools import combinations
+import json
 from pathlib import Path
 from random import Random
 from typing import Any
@@ -52,6 +53,8 @@ from volvence_zero.internal_rl import (
     fit_kernel_residual_action_selector,
     grouped_cross_validate_kernel_residual_action_selector,
     residual_action_state_vector,
+    selector_artifact_from_payload,
+    selector_artifact_to_payload,
     select_counterfactual_actions,
     summarize_action_selections,
 )
@@ -64,6 +67,8 @@ from volvence_zero.prediction.error import (
 from volvence_zero.memory import Track
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
+    FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE,
+    TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE,
     ContinuationScore,
     FeatureSignal,
     LocalSubstrateRuntimeMode,
@@ -76,6 +81,8 @@ from volvence_zero.substrate import (
     SyntheticOpenWeightResidualRuntime,
     build_transformers_runtime_with_fallback,
     build_training_trace,
+    control_basis_fingerprint,
+    fit_transition_control_basis,
 )
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
@@ -95,6 +102,12 @@ ETA_DEFAULT_CASE_CORPUS = "eta-proof-default-v1"
 ETA_GATE2_EXPANDED_CASE_CORPUS = "eta-gate2-expanded-continuation-v2"
 ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS = (
     "eta-gate2-prefix-expected-value-v3"
+)
+ETA_GATE2_SELECTOR_FRESH_CASE_CORPUS = (
+    "eta-gate2-selector-fresh-v4"
+)
+ETA_GATE2_SHADOW_FRESH_CASE_CORPUS = (
+    "eta-gate2-shadow-fresh-v5"
 )
 ETA_COUNTERFACTUAL_TARGET_OBSERVED = "observed-single-continuation"
 ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED = (
@@ -173,6 +186,29 @@ class ETACounterfactualOutcomeRecord:
 
 
 @dataclass(frozen=True)
+class ETAShadowClosedLoopRecord:
+    run_id: str
+    run_seed: int
+    split: str
+    case_id: str
+    step_index: int
+    arm: str
+    selected_action_index: int
+    predicted_action_value: float
+    step_control: tuple[float, ...]
+    aggregate_control: tuple[float, ...]
+    zero_control_mean_nll: float
+    observed_mean_nll: float
+    realized_delta: float
+    committed_control_count: int
+    state_features_fingerprint: str
+    selector_fingerprint: str
+    control_basis_fingerprint: str
+    runtime_descriptor_fingerprint: str
+    side_effect_free: bool
+
+
+@dataclass(frozen=True)
 class ETAProofEpisodeReport:
     case_id: str
     split: str
@@ -240,6 +276,10 @@ class ETAProofProfileReport:
     ] = ()
     counterfactual_outcome_records: tuple[
         ETACounterfactualOutcomeRecord, ...
+    ] = ()
+    selector_artifact_payload: dict[str, object] | None = None
+    shadow_closed_loop_records: tuple[
+        ETAShadowClosedLoopRecord, ...
     ] = ()
 
 
@@ -580,6 +620,83 @@ def _build_case_snapshot_bundle(
         for step_index, prefix in enumerate(prefixes)
     )
     return (snapshots, prefixes)
+
+
+def _snapshot_transition_state(snapshot: SubstrateSnapshot) -> tuple[float, ...]:
+    """Mean over hook layers of the last-token hidden activation.
+
+    This is the state coordinate used to fit the learned control basis:
+    the control delta is injected identically at every hooked layer, so
+    the transition subspace of those layers is the actuator's target
+    space.
+    """
+
+    if not snapshot.residual_sequence:
+        raise ValueError(
+            "learned control-basis fitting requires token-level residual "
+            "sequences; the snapshot carries none"
+        )
+    activations = snapshot.residual_sequence[-1].residual_activations
+    if not activations:
+        raise ValueError(
+            "learned control-basis fitting requires per-layer residual "
+            "activations on the final residual step"
+        )
+    width = len(activations[0].activation)
+    return tuple(
+        sum(layer.activation[index] for layer in activations) / len(activations)
+        for index in range(width)
+    )
+
+
+def _install_learned_control_basis(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    cases: tuple[ETAProofCase, ...],
+    open_weight_config: ETAOpenWeightRuntimeConfig | None,
+) -> dict[str, str]:
+    """Fit a train-transition-PCA control basis and install it on the runtime.
+
+    Frozen-split hygiene: the basis is fit exclusively from train-split
+    route captures; eval/heldout/validation routes never contribute
+    transition deltas. Returns provenance entries for the paper-suite
+    runtime descriptor so the artifact preregisters the exact basis.
+    """
+
+    train_cases = tuple(case for case in cases if case.split == "train")
+    if not train_cases:
+        raise ValueError(
+            "learned control-basis mode requires at least one train-split "
+            "case to fit transition deltas"
+        )
+    transition_deltas: list[tuple[float, ...]] = []
+    for case in train_cases:
+        snapshots, _prefixes = _build_case_snapshot_bundle(
+            case,
+            open_weight_runtime=runtime,
+            open_weight_config=open_weight_config,
+        )
+        states = [_snapshot_transition_state(snapshot) for snapshot in snapshots]
+        for left, right in zip(states, states[1:], strict=False):
+            transition_deltas.append(
+                tuple(b - a for a, b in zip(left, right, strict=True))
+            )
+    basis = fit_transition_control_basis(transition_deltas, basis_rank=3)
+    fingerprint = control_basis_fingerprint(basis)
+    provenance = (
+        f"{TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE}:{fingerprint[:16]}"
+    )
+    runtime.install_control_basis(basis=basis, provenance=provenance)
+    return {
+        "control_basis_mode": TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE,
+        "control_basis_provenance": provenance,
+        "control_basis_fingerprint": fingerprint,
+        "control_basis_fit_split": "train",
+        "control_basis_transition_count": str(len(transition_deltas)),
+        "control_basis_fit_route_ids": ",".join(
+            case.case_id for case in train_cases
+        ),
+    }
 
 
 def _feature_mean(
@@ -1078,7 +1195,7 @@ def eta_gate2_independent_training_routes() -> tuple[
                 "The group documented each promise before assigning new work"
             ),
             waypoints=("entry", "hub", "beta", "gamma", "epsilon"),
-            distractor_ids=("alpha", "delta"),
+            distractor_ids=("gamma", "epsilon"),
             split_detail="train-independent-ledger",
             description="Frozen independent continuation route for a promise ledger.",
         ),
@@ -1239,6 +1356,295 @@ def eta_gate2_expected_value_routes() -> tuple[
     )
 
 
+def eta_gate2_selector_fresh_validation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="validation-v35-librarian-catalog-shift",
+            split="validation",
+            source_text=(
+                "Archivists catalogued vellum folios once provenance codices "
+                "encoded lineage"
+            ),
+            waypoints=("entry", "alpha", "beta", "delta"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="validation-v35-catalog",
+            description=(
+                "Fresh v35 selector validation route, locked before "
+                "selector-vs-null execution."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v35-clinic-handoff-review",
+            split="validation",
+            source_text=(
+                "Clinicians triaged telemetry anomalies amid neonatal "
+                "transfer briefing"
+            ),
+            waypoints=("entry", "beta", "gamma", "beta", "delta"),
+            distractor_ids=("alpha", "epsilon"),
+            split_detail="validation-v35-handoff",
+            description=(
+                "Fresh v35 selector validation route with unseen clinical "
+                "handoff vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v35-museum-lighting-plan",
+            split="validation",
+            source_text=(
+                "Conservators recalibrated vitrines because ultramarine "
+                "pigments fluoresced"
+            ),
+            waypoints=("entry", "delta", "hub", "beta", "epsilon"),
+            distractor_ids=("alpha", "gamma"),
+            split_detail="validation-v35-lighting",
+            description=(
+                "Fresh v35 selector validation route with preservation "
+                "planning context."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v35-harbor-manifest-update",
+            split="validation",
+            source_text=(
+                "Stevedores resequenced quay manifests after customs seals "
+                "misprinted"
+            ),
+            waypoints=("entry", "hub", "epsilon", "alpha", "delta"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v35-manifest",
+            description=(
+                "Fresh v35 selector validation route with logistics "
+                "vocabulary unused by v33/v34."
+            ),
+        ),
+    )
+
+
+def eta_gate2_selector_confirmation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="confirmation-v35-orchestra-rehearsal",
+            split="confirmation",
+            source_text=(
+                "Concertmasters reshaped scherzo rehearsals when balcony "
+                "acoustics shimmered"
+            ),
+            waypoints=("entry", "alpha", "gamma", "beta", "epsilon"),
+            distractor_ids=("delta", "hub"),
+            split_detail="confirmation-v35-rehearsal",
+            description=(
+                "Locked v35 confirmation route for selector-vs-null gate."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v35-greenhouse-irrigation",
+            split="confirmation",
+            source_text=(
+                "Horticulturists rerouted drip valves after loam sensors "
+                "drifted"
+            ),
+            waypoints=("entry", "hub", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="confirmation-v35-irrigation",
+            description=(
+                "Locked v35 confirmation route with agricultural operations "
+                "context."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v35-courier-route-repair",
+            split="confirmation",
+            source_text=(
+                "Couriers rerouted parcels after viaduct bulletins "
+                "invalidated shortcuts"
+            ),
+            waypoints=("entry", "delta", "alpha", "gamma", "epsilon"),
+            distractor_ids=("beta", "hub"),
+            split_detail="confirmation-v35-courier",
+            description=(
+                "Locked v35 confirmation route with delivery-route context."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v35-kiln-temperature-log",
+            split="confirmation",
+            source_text=(
+                "Potters recalculated firing cadence when celadon tiles "
+                "warped"
+            ),
+            waypoints=("entry", "beta", "epsilon", "delta", "gamma", "alpha"),
+            distractor_ids=("hub",),
+            split_detail="confirmation-v35-kiln",
+            description=(
+                "Locked v35 confirmation route with craft-process context."
+            ),
+        ),
+    )
+
+
+def eta_gate2_shadow_fresh_validation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="validation-v36-observatory-ephemeris",
+            split="validation",
+            source_text=(
+                "Astronomers collimated spectrographs while ephemerides "
+                "corrected azimuth refraction"
+            ),
+            waypoints=("entry", "alpha", "delta", "epsilon"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v36-observatory",
+            description=(
+                "Fresh v36 closed-loop validation route with observatory "
+                "operations vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v36-brewery-fermentation",
+            split="validation",
+            source_text=(
+                "Brewers sanitized hydrometers before wort fermentation "
+                "stabilized bung pressure"
+            ),
+            waypoints=("entry", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="validation-v36-brewery",
+            description=(
+                "Fresh v36 closed-loop validation route with brewing "
+                "process vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v36-geology-stratigraphy",
+            split="validation",
+            source_text=(
+                "Geologists indexed borehole strata where basalt inclusions "
+                "fractured shale"
+            ),
+            waypoints=("entry", "delta", "hub", "beta", "epsilon"),
+            distractor_ids=("alpha", "gamma"),
+            split_detail="validation-v36-geology",
+            description=(
+                "Fresh v36 closed-loop validation route with geological "
+                "survey vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v36-theater-blocking",
+            split="validation",
+            source_text=(
+                "Choreographers revised proscenium blocking; matinee cues "
+                "desynchronized abruptly"
+            ),
+            waypoints=("entry", "hub", "epsilon", "alpha", "delta"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v36-theater",
+            description=(
+                "Fresh v36 closed-loop validation route with stagecraft "
+                "vocabulary."
+            ),
+        ),
+    )
+
+
+def eta_gate2_shadow_confirmation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="confirmation-v36-apiary-brood",
+            split="confirmation",
+            source_text=(
+                "Beekeepers inspected apiaries after varroa weakened brood "
+                "combs"
+            ),
+            waypoints=("entry", "alpha", "gamma", "beta", "epsilon"),
+            distractor_ids=("delta", "hub"),
+            split_detail="confirmation-v36-apiary",
+            description=(
+                "Locked v36 confirmation route with apiculture vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v36-bathymetry-soundings",
+            split="confirmation",
+            source_text=(
+                "Hydrographers reconciled bathymetric soundings around "
+                "shoals and meridians"
+            ),
+            waypoints=("entry", "hub", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="confirmation-v36-bathymetry",
+            description=(
+                "Locked v36 confirmation route with hydrographic vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v36-luthiery-soundboard",
+            split="confirmation",
+            source_text=(
+                "Luthiers seasoned spruce soundboards until varnish balanced "
+                "resonance"
+            ),
+            waypoints=("entry", "delta", "alpha", "gamma", "epsilon"),
+            distractor_ids=("beta", "hub"),
+            split_detail="confirmation-v36-luthiery",
+            description=(
+                "Locked v36 confirmation route with instrument-making "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v36-mycology-cultures",
+            split="confirmation",
+            source_text=(
+                "Mycologists isolated agar cultures after hyphae contaminated "
+                "incubators"
+            ),
+            waypoints=("entry", "beta", "epsilon", "delta", "gamma", "alpha"),
+            distractor_ids=("hub",),
+            split_detail="confirmation-v36-mycology",
+            description=(
+                "Locked v36 confirmation route with laboratory mycology "
+                "vocabulary."
+            ),
+        ),
+    )
+
+
+def eta_gate2_shadow_fresh_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        eta_gate2_expanded_routes()
+        + eta_gate2_shadow_fresh_validation_routes()
+        + eta_gate2_shadow_confirmation_routes()
+    )
+
+
+def eta_gate2_selector_fresh_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        eta_gate2_expanded_routes()
+        + eta_gate2_selector_fresh_validation_routes()
+        + eta_gate2_selector_confirmation_routes()
+    )
+
+
 def _build_eta_proof_cases(
     routes: tuple[HierarchicalRouteSpec, ...],
 ) -> tuple[ETAProofCase, ...]:
@@ -1273,6 +1679,14 @@ def eta_gate2_expanded_cases() -> tuple[ETAProofCase, ...]:
 
 def eta_gate2_expected_value_cases() -> tuple[ETAProofCase, ...]:
     return _build_eta_proof_cases(eta_gate2_expected_value_routes())
+
+
+def eta_gate2_selector_fresh_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_selector_fresh_routes())
+
+
+def eta_gate2_shadow_fresh_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_shadow_fresh_routes())
 
 
 def default_eta_proof_profiles() -> tuple[str, ...]:
@@ -3101,6 +3515,285 @@ def _fit_train_selected_counterfactual_selector(
     )
 
 
+def _stable_payload_fingerprint(payload: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _aggregate_committed_controls(
+    committed_controls: tuple[tuple[float, ...], ...],
+) -> tuple[float, float, float]:
+    if not committed_controls:
+        return (0.0, 0.0, 0.0)
+    if any(len(control) != 3 for control in committed_controls):
+        raise ValueError(
+            "Gate 2 closed-loop committed controls must all have dim 3"
+        )
+    return tuple(
+        sum(control[index] for control in committed_controls)
+        for index in range(3)
+    )
+
+
+def _shadow_closed_loop_state_snapshot(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    source_text: str,
+    clean_snapshot: SubstrateSnapshot,
+    aggregate_control: tuple[float, float, float],
+) -> SubstrateSnapshot:
+    if all(abs(value) <= 1e-15 for value in aggregate_control):
+        return clean_snapshot
+    return runtime.apply_control(
+        source_text=source_text,
+        substrate_snapshot=clean_snapshot,
+        applied_control=aggregate_control,
+    ).applied_snapshot
+
+
+def _shadow_closed_loop_records(
+    *,
+    run_id: str,
+    run_seed: int,
+    case: ETAProofCase,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    source_text_by_step: tuple[str, ...],
+    runtime: OpenWeightResidualRuntime,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None,
+    policy: FullLearnedTemporalPolicy,
+    selector_artifact: KernelResidualActionSelectorArtifact,
+    control_basis_fingerprint_value: str,
+    score_cache: dict[tuple[str, str, tuple[float, ...]], float],
+) -> tuple[ETAShadowClosedLoopRecord, ...]:
+    if len(snapshots) != len(source_text_by_step):
+        raise ValueError(
+            "Gate 2 closed-loop SHADOW requires aligned snapshots/prefixes"
+        )
+    scoreable_prefix_count = len(snapshots) - 2
+    if scoreable_prefix_count < 1:
+        raise ValueError(
+            "Gate 2 closed-loop SHADOW requires at least three prefixes"
+        )
+    runtime_descriptor = _open_weight_runtime_descriptor(
+        runtime=runtime,
+        config=open_weight_config,
+    )
+    runtime_descriptor_fingerprint = _stable_payload_fingerprint(
+        runtime_descriptor
+    )
+    selector_fingerprint = selector_artifact.model_fingerprint
+    candidates = _continuation_counterfactual_candidates()
+    if selector_artifact.action_count != len(candidates):
+        raise ValueError(
+            "Gate 2 closed-loop selector action count does not match the "
+            "frozen counterfactual candidate set"
+        )
+    decoder = ResidualDecoder()
+    selector_committed: tuple[tuple[float, ...], ...] = ()
+    permutation_committed: tuple[tuple[float, ...], ...] = ()
+    permutation_offset = (
+        int.from_bytes(
+            hashlib.sha256(
+                f"{run_seed}\x1f{case.case_id}".encode("utf-8")
+            ).digest()[:4],
+            byteorder="big",
+            signed=False,
+        )
+        % len(candidates)
+    )
+    records: list[ETAShadowClosedLoopRecord] = []
+    for step_index in range(scoreable_prefix_count):
+        source_text = source_text_by_step[step_index]
+        next_prefix = source_text_by_step[step_index + 1]
+        if not next_prefix.startswith(source_text):
+            raise ValueError(
+                "Gate 2 closed-loop SHADOW requires monotonically extended "
+                f"prefixes for {case.case_id} at step {step_index}"
+            )
+        realized_segment = next_prefix[len(source_text) :].strip()
+        if not realized_segment:
+            raise ValueError(
+                "Gate 2 closed-loop SHADOW requires a nonempty realized "
+                f"segment for {case.case_id} at step {step_index}"
+            )
+        zero_control = (0.0, 0.0, 0.0)
+        zero_nll = _continuation_nlls(
+            runtime=runtime,
+            source_text=source_text,
+            continuation_texts=(realized_segment,),
+            applied_control=zero_control,
+            score_cache=score_cache,
+        )[0]
+
+        selector_prior_control = _aggregate_committed_controls(
+            selector_committed
+        )
+        selector_state = _shadow_closed_loop_state_snapshot(
+            runtime=runtime,
+            source_text=source_text,
+            clean_snapshot=snapshots[step_index],
+            aggregate_control=selector_prior_control,
+        )
+        selector_features = residual_action_state_vector(selector_state)
+        selector_values = selector_artifact.predict_action_values(
+            selector_features
+        )
+        selector_index = max(
+            range(len(selector_values)),
+            key=lambda index: (selector_values[index], -index),
+        )
+        selector_decoded = decoder.decode(
+            latent_code=candidates[selector_index],
+            decoder_matrix=policy.parameter_store.decoder_matrix,
+            hidden_matrix=policy.parameter_store.decoder_hidden,
+        )
+        selector_committed = (
+            *selector_committed,
+            selector_decoded.applied_control,
+        )
+        selector_aggregate = _aggregate_committed_controls(
+            selector_committed
+        )
+        selector_nll = _continuation_nlls(
+            runtime=runtime,
+            source_text=source_text,
+            continuation_texts=(realized_segment,),
+            applied_control=selector_aggregate,
+            score_cache=score_cache,
+        )[0]
+
+        permutation_prior_control = _aggregate_committed_controls(
+            permutation_committed
+        )
+        permutation_state = _shadow_closed_loop_state_snapshot(
+            runtime=runtime,
+            source_text=source_text,
+            clean_snapshot=snapshots[step_index],
+            aggregate_control=permutation_prior_control,
+        )
+        permutation_features = residual_action_state_vector(
+            permutation_state
+        )
+        permutation_values = selector_artifact.predict_action_values(
+            permutation_features
+        )
+        permutation_index = (
+            permutation_offset + step_index
+        ) % len(candidates)
+        permutation_decoded = decoder.decode(
+            latent_code=candidates[permutation_index],
+            decoder_matrix=policy.parameter_store.decoder_matrix,
+            hidden_matrix=policy.parameter_store.decoder_hidden,
+        )
+        permutation_committed = (
+            *permutation_committed,
+            permutation_decoded.applied_control,
+        )
+        permutation_aggregate = _aggregate_committed_controls(
+            permutation_committed
+        )
+        permutation_nll = _continuation_nlls(
+            runtime=runtime,
+            source_text=source_text,
+            continuation_texts=(realized_segment,),
+            applied_control=permutation_aggregate,
+            score_cache=score_cache,
+        )[0]
+
+        arm_values = (
+            (
+                "zero-control",
+                0,
+                selector_values[0],
+                zero_control,
+                zero_control,
+                zero_nll,
+                0,
+                residual_action_state_vector(snapshots[step_index]),
+            ),
+            (
+                "selector",
+                selector_index,
+                selector_values[selector_index],
+                selector_decoded.applied_control,
+                selector_aggregate,
+                selector_nll,
+                len(selector_committed),
+                selector_features,
+            ),
+            (
+                "permutation-null",
+                permutation_index,
+                permutation_values[permutation_index],
+                permutation_decoded.applied_control,
+                permutation_aggregate,
+                permutation_nll,
+                len(permutation_committed),
+                permutation_features,
+            ),
+        )
+        for (
+            arm,
+            selected_index,
+            predicted_value,
+            step_control,
+            aggregate_control,
+            observed_nll,
+            committed_count,
+            state_features,
+        ) in arm_values:
+            records.append(
+                ETAShadowClosedLoopRecord(
+                    run_id=run_id,
+                    run_seed=run_seed,
+                    split=case.split,
+                    case_id=case.case_id,
+                    step_index=step_index,
+                    arm=arm,
+                    selected_action_index=selected_index,
+                    predicted_action_value=predicted_value,
+                    step_control=step_control,
+                    aggregate_control=aggregate_control,
+                    zero_control_mean_nll=zero_nll,
+                    observed_mean_nll=observed_nll,
+                    realized_delta=zero_nll - observed_nll,
+                    committed_control_count=committed_count,
+                    state_features_fingerprint=(
+                        _stable_payload_fingerprint(state_features)
+                    ),
+                    selector_fingerprint=selector_fingerprint,
+                    control_basis_fingerprint=(
+                        control_basis_fingerprint_value
+                    ),
+                    runtime_descriptor_fingerprint=(
+                        runtime_descriptor_fingerprint
+                    ),
+                    side_effect_free=False,
+                )
+            )
+    if selector_artifact.model_fingerprint != selector_fingerprint:
+        raise RuntimeError(
+            "Gate 2 closed-loop SHADOW mutated the frozen selector artifact"
+        )
+    after_runtime_descriptor = _open_weight_runtime_descriptor(
+        runtime=runtime,
+        config=open_weight_config,
+    )
+    if after_runtime_descriptor != runtime_descriptor:
+        raise RuntimeError(
+            "Gate 2 closed-loop SHADOW mutated the runtime descriptor"
+        )
+    return tuple(
+        replace(record, side_effect_free=True)
+        for record in records
+    )
+
+
 def _counterfactual_diagnostic_metrics(
     prefix_candidate_prediction_errors: tuple[
         tuple[float, ...],
@@ -3734,6 +4427,10 @@ def run_eta_internal_rl_proof_benchmark(
     counterfactual_audit_sample_count: int = 0,
     counterfactual_sampling_temperature: float = 0.8,
     counterfactual_sampling_max_new_tokens: int = 4,
+    shadow_closed_loop_arm: bool = False,
+    evidence_run_id: str = "eta-proof-direct",
+    evidence_run_seed: int = 0,
+    control_basis_fingerprint_value: str = "",
 ) -> ETAProofBenchmarkReport:
     if training_signal not in {
         ETA_PROOF_TRAINING_SIGNAL,
@@ -3850,7 +4547,11 @@ def run_eta_internal_rl_proof_benchmark(
             ETACounterfactualOutcomeRecord
         ] = []
         selector_artifact = None
+        selector_artifact_payload: dict[str, object] | None = None
         selector_model_candidate_count = 0
+        shadow_closed_loop_records: list[
+            ETAShadowClosedLoopRecord
+        ] = []
         evaluation_counterfactual_diagnostics: dict[
             str,
             list[tuple[float, ...]],
@@ -4076,6 +4777,31 @@ def run_eta_internal_rl_proof_benchmark(
             ) = _fit_train_selected_counterfactual_selector(
                 training_examples,
             )
+            serialized_selector = selector_artifact_to_payload(
+                selector_artifact
+            )
+            restored_selector = selector_artifact_from_payload(
+                serialized_selector
+            )
+            if not isinstance(
+                restored_selector,
+                KernelResidualActionSelectorArtifact,
+            ):
+                raise TypeError(
+                    "Gate 2 train-selected selector round-trip changed "
+                    "the artifact model kind"
+                )
+            selector_artifact = restored_selector
+            selector_artifact_payload = {
+                "schema_version": "eta-gate2-selector-artifact.v1",
+                "run_id": evidence_run_id,
+                "run_seed": evidence_run_seed,
+                "fit_split": "train",
+                "control_basis_fingerprint": (
+                    control_basis_fingerprint_value
+                ),
+                "artifact": serialized_selector,
+            }
             selector_selections.extend(selector_cv_selections)
         if (
             profile_label == baseline_label
@@ -4128,6 +4854,39 @@ def run_eta_internal_rl_proof_benchmark(
                 proof_episode=rollout_case.proof_episode,
                 source_text_by_step=source_text_by_step,
             )
+            if shadow_closed_loop_arm and selector_diagnostic_active:
+                if active_open_weight_runtime is None:
+                    raise RuntimeError(
+                        "Gate 2 closed-loop SHADOW requires the active "
+                        "open-weight runtime"
+                    )
+                if selector_artifact is None:
+                    raise RuntimeError(
+                        "Gate 2 closed-loop SHADOW selector artifact "
+                        "disappeared after train-only fit"
+                    )
+                if not control_basis_fingerprint_value:
+                    raise ValueError(
+                        "Gate 2 closed-loop SHADOW requires a bound control "
+                        "basis fingerprint"
+                    )
+                shadow_closed_loop_records.extend(
+                    _shadow_closed_loop_records(
+                        run_id=evidence_run_id,
+                        run_seed=evidence_run_seed,
+                        case=case,
+                        snapshots=snapshots,
+                        source_text_by_step=source_text_by_step,
+                        runtime=active_open_weight_runtime,
+                        open_weight_config=open_weight_config,
+                        policy=sandbox.policy,
+                        selector_artifact=selector_artifact,
+                        control_basis_fingerprint_value=(
+                            control_basis_fingerprint_value
+                        ),
+                        score_cache=continuation_score_cache,
+                    )
+                )
             continuation_scores = _score_rollout_continuations(
                 runtime=(
                     active_open_weight_runtime
@@ -4458,6 +5217,10 @@ def run_eta_internal_rl_proof_benchmark(
                 counterfactual_outcome_records=tuple(
                     counterfactual_outcome_records
                 ),
+                selector_artifact_payload=selector_artifact_payload,
+                shadow_closed_loop_records=tuple(
+                    shadow_closed_loop_records
+                ),
             )
         )
     baseline_report = next(report for report in profile_reports if report.profile_label == baseline_label)
@@ -4533,6 +5296,12 @@ def run_eta_internal_rl_proof_benchmark(
                 ),
                 counterfactual_outcome_records=(
                     report.counterfactual_outcome_records
+                ),
+                selector_artifact_payload=(
+                    report.selector_artifact_payload
+                ),
+                shadow_closed_loop_records=(
+                    report.shadow_closed_loop_records
                 ),
             )
             for report in profile_reports
@@ -5315,6 +6084,14 @@ def run_eta_internal_rl_paper_suite(
         ),
         False,
     )
+    shadow_closed_loop_arm = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "shadow_closed_loop_arm"
+        ),
+        False,
+    )
     counterfactual_target_mode = next(
         (
             values[0]
@@ -5384,6 +6161,10 @@ def run_eta_internal_rl_paper_suite(
         available_cases = eta_gate2_expanded_cases()
     elif case_corpus == ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS:
         available_cases = eta_gate2_expected_value_cases()
+    elif case_corpus == ETA_GATE2_SELECTOR_FRESH_CASE_CORPUS:
+        available_cases = eta_gate2_selector_fresh_cases()
+    elif case_corpus == ETA_GATE2_SHADOW_FRESH_CASE_CORPUS:
+        available_cases = eta_gate2_shadow_fresh_cases()
     else:
         raise ValueError(f"Unsupported ETA case corpus {case_corpus!r}.")
     available_case_ids = {case.case_id for case in available_cases}
@@ -5394,11 +6175,41 @@ def run_eta_internal_rl_paper_suite(
             f"{sorted(unknown_route_ids)!r}."
         )
     cases = tuple(case for case in available_cases if case.case_id in route_ids)
+    control_basis_mode = next(
+        (
+            values[0]
+            for name, values in active_manifest.case_groups
+            if name == "control_basis_mode"
+        ),
+        FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE,
+    )
+    control_basis_descriptor: dict[str, str] = {
+        "control_basis_mode": control_basis_mode,
+    }
+    if control_basis_mode == TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE:
+        if open_weight_runtime is None:
+            raise ValueError(
+                "control_basis_mode="
+                f"{TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE!r} requires an "
+                "open-weight runtime to fit and install the learned basis"
+            )
+        control_basis_descriptor = _install_learned_control_basis(
+            runtime=open_weight_runtime,
+            cases=cases,
+            open_weight_config=open_weight_config,
+        )
+    elif control_basis_mode != FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE:
+        raise ValueError(
+            f"Unsupported control basis mode {control_basis_mode!r}."
+        )
     run_summaries: list[ETAProofPaperSuiteRunSummary] = []
     reference_benchmark_report: ETAProofBenchmarkReport | None = None
     reference_backend_report: ETAProofBackendComparisonReport | None = None
     reference_assessment: ETAInternalRLAssessmentReport | None = None
     for run_index, run_seed in enumerate(active_manifest.seed_schedule[: active_manifest.repeat_count], start=1):
+        evidence_run_id = (
+            f"{active_manifest.suite_id}:run-{run_index:02d}"
+        )
         run_random = Random(run_seed)
         ordered_cases = tuple(
             sorted(
@@ -5441,6 +6252,15 @@ def run_eta_internal_rl_paper_suite(
             ),
             counterfactual_sampling_max_new_tokens=(
                 counterfactual_sampling_max_new_tokens
+            ),
+            shadow_closed_loop_arm=shadow_closed_loop_arm,
+            evidence_run_id=evidence_run_id,
+            evidence_run_seed=run_seed,
+            control_basis_fingerprint_value=(
+                control_basis_descriptor.get(
+                    "control_basis_fingerprint",
+                    "",
+                )
             ),
         )
         backend_report = run_eta_internal_rl_backend_robustness_benchmark(
@@ -5492,7 +6312,7 @@ def run_eta_internal_rl_paper_suite(
             else 0.0
         )
         run_summary = ETAProofPaperSuiteRunSummary(
-            run_id=f"{active_manifest.suite_id}:run-{run_index:02d}",
+            run_id=evidence_run_id,
             run_seed=run_seed,
             metric_values=_eta_paper_suite_metric_values(
                 benchmark_report=benchmark_report,
@@ -5568,6 +6388,9 @@ def run_eta_internal_rl_paper_suite(
         "counterfactual_action_selector_diagnostic": str(
             counterfactual_action_selector_diagnostic
         ).lower(),
+        "shadow_closed_loop_arm": str(
+            shadow_closed_loop_arm
+        ).lower(),
         "counterfactual_target_mode": counterfactual_target_mode,
         "counterfactual_target_sample_count": str(
             counterfactual_target_sample_count
@@ -5588,6 +6411,7 @@ def run_eta_internal_rl_paper_suite(
             config=open_weight_config,
         )
     )
+    runtime_descriptor.update(control_basis_descriptor)
     provenance = collect_paper_suite_provenance(
         manifest=active_manifest,
         repo_root=_repo_root_from_eta_module(),

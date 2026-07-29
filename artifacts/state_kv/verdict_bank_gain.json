@@ -1,0 +1,53 @@
+{
+  "artifact_id": "state-kv-bank-gain-no-observations",
+  "bank_count_frozen": true,
+  "bootstrap_seed": 7301,
+  "claims": [
+    {
+      "claim": "claim_personal_independent_gain",
+      "detail": "n=0, judged=0, divergence=0.000, match_gain=None, ci=None",
+      "state": "insufficient_data"
+    },
+    {
+      "claim": "claim_relationship_independent_gain",
+      "detail": "n=0, judged=0, divergence=0.000, match_gain=None, ci=None",
+      "state": "insufficient_data"
+    },
+    {
+      "claim": "claim_irrelevant_bank_negative_control",
+      "detail": "n=0, judged=0, max_router_score=None, match_gain_ci=None, ceiling=0.200",
+      "state": "insufficient_data"
+    }
+  ],
+  "freeze_reason": "Independent per-bank gain and irrelevant-bank controls are not all proven; freeze the bank count at Personal + Relationship.",
+  "gate_state": "insufficient_data",
+  "irrelevant_router_score_ceiling": 0.2,
+  "metrics": [
+    {
+      "bank_type": "personal",
+      "blind_match_gain": null,
+      "blind_match_gain_ci": null,
+      "judged_sample_count": 0,
+      "output_divergence_rate": 0.0,
+      "sample_count": 0
+    },
+    {
+      "bank_type": "relationship",
+      "blind_match_gain": null,
+      "blind_match_gain_ci": null,
+      "judged_sample_count": 0,
+      "output_divergence_rate": 0.0,
+      "sample_count": 0
+    }
+  ],
+  "minimum_samples": 8,
+  "profile_labels": [
+    "state-kv-bank-none",
+    "state-kv-bank-personal-only",
+    "state-kv-bank-relationship-only",
+    "state-kv-bank-dual"
+  ],
+  "router_version": "topk-semantic.v1",
+  "schema_version": "state-kv-bank-gain.v1",
+  "substrate_fingerprint": ""
+}

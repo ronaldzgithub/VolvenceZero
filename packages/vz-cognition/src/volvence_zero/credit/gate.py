@@ -86,6 +86,14 @@ class CreditRecord:
     environment_outcome_id: str = ""
     segment_id: str = ""
     abstract_action_id: str = ""
+    # State KV P5-b: which conditioning banks were live for the action this
+    # credit rates, copied from ``PredictionActionContext`` (which read the
+    # temporal snapshot's published lineage refs). Typed rather than folded
+    # into the free-text ``context`` so the P5-c bank-confidence readout can
+    # consume attribution without parsing prose. Empty = no bank influenced
+    # the action, a meaningful negative for per-bank credit.
+    conditioning_bank_set: tuple[str, ...] = ()
+    conditioning_bank_fingerprints: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -191,7 +199,10 @@ class CreditSnapshot:
     # C3: latest report-only learned gate-risk readout (None until the
     # first proposal passes through the gate this session).
     gate_risk_readout: GateRiskShadowReadout | None = None
-    # Owner-published structured lineage survives the generic recent window.
+    # Owner-published structured action/bank lineage survives the generic
+    # recent window. Bank-attributed dialogue outcomes do not necessarily
+    # carry environment prediction/outcome ids, so typed bank lineage is
+    # independently sufficient for retention.
     recent_action_lineage_credits: tuple[CreditRecord, ...] = ()
 
 
@@ -650,6 +661,16 @@ def derive_prediction_error_credit_records(
             if action_context is not None
             else ""
         ),
+        "conditioning_bank_set": (
+            action_context.conditioning_bank_set
+            if action_context is not None
+            else ()
+        ),
+        "conditioning_bank_fingerprints": (
+            action_context.conditioning_bank_fingerprints
+            if action_context is not None
+            else ()
+        ),
     }
     records = (
         CreditRecord(
@@ -744,6 +765,10 @@ def derive_segment_closure_credit_records(
             environment_outcome_id=context.environment_outcome_id,
             segment_id=context.segment_id,
             abstract_action_id=context.abstract_action_id,
+            conditioning_bank_set=context.conditioning_bank_set,
+            conditioning_bank_fingerprints=(
+                context.conditioning_bank_fingerprints
+            ),
         ),
     )
 
@@ -782,11 +807,19 @@ def _action_context_suffix(action_context: PredictionActionContext | None) -> st
     environment_outcome_id = action_context.environment_outcome_id
     if not any((segment_id, abstract_action_id, environment_event_id, environment_outcome_id)):
         return ""
+    # P5-b: surface the live bank set in the greppable prose too; the
+    # typed fields on CreditRecord remain the machine-readable channel.
+    bank_clause = (
+        f"; conditioning_banks={'+'.join(action_context.conditioning_bank_set)}"
+        if action_context.conditioning_bank_set
+        else ""
+    )
     return (
         f" action_context[segment_id={segment_id}; "
         f"abstract_action={abstract_action_id}; "
         f"environment_event_id={environment_event_id}; "
-        f"environment_outcome_id={environment_outcome_id}]"
+        f"environment_outcome_id={environment_outcome_id}"
+        f"{bank_clause}]"
     )
 
 
@@ -1159,7 +1192,10 @@ def extend_credit_snapshot(
             + tuple(
                 record
                 for record in extra_records
-                if record.prediction_id and record.environment_outcome_id
+                if (
+                    (record.prediction_id and record.environment_outcome_id)
+                    or record.conditioning_bank_set
+                )
             )
         )[-20:]
     )
@@ -2065,7 +2101,10 @@ class CreditLedger:
             recent_action_lineage_credits=tuple(
                 record
                 for record in self._recent_credits
-                if record.prediction_id and record.environment_outcome_id
+                if (
+                    (record.prediction_id and record.environment_outcome_id)
+                    or record.conditioning_bank_set
+                )
             )[-20:],
         )
 

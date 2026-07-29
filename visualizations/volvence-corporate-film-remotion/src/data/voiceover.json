@@ -1,0 +1,57 @@
+{
+  "fps": 30,
+  "defaultSpeaker": "zh_male_wennuanahu_moon_bigtts",
+  "headPaddingMs": 380,
+  "tailPaddingMs": 420,
+  "scenes": [
+    {
+      "key": "who-we-are",
+      "start": 0,
+      "end": 660,
+      "speaker": "zh_male_wennuanahu_moon_bigtts",
+      "text": "Volvence专注持续学习大语言模型，走向通用人工智能。二十人核心团队来自卡内基梅隆、北大、清华和纽约大学，拥有字节、阿里、腾讯、IBM经历。累计四十余篇机器学习论文，十八篇国际顶会顶刊，主动学习全球前列，并原创主动学徒学习方向。"
+    },
+    {
+      "key": "api-product",
+      "start": 660,
+      "end": 930,
+      "speaker": "zh_male_wennuanahu_moon_bigtts",
+      "text": "通过开放API，开发者无需复杂上下文，就能创造拥有独立人格、长期记忆、情感感知并持续成长的数字生命。"
+    },
+    {
+      "key": "model-difference",
+      "start": 930,
+      "end": 1380,
+      "speaker": "zh_male_wennuanahu_moon_bigtts",
+      "text": "传统大模型把目标、感知、决策和反馈留给人；Volvence把闭环放进模型。它从交互结果中理解人、抓住关键，学会何时靠近、建立边界、共同探索或推进任务。行业制造工具，我们创造会成长的数字生命。"
+    },
+    {
+      "key": "applications",
+      "start": 1380,
+      "end": 2040,
+      "speaker": "zh_male_wennuanahu_moon_bigtts",
+      "text": "依托自研模型，我们让真实个体、历史人物和艺术形象成为持续成长的数字分身，进入九类场景：母婴专家、小鹿听声、教师分身、Mira数字闺蜜、AI红娘、数字员工、数字医生、跨境数字专员和数字永续。覆盖孕育、教育、陪伴、婚恋、健康与企业经营，让人生经历成为可继续对话的人格。"
+    },
+    {
+      "key": "human-vision",
+      "start": 2040,
+      "end": 2640,
+      "speaker": "zh_male_wennuanahu_moon_bigtts",
+      "text": "我们希望每个家庭有可靠顾问，每个孩子有懂他的老师和朋友，每位青年找到契合的另一半，每个创业者拥有创造收益的数字同事。让老人打开月光宝盒，与童年的孩子、年轻的自己再说一次话；即使至亲远去，经验仍能陪后辈面对生活。每一个来过世间的人，都值得被看见、被记住。"
+    },
+    {
+      "key": "partners",
+      "start": 2640,
+      "end": 3060,
+      "speaker": "zh_male_wennuanahu_moon_bigtts",
+      "text": "目前，我们的深度合作伙伴涵盖国内头部MCN、宝宝树、全网千万级内容创作者、头部出海服务平台、一线城市卫健委直属医疗单位，以及国内顶尖K十二基础教育课改专家。"
+    },
+    {
+      "key": "closing",
+      "start": 3060,
+      "end": 3300,
+      "speaker": "zh_male_wennuanahu_moon_bigtts",
+      "text": "Volvence，模型进化，生命涌现。每个人，都值得被记住。"
+    }
+  ]
+}

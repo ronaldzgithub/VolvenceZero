@@ -20,6 +20,8 @@ from volvence_zero.internal_rl.counterfactual_selector import (
     grouped_cross_validate_residual_action_selector,
     residual_action_state_sketch,
     residual_action_state_vector,
+    selector_artifact_from_payload,
+    selector_artifact_to_payload,
     select_counterfactual_actions,
     summarize_action_selections,
 )
@@ -113,6 +115,8 @@ __all__ = [
     "residual_action_state_sketch",
     "residual_action_state_vector",
     "runtime_replay_policy_distribution",
+    "selector_artifact_from_payload",
+    "selector_artifact_to_payload",
     "select_counterfactual_actions",
     "summarize_action_selections",
 ]

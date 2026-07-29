@@ -186,6 +186,15 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   evidence bundle 将其独立写入 `counterfactual_outcomes.jsonl`；仅有汇总均值
   而缺候选级 lineage 时，Gate 2 结果链证据无效。selector live injection 仍
   维持 disabled，直到 fresh validation audit credit 为正并通过既有注入门。
+- v36 selector artifact 使用 `residual-action-selector.v1` JSON 契约冻结。
+  temporal owner 同时支持 linear PCA-ridge 与实际 Gate 2 使用的 linear-kernel
+  ridge artifact；payload 必须携带 model kind、全部数值参数、shape 与
+  `model_fingerprint`。反序列化时 owner 重算与拟合阶段完全相同的 fingerprint，
+  并验证 input/action/latent/training-row dimensions；指纹、shape、非有限值或
+  ridge 约束漂移必须 fail loudly。Gate 2 每个 seed 在 train-only fit 后立即
+  round-trip 冻结，evaluation/SHADOW arm 只消费恢复后的 artifact；bundle 的
+  `selector_artifact.json` 绑定 run/seed、fit split 与 learned control-basis
+  fingerprint。该 artifact 不进入 live session，不新增第二 temporal owner。
 - 当前 proof profile 已包含 matched ablation `full-no-fast-prior`：它保留 full internal RL + causal replacement，但关闭 temporal fast prior ingestion，用于衡量 fast prior 对 held-out family reuse、credit alignment 与 strong success 的增益
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter

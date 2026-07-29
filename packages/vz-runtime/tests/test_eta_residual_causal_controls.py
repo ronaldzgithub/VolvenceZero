@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 
+import pytest
+
 from volvence_zero.agent.eta_gate2_residual_evidence import (
     ETA_GATE2_REQUIRED_FILES,
     ETA_GATE2_REQUIRED_MANIFEST_KEYS,
@@ -15,19 +17,29 @@ from volvence_zero.agent.eta_proof_benchmark import (
     ETA_CONTINUATION_PE_TRAINING_SIGNAL,
     ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME,
     ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
-    ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS,
+    ETA_GATE2_SHADOW_FRESH_CASE_CORPUS,
     ETAOpenWeightRuntimeConfig,
     _counterfactual_selector_metric_rows,
+    _install_learned_control_basis,
     default_eta_proof_cases,
     eta_gate2_expanded_cases,
     eta_gate2_expected_value_cases,
     eta_gate2_expected_value_validation_routes,
     eta_gate2_independent_training_routes,
+    eta_gate2_selector_confirmation_routes,
+    eta_gate2_selector_fresh_cases,
+    eta_gate2_selector_fresh_validation_routes,
+    eta_gate2_shadow_confirmation_routes,
+    eta_gate2_shadow_fresh_cases,
+    eta_gate2_shadow_fresh_validation_routes,
     run_eta_internal_rl_paper_suite,
     run_eta_internal_rl_proof_benchmark,
 )
 from volvence_zero.internal_rl import CounterfactualActionSelection
-from volvence_zero.substrate import build_builtin_transformers_runtime
+from volvence_zero.substrate import (
+    TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE,
+    build_builtin_transformers_runtime,
+)
 
 
 def test_eta_residual_controls_record_actual_matched_interventions() -> None:
@@ -115,10 +127,13 @@ def test_eta_residual_controls_record_actual_matched_interventions() -> None:
 
 
 def test_eta_proof_source_text_does_not_expose_split_labels() -> None:
-    for case in eta_gate2_expected_value_cases():
+    for case in (
+        eta_gate2_selector_fresh_cases()
+        + eta_gate2_shadow_fresh_cases()
+    ):
         source_tokens = set(case.source_text.lower().split())
         assert source_tokens.isdisjoint(
-            {"train", "eval", "heldout", "validation"}
+            {"train", "eval", "heldout", "validation", "confirmation"}
         )
 
 
@@ -126,6 +141,8 @@ def test_eta_gate2_freezes_expected_value_validation_corpus() -> None:
     default_cases = default_eta_proof_cases()
     expanded_cases = eta_gate2_expanded_cases()
     expected_value_cases = eta_gate2_expected_value_cases()
+    selector_fresh_cases = eta_gate2_selector_fresh_cases()
+    shadow_fresh_cases = eta_gate2_shadow_fresh_cases()
 
     assert sum(case.split == "train" for case in default_cases) == 3
     assert sum(case.split == "train" for case in expanded_cases) == 16
@@ -139,14 +156,40 @@ def test_eta_gate2_freezes_expected_value_validation_corpus() -> None:
     assert sum(
         case.split == "validation" for case in expected_value_cases
     ) == 4
+    assert sum(
+        case.split == "validation" for case in selector_fresh_cases
+    ) == 4
+    assert sum(
+        case.split == "confirmation" for case in selector_fresh_cases
+    ) == 4
+    assert sum(
+        case.split == "validation" for case in shadow_fresh_cases
+    ) == 4
+    assert sum(
+        case.split == "confirmation" for case in shadow_fresh_cases
+    ) == 4
+    assert not {
+        case.case_id for case in expected_value_cases
+        if case.split == "validation"
+    } & {
+        case.case_id for case in selector_fresh_cases
+        if case.split in {"validation", "confirmation"}
+    }
+    assert not {
+        case.case_id for case in selector_fresh_cases
+        if case.split in {"validation", "confirmation"}
+    } & {
+        case.case_id for case in shadow_fresh_cases
+        if case.split in {"validation", "confirmation"}
+    }
 
     manifest = build_eta_gate2_residual_manifest(suite_tier="ci-smoke")
     case_groups = dict(manifest.case_groups)
     assert case_groups["case_corpus"] == (
-        ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS,
+        ETA_GATE2_SHADOW_FRESH_CASE_CORPUS,
     )
     assert case_groups["route_ids"] == tuple(
-        case.case_id for case in expected_value_cases
+        case.case_id for case in shadow_fresh_cases
     )
     independent_route_ids = tuple(
         route.case_id
@@ -160,8 +203,30 @@ def test_eta_gate2_freezes_expected_value_validation_corpus() -> None:
     assert case_groups["validation_frozen_before_run"] == ("true",)
     assert case_groups["validation_route_ids"] == tuple(
         route.case_id
-        for route in eta_gate2_expected_value_validation_routes()
+        for route in eta_gate2_shadow_fresh_validation_routes()
     )
+    assert case_groups["confirmation_route_ids"] == tuple(
+        route.case_id
+        for route in eta_gate2_shadow_confirmation_routes()
+    )
+    assert case_groups["superseded_validation_route_ids"] == tuple(
+        route.case_id
+        for route in (
+            eta_gate2_expected_value_validation_routes()
+            + eta_gate2_selector_fresh_validation_routes()
+            + eta_gate2_selector_confirmation_routes()
+        )
+    )
+    assert case_groups["selector_signal_gate"] == (
+        "selector-vs-permutation-null-v1",
+    )
+    assert case_groups["shadow_observation_gate"] == (
+        "shadow-closed-loop-v1",
+    )
+    assert case_groups["shadow_closed_loop_arm"] == ("true",)
+    assert manifest.repeat_count == 3
+    assert manifest.seed_schedule == (0, 1, 2)
+    assert case_groups["confirmation_split_locked"] == ("true",)
     assert case_groups[
         "counterfactual_action_selector_diagnostic"
     ] == ("true",)
@@ -185,6 +250,14 @@ def test_eta_gate2_freezes_expected_value_validation_corpus() -> None:
     assert case_groups["counterfactual_primary_target"] == (
         "realized-next-segment-teacher-forced-"
         "nll-improvement-vs-zero-control",
+    )
+    assert case_groups["control_basis_mode"] == (
+        TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE,
+    )
+    assert case_groups["control_basis_fit_split"] == ("train",)
+    assert case_groups["control_basis_rank"] == ("3",)
+    assert case_groups["control_basis_state_coordinate"] == (
+        "hook-layer-mean-last-token-hidden",
     )
     assert not any(
         case.split == "confirmation" for case in expected_value_cases
@@ -232,7 +305,7 @@ def test_eta_gate2_independent_training_text_avoids_development_content_words() 
     assert independent_words.isdisjoint(development_words)
 
 
-def test_eta_gate2_v31_validation_text_is_lexically_fresh() -> None:
+def test_eta_gate2_v35_fresh_splits_are_lexically_fresh() -> None:
     stop_words = {
         "a",
         "across",
@@ -266,12 +339,52 @@ def test_eta_gate2_v31_validation_text_is_lexically_fresh() -> None:
     validation_words = set().union(
         *(
             content_words(route.source_text)
+            for route in eta_gate2_selector_fresh_validation_routes()
+        )
+    )
+    confirmation_words = set().union(
+        *(
+            content_words(route.source_text)
+            for route in eta_gate2_selector_confirmation_routes()
+        )
+    )
+    superseded_validation_words = set().union(
+        *(
+            content_words(route.source_text)
             for route in eta_gate2_expected_value_validation_routes()
         )
     )
 
     assert validation_words
+    assert confirmation_words
     assert validation_words.isdisjoint(existing_words)
+    assert confirmation_words.isdisjoint(existing_words)
+    assert validation_words.isdisjoint(superseded_validation_words)
+    assert confirmation_words.isdisjoint(superseded_validation_words)
+
+    prior_words = (
+        existing_words
+        | validation_words
+        | confirmation_words
+        | superseded_validation_words
+    )
+    v36_validation_words = set().union(
+        *(
+            content_words(route.source_text)
+            for route in eta_gate2_shadow_fresh_validation_routes()
+        )
+    )
+    v36_confirmation_words = set().union(
+        *(
+            content_words(route.source_text)
+            for route in eta_gate2_shadow_confirmation_routes()
+        )
+    )
+    assert v36_validation_words
+    assert v36_confirmation_words
+    assert v36_validation_words.isdisjoint(prior_words)
+    assert v36_confirmation_words.isdisjoint(prior_words)
+    assert v36_validation_words.isdisjoint(v36_confirmation_words)
 
 
 def test_eta_gate2_bundle_exports_frozen_v31_file_contract(
@@ -286,6 +399,8 @@ def test_eta_gate2_bundle_exports_frozen_v31_file_contract(
             if name == "backend_labels"
             else ("training_signal", ("proof-reward",))
             if name == "training_signal"
+            else ("control_basis_mode", ("fixed-sinusoid-v1",))
+            if name == "control_basis_mode"
             else (name, values)
             for name, values in manifest.case_groups
         ),
@@ -334,7 +449,23 @@ def test_eta_gate2_bundle_exports_frozen_v31_file_contract(
         "validation_route_ids"
     ] == [
         route.case_id
-        for route in eta_gate2_expected_value_validation_routes()
+        for route in eta_gate2_shadow_fresh_validation_routes()
+    ]
+    assert manifest_payload["scenario_split"][
+        "confirmation_route_ids"
+    ] == [
+        route.case_id
+        for route in eta_gate2_shadow_confirmation_routes()
+    ]
+    assert manifest_payload["scenario_split"][
+        "superseded_validation_route_ids"
+    ] == [
+        route.case_id
+        for route in (
+            eta_gate2_expected_value_validation_routes()
+            + eta_gate2_selector_fresh_validation_routes()
+            + eta_gate2_selector_confirmation_routes()
+        )
     ]
     assert manifest_payload["counterfactual_action_selector"] == {
         "diagnostic_active": True,
@@ -346,6 +477,8 @@ def test_eta_gate2_bundle_exports_frozen_v31_file_contract(
         ),
         "cross_validation": "route-grouped-4fold",
         "live_injection": "disabled",
+        "shadow_closed_loop_arm": "true",
+        "shadow_observation_gate": "shadow-closed-loop-v1",
     }
     assert manifest_payload["counterfactual_target"] == {
         "mode": ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME,
@@ -380,11 +513,13 @@ def test_eta_gate2_bundle_exports_frozen_v31_file_contract(
     assert (
         tmp_path / "action_selection.jsonl"
     ).read_text(encoding="utf-8") == ""
-    assert (
-        manifest_payload["scenario_split"]["causal_confirmation_split"]
-        is None
-    )
-    assert not manifest_payload["scenario_split"][
+    assert manifest_payload["scenario_split"][
+        "causal_confirmation_split"
+    ] == [
+        route.case_id
+        for route in eta_gate2_shadow_confirmation_routes()
+    ]
+    assert manifest_payload["scenario_split"][
         "confirmation_split_locked"
     ]
     ablation = json.loads(
@@ -419,6 +554,8 @@ def test_eta_gate2_bundle_rejects_residual_width_provenance_mismatch(
             if name == "backend_labels"
             else ("training_signal", ("proof-reward",))
             if name == "training_signal"
+            else ("control_basis_mode", ("fixed-sinusoid-v1",))
+            if name == "control_basis_mode"
             else (name, values)
             for name, values in manifest.case_groups
         ),
@@ -457,6 +594,76 @@ def test_eta_gate2_bundle_rejects_residual_width_provenance_mismatch(
         assert "residual activation width mismatch" in str(exc)
     else:
         raise AssertionError("expected residual width mismatch to fail")
+
+
+def test_eta_gate2_learned_control_basis_fit_is_train_only_and_installs() -> None:
+    runtime = build_builtin_transformers_runtime(activation_width=48)
+    assert runtime.control_basis_provenance == "fixed-sinusoid-v1"
+    cases = default_eta_proof_cases()
+    config = ETAOpenWeightRuntimeConfig(require_real_backend=False)
+
+    descriptor = _install_learned_control_basis(
+        runtime=runtime,
+        cases=cases,
+        open_weight_config=config,
+    )
+
+    assert descriptor["control_basis_mode"] == (
+        TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE
+    )
+    assert descriptor["control_basis_fit_split"] == "train"
+    assert descriptor["control_basis_fingerprint"]
+    assert int(descriptor["control_basis_transition_count"]) >= 4
+    fit_route_ids = descriptor["control_basis_fit_route_ids"].split(",")
+    train_case_ids = {case.case_id for case in cases if case.split == "train"}
+    assert set(fit_route_ids) == train_case_ids
+    assert runtime.control_basis_provenance == (
+        descriptor["control_basis_provenance"]
+    )
+    assert runtime.control_basis_provenance.startswith(
+        TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE
+    )
+    # Deterministic artifact: refitting the same corpus reproduces the
+    # same fingerprint.
+    second = _install_learned_control_basis(
+        runtime=runtime,
+        cases=cases,
+        open_weight_config=config,
+    )
+    assert second["control_basis_fingerprint"] == (
+        descriptor["control_basis_fingerprint"]
+    )
+
+
+def test_eta_gate2_learned_control_basis_requires_open_weight_runtime(
+    tmp_path,
+) -> None:
+    manifest = build_eta_gate2_residual_manifest(suite_tier="ci-smoke")
+    manifest = replace(
+        manifest,
+        suite_kind="eta-gate2-trace-contract-smoke",
+        case_groups=tuple(
+            ("backend_labels", ("trace",))
+            if name == "backend_labels"
+            else ("training_signal", ("proof-reward",))
+            if name == "training_signal"
+            else (name, values)
+            for name, values in manifest.case_groups
+        ),
+    )
+
+    try:
+        run_eta_internal_rl_paper_suite(
+            manifest=manifest,
+            output_dir=tmp_path,
+        )
+    except ValueError as exc:
+        assert "requires an open-weight runtime" in str(exc)
+    else:
+        raise AssertionError(
+            "expected learned control-basis mode without an open-weight "
+            "runtime to fail loudly"
+        )
 
 
 def test_eta_gate2_causal_verdict_requires_eval_and_fresh_confirmation() -> None:
@@ -543,6 +750,8 @@ def _counterfactual_grid_rows(
                 {
                     "profile_label": "full-internal-rl",
                     "split": split,
+                    "case_id": "route-a",
+                    "step_index": prefix,
                     "observation_id": (
                         f"route-a:{split}-0:prefix-{prefix}"
                         f":candidate-{candidate_index}"
@@ -557,7 +766,27 @@ def _counterfactual_grid_rows(
     return rows
 
 
-def test_eta_gate2_signal_gates_reject_max_of_noise_oracle() -> None:
+def _action_selection_rows(
+    *,
+    split: str,
+    prefix_count: int,
+    selected_index: int = 1,
+    selected_audit_raw_delta: float,
+) -> list[dict]:
+    return [
+        {
+            "profile_label": "full-internal-rl",
+            "split": split,
+            "group_id": "route-a",
+            "example_id": f"route-a:prefix-{prefix}",
+            "selected_action_index": selected_index,
+            "audit_selected_raw_delta": selected_audit_raw_delta,
+        }
+        for prefix in range(prefix_count)
+    ]
+
+
+def test_eta_gate2_signal_gates_reject_selector_max_of_noise() -> None:
     rows = [
         *_counterfactual_grid_rows(
             split="train",
@@ -569,11 +798,34 @@ def test_eta_gate2_signal_gates_reject_max_of_noise_oracle() -> None:
             prefix_count=2,
             audit_tracks_target=False,
         ),
+        *_counterfactual_grid_rows(
+            split="confirmation",
+            prefix_count=2,
+            audit_tracks_target=False,
+        ),
+    ]
+    action_selection = [
+        *_action_selection_rows(
+            split="train",
+            prefix_count=3,
+            selected_audit_raw_delta=-0.009,
+        ),
+        *_action_selection_rows(
+            split="validation",
+            prefix_count=2,
+            selected_audit_raw_delta=-0.009,
+        ),
+        *_action_selection_rows(
+            split="confirmation",
+            prefix_count=2,
+            selected_audit_raw_delta=-0.009,
+        ),
     ]
     ablation = _build_ablation_results(
         predictions=[],
         outcomes=[],
         metric_samples={},
+        action_selection=action_selection,
         counterfactual_outcomes=rows,
     )
 
@@ -587,18 +839,25 @@ def test_eta_gate2_signal_gates_reject_max_of_noise_oracle() -> None:
         train_diagnostics["transfer_excess_over_null_mean"] < 0.0
     )
     assert not ablation["signal_gates"][
-        "train_oracle_transfer_exceeds_permutation_null"
+        "train_selector_exceeds_permutation_null"
     ]
     assert not ablation["signal_gates"][
-        "validation_oracle_transfer_exceeds_permutation_null"
+        "validation_selector_exceeds_permutation_null"
     ]
+    assert not ablation["signal_gates"][
+        "confirmation_selector_exceeds_permutation_null"
+    ]
+    selector_diagnostics = ablation[
+        "selector_permutation_null_by_split"
+    ]["train"]
+    assert selector_diagnostics["selected_excess_over_null_mean"] < 0.0
     assert ablation["reachable_solution_evidence"] is False
 
     verdict = _promotion_verdict(ablation)
     assert verdict["promotion_allowed"] is False
     assert verdict["reachable_solution_evidence"] is False
     assert (
-        "train_oracle_transfer_exceeds_permutation_null"
+        "train_selector_exceeds_permutation_null"
         in verdict["kill_conditions"]
     )
 
@@ -616,11 +875,35 @@ def test_eta_gate2_reachable_solution_evidence_gates_causal_promotion() -> None:
                 prefix_count=2,
                 audit_tracks_target=audit_tracks_target,
             ),
+            *_counterfactual_grid_rows(
+                split="confirmation",
+                prefix_count=2,
+                audit_tracks_target=audit_tracks_target,
+            ),
+        ]
+        selected_audit = 0.008 if audit_tracks_target else -0.009
+        action_selection = [
+            *_action_selection_rows(
+                split="train",
+                prefix_count=3,
+                selected_audit_raw_delta=selected_audit,
+            ),
+            *_action_selection_rows(
+                split="validation",
+                prefix_count=2,
+                selected_audit_raw_delta=selected_audit,
+            ),
+            *_action_selection_rows(
+                split="confirmation",
+                prefix_count=2,
+                selected_audit_raw_delta=selected_audit,
+            ),
         ]
         return _build_ablation_results(
             predictions=[],
             outcomes=[],
             metric_samples={},
+            action_selection=action_selection,
             counterfactual_outcomes=rows,
         )
 
@@ -649,6 +932,326 @@ def test_eta_gate2_reachable_solution_evidence_gates_causal_promotion() -> None:
     assert any(
         gate in refused["kill_conditions"]
         for gate in noise["signal_gates"]
+    )
+
+
+def test_eta_gate2_selector_signal_gate_requires_exact_candidate_lineage() -> None:
+    rows = [
+        *_counterfactual_grid_rows(
+            split="train",
+            prefix_count=1,
+            audit_tracks_target=True,
+        ),
+        *_counterfactual_grid_rows(
+            split="validation",
+            prefix_count=1,
+            audit_tracks_target=True,
+        ),
+        *_counterfactual_grid_rows(
+            split="confirmation",
+            prefix_count=1,
+            audit_tracks_target=True,
+        ),
+    ]
+    action_selection = [
+        *_action_selection_rows(
+            split="train",
+            prefix_count=1,
+            selected_audit_raw_delta=0.008,
+        ),
+        *_action_selection_rows(
+            split="validation",
+            prefix_count=1,
+            selected_audit_raw_delta=0.008,
+        ),
+        *_action_selection_rows(
+            split="confirmation",
+            prefix_count=1,
+            selected_audit_raw_delta=0.008,
+        ),
+    ]
+    # A positive value copied from another candidate must not be accepted
+    # as the selected candidate's independent audit measurement.
+    action_selection[1]["audit_selected_raw_delta"] = 0.006
+
+    ablation = _build_ablation_results(
+        predictions=[],
+        outcomes=[],
+        metric_samples={},
+        action_selection=action_selection,
+        counterfactual_outcomes=rows,
+    )
+
+    validation = ablation["selector_permutation_null_by_split"][
+        "validation"
+    ]
+    assert validation["input_selection_count"] == 1.0
+    assert validation["selection_count"] == 0.0
+    assert validation["selected_audit_lineage_mismatch_count"] == 1.0
+    assert not ablation["signal_gates"][
+        "validation_selector_lineage_complete"
+    ]
+    assert ablation["reachable_solution_evidence"] is False
+
+
+def test_eta_gate2_selector_signal_gate_rejects_missing_grid_rows() -> None:
+    rows = [
+        *_counterfactual_grid_rows(
+            split="train",
+            prefix_count=1,
+            audit_tracks_target=True,
+        ),
+        *_counterfactual_grid_rows(
+            split="validation",
+            prefix_count=1,
+            audit_tracks_target=True,
+        ),
+        *_counterfactual_grid_rows(
+            split="confirmation",
+            prefix_count=1,
+            audit_tracks_target=True,
+        ),
+    ]
+    action_selection = [
+        *_action_selection_rows(
+            split="train",
+            prefix_count=1,
+            selected_audit_raw_delta=0.008,
+        ),
+        *_action_selection_rows(
+            split="validation",
+            prefix_count=1,
+            selected_audit_raw_delta=0.008,
+        ),
+        *_action_selection_rows(
+            split="confirmation",
+            prefix_count=1,
+            selected_audit_raw_delta=0.008,
+        ),
+        {
+            **_action_selection_rows(
+                split="validation",
+                prefix_count=1,
+                selected_audit_raw_delta=0.008,
+            )[0],
+            "group_id": "missing-route",
+            "example_id": "missing-route:prefix-0",
+        },
+    ]
+
+    ablation = _build_ablation_results(
+        predictions=[],
+        outcomes=[],
+        metric_samples={},
+        action_selection=action_selection,
+        counterfactual_outcomes=rows,
+    )
+
+    validation = ablation["selector_permutation_null_by_split"][
+        "validation"
+    ]
+    assert validation["input_selection_count"] == 2.0
+    assert validation["selection_count"] == 1.0
+    assert validation["missing_counterfactual_grid_count"] == 1.0
+    assert not ablation["signal_gates"][
+        "validation_selector_lineage_complete"
+    ]
+    assert ablation["reachable_solution_evidence"] is False
+
+
+def test_eta_gate2_selector_signal_gate_rejects_conflicting_grid_rows() -> None:
+    rows = _counterfactual_grid_rows(
+        split="train",
+        prefix_count=1,
+        audit_tracks_target=True,
+    )
+    rows.append(
+        {
+            **rows[1],
+            "audit_action_credit": 0.25,
+        }
+    )
+
+    with pytest.raises(ValueError, match="conflicting audit credit"):
+        _build_ablation_results(
+            predictions=[],
+            outcomes=[],
+            metric_samples={},
+            action_selection=[],
+            counterfactual_outcomes=rows,
+        )
+
+
+def _shadow_gate_fixture() -> tuple[list[dict], list[dict]]:
+    rows = []
+    artifacts = []
+    for seed in range(3):
+        run_id = f"shadow-run-{seed}"
+        selector_fingerprint = f"selector-{seed}"
+        basis_fingerprint = "basis-fingerprint"
+        artifacts.append(
+            {
+                "schema_version": "eta-gate2-selector-artifact.v1",
+                "run_id": run_id,
+                "run_seed": seed,
+                "fit_split": "train",
+                "control_basis_fingerprint": basis_fingerprint,
+                "artifact": {
+                    "model_fingerprint": selector_fingerprint,
+                },
+            }
+        )
+        for split in ("train", "validation", "confirmation"):
+            for arm, delta in (
+                ("zero-control", 0.0),
+                ("selector", 0.03),
+                ("permutation-null", 0.01),
+            ):
+                rows.append(
+                    {
+                        "profile_label": "full-internal-rl",
+                        "run_id": run_id,
+                        "run_seed": seed,
+                        "split": split,
+                        "case_id": f"{split}-route",
+                        "step_index": 0,
+                        "arm": arm,
+                        "realized_delta": delta,
+                        "selector_fingerprint": selector_fingerprint,
+                        "control_basis_fingerprint": basis_fingerprint,
+                        "runtime_descriptor_fingerprint": "runtime-fp",
+                        "side_effect_free": True,
+                    }
+                )
+    return rows, artifacts
+
+
+def test_eta_gate2_shadow_observation_gate_is_independent_of_v35_promotion() -> None:
+    rows, artifacts = _shadow_gate_fixture()
+    passed = _build_ablation_results(
+        predictions=[],
+        outcomes=[],
+        metric_samples={},
+        action_selection=[],
+        counterfactual_outcomes=[],
+        selector_artifacts=artifacts,
+        shadow_closed_loop=rows,
+        inherited_causal_promotion=True,
+    )
+
+    assert passed["shadow_observation_passed"] is True
+    assert all(passed["shadow_gates"].values())
+    verdict = _promotion_verdict(passed)
+    assert verdict["promotion_allowed"] is True
+    assert verdict["shadow_observation_passed"] is True
+
+    failed_rows = [
+        {
+            **row,
+            "realized_delta": -0.03,
+        }
+        if row["split"] == "confirmation" and row["arm"] == "selector"
+        else row
+        for row in rows
+    ]
+    failed = _build_ablation_results(
+        predictions=[],
+        outcomes=[],
+        metric_samples={},
+        action_selection=[],
+        counterfactual_outcomes=[],
+        selector_artifacts=artifacts,
+        shadow_closed_loop=failed_rows,
+        inherited_causal_promotion=True,
+    )
+    failed_verdict = _promotion_verdict(failed)
+
+    assert failed["shadow_observation_passed"] is False
+    assert failed_verdict["promotion_allowed"] is True
+    assert failed_verdict["shadow_observation_passed"] is False
+    assert (
+        "confirmation_selector_beats_zero"
+        in failed_verdict["kill_conditions"]
+    )
+
+
+def test_eta_gate2_closed_loop_shadow_emits_frozen_side_effect_free_records() -> None:
+    runtime = build_builtin_transformers_runtime(activation_width=48)
+    all_cases = eta_gate2_shadow_fresh_cases()
+    train_cases = tuple(
+        case for case in all_cases if case.split == "train"
+    )[:2]
+    validation_case = next(
+        case for case in all_cases if case.split == "validation"
+    )
+    confirmation_case = next(
+        case for case in all_cases if case.split == "confirmation"
+    )
+    cases = (*train_cases, validation_case, confirmation_case)
+    config = ETAOpenWeightRuntimeConfig(
+        require_real_backend=False,
+        activation_width=48,
+        max_prefix_steps=6,
+    )
+    basis = _install_learned_control_basis(
+        runtime=runtime,
+        cases=cases,
+        open_weight_config=config,
+    )
+
+    report = run_eta_internal_rl_proof_benchmark(
+        cases=cases,
+        profile_labels=("full-internal-rl",),
+        backend_label="transformers-open-weight",
+        train_epochs=1,
+        open_weight_runtime=runtime,
+        open_weight_config=config,
+        training_signal=ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+        latent_unit_clamp=True,
+        real_residual_ssl_bootstrap=True,
+        causal_action_head_active=True,
+        causal_action_head_state_dim=12,
+        continuation_counterfactual_grid=True,
+        counterfactual_action_selector_diagnostic=True,
+        counterfactual_target_mode=(
+            ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+        ),
+        shadow_closed_loop_arm=True,
+        evidence_run_id="closed-loop-test",
+        evidence_run_seed=0,
+        control_basis_fingerprint_value=basis[
+            "control_basis_fingerprint"
+        ],
+    )
+
+    profile = report.profile_reports[0]
+    artifact = profile.selector_artifact_payload
+    records = profile.shadow_closed_loop_records
+    assert artifact is not None
+    assert artifact["fit_split"] == "train"
+    assert artifact["control_basis_fingerprint"] == basis[
+        "control_basis_fingerprint"
+    ]
+    assert records
+    assert all(record.side_effect_free for record in records)
+    assert {
+        record.arm for record in records
+    } == {"selector", "zero-control", "permutation-null"}
+    step_arms: dict[tuple[str, int], set[str]] = {}
+    for record in records:
+        step_arms.setdefault(
+            (record.case_id, record.step_index),
+            set(),
+        ).add(record.arm)
+        assert record.selector_fingerprint == artifact["artifact"][
+            "model_fingerprint"
+        ]
+        assert record.control_basis_fingerprint == basis[
+            "control_basis_fingerprint"
+        ]
+    assert all(
+        arms == {"selector", "zero-control", "permutation-null"}
+        for arms in step_arms.values()
     )
 
 

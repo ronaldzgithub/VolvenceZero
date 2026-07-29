@@ -138,6 +138,18 @@ class PredictionActionContext:
     # caller did not supply a plan_ref (back-compat path); non-empty when
     # the affordance call was bound to a specific prior prediction id.
     prediction_id: str = ""
+    # State KV P5-b: which conditioning banks were live for the conditioned
+    # surface this action was taken on. Filled by the runtime context
+    # builder from the temporal snapshot's already-published
+    # ``conditioning_lineage_refs`` via the shared
+    # ``summarize_conditioning_lineage_refs`` reduction -- PE stays a
+    # readout of the existing channel, it does not open a second one.
+    # Empty when no bank influenced the surface (cold start, SHADOW,
+    # revoked, or text-only turns whose capture carried no lineage), which
+    # is itself a meaningful negative for credit assignment.
+    conditioning_bank_set: tuple[str, ...] = ()
+    conditioning_bank_fingerprints: tuple[tuple[str, str], ...] = ()
+    conditioning_router_version: str = ""
 
 
 @dataclass(frozen=True)

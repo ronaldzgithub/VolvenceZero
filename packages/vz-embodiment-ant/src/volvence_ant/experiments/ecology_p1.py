@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import math
@@ -9,6 +10,7 @@ import os
 import statistics
 import tempfile
 from collections.abc import Mapping
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,7 @@ from volvence_zero.agent import (
 from volvence_ant.controllers import FixedRuleAnt, FixedRuleConfig, RandomAnt
 from volvence_ant.env.world_objects import ButterSource, BurningMatch, WoodStick
 from volvence_ant.experiments.ecology_probe import (
+    ECOLOGY_POST_PICKUP_MIN_FAMILY_PERSISTENCE_ACTIONS,
     ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY,
     ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS,
     ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS,
@@ -490,6 +493,47 @@ class EcologyP1ProgressPaused(RuntimeError):
             "P1 resumable run paused after "
             f"{completed_work_items} committed work items"
         )
+
+
+@contextmanager
+def ecology_p1_progress_writer_lock(progress_dir: Path | None):
+    """Hold the single-writer lease for one resumable P1 journal.
+
+    ``flock`` is attached to the open file description and is released by the
+    kernel if the process exits, so an interrupted detached run cannot leave a
+    stale sentinel that permanently blocks recovery. The lock file remains as
+    an audit surface; its text names the current/last writer but is never used
+    as the ownership decision.
+    """
+
+    if progress_dir is None:
+        yield
+        return
+    resolved = progress_dir.resolve()
+    resolved.mkdir(parents=True, exist_ok=True)
+    lock_path = resolved / ".writer.lock"
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            handle.seek(0)
+            owner = handle.read().strip() or "unknown writer"
+            raise RuntimeError(
+                "P1 progress directory already has an active writer: "
+                f"{resolved} ({owner})"
+            ) from exc
+        try:
+            handle.seek(0)
+            handle.truncate()
+            handle.write(f"pid={os.getpid()}\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+            yield
+        finally:
+            handle.seek(0)
+            handle.truncate()
+            handle.flush()
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _json_ready(value: Any) -> Any:
@@ -2750,6 +2794,9 @@ async def run_ecology_p1(
                             lane.picked_up,
                             lane.post_pickup_switch_observed,
                             lane.first_post_pickup_switch_step,
+                            lane.first_post_pickup_switch_family,
+                            lane.post_switch_family_survival_actions,
+                            lane.post_switch_family_observation_censored,
                             lane.delivered,
                             lane.net_home_progress,
                             lane.max_consecutive_approach_steps,
@@ -2767,7 +2814,9 @@ async def run_ecology_p1(
             "frozen lanes after a real pickup; each lane must switch action "
             "family within <="
             f"{ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY} post-pickup "
-            "steps, then deliver or reduce home distance by >="
+            "steps, keep that family for >="
+            f"{ECOLOGY_POST_PICKUP_MIN_FAMILY_PERSISTENCE_ACTIONS} actions, "
+            "then deliver or reduce home distance by >="
             f"{ECOLOGY_POST_PICKUP_UTURN_MIN_NET_PROGRESS:.3f} with >="
             f"{ECOLOGY_POST_PICKUP_UTURN_MIN_CONSECUTIVE_APPROACH_STEPS} "
             "consecutive approach steps, while policy and temporal-learning "
@@ -2925,6 +2974,7 @@ __all__ = [
     "EcologyP1Gate",
     "EcologyP1LayoutResult",
     "EcologyP1ProgressPaused",
+    "ecology_p1_progress_writer_lock",
     "EcologyP1RegimeDiagnosticRow",
     "EcologyP1RegimeGapSummary",
     "EcologyP1RepeatReference",

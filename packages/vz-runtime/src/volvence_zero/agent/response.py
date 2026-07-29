@@ -134,6 +134,16 @@ class ResponseContext:
     # substrate, included in C5 decode attestation, and emitted as a rationale
     # tag so matched sampling is auditably aligned across users.
     sampling_seed: int | None = None
+    # Generation-time dynamic residual wiring (State KV P5-a, mirrors
+    # ``FinalRolloutConfig.generation_dynamic_residual``). Gates whether the
+    # temporal controller's ``control_code`` is forwarded to the substrate as
+    # ``control_parameters`` / ``control_scale``:
+    #   - "active": today's behaviour, the code is injected.
+    #   - "shadow": the would-be scale is computed for the audit tag only.
+    #   - "disabled": the control parameters are dropped.
+    # This channel is independent from personal conditioning; without the
+    # gate, ablations that close State KV still leak state through z_t.
+    dynamic_residual_wiring: str = "active"
 
     def __post_init__(self) -> None:
         if self.sampling_seed is not None:
@@ -149,6 +159,12 @@ class ResponseContext:
                     "ResponseContext sampling_seed must be non-negative, "
                     f"got {self.sampling_seed}."
                 )
+        if self.dynamic_residual_wiring not in ("active", "shadow", "disabled"):
+            raise ValueError(
+                "ResponseContext dynamic_residual_wiring must be 'active', "
+                "'shadow', or 'disabled', got "
+                f"{self.dynamic_residual_wiring!r}."
+            )
         if self.personal_conditioning_carrier not in ("residual", "prefix_kv"):
             raise ValueError(
                 "ResponseContext personal_conditioning_carrier must be "
@@ -552,6 +568,15 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         if assembly is not None and control_params:
             continuum_control_gain = 1.0 + abs(assembly.continuum_target_position - 0.5) * 0.6
             control_scale = min(0.38, control_scale * continuum_control_gain)
+        # State KV P5-a: independent gate for the z_t -> residual channel.
+        # The would-be scale survives for the audit tag so SHADOW turns can
+        # prove what they withheld; non-active wiring drops the parameters
+        # before they reach the substrate, so generation is byte-equivalent
+        # to a control_scale=0 run.
+        dynamic_residual_would_be_scale = control_scale
+        if context.dynamic_residual_wiring != "active":
+            control_params = ()
+            control_scale = 0.0
         decoding_profile = self._decoding_profile_for_assembly(assembly) if assembly is not None else "balanced"
         constraints = (
             GenerationConstraints(
@@ -640,6 +665,21 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         elif context.abstract_action:
             rationale_parts.append(f"temporal={context.abstract_action}")
         rationale_parts.append(f"switch_gate={context.temporal_switch_gate:.2f}")
+        # State KV P5-a attestation, emitted unconditionally: every arm's
+        # trace must self-certify whether the z_t dynamic-residual channel
+        # was live this turn, otherwise bank-gain evidence cannot exclude
+        # this second latent carrier.
+        if context.dynamic_residual_wiring == "active":
+            rationale_parts.append(
+                f"dynamic_residual=active:{control_scale:.3f}"
+            )
+        elif context.dynamic_residual_wiring == "shadow":
+            rationale_parts.append(
+                "dynamic_residual=shadow:would_be:"
+                f"{dynamic_residual_would_be_scale:.3f}"
+            )
+        else:
+            rationale_parts.append("dynamic_residual=disabled")
         if context.personal_conditioning is not None:
             # Audit truth comes from the runtime result, not from having
             # passed a snapshot: a runtime may receive conditioning and

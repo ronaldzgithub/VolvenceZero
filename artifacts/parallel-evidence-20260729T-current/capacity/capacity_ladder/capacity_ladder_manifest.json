@@ -1,0 +1,276 @@
+{
+  "schema_version": "capacity-ladder-manifest.v1",
+  "description": "CP-24 capacity-to-gain factorial manifest. Produces no claim by itself; each arm must be run on the evidence lane with matched substrate, judge, prompt/context budget, and artifact provenance.",
+  "arms": [
+    {
+      "arm_id": "nz16-pe1-cocoa8-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 16,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz16-pe1-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 16,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz16-pe1-cocoa128-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 16,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz16-pe2-cocoa8-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 16,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz16-pe2-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 16,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz16-pe2-cocoa128-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 16,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz16-pe4-cocoa8-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 16,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz16-pe4-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 16,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz16-pe4-cocoa128-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 16,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz64-pe1-cocoa8-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 64,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz64-pe1-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 64,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz64-pe1-cocoa128-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 64,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz64-pe2-cocoa8-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 64,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz64-pe2-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 64,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz64-pe2-cocoa128-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 64,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz64-pe4-cocoa8-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 64,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz64-pe4-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 64,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz64-pe4-cocoa128-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 64,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz256-pe1-cocoa8-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 256,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz256-pe1-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 256,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz256-pe1-cocoa128-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 256,
+      "pe_critic_capacity": 1,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz256-pe2-cocoa8-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 256,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz256-pe2-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 256,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz256-pe2-cocoa128-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 256,
+      "pe_critic_capacity": 2,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz256-pe4-cocoa8-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 256,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 8,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz256-pe4-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 256,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 32,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    },
+    {
+      "arm_id": "nz256-pe4-cocoa128-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0",
+      "temporal_latent_dim": 256,
+      "pe_critic_capacity": 4,
+      "cocoa_hidden": 128,
+      "backend_combo": "runtime+ssl+internal-rl+cms-torch",
+      "trace_turns": 500,
+      "substrate_label": "qwen-1.5b-main",
+      "seed": 0
+    }
+  ]
+}

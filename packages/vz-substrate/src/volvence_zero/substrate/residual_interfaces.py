@@ -15,14 +15,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Iterator, Sequence
+from typing import Iterator
 
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
 from volvence_zero.substrate.adapter import (
-    ResidualActivation,
-    ResidualSequenceStep,
     SubstrateSnapshot,
 )
 
@@ -46,6 +44,14 @@ class OpenWeightResidualRuntime(ABC):
     runtime_origin: str = "unknown"
     supports_live_substrate_mutation: bool = False
     supports_offline_substrate_training: bool = False
+
+    @property
+    def control_basis_rank(self) -> int:
+        """Rank of the active generation control basis."""
+
+        raise NotImplementedError(
+            f"{type(self).__name__} does not expose a control-basis rank"
+        )
 
     @abstractmethod
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
@@ -167,6 +173,27 @@ class OpenWeightResidualRuntime(ABC):
     ) -> ResidualControlApplication:
         """Apply bounded residual intervention through the runtime."""
 
+    def install_control_basis(
+        self,
+        *,
+        basis: tuple[tuple[float, ...], ...],
+        provenance: str,
+        layer_indices: tuple[int, ...] | None = None,
+        layer_gains: tuple[float, ...] | None = None,
+    ) -> None:
+        """Install a learned (rare-heavy, offline-fit) control basis.
+
+        Only rotates the directions in which bounded ``applied_control``
+        vectors perturb the hidden state; never touches model weights.
+        Runtimes without a real control basis fail loudly.
+        """
+
+        del basis, provenance, layer_indices, layer_gains
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support learned control-basis "
+            "installation"
+        )
+
     def score_continuation(
         self,
         *,
@@ -215,7 +242,7 @@ class OpenWeightResidualRuntime(ABC):
         temperature: float = 0.7,
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
-        generation_constraints: "GenerationConstraints | None" = None,
+        generation_constraints: object | None = None,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
         sampling_seed: int | None = None,

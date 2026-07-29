@@ -1,0 +1,145 @@
+{
+  "cohort_scope": "hierarchical proof cases; no per-user longitudinal cohort",
+  "counterfactual_action_selector": {
+    "cross_validation": "route-grouped-4fold",
+    "diagnostic_active": true,
+    "encoder": "train-only-standardized-linear-kernel",
+    "head": "train-only-dual-ridge-ladder-0.1-1-10",
+    "input": "full-layer-coordinate-mean-latest-trend",
+    "live_injection": "disabled",
+    "model_selection": "train-route-cv-audit-delta-then-audit-regret"
+  },
+  "counterfactual_target": {
+    "audit_role": "subsequent-realized-segment-transfer-readout-and-train-route-cv-model-selection-only",
+    "audit_sample_count": 1,
+    "audit_surface": "subsequent-realized-segment-teacher-forced-nll-improvement-vs-zero-control",
+    "mode": "environment-outcome-pe-credit",
+    "outcome_chain": "z-candidate->residual-forward->realized-continuation-nll->prediction-error->action-credit",
+    "primary_target": "realized-next-segment-teacher-forced-nll-improvement-vs-zero-control",
+    "sampling_max_new_tokens": 0,
+    "sampling_seed_protocol": "not-applicable-deterministic-environment-forward",
+    "sampling_temperature": 0.0,
+    "target_sample_count": 1
+  },
+  "git_sha": "d24bf864cac273c85d5bb4d088ec0eafca38d521",
+  "judge_or_human_protocol": "typed automatic metrics; no LLM judge or human rating",
+  "metric_version": "eta-gate2-residual-causal.v35",
+  "model_and_adapter_ids": {
+    "adapter_ids": [],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct"
+  },
+  "profiles": [
+    "full-internal-rl",
+    "full-zero-control",
+    "full-shuffled-control",
+    "full-reversed-control"
+  ],
+  "prompt_and_context_budget": {
+    "max_prefix_steps": "8",
+    "prefix_alignment": "capture-and-intervention-same-prefix"
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "counterfactual_outcomes.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "residual_capture": {
+    "activation_width": 896,
+    "compression_mode": "exact-up-to-configured-width"
+  },
+  "scenario_split": {
+    "causal_confirmation_split": [
+      "confirmation-v35-orchestra-rehearsal",
+      "confirmation-v35-greenhouse-irrigation",
+      "confirmation-v35-courier-route-repair",
+      "confirmation-v35-kiln-temperature-log"
+    ],
+    "confirmation_route_ids": [
+      "confirmation-v35-orchestra-rehearsal",
+      "confirmation-v35-greenhouse-irrigation",
+      "confirmation-v35-courier-route-repair",
+      "confirmation-v35-kiln-temperature-log"
+    ],
+    "confirmation_split_locked": true,
+    "development_heldout_status": "reused-during-gate-development",
+    "development_routes_unchanged": true,
+    "independent_training_route_ids": [
+      "train-independent-forecast-revision",
+      "train-independent-delayed-decision",
+      "train-independent-changing-conditions",
+      "train-independent-promise-ledger",
+      "train-independent-reliable-response",
+      "train-independent-visible-priorities",
+      "train-independent-unfamiliar-information",
+      "train-independent-recorded-recovery"
+    ],
+    "route_ids": [
+      "train-corridor-alpha-beta-delta",
+      "train-zigzag-beta-gamma-alpha",
+      "train-loop-delta-beta-epsilon",
+      "eval-alpha-delta-epsilon",
+      "eval-gamma-beta-delta",
+      "heldout-delta-alpha-gamma-epsilon",
+      "heldout-epsilon-beta-alpha-delta",
+      "train-expanded-alpha-gamma-beta-epsilon",
+      "train-expanded-beta-delta-gamma-epsilon",
+      "train-expanded-delta-beta-alpha-gamma",
+      "train-expanded-hub-beta-delta-epsilon",
+      "train-expanded-alpha-delta-hub-epsilon",
+      "train-independent-forecast-revision",
+      "train-independent-delayed-decision",
+      "train-independent-changing-conditions",
+      "train-independent-promise-ledger",
+      "train-independent-reliable-response",
+      "train-independent-visible-priorities",
+      "train-independent-unfamiliar-information",
+      "train-independent-recorded-recovery",
+      "validation-v35-librarian-catalog-shift",
+      "validation-v35-clinic-handoff-review",
+      "validation-v35-museum-lighting-plan",
+      "validation-v35-harbor-manifest-update",
+      "confirmation-v35-orchestra-rehearsal",
+      "confirmation-v35-greenhouse-irrigation",
+      "confirmation-v35-courier-route-repair",
+      "confirmation-v35-kiln-temperature-log"
+    ],
+    "split_owner": "eta-gate2-selector-fresh-v4",
+    "superseded_validation_route_ids": [
+      "validation-v30-measurement-estimate",
+      "validation-v30-workshop-criteria",
+      "validation-v30-weather-schedules",
+      "validation-v30-editor-drafts"
+    ],
+    "training_route_count": 16,
+    "validation_frozen_before_run": true,
+    "validation_route_ids": [
+      "validation-v35-librarian-catalog-shift",
+      "validation-v35-clinic-handoff-review",
+      "validation-v35-museum-lighting-plan",
+      "validation-v35-harbor-manifest-update"
+    ]
+  },
+  "schema_version": "eta-gate2-residual-causal.v35",
+  "seed_schedule": [
+    0
+  ],
+  "substrate_fingerprint": "runtime-descriptor-sha256:95c6d2cf5899f0ea5560ebdc29d564d1a401704939af544df57b7041715992e4",
+  "substrate_fingerprint_verification": "runtime-descriptor-only; weights digest not exposed by runtime",
+  "suite_id": "eta-gate2-residual-causal-ci-smoke",
+  "wiring_levels": {
+    "artifact_promotion": "SHADOW",
+    "metacontroller": "ACTIVE",
+    "residual_capture": "ACTIVE",
+    "residual_intervention": "ACTIVE"
+  }
+}

@@ -49,7 +49,7 @@ system prompt，而 `prompt_residue_summary` 在
 | C1 | system prompt 文本 | **关**（字节相同，哈希公开） | `prompt_state_delivery="suppressed"`，只保留不变表达规则段 |
 | C2 | 上下文窗口 / `prior_turns` | **关**（空） | 无历史、无检索原文、无摘要 |
 | C3 | residual 条件化偏置 | **开** | 被验证载体（16 维 → hook 层常量加性偏置） |
-| C4 | temporal 控制码 `z_t`（`control_parameters` / `control_scale`） | **开** | 同属模型层载体，需可独立消融 |
+| C4 | temporal 控制码 `z_t`（`control_parameters` / `control_scale`） | **开**（P5-a 起可独立消融） | 同属模型层载体。`FinalRolloutConfig.generation_dynamic_residual`（默认 ACTIVE = 现状）可 SHADOW/DISABLED 单独关闭本通道；每 turn 的 `dynamic_residual=` rationale tag 自证通道状态与实际（或 SHADOW 下本应注入的）scale。既有臂间对照未固定 C4——各臂同为 ACTIVE，臂间差异不由它产生，但后续 bank 增益证据 run 应叠加 `dynamic-residual-off` capability 把它钉死 |
 | C5 | 解码配置（profile / temperature / max tokens / 约束后处理） | **报告，不默认关** | 采样层通道，不是模型层；必须进 attestation 供复核 |
 | C6 | 权重 / adapter | 关（P0/P1/P3） | 情节级记忆沉淀属后续阶段，见 §反主张 |
 | C7 | Prefix-KV 注意力前缀 | P3 的 `g-prefix-pure` 臂**开**，其余臂关 | 逐层 K/V slot，由 16 维 readout 生成，带宽高于 C3；基底权重不变，artifact 与权重分开发布 |

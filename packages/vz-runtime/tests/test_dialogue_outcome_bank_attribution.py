@@ -161,9 +161,12 @@ def test_replay_artifact_exports_lineage_for_audit_join() -> None:
         "selected_bank_set": ("personal",),
         "bank_fingerprints": (("personal", "fp-export-000001"),),
         "state_encoder_version": "",
-        "prefix_generator_version": "",
-        "router_version": "",
-    }
+            "prefix_generator_version": "",
+            "router_version": "",
+            "router_scores": (),
+            "shadow_router_version": "",
+            "shadow_router_scores": (),
+        }
     # "No bank was live" must stay distinguishable in the exported audit.
     assert rows[1]["conditioning_lineage"] is None
 
@@ -210,6 +213,17 @@ def test_purchase_confirmed_end_to_end_locates_the_live_bank_set() -> None:
     assert resolved.selected_bank_set == ("personal",)
     assert resolved.bank_fingerprints[0][0] == "personal"
     assert resolved.bank_fingerprints[0][1]
+
+    asyncio.run(runner.run_turn("The purchase outcome is now available."))
+    credit_snapshot = runner._upstream_snapshots["credit"].value
+    attributed = [
+        record
+        for record in credit_snapshot.recent_action_lineage_credits
+        if record.conditioning_bank_set
+    ]
+    assert attributed
+    assert attributed[-1].conditioning_bank_set == ("personal",)
+    assert attributed[-1].conditioning_bank_fingerprints
 
     # An undeclared action turn stays counted-but-unattributed.
     undeclared = runner.submit_dialogue_outcome(

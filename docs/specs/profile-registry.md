@@ -535,6 +535,12 @@ fail loudly。通过部署门只授权这个显式 profile，默认 `pe-eta` 仍
 - registry 成为 SSOT；legacy 11 个 if-elif 分支保留 ≥1 release cycle 作为 fallback，但启动时 emit warning（"legacy dispatch used, capture this in PR"）
 - ≥1 release cycle 稳定期 + 现有 dialogue paper-suite + ETA strong-proof 全 PASS 后，进入 T16 cleanup：移除 legacy if-elif 分支。
 
+State KV 收官扩展已把 `state-kv-arm-*`、bank 四臂、ACTIVE router 集成臂、
+dynamic-residual-off 与 credit-feedback-active 切到 registry-first config
+构造；flag override 全部经 `ResolvedProfile.apply_to_config` 应用，未知字段
+fail loudly。历史 11 个 dialogue benchmark profile 仍按上述阶段 2/3 迁移门
+推进，不得把 State KV 子集完成写成全 registry 清理完成。
+
 ---
 
 ## 与既有 spec / 规则的关系

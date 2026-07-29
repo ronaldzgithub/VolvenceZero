@@ -23,6 +23,10 @@ from volvence_zero.agent.paper_suite import (
     validate_evidence_bundle_for_external_use,
 )
 from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult, default_active_runner
+from volvence_zero.agent.profile_registry import (
+    STATE_KV_RUNTIME_CONFIG_PROFILE_LABELS,
+    resolve_profile,
+)
 from volvence_zero.application.runtime import ResponseAssemblySnapshot
 from volvence_zero.credit import CreditSnapshot
 from volvence_zero.evaluation import (
@@ -629,15 +633,6 @@ _PHASE3_COMBINATION_SHADOW_PROFILES: frozenset[str] = frozenset(
 # byte-identical to each other (docs/specs/state-kv-identification-
 # evidence.md §四臂矩阵). Explicit-only: not part of the default ablation /
 # strong-proof matrices; run with profile_labels=(...).
-_STATE_KV_ARM_PROFILES: dict[str, tuple[WiringLevel, str, str]] = {
-    "state-kv-arm-a": (WiringLevel.SHADOW, "residual", "text"),
-    "state-kv-arm-bprime": (WiringLevel.ACTIVE, "text", "text"),
-    "state-kv-arm-e": (WiringLevel.ACTIVE, "residual", "text"),
-    "state-kv-arm-a-pure": (WiringLevel.SHADOW, "residual", "suppressed"),
-    "state-kv-arm-e-pure": (WiringLevel.ACTIVE, "residual", "suppressed"),
-}
-
-
 def default_phase2_shadow_evidence_profiles() -> tuple[str, ...]:
     """Explicit Phase 2 candidate profiles.
 
@@ -8100,8 +8095,6 @@ def build_standard_dialogue_runner(
         )
 
     if profile_label in _PHASE2_SHADOW_EVIDENCE_PROFILES or profile_label in _PHASE3_COMBINATION_SHADOW_PROFILES:
-        from volvence_zero.agent.profile_registry import resolve_profile
-
         resolved_profile = resolve_profile(profile_label)
         config = resolved_profile.apply_to_config(FinalRolloutConfig())
         return AgentSessionRunner(
@@ -8112,17 +8105,13 @@ def build_standard_dialogue_runner(
             allow_live_substrate_mutation=True,
         )
 
-    if profile_label in _STATE_KV_ARM_PROFILES:
-        conditioning_level, conditioning_mode, prompt_state_delivery = (
-            _STATE_KV_ARM_PROFILES[profile_label]
+    if profile_label in STATE_KV_RUNTIME_CONFIG_PROFILE_LABELS:
+        config = resolve_profile(profile_label).apply_to_config(
+            FinalRolloutConfig()
         )
         return AgentSessionRunner(
             session_id=_base_session_id(profile_label),
-            config=FinalRolloutConfig(
-                personal_conditioning=conditioning_level,
-                personal_conditioning_mode=conditioning_mode,
-                prompt_state_delivery=prompt_state_delivery,
-            ),
+            config=config,
             default_residual_runtime=residual_runtime,
             joint_schedule=_benchmark_joint_schedule(),
             allow_live_substrate_mutation=True,

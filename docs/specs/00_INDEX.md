@@ -88,7 +88,7 @@
 
 | Spec | 内容 |
 |------|------|
-| [personal-conditioning.md](./personal-conditioning.md) | 把用户、关系、目标与边界 owner 的已审计状态编译为有界神经侧条件，在模型生成前进入残差流；定义当前 SHADOW 包、后续前置水合与可训练投影路线 |
+| [personal-conditioning.md](./personal-conditioning.md) | 把用户、关系、目标与边界 owner 的已审计状态编译为有界神经侧条件；定义多 bank 快照、temporal Top-K router、残差/Prefix-KV/text 载体、typed credit 反馈及冻结证据门 |
 
 **核心不变量**：
 - 用户无需自行做 context engineering；系统只从正式 owner 快照自动加载个人状态

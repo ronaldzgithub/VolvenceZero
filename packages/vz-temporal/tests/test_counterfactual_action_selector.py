@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from volvence_zero.internal_rl.counterfactual_selector import (
@@ -10,6 +12,8 @@ from volvence_zero.internal_rl.counterfactual_selector import (
     grouped_cross_validate_residual_action_selector,
     residual_action_state_sketch,
     residual_action_state_vector,
+    selector_artifact_from_payload,
+    selector_artifact_to_payload,
     select_counterfactual_actions,
     summarize_action_selections,
 )
@@ -210,6 +214,74 @@ def test_kernel_selector_uses_full_state_and_grouped_cv() -> None:
     assert artifact.action_count == 3
     assert len(selections) == len(examples)
     assert all(selection.top1_match for selection in selections)
+
+
+@pytest.mark.parametrize("model_kind", ("linear", "kernel"))
+def test_selector_artifact_json_round_trip_is_exact(model_kind: str) -> None:
+    examples = tuple(
+        _example(
+            example_id=f"roundtrip-{index}",
+            group_id=f"route-{index // 2}",
+            first=1.0 if index % 2 == 0 else 0.0,
+            second=0.0 if index % 2 == 0 else 1.0,
+        )
+        for index in range(8)
+    )
+    artifact = (
+        fit_residual_action_selector(
+            examples,
+            latent_dim=3,
+            ridge_strength=0.1,
+        )
+        if model_kind == "linear"
+        else fit_kernel_residual_action_selector(
+            examples,
+            ridge_strength=0.1,
+        )
+    )
+
+    payload = selector_artifact_to_payload(artifact)
+    restored = selector_artifact_from_payload(
+        json.loads(json.dumps(payload, sort_keys=True))
+    )
+
+    assert restored == artifact
+    assert restored.model_fingerprint == artifact.model_fingerprint
+    assert restored.predict_action_values(
+        examples[0].state_features
+    ) == artifact.predict_action_values(examples[0].state_features)
+
+
+def test_selector_artifact_rejects_dimension_and_fingerprint_drift() -> None:
+    examples = tuple(
+        _example(
+            example_id=f"tamper-{index}",
+            group_id=f"route-{index // 2}",
+            first=1.0 if index % 2 == 0 else 0.0,
+            second=0.0 if index % 2 == 0 else 1.0,
+        )
+        for index in range(8)
+    )
+    artifact = fit_kernel_residual_action_selector(
+        examples,
+        ridge_strength=0.1,
+    )
+    payload = selector_artifact_to_payload(artifact)
+
+    with pytest.raises(ValueError, match="input_mean dimension"):
+        selector_artifact_from_payload(
+            {
+                **payload,
+                "input_mean": payload["input_mean"][:-1],
+            }
+        )
+    with pytest.raises(ValueError, match="fingerprint mismatch"):
+        selector_artifact_from_payload(
+            {
+                **payload,
+                "ridge_strength": 10.0,
+            }
+        )
 
 
 def test_selector_reports_independent_audit_values_without_fitting_them() -> None:

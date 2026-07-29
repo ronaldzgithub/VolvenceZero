@@ -1,0 +1,45 @@
+{
+  "artifact_id": "state-kv-control-dim:9c28ff6c4e7fda27a2804d1aa1abe7d9024316664091e74d57f027726cb5222f",
+  "bottleneck_proven": false,
+  "claims": [
+    {
+      "claim": "claim_full_code_contains_tail_signal",
+      "detail": "n=8, mean tail/total L2=0.918893",
+      "state": "pass"
+    },
+    {
+      "claim": "claim_rank3_control_beats_dynamic_residual_off",
+      "detail": "matched_n=8, mean_delta=-0.01219022274017334, ci=(-0.027389466762542725, 0.00396651029586792), required_ci_low>0",
+      "state": "fail"
+    },
+    {
+      "claim": "claim_full_dimension_improves_matched_outcome",
+      "detail": "matched_n=8, mean_delta=0.008662521839141846, ci=(-0.008083522319793701, 0.025064438581466675), required_ci_low=0.020000",
+      "state": "fail"
+    }
+  ],
+  "gate_state": "fail",
+  "legacy_control_rank": 3,
+  "matched_outcome_count": 8,
+  "mean_full_minus_rank3_outcome": 0.008662521839141846,
+  "mean_rank3_minus_off_outcome": -0.01219022274017334,
+  "mean_tail_energy_ratio": 0.9188927267912735,
+  "minimum_outcome_delta": 0.02,
+  "minimum_samples": 8,
+  "outcome_delta_ci": [
+    -0.008083522319793701,
+    0.025064438581466675
+  ],
+  "p5d_decision": "retain-rank3-stop-d1-d2",
+  "rank3_minus_off_ci": [
+    -0.027389466762542725,
+    0.00396651029586792
+  ],
+  "rollback": "No substrate change was admitted; rank-3 remains the deployed behavior.",
+  "sample_count": 8,
+  "schema_version": "state-kv-control-dim-diagnostic.v2",
+  "source_artifacts": [
+    "artifacts/state_kv/observations_control_dim_diagnostic.json",
+    "artifacts/state_kv/control_basis_full_dimension_candidate.json"
+  ]
+}
