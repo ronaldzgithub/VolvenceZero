@@ -34,14 +34,24 @@ from volvence_zero.apprenticeship.core import (
     load_apprenticeship_prompt_template,
     reconcile_guidance,
 )
+from volvence_zero.apprenticeship.active_learning import (
+    GATE4_ACTIVE_POLICIES,
+    BoundedBinaryAlignmentReadout,
+    Gate4FeedbackCandidate,
+    random_feedback_order,
+    select_active_candidate,
+)
 
 __all__ = [
     "ApprenticeshipAlignmentModule",
     "ApprenticeshipAlignmentSnapshot",
     "ApprenticeshipThresholds",
+    "BoundedBinaryAlignmentReadout",
     "ConstraintLevel",
     "ContradictionFinding",
     "GuidanceConstraintExtractor",
+    "GATE4_ACTIVE_POLICIES",
+    "Gate4FeedbackCandidate",
     "HolisticGuidanceConstraintExtractor",
     "IntentConstraint",
     "LLMGuidanceConstraintExtractor",
@@ -54,4 +64,6 @@ __all__ = [
     "build_intent_constraint",
     "load_apprenticeship_prompt_template",
     "reconcile_guidance",
+    "random_feedback_order",
+    "select_active_candidate",
 ]

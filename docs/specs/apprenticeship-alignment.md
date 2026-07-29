@@ -94,6 +94,28 @@ reliable-active-apprenticeship 的保证是：只在保证最优时自行行动�
 - **已接入（2026-07-14）**：真实 HF runtime 存在时，`lifeform-service` 注入 `LLMGuidanceConstraintExtractor`（prompt 集中在 `packages/vz-cognition/src/volvence_zero/apprenticeship/prompts/extraction.md`）；无真实 runtime 时仍用 deterministic holistic fallback。#87 同基底矩阵新增 `active-learning-off` serving arm，将反馈请求策略替换为 reproducible random-sampling baseline。
 - **未做（follow-up）**：`apprenticeship_protocol_alignment` ACTIVE。
 
+## 7.2 Gate 4 segment-aware evidence owner
+
+`volvence_zero.apprenticeship.active_learning` 提供 Gate 4 专用的有界
+feedback-candidate selector 与 deterministic binary alignment readout。它属于
+apprenticeship owner 包，但不新增 runtime slot、不解释 natural-language
+topic，也不写 semantic state：
+
+- 五臂共享同一 readout；prediction 与当前 public controller 数值坐标进入
+  predictor，actual outcome、PE、episode phase、user/context 文本不进入。
+- PE 只参与 acquisition score；segment-aware 臂额外消费
+  `TemporalSegmentClosure` 已发布的 z/beta/length 与 segment-space novelty。
+  runtime harness 不从 action/family 文本重建 segment。
+- 被 selector 选中的 candidate 仍必须进入
+  `ApprenticeshipAlignmentModule`，由 owner 发布 typed feedback request，再由
+  `OpenLoopModule` 冒出 verification request；evidence run 固定
+  `revision_enabled=False`，因此不产生 belief/goal writeback。
+- `shuffled-segment-boundary` 只置换完整 closure 单元并保持 PE/outcome/order/
+  budget 不变，是 segment 因果 kill control。正式阈值、label 与退出措辞见
+  `docs/specs/evidence_program.md` 的 `gate4-active-learning.v1` 预注册。
+- 这是 evidence-only owner surface；生产默认 `owner/random/disabled`
+  feedback policy 和 rollback 行为不变。
+
 ## 8. 迁移（WiringLevel 三态）
 
 - **SHADOW**：发布快照、与现有 PE/belief 并跑比对；不发 PE overlay（SHADOW 不进 active 链）、无反馈请求 actuation

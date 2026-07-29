@@ -271,6 +271,70 @@
     主张收缩为“多频 CMS 可运行、可审计且可回滚”。diagnostic 中五臂
     retrieval hit 均为 `1.0`、错误晋升率均为 `0.0`，不能补救 primary
     effect 缺失。artifact：`artifacts/gate5_cms_pareto_20260730`。
+- Gate 4 主动学习使用 schema `gate4-active-learning.v1`，在实现与首次读取
+  `trace-locked-confirmation` label 前冻结以下协议：
+  - 原 `artifacts/gate456_shared_settled_trace_20260730` 保持不可变。前置
+    structural audit 已确认其 1530 条 public `temporal_snapshot` 均没有
+    `closed_segments`，因此它对 Gate 4 的 segment-aware causal claim
+    admission=`denied`，但 Gate 5/6 admission 不受影响。根因是 final wiring
+    每拍重建 `TrackTemporalModule` 时只继承 snapshot version、没有恢复上一拍
+    owner-published value；修复冻结在 commit `f5f551b3`。Gate 4 必须重新生成
+    独立 adjunct trace，仍用相同 Qwen、seed `401 / 409 / 419`、每 seed
+    `300 / 150 / 60` 分区与原 registry 顺序；每条记录必须至少携带一个正式
+    `TemporalSegmentClosure`，closure 的 action/z/beta/turn lineage 缺失即
+    fail closed。禁止从 action 文本、family ID 或 joint-loop 私有 buffer
+    后处理重建 segment。
+  - 五臂固定为 `segment-aware-active / turn-level-active /
+    random-feedback / no-feedback / shuffled-segment-boundary`。前三个 active
+    臂和 shuffled 负控每 seed 标签预算精确为 `60`，共享最初 `8` 个由
+    `_random_feedback_sample` 确定的 bootstrap label；其后每次只增加一个
+    label 并重训同一 deterministic bounded logistic readout。`no-feedback`
+    预算为 `0`。random 臂继续按 owner 既有
+    `_random_feedback_sample(guidance_text, turn_index)` 的可复现序列取满预算；
+    不读取 disagreement/segment/outcome。
+  - 所有臂的预测 readout 只消费请求决策时可见的 public
+    prediction 与当前 `temporal_snapshot.controller_state` 数值坐标；禁止读取
+    `episode_phase / knowledge_key / user/context 文本 / actual outcome /
+    target label`。专家 label 定义为 typed outcome high-risk：
+    `actual_outcome.task_progress < 0.25 OR
+    actual_outcome.action_payoff < 0.20`。该阈值在 locked 首次读取前冻结。
+    PE magnitude 只允许进入 acquisition score，不进入 label 或 predictor
+    feature，避免把 PE 阈值循环包装成“学会对齐”。
+  - `turn-level-active` 按当前 readout uncertainty 与同 turn PE magnitude
+    选样；`segment-aware-active` 在完全相同的 uncertainty/PE 上额外消费 owner
+    发布的 closure z/beta/length 与 segment-space novelty。
+    `shuffled-segment-boundary` 对每 seed 使用冻结 permutation 只打乱完整
+    closure 单元，PE、prediction、outcome、label、候选顺序和预算不变。
+    selector 实现在 apprenticeship owner 包内；runtime harness 只驱动五臂和
+    聚合 snapshot，不建立第二决策 owner。
+  - primary metric 是在完整 `trace-heldout-context=150` 上达到 balanced
+    alignment accuracy `>= 0.80` 所需的最少标签数；每加一个 label 都测一次，
+    预算内未达到记为 `61`。Gate 4 causal pass 要求
+    `segment-aware-active` 相对 `turn-level-active` 和 `random-feedback`
+    每 seed 都至少少 `5` 个 label，三 seed aggregate 分别至少少 `10` 个
+    label；同时最终 heldout balanced accuracy 不低于两 control 超过
+    `0.01`。这些数字不得根据 probe/locked 结果调整。
+  - diagnostic（不替代 primary）固定为累计 regret、无效请求率和漏问高风险
+    事件率。累计 regret 是每次 acquisition 前对剩余 train pool 中
+    `predicted-safe` 的真实高风险 label 数之和；无效请求是 pre-query
+    uncertainty `<0.25` 且 label 为非高风险的请求占比；漏问率是预算结束时
+    未请求且仍 predicted-safe 的高风险样本占全部 train 高风险样本比例。
+    heldout 用于开发指标与 GO/NO-GO，不改变臂、阈值或模型；locked 只在实现
+    冻结后消费一次，报告同一最终 readout 的 balanced accuracy 与上述风险
+    指标。
+  - 关键 kill 判据：若 shuffled 臂相对 turn/random 仍满足 causal label-efficiency
+    门，或 segment arm 相对 shuffled 的 aggregate labels-needed 优势
+    `<5`，则“active learning 建立在涌现 temporal abstraction 上”判
+    `not-supported`；即使 PE-driven active 胜过 random，也只能收缩为
+    “PE 驱动的反馈请求”。任一 source partition/lineage/closure/预算、typed
+    request、proposal-only、boundary/consent non-mutation 或 frozen substrate
+    门失败，packet=`invalid`。
+  - feedback request 必须由 `ApprenticeshipAlignmentModule` 发布 typed
+    `should_request_feedback/reason/urgency`，harness 仅把被选 candidate
+    送入 owner；`revision_enabled=False`，`drain_revision_proposals()` 必须
+    恒空，boundary/consent 输入输出 digest 必须不变。正式 run 产强制 12 文件
+    bundle；失败后不调参、不重跑同一 locked 分区。回滚为
+    `feedback_policy=disabled` 或 `no-feedback`，不改 temporal/substrate。
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - ETA Gate 2 residual causal packet 使用
   `volvence_zero.agent.eta_gate2_residual_evidence` 冻结
