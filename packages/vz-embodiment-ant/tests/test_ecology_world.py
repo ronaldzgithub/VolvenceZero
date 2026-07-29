@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import math
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
@@ -501,6 +502,94 @@ def test_ecology_outcome_declares_discrete_milestone_only_on_pickup() -> None:
     )
     assert routine_outcome.measurement is not None
     assert routine_outcome.measurement.discrete_milestone is False
+
+
+def test_real_pickup_forces_temporal_switch_on_next_ant_tick() -> None:
+    """End-to-end: a live pickup closes the segment and forces the switch.
+
+    This pins the full owner chain inside the REAL ant loop (world transition
+    -> owner-declared ``discrete_milestone`` -> buffered outcome -> next
+    ``run_turn`` typed signal -> forced ``beta_t`` switch + credit-segment
+    closure), under the actual evidence profile. The learned beta threshold
+    is pinned prohibitively high after the pickup tick so a natural switch
+    cannot explain the outcome; the DISABLED arm is the differential control.
+    """
+
+    from volvence_ant.evidence.runtime_profile import (
+        ant_runtime_replay_rollout_config,
+    )
+    from volvence_zero.runtime import WiringLevel
+
+    def run_arm(milestone_wiring: WiringLevel) -> tuple:
+        rollout = ant_runtime_replay_rollout_config(
+            enable_sparse_exploration=False,
+            sense_schema=AntSenseSchema.ECOLOGY_V2,
+        )
+        rollout = replace(
+            rollout,
+            environment_milestone_temporal_switch=milestone_wiring,
+        )
+        world = AntWorld(
+            config=AntWorldConfig(seed=0, step_size=0.4),
+            world_objects=(
+                # The body spawns on the source (away from the nest so no
+                # immediate delivery), so tick 1 picks up no matter which
+                # action the policy chooses (max step 0.4 stays inside the
+                # 0.6 contact radius).
+                ButterSource(
+                    object_id="butter",
+                    x=3.0,
+                    y=0.0,
+                    strength=2.2,
+                    decay=2.4,
+                    radius=0.6,
+                ),
+            ),
+        )
+        world.set_body_pose(x=3.0, y=0.0, heading=0.0)
+        session = AntSession(
+            world,
+            config=AntSessionConfig(
+                session_id=f"milestone-{milestone_wiring.value}",
+                rollout_config=rollout,
+                objective=AntObjectiveKind.ECOLOGY,
+                sense_schema=AntSenseSchema.ECOLOGY_V2,
+                ecology_local_valence_enabled=True,
+            ),
+        )
+
+        async def drive() -> tuple:
+            first = await session.step()
+            assert world.last_transition(0).picked_up
+            for store in (
+                session.runner._joint_loop.world_temporal_policy
+                .parameter_store,
+                session.runner._joint_loop.self_temporal_policy
+                .parameter_store,
+            ):
+                store.beta_threshold = 0.99
+            second = await session.step()
+            # Runtime replay settles one turn late, so the pickup
+            # transition (and its milestone segment closure) lands two
+            # ticks after the pickup; the carrying transitions then start
+            # an independent open segment.
+            later = [await session.step() for _ in range(3)]
+            return first, second, later
+
+        return asyncio.run(drive())
+
+    _first, second, later = run_arm(WiringLevel.ACTIVE)
+    assert second.is_switching is True
+    assert second.steps_since_switch == 0
+    assert second.switch_gate >= 0.99
+    # The settled pickup transition closes the outbound credit segment on
+    # its own (length 1: the ant spawned on the source), and the carrying
+    # actions accumulate in a NEW open segment instead of mixing back in.
+    assert later[-1].runtime_closed_segments == 1
+    assert later[-1].runtime_open_segment_transitions >= 1
+
+    _, control_second, _ = run_arm(WiringLevel.DISABLED)
+    assert control_second.is_switching is False
 
 
 def test_ecology_neutral_stick_contact_is_observable_but_valence_free() -> None:
