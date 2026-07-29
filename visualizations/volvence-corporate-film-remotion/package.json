@@ -1,0 +1,26 @@
+{
+  "name": "volvence-corporate-film-remotion",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "voiceover": "python3 scripts/build-voiceover.py --provider xiaozhi-doubao --force",
+    "voiceover:preview": "python3 scripts/build-voiceover.py --provider mac-preview --force",
+    "bgm": "node scripts/build-bgm.mjs",
+    "still": "remotion still src/index.ts VolvenceCorporateFilm out/volvence-corporate-film-cover.png --frame=3150",
+    "render": "remotion render src/index.ts VolvenceCorporateFilm out/volvence-corporate-film-110s.mp4 --codec=h264"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "remotion": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "typescript": "^5.4.5"
+  }
+}

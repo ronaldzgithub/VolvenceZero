@@ -1,0 +1,122 @@
+{
+  "baseline_arm": "state-kv-arm-bprime",
+  "bootstrap_seed": 7501,
+  "candidate_arm": "state-kv-arm-g-prefix-pure",
+  "claims": [
+    {
+      "claim": "claim_quality_noninferior_to_bprime",
+      "detail": "pairs=8, scenarios=2, seeds=3, judges=2, mean_delta=0.44921875, ci=(0.34765625, 0.5234375), margin=0.0000",
+      "state": "pass"
+    }
+  ],
+  "delta_ci": [
+    0.34765625,
+    0.5234375
+  ],
+  "gate_state": "pass",
+  "judge_model_ids": [
+    "BAAI/bge-m3",
+    "moka-ai/m3e-base"
+  ],
+  "mean_delta": 0.44921875,
+  "minimum_judges": 2,
+  "minimum_pairs": 8,
+  "minimum_scenarios": 2,
+  "minimum_seeds": 3,
+  "noninferiority_margin": 0.0,
+  "pairs": [
+    {
+      "bprime_accuracy": 0.40625,
+      "candidate_accuracy": 1.0,
+      "delta": 0.59375,
+      "experiment_id": "p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1701-full-max16",
+      "judge_model_id": "BAAI/bge-m3",
+      "sampling_seed": 1701,
+      "scenario_id": "boundary-vs-commit",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+    },
+    {
+      "bprime_accuracy": 0.59375,
+      "candidate_accuracy": 0.75,
+      "delta": 0.15625,
+      "experiment_id": "p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1701-full-max16-m3e",
+      "judge_model_id": "moka-ai/m3e-base",
+      "sampling_seed": 1701,
+      "scenario_id": "boundary-vs-commit",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+    },
+    {
+      "bprime_accuracy": 0.5,
+      "candidate_accuracy": 1.0,
+      "delta": 0.5,
+      "experiment_id": "p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1702-full-max16",
+      "judge_model_id": "BAAI/bge-m3",
+      "sampling_seed": 1702,
+      "scenario_id": "boundary-vs-commit",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+    },
+    {
+      "bprime_accuracy": 0.53125,
+      "candidate_accuracy": 1.0,
+      "delta": 0.46875,
+      "experiment_id": "p2-state-strategy-routed-boundary-vs-commit-rollout-seed-1703-full-max16",
+      "judge_model_id": "BAAI/bge-m3",
+      "sampling_seed": 1703,
+      "scenario_id": "boundary-vs-commit",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+    },
+    {
+      "bprime_accuracy": 0.46875,
+      "candidate_accuracy": 1.0,
+      "delta": 0.53125,
+      "experiment_id": "p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16",
+      "judge_model_id": "BAAI/bge-m3",
+      "sampling_seed": 1701,
+      "scenario_id": "repair-vs-execute",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+    },
+    {
+      "bprime_accuracy": 0.5,
+      "candidate_accuracy": 0.875,
+      "delta": 0.375,
+      "experiment_id": "p2-state-strategy-routed-repair-vs-execute-rollout-seed-1701-full-max16-m3e",
+      "judge_model_id": "moka-ai/m3e-base",
+      "sampling_seed": 1701,
+      "scenario_id": "repair-vs-execute",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+    },
+    {
+      "bprime_accuracy": 0.5,
+      "candidate_accuracy": 1.0,
+      "delta": 0.5,
+      "experiment_id": "p2-state-strategy-routed-repair-vs-execute-rollout-seed-1702-full-max16",
+      "judge_model_id": "BAAI/bge-m3",
+      "sampling_seed": 1702,
+      "scenario_id": "repair-vs-execute",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+    },
+    {
+      "bprime_accuracy": 0.53125,
+      "candidate_accuracy": 1.0,
+      "delta": 0.46875,
+      "experiment_id": "p2-state-strategy-routed-repair-vs-execute-rollout-seed-1703-full-max16",
+      "judge_model_id": "BAAI/bge-m3",
+      "sampling_seed": 1703,
+      "scenario_id": "repair-vs-execute",
+      "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+    }
+  ],
+  "sampling_seeds": [
+    1701,
+    1702,
+    1703
+  ],
+  "scenario_ids": [
+    "boundary-vs-commit",
+    "repair-vs-execute"
+  ],
+  "schema_version": "state-kv-quality-noninferiority.v1",
+  "substrate_fingerprints": [
+    "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+  ]
+}

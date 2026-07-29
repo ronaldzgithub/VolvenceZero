@@ -51,6 +51,7 @@ __all__ = [
     "resolve_profile",
     "list_builtin_profiles",
     "list_builtin_capabilities",
+    "STATE_KV_RUNTIME_CONFIG_PROFILE_LABELS",
 ]
 
 
@@ -123,13 +124,13 @@ class ResolvedProfile:
     base_profile: str
 
     def apply_to_config(self, base: Any) -> Any:
-        """Return a new FinalRolloutConfig with capability_wirings merged in.
+        """Return a new FinalRolloutConfig with declared overrides applied.
 
-        Pure function: never mutates ``base``. Spec §A1.4 — flag_overrides are
-        passed to AgentSessionRunner via a separate channel (阶段 2 work);
-        only capability_wirings is applied to the immutable config here so
-        阶段 1 can keep flag-driven dispatch as a parallel side path without
-        regressing existing behaviour.
+        Pure function: never mutates ``base``. Wiring overrides merge into
+        ``capability_wirings`` and every flag whose name is a
+        ``FinalRolloutConfig`` field is applied directly. Unknown flags fail
+        loudly: silently dropping one would recreate the registry/runner drift
+        this method exists to remove.
 
         ``base`` is typed Any to avoid a circular import (FinalRolloutConfig
         lives in volvence_zero.integration.final_wiring which transitively
@@ -149,10 +150,30 @@ class ResolvedProfile:
             existing = dict(merged.get(owner, {}))
             existing.update(owner_overrides)
             merged[owner] = MappingProxyType(existing)
-        return dataclasses.replace(
-            base,
-            capability_wirings=MappingProxyType(merged),
-        )
+        config_fields = {field.name for field in dataclasses.fields(base)}
+        replacements: dict[str, Any] = {
+            "capability_wirings": MappingProxyType(merged),
+        }
+        for name, value in self.merged_flag_overrides.items():
+            if name not in config_fields:
+                raise ProfileRegistryViolationError(
+                    f"profile {self.label!r} flag {name!r} is not a "
+                    "FinalRolloutConfig field"
+                )
+            current = getattr(base, name)
+            if isinstance(current, WiringLevel):
+                if isinstance(value, WiringLevel):
+                    replacements[name] = value
+                elif isinstance(value, str) and value.startswith("WiringLevel."):
+                    replacements[name] = WiringLevel[value.removeprefix("WiringLevel.")]
+                else:
+                    raise ProfileRegistryViolationError(
+                        f"profile {self.label!r} flag {name!r} must declare "
+                        "a WiringLevel"
+                    )
+            else:
+                replacements[name] = value
+        return dataclasses.replace(base, **replacements)
 
 
 # ---------------------------------------------------------------------------
@@ -539,6 +560,23 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
         ),
     ),
     ProfileCapability(
+        name="personal-conditioning-off-text",
+        applies_to_owner="personal_conditioning",
+        flag_overrides={
+            "personal_conditioning": "WiringLevel.SHADOW",
+            "personal_conditioning_mode": "text",
+        },
+        conflicts_with=(
+            "personal-conditioning-text",
+            "personal-conditioning-residual",
+            "personal-conditioning-prefix-kv",
+        ),
+        description=(
+            "Bank-gain control: withhold Personal while retaining the "
+            "shared text carrier for matched bank ablations."
+        ),
+    ),
+    ProfileCapability(
         name="personal-conditioning-residual",
         applies_to_owner="personal_conditioning",
         flag_overrides={
@@ -598,6 +636,78 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
             "Carrier C1 closed: only invariant expression rules enter the "
             "system prompt, so state-derived sections cannot carry "
             "relationship or memory content."
+        ),
+    ),
+    # State KV P5-a: independent switch for the generation-time z_t dynamic
+    # residual channel. Without it, every personal-conditioning ablation
+    # leaks state through control_parameters even when State KV is off.
+    ProfileCapability(
+        name="dynamic-residual-off",
+        applies_to_owner="response_assembly",
+        flag_overrides={
+            "generation_dynamic_residual": "WiringLevel.DISABLED",
+        },
+        description=(
+            "Ablation hygiene: drop the temporal controller's z_t control "
+            "code before generation so the residual stream carries no "
+            "dynamic control signal this run."
+        ),
+    ),
+    # State KV P5-c: apply the credit-driven bounded bank-confidence delta
+    # instead of only publishing it (SHADOW default). The J-vs-I exit gate
+    # compares this arm against the same profile without the capability.
+    ProfileCapability(
+        name="conditioning-credit-feedback-active",
+        applies_to_owner="personal_conditioning",
+        flag_overrides={
+            "conditioning_credit_feedback": "WiringLevel.ACTIVE",
+        },
+        description=(
+            "Conditioning bank owners apply the bounded credit-feedback "
+            "delta to their published confidence (cap ±0.15) instead of "
+            "publishing it report-only."
+        ),
+    ),
+    ProfileCapability(
+        name="relationship-conditioning-active",
+        applies_to_owner="relationship_conditioning",
+        flag_overrides={
+            "relationship_conditioning": "WiringLevel.ACTIVE",
+        },
+        conflicts_with=("relationship-conditioning-disabled",),
+        description="Publish and deliver the Relationship conditioning bank.",
+    ),
+    ProfileCapability(
+        name="relationship-conditioning-disabled",
+        applies_to_owner="relationship_conditioning",
+        flag_overrides={
+            "relationship_conditioning": "WiringLevel.DISABLED",
+        },
+        conflicts_with=("relationship-conditioning-active",),
+        description="Withhold the Relationship conditioning bank.",
+    ),
+    ProfileCapability(
+        name="conditioning-router-shadow-top1",
+        applies_to_owner="temporal",
+        flag_overrides={
+            "conditioning_router": "WiringLevel.SHADOW",
+            "conditioning_router_top_k": 1,
+        },
+        description=(
+            "Matched bank-gain routing policy: compute Top-1 report-only while "
+            "keeping static-all delivery identical across ablation arms."
+        ),
+    ),
+    ProfileCapability(
+        name="conditioning-router-active-top1",
+        applies_to_owner="temporal",
+        flag_overrides={
+            "conditioning_router": "WiringLevel.ACTIVE",
+            "conditioning_router_top_k": 1,
+        },
+        description=(
+            "Promoted Top-1 semantic conditioning router. The selected set "
+            "controls every delivery surface and the action lineage."
         ),
     ),
 )
@@ -774,6 +884,114 @@ _BUILTIN_PROFILES: tuple[ProfileSpec, ...] = (
             "It is never part of default benchmark/profile matrices."
         ),
     ),
+    # State KV P5-a ablation-hygiene profile — explicit-only, never in the
+    # default matrix. Future bank-gain evidence runs stack this capability on
+    # the arm profiles so the z_t channel is held fixed across arms.
+    ProfileSpec(
+        label="dynamic-residual-off",
+        capabilities=("dynamic-residual-off",),
+        description=(
+            "Generation-time z_t dynamic residual disabled; everything else "
+            "is the canonical baseline. Output must be byte-equivalent to a "
+            "control_scale=0 run."
+        ),
+    ),
+    # State KV P5-c evidence arm (J) — explicit-only, never in the default
+    # matrix. The paired I arm is the same run without this profile (credit
+    # feedback stays SHADOW/report-only).
+    ProfileSpec(
+        label="conditioning-credit-feedback-active",
+        capabilities=("conditioning-credit-feedback-active",),
+        description=(
+            "Credit-driven bank confidence feedback applied (ACTIVE); "
+            "everything else is the canonical baseline. Exit gate: growing "
+            "increment over the report-only arm across turns."
+        ),
+    ),
+    ProfileSpec(
+        label="state-kv-bank-none",
+        capabilities=(
+            "personal-conditioning-off-text",
+            "relationship-conditioning-disabled",
+            "dynamic-residual-off",
+            "conditioning-router-shadow-top1",
+        ),
+        description="Bank-gain baseline: no conditioning bank is delivered.",
+    ),
+    ProfileSpec(
+        label="state-kv-bank-personal-only",
+        capabilities=(
+            "personal-conditioning-text",
+            "relationship-conditioning-disabled",
+            "dynamic-residual-off",
+            "conditioning-router-shadow-top1",
+        ),
+        description="Bank-gain arm: Personal bank only.",
+    ),
+    ProfileSpec(
+        label="state-kv-bank-relationship-only",
+        capabilities=(
+            "personal-conditioning-off-text",
+            "relationship-conditioning-active",
+            "dynamic-residual-off",
+            "conditioning-router-shadow-top1",
+        ),
+        description="Bank-gain arm: Relationship bank only.",
+    ),
+    ProfileSpec(
+        label="state-kv-bank-dual",
+        capabilities=(
+            "personal-conditioning-text",
+            "relationship-conditioning-active",
+            "dynamic-residual-off",
+            "conditioning-router-shadow-top1",
+        ),
+        description="Bank-gain arm: Personal and Relationship banks together.",
+    ),
+    ProfileSpec(
+        label="state-kv-bank-dual-router-active",
+        capabilities=(
+            "personal-conditioning-text",
+            "relationship-conditioning-active",
+            "dynamic-residual-off",
+            "conditioning-router-active-top1",
+        ),
+        description=(
+            "Integration profile for promoted Top-1 routing over live "
+            "Personal and Relationship banks."
+        ),
+    ),
+    ProfileSpec(
+        label="state-kv-bank-dual-credit-active",
+        capabilities=(
+            "personal-conditioning-text",
+            "relationship-conditioning-active",
+            "dynamic-residual-off",
+            "conditioning-router-shadow-top1",
+            "conditioning-credit-feedback-active",
+        ),
+        description=(
+            "Matched long-session J arm: dual-bank delivery with bounded "
+            "credit feedback ACTIVE."
+        ),
+    ),
+)
+
+STATE_KV_RUNTIME_CONFIG_PROFILE_LABELS: tuple[str, ...] = (
+    "state-kv-arm-a",
+    "state-kv-arm-bprime",
+    "state-kv-arm-e",
+    "state-kv-arm-a-pure",
+    "state-kv-arm-e-pure",
+    "state-kv-arm-g-prefix-pure",
+    "state-kv-bank-none",
+    "state-kv-bank-personal-only",
+    "state-kv-bank-relationship-only",
+    "state-kv-bank-dual",
+    "state-kv-bank-dual-router-active",
+    "state-kv-bank-dual-credit-active",
+    "dynamic-residual-off",
+    "conditioning-credit-feedback-active",
 )
 
 

@@ -247,6 +247,157 @@
 	  counterfactual_audit_surface` 同步改写；PE→credit 链路、v32 signal
 	  gates（oracle-vs-permutation-null）与四分区严格注入门全部保留且
 	  作用于新单位。
+
+	  2026-07-29 v33 完整 run（Qwen2.5-0.5B、full-width 896、CPU、单
+	  seed、77 min）：134 前缀 × 22 候选（2948 行），效应全距 median
+	  train/eval/heldout/validation = `0.071/0.079/0.074/0.084`，134/134
+	  前缀 ≥ 预注册 `0.02`——较 v31 `~7e-4` 增长约 100 倍，去天花板
+	  完成，预注册「效应停留 1e-3 则收缩」的 kill condition 不触发。
+	  oracle target 均值 `+0.023~+0.046` 全为正，但 v32 门在 validation
+	  失败：train transfer excess `+0.0025` 通过，validation `-0.0024`
+	  （eval `-0.0025`、heldout `-0.0065` 诊断同为负），
+	  `reachable_solution_evidence=false`，verdict `mechanism-supported`，
+	  `validation_oracle_transfer_exceeds_permutation_null` 进
+	  kill_conditions。因测量确定性，该失败不是 v30 式测量噪声而是
+	  上下文特异性：动作效应前缀内真实且大，但同一动作收益不跨
+	  realized segment 迁移。结论：0.5B 上 3 维 `z_t` 残差注入的
+	  行为级因果功率已证明（每前缀全距 ≥ `0.02`），可复用（跨段迁移）
+	  动作价值未证明；selector 注入维持禁止。权威 artifact：
+	  `artifacts/eta_gate2_residual_causal_v33_realized_continuation_fullwidth896_qwen25_05b_cpu_1seed_20260729`。
+
+	  v34（schema `eta-gate2-residual-causal.v34`）把控制 basis 从固定
+	  正弦换成从冻结基底自身学到的 train-transition PCA basis。动机
+	  （2026-07-29 v33 方差分解诊断）：v33 的迁移失败不是测量噪声，
+	  而是执行器方向任意——`_build_control_basis` 的三行单位范数正弦
+	  与行为意义子空间无关，等价于「随机转向」，局部效应真实但跨
+	  上下文不组成一致的动作价值（global action-main train→validation
+	  R² `-0.0103`、within-route leave-one-prefix-out R² 中位 `-0.3063`、
+	  相邻段 Spearman `-0.039`）。修根因 = 换执行器坐标系，不是调
+	  selector。新 basis 由 substrate owner
+	  `volvence_zero.substrate.control_basis.fit_transition_control_basis`
+	  离线拟合：状态坐标取 hook 层（20/21/22）最后 token 隐态的逐层
+	  均值（896 维，capture full-width 精确值），样本为 train-split
+	  路线相邻前缀的转移增量 `h_{i+1}-h_i`；row0 = 归一化均值转移方向
+	  （「route 前进」的平均方向），row1-2 = 居中增量的前两主成分并对
+	  row0 正交化。实现纯 Python + 固定种子幂迭代（Gram trick），逐位
+	  确定，`control_basis_fingerprint` 进 provenance。运行时通过
+	  `TransformersOpenWeightResidualRuntime.install_control_basis`
+	  安装（仅旋转有界 `applied_control` 的可写方向，不动模型权重、
+	  control-scale clamp 或 capture 语义；行重归一化保证与正弦默认
+	  可比）。冻结分区纪律：basis 只从 train split 拟合，由
+	  `_install_learned_control_basis` 强制；manifest 预注册
+	  `control_basis_mode=train-transition-pca-v1 /
+	  control_basis_fit_split=train / control_basis_rank=3 /
+	  control_basis_state_coordinate=hook-layer-mean-last-token-hidden`，
+	  运行时把 fingerprint、转移样本数与 fit 路线写入
+	  runtime_descriptor。v33 的 realized-continuation 测量、PE→credit
+	  链路、v32 signal gates 与四分区严格注入门全部原样保留。
+	  GO/NO-GO 探针（scripts/probe_learned_control_basis.py，真 Qwen
+	  CPU，47 上下文 × 22 候选，成对比较，validation 未触碰）：learned
+	  basis 下 train→dev 候选平均信用 Spearman 从 `0.257` 升到
+	  `0.597`，dev 跨前缀两两 Spearman 从 `-0.011` 升到 `+0.098`，
+	  同路线相邻段 Spearman 从 `-0.020` 升到 `+0.100`，每前缀效应
+	  全距中位 `0.075→0.091`（因果功率未缩水）——首次出现跨上下文
+	  可复用结构，触发全量 run。
+
+	  2026-07-29 v34 完整 run（Qwen2.5-0.5B、full-width 896、CPU、单
+	  seed、`--max-prefix-steps 8`，14 min）产出同一 learned basis
+	  fingerprint `326aecddc8d0b7e8...`，fit 样本为 train split 的
+	  `106` 个 transition delta。134/134 前缀效应全距仍 ≥ `0.02`
+	  （median train/eval/heldout/validation = `0.074/0.098/0.070/0.095`），
+	  因果功率没有被 learned basis 压缩。严格 selector 门首次四分区全绿：
+	  train-only 拟合 selector 的独立 audit selected credit 为 train
+	  `+0.0062`、eval `+0.0135`、heldout `+0.0072`、validation
+	  `+0.0173`，`selector_ready_for_shadow_injection=true` 且
+	  `selector_injection_allowed=true`。这只是 SHADOW 级许可；manifest
+	  仍预注册 `counterfactual_action_selector_live_injection=disabled`，
+	  线上 substrate injection 未开启。
+
+	  同一 run 的 oracle-vs-permutation-null 门仍拒绝 promotion：
+	  train excess `+0.0056` 与 heldout `+0.0022` 为正，但 eval
+	  `-0.0081`、validation `-0.0049` 为负，故
+	  `validation_oracle_transfer_exceeds_permutation_null=false`、
+	  `reachable_solution_evidence=false`、verdict 仍为
+	  `mechanism-supported`、`promotion_allowed=false`。解释上，v34 证明
+	  可迁移动作价值开始出现在条件化 selector 载体上，而不是动作边际
+	  oracle 上；但预注册 v32 oracle 门未通过，不能回溯改门或宣称 Gate 2
+	  完成。v35 若要把 selector-vs-permutation-null 作为正式门，必须
+	  在运行前预注册并使用 fresh validation/locked confirmation routes；
+	  v33/v34 已观察过的 validation routes 不得作为下一次一次性检验。
+
+	  v35（schema `eta-gate2-residual-causal.v35`）把 reachable-solution
+	  证据从「边际 action oracle 是否跨 prefix 迁移」改成预注册的
+	  `selector-vs-permutation-null-v1`：train-only 拟合 selector 在每个
+	  frozen split 的 prefix 上选出的 candidate，其 independent audit
+	  credit 必须超过同一 prefix 全候选 audit credit 的可交换零假设均值。
+	  旧 oracle-vs-null 保留为诊断，但不再作为正式 `signal_gates`，因为
+	  v34 证明可复用价值的载体是 `Q(context, action)` selector 而非边际
+	  action。为避免 v33/v34 validation 污染，v35 manifest 切到
+	  `case_corpus=eta-gate2-selector-fresh-v4`：保留 16 条 train 与原
+	  eval/heldout development routes，替换 4 条 fresh validation routes，
+	  并新增 4 条 locked confirmation routes；manifest 同时记录
+	  `superseded_validation_route_ids`，且声明
+	  `confirmation_split_locked=true`、`validation_frozen_before_run=true`。
+	  v34 learned control basis、realized-continuation NLL outcome、PE→credit
+	  链路与 live injection disabled 均保持不变。promotion 条件变为：
+	  mechanism gates 全绿、fresh confirmation causal gates 全绿、selector
+	  gates 全绿，且 train/validation/confirmation 的
+	  `selected_excess_over_null_mean >= 1e-6`。三分区还必须逐条验证
+	  selector lineage：每条 selection 都能定位同一
+	  `(split, route, prefix)` 的候选格点，`selected_action_index` 存在于
+	  该格点，且 `audit_selected_raw_delta` 与该候选发布的
+	  `audit_action_credit` 数值一致；缺格点、缺候选或数值不一致均使
+	  对应 `*_selector_lineage_complete` signal gate 失败，禁止用部分可配对
+	  selection 的正 excess 晋升。完整预注册计划（含通过/失败后的目标与
+	  kill conditions）见
+	  `.cursor/plans/eta-gate2-v35-selector-null_e4a91f27.plan.md`。
+
+	  2026-07-29 v35 完整 run（同 v33/v34 配置，36 min）：预注册
+	  selector-vs-permutation-null 门三个正式分区全部通过——selected
+	  excess over null 为 train `+0.0020`、fresh validation `+0.0146`、
+	  locked confirmation `+0.0061`（诊断分区 eval `+0.0240`、heldout
+	  `+0.0042` 同为正）。因果功率不变量保持：160/160 前缀效应全距 ≥
+	  `0.02`（median train/eval/heldout/validation/confirmation =
+	  `0.074/0.098/0.070/0.076/0.081`），basis fingerprint 与 v34 逐位
+	  一致（`train-transition-pca-v1:326aecdd…`）。oracle 边际诊断依旧
+	  混合（validation `+0.0107` 正、eval `-0.0081` / confirmation
+	  `-0.0055` 负），继续支持「迁移载体是条件化 selector」的解读。
+	  machine verdict 首次为 `causal-supported`、
+	  `promotion_allowed=true`、`reachable_solution_evidence=true`。
+	  边界：单 seed、CPU、ci-smoke 短前缀、合成 hierarchical 语料；
+	  `selector_injection_allowed=true` 仅为 SHADOW 级许可，
+	  `counterfactual_action_selector_live_injection=disabled` 不变；
+	  longitudinal 层与 Gate 2 EXIT 其余条款仍未闭合。artifact：
+	  `artifacts/eta_gate2_residual_causal_v35_selector_null_fresh_fullwidth896_qwen25_05b_cpu_1seed_20260729`。
+
+	  v36（schema `eta-gate2-residual-causal.v36`）预注册
+	  `shadow-closed-loop-v1`，只回答 v35 条件化动作价值在 evidence harness
+	  内是否可逐步组合，不接入真实 session，也不改变 v35 causal verdict。
+	  每个 seed 的 train-only kernel selector 在拟合后通过
+	  `residual-action-selector.v1` JSON round-trip 冻结；artifact 与
+	  `train-transition-pca-v1` basis fingerprint、run id、seed 和 fit split
+	  一并写入 `selector_artifact.json`。闭环 arm 在每个 scoreable prefix
+	  复用 `residual_action_state_vector` 选 top-1，将 decoded control 加入
+	  committed set，并以 committed controls 的逐维和作为后续 prefix 的
+	  aggregate applied control；zero arm 始终为零，permutation-null arm 由
+	  `(run_seed, route, step)` 的 SHA256 固定轮换候选。三臂均只做
+	  teacher-forced realized-continuation NLL 读出，不写 policy/memory，
+	  运行前后 runtime descriptor、basis 与 selector fingerprint 必须不变。
+	  每步证据写 `shadow_closed_loop.jsonl`，包含 run/seed/split/route/step、
+	  arm、selected index/predicted value、step/aggregate control、realized
+	  delta、committed count、state features fingerprint 与三项 provenance。
+
+	  v36 使用 4 条新 fresh validation 与 4 条 locked confirmation routes；
+	  v35 validation/confirmation 均降级为 superseded development diagnostics。
+	  正式 run 为 3 seeds，ci-smoke prefix 长度保持不变。独立字段
+	  `shadow_observation_passed` 仅在下列门全部满足时为 true：
+	  train/validation/confirmation 的 selector-minus-zero 轨迹总改进均
+	  `>=1e-6` 且每分区 3/3 seed 为正；selector-minus-permutation-null
+	  同样均 `>=1e-6`；三分区逐步 selected realized delta 均值与 v35 open-loop
+	  audit 同为正；provenance 不变且三臂记录完整。失败只冻结后续 runtime
+	  SHADOW/live wiring，不回溯 v35 `promotion_allowed=true`。完整预注册与
+	  kill conditions 见
+	  `.cursor/plans/eta-gate2-v36-shadow-injection_b82d47c9.plan.md`。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。
@@ -698,6 +849,25 @@ bundle dir 中必须有：
 - 所有 evidence gate 必须 typed JSON readout，不允许从文本输出推断（`no-keyword-matching-hacks` rule）
 - bundle 装配器是纯只读脚本，不 mutate 任何 owner / runtime；它只读 artifact 并写 manifest
 - 每个 gate 的 `passed` 字段必须能从 typed metric 读出，不依赖人工判读
+
+## State KV P6 冻结尽调包
+
+单命令 `python scripts/run_state_kv_due_diligence.py --mode all` 先执行或复用
+新增 evidence lane，再生成 `state-kv-freeze-manifest.v2` 与
+`state-kv-due-diligence.v1`。manifest
+冻结 Qwen 权重 SHA-256、Prefix-KV artifact id、profile 清单、三 generation
+seed、场景、指标、judge panel，以及每份输入 evidence 的路径/schema/state/
+SHA-256；结构由
+`packages/vz-runtime/src/volvence_zero/schemas/state_kv_freeze_manifest.schema.json`
+校验。report 生成前重新计算所有 evidence 指纹，任一文件变化即 fail loudly，
+禁止用后改 artifact 复写已冻结结论。
+
+v2 同时冻结 prefix manifest 自身 SHA-256 与 canonical resolved experiment
+config（profiles、完整 persona/probe material、generation 参数、阈值、judge
+配置），并校验 freeze id。总编排实际调用 quality、bank-gain、control-dim
+和 credit-longitudinal runner；旧的昂贵 lane 必须逐份存在、可解析并进入哈希
+清单，不能静默跳过。汇总器只映射结构化门，不把机制分叉、局部通过或缺失臂
+包装成完整结论。
 
 ## 变更日志
 

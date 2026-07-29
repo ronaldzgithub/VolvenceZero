@@ -83,7 +83,12 @@ from volvence_zero.evaluation import (
 )
 from volvence_zero.environment import EnvironmentEvent, EnvironmentOutcome
 from volvence_zero.memory import MemoryModule, MemoryStore, Track, build_default_memory_store
+from volvence_zero.conditioning_bank_contracts import (
+    summarize_conditioning_lineage_refs,
+)
+from volvence_zero.conditioning_credit_feedback import BankCreditFeedbackState
 from volvence_zero.personal_conditioning import PersonalConditioningModule
+from volvence_zero.relationship_conditioning import RelationshipConditioningModule
 from volvence_zero.prediction.error import (
     PredictedOutcome,
     PredictionActionContext,
@@ -103,7 +108,10 @@ from volvence_zero.reflection import (
     enrich_reflection_snapshot_with_rupture_repair,
 )
 from volvence_zero.dialogue_external_outcome import DialogueExternalOutcomeModule
-from volvence_zero.dialogue_trace import DialogueExternalOutcomeSnapshot
+from volvence_zero.dialogue_trace import (
+    ConditioningLineage,
+    DialogueExternalOutcomeSnapshot,
+)
 from volvence_zero.decision_workspace import DecisionWorkspaceModule
 from volvence_zero.regime import RegimeModule, RegimeSnapshot
 from volvence_zero.interlocutor import (
@@ -229,6 +237,37 @@ class FinalRolloutConfig:
     #     a compatible prefix artifact loaded; otherwise it fails loudly.
     # Ignored while personal_conditioning is SHADOW/DISABLED.
     personal_conditioning_mode: str = "residual"
+    # Relationship conditioning bank owner (State KV P4-a). Publisher-only in
+    # this packet: SHADOW publishes the auditable scope-free bank readout
+    # every turn, but no consumer injects or renders it yet -- the multi-bank
+    # assembly and lineage arrive with the P4-b consumer packet. DISABLED is
+    # the immediate rollback path.
+    relationship_conditioning: WiringLevel = WiringLevel.SHADOW
+    # Credit-driven bank confidence feedback (State KV P5-c). Governs both
+    # conditioning bank owners' consumption of the bank-attributed credit
+    # readout (P5-b):
+    #   - SHADOW: the bounded delta is computed and published on the
+    #     snapshot (``credit_confidence_delta``) but NOT applied to the
+    #     published confidence -- report-only default.
+    #   - ACTIVE: the delta is added to the evidence-derived base
+    #     confidence (clamped to [0, 1]; bounded by the owner-side cap).
+    #   - DISABLED: consumption stops entirely, delta publishes as 0.0 --
+    #     the immediate rollback path.
+    conditioning_credit_feedback: WiringLevel = WiringLevel.SHADOW
+    # State KV P4-c: Top-K semantic conditioning-bank router
+    # (docs/specs/personal-conditioning.md):
+    #   - SHADOW (default): delivery keeps the deterministic static-all.v1
+    #     select-all behaviour byte-for-byte; the Top-K decision is computed
+    #     and recorded report-only in the lineage's shadow audit fields.
+    #   - ACTIVE: the Top-K selection actually prunes bank delivery (prompt
+    #     sections, latent carrier, and lineage all follow the selection).
+    #   - DISABLED: no router evaluation at all; pure static-all.v1 -- the
+    #     immediate rollback path.
+    conditioning_router: WiringLevel = WiringLevel.SHADOW
+    # How many banks the Top-K router may keep per turn. Non-binding while
+    # the candidate set is smaller than k; the ceiling exists so adding a
+    # bank owner can never silently widen delivery past the audited budget.
+    conditioning_router_top_k: int = 4
     # Whether state-derived sections reach the system prompt at all
     # (docs/specs/state-kv-identification-evidence.md §契约):
     #   - "text": production default; byte-for-byte the historical prompt.
@@ -239,6 +278,20 @@ class FinalRolloutConfig:
     #     GenerationConstraints post-processing. Never set on a deployed or
     #     default profile; a contract test enforces that.
     prompt_state_delivery: str = "text"
+    # Generation-time dynamic residual (State KV P5-a): whether the temporal
+    # controller's ``z_t`` control code reaches the substrate residual stream
+    # during response generation (the ``control_parameters`` /
+    # ``control_scale`` path of ``runtime.generate``). Before this switch the
+    # channel was implicitly always-on, which contaminated every
+    # personal-conditioning ablation: turning ``personal_conditioning`` off
+    # did NOT close this second latent channel.
+    #   - ACTIVE: byte-for-byte today's behaviour (rollback point).
+    #   - SHADOW: the would-be control scale is computed and recorded in the
+    #     per-turn audit tags, but nothing is injected.
+    #   - DISABLED: control parameters are dropped entirely.
+    # Independent from ``personal_conditioning`` by design so bank-gain
+    # evidence arms can hold this channel fixed while varying State KV.
+    generation_dynamic_residual: WiringLevel = WiringLevel.ACTIVE
     dual_track: WiringLevel = WiringLevel.ACTIVE
     # Reliable-apprenticeship alignment owner
     # (docs/specs/apprenticeship-alignment.md). #90: ACTIVE by default so
@@ -605,6 +658,11 @@ class FinalRolloutConfig:
                 "'prefix_kv', "
                 f"got {self.personal_conditioning_mode!r}."
             )
+        if self.conditioning_router_top_k < 1:
+            raise ValueError(
+                "conditioning_router_top_k must be >= 1, "
+                f"got {self.conditioning_router_top_k!r}."
+            )
         if self.prompt_state_delivery not in ("text", "suppressed"):
             raise ValueError(
                 "prompt_state_delivery must be 'text' or 'suppressed', "
@@ -646,6 +704,9 @@ class FinalRolloutConfig:
             "boundary_policy": self.boundary_policy,
             "response_assembly": self.response_assembly,
             "personal_conditioning": self.personal_conditioning,
+            "relationship_conditioning": self.relationship_conditioning,
+            "conditioning_credit_feedback": self.conditioning_credit_feedback,
+            "conditioning_router": self.conditioning_router,
             "dual_track": self.dual_track,
             "apprenticeship_alignment": self.apprenticeship_alignment,
             "apprenticeship_protocol_alignment": self.apprenticeship_protocol_alignment,
@@ -1644,6 +1705,7 @@ def _prediction_action_context_from_upstream(
     environment_outcome_id: str = "",
     environment_prediction_id: str = "",
     environment_outcome: EnvironmentOutcome | None = None,
+    external_outcome_lineages: tuple[ConditioningLineage, ...] = (),
 ) -> PredictionActionContext:
     temporal_snapshot = (
         upstream_snapshots.get("temporal_abstraction")
@@ -1677,6 +1739,48 @@ def _prediction_action_context_from_upstream(
         else ""
     )
     measurement = environment_outcome.measurement if environment_outcome is not None else None
+    # State KV P5-b: reduce the temporal snapshot's already-published
+    # lineage refs into the flat bank-attribution fields PE and credit
+    # consume. Same channel as every other temporal readout above; empty
+    # refs stay an empty summary ("no bank was live" is a real negative).
+    lineage_summary = summarize_conditioning_lineage_refs(
+        temporal_value.conditioning_lineage_refs
+        if temporal_value is not None
+        else ()
+    )
+    conditioning_bank_set = lineage_summary.bank_set
+    conditioning_bank_fingerprints = lineage_summary.bank_fingerprints
+    conditioning_router_version = lineage_summary.router_version
+    if external_outcome_lineages:
+        # Delayed external outcomes must credit the bank set that produced
+        # the rated action, never whichever bank happens to be live now.
+        conditioning_bank_set = tuple(
+            sorted(
+                {
+                    bank
+                    for lineage in external_outcome_lineages
+                    for bank in lineage.selected_bank_set
+                }
+            )
+        )
+        conditioning_bank_fingerprints = tuple(
+            sorted(
+                {
+                    pair
+                    for lineage in external_outcome_lineages
+                    for pair in lineage.bank_fingerprints
+                }
+            )
+        )
+        conditioning_router_version = ",".join(
+            sorted(
+                {
+                    lineage.router_version
+                    for lineage in external_outcome_lineages
+                    if lineage.router_version
+                }
+            )
+        )
     return PredictionActionContext(
         segment_id=segment.segment_id if segment is not None else "",
         abstract_action_id=(
@@ -1699,6 +1803,9 @@ def _prediction_action_context_from_upstream(
             measurement.terminal if measurement is not None else False
         ),
         prediction_id=environment_prediction_id,
+        conditioning_bank_set=conditioning_bank_set,
+        conditioning_bank_fingerprints=conditioning_bank_fingerprints,
+        conditioning_router_version=conditioning_router_version,
     )
 
 
@@ -1767,6 +1874,12 @@ def build_final_runtime_modules(
     dual_track_gate_learner: DualTrackGateLearner | None = None,
     social_record_store: SocialRecordStore | None = None,
     reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
+    # State KV P5-c: session-lived bounded credit-feedback states for the
+    # conditioning bank owners, so the online-fast EMA survives per-turn
+    # module reconstruction. None = per-call private state (tests /
+    # standalone callers), matching the other injected-state parameters.
+    personal_conditioning_credit_state: BankCreditFeedbackState | None = None,
+    relationship_conditioning_credit_state: BankCreditFeedbackState | None = None,
 ) -> list[Any]:
     if domain_experience_packages:
         application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
@@ -2134,6 +2247,19 @@ def build_final_runtime_modules(
             wiring_level=config.level_for(
                 "personal_conditioning", WiringLevel.SHADOW
             ),
+            credit_feedback_state=personal_conditioning_credit_state,
+            credit_feedback_level=config.level_for(
+                "conditioning_credit_feedback", WiringLevel.SHADOW
+            ),
+        ),
+        RelationshipConditioningModule(
+            wiring_level=config.level_for(
+                "relationship_conditioning", WiringLevel.SHADOW
+            ),
+            credit_feedback_state=relationship_conditioning_credit_state,
+            credit_feedback_level=config.level_for(
+                "conditioning_credit_feedback", WiringLevel.SHADOW
+            ),
         ),
         TrackTemporalModule(
             track=Track.WORLD,
@@ -2347,6 +2473,8 @@ async def run_final_wiring_turn(
     dual_track_gate_learner: DualTrackGateLearner | None = None,
     social_record_store: SocialRecordStore | None = None,
     reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
+    personal_conditioning_credit_state: BankCreditFeedbackState | None = None,
+    relationship_conditioning_credit_state: BankCreditFeedbackState | None = None,
     user_scope: str = "anonymous",
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
@@ -2363,6 +2491,7 @@ async def run_final_wiring_turn(
     environment_outcome_id: str = "",
     environment_prediction_id: str = "",
     environment_outcome: EnvironmentOutcome | None = None,
+    external_outcome_lineages: tuple[ConditioningLineage, ...] = (),
     common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
     common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
     group_identities: tuple[GroupIdentity, ...] = (),
@@ -2377,6 +2506,7 @@ async def run_final_wiring_turn(
         environment_outcome_id=environment_outcome_id,
         environment_prediction_id=environment_prediction_id,
         environment_outcome=environment_outcome,
+        external_outcome_lineages=external_outcome_lineages,
     )
     modules = build_final_runtime_modules(
         config=config,
@@ -2428,6 +2558,8 @@ async def run_final_wiring_turn(
         dual_track_gate_learner=dual_track_gate_learner,
         social_record_store=social_record_store,
         reflection_consolidation_learner=reflection_consolidation_learner,
+        personal_conditioning_credit_state=personal_conditioning_credit_state,
+        relationship_conditioning_credit_state=relationship_conditioning_credit_state,
     )
     if upstream_snapshots:
         for module in modules:

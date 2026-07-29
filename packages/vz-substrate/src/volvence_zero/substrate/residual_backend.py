@@ -55,6 +55,9 @@ from volvence_zero.substrate.residual_contracts import (  # noqa: E402,F401
     TraceStep,
     TrainingTrace,
 )
+from volvence_zero.substrate.control_basis import (  # noqa: E402,F401
+    FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE,
+)
 from volvence_zero.substrate.residual_interfaces import (  # noqa: E402,F401
     OpenWeightResidualRuntime,
     ResidualInterventionBackend,
@@ -273,6 +276,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._hidden_size = self._resolve_hidden_size()
         self._model_family = self._resolve_model_family()
         self._control_basis = self._build_control_basis(hidden_size=self._hidden_size)
+        self._control_basis_provenance = FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE
+        self._control_layer_gains = {
+            layer_index: 1.0 for layer_index in self._layer_indices
+        }
         self._personal_conditioning_basis = (
             self._build_personal_conditioning_basis(
                 hidden_size=self._hidden_size,
@@ -979,16 +986,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             "input_ids": batched_ids,
             "attention_mask": attention_mask,
         }
-        control_delta = self._build_control_delta(
-            applied_control=applied_control,
-            track_scale=track_scale,
-        )
         hooks = [
             self._block_modules[layer_index].register_forward_hook(
                 self._make_capture_hook(
                     layer_index=layer_index,
                     captured_layers={},
-                    control_delta=control_delta,
+                    control_delta=self._build_control_delta(
+                        applied_control=applied_control,
+                        track_scale=track_scale,
+                        layer_index=layer_index,
+                    ),
                     capture_residuals=False,
                 )
             )
@@ -1073,13 +1080,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
         effective_source = source_text.strip() or "<empty>"
         model_inputs = self._tokenize(source_text=effective_source)
-        control_delta = self._build_control_delta(
-            applied_control=applied_control,
-            track_scale=track_scale,
-        )
         pooled_layers: dict[int, object] = {}
 
         def make_hook(layer_index: int):
+            control_delta = self._build_control_delta(
+                applied_control=applied_control,
+                track_scale=track_scale,
+                layer_index=layer_index,
+            )
+
             def hook(module, args, output):
                 del module
                 del args
@@ -1342,12 +1351,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         input_ids = model_inputs["input_ids"]
         prompt_length = int(input_ids.shape[-1])
 
-        control_delta = None
-        if control_parameters and control_scale > 0:
-            control_delta = self._build_control_delta(
-                applied_control=control_parameters,
-                track_scale=(control_scale, control_scale, control_scale),
-            )
+        control_active = bool(control_parameters and control_scale > 0)
         # The two carriers are mutually exclusive by construction: an arm that
         # ran both would not identify which channel carried the state.
         prefix_pairs = None
@@ -1372,7 +1376,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         has_runtime_deltas = bool(getattr(self, "_online_fast_adapter_deltas", {}))
         hook_required = (
             capture_residuals
-            or control_delta is not None
+            or control_active
             or personal_delta is not None
             or has_runtime_deltas
         )
@@ -1382,7 +1386,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     self._make_capture_hook(
                         layer_index=layer_index,
                         captured_layers=captured_layers,
-                        control_delta=control_delta,
+                        control_delta=(
+                            self._build_control_delta(
+                                applied_control=control_parameters,
+                                track_scale=(control_scale,),
+                                layer_index=layer_index,
+                            )
+                            if control_active
+                            else None
+                        ),
                         capture_residuals=capture_residuals,
                         personal_delta=personal_delta,
                     )
@@ -1454,9 +1466,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     input_ids=input_ids,
                     logits=logits,
                     captured_layers=captured_layers,
-                    control_applied=(
-                        control_delta is not None or personal_delta is not None
-                    ),
+                    control_applied=(control_active or personal_delta is not None),
                 )
             except (RuntimeError, ValueError, AttributeError, IndexError) as exc:
                 _LOG.warning(
@@ -1490,7 +1500,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"Generated {token_count} tokens from {self.model_id} "
                 f"device={self._device} temp={effective_temperature} "
                 f"profile={generation_constraints.decoding_profile if generation_constraints is not None else 'balanced'} "
-                f"control={'on' if control_delta is not None else 'off'} "
+                f"control={'on' if control_active else 'off'} "
                 "personal_conditioning="
                 f"{'on' if personal_conditioning_applied else 'off'}"
             ),
@@ -1899,6 +1909,91 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             return None
         return resolved if resolved else None
 
+    @property
+    def control_basis_provenance(self) -> str:
+        """Provenance tag of the active control basis (manifest surface)."""
+
+        return self._control_basis_provenance
+
+    @property
+    def control_basis_rank(self) -> int:
+        return int(self._control_basis.shape[0])
+
+    def install_control_basis(
+        self,
+        *,
+        basis: tuple[tuple[float, ...], ...],
+        provenance: str,
+        layer_indices: tuple[int, ...] | None = None,
+        layer_gains: tuple[float, ...] | None = None,
+    ) -> None:
+        """Replace the fixed sinusoid control basis with a learned artifact.
+
+        The basis is a rare-heavy offline artifact (e.g. fit by
+        ``volvence_zero.substrate.control_basis.fit_transition_control_basis``
+        from frozen-model transition captures). Installation only rotates
+        the directions in which bounded ``applied_control`` vectors can
+        perturb the hidden state; it does not change model weights, the
+        control scale clamp, or capture semantics. Rows are re-normalized
+        to unit norm so control-scale semantics stay comparable with the
+        sinusoid default.
+        """
+
+        if not provenance.strip():
+            raise ValueError("install_control_basis requires a non-empty provenance tag")
+        if not basis:
+            raise ValueError(
+                "control basis must contain at least one row"
+            )
+        tensor = self._torch.tensor(basis, dtype=self._torch.float32)
+        if tensor.ndim != 2 or int(tensor.shape[1]) != self._hidden_size:
+            raise ValueError(
+                "control basis rows must match the substrate hidden size "
+                f"{self._hidden_size}, got shape {tuple(tensor.shape)!r}"
+            )
+        if not bool(self._torch.isfinite(tensor).all()):
+            raise ValueError("control basis contains non-finite values")
+        norms = tensor.norm(dim=1)
+        if bool((norms < 1e-6).any()):
+            raise ValueError("control basis contains a degenerate (near-zero) row")
+        tensor = tensor / norms.unsqueeze(1)
+        target_layers = (
+            tuple(self._layer_indices)
+            if layer_indices is None
+            else tuple(layer_indices)
+        )
+        if not target_layers or len(set(target_layers)) != len(target_layers):
+            raise ValueError(
+                "control basis layer_indices must be non-empty and unique"
+            )
+        unavailable = sorted(set(target_layers) - set(self._layer_indices))
+        if unavailable:
+            raise ValueError(
+                "control basis targets layers not hooked by this runtime: "
+                f"{unavailable}"
+            )
+        gains = (
+            tuple(1.0 for _ in target_layers)
+            if layer_gains is None
+            else tuple(float(value) for value in layer_gains)
+        )
+        if len(gains) != len(target_layers):
+            raise ValueError(
+                "control basis layer_gains must align with layer_indices"
+            )
+        if any(not 0.0 < gain <= 1.0 for gain in gains):
+            raise ValueError("control basis layer gains must be in (0, 1]")
+        self._control_basis = tensor.to(self._device)
+        self._control_basis_provenance = provenance
+        self._control_layer_gains = {
+            layer_index: gain
+            for layer_index, gain in zip(
+                target_layers,
+                gains,
+                strict=True,
+            )
+        }
+
     def _build_control_basis(self, *, hidden_size: int):
         positions = self._torch.arange(hidden_size, dtype=self._torch.float32)
         rows = []
@@ -2099,15 +2194,20 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         model_inputs = self._tokenize(source_text=effective_source)
         input_ids = model_inputs["input_ids"]
         captured_layers: dict[int, object] = {}
-        control_delta = None
-        if applied_control is not None:
-            control_delta = self._build_control_delta(applied_control=applied_control, track_scale=track_scale)
         hooks = [
             self._block_modules[layer_index].register_forward_hook(
                 self._make_capture_hook(
                     layer_index=layer_index,
                     captured_layers=captured_layers,
-                    control_delta=control_delta,
+                    control_delta=(
+                        self._build_control_delta(
+                            applied_control=applied_control,
+                            track_scale=track_scale,
+                            layer_index=layer_index,
+                        )
+                        if applied_control is not None
+                        else None
+                    ),
                 )
             )
             for layer_index in self._layer_indices
@@ -2292,16 +2392,31 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         *,
         applied_control: tuple[float, ...],
         track_scale: tuple[float, ...],
+        layer_index: int | None = None,
     ):
+        if not applied_control:
+            raise ValueError("applied_control must be non-empty")
+        if not track_scale:
+            raise ValueError("track_scale must be non-empty")
+        basis_rank = int(self._control_basis.shape[0])
         coeffs = []
-        for index in range(3):
+        for index in range(basis_rank):
             coeffs.append(
-                float(applied_control[min(index, len(applied_control) - 1)])
+                (
+                    float(applied_control[index])
+                    if index < len(applied_control)
+                    else 0.0
+                )
                 * float(track_scale[min(index, len(track_scale) - 1)])
             )
         control_vector = self._torch.tensor(coeffs, dtype=self._torch.float32, device=self._device)
         delta = control_vector @ self._control_basis
-        return delta * self._rare_heavy_control_scale
+        layer_gain = (
+            self._control_layer_gains.get(layer_index, 0.0)
+            if layer_index is not None
+            else 1.0
+        )
+        return delta * self._rare_heavy_control_scale * layer_gain
 
     def _build_personal_conditioning_delta(
         self,

@@ -275,6 +275,12 @@ class SessionLifecycleMixin:
                 turn_index=resolved_action_turn,
                 evidence=(structural,),
             )
+        lineage = self.resolve_dialogue_outcome_attribution(evidence)
+        if (
+            lineage is not None
+            and lineage not in self._pending_external_outcome_lineages
+        ):
+            self._pending_external_outcome_lineages.append(lineage)
         return evidence
 
     def resolve_dialogue_outcome_attribution(

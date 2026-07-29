@@ -301,6 +301,7 @@ class ConditioningBankSnapshot:
             not self.is_cold_start
             and self.revocation_state is ConditioningRevocationState.ACTIVE
             and self.confidence > 0.0
+            and self.freshness > 0.0
         )
 
     @property
@@ -320,6 +321,121 @@ class ConditioningBankSnapshot:
             str(self.consent_version),
             self.revocation_state.value,
         )
+
+
+CONDITIONING_BANK_READOUT_SCHEMA_VERSION = "conditioning-bank-readout.v1"
+
+
+@dataclass(frozen=True)
+class ConditioningBankReadout:
+    """Scope-free owner half of a conditioning bank (State KV P4-a).
+
+    ``ConditioningBankSnapshot`` needs a mandatory tenant/user scope, but a
+    cognition owner has no business knowing tenant or session identity --
+    that belongs to runtime (see ``conditioning_bank_adapters``). Splitting
+    the shape keeps both constraints without minting a bespoke contract per
+    bank: every non-personal bank owner publishes this one readout type on
+    its own slot, and the runtime projects it into the scoped
+    ``ConditioningBankSnapshot`` at the point of use, supplying scope,
+    freshness and revocation there.
+
+    ``PersonalConditioningSnapshot`` v1 predates this shape and stays frozen;
+    it is projected by its own adapter. New banks must not copy that pattern.
+
+    The invariants mirror the scoped snapshot's owner-side half so an
+    invalid readout fails at publication, not at adaptation time.
+    """
+
+    schema_version: str
+    bank_type: ConditioningBankType
+    readout: tuple[float, ...]
+    readout_labels: tuple[str, ...]
+    source_versions: tuple[tuple[str, int], ...]
+    source_fingerprint: str
+    confidence: float
+    provenance: str
+    is_cold_start: bool
+    description: str
+    rendered_statement: str = ""
+    # State KV P5-c: owner-published readout of the bounded credit-driven
+    # confidence adjustment currently applied (ACTIVE) or merely computed
+    # (SHADOW). Kept separate from ``confidence`` so audits can always
+    # decompose "evidence-derived base" from "credit-learned drift", and so
+    # a rollback to zero is checkable from the snapshot alone.
+    credit_confidence_delta: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.schema_version != CONDITIONING_BANK_READOUT_SCHEMA_VERSION:
+            raise ValueError(
+                "ConditioningBankReadout schema_version must be "
+                f"{CONDITIONING_BANK_READOUT_SCHEMA_VERSION!r}."
+            )
+        if not self.readout_labels:
+            raise ValueError(
+                "ConditioningBankReadout readout_labels must be non-empty: an "
+                "unlabelled readout cannot be audited or rendered."
+            )
+        if len(set(self.readout_labels)) != len(self.readout_labels):
+            raise ValueError(
+                "ConditioningBankReadout readout_labels must be unique."
+            )
+        if len(self.readout) != len(self.readout_labels):
+            raise ValueError(
+                "ConditioningBankReadout readout length must match readout_labels."
+            )
+        if any(not 0.0 <= value <= 1.0 for value in self.readout):
+            raise ValueError(
+                "ConditioningBankReadout readout values must be in [0, 1]."
+            )
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                "ConditioningBankReadout confidence must be in [0, 1]."
+            )
+        if not self.source_fingerprint:
+            raise ValueError(
+                "ConditioningBankReadout source_fingerprint must be non-empty."
+            )
+        if not self.provenance:
+            raise ValueError(
+                "ConditioningBankReadout provenance must be non-empty: an "
+                "unattributable bank cannot be reviewed or revoked."
+            )
+        if not self.description:
+            raise ValueError(
+                "ConditioningBankReadout description must be non-empty "
+                "(DATA_CONTRACT: whoever owns the data describes it)."
+            )
+        source_slots = tuple(slot for slot, _ in self.source_versions)
+        if len(set(source_slots)) != len(source_slots):
+            raise ValueError(
+                "ConditioningBankReadout source_versions must name each slot once."
+            )
+        if any(version < 0 for _, version in self.source_versions):
+            raise ValueError(
+                "ConditioningBankReadout source_versions must be non-negative."
+            )
+        if self.is_cold_start and (
+            self.confidence != 0.0 or any(value != 0.0 for value in self.readout)
+        ):
+            raise ValueError(
+                "Cold-start conditioning bank readout must have zero "
+                "confidence and an all-zero readout."
+            )
+        if self.is_cold_start and self.rendered_statement:
+            raise ValueError(
+                "Cold-start conditioning bank readout must not carry a "
+                "rendered statement: there is no evidence to state."
+            )
+        if not -1.0 <= self.credit_confidence_delta <= 1.0:
+            raise ValueError(
+                "ConditioningBankReadout credit_confidence_delta must be "
+                "in [-1, 1]."
+            )
+        if self.is_cold_start and self.credit_confidence_delta != 0.0:
+            raise ValueError(
+                "Cold-start conditioning bank readout must not carry a "
+                "credit confidence delta: no bank was live to earn credit."
+            )
 
 
 @dataclass(frozen=True)
@@ -374,13 +490,117 @@ class ConditioningLineageRef:
             )
 
 
+@dataclass(frozen=True)
+class ConditioningLineageSummary:
+    """Deduplicated readout of one or more lineage refs (State KV P5-b).
+
+    PE and credit need "which banks were live for this action" as flat,
+    comparable fields, not a tuple of full refs. This is the single shared
+    reduction so every consumer summarizes identically: same input refs,
+    same bank order, same fingerprints -- otherwise two consumers could
+    disagree on attribution for the same turn.
+
+    An empty summary (no refs, or refs without banks -- impossible by
+    contract) is represented by empty tuples, keeping "no bank was live"
+    expressible downstream without an Optional.
+    """
+
+    bank_set: tuple[str, ...] = ()
+    bank_fingerprints: tuple[tuple[str, str], ...] = ()
+    router_version: str = ""
+
+
+@dataclass(frozen=True)
+class ConditioningRouterDecision:
+    """Temporal owner's immutable bank-selection readout for one turn."""
+
+    router_version: str
+    k: int
+    selected_bank_set: tuple[str, ...]
+    scores: tuple[tuple[str, float], ...]
+    description: str
+
+    def __post_init__(self) -> None:
+        if not self.router_version or not self.description:
+            raise ValueError(
+                "ConditioningRouterDecision requires router_version and description."
+            )
+        if self.k < 1:
+            raise ValueError("ConditioningRouterDecision k must be >= 1.")
+        scored_names = tuple(bank for bank, _ in self.scores)
+        if len(scored_names) != len(set(scored_names)):
+            raise ValueError(
+                "ConditioningRouterDecision must score each bank at most once."
+            )
+        known_banks = {bank.value for bank in ConditioningBankType}
+        unknown = set(scored_names) - known_banks
+        if unknown:
+            raise ValueError(
+                f"ConditioningRouterDecision contains unknown banks: {sorted(unknown)}."
+            )
+        if len(self.selected_bank_set) > self.k:
+            raise ValueError(
+                "ConditioningRouterDecision selected set cannot exceed k."
+            )
+        if len(self.selected_bank_set) != len(set(self.selected_bank_set)):
+            raise ValueError(
+                "ConditioningRouterDecision selected banks must be unique."
+            )
+        scored = {bank for bank, _ in self.scores}
+        missing = set(self.selected_bank_set) - scored
+        if missing:
+            raise ValueError(
+                "ConditioningRouterDecision selected banks must each carry "
+                f"a score; missing: {sorted(missing)}."
+            )
+        if any(not 0.0 <= score <= 1.0 for _, score in self.scores):
+            raise ValueError(
+                "ConditioningRouterDecision scores must be in [0, 1]."
+            )
+
+
+def summarize_conditioning_lineage_refs(
+    refs: tuple[ConditioningLineageRef, ...],
+) -> ConditioningLineageSummary:
+    """Reduce lineage refs to a deterministic per-action bank summary.
+
+    Union semantics: a bank counts as live for the action if any ref names
+    it. Fingerprint pairs are deduplicated and sorted by (bank, fingerprint)
+    so identical live sets always produce identical summaries; if the same
+    bank appears under two fingerprints (a mid-capture republication) both
+    pairs are kept -- collapsing them would hide exactly the version drift
+    attribution exists to expose. ``router_version`` joins the distinct
+    non-empty versions sorted with ``,``.
+    """
+
+    pairs = sorted(
+        {pair for ref in refs for pair in ref.bank_fingerprints}
+    )
+    banks = sorted(
+        {bank for ref in refs for bank in ref.selected_bank_set}
+    )
+    versions = sorted(
+        {ref.router_version for ref in refs if ref.router_version}
+    )
+    return ConditioningLineageSummary(
+        bank_set=tuple(banks),
+        bank_fingerprints=tuple(pairs),
+        router_version=",".join(versions),
+    )
+
+
 __all__ = [
+    "CONDITIONING_BANK_READOUT_SCHEMA_VERSION",
     "CONDITIONING_BANK_SCHEMA_VERSION",
     "CONDITIONING_BANK_SLOTS",
+    "ConditioningBankReadout",
     "ConditioningBankSnapshot",
     "ConditioningLineageRef",
+    "ConditioningLineageSummary",
+    "ConditioningRouterDecision",
     "ConditioningBankType",
     "ConditioningRevocationState",
     "ConditioningScope",
     "expected_bank_type",
+    "summarize_conditioning_lineage_refs",
 ]

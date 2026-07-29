@@ -64,8 +64,14 @@ from volvence_zero.agent.conditioning_lineage import (
     build_conditioning_lineage,
     build_conditioning_lineage_ref,
 )
-from volvence_zero.conditioning_bank_adapters import personal_conditioning_to_bank
+from volvence_zero.conditioning_bank_adapters import (
+    bank_readout_to_bank,
+    personal_conditioning_to_bank,
+)
 from volvence_zero.conditioning_bank_contracts import (
+    ConditioningBankReadout,
+    ConditioningBankSnapshot,
+    ConditioningBankType,
     ConditioningLineageRef,
     ConditioningRevocationState,
     ConditioningScope,
@@ -82,6 +88,7 @@ from volvence_zero.social_cognition import (
     SELF_INTERLOCUTOR_ID,
     MultiPartyIdentitySnapshot,
 )
+from volvence_zero.temporal.conditioning_router import select_conditioning_banks
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
     SubstrateAdapter,
@@ -110,6 +117,79 @@ if TYPE_CHECKING:
 # inherit this one, otherwise two tenants would share a cache namespace.
 _RUNNER_TENANT_SCOPE = "runner-local"
 _SUBSTRATE_LINEAGE_CARRIERS = ("residual", "prefix_kv")
+
+# State KV P4-b: the deterministic select-all routing policy. Every bank
+# that has a live delivery channel this turn is selected -- no scoring, no
+# Top-K. Versioned so lineage rows produced under this policy stay
+# distinguishable from the learned router that replaces it (P4-c).
+_STATIC_ROUTER_VERSION = "static-all.v1"
+
+RELATIONSHIP_CONDITIONING_SLOT = "relationship_conditioning"
+
+
+def _relationship_conditioning_text_delivery(
+    *,
+    relationship_readout: ConditioningBankReadout | None,
+    personal_conditioning_mode: str,
+    revocation_state: ConditioningRevocationState,
+) -> tuple[str, str]:
+    """Deliver the Relationship bank statement through the text carrier.
+
+    Returns ``(statement, statement_ref)``, both empty when the bank is not
+    delivered this turn. The Relationship bank has no latent channel yet --
+    the residual projection and prefix-KV artifacts are the frozen 16-dim
+    personal shapes -- so in ``residual`` / ``prefix_kv`` modes it influences
+    nothing and must stay out of both the prompt and the lineage. Recording
+    it anyway would manufacture exactly the false positive the attribution
+    negative controls exist to catch.
+    """
+
+    if (
+        relationship_readout is None
+        or personal_conditioning_mode != "text"
+        or revocation_state is ConditioningRevocationState.REVOKED
+    ):
+        return "", ""
+    if not relationship_readout.rendered_statement:
+        raise ValueError(
+            "relationship conditioning text delivery requires a non-empty "
+            "rendered_statement for a non-cold-start readout."
+        )
+    return (
+        relationship_readout.rendered_statement,
+        (
+            f"{relationship_readout.schema_version}:"
+            f"{relationship_readout.confidence:.2f}:"
+            f"{relationship_readout.source_fingerprint[:12]}"
+        ),
+    )
+
+
+def _merge_text_delivery(
+    *,
+    statement: str,
+    statement_ref: str,
+    extra_statement: str,
+    extra_statement_ref: str,
+) -> tuple[str, str]:
+    """Append one bank's rendered delivery to the combined prompt block.
+
+    The state prompt section carries every delivered bank's owner-rendered
+    statement as its own paragraph, in bank order; the audit ref
+    concatenates the per-bank refs with ``;`` in the same order so a
+    multi-bank turn stays as attributable as a single-bank one.
+    """
+
+    if not extra_statement:
+        return statement, statement_ref
+    return (
+        f"{statement}\n\n{extra_statement}" if statement else extra_statement,
+        (
+            f"{statement_ref};{extra_statement_ref}"
+            if statement_ref
+            else extra_statement_ref
+        ),
+    )
 
 
 def _personal_conditioning_delivery_from_config(
@@ -219,7 +299,12 @@ class SessionObservationMixin:
             default_source_text=user_input,
             conditioning_lineage=conditioning_lineage,
             personal_conditioning=capture_conditioning,
-            personal_conditioning_carrier=self._config.personal_conditioning_mode,
+            personal_conditioning_carrier=(
+                self._config.personal_conditioning_mode
+                if self._config.personal_conditioning_mode
+                in _SUBSTRATE_LINEAGE_CARRIERS
+                else "residual"
+            ),
         )
 
     def _build_training_trace_from_substrate(self, *, user_input: str) -> TrainingTrace:
@@ -419,11 +504,36 @@ class SessionObservationMixin:
             personal_conditioning_mode=self._config.personal_conditioning_mode,
             revocation_state=self._personal_conditioning_revocation_state,
         )
+        # State KV P4-b: second bank. Only an ACTIVE-wired publication (it
+        # lands in active_snapshots) with live evidence is a delivery
+        # candidate; SHADOW keeps today's single-bank behaviour byte-for-byte.
+        relationship_conditioning_snapshot = integration_result.active_snapshots.get(
+            RELATIONSHIP_CONDITIONING_SLOT
+        )
+        active_relationship_readout = (
+            relationship_conditioning_snapshot.value
+            if relationship_conditioning_snapshot is not None
+            and isinstance(
+                relationship_conditioning_snapshot.value,
+                ConditioningBankReadout,
+            )
+            and not relationship_conditioning_snapshot.value.is_cold_start
+            and relationship_conditioning_snapshot.value.confidence > 0.0
+            else None
+        )
+        (
+            relationship_statement,
+            relationship_statement_ref,
+        ) = _relationship_conditioning_text_delivery(
+            relationship_readout=active_relationship_readout,
+            personal_conditioning_mode=self._config.personal_conditioning_mode,
+            revocation_state=self._personal_conditioning_revocation_state,
+        )
         # State KV P1 lineage: project the ACTIVE personal snapshot onto the
         # generic bank so this turn records which state versions shaped it.
         # Built for both delivery modes -- residual and text both influence
         # the response, so both must be attributable.
-        conditioning_banks = (
+        conditioning_banks: tuple[ConditioningBankSnapshot, ...] = (
             (
                 personal_conditioning_to_bank(
                     snapshot=active_conditioning,
@@ -439,6 +549,70 @@ class SessionObservationMixin:
             )
             if active_conditioning is not None
             else ()
+        )
+        if relationship_statement and active_relationship_readout is not None:
+            # Lineage rule: only banks that actually influenced the output
+            # are recorded, and the Relationship bank's sole channel today
+            # is the rendered prompt statement.
+            conditioning_banks = (
+                *conditioning_banks,
+                bank_readout_to_bank(
+                    readout=active_relationship_readout,
+                    slot_name=RELATIONSHIP_CONDITIONING_SLOT,
+                    scope=ConditioningScope(
+                        tenant_scope=_RUNNER_TENANT_SCOPE,
+                        user_scope=self.user_scope,
+                        session_scope=self._session_id,
+                    ),
+                    revocation_state=(
+                        self._personal_conditioning_revocation_state
+                    ),
+                ),
+            )
+        # State KV P4-c: Top-K semantic router over the candidate banks.
+        # SHADOW computes the decision report-only (delivery stays
+        # static-all.v1 byte-for-byte, decision lands in the lineage's
+        # shadow audit fields); ACTIVE prunes every delivery surface --
+        # prompt sections, latent carrier, and lineage -- from the same
+        # selection so behaviour and attribution can never diverge.
+        router_level = self._config.conditioning_router
+        lineage_router_version = _STATIC_ROUTER_VERSION
+        lineage_router_scores: tuple[tuple[str, float], ...] = ()
+        shadow_router_version = ""
+        shadow_router_scores: tuple[tuple[str, float], ...] = ()
+        if router_level is not WiringLevel.DISABLED and conditioning_banks:
+            router_decision = select_conditioning_banks(
+                user_input=user_input,
+                banks=conditioning_banks,
+                k=self._config.conditioning_router_top_k,
+            )
+            if router_level is WiringLevel.ACTIVE:
+                selected = set(router_decision.selected_bank_set)
+                if ConditioningBankType.PERSONAL.value not in selected:
+                    personal_conditioning = None
+                    personal_conditioning_statement = ""
+                    personal_conditioning_statement_ref = ""
+                if ConditioningBankType.RELATIONSHIP.value not in selected:
+                    relationship_statement = ""
+                    relationship_statement_ref = ""
+                conditioning_banks = tuple(
+                    bank
+                    for bank in conditioning_banks
+                    if bank.bank_type.value in selected
+                )
+                lineage_router_version = router_decision.router_version
+                lineage_router_scores = router_decision.scores
+            else:
+                shadow_router_version = router_decision.router_version
+                shadow_router_scores = router_decision.scores
+        (
+            personal_conditioning_statement,
+            personal_conditioning_statement_ref,
+        ) = _merge_text_delivery(
+            statement=personal_conditioning_statement,
+            statement_ref=personal_conditioning_statement_ref,
+            extra_statement=relationship_statement,
+            extra_statement_ref=relationship_statement_ref,
         )
         domain_knowledge_snapshot = integration_result.active_snapshots.get("domain_knowledge")
         case_memory_snapshot = integration_result.active_snapshots.get("case_memory")
@@ -511,6 +685,9 @@ class SessionObservationMixin:
                 personal_conditioning_statement_ref=personal_conditioning_statement_ref,
                 personal_conditioning_carrier=personal_conditioning_carrier,
                 prompt_state_delivery=self._config.prompt_state_delivery,
+                dynamic_residual_wiring=(
+                    self._config.generation_dynamic_residual.value
+                ),
             ),
             assembly=response_assembly,
         )
@@ -639,6 +816,13 @@ class SessionObservationMixin:
                 # the action it is rating.
                 session_scope=self._session_id,
                 banks=conditioning_banks,
+                # P4-c: the routing decision that actually shaped delivery,
+                # plus the Top-K shadow audit when the router ran
+                # report-only under the static-all policy.
+                router_version=lineage_router_version,
+                router_scores=lineage_router_scores,
+                shadow_router_version=shadow_router_version,
+                shadow_router_scores=shadow_router_scores,
             ),
         )
         dialogue_trace_snapshot = self._dialogue_trace_store.snapshot()

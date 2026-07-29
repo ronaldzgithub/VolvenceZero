@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "state-kv-freeze-manifest.v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "freeze_id",
+    "model",
+    "prefix_manifest",
+    "prefix_artifact_id",
+    "experiment_config",
+    "experiment_config_sha256",
+    "profile_labels",
+    "generation_seeds",
+    "scenario_sets",
+    "metric_definitions",
+    "judge_panel",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "state-kv-freeze-manifest.v2"
+    },
+    "freeze_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "weights_sha256"],
+      "properties": {
+        "model_id": {"type": "string", "minLength": 1},
+        "weights_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "prefix_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "prefix_artifact_id": {"type": "string", "minLength": 1},
+    "experiment_config": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "experiment_config_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "profile_labels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "generation_seeds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "integer"}
+    },
+    "scenario_sets": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "metric_definitions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "judge_panel": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evidence_id",
+          "path",
+          "sha256",
+          "schema_version",
+          "observed_state"
+        ],
+        "properties": {
+          "evidence_id": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "schema_version": {"type": "string", "minLength": 1},
+          "observed_state": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

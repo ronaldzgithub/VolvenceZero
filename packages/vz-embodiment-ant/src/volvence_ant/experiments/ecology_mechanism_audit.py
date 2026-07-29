@@ -1037,6 +1037,11 @@ _AUDIT_TRAINING_TIERS: tuple[EcologyTrainingTier, ...] = (
     EcologyTrainingTier.MEDIUM,
     EcologyTrainingTier.FAR,
 )
+# Training lives in a dedicated high namespace. Frozen held-out repros are
+# literal seeds 101/307 by contract and validation uses ``config.seed + 43``;
+# deriving training directly from ``config.seed`` made the default second
+# episode collide with held-out seed 101 after an expensive full audit.
+_AUDIT_TRAINING_SEED_NAMESPACE = 1_000_003
 
 
 def _episode_plan_seed(
@@ -1045,7 +1050,12 @@ def _episode_plan_seed(
     stage_index: int,
     episode_index: int,
 ) -> int:
-    return config.seed + stage_index * 10_000 + episode_index * 101
+    return (
+        config.seed
+        + _AUDIT_TRAINING_SEED_NAMESPACE
+        + stage_index * 10_000
+        + episode_index * 101
+    )
 
 
 def ecology_mechanism_audit_seed_schedule(

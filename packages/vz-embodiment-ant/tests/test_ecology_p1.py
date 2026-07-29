@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, replace
+from pathlib import Path
 
 import pytest
 
@@ -47,6 +48,7 @@ from volvence_ant.experiments.ecology_p1 import (
     _temporal_non_timeout_closure_gate,
     _verify_p1_checkpoint_archives,
     ecology_p1_formal_budget_failures,
+    ecology_p1_progress_writer_lock,
     load_p1_repeat_reference,
     run_ecology_p1,
     run_ecology_p1_diagnostics,
@@ -55,6 +57,7 @@ from volvence_ant.experiments.ecology_probe import (
     ECOLOGY_POST_PICKUP_UTURN_HEADING_OFFSET,
     ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY,
     _max_consecutive_approach_steps,
+    _post_switch_family_survival,
     ecology_probe_world_config,
     run_ecology_checkpoint_post_pickup_uturn_probes,
 )
@@ -798,6 +801,47 @@ def test_post_pickup_uturn_requires_sustained_distance_reduction() -> None:
     assert _max_consecutive_approach_steps((2.0, 2.0, 1.9, 1.8)) == 2
 
 
+def test_post_pickup_family_persistence_ends_at_a_second_switch() -> None:
+    family, survival, censored = _post_switch_family_survival(
+        action_families=("return", "return", "return", "return"),
+        switch_steps=(1, 3),
+    )
+    assert family == "return"
+    assert survival == 2
+    assert censored is False
+
+    family, survival, censored = _post_switch_family_survival(
+        action_families=("return", "return", "return", "return"),
+        switch_steps=(1,),
+    )
+    assert family == "return"
+    assert survival == 4
+    assert censored is True
+
+
+def test_progress_journal_allows_only_one_live_writer(
+    tmp_path: Path,
+) -> None:
+    progress_dir = tmp_path / "p1-progress"
+
+    with ecology_p1_progress_writer_lock(progress_dir):
+        owner = (progress_dir / ".writer.lock").read_text(
+            encoding="utf-8"
+        )
+        assert owner.startswith("pid=")
+        with pytest.raises(RuntimeError, match="active writer.*pid="):
+            with ecology_p1_progress_writer_lock(progress_dir):
+                pass
+
+    with ecology_p1_progress_writer_lock(progress_dir):
+        assert (progress_dir / ".writer.lock").read_text(
+            encoding="utf-8"
+        ).startswith("pid=")
+    assert (progress_dir / ".writer.lock").read_text(
+        encoding="utf-8"
+    ) == ""
+
+
 async def test_post_pickup_uturn_probe_is_real_balanced_and_frozen() -> None:
     probes = await run_ecology_checkpoint_post_pickup_uturn_probes(
         temporal_latent_dim=_TINY.temporal_latent_dim,
@@ -826,6 +870,22 @@ async def test_post_pickup_uturn_probe_is_real_balanced_and_frozen() -> None:
             lane.first_post_pickup_switch_step is not None
             and lane.first_post_pickup_switch_step
             <= ECOLOGY_POST_PICKUP_UTURN_MAX_SWITCH_LATENCY
+        )
+        for lane in lanes
+    )
+    assert all(
+        len(lane.action_families_after_pickup)
+        == max(len(lane.home_distances_after_pickup) - 1, 0)
+        for lane in lanes
+    )
+    assert all(
+        (
+            lane.first_post_pickup_switch_family is None
+            and lane.post_switch_family_survival_actions == 0
+        )
+        or (
+            lane.first_post_pickup_switch_family is not None
+            and lane.post_switch_family_survival_actions >= 1
         )
         for lane in lanes
     )

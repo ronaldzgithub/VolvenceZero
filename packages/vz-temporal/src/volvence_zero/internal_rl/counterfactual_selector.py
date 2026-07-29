@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 import hashlib
 import json
@@ -152,6 +153,288 @@ class KernelResidualActionSelectorArtifact:
 ResidualActionSelectorModel = (
     ResidualActionSelectorArtifact | KernelResidualActionSelectorArtifact
 )
+
+_SELECTOR_ARTIFACT_SCHEMA_VERSION = "residual-action-selector.v1"
+_LINEAR_SELECTOR_KIND = "linear-pca-ridge-v1"
+_KERNEL_SELECTOR_KIND = "linear-kernel-ridge-v1"
+
+
+def _selector_model_fingerprint(payload: Mapping[str, object]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _linear_selector_fingerprint_payload(
+    artifact: ResidualActionSelectorArtifact,
+) -> dict[str, object]:
+    return {
+        "input_mean": list(artifact.input_mean),
+        "input_scale": list(artifact.input_scale),
+        "encoder_components": [
+            list(row) for row in artifact.encoder_components
+        ],
+        "action_value_weights": [
+            list(row) for row in artifact.action_value_weights
+        ],
+        "action_value_bias": list(artifact.action_value_bias),
+        "ridge_strength": artifact.ridge_strength,
+    }
+
+
+def _kernel_selector_fingerprint_payload(
+    artifact: KernelResidualActionSelectorArtifact,
+) -> dict[str, object]:
+    return {
+        "input_mean": list(artifact.input_mean),
+        "input_scale": list(artifact.input_scale),
+        "normalized_training_inputs": [
+            list(row) for row in artifact.normalized_training_inputs
+        ],
+        "dual_action_weights": [
+            list(row) for row in artifact.dual_action_weights
+        ],
+        "action_value_bias": list(artifact.action_value_bias),
+        "ridge_strength": artifact.ridge_strength,
+    }
+
+
+def selector_artifact_to_payload(
+    artifact: ResidualActionSelectorModel,
+) -> dict[str, object]:
+    """Serialize a frozen selector artifact to a JSON-compatible payload."""
+
+    if isinstance(artifact, ResidualActionSelectorArtifact):
+        model_kind = _LINEAR_SELECTOR_KIND
+        model_payload = _linear_selector_fingerprint_payload(artifact)
+        dimensions = {
+            "input_dim": artifact.input_dim,
+            "latent_dim": artifact.latent_dim,
+            "action_count": artifact.action_count,
+            "explained_variance_ratio": artifact.explained_variance_ratio,
+        }
+    elif isinstance(artifact, KernelResidualActionSelectorArtifact):
+        model_kind = _KERNEL_SELECTOR_KIND
+        model_payload = _kernel_selector_fingerprint_payload(artifact)
+        dimensions = {
+            "input_dim": artifact.input_dim,
+            "action_count": artifact.action_count,
+        }
+    else:
+        raise TypeError(
+            "selector artifact serialization requires a supported frozen "
+            f"artifact, got {type(artifact).__name__}"
+        )
+    return {
+        "schema_version": _SELECTOR_ARTIFACT_SCHEMA_VERSION,
+        "model_kind": model_kind,
+        **dimensions,
+        **model_payload,
+        "model_fingerprint": artifact.model_fingerprint,
+    }
+
+
+def _payload_float(
+    payload: Mapping[str, object],
+    key: str,
+) -> float:
+    value = payload[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"selector artifact {key} must be numeric")
+    resolved = float(value)
+    if not math.isfinite(resolved):
+        raise ValueError(f"selector artifact {key} must be finite")
+    return resolved
+
+
+def _payload_positive_int(
+    payload: Mapping[str, object],
+    key: str,
+) -> int:
+    value = payload[key]
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(
+            f"selector artifact {key} must be a positive integer"
+        )
+    return value
+
+
+def _payload_vector(
+    payload: Mapping[str, object],
+    key: str,
+) -> tuple[float, ...]:
+    value = payload[key]
+    if not isinstance(value, list):
+        raise ValueError(f"selector artifact {key} must be a JSON array")
+    return tuple(
+        _payload_float({"value": item}, "value")
+        for item in value
+    )
+
+
+def _payload_matrix(
+    payload: Mapping[str, object],
+    key: str,
+) -> tuple[tuple[float, ...], ...]:
+    value = payload[key]
+    if not isinstance(value, list):
+        raise ValueError(f"selector artifact {key} must be a JSON array")
+    rows = []
+    for row_index, row in enumerate(value):
+        if not isinstance(row, list):
+            raise ValueError(
+                f"selector artifact {key}[{row_index}] must be a JSON array"
+            )
+        rows.append(
+            tuple(
+                _payload_float({"value": item}, "value")
+                for item in row
+            )
+        )
+    return tuple(rows)
+
+
+def _validate_selector_dimensions(
+    artifact: ResidualActionSelectorModel,
+) -> None:
+    if len(artifact.input_mean) != artifact.input_dim:
+        raise ValueError("selector artifact input_mean dimension mismatch")
+    if len(artifact.input_scale) != artifact.input_dim:
+        raise ValueError("selector artifact input_scale dimension mismatch")
+    if any(scale <= 0.0 for scale in artifact.input_scale):
+        raise ValueError("selector artifact input_scale must be positive")
+    if len(artifact.action_value_bias) != artifact.action_count:
+        raise ValueError(
+            "selector artifact action_value_bias dimension mismatch"
+        )
+    if artifact.ridge_strength <= 0.0:
+        raise ValueError(
+            "selector artifact ridge_strength must be positive"
+        )
+    if isinstance(artifact, ResidualActionSelectorArtifact):
+        if len(artifact.encoder_components) != artifact.latent_dim or any(
+            len(row) != artifact.input_dim
+            for row in artifact.encoder_components
+        ):
+            raise ValueError(
+                "selector artifact encoder_components dimension mismatch"
+            )
+        if len(artifact.action_value_weights) != artifact.action_count or any(
+            len(row) != artifact.latent_dim
+            for row in artifact.action_value_weights
+        ):
+            raise ValueError(
+                "selector artifact action_value_weights dimension mismatch"
+            )
+        if not 0.0 <= artifact.explained_variance_ratio <= 1.0:
+            raise ValueError(
+                "selector artifact explained_variance_ratio must be in [0,1]"
+            )
+    else:
+        training_count = len(artifact.normalized_training_inputs)
+        if training_count < 1 or any(
+            len(row) != artifact.input_dim
+            for row in artifact.normalized_training_inputs
+        ):
+            raise ValueError(
+                "selector artifact normalized_training_inputs dimension "
+                "mismatch"
+            )
+        if len(artifact.dual_action_weights) != artifact.action_count or any(
+            len(row) != training_count
+            for row in artifact.dual_action_weights
+        ):
+            raise ValueError(
+                "selector artifact dual_action_weights dimension mismatch"
+            )
+
+
+def selector_artifact_from_payload(
+    payload: Mapping[str, object],
+) -> ResidualActionSelectorModel:
+    """Restore a selector and verify its declared model fingerprint."""
+
+    if payload.get("schema_version") != _SELECTOR_ARTIFACT_SCHEMA_VERSION:
+        raise ValueError(
+            "unsupported selector artifact schema_version "
+            f"{payload.get('schema_version')!r}"
+        )
+    model_kind = payload.get("model_kind")
+    declared_fingerprint = payload.get("model_fingerprint")
+    if not isinstance(declared_fingerprint, str) or not declared_fingerprint:
+        raise ValueError(
+            "selector artifact model_fingerprint must be non-empty"
+        )
+    input_dim = _payload_positive_int(payload, "input_dim")
+    action_count = _payload_positive_int(payload, "action_count")
+    common = {
+        "input_mean": _payload_vector(payload, "input_mean"),
+        "input_scale": _payload_vector(payload, "input_scale"),
+        "action_value_bias": _payload_vector(
+            payload,
+            "action_value_bias",
+        ),
+        "input_dim": input_dim,
+        "action_count": action_count,
+        "ridge_strength": _payload_float(payload, "ridge_strength"),
+        "model_fingerprint": declared_fingerprint,
+    }
+    if model_kind == _LINEAR_SELECTOR_KIND:
+        artifact: ResidualActionSelectorModel = (
+            ResidualActionSelectorArtifact(
+                **common,
+                encoder_components=_payload_matrix(
+                    payload,
+                    "encoder_components",
+                ),
+                action_value_weights=_payload_matrix(
+                    payload,
+                    "action_value_weights",
+                ),
+                latent_dim=_payload_positive_int(payload, "latent_dim"),
+                explained_variance_ratio=_payload_float(
+                    payload,
+                    "explained_variance_ratio",
+                ),
+            )
+        )
+        fingerprint_payload = _linear_selector_fingerprint_payload(
+            artifact
+        )
+    elif model_kind == _KERNEL_SELECTOR_KIND:
+        artifact = KernelResidualActionSelectorArtifact(
+            **common,
+            normalized_training_inputs=_payload_matrix(
+                payload,
+                "normalized_training_inputs",
+            ),
+            dual_action_weights=_payload_matrix(
+                payload,
+                "dual_action_weights",
+            ),
+        )
+        fingerprint_payload = _kernel_selector_fingerprint_payload(
+            artifact
+        )
+    else:
+        raise ValueError(
+            f"unsupported selector artifact model_kind {model_kind!r}"
+        )
+    _validate_selector_dimensions(artifact)
+    recomputed_fingerprint = _selector_model_fingerprint(
+        fingerprint_payload
+    )
+    if recomputed_fingerprint != declared_fingerprint:
+        raise ValueError(
+            "selector artifact fingerprint mismatch: "
+            f"declared={declared_fingerprint}, "
+            f"recomputed={recomputed_fingerprint}"
+        )
+    return artifact
 
 
 def residual_action_state_sketch(
@@ -511,13 +794,7 @@ def fit_residual_action_selector(
         "action_value_bias": action_bias.tolist(),
         "ridge_strength": float(ridge_strength),
     }
-    fingerprint = hashlib.sha256(
-        json.dumps(
-            payload,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
+    fingerprint = _selector_model_fingerprint(payload)
     return ResidualActionSelectorArtifact(
         input_mean=tuple(float(value) for value in input_mean.tolist()),
         input_scale=tuple(float(value) for value in input_scale.tolist()),
@@ -603,13 +880,7 @@ def fit_kernel_residual_action_selector(
         "action_value_bias": action_bias.tolist(),
         "ridge_strength": float(ridge_strength),
     }
-    fingerprint = hashlib.sha256(
-        json.dumps(
-            fingerprint_payload,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
+    fingerprint = _selector_model_fingerprint(fingerprint_payload)
     return KernelResidualActionSelectorArtifact(
         input_mean=tuple(float(value) for value in input_mean.tolist()),
         input_scale=tuple(float(value) for value in input_scale.tolist()),

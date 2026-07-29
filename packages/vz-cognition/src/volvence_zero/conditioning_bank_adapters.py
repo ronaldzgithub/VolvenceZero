@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from volvence_zero.conditioning_bank_contracts import (
     CONDITIONING_BANK_SCHEMA_VERSION,
+    ConditioningBankReadout,
     ConditioningBankSnapshot,
     ConditioningBankType,
     ConditioningRevocationState,
@@ -105,4 +106,77 @@ def personal_conditioning_to_bank(
     )
 
 
-__all__ = ["PERSONAL_CONDITIONING_SLOT", "personal_conditioning_to_bank"]
+def bank_readout_to_bank(
+    *,
+    readout: ConditioningBankReadout,
+    slot_name: str,
+    scope: ConditioningScope,
+    freshness: float = 1.0,
+    revocation_state: ConditioningRevocationState = ConditioningRevocationState.ACTIVE,
+    event_time_ms: int = 0,
+    effective_time_ms: int = 0,
+) -> ConditioningBankSnapshot:
+    """Project a generic scope-free bank readout onto its scoped bank.
+
+    The runtime half of the P4-a split: the owner published everything it
+    can know (typed coordinates, lineage, confidence, rendered statement);
+    this adapter supplies what only the runtime knows (scope, freshness,
+    revocation, event times). ``slot_name`` is the slot the readout was
+    consumed from, so a readout wired to the wrong slot fails loudly here
+    instead of producing a mislabelled cache key.
+
+    Revocation and cold start zero the readout, confidence and rendered
+    statement exactly as the personal adapter does; the scoped contract
+    enforces the invariant either way.
+    """
+
+    slot_bank_type = expected_bank_type(slot_name)
+    if readout.bank_type is not slot_bank_type:
+        raise ValueError(
+            f"conditioning bank readout published on slot {slot_name!r} must "
+            f"carry bank_type {slot_bank_type!r}, got {readout.bank_type!r}."
+        )
+
+    consent_version = next(
+        (
+            version
+            for slot, version in readout.source_versions
+            if slot == "boundary_consent"
+        ),
+        _UNGATED_CONSENT_VERSION,
+    )
+
+    revoked = revocation_state is ConditioningRevocationState.REVOKED
+    inert = revoked or readout.is_cold_start
+    values = (
+        tuple(0.0 for _ in readout.readout_labels)
+        if inert
+        else tuple(float(value) for value in readout.readout)
+    )
+
+    return ConditioningBankSnapshot(
+        schema_version=CONDITIONING_BANK_SCHEMA_VERSION,
+        bank_type=readout.bank_type,
+        scope=scope,
+        readout=values,
+        readout_labels=tuple(readout.readout_labels),
+        source_versions=tuple(readout.source_versions),
+        source_fingerprint=readout.source_fingerprint,
+        confidence=0.0 if inert else float(readout.confidence),
+        freshness=float(freshness),
+        consent_version=int(consent_version),
+        provenance=readout.provenance,
+        revocation_state=revocation_state,
+        is_cold_start=readout.is_cold_start,
+        description=readout.description,
+        event_time_ms=int(event_time_ms),
+        effective_time_ms=int(effective_time_ms),
+        rendered_statement="" if inert else readout.rendered_statement,
+    )
+
+
+__all__ = [
+    "PERSONAL_CONDITIONING_SLOT",
+    "bank_readout_to_bank",
+    "personal_conditioning_to_bank",
+]

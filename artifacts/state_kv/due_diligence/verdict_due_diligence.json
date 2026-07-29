@@ -1,0 +1,92 @@
+{
+  "conclusions": [
+    {
+      "conclusion_id": "C1",
+      "detail": "B/C/D（人工 prompt、RAG、matched LoRA）未按同预算实现；现有 B-prime 不能替代全部 prompt/RAG 对照。",
+      "evidence_ids": [
+        "retention"
+      ],
+      "state": "not-yet-proven",
+      "statement": "正确状态相对 prompt/RAG 有稳定增益"
+    },
+    {
+      "conclusion_id": "C2",
+      "detail": "Prefix-KV 在冻结同基底盲评/多裁判 retention 门通过，且成本与延迟门通过。",
+      "evidence_ids": [
+        "identification",
+        "retention",
+        "judge_court",
+        "cost"
+      ],
+      "state": "proven",
+      "statement": "潜状态相对同信息量文本质量不劣且成本占优"
+    },
+    {
+      "conclusion_id": "C3",
+      "detail": "carrier diagnostic 的 slot-attention 非退化门未通过；线性可读出不能替代注意力读取证据。",
+      "evidence_ids": [
+        "retention",
+        "carrier_diagnostics",
+        "temporal_causal"
+      ],
+      "state": "not-yet-proven",
+      "statement": "State KV 相对残差投影有增量且不退化为偏置"
+    },
+    {
+      "conclusion_id": "C4",
+      "detail": "D0 无 matched full-dimension arm，瓶颈未证明；D1/D2 按门停止，保留 rank-3。",
+      "evidence_ids": [
+        "control_dim"
+      ],
+      "state": "not-yet-proven",
+      "statement": "扩展动态残差相对已有 3 维控制有增量"
+    },
+    {
+      "conclusion_id": "C5",
+      "detail": "J 对 I 的长 session 随轮次增量尚无冻结观测窗口。",
+      "evidence_ids": [
+        "bank_gain"
+      ],
+      "state": "not-yet-proven",
+      "statement": "Prediction Error 闭环相对静态组合有增量"
+    },
+    {
+      "conclusion_id": "C6",
+      "detail": "撤销、冷启动、scope 隔离与回滚通过；过期状态和抽取攻击尚无完整冻结门，因此结论不能整体标 proven。",
+      "evidence_ids": [
+        "deployment",
+        "generation_seed"
+      ],
+      "state": "not-yet-proven",
+      "statement": "错用户/过期/撤销无残留且潜状态不可抽取"
+    },
+    {
+      "conclusion_id": "C7",
+      "detail": "这些 bank 尚未实现；P4-c bank-gain 门未获真实配对观测，bank 数量已冻结。",
+      "evidence_ids": [
+        "bank_gain"
+      ],
+      "state": "not-yet-proven",
+      "statement": "World/Environment/Object bank 改善未见场景迁移"
+    }
+  ],
+  "evidence_fingerprints": {
+    "bank_gain": "00e45b44e4dc4db0f20a6b18694399b1f9266ddb7488711646993568f6e44bf2",
+    "carrier_diagnostics": "55af083c9c5da9919e7a534b301cd9baa37d68cad6270b130c069466be3d6514",
+    "control_dim": "3baea96e7d44b64f6267f5ce5fc96c790c7a4c403a67c7aa3662ece198701c97",
+    "cost": "4d1ed9d6f9db2204e431f3456c2cd8c08554d29bb7d3971f124d96dfe7c95ad7",
+    "deployment": "2d8c93381347b29c2198805e8567b2f2dcc176bc7d2417415201351341d58862",
+    "generation_seed": "3f51fb31aea6d391c973243de58664dceeed314bc884233292c49f7c5a6df0d6",
+    "identification": "6735f8d947c8f976ed1ffd266fa99d2be1beb06af9f375f421ed31981cf1cdab",
+    "judge_court": "b3e27f5c7e540e797d6d63aeadc6325231110c1cb77170bfd15553afc8f51e35",
+    "retention": "7fcb18ec80070c8caa9a8844cc035ac8a2013de26fa46737915e47fdcdcaccb4",
+    "temporal_causal": "3189115d78bbed60cd96e0b55a6debd688037e7beddb21e3c6b48678223b5c3c"
+  },
+  "freeze_id": "7a2ac9d0bc03b17d7414b07e85d652a71ac892b46a7929efe230ddb391c0993d",
+  "gate_state": "partial",
+  "schema_version": "state-kv-due-diligence.v1",
+  "summary": {
+    "not_yet_proven": 6,
+    "proven": 1
+  }
+}

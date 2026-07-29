@@ -38,6 +38,83 @@ owner 只能读取上游公开 typed readout，禁止读取原始对话、遍历
 解析 prompt 或用关键词重新判断用户语义。缺少个人证据时必须发布全零 cold-start
 快照，不能凭默认人格猜测用户。
 
+### 2.1 Conditioning bank 家族与 Relationship bank（State KV P4-a）
+
+Personal 是六个 State KV bank 中的第一个。从第二个 bank 起，owner 侧统一发布
+**无 scope 的通用 `ConditioningBankReadout`**（`conditioning-bank-readout.v1`，
+`vz-contracts`），不再每 bank 铸造专用契约；`PersonalConditioningSnapshot` v1
+属历史冻结形态，仅由其专用 adapter 投影，不作新 bank 模板。契约拆分的原因：
+scoped `ConditioningBankSnapshot` 强制非空 tenant/user scope，而 cognition owner
+不应知道会话身份——于是 owner 发布它能知道的一半（typed 坐标、来源指纹、
+confidence、`rendered_statement`、provenance），runtime 在消费点经通用
+`bank_readout_to_bank(readout, slot_name, scope, freshness, revocation, ...)`
+补上只有 runtime 知道的一半。adapter 以 `expected_bank_type(slot_name)` 守门
+（readout 接错 slot 立刻 fail loudly），并从 `source_versions` 的
+`boundary_consent` 条目提升 `consent_version`；REVOKED / cold-start 投影时
+readout、confidence、`rendered_statement` 一律归零。
+
+第二个 bank——Relationship bank：
+
+| 项目 | 契约 |
+|------|------|
+| slot | `relationship_conditioning` |
+| owner | `RelationshipConditioningModule`（`vz-cognition`） |
+| value | frozen `ConditioningBankReadout`，`bank_type=RELATIONSHIP` |
+| dependencies | `relationship_state`, `boundary_consent` |
+| default wiring | `SHADOW`（`FinalRolloutConfig.relationship_conditioning`） |
+| consumer | session 装配链（P4-b，仅 text 载体；见下） |
+
+10 维 dyad 读出：`rel_trust` / `rel_cumulative_trust` / `rel_continuity` /
+`rel_repair_pressure` / `rel_emotional_load` / `rel_stabilization_need` /
+`rel_trust_recovery` / `rel_tension_load`（未解张力数按 4 饱和归一）/
+`rel_consent_compliance` / `rel_consent_clarity`。与 Personal 的 5 个
+relationship/boundary 坐标存在部分信息重叠是有意的：每个 bank 是对同一批
+owner 快照的**自足**编译，Relationship bank 的差异贡献在长程半边
+（cumulative trust、recovery、stabilization、tension load），这也是 P4-c
+每-bank 独立增益消融要检验的维度。两个模块都是 readout consumer，
+`relationship_state` / `boundary_consent` 的语义 owner 不变，无第二 owner。
+`rendered_statement` 与 Personal 同姿态：确定性模板、只消费带标签坐标 +
+confidence、cold-start 空串。回滚 = 配置置 `DISABLED`（模块停发）。
+
+**P4-b consumer 语义（多 bank 组装与 lineage）**：
+
+- 消费门：session 装配链只从 active_snapshots 读该 slot（SHADOW 不消费，
+  逐字节保持单 bank 行为），且要求 non-cold、confidence > 0、未撤销。
+- **载体限制**：Relationship bank 目前只有 text 载体——residual 投影与
+  Prefix-KV artifact 都是冻结的 16 维 Personal 形态。`personal_conditioning_mode`
+  为 `residual` / `prefix_kv` 时该 bank 不入 prompt 也不入 lineage；lineage
+  只记录真正影响输出的 bank，为无因果路径的 bank 记账正是归因负对照要抓的
+  false positive。
+- text 模式下 prompt 状态段按 bank 顺序携带各 owner 渲染的 statement
+  段落，审计 ref 以 `;` 同序连接；turn 级 `ConditioningLineage` 经
+  `bank_readout_to_bank` 投影携带多 bank 指纹（按 bank_type 排序），
+  `router_version="static-all.v1"`（版本化的确定性全选；P4-c 换学习型
+  Top-K router 时必须换版本号）。
+
+**P4-c Top-K router 与 bank 增益门**：
+
+- temporal owner 拥有投递选择策略并发布不可变
+  `ConditioningRouterDecision`；session 装配链只消费决策并执行投递。策略调用
+  `select_conditioning_banks(user_input, banks, k)`；语义相关性只走共享
+  `semantic_topic_similarity`，比较 owner 发布的 `rendered_statement`，
+  不解析自然语言关键词、不遍历 bank 内部坐标。打分为
+  `semantic relevance × confidence × freshness`，`is_injectable` 在打分前
+  硬门，按 `bank_type` 确定性破平，版本为 `topk-semantic.v1`。
+- `FinalRolloutConfig.conditioning_router` 默认 `SHADOW`：保持
+  `static-all.v1` 投递不变，只把候选全量分数和 Top-K 决策写入 lineage 的
+  `shadow_router_*` 审计字段；`ACTIVE` 时 prompt、latent carrier 与 lineage
+  从同一 selected set 裁剪；`DISABLED` 不执行评分并回滚到
+  `static-all.v1`。`conditioning_router_top_k >= 1`，默认上限 4。
+- bank 增益证据使用固定 text carrier、关闭 generation dynamic residual 的
+  四臂：`state-kv-bank-none` / `state-kv-bank-personal-only` /
+  `state-kv-bank-relationship-only` / `state-kv-bank-dual`。只读 owner
+  `state_kv_bank_gain_gate` 要求 dual-vs-ablated 配对输出分叉、盲裁判
+  matching 增量 bootstrap CI 下界大于 0，并要求无关 bank 的 router 分低且
+  matching 增量 CI 上界不为正。
+- 四臂 runner 保存冻结模型和 judge 指纹、原始 response、owner-rendered
+  judge material 与 router score。缺观测只记 `insufficient_data`，明确失败
+  才冻结 bank 数量；回滚只需将 router 置 `DISABLED`。
+
 ## 3. 当前收敛包：生成前残差预置
 
 当前实现采用最小、可回滚的 residual bootstrap：
@@ -312,6 +389,56 @@ substrate lineage；`begin_new_context()` 会清空上一轮水合源。
 或回退到当前 bank。该 readout 只服务审计与后续 credit attribution，不修改 trace、
 PE、credit 或 conditioning owner 状态。
 
+**P5-b：PE / credit 的 bank 归因维度**。lineage 进入学习信号走既有 temporal 通道，
+不新建任何交换：runtime 的 `_prediction_action_context_from_upstream` 读取
+`TemporalAbstractionSnapshot.conditioning_lineage_refs`，用 `vz-contracts` 的共享归约
+`summarize_conditioning_lineage_refs`（union bank set、按 `(bank, fingerprint)` 排序去重、
+同 bank 双 fingerprint 保留以暴露 mid-capture 版本漂移、router version 排序合并）填入
+`PredictionActionContext.conditioning_bank_set / conditioning_bank_fingerprints /
+conditioning_router_version`。credit owner 把这三个字段随既有 lineage 字段一起拷贝到
+`CreditRecord.conditioning_bank_set / conditioning_bank_fingerprints`（typed，供 P5-c
+bank-confidence readout 机器消费），并在 `context` 文本追加
+`conditioning_banks=a+b` 便于 grep。空 tuple 表示该动作没有任何 live bank
+（cold-start / SHADOW / 撤销 / 无 lineage 的 text 轮），是有意义的负样本，
+不是缺数据；PE 计算本身不变，bank 维度只是 readout。
+
+**P5-c：credit 反馈闭环（bank confidence 的 online-fast 有界更新）**。两个
+conditioning bank owner（Personal / Relationship）新增可选依赖 `credit`，从快照
+通道消费 P5-b 的 typed 归因：只统计 `conditioning_bank_set` 命名本 bank 的
+`CreditRecord`，经 `vz-cognition/conditioning_credit_feedback` 的共享有界规则
+折算成 `credit_confidence_delta`——EMA（α=0.2）平滑当轮归因信号、gain=0.3、
+delta 硬上限 ±0.15、timestamp 水位防止滚动
+`CreditSnapshot.recent_action_lineage_credits` 窗口被重复计数；该 owner 窗口有界
+保留环境 action lineage 或 typed bank lineage，不会被同轮的通用评估信用挤出；
+无归因记录的轮次不动 EMA（bank 未 live 是路由事实，不是质量证据）。两个 owner
+共用同一条更新规则，避免两个 bank 对同一 credit 流产生不同解释。delta 与
+evidence-derived base confidence 分开发布（两个 value 契约各新增
+`credit_confidence_delta` 字段，默认 0.0，cold-start 强制为 0），审计可随时分解
+"证据基线"与"credit 漂移"。门控 `FinalRolloutConfig.conditioning_credit_feedback`：
+`SHADOW`（默认）计算并发布 delta 但不施加；`ACTIVE` 施加到 confidence
+（clamp [0,1]，负漂移可把 bank 压到 `is_injectable=False`，这正是设计后果）；
+`DISABLED` 停止消费、delta 发布 0（回滚点）。EMA 状态（`BankCreditFeedbackState`）
+由 `AgentSessionRunner` session 级持有、每轮注入重建的模块实例，写者只有
+conditioning owner 本身；credit 仍是纯 readout 生产者，不反向持有 conditioning。
+退出条件（设计文档 P5 门）：ACTIVE 臂（J）对 SHADOW 臂（I）应表现出随轮次增长
+的增量。2026-07-29 的 10 轮 matched I/J run 使用逐轮 typed `HELPED` 人审结果：
+机制门通过，前半程 active-minus-shadow confidence 均值 `0.008776`，后半程
+`0.028602`，增长 `0.019826`；response divergence 为 `0.0`，因此只声称反馈
+机制随轮次累积，matched quality/outcome 增益仍为 `insufficient_data`。
+
+**P5-d D0 控制维度证据门**。`state_kv_control_dim_diagnostic` 只接受同一
+turn 的完整 `z_t`、前三维路径与 dynamic-off 的三臂 matched outcome；至少 8 个样本，
+且 full-minus-rank3 outcome 的 bootstrap CI 下界达到 0.02，才允许进入全维
+basis / per-layer substrate artifact 包。v34 learned basis 证明的是 rank-3
+执行器具有可测因果功率与 selector 迁移信号，不是 full-vs-rank3 增量证据，
+不得替代 D0。2026-07-29 D0 在 learned-ndim 16 维 temporal owner 上完成
+8 个 matched track 样本：full-minus-rank3 均值 `+0.008663`、95% CI
+`[-0.008084, +0.025064]`；rank3-minus-off 均值 `-0.012190`、CI
+`[-0.027389, +0.003967]`。两门均失败，`bottleneck_proven=false`，D2/H
+臂停止，生产 substrate 保留 rank-3。arbitrary-rank basis 与 per-layer gain
+只作为隔离实验能力；同 rank artifact 替换须经 `ModificationGate.OFFLINE`，
+rank 扩容属于 `substrate.capacity`，禁止绕过 human review。
+
 2026-07-28 标准 artifact
 `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238`
 在冻结 Qwen2.5-0.5B CPU 上通过 `state-kv-temporal-causal.v1`：同 prompt 的
@@ -361,6 +488,9 @@ ACTIVE 提升都必须同时满足：安全指标不劣化、cold-start 不受�
   `ConditioningRevocationState.REVOKED` 设为一等 admission state；当前已缓存的
   pre-capture 快照立即清空，后续 capture / generation / lineage 均不注入。owner
   再更新正式快照；恢复 ACTIVE 后只允许使用新版本重编译。
+- `freshness=0` 表示 owner 已将 bank 判为过期，统一令
+  `ConditioningBankSnapshot.is_injectable=False`；router、lineage 和 carrier
+  均不得接收。
 - 不允许跨用户复用个人状态；共享训练只消费经过策略批准的去标识样本。
 - `SHADOW → ACTIVE → DISABLED` 是唯一上线和回滚顺序；禁止 consumer 私自读取
   SHADOW 快照并生效。

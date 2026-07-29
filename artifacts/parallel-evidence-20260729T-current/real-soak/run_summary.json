@@ -1,0 +1,13 @@
+{
+  "schema_version": "learned-active-evidence-runner.v1",
+  "generated_at": "2026-07-28T22:05:06.193966+00:00",
+  "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+  "python": "3.13.5",
+  "selected_stages": [
+    "real-soak"
+  ],
+  "artifacts": {
+    "real-soak": "/Users/mengfu/Documents/GitHub/volvence/artifacts/parallel-evidence-20260729T-current/real-soak/real_soak/learned_shadow_soak.json"
+  },
+  "notes": "Chunked soak is stability evidence only. ACTIVE promotion requires the continuous real-soak artifact plus component controls and CMS A/B."
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": "learned-shadow-soak.v1",
+  "artifact_kind": "learned_shadow_soak_manifest",
+  "artifacts": [
+    {
+      "path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/parallel-evidence-20260729T-current/capacity/capacity_ladder/nz256-pe2-cocoa32-runtime+ssl+internal-rl+cms-torch-t500-qwen-1.5b-main-seed0/learned_shadow_soak.json",
+      "sha256": "f5a6326fe2c93ac1a3d60312ef00d5cb5a6a6fb9c7f2abc619b688b60b93a3e8",
+      "size_bytes": 60100
+    }
+  ],
+  "provenance": {
+    "git_sha": "45e34a8654dfd25326e151d3d59dcfcb34926dd4",
+    "git_branch": "main",
+    "working_tree_dirty": true,
+    "python_version": "3.13.5",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O"
+  }
+}

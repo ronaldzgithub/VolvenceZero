@@ -53,6 +53,7 @@ from volvence_ant.experiments.ecology_mechanism_audit import (
     EcologyTemporalTick,
     EcologyTransitionTrace,
     build_ecology_mechanism_gates,
+    ecology_mechanism_audit_seed_schedule,
     run_ecology_mechanism_audit,
 )
 from volvence_ant.experiments.ecology_probe import (
@@ -1109,6 +1110,16 @@ def test_driver_run_id_is_new_per_run() -> None:
     assert first.rsplit("-", 1)[-1] != other.rsplit("-", 1)[-1]
 
 
+def test_default_audit_seed_namespaces_are_disjoint() -> None:
+    training, layout = ecology_mechanism_audit_seed_schedule(
+        EcologyMechanismAuditConfig()
+    )
+
+    assert training[:3] == (1_000_003, 1_000_104, 1_000_205)
+    assert layout == (43, 101, 307)
+    assert set(training).isdisjoint(layout)
+
+
 def _driver_args(driver, tmp_path: Path, run_id: str):
     import argparse
 
@@ -1143,6 +1154,34 @@ def _stub_provenance(driver, monkeypatch: pytest.MonkeyPatch) -> None:
         )
 
     monkeypatch.setattr(driver, "collect_ant_provenance", _collect)
+
+
+async def test_driver_preflights_seed_namespaces_before_running_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    driver = _load_driver()
+    monkeypatch.setattr(driver, "_REPO_ROOT", tmp_path)
+    audit_called = False
+
+    def _reject(_config):
+        raise RuntimeError("seed namespaces overlap")
+
+    async def _audit(_config):
+        nonlocal audit_called
+        audit_called = True
+        return _StubReport("PASS", ())
+
+    monkeypatch.setattr(
+        driver,
+        "ecology_mechanism_audit_seed_schedule",
+        _reject,
+    )
+    monkeypatch.setattr(driver, "run_ecology_mechanism_audit", _audit)
+
+    with pytest.raises(RuntimeError, match="seed namespaces overlap"):
+        await driver._run(_driver_args(driver, tmp_path, "seed-preflight"))
+    assert audit_called is False
 
 
 async def test_driver_emits_the_full_bundle_and_honours_the_verdict(

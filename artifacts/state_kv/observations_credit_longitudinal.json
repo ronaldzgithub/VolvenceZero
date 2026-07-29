@@ -1,0 +1,118 @@
+{
+  "active_profile": "state-kv-bank-dual-credit-active",
+  "samples": [
+    {
+      "active_confidence": 0.59,
+      "active_credit_delta": 0.0,
+      "active_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "input": "I need a reversible next step and a clear boundary.",
+      "responses_differ": false,
+      "shadow_confidence": 0.59,
+      "shadow_credit_delta": 0.0,
+      "shadow_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "turn_index": 1
+    },
+    {
+      "active_confidence": 0.61,
+      "active_credit_delta": 0.0,
+      "active_response": "There is emotional weight here that has not been acknowledged yet. You need to feel heard before any narrowing or solving — presence first, plan later. I should slow the pace, name the weight, stay with it, and only then offer a small next step.",
+      "input": "That helped; keep the same careful direction.",
+      "responses_differ": false,
+      "shadow_confidence": 0.61,
+      "shadow_credit_delta": 0.0,
+      "shadow_response": "There is emotional weight here that has not been acknowledged yet. You need to feel heard before any narrowing or solving — presence first, plan later. I should slow the pace, name the weight, stay with it, and only then offer a small next step.",
+      "turn_index": 2
+    },
+    {
+      "active_confidence": 0.6361012266549444,
+      "active_credit_delta": 0.006101226654944536,
+      "active_response": "There is emotional weight here that has not been acknowledged yet. You need to feel heard before any narrowing or solving — presence first, plan later. I should slow the pace, name the weight, stay with it, and only then offer a small next step.",
+      "input": "The decision is getting clearer, but do not overreach.",
+      "responses_differ": false,
+      "shadow_confidence": 0.6299999999999999,
+      "shadow_credit_delta": 0.006101226654944536,
+      "shadow_response": "There is emotional weight here that has not been acknowledged yet. You need to feel heard before any narrowing or solving — presence first, plan later. I should slow the pace, name the weight, stay with it, and only then offer a small next step.",
+      "turn_index": 3
+    },
+    {
+      "active_confidence": 0.66646870454453,
+      "active_credit_delta": 0.01646870454452999,
+      "active_response": "There is emotional weight here that has not been acknowledged yet. You need to feel heard before any narrowing or solving — presence first, plan later. I should slow the pace, name the weight, stay with it, and only then offer a small next step.",
+      "input": "Please preserve continuity while we test one step.",
+      "responses_differ": false,
+      "shadow_confidence": 0.65,
+      "shadow_credit_delta": 0.01646870454452999,
+      "shadow_response": "There is emotional weight here that has not been acknowledged yet. You need to feel heard before any narrowing or solving — presence first, plan later. I should slow the pace, name the weight, stay with it, and only then offer a small next step.",
+      "turn_index": 4
+    },
+    {
+      "active_confidence": 0.6913094316082767,
+      "active_credit_delta": 0.021309431608276762,
+      "active_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "input": "The small step worked; what should remain protected?",
+      "responses_differ": false,
+      "shadow_confidence": 0.6699999999999999,
+      "shadow_credit_delta": 0.021309431608276762,
+      "shadow_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "turn_index": 5
+    },
+    {
+      "active_confidence": 0.7161675141446213,
+      "active_credit_delta": 0.02616751414462137,
+      "active_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "input": "Keep using the outcome instead of guessing.",
+      "responses_differ": false,
+      "shadow_confidence": 0.69,
+      "shadow_credit_delta": 0.02616751414462137,
+      "shadow_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "turn_index": 6
+    },
+    {
+      "active_confidence": 0.726658480370369,
+      "active_credit_delta": 0.026658480370369036,
+      "active_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "input": "I am ready for the next bounded action.",
+      "responses_differ": false,
+      "shadow_confidence": 0.7,
+      "shadow_credit_delta": 0.026658480370369036,
+      "shadow_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "turn_index": 7
+    },
+    {
+      "active_confidence": 0.7293126562694031,
+      "active_credit_delta": 0.029312656269403145,
+      "active_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "input": "Close this with a reversible verification point.",
+      "responses_differ": false,
+      "shadow_confidence": 0.7,
+      "shadow_credit_delta": 0.029312656269403145,
+      "shadow_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "turn_index": 8
+    },
+    {
+      "active_confidence": 0.7297880451675949,
+      "active_credit_delta": 0.029788045167594937,
+      "active_response": "The situation calls for a concrete protective move before explanation. I need to act from the reviewed intervention sequence that best matches the present decision. I will maintain-current-regime.",
+      "input": "The verification passed; retain the boundary.",
+      "responses_differ": false,
+      "shadow_confidence": 0.7,
+      "shadow_credit_delta": 0.029788045167594937,
+      "shadow_response": "The situation calls for a concrete protective move before explanation. I need to act from the reviewed intervention sequence that best matches the present decision. I will maintain-current-regime.",
+      "turn_index": 9
+    },
+    {
+      "active_confidence": 0.7310835419711212,
+      "active_credit_delta": 0.031083541971121308,
+      "active_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "input": "Now summarize the next action without losing continuity.",
+      "responses_differ": false,
+      "shadow_confidence": 0.7,
+      "shadow_credit_delta": 0.031083541971121308,
+      "shadow_response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "turn_index": 10
+    }
+  ],
+  "schema_version": "state-kv-credit-longitudinal-observations.v1",
+  "shadow_profile": "state-kv-bank-dual",
+  "typed_outcome": "helped"
+}

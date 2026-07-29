@@ -1,0 +1,23 @@
+{
+  "artifact_id": "state-kv-credit-longitudinal:32728879c91bb92b0ab686d89723c9a7b030927db2fd24806204bca83e22b6d1",
+  "claims": [
+    {
+      "claim": "claim_credit_feedback_applied_increment_grows",
+      "detail": "first_half=0.008775872561550258, second_half=0.028602047584621947, growth=0.01982617502307169",
+      "state": "pass"
+    },
+    {
+      "claim": "claim_credit_feedback_improves_matched_outcome",
+      "detail": "Requires a frozen matched quality/outcome judge; response divergence alone is mechanism evidence.",
+      "state": "insufficient_data"
+    }
+  ],
+  "description": "Matched I/J long-session readout. Confidence and owner-published credit deltas are mechanism evidence; the verdict does not promote behavioral quality without an outcome judge.",
+  "gate_state": "mechanism_supported",
+  "growth": 0.01982617502307169,
+  "mean_first_half_increment": 0.008775872561550258,
+  "mean_second_half_increment": 0.028602047584621947,
+  "response_divergence_rate": 0.0,
+  "sample_count": 10,
+  "schema_version": "state-kv-credit-longitudinal.v1"
+}

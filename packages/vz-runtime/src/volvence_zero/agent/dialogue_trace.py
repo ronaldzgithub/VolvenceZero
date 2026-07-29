@@ -352,6 +352,9 @@ def _lineage_row(lineage: ConditioningLineage | None) -> dict[str, object] | Non
         "state_encoder_version": lineage.state_encoder_version,
         "prefix_generator_version": lineage.prefix_generator_version,
         "router_version": lineage.router_version,
+        "router_scores": lineage.router_scores,
+        "shadow_router_version": lineage.shadow_router_version,
+        "shadow_router_scores": lineage.shadow_router_scores,
     }
 
 

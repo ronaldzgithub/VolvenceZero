@@ -1,0 +1,547 @@
+{
+  "artifact_expectations": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "counterfactual_outcomes.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "baseline_label": "full-internal-rl",
+  "case_groups": [
+    [
+      "route_ids",
+      [
+        "train-corridor-alpha-beta-delta",
+        "train-zigzag-beta-gamma-alpha",
+        "train-loop-delta-beta-epsilon",
+        "eval-alpha-delta-epsilon",
+        "eval-gamma-beta-delta",
+        "heldout-delta-alpha-gamma-epsilon",
+        "heldout-epsilon-beta-alpha-delta",
+        "train-expanded-alpha-gamma-beta-epsilon",
+        "train-expanded-beta-delta-gamma-epsilon",
+        "train-expanded-delta-beta-alpha-gamma",
+        "train-expanded-hub-beta-delta-epsilon",
+        "train-expanded-alpha-delta-hub-epsilon",
+        "train-independent-forecast-revision",
+        "train-independent-delayed-decision",
+        "train-independent-changing-conditions",
+        "train-independent-promise-ledger",
+        "train-independent-reliable-response",
+        "train-independent-visible-priorities",
+        "train-independent-unfamiliar-information",
+        "train-independent-recorded-recovery",
+        "validation-v30-measurement-estimate",
+        "validation-v30-workshop-criteria",
+        "validation-v30-weather-schedules",
+        "validation-v30-editor-drafts"
+      ]
+    ],
+    [
+      "backend_labels",
+      [
+        "transformers-open-weight",
+        "trace"
+      ]
+    ],
+    [
+      "train_epochs",
+      [
+        "2"
+      ]
+    ],
+    [
+      "gate_semantics",
+      [
+        "real-hook-health-v2",
+        "prefix-aligned-intervention-v1",
+        "smoke-diagnostic-only-v1"
+      ]
+    ],
+    [
+      "case_corpus",
+      [
+        "eta-gate2-prefix-expected-value-v3"
+      ]
+    ],
+    [
+      "independent_training_route_ids",
+      [
+        "train-independent-forecast-revision",
+        "train-independent-delayed-decision",
+        "train-independent-changing-conditions",
+        "train-independent-promise-ledger",
+        "train-independent-reliable-response",
+        "train-independent-visible-priorities",
+        "train-independent-unfamiliar-information",
+        "train-independent-recorded-recovery"
+      ]
+    ],
+    [
+      "validation_route_ids",
+      [
+        "validation-v30-measurement-estimate",
+        "validation-v30-workshop-criteria",
+        "validation-v30-weather-schedules",
+        "validation-v30-editor-drafts"
+      ]
+    ],
+    [
+      "validation_frozen_before_run",
+      [
+        "true"
+      ]
+    ],
+    [
+      "training_route_count",
+      [
+        "16"
+      ]
+    ],
+    [
+      "development_routes_unchanged",
+      [
+        "true"
+      ]
+    ],
+    [
+      "training_signal",
+      [
+        "continuation-prediction-error"
+      ]
+    ],
+    [
+      "continuation_pe_reward_scale",
+      [
+        "0.02"
+      ]
+    ],
+    [
+      "latent_unit_clamp",
+      [
+        "true"
+      ]
+    ],
+    [
+      "real_residual_ssl_bootstrap",
+      [
+        "true"
+      ]
+    ],
+    [
+      "real_residual_activation_width",
+      [
+        "896"
+      ]
+    ],
+    [
+      "causal_action_head_active",
+      [
+        "true"
+      ]
+    ],
+    [
+      "causal_action_head_state_dim",
+      [
+        "12"
+      ]
+    ],
+    [
+      "residual_actuator_dim",
+      [
+        "3"
+      ]
+    ],
+    [
+      "continuation_counterfactual_grid",
+      [
+        "true"
+      ]
+    ],
+    [
+      "counterfactual_action_selector_diagnostic",
+      [
+        "true"
+      ]
+    ],
+    [
+      "counterfactual_action_selector_input",
+      [
+        "full-layer-coordinate-mean-latest-trend"
+      ]
+    ],
+    [
+      "counterfactual_action_selector_encoder",
+      [
+        "train-only-standardized-linear-kernel"
+      ]
+    ],
+    [
+      "counterfactual_action_selector_head",
+      [
+        "train-only-dual-ridge-ladder-0.1-1-10"
+      ]
+    ],
+    [
+      "counterfactual_action_selector_model_selection",
+      [
+        "train-route-cv-audit-delta-then-audit-regret"
+      ]
+    ],
+    [
+      "counterfactual_action_selector_cv",
+      [
+        "route-grouped-4fold"
+      ]
+    ],
+    [
+      "counterfactual_action_selector_live_injection",
+      [
+        "disabled"
+      ]
+    ],
+    [
+      "counterfactual_target_mode",
+      [
+        "environment-outcome-pe-credit"
+      ]
+    ],
+    [
+      "counterfactual_target_sample_count",
+      [
+        "1"
+      ]
+    ],
+    [
+      "counterfactual_audit_sample_count",
+      [
+        "1"
+      ]
+    ],
+    [
+      "counterfactual_sampling_temperature",
+      [
+        "0.0"
+      ]
+    ],
+    [
+      "counterfactual_sampling_max_new_tokens",
+      [
+        "0"
+      ]
+    ],
+    [
+      "counterfactual_sampling_seed_protocol",
+      [
+        "not-applicable-deterministic-environment-forward"
+      ]
+    ],
+    [
+      "counterfactual_reward_normalization",
+      [
+        "pe-action-credit-per-prefix-centered-range-v1"
+      ]
+    ],
+    [
+      "counterfactual_outcome_chain",
+      [
+        "z-candidate->residual-forward->realized-continuation-nll->prediction-error->action-credit"
+      ]
+    ],
+    [
+      "counterfactual_primary_target",
+      [
+        "realized-next-segment-teacher-forced-nll-improvement-vs-zero-control"
+      ]
+    ],
+    [
+      "counterfactual_audit_surface",
+      [
+        "subsequent-realized-segment-teacher-forced-nll-improvement-vs-zero-control"
+      ]
+    ],
+    [
+      "confirmation_split_locked",
+      [
+        "false"
+      ]
+    ],
+    [
+      "residual_control_modes",
+      [
+        "identity",
+        "zero",
+        "shuffled",
+        "reversed"
+      ]
+    ],
+    [
+      "gate2_preregistered_thresholds",
+      [
+        "min_causal_delta=0.02",
+        "min_measurable_residual_effect=1e-06",
+        "min_hook_coverage=0.75",
+        "max_fallback_rate=0.0"
+      ]
+    ]
+  ],
+  "description": "Gate 2 matched residual intervention suite. The identity arm is compared with zero, deterministic shuffled, and reversed U_t on the same frozen substrate and schedule.",
+  "primary_metrics": [
+    {
+      "description": "Held-out terminal success rate for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_terminal_success_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out strong sparse-reward success rate for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_strong_success_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out abstract-action reuse rate for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_family_reuse_rate",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out delayed-credit alignment for the full internal-RL profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_credit_alignment",
+      "role": "primary"
+    },
+    {
+      "description": "Held-out strong success gap between the full profile and the strongest matched control.",
+      "direction": "higher-is-better",
+      "metric_name": "strong_success_gap_vs_best_control",
+      "role": "primary"
+    },
+    {
+      "description": "Gap in held-out strong success across backends for the full profile.",
+      "direction": "lower-is-better",
+      "metric_name": "backend_success_gap",
+      "role": "primary"
+    },
+    {
+      "description": "Composite real-residual policy/control advantage over same-backend matched controls, excluding backend-ablation noops.",
+      "direction": "higher-is-better",
+      "metric_name": "real_residual_policy_gap_vs_control",
+      "role": "primary"
+    }
+  ],
+  "profiles": [
+    {
+      "description": "Same policy, optimizer, frozen substrate, scenarios, and seed schedule with residual control mode full-internal-rl.",
+      "profile_label": "full-internal-rl",
+      "role": "candidate"
+    },
+    {
+      "description": "Same policy, optimizer, frozen substrate, scenarios, and seed schedule with residual control mode full-zero-control.",
+      "profile_label": "full-zero-control",
+      "role": "matched-control"
+    },
+    {
+      "description": "Same policy, optimizer, frozen substrate, scenarios, and seed schedule with residual control mode full-shuffled-control.",
+      "profile_label": "full-shuffled-control",
+      "role": "matched-control"
+    },
+    {
+      "description": "Same policy, optimizer, frozen substrate, scenarios, and seed schedule with residual control mode full-reversed-control.",
+      "profile_label": "full-reversed-control",
+      "role": "matched-control"
+    }
+  ],
+  "repeat_count": 1,
+  "secondary_metrics": [
+    {
+      "description": "Fraction of ETA acceptance gates passed in the assessment report.",
+      "direction": "higher-is-better",
+      "metric_name": "assessment_pass_fraction",
+      "role": "secondary"
+    },
+    {
+      "description": "Observed policy parameter update rate for the full profile.",
+      "direction": "higher-is-better",
+      "metric_name": "policy_update_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out subgoal completion rate for the full profile.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_subgoal_completion_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out strong success variability across held-out cases.",
+      "direction": "lower-is-better",
+      "metric_name": "heldout_strong_success_std",
+      "role": "secondary"
+    },
+    {
+      "description": "Average rollout count consumed by each full-profile update.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_rollouts_per_update",
+      "role": "secondary"
+    },
+    {
+      "description": "Average parameter-change norm for full-profile internal RL updates.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_parameter_change_norm",
+      "role": "secondary"
+    },
+    {
+      "description": "Average replacement-effect delta observed during full-profile updates.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_replacement_effect_delta",
+      "role": "secondary"
+    },
+    {
+      "description": "Average critic/value loss for the full internal-RL profile.",
+      "direction": "lower-is-better",
+      "metric_name": "mean_value_loss",
+      "role": "secondary"
+    },
+    {
+      "description": "Total training transitions consumed by full-profile internal RL updates.",
+      "direction": "higher-is-better",
+      "metric_name": "training_transition_count",
+      "role": "secondary"
+    },
+    {
+      "description": "Mean rollout steps controlled by one abstract action before switching.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_steps_per_abstract_action",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of abstract-action windows persisting for at least two rollout steps.",
+      "direction": "higher-is-better",
+      "metric_name": "persistence_window_success_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Residual-control signal quality combining downstream effect and backend fidelity.",
+      "direction": "higher-is-better",
+      "metric_name": "residual_signal_quality",
+      "role": "secondary"
+    },
+    {
+      "description": "Number of temporal families receiving long-horizon delayed-credit writes.",
+      "direction": "higher-is-better",
+      "metric_name": "credit_to_family_write_count",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of temporal families with payoff or delayed-credit evidence.",
+      "direction": "higher-is-better",
+      "metric_name": "long_horizon_payoff_coverage",
+      "role": "secondary"
+    },
+    {
+      "description": "Fast-prior benefit retained over the no-fast-prior control.",
+      "direction": "higher-is-better",
+      "metric_name": "slow_to_fast_init_benefit",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of reward signal not attributable to shaping leakage.",
+      "direction": "higher-is-better",
+      "metric_name": "mean_reward_sparsity",
+      "role": "secondary"
+    },
+    {
+      "description": "Share of optimizer-visible reward coming from shaping components.",
+      "direction": "lower-is-better",
+      "metric_name": "reward_shaping_leakage",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out family reuse retained over the no-fast-prior scaffold ablation.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_family_reuse_gap_vs_no_fast_prior",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out delayed-credit assignments whose abstract-action window lacks an assigned family.",
+      "direction": "lower-is-better",
+      "metric_name": "heldout_credit_window_miss_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Held-out terminal successes backed by terminal delayed-credit assignments.",
+      "direction": "higher-is-better",
+      "metric_name": "heldout_terminal_credit_coverage",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of ETA substrate steps captured from a real open-weight runtime.",
+      "direction": "higher-is-better",
+      "metric_name": "real_open_weight_capture_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Mean actual hook fire rate observed during real open-weight ETA capture; real residual claims require >= 0.75.",
+      "direction": "higher-is-better",
+      "metric_name": "real_open_weight_hook_coverage",
+      "role": "secondary"
+    },
+    {
+      "description": "Planned selected hook layers divided by total transformer blocks; context only, not a hard hook-health gate.",
+      "direction": "higher-is-better",
+      "metric_name": "real_open_weight_planned_layer_fraction",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of captured token positions that expose residual activations across the selected hook layers.",
+      "direction": "higher-is-better",
+      "metric_name": "real_open_weight_token_step_coverage",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of real open-weight snapshots carrying a nonempty residual sequence.",
+      "direction": "higher-is-better",
+      "metric_name": "real_open_weight_residual_sequence_present",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of real open-weight snapshots using prefix-aligned before/after intervention protocol.",
+      "direction": "higher-is-better",
+      "metric_name": "real_open_weight_intervention_protocol_valid",
+      "role": "secondary"
+    },
+    {
+      "description": "Fraction of real ETA capture served by a builtin fallback runtime; real residual claims require <= 0.00.",
+      "direction": "lower-is-better",
+      "metric_name": "real_open_weight_fallback_rate",
+      "role": "secondary"
+    },
+    {
+      "description": "Mean residual intervention application count in ETA open-weight proof rollouts.",
+      "direction": "higher-is-better",
+      "metric_name": "intervention_application_count",
+      "role": "secondary"
+    },
+    {
+      "description": "Mean per-episode replacement-effect delta for real residual-control rollouts.",
+      "direction": "higher-is-better",
+      "metric_name": "episode_replacement_effect_delta",
+      "role": "secondary"
+    }
+  ],
+  "seed_schedule": [
+    0
+  ],
+  "suite_id": "eta-gate2-residual-causal-ci-smoke",
+  "suite_kind": "eta-open-weight-residual-proof",
+  "suite_tier": "ci-smoke",
+  "version": 4
+}

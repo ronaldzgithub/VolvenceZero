@@ -49,6 +49,12 @@ class PersonalConditioningSnapshot:
     is_cold_start: bool
     description: str
     rendered_statement: str = ""
+    # State KV P5-c: owner-published readout of the bounded credit-driven
+    # confidence adjustment currently applied (ACTIVE) or merely computed
+    # (SHADOW). Separate from ``confidence`` so the evidence-derived base
+    # and the credit-learned drift stay auditable independently. Additive
+    # with a default, so the frozen v1 coordinate contract is unchanged.
+    credit_confidence_delta: float = 0.0
 
     def __post_init__(self) -> None:
         if self.schema_version != PERSONAL_CONDITIONING_SCHEMA_VERSION:
@@ -89,6 +95,16 @@ class PersonalConditioningSnapshot:
         if not self.source_fingerprint:
             raise ValueError(
                 "PersonalConditioningSnapshot source_fingerprint must be non-empty."
+            )
+        if not -1.0 <= self.credit_confidence_delta <= 1.0:
+            raise ValueError(
+                "PersonalConditioningSnapshot credit_confidence_delta must "
+                "be in [-1, 1]."
+            )
+        if self.is_cold_start and self.credit_confidence_delta != 0.0:
+            raise ValueError(
+                "Cold-start personal conditioning must not carry a credit "
+                "confidence delta: no bank was live to earn credit."
             )
 
 

@@ -56,6 +56,9 @@ def build_conditioning_lineage(
     state_encoder_version: str = "",
     prefix_generator_version: str = "",
     router_version: str = "",
+    router_scores: tuple[tuple[str, float], ...] = (),
+    shadow_router_version: str = "",
+    shadow_router_scores: tuple[tuple[str, float], ...] = (),
 ) -> ConditioningLineage | None:
     """Record the banks that influenced this turn, or ``None`` if none did.
 
@@ -83,6 +86,9 @@ def build_conditioning_lineage(
         state_encoder_version=state_encoder_version,
         prefix_generator_version=prefix_generator_version,
         router_version=router_version,
+        router_scores=router_scores,
+        shadow_router_version=shadow_router_version,
+        shadow_router_scores=shadow_router_scores,
     )
 
 
