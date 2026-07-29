@@ -5109,9 +5109,15 @@ def _closed_segment_from_switch(
 ) -> tuple[TemporalSegmentClosure, ...]:
     if previous_snapshot is None or not current_step.controller_state.is_switching:
         return ()
+    # ``steps_since_switch`` is zero on the turn that opened the segment.
+    # The closing switch happens one publication later than the last step
+    # represented by ``previous_snapshot``, so the segment length is
+    # ``steps_since_switch + 1``.
     open_turn_index = max(
         0,
-        close_turn_index - previous_snapshot.controller_state.steps_since_switch,
+        close_turn_index
+        - previous_snapshot.controller_state.steps_since_switch
+        - 1,
     )
     segment_id = (
         f"{previous_snapshot.active_abstract_action}:"
@@ -5690,6 +5696,7 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         *,
         track: Track,
         policy: TemporalPolicy | None = None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
         wiring_level: WiringLevel | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
@@ -5697,7 +5704,7 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         self.slot_name = f"{track.value}_temporal"
         self.owner = f"{track.value.title()}TemporalModule"
         self._policy = policy or FullLearnedTemporalPolicy()
-        self._previous_snapshot: TemporalAbstractionSnapshot | None = None
+        self._previous_snapshot = previous_snapshot
         self._pending_active_mixture: object | None = None
 
     def observe_active_mixture_carryover(self, active_mixture_value: object | None) -> None:

@@ -198,6 +198,13 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 proof profile 已包含 matched ablation `full-no-fast-prior`：它保留 full internal RL + causal replacement，但关闭 temporal fast prior ingestion，用于衡量 fast prior 对 held-out family reuse、credit alignment 与 strong success 的增益
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter
+- `AgentSessionRunner` 每拍重建 runtime module 时，orchestrator 必须把上一拍 owner 发布的
+  `world_temporal` / `self_temporal` 不可变快照恢复给对应
+  `TrackTemporalModule`。只恢复 snapshot version 而丢失 value 会切断 public
+  segment continuity，使 `closed_segments` 永远为空；consumer 禁止根据 action
+  文本、family ID 或私有 joint-loop buffer 重建 segment。`steps_since_switch=0`
+  表示该拍刚开启 segment，因此下一次 switch 的正式闭合区间从上一拍开始，
+  owner 计算 `open_turn_index` 时必须包含该开启拍。
 - `learned-lite` 仍保留为 fallback / rollback baseline；`full-learned` 是当前默认 temporal owner
 - 当前 online owner 的 rollback 已提升到 cycle 级：坏周期会恢复到 SSL 之前的 checkpoint，保证 temporal owner 不留下半轮 SSL/RL 混合脏状态
 - 当前 rare-heavy v0 允许 temporal owner 导出/导入 parameter snapshot：offline pipeline 负责产出 artifact，runtime owner 负责 apply / rollback，不引入第二个 temporal state owner

@@ -1838,6 +1838,8 @@ def build_final_runtime_modules(
     temporal_policy: TemporalPolicy | None = None,
     world_temporal_policy: TemporalPolicy | None = None,
     self_temporal_policy: TemporalPolicy | None = None,
+    previous_world_temporal_snapshot: TemporalAbstractionSnapshot | None = None,
+    previous_self_temporal_snapshot: TemporalAbstractionSnapshot | None = None,
     prediction_module: PredictionErrorModule | None = None,
     regime_module: RegimeModule | None = None,
     credit_module: CreditModule | None = None,
@@ -2264,11 +2266,13 @@ def build_final_runtime_modules(
         TrackTemporalModule(
             track=Track.WORLD,
             policy=resolved_world_temporal_policy,
+            previous_snapshot=previous_world_temporal_snapshot,
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
         ),
         TrackTemporalModule(
             track=Track.SELF,
             policy=resolved_self_temporal_policy,
+            previous_snapshot=previous_self_temporal_snapshot,
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
         ),
         TemporalAggregateModule(
@@ -2500,6 +2504,20 @@ async def run_final_wiring_turn(
     group_joint_commitments: tuple[str, ...] = (),
     group_regime_id: str | None = None,
 ) -> FinalIntegrationResult:
+    previous_track_temporal: dict[str, TemporalAbstractionSnapshot] = {}
+    if upstream_snapshots is not None:
+        for slot_name in ("world_temporal", "self_temporal"):
+            previous_snapshot = upstream_snapshots.get(slot_name)
+            if previous_snapshot is None:
+                continue
+            if not isinstance(
+                previous_snapshot.value,
+                TemporalAbstractionSnapshot,
+            ):
+                raise TypeError(
+                    f"{slot_name} must publish TemporalAbstractionSnapshot."
+                )
+            previous_track_temporal[slot_name] = previous_snapshot.value
     prediction_action_context = _prediction_action_context_from_upstream(
         upstream_snapshots=upstream_snapshots,
         environment_event=environment_event,
@@ -2527,6 +2545,12 @@ async def run_final_wiring_turn(
         temporal_policy=temporal_policy,
         world_temporal_policy=world_temporal_policy,
         self_temporal_policy=self_temporal_policy,
+        previous_world_temporal_snapshot=previous_track_temporal.get(
+            "world_temporal"
+        ),
+        previous_self_temporal_snapshot=previous_track_temporal.get(
+            "self_temporal"
+        ),
         prediction_module=prediction_module,
         regime_module=regime_module,
         credit_module=credit_module,
