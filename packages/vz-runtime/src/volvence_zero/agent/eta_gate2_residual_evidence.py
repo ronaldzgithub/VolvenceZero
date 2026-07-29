@@ -2348,7 +2348,8 @@ def export_eta_gate2_residual_bundle(
         "rollback_target": "residual_control_mode=identity",
         "configuration_default_is_identity": True,
         "owner_state_mutated_by_mode_switch": False,
-        "shadow_closed_loop_side_effect_free": all(
+        "shadow_closed_loop_side_effect_free": bool(shadow_closed_loop)
+        and all(
             row.get("side_effect_free") is True
             for row in shadow_closed_loop
         ),

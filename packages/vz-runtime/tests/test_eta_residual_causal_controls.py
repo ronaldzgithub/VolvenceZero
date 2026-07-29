@@ -540,6 +540,10 @@ def test_eta_gate2_bundle_exports_frozen_v31_file_contract(
     )
     assert verdict["status"] == "wiring-ready"
     assert verdict["thesis_status"] == "not-evaluated"
+    rollback = json.loads(
+        (tmp_path / "rollback_evidence.json").read_text(encoding="utf-8")
+    )
+    assert not rollback["shadow_closed_loop_side_effect_free"]
 
 
 def test_eta_gate2_bundle_rejects_residual_width_provenance_mismatch(

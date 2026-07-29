@@ -1,6 +1,7 @@
 # Gate 1–6 证据战役：长周期完整执行计划
 
-> 状态：计划（未开始）。目标：把 `docs/known-debts.md` #92 的系统级证据门推进到
+> 状态：执行中（Phase 0 已完成并按预注册 NO-GO 收敛，准备进入 Phase 1a）。
+> 目标：把 `docs/known-debts.md` #92 的系统级证据门推进到
 > **Gate 1、2、4、5、6 全部拿到 mechanism + causal verdict**（Gate 2 另加
 > SHADOW 观测闭环）。注：known-debts 当前没有 `### Gate 3` 小节（编号从 2 跳到
 > 4），所以「跑完 Gate 6」= Gate 1 / 2 / 4 / 5 / 6 五个门。
@@ -238,7 +239,7 @@ longitudinal）全部离线 replay 它，保证「同经历」。
 
 | 包 | 状态 | artifact / 结论 |
 |---|---|---|
-| Phase 0 v36 SHADOW 闭环 | 未开始 | — |
+| Phase 0 v36 SHADOW 闭环 | 已完成（NO-GO） | 单 seed 真实 Qwen 探针：train/confirmation 超过 zero 与 permutation-null；fresh validation `selector-permutation=-0.040979`，`shadow_observation_passed=false`，按预注册不跑 3 seed；v35 causal promotion 保留 |
 | 包 1a Gate 1 mechanism | 未开始 | — |
 | 包 1b Gate 1 causal | 未开始 | — |
 | Phase 2 trace 工厂 | 未开始 | — |

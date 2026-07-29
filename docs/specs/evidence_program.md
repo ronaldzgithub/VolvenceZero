@@ -398,6 +398,21 @@
 	  SHADOW/live wiring，不回溯 v35 `promotion_allowed=true`。完整预注册与
 	  kill conditions 见
 	  `.cursor/plans/eta-gate2-v36-shadow-injection_b82d47c9.plan.md`。
+
+	  2026-07-29 v36 单 seed、全正式分区 GO/NO-GO 探针已完成（Qwen2.5-0.5B、
+	  CPU、activation width 896、max prefix 8）。三臂共 `483` 条记录，所有
+	  route/step 均完整且 `side_effect_free=true`；selector fingerprint
+	  `ef360e0e…` 与 learned basis fingerprint `326aecdd…` 在全包内唯一。
+	  train 的 selector-minus-zero / selector-minus-permutation 为
+	  `+0.126917 / +0.058562`，locked confirmation 为
+	  `+0.060983 / +0.054931`；fresh validation 虽相对 zero 为
+	  `+0.104359`，但相对 permutation-null 为 `-0.040979`，因此预注册
+	  `validation_selector_beats_permutation_null` 失败，
+	  `shadow_observation_passed=false`。按算力止损协议不启动三 seed 全量，
+	  不把单 seed provenance 缺口混写成算法失败，也不调低阈值。v35
+	  `promotion_allowed=true` 继续继承；runtime SHADOW/live wiring 仍冻结。
+	  artifact：
+	  `artifacts/eta_gate2_residual_causal_v36_shadow_fullwidth896_qwen25_05b_cpu_1seed_probe_20260729`。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。

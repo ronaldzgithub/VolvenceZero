@@ -1,6 +1,6 @@
 # Gate 2 下一步实现计划：v36 selector SHADOW 注入观测收敛包
 
-> 状态：计划（未开始实现）。前置：v35 已通过（`causal-supported`、
+> 状态：已实施；单 seed GO/NO-GO 探针未通过，三 seed 全量按预注册止损未启动。前置：v35 已通过（`causal-supported`、
 > `promotion_allowed=true`，见
 > [`eta-gate2-v35-selector-null_e4a91f27.plan.md`](eta-gate2-v35-selector-null_e4a91f27.plan.md) §8）。
 > 本计划对应 v35 计划 §4.2 的第 1、2 步：SHADOW 注入观测 + 多 seed。
@@ -181,6 +181,51 @@ live-wiring 路径冻结，按 §6 处理。
    ≥ 0.02` 的 Gate 2 EXIT 条款，与 #88 合流。
 3. **更大基底复测**（触发条件见 v35 计划 §6）。
 
-## 8. 结果（run 完成后回写，当前留空）
+## 8. 结果（2026-07-29）
 
-待本包执行后填写。
+实现已完成：
+
+- temporal owner 新增 `residual-action-selector.v1` JSON 序列化，linear 与
+  kernel artifact 均在反序列化时重算 fingerprint、校验 shape 与有限数值；
+  v36 实际 kernel selector 在 train-only fit 后立即 round-trip，再由闭环
+  SHADOW arm 只读消费。
+- evidence harness 新增 selector / zero / permutation-null 三条闭环轨迹，
+  committed control 逐步累积；每步落盘 state、step/aggregate control、
+  realized delta 与 selector/basis/runtime provenance。未接 session/live，
+  未修改 substrate。
+- schema 升至 `eta-gate2-residual-causal.v36`，新增 4 条 fresh validation、
+  4 条 locked confirmation、`selector_artifact.json`、
+  `shadow_closed_loop.jsonl` 和独立 `shadow_observation_passed` 门。
+
+验证：
+
+- temporal selector tests + runtime Gate 2 tests：`31 passed`。
+- 本包除历史大文件 `eta_proof_benchmark.py` 的 29 条既有 E501 外，聚焦 Ruff
+  与 `git diff --check` 通过。
+- 真实单 seed 探针使用本地
+  `Qwen/Qwen2.5-0.5B-Instruct` snapshot、CPU、activation width `896`、
+  max prefix `8`，耗时约 53 分钟。三臂共 `483` 条记录，三臂步数完整且全部
+  `side_effect_free=true`；selector fingerprint `ef360e0e…`、basis
+  fingerprint `326aecdd…` 在全包内唯一。
+
+GO/NO-GO 数值：
+
+| split | selector − zero | selector − permutation | selected step mean |
+|---|---:|---:|---:|
+| train | +0.126917 | +0.058562 | +0.022563 |
+| fresh validation | +0.104359 | **−0.040979** | +0.017393 |
+| locked confirmation | +0.060983 | +0.054931 | +0.010164 |
+
+结论：`validation_selector_beats_permutation_null=false`，
+`shadow_observation_passed=false`，所以探针判为 **NO-GO**，不启动正式
+3-seed run，也不调低阈值。单 seed 的
+`selector_artifact_provenance_complete=false` 与 3/3 seed gates 为 false
+属于预期的证据数量不足，不冒充算法失败。v35
+`promotion_allowed=true` 保持继承，runtime SHADOW/live wiring 冻结。
+
+artifact：
+`artifacts/eta_gate2_residual_causal_v36_shadow_fullwidth896_qwen25_05b_cpu_1seed_probe_20260729`。
+
+后续只允许按 §6 各一轮尝试：先做 recent-k 衰减（`k=1,2`），若仍失败再评估
+把 committed-control summary 加入 selector state；两条都失败即长期冻结
+组合注入路线并转向 longitudinal open-loop readout。
