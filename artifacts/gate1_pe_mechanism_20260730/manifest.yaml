@@ -1,0 +1,41 @@
+{
+  "evaluation_decoupled_gate": "ACTIVE",
+  "lineage_key": "prediction_id",
+  "lss_tolerance": 1e-09,
+  "owner": "PredictionErrorModule",
+  "provenance": {
+    "git_branch": "main",
+    "git_sha": "93c0b575e6b7aeb966822f992f0061866eeda393",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "working_tree_dirty": true
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate1-pe-mechanism.v1",
+  "settled_lineage_fields": [
+    "environment_event_id",
+    "environment_outcome_id",
+    "observed_at"
+  ],
+  "suite_id": "gate1-pe-mechanism",
+  "surface_kinds": [
+    "numeric",
+    "probability",
+    "enum",
+    "vector",
+    "distribution"
+  ]
+}

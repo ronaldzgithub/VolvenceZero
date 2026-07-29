@@ -2164,6 +2164,20 @@ return (
   - prediction/outcome 错配、重复结算、缺 observation、bootstrap turn 必须 fail loudly 或明确不计学习证据。
   - `evaluation-decoupled` 对照中，改变 evaluation 不得改变 actual outcome、PE 或 learning credit。
 - **EXIT**：全部 settled PE 均有一一对应的 `prediction_id / environment_event_id / environment_outcome_id / observed_at`；lineage coverage = 100%，错配接受数 = 0；真 LSS bridge 在声明容差内通过；`full-no-pe-drive` 相比 `full` 出现预注册的学习增益差异，否则收缩“PE 是有效学习源”的主张。
+- **2026-07-30 mechanism verdict**：`gate1-pe-mechanism.v1` 的 12 文件
+  packet 已生成并通过。numeric/probability/enum/vector/distribution 五类
+  gold case 重跑逐字段一致；MSE、Bernoulli-logit、categorical-logit 与
+  soft-target categorical-logit 的 runtime signed PE 相对真 autograd
+  `-LSS` 最大误差为 `1.3877787807814457e-17`（门槛 `1e-9`）。五条 settled
+  lineage coverage=`1.0`、accepted mismatch=`0`、duplicate settlement=`0`；
+  四类非法输入全部 fail loudly。ACTIVE evaluation-decoupled 两条仅改变
+  evaluation 内容的 owner 轨迹对 actual outcome、PE、PE-derived credit
+  产生相同 canonical payload SHA256
+  `1151657afa05b76671d9196d00e1b50c2d3e64c1bf4297610233865cfd7a9537`。
+  machine status=`mechanism-supported`，causal 仍 `not-evaluated`；Gate 1
+  只有在下一包 `full` vs `full-no-pe-drive` 的 3-seed matched run 通过后
+  才能升级“PE 是有效学习源”。artifact：
+  `artifacts/gate1_pe_mechanism_20260730`。
 
 ### Gate 2 — ETA 的 `z_t / beta_t` 涌现与因果残差控制
 

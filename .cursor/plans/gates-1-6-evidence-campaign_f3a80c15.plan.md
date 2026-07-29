@@ -240,7 +240,7 @@ longitudinal）全部离线 replay 它，保证「同经历」。
 | 包 | 状态 | artifact / 结论 |
 |---|---|---|
 | Phase 0 v36 SHADOW 闭环 | 已完成（NO-GO） | 单 seed 真实 Qwen 探针：train/confirmation 超过 zero 与 permutation-null；fresh validation `selector-permutation=-0.040979`，`shadow_observation_passed=false`，按预注册不跑 3 seed；v35 causal promotion 保留 |
-| 包 1a Gate 1 mechanism | 未开始 | — |
+| 包 1a Gate 1 mechanism | 已完成（PASS） | `gate1-pe-mechanism.v1`：五类 gold、真 LSS 最大误差 `1.39e-17`、lineage `1.0`、mismatch/duplicate `0/0`、ACTIVE evaluation-decoupled 字节一致；artifact `artifacts/gate1_pe_mechanism_20260730` |
 | 包 1b Gate 1 causal | 未开始 | — |
 | Phase 2 trace 工厂 | 未开始 | — |
 | Phase 3 Gate 5 Pareto | 未开始 | — |

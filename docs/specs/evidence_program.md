@@ -75,6 +75,38 @@
 - dialogue paper-suite manifest 将 `canonical_mean_semantic_spine_coverage` 与 `canonical_mean_cognitive_loop_readiness` 列为 secondary metrics；companion stateful relationship verdict 优先消费 repeated-run summary，reference dashboard 只作为 fallback
 - dialogue paper-suite export 可额外导出 `semantic_proposal_quality_shadow.json`，并在 `EvidenceBundle.reference_artifacts` 中登记同一 payload；该 payload 是 non-gating shadow diagnostic，不参与 retain/fail verdict
 - ETA paper-suite export 会导出统一 evidence bundle，复用相同的 claim verdict / pairwise effect 口径
+- Gate 1 PE mechanism packet 使用 schema `gate1-pe-mechanism.v1`，在实现与
+  evidence run 前冻结以下门：
+  - gold surface 固定为 `numeric / probability / enum / vector /
+    distribution` 五类；numeric/vector 使用
+    `0.5 * ||prediction-actual||²`，probability 使用 Bernoulli
+    cross-entropy 的 logit link，enum 使用 one-hot categorical
+    cross-entropy 的 logit link，distribution 使用 soft-target categorical
+    cross-entropy 的 logit link。每类都发布 component decomposition，
+    runtime signed PE 固定为 `actual-prediction`，并必须在 `1e-9` 内等于
+    对应真 autograd LSS 的负值。不同 link 的梯度量纲禁止聚合成单一训练量。
+  - 同一 gold case 重跑必须逐字段相同；非法概率、非归一化分布、enum
+    目标越界与 prediction/actual 维度不一致必须 fail loudly。
+  - lineage auditor 以 `prediction_id` 为主键，一一连接 prediction、
+    outcome 与 prediction-error，并同时核对 `environment_event_id /
+    environment_outcome_id / observed_at`。`lineage_coverage == 1.0`、
+    accepted mismatch `== 0`、duplicate settlement `== 0` 才通过。
+  - `VZ_PE_EVALUATION_DECOUPLED=ACTIVE` 下，仅改变 evaluation 内容时，
+    actual outcome、PE 与 PE-derived learning credit 的 canonical JSON
+    必须逐字节不变；SHADOW 仅作旧行为回滚对照，不进入通过判据。
+  - packet 复用 Gate 2 的 12 文件名：
+    `manifest.yaml / predictions.jsonl / outcomes.jsonl /
+    prediction_errors.jsonl / segments.jsonl / credit.jsonl /
+    state_diff.jsonl / action_selection.jsonl / ablation_results.json /
+    promotion_verdict.json / rollback_evidence.json / report.md`。
+    本包最多产 `mechanism-supported`，不得产 causal 或 thesis verdict。
+  - 2026-07-30 实跑：五类 gold 与四类 fail-loud probe 全通过，真 LSS 最大
+    bridge error=`1.3877787807814457e-17`；lineage coverage=`1.0`、
+    mismatch/duplicate=`0/0`；evaluation-decoupled 两臂 canonical payload
+    SHA256 均为
+    `1151657afa05b76671d9196d00e1b50c2d3e64c1bf4297610233865cfd7a9537`。
+    verdict=`mechanism-supported`，artifact：
+    `artifacts/gate1_pe_mechanism_20260730`。causal 层仍由包 1b 单独判定。
 - ETA proof suite 当前还区分 `eta-internal-rl-proof` 与 `eta-open-weight-residual-proof` 两类 manifest；真实 residual-control claim 必须绑定 `transformers-open-weight` capture / actual hook fire rate / fallback rate / prefix-aligned intervention 证据，不能由 trace 或 synthetic backend 单独支撑。当前 claim gate 要求 fallback rate 为 `0.0`、actual hook fire rate 至少 `0.75`、residual sequence 非空、intervention protocol valid；显式 fallback smoke run 必须保持 fail/quarantine 语义。`planned_layer_fraction` 只说明选了多少层，不作为 hook 健康硬门槛
 - ETA Gate 2 residual causal packet 使用
   `volvence_zero.agent.eta_gate2_residual_evidence` 冻结

@@ -1,0 +1,9 @@
+{
+  "causal_status": "not-evaluated",
+  "failed_gates": [],
+  "gate_scope": "Gate 1 PE/LSS mechanism",
+  "mechanism_passed": true,
+  "schema_version": "gate1-pe-mechanism.v1",
+  "status": "mechanism-supported",
+  "thesis_status": "not-evaluated"
+}

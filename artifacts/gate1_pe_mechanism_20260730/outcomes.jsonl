@@ -1,0 +1,5 @@
+{"actual": [0.75], "environment_event_id": "gate1-event-00", "environment_outcome_id": "gate1-outcome-00", "observed_at": "2026-07-30T00:00:00+00:00", "prediction_id": "gate1-prediction-numeric", "target_index": null}
+{"actual": [1.0], "environment_event_id": "gate1-event-01", "environment_outcome_id": "gate1-outcome-01", "observed_at": "2026-07-30T00:00:01+00:00", "prediction_id": "gate1-prediction-probability", "target_index": null}
+{"actual": [0.0, 0.0, 1.0], "environment_event_id": "gate1-event-02", "environment_outcome_id": "gate1-outcome-02", "observed_at": "2026-07-30T00:00:02+00:00", "prediction_id": "gate1-prediction-enum", "target_index": 2}
+{"actual": [0.2, 0.0, 0.6], "environment_event_id": "gate1-event-03", "environment_outcome_id": "gate1-outcome-03", "observed_at": "2026-07-30T00:00:03+00:00", "prediction_id": "gate1-prediction-vector", "target_index": null}
+{"actual": [0.1, 0.2, 0.7], "environment_event_id": "gate1-event-04", "environment_outcome_id": "gate1-outcome-04", "observed_at": "2026-07-30T00:00:04+00:00", "prediction_id": "gate1-prediction-distribution", "target_index": null}

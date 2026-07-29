@@ -1,0 +1,239 @@
+{
+  "evaluation_decoupling": {
+    "active_payload_sha256_a": "1151657afa05b76671d9196d00e1b50c2d3e64c1bf4297610233865cfd7a9537",
+    "active_payload_sha256_b": "1151657afa05b76671d9196d00e1b50c2d3e64c1bf4297610233865cfd7a9537",
+    "byte_invariant": true,
+    "description": "ACTIVE evaluation-decoupled actual outcome, PE and PE-derived credit byte invariant: True.",
+    "passed": true,
+    "rollback_gate": "VZ_PE_EVALUATION_DECOUPLED=SHADOW"
+  },
+  "gates": {
+    "duplicate_settlement_zero": true,
+    "evaluation_decoupled_byte_invariant": true,
+    "five_gold_surfaces_present": true,
+    "gold_cases_deterministic": true,
+    "invalid_inputs_fail_loudly": true,
+    "lineage_coverage_complete": true,
+    "lineage_mismatch_zero": true,
+    "true_lss_bridge_within_1e_9": true
+  },
+  "gold_reports": [
+    {
+      "actual": [
+        0.75
+      ],
+      "bridge_passed": true,
+      "component_decomposition": [
+        [
+          "component-0",
+          0.25,
+          0.75,
+          0.5
+        ]
+      ],
+      "description": "numeric runtime PE == -LSS via scalar-mse: True",
+      "link_function": "scalar-mse",
+      "loss": 0.125,
+      "lss": [
+        -0.5
+      ],
+      "max_abs_bridge_error": 0.0,
+      "predicted": [
+        0.25
+      ],
+      "runtime_signed_pe": [
+        0.5
+      ],
+      "surface_kind": "numeric",
+      "target_index": null
+    },
+    {
+      "actual": [
+        1.0
+      ],
+      "bridge_passed": true,
+      "component_decomposition": [
+        [
+          "component-0",
+          0.2,
+          1.0,
+          0.8
+        ]
+      ],
+      "description": "probability runtime PE == -LSS via bernoulli-cross-entropy-logit: True",
+      "link_function": "bernoulli-cross-entropy-logit",
+      "loss": 1.6094379124341003,
+      "lss": [
+        -0.8
+      ],
+      "max_abs_bridge_error": 0.0,
+      "predicted": [
+        0.2
+      ],
+      "runtime_signed_pe": [
+        0.8
+      ],
+      "surface_kind": "probability",
+      "target_index": null
+    },
+    {
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bridge_passed": true,
+      "component_decomposition": [
+        [
+          "component-0",
+          0.1,
+          0.0,
+          -0.1
+        ],
+        [
+          "component-1",
+          0.7,
+          0.0,
+          -0.7
+        ],
+        [
+          "component-2",
+          0.2,
+          1.0,
+          0.8
+        ]
+      ],
+      "description": "enum runtime PE == -LSS via categorical-cross-entropy-logit: True",
+      "link_function": "categorical-cross-entropy-logit",
+      "loss": 1.6094379124341003,
+      "lss": [
+        0.10000000000000002,
+        0.7,
+        -0.8
+      ],
+      "max_abs_bridge_error": 1.3877787807814457e-17,
+      "predicted": [
+        0.1,
+        0.7,
+        0.2
+      ],
+      "runtime_signed_pe": [
+        -0.1,
+        -0.7,
+        0.8
+      ],
+      "surface_kind": "enum",
+      "target_index": 2
+    },
+    {
+      "actual": [
+        0.2,
+        0.0,
+        0.6
+      ],
+      "bridge_passed": true,
+      "component_decomposition": [
+        [
+          "component-0",
+          0.1,
+          0.2,
+          0.1
+        ],
+        [
+          "component-1",
+          0.4,
+          0.0,
+          -0.4
+        ],
+        [
+          "component-2",
+          0.9,
+          0.6,
+          -0.30000000000000004
+        ]
+      ],
+      "description": "vector runtime PE == -LSS via vector-mse: True",
+      "link_function": "vector-mse",
+      "loss": 0.13000000000000003,
+      "lss": [
+        -0.1,
+        0.4,
+        0.30000000000000004
+      ],
+      "max_abs_bridge_error": 0.0,
+      "predicted": [
+        0.1,
+        0.4,
+        0.9
+      ],
+      "runtime_signed_pe": [
+        0.1,
+        -0.4,
+        -0.30000000000000004
+      ],
+      "surface_kind": "vector",
+      "target_index": null
+    },
+    {
+      "actual": [
+        0.1,
+        0.2,
+        0.7
+      ],
+      "bridge_passed": true,
+      "component_decomposition": [
+        [
+          "component-0",
+          0.2,
+          0.1,
+          -0.1
+        ],
+        [
+          "component-1",
+          0.5,
+          0.2,
+          -0.3
+        ],
+        [
+          "component-2",
+          0.3,
+          0.7,
+          0.39999999999999997
+        ]
+      ],
+      "description": "distribution runtime PE == -LSS via soft-categorical-cross-entropy-logit: True",
+      "link_function": "soft-categorical-cross-entropy-logit",
+      "loss": 1.1423541903835543,
+      "lss": [
+        0.1,
+        0.3,
+        -0.39999999999999997
+      ],
+      "max_abs_bridge_error": 0.0,
+      "predicted": [
+        0.2,
+        0.5,
+        0.3
+      ],
+      "runtime_signed_pe": [
+        -0.1,
+        -0.3,
+        0.39999999999999997
+      ],
+      "surface_kind": "distribution",
+      "target_index": null
+    }
+  ],
+  "invalid_input_rejection_count": 4,
+  "lineage_audit": {
+    "accepted_mismatch_count": 0,
+    "description": "Gate 1 prediction→outcome→PE one-to-one lineage audit: coverage=1.000, mismatches=0, duplicates=0.",
+    "duplicate_settlement_count": 0,
+    "lineage_coverage": 1.0,
+    "passed": true,
+    "prediction_count": 5,
+    "valid_lineage_count": 5
+  },
+  "passed": true,
+  "schema_version": "gate1-pe-mechanism.v1"
+}

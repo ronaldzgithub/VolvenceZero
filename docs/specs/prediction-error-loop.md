@@ -88,6 +88,26 @@
 - `bootstrap=True` 表示当前 turn 尚无可结算的上一轮 prediction；下游不应把这类快照当作真实 learning evidence
 - live runtime 中，部分 consumer 会把 `prediction_error` 当作“上一轮结算出的 carryover signal”，以维持单轮 DAG 和 owner 边界
 
+### Gate 1 LSS link registry
+
+`prediction/torch_lss.py` 是 PE owner 的 rare-heavy/offline 真梯度审计面，不是
+第二个在线 PE owner。Gate 1 mechanism evidence 只允许以下 link：
+
+| surface | loss / parameterization | runtime signed PE |
+|---|---|---|
+| `numeric` | scalar MSE，直接对 output 求导 | `actual - predicted` |
+| `vector` | component-wise MSE，直接对 output 求导 | component-wise `actual - predicted` |
+| `probability` | Bernoulli cross-entropy，对 logit 求导 | `target - probability` |
+| `enum` | categorical cross-entropy，对 logits 求导 | `one_hot(target) - probabilities` |
+| `distribution` | soft-target categorical cross-entropy，对 logits 求导 | `target_distribution - probabilities` |
+
+每个 link 内 runtime signed PE 必须等于 `-dL/d(parameter)`，容差 `1e-9`。
+link 之间损失、梯度与 normalization 不同，禁止把不同 link 的 component
+直接相加或平均成新的“统一 LSS”。输入必须有限；概率严格位于 `(0,1)`，
+categorical/distribution prediction 必须为严格正且归一化的概率单纯形，
+distribution target 必须为非负且归一化，enum target 必须在类别范围内。
+违反任一约束必须 fail loudly。
+
 ### Curiosity-Critic PE 分解（Phase 1.B running-stats + Phase 2.B learned critic）
 
 来源：Aubret et al., "Curiosity-Critic: Cumulative Prediction Error Improvement"（`arXiv:2604.18701`）。核心命题：把瞬时 PE 替换为 PE 的"可改进部分"，把 epistemic（可学）与 aleatoric（不可学）分离，避免噪声驱动 memory writes / regime switching / metacontroller 行为。

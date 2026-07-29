@@ -1,0 +1,7 @@
+{
+  "offline_lss_only": true,
+  "owner_state_mutated_by_evidence": false,
+  "passed": true,
+  "rollback_target": "VZ_PE_EVALUATION_DECOUPLED=SHADOW",
+  "schema_version": "gate1-pe-mechanism.v1"
+}

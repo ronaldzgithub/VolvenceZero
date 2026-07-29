@@ -1,0 +1,5 @@
+{"link_function": "scalar-mse", "predicted": [0.25], "prediction_id": "gate1-prediction-numeric", "surface_kind": "numeric"}
+{"link_function": "bernoulli-cross-entropy-logit", "predicted": [0.2], "prediction_id": "gate1-prediction-probability", "surface_kind": "probability"}
+{"link_function": "categorical-cross-entropy-logit", "predicted": [0.1, 0.7, 0.2], "prediction_id": "gate1-prediction-enum", "surface_kind": "enum"}
+{"link_function": "vector-mse", "predicted": [0.1, 0.4, 0.9], "prediction_id": "gate1-prediction-vector", "surface_kind": "vector"}
+{"link_function": "soft-categorical-cross-entropy-logit", "predicted": [0.2, 0.5, 0.3], "prediction_id": "gate1-prediction-distribution", "surface_kind": "distribution"}
