@@ -1,0 +1,11 @@
+{
+  "consumer_admission": "denied",
+  "failed_gates": [
+    "settled_count_510",
+    "partition_counts_exact",
+    "fresh_capture_micro_session_count_510"
+  ],
+  "gate_scope": "Gate 11 / Gate 5 fresh longitudinal source",
+  "schema_version": "gate11-longitudinal-settled-trace.v2",
+  "status": "in-progress"
+}

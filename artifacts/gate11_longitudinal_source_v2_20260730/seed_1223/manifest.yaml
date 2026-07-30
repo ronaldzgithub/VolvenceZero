@@ -1,0 +1,209 @@
+{
+  "consumer_loading_rule": "whole-three-seed-campaign-only",
+  "context_registry": [
+    {
+      "context_id": "train-orchard",
+      "domain": "orchard planning",
+      "new_knowledge_key": "orchard-irrigation-revision",
+      "old_knowledge_key": "orchard-irrigation-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-01"
+    },
+    {
+      "context_id": "train-library",
+      "domain": "library circulation",
+      "new_knowledge_key": "library-catalog-revision",
+      "old_knowledge_key": "library-catalog-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-02"
+    },
+    {
+      "context_id": "train-workshop",
+      "domain": "workshop scheduling",
+      "new_knowledge_key": "workshop-capacity-revision",
+      "old_knowledge_key": "workshop-capacity-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-03"
+    },
+    {
+      "context_id": "train-clinic",
+      "domain": "clinic handoff",
+      "new_knowledge_key": "clinic-handoff-revision",
+      "old_knowledge_key": "clinic-handoff-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-04"
+    },
+    {
+      "context_id": "train-harbor",
+      "domain": "harbor routing",
+      "new_knowledge_key": "harbor-routing-revision",
+      "old_knowledge_key": "harbor-routing-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-05"
+    },
+    {
+      "context_id": "train-greenhouse",
+      "domain": "greenhouse control",
+      "new_knowledge_key": "greenhouse-control-revision",
+      "old_knowledge_key": "greenhouse-control-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-06"
+    },
+    {
+      "context_id": "train-studio",
+      "domain": "studio production",
+      "new_knowledge_key": "studio-production-revision",
+      "old_knowledge_key": "studio-production-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-07"
+    },
+    {
+      "context_id": "train-observatory",
+      "domain": "observatory planning",
+      "new_knowledge_key": "observatory-plan-revision",
+      "old_knowledge_key": "observatory-plan-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-08"
+    },
+    {
+      "context_id": "train-kitchen",
+      "domain": "kitchen service",
+      "new_knowledge_key": "kitchen-service-revision",
+      "old_knowledge_key": "kitchen-service-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-09"
+    },
+    {
+      "context_id": "train-depot",
+      "domain": "depot dispatch",
+      "new_knowledge_key": "depot-dispatch-revision",
+      "old_knowledge_key": "depot-dispatch-baseline",
+      "partition": "trace-train",
+      "transition_count": 30,
+      "user_id": "user-train-10"
+    },
+    {
+      "context_id": "heldout-apiary",
+      "domain": "apiary care",
+      "new_knowledge_key": "apiary-care-revision",
+      "old_knowledge_key": "apiary-care-baseline",
+      "partition": "trace-heldout-context",
+      "transition_count": 30,
+      "user_id": "user-heldout-01"
+    },
+    {
+      "context_id": "heldout-brewery",
+      "domain": "brewery control",
+      "new_knowledge_key": "brewery-control-revision",
+      "old_knowledge_key": "brewery-control-baseline",
+      "partition": "trace-heldout-context",
+      "transition_count": 30,
+      "user_id": "user-heldout-02"
+    },
+    {
+      "context_id": "heldout-museum",
+      "domain": "museum operations",
+      "new_knowledge_key": "museum-operations-revision",
+      "old_knowledge_key": "museum-operations-baseline",
+      "partition": "trace-heldout-context",
+      "transition_count": 30,
+      "user_id": "user-heldout-03"
+    },
+    {
+      "context_id": "heldout-theater",
+      "domain": "theater blocking",
+      "new_knowledge_key": "theater-blocking-revision",
+      "old_knowledge_key": "theater-blocking-baseline",
+      "partition": "trace-heldout-context",
+      "transition_count": 30,
+      "user_id": "user-heldout-04"
+    },
+    {
+      "context_id": "heldout-geology",
+      "domain": "geology survey",
+      "new_knowledge_key": "geology-survey-revision",
+      "old_knowledge_key": "geology-survey-baseline",
+      "partition": "trace-heldout-context",
+      "transition_count": 30,
+      "user_id": "user-heldout-05"
+    },
+    {
+      "context_id": "locked-luthiery",
+      "domain": "luthiery setup",
+      "new_knowledge_key": "luthiery-setup-revision",
+      "old_knowledge_key": "luthiery-setup-baseline",
+      "partition": "trace-locked-confirmation",
+      "transition_count": 20,
+      "user_id": "user-locked-01"
+    },
+    {
+      "context_id": "locked-bathymetry",
+      "domain": "bathymetry survey",
+      "new_knowledge_key": "bathymetry-survey-revision",
+      "old_knowledge_key": "bathymetry-survey-baseline",
+      "partition": "trace-locked-confirmation",
+      "transition_count": 20,
+      "user_id": "user-locked-02"
+    },
+    {
+      "context_id": "locked-mycology",
+      "domain": "mycology culture",
+      "new_knowledge_key": "mycology-culture-revision",
+      "old_knowledge_key": "mycology-culture-baseline",
+      "partition": "trace-locked-confirmation",
+      "transition_count": 20,
+      "user_id": "user-locked-03"
+    }
+  ],
+  "fallback_mode": "deny",
+  "locked_confirmation": true,
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "partition_counts": {
+    "trace-heldout-context": 150,
+    "trace-locked-confirmation": 60,
+    "trace-train": 300
+  },
+  "provenance": {
+    "git_branch": "main",
+    "git_sha": "fbca1c2796029061d15bc7d28e57b15b3aea2acc",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "working_tree_dirty": true
+  },
+  "required_files": [
+    "manifest.yaml",
+    "transitions.jsonl",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "runtime_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+  "runtime_mode": "strict-local",
+  "schema_version": "gate11-longitudinal-settled-trace.v2",
+  "seed": 1223,
+  "seed_schedule": [
+    1201,
+    1213,
+    1223
+  ],
+  "session_size": 10,
+  "suite_id": "gate11-longitudinal-source-seed-1223",
+  "trace_sha256": "8e628ea13f3ee25fca0f2068cf1124b87ed95cec12703659b4615228a9c36d40"
+}

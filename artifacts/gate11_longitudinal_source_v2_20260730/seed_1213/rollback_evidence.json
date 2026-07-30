@@ -1,0 +1,6 @@
+{
+  "rollback_action": "stop generation; retain immutable settled prefix and filesystem owner checkpoints",
+  "runtime_owner_mutated_by_export": false,
+  "schema_version": "gate11-longitudinal-settled-trace.v2",
+  "substrate_mutation_count": 0
+}

@@ -1,0 +1,14 @@
+{
+  "consumer_admission": "allowed",
+  "failed_gates": [],
+  "gate_scope": "Gate 11 / Gate 5 longitudinal source aggregate",
+  "gates": {
+    "all_seed_contracts_supported": true,
+    "runtime_fingerprint_shared": true,
+    "settled_transition_count_1530": true,
+    "three_seed_packets_present": true,
+    "trace_digests_distinct": true
+  },
+  "schema_version": "gate11-longitudinal-settled-trace.v2",
+  "status": "trace-contract-supported"
+}

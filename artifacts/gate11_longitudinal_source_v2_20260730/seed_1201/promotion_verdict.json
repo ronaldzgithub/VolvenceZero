@@ -1,0 +1,7 @@
+{
+  "consumer_admission": "seed-ready",
+  "failed_gates": [],
+  "gate_scope": "Gate 11 / Gate 5 fresh longitudinal source",
+  "schema_version": "gate11-longitudinal-settled-trace.v2",
+  "status": "trace-contract-supported"
+}
