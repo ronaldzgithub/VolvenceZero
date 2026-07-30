@@ -1,0 +1,46 @@
+{
+  "arm_schedule": [
+    "sleep-consolidation",
+    "no-sleep",
+    "memory-only-sleep",
+    "policy-only-sleep"
+  ],
+  "arm_transition_count": 6120,
+  "formal_locked_run": true,
+  "minimum_effect": 0.02,
+  "owner": "SessionPostSlowLoopQueue + MemoryStore + FullLearnedTemporalPolicy",
+  "prompt_and_context_budget": "Matched next-session retrieval probes across arms; sleep adds zero serving-prompt tokens.",
+  "provenance": {
+    "git_branch": "main",
+    "git_sha": "ea6fc0f12c207af059f9b3b54ad4a3410282c8aa",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "working_tree_dirty": true
+  },
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate8-wake-sleep-longitudinal.v1",
+  "seed_schedule": [
+    1201,
+    1213,
+    1223
+  ],
+  "session_boundary_interval": 10,
+  "settled_transition_count_per_arm_seed": 510,
+  "source_root": "artifacts/gate11_longitudinal_source_v2_20260730",
+  "source_runtime_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+  "source_schema_version": "gate11-longitudinal-settled-trace.v2",
+  "suite_id": "gate8-wake-sleep-longitudinal"
+}

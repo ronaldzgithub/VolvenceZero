@@ -1,0 +1,16 @@
+{
+  "causal_passed": false,
+  "failed_gates": [
+    "settled_transition_count_510_per_arm_seed",
+    "consumer_session_count_51_per_arm_seed",
+    "constructor_restart_count_50_per_arm_seed"
+  ],
+  "gate_scope": "Gate 8 wake/sleep cross-session longitudinal",
+  "locked_source_consumed_once": false,
+  "longitudinal_passed": false,
+  "mechanism_passed": false,
+  "production_promotion_allowed": false,
+  "same_locked_source_rerun_allowed": false,
+  "schema_version": "gate8-wake-sleep-longitudinal.v1",
+  "status": "development-diagnostic"
+}

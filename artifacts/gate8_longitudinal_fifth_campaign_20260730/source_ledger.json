@@ -1,0 +1,57 @@
+{
+  "schema_version": "gate8-longitudinal-fifth-source-ledger.v1",
+  "formal_source": {
+    "path": "artifacts/gate11_longitudinal_source_v2_20260730",
+    "schema_version": "gate11-longitudinal-settled-trace.v2",
+    "created_in_prior_campaign": true,
+    "gate8_previously_consumed": false,
+    "seed_schedule": [1201, 1213, 1223],
+    "settled_transition_count_per_seed": 510,
+    "settled_transition_count_total": 1530,
+    "substrate_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+    "consumer_admission": "allowed",
+    "capture_mode": "fresh-isolated-micro-session",
+    "consumer_session_boundary_interval": 10,
+    "consumer_owner_persistence_required": true
+  },
+  "development_diagnostics": [
+    {
+      "path": "artifacts/gate8_longitudinal_development_20260730",
+      "status": "development-diagnostic",
+      "settled_transition_count_per_arm_seed": 20,
+      "formal_locked_run": false,
+      "reason": "Validated the source adapter and cross-session owner reconstruction path; scale-only gates intentionally failed."
+    }
+  ],
+  "locked_consumers": [
+    {
+      "gate": 11,
+      "authoritative_path": "artifacts/gate11_per_user_continuity_v2_20260730",
+      "source_consumption_count": 1
+    },
+    {
+      "gate": 5,
+      "authoritative_path": "artifacts/gate5_cms_pareto_longitudinal_v2_20260730",
+      "source_consumption_count": 1
+    },
+    {
+      "gate": 8,
+      "authoritative_path": "artifacts/gate8_wake_sleep_longitudinal_20260730",
+      "source_consumption_count": 1,
+      "locked_arm_transition_count": 6120,
+      "same_source_rerun_allowed": false
+    }
+  ],
+  "invalid_duplicate_runs": [
+    {
+      "path": "artifacts/gate8_longitudinal_20260730",
+      "status": "invalid-duplicate-not-admitted",
+      "cause": "Concurrent execution started before the authoritative artifact became visible in the shared worktree.",
+      "completed_after_authoritative_artifact": true,
+      "manifest_sha256": "257531b38f22c86eb63cc450467ef5aa5120933c9cb4115826d285e78b591115",
+      "promotion_verdict_sha256": "9f7a0e72d8435aa209e1c6987b8017ee55518b18c5f9fd39e133d466fac9f6fa",
+      "authoritative": false,
+      "claim_effect": "none"
+    }
+  ]
+}

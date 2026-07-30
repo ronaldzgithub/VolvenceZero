@@ -1,0 +1,87 @@
+{
+  "schema_version": "gate8-longitudinal-fifth-campaign-verdict-matrix.v1",
+  "campaign_level": "mechanism-supported",
+  "thesis_retained": false,
+  "runtime_live_promotion_allowed": false,
+  "full_chain_rollback_drill_passed": true,
+  "mechanism_coverage": "Gate 1-11 complete (Gate 3 is not defined in debt #92)",
+  "causal_supported_gates": [2, 8, 11],
+  "causal_not_supported_gates": [1, 4, 5, 6, 7, 9, 10],
+  "longitudinal_supported_gates": [8, 11],
+  "longitudinal_not_supported_gates": [5],
+  "rows": [
+    {
+      "gate": 1,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "mechanism-change-required"
+    },
+    {
+      "gate": 2,
+      "mechanism": "supported",
+      "causal": "supported-v35-open-loop",
+      "longitudinal": "not-run",
+      "disposition": "resolve-v36-live-failure-before-longitudinal"
+    },
+    {
+      "gate": 4,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "mechanism-change-required"
+    },
+    {
+      "gate": 5,
+      "mechanism": "supported-cross-session",
+      "causal": "not-supported",
+      "longitudinal": "not-supported",
+      "disposition": "mechanism-change-required"
+    },
+    {
+      "gate": 6,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "mechanism-change-required"
+    },
+    {
+      "gate": 7,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "mechanism-change-required"
+    },
+    {
+      "gate": 8,
+      "mechanism": "supported-cross-session",
+      "causal": "causal-supported",
+      "longitudinal": "longitudinal-supported",
+      "campaign_evidence": "formal-frozen-real-substrate-source-v1",
+      "locked_consumed": true,
+      "disposition": "retain-deterministic-wake-sleep-claim",
+      "reason": "Full reduced cold-start loss and increased delayed payoff versus no-sleep by 0.567363, gained 1.0 callback consistency, and beat both single-owner controls with positive paired-seed CI lower bounds. All 50-restart persistence, lineage, isolation, latency-separation and rollback gates passed."
+    },
+    {
+      "gate": 9,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "implementation-candidate-only"
+    },
+    {
+      "gate": 10,
+      "mechanism": "supported-v2",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "review-only-mechanism-change-required"
+    },
+    {
+      "gate": 11,
+      "mechanism": "supported",
+      "causal": "supported",
+      "longitudinal": "longitudinal-supported",
+      "disposition": "retain-owner-continuity-only-human-anchor-open"
+    }
+  ]
+}

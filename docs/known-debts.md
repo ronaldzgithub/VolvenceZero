@@ -2183,6 +2183,23 @@ return (
 > 禁止。总对账：
 > `artifacts/gate11_longitudinal_fourth_campaign_20260730`。
 
+> **2026-07-30 Gate 8 纵向第五战役 checkpoint**：Gate 8 首次消费同一
+> immutable fresh Qwen source，四臂共 `6120` arm-transitions；每
+> arm/seed 跨 `51` 个 consumer session、完成 `50` 次 memory/temporal
+> owner persistence + constructor restart。full 相对 no-sleep 的
+> cold-start/callback/delayed-payoff gain 为
+> `+0.567363 / +1.0 / +0.567363`，相对 single-owner controls 的最小
+> margin=`+0.167363`，全部 integrity、CI 与 rollback 门通过，故 Gate 8
+> 升为 `longitudinal-supported`。限制：三 seed gain 完全相同，零
+> between-seed variance；metric 是 deterministic owner readout，不是
+> human relationship ground truth。longitudinal-supported gates 更新为
+> `8/11`，但 Gate 5 仍 NO-GO、Gate 2 live longitudinal 未打开，故共同
+> 等级保持 `mechanism-supported`，#92 OPEN，production/live promotion
+> 禁止。总对账：
+> `artifacts/gate8_longitudinal_fifth_campaign_20260730`。共享工作区并发
+> 产生的后完成同源 formal run 记为 `invalid-duplicate-not-admitted`，
+> 不进入 verdict 或 CI。
+
 - **路径**：
   - 总论与需求：[`docs/volvence-thesis.md`](volvence-thesis.md) · [`docs/next_gen_emogpt.md`](next_gen_emogpt.md)
   - PE / LSS：[`docs/specs/prediction-error-loop.md`](specs/prediction-error-loop.md)
@@ -2669,6 +2686,24 @@ return (
   与 rollback mismatch 全为 `0`。结论只在 v2 synthetic multi-session
   source 范围内成立，不自动晋升 Gate 9/10 或整体 thesis。
   artifact：`artifacts/gate8_wake_sleep_20260730`。
+- **2026-07-30 第五战役纵向 verdict（LONGITUDINAL-SUPPORTED）**：
+  `gate8-wake-sleep-longitudinal.v1` 在 Gate 8 首次消费 immutable fresh
+  Qwen source 前冻结四臂与原 `0.02` 效应线。seed
+  `1201 / 1213 / 1223` 各 `510` 条，四臂共 `6120`
+  arm-transitions；每 arm/seed 有 `51` 个 consumer session、`50` 次
+  memory/temporal owner filesystem persistence + constructor restart。
+  full 相对 no-sleep 的 cold-start / callback / delayed-payoff gain 为
+  `+0.567363 / +1.0 / +0.567363`，相对 single-owner controls 的最小
+  payoff margin=`+0.167363`，最大 owner drift=`0.467850 <= 0.50`；
+  paired-seed CI lower、lineage、prompt-zero、queue 幂等、latency 分离、
+  frozen substrate、persistence 与 rollback 全过。限制：三 seed 的 gain
+  完全相同，CI 为零 between-seed variance 的 deterministic replication；
+  本包没有 human relationship-quality ground truth，且不得复用同 source
+  重跑 locked。Gate 8 只保留 frozen deterministic wake/sleep longitudinal
+  claim，不授权 production promotion。artifact：
+  `artifacts/gate8_wake_sleep_longitudinal_20260730`；第五战役对账：
+  `artifacts/gate8_longitudinal_fifth_campaign_20260730`。并发后完成的同源
+  formal run 已按一次性规则排除，不影响权威判词。
 
 ### Gate 9 — M3 与 Titans/Hope bounded self-modification
 

@@ -473,6 +473,26 @@
   Gate 11 对外关系质量措辞还依赖 #51 human anchor，其余失败门先要求
   owner-level mechanism change。reconciliation artifact：
   `artifacts/gate11_longitudinal_fourth_campaign_20260730`。
+- Gate 8 纵向第五战役新增
+  `gate8-wake-sleep-longitudinal.v1`，在 Gate 8 首次消费既有 immutable
+  fresh Qwen source 前冻结四臂、`0.02` 最小效应与 paired-seed CI 门。三
+  seed 各 `510` 条、四臂共 `6120` arm-transitions；每 arm/seed 跨
+  `51` 个 consumer session、执行 `50` 次 memory/temporal owner
+  filesystem checkpoint + constructor restart。full 相对 no-sleep 的
+  cold-start loss reduction、callback gain、delayed-payoff gain 分别为
+  `+0.567363 / +1.0 / +0.567363`，相对 single-owner controls 的最小
+  payoff margin=`+0.167363`；所有 CI lower、lineage、prompt-zero、
+  queue 幂等、latency 分离、persistence、frozen substrate 与 rollback
+  门全绿，故 Gate 8 verdict=`longitudinal-supported`。限制：三 seed
+  gain 完全相同、between-seed variance 为零；指标仍是 deterministic
+  owner readout，不是 #51 human relationship-quality ground truth。
+  Gate 8 locked 不得复用。longitudinal-supported gate 更新为 `8 / 11`，
+  但 Gate 5 NO-GO 与其余未闭合 gate 使共同等级仍为
+  `mechanism-supported`，production/live promotion 继续禁止。artifact：
+  `artifacts/gate8_wake_sleep_longitudinal_20260730`；reconciliation：
+  `artifacts/gate8_longitudinal_fifth_campaign_20260730`。共享工作区并发
+  竞态产生的后完成同源 formal run 已记为
+  `invalid-duplicate-not-admitted`，不进入 verdict 或 CI。
 - Gate 4 主动学习使用 schema `gate4-active-learning.v1`，在实现与首次读取
   `trace-locked-confirmation` label 前冻结以下协议：
   - 原 `artifacts/gate456_shared_settled_trace_20260730` 保持不可变。前置

@@ -1,0 +1,104 @@
+{
+  "arms": [
+    {
+      "after": "ca09772ce4ad1ec1b275dd333e21eaf4601b6f4d229c0ff967b5149dcc182fec",
+      "arm": "sleep-consolidation",
+      "before": "ca09772ce4ad1ec1b275dd333e21eaf4601b6f4d229c0ff967b5149dcc182fec",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1201
+    },
+    {
+      "after": "ca09772ce4ad1ec1b275dd333e21eaf4601b6f4d229c0ff967b5149dcc182fec",
+      "arm": "no-sleep",
+      "before": "ca09772ce4ad1ec1b275dd333e21eaf4601b6f4d229c0ff967b5149dcc182fec",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1201
+    },
+    {
+      "after": "ca09772ce4ad1ec1b275dd333e21eaf4601b6f4d229c0ff967b5149dcc182fec",
+      "arm": "memory-only-sleep",
+      "before": "ca09772ce4ad1ec1b275dd333e21eaf4601b6f4d229c0ff967b5149dcc182fec",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1201
+    },
+    {
+      "after": "ca09772ce4ad1ec1b275dd333e21eaf4601b6f4d229c0ff967b5149dcc182fec",
+      "arm": "policy-only-sleep",
+      "before": "ca09772ce4ad1ec1b275dd333e21eaf4601b6f4d229c0ff967b5149dcc182fec",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1201
+    },
+    {
+      "after": "1bd010055a482913f655e74f634abf8adf913a408c54cbc1a261d27221177f7e",
+      "arm": "sleep-consolidation",
+      "before": "1bd010055a482913f655e74f634abf8adf913a408c54cbc1a261d27221177f7e",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1213
+    },
+    {
+      "after": "1bd010055a482913f655e74f634abf8adf913a408c54cbc1a261d27221177f7e",
+      "arm": "no-sleep",
+      "before": "1bd010055a482913f655e74f634abf8adf913a408c54cbc1a261d27221177f7e",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1213
+    },
+    {
+      "after": "1bd010055a482913f655e74f634abf8adf913a408c54cbc1a261d27221177f7e",
+      "arm": "memory-only-sleep",
+      "before": "1bd010055a482913f655e74f634abf8adf913a408c54cbc1a261d27221177f7e",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1213
+    },
+    {
+      "after": "1bd010055a482913f655e74f634abf8adf913a408c54cbc1a261d27221177f7e",
+      "arm": "policy-only-sleep",
+      "before": "1bd010055a482913f655e74f634abf8adf913a408c54cbc1a261d27221177f7e",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1213
+    },
+    {
+      "after": "1415a0eb88411de8d7109364f3a7554784a2d9f0a28728359af5a4fb1b5f317d",
+      "arm": "sleep-consolidation",
+      "before": "1415a0eb88411de8d7109364f3a7554784a2d9f0a28728359af5a4fb1b5f317d",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1223
+    },
+    {
+      "after": "1415a0eb88411de8d7109364f3a7554784a2d9f0a28728359af5a4fb1b5f317d",
+      "arm": "no-sleep",
+      "before": "1415a0eb88411de8d7109364f3a7554784a2d9f0a28728359af5a4fb1b5f317d",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1223
+    },
+    {
+      "after": "1415a0eb88411de8d7109364f3a7554784a2d9f0a28728359af5a4fb1b5f317d",
+      "arm": "memory-only-sleep",
+      "before": "1415a0eb88411de8d7109364f3a7554784a2d9f0a28728359af5a4fb1b5f317d",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1223
+    },
+    {
+      "after": "1415a0eb88411de8d7109364f3a7554784a2d9f0a28728359af5a4fb1b5f317d",
+      "arm": "policy-only-sleep",
+      "before": "1415a0eb88411de8d7109364f3a7554784a2d9f0a28728359af5a4fb1b5f317d",
+      "exact": true,
+      "persistence_roundtrip_exact": true,
+      "seed": 1223
+    }
+  ],
+  "passed": true,
+  "rollback_action": "restore initial memory checkpoints and temporal parameter snapshot, then persist and reconstruct both owners",
+  "schema_version": "gate8-wake-sleep-longitudinal.v1",
+  "substrate_mutated": false
+}

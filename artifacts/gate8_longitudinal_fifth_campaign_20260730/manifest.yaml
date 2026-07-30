@@ -1,0 +1,41 @@
+{
+  "schema_version": "gate8-longitudinal-fifth-campaign.v1",
+  "campaign_level": "mechanism-supported",
+  "created_on": "2026-07-30",
+  "authoritative_inputs": [
+    {
+      "path": "artifacts/gate11_longitudinal_source_v2_20260730/aggregate_manifest.json",
+      "sha256": "984fe032c28c1ba7a1ef88746b8eb1aa1c99e08e51cd34c8daa552bc17e771fe"
+    },
+    {
+      "path": "artifacts/gate11_longitudinal_source_v2_20260730/aggregate_verdict.json",
+      "sha256": "328435de2b4bd9ab6b6ae72f41a7096fcded70c483ad8d0c338b88e56dc33074"
+    },
+    {
+      "path": "artifacts/gate8_wake_sleep_longitudinal_20260730/manifest.yaml",
+      "sha256": "8bb2a37a333e17c7126b447c6176daeb2359b18584882d9f66b9a4f6f2d18e26"
+    },
+    {
+      "path": "artifacts/gate8_wake_sleep_longitudinal_20260730/ablation_results.json",
+      "sha256": "30b6bcff309e230ea112d1e1e72da198cde5bdb514c0cbc49021b9377dc06954"
+    },
+    {
+      "path": "artifacts/gate8_wake_sleep_longitudinal_20260730/promotion_verdict.json",
+      "sha256": "9f7a0e72d8435aa209e1c6987b8017ee55518b18c5f9fd39e133d466fac9f6fa"
+    },
+    {
+      "path": "artifacts/gate8_wake_sleep_longitudinal_20260730/rollback_evidence.json",
+      "sha256": "f656dbef24ca0d760282787a183493b497ff0ac158da67c66b711b89d4094076"
+    }
+  ],
+  "outputs": [
+    "manifest.yaml",
+    "source_ledger.json",
+    "verdict_matrix.json",
+    "report.md",
+    "next_campaign.md"
+  ],
+  "thesis_retained": false,
+  "runtime_live_promotion_allowed": false,
+  "full_chain_rollback_drill_passed": true
+}

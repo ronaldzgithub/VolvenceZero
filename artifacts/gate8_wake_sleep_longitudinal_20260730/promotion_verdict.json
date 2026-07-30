@@ -1,0 +1,12 @@
+{
+  "causal_passed": true,
+  "failed_gates": [],
+  "gate_scope": "Gate 8 wake/sleep cross-session longitudinal",
+  "locked_source_consumed_once": true,
+  "longitudinal_passed": true,
+  "mechanism_passed": true,
+  "production_promotion_allowed": false,
+  "same_locked_source_rerun_allowed": false,
+  "schema_version": "gate8-wake-sleep-longitudinal.v1",
+  "status": "longitudinal-supported"
+}
