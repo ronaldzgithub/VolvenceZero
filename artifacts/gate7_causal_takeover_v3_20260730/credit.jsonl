@@ -1,0 +1,15 @@
+{"arm":"full","delayed_credit_assignment_count":48,"seed":727}
+{"arm":"no-ssl","delayed_credit_assignment_count":48,"seed":727}
+{"arm":"no-rl","delayed_credit_assignment_count":48,"seed":727}
+{"arm":"reverse-order","delayed_credit_assignment_count":48,"seed":727}
+{"arm":"joint-unfrozen","delayed_credit_assignment_count":48,"seed":727}
+{"arm":"full","delayed_credit_assignment_count":48,"seed":733}
+{"arm":"no-ssl","delayed_credit_assignment_count":48,"seed":733}
+{"arm":"no-rl","delayed_credit_assignment_count":48,"seed":733}
+{"arm":"reverse-order","delayed_credit_assignment_count":48,"seed":733}
+{"arm":"joint-unfrozen","delayed_credit_assignment_count":48,"seed":733}
+{"arm":"full","delayed_credit_assignment_count":48,"seed":739}
+{"arm":"no-ssl","delayed_credit_assignment_count":48,"seed":739}
+{"arm":"no-rl","delayed_credit_assignment_count":48,"seed":739}
+{"arm":"reverse-order","delayed_credit_assignment_count":48,"seed":739}
+{"arm":"joint-unfrozen","delayed_credit_assignment_count":48,"seed":739}

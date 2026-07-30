@@ -1,0 +1,5 @@
+{"arm":"full","delayed_credit_assignment_count":48,"seed":727}
+{"arm":"no-ssl","delayed_credit_assignment_count":48,"seed":727}
+{"arm":"no-rl","delayed_credit_assignment_count":48,"seed":727}
+{"arm":"reverse-order","delayed_credit_assignment_count":48,"seed":727}
+{"arm":"joint-unfrozen","delayed_credit_assignment_count":48,"seed":727}

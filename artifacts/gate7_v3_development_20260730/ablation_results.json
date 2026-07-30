@@ -1,0 +1,248 @@
+{
+  "aggregate_metrics": [
+    [
+      "full_terminal_return",
+      0.5433333333333331
+    ],
+    [
+      "full_composition_score",
+      1.0
+    ],
+    [
+      "terminal_return_gain_vs_no_ssl",
+      0.0
+    ],
+    [
+      "terminal_return_gain_vs_no_rl",
+      0.0
+    ],
+    [
+      "composition_gain_vs_no_ssl",
+      0.0
+    ],
+    [
+      "composition_gain_vs_no_rl",
+      0.0
+    ],
+    [
+      "full_takeover_rate",
+      1.0
+    ],
+    [
+      "future_residual_leakage_count",
+      0.0
+    ],
+    [
+      "token_space_rl_mutation_count",
+      0.0
+    ],
+    [
+      "full_structure_change_count",
+      0.0
+    ],
+    [
+      "rollback_mismatch_count",
+      0.0
+    ]
+  ],
+  "arm_results": [
+    {
+      "active_family_count": 3,
+      "arm": "full",
+      "composition_score": 1.0,
+      "delayed_credit_assignment_count": 48,
+      "evaluation_episode_count": 12,
+      "future_residual_leakage_count": 0,
+      "partition": "trace-development-heldout",
+      "policy_fingerprint_after": "3585dfb6a8591ed59c3521a54abbc4499e60b427d12ef45c4d5a43a17a1e4a66",
+      "policy_fingerprint_before": "a8c4185361621aa79de211cb01e9c4577a7f3f49c15edc075a8a41dd3654cf71",
+      "rl_parameter_change_count": 2,
+      "rl_update_count": 2,
+      "rollback_exact": true,
+      "rollback_fingerprint_after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "rollback_fingerprint_before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "seed": 727,
+      "ssl_kl_loss_mean": 2.1498195810770264,
+      "ssl_prediction_loss_mean": 0.4721058327270925,
+      "ssl_trained_step_count": 448,
+      "ssl_update_count": 2,
+      "structure_fingerprint_after_rl": "51e7b570bc61f4b22f1288487b8739e469c68aad6194a447a8e47ea8a349c479",
+      "structure_fingerprint_before_rl": "51e7b570bc61f4b22f1288487b8739e469c68aad6194a447a8e47ea8a349c479",
+      "structure_fingerprint_change_during_rl": 0,
+      "takeover": {
+        "decoder_effect_retention": 0.09170827818990543,
+        "failed_reasons": [],
+        "family_reuse_retention": 1.0,
+        "heldout_prefix_stability": 0.41008685617642654,
+        "passed": true,
+        "posterior_agreement": 0.724378593861419,
+        "switch_sparsity_retention": 0.4972078593307958,
+        "transition_count": 124
+      },
+      "terminal_return": 0.5433333333333331,
+      "terminal_success_rate": 1.0,
+      "token_space_rl_mutation_count": 0,
+      "train_episode_count": 24
+    },
+    {
+      "active_family_count": 1,
+      "arm": "no-ssl",
+      "composition_score": 1.0,
+      "delayed_credit_assignment_count": 48,
+      "evaluation_episode_count": 12,
+      "future_residual_leakage_count": 0,
+      "partition": "trace-development-heldout",
+      "policy_fingerprint_after": "19da0a10cf3a24538ae3d448d5ca44acadf277df1d4de06a4f381df1b53b53de",
+      "policy_fingerprint_before": "a8c4185361621aa79de211cb01e9c4577a7f3f49c15edc075a8a41dd3654cf71",
+      "rl_parameter_change_count": 2,
+      "rl_update_count": 2,
+      "rollback_exact": true,
+      "rollback_fingerprint_after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "rollback_fingerprint_before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "seed": 727,
+      "ssl_kl_loss_mean": 0.0,
+      "ssl_prediction_loss_mean": 0.0,
+      "ssl_trained_step_count": 0,
+      "ssl_update_count": 0,
+      "structure_fingerprint_after_rl": "0e7d2e09f6be43ee3833984082a550404cb821ce5ae79f5821a176c0eea0630b",
+      "structure_fingerprint_before_rl": "6d1dcf6eadbc798af1d761f02e0395e8228dd69d8d90866b4c31a6dce3822973",
+      "structure_fingerprint_change_during_rl": 1,
+      "takeover": {
+        "decoder_effect_retention": 0.05370779282336621,
+        "failed_reasons": [],
+        "family_reuse_retention": 1.0,
+        "heldout_prefix_stability": 0.47525537678372487,
+        "passed": true,
+        "posterior_agreement": 0.8679299835634572,
+        "switch_sparsity_retention": 0.49551313559613097,
+        "transition_count": 124
+      },
+      "terminal_return": 0.5433333333333331,
+      "terminal_success_rate": 1.0,
+      "token_space_rl_mutation_count": 0,
+      "train_episode_count": 24
+    },
+    {
+      "active_family_count": 3,
+      "arm": "no-rl",
+      "composition_score": 1.0,
+      "delayed_credit_assignment_count": 48,
+      "evaluation_episode_count": 12,
+      "future_residual_leakage_count": 0,
+      "partition": "trace-development-heldout",
+      "policy_fingerprint_after": "a8c4185361621aa79de211cb01e9c4577a7f3f49c15edc075a8a41dd3654cf71",
+      "policy_fingerprint_before": "a8c4185361621aa79de211cb01e9c4577a7f3f49c15edc075a8a41dd3654cf71",
+      "rl_parameter_change_count": 0,
+      "rl_update_count": 0,
+      "rollback_exact": true,
+      "rollback_fingerprint_after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "rollback_fingerprint_before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "seed": 727,
+      "ssl_kl_loss_mean": 2.1498195810770264,
+      "ssl_prediction_loss_mean": 0.4721058327270925,
+      "ssl_trained_step_count": 448,
+      "ssl_update_count": 2,
+      "structure_fingerprint_after_rl": "51e7b570bc61f4b22f1288487b8739e469c68aad6194a447a8e47ea8a349c479",
+      "structure_fingerprint_before_rl": "51e7b570bc61f4b22f1288487b8739e469c68aad6194a447a8e47ea8a349c479",
+      "structure_fingerprint_change_during_rl": 0,
+      "takeover": {
+        "decoder_effect_retention": 0.09170827818990543,
+        "failed_reasons": [],
+        "family_reuse_retention": 1.0,
+        "heldout_prefix_stability": 0.41008685617642654,
+        "passed": true,
+        "posterior_agreement": 0.724378593861419,
+        "switch_sparsity_retention": 0.4972078593307958,
+        "transition_count": 124
+      },
+      "terminal_return": 0.5433333333333331,
+      "terminal_success_rate": 1.0,
+      "token_space_rl_mutation_count": 0,
+      "train_episode_count": 24
+    },
+    {
+      "active_family_count": 3,
+      "arm": "reverse-order",
+      "composition_score": 1.0,
+      "delayed_credit_assignment_count": 48,
+      "evaluation_episode_count": 12,
+      "future_residual_leakage_count": 0,
+      "partition": "trace-development-heldout",
+      "policy_fingerprint_after": "19da0a10cf3a24538ae3d448d5ca44acadf277df1d4de06a4f381df1b53b53de",
+      "policy_fingerprint_before": "a8c4185361621aa79de211cb01e9c4577a7f3f49c15edc075a8a41dd3654cf71",
+      "rl_parameter_change_count": 2,
+      "rl_update_count": 2,
+      "rollback_exact": true,
+      "rollback_fingerprint_after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "rollback_fingerprint_before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "seed": 727,
+      "ssl_kl_loss_mean": 2.1498195810770264,
+      "ssl_prediction_loss_mean": 0.4721058327270925,
+      "ssl_trained_step_count": 448,
+      "ssl_update_count": 2,
+      "structure_fingerprint_after_rl": "7aa48339f90f0381e5d1a8f9ecf431eff6f9df2d25862d31f940ea978e49d84f",
+      "structure_fingerprint_before_rl": "6d1dcf6eadbc798af1d761f02e0395e8228dd69d8d90866b4c31a6dce3822973",
+      "structure_fingerprint_change_during_rl": 1,
+      "takeover": {
+        "decoder_effect_retention": 0.09170827818990543,
+        "failed_reasons": [],
+        "family_reuse_retention": 1.0,
+        "heldout_prefix_stability": 0.4094121577294224,
+        "passed": true,
+        "posterior_agreement": 0.7452183310515458,
+        "switch_sparsity_retention": 0.4971900025799809,
+        "transition_count": 124
+      },
+      "terminal_return": 0.5433333333333331,
+      "terminal_success_rate": 1.0,
+      "token_space_rl_mutation_count": 0,
+      "train_episode_count": 24
+    },
+    {
+      "active_family_count": 4,
+      "arm": "joint-unfrozen",
+      "composition_score": 1.0,
+      "delayed_credit_assignment_count": 48,
+      "evaluation_episode_count": 12,
+      "future_residual_leakage_count": 0,
+      "partition": "trace-development-heldout",
+      "policy_fingerprint_after": "75d406c5f10af0d8097d0021a2166ea228aee2dcd21e59af2416defbe3825c31",
+      "policy_fingerprint_before": "a8c4185361621aa79de211cb01e9c4577a7f3f49c15edc075a8a41dd3654cf71",
+      "rl_parameter_change_count": 2,
+      "rl_update_count": 2,
+      "rollback_exact": true,
+      "rollback_fingerprint_after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "rollback_fingerprint_before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "seed": 727,
+      "ssl_kl_loss_mean": 1.7693796499647663,
+      "ssl_prediction_loss_mean": 0.42441542564764695,
+      "ssl_trained_step_count": 896,
+      "ssl_update_count": 4,
+      "structure_fingerprint_after_rl": "1b19a7882b8384006efe8577839d5daf7a69c6dd7be864c3e7cc3acdb5ab8452",
+      "structure_fingerprint_before_rl": "1dce16a7eb1d39656a1c5f42e58d535aa1031790ed6351e53b9d0fe120158d52",
+      "structure_fingerprint_change_during_rl": 1,
+      "takeover": {
+        "decoder_effect_retention": 0.09566138146434497,
+        "failed_reasons": [],
+        "family_reuse_retention": 1.0,
+        "heldout_prefix_stability": 0.43792392949615483,
+        "passed": true,
+        "posterior_agreement": 0.7558480288269992,
+        "switch_sparsity_retention": 0.5165586408247641,
+        "transition_count": 124
+      },
+      "terminal_return": 0.5433333333333332,
+      "terminal_success_rate": 1.0,
+      "token_space_rl_mutation_count": 0,
+      "train_episode_count": 24
+    }
+  ],
+  "arm_schedule": [
+    "full",
+    "no-ssl",
+    "no-rl",
+    "reverse-order",
+    "joint-unfrozen"
+  ],
+  "schema_version": "gate7-causal-takeover.v1"
+}

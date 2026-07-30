@@ -1,0 +1,40 @@
+{
+  "rows": [
+    {
+      "after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "arm": "full",
+      "before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "exact": true,
+      "seed": 727
+    },
+    {
+      "after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "arm": "no-ssl",
+      "before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "exact": true,
+      "seed": 727
+    },
+    {
+      "after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "arm": "no-rl",
+      "before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "exact": true,
+      "seed": 727
+    },
+    {
+      "after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "arm": "reverse-order",
+      "before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "exact": true,
+      "seed": 727
+    },
+    {
+      "after": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "arm": "joint-unfrozen",
+      "before": "b25d3d53072ea7d5e6a87f16629bd96d9af9f73938b608e81cb4b31f8cc8eb71",
+      "exact": true,
+      "seed": 727
+    }
+  ],
+  "schema_version": "gate7-causal-takeover.v1"
+}

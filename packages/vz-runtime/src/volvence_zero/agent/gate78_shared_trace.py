@@ -27,6 +27,12 @@ GATE78_SOURCE_DESCRIPTOR = (
     "frozen-synthetic-residual-v2|prefix-only|expert-action-vector|"
     "session-boundary-explicit"
 )
+GATE7_V3_TRACE_SCHEMA_VERSION = "gate78-shared-trace.v3"
+GATE7_V3_TRACE_SEEDS = (727, 733, 739)
+GATE7_V3_SOURCE_DESCRIPTOR = (
+    "frozen-synthetic-residual-v3|prefix-only|expert-action-vector|"
+    "session-boundary-explicit"
+)
 
 
 @dataclass(frozen=True)
@@ -55,6 +61,28 @@ class Gate78EpisodePlan:
     session_one_turns: tuple[str, ...]
     session_two_turns: tuple[str, ...]
     next_session_boundary: str
+
+
+@dataclass(frozen=True)
+class Gate78TraceProfile:
+    schema_version: str
+    suite_id: str
+    seeds: tuple[int, ...]
+    source_descriptor: str
+
+
+GATE78_V2_TRACE_PROFILE = Gate78TraceProfile(
+    schema_version=GATE78_TRACE_SCHEMA_VERSION,
+    suite_id="gate78-shared-trace-v2",
+    seeds=GATE78_TRACE_SEEDS,
+    source_descriptor=GATE78_SOURCE_DESCRIPTOR,
+)
+GATE7_V3_TRACE_PROFILE = Gate78TraceProfile(
+    schema_version=GATE7_V3_TRACE_SCHEMA_VERSION,
+    suite_id="gate78-shared-trace-v3",
+    seeds=GATE7_V3_TRACE_SEEDS,
+    source_descriptor=GATE7_V3_SOURCE_DESCRIPTOR,
+)
 
 
 _CONTEXTS = (
@@ -129,11 +157,13 @@ def _partition_for_index(global_index: int) -> str:
 
 def build_gate78_episode_plans(
     seed: int,
+    *,
+    profile: Gate78TraceProfile = GATE78_V2_TRACE_PROFILE,
 ) -> tuple[Gate78EpisodePlan, ...]:
-    if seed not in GATE78_TRACE_SEEDS:
+    if seed not in profile.seeds:
         raise ValueError(f"Gate 7/8 trace seed {seed} is not preregistered")
     plans: list[Gate78EpisodePlan] = []
-    seed_offset = GATE78_TRACE_SEEDS.index(seed)
+    seed_offset = profile.seeds.index(seed)
     for global_index in range(GATE78_EPISODE_COUNT_PER_SEED):
         context = _CONTEXTS[(global_index + seed_offset) % len(_CONTEXTS)]
         partition = _partition_for_index(global_index)
@@ -196,12 +226,16 @@ def build_gate78_episode_plans(
     return tuple(plans)
 
 
-def _episode_row(plan: Gate78EpisodePlan) -> dict[str, object]:
+def _episode_row(
+    plan: Gate78EpisodePlan,
+    *,
+    profile: Gate78TraceProfile,
+) -> dict[str, object]:
     return {
         **asdict(plan),
-        "schema_version": GATE78_TRACE_SCHEMA_VERSION,
+        "schema_version": profile.schema_version,
         "session_count": 2,
-        "source_descriptor": GATE78_SOURCE_DESCRIPTOR,
+        "source_descriptor": profile.source_descriptor,
     }
 
 
@@ -235,6 +269,8 @@ def _pairwise_centroid_mae(
 def _seed_admission(
     rows: tuple[dict[str, object], ...],
     lineage_rows: tuple[dict[str, object], ...],
+    *,
+    profile: Gate78TraceProfile,
 ) -> dict[str, object]:
     counts = {
         partition: sum(row["partition"] == partition for row in rows)
@@ -265,7 +301,7 @@ def _seed_admission(
         ),
         "source-fingerprint-consistent": (
             {row["source_descriptor"] for row in rows}
-            == {GATE78_SOURCE_DESCRIPTOR}
+            == {profile.source_descriptor}
         ),
         "partition-counts-exact": counts
         == dict(GATE78_PARTITION_COUNTS),
@@ -302,15 +338,19 @@ def _seed_admission(
 def export_gate78_shared_trace_bundle(
     *,
     output_dir: str | Path,
+    profile: Gate78TraceProfile = GATE78_V2_TRACE_PROFILE,
 ) -> tuple[Path, ...]:
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     seed_manifests: list[dict[str, object]] = []
-    for seed in GATE78_TRACE_SEEDS:
+    for seed in profile.seeds:
         seed_dir = root / f"seed_{seed}"
         seed_dir.mkdir(parents=True, exist_ok=True)
-        rows = tuple(_episode_row(plan) for plan in build_gate78_episode_plans(seed))
+        rows = tuple(
+            _episode_row(plan, profile=profile)
+            for plan in build_gate78_episode_plans(seed, profile=profile)
+        )
         lineage_rows = tuple(
             {
                 "episode_id": row["episode_id"],
@@ -322,15 +362,19 @@ def export_gate78_shared_trace_bundle(
             }
             for row in rows
         )
-        admission = _seed_admission(rows, lineage_rows)
+        admission = _seed_admission(
+            rows,
+            lineage_rows,
+            profile=profile,
+        )
         manifest = {
-            "schema_version": GATE78_TRACE_SCHEMA_VERSION,
-            "suite_id": "gate78-shared-trace-v2",
+            "schema_version": profile.schema_version,
+            "suite_id": profile.suite_id,
             "seed": seed,
             "episode_count": len(rows),
             "partition_counts": dict(GATE78_PARTITION_COUNTS),
-            "source_descriptor": GATE78_SOURCE_DESCRIPTOR,
-            "source_fingerprint": _sha256(GATE78_SOURCE_DESCRIPTOR),
+            "source_descriptor": profile.source_descriptor,
+            "source_fingerprint": _sha256(profile.source_descriptor),
             "episodes_sha256": _sha256(rows),
             "lineage_sha256": _sha256(lineage_rows),
             "consumer_admission": admission["passed"],
@@ -359,7 +403,7 @@ def export_gate78_shared_trace_bundle(
         report_path.write_text(
             (
                 f"# Gate 7/8 shared trace seed {seed}\n\n"
-                f"- schema: `{GATE78_TRACE_SCHEMA_VERSION}`\n"
+                f"- schema: `{profile.schema_version}`\n"
                 f"- episodes: `{len(rows)}`\n"
                 f"- consumer admission: `{admission['passed']}`\n"
                 "- locked rows have not been consumed by a development probe.\n"
@@ -369,11 +413,11 @@ def export_gate78_shared_trace_bundle(
         written.append(report_path)
         seed_manifests.append(manifest)
     aggregate = {
-        "schema_version": GATE78_TRACE_SCHEMA_VERSION,
-        "suite_id": "gate78-shared-trace-v2",
-        "seed_schedule": list(GATE78_TRACE_SEEDS),
+        "schema_version": profile.schema_version,
+        "suite_id": profile.suite_id,
+        "seed_schedule": list(profile.seeds),
         "partition_counts_per_seed": dict(GATE78_PARTITION_COUNTS),
-        "source_fingerprint": _sha256(GATE78_SOURCE_DESCRIPTOR),
+        "source_fingerprint": _sha256(profile.source_descriptor),
         "consumer_admission": all(
             bool(manifest["consumer_admission"])
             for manifest in seed_manifests
@@ -392,25 +436,31 @@ def export_gate78_shared_trace_bundle(
 
 def verify_gate78_shared_trace_bundle(
     root: str | Path,
+    *,
+    profile: Gate78TraceProfile = GATE78_V2_TRACE_PROFILE,
 ) -> dict[str, object]:
     source = Path(root)
     aggregate = json.loads(
         (source / "aggregate_manifest.json").read_text(encoding="utf-8")
     )
     seed_results: list[dict[str, object]] = []
-    for seed in GATE78_TRACE_SEEDS:
+    for seed in profile.seeds:
         seed_dir = source / f"seed_{seed}"
         rows = _read_jsonl(seed_dir / "episodes.jsonl")
         lineage_rows = _read_jsonl(seed_dir / "lineage.jsonl")
         manifest = json.loads(
             (seed_dir / "manifest.yaml").read_text(encoding="utf-8")
         )
-        admission = _seed_admission(rows, lineage_rows)
+        admission = _seed_admission(
+            rows,
+            lineage_rows,
+            profile=profile,
+        )
         digest_match = (
             manifest["episodes_sha256"] == _sha256(rows)
             and manifest["lineage_sha256"] == _sha256(lineage_rows)
             and manifest["source_fingerprint"]
-            == _sha256(GATE78_SOURCE_DESCRIPTOR)
+            == _sha256(profile.source_descriptor)
         )
         seed_results.append(
             {
@@ -421,14 +471,15 @@ def verify_gate78_shared_trace_bundle(
             }
         )
     passed = (
-        aggregate["schema_version"] == GATE78_TRACE_SCHEMA_VERSION
-        and aggregate["seed_schedule"] == list(GATE78_TRACE_SEEDS)
+        aggregate["schema_version"] == profile.schema_version
+        and aggregate["suite_id"] == profile.suite_id
+        and aggregate["seed_schedule"] == list(profile.seeds)
         and aggregate["source_fingerprint"]
-        == _sha256(GATE78_SOURCE_DESCRIPTOR)
+        == _sha256(profile.source_descriptor)
         and all(bool(result["passed"]) for result in seed_results)
     )
     return {
-        "schema_version": GATE78_TRACE_SCHEMA_VERSION,
+        "schema_version": profile.schema_version,
         "passed": passed,
         "consumer_admission": passed,
         "seed_results": seed_results,
@@ -441,11 +492,15 @@ def load_gate78_partition(
     *,
     seed: int,
     partition: str,
+    profile: Gate78TraceProfile = GATE78_V2_TRACE_PROFILE,
 ) -> tuple[Gate78EpisodePlan, ...]:
-    verification = verify_gate78_shared_trace_bundle(root)
+    verification = verify_gate78_shared_trace_bundle(
+        root,
+        profile=profile,
+    )
     if not verification["consumer_admission"]:
         raise RuntimeError("Gate 7/8 source corpus failed consumer admission")
-    if seed not in GATE78_TRACE_SEEDS:
+    if seed not in profile.seeds:
         raise ValueError(f"Gate 7/8 trace seed {seed} is not preregistered")
     allowed = {name for name, _count in GATE78_PARTITION_COUNTS}
     if partition not in allowed:

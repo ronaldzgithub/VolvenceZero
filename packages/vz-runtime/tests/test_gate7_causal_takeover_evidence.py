@@ -5,6 +5,9 @@ import json
 import pytest
 
 from volvence_zero.agent.gate78_shared_trace import (
+    GATE7_V3_TRACE_PROFILE,
+    GATE7_V3_TRACE_SEEDS,
+    GATE78_TRACE_SEEDS,
     export_gate78_shared_trace_bundle,
 )
 from volvence_zero.agent.gate7_causal_takeover_evidence import (
@@ -19,7 +22,10 @@ from volvence_zero.agent.gate7_causal_takeover_evidence import (
 @pytest.fixture
 def trace_root(tmp_path):
     root = tmp_path / "trace"
-    export_gate78_shared_trace_bundle(output_dir=root)
+    export_gate78_shared_trace_bundle(
+        output_dir=root,
+        profile=GATE7_V3_TRACE_PROFILE,
+    )
     return root
 
 
@@ -28,7 +34,8 @@ def test_gate7_development_run_uses_all_five_arms_without_locked(
 ) -> None:
     report = run_gate7_evidence(
         trace_root=trace_root,
-        seed_schedule=(701,),
+        seed_schedule=(GATE7_V3_TRACE_SEEDS[0],),
+        source_profile=GATE7_V3_TRACE_PROFILE,
         partition="trace-development-heldout",
         controller_dim=8,
         ssl_updates=1,
@@ -65,7 +72,8 @@ def test_gate7_development_rejects_locked_partition(trace_root) -> None:
     with pytest.raises(ValueError, match="must not consume locked"):
         run_gate7_evidence(
             trace_root=trace_root,
-            seed_schedule=(701,),
+            seed_schedule=(GATE7_V3_TRACE_SEEDS[0],),
+            source_profile=GATE7_V3_TRACE_PROFILE,
             partition="trace-locked-confirmation",
             formal_locked_run=False,
             train_limit=1,
@@ -79,7 +87,8 @@ def test_gate7_bundle_exports_required_files(
 ) -> None:
     report = run_gate7_evidence(
         trace_root=trace_root,
-        seed_schedule=(701,),
+        seed_schedule=(GATE7_V3_TRACE_SEEDS[0],),
+        source_profile=GATE7_V3_TRACE_PROFILE,
         partition="trace-development-heldout",
         ssl_updates=1,
         rl_cycles=1,
@@ -101,3 +110,20 @@ def test_gate7_bundle_exports_required_files(
         )
     )
     assert verdict["retuning_allowed"] is False
+
+
+def test_gate7_default_source_profile_remains_v2(tmp_path) -> None:
+    trace_root = tmp_path / "v2-trace"
+    export_gate78_shared_trace_bundle(output_dir=trace_root)
+
+    report = run_gate7_evidence(
+        trace_root=trace_root,
+        seed_schedule=(GATE78_TRACE_SEEDS[0],),
+        train_limit=1,
+        evaluation_limit=1,
+        ssl_updates=1,
+        rl_cycles=1,
+    )
+
+    assert report.source_schema_version == "gate78-shared-trace.v2"
+    assert report.seed_schedule == (GATE78_TRACE_SEEDS[0],)

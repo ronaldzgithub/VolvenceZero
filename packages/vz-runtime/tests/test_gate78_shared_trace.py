@@ -5,7 +5,11 @@ import json
 import pytest
 
 from volvence_zero.agent.gate78_shared_trace import (
+    GATE7_V3_TRACE_PROFILE,
+    GATE7_V3_TRACE_SCHEMA_VERSION,
+    GATE7_V3_TRACE_SEEDS,
     GATE78_PARTITION_COUNTS,
+    GATE78_TRACE_SCHEMA_VERSION,
     GATE78_TRACE_SEEDS,
     build_gate78_episode_plans,
     export_gate78_shared_trace_bundle,
@@ -54,6 +58,25 @@ def test_gate78_bundle_admits_and_loads_only_requested_partition(tmp_path) -> No
         "trace-locked-confirmation"
     ]
     assert all(row.partition == "trace-locked-confirmation" for row in locked)
+
+
+def test_gate7_v3_bundle_is_fresh_and_does_not_replace_v2(tmp_path) -> None:
+    export_gate78_shared_trace_bundle(
+        output_dir=tmp_path,
+        profile=GATE7_V3_TRACE_PROFILE,
+    )
+    verification = verify_gate78_shared_trace_bundle(
+        tmp_path,
+        profile=GATE7_V3_TRACE_PROFILE,
+    )
+
+    assert verification["passed"] is True
+    assert verification["schema_version"] == GATE7_V3_TRACE_SCHEMA_VERSION
+    assert verification["locked_consumption_count"] == 0
+    assert set(GATE7_V3_TRACE_SEEDS).isdisjoint(GATE78_TRACE_SEEDS)
+    assert GATE7_V3_TRACE_SCHEMA_VERSION != GATE78_TRACE_SCHEMA_VERSION
+    with pytest.raises(FileNotFoundError):
+        verify_gate78_shared_trace_bundle(tmp_path)
 
 
 def test_gate78_bundle_rejects_lineage_mutation(tmp_path) -> None:

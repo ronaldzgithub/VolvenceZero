@@ -1,0 +1,38 @@
+{
+  "arm_schedule": [
+    "full",
+    "no-ssl",
+    "no-rl",
+    "reverse-order",
+    "joint-unfrozen"
+  ],
+  "controller_dim": 8,
+  "controller_initialization_seed": 42,
+  "formal_locked_run": true,
+  "partition": "trace-locked-confirmation",
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "rl_cycles": 2,
+  "schema_version": "gate7-causal-takeover.v1",
+  "seed_schedule": [
+    727,
+    733,
+    739
+  ],
+  "source_fingerprint": "4d43fce7c17c262fd37e6f8cf0ed2d42587d7bb442af924ac6013257bd0579a9",
+  "source_schema_version": "gate78-shared-trace.v3",
+  "ssl_updates": 2,
+  "suite_id": "gate7-causal-takeover"
+}

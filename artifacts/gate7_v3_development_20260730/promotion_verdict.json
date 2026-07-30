@@ -1,0 +1,60 @@
+{
+  "causal_gates": [
+    [
+      "full-takeover-passes",
+      true,
+      1.0
+    ],
+    [
+      "terminal-return-gain-vs-no-ssl",
+      false,
+      0.0
+    ],
+    [
+      "terminal-return-gain-vs-no-rl",
+      false,
+      0.0
+    ],
+    [
+      "composition-gain-vs-no-ssl",
+      false,
+      0.0
+    ],
+    [
+      "composition-gain-vs-no-rl",
+      false,
+      0.0
+    ]
+  ],
+  "locked_consumed": false,
+  "mechanism_gates": [
+    [
+      "source-consumer-admission",
+      true,
+      1.0
+    ],
+    [
+      "future-residual-leakage-zero",
+      true,
+      0.0
+    ],
+    [
+      "token-space-rl-mutation-zero",
+      true,
+      0.0
+    ],
+    [
+      "full-structure-frozen",
+      true,
+      0.0
+    ],
+    [
+      "whole-cycle-rollback-exact",
+      true,
+      0.0
+    ]
+  ],
+  "retuning_allowed": false,
+  "schema_version": "gate7-causal-takeover.v1",
+  "verdict": "not-supported"
+}

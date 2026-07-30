@@ -1,0 +1,5 @@
+{"active_family_count":3,"arm":"full","family_reuse_retention":1.0,"rl_parameter_change_count":2,"seed":727}
+{"active_family_count":1,"arm":"no-ssl","family_reuse_retention":1.0,"rl_parameter_change_count":2,"seed":727}
+{"active_family_count":3,"arm":"no-rl","family_reuse_retention":1.0,"rl_parameter_change_count":0,"seed":727}
+{"active_family_count":3,"arm":"reverse-order","family_reuse_retention":1.0,"rl_parameter_change_count":2,"seed":727}
+{"active_family_count":4,"arm":"joint-unfrozen","family_reuse_retention":1.0,"rl_parameter_change_count":2,"seed":727}

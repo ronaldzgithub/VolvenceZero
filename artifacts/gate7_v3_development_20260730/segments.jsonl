@@ -1,0 +1,5 @@
+{"active_family_count":3,"arm":"full","seed":727,"switch_sparsity_retention":0.4972078593307958}
+{"active_family_count":1,"arm":"no-ssl","seed":727,"switch_sparsity_retention":0.49551313559613097}
+{"active_family_count":3,"arm":"no-rl","seed":727,"switch_sparsity_retention":0.4972078593307958}
+{"active_family_count":3,"arm":"reverse-order","seed":727,"switch_sparsity_retention":0.4971900025799809}
+{"active_family_count":4,"arm":"joint-unfrozen","seed":727,"switch_sparsity_retention":0.5165586408247641}

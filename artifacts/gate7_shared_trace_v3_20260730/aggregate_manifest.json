@@ -1,0 +1,18 @@
+{
+  "consumer_admission": true,
+  "locked_consumption_count": 0,
+  "partition_counts_per_seed": {
+    "trace-development-heldout": 12,
+    "trace-locked-confirmation": 12,
+    "trace-train": 24
+  },
+  "schema_version": "gate78-shared-trace.v3",
+  "seed_manifest_sha256": "20710c94bf194ba43f518bddf64d95f255508131367a1086e015eaa0855a7abc",
+  "seed_schedule": [
+    727,
+    733,
+    739
+  ],
+  "source_fingerprint": "4d43fce7c17c262fd37e6f8cf0ed2d42587d7bb442af924ac6013257bd0579a9",
+  "suite_id": "gate78-shared-trace-v3"
+}

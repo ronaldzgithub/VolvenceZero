@@ -1,0 +1,34 @@
+{
+  "action_families": [
+    "alpha",
+    "beta",
+    "delta",
+    "epsilon",
+    "gamma"
+  ],
+  "gates": {
+    "context-centroids-separated": true,
+    "difficulty-gradient-present": true,
+    "explicit-session-boundary-complete": true,
+    "immutable-lineage-complete": true,
+    "multiple-action-families-present": true,
+    "partition-counts-exact": true,
+    "source-fingerprint-consistent": true,
+    "user-prior-fact-leakage-zero": true,
+    "variable-segment-lengths-present": true
+  },
+  "minimum_context_centroid_pairwise_mae": 0.3333333333333333,
+  "partition_counts": {
+    "trace-development-heldout": 12,
+    "trace-locked-confirmation": 12,
+    "trace-train": 24
+  },
+  "passed": true,
+  "segment_lengths": [
+    2,
+    3,
+    4,
+    5
+  ],
+  "user_prior_fact_leakage_count": 0
+}

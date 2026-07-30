@@ -14,10 +14,9 @@ from volvence_zero.agent.eta_proof_benchmark import (
     build_default_eta_proof_environment,
 )
 from volvence_zero.agent.gate78_shared_trace import (
-    GATE78_SOURCE_DESCRIPTOR,
-    GATE78_TRACE_SCHEMA_VERSION,
-    GATE78_TRACE_SEEDS,
+    GATE78_V2_TRACE_PROFILE,
     Gate78EpisodePlan,
+    Gate78TraceProfile,
     load_gate78_partition,
     verify_gate78_shared_trace_bundle,
 )
@@ -895,7 +894,8 @@ def _aggregate(
 def run_gate7_evidence(
     *,
     trace_root: str | Path,
-    seed_schedule: tuple[int, ...] = GATE78_TRACE_SEEDS,
+    seed_schedule: tuple[int, ...] | None = None,
+    source_profile: Gate78TraceProfile = GATE78_V2_TRACE_PROFILE,
     partition: str = "trace-development-heldout",
     controller_dim: int = 8,
     ssl_updates: int = 2,
@@ -904,9 +904,11 @@ def run_gate7_evidence(
     evaluation_limit: int | None = None,
     formal_locked_run: bool = False,
 ) -> Gate7EvidenceReport:
+    if seed_schedule is None:
+        seed_schedule = source_profile.seeds
     if not seed_schedule:
         raise ValueError("Gate 7 seed_schedule must not be empty")
-    if any(seed not in GATE78_TRACE_SEEDS for seed in seed_schedule):
+    if any(seed not in source_profile.seeds for seed in seed_schedule):
         raise ValueError("Gate 7 seed_schedule contains an unregistered seed")
     if formal_locked_run and partition != "trace-locked-confirmation":
         raise ValueError(
@@ -922,7 +924,10 @@ def run_gate7_evidence(
         )
     if ssl_updates < 1 or rl_cycles < 1:
         raise ValueError("Gate 7 update counts must be positive")
-    source_verification = verify_gate78_shared_trace_bundle(trace_root)
+    source_verification = verify_gate78_shared_trace_bundle(
+        trace_root,
+        profile=source_profile,
+    )
     if not source_verification["consumer_admission"]:
         raise RuntimeError("Gate 7 source corpus failed consumer admission")
     all_results: list[Gate7ArmResult] = []
@@ -931,11 +936,13 @@ def run_gate7_evidence(
             trace_root,
             seed=seed,
             partition="trace-train",
+            profile=source_profile,
         )
         evaluation_plans = load_gate78_partition(
             trace_root,
             seed=seed,
             partition=partition,
+            profile=source_profile,
         )
         if train_limit is not None:
             train_plans = train_plans[:train_limit]
@@ -969,8 +976,8 @@ def run_gate7_evidence(
     )
     return Gate7EvidenceReport(
         schema_version=GATE7_SCHEMA_VERSION,
-        source_schema_version=GATE78_TRACE_SCHEMA_VERSION,
-        source_fingerprint=_sha256(GATE78_SOURCE_DESCRIPTOR),
+        source_schema_version=source_profile.schema_version,
+        source_fingerprint=_sha256(source_profile.source_descriptor),
         partition=partition,
         seed_schedule=seed_schedule,
         arm_schedule=GATE7_ARMS,
