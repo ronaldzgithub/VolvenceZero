@@ -1,0 +1,14 @@
+{
+  "causal_passed": false,
+  "claim": "shared model plus persistable isolated per-user state",
+  "failed_gates": [
+    "correct_state_consistency_perfect"
+  ],
+  "gate_scope": "Gate 11 per-user state and cross-session continuity",
+  "locked_source_consumed_once": true,
+  "longitudinal_passed": false,
+  "mechanism_passed": true,
+  "same_locked_source_rerun_allowed": false,
+  "schema_version": "gate11-per-user-continuity.v1",
+  "status": "not-supported"
+}

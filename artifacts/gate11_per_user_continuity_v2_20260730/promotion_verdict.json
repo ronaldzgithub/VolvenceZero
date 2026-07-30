@@ -1,0 +1,14 @@
+{
+  "causal_passed": true,
+  "claim": "per-user state provides isolated cross-session continuity within deterministic owner readouts",
+  "failed_gates": [],
+  "gate_scope": "Gate 11 per-user state and cross-session continuity",
+  "locked_arm_rerun_count": 0,
+  "locked_source_consumed_once": true,
+  "longitudinal_passed": true,
+  "mechanism_passed": true,
+  "same_locked_source_rerun_allowed": false,
+  "schema_version": "gate11-per-user-continuity.v2",
+  "status": "longitudinal-supported",
+  "supersedes_status": "invalid-superseded"
+}

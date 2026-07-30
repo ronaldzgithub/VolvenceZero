@@ -1,0 +1,78 @@
+{
+  "arm_schedule": [
+    "stateless",
+    "correct-user-state",
+    "swapped-user-state",
+    "shuffled-history"
+  ],
+  "cohort_scope": {
+    "arm_transition_count": 6120,
+    "seed_count": 3,
+    "settled_transition_count_per_arm_seed": 510,
+    "user_count_per_seed": 18
+  },
+  "judge_or_human_protocol": "Deterministic owner readouts; relationship-quality human ground truth remains a separate #51 prerequisite.",
+  "metric_version": "gate11-per-user-continuity.v1",
+  "minimum_effects": {
+    "correct_vs_shuffled": 0.1,
+    "correct_vs_stateless": 0.2,
+    "correct_vs_swapped": 0.2
+  },
+  "model_and_adapter_ids": {
+    "adapter_ids": [],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "shared_model_copy_count": 1
+  },
+  "owner": "vz-memory.MemoryStore + vz-cognition.SemanticStateStore + vz-runtime.OwnerHydrationStore",
+  "prompt_and_context_budget": "Identical current probe SHA across arms; state is loaded only through owner checkpoints, never prompt text.",
+  "provenance": {
+    "git_branch": "main",
+    "git_sha": "fbca1c2796029061d15bc7d28e57b15b3aea2acc",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "working_tree_dirty": true
+  },
+  "raw_evidence_sha256": {
+    "credit.jsonl": "ee0597062949072fb26a5d357ae1c0d6eaaec7aa787ae43b4a5e52a610e58882",
+    "outcomes.jsonl": "a3e180261a14450322e729101dc437aacba81b7aa3734f596935a88b4e50698d",
+    "prediction_errors.jsonl": "e2220350030819c2f469ccf34f15155a8c3ccc2fcb4bce8719426c0aca43ab7a",
+    "predictions.jsonl": "d6b00a16fe5e224ce7d24f2bb4f0d75b003338173ba5a18445177d3ea1f5d98a",
+    "segments.jsonl": "ed7aa621c394794525155d0fe3f82203ac43df1ee8fff101f7f88849c63f788d",
+    "state_diff.jsonl": "1c3b85d952a3a58a5e0a4d5fd1768356169c7ae00f449d622ebb5876f3abd73a"
+  },
+  "reconciliation_kind": "evaluator-only-no-arm-rerun",
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "scenario_split": {
+    "trace-heldout-context": 450,
+    "trace-locked-confirmation": 180,
+    "trace-train": 900
+  },
+  "schema_version": "gate11-per-user-continuity.v2",
+  "seed_schedule": [
+    1201,
+    1213,
+    1223
+  ],
+  "substrate_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+  "suite_id": "gate11-per-user-continuity-preregistered-reconciliation",
+  "supersedes_artifact": "artifacts/gate11_per_user_continuity_20260730",
+  "trace_root": "artifacts/gate11_longitudinal_source_v2_20260730",
+  "trace_schema_version": "gate11-longitudinal-settled-trace.v2",
+  "wiring_levels": {
+    "owner_hydration": "ACTIVE",
+    "source_runtime": "ACTIVE frozen strict-local",
+    "substrate_mutation": "DISABLED"
+  }
+}

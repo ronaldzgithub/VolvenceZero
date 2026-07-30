@@ -1,0 +1,69 @@
+{
+  "checkpoint_rollback": [
+    {
+      "memory_checkpoint_exact": true,
+      "memory_loaded": true,
+      "seed": 1201,
+      "semantic_checkpoint_exact": true,
+      "semantic_loaded": true,
+      "user_id": "user-heldout-01"
+    },
+    {
+      "memory_checkpoint_exact": true,
+      "memory_loaded": true,
+      "seed": 1213,
+      "semantic_checkpoint_exact": true,
+      "semantic_loaded": true,
+      "user_id": "user-heldout-01"
+    },
+    {
+      "memory_checkpoint_exact": true,
+      "memory_loaded": true,
+      "seed": 1223,
+      "semantic_checkpoint_exact": true,
+      "semantic_loaded": true,
+      "user_id": "user-heldout-01"
+    }
+  ],
+  "delete_drill": [
+    {
+      "before_keys": [
+        "memory/store",
+        "owner_hydration/semantic_state"
+      ],
+      "memory_absent_after_delete": true,
+      "memory_entry_count_after_delete": 0,
+      "semantic_absent_after_delete": true,
+      "semantic_record_count_after_delete": 0,
+      "user_id": "user-train-10"
+    },
+    {
+      "before_keys": [
+        "memory/store",
+        "owner_hydration/semantic_state"
+      ],
+      "memory_absent_after_delete": true,
+      "memory_entry_count_after_delete": 0,
+      "semantic_absent_after_delete": true,
+      "semantic_record_count_after_delete": 0,
+      "user_id": "user-train-10"
+    },
+    {
+      "before_keys": [
+        "memory/store",
+        "owner_hydration/semantic_state"
+      ],
+      "memory_absent_after_delete": true,
+      "memory_entry_count_after_delete": 0,
+      "semantic_absent_after_delete": true,
+      "semantic_record_count_after_delete": 0,
+      "user_id": "user-train-10"
+    }
+  ],
+  "explicit_runtime_rollback": {
+    "owner_hydration_wiring": "disabled"
+  },
+  "passed": true,
+  "schema_version": "gate11-per-user-continuity.v1",
+  "substrate_mutated": false
+}
