@@ -1,0 +1,60 @@
+schema_version: gate7-causal-takeover-preregistration.v1
+suite_id: gate7-causal-takeover
+owner: vz-temporal SSL/Internal-RL owners with vz-runtime evidence harness
+source_trace:
+  schema_version: gate78-shared-trace.v2
+  root: artifacts/gate78_shared_trace_v2_20260730
+  development_partition: trace-development-heldout
+  primary_partition: trace-locked-confirmation
+seed_schedule:
+  - 701
+  - 709
+  - 719
+arm_schedule:
+  - full
+  - no-ssl
+  - no-rl
+  - reverse-order
+  - joint-unfrozen
+controller:
+  initialization_seed: 42
+  n_z: 8
+  ssl_updates: 2
+  rl_cycles: 2
+takeover_thresholds:
+  posterior_agreement: 0.35
+  switch_sparsity_retention: 0.05
+  family_reuse_retention: 0.20
+  decoder_effect_retention: 0.01
+  heldout_prefix_stability: 0.20
+causal_exit_gates:
+  minimum_full_terminal_return_gain_vs_no_ssl: 0.02
+  minimum_full_terminal_return_gain_vs_no_rl: 0.02
+  minimum_full_composition_gain_vs_no_ssl: 0.02
+  minimum_full_composition_gain_vs_no_rl: 0.02
+  future_residual_leakage_count: 0
+  token_space_rl_mutation_count: 0
+  full_structure_fingerprint_change_during_rl: 0
+  rollback_fingerprint_mismatch_count: 0
+  full_takeover_required: true
+required_files:
+  - manifest.yaml
+  - predictions.jsonl
+  - outcomes.jsonl
+  - prediction_errors.jsonl
+  - segments.jsonl
+  - credit.jsonl
+  - state_diff.jsonl
+  - action_selection.jsonl
+  - ablation_results.json
+  - promotion_verdict.json
+  - rollback_evidence.json
+  - report.md
+execution_policy:
+  preregister_before_implementation: true
+  development_probe_uses_locked: false
+  formal_locked_run_count: 1
+  post_locked_retuning_allowed: false
+rollback:
+  scope: SSL structure plus causal policy and critic checkpoint
+  requirement: exact fingerprint equality after whole-cycle restore

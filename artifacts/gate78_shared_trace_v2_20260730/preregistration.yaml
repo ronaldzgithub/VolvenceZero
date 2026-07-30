@@ -1,0 +1,49 @@
+schema_version: gate78-shared-trace-preregistration.v1
+suite_id: gate78-shared-trace-v2
+owner: vz-runtime evidence harness
+consumer_owners:
+  - vz-temporal
+  - vz-memory
+seed_schedule:
+  - 701
+  - 709
+  - 719
+partition_schedule:
+  trace-train: 24
+  trace-development-heldout: 12
+  trace-locked-confirmation: 12
+episode_contract:
+  session_count: 2
+  explicit_next_session_boundary: true
+  segment_length_schedule:
+    - 2
+    - 3
+    - 4
+    - 5
+  minimum_action_family_count: 4
+  minimum_context_centroid_pairwise_mae: 0.15
+  user_prior_value_type: bounded-float-vector
+  user_fact_fields_allowed: false
+  difficulty_range:
+    minimum: 0.35
+    maximum: 0.85
+freshness_policy:
+  development_partitions:
+    - trace-train
+    - trace-development-heldout
+  locked_partition: trace-locked-confirmation
+  locked_debug_consumption_allowed: false
+  locked_rerun_allowed: false
+admission_gates:
+  - immutable-lineage-complete
+  - source-fingerprint-consistent
+  - partition-counts-exact
+  - explicit-session-boundary-complete
+  - variable-segment-lengths-present
+  - multiple-action-families-present
+  - context-centroids-separated
+  - user-prior-fact-leakage-zero
+  - difficulty-gradient-present
+rollback:
+  action: reject bundle and regenerate under a new schema version
+  forbidden: mutate or overwrite admitted source rows

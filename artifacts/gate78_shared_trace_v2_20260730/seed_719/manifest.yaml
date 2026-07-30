@@ -1,0 +1,18 @@
+{
+  "consumer_admission": true,
+  "episode_count": 48,
+  "episodes_sha256": "784a5f2d1ecacfa458c0462c456e479376489ba1b6b51dfc0c88c6084f0a0245",
+  "lineage_sha256": "5dab638f6ca5a5e335850d1d79b6309ddc30ac3bf67701f5f1e3d524d6beb9a6",
+  "locked_consumption_count": 0,
+  "locked_partition": "trace-locked-confirmation",
+  "partition_counts": {
+    "trace-development-heldout": 12,
+    "trace-locked-confirmation": 12,
+    "trace-train": 24
+  },
+  "schema_version": "gate78-shared-trace.v2",
+  "seed": 719,
+  "source_descriptor": "frozen-synthetic-residual-v2|prefix-only|expert-action-vector|session-boundary-explicit",
+  "source_fingerprint": "163449e09562d300cdc98c15f98b16c93c83030d20a95976d44c25c9887c88cf",
+  "suite_id": "gate78-shared-trace-v2"
+}
