@@ -1,0 +1,84 @@
+{
+  "schema_version": "eta-gate2-v37-fresh-formal-freeze-manifest.v1",
+  "git_head_at_run": "3481aed013ae52811ed1de2a53a69c537d1ebe5f",
+  "authoritative_scope": "single-seed-formal-stoploss",
+  "status": "formal-probe-no-go",
+  "failure_attribution": {
+    "split": "confirmation",
+    "gate": "selector_beats_permutation_null",
+    "selector_minus_permutation_mean": -0.011888682842254639
+  },
+  "three_seed_formal_run": "not-run-by-preregistered-stoploss",
+  "shadow_admission_allowed": false,
+  "counterfactual_action_selector_live_injection": "disabled",
+  "required_files": [
+    {
+      "path": "manifest.yaml",
+      "sha256": "5aa1e843695283e44f40ed69fd509fb93e8b407cdb53511d3737a775cc767ba3"
+    },
+    {
+      "path": "predictions.jsonl",
+      "sha256": "ff43d437b26032ae003fb5f96b1e5297c4b10cce6e54bd6ede8238905fc62221"
+    },
+    {
+      "path": "outcomes.jsonl",
+      "sha256": "022545e6a57f5fef58c1013f883fac42005abac3c4748d6133ca47dbc816e44d"
+    },
+    {
+      "path": "prediction_errors.jsonl",
+      "sha256": "f35ea3e986630c2b3effbfb26242501d0b9b04cf5663c56e6c1f57163cd1dde7"
+    },
+    {
+      "path": "segments.jsonl",
+      "sha256": "98170b9330b3391c28c2cc9551670b5c3a515b1bdf1a9ed58c1494c23a87ce9e"
+    },
+    {
+      "path": "credit.jsonl",
+      "sha256": "ce6b80ee22e9a30c8539e021ca15206515cddc877ba7bcce9ea859ecc2f982e9"
+    },
+    {
+      "path": "state_diff.jsonl",
+      "sha256": "cbad350119e78507a60ac0e048684b16f32f56eef462132463f3f491628eabb7"
+    },
+    {
+      "path": "action_selection.jsonl",
+      "sha256": "1b20216060729029ca7ac8c253881f7e26d318cfcf4e4da46216157522bf6510"
+    },
+    {
+      "path": "counterfactual_outcomes.jsonl",
+      "sha256": "4d815f46df6b30b16f7f765b72f25006e26b23fdd7c2128e06ededdb886d9356"
+    },
+    {
+      "path": "selector_artifact.json",
+      "sha256": "cbcbba983d73338e08724f648d364623cd0f7e8b31956c6f7f6a03d782495cc2"
+    },
+    {
+      "path": "shadow_closed_loop.jsonl",
+      "sha256": "9b074dadd890b2f26041fdd58a11dabea000a5c49340e4f4f0cf638599aab7ec"
+    },
+    {
+      "path": "ablation_results.json",
+      "sha256": "b063ccaabe0d9c82dbae96462d2dd9a708d4a6a8b43dd4286307370916345a83"
+    },
+    {
+      "path": "promotion_verdict.json",
+      "sha256": "3c4135da5bab84f31da0fc41e1f5367a933c3436062eb0c5f7ec92edbeab374c"
+    },
+    {
+      "path": "rollback_evidence.json",
+      "sha256": "f2a3f3d2cfdfaf4175f74ddca170e5137b935e7081ffb6e9156ad2a500fb4bc2"
+    },
+    {
+      "path": "report.md",
+      "sha256": "6bd3c7ff5a59d00dc15d1be0f3bfcb85556ab3576ad036a7a3f75c352317eef3"
+    }
+  ],
+  "campaign_summary": {
+    "path": "campaign_summary.json",
+    "sha256": "44deb49e480666e826f80ac4423e73b62244a67c90f34c5fdf6317b15fd3798e"
+  },
+  "duplicate_reconciliation": {
+    "classification": "invalid-exact-duplicate-not-admitted",
+    "moved_to": "/private/tmp/eta_gate2_v37_invalid_exact_duplicate_20260730"
+  }
+}

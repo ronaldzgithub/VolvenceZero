@@ -955,6 +955,21 @@
 	  development diagnostics，但负向结果必须报告。完整计划见
 	  `.cursor/plans/gate-2-v37-recent-k2-fresh-formal_20260730.plan.md`。
 	  v37 通过前 live injection 继续 disabled。
+
+	  2026-07-30 v37 真 Qwen seed 0 fresh stop-loss 已完成。471 条三臂记录
+	  全部 k=2、active count≤2、side-effect free，selector fingerprint
+	  `ef360e0e…` 与 basis fingerprint `326aecdd…` 均和 development 锁定值
+	  一致。train 的 selector−zero / selector−permutation / step mean 为
+	  `+0.108693 / +0.079976 / +0.019323`；fresh validation 为
+	  `+0.082382 / +0.038595 / +0.015692`；locked confirmation 为
+	  `+0.048041 / −0.011889 / +0.008355`。confirmation 相对 permutation
+	  翻负，故 `shadow_single_seed_stoploss_passed=false`，按预注册 NO-GO，
+	  不启动 3 seeds。缺 3 seeds 与未重跑 causal controls 只是不满足 formal
+	  数量/继承门，不是本次算法失败归因。v35 causal promotion 保持继承，
+	  `shadow_admission_allowed=false`、live injection disabled。recent-k
+	  方向止损；下一允许方向仅为 committed-control summary state features。
+	  权威 artifact：
+	  `artifacts/eta_gate2_v37_recent_k2_fresh_formal_probe_fullwidth896_qwen25_05b_cpu_seed0_20260730`。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。

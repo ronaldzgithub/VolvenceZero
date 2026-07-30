@@ -109,6 +109,9 @@ ETA_GATE2_SELECTOR_FRESH_CASE_CORPUS = (
 ETA_GATE2_SHADOW_FRESH_CASE_CORPUS = (
     "eta-gate2-shadow-fresh-v5"
 )
+ETA_GATE2_RECENT_K2_FRESH_CASE_CORPUS = (
+    "eta-gate2-recent-k2-fresh-v6"
+)
 ETA_COUNTERFACTUAL_TARGET_OBSERVED = "observed-single-continuation"
 ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED = (
     "sampled-prefix-expected-value"
@@ -1636,6 +1639,153 @@ def eta_gate2_shadow_fresh_routes() -> tuple[
     )
 
 
+def eta_gate2_recent_k2_fresh_validation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="validation-v37-watchmaking-escapement",
+            split="validation",
+            source_text=(
+                "Horologists calibrated escapements; tourbillon pivots "
+                "resisted lubrication"
+            ),
+            waypoints=("entry", "alpha", "delta", "epsilon"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v37-watchmaking",
+            description=(
+                "Fresh v37 recent-k validation route with watchmaking "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v37-glaciology-cores",
+            split="validation",
+            source_text=(
+                "Glaciologists inventoried firn cores; crevasse "
+                "meltwater distorted isotopes"
+            ),
+            waypoints=("entry", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="validation-v37-glaciology",
+            description=(
+                "Fresh v37 recent-k validation route with glaciology "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v37-perfumery-distillation",
+            split="validation",
+            source_text=(
+                "Perfumers fractionated absolutes; vetiver esters "
+                "clouded alembics"
+            ),
+            waypoints=("entry", "delta", "hub", "beta", "epsilon"),
+            distractor_ids=("alpha", "gamma"),
+            split_detail="validation-v37-perfumery",
+            description=(
+                "Fresh v37 recent-k validation route with perfumery "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v37-typesetting-foundry",
+            split="validation",
+            source_text=(
+                "Typographers recast ligatures; matrices abraded "
+                "compositor gauges"
+            ),
+            waypoints=("entry", "hub", "epsilon", "alpha", "delta"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v37-typesetting",
+            description=(
+                "Fresh v37 recent-k validation route with typesetting "
+                "vocabulary."
+            ),
+        ),
+    )
+
+
+def eta_gate2_recent_k2_confirmation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="confirmation-v37-falconry-telemetry",
+            split="confirmation",
+            source_text=(
+                "Falconers triangulated gyrfalcon transponders; jesses "
+                "snagged heather"
+            ),
+            waypoints=("entry", "alpha", "gamma", "beta", "epsilon"),
+            distractor_ids=("delta", "hub"),
+            split_detail="confirmation-v37-falconry",
+            description=(
+                "Locked v37 recent-k confirmation route with falconry "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v37-numismatics-denarii",
+            split="confirmation",
+            source_text=(
+                "Numismatists authenticated denarii whose planchets "
+                "revealed doubled mintmarks"
+            ),
+            waypoints=("entry", "hub", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="confirmation-v37-numismatics",
+            description=(
+                "Locked v37 recent-k confirmation route with numismatic "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v37-dendrochronology-rings",
+            split="confirmation",
+            source_text=(
+                "Dendrochronologists crossdated heartwood rings beneath "
+                "cambium scars and drought"
+            ),
+            waypoints=("entry", "delta", "alpha", "gamma", "epsilon"),
+            distractor_ids=("beta", "hub"),
+            split_detail="confirmation-v37-dendrochronology",
+            description=(
+                "Locked v37 recent-k confirmation route with tree-ring "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v37-bookbinding-marbling",
+            split="confirmation",
+            source_text=(
+                "Bookbinders burnished morocco spines after marbled "
+                "endpapers buckled"
+            ),
+            waypoints=("entry", "beta", "epsilon", "delta", "gamma", "alpha"),
+            distractor_ids=("hub",),
+            split_detail="confirmation-v37-bookbinding",
+            description=(
+                "Locked v37 recent-k confirmation route with bookbinding "
+                "vocabulary."
+            ),
+        ),
+    )
+
+
+def eta_gate2_recent_k2_fresh_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        eta_gate2_expanded_routes()
+        + eta_gate2_recent_k2_fresh_validation_routes()
+        + eta_gate2_recent_k2_confirmation_routes()
+    )
+
+
 def eta_gate2_selector_fresh_routes() -> tuple[
     HierarchicalRouteSpec,
     ...,
@@ -1689,6 +1839,10 @@ def eta_gate2_selector_fresh_cases() -> tuple[ETAProofCase, ...]:
 
 def eta_gate2_shadow_fresh_cases() -> tuple[ETAProofCase, ...]:
     return _build_eta_proof_cases(eta_gate2_shadow_fresh_routes())
+
+
+def eta_gate2_recent_k2_fresh_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_recent_k2_fresh_routes())
 
 
 def default_eta_proof_profiles() -> tuple[str, ...]:
@@ -6231,6 +6385,8 @@ def run_eta_internal_rl_paper_suite(
         available_cases = eta_gate2_selector_fresh_cases()
     elif case_corpus == ETA_GATE2_SHADOW_FRESH_CASE_CORPUS:
         available_cases = eta_gate2_shadow_fresh_cases()
+    elif case_corpus == ETA_GATE2_RECENT_K2_FRESH_CASE_CORPUS:
+        available_cases = eta_gate2_recent_k2_fresh_cases()
     else:
         raise ValueError(f"Unsupported ETA case corpus {case_corpus!r}.")
     available_case_ids = {case.case_id for case in available_cases}

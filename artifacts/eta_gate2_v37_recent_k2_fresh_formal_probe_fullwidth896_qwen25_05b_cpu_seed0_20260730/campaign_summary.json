@@ -1,0 +1,58 @@
+{
+  "schema_version": "eta-gate2-v37-campaign-summary.v1",
+  "claim_scope": "fresh-formal-single-seed-stoploss",
+  "status": "NO-GO",
+  "shadow_single_seed_stoploss_passed": false,
+  "shadow_admission_allowed": false,
+  "three_seed_formal_run_started": false,
+  "counterfactual_action_selector_live_injection": "disabled",
+  "inherited_v35_causal_promotion_preserved": true,
+  "frozen_configuration": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "device": "cpu",
+    "activation_width": 896,
+    "max_prefix_steps": 8,
+    "train_epochs": 2,
+    "seed": 0,
+    "committed_control_window": 2
+  },
+  "provenance": {
+    "record_count": 471,
+    "active_control_count_max": 2,
+    "all_records_side_effect_free": true,
+    "selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "artifact_lineage_valid": true
+  },
+  "metric_order": [
+    "selector_minus_zero_mean",
+    "selector_minus_permutation_mean",
+    "selected_step_realized_delta_mean"
+  ],
+  "split_metrics": {
+    "train": [
+      0.10869269631803036,
+      0.07997561432421207,
+      0.019323146012094287
+    ],
+    "validation": [
+      0.08238178491592407,
+      0.038594603538513184,
+      0.01569176855541411
+    ],
+    "confirmation": [
+      0.04804086685180664,
+      -0.011888682842254639,
+      0.00835493336553159
+    ],
+    "heldout_diagnostic": [
+      -0.05818378925323486,
+      -0.05788290500640869,
+      -0.009697298208872477
+    ]
+  },
+  "directional_failure": "confirmation_selector_minus_permutation_negative",
+  "stoploss_reason": "The locked fresh confirmation split failed the selector-versus-permutation directional gate.",
+  "next_allowed_direction": "Add a bounded committed-control summary to selector state features; do not run another recent-k search.",
+  "rollback": "Keep runtime SHADOW/live wiring disabled and retain the v35 open-loop causal selector as read-only evidence."
+}

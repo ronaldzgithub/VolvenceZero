@@ -8,6 +8,7 @@ from pathlib import Path
 from volvence_zero.agent import (
     ETAOpenWeightRuntimeConfig,
     build_eta_gate2_recent_k_diagnostic_manifest,
+    build_eta_gate2_recent_k2_formal_manifest,
     build_eta_gate2_residual_manifest,
     export_eta_gate2_recent_k_diagnostic_bundle,
     export_eta_gate2_residual_bundle,
@@ -57,6 +58,14 @@ def main() -> None:
             "observed v36 routes and cannot emit a formal promotion verdict."
         ),
     )
+    parser.add_argument(
+        "--recent-k2-formal",
+        action="store_true",
+        help=(
+            "Run the preregistered v37 recent-k=2 fresh formal SHADOW "
+            "admission suite."
+        ),
+    )
     args = parser.parse_args()
     if args.seeds is not None and args.seeds < 1:
         parser.error("--seeds must be at least 1")
@@ -68,6 +77,48 @@ def main() -> None:
             "recent-k reuses observed v36 routes and is limited to one "
             "development seed"
         )
+    if (
+        args.shadow_control_window is not None
+        and args.recent_k2_formal
+    ):
+        parser.error(
+            "--shadow-control-window and --recent-k2-formal are "
+            "mutually exclusive"
+        )
+    if args.recent_k2_formal:
+        if args.suite_tier != "ci-smoke":
+            parser.error(
+                "v37 recent-k2 formal is frozen to suite-tier=ci-smoke"
+            )
+        if args.seeds not in {None, 1, 3}:
+            parser.error(
+                "v37 recent-k2 formal only permits the seed-0 probe or "
+                "the frozen three-seed schedule"
+            )
+        if args.train_epochs not in {None, 2}:
+            parser.error("v37 recent-k2 formal freezes train epochs at 2")
+        if args.device != "cpu":
+            parser.error("v37 recent-k2 formal requires device=cpu")
+        if args.activation_width not in {None, 896}:
+            parser.error(
+                "v37 recent-k2 formal freezes activation width at 896"
+            )
+        if args.max_prefix_steps not in {None, 8}:
+            parser.error(
+                "v37 recent-k2 formal freezes max prefix steps at 8"
+            )
+        if args.target_samples not in {None, 1}:
+            parser.error(
+                "v37 recent-k2 formal freezes target samples at 1"
+            )
+        if args.audit_samples not in {None, 1}:
+            parser.error(
+                "v37 recent-k2 formal freezes audit samples at 1"
+            )
+        if args.allow_download:
+            parser.error(
+                "v37 recent-k2 formal requires the frozen local model"
+            )
     if args.train_epochs is not None and args.train_epochs < 1:
         parser.error("--train-epochs must be at least 1")
     if args.activation_width is not None and args.activation_width < 1:
@@ -82,16 +133,19 @@ def main() -> None:
     if args.audit_samples is not None and args.audit_samples < 1:
         parser.error("--audit-samples must be at least 1")
 
-    manifest = (
-        build_eta_gate2_recent_k_diagnostic_manifest(
+    if args.recent_k2_formal:
+        manifest = build_eta_gate2_recent_k2_formal_manifest(
+            suite_tier=args.suite_tier,
+        )
+    elif args.shadow_control_window is not None:
+        manifest = build_eta_gate2_recent_k_diagnostic_manifest(
             committed_control_window=args.shadow_control_window,
             suite_tier=args.suite_tier,
         )
-        if args.shadow_control_window is not None
-        else build_eta_gate2_residual_manifest(
+    else:
+        manifest = build_eta_gate2_residual_manifest(
             suite_tier=args.suite_tier,
         )
-    )
     if args.seeds is not None:
         manifest = replace(
             manifest,
@@ -160,7 +214,9 @@ def main() -> None:
         activation_width=activation_width,
         local_files_only=not args.allow_download,
     )
-    if args.max_prefix_steps is not None:
+    if args.recent_k2_formal:
+        config = replace(config, max_prefix_steps=8)
+    elif args.max_prefix_steps is not None:
         config = replace(config, max_prefix_steps=args.max_prefix_steps)
     report = run_eta_internal_rl_paper_suite(
         manifest=manifest,
@@ -200,6 +256,19 @@ def main() -> None:
         )
         status = verdict["status"]
         kill_conditions = verdict["kill_conditions"]
+        if args.recent_k2_formal:
+            if report.manifest.repeat_count == 1:
+                status = (
+                    "formal-probe-go"
+                    if verdict["shadow_single_seed_stoploss_passed"]
+                    else "formal-probe-no-go"
+                )
+            else:
+                status = (
+                    "shadow-admission-supported"
+                    if verdict["shadow_admission_allowed"]
+                    else "shadow-admission-not-supported"
+                )
     print(
         json.dumps(
             {

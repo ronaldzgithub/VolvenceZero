@@ -2540,6 +2540,20 @@ return (
   `artifacts/eta_gate2_v36_recent_k_root_cause_development_20260730`。
   下一包必须只用 k=2，新建未观察 validation 与 locked confirmation，
   并跑 seeds `0/1/2`；过门前不得改变 v35 open-loop 结论或 runtime wiring。
+- **2026-07-30 v37 recent-k=2 fresh formal 止损**：按预注册协议新增
+  4 条未观察 validation routes 与 4 条 locked confirmation routes，
+  固定 k=2、Qwen2.5-0.5B、CPU、width 896、prefix 8、epochs 2 运行
+  seed 0 stop-loss。train 与 fresh validation 的 selector−zero /
+  selector−permutation / selected-step mean 均为正；locked confirmation
+  分别为 `+0.048041 / −0.011889 / +0.008355`，因此唯一算法失败门是
+  selector 未击败 permutation-null。471 条三臂记录完整、lineage valid、
+  side-effect free；缺 3 seeds 仅是止损后的数量门，不作为失败归因。
+  `shadow_single_seed_stoploss_passed=false`，故未运行 seeds 1/2，
+  `shadow_admission_allowed=false`、live injection 继续 disabled，v35
+  causal promotion 不撤销。recent-k 路线至此冻结；下一收敛包只允许修改
+  selector state representation，加入 committed-control summary，不得继续
+  调 k、阈值、basis、候选集或重用 v37 formal routes。权威 artifact：
+  `artifacts/eta_gate2_v37_recent_k2_fresh_formal_probe_fullwidth896_qwen25_05b_cpu_seed0_20260730`。
 - **证据污染约束**：现有 heldout 已在 v1-v15 调参中反复观察，只能记为
   `development-heldout`。v16 晋升必须同时满足 eval 方向为正，以及一个
   从未用于本轮设计/停止决策的 locked `confirmation` split 相对最佳

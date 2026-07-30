@@ -64,3 +64,36 @@ heldout/eval 继续作为已观察 development diagnostics，不进入 formal �
 
 v37 是独立 manifest/corpus；删除 v37 builder 与 routes 即回到 v36 默认
 full-history。生产 runtime 从未接入，因此无需线上数据迁移。
+
+## 7. 结果（2026-07-30）
+
+实现与预运行验证：
+
+- 新增 4 条 validation 与 4 条 confirmation route，和 v34/v35/v36 全部
+  历史正式语料 content words 不相交。
+- v37 manifest 固定 k=2、Qwen2.5-0.5B、CPU、width 896、prefix 8、
+  epochs 2；只运行 baseline 并继承 v35 causal packet。
+- 28 项 runtime Gate 2 tests、Ruff（历史大文件 E501 除外）、diff check 与
+  内置 runtime v37 bundle smoke 通过。
+
+真 Qwen seed 0 fresh stop-loss：
+
+| split | selector−zero | selector−permutation | selected step mean |
+|---|---:|---:|---:|
+| train | +0.108693 | +0.079976 | +0.019323 |
+| validation-v37 | +0.082382 | +0.038595 | +0.015692 |
+| confirmation-v37 | +0.048041 | **−0.011889** | +0.008355 |
+| heldout（诊断） | −0.058184 | −0.057883 | −0.009697 |
+
+471 条三臂记录全部 `committed_control_window=2`、active count≤2、
+side-effect free；selector fingerprint `ef360e0e…` 与 basis fingerprint
+`326aecdd…` 和 v36 development 完全一致，lineage valid。
+
+结论：`shadow_single_seed_stoploss_passed=false`，正式 **NO-GO**。失败是
+fresh confirmation 的 selector−permutation 方向翻负，不是缺 3 seeds 或未重跑
+causal controls。按止损协议不运行 3-seed formal，`shadow_admission_allowed=false`
+且 live injection 继续 disabled。recent-k 方向到此止损；下一轮只允许验证
+v36 预注册的第二方向：selector state features 加入 committed-control summary。
+
+artifact：
+`artifacts/eta_gate2_v37_recent_k2_fresh_formal_probe_fullwidth896_qwen25_05b_cpu_seed0_20260730/`。

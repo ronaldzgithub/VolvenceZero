@@ -11,11 +11,15 @@ from volvence_zero.agent.eta_proof_benchmark import (
     ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME,
     ETA_CONTINUATION_PE_REWARD_SCALE,
     ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+    ETA_GATE2_RECENT_K2_FRESH_CASE_CORPUS,
     ETA_GATE2_SHADOW_FRESH_CASE_CORPUS,
     ETAProofPaperSuiteAggregateReport,
     build_eta_open_weight_paper_suite_manifest,
     eta_gate2_expected_value_validation_routes,
     eta_gate2_independent_training_routes,
+    eta_gate2_recent_k2_confirmation_routes,
+    eta_gate2_recent_k2_fresh_routes,
+    eta_gate2_recent_k2_fresh_validation_routes,
     eta_gate2_selector_confirmation_routes,
     eta_gate2_selector_fresh_validation_routes,
     eta_gate2_shadow_confirmation_routes,
@@ -27,6 +31,9 @@ from volvence_zero.substrate import TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE
 
 
 ETA_GATE2_SCHEMA_VERSION = "eta-gate2-residual-causal.v36"
+ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION = (
+    "eta-gate2-residual-causal.v37"
+)
 ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION = (
     "eta-gate2-v36-recent-k-diagnostic.v1"
 )
@@ -308,6 +315,79 @@ def build_eta_gate2_recent_k_diagnostic_manifest(
             "Development-only replay of the locked v36 closed-loop routes "
             f"with recent-k={committed_control_window}. This manifest cannot "
             "produce a formal promotion or SHADOW admission verdict."
+        ),
+    )
+
+
+def build_eta_gate2_recent_k2_formal_manifest(
+    *,
+    suite_tier: str = "ci-smoke",
+) -> PaperSuiteManifest:
+    base = build_eta_gate2_residual_manifest(suite_tier=suite_tier)
+    baseline_profiles = tuple(
+        profile
+        for profile in base.profiles
+        if profile.profile_label == base.baseline_label
+    )
+    if len(baseline_profiles) != 1:
+        raise ValueError(
+            "Gate 2 v37 formal requires exactly one inherited-causal "
+            "baseline profile"
+        )
+    route_ids = tuple(
+        route.case_id for route in eta_gate2_recent_k2_fresh_routes()
+    )
+    validation_route_ids = tuple(
+        route.case_id
+        for route in eta_gate2_recent_k2_fresh_validation_routes()
+    )
+    confirmation_route_ids = tuple(
+        route.case_id
+        for route in eta_gate2_recent_k2_confirmation_routes()
+    )
+    superseded_route_ids = tuple(
+        route.case_id
+        for route in (
+            eta_gate2_expected_value_validation_routes()
+            + eta_gate2_selector_fresh_validation_routes()
+            + eta_gate2_selector_confirmation_routes()
+            + eta_gate2_shadow_fresh_validation_routes()
+            + eta_gate2_shadow_confirmation_routes()
+        )
+    )
+    replacements = {
+        "route_ids": route_ids,
+        "case_corpus": (ETA_GATE2_RECENT_K2_FRESH_CASE_CORPUS,),
+        "validation_route_ids": validation_route_ids,
+        "confirmation_route_ids": confirmation_route_ids,
+        "superseded_validation_route_ids": superseded_route_ids,
+        "shadow_observation_gate": (
+            "recent-k2-shadow-closed-loop-v2",
+        ),
+    }
+    case_groups = tuple(
+        (name, replacements.get(name, values))
+        for name, values in base.case_groups
+    ) + (
+        (
+            "evidence_schema_version",
+            (ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION,),
+        ),
+        ("shadow_committed_control_window", ("2",)),
+        ("causal_packet_source", ("inherited-v35-locked",)),
+        ("formal_claim_scope", ("shadow-admission-only",)),
+        ("recent_k_development_selection_locked", ("true",)),
+    )
+    return replace(
+        base,
+        suite_id=f"eta-gate2-recent-k2-formal-{suite_tier}",
+        version=base.version + 1,
+        profiles=baseline_profiles,
+        case_groups=case_groups,
+        description=(
+            "Gate 2 v37 formal recent-k=2 closed-loop SHADOW admission "
+            "suite on fresh validation and locked confirmation routes. "
+            "The v35 causal packet is inherited and not rerun."
         ),
     )
 
@@ -1210,7 +1290,7 @@ def _shadow_closed_loop_diagnostics(
     rows: list[dict[str, Any]],
     selector_artifacts: list[dict[str, Any]],
     split_names: tuple[str, ...],
-) -> tuple[dict[str, dict[str, float]], bool]:
+) -> tuple[dict[str, dict[str, float]], bool, bool]:
     expected_arms = {
         "selector",
         "zero-control",
@@ -1298,6 +1378,7 @@ def _shadow_closed_loop_diagnostics(
         selector_zero_by_trajectory = []
         selector_permutation_by_trajectory = []
         selector_zero_by_seed: dict[int, list[float]] = {}
+        selector_permutation_by_seed: dict[int, list[float]] = {}
         for split, seed, case_id in sorted(trajectory_keys):
             selector = trajectory_totals.get(
                 (split, seed, case_id, "selector")
@@ -1319,15 +1400,39 @@ def _shadow_closed_loop_diagnostics(
             selector_zero_by_seed.setdefault(seed, []).append(
                 selector_zero
             )
-        seed_means = tuple(
+            selector_permutation_by_seed.setdefault(seed, []).append(
+                selector_permutation
+            )
+        selector_zero_seed_means = tuple(
             _mean_or_zero(values)
             for _seed, values in sorted(selector_zero_by_seed.items())
+        )
+        selector_permutation_seed_means = tuple(
+            _mean_or_zero(values)
+            for _seed, values in sorted(
+                selector_permutation_by_seed.items()
+            )
         )
         selector_step_deltas = [
             float(arms["selector"]["realized_delta"])
             for arms in split_steps.values()
             if "selector" in arms
         ]
+        selector_step_deltas_by_seed: dict[int, list[float]] = {}
+        for (_split, seed, _case_id, _step_index), arms in (
+            split_steps.items()
+        ):
+            selector_row = arms.get("selector")
+            if selector_row is not None:
+                selector_step_deltas_by_seed.setdefault(seed, []).append(
+                    float(selector_row["realized_delta"])
+                )
+        selector_step_seed_means = tuple(
+            _mean_or_zero(values)
+            for _seed, values in sorted(
+                selector_step_deltas_by_seed.items()
+            )
+        )
         first_half_deltas = []
         second_half_deltas = []
         max_step_by_trajectory: dict[tuple[int, str], int] = {}
@@ -1364,11 +1469,29 @@ def _shadow_closed_loop_diagnostics(
             "trajectory_count": float(
                 len(selector_zero_by_trajectory)
             ),
-            "seed_count": float(len(seed_means)),
+            "seed_count": float(len(selector_zero_seed_means)),
             "positive_seed_count": float(
                 sum(
                     value >= ETA_GATE2_MIN_MEASURABLE_EFFECT
-                    for value in seed_means
+                    for value in selector_zero_seed_means
+                )
+            ),
+            "selector_zero_positive_seed_count": float(
+                sum(
+                    value >= ETA_GATE2_MIN_MEASURABLE_EFFECT
+                    for value in selector_zero_seed_means
+                )
+            ),
+            "selector_permutation_positive_seed_count": float(
+                sum(
+                    value >= ETA_GATE2_MIN_MEASURABLE_EFFECT
+                    for value in selector_permutation_seed_means
+                )
+            ),
+            "selected_step_positive_seed_count": float(
+                sum(
+                    value >= ETA_GATE2_MIN_MEASURABLE_EFFECT
+                    for value in selector_step_seed_means
                 )
             ),
             "selector_minus_zero_mean": _mean_or_zero(
@@ -1392,12 +1515,18 @@ def _shadow_closed_loop_diagnostics(
         for row in rows
         if row.get("profile_label") == "full-internal-rl"
     }
-    artifact_provenance_valid = (
+    artifact_lineage_valid = (
         artifact_provenance_valid
-        and len(expected_runs) == 3
         and set(artifact_by_run) == expected_runs
     )
-    return diagnostics, artifact_provenance_valid
+    artifact_provenance_valid = (
+        artifact_lineage_valid and len(expected_runs) == 3
+    )
+    return (
+        diagnostics,
+        artifact_provenance_valid,
+        artifact_lineage_valid,
+    )
 
 
 def _build_ablation_results(
@@ -1411,6 +1540,7 @@ def _build_ablation_results(
     shadow_closed_loop: list[dict[str, Any]] | None = None,
     confirmation_split_locked: bool = False,
     inherited_causal_promotion: bool = False,
+    schema_version: str = ETA_GATE2_SCHEMA_VERSION,
 ) -> dict[str, Any]:
     transformations = _transformation_gates(predictions)
     strong_success = _profile_metric_means(
@@ -2068,6 +2198,7 @@ def _build_ablation_results(
     (
         shadow_closed_loop_by_split,
         shadow_artifact_provenance_valid,
+        shadow_artifact_lineage_valid,
     ) = _shadow_closed_loop_diagnostics(
         rows=shadow_closed_loop or [],
         selector_artifacts=selector_artifacts or [],
@@ -2083,6 +2214,42 @@ def _build_ablation_results(
         "train",
         "validation",
         "confirmation",
+    )
+    shadow_single_seed_stoploss_passed = (
+        shadow_artifact_lineage_valid
+        and all(
+            shadow_closed_loop_by_split[split]["step_count"] > 0.0
+            and shadow_closed_loop_by_split[split][
+                "complete_step_count"
+            ]
+            == shadow_closed_loop_by_split[split]["step_count"]
+            and shadow_closed_loop_by_split[split]["seed_count"] == 1.0
+            and shadow_closed_loop_by_split[split][
+                "selector_zero_positive_seed_count"
+            ]
+            == 1.0
+            and shadow_closed_loop_by_split[split][
+                "selector_permutation_positive_seed_count"
+            ]
+            == 1.0
+            and shadow_closed_loop_by_split[split][
+                "selected_step_positive_seed_count"
+            ]
+            == 1.0
+            and shadow_closed_loop_by_split[split][
+                "selector_minus_zero_mean"
+            ]
+            >= ETA_GATE2_MIN_MEASURABLE_EFFECT
+            and shadow_closed_loop_by_split[split][
+                "selector_minus_permutation_mean"
+            ]
+            >= ETA_GATE2_MIN_MEASURABLE_EFFECT
+            and shadow_closed_loop_by_split[split][
+                "selected_step_realized_delta_mean"
+            ]
+            >= ETA_GATE2_MIN_MEASURABLE_EFFECT
+            for split in formal_shadow_splits
+        )
     )
     shadow_gates = {
         "selector_artifact_provenance_complete": (
@@ -2108,10 +2275,10 @@ def _build_ablation_results(
             for split in formal_shadow_splits
         },
         **{
-            f"{split}_selector_positive_all_seeds": (
+            f"{split}_selector_beats_zero_all_seeds": (
                 shadow_closed_loop_by_split[split]["seed_count"] == 3.0
                 and shadow_closed_loop_by_split[split][
-                    "positive_seed_count"
+                    "selector_zero_positive_seed_count"
                 ]
                 == 3.0
             )
@@ -2127,6 +2294,16 @@ def _build_ablation_results(
             for split in formal_shadow_splits
         },
         **{
+            f"{split}_selector_beats_permutation_all_seeds": (
+                shadow_closed_loop_by_split[split]["seed_count"] == 3.0
+                and shadow_closed_loop_by_split[split][
+                    "selector_permutation_positive_seed_count"
+                ]
+                == 3.0
+            )
+            for split in formal_shadow_splits
+        },
+        **{
             f"{split}_selected_step_distribution_positive": (
                 shadow_closed_loop_by_split[split][
                     "selected_step_realized_delta_mean"
@@ -2135,10 +2312,20 @@ def _build_ablation_results(
             )
             for split in formal_shadow_splits
         },
+        **{
+            f"{split}_selected_step_positive_all_seeds": (
+                shadow_closed_loop_by_split[split]["seed_count"] == 3.0
+                and shadow_closed_loop_by_split[split][
+                    "selected_step_positive_seed_count"
+                ]
+                == 3.0
+            )
+            for split in formal_shadow_splits
+        },
     }
     shadow_observation_passed = all(shadow_gates.values())
     return {
-        "schema_version": ETA_GATE2_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "preregistered_min_causal_delta": ETA_GATE2_MIN_CAUSAL_DELTA,
         "measurement_resolution_floor": (
             ETA_GATE2_MIN_MEASURABLE_EFFECT
@@ -2269,6 +2456,12 @@ def _build_ablation_results(
         "shadow_closed_loop_by_split": shadow_closed_loop_by_split,
         "shadow_gates": shadow_gates,
         "shadow_observation_passed": shadow_observation_passed,
+        "shadow_artifact_lineage_valid": (
+            shadow_artifact_lineage_valid
+        ),
+        "shadow_single_seed_stoploss_passed": (
+            shadow_single_seed_stoploss_passed
+        ),
         "causal_promotion_inherited": inherited_causal_promotion,
         "selector_injection_allowed": all(selector_gates.values()),
         "all_mechanism_gates_passed": all(mechanism_gates.values()),
@@ -2298,11 +2491,20 @@ def _promotion_verdict(ablation: dict[str, Any]) -> dict[str, Any]:
     else:
         status = "wiring-ready"
     return {
-        "schema_version": ETA_GATE2_SCHEMA_VERSION,
+        "schema_version": ablation["schema_version"],
         "status": status,
-        "gate_scope": "Gate 2 residual intervention causal packet",
+        "gate_scope": (
+            "Gate 2 recent-k2 closed-loop SHADOW admission"
+            if ablation["schema_version"]
+            == ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION
+            else "Gate 2 residual intervention causal packet"
+        ),
         "thesis_status": "not-evaluated",
         "promotion_allowed": causal_passed,
+        "shadow_admission_allowed": ablation[
+            "shadow_observation_passed"
+        ],
+        "counterfactual_action_selector_live_injection": "disabled",
         "causal_packet_revalidated": causal_packet_revalidated,
         "mechanism_gates": ablation["mechanism_gates"],
         "causal_gates": ablation["causal_gates"],
@@ -2312,6 +2514,9 @@ def _promotion_verdict(ablation: dict[str, Any]) -> dict[str, Any]:
         "shadow_gates": ablation["shadow_gates"],
         "shadow_observation_passed": ablation[
             "shadow_observation_passed"
+        ],
+        "shadow_single_seed_stoploss_passed": ablation[
+            "shadow_single_seed_stoploss_passed"
         ],
         "selector_injection_allowed": ablation[
             "selector_injection_allowed"
@@ -2384,6 +2589,17 @@ def export_eta_gate2_residual_bundle(
         for value in values
     ]
     case_groups = dict(report.manifest.case_groups)
+    schema_version = case_groups.get(
+        "evidence_schema_version",
+        (ETA_GATE2_SCHEMA_VERSION,),
+    )[0]
+    if schema_version not in {
+        ETA_GATE2_SCHEMA_VERSION,
+        ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION,
+    }:
+        raise ValueError(
+            f"Unsupported Gate 2 evidence schema {schema_version!r}"
+        )
     independent_training_route_ids = case_groups.get(
         "independent_training_route_ids",
         (),
@@ -2483,7 +2699,7 @@ def export_eta_gate2_residual_bundle(
             "Gate 2 causal packet requires unchanged development routes"
         )
     manifest = {
-        "schema_version": ETA_GATE2_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "git_sha": report.provenance.git_sha,
         "substrate_fingerprint": _descriptor_fingerprint(descriptor),
         "substrate_fingerprint_verification": (
@@ -2562,6 +2778,17 @@ def export_eta_gate2_residual_bundle(
             "shadow_observation_gate": case_groups[
                 "shadow_observation_gate"
             ][0],
+            **(
+                {
+                    "committed_control_window": int(
+                        case_groups[
+                            "shadow_committed_control_window"
+                        ][0]
+                    )
+                }
+                if "shadow_committed_control_window" in case_groups
+                else {}
+            ),
         },
         "counterfactual_target": {
             "mode": case_groups["counterfactual_target_mode"][0],
@@ -2605,12 +2832,27 @@ def export_eta_gate2_residual_bundle(
             "activation_width": residual_activation_width,
             "compression_mode": "exact-up-to-configured-width",
         },
-        "metric_version": ETA_GATE2_SCHEMA_VERSION,
+        "metric_version": schema_version,
         "judge_or_human_protocol": (
             "typed automatic metrics; no LLM judge or human rating"
         ),
         "suite_id": report.manifest.suite_id,
-        "profiles": list(default_eta_gate2_residual_profiles()),
+        "claim_scope": case_groups.get(
+            "formal_claim_scope",
+            ("causal-packet",),
+        )[0],
+        "causal_packet_source": case_groups.get(
+            "causal_packet_source",
+            ("current-packet",),
+        )[0],
+        "counterfactual_action_selector_live_injection": (
+            case_groups[
+                "counterfactual_action_selector_live_injection"
+            ][0]
+        ),
+        "profiles": [
+            profile.profile_label for profile in report.manifest.profiles
+        ],
         "required_files": list(ETA_GATE2_REQUIRED_FILES),
     }
     missing_manifest_keys = [
@@ -2634,10 +2876,11 @@ def export_eta_gate2_residual_bundle(
             descriptor.get("primary_backend")
             == "transformers-open-weight"
         ),
+        schema_version=schema_version,
     )
     verdict = _promotion_verdict(ablation)
     rollback = {
-        "schema_version": ETA_GATE2_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "rollback_target": "residual_control_mode=identity",
         "configuration_default_is_identity": True,
         "owner_state_mutated_by_mode_switch": False,
@@ -2694,6 +2937,10 @@ def export_eta_gate2_residual_bundle(
             (
                 "- shadow observation passed："
                 f"`{ablation['shadow_observation_passed']}`"
+            ),
+            (
+                "- single-seed stop-loss passed："
+                f"`{ablation['shadow_single_seed_stoploss_passed']}`"
             ),
             (
                 "- reachable solution evidence（selector 过置换零假设）："

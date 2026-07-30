@@ -8,9 +8,11 @@ import pytest
 from volvence_zero.agent.eta_gate2_residual_evidence import (
     ETA_GATE2_REQUIRED_FILES,
     ETA_GATE2_REQUIRED_MANIFEST_KEYS,
+    ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION,
     _build_ablation_results,
     _promotion_verdict,
     build_eta_gate2_recent_k_diagnostic_manifest,
+    build_eta_gate2_recent_k2_formal_manifest,
     build_eta_gate2_residual_manifest,
     export_eta_gate2_residual_bundle,
 )
@@ -18,6 +20,7 @@ from volvence_zero.agent.eta_proof_benchmark import (
     ETA_CONTINUATION_PE_TRAINING_SIGNAL,
     ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME,
     ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
+    ETA_GATE2_RECENT_K2_FRESH_CASE_CORPUS,
     ETA_GATE2_SHADOW_FRESH_CASE_CORPUS,
     ETAOpenWeightRuntimeConfig,
     _aggregate_committed_controls,
@@ -28,6 +31,9 @@ from volvence_zero.agent.eta_proof_benchmark import (
     eta_gate2_expected_value_cases,
     eta_gate2_expected_value_validation_routes,
     eta_gate2_independent_training_routes,
+    eta_gate2_recent_k2_confirmation_routes,
+    eta_gate2_recent_k2_fresh_cases,
+    eta_gate2_recent_k2_fresh_validation_routes,
     eta_gate2_selector_confirmation_routes,
     eta_gate2_selector_fresh_cases,
     eta_gate2_selector_fresh_validation_routes,
@@ -320,6 +326,47 @@ def test_eta_gate2_recent_k_aggregation_is_bounded_and_fail_loud() -> None:
         )
 
 
+def test_eta_gate2_v37_formal_manifest_freezes_k2_and_fresh_routes() -> None:
+    manifest = build_eta_gate2_recent_k2_formal_manifest(
+        suite_tier="ci-smoke"
+    )
+    case_groups = dict(manifest.case_groups)
+    fresh_cases = eta_gate2_recent_k2_fresh_cases()
+
+    assert manifest.repeat_count == 3
+    assert manifest.seed_schedule == (0, 1, 2)
+    assert tuple(
+        profile.profile_label for profile in manifest.profiles
+    ) == ("full-internal-rl",)
+    assert case_groups["case_corpus"] == (
+        ETA_GATE2_RECENT_K2_FRESH_CASE_CORPUS,
+    )
+    assert case_groups["route_ids"] == tuple(
+        case.case_id for case in fresh_cases
+    )
+    assert case_groups["validation_route_ids"] == tuple(
+        route.case_id
+        for route in eta_gate2_recent_k2_fresh_validation_routes()
+    )
+    assert case_groups["confirmation_route_ids"] == tuple(
+        route.case_id
+        for route in eta_gate2_recent_k2_confirmation_routes()
+    )
+    assert case_groups["evidence_schema_version"] == (
+        ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION,
+    )
+    assert case_groups["shadow_committed_control_window"] == ("2",)
+    assert case_groups["causal_packet_source"] == (
+        "inherited-v35-locked",
+    )
+    assert case_groups["formal_claim_scope"] == (
+        "shadow-admission-only",
+    )
+    assert case_groups[
+        "counterfactual_action_selector_live_injection"
+    ] == ("disabled",)
+
+
 def test_eta_gate2_independent_training_text_avoids_development_content_words() -> None:
     stop_words = {
         "a",
@@ -441,6 +488,27 @@ def test_eta_gate2_v35_fresh_splits_are_lexically_fresh() -> None:
     assert v36_validation_words.isdisjoint(prior_words)
     assert v36_confirmation_words.isdisjoint(prior_words)
     assert v36_validation_words.isdisjoint(v36_confirmation_words)
+
+    all_prior_words = (
+        prior_words | v36_validation_words | v36_confirmation_words
+    )
+    v37_validation_words = set().union(
+        *(
+            content_words(route.source_text)
+            for route in eta_gate2_recent_k2_fresh_validation_routes()
+        )
+    )
+    v37_confirmation_words = set().union(
+        *(
+            content_words(route.source_text)
+            for route in eta_gate2_recent_k2_confirmation_routes()
+        )
+    )
+    assert v37_validation_words
+    assert v37_confirmation_words
+    assert v37_validation_words.isdisjoint(all_prior_words)
+    assert v37_confirmation_words.isdisjoint(all_prior_words)
+    assert v37_validation_words.isdisjoint(v37_confirmation_words)
 
 
 def test_eta_gate2_bundle_exports_frozen_v31_file_contract(
@@ -1233,6 +1301,86 @@ def test_eta_gate2_shadow_observation_gate_is_independent_of_v35_promotion() -> 
         "confirmation_selector_beats_zero"
         in failed_verdict["kill_conditions"]
     )
+
+
+def test_eta_gate2_v37_single_seed_stoploss_is_not_formal_admission() -> None:
+    rows, artifacts = _shadow_gate_fixture()
+    seed_zero_rows = [
+        row for row in rows if row["run_seed"] == 0
+    ]
+    seed_zero_artifacts = [
+        artifact
+        for artifact in artifacts
+        if artifact["run_seed"] == 0
+    ]
+
+    ablation = _build_ablation_results(
+        predictions=[],
+        outcomes=[],
+        metric_samples={},
+        action_selection=[],
+        counterfactual_outcomes=[],
+        selector_artifacts=seed_zero_artifacts,
+        shadow_closed_loop=seed_zero_rows,
+        inherited_causal_promotion=True,
+        schema_version=ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION,
+    )
+    verdict = _promotion_verdict(ablation)
+
+    assert ablation["shadow_artifact_lineage_valid"] is True
+    assert ablation["shadow_single_seed_stoploss_passed"] is True
+    assert ablation["shadow_observation_passed"] is False
+    assert verdict["schema_version"] == (
+        ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION
+    )
+    assert verdict["shadow_single_seed_stoploss_passed"] is True
+    assert verdict["shadow_observation_passed"] is False
+    assert verdict["shadow_admission_allowed"] is False
+    assert verdict[
+        "counterfactual_action_selector_live_injection"
+    ] == "disabled"
+
+
+def test_eta_gate2_v37_requires_every_seed_to_beat_permutation() -> None:
+    rows, artifacts = _shadow_gate_fixture()
+    one_seed_reversed = [
+        {
+            **row,
+            "realized_delta": 0.05,
+        }
+        if (
+            row["split"] == "validation"
+            and row["run_seed"] == 2
+            and row["arm"] == "permutation-null"
+        )
+        else row
+        for row in rows
+    ]
+
+    ablation = _build_ablation_results(
+        predictions=[],
+        outcomes=[],
+        metric_samples={},
+        action_selection=[],
+        counterfactual_outcomes=[],
+        selector_artifacts=artifacts,
+        shadow_closed_loop=one_seed_reversed,
+        inherited_causal_promotion=True,
+        schema_version=ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION,
+    )
+
+    validation = ablation["shadow_closed_loop_by_split"]["validation"]
+    assert validation["selector_minus_permutation_mean"] > 0.0
+    assert validation[
+        "selector_permutation_positive_seed_count"
+    ] == 2.0
+    assert ablation["shadow_gates"][
+        "validation_selector_beats_permutation_null"
+    ] is True
+    assert ablation["shadow_gates"][
+        "validation_selector_beats_permutation_all_seeds"
+    ] is False
+    assert ablation["shadow_observation_passed"] is False
 
 
 @pytest.mark.parametrize(
