@@ -1,0 +1,89 @@
+{
+  "rows": [
+    {
+      "after": "0fbbca26fea32ac999f83bff52de094847fcc44d1a125ae561114cab46bcbe12",
+      "arm": "sleep-consolidation",
+      "before": "0fbbca26fea32ac999f83bff52de094847fcc44d1a125ae561114cab46bcbe12",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "0fbbca26fea32ac999f83bff52de094847fcc44d1a125ae561114cab46bcbe12",
+      "arm": "no-sleep",
+      "before": "0fbbca26fea32ac999f83bff52de094847fcc44d1a125ae561114cab46bcbe12",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "0fbbca26fea32ac999f83bff52de094847fcc44d1a125ae561114cab46bcbe12",
+      "arm": "memory-only-sleep",
+      "before": "0fbbca26fea32ac999f83bff52de094847fcc44d1a125ae561114cab46bcbe12",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "0fbbca26fea32ac999f83bff52de094847fcc44d1a125ae561114cab46bcbe12",
+      "arm": "policy-only-sleep",
+      "before": "0fbbca26fea32ac999f83bff52de094847fcc44d1a125ae561114cab46bcbe12",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "b67a693d97a1c02ce2e24862538ec922eaaa57e5c441453efdd0231b71307228",
+      "arm": "sleep-consolidation",
+      "before": "b67a693d97a1c02ce2e24862538ec922eaaa57e5c441453efdd0231b71307228",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "b67a693d97a1c02ce2e24862538ec922eaaa57e5c441453efdd0231b71307228",
+      "arm": "no-sleep",
+      "before": "b67a693d97a1c02ce2e24862538ec922eaaa57e5c441453efdd0231b71307228",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "b67a693d97a1c02ce2e24862538ec922eaaa57e5c441453efdd0231b71307228",
+      "arm": "memory-only-sleep",
+      "before": "b67a693d97a1c02ce2e24862538ec922eaaa57e5c441453efdd0231b71307228",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "b67a693d97a1c02ce2e24862538ec922eaaa57e5c441453efdd0231b71307228",
+      "arm": "policy-only-sleep",
+      "before": "b67a693d97a1c02ce2e24862538ec922eaaa57e5c441453efdd0231b71307228",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "ceeb832e8e08c13c66ed224165e71e8c65864b8cd9244c150b50f32a8db5c802",
+      "arm": "sleep-consolidation",
+      "before": "ceeb832e8e08c13c66ed224165e71e8c65864b8cd9244c150b50f32a8db5c802",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "ceeb832e8e08c13c66ed224165e71e8c65864b8cd9244c150b50f32a8db5c802",
+      "arm": "no-sleep",
+      "before": "ceeb832e8e08c13c66ed224165e71e8c65864b8cd9244c150b50f32a8db5c802",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "ceeb832e8e08c13c66ed224165e71e8c65864b8cd9244c150b50f32a8db5c802",
+      "arm": "memory-only-sleep",
+      "before": "ceeb832e8e08c13c66ed224165e71e8c65864b8cd9244c150b50f32a8db5c802",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "ceeb832e8e08c13c66ed224165e71e8c65864b8cd9244c150b50f32a8db5c802",
+      "arm": "policy-only-sleep",
+      "before": "ceeb832e8e08c13c66ed224165e71e8c65864b8cd9244c150b50f32a8db5c802",
+      "exact": true,
+      "seed": 719
+    }
+  ],
+  "schema_version": "gate8-wake-sleep.v1"
+}

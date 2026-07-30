@@ -1,0 +1,12 @@
+{"arm":"sleep-consolidation","cold_start_error":0.09982843035396805,"seed":701}
+{"arm":"no-sleep","cold_start_error":0.550368486003161,"seed":701}
+{"arm":"memory-only-sleep","cold_start_error":0.15036848600316088,"seed":701}
+{"arm":"policy-only-sleep","cold_start_error":0.49982843035396807,"seed":701}
+{"arm":"sleep-consolidation","cold_start_error":0.09481615002076094,"seed":709}
+{"arm":"no-sleep","cold_start_error":0.550368486003161,"seed":709}
+{"arm":"memory-only-sleep","cold_start_error":0.15036848600316088,"seed":709}
+{"arm":"policy-only-sleep","cold_start_error":0.49481615002076096,"seed":709}
+{"arm":"sleep-consolidation","cold_start_error":0.0939318320386392,"seed":719}
+{"arm":"no-sleep","cold_start_error":0.550368486003161,"seed":719}
+{"arm":"memory-only-sleep","cold_start_error":0.15036848600316088,"seed":719}
+{"arm":"policy-only-sleep","cold_start_error":0.4939318320386392,"seed":719}

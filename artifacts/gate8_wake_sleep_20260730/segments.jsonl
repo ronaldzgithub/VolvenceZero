@@ -1,0 +1,12 @@
+{"arm":"sleep-consolidation","evaluation_episode_count":12,"seed":701,"slow_job_latency_ms":15.089749998878688,"turn_latency_contains_slow_job":false,"turn_latency_ms":13.681083015399054}
+{"arm":"no-sleep","evaluation_episode_count":12,"seed":701,"slow_job_latency_ms":1.2091659882571548,"turn_latency_contains_slow_job":false,"turn_latency_ms":2.3892080062069}
+{"arm":"memory-only-sleep","evaluation_episode_count":12,"seed":701,"slow_job_latency_ms":14.680749998660758,"turn_latency_contains_slow_job":false,"turn_latency_ms":12.666041002376005}
+{"arm":"policy-only-sleep","evaluation_episode_count":12,"seed":701,"slow_job_latency_ms":14.357625012053177,"turn_latency_contains_slow_job":false,"turn_latency_ms":2.367833978496492}
+{"arm":"sleep-consolidation","evaluation_episode_count":12,"seed":709,"slow_job_latency_ms":13.979624985950068,"turn_latency_contains_slow_job":false,"turn_latency_ms":12.570374994538724}
+{"arm":"no-sleep","evaluation_episode_count":12,"seed":709,"slow_job_latency_ms":1.0951249860227108,"turn_latency_contains_slow_job":false,"turn_latency_ms":2.3829580168239772}
+{"arm":"memory-only-sleep","evaluation_episode_count":12,"seed":709,"slow_job_latency_ms":14.520333003019914,"turn_latency_contains_slow_job":false,"turn_latency_ms":12.659750005695969}
+{"arm":"policy-only-sleep","evaluation_episode_count":12,"seed":709,"slow_job_latency_ms":14.285874989582226,"turn_latency_contains_slow_job":false,"turn_latency_ms":2.437708986690268}
+{"arm":"sleep-consolidation","evaluation_episode_count":12,"seed":719,"slow_job_latency_ms":14.096083003096282,"turn_latency_contains_slow_job":false,"turn_latency_ms":12.814042012905702}
+{"arm":"no-sleep","evaluation_episode_count":12,"seed":719,"slow_job_latency_ms":1.1322920036036521,"turn_latency_contains_slow_job":false,"turn_latency_ms":2.392499998677522}
+{"arm":"memory-only-sleep","evaluation_episode_count":12,"seed":719,"slow_job_latency_ms":14.608083001803607,"turn_latency_contains_slow_job":false,"turn_latency_ms":13.351750007132068}
+{"arm":"policy-only-sleep","evaluation_episode_count":12,"seed":719,"slow_job_latency_ms":14.068832999328151,"turn_latency_contains_slow_job":false,"turn_latency_ms":2.414500981103629}

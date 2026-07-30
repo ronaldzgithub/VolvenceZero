@@ -1,0 +1,12 @@
+{"arm":"sleep-consolidation","callback_commitment_consistency":1.0,"delayed_payoff":0.900171569646032,"seed":701,"temporal_policy_alignment":0.8336192827433866}
+{"arm":"no-sleep","callback_commitment_consistency":0.0,"delayed_payoff":0.44963151399683904,"seed":701,"temporal_policy_alignment":0.7493858566613985}
+{"arm":"memory-only-sleep","callback_commitment_consistency":1.0,"delayed_payoff":0.8496315139968391,"seed":701,"temporal_policy_alignment":0.7493858566613985}
+{"arm":"policy-only-sleep","callback_commitment_consistency":0.0,"delayed_payoff":0.5001715696460319,"seed":701,"temporal_policy_alignment":0.8336192827433866}
+{"arm":"sleep-consolidation","callback_commitment_consistency":1.0,"delayed_payoff":0.9051838499792391,"seed":709,"temporal_policy_alignment":0.8419730832987318}
+{"arm":"no-sleep","callback_commitment_consistency":0.0,"delayed_payoff":0.44963151399683904,"seed":709,"temporal_policy_alignment":0.7493858566613985}
+{"arm":"memory-only-sleep","callback_commitment_consistency":1.0,"delayed_payoff":0.8496315139968391,"seed":709,"temporal_policy_alignment":0.7493858566613985}
+{"arm":"policy-only-sleep","callback_commitment_consistency":0.0,"delayed_payoff":0.505183849979239,"seed":709,"temporal_policy_alignment":0.8419730832987318}
+{"arm":"sleep-consolidation","callback_commitment_consistency":1.0,"delayed_payoff":0.9060681679613608,"seed":719,"temporal_policy_alignment":0.8434469466022679}
+{"arm":"no-sleep","callback_commitment_consistency":0.0,"delayed_payoff":0.44963151399683904,"seed":719,"temporal_policy_alignment":0.7493858566613985}
+{"arm":"memory-only-sleep","callback_commitment_consistency":1.0,"delayed_payoff":0.8496315139968391,"seed":719,"temporal_policy_alignment":0.7493858566613985}
+{"arm":"policy-only-sleep","callback_commitment_consistency":0.0,"delayed_payoff":0.5060681679613608,"seed":719,"temporal_policy_alignment":0.8434469466022679}

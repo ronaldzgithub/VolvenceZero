@@ -1,0 +1,12 @@
+{"arm":"sleep-consolidation","memory_entry_count":12,"owner_state_drift":0.30746149532276745,"seed":701,"temporal_operation_count":60}
+{"arm":"no-sleep","memory_entry_count":0,"owner_state_drift":0.0,"seed":701,"temporal_operation_count":0}
+{"arm":"memory-only-sleep","memory_entry_count":12,"owner_state_drift":0.25,"seed":701,"temporal_operation_count":0}
+{"arm":"policy-only-sleep","memory_entry_count":0,"owner_state_drift":0.057461495322767474,"seed":701,"temporal_operation_count":60}
+{"arm":"sleep-consolidation","memory_entry_count":12,"owner_state_drift":0.33002928867642556,"seed":709,"temporal_operation_count":60}
+{"arm":"no-sleep","memory_entry_count":0,"owner_state_drift":0.0,"seed":709,"temporal_operation_count":0}
+{"arm":"memory-only-sleep","memory_entry_count":12,"owner_state_drift":0.25,"seed":709,"temporal_operation_count":0}
+{"arm":"policy-only-sleep","memory_entry_count":0,"owner_state_drift":0.08002928867642559,"seed":709,"temporal_operation_count":60}
+{"arm":"sleep-consolidation","memory_entry_count":12,"owner_state_drift":0.3374816458121827,"seed":719,"temporal_operation_count":60}
+{"arm":"no-sleep","memory_entry_count":0,"owner_state_drift":0.0,"seed":719,"temporal_operation_count":0}
+{"arm":"memory-only-sleep","memory_entry_count":12,"owner_state_drift":0.25,"seed":719,"temporal_operation_count":0}
+{"arm":"policy-only-sleep","memory_entry_count":0,"owner_state_drift":0.0874816458121827,"seed":719,"temporal_operation_count":60}

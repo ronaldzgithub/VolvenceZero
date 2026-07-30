@@ -108,6 +108,7 @@ class SessionPostSlowLoopQueueState:
     pending_job_count: int
     running_job_count: int
     completed_job_count: int
+    duplicate_job_count: int
     last_completed_job_id: str | None
     last_completed_context_session_id: str | None
     description: str
@@ -145,12 +146,24 @@ class SessionPostSlowLoopQueue:
         self._completed_results: deque[SessionPostSlowLoopResult] = deque()
         self._worker_task: asyncio.Task[None] | None = None
         self._completed_job_count = 0
+        self._duplicate_job_count = 0
+        self._jobs_by_id: dict[str, SessionPostSlowLoopJob] = {}
         self._last_completed_job_id: str | None = None
         self._last_completed_context_session_id: str | None = None
 
-
-    def enqueue(self, job: SessionPostSlowLoopJob) -> None:
+    def enqueue(self, job: SessionPostSlowLoopJob) -> bool:
+        known_job = self._jobs_by_id.get(job.job_id)
+        if known_job is not None:
+            if known_job != job:
+                raise ValueError(
+                    "Session-post slow-loop job_id collision for non-identical "
+                    f"payload: {job.job_id}"
+                )
+            self._duplicate_job_count += 1
+            return False
+        self._jobs_by_id[job.job_id] = job
         self._pending_jobs.append(job)
+        return True
 
     def schedule(self) -> None:
         try:
@@ -179,11 +192,13 @@ class SessionPostSlowLoopQueue:
             pending_job_count=len(self._pending_jobs),
             running_job_count=running_job_count,
             completed_job_count=self._completed_job_count,
+            duplicate_job_count=self._duplicate_job_count,
             last_completed_job_id=self._last_completed_job_id,
             last_completed_context_session_id=self._last_completed_context_session_id,
             description=(
                 f"Session-post slow loop pending={len(self._pending_jobs)} "
-                f"running={running_job_count} completed={self._completed_job_count}."
+                f"running={running_job_count} completed={self._completed_job_count} "
+                f"duplicates={self._duplicate_job_count}."
             ),
         )
 
@@ -236,6 +251,7 @@ class SessionPostSlowLoopModule(RuntimeModule[SessionPostSlowLoopSnapshot]):
                 description=(
                     f"Session-post slow loop slot pending={queue_state.pending_job_count} "
                     f"running={queue_state.running_job_count} completed={queue_state.completed_job_count} "
+                    f"duplicates={queue_state.duplicate_job_count} "
                     f"recent_results={len(recent_results)}."
                 ),
             )

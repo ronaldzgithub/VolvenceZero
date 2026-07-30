@@ -399,6 +399,7 @@ class SessionPostSlowLoopSnapshot:
 **不变量**：
 - queue 不是新的 memory / temporal / regime owner
 - request payload 必须是 immutable 的 machine-readable contract
+- queue 对同一 session lifetime 内完全一致的 `job_id + payload` 只执行一次，并在 `queue_state.duplicate_job_count` 公开重复计数；同一 `job_id` 的不同 payload 必须 fail loudly
 - apply 仍受 `writeback_mode`、credit gate、evolution judgement 约束
 - turn latency 不等待 slow loop 完成
 - `session_post_slow_loop` 是独立公共 slot；queue state / 最近完成结果必须通过快照发布，而不是要求消费者读取 `AgentSessionRunner` 私有状态

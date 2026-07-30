@@ -1,0 +1,76 @@
+schema_version: gate8-wake-sleep-preregistration.v1
+suite_id: gate8-wake-sleep
+owner: vz-memory background-slow ReflectionEngine with vz-temporal policy writeback
+source_trace:
+  schema_version: gate78-shared-trace.v2
+  root: artifacts/gate78_shared_trace_v2_20260730
+  development_partition: trace-development-heldout
+  primary_partition: trace-locked-confirmation
+seed_schedule:
+  - 701
+  - 709
+  - 719
+arm_schedule:
+  - sleep-consolidation
+  - no-sleep
+  - memory-only-sleep
+  - policy-only-sleep
+session_protocol:
+  evidence_scope: closed-session-one-only
+  evaluation_scope: next-session-cold-start
+  prompt_increment_from_sleep_tokens: 0
+  turn_latency_excludes_slow_job_latency: true
+  slow_job_execution: asynchronous-queue
+writeback_targets:
+  sleep-consolidation:
+    memory: active
+    temporal_policy: active
+  no-sleep:
+    memory: disabled
+    temporal_policy: disabled
+  memory-only-sleep:
+    memory: active
+    temporal_policy: disabled
+  policy-only-sleep:
+    memory: isolated-control-owner
+    temporal_policy: active
+primary_metrics:
+  - next_session_cold_start_loss
+  - callback_commitment_consistency
+  - delayed_payoff
+  - owner_state_drift
+  - turn_latency_ms
+  - slow_job_latency_ms
+causal_exit_gates:
+  minimum_full_cold_start_loss_reduction_vs_no_sleep: 0.02
+  minimum_full_callback_consistency_gain_vs_no_sleep: 0.02
+  minimum_full_delayed_payoff_gain_vs_no_sleep: 0.02
+  maximum_full_owner_state_drift: 0.50
+  maximum_sleep_prompt_token_increment: 0
+  maximum_duplicate_job_execution_count: 0
+  minimum_owner_writeback_lineage_coverage: 1.0
+  rollback_fingerprint_mismatch_count: 0
+  turn_latency_contains_slow_job_latency_count: 0
+  full_arm_required_to_outperform_each_single_owner_control: true
+required_files:
+  - manifest.yaml
+  - predictions.jsonl
+  - outcomes.jsonl
+  - prediction_errors.jsonl
+  - segments.jsonl
+  - credit.jsonl
+  - state_diff.jsonl
+  - action_selection.jsonl
+  - ablation_results.json
+  - promotion_verdict.json
+  - rollback_evidence.json
+  - report.md
+execution_policy:
+  preregister_before_implementation: true
+  development_probe_uses_locked: false
+  formal_locked_run_count: 1
+  post_locked_retuning_allowed: false
+rollback:
+  memory: ReflectionEngine checkpoint restore
+  temporal_policy: exact exported-parameter restore
+  requirement: exact combined owner fingerprint equality after whole-cycle restore

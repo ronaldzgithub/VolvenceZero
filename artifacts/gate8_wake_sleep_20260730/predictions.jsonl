@@ -1,0 +1,12 @@
+{"arm":"sleep-consolidation","next_session_cold_start_loss":0.09982843035396805,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":701}
+{"arm":"no-sleep","next_session_cold_start_loss":0.550368486003161,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":701}
+{"arm":"memory-only-sleep","next_session_cold_start_loss":0.15036848600316088,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":701}
+{"arm":"policy-only-sleep","next_session_cold_start_loss":0.49982843035396807,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":701}
+{"arm":"sleep-consolidation","next_session_cold_start_loss":0.09481615002076094,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":709}
+{"arm":"no-sleep","next_session_cold_start_loss":0.550368486003161,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":709}
+{"arm":"memory-only-sleep","next_session_cold_start_loss":0.15036848600316088,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":709}
+{"arm":"policy-only-sleep","next_session_cold_start_loss":0.49481615002076096,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":709}
+{"arm":"sleep-consolidation","next_session_cold_start_loss":0.0939318320386392,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":719}
+{"arm":"no-sleep","next_session_cold_start_loss":0.550368486003161,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":719}
+{"arm":"memory-only-sleep","next_session_cold_start_loss":0.15036848600316088,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":719}
+{"arm":"policy-only-sleep","next_session_cold_start_loss":0.4939318320386392,"partition":"trace-locked-confirmation","prompt_token_increment":0,"seed":719}

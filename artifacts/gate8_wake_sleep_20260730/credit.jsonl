@@ -1,0 +1,12 @@
+{"arm":"sleep-consolidation","owner_lineage_expected_count":24,"owner_lineage_observed_count":24,"owner_writeback_lineage_coverage":1.0,"seed":701}
+{"arm":"no-sleep","owner_lineage_expected_count":0,"owner_lineage_observed_count":0,"owner_writeback_lineage_coverage":1.0,"seed":701}
+{"arm":"memory-only-sleep","owner_lineage_expected_count":12,"owner_lineage_observed_count":12,"owner_writeback_lineage_coverage":1.0,"seed":701}
+{"arm":"policy-only-sleep","owner_lineage_expected_count":12,"owner_lineage_observed_count":12,"owner_writeback_lineage_coverage":1.0,"seed":701}
+{"arm":"sleep-consolidation","owner_lineage_expected_count":24,"owner_lineage_observed_count":24,"owner_writeback_lineage_coverage":1.0,"seed":709}
+{"arm":"no-sleep","owner_lineage_expected_count":0,"owner_lineage_observed_count":0,"owner_writeback_lineage_coverage":1.0,"seed":709}
+{"arm":"memory-only-sleep","owner_lineage_expected_count":12,"owner_lineage_observed_count":12,"owner_writeback_lineage_coverage":1.0,"seed":709}
+{"arm":"policy-only-sleep","owner_lineage_expected_count":12,"owner_lineage_observed_count":12,"owner_writeback_lineage_coverage":1.0,"seed":709}
+{"arm":"sleep-consolidation","owner_lineage_expected_count":24,"owner_lineage_observed_count":24,"owner_writeback_lineage_coverage":1.0,"seed":719}
+{"arm":"no-sleep","owner_lineage_expected_count":0,"owner_lineage_observed_count":0,"owner_writeback_lineage_coverage":1.0,"seed":719}
+{"arm":"memory-only-sleep","owner_lineage_expected_count":12,"owner_lineage_observed_count":12,"owner_writeback_lineage_coverage":1.0,"seed":719}
+{"arm":"policy-only-sleep","owner_lineage_expected_count":12,"owner_lineage_observed_count":12,"owner_writeback_lineage_coverage":1.0,"seed":719}

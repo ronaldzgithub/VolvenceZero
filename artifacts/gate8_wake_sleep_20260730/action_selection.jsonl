@@ -1,0 +1,12 @@
+{"arm":"sleep-consolidation","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":701,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"no-sleep","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":701,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"memory-only-sleep","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":701,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"policy-only-sleep","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":701,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"sleep-consolidation","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":709,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"no-sleep","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":709,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"memory-only-sleep","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":709,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"policy-only-sleep","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":709,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"sleep-consolidation","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":719,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"no-sleep","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":719,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"memory-only-sleep","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":719,"unique_job_count":12,"worker_execution_count":12}
+{"arm":"policy-only-sleep","duplicate_job_count":1,"duplicate_job_execution_count":0,"seed":719,"unique_job_count":12,"worker_execution_count":12}

@@ -1,0 +1,65 @@
+{
+  "causal_gates": [
+    [
+      "cold-start-loss-reduction-vs-no-sleep",
+      true,
+      0.4541763485320383
+    ],
+    [
+      "callback-consistency-gain-vs-no-sleep",
+      true,
+      1.0
+    ],
+    [
+      "delayed-payoff-gain-vs-no-sleep",
+      true,
+      0.4541763485320382
+    ],
+    [
+      "full-outperforms-single-owner-controls",
+      true,
+      0.05417634853203823
+    ],
+    [
+      "full-owner-state-drift-bounded",
+      true,
+      0.3374816458121827
+    ]
+  ],
+  "locked_consumed": true,
+  "mechanism_gates": [
+    [
+      "source-consumer-admission",
+      true,
+      1.0
+    ],
+    [
+      "sleep-prompt-token-increment-zero",
+      true,
+      0.0
+    ],
+    [
+      "duplicate-job-execution-zero",
+      true,
+      0.0
+    ],
+    [
+      "owner-lineage-complete",
+      true,
+      1.0
+    ],
+    [
+      "whole-cycle-rollback-exact",
+      true,
+      0.0
+    ],
+    [
+      "turn-latency-excludes-slow-job",
+      true,
+      0.0
+    ]
+  ],
+  "retuning_allowed": false,
+  "schema_version": "gate8-wake-sleep.v1",
+  "verdict": "causal-supported"
+}
