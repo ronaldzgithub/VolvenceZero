@@ -1,0 +1,90 @@
+{
+  "schema_version": "gate11-longitudinal-fourth-campaign-verdict-matrix.v1",
+  "campaign_level": "mechanism-supported",
+  "thesis_retained": false,
+  "runtime_live_promotion_allowed": false,
+  "full_chain_rollback_drill_passed": true,
+  "mechanism_coverage": "Gate 1-11 complete (Gate 3 is not defined in debt #92)",
+  "causal_supported_gates": [2, 8, 11],
+  "causal_not_supported_gates": [1, 4, 5, 6, 7, 9, 10],
+  "longitudinal_supported_gates": [11],
+  "longitudinal_not_supported_gates": [5],
+  "rows": [
+    {
+      "gate": 1,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "mechanism-change-required"
+    },
+    {
+      "gate": 2,
+      "mechanism": "supported",
+      "causal": "supported-v35-open-loop",
+      "longitudinal": "not-run",
+      "disposition": "v35-retained-v36-live-frozen"
+    },
+    {
+      "gate": 4,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "mechanism-change-required"
+    },
+    {
+      "gate": 5,
+      "mechanism": "supported-cross-session",
+      "causal": "not-supported",
+      "longitudinal": "not-supported",
+      "campaign_evidence": "formal-fresh-locked-v2",
+      "locked_consumed": true,
+      "disposition": "mechanism-change-required",
+      "reason": "All persistence and rollback gates passed, but absorption/retention gains versus single-timescale were approximately 2.01e-7/1.19e-6, below 0.02."
+    },
+    {
+      "gate": 6,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "mechanism-change-required"
+    },
+    {
+      "gate": 7,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "mechanism-change-required"
+    },
+    {
+      "gate": 8,
+      "mechanism": "supported",
+      "causal": "causal-supported",
+      "longitudinal": "not-run",
+      "disposition": "next-viable-longitudinal-expansion"
+    },
+    {
+      "gate": 9,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "implementation-candidate-only"
+    },
+    {
+      "gate": 10,
+      "mechanism": "supported-v2",
+      "causal": "not-supported",
+      "longitudinal": "not-run",
+      "disposition": "review-only-mechanism-change-required"
+    },
+    {
+      "gate": 11,
+      "mechanism": "supported",
+      "causal": "supported",
+      "longitudinal": "longitudinal-supported",
+      "campaign_evidence": "formal-fresh-locked-v2-evaluator-reconciliation",
+      "locked_consumed": true,
+      "disposition": "retain-owner-continuity-only",
+      "reason": "Correct state beat stateless/swapped by 0.7593 and shuffled by 0.6667 with positive 95% CI lower bounds; isolation, persistence, delete and rollback passed. Absolute callback hit remained 0.2778 and human relationship ground truth was not evaluated."
+    }
+  ]
+}

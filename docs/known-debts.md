@@ -2151,6 +2151,38 @@ return (
 > `thesis_retained=false`、live promotion 不获授权。只读对账：
 > `artifacts/gate7_8_second_campaign_20260730`。
 
+> **2026-07-30 Gate 7/9/10 第三战役 checkpoint**：Gate 7 fresh v3
+> 排除上一轮 structure drift 后，因 full 相对 no-ssl/no-rl 的 return 与
+> composition gain 均为 `0`，判 `not-supported`。Gate 9 的 M3 与
+> plain momentum 等价且输给 SGD/Adam，PE gate benefit 未胜 matched
+> controls，两子套件均 `not-supported`。Gate 10 v1 rollback digest 未纳入
+> live substrate，判 `invalid`；fresh v2 联合绑定 session owner + substrate
+> checkpoint，full-chain rollback exact rate=`1.0`，但 held-out gain 为负，
+> 最终 `not-supported`。至此 Gate 1-10 mechanism coverage 完整（#92 无
+> Gate 3），causal-supported 仍只有 Gate 2/8，longitudinal 为 `0`。统一等级
+> 仍为 `mechanism-supported`，#92 OPEN，production/live promotion 禁止。
+> authoritative reconciliation：
+> `artifacts/gate7_9_10_third_campaign_20260730`。下一战役为 Gate 11 +
+> ≥500 settled transitions longitudinal，并在同尺度重开 Gate 5。
+
+> **2026-07-30 Gate 11 + longitudinal 第四战役 checkpoint**：fresh
+> `gate11-longitudinal-settled-trace.v2` 在 seed
+> `1201 / 1213 / 1223` 上形成 `1530` 条 frozen Qwen settled transitions，
+> aggregate admission 全绿。Gate 11 四臂在每 10 条一次真实 owner
+> persistence/constructor restart 下完成；authoritative v2 没有重跑 locked
+> arm，仅修正 v1 evaluator 多加的未预注册 perfect-consistency kill gate。
+> correct 相对 stateless/swapped/shuffled 增益为
+> `+0.759259 / +0.759259 / +0.666667`，隔离、delete、persistence 与 rollback
+> 全通过，判 `longitudinal-supported`；但 callback 绝对命中仅 `0.277778`，
+> 且无 #51 human anchor，因此只支持 deterministic owner continuity。
+> Gate 5 同 source 五臂 × 三 seed、`7650` arm-transitions 与每臂每 seed
+> `50` 次 restart 全机制门通过，但 absorption/retention 增益只有
+> `+2.01e-7 / +1.19e-6 < 0.02`，仍 `not-supported`。至此
+> causal-supported 为 Gate `2/8/11`、longitudinal-supported 只有 Gate 11；
+> 共同等级仍 `mechanism-supported`，#92 OPEN、production/live promotion
+> 禁止。总对账：
+> `artifacts/gate11_longitudinal_fourth_campaign_20260730`。
+
 - **路径**：
   - 总论与需求：[`docs/volvence-thesis.md`](volvence-thesis.md) · [`docs/next_gen_emogpt.md`](next_gen_emogpt.md)
   - PE / LSS：[`docs/specs/prediction-error-loop.md`](specs/prediction-error-loop.md)
@@ -2557,6 +2589,18 @@ return (
   `0.02` 最小效应。按预注册不得重跑 locked 或调参续命；Gate 5 causal
   claim 为 `not-supported`，当前仅保留“多频 CMS 可运行、可审计且可
   回滚”。artifact：`artifacts/gate5_cms_pareto_20260730`。
+- **2026-07-30 longitudinal v2 verdict（NO-GO，同机制关闭）**：
+  fresh `gate11-longitudinal-settled-trace.v2` 提供 seed
+  `1201 / 1213 / 1223` 各 `510` 条 settled transitions。五臂共
+  `7650` arm-transitions，每 arm/seed 每 10 条一次 filesystem persistence
+  与 constructor restart（各 `50` 次）；cadence、同参数预算、lineage、
+  frozen substrate、persistence round-trip 与 checkpoint rollback 全绿，
+  full 对全部 controls 在 `0.01` 内 Pareto 不劣。但 full 相对
+  single-timescale 的 locked absorption / retention 增益仅
+  `+0.000000201 / +0.000001187`，远低于 `0.02`；verdict 仍为
+  `not-supported`。Gate 5 不得再以同一 objective 换 seed 或调阈值重开，
+  下一次必须先有 owner-level mechanism/objective change。artifact：
+  `artifacts/gate5_cms_pareto_longitudinal_v2_20260730`。
 
 ### Gate 6 — Nested meta-init / slow→fast 知识转移
 
@@ -2595,6 +2639,16 @@ return (
   修复与回归测试已落地，但发生在 locked 判词之后，原 artifact 必须保持
   `invalid`。不得复写或重跑同一 locked；新确认需 fresh v3。
   artifact：`artifacts/gate7_causal_takeover_20260730`。
+- **2026-07-30 第三战役 v3 verdict（NO-GO，主张已收缩）**：
+  fresh `gate78-shared-trace.v3` 在 seed `727 / 733 / 739` 上完成唯一
+  locked run。上一轮 invalid 的死因已排除：source admission、future
+  leakage=`0`、token-space mutation=`0`、RL 阶段 structure fingerprint
+  change=`0` 与 whole-cycle rollback 全绿，full takeover rate=`1.0`。
+  但 full 相对 no-ssl/no-rl 的 terminal-return 与 composition gain 均为
+  `0.0`，未达到冻结最小效应，故 verdict=`not-supported`。Gate 7 只保留
+  mechanism-supported，不再主张 causal advantage；本 locked 不得复用，
+  同版机制不得以 v4 重试。artifact：
+  `artifacts/gate7_causal_takeover_v3_20260730`。
 
 ### Gate 8 — Wake/sleep 与 background-slow 反思
 
@@ -2624,6 +2678,18 @@ return (
   - PE-gated update 对 `no-update`、`always-update`、`random-gate`；测写入精度、无用写入、漂移、遗忘、收益和 rollback 精确性。
   - DGD/真正 Hope 自指递归尚属 backlog；实现前不得用现有 proposal/telemetry 测试冒充该能力。
 - **EXIT**：只有在真实 owner trace 上相对 matched optimizer/gate 有稳定增益且风险不劣化，才允许把 M3 或 Titans/Hope 写成产品贡献；否则它们只保留为实现候选/设计模式。
+- **2026-07-30 第三战役 verdict（NO-GO，主张已收缩）**：
+  `gate9-bounded-selfmod.v1` 的两套三 seed matched controls 均完成，
+  budget、lineage、frozen substrate 与 rollback 机制门全绿。M3 与 plain
+  momentum 的 tracking/overshoot/settling/recovery/retention 完全相同，
+  且 tracking MAE 相对 SGD/Adam margin 为
+  `-0.203442 / -0.033642`；当前 slow momentum 只作下游 signal，未形成
+  optimizer advantage。PE gate 虽达到 write precision=`1.0`、无用写入率
+  `0.0`，但 benefit 相对 always/random 的 margin 只有约
+  `5.37e-5 / -1.00e-7`，未达 `0.01`。两子套件及 Gate 9 整体均
+  `not-supported`；M3/Titans/Hope 只保留为实现候选/设计模式，DGD/真
+  Hope recursion 仍是 backlog。artifact：
+  `artifacts/gate9_bounded_selfmod_20260730`。
 
 ### Gate 10 — Rare-heavy artifact 晋升与持续改进闭环
 
@@ -2633,6 +2699,20 @@ return (
   - artifact 必须携带来源 cohort、训练模式、参数量、substrate fingerprint、owner checkpoint、评估证据、gate verdict 和 content/privacy attestation。
   - import 后重放关键旧场景；任何 kill condition 命中必须自动拒绝或回滚，不得依赖 prompt 自律。
 - **EXIT**：candidate 在 held-out cohort 上达到预注册提升且不破坏旧能力、安全、边界与用户隔离；字节级或参数级 rollback 通过；否则只允许保留 review-only artifact。
+- **2026-07-30 第三战役 verdict（NO-GO，保留 review-only）**：
+  v1 总对账审计发现 rollback digest 未包含 live substrate checkpoint，
+  因此原 artifact 不复写并判 `invalid`。fresh
+  `gate10-rare-heavy-promotion.v2` 用 seed `1021 / 1031 / 1033` 复验：
+  candidate metadata 全套、compatibility、review-only 无副作用、rejected
+  auto-block、owner import mechanism 全绿；ACTIVE candidate 的 full-chain
+  rollback 联合绑定 session owner checkpoint 与 live substrate checkpoint，
+  temporal/memory/substrate/application 均恢复，exact rate=`1.0`，因此 #92
+  总 EXIT 第 4 条已满足。full-import catastrophic forgetting=`0.005166`、
+  cross-user leakage=`0`，但 held-out gain 相对 review-only 为
+  `-0.00000488`，未达到 `0.008`，故 v2 verdict=`not-supported`。仅保留
+  review/import/reject/rollback mechanism 与 review-only artifact，不授权
+  production promotion。authoritative artifact：
+  `artifacts/gate10_rare_heavy_promotion_v2_20260730`。
 
 ### Gate 11 — 每用户生命体状态与跨会话连续性
 
@@ -2643,6 +2723,21 @@ return (
   - 多用户并发、保存→进程重启→恢复、删除、checkpoint rollback；结构性 cross-user key/read/write 泄漏数必须为 0。
   - 关系质量最终结论复用 [#51](#51) 的盲评 ground truth，系统自评只能作为 readout。
 - **EXIT**：跨 session 的正确用户状态对 stateless 有稳定正效应；交换状态负对照按预期失败；隔离、删除和 rollback 全通过。未通过时只能宣称“共享模型 + 可持久化状态”，不能宣称“每用户生命体连续性成立”。
+- **2026-07-30 longitudinal verdict（SUPPORTED，限定 owner continuity）**：
+  fresh v2 source 三 seed 共 `1530` 条 settled transitions；四臂合计
+  `6120` arm-transitions，并按每 10 条一次 filesystem checkpoint +
+  constructor restart 执行。correct 相对 stateless/swapped/shuffled 的
+  continuity composite 增益分别为
+  `+0.759259 / +0.759259 / +0.666667`，paired-seed 95% CI lower 均大于 0；
+  swapped target hit=0，cross-user read/write leakage 与 key collision=0，
+  persistence、delete、rollback exact，故 authoritative v2
+  verdict=`longitudinal-supported`。原 v1 evaluator 误加未预注册的
+  `correct_state_consistency_perfect` kill gate，保留为
+  `invalid-superseded`；v2 只重算 evaluator，locked arm rerun count=0。
+  限制：correct callback absolute hit=`0.277778`，commitment/boundary=`1.0`；
+  #51 blind human relationship ground truth 未执行，因此不得外推“关系质量
+  连续性已成立”。authoritative artifact：
+  `artifacts/gate11_per_user_continuity_v2_20260730`。
 
 ### 强制 evidence bundle
 

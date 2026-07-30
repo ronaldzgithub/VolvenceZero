@@ -1,0 +1,46 @@
+{
+  "schema_version": "gate11-longitudinal-fourth-campaign.v1",
+  "campaign_level": "mechanism-supported",
+  "created_on": "2026-07-30",
+  "authoritative_inputs": [
+    {
+      "path": "artifacts/gate11_longitudinal_source_v2_20260730/aggregate_manifest.json",
+      "sha256": "984fe032c28c1ba7a1ef88746b8eb1aa1c99e08e51cd34c8daa552bc17e771fe"
+    },
+    {
+      "path": "artifacts/gate11_longitudinal_source_v2_20260730/aggregate_verdict.json",
+      "sha256": "328435de2b4bd9ab6b6ae72f41a7096fcded70c483ad8d0c338b88e56dc33074"
+    },
+    {
+      "path": "artifacts/gate11_per_user_continuity_20260730/promotion_verdict.json",
+      "sha256": "339b966a42521c6bf891999dad8a093497acfef4982573b6d615aedfde86ea1b",
+      "status": "invalid-superseded"
+    },
+    {
+      "path": "artifacts/gate11_per_user_continuity_v2_20260730/promotion_verdict.json",
+      "sha256": "3b591b95ea0c044e57341c00a32772e126cbe61a13157791f137a7668976da0b"
+    },
+    {
+      "path": "artifacts/gate11_per_user_continuity_v2_20260730/rollback_evidence.json",
+      "sha256": "18a3ca9274f7b995aa319e119a3e9cb026cdfc1d6f8974ea647b5ebc6efa68d9"
+    },
+    {
+      "path": "artifacts/gate5_cms_pareto_longitudinal_v2_20260730/promotion_verdict.json",
+      "sha256": "64bee90695fb0196487785c96a41f36ef361ad44607fa6a52542fd2761d75f5a"
+    },
+    {
+      "path": "artifacts/gate5_cms_pareto_longitudinal_v2_20260730/rollback_evidence.json",
+      "sha256": "a7286b8a4fba81590c731977f8461dff161cf7a42def6fcf730a0dbe9a0c8c4d"
+    }
+  ],
+  "outputs": [
+    "manifest.yaml",
+    "source_ledger.json",
+    "verdict_matrix.json",
+    "report.md",
+    "next_campaign.md"
+  ],
+  "thesis_retained": false,
+  "runtime_live_promotion_allowed": false,
+  "full_chain_rollback_drill_passed": true
+}

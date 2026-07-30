@@ -1,0 +1,50 @@
+{
+  "schema_version": "gate11-longitudinal-fourth-source-ledger.v1",
+  "formal_source": {
+    "path": "artifacts/gate11_longitudinal_source_v2_20260730",
+    "schema_version": "gate11-longitudinal-settled-trace.v2",
+    "seed_schedule": [1201, 1213, 1223],
+    "settled_transition_count_per_seed": 510,
+    "settled_transition_count_total": 1530,
+    "partition_totals": {
+      "trace-train": 900,
+      "trace-heldout-context": 450,
+      "trace-locked-confirmation": 180
+    },
+    "substrate_fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+    "consumer_admission": "allowed",
+    "fresh_capture_micro_session_count": 1530,
+    "consumer_session_boundary_interval": 10,
+    "consumer_owner_persistence_required": true
+  },
+  "development_diagnostics": [
+    {
+      "path": "artifacts/gate11_longitudinal_source_development_20260730",
+      "schema_version": "gate11-longitudinal-settled-trace.v1",
+      "status": "invalid-development-prefix",
+      "completed_transition_count": 7,
+      "reason": "Coupling substrate capture and accumulating owner state made retrieval context grow and contaminated the matched substrate variable."
+    },
+    {
+      "path": "artifacts/gate11_longitudinal_source_v2_development_20260730",
+      "schema_version": "gate11-longitudinal-settled-trace.v2",
+      "status": "in-progress-development-probe",
+      "completed_transition_count": 12,
+      "reason": "Validated isolated fresh capture before formal generation; never admitted for consumers."
+    }
+  ],
+  "locked_consumers": [
+    {
+      "gate": 11,
+      "authoritative_path": "artifacts/gate11_per_user_continuity_v2_20260730",
+      "source_consumption_count": 1,
+      "locked_arm_rerun_count": 0
+    },
+    {
+      "gate": 5,
+      "authoritative_path": "artifacts/gate5_cms_pareto_longitudinal_v2_20260730",
+      "source_consumption_count": 1,
+      "locked_arm_rerun_count": 0
+    }
+  ]
+}

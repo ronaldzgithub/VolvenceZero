@@ -376,6 +376,103 @@
   修正因没有 fresh v37 routes 未在本战役触发。总等级仍为
   `mechanism-supported`，不授权 runtime live promotion。artifact：
   `artifacts/gate7_8_second_campaign_20260730`。
+- Gate 7 fresh confirmation 使用显式 `gate78-shared-trace.v3` profile，
+  不复写 v2 owner artifact。v3 在首次运行前冻结 seed
+  `727 / 733 / 739`、每 seed `24 train / 12 development / 12 locked`
+  以及 source descriptor
+  `frozen-synthetic-residual-v3|prefix-only|expert-action-vector|session-boundary-explicit`。
+  Gate 7 consumer 必须显式校验 v3 profile；Gate 8 与 Gate 1/4/6 的历史
+  harness 继续默认校验 v2，避免静默继承 fresh source。正式 locked 仅在
+  development 的 `full` 臂满足
+  `structure_fingerprint_change_during_rl == 0` 后允许一次性消费。
+  2026-07-30 v3 唯一 locked run 已完成：source admission、future leakage、
+  token-space mutation、structure-frozen 与 whole-cycle rollback 机制门全绿，
+  full takeover rate=`1.0`；但 full 相对 no-ssl/no-rl 的 terminal-return
+  和 composition gain 均为 `0.0`，故 verdict=`not-supported`。结论收缩为
+  SSL→Internal-RL takeover mechanism 可运行、可审计且可回滚，不支持其在该
+  matched source 上有因果优势；不得复用本 locked 或以同版机制造 v4。
+  artifact：`artifacts/gate7_causal_takeover_v3_20260730`。
+- Gate 9 `gate9-bounded-selfmod.v1` 在 seed `727 / 733 / 739` 上完成
+  M3 四臂 non-stationary suite 与 PE-gated 四臂 owner-trace suite。
+  matched budget、PE lineage、frozen-substrate mutation=`0` 和 owner
+  checkpoint rollback 均通过。M3 与 plain momentum 的 primary 指标完全
+  相同，且 tracking MAE 相对 SGD/Adam 分别为
+  `-0.203442 / -0.033642`；optimizer verdict=`not-supported`。
+  PE gate 的 write precision=`1.0`、unnecessary-write rate=`0.0`，
+  但 held-out benefit 相对 always/random 的 margin 仅约
+  `0.0000537 / -0.0000001`，memory verdict=`not-supported`。Gate 9
+  整体收缩为“owner-local bounded update mechanism + 实现候选/设计模式”，
+  不把 M3/Titans/Hope 写成产品贡献；DGD/真 Hope 自指递归仍未实现。
+  artifact：`artifacts/gate9_bounded_selfmod_20260730`。
+- Gate 10 v1（seed `1009 / 1013 / 1019`）在总对账前审计中发现 rollback
+  digest 未纳入 live substrate checkpoint：session review checkpoint 覆盖
+  temporal/memory/application，但 review-only 契约的 substrate checkpoint
+  为 `None`。因此 v1 保持 immutable 并改判 `invalid`。fresh
+  `gate10-rare-heavy-promotion.v2` 用 seed `1021 / 1031 / 1033` 原样复用
+  arms、thresholds 与 recipe，把 session owner checkpoint 和
+  `residual_runtime.export_rare_heavy_state()` 合并进 before/after digest。
+  v2 candidate envelope 的 cohort、training mode、parameter count、
+  substrate fingerprint、owner checkpoint、evaluation evidence、gate
+  verdict 与 privacy attestation 齐全；compatibility、review-only 无副作用、
+  自动拒绝、owner import 全绿。ACTIVE candidate 的 full-chain rollback
+  对 owner 与 live substrate 两部分均 exact，rate=`1.0`，满足 #92 总 EXIT
+  第 4 条。full forgetting=`0.005166`、leakage=`0`，但 held-out gain 相对
+  review-only 为 `-0.00000488`，未达 `0.008`，故 v2
+  verdict=`not-supported`。只支持 review/import/reject/rollback mechanism，
+  不支持该 offline candidate 带来持续改进；不授权 production promotion。
+  authoritative artifact：
+  `artifacts/gate10_rare_heavy_promotion_v2_20260730`。
+- Gate 7/9/10 第三战役总对账只读取并 SHA256 绑定上述 immutable verdict，
+  不重算或抬高门级结论。Gate 1-10 mechanism coverage 已完整（#92 无
+  Gate 3）；causal-supported 仅 Gate 2 v35 与 Gate 8，Gate
+  `1/4/5/6/7/9/10` 均 `not-supported`，longitudinal-supported 数为 `0`。
+  full-chain rollback EXIT 已由 Gate 10 v2 满足，但不补救 held-out gain
+  失败。campaign level 固定为 `mechanism-supported`，
+  `thesis_retained=false`、runtime/production promotion 不获授权。下一顺序
+  为 Gate 11 + 真跨 session ≥500 settled transitions，并在该尺度重开
+  Gate 5；Gate 1/4/6 只有 owner-level mechanism change 后才可重开。
+  reconciliation artifact：
+  `artifacts/gate7_9_10_third_campaign_20260730`。
+- Gate 11 + longitudinal 第四战役使用 fresh
+  `gate11-longitudinal-settled-trace.v2`。seed
+  `1201 / 1213 / 1223` 各生成 `510` 条 strict-local frozen
+  Qwen2.5-0.5B settled transitions，aggregate 共 `1530` 条；lineage、
+  distinct trace digest、shared substrate fingerprint、fallback=0、
+  empty residual=0 与 substrate mutation=0 全绿。formal source capture
+  使用独立 micro-session，Gate 11 / Gate 5 consumer 再按每 `10` 条一次
+  filesystem checkpoint + constructor restart 执行真实 owner cross-session
+  replay；这样不让累计检索上下文污染 matched substrate 变量。v1
+  development prefix 因混合这两层而在 7 条后停止，只作 invalid diagnostic。
+- Gate 11 四臂 `stateless / correct-user-state / swapped-user-state /
+  shuffled-history` 共消费 `6120` arm-transitions。authoritative v2
+  evaluator-only reconciliation 没有重跑 locked arm：v1 实现误把未预注册的
+  `correct_state_consistency_perfect` diagnostic 升成 kill gate，因此 v1
+  记为 `invalid-superseded`，v2 仅删除该额外 gate 并复制原始 rows。
+  correct 相对 stateless/swapped/shuffled 的 continuity composite 增益分别为
+  `+0.759259 / +0.759259 / +0.666667`，三者 paired-seed 95% CI lower
+  都大于 0；cross-user read/write leakage 与 key collision 均为 0，
+  persistence round-trip、delete 与 checkpoint rollback exact，故
+  verdict=`longitudinal-supported`。限制：correct callback absolute hit
+  仅 `0.277778`，commitment/boundary 为 `1.0`；本包没有 #51 blind human
+  ground truth，只支持 deterministic isolated owner continuity，不支持关系
+  质量外推。authoritative artifact：
+  `artifacts/gate11_per_user_continuity_v2_20260730`。
+- Gate 5 `gate5-cms-pareto-longitudinal.v2` 在同 fresh source 上完成五臂 ×
+  三 seed、共 `7650` arm-transitions，每 arm/seed 有 `50` 次 filesystem
+  persistence + constructor restart。cadence、matched parameter budget、
+  lineage、frozen substrate、persistence round-trip 与最终 rollback 全绿，
+  full 对所有 controls Pareto 不劣；但相对 single-timescale 的 absorption /
+  retention 增益仅 `+0.000000201 / +0.000001187`，未达 `0.02`，故
+  verdict=`not-supported`。同机制不得以新 seed 或阈值调优再开 locked。
+  artifact：`artifacts/gate5_cms_pareto_longitudinal_v2_20260730`。
+- 第四战役总对账：Gate 1-11 mechanism coverage 完整（#92 无 Gate 3）；
+  causal-supported 为 Gate `2 / 8 / 11`，longitudinal-supported 只有 Gate
+  `11`。Gate 5 的 longitudinal NO-GO 使共同等级仍为
+  `mechanism-supported`；`thesis_retained=false`、production/live promotion
+  不获授权。下一 viable longitudinal expansion 是已有 causal 支持的 Gate 8；
+  Gate 11 对外关系质量措辞还依赖 #51 human anchor，其余失败门先要求
+  owner-level mechanism change。reconciliation artifact：
+  `artifacts/gate11_longitudinal_fourth_campaign_20260730`。
 - Gate 4 主动学习使用 schema `gate4-active-learning.v1`，在实现与首次读取
   `trace-locked-confirmation` label 前冻结以下协议：
   - 原 `artifacts/gate456_shared_settled_trace_20260730` 保持不可变。前置
