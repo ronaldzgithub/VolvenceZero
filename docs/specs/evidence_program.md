@@ -360,6 +360,22 @@
   runtime SHADOW/live promotion 不获授权。总对账只读取并 SHA256 绑定原
   verdict，不重算或抬高门级结论。artifact：
   `artifacts/gates_1_6_evidence_campaign_20260730`。
+- Gate 7–8 第二战役于 2026-07-30 完成总对账。共享
+  `gate78-shared-trace.v2` 在 seed `701 / 709 / 719` 上提供
+  `24 train / 12 development / 12 locked` 多 session episodes，source
+  fingerprint 为
+  `163449e09562d300cdc98c15f98b16c93c83030d20a95976d44c25c9887c88cf`。
+  Gate 7 五臂 formal locked run 因 nominally frozen RL 阶段仍发生 topology
+  drift 判为 `invalid`；根因修复发生在 immutable verdict 之后，必须新造
+  fresh source 才能确认。Gate 8 四臂 formal locked run 为
+  `causal-supported`：cold-start loss / callback / delayed-payoff 门、
+  prompt 增量、queue 幂等、owner lineage、turn/slow-job latency 分离及
+  checkpoint rollback 全绿。Gate 1/4/6 v2 一轮性 development retest 均
+  `not-supported`，按 GO/NO-GO 纪律未消费 locked，并长期收缩相应 causal
+  主张。Gate 2 v35 保留、v36 live 路线继续冻结；可选 recent-k/history
+  修正因没有 fresh v37 routes 未在本战役触发。总等级仍为
+  `mechanism-supported`，不授权 runtime live promotion。artifact：
+  `artifacts/gate7_8_second_campaign_20260730`。
 - Gate 4 主动学习使用 schema `gate4-active-learning.v1`，在实现与首次读取
   `trace-locked-confirmation` label 前冻结以下协议：
   - 原 `artifacts/gate456_shared_settled_trace_20260730` 保持不可变。前置

@@ -1,0 +1,51 @@
+{
+  "schema_version": "gate7-8-second-campaign-source-ledger.v1",
+  "source": {
+    "schema_version": "gate78-shared-trace.v2",
+    "fingerprint": "163449e09562d300cdc98c15f98b16c93c83030d20a95976d44c25c9887c88cf",
+    "seeds": [701, 709, 719],
+    "partitions_per_seed": {
+      "trace-train": 24,
+      "trace-development-heldout": 12,
+      "trace-locked-confirmation": 12
+    },
+    "consumer_admission": true
+  },
+  "consumers": [
+    {
+      "suite": "gate7-causal-takeover.v1",
+      "partition": "trace-locked-confirmation",
+      "formal_run_count": 1,
+      "verdict": "invalid",
+      "rerun_allowed": false
+    },
+    {
+      "suite": "gate8-wake-sleep.v1",
+      "partition": "trace-locked-confirmation",
+      "formal_run_count": 1,
+      "verdict": "causal-supported",
+      "rerun_allowed": false
+    },
+    {
+      "suite": "gate1-pe-causal-v2-retest.v1",
+      "partition": "trace-development-heldout",
+      "formal_run_count": 0,
+      "verdict": "not-supported",
+      "locked_consumed": false
+    },
+    {
+      "suite": "gate4-active-learning-v2-retest.v1",
+      "partition": "trace-development-heldout",
+      "formal_run_count": 0,
+      "verdict": "not-supported",
+      "locked_consumed": false
+    },
+    {
+      "suite": "gate6-meta-init-v2-retest.v1",
+      "partition": "trace-development-heldout",
+      "formal_run_count": 0,
+      "verdict": "not-supported",
+      "locked_consumed": false
+    }
+  ]
+}

@@ -2139,6 +2139,18 @@ return (
 > causal takeover → Gate 8 wake/sleep；现有 locked 已被观察，只能作
 > development，正式确认必须新建 fresh locked。
 
+> **2026-07-30 Gate 7–8 第二战役 checkpoint**：新
+> `gate78-shared-trace.v2` 已通过三 seed admission。Gate 7 五臂唯一 locked
+> run 因 structure-frozen 阶段 topology drift 判为 `invalid`；实现根因已修，
+> 但不回写已观察 verdict，后续确认必须 fresh v3。Gate 8 四臂唯一 locked
+> run 为 `causal-supported`，next-session 三项主门、非 prompt 归因、幂等、
+> owner lineage、延迟隔离、drift 与 12/12 rollback 全绿。新语料触发的
+> Gate 1/4/6 development 重测仍全部 `not-supported`，按预注册未消费
+> locked 并长期收缩；Gate 5 留待 longitudinal，Gate 2 v35 保留且 v36
+> live 路线继续冻结。整体最高等级仍为 `mechanism-supported`，
+> `thesis_retained=false`、live promotion 不获授权。只读对账：
+> `artifacts/gate7_8_second_campaign_20260730`。
+
 - **路径**：
   - 总论与需求：[`docs/volvence-thesis.md`](volvence-thesis.md) · [`docs/next_gen_emogpt.md`](next_gen_emogpt.md)
   - PE / LSS：[`docs/specs/prediction-error-loop.md`](specs/prediction-error-loop.md)
@@ -2574,6 +2586,15 @@ return (
   - held-out 时只给 prefix，严禁 future residual 泄漏；structure-frozen fingerprint 在 RL 阶段保持不变。
   - rollback 必须同时恢复 SSL 与 policy 的坏 cycle，不能留下半轮混合状态。
 - **EXIT**：`full` 在 held-out delayed-reward/composition 上优于 `no-ssl` 与 `no-rl`；causal takeover 达到预注册一致性阈值；未来信息泄漏 = 0，token-space RL 更新 = 0。
+- **2026-07-30 第二战役 verdict（INVALID）**：
+  `gate7-causal-takeover.v1` 的五臂、三 seed、唯一 locked run 已完成。
+  source admission、future leakage=`0`、token-space mutation=`0` 与整体
+  rollback 通过，full takeover 也通过；但 seed `709 / 719` 在
+  `structure_frozen=True` 的 RL 阶段仍改变 action-family topology。根因是
+  `discover_latent_action_family()` 在冻结时仍无条件执行 anti-collapse split；
+  修复与回归测试已落地，但发生在 locked 判词之后，原 artifact 必须保持
+  `invalid`。不得复写或重跑同一 locked；新确认需 fresh v3。
+  artifact：`artifacts/gate7_causal_takeover_20260730`。
 
 ### Gate 8 — Wake/sleep 与 background-slow 反思
 
@@ -2583,6 +2604,17 @@ return (
   - turn latency 与 slow job latency 分开统计；sleep 未完成不得阻塞用户 turn，重复 job 必须幂等。
   - slow writeback 只能消费 closed/session-post evidence，产物分别进入 memory consolidation 与 policy consolidation；失败、拒绝和 rollback 可审计。
 - **EXIT**：sleep 后在 held-out next-session 指标上有稳定正效应，且不是 prompt/context 增量造成；实时 SLO、幂等、owner 边界和 rollback 全通过。
+- **2026-07-30 第二战役 verdict（CAUSAL-SUPPORTED）**：
+  `gate8-wake-sleep.v1` 在三 seed locked 上完成
+  `sleep-consolidation / no-sleep / memory-only-sleep /
+  policy-only-sleep`。full 相对 no-sleep 的 cold-start loss reduction、
+  callback gain、delayed-payoff gain 分别为
+  `0.454176 / 1.0 / 0.454176`，相对单 owner controls 的最小 payoff margin
+  为 `0.054176`，最大 owner drift=`0.337482`。sleep prompt token
+  increment、duplicate execution、lineage gap、turn-latency contamination
+  与 rollback mismatch 全为 `0`。结论只在 v2 synthetic multi-session
+  source 范围内成立，不自动晋升 Gate 9/10 或整体 thesis。
+  artifact：`artifacts/gate8_wake_sleep_20260730`。
 
 ### Gate 9 — M3 与 Titans/Hope bounded self-modification
 

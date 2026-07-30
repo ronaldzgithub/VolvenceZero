@@ -1,0 +1,31 @@
+{
+  "schema_version": "gate7-8-second-campaign-reconciliation.v1",
+  "campaign_id": "gate7-8-second-campaign-20260730",
+  "source_schema_version": "gate78-shared-trace.v2",
+  "source_fingerprint": "163449e09562d300cdc98c15f98b16c93c83030d20a95976d44c25c9887c88cf",
+  "source_consumer_admission": true,
+  "primary_gates": [7, 8],
+  "retested_gates": [1, 4, 6],
+  "deferred_gates": [2, 5],
+  "locked_consumption": {
+    "gate7": 1,
+    "gate8": 1,
+    "gate1_v2_retest": 0,
+    "gate4_v2_retest": 0,
+    "gate6_v2_retest": 0
+  },
+  "milestone_commits": [
+    "d43c6799",
+    "a3cb9724",
+    "6af6e59c",
+    "26939b1b",
+    "06b8078d"
+  ],
+  "files": [
+    "manifest.yaml",
+    "verdict_matrix.json",
+    "source_ledger.json",
+    "report.md",
+    "next_campaign.md"
+  ]
+}

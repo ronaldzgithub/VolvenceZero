@@ -1,0 +1,71 @@
+{
+  "schema_version": "gate7-8-second-campaign-verdict-matrix.v1",
+  "campaign_level": "mechanism-supported",
+  "thesis_retained": false,
+  "runtime_live_promotion_allowed": false,
+  "rows": [
+    {
+      "gate": 1,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "development-no-go",
+      "locked_consumed": false,
+      "disposition": "long-term-shrink",
+      "reason": "PE changed temporal parameters on all episodes but produced zero next-session controller loss reduction."
+    },
+    {
+      "gate": 2,
+      "mechanism": "supported",
+      "causal": "supported-v35-open-loop",
+      "campaign_evidence": "not-rerun",
+      "locked_consumed": false,
+      "disposition": "v35-retained-v36-live-frozen",
+      "reason": "The optional recent-k/history correction requires fresh v37 routes; v36 validation is already consumed."
+    },
+    {
+      "gate": 4,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "development-no-go",
+      "locked_consumed": false,
+      "disposition": "long-term-shrink",
+      "reason": "Segment-aware selection saved zero labels versus all selector controls and failed final-accuracy noninferiority."
+    },
+    {
+      "gate": 5,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "deferred",
+      "locked_consumed": false,
+      "disposition": "wait-for-longitudinal",
+      "reason": "The second campaign did not change CMS scale or the first campaign Pareto diagnosis."
+    },
+    {
+      "gate": 6,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "development-no-go",
+      "locked_consumed": false,
+      "disposition": "long-term-shrink",
+      "reason": "Meta-init failed copy-init and final-error noninferiority with negative-transfer rate 1.0."
+    },
+    {
+      "gate": 7,
+      "mechanism": "invalid-locked-evidence",
+      "causal": "invalid",
+      "campaign_evidence": "formal-locked",
+      "locked_consumed": true,
+      "disposition": "fresh-source-required",
+      "reason": "Two seeds exposed structure drift during the frozen RL phase; the root cause was fixed only after the immutable locked verdict."
+    },
+    {
+      "gate": 8,
+      "mechanism": "supported",
+      "causal": "causal-supported",
+      "campaign_evidence": "formal-locked",
+      "locked_consumed": true,
+      "disposition": "retain-within-v2-scope",
+      "reason": "All preregistered next-session benefit, idempotency, lineage, latency separation, drift and rollback gates passed."
+    }
+  ]
+}
