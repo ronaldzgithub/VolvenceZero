@@ -2527,6 +2527,19 @@ return (
   的实现计划已写定（selector artifact 序列化 + 闭环 SHADOW arm +
   v36 fresh 分区 + 3 seed + 预注册 `shadow-closed-loop-v1` 门，见
   [`.cursor/plans/eta-gate2-v36-shadow-injection_b82d47c9.plan.md`](../.cursor/plans/eta-gate2-v36-shadow-injection_b82d47c9.plan.md)）。
+- **2026-07-30 v36 recent-k 根因开发诊断**：复用已观察 v36 routes，
+  只比较 committed-control window `k=1 / k=2`，不生成 formal promotion
+  verdict。k=1 在 validation 的 selector−zero `−0.010886` 与 selected
+  step mean `−0.001814` 失败；k=2 的 train / validation / confirmation
+  三项门全部为正，按预注册规则成为下一 fresh formal 包的唯一候选。
+  两档各有 483 条三臂记录，selector/basis fingerprint 与 v36 一致；
+  live injection 仍 disabled。已观察 development-heldout 在 k=2 的
+  selector−zero `−0.058184`、selector−permutation `−0.057883`，
+  因此本轮只定位 full-history 无界重放与有效控制 horizon 的失配，
+  不构成泛化或 SHADOW admission。汇总 artifact：
+  `artifacts/eta_gate2_v36_recent_k_root_cause_development_20260730`。
+  下一包必须只用 k=2，新建未观察 validation 与 locked confirmation，
+  并跑 seeds `0/1/2`；过门前不得改变 v35 open-loop 结论或 runtime wiring。
 - **证据污染约束**：现有 heldout 已在 v1-v15 调参中反复观察，只能记为
   `development-heldout`。v16 晋升必须同时满足 eval 方向为正，以及一个
   从未用于本轮设计/停止决策的 locked `confirmation` split 相对最佳

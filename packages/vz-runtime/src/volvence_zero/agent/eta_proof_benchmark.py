@@ -206,6 +206,8 @@ class ETAShadowClosedLoopRecord:
     control_basis_fingerprint: str
     runtime_descriptor_fingerprint: str
     side_effect_free: bool
+    active_control_count: int = 0
+    committed_control_window: int | None = None
 
 
 @dataclass(frozen=True)
@@ -3527,15 +3529,30 @@ def _stable_payload_fingerprint(payload: object) -> str:
 
 def _aggregate_committed_controls(
     committed_controls: tuple[tuple[float, ...], ...],
+    *,
+    committed_control_window: int | None = None,
 ) -> tuple[float, float, float]:
+    if (
+        committed_control_window is not None
+        and committed_control_window not in {1, 2}
+    ):
+        raise ValueError(
+            "Gate 2 closed-loop committed control window must be 1, 2, "
+            "or None for the frozen v36 full-history behavior"
+        )
     if not committed_controls:
         return (0.0, 0.0, 0.0)
     if any(len(control) != 3 for control in committed_controls):
         raise ValueError(
             "Gate 2 closed-loop committed controls must all have dim 3"
         )
+    active_controls = (
+        committed_controls
+        if committed_control_window is None
+        else committed_controls[-committed_control_window:]
+    )
     return tuple(
-        sum(control[index] for control in committed_controls)
+        sum(control[index] for control in active_controls)
         for index in range(3)
     )
 
@@ -3569,6 +3586,7 @@ def _shadow_closed_loop_records(
     selector_artifact: KernelResidualActionSelectorArtifact,
     control_basis_fingerprint_value: str,
     score_cache: dict[tuple[str, str, tuple[float, ...]], float],
+    committed_control_window: int | None = None,
 ) -> tuple[ETAShadowClosedLoopRecord, ...]:
     if len(snapshots) != len(source_text_by_step):
         raise ValueError(
@@ -3631,7 +3649,8 @@ def _shadow_closed_loop_records(
         )[0]
 
         selector_prior_control = _aggregate_committed_controls(
-            selector_committed
+            selector_committed,
+            committed_control_window=committed_control_window,
         )
         selector_state = _shadow_closed_loop_state_snapshot(
             runtime=runtime,
@@ -3657,7 +3676,8 @@ def _shadow_closed_loop_records(
             selector_decoded.applied_control,
         )
         selector_aggregate = _aggregate_committed_controls(
-            selector_committed
+            selector_committed,
+            committed_control_window=committed_control_window,
         )
         selector_nll = _continuation_nlls(
             runtime=runtime,
@@ -3668,7 +3688,8 @@ def _shadow_closed_loop_records(
         )[0]
 
         permutation_prior_control = _aggregate_committed_controls(
-            permutation_committed
+            permutation_committed,
+            committed_control_window=committed_control_window,
         )
         permutation_state = _shadow_closed_loop_state_snapshot(
             runtime=runtime,
@@ -3695,7 +3716,8 @@ def _shadow_closed_loop_records(
             permutation_decoded.applied_control,
         )
         permutation_aggregate = _aggregate_committed_controls(
-            permutation_committed
+            permutation_committed,
+            committed_control_window=committed_control_window,
         )
         permutation_nll = _continuation_nlls(
             runtime=runtime,
@@ -3714,6 +3736,7 @@ def _shadow_closed_loop_records(
                 zero_control,
                 zero_nll,
                 0,
+                0,
                 residual_action_state_vector(snapshots[step_index]),
             ),
             (
@@ -3724,6 +3747,12 @@ def _shadow_closed_loop_records(
                 selector_aggregate,
                 selector_nll,
                 len(selector_committed),
+                min(
+                    len(selector_committed),
+                    committed_control_window
+                    if committed_control_window is not None
+                    else len(selector_committed),
+                ),
                 selector_features,
             ),
             (
@@ -3734,6 +3763,12 @@ def _shadow_closed_loop_records(
                 permutation_aggregate,
                 permutation_nll,
                 len(permutation_committed),
+                min(
+                    len(permutation_committed),
+                    committed_control_window
+                    if committed_control_window is not None
+                    else len(permutation_committed),
+                ),
                 permutation_features,
             ),
         )
@@ -3745,6 +3780,7 @@ def _shadow_closed_loop_records(
             aggregate_control,
             observed_nll,
             committed_count,
+            active_count,
             state_features,
         ) in arm_values:
             records.append(
@@ -3774,6 +3810,8 @@ def _shadow_closed_loop_records(
                         runtime_descriptor_fingerprint
                     ),
                     side_effect_free=False,
+                    active_control_count=active_count,
+                    committed_control_window=committed_control_window,
                 )
             )
     if selector_artifact.model_fingerprint != selector_fingerprint:
@@ -4428,10 +4466,27 @@ def run_eta_internal_rl_proof_benchmark(
     counterfactual_sampling_temperature: float = 0.8,
     counterfactual_sampling_max_new_tokens: int = 4,
     shadow_closed_loop_arm: bool = False,
+    shadow_committed_control_window: int | None = None,
     evidence_run_id: str = "eta-proof-direct",
     evidence_run_seed: int = 0,
     control_basis_fingerprint_value: str = "",
 ) -> ETAProofBenchmarkReport:
+    if (
+        shadow_committed_control_window is not None
+        and shadow_committed_control_window not in {1, 2}
+    ):
+        raise ValueError(
+            "Gate 2 recent-k diagnostic only permits committed control "
+            "windows 1 and 2"
+        )
+    if (
+        shadow_committed_control_window is not None
+        and not shadow_closed_loop_arm
+    ):
+        raise ValueError(
+            "Gate 2 committed control window requires the closed-loop "
+            "SHADOW arm"
+        )
     if training_signal not in {
         ETA_PROOF_TRAINING_SIGNAL,
         ETA_CONTINUATION_PE_TRAINING_SIGNAL,
@@ -4885,6 +4940,9 @@ def run_eta_internal_rl_proof_benchmark(
                             control_basis_fingerprint_value
                         ),
                         score_cache=continuation_score_cache,
+                        committed_control_window=(
+                            shadow_committed_control_window
+                        ),
                     )
                 )
             continuation_scores = _score_rollout_continuations(
@@ -6092,6 +6150,14 @@ def run_eta_internal_rl_paper_suite(
         ),
         False,
     )
+    shadow_committed_control_window = next(
+        (
+            int(values[0])
+            for name, values in active_manifest.case_groups
+            if name == "shadow_committed_control_window"
+        ),
+        None,
+    )
     counterfactual_target_mode = next(
         (
             values[0]
@@ -6254,6 +6320,9 @@ def run_eta_internal_rl_paper_suite(
                 counterfactual_sampling_max_new_tokens
             ),
             shadow_closed_loop_arm=shadow_closed_loop_arm,
+            shadow_committed_control_window=(
+                shadow_committed_control_window
+            ),
             evidence_run_id=evidence_run_id,
             evidence_run_seed=run_seed,
             control_basis_fingerprint_value=(
@@ -6391,6 +6460,11 @@ def run_eta_internal_rl_paper_suite(
         "shadow_closed_loop_arm": str(
             shadow_closed_loop_arm
         ).lower(),
+        "shadow_committed_control_window": str(
+            shadow_committed_control_window
+            if shadow_committed_control_window is not None
+            else "full-history"
+        ),
         "counterfactual_target_mode": counterfactual_target_mode,
         "counterfactual_target_sample_count": str(
             counterfactual_target_sample_count

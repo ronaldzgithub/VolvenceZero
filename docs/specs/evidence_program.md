@@ -911,6 +911,50 @@
 	  `promotion_allowed=true` 继续继承；runtime SHADOW/live wiring 仍冻结。
 	  artifact：
 	  `artifacts/eta_gate2_residual_causal_v36_shadow_fullwidth896_qwen25_05b_cpu_1seed_probe_20260729`。
+
+	  2026-07-30 v36 live 根因诊断冻结为 evidence harness 的控制历史组合
+	  问题：闭环 arm 把全部历史 decoded control 无界逐维求和，并把该总和
+	  重新施加到每个更长 prefix；这使 aggregate control 范数从单步约
+	  `1.1` 增长到约 `3–5`，超出 train-only selector 的单步候选支持域。
+	  已锁定 v36 记录中前两步总体仍为正，翻负主要出现在历史继续增长之后，
+	  因而不能把失败归因为 selector 整体失效，也不能据此开启真实 live
+	  wiring。按 v36 预注册失败路径，下一轮唯一变量为 recent-k：
+	  `k=1 / k=2`；默认未指定仍保持 v36 full-history，旧 artifact 不重判。
+	  旧 v36 routes 的重放只作 development diagnostic，选择规则与 fresh
+	  formal 后续门见
+	  `.cursor/plans/gate-2-v36-live-root-cause-recent-k_20260730.plan.md`。
+	  新 fresh 3-seed 门通过前，
+	  `counterfactual_action_selector_live_injection=disabled` 不变。
+
+	  同日两档真 Qwen development replay 完成。k=1 将 validation
+	  aggregate norm 均值压到 `0.738`，selector−permutation 从 v36 的
+	  `−0.040979` 修到 `+0.014666`，但 selector−zero `−0.010886`、
+	  selected step mean `−0.001814`，属于欠注入，判 FAIL。k=2 的
+	  validation aggregate norm 均值为 `1.368`，train / validation /
+	  confirmation 的 selector−zero 分别为
+	  `+0.108693 / +0.074078 / +0.060443`，selector−permutation 为
+	  `+0.079976 / +0.091545 / +0.034801`，selected step mean 为
+	  `+0.019323 / +0.012346 / +0.010074`，按冻结 development 规则选为
+	  下一次 formal fresh run 的唯一候选。两档 selector/basis fingerprint
+	  与 v36 一致、各 483 条记录全部 side-effect free。已观察 heldout 在
+	  k=2 仍为负，故本结果只定位「full-history 无界重放 + 有效控制 horizon
+	  失配」根因，不构成泛化或 wiring 通过；不得启动 live injection。
+
+	  v37（预注册 schema `eta-gate2-residual-causal.v37`）冻结 recent-k
+	  development 唯一胜出的 `committed_control_window=2`，禁止继续比较 k、
+	  修改 selector features、basis、候选集、阈值或 prefix 长度。本包只验证
+	  SHADOW admission，继承 v35 causal promotion，不重跑 zero/shuffled/
+	  reversed causal profiles。16 条 train 与 eval/heldout development routes
+	  保持不变；新增 4 条 `validation-v37-*` fresh routes 与 4 条
+	  `confirmation-v37-*` locked routes，v35/v36 正式分区全部降级为
+	  superseded。单 seed stop-loss 要求 train / validation / confirmation
+	  的三臂记录与 lineage 完整，selector−zero、selector−permutation、
+	  selected step mean 均 `>=1e-6` 且 seed 方向为正；失败即停止。GO 后才跑
+	  seeds `(0,1,2)`，正式 `shadow_observation_passed=true` 还要求三分区
+	  3/3 seed 为正与 provenance/side-effect gates 全绿。eval/heldout 仅作
+	  development diagnostics，但负向结果必须报告。完整计划见
+	  `.cursor/plans/gate-2-v37-recent-k2-fresh-formal_20260730.plan.md`。
+	  v37 通过前 live injection 继续 disabled。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。

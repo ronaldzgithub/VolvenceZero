@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -27,6 +27,9 @@ from volvence_zero.substrate import TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE
 
 
 ETA_GATE2_SCHEMA_VERSION = "eta-gate2-residual-causal.v36"
+ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION = (
+    "eta-gate2-v36-recent-k-diagnostic.v1"
+)
 ETA_GATE2_MIN_CAUSAL_DELTA = 0.02
 ETA_GATE2_MIN_MEASURABLE_EFFECT = 1e-6
 ETA_GATE2_REQUIRED_FILES = (
@@ -260,6 +263,296 @@ def build_eta_gate2_residual_manifest(
             "the same frozen substrate and schedule."
         ),
     )
+
+
+def build_eta_gate2_recent_k_diagnostic_manifest(
+    *,
+    committed_control_window: int,
+    suite_tier: str = "ci-smoke",
+) -> PaperSuiteManifest:
+    if committed_control_window not in {1, 2}:
+        raise ValueError(
+            "Gate 2 v36 recent-k diagnostic only permits k=1 or k=2"
+        )
+    base = build_eta_gate2_residual_manifest(suite_tier=suite_tier)
+    baseline_profiles = tuple(
+        profile
+        for profile in base.profiles
+        if profile.profile_label == base.baseline_label
+    )
+    if len(baseline_profiles) != 1:
+        raise ValueError(
+            "Gate 2 recent-k diagnostic requires exactly one baseline "
+            "profile"
+        )
+    return replace(
+        base,
+        suite_id=(
+            "eta-gate2-v36-recent-k"
+            f"{committed_control_window}-diagnostic-{suite_tier}"
+        ),
+        version=base.version + 1,
+        repeat_count=1,
+        seed_schedule=(0,),
+        profiles=baseline_profiles,
+        case_groups=base.case_groups
+        + (
+            (
+                "shadow_committed_control_window",
+                (str(committed_control_window),),
+            ),
+            ("evidence_claim_scope", ("development-diagnostic-only",)),
+            ("observed_v36_routes_reused", ("true",)),
+        ),
+        description=(
+            "Development-only replay of the locked v36 closed-loop routes "
+            f"with recent-k={committed_control_window}. This manifest cannot "
+            "produce a formal promotion or SHADOW admission verdict."
+        ),
+    )
+
+
+def export_eta_gate2_recent_k_diagnostic_bundle(
+    report: ETAProofPaperSuiteAggregateReport,
+    *,
+    output_dir: str | Path,
+    source_v36_artifact: str,
+) -> tuple[Path, ...]:
+    case_groups = dict(report.manifest.case_groups)
+    claim_scope = case_groups.get("evidence_claim_scope", ())
+    observed_route_reuse = case_groups.get(
+        "observed_v36_routes_reused",
+        (),
+    )
+    window_values = case_groups.get(
+        "shadow_committed_control_window",
+        (),
+    )
+    if (
+        claim_scope != ("development-diagnostic-only",)
+        or observed_route_reuse != ("true",)
+        or len(window_values) != 1
+    ):
+        raise ValueError(
+            "Gate 2 recent-k exporter requires an explicitly non-formal "
+            "observed-route diagnostic manifest"
+        )
+    committed_control_window = int(window_values[0])
+    if committed_control_window not in {1, 2}:
+        raise ValueError(
+            "Gate 2 recent-k exporter only permits committed control "
+            "windows 1 and 2"
+        )
+    benchmark = report.reference_benchmark_report
+    if benchmark is None:
+        raise ValueError(
+            "Gate 2 recent-k diagnostic requires a benchmark report"
+        )
+    profiles = tuple(
+        profile
+        for profile in benchmark.profile_reports
+        if profile.profile_label == report.manifest.baseline_label
+    )
+    if len(profiles) != 1:
+        raise ValueError(
+            "Gate 2 recent-k diagnostic requires exactly one baseline "
+            "profile report"
+        )
+    profile = profiles[0]
+    rows = [
+        {
+            "profile_label": profile.profile_label,
+            **asdict(record),
+        }
+        for record in profile.shadow_closed_loop_records
+    ]
+    if not rows:
+        raise ValueError(
+            "Gate 2 recent-k diagnostic produced no closed-loop records"
+        )
+    if any(
+        row["committed_control_window"] != committed_control_window
+        for row in rows
+    ):
+        raise ValueError(
+            "Gate 2 recent-k records do not match the manifest window"
+        )
+    selector_artifact = profile.selector_artifact_payload
+    if selector_artifact is None:
+        raise ValueError(
+            "Gate 2 recent-k diagnostic requires the frozen selector "
+            "artifact payload"
+        )
+
+    trajectory_totals: dict[tuple[str, str, str], float] = {}
+    split_step_deltas: dict[str, list[float]] = {}
+    split_aggregate_norms: dict[str, list[float]] = {}
+    split_active_counts: dict[str, list[int]] = {}
+    for row in rows:
+        split = str(row["split"])
+        arm = str(row["arm"])
+        trajectory_key = (split, str(row["case_id"]), arm)
+        trajectory_totals[trajectory_key] = (
+            trajectory_totals.get(trajectory_key, 0.0)
+            + float(row["realized_delta"])
+        )
+        if arm != "selector":
+            continue
+        split_step_deltas.setdefault(split, []).append(
+            float(row["realized_delta"])
+        )
+        aggregate_control = tuple(
+            float(value) for value in row["aggregate_control"]
+        )
+        split_aggregate_norms.setdefault(split, []).append(
+            sum(value * value for value in aggregate_control) ** 0.5
+        )
+        split_active_counts.setdefault(split, []).append(
+            int(row["active_control_count"])
+        )
+
+    split_metrics: dict[str, dict[str, float]] = {}
+    for split in ("train", "eval", "heldout", "validation", "confirmation"):
+        route_ids = sorted(
+            {
+                case_id
+                for row_split, case_id, _arm in trajectory_totals
+                if row_split == split
+            }
+        )
+        selector_zero: list[float] = []
+        selector_permutation: list[float] = []
+        for case_id in route_ids:
+            selector = trajectory_totals.get(
+                (split, case_id, "selector")
+            )
+            zero = trajectory_totals.get(
+                (split, case_id, "zero-control")
+            )
+            permutation = trajectory_totals.get(
+                (split, case_id, "permutation-null")
+            )
+            if selector is None or zero is None or permutation is None:
+                raise ValueError(
+                    "Gate 2 recent-k diagnostic requires complete "
+                    f"three-arm trajectories for {split}/{case_id}"
+                )
+            selector_zero.append(selector - zero)
+            selector_permutation.append(selector - permutation)
+        step_deltas = split_step_deltas.get(split, [])
+        aggregate_norms = split_aggregate_norms.get(split, [])
+        active_counts = split_active_counts.get(split, [])
+        split_metrics[split] = {
+            "trajectory_count": float(len(route_ids)),
+            "selector_minus_zero_mean": _mean_or_zero(selector_zero),
+            "selector_minus_permutation_mean": _mean_or_zero(
+                selector_permutation
+            ),
+            "selected_step_realized_delta_mean": _mean_or_zero(
+                step_deltas
+            ),
+            "selector_aggregate_norm_mean": _mean_or_zero(
+                aggregate_norms
+            ),
+            "selector_aggregate_norm_max": (
+                max(aggregate_norms) if aggregate_norms else 0.0
+            ),
+            "active_control_count_max": float(
+                max(active_counts) if active_counts else 0
+            ),
+        }
+
+    formal_split_names = ("train", "validation", "confirmation")
+    development_gate_passed = all(
+        split_metrics[split][metric_name]
+        >= ETA_GATE2_MIN_MEASURABLE_EFFECT
+        for split in formal_split_names
+        for metric_name in (
+            "selector_minus_zero_mean",
+            "selector_minus_permutation_mean",
+            "selected_step_realized_delta_mean",
+        )
+    )
+    selector_fingerprint = str(
+        selector_artifact["artifact"]["model_fingerprint"]
+    )
+    basis_fingerprint = str(
+        selector_artifact["control_basis_fingerprint"]
+    )
+    diagnostic = {
+        "schema_version": (
+            ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION
+        ),
+        "claim_scope": "development-diagnostic-only",
+        "formal_promotion_or_shadow_admission_allowed": False,
+        "observed_v36_routes_reused": True,
+        "source_v36_artifact": source_v36_artifact,
+        "committed_control_window": committed_control_window,
+        "selection_rule": (
+            "prefer-k1-if-all-formal-split-metrics-positive-else-k2-"
+            "if-all-positive-else-stop-recent-k"
+        ),
+        "development_gate_passed": development_gate_passed,
+        "split_metrics": split_metrics,
+        "record_count": len(rows),
+        "selector_fingerprint": selector_fingerprint,
+        "control_basis_fingerprint": basis_fingerprint,
+        "live_injection": "disabled",
+        "next_formal_requirement": (
+            "preregister fresh validation and locked confirmation routes, "
+            "then run 3 seeds with the single selected k"
+        ),
+    }
+    manifest_payload = {
+        "schema_version": (
+            ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION
+        ),
+        "suite_id": report.manifest.suite_id,
+        "suite_version": report.manifest.version,
+        "seed_schedule": list(report.manifest.seed_schedule),
+        "repeat_count": report.manifest.repeat_count,
+        "case_groups": {
+            name: list(values)
+            for name, values in report.manifest.case_groups
+        },
+        "claim_scope": "development-diagnostic-only",
+        "source_v36_artifact": source_v36_artifact,
+    }
+    report_markdown = "\n".join(
+        (
+            "# Gate 2 v36 recent-k 开发诊断",
+            "",
+            f"- k: `{committed_control_window}`",
+            "- 证据范围：`development-diagnostic-only`",
+            "- 旧 v36 routes：已观察，仅用于根因选择",
+            (
+                "- development gate: "
+                f"`{'PASS' if development_gate_passed else 'FAIL'}`"
+            ),
+            "- formal promotion / SHADOW admission：`不允许`",
+            "- live injection：`disabled`",
+            "",
+            "正式结论必须使用预注册 fresh routes 与 3 seeds。",
+            "",
+        )
+    )
+    target = Path(output_dir)
+    target.mkdir(parents=True, exist_ok=True)
+    paths = (
+        _write_json(target / "diagnostic_manifest.json", manifest_payload),
+        _write_json(
+            target / "recent_k_diagnostic.json",
+            diagnostic,
+        ),
+        _write_json(
+            target / "selector_artifact.json",
+            selector_artifact,
+        ),
+        _write_jsonl(target / "shadow_closed_loop.jsonl", rows),
+    )
+    report_path = target / "report.md"
+    report_path.write_text(report_markdown, encoding="utf-8")
+    return (*paths, report_path)
 
 
 def _write_json(path: Path, payload: Any) -> Path:
@@ -2348,7 +2641,8 @@ def export_eta_gate2_residual_bundle(
         "rollback_target": "residual_control_mode=identity",
         "configuration_default_is_identity": True,
         "owner_state_mutated_by_mode_switch": False,
-        "shadow_closed_loop_side_effect_free": all(
+        "shadow_closed_loop_side_effect_free": bool(shadow_closed_loop)
+        and all(
             row.get("side_effect_free") is True
             for row in shadow_closed_loop
         ),

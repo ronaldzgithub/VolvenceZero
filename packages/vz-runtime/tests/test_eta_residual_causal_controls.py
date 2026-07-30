@@ -10,6 +10,7 @@ from volvence_zero.agent.eta_gate2_residual_evidence import (
     ETA_GATE2_REQUIRED_MANIFEST_KEYS,
     _build_ablation_results,
     _promotion_verdict,
+    build_eta_gate2_recent_k_diagnostic_manifest,
     build_eta_gate2_residual_manifest,
     export_eta_gate2_residual_bundle,
 )
@@ -19,6 +20,7 @@ from volvence_zero.agent.eta_proof_benchmark import (
     ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
     ETA_GATE2_SHADOW_FRESH_CASE_CORPUS,
     ETAOpenWeightRuntimeConfig,
+    _aggregate_committed_controls,
     _counterfactual_selector_metric_rows,
     _install_learned_control_basis,
     default_eta_proof_cases,
@@ -262,6 +264,60 @@ def test_eta_gate2_freezes_expected_value_validation_corpus() -> None:
     assert not any(
         case.split == "confirmation" for case in expected_value_cases
     )
+
+
+@pytest.mark.parametrize("committed_control_window", (1, 2))
+def test_eta_gate2_recent_k_manifest_is_development_only(
+    committed_control_window: int,
+) -> None:
+    manifest = build_eta_gate2_recent_k_diagnostic_manifest(
+        committed_control_window=committed_control_window,
+        suite_tier="ci-smoke",
+    )
+    case_groups = dict(manifest.case_groups)
+
+    assert manifest.repeat_count == 1
+    assert manifest.seed_schedule == (0,)
+    assert tuple(
+        profile.profile_label for profile in manifest.profiles
+    ) == ("full-internal-rl",)
+    assert case_groups["shadow_committed_control_window"] == (
+        str(committed_control_window),
+    )
+    assert case_groups["evidence_claim_scope"] == (
+        "development-diagnostic-only",
+    )
+    assert case_groups["observed_v36_routes_reused"] == ("true",)
+    assert case_groups[
+        "counterfactual_action_selector_live_injection"
+    ] == ("disabled",)
+
+
+def test_eta_gate2_recent_k_aggregation_is_bounded_and_fail_loud() -> None:
+    controls = (
+        (1.0, 2.0, 3.0),
+        (4.0, 5.0, 6.0),
+        (7.0, 8.0, 9.0),
+    )
+
+    assert _aggregate_committed_controls(controls) == (
+        12.0,
+        15.0,
+        18.0,
+    )
+    assert _aggregate_committed_controls(
+        controls,
+        committed_control_window=1,
+    ) == (7.0, 8.0, 9.0)
+    assert _aggregate_committed_controls(
+        controls,
+        committed_control_window=2,
+    ) == (11.0, 13.0, 15.0)
+    with pytest.raises(ValueError, match="must be 1, 2, or None"):
+        _aggregate_committed_controls(
+            controls,
+            committed_control_window=3,
+        )
 
 
 def test_eta_gate2_independent_training_text_avoids_development_content_words() -> None:
@@ -1179,7 +1235,13 @@ def test_eta_gate2_shadow_observation_gate_is_independent_of_v35_promotion() -> 
     )
 
 
-def test_eta_gate2_closed_loop_shadow_emits_frozen_side_effect_free_records() -> None:
+@pytest.mark.parametrize(
+    "shadow_committed_control_window",
+    (None, 1, 2),
+)
+def test_eta_gate2_closed_loop_shadow_emits_frozen_side_effect_free_records(
+    shadow_committed_control_window: int | None,
+) -> None:
     runtime = build_builtin_transformers_runtime(activation_width=48)
     all_cases = eta_gate2_shadow_fresh_cases()
     train_cases = tuple(
@@ -1221,6 +1283,9 @@ def test_eta_gate2_closed_loop_shadow_emits_frozen_side_effect_free_records() ->
             ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
         ),
         shadow_closed_loop_arm=True,
+        shadow_committed_control_window=(
+            shadow_committed_control_window
+        ),
         evidence_run_id="closed-loop-test",
         evidence_run_seed=0,
         control_basis_fingerprint_value=basis[
@@ -1238,6 +1303,11 @@ def test_eta_gate2_closed_loop_shadow_emits_frozen_side_effect_free_records() ->
     ]
     assert records
     assert all(record.side_effect_free for record in records)
+    assert all(
+        record.committed_control_window
+        == shadow_committed_control_window
+        for record in records
+    )
     assert {
         record.arm for record in records
     } == {"selector", "zero-control", "permutation-null"}
@@ -1253,6 +1323,20 @@ def test_eta_gate2_closed_loop_shadow_emits_frozen_side_effect_free_records() ->
         assert record.control_basis_fingerprint == basis[
             "control_basis_fingerprint"
         ]
+        if record.arm == "zero-control":
+            assert record.active_control_count == 0
+        else:
+            expected_active_count = (
+                record.committed_control_count
+                if shadow_committed_control_window is None
+                else min(
+                    record.committed_control_count,
+                    shadow_committed_control_window,
+                )
+            )
+            assert record.active_control_count == expected_active_count
+            if shadow_committed_control_window == 1:
+                assert record.aggregate_control == record.step_control
     assert all(
         arms == {"selector", "zero-control", "permutation-null"}
         for arms in step_arms.values()

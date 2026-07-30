@@ -7,9 +7,17 @@ from pathlib import Path
 
 from volvence_zero.agent import (
     ETAOpenWeightRuntimeConfig,
+    build_eta_gate2_recent_k_diagnostic_manifest,
     build_eta_gate2_residual_manifest,
+    export_eta_gate2_recent_k_diagnostic_bundle,
     export_eta_gate2_residual_bundle,
     run_eta_internal_rl_paper_suite,
+)
+
+V36_SOURCE_ARTIFACT = (
+    "artifacts/"
+    "eta_gate2_residual_causal_v36_shadow_fullwidth896_"
+    "qwen25_05b_cpu_1seed_probe_20260729"
 )
 
 
@@ -39,9 +47,27 @@ def main() -> None:
     )
     parser.add_argument("--model-source", default=None)
     parser.add_argument("--allow-download", action="store_true")
+    parser.add_argument(
+        "--shadow-control-window",
+        type=int,
+        choices=(1, 2),
+        default=None,
+        help=(
+            "Run a development-only v36 recent-k diagnostic. Reuses "
+            "observed v36 routes and cannot emit a formal promotion verdict."
+        ),
+    )
     args = parser.parse_args()
     if args.seeds is not None and args.seeds < 1:
         parser.error("--seeds must be at least 1")
+    if (
+        args.shadow_control_window is not None
+        and args.seeds not in {None, 1}
+    ):
+        parser.error(
+            "recent-k reuses observed v36 routes and is limited to one "
+            "development seed"
+        )
     if args.train_epochs is not None and args.train_epochs < 1:
         parser.error("--train-epochs must be at least 1")
     if args.activation_width is not None and args.activation_width < 1:
@@ -56,8 +82,15 @@ def main() -> None:
     if args.audit_samples is not None and args.audit_samples < 1:
         parser.error("--audit-samples must be at least 1")
 
-    manifest = build_eta_gate2_residual_manifest(
-        suite_tier=args.suite_tier,
+    manifest = (
+        build_eta_gate2_recent_k_diagnostic_manifest(
+            committed_control_window=args.shadow_control_window,
+            suite_tier=args.suite_tier,
+        )
+        if args.shadow_control_window is not None
+        else build_eta_gate2_residual_manifest(
+            suite_tier=args.suite_tier,
+        )
     )
     if args.seeds is not None:
         manifest = replace(
@@ -132,23 +165,47 @@ def main() -> None:
     report = run_eta_internal_rl_paper_suite(
         manifest=manifest,
         open_weight_config=config,
-        output_dir=args.output_dir,
+        output_dir=(
+            None
+            if args.shadow_control_window is not None
+            else args.output_dir
+        ),
     )
-    written = export_eta_gate2_residual_bundle(
-        report,
-        output_dir=args.output_dir,
-    )
-    verdict = json.loads(
-        (args.output_dir / "promotion_verdict.json").read_text(
-            encoding="utf-8"
+    if args.shadow_control_window is not None:
+        written = export_eta_gate2_recent_k_diagnostic_bundle(
+            report,
+            output_dir=args.output_dir,
+            source_v36_artifact=V36_SOURCE_ARTIFACT,
         )
-    )
+        diagnostic = json.loads(
+            (args.output_dir / "recent_k_diagnostic.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        status = (
+            "development-pass"
+            if diagnostic["development_gate_passed"]
+            else "development-fail"
+        )
+        kill_conditions = []
+    else:
+        written = export_eta_gate2_residual_bundle(
+            report,
+            output_dir=args.output_dir,
+        )
+        verdict = json.loads(
+            (args.output_dir / "promotion_verdict.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        status = verdict["status"]
+        kill_conditions = verdict["kill_conditions"]
     print(
         json.dumps(
             {
                 "suite_id": report.manifest.suite_id,
-                "status": verdict["status"],
-                "kill_conditions": verdict["kill_conditions"],
+                "status": status,
+                "kill_conditions": kill_conditions,
                 "artifact_files": [path.name for path in written],
             },
             ensure_ascii=False,

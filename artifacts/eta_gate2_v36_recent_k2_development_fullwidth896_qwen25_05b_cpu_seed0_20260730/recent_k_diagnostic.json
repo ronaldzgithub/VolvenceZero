@@ -1,0 +1,62 @@
+{
+  "claim_scope": "development-diagnostic-only",
+  "committed_control_window": 2,
+  "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+  "development_gate_passed": true,
+  "formal_promotion_or_shadow_admission_allowed": false,
+  "live_injection": "disabled",
+  "next_formal_requirement": "preregister fresh validation and locked confirmation routes, then run 3 seeds with the single selected k",
+  "observed_v36_routes_reused": true,
+  "record_count": 483,
+  "schema_version": "eta-gate2-v36-recent-k-diagnostic.v1",
+  "selection_rule": "prefer-k1-if-all-formal-split-metrics-positive-else-k2-if-all-positive-else-stop-recent-k",
+  "selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+  "source_v36_artifact": "artifacts/eta_gate2_residual_causal_v36_shadow_fullwidth896_qwen25_05b_cpu_1seed_probe_20260729",
+  "split_metrics": {
+    "confirmation": {
+      "active_control_count_max": 2.0,
+      "selected_step_realized_delta_mean": 0.010073885321617126,
+      "selector_aggregate_norm_max": 1.709712413901487,
+      "selector_aggregate_norm_mean": 1.1779630196086184,
+      "selector_minus_permutation_mean": 0.034800946712493896,
+      "selector_minus_zero_mean": 0.06044331192970276,
+      "trajectory_count": 4.0
+    },
+    "eval": {
+      "active_control_count_max": 2.0,
+      "selected_step_realized_delta_mean": -0.002271478826349432,
+      "selector_aggregate_norm_max": 1.9940456318427282,
+      "selector_aggregate_norm_mean": 1.0461782032842095,
+      "selector_minus_permutation_mean": 0.09629559516906738,
+      "selector_minus_zero_mean": -0.012493133544921875,
+      "trajectory_count": 2.0
+    },
+    "heldout": {
+      "active_control_count_max": 2.0,
+      "selected_step_realized_delta_mean": -0.009697298208872477,
+      "selector_aggregate_norm_max": 2.943982182464772,
+      "selector_aggregate_norm_mean": 1.2782558890192173,
+      "selector_minus_permutation_mean": -0.05788290500640869,
+      "selector_minus_zero_mean": -0.05818378925323486,
+      "trajectory_count": 2.0
+    },
+    "train": {
+      "active_control_count_max": 2.0,
+      "selected_step_realized_delta_mean": 0.019323146012094287,
+      "selector_aggregate_norm_max": 2.943982182464772,
+      "selector_aggregate_norm_mean": 1.2257275050371232,
+      "selector_minus_permutation_mean": 0.07997561432421207,
+      "selector_minus_zero_mean": 0.10869269631803036,
+      "trajectory_count": 16.0
+    },
+    "validation": {
+      "active_control_count_max": 2.0,
+      "selected_step_realized_delta_mean": 0.012346347173055014,
+      "selector_aggregate_norm_max": 2.373799919327879,
+      "selector_aggregate_norm_mean": 1.3683158358912633,
+      "selector_minus_permutation_mean": 0.09154504537582397,
+      "selector_minus_zero_mean": 0.07407808303833008,
+      "trajectory_count": 4.0
+    }
+  }
+}

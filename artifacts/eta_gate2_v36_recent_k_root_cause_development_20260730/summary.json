@@ -1,0 +1,64 @@
+{
+  "schema_version": "eta-gate2-v36-recent-k-root-cause-summary.v1",
+  "claim_scope": "development-diagnostic-only",
+  "formal_promotion_or_shadow_admission_allowed": false,
+  "live_injection": "disabled",
+  "source_v36_artifact": "artifacts/eta_gate2_residual_causal_v36_shadow_fullwidth896_qwen25_05b_cpu_1seed_probe_20260729",
+  "diagnostic_artifacts": {
+    "k1": "artifacts/eta_gate2_v36_recent_k1_development_20260730",
+    "k2": "artifacts/eta_gate2_v36_recent_k2_development_fullwidth896_qwen25_05b_cpu_seed0_20260730"
+  },
+  "run_admission_audit": {
+    "k1_pre_fix_bundle": {
+      "path": "artifacts/eta_gate2_v36_recent_k1_development_fullwidth896_qwen25_05b_cpu_seed0_20260730",
+      "status": "invalid-pre-fix-bundle",
+      "reason": "development run directory contains generic paper-suite artifacts emitted before the diagnostic-only exporter boundary was fixed"
+    },
+    "k2_later_duplicate": {
+      "path": "artifacts/eta_gate2_v36_recent_k2_development_20260730",
+      "status": "invalid-duplicate-not-admitted",
+      "reason": "completed after the authoritative clean k2 run; all five diagnostic files are byte-identical"
+    }
+  },
+  "frozen_configuration": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "device": "cpu",
+    "activation_width": 896,
+    "max_prefix_steps": 8,
+    "train_epochs": 2,
+    "seed": 0,
+    "route_count": 28
+  },
+  "provenance": {
+    "selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "record_count_per_window": 483,
+    "all_records_side_effect_free": true
+  },
+  "formal_development_split_metrics": {
+    "full_history": {
+      "train": [0.126917, 0.058562, 0.022563],
+      "validation": [0.104359, -0.040979, 0.017393],
+      "confirmation": [0.060983, 0.054931, 0.010164]
+    },
+    "k1": {
+      "train": [0.14385930635035038, 0.12774844095110893, 0.025574987795617846],
+      "validation": [-0.010885655879974365, 0.014666259288787842, -0.0018142759799957275],
+      "confirmation": [0.04544997215270996, 0.049542754888534546, 0.007574995358784993]
+    },
+    "k2": {
+      "train": [0.10869269631803036, 0.07997561432421207, 0.019323146012094287],
+      "validation": [0.07407808303833008, 0.09154504537582397, 0.012346347173055014],
+      "confirmation": [0.06044331192970276, 0.034800946712493896, 0.010073885321617126]
+    }
+  },
+  "metric_order": [
+    "selector_minus_zero_mean",
+    "selector_minus_permutation_mean",
+    "selected_step_realized_delta_mean"
+  ],
+  "selected_window_for_next_fresh_formal_run": 2,
+  "root_cause": "The v36 evidence harness re-applied an unbounded sum of all historical controls to each longer prefix. This mismatched the selector's local candidate support and let arbitrary permutation histories accumulate incidental validation benefit. k=1 under-injected; k=2 restored the bounded effective horizon on the observed formal development splits.",
+  "known_risk": "The already-observed heldout split remains negative for k=2, so the development selection does not establish generalization.",
+  "next_requirement": "Preregister new fresh validation and locked confirmation routes, then run 3 seeds with k=2 only. Keep runtime SHADOW/live wiring frozen until that gate passes."
+}

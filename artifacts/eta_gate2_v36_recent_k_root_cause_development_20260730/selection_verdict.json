@@ -1,0 +1,43 @@
+{
+  "schema_version": "eta-gate2-v36-recent-k-selection.v1",
+  "claim_scope": "development-diagnostic-only",
+  "formal_promotion_or_shadow_admission_allowed": false,
+  "observed_v36_routes_reused": true,
+  "selection_rule": "prefer-k1-if-all-formal-split-metrics-positive-else-k2-if-all-positive-else-stop-recent-k",
+  "k1_development_gate_passed": false,
+  "k1_failure_metrics": {
+    "validation_selector_minus_zero_mean": -0.010885655879974365,
+    "validation_selected_step_realized_delta_mean": -0.0018142759799957275
+  },
+  "k2_development_gate_passed": true,
+  "selected_committed_control_window": 2,
+  "selected_candidate_scope": "fresh-formal-preregistration-only",
+  "selected_candidate_formal_metrics": {
+    "train": {
+      "selector_minus_zero_mean": 0.10869269631803036,
+      "selector_minus_permutation_mean": 0.07997561432421207,
+      "selected_step_realized_delta_mean": 0.019323146012094287
+    },
+    "validation": {
+      "selector_minus_zero_mean": 0.07407808303833008,
+      "selector_minus_permutation_mean": 0.09154504537582397,
+      "selected_step_realized_delta_mean": 0.012346347173055014
+    },
+    "confirmation": {
+      "selector_minus_zero_mean": 0.06044331192970276,
+      "selector_minus_permutation_mean": 0.034800946712493896,
+      "selected_step_realized_delta_mean": 0.010073885321617126
+    }
+  },
+  "development_risk": {
+    "heldout_selector_minus_zero_mean": -0.05818378925323486,
+    "heldout_selector_minus_permutation_mean": -0.05788290500640869,
+    "heldout_selected_step_realized_delta_mean": -0.009697298208872477,
+    "interpretation": "k2 is not admitted for SHADOW or live wiring; fresh routes and three seeds must decide generalization"
+  },
+  "record_count_per_window": 483,
+  "selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+  "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+  "live_injection": "disabled",
+  "next_formal_requirement": "preregister a fresh schema with unseen validation and locked confirmation routes, then run seeds 0,1,2 using only committed_control_window=2"
+}

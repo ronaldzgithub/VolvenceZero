@@ -1,0 +1,66 @@
+{
+  "schema_version": "eta-gate2-v36-recent-k-freeze-manifest.v1",
+  "git_head_at_reconciliation": "5f33933e3c6225cb90e0b15776d23135d8136877",
+  "authoritative_scope": "development-diagnostic-only",
+  "source_v36_promotion_verdict": {
+    "path": "artifacts/eta_gate2_residual_causal_v36_shadow_fullwidth896_qwen25_05b_cpu_1seed_probe_20260729/promotion_verdict.json",
+    "sha256": "2d7c4de96eef2db8eb6cac32cf8650f49626df2e58c2e5b160b0602b4fc64ca8"
+  },
+  "k1_files": [
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k1_development_20260730/diagnostic_manifest.json",
+      "sha256": "a8b87f6e792d93ce85b0a1446880f14083d5fbca9f0dea39df92f6bf13209f5b"
+    },
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k1_development_20260730/recent_k_diagnostic.json",
+      "sha256": "57fa63271ee908dc10c9096426e50d1d4c51adda52e6a256e32104f4433a4164"
+    },
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k1_development_20260730/selector_artifact.json",
+      "sha256": "929514071865d4c44020eaadce5940a2da95e4931215dfdb7d6d3d313e819905"
+    },
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k1_development_20260730/shadow_closed_loop.jsonl",
+      "sha256": "17511328f4a5d4b5731329927373183694de0eeae02eb8239ae162b58703e058"
+    },
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k1_development_20260730/report.md",
+      "sha256": "9618c9ed6d67135a50eb684b43c66e3f0bfa0e33cd4298b5482569174df79ad1"
+    }
+  ],
+  "k2_files": [
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k2_development_fullwidth896_qwen25_05b_cpu_seed0_20260730/diagnostic_manifest.json",
+      "sha256": "9982d4bf2fe87259f46736b82575248fcc98b02283d8a814d1300a9289f4a005"
+    },
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k2_development_fullwidth896_qwen25_05b_cpu_seed0_20260730/recent_k_diagnostic.json",
+      "sha256": "1a4a2f63988d7f35b64bb4749578663f933e06c8a2f37101af939bb9651941ce"
+    },
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k2_development_fullwidth896_qwen25_05b_cpu_seed0_20260730/selector_artifact.json",
+      "sha256": "a21ada52a635156507db4d947b74e333fe4879ed308e24a840ef921fc10e1037"
+    },
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k2_development_fullwidth896_qwen25_05b_cpu_seed0_20260730/shadow_closed_loop.jsonl",
+      "sha256": "9f9d58a597245adac10b9032c1402683bcf02622abfc76889302614ffd2df3b1"
+    },
+    {
+      "path": "artifacts/eta_gate2_v36_recent_k2_development_fullwidth896_qwen25_05b_cpu_seed0_20260730/report.md",
+      "sha256": "e863837ddb3619a861f8b61a87b21ae686345f3b9316f079cd60f20d6522bafa"
+    }
+  ],
+  "selection_verdict": {
+    "path": "artifacts/eta_gate2_v36_recent_k_root_cause_development_20260730/selection_verdict.json",
+    "sha256": "267924212c79db9cf9e38e3be8a6c3fc122aabfe17984b9928248f06db18746d"
+  },
+  "report": {
+    "path": "artifacts/eta_gate2_v36_recent_k_root_cause_development_20260730/report.md",
+    "sha256": "1add4dff8c0ed78fc19e4c12045242d647130a0f62327218049e734feefe01cc"
+  },
+  "summary": {
+    "path": "artifacts/eta_gate2_v36_recent_k_root_cause_development_20260730/summary.json",
+    "sha256": "eb5634aa585ee9e4696252f28860f3277fbdc8de687fe86d2aa7d7054dc5a081"
+  },
+  "live_injection": "disabled"
+}
