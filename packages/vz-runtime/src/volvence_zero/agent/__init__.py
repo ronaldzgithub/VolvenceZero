@@ -195,6 +195,7 @@ from volvence_zero.agent.eta_proof_benchmark import (
     run_eta_internal_rl_proof_benchmark,
 )
 from volvence_zero.agent.eta_gate2_residual_evidence import (
+    ETA_GATE2_CONTROL_SUMMARY_DIAGNOSTIC_SCHEMA_VERSION,
     ETA_GATE2_REQUIRED_FILES,
     ETA_GATE2_REQUIRED_MANIFEST_KEYS,
     ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION,
@@ -202,9 +203,11 @@ from volvence_zero.agent.eta_gate2_residual_evidence import (
     ETA_GATE2_SCHEMA_VERSION,
     build_eta_gate2_recent_k_diagnostic_manifest,
     build_eta_gate2_recent_k2_formal_manifest,
+    build_eta_gate2_control_summary_diagnostic_manifest,
     build_eta_gate2_residual_manifest,
     default_eta_gate2_residual_profiles,
     export_eta_gate2_recent_k_diagnostic_bundle,
+    export_eta_gate2_control_summary_diagnostic_bundle,
     export_eta_gate2_residual_bundle,
 )
 from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseSynthesizer
@@ -313,6 +316,7 @@ __all__ = [
     "ETAProofProfileReport",
     "ETAResidualInterventionRecord",
     "ETA_GATE2_REQUIRED_FILES",
+    "ETA_GATE2_CONTROL_SUMMARY_DIAGNOSTIC_SCHEMA_VERSION",
     "ETA_GATE2_REQUIRED_MANIFEST_KEYS",
     "ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION",
     "ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION",
@@ -420,10 +424,12 @@ __all__ = [
     "build_eta_internal_rl_assessment",
     "build_eta_gate2_recent_k_diagnostic_manifest",
     "build_eta_gate2_recent_k2_formal_manifest",
+    "build_eta_gate2_control_summary_diagnostic_manifest",
     "build_eta_gate2_residual_manifest",
     "evaluate_eta_internal_rl_acceptance",
     "default_eta_gate2_residual_profiles",
     "export_eta_gate2_recent_k_diagnostic_bundle",
+    "export_eta_gate2_control_summary_diagnostic_bundle",
     "export_eta_gate2_residual_bundle",
     "export_eta_internal_rl_paper_suite_artifact_bundle",
     "run_eta_open_weight_residual_benchmark",

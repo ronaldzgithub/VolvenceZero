@@ -37,6 +37,9 @@ ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION = (
 ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION = (
     "eta-gate2-v36-recent-k-diagnostic.v1"
 )
+ETA_GATE2_CONTROL_SUMMARY_DIAGNOSTIC_SCHEMA_VERSION = (
+    "eta-gate2-control-summary-diagnostic.v1"
+)
 ETA_GATE2_MIN_CAUSAL_DELTA = 0.02
 ETA_GATE2_MIN_MEASURABLE_EFFECT = 1e-6
 ETA_GATE2_REQUIRED_FILES = (
@@ -392,6 +395,47 @@ def build_eta_gate2_recent_k2_formal_manifest(
     )
 
 
+def build_eta_gate2_control_summary_diagnostic_manifest(
+    *,
+    suite_tier: str = "ci-smoke",
+) -> PaperSuiteManifest:
+    base = build_eta_gate2_recent_k_diagnostic_manifest(
+        committed_control_window=2,
+        suite_tier=suite_tier,
+    )
+    return replace(
+        base,
+        suite_id=(
+            f"eta-gate2-v38-control-summary-diagnostic-{suite_tier}"
+        ),
+        version=base.version + 1,
+        case_groups=base.case_groups
+        + (
+            (
+                "evidence_schema_version",
+                (ETA_GATE2_CONTROL_SUMMARY_DIAGNOSTIC_SCHEMA_VERSION,),
+            ),
+            (
+                "shadow_committed_control_summary_state",
+                ("true",),
+            ),
+            (
+                "selector_state_feature_contract",
+                (
+                    "residual-state+committed-control-summary.v1",
+                ),
+            ),
+            ("v37_formal_routes_reused", ("false",)),
+        ),
+        description=(
+            "Development-only replay of the observed v36 routes with k=2 "
+            "and the frozen bounded committed-control summary state. This "
+            "manifest cannot produce a formal promotion or SHADOW "
+            "admission verdict."
+        ),
+    )
+
+
 def export_eta_gate2_recent_k_diagnostic_bundle(
     report: ETAProofPaperSuiteAggregateReport,
     *,
@@ -408,6 +452,10 @@ def export_eta_gate2_recent_k_diagnostic_bundle(
         "shadow_committed_control_window",
         (),
     )
+    summary_state_active = case_groups.get(
+        "shadow_committed_control_summary_state",
+        (),
+    ) == ("true",)
     if (
         claim_scope != ("development-diagnostic-only",)
         or observed_route_reuse != ("true",)
@@ -462,6 +510,20 @@ def export_eta_gate2_recent_k_diagnostic_bundle(
         raise ValueError(
             "Gate 2 recent-k diagnostic requires the frozen selector "
             "artifact payload"
+        )
+    if summary_state_active and (
+        selector_artifact.get("schema_version")
+        != "eta-gate2-selector-artifact.v2"
+        or selector_artifact.get("feature_contract")
+        != "residual-state+committed-control-summary.v1"
+        or selector_artifact.get("committed_control_window") != 2
+        or not selector_artifact.get(
+            "bootstrap_selector_fingerprint"
+        )
+    ):
+        raise ValueError(
+            "Gate 2 control-summary diagnostic requires the frozen v2 "
+            "selector artifact provenance"
         )
 
     trajectory_totals: dict[tuple[str, str, str], float] = {}
@@ -542,7 +604,11 @@ def export_eta_gate2_recent_k_diagnostic_bundle(
             ),
         }
 
-    formal_split_names = ("train", "validation", "confirmation")
+    formal_split_names = (
+        ("train", "heldout", "validation", "confirmation")
+        if summary_state_active
+        else ("train", "validation", "confirmation")
+    )
     development_gate_passed = all(
         split_metrics[split][metric_name]
         >= ETA_GATE2_MIN_MEASURABLE_EFFECT
@@ -559,34 +625,61 @@ def export_eta_gate2_recent_k_diagnostic_bundle(
     basis_fingerprint = str(
         selector_artifact["control_basis_fingerprint"]
     )
+    diagnostic_schema = (
+        ETA_GATE2_CONTROL_SUMMARY_DIAGNOSTIC_SCHEMA_VERSION
+        if summary_state_active
+        else ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION
+    )
     diagnostic = {
-        "schema_version": (
-            ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION
-        ),
+        "schema_version": diagnostic_schema,
         "claim_scope": "development-diagnostic-only",
         "formal_promotion_or_shadow_admission_allowed": False,
         "observed_v36_routes_reused": True,
-        "source_v36_artifact": source_v36_artifact,
+        **(
+            {"source_v37_artifact": source_v36_artifact}
+            if summary_state_active
+            else {"source_v36_artifact": source_v36_artifact}
+        ),
         "committed_control_window": committed_control_window,
         "selection_rule": (
-            "prefer-k1-if-all-formal-split-metrics-positive-else-k2-"
-            "if-all-positive-else-stop-recent-k"
+            "require-train-validation-confirmation-and-development-"
+            "heldout-all-three-metrics-positive"
+            if summary_state_active
+            else (
+                "prefer-k1-if-all-formal-split-metrics-positive-else-k2-"
+                "if-all-positive-else-stop-recent-k"
+            )
         ),
         "development_gate_passed": development_gate_passed,
         "split_metrics": split_metrics,
         "record_count": len(rows),
         "selector_fingerprint": selector_fingerprint,
         "control_basis_fingerprint": basis_fingerprint,
+        "selector_state_feature_contract": (
+            selector_artifact.get("feature_contract")
+            if summary_state_active
+            else "residual-state-v29"
+        ),
+        "bootstrap_selector_fingerprint": (
+            selector_artifact.get("bootstrap_selector_fingerprint")
+            if summary_state_active
+            else None
+        ),
         "live_injection": "disabled",
         "next_formal_requirement": (
-            "preregister fresh validation and locked confirmation routes, "
-            "then run 3 seeds with the single selected k"
+            (
+                "preregister entirely new validation and locked "
+                "confirmation routes before any formal run"
+            )
+            if summary_state_active
+            else (
+                "preregister fresh validation and locked confirmation "
+                "routes, then run 3 seeds with the single selected k"
+            )
         ),
     }
     manifest_payload = {
-        "schema_version": (
-            ETA_GATE2_RECENT_K_DIAGNOSTIC_SCHEMA_VERSION
-        ),
+        "schema_version": diagnostic_schema,
         "suite_id": report.manifest.suite_id,
         "suite_version": report.manifest.version,
         "seed_schedule": list(report.manifest.seed_schedule),
@@ -596,11 +689,19 @@ def export_eta_gate2_recent_k_diagnostic_bundle(
             for name, values in report.manifest.case_groups
         },
         "claim_scope": "development-diagnostic-only",
-        "source_v36_artifact": source_v36_artifact,
+        **(
+            {"source_v37_artifact": source_v36_artifact}
+            if summary_state_active
+            else {"source_v36_artifact": source_v36_artifact}
+        ),
     }
     report_markdown = "\n".join(
         (
-            "# Gate 2 v36 recent-k 开发诊断",
+            (
+                "# Gate 2 v38 committed-control summary 开发诊断"
+                if summary_state_active
+                else "# Gate 2 v36 recent-k 开发诊断"
+            ),
             "",
             f"- k: `{committed_control_window}`",
             "- 证据范围：`development-diagnostic-only`",
@@ -612,7 +713,12 @@ def export_eta_gate2_recent_k_diagnostic_bundle(
             "- formal promotion / SHADOW admission：`不允许`",
             "- live injection：`disabled`",
             "",
-            "正式结论必须使用预注册 fresh routes 与 3 seeds。",
+            (
+                "通过后仍必须使用全新 fresh routes 与 3 seeds；"
+                "失败则 summary 路线止损。"
+                if summary_state_active
+                else "正式结论必须使用预注册 fresh routes 与 3 seeds。"
+            ),
             "",
         )
     )
@@ -621,7 +727,12 @@ def export_eta_gate2_recent_k_diagnostic_bundle(
     paths = (
         _write_json(target / "diagnostic_manifest.json", manifest_payload),
         _write_json(
-            target / "recent_k_diagnostic.json",
+            target
+            / (
+                "control_summary_diagnostic.json"
+                if summary_state_active
+                else "recent_k_diagnostic.json"
+            ),
             diagnostic,
         ),
         _write_json(
@@ -633,6 +744,28 @@ def export_eta_gate2_recent_k_diagnostic_bundle(
     report_path = target / "report.md"
     report_path.write_text(report_markdown, encoding="utf-8")
     return (*paths, report_path)
+
+
+def export_eta_gate2_control_summary_diagnostic_bundle(
+    report: ETAProofPaperSuiteAggregateReport,
+    *,
+    output_dir: str | Path,
+    source_v37_artifact: str,
+) -> tuple[Path, ...]:
+    case_groups = dict(report.manifest.case_groups)
+    if case_groups.get(
+        "shadow_committed_control_summary_state",
+        (),
+    ) != ("true",):
+        raise ValueError(
+            "Gate 2 control-summary exporter requires the v38 summary "
+            "state manifest"
+        )
+    return export_eta_gate2_recent_k_diagnostic_bundle(
+        report,
+        output_dir=output_dir,
+        source_v36_artifact=source_v37_artifact,
+    )
 
 
 def _write_json(path: Path, payload: Any) -> Path:

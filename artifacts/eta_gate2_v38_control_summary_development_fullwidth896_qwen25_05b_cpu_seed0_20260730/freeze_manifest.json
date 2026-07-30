@@ -1,0 +1,37 @@
+{
+  "schema_version": "eta-gate2-v38-control-summary-freeze-manifest.v1",
+  "git_head_at_run": "3ff39cfb",
+  "authoritative_scope": "development-diagnostic-only",
+  "status": "development-fail",
+  "failure_attribution": {
+    "split": "heldout",
+    "selector_minus_zero_mean": -0.022690176963806152,
+    "selector_minus_permutation_mean": -0.02238929271697998,
+    "selected_step_realized_delta_mean": -0.003781696160634359
+  },
+  "fresh_formal_run": "not-run-by-preregistered-development-gate",
+  "formal_promotion_or_shadow_admission_allowed": false,
+  "counterfactual_action_selector_live_injection": "disabled",
+  "files": [
+    {
+      "path": "diagnostic_manifest.json",
+      "sha256": "3904704a0d276ef91f07140a4e17a5c8e7534155c8d18deeb723bc148ad55ecd"
+    },
+    {
+      "path": "control_summary_diagnostic.json",
+      "sha256": "5abc707980d55ed80e649b76d3789479d5b71eede2f08089156766bab02a82f5"
+    },
+    {
+      "path": "selector_artifact.json",
+      "sha256": "5b70e741c8c9bfe581e9679ed3bd11586eb1681307458e239e06a57bea960154"
+    },
+    {
+      "path": "shadow_closed_loop.jsonl",
+      "sha256": "54585af00dde6454e4ee3aa9688aa8b38197772fada2d07473b482d26d625440"
+    },
+    {
+      "path": "report.md",
+      "sha256": "6a70b687e0d6cd9308fdef9a1a2ebbe51fcc34dab368fd0fd2926d921da012f0"
+    }
+  ]
+}

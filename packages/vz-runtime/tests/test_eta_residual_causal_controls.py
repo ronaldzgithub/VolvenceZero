@@ -6,14 +6,17 @@ import json
 import pytest
 
 from volvence_zero.agent.eta_gate2_residual_evidence import (
+    ETA_GATE2_CONTROL_SUMMARY_DIAGNOSTIC_SCHEMA_VERSION,
     ETA_GATE2_REQUIRED_FILES,
     ETA_GATE2_REQUIRED_MANIFEST_KEYS,
     ETA_GATE2_RECENT_K2_FORMAL_SCHEMA_VERSION,
     _build_ablation_results,
     _promotion_verdict,
+    build_eta_gate2_control_summary_diagnostic_manifest,
     build_eta_gate2_recent_k_diagnostic_manifest,
     build_eta_gate2_recent_k2_formal_manifest,
     build_eta_gate2_residual_manifest,
+    export_eta_gate2_control_summary_diagnostic_bundle,
     export_eta_gate2_residual_bundle,
 )
 from volvence_zero.agent.eta_proof_benchmark import (
@@ -365,6 +368,117 @@ def test_eta_gate2_v37_formal_manifest_freezes_k2_and_fresh_routes() -> None:
     assert case_groups[
         "counterfactual_action_selector_live_injection"
     ] == ("disabled",)
+
+
+def test_eta_gate2_v38_manifest_is_development_only_and_freezes_summary() -> None:
+    manifest = build_eta_gate2_control_summary_diagnostic_manifest()
+    case_groups = dict(manifest.case_groups)
+
+    assert manifest.repeat_count == 1
+    assert manifest.seed_schedule == (0,)
+    assert tuple(
+        profile.profile_label for profile in manifest.profiles
+    ) == ("full-internal-rl",)
+    assert case_groups["evidence_schema_version"] == (
+        ETA_GATE2_CONTROL_SUMMARY_DIAGNOSTIC_SCHEMA_VERSION,
+    )
+    assert case_groups["evidence_claim_scope"] == (
+        "development-diagnostic-only",
+    )
+    assert case_groups["observed_v36_routes_reused"] == ("true",)
+    assert case_groups["v37_formal_routes_reused"] == ("false",)
+    assert set(case_groups["route_ids"]).isdisjoint(
+        {
+            route.case_id
+            for route in (
+                eta_gate2_recent_k2_fresh_validation_routes()
+                + eta_gate2_recent_k2_confirmation_routes()
+            )
+        }
+    )
+    assert case_groups["shadow_committed_control_window"] == ("2",)
+    assert case_groups[
+        "shadow_committed_control_summary_state"
+    ] == ("true",)
+    assert case_groups["selector_state_feature_contract"] == (
+        "residual-state+committed-control-summary.v1",
+    )
+
+
+def test_eta_gate2_v38_manifest_drives_summary_bundle_smoke(tmp_path) -> None:
+    all_cases = eta_gate2_shadow_fresh_cases()
+    route_ids = tuple(
+        case.case_id
+        for case in (
+            *tuple(
+                case for case in all_cases if case.split == "train"
+            )[:2],
+            next(case for case in all_cases if case.split == "heldout"),
+            next(
+                case
+                for case in all_cases
+                if case.split == "validation"
+            ),
+            next(
+                case
+                for case in all_cases
+                if case.split == "confirmation"
+            ),
+        )
+    )
+    manifest = build_eta_gate2_control_summary_diagnostic_manifest()
+    manifest = replace(
+        manifest,
+        case_groups=tuple(
+            ("route_ids", route_ids)
+            if name == "route_ids"
+            else ("train_epochs", ("1",))
+            if name == "train_epochs"
+            else ("real_residual_activation_width", ("48",))
+            if name == "real_residual_activation_width"
+            else (name, values)
+            for name, values in manifest.case_groups
+        ),
+    )
+    runtime = build_builtin_transformers_runtime(activation_width=48)
+    report = run_eta_internal_rl_paper_suite(
+        manifest=manifest,
+        open_weight_runtime=runtime,
+        open_weight_config=ETAOpenWeightRuntimeConfig(
+            require_real_backend=False,
+            activation_width=48,
+            max_prefix_steps=6,
+        ),
+    )
+
+    written = export_eta_gate2_control_summary_diagnostic_bundle(
+        report,
+        output_dir=tmp_path,
+        source_v37_artifact="artifact:v37-test",
+    )
+    diagnostic = json.loads(
+        (tmp_path / "control_summary_diagnostic.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert {path.name for path in written} == {
+        "diagnostic_manifest.json",
+        "control_summary_diagnostic.json",
+        "selector_artifact.json",
+        "shadow_closed_loop.jsonl",
+        "report.md",
+    }
+    assert diagnostic["schema_version"] == (
+        ETA_GATE2_CONTROL_SUMMARY_DIAGNOSTIC_SCHEMA_VERSION
+    )
+    assert diagnostic["source_v37_artifact"] == "artifact:v37-test"
+    assert diagnostic["selector_state_feature_contract"] == (
+        "residual-state+committed-control-summary.v1"
+    )
+    assert diagnostic[
+        "formal_promotion_or_shadow_admission_allowed"
+    ] is False
 
 
 def test_eta_gate2_independent_training_text_avoids_development_content_words() -> None:
@@ -1488,6 +1602,79 @@ def test_eta_gate2_closed_loop_shadow_emits_frozen_side_effect_free_records(
     assert all(
         arms == {"selector", "zero-control", "permutation-null"}
         for arms in step_arms.values()
+    )
+
+
+def test_eta_gate2_v38_summary_selector_is_train_only_and_side_effect_free() -> None:
+    runtime = build_builtin_transformers_runtime(activation_width=48)
+    all_cases = eta_gate2_shadow_fresh_cases()
+    train_cases = tuple(
+        case for case in all_cases if case.split == "train"
+    )[:2]
+    validation_case = next(
+        case for case in all_cases if case.split == "validation"
+    )
+    confirmation_case = next(
+        case for case in all_cases if case.split == "confirmation"
+    )
+    cases = (*train_cases, validation_case, confirmation_case)
+    config = ETAOpenWeightRuntimeConfig(
+        require_real_backend=False,
+        activation_width=48,
+        max_prefix_steps=6,
+    )
+    basis = _install_learned_control_basis(
+        runtime=runtime,
+        cases=cases,
+        open_weight_config=config,
+    )
+
+    report = run_eta_internal_rl_proof_benchmark(
+        cases=cases,
+        profile_labels=("full-internal-rl",),
+        backend_label="transformers-open-weight",
+        train_epochs=1,
+        open_weight_runtime=runtime,
+        open_weight_config=config,
+        training_signal=ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+        latent_unit_clamp=True,
+        real_residual_ssl_bootstrap=True,
+        causal_action_head_active=True,
+        causal_action_head_state_dim=12,
+        continuation_counterfactual_grid=True,
+        counterfactual_action_selector_diagnostic=True,
+        counterfactual_target_mode=(
+            ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+        ),
+        shadow_closed_loop_arm=True,
+        shadow_committed_control_window=2,
+        shadow_committed_control_summary_state=True,
+        evidence_run_id="summary-state-test",
+        evidence_run_seed=0,
+        control_basis_fingerprint_value=basis[
+            "control_basis_fingerprint"
+        ],
+    )
+
+    profile = report.profile_reports[0]
+    artifact = profile.selector_artifact_payload
+    assert artifact is not None
+    assert artifact["schema_version"] == (
+        "eta-gate2-selector-artifact.v2"
+    )
+    assert artifact["fit_split"] == "train"
+    assert artifact["feature_contract"] == (
+        "residual-state+committed-control-summary.v1"
+    )
+    assert artifact["committed_control_window"] == 2
+    assert artifact["bootstrap_selector_fingerprint"]
+    assert artifact["artifact"]["input_dim"] > 10
+    assert profile.shadow_closed_loop_records
+    assert all(
+        record.side_effect_free
+        and record.committed_control_window == 2
+        and record.active_control_count <= 2
+        for record in profile.shadow_closed_loop_records
     )
 
 

@@ -12,6 +12,7 @@ from volvence_zero.internal_rl.counterfactual_selector import (
     grouped_cross_validate_residual_action_selector,
     residual_action_state_sketch,
     residual_action_state_vector,
+    residual_action_state_with_committed_control_summary,
     selector_artifact_from_payload,
     selector_artifact_to_payload,
     select_counterfactual_actions,
@@ -118,6 +119,57 @@ def test_full_residual_action_state_preserves_layer_coordinates() -> None:
     assert len(first) == 36
     assert first == second
     assert any(value != 0.0 for value in first)
+
+
+def test_committed_control_summary_is_bounded_and_preserves_base_state() -> None:
+    snapshot = _snapshot(token="alpha")
+    base = residual_action_state_vector(snapshot)
+    empty = residual_action_state_with_committed_control_summary(
+        snapshot,
+        committed_controls=(),
+        committed_control_window=2,
+        expected_control_dim=3,
+    )
+    active = residual_action_state_with_committed_control_summary(
+        snapshot,
+        committed_controls=(
+            (0.25, -0.5, 0.75),
+            (0.5, 0.25, -0.25),
+            (0.75, 0.5, -0.5),
+        ),
+        committed_control_window=2,
+        expected_control_dim=3,
+    )
+
+    assert empty[: len(base)] == base
+    assert empty[len(base) :] == (0.0,) * 10
+    assert active[: len(base)] == base
+    assert len(active) == len(base) + 10
+    assert active[-1] == 1.0
+    assert all(-1.0 <= value <= 1.0 for value in active[len(base) :])
+
+
+@pytest.mark.parametrize(
+    ("controls", "window", "control_dim"),
+    (
+        (((0.0, 0.0),), 2, 3),
+        (((0.0, float("nan"), 0.0),), 2, 3),
+        ((), 0, 3),
+        ((), 2, 0),
+    ),
+)
+def test_committed_control_summary_fails_loudly_on_invalid_contract(
+    controls: tuple[tuple[float, ...], ...],
+    window: int,
+    control_dim: int,
+) -> None:
+    with pytest.raises(ValueError):
+        residual_action_state_with_committed_control_summary(
+            _snapshot(token="alpha"),
+            committed_controls=controls,
+            committed_control_window=window,
+            expected_control_dim=control_dim,
+        )
 
 
 def test_selector_fits_train_only_action_values_and_is_deterministic() -> None:

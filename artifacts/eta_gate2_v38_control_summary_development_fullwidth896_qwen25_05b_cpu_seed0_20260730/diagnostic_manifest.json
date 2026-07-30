@@ -1,0 +1,241 @@
+{
+  "case_groups": {
+    "backend_labels": [
+      "transformers-open-weight",
+      "trace"
+    ],
+    "case_corpus": [
+      "eta-gate2-shadow-fresh-v5"
+    ],
+    "causal_action_head_active": [
+      "true"
+    ],
+    "causal_action_head_state_dim": [
+      "12"
+    ],
+    "confirmation_route_ids": [
+      "confirmation-v36-apiary-brood",
+      "confirmation-v36-bathymetry-soundings",
+      "confirmation-v36-luthiery-soundboard",
+      "confirmation-v36-mycology-cultures"
+    ],
+    "confirmation_split_locked": [
+      "true"
+    ],
+    "continuation_counterfactual_grid": [
+      "true"
+    ],
+    "continuation_pe_reward_scale": [
+      "0.02"
+    ],
+    "control_basis_fit_split": [
+      "train"
+    ],
+    "control_basis_mode": [
+      "train-transition-pca-v1"
+    ],
+    "control_basis_rank": [
+      "3"
+    ],
+    "control_basis_state_coordinate": [
+      "hook-layer-mean-last-token-hidden"
+    ],
+    "counterfactual_action_selector_cv": [
+      "route-grouped-4fold"
+    ],
+    "counterfactual_action_selector_diagnostic": [
+      "true"
+    ],
+    "counterfactual_action_selector_encoder": [
+      "train-only-standardized-linear-kernel"
+    ],
+    "counterfactual_action_selector_head": [
+      "train-only-dual-ridge-ladder-0.1-1-10"
+    ],
+    "counterfactual_action_selector_input": [
+      "full-layer-coordinate-mean-latest-trend"
+    ],
+    "counterfactual_action_selector_live_injection": [
+      "disabled"
+    ],
+    "counterfactual_action_selector_model_selection": [
+      "train-route-cv-audit-delta-then-audit-regret"
+    ],
+    "counterfactual_audit_sample_count": [
+      "1"
+    ],
+    "counterfactual_audit_surface": [
+      "subsequent-realized-segment-teacher-forced-nll-improvement-vs-zero-control"
+    ],
+    "counterfactual_outcome_chain": [
+      "z-candidate->residual-forward->realized-continuation-nll->prediction-error->action-credit"
+    ],
+    "counterfactual_primary_target": [
+      "realized-next-segment-teacher-forced-nll-improvement-vs-zero-control"
+    ],
+    "counterfactual_reward_normalization": [
+      "pe-action-credit-per-prefix-centered-range-v1"
+    ],
+    "counterfactual_sampling_max_new_tokens": [
+      "0"
+    ],
+    "counterfactual_sampling_seed_protocol": [
+      "not-applicable-deterministic-environment-forward"
+    ],
+    "counterfactual_sampling_temperature": [
+      "0.0"
+    ],
+    "counterfactual_target_mode": [
+      "environment-outcome-pe-credit"
+    ],
+    "counterfactual_target_sample_count": [
+      "1"
+    ],
+    "development_routes_unchanged": [
+      "true"
+    ],
+    "evidence_claim_scope": [
+      "development-diagnostic-only"
+    ],
+    "evidence_schema_version": [
+      "eta-gate2-control-summary-diagnostic.v1"
+    ],
+    "fresh_validation_split_locked": [
+      "true"
+    ],
+    "gate2_preregistered_thresholds": [
+      "min_causal_delta=0.02",
+      "min_measurable_residual_effect=1e-06",
+      "min_hook_coverage=0.75",
+      "max_fallback_rate=0.0"
+    ],
+    "gate_semantics": [
+      "real-hook-health-v2",
+      "prefix-aligned-intervention-v1",
+      "smoke-diagnostic-only-v1"
+    ],
+    "independent_training_route_ids": [
+      "train-independent-forecast-revision",
+      "train-independent-delayed-decision",
+      "train-independent-changing-conditions",
+      "train-independent-promise-ledger",
+      "train-independent-reliable-response",
+      "train-independent-visible-priorities",
+      "train-independent-unfamiliar-information",
+      "train-independent-recorded-recovery"
+    ],
+    "latent_unit_clamp": [
+      "true"
+    ],
+    "observed_v36_routes_reused": [
+      "true"
+    ],
+    "real_residual_activation_width": [
+      "896"
+    ],
+    "real_residual_ssl_bootstrap": [
+      "true"
+    ],
+    "residual_actuator_dim": [
+      "3"
+    ],
+    "residual_control_modes": [
+      "identity",
+      "zero",
+      "shuffled",
+      "reversed"
+    ],
+    "route_ids": [
+      "train-corridor-alpha-beta-delta",
+      "train-zigzag-beta-gamma-alpha",
+      "train-loop-delta-beta-epsilon",
+      "eval-alpha-delta-epsilon",
+      "eval-gamma-beta-delta",
+      "heldout-delta-alpha-gamma-epsilon",
+      "heldout-epsilon-beta-alpha-delta",
+      "train-expanded-alpha-gamma-beta-epsilon",
+      "train-expanded-beta-delta-gamma-epsilon",
+      "train-expanded-delta-beta-alpha-gamma",
+      "train-expanded-hub-beta-delta-epsilon",
+      "train-expanded-alpha-delta-hub-epsilon",
+      "train-independent-forecast-revision",
+      "train-independent-delayed-decision",
+      "train-independent-changing-conditions",
+      "train-independent-promise-ledger",
+      "train-independent-reliable-response",
+      "train-independent-visible-priorities",
+      "train-independent-unfamiliar-information",
+      "train-independent-recorded-recovery",
+      "validation-v36-observatory-ephemeris",
+      "validation-v36-brewery-fermentation",
+      "validation-v36-geology-stratigraphy",
+      "validation-v36-theater-blocking",
+      "confirmation-v36-apiary-brood",
+      "confirmation-v36-bathymetry-soundings",
+      "confirmation-v36-luthiery-soundboard",
+      "confirmation-v36-mycology-cultures"
+    ],
+    "selector_signal_gate": [
+      "selector-vs-permutation-null-v1"
+    ],
+    "selector_state_feature_contract": [
+      "residual-state+committed-control-summary.v1"
+    ],
+    "shadow_closed_loop_arm": [
+      "true"
+    ],
+    "shadow_committed_control_summary_state": [
+      "true"
+    ],
+    "shadow_committed_control_window": [
+      "2"
+    ],
+    "shadow_observation_gate": [
+      "shadow-closed-loop-v1"
+    ],
+    "superseded_validation_route_ids": [
+      "validation-v30-measurement-estimate",
+      "validation-v30-workshop-criteria",
+      "validation-v30-weather-schedules",
+      "validation-v30-editor-drafts",
+      "validation-v35-librarian-catalog-shift",
+      "validation-v35-clinic-handoff-review",
+      "validation-v35-museum-lighting-plan",
+      "validation-v35-harbor-manifest-update",
+      "confirmation-v35-orchestra-rehearsal",
+      "confirmation-v35-greenhouse-irrigation",
+      "confirmation-v35-courier-route-repair",
+      "confirmation-v35-kiln-temperature-log"
+    ],
+    "train_epochs": [
+      "2"
+    ],
+    "training_route_count": [
+      "16"
+    ],
+    "training_signal": [
+      "continuation-prediction-error"
+    ],
+    "v37_formal_routes_reused": [
+      "false"
+    ],
+    "validation_frozen_before_run": [
+      "true"
+    ],
+    "validation_route_ids": [
+      "validation-v36-observatory-ephemeris",
+      "validation-v36-brewery-fermentation",
+      "validation-v36-geology-stratigraphy",
+      "validation-v36-theater-blocking"
+    ]
+  },
+  "claim_scope": "development-diagnostic-only",
+  "repeat_count": 1,
+  "schema_version": "eta-gate2-control-summary-diagnostic.v1",
+  "seed_schedule": [
+    0
+  ],
+  "source_v37_artifact": "artifacts/eta_gate2_v37_recent_k2_fresh_formal_probe_fullwidth896_qwen25_05b_cpu_seed0_20260730",
+  "suite_id": "eta-gate2-v38-control-summary-diagnostic-ci-smoke",
+  "suite_version": 6
+}

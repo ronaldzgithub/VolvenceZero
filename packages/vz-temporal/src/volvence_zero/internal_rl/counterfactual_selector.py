@@ -684,6 +684,74 @@ def residual_action_state_vector(
     )
 
 
+def residual_action_state_with_committed_control_summary(
+    substrate_snapshot: SubstrateSnapshot,
+    *,
+    committed_controls: tuple[tuple[float, ...], ...],
+    committed_control_window: int,
+    expected_control_dim: int,
+) -> tuple[float, ...]:
+    """Append a bounded owner-defined summary of active committed controls."""
+
+    if (
+        isinstance(committed_control_window, bool)
+        or not isinstance(committed_control_window, int)
+        or committed_control_window < 1
+    ):
+        raise ValueError(
+            "committed control summary requires a positive integer window"
+        )
+    if (
+        isinstance(expected_control_dim, bool)
+        or not isinstance(expected_control_dim, int)
+        or expected_control_dim < 1
+    ):
+        raise ValueError(
+            "committed control summary requires a positive control dimension"
+        )
+    for index, control in enumerate(committed_controls):
+        if len(control) != expected_control_dim:
+            raise ValueError(
+                "committed control summary shape mismatch: "
+                f"index={index}, expected={expected_control_dim}, "
+                f"actual={len(control)}"
+            )
+        if any(not math.isfinite(float(value)) for value in control):
+            raise ValueError(
+                "committed control summary requires finite controls: "
+                f"index={index}"
+            )
+
+    active_controls = committed_controls[-committed_control_window:]
+    zero = (0.0,) * expected_control_dim
+    latest = active_controls[-1] if active_controls else zero
+    previous = (
+        active_controls[-2] if len(active_controls) >= 2 else zero
+    )
+    aggregate = tuple(
+        sum(control[dimension] for control in active_controls)
+        for dimension in range(expected_control_dim)
+    )
+    trend = tuple(
+        latest[dimension] - previous[dimension]
+        for dimension in range(expected_control_dim)
+    )
+    bounded_summary = (
+        tuple(math.tanh(value) for value in aggregate)
+        + tuple(math.tanh(value) for value in latest)
+        + tuple(math.tanh(value) for value in trend)
+        + (len(active_controls) / committed_control_window,)
+    )
+    expected_summary_dim = expected_control_dim * 3 + 1
+    if len(bounded_summary) != expected_summary_dim or any(
+        not -1.0 <= value <= 1.0 for value in bounded_summary
+    ):
+        raise RuntimeError(
+            "committed control summary violated its bounded shape contract"
+        )
+    return residual_action_state_vector(substrate_snapshot) + bounded_summary
+
+
 def fit_residual_action_selector(
     examples: tuple[CounterfactualActionExample, ...],
     *,

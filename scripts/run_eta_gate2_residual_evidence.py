@@ -7,10 +7,12 @@ from pathlib import Path
 
 from volvence_zero.agent import (
     ETAOpenWeightRuntimeConfig,
+    build_eta_gate2_control_summary_diagnostic_manifest,
     build_eta_gate2_recent_k_diagnostic_manifest,
     build_eta_gate2_recent_k2_formal_manifest,
     build_eta_gate2_residual_manifest,
     export_eta_gate2_recent_k_diagnostic_bundle,
+    export_eta_gate2_control_summary_diagnostic_bundle,
     export_eta_gate2_residual_bundle,
     run_eta_internal_rl_paper_suite,
 )
@@ -19,6 +21,11 @@ V36_SOURCE_ARTIFACT = (
     "artifacts/"
     "eta_gate2_residual_causal_v36_shadow_fullwidth896_"
     "qwen25_05b_cpu_1seed_probe_20260729"
+)
+V37_SOURCE_ARTIFACT = (
+    "artifacts/"
+    "eta_gate2_v37_recent_k2_fresh_formal_probe_fullwidth896_"
+    "qwen25_05b_cpu_seed0_20260730"
 )
 
 
@@ -66,6 +73,15 @@ def main() -> None:
             "admission suite."
         ),
     )
+    parser.add_argument(
+        "--control-summary-development",
+        action="store_true",
+        help=(
+            "Run the preregistered v38 development-only bounded "
+            "committed-control summary state diagnostic on observed v36 "
+            "routes."
+        ),
+    )
     args = parser.parse_args()
     if args.seeds is not None and args.seeds < 1:
         parser.error("--seeds must be at least 1")
@@ -77,13 +93,17 @@ def main() -> None:
             "recent-k reuses observed v36 routes and is limited to one "
             "development seed"
         )
-    if (
-        args.shadow_control_window is not None
-        and args.recent_k2_formal
-    ):
+    selected_special_modes = sum(
+        (
+            args.shadow_control_window is not None,
+            args.recent_k2_formal,
+            args.control_summary_development,
+        )
+    )
+    if selected_special_modes > 1:
         parser.error(
-            "--shadow-control-window and --recent-k2-formal are "
-            "mutually exclusive"
+            "--shadow-control-window, --recent-k2-formal, and "
+            "--control-summary-development are mutually exclusive"
         )
     if args.recent_k2_formal:
         if args.suite_tier != "ci-smoke":
@@ -119,6 +139,49 @@ def main() -> None:
             parser.error(
                 "v37 recent-k2 formal requires the frozen local model"
             )
+    if args.control_summary_development:
+        if args.suite_tier != "ci-smoke":
+            parser.error(
+                "v38 control-summary development is frozen to "
+                "suite-tier=ci-smoke"
+            )
+        if args.seeds not in {None, 1}:
+            parser.error(
+                "v38 control-summary development is limited to seed 0"
+            )
+        if args.train_epochs not in {None, 2}:
+            parser.error(
+                "v38 control-summary development freezes train epochs at 2"
+            )
+        if args.device != "cpu":
+            parser.error(
+                "v38 control-summary development requires device=cpu"
+            )
+        if args.activation_width not in {None, 896}:
+            parser.error(
+                "v38 control-summary development freezes activation "
+                "width at 896"
+            )
+        if args.max_prefix_steps not in {None, 8}:
+            parser.error(
+                "v38 control-summary development freezes max prefix "
+                "steps at 8"
+            )
+        if args.target_samples not in {None, 1}:
+            parser.error(
+                "v38 control-summary development freezes target samples "
+                "at 1"
+            )
+        if args.audit_samples not in {None, 1}:
+            parser.error(
+                "v38 control-summary development freezes audit samples "
+                "at 1"
+            )
+        if args.allow_download:
+            parser.error(
+                "v38 control-summary development requires the frozen "
+                "local model"
+            )
     if args.train_epochs is not None and args.train_epochs < 1:
         parser.error("--train-epochs must be at least 1")
     if args.activation_width is not None and args.activation_width < 1:
@@ -133,7 +196,11 @@ def main() -> None:
     if args.audit_samples is not None and args.audit_samples < 1:
         parser.error("--audit-samples must be at least 1")
 
-    if args.recent_k2_formal:
+    if args.control_summary_development:
+        manifest = build_eta_gate2_control_summary_diagnostic_manifest(
+            suite_tier=args.suite_tier,
+        )
+    elif args.recent_k2_formal:
         manifest = build_eta_gate2_recent_k2_formal_manifest(
             suite_tier=args.suite_tier,
         )
@@ -214,7 +281,7 @@ def main() -> None:
         activation_width=activation_width,
         local_files_only=not args.allow_download,
     )
-    if args.recent_k2_formal:
+    if args.recent_k2_formal or args.control_summary_development:
         config = replace(config, max_prefix_steps=8)
     elif args.max_prefix_steps is not None:
         config = replace(config, max_prefix_steps=args.max_prefix_steps)
@@ -223,11 +290,31 @@ def main() -> None:
         open_weight_config=config,
         output_dir=(
             None
-            if args.shadow_control_window is not None
+            if (
+                args.shadow_control_window is not None
+                or args.control_summary_development
+            )
             else args.output_dir
         ),
     )
-    if args.shadow_control_window is not None:
+    if args.control_summary_development:
+        written = export_eta_gate2_control_summary_diagnostic_bundle(
+            report,
+            output_dir=args.output_dir,
+            source_v37_artifact=V37_SOURCE_ARTIFACT,
+        )
+        diagnostic = json.loads(
+            (
+                args.output_dir / "control_summary_diagnostic.json"
+            ).read_text(encoding="utf-8")
+        )
+        status = (
+            "development-pass"
+            if diagnostic["development_gate_passed"]
+            else "development-fail"
+        )
+        kill_conditions = []
+    elif args.shadow_control_window is not None:
         written = export_eta_gate2_recent_k_diagnostic_bundle(
             report,
             output_dir=args.output_dir,

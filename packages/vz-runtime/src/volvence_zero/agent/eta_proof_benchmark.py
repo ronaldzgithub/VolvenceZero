@@ -53,6 +53,7 @@ from volvence_zero.internal_rl import (
     fit_kernel_residual_action_selector,
     grouped_cross_validate_kernel_residual_action_selector,
     residual_action_state_vector,
+    residual_action_state_with_committed_control_summary,
     selector_artifact_from_payload,
     selector_artifact_to_payload,
     select_counterfactual_actions,
@@ -2790,6 +2791,10 @@ def _with_counterfactual_environment_outcome_rewards(
         float,
     ],
     outcome_records: list[ETACounterfactualOutcomeRecord],
+    committed_control_histories: (
+        tuple[tuple[tuple[float, ...], ...], ...] | None
+    ) = None,
+    committed_control_window: int | None = None,
 ) -> tuple[
     ZRollout,
     tuple[float, ...],
@@ -2824,6 +2829,20 @@ def _with_counterfactual_environment_outcome_rewards(
             "ETA environment outcome counterfactual grid currently "
             "requires n_z=3"
         )
+    if committed_control_histories is not None:
+        if committed_control_window != 2:
+            raise ValueError(
+                "conditioned counterfactual rows require the frozen "
+                "committed control window k=2"
+            )
+        expected_history_count = len(rollout.transitions) - 2
+        if len(committed_control_histories) != expected_history_count:
+            raise ValueError(
+                "conditioned counterfactual rows require one pre-action "
+                "history per scoreable prefix: "
+                f"expected={expected_history_count}, "
+                f"actual={len(committed_control_histories)}"
+            )
     subgoals_by_id = {
         subgoal.subgoal_id: subgoal
         for subgoal in proof_episode.subgoals
@@ -2864,6 +2883,11 @@ def _with_counterfactual_environment_outcome_rewards(
                 f"route prefixes at step {index} of case {case.case_id}"
             )
         substrate_snapshot = substrate_steps[index]
+        committed_history = (
+            committed_control_histories[index]
+            if committed_control_histories is not None
+            else ()
+        )
         candidate_evidence = []
         for candidate_index, candidate in enumerate(candidates):
             decoded = decoder.decode(
@@ -2871,13 +2895,21 @@ def _with_counterfactual_environment_outcome_rewards(
                 decoder_matrix=policy.parameter_store.decoder_matrix,
                 hidden_matrix=policy.parameter_store.decoder_hidden,
             )
-            cache_key = (source_text, decoded.applied_control)
+            effective_control = (
+                _aggregate_committed_controls(
+                    (*committed_history, decoded.applied_control),
+                    committed_control_window=committed_control_window,
+                )
+                if committed_control_histories is not None
+                else decoded.applied_control
+            )
+            cache_key = (source_text, effective_control)
             application = application_cache.get(cache_key)
             if application is None:
                 application = runtime.apply_control(
                     source_text=source_text,
                     substrate_snapshot=substrate_snapshot,
-                    applied_control=decoded.applied_control,
+                    applied_control=effective_control,
                     track_scale=(0.7, 0.7, 0.7),
                 )
                 application_cache[cache_key] = application
@@ -2885,14 +2917,14 @@ def _with_counterfactual_environment_outcome_rewards(
                 runtime=runtime,
                 source_text=source_text,
                 continuation_texts=(realized_segment,),
-                applied_control=decoded.applied_control,
+                applied_control=effective_control,
                 score_cache=score_cache,
             )[0]
             audit_nll = _continuation_nlls(
                 runtime=runtime,
                 source_text=next_prefix,
                 continuation_texts=(audit_segment,),
-                applied_control=decoded.applied_control,
+                applied_control=effective_control,
                 score_cache=score_cache,
             )[0]
             candidate_evidence.append(
@@ -2900,6 +2932,7 @@ def _with_counterfactual_environment_outcome_rewards(
                     candidate_index,
                     candidate,
                     decoded,
+                    effective_control,
                     application,
                     primary_nll,
                     audit_nll,
@@ -2910,6 +2943,7 @@ def _with_counterfactual_environment_outcome_rewards(
             _zero_index,
             zero_candidate,
             _zero_decoded,
+            _zero_effective_control,
             zero_application,
             zero_primary_nll,
             zero_audit_nll,
@@ -2969,6 +3003,7 @@ def _with_counterfactual_environment_outcome_rewards(
             candidate_index,
             candidate,
             decoded,
+            effective_control,
             application,
             primary_nll,
             audit_nll,
@@ -3051,7 +3086,7 @@ def _with_counterfactual_environment_outcome_rewards(
                     segment_id=segment_id,
                     candidate_index=candidate_index,
                     latent_code=candidate,
-                    applied_control=decoded.applied_control,
+                    applied_control=effective_control,
                     target_signature=primary_measurement.target_signature,
                     observed_signature=primary_measurement.observed_signature,
                     downstream_effect=application.downstream_effect,
@@ -3078,6 +3113,7 @@ def _with_counterfactual_environment_outcome_rewards(
                 (
                     candidate,
                     decoded,
+                    effective_control,
                     application,
                     primary_measurement,
                     primary_credit,
@@ -3094,6 +3130,7 @@ def _with_counterfactual_environment_outcome_rewards(
         (
             best_candidate,
             best_decoded,
+            best_effective_control,
             best_application,
             best_primary,
             best_credit,
@@ -3103,7 +3140,7 @@ def _with_counterfactual_environment_outcome_rewards(
             best_audit_pe_magnitude,
         ) = max(
             scored_candidates,
-            key=lambda evidence: evidence[4],
+            key=lambda evidence: evidence[5],
         )
         centered_reward = max(
             -1.0,
@@ -3115,8 +3152,8 @@ def _with_counterfactual_environment_outcome_rewards(
                 policy_action=best_candidate,
                 latent_code=best_candidate,
                 decoder_output=best_decoded.decoder_output,
-                control_before_ablation=best_decoded.applied_control,
-                applied_control=best_decoded.applied_control,
+                control_before_ablation=best_effective_control,
+                applied_control=best_effective_control,
                 downstream_effect=best_application.downstream_effect,
                 reward=centered_reward,
                 raw_reward=best_credit,
@@ -3727,6 +3764,151 @@ def _shadow_closed_loop_state_snapshot(
     ).applied_snapshot
 
 
+def _bootstrap_committed_control_histories(
+    *,
+    case: ETAProofCase,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    source_text_by_step: tuple[str, ...],
+    runtime: OpenWeightResidualRuntime,
+    policy: FullLearnedTemporalPolicy,
+    selector_artifact: KernelResidualActionSelectorArtifact,
+    committed_control_window: int,
+) -> tuple[tuple[tuple[float, ...], ...], ...]:
+    if committed_control_window != 2:
+        raise ValueError(
+            "Gate 2 committed-control summary bootstrap is frozen to k=2"
+        )
+    if len(snapshots) != len(source_text_by_step):
+        raise ValueError(
+            "Gate 2 summary bootstrap requires aligned snapshots/prefixes"
+        )
+    candidates = _continuation_counterfactual_candidates()
+    if selector_artifact.action_count != len(candidates):
+        raise ValueError(
+            "Gate 2 summary bootstrap selector action count mismatch"
+        )
+    decoder = ResidualDecoder()
+    committed: tuple[tuple[float, ...], ...] = ()
+    histories: list[tuple[tuple[float, ...], ...]] = []
+    for step_index in range(len(snapshots) - 2):
+        histories.append(committed)
+        aggregate_control = _aggregate_committed_controls(
+            committed,
+            committed_control_window=committed_control_window,
+        )
+        controlled_state = _shadow_closed_loop_state_snapshot(
+            runtime=runtime,
+            source_text=source_text_by_step[step_index],
+            clean_snapshot=snapshots[step_index],
+            aggregate_control=aggregate_control,
+        )
+        predicted_values = selector_artifact.predict_action_values(
+            residual_action_state_vector(controlled_state)
+        )
+        selected_index = max(
+            range(len(predicted_values)),
+            key=lambda index: (predicted_values[index], -index),
+        )
+        decoded = decoder.decode(
+            latent_code=candidates[selected_index],
+            decoder_matrix=policy.parameter_store.decoder_matrix,
+            hidden_matrix=policy.parameter_store.decoder_hidden,
+        )
+        committed = (*committed, decoded.applied_control)
+    if len(histories) != len(snapshots) - 2:
+        raise RuntimeError(
+            f"Gate 2 summary bootstrap history count drifted for {case.case_id}"
+        )
+    return tuple(histories)
+
+
+def _conditioned_summary_training_examples(
+    *,
+    case: ETAProofCase,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    source_text_by_step: tuple[str, ...],
+    rollout: ZRollout,
+    proof_episode: InternalRLProofEpisode,
+    runtime: OpenWeightResidualRuntime,
+    policy: FullLearnedTemporalPolicy,
+    bootstrap_selector: KernelResidualActionSelectorArtifact,
+    score_cache: dict[tuple[str, str, tuple[float, ...]], float],
+    application_cache: dict[tuple[str, tuple[float, ...]], Any],
+    outcome_records: list[ETACounterfactualOutcomeRecord],
+    committed_control_window: int,
+) -> tuple[CounterfactualActionExample, ...]:
+    histories = _bootstrap_committed_control_histories(
+        case=case,
+        snapshots=snapshots,
+        source_text_by_step=source_text_by_step,
+        runtime=runtime,
+        policy=policy,
+        selector_artifact=bootstrap_selector,
+        committed_control_window=committed_control_window,
+    )
+    (
+        _conditioned_rollout,
+        _prediction_errors,
+        target_rows,
+        audit_rows,
+    ) = _with_counterfactual_environment_outcome_rewards(
+        case=case,
+        evidence_phase="summary-state-train",
+        runtime=runtime,
+        rollout=rollout,
+        substrate_steps=snapshots,
+        source_text_by_step=source_text_by_step,
+        proof_episode=proof_episode,
+        policy=policy,
+        application_cache=application_cache,
+        score_cache=score_cache,
+        outcome_records=outcome_records,
+        committed_control_histories=histories,
+        committed_control_window=committed_control_window,
+    )
+    if len(target_rows) != len(histories) or len(audit_rows) != len(histories):
+        raise RuntimeError(
+            "Gate 2 summary training rows lost alignment with committed "
+            f"histories for {case.case_id}"
+        )
+    examples = []
+    for step_index, (history, target_row, audit_row) in enumerate(
+        zip(histories, target_rows, audit_rows, strict=True)
+    ):
+        aggregate_control = _aggregate_committed_controls(
+            history,
+            committed_control_window=committed_control_window,
+        )
+        controlled_state = _shadow_closed_loop_state_snapshot(
+            runtime=runtime,
+            source_text=source_text_by_step[step_index],
+            clean_snapshot=snapshots[step_index],
+            aggregate_control=aggregate_control,
+        )
+        examples.append(
+            CounterfactualActionExample(
+                example_id=(
+                    f"{case.case_id}:summary-prefix-{step_index}"
+                ),
+                group_id=case.case_id,
+                split="train",
+                state_features=(
+                    residual_action_state_with_committed_control_summary(
+                        controlled_state,
+                        committed_controls=history,
+                        committed_control_window=(
+                            committed_control_window
+                        ),
+                        expected_control_dim=3,
+                    )
+                ),
+                candidate_raw_deltas=target_row,
+                audit_candidate_raw_deltas=audit_row,
+            )
+        )
+    return tuple(examples)
+
+
 def _shadow_closed_loop_records(
     *,
     run_id: str,
@@ -3741,6 +3923,7 @@ def _shadow_closed_loop_records(
     control_basis_fingerprint_value: str,
     score_cache: dict[tuple[str, str, tuple[float, ...]], float],
     committed_control_window: int | None = None,
+    committed_control_summary_state: bool = False,
 ) -> tuple[ETAShadowClosedLoopRecord, ...]:
     if len(snapshots) != len(source_text_by_step):
         raise ValueError(
@@ -3750,6 +3933,13 @@ def _shadow_closed_loop_records(
     if scoreable_prefix_count < 1:
         raise ValueError(
             "Gate 2 closed-loop SHADOW requires at least three prefixes"
+        )
+    if (
+        committed_control_summary_state
+        and committed_control_window != 2
+    ):
+        raise ValueError(
+            "Gate 2 committed-control summary state requires k=2"
         )
     runtime_descriptor = _open_weight_runtime_descriptor(
         runtime=runtime,
@@ -3812,7 +4002,16 @@ def _shadow_closed_loop_records(
             clean_snapshot=snapshots[step_index],
             aggregate_control=selector_prior_control,
         )
-        selector_features = residual_action_state_vector(selector_state)
+        selector_features = (
+            residual_action_state_with_committed_control_summary(
+                selector_state,
+                committed_controls=selector_committed,
+                committed_control_window=committed_control_window,
+                expected_control_dim=3,
+            )
+            if committed_control_summary_state
+            else residual_action_state_vector(selector_state)
+        )
         selector_values = selector_artifact.predict_action_values(
             selector_features
         )
@@ -3851,8 +4050,15 @@ def _shadow_closed_loop_records(
             clean_snapshot=snapshots[step_index],
             aggregate_control=permutation_prior_control,
         )
-        permutation_features = residual_action_state_vector(
-            permutation_state
+        permutation_features = (
+            residual_action_state_with_committed_control_summary(
+                permutation_state,
+                committed_controls=permutation_committed,
+                committed_control_window=committed_control_window,
+                expected_control_dim=3,
+            )
+            if committed_control_summary_state
+            else residual_action_state_vector(permutation_state)
         )
         permutation_values = selector_artifact.predict_action_values(
             permutation_features
@@ -3891,7 +4097,18 @@ def _shadow_closed_loop_records(
                 zero_nll,
                 0,
                 0,
-                residual_action_state_vector(snapshots[step_index]),
+                (
+                    residual_action_state_with_committed_control_summary(
+                        snapshots[step_index],
+                        committed_controls=(),
+                        committed_control_window=committed_control_window,
+                        expected_control_dim=3,
+                    )
+                    if committed_control_summary_state
+                    else residual_action_state_vector(
+                        snapshots[step_index]
+                    )
+                ),
             ),
             (
                 "selector",
@@ -4621,6 +4838,7 @@ def run_eta_internal_rl_proof_benchmark(
     counterfactual_sampling_max_new_tokens: int = 4,
     shadow_closed_loop_arm: bool = False,
     shadow_committed_control_window: int | None = None,
+    shadow_committed_control_summary_state: bool = False,
     evidence_run_id: str = "eta-proof-direct",
     evidence_run_seed: int = 0,
     control_basis_fingerprint_value: str = "",
@@ -4640,6 +4858,17 @@ def run_eta_internal_rl_proof_benchmark(
         raise ValueError(
             "Gate 2 committed control window requires the closed-loop "
             "SHADOW arm"
+        )
+    if shadow_committed_control_summary_state and (
+        not shadow_closed_loop_arm
+        or shadow_committed_control_window != 2
+        or counterfactual_target_mode
+        != ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+    ):
+        raise ValueError(
+            "Gate 2 committed-control summary state requires the "
+            "closed-loop SHADOW arm, k=2, and the environment-outcome "
+            "counterfactual target"
         )
     if training_signal not in {
         ETA_PROOF_TRAINING_SIGNAL,
@@ -4756,6 +4985,7 @@ def run_eta_internal_rl_proof_benchmark(
             ETACounterfactualOutcomeRecord
         ] = []
         selector_artifact = None
+        shadow_selector_artifact = None
         selector_artifact_payload: dict[str, object] | None = None
         selector_model_candidate_count = 0
         shadow_closed_loop_records: list[
@@ -5001,17 +5231,162 @@ def run_eta_internal_rl_proof_benchmark(
                     "the artifact model kind"
                 )
             selector_artifact = restored_selector
-            selector_artifact_payload = {
-                "schema_version": "eta-gate2-selector-artifact.v1",
-                "run_id": evidence_run_id,
-                "run_seed": evidence_run_seed,
-                "fit_split": "train",
-                "control_basis_fingerprint": (
-                    control_basis_fingerprint_value
-                ),
-                "artifact": serialized_selector,
-            }
+            shadow_selector_artifact = selector_artifact
             selector_selections.extend(selector_cv_selections)
+            if shadow_committed_control_summary_state:
+                if active_open_weight_runtime is None:
+                    raise RuntimeError(
+                        "Gate 2 summary state collection requires the "
+                        "active open-weight runtime"
+                    )
+                if shadow_committed_control_window != 2:
+                    raise RuntimeError(
+                        "Gate 2 summary state collection lost frozen k=2"
+                    )
+                summary_training_examples: list[
+                    CounterfactualActionExample
+                ] = []
+                summary_collection_checkpoint = (
+                    sandbox.create_checkpoint(
+                        checkpoint_id=(
+                            f"{profile_label}:summary-state-collection"
+                        )
+                    )
+                )
+                for summary_case in train_cases:
+                    sandbox.restore_checkpoint(
+                        summary_collection_checkpoint
+                    )
+                    (
+                        summary_snapshots,
+                        summary_source_text_by_step,
+                    ) = _build_case_snapshot_bundle(
+                        summary_case,
+                        open_weight_runtime=active_open_weight_runtime,
+                        open_weight_config=open_weight_config,
+                    )
+                    summary_rollout_case = (
+                        _calibrate_case_for_real_snapshots(
+                            summary_case,
+                            snapshots=summary_snapshots,
+                            enabled=False,
+                        )
+                    )
+                    sandbox.policy.parameter_store.set_learning_phase(
+                        "rl",
+                        structure_frozen=True,
+                    )
+                    summary_rollout = sandbox.rollout(
+                        rollout_id=(
+                            f"{profile_label}:{summary_case.case_id}:"
+                            "summary-state-train"
+                        ),
+                        substrate_steps=summary_snapshots,
+                        track=Track.SHARED,
+                        replacement_mode=profile.replacement_mode,
+                        proof_episode=(
+                            summary_rollout_case.proof_episode
+                        ),
+                        source_text_by_step=(
+                            summary_source_text_by_step
+                        ),
+                    )
+                    summary_training_examples.extend(
+                        _conditioned_summary_training_examples(
+                            case=summary_case,
+                            snapshots=summary_snapshots,
+                            source_text_by_step=(
+                                summary_source_text_by_step
+                            ),
+                            rollout=summary_rollout,
+                            proof_episode=(
+                                summary_rollout_case.proof_episode
+                            ),
+                            runtime=active_open_weight_runtime,
+                            policy=sandbox.policy,
+                            bootstrap_selector=selector_artifact,
+                            score_cache=continuation_score_cache,
+                            application_cache=(
+                                outcome_application_cache
+                            ),
+                            outcome_records=(
+                                counterfactual_outcome_records
+                            ),
+                            committed_control_window=2,
+                        )
+                    )
+                sandbox.restore_checkpoint(
+                    summary_collection_checkpoint
+                )
+                (
+                    fitted_summary_selector,
+                    _summary_cv_selections,
+                    summary_model_candidate_count,
+                ) = _fit_train_selected_counterfactual_selector(
+                    tuple(summary_training_examples)
+                )
+                serialized_summary_selector = (
+                    selector_artifact_to_payload(
+                        fitted_summary_selector
+                    )
+                )
+                restored_summary_selector = (
+                    selector_artifact_from_payload(
+                        serialized_summary_selector
+                    )
+                )
+                if not isinstance(
+                    restored_summary_selector,
+                    KernelResidualActionSelectorArtifact,
+                ):
+                    raise TypeError(
+                        "Gate 2 summary selector round-trip changed the "
+                        "artifact model kind"
+                    )
+                if (
+                    restored_summary_selector.input_dim
+                    != selector_artifact.input_dim + 10
+                ):
+                    raise RuntimeError(
+                        "Gate 2 summary selector did not append the frozen "
+                        "10-dimensional control summary"
+                    )
+                shadow_selector_artifact = restored_summary_selector
+                selector_artifact_payload = {
+                    "schema_version": (
+                        "eta-gate2-selector-artifact.v2"
+                    ),
+                    "run_id": evidence_run_id,
+                    "run_seed": evidence_run_seed,
+                    "fit_split": "train",
+                    "feature_contract": (
+                        "residual-state+committed-control-summary.v1"
+                    ),
+                    "committed_control_window": 2,
+                    "bootstrap_selector_fingerprint": (
+                        selector_artifact.model_fingerprint
+                    ),
+                    "summary_model_candidate_count": (
+                        summary_model_candidate_count
+                    ),
+                    "control_basis_fingerprint": (
+                        control_basis_fingerprint_value
+                    ),
+                    "artifact": serialized_summary_selector,
+                }
+            else:
+                selector_artifact_payload = {
+                    "schema_version": (
+                        "eta-gate2-selector-artifact.v1"
+                    ),
+                    "run_id": evidence_run_id,
+                    "run_seed": evidence_run_seed,
+                    "fit_split": "train",
+                    "control_basis_fingerprint": (
+                        control_basis_fingerprint_value
+                    ),
+                    "artifact": serialized_selector,
+                }
         if (
             profile_label == baseline_label
             and shared_checkpoint_required
@@ -5074,6 +5449,11 @@ def run_eta_internal_rl_proof_benchmark(
                         "Gate 2 closed-loop SHADOW selector artifact "
                         "disappeared after train-only fit"
                     )
+                if shadow_selector_artifact is None:
+                    raise RuntimeError(
+                        "Gate 2 closed-loop SHADOW selector artifact "
+                        "disappeared before evaluation"
+                    )
                 if not control_basis_fingerprint_value:
                     raise ValueError(
                         "Gate 2 closed-loop SHADOW requires a bound control "
@@ -5089,13 +5469,16 @@ def run_eta_internal_rl_proof_benchmark(
                         runtime=active_open_weight_runtime,
                         open_weight_config=open_weight_config,
                         policy=sandbox.policy,
-                        selector_artifact=selector_artifact,
+                        selector_artifact=shadow_selector_artifact,
                         control_basis_fingerprint_value=(
                             control_basis_fingerprint_value
                         ),
                         score_cache=continuation_score_cache,
                         committed_control_window=(
                             shadow_committed_control_window
+                        ),
+                        committed_control_summary_state=(
+                            shadow_committed_control_summary_state
                         ),
                     )
                 )
@@ -6312,6 +6695,14 @@ def run_eta_internal_rl_paper_suite(
         ),
         None,
     )
+    shadow_committed_control_summary_state = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "shadow_committed_control_summary_state"
+        ),
+        False,
+    )
     counterfactual_target_mode = next(
         (
             values[0]
@@ -6479,6 +6870,9 @@ def run_eta_internal_rl_paper_suite(
             shadow_committed_control_window=(
                 shadow_committed_control_window
             ),
+            shadow_committed_control_summary_state=(
+                shadow_committed_control_summary_state
+            ),
             evidence_run_id=evidence_run_id,
             evidence_run_seed=run_seed,
             control_basis_fingerprint_value=(
@@ -6621,6 +7015,9 @@ def run_eta_internal_rl_paper_suite(
             if shadow_committed_control_window is not None
             else "full-history"
         ),
+        "shadow_committed_control_summary_state": str(
+            shadow_committed_control_summary_state
+        ).lower(),
         "counterfactual_target_mode": counterfactual_target_mode,
         "counterfactual_target_sample_count": str(
             counterfactual_target_sample_count

@@ -195,6 +195,13 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   round-trip 冻结，evaluation/SHADOW arm 只消费恢复后的 artifact；bundle 的
   `selector_artifact.json` 绑定 run/seed、fit split 与 learned control-basis
   fingerprint。该 artifact 不进入 live session，不新增第二 temporal owner。
+- Gate 2 v38 的 development-only
+  `residual-state+committed-control-summary.v1` 由 temporal selector 单点
+  解释：在既有 full residual mean/latest/trend + summary 后追加最近 k=2
+  committed controls 的 10 维有界 readout（aggregate/latest/trend 各 3 维，
+  active fraction 1 维）。空历史严格为零；非法 window、control shape 或非有限
+  值 fail loudly。该 readout 不新增公共 snapshot/slot，只进入 train-only
+  selector artifact；默认关闭时保持 v37 feature 字节不变。
 - 当前 proof profile 已包含 matched ablation `full-no-fast-prior`：它保留 full internal RL + causal replacement，但关闭 temporal fast prior ingestion，用于衡量 fast prior 对 held-out family reuse、credit alignment 与 strong success 的增益
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter

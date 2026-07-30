@@ -2554,6 +2554,20 @@ return (
   selector state representation，加入 committed-control summary，不得继续
   调 k、阈值、basis、候选集或重用 v37 formal routes。权威 artifact：
   `artifacts/eta_gate2_v37_recent_k2_fresh_formal_probe_fullwidth896_qwen25_05b_cpu_seed0_20260730`。
+- **2026-07-30 v38 committed-control summary development 止损**：temporal
+  selector owner 在原 8076 维 residual state 后追加 10 维 bounded k=2
+  aggregate/latest/trend/active summary；原 selector 仅作 train-route
+  bootstrap，新的 8086 维 selector 只消费同 16 条 train route 上按实际 k=2
+  history 重结算的 22-candidate EnvironmentOutcome→PE→credit rows。真 Qwen
+  seed 0 共 483 条三臂记录，artifact/lineage/side-effect 契约全绿，v37 formal
+  routes 未复用。train、v36 validation/confirmation、eval 三项闭环指标全正，
+  development-heldout 虽由 v36 k2 的
+  `−0.058184 / −0.057883 / −0.009697` 改善为
+  `−0.022690 / −0.022389 / −0.003782`，仍未越过零门，故
+  `development_gate_passed=false`。按预注册不进入 fresh formal，不调 summary
+  scale/坐标、不重搜 k；recent-k 与该 summary contract 均冻结，Gate 2
+  closed-loop SHADOW admission 保持未闭合，live injection disabled。artifact：
+  `artifacts/eta_gate2_v38_control_summary_development_fullwidth896_qwen25_05b_cpu_seed0_20260730`。
 - **证据污染约束**：现有 heldout 已在 v1-v15 调参中反复观察，只能记为
   `development-heldout`。v16 晋升必须同时满足 eval 方向为正，以及一个
   从未用于本轮设计/停止决策的 locked `confirmation` split 相对最佳

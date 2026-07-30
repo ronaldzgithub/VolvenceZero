@@ -970,6 +970,33 @@
 	  方向止损；下一允许方向仅为 committed-control summary state features。
 	  权威 artifact：
 	  `artifacts/eta_gate2_v37_recent_k2_fresh_formal_probe_fullwidth896_qwen25_05b_cpu_seed0_20260730`。
+
+	  v38 development 包只允许改变 selector state representation：固定 k=2
+	  与 v37 的模型、basis、候选集、ridge、阈值和 prefix 配置，原 8076 维
+	  residual state 后追加 10 维 bounded committed-control summary
+	  （aggregate/latest/latest−previous 各 3 维加 active fraction）。原 selector
+	  先在 16 条 train routes 冻结为 bootstrap behavior，再只在相同 train
+	  routes 上顺序生成 k=2 history，并在每个 history 下重跑 22-candidate
+	  EnvironmentOutcome→PE→credit rows 拟合 summary selector；任何 evaluation
+	  route 不得进入 fit。开发只复用已观察 v36 routes，禁止重用 v37 formal
+	  routes；train / validation / confirmation / development-heldout 三项闭环
+	  指标必须全部为正，否则止损。完整预注册见
+	  `.cursor/plans/gate-2-v38-committed-control-summary-development_20260730.plan.md`。
+	  本包不能产生 formal verdict，live injection 继续 disabled。
+
+	  同日 v38 真 Qwen seed 0 development run 完成。summary artifact 输入
+	  `8086` 维，bootstrap/summary selector fingerprint 分别为
+	  `ef360e0e… / 8546fa15…`，basis fingerprint `326aecdd…`；483 条三臂
+	  记录全部 k=2、active count≤2、side-effect free，且未使用 v37 formal
+	  routes。train、v36 validation/confirmation 与 eval 三项闭环指标全正，
+	  但 development-heldout 的 selector−zero / selector−permutation /
+	  selected step mean 仍为 `−0.022690 / −0.022389 / −0.003782`。虽然较
+	  v36 k=2 的 `−0.058184 / −0.057883 / −0.009697` 收窄，仍未越过零门，
+	  故 `development_gate_passed=false`，按预注册不进入 fresh formal。
+	  summary feature contract 与 recent-k 路线一并止损；不得调 summary scale/
+	  坐标、重搜 k 或复用 v37 routes。Gate 2 closed-loop SHADOW admission
+	  继续未闭合，live injection disabled。artifact：
+	  `artifacts/eta_gate2_v38_control_summary_development_fullwidth896_qwen25_05b_cpu_seed0_20260730`。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。
