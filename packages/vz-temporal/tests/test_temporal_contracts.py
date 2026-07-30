@@ -937,6 +937,44 @@ def test_action_family_topology_uses_structural_not_payoff_similarity() -> None:
     assert len(updated) == 2
 
 
+def test_frozen_action_family_structure_blocks_anti_collapse_split() -> None:
+    from volvence_zero.temporal.metacontroller_components import (
+        ActionFamilyObservation,
+        DiscoveredActionFamily,
+        discover_latent_action_family,
+    )
+
+    incumbent = DiscoveredActionFamily(
+        family_id="discovered_family_0",
+        latent_centroid=(0.8, 0.2),
+        decoder_centroid=(0.8, 0.2),
+        support=40,
+        stability=0.9,
+        switch_bias=0.2,
+        reuse_streak=8,
+        monopoly_pressure=0.95,
+        competition_score=0.95,
+    )
+    observation = ActionFamilyObservation(
+        latent_code=(0.8, 0.2),
+        decoder_control=(0.8, 0.2),
+        switch_gate=0.2,
+        posterior_drift=0.1,
+        persistence_window=2.0,
+    )
+
+    updated, _label, summary = discover_latent_action_family(
+        observation=observation,
+        action_families=(incumbent,),
+        structure_frozen=True,
+        allow_topology_maintenance=False,
+    )
+
+    assert len(updated) == 1
+    assert updated[0].family_id == incumbent.family_id
+    assert "anti-collapse" not in summary
+
+
 def test_action_family_identity_dominates_outcome_prior() -> None:
     from volvence_zero.temporal.metacontroller_components import (
         ActionFamilyObservation,

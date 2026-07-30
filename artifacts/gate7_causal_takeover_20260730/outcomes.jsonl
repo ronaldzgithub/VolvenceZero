@@ -1,0 +1,15 @@
+{"arm":"full","composition_score":1.0,"seed":701,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"no-ssl","composition_score":1.0,"seed":701,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"no-rl","composition_score":1.0,"seed":701,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"reverse-order","composition_score":1.0,"seed":701,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"joint-unfrozen","composition_score":1.0,"seed":701,"terminal_return":0.5433333333333332,"terminal_success_rate":1.0}
+{"arm":"full","composition_score":1.0,"seed":709,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"no-ssl","composition_score":1.0,"seed":709,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"no-rl","composition_score":1.0,"seed":709,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"reverse-order","composition_score":1.0,"seed":709,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"joint-unfrozen","composition_score":1.0,"seed":709,"terminal_return":0.5433333333333332,"terminal_success_rate":1.0}
+{"arm":"full","composition_score":1.0,"seed":719,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"no-ssl","composition_score":1.0,"seed":719,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"no-rl","composition_score":1.0,"seed":719,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"reverse-order","composition_score":1.0,"seed":719,"terminal_return":0.5433333333333331,"terminal_success_rate":1.0}
+{"arm":"joint-unfrozen","composition_score":1.0,"seed":719,"terminal_return":0.5433333333333332,"terminal_success_rate":1.0}

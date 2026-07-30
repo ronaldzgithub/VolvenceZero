@@ -1384,11 +1384,15 @@ def discover_latent_action_family(
         active_family_id=label,
         active_family_competition_bias=active_family_competition_bias,
     )
-    families_tuple, anti_collapse_events = _anti_collapse_topology_maintenance(
-        families_tuple,
-        active_family_id=label,
-        max_families=max_families,
-    )
+    anti_collapse_events: tuple[str, ...] = ()
+    if allow_topology_maintenance and not structure_frozen:
+        families_tuple, anti_collapse_events = (
+            _anti_collapse_topology_maintenance(
+                families_tuple,
+                active_family_id=label,
+                max_families=max_families,
+            )
+        )
     if anti_collapse_events:
         maintenance_events.extend(anti_collapse_events)
         label, summary, _ = classify_latent_action(
