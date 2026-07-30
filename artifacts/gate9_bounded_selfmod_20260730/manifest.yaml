@@ -1,0 +1,54 @@
+{
+  "memory_arms": [
+    "pe-gated",
+    "no-update",
+    "always-update",
+    "random-gate"
+  ],
+  "optimizer_arms": [
+    "m3",
+    "sgd",
+    "plain-momentum",
+    "adam"
+  ],
+  "optimizer_scenarios": [
+    "direction-switch",
+    "scale-drift",
+    "intermittent-reversal"
+  ],
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate9-bounded-selfmod.v1",
+  "seed_schedule": [
+    727,
+    733,
+    739
+  ],
+  "source_fingerprint": "477cffde2f31e4809974de62af209d92deed4be4bfe382b21e9ca9564b6e3858",
+  "source_schema_version": "gate78-shared-trace.v3",
+  "substrate_mutation_allowed": false,
+  "suite_id": "gate9-bounded-selfmod",
+  "thresholds": {
+    "m3_compute_cost_vs_adam_max": 1.0,
+    "m3_old_mode_retention_tolerance": 0.01,
+    "m3_overshoot_tolerance": 0.01,
+    "m3_tracking_mae_margin": 0.005,
+    "pe_benefit_margin": 0.01,
+    "pe_forgetting_tolerance": 0.02,
+    "pe_unnecessary_write_margin": 0.05,
+    "pe_write_precision_margin": 0.05
+  },
+  "training_mode": "owner-local-bounded-update"
+}

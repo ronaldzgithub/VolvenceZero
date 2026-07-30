@@ -1,0 +1,12 @@
+{"arm":"pe-gated","event_count":24,"pe_lineage_mismatch_count":0,"seed":727,"useful_event_count":14}
+{"arm":"no-update","event_count":24,"pe_lineage_mismatch_count":0,"seed":727,"useful_event_count":14}
+{"arm":"always-update","event_count":24,"pe_lineage_mismatch_count":0,"seed":727,"useful_event_count":14}
+{"arm":"random-gate","event_count":24,"pe_lineage_mismatch_count":0,"seed":727,"useful_event_count":14}
+{"arm":"pe-gated","event_count":24,"pe_lineage_mismatch_count":0,"seed":733,"useful_event_count":14}
+{"arm":"no-update","event_count":24,"pe_lineage_mismatch_count":0,"seed":733,"useful_event_count":14}
+{"arm":"always-update","event_count":24,"pe_lineage_mismatch_count":0,"seed":733,"useful_event_count":14}
+{"arm":"random-gate","event_count":24,"pe_lineage_mismatch_count":0,"seed":733,"useful_event_count":14}
+{"arm":"pe-gated","event_count":24,"pe_lineage_mismatch_count":0,"seed":739,"useful_event_count":14}
+{"arm":"no-update","event_count":24,"pe_lineage_mismatch_count":0,"seed":739,"useful_event_count":14}
+{"arm":"always-update","event_count":24,"pe_lineage_mismatch_count":0,"seed":739,"useful_event_count":14}
+{"arm":"random-gate","event_count":24,"pe_lineage_mismatch_count":0,"seed":739,"useful_event_count":14}
