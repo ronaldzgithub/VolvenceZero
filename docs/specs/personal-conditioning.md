@@ -62,29 +62,54 @@ readout、confidence、`rendered_statement` 一律归零。
 | value | frozen `ConditioningBankReadout`，`bank_type=RELATIONSHIP` |
 | dependencies | `relationship_state`, `boundary_consent` |
 | default wiring | `SHADOW`（`FinalRolloutConfig.relationship_conditioning`） |
-| consumer | session 装配链（P4-b，仅 text 载体；见下） |
+| consumer | session 装配链（text）+ substrate（versioned residual） |
 
-10 维 dyad 读出：`rel_trust` / `rel_cumulative_trust` / `rel_continuity` /
+Relationship compiler `relationship-conditioning.v2` 发布 14 维 dyad 读出：
+`rel_trust` / `rel_cumulative_trust` / `rel_continuity` /
 `rel_repair_pressure` / `rel_emotional_load` / `rel_stabilization_need` /
 `rel_trust_recovery` / `rel_tension_load`（未解张力数按 4 饱和归一）/
+`rel_attunement_trend` / `rel_relationship_continuity` /
+`rel_repair_progress`（已完成 repair / repair+tension evidence）/
+`rel_relationship_depth`（age turns 按 20 饱和归一）/
 `rel_consent_compliance` / `rel_consent_clarity`。与 Personal 的 5 个
 relationship/boundary 坐标存在部分信息重叠是有意的：每个 bank 是对同一批
 owner 快照的**自足**编译，Relationship bank 的差异贡献在长程半边
-（cumulative trust、recovery、stabilization、tension load），这也是 P4-c
-每-bank 独立增益消融要检验的维度。两个模块都是 readout consumer，
+（cumulative trust、recovery、stabilization、tension load、attunement
+trajectory、repair progress 与 relationship depth），这也是 P4-c 每-bank
+独立增益消融要检验的维度。compiler version 连同上游快照进入
+`source_fingerprint`，所以编译逻辑或坐标集合变化不会错误复用旧 cache /
+lineage identity。两个模块都是 readout consumer，
 `relationship_state` / `boundary_consent` 的语义 owner 不变，无第二 owner。
 `rendered_statement` 与 Personal 同姿态：确定性模板、只消费带标签坐标 +
 confidence、cold-start 空串。回滚 = 配置置 `DISABLED`（模块停发）。
 
-**P4-b consumer 语义（多 bank 组装与 lineage）**：
+**P4-b / Relationship latent consumer 语义（多 bank 组装与 lineage）**：
 
 - 消费门：session 装配链只从 active_snapshots 读该 slot（SHADOW 不消费，
   逐字节保持单 bank 行为），且要求 non-cold、confidence > 0、未撤销。
-- **载体限制**：Relationship bank 目前只有 text 载体——residual 投影与
-  Prefix-KV artifact 都是冻结的 16 维 Personal 形态。`personal_conditioning_mode`
-  为 `residual` / `prefix_kv` 时该 bank 不入 prompt 也不入 lineage；lineage
-  只记录真正影响输出的 bank，为无因果路径的 bank 记账正是归因负对照要抓的
-  false positive。
+- **独立载体门**：`FinalRolloutConfig.relationship_conditioning_mode` 与
+  Personal carrier 分离。默认 `text` 保持既有 owner-rendered prompt 路径；
+  显式 `residual` 把同一 scoped `ConditioningBankSnapshot` 封装为
+  `ConditioningBankLatentCarrier`（`conditioning-bank-latent-carrier.v1`），
+  text statement 必须为空。cold-start / zero confidence / freshness=0 /
+  REVOKED 在 carrier 构造前归零或拒绝，禁止只记 lineage 不产生因果路径。
+- substrate-owned `relationship-conditioning-residual.v2` 是默认 generic bank
+  projector：只接受 `RELATIONSHIP`，以 `0.5` 为 neutral 将 14 维 `[0,1]`
+  readout 转为有符号坐标，固定正弦 basis 投影后 L2 归一，最终幅度为
+  `0.12 × confidence × freshness`。显式加载
+  `relationship-conditioning-projector.v1` 时，runtime 以 artifact 的
+  model-derived basis、目标层和逐层 gain 替换固定 basis，并把
+  `relationship-contrastive-residual-v1:<artifact_id>` 发布为 carrier /
+  lineage version。artifact 的 model id、hidden width、hook layers 和 14 个
+  readout labels 必须与 runtime / admitted bank 精确一致。全 neutral / 退化
+  零向量不报告 applied；bank type、labels 或 projector version 不匹配必须
+  fail loudly。Personal 与 Relationship delta 各自消费自己的 layer gains，
+  禁止先合并后误用 Personal gain。
+- `GenerationResult.conditioning_bank_carriers_applied` 是物理投递真值；
+  response rationale 发布 `relationship_conditioning=residual:<version>:<fp>`，
+  `ConditioningLineage.state_encoder_version` 发布同一 version。不能根据“传入了
+  carrier”推断 applied。synthetic runtime 只做可观察 trace-only intake 并报告
+  applied 空集；vLLM 不暴露 residual hooks，收到 carrier 必须明确 fail loudly。
 - text 模式下 prompt 状态段按 bank 顺序携带各 owner 渲染的 statement
   段落，审计 ref 以 `;` 同序连接；turn 级 `ConditioningLineage` 经
   `bank_readout_to_bank` 投影携带多 bank 指纹（按 bank_type 排序），
@@ -112,8 +137,60 @@ confidence、cold-start 空串。回滚 = 配置置 `DISABLED`（模块停发）
   matching 增量 bootstrap CI 下界大于 0，并要求无关 bank 的 router 分低且
   matching 增量 CI 上界不为正。
 - 四臂 runner 保存冻结模型和 judge 指纹、原始 response、owner-rendered
-  judge material 与 router score。缺观测只记 `insufficient_data`，明确失败
-  才冻结 bank 数量；回滚只需将 router 置 `DISABLED`。
+  judge material、bank fingerprint 与 router score。`state-kv-bank-gain.v3`
+  先要求每个 gain probe 的 persona 在对应 bank 上同时形成不同 rendered
+  material 和 lineage fingerprint；任一对比坍缩时，独立增益只能记
+  `insufficient_data`，不得把“没有 treatment”解释成因果失败。v3 另用同一
+  bank material 的盲裁判检查 `state-kv-bank-none` persona accuracy；其
+  bootstrap CI 下界若高于 chance，说明非 bank semantic path 已泄漏 treatment，
+  对应独立增益只能记 `insufficient_data`，不得冻结 bank。`--reuse-observations`
+  可在不重生成 turn 的前提下重裁判冻结观测。缺观测同样只记
+  `insufficient_data`，只有对比、隔离都完整后的明确失败才冻结 bank 数量；
+  回滚只需将 router 或 Relationship bank 置 `DISABLED`。
+- 2026-07-29 的 v1 run 因 repair / steady 在 Relationship bank 上发布相同
+  material 与 fingerprint，已作废为无效 treatment，不进入冻结结论。
+  2026-07-30 v3 最终 matched run 通过正式 typed external semantic event 注入
+  persona，预检和全部 4 个 gain probe 上 Personal / Relationship 的 material
+  与 fingerprint 对比均为 `4/4`；64 个真实 turn 中每个 bank 有 8 个
+  dual-vs-ablated 配对样本。non-bank persona control 未证明泄漏：Personal
+  accuracy `0.625`（CI `0.25..0.875`）、Relationship `0.50`
+  （CI `0.125..0.875`），两者 CI 均覆盖 chance。升级到
+  `relationship-conditioning.v2` 后，Relationship 输出分叉率从旧 10 维 run
+  的 `0.25` 提升到 `0.375`，证明轨迹 readout 确实改变生成；但 blind match
+  gain 仍为 `0.0`（CI `[0,0]`）。Personal 分叉率同为 `0.375`、gain
+  `0.0`（CI `[0,0]`）。无关 Relationship bank 负控通过（最大 router score
+  `0.026223 < 0.2`，match-gain CI `[0,0]`）。因此
+  `gate_state=fail` 是 contrast-valid、isolation-valid 的独立增益失败，bank
+  数量继续冻结在 Personal + Relationship。下一步应诊断 Relationship
+  text carrier / generation budget，而不是扩大 bank 或重复同构样本。
+- 同日 max16 小型诊断使用冻结 probe-limit（2 gain + 2 irrelevant、两 persona、
+  四臂，共 32 turn，minimum samples 4），不进入 P6 promotion。Personal
+  divergence `0.75`、gain `+0.25`（CI `0..0.75`），只显示值得扩证据的弱方向；
+  Relationship divergence 同为 `0.75`，但 gain 仍为 `0.0`（CI `[0,0]`）。
+  因此 4-token 截断不是 Relationship 零增益的充分根因；Relationship 的下一
+  收敛包必须建立版本化 latent carrier，并以 text-vs-latent matched pilot
+  开门。该 carrier 通过前禁止扩大 Relationship 数据或解冻新增 bank。
+- 2026-07-30 Relationship carrier 包完成两轮同矩阵 pilot（每轮 none / text /
+  residual 三 profile × 两 persona × 4 probes，共 24 turn），均不进入 P6。
+  v1 的 uncentered 固定 basis 与 v2 的 neutral-centered 有符号 basis 都满足：
+  text/latent owner source fingerprint `8/8` 相同、residual applied attestation
+  `8/8`、latent prompt 跨 persona `4/4` 逐字节同指纹；因此 carrier 接线、
+  treatment identity 与 prompt 隔离成立。v2 修复了公共正向分量淹没状态差异的
+  projector 缺陷，并让技术负控出现 state-dependent 物理分叉，但两个 gain probe
+  的 Relationship blind match 仍为 `0.50`（text / residual / none 都在 chance）。
+  结论是固定任意 basis 不足以形成可识别关系策略，默认继续 text + SHADOW；
+  下一包必须 bake model-derived Relationship projector 或专属 Prefix-KV artifact，
+  过 matched gain 与 irrelevant-control 门后才允许扩大样本或晋升。
+- 2026-07-30 model-derived projector 包从冻结 Qwen2.5-0.5B 的中层残差烘焙
+  14 个 Relationship 对比方向（56 条正/负 anchor），artifact
+  `8b8adb2694f51533d2c2a8a3ec13d12090a57dbe014df270271f60309b8d9333`
+  与 bake manifest 位于 `artifacts/state_kv/projectors/`。同一 24-turn matched
+  pilot 再次通过 source fingerprint `8/8`、applied `8/8`、prompt identity
+  `4/4`，血缘逐 turn 发布 artifact version；但 none / text / learned-residual
+  的 Relationship blind match 仍全部为 `0.50`，三臂 persona divergence 也同为
+  `1.0`。因此 model-derived **线性 residual** 方向已被该门否证，默认继续
+  text + SHADOW；不得靠扩大同构样本或调高 `0.12` 上限追分。下一收敛包应建立
+  Relationship 专属、版本化 Prefix-KV artifact，并复用相同 matched gate。
 
 ## 3. 当前收敛包：生成前残差预置
 

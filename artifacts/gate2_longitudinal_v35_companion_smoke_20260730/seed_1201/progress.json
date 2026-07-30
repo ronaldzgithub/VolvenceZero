@@ -1,0 +1,8 @@
+{
+  "last_transition_id": "gate11-long-s1201-t0000",
+  "matched_outcome_count": 1,
+  "readout_input_count": 1,
+  "schema_version": "gate2-longitudinal-v35-companion-capture.v1",
+  "seed": 1201,
+  "source_transition_count": 1
+}

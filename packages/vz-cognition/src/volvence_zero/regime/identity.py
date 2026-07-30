@@ -9,6 +9,7 @@ public names from this module via the re-exports below.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
@@ -163,8 +164,10 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         bootstrap: "RegimeBootstrap | None" = None,
         hint_readout_mode: str = "readout",
         panorama_gate_mode: str = "v1",
+        learning_enabled: bool = True,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
+        self._learning_enabled = learning_enabled
         self._attribution_horizons = tuple(min(max(h, 1), 8) for h in attribution_horizons) or (2,)
         # Gap 8 slice 2: which derivation to use for the
         # participation / depth hints.
@@ -271,6 +274,11 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         }
         self._score_learner = RegimeScoreLearner()
 
+    def set_learning_enabled(self, enabled: bool) -> None:
+        """Gate persistent regime learning while preserving runtime selection."""
+
+        self._learning_enabled = enabled
+
     async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[RegimeSnapshot]:
         from volvence_zero.application.runtime import ExperienceFastPriorSnapshot
 
@@ -311,9 +319,20 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         )
 
         self._turn_index += 1
-        self._record_turn_score(evaluation_value, prediction_error_snapshot=pe_value)
-        delayed_attributions_internal = self._apply_delayed_outcomes(evaluation_value)
-        self._update_historical_effectiveness(evaluation_value, prediction_error_snapshot=pe_value)
+        if self._learning_enabled:
+            self._record_turn_score(
+                evaluation_value,
+                prediction_error_snapshot=pe_value,
+            )
+            delayed_attributions_internal = self._apply_delayed_outcomes(
+                evaluation_value
+            )
+            self._update_historical_effectiveness(
+                evaluation_value,
+                prediction_error_snapshot=pe_value,
+            )
+        else:
+            delayed_attributions_internal = ()
         previous_active = self._active_regime_id
         candidates = score_regimes(
             memory_snapshot=memory_value,
@@ -341,32 +360,42 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
         regime_changed = self._active_regime_id != previous_active and previous_active is not None
         abstract_action, action_family_version = _dominant_abstract_action_context(dual_track_value)
-        self._enqueue_pending_outcomes(
-            regime_id=self._active_regime_id or chosen_regime_id,
-            abstract_action=abstract_action,
-            action_family_version=action_family_version,
-        )
+        if self._learning_enabled:
+            self._enqueue_pending_outcomes(
+                regime_id=self._active_regime_id or chosen_regime_id,
+                abstract_action=abstract_action,
+                action_family_version=action_family_version,
+            )
         # Ingest externally-confirmed outcomes *after* the active regime
         # has been chosen this turn, so attributions are attached to the
         # regime the user actually scored. This is the only path that
         # mutates _delayed_attribution_ledger / _delayed_payoffs from an
         # external source; the pending-outcome queue stays single-writer.
-        external_attributions = self._ingest_external_outcome_attributions(
-            external_outcome_snapshot=external_outcome_value,
-            current_regime_id=self._active_regime_id or chosen_regime_id,
-            abstract_action=abstract_action,
-            action_family_version=action_family_version,
+        external_attributions = (
+            self._ingest_external_outcome_attributions(
+                external_outcome_snapshot=external_outcome_value,
+                current_regime_id=self._active_regime_id
+                or chosen_regime_id,
+                abstract_action=abstract_action,
+                action_family_version=action_family_version,
+            )
+            if self._learning_enabled
+            else ()
         )
         delayed_attributions = delayed_attributions_internal + external_attributions
-        for attribution in delayed_attributions:
-            self._score_learner.observe_delayed_payoff(
-                regime_id=attribution.regime_id,
-                outcome_score=attribution.outcome_score,
-            )
+        if self._learning_enabled:
+            for attribution in delayed_attributions:
+                self._score_learner.observe_delayed_payoff(
+                    regime_id=attribution.regime_id,
+                    outcome_score=attribution.outcome_score,
+                )
         delayed_outcomes = tuple(
             (item.regime_id, item.outcome_score) for item in delayed_attributions
         )
-        self._regime_sequence.append(self._active_regime_id or chosen_regime_id)
+        if self._learning_enabled:
+            self._regime_sequence.append(
+                self._active_regime_id or chosen_regime_id
+            )
         identity_hints = self._identity_hints(memory_value)
         active_regime = build_regime_identity(
             regime_id=self._active_regime_id or chosen_regime_id,
@@ -452,12 +481,23 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         )
 
         self._turn_index += 1
-        self._record_turn_score(evaluation_snapshot, prediction_error_snapshot=prediction_error_snapshot)
-        delayed_attributions = self._apply_delayed_outcomes(evaluation_snapshot)
+        if self._learning_enabled:
+            self._record_turn_score(
+                evaluation_snapshot,
+                prediction_error_snapshot=prediction_error_snapshot,
+            )
+            delayed_attributions = self._apply_delayed_outcomes(
+                evaluation_snapshot
+            )
+            self._update_historical_effectiveness(
+                evaluation_snapshot,
+                prediction_error_snapshot=prediction_error_snapshot,
+            )
+        else:
+            delayed_attributions = ()
         delayed_outcomes = tuple(
             (item.regime_id, item.outcome_score) for item in delayed_attributions
         )
-        self._update_historical_effectiveness(evaluation_snapshot, prediction_error_snapshot=prediction_error_snapshot)
         previous_active = self._active_regime_id
         candidates = score_regimes(
             memory_snapshot=memory_snapshot,
@@ -485,17 +525,20 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         switch_reason = self._update_active_regime(chosen_regime_id=chosen_regime_id, candidates=candidates)
         regime_changed = self._active_regime_id != previous_active and previous_active is not None
         abstract_action, action_family_version = _dominant_abstract_action_context(dual_track_snapshot)
-        self._enqueue_pending_outcomes(
-            regime_id=self._active_regime_id or chosen_regime_id,
-            abstract_action=abstract_action,
-            action_family_version=action_family_version,
-        )
-        self._regime_sequence.append(self._active_regime_id or chosen_regime_id)
-        for attribution in delayed_attributions:
-            self._score_learner.observe_delayed_payoff(
-                regime_id=attribution.regime_id,
-                outcome_score=attribution.outcome_score,
+        if self._learning_enabled:
+            self._enqueue_pending_outcomes(
+                regime_id=self._active_regime_id or chosen_regime_id,
+                abstract_action=abstract_action,
+                action_family_version=action_family_version,
             )
+            self._regime_sequence.append(
+                self._active_regime_id or chosen_regime_id
+            )
+            for attribution in delayed_attributions:
+                self._score_learner.observe_delayed_payoff(
+                    regime_id=attribution.regime_id,
+                    outcome_score=attribution.outcome_score,
+                )
         identity_hints = self._identity_hints(memory_snapshot)
         active_regime = build_regime_identity(
             regime_id=self._active_regime_id or chosen_regime_id,
@@ -1017,6 +1060,8 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         strategy_gain: float = 0.05,
         effectiveness_gain: float = 0.4,
     ) -> tuple[str, ...]:
+        if not self._learning_enabled:
+            return ()
         applied: list[str] = []
         for update in strategy_updates:
             # #79: the regime->gain mapping lives in the template table
@@ -1068,7 +1113,7 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
         metacontroller_state: "MetacontrollerRuntimeState | None",
         rollback_reasons: tuple[str, ...],
     ) -> tuple[str, ...]:
-        if metacontroller_state is None:
+        if not self._learning_enabled or metacontroller_state is None:
             return ()
         applied: list[str] = []
         world_bias, self_bias, shared_bias = _metacontroller_action_profile(metacontroller_state)
@@ -1129,6 +1174,32 @@ class RegimeModule(RuntimeModule[RegimeSnapshot]):
             learned_score_settled_count=score_state.settled_count,
             learned_score_last_target_regime_id=score_state.last_target_regime_id,
         )
+
+    def learning_fingerprint(self) -> str:
+        """Digest persistent learning state without runtime identity telemetry."""
+
+        checkpoint = self.create_checkpoint(
+            checkpoint_id="regime:learning-fingerprint"
+        )
+        learning_state = (
+            checkpoint.historical_effectiveness,
+            checkpoint.strategy_priors,
+            checkpoint.delayed_attribution_ledger,
+            checkpoint.delayed_payoffs,
+            checkpoint.turn_evaluation_scores,
+            checkpoint.regime_sequence,
+            checkpoint.sequence_payoffs,
+            checkpoint.selection_weights,
+            checkpoint.feature_weights,
+            checkpoint.external_outcome_scores,
+            checkpoint.learned_score_weights,
+            checkpoint.learned_score_update_count,
+            checkpoint.learned_score_abs_error_sum,
+            checkpoint.learned_score_baseline_abs_error_sum,
+            checkpoint.learned_score_settled_count,
+            checkpoint.learned_score_last_target_regime_id,
+        )
+        return hashlib.sha256(repr(learning_state).encode("utf-8")).hexdigest()
 
     def restore_checkpoint(self, checkpoint: RegimeCheckpoint) -> None:
         self._historical_effectiveness = dict(checkpoint.historical_effectiveness)

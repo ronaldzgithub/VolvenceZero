@@ -25,6 +25,7 @@
 
       Model                       bf16 VRAM  Q4 VRAM  Disk    Verdict on RTX 4090 24GB
       --------------------------- ---------- -------- ------- ------------------
+      Qwen2.5-0.5B-Instruct       ~ 1 GB     ~ 0.5 GB  1 GB   trivial / wiring check
       Qwen2.5-1.5B-Instruct       ~ 4 GB     ~ 1 GB    3 GB   tight-VRAM fallback
       Qwen2.5-3B-Instruct         ~ 8 GB     ~ 2 GB    6 GB   borderline coherent
       Qwen2.5-7B-Instruct         ~16 GB     ~ 5 GB   15 GB   default (bf16 fits)
@@ -87,6 +88,9 @@
 
 .EXAMPLE
     .\start_browser_chat_qwen.ps1                                # Einstein 7B default
+
+.EXAMPLE
+    .\start_browser_chat_zhang_wuji.ps1                          # 张无忌 + Qwen 1.5B
 
 .EXAMPLE
     $env:MODEL_ID = 'Qwen/Qwen2.5-1.5B-Instruct'                 # drop down for low-VRAM hosts
@@ -512,6 +516,10 @@ Write-Host "[start-browser-chat-qwen] device=$($env:DEVICE) local_files_only=$($
 if (Test-NvidiaGpu) {
     $gpuName = (& nvidia-smi --query-gpu=name --format=csv,noheader 2>$null | Select-Object -First 1)
     Write-Host "[start-browser-chat-qwen] gpu=$gpuName"
+}
+if ($env:VERTICAL -eq 'zhang_wuji') {
+    $templateLabel = if ($env:ZHANG_WUJI_TEMPLATE_PATH) { $env:ZHANG_WUJI_TEMPLATE_PATH } else { '<base profile fallback>' }
+    Write-Host "[start-browser-chat-qwen] zhang_wuji_template=$templateLabel"
 }
 $hfHomeLabel = if ([string]::IsNullOrEmpty($env:HF_HOME)) { '<system default>' } else { $env:HF_HOME }
 Write-Host "[start-browser-chat-qwen] hf_home=$hfHomeLabel"

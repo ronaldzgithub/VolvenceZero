@@ -121,6 +121,7 @@ _RECORDED_P0_BREAKPOINTS = (
     "action_chain_no_rollback",
     "backend_lane_coverage",
     "backend_parity",
+    "temporal_segment_closure",
     "frozen_evaluation",
 )
 

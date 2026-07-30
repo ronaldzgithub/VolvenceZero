@@ -941,8 +941,10 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         wiring_level: WiringLevel | None = None,
         action_context: PredictionActionContext | None = None,
         pe_critic_decay: float = 0.9,
+        learning_enabled: bool = True,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
+        self._learning_enabled = learning_enabled
         self._previous_prediction: PredictedOutcome | None = None
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
         self._previous_alignment_by_record: dict[str, str] = {}
@@ -1564,7 +1566,7 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         # turns publish ``pe_decomposition=None`` so legacy consumers
         # that ignore the field stay byte-for-byte compatible.
         decomposition: PEDecomposition | None = None
-        if not bootstrap:
+        if not bootstrap and self._learning_enabled:
             decomposition = self._critic.update(
                 error=error,
                 action_context=self._action_context,
@@ -1634,7 +1636,11 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         """CP-11 SHADOW step. Report-only: never touches the live chain."""
 
         pending = self._pending_head_forecast
-        if pending is not None and evaluated_prediction is not None:
+        if (
+            self._learning_enabled
+            and pending is not None
+            and evaluated_prediction is not None
+        ):
             world_targets = {
                 "task_progress": _clamp_unit(actual_outcome.task_progress),
                 "regime_stability": _clamp_unit(actual_outcome.regime_stability),
@@ -1889,6 +1895,11 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         self._head_lagged_targets = tuple(0.5 for _ in _HEAD_AXES)
         self._head_lagged_errors = tuple(0.0 for _ in _HEAD_AXES)
         self._head_has_lag = False
+
+    def set_learning_enabled(self, enabled: bool) -> None:
+        """Gate persistent learned-head writes while preserving PE inference."""
+
+        self._learning_enabled = enabled
 
     def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
         critic_state = self._critic.export_state()

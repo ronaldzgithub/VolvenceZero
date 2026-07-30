@@ -316,6 +316,11 @@ policy 本身，且 policy 也会老化。未来 memory snapshot 至少应能发
 
 ## 变更日志
 
+- 2026-07-30: frozen evaluation 的 `learning_enabled=False` 进入 `MemoryModule`
+  owner。该模式跳过 substrate/temporal/PE 观察、artifact 写入与访问触碰，只执行
+  `record_access=False` 的只读检索并发布快照；因此 CMS、artifact、索引、PE write gate
+  与 recall 学习统计均保持 checkpoint 指纹不变。
+
 - 2026-07-30: 新增 evidence-only `observe_replay_signal` owner ingress，
   使 Gate 5 可从共享真 trace 的 public substrate-derived digest 重放完整
   CMS update law，而不伪造 substrate snapshot 或建立第二 memory owner。

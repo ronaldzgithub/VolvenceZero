@@ -163,6 +163,12 @@ substrate 侧的 geometry readout 监控面见 Lane D 落地项与 `docs/specs/e
 
 ## 变更日志
 
+- 2026-07-30: regime owner 增加 frozen learning gate 与 owner-authored
+  `learning_fingerprint()`。冻结模式保留 active regime 选择、切换及推理快照，关闭
+  delayed attribution/effectiveness/selection/score-learner 写入；学习指纹不再混入
+  active identity、turn index、持续轮数等合法运行时 telemetry。`RegimeScoreLearner`
+  的零权重冷启动预测改为只读，只有真实 settlement 才实例化可持久权重。
+
 - 2026-07-27: Panorama 参与门 v2（见上节）。`regime/decision_structure.py` 新增四个话题无关的决策结构特征；`hint_readout.readout_panorama_level` 用几何平均合成并施加不对称代价偏置、一档升级上限、选项塌缩退出与用户覆盖；`FinalRolloutConfig.panorama_gate_mode` 默认 `"v1"`（行为不变）。审计语料 + 消融/共线探针见 `regime/panorama_corpus.py`、`regime/panorama_audit.py`、`scripts/audit_panorama_gate.py`。过程中修掉一处真实缺陷：`ranking_instability` 原本读选项数，与 `option_multiplicity` 在语料上 r=0.96，使"四轴合取"名不副实；解耦后 0.69。测试 `tests/test_panorama_gate.py`。
 - 2026-07-20 (score_regimes learned 化 SHADOW 升级): `RegimeScoreLearner` SHADOW dual-run 候选从"baseline 残差 4 维"扩到消费全部共享 per-turn 特征（4+36 维）：新增 `scoring.compute_regime_feature_values` 作为特征单一计算点（`score_regimes` 固定公式与 learner 共用，行为字节不变），`_ADJUSTMENT_FEATURE_NAMES` 冻结 bootstrap 调整面，learner `_SHARED_FEATURE_ORDER` 冻结 checkpoint 权重对齐（旧 4 维 checkpoint zero-pad 兼容）。live regime 选择不读 learner；ready 门槛 settled≥50 + MAE 领先≥0.02，kill=劣化≥0.10。对应 debt #80/#44；测试 `tests/test_regime_score_learner.py`。
 - 2026-07-20: 新增 §"瞬时 substrate readout vs 持久 regime owner 的分层"（Anthropic Emotion Concepts 同步）：token-local operative concept / 持久 regime owner / expression 三层分工，geometry readout 只读、禁止反向训练。来源 `research/frontier-sweep-2026-07-20.md` §6 同步项。

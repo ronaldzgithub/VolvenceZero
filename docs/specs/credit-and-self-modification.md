@@ -280,6 +280,10 @@ CI 证明 gate 会以**精确的、可定位的理由**拒绝（对齐 teeth 纪
 
 ## 变更日志
 
+- 2026-07-30: `CreditModule/CreditLedger` 增加 owner-side frozen learning gate。
+  冻结模式保留 credit records、lineage 与规则门结果，但 COCOA rewarding-state head 和
+  gate-risk learner 只读，不执行 SGD 或持久统计更新。
+
 - 2026-07-20 (Lane D 落地): HyperAgents 对抗提案三类必拒进入代码：新增 `CAPACITY_EXPANSION_WRITE_SURFACES` + gate reason "capacity-expansion target ... requires the human-review gate"（`credit/gate.py`）；对抗 fixture 套件 `tests/contracts/test_gate_adversarial_proposals.py`（A/B 构造期不可表达 + C 自动 gate 全 BLOCK + 命名空间不重叠守门）。
 - 2026-07-20 (第三批扫读同步): 新增 §"R15 四层可证伪发布门证据链"（L1 固定不变量 / L2 ProEval 式主动失败发现 / L3 Deployment Simulation 式 predicted incidence / L4 Gram/Honeypot 式反例化 + 发布后核验）与 §"ModificationGate 对抗模型：HyperAgents 三类必拒提案"（改写面 / 改 evaluator / 扩可达模型族）。spec-level 要求；C 类 capacity 对抗 fixture 标记为契约测试缺口。来源 `research/frontier-sweep-2026-07-20.md` §4.1 / §A / §5。
 - 2026-07-20: 引入 `arXiv:2607.13070` 的可证伪发布门纪律：新增 gate-before-code、

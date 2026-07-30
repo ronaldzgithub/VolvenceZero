@@ -58,17 +58,21 @@ def _gru_params(backend: TensorBackend, enc: NdimEncoderParameters) -> GruParams
 
 
 def _fit_cms_context(context: tuple[float, ...], width: int) -> tuple[float, ...]:
-    """Adapt a published CMS snapshot to the encoder's fixed input width.
+    """Mirror the pure encoder's deterministic context projection.
 
-    Ecology v2 exposes a 14-channel body observation while the shared CMS
-    owner commonly has a 16-dimensional latent.  The old torch runtime added
-    the two tensors directly and crashed.  The pure encoder's contract is a
-    fixed-width input, so retain the leading shared channels and never invent
-    values; shorter contexts are zero-padded.
+    ``NdimSequenceEncoder`` uses ``_project_to_ndim``: wide contexts are
+    truncated and short contexts are tiled.  Zero-padding the accelerated
+    lane changed the actual input whenever the CMS width was shorter than the
+    encoder width, producing a real runtime/pure code divergence.
     """
 
-    clipped = tuple(float(value) for value in context[:width])
-    return clipped + (0.0,) * max(width - len(clipped), 0)
+    values = tuple(float(value) for value in context)
+    if not values:
+        return (0.0,) * width
+    if len(values) >= width:
+        return values[:width]
+    repeats = (width // len(values)) + 1
+    return (values * repeats)[:width]
 
 
 class BackendNdimMetacontroller:

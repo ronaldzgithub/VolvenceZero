@@ -1,0 +1,17 @@
+{
+  "schema_version": "relationship-projector-bake.v1",
+  "artifact_id": "8b8adb2694f51533d2c2a8a3ec13d12090a57dbe014df270271f60309b8d9333",
+  "projector_version": "relationship-contrastive-residual-v1:8b8adb2694f51533d2c2a8a3ec13d12090a57dbe014df270271f60309b8d9333",
+  "training_mode": "relationship-contrastive-residual-v1",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+  "anchor_sha256": "ff72e310fdc22201d7d6ad927b028de4406ca68d294fb42f55c0d8261726448c",
+  "injection_layers": [
+    11,
+    12,
+    13
+  ],
+  "basis_row_norm": 1.0,
+  "per_layer_gain": 1.0,
+  "base_model_mutated": false
+}

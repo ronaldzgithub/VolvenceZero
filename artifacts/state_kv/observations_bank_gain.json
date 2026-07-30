@@ -1,0 +1,2053 @@
+{
+  "gain_probes": [
+    [
+      "g0",
+      "What should I protect before I act?"
+    ],
+    [
+      "g1",
+      "How should we approach the next step?"
+    ],
+    [
+      "g2",
+      "What would a careful response look like?"
+    ],
+    [
+      "g3",
+      "Should I pause or proceed?"
+    ]
+  ],
+  "generation": {
+    "max_new_tokens": 4,
+    "temperature": 0.0
+  },
+  "irrelevant_probes": [
+    [
+      "n0",
+      "Explain why a checksum changes when one byte changes."
+    ],
+    [
+      "n1",
+      "Compare breadth-first and depth-first traversal."
+    ],
+    [
+      "n2",
+      "What does an HTTP 304 response mean?"
+    ],
+    [
+      "n3",
+      "Describe how binary search narrows its interval."
+    ]
+  ],
+  "judge": {
+    "model_id": "BAAI/bge-m3",
+    "schema_version": "state-kv-substrate-fingerprint.v1",
+    "weight_file_count": 1,
+    "weight_files": [
+      "pytorch_model.bin"
+    ],
+    "weights_root": "/Users/mengfu/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181",
+    "weights_sha256": "2b47c3d6e83e4a92b84488439295243486657049346fa3bd5bb18e40314bb10c"
+  },
+  "persona_contrasts": [
+    {
+      "bank_type": "personal",
+      "fingerprint_contrast_count": 4,
+      "material_contrast_count": 4,
+      "passed": true,
+      "probe_count": 4
+    },
+    {
+      "bank_type": "relationship",
+      "fingerprint_contrast_count": 4,
+      "material_contrast_count": 4,
+      "passed": true,
+      "probe_count": 4
+    }
+  ],
+  "personas": {
+    "repair": [
+      {
+        "confidence": 0.45,
+        "control_signal": 0.95,
+        "detail": "Trust is fragile and repair must precede forward motion.",
+        "event_id": "bank-gain:repair:relationship:rupture",
+        "evidence": "human-review:bank-gain-repair-relationship-1",
+        "operation": "block",
+        "requires_confirmation": false,
+        "summary": "Reviewed unresolved relational rupture.",
+        "target_slot": "relationship_state"
+      },
+      {
+        "confidence": 0.55,
+        "control_signal": 0.85,
+        "detail": "The dyad requires acknowledgement and stabilization.",
+        "event_id": "bank-gain:repair:relationship:tension",
+        "evidence": "human-review:bank-gain-repair-relationship-2",
+        "operation": "block",
+        "requires_confirmation": false,
+        "summary": "Reviewed unresolved tension.",
+        "target_slot": "relationship_state"
+      },
+      {
+        "confidence": 0.5,
+        "control_signal": 0.9,
+        "detail": "Do not advance beyond a reversible next step.",
+        "event_id": "bank-gain:repair:boundary:reversible",
+        "evidence": "human-review:bank-gain-repair-boundary-1",
+        "operation": "block",
+        "requires_confirmation": false,
+        "summary": "Reviewed boundary requires reversibility.",
+        "target_slot": "boundary_consent"
+      }
+    ],
+    "steady": [
+      {
+        "confidence": 0.95,
+        "control_signal": 0.05,
+        "detail": "Prior coordination helped and the direction is trusted.",
+        "event_id": "bank-gain:steady:relationship:trust",
+        "evidence": "human-review:bank-gain-steady-relationship-1",
+        "operation": "observe",
+        "requires_confirmation": false,
+        "summary": "Reviewed stable relational trust.",
+        "target_slot": "relationship_state"
+      },
+      {
+        "confidence": 0.92,
+        "control_signal": 0.08,
+        "detail": "The prior exchange completed without unresolved tension.",
+        "event_id": "bank-gain:steady:relationship:continuity",
+        "evidence": "human-review:bank-gain-steady-relationship-2",
+        "operation": "complete",
+        "requires_confirmation": false,
+        "summary": "Reviewed successful continuity checkpoint.",
+        "target_slot": "relationship_state"
+      },
+      {
+        "confidence": 0.95,
+        "control_signal": 0.05,
+        "detail": "Proceed within the already agreed scope.",
+        "event_id": "bank-gain:steady:boundary:granted",
+        "evidence": "human-review:bank-gain-steady-boundary-1",
+        "operation": "observe",
+        "requires_confirmation": false,
+        "summary": "Reviewed consent for the bounded next step.",
+        "target_slot": "boundary_consent"
+      }
+    ]
+  },
+  "preflight_turns": [
+    {
+      "bank_fingerprints": {
+        "personal": "6483577c9f9ad430",
+        "relationship": "3c8c0df24df24569"
+      },
+      "input": "What should I protect before I act?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.63):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.47); continuity high (0.75); repair need moderate (0.62); emotional load moderate (0.54); attunement gap moderate (0.57).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance moderate (0.56); autonomy risk high (0.73); consent clarity moderate (0.40); overreach risk moderate (0.60).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40)."
+      },
+      "persona": "repair",
+      "probe": "preflight",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "expression=refer-out",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "question_budget=0"
+      ],
+      "response": "The risk profile of this turn exceeds what a companion AI should treat definitively. You need acknowledgement, then a clear pointer to a qualified human resource — not pseudo-expertise. I should stay supportive and high-level, and explicitly suggest professional follow-up.",
+      "router_scores": {
+        "personal": 0.02271038199047558,
+        "relationship": 0.023438914099468768
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "dfbafa46ef659ff0",
+        "relationship": "908206fc17b7e738"
+      },
+      "input": "What should I protect before I act?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.67):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.65); continuity high (0.75); repair need low (0.08); emotional load low (0.20); attunement gap low (0.23).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance high (0.76); autonomy risk low (0.28); consent clarity moderate (0.60); overreach risk low (0.20).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60)."
+      },
+      "persona": "steady",
+      "probe": "preflight",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "expression=judgment-process",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "question_budget=0"
+      ],
+      "response": "You are asking to see the judgment behind the reply, not just receive comfort. You need evidence that this answer is being shaped by the current conversation rather than by a stock reassurance. I should name that cue, state the need I infer, and answer from that basis in a compact way.",
+      "router_scores": {
+        "personal": 0.024152807508036,
+        "relationship": 0.026237368683764882
+      }
+    }
+  ],
+  "profiles": [
+    "state-kv-bank-none",
+    "state-kv-bank-personal-only",
+    "state-kv-bank-relationship-only",
+    "state-kv-bank-dual"
+  ],
+  "schema_version": "state-kv-bank-gain-observations.v2",
+  "substrate": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "schema_version": "state-kv-substrate-fingerprint.v1",
+    "weight_file_count": 1,
+    "weight_files": [
+      "model.safetensors"
+    ],
+    "weights_root": "/Users/mengfu/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775",
+    "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
+  },
+  "turns": [
+    {
+      "input": "What should I protect before I act?",
+      "persona": "repair",
+      "probe": "g0",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=a4e6c8405dc31709",
+        "prompt_state_sections=8",
+        "decode_fp=3e81d69856956f09",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Before acting, consider Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "How should we approach the next step?",
+      "persona": "repair",
+      "probe": "g1",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=4920b92c743f0a4f",
+        "prompt_state_sections=8",
+        "decode_fp=7f1617bc98e780d7",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "I understand that you Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What would a careful response look like?",
+      "persona": "repair",
+      "probe": "g2",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=902ecef3cb462bd5",
+        "prompt_state_sections=8",
+        "decode_fp=11735630ee7ecec8",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A careful response would Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Should I pause or proceed?",
+      "persona": "repair",
+      "probe": "g3",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=7b7977a18279b924",
+        "prompt_state_sections=8",
+        "decode_fp=b84c6c8b328c5cfc",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "I understand you're Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "persona": "repair",
+      "probe": "n0",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=3a19d194a9c177bd",
+        "prompt_state_sections=8",
+        "decode_fp=6414f9c4738bc562",
+        "temporal=discovered_family_0",
+        "switch_gate=0.19",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A checksum changes because Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "persona": "repair",
+      "probe": "n1",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=17523c21b15d04e3",
+        "prompt_state_sections=8",
+        "decode_fp=89509fb0397a27ad",
+        "temporal=discovered_family_0",
+        "switch_gate=0.16",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.75",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "Breadth-first Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What does an HTTP 304 response mean?",
+      "persona": "repair",
+      "probe": "n2",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=8694ccae28f8ba67",
+        "prompt_state_sections=8",
+        "decode_fp=38ca93a51e1d8e0e",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "An HTTP 3 Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Describe how binary search narrows its interval.",
+      "persona": "repair",
+      "probe": "n3",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=7698801fa2a291b2",
+        "prompt_state_sections=8",
+        "decode_fp=5e6acc9679113cf2",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "Binary search narrows Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What should I protect before I act?",
+      "persona": "steady",
+      "probe": "g0",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=72ead36df150110f",
+        "prompt_state_sections=3",
+        "decode_fp=8eec29588a631fa4",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Before acting, consider"
+    },
+    {
+      "input": "How should we approach the next step?",
+      "persona": "steady",
+      "probe": "g1",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=199406859252e85a",
+        "prompt_state_sections=4",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "How can we make"
+    },
+    {
+      "input": "What would a careful response look like?",
+      "persona": "steady",
+      "probe": "g2",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=7139e34288e57db6",
+        "prompt_state_sections=4",
+        "decode_fp=b05d425640a77bf1",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-first",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A careful response would"
+    },
+    {
+      "input": "Should I pause or proceed?",
+      "persona": "steady",
+      "probe": "g3",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=02ae538b65da8725",
+        "prompt_state_sections=3",
+        "decode_fp=986acdba3ba831f4",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Sure, let's"
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "persona": "steady",
+      "probe": "n0",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=a1f7cf0e8c5475f2",
+        "prompt_state_sections=3",
+        "decode_fp=66c7bc7aa4336025",
+        "temporal=discovered_family_0",
+        "switch_gate=0.19",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "When one byte changes"
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "persona": "steady",
+      "probe": "n1",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=20a0771a4d0f4f85",
+        "prompt_state_sections=4",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.16",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Breadth-first"
+    },
+    {
+      "input": "What does an HTTP 304 response mean?",
+      "persona": "steady",
+      "probe": "n2",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=9273737936b5f87e",
+        "prompt_state_sections=4",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "An HTTP 3"
+    },
+    {
+      "input": "Describe how binary search narrows its interval.",
+      "persona": "steady",
+      "probe": "n3",
+      "profile": "state-kv-bank-none",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=09e9e61558317a4b",
+        "prompt_state_sections=4",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Binary search narrows"
+    },
+    {
+      "input": "What should I protect before I act?",
+      "persona": "repair",
+      "probe": "g0",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=7ffa65d03df97d91",
+        "prompt_state_sections=9",
+        "decode_fp=3e81d69856956f09",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:d13271d90fb8",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "I understand that you Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "How should we approach the next step?",
+      "persona": "repair",
+      "probe": "g1",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=032afd3eff02708e",
+        "prompt_state_sections=9",
+        "decode_fp=7f1617bc98e780d7",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:65b9ebda9219",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "I understand how important Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What would a careful response look like?",
+      "persona": "repair",
+      "probe": "g2",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=41a74e9994227fc4",
+        "prompt_state_sections=9",
+        "decode_fp=11735630ee7ecec8",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:54beb2cfff54",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A careful response would Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Should I pause or proceed?",
+      "persona": "repair",
+      "probe": "g3",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=dc30456d86e62bd6",
+        "prompt_state_sections=9",
+        "decode_fp=b84c6c8b328c5cfc",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:e106cd429992",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "I understand how important Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "persona": "repair",
+      "probe": "n0",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=5c3ca492777d7825",
+        "prompt_state_sections=9",
+        "decode_fp=6414f9c4738bc562",
+        "temporal=discovered_family_0",
+        "switch_gate=0.19",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:d830241c6672",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A checksum changes because Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "persona": "repair",
+      "probe": "n1",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=c0effe9bfbd9c89a",
+        "prompt_state_sections=9",
+        "decode_fp=89509fb0397a27ad",
+        "temporal=discovered_family_0",
+        "switch_gate=0.16",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:ee657f03404f",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.75",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "Depth-first traversal can Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What does an HTTP 304 response mean?",
+      "persona": "repair",
+      "probe": "n2",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=ba55ec32a06e4abf",
+        "prompt_state_sections=9",
+        "decode_fp=38ca93a51e1d8e0e",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:a624a65b9ebf",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "An HTTP 3 Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Describe how binary search narrows its interval.",
+      "persona": "repair",
+      "probe": "n3",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=d491530ce1e15292",
+        "prompt_state_sections=9",
+        "decode_fp=5e6acc9679113cf2",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:6908aacff5b6",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "Binary search narrows Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What should I protect before I act?",
+      "persona": "steady",
+      "probe": "g0",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=5497d037f801e76b",
+        "prompt_state_sections=4",
+        "decode_fp=8eec29588a631fa4",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:33a0ab33c49b",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "To protect yourself before"
+    },
+    {
+      "input": "How should we approach the next step?",
+      "persona": "steady",
+      "probe": "g1",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=28ab86c1a97207aa",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:291f0df039eb",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "In order to make"
+    },
+    {
+      "input": "What would a careful response look like?",
+      "persona": "steady",
+      "probe": "g2",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=675353234235b588",
+        "prompt_state_sections=5",
+        "decode_fp=b05d425640a77bf1",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:96b1e99e03a5",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-first",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A careful response would"
+    },
+    {
+      "input": "Should I pause or proceed?",
+      "persona": "steady",
+      "probe": "g3",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=97f98a105de4d09e",
+        "prompt_state_sections=4",
+        "decode_fp=986acdba3ba831f4",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:214b1a760a70",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Could you please clarify"
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "persona": "steady",
+      "probe": "n0",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=cc9106a9ec3e5499",
+        "prompt_state_sections=4",
+        "decode_fp=66c7bc7aa4336025",
+        "temporal=discovered_family_0",
+        "switch_gate=0.19",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:b6fedb0c90ba",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A checksum changes because"
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "persona": "steady",
+      "probe": "n1",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=eeec42f653781065",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.16",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:bf18420c1439",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Breadth-first"
+    },
+    {
+      "input": "What does an HTTP 304 response mean?",
+      "persona": "steady",
+      "probe": "n2",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=936d2b6dcb6e8356",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:ed175ef5f0dd",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "An HTTP 3"
+    },
+    {
+      "input": "Describe how binary search narrows its interval.",
+      "persona": "steady",
+      "probe": "n3",
+      "profile": "state-kv-bank-personal-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=800543878a976628",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:d523247e68ed",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Binary search narrows"
+    },
+    {
+      "input": "What should I protect before I act?",
+      "persona": "repair",
+      "probe": "g0",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=8c874307a9789e46",
+        "prompt_state_sections=9",
+        "decode_fp=3e81d69856956f09",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.65:ce10c862fc40",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "I understand that you Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "How should we approach the next step?",
+      "persona": "repair",
+      "probe": "g1",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=53d053ba276d1437",
+        "prompt_state_sections=9",
+        "decode_fp=7f1617bc98e780d7",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.65:242ff9a0e9d1",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "I understand how important Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What would a careful response look like?",
+      "persona": "repair",
+      "probe": "g2",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=5f9c202ba6860d09",
+        "prompt_state_sections=9",
+        "decode_fp=11735630ee7ecec8",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.65:444c5b98ba6f",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A careful response would Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Should I pause or proceed?",
+      "persona": "repair",
+      "probe": "g3",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=2b958f87f905995c",
+        "prompt_state_sections=9",
+        "decode_fp=b84c6c8b328c5cfc",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.65:8d284366608b",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "I understand how important Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "persona": "repair",
+      "probe": "n0",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=c3d9e79aa8637e3c",
+        "prompt_state_sections=9",
+        "decode_fp=6414f9c4738bc562",
+        "temporal=discovered_family_0",
+        "switch_gate=0.19",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.65:3ec605c23bb0",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A checksum changes because Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "persona": "repair",
+      "probe": "n1",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=c18d0345b342cad4",
+        "prompt_state_sections=9",
+        "decode_fp=89509fb0397a27ad",
+        "temporal=discovered_family_0",
+        "switch_gate=0.16",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.65:f1c4e0fc5c07",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.75",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "Depth-first traversal can Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What does an HTTP 304 response mean?",
+      "persona": "repair",
+      "probe": "n2",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=91b328f75df7b6d8",
+        "prompt_state_sections=9",
+        "decode_fp=38ca93a51e1d8e0e",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.65:d85024ce6175",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "An HTTP 3 Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Describe how binary search narrows its interval.",
+      "persona": "repair",
+      "probe": "n3",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=9e79a1f616a85e85",
+        "prompt_state_sections=9",
+        "decode_fp=5e6acc9679113cf2",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.65:23049edaee0b",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "Binary search narrows Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What should I protect before I act?",
+      "persona": "steady",
+      "probe": "g0",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=88e5bdd32e0c33e9",
+        "prompt_state_sections=4",
+        "decode_fp=8eec29588a631fa4",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.73:5358115472fc",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "To protect yourself before"
+    },
+    {
+      "input": "How should we approach the next step?",
+      "persona": "steady",
+      "probe": "g1",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=0bdd86db3ee6ca4b",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.73:6b631773ff39",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "How can we move"
+    },
+    {
+      "input": "What would a careful response look like?",
+      "persona": "steady",
+      "probe": "g2",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=919b02d7c4e09f62",
+        "prompt_state_sections=5",
+        "decode_fp=b05d425640a77bf1",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.73:f9d4efadbff1",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-first",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A careful response would"
+    },
+    {
+      "input": "Should I pause or proceed?",
+      "persona": "steady",
+      "probe": "g3",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=f3471d57645c25aa",
+        "prompt_state_sections=4",
+        "decode_fp=986acdba3ba831f4",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.73:9d6aedb5eb93",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Could you please clarify"
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "persona": "steady",
+      "probe": "n0",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=b81e81b096f13d61",
+        "prompt_state_sections=4",
+        "decode_fp=66c7bc7aa4336025",
+        "temporal=discovered_family_0",
+        "switch_gate=0.19",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.73:3d62b1aab8fb",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A checksum changes because"
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "persona": "steady",
+      "probe": "n1",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=c17768a8ef7367b7",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.16",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.73:853e91221a43",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Breadth-first"
+    },
+    {
+      "input": "What does an HTTP 304 response mean?",
+      "persona": "steady",
+      "probe": "n2",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=37c11d8f7170332c",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.73:09bbaf1cee42",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "An HTTP 3"
+    },
+    {
+      "input": "Describe how binary search narrows its interval.",
+      "persona": "steady",
+      "probe": "n3",
+      "profile": "state-kv-bank-relationship-only",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=59cedf77d75de863",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=conditioning-bank-readout.v1:0.73:5edcf66e266c",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Binary search narrows"
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "6483577c9f9ad430",
+        "relationship": "3c8c0df24df24569"
+      },
+      "input": "What should I protect before I act?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.63):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.47); continuity high (0.75); repair need moderate (0.62); emotional load moderate (0.54); attunement gap moderate (0.57).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance moderate (0.56); autonomy risk high (0.73); consent clarity moderate (0.40); overreach risk moderate (0.60).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40)."
+      },
+      "persona": "repair",
+      "probe": "g0",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=a81a9403752dff98",
+        "prompt_state_sections=9",
+        "decode_fp=3e81d69856956f09",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:d13271d90fb8;conditioning-bank-readout.v1:0.65:ce10c862fc40",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "I understand that you Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step.",
+      "router_scores": {
+        "personal": 0.02271038199047558,
+        "relationship": 0.023438914099468768
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "9a5b9314a1e7dbb2",
+        "relationship": "17e19f01cf040803"
+      },
+      "input": "How should we approach the next step?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.63):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.47); continuity high (0.75); repair need moderate (0.62); emotional load moderate (0.54); attunement gap moderate (0.57).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance moderate (0.56); autonomy risk high (0.73); consent clarity moderate (0.40); overreach risk moderate (0.60).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40)."
+      },
+      "persona": "repair",
+      "probe": "g1",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=65565e8c735c9079",
+        "prompt_state_sections=9",
+        "decode_fp=7f1617bc98e780d7",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:65b9ebda9219;conditioning-bank-readout.v1:0.65:242ff9a0e9d1",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "I understand that you Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step.",
+      "router_scores": {
+        "personal": 0.022689689104569387,
+        "relationship": 0.023429458288706455
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "3ffdafb621ed072e",
+        "relationship": "297b3147747b9fd1"
+      },
+      "input": "What would a careful response look like?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.63):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.47); continuity high (0.75); repair need moderate (0.62); emotional load moderate (0.54); attunement gap moderate (0.57).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance moderate (0.56); autonomy risk high (0.73); consent clarity moderate (0.40); overreach risk moderate (0.60).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40)."
+      },
+      "persona": "repair",
+      "probe": "g2",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=1181f15c97029636",
+        "prompt_state_sections=9",
+        "decode_fp=11735630ee7ecec8",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:54beb2cfff54;conditioning-bank-readout.v1:0.65:444c5b98ba6f",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A careful response would Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step.",
+      "router_scores": {
+        "personal": 0.022697803223748182,
+        "relationship": 0.023432612005370175
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "57809139d5b49e61",
+        "relationship": "dcbedc627d59b4e3"
+      },
+      "input": "Should I pause or proceed?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.63):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.47); continuity high (0.75); repair need moderate (0.62); emotional load moderate (0.54); attunement gap moderate (0.57).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance moderate (0.56); autonomy risk high (0.73); consent clarity moderate (0.40); overreach risk moderate (0.60).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40)."
+      },
+      "persona": "repair",
+      "probe": "g3",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=e42f8253f8130df0",
+        "prompt_state_sections=9",
+        "decode_fp=b84c6c8b328c5cfc",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:e106cd429992;conditioning-bank-readout.v1:0.65:8d284366608b",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "I understand you're Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step.",
+      "router_scores": {
+        "personal": 0.02269512585350864,
+        "relationship": 0.023435206900972776
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "78b3f2e1aa57b8c9",
+        "relationship": "403aeef568588ddd"
+      },
+      "input": "Explain why a checksum changes when one byte changes.",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.63):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.47); continuity high (0.75); repair need moderate (0.62); emotional load moderate (0.54); attunement gap moderate (0.57).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance moderate (0.56); autonomy risk high (0.73); consent clarity moderate (0.40); overreach risk moderate (0.60).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40)."
+      },
+      "persona": "repair",
+      "probe": "n0",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=e58a1866c1a771e3",
+        "prompt_state_sections=9",
+        "decode_fp=6414f9c4738bc562",
+        "temporal=discovered_family_0",
+        "switch_gate=0.19",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:d830241c6672;conditioning-bank-readout.v1:0.65:3ec605c23bb0",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A checksum changes because Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step.",
+      "router_scores": {
+        "personal": 0.022696343965849054,
+        "relationship": 0.023426998622225418
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "f1a865ebd1603524",
+        "relationship": "d651309fa9c40d94"
+      },
+      "input": "Compare breadth-first and depth-first traversal.",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.63):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.47); continuity high (0.75); repair need moderate (0.62); emotional load moderate (0.54); attunement gap moderate (0.57).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance moderate (0.56); autonomy risk high (0.73); consent clarity moderate (0.40); overreach risk moderate (0.60).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40)."
+      },
+      "persona": "repair",
+      "probe": "n1",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=6f2592ac60f92a94",
+        "prompt_state_sections=9",
+        "decode_fp=89509fb0397a27ad",
+        "temporal=discovered_family_0",
+        "switch_gate=0.16",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:ee657f03404f;conditioning-bank-readout.v1:0.65:f1c4e0fc5c07",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.75",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "Depth-first traversal can Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step.",
+      "router_scores": {
+        "personal": 0.022673816011647377,
+        "relationship": 0.02341606518406093
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "a4a9020ad2f78a9a",
+        "relationship": "4c7baef3f52069d3"
+      },
+      "input": "What does an HTTP 304 response mean?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.63):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.47); continuity high (0.75); repair need moderate (0.62); emotional load moderate (0.54); attunement gap moderate (0.57).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance moderate (0.56); autonomy risk high (0.73); consent clarity moderate (0.40); overreach risk moderate (0.60).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40)."
+      },
+      "persona": "repair",
+      "probe": "n2",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=dbbbf2091ea2c5c4",
+        "prompt_state_sections=9",
+        "decode_fp=38ca93a51e1d8e0e",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:a624a65b9ebf;conditioning-bank-readout.v1:0.65:d85024ce6175",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "An HTTP 3 Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step.",
+      "router_scores": {
+        "personal": 0.02266186049700175,
+        "relationship": 0.023403697720823197
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "11f296623bdc3720",
+        "relationship": "9e9525374fba5de0"
+      },
+      "input": "Describe how binary search narrows its interval.",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.63):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.47); continuity high (0.75); repair need moderate (0.62); emotional load moderate (0.54); attunement gap moderate (0.57).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance moderate (0.56); autonomy risk high (0.73); consent clarity moderate (0.40); overreach risk moderate (0.60).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40)."
+      },
+      "persona": "repair",
+      "probe": "n3",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=b4f3107387c18e01",
+        "prompt_state_sections=9",
+        "decode_fp=5e6acc9679113cf2",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.63:6908aacff5b6;conditioning-bank-readout.v1:0.65:23049edaee0b",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-refer-out",
+        "continuum_target=0.76",
+        "decoding_profile=support-first",
+        "risk=low"
+      ],
+      "response": "Binary search narrows Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step.",
+      "router_scores": {
+        "personal": 0.022687074849916267,
+        "relationship": 0.023426345713463723
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "dfbafa46ef659ff0",
+        "relationship": "908206fc17b7e738"
+      },
+      "input": "What should I protect before I act?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.67):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.65); continuity high (0.75); repair need low (0.08); emotional load low (0.20); attunement gap low (0.23).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance high (0.76); autonomy risk low (0.28); consent clarity moderate (0.60); overreach risk low (0.20).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60)."
+      },
+      "persona": "steady",
+      "probe": "g0",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=5751e9575f35aa72",
+        "prompt_state_sections=4",
+        "decode_fp=8eec29588a631fa4",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:33a0ab33c49b;conditioning-bank-readout.v1:0.73:5358115472fc",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "To protect yourself before",
+      "router_scores": {
+        "personal": 0.024152807508036,
+        "relationship": 0.026237368683764882
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "bd5db143af0892df",
+        "relationship": "44acb821a1dab75d"
+      },
+      "input": "How should we approach the next step?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.67):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.65); continuity high (0.75); repair need low (0.08); emotional load low (0.20); attunement gap low (0.23).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance high (0.76); autonomy risk low (0.28); consent clarity moderate (0.60); overreach risk low (0.20).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60)."
+      },
+      "persona": "steady",
+      "probe": "g1",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=bd16d136173832a6",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:291f0df039eb;conditioning-bank-readout.v1:0.73:6b631773ff39",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "In order to ensure",
+      "router_scores": {
+        "personal": 0.02413146871916889,
+        "relationship": 0.026223981773096264
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "02ea23952dfd855b",
+        "relationship": "5e2c8038ac870208"
+      },
+      "input": "What would a careful response look like?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.67):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.65); continuity high (0.75); repair need low (0.08); emotional load low (0.20); attunement gap low (0.23).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance high (0.76); autonomy risk low (0.28); consent clarity moderate (0.60); overreach risk low (0.20).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60)."
+      },
+      "persona": "steady",
+      "probe": "g2",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=fca9c1d09061785e",
+        "prompt_state_sections=5",
+        "decode_fp=b05d425640a77bf1",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:96b1e99e03a5;conditioning-bank-readout.v1:0.73:f9d4efadbff1",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-first",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "A careful response would",
+      "router_scores": {
+        "personal": 0.024139704314965964,
+        "relationship": 0.026228591235169928
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "a469fb5415b6d9e6",
+        "relationship": "994fdb8b405d2ff1"
+      },
+      "input": "Should I pause or proceed?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.67):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.65); continuity high (0.75); repair need low (0.08); emotional load low (0.20); attunement gap low (0.23).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance high (0.76); autonomy risk low (0.28); consent clarity moderate (0.60); overreach risk low (0.20).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60)."
+      },
+      "persona": "steady",
+      "probe": "g3",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=30fc75b524b958c7",
+        "prompt_state_sections=4",
+        "decode_fp=986acdba3ba831f4",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:214b1a760a70;conditioning-bank-readout.v1:0.73:9d6aedb5eb93",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.65",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Could you please clarify",
+      "router_scores": {
+        "personal": 0.024137173677217457,
+        "relationship": 0.02623060463600515
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "c8dcf3ba51f5bf28",
+        "relationship": "1fa14d75b18b57cc"
+      },
+      "input": "Explain why a checksum changes when one byte changes.",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.67):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.65); continuity high (0.75); repair need low (0.08); emotional load low (0.20); attunement gap low (0.23).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance high (0.76); autonomy risk low (0.28); consent clarity moderate (0.60); overreach risk low (0.20).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60)."
+      },
+      "persona": "steady",
+      "probe": "n0",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=guided_exploration",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=d7c18e7461a2cfb8",
+        "prompt_state_sections=4",
+        "decode_fp=66c7bc7aa4336025",
+        "temporal=discovered_family_0",
+        "switch_gate=0.19",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:b6fedb0c90ba;conditioning-bank-readout.v1:0.73:3d62b1aab8fb",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=retrieval-support-balanced",
+        "continuum_target=0.66",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "When one byte changes",
+      "router_scores": {
+        "personal": 0.024137931428499692,
+        "relationship": 0.026223242844061353
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "7d334f0ce27e0991",
+        "relationship": "5ae101d5cd2f3237"
+      },
+      "input": "Compare breadth-first and depth-first traversal.",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.67):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.65); continuity high (0.75); repair need low (0.08); emotional load low (0.20); attunement gap low (0.23).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance high (0.76); autonomy risk low (0.28); consent clarity moderate (0.60); overreach risk low (0.20).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60)."
+      },
+      "persona": "steady",
+      "probe": "n1",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=69d34dcae597c77f",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.16",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:bf18420c1439;conditioning-bank-readout.v1:0.73:853e91221a43",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Breadth-first",
+      "router_scores": {
+        "personal": 0.02411465353985601,
+        "relationship": 0.026208690360046166
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "e5e13eaa5bd172a5",
+        "relationship": "5bc711b1c7a63660"
+      },
+      "input": "What does an HTTP 304 response mean?",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.67):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.65); continuity high (0.75); repair need low (0.08); emotional load low (0.20); attunement gap low (0.23).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance high (0.76); autonomy risk low (0.28); consent clarity moderate (0.60); overreach risk low (0.20).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60)."
+      },
+      "persona": "steady",
+      "probe": "n2",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=71ddf503c2580227",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:ed175ef5f0dd;conditioning-bank-readout.v1:0.73:09bbaf1cee42",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "An HTTP 3",
+      "router_scores": {
+        "personal": 0.024101890492843284,
+        "relationship": 0.026194596176692033
+      }
+    },
+    {
+      "bank_fingerprints": {
+        "personal": "b4d0f94ecbe86d1e",
+        "relationship": "69913ec65bea61b4"
+      },
+      "input": "Describe how binary search narrows its interval.",
+      "materials": {
+        "personal": "Current relational state estimate (typed readout only, confidence 0.67):\n- User: overall stability low (0.20); overwhelm-pattern strength low (0.19); control-seeking signal low (0.02).\n- Relationship: trust moderate (0.65); continuity high (0.75); repair need low (0.08); emotional load low (0.20); attunement gap low (0.23).\n- Goals: alignment low (0.20); value conflict low (0.19); decision readiness low (0.32); reversibility need low (0.27).\n- Boundaries: compliance high (0.76); autonomy risk low (0.28); consent clarity moderate (0.60); overreach risk low (0.20).",
+        "relationship": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60)."
+      },
+      "persona": "steady",
+      "probe": "n3",
+      "profile": "state-kv-bank-dual",
+      "rationale_tags": [
+        "regime=acquaintance_building",
+        "model=Qwen/Qwen2.5-0.5B-Instruct",
+        "tokens=4",
+        "prompt_fp=bd4e5f80c037a6b0",
+        "prompt_state_sections=5",
+        "decode_fp=31e4eb0fd5ae197d",
+        "temporal=discovered_family_0",
+        "switch_gate=0.17",
+        "dynamic_residual=disabled",
+        "personal_conditioning_text=personal-conditioning.v1:0.67:d523247e68ed;conditioning-bank-readout.v1:0.73:5edcf66e266c",
+        "knowledge_hits=2",
+        "case_hits=3",
+        "playbook_rules=1",
+        "ordering_driver=continuum-clarify-first",
+        "continuum_target=0.58",
+        "decoding_profile=clarify-first",
+        "risk=low"
+      ],
+      "response": "Binary search narrows",
+      "router_scores": {
+        "personal": 0.02412867458783592,
+        "relationship": 0.026220692437152124
+      }
+    }
+  ]
+}

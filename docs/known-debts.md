@@ -2568,6 +2568,27 @@ return (
   scale/坐标、不重搜 k；recent-k 与该 summary contract 均冻结，Gate 2
   closed-loop SHADOW admission 保持未闭合，live injection disabled。artifact：
   `artifacts/eta_gate2_v38_control_summary_development_fullwidth896_qwen25_05b_cpu_seed0_20260730`。
+- **2026-07-30 longitudinal v35 read-only admission（CAPTURE REQUIRED）**：
+  按预注册
+  [`.cursor/plans/gate-2-longitudinal-v35-readout-admission_20260730.plan.md`](../.cursor/plans/gate-2-longitudinal-v35-readout-admission_20260730.plan.md)
+  冻结 v35 selector 为只读 readout，不拟合、不注入、不写 session state。
+  既有 `gate11-longitudinal-settled-trace.v2` 的 seed
+  `1201 / 1213 / 1223` 各 `510` settled transitions、各 `51` 个 consumer
+  session；real substrate=`1.0`、fallback=`0`、mutation=`0`，所以
+  ≥500 real-trace 与跨 session 的 **source 前置全绿**。v35 selector/basis
+  fingerprint `ef360e0e… / 326aecdd…` 与 `8076×22` shape 也全绿。但 source
+  只发布 residual 元数据，没有 8076 维 readout state；固定
+  `task_progress/action_payoff` 也不是未执行 selector 的 matched outcome。
+  companion `selector_readout_inputs.jsonl` 与
+  `selector_matched_outcomes.jsonl` 均缺 `1530/1530`，故机器判
+  `admission_status=capture-required`、longitudinal
+  `not-supported`、`validation_delta_computed=false`，不得用 action 分布
+  稳定性或固定 outcome 冒充 `validation_delta`。审计前后 source/selector
+  SHA256 一致，selector 未执行、control 未施加、owner state 零写入。v35
+  causal support 保留但不升级；下一收敛包必须由 full-width real-substrate
+  capture 与 isolated selected/zero/permutation counterfactual lane 发布两份
+  companion，再一次性检验 `validation_delta ≥ 0.02`。artifact：
+  `artifacts/gate2_longitudinal_v35_readout_admission_20260730`。
 - **证据污染约束**：现有 heldout 已在 v1-v15 调参中反复观察，只能记为
   `development-heldout`。v16 晋升必须同时满足 eval 方向为正，以及一个
   从未用于本轮设计/停止决策的 locked `confirmation` split 相对最佳

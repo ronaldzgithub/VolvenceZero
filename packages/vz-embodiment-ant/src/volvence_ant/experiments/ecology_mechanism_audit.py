@@ -842,6 +842,30 @@ def _turn_sign(turn: float, *, threshold: float) -> int:
     return 0
 
 
+def _paired_turn_signs(
+    left_turn: float,
+    right_turn: float,
+    *,
+    contrast_threshold: float,
+) -> tuple[int, int]:
+    """Classify directions after the paired sensitivity floor is met.
+
+    Mirror-equivariant steering splits one opponent-coded contrast across the
+    two sides. Requiring each side to exceed the complete paired threshold
+    silently doubles the frozen sensitivity gate. The pair first clears that
+    unchanged contrast floor; half of it is then the numerical floor used only
+    to classify each side's direction.
+    """
+
+    if abs(left_turn - right_turn) < contrast_threshold:
+        return (0, 0)
+    side_threshold = contrast_threshold / 2.0
+    return (
+        _turn_sign(left_turn, threshold=side_threshold),
+        _turn_sign(right_turn, threshold=side_threshold),
+    )
+
+
 def _evaluate_action_snapshot(
     *,
     config: EcologyMechanismAuditConfig,
@@ -1217,20 +1241,16 @@ async def _sign_consistency(
     results: list[EcologySignConsistency] = []
     for body_index in range(len(checkpoints)):
         for kind in _STEERING_PROBE_KINDS:
-            left_signs = tuple(
-                _turn_sign(
+            paired_signs = tuple(
+                _paired_turn_signs(
                     _probe_by_kind(repeat[body_index], kind).left_turn,
-                    threshold=config.turn_delta_threshold,
-                )
-                for repeat in repeats
-            )
-            right_signs = tuple(
-                _turn_sign(
                     _probe_by_kind(repeat[body_index], kind).right_turn,
-                    threshold=config.turn_delta_threshold,
+                    contrast_threshold=config.turn_delta_threshold,
                 )
                 for repeat in repeats
             )
+            left_signs = tuple(item[0] for item in paired_signs)
+            right_signs = tuple(item[1] for item in paired_signs)
             # A sign that does not exist is not a consistent sign: a head that
             # emits zero on every repeat has no direction to be consistent
             # about.

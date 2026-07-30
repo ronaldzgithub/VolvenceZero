@@ -1137,6 +1137,18 @@ def test_runtime_ndim_shadow_compare_reports_parity() -> None:
         assert 0.0 <= value <= report.tolerance
 
 
+def test_runtime_backend_tiles_short_cms_context_like_pure_encoder() -> None:
+    from volvence_zero.temporal.backend_ndim_runtime import _fit_cms_context
+
+    assert _fit_cms_context((0.1, 0.2, 0.3), 5) == (
+        0.1,
+        0.2,
+        0.3,
+        0.1,
+        0.2,
+    )
+
+
 # ---------------------------------------------------------------------------
 # 3b. Internal-RL -> runtime code bridge (autograd-owner-integration)
 #

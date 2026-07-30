@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode
+from volvence_zero.conditioning_bank_contracts import (
+    ConditioningBankLatentCarrier,
+)
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
@@ -129,6 +132,12 @@ class ResponseContext:
     # both cases -- only the carrier differs, which is what makes the two arms
     # a controlled comparison rather than two different experiments.
     personal_conditioning_carrier: str = "residual"
+    # Generic model-layer carrier requests. The owner snapshot remains nested
+    # in each immutable carrier; expression forwards it without interpreting
+    # bank coordinates. v1 is used by the Relationship residual pilot.
+    conditioning_bank_carriers: tuple[
+        ConditioningBankLatentCarrier, ...
+    ] = ()
     # Evidence-only rollout control for stochastic carrier runs. ``None`` keeps
     # the production path unchanged. When supplied, the seed is forwarded to the
     # substrate, included in C5 decode attestation, and emitted as a rationale
@@ -170,6 +179,15 @@ class ResponseContext:
                 "ResponseContext personal_conditioning_carrier must be "
                 "'residual' or 'prefix_kv', got "
                 f"{self.personal_conditioning_carrier!r}."
+            )
+        carrier_bank_types = tuple(
+            carrier.bank.bank_type.value
+            for carrier in self.conditioning_bank_carriers
+        )
+        if len(set(carrier_bank_types)) != len(carrier_bank_types):
+            raise ValueError(
+                "ResponseContext conditioning_bank_carriers must name each "
+                f"bank type at most once, got {carrier_bank_types!r}."
             )
         if self.prompt_state_delivery not in ("text", "suppressed"):
             raise ValueError(
@@ -611,6 +629,10 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             carrier_kwargs["personal_conditioning_carrier"] = (
                 context.personal_conditioning_carrier
             )
+        if context.conditioning_bank_carriers:
+            carrier_kwargs["conditioning_bank_carriers"] = (
+                context.conditioning_bank_carriers
+            )
         result = self._runtime.generate(
             prompt=user_input,
             system_context=system_prompt,
@@ -707,6 +729,22 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             rationale_parts.append(
                 "personal_conditioning_text="
                 f"{context.personal_conditioning_statement_ref}"
+            )
+        for carrier in context.conditioning_bank_carriers:
+            bank_type = carrier.bank.bank_type.value
+            applied = (
+                bank_type,
+                carrier.projector_version,
+            ) in result.conditioning_bank_carriers_applied
+            key = (
+                f"{bank_type}_conditioning"
+                if applied
+                else f"{bank_type}_conditioning_not_applied"
+            )
+            rationale_parts.append(
+                f"{key}={carrier.carrier}:"
+                f"{carrier.projector_version}:"
+                f"{carrier.bank.source_fingerprint[:12]}"
             )
         if assembly is not None and assembly.knowledge_hit_count:
             rationale_parts.append(f"knowledge_hits={assembly.knowledge_hit_count}")

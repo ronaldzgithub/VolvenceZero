@@ -162,7 +162,10 @@ class _JointLoopSchedulingMixin:
     def _pe_full_cycle_due(self, *, schedule: JointLoopSchedule) -> bool:
         pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
         pe_abs_reward = abs(self._external_learning_signals.get("prediction_error_reward", 0.0))
-        return pe_magnitude >= schedule.pe_full_cycle_threshold or pe_abs_reward >= schedule.pe_full_cycle_threshold * 0.5
+        return (
+            pe_magnitude >= schedule.pe_full_cycle_threshold
+            or pe_abs_reward >= schedule.pe_full_cycle_threshold * 0.5
+        )
 
     def _pe_ssl_due(self, *, schedule: JointLoopSchedule) -> bool:
         pe_magnitude = self._external_learning_signals.get("prediction_error_magnitude", 0.0)
@@ -207,10 +210,13 @@ class _JointLoopSchedulingMixin:
 
     def _rl_batch_ready_due(self) -> bool:
         target = self._effective_rl_batch_target()
-        if target <= 1:
-            return False
         if self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
             return self._rl_batch_ready_for_optimization()
+        if target <= 1:
+            # Synthetic rollouts are created inside ``run_cycle`` rather than
+            # staged before scheduling, so there is no pending batch that can
+            # independently make a target-one cycle due.
+            return False
         return self._pending_rl_batch_count() + 1 >= target
 
     def _rl_batch_wait_due(
@@ -280,7 +286,17 @@ class _JointLoopSchedulingMixin:
                 + (state.posterior_drift if state is not None else 0.0) * 0.18
                 + (1.0 - min(state.policy_replacement_score, 1.0) if state is not None else 0.5) * 0.18
                 + (0.0 if state is None else abs(state.latest_switch_gate - 0.5) * 2.0) * 0.08
-                + min((state.active_family_summary.support if state is not None and state.active_family_summary is not None else 0) / 4.0, 1.0) * 0.12
+                + min(
+                    (
+                        state.active_family_summary.support
+                        if state is not None
+                        and state.active_family_summary is not None
+                        else 0
+                    )
+                    / 4.0,
+                    1.0,
+                )
+                * 0.12
                 + (1.0 - control_prior_strength) * 0.14
             )
         )

@@ -891,6 +891,7 @@ class AgentSessionRunner(
         self._regime_module = RegimeModule(
             wiring_level=self._config.level_for("regime", WiringLevel.ACTIVE),
             bootstrap=regime_bootstrap,
+            learning_enabled=joint_learning_enabled,
         )
         if self._owner_hydration_store is not None:
             self._owner_hydration_store.hydrate_owner_if_present(
@@ -903,6 +904,7 @@ class AgentSessionRunner(
         self._credit_module = CreditModule(
             pending_proposals=credit_proposals,
             wiring_level=self._config.level_for("credit", WiringLevel.SHADOW),
+            learning_enabled=joint_learning_enabled,
         )
         if self._owner_hydration_store is not None:
             self._owner_hydration_store.hydrate_owner_if_present(
@@ -945,6 +947,7 @@ class AgentSessionRunner(
             )
         self._prediction_module = PredictionErrorModule(
             wiring_level=self._config.level_for("prediction_error", WiringLevel.ACTIVE),
+            learning_enabled=joint_learning_enabled,
         )
         if self._owner_hydration_store is not None:
             self._owner_hydration_store.hydrate_owner_if_present(
@@ -1144,6 +1147,9 @@ class AgentSessionRunner(
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
+        self._online_training_substrate_snapshots: list[
+            SubstrateSnapshot
+        ] = []
         self._previous_personal_conditioning_snapshot: PersonalConditioningSnapshot | None = None
         self._previous_prediction_reward: float = 0.0
         self._previous_prediction_magnitude: float = 0.0
@@ -1272,7 +1278,7 @@ class AgentSessionRunner(
             ),
             (
                 "regime",
-                hashlib.sha256(repr(components[3]).encode("utf-8")).hexdigest(),
+                self._regime_module.learning_fingerprint(),
             ),
             (
                 "dual-track-gate",
@@ -2002,6 +2008,7 @@ class AgentSessionRunner(
                 dual_track_gate_learner=self._dual_track_gate_learner,
                 social_record_store=self._social_record_store,
                 reflection_consolidation_learner=self._reflection_consolidation_learner,
+                learning_enabled=self._joint_learning_enabled,
                 personal_conditioning_credit_state=self._personal_conditioning_credit_state,
                 relationship_conditioning_credit_state=self._relationship_conditioning_credit_state,
             )
@@ -2026,6 +2033,10 @@ class AgentSessionRunner(
             substrate_snap = integration_result.active_snapshots.get("substrate")
             if substrate_snap is not None and isinstance(substrate_snap.value, SubstrateSnapshot):
                 self._previous_substrate_snapshot = substrate_snap.value
+                self._online_training_substrate_snapshots.append(
+                    substrate_snap.value
+                )
+                del self._online_training_substrate_snapshots[:-2]
                 substrate_batch = self._substrate_batch_from_snapshot(substrate_snap.value)
                 self._record_substrate_batch(substrate_batch)
                 self._record_rare_heavy_example(
@@ -2094,7 +2105,10 @@ class AgentSessionRunner(
                 # internals) and feeds the session-held learner; bootstrap
                 # turns are skipped inside the learner (no prior features).
                 pe_actual = integration_result.prediction_error_snapshot.actual_outcome
-                if not integration_result.prediction_error_snapshot.bootstrap:
+                if (
+                    self._joint_learning_enabled
+                    and not integration_result.prediction_error_snapshot.bootstrap
+                ):
                     self._dual_track_gate_learner.observe_realized_outcome(
                         task_progress=pe_actual.task_progress,
                         relationship_delta=pe_actual.relationship_delta,

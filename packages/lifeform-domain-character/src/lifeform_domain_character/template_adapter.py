@@ -40,6 +40,7 @@ What this is NOT:
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
@@ -191,6 +192,15 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
         memory_scope_root_dir: str | None,
         alpha_enabled: bool,
     ) -> tuple[Lifeform, TemplateContext]:
+        legacy_template_path = self._legacy_env_template_path()
+        if legacy_template_path is not None:
+            return self._build_session_context_from_template_path(
+                template_path=legacy_template_path,
+                runtime=runtime,
+                identity_provider=identity_provider,
+                memory_scope_root_dir=memory_scope_root_dir,
+                alpha_enabled=alpha_enabled,
+            )
         profile = self._default_profile_factory()
         synthesizer = self._build_synthesizer(
             runtime, repair_alpha_enabled=alpha_enabled
@@ -231,6 +241,23 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
         alpha_enabled: bool,
     ) -> tuple[Lifeform, TemplateContext]:
         template_path = self._resolve_template_path(root_dir, template_id)
+        return self._build_session_context_from_template_path(
+            template_path=template_path,
+            runtime=runtime,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            alpha_enabled=alpha_enabled,
+        )
+
+    def _build_session_context_from_template_path(
+        self,
+        *,
+        template_path: pathlib.Path,
+        runtime: "OpenWeightResidualRuntime | None",
+        identity_provider: "IdentityProvider | None",
+        memory_scope_root_dir: str | None,
+        alpha_enabled: bool,
+    ) -> tuple[Lifeform, TemplateContext]:
         synthesizer = self._build_synthesizer(
             runtime, repair_alpha_enabled=alpha_enabled
         )
@@ -333,6 +360,18 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
         if not path.is_file():
             raise FileNotFoundError(
                 f"Template {template_id!r} not found under {root_dir}"
+            )
+        return path
+
+    def _legacy_env_template_path(self) -> pathlib.Path | None:
+        raw = os.environ.get("ZHANG_WUJI_TEMPLATE_PATH", "").strip()
+        if not raw:
+            return None
+        path = pathlib.Path(raw)
+        if not path.is_file():
+            raise FileNotFoundError(
+                "ZHANG_WUJI_TEMPLATE_PATH points at a missing template: "
+                f"{path}"
             )
         return path
 

@@ -17,11 +17,17 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import Iterator
 
+from volvence_zero.conditioning_bank_contracts import (
+    ConditioningBankLatentCarrier,
+)
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
 from volvence_zero.substrate.adapter import (
     SubstrateSnapshot,
+)
+from volvence_zero.substrate.conditioning_bank_projector import (
+    RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION,
 )
 
 from volvence_zero.substrate.residual_contracts import (
@@ -44,6 +50,12 @@ class OpenWeightResidualRuntime(ABC):
     runtime_origin: str = "unknown"
     supports_live_substrate_mutation: bool = False
     supports_offline_substrate_training: bool = False
+
+    @property
+    def relationship_conditioning_projector_version(self) -> str:
+        """Version the runtime expects on Relationship residual carriers."""
+
+        return RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION
 
     @property
     def control_basis_rank(self) -> int:
@@ -245,6 +257,9 @@ class OpenWeightResidualRuntime(ABC):
         generation_constraints: object | None = None,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
+        conditioning_bank_carriers: tuple[
+            ConditioningBankLatentCarrier, ...
+        ] = (),
         sampling_seed: int | None = None,
     ) -> GenerationResult:
         """Generate text using the underlying model.
@@ -258,19 +273,19 @@ class OpenWeightResidualRuntime(ABC):
         backends may honour it to avoid the expensive post-generate
         re-forward. The default placeholder ignores it.
 
-        ``personal_conditioning`` is a contract input: a runtime that
-        cannot inject it into the residual stream must fail loudly
-        instead of silently dropping it (the caller would otherwise
-        believe the model was conditioned). Runtimes that can apply or
-        observably trace the conditioning override ``generate``.
+        Personal and generic-bank conditioning are contract inputs: a
+        runtime that cannot inject them must fail loudly instead of silently
+        dropping them (the caller would otherwise believe the model was
+        conditioned). Runtimes that can apply or observably trace the
+        conditioning override ``generate``.
         """
         del generation_constraints, capture_residuals, sampling_seed
-        if personal_conditioning is not None:
+        if personal_conditioning is not None or conditioning_bank_carriers:
             raise NotImplementedError(
-                f"{type(self).__name__} cannot apply personal conditioning "
+                f"{type(self).__name__} cannot apply latent conditioning "
                 "because it does not expose residual hooks. Use a runtime "
                 "that overrides generate() with a residual-hook path, or "
-                "disable the personal_conditioning owner."
+                "disable the conditioning carrier."
             )
         return GenerationResult(
             text=f"[generation not supported by {self.model_id}]",

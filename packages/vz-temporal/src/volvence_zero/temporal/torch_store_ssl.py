@@ -434,9 +434,19 @@ class StoreSSLTrainingSession:
             store.ndim_decoder_parameters,
         )
         if current != self._last_written_parameters:
+            changed = tuple(
+                name
+                for name, actual, expected in zip(
+                    ("encoder", "switch", "decoder"),
+                    current,
+                    self._last_written_parameters,
+                    strict=True,
+                )
+                if actual != expected
+            )
             raise RuntimeError(
                 "ACTIVE torch SSL store parameters changed outside the bound "
-                "persistent optimizer session."
+                f"persistent optimizer session: changed={changed}."
             )
 
     def _trace_objective(

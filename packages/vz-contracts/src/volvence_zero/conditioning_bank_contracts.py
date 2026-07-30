@@ -323,6 +323,72 @@ class ConditioningBankSnapshot:
         )
 
 
+CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION = (
+    "conditioning-bank-latent-carrier.v1"
+)
+
+
+@dataclass(frozen=True)
+class ConditioningBankLatentCarrier:
+    """Versioned request to project one admitted bank into model residuals.
+
+    The bank remains the semantic owner. This contract only freezes the
+    substrate-facing carrier identity and magnitude bound, so runtime can
+    propagate an immutable request without interpreting coordinates or
+    rebuilding owner state.
+    """
+
+    schema_version: str
+    bank: ConditioningBankSnapshot
+    carrier: str
+    projector_version: str
+    scale: float
+    description: str
+
+    def __post_init__(self) -> None:
+        if self.schema_version != CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION:
+            raise ValueError(
+                "ConditioningBankLatentCarrier schema_version must be "
+                f"{CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION!r}."
+            )
+        if self.carrier != "residual":
+            raise ValueError(
+                "ConditioningBankLatentCarrier v1 supports only the "
+                f"'residual' carrier, got {self.carrier!r}."
+            )
+        if not self.projector_version:
+            raise ValueError(
+                "ConditioningBankLatentCarrier projector_version must be "
+                "non-empty."
+            )
+        if not 0.0 < self.scale <= 0.12:
+            raise ValueError(
+                "ConditioningBankLatentCarrier scale must be in (0, 0.12]."
+            )
+        if not self.description:
+            raise ValueError(
+                "ConditioningBankLatentCarrier description must be non-empty."
+            )
+        if not self.bank.is_injectable:
+            raise ValueError(
+                "ConditioningBankLatentCarrier requires an injectable bank; "
+                "cold-start, revoked, stale, and zero-confidence banks must "
+                "be withheld before the substrate boundary."
+            )
+
+    @property
+    def fingerprint_parts(self) -> tuple[str, ...]:
+        """Stable carrier identity for cache and lineage attestation."""
+
+        return (
+            *self.bank.fingerprint_parts,
+            self.schema_version,
+            self.carrier,
+            self.projector_version,
+            f"{self.scale:.12g}",
+        )
+
+
 CONDITIONING_BANK_READOUT_SCHEMA_VERSION = "conditioning-bank-readout.v1"
 
 

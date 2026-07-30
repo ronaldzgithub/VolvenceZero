@@ -678,6 +678,17 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
         description="Publish and deliver the Relationship conditioning bank.",
     ),
     ProfileCapability(
+        name="relationship-conditioning-residual",
+        applies_to_owner="relationship_conditioning",
+        flag_overrides={
+            "relationship_conditioning_mode": "residual",
+        },
+        description=(
+            "Deliver the ACTIVE Relationship bank through the versioned "
+            "bounded residual carrier."
+        ),
+    ),
+    ProfileCapability(
         name="relationship-conditioning-disabled",
         applies_to_owner="relationship_conditioning",
         flag_overrides={
@@ -939,6 +950,22 @@ _BUILTIN_PROFILES: tuple[ProfileSpec, ...] = (
         description="Bank-gain arm: Relationship bank only.",
     ),
     ProfileSpec(
+        label="state-kv-bank-relationship-latent-pure",
+        capabilities=(
+            "personal-conditioning-off",
+            "relationship-conditioning-active",
+            "relationship-conditioning-residual",
+            "prompt-state-suppressed",
+            "dynamic-residual-off",
+            "conditioning-router-shadow-top1",
+        ),
+        description=(
+            "Matched Relationship-only pilot arm: the same owner readout is "
+            "delivered only by the versioned residual carrier, with prompt "
+            "state sections suppressed."
+        ),
+    ),
+    ProfileSpec(
         label="state-kv-bank-dual",
         capabilities=(
             "personal-conditioning-text",
@@ -987,6 +1014,7 @@ STATE_KV_RUNTIME_CONFIG_PROFILE_LABELS: tuple[str, ...] = (
     "state-kv-bank-none",
     "state-kv-bank-personal-only",
     "state-kv-bank-relationship-only",
+    "state-kv-bank-relationship-latent-pure",
     "state-kv-bank-dual",
     "state-kv-bank-dual-router-active",
     "state-kv-bank-dual-credit-active",

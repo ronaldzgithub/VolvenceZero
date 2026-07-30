@@ -119,6 +119,7 @@ class GenerationResult:
     capture: OpenWeightRuntimeCapture | None
     description: str
     personal_conditioning_applied: bool = False
+    conditioning_bank_carriers_applied: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

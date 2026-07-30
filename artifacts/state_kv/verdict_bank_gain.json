@@ -1,46 +1,117 @@
 {
-  "artifact_id": "state-kv-bank-gain-no-observations",
+  "artifact_id": "5bc19fc7497e58860476fc13d18ad3aefb262db985f59adfc562faa298efdf92",
   "bank_count_frozen": true,
   "bootstrap_seed": 7301,
   "claims": [
     {
+      "claim": "claim_personal_state_contrast",
+      "detail": "probes=4, material_contrasts=4, fingerprint_contrasts=4",
+      "state": "pass"
+    },
+    {
+      "claim": "claim_personal_non_bank_isolation",
+      "detail": "n=8, judged=8, accuracy=0.625, ci=(0.25, 0.875), chance=0.500",
+      "state": "pass"
+    },
+    {
       "claim": "claim_personal_independent_gain",
-      "detail": "n=0, judged=0, divergence=0.000, match_gain=None, ci=None",
-      "state": "insufficient_data"
+      "detail": "n=8, judged=8, divergence=0.375, match_gain=0.0, ci=(0.0, 0.0)",
+      "state": "fail"
+    },
+    {
+      "claim": "claim_relationship_state_contrast",
+      "detail": "probes=4, material_contrasts=4, fingerprint_contrasts=4",
+      "state": "pass"
+    },
+    {
+      "claim": "claim_relationship_non_bank_isolation",
+      "detail": "n=8, judged=8, accuracy=0.5, ci=(0.125, 0.875), chance=0.500",
+      "state": "pass"
     },
     {
       "claim": "claim_relationship_independent_gain",
-      "detail": "n=0, judged=0, divergence=0.000, match_gain=None, ci=None",
-      "state": "insufficient_data"
+      "detail": "n=8, judged=8, divergence=0.375, match_gain=0.0, ci=(0.0, 0.0)",
+      "state": "fail"
     },
     {
       "claim": "claim_irrelevant_bank_negative_control",
-      "detail": "n=0, judged=0, max_router_score=None, match_gain_ci=None, ceiling=0.200",
-      "state": "insufficient_data"
+      "detail": "n=8, judged=8, max_router_score=0.026223242844061353, match_gain_ci=(0.0, 0.0), ceiling=0.200",
+      "state": "pass"
     }
   ],
-  "freeze_reason": "Independent per-bank gain and irrelevant-bank controls are not all proven; freeze the bank count at Personal + Relationship.",
-  "gate_state": "insufficient_data",
+  "freeze_reason": "At least one fully observed independent-gain or irrelevant-bank control failed; freeze the bank count at Personal + Relationship.",
+  "gate_state": "fail",
   "irrelevant_router_score_ceiling": 0.2,
+  "judge": {
+    "family": "xlm-roberta",
+    "material_kind": "rendered-state-statement",
+    "model_id": "BAAI/bge-m3"
+  },
   "metrics": [
     {
       "bank_type": "personal",
-      "blind_match_gain": null,
-      "blind_match_gain_ci": null,
-      "judged_sample_count": 0,
-      "output_divergence_rate": 0.0,
-      "sample_count": 0
+      "blind_match_gain": 0.0,
+      "blind_match_gain_ci": [
+        0.0,
+        0.0
+      ],
+      "judged_sample_count": 8,
+      "output_divergence_rate": 0.375,
+      "sample_count": 8
     },
     {
       "bank_type": "relationship",
-      "blind_match_gain": null,
-      "blind_match_gain_ci": null,
-      "judged_sample_count": 0,
-      "output_divergence_rate": 0.0,
-      "sample_count": 0
+      "blind_match_gain": 0.0,
+      "blind_match_gain_ci": [
+        0.0,
+        0.0
+      ],
+      "judged_sample_count": 8,
+      "output_divergence_rate": 0.375,
+      "sample_count": 8
     }
   ],
   "minimum_samples": 8,
+  "non_bank_chance_accuracy": 0.5,
+  "non_bank_persona_metrics": [
+    {
+      "bank_type": "personal",
+      "blind_match_accuracy": 0.625,
+      "blind_match_accuracy_ci": [
+        0.25,
+        0.875
+      ],
+      "judged_sample_count": 8,
+      "sample_count": 8
+    },
+    {
+      "bank_type": "relationship",
+      "blind_match_accuracy": 0.5,
+      "blind_match_accuracy_ci": [
+        0.125,
+        0.875
+      ],
+      "judged_sample_count": 8,
+      "sample_count": 8
+    }
+  ],
+  "observation_artifact_sha256": "5bc19fc7497e58860476fc13d18ad3aefb262db985f59adfc562faa298efdf92",
+  "persona_contrasts": [
+    {
+      "bank_type": "personal",
+      "fingerprint_contrast_count": 4,
+      "material_contrast_count": 4,
+      "passed": true,
+      "probe_count": 4
+    },
+    {
+      "bank_type": "relationship",
+      "fingerprint_contrast_count": 4,
+      "material_contrast_count": 4,
+      "passed": true,
+      "probe_count": 4
+    }
+  ],
   "profile_labels": [
     "state-kv-bank-none",
     "state-kv-bank-personal-only",
@@ -48,6 +119,7 @@
     "state-kv-bank-dual"
   ],
   "router_version": "topk-semantic.v1",
-  "schema_version": "state-kv-bank-gain.v1",
-  "substrate_fingerprint": ""
+  "schema_version": "state-kv-bank-gain.v3",
+  "semantic_backend": "backend:Qwen/Qwen2.5-0.5B-Instruct:False",
+  "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
 }

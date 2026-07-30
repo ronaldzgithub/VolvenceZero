@@ -115,6 +115,23 @@ carrying credit 混回拾取前 segment。该声明只标记“这是离散任�
 或动作标签；DISABLED 是逐字节回滚。PE-off 匹配对照臂只关加性 PE prior，里程碑通道在两臂保持
 一致（它是环境发布的事实，不是 PE readout）。
 
+v31 因历史 near 物理课程口径不一致而早停后，重开必须先生成
+`digital-ant-ecology-same-physics-baseline-preregistration.v1`。该 causal packet 的两臂从同一
+owner-exported 初始 checkpoint 分叉，使用同一 CPU float64 配置、完整 55-episode schedule、seed、
+物理世界、reward、PE、credit、optimizer 与探索设置；唯一允许差异是
+`environment_milestone_temporal_switch=ACTIVE / DISABLED`。`ant_runtime_replay_rollout_config`
+为此暴露默认 True 的显式 evidence lever；它不改变生产/learned/PE-off 的 ACTIVE 默认。packet 在
+读取任何新结果前冻结三站阈值、旧 v24/v30/v31 journal 排除规则及相关实现文件 SHA256；source
+binding 漂移必须 fail loudly 并升 packet 版本，禁止沿用旧阈值继续。
+
+同物理判读按站执行：站1（ep0–19）要求 milestone-active 总 pickup 不低于 matched control 的
+80%，control 每个物理块至少出现一次 pickup，active 不得在 control 非零的块归零；delivery 因
+小样本稀疏只记录、不作站1门，同时既有 post-pickup switch/persistence 结构门必须通过。站2
+（ep20–29）要求 medium pickup 保持 80% 非劣、delivery **严格超过** matched control，且
+carrying-home alignment 与 U-turn 进度转正；失败即 BLOCK，禁止进入 ep30。站3只在前两站 GO 后
+运行，matched block pickup 继续使用 80% 非劣，far 保持 D3 描述项。历史绝对数字不得重新进入
+这些门。
+
 这里的“只有两个 task milestone”不等于系统其余 PE 必须为零：局部 food/pheromone/heading 感知仍会
 产生 substrate prediction mismatch，Internal-RL 可把它作为内在 PE 信号。它不读取食物坐标或全局距离，
 不是 task shaping；但因此 learned-vs-PE-off 只能证明“含内在 PE 的完整架构贡献”，不能写成
@@ -148,6 +165,16 @@ RL、writeback 或 rare-heavy 路径；同一个 flag 还必须关闭 temporal o
 action-family outcome/topology/cache 与 learned match-head 写入，但不阻止恢复 checkpoint 或
 更新推理 telemetry。后者不能替代此前者。每个 held-out layout 都要比较前后
 `temporal_learning_fingerprint`，任一 body 漂移即阻断能力晋级。
+
+P0 frozen evaluation 进一步把同一个 `learning_enabled=False` 传播到 memory、
+PredictionError、credit 与 regime owner，并关闭 session-held dual-track gate /
+reflection consolidation learner 的结算写入。冻结不等于停掉推理：memory 仍可只读检索，
+PredictionError 仍发布 PE 并维持 next-turn action context，regime 仍可选择和切换 active
+identity，credit 与 runtime replay 仍可记录/结算本轮 lineage；但这些 readout 不允许修改
+owner 的持久学习参数、统计或候选队列。`learning_owner_fingerprints` 必须逐 tick 覆盖
+policy、temporal-learning、memory、prediction、credit、regime、dual-track-gate 与
+reflection 八个 owner。Regime 的 owner-authored 学习指纹只覆盖持久学习状态，明确排除
+`active_regime_id`、turn index、持续轮数等合法运行时身份 telemetry。
 
 诊断 evidence 还必须区分 owner checkpoint 的 `policy_fingerprint`、`temporal_fingerprint` 与
 `memory_fingerprint`，并发布训练/held-out pickup、delivery、首次接触、最小食物距离、turn/
@@ -298,11 +325,17 @@ promotion gate：
   静默关闭。
 - Digital Ant 正式 runtime profile 将 `internal_rl_runtime_segment_credit=ACTIVE`：joint-loop owner
   把 lineage-matched one-step replay 按真实 `beta_t` switch 边界聚成 segment，并在 milestone/
-  terminal 或 16-step 上限处强制闭合；PPO/critic 对闭合 segment 的多步 transition 运行同一 GAE。
-  ecology 单局是 24 turns，但首拍只有 capture、没有 preceding settlement，因此最多只有 23 个已
-  结算 transition。上限必须为后续同局 scheduled step 留出“闭合→optimizer”窗口；使用 24 会让
-  无 pickup/switch 的 open segment 在跨 episode `include_runtime_replay=False` checkpoint 前从未
-  进入 optimizer，形成“零 milestone→零更新→零 milestone”的确定性死锁。
+  terminal 或 7-step 上限处强制闭合；PPO/critic 对闭合 segment 的多步 transition 运行同一 GAE。
+  最短正式 P0 单局是 12 turns，capture/bootstrap 后只有 10 个可用 settled transition，batch
+  target 为 2；这是 centered covariance 非退化所需的最小 batch，target 4 的受控对照会把有效
+  更新推迟到预算外。上限必须在同局为后续 scheduled step 留出“闭合→optimizer”窗口。旧 16-step
+  上限在 P0 预算内不可达：无 milestone body 不闭段，短 switch 段又不足 4，最终都被跨 episode
+  `include_runtime_replay=False` checkpoint 清空，形成“零更新→零 steering→零 milestone”的
+  确定性死锁。7 是仍能超过 batch target 并保留 flush turn 的最大 horizon；恢复 16 即为旧
+  profile 的显式回滚，但会重新打开该 P0 断点。正式 paired probe 同时钉住 world pose 与
+  navigator estimate；repeat seed 不得改变 sense input。sign-consistency 先要求左右 contrast
+  达到冻结的 `1e-4` sensitivity floor，再按镜像等变在两侧各分到一半的数值 floor 判方向；
+  这不修改 sensitivity 门，只避免把同一 paired threshold 重复要求两次。
   World/Self 两轨 metacontroller 独立切换，segment 边界取**任一轨** `beta_t` switch（与 milestone/
   terminal 闭合的 OR 语义一致）；分叉切换只会让 segment 更短，两轨打包保持逐拍成对对齐。
   open segment、closed segment 和最长长度进入 owner checkpoint/rollback，但不新增 ledger 或
@@ -425,6 +458,10 @@ promotion gate：
   loader 必须拒绝）。
   settlement coverage 的分母是 `captured - pending_capture_count`；episode 尾部尚无下一状态的
   capture 被明确发布为 pending，不得误报为 drop，也不得借此忽略真实 drop reason。
+  backend gate 把 execution coverage 与 same-checkpoint forward parity 分开：每条 lane 先在
+  canonical pinned pose 上 exercise 6 拍并读取 runtime/SSL/Internal-RL owner 的执行与 write-back
+  证据；随后用原正式 checkpoint 新建 session/world 测 code/turn/step/head residual/action
+  distribution。exercise 后的 serving recurrent state 或已更新参数不得进入 parity 对照。
   任一失败即 `BLOCK`；不得加载为 demo checkpoint，也不得用 `FixedRuleAnt` 或 Canvas 脚本伪装通过。
 
 2026-07-20 小预算 smoke（`n_ants=1, n_z=4, stage_rounds=8, heldout_rounds=16,

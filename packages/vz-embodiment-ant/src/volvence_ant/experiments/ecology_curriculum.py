@@ -1212,6 +1212,7 @@ def _session_config(
     sparse_exploration_enabled: bool = True,
     prediction_error_enabled: bool = True,
     temporal_writeback_enabled: bool = True,
+    environment_milestone_switch_enabled: bool = True,
 ) -> AntSessionConfig:
     """Build one matched ecology session.
 
@@ -1248,6 +1249,9 @@ def _session_config(
             enable_sparse_exploration=sparse_exploration_enabled,
             enable_segment_credit=segment_credit_enabled,
             enable_prediction_error_switch=prediction_error_enabled,
+            enable_environment_milestone_switch=(
+                environment_milestone_switch_enabled
+            ),
             sense_schema=AntSenseSchema.ECOLOGY_V2,
         ),
         external_prediction_error_drive=prediction_error_enabled,
@@ -1853,6 +1857,7 @@ async def _run_training_episode(
     plan: EcologyTrainingEpisodePlan,
     prediction_error_enabled: bool = True,
     temporal_writeback_enabled: bool = True,
+    environment_milestone_switch_enabled: bool = True,
     action_probe_baseline: tuple[AntLearningCheckpoint, ...] | None = None,
     action_probe_baseline_reports: (
         tuple[EcologyCheckpointActionProbe, ...] | None
@@ -1885,6 +1890,9 @@ async def _run_training_episode(
             segment_credit_enabled=segment_credit_enabled,
             prediction_error_enabled=prediction_error_enabled,
             temporal_writeback_enabled=temporal_writeback_enabled,
+            environment_milestone_switch_enabled=(
+                environment_milestone_switch_enabled
+            ),
         ),
     )
     if plan.forced_return or plan.forced_approach:
@@ -2015,6 +2023,7 @@ async def _train_arm(
     segment_credit_enabled: bool,
     prediction_error_enabled: bool = True,
     temporal_writeback_enabled: bool = True,
+    environment_milestone_switch_enabled: bool = True,
     schedule: tuple[EcologyTrainingEpisodePlan, ...] | None = None,
     schedule_start_index: int = 0,
     episode_callback: Callable[
@@ -2084,6 +2093,9 @@ async def _train_arm(
                 segment_credit_enabled=segment_credit_enabled,
                 prediction_error_enabled=prediction_error_enabled,
                 temporal_writeback_enabled=temporal_writeback_enabled,
+                environment_milestone_switch_enabled=(
+                    environment_milestone_switch_enabled
+                ),
                 plan=plan,
                 action_probe_baseline=initial,
                 action_probe_baseline_reports=(
@@ -2156,6 +2168,9 @@ async def _train_arm(
                         ),
                         temporal_writeback_enabled=(
                             temporal_writeback_enabled
+                        ),
+                        environment_milestone_switch_enabled=(
+                            environment_milestone_switch_enabled
                         ),
                         plan=plan,
                         action_probe_baseline=initial,

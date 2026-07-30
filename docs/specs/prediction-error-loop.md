@@ -443,6 +443,10 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 
 ## 变更日志
 
+- 2026-07-30: `PredictionErrorModule` 增加 owner-side frozen learning gate。
+  `learning_enabled=False` 时仍计算并发布 PE、滚动分布 readout 与下一轮预测上下文，但
+  不更新 learned critic、world/self predictive heads 或其持久误差统计。
+
 - 2026-07-27: gate/payout 一致性校验去掉 `1e-9` 容差，改为精确 `!=`
   （收敛包 W3-b-fix-follow-up）。理由：接通路径上两个量按构造逐位相等（同一句
   `max(-1.0, min(1.0, x))` 的幂等 clamp，见上文），outcome lineage 另行强制，容差只可能吞掉

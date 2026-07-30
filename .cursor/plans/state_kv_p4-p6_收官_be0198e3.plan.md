@@ -6,13 +6,19 @@ todos:
     content: 包 R1：Top-K 语义 router owner + conditioning_router 三态开关 + 接线与测试
     status: completed
   - id: r2-bank-gain
-    content: 包 R2：bank 消融 profile + bank_gain_gate 只读 owner/脚本 + verdict_bank_gain 证据
+    content: 包 R2：v3 persona 对比与 non-bank isolation 通过；Relationship compiler v2 将分叉升至 0.375 但独立增益仍为零，冻结 Personal + Relationship
+    status: completed
+  - id: r3-relationship-latent
+    content: 包 R3：Relationship versioned residual carrier v2 + text-vs-latent pilot；物理/隔离门通过但 blind match 仍为 chance，默认不晋升
+    status: completed
+  - id: r4-relationship-projector
+    content: 包 R4：冻结 Qwen model-derived Relationship projector artifact + matched pilot；线性 residual 仍为 chance，退出并转专属 Prefix-KV
     status: completed
   - id: d0-diagnostic
     content: 包 D0：3 维控制瓶颈诊断脚本与书面门结论
     status: completed
   - id: d1-substrate
-    content: 包 D1（D0 门未开，按计划跳过）：不修改 substrate，保留 rank-3
+    content: 包 D1：arbitrary-rank/per-layer artifact 与 OFFLINE gate 边界已实现；D0 未开，禁止容量扩展并保留 rank-3
     status: completed
   - id: d2-h-arm
     content: 包 D2（D0 门未开，按计划跳过）：不创建 H 臂
@@ -61,7 +67,37 @@ flowchart LR
 ### 包 R2：per-bank 独立增益 + 无关银行负对照证据
 - 新增 bank 消融 profile 对（例：`state-kv-bank-personal-only` / `state-kv-bank-relationship-only` / 双 bank / 无 bank），复用既有 arm capability 机制。
 - 新脚本 `scripts/run_state_kv_bank_gain_gate.py` + `packages/vz-runtime/src/volvence_zero/state_kv_bank_gain_gate.py`（只读 owner，模式对齐 `state_kv_identification.py`）：每 bank 增益 = 双 bank 对单 bank 消融的输出分叉 + 盲裁判匹配（复用 `LocalEmbeddingBlindJudge` 协议，material 换成对应 bank 的 rendered-state）；无关银行负对照 = 在与 relationship 无关的场景验证注入不产生增益且 router（SHADOW 记录）给低分。产出 `artifacts/state_kv/verdict_bank_gain.json`。
+- v3 在统计前以正式 typed external semantic event 建立 repair / steady persona，要求每个 bank 的 owner-rendered material 与 lineage fingerprint 都形成对比，并用 bank-none 盲判检查非 bank persona 泄漏；任一 treatment / isolation 门不成立时只能记 `insufficient_data`，禁止误报因果 `fail`。Relationship compiler v2 追加四个轨迹坐标并版本化 fingerprint，同矩阵 rerun 只提高输出分叉、未产生 blind match gain；max16 2+2 pilot 的 Relationship gain 仍严格为零，下一包冻结为 text-vs-versioned-latent carrier，不扩数据。
 - **停止条件内建**（设计 §16.1 第 6 条）：若增益不显著，产出书面结论并冻结银行数量，P6 中如实标注，不继续加 bank。
+
+### 包 R3：Relationship versioned latent carrier
+- 冻结通用 `ConditioningBankLatentCarrier` 契约；Relationship owner 仍只发布
+  `ConditioningBankReadout`，runtime 只做 scope adaptation 与 carrier 选择，
+  substrate 唯一拥有 hidden projection。
+- 新增独立 `relationship_conditioning_mode=text|residual`。默认 text；
+  `state-kv-bank-relationship-latent-pure` 显式关闭 Personal、prompt state 与
+  dynamic residual，只投递 Relationship residual。rollback = text /
+  Relationship SHADOW / DISABLED。
+- `relationship-conditioning-residual.v2` 使用 neutral-centered signed readout、
+  L2-normalized fixed basis 与 `0.12 × confidence × freshness` 硬界；
+  generation applied attestation 和 lineage projector version 同步发布。
+- 两轮 24-turn text-vs-latent pilot 均通过 source fingerprint、applied 与 prompt
+  identity 门，但 blind match 仍为 chance。固定 basis 不晋升；下一包冻结为
+  model-derived Relationship projector / Prefix-KV artifact，不扩同构数据。
+
+### 包 R4：Relationship model-derived residual projector
+- 冻结 `relationship-conditioning-projector.v1`：纯浮点 basis、精确
+  `vector_labels`、model / hidden / hook-layer 兼容字段、逐层 gain、source
+  fingerprint 和 canonical artifact id；加载不修改冻结基底。
+- `scripts/bake_relationship_conditioning_projector.py` 从 56 条正/负 anchor
+  捕获冻结 Qwen2.5-0.5B 中层残差，artifact id
+  `8b8adb2694f51533d2c2a8a3ec13d12090a57dbe014df270271f60309b8d9333`。
+  runtime 发布 artifact-derived carrier / lineage version，并将 Relationship
+  delta 与 Personal layer gain 隔离。
+- 同一 24-turn matched pilot 的 source / applied / prompt identity 门全部通过，
+  但 none / text / learned residual blind match 仍均为 `0.50`。线性 residual
+  路径退出，不提高 scale、不扩同构样本；下一包冻结为专属 Relationship
+  Prefix-KV artifact。
 
 ## 阶段二：P5-d（证据门控，三包）
 

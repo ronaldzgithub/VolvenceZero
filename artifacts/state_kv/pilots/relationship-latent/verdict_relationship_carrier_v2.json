@@ -1,0 +1,396 @@
+{
+  "generation": {
+    "max_new_tokens": 16,
+    "temperature": 0.0
+  },
+  "judge": {
+    "model_id": "BAAI/bge-m3",
+    "schema_version": "state-kv-substrate-fingerprint.v1",
+    "weight_file_count": 1,
+    "weight_files": [
+      "pytorch_model.bin"
+    ],
+    "weights_root": "/Users/mengfu/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181",
+    "weights_sha256": "2b47c3d6e83e4a92b84488439295243486657049346fa3bd5bb18e40314bb10c"
+  },
+  "latent_attestation": {
+    "applied_count": 8,
+    "passed": true,
+    "total": 8
+  },
+  "latent_prompt_identity": {
+    "identical_probe_count": 4,
+    "passed": true,
+    "probe_count": 4
+  },
+  "matched_source_fingerprints": {
+    "count": 8,
+    "passed": true,
+    "total": 8
+  },
+  "persona_output_divergence": {
+    "state-kv-bank-none": {
+      "divergent_probes": 2,
+      "probe_count": 2,
+      "rate": 1.0
+    },
+    "state-kv-bank-relationship-latent-pure": {
+      "divergent_probes": 2,
+      "probe_count": 2,
+      "rate": 1.0
+    },
+    "state-kv-bank-relationship-only": {
+      "divergent_probes": 2,
+      "probe_count": 2,
+      "rate": 1.0
+    }
+  },
+  "profiles": [
+    "state-kv-bank-none",
+    "state-kv-bank-relationship-only",
+    "state-kv-bank-relationship-latent-pure"
+  ],
+  "projector_version": "relationship-conditioning-residual.v2",
+  "relationship_match": {
+    "state-kv-bank-none": {
+      "accuracy": 0.5,
+      "correct": 2,
+      "total": 4
+    },
+    "state-kv-bank-relationship-latent-pure": {
+      "accuracy": 0.5,
+      "correct": 2,
+      "total": 4
+    },
+    "state-kv-bank-relationship-only": {
+      "accuracy": 0.5,
+      "correct": 2,
+      "total": 4
+    }
+  },
+  "schema_version": "state-kv-relationship-carrier-pilot.v1",
+  "substrate": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "schema_version": "state-kv-substrate-fingerprint.v1",
+    "weight_file_count": 1,
+    "weight_files": [
+      "model.safetensors"
+    ],
+    "weights_root": "/Users/mengfu/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775",
+    "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
+  },
+  "turns": [
+    {
+      "input": "What should I protect before I act?",
+      "lineage_state_encoder_version": "",
+      "persona": "repair",
+      "probe": "g0",
+      "profile": "state-kv-bank-none",
+      "prompt_fingerprint": "a4e6c8405dc31709",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "",
+      "relationship_material": "",
+      "relationship_source_fingerprint": "",
+      "response": "Before acting, consider protecting yourself and others. It's important to take necessary precautions Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "How should we approach the next step?",
+      "lineage_state_encoder_version": "",
+      "persona": "repair",
+      "probe": "g1",
+      "profile": "state-kv-bank-none",
+      "prompt_fingerprint": "4920b92c743f0a4f",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "",
+      "relationship_material": "",
+      "relationship_source_fingerprint": "",
+      "response": "I understand that you're looking for guidance on how to proceed. To provide the Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "lineage_state_encoder_version": "",
+      "persona": "repair",
+      "probe": "n0",
+      "profile": "state-kv-bank-none",
+      "prompt_fingerprint": "3a19d194a9c177bd",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "",
+      "relationship_material": "",
+      "relationship_source_fingerprint": "",
+      "response": "A checksum changes because each byte in a data block is processed independently. When a Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "lineage_state_encoder_version": "",
+      "persona": "repair",
+      "probe": "n1",
+      "profile": "state-kv-bank-none",
+      "prompt_fingerprint": "17523c21b15d04e3",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "",
+      "relationship_material": "",
+      "relationship_source_fingerprint": "",
+      "response": "Breadth-first traversal explores all paths starting from the root node first, while Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What should I protect before I act?",
+      "lineage_state_encoder_version": "",
+      "persona": "steady",
+      "probe": "g0",
+      "profile": "state-kv-bank-none",
+      "prompt_fingerprint": "72ead36df150110f",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "",
+      "relationship_material": "",
+      "relationship_source_fingerprint": "",
+      "response": "Before acting, consider protecting yourself and others."
+    },
+    {
+      "input": "How should we approach the next step?",
+      "lineage_state_encoder_version": "",
+      "persona": "steady",
+      "probe": "g1",
+      "profile": "state-kv-bank-none",
+      "prompt_fingerprint": "199406859252e85a",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "",
+      "relationship_material": "",
+      "relationship_source_fingerprint": "",
+      "response": "How can we make the most of our time and resources to achieve the best results"
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "lineage_state_encoder_version": "",
+      "persona": "steady",
+      "probe": "n0",
+      "profile": "state-kv-bank-none",
+      "prompt_fingerprint": "a1f7cf0e8c5475f2",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "",
+      "relationship_material": "",
+      "relationship_source_fingerprint": "",
+      "response": "When one byte changes, the checksum recalculates because it relies on the sum"
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "lineage_state_encoder_version": "",
+      "persona": "steady",
+      "probe": "n1",
+      "profile": "state-kv-bank-none",
+      "prompt_fingerprint": "20a0771a4d0f4f85",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "",
+      "relationship_material": "",
+      "relationship_source_fingerprint": "",
+      "response": "Breadth-first traversal explores all options at once, while depth-first traversal examines"
+    },
+    {
+      "input": "What should I protect before I act?",
+      "lineage_state_encoder_version": "",
+      "persona": "repair",
+      "probe": "g0",
+      "profile": "state-kv-bank-relationship-only",
+      "prompt_fingerprint": "8c874307a9789e46",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "3c8c0df24df24569",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40).",
+      "relationship_source_fingerprint": "ce10c862fc40bebd8cf3408cd5a3a196cca63a75a16927aed15a8f8006c90e73",
+      "response": "I understand that you're concerned about protecting yourself before taking action. To help you Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "How should we approach the next step?",
+      "lineage_state_encoder_version": "",
+      "persona": "repair",
+      "probe": "g1",
+      "profile": "state-kv-bank-relationship-only",
+      "prompt_fingerprint": "53d053ba276d1437",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "17e19f01cf040803",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40).",
+      "relationship_source_fingerprint": "242ff9a0e9d156dbf53e9b0553fa13f79edb47f75e994d3d0a1b68664a50c442",
+      "response": "I understand how important it is to ensure that we're approaching the next step with Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "lineage_state_encoder_version": "",
+      "persona": "repair",
+      "probe": "n0",
+      "profile": "state-kv-bank-relationship-only",
+      "prompt_fingerprint": "c3d9e79aa8637e3c",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "403aeef568588ddd",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40).",
+      "relationship_source_fingerprint": "3ec605c23bb046cd10b2d368d141b1f71e2e01373f09fee697c46731c8a2a79a",
+      "response": "A checksum changes because each byte in a data block is checked against a fixed value Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "lineage_state_encoder_version": "",
+      "persona": "repair",
+      "probe": "n1",
+      "profile": "state-kv-bank-relationship-only",
+      "prompt_fingerprint": "c18d0345b342cad4",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "d651309fa9c40d94",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40).",
+      "relationship_source_fingerprint": "f1c4e0fc5c07ff0b0df5fbd041ee5d479e7d68b2c97c3257a8065e0ab8f5cc67",
+      "response": "Depth-first traversal can help you explore different paths and understand the complexity better, while Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What should I protect before I act?",
+      "lineage_state_encoder_version": "",
+      "persona": "steady",
+      "probe": "g0",
+      "profile": "state-kv-bank-relationship-only",
+      "prompt_fingerprint": "88e5bdd32e0c33e9",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "908206fc17b7e738",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60).",
+      "relationship_source_fingerprint": "5358115472fc9be5a5605f5d362af9e78ce044a410460fc35c6f60e61e0c8083",
+      "response": "To protect yourself before acting, consider taking necessary precautions such as securing your location,"
+    },
+    {
+      "input": "How should we approach the next step?",
+      "lineage_state_encoder_version": "",
+      "persona": "steady",
+      "probe": "g1",
+      "profile": "state-kv-bank-relationship-only",
+      "prompt_fingerprint": "0bdd86db3ee6ca4b",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "44acb821a1dab75d",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60).",
+      "relationship_source_fingerprint": "6b631773ff395090589f2b50cc6f8f9fcdeecdda6af6951864144a755dbecab0",
+      "response": "How can we move forward from where we are now?"
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "lineage_state_encoder_version": "",
+      "persona": "steady",
+      "probe": "n0",
+      "profile": "state-kv-bank-relationship-only",
+      "prompt_fingerprint": "b81e81b096f13d61",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "1fa14d75b18b57cc",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60).",
+      "relationship_source_fingerprint": "3d62b1aab8fbd64e1771c387669c6a742e1b18ba74f9fdeb2ddf50b834bbbbd9",
+      "response": "A checksum changes because each byte has a unique value, and changing one byte can"
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "lineage_state_encoder_version": "",
+      "persona": "steady",
+      "probe": "n1",
+      "profile": "state-kv-bank-relationship-only",
+      "prompt_fingerprint": "c17768a8ef7367b7",
+      "relationship_carrier_tag": "",
+      "relationship_lineage_fingerprint": "5ae101d5cd2f3237",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60).",
+      "relationship_source_fingerprint": "853e91221a436ec8ba85387d3448a466ad5636f9c7a62d467b03a18a0b390e18",
+      "response": "Breadth-first traversal allows exploring all paths starting from the initial point, while"
+    },
+    {
+      "input": "What should I protect before I act?",
+      "lineage_state_encoder_version": "relationship-conditioning-residual.v2",
+      "persona": "repair",
+      "probe": "g0",
+      "profile": "state-kv-bank-relationship-latent-pure",
+      "prompt_fingerprint": "6966c052fe10b7c3",
+      "relationship_carrier_tag": "relationship_conditioning=residual:relationship-conditioning-residual.v2:ce10c862fc40",
+      "relationship_lineage_fingerprint": "3c8c0df24df24569",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40).",
+      "relationship_source_fingerprint": "ce10c862fc40bebd8cf3408cd5a3a196cca63a75a16927aed15a8f8006c90e73",
+      "response": "Before acting, consider protecting yourself from potential harm or damage. This could include things Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "How should we approach the next step?",
+      "lineage_state_encoder_version": "relationship-conditioning-residual.v2",
+      "persona": "repair",
+      "probe": "g1",
+      "profile": "state-kv-bank-relationship-latent-pure",
+      "prompt_fingerprint": "3906c6d4ba289007",
+      "relationship_carrier_tag": "relationship_conditioning=residual:relationship-conditioning-residual.v2:242ff9a0e9d1",
+      "relationship_lineage_fingerprint": "17e19f01cf040803",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40).",
+      "relationship_source_fingerprint": "242ff9a0e9d156dbf53e9b0553fa13f79edb47f75e994d3d0a1b68664a50c442",
+      "response": "We can start by reviewing the previous steps and ensuring that all necessary documents and materials Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "lineage_state_encoder_version": "relationship-conditioning-residual.v2",
+      "persona": "repair",
+      "probe": "n0",
+      "profile": "state-kv-bank-relationship-latent-pure",
+      "prompt_fingerprint": "d5997a20caf59a10",
+      "relationship_carrier_tag": "relationship_conditioning=residual:relationship-conditioning-residual.v2:3ec605c23bb0",
+      "relationship_lineage_fingerprint": "403aeef568588ddd",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40).",
+      "relationship_source_fingerprint": "3ec605c23bb046cd10b2d368d141b1f71e2e01373f09fee697c46731c8a2a79a",
+      "response": "A checksum is a mathematical function used to verify the integrity of data. When one Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "lineage_state_encoder_version": "relationship-conditioning-residual.v2",
+      "persona": "repair",
+      "probe": "n1",
+      "profile": "state-kv-bank-relationship-latent-pure",
+      "prompt_fingerprint": "bc06378bbb3bf601",
+      "relationship_carrier_tag": "relationship_conditioning=residual:relationship-conditioning-residual.v2:f1c4e0fc5c07",
+      "relationship_lineage_fingerprint": "d651309fa9c40d94",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.65):\n- Trust: current trust moderate (0.47); accumulated trust low (0.16); continuity high (0.75); trust recovery low (0.24).\n- Strain: repair pressure moderate (0.50); emotional load moderate (0.54); stabilization need moderate (0.56); unresolved-tension load moderate (0.50).\n- Trajectory: attunement direction moderate (0.36); relationship continuity moderate (0.48); repair progress low (0.00); relationship depth low (0.00).\n- Consent: compliance moderate (0.56); consent clarity moderate (0.40).",
+      "relationship_source_fingerprint": "f1c4e0fc5c07ff0b0df5fbd041ee5d479e7d68b2c97c3257a8065e0ab8f5cc67",
+      "response": "Depth-first search (DFS) explores as far as possible along each branch before back Local rules and procedures can vary by jurisdiction. I may need one missing local detail before going further. If this has real-world consequences, appropriate professional follow-up would be the safest next step."
+    },
+    {
+      "input": "What should I protect before I act?",
+      "lineage_state_encoder_version": "relationship-conditioning-residual.v2",
+      "persona": "steady",
+      "probe": "g0",
+      "profile": "state-kv-bank-relationship-latent-pure",
+      "prompt_fingerprint": "6966c052fe10b7c3",
+      "relationship_carrier_tag": "relationship_conditioning=residual:relationship-conditioning-residual.v2:5358115472fc",
+      "relationship_lineage_fingerprint": "908206fc17b7e738",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60).",
+      "relationship_source_fingerprint": "5358115472fc9be5a5605f5d362af9e78ce044a410460fc35c6f60e61e0c8083",
+      "response": "Before acting, consider protecting yourself from potential harm or damage. This could include things"
+    },
+    {
+      "input": "How should we approach the next step?",
+      "lineage_state_encoder_version": "relationship-conditioning-residual.v2",
+      "persona": "steady",
+      "probe": "g1",
+      "profile": "state-kv-bank-relationship-latent-pure",
+      "prompt_fingerprint": "3906c6d4ba289007",
+      "relationship_carrier_tag": "relationship_conditioning=residual:relationship-conditioning-residual.v2:6b631773ff39",
+      "relationship_lineage_fingerprint": "44acb821a1dab75d",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60).",
+      "relationship_source_fingerprint": "6b631773ff395090589f2b50cc6f8f9fcdeecdda6af6951864144a755dbecab0",
+      "response": "We can start by reviewing the previous steps and ensuring that all necessary documents and materials"
+    },
+    {
+      "input": "Explain why a checksum changes when one byte changes.",
+      "lineage_state_encoder_version": "relationship-conditioning-residual.v2",
+      "persona": "steady",
+      "probe": "n0",
+      "profile": "state-kv-bank-relationship-latent-pure",
+      "prompt_fingerprint": "d5997a20caf59a10",
+      "relationship_carrier_tag": "relationship_conditioning=residual:relationship-conditioning-residual.v2:3d62b1aab8fb",
+      "relationship_lineage_fingerprint": "1fa14d75b18b57cc",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60).",
+      "relationship_source_fingerprint": "3d62b1aab8fbd64e1771c387669c6a742e1b18ba74f9fdeb2ddf50b834bbbbd9",
+      "response": "When a byte changes, the checksum value can change too because the checksum function relies"
+    },
+    {
+      "input": "Compare breadth-first and depth-first traversal.",
+      "lineage_state_encoder_version": "relationship-conditioning-residual.v2",
+      "persona": "steady",
+      "probe": "n1",
+      "profile": "state-kv-bank-relationship-latent-pure",
+      "prompt_fingerprint": "bc06378bbb3bf601",
+      "relationship_carrier_tag": "relationship_conditioning=residual:relationship-conditioning-residual.v2:853e91221a43",
+      "relationship_lineage_fingerprint": "5ae101d5cd2f3237",
+      "relationship_material": "Current dyad relationship estimate (typed readout only, confidence 0.73):\n- Trust: current trust moderate (0.65); accumulated trust moderate (0.35); continuity high (0.75); trust recovery moderate (0.56).\n- Strain: repair pressure low (0.00); emotional load low (0.20); stabilization need low (0.18); unresolved-tension load low (0.00).\n- Trajectory: attunement direction moderate (0.50); relationship continuity high (0.68); repair progress high (1.00); relationship depth low (0.00).\n- Consent: compliance high (0.76); consent clarity moderate (0.60).",
+      "relationship_source_fingerprint": "853e91221a436ec8ba85387d3448a466ad5636f9c7a62d467b03a18a0b390e18",
+      "response": "Depth-first search (DFS) explores as far as possible along each branch before back"
+    }
+  ]
+}

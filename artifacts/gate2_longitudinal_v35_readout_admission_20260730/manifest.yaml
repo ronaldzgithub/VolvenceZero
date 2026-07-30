@@ -1,0 +1,44 @@
+{
+  "contract": {
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "min_consumer_session_count": 2,
+    "min_settled_transition_count": 500,
+    "selector_action_count": 22,
+    "selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+    "selector_input_dim": 8076
+  },
+  "git_commit": "140e4a309b0c0f7e20804238fcd398f217ccbb67",
+  "git_status": "M \".cursor/plans/ecology_v31_medium\\351\\252\\214\\350\\257\\201\\344\\270\\216\\345\\200\\272\\345\\212\\241_c4a91e27.plan.md\"\n M \".cursor/plans/state_kv_p4-p6_\\346\\224\\266\\345\\256\\230_be0198e3.plan.md\"\n M artifacts/state_kv/due_diligence/freeze_manifest.json\n M artifacts/state_kv/due_diligence/verdict_due_diligence.json\n M artifacts/state_kv/verdict_bank_gain.json\n M docs/DATA_CONTRACT.md\n M docs/external/companion-bench-judge-rotation-log.md\n M docs/specs/cognitive-regime.md\n M docs/specs/continuum-memory.md\n M docs/specs/credit-and-self-modification.md\n M docs/specs/digital-ant-embodiment.md\n M docs/specs/evidence_program.md\n M docs/specs/personal-conditioning.md\n M docs/specs/prediction-error-loop.md\n M docs/specs/temporal-abstraction.md\n M packages/lifeform-service/src/lifeform_service/substrate_registry.py\n M packages/vz-cognition/src/volvence_zero/credit/gate.py\n M packages/vz-cognition/src/volvence_zero/prediction/error.py\n M packages/vz-cognition/src/volvence_zero/regime/identity.py\n M packages/vz-cognition/src/volvence_zero/regime/score_learner.py\n M packages/vz-cognition/src/volvence_zero/relationship_conditioning.py\n M packages/vz-contracts/src/volvence_zero/conditioning_bank_contracts.py\n M packages/vz-embodiment-ant/src/volvence_ant/evidence/runtime_profile.py\n M packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_curriculum.py\n M packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_mechanism_audit.py\n M packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_probe.py\n M packages/vz-embodiment-ant/tests/test_ecology_action_chain_audit.py\n M packages/vz-embodiment-ant/tests/test_ecology_frozen_evaluation.py\n M packages/vz-embodiment-ant/tests/test_ecology_mechanism_audit.py\n M packages/vz-embodiment-ant/tests/test_runtime_profile.py\n M packages/vz-memory/src/volvence_zero/memory/store.py\n M packages/vz-runtime/src/volvence_zero/agent/profile_registry.py\n M packages/vz-runtime/src/volvence_zero/agent/response.py\n M packages/vz-runtime/src/volvence_zero/agent/session.py\n M packages/vz-runtime/src/volvence_zero/agent/session_lifecycle.py\n M packages/vz-runtime/src/volvence_zero/agent/session_observation.py\n M packages/vz-runtime/src/volvence_zero/agent/shared_settled_trace.py\n M packages/vz-runtime/src/volvence_zero/integration/final_wiring.py\n M packages/vz-runtime/src/volvence_zero/state_kv_bank_gain_gate.py\n M packages/vz-runtime/tests/test_multi_bank_conditioning.py\n M packages/vz-runtime/tests/test_state_kv_bank_gain_gate.py\n M packages/vz-substrate/src/volvence_zero/substrate/__init__.py\n M packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py\n M packages/vz-substrate/src/volvence_zero/substrate/residual_contracts.py\n M packages/vz-substrate/src/volvence_zero/substrate/residual_interfaces.py\n M packages/vz-substrate/src/volvence_zero/substrate/residual_synthetic.py\n M packages/vz-substrate/src/volvence_zero/substrate/vllm_runtime.py\n M packages/vz-substrate/tests/test_vllm_runtime.py\n M packages/vz-temporal/src/volvence_zero/joint_loop/runtime.py\n M packages/vz-temporal/src/volvence_zero/joint_loop/scheduling.py\n M packages/vz-temporal/src/volvence_zero/temporal/backend_ndim_runtime.py\n M packages/vz-temporal/src/volvence_zero/temporal/ssl.py\n M packages/vz-temporal/src/volvence_zero/temporal/torch_store_ssl.py\n M packages/vz-temporal/tests/test_temporal_contracts.py\n M research/ant/06_ecology_implementation_status.md\n M scripts/run_state_kv_bank_gain_gate.py\n M start_browser_chat_qwen.ps1\n M start_browser_chat_qwen.sh\n M start_browser_chat_zhang_wuji.ps1\n M tests/test_runtime_transition_replay.py\n?? .cursor/plans/gate-2-longitudinal-v35-readout-admission_20260730.plan.md\n?? artifacts/state_kv/observations_bank_gain.json\n?? artifacts/state_kv/pilots/\n?? artifacts/state_kv/projectors/qwen2.5-0.5b-relationship-contrastive.json\n?? artifacts/state_kv/projectors/qwen2.5-0.5b-relationship-contrastive.manifest.json\n?? packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_same_physics_baseline.py\n?? packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_same_physics_run.py\n?? packages/vz-embodiment-ant/tests/test_ecology_same_physics_baseline.py\n?? packages/vz-runtime/src/volvence_zero/agent/gate2_longitudinal_readout.py\n?? packages/vz-runtime/tests/test_gate2_longitudinal_readout.py\n?? packages/vz-substrate/src/volvence_zero/substrate/conditioning_bank_projector.py\n?? packages/vz-substrate/src/volvence_zero/substrate/prompts/relationship_conditioning_projector_anchors.json\n?? packages/vz-substrate/tests/test_conditioning_bank_projector.py\n?? research/ant/figures/digital_ant_checkpoint_theater.html\n?? research/ant/results/ecology_recovery/p0/20260729T164048Z-seed0-e7ba7360/\n?? research/ant/results/ecology_recovery/p0/20260730T040526Z-seed0-e7ba7360/\n?? research/ant/results/ecology_recovery/p0/20260730T043650Z-seed0-e7ba7360/\n?? research/ant/results/ecology_recovery/p0/20260730T052118Z-seed0-e7ba7360/\n?? research/ant/results/ecology_recovery/p0/20260730T054631Z-seed0-e7ba7360/\n?? research/ant/results/ecology_recovery/p0/20260730T064050Z-seed0-e7ba7360/\n?? research/ant/results/ecology_recovery/p0/20260730T072554Z-seed0-e7ba7360/\n?? research/ant/results/ecology_recovery/same_physics_baseline/\n?? scripts/bake_relationship_conditioning_projector.py\n?? scripts/preregister_ant_ecology_same_physics_baseline.py\n?? scripts/run_ant_checkpoint_theater.py\n?? scripts/run_ant_ecology_same_physics_station1.py\n?? scripts/run_gate2_longitudinal_readout_admission.py\n?? scripts/run_state_kv_relationship_carrier_pilot.py\n?? start_browser_chat_zhang_wuji.sh",
+  "preregistered_plan": ".cursor/plans/gate-2-longitudinal-v35-readout-admission_20260730.plan.md",
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "run_kind": "read-only-admission",
+  "schema_version": "gate2-longitudinal-open-loop-readout-admission.v1",
+  "selector_artifact_path": "artifacts/eta_gate2_v36_recent_k1_development_20260730/selector_artifact.json",
+  "selector_lineage": {
+    "artifact_sha256": "929514071865d4c44020eaadce5940a2da95e4931215dfdb7d6d3d313e819905",
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "fit_split": "train",
+    "run_id": "eta-gate2-v36-recent-k1-diagnostic-ci-smoke:run-01",
+    "run_seed": 0,
+    "selector_action_count": 22,
+    "selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+    "selector_input_dim": 8076,
+    "selector_model_kind": "linear-kernel-ridge-v1",
+    "selector_schema_version": "residual-action-selector.v1",
+    "wrapper_schema_version": "eta-gate2-selector-artifact.v1"
+  },
+  "source_root": "artifacts/gate11_longitudinal_source_v2_20260730"
+}

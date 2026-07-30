@@ -715,18 +715,20 @@ class _ProbeSideMeasurement:
 
 def _pin_probe_pose(
     *,
-    world: AntWorld,
+    session: AntSession,
     kind: EcologyProbeKind,
     side_index: int,
 ) -> None:
-    """Re-assert the declared paired stimulus geometry for one tick.
+    """Re-assert the declared paired sensorimotor state for one tick.
 
-    Every tick of a probe -- exercise ticks included -- starts from the exact
-    same body pose, so the only thing that ever differs between the two sides
-    is the object side, and the only thing that differs between two backend
-    lanes is the backend.
+    Every tick of a probe -- exercise ticks included -- starts from the same
+    physical pose *and* navigator estimate.  Pinning only ``AntWorld`` leaves
+    ``h_hat`` at the seed-dependent random spawn heading, so repeated probes
+    silently compare different owner inputs even though the body coordinates
+    look identical.
     """
 
+    world = session.world
     if kind is EcologyProbeKind.HOME:
         world.set_body_pose(
             x=2.0,
@@ -734,8 +736,20 @@ def _pin_probe_pose(
             heading=math.pi / 2.0,
             carrying_food=bool(side_index),
         )
+        session.navigator.sync_to(
+            x=2.0,
+            y=0.0,
+            heading=math.pi / 2.0,
+            nest=world.nest,
+        )
         return
     world.set_body_pose(x=0.0, y=0.0, heading=0.0)
+    session.navigator.sync_to(
+        x=0.0,
+        y=0.0,
+        heading=0.0,
+        nest=world.nest,
+    )
 
 
 async def run_ecology_action_probes(
@@ -751,11 +765,12 @@ async def run_ecology_action_probes(
     """Run the deterministic paired probes for one checkpoint.
 
     ``exercise_steps`` prepends that many optimization-carrying ticks at the
-    identical pinned pose before the measured tick.  It exists for the backend
-    parity lanes: ``temporal_ssl_backend`` / ``internal_rl_backend`` only do
-    work inside an optimization cycle, so a probe that measures the very first
-    tick can never observe them and every lane looks bit-identical to the pure
-    reference -- an artefact of the probe, not evidence about the backends.
+    identical pinned pose before the measured tick. It exists for backend
+    coverage: ``temporal_ssl_backend`` / ``internal_rl_backend`` only do work
+    inside an optimization cycle. After coverage is captured, checkpointed
+    parity lanes restore the same owner state before the measured forward;
+    otherwise the probe would compare different learned parameters and call
+    optimizer algorithm drift a runtime-forward mismatch.
 
     It defaults to ``0`` so the action-chain gates (sensitivity, retention,
     sign consistency, lateral bias) keep measuring the restored checkpoint
@@ -794,22 +809,53 @@ async def run_ecology_action_probes(
             )
             if checkpoint is not None:
                 session.restore_learning_checkpoint(checkpoint)
-            if kind is EcologyProbeKind.HOME:
-                for _ in range(5):
-                    session.navigator.update(
-                        turn_command=0.0,
-                        step_command=0.4,
-                        true_heading=0.0,
-                    )
-                session.navigator.update(
-                    turn_command=math.pi / 2.0,
-                    step_command=0.0,
-                    true_heading=math.pi / 2.0,
-                )
+            coverage_execution: EcologyBackendExecutionEvidence | None = None
             for _ in range(exercise_steps):
-                _pin_probe_pose(world=world, kind=kind, side_index=side_index)
+                _pin_probe_pose(
+                    session=session,
+                    kind=kind,
+                    side_index=side_index,
+                )
                 await session.step()
-            _pin_probe_pose(world=world, kind=kind, side_index=side_index)
+            if (
+                checkpoint is not None
+                and backend_lane is not None
+                and exercise_steps > 0
+            ):
+                coverage_execution = _backend_execution_evidence(
+                    session,
+                    exercise_steps=exercise_steps,
+                )
+                # Learning checkpoints intentionally contain adaptive owner
+                # state, not serving recurrent/session context. Measure the
+                # same-checkpoint forward in a fresh session so exercise-local
+                # state cannot masquerade as backend numerical drift.
+                world = AntWorld(
+                    config=ecology_probe_world_config(seed=seed),
+                    world_objects=(_paired_objects(kind)[side_index],),
+                )
+                session = AntSession(
+                    world,
+                    config=AntSessionConfig(
+                        temporal_latent_dim=temporal_latent_dim,
+                        session_id=(
+                            f"ecology-probe:{kind.value}:side:{side_index}:"
+                            f"seed:{seed}:measured"
+                        ),
+                        seed=seed,
+                        heading_noise=0.0,
+                        step_noise=0.0,
+                        rollout_config=rollout_config,
+                        objective=AntObjectiveKind.ECOLOGY,
+                        sense_schema=AntSenseSchema.ECOLOGY_V2,
+                    ),
+                )
+                session.restore_learning_checkpoint(checkpoint)
+            _pin_probe_pose(
+                session=session,
+                kind=kind,
+                side_index=side_index,
+            )
             observation = world.observe()
             record = await session.step()
             actuator = session.actuator
@@ -829,9 +875,12 @@ async def run_ecology_action_probes(
                     sense=record.sense_activation,
                     posterior_hidden=runtime_state.posterior_hidden_state,
                     lane_wiring=_observed_lane_wiring(record.backend_wiring),
-                    backend_execution=_backend_execution_evidence(
-                        session,
-                        exercise_steps=exercise_steps,
+                    backend_execution=(
+                        coverage_execution
+                        or _backend_execution_evidence(
+                            session,
+                            exercise_steps=exercise_steps,
+                        )
                     ),
                 )
             )

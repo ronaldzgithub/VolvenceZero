@@ -1,6 +1,6 @@
 # Ecology P0/P1 实施状态
 
-> 更新时间：2026-07-25。P0 已完成；P1 runner、诊断矩阵与 home-action probe 已实现；P2 因 P1 尚未 PASS 而未启动。
+> 更新时间：2026-07-30。P0 机制审计仍为 BLOCK；P1 runner、诊断矩阵与 home-action probe 已实现；P2 因 P1 尚未 PASS 而未启动。
 
 ## P0 正式结果
 
@@ -166,9 +166,54 @@ v30 MPS seed-0 完成 `55/55`（累计 `126 pickup / 47 delivery`），但冻结
 
 本早停还暴露一条**基线可比性测量债**：v24 之后 curriculum v9 已改变 near 几何，本文既有 v26/v27 同几何首 15 局基线分别约为 `3/0、14/4、1/1`；v31 的 `6/1、18/3、2/0` 相对该口径没有 v24 对表所暗示的数量级崩塌。因此本次证据只支持“违反预注册 v24 80% 门，必须早停”，**不支持**“typed milestone 导致 near 回归”。门槛在看数前已冻结，不能事后改用 v26/v27 继续站2；后续若重开 v31，必须先单独预注册物理课程一致的 baseline packet，再从空 journal 运行。
 
-验收期间另一个外部 writer 在早停判词后启动 `--max-new-work-items=10`，把同一双槽 journal 推进到 ep22；发现时已普通 SIGTERM 停止，已提交 ep20–21 forced_approach 为 `0/0、1/0`，未提交局丢弃。双槽已覆盖原 20-episode archive，故当前 journal **不得冒充站1 checkpoint**；上述 D6 artifact 仍以 `a5a944...` 绑定原站1 checkpoint，food probe 也记录 `completed_training_episodes=20`。22-episode channel probe 只能作受污染补充读数（food/home 均 `0/4`），不得进入站1硬判词或 medium 结论。
+验收期间并行会话先后启动两个旧版 writer（`--max-new-work-items=10` 与 `8`），并把计划文件的预注册 v24 80% 回归门改写成 v30 观察项后继续站2；发现时均以普通 SIGTERM 停止。它们已把同一双槽 journal 推进到 ep23，已提交 ep20–22 forced_approach 为 `0/0、1/0、1/1`，未提交局丢弃。双槽已覆盖原 20-episode archive，故当前 journal **不得冒充站1 checkpoint**；上述 D6 artifact 仍以 `a5a944...` 绑定原站1 checkpoint，food probe也记录 `completed_training_episodes=20`。22-episode channel probe 只能作受污染补充读数（food/home 均 `0/4`），不得进入站1硬判词或 medium 结论。计划 todo 已恢复为 EARLY STOP，后续站标记为“按预注册早停不执行”。
 
 债务处置：D1 因站1早停未进入 medium，保持 OPEN；D2 的终局 authority/baseline 比未测，保持 OPEN，22-episode 污染读数不替代正式包；D3 far 未运行，保持 OPEN 且继续单独立项；D4 CLOSED（8/8、latency=1、persistence≥15）；D5 保持 v31 后的 matched PE-on/off P2，且两臂 milestone 必须 ACTIVE；D6 CLOSED；D7 原“按 v24 episode 位次同位”被实测证明不足以保证物理可比，升级为 baseline packet 债；D8 本次全程 CPU float64，MPS 校准仍单独立项；D9 既有失败项不混修；D10 detach/原子 journal 工作正常，并已追加 progress-dir 非阻塞进程级 `flock`：第二个 CLI writer 在消耗预算前 fail loudly、报告持锁 PID，进程退出由内核自动释放，不留 stale sentinel。medium 是否闭环的终局结论是 **未验证 / BLOCK**，不是 FAIL：站2在预注册早停下没有获得合法执行权限。
+
+站1后按工具箱重跑完整 P0 mechanism audit 时又发现 provenance 前置债：默认 training episode 1 的 seed `101` 与 literal frozen held-out repro seed `101` 重叠，且旧 driver 在完成全部训练后才调用 schedule owner，白耗预算才 fail loudly。修复把 P0 training 移到唯一 owner 的 `config.seed+1_000_003` 高位命名空间，并把同一 `ecology_mechanism_audit_seed_schedule` preflight 前移到训练前；validation `config.seed+43`、held-out `101/307` 保持冻结。修后正式 CPU/pure audit bundle 已产出于 `research/ant/results/ecology_recovery/p0/20260729T164048Z-seed0-e7ba7360/`，provenance 明确 dirty、`externally_retainable=false`，verdict 仍为诚实 **BLOCK**：action final sensitivity 仅 `2/4` body，body0/1 的 food/heat turn delta 约 `1e-16`；body0/1 action-head update step 仍为 0；torch SSL 因 trace 少于 2 step 没有执行；pure/runtime/torch parity 超过 `1e-3`；frozen evaluation 在 tick 0 就观察到 memory/credit/dual-track/prediction/reflection/regime owner fingerprint 变化。positive/negative temporal control、environment-milestone closure、segment-credit parity 则通过。该 bundle 支持“时间边界机制生效但 action/optimizer/freeze 主链未闭环”的归因，不授权站2。
+
+**action-head 更新可达性收敛包（2026-07-30）**：逐 body 首局时序证明 Digital Ant evidence profile 的真实 batch target 为 4，而非通用默认 1；最短 P0 episode 只有 12 turns、capture/bootstrap 后 10 个可用 settlement，旧 16-step segment 上限使 body0 完全不闭段，body1/3 只留下 2-transition 短段，随后被跨 episode `include_runtime_replay=False` 导出按契约清空。通用 temporal 调度同时修正 target=1 的 ready ACTIVE replay：已达到 target 的 settled batch 本身现在会在下一 scheduled step 触发 full cycle，不再等待无关 PE/RL cadence。Digital Ant profile 的 bounded horizon 收敛为 7（仍大于 4-transition batch，并保留一拍 flush 窗口）；4/5/6-step 受控对照未改善四体最终 sensitivity，4-step 还命中既有困难布局 pickup 回退反证，均未采用。
+
+同配置最终 P0 bundle 为 `research/ant/results/ecology_recovery/p0/20260730T043650Z-seed0-e7ba7360/`，仍因独立债务诚实 **BLOCK**，但最早 optimizer 断点已关闭：四体 action-head update step 从 `(0,0,3,3)` 变为 `(3,2,5,5)`，`action_head_update_applied` 与 `action_chain_no_rollback` 均转 PASS，final sensitivity 从 `2/4` 提升为 `3/4`。残余 action 断点是 body0 food/heat delta 仅 `4.81e-7 / 1.47e-5`，且三 seed posterior-noise repeat 下所有 body 的非零符号都未稳定，故 `action_chain_final_sensitivity` 与 `action_chain_sign_consistency` 保持 BLOCK。专属 head 步长 4×/8× 的只读试验虽放大 body1–3 residual，却没有修复 body0 food covariance 或跨 seed 符号，已拒绝；P1 已采用的 forced-approach 起点在 12-turn P0 预算内同样未改善 body0，未写入 P0 schedule。backend coverage/parity 与 frozen-evaluation 仍保持独立收敛包，不在本包混修；该结果不授权重开 v31 或启动站2。
+
+后续 action-chain 收敛包先关闭了 probe 测量漂移：旧 probe 只钉 world pose，navigator 仍保留 seed-dependent 随机出生航向，导致 sign repeat 实际比较不同的 `home_ego_*` 输入；现每个 probe tick 同时 `sync_to` 正式 pose/home vector，跨 seed sense 逐值相同。该修复证明旧符号翻转包含测量伪差，但没有掩盖真实幅度债。随后把 Ant profile 的 transition batch 从 4 收敛为 2——仍是 centered covariance 的最小非退化 batch，target 4 则把 body0/1 的有效更新推迟到冻结 P0 预算外；horizon 6 相对 7 无增益，保持 7。mirror-equivariant head 把 paired contrast 等分到两侧，sign gate 因此先要求原封不动的 paired `turn_delta >= 1e-4`，再以半阈值分类两侧方向，避免把同一个冻结 sensitivity floor 重复要求两次。最终正式 bundle `research/ant/results/ecology_recovery/p0/20260730T054631Z-seed0-e7ba7360/` manifest 已校验：update step 为 `(6,3,8,8)`，`action_chain_final_sensitivity` 达 `4/4`，三 repeat 的 8 个 food/heat 左右符号组合全部稳定，action-chain 五门全 PASS。总 verdict 仍为诚实 **BLOCK**，剩余断点仅 `backend_lane_coverage / backend_parity / frozen_evaluation`；它们继续作为独立收敛包，本结果仍不授权重开 v31 或启动站2。
+
+backend 收敛包随后关闭了两个真实性缺口。Ndim runtime 的短 CMS context 改为与 pure backend 相同的循环投影，不再用零填充制造伪差；session 保留最近两个真实 substrate snapshot，使 torch SSL 在 6-step exercise 中得到非 singleton trace。backend parity 改成“两阶段”：旧 session 只用于证明声明的 backend 确实执行和写回，随后 pure/runtime/torch 都从同一 checkpoint 恢复到 fresh world/session 再做同态前向，禁止把 exercise-local 参数或 recurrent state 混进 parity。正式中间 bundle `research/ant/results/ecology_recovery/p0/20260730T064050Z-seed0-e7ba7360/` 中三 lane coverage 全部通过：runtime 最大 code/turn delta 为 `1.11e-16 / 1.33e-16`；torch SSL `trained_steps=1`、`2192` 个参数变化并写回，Internal-RL `335` 个参数变化并写回，fresh-checkpoint parity 全部精确为 0。此时总 verdict 仅剩 `frozen_evaluation`。
+
+最后的 frozen-evaluation 收敛包把 `joint_learning_enabled=False` 从 joint-loop/temporal 硬边界传播到 memory、PredictionError、credit、regime，并关闭 session-held dual-track gate 与 reflection consolidation settlement。只读推理仍保留：memory retrieval 不触碰访问/recall 学习统计，PE 仍发布 next-turn context，credit/replay 仍结算 lineage，regime 仍可切换 active runtime identity；持久学习状态不写。Regime owner 同时发布排除 active identity、turn index 与持续轮数的学习指纹，修掉“合法推理态被误算为学习漂移”的契约缺口。最终默认预算 CPU P0 bundle 为 `research/ant/results/ecology_recovery/p0/20260730T072554Z-seed0-e7ba7360/`，artifact manifest 已独立校验，十四道 gate **全部 PASS**：两组 literal frozen repro（butter-only seed 307、heat-forced-escape seed 101）各运行 24 rounds，八个 gated owner 的 `unstable_owner_names=()`，policy/temporal-learning 全程稳定，replay settlement/lineage 均为 `1.0`、drop=`0`；backend coverage/parity 与 action/temporal/segment gates 同时保持 PASS。manifest 如实标记当前 dirty worktree，故 `externally_retainable=false`。这关闭的是站1后新增的 P0 工程债，不改变预注册站1早停：v31 medium 仍是**未验证 / BLOCK**，D1/D2/D3/D5 等能力债仍需新的、先注册物理同口径 baseline packet 与全新 journal 才能重开，现有证据不授权补跑站2。
+
+**同物理 baseline 预注册包（2026-07-30）**：新增
+`digital-ant-ecology-same-physics-baseline-preregistration.v1` 生成器与严格校验器。两臂从同一
+初始 checkpoint 分叉、绑定同一 curriculum v14 / P1 v31 / progress v28、seed-0、CPU float64 和
+55-episode schedule；自动逐字段审计 rollout config，唯一允许差异是
+`environment_milestone_temporal_switch=ACTIVE / DISABLED`。历史 v24、v30 与旧 v31 station1
+全部标记为 `EXCLUDED`，不再参与判定。阈值在新结果产生前冻结：站1 active 总 pickup ≥ control
+的 80%（delivery 只作稀疏观察）并通过既有 switch/persistence 门；站2 medium pickup ≥80% 且
+delivery 严格超过 control，同时 carrying alignment/U-turn 转正；任一失败即 BLOCK，不授权后继
+station。packet 绑定九个相关 owner/consumer/runner 源文件 SHA256，运行前若代码漂移必须拒绝而不是悄悄
+换实验。D7 从“待定义 baseline”推进为“预注册契约已实现，待正式 matched journal 执行”。
+
+最终可执行 prereg bundle 为隔离运行快照签发并回收到主仓库的
+`research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_prereg.seed0.20260730T095738Z.json`
+及其 manifest。`20260730T093928Z` 产生在可恢复 runner 纳入 source binding 前；`094415Z` 虽含
+runner，却漏绑实际修复的 `session_observation.py` consumer，在 control 提交 2 局后经复核主动
+SIGTERM 停止，其 journal 保留为作废审计；`095220Z` 已补齐完整 code-tree binding，但共享 worktree
+在前飞与 detached 启动之间又发生 Python 源码漂移，后台入口按契约在耗预算前拒绝，journal 停在
+control 1 局。三者均禁止执行。为消除并发 writer 对源码的影响，最终 `095738Z` 在
+`/private/tmp/volvence-ecology-baseline.t0n2fu` 隔离快照内签发并执行：快照固定 `packages/`、
+`scripts/` 与配置，Git objects 只读引用主仓库，不复制历史。该包同时显式绑定关键文件与整个
+`packages/**/*.py + scripts/**/*.py + **/pyproject.toml + uv.lock` 聚合哈希，运行入口会在消耗预算
+前重算并拒绝任何源码漂移。最终包校验值：完整 schedule
+`57f0e58def9c562efc29f43feb20e574ef9279129cc691d3ada8e0b7de5d9e45`、station1 prefix
+`12b27ab238dfb06980d8b6001c17bf1222155e5920cb4b373a02b8c6d292298f`、两臂 matched fields
+`49c9db71a4dfa6b5361c7cf06f72f3a7759c534eb51e1ee1cb8495aa40a899cf`；dirty worktree 使
+`externally_retainable=false`。正式新 journal 位于隔离快照的
+`research/ant/results/.partials/ecology_same_physics/seed0-20260730T095738Z`。前飞 control ep0 已
+原子提交且 checkpoint/report 均为 1；余下 station1 由 detached PID 58625
+继续执行。期间还关闭了一个真实 preflight blocker：Relationship conditioning consumer 未检查
+声明 wiring，错误地把 SHADOW readout 当 text 交付，与 personal residual 形成双 delivery；
+现只有 `relationship_conditioning=ACTIVE` 才能进入 carrier，37 条 baseline/runtime/multi-bank
+相关测试通过。
 
 实测 checkpoint collection 在 learned 5/50 时增长到 21 MB，owner 尺寸审计确认 95% 以上来自 `joint_loop.learning.memory_checkpoint`：每 body 约 5,115 条 explicit artifacts，且 entries/semantic-index 双份持久化。为避免 50-episode 长跑撞上单-agent 32 MB / collection 128 MB 上限，Memory owner 新增确定性 `enforce_artifact_capacity(8192)`：优先淘汰 transient/episodic、弱、旧条目，并同步清理 semantic index、pending queues 与 attribute readout；CMS learned state 完整保留。容量在每个 ecology training episode 的 checkpoint 边界执行并写入 progress compatibility/episode summary；旧 seed0 archive 已安全迁移。容量从第 9 个 episode 起持续触发，到 `learned 50/50` 时双槽 archive 仍均稳定在约 31 MB，证明长跑期间未继续无界增长。
 

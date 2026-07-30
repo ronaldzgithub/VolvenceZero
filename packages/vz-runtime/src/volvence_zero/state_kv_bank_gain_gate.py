@@ -7,7 +7,7 @@ import random
 from dataclasses import dataclass
 from typing import Sequence
 
-BANK_GAIN_SCHEMA_VERSION = "state-kv-bank-gain.v1"
+BANK_GAIN_SCHEMA_VERSION = "state-kv-bank-gain.v3"
 BANK_GAIN_PROFILE_LABELS = (
     "state-kv-bank-none",
     "state-kv-bank-personal-only",
@@ -78,6 +78,24 @@ class IrrelevantBankControlSample:
 
 
 @dataclass(frozen=True)
+class NonBankPersonaControlSample:
+    """Persona match result from the arm where no conditioning bank is live."""
+
+    probe_id: str
+    bank_type: str
+    match_correct: bool | None
+
+    def __post_init__(self) -> None:
+        if not self.probe_id:
+            raise ValueError("non-bank persona control requires probe_id")
+        if self.bank_type not in SUPPORTED_BANKS:
+            raise ValueError(
+                f"unsupported bank_type {self.bank_type!r}; "
+                f"expected one of {SUPPORTED_BANKS!r}"
+            )
+
+
+@dataclass(frozen=True)
 class BankGainClaim:
     claim: str
     state: str
@@ -95,6 +113,50 @@ class BankGainMetric:
 
 
 @dataclass(frozen=True)
+class NonBankPersonaMetric:
+    bank_type: str
+    sample_count: int
+    judged_sample_count: int
+    blind_match_accuracy: float | None
+    blind_match_accuracy_ci: tuple[float, float] | None
+
+
+@dataclass(frozen=True)
+class BankPersonaContrast:
+    """Pre-treatment proof that persona-specific bank state did not collapse."""
+
+    bank_type: str
+    probe_count: int
+    material_contrast_count: int
+    fingerprint_contrast_count: int
+
+    def __post_init__(self) -> None:
+        if self.bank_type not in SUPPORTED_BANKS:
+            raise ValueError(
+                f"unsupported bank_type {self.bank_type!r}; "
+                f"expected one of {SUPPORTED_BANKS!r}"
+            )
+        if self.probe_count < 0:
+            raise ValueError("bank persona contrast probe_count must be >= 0")
+        if not 0 <= self.material_contrast_count <= self.probe_count:
+            raise ValueError(
+                "material_contrast_count must be within [0, probe_count]"
+            )
+        if not 0 <= self.fingerprint_contrast_count <= self.probe_count:
+            raise ValueError(
+                "fingerprint_contrast_count must be within [0, probe_count]"
+            )
+
+    @property
+    def passed(self) -> bool:
+        return (
+            self.probe_count > 0
+            and self.material_contrast_count == self.probe_count
+            and self.fingerprint_contrast_count == self.probe_count
+        )
+
+
+@dataclass(frozen=True)
 class BankGainVerdict:
     artifact_id: str
     substrate_fingerprint: str
@@ -102,12 +164,15 @@ class BankGainVerdict:
     bootstrap_seed: int
     minimum_samples: int
     irrelevant_router_score_ceiling: float
+    non_bank_chance_accuracy: float
     judge_model_id: str
     judge_family: str
     judge_material_kind: str
     observation_artifact_sha256: str
     semantic_backend: str
+    persona_contrasts: tuple[BankPersonaContrast, ...]
     metrics: tuple[BankGainMetric, ...]
+    non_bank_persona_metrics: tuple[NonBankPersonaMetric, ...]
     claims: tuple[BankGainClaim, ...]
     bank_count_frozen: bool
     freeze_reason: str
@@ -134,6 +199,7 @@ class BankGainVerdict:
             "irrelevant_router_score_ceiling": (
                 self.irrelevant_router_score_ceiling
             ),
+            "non_bank_chance_accuracy": self.non_bank_chance_accuracy,
             "judge": {
                 "model_id": self.judge_model_id,
                 "family": self.judge_family,
@@ -141,6 +207,20 @@ class BankGainVerdict:
             },
             "observation_artifact_sha256": self.observation_artifact_sha256,
             "semantic_backend": self.semantic_backend,
+            "persona_contrasts": [
+                {
+                    "bank_type": contrast.bank_type,
+                    "probe_count": contrast.probe_count,
+                    "material_contrast_count": (
+                        contrast.material_contrast_count
+                    ),
+                    "fingerprint_contrast_count": (
+                        contrast.fingerprint_contrast_count
+                    ),
+                    "passed": contrast.passed,
+                }
+                for contrast in self.persona_contrasts
+            ],
             "metrics": [
                 {
                     "bank_type": metric.bank_type,
@@ -155,6 +235,20 @@ class BankGainVerdict:
                     ),
                 }
                 for metric in self.metrics
+            ],
+            "non_bank_persona_metrics": [
+                {
+                    "bank_type": metric.bank_type,
+                    "sample_count": metric.sample_count,
+                    "judged_sample_count": metric.judged_sample_count,
+                    "blind_match_accuracy": metric.blind_match_accuracy,
+                    "blind_match_accuracy_ci": (
+                        list(metric.blind_match_accuracy_ci)
+                        if metric.blind_match_accuracy_ci is not None
+                        else None
+                    ),
+                }
+                for metric in self.non_bank_persona_metrics
             ],
             "claims": [
                 {
@@ -241,15 +335,45 @@ def _bank_metric(
     )
 
 
+def _non_bank_persona_metric(
+    bank_type: str,
+    samples: Sequence[NonBankPersonaControlSample],
+    *,
+    bootstrap_seed: int,
+) -> NonBankPersonaMetric:
+    matching = [sample for sample in samples if sample.bank_type == bank_type]
+    judged = [sample for sample in matching if sample.match_correct is not None]
+    outcomes = [float(sample.match_correct) for sample in judged]
+    return NonBankPersonaMetric(
+        bank_type=bank_type,
+        sample_count=len(matching),
+        judged_sample_count=len(judged),
+        blind_match_accuracy=(
+            sum(outcomes) / len(outcomes) if outcomes else None
+        ),
+        blind_match_accuracy_ci=(
+            _paired_bootstrap_ci(
+                outcomes,
+                seed=bootstrap_seed + 31 + SUPPORTED_BANKS.index(bank_type),
+            )
+            if outcomes
+            else None
+        ),
+    )
+
+
 def build_bank_gain_verdict(
     *,
     paired_samples: Sequence[PairedBankGainSample],
     irrelevant_controls: Sequence[IrrelevantBankControlSample],
+    non_bank_persona_controls: Sequence[NonBankPersonaControlSample],
+    persona_contrasts: Sequence[BankPersonaContrast],
     artifact_id: str,
     substrate_fingerprint: str,
     router_version: str,
     minimum_samples: int = 8,
     irrelevant_router_score_ceiling: float = 0.2,
+    non_bank_chance_accuracy: float = 0.5,
     bootstrap_seed: int = 7301,
     judge_model_id: str = "",
     judge_family: str = "",
@@ -269,6 +393,8 @@ def build_bank_gain_verdict(
         raise ValueError(
             "irrelevant_router_score_ceiling must be in [0, 1]"
         )
+    if not 0.0 < non_bank_chance_accuracy < 1.0:
+        raise ValueError("non_bank_chance_accuracy must be within (0, 1)")
 
     metrics = tuple(
         _bank_metric(
@@ -278,10 +404,82 @@ def build_bank_gain_verdict(
         )
         for bank in SUPPORTED_BANKS
     )
+    non_bank_metrics = tuple(
+        _non_bank_persona_metric(
+            bank,
+            non_bank_persona_controls,
+            bootstrap_seed=bootstrap_seed,
+        )
+        for bank in SUPPORTED_BANKS
+    )
+    non_bank_metric_by_bank = {
+        metric.bank_type: metric for metric in non_bank_metrics
+    }
+    contrast_by_bank = {
+        contrast.bank_type: contrast for contrast in persona_contrasts
+    }
+    if len(contrast_by_bank) != len(persona_contrasts):
+        raise ValueError("persona_contrasts must contain unique bank types")
     claims: list[BankGainClaim] = []
     for metric in metrics:
-        claim_name = f"claim_{metric.bank_type}_independent_gain"
+        contrast = contrast_by_bank.get(metric.bank_type)
+        contrast_state = (
+            "pass"
+            if contrast is not None and contrast.passed
+            else "insufficient_data"
+        )
+        claims.append(
+            BankGainClaim(
+                claim=f"claim_{metric.bank_type}_state_contrast",
+                state=contrast_state,
+                detail=(
+                    "missing bank-state contrast"
+                    if contrast is None
+                    else (
+                        f"probes={contrast.probe_count}, "
+                        "material_contrasts="
+                        f"{contrast.material_contrast_count}, "
+                        "fingerprint_contrasts="
+                        f"{contrast.fingerprint_contrast_count}"
+                    )
+                ),
+            )
+        )
+        non_bank_metric = non_bank_metric_by_bank[metric.bank_type]
         if (
+            non_bank_metric.sample_count < minimum_samples
+            or non_bank_metric.judged_sample_count < minimum_samples
+            or non_bank_metric.blind_match_accuracy_ci is None
+        ):
+            isolation_state = "insufficient_data"
+        elif (
+            non_bank_metric.blind_match_accuracy_ci[0]
+            <= non_bank_chance_accuracy
+        ):
+            isolation_state = "pass"
+        else:
+            # This is an experiment-validity failure, not evidence that the
+            # bank itself lacks gain. The semantic spine already exposes the
+            # persona without any bank, so the marginal-gain contrast has no
+            # isolated treatment and must remain inconclusive.
+            isolation_state = "insufficient_data"
+        claims.append(
+            BankGainClaim(
+                claim=f"claim_{metric.bank_type}_non_bank_isolation",
+                state=isolation_state,
+                detail=(
+                    f"n={non_bank_metric.sample_count}, judged="
+                    f"{non_bank_metric.judged_sample_count}, accuracy="
+                    f"{non_bank_metric.blind_match_accuracy!r}, ci="
+                    f"{non_bank_metric.blind_match_accuracy_ci!r}, "
+                    f"chance={non_bank_chance_accuracy:.3f}"
+                ),
+            )
+        )
+        claim_name = f"claim_{metric.bank_type}_independent_gain"
+        if contrast_state != "pass" or isolation_state != "pass":
+            state = "insufficient_data"
+        elif (
             metric.sample_count < minimum_samples
             or metric.judged_sample_count < minimum_samples
             or metric.blind_match_gain_ci is None
@@ -354,7 +552,15 @@ def build_bank_gain_verdict(
     # Missing observations are not evidence of marginal-gain decay. The
     # programme-level stop condition may freeze expansion only after a
     # measured failure, never merely because the experiment has not run.
-    bank_count_frozen = any(claim.state == "fail" for claim in claims)
+    freeze_eligible_claims = {
+        "claim_personal_independent_gain",
+        "claim_relationship_independent_gain",
+        "claim_irrelevant_bank_negative_control",
+    }
+    bank_count_frozen = any(
+        claim.claim in freeze_eligible_claims and claim.state == "fail"
+        for claim in claims
+    )
     freeze_reason = (
         "At least one fully observed independent-gain or irrelevant-bank "
         "control failed; freeze the bank count at Personal + Relationship."
@@ -368,12 +574,15 @@ def build_bank_gain_verdict(
         bootstrap_seed=bootstrap_seed,
         minimum_samples=minimum_samples,
         irrelevant_router_score_ceiling=irrelevant_router_score_ceiling,
+        non_bank_chance_accuracy=non_bank_chance_accuracy,
         judge_model_id=judge_model_id,
         judge_family=judge_family,
         judge_material_kind=judge_material_kind,
         observation_artifact_sha256=observation_artifact_sha256,
         semantic_backend=semantic_backend,
+        persona_contrasts=tuple(persona_contrasts),
         metrics=metrics,
+        non_bank_persona_metrics=non_bank_metrics,
         claims=tuple(claims),
         bank_count_frozen=bank_count_frozen,
         freeze_reason=freeze_reason,
@@ -385,8 +594,11 @@ __all__ = [
     "BANK_GAIN_SCHEMA_VERSION",
     "BankGainClaim",
     "BankGainMetric",
+    "BankPersonaContrast",
     "BankGainVerdict",
     "IrrelevantBankControlSample",
+    "NonBankPersonaControlSample",
+    "NonBankPersonaMetric",
     "PairedBankGainSample",
     "build_bank_gain_verdict",
 ]

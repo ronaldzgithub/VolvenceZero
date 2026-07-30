@@ -388,6 +388,7 @@ class MemoryStore:
         *,
         timestamp_ms: int,
         active_subject_ids: tuple[str, ...] | None = None,
+        record_access: bool = True,
     ) -> RetrievalResult:
         tokens = _tokenize(query.text)
         query_embedding = self._query_base_signal(query)
@@ -412,21 +413,28 @@ class MemoryStore:
             ):
                 suppressed.append((score, entry))
                 continue
-            updated = self._artifact_store.touch(entry.entry_id, timestamp_ms=timestamp_ms)
-            if updated is not None:
-                matches.append((score, updated))
+            if record_access:
+                updated = self._artifact_store.touch(
+                    entry.entry_id,
+                    timestamp_ms=timestamp_ms,
+                )
+                if updated is not None:
+                    matches.append((score, updated))
+            else:
+                matches.append((score, entry))
         matches.sort(key=lambda item: (-item[0], -item[1].strength, -item[1].created_at_ms))
         suppressed.sort(key=lambda item: (-item[0], -item[1].strength, -item[1].created_at_ms))
-        self._learned_recall_count += 1
-        self._last_recall_confidence = learned_recall.retrieval_confidence
-        self._last_recall_driver = (
-            "learned-core-guided"
-            if learned_recall.learned_weight >= learned_recall.artifact_weight
-            else "artifact-guided"
-        )
-        self._last_tower_depth = learned_recall.tower_depth
-        self._last_tower_alignment = learned_recall.tower_alignment
-        self._last_tower_profile_id = learned_recall.tower_profile_id
+        if record_access:
+            self._learned_recall_count += 1
+            self._last_recall_confidence = learned_recall.retrieval_confidence
+            self._last_recall_driver = (
+                "learned-core-guided"
+                if learned_recall.learned_weight >= learned_recall.artifact_weight
+                else "artifact-guided"
+            )
+            self._last_tower_depth = learned_recall.tower_depth
+            self._last_tower_alignment = learned_recall.tower_alignment
+            self._last_tower_profile_id = learned_recall.tower_profile_id
         return RetrievalResult(
             query=query,
             entries=tuple(entry for _, entry in matches[: query.limit]),
@@ -1594,11 +1602,13 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         wiring_level: WiringLevel | None = None,
         memory_feedback_signal: tuple[float, ...] | None = None,
         user_text: str | None = None,
+        learning_enabled: bool = True,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._store = store or MemoryStore()
         self._memory_feedback_signal = memory_feedback_signal
         self._user_text = user_text
+        self._learning_enabled = learning_enabled
 
     @property
     def store(self) -> MemoryStore:
@@ -1621,36 +1631,44 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             if prediction_error_snapshot is not None and isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
             else None
         )
-        self._store.observe_substrate(
-            substrate_snapshot=substrate_value,
-            timestamp_ms=substrate_snapshot.timestamp_ms,
-            prediction_error=prediction_error_value,
-        )
-        temporal_feedback_signal = _temporal_feedback_signal(temporal_snapshot.value if temporal_snapshot is not None else None)
-        if temporal_feedback_signal:
-            self._store.observe_temporal_feedback(
-                encoder_signal=temporal_feedback_signal,
+        if self._learning_enabled:
+            self._store.observe_substrate(
+                substrate_snapshot=substrate_value,
                 timestamp_ms=substrate_snapshot.timestamp_ms,
                 prediction_error=prediction_error_value,
             )
-        elif self._memory_feedback_signal:
-            self._store.observe_temporal_feedback(
-                encoder_signal=self._memory_feedback_signal,
-                timestamp_ms=substrate_snapshot.timestamp_ms,
-                prediction_error=prediction_error_value,
+            temporal_feedback_signal = _temporal_feedback_signal(
+                temporal_snapshot.value
+                if temporal_snapshot is not None
+                else None
             )
-        self._store.apply_prediction_error_signal(
-            prediction_error_snapshot=prediction_error_value,
-            timestamp_ms=substrate_snapshot.timestamp_ms,
-        )
-        for request in build_memory_write_requests(
-            substrate_snapshot=substrate_value,
-            user_text=self._user_text,
-            track=Track.SHARED,
-            subject_ids=subject_ids,
-            audience_ids=audience_ids,
-        ):
-            self._store.write(request, timestamp_ms=substrate_snapshot.timestamp_ms)
+            if temporal_feedback_signal:
+                self._store.observe_temporal_feedback(
+                    encoder_signal=temporal_feedback_signal,
+                    timestamp_ms=substrate_snapshot.timestamp_ms,
+                    prediction_error=prediction_error_value,
+                )
+            elif self._memory_feedback_signal:
+                self._store.observe_temporal_feedback(
+                    encoder_signal=self._memory_feedback_signal,
+                    timestamp_ms=substrate_snapshot.timestamp_ms,
+                    prediction_error=prediction_error_value,
+                )
+            self._store.apply_prediction_error_signal(
+                prediction_error_snapshot=prediction_error_value,
+                timestamp_ms=substrate_snapshot.timestamp_ms,
+            )
+            for request in build_memory_write_requests(
+                substrate_snapshot=substrate_value,
+                user_text=self._user_text,
+                track=Track.SHARED,
+                subject_ids=subject_ids,
+                audience_ids=audience_ids,
+            ):
+                self._store.write(
+                    request,
+                    timestamp_ms=substrate_snapshot.timestamp_ms,
+                )
 
         retrieval = self._store.retrieve(
             build_retrieval_query(
@@ -1666,6 +1684,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             ),
             timestamp_ms=substrate_snapshot.timestamp_ms,
             active_subject_ids=subject_ids,
+            record_access=self._learning_enabled,
         )
         social_pe_signals = self._build_social_pe_signals(retrieval=retrieval)
         return self.publish(
@@ -1704,37 +1723,40 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             if isinstance(prediction_error_snapshot, PredictionErrorSnapshot)
             else None
         )
-        self._store.observe_substrate(
-            substrate_snapshot=substrate_value,
-            timestamp_ms=timestamp_ms,
-            prediction_error=prediction_error_value,
-        )
-        temporal_feedback_signal = _temporal_feedback_signal(temporal_snapshot)
-        if temporal_feedback_signal:
-            self._store.observe_temporal_feedback(
-                encoder_signal=temporal_feedback_signal,
+        if self._learning_enabled:
+            self._store.observe_substrate(
+                substrate_snapshot=substrate_value,
                 timestamp_ms=timestamp_ms,
                 prediction_error=prediction_error_value,
             )
-        elif self._memory_feedback_signal:
-            self._store.observe_temporal_feedback(
-                encoder_signal=self._memory_feedback_signal,
-                timestamp_ms=timestamp_ms,
-                prediction_error=prediction_error_value,
+            temporal_feedback_signal = _temporal_feedback_signal(
+                temporal_snapshot
             )
-        self._store.apply_prediction_error_signal(
-            prediction_error_snapshot=prediction_error_value,
-            timestamp_ms=timestamp_ms,
-        )
+            if temporal_feedback_signal:
+                self._store.observe_temporal_feedback(
+                    encoder_signal=temporal_feedback_signal,
+                    timestamp_ms=timestamp_ms,
+                    prediction_error=prediction_error_value,
+                )
+            elif self._memory_feedback_signal:
+                self._store.observe_temporal_feedback(
+                    encoder_signal=self._memory_feedback_signal,
+                    timestamp_ms=timestamp_ms,
+                    prediction_error=prediction_error_value,
+                )
+            self._store.apply_prediction_error_signal(
+                prediction_error_snapshot=prediction_error_value,
+                timestamp_ms=timestamp_ms,
+            )
 
-        for request in build_memory_write_requests(
-            substrate_snapshot=substrate_value,
-            user_text=user_text,
-            track=Track.SHARED,
-            subject_ids=subject_ids,
-            audience_ids=audience_ids,
-        ):
-            self._store.write(request, timestamp_ms=timestamp_ms)
+            for request in build_memory_write_requests(
+                substrate_snapshot=substrate_value,
+                user_text=user_text,
+                track=Track.SHARED,
+                subject_ids=subject_ids,
+                audience_ids=audience_ids,
+            ):
+                self._store.write(request, timestamp_ms=timestamp_ms)
 
         retrieval = self._store.retrieve(
             build_retrieval_query(
@@ -1751,6 +1773,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             ),
             timestamp_ms=timestamp_ms,
             active_subject_ids=subject_ids,
+            record_access=self._learning_enabled,
         )
         social_pe_signals = self._build_social_pe_signals(retrieval=retrieval)
         return self.publish(

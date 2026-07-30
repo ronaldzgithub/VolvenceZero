@@ -2009,7 +2009,7 @@ reflection ──────────────→ proposals; runtime invo
 | `goal_value` | GoalValueModule | GoalValueSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation |
 | `boundary_consent` | BoundaryConsentModule | BoundaryConsentSnapshot | ACTIVE | 每 turn | temporal, boundary_policy, response_assembly, evaluation |
 | `personal_conditioning` | PersonalConditioningModule | PersonalConditioningSnapshot | SHADOW | 每 turn | session / open-weight substrate generation；只消费 `user_model`、`relationship_state`、`goal_value`、`boundary_consent` 的 typed owner readout，不读取原始对话或重建语义。State KV P0-b 起 value 增加 `rendered_statement`（owner 用确定性模板把同一 typed readout 渲染成英文状态说明，cold-start 必为空串）；ACTIVE 时投递形态由 `FinalRolloutConfig.personal_conditioning_mode` 决定（`residual`=残差通道/臂 E，`text`=system prompt 状态段/臂 B′，两者互斥），详见 [`docs/specs/personal-conditioning.md`](./specs/personal-conditioning.md) §3.1。第二个开关 `FinalRolloutConfig.prompt_state_delivery`（`text` 默认 / `suppressed`）决定**状态派生段是否进入 system prompt**：`suppressed` 下 `build_system_prompt` 只组装不变表达规则段，得到 prompt 逐字节相同的 `state-kv-arm-a-pure` / `state-kv-arm-e-pure` 载体识别臂；与 `personal_conditioning_mode="text"` 组合为非法配置（构造期 raise）。`suppressed` 为证据专用、禁止部署（移除 boundary/disclaimer prompt 引导），详见 [`docs/specs/state-kv-identification-evidence.md`](./specs/state-kv-identification-evidence.md) §3.2。载体识别证据由 `vz-runtime` 的 `state_kv_identification` 只读 owner 产出：schema `state-kv-identification.v1`，四臂设置从 profile registry 解析（不另建 arm 表），逐 turn 证据只从已发出的 `prompt_fp` / `prompt_state_sections` / `decode_fp` / `personal_conditioning` tag 回读（禁止重算"应该等价"的 prompt），四条判据与 C5 分档写入 `artifacts/state_kv/verdict_identification.json`；`SubstrateEvidenceKind.TRACE_ONLY` 下 verdict 强制封顶 `insufficient_data`，无盲裁判时判据 3/4 记 `insufficient_data` 而非填充占位准确率；matching 准确率是 readout，不回灌学习链路（R12）。State KV P5-c 起 value 新增 `credit_confidence_delta`（有界 credit 反馈 readout，语义与门控见 `relationship_conditioning` 行） |
-| `relationship_conditioning` | RelationshipConditioningModule | ConditioningBankReadout | SHADOW | 每 turn | State KV P4-a：第二个 conditioning bank（`bank_type=RELATIONSHIP`），也是首个直接发布通用无 scope `ConditioningBankReadout`（`conditioning-bank-readout.v1`）的 owner——后续新 bank 一律复用该 value 类型，不再每 bank 铸造专用契约（`PersonalConditioningSnapshot` v1 属历史冻结形态，不作模板）。只消费 `relationship_state` + `boundary_consent` 的 typed owner readout，编译 10 维 dyad 长程读出（trust / cumulative trust / continuity / repair pressure / emotional load / stabilization need / trust recovery / tension load / consent compliance / consent clarity）+ 确定性 `rendered_statement`（cold-start 必为空串）。scope / freshness / revocation 由 runtime 在消费点经 `bank_readout_to_bank(readout, slot_name, scope, ...)` 注入（owner 不知会话身份；adapter 以 slot↔bank_type 守门并从 `source_versions` 提升 `consent_version`）。默认 SHADOW（回滚 = `DISABLED`）。P4-b 起接入唯一 consumer：session 装配链在该 slot ACTIVE 且 `personal_conditioning_mode="text"` 时，把 readout 的 `rendered_statement` 作为独立段落并入 prompt 状态段（审计 ref 以 `;` 连接各 bank），并经 `bank_readout_to_bank` 投影后进入 turn 级 `ConditioningLineage`（bank 集按 bank_type 排序，`router_version="static-all.v1"` 确定性全选）；residual / prefix_kv 模式下该 bank 无 latent 通道，不入 prompt 也不入 lineage（lineage 只记录真正影响输出的 bank）。State KV P5-c 起两个 conditioning bank owner 增加可选依赖 `credit`：消费 `CreditSnapshot.recent_action_lineage_credits` 中 P5-b typed bank 归因，经共享有界规则 `conditioning_credit_feedback`（EMA α=0.2、gain=0.3、delta 硬上限 ±0.15、timestamp 水位防滚动窗口重复计数）折算 `credit_confidence_delta` 并随快照发布（value 均新增该字段，默认 0.0、cold-start 必为 0）。`FinalRolloutConfig.conditioning_credit_feedback` 门控：`SHADOW`（默认）只发布不施加、`ACTIVE` 施加到 confidence（clamp [0,1]）、`DISABLED` 停止消费（回滚点）。EMA 状态由 runner session 级持有注入，owner 是唯一写者。详见 [`docs/specs/personal-conditioning.md`](./specs/personal-conditioning.md) bank 家族节 |
+| `relationship_conditioning` | RelationshipConditioningModule | ConditioningBankReadout | SHADOW | 每 turn | 第二个 conditioning bank（`bank_type=RELATIONSHIP`）；只消费 `relationship_state` + `boundary_consent` typed readout，compiler `relationship-conditioning.v2` 发布 14 维 dyad 长程状态和同信息 `rendered_statement`，compiler version 进入 `source_fingerprint`。runtime 以 `bank_readout_to_bank(...)` 注入 scope / freshness / revocation。ACTIVE 投递由独立 `relationship_conditioning_mode` 选择：默认 `text` 合并 owner statement；显式 `residual` 构造 `ConditioningBankLatentCarrier` 并由 substrate 的 `relationship-conditioning-residual.v2` 投影，两路互斥且都进入 turn lineage。默认 SHADOW；回滚为 `text`、`SHADOW` 或 `DISABLED`。P5-c 的 `credit_confidence_delta` 仍由 owner 唯一写入，`conditioning_credit_feedback` 默认 SHADOW、ACTIVE 有界施加、DISABLED 停止消费。详见 [`docs/specs/personal-conditioning.md`](./specs/personal-conditioning.md) bank 家族节 |
 | `dual_track` | DualTrackModule | DualTrackSnapshot | SHADOW | 每 turn | memory, evaluation, prediction_error, reflection, credit, regime |
 | `apprenticeship_alignment` | ApprenticeshipAlignmentModule | ApprenticeshipAlignmentSnapshot | ACTIVE | 每 turn（学徒/ingestion） | prediction_error（离散事件 PE 源）；belief_assumption / goal_value（经 SemanticProposal 单写）；apprenticeship_protocol_alignment（消费 enriched `guidance_constraints`）；**open_loop（#90：消费 `should_request_feedback` 冒出 verification 开环 actuator）**；#90 起 ACTIVE，仅 apprentice/ingestion turn 生效（普通轮 idle → PE overlay + 请求均 no-op），快照新增 `should_request_feedback` / `feedback_request_reason` / `feedback_request_urgency`；详见 [`docs/specs/apprenticeship-alignment.md`](./specs/apprenticeship-alignment.md) |
 | `apprenticeship_protocol_alignment` | ApprenticeshipProtocolAlignmentModule (vz-application) | ApprenticeshipProtocolAlignmentSnapshot | SHADOW | 每 turn（学徒/ingestion） | 把 `apprenticeship_alignment.guidance_constraints` 与编译后 protocol 工件（strategy_playbook / domain_knowledge / boundary_policy）做有限选项集层比对；A1（#90 残余，2026-07-16）：快照新增 `pe_overlay_magnitude` / `pe_overlay_source`（结构裁决派生的 PE-shaped 只读 overlay，application 侧消费，kernel PE 不跨 tier 读）与 `revision_proposals`（protocol-lineage 冲突 → 保守 WEIGHT_DECAY L3 typed 提案），`protocol_revision_queue` 消费 `revision_proposals` 走 R10 gate + 人审队列；详见 [`docs/specs/apprenticeship-alignment-protocol-layer-draft.md`](./specs/apprenticeship-alignment-protocol-layer-draft.md) |
@@ -2039,9 +2039,30 @@ State KV P4-c 不新增 runtime slot。temporal owner 对候选
 `ACTIVE` 才把同一 selected set 应用于 prompt、latent carrier 与 lineage，
 并将实际 `router_version / router_scores` 发布为 `topk-semantic.v1`；
 `DISABLED` 为无评分的立即回滚。bank 增益 verdict 是只读 artifact
-`state-kv-bank-gain.v1`，不进入学习链路、不成为第二 evaluation owner。
+`state-kv-bank-gain.v3`，不进入学习链路、不成为第二 evaluation owner。
 `freshness=0` 是正式过期语义，必须令 `is_injectable=False`，因此不能进入
 router、lineage 或任何 carrier。
+
+Relationship latent carrier 不新增 slot，也不改变
+`relationship_conditioning` owner。runtime 先把 ACTIVE
+`ConditioningBankReadout` 适配为 scoped `ConditioningBankSnapshot`，再以不可变
+`ConditioningBankLatentCarrier`（`conditioning-bank-latent-carrier.v1`）声明
+`carrier="residual"`、projector version 与不超过 `0.12` 的 scale；substrate 是
+唯一解释该载体并构造 hidden delta 的 consumer。默认只接受
+`bank_type=RELATIONSHIP` 和 `relationship-conditioning-residual.v2`；显式加载
+`relationship-conditioning-projector.v1` artifact 后，接受
+`relationship-contrastive-residual-v1:<artifact_id>`，并要求 artifact 的
+model id、hidden width、hook layers 与 `vector_labels` 分别精确匹配 runtime 和
+admitted bank。其他 bank / label / 版本 fail loudly。两种 projector 都把
+`[0,1]` readout 以 `0.5` 为 neutral 映射到有符号坐标，将结果 L2 归一后乘
+`scale × confidence × freshness`；artifact 可额外声明每层 `(0,1]` gain。
+Relationship 与 Personal delta 在 hook 前保持独立，不能共享 layer gain。
+全 neutral 或退化为零的状态不报告 applied。
+`GenerationResult.conditioning_bank_carriers_applied` 是物理
+投递 attestation，`ConditioningLineage.state_encoder_version` 发布同一 projector
+version。`FinalRolloutConfig.relationship_conditioning_mode` 默认 `text`；
+显式 `residual` profile 才启用 latent，回滚为 `text` 或将 owner 置
+`SHADOW` / `DISABLED`。
 | `rupture_state` | RuptureStateModule | RuptureStateSnapshot | SHADOW | 每 turn | reflection, dialogue_trace (diagnostic) |
 | `interlocutor_state` | InterlocutorStateModule | InterlocutorStateSnapshot | SHADOW | 每 turn | prompt_planner, response_synthesizer, lifeform-core (LifeformSession.interlocutor_state) |
 | `active_mixture` | ProtocolRegistryModule | ActiveMixtureSnapshot | SHADOW | 每 turn | （packet 1.2+ 接入：boundary_policy / metacontroller / vitals / strategy_playbook 读 IDs+权重，不读内容本体） |

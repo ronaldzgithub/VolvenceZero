@@ -237,12 +237,14 @@ class FinalRolloutConfig:
     #     a compatible prefix artifact loaded; otherwise it fails loudly.
     # Ignored while personal_conditioning is SHADOW/DISABLED.
     personal_conditioning_mode: str = "residual"
-    # Relationship conditioning bank owner (State KV P4-a). Publisher-only in
-    # this packet: SHADOW publishes the auditable scope-free bank readout
-    # every turn, but no consumer injects or renders it yet -- the multi-bank
-    # assembly and lineage arrive with the P4-b consumer packet. DISABLED is
-    # the immediate rollback path.
+    # Relationship conditioning bank owner. SHADOW publishes the auditable
+    # scope-free readout without delivery; ACTIVE permits the independently
+    # gated carrier below. DISABLED is the immediate rollback path.
     relationship_conditioning: WiringLevel = WiringLevel.SHADOW
+    # Delivery mode for an ACTIVE Relationship bank. "text" preserves the
+    # existing owner-rendered prompt path. "residual" uses the versioned
+    # generic latent-carrier contract and substrate projector.
+    relationship_conditioning_mode: str = "text"
     # Credit-driven bank confidence feedback (State KV P5-c). Governs both
     # conditioning bank owners' consumption of the bank-attributed credit
     # readout (P5-b):
@@ -657,6 +659,11 @@ class FinalRolloutConfig:
                 "personal_conditioning_mode must be 'residual', 'text', or "
                 "'prefix_kv', "
                 f"got {self.personal_conditioning_mode!r}."
+            )
+        if self.relationship_conditioning_mode not in ("text", "residual"):
+            raise ValueError(
+                "relationship_conditioning_mode must be 'text' or "
+                f"'residual', got {self.relationship_conditioning_mode!r}."
             )
         if self.conditioning_router_top_k < 1:
             raise ValueError(
@@ -1876,6 +1883,7 @@ def build_final_runtime_modules(
     dual_track_gate_learner: DualTrackGateLearner | None = None,
     social_record_store: SocialRecordStore | None = None,
     reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
+    learning_enabled: bool = True,
     # State KV P5-c: session-lived bounded credit-feedback states for the
     # conditioning bank owners, so the online-fast EMA survives per-turn
     # module reconstruction. None = per-call private state (tests /
@@ -2049,13 +2057,17 @@ def build_final_runtime_modules(
             stacklevel=2,
         )
     if prediction_module is not None:
+        prediction_module.set_learning_enabled(learning_enabled)
         prediction_module.set_action_context(prediction_action_context)
+    if regime_module is not None:
+        regime_module.set_learning_enabled(learning_enabled)
     # G1: a session-held CreditModule is injected so the ledger's learned
     # heads (COCOA rewarding-state + gate-risk) accumulate across turns.
     # Only the per-turn proposal buffer is refreshed here; standalone /
     # test callers that pass no module keep the historical per-call
     # construction below.
     if credit_module is not None:
+        credit_module.set_learning_enabled(learning_enabled)
         credit_module.set_pending_proposals(credit_proposals)
     # Dialogue external outcome and rupture_state are wired alongside
     # the existing graph. The outcome module has no declared upstream,
@@ -2179,6 +2191,7 @@ def build_final_runtime_modules(
             ),
             wiring_level=config.level_for("memory", WiringLevel.SHADOW),
             user_text=user_input,
+            learning_enabled=learning_enabled,
         ),
         ConversationalRoleModule(
             wiring_level=config.level_for("conversational_role", WiringLevel.SHADOW),
@@ -2300,6 +2313,7 @@ def build_final_runtime_modules(
         or RegimeModule(
             wiring_level=config.level_for("regime", WiringLevel.SHADOW),
             panorama_gate_mode=config.panorama_gate_mode,
+            learning_enabled=learning_enabled,
         ),
         RetrievalPolicyModule(
             rare_heavy_state=application_rare_heavy_state,
@@ -2320,6 +2334,7 @@ def build_final_runtime_modules(
         or PredictionErrorModule(
             wiring_level=config.level_for("prediction_error", WiringLevel.ACTIVE),
             action_context=prediction_action_context,
+            learning_enabled=learning_enabled,
         ),
         CaseMemoryModule(
             rare_heavy_state=application_rare_heavy_state,
@@ -2357,6 +2372,7 @@ def build_final_runtime_modules(
         or CreditModule(
             pending_proposals=credit_proposals,
             wiring_level=config.level_for("credit", WiringLevel.SHADOW),
+            learning_enabled=learning_enabled,
         ),
         MidLayerModule(
             wiring_level=config.level_for("evaluation_mid", WiringLevel.SHADOW),
@@ -2477,6 +2493,7 @@ async def run_final_wiring_turn(
     dual_track_gate_learner: DualTrackGateLearner | None = None,
     social_record_store: SocialRecordStore | None = None,
     reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
+    learning_enabled: bool = True,
     personal_conditioning_credit_state: BankCreditFeedbackState | None = None,
     relationship_conditioning_credit_state: BankCreditFeedbackState | None = None,
     user_scope: str = "anonymous",
@@ -2582,6 +2599,7 @@ async def run_final_wiring_turn(
         dual_track_gate_learner=dual_track_gate_learner,
         social_record_store=social_record_store,
         reflection_consolidation_learner=reflection_consolidation_learner,
+        learning_enabled=learning_enabled,
         personal_conditioning_credit_state=personal_conditioning_credit_state,
         relationship_conditioning_credit_state=relationship_conditioning_credit_state,
     )

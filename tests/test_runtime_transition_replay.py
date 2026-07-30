@@ -1203,6 +1203,127 @@ async def test_active_runtime_replay_batches_short_segments_by_transition_count(
     assert loop._pending_rl_batch_count() == 0
 
 
+@pytest.mark.asyncio
+async def test_active_runtime_replay_flushes_ready_target_one_without_cadence_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A closed real segment is itself sufficient reason to run Internal RL.
+
+    The generic runtime permits ``rl_batch_accumulation_size=1``.  A low-PE
+    lane may therefore have no independent cadence trigger after its segment
+    closes; the ready replay batch must not wait for an unrelated PE spike or
+    periodic RL tick.
+    """
+
+    sandbox, _, _ = _sandbox_capture()
+    settlement = sandbox.settle_runtime_action(
+        next_substrate_snapshot=_substrate("target-one next observation"),
+        environment_outcome=_outcome(prediction_id="prediction-1"),
+        prediction_error_snapshot=_prediction_error(
+            prediction_id="prediction-1"
+        ),
+        credit_snapshot=_credit(),
+    )
+    assert settlement.rollout is not None
+    base_transition = settlement.rollout.transitions[0]
+    world_policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=4)
+    )
+    self_policy = clone_full_learned_temporal_policy(world_policy)
+    for policy, track in (
+        (world_policy, Track.WORLD),
+        (self_policy, Track.SELF),
+    ):
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=track,
+            strength=0.5,
+        )
+    loop = ETANLJointLoop(
+        world_policy=world_policy,
+        self_policy=self_policy,
+        internal_rl_runtime_replay=WiringLevel.ACTIVE,
+        runtime_replay_segment_credit=WiringLevel.ACTIVE,
+        runtime_replay_segment_max_steps=8,
+        rl_batch_accumulation_size=1,
+    )
+    loop._runtime_replay_outcome_lineages = [
+        RuntimeReplayOutcomeLineage(
+            environment_outcome_id="outcome-1",
+            prediction_id="prediction-1",
+            world_capture_id="world-capture-1",
+            self_capture_id="self-capture-1",
+            credit_record_ids=("credit-1",),
+            transition_count=2,
+        )
+    ]
+    optimized_transition_counts: list[int] = []
+    original_world_optimize = loop._world_sandbox.optimize
+
+    def record_world_batch(rollouts: tuple[ZRollout, ...]):
+        optimized_transition_counts.append(
+            sum(len(rollout.transitions) for rollout in rollouts)
+        )
+        return original_world_optimize(rollouts)
+
+    monkeypatch.setattr(
+        loop._world_sandbox,
+        "optimize",
+        record_world_batch,
+    )
+
+    for turn_index, milestone in ((1, False), (2, True)):
+        state = (
+            turn_index / 10.0,
+            -turn_index / 10.0,
+            0.05 * turn_index,
+            -0.05 * turn_index,
+        )
+        world_transition = replace(
+            base_transition,
+            track=Track.WORLD,
+            runtime_turn_index=turn_index,
+            runtime_milestone=milestone,
+            runtime_action_head_state=state,
+        )
+        self_transition = replace(
+            world_transition,
+            track=Track.SELF,
+        )
+        loop._stage_runtime_segment_pair(
+            world_rollout=replace(
+                settlement.rollout,
+                rollout_id=f"target-one-world-{turn_index}",
+                track=Track.WORLD,
+                transitions=(world_transition,),
+            ),
+            self_rollout=replace(
+                settlement.rollout,
+                rollout_id=f"target-one-self-{turn_index}",
+                track=Track.SELF,
+                transitions=(self_transition,),
+            ),
+        )
+
+    assert loop._pending_rl_batch_count() == 2
+    result = await loop.run_scheduled_step(
+        turn_index=3,
+        trace=build_training_trace(
+            trace_id="target-one-ready-replay",
+            source_text="flush ready real replay without cadence",
+        ),
+        schedule=JointLoopSchedule(
+            ssl_interval=0,
+            rl_interval=0,
+            rl_batch_max_wait_turns=0,
+        ),
+    )
+
+    assert result.cycle_report is not None
+    assert optimized_transition_counts == [2]
+    assert loop._pending_rl_batch_count() == 0
+
+
 def test_runtime_segment_closes_on_single_track_beta_switch() -> None:
     """World/self metacontrollers switch independently; a boundary on either
     track closes the open segment instead of raising."""

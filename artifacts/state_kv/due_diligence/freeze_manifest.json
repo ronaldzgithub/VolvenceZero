@@ -2,10 +2,10 @@
   "evidence": [
     {
       "evidence_id": "bank_gain",
-      "observed_state": "insufficient_data",
+      "observed_state": "fail",
       "path": "artifacts/state_kv/verdict_bank_gain.json",
-      "schema_version": "state-kv-bank-gain.v1",
-      "sha256": "00e45b44e4dc4db0f20a6b18694399b1f9266ddb7488711646993568f6e44bf2"
+      "schema_version": "state-kv-bank-gain.v3",
+      "sha256": "9e6d09fd3f09034c89bad44871a7af213ea62c98c77223befdae81889710e566"
     },
     {
       "evidence_id": "carrier_diagnostics",
@@ -16,10 +16,10 @@
     },
     {
       "evidence_id": "control_dim",
-      "observed_state": "insufficient_data",
+      "observed_state": "fail",
       "path": "artifacts/state_kv/verdict_control_dim_diagnostic.json",
-      "schema_version": "state-kv-control-dim-diagnostic.v1",
-      "sha256": "3baea96e7d44b64f6267f5ce5fc96c790c7a4c403a67c7aa3662ece198701c97"
+      "schema_version": "state-kv-control-dim-diagnostic.v2",
+      "sha256": "c3bcfcd256379500d35b264773a0caca2a195634ae41065d2cfb651f95ba89fd"
     },
     {
       "evidence_id": "cost",
@@ -27,6 +27,13 @@
       "path": "artifacts/state_kv/cost-gate/verdict_cost_gate.json",
       "schema_version": "state-kv-cost-gate.v1",
       "sha256": "4d1ed9d6f9db2204e431f3456c2cd8c08554d29bb7d3971f124d96dfe7c95ad7"
+    },
+    {
+      "evidence_id": "credit_longitudinal",
+      "observed_state": "mechanism_supported",
+      "path": "artifacts/state_kv/verdict_credit_longitudinal.json",
+      "schema_version": "state-kv-credit-longitudinal.v1",
+      "sha256": "e683e1f228ef9dc1ee3d8d3f9f2e53eb3879567aaa73610663cffd6fd2f667fc"
     },
     {
       "evidence_id": "deployment",
@@ -57,6 +64,13 @@
       "sha256": "b3e27f5c7e540e797d6d63aeadc6325231110c1cb77170bfd15553afc8f51e35"
     },
     {
+      "evidence_id": "quality_noninferiority",
+      "observed_state": "pass",
+      "path": "artifacts/state_kv/quality-noninferiority/verdict_quality_noninferiority.json",
+      "schema_version": "state-kv-quality-noninferiority.v1",
+      "sha256": "b4d123b8c808dad02b0fbe78cc2f6fad564fa388e68c8f4e928b5b885992c327"
+    },
+    {
       "evidence_id": "retention",
       "observed_state": "pass",
       "path": "artifacts/state_kv/p2-state-strategy-routed-rollout-seed-1701-full-max16-retention/verdict_retention_gate.json",
@@ -71,7 +85,414 @@
       "sha256": "3189115d78bbed60cd96e0b55a6debd688037e7beddb21e3c6b48678223b5c3c"
     }
   ],
-  "freeze_id": "7a2ac9d0bc03b17d7414b07e85d652a71ac892b46a7929efe230ddb391c0993d",
+  "experiment_config": {
+    "generation": {
+      "bank_gain_max_new_tokens": 4,
+      "max_new_tokens": 16,
+      "probe_limit": 0,
+      "sampling_seeds": [
+        1701,
+        1702,
+        1703
+      ],
+      "temperature": 0.2
+    },
+    "judge_panel": [
+      {
+        "kind": "embedding",
+        "material_kind": "rendered-state-statement",
+        "model_id": "BAAI/bge-m3",
+        "scoring_method": "embedding-cosine-mean-pool-v1"
+      },
+      {
+        "kind": "embedding",
+        "material_kind": "rendered-state-statement",
+        "model_id": "moka-ai/m3e-base",
+        "scoring_method": "embedding-cosine-mean-pool-v1"
+      }
+    ],
+    "metric_thresholds": {
+      "bank_gain_minimum_samples": 8,
+      "bank_irrelevant_router_score_ceiling": 0.2,
+      "control_dim_minimum_outcome_delta": 0.02,
+      "control_dim_minimum_samples": 8,
+      "cost_latency_tolerance": 0.1,
+      "quality_noninferiority_margin": 0.0
+    },
+    "resolved_profiles": {
+      "conditioning-credit-feedback-active": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "conditioning-credit-feedback-active"
+        ],
+        "flag_overrides": {
+          "conditioning_credit_feedback": "WiringLevel.ACTIVE"
+        },
+        "wiring_overrides": {}
+      },
+      "dynamic-residual-off": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "dynamic-residual-off"
+        ],
+        "flag_overrides": {
+          "generation_dynamic_residual": "WiringLevel.DISABLED"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-arm-a": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-off"
+        ],
+        "flag_overrides": {
+          "personal_conditioning": "WiringLevel.SHADOW",
+          "personal_conditioning_mode": "residual"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-arm-a-pure": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-off",
+          "prompt-state-suppressed"
+        ],
+        "flag_overrides": {
+          "personal_conditioning": "WiringLevel.SHADOW",
+          "personal_conditioning_mode": "residual",
+          "prompt_state_delivery": "suppressed"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-arm-bprime": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-text"
+        ],
+        "flag_overrides": {
+          "personal_conditioning": "WiringLevel.ACTIVE",
+          "personal_conditioning_mode": "text"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-arm-e": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-residual"
+        ],
+        "flag_overrides": {
+          "personal_conditioning": "WiringLevel.ACTIVE",
+          "personal_conditioning_mode": "residual"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-arm-e-pure": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-residual",
+          "prompt-state-suppressed"
+        ],
+        "flag_overrides": {
+          "personal_conditioning": "WiringLevel.ACTIVE",
+          "personal_conditioning_mode": "residual",
+          "prompt_state_delivery": "suppressed"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-arm-g-prefix-pure": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-prefix-kv",
+          "prompt-state-suppressed"
+        ],
+        "flag_overrides": {
+          "personal_conditioning": "WiringLevel.ACTIVE",
+          "personal_conditioning_mode": "prefix_kv",
+          "prompt_state_delivery": "suppressed"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-bank-dual": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-text",
+          "relationship-conditioning-active",
+          "dynamic-residual-off",
+          "conditioning-router-shadow-top1"
+        ],
+        "flag_overrides": {
+          "conditioning_router": "WiringLevel.SHADOW",
+          "conditioning_router_top_k": 1,
+          "generation_dynamic_residual": "WiringLevel.DISABLED",
+          "personal_conditioning": "WiringLevel.ACTIVE",
+          "personal_conditioning_mode": "text",
+          "relationship_conditioning": "WiringLevel.ACTIVE"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-bank-dual-credit-active": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-text",
+          "relationship-conditioning-active",
+          "dynamic-residual-off",
+          "conditioning-router-shadow-top1",
+          "conditioning-credit-feedback-active"
+        ],
+        "flag_overrides": {
+          "conditioning_credit_feedback": "WiringLevel.ACTIVE",
+          "conditioning_router": "WiringLevel.SHADOW",
+          "conditioning_router_top_k": 1,
+          "generation_dynamic_residual": "WiringLevel.DISABLED",
+          "personal_conditioning": "WiringLevel.ACTIVE",
+          "personal_conditioning_mode": "text",
+          "relationship_conditioning": "WiringLevel.ACTIVE"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-bank-dual-router-active": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-text",
+          "relationship-conditioning-active",
+          "dynamic-residual-off",
+          "conditioning-router-active-top1"
+        ],
+        "flag_overrides": {
+          "conditioning_router": "WiringLevel.ACTIVE",
+          "conditioning_router_top_k": 1,
+          "generation_dynamic_residual": "WiringLevel.DISABLED",
+          "personal_conditioning": "WiringLevel.ACTIVE",
+          "personal_conditioning_mode": "text",
+          "relationship_conditioning": "WiringLevel.ACTIVE"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-bank-none": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-off-text",
+          "relationship-conditioning-disabled",
+          "dynamic-residual-off",
+          "conditioning-router-shadow-top1"
+        ],
+        "flag_overrides": {
+          "conditioning_router": "WiringLevel.SHADOW",
+          "conditioning_router_top_k": 1,
+          "generation_dynamic_residual": "WiringLevel.DISABLED",
+          "personal_conditioning": "WiringLevel.SHADOW",
+          "personal_conditioning_mode": "text",
+          "relationship_conditioning": "WiringLevel.DISABLED"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-bank-personal-only": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-text",
+          "relationship-conditioning-disabled",
+          "dynamic-residual-off",
+          "conditioning-router-shadow-top1"
+        ],
+        "flag_overrides": {
+          "conditioning_router": "WiringLevel.SHADOW",
+          "conditioning_router_top_k": 1,
+          "generation_dynamic_residual": "WiringLevel.DISABLED",
+          "personal_conditioning": "WiringLevel.ACTIVE",
+          "personal_conditioning_mode": "text",
+          "relationship_conditioning": "WiringLevel.DISABLED"
+        },
+        "wiring_overrides": {}
+      },
+      "state-kv-bank-relationship-only": {
+        "base_profile": "pe-eta",
+        "capabilities": [
+          "personal-conditioning-off-text",
+          "relationship-conditioning-active",
+          "dynamic-residual-off",
+          "conditioning-router-shadow-top1"
+        ],
+        "flag_overrides": {
+          "conditioning_router": "WiringLevel.SHADOW",
+          "conditioning_router_top_k": 1,
+          "generation_dynamic_residual": "WiringLevel.DISABLED",
+          "personal_conditioning": "WiringLevel.SHADOW",
+          "personal_conditioning_mode": "text",
+          "relationship_conditioning": "WiringLevel.ACTIVE"
+        },
+        "wiring_overrides": {}
+      }
+    },
+    "scenario_material": {
+      "p2_persona_pairs": {
+        "boundary-vs-commit": [
+          {
+            "continuity": "Carry forward continuity from prior context: she was pressured into saying yes before.",
+            "ordering_driver": "continuum-boundary-holdout",
+            "state_vector": [
+              0.36,
+              0.7,
+              0.3,
+              0.54,
+              0.64,
+              0.64,
+              0.7,
+              0.58,
+              0.5,
+              0.68,
+              0.34,
+              0.88,
+              0.48,
+              0.94,
+              0.36,
+              0.92
+            ],
+            "user_id": "heldout-boundary"
+          },
+          {
+            "continuity": "Carry forward continuity from prior context: he chose a reversible trial plan.",
+            "ordering_driver": "continuum-commit-holdout",
+            "state_vector": [
+              0.82,
+              0.24,
+              0.82,
+              0.78,
+              0.82,
+              0.18,
+              0.28,
+              0.2,
+              0.88,
+              0.22,
+              0.86,
+              0.2,
+              0.88,
+              0.18,
+              0.86,
+              0.14
+            ],
+            "user_id": "heldout-commit"
+          }
+        ],
+        "repair-vs-execute": [
+          {
+            "continuity": "Carry forward continuity from prior context: she postponed a hard conversation twice.",
+            "ordering_driver": "continuum-repair-holdout",
+            "state_vector": [
+              0.18,
+              0.88,
+              0.24,
+              0.38,
+              0.58,
+              0.86,
+              0.84,
+              0.72,
+              0.42,
+              0.72,
+              0.28,
+              0.84,
+              0.7,
+              0.88,
+              0.52,
+              0.82
+            ],
+            "user_id": "heldout-repair"
+          },
+          {
+            "continuity": "Carry forward continuity from prior context: he already got stakeholder approval.",
+            "ordering_driver": "continuum-execute-holdout",
+            "state_vector": [
+              0.9,
+              0.16,
+              0.88,
+              0.86,
+              0.88,
+              0.12,
+              0.2,
+              0.16,
+              0.86,
+              0.16,
+              0.88,
+              0.18,
+              0.92,
+              0.12,
+              0.9,
+              0.1
+            ],
+            "user_id": "heldout-execute"
+          }
+        ]
+      },
+      "p2_probe_sentences": [
+        {
+          "probe_id": "h0",
+          "text": "我刚刚差点直接放弃"
+        },
+        {
+          "probe_id": "h1",
+          "text": "你帮我判断一下现在该不该推进"
+        },
+        {
+          "probe_id": "h2",
+          "text": "我怕自己又做错选择"
+        },
+        {
+          "probe_id": "h3",
+          "text": "下一步能不能简单一点"
+        },
+        {
+          "probe_id": "h4",
+          "text": "我需要有人帮我把风险摆清楚"
+        },
+        {
+          "probe_id": "h5",
+          "text": "这件事是不是可以今天就定下来"
+        },
+        {
+          "probe_id": "h6",
+          "text": "我现在不确定该相信哪个判断"
+        },
+        {
+          "probe_id": "h7",
+          "text": "帮我把这件事收个口"
+        },
+        {
+          "probe_id": "h8",
+          "text": "我有点担心这会越界"
+        },
+        {
+          "probe_id": "h9",
+          "text": "如果先试一小步可以吗"
+        },
+        {
+          "probe_id": "h10",
+          "text": "你觉得我该保护哪个边界"
+        },
+        {
+          "probe_id": "h11",
+          "text": "我想今天把计划定下来"
+        },
+        {
+          "probe_id": "h12",
+          "text": "这个决定还能不能撤回"
+        },
+        {
+          "probe_id": "h13",
+          "text": "帮我把可验证的一步写出来"
+        },
+        {
+          "probe_id": "h14",
+          "text": "我现在需要先停还是继续"
+        },
+        {
+          "probe_id": "h15",
+          "text": "把选择标准列给我"
+        }
+      ]
+    },
+    "schema_version": "state-kv-experiment-config.v1"
+  },
+  "experiment_config_sha256": "e056adfa642f828acd01ca46e670c9ca9f680761c8a5ca2e6757526b6920e06e",
+  "freeze_id": "7edad06933e8b23cb6adbea57b8a511e44d67abdf0767101b83034861fa64ac5",
   "generation_seeds": [
     1701,
     1702,
@@ -99,6 +520,10 @@
     "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
   },
   "prefix_artifact_id": "8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238",
+  "prefix_manifest": {
+    "path": "artifacts/state_kv/projectors/qwen2.5-0.5b-state-strategy-routed-prefix.manifest.json",
+    "sha256": "0ce40423760c9e1579a31cf9771b421273eec3a1a0ce20258d477664d823934a"
+  },
   "profile_labels": [
     "state-kv-arm-a",
     "state-kv-arm-a-pure",
@@ -110,6 +535,8 @@
     "state-kv-bank-personal-only",
     "state-kv-bank-relationship-only",
     "state-kv-bank-dual",
+    "state-kv-bank-dual-router-active",
+    "state-kv-bank-dual-credit-active",
     "dynamic-residual-off",
     "conditioning-credit-feedback-active"
   ],
@@ -118,7 +545,9 @@
     "repair-vs-execute",
     "carrier-diagnostics",
     "deployment-safety-controls",
-    "bank-gain-pending"
+    "bank-gain-four-arm",
+    "control-dimension-three-arm",
+    "credit-feedback-long-session"
   ],
-  "schema_version": "state-kv-freeze-manifest.v1"
+  "schema_version": "state-kv-freeze-manifest.v2"
 }

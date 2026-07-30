@@ -53,7 +53,7 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
     assert (
         config.internal_rl_batch_accumulation_size
         == ANT_RUNTIME_BATCH_TRANSITION_SIZE
-        == 4
+        == 2
     )
     assert (
         config.internal_rl_runtime_modulation_strength
@@ -68,7 +68,7 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
     assert (
         config.internal_rl_runtime_segment_max_steps
         == ANT_RUNTIME_SEGMENT_MAX_STEPS
-        == 16
+        == 7
     )
     assert (
         config.internal_rl_causal_action_head_rank
@@ -95,10 +95,10 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         is ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING
         is True
     )
-    # A 24-turn ecology episode has 23 settled transitions.  The segment
-    # must close before the final turn so a later scheduled step can optimize
-    # it before the cross-episode checkpoint discards pending replay.
-    assert config.internal_rl_runtime_segment_max_steps <= 22
+    # The shortest formal P0 episode has 10 usable settled transitions after
+    # capture/bootstrap.  The segment must close early enough for a later turn
+    # to consume its >=4-transition optimizer batch before episode transfer.
+    assert config.internal_rl_runtime_segment_max_steps == 7
     dense_config = ant_runtime_replay_rollout_config(
         enable_sparse_exploration=False
     )
@@ -116,6 +116,27 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
     assert (
         ecology_config.internal_rl_causal_action_head_input_mirror_signs
         == ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_SIGNS
+    )
+    assert (
+        ecology_config.environment_milestone_temporal_switch
+        is WiringLevel.ACTIVE
+    )
+    milestone_control = ant_runtime_replay_rollout_config(
+        enable_sparse_exploration=False,
+        enable_environment_milestone_switch=False,
+        sense_schema=AntSenseSchema.ECOLOGY_V2,
+    )
+    assert (
+        milestone_control.environment_milestone_temporal_switch
+        is WiringLevel.DISABLED
+    )
+    assert (
+        {
+            key
+            for key, value in ecology_config.__dict__.items()
+            if value != milestone_control.__dict__[key]
+        }
+        == {"environment_milestone_temporal_switch"}
     )
 
     session = AntSession(

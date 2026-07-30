@@ -106,6 +106,8 @@
 # Usage
 # ---------------------------------------------------------------------
 #   bash start_browser_chat_qwen.sh                                # Einstein 7B default
+#   bash start_browser_chat_zhang_wuji.sh                          # 张无忌 + Qwen 1.5B
+#   VERTICAL=zhang_wuji MODEL_ID=Qwen/Qwen2.5-0.5B-Instruct bash start_browser_chat_qwen.sh
 #   MODEL_ID=Qwen/Qwen2.5-3B-Instruct bash start_browser_chat_qwen.sh
 #   MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct bash start_browser_chat_qwen.sh
 #
@@ -416,6 +418,9 @@ echo "[start-browser-chat-qwen] python=${PYTHON_BIN}"
 echo "[start-browser-chat-qwen] device=${DEVICE} local_files_only=${LOCAL_FILES_ONLY}"
 if has_nvidia_gpu; then
   echo "[start-browser-chat-qwen] gpu=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)"
+fi
+if [[ "${VERTICAL}" == "zhang_wuji" ]]; then
+  echo "[start-browser-chat-qwen] zhang_wuji_template=${ZHANG_WUJI_TEMPLATE_PATH:-<base profile fallback>}"
 fi
 echo "[start-browser-chat-qwen] hf_home=${HF_HOME:-<system default>}"
 echo "[start-browser-chat-qwen] url=${CHAT_URL}"

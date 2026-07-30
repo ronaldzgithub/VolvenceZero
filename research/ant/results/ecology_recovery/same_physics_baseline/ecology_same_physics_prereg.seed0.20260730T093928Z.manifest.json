@@ -1,0 +1,50 @@
+{
+  "artifact": {
+    "path": "research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_prereg.seed0.20260730T093928Z.json",
+    "sha256": "253c1eea4e8e2cecbfcb175b5a825fff0518203d2f3fe15117eefe3e371df881",
+    "size_bytes": 31038
+  },
+  "externally_retainable": false,
+  "inputs": [],
+  "provenance": {
+    "config_digest": "438c2761a7619927fe503314b3ec1e4bcaeabb011decf615ac3f4607fdc18a1a",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "effective_backend": "pure:cpu",
+    "git_branch": "main",
+    "git_sha": "660e92d53b4fc8d118681ce5ebd90dfa7b5f8a32",
+    "layout_seeds": [],
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "requested_device": "cpu",
+    "seed_schedule": [
+      0
+    ],
+    "training_seeds": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "schema_version": "digital-ant-manifest.v2"
+}

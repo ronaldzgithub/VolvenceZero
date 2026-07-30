@@ -11,12 +11,22 @@ from dataclasses import dataclass
 
 import pytest
 
+from volvence_zero.conditioning_bank_contracts import (
+    CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION,
+    CONDITIONING_BANK_SCHEMA_VERSION,
+    ConditioningBankLatentCarrier,
+    ConditioningBankSnapshot,
+    ConditioningBankType,
+    ConditioningRevocationState,
+    ConditioningScope,
+)
 from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_SCHEMA_VERSION,
     PERSONAL_CONDITIONING_VECTOR_LABELS,
     PersonalConditioningSnapshot,
 )
 from volvence_zero.substrate import (
+    RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION,
     VLLMLoRARouter,
     VLLMOpenWeightResidualRuntime,
 )
@@ -154,6 +164,42 @@ def test_personal_conditioning_without_residual_hooks_fails_loud() -> None:
 
     with pytest.raises(NotImplementedError, match="residual hooks"):
         runtime.generate(prompt="hello", personal_conditioning=conditioning)
+
+
+def test_conditioning_bank_carrier_without_residual_hooks_fails_loud() -> None:
+    runtime = _runtime()
+    bank = ConditioningBankSnapshot(
+        schema_version=CONDITIONING_BANK_SCHEMA_VERSION,
+        bank_type=ConditioningBankType.RELATIONSHIP,
+        scope=ConditioningScope(
+            tenant_scope="tenant-1",
+            user_scope="user-1",
+        ),
+        readout=(0.2, 0.8),
+        readout_labels=("rel_a", "rel_b"),
+        source_versions=(("relationship_state", 1),),
+        source_fingerprint="vllm-relationship-carrier-test",
+        confidence=0.8,
+        freshness=1.0,
+        consent_version=0,
+        provenance="owner:RelationshipConditioningModule/test",
+        revocation_state=ConditioningRevocationState.ACTIVE,
+        is_cold_start=False,
+        description="vLLM Relationship carrier test bank",
+    )
+    carrier = ConditioningBankLatentCarrier(
+        schema_version=CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION,
+        bank=bank,
+        carrier="residual",
+        projector_version=RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION,
+        scale=0.12,
+        description="vLLM Relationship carrier test",
+    )
+    with pytest.raises(NotImplementedError, match="residual carriers"):
+        runtime.generate(
+            prompt="hello",
+            conditioning_bank_carriers=(carrier,),
+        )
 
 
 def test_activation_is_task_local_for_concurrency() -> None:

@@ -191,7 +191,9 @@ class RegimeScoreLearner:
     def _predict(
         self, regime_id: str, features: tuple[float, ...], baseline: float
     ) -> float:
-        weights = self._weights_for(regime_id)
+        weights = self._weights.get(regime_id)
+        if weights is None:
+            weights = [0.0] * self._FEATURE_DIM
         residual = sum(weight * feature for weight, feature in zip(weights, features, strict=True))
         return _clamp(baseline + residual)
 

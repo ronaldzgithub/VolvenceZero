@@ -12,6 +12,9 @@ import os
 import re
 from typing import Any, Callable, Iterable, Sequence
 
+from volvence_zero.conditioning_bank_contracts import (
+    ConditioningBankLatentCarrier,
+)
 from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_VECTOR_LABELS,
     PersonalConditioningSnapshot,
@@ -57,6 +60,12 @@ from volvence_zero.substrate.residual_contracts import (  # noqa: E402,F401
 )
 from volvence_zero.substrate.control_basis import (  # noqa: E402,F401
     FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE,
+)
+from volvence_zero.substrate.conditioning_bank_projector import (  # noqa: E402
+    RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION,
+    RelationshipConditioningProjectorArtifact,
+    build_conditioning_bank_residual_delta,
+    load_relationship_projector_basis,
 )
 from volvence_zero.substrate.residual_interfaces import (  # noqa: E402,F401
     OpenWeightResidualRuntime,
@@ -225,6 +234,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         personal_conditioning_projector: (
             PersonalConditioningProjectorArtifact | None
         ) = None,
+        relationship_conditioning_projector: (
+            RelationshipConditioningProjectorArtifact | None
+        ) = None,
         personal_conditioning_prefix: PrefixKVArtifact | None = None,
         local_files_only: bool = False,
         runtime_origin: str = "hf-pretrained",
@@ -309,6 +321,45 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             self._personal_conditioning_projector_training_mode = (
                 personal_conditioning_projector.training_mode
             )
+        self._relationship_conditioning_projector = (
+            relationship_conditioning_projector
+        )
+        self._relationship_conditioning_basis = None
+        self._relationship_conditioning_vector_labels = None
+        self._relationship_conditioning_layer_gains = {
+            self._layer_indices[0]: 1.0
+        }
+        self._relationship_conditioning_projector_id = (
+            RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION
+        )
+        self._relationship_conditioning_projector_training_mode = "fixed"
+        self._relationship_conditioning_projector_version = (
+            RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION
+        )
+        if relationship_conditioning_projector is not None:
+            (
+                self._relationship_conditioning_basis,
+                self._relationship_conditioning_layer_gains,
+            ) = load_relationship_projector_basis(
+                torch_module=self._torch,
+                artifact=relationship_conditioning_projector,
+                expected_model_id=self.model_id,
+                expected_hidden_size=self._hidden_size,
+                available_layer_indices=self._layer_indices,
+                device=self._device,
+            )
+            self._relationship_conditioning_vector_labels = (
+                relationship_conditioning_projector.vector_labels
+            )
+            self._relationship_conditioning_projector_id = (
+                relationship_conditioning_projector.artifact_id
+            )
+            self._relationship_conditioning_projector_training_mode = (
+                relationship_conditioning_projector.training_mode
+            )
+            self._relationship_conditioning_projector_version = (
+                relationship_conditioning_projector.projector_version
+            )
         self._prefix_generator = None
         self._personal_conditioning_prefix_id = ""
         if personal_conditioning_prefix is not None:
@@ -371,6 +422,18 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     @property
     def personal_conditioning_projector_training_mode(self) -> str:
         return self._personal_conditioning_projector_training_mode
+
+    @property
+    def relationship_conditioning_projector_id(self) -> str:
+        return self._relationship_conditioning_projector_id
+
+    @property
+    def relationship_conditioning_projector_training_mode(self) -> str:
+        return self._relationship_conditioning_projector_training_mode
+
+    @property
+    def relationship_conditioning_projector_version(self) -> str:
+        return self._relationship_conditioning_projector_version
 
     @property
     def personal_conditioning_prefix_id(self) -> str:
@@ -1288,6 +1351,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
         personal_conditioning_carrier: str = "residual",
+        conditioning_bank_carriers: tuple[
+            ConditioningBankLatentCarrier, ...
+        ] = (),
         sampling_seed: int | None = None,
     ) -> GenerationResult:
         if sampling_seed is not None:
@@ -1319,6 +1385,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 "personal_conditioning_carrier='prefix_kv' requires a prefix "
                 "artifact; construct the runtime with "
                 "personal_conditioning_prefix=..."
+            )
+        bank_types = tuple(
+            carrier.bank.bank_type.value
+            for carrier in conditioning_bank_carriers
+        )
+        if len(set(bank_types)) != len(bank_types):
+            raise ValueError(
+                "conditioning_bank_carriers must name each bank type at most "
+                f"once, got {bank_types!r}."
             )
         effective_max_new_tokens = max_new_tokens
         effective_temperature = temperature
@@ -1364,6 +1439,50 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             personal_delta = self._build_personal_conditioning_delta(
                 conditioning=personal_conditioning
             )
+        bank_delta_pairs = tuple(
+            (carrier, delta)
+            for carrier in conditioning_bank_carriers
+            if (
+                delta := build_conditioning_bank_residual_delta(
+                    torch_module=self._torch,
+                    carrier=carrier,
+                    hidden_size=self._hidden_size,
+                    device=self._device,
+                    basis=self._relationship_conditioning_basis,
+                    vector_labels=(
+                        self._relationship_conditioning_vector_labels
+                    ),
+                    expected_projector_version=(
+                        self._relationship_conditioning_projector_version
+                    ),
+                )
+            )
+            is not None
+        )
+        bank_delta_by_layer = {
+            layer_index: sum(
+                (
+                    bank_delta
+                    * self._relationship_conditioning_layer_gains.get(
+                        layer_index,
+                        0.0,
+                    )
+                    for _, bank_delta in bank_delta_pairs
+                ),
+                start=self._torch.zeros(
+                    self._hidden_size,
+                    dtype=self._torch.float32,
+                    device=self._device,
+                ),
+            )
+            for layer_index in self._layer_indices
+            if bank_delta_pairs
+            and self._relationship_conditioning_layer_gains.get(
+                layer_index,
+                0.0,
+            )
+            > 0.0
+        }
         captured_layers: dict[int, object] = {}
         # ``capture_residuals=False`` (raw pass-through path) skips both the
         # forward hooks and the post-generate full-prompt re-forward that
@@ -1378,6 +1497,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             capture_residuals
             or control_active
             or personal_delta is not None
+            or bool(bank_delta_by_layer)
             or has_runtime_deltas
         )
         hooks = (
@@ -1397,6 +1517,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                         ),
                         capture_residuals=capture_residuals,
                         personal_delta=personal_delta,
+                        conditioning_bank_delta=bank_delta_by_layer.get(
+                            layer_index
+                        ),
                     )
                 )
                 for layer_index in self._layer_indices
@@ -1466,7 +1589,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     input_ids=input_ids,
                     logits=logits,
                     captured_layers=captured_layers,
-                    control_applied=(control_active or personal_delta is not None),
+                    control_applied=(
+                        control_active
+                        or personal_delta is not None
+                        or bool(bank_delta_by_layer)
+                    ),
                 )
             except (RuntimeError, ValueError, AttributeError, IndexError) as exc:
                 _LOG.warning(
@@ -1492,6 +1619,21 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             personal_conditioning_applied = personal_delta is not None and bool(
                 hooks
             )
+        conditioning_bank_carriers_applied = (
+            tuple(
+                (
+                    carrier.bank.bank_type.value,
+                    carrier.projector_version,
+                )
+                for carrier in conditioning_bank_carriers
+                if any(
+                    applied_carrier is carrier
+                    for applied_carrier, _ in bank_delta_pairs
+                )
+            )
+            if bank_delta_pairs and hooks
+            else ()
+        )
         result = GenerationResult(
             text=generated_text,
             token_count=token_count,
@@ -1502,9 +1644,13 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"profile={generation_constraints.decoding_profile if generation_constraints is not None else 'balanced'} "
                 f"control={'on' if control_active else 'off'} "
                 "personal_conditioning="
-                f"{'on' if personal_conditioning_applied else 'off'}"
+                f"{'on' if personal_conditioning_applied else 'off'} "
+                f"conditioning_banks={bank_types!r}"
             ),
             personal_conditioning_applied=personal_conditioning_applied,
+            conditioning_bank_carriers_applied=(
+                conditioning_bank_carriers_applied
+            ),
         )
         if str(self._device).startswith("mps"):
             # MPS uses unified memory and retains released generation buffers
@@ -2832,6 +2978,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             activation_width=self._activation_width,
             layer_indices=self._layer_indices,
             control_scale=self._control_scale,
+            relationship_conditioning_projector=(
+                self._relationship_conditioning_projector
+            ),
             runtime_origin=self._runtime_origin,
             allow_offline_substrate_training=True,
         )
@@ -2973,6 +3122,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_delta,
         capture_residuals: bool = True,
         personal_delta=None,
+        conditioning_bank_delta=None,
     ):
         def hook(module, args, output):
             del module
@@ -2990,6 +3140,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 adapter_delta is None
                 and control_delta is None
                 and not applies_personal_delta
+                and conditioning_bank_delta is None
             ):
                 if capture_residuals:
                     captured_layers[layer_index] = hidden.detach().cpu()
@@ -3003,6 +3154,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 adjusted = adjusted + (
                     personal_delta * personal_gain
                 ).view(1, 1, -1).to(dtype=hidden.dtype)
+            if conditioning_bank_delta is not None:
+                adjusted = adjusted + conditioning_bank_delta.view(
+                    1, 1, -1
+                ).to(dtype=hidden.dtype)
             if capture_residuals:
                 captured_layers[layer_index] = adjusted.detach().cpu()
             if isinstance(output, tuple):

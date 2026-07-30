@@ -997,6 +997,51 @@
 	  坐标、重搜 k 或复用 v37 routes。Gate 2 closed-loop SHADOW admission
 	  继续未闭合，live injection disabled。artifact：
 	  `artifacts/eta_gate2_v38_control_summary_development_fullwidth896_qwen25_05b_cpu_seed0_20260730`。
+
+	  Gate 2 longitudinal 转向 v35 open-loop selector 的只读 readout。完整
+	  admission 预注册见
+	  `.cursor/plans/gate-2-longitudinal-v35-readout-admission_20260730.plan.md`：
+	  v35 selector / learned basis 指纹、8076×22 shape 全部冻结，不拟合、
+	  不注入、不写 session state。既有
+	  `gate11-longitudinal-settled-trace.v2` 必须先通过每 seed ≥500 settled、
+	  real substrate=1、fallback=0、mutation=0 和跨 session source gates；
+	  随后每条 transition 还必须一对一 join full-width
+	  `selector_readout_inputs.jsonl` 与 isolated counterfactual
+	  `selector_matched_outcomes.jsonl`。缺 readout residual 或
+	  selector-aligned selected/zero/permutation outcome 时必须 fail closed，
+	  不得把 source 的固定 task outcome 或 action 分布稳定性冒充
+	  `validation_delta`。admission 包只产 `capture-required/not-supported`
+	  或 `readout-ready`，不计算 Gate 2 EXIT；companion 齐备后才允许一次性
+	  检验跨 session `validation_delta ≥ 0.02` 与预注册 matched controls。
+
+	  同日只读 admission 已在既有 source 全量完成。seed
+	  `1201 / 1213 / 1223` 各 `510` settled transitions、各 `51` 个 consumer
+	  session，real substrate rate=`1.0`、fallback=`0`、mutation=`0`，source
+	  gates 全绿；v35 selector 的 fingerprint `ef360e0e…`、basis fingerprint
+	  `326aecdd…`、input/action shape `8076×22` 也通过 round-trip 校验。但
+	  full-width readout input 与 selector-aligned matched outcome 均为
+	  `0/1530`，因此 admission=`capture-required`、longitudinal
+	  verdict=`not-supported`、`validation_delta_computed=false`。审计前后
+	  source/selector SHA256 一致，selector 未执行、control 未施加、owner
+	  state 零写入。下一包必须发布两份 companion JSONL；本结果不撤销 v35
+	  causal support，也不允许升级 Gate 2。artifact：
+	  `artifacts/gate2_longitudinal_v35_readout_admission_20260730`。
+
+	  Gate 2 longitudinal 第二包预注册
+	  `.cursor/plans/gate-2-longitudinal-v35-companion-capture_20260730.plan.md`。
+	  它只为 source-admitted trace 发布独立 companion，不原地扩写 Gate 11
+	  source：clean full-width Qwen capture 经 temporal owner 形成 8076 维
+	  input，v35 selector 只读选臂，zero / selected / preregistered permutation
+	  只在隔离 teacher-forced scoring forward 内运行。selector/basis 指纹、
+	  22 臂 applied-control 映射、CPU width 896、hook 20/21/22、track scale
+	  0.7 全部冻结。permutation index 固定为
+	  `(global_index + seed_rank*7) mod 22`，不读取文本/state/outcome；每 seed
+	  完整 510 条、每 10 条一 session。先跑 seed 1201，要求
+	  selector−permutation 与 selector−zero 均 `>=0.02`、session primary
+	  正向率 `>=0.60`，失败即止损、不启动其余 seed；通过后才补三 seed并要求
+	  primary 的 95% t-CI 下界 `>=0.02`。本包即使通过也只产
+	  `longitudinal-readout-supported` 子证据，不能跳过 Gate 2 EXIT 的
+	  abstraction-quality reconciliation。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。
@@ -1467,6 +1512,52 @@ config（profiles、完整 persona/probe material、generation 参数、阈值�
 和 credit-longitudinal runner；旧的昂贵 lane 必须逐份存在、可解析并进入哈希
 清单，不能静默跳过。汇总器只映射结构化门，不把机制分叉、局部通过或缺失臂
 包装成完整结论。
+
+2026-07-29 的 bank-gain v1 run 因 Relationship persona material / fingerprint
+坍缩而作废，不能作为因果失败证据。2026-07-30 的 v3 修正实跑先以正式 typed
+external semantic event 建立 repair / steady 状态，并在预检及全部 4 个 gain
+probe 上验证 Personal / Relationship material 与 fingerprint 对比均为 `4/4`；
+同时增加 non-bank persona control，两个 bank 的 accuracy CI 均覆盖 chance，
+未证明非 bank 泄漏。`relationship-conditioning.v2` 以 14 维轨迹 readout
+替换 10 维编译，并把 compiler version 纳入 source fingerprint；同矩阵 64-turn
+matched rerun 中 Relationship 输出分叉率由 `0.25` 升至 `0.375`，但 Personal /
+Relationship blind match gain 仍均为 `0.0`（CI `[0,0]`），无关 bank 负控
+通过，故以 contrast-valid、isolation-valid 的独立增益失败冻结两 bank。
+control-dim 三臂在 8 个 matched track 上失败并保留 rank-3；
+credit-longitudinal 的 10 轮 I/J 机制增长通过但 matched outcome 仍缺裁判。
+P6 七结论报告必须直接消费这些终态 verdict，不得把机制通过改写为质量增益通过。
+
+同日非 promotion 的 max16 probe-limited pilot 保存 32 个 turn（2 gain + 2
+irrelevant、两 persona、四臂，minimum samples 4）：Personal blind match gain
+为 `+0.25`（CI `0..0.75`），Relationship 仍为 `0.0`（CI `[0,0]`），两者
+divergence 均为 `0.75`。这排除了 4-token 截断作为 Relationship 零增益的充分
+根因，并把下一证据包冻结为 Relationship text-vs-versioned-latent matched
+pilot；该小样本 artifact 不进入 P6 freeze manifest，也不支持 promotion。
+
+随后完成的 Relationship carrier pilot 同样是 non-promotion evidence。新增
+`state-kv-bank-relationship-latent-pure` 关闭 Personal、prompt state 与 dynamic
+residual，只让 `relationship-conditioning-residual.v2` 进入冻结 Qwen。none /
+text / latent 三 profile、两 persona、2 gain + 2 irrelevant 共 24 turn 中，
+text/latent source fingerprint `8/8` matched、latent applied `8/8`、latent prompt
+identity `4/4`；但 gain probes 的盲判三臂都为 `0.50` chance。v1 uncentered 与
+v2 neutral-centered 两份 artifact 分别保存在
+`artifacts/state_kv/pilots/relationship-latent/`，不得进入 P6 freeze manifest。
+这证明 latent 载体已物理接通但固定任意 basis 仍无关系识别增益；下一 evidence
+包必须先产出 model-derived Relationship projector / Prefix-KV artifact，再复用
+同一 matched gate，不能用扩大同构样本替代机制修复。
+
+2026-07-30 的后续 projector 包完成了这项分流。离线脚本
+`scripts/bake_relationship_conditioning_projector.py` 从冻结 Qwen2.5-0.5B
+中层捕获 56 条正/负 anchor，生成
+`relationship-conditioning-projector.v1` artifact
+`8b8adb2694f51533d2c2a8a3ec13d12090a57dbe014df270271f60309b8d9333`；
+manifest 明确 `base_model_mutated=false`。加载后的 runtime 以 artifact version
+构造 carrier 并发布 lineage，Personal / Relationship layer gain 相互隔离。
+`verdict_relationship_carrier_learned.json` 的 24-turn matched run 通过 source
+fingerprint `8/8`、applied `8/8`、prompt identity `4/4`，但 none / text /
+learned-residual 的 blind match 仍全部为 `0.50`。该 artifact 是可复现的
+non-promotion evidence，不进入 P6 freeze manifest；线性 residual 路径退出，
+下一包转 Relationship 专属 Prefix-KV，禁止提高 scale 或扩同构样本追分。
 
 ## 变更日志
 

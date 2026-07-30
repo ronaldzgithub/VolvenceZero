@@ -436,6 +436,18 @@ def _enforce_frozen_for_sharing(runtime: "OpenWeightResidualRuntime") -> None:
 # variant set can override via the MODEL_ID_ALLOWLIST env var.
 DEFAULT_QWEN_MODEL_SPECS: tuple[SubstrateModelSpec, ...] = (
     SubstrateModelSpec(
+        model_id="Qwen/Qwen2.5-0.5B-Instruct",
+        display_name="Qwen2.5 0.5B Instruct",
+        family="qwen2.5",
+        size_label="0.5B",
+        device_hint="cpu / mps / cuda",
+        notes=(
+            "Tiny smoke-test variant for checking wiring, template "
+            "loading, and browser chat startup. Not recommended for "
+            "behaviour evaluation."
+        ),
+    ),
+    SubstrateModelSpec(
         model_id="Qwen/Qwen2.5-1.5B-Instruct",
         display_name="Qwen2.5 1.5B Instruct",
         family="qwen2.5",

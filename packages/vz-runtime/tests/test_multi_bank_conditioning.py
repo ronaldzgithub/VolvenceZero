@@ -1,8 +1,8 @@
 """Multi-bank conditioning delivery and lineage (State KV P4-b).
 
 Pins the consumer-side semantics of the second bank: the Relationship
-readout is delivered exclusively through the text carrier (it has no
-latent channel yet), the prompt state block and audit ref combine
+readout is delivered through exactly one text or versioned residual
+carrier, the prompt state block and audit ref combine
 per-bank deliveries in bank order, the action lineage records both banks
 sorted with the versioned ``static-all.v1`` routing policy, and every
 gate (SHADOW default, residual mode, revocation, cold start) keeps the
@@ -16,6 +16,10 @@ integration regression for the personal-only path.
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import replace
+
+from companion_standard.semantic_state import SemanticRecord
 import pytest
 
 from volvence_zero.agent.conditioning_lineage import (
@@ -29,6 +33,7 @@ from volvence_zero.temporal.conditioning_router import (
 from volvence_zero.agent.session_observation import (
     _STATIC_ROUTER_VERSION,
     _merge_text_delivery,
+    _relationship_conditioning_delivery_from_config,
     _relationship_conditioning_text_delivery,
 )
 from volvence_zero.conditioning_bank_adapters import (
@@ -48,8 +53,15 @@ from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
 from volvence_zero.relationship_conditioning import (
+    RELATIONSHIP_CONDITIONING_COMPILER_VERSION,
     RELATIONSHIP_CONDITIONING_READOUT_LABELS,
     RELATIONSHIP_CONDITIONING_SLOT,
+    RelationshipConditioningModule,
+)
+from volvence_zero.runtime import Snapshot
+from volvence_zero.semantic_state import (
+    BoundaryConsentSnapshot,
+    RelationshipStateSnapshot,
 )
 
 
@@ -110,6 +122,112 @@ def _personal_snapshot() -> PersonalConditioningSnapshot:
     )
 
 
+def _trajectory_owner_readout(
+    relationship: RelationshipStateSnapshot,
+) -> ConditioningBankReadout:
+    record = SemanticRecord(
+        record_id="relationship-evidence",
+        summary="typed relationship evidence",
+        detail="typed relationship evidence detail",
+        confidence=0.8,
+        status="active",
+        source_turn=1,
+        evidence="reviewed:test",
+    )
+    boundary = BoundaryConsentSnapshot(
+        granted_consents=(record,),
+        missing_consents=(),
+        denied_boundaries=(),
+        memory_consent="granted",
+        external_action_consent="granted",
+        compliance_score=0.8,
+        control_signal=0.1,
+        description="typed boundary test snapshot",
+        consent_clarity=0.75,
+    )
+    upstream = {
+        "relationship_state": Snapshot(
+            slot_name="relationship_state",
+            owner="RelationshipStateModule",
+            version=3,
+            timestamp_ms=0,
+            value=relationship,
+        ),
+        "boundary_consent": Snapshot(
+            slot_name="boundary_consent",
+            owner="BoundaryConsentModule",
+            version=2,
+            timestamp_ms=0,
+            value=boundary,
+        ),
+    }
+    return asyncio.run(RelationshipConditioningModule().process(upstream)).value
+
+
+def test_relationship_compiler_publishes_versioned_trajectory_coordinates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = SemanticRecord(
+        record_id="rapport",
+        summary="typed rapport",
+        detail="typed rapport detail",
+        confidence=0.8,
+        status="active",
+        source_turn=1,
+        evidence="reviewed:test",
+    )
+    base = RelationshipStateSnapshot(
+        trust_level=0.6,
+        continuity_level=0.5,
+        repair_pressure=0.2,
+        rapport_signals=(record,),
+        relational_tensions=(),
+        control_signal=0.1,
+        description="typed relationship test snapshot",
+        emotional_load=0.4,
+        stabilization_need=0.3,
+        recent_repair_count=3,
+        unresolved_tension_count=1,
+        attunement_trend=0.8,
+        trust_recovery_signal=0.7,
+        relationship_continuity_score=0.75,
+        cumulative_trust_level=0.55,
+        relationship_age_turns=18,
+    )
+    recovering = _trajectory_owner_readout(base)
+    newly_stable = _trajectory_owner_readout(
+        replace(
+            base,
+            recent_repair_count=0,
+            attunement_trend=0.35,
+            relationship_continuity_score=0.45,
+            relationship_age_turns=2,
+        )
+    )
+    recovering_values = dict(
+        zip(recovering.readout_labels, recovering.readout, strict=True)
+    )
+    newly_stable_values = dict(
+        zip(newly_stable.readout_labels, newly_stable.readout, strict=True)
+    )
+
+    assert recovering.readout_labels == RELATIONSHIP_CONDITIONING_READOUT_LABELS
+    assert RELATIONSHIP_CONDITIONING_COMPILER_VERSION in recovering.provenance
+    assert recovering_values["rel_repair_progress"] == pytest.approx(0.75)
+    assert newly_stable_values["rel_repair_progress"] == pytest.approx(0.0)
+    assert recovering_values["rel_relationship_depth"] == pytest.approx(0.9)
+    assert newly_stable_values["rel_relationship_depth"] == pytest.approx(0.1)
+    assert recovering.source_fingerprint != newly_stable.source_fingerprint
+    assert recovering.rendered_statement != newly_stable.rendered_statement
+    monkeypatch.setattr(
+        "volvence_zero.relationship_conditioning."
+        "RELATIONSHIP_CONDITIONING_COMPILER_VERSION",
+        "relationship-conditioning.test-version",
+    )
+    recompiled = _trajectory_owner_readout(base)
+    assert recompiled.source_fingerprint != recovering.source_fingerprint
+
+
 # ---------------------------------------------------------------------------
 # Relationship text delivery gates
 # ---------------------------------------------------------------------------
@@ -129,15 +247,66 @@ def test_relationship_delivers_only_in_text_mode() -> None:
         f"{readout.source_fingerprint[:12]}"
     )
 
-    # No latent channel exists for this bank: residual / prefix_kv modes
-    # must deliver nothing, otherwise lineage would record an influence
-    # that had no causal path to the output.
+    # This helper is the legacy text-only surface. Latent delivery is owned by
+    # the explicit carrier selector below.
     for mode in ("residual", "prefix_kv"):
         assert _relationship_conditioning_text_delivery(
             relationship_readout=readout,
             personal_conditioning_mode=mode,
             revocation_state=ConditioningRevocationState.ACTIVE,
         ) == ("", "")
+
+
+def test_relationship_residual_delivery_builds_versioned_carrier() -> None:
+    from volvence_zero.substrate import (
+        RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION,
+    )
+
+    readout = _relationship_readout()
+    bank = bank_readout_to_bank(
+        readout=readout,
+        slot_name=RELATIONSHIP_CONDITIONING_SLOT,
+        scope=_scope(),
+    )
+    carrier, statement, statement_ref = (
+        _relationship_conditioning_delivery_from_config(
+            relationship_readout=readout,
+            relationship_bank=bank,
+            relationship_conditioning_mode="residual",
+            revocation_state=ConditioningRevocationState.ACTIVE,
+        )
+    )
+    assert carrier is not None
+    assert carrier.bank is bank
+    assert carrier.projector_version == RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION
+    assert statement == ""
+    assert statement_ref == ""
+
+    learned_version = "relationship-contrastive-residual.v1:artifact-123"
+    learned_carrier, _, _ = _relationship_conditioning_delivery_from_config(
+        relationship_readout=readout,
+        relationship_bank=bank,
+        relationship_conditioning_mode="residual",
+        revocation_state=ConditioningRevocationState.ACTIVE,
+        projector_version=learned_version,
+    )
+    assert learned_carrier is not None
+    assert learned_carrier.projector_version == learned_version
+
+
+def test_relationship_residual_delivery_is_revocation_safe() -> None:
+    readout = _relationship_readout()
+    bank = bank_readout_to_bank(
+        readout=readout,
+        slot_name=RELATIONSHIP_CONDITIONING_SLOT,
+        scope=_scope(),
+    )
+    assert _relationship_conditioning_delivery_from_config(
+        relationship_readout=readout,
+        relationship_bank=bank,
+        relationship_conditioning_mode="residual",
+        revocation_state=ConditioningRevocationState.REVOKED,
+    ) == (None, "", "")
 
 
 def test_relationship_delivery_gates_on_absence_and_revocation() -> None:
@@ -448,18 +617,39 @@ def test_lineage_separates_active_and_shadow_router_audit() -> None:
 
 
 @pytest.mark.parametrize(
-    ("profile_label", "personal_level", "relationship_level"),
     (
-        ("state-kv-bank-none", "shadow", "disabled"),
-        ("state-kv-bank-personal-only", "active", "disabled"),
-        ("state-kv-bank-relationship-only", "shadow", "active"),
-        ("state-kv-bank-dual", "active", "active"),
+        "profile_label",
+        "personal_level",
+        "personal_mode",
+        "relationship_level",
+        "relationship_mode",
+    ),
+    (
+        ("state-kv-bank-none", "shadow", "text", "disabled", "text"),
+        ("state-kv-bank-personal-only", "active", "text", "disabled", "text"),
+        (
+            "state-kv-bank-relationship-only",
+            "shadow",
+            "text",
+            "active",
+            "text",
+        ),
+        (
+            "state-kv-bank-relationship-latent-pure",
+            "shadow",
+            "residual",
+            "active",
+            "residual",
+        ),
+        ("state-kv-bank-dual", "active", "text", "active", "text"),
     ),
 )
 def test_bank_gain_profiles_hold_carrier_and_dynamic_residual_fixed(
     profile_label: str,
     personal_level: str,
+    personal_mode: str,
     relationship_level: str,
+    relationship_mode: str,
 ) -> None:
     from volvence_zero.agent.dialogue import (
         DEFAULT_DIALOGUE_PROOF_CASES,
@@ -472,11 +662,17 @@ def test_bank_gain_profiles_hold_carrier_and_dynamic_residual_fixed(
     )
     config = runner._config
     assert config.personal_conditioning.value == personal_level
-    assert config.personal_conditioning_mode == "text"
+    assert config.personal_conditioning_mode == personal_mode
     assert config.relationship_conditioning.value == relationship_level
+    assert config.relationship_conditioning_mode == relationship_mode
     assert config.generation_dynamic_residual.value == "disabled"
     assert config.conditioning_router.value == "shadow"
     assert config.conditioning_router_top_k == 1
+    assert config.prompt_state_delivery == (
+        "suppressed"
+        if profile_label == "state-kv-bank-relationship-latent-pure"
+        else "text"
+    )
 
 
 @pytest.mark.asyncio

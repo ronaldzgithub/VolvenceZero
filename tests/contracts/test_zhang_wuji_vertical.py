@@ -20,9 +20,7 @@ the trained 张无忌 character end-to-end:
 from __future__ import annotations
 
 import asyncio
-import os
 import pathlib
-import tempfile
 
 import pytest
 
@@ -44,13 +42,15 @@ from volvence_zero.memory import build_default_memory_store
 
 
 def _healthy_eval() -> EvaluationSnapshot:
-    score = lambda name, value: EvaluationScore(
-        family="zhang_wuji_test",
-        metric_name=name,
-        value=value,
-        confidence=1.0,
-        evidence="contract test",
-    )
+    def score(name: str, value: float) -> EvaluationScore:
+        return EvaluationScore(
+            family="zhang_wuji_test",
+            metric_name=name,
+            value=value,
+            confidence=1.0,
+            evidence="contract test",
+        )
+
     return EvaluationSnapshot(
         turn_scores=(
             score("contract_integrity", 1.0),
@@ -226,3 +226,30 @@ def test_zhang_wuji_factory_with_template_uses_give_birth(
     # MemoryStore checkpoint into the lifeform — observable by the
     # presence of an injected memory_store kwarg.
     assert lifeform._init_kwargs.get("memory_store") is not None
+
+
+def test_zhang_wuji_adapter_default_with_env_uses_live_through_template(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+):
+    """Browser chat creates sessions without a template_id unless the
+    user explicitly picks one in the UI. The zhang_wuji wrapper pins
+    ZHANG_WUJI_TEMPLATE_PATH, so the adapter-aware default path must
+    honor that env var and restore the saved template rather than
+    falling back to the cold profile.
+    """
+    template_path = _train_minimal_template(tmp_path)
+    monkeypatch.setenv("ZHANG_WUJI_TEMPLATE_PATH", str(template_path))
+
+    spec = discover_verticals()["zhang_wuji"]
+    assert spec.template_adapter is not None
+    lifeform, context = spec.template_adapter.build_default_session_context(
+        runtime=None,
+        identity_provider=None,
+        memory_scope_root_dir=None,
+        alpha_enabled=False,
+    )
+
+    assert isinstance(lifeform, Lifeform)
+    payload = context.payload["_character_payload"]
+    assert payload.source_template_id == "zhang-wuji-contract-test"
+    assert payload.source_arc_id == "zhang-wuji-demo-arc-v0-test-trimmed"

@@ -13,13 +13,15 @@ from volvence_ant.substrate import AntSenseSchema, sense_mirror_transform
 
 ANT_RUNTIME_MODULATION_STRENGTH = 0.3
 ANT_RUNTIME_EXPLORATION_STRENGTH = 1.0
-# A 24-turn ecology episode settles only 23 real transitions because the
-# first turn captures an action without a preceding outcome.  The segment
-# must close early enough for a later turn in the same episode to consume the
-# staged rollout; otherwise a no-milestone search segment is discarded by the
-# cross-episode checkpoint before it ever reaches the optimizer.
-ANT_RUNTIME_SEGMENT_MAX_STEPS = 16
-ANT_RUNTIME_BATCH_TRANSITION_SIZE = 4
+# The shortest formal mechanism-audit episode is 12 turns and settles only 10
+# usable transitions after capture/bootstrap.  The segment must close early
+# enough for a later scheduled step in the SAME episode to consume the staged
+# rollout; cross-episode checkpoints intentionally exclude replay.  Seven is
+# therefore the longest horizon that still leaves a flush turn under the
+# frozen P0 budget.  Two transitions are the smallest non-degenerate centered
+# covariance batch; four deferred effective updates past the P0 budget.
+ANT_RUNTIME_SEGMENT_MAX_STEPS = 7
+ANT_RUNTIME_BATCH_TRANSITION_SIZE = 2
 ANT_CAUSAL_ACTION_HEAD_STRENGTH = 1.0
 ANT_CAUSAL_ACTION_HEAD_RANK = 16
 # Frozen motor_decode consumes steering in z[0:2] and speed in z[2].
@@ -81,6 +83,7 @@ def ant_runtime_replay_rollout_config(
     enable_sparse_exploration: bool,
     enable_segment_credit: bool = True,
     enable_prediction_error_switch: bool = True,
+    enable_environment_milestone_switch: bool = True,
     sense_schema: AntSenseSchema | None = None,
 ) -> FinalRolloutConfig:
     """Open real replay; enable posterior exploration only for sparse tasks.
@@ -91,7 +94,13 @@ def ant_runtime_replay_rollout_config(
     the exact rollback path and the only setting a formal learned arm may use.
     The lever gates only the additive PE prior; typed milestone boundaries
     (``environment_milestone_temporal_switch``) are not a PE readout and stay
-    ACTIVE in both arms.
+    ACTIVE in both PE arms.
+
+    ``enable_environment_milestone_switch=False`` is reserved for the
+    preregistered same-physics v31 matched control.  It changes exactly the
+    typed boundary wiring while leaving the environment measurements, reward,
+    optimizer and physical curriculum intact.  Production/evidence callers
+    retain the ACTIVE default.
     """
 
     requested_device = os.environ.get("VZ_TENSOR_DEVICE", "cpu").strip().lower()
@@ -192,7 +201,11 @@ def ant_runtime_replay_rollout_config(
         # ``EnvironmentMeasurement.discrete_milestone``; the temporal owner
         # closes the running action segment on the next decision. This is the
         # structural replacement for the refuted PE-magnitude boundary.
-        environment_milestone_temporal_switch=WiringLevel.ACTIVE,
+        environment_milestone_temporal_switch=(
+            WiringLevel.ACTIVE
+            if enable_environment_milestone_switch
+            else WiringLevel.DISABLED
+        ),
     )
 
 

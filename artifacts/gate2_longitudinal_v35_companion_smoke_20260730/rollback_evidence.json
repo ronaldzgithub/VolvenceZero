@@ -1,0 +1,23 @@
+{
+  "live_injection_enabled": false,
+  "rollback": "delete this companion artifact directory",
+  "runtime_owner_state_written": false,
+  "schema_version": "gate2-longitudinal-v35-companion-capture.v1",
+  "selector_updated": false,
+  "source_hashes_after": {
+    "artifacts/eta_gate2_residual_causal_v35_selector_null_fresh_fullwidth896_qwen25_05b_cpu_1seed_20260729/counterfactual_outcomes.jsonl": "ba0d3aaf07c372bc8573d1e22156a41173e6f783725c6c564b31b2a7bb200147",
+    "artifacts/eta_gate2_v36_recent_k1_development_20260730/selector_artifact.json": "929514071865d4c44020eaadce5940a2da95e4931215dfdb7d6d3d313e819905",
+    "artifacts/gate11_longitudinal_source_v2_20260730/seed_1201/transitions.jsonl": "095fe9cf5760460fe762de5d13801ed0ed3bbf2529536cd90e7f427f8eb24bd1",
+    "artifacts/gate11_longitudinal_source_v2_20260730/seed_1213/transitions.jsonl": "1a359c54059d95200835c34f4c0851ce4a9ef0078d6a21adc36985fc80366d1c",
+    "artifacts/gate11_longitudinal_source_v2_20260730/seed_1223/transitions.jsonl": "8e628ea13f3ee25fca0f2068cf1124b87ed95cec12703659b4615228a9c36d40"
+  },
+  "source_hashes_before": {
+    "artifacts/eta_gate2_residual_causal_v35_selector_null_fresh_fullwidth896_qwen25_05b_cpu_1seed_20260729/counterfactual_outcomes.jsonl": "ba0d3aaf07c372bc8573d1e22156a41173e6f783725c6c564b31b2a7bb200147",
+    "artifacts/eta_gate2_v36_recent_k1_development_20260730/selector_artifact.json": "929514071865d4c44020eaadce5940a2da95e4931215dfdb7d6d3d313e819905",
+    "artifacts/gate11_longitudinal_source_v2_20260730/seed_1201/transitions.jsonl": "095fe9cf5760460fe762de5d13801ed0ed3bbf2529536cd90e7f427f8eb24bd1",
+    "artifacts/gate11_longitudinal_source_v2_20260730/seed_1213/transitions.jsonl": "1a359c54059d95200835c34f4c0851ce4a9ef0078d6a21adc36985fc80366d1c",
+    "artifacts/gate11_longitudinal_source_v2_20260730/seed_1223/transitions.jsonl": "8e628ea13f3ee25fca0f2068cf1124b87ed95cec12703659b4615228a9c36d40"
+  },
+  "source_unchanged": true,
+  "substrate_weights_updated": false
+}

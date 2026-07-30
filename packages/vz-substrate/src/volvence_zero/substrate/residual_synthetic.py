@@ -21,6 +21,9 @@ import random
 from typing import Any, Sequence
 from uuid import uuid4
 
+from volvence_zero.conditioning_bank_contracts import (
+    ConditioningBankLatentCarrier,
+)
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
@@ -130,6 +133,9 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         # synthetic runtime cannot inject, so it records what it received
         # and always reports personal_conditioning_applied=False.
         self.personal_conditioning_trace: list[PersonalConditioningSnapshot] = []
+        self.conditioning_bank_carrier_trace: list[
+            ConditioningBankLatentCarrier
+        ] = []
 
     def set_rare_heavy_training_backend(
         self, backend: RareHeavyAdapterTrainingBackend | None
@@ -256,9 +262,12 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         temperature: float = 0.7,
         control_parameters: tuple[float, ...] = (),
         control_scale: float = 0.0,
-        generation_constraints: "GenerationConstraints | None" = None,
+        generation_constraints: object | None = None,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
+        conditioning_bank_carriers: tuple[
+            ConditioningBankLatentCarrier, ...
+        ] = (),
         sampling_seed: int | None = None,
     ) -> GenerationResult:
         """Placeholder generation with trace-only conditioning intake.
@@ -293,6 +302,14 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 "; personal conditioning received trace-only "
                 f"(fingerprint={personal_conditioning.source_fingerprint[:12]}, "
                 "not injected)"
+            )
+        if conditioning_bank_carriers:
+            self.conditioning_bank_carrier_trace.extend(
+                conditioning_bank_carriers
+            )
+            conditioning_note += (
+                "; conditioning bank carriers received trace-only "
+                f"(count={len(conditioning_bank_carriers)}, not injected)"
             )
         return GenerationResult(
             text=f"[generation not supported by {self.model_id}]",

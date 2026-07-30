@@ -24,6 +24,7 @@ from volvence_ant.experiments.ecology_mechanism_audit import (
     _lane_wiring_mismatch,
     _lateral_bias,
     _max_distribution_delta,
+    _paired_turn_signs,
     _probe_checkpoints,
     _retention_floor,
     _sign_consistency,
@@ -249,6 +250,19 @@ def test_turn_sign_treats_sub_threshold_turns_as_no_sign() -> None:
     assert _turn_sign(-1e-9, threshold=1e-4) == 0
     assert _turn_sign(0.3, threshold=1e-4) == 1
     assert _turn_sign(-0.3, threshold=1e-4) == -1
+
+
+def test_paired_turn_signs_keep_the_full_contrast_threshold() -> None:
+    assert _paired_turn_signs(
+        6e-5,
+        -6e-5,
+        contrast_threshold=1e-4,
+    ) == (1, -1)
+    assert _paired_turn_signs(
+        4e-5,
+        -4e-5,
+        contrast_threshold=1e-4,
+    ) == (0, 0)
 
 
 def _cold_checkpoint(*, temporal_latent_dim: int, seed: int):
@@ -577,13 +591,15 @@ async def test_the_exercise_budget_is_what_makes_the_torch_lane_run() -> None:
     assert warm.internal_rl_torch_backends == ("active",)
     assert warm.internal_rl_torch_wrote_back
     assert warm.internal_rl_torch_parameters_changed > 0
-    # ...and the honest remaining gap: the SSL lane still never trains.
     assert warm.ssl_backend_applied == "active"
-    assert warm.ssl_trained_steps == 0
-    assert "trained_steps=0" in _lane_coverage_failure(
+    assert warm.ssl_trained_steps > 0
+    assert warm.ssl_torch_backends == ("active",)
+    assert warm.ssl_torch_wrote_back
+    assert warm.ssl_torch_parameters_changed > 0
+    assert _lane_coverage_failure(
         lane=lane,
         execution=warm,
-    )
+    ) == ""
 
 
 async def test_probe_publishes_sense_hidden_state_and_null_space_diagnostic() -> None:
@@ -623,3 +639,32 @@ async def test_probe_publishes_sense_hidden_state_and_null_space_diagnostic() ->
     )
     assert food.backend_lane == "pure"
     assert all(item.backend_lane == "pure" for item in probes)
+
+
+@pytest.mark.asyncio
+async def test_probe_pins_navigator_state_independently_of_seed() -> None:
+    """Probe repeat seeds may not change the declared paired input.
+
+    The seed exists to exercise reproducibility and backend lanes.  It must
+    not leave the navigator at the random spawn heading after the probe pins
+    the physical body to its canonical pose, otherwise sign consistency
+    compares different sensorimotor states rather than repeated measurements.
+    """
+
+    first = await run_ecology_action_probes(
+        temporal_latent_dim=4,
+        seed=700_003,
+        backend_lane=EcologyProbeBackendLane.PURE,
+    )
+    second = await run_ecology_action_probes(
+        temporal_latent_dim=4,
+        seed=701_012,
+        backend_lane=EcologyProbeBackendLane.PURE,
+    )
+
+    assert tuple(item.kind for item in first) == tuple(
+        item.kind for item in second
+    )
+    for first_probe, second_probe in zip(first, second, strict=True):
+        assert first_probe.left_sense == second_probe.left_sense
+        assert first_probe.right_sense == second_probe.right_sense

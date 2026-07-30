@@ -1,0 +1,12 @@
+{
+  "all_seeds_complete": false,
+  "cross_seed_ci_gate": false,
+  "inherited_gate2_evidence_level": "causal-supported",
+  "live_injection_enabled": false,
+  "longitudinal_readout_supported": false,
+  "official_gate2_longitudinal_verdict": "not-supported",
+  "promotion_allowed": false,
+  "schema_version": "gate2-longitudinal-v35-companion-capture.v1",
+  "single_seed_stoploss_failed": false,
+  "status": "capture-in-progress"
+}

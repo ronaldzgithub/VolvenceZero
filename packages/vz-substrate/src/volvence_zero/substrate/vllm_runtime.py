@@ -37,6 +37,9 @@ import contextvars
 import importlib
 from typing import Any, Callable, Iterator
 
+from volvence_zero.conditioning_bank_contracts import (
+    ConditioningBankLatentCarrier,
+)
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
@@ -243,6 +246,9 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         generation_constraints: Any | None = None,
         capture_residuals: bool = True,
         personal_conditioning: PersonalConditioningSnapshot | None = None,
+        conditioning_bank_carriers: tuple[
+            ConditioningBankLatentCarrier, ...
+        ] = (),
         sampling_seed: int | None = None,
     ) -> GenerationResult:
         if personal_conditioning is not None:
@@ -251,6 +257,13 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 "conditioning because vLLM does not expose residual hooks. "
                 "Use the transformers open-weight runtime or disable the "
                 "personal_conditioning owner."
+            )
+        if conditioning_bank_carriers:
+            raise NotImplementedError(
+                "VLLMOpenWeightResidualRuntime cannot apply conditioning bank "
+                "residual carriers because vLLM does not expose residual "
+                "hooks. Use the transformers open-weight runtime or disable "
+                "the latent carrier."
             )
         if sampling_seed is not None:
             raise NotImplementedError(

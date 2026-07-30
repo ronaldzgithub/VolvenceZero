@@ -1,0 +1,142 @@
+{
+  "rel_trust": {
+    "positive": [
+      "This relationship currently has strong mutual trust.",
+      "The person expects this relationship to be reliable and safe."
+    ],
+    "negative": [
+      "This relationship currently has very little trust.",
+      "The person expects this relationship to be unreliable and unsafe."
+    ]
+  },
+  "rel_cumulative_trust": {
+    "positive": [
+      "Trust has accumulated across many interactions in this relationship.",
+      "A long record of reliable interactions supports durable trust."
+    ],
+    "negative": [
+      "There is no accumulated record of trust in this relationship.",
+      "Past interactions have not established durable trust."
+    ]
+  },
+  "rel_continuity": {
+    "positive": [
+      "The relationship has remained continuous across recent interactions.",
+      "The connection feels unbroken from one interaction to the next."
+    ],
+    "negative": [
+      "The relationship has been discontinuous across recent interactions.",
+      "The connection feels repeatedly broken between interactions."
+    ]
+  },
+  "rel_repair_pressure": {
+    "positive": [
+      "The relationship urgently needs repair before moving forward.",
+      "Unresolved relational harm is creating strong repair pressure."
+    ],
+    "negative": [
+      "The relationship does not currently need repair.",
+      "There is no unresolved relational harm pressing for repair."
+    ]
+  },
+  "rel_emotional_load": {
+    "positive": [
+      "The relationship is carrying intense emotional weight right now.",
+      "This interaction has a heavy relational emotional load."
+    ],
+    "negative": [
+      "The relationship is carrying very little emotional weight right now.",
+      "This interaction has a light relational emotional load."
+    ]
+  },
+  "rel_stabilization_need": {
+    "positive": [
+      "The relationship needs stabilization before any demanding next step.",
+      "A steadying relational response is needed immediately."
+    ],
+    "negative": [
+      "The relationship is stable enough for a demanding next step.",
+      "No steadying relational response is currently needed."
+    ]
+  },
+  "rel_trust_recovery": {
+    "positive": [
+      "Trust in the relationship is actively recovering after a rupture.",
+      "Recent repair is restoring relational trust."
+    ],
+    "negative": [
+      "Trust in the relationship is not recovering after the rupture.",
+      "Recent interactions have not restored relational trust."
+    ]
+  },
+  "rel_tension_load": {
+    "positive": [
+      "Several unresolved tensions are straining the relationship.",
+      "The relationship is carrying a high load of active tension."
+    ],
+    "negative": [
+      "There are no unresolved tensions straining the relationship.",
+      "The relationship is carrying almost no active tension."
+    ]
+  },
+  "rel_attunement_trend": {
+    "positive": [
+      "Mutual attunement is improving across recent interactions.",
+      "The relationship is becoming more accurately responsive and understood."
+    ],
+    "negative": [
+      "Mutual attunement is worsening across recent interactions.",
+      "The relationship is becoming less responsive and less understood."
+    ]
+  },
+  "rel_relationship_continuity": {
+    "positive": [
+      "A strong sense of shared relational history is present.",
+      "Both sides recognize this as an ongoing relationship."
+    ],
+    "negative": [
+      "There is no meaningful sense of shared relational history.",
+      "This feels like an isolated interaction rather than an ongoing relationship."
+    ]
+  },
+  "rel_repair_progress": {
+    "positive": [
+      "Relational repair is making clear progress.",
+      "The rupture is being resolved through effective repair."
+    ],
+    "negative": [
+      "Relational repair has made no progress.",
+      "The rupture remains unresolved despite attempts to repair it."
+    ]
+  },
+  "rel_relationship_depth": {
+    "positive": [
+      "The relationship has substantial depth and mutual significance.",
+      "This is a deeply established and meaningful relationship."
+    ],
+    "negative": [
+      "The relationship has little depth or mutual significance.",
+      "This is a new and minimally established relationship."
+    ]
+  },
+  "rel_consent_compliance": {
+    "positive": [
+      "The relationship consistently respects the person's stated consent.",
+      "Every interaction is staying within the person's agreed boundaries."
+    ],
+    "negative": [
+      "The relationship is violating the person's stated consent.",
+      "The interaction is crossing the person's agreed boundaries."
+    ]
+  },
+  "rel_consent_clarity": {
+    "positive": [
+      "Consent and relational boundaries are explicit and clear.",
+      "Both sides clearly understand what permission has been given."
+    ],
+    "negative": [
+      "Consent and relational boundaries are ambiguous or missing.",
+      "It is unclear what permission, if any, has been given."
+    ]
+  }
+}

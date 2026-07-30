@@ -979,22 +979,43 @@ class GateRiskLearner:
         *,
         features: tuple[float, ...],
         decision: GateDecision,
+        learning_enabled: bool = True,
     ) -> GateRiskShadowReadout:
-        """Settle one gate decision: one clamped logistic-SGD step."""
+        """Read and optionally settle one gate decision."""
 
         prediction = self.predict_risk(features)
         target = 1.0 if decision is GateDecision.BLOCK else 0.0
         error = target - prediction
-        self._weights = [
-            max(-self._WEIGHT_BOUND, min(self._WEIGHT_BOUND, w + self._LEARNING_RATE * error * f))
-            for w, f in zip(self._weights, features, strict=True)
-        ]
-        self._update_count += 1
-        self._abs_error_sum += abs(error)
-        if (prediction >= 0.5) == (target >= 0.5):
-            self._agreement_count += 1
-        running_abs_error = self._abs_error_sum / self._update_count
-        agreement_rate = self._agreement_count / self._update_count
+        if learning_enabled:
+            self._weights = [
+                max(
+                    -self._WEIGHT_BOUND,
+                    min(
+                        self._WEIGHT_BOUND,
+                        weight
+                        + self._LEARNING_RATE * error * feature,
+                    ),
+                )
+                for weight, feature in zip(
+                    self._weights,
+                    features,
+                    strict=True,
+                )
+            ]
+            self._update_count += 1
+            self._abs_error_sum += abs(error)
+            if (prediction >= 0.5) == (target >= 0.5):
+                self._agreement_count += 1
+        running_abs_error = (
+            self._abs_error_sum / self._update_count
+            if self._update_count
+            else 0.0
+        )
+        agreement_rate = (
+            self._agreement_count / self._update_count
+            if self._update_count
+            else 0.0
+        )
         return GateRiskShadowReadout(
             predicted_risk=round(prediction, 6),
             realized_block=decision is GateDecision.BLOCK,
@@ -1800,7 +1821,13 @@ def extract_abstract_action_credit_bonus(
 class CreditLedger:
     """Stores recent credit records and gate outcomes with session-level aggregation."""
 
-    def __init__(self, *, discount_factor: float = 0.95, horizon_depth: int = 5) -> None:
+    def __init__(
+        self,
+        *,
+        discount_factor: float = 0.95,
+        horizon_depth: int = 5,
+        learning_enabled: bool = True,
+    ) -> None:
         self._recent_credits: list[CreditRecord] = []
         self._recent_modifications: list[SelfModificationRecord] = []
         self._recent_counterfactual_readouts: list[CounterfactualContributionReadout] = []
@@ -1815,6 +1842,12 @@ class CreditLedger:
         # decision this ledger observes. Never consulted by the rules.
         self._gate_risk_learner = GateRiskLearner()
         self._latest_gate_risk_readout: GateRiskShadowReadout | None = None
+        self._learning_enabled = learning_enabled
+
+    def set_learning_enabled(self, enabled: bool) -> None:
+        """Gate learned-head writes without suppressing credit bookkeeping."""
+
+        self._learning_enabled = enabled
 
     @property
     def recent_credits(self) -> tuple[CreditRecord, ...]:
@@ -1858,6 +1891,7 @@ class CreditLedger:
                 evaluation_snapshot=evaluation_snapshot,
             ),
             decision=decision,
+            learning_enabled=self._learning_enabled,
         )
         self._latest_gate_risk_readout = readout
         return readout
@@ -1905,7 +1939,7 @@ class CreditLedger:
         checkpoint_id = ""
         gate_decision = GateDecision.BLOCK
         validation_delta = 0.0
-        if evaluation_snapshot is not None:
+        if evaluation_snapshot is not None and self._learning_enabled:
             modification_record = self._rewarding_state_head.propose_update(
                 features=context.features,
                 target=context.actual_outcome,
@@ -2126,14 +2160,23 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
         ledger: CreditLedger | None = None,
         pending_proposals: tuple[ModificationProposal, ...] = (),
         wiring_level: WiringLevel | None = None,
+        learning_enabled: bool = True,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
-        self._ledger = ledger or CreditLedger()
+        self._ledger = ledger or CreditLedger(
+            learning_enabled=learning_enabled
+        )
+        self._ledger.set_learning_enabled(learning_enabled)
         self._pending_proposals = pending_proposals
 
     @property
     def ledger(self) -> CreditLedger:
         return self._ledger
+
+    def set_learning_enabled(self, enabled: bool) -> None:
+        """Gate persistent credit-head writes while retaining credit records."""
+
+        self._ledger.set_learning_enabled(enabled)
 
     def set_pending_proposals(
         self, proposals: tuple[ModificationProposal, ...]

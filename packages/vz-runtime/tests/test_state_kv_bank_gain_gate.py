@@ -4,7 +4,9 @@ import pytest
 
 from volvence_zero.state_kv_bank_gain_gate import (
     BANK_GAIN_SCHEMA_VERSION,
+    BankPersonaContrast,
     IrrelevantBankControlSample,
+    NonBankPersonaControlSample,
     PairedBankGainSample,
     build_bank_gain_verdict,
 )
@@ -41,14 +43,55 @@ def _irrelevant_controls(
     )
 
 
+def _non_bank_controls(
+    *,
+    match_correct: bool | None = None,
+) -> tuple[NonBankPersonaControlSample, ...]:
+    return tuple(
+        NonBankPersonaControlSample(
+            probe_id=f"{bank_type}:n{index}",
+            bank_type=bank_type,
+            match_correct=(
+                match_correct
+                if match_correct is not None
+                else index % 2 == 0
+            ),
+        )
+        for bank_type in ("personal", "relationship")
+        for index in range(8)
+    )
+
+
 def _verdict(
     *,
     paired_samples: tuple[PairedBankGainSample, ...],
     irrelevant_controls: tuple[IrrelevantBankControlSample, ...],
+    non_bank_persona_controls: (
+        tuple[NonBankPersonaControlSample, ...] | None
+    ) = None,
+    persona_contrasts: tuple[BankPersonaContrast, ...] | None = None,
 ):
     return build_bank_gain_verdict(
         paired_samples=paired_samples,
         irrelevant_controls=irrelevant_controls,
+        non_bank_persona_controls=(
+            non_bank_persona_controls
+            if non_bank_persona_controls is not None
+            else _non_bank_controls()
+        ),
+        persona_contrasts=(
+            persona_contrasts
+            if persona_contrasts is not None
+            else tuple(
+                BankPersonaContrast(
+                    bank_type=bank_type,
+                    probe_count=4,
+                    material_contrast_count=4,
+                    fingerprint_contrast_count=4,
+                )
+                for bank_type in ("personal", "relationship")
+            )
+        ),
         artifact_id="bank-gain-test",
         substrate_fingerprint="substrate-fp",
         router_version="topk-semantic.v1",
@@ -85,6 +128,58 @@ def test_missing_bank_evidence_is_insufficient_without_freezing_count() -> None:
         if claim.claim == "claim_relationship_independent_gain"
     )
     assert relationship.state == "insufficient_data"
+
+
+def test_collapsed_persona_state_is_insufficient_not_causal_failure() -> None:
+    verdict = _verdict(
+        paired_samples=(
+            *_gain_samples("personal"),
+            *_gain_samples("relationship"),
+        ),
+        irrelevant_controls=_irrelevant_controls(),
+        persona_contrasts=(
+            BankPersonaContrast(
+                bank_type="personal",
+                probe_count=4,
+                material_contrast_count=4,
+                fingerprint_contrast_count=4,
+            ),
+            BankPersonaContrast(
+                bank_type="relationship",
+                probe_count=4,
+                material_contrast_count=0,
+                fingerprint_contrast_count=0,
+            ),
+        ),
+    )
+
+    assert verdict.gate_state == "insufficient_data"
+    assert verdict.bank_count_frozen is False
+    claims = {claim.claim: claim.state for claim in verdict.claims}
+    assert claims["claim_relationship_state_contrast"] == "insufficient_data"
+    assert (
+        claims["claim_relationship_independent_gain"]
+        == "insufficient_data"
+    )
+
+
+def test_non_bank_persona_leakage_is_insufficient_not_bank_failure() -> None:
+    verdict = _verdict(
+        paired_samples=(
+            *_gain_samples("personal"),
+            *_gain_samples("relationship"),
+        ),
+        irrelevant_controls=_irrelevant_controls(),
+        non_bank_persona_controls=_non_bank_controls(match_correct=True),
+    )
+
+    assert verdict.gate_state == "insufficient_data"
+    assert verdict.bank_count_frozen is False
+    claims = {claim.claim: claim.state for claim in verdict.claims}
+    assert claims["claim_personal_non_bank_isolation"] == "insufficient_data"
+    assert claims["claim_relationship_non_bank_isolation"] == "insufficient_data"
+    assert claims["claim_personal_independent_gain"] == "insufficient_data"
+    assert claims["claim_relationship_independent_gain"] == "insufficient_data"
 
 
 @pytest.mark.parametrize(

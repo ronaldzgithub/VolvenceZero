@@ -408,6 +408,21 @@ class MetacontrollerSSLTrainer:
 
         return self._latest_report
 
+    def invalidate_store_session(
+        self,
+        *,
+        store: MetacontrollerParameterStore,
+    ) -> None:
+        """Drop optimizer state bound to a store before checkpoint hydration.
+
+        ACTIVE torch sessions deliberately fail if live parameters move
+        outside their optimizer. Checkpoint restore is an authorized owner
+        mutation, so the next optimization must bind a fresh persistent
+        session to the restored parameter preimage.
+        """
+
+        self._torch_store_sessions.pop(id(store), None)
+
     def optimize(
         self,
         *,

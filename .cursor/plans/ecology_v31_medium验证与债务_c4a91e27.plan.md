@@ -3,29 +3,35 @@ name: Ecology v31 medium 验证与债务清偿
 overview: v31 是类型化里程碑边界落地后第一次从零重训——carrying 段第一次作为独立信用单元存在。本计划把 55 局训练拆成三站、每站带独有验收判据与早停条件，同时登记全部已知债务（能力/测量/工程）及每条债务修改后的目标，终局产出 medium 是否闭环的硬结论与失败归因。
 todos:
   - id: s1-run
-    content: 第一站 ep0–19 训练（CPU，已完成 20/20；对 v30 基线拾取 85%、送达 47% 观察项）
+    content: 第一站 ep0–19 CPU 训练已完成；站1 checkpoint SHA a5a944bb
     status: completed
   - id: s1-probe
-    content: 只读探针：并行会话已产出 8-lane 受控探针（accepted true）；naturalistic 探针脚本补充跑
+    content: 只读探针完成：8/8 latency=1、family persistence>=15、fingerprint 稳定
     status: completed
   - id: s1-accept
-    content: 站1 验收通过：切换延迟 8/8 全为 1 action、persistence 8/8 满 15 action 零回跳；送达 47% 列观察项
+    content: 站1验收完成：结构门通过；预注册 v24 80% near 回归门失败，决定 EARLY STOP
     status: completed
   - id: s2-run
-    content: 第二站 ep20–29（bootstrap 块 + medium 块，已续接 journal 在跑）
-    status: in_progress
+    content: 按站1预注册早停未获执行权限；并行 writer 的 ep20–22 隔离为污染数据
+    status: completed
   - id: s2-accept
-    content: 站2 验收：medium 拾取/送达、carrying_home_action_alignment、冻结 U-turn gate
-    status: pending
+    content: 按站1早停不执行；medium 闭环结论保持未验证 / BLOCK
+    status: completed
   - id: s3-run
-    content: 第三站 ep30–54 收尾（far + burning 复习 + forced_escape）
-    status: pending
+    content: 按站1早停不执行；far 保持 D3，禁止追加训练绕过
+    status: completed
   - id: final-gates
-    content: 终局三道硬门 + authority/镜像比复测 + 状态文档固化 v31 结论
-    status: pending
+    content: 早停终局完成：默认预算 P0 十四门全 PASS、manifest 已校验；无合法 medium PASS
+    status: completed
   - id: debt-review
-    content: 债务处置决定：基线比值包 / far 立项 / P2 matched control / 设备校准
-    status: pending
+    content: D4/D6关闭；D1/D2/D3/D5/D8独立包；新增可比基线债与progress单写者锁
+    status: completed
+  - id: same-physics-prereg
+    content: 同物理 causal packet、严格校验器与可恢复双臂 station1 runner 已实现；最终 prereg/manifest 已校验
+    status: completed
+  - id: same-physics-station1
+    content: 完整 code-tree 绑定的新空 journal 已启动；control ep0 前飞通过，余下 control/candidate station1 正在独立 session 运行
+    status: in_progress
 isProject: false
 ---
 
@@ -82,7 +88,14 @@ PE 幅值边界已被实测**证伪**（分离裕度 −0.38，自然 medium 拾
 
 ## 分站执行与早停
 
-当前状态：第一站已在跑（CPU，pid 20636，journal `research/ant/results/.partials/ecology_p1_v31/seed0`，schema `progress.v28`，限 20 work item）。
+当前状态：第一站已完成并按预注册门早停；站2/站3未获执行权限。站后新增的 P0 工程债已清偿，默认预算十四门全部 PASS，但这不改变 medium 未验证 / BLOCK 的能力结论。
+
+重开状态（2026-07-30）：新的同物理 prereg 已先于结果固化；旧 v24/v30/旧 v31 journal 全部退出判定。
+matched control 仅关闭 `environment_milestone_temporal_switch`，其余 rollout 字段哈希完全相同。
+新 station1 使用空 progress 目录运行 control→candidate 两臂；只有新 station1 报告为 GO 才授权 ep20。
+最终可执行 prereg 为隔离运行快照签发的 `20260730T095738Z`；它除显式关键文件外还绑定整个
+Python/pyproject/uv.lock 代码树聚合哈希。`093928Z`（未含 runner）、`094415Z`（漏绑
+session_observation consumer）与 `095220Z`（共享 worktree 在前飞后发生源码漂移）均作废。
 
 ```mermaid
 flowchart TD

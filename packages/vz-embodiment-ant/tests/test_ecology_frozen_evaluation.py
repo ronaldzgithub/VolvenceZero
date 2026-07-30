@@ -1,11 +1,11 @@
 """P0-C frozen-evaluation owner audit tests (plan 05 s3.4).
 
 The committed v1 artifact reported ``frozen_evaluation: passed`` while its own
-payload recorded 24 per-tick learned-owner changes under
-``learning_enabled=False``: the gate only compared two of the eight published
-owners, and it compared them endpoint-to-endpoint instead of per tick.  These
-tests lock the explicit allow-list, the per-tick comparison and the
-first-difference BLOCK reason.
+payload recorded per-tick learned-owner changes under
+``learning_enabled=False``. These tests lock the explicit allow-list,
+per-tick comparison, both prescribed repros, and the repaired invariant that
+all eight learned-owner fingerprints remain stable while replay evidence
+continues to settle.
 """
 
 from __future__ import annotations
@@ -110,12 +110,15 @@ def test_replay_coverage_floor_is_frozen() -> None:
     assert ECOLOGY_AUDIT_REPLAY_COVERAGE_FLOOR == 0.99
 
 
-async def test_frozen_evaluation_compares_every_owner_per_tick() -> None:
-    """A learned-owner change anywhere, on any tick, must BLOCK.
-
-    This is the honest outcome on the current kernel: six of the eight
-    published learning owners move while ``learning_enabled=False``.
-    """
+@pytest.mark.parametrize(
+    ("scenario", "seed"),
+    ECOLOGY_AUDIT_FROZEN_EVALUATION_CASES,
+)
+async def test_frozen_evaluation_compares_every_owner_per_tick(
+    scenario: EcologyEvaluationScenario,
+    seed: int,
+) -> None:
+    """Every learned owner stays fixed while runtime evidence still settles."""
 
     config = _config()
     curriculum_config = _curriculum_config(config)
@@ -138,8 +141,6 @@ async def test_frozen_evaluation_compares_every_owner_per_tick() -> None:
         checkpoint_prefix="test:p0c:shared-initial",
         include_runtime_replay=False,
     )
-    scenario, seed = ECOLOGY_AUDIT_FROZEN_EVALUATION_CASES[0]
-
     audit = await _frozen_evaluation_audit(
         audit_config=config,
         curriculum_config=curriculum_config,
@@ -148,28 +149,22 @@ async def test_frozen_evaluation_compares_every_owner_per_tick() -> None:
         seed=seed,
     )
 
-    assert audit.scenario == "butter_only"
-    assert audit.seed == 307
+    assert audit.scenario == scenario.value
+    assert audit.seed == seed
     assert audit.gated_owner_names
     assert audit.allowed_owner_names == ()
-    # policy and temporal-learning stay frozen -- that is the ONLY thing the
-    # v1/v2 gate ever checked.
     assert audit.policy_stable
     assert audit.temporal_learning_stable
-    # ...and the other published learning owners do not, which the new gate
-    # now refuses to hide.
-    assert audit.unstable_owner_names
-    assert set(audit.unstable_owner_names) <= set(
-        _KERNEL_PUBLISHED_LEARNING_OWNERS
+    assert audit.unstable_owner_names == ()
+    assert audit.first_differences == ()
+    assert (
+        audit.replay_settlement_coverage
+        >= ECOLOGY_AUDIT_REPLAY_COVERAGE_FLOOR
     )
-    assert not audit.passed
-    assert audit.first_differences
-    head = audit.first_differences[0]
-    assert head.owner_name in audit.unstable_owner_names
-    assert head.field_name == (
-        f"learning_owner_fingerprints[{head.owner_name}]"
+    assert (
+        audit.replay_lineage_coverage
+        >= ECOLOGY_AUDIT_REPLAY_COVERAGE_FLOOR
     )
-    assert 0 <= head.tick < config.evaluation_rounds
-    assert head.before_fingerprint != head.after_fingerprint
-    assert head.owner_name in audit.block_reason
-    assert f"tick={head.tick}" in audit.block_reason
+    assert audit.replay_drop_count == 0
+    assert audit.passed
+    assert audit.block_reason == ""

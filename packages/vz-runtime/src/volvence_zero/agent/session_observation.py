@@ -69,8 +69,10 @@ from volvence_zero.conditioning_bank_adapters import (
     personal_conditioning_to_bank,
 )
 from volvence_zero.conditioning_bank_contracts import (
+    CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION,
     ConditioningBankReadout,
     ConditioningBankSnapshot,
+    ConditioningBankLatentCarrier,
     ConditioningBankType,
     ConditioningLineageRef,
     ConditioningRevocationState,
@@ -91,13 +93,18 @@ from volvence_zero.social_cognition import (
 from volvence_zero.temporal.conditioning_router import select_conditioning_banks
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
+    RELATIONSHIP_RESIDUAL_DEFAULT_SCALE,
+    RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION,
     SubstrateAdapter,
     SubstrateSnapshot,
     TraceStep,
     TrainingTrace,
     build_training_trace,
 )
-from volvence_zero.temporal import TemporalAbstractionSnapshot
+from volvence_zero.temporal import (
+    TemporalAbstractionSnapshot,
+    build_training_trace_from_substrate_snapshots,
+)
 
 
 if TYPE_CHECKING:
@@ -162,6 +169,50 @@ def _relationship_conditioning_text_delivery(
             f"{relationship_readout.confidence:.2f}:"
             f"{relationship_readout.source_fingerprint[:12]}"
         ),
+    )
+
+
+def _relationship_conditioning_delivery_from_config(
+    *,
+    relationship_readout: ConditioningBankReadout | None,
+    relationship_bank: ConditioningBankSnapshot | None,
+    relationship_conditioning_mode: str,
+    revocation_state: ConditioningRevocationState,
+    projector_version: str = RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION,
+) -> tuple[ConditioningBankLatentCarrier | None, str, str]:
+    """Select exactly one live Relationship delivery carrier."""
+
+    if relationship_conditioning_mode == "text":
+        statement, statement_ref = _relationship_conditioning_text_delivery(
+            relationship_readout=relationship_readout,
+            personal_conditioning_mode="text",
+            revocation_state=revocation_state,
+        )
+        return None, statement, statement_ref
+    if relationship_conditioning_mode != "residual":
+        raise ValueError(
+            "relationship_conditioning_mode must be 'text' or 'residual', "
+            f"got {relationship_conditioning_mode!r}."
+        )
+    if (
+        relationship_bank is None
+        or revocation_state is ConditioningRevocationState.REVOKED
+    ):
+        return None, "", ""
+    return (
+        ConditioningBankLatentCarrier(
+            schema_version=CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION,
+            bank=relationship_bank,
+            carrier="residual",
+            projector_version=projector_version,
+            scale=RELATIONSHIP_RESIDUAL_DEFAULT_SCALE,
+            description=(
+                "Versioned Relationship bank residual request for the frozen "
+                "substrate."
+            ),
+        ),
+        "",
+        "",
     )
 
 
@@ -319,6 +370,13 @@ class SessionObservationMixin:
             return build_training_trace(
                 trace_id=f"{self._session_id}:joint:{self._turn_index}",
                 source_text=user_input,
+            )
+        recent = tuple(self._online_training_substrate_snapshots)
+        if len(recent) >= 2:
+            return build_training_trace_from_substrate_snapshots(
+                trace_id=f"{self._session_id}:real:{self._turn_index}",
+                source_text=user_input,
+                snapshots=recent,
             )
         steps = tuple(
             TraceStep(
@@ -513,6 +571,11 @@ class SessionObservationMixin:
         active_relationship_readout = (
             relationship_conditioning_snapshot.value
             if relationship_conditioning_snapshot is not None
+            and self._config.level_for(
+                RELATIONSHIP_CONDITIONING_SLOT,
+                WiringLevel.SHADOW,
+            )
+            is WiringLevel.ACTIVE
             and isinstance(
                 relationship_conditioning_snapshot.value,
                 ConditioningBankReadout,
@@ -521,13 +584,38 @@ class SessionObservationMixin:
             and relationship_conditioning_snapshot.value.confidence > 0.0
             else None
         )
+        conditioning_scope = ConditioningScope(
+            tenant_scope=_RUNNER_TENANT_SCOPE,
+            user_scope=self.user_scope,
+            session_scope=self._session_id,
+        )
+        relationship_bank = (
+            bank_readout_to_bank(
+                readout=active_relationship_readout,
+                slot_name=RELATIONSHIP_CONDITIONING_SLOT,
+                scope=conditioning_scope,
+                revocation_state=(
+                    self._personal_conditioning_revocation_state
+                ),
+            )
+            if active_relationship_readout is not None
+            else None
+        )
         (
+            relationship_latent_carrier,
             relationship_statement,
             relationship_statement_ref,
-        ) = _relationship_conditioning_text_delivery(
+        ) = _relationship_conditioning_delivery_from_config(
             relationship_readout=active_relationship_readout,
-            personal_conditioning_mode=self._config.personal_conditioning_mode,
+            relationship_bank=relationship_bank,
+            relationship_conditioning_mode=(
+                self._config.relationship_conditioning_mode
+            ),
             revocation_state=self._personal_conditioning_revocation_state,
+            projector_version=(
+                self._default_residual_runtime
+                .relationship_conditioning_projector_version
+            ),
         )
         # State KV P1 lineage: project the ACTIVE personal snapshot onto the
         # generic bank so this turn records which state versions shaped it.
@@ -537,11 +625,7 @@ class SessionObservationMixin:
             (
                 personal_conditioning_to_bank(
                     snapshot=active_conditioning,
-                    scope=ConditioningScope(
-                        tenant_scope=_RUNNER_TENANT_SCOPE,
-                        user_scope=self.user_scope,
-                        session_scope=self._session_id,
-                    ),
+                    scope=conditioning_scope,
                     revocation_state=(
                         self._personal_conditioning_revocation_state
                     ),
@@ -550,25 +634,10 @@ class SessionObservationMixin:
             if active_conditioning is not None
             else ()
         )
-        if relationship_statement and active_relationship_readout is not None:
-            # Lineage rule: only banks that actually influenced the output
-            # are recorded, and the Relationship bank's sole channel today
-            # is the rendered prompt statement.
-            conditioning_banks = (
-                *conditioning_banks,
-                bank_readout_to_bank(
-                    readout=active_relationship_readout,
-                    slot_name=RELATIONSHIP_CONDITIONING_SLOT,
-                    scope=ConditioningScope(
-                        tenant_scope=_RUNNER_TENANT_SCOPE,
-                        user_scope=self.user_scope,
-                        session_scope=self._session_id,
-                    ),
-                    revocation_state=(
-                        self._personal_conditioning_revocation_state
-                    ),
-                ),
-            )
+        if relationship_bank is not None and (
+            relationship_statement or relationship_latent_carrier is not None
+        ):
+            conditioning_banks = (*conditioning_banks, relationship_bank)
         # State KV P4-c: Top-K semantic router over the candidate banks.
         # SHADOW computes the decision report-only (delivery stays
         # static-all.v1 byte-for-byte, decision lands in the lineage's
@@ -593,6 +662,7 @@ class SessionObservationMixin:
                     personal_conditioning_statement = ""
                     personal_conditioning_statement_ref = ""
                 if ConditioningBankType.RELATIONSHIP.value not in selected:
+                    relationship_latent_carrier = None
                     relationship_statement = ""
                     relationship_statement_ref = ""
                 conditioning_banks = tuple(
@@ -684,6 +754,11 @@ class SessionObservationMixin:
                 personal_conditioning_statement=personal_conditioning_statement,
                 personal_conditioning_statement_ref=personal_conditioning_statement_ref,
                 personal_conditioning_carrier=personal_conditioning_carrier,
+                conditioning_bank_carriers=(
+                    (relationship_latent_carrier,)
+                    if relationship_latent_carrier is not None
+                    else ()
+                ),
                 prompt_state_delivery=self._config.prompt_state_delivery,
                 dynamic_residual_wiring=(
                     self._config.generation_dynamic_residual.value
@@ -816,6 +891,11 @@ class SessionObservationMixin:
                 # the action it is rating.
                 session_scope=self._session_id,
                 banks=conditioning_banks,
+                state_encoder_version=(
+                    relationship_latent_carrier.projector_version
+                    if relationship_latent_carrier is not None
+                    else ""
+                ),
                 # P4-c: the routing decision that actually shaped delivery,
                 # plus the Top-K shadow audit when the router ran
                 # report-only under the static-all policy.

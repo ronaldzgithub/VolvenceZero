@@ -41,6 +41,7 @@ from volvence_zero.semantic_state import (
 )
 
 RELATIONSHIP_CONDITIONING_SLOT = "relationship_conditioning"
+RELATIONSHIP_CONDITIONING_COMPILER_VERSION = "relationship-conditioning.v2"
 
 RELATIONSHIP_CONDITIONING_READOUT_LABELS: tuple[str, ...] = (
     "rel_trust",
@@ -51,6 +52,10 @@ RELATIONSHIP_CONDITIONING_READOUT_LABELS: tuple[str, ...] = (
     "rel_stabilization_need",
     "rel_trust_recovery",
     "rel_tension_load",
+    "rel_attunement_trend",
+    "rel_relationship_continuity",
+    "rel_repair_progress",
+    "rel_relationship_depth",
     "rel_consent_compliance",
     "rel_consent_clarity",
 )
@@ -60,7 +65,12 @@ RELATIONSHIP_CONDITIONING_READOUT_LABELS: tuple[str, ...] = (
 # rendering/injection purposes; the raw count stays available upstream.
 _TENSION_SATURATION_COUNT = 4
 
-_GROUP_ORDER: tuple[str, ...] = ("Trust", "Strain", "Consent")
+_GROUP_ORDER: tuple[str, ...] = (
+    "Trust",
+    "Strain",
+    "Trajectory",
+    "Consent",
+)
 
 _LABEL_PHRASES: Mapping[str, tuple[str, str]] = {
     "rel_trust": ("Trust", "current trust"),
@@ -71,6 +81,13 @@ _LABEL_PHRASES: Mapping[str, tuple[str, str]] = {
     "rel_emotional_load": ("Strain", "emotional load"),
     "rel_stabilization_need": ("Strain", "stabilization need"),
     "rel_tension_load": ("Strain", "unresolved-tension load"),
+    "rel_attunement_trend": ("Trajectory", "attunement direction"),
+    "rel_relationship_continuity": (
+        "Trajectory",
+        "relationship continuity",
+    ),
+    "rel_repair_progress": ("Trajectory", "repair progress"),
+    "rel_relationship_depth": ("Trajectory", "relationship depth"),
     "rel_consent_compliance": ("Consent", "compliance"),
     "rel_consent_clarity": ("Consent", "consent clarity"),
 }
@@ -193,6 +210,18 @@ class RelationshipConditioningModule(RuntimeModule[ConditioningBankReadout]):
         )
         coverage = sum(float(flag) for flag in coverage_flags) / len(coverage_flags)
         is_cold_start = coverage == 0.0
+        repair_evidence_count = (
+            relationship.value.recent_repair_count
+            + relationship.value.unresolved_tension_count
+        )
+        repair_progress = (
+            _clamp(
+                relationship.value.recent_repair_count
+                / repair_evidence_count
+            )
+            if repair_evidence_count
+            else 0.5
+        )
         readout = (
             _clamp(relationship.value.trust_level),
             _clamp(relationship.value.cumulative_trust_level),
@@ -205,6 +234,10 @@ class RelationshipConditioningModule(RuntimeModule[ConditioningBankReadout]):
                 relationship.value.unresolved_tension_count
                 / _TENSION_SATURATION_COUNT
             ),
+            _clamp(relationship.value.attunement_trend),
+            _clamp(relationship.value.relationship_continuity_score),
+            repair_progress,
+            _clamp(relationship.value.relationship_age_turns / 20.0),
             _clamp(boundary.value.compliance_score),
             _clamp(boundary.value.consent_clarity),
         )
@@ -218,6 +251,7 @@ class RelationshipConditioningModule(RuntimeModule[ConditioningBankReadout]):
         )
         source_fingerprint = stable_value_hash(
             (
+                RELATIONSHIP_CONDITIONING_COMPILER_VERSION,
                 source_versions,
                 stable_value_hash(relationship.value),
                 stable_value_hash(boundary.value),
@@ -274,6 +308,7 @@ class RelationshipConditioningModule(RuntimeModule[ConditioningBankReadout]):
                 confidence=confidence,
                 provenance=(
                     "owner:RelationshipConditioningModule/"
+                    f"{RELATIONSHIP_CONDITIONING_COMPILER_VERSION}/"
                     f"{CONDITIONING_BANK_READOUT_SCHEMA_VERSION}"
                 ),
                 is_cold_start=is_cold_start,
@@ -282,7 +317,8 @@ class RelationshipConditioningModule(RuntimeModule[ConditioningBankReadout]):
                     f"and boundary_consent; coverage={coverage:.2f} "
                     f"confidence={confidence:.2f} cold_start={is_cold_start} "
                     f"credit_delta={credit_confidence_delta:+.3f}"
-                    f"[{self._credit_feedback_level.value}]."
+                    f"[{self._credit_feedback_level.value}] "
+                    f"compiler={RELATIONSHIP_CONDITIONING_COMPILER_VERSION}."
                 ),
                 rendered_statement=rendered_statement,
                 credit_confidence_delta=credit_confidence_delta,

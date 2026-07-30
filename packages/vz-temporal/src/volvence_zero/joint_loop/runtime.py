@@ -1206,6 +1206,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     ) -> tuple[str, ...]:
         """Restore a checkpoint created by :meth:`create_learning_checkpoint`."""
 
+        self._ssl_trainer.invalidate_store_session(
+            store=self._world_policy.parameter_store
+        )
+        self._ssl_trainer.invalidate_store_session(
+            store=self._self_policy.parameter_store
+        )
         operations = self.rollback_rare_heavy_import(checkpoint)
         if checkpoint.schedule_gate_state is not None:
             self._schedule_gate_learner.restore_state(
@@ -1753,6 +1759,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         if rollback_required:
             self._world_sandbox.restore_checkpoint(world_cycle_checkpoint)
             self._self_sandbox.restore_checkpoint(self_cycle_checkpoint)
+            self._ssl_trainer.invalidate_store_session(
+                store=self._world_policy.parameter_store
+            )
+            self._ssl_trainer.invalidate_store_session(
+                store=self._self_policy.parameter_store
+            )
             policy_rollback_applied = True
             ssl_rollback_applied = True
         metacontroller_state = self._aggregate_metacontroller_state()
@@ -1828,6 +1840,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         ):
             self._world_sandbox.restore_checkpoint(world_cycle_checkpoint)
             self._self_sandbox.restore_checkpoint(self_cycle_checkpoint)
+            self._ssl_trainer.invalidate_store_session(
+                store=self._world_policy.parameter_store
+            )
+            self._ssl_trainer.invalidate_store_session(
+                store=self._self_policy.parameter_store
+            )
             policy_rollback_applied = True
             ssl_rollback_applied = True
             rollback_reasons = rollback_reasons + ("evolution-judge-rollback",)

@@ -420,12 +420,21 @@ async def run_shared_trace_transition(
     *,
     plan: SharedTraceTransitionPlan,
     runtime: OpenWeightResidualRuntime,
+    schema_version: str = SHARED_SETTLED_TRACE_SCHEMA_VERSION,
+    runner: AgentSessionRunner | None = None,
+    config: FinalRolloutConfig | None = None,
 ) -> dict[str, Any]:
-    """Run one formal two-turn micro-session and return one settled record."""
+    """Run one formal two-turn transition and return one settled record.
 
-    runner = AgentSessionRunner(
+    The default path retains the v1 one-transition micro-session contract.
+    A versioned longitudinal source may inject a persistent ``runner`` and
+    its own schema version so several settled transitions share one real
+    session before an explicit owner persistence/restart boundary.
+    """
+
+    active_runner = runner or AgentSessionRunner(
         session_id=plan.transition_id,
-        config=_active_config(),
+        config=config or _active_config(),
         default_residual_runtime=runtime,
         allow_live_substrate_mutation=False,
     )
@@ -437,10 +446,10 @@ async def run_shared_trace_transition(
         scene_id=plan.context_id,
         timestamp_ms=base_timestamp + 1,
         frame=frame,
-        provenance=SHARED_SETTLED_TRACE_SCHEMA_VERSION,
+        provenance=schema_version,
     )
     first_started = time.perf_counter()
-    first = await runner.run_turn(
+    first = await active_runner.run_turn(
         plan.turn_one_text,
         environment_event=first_event,
     )
@@ -493,17 +502,17 @@ async def run_shared_trace_transition(
             f"{plan.domain} context before observable outcome."
         ),
     )
-    runner.submit_environment_outcome(environment_outcome)
+    active_runner.submit_environment_outcome(environment_outcome)
     second_event = build_user_input_environment_event(
         event_id=f"{plan.transition_id}:event:settlement",
         user_input=plan.turn_two_text,
         scene_id=plan.context_id,
         timestamp_ms=base_timestamp + 2,
         frame=frame,
-        provenance=SHARED_SETTLED_TRACE_SCHEMA_VERSION,
+        provenance=schema_version,
     )
     second_started = time.perf_counter()
-    second = await runner.run_turn(
+    second = await active_runner.run_turn(
         plan.turn_two_text,
         environment_event=second_event,
     )
@@ -533,10 +542,10 @@ async def run_shared_trace_transition(
             f"{plan.transition_id} owner lineage mismatch"
         )
     slow_started = time.perf_counter()
-    runner.begin_new_context(
+    active_runner.begin_new_context(
         reason=f"shared-trace-settle:{plan.transition_id}"
     )
-    slow_results = await runner.drain_session_post_slow_loop()
+    slow_results = await active_runner.drain_session_post_slow_loop()
     slow_latency_ms = (time.perf_counter() - slow_started) * 1000.0
     substrate_mutation_applied = bool(
         second.online_fast_substrate_result is not None
@@ -547,7 +556,7 @@ async def run_shared_trace_transition(
             f"{plan.transition_id} mutated frozen substrate"
         )
     record = {
-        "schema_version": SHARED_SETTLED_TRACE_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "transition_id": plan.transition_id,
         "seed": plan.seed,
         "global_index": plan.global_index,
@@ -562,7 +571,7 @@ async def run_shared_trace_transition(
             "settlement_turn": plan.turn_two_text,
         },
         "lineage": {
-            "session_id": plan.transition_id,
+            "session_id": active_runner.session_id,
             "prediction_id": prediction.prediction_id,
             "prediction_ref": (
                 f"{plan.transition_id}::{prediction.prediction_id}"
@@ -661,6 +670,18 @@ def _runtime_fingerprint(runtime: OpenWeightResidualRuntime) -> str:
     return "runtime-descriptor-sha256:" + hashlib.sha256(
         _canonical_json_bytes(descriptor)
     ).hexdigest()
+
+
+def shared_trace_runtime_fingerprint(
+    runtime: OpenWeightResidualRuntime,
+) -> str:
+    """Publish the frozen trace runtime descriptor fingerprint.
+
+    Versioned evidence factories use this public readout instead of
+    importing the shared trace module's serialization internals.
+    """
+
+    return _runtime_fingerprint(runtime)
 
 
 def load_shared_trace_records(path: str | Path) -> list[dict[str, Any]]:
