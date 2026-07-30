@@ -1,0 +1,74 @@
+{
+  "schema_version": "gate7-9-10-third-campaign-source-ledger.v1",
+  "sources": [
+    {
+      "suite": "gate78-shared-trace.v3",
+      "fingerprint": "4d43fce7c17c262fd37e6f8cf0ed2d42587d7bb442af924ac6013257bd0579a9",
+      "seeds": [727, 733, 739],
+      "partitions_per_seed": {
+        "trace-train": 24,
+        "trace-development-heldout": 12,
+        "trace-locked-confirmation": 12
+      },
+      "consumer_admission": true,
+      "factory_manifest_locked_consumption_count": 0,
+      "note": "The factory bundle is immutable; formal consumption is recorded per consumer below."
+    },
+    {
+      "suite": "gate10-rare-heavy-promotion.v2",
+      "seeds": [1021, 1031, 1033],
+      "training_source": "shared synthetic offline-clone cohort",
+      "heldout_replay_count_per_arm": 2,
+      "old_scenario_replay_count_per_arm": 2
+    }
+  ],
+  "consumers": [
+    {
+      "suite": "gate7-causal-takeover.v1",
+      "source_schema": "gate78-shared-trace.v3",
+      "partition": "trace-development-heldout",
+      "formal_run_count": 0,
+      "verdict": "not-supported",
+      "purpose": "structure-frozen admission only",
+      "locked_consumed": false
+    },
+    {
+      "suite": "gate7-causal-takeover.v1",
+      "source_schema": "gate78-shared-trace.v3",
+      "partition": "trace-locked-confirmation",
+      "formal_run_count": 1,
+      "verdict": "not-supported",
+      "rerun_allowed": false,
+      "locked_consumed": true
+    },
+    {
+      "suite": "gate9-bounded-selfmod.v1",
+      "source_schema": "gate78-shared-trace.v3",
+      "partition": "trace-train",
+      "formal_run_count": 1,
+      "verdict": "not-supported",
+      "locked_consumed": false,
+      "rerun_allowed": false
+    },
+    {
+      "suite": "gate10-rare-heavy-promotion.v1",
+      "formal_run_count": 1,
+      "verdict": "invalid",
+      "rerun_allowed": false,
+      "reason": "Rollback digest omitted the live substrate checkpoint."
+    },
+    {
+      "suite": "gate10-rare-heavy-promotion.v2",
+      "formal_run_count": 1,
+      "verdict": "not-supported",
+      "rerun_allowed": false,
+      "authoritative": true
+    },
+    {
+      "suite": "gate2-v37-recent-k-history",
+      "formal_run_count": 0,
+      "verdict": "not-run",
+      "reason": "Optional independent packet requires fresh v37 routes and does not block this campaign."
+    }
+  ]
+}

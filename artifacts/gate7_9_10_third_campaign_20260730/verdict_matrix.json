@@ -1,0 +1,86 @@
+{
+  "schema_version": "gate7-9-10-third-campaign-verdict-matrix.v1",
+  "campaign_level": "mechanism-supported",
+  "thesis_retained": false,
+  "runtime_live_promotion_allowed": false,
+  "full_chain_rollback_drill_passed": true,
+  "mechanism_coverage": "Gate 1-10 complete (Gate 3 is not defined in debt #92)",
+  "causal_supported_gates": [2, 8],
+  "causal_not_supported_gates": [1, 4, 5, 6, 7, 9, 10],
+  "longitudinal_supported_gates": [],
+  "rows": [
+    {
+      "gate": 1,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "carried-forward",
+      "disposition": "mechanism-change-required",
+      "reason": "PE-induced temporal updates did not affect a measurable downstream controller/action surface."
+    },
+    {
+      "gate": 2,
+      "mechanism": "supported",
+      "causal": "supported-v35-open-loop",
+      "campaign_evidence": "carried-forward",
+      "disposition": "v35-retained-v36-live-frozen",
+      "reason": "Optional v37 recent-k/history correction was not run and requires fresh routes."
+    },
+    {
+      "gate": 4,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "carried-forward",
+      "disposition": "mechanism-change-required",
+      "reason": "The segment acquisition objective did not improve label efficiency."
+    },
+    {
+      "gate": 5,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "deferred",
+      "disposition": "wait-for-longitudinal",
+      "reason": "Another short synthetic replay cannot change the prior Pareto diagnosis."
+    },
+    {
+      "gate": 6,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "carried-forward",
+      "disposition": "mechanism-change-required",
+      "reason": "Meta-init did not beat copy-init and lacked an owner-native user-conditioned prior."
+    },
+    {
+      "gate": 7,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "formal-fresh-locked-v3",
+      "locked_consumed": true,
+      "disposition": "mechanism-only",
+      "reason": "The repaired structure-frozen invariant passed, but full had zero return/composition gain versus no-ssl and no-rl."
+    },
+    {
+      "gate": 8,
+      "mechanism": "supported",
+      "causal": "causal-supported",
+      "campaign_evidence": "carried-forward-v2",
+      "disposition": "retain-within-v2-scope",
+      "reason": "Wake/sleep matched controls remain the only supported next-session causal result in this campaign range."
+    },
+    {
+      "gate": 9,
+      "mechanism": "supported",
+      "causal": "not-supported",
+      "campaign_evidence": "formal-matched-controls",
+      "disposition": "implementation-candidate-only",
+      "reason": "M3 equaled plain momentum and lost to SGD/Adam; PE-gated benefit did not beat always/random controls by the preregistered margin."
+    },
+    {
+      "gate": 10,
+      "mechanism": "supported-v2",
+      "causal": "not-supported",
+      "campaign_evidence": "formal-four-arm-v2",
+      "disposition": "review-only",
+      "reason": "Promotion/rejection/rollback worked and the full-chain drill passed, but held-out gain versus review-only was negative."
+    }
+  ]
+}

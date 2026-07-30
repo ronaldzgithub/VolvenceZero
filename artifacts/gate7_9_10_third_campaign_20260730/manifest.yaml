@@ -1,0 +1,42 @@
+{
+  "schema_version": "gate7-9-10-third-campaign.v1",
+  "campaign_level": "mechanism-supported",
+  "created_on": "2026-07-30",
+  "authoritative_inputs": [
+    {
+      "path": "artifacts/gate7_shared_trace_v3_20260730/aggregate_manifest.json",
+      "sha256": "e76a37edb58498c00437556834c8b6bafc52c36ed586edd0e857bf5e08f507bd"
+    },
+    {
+      "path": "artifacts/gate7_causal_takeover_v3_20260730/promotion_verdict.json",
+      "sha256": "9cba7db43d5a93af394e35e962d1f293fa671e98f93c843df2ec71976adbaf31"
+    },
+    {
+      "path": "artifacts/gate9_bounded_selfmod_20260730/promotion_verdict.json",
+      "sha256": "d3682dab58d47b5f1b8138f59e91cf59251758556fa115f0bd55f4210a6fe624"
+    },
+    {
+      "path": "artifacts/gate10_rare_heavy_promotion_20260730/promotion_verdict.json",
+      "sha256": "45fd64b0c0361fc3d506afc7a732e9f4a530a8622ff64636e1f79c2281c15fc0",
+      "status": "invalid-superseded"
+    },
+    {
+      "path": "artifacts/gate10_rare_heavy_promotion_v2_20260730/promotion_verdict.json",
+      "sha256": "c2f2496226b5aa89f2d0a5a70350ee61affa3e625e84befd837947dd804de2ac"
+    },
+    {
+      "path": "artifacts/gate10_rare_heavy_promotion_v2_20260730/rollback_evidence.json",
+      "sha256": "0ee9d6343f89d06b792b78f471bab647f4c96442a0778774ad27d07db4dbde43"
+    }
+  ],
+  "outputs": [
+    "manifest.yaml",
+    "source_ledger.json",
+    "verdict_matrix.json",
+    "report.md",
+    "next_campaign.md"
+  ],
+  "thesis_retained": false,
+  "runtime_live_promotion_allowed": false,
+  "full_chain_rollback_drill_passed": true
+}
