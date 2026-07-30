@@ -38,6 +38,13 @@ Separate the owner responsibilities:
 
 Internal RL must not mutate SSL structure when `structure_frozen` is false.
 
+The transition probe uses the continuous `causal` replacement path. The
+`causal-binary` path is reserved for RL after takeover passes: using it during
+the probe would turn the evaluation override itself into a forced switch and
+would therefore collapse both switch-sparsity retention and held-out prefix
+stability, rather than measuring whether the discovered causal structure
+survives deployment.
+
 ## Takeover Metrics
 
 The gate should evaluate:

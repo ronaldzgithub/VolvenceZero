@@ -23,14 +23,18 @@ from volvence_zero.internal_rl.sandbox import (
     InternalRLSandbox,
 )
 from volvence_zero.memory import MemoryStore, MemoryStoreCheckpoint, Track, build_default_memory_store
-from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateRareHeavyCheckpoint, SubstrateSnapshot, TrainingTrace
+from volvence_zero.substrate import (
+    OpenWeightResidualRuntime,
+    SubstrateRareHeavyCheckpoint,
+    SubstrateSnapshot,
+    TrainingTrace,
+)
 from volvence_zero.temporal import (
     DualTrackRareHeavySnapshot,
     FullLearnedTemporalPolicy,
     MetacontrollerParameterStore,
     MetacontrollerParameterSnapshot,
     MetacontrollerSSLTrainer,
-    SSLTrainingReport,
 )
 
 
@@ -384,9 +388,23 @@ class SSLRLTrainingPipeline:
     ) -> PhaseReport:
         self._policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
         dual_rollouts = tuple(
-            self._sandbox.rollout_dual_track(
-                rollout_id=f"pipeline-transition-{step_index}-{batch_index}",
-                substrate_steps=substrates,
+            DualTrackRollout(
+                task_rollout=self._sandbox.rollout(
+                    rollout_id=f"pipeline-transition-{step_index}-{batch_index}:task",
+                    substrate_steps=substrates,
+                    track=Track.WORLD,
+                    replacement_mode="causal",
+                ),
+                relationship_rollout=self._sandbox.rollout(
+                    rollout_id=f"pipeline-transition-{step_index}-{batch_index}:relationship",
+                    substrate_steps=substrates,
+                    track=Track.SELF,
+                    replacement_mode="causal",
+                ),
+                description=(
+                    "Continuous causal takeover probe; binary gating is reserved "
+                    "for post-takeover RL."
+                ),
             )
             for batch_index, substrates in enumerate(rollout_batches)
         )
@@ -421,7 +439,11 @@ class SSLRLTrainingPipeline:
                 for transition in transitions
             ) / len(transitions)
             decoder_effect_retention = sum(
-                min(sum(abs(value) for value in transition.downstream_effect) / max(len(transition.downstream_effect), 1), 1.0)
+                min(
+                    sum(abs(value) for value in transition.downstream_effect)
+                    / max(len(transition.downstream_effect), 1),
+                    1.0,
+                )
                 for transition in transitions
             ) / len(transitions)
             heldout_prefix_stability = sum(
@@ -746,6 +768,12 @@ class SSLRLTrainingPipeline:
     ) -> RareHeavyArtifact:
         final_ssl = self._ssl_loss_history[-1] if self._ssl_loss_history else 0.0
         final_reward = self._rl_reward_history[-1] if self._rl_reward_history else 0.0
+        substrate_included = self._substrate_checkpoint is not None and include_substrate
+        substrate_mode = (
+            self._substrate_checkpoint.training_mode
+            if substrate_included and self._substrate_checkpoint is not None
+            else "not-run"
+        )
         return RareHeavyArtifact(
             artifact_id=artifact_id or str(uuid4()),
             owner_path=self.owner_path,
@@ -765,7 +793,6 @@ class SSLRLTrainingPipeline:
             description=(
                 f"Rare-heavy artifact exported from {self.owner_path} with phase={self._phase.value}, "
                 f"transition_step={self._transition_step}, ssl_loss={final_ssl:.3f}, reward={final_reward:.3f}, "
-                f"substrate={'yes' if self._substrate_checkpoint is not None and include_substrate else 'no'}"
-                f"/{self._substrate_checkpoint.training_mode if self._substrate_checkpoint is not None and include_substrate else 'not-run'}."
+                f"substrate={'yes' if substrate_included else 'no'}/{substrate_mode}."
             ),
         )

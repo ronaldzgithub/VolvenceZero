@@ -778,10 +778,21 @@ class TestP17SSLRLPipeline:
         assert result.takeover_gate_report.passed is True
         assert result.rl_steps_completed >= 1
         assert result.takeover_gate_report.transition_count >= cfg.transition_min_rollout_transitions
-        assert result.takeover_gate_report.posterior_agreement >= result.takeover_gate_report.posterior_agreement_threshold
+        assert (
+            result.takeover_gate_report.posterior_agreement
+            >= result.takeover_gate_report.posterior_agreement_threshold
+        )
+        assert (
+            result.takeover_gate_report.switch_sparsity_retention
+            >= result.takeover_gate_report.switch_sparsity_retention_threshold
+        )
         assert (
             result.takeover_gate_report.family_reuse_retention
             >= result.takeover_gate_report.family_reuse_retention_threshold
+        )
+        assert (
+            result.takeover_gate_report.heldout_prefix_stability
+            >= result.takeover_gate_report.heldout_prefix_stability_threshold
         )
         assert result.takeover_gate_report.failed_reasons == ()
 
