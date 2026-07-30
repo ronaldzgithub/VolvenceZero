@@ -1,0 +1,12 @@
+{"arm":"full-import","gate_decision":"allow","gate_reasons":[],"seed":1009}
+{"arm":"candidate-review-only","gate_decision":"allow","gate_reasons":[],"seed":1009}
+{"arm":"rejected-candidate","gate_decision":"block","gate_reasons":["ModificationGate blocked candidate","privacy attestation reports cross-user leakage"],"seed":1009}
+{"arm":"rollback-to-previous","gate_decision":"allow","gate_reasons":[],"seed":1009}
+{"arm":"full-import","gate_decision":"allow","gate_reasons":[],"seed":1013}
+{"arm":"candidate-review-only","gate_decision":"allow","gate_reasons":[],"seed":1013}
+{"arm":"rejected-candidate","gate_decision":"block","gate_reasons":["ModificationGate blocked candidate","privacy attestation reports cross-user leakage"],"seed":1013}
+{"arm":"rollback-to-previous","gate_decision":"allow","gate_reasons":[],"seed":1013}
+{"arm":"full-import","gate_decision":"allow","gate_reasons":[],"seed":1019}
+{"arm":"candidate-review-only","gate_decision":"allow","gate_reasons":[],"seed":1019}
+{"arm":"rejected-candidate","gate_decision":"block","gate_reasons":["ModificationGate blocked candidate","privacy attestation reports cross-user leakage"],"seed":1019}
+{"arm":"rollback-to-previous","gate_decision":"allow","gate_reasons":[],"seed":1019}

@@ -1,0 +1,65 @@
+{
+  "causal_gates": [
+    [
+      "heldout-gain-vs-review-only",
+      false,
+      -4.881785975574537e-06
+    ],
+    [
+      "catastrophic-forgetting-bounded",
+      true,
+      0.005166173809104446
+    ],
+    [
+      "cross-user-leakage-zero",
+      true,
+      0.0
+    ],
+    [
+      "kill-condition-auto-rejects",
+      true,
+      6.0
+    ],
+    [
+      "rollback-restores-previous",
+      true,
+      1.0
+    ]
+  ],
+  "full_chain_rollback_passed": true,
+  "mechanism_gates": [
+    [
+      "candidate-metadata-complete",
+      true,
+      0.0
+    ],
+    [
+      "compatibility-check-passed",
+      true,
+      0.0
+    ],
+    [
+      "review-only-side-effect-zero",
+      true,
+      0.0
+    ],
+    [
+      "rejected-candidate-auto-blocked",
+      true,
+      0.0
+    ],
+    [
+      "accepted-import-owner-path-used",
+      true,
+      0.0
+    ],
+    [
+      "full-chain-rollback-exact",
+      true,
+      1.0
+    ]
+  ],
+  "promotion_scope": "Synthetic shared-cohort offline-clone artifact; production promotion remains unauthorized.",
+  "schema_version": "gate10-rare-heavy-promotion.v2",
+  "verdict": "not-supported"
+}

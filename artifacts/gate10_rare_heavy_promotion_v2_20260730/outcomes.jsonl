@@ -1,0 +1,12 @@
+{"arm":"full-import","catastrophic_forgetting":0.005166173809104446,"heldout_gain":-4.881785975574537e-06,"heldout_score":0.9933284515473577,"seed":1021}
+{"arm":"candidate-review-only","catastrophic_forgetting":0.0,"heldout_gain":0.0,"heldout_score":0.9933333333333333,"seed":1021}
+{"arm":"rejected-candidate","catastrophic_forgetting":0.0,"heldout_gain":0.0,"heldout_score":0.9933333333333333,"seed":1021}
+{"arm":"rollback-to-previous","catastrophic_forgetting":0.005166173809104446,"heldout_gain":-4.881785975574537e-06,"heldout_score":0.9933284515473577,"seed":1021}
+{"arm":"full-import","catastrophic_forgetting":0.005166173809104446,"heldout_gain":-4.881785975574537e-06,"heldout_score":0.9933284515473577,"seed":1031}
+{"arm":"candidate-review-only","catastrophic_forgetting":0.0,"heldout_gain":0.0,"heldout_score":0.9933333333333333,"seed":1031}
+{"arm":"rejected-candidate","catastrophic_forgetting":0.0,"heldout_gain":0.0,"heldout_score":0.9933333333333333,"seed":1031}
+{"arm":"rollback-to-previous","catastrophic_forgetting":0.005166173809104446,"heldout_gain":-4.881785975574537e-06,"heldout_score":0.9933284515473577,"seed":1031}
+{"arm":"full-import","catastrophic_forgetting":0.005166173809104446,"heldout_gain":-4.881785975574537e-06,"heldout_score":0.9933284515473577,"seed":1033}
+{"arm":"candidate-review-only","catastrophic_forgetting":0.0,"heldout_gain":0.0,"heldout_score":0.9933333333333333,"seed":1033}
+{"arm":"rejected-candidate","catastrophic_forgetting":0.0,"heldout_gain":0.0,"heldout_score":0.9933333333333333,"seed":1033}
+{"arm":"rollback-to-previous","catastrophic_forgetting":0.005166173809104446,"heldout_gain":-4.881785975574537e-06,"heldout_score":0.9933284515473577,"seed":1033}

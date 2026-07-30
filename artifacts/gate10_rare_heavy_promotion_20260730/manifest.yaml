@@ -1,0 +1,41 @@
+{
+  "arm_schedule": [
+    "full-import",
+    "candidate-review-only",
+    "rejected-candidate",
+    "rollback-to-previous"
+  ],
+  "cohort_scope": "shared-synthetic-cohort",
+  "evaluation_evidence": "matched-heldout-and-old-scenario-replay",
+  "gate_verdict_source": "ModificationGate.OFFLINE",
+  "parameter_count_source": "SubstrateRareHeavyCheckpoint",
+  "privacy_attestation": "shared aggregate only; user facts/consent/relationship traces excluded",
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate10-rare-heavy-promotion.v1",
+  "seed_schedule": [
+    1009,
+    1013,
+    1019
+  ],
+  "substrate_fingerprint_source": "SubstrateRareHeavyCheckpoint.compatibility_fingerprint",
+  "suite_id": "gate10-rare-heavy-promotion",
+  "thresholds": {
+    "catastrophic_forgetting_max": 0.02,
+    "cross_user_leakage_max": 0.0,
+    "heldout_gain_vs_review_only": 0.008
+  },
+  "training_mode": "offline-clone:adapter-delta-v2"
+}

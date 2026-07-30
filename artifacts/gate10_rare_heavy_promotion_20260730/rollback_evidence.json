@@ -1,0 +1,114 @@
+{
+  "full_chain_rollback_passed": true,
+  "rows": [
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "full-import",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": false,
+      "seed": 1009
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "candidate-review-only",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": false,
+      "seed": 1009
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "rejected-candidate",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": false,
+      "seed": 1009
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "rollback-to-previous",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": true,
+      "seed": 1009
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "full-import",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": false,
+      "seed": 1013
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "candidate-review-only",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": false,
+      "seed": 1013
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "rejected-candidate",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": false,
+      "seed": 1013
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "rollback-to-previous",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": true,
+      "seed": 1013
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "full-import",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": false,
+      "seed": 1019
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "candidate-review-only",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": false,
+      "seed": 1019
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "rejected-candidate",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": false,
+      "seed": 1019
+    },
+    {
+      "after": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "arm": "rollback-to-previous",
+      "before": "88bbd9be314e1c48bf101ab5572e6c99e1dde6629f5e38c18fd845a021261dab",
+      "checkpoint_fingerprint_match": true,
+      "rollback_exact": true,
+      "rollback_triggered": true,
+      "seed": 1019
+    }
+  ],
+  "schema_version": "gate10-rare-heavy-promotion.v1"
+}

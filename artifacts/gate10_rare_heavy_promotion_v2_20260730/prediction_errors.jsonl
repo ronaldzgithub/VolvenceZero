@@ -1,0 +1,12 @@
+{"arm":"full-import","cross_user_leakage_count":0,"kill_condition_count":0,"seed":1021}
+{"arm":"candidate-review-only","cross_user_leakage_count":0,"kill_condition_count":0,"seed":1021}
+{"arm":"rejected-candidate","cross_user_leakage_count":1,"kill_condition_count":2,"seed":1021}
+{"arm":"rollback-to-previous","cross_user_leakage_count":0,"kill_condition_count":0,"seed":1021}
+{"arm":"full-import","cross_user_leakage_count":0,"kill_condition_count":0,"seed":1031}
+{"arm":"candidate-review-only","cross_user_leakage_count":0,"kill_condition_count":0,"seed":1031}
+{"arm":"rejected-candidate","cross_user_leakage_count":1,"kill_condition_count":2,"seed":1031}
+{"arm":"rollback-to-previous","cross_user_leakage_count":0,"kill_condition_count":0,"seed":1031}
+{"arm":"full-import","cross_user_leakage_count":0,"kill_condition_count":0,"seed":1033}
+{"arm":"candidate-review-only","cross_user_leakage_count":0,"kill_condition_count":0,"seed":1033}
+{"arm":"rejected-candidate","cross_user_leakage_count":1,"kill_condition_count":2,"seed":1033}
+{"arm":"rollback-to-previous","cross_user_leakage_count":0,"kill_condition_count":0,"seed":1033}

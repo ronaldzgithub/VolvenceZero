@@ -1,0 +1,12 @@
+{"applied_operation_count":5,"arm":"full-import","compatibility_passed":true,"metadata_complete":true,"seed":1021}
+{"applied_operation_count":0,"arm":"candidate-review-only","compatibility_passed":true,"metadata_complete":true,"seed":1021}
+{"applied_operation_count":0,"arm":"rejected-candidate","compatibility_passed":true,"metadata_complete":true,"seed":1021}
+{"applied_operation_count":5,"arm":"rollback-to-previous","compatibility_passed":true,"metadata_complete":true,"seed":1021}
+{"applied_operation_count":5,"arm":"full-import","compatibility_passed":true,"metadata_complete":true,"seed":1031}
+{"applied_operation_count":0,"arm":"candidate-review-only","compatibility_passed":true,"metadata_complete":true,"seed":1031}
+{"applied_operation_count":0,"arm":"rejected-candidate","compatibility_passed":true,"metadata_complete":true,"seed":1031}
+{"applied_operation_count":5,"arm":"rollback-to-previous","compatibility_passed":true,"metadata_complete":true,"seed":1031}
+{"applied_operation_count":5,"arm":"full-import","compatibility_passed":true,"metadata_complete":true,"seed":1033}
+{"applied_operation_count":0,"arm":"candidate-review-only","compatibility_passed":true,"metadata_complete":true,"seed":1033}
+{"applied_operation_count":0,"arm":"rejected-candidate","compatibility_passed":true,"metadata_complete":true,"seed":1033}
+{"applied_operation_count":5,"arm":"rollback-to-previous","compatibility_passed":true,"metadata_complete":true,"seed":1033}
