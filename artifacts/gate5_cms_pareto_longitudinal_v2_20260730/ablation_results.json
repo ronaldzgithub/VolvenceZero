@@ -1,0 +1,415 @@
+{
+  "comparisons": [
+    {
+      "absorption_gain": 2.0141523065150415e-07,
+      "absorption_seed_gains": [
+        2.0141523065150415e-07,
+        2.0141523065150415e-07,
+        2.0141523065150415e-07
+      ],
+      "control_arm": "single-timescale",
+      "pareto_non_worse": true,
+      "retention_gain": 1.1870644389677665e-06,
+      "retention_seed_gains": [
+        1.1870644389677665e-06,
+        1.1870644389677665e-06,
+        1.1870644389677665e-06
+      ]
+    },
+    {
+      "absorption_gain": -1.6058361362727316e-07,
+      "absorption_seed_gains": [
+        -1.6058361362727316e-07,
+        -1.6058361362727316e-07,
+        -1.6058361362727316e-07
+      ],
+      "control_arm": "no-ATLAS-replay",
+      "pareto_non_worse": true,
+      "retention_gain": 0.0,
+      "retention_seed_gains": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "absorption_gain": 2.1258078202913396e-09,
+      "absorption_seed_gains": [
+        2.1258078202913396e-09,
+        2.1258078202913396e-09,
+        2.1258078202913396e-09
+      ],
+      "control_arm": "no-PE-write-gate",
+      "pareto_non_worse": true,
+      "retention_gain": 0.0,
+      "retention_seed_gains": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "absorption_gain": 3.1699136701611503e-06,
+      "absorption_seed_gains": [
+        3.1699136701611503e-06,
+        3.1699136701611503e-06,
+        3.1699136701611503e-06
+      ],
+      "control_arm": "memory-only",
+      "pareto_non_worse": true,
+      "retention_gain": 0.0,
+      "retention_seed_gains": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "confidence_intervals": {
+    "memory-only": {
+      "absorption_confidence_interval_95": [
+        3.1699136701611503e-06,
+        3.1699136701611503e-06
+      ],
+      "retention_confidence_interval_95": [
+        0.0,
+        0.0
+      ]
+    },
+    "no-ATLAS-replay": {
+      "absorption_confidence_interval_95": [
+        -1.6058361362727316e-07,
+        -1.6058361362727316e-07
+      ],
+      "retention_confidence_interval_95": [
+        0.0,
+        0.0
+      ]
+    },
+    "no-PE-write-gate": {
+      "absorption_confidence_interval_95": [
+        2.1258078202913396e-09,
+        2.1258078202913396e-09
+      ],
+      "retention_confidence_interval_95": [
+        0.0,
+        0.0
+      ]
+    },
+    "single-timescale": {
+      "absorption_confidence_interval_95": [
+        2.0141523065150415e-07,
+        2.0141523065150415e-07
+      ],
+      "retention_confidence_interval_95": [
+        1.1870644389677665e-06,
+        1.1870644389677665e-06
+      ]
+    }
+  },
+  "gates": {
+    "all_arms_all_seeds_present": true,
+    "all_records_and_locked_counts_complete": true,
+    "checkpoint_rollback_exact": true,
+    "constructor_restart_count_50_per_arm_seed": true,
+    "frozen_substrate_mutation_zero": true,
+    "full_cadence_1_2_4": true,
+    "full_pareto_non_worse_all_controls": true,
+    "full_significant_vs_single_timescale": false,
+    "lineage_complete": true,
+    "matched_cms_parameter_budget": true,
+    "persistence_roundtrip_exact": true,
+    "single_cadence_1_1_1": true
+  },
+  "metrics": [
+    {
+      "arm": "nested-CMS(full)",
+      "cadence_intervals": [
+        1,
+        2,
+        4
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.9,
+      "new_knowledge_absorption": 3.1699136701611503e-06,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1201,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "single-timescale",
+      "cadence_intervals": [
+        1,
+        1,
+        1
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 1.0,
+      "new_knowledge_absorption": 2.968498439509646e-06,
+      "old_knowledge_retention": 0.999998812935561,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1201,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "no-ATLAS-replay",
+      "cadence_intervals": [
+        1,
+        2,
+        4
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.9,
+      "new_knowledge_absorption": 3.3304972837884235e-06,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1201,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "no-PE-write-gate",
+      "cadence_intervals": [
+        1,
+        2,
+        4
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.9,
+      "new_knowledge_absorption": 3.167787862340859e-06,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1201,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "memory-only",
+      "cadence_intervals": [],
+      "cms_parameter_count": 0,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.0,
+      "new_knowledge_absorption": 0.0,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1201,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "nested-CMS(full)",
+      "cadence_intervals": [
+        1,
+        2,
+        4
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.9,
+      "new_knowledge_absorption": 3.1699136701611503e-06,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1213,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "single-timescale",
+      "cadence_intervals": [
+        1,
+        1,
+        1
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 1.0,
+      "new_knowledge_absorption": 2.968498439509646e-06,
+      "old_knowledge_retention": 0.999998812935561,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1213,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "no-ATLAS-replay",
+      "cadence_intervals": [
+        1,
+        2,
+        4
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.9,
+      "new_knowledge_absorption": 3.3304972837884235e-06,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1213,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "no-PE-write-gate",
+      "cadence_intervals": [
+        1,
+        2,
+        4
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.9,
+      "new_knowledge_absorption": 3.167787862340859e-06,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1213,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "memory-only",
+      "cadence_intervals": [],
+      "cms_parameter_count": 0,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.0,
+      "new_knowledge_absorption": 0.0,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1213,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "nested-CMS(full)",
+      "cadence_intervals": [
+        1,
+        2,
+        4
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.9,
+      "new_knowledge_absorption": 3.1699136701611503e-06,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1223,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "single-timescale",
+      "cadence_intervals": [
+        1,
+        1,
+        1
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 1.0,
+      "new_knowledge_absorption": 2.968498439509646e-06,
+      "old_knowledge_retention": 0.999998812935561,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1223,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "no-ATLAS-replay",
+      "cadence_intervals": [
+        1,
+        2,
+        4
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.9,
+      "new_knowledge_absorption": 3.3304972837884235e-06,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1223,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "no-PE-write-gate",
+      "cadence_intervals": [
+        1,
+        2,
+        4
+      ],
+      "cms_parameter_count": 204,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.9,
+      "new_knowledge_absorption": 3.167787862340859e-06,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1223,
+      "settled_transition_count": 510
+    },
+    {
+      "arm": "memory-only",
+      "cadence_intervals": [],
+      "cms_parameter_count": 0,
+      "erroneous_promotion_rate": 0.0,
+      "frozen_substrate_mutation_count": 0,
+      "lineage_complete": true,
+      "locked_transition_count": 60,
+      "memory_churn": 0.0,
+      "new_knowledge_absorption": 0.0,
+      "old_knowledge_retention": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "retrieval_weighted_payoff": 0.15,
+      "seed": 1223,
+      "settled_transition_count": 510
+    }
+  ],
+  "schema_version": "gate5-cms-pareto-longitudinal.v2"
+}

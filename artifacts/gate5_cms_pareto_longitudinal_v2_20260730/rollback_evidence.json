@@ -1,0 +1,146 @@
+{
+  "arms": [
+    {
+      "arm": "nested-CMS(full)",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1201
+    },
+    {
+      "arm": "single-timescale",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1201
+    },
+    {
+      "arm": "no-ATLAS-replay",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1201
+    },
+    {
+      "arm": "no-PE-write-gate",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1201
+    },
+    {
+      "arm": "memory-only",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "memory-only",
+      "seed": 1201
+    },
+    {
+      "arm": "nested-CMS(full)",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1213
+    },
+    {
+      "arm": "single-timescale",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1213
+    },
+    {
+      "arm": "no-ATLAS-replay",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1213
+    },
+    {
+      "arm": "no-PE-write-gate",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1213
+    },
+    {
+      "arm": "memory-only",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "memory-only",
+      "seed": 1213
+    },
+    {
+      "arm": "nested-CMS(full)",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1223
+    },
+    {
+      "arm": "single-timescale",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1223
+    },
+    {
+      "arm": "no-ATLAS-replay",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1223
+    },
+    {
+      "arm": "no-PE-write-gate",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "pre-replay MemoryStore checkpoint",
+      "seed": 1223
+    },
+    {
+      "arm": "memory-only",
+      "checkpoint_roundtrip_exact": true,
+      "constructor_restart_count": 50,
+      "final_state_changed_before_rollback": true,
+      "persistence_roundtrip_exact": true,
+      "rollback_target": "memory-only",
+      "seed": 1223
+    }
+  ],
+  "explicit_factory_rollback": {
+    "cms_pe_features_enabled": false,
+    "cms_replay_window_size": null
+  },
+  "passed": true,
+  "schema_version": "gate5-cms-pareto-longitudinal.v2",
+  "substrate_mutated": false
+}

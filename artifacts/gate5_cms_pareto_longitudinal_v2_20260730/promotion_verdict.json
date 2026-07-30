@@ -1,0 +1,14 @@
+{
+  "causal_passed": false,
+  "claim": "multi-frequency CMS is cross-session runnable and rollback-capable",
+  "failed_gates": [
+    "full_significant_vs_single_timescale"
+  ],
+  "gate_scope": "Gate 5 CMS cross-session Pareto",
+  "locked_source_consumed_once": true,
+  "longitudinal_passed": false,
+  "mechanism_passed": true,
+  "same_locked_source_rerun_allowed": false,
+  "schema_version": "gate5-cms-pareto-longitudinal.v2",
+  "status": "not-supported"
+}

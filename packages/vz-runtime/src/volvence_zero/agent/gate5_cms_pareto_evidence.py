@@ -16,7 +16,7 @@ import statistics
 import subprocess
 import sys
 import time
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from volvence_zero.agent.shared_settled_trace import (
     SHARED_SETTLED_TRACE_COUNT_PER_SEED,
@@ -33,6 +33,7 @@ from volvence_zero.memory import (
     RetrievalQuery,
     Track,
 )
+from volvence_zero.memory.persistence import PersistenceBackend
 from volvence_zero.prediction.error import (
     ActualOutcome,
     PredictedOutcome,
@@ -255,6 +256,7 @@ def _build_learned_store(
     background_cadence: int,
     pe_features_enabled: bool,
     replay_window_sizes: Mapping[str, int] | None,
+    persistence_backend: PersistenceBackend | None = None,
 ) -> MemoryStore:
     return MemoryStore(
         learned_core=CMSMemoryCore(
@@ -266,11 +268,16 @@ def _build_learned_store(
             background_cadence=background_cadence,
             pe_features_enabled=pe_features_enabled,
             replay_window_sizes=replay_window_sizes,
-        )
+        ),
+        persistence_backend=persistence_backend,
     )
 
 
-def build_gate5_arm_store(arm: str) -> MemoryStore:
+def build_gate5_arm_store(
+    arm: str,
+    *,
+    persistence_backend: PersistenceBackend | None = None,
+) -> MemoryStore:
     replay = {
         "online-fast": 8,
         "session-medium": 4,
@@ -283,6 +290,7 @@ def build_gate5_arm_store(arm: str) -> MemoryStore:
             background_cadence=4,
             pe_features_enabled=True,
             replay_window_sizes=replay,
+            persistence_backend=persistence_backend,
         )
     if arm == GATE5_SINGLE_TIMESCALE_ARM:
         return _build_learned_store(
@@ -291,6 +299,7 @@ def build_gate5_arm_store(arm: str) -> MemoryStore:
             background_cadence=1,
             pe_features_enabled=True,
             replay_window_sizes=replay,
+            persistence_backend=persistence_backend,
         )
     if arm == "no-ATLAS-replay":
         return _build_learned_store(
@@ -299,6 +308,7 @@ def build_gate5_arm_store(arm: str) -> MemoryStore:
             background_cadence=4,
             pe_features_enabled=True,
             replay_window_sizes=None,
+            persistence_backend=persistence_backend,
         )
     if arm == "no-PE-write-gate":
         return _build_learned_store(
@@ -307,9 +317,10 @@ def build_gate5_arm_store(arm: str) -> MemoryStore:
             background_cadence=4,
             pe_features_enabled=False,
             replay_window_sizes=replay,
+            persistence_backend=persistence_backend,
         )
     if arm == "memory-only":
-        return MemoryStore()
+        return MemoryStore(persistence_backend=persistence_backend)
     raise ValueError(f"Unknown Gate 5 arm {arm!r}")
 
 
@@ -417,6 +428,11 @@ def run_gate5_arm(
     records: Sequence[Mapping[str, Any]],
     seed: int,
     arm: str,
+    record_validator: (
+        Callable[[Sequence[Mapping[str, Any]], int], None] | None
+    ) = None,
+    persistence_backend: PersistenceBackend | None = None,
+    session_boundary_interval: int | None = None,
 ) -> tuple[
     Gate5ArmMetrics,
     list[dict[str, Any]],
@@ -424,8 +440,26 @@ def run_gate5_arm(
 ]:
     """Replay one complete seed through one matched memory arm."""
 
-    _validate_seed_records(records, seed=seed)
-    store = build_gate5_arm_store(arm)
+    if record_validator is None:
+        _validate_seed_records(records, seed=seed)
+    else:
+        record_validator(records, seed)
+    if (
+        session_boundary_interval is not None
+        and session_boundary_interval < 1
+    ):
+        raise ValueError("session_boundary_interval must be positive")
+    if (
+        session_boundary_interval is not None
+        and persistence_backend is None
+    ):
+        raise ValueError(
+            "session boundaries require a persistence backend"
+        )
+    store = build_gate5_arm_store(
+        arm,
+        persistence_backend=persistence_backend,
+    )
     initial_checkpoint = store.create_checkpoint(
         checkpoint_id=f"gate5-{seed}-{arm}-initial"
     )
@@ -438,6 +472,8 @@ def run_gate5_arm(
     erroneous_promotions = 0
     negative_revision_count = 0
     mutation_count = 0
+    constructor_restart_count = 0
+    persistence_roundtrip_exact = True
     for replay_index, record in enumerate(records):
         timestamp_ms = seed * 1_000_000 + replay_index
         phase = str(record["episode_phase"])
@@ -539,6 +575,34 @@ def run_gate5_arm(
                 "substrate_mutation_applied": mutated,
             }
         )
+        boundary_after = (
+            session_boundary_interval is not None
+            and (replay_index + 1) % session_boundary_interval == 0
+            and replay_index + 1 < len(records)
+        )
+        if boundary_after:
+            before_restart = store.create_checkpoint(
+                checkpoint_id="gate5-session-boundary"
+            )
+            if not store.save_to_backend():
+                raise RuntimeError(
+                    "Gate 5 longitudinal arm could not persist memory"
+                )
+            restarted = build_gate5_arm_store(
+                arm,
+                persistence_backend=persistence_backend,
+            )
+            loaded = restarted.load_from_backend()
+            after_restart = restarted.create_checkpoint(
+                checkpoint_id="gate5-session-boundary"
+            )
+            persistence_roundtrip_exact = (
+                persistence_roundtrip_exact
+                and loaded
+                and before_restart == after_restart
+            )
+            constructor_restart_count += 1
+            store = restarted
     final_checkpoint = store.create_checkpoint(
         checkpoint_id=f"gate5-{seed}-{arm}-final"
     )
@@ -585,6 +649,8 @@ def run_gate5_arm(
         "arm": arm,
         "checkpoint_roundtrip_exact": rollback_exact,
         "final_state_changed_before_rollback": final_state_changed,
+        "constructor_restart_count": constructor_restart_count,
+        "persistence_roundtrip_exact": persistence_roundtrip_exact,
         "rollback_target": (
             "memory-only"
             if arm == "memory-only"
