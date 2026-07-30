@@ -1,0 +1,50 @@
+{
+  "causal_gates": [
+    [
+      "labels-saved-vs-turn-level-active",
+      false,
+      0.0
+    ],
+    [
+      "labels-saved-vs-random-feedback",
+      false,
+      0.0
+    ],
+    [
+      "labels-saved-vs-shuffled-segment-boundary",
+      false,
+      0.0
+    ],
+    [
+      "final-accuracy-noninferior",
+      false,
+      -0.08333333333333326
+    ]
+  ],
+  "locked_consumed": false,
+  "mechanism_gates": [
+    [
+      "source-consumer-admission",
+      true,
+      1.0
+    ],
+    [
+      "typed-candidate-lineage-complete",
+      true,
+      1.0
+    ],
+    [
+      "source-mutation-zero",
+      true,
+      0.0
+    ],
+    [
+      "readout-isolated-reset-exact",
+      true,
+      0.0
+    ]
+  ],
+  "retuning_allowed": false,
+  "schema_version": "gate4-active-learning-v2-retest.v1",
+  "verdict": "not-supported"
+}

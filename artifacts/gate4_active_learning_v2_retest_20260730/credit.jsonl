@@ -1,0 +1,15 @@
+{"arm":"segment-aware-active","partition":"trace-development-heldout","requested_label_count":12,"seed":701,"selected_positive_rate":0.4166666666666667}
+{"arm":"turn-level-active","partition":"trace-development-heldout","requested_label_count":12,"seed":701,"selected_positive_rate":0.4166666666666667}
+{"arm":"random-feedback","partition":"trace-development-heldout","requested_label_count":12,"seed":701,"selected_positive_rate":0.4166666666666667}
+{"arm":"no-feedback","partition":"trace-development-heldout","requested_label_count":0,"seed":701,"selected_positive_rate":0.0}
+{"arm":"shuffled-segment-boundary","partition":"trace-development-heldout","requested_label_count":12,"seed":701,"selected_positive_rate":0.4166666666666667}
+{"arm":"segment-aware-active","partition":"trace-development-heldout","requested_label_count":12,"seed":709,"selected_positive_rate":0.5}
+{"arm":"turn-level-active","partition":"trace-development-heldout","requested_label_count":12,"seed":709,"selected_positive_rate":0.4166666666666667}
+{"arm":"random-feedback","partition":"trace-development-heldout","requested_label_count":12,"seed":709,"selected_positive_rate":0.4166666666666667}
+{"arm":"no-feedback","partition":"trace-development-heldout","requested_label_count":0,"seed":709,"selected_positive_rate":0.0}
+{"arm":"shuffled-segment-boundary","partition":"trace-development-heldout","requested_label_count":12,"seed":709,"selected_positive_rate":0.4166666666666667}
+{"arm":"segment-aware-active","partition":"trace-development-heldout","requested_label_count":12,"seed":719,"selected_positive_rate":0.5}
+{"arm":"turn-level-active","partition":"trace-development-heldout","requested_label_count":12,"seed":719,"selected_positive_rate":0.5}
+{"arm":"random-feedback","partition":"trace-development-heldout","requested_label_count":12,"seed":719,"selected_positive_rate":0.5}
+{"arm":"no-feedback","partition":"trace-development-heldout","requested_label_count":0,"seed":719,"selected_positive_rate":0.0}
+{"arm":"shuffled-segment-boundary","partition":"trace-development-heldout","requested_label_count":12,"seed":719,"selected_positive_rate":0.5}

@@ -1,0 +1,1733 @@
+{
+  "rows": [
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e024",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e024",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e024",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e024",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e024",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e024",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e025",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e025",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e025",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e025",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e025",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e025",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e026",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e026",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e026",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e026",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e026",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e026",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e027",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e027",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e027",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e027",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e027",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e027",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e028",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e028",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e028",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e028",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e028",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e028",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e029",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e029",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e029",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e029",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e029",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e029",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e030",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e030",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e030",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e030",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e030",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e030",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e031",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e031",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e031",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e031",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e031",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e031",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e032",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e032",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e032",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e032",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e032",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e032",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e033",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e033",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e033",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e033",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e033",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e033",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e034",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e034",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e034",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e034",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e034",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e034",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "meta-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e035",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "copy-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e035",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "random-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e035",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "no-init",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e035",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "paired-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e035",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "arm": "swapped-user-slow-state",
+      "before": "308f95b63c5be4cdfb043f1836f3e5d305abfd2919297aaa59e1c5e6cb9ed14b",
+      "episode_id": "gate78-s701-e035",
+      "exact": true,
+      "seed": 701
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e024",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e024",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e024",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e024",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e024",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e024",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e025",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e025",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e025",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e025",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e025",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e025",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e026",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e026",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e026",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e026",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e026",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e026",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e027",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e027",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e027",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e027",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e027",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e027",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e028",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e028",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e028",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e028",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e028",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e028",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e029",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e029",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e029",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e029",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e029",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e029",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e030",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e030",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e030",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e030",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e030",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e030",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e031",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e031",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e031",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e031",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e031",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e031",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e032",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e032",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e032",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e032",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e032",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e032",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e033",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e033",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e033",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e033",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e033",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e033",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e034",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e034",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e034",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e034",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e034",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e034",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "meta-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e035",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "copy-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e035",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "random-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e035",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "no-init",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e035",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "paired-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e035",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "arm": "swapped-user-slow-state",
+      "before": "aae8eb6250720bd6f8ad5db4a92ff6d66d302ec893b26011b7895cf65115d2b5",
+      "episode_id": "gate78-s709-e035",
+      "exact": true,
+      "seed": 709
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e024",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e024",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e024",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e024",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e024",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e024",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e025",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e025",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e025",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e025",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e025",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e025",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e026",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e026",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e026",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e026",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e026",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e026",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e027",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e027",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e027",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e027",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e027",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e027",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e028",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e028",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e028",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e028",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e028",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e028",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e029",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e029",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e029",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e029",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e029",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e029",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e030",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e030",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e030",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e030",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e030",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e030",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e031",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e031",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e031",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e031",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e031",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e031",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e032",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e032",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e032",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e032",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e032",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e032",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e033",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e033",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e033",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e033",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e033",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e033",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e034",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e034",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e034",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e034",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e034",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e034",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "meta-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e035",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "copy-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e035",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "random-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e035",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "no-init",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e035",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "paired-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e035",
+      "exact": true,
+      "seed": 719
+    },
+    {
+      "after": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "arm": "swapped-user-slow-state",
+      "before": "0022f864dabf8e5034326bd6cf73a0414bbb4f9793b038a1911877a7cf257dd7",
+      "episode_id": "gate78-s719-e035",
+      "exact": true,
+      "seed": 719
+    }
+  ],
+  "schema_version": "gate6-meta-init-v2-retest.v1"
+}

@@ -1,0 +1,267 @@
+{
+  "aggregate_metrics": [
+    [
+      "mean_labels_saved_vs_turn-level-active",
+      0.0
+    ],
+    [
+      "mean_labels_saved_vs_random-feedback",
+      0.0
+    ],
+    [
+      "mean_labels_saved_vs_shuffled-segment-boundary",
+      0.0
+    ],
+    [
+      "minimum_final_accuracy_margin",
+      -0.08333333333333326
+    ],
+    [
+      "typed_candidate_lineage_coverage",
+      1.0
+    ],
+    [
+      "source_mutation_count",
+      0.0
+    ],
+    [
+      "isolated_reset_mismatch_count",
+      0.0
+    ]
+  ],
+  "arm_results": [
+    {
+      "arm": "segment-aware-active",
+      "cumulative_regret": 110,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.75,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 701,
+      "selected_positive_rate": 0.4166666666666667,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "turn-level-active",
+      "cumulative_regret": 112,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.75,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 701,
+      "selected_positive_rate": 0.4166666666666667,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "random-feedback",
+      "cumulative_regret": 92,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.6666666666666667,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 11,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 701,
+      "selected_positive_rate": 0.4166666666666667,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "no-feedback",
+      "cumulative_regret": 0,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.5,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 0,
+      "seed": 701,
+      "selected_positive_rate": 0.0,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "shuffled-segment-boundary",
+      "cumulative_regret": 110,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.75,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 701,
+      "selected_positive_rate": 0.4166666666666667,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "segment-aware-active",
+      "cumulative_regret": 100,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.75,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 709,
+      "selected_positive_rate": 0.5,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "turn-level-active",
+      "cumulative_regret": 102,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.75,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 709,
+      "selected_positive_rate": 0.4166666666666667,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "random-feedback",
+      "cumulative_regret": 96,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.8333333333333333,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 12,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 709,
+      "selected_positive_rate": 0.4166666666666667,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "no-feedback",
+      "cumulative_regret": 0,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.5,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 0,
+      "seed": 709,
+      "selected_positive_rate": 0.0,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "shuffled-segment-boundary",
+      "cumulative_regret": 100,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.75,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 709,
+      "selected_positive_rate": 0.4166666666666667,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "segment-aware-active",
+      "cumulative_regret": 42,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.8333333333333333,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 10,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 719,
+      "selected_positive_rate": 0.5,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "turn-level-active",
+      "cumulative_regret": 52,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.8333333333333333,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 10,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 719,
+      "selected_positive_rate": 0.5,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "random-feedback",
+      "cumulative_regret": 52,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.75,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 719,
+      "selected_positive_rate": 0.5,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "no-feedback",
+      "cumulative_regret": 0,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.5,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 13,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 0,
+      "seed": 719,
+      "selected_positive_rate": 0.0,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    },
+    {
+      "arm": "shuffled-segment-boundary",
+      "cumulative_regret": 56,
+      "evaluation_count": 12,
+      "final_balanced_accuracy": 0.8333333333333333,
+      "isolated_reset_exact": true,
+      "labels_needed_for_target": 10,
+      "partition": "trace-development-heldout",
+      "requested_label_count": 12,
+      "seed": 719,
+      "selected_positive_rate": 0.5,
+      "source_mutation_count": 0,
+      "train_candidate_count": 24,
+      "typed_candidate_lineage_coverage": 1.0
+    }
+  ],
+  "arm_schedule": [
+    "segment-aware-active",
+    "turn-level-active",
+    "random-feedback",
+    "no-feedback",
+    "shuffled-segment-boundary"
+  ],
+  "schema_version": "gate4-active-learning-v2-retest.v1"
+}

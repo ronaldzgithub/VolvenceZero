@@ -1,0 +1,31 @@
+{
+  "arm_schedule": [
+    "pe-eta-v2",
+    "pe-drive-off-v2"
+  ],
+  "formal_locked_run": false,
+  "partition": "trace-development-heldout",
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate1-pe-causal-v2-retest.v1",
+  "seed_schedule": [
+    701,
+    709,
+    719
+  ],
+  "source_fingerprint": "163449e09562d300cdc98c15f98b16c93c83030d20a95976d44c25c9887c88cf",
+  "source_schema_version": "gate78-shared-trace.v2",
+  "suite_id": "gate1-pe-causal-v2-retest"
+}

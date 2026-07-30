@@ -1,0 +1,15 @@
+{"arm":"segment-aware-active","final_balanced_accuracy":0.75,"partition":"trace-development-heldout","seed":701}
+{"arm":"turn-level-active","final_balanced_accuracy":0.75,"partition":"trace-development-heldout","seed":701}
+{"arm":"random-feedback","final_balanced_accuracy":0.6666666666666667,"partition":"trace-development-heldout","seed":701}
+{"arm":"no-feedback","final_balanced_accuracy":0.5,"partition":"trace-development-heldout","seed":701}
+{"arm":"shuffled-segment-boundary","final_balanced_accuracy":0.75,"partition":"trace-development-heldout","seed":701}
+{"arm":"segment-aware-active","final_balanced_accuracy":0.75,"partition":"trace-development-heldout","seed":709}
+{"arm":"turn-level-active","final_balanced_accuracy":0.75,"partition":"trace-development-heldout","seed":709}
+{"arm":"random-feedback","final_balanced_accuracy":0.8333333333333333,"partition":"trace-development-heldout","seed":709}
+{"arm":"no-feedback","final_balanced_accuracy":0.5,"partition":"trace-development-heldout","seed":709}
+{"arm":"shuffled-segment-boundary","final_balanced_accuracy":0.75,"partition":"trace-development-heldout","seed":709}
+{"arm":"segment-aware-active","final_balanced_accuracy":0.8333333333333333,"partition":"trace-development-heldout","seed":719}
+{"arm":"turn-level-active","final_balanced_accuracy":0.8333333333333333,"partition":"trace-development-heldout","seed":719}
+{"arm":"random-feedback","final_balanced_accuracy":0.75,"partition":"trace-development-heldout","seed":719}
+{"arm":"no-feedback","final_balanced_accuracy":0.5,"partition":"trace-development-heldout","seed":719}
+{"arm":"shuffled-segment-boundary","final_balanced_accuracy":0.8333333333333333,"partition":"trace-development-heldout","seed":719}

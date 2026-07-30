@@ -1,0 +1,15 @@
+{"arm":"segment-aware-active","partition":"trace-development-heldout","seed":701,"typed_candidate_lineage_coverage":1.0}
+{"arm":"turn-level-active","partition":"trace-development-heldout","seed":701,"typed_candidate_lineage_coverage":1.0}
+{"arm":"random-feedback","partition":"trace-development-heldout","seed":701,"typed_candidate_lineage_coverage":1.0}
+{"arm":"no-feedback","partition":"trace-development-heldout","seed":701,"typed_candidate_lineage_coverage":1.0}
+{"arm":"shuffled-segment-boundary","partition":"trace-development-heldout","seed":701,"typed_candidate_lineage_coverage":1.0}
+{"arm":"segment-aware-active","partition":"trace-development-heldout","seed":709,"typed_candidate_lineage_coverage":1.0}
+{"arm":"turn-level-active","partition":"trace-development-heldout","seed":709,"typed_candidate_lineage_coverage":1.0}
+{"arm":"random-feedback","partition":"trace-development-heldout","seed":709,"typed_candidate_lineage_coverage":1.0}
+{"arm":"no-feedback","partition":"trace-development-heldout","seed":709,"typed_candidate_lineage_coverage":1.0}
+{"arm":"shuffled-segment-boundary","partition":"trace-development-heldout","seed":709,"typed_candidate_lineage_coverage":1.0}
+{"arm":"segment-aware-active","partition":"trace-development-heldout","seed":719,"typed_candidate_lineage_coverage":1.0}
+{"arm":"turn-level-active","partition":"trace-development-heldout","seed":719,"typed_candidate_lineage_coverage":1.0}
+{"arm":"random-feedback","partition":"trace-development-heldout","seed":719,"typed_candidate_lineage_coverage":1.0}
+{"arm":"no-feedback","partition":"trace-development-heldout","seed":719,"typed_candidate_lineage_coverage":1.0}
+{"arm":"shuffled-segment-boundary","partition":"trace-development-heldout","seed":719,"typed_candidate_lineage_coverage":1.0}

@@ -1,0 +1,35 @@
+schema_version: gate1-pe-causal-v2-retest-preregistration.v1
+suite_id: gate1-pe-causal-v2-retest
+owner: vz-cognition PredictionError with vz-temporal PE consumer
+source_trace:
+  schema_version: gate78-shared-trace.v2
+  root: artifacts/gate78_shared_trace_v2_20260730
+  development_partition: trace-development-heldout
+  primary_partition: trace-locked-confirmation
+seed_schedule: [701, 709, 719]
+arm_schedule: [pe-eta-v2, pe-drive-off-v2]
+primary_metric: next-session temporal policy loss to owner-derived PE target
+causal_exit_gates:
+  minimum_mean_policy_loss_reduction: 0.05
+  every_seed_direction_positive: true
+  prediction_error_lineage_coverage: 1.0
+  frozen_source_mutation_count: 0
+  rollback_fingerprint_mismatch_count: 0
+required_files:
+  - manifest.yaml
+  - predictions.jsonl
+  - outcomes.jsonl
+  - prediction_errors.jsonl
+  - segments.jsonl
+  - credit.jsonl
+  - state_diff.jsonl
+  - action_selection.jsonl
+  - ablation_results.json
+  - promotion_verdict.json
+  - rollback_evidence.json
+  - report.md
+execution_policy:
+  development_probe_uses_locked: false
+  formal_locked_run_count: 1
+  post_locked_retuning_allowed: false
+  failure_action: preserve-mechanism-only-and-long-term-shrink-causal-claim

@@ -1,0 +1,46 @@
+schema_version: gate4-active-learning-v2-retest-preregistration.v1
+suite_id: gate4-active-learning-v2-retest
+owner: vz-cognition apprenticeship active selector/readout
+source_trace:
+  schema_version: gate78-shared-trace.v2
+  root: artifacts/gate78_shared_trace_v2_20260730
+  train_partition: trace-train
+  development_partition: trace-development-heldout
+  primary_partition: trace-locked-confirmation
+seed_schedule: [701, 709, 719]
+arm_schedule:
+  - segment-aware-active
+  - turn-level-active
+  - random-feedback
+  - no-feedback
+  - shuffled-segment-boundary
+label_protocol:
+  budget: 12
+  bootstrap_labels: 4
+  balanced_accuracy_target: 0.80
+causal_exit_gates:
+  minimum_labels_saved_vs_turn_level: 2
+  minimum_labels_saved_vs_random: 2
+  minimum_labels_saved_vs_shuffled: 2
+  final_accuracy_noninferiority_tolerance: 0.01
+  every_seed_direction_positive: true
+  typed_candidate_lineage_coverage: 1.0
+  source_mutation_count: 0
+required_files:
+  - manifest.yaml
+  - predictions.jsonl
+  - outcomes.jsonl
+  - prediction_errors.jsonl
+  - segments.jsonl
+  - credit.jsonl
+  - state_diff.jsonl
+  - action_selection.jsonl
+  - ablation_results.json
+  - promotion_verdict.json
+  - rollback_evidence.json
+  - report.md
+execution_policy:
+  development_probe_uses_locked: false
+  formal_locked_run_count: 1
+  post_locked_retuning_allowed: false
+  failure_action: preserve-typed-request-mechanism-and-long-term-shrink-segment-causal-claim

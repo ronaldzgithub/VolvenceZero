@@ -1,0 +1,15 @@
+{"arm":"segment-aware-active","cumulative_regret":110,"partition":"trace-development-heldout","seed":701}
+{"arm":"turn-level-active","cumulative_regret":112,"partition":"trace-development-heldout","seed":701}
+{"arm":"random-feedback","cumulative_regret":92,"partition":"trace-development-heldout","seed":701}
+{"arm":"no-feedback","cumulative_regret":0,"partition":"trace-development-heldout","seed":701}
+{"arm":"shuffled-segment-boundary","cumulative_regret":110,"partition":"trace-development-heldout","seed":701}
+{"arm":"segment-aware-active","cumulative_regret":100,"partition":"trace-development-heldout","seed":709}
+{"arm":"turn-level-active","cumulative_regret":102,"partition":"trace-development-heldout","seed":709}
+{"arm":"random-feedback","cumulative_regret":96,"partition":"trace-development-heldout","seed":709}
+{"arm":"no-feedback","cumulative_regret":0,"partition":"trace-development-heldout","seed":709}
+{"arm":"shuffled-segment-boundary","cumulative_regret":100,"partition":"trace-development-heldout","seed":709}
+{"arm":"segment-aware-active","cumulative_regret":42,"partition":"trace-development-heldout","seed":719}
+{"arm":"turn-level-active","cumulative_regret":52,"partition":"trace-development-heldout","seed":719}
+{"arm":"random-feedback","cumulative_regret":52,"partition":"trace-development-heldout","seed":719}
+{"arm":"no-feedback","cumulative_regret":0,"partition":"trace-development-heldout","seed":719}
+{"arm":"shuffled-segment-boundary","cumulative_regret":56,"partition":"trace-development-heldout","seed":719}

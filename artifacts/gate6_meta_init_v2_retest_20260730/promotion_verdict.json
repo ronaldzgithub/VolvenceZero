@@ -1,0 +1,80 @@
+{
+  "causal_gates": [
+    [
+      "meta-effect-vs-copy-init",
+      false,
+      -0.061664509691859215
+    ],
+    [
+      "final-error-noninferior-vs-copy-init",
+      false,
+      0.07466503204458215
+    ],
+    [
+      "meta-effect-vs-random-init",
+      true,
+      0.08971751068430152
+    ],
+    [
+      "final-error-noninferior-vs-random-init",
+      false,
+      0.06010187771460055
+    ],
+    [
+      "meta-effect-vs-no-init",
+      true,
+      0.12495687971277418
+    ],
+    [
+      "final-error-noninferior-vs-no-init",
+      false,
+      0.054378916534437015
+    ],
+    [
+      "negative-transfer-zero",
+      false,
+      1.0
+    ],
+    [
+      "paired-outperforms-swapped-diagnostic",
+      true,
+      0.27334858902787573
+    ]
+  ],
+  "locked_consumed": false,
+  "mechanism_gates": [
+    [
+      "source-consumer-admission",
+      true,
+      1.0
+    ],
+    [
+      "lineage-complete",
+      true,
+      1.0
+    ],
+    [
+      "fact-leakage-zero",
+      true,
+      0.0
+    ],
+    [
+      "source-mutation-zero",
+      true,
+      0.0
+    ],
+    [
+      "slow-parameter-state-unchanged",
+      true,
+      0.0
+    ],
+    [
+      "rollback-exact",
+      true,
+      0.0
+    ]
+  ],
+  "retuning_allowed": false,
+  "schema_version": "gate6-meta-init-v2-retest.v1",
+  "verdict": "not-supported"
+}

@@ -1,0 +1,44 @@
+schema_version: gate6-meta-init-v2-retest-preregistration.v1
+suite_id: gate6-meta-init-v2-retest
+owner: vz-memory nested CMS context initialization
+source_trace:
+  schema_version: gate78-shared-trace.v2
+  root: artifacts/gate78_shared_trace_v2_20260730
+  train_partition: trace-train
+  development_partition: trace-development-heldout
+  primary_partition: trace-locked-confirmation
+seed_schedule: [701, 709, 719]
+primary_arm_schedule: [meta-init, copy-init, random-init, no-init]
+diagnostic_arm_schedule: [paired-user-slow-state, swapped-user-slow-state]
+episode_protocol:
+  adaptation_steps: 5
+  early_k: 5
+  target_error: 0.05
+causal_exit_gates:
+  minimum_steps_saved_vs_each_control: 1.0
+  alternative_minimum_auc_gain_vs_each_control: 0.05
+  final_error_noninferiority_tolerance: 0.01
+  negative_transfer_rate_limit: 0.0
+  fact_leakage_count: 0
+  source_mutation_count: 0
+  rollback_fingerprint_mismatch_count: 0
+diagnostic:
+  paired_vs_swapped_auc_minimum: 0.01
+required_files:
+  - manifest.yaml
+  - predictions.jsonl
+  - outcomes.jsonl
+  - prediction_errors.jsonl
+  - segments.jsonl
+  - credit.jsonl
+  - state_diff.jsonl
+  - action_selection.jsonl
+  - ablation_results.json
+  - promotion_verdict.json
+  - rollback_evidence.json
+  - report.md
+execution_policy:
+  development_probe_uses_locked: false
+  formal_locked_run_count: 1
+  post_locked_retuning_allowed: false
+  failure_action: long-term-shrink-user-conditioned-meta-init-causal-claim

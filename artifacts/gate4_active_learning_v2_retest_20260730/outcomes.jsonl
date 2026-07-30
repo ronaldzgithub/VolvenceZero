@@ -1,0 +1,15 @@
+{"arm":"segment-aware-active","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":701}
+{"arm":"turn-level-active","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":701}
+{"arm":"random-feedback","labels_needed_for_target":11,"partition":"trace-development-heldout","seed":701}
+{"arm":"no-feedback","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":701}
+{"arm":"shuffled-segment-boundary","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":701}
+{"arm":"segment-aware-active","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":709}
+{"arm":"turn-level-active","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":709}
+{"arm":"random-feedback","labels_needed_for_target":12,"partition":"trace-development-heldout","seed":709}
+{"arm":"no-feedback","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":709}
+{"arm":"shuffled-segment-boundary","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":709}
+{"arm":"segment-aware-active","labels_needed_for_target":10,"partition":"trace-development-heldout","seed":719}
+{"arm":"turn-level-active","labels_needed_for_target":10,"partition":"trace-development-heldout","seed":719}
+{"arm":"random-feedback","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":719}
+{"arm":"no-feedback","labels_needed_for_target":13,"partition":"trace-development-heldout","seed":719}
+{"arm":"shuffled-segment-boundary","labels_needed_for_target":10,"partition":"trace-development-heldout","seed":719}

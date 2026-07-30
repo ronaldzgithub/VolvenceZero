@@ -1,0 +1,40 @@
+{
+  "causal_gates": [
+    [
+      "mean-policy-loss-reduction",
+      false,
+      0.0
+    ],
+    [
+      "every-seed-direction-positive",
+      false,
+      0.0
+    ]
+  ],
+  "locked_consumed": false,
+  "mechanism_gates": [
+    [
+      "source-consumer-admission",
+      true,
+      1.0
+    ],
+    [
+      "prediction-error-lineage-complete",
+      true,
+      1.0
+    ],
+    [
+      "frozen-source-mutation-zero",
+      true,
+      0.0
+    ],
+    [
+      "rollback-exact",
+      true,
+      0.0
+    ]
+  ],
+  "retuning_allowed": false,
+  "schema_version": "gate1-pe-causal-v2-retest.v1",
+  "verdict": "not-supported"
+}
