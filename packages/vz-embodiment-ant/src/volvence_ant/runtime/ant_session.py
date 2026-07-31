@@ -424,6 +424,23 @@ class AntSession:
                     rollout.internal_rl_causal_action_head.value,
                 ),
                 (
+                    "internal_rl_causal_action_head_formation_protection",
+                    rollout
+                    .internal_rl_causal_action_head_formation_protection
+                    .value,
+                ),
+                (
+                    "internal_rl_causal_action_head_formation_max_update_steps",
+                    str(
+                        rollout
+                        .internal_rl_causal_action_head_formation_max_update_steps
+                    ),
+                ),
+                (
+                    "internal_rl_causal_action_head_formation_conflict_scale",
+                    f"{rollout.internal_rl_causal_action_head_formation_conflict_scale:.6f}",
+                ),
+                (
                     "prediction_error_temporal_switch",
                     rollout.prediction_error_temporal_switch.value,
                 ),

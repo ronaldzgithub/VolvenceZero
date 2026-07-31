@@ -23,6 +23,7 @@ from volvence_ant.experiments.ecology_same_physics_baseline import (
     validate_ecology_same_physics_baseline_packet,
 )
 from volvence_ant.experiments.ecology_same_physics_review import (
+    ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_PACKET_SCHEMA_VERSION,
     EcologySamePhysicsAlignmentReviewPacketError,
     build_ecology_same_physics_alignment_review_packet,
     validate_ecology_same_physics_alignment_review_packet,
@@ -58,6 +59,17 @@ def _review_packet(station1_packet: dict) -> dict:
     )
 
 
+def _historical_review_station1_packet() -> dict:
+    packet = _clone(_packet())
+    packet["schema_version"] = (
+        ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_PACKET_SCHEMA_VERSION
+    )
+    packet["thresholds"]["station1"][
+        "food_alignment_review_authorized"
+    ] = True
+    return packet
+
+
 def test_packet_binds_same_schedule_and_exactly_one_causal_difference() -> None:
     packet = _packet()
 
@@ -66,6 +78,7 @@ def test_packet_binds_same_schedule_and_exactly_one_causal_difference() -> None:
         == ECOLOGY_SAME_PHYSICS_BASELINE_SCHEMA_VERSION
     )
     assert packet["status"] == "PREREGISTERED"
+    assert packet["experiment_generation"] == "station1-v4"
     assert packet["schedule"]["full_episode_count"] == 55
     assert len(packet["schedule"]["rows"]) == 55
     assert packet["schedule"]["blocks"][0]["episode_start_inclusive"] == 0
@@ -78,6 +91,26 @@ def test_packet_binds_same_schedule_and_exactly_one_causal_difference() -> None:
         }
     ]
     assert packet["arms"]["shared_initial_checkpoint"] is True
+    for arm in ("candidate", "control"):
+        rollout = packet["arms"][arm]["rollout_config"]
+        assert (
+            rollout[
+                "internal_rl_causal_action_head_formation_protection"
+            ]
+            == "active"
+        )
+        assert (
+            rollout[
+                "internal_rl_causal_action_head_formation_max_update_steps"
+            ]
+            == 160
+        )
+        assert (
+            rollout[
+                "internal_rl_causal_action_head_formation_conflict_scale"
+            ]
+            == 0.25
+        )
     assert (
         packet["arms"]["candidate"]["rollout_config"][
             "temporal_post_switch_min_dwell"
@@ -91,6 +124,19 @@ def test_packet_binds_same_schedule_and_exactly_one_causal_difference() -> None:
         == 4
     )
     assert packet["historical_baselines"]["decision_use"] == "EXCLUDED"
+    assert packet["reopening_basis"]["threshold_change"] == "NONE"
+    assert packet["reopening_basis"]["seed_only_rerun"] is False
+    assert packet["reopening_basis"]["l1b_precheck"]["status"] == (
+        "PRECHECK_PASS"
+    )
+    assert packet["authorization"] == {
+        "station1_run_authorized": True,
+        "station1_max_episode_end_exclusive": 20,
+        "alignment_review_authorized": False,
+        "station2_authorized_before_station1_go": False,
+        "p1_authorized_before_station2_go": False,
+        "p2_authorized_before_station2_go": False,
+    }
     assert (
         packet["execution_contract"]["code_tree_binding"]["file_count"] > 100
     )
@@ -114,6 +160,10 @@ def test_packet_freezes_decisions_before_any_result_is_read() -> None:
         is True
     )
     assert packet["decision_protocol"]["no_posthoc_threshold_changes"] is True
+    assert (
+        thresholds["station1"]["food_alignment_review_authorized"]
+        is False
+    )
     assert (
         packet["execution_contract"]["old_v31_journal_resume_forbidden"]
         is True
@@ -255,7 +305,7 @@ def test_station1_verdict_uses_preregistered_pickup_and_structure_gates() -> Non
     assert blocked["next_episode_authorized"] is None
 
 
-def test_station1_alignment_review_is_preregistered_not_posthoc() -> None:
+def test_station1_v4_blocks_alignment_failure_without_review() -> None:
     packet = _packet()
     reports = [
         {"pickups": 1, "deliveries": 0}
@@ -279,14 +329,15 @@ def test_station1_alignment_review_is_preregistered_not_posthoc() -> None:
         food_alignment_rows=unaligned,
     )
 
-    assert result["verdict"] == "GO"
+    assert result["verdict"] == "BLOCK"
     assert result["next_episode_authorized"] is None
-    assert result["alignment_review_authorized"] is True
-    assert result["food_alignment_status"] == "REVIEW_REQUIRED"
+    assert result["alignment_review_authorized"] is False
+    assert result["food_alignment_status"] == "BLOCKED_BY_ALIGNMENT"
+    assert result["gates"]["food_alignment_4_of_4"] is False
 
 
 def test_alignment_review_replays_frozen_rows_and_reprobes_once() -> None:
-    packet = _packet()
+    packet = _historical_review_station1_packet()
     station1 = {
         "verdict": "GO",
         "alignment_review_authorized": True,
@@ -343,7 +394,7 @@ def test_alignment_review_replays_frozen_rows_and_reprobes_once() -> None:
 
 
 def test_alignment_review_packet_binds_source_schedule_and_authority() -> None:
-    station1_packet = _packet()
+    station1_packet = _historical_review_station1_packet()
     station1_sha256 = hashlib.sha256(
         b"frozen-station1-preregistration"
     ).hexdigest()
@@ -382,7 +433,7 @@ def test_alignment_review_runner_commits_five_rows_then_reprobes(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    packet = _packet()
+    packet = _historical_review_station1_packet()
     station1_progress = tmp_path / "station1"
     review_progress = tmp_path / "review"
     station1_progress.mkdir()

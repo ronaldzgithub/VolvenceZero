@@ -68,6 +68,13 @@ ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING = True
 # were out of band, i.e. no previously-valid configuration moved. This domain's
 # own WORLD track (1.0749) is among the untouched.
 ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED = True
+# L1-B formation window. The failed v28 body remained divergent through owner
+# update step 135; 160 covers that frozen failure surface while remaining a
+# finite per-head window. Within it, only transition contributions opposing
+# the batch net are scaled. No body ID, task phase or food/carrying label is
+# visible to the temporal owner.
+ANT_CAUSAL_ACTION_HEAD_FORMATION_MAX_UPDATE_STEPS = 160
+ANT_CAUSAL_ACTION_HEAD_FORMATION_CONFLICT_SCALE = 0.25
 # Generic temporal option commitment. The switch action counts as action one;
 # a later typed milestone can still interrupt the dwell.
 ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS = 4
@@ -177,6 +184,15 @@ def ant_runtime_replay_rollout_config(
         ),
         internal_rl_causal_action_head_envelope_enforced=(
             ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED
+        ),
+        internal_rl_causal_action_head_formation_protection=(
+            WiringLevel.ACTIVE
+        ),
+        internal_rl_causal_action_head_formation_max_update_steps=(
+            ANT_CAUSAL_ACTION_HEAD_FORMATION_MAX_UPDATE_STEPS
+        ),
+        internal_rl_causal_action_head_formation_conflict_scale=(
+            ANT_CAUSAL_ACTION_HEAD_FORMATION_CONFLICT_SCALE
         ),
         internal_rl_runtime_modulation_strength=(
             ANT_RUNTIME_MODULATION_STRENGTH

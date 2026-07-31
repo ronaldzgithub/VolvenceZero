@@ -24,10 +24,10 @@ from volvence_ant.experiments.ecology_same_physics_baseline import (
     validate_ecology_same_physics_baseline_packet,
 )
 from volvence_ant.experiments.ecology_same_physics_review import (
+    ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_REPORT_SCHEMA_VERSION,
     validate_ecology_same_physics_alignment_review_packet,
 )
 from volvence_ant.experiments.ecology_same_physics_run import (
-    ECOLOGY_SAME_PHYSICS_STATION1_REPORT_SCHEMA_VERSION,
     run_ecology_same_physics_alignment_review,
 )
 
@@ -104,7 +104,7 @@ async def _run(args: argparse.Namespace) -> int:
     )
     if (
         station1_report.get("schema_version")
-        != ECOLOGY_SAME_PHYSICS_STATION1_REPORT_SCHEMA_VERSION
+        != ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_REPORT_SCHEMA_VERSION
     ):
         raise ValueError(
             "alignment review requires a station1 v2 report"

@@ -106,23 +106,17 @@ _EXPECTED_GATE_NAMES = (
 #     the learned policy fingerprint never leaves the shared-initial one --
 #     at this budget that is partly a budget artifact and only the full-budget
 #     run can say whether training would ever move it;
-#   * ``temporal_ssl_backend`` is declared ACTIVE but the SSL trainer reports
-#     trained_steps=0 (the ant's residual trace is shorter than two steps
-#     every turn), so the torch SSL path never executes -- budget-independent;
-#   * the runtime and torch lanes disagree with the pure reference by ~7e-3 on
-#     the final code, past the frozen 1e-3 parity band, and the runtime lane
-#     discovers a different action family distribution -- budget-independent;
-#   * six of the eight published learning owners move per tick under
-#     learning_enabled=False -- budget-independent.
+#   * all three backend lanes are now exercised and remain inside the frozen
+#     parity band, while both frozen-evaluation cases keep every tracked owner
+#     stable; those former breakpoints are intentionally absent below;
+#   * temporal segments still never close from a beta switch, so the audit has
+#     not yet demonstrated learned temporal-boundary formation.
 _RECORDED_P0_BREAKPOINTS = (
     "action_chain_final_sensitivity",
     "action_chain_sign_consistency",
     "action_head_update_applied",
     "action_chain_no_rollback",
-    "backend_lane_coverage",
-    "backend_parity",
     "temporal_segment_closure",
-    "frozen_evaluation",
 )
 
 
@@ -720,8 +714,8 @@ def test_declared_gaps_are_published_with_a_plan_reference() -> None:
         assert len(gap.status.strip()) > 60
         assert gap.owner.strip()
     references = {gap.plan_reference for gap in ECOLOGY_AUDIT_DECLARED_GAPS}
-    # The retention-baseline deviation and the SSL histogram gap are the two
-    # the reviewer found; both must stay declared until the plan is rewritten.
+    # The retention-baseline deviation and the SSL histogram provenance gap
+    # remain declared until their respective owners close them.
     assert "research/ant/05_ecology_p0_p1_p2_plan.md:121" in references
     assert "research/ant/05_ecology_p0_p1_p2_plan.md:150" in references
 
@@ -937,20 +931,22 @@ async def test_p0_audit_runs_without_rollback_and_names_its_breakpoints() -> Non
     torch_lane = next(
         lane for lane in report.backend_parity if lane.lane == "torch"
     )
-    # The recorded system fact: the Internal-RL torch backend really runs, the
-    # SSL torch backend never does because the ant's trace is too short.
+    # Both torch owners must execute.  This protects against silently restoring
+    # the old trained_steps=0 state while still comparing deterministic output.
     assert torch_lane.backend_execution.internal_rl_torch_wrote_back
-    assert torch_lane.backend_execution.ssl_trained_steps == 0
-    assert not torch_lane.covered
-    assert "trained_steps=0" in torch_lane.not_covered_reason
-    # The two SSL-trace facts must stay consistent: the declared gap and the
-    # coverage failure are the same fact seen twice.
+    assert torch_lane.backend_execution.ssl_trained_steps > 0
+    assert "active" in torch_lane.backend_execution.ssl_torch_backends
+    assert torch_lane.covered
+    assert torch_lane.not_covered_reason == ""
+    # The transition artifact still derives its histogram locally instead of
+    # carrying the SSL owner's SwitchGateStats.  That provenance gap remains
+    # declared, but it is not evidence that the backend failed to execute.
     ssl_gap = next(
         gap
         for gap in report.declared_gaps
         if gap.plan_reference.endswith(":150")
     )
-    assert ssl_gap.gate_failing is True
+    assert ssl_gap.gate_failing is False
     for trace in (
         report.temporal_switch.positive_control,
         report.temporal_switch.negative_control,

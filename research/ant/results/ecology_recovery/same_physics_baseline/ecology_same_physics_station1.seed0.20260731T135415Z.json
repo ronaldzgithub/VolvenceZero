@@ -1,0 +1,231 @@
+{
+  "aligned_food_bodies": 3,
+  "alignment_review_authorized": false,
+  "candidate_blocks": {
+    "burning_near": {
+      "deliveries": 2,
+      "pickups": 17
+    },
+    "butter_near": {
+      "deliveries": 1,
+      "pickups": 5
+    },
+    "composite_near": {
+      "deliveries": 0,
+      "pickups": 2
+    },
+    "forced_return": {
+      "deliveries": 4,
+      "pickups": 23
+    }
+  },
+  "candidate_to_control_pickup_ratio": 0.9038461538461539,
+  "candidate_total_pickups": 47,
+  "completed_episode_count_per_arm": 20,
+  "control_blocks": {
+    "burning_near": {
+      "deliveries": 5,
+      "pickups": 18
+    },
+    "butter_near": {
+      "deliveries": 8,
+      "pickups": 10
+    },
+    "composite_near": {
+      "deliveries": 0,
+      "pickups": 2
+    },
+    "forced_return": {
+      "deliveries": 2,
+      "pickups": 22
+    }
+  },
+  "control_total_pickups": 52,
+  "evidence_envelope_schema_version": "digital-ant-evidence.v3",
+  "food_alignment_rows": [
+    {
+      "action_sensitive": true,
+      "body_id": 0,
+      "input_reachable": true,
+      "left_turn": 0.00017340117913891527,
+      "policy_fingerprint": "3a94b65a890bde7dc44be87163294b83e5f6ea813ee40916c0184273561e6cc7",
+      "right_turn": -0.00017426279708780977,
+      "target_aligned": true,
+      "temporal_learning_fingerprint": "8f7e0ac78f41124a5c2f675a738697e032496bd5aba1be0dc58a1710524c9192"
+    },
+    {
+      "action_sensitive": true,
+      "body_id": 1,
+      "input_reachable": true,
+      "left_turn": 0.0001961284771327786,
+      "policy_fingerprint": "a7aefebc2b4627d613338319d4f6c18b136e51f1d795af64089b28bf3569f705",
+      "right_turn": -0.0001971266503888144,
+      "target_aligned": true,
+      "temporal_learning_fingerprint": "efd6dd26a7504f6ebf6ac0e99f94f5acfdd4e96c83973019657018a3fb121d91"
+    },
+    {
+      "action_sensitive": true,
+      "body_id": 2,
+      "input_reachable": true,
+      "left_turn": -0.00038541260576263365,
+      "policy_fingerprint": "f6f59a10a32e9c17572c625d0c9c86a1ede6f7be1ce482dd5a3f0a6d3db7f88a",
+      "right_turn": 0.00038709291851802386,
+      "target_aligned": false,
+      "temporal_learning_fingerprint": "d6414f2d5bd107f7a6d766cab6a07a8732414a5f09dfdc477a23a5b03649be84"
+    },
+    {
+      "action_sensitive": true,
+      "body_id": 3,
+      "input_reachable": true,
+      "left_turn": 0.000627945563388397,
+      "policy_fingerprint": "bb9655a5a30365b8186eace733155c67e13a7b300341ee86ce1f1f8f0a28f35b",
+      "right_turn": -0.000630701477961965,
+      "target_aligned": true,
+      "temporal_learning_fingerprint": "92bcf68e9a7caa96029aaa2b7bcbe52ebecc6146d7788dba782a7dc6f2768db4"
+    }
+  ],
+  "food_alignment_status": "BLOCKED_BY_ALIGNMENT",
+  "gates": {
+    "control_signal": true,
+    "food_alignment_4_of_4": false,
+    "no_candidate_zero_block": true,
+    "pickup_noninferiority": true,
+    "typed_milestone_structure": true
+  },
+  "next_episode_authorized": null,
+  "preregistration_sha256": "da4936ee794819f637fb4954162724675d2f72218f8581007e1ab5874925cfc1",
+  "provenance": {
+    "config_digest": "71c9d6e3ecd426e510f75f0a218ccc63540a1861281aca25833e04cfc6c11e30",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "effective_backend": "pure:cpu",
+    "git_branch": "main",
+    "git_sha": "5e15b8e4f20bdaacf4a0f6fe44458d28738990cf",
+    "layout_seeds": [],
+    "model_fingerprint": "da4936ee794819f637fb4954162724675d2f72218f8581007e1ab5874925cfc1",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "requested_device": "cpu",
+    "seed_schedule": [
+      0
+    ],
+    "training_seeds": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "required_aligned_food_bodies": 4,
+  "schedule_sha256": "57f0e58def9c562efc29f43feb20e574ef9279129cc691d3ada8e0b7de5d9e45",
+  "schema_version": "digital-ant-ecology-same-physics-station1.v3",
+  "structural_lanes": [
+    {
+      "body_id": 0,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 4,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 0,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 4,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 1,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 1,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 2,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 4,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 2,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 4,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 3,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 3,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    }
+  ],
+  "verdict": "BLOCK"
+}

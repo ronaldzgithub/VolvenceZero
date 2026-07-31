@@ -761,6 +761,8 @@ async def run_ecology_action_probes(
     turn_delta_threshold: float = 1e-8,
     backend_lane: EcologyProbeBackendLane | None = None,
     exercise_steps: int = 0,
+    rollout_config: FinalRolloutConfig | None = None,
+    learning_enabled: bool = True,
 ) -> tuple[EcologyActionProbe, ...]:
     """Run the deterministic paired probes for one checkpoint.
 
@@ -775,14 +777,27 @@ async def run_ecology_action_probes(
     It defaults to ``0`` so the action-chain gates (sensitivity, retention,
     sign consistency, lateral bias) keep measuring the restored checkpoint
     itself rather than a checkpoint plus a few probe-local updates.
+
+    ``learning_enabled=False`` propagates the runtime's hard no-write boundary
+    to every ephemeral probe session.  Read-only checkpoint prechecks use it;
+    backend coverage keeps the default because its purpose is to prove the
+    declared optimizers execute and write back.
     """
 
     if exercise_steps < 0:
         raise ValueError(
             f"exercise_steps must be >= 0, got {exercise_steps!r}"
         )
+    if rollout_config is not None and backend_lane is not None:
+        raise ValueError(
+            "an explicit rollout_config cannot be combined with a backend_lane"
+        )
     probes: list[EcologyActionProbe] = []
-    rollout_config = _lane_rollout_config(backend_lane)
+    resolved_rollout_config = (
+        rollout_config
+        if rollout_config is not None
+        else _lane_rollout_config(backend_lane)
+    )
     for kind in EcologyProbeKind:
         objects = _paired_objects(kind)
         paired_records: list[_ProbeSideMeasurement] = []
@@ -802,7 +817,9 @@ async def run_ecology_action_probes(
                     seed=seed,
                     heading_noise=0.0,
                     step_noise=0.0,
-                    rollout_config=rollout_config,
+                    rollout_config=resolved_rollout_config,
+                    joint_apply_policy_optimization=learning_enabled,
+                    joint_learning_enabled=learning_enabled,
                     objective=AntObjectiveKind.ECOLOGY,
                     sense_schema=AntSenseSchema.ECOLOGY_V2,
                 ),
@@ -845,7 +862,9 @@ async def run_ecology_action_probes(
                         seed=seed,
                         heading_noise=0.0,
                         step_noise=0.0,
-                        rollout_config=rollout_config,
+                        rollout_config=resolved_rollout_config,
+                        joint_apply_policy_optimization=learning_enabled,
+                        joint_learning_enabled=learning_enabled,
                         objective=AntObjectiveKind.ECOLOGY,
                         sense_schema=AntSenseSchema.ECOLOGY_V2,
                     ),
@@ -1004,6 +1023,8 @@ async def run_ecology_checkpoint_action_probes(
     turn_delta_threshold: float = 1e-4,
     backend_lane: EcologyProbeBackendLane | None = None,
     exercise_steps: int = 0,
+    rollout_config: FinalRolloutConfig | None = None,
+    learning_enabled: bool = True,
 ) -> tuple[EcologyCheckpointActionProbe, ...]:
     """Run deterministic paired probes for every isolated colony body."""
 
@@ -1017,6 +1038,8 @@ async def run_ecology_checkpoint_action_probes(
             turn_delta_threshold=turn_delta_threshold,
             backend_lane=backend_lane,
             exercise_steps=exercise_steps,
+            rollout_config=rollout_config,
+            learning_enabled=learning_enabled,
         )
         observed_wiring = {probe.observed_backend_wiring for probe in probes}
         if len(observed_wiring) != 1:

@@ -1,4 +1,4 @@
-"""Run the preregistered v31 same-physics station-1 matched control."""
+"""Run the preregistered station1-v4 same-physics matched control."""
 
 from __future__ import annotations
 
@@ -161,7 +161,7 @@ async def _run(args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run the preregistered same-physics v31 station 1"
+        description="Run the preregistered same-physics station1-v4"
     )
     parser.add_argument("--preregistration", type=Path, required=True)
     parser.add_argument("--progress-dir", type=Path, required=True)

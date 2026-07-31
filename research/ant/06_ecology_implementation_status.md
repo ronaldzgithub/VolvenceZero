@@ -310,3 +310,43 @@ food alignment 为 3/4，因此只授权预签的五局 review。review 使用�
 SHA `e4c9db1…` 和固定 schedule，五局后 re-probe 仍为 3/4（body2 未对齐），
 machine verdict=`BLOCK`、`next_episode_authorized=null`。episode20、station2、
 P1/P2 与 Gate4 ecology corpus 均未获授权，禁止第二次 review 或加训练量绕过。
+
+五杠杆 L1-A 对齐形成归因已于 2026-07-31 完成。正式只读 artifact 为
+`research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_attribution.v1.json`
+（SHA256 `4c3033d076b2fee4f726310d5c4e5b33bdfd7217a8e0cfdcdfdffc9a4cc12b96`）。
+station1 与 review checkpoint 在固定 seeds
+`700003/700004/700005/700006/700007` 上均逐值复现原 probe；body 2 始终输出反向
+food turn，measurement-noise kill 未触发。body 2 在 15 个 butter-near body rows 中
+encounter=`15`、pickup=`11`，反而是四体最高，H2 课程暴露不足被排除。review 后 body 2 的
+528 维 world causal action-head 到 aligned-body centroid 的 L2 距离为 `0.080750`，高于 aligned
+bodies 最大 `0.053632`；五局 butter-near review 把其 alignment margin 改善
+`+0.000182868`，但仍为反向。因缺少逐更新梯度证据，H3 保持 `inconclusive`，未被选为
+主因。归因选择
+`H1_learning_state_divergence`，下一包只能是 temporal owner 的有界形成期保护（默认 DISABLED、
+可逐字节回滚），不得改成课程加量、body2 特判或把 4/4 降成 3/4。v28 journal 未发布逐更新
+food-vs-carrying gradient cosine，artifact 已显式标为 unavailable；L1-A 不授权 station2/P1/P2。
+
+五杠杆 L1-B 形成期保护已于 2026-07-31 完成。temporal owner 新增
+`internal_rl_causal_action_head_formation_protection`，默认 `DISABLED`；Digital Ant profile
+显式 `ACTIVE / max_update_steps=160 / conflict_scale=0.25`。形成窗口内按每条 transition 的
+`advantage × projected score-gradient` 计算贡献，只衰减与 batch 净贡献点积为负的少数项；
+SHADOW 仅发布 would/apply 计数，ACTIVE 才修改 action-head credit，pure/torch 共用 scale，
+track/value/entropy 不变。机制不读取 body id、food、carrying、phase 或 action 名称，窗口结束
+自动 no-op；回滚为 `DISABLED/0/1.0`。正式只读 precheck artifact 为
+`research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_protection_precheck.v1.json`
+（SHA256 `32b5473a61c5e92072eb13ecfef759a24b0aa5ee327c01c838bf0e9d9ed6829f`）。旧 review
+checkpoint 在 seed `700003` 的 ACTIVE/DISABLED 完整 paired-probe digest 均为
+`6190f6accafac751d02f0b2a28770ba54d7254ce9b9022c4765f201dc4731093`，四体最大 head
+step=`142 < 160`，forward 逐字段相同。该结果只授权创建 L1-C 新 prereg；station run、
+station2、P1/P2 仍未授权。
+
+五杠杆 L1-C prereg 子包已于 2026-07-31 冻结。正式 bundle 为
+`research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_prereg.seed0.20260731T135415Z.json`
+（artifact SHA256 `da4936ee794819f637fb4954162724675d2f72218f8581007e1ab5874925cfc1`，manifest
+SHA256 `1e58c778d947b88cb30ad3f86203c2f52f6518c7e81c4211364db9e9548cd301`），schema=
+`digital-ant-ecology-same-physics-baseline-preregistration.v3`、generation=`station1-v4`。
+packet 逐字绑定 L1-B no-write precheck 与当前 code tree；两臂共同启用 formation protection
+`ACTIVE/160/0.25`，唯一因果差仍为 typed milestone ACTIVE/DISABLED。阈值未改变、seed-only rerun
+显式为 false；20 局 checkpoint 必须直接 food alignment 4/4，旧 v2 五局 review 在本代
+`authorized=false`。manifest 已复算通过。当前只授权隔离源码快照、新空 journal 的 station1
+ep0–19；station2、P1、P2 仍未授权，也尚未消耗任何新 episode。

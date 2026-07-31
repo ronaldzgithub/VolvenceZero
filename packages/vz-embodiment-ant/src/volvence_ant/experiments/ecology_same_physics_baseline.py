@@ -1,12 +1,14 @@
-"""Preregister the matched same-physics baseline for the v31 restart.
+"""Preregister the station1-v4 matched same-physics baseline.
 
 The old v31 station-1 journal was stopped against a historical threshold whose
 physical curriculum no longer matched.  This packet removes that ambiguity:
 both arms fork from one initial checkpoint, replay one frozen schedule, and
 differ only in the typed environment-milestone temporal-switch wiring.
 
-This module creates and validates the preregistration.  It deliberately does
-not inspect results or choose thresholds after a run.
+The v4 generation is a legal mechanism-change restart: both arms carry the
+L1-B temporal-owner formation guard, while the causal contrast remains the
+typed milestone wiring alone.  It creates and validates the preregistration
+without inspecting new results or choosing thresholds after a run.
 """
 
 from __future__ import annotations
@@ -20,8 +22,13 @@ from typing import Any, Mapping
 from volvence_zero.runtime import WiringLevel
 
 from volvence_ant.evidence.runtime_profile import (
+    ANT_CAUSAL_ACTION_HEAD_FORMATION_CONFLICT_SCALE,
+    ANT_CAUSAL_ACTION_HEAD_FORMATION_MAX_UPDATE_STEPS,
     ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS,
     ant_runtime_replay_rollout_config,
+)
+from volvence_ant.experiments.alignment_formation_protection import (
+    ALIGNMENT_FORMATION_PROTECTION_PRECHECK_SCHEMA_VERSION,
 )
 from volvence_ant.experiments.ecology_curriculum import (
     ECOLOGY_CURRICULUM_SCHEMA_VERSION,
@@ -48,8 +55,9 @@ from volvence_ant.substrate import AntSenseSchema
 
 
 ECOLOGY_SAME_PHYSICS_BASELINE_SCHEMA_VERSION = (
-    "digital-ant-ecology-same-physics-baseline-preregistration.v2"
+    "digital-ant-ecology-same-physics-baseline-preregistration.v3"
 )
+ECOLOGY_SAME_PHYSICS_EXPERIMENT_GENERATION = "station1-v4"
 ECOLOGY_SAME_PHYSICS_CANDIDATE_ARM = "learned"
 ECOLOGY_SAME_PHYSICS_CONTROL_ARM = "typed_milestone_disabled"
 ECOLOGY_SAME_PHYSICS_STATION1_EPISODES = 20
@@ -58,6 +66,10 @@ ECOLOGY_SAME_PHYSICS_STATION3_EPISODES = 55
 ECOLOGY_SAME_PHYSICS_PICKUP_NONINFERIORITY_RATIO = 0.8
 
 _CAUSAL_FIELD = "environment_milestone_temporal_switch"
+_FORMATION_PRECHECK_PATH = (
+    "research/ant/results/ecology_recovery/same_physics_baseline/"
+    "alignment_formation_protection_precheck.v1.json"
+)
 _SOURCE_PATHS = (
     "packages/vz-embodiment-ant/src/volvence_ant/evidence/runtime_profile.py",
     (
@@ -65,6 +77,10 @@ _SOURCE_PATHS = (
         "ecology_curriculum.py"
     ),
     "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_p1.py",
+    (
+        "packages/vz-embodiment-ant/src/volvence_ant/experiments/"
+        "alignment_formation_protection.py"
+    ),
     (
         "packages/vz-embodiment-ant/src/volvence_ant/experiments/"
         "ecology_same_physics_baseline.py"
@@ -79,6 +95,11 @@ _SOURCE_PATHS = (
     "packages/vz-runtime/src/volvence_zero/agent/session_observation.py",
     "packages/vz-runtime/src/volvence_zero/integration/final_wiring.py",
     "packages/vz-temporal/src/volvence_zero/joint_loop/runtime.py",
+    "packages/vz-temporal/src/volvence_zero/internal_rl/sandbox.py",
+    (
+        "packages/vz-temporal/src/volvence_zero/internal_rl/"
+        "torch_causal_ppo.py"
+    ),
     "packages/vz-temporal/src/volvence_zero/temporal/interface.py",
     "scripts/run_ant_ecology_same_physics_station1.py",
 )
@@ -159,6 +180,56 @@ def _code_tree_binding(*, repo_root: Path) -> dict[str, Any]:
     }
 
 
+def _formation_precheck_binding(*, repo_root: Path) -> dict[str, Any]:
+    path = repo_root / _FORMATION_PRECHECK_PATH
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise EcologySamePhysicsBaselinePacketError(
+            "station1-v4 requires the frozen L1-B formation precheck"
+        ) from error
+    required = {
+        "schema_version": (
+            ALIGNMENT_FORMATION_PROTECTION_PRECHECK_SCHEMA_VERSION
+        ),
+        "status": "PRECHECK_PASS",
+        "read_only": True,
+        "training_or_journal_write_performed": False,
+    }
+    for field, expected in required.items():
+        if payload.get(field) != expected:
+            raise EcologySamePhysicsBaselinePacketError(
+                "L1-B formation precheck is not eligible for station1-v4: "
+                f"field={field}, expected={expected!r}, "
+                f"actual={payload.get(field)!r}"
+            )
+    decision = payload.get("decision")
+    if not isinstance(decision, Mapping) or (
+        decision.get("l1c_preregistration_may_be_created") is not True
+        or decision.get("station_run_authorized") is not False
+        or decision.get("station2_remains_unauthorized") is not True
+    ):
+        raise EcologySamePhysicsBaselinePacketError(
+            "L1-B formation precheck does not authorize L1-C preregistration"
+        )
+    probe = payload.get("probe")
+    if not isinstance(probe, Mapping) or (
+        probe.get("learning_writes_enabled") is not False
+        or probe.get("active_digest") != probe.get("disabled_digest")
+        or probe.get("byte_equivalent_forward") is not True
+    ):
+        raise EcologySamePhysicsBaselinePacketError(
+            "L1-B formation precheck lacks no-write rollback equivalence"
+        )
+    return {
+        **_file_binding(
+            repo_root=repo_root,
+            relative_path=_FORMATION_PRECHECK_PATH,
+        ),
+        "schema_version": payload["schema_version"],
+        "status": payload["status"],
+        "active_digest": probe["active_digest"],
+    }
 def _rollout_payload(*, milestone_enabled: bool) -> dict[str, Any]:
     rollout = ant_runtime_replay_rollout_config(
         enable_sparse_exploration=True,
@@ -265,6 +336,29 @@ def build_ecology_same_physics_baseline_packet(
     schedule_rows = _schedule_rows(config)
     candidate_rollout = _rollout_payload(milestone_enabled=True)
     control_rollout = _rollout_payload(milestone_enabled=False)
+    expected_formation = {
+        "internal_rl_causal_action_head_formation_protection": (
+            WiringLevel.ACTIVE.value
+        ),
+        "internal_rl_causal_action_head_formation_max_update_steps": (
+            ANT_CAUSAL_ACTION_HEAD_FORMATION_MAX_UPDATE_STEPS
+        ),
+        "internal_rl_causal_action_head_formation_conflict_scale": (
+            ANT_CAUSAL_ACTION_HEAD_FORMATION_CONFLICT_SCALE
+        ),
+    }
+    for arm_name, rollout in (
+        (ECOLOGY_SAME_PHYSICS_CANDIDATE_ARM, candidate_rollout),
+        (ECOLOGY_SAME_PHYSICS_CONTROL_ARM, control_rollout),
+    ):
+        observed = {
+            field: rollout.get(field) for field in expected_formation
+        }
+        if observed != expected_formation:
+            raise EcologySamePhysicsBaselinePacketError(
+                "station1-v4 requires the frozen L1-B formation profile in "
+                f"both arms; arm={arm_name!r}, observed={observed!r}"
+            )
     differences = _rollout_differences(candidate_rollout, control_rollout)
     if differences != (
         {
@@ -294,6 +388,9 @@ def build_ecology_same_physics_baseline_packet(
 
     return {
         "schema_version": ECOLOGY_SAME_PHYSICS_BASELINE_SCHEMA_VERSION,
+        "experiment_generation": (
+            ECOLOGY_SAME_PHYSICS_EXPERIMENT_GENERATION
+        ),
         "status": "PREREGISTERED",
         "claim": (
             "Under the current physical curriculum, enabling the typed "
@@ -309,6 +406,19 @@ def build_ecology_same_physics_baseline_packet(
                 "Historical journals do not provide a preregistered, "
                 "same-source, same-physics causal control for this restart."
             ),
+        },
+        "reopening_basis": {
+            "prior_station1_generation": "station1-v3",
+            "prior_verdict": "BLOCK_ALIGNMENT_3_OF_4",
+            "mechanism_change": (
+                "vz-temporal causal action-head formation protection"
+            ),
+            "formation_profile": expected_formation,
+            "l1b_precheck": _formation_precheck_binding(
+                repo_root=resolved_root
+            ),
+            "threshold_change": "NONE",
+            "seed_only_rerun": False,
         },
         "schemas": {
             "curriculum": ECOLOGY_CURRICULUM_SCHEMA_VERSION,
@@ -381,6 +491,7 @@ def build_ecology_same_physics_baseline_packet(
                 "candidate_food_alignment_direct_station2_bodies": (
                     config.n_ants
                 ),
+                "food_alignment_review_authorized": False,
                 "food_alignment_probe_seed_offset": 700_003,
                 "food_alignment_review_episode_count": 5,
                 "food_alignment_review_stage": "butter-near",
@@ -417,15 +528,13 @@ def build_ecology_same_physics_baseline_packet(
         },
         "decision_protocol": {
             "station1_go": (
-                "All station1 thresholds pass; otherwise BLOCK and do not "
-                "run episode 20."
+                "All station1 thresholds, including food alignment 4/4, "
+                "pass; otherwise BLOCK and do not run episode 20."
             ),
             "station1_alignment": (
-                "After the four causal station1 gates pass, 4/4 aligned food "
-                "bodies authorize episode 20 directly. Any lower count "
-                "authorizes exactly five preregistered butter-near review "
-                "episodes and one frozen re-probe; if the re-probe is still "
-                "below 4/4, BLOCK without running episode 20."
+                "Station1-v4 requires 4/4 aligned food bodies at the frozen "
+                "20-episode checkpoint. The prior five-episode alignment "
+                "review path is exhausted and forbidden for this generation."
             ),
             "station2_go": (
                 "All station2 thresholds pass; otherwise BLOCK and do not "
@@ -437,9 +546,20 @@ def build_ecology_same_physics_baseline_packet(
             ),
             "no_posthoc_threshold_changes": True,
         },
+        "authorization": {
+            "station1_run_authorized": True,
+            "station1_max_episode_end_exclusive": (
+                ECOLOGY_SAME_PHYSICS_STATION1_EPISODES
+            ),
+            "alignment_review_authorized": False,
+            "station2_authorized_before_station1_go": False,
+            "p1_authorized_before_station2_go": False,
+            "p2_authorized_before_station2_go": False,
+        },
         "execution_contract": {
             "device": "cpu",
             "numeric_precision": "float64",
+            "isolated_source_snapshot_required": True,
             "new_empty_progress_directory_required": True,
             "old_v31_journal_resume_forbidden": True,
             "single_writer_lock_required": True,
@@ -492,6 +612,7 @@ __all__ = [
     "ECOLOGY_SAME_PHYSICS_BASELINE_SCHEMA_VERSION",
     "ECOLOGY_SAME_PHYSICS_CANDIDATE_ARM",
     "ECOLOGY_SAME_PHYSICS_CONTROL_ARM",
+    "ECOLOGY_SAME_PHYSICS_EXPERIMENT_GENERATION",
     "ECOLOGY_SAME_PHYSICS_PICKUP_NONINFERIORITY_RATIO",
     "ECOLOGY_SAME_PHYSICS_STATION1_EPISODES",
     "ECOLOGY_SAME_PHYSICS_STATION2_EPISODES",

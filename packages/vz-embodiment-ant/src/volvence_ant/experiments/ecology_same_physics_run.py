@@ -47,7 +47,7 @@ ECOLOGY_SAME_PHYSICS_PROGRESS_SCHEMA_VERSION = (
     "digital-ant-ecology-same-physics-progress.v2"
 )
 ECOLOGY_SAME_PHYSICS_STATION1_REPORT_SCHEMA_VERSION = (
-    "digital-ant-ecology-same-physics-station1.v2"
+    "digital-ant-ecology-same-physics-station1.v3"
 )
 ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_REPORT_SCHEMA_VERSION = (
     "digital-ant-ecology-same-physics-alignment-review.v1"
@@ -276,8 +276,14 @@ def evaluate_same_physics_station1(
         causal_gates_passed
         and aligned_food_bodies >= required_aligned_bodies
     )
+    review_permitted = bool(
+        thresholds.get("food_alignment_review_authorized", True)
+    )
+    if not review_permitted:
+        gates["food_alignment_4_of_4"] = direct_station2
+    station1_passed = all(gates.values())
     alignment_review_authorized = (
-        causal_gates_passed and not direct_station2
+        review_permitted and causal_gates_passed and not direct_station2
     )
     return {
         "candidate_blocks": candidate_blocks,
@@ -295,12 +301,16 @@ def evaluate_same_physics_station1(
             else (
                 "REVIEW_REQUIRED"
                 if alignment_review_authorized
-                else "BLOCKED_BY_STATION1"
+                else (
+                    "BLOCKED_BY_ALIGNMENT"
+                    if causal_gates_passed
+                    else "BLOCKED_BY_STATION1"
+                )
             )
         ),
         "alignment_review_authorized": alignment_review_authorized,
         "gates": gates,
-        "verdict": "GO" if causal_gates_passed else "BLOCK",
+        "verdict": "GO" if station1_passed else "BLOCK",
         "next_episode_authorized": (
             ECOLOGY_SAME_PHYSICS_STATION1_EPISODES
             if direct_station2
@@ -328,6 +338,10 @@ def evaluate_same_physics_alignment_review(
     """Grade the single review path frozen before station-1 results exist."""
 
     thresholds = packet["thresholds"]["station1"]
+    if thresholds.get("food_alignment_review_authorized", True) is not True:
+        raise ValueError(
+            "alignment review is forbidden by this station1 preregistration"
+        )
     review_episode_count = int(
         thresholds["food_alignment_review_episode_count"]
     )

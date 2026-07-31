@@ -1,4 +1,4 @@
-"""Write the v31 same-physics matched-control preregistration bundle."""
+"""Write the station1-v4 same-physics preregistration bundle."""
 
 from __future__ import annotations
 

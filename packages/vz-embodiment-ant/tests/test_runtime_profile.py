@@ -10,6 +10,8 @@ from volvence_zero.agent.learned_active_gate import LearnedBackendComponent
 from volvence_ant.evidence import (
     ANT_CAUSAL_ACTION_HEAD_CONTRAST_PAIRS,
     ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING,
+    ANT_CAUSAL_ACTION_HEAD_FORMATION_CONFLICT_SCALE,
+    ANT_CAUSAL_ACTION_HEAD_FORMATION_MAX_UPDATE_STEPS,
     ANT_CAUSAL_ACTION_HEAD_EFFECTIVE_DIMS,
     ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_PERMUTATION,
     ANT_CAUSAL_ACTION_HEAD_INPUT_MIRROR_SIGNS,
@@ -44,6 +46,16 @@ def test_production_rollout_defaults_remain_disabled_and_zero() -> None:
         is None
     )
     assert config.internal_rl_causal_action_head_input_mirror_signs is None
+    assert (
+        config.internal_rl_causal_action_head_formation_protection
+        is WiringLevel.DISABLED
+    )
+    assert (
+        config.internal_rl_causal_action_head_formation_max_update_steps == 0
+    )
+    assert (
+        config.internal_rl_causal_action_head_formation_conflict_scale == 1.0
+    )
     assert (
         config.temporal_post_switch_min_dwell
         is WiringLevel.DISABLED
@@ -109,6 +121,20 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         config.internal_rl_causal_action_head_exclusive_steering
         is ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING
         is True
+    )
+    assert (
+        config.internal_rl_causal_action_head_formation_protection
+        is WiringLevel.ACTIVE
+    )
+    assert (
+        config.internal_rl_causal_action_head_formation_max_update_steps
+        == ANT_CAUSAL_ACTION_HEAD_FORMATION_MAX_UPDATE_STEPS
+        == 160
+    )
+    assert (
+        config.internal_rl_causal_action_head_formation_conflict_scale
+        == ANT_CAUSAL_ACTION_HEAD_FORMATION_CONFLICT_SCALE
+        == 0.25
     )
     # The shortest formal P0 episode has 10 usable settled transitions after
     # capture/bootstrap.  The segment must close early enough for a later turn
@@ -177,6 +203,16 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         session.runner.world_temporal_policy
         .causal_action_head_contrast_pairs
         == ((0, 1),)
+    )
+    assert (
+        session.runner.world_temporal_policy
+        .causal_action_head_formation_protection
+        is WiringLevel.ACTIVE
+    )
+    assert (
+        session.runner.self_temporal_policy
+        .causal_action_head_formation_protection
+        is WiringLevel.ACTIVE
     )
     assert (
         session.runner.world_temporal_policy

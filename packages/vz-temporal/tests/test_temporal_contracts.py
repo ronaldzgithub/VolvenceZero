@@ -1741,6 +1741,57 @@ def test_torch_causal_action_head_masks_non_actuator_dimensions() -> None:
     assert after.bias[2:] == before.bias[2:]
 
 
+@torch_only
+def test_torch_formation_scales_change_only_action_head_credit() -> None:
+    from volvence_zero.internal_rl.torch_causal_ppo import (
+        torch_causal_ppo_update,
+    )
+
+    transitions = _transitions(_NDIM)
+
+    def update(scales: tuple[float, ...] | None):
+        store = MetacontrollerParameterStore(n_z=_NDIM)
+        value_weights = {
+            Track.WORLD: tuple(0.1 for _ in range(_NDIM))
+        }
+        value_bias = {Track.WORLD: 0.05}
+        torch_causal_ppo_update(
+            parameter_store=store,
+            value_weights=value_weights,
+            value_bias=value_bias,
+            track=Track.WORLD,
+            transitions=transitions,
+            n_z=_NDIM,
+            write_back=True,
+            ppo_epochs=1,
+            causal_action_head_enabled=True,
+            causal_action_head_strength=0.35,
+            causal_action_head_effective_dims=(0, 1),
+            causal_action_head_contrast_pairs=((0, 1),),
+            causal_action_head_formation_scales=scales,
+        )
+        return (
+            store.track_weights[Track.WORLD],
+            value_weights[Track.WORLD],
+            store.causal_action_head_parameters(track=Track.WORLD),
+        )
+
+    unprotected = update(None)
+    protected = update((0.25, 1.0, 1.0, 1.0, 1.0, 1.0))
+
+    # Formation protection owns only head credit. Track and critic objectives
+    # remain the unmodified PPO objective.
+    assert protected[0] == pytest.approx(unprotected[0])
+    assert protected[1] == pytest.approx(unprotected[1])
+    protected_output = tuple(
+        value for row in protected[2].output_factors for value in row
+    )
+    unprotected_output = tuple(
+        value for row in unprotected[2].output_factors for value in row
+    )
+    assert protected_output != pytest.approx(unprotected_output)
+
+
 def test_joint_loop_no_optimize_reports_but_does_not_persist_rl_update() -> None:
     """Matched control runs the optimizer but restores its policy/critic write."""
 
@@ -2206,6 +2257,162 @@ def test_mirror_lane_advantage_matches_direct_lane(
     direct_lanes = lanes[0::2]
     mirror_lanes = lanes[1::2]
     assert mirror_lanes == direct_lanes
+
+
+def test_action_head_formation_scales_attenuate_only_minority_conflict() -> None:
+    from volvence_zero.internal_rl.sandbox import (
+        causal_action_head_formation_scales,
+    )
+
+    scales = causal_action_head_formation_scales(
+        action_gradients=((0.8, -0.8), (-0.2, 0.2), (0.1, -0.1)),
+        advantages=(1.0, 1.0, 1.0),
+        conflict_scale=0.25,
+    )
+
+    assert scales == (1.0, 0.25, 1.0)
+    # Exact cancellation has no majority direction and therefore no arbitrary
+    # tie-break. Formation protection must not invent one.
+    assert causal_action_head_formation_scales(
+        action_gradients=((0.5, -0.5), (-0.5, 0.5)),
+        advantages=(1.0, 1.0),
+        conflict_scale=0.25,
+    ) == (1.0, 1.0)
+
+
+@pytest.mark.parametrize(
+    (
+        "wiring",
+        "initial_update_step",
+        "expected_advantages",
+        "expected_would",
+        "expected_applied",
+    ),
+    (
+        (WiringLevel.SHADOW, 0, (1.0, 1.0), 1, 0),
+        (WiringLevel.ACTIVE, 0, (1.0, 0.25), 1, 1),
+        (WiringLevel.ACTIVE, 10, (1.0, 1.0), 0, 0),
+    ),
+)
+def test_action_head_formation_protection_is_wiring_controlled(
+    monkeypatch: pytest.MonkeyPatch,
+    wiring: WiringLevel,
+    initial_update_step: int,
+    expected_advantages: tuple[float, ...],
+    expected_would: int,
+    expected_applied: int,
+) -> None:
+    from volvence_zero.internal_rl.sandbox import CausalZPolicy, ZTransition
+    from volvence_zero.temporal_types import ControllerState
+
+    n_z = 4
+    store = MetacontrollerParameterStore(n_z=n_z, n_input=n_z)
+    initial_parameters = store.causal_action_head_parameters(
+        track=Track.WORLD
+    )
+    store.restore_causal_action_head_parameters(
+        replace(initial_parameters, update_step=initial_update_step)
+    )
+    policy = CausalZPolicy(
+        parameter_store=store,
+        causal_action_head_wiring=WiringLevel.ACTIVE,
+        causal_action_head_strength=1.0,
+        causal_action_head_formation_protection=wiring,
+        causal_action_head_formation_max_update_steps=10,
+        causal_action_head_formation_conflict_scale=0.25,
+    )
+    captured: dict[str, tuple[float, ...]] = {}
+    original_update = store.update_causal_action_head
+
+    def capture(**kwargs: object) -> float:
+        captured["advantages"] = kwargs["advantages"]
+        return original_update(**kwargs)
+
+    monkeypatch.setattr(store, "update_causal_action_head", capture)
+
+    def transition(step_index: int, action_delta: float) -> ZTransition:
+        vector = (0.4, 0.4, 0.4, 0.4)
+        action = (vector[0] + action_delta, *vector[1:])
+        return ZTransition(
+            step_index=step_index,
+            track=Track.WORLD,
+            abstract_action="formation-protection",
+            controller_state=ControllerState(
+                code=vector,
+                code_dim=n_z,
+                switch_gate=1.0,
+                is_switching=True,
+                steps_since_switch=0,
+            ),
+            observation_signature=vector,
+            policy_action=action,
+            latent_code=vector,
+            decoder_output=vector,
+            applied_control=vector,
+            downstream_effect=vector,
+            hidden_state=vector,
+            policy_score=0.5,
+            log_prob=-1.0,
+            reward=0.2,
+            raw_reward=0.2,
+            policy_replacement_quality=0.5,
+            backend_name="test",
+            backend_fidelity=1.0,
+            policy_mean=vector,
+            policy_std=(0.2, 0.2, 0.2, 0.2),
+            transition_source="runtime-replay",
+            runtime_beta_t=1.0,
+            runtime_action_head_state=vector,
+            direct_action_target=True,
+        )
+
+    policy._update_causal_action_head(
+        track=Track.WORLD,
+        transitions=(transition(0, 0.4), transition(1, -0.2)),
+        advantages=(1.0, 1.0),
+    )
+
+    assert captured["advantages"] == expected_advantages
+    assert (
+        policy._latest_causal_action_head_formation_would_attenuate_count
+        == expected_would
+    )
+    assert (
+        policy._latest_causal_action_head_formation_applied_count
+        == expected_applied
+    )
+
+
+def test_action_head_formation_configuration_fails_loudly() -> None:
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    with pytest.raises(ValueError, match="ACTIVE causal action head"):
+        policy.set_causal_action_head_formation_protection(
+            wiring_level=WiringLevel.ACTIVE,
+            max_update_steps=10,
+            conflict_scale=0.25,
+        )
+    policy.set_causal_action_head(
+        wiring_level=WiringLevel.ACTIVE,
+        track=Track.WORLD,
+        strength=1.0,
+    )
+    policy.set_causal_action_head_formation_protection(
+        wiring_level=WiringLevel.ACTIVE,
+        max_update_steps=10,
+        conflict_scale=0.25,
+    )
+    assert (
+        policy.causal_action_head_formation_protection
+        is WiringLevel.ACTIVE
+    )
+    with pytest.raises(ValueError, match="DISABLED"):
+        policy.set_causal_action_head_formation_protection(
+            wiring_level=WiringLevel.DISABLED,
+            max_update_steps=10,
+            conflict_scale=0.25,
+        )
 
 
 def test_pe_magnitude_is_inert_for_boundaries_and_milestone_owns_them() -> None:

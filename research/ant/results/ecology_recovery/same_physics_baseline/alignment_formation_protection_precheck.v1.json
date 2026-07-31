@@ -1,0 +1,73 @@
+{
+  "decision": {
+    "l1b_mechanism_precheck": "PASS",
+    "l1c_preregistration_may_be_created": true,
+    "station2_remains_unauthorized": true,
+    "station_run_authorized": false
+  },
+  "limitations": [
+    "frozen forward equivalence proves rollback and checkpoint compatibility, not learned uplift",
+    "a fresh L1-C preregistration and empty journal are required before any station claim"
+  ],
+  "mechanism": {
+    "conflict_scale": 0.25,
+    "domain_semantics_consumed": false,
+    "max_update_steps": 160,
+    "owner": "vz-temporal causal action-head optimizer",
+    "rollback": {
+      "conflict_scale": 1.0,
+      "max_update_steps": 0,
+      "wiring": "disabled"
+    },
+    "wiring": "active"
+  },
+  "probe": {
+    "active_digest": "6190f6accafac751d02f0b2a28770ba54d7254ce9b9022c4765f201dc4731093",
+    "byte_equivalent_forward": true,
+    "disabled_digest": "6190f6accafac751d02f0b2a28770ba54d7254ce9b9022c4765f201dc4731093",
+    "food_rows": [
+      {
+        "action_head_update_step": 142,
+        "body_id": 0,
+        "left_turn": 0.00022040776792150806,
+        "right_turn": -0.00022156585947500572,
+        "target_aligned": true
+      },
+      {
+        "action_head_update_step": 125,
+        "body_id": 1,
+        "left_turn": 0.0002589814016701201,
+        "right_turn": -0.0002603116750321005,
+        "target_aligned": true
+      },
+      {
+        "action_head_update_step": 135,
+        "body_id": 2,
+        "left_turn": -0.00012722060238059714,
+        "right_turn": 0.00012783637790326726,
+        "target_aligned": false
+      },
+      {
+        "action_head_update_step": 140,
+        "body_id": 3,
+        "left_turn": 0.00045939060576857577,
+        "right_turn": -0.00046141004949876537,
+        "target_aligned": true
+      }
+    ],
+    "learning_writes_enabled": false,
+    "max_frozen_action_head_update_step": 142,
+    "seed": 700003
+  },
+  "read_only": true,
+  "schema_version": "alignment-formation-protection-precheck.v1",
+  "source": {
+    "review_checkpoint_sha256": "4020df3db034df75ae06580db0b58cadec253f62dc0cd5e0c4d7062fb2776095",
+    "review_report": {
+      "path": "research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_alignment_review.seed0.20260731T053814Z.json",
+      "sha256": "22c61c28f7051704436507a28f4c576b582e89fbb6941c27706444426fbf2896"
+    }
+  },
+  "status": "PRECHECK_PASS",
+  "training_or_journal_write_performed": false
+}

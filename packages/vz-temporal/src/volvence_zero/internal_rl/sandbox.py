@@ -57,6 +57,70 @@ from volvence_zero.temporal.causal_action_projection import (
 _CAUSAL_ACTION_ADVANTAGE_SCALE_FLOOR = 0.05
 
 
+def causal_action_head_formation_scales(
+    *,
+    action_gradients: tuple[tuple[float, ...], ...],
+    advantages: tuple[float, ...],
+    conflict_scale: float,
+) -> tuple[float, ...]:
+    """Return per-transition scales for minority conflicting contributions.
+
+    Each contribution is ``advantage * projected score-gradient``. A row is
+    conflicting only when its dot product with the batch's net contribution
+    is negative. The algebra is owner-generic: it consumes no task labels,
+    body identity, environment objects, or action names.
+    """
+
+    if len(action_gradients) != len(advantages):
+        raise ValueError(
+            "formation protection requires one advantage per action gradient"
+        )
+    if not 0.0 < conflict_scale < 1.0:
+        raise ValueError(
+            "formation protection conflict_scale must be within (0, 1), "
+            f"got {conflict_scale!r}"
+        )
+    if not action_gradients:
+        return ()
+    widths = {len(row) for row in action_gradients}
+    if len(widths) != 1 or next(iter(widths), 0) < 1:
+        raise ValueError(
+            "formation protection action gradients must have one consistent "
+            "positive width"
+        )
+    if not all(
+        math.isfinite(value)
+        for row in action_gradients
+        for value in row
+    ) or not all(math.isfinite(value) for value in advantages):
+        raise ValueError(
+            "formation protection inputs must contain only finite values"
+        )
+    contributions = tuple(
+        tuple(advantage * value for value in gradient)
+        for gradient, advantage in zip(
+            action_gradients,
+            advantages,
+            strict=True,
+        )
+    )
+    width = next(iter(widths))
+    batch_net = tuple(
+        sum(row[index] for row in contributions)
+        for index in range(width)
+    )
+    return tuple(
+        conflict_scale
+        if sum(
+            value * batch_net[index]
+            for index, value in enumerate(row)
+        )
+        < 0.0
+        else 1.0
+        for row in contributions
+    )
+
+
 @dataclass(frozen=True)
 class ZTransition:
     step_index: int
@@ -301,6 +365,10 @@ class OptimizationReport:
     torch_value_loss: float = 0.0
     torch_approx_kl: float = 0.0
     torch_wrote_back: bool = False
+    causal_action_head_formation_protection_wiring: str = "disabled"
+    causal_action_head_formation_window_active: bool = False
+    causal_action_head_formation_would_attenuate_count: int = 0
+    causal_action_head_formation_applied_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -860,6 +928,11 @@ class CausalZPolicy:
         ) = None,
         causal_action_head_exclusive_steering: bool = False,
         causal_action_head_mirror_equivariance: bool = False,
+        causal_action_head_formation_protection: WiringLevel = (
+            WiringLevel.DISABLED
+        ),
+        causal_action_head_formation_max_update_steps: int = 0,
+        causal_action_head_formation_conflict_scale: float = 1.0,
         causal_action_head_state_dim: int | None = None,
         latent_unit_clamp: bool = False,
     ) -> None:
@@ -974,6 +1047,54 @@ class CausalZPolicy:
         self._causal_action_head_mirror_equivariance = bool(
             causal_action_head_mirror_equivariance
         )
+        if causal_action_head_formation_protection is WiringLevel.DISABLED:
+            if (
+                causal_action_head_formation_max_update_steps != 0
+                or causal_action_head_formation_conflict_scale != 1.0
+            ):
+                raise ValueError(
+                    "DISABLED causal action head formation protection "
+                    "requires max_update_steps=0 and conflict_scale=1.0"
+                )
+        else:
+            if causal_action_head_wiring is not WiringLevel.ACTIVE:
+                raise ValueError(
+                    "causal action head formation protection requires an "
+                    "ACTIVE causal action head"
+                )
+            if (
+                isinstance(
+                    causal_action_head_formation_max_update_steps,
+                    bool,
+                )
+                or not isinstance(
+                    causal_action_head_formation_max_update_steps,
+                    int,
+                )
+                or causal_action_head_formation_max_update_steps < 1
+            ):
+                raise ValueError(
+                    "causal action head formation max_update_steps must be a "
+                    "positive integer"
+                )
+            if not 0.0 < causal_action_head_formation_conflict_scale < 1.0:
+                raise ValueError(
+                    "causal action head formation conflict_scale must be "
+                    "within (0, 1)"
+                )
+        self._causal_action_head_formation_protection = (
+            causal_action_head_formation_protection
+        )
+        self._causal_action_head_formation_max_update_steps = (
+            causal_action_head_formation_max_update_steps
+        )
+        self._causal_action_head_formation_conflict_scale = float(
+            causal_action_head_formation_conflict_scale
+        )
+        self._latest_causal_action_head_formation_window_active = False
+        self._latest_causal_action_head_formation_would_attenuate_count = 0
+        self._latest_causal_action_head_formation_applied_count = 0
+        self._latest_causal_action_head_formation_scales: tuple[float, ...] = ()
         self._exclusive_contrast_dims = frozenset(
             index
             for pair in (
@@ -1877,6 +1998,10 @@ class CausalZPolicy:
         transitions: tuple[ZTransition, ...],
         advantages: tuple[float, ...],
     ) -> float:
+        self._latest_causal_action_head_formation_window_active = False
+        self._latest_causal_action_head_formation_would_attenuate_count = 0
+        self._latest_causal_action_head_formation_applied_count = 0
+        self._latest_causal_action_head_formation_scales = ()
         if self._causal_action_head_wiring is WiringLevel.DISABLED:
             return 0.0
         eligible_transitions = tuple(
@@ -1932,6 +2057,9 @@ class CausalZPolicy:
         state_feature_batch: list[tuple[float, ...]] = []
         action_gradients: list[tuple[float, ...]] = []
         selected_advantages: list[float] = []
+        formation_action_gradients: list[tuple[float, ...]] = []
+        formation_advantages: list[float] = []
+        formation_scale_targets: list[tuple[int, int | None]] = []
         for transition, advantage in eligible_transitions:
             if transition.transition_source == "runtime-replay":
                 beta_vector = (
@@ -2025,6 +2153,8 @@ class CausalZPolicy:
                 )
             )
             selected_advantages.append(lane_advantage)
+            base_target_index = len(selected_advantages) - 1
+            mirror_target_index: int | None = None
             if self._causal_action_head_mirror_equivariance:
                 if (
                     len(transition.runtime_action_head_mirror_state)
@@ -2053,6 +2183,58 @@ class CausalZPolicy:
                 # direct_action_target case) or the augmentation itself
                 # fights the equivariance it exists to enforce.
                 selected_advantages.append(lane_advantage)
+                mirror_target_index = len(selected_advantages) - 1
+            formation_action_gradients.append(gradient)
+            formation_advantages.append(lane_advantage)
+            formation_scale_targets.append(
+                (base_target_index, mirror_target_index)
+            )
+        parameters = self._parameter_store.causal_action_head_parameters(
+            track=track
+        )
+        formation_window_active = (
+            self._causal_action_head_formation_protection
+            is not WiringLevel.DISABLED
+            and parameters.update_step
+            < self._causal_action_head_formation_max_update_steps
+        )
+        self._latest_causal_action_head_formation_window_active = (
+            formation_window_active
+        )
+        applied_scales = tuple(1.0 for _ in formation_advantages)
+        if formation_window_active:
+            candidate_scales = causal_action_head_formation_scales(
+                action_gradients=tuple(formation_action_gradients),
+                advantages=tuple(formation_advantages),
+                conflict_scale=(
+                    self._causal_action_head_formation_conflict_scale
+                ),
+            )
+            would_attenuate = sum(
+                scale < 1.0 for scale in candidate_scales
+            )
+            self._latest_causal_action_head_formation_would_attenuate_count = (
+                would_attenuate
+            )
+            if (
+                self._causal_action_head_formation_protection
+                is WiringLevel.ACTIVE
+            ):
+                applied_scales = candidate_scales
+                self._latest_causal_action_head_formation_applied_count = (
+                    would_attenuate
+                )
+        self._latest_causal_action_head_formation_scales = applied_scales
+        for scale, (base_index, mirror_index) in zip(
+            applied_scales,
+            formation_scale_targets,
+            strict=True,
+        ):
+            if scale == 1.0:
+                continue
+            selected_advantages[base_index] *= scale
+            if mirror_index is not None:
+                selected_advantages[mirror_index] *= scale
         return self._parameter_store.update_causal_action_head(
             track=track,
             state_feature_batch=tuple(state_feature_batch),
@@ -2202,6 +2384,21 @@ class CausalZPolicy:
                 torch_value_loss=torch_evidence["value_loss"],
                 torch_approx_kl=torch_evidence["approx_kl"],
                 torch_wrote_back=torch_evidence["wrote_back"],
+                causal_action_head_formation_protection_wiring=(
+                    self._causal_action_head_formation_protection.value
+                ),
+                causal_action_head_formation_window_active=(
+                    self
+                    ._latest_causal_action_head_formation_window_active
+                ),
+                causal_action_head_formation_would_attenuate_count=(
+                    self
+                    ._latest_causal_action_head_formation_would_attenuate_count
+                ),
+                causal_action_head_formation_applied_count=(
+                    self
+                    ._latest_causal_action_head_formation_applied_count
+                ),
                 parameter_summary=(
                     f"track={track.value} rollouts={len(updated_rollouts)} transitions={len(transitions)} "
                     f"weights={self._parameter_store.track_weights[track]} "
@@ -2284,6 +2481,11 @@ class CausalZPolicy:
             causal_action_head_mirror_equivariance=(
                 self._causal_action_head_mirror_equivariance
             ),
+            causal_action_head_formation_scales=(
+                self._latest_causal_action_head_formation_scales
+                if self._latest_causal_action_head_formation_applied_count
+                else None
+            ),
             latent_unit_clamp=self._latent_unit_clamp,
         )
         # The two replay lanes must reconstruct the same mean for the same
@@ -2365,6 +2567,21 @@ class InternalRLSandbox:
             if isinstance(self._policy, FullLearnedTemporalPolicy)
             else False
         )
+        causal_action_head_formation_protection = (
+            self._policy.causal_action_head_formation_protection
+            if isinstance(self._policy, FullLearnedTemporalPolicy)
+            else WiringLevel.DISABLED
+        )
+        causal_action_head_formation_max_update_steps = (
+            self._policy.causal_action_head_formation_max_update_steps
+            if isinstance(self._policy, FullLearnedTemporalPolicy)
+            else 0
+        )
+        causal_action_head_formation_conflict_scale = (
+            self._policy.causal_action_head_formation_conflict_scale
+            if isinstance(self._policy, FullLearnedTemporalPolicy)
+            else 1.0
+        )
         self._causal_policy = CausalZPolicy(
             parameter_store=self._policy.parameter_store,
             rl_backend=rl_backend,
@@ -2381,6 +2598,15 @@ class InternalRLSandbox:
             ),
             causal_action_head_mirror_equivariance=(
                 causal_action_head_mirror_equivariance
+            ),
+            causal_action_head_formation_protection=(
+                causal_action_head_formation_protection
+            ),
+            causal_action_head_formation_max_update_steps=(
+                causal_action_head_formation_max_update_steps
+            ),
+            causal_action_head_formation_conflict_scale=(
+                causal_action_head_formation_conflict_scale
             ),
             causal_action_head_state_dim=causal_action_head_state_dim,
             latent_unit_clamp=latent_unit_clamp,

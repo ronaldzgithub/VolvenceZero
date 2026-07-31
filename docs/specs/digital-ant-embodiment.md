@@ -124,7 +124,7 @@ termination，新的 pickup/delivery typed milestone 仍可立即打断。该配
 home 或 family label，DISABLED/0 为回滚；旧 checkpoint 冻结预检 8 lane 的 family survival 为
 `[4,4,4,4,4,4,15,15]`，但正式结论必须从全新 prereg v2 与空 journal 重训获得。
 
-v31 因历史 near 物理课程口径不一致而早停后，重开必须先生成
+v31 因历史 near 物理课程口径不一致而早停后，第一次同物理重开先生成
 `digital-ant-ecology-same-physics-baseline-preregistration.v2`。该 causal packet 的两臂从同一
 owner-exported 初始 checkpoint 分叉，使用同一 CPU float64 配置、完整 55-episode schedule、seed、
 物理世界、reward、PE、credit、optimizer 与探索设置；唯一允许差异是
@@ -145,6 +145,40 @@ review 不新增或挑选 seed，而是按原顺序复用 packet 已绑定的 st
 carrying-home alignment 与 U-turn 进度转正；失败即 BLOCK，禁止进入 ep30。站3只在前两站 GO 后
 运行，matched block pickup 继续使用 80% 非劣，far 保持 D3 描述项。历史绝对数字不得重新进入
 这些门。
+
+station1/review BLOCK 后的 owner-level 重开必须先经过只读
+`alignment-formation-attribution.v1`。该 offline artifact 只能消费 immutable station/review
+报告、owner-exported checkpoint archive 与对应 station-report journal；禁止恢复训练或写回
+journal。它固定使用 food turn threshold `1e-4` 和 probe seeds
+`700003/700004/700005/700006/700007`，逐 body 发布：对齐 margin、butter-near
+encounter/pickup、world causal action-head 的 528 维向量摘要/两两距离，以及 station→review
+变化。若失败 body 在任一 seed 扰动下翻为 aligned，必须触发 measurement-semantics kill 并开新
+schema，不能降低 4/4 门。v28 journal 没有逐 tick gradient magnitude 或逐更新 gradient
+cosine，attribution 必须显式记为 unavailable，禁止事后重建。2026-07-31 正式 artifact 识别
+body 2 为稳定失败者：H1 learning-state divergence=`supported`、H2 exposure imbalance=
+`not-supported`、H3 gradient interference=`inconclusive/not-selected`；它只选择下一 owner 包，
+不授权 station2、P1、P2 或任何 gate 晋升。
+
+L1-B 因此不增加课程配额，也不做 body2 特判。Digital Ant evidence profile 显式声明
+`internal_rl_causal_action_head_formation_protection=ACTIVE`、形成窗口 `160` owner updates、
+冲突贡献 scale=`0.25`；通用默认保持 `DISABLED / 0 / 1.0`。冲突只由 temporal owner 对
+`advantage × projected score-gradient` 的 batch 内点积定义，不消费 food/carrying 或 body
+语义。正式旧-checkpoint precheck
+`alignment_formation_protection_precheck.v1.json` 在 seed `700003` 上得到 ACTIVE/DISABLED
+完整 paired-probe digest 相同，且旧 review 最大 head step `142 < 160`；它只证明 checkpoint
+兼容与 forward 回滚，不证明 learned uplift。只有 L1-C fresh prereg + 空 journal 可以判定增益。
+
+L1-C 的 fresh prereg 为
+`digital-ant-ecology-same-physics-baseline-preregistration.v3`，实验代际显式标记
+`station1-v4`。它把上述 L1-B no-write precheck 的 artifact SHA256、ACTIVE/DISABLED forward
+等价 digest 与 `PRECHECK_PASS` 判词绑定为合法重开前提；两臂同时使用
+`ACTIVE / 160 / 0.25` 形成保护，唯一允许的臂间差异仍是
+`environment_milestone_temporal_switch=ACTIVE / DISABLED`，因此没有把形成保护冒充成 typed
+milestone 的 matched 因果变量。v4 沿用原 pickup、structure、persistence 和 food-turn
+`1e-4` 判据，不改阈值、不只换 seed；20 局 frozen checkpoint 必须直接达到 food alignment
+4/4。旧 v2 唯一五局 review 已经用尽，本代 `food_alignment_review_authorized=false`，3/4 或更低
+立即 BLOCK。packet 只授权新空 progress directory 中的 station1 ep0–19；station2、P1、P2 仍须
+等待 station1 GO，且正式运行必须固定在 packet 绑定的隔离源码快照。
 
 这里的“只有两个 task milestone”不等于系统其余 PE 必须为零：局部 food/pheromone/heading 感知仍会
 产生 substrate prediction mismatch，Internal-RL 可把它作为内在 PE 信号。它不读取食物坐标或全局距离，
@@ -620,9 +654,13 @@ React/Vite 工程。它不新增 kernel slot：
   tick/round 完成后才发布 immutable frame，禁止预烘焙 replay 冒充 live。
 - 下行是 SSE frame/status/disturbance event，上行是 POST config/command/disturbance。pause/resume/
   single-step/speed 只控制编排节奏；schema 明确不含 `turn_command` / `step_command` 写入口。
+- `/api/v1/health` 发布固定 service identity 与 `digital-ant-app.v2` schema；浏览器创建 run 前必须校验
+  身份，所有控制请求必须有有界超时，错误后不得无限保持 creating 状态。
 - 食物搬迁、alarm、电机 transfer 及 typed `upsert/move/remove_world_object` 只在环境 owner 的
   tick/round 边界应用。操作者可配置隐藏 gain/bias，但这些参数不进入 substrate/frame；agent 仍只
   看到真实物理后果。
+- `upsert/move/remove_world_object` 只允许进入 `objective=ecology` 的 run；该约束由 Python runner
+  在排队前 fail loudly，不能只依赖前端工具禁用状态。
 - 黄油和火柴点击放置，木棍拖拽定义方向/长度；选择后可平移或删除。浏览器只发送 typed 环境扰动，
   `AppFrame.objects` 直接携带 owner 发布的不可变 `WorldObjectSnapshot`，不允许提交电机动作。
 - Canvas 只投影 `AntStepRecord`、`ColonyRoundRecord`、公开 body/food getter、对象/信息素快照；
@@ -630,6 +668,8 @@ React/Vite 工程。它不新增 kernel slot：
 - PASS/BLOCK 只读正式 evidence artifact，永不作为学习输入。没有通过冻结门槛时默认明确显示
   `BLOCK`，即使真实闭环正在运行；formal evidence verdict 与 ecology checkpoint 的
   loaded/fingerprint/promotion verdict 分栏显示，动画流畅不构成科学 PASS。
+- 前端同一时刻只维持一个 active run；新建前必须终止旧 run。群体累计量与单蚁 telemetry 分栏，
+  后者必须显式标出 `body_id`，fixed-rule/no-optimize 不得显示成 learned autonomy 或 checkpoint。
 
 ### 7.3 NE-Dreamer next-embedding rare-heavy 对照（2026-07-20）
 

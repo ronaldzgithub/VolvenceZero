@@ -702,6 +702,20 @@ class AgentSessionRunner(
                     .internal_rl_causal_action_head_envelope_enforced
                 ),
             )
+            self._world_temporal_policy.set_causal_action_head_formation_protection(
+                wiring_level=(
+                    self._config
+                    .internal_rl_causal_action_head_formation_protection
+                ),
+                max_update_steps=(
+                    self._config
+                    .internal_rl_causal_action_head_formation_max_update_steps
+                ),
+                conflict_scale=(
+                    self._config
+                    .internal_rl_causal_action_head_formation_conflict_scale
+                ),
+            )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy.set_learning_writes_enabled(
                 joint_learning_enabled
@@ -745,6 +759,20 @@ class AgentSessionRunner(
                 envelope_enforced=(
                     self._config
                     .internal_rl_causal_action_head_envelope_enforced
+                ),
+            )
+            self._self_temporal_policy.set_causal_action_head_formation_protection(
+                wiring_level=(
+                    self._config
+                    .internal_rl_causal_action_head_formation_protection
+                ),
+                max_update_steps=(
+                    self._config
+                    .internal_rl_causal_action_head_formation_max_update_steps
+                ),
+                conflict_scale=(
+                    self._config
+                    .internal_rl_causal_action_head_formation_conflict_scale
                 ),
             )
         self._evaluation_backbone = EvaluationBackbone()

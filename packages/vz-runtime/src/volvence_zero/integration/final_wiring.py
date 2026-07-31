@@ -146,6 +146,7 @@ from volvence_zero.social_cognition import (
     SocialPredictionErrorSnapshot,
 )
 from volvence_zero.runtime.kernel import stable_value_hash
+from volvence_zero.semantic_embedding import semantic_embedding_backend_status
 from volvence_zero.semantic_state import (
     SEMANTIC_OWNER_SLOTS,
     BeliefAssumptionSnapshot,
@@ -450,6 +451,16 @@ class FinalRolloutConfig:
     # test_runtime_transition_replay.py`` deliberately installs bias 0.35 / 0.4
     # through the permissive path. See docs/specs/temporal-abstraction.md.
     internal_rl_causal_action_head_envelope_enforced: bool = False
+    # Early action-head formation guard. During the first bounded number of
+    # owner updates, ACTIVE attenuates only transition contributions that
+    # oppose the batch's net advantage-weighted projected score gradient;
+    # SHADOW reports the same decisions without changing parameters. The
+    # DISABLED/0/1.0 triple is the exact historical rollback.
+    internal_rl_causal_action_head_formation_protection: WiringLevel = (
+        WiringLevel.DISABLED
+    )
+    internal_rl_causal_action_head_formation_max_update_steps: int = 0
+    internal_rl_causal_action_head_formation_conflict_scale: float = 1.0
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
     # autograd-owner-integration: strength of the runtime track-weight
     # modulation that lets Internal-RL's learned ``track_weights`` reach the
@@ -1957,6 +1968,18 @@ def build_final_runtime_modules(
                 config.internal_rl_causal_action_head_envelope_enforced
             ),
         )
+        resolved_world_temporal_policy.set_causal_action_head_formation_protection(
+            wiring_level=(
+                config.internal_rl_causal_action_head_formation_protection
+            ),
+            max_update_steps=(
+                config
+                .internal_rl_causal_action_head_formation_max_update_steps
+            ),
+            conflict_scale=(
+                config.internal_rl_causal_action_head_formation_conflict_scale
+            ),
+        )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
         resolved_self_temporal_policy.set_runtime_track_modulation(
@@ -1986,6 +2009,18 @@ def build_final_runtime_modules(
             ),
             envelope_enforced=(
                 config.internal_rl_causal_action_head_envelope_enforced
+            ),
+        )
+        resolved_self_temporal_policy.set_causal_action_head_formation_protection(
+            wiring_level=(
+                config.internal_rl_causal_action_head_formation_protection
+            ),
+            max_update_steps=(
+                config
+                .internal_rl_causal_action_head_formation_max_update_steps
+            ),
+            conflict_scale=(
+                config.internal_rl_causal_action_head_formation_conflict_scale
             ),
         )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded
@@ -2351,6 +2386,12 @@ def build_final_runtime_modules(
             learning_enabled=learning_enabled,
         ),
         CaseMemoryModule(
+            user_input=(
+                user_input
+                if semantic_embedding_backend_status()
+                == ("backend", "Qwen/Qwen2.5-1.5B-Instruct", False)
+                else None
+            ),
             rare_heavy_state=application_rare_heavy_state,
             store=case_memory_store,
             action_applicability_evaluator=(

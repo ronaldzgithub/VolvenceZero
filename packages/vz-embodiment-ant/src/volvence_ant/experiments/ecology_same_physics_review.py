@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from volvence_ant.experiments.ecology_same_physics_baseline import (
-    ECOLOGY_SAME_PHYSICS_BASELINE_SCHEMA_VERSION,
     _code_tree_binding,
     _file_binding,
     _sha256,
@@ -14,12 +13,17 @@ from volvence_ant.experiments.ecology_same_physics_baseline import (
 )
 from volvence_ant.experiments.ecology_same_physics_run import (
     ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_REPORT_SCHEMA_VERSION,
-    ECOLOGY_SAME_PHYSICS_STATION1_REPORT_SCHEMA_VERSION,
 )
 
 
 ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_PREREGISTRATION_SCHEMA_VERSION = (
     "digital-ant-ecology-same-physics-alignment-review-preregistration.v1"
+)
+ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_PACKET_SCHEMA_VERSION = (
+    "digital-ant-ecology-same-physics-baseline-preregistration.v2"
+)
+ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_REPORT_SCHEMA_VERSION = (
+    "digital-ant-ecology-same-physics-station1.v2"
 )
 
 _SOURCE_PATHS = (
@@ -67,7 +71,7 @@ def build_ecology_same_physics_alignment_review_packet(
 
     if (
         station1_packet.get("schema_version")
-        != ECOLOGY_SAME_PHYSICS_BASELINE_SCHEMA_VERSION
+        != ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_PACKET_SCHEMA_VERSION
     ):
         raise EcologySamePhysicsAlignmentReviewPacketError(
             "alignment review requires the v2 station1 preregistration"
@@ -94,12 +98,12 @@ def build_ecology_same_physics_alignment_review_packet(
         "status": "PREREGISTERED",
         "station1_preregistration": {
             "schema_version": (
-                ECOLOGY_SAME_PHYSICS_BASELINE_SCHEMA_VERSION
+                ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_PACKET_SCHEMA_VERSION
             ),
             "sha256": station1_preregistration_sha256,
         },
         "accepted_station1_report_schema_version": (
-            ECOLOGY_SAME_PHYSICS_STATION1_REPORT_SCHEMA_VERSION
+            ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_REPORT_SCHEMA_VERSION
         ),
         "output_report_schema_version": (
             ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_REPORT_SCHEMA_VERSION
@@ -175,6 +179,8 @@ def validate_ecology_same_physics_alignment_review_packet(
 
 __all__ = [
     "ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_PREREGISTRATION_SCHEMA_VERSION",
+    "ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_PACKET_SCHEMA_VERSION",
+    "ECOLOGY_SAME_PHYSICS_ALIGNMENT_REVIEW_STATION1_REPORT_SCHEMA_VERSION",
     "EcologySamePhysicsAlignmentReviewPacketError",
     "build_ecology_same_physics_alignment_review_packet",
     "validate_ecology_same_physics_alignment_review_packet",

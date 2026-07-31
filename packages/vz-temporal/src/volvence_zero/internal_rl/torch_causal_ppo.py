@@ -166,6 +166,7 @@ def torch_causal_ppo_update(
     ) = None,
     causal_action_head_exclusive_steering: bool = False,
     causal_action_head_mirror_equivariance: bool = False,
+    causal_action_head_formation_scales: tuple[float, ...] | None = None,
     latent_unit_clamp: bool = False,
 ) -> TorchPPOReport:
     """One real-autograd PPO update over a live ZTransition batch.
@@ -215,6 +216,24 @@ def torch_causal_ppo_update(
             f"unsupported torch Internal-RL transition source {transition_source!r}"
         )
     runtime_replay = transition_source == "runtime-replay"
+    if causal_action_head_formation_scales is not None:
+        if not causal_action_head_enabled:
+            raise ValueError(
+                "causal action head formation scales require an enabled head"
+            )
+        if len(causal_action_head_formation_scales) != len(usable):
+            raise ValueError(
+                "causal action head formation scales must match the usable "
+                "transition count"
+            )
+        if any(
+            not math.isfinite(scale) or not 0.0 < scale <= 1.0
+            for scale in causal_action_head_formation_scales
+        ):
+            raise ValueError(
+                "causal action head formation scales must be finite values "
+                "within (0, 1]"
+            )
     if not 0.0 <= causal_action_head_strength <= 1.0:
         raise ValueError(
             "causal_action_head_strength must be within [0, 1], "
@@ -407,6 +426,15 @@ def torch_causal_ppo_update(
         advantages = torch.tensor([float(t.reward) for t in usable], dtype=dtype)
     if not runtime_replay:
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    head_advantages = (
+        advantages
+        * torch.tensor(
+            causal_action_head_formation_scales,
+            dtype=dtype,
+        )
+        if causal_action_head_formation_scales is not None
+        else None
+    )
 
     # Live policy params as torch leaves.
     base_weights = list(parameter_store.track_weights[track])[:n_z]
@@ -809,12 +837,40 @@ def torch_causal_ppo_update(
             )
         )
         loss = policy_loss + value_coef * value_loss - entropy_coef * entropy
+        head_policy_loss = None
+        if head_advantages is not None:
+            head_unclipped = ratio * head_advantages
+            head_clipped = (
+                torch.clamp(
+                    ratio,
+                    1.0 - clip_epsilon,
+                    1.0 + clip_epsilon,
+                )
+                * head_advantages
+            )
+            head_policy_loss = -torch.mean(
+                torch.min(head_unclipped, head_clipped)
+            )
         opt.zero_grad()
         for leaf in head_leaves:
             # The head leaves are outside ``opt``; without this their ``.grad``
             # would accumulate across PPO epochs.
             leaf.grad = None
-        loss.backward()
+        loss.backward(retain_graph=head_policy_loss is not None)
+        if head_policy_loss is not None:
+            protected_head_gradients = torch.autograd.grad(
+                head_policy_loss,
+                head_leaves,
+            )
+            for leaf, gradient in zip(
+                head_leaves,
+                protected_head_gradients,
+                strict=True,
+            ):
+                # Track/value/entropy keep the original PPO objective. Only
+                # the action-head leaves receive the formation-window credit
+                # scales, matching the pure owner lane.
+                leaf.grad = gradient
         opt.step()
         step_head_within_owner_envelope()
         with torch.no_grad():

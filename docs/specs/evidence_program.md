@@ -485,6 +485,12 @@ preregistration 与 code-tree binding 精确匹配、matched 臂只有声明的�
 保持机制改造战役的 kill 关闭状态；v1 不为它们声明 ecology source。结果产生
 后不得增删本表字段或门槛；新对应面只能另开明确标注事后性的 v2。
 
+L1-C 的 `station1-v4` 使用 fresh
+`digital-ant-ecology-same-physics-baseline-preregistration.v3` / station1 report v3；它是合法的新
+机制执行源，但**不自动进入上表 v1**。只有 station2 先按自身 prereg 得到 GO，才允许在任何 P1
+结果可见前冻结 `ecology-gate-evidence-admission.v2`（五杠杆 L2-A）并声明 v3 source 的准入映射。
+在此之前其 #92 状态保持 `not-admitted`，禁止直接替换上表的 v2 source 或追认新 gate。
+
 ### #92 终局对账（2026-07-31）
 
 权威 artifact 为 `artifacts/causal_evidence_final_campaign_20260731/`，统一

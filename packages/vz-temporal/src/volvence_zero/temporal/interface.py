@@ -3824,6 +3824,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._causal_action_head_exclusive_steering = False
         self._causal_action_head_input_mirror_permutation: tuple[int, ...] = ()
         self._causal_action_head_input_mirror_signs: tuple[int, ...] = ()
+        self._causal_action_head_formation_protection = WiringLevel.DISABLED
+        self._causal_action_head_formation_max_update_steps = 0
+        self._causal_action_head_formation_conflict_scale = 1.0
         self._latest_causal_action_head_state = _nz_zeros(n_z)
         self._latest_causal_action_head_mirror_state = _nz_zeros(n_z)
         self._latest_causal_action_head_residual = _nz_zeros(n_z)
@@ -4015,6 +4018,81 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
     @property
     def causal_action_head_mirror_equivariance(self) -> bool:
         return bool(self._causal_action_head_input_mirror_permutation)
+
+    @property
+    def causal_action_head_formation_protection(self) -> WiringLevel:
+        return self._causal_action_head_formation_protection
+
+    @property
+    def causal_action_head_formation_max_update_steps(self) -> int:
+        return self._causal_action_head_formation_max_update_steps
+
+    @property
+    def causal_action_head_formation_conflict_scale(self) -> float:
+        return self._causal_action_head_formation_conflict_scale
+
+    def set_causal_action_head_formation_protection(
+        self,
+        *,
+        wiring_level: WiringLevel,
+        max_update_steps: int,
+        conflict_scale: float,
+    ) -> None:
+        """Bound early action-head updates by within-batch consensus.
+
+        The owner interprets no domain state here. During the first
+        ``max_update_steps`` head updates, the Internal-RL optimizer may
+        attenuate a transition whose advantage-weighted projected score
+        gradient points against the batch's net contribution. SHADOW records
+        the same decision without changing the update; DISABLED with
+        ``0 / 1.0`` is the exact historical rollback.
+        """
+
+        if isinstance(max_update_steps, bool) or not isinstance(
+            max_update_steps,
+            int,
+        ):
+            raise TypeError(
+                "causal action head formation max_update_steps must be an "
+                f"integer, got {max_update_steps!r}"
+            )
+        if max_update_steps < 0:
+            raise ValueError(
+                "causal action head formation max_update_steps must be >= 0, "
+                f"got {max_update_steps!r}"
+            )
+        if not 0.0 < conflict_scale <= 1.0:
+            raise ValueError(
+                "causal action head formation conflict_scale must be within "
+                f"(0, 1], got {conflict_scale!r}"
+            )
+        if wiring_level is WiringLevel.DISABLED:
+            if max_update_steps != 0 or conflict_scale != 1.0:
+                raise ValueError(
+                    "DISABLED causal action head formation protection "
+                    "requires max_update_steps=0 and conflict_scale=1.0"
+                )
+        else:
+            if self._causal_action_head_wiring is not WiringLevel.ACTIVE:
+                raise ValueError(
+                    "causal action head formation protection requires an "
+                    "ACTIVE causal action head"
+                )
+            if max_update_steps < 1:
+                raise ValueError(
+                    "causal action head formation protection requires at "
+                    "least one update step"
+                )
+            if conflict_scale >= 1.0:
+                raise ValueError(
+                    "causal action head formation protection requires "
+                    "conflict_scale < 1.0"
+                )
+        self._causal_action_head_formation_protection = wiring_level
+        self._causal_action_head_formation_max_update_steps = max_update_steps
+        self._causal_action_head_formation_conflict_scale = float(
+            conflict_scale
+        )
 
     def set_causal_action_head(
         self,

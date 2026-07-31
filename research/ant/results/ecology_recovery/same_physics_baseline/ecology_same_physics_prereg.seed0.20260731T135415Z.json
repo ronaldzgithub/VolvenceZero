@@ -1,0 +1,1181 @@
+{
+  "arms": {
+    "allowed_differences": [
+      {
+        "candidate": "active",
+        "control": "disabled",
+        "field": "environment_milestone_temporal_switch"
+      }
+    ],
+    "candidate": {
+      "name": "learned",
+      "rollout_config": {
+        "affordance": "active",
+        "apprenticeship_alignment": "active",
+        "apprenticeship_protocol_alignment": "shadow",
+        "audit": "shadow",
+        "belief_about_other": "active",
+        "belief_assumption": "active",
+        "boundary_consent": "active",
+        "boundary_policy": "active",
+        "capability_wirings": {},
+        "case_memory": "active",
+        "cms_torch_backend": "disabled",
+        "commitment": "active",
+        "common_ground": "active",
+        "conditioning_credit_feedback": "shadow",
+        "conditioning_router": "shadow",
+        "conditioning_router_top_k": 4,
+        "conversational_role": "active",
+        "credit": "active",
+        "decision_workspace": "shadow",
+        "dialogue_external_outcome": "active",
+        "domain_knowledge": "active",
+        "dual_track": "active",
+        "environment_milestone_temporal_switch": "active",
+        "eta_open_weight_runtime": "shadow",
+        "evaluation": "active",
+        "evaluation_cross_generation": "disabled",
+        "evaluation_expensive": "disabled",
+        "evaluation_mid": "shadow",
+        "execution_result": "active",
+        "experience_consolidation": "active",
+        "experience_fast_prior": "active",
+        "feeling_about_other": "active",
+        "generation_dynamic_residual": "active",
+        "goal_value": "active",
+        "groups": "shadow",
+        "intent_about_other": "active",
+        "interlocutor_state": "active",
+        "internal_rl_backend": "disabled",
+        "internal_rl_batch_accumulation_size": 2,
+        "internal_rl_causal_action_head": "active",
+        "internal_rl_causal_action_head_contrast_pairs": [
+          [
+            0,
+            1
+          ]
+        ],
+        "internal_rl_causal_action_head_effective_dims": [
+          0,
+          1,
+          2
+        ],
+        "internal_rl_causal_action_head_envelope_enforced": true,
+        "internal_rl_causal_action_head_exclusive_steering": true,
+        "internal_rl_causal_action_head_formation_conflict_scale": 0.25,
+        "internal_rl_causal_action_head_formation_max_update_steps": 160,
+        "internal_rl_causal_action_head_formation_protection": "active",
+        "internal_rl_causal_action_head_input_mirror_permutation": [
+          1,
+          0,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          12,
+          11,
+          13,
+          15,
+          14,
+          16,
+          17,
+          18
+        ],
+        "internal_rl_causal_action_head_input_mirror_signs": [
+          1,
+          1,
+          -1,
+          1,
+          -1,
+          1,
+          1,
+          -1,
+          -1,
+          -1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          -1,
+          1,
+          1
+        ],
+        "internal_rl_causal_action_head_rank": 16,
+        "internal_rl_causal_action_head_strength": 1.0,
+        "internal_rl_runtime_exploration_strength": 1.0,
+        "internal_rl_runtime_latent_unit_clamp": true,
+        "internal_rl_runtime_modulation_strength": 0.3,
+        "internal_rl_runtime_outcome_payoff_reward": null,
+        "internal_rl_runtime_replay": "active",
+        "internal_rl_runtime_reward_eligibility": "environment-measured-only",
+        "internal_rl_runtime_segment_credit": "active",
+        "internal_rl_runtime_segment_max_steps": 7,
+        "kill_switches": [],
+        "memory": "active",
+        "multi_party_identity": "active",
+        "open_loop": "active",
+        "panorama_gate_mode": "v1",
+        "personal_conditioning": "shadow",
+        "personal_conditioning_mode": "residual",
+        "plan_intent": "active",
+        "prediction_error": "active",
+        "prediction_error_temporal_switch": "active",
+        "prediction_error_temporal_switch_floor": 0.5,
+        "prediction_error_temporal_switch_strength": 0.35,
+        "preference_about_other": "active",
+        "prompt_state_delivery": "text",
+        "protocol_phase": "active",
+        "protocol_reflection": "shadow",
+        "protocol_registry": "active",
+        "protocol_revision_log": "active",
+        "protocol_revision_queue": "shadow",
+        "protocol_runtime": "active",
+        "protocol_temporal_prior": "disabled",
+        "reflection": "active",
+        "regime": "active",
+        "relationship_conditioning": "shadow",
+        "relationship_conditioning_mode": "text",
+        "relationship_state": "active",
+        "response_assembly": "active",
+        "retrieval_policy": "active",
+        "rupture_state": "active",
+        "session_post_slow_loop": "active",
+        "social_prediction": "active",
+        "social_prediction_error": "active",
+        "strategy_playbook": "active",
+        "substrate": "active",
+        "substrate_self_mod": "active",
+        "temporal": "active",
+        "temporal_post_switch_min_dwell": "active",
+        "temporal_post_switch_min_dwell_actions": 4,
+        "temporal_runtime_backend": "disabled",
+        "temporal_ssl_backend": "disabled",
+        "user_model": "active"
+      }
+    },
+    "control": {
+      "name": "typed_milestone_disabled",
+      "rollout_config": {
+        "affordance": "active",
+        "apprenticeship_alignment": "active",
+        "apprenticeship_protocol_alignment": "shadow",
+        "audit": "shadow",
+        "belief_about_other": "active",
+        "belief_assumption": "active",
+        "boundary_consent": "active",
+        "boundary_policy": "active",
+        "capability_wirings": {},
+        "case_memory": "active",
+        "cms_torch_backend": "disabled",
+        "commitment": "active",
+        "common_ground": "active",
+        "conditioning_credit_feedback": "shadow",
+        "conditioning_router": "shadow",
+        "conditioning_router_top_k": 4,
+        "conversational_role": "active",
+        "credit": "active",
+        "decision_workspace": "shadow",
+        "dialogue_external_outcome": "active",
+        "domain_knowledge": "active",
+        "dual_track": "active",
+        "environment_milestone_temporal_switch": "disabled",
+        "eta_open_weight_runtime": "shadow",
+        "evaluation": "active",
+        "evaluation_cross_generation": "disabled",
+        "evaluation_expensive": "disabled",
+        "evaluation_mid": "shadow",
+        "execution_result": "active",
+        "experience_consolidation": "active",
+        "experience_fast_prior": "active",
+        "feeling_about_other": "active",
+        "generation_dynamic_residual": "active",
+        "goal_value": "active",
+        "groups": "shadow",
+        "intent_about_other": "active",
+        "interlocutor_state": "active",
+        "internal_rl_backend": "disabled",
+        "internal_rl_batch_accumulation_size": 2,
+        "internal_rl_causal_action_head": "active",
+        "internal_rl_causal_action_head_contrast_pairs": [
+          [
+            0,
+            1
+          ]
+        ],
+        "internal_rl_causal_action_head_effective_dims": [
+          0,
+          1,
+          2
+        ],
+        "internal_rl_causal_action_head_envelope_enforced": true,
+        "internal_rl_causal_action_head_exclusive_steering": true,
+        "internal_rl_causal_action_head_formation_conflict_scale": 0.25,
+        "internal_rl_causal_action_head_formation_max_update_steps": 160,
+        "internal_rl_causal_action_head_formation_protection": "active",
+        "internal_rl_causal_action_head_input_mirror_permutation": [
+          1,
+          0,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          12,
+          11,
+          13,
+          15,
+          14,
+          16,
+          17,
+          18
+        ],
+        "internal_rl_causal_action_head_input_mirror_signs": [
+          1,
+          1,
+          -1,
+          1,
+          -1,
+          1,
+          1,
+          -1,
+          -1,
+          -1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          -1,
+          1,
+          1
+        ],
+        "internal_rl_causal_action_head_rank": 16,
+        "internal_rl_causal_action_head_strength": 1.0,
+        "internal_rl_runtime_exploration_strength": 1.0,
+        "internal_rl_runtime_latent_unit_clamp": true,
+        "internal_rl_runtime_modulation_strength": 0.3,
+        "internal_rl_runtime_outcome_payoff_reward": null,
+        "internal_rl_runtime_replay": "active",
+        "internal_rl_runtime_reward_eligibility": "environment-measured-only",
+        "internal_rl_runtime_segment_credit": "active",
+        "internal_rl_runtime_segment_max_steps": 7,
+        "kill_switches": [],
+        "memory": "active",
+        "multi_party_identity": "active",
+        "open_loop": "active",
+        "panorama_gate_mode": "v1",
+        "personal_conditioning": "shadow",
+        "personal_conditioning_mode": "residual",
+        "plan_intent": "active",
+        "prediction_error": "active",
+        "prediction_error_temporal_switch": "active",
+        "prediction_error_temporal_switch_floor": 0.5,
+        "prediction_error_temporal_switch_strength": 0.35,
+        "preference_about_other": "active",
+        "prompt_state_delivery": "text",
+        "protocol_phase": "active",
+        "protocol_reflection": "shadow",
+        "protocol_registry": "active",
+        "protocol_revision_log": "active",
+        "protocol_revision_queue": "shadow",
+        "protocol_runtime": "active",
+        "protocol_temporal_prior": "disabled",
+        "reflection": "active",
+        "regime": "active",
+        "relationship_conditioning": "shadow",
+        "relationship_conditioning_mode": "text",
+        "relationship_state": "active",
+        "response_assembly": "active",
+        "retrieval_policy": "active",
+        "rupture_state": "active",
+        "session_post_slow_loop": "active",
+        "social_prediction": "active",
+        "social_prediction_error": "active",
+        "strategy_playbook": "active",
+        "substrate": "active",
+        "substrate_self_mod": "active",
+        "temporal": "active",
+        "temporal_post_switch_min_dwell": "active",
+        "temporal_post_switch_min_dwell_actions": 4,
+        "temporal_runtime_backend": "disabled",
+        "temporal_ssl_backend": "disabled",
+        "user_model": "active"
+      }
+    },
+    "execution_order": [
+      "typed_milestone_disabled",
+      "learned"
+    ],
+    "matched_fields_sha256": "4629e2cd4d1498883a49627f180a4b3563134eadf5239f6a7c30ae3f97f45336",
+    "shared_initial_checkpoint": true
+  },
+  "authorization": {
+    "alignment_review_authorized": false,
+    "p1_authorized_before_station2_go": false,
+    "p2_authorized_before_station2_go": false,
+    "station1_max_episode_end_exclusive": 20,
+    "station1_run_authorized": true,
+    "station2_authorized_before_station1_go": false
+  },
+  "claim": "Under the current physical curriculum, enabling the typed pickup/delivery milestone boundary is non-inferior on station-1 pickup reachability and improves the station-2 medium carrying-home outcome relative to an otherwise identical milestone-disabled control.",
+  "decision_protocol": {
+    "final_pass": "Station1 and station2 are GO, station3 regression threshold passes, and the existing formal P1 gates pass.",
+    "no_posthoc_threshold_changes": true,
+    "station1_alignment": "Station1-v4 requires 4/4 aligned food bodies at the frozen 20-episode checkpoint. The prior five-episode alignment review path is exhausted and forbidden for this generation.",
+    "station1_go": "All station1 thresholds, including food alignment 4/4, pass; otherwise BLOCK and do not run episode 20.",
+    "station2_go": "All station2 thresholds pass; otherwise BLOCK and do not run episode 30."
+  },
+  "evidence_envelope_schema_version": "digital-ant-evidence.v3",
+  "execution_contract": {
+    "code_tree_binding": {
+      "file_count": 1439,
+      "scope": "packages/**/*.py,scripts/**/*.py,**/pyproject.toml,uv.lock",
+      "sha256": "edca4fe6a25d32a20ad493e0f43b0d3761a7f3047b97e571ff27f977582fbc52",
+      "total_size_bytes": 18501453
+    },
+    "device": "cpu",
+    "isolated_source_snapshot_required": true,
+    "new_empty_progress_directory_required": true,
+    "numeric_precision": "float64",
+    "old_v31_journal_resume_forbidden": true,
+    "single_writer_lock_required": true,
+    "source_bindings": [
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/evidence/runtime_profile.py",
+        "sha256": "fcceb9ad0705dd3cb3ba810e30e475ef4819d8b85fd1757e83ddf876739e5f31",
+        "size_bytes": 12342
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_curriculum.py",
+        "sha256": "a73e4d01820aeb7c3441581ff87cc618f457fde47a795b365b6447cfb9ba62cf",
+        "size_bytes": 130980
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_p1.py",
+        "sha256": "16e4d66259d4755e6fd05749d551cf8cb02557a385f6430e34118abc8e08b6cd",
+        "size_bytes": 110622
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/alignment_formation_protection.py",
+        "sha256": "bd4e8d7c8ba722ab737dc3189c49465ca27e36984189e3f71b9b616a7aa39077",
+        "size_bytes": 8881
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_same_physics_baseline.py",
+        "sha256": "77fcbe722fd4e88318936c5c23e7ff3800c12a6da0b9189e44decb895c85d3a7",
+        "size_bytes": 23303
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_same_physics_run.py",
+        "sha256": "022815cf51a7dedafd055aacca59cbb29d95908cf88c5de8f6cf534a6072cb6b",
+        "size_bytes": 31499
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/runtime/ant_session.py",
+        "sha256": "46188b51f11c1727d893efeb2cded17794bcb8ea8200a2030c9b07c2a07ea54f",
+        "size_bytes": 32952
+      },
+      {
+        "path": "packages/vz-runtime/src/volvence_zero/agent/response.py",
+        "sha256": "b089eb98311fb556a553d15e449b13515b78d2aebd885b49ad4edc57086c3e63",
+        "size_bytes": 37530
+      },
+      {
+        "path": "packages/vz-runtime/src/volvence_zero/agent/session.py",
+        "sha256": "6d1c84af21565347674e65502ab4fcba1169a82371bba25663330f57cf484083",
+        "size_bytes": 105196
+      },
+      {
+        "path": "packages/vz-runtime/src/volvence_zero/agent/session_observation.py",
+        "sha256": "e846b6e7a6db2f855918bd5a6ac5da58c4cfe19a9f8184d3215659277ee8c3ed",
+        "size_bytes": 53206
+      },
+      {
+        "path": "packages/vz-runtime/src/volvence_zero/integration/final_wiring.py",
+        "sha256": "0b60e18112f0bfbbacfb532ba5ea8688744cdbb7c284a74ac2e1cdc605810130",
+        "size_bytes": 168088
+      },
+      {
+        "path": "packages/vz-temporal/src/volvence_zero/joint_loop/runtime.py",
+        "sha256": "33c2414ee2535f97a6845fb5e912620575038d8b4dc6fea04d9d177106f46347",
+        "size_bytes": 116540
+      },
+      {
+        "path": "packages/vz-temporal/src/volvence_zero/internal_rl/sandbox.py",
+        "sha256": "e8b126e5b353b8ce94e95d0436ac3662a483f7868dfa2d4359e1a84e53210caa",
+        "size_bytes": 161356
+      },
+      {
+        "path": "packages/vz-temporal/src/volvence_zero/internal_rl/torch_causal_ppo.py",
+        "sha256": "bc517bf9ab4cc73e2adf4a947876b57fd63f1c5c87607c3198fc717de954b62d",
+        "size_bytes": 35824
+      },
+      {
+        "path": "packages/vz-temporal/src/volvence_zero/temporal/interface.py",
+        "sha256": "b38d62dfa9edf382c2486827225ec7070ead12a90ae710f91ae87092c6726dc4",
+        "size_bytes": 275414
+      },
+      {
+        "path": "scripts/run_ant_ecology_same_physics_station1.py",
+        "sha256": "b443482c55c272f1828d32bb080aa96b3be53e173824f4dd6ef7fb1a2bf9da70",
+        "size_bytes": 5813
+      }
+    ]
+  },
+  "experiment_generation": "station1-v4",
+  "formal_config": {
+    "body_success_ratio": 0.6,
+    "evaluation_rounds": 120,
+    "harmful_tick_rate_max": 0.05,
+    "layout_success_ratio": 0.6,
+    "layouts_per_tier": 5,
+    "n_ants": 4,
+    "seed": 0,
+    "temporal_latent_dim": 16,
+    "training_rounds": 49
+  },
+  "historical_baselines": {
+    "decision_use": "EXCLUDED",
+    "excluded_generations": [
+      "v24",
+      "v30",
+      "old_v31_station1"
+    ],
+    "reason": "Historical journals do not provide a preregistered, same-source, same-physics causal control for this restart."
+  },
+  "physical_curriculum": {
+    "action_probe_body_pass_ratio": 0.8,
+    "action_probe_code_delta_threshold": 1e-08,
+    "action_probe_guard_enabled": false,
+    "action_probe_retention_ratio": 0.25,
+    "action_probe_turn_delta_threshold": 0.0001,
+    "heldout_rounds": 120,
+    "heldout_seeds": [
+      101
+    ],
+    "interleave_every": 2,
+    "mastery_body_success_ratio": 0.6,
+    "mastery_harmful_tick_rate_max": 0.05,
+    "mastery_layout_success_ratio": 0.6,
+    "mastery_min_episodes": 1,
+    "milestone_budget_enforced": true,
+    "n_ants": 4,
+    "seed": 0,
+    "stage_episodes": 1,
+    "stage_rounds": 49,
+    "temporal_latent_dim": 16,
+    "validation_rounds": 120,
+    "validation_seeds": [
+      43
+    ]
+  },
+  "provenance": {
+    "config_digest": "4329ebe7a95ffe09af114d6fafa88ecf5461ecba75843bee27cc240adb184a9b",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "effective_backend": "pure:cpu",
+    "git_branch": "main",
+    "git_sha": "5e15b8e4f20bdaacf4a0f6fe44458d28738990cf",
+    "layout_seeds": [],
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "requested_device": "cpu",
+    "seed_schedule": [
+      0
+    ],
+    "training_seeds": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "reopening_basis": {
+    "formation_profile": {
+      "internal_rl_causal_action_head_formation_conflict_scale": 0.25,
+      "internal_rl_causal_action_head_formation_max_update_steps": 160,
+      "internal_rl_causal_action_head_formation_protection": "active"
+    },
+    "l1b_precheck": {
+      "active_digest": "6190f6accafac751d02f0b2a28770ba54d7254ce9b9022c4765f201dc4731093",
+      "path": "research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_protection_precheck.v1.json",
+      "schema_version": "alignment-formation-protection-precheck.v1",
+      "sha256": "32b5473a61c5e92072eb13ecfef759a24b0aa5ee327c01c838bf0e9d9ed6829f",
+      "size_bytes": 2421,
+      "status": "PRECHECK_PASS"
+    },
+    "mechanism_change": "vz-temporal causal action-head formation protection",
+    "prior_station1_generation": "station1-v3",
+    "prior_verdict": "BLOCK_ALIGNMENT_3_OF_4",
+    "seed_only_rerun": false,
+    "threshold_change": "NONE"
+  },
+  "schedule": {
+    "blocks": [
+      {
+        "episode_end_exclusive": 5,
+        "episode_start_inclusive": 0,
+        "name": "butter_near"
+      },
+      {
+        "episode_end_exclusive": 10,
+        "episode_start_inclusive": 5,
+        "name": "burning_near"
+      },
+      {
+        "episode_end_exclusive": 15,
+        "episode_start_inclusive": 10,
+        "name": "composite_near"
+      },
+      {
+        "episode_end_exclusive": 20,
+        "episode_start_inclusive": 15,
+        "name": "forced_return"
+      },
+      {
+        "episode_end_exclusive": 25,
+        "episode_start_inclusive": 20,
+        "name": "forced_approach"
+      },
+      {
+        "episode_end_exclusive": 30,
+        "episode_start_inclusive": 25,
+        "name": "butter_medium"
+      },
+      {
+        "episode_end_exclusive": 55,
+        "episode_start_inclusive": 30,
+        "name": "station3_remainder"
+      }
+    ],
+    "full_episode_count": 55,
+    "full_sha256": "57f0e58def9c562efc29f43feb20e574ef9279129cc691d3ada8e0b7de5d9e45",
+    "rows": [
+      {
+        "episode_index": 0,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10000,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 1,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10101,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 2,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10202,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 3,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10303,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 4,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10404,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 5,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10505,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 6,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10606,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 7,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10707,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 8,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10808,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 9,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10909,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 10,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 11010,
+        "stage": "composite",
+        "tier": "near"
+      },
+      {
+        "episode_index": 11,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 11111,
+        "stage": "composite",
+        "tier": "near"
+      },
+      {
+        "episode_index": 12,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 11212,
+        "stage": "composite",
+        "tier": "near"
+      },
+      {
+        "episode_index": 13,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 11313,
+        "stage": "composite",
+        "tier": "near"
+      },
+      {
+        "episode_index": 14,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 11414,
+        "stage": "composite",
+        "tier": "near"
+      },
+      {
+        "episode_index": 15,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": false,
+        "seed": 11515,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 16,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": false,
+        "seed": 11616,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 17,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": false,
+        "seed": 11717,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 18,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": false,
+        "seed": 11818,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 19,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": false,
+        "seed": 11919,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 20,
+        "forced_approach": true,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12020,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 21,
+        "forced_approach": true,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12121,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 22,
+        "forced_approach": true,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12222,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 23,
+        "forced_approach": true,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12323,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 24,
+        "forced_approach": true,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12424,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 25,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12525,
+        "stage": "butter",
+        "tier": "medium"
+      },
+      {
+        "episode_index": 26,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12626,
+        "stage": "butter",
+        "tier": "medium"
+      },
+      {
+        "episode_index": 27,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12727,
+        "stage": "butter",
+        "tier": "medium"
+      },
+      {
+        "episode_index": 28,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12828,
+        "stage": "butter",
+        "tier": "medium"
+      },
+      {
+        "episode_index": 29,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 12929,
+        "stage": "butter",
+        "tier": "medium"
+      },
+      {
+        "episode_index": 30,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 13030,
+        "stage": "butter",
+        "tier": "far"
+      },
+      {
+        "episode_index": 31,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 13131,
+        "stage": "butter",
+        "tier": "far"
+      },
+      {
+        "episode_index": 32,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 13232,
+        "stage": "butter",
+        "tier": "far"
+      },
+      {
+        "episode_index": 33,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 13333,
+        "stage": "butter",
+        "tier": "far"
+      },
+      {
+        "episode_index": 34,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 13434,
+        "stage": "butter",
+        "tier": "far"
+      },
+      {
+        "episode_index": 35,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 13535,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 36,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 13636,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 37,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 13737,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 38,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": true,
+        "seed": 13838,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 39,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 13939,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 40,
+        "forced_approach": false,
+        "forced_escape": true,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 14040,
+        "stage": "burning_match",
+        "tier": "near"
+      },
+      {
+        "episode_index": 41,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 14141,
+        "stage": "composite",
+        "tier": "far"
+      },
+      {
+        "episode_index": 42,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": true,
+        "seed": 14242,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 43,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 14343,
+        "stage": "composite",
+        "tier": "far"
+      },
+      {
+        "episode_index": 44,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 14444,
+        "stage": "composite",
+        "tier": "far"
+      },
+      {
+        "episode_index": 45,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 14545,
+        "stage": "composite",
+        "tier": "far"
+      },
+      {
+        "episode_index": 46,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": true,
+        "seed": 14646,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 47,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 14747,
+        "stage": "composite",
+        "tier": "far"
+      },
+      {
+        "episode_index": 48,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 14848,
+        "stage": "wood_stick",
+        "tier": "far"
+      },
+      {
+        "episode_index": 49,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 14949,
+        "stage": "wood_stick",
+        "tier": "far"
+      },
+      {
+        "episode_index": 50,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": true,
+        "seed": 15050,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 51,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 15151,
+        "stage": "wood_stick",
+        "tier": "far"
+      },
+      {
+        "episode_index": 52,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 15252,
+        "stage": "wood_stick",
+        "tier": "far"
+      },
+      {
+        "episode_index": 53,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 15353,
+        "stage": "wood_stick",
+        "tier": "far"
+      },
+      {
+        "episode_index": 54,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": true,
+        "interleaved": true,
+        "seed": 15454,
+        "stage": "butter",
+        "tier": "near"
+      }
+    ],
+    "station1_sha256": "12b27ab238dfb06980d8b6001c17bf1222155e5920cb4b373a02b8c6d292298f",
+    "station2_prefix_sha256": "4e5842b8d8dca26c1ca67cb37526510655417e809f7e7fc91baa0553a28fec43"
+  },
+  "schema_version": "digital-ant-ecology-same-physics-baseline-preregistration.v3",
+  "schemas": {
+    "curriculum": "digital-ant-ecology-curriculum.v14",
+    "p1_progress": "digital-ant-ecology-p1-progress.v28",
+    "p1_report": "digital-ant-ecology-p1-development.v31"
+  },
+  "status": "PREREGISTERED",
+  "thresholds": {
+    "station1": {
+      "candidate_aggregate_pickup_ratio_min": 0.8,
+      "candidate_family_persistence_actions_min": 3,
+      "candidate_food_alignment_direct_station2_bodies": 4,
+      "candidate_post_pickup_switch_rate_min": 1.0,
+      "candidate_switch_latency_actions_max": 2,
+      "candidate_zero_pickup_block_forbidden_when_control_nonzero": true,
+      "deliveries_role": "DESCRIPTIVE_SPARSE_OBSERVATION",
+      "episode_end_exclusive": 20,
+      "family_persistence_counting": "The switch action counts as action 1; any later beta switch ends survival even when the selected family label is unchanged.",
+      "food_alignment_probe_seed_offset": 700003,
+      "food_alignment_review_authorized": false,
+      "food_alignment_review_episode_count": 5,
+      "food_alignment_review_reprobe_required_bodies": 4,
+      "food_alignment_review_stage": "butter-near",
+      "minimum_control_pickups_per_physical_block": 1,
+      "post_switch_min_dwell_actions": 4
+    },
+    "station2": {
+      "candidate_carrying_home_alignment_must_be_positive": true,
+      "candidate_medium_deliveries_must_exceed_control": true,
+      "candidate_medium_pickup_ratio_min": 0.8,
+      "candidate_uturn_consecutive_approach_steps_min": 3,
+      "candidate_uturn_net_progress_min": 0.4,
+      "episode_end_exclusive": 30,
+      "minimum_control_medium_pickups": 1
+    },
+    "station3": {
+      "candidate_matched_block_pickup_ratio_min": 0.8,
+      "episode_end_exclusive": 55,
+      "far_results_role": "DESCRIPTIVE_D3"
+    }
+  }
+}

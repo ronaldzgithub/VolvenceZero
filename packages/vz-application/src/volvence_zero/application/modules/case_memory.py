@@ -19,6 +19,7 @@ from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
 from volvence_zero.semantic_embedding import (
+    semantic_embedding_backend_status,
     semantic_topic_similarity,
 )
 from volvence_zero.social_cognition import (
@@ -60,11 +61,22 @@ from volvence_zero.application.runtime_helpers import *  # noqa: F401,F403
 from volvence_zero.application.rare_heavy_state import ApplicationRareHeavyState  # noqa: F401
 
 
-_ACTION_REQUEST_PROTOTYPE = (
+_ACTION_REQUEST_PROTOTYPES = (
     "The speaker must choose and state a specific action to take now. "
-    "请说明现在采取的具体行动。"
+    "请说明现在采取的具体行动。",
+    "面对眼前的局面，你现在会采取什么具体行动？",
+    "如果你必须马上处理这件事，请说明你准备怎么做。",
+    "一个敌人已经放下兵器并请求饶恕时，你会采取什么行动？",
+)
+_REFLECTIVE_OPINION_PROTOTYPES = (
+    "请评价这段经历、冲突或恩怨的意义和是非。",
+    "你怎么看这件事，以及它为什么会发展成这样？",
+    "请分析双方的仇恨、误会和责任，而不是说明你现在采取什么行动。",
+    "光明顶之后，六大派和明教的恩怨你怎么看？",
 )
 _MIN_ACTION_REQUEST_ALIGNMENT = 0.16
+_MIN_ACTION_REQUEST_ALIGNMENT_REAL_BACKEND = 0.02
+_MIN_ACTION_REQUEST_MARGIN_REAL_BACKEND = 0.0
 _MIN_ACTION_APPLICABILITY_CONFIDENCE = 0.75
 
 
@@ -78,6 +90,7 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
     def __init__(
         self,
         *,
+        user_input: str | None = None,
         rare_heavy_state: ApplicationRareHeavyState | None = None,
         store: ApplicationCaseMemoryStore | None = None,
         action_applicability_evaluator: (
@@ -86,6 +99,9 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
         wiring_level: WiringLevel | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
+        if user_input is not None and not isinstance(user_input, str):
+            raise TypeError("CaseMemoryModule user_input must be a string or None.")
+        self._user_input = user_input
         self._rare_heavy_state = rare_heavy_state
         self._store = store
         self._action_applicability_evaluator = (
@@ -314,6 +330,7 @@ class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
                 if memory_value is not None
                 else ()
             ),
+            user_input=self._user_input,
             abstract_action=retrieval_policy.abstract_action,
             action_applicability_evaluator=(
                 self._action_applicability_evaluator
@@ -393,6 +410,7 @@ def _select_action_grounding(
     *,
     records: tuple[CaseMemoryRecord, ...],
     entries: tuple[MemoryEntry, ...],
+    user_input: str | None = None,
     abstract_action: str | None,
     action_applicability_evaluator: ActionApplicabilityEvaluator,
 ) -> CaseActionGrounding | None:
@@ -404,48 +422,80 @@ def _select_action_grounding(
     the reviewed case record that published them.
     """
 
-    if abstract_action is None or not records or not entries:
+    if abstract_action is None or not records:
         return None
     current_turn_entries = tuple(
         entry
         for entry in entries
         if "user_input" in entry.tags and entry.content.strip()
     )
-    if not current_turn_entries:
-        return None
-    ranked_query_entries = tuple(
-        (
-            semantic_topic_similarity(
-                entry.content.strip(),
-                _ACTION_REQUEST_PROTOTYPE,
-            ),
-            entry,
+    if user_input is None:
+        if not current_turn_entries:
+            return None
+        ranked_query_entries = tuple(
+            (
+                semantic_topic_similarity(
+                    entry.content.strip(), _ACTION_REQUEST_PROTOTYPES[0]
+                ),
+                entry,
+            )
+            for entry in current_turn_entries
         )
-        for entry in current_turn_entries
-    )
-    action_request_alignment, query_entry = max(
-        ranked_query_entries,
-        key=lambda item: (
-            item[0],
-            item[1].created_at_ms,
-            item[1].last_accessed_ms,
-            item[1].entry_id,
-        ),
-    )
-    query_text = query_entry.content.strip()
-    if action_request_alignment < _MIN_ACTION_REQUEST_ALIGNMENT:
-        return None
-    applicability_context = "\n\n".join(
-        entry.content.strip()
-        for entry in sorted(
-            current_turn_entries,
+        action_request_alignment, query_entry = max(
+            ranked_query_entries,
             key=lambda item: (
-                item.created_at_ms,
-                item.last_accessed_ms,
-                item.entry_id,
+                item[0],
+                item[1].created_at_ms,
+                item[1].last_accessed_ms,
+                item[1].entry_id,
             ),
         )
-    )
+        query_text = query_entry.content.strip()
+        if action_request_alignment < _MIN_ACTION_REQUEST_ALIGNMENT:
+            return None
+    else:
+        query_text = user_input.strip()
+        if not query_text:
+            return None
+        action_request_alignment = max(
+            semantic_topic_similarity(query_text, prototype)
+            for prototype in _ACTION_REQUEST_PROTOTYPES
+        )
+        reflective_alignment = max(
+            semantic_topic_similarity(query_text, prototype)
+            for prototype in _REFLECTIVE_OPINION_PROTOTYPES
+        )
+        backend_state, _backend_owner, _backend_conflict = (
+            semantic_embedding_backend_status()
+        )
+        minimum_alignment = (
+            _MIN_ACTION_REQUEST_ALIGNMENT_REAL_BACKEND
+            if backend_state == "backend"
+            else _MIN_ACTION_REQUEST_ALIGNMENT
+        )
+        if (
+            action_request_alignment < minimum_alignment
+            or (
+                backend_state == "backend"
+                and action_request_alignment - reflective_alignment
+                < _MIN_ACTION_REQUEST_MARGIN_REAL_BACKEND
+            )
+        ):
+            return None
+    if current_turn_entries:
+        applicability_context = "\n\n".join(
+            entry.content.strip()
+            for entry in sorted(
+                current_turn_entries,
+                key=lambda item: (
+                    item.created_at_ms,
+                    item.last_accessed_ms,
+                    item.entry_id,
+                ),
+            )
+        )
+    else:
+        applicability_context = query_text
 
     ranked: list[tuple[float, float, str, CaseMemoryRecord]] = []
     for record in records:
