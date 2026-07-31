@@ -1,0 +1,44 @@
+{
+  "basis_provenance": {
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "control_basis_fit_route_ids": "train-corridor-alpha-beta-delta,train-zigzag-beta-gamma-alpha,train-loop-delta-beta-epsilon,train-expanded-alpha-gamma-beta-epsilon,train-expanded-beta-delta-gamma-epsilon,train-expanded-delta-beta-alpha-gamma,train-expanded-hub-beta-delta-epsilon,train-expanded-alpha-delta-hub-epsilon,train-independent-forecast-revision,train-independent-delayed-decision,train-independent-changing-conditions,train-independent-promise-ledger,train-independent-reliable-response,train-independent-visible-priorities,train-independent-unfamiliar-information,train-independent-recorded-recovery",
+    "control_basis_fit_split": "train",
+    "control_basis_mode": "train-transition-pca-v1",
+    "control_basis_provenance": "train-transition-pca-v1:326aecddc8d0b7e8",
+    "control_basis_transition_count": "106"
+  },
+  "code_tree_sha256": "ea179a1793986510c2e2fef57489735c257fc43d40568a4e8ed1338ae08d51b1",
+  "feature_schema_version": "residual-state+relationship-owner-readout.v1",
+  "preregistration_path": "/Users/mengfu/Documents/GitHub/volvence/artifacts/gate2_longitudinal_conditioned_prereg_20260731T170122Z.json",
+  "preregistration_sha256": "c51848d41888ea3e7f2a4f83174d6b49483928b7f73dc4655f44f77e7877d1ea",
+  "relationship_readout_labels": [
+    "rel_trust",
+    "rel_cumulative_trust",
+    "rel_continuity",
+    "rel_repair_pressure",
+    "rel_emotional_load",
+    "rel_stabilization_need",
+    "rel_trust_recovery",
+    "rel_tension_load",
+    "rel_attunement_trend",
+    "rel_relationship_continuity",
+    "rel_repair_progress",
+    "rel_relationship_depth",
+    "rel_consent_compliance",
+    "rel_consent_clarity"
+  ],
+  "required_files": [
+    "manifest.json",
+    "selector_artifact.json",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate2-longitudinal-conditioned-capture.v1",
+  "selector_fingerprint": "a83fb5eb60718068d253957e681969d4935b2f8b47a1d1d3f1fca6762fc8b220"
+}

@@ -1,0 +1,14 @@
+{
+  "ablation_results.json": "78277fbdad547c444939bf160c2478ee6de7c3cb60192bb3a55545d8f52c680c",
+  "action_selection.jsonl": "3fa4a6b1d8dec17a0c6dd4d62c60684297b503ef9dc075358d480b3151ecf55d",
+  "manifest.json": "c220b01e01b93b37b059e7593bd7b46f932b1eedee5190840ca75699adfae954",
+  "outcomes.jsonl": "8ff8fd4ec38a391a195067e2b6a9a45b69304e571fb6d7fbca2d36086db9d635",
+  "prediction_errors.jsonl": "b8750181331475728048a457725257390bd622e3ea1322f2c1400e98f63a8edb",
+  "promotion_verdict.json": "f54fcdd67c50317f8c8c8b8d639b1ea69d5029619e939adefdcd2cf9fca9e733",
+  "report.md": "b44868d26976991a245b133ff957645b5ae80382f7c1eba4146c3a378e994e15",
+  "rollback_evidence.json": "56fc326e228e648a56b46a70f89ad06d75f9b65aa6d7a6832e9f0064b4eb71cd",
+  "seed_1301/matched_outcomes.jsonl": "9c3ef6be7242b7fb6555cca923b70c0fc4bfe6ed1926fd34784bbbe4b83899e6",
+  "segments.jsonl": "76962f3bf3071f14b2d96f61dff787bd3f7dbcbfecff599410d32c857e7ab903",
+  "selector_artifact.json": "2404281b19e6bec4b85b815e28eac6dc961306034b738ff32920563c0c1c1f17",
+  "training_examples.jsonl": "b86ff2bc1155143334235ad12e915b2859388fd538c726f96c5fe96f363a7a21"
+}

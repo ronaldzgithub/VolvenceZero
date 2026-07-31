@@ -1,0 +1,18 @@
+{
+  "complete": true,
+  "condition_session_positive_rate": 0.1568627450980392,
+  "consumer_session_count": 51,
+  "gates": {
+    "condition_session_positive_rate_at_least_0_60": false,
+    "count_at_least_500": true,
+    "selector_minus_action_permutation_at_least_0_02": false,
+    "selector_minus_condition_permutation_at_least_0_02": false,
+    "selector_minus_zero_at_least_0_02": false
+  },
+  "row_count": 510,
+  "seed": 1301,
+  "selector_minus_action_permutation_mean": 0.003287669022878011,
+  "selector_minus_condition_permutation_mean": 5.5160709455901504e-05,
+  "selector_minus_zero_mean": 0.004308079037011838,
+  "single_seed_stoploss_passed": false
+}

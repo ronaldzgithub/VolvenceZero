@@ -1,0 +1,36 @@
+{
+  "rollback": "delete this isolated evidence directory",
+  "runtime_owner_state_written": false,
+  "schema_version": "gate2-longitudinal-conditioned-capture.v1",
+  "selector_installed_live": false,
+  "source_hashes_after": {
+    "/Users/mengfu/Documents/GitHub/volvence/artifacts/gate2_longitudinal_conditioned_prereg_20260731T170122Z.json": "c51848d41888ea3e7f2a4f83174d6b49483928b7f73dc4655f44f77e7877d1ea",
+    "/private/tmp/volvence-gate2-seal.owSkMa/artifacts/eta_gate2_residual_causal_v35_selector_null_fresh_fullwidth896_qwen25_05b_cpu_1seed_20260729/counterfactual_outcomes.jsonl": "ba0d3aaf07c372bc8573d1e22156a41173e6f783725c6c564b31b2a7bb200147",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-cognition/src/volvence_zero/relationship_conditioning.py": "03c7448c8f99d5d734a179deefe15bbc02b804ee3631608d51163fe016b9baa9",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-contracts/src/volvence_zero/conditioning_bank_contracts.py": "b440a132ec787989f8e4bd47f09cf1bcb9ffbaf41fa143d3efd5cb0a99ee64ed",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "19e883d88dab4abb93f518a31d310b19d0b03305a3042918ec314f3c40b2210c",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-runtime/src/volvence_zero/agent/gate2_longitudinal_capture.py": "a30bcf233dbf783292863a69aebafb11ba3890a1c40ec85282dced27af9197a1",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-runtime/src/volvence_zero/agent/gate2_longitudinal_conditioned.py": "6e367675cd1949160def466a0e235d62467b5aee7d78c629a491cdd493e11191",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "e71670a25424c486ff012948dfd9d07f37a77bd267d3ad743a45d0fbf69e5477",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-temporal/src/volvence_zero/internal_rl/__init__.py": "c0ee5ca329b70fdb589c114fbae7eb0ea7c5f2941c90c4cf556df6e1957655a8",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-temporal/src/volvence_zero/internal_rl/counterfactual_selector.py": "735860c377fc010fed017370ffacbdabbdc46b5fadf5d4924a1d1cd2808ed4e8",
+    "/private/tmp/volvence-gate2-seal.owSkMa/scripts/preregister_gate2_longitudinal_conditioned.py": "c34d9a21f94eb84311834484882b820a957dbb1facd579e498807f778883a668",
+    "/private/tmp/volvence-gate2-seal.owSkMa/scripts/run_gate2_longitudinal_conditioned.py": "159b8e353ee0507ebec9dba93ccc9271e8ac78f901352f34ddaae51bf6cce374"
+  },
+  "source_hashes_before": {
+    "/Users/mengfu/Documents/GitHub/volvence/artifacts/gate2_longitudinal_conditioned_prereg_20260731T170122Z.json": "c51848d41888ea3e7f2a4f83174d6b49483928b7f73dc4655f44f77e7877d1ea",
+    "/private/tmp/volvence-gate2-seal.owSkMa/artifacts/eta_gate2_residual_causal_v35_selector_null_fresh_fullwidth896_qwen25_05b_cpu_1seed_20260729/counterfactual_outcomes.jsonl": "ba0d3aaf07c372bc8573d1e22156a41173e6f783725c6c564b31b2a7bb200147",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-cognition/src/volvence_zero/relationship_conditioning.py": "03c7448c8f99d5d734a179deefe15bbc02b804ee3631608d51163fe016b9baa9",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-contracts/src/volvence_zero/conditioning_bank_contracts.py": "b440a132ec787989f8e4bd47f09cf1bcb9ffbaf41fa143d3efd5cb0a99ee64ed",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "19e883d88dab4abb93f518a31d310b19d0b03305a3042918ec314f3c40b2210c",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-runtime/src/volvence_zero/agent/gate2_longitudinal_capture.py": "a30bcf233dbf783292863a69aebafb11ba3890a1c40ec85282dced27af9197a1",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-runtime/src/volvence_zero/agent/gate2_longitudinal_conditioned.py": "6e367675cd1949160def466a0e235d62467b5aee7d78c629a491cdd493e11191",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "e71670a25424c486ff012948dfd9d07f37a77bd267d3ad743a45d0fbf69e5477",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-temporal/src/volvence_zero/internal_rl/__init__.py": "c0ee5ca329b70fdb589c114fbae7eb0ea7c5f2941c90c4cf556df6e1957655a8",
+    "/private/tmp/volvence-gate2-seal.owSkMa/packages/vz-temporal/src/volvence_zero/internal_rl/counterfactual_selector.py": "735860c377fc010fed017370ffacbdabbdc46b5fadf5d4924a1d1cd2808ed4e8",
+    "/private/tmp/volvence-gate2-seal.owSkMa/scripts/preregister_gate2_longitudinal_conditioned.py": "c34d9a21f94eb84311834484882b820a957dbb1facd579e498807f778883a668",
+    "/private/tmp/volvence-gate2-seal.owSkMa/scripts/run_gate2_longitudinal_conditioned.py": "159b8e353ee0507ebec9dba93ccc9271e8ac78f901352f34ddaae51bf6cce374"
+  },
+  "source_unchanged": true,
+  "substrate_weights_updated": false
+}
