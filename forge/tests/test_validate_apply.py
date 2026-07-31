@@ -10,6 +10,7 @@ import pytest
 from volvence_forge.apply import ApplyError, apply_proposal, reject_proposal
 from volvence_forge.config import ForgeConfig, ForgePaths
 from volvence_forge.foundation import EmbeddingBackend, StructuredBackend
+from volvence_forge.foundation import sha256_text
 from volvence_forge.propose import propose_changes
 from volvence_forge.validate import CommandOutcome, validate_proposal
 
@@ -59,6 +60,58 @@ class _Embedder(EmbeddingBackend):
 
     def encode(self, texts):
         return np.tile(np.asarray((1.0, 0.0), dtype=np.float64), (len(texts), 1))
+
+
+class _RuntimeProposalBackend(StructuredBackend):
+    backend_name = "test-replay"
+    model_name = "runtime-proposal-fixture"
+
+    def complete_json(self, *, system, user, schema):
+        del system, user, schema
+        return {
+            "target": (
+                "packages/lifeform-domain-character/src/lifeform_domain_character/"
+                "scenario_packages/fixture/scenes.yaml"
+            ),
+            "operation": "append_yaml_sequence_item",
+            "document_path": "/scenes",
+            "section_content": (
+                "  - scenario_id: repair_02\n"
+                "    family: relationship_repair\n"
+                "    semantic_routing:\n"
+                "      method: embedding_similarity_plus_schema_bound_structured_output\n"
+            ),
+            "root_cause": "The runtime semantic asset lacks a repair regime scene.",
+            "targeted_fix": "Append one reviewed repair scene.",
+            "prediction": {
+                "metric": "pattern_occurrence_count",
+                "direction": "decrease",
+                "expected_delta": -1,
+                "evaluation_window": "next_mine_run",
+            },
+            "at_risk_regressions": ["repair scene overlaps a boundary regime"],
+            "preserve_behaviors": ["boundary negative remains passing"],
+        }
+
+
+class _RuntimeValidationBackend(StructuredBackend):
+    backend_name = "external-test-judge"
+    model_name = "runtime-suite-fixture"
+
+    def complete_json(self, *, system, user, schema):
+        del system, user
+        if schema.get("$id") == "forge.relevance-judgment.v1":
+            return {
+                "relevant": True,
+                "evidence_alignment": True,
+                "preservation_assessment": True,
+                "reason": "The scene is a narrow response to the cited repair failure.",
+            }
+        return {
+            "baseline_passed_test_ids": ["route_01"],
+            "candidate_passed_test_ids": ["route_01", "coherence_01"],
+            "reason": "The candidate adds semantic repair coverage while retaining the negative case.",
+        }
 
 
 def _pass_command(argv, *, cwd, timeout):
@@ -122,6 +175,113 @@ def _proposal(config: ForgeConfig, tmp_path: Path) -> Path:
         output_dir=tmp_path / "proposal-output",
     )
     return result.proposal_dirs[0]
+
+
+def _runtime_proposal(config: ForgeConfig, tmp_path: Path) -> tuple[Path, Path]:
+    scenario_dir = (
+        tmp_path
+        / "packages"
+        / "lifeform-domain-character"
+        / "src"
+        / "lifeform_domain_character"
+        / "scenario_packages"
+        / "fixture"
+    )
+    scenario_dir.mkdir(parents=True)
+    target = scenario_dir / "scenes.yaml"
+    target.write_text(
+        'schema_version: "1.0"\nscenes:\n  - scenario_id: existing_01\n    family: existing\n',
+        encoding="utf-8",
+    )
+    (scenario_dir / "test_suite.yaml").write_text(
+        (
+            "routing_tests:\n"
+            "  - test_id: route_01\n"
+            "llm_evaluation:\n"
+            "  semantic_coherence:\n"
+            "    - case_id: coherence_01\n"
+        ),
+        encoding="utf-8",
+    )
+    pattern_path = tmp_path / "runtime-patterns.jsonl"
+    pattern_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "forge-failure-pattern.v2",
+                "pattern_id": "fp_1123456789abcdef",
+                "title": "runtime repair gap",
+                "verifier_cause": "bench repair rubric failed",
+                "agent_behavior_cause": "the assistant missed the rupture",
+                "exposed_mechanism": "reviewed scene coverage is incomplete",
+                "occurrence_count": 1,
+                "evidence_refs": [
+                    {
+                        "source_id": "bench_bundle:fixture",
+                        "source_kind": "bench_bundle",
+                        "locator": "arc:fixture/session:1/turn:1",
+                        "excerpt": "repair score=1",
+                        "digest": "c" * 64,
+                    }
+                ],
+                "source_kinds": ["bench_bundle"],
+                "centroid_digest": "d" * 64,
+                "editable_target": target.relative_to(tmp_path).as_posix(),
+                "editable_component": "character_scenario_semantics",
+                "surface_status": "in-surface",
+                "surface_similarity": 0.9,
+                "preserve_behaviors": ["boundary negative remains passing"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = propose_changes(
+        config=config,
+        failure_patterns_path=pattern_path,
+        backend=_RuntimeProposalBackend(),
+        embedder=_Embedder(),
+        output_dir=tmp_path / "runtime-proposal-output",
+    )
+    return result.proposal_dirs[0], target
+
+
+def _write_gate_decision(
+    proposal_dir: Path,
+    validation_path: Path,
+    *,
+    decision: str,
+) -> None:
+    patch = (proposal_dir / "patch.diff").read_text(encoding="utf-8")
+    manifesto_text = (proposal_dir / "manifesto.json").read_text(encoding="utf-8")
+    manifesto = json.loads(manifesto_text)
+    validation_text = validation_path.read_text(encoding="utf-8")
+    payload = {
+        "schema_version": "forge-gate-decision.v1",
+        "proposal_id": manifesto["proposal_id"],
+        "target": manifesto["target"],
+        "decision": decision,
+        "reasons": [] if decision == "ALLOW" else ["validation_delta 0.000 below required margin 0.050"],
+        "desired_gate": "offline",
+        "inputs": {
+            "patch_sha256": sha256_text(patch),
+            "manifesto_sha256": sha256_text(manifesto_text),
+            "validation_sha256": sha256_text(validation_text),
+        },
+        "metrics": {
+            "baseline_pass_rate": 0.5,
+            "candidate_pass_rate": 1.0,
+            "validation_delta": 0.5,
+            "capacity_cost": 0.1,
+            "contract_integrity": 1.0,
+            "rollback_resilience": 1.0,
+        },
+        "authority": "volvence_zero.credit.gate.evaluate_gate_reasons",
+        "created_at": "2026-08-01T00:00:00Z",
+    }
+    (proposal_dir / "gate_decision.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def test_validation_passes_complete_bundle_and_does_not_apply(tmp_path: Path) -> None:
@@ -216,3 +376,49 @@ def test_human_apply_and_reject_are_auditable(tmp_path: Path) -> None:
     )
     assert rejected.decision == "rejected"
     assert (second_root / ".cursor" / "rules" / "test.mdc").read_text(encoding="utf-8") == before
+
+
+def test_runtime_validation_emits_delta_and_apply_requires_offline_allow(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    proposal_dir, target = _runtime_proposal(config, tmp_path)
+    before = target.read_text(encoding="utf-8")
+    validation = validate_proposal(
+        config=config,
+        proposal_dir=proposal_dir,
+        relevance_backend=_RuntimeValidationBackend(),
+        command_runner=_pass_command,
+    )
+    report = json.loads(validation.report_path.read_text(encoding="utf-8"))
+
+    assert validation.status == "PASS"
+    assert report["runtime_gate_evidence"]["validation_delta"] == 0.5
+    assert report["runtime_gate_evidence"]["rollback_resilience"] is True
+    assert target.read_text(encoding="utf-8") == before
+    with pytest.raises(ApplyError, match="requires readable OFFLINE gate decision"):
+        apply_proposal(
+            config=config,
+            proposal_dir=proposal_dir,
+            validation_report_path=validation.report_path,
+            human_approved_by="reviewer@example",
+        )
+
+    _write_gate_decision(proposal_dir, validation.report_path, decision="BLOCK")
+    with pytest.raises(ApplyError, match="blocked by OFFLINE gate"):
+        apply_proposal(
+            config=config,
+            proposal_dir=proposal_dir,
+            validation_report_path=validation.report_path,
+            human_approved_by="reviewer@example",
+        )
+
+    _write_gate_decision(proposal_dir, validation.report_path, decision="ALLOW")
+    applied = apply_proposal(
+        config=config,
+        proposal_dir=proposal_dir,
+        validation_report_path=validation.report_path,
+        human_approved_by="reviewer@example",
+    )
+    assert applied.decision == "applied"
+    assert "scenario_id: repair_02" in target.read_text(encoding="utf-8")
+    events = [json.loads(line) for line in config.paths.ledger_path.read_text().splitlines()]
+    assert events[-1]["gate_decision_ref"]["decision"] == "ALLOW"
