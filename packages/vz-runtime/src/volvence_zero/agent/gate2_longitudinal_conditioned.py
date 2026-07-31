@@ -20,8 +20,6 @@ import statistics
 import time
 from typing import Any, Mapping, Protocol, Sequence
 
-from companion_standard.semantic_state import SemanticRecord
-
 from volvence_zero.agent.gate2_longitudinal_capture import (
     GATE2_V35_CONTROL_BASIS_FINGERPRINT,
     Gate2CandidateControlContract,
@@ -49,6 +47,7 @@ from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.semantic_state import (
     BoundaryConsentSnapshot,
     RelationshipStateSnapshot,
+    SemanticRecord,
 )
 from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind
 
