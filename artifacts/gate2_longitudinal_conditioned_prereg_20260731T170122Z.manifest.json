@@ -1,0 +1,6 @@
+{
+  "artifact_path": "artifacts/gate2_longitudinal_conditioned_prereg_20260731T170122Z.json",
+  "artifact_sha256": "c51848d41888ea3e7f2a4f83174d6b49483928b7f73dc4655f44f77e7877d1ea",
+  "artifact_size": 5202,
+  "schema_version": "gate2-conditioned-prereg-manifest.v1"
+}

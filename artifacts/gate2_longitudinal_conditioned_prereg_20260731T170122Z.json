@@ -1,0 +1,113 @@
+{
+  "authorization": {
+    "failure_terminally_closes_gate2_longitudinal_claim": true,
+    "later_seeds_require_seed_1301_stoploss_pass": true,
+    "production_promotion_before_full_pass": false,
+    "training_and_seed_1301": true
+  },
+  "code_manifest": {
+    "packages/vz-cognition/src/volvence_zero/relationship_conditioning.py": "03c7448c8f99d5d734a179deefe15bbc02b804ee3631608d51163fe016b9baa9",
+    "packages/vz-contracts/src/volvence_zero/conditioning_bank_contracts.py": "b440a132ec787989f8e4bd47f09cf1bcb9ffbaf41fa143d3efd5cb0a99ee64ed",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "19e883d88dab4abb93f518a31d310b19d0b03305a3042918ec314f3c40b2210c",
+    "packages/vz-runtime/src/volvence_zero/agent/gate2_longitudinal_capture.py": "a30bcf233dbf783292863a69aebafb11ba3890a1c40ec85282dced27af9197a1",
+    "packages/vz-runtime/src/volvence_zero/agent/gate2_longitudinal_conditioned.py": "6e367675cd1949160def466a0e235d62467b5aee7d78c629a491cdd493e11191",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "e71670a25424c486ff012948dfd9d07f37a77bd267d3ad743a45d0fbf69e5477",
+    "packages/vz-temporal/src/volvence_zero/internal_rl/__init__.py": "c0ee5ca329b70fdb589c114fbae7eb0ea7c5f2941c90c4cf556df6e1957655a8",
+    "packages/vz-temporal/src/volvence_zero/internal_rl/counterfactual_selector.py": "735860c377fc010fed017370ffacbdabbdc46b5fadf5d4924a1d1cd2808ed4e8",
+    "scripts/preregister_gate2_longitudinal_conditioned.py": "c34d9a21f94eb84311834484882b820a957dbb1facd579e498807f778883a668",
+    "scripts/run_gate2_longitudinal_conditioned.py": "159b8e353ee0507ebec9dba93ccc9271e8ac78f901352f34ddaae51bf6cce374"
+  },
+  "code_tree_sha256": "ea179a1793986510c2e2fef57489735c257fc43d40568a4e8ed1338ae08d51b1",
+  "created_at_unix_ms": 1785517365182,
+  "evaluation": {
+    "action_permutation_schedule": "(global_index+seed_rank*7)%22",
+    "condition_permutation_schedule": "(profile_index+seed_rank+1)%4",
+    "consumer_session_size": 10,
+    "count_per_seed": 510,
+    "cross_seed_ci": "two-sided-95%-t-ci-lower>=0.02",
+    "min_condition_session_positive_rate": 0.6,
+    "min_effect": 0.02,
+    "plan_digests": {
+      "1301": "890c9083b5e676acd1d4454969383709095ef4d682934cc8c41ae194ba945855",
+      "1313": "855758dd197e22bf6f71142557d57e3196a042541a508f5cf72990fcba293175",
+      "1327": "04418fad96cf4a1f662ee5823984313498ce350a3f35ed9bd686a344f9f7994f"
+    },
+    "seeds": [
+      1301,
+      1313,
+      1327
+    ],
+    "single_seed_stoploss_blocks_later_seeds": true,
+    "single_seed_stoploss_seed": 1301
+  },
+  "forbidden_reuse": {
+    "historical_routes_reused": false,
+    "historical_seeds": [
+      1201,
+      1213,
+      1223
+    ],
+    "historical_selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+    "post_result_refit_allowed": false,
+    "threshold_relaxation_allowed": false
+  },
+  "mechanism": {
+    "conditioned_input_shape": 8090,
+    "feature_schema_version": "residual-state+relationship-owner-readout.v1",
+    "historical_v35_unconditioned_shape": 8076,
+    "live_injection_enabled": false,
+    "relationship_profile_source_fingerprints": {
+      "boundary-sensitive": "31c33447d609660d0771a9b6d678a89c6637eb90126f55e286a5496af922db05",
+      "recovering-continuity": "5ad1049005f9dbf349ac01c0834d174628eaea4b010e021382bf41375585308c",
+      "rupture-repair": "30be8094683f840e5bf071b4931587313f451e08e535c61cd239798dc7435538",
+      "steady-trust": "d0450e09109a84c40830a07e162a9720118b546a8789fb517093c1edc3a64fcc"
+    },
+    "relationship_readout_labels": [
+      "rel_trust",
+      "rel_cumulative_trust",
+      "rel_continuity",
+      "rel_repair_pressure",
+      "rel_emotional_load",
+      "rel_stabilization_need",
+      "rel_trust_recovery",
+      "rel_tension_load",
+      "rel_attunement_trend",
+      "rel_relationship_continuity",
+      "rel_repair_progress",
+      "rel_relationship_depth",
+      "rel_consent_compliance",
+      "rel_consent_clarity"
+    ],
+    "silent_unconditioned_fallback_allowed": false
+  },
+  "schema_version": "eta-gate2-longitudinal-conditioned.v1",
+  "substrate": {
+    "activation_width": 896,
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "device": "cpu",
+    "fingerprint": "runtime-descriptor-sha256:6c26ccf9224adf3400b01a4c626d4f53b54de4f2b588ecfc1fad48b07e2c1966",
+    "hook_layers": [
+      20,
+      21,
+      22
+    ],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "strict_local": true,
+    "track_scale": [
+      0.7,
+      0.7,
+      0.7
+    ]
+  },
+  "training": {
+    "candidate_action_count": 22,
+    "candidate_artifact_path": "artifacts/eta_gate2_residual_causal_v35_selector_null_fresh_fullwidth896_qwen25_05b_cpu_1seed_20260729/counterfactual_outcomes.jsonl",
+    "candidate_artifact_sha256": "ba0d3aaf07c372bc8573d1e22156a41173e6f783725c6c564b31b2a7bb200147",
+    "candidate_mapping_fingerprint": "b62fd7f09f702590f370a2eb261e8891d868cd48da8cd539ff8f30f29aca284d",
+    "count": 64,
+    "fit_split": "train-only",
+    "plan_digest": "1aaf54fa89cd46e4ebed3930959b6b1e528b2b62237d7e27df2eac16ba242c37",
+    "ridge_strength": 1.0,
+    "seed": 1291
+  }
+}
