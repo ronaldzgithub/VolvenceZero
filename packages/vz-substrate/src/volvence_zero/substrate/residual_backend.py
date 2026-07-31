@@ -116,8 +116,16 @@ from volvence_zero.substrate.personal_conditioning_projector import (  # noqa: E
 )
 from volvence_zero.substrate.prefix_kv_artifact import (  # noqa: E402
     CharacterPrefixKVPackage,
+    CharacterPrefixKVRegistry,
     PrefixKVArtifact,
     load_prefix_generator,
+)
+from volvence_zero.substrate.common_adapter_bundle import (  # noqa: E402
+    CommonAdapterBundle,
+)
+from volvence_zero.substrate.character_residual_artifact import (  # noqa: E402
+    CharacterResidualAdapterPackage,
+    load_character_residual_deltas,
 )
 from volvence_zero.substrate.relationship_prefix_kv_artifact import (  # noqa: E402
     RelationshipPrefixKVArtifact,
@@ -290,6 +298,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             RelationshipPrefixKVArtifact | None
         ) = None,
         character_prefix_package: CharacterPrefixKVPackage | None = None,
+        character_prefix_registry: CharacterPrefixKVRegistry | None = None,
+        common_adapter_bundle: CommonAdapterBundle | None = None,
+        character_residual_package: CharacterResidualAdapterPackage | None = None,
         local_files_only: bool = False,
         runtime_origin: str = "hf-pretrained",
         allow_live_substrate_mutation: bool = False,
@@ -412,6 +423,18 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             self._relationship_conditioning_projector_version = (
                 relationship_conditioning_projector.projector_version
             )
+        if (
+            common_adapter_bundle is not None
+            and personal_conditioning_prefix is not None
+            and personal_conditioning_prefix.artifact_id
+            != common_adapter_bundle.state_kv_artifact.artifact_id
+        ):
+            raise ValueError(
+                "personal_conditioning_prefix conflicts with the State-KV "
+                "artifact in common_adapter_bundle."
+            )
+        if common_adapter_bundle is not None:
+            personal_conditioning_prefix = common_adapter_bundle.state_kv_artifact
         self._prefix_generator = None
         self._personal_conditioning_prefix_id = ""
         if personal_conditioning_prefix is not None:
@@ -461,6 +484,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._character_prefix_id = ""
         self._character_prefix_pairs = None
         self._character_prefix_package = character_prefix_package
+        self._character_prefix_registry = character_prefix_registry
+        self._character_prefix_pairs_by_character: dict[str, object] = {}
         if character_prefix_package is not None:
             if character_prefix_package.model_id != self.model_id:
                 raise ValueError(
@@ -482,6 +507,54 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 character_prefix_package.state_vector
             )
             self._character_prefix_id = character_prefix_package.package_id
+        if character_prefix_registry is not None:
+            if common_adapter_bundle is None:
+                raise ValueError(
+                    "character_prefix_registry requires common_adapter_bundle "
+                    "so adapter compatibility can be checked."
+                )
+            if character_prefix_registry.base_model_id != self.model_id:
+                raise ValueError(
+                    "character prefix registry base_model_id does not match "
+                    f"runtime {self.model_id!r}."
+                )
+            if (
+                character_prefix_registry.common_adapter_version
+                != common_adapter_bundle.common_adapter_version
+                or character_prefix_registry.compatibility_fingerprint
+                != common_adapter_bundle.compatibility_fingerprint
+            ):
+                raise ValueError(
+                    "character prefix registry does not match the loaded "
+                    "common adapter version/fingerprint."
+                )
+            for entry in character_prefix_registry.entries:
+                generator = load_prefix_generator(
+                    torch_module=self._torch,
+                    artifact=entry.prefix_package.prefix_artifact,
+                    expected_model_id=self.model_id,
+                    expected_num_layers=len(self._block_modules),
+                    expected_num_kv_heads=self._resolve_num_kv_heads(),
+                    expected_head_dim=self._resolve_head_dim(),
+                    device=self._device,
+                    dtype=self._model_dtype(),
+                )
+                self._character_prefix_pairs_by_character[entry.character_id] = (
+                    generator.build(entry.prefix_package.state_vector)
+                )
+        self._character_residual_package = character_residual_package
+        self._character_residual_adapter_id = ""
+        self._character_residual_deltas: dict[int, object] = {}
+        if character_residual_package is not None:
+            self._character_residual_deltas = load_character_residual_deltas(
+                torch_module=self._torch,
+                package=character_residual_package,
+                expected_model_id=self.model_id,
+                expected_hidden_size=self._hidden_size,
+                available_layer_indices=self._layer_indices,
+                device=self._device,
+            )
+            self._character_residual_adapter_id = character_residual_package.package_id
         self._semantic_projection_dim = 24
         self._semantic_basis = self._build_semantic_basis(
             hidden_size=self._hidden_size,
@@ -508,6 +581,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         # S1: injectable real rare-heavy training backend (e.g. PEFT LoRA).
         # None -> the built-in adapter-delta autograd loop stays in charge.
         self._rare_heavy_training_backend: RareHeavyAdapterTrainingBackend | None = None
+        self._common_adapter_bundle = common_adapter_bundle
+        if common_adapter_bundle is not None:
+            self._install_common_adapter_bundle(common_adapter_bundle)
 
     @property
     def hook_layer_indices(self) -> tuple[int, ...]:
@@ -562,6 +638,27 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     @property
     def supports_prefix_kv(self) -> bool:
         return self._prefix_generator is not None
+
+    @property
+    def character_residual_adapter_id(self) -> str:
+        """Content id of the loaded character residual adapter, if any."""
+
+        return self._character_residual_adapter_id
+
+    @property
+    def common_adapter_version(self) -> str:
+        bundle = self._common_adapter_bundle
+        return bundle.common_adapter_version if bundle is not None else ""
+
+    @property
+    def common_adapter_compatibility_fingerprint(self) -> str:
+        bundle = self._common_adapter_bundle
+        return bundle.compatibility_fingerprint if bundle is not None else ""
+
+    @property
+    def registered_character_ids(self) -> tuple[str, ...]:
+        registry = self._character_prefix_registry
+        return registry.character_ids if registry is not None else ()
 
     def _resolve_num_kv_heads(self) -> int:
         config = getattr(self._model, "config", None)
@@ -672,6 +769,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     captured_layers=captured_layers,
                     control_delta=None,
                     personal_delta=personal_delta,
+                    character_residual_delta=self._character_residual_deltas.get(
+                        layer_index
+                    ),
                 )
             )
             for layer_index in self._layer_indices
@@ -1473,6 +1573,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             ConditioningBankLatentCarrier, ...
         ] = (),
         sampling_seed: int | None = None,
+        character_id: str = "",
     ) -> GenerationResult:
         if sampling_seed is not None:
             if isinstance(sampling_seed, bool) or not isinstance(
@@ -1545,9 +1646,36 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         prompt_length = int(input_ids.shape[-1])
 
         control_active = bool(control_parameters and control_scale > 0)
+        requested_character_id = character_id.strip()
+        character_prefix_wiring = "disabled"
+        character_prefix_shadow_id = ""
+        selected_character_prefix_id = ""
+        selected_character_prefix_pairs = self._character_prefix_pairs
+        if self._character_prefix_registry is not None and requested_character_id:
+            entry = self._character_prefix_registry.get(requested_character_id)
+            if entry is not None:
+                character_prefix_wiring = entry.wiring_level.value
+                if entry.wiring_level.value == "active":
+                    selected_character_prefix_pairs = (
+                        self._character_prefix_pairs_by_character[
+                            requested_character_id
+                        ]
+                    )
+                    selected_character_prefix_id = entry.prefix_package.package_id
+                else:
+                    selected_character_prefix_pairs = None
+                    character_prefix_shadow_id = entry.prefix_package.package_id
+            else:
+                selected_character_prefix_pairs = None
+        elif selected_character_prefix_pairs is not None:
+            character_prefix_wiring = "active"
+            selected_character_prefix_id = self._character_prefix_id
+            if not requested_character_id and self._character_prefix_package is not None:
+                requested_character_id = self._character_prefix_package.character_id
+
         # Prefix order is stable and owner-auditable: character, Personal,
         # then admitted conditioning banks in request order.
-        prefix_pairs = self._character_prefix_pairs
+        prefix_pairs = selected_character_prefix_pairs
         personal_prefix_pairs = None
         personal_delta = None
         if personal_conditioning_carrier == "prefix_kv":
@@ -1631,13 +1759,18 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         # scales with prompt length and OOM/native-crashes the process on
         # long multi-turn contexts. The raw ablation track never reads the
         # capture, so skipping it is both correct and the memory fix.
-        has_runtime_deltas = bool(getattr(self, "_online_fast_adapter_deltas", {}))
+        has_runtime_deltas = bool(
+            getattr(self, "_online_fast_adapter_deltas", {})
+            or getattr(self, "_rare_heavy_adapter_deltas", {})
+        )
+        has_character_residual = bool(self._character_residual_deltas)
         hook_required = (
             capture_residuals
             or control_active
             or personal_delta is not None
             or bool(bank_delta_by_layer)
             or has_runtime_deltas
+            or has_character_residual
         )
         hooks = (
             [
@@ -1657,6 +1790,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                         capture_residuals=capture_residuals,
                         personal_delta=personal_delta,
                         conditioning_bank_delta=bank_delta_by_layer.get(
+                            layer_index
+                        ),
+                        character_residual_delta=self._character_residual_deltas.get(
                             layer_index
                         ),
                     )
@@ -1806,8 +1942,13 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             conditioning_bank_carriers_applied=(
                 conditioning_bank_carriers_applied
             ),
-            character_prefix_applied=self._character_prefix_pairs is not None,
-            character_prefix_id=self._character_prefix_id,
+            character_prefix_applied=selected_character_prefix_pairs is not None,
+            character_prefix_id=selected_character_prefix_id,
+            character_id=requested_character_id,
+            character_prefix_wiring_level=character_prefix_wiring,
+            character_prefix_shadow_id=character_prefix_shadow_id,
+            character_residual_applied=bool(self._character_residual_deltas and hooks),
+            character_residual_adapter_id=self._character_residual_adapter_id,
         )
         if str(self._device).startswith("mps"):
             # MPS uses unified memory and retains released generation buffers
@@ -3057,6 +3198,62 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             adapter_layers=adapter_layers,
         )
 
+    def _install_common_adapter_bundle(
+        self,
+        bundle: CommonAdapterBundle,
+    ) -> None:
+        """Install a gate-admitted process-wide bundle during startup."""
+
+        bundle.require_active()
+        if bundle.base_model_id != self.model_id:
+            raise ValueError(
+                "common adapter base_model_id does not match runtime: "
+                f"bundle={bundle.base_model_id!r}, runtime={self.model_id!r}."
+            )
+        checkpoint = bundle.rare_heavy_checkpoint
+        unavailable_layers = sorted(
+            set(layer.layer_index for layer in checkpoint.adapter_layers)
+            - set(self._layer_indices)
+        )
+        if unavailable_layers:
+            raise ValueError(
+                "common adapter rare-heavy checkpoint targets unavailable "
+                f"runtime hook layers: {unavailable_layers}."
+            )
+        for layer in checkpoint.adapter_layers:
+            if len(layer.delta_vector) != self._hidden_size:
+                raise ValueError(
+                    "common adapter rare-heavy delta width does not match "
+                    f"runtime hidden size on layer {layer.layer_index}."
+                )
+        self._rare_heavy_control_scale = checkpoint.control_scale
+        self._rare_heavy_semantic_text_weight = checkpoint.semantic_text_weight
+        self._rare_heavy_semantic_residual_weight = (
+            checkpoint.semantic_residual_weight
+        )
+        self._rare_heavy_anchor_bias = checkpoint.semantic_anchor_bias
+        self._rare_heavy_update_count = checkpoint.update_count
+        self._rare_heavy_adapter_scale = checkpoint.adapter_scale
+        self._rare_heavy_adapter_deltas = {
+            layer.layer_index: self._torch.tensor(
+                _clamp_delta_vector(layer.delta_vector),
+                dtype=self._torch.float32,
+                device=self._device,
+            )
+            for layer in checkpoint.adapter_layers
+        }
+        control = bundle.control_basis_artifact
+        if control.hidden_size != self._hidden_size:
+            raise ValueError(
+                "common adapter control basis hidden_size does not match runtime."
+            )
+        self.install_control_basis(
+            basis=control.basis,
+            provenance=control.artifact_id,
+            layer_indices=control.layer_indices,
+            layer_gains=control.layer_gains,
+        )
+
     def import_rare_heavy_state(self, checkpoint: SubstrateRareHeavyCheckpoint) -> tuple[str, ...]:
         self.require_substrate_artifact_import(operation="import_rare_heavy_state()")
         if checkpoint.model_id != self.model_id:
@@ -3197,6 +3394,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 self._relationship_conditioning_prefix
             ),
             character_prefix_package=self._character_prefix_package,
+            character_prefix_registry=self._character_prefix_registry,
+            common_adapter_bundle=self._common_adapter_bundle,
+            character_residual_package=self._character_residual_package,
             runtime_origin=self._runtime_origin,
             allow_offline_substrate_training=True,
         )
@@ -3339,6 +3539,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         capture_residuals: bool = True,
         personal_delta=None,
         conditioning_bank_delta=None,
+        character_residual_delta=None,
     ):
         def hook(module, args, output):
             del module
@@ -3357,6 +3558,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 and control_delta is None
                 and not applies_personal_delta
                 and conditioning_bank_delta is None
+                and character_residual_delta is None
             ):
                 if capture_residuals:
                     captured_layers[layer_index] = hidden.detach().cpu()
@@ -3364,6 +3566,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             adjusted = hidden
             if adapter_delta is not None:
                 adjusted = adjusted + adapter_delta.view(1, 1, -1).to(dtype=hidden.dtype)
+            if character_residual_delta is not None:
+                adjusted = adjusted + character_residual_delta.view(
+                    1, 1, -1
+                ).to(dtype=hidden.dtype)
             if control_delta is not None:
                 adjusted = adjusted + control_delta.view(1, 1, -1).to(dtype=hidden.dtype)
             if applies_personal_delta:
@@ -3742,6 +3948,9 @@ def build_transformers_runtime_with_fallback(
     builtin_model_id: str = "builtin-transformers-runtime",
     allow_live_substrate_mutation: bool = False,
     character_prefix_package: CharacterPrefixKVPackage | None = None,
+    character_prefix_registry: CharacterPrefixKVRegistry | None = None,
+    common_adapter_bundle: CommonAdapterBundle | None = None,
+    character_residual_package: CharacterResidualAdapterPackage | None = None,
 ) -> TransformersOpenWeightResidualRuntime:
     resolved_runtime_mode = resolve_local_runtime_mode(
         runtime_mode=runtime_mode,
@@ -3750,9 +3959,14 @@ def build_transformers_runtime_with_fallback(
         fallback_to_builtin=fallback_to_builtin,
     )
     if resolved_runtime_mode is LocalSubstrateRuntimeMode.BUILTIN_ONLY:
-        if character_prefix_package is not None:
+        if (
+            character_prefix_package is not None
+            or character_prefix_registry is not None
+            or common_adapter_bundle is not None
+            or character_residual_package is not None
+        ):
             raise ValueError(
-                "character prefix packages require a real HF runtime; "
+                "character model-side packages require a real HF runtime; "
                 "builtin fallback cannot provide model-compatible KV geometry."
             )
         return build_builtin_transformers_runtime(
@@ -3789,13 +4003,21 @@ def build_transformers_runtime_with_fallback(
             runtime_origin=effective_runtime_origin,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
             character_prefix_package=character_prefix_package,
+            character_prefix_registry=character_prefix_registry,
+            common_adapter_bundle=common_adapter_bundle,
+            character_residual_package=character_residual_package,
         )
     except Exception as exc:
         if resolved_mode is not SubstrateFallbackMode.ALLOW_BUILTIN or not _is_transformers_runtime_fallback_error(exc):
             raise
-        if character_prefix_package is not None:
+        if (
+            character_prefix_package is not None
+            or character_prefix_registry is not None
+            or common_adapter_bundle is not None
+            or character_residual_package is not None
+        ):
             raise RuntimeError(
-                "real HF runtime failed while a character prefix package was "
+                "real HF runtime failed while a character model-side package was "
                 "requested; refusing to fall back to an incompatible builtin "
                 "substrate."
             ) from exc

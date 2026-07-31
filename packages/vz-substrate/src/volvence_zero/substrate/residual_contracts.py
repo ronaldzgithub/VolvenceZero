@@ -122,6 +122,11 @@ class GenerationResult:
     conditioning_bank_carriers_applied: tuple[tuple[str, str], ...] = ()
     character_prefix_applied: bool = False
     character_prefix_id: str = ""
+    character_id: str = ""
+    character_prefix_wiring_level: str = "disabled"
+    character_prefix_shadow_id: str = ""
+    character_residual_applied: bool = False
+    character_residual_adapter_id: str = ""
 
 
 @dataclass(frozen=True)

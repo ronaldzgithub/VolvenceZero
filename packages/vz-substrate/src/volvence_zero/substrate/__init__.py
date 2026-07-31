@@ -57,8 +57,11 @@ from volvence_zero.substrate.personal_conditioning_projector import (
 )
 from volvence_zero.substrate.prefix_kv_artifact import (
     CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION,
+    CHARACTER_PREFIX_REGISTRY_SCHEMA_VERSION,
     CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE,
     CharacterPrefixKVPackage,
+    CharacterPrefixKVRegistry,
+    CharacterPrefixKVRegistryEntry,
     MAX_PREFIX_NORM_CAP,
     PREFIX_KV_SCHEMA_VERSION,
     TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
@@ -66,6 +69,19 @@ from volvence_zero.substrate.prefix_kv_artifact import (
     PrefixKVGenerator,
     build_teacher_distilled_prefix_artifact,
     load_prefix_generator,
+)
+from volvence_zero.substrate.character_residual_artifact import (
+    CHARACTER_RESIDUAL_ADAPTER_MODE,
+    CHARACTER_RESIDUAL_ADAPTER_SCHEMA_VERSION,
+    CHARACTER_RESIDUAL_DELTA_CAP,
+    CharacterResidualAdapterPackage,
+    load_character_residual_deltas,
+)
+from volvence_zero.substrate.common_adapter_bundle import (
+    COMMON_ADAPTER_BUNDLE_SCHEMA_VERSION,
+    COMMON_ADAPTER_GATE_SCHEMA_VERSION,
+    CommonAdapterBundle,
+    CommonAdapterGateRecord,
 )
 from volvence_zero.substrate.prefix_kv_diagnostics import (
     PrefixAttentionProfile,
@@ -237,11 +253,14 @@ __all__ = [
     "load_projector_basis",
     "MAX_PREFIX_NORM_CAP",
     "CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION",
+    "CHARACTER_PREFIX_REGISTRY_SCHEMA_VERSION",
     "CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE",
     "PREFIX_KV_SCHEMA_VERSION",
     "TEACHER_DISTILLED_PREFIX_TRAINING_MODE",
     "PrefixKVArtifact",
     "CharacterPrefixKVPackage",
+    "CharacterPrefixKVRegistry",
+    "CharacterPrefixKVRegistryEntry",
     "PrefixKVGenerator",
     "PrefixAttentionProfile",
     "ProbeFit",
@@ -250,6 +269,15 @@ __all__ = [
     "profile_spread",
     "build_teacher_distilled_prefix_artifact",
     "load_prefix_generator",
+    "CHARACTER_RESIDUAL_ADAPTER_MODE",
+    "CHARACTER_RESIDUAL_ADAPTER_SCHEMA_VERSION",
+    "CHARACTER_RESIDUAL_DELTA_CAP",
+    "CharacterResidualAdapterPackage",
+    "load_character_residual_deltas",
+    "COMMON_ADAPTER_BUNDLE_SCHEMA_VERSION",
+    "COMMON_ADAPTER_GATE_SCHEMA_VERSION",
+    "CommonAdapterBundle",
+    "CommonAdapterGateRecord",
     "RARE_HEAVY_PEFT_TRAINING_MODE",
     "PeftLoraRareHeavyBackend",
     "RareHeavyAdapterTrainingBackend",

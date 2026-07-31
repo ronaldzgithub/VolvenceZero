@@ -467,6 +467,17 @@
 - 基础模型权重保持冻结；包哈希、模板哈希、proof locator 和目标模型必须可审计
 - `character_prefix_applied` 只证明物理载体注入，不等于人物行为 fidelity 已达标
 
+### 17C. Character Residual Adapter
+
+| Spec | 内容 |
+|------|------|
+| [character-residual-package.md](./character-residual-package.md) | reviewed live-through 轨迹在目标 Qwen 上重新训练的 target-model residual adapter、物理注入真值与 Prefix/KV 对照 rollout |
+
+**核心不变量**：
+- 0.5B live-through 只提供训练 provenance，residual 向量必须在目标 1.5B 基底上重新训练
+- 包必须绑定目标模型、hidden width、hook layers、模板完整性和训练证据
+- residual 与 Prefix/KV 不能未经 held-out gate 同时晋升；默认均可 shadow 回滚
+
 ---
 
 ### 17A. Rupture and Repair Loop（v0 SHADOW, M0 contract landed）

@@ -458,6 +458,7 @@ from lifeform_service.substrate_registry import (
 from lifeform_service.verticals import default_vertical_name, discover_verticals
 from volvence_zero.substrate import (
     CharacterPrefixKVPackage,
+    CharacterResidualAdapterPackage,
     SubstrateFallbackMode,
     build_transformers_runtime_with_fallback,
 )
@@ -516,23 +517,94 @@ def main() -> int:
     max_sessions = int(os.environ["MAX_SESSIONS"])
     idle_eviction_seconds = float(os.environ["IDLE_EVICTION_SECONDS"])
     character_package_path = _env_str_or_none("ZHANG_WUJI_CHARACTER_PACKAGE_PATH")
+    character_residual_path = _env_str_or_none(
+        "ZHANG_WUJI_CHARACTER_RESIDUAL_PATH"
+    )
+    character_prefix_mode = (
+        os.environ.get("ZHANG_WUJI_CHARACTER_PREFIX_MODE", "shadow")
+        .strip()
+        .lower()
+    )
+    if character_prefix_mode not in {"shadow", "active"}:
+        raise RuntimeError(
+            "ZHANG_WUJI_CHARACTER_PREFIX_MODE must be 'shadow' or 'active', "
+            f"got {character_prefix_mode!r}"
+        )
+    if character_prefix_mode == "active" and character_package_path is None:
+        raise RuntimeError(
+            "ZHANG_WUJI_CHARACTER_PREFIX_MODE=active requires "
+            "ZHANG_WUJI_CHARACTER_PACKAGE_PATH"
+        )
+    character_residual_mode = (
+        os.environ.get("ZHANG_WUJI_CHARACTER_RESIDUAL_MODE", "shadow")
+        .strip()
+        .lower()
+    )
+    if character_residual_mode not in {"shadow", "active"}:
+        raise RuntimeError(
+            "ZHANG_WUJI_CHARACTER_RESIDUAL_MODE must be 'shadow' or 'active', "
+            f"got {character_residual_mode!r}"
+        )
+    if character_residual_mode == "active" and character_residual_path is None:
+        raise RuntimeError(
+            "ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=active requires "
+            "ZHANG_WUJI_CHARACTER_RESIDUAL_PATH"
+        )
     character_prefix_package = None
     if character_package_path is not None:
-        character_prefix_package = CharacterPrefixKVPackage.from_json(
+        loaded_character_package = CharacterPrefixKVPackage.from_json(
             Path(character_package_path).read_text(encoding="utf-8")
         )
-        if character_prefix_package.model_id != model_id:
+        if loaded_character_package.model_id != model_id:
             raise RuntimeError(
                 "character package model_id does not match MODEL_ID: "
-                f"package={character_prefix_package.model_id!r} model={model_id!r}"
+                f"package={loaded_character_package.model_id!r} model={model_id!r}"
             )
         print(
             "[start-browser-chat-qwen] character prefix package loaded: "
-            f"character={character_prefix_package.character_id} "
-            f"package_id={character_prefix_package.package_id} "
-            f"source_template={character_prefix_package.source_template_id}",
+            f"character={loaded_character_package.character_id} "
+            f"package_id={loaded_character_package.package_id} "
+            f"source_template={loaded_character_package.source_template_id} "
+            f"mode={character_prefix_mode}",
             flush=True,
         )
+        if character_prefix_mode == "active":
+            character_prefix_package = loaded_character_package
+        else:
+            print(
+                "[start-browser-chat-qwen] character prefix package is "
+                "shadow-only; model-side injection is disabled until the "
+                "quality gate passes.",
+                flush=True,
+            )
+
+    character_residual_package = None
+    if character_residual_path is not None:
+        loaded_character_residual = CharacterResidualAdapterPackage.from_json(
+            Path(character_residual_path).read_text(encoding="utf-8")
+        )
+        if loaded_character_residual.model_id != model_id:
+            raise RuntimeError(
+                "character residual adapter model_id does not match MODEL_ID: "
+                f"package={loaded_character_residual.model_id!r} model={model_id!r}"
+            )
+        print(
+            "[start-browser-chat-qwen] character residual adapter loaded: "
+            f"character={loaded_character_residual.character_id} "
+            f"package_id={loaded_character_residual.package_id} "
+            f"training_mode={loaded_character_residual.training_mode} "
+            f"mode={character_residual_mode}",
+            flush=True,
+        )
+        if character_residual_mode == "active":
+            character_residual_package = loaded_character_residual
+        else:
+            print(
+                "[start-browser-chat-qwen] character residual adapter is "
+                "shadow-only; model-side injection is disabled until the "
+                "held-out quality gate passes.",
+                flush=True,
+            )
 
     verticals = discover_verticals()
     if not verticals:
@@ -567,6 +639,7 @@ def main() -> int:
         fallback_mode=SubstrateFallbackMode.DENY,
         allow_live_substrate_mutation=False,
         character_prefix_package=character_prefix_package,
+        character_residual_package=character_residual_package,
     )
     runtime_origin = getattr(runtime, "runtime_origin")
     if runtime_origin == "builtin-fallback":
@@ -581,6 +654,7 @@ def main() -> int:
         local_files_only=local_files_only,
         fallback_mode=SubstrateFallbackMode.DENY,
         character_prefix_package=character_prefix_package,
+        character_residual_package=character_residual_package,
     )
     substrate_provider = build_substrate_provider_from_env(
         initial_runtime=runtime,

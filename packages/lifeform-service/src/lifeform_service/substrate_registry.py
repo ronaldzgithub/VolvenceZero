@@ -61,7 +61,10 @@ from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
 from volvence_zero.substrate import (
+    CharacterPrefixKVRegistry,
     CharacterPrefixKVPackage,
+    CharacterResidualAdapterPackage,
+    CommonAdapterBundle,
     SubstrateFallbackMode,
     build_transformers_runtime_with_fallback,
 )
@@ -579,6 +582,9 @@ def build_qwen_runtime_loader(
     local_files_only: bool,
     fallback_mode: SubstrateFallbackMode,
     character_prefix_package: CharacterPrefixKVPackage | None = None,
+    character_prefix_registry: CharacterPrefixKVRegistry | None = None,
+    common_adapter_bundle: CommonAdapterBundle | None = None,
+    character_residual_package: CharacterResidualAdapterPackage | None = None,
 ) -> "Callable[[str], OpenWeightResidualRuntime]":
     """Return a closure that builds a runtime for a given model_id.
 
@@ -594,6 +600,33 @@ def build_qwen_runtime_loader(
                 "character prefix package is pinned to "
                 f"{package.model_id!r}; refusing runtime swap to {model_id!r}."
             )
+        if (
+            character_prefix_registry is not None
+            and character_prefix_registry.base_model_id != model_id
+        ):
+            raise ValueError(
+                "character prefix registry is pinned to "
+                f"{character_prefix_registry.base_model_id!r}; refusing "
+                f"runtime swap to {model_id!r}."
+            )
+        if (
+            common_adapter_bundle is not None
+            and common_adapter_bundle.base_model_id != model_id
+        ):
+            raise ValueError(
+                "common adapter bundle is pinned to "
+                f"{common_adapter_bundle.base_model_id!r}; refusing runtime "
+                f"swap to {model_id!r}."
+            )
+        if (
+            character_residual_package is not None
+            and character_residual_package.model_id != model_id
+        ):
+            raise ValueError(
+                "character residual adapter is pinned to "
+                f"{character_residual_package.model_id!r}; refusing runtime "
+                f"swap to {model_id!r}."
+            )
         runtime = build_transformers_runtime_with_fallback(
             model_id=model_id,
             device=device,
@@ -601,6 +634,9 @@ def build_qwen_runtime_loader(
             fallback_mode=fallback_mode,
             allow_live_substrate_mutation=False,
             character_prefix_package=package,
+            character_prefix_registry=character_prefix_registry,
+            common_adapter_bundle=common_adapter_bundle,
+            character_residual_package=character_residual_package,
         )
         runtime_origin = getattr(runtime, "runtime_origin", "unknown")
         if runtime_origin == "builtin-fallback":

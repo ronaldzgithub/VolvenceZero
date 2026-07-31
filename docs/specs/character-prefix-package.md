@@ -40,7 +40,10 @@ slots with an explicitly selected personal Prefix/KV carrier when both are
 present. No module may infer character identity from text matching or recreate
 the package from a prompt. A missing or incompatible package fails loudly on
 the pinned Zhang Wuji 1.5B startup path; a generic runtime with no package is
-unchanged.
+unchanged. The browser wrapper loads and validates the Zhang Wuji package in
+`shadow` mode by default. Physical injection requires the explicit
+`ZHANG_WUJI_CHARACTER_PREFIX_MODE=active` switch and a passing held-out
+behavior-quality gate; loading and physical delivery are separate facts.
 
 ## Evidence Boundary
 
@@ -48,5 +51,6 @@ unchanged.
 `GenerationResult.character_prefix_id` attest physical carrier delivery only.
 They do not prove canonical behavior fidelity. The bake source, training loss,
 and held-out behavior evaluation remain separate evidence records. Rollback is
-to unset `ZHANG_WUJI_CHARACTER_PACKAGE_PATH`, which restores the prior frozen
-Qwen path without changing the LifeformTemplate or its memory checkpoint.
+to leave the mode at `shadow` (or unset `ZHANG_WUJI_CHARACTER_PACKAGE_PATH`),
+which restores the prior frozen Qwen generation path without changing the
+LifeformTemplate or its memory checkpoint.
