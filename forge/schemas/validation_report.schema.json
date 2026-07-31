@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.validation-report.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "proposal_id", "status", "patch_sha256",
+    "manifesto_sha256", "checks", "validated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "forge-validation-report.v1"},
+    "proposal_id": {"type": "string", "pattern": "^pr_[0-9a-f]{16}$"},
+    "status": {"enum": ["PASS", "BLOCK"]},
+    "patch_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "manifesto_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "checks": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "status", "detail"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "status": {"enum": ["PASS", "BLOCK"]},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "validated_at": {"type": "string", "format": "date-time"}
+  }
+}

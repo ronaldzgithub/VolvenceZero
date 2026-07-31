@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "volvence-forge"
+version = "0.1.0"
+description = "Bounded, evidence-driven RSI harness forge for the Volvence development loop."
+requires-python = ">=3.11"
+authors = [{ name = "Volvence Zero Contributors" }]
+license = { text = "Proprietary" }
+dependencies = [
+    "jsonschema>=4.20",
+    "numpy>=1.26",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+embed = ["sentence-transformers>=3.0"]
+dev = ["pytest", "ruff", "sentence-transformers>=3.0"]
+
+[project.scripts]
+forge = "volvence_forge.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["volvence_forge*"]
+
+[tool.setuptools.package-data]
+volvence_forge = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "S110", "S112", "E722"]

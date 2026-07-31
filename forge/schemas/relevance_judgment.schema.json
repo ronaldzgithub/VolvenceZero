@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.relevance-judgment.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["relevant", "evidence_alignment", "preservation_assessment", "reason"],
+  "properties": {
+    "relevant": {"type": "boolean"},
+    "evidence_alignment": {"type": "boolean"},
+    "preservation_assessment": {"type": "boolean"},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 2000}
+  }
+}

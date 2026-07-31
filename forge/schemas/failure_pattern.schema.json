@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.failure-pattern.v1",
+  "$defs": {
+    "evidence_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "source_kind", "locator", "excerpt", "digest"],
+      "properties": {
+        "source_id": {"type": "string", "minLength": 1},
+        "source_kind": {"enum": ["transcript", "promotion_verdict", "plan", "ledger"]},
+        "locator": {"type": "string", "minLength": 1},
+        "excerpt": {"type": "string", "maxLength": 1200},
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "pattern_id", "title", "verifier_cause",
+    "agent_behavior_cause", "exposed_mechanism", "occurrence_count",
+    "evidence_refs", "source_kinds", "centroid_digest", "editable_target",
+    "editable_component", "surface_status", "surface_similarity", "preserve_behaviors"
+  ],
+  "properties": {
+    "schema_version": {"const": "forge-failure-pattern.v1"},
+    "pattern_id": {"type": "string", "pattern": "^fp_[0-9a-f]{16}$"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 240},
+    "verifier_cause": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "agent_behavior_cause": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "exposed_mechanism": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "occurrence_count": {"type": "integer", "minimum": 1},
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/evidence_ref"}
+    },
+    "source_kinds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["transcript", "promotion_verdict", "plan", "ledger"]}
+    },
+    "centroid_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "editable_target": {"type": ["string", "null"]},
+    "editable_component": {"type": ["string", "null"]},
+    "surface_status": {"enum": ["in-surface", "out-of-surface"]},
+    "surface_similarity": {"type": "number", "minimum": -1, "maximum": 1},
+    "preserve_behaviors": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+    }
+  }
+}

@@ -1,0 +1,51 @@
+schema_version: forge-editable-surface.v1
+optimization_stage: instruction-and-structured-context
+
+# Component observability: every writable component is named, described and
+# represented by files. Expanding this list is a human-reviewed governance
+# change; the forge itself is explicitly forbidden from editing this file.
+editable:
+  - component: repository_agent_rules
+    glob: .cursor/rules/*.mdc
+    semantic_description: >-
+      Repository coding-agent instructions governing long-horizon execution,
+      convergence packets, owner boundaries, failure recovery, validation,
+      safe tool use and preservation of existing work.
+  - component: forge_analysis_prompts
+    glob: forge/prompts/**
+    semantic_description: >-
+      Meta-level prompts that compress execution evidence, propose narrow
+      harness improvements and judge whether a proposal addresses its cited
+      failure pattern.
+
+# These surfaces remain outside the optimization loop. Entries are checked
+# before editable entries so no broad allow pattern can override protection.
+read_only:
+  - packages/**
+  - tests/**
+  - scripts/run_gate*
+  - scripts/check_gate*
+  - docs/specs/**
+  - docs/DATA_CONTRACT.md
+  - artifacts/**
+  - forge/src/**
+  - forge/schemas/**
+  - forge/editable_surface.yaml
+  - forge/ledger.jsonl
+  - forge/pyproject.toml
+
+semantic_mapping:
+  minimum_similarity: 0.30
+  cluster_similarity: 0.72
+  proposal_duplicate_similarity: 0.90
+
+# The commands are frozen outside the proposal loop. `held_in` checks Forge's
+# targeted mechanism; `held_out` protects repository boundary invariants.
+validation:
+  command_timeout_seconds: 180
+  static:
+    - [ruff, check, forge, tests/contracts/test_forge_boundaries.py]
+  held_in:
+    - [pytest, forge/tests, -q]
+  held_out:
+    - [pytest, tests/contracts/test_forge_boundaries.py, -q]

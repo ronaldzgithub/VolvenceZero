@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.failure-analysis.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["records"],
+  "properties": {
+    "records": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["verifier_cause", "agent_behavior_cause", "exposed_mechanism", "confidence"],
+        "properties": {
+          "verifier_cause": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "agent_behavior_cause": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "exposed_mechanism": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    }
+  }
+}

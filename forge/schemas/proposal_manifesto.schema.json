@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.proposal-manifesto.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "proposal_id", "pattern_id", "target",
+    "target_preimage_sha256", "evidence", "root_cause", "targeted_fix",
+    "predicted_impact", "at_risk_regressions", "preserve_behaviors",
+    "rollback", "generator", "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "forge-proposal-manifesto.v1"},
+    "proposal_id": {"type": "string", "pattern": "^pr_[0-9a-f]{16}$"},
+    "pattern_id": {"type": "string", "pattern": "^fp_[0-9a-f]{16}$"},
+    "target": {"type": "string", "minLength": 1},
+    "target_preimage_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "failure_pattern.schema.json#/$defs/evidence_ref"}
+    },
+    "root_cause": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "targeted_fix": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "predicted_impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric", "direction", "expected_delta", "baseline_value", "evaluation_window"],
+      "properties": {
+        "metric": {"const": "pattern_occurrence_count"},
+        "direction": {"const": "decrease"},
+        "expected_delta": {"type": "integer", "maximum": -1},
+        "baseline_value": {"type": "integer", "minimum": 1},
+        "evaluation_window": {"const": "next_mine_run"}
+      }
+    },
+    "at_risk_regressions": {
+      "type": "array", "minItems": 1,
+      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+    },
+    "preserve_behaviors": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+    },
+    "rollback": {
+      "type": "object", "additionalProperties": false, "required": ["method", "command"],
+      "properties": {
+        "method": {"const": "reverse_patch"},
+        "command": {"type": "string", "minLength": 1}
+      }
+    },
+    "generator": {
+      "type": "object", "additionalProperties": false, "required": ["backend", "model"],
+      "properties": {
+        "backend": {"type": "string", "minLength": 1},
+        "model": {"type": "string", "minLength": 1}
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}
