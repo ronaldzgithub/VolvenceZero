@@ -29,6 +29,15 @@ todos:
   - id: verify-e2e
     content: 端到端演练:对真实 transcripts+gate 失败跑一轮循环,产出 proposal bundle
     status: completed
+  - id: close-apply
+    content: 闭环:apply 两份已人审通过的提案(pr_8205 + pr_3166),ledger 记录
+    status: completed
+  - id: close-remine
+    content: 闭环:跑新一轮 mine,检查 prediction_checks 中两提案预测兑现情况
+    status: pending
+  - id: close-verify
+    content: 闭环:回归验证(ruff + forge/tests + 边界契约测试)并出验收结论
+    status: completed
 isProject: false
 ---
 
@@ -125,6 +134,76 @@ forge/
 - `pytest forge/tests tests/contracts/test_forge_boundaries.py`
 - 端到端演练:对现有 93 个 transcripts + gate2 失败 bundle 跑一轮 `mine → propose → validate`,产出至少一份完整 proposal bundle 供人审——这是本计划的验收证据。
 - 回滚方式:forge 全部新增文件,删除目录即回滚;被 apply 的 rule 编辑经 git revert 回滚,ledger 保留记录。
+
+## 闭环验收(2026-08-01 人审已通过,待执行)
+
+人审决定(闸门:mengfu,经会话确认):**两份提案均接受**。
+
+- `pr_8205178855dbbf79` → `forge/prompts/failure_mining.system.md`:挖掘 prompt 区分"负向因果证据"(gate 正确拒绝晋升)与"执行失败"。接受。
+- `pr_3166d2cd166a039a` → `.cursor/rules/cursor-convergence-workflow.mdc`:结构化失败后的有界恢复与交接(保留证据包、单次有界重试、环境类前置失败显式交接)。接受,附注意事项:观察是否出现"过早判定外部阻塞"的回归。
+
+执行步骤(按序):
+
+1. **apply 两份提案**(bundle 位于 `artifacts/forge_propose_rsi_e2e_20260801T033000Z/proposals/`):
+
+```bash
+python -m volvence_forge apply \
+  artifacts/forge_propose_rsi_e2e_20260801T033000Z/proposals/pr_8205178855dbbf79 \
+  --validation-report artifacts/forge_propose_rsi_e2e_20260801T033000Z/proposals/pr_8205178855dbbf79/validation.json \
+  --human-approved-by mengfu
+
+python -m volvence_forge apply \
+  artifacts/forge_propose_rsi_e2e_20260801T033000Z/proposals/pr_3166d2cd166a039a \
+  --validation-report artifacts/forge_propose_rsi_e2e_20260801T033000Z/proposals/pr_3166d2cd166a039a/validation.json \
+  --human-approved-by mengfu
+```
+
+   预期:目标文件被打补丁、`forge/ledger.jsonl` 追加两条 applied 记录(含 predicted_impact)。注意 apply 会重新校验 target preimage 哈希——若目标文件在人审后被改动过,会 fail-closed,需重跑 propose。
+
+2. **跑新一轮 mine** 验证预测兑现(`--backend openai` 需要 env 中的 OpenAI-compatible 配置;嵌入模型本地加载):
+
+```bash
+python -m volvence_forge mine --backend openai
+```
+
+   预期:新 `artifacts/forge_mine_<ts>/prediction_checks.json` 中出现对两份已 apply 提案的兑现检查条目(指标 `pattern_occurrence_count`,pr_3166 预测 10→≤7,pr_8205 预测 1→0)。注意:兑现判定只统计 apply 时间戳**之后**产生的新轨迹/新 verdict;若新增证据太少,记录为 `inconclusive` 而非虚假兑现。
+
+3. **回归验证**:`ruff check forge tests/contracts/test_forge_boundaries.py` + `pytest forge/tests tests/contracts/test_forge_boundaries.py -q`(注:`forge/.pytest_cache` 中 `test_mine_requires_semantic_alignment_and_marks_out_of_surface` 有历史失败缓存,validate 报告显示后续已 10 passed,执行时确认当前为绿)。
+
+4. **验收结论**:第一个完整周期 = mine → propose → validate → 人审 → apply → 再 mine 预测检查全链路跑通。此后进入常态运转,第二战役(产品 runtime 可编辑面 + `ModificationGate.OFFLINE`)另立计划。
+
+回滚:每份提案的 manifesto 内含 `rollback.command`(`git apply --reverse <patch>`);ledger 为 append-only,回滚事件同样记录。
+
+## 执行记录(2026-08-01)
+
+- **步骤 1 完成**:两份提案已 apply,ledger 共 3 条(initialized + 2 条 applied 决策,含 predicted_impact)。`forge/prompts/failure_mining.system.md` 与 `.cursor/rules/cursor-convergence-workflow.mdc` 补丁已落盘。
+- **步骤 3 完成**:`ruff check forge tests/contracts/test_forge_boundaries.py` 通过;`pytest forge/tests tests/contracts/test_forge_boundaries.py` 1226 项全绿(历史缓存中的失败测试已确认为绿)。
+- **步骤 2 受阻,两个阻塞项**:
+
+### 阻塞 A:预测检查存在证据污染缺陷(需改代码)
+
+`mine.py::_prediction_checks` 不按 apply 时间过滤证据:它直接拿新一轮 mine 对**全部历史源**的 `occurrence_count` 与 baseline 比较。老轨迹中的历史失败仍在,立即重跑 mine 必然把预测标为 `refuted`——假裁决。证据引用(`evidence_ref`)不携带时间戳,无法事后拆分。
+
+修复设计(约 3 文件 + 测试 + spec 同步):
+
+1. `sources.py`:`load_source_bundle(..., since: datetime | None)`,按源文件 mtime ≥ since 过滤 transcripts/verdicts/plans。
+2. `mine.py`:`mine_failures(..., evidence_since)` 记入 inventory;`_prediction_checks` 增加参数——若 `evidence_since` 为 None 或早于该提案的 apply 时间戳,status 输出 `inconclusive`(附原因),否则按现逻辑 fulfilled/refuted;`prediction_checks.json` schema_version 升至 v2。
+3. `cli.py`:mine 增加 `--evidence-since <ISO8601>` 与 `--evidence-since-ledger`(取 ledger 最近一条 applied 时间戳)互斥参数。
+4. `forge/tests/test_sources_mine.py`:补 since 过滤与 inconclusive 判定用例。
+5. `docs/specs/rsi-forge.md`:同步预测检查语义。
+
+此缺陷本身就是 RSI 循环第一周期的 dogfood 产出:循环暴露了自己验证机器的缺陷,修复对象是循环外验证器代码(人/agent 常规开发,不走 forge 提案面)。
+
+### 阻塞 B:缺少 LLM 凭据(需用户提供)
+
+真实 mine 运行需要 `FORGE_LLM_API_KEY`(或 `OPENAI_API_KEY`)+ `FORGE_LLM_MODEL`(可选 `FORGE_LLM_BASE_URL`)。当前 shell 环境、`~/.zshrc`、仓库内均无可用配置;此前 e2e 用的是 replay 后端(预录响应),不能用于挖掘新证据。
+
+### 恢复执行清单
+
+1. 实施阻塞 A 的修复(需要允许编辑 forge 源码)。
+2. 用户 export LLM 凭据。
+3. 等待 apply 之后累积新的开发轨迹/verdict(当前会话轨迹即为首批 post-apply 证据)。
+4. `python -m volvence_forge mine --backend openai --evidence-since-ledger` → 检查 `prediction_checks.json`。
 
 ## 明确不做(留给第二战役)
 
