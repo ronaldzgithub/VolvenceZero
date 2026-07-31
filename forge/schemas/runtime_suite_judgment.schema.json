@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.runtime-suite-judgment.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["baseline_passed_test_ids", "candidate_passed_test_ids", "reason"],
+  "properties": {
+    "baseline_passed_test_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "candidate_passed_test_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "reason": {"type": "string", "minLength": 1, "maxLength": 4000}
+  }
+}

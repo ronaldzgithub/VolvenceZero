@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import yaml
 
 from .config import ForgeConfig
 from .foundation import (
@@ -91,7 +92,14 @@ def propose_changes(
         )
         schema_store.validate(response, "proposal_candidate.schema.json")
         _validate_candidate(response, pattern, config)
-        after = _append_section(before, response["section_content"])
+        after = _render_candidate(
+            before=before,
+            content=response["section_content"],
+            operation=response["operation"],
+            document_path=response.get("document_path"),
+            target=target,
+            requires_offline_gate=entry.requires_offline_gate,
+        )
         patch = _unified_diff(target, before, after)
         novelty_text = f"{target}\n{response['targeted_fix']}\n{response['section_content']}"
         novelty_vector = embedder.encode([novelty_text])[0]
@@ -178,11 +186,31 @@ def _validate_candidate(response: dict[str, Any], pattern: dict[str, Any], confi
             f"Proposer changed the frozen target for {pattern['pattern_id']}: "
             f"expected {pattern['editable_target']!r}, got {target!r}"
         )
-    if config.editable_entry_for(target) is None:
+    entry = config.editable_entry_for(target)
+    if entry is None:
         raise BackendError(f"Proposer selected a protected or out-of-surface target: {target}")
-    section = response["section_content"].strip()
-    if not section.startswith("#"):
-        raise BackendError("append_section content must begin with a Markdown heading")
+    operation = response["operation"]
+    document_path = response.get("document_path")
+    if operation == "append_section":
+        if document_path is not None:
+            raise BackendError("append_section must not declare document_path")
+        section = response["section_content"].strip()
+        if not section.startswith("#"):
+            raise BackendError("append_section content must begin with a Markdown heading")
+        if entry.requires_offline_gate:
+            raise BackendError("runtime semantic assets require a structured append operation")
+    elif operation == "append_yaml_sequence_item":
+        if not entry.requires_offline_gate or not target.endswith("/scenes.yaml"):
+            raise BackendError("append_yaml_sequence_item is limited to gated scenes.yaml assets")
+        if document_path != "/scenes":
+            raise BackendError("scenes.yaml append must use document_path=/scenes")
+    elif operation == "append_json_array_item":
+        if not entry.requires_offline_gate or not target.endswith("/ssot_fragment.json"):
+            raise BackendError("append_json_array_item is limited to gated ssot_fragment.json assets")
+        if document_path not in {"/paths", "/arc_specs"}:
+            raise BackendError("ssot_fragment append path must be /paths or /arc_specs")
+    else:
+        raise BackendError(f"Unsupported proposal operation: {operation}")
     expected_preserve = set(pattern["preserve_behaviors"])
     returned_preserve = set(response["preserve_behaviors"])
     if not expected_preserve.issubset(returned_preserve):
@@ -196,6 +224,95 @@ def _append_section(before: str, section: str) -> str:
         raise BackendError("Proposed section already exists in target content")
     separator = "\n" if before.endswith("\n") else "\n\n"
     return before + separator + normalized_section
+
+
+def _render_candidate(
+    *,
+    before: str,
+    content: str,
+    operation: str,
+    document_path: str | None,
+    target: str,
+    requires_offline_gate: bool,
+) -> str:
+    if operation == "append_section":
+        return _append_section(before, content)
+    if not requires_offline_gate:
+        raise BackendError("structured document operations require an offline-gated component")
+    if operation == "append_yaml_sequence_item":
+        return _append_yaml_sequence_item(before, content, target=target)
+    if operation == "append_json_array_item":
+        if document_path is None:
+            raise BackendError("append_json_array_item requires document_path")
+        return _append_json_array_item(before, content, document_path=document_path, target=target)
+    raise BackendError(f"Unsupported proposal operation: {operation}")
+
+
+def _append_yaml_sequence_item(before: str, fragment: str, *, target: str) -> str:
+    if not before.endswith("\n"):
+        raise BackendError(f"Runtime YAML asset must end with a newline: {target}")
+    normalized = fragment.rstrip() + "\n"
+    if not normalized.startswith("  - "):
+        raise BackendError("scenes.yaml fragment must start with a two-space sequence item")
+    try:
+        baseline = yaml.safe_load(before)
+        fragment_document = yaml.safe_load("scenes:\n" + normalized)
+        candidate = yaml.safe_load(before + normalized)
+    except yaml.YAMLError as exc:
+        raise BackendError(f"Proposed YAML fragment is invalid for {target}: {exc}") from exc
+    if not isinstance(baseline, dict) or not isinstance(candidate, dict):
+        raise BackendError("Runtime YAML asset must remain a mapping")
+    baseline_scenes = baseline.get("scenes")
+    candidate_scenes = candidate.get("scenes")
+    fragment_scenes = fragment_document.get("scenes") if isinstance(fragment_document, dict) else None
+    if not isinstance(baseline_scenes, list) or not isinstance(candidate_scenes, list):
+        raise BackendError("scenes.yaml must contain a scenes sequence")
+    if not isinstance(fragment_scenes, list) or len(fragment_scenes) != 1:
+        raise BackendError("Proposal must append exactly one scene")
+    if candidate_scenes[:-1] != baseline_scenes:
+        raise BackendError("Runtime scene proposal may not rewrite existing scenes")
+    _ensure_unique_identifier(candidate_scenes, "scenario_id", target)
+    return before + normalized
+
+
+def _append_json_array_item(
+    before: str,
+    fragment: str,
+    *,
+    document_path: str,
+    target: str,
+) -> str:
+    try:
+        baseline = json.loads(before)
+        item = json.loads(fragment)
+    except json.JSONDecodeError as exc:
+        raise BackendError(f"Proposed JSON fragment is invalid for {target}: {exc}") from exc
+    canonical_before = json.dumps(baseline, ensure_ascii=False, indent=2) + "\n"
+    if canonical_before != before:
+        raise BackendError(f"Runtime JSON asset is not in the frozen canonical format: {target}")
+    if not isinstance(baseline, dict) or not isinstance(item, dict):
+        raise BackendError("Runtime JSON asset and appended item must be mappings")
+    key = document_path.removeprefix("/")
+    collection = baseline.get(key)
+    if not isinstance(collection, list):
+        raise BackendError(f"JSON document path {document_path} is not a sequence")
+    collection.append(item)
+    identifier = "path_id" if key == "paths" else "arc_spec_id"
+    _ensure_unique_identifier(collection, identifier, target)
+    return json.dumps(baseline, ensure_ascii=False, indent=2) + "\n"
+
+
+def _ensure_unique_identifier(items: list[Any], field: str, target: str) -> None:
+    identifiers: list[str] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise BackendError(f"{target} item {index} must be a mapping")
+        value = item.get(field)
+        if not isinstance(value, str) or not value:
+            raise BackendError(f"{target} item {index} lacks {field}")
+        identifiers.append(value)
+    if len(identifiers) != len(set(identifiers)):
+        raise BackendError(f"{target} contains duplicate {field} values")
 
 
 def _unified_diff(target: str, before: str, after: str) -> str:

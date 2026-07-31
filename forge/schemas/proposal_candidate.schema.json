@@ -9,8 +9,11 @@
   ],
   "properties": {
     "target": {"type": "string", "minLength": 1},
-    "operation": {"const": "append_section"},
-    "section_content": {"type": "string", "minLength": 20, "maxLength": 4000},
+    "operation": {
+      "enum": ["append_section", "append_yaml_sequence_item", "append_json_array_item"]
+    },
+    "document_path": {"type": "string", "minLength": 1, "maxLength": 120},
+    "section_content": {"type": "string", "minLength": 20, "maxLength": 20000},
     "root_cause": {"type": "string", "minLength": 1, "maxLength": 2000},
     "targeted_fix": {"type": "string", "minLength": 1, "maxLength": 2000},
     "prediction": {

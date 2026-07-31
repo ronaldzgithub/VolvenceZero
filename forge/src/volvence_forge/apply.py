@@ -54,8 +54,19 @@ def apply_proposal(
     if validation["manifesto_sha256"] != sha256_text(manifesto_text):
         raise ApplyError("Manifesto changed after validation")
     target = manifesto["target"]
-    if config.editable_entry_for(target) is None:
+    entry = config.editable_entry_for(target)
+    if entry is None:
         raise ApplyError(f"Target is no longer editable: {target}")
+    gate_decision_ref = None
+    if entry.requires_offline_gate:
+        gate_decision_ref = _require_runtime_gate(
+            config=config,
+            proposal_dir=proposal_dir,
+            manifesto=manifesto,
+            manifesto_text=manifesto_text,
+            patch=patch,
+            validation_text=validation_text,
+        )
     target_path = config.resolve_target(target, must_exist=True)
     if sha256_text(target_path.read_text(encoding="utf-8")) != manifesto["target_preimage_sha256"]:
         raise ApplyError("Target changed after proposal generation; regenerate and revalidate")
@@ -69,6 +80,7 @@ def apply_proposal(
         reviewer=reviewer,
         decision="applied",
         reason="human review approved after loop-external validation",
+        gate_decision_ref=gate_decision_ref,
     )
     try:
         _append_ledger(config.paths.ledger_path, event)
@@ -112,6 +124,7 @@ def reject_proposal(
         reviewer=reviewer,
         decision="rejected",
         reason=reason.strip(),
+        gate_decision_ref=None,
     )
     _append_ledger(config.paths.ledger_path, event)
     return ApplyResult(
@@ -130,6 +143,7 @@ def _decision_event(
     reviewer: str,
     decision: str,
     reason: str,
+    gate_decision_ref: dict[str, Any] | None,
 ) -> dict[str, Any]:
     event: dict[str, Any] = {
         "schema_version": "forge-ledger.v1",
@@ -145,6 +159,7 @@ def _decision_event(
         "manifesto_sha256": sha256_text(json.dumps(manifesto, ensure_ascii=False, indent=2, sort_keys=True) + "\n"),
         "validation_sha256": sha256_text(validation_text) if validation_text else None,
         "proposal_summary": f"{manifesto['target']}: {manifesto['targeted_fix']}",
+        "gate_decision_ref": gate_decision_ref,
     }
     if decision == "applied":
         impact = manifesto["predicted_impact"]
@@ -156,6 +171,48 @@ def _decision_event(
             "evaluation_window": impact["evaluation_window"],
         }
     return event
+
+
+def _require_runtime_gate(
+    *,
+    config: ForgeConfig,
+    proposal_dir: Path,
+    manifesto: dict[str, Any],
+    manifesto_text: str,
+    patch: str,
+    validation_text: str,
+) -> dict[str, Any]:
+    gate_path = proposal_dir / "gate_decision.json"
+    try:
+        gate_text = gate_path.read_text(encoding="utf-8")
+    except (FileNotFoundError, UnicodeDecodeError) as exc:
+        raise ApplyError(f"Runtime proposal requires readable OFFLINE gate decision: {exc}") from exc
+    gate = read_json(gate_path)
+    SchemaStore(config.paths.forge_root / "schemas").validate(
+        gate, "gate_decision.schema.json"
+    )
+    if gate["decision"] != "ALLOW":
+        raise ApplyError(f"Runtime proposal is blocked by OFFLINE gate: {gate['reasons']}")
+    if gate["proposal_id"] != manifesto["proposal_id"] or gate["target"] != manifesto["target"]:
+        raise ApplyError("Gate decision belongs to a different proposal or target")
+    inputs = gate["inputs"]
+    expected = {
+        "patch_sha256": sha256_text(patch),
+        "manifesto_sha256": sha256_text(manifesto_text),
+        "validation_sha256": sha256_text(validation_text),
+    }
+    if inputs != expected:
+        raise ApplyError("Gate decision input hashes do not match proposal and validation")
+    try:
+        relative = gate_path.relative_to(config.paths.repo_root).as_posix()
+    except ValueError:
+        relative = str(gate_path)
+    return {
+        "path": relative,
+        "sha256": sha256_text(gate_text),
+        "decision": gate["decision"],
+        "authority": gate["authority"],
+    }
 
 
 def _append_ledger(path: Path, event: dict[str, Any]) -> None:

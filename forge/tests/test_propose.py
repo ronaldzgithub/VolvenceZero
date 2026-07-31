@@ -56,6 +56,38 @@ class _Embedder(EmbeddingBackend):
         return np.ones((len(texts), 2), dtype=np.float64)
 
 
+class _RuntimeBackend(StructuredBackend):
+    backend_name = "test-replay"
+    model_name = "runtime-fixture"
+
+    def complete_json(self, *, system, user, schema):
+        del system, user, schema
+        return {
+            "target": (
+                "packages/lifeform-domain-character/src/lifeform_domain_character/"
+                "scenario_packages/fixture/scenes.yaml"
+            ),
+            "operation": "append_yaml_sequence_item",
+            "document_path": "/scenes",
+            "section_content": (
+                "  - scenario_id: runtime_repair_01\n"
+                "    family: relationship_repair\n"
+                "    semantic_routing:\n"
+                "      method: embedding_similarity_plus_schema_bound_structured_output\n"
+            ),
+            "root_cause": "The reviewed semantic asset lacks a repair scene.",
+            "targeted_fix": "Append one owner-bound semantic repair scene.",
+            "prediction": {
+                "metric": "pattern_occurrence_count",
+                "direction": "decrease",
+                "expected_delta": -1,
+                "evaluation_window": "next_mine_run",
+            },
+            "at_risk_regressions": ["the new scene overlaps an existing semantic regime"],
+            "preserve_behaviors": ["boundary rubric remains passing"],
+        }
+
+
 def test_propose_writes_bundle_without_mutating_target(tmp_path: Path) -> None:
     config = _config(tmp_path)
     target = tmp_path / ".cursor" / "rules" / "test.mdc"
@@ -112,4 +144,73 @@ def test_propose_writes_bundle_without_mutating_target(tmp_path: Path) -> None:
     assert rollback_command.startswith("git apply --reverse ")
     assert "proposal-output/proposals/" in rollback_command
     assert str(tmp_path) not in rollback_command
+    assert target.read_text(encoding="utf-8") == before
+
+
+def test_propose_appends_one_runtime_yaml_item_without_mutating_target(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    scenario_dir = (
+        tmp_path
+        / "packages"
+        / "lifeform-domain-character"
+        / "src"
+        / "lifeform_domain_character"
+        / "scenario_packages"
+        / "fixture"
+    )
+    scenario_dir.mkdir(parents=True)
+    target = scenario_dir / "scenes.yaml"
+    target.write_text(
+        'schema_version: "1.0"\nscenes:\n  - scenario_id: existing_01\n    family: existing\n',
+        encoding="utf-8",
+    )
+    (scenario_dir / "test_suite.yaml").write_text(
+        "routing_tests: []\nllm_evaluation:\n  semantic_coherence: []\n",
+        encoding="utf-8",
+    )
+    before = target.read_text(encoding="utf-8")
+    patterns = tmp_path / "runtime-patterns.jsonl"
+    patterns.write_text(
+        json.dumps(
+            {
+                "schema_version": "forge-failure-pattern.v2",
+                "pattern_id": "fp_1123456789abcdef",
+                "title": "runtime repair semantic gap",
+                "verifier_cause": "bench relationship repair rubric failed",
+                "agent_behavior_cause": "the response did not repair the rupture",
+                "exposed_mechanism": "reviewed runtime scene coverage is incomplete",
+                "occurrence_count": 1,
+                "evidence_refs": [
+                    {
+                        "source_id": "bench_bundle:fixture",
+                        "source_kind": "bench_bundle",
+                        "locator": "arc:fixture/session:1/turn:2",
+                        "excerpt": "repair rubric average=1.0",
+                        "digest": "c" * 64,
+                    }
+                ],
+                "source_kinds": ["bench_bundle"],
+                "centroid_digest": "d" * 64,
+                "editable_target": target.relative_to(tmp_path).as_posix(),
+                "editable_component": "character_scenario_semantics",
+                "surface_status": "in-surface",
+                "surface_similarity": 0.9,
+                "preserve_behaviors": ["boundary rubric remains passing"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = propose_changes(
+        config=config,
+        failure_patterns_path=patterns,
+        backend=_RuntimeBackend(),
+        embedder=_Embedder(),
+        output_dir=tmp_path / "runtime-proposal-output",
+    )
+
+    patch = (result.proposal_dirs[0] / "patch.diff").read_text(encoding="utf-8")
+    assert "+  - scenario_id: runtime_repair_01" in patch
+    assert not any(line.startswith("-") and not line.startswith("---") for line in patch.splitlines())
     assert target.read_text(encoding="utf-8") == before

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.gate-decision.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "proposal_id", "target", "decision", "reasons",
+    "desired_gate", "inputs", "metrics", "authority", "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "forge-gate-decision.v1"},
+    "proposal_id": {"type": "string", "pattern": "^pr_[0-9a-f]{16}$"},
+    "target": {"type": "string", "minLength": 1},
+    "decision": {"enum": ["ALLOW", "BLOCK"]},
+    "reasons": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "desired_gate": {"const": "offline"},
+    "inputs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["patch_sha256", "manifesto_sha256", "validation_sha256"],
+      "properties": {
+        "patch_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "manifesto_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "validation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "metrics": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "baseline_pass_rate", "candidate_pass_rate", "validation_delta",
+        "capacity_cost", "contract_integrity", "rollback_resilience"
+      ],
+      "properties": {
+        "baseline_pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "candidate_pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "validation_delta": {"type": "number", "minimum": -1, "maximum": 1},
+        "capacity_cost": {"const": 0.1},
+        "contract_integrity": {"enum": [0.0, 1.0]},
+        "rollback_resilience": {"enum": [0.0, 1.0]}
+      }
+    },
+    "authority": {"const": "volvence_zero.credit.gate.evaluate_gate_reasons"},
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}
