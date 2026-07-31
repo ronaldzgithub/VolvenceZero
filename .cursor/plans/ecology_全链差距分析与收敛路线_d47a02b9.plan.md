@@ -80,7 +80,7 @@ isProject: false
 
 | # | 差距 | 现状 | 目标 |
 |---|---|---|---|
-| E1 | matched 站1 verdict | BLOCK（唯 `typed_milestone_structure` FAIL） | 四门全 PASS，`next_episode_authorized` 指向站2 |
+| E1 | matched 站1 verdict | **终局 BLOCK**：四门全 PASS、47/52 pickup、8/8 structure；唯一五局 review 后 alignment 仍 3/4 | `next_episode_authorized=null`，station2 禁止执行 |
 | E2 | P1 正式全量 | 五臂 × 55 局 + frozen 30/30 eval 只在旧 schema 时代跑过（结论 BLOCK）；v31 语义下从未跑 | 五臂全量 + frozen eval + seed1 复跑 + `--repeat-reference-report` 同向门 |
 | E3 | P2 confirmatory | 未启动 | PE-on/off matched（两臂 milestone 同态 ACTIVE），隔离 PE 加性 prior 的净贡献（D5） |
 | E4 | 旧 journal 处置 | **CLOSED**：旧 v31 ep23 污染态与 v30 MPS 55 局 journal 已归档到 `.partials/excluded_history_20260731/`；manifest 逐文件冻结字节数与 SHA-256 | 顶层 `EXCLUDED`，`resumable=false / admissible_for_formal_verdict=false`；只读审计，禁止误续跑或准入 |

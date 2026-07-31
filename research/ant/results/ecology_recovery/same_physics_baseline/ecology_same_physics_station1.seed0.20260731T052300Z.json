@@ -1,0 +1,230 @@
+{
+  "aligned_food_bodies": 3,
+  "alignment_review_authorized": true,
+  "candidate_blocks": {
+    "burning_near": {
+      "deliveries": 2,
+      "pickups": 17
+    },
+    "butter_near": {
+      "deliveries": 1,
+      "pickups": 5
+    },
+    "composite_near": {
+      "deliveries": 0,
+      "pickups": 2
+    },
+    "forced_return": {
+      "deliveries": 4,
+      "pickups": 23
+    }
+  },
+  "candidate_to_control_pickup_ratio": 0.9038461538461539,
+  "candidate_total_pickups": 47,
+  "completed_episode_count_per_arm": 20,
+  "control_blocks": {
+    "burning_near": {
+      "deliveries": 5,
+      "pickups": 18
+    },
+    "butter_near": {
+      "deliveries": 8,
+      "pickups": 10
+    },
+    "composite_near": {
+      "deliveries": 0,
+      "pickups": 2
+    },
+    "forced_return": {
+      "deliveries": 2,
+      "pickups": 22
+    }
+  },
+  "control_total_pickups": 52,
+  "evidence_envelope_schema_version": "digital-ant-evidence.v3",
+  "food_alignment_rows": [
+    {
+      "action_sensitive": true,
+      "body_id": 0,
+      "input_reachable": true,
+      "left_turn": 0.0001793509079646303,
+      "policy_fingerprint": "60a191effca7bcf67951b53617a9dd8018bbab184dab2faf21a9e7552cfc6d1f",
+      "right_turn": -0.0001802401980768343,
+      "target_aligned": true,
+      "temporal_learning_fingerprint": "1214228a926295361945cf0a942ddc9badb2da88b6590ba6b8442b5ab3d12f17"
+    },
+    {
+      "action_sensitive": true,
+      "body_id": 1,
+      "input_reachable": true,
+      "left_turn": 0.00020407763632050707,
+      "policy_fingerprint": "0f69aab6d8a3bd1399eb4a5884af38279abccf34249eab93c9e6a7bc673f9413",
+      "right_turn": -0.00020511630578758282,
+      "target_aligned": true,
+      "temporal_learning_fingerprint": "ff6d473dbcce58dc97258601717ebac2c699b396b17ed2314ea217849e3c6acf"
+    },
+    {
+      "action_sensitive": true,
+      "body_id": 2,
+      "input_reachable": true,
+      "left_turn": -0.00030933389017317005,
+      "policy_fingerprint": "350e4bf91f7424ceb8be23d53d9d50faeb20eab5b50606e1c751d468ed2e67a7",
+      "right_turn": 0.0003107176593575012,
+      "target_aligned": false,
+      "temporal_learning_fingerprint": "8d70bb28e259439b4ef5847b3c485abb808ce5a75cdb520d0e5464b9ddfb34f5"
+    },
+    {
+      "action_sensitive": true,
+      "body_id": 3,
+      "input_reachable": true,
+      "left_turn": 0.0004566239564860979,
+      "policy_fingerprint": "e229b5ea64197b2ab27a423fdaf90b8596d2c74d03f851671e50372ac2c5eb5d",
+      "right_turn": -0.0004586281752699377,
+      "target_aligned": true,
+      "temporal_learning_fingerprint": "9310d60ed7fb0ca1397a3bfa8716873d4341953e5eebfd9fe94fea222cc43a16"
+    }
+  ],
+  "food_alignment_status": "REVIEW_REQUIRED",
+  "gates": {
+    "control_signal": true,
+    "no_candidate_zero_block": true,
+    "pickup_noninferiority": true,
+    "typed_milestone_structure": true
+  },
+  "next_episode_authorized": null,
+  "preregistration_sha256": "e88a9887dcf1d6da24e16d71327cfe95dcc1d078c9a714840a37714899fafd15",
+  "provenance": {
+    "config_digest": "edb35604eebe442bb21c961f6c1f0c0ecc914c861494d3eadc2c43521eeb70a8",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "effective_backend": "pure:cpu",
+    "git_branch": "main",
+    "git_sha": "676b2c750dcc4acbb672ecc5e75bf3d0e6fec777",
+    "layout_seeds": [],
+    "model_fingerprint": "e88a9887dcf1d6da24e16d71327cfe95dcc1d078c9a714840a37714899fafd15",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "requested_device": "cpu",
+    "seed_schedule": [
+      0
+    ],
+    "training_seeds": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "required_aligned_food_bodies": 4,
+  "schedule_sha256": "57f0e58def9c562efc29f43feb20e574ef9279129cc691d3ada8e0b7de5d9e45",
+  "schema_version": "digital-ant-ecology-same-physics-station1.v2",
+  "structural_lanes": [
+    {
+      "body_id": 0,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 4,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 0,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 4,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 1,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 1,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 2,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 4,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 2,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 4,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 3,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 3,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    }
+  ],
+  "verdict": "GO"
+}

@@ -1,9 +1,16 @@
 # VolvenceZero Cognitive AGI 当前状态
 
 > Status: live status summary
-> Last updated: 2026-07-17（P0 补齐包 + P1 缺口补齐包 G1–G5 之后）
+> Last updated: 2026-07-31（#92 因果证据终局判词）
 > 详细判断、晋升协议与命令见 [`current.md`](./current.md)。
 > 本文件只记录当前事实、剩余代码、晋升状态和下一步，不把计划写成已完成。
+
+> **终局证据边界**：#92 已以 `thesis-rejected` CLOSED。mechanism coverage
+> 完整；causal-supported=Gate 2/8/11，longitudinal-supported=Gate 8/11，
+> full-chain rollback 通过，但整体 thesis 与 production/live ACTIVE 晋升
+> 均未获授权。Ecology station1 四门通过，唯一 alignment review 后仍 3/4，
+> 因而 station2/P1/P2 均按预注册 kill。权威对账：
+> `artifacts/causal_evidence_final_campaign_20260731/`。
 
 ## 1. 当前总状态
 
@@ -14,7 +21,7 @@
 | 默认 learned 决策主导度 | 仍低（新 learners 均 SHADOW/report-only） | 约 10–20% | 四 torch backend 晋升 + SHADOW learners 转 authoritative |
 | learned backend 实现 | 已就位且晋升管线代码完备 | 约 80–88% | ≥500 real-trace、validation delta、控制臂等证据 |
 | 晋升证据 | 部分就绪 | 尚未全绿 | promotion report 的 component gates |
-| thesis 因果证据 | harness-ready | 约 5% | P1 directional + P2 held-out multi-seed |
+| thesis 因果证据 | 终局拒绝（局部支持） | #92 CLOSED | 重新提出整体 thesis 前必须是新的、owner-level 机制与独立预注册证据计划 |
 | 开放世界 cognitive AGI | 未开始证明 | 不适用 | 跨域、跨模态、因果结构发现、mesa-objective detection |
 
 ## 2. 2026-07-17 两轮代码补齐

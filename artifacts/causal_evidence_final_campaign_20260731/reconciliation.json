@@ -1,0 +1,55 @@
+{
+  "schema_version": "causal-evidence-final-reconciliation.v1",
+  "closed_at": "2026-07-31",
+  "debt": 92,
+  "terminal_verdict": "thesis-rejected",
+  "thesis_retained": false,
+  "production_live_promotion_authorized": false,
+  "mechanism_coverage_complete": true,
+  "causal_supported_gates": [2, 8, 11],
+  "longitudinal_supported_gates": [8, 11],
+  "full_chain_rollback_satisfied": true,
+  "gate_3_exists": false,
+  "gate_ledger": {
+    "1": "mechanism-supported; causal not-supported; ecology P2 not-authorized",
+    "2": "causal-supported by v35; longitudinal not-supported; ecology typed-boundary station1 mechanism GO but alignment review BLOCK",
+    "4": "mechanism-supported; causal not-supported; ecology source not-admitted",
+    "5": "mechanism-supported; causal and longitudinal not-supported",
+    "6": "mechanism-supported; causal not-supported",
+    "7": "mechanism-supported; causal not-supported; ecology P1 not-authorized",
+    "8": "causal-supported and longitudinal-supported",
+    "9": "mechanism-supported; causal not-supported; kill condition",
+    "10": "mechanism-supported and rollback-supported; causal not-supported; review-only",
+    "11": "causal-supported and longitudinal-supported; human relationship-quality ground truth absent"
+  },
+  "ecology_terminal": {
+    "station1_verdict": "GO",
+    "station1_candidate_pickups": 47,
+    "station1_control_pickups": 52,
+    "station1_pickup_ratio": 0.9038461538461539,
+    "station1_causal_gates_passed": true,
+    "station1_structural_lanes_passed": 8,
+    "alignment_before_review": 3,
+    "alignment_after_review": 3,
+    "alignment_required": 4,
+    "review_verdict": "BLOCK",
+    "next_episode_authorized": null,
+    "station2_status": "not-authorized",
+    "gate4_ecology_status": "not-admitted",
+    "p1_status": "not-authorized",
+    "p2_status": "not-authorized"
+  },
+  "terminal_reasons": [
+    "Gate 2 fresh longitudinal companion failed the frozen single-seed stop-loss.",
+    "Gates 1, 4, 5, 6, 7, 9 and 10 did not reach causal support under their frozen controls.",
+    "The only preregistered ecology alignment review remained 3/4, so station 2 and all downstream ecology evidence were not authorized.",
+    "The causal and longitudinal sets do not satisfy the frozen #92 total EXIT."
+  ],
+  "retained_claim_boundary": [
+    "The owner, snapshot, replay, rollback and bounded-learning mechanisms are implemented and auditable.",
+    "Gate 2 supports a bounded open-loop z_t action-value causal claim, but not longitudinal readout or live injection.",
+    "Gate 8 supports deterministic wake/sleep longitudinal owner effects.",
+    "Gate 11 supports isolated per-user owner continuity, not human-rated relationship quality.",
+    "No evidence supports claiming the complete Volvence thesis, production ACTIVE promotion, or general physical autonomy."
+  ]
+}

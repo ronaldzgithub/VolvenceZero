@@ -1,0 +1,13 @@
+{
+  "schema_version": "causal-evidence-final-manifest.v1",
+  "decision": "thesis-rejected",
+  "debt_closed": 92,
+  "sources": [
+    {"path": "research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_station1.seed0.20260731T052300Z.json", "sha256": "94d4e556a5426329cb8fdf1d3f7e628c07e371efa58ace4893944e15de6fad63"},
+    {"path": "research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_alignment_review.seed0.20260731T053814Z.json", "sha256": "22c61c28f7051704436507a28f4c576b582e89fbb6941c27706444426fbf2896"},
+    {"path": "artifacts/mechanism_repair_campaign_20260731/reconciliation.json", "sha256": "4908ab8d30602a31e47b24b4731cbf3a5f5d3ec83ef348b4b38805cc0083acce"},
+    {"path": "artifacts/gate2_longitudinal_v35_companion_seed1201_formal_20260730/promotion_verdict.json", "sha256": "b6cf77219af6e509dd813cc9c25523d47e8b342e7345210b4fb8f99638d8770d"},
+    {"path": "artifacts/gate8_wake_sleep_longitudinal_20260730/promotion_verdict.json", "sha256": "9f7a0e72d8435aa209e1c6987b8017ee55518b18c5f9fd39e133d466fac9f6fa"},
+    {"path": "artifacts/gate11_per_user_continuity_v2_20260730/promotion_verdict.json", "sha256": "3b591b95ea0c044e57341c00a32772e126cbe61a13157791f137a7668976da0b"}
+  ]
+}

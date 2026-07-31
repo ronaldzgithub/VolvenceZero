@@ -30,8 +30,8 @@ todos:
     content: 同物理 causal packet、严格校验器与可恢复双臂 station1 runner 已实现；最终 prereg/manifest 已校验
     status: completed
   - id: same-physics-station1
-    content: 完整 code-tree 绑定的新空 journal 已启动；control ep0 前飞通过，余下 control/candidate station1 正在独立 session 运行
-    status: in_progress
+    content: station1 四门 GO、47/52 pickup、8/8 structure；唯一 review 后 alignment 仍 3/4，终局 BLOCK
+    status: completed
   - id: excluded-history-archive
     content: 旧 v31 ep23 与 v30 MPS 55 局 journal 已逐文件 SHA 归档，明确 EXCLUDED 且禁止续跑/准入
     status: completed

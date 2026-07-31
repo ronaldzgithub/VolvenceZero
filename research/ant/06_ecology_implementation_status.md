@@ -303,3 +303,10 @@ D9/G2 的最后一项陈旧测试契约也已关闭。`run_behavioral_matched_co
 `learned_beats_random_food=false`，不修改实现、不降低非零训练预算的 P1/P2
 门。验证为 matched-control 同文件 9/9 通过，其中 spawn 多进程项在允许读取
 macOS semaphore 上限的沙箱外通过；测试文件 Ruff 通过。
+
+同物理终局结果：station1 candidate/control pickup=`47/52`
+（ratio=`0.903846`），四个 causal gate 与 8/8 persistence lane 全过；
+food alignment 为 3/4，因此只授权预签的五局 review。review 使用原 checkpoint
+SHA `e4c9db1…` 和固定 schedule，五局后 re-probe 仍为 3/4（body2 未对齐），
+machine verdict=`BLOCK`、`next_episode_authorized=null`。episode20、station2、
+P1/P2 与 Gate4 ecology corpus 均未获授权，禁止第二次 review 或加训练量绕过。

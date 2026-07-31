@@ -484,6 +484,17 @@ preregistration 与 code-tree binding 精确匹配、matched 臂只有声明的�
 任一共同门失败时 artifact 标记 `invalid`，不得进入等级集合。Gate 6/9/10
 保持机制改造战役的 kill 关闭状态；v1 不为它们声明 ecology source。结果产生
 后不得增删本表字段或门槛；新对应面只能另开明确标注事后性的 v2。
+
+### #92 终局对账（2026-07-31）
+
+权威 artifact 为 `artifacts/causal_evidence_final_campaign_20260731/`，统一
+verdict=`thesis-rejected`。Gate 1–11（无 Gate 3）mechanism coverage 完整，
+causal-supported 为 `2/8/11`，longitudinal-supported 为 `8/11`，
+full-chain rollback 已满足，但总 EXIT 不成立。Ecology station1 四门与 8/8
+structure 通过，唯一预签 review 后 alignment 仍为 3/4，故 station2 未授权，
+Gate 4 ecology source=`not-admitted`，P1/P2 不执行。该 kill 是冻结计划允许的
+终态，不得以继续同层调参把 #92 留作僵尸线。允许的对外主张仅限 artifact
+`retained_claim_boundary`；production/live promotion 保持禁止。
 - Gate 7/9/10 第三战役总对账只读取并 SHA256 绑定上述 immutable verdict，
   不重算或抬高门级结论。Gate 1-10 mechanism coverage 已完整（#92 无
   Gate 3）；causal-supported 仅 Gate 2 v35 与 Gate 8，Gate
