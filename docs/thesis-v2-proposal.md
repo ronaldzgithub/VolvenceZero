@@ -74,6 +74,12 @@ L4-A 已冻结 `gate811-human-anchor-prereg.v1`：
 L4-B 已落地 typed capture 校验、consent/PII attestations、exact matched pairing、
 盲包/内部 key 分离和评分 CSV。工具完成不等于人类证据完成。
 
+L4-C 的本地分析执行器也已在评分出现前冻结：它要求 typed human/non-project rater
+roster、逐哈希 packet/key/template、原布局 completed CSV，并固定 ordinal α、Wilson、
+10,000 次 rater-cluster bootstrap 与 formal power 计算。分析 prereg SHA-256 为
+`240742e54524b657fb3803382d93af4e651f59f5fb8c8be9e85823ffd5bb95af`。这只把阻塞
+缩小到真实 capture、招募与评分；没有 pilot data，因此不改变 v2 当前判词。
+
 ## 6. 总 EXIT
 
 v2 只有两个终态，不保留“再跑一点看看”的中间态：
@@ -117,6 +123,7 @@ l1_ecology = terminal-block
 l3_gate2_longitudinal = single-seed-stoploss
 l4a_protocol = complete
 l4b_tooling = complete
+l4c_analysis_tooling = complete-no-human-data
 l4c_pilot_power = pending-external
 l4d_formal_human_anchor = pending-external
 production_live_promotion_authorized = false

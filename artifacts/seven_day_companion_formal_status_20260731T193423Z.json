@@ -1,0 +1,42 @@
+{
+  "schema_version": "seven-day-companion-formal-status.v1",
+  "preregistration_path": "artifacts/seven_day_companion_simulated_prereg_20260731T193423Z.json",
+  "preregistration_sha256": "aa28e684c82faf14d63c2b3188633be670e2c822ad26d538dc1888d8a0fc73db",
+  "status": "blocked-before-run",
+  "formal_effect_verdict": "unavailable",
+  "observed_run_count": 0,
+  "expected_run_count": 36,
+  "expected_session_count": 252,
+  "expected_exchange_count": 1260,
+  "execution_tooling": {
+    "managed_process_restart_host_complete": true,
+    "scoped_state_archive_controller_complete": true,
+    "stateless_intervention_complete": true,
+    "swapped_user_state_intervention_complete": true,
+    "shuffled_history_intervention_complete": true,
+    "archive_and_loaded_state_sha256_attestation_complete": true
+  },
+  "environment_readiness": {
+    "remote_model_credentials_present": false,
+    "local_qwen_cache_present": true,
+    "local_tinyllama_cache_present": true,
+    "torch_transformers_runtime_present": true,
+    "mps_available_to_current_python": false,
+    "formal_runs_directory_present": false
+  },
+  "blockers": [
+    "No completed 36-run product-path artifact matrix exists.",
+    "No formal invocation is configured with a real frozen SUT and a different-family real simulator.",
+    "The current Python runtime has no MPS acceleration; the local-open-weight fallback would run 1260 SUT exchanges plus simulator rendering and 216 service restarts on CPU.",
+    "No remote simulator or SUT credentials are configured."
+  ],
+  "claim_boundaries": {
+    "no_gain_may_be_inferred": true,
+    "no_failure_may_be_inferred": true,
+    "simulated_causal_claim_allowed": false,
+    "real_user_product_value_claim_allowed": false,
+    "human_anchor_claim_allowed": false,
+    "production_promotion_authorized": false
+  },
+  "required_next_action": "Configure a real cross-family SUT/simulator invocation, execute the preregistered 36-run matrix through the managed process host, then evaluate all immutable run artifacts."
+}

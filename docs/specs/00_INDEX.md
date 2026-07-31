@@ -256,6 +256,7 @@
 |------|------|
 | [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
+| [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：冻结 user script、state 四臂与 sleep 两臂、cold-start/日终 readout、Gate 8/11 simulated capture 兼容边界与正式 run 预注册 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
 | [thesis-v2-proposal.md](../thesis-v2-proposal.md) | #93 有界产品连续性提案：继承 #92/L1/L3 负证据，把 Gate 8/11 真实人类 anchor 作为唯一新 EXIT，明确排除失败 learned uplift 与 production 自动晋升 |
 | Gate 2 conditioned longitudinal（[temporal](./temporal-abstraction.md) / [conditioning](./personal-conditioning.md) / [evidence](./evidence_program.md)） | 14 维 Relationship owner readout 条件化 8076→8090 residual selector；seed1301 stop-loss 终局 `not-supported`，不授权 live promotion |
@@ -265,6 +266,7 @@
 - 盲评外发包不得泄漏 profile 条件
 - 证据结论必须可回溯到 manifest / provenance / 原始 artifact
 - same-substrate ablation：九 track 必须字节级同基底并由单 frozen substrate owner 承载（fingerprint + topology 守门）；裁判/用户模拟器非 substrate 家族；`first-stage-retained` 才可称人类世界模型 thesis 第一阶段成立，物理侧扩张需独立 benchmark
+- 七日 simulated evidence 必须逐字节匹配 user turns、真实走 persist/restart/hydrate、缺失 owner metric 不插补；自动结果只支持 simulated-longitudinal，不授权 real-user 或 production 主张
 
 ---
 

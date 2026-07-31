@@ -1,0 +1,39 @@
+{
+  "schema_version": "seven-day-companion-formal-status.v1",
+  "preregistration_path": "artifacts/seven_day_companion_simulated_prereg_20260731T192101Z.json",
+  "preregistration_sha256": "820aacc0190b61a8f9e38bdadb7664c5e5ad91e7b7c90f508b28907a00405dc1",
+  "status": "blocked-before-run",
+  "formal_effect_verdict": "unavailable",
+  "observed_run_count": 0,
+  "expected_run_count": 36,
+  "expected_session_count": 252,
+  "expected_exchange_count": 1260,
+  "environment_readiness": {
+    "remote_model_credentials_present": false,
+    "local_qwen_cache_present": true,
+    "local_tinyllama_cache_present": true,
+    "torch_transformers_runtime_present": true,
+    "mps_available_to_current_python": false,
+    "formal_runs_directory_present": false
+  },
+  "blockers": [
+    "No completed 36-run product-path artifact matrix exists.",
+    "No configured formal executor currently applies all three state-loading controls (stateless, swapped-user-state, shuffled-history) through the product lifecycle while preserving the frozen user script.",
+    "The current Python runtime has no MPS acceleration; a 1260-exchange SUT plus simulator local-open-weight run would be CPU-only.",
+    "No remote simulator or SUT credentials are configured."
+  ],
+  "non_blocking_available_inputs": [
+    "Local Qwen2.5 0.5B and 1.5B caches are present.",
+    "Local TinyLlama 1.1B cache is present.",
+    "Preregistration, evaluator, capture generator, and blinded packet tooling are complete."
+  ],
+  "claim_boundaries": {
+    "no_gain_may_be_inferred": true,
+    "no_failure_may_be_inferred": true,
+    "simulated_causal_claim_allowed": false,
+    "real_user_product_value_claim_allowed": false,
+    "human_anchor_claim_allowed": false,
+    "production_promotion_authorized": false
+  },
+  "required_next_action": "Configure and execute the preregistered product-path arm executor; then run scripts/evaluate_seven_day_companion_simulated.py on all 36 immutable run artifacts."
+}

@@ -600,8 +600,12 @@ owner/snapshot/lineage/persistence/rollback 基础设施。多频 CMS、PE 行�
 learned 主动学习、SSL→RL、M3、rare-heavy 自动晋升、Ecology medium 和
 Gate 2 longitudinal 全部排除出 v2 EXIT。
 
-v2 唯一新证据面是已预注册的 Gate 8/11 真实人类盲评。L4-A 协议与
-L4-B 工具已完成，但真实 transcript、非项目 rater、pilot/power 与 formal
+v2 唯一新证据面是已预注册的 Gate 8/11 真实人类盲评。L4-A 协议、
+L4-B 盲化工具与 L4-C 本地分析/power-freeze 执行器已完成。分析器在看见评分前冻结
+typed human/non-project roster、ordinal Krippendorff α、Wilson、10,000 次
+rater-cluster bootstrap 与 60–300 formal pair 规则；analysis prereg SHA-256 为
+`240742e54524b657fb3803382d93af4e651f59f5fb8c8be9e85823ffd5bb95af`。但真实
+transcript、非项目 rater、pilot/power report 与 formal
 run 尚未完成。因此当前状态必须写为
 `preregistered-proposal / not-yet-retained`，不是 thesis 新证明。Gate 8 与 Gate 11
 两门都过才可终态 `product-continuity-retained`；任一门失败则终态
@@ -612,3 +616,30 @@ machine preregistration：
 SHA-256 `8bcabb75a6d63068d3dc40e6cbd7e9497560f17cab364017a1cfb76b6fb8f3c2`。
 该 artifact 同时冻结 `production_live_promotion_authorized=false`；v2 即使未来 retained，
 也不自动翻转任何 `WiringLevel`。
+
+## 16. 七天自动化证据闭环：工具完成，不等于新增益已取得
+
+2026-08-01 完成了 simulated user × 真实七日 lifecycle 的证据执行面：六个
+scenario（3 persona × 渐进升温/裂痕修复）、每场 7 sessions × 5 exchanges、每日
+cold-start/end-of-day 七项 readout、6 次 persist/restart/hydrate 边界、Gate 11 四臂、
+Gate 8 sleep 两臂，以及 Gate 8/11 v1 capture→blind packet 适配器。各臂共享冻结的
+35 个 user turns，evaluation 只读且不回灌学习。
+
+正式协议已冻结为
+[`seven_day_companion_simulated_prereg_20260731T193423Z.json`](../artifacts/seven_day_companion_simulated_prereg_20260731T193423Z.json)，
+SHA-256 `aa28e684c82faf14d63c2b3188633be670e2c822ad26d538dc1888d8a0fc73db`。正式矩阵是
+36 runs / 252 sessions / 1260 exchanges，禁止 deterministic fake，且 user simulator 与
+SUT 必须跨模型家族。
+
+但截至本次对账，正式 run 工件尚不存在，所以这里**没有新增“稳定净增益”结论**，也不能
+说实验发现“没有提升”：正确状态是 `not-run / no causal result yet`。工具测试只证明
+arm schedule、matching、指标缺失 fail-loud、capture 形状与盲化流程正确，不证明某臂
+效果更好。正式状态工件为
+[`seven_day_companion_formal_status_20260731T193423Z.json`](../artifacts/seven_day_companion_formal_status_20260731T193423Z.json)。较早的
+`192101Z` prereg 在任何 run 前被 process/state-attestation 强化版取代，未观察 outcome，
+不构成看结果后改协议。
+
+冻结 v1 没有限定聊天者必须真人，因此 simulated transcript 可以用于 pilot；真人评分后
+最多得到 `human-rated-simulated-user-transcripts-only`。它不能替代 #93 的 real-user
+product-value EXIT。盲评未完成、正式 run 未完成、production promotion 仍为 false，
+所有相关机制的现有 `WiringLevel` 均不因本工具链改变。

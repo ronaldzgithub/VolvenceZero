@@ -1,0 +1,12 @@
+{
+  "schema_version": "seven-day-companion-prereg-supersession.v1",
+  "superseded_preregistration_path": "artifacts/seven_day_companion_simulated_prereg_20260731T192101Z.json",
+  "superseded_preregistration_sha256": "820aacc0190b61a8f9e38bdadb7664c5e5ad91e7b7c90f508b28907a00405dc1",
+  "authoritative_preregistration_path": "artifacts/seven_day_companion_simulated_prereg_20260731T193423Z.json",
+  "authoritative_preregistration_sha256": "aa28e684c82faf14d63c2b3188633be670e2c822ad26d538dc1888d8a0fc73db",
+  "superseded_before_any_formal_run": true,
+  "superseded_observed_run_count": 0,
+  "reason": "Before any outcome was generated, the protocol was strengthened to freeze the process host, filesystem state intervention controller, exact shuffled source-day schedule, and archive/loaded-state SHA-256 attestations.",
+  "outcome_driven_revision": false,
+  "production_promotion_authorized": false
+}

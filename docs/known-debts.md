@@ -1,7 +1,11 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: **2026-07-31** (v14 — 新开 **#93 thesis v2 产品连续性验证债**：继承 #92/L1/L3 负证据，把 Gate 2 限定为 open-loop causal，把 Gate 8/11 human anchor 作为唯一新外部效度 EXIT；L4-A 预注册与 L4-B 盲化工具已完成，pilot/formal 仍等待真实 transcript 与非项目评审者)
+> Validation note (2026-08-01): 仓库原 `.venv` 的全部 editable wheel 曾解析到
+> `VolvenceDeploy/external/VolvenceZero` 旧克隆；因此此前未显式固定本仓库
+> `PYTHONPATH` 的本地验证结论不可作为当前源码的独立证据。该环境已重建为本仓库
+> 39 个 `packages/*` wheel 的 editable 安装，后续证据必须同时记录 import provenance。
+> Last updated: **2026-07-31** (v15 — #93 的 L4-C 本地分析/power-freeze 工具已预注册，含 typed 真人非项目 roster、ordinal α、Wilson 与 cluster bootstrap；真实 pilot/formal 仍等待 consented transcript 与非项目评审者)
 > Previous: **2026-07-31** (v13 — **#92 终局关闭并删除 open section**：统一 verdict=`thesis-rejected`；mechanism coverage 完整，causal-supported=Gate 2/8/11，longitudinal-supported=Gate 8/11，full-chain rollback 通过但总 EXIT 不成立。Ecology station1 四门与 8/8 structure 通过，唯一预签 alignment review 后仍 3/4，station2/P1/P2 未获授权。生产/live promotion 保持禁止；权威对账 `artifacts/causal_evidence_final_campaign_20260731/`。完整历史由 git 保留)
 > Earlier: **2026-07-17** (v11 — `should-be-learned` 桶两条漏网项清账（纯代码侧）：**#89 残余**「`apply_prediction_error_signal` 固定写入阈值」learned 门控化——新增 `vz-memory` `PeWriteGate`（0.15 固定阈值=初始化+回滚点；PE 写入按 realized usefulness settle，±0.10 包络；readout 经 `lifecycle_metrics` 发布，阈值随 checkpoint 往返），coverage spec 5.3 该行移入 `bounded-learned`，契约测试 `tests/test_memory_pe_write_gate.py` 8/8 绿，见 #89 section；**#91 残余**「`semantic_feature_surface_from_text` hash pull 覆盖真实 readout」修复——adapter 追加 fallback 改单一 owner merge，runtime 混合 hidden-state 语义 pull 不再被 hash 按名覆盖，synthetic/文本-only 路径逐字节不变，契约测试 `tests/contracts/test_substrate_semantic_surface_ownership.py` 4/4 绿，见 #91 section)
 > Earlier: **2026-07-16** (v10 — 认知 AGI 代码完整度提升计划 A1/A2 debt 影响：**#81 关闭（A2）**——`runtime_helpers` 的 6 个 `if domain == "X":` hint summary / topic_tags 分支迁移为 `vz-cognition.regime.contracts` 的 typed `DomainHintCatalog`（`ApplicationBrief` 旁，含 `language` i18n 接缝 + `DEFAULT_DOMAIN_HINT_CATALOG` 字节不变文本），runtime_helpers 只留读 catalog 的薄 wrapper，契约测试 `tests/contracts/test_domain_hint_catalog.py`（literal-domain 分支归零 + summary/tag 一致性守门 + verbatim 读取）；**#90 protocol 层残余代码侧闭合（A1）**——见 #90 section 2026-07-16 进展（PE-shaped overlay readout + protocol-lineage conflict → typed 修订提案经 `ProtocolRevisionQueueModule` 单 router 走 R10 gate 人审，`tests/contracts/test_apprenticeship_protocol_revision_path.py`）。同日更早 packet（T1-T3/C1-C4/M1/M2/S1）见 [learned-vs-heuristic-coverage.md](specs/learned-vs-heuristic-coverage.md) 变更日志 2026-07-16)
@@ -1199,7 +1203,10 @@ return (
   Likert、boundary non-inferiority 与 ordinal alpha 门；预注册 SHA-256
   `cb56b29cc8bb635f3bb3acd141d5c688d2bd20907feaa0ff6064da0fc7882a7b`。L4-B
   typed capture、consent/PII attestation、exact pairing、盲包/内部 key/CSV 工具也已
-  落地。**真实 pilot/formal 仍 OPEN**：缺 consented transcript 与至少 6 名非项目
+  落地；pilot 分析器也已冻结 typed human/non-project roster、ordinal α、Wilson、
+  rater-cluster bootstrap 与 power 规则，analysis prereg SHA-256
+  `240742e54524b657fb3803382d93af4e651f59f5fb8c8be9e85823ffd5bb95af`。
+  **真实 pilot/formal 仍 OPEN**：缺 consented transcript 与至少 6 名非项目
   rater；不得用 synthetic 或 LLM judge 代替。
 - **优先级**：**低-中**（Phase B 中期；与 P2 30 天试点同 packet 设计；与 #33 human-eval 联动）
 
@@ -2167,8 +2174,17 @@ return (
   不留存僵尸债。
 - **回滚**：本债只管 evaluation artifacts；回滚是不发布/撤下盲包与结论报告，不修改
   Gate 8/11 owner state、reward、credit 或 production wiring。
-- **当前状态**：`OPEN / externally-blocked-after-tooling`。L4-A/L4-B 已完成；剩余是
-  consented fresh transcripts、非项目 rater 招募、pilot/power 与 formal run。权威提案：
+- **当前状态**：`OPEN / externally-blocked-after-tooling`。L4-A/L4-B 与 L4-C
+  分析/power-freeze 执行器已完成，analysis prereg SHA-256
+  `240742e54524b657fb3803382d93af4e651f59f5fb8c8be9e85823ffd5bb95af`。2026-08-01
+  又完成七日模拟用户 × 产品生命周期工具链，并冻结
+  `seven-day-companion-simulated.v1`（SHA-256
+  `aa28e684c82faf14d63c2b3188633be670e2c822ad26d538dc1888d8a0fc73db`）；v1 capture
+  shape 可接 simulated user，能把真人工作收缩为盲评评分。但正式 36-run/252-session
+  产品路径矩阵尚未执行，当前没有 simulated causal verdict；即使未来该自动 run 与真人
+  评分通过，也只产生 `human-rated-simulated-user-transcripts-only`，不等于真实用户产品
+  价值。#93 剩余仍是 real-user consented fresh transcripts、非项目 rater 招募、真实
+  pilot/power 与 formal run。权威提案：
   [`docs/thesis-v2-proposal.md`](thesis-v2-proposal.md)；machine preregistration：
   `artifacts/thesis_v2_product_continuity_prereg_20260731T181500Z.json`（SHA-256
   `8bcabb75a6d63068d3dc40e6cbd7e9497560f17cab364017a1cfb76b6fb8f3c2`）。
