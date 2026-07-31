@@ -1,6 +1,6 @@
 # Relationship Memory Console
 
-> Status: draft / MVP P0
+> Status: MVP P0/P1 landed; P2-P6 planned
 > Last updated: 2026-08-01
 > Scope: Gate 8/11 productization for the 7-day relationship assistant MVP
 

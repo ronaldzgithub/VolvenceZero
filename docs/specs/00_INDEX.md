@@ -193,6 +193,22 @@
 
 ---
 
+### 6D. Relationship Memory Console（MVP P0/P1）
+
+**对应需求**：R5（连续记忆）、R6（反思与沉淀）、R7（关系连续性）、R8（快照优先）、R12（评估单向性）、R15（可回滚演进）
+
+| Spec | 内容 |
+|------|------|
+| [relationship-memory-console.md](./relationship-memory-console.md) | Gate 8/11 产品闭环：reflection owner 发布关系更新提案，lifeform console 提供用户确认与纠正，evaluation 发布七日连续性只读指标 |
+
+**核心不变量**：
+- `reflection` 是 `relationship_update_proposals` 的唯一解释者；service / UI 不从原始文本或 owner 内部结构重建提案
+- MVP 提案默认 `SHADOW` 且需要用户确认；持久写入仍走目标 owner 的正式 API
+- console 纠正通过 typed `dialogue_external_outcome` 回流；连续性指标只读，不成为 PE 或 credit 源
+- Gate 11 负控只用于离线回归，不进入生产路由
+
+---
+
 ### 7. 信用分配与自修改
 
 **对应需求**：R-PE（prediction error 为原始学习信号）、R9（层级信用分配）、R10（有门控的分层自修改）

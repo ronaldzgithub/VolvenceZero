@@ -4,10 +4,10 @@ overview: 把 Gate 8（sleep consolidation）与 Gate 11（per-user continuity�
 todos:
   - id: p0-contract
     content: P0：DATA_CONTRACT slot 注册 + relationship-memory-console spec
-    status: pending
+    status: completed
   - id: p1-proposals
     content: P1：ReflectionSnapshot 增加 relationship_update_proposals readout（SHADOW 起步）
-    status: pending
+    status: completed
   - id: p2-console-api
     content: P2：lifeform-service 逐条记忆 console API（六操作映射 owner API）
     status: pending

@@ -1734,6 +1734,17 @@ class ConsolidationScore:
     description: str
 
 @dataclass(frozen=True)
+class RelationshipUpdateProposal:
+    proposal_id: str
+    target_owner_slot: str
+    operation: str
+    human_readable_description: str
+    source_evidence: tuple[str, ...]
+    confidence: float
+    requires_user_confirmation: bool = True
+    shadow_only: bool = True
+
+@dataclass(frozen=True)
 class ReflectionSnapshot:
     memory_consolidation: MemoryConsolidation
     policy_consolidation: PolicyConsolidation
@@ -1744,6 +1755,7 @@ class ReflectionSnapshot:
     writeback_mode: str                             # disabled | proposal-only | apply
     review_required: bool
     description: str
+    relationship_update_proposals: tuple[RelationshipUpdateProposal, ...] = ()
 ```
 
 **当前实现口径**：
@@ -1756,8 +1768,10 @@ class ReflectionSnapshot:
 - `review_required=True` 表示需要后续 gate / human / rollout 决策后才能放大范围
 - 当前 `policy_consolidation` 已成为 reflection owner 对 regime / temporal owner 的 typed 写回契约；编排层只负责 target-specific gate + audit，再调用目标 owner 的正式 apply API
 - 默认主链中的 active reflection / temporal 会把该 bounded prior writeback 纳入 `writeback_result.applied_operations` 与 credit modification audit
+- `relationship_update_proposals` 是 reflection owner 从 consolidation、typed tension / lesson 与 PE failure readout 派生的用户可审阅提案；consumer 禁止读取原始用户文本重建描述或目标 owner
+- P1 中所有关系更新提案均为 `shadow_only=True`、`requires_user_confirmation=True`；字段默认空 tuple，旧快照和持久化数据保持兼容
 
-**消费者**：记忆系统、信用分配、Metacontroller、认知 Regime 层
+**消费者**：记忆系统、信用分配、Metacontroller、认知 Regime 层；lifeform-service 关系记忆 console 只读消费提案
 **发布频率**：每会话后（异步）
 
 ### 3.9 Prediction Error（PredictionError）
@@ -2033,7 +2047,8 @@ reflection ──────────────→ proposals; runtime invo
 | `regime` | RegimeModule | RegimeSnapshot | SHADOW | 每 turn | prediction_error, reflection, retrieval_policy |
 | `prediction_error` | PredictionErrorModule | PredictionErrorSnapshot | ACTIVE | 每 turn | memory, temporal_abstraction, regime, credit, reflection；另在 final wiring 中被 evaluation enrichment 读取 |
 | `credit` | CreditModule | CreditSnapshot | SHADOW | 每 turn ~ 每会话 | reflection; consumes `prediction_error` + `temporal_abstraction.closed_segments` for PE-derived segment credit |
-| `reflection` | ReflectionModule | ReflectionSnapshot | SHADOW / session-post | 每会话后（异步） | temporal_abstraction；另外通过 owner-side writeback 影响 memory / credit / regime |
+| `reflection` | ReflectionModule | ReflectionSnapshot（含 `relationship_update_proposals`） | SHADOW / session-post | 每会话后（异步） | temporal_abstraction、lifeform-service 关系记忆 console；另外通过 owner-side writeback 影响 memory / credit / regime |
+| `relationship_continuity` | RelationshipContinuityEvaluationModule（P5 planned） | RelationshipContinuitySnapshot | DISABLED → SHADOW | 每会话 / 每日 pilot 汇总 | lifeform-service continuity metrics、pilot evidence；只读消费 evaluation、semantic owner lifecycle 与 typed console outcomes，不进入 PE / credit / ModificationGate |
 | `session_post_slow_loop` | SessionPostSlowLoopModule | SessionPostSlowLoopSnapshot | ACTIVE | context / session boundary | reports / experience_consolidation |
 | `retrieval_policy` | RetrievalPolicyModule | RetrievalPolicySnapshot | ACTIVE | 每 turn | domain_knowledge, case_memory, boundary_policy, response_assembly |
 | `domain_knowledge` | DomainKnowledgeModule | DomainKnowledgeSnapshot | ACTIVE | 每 turn | boundary_policy, response_assembly, evaluation |
@@ -2275,6 +2290,7 @@ carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
 | `memory` | `cms_band_vectors: tuple[tuple[str, tuple[float, ...]], ...]` | memory owner 发布 CMS band 向量，temporal 不再按属性名读取 `cms_state` 内部结构 |
 | `case_memory` | `support_prior: float`、`task_prior: float` | case_memory owner 发布 track prior，runtime 不再遍历 `hit.track_tags` 推导 |
 | `strategy_playbook` | `support_prior: float`、`task_prior: float` | strategy_playbook owner 发布 playbook prior，runtime 不再按 regime 字符串集合分类 |
+| `reflection` | `relationship_update_proposals: tuple[RelationshipUpdateProposal, ...]` | reflection owner 从 consolidation、typed tension / lesson 与 PE failure readout 发布可审阅关系更新提案；consumer 不得从原始文本重建；P1 默认 SHADOW、必须用户确认 |
 
 **字段扩展不变量**：
 
