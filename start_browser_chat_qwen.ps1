@@ -344,6 +344,10 @@ Set-DefaultEnv 'ALPHA_USERS_FILE'      ''
 Set-DefaultEnv 'EVIDENCE_ROOT_DIR'     ''
 Set-DefaultEnv 'TEMPLATES_ROOT_DIR'    (Join-Path $RootDir 'artifacts\lifeform-templates')
 Set-DefaultEnv 'MODEL_ID_ALLOWLIST'    ''
+Set-DefaultEnv 'COMMON_ADAPTER_BUNDLE_PATH' ''
+Set-DefaultEnv 'CHARACTER_PACKAGE_MANIFESTS' ''
+Set-DefaultEnv 'CHARACTER_PACKAGE_MODE' 'shadow'
+Set-DefaultEnv 'CHARACTER_PACKAGE_WIRING' ''
 Set-DefaultEnv 'PROTOCOL_AUTOLOAD_DIR'        ''
 Set-DefaultEnv 'PROTOCOL_AUTOLOAD_FORCE_APPROVE' '0'
 Set-DefaultEnv 'PROTOCOL_APPROVED_DIR'        (Join-Path $RootDir '.local\protocol_library')
@@ -381,6 +385,20 @@ if (-not $env:HF_HUB_DISABLE_SYMLINKS_WARNING) {
 }
 
 Set-Location $RootDir
+
+if (
+    -not [string]::IsNullOrWhiteSpace($env:COMMON_ADAPTER_BUNDLE_PATH) -and
+    -not (Test-Path -LiteralPath $env:COMMON_ADAPTER_BUNDLE_PATH -PathType Leaf)
+) {
+    Write-Error @"
+Cannot find the explicitly configured shared common adapter bundle:
+  COMMON_ADAPTER_BUNDLE_PATH=$($env:COMMON_ADAPTER_BUNDLE_PATH)
+
+Unset the variable for an intentional frozen-base rollback, or publish a
+gate-admitted bundle before starting the service.
+"@
+    exit 1
+}
 
 Initialize-HfDownloadEnv -PythonBin $PythonBin -ModelId $env:MODEL_ID -HfHome $env:HF_HOME
 
@@ -551,6 +569,7 @@ from lifeform_service.alpha import (
     load_alpha_users,
 )
 from lifeform_service.app import create_app
+from lifeform_service.character_packages import load_character_runtime_assets
 from lifeform_service.openai_compat_client import (
     build_client_from_env,
     describe_active_provider,
@@ -565,7 +584,12 @@ from lifeform_service.substrate_registry import (
     build_substrate_provider_from_env,
 )
 from lifeform_service.verticals import default_vertical_name, discover_verticals
-from volvence_zero.substrate import SubstrateFallbackMode, build_transformers_runtime_with_fallback
+from volvence_zero.runtime import WiringLevel
+from volvence_zero.substrate import (
+    CommonAdapterBundle,
+    SubstrateFallbackMode,
+    build_transformers_runtime_with_fallback,
+)
 
 
 def _env_bool(name: str, *, default: bool = False) -> bool:
@@ -578,6 +602,33 @@ def _env_bool(name: str, *, default: bool = False) -> bool:
 def _env_str_or_none(name: str) -> str | None:
     raw = os.environ.get(name, "").strip()
     return raw or None
+
+
+def _character_wiring_overrides(raw: str | None) -> dict[str, WiringLevel]:
+    if raw is None:
+        return {}
+    overrides: dict[str, WiringLevel] = {}
+    for item in raw.split(","):
+        compact = item.strip()
+        if not compact:
+            continue
+        if "=" not in compact:
+            raise RuntimeError(
+                "CHARACTER_PACKAGE_WIRING entries must be character-id=mode"
+            )
+        character_id, mode = (part.strip() for part in compact.split("=", 1))
+        if not character_id:
+            raise RuntimeError(
+                "CHARACTER_PACKAGE_WIRING character id must be non-empty"
+            )
+        try:
+            overrides[character_id] = WiringLevel(mode)
+        except ValueError as exc:
+            raise RuntimeError(
+                "CHARACTER_PACKAGE_WIRING mode must be disabled, shadow, or "
+                f"active; got {mode!r}."
+            ) from exc
+    return overrides
 
 
 def _build_alpha_config() -> AlphaServiceConfig:
@@ -620,6 +671,73 @@ def main() -> int:
     local_files_only = _env_bool("LOCAL_FILES_ONLY")
     max_sessions = int(os.environ["MAX_SESSIONS"])
     idle_eviction_seconds = float(os.environ["IDLE_EVICTION_SECONDS"])
+    common_adapter_path = _env_str_or_none("COMMON_ADAPTER_BUNDLE_PATH")
+    character_manifest_paths_raw = _env_str_or_none(
+        "CHARACTER_PACKAGE_MANIFESTS"
+    )
+    character_package_mode = (
+        os.environ.get("CHARACTER_PACKAGE_MODE", "shadow").strip().lower()
+    )
+    if character_package_mode not in {"disabled", "shadow", "active"}:
+        raise RuntimeError(
+            "CHARACTER_PACKAGE_MODE must be disabled, shadow, or active; "
+            f"got {character_package_mode!r}."
+        )
+
+    common_adapter_bundle = None
+    character_prefix_registry = None
+    character_runtime_assets = None
+    if common_adapter_path is not None:
+        common_adapter_bundle = CommonAdapterBundle.from_json(
+            Path(common_adapter_path).read_text(encoding="utf-8")
+        )
+        common_adapter_bundle.require_active()
+        if common_adapter_bundle.base_model_id != model_id:
+            raise RuntimeError(
+                "common adapter bundle model_id does not match MODEL_ID: "
+                f"bundle={common_adapter_bundle.base_model_id!r} "
+                f"model={model_id!r}"
+            )
+        print(
+            "[start-browser-chat-qwen] common adapter loaded: "
+            f"version={common_adapter_bundle.common_adapter_version} "
+            f"bundle_id={common_adapter_bundle.bundle_id}",
+            flush=True,
+        )
+    if character_manifest_paths_raw is not None:
+        if common_adapter_path is None or common_adapter_bundle is None:
+            raise RuntimeError(
+                "CHARACTER_PACKAGE_MANIFESTS requires "
+                "COMMON_ADAPTER_BUNDLE_PATH"
+            )
+        manifest_paths = tuple(
+            Path(value)
+            for value in character_manifest_paths_raw.split(os.pathsep)
+            if value.strip()
+        )
+        assets = load_character_runtime_assets(
+            common_adapter_bundle_path=Path(common_adapter_path),
+            manifest_paths=manifest_paths,
+            wiring_by_character=_character_wiring_overrides(
+                _env_str_or_none("CHARACTER_PACKAGE_WIRING")
+            ),
+            default_wiring=WiringLevel(character_package_mode),
+        )
+        if assets.common_adapter_bundle.bundle_id != common_adapter_bundle.bundle_id:
+            raise RuntimeError(
+                "character manifest loader resolved a different common adapter "
+                "bundle from the startup admission check."
+            )
+        common_adapter_bundle = assets.common_adapter_bundle
+        character_prefix_registry = assets.prefix_registry
+        character_runtime_assets = assets
+        print(
+            "[start-browser-chat-qwen] character manifests loaded: "
+            f"packages={assets.manifest_package_ids!r} "
+            f"characters={assets.character_ids!r} "
+            f"mode={character_package_mode}",
+            flush=True,
+        )
 
     verticals = discover_verticals()
     if not verticals:
@@ -653,8 +771,10 @@ def main() -> int:
         local_files_only=local_files_only,
         fallback_mode=SubstrateFallbackMode.DENY,
         allow_live_substrate_mutation=False,
+        character_prefix_registry=character_prefix_registry,
+        common_adapter_bundle=common_adapter_bundle,
     )
-    runtime_origin = getattr(runtime, "runtime_origin")
+    runtime_origin = runtime.runtime_origin
     if runtime_origin == "builtin-fallback":
         raise RuntimeError("Expected a real HF Qwen runtime, got builtin-fallback.")
 
@@ -662,6 +782,8 @@ def main() -> int:
         device=device,
         local_files_only=local_files_only,
         fallback_mode=SubstrateFallbackMode.DENY,
+        character_prefix_registry=character_prefix_registry,
+        common_adapter_bundle=common_adapter_bundle,
     )
     substrate_provider = build_substrate_provider_from_env(
         initial_runtime=runtime,
@@ -725,6 +847,7 @@ def main() -> int:
         templates_root_dir=templates_root_dir,
         protocol_uptake_service=uptake_service,
         external_llm_client=shared_llm_client,
+        character_runtime_assets=character_runtime_assets,
     )
 
     if uptake_service._config.autoload_dir is not None:

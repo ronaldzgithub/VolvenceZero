@@ -370,6 +370,17 @@ export HF_HUB_DISABLE_SYMLINKS_WARNING="${HF_HUB_DISABLE_SYMLINKS_WARNING:-1}"
 
 cd "$ROOT_DIR"
 
+if [[ -n "${COMMON_ADAPTER_BUNDLE_PATH:-}" && ! -f "${COMMON_ADAPTER_BUNDLE_PATH}" ]]; then
+  cat >&2 <<EOF
+Cannot find the explicitly configured shared common adapter bundle:
+  COMMON_ADAPTER_BUNDLE_PATH=${COMMON_ADAPTER_BUNDLE_PATH}
+
+Unset the variable for an intentional frozen-base rollback, or publish a
+gate-admitted bundle before starting the service.
+EOF
+  exit 1
+fi
+
 initialize_hf_download_env "${MODEL_ID}" "${HF_HOME}"
 
 if ! "$PYTHON_BIN" -c "import aiohttp, transformers, torch; print('deps ok', torch.__version__, 'cuda', torch.cuda.is_available()); print('gpu', torch.cuda.get_device_name(0)) if torch.cuda.is_available() else None" >/dev/null 2>&1; then
@@ -464,6 +475,7 @@ from lifeform_service.verticals import default_vertical_name, discover_verticals
 from volvence_zero.substrate import (
     CharacterPrefixKVPackage,
     CharacterResidualAdapterPackage,
+    CommonAdapterBundle,
     SubstrateFallbackMode,
     build_transformers_runtime_with_fallback,
 )
@@ -572,10 +584,11 @@ def main() -> int:
             "ZHANG_WUJI_CHARACTER_PREFIX_MODE must be 'shadow' or 'active', "
             f"got {character_prefix_mode!r}"
         )
-    if character_prefix_mode == "active" and character_package_path is None:
+    if character_prefix_mode == "active":
         raise RuntimeError(
-            "ZHANG_WUJI_CHARACTER_PREFIX_MODE=active requires "
-            "ZHANG_WUJI_CHARACTER_PACKAGE_PATH"
+            "ZHANG_WUJI_CHARACTER_PREFIX_MODE=active is no longer supported: "
+            "the legacy single-prefix path bypasses CharacterPackageManifest "
+            "promotion evidence. Migrate to CHARACTER_PACKAGE_MANIFESTS."
         )
     character_residual_mode = (
         os.environ.get("ZHANG_WUJI_CHARACTER_RESIDUAL_MODE", "shadow")
@@ -587,21 +600,43 @@ def main() -> int:
             "ZHANG_WUJI_CHARACTER_RESIDUAL_MODE must be 'shadow' or 'active', "
             f"got {character_residual_mode!r}"
         )
-    if character_residual_mode == "active" and character_residual_path is None:
+    if character_residual_mode == "active":
         raise RuntimeError(
-            "ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=active requires "
-            "ZHANG_WUJI_CHARACTER_RESIDUAL_PATH"
+            "ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=active is no longer supported: "
+            "CharacterResidualAdapterPackage is a rollback-only legacy carrier. "
+            "Use an ACTIVE CharacterPackageManifest instead."
         )
-    if character_manifest_paths_raw is not None and (
-        character_residual_path is not None or character_residual_mode == "active"
-    ):
+    if character_manifest_paths_raw is not None and character_residual_path is not None:
         raise RuntimeError(
             "CharacterResidualAdapterPackage is a deprecated rollback-only "
             "carrier and cannot be combined with unified character manifests."
         )
+    if character_manifest_paths_raw is not None and character_package_path is not None:
+        raise RuntimeError(
+            "ZHANG_WUJI_CHARACTER_PACKAGE_PATH is a legacy SHADOW-only carrier "
+            "and cannot be combined with CHARACTER_PACKAGE_MANIFESTS."
+        )
     character_prefix_package = None
     character_prefix_registry = None
     common_adapter_bundle = None
+    character_runtime_assets = None
+    if common_adapter_path is not None:
+        common_adapter_bundle = CommonAdapterBundle.from_json(
+            Path(common_adapter_path).read_text(encoding="utf-8")
+        )
+        common_adapter_bundle.require_active()
+        if common_adapter_bundle.base_model_id != model_id:
+            raise RuntimeError(
+                "common adapter bundle model_id does not match MODEL_ID: "
+                f"bundle={common_adapter_bundle.base_model_id!r} "
+                f"model={model_id!r}"
+            )
+        print(
+            "[start-browser-chat-qwen] common adapter loaded: "
+            f"version={common_adapter_bundle.common_adapter_version} "
+            f"bundle_id={common_adapter_bundle.bundle_id}",
+            flush=True,
+        )
     if character_manifest_paths_raw is not None:
         if common_adapter_path is None:
             raise RuntimeError(
@@ -623,11 +658,17 @@ def main() -> int:
             default_wiring=wiring,
         )
         character_prefix_registry = assets.prefix_registry
+        if assets.common_adapter_bundle.bundle_id != common_adapter_bundle.bundle_id:
+            raise RuntimeError(
+                "character manifest loader resolved a different common adapter "
+                "bundle from the startup admission check."
+            )
         common_adapter_bundle = assets.common_adapter_bundle
+        character_runtime_assets = assets
         print(
             "[start-browser-chat-qwen] character manifests loaded: "
             f"packages={assets.manifest_package_ids!r} "
-            f"characters={assets.prefix_registry.character_ids!r} "
+            f"characters={assets.character_ids!r} "
             f"mode={character_package_mode} "
             f"common_adapter={common_adapter_bundle.common_adapter_version}",
             flush=True,
@@ -649,15 +690,12 @@ def main() -> int:
             f"mode={character_prefix_mode}",
             flush=True,
         )
-        if character_prefix_mode == "active":
-            character_prefix_package = loaded_character_package
-        else:
-            print(
-                "[start-browser-chat-qwen] character prefix package is "
-                "shadow-only; model-side injection is disabled until the "
-                "quality gate passes.",
-                flush=True,
-            )
+        print(
+            "[start-browser-chat-qwen] character prefix package is legacy "
+            "SHADOW-only; model-side injection is disabled. Migrate to "
+            "CHARACTER_PACKAGE_MANIFESTS for ACTIVE promotion.",
+            flush=True,
+        )
 
     character_residual_package = None
     if character_residual_path is not None:
@@ -677,15 +715,12 @@ def main() -> int:
             f"mode={character_residual_mode}",
             flush=True,
         )
-        if character_residual_mode == "active":
-            character_residual_package = loaded_character_residual
-        else:
-            print(
-                "[start-browser-chat-qwen] character residual adapter is "
-                "shadow-only; model-side injection is disabled until the "
-                "held-out quality gate passes.",
-                flush=True,
-            )
+        print(
+            "[start-browser-chat-qwen] character residual adapter is legacy "
+            "SHADOW-only; model-side injection is disabled. Use an ACTIVE "
+            "CharacterPackageManifest for promoted serving.",
+            flush=True,
+        )
 
     verticals = discover_verticals()
     if not verticals:
@@ -724,7 +759,7 @@ def main() -> int:
         common_adapter_bundle=common_adapter_bundle,
         character_residual_package=character_residual_package,
     )
-    runtime_origin = getattr(runtime, "runtime_origin")
+    runtime_origin = runtime.runtime_origin
     if runtime_origin == "builtin-fallback":
         raise RuntimeError("Expected a real HF Qwen runtime, got builtin-fallback.")
 
@@ -786,6 +821,7 @@ def main() -> int:
         templates_root_dir=templates_root_dir,
         protocol_uptake_service=uptake_service,
         external_llm_client=shared_llm_client,
+        character_runtime_assets=character_runtime_assets,
     )
 
     if uptake_service._config.autoload_dir is not None:

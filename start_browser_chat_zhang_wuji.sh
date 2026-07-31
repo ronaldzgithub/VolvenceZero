@@ -18,7 +18,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 default_template_path="${ROOT_DIR}/artifacts/lifeform-templates/zhang_wuji/zhang-wuji-live-through.json"
 default_character_package_path="${ROOT_DIR}/artifacts/character-packages/zhang_wuji/zhang-wuji-qwen2.5-1.5b.character-prefix.json"
-default_character_residual_path="${ROOT_DIR}/artifacts/character-packages/zhang_wuji/zhang-wuji-qwen2.5-1.5b.character-residual.json"
 default_character_manifest_path="${ROOT_DIR}/artifacts/character-packages/zhang_wuji/character-package-manifest.json"
 default_common_adapter_path="${ROOT_DIR}/artifacts/common-adapters/qwen2.5-1.5b/common-adapter-bundle.json"
 export VERTICAL="${VERTICAL:-zhang_wuji}"
@@ -38,9 +37,9 @@ fi
 if [[ -z "${COMMON_ADAPTER_BUNDLE_PATH:-}" && "${MODEL_ID}" == "Qwen/Qwen2.5-1.5B-Instruct" ]]; then
   export COMMON_ADAPTER_BUNDLE_PATH="${default_common_adapter_path}"
 fi
-if [[ -z "${ZHANG_WUJI_CHARACTER_RESIDUAL_PATH:-}" && "${MODEL_ID}" == "Qwen/Qwen2.5-1.5B-Instruct" && -f "${default_character_residual_path}" ]]; then
-  export ZHANG_WUJI_CHARACTER_RESIDUAL_PATH="${default_character_residual_path}"
-fi
+# CharacterResidualAdapterPackage is rollback-only.  Never auto-select it:
+# operators who need a legacy SHADOW attestation must provide
+# ZHANG_WUJI_CHARACTER_RESIDUAL_PATH explicitly.
 
 if [[ ! -f "${ZHANG_WUJI_TEMPLATE_PATH}" ]]; then
   cat >&2 <<EOF
@@ -66,7 +65,7 @@ EOF
   exit 1
 fi
 
-if [[ -n "${CHARACTER_PACKAGE_MANIFESTS:-}" && ! -f "${COMMON_ADAPTER_BUNDLE_PATH:-}" ]]; then
+if [[ -n "${COMMON_ADAPTER_BUNDLE_PATH:-}" && ! -f "${COMMON_ADAPTER_BUNDLE_PATH}" ]]; then
   cat >&2 <<EOF
 Cannot find the shared common adapter bundle:
   COMMON_ADAPTER_BUNDLE_PATH=${COMMON_ADAPTER_BUNDLE_PATH:-<unset>}

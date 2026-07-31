@@ -32,6 +32,22 @@ Set-DefaultEnv 'TEMPLATES_ROOT_DIR' (Join-Path $RootDir 'artifacts\lifeform-temp
 Set-DefaultEnv 'ZHANG_WUJI_TEMPLATE_PATH' (
     Join-Path $RootDir 'artifacts\lifeform-templates\zhang_wuji\zhang-wuji-live-through.json'
 )
+Set-DefaultEnv 'CHARACTER_PACKAGE_MODE' 'shadow'
+
+$defaultCommonAdapter = Join-Path $RootDir 'artifacts\common-adapters\qwen2.5-1.5b\common-adapter-bundle.json'
+$defaultCharacterManifest = Join-Path $RootDir 'artifacts\character-packages\zhang_wuji\character-package-manifest.json'
+if (
+    [string]::IsNullOrWhiteSpace($env:COMMON_ADAPTER_BUNDLE_PATH) -and
+    $env:MODEL_ID -eq 'Qwen/Qwen2.5-1.5B-Instruct'
+) {
+    $env:COMMON_ADAPTER_BUNDLE_PATH = $defaultCommonAdapter
+}
+if (
+    [string]::IsNullOrWhiteSpace($env:CHARACTER_PACKAGE_MANIFESTS) -and
+    (Test-Path -LiteralPath $defaultCharacterManifest -PathType Leaf)
+) {
+    $env:CHARACTER_PACKAGE_MANIFESTS = $defaultCharacterManifest
+}
 
 if (-not (Test-Path $env:ZHANG_WUJI_TEMPLATE_PATH)) {
     Write-Error @"
