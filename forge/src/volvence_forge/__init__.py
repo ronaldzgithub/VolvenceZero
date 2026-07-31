@@ -1,7 +1,7 @@
 """Volvence Forge: isolated, evidence-driven RSI tooling."""
 
 from .config import ForgeConfig, ForgePaths
-from .mine import FailureAnalysis, mine_bundle, write_failure_patterns
+from .mine import FailureAnalysis, mine_bundle, mine_failures, write_failure_patterns
 from .sources import SourceBundle, load_source_bundle, source_bundle_digest
 
 __all__ = [
@@ -11,6 +11,7 @@ __all__ = [
     "SourceBundle",
     "load_source_bundle",
     "mine_bundle",
+    "mine_failures",
     "source_bundle_digest",
     "write_failure_patterns",
 ]

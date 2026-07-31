@@ -17,12 +17,15 @@ import numpy as np
 
 from .config import ForgeConfig
 from .foundation import (
+    BackendError,
     EmbeddingBackend,
     PromptStore,
     SchemaStore,
     StructuredBackend,
+    atomic_write_text,
     canonical_json,
     normalized,
+    utc_stamp,
 )
 from .sources import (
     EvidenceRef,
@@ -30,6 +33,7 @@ from .sources import (
     SourceBundle,
     TranscriptSource,
     VerdictSource,
+    source_bundle_digest,
 )
 
 
@@ -71,6 +75,15 @@ class FailureAnalysis:
         )
 
 
+@dataclass(frozen=True)
+class MineResult:
+    output_dir: Path
+    pattern_path: Path
+    report_path: Path
+    pattern_count: int
+    in_surface_count: int
+
+
 def _analysis_text(analysis: FailureAnalysis) -> str:
     return " ".join(
         (
@@ -81,8 +94,12 @@ def _analysis_text(analysis: FailureAnalysis) -> str:
     )
 
 
-def _source_objects(bundle: SourceBundle) -> tuple[TranscriptSource | VerdictSource | PlanSource, ...]:
-    return bundle.transcripts + bundle.verdicts + bundle.plans
+def _source_objects(bundle: SourceBundle) -> tuple[TranscriptSource | VerdictSource, ...]:
+    """Select only sources carrying explicit structured failure evidence."""
+
+    failed_transcripts = tuple(source for source in bundle.transcripts if source.error_refs)
+    failed_verdicts = tuple(source for source in bundle.verdicts if source.failed_gate_refs)
+    return failed_transcripts + failed_verdicts
 
 
 def _fallback_ref(source: TranscriptSource | VerdictSource | PlanSource) -> EvidenceRef:
@@ -133,8 +150,9 @@ def mine_bundle(
     analysis_schema = schema_store.load("failure_analysis.schema.json")
     system_prompt = prompt_store.render("failure_mining.system.md")
     records: list[tuple[Any, FailureAnalysis, np.ndarray]] = []
+    campaign_context = [plan.analysis_record() for plan in bundle.plans]
     for source in _source_objects(bundle):
-        source_record = source.analysis_record()
+        source_record = {**source.analysis_record(), "campaign_context": campaign_context}
         response = structured_backend.complete_json(
             system=system_prompt,
             user=prompt_store.render(
@@ -177,8 +195,12 @@ def mine_bundle(
         matrix = np.vstack([item[2] for item in items])
         target_cluster["centroid"] = normalized(matrix.mean(axis=0))
 
-    surface_entries = config.editable
-    surface_texts = [entry.semantic_description for entry in surface_entries]
+    surface_assets = config.editable_assets()
+    surface_texts = [
+        f"component={entry.component}\npath={relative}\n{entry.semantic_description}\n"
+        f"{path.read_text(encoding='utf-8')[:6000]}"
+        for entry, relative, path in surface_assets
+    ]
     patterns: list[dict[str, object]] = []
     for cluster in clusters:
         items = cluster["items"]
@@ -187,28 +209,22 @@ def mine_bundle(
         sources = [item[0] for item in items]
         centroid = cluster["centroid"]
         assert isinstance(centroid, np.ndarray)
-        surface_vectors = _validate_embedding_matrix(
-            embedding_backend.encode(surface_texts),
-            expected_rows=len(surface_entries),
-        )
-        scores = surface_vectors @ centroid
-        best_index = int(np.argmax(scores))
-        best_score = float(scores[best_index])
-        if best_score >= config.minimum_surface_similarity:
-            target = surface_entries[best_index]
-            assets = [
-                relative
-                for entry, relative, _path in config.editable_assets()
-                if entry.component == target.component
-            ]
-            if assets:
-                editable_target = assets[0]
-                editable_component = target.component
-                surface_status = "in-surface"
-            else:
-                editable_target = None
-                editable_component = None
-                surface_status = "out-of-surface"
+        if surface_assets:
+            surface_vectors = _validate_embedding_matrix(
+                embedding_backend.encode(surface_texts),
+                expected_rows=len(surface_assets),
+            )
+            scores = surface_vectors @ centroid
+            best_index = int(np.argmax(scores))
+            best_score = float(scores[best_index])
+        else:
+            best_index = -1
+            best_score = -1.0
+        if best_index >= 0 and best_score >= config.minimum_surface_similarity:
+            target_entry, target_relative, _target_path = surface_assets[best_index]
+            editable_target = target_relative
+            editable_component = target_entry.component
+            surface_status = "in-surface"
         else:
             editable_target = None
             editable_component = None
@@ -261,3 +277,51 @@ def write_failure_patterns(patterns: Sequence[Mapping[str, object]], output_path
         for pattern in patterns:
             handle.write(canonical_json(dict(pattern)) + "\n")
     return output
+
+
+def mine_failures(
+    *,
+    config: ForgeConfig,
+    sources: SourceBundle,
+    embedder: EmbeddingBackend,
+    backend: StructuredBackend | None,
+    output_dir: Path | None = None,
+) -> MineResult:
+    """Run package-1 mining and write a bounded artifact directory."""
+
+    if backend is None:
+        raise BackendError("mine requires a structured backend; use --backend replay or --backend openai")
+    schema_store = SchemaStore(config.paths.forge_root / "schemas")
+    prompt_store = PromptStore(config.paths.forge_root / "prompts")
+    patterns = mine_bundle(
+        bundle=sources,
+        config=config,
+        structured_backend=backend,
+        embedding_backend=embedder,
+        schema_store=schema_store,
+        prompt_store=prompt_store,
+    )
+    destination = (output_dir or config.paths.artifacts_root / f"forge_mine_{utc_stamp()}").resolve()
+    destination.mkdir(parents=True, exist_ok=False)
+    pattern_path = write_failure_patterns(patterns, destination / "failure_patterns.jsonl")
+    report_path = destination / "report.md"
+    report_lines = [
+        "# Forge Mine Report",
+        "",
+        f"- Source bundle digest: `{source_bundle_digest(sources)}`",
+        f"- Structured backend: `{backend.backend_name}` / `{backend.model_name}`",
+        f"- Embedding backend: `{embedder.model_name}`",
+        f"- Patterns: {len(patterns)}",
+        f"- In-surface: {sum(pattern['surface_status'] == 'in-surface' for pattern in patterns)}",
+        "",
+        "Patterns are read-only evidence; no target file was modified.",
+        "",
+    ]
+    atomic_write_text(report_path, "\n".join(report_lines))
+    return MineResult(
+        output_dir=destination,
+        pattern_path=pattern_path,
+        report_path=report_path,
+        pattern_count=len(patterns),
+        in_surface_count=sum(pattern["surface_status"] == "in-surface" for pattern in patterns),
+    )
