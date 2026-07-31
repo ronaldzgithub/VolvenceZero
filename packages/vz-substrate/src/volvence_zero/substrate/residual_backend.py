@@ -17,6 +17,7 @@ from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_VECTOR_LABELS,
     PersonalConditioningSnapshot,
 )
+from volvence_zero.runtime import WiringLevel
 
 from volvence_zero.substrate.adapter import (
     FeatureSignal,
@@ -609,6 +610,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         """Residual width used by projector compatibility checks."""
 
         return self._hidden_size
+
+    @property
+    def model_parameter_count(self) -> int:
+        """Frozen model parameter count used by offline capacity readouts."""
+
+        return sum(int(parameter.numel()) for parameter in self._model.parameters())
 
     @property
     def personal_conditioning_projector_id(self) -> str:
@@ -1206,6 +1213,195 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             applied_control=applied_control,
             track_scale=track_scale,
         )[0]
+
+    def score_conditioned_continuation(
+        self,
+        *,
+        source_text: str,
+        continuation_text: str,
+        applied_control: tuple[float, ...] = (),
+        track_scale: tuple[float, ...] = (1.0, 1.0, 1.0),
+        personal_conditioning: PersonalConditioningSnapshot | None = None,
+        character_id: str = "",
+    ) -> ContinuationScore:
+        """Score one continuation through the production model-side carriers.
+
+        This is the offline evidence counterpart of :meth:`generate`: it uses
+        the same rare-heavy residual delta, control basis, Personal State-KV,
+        Character Prefix/KV, and currently active PEFT adapter, but returns an
+        exact teacher-forced NLL instead of decoded text.  Evaluation remains a
+        readout; no parameter or artifact is updated by this method.
+
+        ``character_id`` is explicit so a character-equipped runtime can score
+        a common-only control arm by leaving it empty.  Unknown, SHADOW, or
+        mismatched character identities fail loudly instead of silently
+        turning a candidate arm into the control arm.
+        """
+
+        effective_source = source_text.strip() or "<empty>"
+        if not continuation_text.strip():
+            raise ValueError("continuation_text must be nonempty")
+        source_inputs = self._tokenize(source_text=effective_source)
+        source_ids = source_inputs["input_ids"]
+        source_length = int(source_ids.shape[-1])
+        combined_text = (
+            f"{effective_source.rstrip()} {continuation_text.strip()}"
+        )
+        combined_inputs = self._tokenize(source_text=combined_text)
+        combined_ids = combined_inputs["input_ids"]
+        combined_length = int(combined_ids.shape[-1])
+        if combined_length <= source_length:
+            raise ValueError(
+                "continuation_text did not add any scoreable tokens"
+            )
+        if not self._torch.equal(
+            combined_ids[:, :source_length],
+            source_ids,
+        ):
+            raise ValueError(
+                "source tokenization is not a prefix of "
+                "source+continuation; continuation score would be misaligned"
+            )
+
+        character_prefix_pairs = None
+        requested_character_id = character_id.strip()
+        if requested_character_id:
+            if self._character_prefix_registry is not None:
+                entry = self._character_prefix_registry.require(
+                    requested_character_id
+                )
+                if entry.wiring_level is not WiringLevel.ACTIVE:
+                    raise ValueError(
+                        "conditioned scoring requires an ACTIVE character "
+                        f"prefix entry, got {entry.wiring_level.value!r}."
+                    )
+                character_prefix_pairs = (
+                    self._character_prefix_pairs_by_character[
+                        requested_character_id
+                    ]
+                )
+            elif self._character_prefix_package is not None:
+                if (
+                    requested_character_id
+                    != self._character_prefix_package.character_id
+                ):
+                    raise ValueError(
+                        "conditioned scoring character_id does not match the "
+                        "loaded Character Prefix/KV package."
+                    )
+                character_prefix_pairs = self._character_prefix_pairs
+            else:
+                raise ValueError(
+                    "conditioned scoring received character_id but no "
+                    "Character Prefix/KV package is loaded."
+                )
+
+        personal_prefix_pairs = self._build_personal_conditioning_prefix(
+            conditioning=personal_conditioning
+        )
+        prefix_pairs = _concat_prefix_pairs(
+            self._torch,
+            character_prefix_pairs,
+            personal_prefix_pairs,
+        )
+        attention_mask = combined_inputs.get("attention_mask")
+        if attention_mask is None:
+            attention_mask = self._torch.ones_like(combined_ids)
+        slots = 0
+        cache = None
+        if prefix_pairs:
+            slots = int(prefix_pairs[0][0].shape[-2])
+            cache = self._transformers.DynamicCache(
+                ddp_cache_data=prefix_pairs
+            )
+            attention_mask = self._torch.cat(
+                (
+                    self._torch.ones(
+                        (1, slots),
+                        dtype=attention_mask.dtype,
+                        device=attention_mask.device,
+                    ),
+                    attention_mask,
+                ),
+                dim=-1,
+            )
+        position_ids = self._torch.arange(
+            combined_length,
+            device=combined_ids.device,
+        ).unsqueeze(0)
+
+        hooks = [
+            self._block_modules[layer_index].register_forward_hook(
+                self._make_capture_hook(
+                    layer_index=layer_index,
+                    captured_layers={},
+                    control_delta=(
+                        self._build_control_delta(
+                            applied_control=applied_control,
+                            track_scale=track_scale,
+                            layer_index=layer_index,
+                        )
+                        if applied_control
+                        else None
+                    ),
+                    capture_residuals=False,
+                )
+            )
+            for layer_index in self._layer_indices
+        ]
+        try:
+            with self._torch.no_grad():
+                if cache is None:
+                    outputs = self._model(
+                        input_ids=combined_ids,
+                        attention_mask=attention_mask,
+                        use_cache=False,
+                    )
+                else:
+                    outputs = self._model(
+                        input_ids=combined_ids,
+                        attention_mask=attention_mask,
+                        position_ids=position_ids,
+                        past_key_values=cache,
+                        use_cache=True,
+                    )
+        finally:
+            for hook in hooks:
+                hook.remove()
+
+        logits = self._extract_logits(outputs=outputs).to(
+            dtype=self._torch.float32
+        )
+        prediction_logits = logits[
+            :, source_length - 1 : combined_length - 1, :
+        ]
+        target_ids = combined_ids[:, source_length:combined_length]
+        token_log_probabilities = self._torch.log_softmax(
+            prediction_logits,
+            dim=-1,
+        ).gather(
+            dim=-1,
+            index=target_ids.unsqueeze(-1),
+        ).squeeze(-1)
+        mean_log_probability = float(token_log_probabilities.mean().item())
+        return ContinuationScore(
+            source_text=effective_source,
+            continuation_text=continuation_text,
+            token_count=int(target_ids.numel()),
+            mean_negative_log_likelihood=-mean_log_probability,
+            geometric_mean_probability=float(
+                self._torch.exp(
+                    self._torch.tensor(mean_log_probability)
+                ).item()
+            ),
+            applied_control=applied_control,
+            backend_name=f"transformers-open-weight:{self.model_id}",
+            description=(
+                "Observed continuation scored through the production "
+                "rare-heavy/control/State-KV/Character-Prefix carrier stack "
+                f"on {self.model_id}; prefix_slots={slots}."
+            ),
+        )
 
     def score_continuations(
         self,

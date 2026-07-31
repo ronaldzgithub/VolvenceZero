@@ -54,8 +54,20 @@ def _manifest(tmp_path, *, with_lora: bool = False, mode: str = "fidelity-only")
         common_adapter_version="common-v1",
         compatibility_fingerprint="compat-v1",
     )
+    shadow = CharacterPackageManifest.create(
+        character_id="zhang-wuji",
+        character_name="张无忌",
+        base_model_id="Qwen/test",
+        common_adapter_version="common-v1",
+        compatibility_fingerprint="compat-v1",
+        template_ref=template,
+        prefix_kv_ref=prefix,
+        lora_ref=lora,
+        revalidation_mode=mode,
+        description="test character package",
+    )
     gate = CharacterPackageGateRecord(
-        proposal_id="character-promotion-v1",
+        proposal_id=f"character-package:{shadow.package_id}:evaluation-v1",
         decision="allow",
         desired_gate="offline",
         fidelity_report_sha256=report.sha256,
@@ -116,6 +128,78 @@ def test_active_gate_requires_fidelity_and_lora_combination_arm(tmp_path) -> Non
         denied.require_active()
 
 
+def test_active_gate_must_bind_the_exact_ungated_candidate(tmp_path) -> None:
+    manifest = _manifest(tmp_path)
+    wrong_gate = replace(
+        manifest.gate_record,
+        proposal_id=f"character-package:{'0' * 64}:evaluation-v1",
+    )
+    denied = CharacterPackageManifest.create(
+        character_id=manifest.character_id,
+        character_name=manifest.character_name,
+        base_model_id=manifest.base_model_id,
+        common_adapter_version=manifest.common_adapter_version,
+        compatibility_fingerprint=manifest.compatibility_fingerprint,
+        template_ref=manifest.template_ref,
+        prefix_kv_ref=manifest.prefix_kv_ref,
+        lora_ref=manifest.lora_ref,
+        fidelity_evidence=manifest.fidelity_evidence,
+        gate_record=wrong_gate,
+        revalidation_mode=manifest.revalidation_mode,
+        description=manifest.description,
+    )
+
+    with pytest.raises(ValueError, match="not ACTIVE-eligible"):
+        denied.require_active()
+
+
+def test_relocated_manifest_requires_gate_rebound_to_relocated_candidate(
+    tmp_path,
+) -> None:
+    manifest = _manifest(tmp_path)
+    relocated_shadow = CharacterPackageManifest.create(
+        character_id=manifest.character_id,
+        character_name=manifest.character_name,
+        base_model_id=manifest.base_model_id,
+        common_adapter_version=manifest.common_adapter_version,
+        compatibility_fingerprint=manifest.compatibility_fingerprint,
+        template_ref=replace(
+            manifest.template_ref,
+            locator=str((tmp_path / "template.json").resolve()),
+        ),
+        prefix_kv_ref=replace(
+            manifest.prefix_kv_ref,
+            locator=str((tmp_path / "prefix.json").resolve()),
+        ),
+        lora_ref=manifest.lora_ref,
+        revalidation_mode=manifest.revalidation_mode,
+        description=manifest.description,
+    )
+    rebound_gate = replace(
+        manifest.gate_record,
+        proposal_id=(
+            f"character-package:{relocated_shadow.package_id}:evaluation-v2"
+        ),
+    )
+    relocated = CharacterPackageManifest.create(
+        character_id=relocated_shadow.character_id,
+        character_name=relocated_shadow.character_name,
+        base_model_id=relocated_shadow.base_model_id,
+        common_adapter_version=relocated_shadow.common_adapter_version,
+        compatibility_fingerprint=relocated_shadow.compatibility_fingerprint,
+        template_ref=relocated_shadow.template_ref,
+        prefix_kv_ref=relocated_shadow.prefix_kv_ref,
+        lora_ref=relocated_shadow.lora_ref,
+        fidelity_evidence=manifest.fidelity_evidence,
+        gate_record=rebound_gate,
+        revalidation_mode=relocated_shadow.revalidation_mode,
+        description=relocated_shadow.description,
+    )
+
+    assert relocated_shadow.package_id != manifest.ungated_candidate_id
+    relocated.require_active()
+
+
 def test_artifact_tampering_fails_loudly(tmp_path) -> None:
     manifest = _manifest(tmp_path)
     path = tmp_path / "manifest.json"
@@ -140,6 +224,24 @@ def test_adapter_upgrade_requires_matching_evidence_and_mode(tmp_path) -> None:
         fidelity_report_sha256=report.sha256,
         common_adapter_version="common-v2",
         compatibility_fingerprint="compat-v2",
+    )
+    upgraded_shadow = CharacterPackageManifest.create(
+        character_id=manifest.character_id,
+        character_name=manifest.character_name,
+        base_model_id="Qwen/test",
+        common_adapter_version="common-v2",
+        compatibility_fingerprint="compat-v2",
+        template_ref=manifest.template_ref,
+        prefix_kv_ref=manifest.prefix_kv_ref,
+        lora_ref=manifest.lora_ref,
+        revalidation_mode=manifest.revalidation_mode,
+        description=manifest.description,
+    )
+    gate = replace(
+        gate,
+        proposal_id=(
+            f"character-package:{upgraded_shadow.package_id}:evaluation-v2"
+        ),
     )
     rebound = rebind_fidelity_only(
         manifest,

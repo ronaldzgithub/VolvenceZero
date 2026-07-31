@@ -316,6 +316,11 @@ class CharacterPackageManifest:
             return False
         if self.lora_ref is not None and not evidence.includes_character_lora:
             return False
+        expected_proposal_prefix = (
+            f"character-package:{self.ungated_candidate_id}:"
+        )
+        if not gate.proposal_id.startswith(expected_proposal_prefix):
+            return False
         return (
             evidence.common_adapter_version == self.common_adapter_version
             and evidence.compatibility_fingerprint
@@ -324,6 +329,18 @@ class CharacterPackageManifest:
             and gate.compatibility_fingerprint == self.compatibility_fingerprint
             and gate.fidelity_report_sha256 == evidence.report_ref.sha256
         )
+
+    @property
+    def ungated_candidate_id(self) -> str:
+        """Content id of the exact carrier set evaluated before promotion."""
+
+        candidate = replace(
+            self,
+            package_id="pending",
+            fidelity_evidence=None,
+            gate_record=None,
+        )
+        return candidate._canonical_id()
 
     def require_active(self) -> None:
         if not self.active_eligible:

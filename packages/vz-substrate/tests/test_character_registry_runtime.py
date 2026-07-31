@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 
 from volvence_zero.personal_conditioning_contracts import (
+    PERSONAL_CONDITIONING_SCHEMA_VERSION,
     PERSONAL_CONDITIONING_VECTOR_LABELS,
+    PersonalConditioningSnapshot,
 )
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
@@ -218,6 +220,19 @@ def _generate(runtime, character_id: str):
     )
 
 
+def _conditioning(marker: float = 0.5) -> PersonalConditioningSnapshot:
+    return PersonalConditioningSnapshot(
+        schema_version=PERSONAL_CONDITIONING_SCHEMA_VERSION,
+        state_vector=(marker,) * len(PERSONAL_CONDITIONING_VECTOR_LABELS),
+        vector_labels=PERSONAL_CONDITIONING_VECTOR_LABELS,
+        source_versions=(("held-out", 1),),
+        source_fingerprint=f"held-out:{marker}",
+        confidence=1.0,
+        is_cold_start=False,
+        description="typed held-out conditioning",
+    )
+
+
 def test_runtime_routes_active_and_shadow_character_per_generation() -> None:
     runtime = _runtime()
 
@@ -257,4 +272,42 @@ def test_runtime_rejects_unverified_common_adapter_base_digest() -> None:
             device="cpu",
             runtime_origin="hf-local",
             common_adapter_bundle=_common_bundle(),
+        )
+
+
+def test_conditioned_continuation_scores_common_and_character_arms() -> None:
+    runtime = _runtime()
+
+    common_only = runtime.score_conditioned_continuation(
+        source_text="hello",
+        continuation_text="world",
+        personal_conditioning=_conditioning(),
+        applied_control=(0.25,),
+    )
+    character = runtime.score_conditioned_continuation(
+        source_text="hello",
+        continuation_text="world",
+        personal_conditioning=_conditioning(),
+        applied_control=(0.25,),
+        character_id="active-character",
+    )
+
+    assert common_only.token_count == character.token_count == 1
+    assert (
+        common_only.mean_negative_log_likelihood
+        != character.mean_negative_log_likelihood
+    )
+    assert "prefix_slots=1" in common_only.description
+    assert "prefix_slots=2" in character.description
+
+
+def test_conditioned_continuation_rejects_shadow_character_arm() -> None:
+    runtime = _runtime()
+
+    with pytest.raises(ValueError, match="requires an ACTIVE"):
+        runtime.score_conditioned_continuation(
+            source_text="hello",
+            continuation_text="world",
+            personal_conditioning=_conditioning(),
+            character_id="shadow-character",
         )

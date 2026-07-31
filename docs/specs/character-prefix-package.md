@@ -1,5 +1,8 @@
 # Common Adapter 与 Character Package
 
+> Status: L1/L2 contracts and SHADOW deployment path landed; ACTIVE remains gate-bound
+> Last updated: 2026-08-01
+
 ## Purpose 与 owner
 
 本契约定义“一个进程级共享 Common Adapter Model + 每角色一个不可变特色包”。
@@ -75,11 +78,24 @@ flowchart LR
 teacher、student、wrong-user control 的所有前向都安装同一 delta，并在训练 manifest
 发布 `training_order=base+rare-heavy->state-kv` 与 checkpoint digest。`publish`
 必须消费 cognition 产生且 proposal id 精确匹配的 gate record，训练脚本禁止自批。
+`common-adapter-candidate.v2` ID 同时绑定训练集 digest/数量、LoRA 与 State-KV 全部超参数、hook layers
+和两个随机种子。`train_common_adapter_model.py evaluate` 在同一冻结 runtime 上运行
+base、candidate、wrong-state teacher-forced NLL 臂，把 typed held-out coverage、负控、
+capacity cost 和 rollback readout 交给 cognition `ModificationGate.OFFLINE`；deny 是正式
+证据，不能通过手写 gate record 或降低断言绕过。
+`publish` 必须重算 observation summary/cognition decision，并同时核对 held-out digest、
+evaluation report SHA-256 与 gate `evaluation_ref`，不得只凭 candidate id 接收 allow。
 
 `scripts/bake_zhang_wuji_character_package.py`（后续角色可使用同形入口）必须加载
 ACTIVE L1、核对基础权重哈希，并在 `base + common adapter vN` 前向上测 reference
 norm、teacher-force 角色 Prefix/KV。无 fidelity/gate 时只产出 SHADOW manifest；
 提供证据时必须通过 `CharacterPackageManifest.require_active()` 才能写出可晋升包。
+`scripts/evaluate_character_package.py` 运行 common-only 与
+common + Character Prefix/KV（以及 manifest 声明时的真实 PEFT Character LoRA）组合
+臂，输出 fidelity report、evidence、gate record 与 evaluated manifest。Gate proposal
+必须绑定 exact ungated candidate content id，且 gate 绑定 report SHA-256。
+内置 NLL 评测只能发布 `system_self_eval`；不得把同一 report 重标为 LLM judge 或
+external validation。manifest locator 重定位时，proposal 绑定重定位后的 ungated id。
 
 ## 多角色 session 路由
 
@@ -96,6 +112,30 @@ vertical 声明的 immutable character id 完全一致的值。随后 expression
 
 同一 transformers runtime 仍是串行 decode；多个角色包可以同驻内存，但 L3
 conditioning 和 memory 必须继续按 tenant:user 隔离。
+
+### 启动安全默认与环境契约
+
+正式浏览器启动入口 `start_browser_chat_qwen.sh` 与张无忌 wrapper 使用以下契约：
+
+- `CHARACTER_PACKAGE_MODE` 的进程默认值是 `shadow`，只接受
+  `disabled|shadow|active`；未显式晋升时加载包只产生 SHADOW attestation；
+- `CHARACTER_PACKAGE_WIRING` 是可选的逗号分隔 `character_id=mode` 覆盖表，同一
+  character id 重复、缺 `=` 或未知 mode 均在启动时 fail loudly；
+- `CHARACTER_PACKAGE_MANIFESTS` 非空时必须同时提供可读的
+  `COMMON_ADAPTER_BUNDLE_PATH`；L1 必须已通过 allow gate，manifest 与 L1 的 model、
+  version、compatibility fingerprint 和 artifact SHA 必须一致；
+- ACTIVE entry 必须通过 `manifest.require_active()`；base weights SHA-256、nested
+  carrier geometry 或 manifest artifact digest 任一不一致均拒绝启动，不降级 SHADOW；
+- 生成路径对空或 unknown `character_id` 不注入 Prefix/KV；离线
+  `score_conditioned_continuation(character_id=...)` 为防 evidence candidate 静默变成
+  control arm，对 unknown/SHADOW id 反而必须 fail loudly；
+- `POST /v1/sessions` 的 `character_id` 仍须与 selected vertical 声明的 immutable id
+  精确一致，不允许从用户文本猜角色。
+
+张无忌现有 residual artifact 只作为 `CharacterResidualAdapterPackage` 的 SHADOW、
+只读回滚证据保留；新角色以及重新 bake 的张无忌特色载体只走统一
+`CharacterPackageManifest + Character Prefix/KV`（可选真实 PEFT Character LoRA）。
+旧 residual 与新 manifest 禁止同时 ACTIVE，也不得为 residual 新建晋升证据。
 
 ## Evidence 与升级
 
