@@ -12,7 +12,13 @@ import pytest
 from volvence_forge.config import ForgeConfig, ForgePaths
 from volvence_forge.foundation import PromptStore, SchemaStore
 from volvence_forge.mine import _prediction_checks, mine_bundle
-from volvence_forge.sources import SourceParseError, load_source_bundle
+from volvence_forge.sources import (
+    BenchBundleSource,
+    EvidenceRef,
+    SourceBundle,
+    SourceParseError,
+    load_source_bundle,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -276,6 +282,117 @@ def test_bench_bundle_parses_turn_axis_and_disqualifier_failures(tmp_path: Path)
     assert "arc_axis_scores.A2" in source.passing_behaviors
 
 
+def test_bench_failure_stays_out_of_surface_without_runtime_owner(tmp_path: Path) -> None:
+    config, forge_root = _fixture_root(tmp_path)
+    bench = tmp_path / "bench"
+    bench.mkdir()
+    (bench / "arc-fixture.bundle.json").write_text(
+        json.dumps(
+            {
+                "arc": {
+                    "arc_id": "arc-fixture",
+                    "scenario_id": "F1-fixture",
+                    "family": "F1",
+                    "sessions": [
+                        {
+                            "turns": [
+                                {
+                                    "session_index": 1,
+                                    "turn_index": 1,
+                                    "user_text": "I need continuity.",
+                                    "assistant_text": "I lost the prior context.",
+                                }
+                            ]
+                        }
+                    ],
+                },
+                "perturn_rubric": {
+                    "turn_scores": [
+                        {
+                            "session_index": 1,
+                            "turn_index": 1,
+                            "scores": {"continuity": 1},
+                            "average": 1.0,
+                        }
+                    ]
+                },
+                "disqualifier_report": {"any_triggered": False, "results": []},
+                "arc_axis_scores": {"scores": {"A1": 80}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    bundle = load_source_bundle(
+        config.paths,
+        max_transcripts=0,
+        max_verdicts=0,
+        max_plans=0,
+        bench_root=bench,
+    )
+
+    patterns = mine_bundle(
+        bundle=bundle,
+        config=config,
+        structured_backend=_StructuredBackend(),
+        embedding_backend=_EmbeddingBackend(),
+        schema_store=SchemaStore(forge_root / "schemas"),
+        prompt_store=PromptStore(forge_root / "prompts"),
+    )
+
+    assert len(patterns) == 1
+    assert patterns[0]["source_kinds"] == ["bench_bundle"]
+    assert patterns[0]["surface_status"] == "out-of-surface"
+    assert patterns[0]["editable_target"] is None
+    assert patterns[0]["editable_component"] is None
+
+
+def test_runtime_and_development_evidence_do_not_cross_cluster_lanes(tmp_path: Path) -> None:
+    config, forge_root = _fixture_root(tmp_path)
+    development = load_source_bundle(
+        config.paths,
+        max_transcripts=1,
+        max_verdicts=0,
+        max_plans=0,
+    )
+    bench = BenchBundleSource(
+        source_id="bench_bundle:fixture",
+        path=tmp_path / "bench" / "fixture.bundle.json",
+        arc_id="arc-fixture",
+        scenario_id="F1-fixture",
+        family="F1",
+        failure_refs=(
+            EvidenceRef(
+                source_id="bench_bundle:fixture",
+                source_kind="bench_bundle",
+                locator="arc:arc-fixture/session:1/turn:1",
+                excerpt="continuity score=1",
+                digest="e" * 64,
+            ),
+        ),
+        passing_behaviors=(),
+    )
+    bundle = SourceBundle(
+        transcripts=development.transcripts,
+        verdicts=(),
+        plans=(),
+        bench_bundles=(bench,),
+    )
+
+    patterns = mine_bundle(
+        bundle=bundle,
+        config=config,
+        structured_backend=_StructuredBackend(),
+        embedding_backend=_EmbeddingBackend(),
+        schema_store=SchemaStore(forge_root / "schemas"),
+        prompt_store=PromptStore(forge_root / "prompts"),
+    )
+
+    assert len(patterns) == 2
+    by_kind = {tuple(pattern["source_kinds"]): pattern for pattern in patterns}
+    assert by_kind[("transcript",)]["surface_status"] == "in-surface"
+    assert by_kind[("bench_bundle",)]["surface_status"] == "out-of-surface"
+
+
 def test_prediction_check_is_inconclusive_without_post_apply_window(tmp_path: Path) -> None:
     ledger = tmp_path / "ledger.jsonl"
     ledger.write_text(
@@ -308,7 +425,7 @@ def test_prediction_check_is_inconclusive_without_post_apply_window(tmp_path: Pa
     assert post_apply[0]["status"] == "fulfilled"
 
 
-def test_v2_editable_surface_accepts_read_only_frozen_suite_glob() -> None:
+def test_v2_production_surface_keeps_runtime_assets_closed() -> None:
     config = ForgeConfig.load(
         ForgePaths.discover(
             repo_root=REPO_ROOT,
@@ -316,8 +433,12 @@ def test_v2_editable_surface_accepts_read_only_frozen_suite_glob() -> None:
         )
     )
     assert config.schema_version == "forge-editable-surface.v2"
-    component = next(
-        entry for entry in config.editable if entry.component == "character_scenario_semantics"
+    assert not any(entry.requires_offline_gate for entry in config.editable)
+    scenario_root = (
+        "packages/lifeform-domain-character/src/lifeform_domain_character/"
+        "scenario_packages/zhang_wuji_character_migration_v1"
     )
-    assert component.requires_offline_gate is True
-    assert component.validation is not None
+    for name in ("scenes.yaml", "ssot_fragment.json", "test_suite.yaml"):
+        target = f"{scenario_root}/{name}"
+        assert config.is_read_only(target)
+        assert config.editable_entry_for(target) is None

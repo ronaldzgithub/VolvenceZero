@@ -29,7 +29,8 @@ runtime owner；若做成完全独立项目，它又失去对本仓库 rules、�
 Harness 的优化对象可以逐步从指令、结构化上下文、工作流，扩展到 harness code，再扩展到
 optimizer code。越向后，搜索空间和收益上限越大，权限风险、归因混淆与回归半径也越大。
 
-Forge 第一阶段刻意停在阶梯前两级：
+Forge 的生产写面仍刻意停在阶梯前两级；runtime 双闸基础设施已经实现，但没有 ACTIVE
+runtime component：
 
 | 阶段 | 对象 | 当前状态 | 晋升要求 |
 |---|---|---|---|
@@ -38,7 +39,7 @@ Forge 第一阶段刻意停在阶梯前两级：
 | L3 | 工作流定义 | 未开放 | 独立 convergence packet + 新 verifier |
 | L4 | `forge/src/**` harness code | 永久在当前循环外 | 第二层 Forge 或人工工程变更 |
 | L5 | proposer/optimizer code | 未开放 | STOP 式元优化战役，不能自授权 |
-| L6 | 产品 runtime / 模型参数 | 未开放 | `ModificationGate.OFFLINE` + rare-heavy 证据 |
+| L6 | 产品 runtime / 模型参数 | 门禁就绪、写面关闭 | runtime consumer/owner + `ModificationGate.OFFLINE` + SHADOW/rare-heavy 证据 |
 
 白名单由 [`editable_surface.yaml`](./editable_surface.yaml) 冻结。Forge 不能编辑白名单自身，
 也不能通过更宽的 glob 覆盖保护面。
@@ -69,12 +70,14 @@ harness 能协调很长的工作链，但固定流程本身不是 RSI。Forge �
 
 ### 经历可观测性
 
-`sources.py` 读取三类公开产物：
+`sources.py` 读取四类公开产物：
 
 - Cursor transcript JSONL：只提取结构化 tool 序列、错误状态与有限错误摘录，不复制完整
   用户对话进 Forge 工件；
 - `promotion_verdict.json` 与同目录 `report.md`：读取显式 gate 布尔值、verdict 与报告摘要；
 - `.cursor/plans/*.plan.md`：提供战役叙事上下文，永远只读。
+- Companion Bench `*.bundle.json` / `arc_failure.jsonl`：提取逐轮 rubric、disqualifier、arc axis
+  与显式 transport/runtime failure。bench provenance 与开发轨迹分 lane，不能映射到 rules/prompts。
 
 `mine.py` 先形成三层记录：终端 verifier 原因、相关 agent 行为因果、暴露的抽象机制；再用
 语义嵌入聚类。原始轨迹、记录、pattern 分层保存，避免把所有历史塞回一个不断膨胀的 prompt。
@@ -155,11 +158,18 @@ manifesto 都做内容哈希，apply 前再次核对，防止 validate 后替换
 - 不 import `volvence_zero.*` 或 `lifeform_*`；
 - 不写 runtime slot，不更新模型权重。
 
-### 战役二：产品 runtime Forge（未实现）
+### 战役二：产品 runtime Forge（门禁基础设施完成，生产写面关闭）
 
-未来候选面可能包括 reviewed playbook、角色包或记忆整合策略，但必须先在正式 owner 契约注册，
-proposal 经 `ModificationGate.OFFLINE`，并以 `DISABLED → SHADOW → ACTIVE` 迁移。开发环 ledger
-不能直接充当 runtime credit，也不能让 evaluation 反向成为 PE 源。
+Forge 已能读取 Companion Bench、限制 post-apply 证据窗、生成结构化 YAML/JSON 候选、执行
+component-specific held-in/out、冻结 suite 基线/候选对照与 byte-identical rollback drill，并由
+循环外 adjudicator 产生 `ModificationGate.OFFLINE` 决策。runtime apply 同时要求 gate `ALLOW`
+和 named human approval。
+
+预检同时发现当前 `scenario_packages/*/{scenes.yaml,ssot_fragment.json}` 是 SHADOW 验收资产，
+没有产品 runtime consumer，不能充当可编辑 runtime owner。因此生产 `editable_surface.yaml` 仍将
+全部 `packages/**` 设为只读；bench failure 在合格 owner 出现前稳定标记 `out-of-surface`。未来
+候选面必须先有 runtime consumer、正式 owner 契约和 `DISABLED → SHADOW → ACTIVE` 证据，再由
+人工治理扩面。开发环 ledger 不能直接充当 runtime credit，也不能让 evaluation 反向成为 PE 源。
 
 ## 使用
 
@@ -175,6 +185,12 @@ python -m pip install -e 'forge[dev]'
 forge mine
 ```
 
+只读取 applied event 之后的新证据，并接入 Companion Bench：
+
+```bash
+forge mine --bench-root artifacts --evidence-since-ledger
+```
+
 生成候选（需要显式 OpenAI-compatible 环境配置，或测试/演练用 replay backend）：
 
 ```bash
@@ -185,6 +201,13 @@ forge propose artifacts/forge_mine_<timestamp>/failure_patterns.jsonl
 
 ```bash
 forge validate artifacts/forge_propose_<timestamp>/proposals/<proposal_id>
+```
+
+若目标属于未来人工开放的 `requires_offline_gate` component，还必须先在循环外裁决：
+
+```bash
+python scripts/forge_gate_adjudicator.py \
+  artifacts/forge_propose_<timestamp>/proposals/<proposal_id>
 ```
 
 只有人类明确批准后才能落盘：

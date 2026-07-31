@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 
 import numpy as np
+import yaml
 
 from volvence_forge.config import ForgeConfig, ForgePaths
 from volvence_forge.foundation import EmbeddingBackend, StructuredBackend
@@ -14,11 +15,46 @@ from volvence_forge.propose import propose_changes
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _config(tmp_path: Path) -> ForgeConfig:
+def _config(tmp_path: Path, *, enable_runtime_fixture: bool = False) -> ForgeConfig:
     forge_root = tmp_path / "forge"
     for name in ("schemas", "prompts"):
         shutil.copytree(REPO_ROOT / "forge" / name, forge_root / name)
     shutil.copy2(REPO_ROOT / "forge" / "editable_surface.yaml", forge_root / "editable_surface.yaml")
+    if enable_runtime_fixture:
+        policy_path = forge_root / "editable_surface.yaml"
+        policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+        policy["editable"].append(
+            {
+                "component": "character_scenario_semantics_fixture",
+                "paths": [
+                    "packages/lifeform-domain-character/src/lifeform_domain_character/"
+                    "scenario_packages/*/scenes.yaml",
+                    "packages/lifeform-domain-character/src/lifeform_domain_character/"
+                    "scenario_packages/*/ssot_fragment.json",
+                ],
+                "semantic_description": "Test-only runtime semantic asset fixture.",
+                "requires_offline_gate": True,
+                "validation": {
+                    "frozen_suite": (
+                        "packages/lifeform-domain-character/src/lifeform_domain_character/"
+                        "scenario_packages/*/test_suite.yaml"
+                    ),
+                    "held_in": [["pytest", "fixture-held-in", "-q"]],
+                    "held_out": [["pytest", "fixture-held-out", "-q"]],
+                },
+            }
+        )
+        policy["read_only"] = [
+            pattern
+            for pattern in policy["read_only"]
+            if pattern
+            not in {
+                "packages/**",
+                "packages/lifeform-domain-character/src/**/scenario_packages/*/scenes.yaml",
+                "packages/lifeform-domain-character/src/**/scenario_packages/*/ssot_fragment.json",
+            }
+        ]
+        policy_path.write_text(yaml.safe_dump(policy, sort_keys=False), encoding="utf-8")
     (forge_root / "ledger.jsonl").write_text("", encoding="utf-8")
     rules = tmp_path / ".cursor" / "rules"
     rules.mkdir(parents=True)
@@ -148,7 +184,7 @@ def test_propose_writes_bundle_without_mutating_target(tmp_path: Path) -> None:
 
 
 def test_propose_appends_one_runtime_yaml_item_without_mutating_target(tmp_path: Path) -> None:
-    config = _config(tmp_path)
+    config = _config(tmp_path, enable_runtime_fixture=True)
     scenario_dir = (
         tmp_path
         / "packages"
@@ -192,7 +228,7 @@ def test_propose_appends_one_runtime_yaml_item_without_mutating_target(tmp_path:
                 "source_kinds": ["bench_bundle"],
                 "centroid_digest": "d" * 64,
                 "editable_target": target.relative_to(tmp_path).as_posix(),
-                "editable_component": "character_scenario_semantics",
+                "editable_component": "character_scenario_semantics_fixture",
                 "surface_status": "in-surface",
                 "surface_similarity": 0.9,
                 "preserve_behaviors": ["boundary rubric remains passing"],

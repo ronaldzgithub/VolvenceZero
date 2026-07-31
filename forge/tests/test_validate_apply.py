@@ -6,6 +6,7 @@ import shutil
 
 import numpy as np
 import pytest
+import yaml
 
 from volvence_forge.apply import ApplyError, apply_proposal, reject_proposal
 from volvence_forge.config import ForgeConfig, ForgePaths
@@ -119,11 +120,46 @@ def _pass_command(argv, *, cwd, timeout):
     return CommandOutcome(returncode=0, stdout="ok", stderr="")
 
 
-def _config(tmp_path: Path) -> ForgeConfig:
+def _config(tmp_path: Path, *, enable_runtime_fixture: bool = False) -> ForgeConfig:
     forge_root = tmp_path / "forge"
     for name in ("schemas", "prompts"):
         shutil.copytree(REPO_ROOT / "forge" / name, forge_root / name)
     shutil.copy2(REPO_ROOT / "forge" / "editable_surface.yaml", forge_root / "editable_surface.yaml")
+    if enable_runtime_fixture:
+        policy_path = forge_root / "editable_surface.yaml"
+        policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+        policy["editable"].append(
+            {
+                "component": "character_scenario_semantics_fixture",
+                "paths": [
+                    "packages/lifeform-domain-character/src/lifeform_domain_character/"
+                    "scenario_packages/*/scenes.yaml",
+                    "packages/lifeform-domain-character/src/lifeform_domain_character/"
+                    "scenario_packages/*/ssot_fragment.json",
+                ],
+                "semantic_description": "Test-only runtime semantic asset fixture.",
+                "requires_offline_gate": True,
+                "validation": {
+                    "frozen_suite": (
+                        "packages/lifeform-domain-character/src/lifeform_domain_character/"
+                        "scenario_packages/*/test_suite.yaml"
+                    ),
+                    "held_in": [["pytest", "fixture-held-in", "-q"]],
+                    "held_out": [["pytest", "fixture-held-out", "-q"]],
+                },
+            }
+        )
+        policy["read_only"] = [
+            pattern
+            for pattern in policy["read_only"]
+            if pattern
+            not in {
+                "packages/**",
+                "packages/lifeform-domain-character/src/**/scenario_packages/*/scenes.yaml",
+                "packages/lifeform-domain-character/src/**/scenario_packages/*/ssot_fragment.json",
+            }
+        ]
+        policy_path.write_text(yaml.safe_dump(policy, sort_keys=False), encoding="utf-8")
     (forge_root / "ledger.jsonl").write_text(
         json.dumps({"event": "initialized", "schema_version": "forge-ledger.v1"}) + "\n",
         encoding="utf-8",
@@ -226,7 +262,7 @@ def _runtime_proposal(config: ForgeConfig, tmp_path: Path) -> tuple[Path, Path]:
                 "source_kinds": ["bench_bundle"],
                 "centroid_digest": "d" * 64,
                 "editable_target": target.relative_to(tmp_path).as_posix(),
-                "editable_component": "character_scenario_semantics",
+                "editable_component": "character_scenario_semantics_fixture",
                 "surface_status": "in-surface",
                 "surface_similarity": 0.9,
                 "preserve_behaviors": ["boundary negative remains passing"],
@@ -379,7 +415,7 @@ def test_human_apply_and_reject_are_auditable(tmp_path: Path) -> None:
 
 
 def test_runtime_validation_emits_delta_and_apply_requires_offline_allow(tmp_path: Path) -> None:
-    config = _config(tmp_path)
+    config = _config(tmp_path, enable_runtime_fixture=True)
     proposal_dir, target = _runtime_proposal(config, tmp_path)
     before = target.read_text(encoding="utf-8")
     validation = validate_proposal(

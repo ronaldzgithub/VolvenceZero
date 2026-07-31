@@ -82,6 +82,10 @@ def test_root_workspace_does_not_install_forge() -> None:
     "protected_target",
     (
         "packages/lifeform-domain-character/src/lifeform_domain_character/"
+        "scenario_packages/zhang_wuji_character_migration_v1/scenes.yaml",
+        "packages/lifeform-domain-character/src/lifeform_domain_character/"
+        "scenario_packages/zhang_wuji_character_migration_v1/ssot_fragment.json",
+        "packages/lifeform-domain-character/src/lifeform_domain_character/"
         "scenario_packages/zhang_wuji_character_migration_v1/test_suite.yaml",
         "packages/companion-bench/src/companion_bench/scenarios/seven_day/manifest.yaml",
         "packages/lifeform-domain-character/src/lifeform_domain_character/evaluation/judge.json",

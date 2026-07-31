@@ -110,6 +110,17 @@ def _source_objects(
     return failed_transcripts + failed_verdicts + failed_bench
 
 
+def _evidence_lane(source: TranscriptSource | VerdictSource | BenchBundleSource) -> str:
+    """Keep product-runtime observations out of the development-harness lane.
+
+    The source kind is a typed provenance boundary, not a natural-language
+    routing heuristic. Runtime bench failures may only target components that
+    governance has explicitly marked for the loop-external OFFLINE gate.
+    """
+
+    return "runtime" if isinstance(source, BenchBundleSource) else "development"
+
+
 def _fallback_ref(
     source: TranscriptSource | VerdictSource | PlanSource | BenchBundleSource,
 ) -> EvidenceRef:
@@ -193,15 +204,22 @@ def mine_bundle(
 
     clusters: list[dict[str, object]] = []
     for source, analysis, vector in records:
+        evidence_lane = _evidence_lane(source)
         target_cluster: dict[str, object] | None = None
         for cluster in clusters:
+            if cluster["evidence_lane"] != evidence_lane:
+                continue
             centroid = cluster["centroid"]
             assert isinstance(centroid, np.ndarray)
             if float(np.dot(vector, centroid)) >= config.cluster_similarity:
                 target_cluster = cluster
                 break
         if target_cluster is None:
-            target_cluster = {"centroid": vector.copy(), "items": []}
+            target_cluster = {
+                "centroid": vector.copy(),
+                "evidence_lane": evidence_lane,
+                "items": [],
+            }
             clusters.append(target_cluster)
         items = target_cluster["items"]
         assert isinstance(items, list)
@@ -209,16 +227,23 @@ def mine_bundle(
         matrix = np.vstack([item[2] for item in items])
         target_cluster["centroid"] = normalized(matrix.mean(axis=0))
 
-    surface_assets = config.editable_assets()
-    surface_texts = [
-        f"component={entry.component}\npath={relative}\n{entry.semantic_description}\n"
-        f"{path.read_text(encoding='utf-8')[:6000]}"
-        for entry, relative, path in surface_assets
-    ]
+    all_surface_assets = config.editable_assets()
     patterns: list[dict[str, object]] = []
     for cluster in clusters:
         items = cluster["items"]
         assert isinstance(items, list) and items
+        evidence_lane = cluster["evidence_lane"]
+        assert evidence_lane in {"development", "runtime"}
+        surface_assets = tuple(
+            asset
+            for asset in all_surface_assets
+            if asset[0].requires_offline_gate is (evidence_lane == "runtime")
+        )
+        surface_texts = [
+            f"component={entry.component}\npath={relative}\n{entry.semantic_description}\n"
+            f"{path.read_text(encoding='utf-8')[:6000]}"
+            for entry, relative, path in surface_assets
+        ]
         analyses = [item[1] for item in items]
         sources = [item[0] for item in items]
         centroid = cluster["centroid"]
