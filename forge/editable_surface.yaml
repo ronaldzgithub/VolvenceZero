@@ -1,5 +1,5 @@
-schema_version: forge-editable-surface.v1
-optimization_stage: instruction-and-structured-context
+schema_version: forge-editable-surface.v2
+optimization_stage: instruction-context-and-reviewed-runtime-semantics
 
 # Component observability: every writable component is named, described and
 # represented by files. Expanding this list is a human-reviewed governance
@@ -17,14 +17,35 @@ editable:
       Meta-level prompts that compress execution evidence, propose narrow
       harness improvements and judge whether a proposal addresses its cited
       failure pattern.
+  - component: character_scenario_semantics
+    paths:
+      - packages/lifeform-domain-character/src/lifeform_domain_character/scenario_packages/*/scenes.yaml
+      - packages/lifeform-domain-character/src/lifeform_domain_character/scenario_packages/*/ssot_fragment.json
+    semantic_description: >-
+      Reviewed character-domain runtime semantic assets defining R14 scenario
+      identities, semantic routing evidence axes, owner-bound paths and arc
+      structure. These assets never own evaluation or kernel state.
+    requires_offline_gate: true
+    validation:
+      frozen_suite: packages/lifeform-domain-character/src/lifeform_domain_character/scenario_packages/*/test_suite.yaml
+      held_in:
+        - [pytest, packages/lifeform-domain-character/tests/test_character_migration_package.py, -q]
+      held_out:
+        - [pytest, packages/lifeform-domain-character/tests, -q]
 
 # These surfaces remain outside the optimization loop. Entries are checked
 # before editable entries so no broad allow pattern can override protection.
 read_only:
-  - packages/**
   - tests/**
-  - scripts/run_gate*
-  - scripts/check_gate*
+  - scripts/**
+  - packages/companion-bench/**
+  - packages/vz-*/**
+  - packages/*/tests/**
+  - packages/lifeform-domain-character/src/**/*.py
+  - packages/lifeform-domain-character/src/**/scenario_packages/*/manifest.yaml
+  - packages/lifeform-domain-character/src/**/scenario_packages/*/README.md
+  - packages/lifeform-domain-character/src/**/scenario_packages/*/test_suite.yaml
+  - packages/lifeform-domain-character/src/**/evaluation/**
   - docs/specs/**
   - docs/DATA_CONTRACT.md
   - artifacts/**

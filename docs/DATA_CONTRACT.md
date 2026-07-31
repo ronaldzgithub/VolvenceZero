@@ -2129,6 +2129,7 @@ version。`FinalRolloutConfig.relationship_conditioning_mode` 默认 `text`；
 |---|---|---|---|---|
 | `common_adapter_bundle` | `vz-substrate` offline rare-heavy pipeline | immutable `CommonAdapterBundle` (`common-adapter-bundle.v1`) | frozen base weights digest, `SubstrateRareHeavyCheckpoint`, `PrefixKVArtifact`, `ControlBasisArtifact`, cognition OFFLINE gate record | process startup ACTIVE only after allow gate；omission = rollback |
 | `character_package_manifest` | `lifeform-domain-character` bake pipeline | immutable `CharacterPackageManifest` (`character-package-manifest.v1`) | `LifeformTemplate`, optional `CharacterPrefixKVPackage`, optional PEFT LoRA, fidelity report, common adapter version/fingerprint, OFFLINE gate record | registry entry `ACTIVE / SHADOW / DISABLED` |
+| `character_session_binding` | `lifeform-service` manifest loader | immutable `CharacterSessionBinding` | admitted `CharacterPackageManifest`, verified template path, Prefix/KV registry key, scoped character LoRA pool key | per manifest `ACTIVE / SHADOW`; `DISABLED` manifests publish no binding |
 
 L1 bundle 的 `compatibility_fingerprint` 必须绑定
 `base_model_id + base_model_weights_sha256 + common_adapter_version` 以及三个 nested
@@ -2141,14 +2142,22 @@ L1 `common-adapter-candidate.v2` 的 content id 还必须绑定训练集 SHA-256
 counterfactual arms 产生 readout，再由 cognition `ModificationGate.OFFLINE` 决策。
 L1 publish 必须复核 held-out digest、从 observation 重算 summary/cognition decision，
 并要求 gate `evaluation_ref` 绑定 evaluation report SHA-256；四者不能独立替换。
+启动时 `COMMON_ADAPTER_BUNDLE_PATH` 独立于任何 L2 manifest：只要显式配置就必须
+解析并 `require_active()`，再传给 process runtime；没有角色包不能成为忽略 L1、静默
+退回 base-only 的理由。省略该变量才是明确的 frozen-base rollback。
 
 L2 manifest 必须绑定相同的 `base_model_id + common_adapter_version +
 compatibility_fingerprint`，且所有 ref 都有 locator + SHA-256 + artifact id。ACTIVE
 要求 Prefix/KV、held-out/source-immutable/feedback-free fidelity pass、同一 adapter
-fingerprint 与可逆 OFFLINE allow gate；有 Character LoRA 时 fidelity 必须覆盖
-common-adapter + LoRA 组合臂。`lifeform-service` 只构造只读
+fingerprint 与可逆 OFFLINE allow gate。Character LoRA 晋升必须覆盖 prefix-only、
+LoRA-only、prefix+LoRA 三臂；当前 evidence schema 只有组合臂布尔 attestation，故
+含 `lora_ref` 的 manifest 保持 SHADOW-only。`lifeform-service` 只构造只读
 `CharacterPrefixKVRegistry` 并按 session 中的 typed `character_id` 选择 entry，禁止
 文本匹配或 consumer 重建角色 owner 状态。
+service 对外只发布 `CharacterSessionBinding` 的整包选择结果，consumer 不得分别重算
+template locator、Prefix/KV key 或 LoRA key。Character LoRA pool 属 loader 实例且与
+DLaaS figure/persona pool 隔离；session synthesizer 只消费绑定值，角色 LoRA 优先于
+figure/persona LoRA，禁止同一 forward nested activation。
 `CharacterPackageGateRecord.proposal_id` 必须绑定移除 fidelity/gate 后的 exact ungated
 manifest content id，`fidelity_report_sha256` 必须绑定同一次 held-out report；证据不得
 跨角色、跨 carrier set 或跨 common-adapter 指纹复用。
