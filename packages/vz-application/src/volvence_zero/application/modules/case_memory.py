@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-import logging
 import math
 from typing import TYPE_CHECKING, Any, Mapping
 
@@ -20,7 +19,9 @@ from volvence_zero.dual_track import DualTrackSnapshot
 from volvence_zero.memory import MemoryEntry, MemorySnapshot, Track
 from volvence_zero.runtime import RuntimeModule, RuntimePlaceholderValue, Snapshot, WiringLevel
 from volvence_zero.semantic_embedding import (
+    semantic_cosine,
     semantic_embedding_backend_status,
+    semantic_embedding,
     semantic_topic_similarity,
 )
 from volvence_zero.social_cognition import (
@@ -78,8 +79,8 @@ _REFLECTIVE_OPINION_PROTOTYPES = (
 _MIN_ACTION_REQUEST_ALIGNMENT = 0.16
 _MIN_ACTION_REQUEST_ALIGNMENT_REAL_BACKEND = 0.02
 _MIN_ACTION_REQUEST_MARGIN_REAL_BACKEND = 0.0
+_REAL_ACTION_EMBEDDING_DIM = 64
 _MIN_ACTION_APPLICABILITY_CONFIDENCE = 0.75
-_LOGGER = logging.getLogger(__name__)
 
 
 class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
@@ -475,21 +476,34 @@ def _select_action_grounding(
             if backend_state == "backend"
             else _MIN_ACTION_REQUEST_ALIGNMENT
         )
+        wide_action_alignment: float | None = None
+        wide_reflective_alignment: float | None = None
         if backend_state == "backend":
-            _LOGGER.warning(
-                "character action gate query=%r action=%.6f reflective=%.6f "
-                "minimum=%.6f margin=%.6f",
+            query_embedding = semantic_embedding(
                 query_text,
-                action_request_alignment,
-                reflective_alignment,
-                minimum_alignment,
-                _MIN_ACTION_REQUEST_MARGIN_REAL_BACKEND,
+                dim=_REAL_ACTION_EMBEDDING_DIM,
+            )
+            wide_action_alignment = max(
+                semantic_cosine(
+                    query_embedding,
+                    semantic_embedding(prototype, dim=_REAL_ACTION_EMBEDDING_DIM),
+                )
+                for prototype in _ACTION_REQUEST_PROTOTYPES
+            )
+            wide_reflective_alignment = max(
+                semantic_cosine(
+                    query_embedding,
+                    semantic_embedding(prototype, dim=_REAL_ACTION_EMBEDDING_DIM),
+                )
+                for prototype in _REFLECTIVE_OPINION_PROTOTYPES
             )
         if (
             action_request_alignment < minimum_alignment
             or (
                 backend_state == "backend"
-                and action_request_alignment - reflective_alignment
+                and wide_action_alignment is not None
+                and wide_reflective_alignment is not None
+                and wide_action_alignment - wide_reflective_alignment
                 < _MIN_ACTION_REQUEST_MARGIN_REAL_BACKEND
             )
         ):
