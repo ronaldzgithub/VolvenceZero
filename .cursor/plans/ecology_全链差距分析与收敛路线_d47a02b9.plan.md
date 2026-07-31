@@ -83,7 +83,7 @@ isProject: false
 | E1 | matched 站1 verdict | BLOCK（唯 `typed_milestone_structure` FAIL） | 四门全 PASS，`next_episode_authorized` 指向站2 |
 | E2 | P1 正式全量 | 五臂 × 55 局 + frozen 30/30 eval 只在旧 schema 时代跑过（结论 BLOCK）；v31 语义下从未跑 | 五臂全量 + frozen eval + seed1 复跑 + `--repeat-reference-report` 同向门 |
 | E3 | P2 confirmatory | 未启动 | PE-on/off matched（两臂 milestone 同态 ACTIVE），隔离 PE 加性 prior 的净贡献（D5） |
-| E4 | 旧 journal 处置 | 旧 v31 journal 停在 ep23（污染态，双槽已覆盖站1 checkpoint）；v30 证据仍在 /tmp worktree | 归档为只读证据（拷回主仓库），目录标记 EXCLUDED，防误续跑 |
+| E4 | 旧 journal 处置 | **CLOSED**：旧 v31 ep23 污染态与 v30 MPS 55 局 journal 已归档到 `.partials/excluded_history_20260731/`；manifest 逐文件冻结字节数与 SHA-256 | 顶层 `EXCLUDED`，`resumable=false / admissible_for_formal_verdict=false`；只读审计，禁止误续跑或准入 |
 
 ### 工程差距（G）
 
@@ -188,7 +188,8 @@ far 的"找到食物"已松动（v25 后 3/5 局到达），剩余是**长程回
 2. **门槛只在 prereg 包里改版本**：站1 的"v24 门 vs v30 基线"之争的教训——计划文件不是门槛的 SSOT，预注册 artifact 才是。
 3. 机制包（B）与运行包（C/D/F）分开提交；每包 ruff + 相关 pytest + 契约测试；跨 owner 变更同步 `DATA_CONTRACT.md` 与 specs。
 4. 所有 >10 分钟任务走 `_detach_run.py`；正式 run 走隔离快照 + 源码树 binding。
-5. 旧 v31 污染 journal（ep23）与 v30 /tmp 证据在包C 前完成 EXCLUDED 归档（E4）。
+5. 旧 v31 污染 journal（ep23）与 v30 MPS `/tmp` 证据已完成
+   EXCLUDED 归档（E4 CLOSED）；任何后续 runner 都不得把该目录作为 progress root。
 
 ## 六、距离终点还有多远（诚实估计）
 

@@ -285,3 +285,12 @@ GO/BLOCK 授权；review progress 还必须绑定实际 station1 candidate check
 `INVALID_CODE_TREE` 审计件，禁止执行。正式新 journal 位于
 `/private/tmp/volvence-ecology-dwell4.ul0hkm/research/ant/results/.partials/ecology_same_physics/seed0-20260731T052300Z`；
 control ep0 已原子提交，余下 station1 由 detached PID 21059 执行。
+
+终局战役 D3 / ecology E4 的历史归档已完成。v30 的完整 55 局 MPS journal
+与旧 v31 ep23 污染 journal 已复制到
+`research/ant/results/.partials/excluded_history_20260731/`；顶层
+`EXCLUDED` 标记和 `manifest.json` 明确
+`resumable=false / admissible_for_formal_verdict=false`，并冻结全部 23 个
+原始文件的字节数与 SHA-256。v30 日志首行的 `device=mps:0` 与旧 v31 已越过站 1
+边界的事实分别作为排除理由。归档只用于审计，不能作为 progress root，也不能改变
+`20260731T052300Z` 同物理 packet 的 matched 判词。

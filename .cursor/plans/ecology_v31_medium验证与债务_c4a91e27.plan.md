@@ -32,6 +32,9 @@ todos:
   - id: same-physics-station1
     content: 完整 code-tree 绑定的新空 journal 已启动；control ep0 前飞通过，余下 control/candidate station1 正在独立 session 运行
     status: in_progress
+  - id: excluded-history-archive
+    content: 旧 v31 ep23 与 v30 MPS 55 局 journal 已逐文件 SHA 归档，明确 EXCLUDED 且禁止续跑/准入
+    status: completed
 isProject: false
 ---
 
@@ -69,7 +72,7 @@ PE 幅值边界已被实测**证伪**（分离裕度 −0.38，自然 medium 拾
 | # | 债务 | 现状与影响 | 处置 | 修改后的目标 |
 |---|---|---|---|---|
 | D6 | 缺切换率/persistence 探针 | 站1 两个验收数没有现成脚本；契约测试只证单点，不给运行分布 | 站1（`s1-probe`） | 新只读脚本从 v31 journal checkpoint replay，输出 per-pickup 切换延迟分布 + 切换后 family 存活步数分布 |
-| D7 | 对比基线口径 | **勘误**：v30 与 v31 哈希同为 `57f0e58def9c`，物理课程 v13 起已与 v24 不同，v24 数字不可用；v30 逐局日志仅存于 /tmp worktree，有被系统清理的风险 | 站1 已改用 v30 基线 | 全部对比只用 v30 同位；把 v30 `seed0.run.log` 与 journal 拷回主仓库 `.partials/` 存档 |
+| D7 | 对比基线口径 | **CLOSED / 口径收缩**：v30 MPS 55 局与旧 v31 ep23 已归档；新同物理 packet 不再把任何历史 journal 纳入判定 | `.partials/excluded_history_20260731/` 逐文件 SHA 留档 | 历史数字只作审计背景；正式判词只比较同一 preregistration 下的 matched 双臂 |
 
 ### 工程债
 
@@ -90,7 +93,9 @@ PE 幅值边界已被实测**证伪**（分离裕度 −0.38，自然 medium 拾
 
 当前状态：第一站已完成并按预注册门早停；站2/站3未获执行权限。站后新增的 P0 工程债已清偿，默认预算十四门全部 PASS，但这不改变 medium 未验证 / BLOCK 的能力结论。
 
-重开状态（2026-07-30）：新的同物理 prereg 已先于结果固化；旧 v24/v30/旧 v31 journal 全部退出判定。
+重开状态（2026-07-31）：新的同物理 prereg 已先于结果固化；旧 v24/v30/旧 v31 journal 全部退出判定。
+v30 MPS 与旧 v31 原始 journal 已保存在
+`.partials/excluded_history_20260731/`，manifest 逐文件冻结 SHA，禁止续跑或正式准入。
 matched control 仅关闭 `environment_milestone_temporal_switch`，其余 rollout 字段哈希完全相同。
 新 station1 使用空 progress 目录运行 control→candidate 两臂；只有新 station1 报告为 GO 才授权 ep20。
 最终可执行 prereg 为隔离运行快照签发的 `20260730T095738Z`；它除显式关键文件外还绑定整个

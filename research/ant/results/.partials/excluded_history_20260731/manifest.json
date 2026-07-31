@@ -1,0 +1,153 @@
+{
+  "schema_version": "digital-ant-ecology-excluded-journal-archive.v1",
+  "archived_at": "2026-07-31",
+  "decision_use": "EXCLUDED",
+  "resumable": false,
+  "admissible_for_formal_verdict": false,
+  "reason": "Historical journals preserved for audit only; neither source satisfies the fresh same-physics preregistration contract.",
+  "archives": [
+    {
+      "archive_id": "v30_mps_reference",
+      "source_path": "/private/tmp/volvence-ecology-v30-worktree/research/ant/results/.partials/ecology_p1_v30_mps",
+      "source_git_commit": "e42e4d07c665ed7548c6f2c5823d0f1253a451aa",
+      "progress_schema": "digital-ant-ecology-p1-progress.v27",
+      "completed_training_episodes": 55,
+      "training_complete": true,
+      "device_evidence": "seed0/seed0.run.log line 1 records device=mps:0",
+      "exclusion_reason": "MPS device cadence was not calibrated and this journal predates the fresh same-physics preregistration.",
+      "file_count": 9,
+      "total_bytes": 135018426,
+      "files": [
+        {
+          "path": "seed0/cold.json",
+          "bytes": 602,
+          "sha256": "8b8b24f0a1520c9e739d1d3e11f90dd1a0dff4ebe886e5da7d75f5ca424802f1"
+        },
+        {
+          "path": "seed0/cold.slot-0.vzac",
+          "bytes": 3847747,
+          "sha256": "f649af2de7d53ec97cb2cfd7615b4b6585e615508d380f69433c5fa9f922c410"
+        },
+        {
+          "path": "seed0/learned.json",
+          "bytes": 814,
+          "sha256": "ef1c35d78de206b1dbcd2b6534a34026df5a9ffd54df624c78c19b5a54413cf5"
+        },
+        {
+          "path": "seed0/learned.slot-0.vzac",
+          "bytes": 33015835,
+          "sha256": "e333d289841fe5d6c98b936ac76c0e55f47fd1035f7f28b4b97daa9dcefff46c"
+        },
+        {
+          "path": "seed0/learned.slot-1.vzac",
+          "bytes": 33007063,
+          "sha256": "724e9aee0272e2e7272556b3f5c515e5914840d9ee00f377b1aa423bd25f7b95"
+        },
+        {
+          "path": "seed0/no_optimize.json",
+          "bytes": 830,
+          "sha256": "217ba50f8b5a4843131ebfe7d5c9b09456d80658690da98df580545d49835bde"
+        },
+        {
+          "path": "seed0/no_optimize.slot-0.vzac",
+          "bytes": 32505215,
+          "sha256": "62089943125297a4934c00a9fd7eaedd99f8ba3ca61c69c28c6ffead1dcf55bd"
+        },
+        {
+          "path": "seed0/no_optimize.slot-1.vzac",
+          "bytes": 32633591,
+          "sha256": "55eb3016cbda35ff0d2e3ac75143299cbb35f4d9eb4b5e97c2fa019379217962"
+        },
+        {
+          "path": "seed0/seed0.run.log",
+          "bytes": 6729,
+          "sha256": "213c220b735105ce0392b8e64bbb7f5da8cf5ddc0db3a61782cd48aed2c0d586"
+        }
+      ]
+    },
+    {
+      "archive_id": "v31_polluted_ep23",
+      "source_path": "research/ant/results/.partials/ecology_p1_v31",
+      "source_git_commit": null,
+      "progress_schema": "digital-ant-ecology-p1-progress.v28",
+      "completed_training_episodes": 23,
+      "training_complete": false,
+      "checkpoint_sha256": "e5467a057296c7d493f6931452bd5b78eb000e469923164a39e1947ddb5848ce",
+      "exclusion_reason": "The two-slot journal advanced beyond station 1 before the fresh same-physics preregistration and cannot be resumed without crossing an invalid decision boundary.",
+      "file_count": 14,
+      "total_bytes": 69727938,
+      "files": [
+        {
+          "path": "food_steering_gain.station1.json",
+          "bytes": 36579,
+          "sha256": "9803947c27da2eae6dda61affb4b8bd83a7838d422daea2bdc7077baf494185e"
+        },
+        {
+          "path": "milestone_switch_probe.station1.json",
+          "bytes": 10873,
+          "sha256": "08c0af4a11ce4f5d78d41cd257915c7aa846550d0fe20b67dbb2a4ab558b3861"
+        },
+        {
+          "path": "post_pickup_family_persistence.smoke.json",
+          "bytes": 22023,
+          "sha256": "336cf7a60a92facde7fde14614343897b25e2b24d85c9ae4b3f5f11dfe8517b4"
+        },
+        {
+          "path": "post_pickup_family_persistence.station1.json",
+          "bytes": 21946,
+          "sha256": "aaaf149050110767e02c0206d049aaae84683829342061bbbcae40b03741d326"
+        },
+        {
+          "path": "seed0/cold.json",
+          "bytes": 602,
+          "sha256": "a6bc5ad8aa8896434500077c71cf7f6df605b7317e9e31274f215ff9aa9740b8"
+        },
+        {
+          "path": "seed0/cold.slot-0.vzac",
+          "bytes": 3847747,
+          "sha256": "4ea7e64940d5a12b866e3d1bcaa453e481820f7c1befcde17e3208cf72f67a4f"
+        },
+        {
+          "path": "seed0/learned.json",
+          "bytes": 815,
+          "sha256": "6ce5d586ad6da56e5c1538fd47175814cb12ba75ec9313ee367be9c48d2337d4"
+        },
+        {
+          "path": "seed0/learned.slot-0.vzac",
+          "bytes": 32995371,
+          "sha256": "88649215d9ff11754bc477e588d2d24b58ce215842ba220ff23080ec90251ae8"
+        },
+        {
+          "path": "seed0/learned.slot-1.vzac",
+          "bytes": 32776035,
+          "sha256": "e5467a057296c7d493f6931452bd5b78eb000e469923164a39e1947ddb5848ce"
+        },
+        {
+          "path": "seed0.station1.log",
+          "bytes": 2056,
+          "sha256": "b87a276c0b7456287e43b95d453e537a46272649a213baa29af056093f58eb88"
+        },
+        {
+          "path": "seed0.station2.log",
+          "bytes": 200,
+          "sha256": "527aa4291a5ee5d28c7e8658f51b008ec13747734d7b605667a0086744522a49"
+        },
+        {
+          "path": "seed0.station2b.log",
+          "bytes": 100,
+          "sha256": "0406b1581217bbc8451903da3559b342973a5267bd1e9d1a73764323556062f8"
+        },
+        {
+          "path": "steering_channel_gain.station1.json",
+          "bytes": 11971,
+          "sha256": "6c01ee05b1a972913dcaddea570f9a4352cad8da2a60cc1e4507e4d5f663c953"
+        },
+        {
+          "path": "switch_probe.log",
+          "bytes": 1620,
+          "sha256": "9bd6944c8ca3a47ced656ecc19840f07d13b64462c01be36419e15098f8c1fc3"
+        }
+      ]
+    }
+  ]
+}

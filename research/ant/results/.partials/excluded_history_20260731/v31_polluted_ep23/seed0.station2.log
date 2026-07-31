@@ -1,0 +1,2 @@
+[ecology:learned] replay stage=butter tier=near episode=20 interleaved=False pickups=0 deliveries=0
+[ecology:learned] replay stage=butter tier=near episode=21 interleaved=False pickups=1 deliveries=0

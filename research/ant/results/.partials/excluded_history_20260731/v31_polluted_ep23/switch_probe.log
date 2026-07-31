@@ -1,0 +1,46 @@
+arm=learned journal=digital-ant-ecology-p1-progress.v28 episodes=20/55 rounds_per_episode=49
+  ep15 butter/near pickups=4 releases=0 baseline_switch_rate=0.041
+  ep16 butter/near pickups=4 releases=0 baseline_switch_rate=0.041
+  ep17 butter/near pickups=4 releases=0 baseline_switch_rate=0.041
+  ep18 butter/near pickups=4 releases=0 baseline_switch_rate=0.041
+  ep19 butter/near pickups=4 releases=0 baseline_switch_rate=0.041
+  ep25 butter/medium pickups=2 releases=0 baseline_switch_rate=0.041
+  ep26 butter/medium pickups=0 releases=0 baseline_switch_rate=0.041
+  ep27 butter/medium pickups=1 releases=0 baseline_switch_rate=0.036
+  ep28 butter/medium pickups=0 releases=0 baseline_switch_rate=0.041
+  ep29 butter/medium pickups=1 releases=0 baseline_switch_rate=0.041
+
+=== 判词 ===
+{
+  "baseline_switch_rate_all_ticks": 0.04030612244897959,
+  "persistence_horizon": 8,
+  "pickup": {
+    "delay_histogram": {
+      "1": 24
+    },
+    "events": 24,
+    "persistence_ge_3": 1.0,
+    "persistence_median": 8,
+    "persistence_min": 8,
+    "reverted_to_pre_family": 0,
+    "switch_rate": 1.0,
+    "switch_rate_within_2": 1.0,
+    "switched_within_2": 24,
+    "switched_within_horizon": 24
+  },
+  "release": {
+    "delay_histogram": {},
+    "events": 0,
+    "persistence_ge_3": null,
+    "persistence_median": null,
+    "persistence_min": null,
+    "reverted_to_pre_family": 0,
+    "switch_rate": null,
+    "switch_rate_within_2": null,
+    "switched_within_2": 0,
+    "switched_within_horizon": 0
+  },
+  "switch_horizon": 4
+}
+
+report: research/ant/results/.partials/ecology_p1_v31/milestone_switch_probe.station1.json

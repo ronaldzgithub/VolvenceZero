@@ -1,0 +1,21 @@
+[ecology:learned] replay stage=butter tier=near episode=0 interleaved=False pickups=1 deliveries=0
+[ecology:learned] replay stage=butter tier=near episode=1 interleaved=False pickups=1 deliveries=0
+[ecology:learned] replay stage=butter tier=near episode=2 interleaved=False pickups=1 deliveries=0
+[ecology:learned] replay stage=butter tier=near episode=3 interleaved=False pickups=1 deliveries=0
+[ecology:learned] replay stage=butter tier=near episode=4 interleaved=False pickups=2 deliveries=1
+[ecology:learned] replay stage=burning_match tier=near episode=5 interleaved=False pickups=3 deliveries=0
+[ecology:learned] replay stage=burning_match tier=near episode=6 interleaved=False pickups=4 deliveries=0
+[ecology:learned] replay stage=burning_match tier=near episode=7 interleaved=False pickups=3 deliveries=0
+[ecology:learned] replay stage=burning_match tier=near episode=8 interleaved=False pickups=4 deliveries=1
+[ecology:learned] replay stage=burning_match tier=near episode=9 interleaved=False pickups=4 deliveries=2
+[ecology:learned] replay stage=composite tier=near episode=10 interleaved=False pickups=1 deliveries=0
+[ecology:learned] replay stage=composite tier=near episode=11 interleaved=False pickups=1 deliveries=0
+[ecology:learned] replay stage=composite tier=near episode=12 interleaved=False pickups=0 deliveries=0
+[ecology:learned] replay stage=composite tier=near episode=13 interleaved=False pickups=0 deliveries=0
+[ecology:learned] replay stage=composite tier=near episode=14 interleaved=False pickups=0 deliveries=0
+[ecology:learned] replay stage=butter tier=near episode=15 interleaved=False pickups=4 deliveries=0
+[ecology:learned] replay stage=butter tier=near episode=16 interleaved=False pickups=4 deliveries=1
+[ecology:learned] replay stage=butter tier=near episode=17 interleaved=False pickups=5 deliveries=1
+[ecology:learned] replay stage=butter tier=near episode=18 interleaved=False pickups=4 deliveries=1
+P1 resumable run paused after 20 committed work items
+progress: research/ant/results/.partials/ecology_p1_v31/seed0
