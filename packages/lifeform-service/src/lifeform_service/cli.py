@@ -152,6 +152,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Root directory for closed-alpha session/deletion evidence bundles.",
     )
     parser.add_argument(
+        "--allow-evidence-time-override",
+        action="store_true",
+        help=(
+            "Allow observed_at_ms on continuity-metrics for isolated "
+            "virtual-calendar evidence runs. Never enable in product service."
+        ),
+    )
+    parser.add_argument(
         "--service-version",
         default="closed-alpha-v0",
         help="Service version returned in alpha responses.",
@@ -361,6 +369,7 @@ def main(argv: list[str] | None = None) -> int:
         # D6 (#alpha-reload): remember the source file so the running
         # service can hot-reload the allow-list (endpoint / SIGHUP).
         alpha_users_path=args.alpha_users_file,
+        allow_evidence_time_override=args.allow_evidence_time_override,
     )
     if args.alpha_enabled and args.memory_scope_root_dir is None:
         print("--alpha-enabled requires --memory-scope-root-dir", file=sys.stderr)

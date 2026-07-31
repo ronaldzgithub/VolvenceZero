@@ -44,6 +44,7 @@ from typing import TYPE_CHECKING, Any
 from aiohttp import web
 
 if TYPE_CHECKING:
+    from lifeform_service.character_packages import CharacterRuntimeAssets
     from volvence_zero.substrate import OpenWeightResidualRuntime
 
 from lifeform_service.dto import (
@@ -93,6 +94,7 @@ from lifeform_service.relationship_memory_console import (
     semantic_event_for_action,
 )
 from lifeform_service.session_manager import (
+    CharacterSelectionError,
     SessionAlreadyExistsError,
     SessionManager,
     SessionNotFoundError,
@@ -156,6 +158,7 @@ def create_app(
     protocol_uptake_service: ProtocolUptakeService | None = None,
     external_llm_client: "LlmJsonClient | None" = None,
     utterance_backend: Any = None,
+    character_runtime_assets: "CharacterRuntimeAssets | None" = None,
 ) -> web.Application:
     """Build the aiohttp Application.
 
@@ -236,6 +239,7 @@ def create_app(
         templates_root_dir=service_templates_root,
         protocol_uptake_service=protocol_uptake_service,
         attach_default_mcp_bundle=attach_default_mcp_bundle,
+        character_runtime_assets=character_runtime_assets,
     )
     if substrate_provider is not None and substrate_provider.swap_supported:
         # Wire the SessionManager's session-clearer as the swap
@@ -517,10 +521,12 @@ async def _handle_list_verticals(request: web.Request) -> web.Response:
     """
     registry: VerticalRegistry = request.app["vertical_registry"]
     alpha: AlphaServiceConfig = request.app["alpha_config"]
+    manager: SessionManager = request.app["session_manager"]
     return _json_ok(
         {
             "default_vertical": registry.default_name,
             "alpha_enabled": alpha.enabled,
+            "available_character_ids": list(manager.available_character_ids),
             "verticals": list(registry.summary_for_ui()),
         }
     )
@@ -575,6 +581,10 @@ async def _handle_create_session(request: web.Request) -> web.Response:
     except VerticalNotAlphaCapableError as exc:
         return _json_error(
             status=422, error="vertical_not_alpha_capable", detail=str(exc)
+        )
+    except CharacterSelectionError as exc:
+        return _json_error(
+            status=422, error="invalid_character_id", detail=str(exc)
         )
     except TemplatesNotSupportedError as exc:
         return _json_error(
@@ -1857,7 +1867,7 @@ async def _handle_relationship_memory_action(request: web.Request) -> web.Respon
 async def _handle_relationship_continuity_metrics(
     request: web.Request,
 ) -> web.Response:
-    _require_alpha(request)
+    alpha = _require_alpha(request)
     user_id = _alpha_user_id(request, None)
     session_id = _required_relationship_memory_session_id(
         request.query.get("session_id")
@@ -1899,7 +1909,27 @@ async def _handle_relationship_continuity_metrics(
         )
         for record in ledger.records_for_user(user_id=user_id)
     )
-    observed_at_ms = int(time.time() * 1000)
+    requested_observed_at_ms = request.query.get("observed_at_ms")
+    if requested_observed_at_ms is None:
+        observed_at_ms = int(time.time() * 1000)
+    else:
+        if not alpha.allow_evidence_time_override:
+            raise _BadRequest(
+                "evidence_time_override_disabled",
+                "observed_at_ms is accepted only in isolated evidence mode",
+            )
+        try:
+            observed_at_ms = int(requested_observed_at_ms)
+        except ValueError as exc:
+            raise _BadRequest(
+                "invalid_observed_at_ms",
+                "observed_at_ms must be a non-negative integer",
+            ) from exc
+        if observed_at_ms < 0 or str(observed_at_ms) != requested_observed_at_ms:
+            raise _BadRequest(
+                "invalid_observed_at_ms",
+                "observed_at_ms must be a canonical non-negative integer",
+            )
     readout = session.brain_session.relationship_continuity_readout(
         user_id=user_id,
         observation_id=f"{session_id}:turn-{len(session.turn_summaries)}",

@@ -151,13 +151,14 @@ class _FakeManager:
         return self.user_id
 
 
-def _app(*, brain, tmp_path):
+def _app(*, brain, tmp_path, allow_evidence_time_override=False):
     app = web.Application(middlewares=[_error_middleware])
     app["session_manager"] = _FakeManager(_FakeSession(brain))
     app["alpha_config"] = AlphaServiceConfig(
         enabled=True,
         alpha_users=frozenset({"alice"}),
         memory_scope_root_dir=str(tmp_path),
+        allow_evidence_time_override=allow_evidence_time_override,
     )
     app["relationship_memory_action_ledger"] = RelationshipMemoryActionLedger()
     app.router.add_get(
@@ -359,6 +360,36 @@ async def test_corrective_action_queues_typed_dialogue_outcome(
     assert metrics["wrong_user_attribution_rate"] == 1.0
     assert metrics["user_correction_rate"] == 1.0
     assert metrics["wiring_level"] == "shadow"
+
+
+async def test_continuity_metrics_virtual_time_is_evidence_gated(
+    aiohttp_client, tmp_path
+):
+    blocked = await aiohttp_client(
+        _app(brain=_FakeBrain(), tmp_path=tmp_path)
+    )
+    blocked_response = await blocked.get(
+        "/v1/users/me/continuity-metrics?session_id=session-1&observed_at_ms=1234",
+        headers={"X-Alpha-User": "alice"},
+    )
+    assert blocked_response.status == 400
+    assert (await blocked_response.json())["error"] == (
+        "evidence_time_override_disabled"
+    )
+
+    enabled_app = _app(
+        brain=_FakeBrain(),
+        tmp_path=tmp_path,
+        allow_evidence_time_override=True,
+    )
+    enabled = await aiohttp_client(enabled_app)
+    response = await enabled.get(
+        "/v1/users/me/continuity-metrics?session_id=session-1&observed_at_ms=1234",
+        headers={"X-Alpha-User": "alice"},
+    )
+    assert response.status == 200
+    calls = enabled_app["session_manager"].session.brain_session.continuity_calls
+    assert calls[-1]["observed_at_ms"] == 1234
 
 
 def test_action_ledger_round_trips_persistent_idempotency(tmp_path) -> None:

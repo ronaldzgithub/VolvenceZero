@@ -53,6 +53,9 @@ class AlphaServiceConfig:
     # ``None`` means the allow-list was supplied inline (not file-backed)
     # and therefore cannot be reloaded from disk.
     alpha_users_path: str | None = None
+    # Evidence-only virtual calendar hook. Disabled by default so product
+    # clients cannot forge relationship-continuity observation time.
+    allow_evidence_time_override: bool = False
 
     def is_allowed(self, user_id: str) -> bool:
         return not self.alpha_users or user_id in self.alpha_users
@@ -259,6 +262,9 @@ def alpha_config_to_json(config: AlphaServiceConfig) -> Mapping[str, object]:
         "service_version": config.service_version,
         "policy_version": config.policy_version,
         "allowed_user_count": len(config.alpha_users),
+        "allow_evidence_time_override": (
+            config.allow_evidence_time_override
+        ),
         "disclaimer": ALPHA_DISCLAIMER,
     }
 

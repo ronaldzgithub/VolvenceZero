@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from lifeform_evolution.seven_day_state_control import (
+    SEVEN_DAY_SHUFFLED_SOURCE_DAYS,
+    SevenDayFilesystemStateController,
+)
+from lifeform_evolution.seven_day_process_host import (
+    ServiceProcessRestart,
+    StateControlledSubprocessLifecycle,
+)
+
+
+def _controller(
+    tmp_path: Path,
+    *,
+    arm: str,
+    reference: Path | None = None,
+    donor: Path | None = None,
+) -> SevenDayFilesystemStateController:
+    return SevenDayFilesystemStateController(
+        evidence_root=tmp_path,
+        active_scope_root=tmp_path / f"active-{arm}",
+        archive_root=tmp_path / f"archive-{arm}",
+        user_id="synthetic-user",
+        experiment_arm_label=arm,
+        correct_reference_archive_root=reference,
+        donor_archive_root=donor,
+    )
+
+
+def _write_active(
+    controller: SevenDayFilesystemStateController,
+    value: str,
+) -> None:
+    controller.active_scope_dir.mkdir(parents=True, exist_ok=True)
+    (controller.active_scope_dir / "owner_v1.json").write_text(
+        value,
+        encoding="utf-8",
+    )
+
+
+def test_correct_state_archives_then_stages_exact_copy(tmp_path: Path) -> None:
+    controller = _controller(tmp_path, arm="correct-user-state")
+    controller.prepare_initial_day()
+    _write_active(controller, "day-one")
+    evidence = controller.archive_and_stage_after_day(day_index=1)
+    assert evidence.next_day_source_arm == "correct-user-state"
+    assert evidence.next_day_source_day_index == 1
+    assert evidence.archived_state_sha256 == (
+        evidence.next_day_loaded_state_sha256
+    )
+    assert (controller.active_scope_dir / "owner_v1.json").read_text() == (
+        "day-one"
+    )
+
+
+def test_stateless_archives_without_staging_prior_state(tmp_path: Path) -> None:
+    controller = _controller(tmp_path, arm="stateless")
+    controller.prepare_initial_day()
+    _write_active(controller, "day-one")
+    evidence = controller.archive_and_stage_after_day(day_index=1)
+    assert evidence.next_day_source_arm is None
+    assert evidence.next_day_loaded_state_sha256 is None
+    assert not controller.active_scope_dir.exists()
+    assert (tmp_path / "archive-stateless/day-1/owner_v1.json").is_file()
+
+
+def test_swapped_state_loads_matched_donor_archive(tmp_path: Path) -> None:
+    donor = tmp_path / "donor"
+    (donor / "day-1").mkdir(parents=True)
+    (donor / "day-1/owner_v1.json").write_text(
+        "donor-state",
+        encoding="utf-8",
+    )
+    controller = _controller(
+        tmp_path,
+        arm="swapped-user-state",
+        donor=donor,
+    )
+    controller.prepare_initial_day()
+    _write_active(controller, "target-state")
+    evidence = controller.archive_and_stage_after_day(day_index=1)
+    assert evidence.next_day_source_arm == (
+        "matched-donor-correct-user-state"
+    )
+    assert (controller.active_scope_dir / "owner_v1.json").read_text() == (
+        "donor-state"
+    )
+
+
+def test_shuffled_history_uses_frozen_non_monotonic_day_schedule(
+    tmp_path: Path,
+) -> None:
+    reference = tmp_path / "reference"
+    for day_index in range(1, 7):
+        (reference / f"day-{day_index}").mkdir(parents=True)
+        (reference / f"day-{day_index}/owner_v1.json").write_text(
+            f"reference-{day_index}",
+            encoding="utf-8",
+        )
+    controller = _controller(
+        tmp_path,
+        arm="shuffled-history",
+        reference=reference,
+    )
+    controller.prepare_initial_day()
+    _write_active(controller, "day-one")
+    observed = []
+    for day_index in range(1, 7):
+        evidence = controller.archive_and_stage_after_day(
+            day_index=day_index
+        )
+        observed.append(evidence.next_day_source_day_index)
+        if day_index < 6:
+            (controller.active_scope_dir / "new-owner.json").write_text(
+                f"arm-day-{day_index + 1}",
+                encoding="utf-8",
+            )
+    assert tuple(observed) == SEVEN_DAY_SHUFFLED_SOURCE_DAYS
+    assert tuple(observed) != tuple(sorted(observed))
+
+
+def test_controller_rejects_paths_outside_evidence_root(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="inside the evidence root"):
+        SevenDayFilesystemStateController(
+            evidence_root=tmp_path / "evidence",
+            active_scope_root=tmp_path / "outside",
+            archive_root=tmp_path / "evidence/archive",
+            user_id="synthetic-user",
+            experiment_arm_label="correct-user-state",
+        )
+
+
+def test_state_control_is_bound_to_process_restart_evidence(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, arm="correct-user-state")
+
+    class Host:
+        def start_initial(self) -> str:
+            return "instance-1"
+
+        def restart(self) -> ServiceProcessRestart:
+            return ServiceProcessRestart(
+                previous_instance_id="instance-1",
+                next_instance_id="instance-2",
+                healthcheck_passed=True,
+                persistence_scope_unchanged=True,
+            )
+
+        def close(self) -> None:
+            return None
+
+    lifecycle = StateControlledSubprocessLifecycle(
+        host=Host(),
+        state_controller=controller,
+    )
+    assert lifecycle.start_initial() == "instance-1"
+    _write_active(controller, "day-one")
+    evidence = lifecycle.restart_after_day(day_index=1)
+    assert evidence.previous_instance_id == "instance-1"
+    assert evidence.next_instance_id == "instance-2"
+    assert evidence.state_intervention.next_day_source_day_index == 1
