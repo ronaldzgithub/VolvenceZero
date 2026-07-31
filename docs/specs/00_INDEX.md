@@ -456,27 +456,27 @@
 - 角色画像必须是 reviewed structured artifact，不用关键词匹配从小说文本直接驱动行为
 - 原文小说只通过 canonical ingestion path 进入，durable 化仍由 R6 slow loop 处理
 
-### 17B. Character Prefix/KV Package
+### 17B. Common Adapter 与 Character Package
 
 | Spec | 内容 |
 |------|------|
-| [character-prefix-package.md](./character-prefix-package.md) | reviewed live-through provenance 到冻结 Qwen substrate 的人物 Prefix/KV 包、严格模型几何校验、DynamicCache 投递与证据边界 |
+| [character-prefix-package.md](./character-prefix-package.md) | 共享 `CommonAdapterBundle`、统一 `CharacterPackageManifest`、rare-heavy → State-KV → 角色 bake 顺序、多角色 session 路由、ACTIVE gate 与批量再验证 |
 
 **核心不变量**：
-- 人物 Prefix/KV 是 rare-heavy model-side artifact，不新增 kernel slot，也不伪装成个人或关系状态
-- 基础模型权重保持冻结；包哈希、模板哈希、proof locator 和目标模型必须可审计
+- L1 是进程级唯一共享 adapter；L2 只承载角色差异；L3 tenant 状态永不写回包
+- State-KV 与角色 Prefix/KV 必须在 `base + common adapter vN` 上蒸馏
+- runtime 必须校验基础权重 SHA-256、bundle/manifest 双指纹和模型几何
 - `character_prefix_applied` 只证明物理载体注入，不等于人物行为 fidelity 已达标
 
-### 17C. Character Residual Adapter
+### 17C. Character Residual Adapter（Deprecated）
 
 | Spec | 内容 |
 |------|------|
-| [character-residual-package.md](./character-residual-package.md) | reviewed live-through 轨迹在目标 Qwen 上重新训练的 target-model residual adapter、物理注入真值与 Prefix/KV 对照 rollout |
+| [character-residual-package.md](./character-residual-package.md) | 历史 residual schema 的只读/SHADOW 兼容与迁移禁令；新角色统一使用 Prefix/KV + 可选 PEFT LoRA |
 
 **核心不变量**：
-- 0.5B live-through 只提供训练 provenance，residual 向量必须在目标 1.5B 基底上重新训练
-- 包必须绑定目标模型、hidden width、hook layers、模板完整性和训练证据
-- residual 是 rollback-only legacy carrier；新角色只通过 Manifest 的 Prefix/KV + optional LoRA 经过 held-out gate 晋升，residual 默认仅 shadow
+- 禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
+- 保留 schema 仅用于复现历史 evidence；省略 artifact 即回滚
 
 ---
 

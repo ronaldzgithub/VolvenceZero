@@ -211,6 +211,15 @@ confidence、cold-start 空串。回滚 = 配置置 `DISABLED`（模块停发）
   审计已实现，但当前小样本未证明 Relationship 增益；默认继续 text + SHADOW，
   Prefix profile 只作可回滚证据路径，不进入 P6 promotion。
 
+**Gate 2 L3 carrier 收口（2026-07-31）**：Relationship bank 仍保持上述载体所有权与
+生产默认（slot=`SHADOW`、mode=`text`）。只有 slot 显式 `ACTIVE`、readout non-cold/
+positive-confidence 且 mode 显式选择 `residual` / `prefix_kv` 时才构建 latent carrier；SHADOW
+不进 `active_snapshots`，DISABLED 是立即回滚，revocation 强制归零。L3 的新 longitudinal
+机制不改这些投递语义，而是让 temporal selector 直接消费 owner 发布的不透明有界
+readout：`residual-state+relationship-owner-readout.v1`。这与 v35 的 8076 维无条件
+state readout 是可机器检查的机制差异。它不解释关系坐标，不建第二 relationship
+owner，也不授权 live injection；正式增益只能由后续 fresh prereg/capture 判定。
+
 ## 3. 当前收敛包：生成前残差预置
 
 当前实现采用最小、可回滚的 residual bootstrap：

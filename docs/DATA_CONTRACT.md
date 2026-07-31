@@ -994,6 +994,7 @@ R2 / R3-R4 / R5-R6 / R-PE / SSOT 是否成立。它通过既有 `SubstrateAdapte
 | `ColonyRareHeavyBundle` | `vz-embodiment-ant` | per-individual artifact digest/provenance/gate verdict；不含 temporal state、不新增 slot |
 | evidence manifest | `vz-embodiment-ant` | `digital-ant-manifest.v2` sidecar 绑定 artifact/input digest 与运行 provenance |
 | realtime app DTO | `vz-embodiment-ant` | `digital-ant-app.v2` 的 frozen config/frame/status/command/disturbance；新增 typed object upsert/move/remove、`AppFrame.objects` 和 checkpoint provenance；**不**进入 §3/§6 slot 注册表 |
+| relationship-conditioned Gate 2 selector state | `vz-temporal` offline selector owner（关系语义 owner 仍为 `vz-cognition` `RelationshipConditioningModule`） | `residual-state+relationship-owner-readout.v1` 在完整 residual state 后追加 owner 发布的有序 `ConditioningBankReadout`，只做 `(2x-1)×confidence` 有界化，禁止解释 label、原文或重建关系语义。只接受 non-cold、positive-confidence 的 `RELATIONSHIP` bank；错 bank/cold/zero confidence fail loudly，禁止静默回落 v35 无条件 8076 维 shape。该变换不新增 slot、不进 live session，只为 fresh Gate 2 longitudinal prereg/capture 提供新机制输入 |
 
 **Ecology evidence 当前代际（2026-07-28）**：curriculum owner 的现行 schema 为
 `digital-ant-ecology-curriculum.v13`；P1 report/progress 为
@@ -2092,28 +2093,40 @@ version。`FinalRolloutConfig.relationship_conditioning_mode` 默认 `text`；
 显式 `residual` / `prefix_kv` profile 才启用 latent，回滚为 `text` 或将 owner 置
 `SHADOW` / `DISABLED`。
 
-### 6.4 Character model-side Prefix/KV package
+### 6.4 Common Adapter / Character Package artifact contract
 
-人物包不新增 kernel runtime slot，也不把人物身份伪装成
-`personal_conditioning` 或 `relationship_conditioning`。`vz-substrate` 的
-`CharacterPrefixKVPackage` 是由 lifeform character owner 产生、由 frozen HF
-runtime 消费的 rare-heavy artifact，schema 为
-`character-prefix-kv-package.v1`。包必须同时声明 `character_id`、目标
-`model_id`、源 live-through `model_id`、源 `LifeformTemplate` 的 `template_id/integrity_hash`、
-live-through proof locator、固定 state vector 和 `PrefixKVArtifact`。
+该链不新增 kernel slot，也不把角色身份伪装成 `personal_conditioning` 或
+`relationship_conditioning`。正式交换分为两个 owner：
 
-`PrefixKVArtifact` 的每层 K/V 几何必须与 runtime 的 layer count、KV head count
-和 head dimension 精确匹配；模型不匹配、包哈希不匹配或 builtin fallback 均
-fail loudly。runtime 只把包内 K/V slots 追加到 DynamicCache，不改基础模型
-权重；`GenerationResult.character_prefix_applied` 与
-`character_prefix_id` 是本轮物理投递的唯一审计事实。缺少包时保持旧路径，
-但张无忌 1.5B 启动 wrapper 默认要求包存在。人物包的 Prefix/KV 质量评估与
-live-through coverage 是两个独立 verdict，不能用载体已注入推断人物行为已
-达到 canonical fidelity。当前浏览器 wrapper 默认以 `shadow` 方式加载并校验
-人物包，只发布加载审计，不做物理 K/V 投递；只有显式设置
-`ZHANG_WUJI_CHARACTER_PREFIX_MODE=active` 且 held-out 行为质量门通过时才允许
-进入 active。这样包的 provenance / geometry 可以先进入审计，而不会把未通过
-质量门的模型侧载体直接暴露给聊天用户。
+| artifact | owner | value_type | dependencies | wiring_level |
+|---|---|---|---|---|
+| `common_adapter_bundle` | `vz-substrate` offline rare-heavy pipeline | immutable `CommonAdapterBundle` (`common-adapter-bundle.v1`) | frozen base weights digest, `SubstrateRareHeavyCheckpoint`, `PrefixKVArtifact`, `ControlBasisArtifact`, cognition OFFLINE gate record | process startup ACTIVE only after allow gate；omission = rollback |
+| `character_package_manifest` | `lifeform-domain-character` bake pipeline | immutable `CharacterPackageManifest` (`character-package-manifest.v1`) | `LifeformTemplate`, optional `CharacterPrefixKVPackage`, optional PEFT LoRA, fidelity report, common adapter version/fingerprint, OFFLINE gate record | registry entry `ACTIVE / SHADOW / DISABLED` |
+
+L1 bundle 的 `compatibility_fingerprint` 必须绑定
+`base_model_id + base_model_weights_sha256 + common_adapter_version` 以及三个 nested
+carrier id/geometry。HF runtime 加载时重新解析 snapshot、按 weight file 相对路径和
+bytes 计算 SHA-256，并核对 rare-heavy hidden width/hook layers/runtime fingerprint、
+State-KV K/V geometry 与 control basis；任何不一致 fail loudly。L1 在进程内只读，
+禁止 live mutation。
+
+L2 manifest 必须绑定相同的 `base_model_id + common_adapter_version +
+compatibility_fingerprint`，且所有 ref 都有 locator + SHA-256 + artifact id。ACTIVE
+要求 Prefix/KV、held-out/source-immutable/feedback-free fidelity pass、同一 adapter
+fingerprint 与可逆 OFFLINE allow gate；有 Character LoRA 时 fidelity 必须覆盖
+common-adapter + LoRA 组合臂。`lifeform-service` 只构造只读
+`CharacterPrefixKVRegistry` 并按 session 中的 typed `character_id` 选择 entry，禁止
+文本匹配或 consumer 重建角色 owner 状态。
+
+`GenerationResult.character_id / character_prefix_applied / character_prefix_id /
+character_prefix_wiring_level / character_prefix_shadow_id` 是每轮物理投递/SHADOW
+加载事实，不等于 behavior fidelity verdict。common adapter 升级会使旧 manifest 的
+双指纹失效；`full-rebake` 必须重 bake，`fidelity-only` 也必须重新跑 held-out
+evidence 与 gate 后才可重签。L2 回滚是切 SHADOW/DISABLED 或恢复旧 manifest；L1
+回滚是省略/恢复旧 bundle，不改 base 与 L3 tenant state。
+
+`CharacterResidualAdapterPackage` 已废弃为只读、SHADOW、rollback-only legacy
+carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配。
 | `rupture_state` | RuptureStateModule | RuptureStateSnapshot | SHADOW | 每 turn | reflection, dialogue_trace (diagnostic) |
 | `interlocutor_state` | InterlocutorStateModule | InterlocutorStateSnapshot | SHADOW | 每 turn | prompt_planner, response_synthesizer, lifeform-core (LifeformSession.interlocutor_state) |
 | `active_mixture` | ProtocolRegistryModule | ActiveMixtureSnapshot | SHADOW | 每 turn | （packet 1.2+ 接入：boundary_policy / metacontroller / vitals / strategy_playbook 读 IDs+权重，不读内容本体） |

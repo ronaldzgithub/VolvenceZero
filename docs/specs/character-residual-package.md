@@ -1,61 +1,19 @@
-# Character Residual Adapter Package
+# Character Residual Adapter Package（Deprecated）
 
-## Purpose
+`CharacterResidualAdapterPackage` 曾用于把 reviewed live-through 轨迹编译成 target
+model residual vectors。该 schema 现在仅为历史 artifact 的可读、SHADOW 审计和
+回滚兼容保留，不再是可晋升载体。
 
-`CharacterResidualAdapterPackage` is the legacy model-side artifact for a
-reviewed character. It is distinct from the `LifeformTemplate`, application
-case memory, relationship conditioning and Character Prefix/KV package. The
-template and reviewed ledger provide training provenance; the adapter is
-trained again on the pinned target model. New character promotion uses the
-unified CharacterPackageManifest with Prefix/KV and optional LoRA carriers;
-this residual package remains only as a rollback-compatible shadow carrier.
+废弃原因：统一 `CharacterPackageManifest` 已用 Prefix/KV（轻量档）和可选 PEFT
+Character LoRA（重量档）覆盖表达层需求。继续保留独立 residual 通道会形成第四条
+没有统一 fidelity/gate 链的注入路径，破坏 L2 单一 package owner。
 
-## Contract
+硬约束：
 
-The package records:
+- 禁止为新角色 bake 或发布新的 residual package；
+- 禁止 `CharacterResidualAdapterPackage` 进入 ACTIVE；
+- 禁止与统一 character manifest 同时装配；
+- `character_residual_applied` 仅用于读取历史 evidence，不构成晋升依据；
+- rollback 是不传该 artifact，历史 JSON/schema 暂不删除，以便旧证据可复现。
 
-- target `model_id` and `hidden_size`;
-- exact residual hook layers;
-- source live-through model, template integrity hash and proof digest;
-- bounded per-layer residual vectors;
-- training mode, sample count and final teacher-forcing loss;
-- a SHA-256 content address over the complete canonical payload.
-
-Loading fails loudly on model ID, hidden width, layer availability, vector
-width, finite-value or delta-cap mismatches. A 0.5B artifact cannot be loaded
-into a 1.5B runtime, even when both are Qwen models.
-
-## Data Flow
-
-```mermaid
-flowchart LR
-    L[reviewed 0.5B live-through ledger] --> T[offline target-model training]
-    Q[Qwen 1.5B frozen base] --> T
-    T --> P[CharacterResidualAdapterPackage]
-    P --> H[1.5B residual block hooks]
-    H --> G[Qwen generation]
-```
-
-The base Qwen parameters remain frozen. The adapter is injected only through
-the explicit substrate path. `GenerationResult.character_residual_applied`
-and `character_residual_adapter_id` attest physical delivery; they do not by
-themselves establish behavior quality.
-
-## Rollout and deprecation
-
-`start_browser_chat_zhang_wuji.sh` may still load the target-model artifact in
-`ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=shadow` for rollback comparison. Active
-delivery is rejected because the residual path is deprecated:
-
-```bash
-ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=active \
-  bash start_browser_chat_zhang_wuji.sh
-```
-
-fails loudly. Use `CHARACTER_PACKAGE_MANIFESTS` plus
-`COMMON_ADAPTER_BUNDLE_PATH` and the `CHARACTER_PACKAGE_MODE` wiring instead.
-
-The residual adapter and Prefix/KV paths are not promoted together. Existing
-residual artifacts remain loadable for physical delivery evidence and exact
-rollback, but they do not authorize a new ACTIVE rollout or replace the
-Manifest gate.
+新实现与迁移流程见 [character-prefix-package.md](./character-prefix-package.md)。
