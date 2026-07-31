@@ -196,9 +196,19 @@ def mine_bundle(
         best_score = float(scores[best_index])
         if best_score >= config.minimum_surface_similarity:
             target = surface_entries[best_index]
-            editable_target: str | None = target.glob
-            editable_component: str | None = target.component
-            surface_status = "in-surface"
+            assets = [
+                relative
+                for entry, relative, _path in config.editable_assets()
+                if entry.component == target.component
+            ]
+            if assets:
+                editable_target = assets[0]
+                editable_component = target.component
+                surface_status = "in-surface"
+            else:
+                editable_target = None
+                editable_component = None
+                surface_status = "out-of-surface"
         else:
             editable_target = None
             editable_component = None

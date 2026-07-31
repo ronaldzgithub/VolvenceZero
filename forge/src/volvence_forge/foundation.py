@@ -15,6 +15,7 @@ from typing import Any, Protocol, Sequence
 
 import jsonschema
 import numpy as np
+from referencing import Registry, Resource
 
 
 class ForgeError(RuntimeError):
@@ -88,7 +89,18 @@ class SchemaStore:
     def validate(self, value: Any, name: str) -> None:
         schema = self.load(name)
         try:
-            jsonschema.Draft202012Validator(schema).validate(value)
+            store: dict[str, dict[str, Any]] = {}
+            for candidate in self._root.glob("*.json"):
+                loaded = read_json(candidate)
+                store[candidate.name] = loaded
+                schema_id = loaded.get("$id")
+                if isinstance(schema_id, str) and schema_id:
+                    store[schema_id] = loaded
+            registry = Registry().with_resources(
+                (key, Resource.from_contents(loaded))
+                for key, loaded in store.items()
+            )
+            jsonschema.Draft202012Validator(schema, registry=registry).validate(value)
         except jsonschema.ValidationError as exc:
             location = ".".join(str(part) for part in exc.absolute_path) or "<root>"
             raise SchemaContractError(f"{name} validation failed at {location}: {exc.message}") from exc

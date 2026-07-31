@@ -24,6 +24,9 @@ def _fixture_root(tmp_path: Path) -> tuple[ForgeConfig, Path]:
     )
     transcripts = tmp_path / "transcripts"
     transcripts.mkdir()
+    rules = tmp_path / ".cursor" / "rules"
+    rules.mkdir(parents=True)
+    (rules / "test.mdc").write_text("# Existing rule\n", encoding="utf-8")
     (transcripts / "run.jsonl").write_text(
         json.dumps({"type": "turn_ended", "status": "error", "error": "timeout"})
         + "\n"
@@ -116,5 +119,5 @@ def test_mine_bundle_uses_semantic_backend_and_schema(tmp_path: Path) -> None:
     assert patterns
     assert patterns[0]["schema_version"] == "forge-failure-pattern.v1"
     assert patterns[0]["surface_status"] == "in-surface"
-    assert patterns[0]["editable_target"] == ".cursor/rules/*.mdc"
+    assert patterns[0]["editable_target"] == ".cursor/rules/test.mdc"
     assert str(patterns[0]["pattern_id"]).startswith("fp_")
