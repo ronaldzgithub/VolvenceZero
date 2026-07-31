@@ -232,7 +232,7 @@ def _adapter_parameter_count(adapter_layers: Sequence[SubstrateDeltaAdapterLayer
     return sum(len(layer.delta_vector) for layer in adapter_layers)
 
 
-def _build_compatibility_fingerprint(
+def build_rare_heavy_compatibility_fingerprint(
     *,
     model_id: str,
     runtime_origin: str,
@@ -251,6 +251,11 @@ def _build_compatibility_fingerprint(
     )
     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
     return f"{training_mode}:{digest}"
+
+
+# Internal alias retained while older substrate modules migrate to the public
+# artifact-construction helper.
+_build_compatibility_fingerprint = build_rare_heavy_compatibility_fingerprint
 
 
 def _checkpoint_with_adapter_payload(
@@ -432,5 +437,4 @@ def resolve_local_runtime_mode(
     if local_files_only and resolved_fallback is SubstrateFallbackMode.ALLOW_BUILTIN:
         return LocalSubstrateRuntimeMode.PREFER_LOCAL
     return None
-
 

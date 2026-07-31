@@ -18,6 +18,7 @@ import hashlib
 import json
 import math
 from dataclasses import asdict, dataclass, replace
+from pathlib import Path
 from typing import Any
 
 from volvence_zero.substrate.control_basis import ControlBasisArtifact
@@ -29,6 +30,7 @@ from volvence_zero.substrate.residual_contracts import (
 
 COMMON_ADAPTER_BUNDLE_SCHEMA_VERSION = "common-adapter-bundle.v1"
 COMMON_ADAPTER_GATE_SCHEMA_VERSION = "common-adapter-gate-record.v1"
+MODEL_WEIGHT_SUFFIXES = frozenset({".safetensors", ".bin", ".pt", ".pth"})
 
 
 def _canonical_json(payload: object) -> str:
@@ -38,6 +40,37 @@ def _canonical_json(payload: object) -> str:
         sort_keys=True,
         separators=(",", ":"),
     )
+
+
+def fingerprint_model_weight_files(weights_root: Path) -> str:
+    """Return the canonical digest of model weight files below a snapshot.
+
+    Relative paths are part of the digest so two differently sharded releases
+    cannot collide merely because their concatenated bytes happen to match.
+    This is intentionally the same algorithm used by the State-KV trainer.
+    """
+
+    root = weights_root.expanduser().resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"model weights root is not a directory: {root}")
+    files = tuple(
+        sorted(
+            path
+            for path in root.rglob("*")
+            if path.is_file() and path.suffix.casefold() in MODEL_WEIGHT_SUFFIXES
+        )
+    )
+    if not files:
+        raise ValueError(f"no model weight files found below {root}.")
+    digest = hashlib.sha256()
+    for path in files:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(4, "big"))
+        digest.update(relative)
+        with path.open("rb") as handle:
+            while chunk := handle.read(8 * 1024 * 1024):
+                digest.update(chunk)
+    return digest.hexdigest()
 
 
 @dataclass(frozen=True)
@@ -320,7 +353,7 @@ class CommonAdapterBundle:
         checkpoint_raw = raw["rare_heavy_checkpoint"]
         if not isinstance(checkpoint_raw, dict):
             raise ValueError("rare_heavy_checkpoint must be an object.")
-        checkpoint = _checkpoint_from_dict(checkpoint_raw)
+        checkpoint = rare_heavy_checkpoint_from_dict(checkpoint_raw)
         state_kv_raw = raw["state_kv_artifact"]
         control_raw = raw["control_basis_artifact"]
         gate_raw = raw["gate_record"]
@@ -349,7 +382,9 @@ class CommonAdapterBundle:
         )
 
 
-def _checkpoint_from_dict(raw: dict[str, Any]) -> SubstrateRareHeavyCheckpoint:
+def rare_heavy_checkpoint_from_dict(
+    raw: dict[str, Any],
+) -> SubstrateRareHeavyCheckpoint:
     fields = set(SubstrateRareHeavyCheckpoint.__dataclass_fields__)
     missing = sorted(fields - set(raw))
     extra = sorted(set(raw) - fields)
@@ -378,9 +413,29 @@ def _checkpoint_from_dict(raw: dict[str, Any]) -> SubstrateRareHeavyCheckpoint:
     return SubstrateRareHeavyCheckpoint(**values)
 
 
+def rare_heavy_checkpoint_to_json(
+    checkpoint: SubstrateRareHeavyCheckpoint,
+) -> str:
+    """Serialize a standalone checkpoint used between offline stages."""
+
+    return json.dumps(asdict(checkpoint), ensure_ascii=False, indent=2, sort_keys=True)
+
+
+def rare_heavy_checkpoint_from_json(payload: str) -> SubstrateRareHeavyCheckpoint:
+    raw = json.loads(payload)
+    if not isinstance(raw, dict):
+        raise ValueError("rare-heavy checkpoint JSON must be an object.")
+    return rare_heavy_checkpoint_from_dict(raw)
+
+
 __all__ = [
     "COMMON_ADAPTER_BUNDLE_SCHEMA_VERSION",
     "COMMON_ADAPTER_GATE_SCHEMA_VERSION",
     "CommonAdapterBundle",
     "CommonAdapterGateRecord",
+    "MODEL_WEIGHT_SUFFIXES",
+    "fingerprint_model_weight_files",
+    "rare_heavy_checkpoint_from_dict",
+    "rare_heavy_checkpoint_from_json",
+    "rare_heavy_checkpoint_to_json",
 ]

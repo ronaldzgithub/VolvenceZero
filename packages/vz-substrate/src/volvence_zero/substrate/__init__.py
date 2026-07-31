@@ -82,6 +82,15 @@ from volvence_zero.substrate.common_adapter_bundle import (
     COMMON_ADAPTER_GATE_SCHEMA_VERSION,
     CommonAdapterBundle,
     CommonAdapterGateRecord,
+    fingerprint_model_weight_files,
+    rare_heavy_checkpoint_from_json,
+    rare_heavy_checkpoint_to_json,
+)
+from volvence_zero.substrate.offline_adapter_hooks import (
+    install_rare_heavy_checkpoint_hooks,
+    remove_forward_hooks,
+    resolve_hidden_size,
+    resolve_transformer_blocks,
 )
 from volvence_zero.substrate.prefix_kv_diagnostics import (
     PrefixAttentionProfile,
@@ -165,6 +174,9 @@ from volvence_zero.substrate.residual_backend import (
 from volvence_zero.substrate.residual_contracts import (
     ContinuationScore,
     ExpertActionTarget,
+)
+from volvence_zero.substrate.residual_helpers import (
+    build_rare_heavy_compatibility_fingerprint,
 )
 from volvence_zero.substrate.vllm_runtime import (
     VLLMLoRARouter,
@@ -278,6 +290,13 @@ __all__ = [
     "COMMON_ADAPTER_GATE_SCHEMA_VERSION",
     "CommonAdapterBundle",
     "CommonAdapterGateRecord",
+    "fingerprint_model_weight_files",
+    "rare_heavy_checkpoint_from_json",
+    "rare_heavy_checkpoint_to_json",
+    "install_rare_heavy_checkpoint_hooks",
+    "remove_forward_hooks",
+    "resolve_hidden_size",
+    "resolve_transformer_blocks",
     "RARE_HEAVY_PEFT_TRAINING_MODE",
     "PeftLoraRareHeavyBackend",
     "RareHeavyAdapterTrainingBackend",
@@ -317,6 +336,7 @@ __all__ = [
     "UnavailableField",
     "apply_residual_control",
     "build_training_trace",
+    "build_rare_heavy_compatibility_fingerprint",
     "build_builtin_transformers_runtime",
     "build_transformers_runtime_with_fallback",
     "default_persona_lora_pool",

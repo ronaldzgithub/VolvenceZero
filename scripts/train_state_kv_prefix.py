@@ -83,6 +83,11 @@ from volvence_zero.substrate.prefix_kv_artifact import (  # noqa: E402
     STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE,
     build_teacher_distilled_prefix_artifact,
 )
+from volvence_zero.substrate import (  # noqa: E402
+    install_rare_heavy_checkpoint_hooks,
+    rare_heavy_checkpoint_from_json,
+    remove_forward_hooks,
+)
 
 TEACHER_ARM_LABEL = "state-kv-arm-bprime"
 
@@ -666,6 +671,19 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument("--allow-download", action="store_true")
+    parser.add_argument(
+        "--common-adapter-checkpoint",
+        type=Path,
+        help=(
+            "standalone rare-heavy checkpoint activated before all teacher "
+            "and student forwards"
+        ),
+    )
+    parser.add_argument(
+        "--common-adapter-version",
+        default="",
+        help="common adapter version bound into State-KV provenance",
+    )
     args = parser.parse_args(argv)
 
     if not 0.0 < args.norm_cap <= MAX_PREFIX_NORM_CAP:
@@ -676,6 +694,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--route-weight must be non-negative")
     if args.route_temperature <= 0.0:
         parser.error("--route-temperature must be positive")
+    if bool(args.common_adapter_checkpoint) != bool(
+        args.common_adapter_version.strip()
+    ):
+        parser.error(
+            "--common-adapter-checkpoint and --common-adapter-version must be "
+            "provided together"
+        )
     _assert_probe_holdout()
 
     import torch
@@ -697,6 +722,22 @@ def main(argv: list[str] | None = None) -> int:
     model.requires_grad_(False)
     device = torch.device(args.device)
     model.to(device)
+    adapter_hooks = ()
+    checkpoint_sha256 = ""
+    checkpoint_fingerprint = ""
+    if args.common_adapter_checkpoint is not None:
+        checkpoint_path = args.common_adapter_checkpoint.expanduser().resolve()
+        checkpoint_payload = checkpoint_path.read_text(encoding="utf-8")
+        checkpoint = rare_heavy_checkpoint_from_json(checkpoint_payload)
+        checkpoint_sha256 = hashlib.sha256(
+            checkpoint_payload.encode("utf-8")
+        ).hexdigest()
+        checkpoint_fingerprint = checkpoint.compatibility_fingerprint
+        adapter_hooks = install_rare_heavy_checkpoint_hooks(
+            model=model,
+            checkpoint=checkpoint,
+            expected_model_id=args.model_id,
+        )
 
     config = model.config
     num_layers = int(config.num_hidden_layers)
@@ -986,6 +1027,10 @@ def main(argv: list[str] | None = None) -> int:
             str(weights["weights_sha256"])
             + ":"
             + hashlib.sha256(material).hexdigest()
+            + ":"
+            + args.common_adapter_version.strip()
+            + ":"
+            + checkpoint_sha256
         ).encode("utf-8")
     ).hexdigest()
 
@@ -1013,6 +1058,7 @@ def main(argv: list[str] | None = None) -> int:
             else ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE
         ),
     )
+    remove_forward_hooks(adapter_hooks)
     output = Path(args.output).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(artifact.to_json() + "\n", encoding="utf-8")
@@ -1022,6 +1068,16 @@ def main(argv: list[str] | None = None) -> int:
         "training_mode": artifact.training_mode,
         "model_id": args.model_id,
         "weights_sha256": weights["weights_sha256"],
+        "common_adapter_version": args.common_adapter_version.strip() or None,
+        "rare_heavy_checkpoint_sha256": checkpoint_sha256 or None,
+        "rare_heavy_compatibility_fingerprint": (
+            checkpoint_fingerprint or None
+        ),
+        "training_order": (
+            "base+rare-heavy->state-kv"
+            if checkpoint_sha256
+            else "base-only-legacy"
+        ),
         "material_sha256": hashlib.sha256(material).hexdigest(),
         "teacher_arm": TEACHER_ARM_LABEL,
         "student_arm": PREFIX_ARM_LABEL,
