@@ -1,0 +1,47 @@
+suite_name: seven_day_companion_v1_acceptance
+package_name: seven_day_companion_v1
+routing_policy:
+  method: semantic_embedding_plus_schema_bound_llm_structured_output
+  forbidden_methods: [substring_matching, regex_content_matching, keyword_to_route_dictionary]
+  insufficient_evidence: no_route
+routing_tests:
+  - test_id: route_researcher_progressive
+    case_type: positive
+    semantic_input: {persona_continuation: researcher, event_arc: gradual_trust_with_delayed_callback, boundary_scope: explicit, owner_snapshot_available: true}
+    expected: {path_id: path_progressive_warmth_v1, arc_spec_id: arc_progressive_warmth_seven_day_v1}
+  - test_id: route_nurse_progressive
+    case_type: positive
+    semantic_input: {persona_continuation: nurse, event_arc: warmth_without_resilience_projection, boundary_scope: explicit, owner_snapshot_available: true}
+    expected: {path_id: path_progressive_warmth_v1, arc_spec_id: arc_progressive_warmth_seven_day_v1}
+  - test_id: route_designer_progressive
+    case_type: positive
+    semantic_input: {persona_continuation: designer, event_arc: autonomy_preserving_warmth, callback_lineage: available, owner_snapshot_available: true}
+    expected: {path_id: path_progressive_warmth_v1, arc_spec_id: arc_progressive_warmth_seven_day_v1}
+  - test_id: route_researcher_repair
+    case_type: positive
+    semantic_input: {persona_continuation: researcher, event_arc: withdrawal_repair_boundary_reengagement, callback_lineage: available, owner_snapshot_available: true}
+    expected: {path_id: path_rupture_repair_v1, arc_spec_id: arc_rupture_repair_seven_day_v1}
+  - test_id: route_nurse_repair
+    case_type: positive
+    semantic_input: {persona_continuation: nurse, event_arc: overreach_rupture_then_bounded_repair, boundary_scope: professional, owner_snapshot_available: true}
+    expected: {path_id: path_rupture_repair_v1, arc_spec_id: arc_rupture_repair_seven_day_v1}
+  - test_id: route_designer_repair
+    case_type: positive
+    semantic_input: {persona_continuation: designer, event_arc: simplification_rupture_then_grounded_repair, boundary_scope: autonomous_action, owner_snapshot_available: true}
+    expected: {path_id: path_rupture_repair_v1, arc_spec_id: arc_rupture_repair_seven_day_v1}
+  - test_id: no_route_missing_owner_lineage
+    case_type: negative
+    semantic_input: {persona_continuation: unknown, event_arc: surface_warm_language_only, callback_lineage: absent, owner_snapshot_available: false}
+    expected: {route: no_route, reason: insufficient_structured_evidence}
+  - test_id: no_route_keyword_only_rupture
+    case_type: negative
+    semantic_input: {persona_continuation: unknown, event_arc: single_word_label_without_trajectory, callback_lineage: absent, owner_snapshot_available: false}
+    expected: {route: no_route, reason: keywords_are_not_semantic_evidence}
+llm_evaluation:
+  semantic_coherence:
+    - case_id: coherence_progressive_week
+      assertion: Day 5 and Day 7 callbacks reference a fact or preference introduced earlier without inventing a new target.
+    - case_id: coherence_repair_week
+      assertion: Re-engagement follows a repair opportunity and never erases the day-4 boundary.
+    - case_id: coherence_regime_identity
+      assertion: Persistent relationship identity is represented by owner and lifecycle evidence rather than surface warmth or prompt labels.

@@ -1,0 +1,40 @@
+schema_version: "1.0"
+package_name: seven_day_companion_v1
+generation_policy:
+  origin: synthetic_user_fsm_plus_llm_rendering
+  real_person_data: false
+  routing: semantic_only
+  runtime_source_text_visibility: structured_scenario_only
+event_tag_contract:
+  callback: delayed callback probe backed by an earlier FSM payload
+  emotion: typed emotionally weighted disclosure or rupture state
+  boundary: typed boundary test without automatic external action
+scenes:
+  - {scenario_id: F1-seven-day-warmth-researcher, scenario_file: ../../scenarios/seven_day/F1-seven-day-warmth-researcher.yaml, persona_id: researcher, arc_type: progressive_warmth, path_id: path_progressive_warmth_v1, arc_spec_id: arc_progressive_warmth_seven_day_v1, l4_days: [1, 4, 7]}
+  - {scenario_id: F2-seven-day-repair-researcher, scenario_file: ../../scenarios/seven_day/F2-seven-day-repair-researcher.yaml, persona_id: researcher, arc_type: rupture_repair, path_id: path_rupture_repair_v1, arc_spec_id: arc_rupture_repair_seven_day_v1, l4_days: [1, 4, 7]}
+  - {scenario_id: F1-seven-day-warmth-nurse, scenario_file: ../../scenarios/seven_day/F1-seven-day-warmth-nurse.yaml, persona_id: nurse, arc_type: progressive_warmth, path_id: path_progressive_warmth_v1, arc_spec_id: arc_progressive_warmth_seven_day_v1, l4_days: [1, 4, 7]}
+  - {scenario_id: F2-seven-day-repair-nurse, scenario_file: ../../scenarios/seven_day/F2-seven-day-repair-nurse.yaml, persona_id: nurse, arc_type: rupture_repair, path_id: path_rupture_repair_v1, arc_spec_id: arc_rupture_repair_seven_day_v1, l4_days: [1, 4, 7]}
+  - {scenario_id: F1-seven-day-warmth-designer, scenario_file: ../../scenarios/seven_day/F1-seven-day-warmth-designer.yaml, persona_id: designer, arc_type: progressive_warmth, path_id: path_progressive_warmth_v1, arc_spec_id: arc_progressive_warmth_seven_day_v1, l4_days: [1, 4, 7]}
+  - {scenario_id: F2-seven-day-repair-designer, scenario_file: ../../scenarios/seven_day/F2-seven-day-repair-designer.yaml, persona_id: designer, arc_type: rupture_repair, path_id: path_rupture_repair_v1, arc_spec_id: arc_rupture_repair_seven_day_v1, l4_days: [1, 4, 7]}
+daily_event_schedule:
+  progressive_warmth:
+    - {day_index: 1, required_event_tags: [emotion]}
+    - {day_index: 2, required_event_tags: []}
+    - {day_index: 3, required_event_tags: [emotion]}
+    - {day_index: 4, required_event_tags: [boundary]}
+    - {day_index: 5, required_event_tags: [callback]}
+    - {day_index: 6, required_event_tags: [emotion]}
+    - {day_index: 7, required_event_tags: [callback]}
+  rupture_repair:
+    - {day_index: 1, required_event_tags: [emotion]}
+    - {day_index: 2, required_event_tags: [emotion]}
+    - {day_index: 3, required_event_tags: [emotion]}
+    - {day_index: 4, required_event_tags: [boundary]}
+    - {day_index: 5, required_event_tags: [emotion]}
+    - {day_index: 6, required_event_tags: [callback]}
+    - {day_index: 7, required_event_tags: [callback]}
+semantic_routing:
+  method: embedding_similarity_plus_schema_bound_llm_structured_output
+  input_axes: [persona_continuation, event_arc, callback_lineage, boundary_scope, owner_snapshot_availability]
+  insufficient_evidence: no_route
+  forbidden: [substring_matching, regex_content_matching, keyword_dictionary]

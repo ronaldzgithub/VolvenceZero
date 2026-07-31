@@ -1,0 +1,19 @@
+name: seven_day_companion_v1
+version: "1.0"
+description: "七天模拟陪伴关系连续性、修复、边界与睡眠巩固的自动化证据场景包。"
+domain: SOCIAL
+author: "Volvence Zero Contributors"
+components:
+  ssot_fragment: ssot_fragment.json
+  scenes: scenes.yaml
+  test_suite: test_suite.yaml
+evidence_contract:
+  claim_scope: simulated_longitudinal_only
+  runtime_owner_policy: no_new_runtime_owner
+  routing_method: semantic_embedding_plus_schema_bound_structured_output
+  human_rating_required_for_external_validation: true
+explanation: |
+  本场景包把七天陪伴拆成两条可证伪路径：渐进升温路径检验关系状态、偏好和回访承诺能否跨越真实 session 与进程重启持续存在；裂痕修复路径检验系统在误解、退缩、修复窗口和边界试探之间是否保持同一用户的关系脊柱。每条弧都固定七个 phase，从第 0 阶段的具体情绪事实开始，经偏好建立、关系变化、边界事件、延迟 callback、巩固与第七天回访结束；phase_order 连续，且每个 path 都被对应 arc 引用。
+  场景检测不读取关键词、正则或固定短语。路由输入是结构化 event arc、persona continuation、owner snapshot availability、callback target lineage 与 boundary/emotion typed tags，再由语义嵌入相似度和 schema-bound LLM 结构化输出选择候选路径；证据不足时 no-route。FSM 只决定探测动作坐标，LLM 只负责自然语言渲染。
+  集成点是 companion-bench UserSimulator、lifeform-service session/end-scene HTTP、owner persistence/hydration、relationship_continuity readout、vz-runtime 七日消融证据器和 Gate 8/11 盲评 capture。evaluation 只读，模拟用户、probe 与人评都不得回灌 PE、credit 或学习链。
+  R14 体制身份不是 prompt 标签：渐进升温体制保持“温暖但不越界、记得但不冒认”的持续关系姿态；裂痕修复体制保持“承认影响、保留主体性、修复后不抹除边界”的身份。体制跨日由 owner snapshot 和 lifecycle evidence 维持，可通过关闭七日 evidence runner 完整回滚。

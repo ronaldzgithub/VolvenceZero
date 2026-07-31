@@ -40,4 +40,11 @@ where = ["src"]
 include = ["companion_bench*"]
 
 [tool.setuptools.package-data]
-companion_bench = ["scenarios/public/*.yaml", "scenarios/public/**/*.yaml"]
+companion_bench = [
+    "scenarios/public/*.yaml",
+    "scenarios/public/**/*.yaml",
+    "scenarios/seven_day/*.yaml",
+    "scenario_packages/**/*.json",
+    "scenario_packages/**/*.md",
+    "scenario_packages/**/*.yaml",
+]

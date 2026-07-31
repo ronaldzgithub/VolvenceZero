@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "package_name": "seven_day_companion_v1",
+  "design_contract": {
+    "scenario_regime_alignment": "R14_persistent_relationship_identity",
+    "routing_method": "semantic_embedding_plus_schema_bound_llm_structured_output",
+    "forbidden_routing": [
+      "keyword_contains",
+      "regular_expression_content_routing",
+      "dictionary_keyword_to_behavior"
+    ],
+    "claim_scope": "simulated_longitudinal_only",
+    "evaluation_policy": "readout_only_no_learning_feedback"
+  },
+  "paths": [
+    {
+      "path_id": "path_progressive_warmth_v1",
+      "family": "progressive_warmth",
+      "name": "渐进升温七日路径",
+      "objective": "检验情绪事实、沟通偏好、边界和延迟回访在七次 session 与六次进程重启后能否保持连续。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": ["persona continuation", "callback lineage", "boundary scope", "owner hydration availability"],
+        "insufficient_evidence_behavior": "no_route",
+        "forbidden": ["keyword_route", "surface_warmth_route"]
+      },
+      "sub_goals": [
+        {"sub_goal_id": "path_progressive_warmth_v1:day1_anchor", "order": 0, "description": "建立带情绪权重的具体事实。"},
+        {"sub_goal_id": "path_progressive_warmth_v1:day2_preference", "order": 1, "description": "发布沟通偏好与延迟 callback target。"},
+        {"sub_goal_id": "path_progressive_warmth_v1:day4_boundary", "order": 2, "description": "检验升温过程中仍能保持用户边界。"},
+        {"sub_goal_id": "path_progressive_warmth_v1:day7_callback", "order": 3, "description": "在最终冷启动检查一周关系连续性。"}
+      ],
+      "exit_evidence": "七日 run artifact、六次 restart attestation、日级 continuity snapshots 与 callback probe。"
+    },
+    {
+      "path_id": "path_rupture_repair_v1",
+      "family": "rupture_repair",
+      "name": "裂痕修复七日路径",
+      "objective": "检验退缩、修复窗口、边界协商与重新投入能否在跨进程生命周期中保持同一关系语义。",
+      "semantic_detection": {
+        "method": "embedding_similarity_plus_schema_bound_structured_output",
+        "evidence_axes": ["rupture trajectory", "repair opportunity", "boundary consent", "callback lineage"],
+        "insufficient_evidence_behavior": "no_route_or_review_required",
+        "forbidden": ["rupture_keyword_route", "sentiment_only_route"]
+      },
+      "sub_goals": [
+        {"sub_goal_id": "path_rupture_repair_v1:day1_anchor", "order": 0, "description": "建立可引用且有情绪权重的事实。"},
+        {"sub_goal_id": "path_rupture_repair_v1:day2_withdrawal", "order": 1, "description": "发布退缩状态而不明说标准答案。"},
+        {"sub_goal_id": "path_rupture_repair_v1:day3_window", "order": 2, "description": "提供一次有界修复窗口。"},
+        {"sub_goal_id": "path_rupture_repair_v1:day4_boundary", "order": 3, "description": "检验修复不以越界换取亲密。"},
+        {"sub_goal_id": "path_rupture_repair_v1:day7_callback", "order": 4, "description": "检验修复后的事实和关系姿态仍可续接。"}
+      ],
+      "exit_evidence": "七日 run artifact、repair/callback probes、boundary readout 与 restart lineage。"
+    }
+  ],
+  "arc_specs": [
+    {
+      "arc_spec_id": "arc_progressive_warmth_seven_day_v1",
+      "path_id": "path_progressive_warmth_v1",
+      "sub_goals": [
+        "path_progressive_warmth_v1:day1_anchor",
+        "path_progressive_warmth_v1:day2_preference",
+        "path_progressive_warmth_v1:day4_boundary",
+        "path_progressive_warmth_v1:day7_callback"
+      ],
+      "phases": [
+        {"phase_order": 0, "phase_id": "day1_emotional_anchor"},
+        {"phase_order": 1, "phase_id": "day2_preference"},
+        {"phase_order": 2, "phase_id": "day3_warming"},
+        {"phase_order": 3, "phase_id": "day4_boundary"},
+        {"phase_order": 4, "phase_id": "day5_delayed_callback"},
+        {"phase_order": 5, "phase_id": "day6_update"},
+        {"phase_order": 6, "phase_id": "day7_cold_start_callback"}
+      ]
+    },
+    {
+      "arc_spec_id": "arc_rupture_repair_seven_day_v1",
+      "path_id": "path_rupture_repair_v1",
+      "sub_goals": [
+        "path_rupture_repair_v1:day1_anchor",
+        "path_rupture_repair_v1:day2_withdrawal",
+        "path_rupture_repair_v1:day3_window",
+        "path_rupture_repair_v1:day4_boundary",
+        "path_rupture_repair_v1:day7_callback"
+      ],
+      "phases": [
+        {"phase_order": 0, "phase_id": "day1_emotional_anchor"},
+        {"phase_order": 1, "phase_id": "day2_withdrawal"},
+        {"phase_order": 2, "phase_id": "day3_repair_window"},
+        {"phase_order": 3, "phase_id": "day4_boundary"},
+        {"phase_order": 4, "phase_id": "day5_conditional_reengagement"},
+        {"phase_order": 5, "phase_id": "day6_repair_callback"},
+        {"phase_order": 6, "phase_id": "day7_cold_start_callback"}
+      ]
+    }
+  ]
+}

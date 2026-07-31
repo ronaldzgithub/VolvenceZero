@@ -479,3 +479,94 @@ class OpenAIUtteranceClient:
                 f"user_simulator backend returned no choices: {payload}"
             )
         return str(choices[0].get("message", {}).get("content", "")).strip()
+
+
+class LocalTransformersUtteranceClient:
+    """Real local-open-weight utterance backend for formal evidence runs.
+
+    Dependencies are imported only when the backend is constructed, keeping
+    the base companion-bench wheel lightweight.  Formal callers must pin and
+    fingerprint the exact model weights separately in their preregistration.
+    """
+
+    def __init__(
+        self,
+        *,
+        model_id: str,
+        device: str = "cpu",
+        local_files_only: bool = True,
+        max_new_tokens: int = 96,
+    ) -> None:
+        if not model_id.strip():
+            raise ValueError("local utterance model_id must be non-empty")
+        if device not in {"cpu", "cuda", "mps"}:
+            raise ValueError("local utterance device must be cpu/cuda/mps")
+        if max_new_tokens <= 0:
+            raise ValueError("max_new_tokens must be positive")
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        if device == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("CUDA was requested but is unavailable")
+        if device == "mps" and not torch.backends.mps.is_available():
+            raise RuntimeError("MPS was requested but is unavailable")
+        self._torch = torch
+        self._device = device
+        self._max_new_tokens = max_new_tokens
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            local_files_only=local_files_only,
+        )
+        self._model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            local_files_only=local_files_only,
+            dtype="auto",
+        )
+        self._model.to(device)
+        self._model.eval()
+
+    def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+        seed: int,
+    ) -> str:
+        if temperature != 0.0:
+            raise ValueError(
+                "formal local utterance rendering requires temperature=0"
+            )
+        prompt = self._tokenizer.apply_chat_template(
+            (
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ),
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        encoded = self._tokenizer(prompt, return_tensors="pt")
+        model_inputs = {
+            name: tensor.to(self._device)
+            for name, tensor in encoded.items()
+        }
+        input_length = int(model_inputs["input_ids"].shape[-1])
+        self._torch.manual_seed(seed)
+        with self._torch.inference_mode():
+            generated = self._model.generate(
+                **model_inputs,
+                max_new_tokens=self._max_new_tokens,
+                do_sample=False,
+                pad_token_id=(
+                    self._tokenizer.pad_token_id
+                    if self._tokenizer.pad_token_id is not None
+                    else self._tokenizer.eos_token_id
+                ),
+            )
+        text = self._tokenizer.decode(
+            generated[0][input_length:],
+            skip_special_tokens=True,
+        ).strip()
+        if not text:
+            raise RuntimeError("local utterance backend generated empty text")
+        return text
