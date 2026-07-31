@@ -38,6 +38,10 @@ class _RecordingRuntime:
             text="hello",
             token_count=1,
             personal_conditioning_applied=applied,
+            character_prefix_applied=False,
+            character_prefix_id=None,
+            character_prefix_wiring_level="disabled",
+            conditioning_bank_carriers_applied=(),
         )
 
 
@@ -98,6 +102,19 @@ def test_llm_synthesizer_disables_residual_capture_for_expression_generate() -> 
     assert response.text == "hello"
     assert runtime.calls
     assert runtime.calls[0]["capture_residuals"] is False
+
+
+def test_llm_synthesizer_forwards_immutable_character_id() -> None:
+    runtime = _RecordingRuntime()
+    synthesizer = LLMResponseSynthesizer(
+        runtime=runtime,
+        character_id="zhang-wuji",
+    )
+
+    response = synthesizer.synthesize(context=_context(), assembly=_assembly())
+
+    assert runtime.calls[0]["character_id"] == "zhang-wuji"
+    assert "character_id=zhang-wuji" in response.rationale_tags
 
 
 def _conditioning() -> PersonalConditioningSnapshot:

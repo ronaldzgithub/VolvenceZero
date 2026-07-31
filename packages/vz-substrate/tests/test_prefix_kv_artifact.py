@@ -13,6 +13,8 @@ from volvence_zero.personal_conditioning_contracts import (
 from volvence_zero.substrate.prefix_kv_artifact import (
     CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE,
     CharacterPrefixKVPackage,
+    CharacterPrefixKVRegistry,
+    CharacterPrefixKVRegistryEntry,
     MAX_PREFIX_NORM_CAP,
     PrefixKVArtifact,
     STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE,
@@ -20,6 +22,7 @@ from volvence_zero.substrate.prefix_kv_artifact import (
     build_teacher_distilled_prefix_artifact,
     load_prefix_generator,
 )
+from volvence_zero.runtime import WiringLevel
 
 LAYERS = 3
 KV_HEADS = 2
@@ -308,6 +311,91 @@ def test_character_package_round_trips_without_personal_coordinate_namespace() -
     assert restored.prefix_artifact.vector_labels == (
         "zhang_wuji_live_through_identity",
     )
+
+
+def _character_package(character_id: str) -> CharacterPrefixKVPackage:
+    artifact = build_teacher_distilled_prefix_artifact(
+        model_id="Qwen/test",
+        num_layers=1,
+        num_kv_heads=1,
+        head_dim=2,
+        num_slots=1,
+        bottleneck_rank=1,
+        encoder_rows=((0.0,),),
+        encoder_bias=(0.0,),
+        key_projection=(((0.0,), (0.0,)),),
+        key_bias=((0.1, 0.1),),
+        value_projection=(((0.0,), (0.0,)),),
+        value_bias=((0.1, 0.1),),
+        reference_key_norms=(1.0,),
+        reference_value_norms=(1.0,),
+        norm_cap=0.1,
+        source_fingerprint=f"source:{character_id}",
+        sample_count=1,
+        training_mode=CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE,
+        vector_labels=("character_identity",),
+    )
+    return CharacterPrefixKVPackage.create(
+        character_id=character_id,
+        character_name=character_id,
+        model_id="Qwen/test",
+        source_live_through_model_id="Qwen/source",
+        source_template_id=f"template:{character_id}",
+        source_template_integrity_hash=f"integrity:{character_id}",
+        source_live_through_proof=f"proof:{character_id}",
+        state_vector=(0.0,),
+        prefix_artifact=artifact,
+        description=f"package:{character_id}",
+    )
+
+
+def test_character_registry_routes_active_and_shadow_entries_by_typed_id() -> None:
+    registry = CharacterPrefixKVRegistry(
+        base_model_id="Qwen/test",
+        common_adapter_version="common-v1",
+        compatibility_fingerprint="compat-v1",
+        entries=(
+            CharacterPrefixKVRegistryEntry(
+                manifest_package_id="manifest:a",
+                common_adapter_version="common-v1",
+                compatibility_fingerprint="compat-v1",
+                wiring_level=WiringLevel.ACTIVE,
+                prefix_package=_character_package("character-a"),
+            ),
+            CharacterPrefixKVRegistryEntry(
+                manifest_package_id="manifest:b",
+                common_adapter_version="common-v1",
+                compatibility_fingerprint="compat-v1",
+                wiring_level=WiringLevel.SHADOW,
+                prefix_package=_character_package("character-b"),
+            ),
+        ),
+    )
+
+    assert registry.character_ids == ("character-a", "character-b")
+    assert registry.require("character-a").wiring_level is WiringLevel.ACTIVE
+    assert registry.require("character-b").wiring_level is WiringLevel.SHADOW
+    assert registry.get("unknown") is None
+
+
+def test_character_registry_rejects_adapter_fingerprint_drift() -> None:
+    with pytest.raises(ValueError, match="compatibility_fingerprint drifted"):
+        CharacterPrefixKVRegistry(
+            base_model_id="Qwen/test",
+            common_adapter_version="common-v1",
+            compatibility_fingerprint="compat-v1",
+            entries=(
+                CharacterPrefixKVRegistryEntry(
+                    manifest_package_id="manifest:a",
+                    common_adapter_version="common-v1",
+                    compatibility_fingerprint="compat-v2",
+                    wiring_level=WiringLevel.ACTIVE,
+                    prefix_package=_character_package("character-a"),
+                ),
+            ),
+        )
+
+
 def test_generator_rejects_wrong_width_state_vector() -> None:
     torch = pytest.importorskip("torch")
     generator = load_prefix_generator(

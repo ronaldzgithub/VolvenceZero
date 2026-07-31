@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,6 +13,11 @@ from volvence_zero.substrate import (
     SubstrateDeltaAdapterLayer,
     SubstrateRareHeavyCheckpoint,
     build_teacher_distilled_prefix_artifact,
+    fingerprint_model_weight_files,
+    install_rare_heavy_checkpoint_hooks,
+    rare_heavy_checkpoint_from_json,
+    rare_heavy_checkpoint_to_json,
+    remove_forward_hooks,
 )
 
 
@@ -143,3 +149,61 @@ def test_common_adapter_bundle_detects_payload_tampering() -> None:
     bundle = _bundle()
     with pytest.raises(ValueError, match="bundle_id"):
         replace(bundle, description="tampered")
+
+
+def test_standalone_checkpoint_round_trip() -> None:
+    checkpoint = _checkpoint()
+
+    restored = rare_heavy_checkpoint_from_json(
+        rare_heavy_checkpoint_to_json(checkpoint)
+    )
+
+    assert restored == checkpoint
+
+
+def test_model_weight_fingerprint_binds_relative_paths_and_bytes(tmp_path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    (first / "model.safetensors").write_bytes(b"weights")
+    (second / "renamed.safetensors").write_bytes(b"weights")
+
+    first_digest = fingerprint_model_weight_files(first)
+    second_digest = fingerprint_model_weight_files(second)
+
+    assert len(first_digest) == 64
+    assert first_digest != second_digest
+
+
+def test_offline_hook_applies_and_removes_the_rare_heavy_delta() -> None:
+    torch = pytest.importorskip("torch")
+
+    class Block(torch.nn.Module):
+        def forward(self, values):
+            return values
+
+    class ToyModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.config = SimpleNamespace(hidden_size=2)
+            self.model = torch.nn.Module()
+            self.model.layers = torch.nn.ModuleList([Block()])
+
+        def forward(self, values):
+            return self.model.layers[0](values)
+
+    model = ToyModel()
+    values = torch.zeros((1, 1, 2), dtype=torch.float32)
+    handles = install_rare_heavy_checkpoint_hooks(
+        model=model,
+        checkpoint=_checkpoint(),
+        expected_model_id=MODEL_ID,
+    )
+
+    adjusted = model(values)
+    remove_forward_hooks(handles)
+    restored = model(values)
+
+    assert adjusted.tolist()[0][0] == pytest.approx([0.01, -0.01])
+    assert torch.equal(restored, values)
