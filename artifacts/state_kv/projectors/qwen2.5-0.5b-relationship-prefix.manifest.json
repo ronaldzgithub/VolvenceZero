@@ -1,0 +1,23 @@
+{
+  "schema_version": "relationship-prefix-kv-bake.v1",
+  "artifact_id": "e0d60083731bb7b013c69696c7959a8480d4fa054442d0bde2bb687486dfbb46",
+  "carrier_version": "relationship-prefix-kv-carrier.v1:e0d60083731bb7b013c69696c7959a8480d4fa054442d0bde2bb687486dfbb46",
+  "nested_prefix_artifact_id": "4febe51b4c14c6bd678f77d2f2ee8fcc0ac93d4dfd19e775245f29ae130b0ee1",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+  "material_sha256": "15fe8bb9b58b52949e4370dc75772c7970fc8b5d4b1277dbf4242e5593271213",
+  "warm_start_artifact_id": "1b133cf27e27ca2f27bbbd45f29928881b54a55752b4ffab0f5dbe39308134a6",
+  "state_count": 6,
+  "probe_count": 4,
+  "sample_count": 24,
+  "epochs": 2,
+  "num_slots": 4,
+  "bottleneck_rank": 4,
+  "norm_cap": 0.12,
+  "route_weight": 1.0,
+  "route_temperature": 0.18,
+  "evaluation_endpoints_held_out": true,
+  "evaluation_probes_held_out": true,
+  "base_model_mutated": false,
+  "trainable_parameter_count": 122940
+}

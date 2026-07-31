@@ -1648,6 +1648,18 @@ learned-residual 的 blind match 仍全部为 `0.50`。该 artifact 是可复现
 non-promotion evidence，不进入 P6 freeze manifest；线性 residual 路径退出，
 下一包转 Relationship 专属 Prefix-KV，禁止提高 scale 或扩同构样本追分。
 
+2026-07-31 的 Relationship Prefix-KV 包完成该机制替换。专属
+`relationship-prefix-kv.v1` artifact
+`e0d60083731bb7b013c69696c7959a8480d4fa054442d0bde2bb687486dfbb46`
+以 owner-derived 14 维 interior states 训练，repair / steady endpoint 和 pilot
+probe 均 held out；manifest 记录 `base_model_mutated=false`、4 slots、rank 4、
+`norm_cap=0.12`。`verdict_relationship_prefix.json` 的 24-turn none / text /
+Prefix matched run 通过 source fingerprint `8/8`、applied attestation `8/8`、
+prompt identity `4/4`，证明专属 attention carrier 已物理接通且没有 prompt
+泄漏；三臂 blind match 均为 `0.50`，因此只记录 non-promotion evidence。
+默认保持 text + SHADOW，Prefix profile 可由 omit artifact 或切回 text / SHADOW /
+DISABLED 立即回滚；该结果不支持扩同构样本、提高 norm cap 或进入 P6 freeze。
+
 ## 变更日志
 
 - 2026-07-28: 归档 ETA Gate 2 v30 prefix expected-value 2+2 校准。新增固定

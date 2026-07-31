@@ -14,6 +14,9 @@ todos:
   - id: r4-relationship-projector
     content: 包 R4：冻结 Qwen model-derived Relationship projector artifact + matched pilot；线性 residual 仍为 chance，退出并转专属 Prefix-KV
     status: completed
+  - id: r5-relationship-prefix
+    content: 包 R5：Relationship 专属 Prefix-KV artifact + 独立 runtime 注入与 matched pilot；机制门通过、blind match 持平，保留证据路径但不晋升
+    status: completed
   - id: d0-diagnostic
     content: 包 D0：3 维控制瓶颈诊断脚本与书面门结论
     status: completed
@@ -98,6 +101,22 @@ flowchart LR
   但 none / text / learned residual blind match 仍均为 `0.50`。线性 residual
   路径退出，不提高 scale、不扩同构样本；下一包冻结为专属 Relationship
   Prefix-KV artifact。
+
+### 包 R5：Relationship 专属 Prefix-KV
+- 冻结 `relationship-prefix-kv.v1` wrapper，将通用 Prefix generator 绑定到
+  Relationship owner schema、精确 14 维 labels 和独立 content id；carrier version
+  为 `relationship-prefix-kv-carrier.v1:<artifact_id>`，上限保持 `0.12`。
+- runtime 按 Character → Personal → Relationship 顺序独立拼接 Prefix，分别发布
+  applied attestation；缺 artifact 或 model / geometry / labels / version / scale 漂移
+  均 fail loudly，不回落 residual。profile
+  `state-kv-bank-relationship-prefix-pure` 关闭 Personal、prompt state 和 dynamic
+  residual，只保留 Relationship Prefix。
+- 冻结 Qwen2.5-0.5B 的两轮训练生成 artifact
+  `e0d60083731bb7b013c69696c7959a8480d4fa054442d0bde2bb687486dfbb46`；owner-derived
+  endpoint 与 pilot probes held out，基底未修改。同一 24-turn matched pilot 的
+  source `8/8`、applied `8/8`、prompt identity `4/4` 全通过，但 none / text /
+  Prefix blind match 均为 `0.50`。实现完成但不晋升，默认 text + SHADOW；回滚为
+  omit artifact、text 或 Relationship SHADOW / DISABLED。
 
 ## 阶段二：P5-d（证据门控，三包）
 

@@ -310,6 +310,7 @@ class PrefixGenerator:
         norm_cap: float,
         device,
         seed: int,
+        coordinate_count: int = len(PERSONAL_CONDITIONING_VECTOR_LABELS),
     ) -> None:
         self._torch = torch
         self.num_layers = num_layers
@@ -333,7 +334,9 @@ class PrefixGenerator:
                 *shape, dtype=torch.float32, device=device
             ).requires_grad_(True)
 
-        coordinates = len(PERSONAL_CONDITIONING_VECTOR_LABELS)
+        if coordinate_count <= 0:
+            raise ValueError("coordinate_count must be positive")
+        coordinates = coordinate_count
         self.encoder = parameter(rank, coordinates, scale=0.5)
         self.encoder_bias = zeros(rank)
         self.key_projection = parameter(num_layers, self.width, rank, scale=0.05)

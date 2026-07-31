@@ -243,7 +243,7 @@ class FinalRolloutConfig:
     relationship_conditioning: WiringLevel = WiringLevel.SHADOW
     # Delivery mode for an ACTIVE Relationship bank. "text" preserves the
     # existing owner-rendered prompt path. "residual" uses the versioned
-    # generic latent-carrier contract and substrate projector.
+    # projector; "prefix_kv" requires a dedicated Relationship artifact.
     relationship_conditioning_mode: str = "text"
     # Credit-driven bank confidence feedback (State KV P5-c). Governs both
     # conditioning bank owners' consumption of the bank-attributed credit
@@ -669,10 +669,15 @@ class FinalRolloutConfig:
                 "'prefix_kv', "
                 f"got {self.personal_conditioning_mode!r}."
             )
-        if self.relationship_conditioning_mode not in ("text", "residual"):
+        if self.relationship_conditioning_mode not in (
+            "text",
+            "residual",
+            "prefix_kv",
+        ):
             raise ValueError(
-                "relationship_conditioning_mode must be 'text' or "
-                f"'residual', got {self.relationship_conditioning_mode!r}."
+                "relationship_conditioning_mode must be 'text', 'residual', "
+                "or 'prefix_kv', "
+                f"got {self.relationship_conditioning_mode!r}."
             )
         if self.conditioning_router_top_k < 1:
             raise ValueError(

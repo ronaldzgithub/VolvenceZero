@@ -294,6 +294,38 @@ def test_relationship_residual_delivery_builds_versioned_carrier() -> None:
     assert learned_carrier.projector_version == learned_version
 
 
+def test_relationship_prefix_delivery_requires_loaded_artifact() -> None:
+    readout = _relationship_readout()
+    bank = bank_readout_to_bank(
+        readout=readout,
+        slot_name=RELATIONSHIP_CONDITIONING_SLOT,
+        scope=_scope(),
+    )
+    with pytest.raises(ValueError, match="requires a loaded"):
+        _relationship_conditioning_delivery_from_config(
+            relationship_readout=readout,
+            relationship_bank=bank,
+            relationship_conditioning_mode="prefix_kv",
+            revocation_state=ConditioningRevocationState.ACTIVE,
+        )
+
+    carrier, statement, statement_ref = (
+        _relationship_conditioning_delivery_from_config(
+            relationship_readout=readout,
+            relationship_bank=bank,
+            relationship_conditioning_mode="prefix_kv",
+            revocation_state=ConditioningRevocationState.ACTIVE,
+            prefix_version="relationship-prefix-kv-carrier.v1:test",
+            prefix_norm_cap=0.12,
+        )
+    )
+    assert carrier is not None
+    assert carrier.carrier == "prefix_kv"
+    assert carrier.scale == pytest.approx(0.12)
+    assert statement == ""
+    assert statement_ref == ""
+
+
 def test_relationship_residual_delivery_is_revocation_safe() -> None:
     readout = _relationship_readout()
     bank = bank_readout_to_bank(
@@ -641,6 +673,13 @@ def test_lineage_separates_active_and_shadow_router_audit() -> None:
             "active",
             "residual",
         ),
+        (
+            "state-kv-bank-relationship-prefix-pure",
+            "shadow",
+            "residual",
+            "active",
+            "prefix_kv",
+        ),
         ("state-kv-bank-dual", "active", "text", "active", "text"),
     ),
 )
@@ -670,7 +709,11 @@ def test_bank_gain_profiles_hold_carrier_and_dynamic_residual_fixed(
     assert config.conditioning_router_top_k == 1
     assert config.prompt_state_delivery == (
         "suppressed"
-        if profile_label == "state-kv-bank-relationship-latent-pure"
+        if profile_label
+        in (
+            "state-kv-bank-relationship-latent-pure",
+            "state-kv-bank-relationship-prefix-pure",
+        )
         else "text"
     )
 

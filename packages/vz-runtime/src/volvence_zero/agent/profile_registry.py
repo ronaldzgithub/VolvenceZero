@@ -689,6 +689,17 @@ _BUILTIN_CAPABILITIES: tuple[ProfileCapability, ...] = (
         ),
     ),
     ProfileCapability(
+        name="relationship-conditioning-prefix-kv",
+        applies_to_owner="relationship_conditioning",
+        flag_overrides={
+            "relationship_conditioning_mode": "prefix_kv",
+        },
+        description=(
+            "Deliver the ACTIVE Relationship bank through its dedicated "
+            "bounded Prefix-KV artifact."
+        ),
+    ),
+    ProfileCapability(
         name="relationship-conditioning-disabled",
         applies_to_owner="relationship_conditioning",
         flag_overrides={
@@ -966,6 +977,21 @@ _BUILTIN_PROFILES: tuple[ProfileSpec, ...] = (
         ),
     ),
     ProfileSpec(
+        label="state-kv-bank-relationship-prefix-pure",
+        capabilities=(
+            "personal-conditioning-off",
+            "relationship-conditioning-active",
+            "relationship-conditioning-prefix-kv",
+            "prompt-state-suppressed",
+            "dynamic-residual-off",
+            "conditioning-router-shadow-top1",
+        ),
+        description=(
+            "Matched Relationship-only Prefix-KV arm: the owner readout "
+            "travels only through the dedicated bounded attention prefix."
+        ),
+    ),
+    ProfileSpec(
         label="state-kv-bank-dual",
         capabilities=(
             "personal-conditioning-text",
@@ -1015,6 +1041,7 @@ STATE_KV_RUNTIME_CONFIG_PROFILE_LABELS: tuple[str, ...] = (
     "state-kv-bank-personal-only",
     "state-kv-bank-relationship-only",
     "state-kv-bank-relationship-latent-pure",
+    "state-kv-bank-relationship-prefix-pure",
     "state-kv-bank-dual",
     "state-kv-bank-dual-router-active",
     "state-kv-bank-dual-credit-active",

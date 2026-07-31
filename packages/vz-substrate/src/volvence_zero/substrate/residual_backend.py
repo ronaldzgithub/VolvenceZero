@@ -14,6 +14,7 @@ from typing import Any, Callable, Iterable, Sequence
 
 from volvence_zero.conditioning_bank_contracts import (
     ConditioningBankLatentCarrier,
+    ConditioningBankType,
 )
 from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_VECTOR_LABELS,
@@ -118,6 +119,10 @@ from volvence_zero.substrate.prefix_kv_artifact import (  # noqa: E402
     PrefixKVArtifact,
     load_prefix_generator,
 )
+from volvence_zero.substrate.relationship_prefix_kv_artifact import (  # noqa: E402
+    RelationshipPrefixKVArtifact,
+    load_relationship_prefix_generator,
+)
 from volvence_zero.substrate.residual_synthetic import (  # noqa: E402,F401
     SyntheticOpenWeightResidualRuntime,
 )
@@ -153,6 +158,24 @@ def _concat_prefix_pairs(
         )
         for index in range(len(left))
     ]
+
+
+def _banned_repeated_ngram_tokens(
+    token_ids: Sequence[int],
+    *,
+    ngram_size: int,
+) -> tuple[int, ...]:
+    """Return standard no-repeat-ngram candidates for the next token."""
+
+    if ngram_size <= 1 or len(token_ids) < ngram_size:
+        return ()
+    prefix = tuple(token_ids[-(ngram_size - 1) :])
+    banned = {
+        token_ids[index + ngram_size - 1]
+        for index in range(len(token_ids) - ngram_size + 1)
+        if tuple(token_ids[index : index + ngram_size - 1]) == prefix
+    }
+    return tuple(sorted(banned))
 
 
 def clamp_personal_conditioning_scale(scale: float) -> float:
@@ -263,6 +286,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             RelationshipConditioningProjectorArtifact | None
         ) = None,
         personal_conditioning_prefix: PrefixKVArtifact | None = None,
+        relationship_conditioning_prefix: (
+            RelationshipPrefixKVArtifact | None
+        ) = None,
         character_prefix_package: CharacterPrefixKVPackage | None = None,
         local_files_only: bool = False,
         runtime_origin: str = "hf-pretrained",
@@ -402,6 +428,35 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             self._personal_conditioning_prefix_id = (
                 personal_conditioning_prefix.artifact_id
             )
+        self._relationship_conditioning_prefix = (
+            relationship_conditioning_prefix
+        )
+        self._relationship_prefix_generator = None
+        self._relationship_conditioning_prefix_id = ""
+        self._relationship_conditioning_prefix_version = ""
+        self._relationship_conditioning_prefix_norm_cap = 0.0
+        if relationship_conditioning_prefix is not None:
+            self._relationship_prefix_generator = (
+                load_relationship_prefix_generator(
+                    torch_module=self._torch,
+                    artifact=relationship_conditioning_prefix,
+                    expected_model_id=self.model_id,
+                    expected_num_layers=len(self._block_modules),
+                    expected_num_kv_heads=self._resolve_num_kv_heads(),
+                    expected_head_dim=self._resolve_head_dim(),
+                    device=self._device,
+                    dtype=self._model_dtype(),
+                )
+            )
+            self._relationship_conditioning_prefix_id = (
+                relationship_conditioning_prefix.artifact_id
+            )
+            self._relationship_conditioning_prefix_version = (
+                relationship_conditioning_prefix.carrier_version
+            )
+            self._relationship_conditioning_prefix_norm_cap = (
+                relationship_conditioning_prefix.prefix_artifact.norm_cap
+            )
         self._character_prefix_generator = None
         self._character_prefix_id = ""
         self._character_prefix_pairs = None
@@ -485,6 +540,18 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     @property
     def relationship_conditioning_projector_version(self) -> str:
         return self._relationship_conditioning_projector_version
+
+    @property
+    def relationship_conditioning_prefix_id(self) -> str:
+        return self._relationship_conditioning_prefix_id
+
+    @property
+    def relationship_conditioning_prefix_version(self) -> str:
+        return self._relationship_conditioning_prefix_version
+
+    @property
+    def relationship_conditioning_prefix_norm_cap(self) -> float:
+        return self._relationship_conditioning_prefix_norm_cap
 
     @property
     def personal_conditioning_prefix_id(self) -> str:
@@ -1478,10 +1545,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         prompt_length = int(input_ids.shape[-1])
 
         control_active = bool(control_parameters and control_scale > 0)
-        # A character prefix is a static application carrier. A personal
-        # prefix, when explicitly selected, is concatenated after it so the
-        # two owners remain separately auditable.
+        # Prefix order is stable and owner-auditable: character, Personal,
+        # then admitted conditioning banks in request order.
         prefix_pairs = self._character_prefix_pairs
+        personal_prefix_pairs = None
         personal_delta = None
         if personal_conditioning_carrier == "prefix_kv":
             personal_prefix_pairs = self._build_personal_conditioning_prefix(
@@ -1496,9 +1563,24 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             personal_delta = self._build_personal_conditioning_delta(
                 conditioning=personal_conditioning
             )
+        bank_prefix_pairs = tuple(
+            (
+                carrier,
+                self._build_relationship_conditioning_prefix(carrier=carrier),
+            )
+            for carrier in conditioning_bank_carriers
+            if carrier.carrier == "prefix_kv"
+        )
+        for _, relationship_prefix_pairs in bank_prefix_pairs:
+            prefix_pairs = _concat_prefix_pairs(
+                self._torch,
+                prefix_pairs,
+                relationship_prefix_pairs,
+            )
         bank_delta_pairs = tuple(
             (carrier, delta)
             for carrier in conditioning_bank_carriers
+            if carrier.carrier == "residual"
             if (
                 delta := build_conditioning_bank_residual_delta(
                     torch_module=self._torch,
@@ -1617,6 +1699,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                         sampling_seed=sampling_seed,
                         require_sampling_seed=(
                             personal_conditioning_carrier == "prefix_kv"
+                            or bool(bank_prefix_pairs)
                         ),
                     )
                 else:
@@ -1675,12 +1758,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         # not use hooks: it reports injection when the state-derived key/value
         # slots were actually prepended to the attention cache.
         if personal_conditioning_carrier == "prefix_kv":
-            personal_conditioning_applied = prefix_pairs is not None
+            personal_conditioning_applied = personal_prefix_pairs is not None
         else:
             personal_conditioning_applied = personal_delta is not None and bool(
                 hooks
             )
-        conditioning_bank_carriers_applied = (
+        residual_bank_carriers_applied = (
             tuple(
                 (
                     carrier.bank.bank_type.value,
@@ -1694,6 +1777,17 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             )
             if bank_delta_pairs and hooks
             else ()
+        )
+        prefix_bank_carriers_applied = tuple(
+            (
+                carrier.bank.bank_type.value,
+                carrier.projector_version,
+            )
+            for carrier, _ in bank_prefix_pairs
+        )
+        conditioning_bank_carriers_applied = (
+            *residual_bank_carriers_applied,
+            *prefix_bank_carriers_applied,
         )
         result = GenerationResult(
             text=generated_text,
@@ -2661,6 +2755,56 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         assert self._prefix_generator is not None  # guarded in generate()
         return self._prefix_generator.build(conditioning.state_vector)
 
+    def _build_relationship_conditioning_prefix(
+        self,
+        *,
+        carrier: ConditioningBankLatentCarrier,
+    ) -> list[tuple[Any, Any]]:
+        """Build one admitted Relationship prefix with strict provenance."""
+
+        artifact = self._relationship_conditioning_prefix
+        generator = self._relationship_prefix_generator
+        if artifact is None or generator is None:
+            raise ValueError(
+                "Relationship carrier='prefix_kv' requires a Relationship "
+                "Prefix-KV artifact; construct the runtime with "
+                "relationship_conditioning_prefix=..."
+            )
+        if carrier.bank.bank_type is not ConditioningBankType.RELATIONSHIP:
+            raise ValueError(
+                "Relationship Prefix-KV accepts only the RELATIONSHIP bank, "
+                f"got {carrier.bank.bank_type.value!r}."
+            )
+        if carrier.projector_version != artifact.carrier_version:
+            raise ValueError(
+                "Relationship Prefix-KV carrier version does not match the "
+                f"loaded artifact: {carrier.projector_version!r} != "
+                f"{artifact.carrier_version!r}."
+            )
+        if carrier.bank.readout_labels != artifact.readout_labels:
+            raise ValueError(
+                "Relationship Prefix-KV readout_labels do not match the "
+                "loaded artifact."
+            )
+        if not math.isclose(
+            carrier.scale,
+            artifact.prefix_artifact.norm_cap,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            raise ValueError(
+                "Relationship Prefix-KV carrier scale must equal the loaded "
+                f"artifact norm_cap {artifact.prefix_artifact.norm_cap}."
+            )
+        strength = float(carrier.bank.confidence) * float(
+            carrier.bank.freshness
+        )
+        state = tuple(
+            0.5 + (float(value) - 0.5) * strength
+            for value in carrier.bank.readout
+        )
+        return generator.build(state)
+
     @contextlib.contextmanager
     def _temporary_torch_seed(self, seed: int | None):
         if seed is None:
@@ -2801,6 +2945,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     logits[index] = torch.where(
                         scored < 0, scored * penalty, scored / penalty
                     )
+                for token_id in _banned_repeated_ngram_tokens(
+                    seen, ngram_size=3
+                ):
+                    logits[token_id] = float("-inf")
                 if temperature > 0:
                     next_id = self._sample_next_token_id(
                         logits=logits,
@@ -3044,6 +3192,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             control_scale=self._control_scale,
             relationship_conditioning_projector=(
                 self._relationship_conditioning_projector
+            ),
+            relationship_conditioning_prefix=(
+                self._relationship_conditioning_prefix
             ),
             character_prefix_package=self._character_prefix_package,
             runtime_origin=self._runtime_origin,

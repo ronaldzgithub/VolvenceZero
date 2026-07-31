@@ -11,10 +11,20 @@ than to the carrier under test.
 
 from __future__ import annotations
 
+from dataclasses import replace
 import random
 
 import pytest
 
+from volvence_zero.conditioning_bank_contracts import (
+    CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION,
+    CONDITIONING_BANK_SCHEMA_VERSION,
+    ConditioningBankLatentCarrier,
+    ConditioningBankSnapshot,
+    ConditioningBankType,
+    ConditioningRevocationState,
+    ConditioningScope,
+)
 from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_SCHEMA_VERSION,
     PERSONAL_CONDITIONING_VECTOR_LABELS,
@@ -23,11 +33,22 @@ from volvence_zero.personal_conditioning_contracts import (
 from volvence_zero.substrate.prefix_kv_artifact import (
     build_teacher_distilled_prefix_artifact,
 )
+from volvence_zero.substrate.residual_backend import (
+    _banned_repeated_ngram_tokens,
+)
+from volvence_zero.substrate.relationship_prefix_kv_artifact import (
+    bind_relationship_prefix_artifact,
+)
 
 MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct"
 SYSTEM = "你是一个助手。"
 MESSAGES = (("system", SYSTEM), ("user", "我又搞砸了"))
 PROMPT = "我又搞砸了"
+
+
+def test_prefix_decode_bans_repeated_trigrams() -> None:
+    assert _banned_repeated_ngram_tokens([1, 2, 3, 2, 3], ngram_size=3) == (2,)
+    assert _banned_repeated_ngram_tokens([1, 2], ngram_size=3) == ()
 
 
 def _local_weights() -> str:
@@ -54,13 +75,19 @@ def runtime():
     )
 
 
-def _artifact(*, seed: int, slots: int = 2, rank: int = 2):
+def _artifact(
+    *,
+    seed: int,
+    slots: int = 2,
+    rank: int = 2,
+    vector_labels: tuple[str, ...] = PERSONAL_CONDITIONING_VECTOR_LABELS,
+):
     """A bounded, geometry-correct artifact; content is not trained."""
 
     rng = random.Random(seed)
     layers, kv_heads, head_dim = 24, 2, 64
     width = slots * kv_heads * head_dim
-    coordinates = len(PERSONAL_CONDITIONING_VECTOR_LABELS)
+    coordinates = len(vector_labels)
 
     def block() -> list[list[float]]:
         return [
@@ -88,6 +115,57 @@ def _artifact(*, seed: int, slots: int = 2, rank: int = 2):
         norm_cap=0.1,
         source_fingerprint=f"unit-test-seed-{seed}",
         sample_count=8,
+        vector_labels=vector_labels,
+    )
+
+
+RELATIONSHIP_LABELS = (
+    "rel_trust",
+    "rel_repair_pressure",
+    "rel_emotional_load",
+)
+
+
+def _relationship_artifact():
+    return bind_relationship_prefix_artifact(
+        prefix_artifact=_artifact(
+            seed=19,
+            vector_labels=RELATIONSHIP_LABELS,
+        ),
+        owner_schema_version="relationship-conditioning.v2",
+        readout_labels=RELATIONSHIP_LABELS,
+        description="Relationship runtime injection test artifact.",
+    )
+
+
+def _relationship_carrier(*, artifact, labels=RELATIONSHIP_LABELS):
+    bank = ConditioningBankSnapshot(
+        schema_version=CONDITIONING_BANK_SCHEMA_VERSION,
+        bank_type=ConditioningBankType.RELATIONSHIP,
+        scope=ConditioningScope(
+            tenant_scope="tenant-test",
+            user_scope="user-test",
+            session_scope="session-test",
+        ),
+        readout=(0.8, 0.7, 0.6),
+        readout_labels=labels,
+        source_versions=(("relationship_state", 2),),
+        source_fingerprint="relationship-prefix-runtime-test",
+        confidence=0.75,
+        freshness=0.8,
+        consent_version=1,
+        provenance="owner:RelationshipConditioningModule/test",
+        revocation_state=ConditioningRevocationState.ACTIVE,
+        is_cold_start=False,
+        description="Relationship Prefix-KV runtime test bank.",
+    )
+    return ConditioningBankLatentCarrier(
+        schema_version=CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION,
+        bank=bank,
+        carrier="prefix_kv",
+        projector_version=artifact.carrier_version,
+        scale=artifact.prefix_artifact.norm_cap,
+        description="Relationship Prefix-KV runtime test carrier.",
     )
 
 
@@ -288,3 +366,92 @@ def test_residual_carrier_is_unchanged_by_a_loaded_prefix(
     ).text
 
     assert plain == with_artifact
+
+
+@pytest.fixture(scope="module")
+def relationship_prefix_runtime():
+    pytest.importorskip("torch")
+    pytest.importorskip("transformers")
+    from volvence_zero.substrate import TransformersOpenWeightResidualRuntime
+
+    artifact = _relationship_artifact()
+    runtime = TransformersOpenWeightResidualRuntime(
+        model_id=MODEL_ID,
+        pretrained_source=_local_weights(),
+        device="cpu",
+        hook_layer_selection="middle",
+        local_files_only=True,
+        runtime_origin="hf-local",
+        relationship_conditioning_prefix=artifact,
+    )
+    return runtime, artifact
+
+
+def test_relationship_prefix_reports_only_bank_attestation(
+    relationship_prefix_runtime,
+) -> None:
+    runtime, artifact = relationship_prefix_runtime
+    carrier = _relationship_carrier(artifact=artifact)
+
+    result = _generate(
+        runtime,
+        conditioning_bank_carriers=(carrier,),
+    )
+
+    assert result.personal_conditioning_applied is False
+    assert result.conditioning_bank_carriers_applied == (
+        (ConditioningBankType.RELATIONSHIP.value, artifact.carrier_version),
+    )
+    assert runtime.relationship_conditioning_prefix_id == artifact.artifact_id
+
+
+def test_loaded_relationship_prefix_is_inert_without_carrier(
+    runtime,
+    relationship_prefix_runtime,
+) -> None:
+    loaded_runtime, _ = relationship_prefix_runtime
+
+    assert _generate(loaded_runtime).text == _generate(runtime).text
+
+
+def test_relationship_prefix_fails_on_missing_artifact_and_label_drift(
+    runtime,
+    relationship_prefix_runtime,
+) -> None:
+    _, artifact = relationship_prefix_runtime
+    carrier = _relationship_carrier(artifact=artifact)
+    with pytest.raises(ValueError, match="requires a Relationship"):
+        _generate(runtime, conditioning_bank_carriers=(carrier,))
+
+    wrong = _relationship_carrier(
+        artifact=artifact,
+        labels=("wrong_a", "wrong_b", "wrong_c"),
+    )
+    with pytest.raises(ValueError, match="readout_labels"):
+        _generate(
+            relationship_prefix_runtime[0],
+            conditioning_bank_carriers=(wrong,),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "field_value", "message"),
+    (
+        ("projector_version", "relationship-prefix-kv-carrier.v1:wrong", "version"),
+        ("scale", 0.05, "scale"),
+    ),
+)
+def test_relationship_prefix_rejects_carrier_artifact_drift(
+    relationship_prefix_runtime,
+    field_name: str,
+    field_value: str | float,
+    message: str,
+) -> None:
+    runtime, artifact = relationship_prefix_runtime
+    carrier = replace(
+        _relationship_carrier(artifact=artifact),
+        **{field_name: field_value},
+    )
+
+    with pytest.raises(ValueError, match=message):
+        _generate(runtime, conditioning_bank_carriers=(carrier,))

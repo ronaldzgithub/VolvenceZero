@@ -58,6 +58,18 @@ class OpenWeightResidualRuntime(ABC):
         return RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION
 
     @property
+    def relationship_conditioning_prefix_version(self) -> str:
+        """Loaded Relationship Prefix-KV carrier version, empty if absent."""
+
+        return ""
+
+    @property
+    def relationship_conditioning_prefix_norm_cap(self) -> float:
+        """Loaded Relationship Prefix-KV norm cap, zero if absent."""
+
+        return 0.0
+
+    @property
     def control_basis_rank(self) -> int:
         """Rank of the active generation control basis."""
 

@@ -166,7 +166,17 @@ def test_personal_conditioning_without_residual_hooks_fails_loud() -> None:
         runtime.generate(prompt="hello", personal_conditioning=conditioning)
 
 
-def test_conditioning_bank_carrier_without_residual_hooks_fails_loud() -> None:
+@pytest.mark.parametrize(
+    ("carrier_name", "carrier_version"),
+    (
+        ("residual", RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION),
+        ("prefix_kv", "relationship-prefix-kv-carrier.v1:test"),
+    ),
+)
+def test_conditioning_bank_latent_carrier_without_hooks_fails_loud(
+    carrier_name: str,
+    carrier_version: str,
+) -> None:
     runtime = _runtime()
     bank = ConditioningBankSnapshot(
         schema_version=CONDITIONING_BANK_SCHEMA_VERSION,
@@ -190,12 +200,12 @@ def test_conditioning_bank_carrier_without_residual_hooks_fails_loud() -> None:
     carrier = ConditioningBankLatentCarrier(
         schema_version=CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION,
         bank=bank,
-        carrier="residual",
-        projector_version=RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION,
+        carrier=carrier_name,
+        projector_version=carrier_version,
         scale=0.12,
         description="vLLM Relationship carrier test",
     )
-    with pytest.raises(NotImplementedError, match="residual carriers"):
+    with pytest.raises(NotImplementedError, match="latent carriers"):
         runtime.generate(
             prompt="hello",
             conditioning_bank_carriers=(carrier,),

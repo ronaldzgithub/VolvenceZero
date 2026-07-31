@@ -261,9 +261,10 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         if conditioning_bank_carriers:
             raise NotImplementedError(
                 "VLLMOpenWeightResidualRuntime cannot apply conditioning bank "
-                "residual carriers because vLLM does not expose residual "
-                "hooks. Use the transformers open-weight runtime or disable "
-                "the latent carrier."
+                "latent carriers because this integration does not expose "
+                "residual hooks or Prefix-KV cache injection. Use the "
+                "transformers open-weight runtime or disable the latent "
+                "carrier."
             )
         if sampling_seed is not None:
             raise NotImplementedError(

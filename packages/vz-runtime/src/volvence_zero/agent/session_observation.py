@@ -179,6 +179,8 @@ def _relationship_conditioning_delivery_from_config(
     relationship_conditioning_mode: str,
     revocation_state: ConditioningRevocationState,
     projector_version: str = RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION,
+    prefix_version: str = "",
+    prefix_norm_cap: float = 0.0,
 ) -> tuple[ConditioningBankLatentCarrier | None, str, str]:
     """Select exactly one live Relationship delivery carrier."""
 
@@ -189,9 +191,10 @@ def _relationship_conditioning_delivery_from_config(
             revocation_state=revocation_state,
         )
         return None, statement, statement_ref
-    if relationship_conditioning_mode != "residual":
+    if relationship_conditioning_mode not in ("residual", "prefix_kv"):
         raise ValueError(
-            "relationship_conditioning_mode must be 'text' or 'residual', "
+            "relationship_conditioning_mode must be 'text', 'residual', or "
+            "'prefix_kv', "
             f"got {relationship_conditioning_mode!r}."
         )
     if (
@@ -199,17 +202,35 @@ def _relationship_conditioning_delivery_from_config(
         or revocation_state is ConditioningRevocationState.REVOKED
     ):
         return None, "", ""
+    if relationship_conditioning_mode == "prefix_kv":
+        if not prefix_version or not 0.0 < prefix_norm_cap <= 0.12:
+            raise ValueError(
+                "relationship_conditioning_mode='prefix_kv' requires a "
+                "loaded, bounded Relationship Prefix-KV artifact."
+            )
+        carrier = "prefix_kv"
+        carrier_version = prefix_version
+        scale = prefix_norm_cap
+        description = (
+            "Versioned Relationship bank Prefix-KV request for the frozen "
+            "substrate."
+        )
+    else:
+        carrier = "residual"
+        carrier_version = projector_version
+        scale = RELATIONSHIP_RESIDUAL_DEFAULT_SCALE
+        description = (
+            "Versioned Relationship bank residual request for the frozen "
+            "substrate."
+        )
     return (
         ConditioningBankLatentCarrier(
             schema_version=CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION,
             bank=relationship_bank,
-            carrier="residual",
-            projector_version=projector_version,
-            scale=RELATIONSHIP_RESIDUAL_DEFAULT_SCALE,
-            description=(
-                "Versioned Relationship bank residual request for the frozen "
-                "substrate."
-            ),
+            carrier=carrier,
+            projector_version=carrier_version,
+            scale=scale,
+            description=description,
         ),
         "",
         "",
@@ -615,6 +636,14 @@ class SessionObservationMixin:
             projector_version=(
                 self._default_residual_runtime
                 .relationship_conditioning_projector_version
+            ),
+            prefix_version=(
+                self._default_residual_runtime
+                .relationship_conditioning_prefix_version
+            ),
+            prefix_norm_cap=(
+                self._default_residual_runtime
+                .relationship_conditioning_prefix_norm_cap
             ),
         )
         # State KV P1 lineage: project the ACTIVE personal snapshot onto the

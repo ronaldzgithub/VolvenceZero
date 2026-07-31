@@ -1,0 +1,61 @@
+{
+  "schema_version": "relationship-prefix-kv-training-material.v1",
+  "owner_schema_version": "relationship-conditioning.v2",
+  "readout_labels": [
+    "rel_trust",
+    "rel_cumulative_trust",
+    "rel_continuity",
+    "rel_repair_pressure",
+    "rel_emotional_load",
+    "rel_stabilization_need",
+    "rel_trust_recovery",
+    "rel_tension_load",
+    "rel_attunement_trend",
+    "rel_relationship_continuity",
+    "rel_repair_progress",
+    "rel_relationship_depth",
+    "rel_consent_compliance",
+    "rel_consent_clarity"
+  ],
+  "endpoints": {
+    "repair": [
+      0.4725,
+      0.16125,
+      0.75,
+      0.5,
+      0.5384,
+      0.562144,
+      0.240775,
+      0.5,
+      0.35738125,
+      0.47603,
+      0.0,
+      0.0,
+      0.56,
+      0.4
+    ],
+    "steady": [
+      0.648625,
+      0.3493125,
+      0.75,
+      0.0,
+      0.2025,
+      0.1792032,
+      0.56144875,
+      0.0,
+      0.5023778125,
+      0.6768085,
+      1.0,
+      0.0,
+      0.76,
+      0.6
+    ]
+  },
+  "training_probes": [
+    "Help me choose a respectful way to respond.",
+    "What should guide the conversation from here?",
+    "How can I handle this without making things worse?",
+    "Give me one bounded next step."
+  ],
+  "description": "Owner-derived Relationship endpoints; evaluation endpoints and pilot probes are held out."
+}

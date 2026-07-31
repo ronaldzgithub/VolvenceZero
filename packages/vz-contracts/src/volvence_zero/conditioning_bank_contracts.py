@@ -330,7 +330,7 @@ CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION = (
 
 @dataclass(frozen=True)
 class ConditioningBankLatentCarrier:
-    """Versioned request to project one admitted bank into model residuals.
+    """Versioned request to project one admitted bank into a model carrier.
 
     The bank remains the semantic owner. This contract only freezes the
     substrate-facing carrier identity and magnitude bound, so runtime can
@@ -351,10 +351,10 @@ class ConditioningBankLatentCarrier:
                 "ConditioningBankLatentCarrier schema_version must be "
                 f"{CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION!r}."
             )
-        if self.carrier != "residual":
+        if self.carrier not in ("residual", "prefix_kv"):
             raise ValueError(
-                "ConditioningBankLatentCarrier v1 supports only the "
-                f"'residual' carrier, got {self.carrier!r}."
+                "ConditioningBankLatentCarrier v1 supports 'residual' or "
+                f"'prefix_kv', got {self.carrier!r}."
             )
         if not self.projector_version:
             raise ValueError(

@@ -62,7 +62,7 @@ readout、confidence、`rendered_statement` 一律归零。
 | value | frozen `ConditioningBankReadout`，`bank_type=RELATIONSHIP` |
 | dependencies | `relationship_state`, `boundary_consent` |
 | default wiring | `SHADOW`（`FinalRolloutConfig.relationship_conditioning`） |
-| consumer | session 装配链（text）+ substrate（versioned residual） |
+| consumer | session 装配链（text）+ substrate（versioned residual / Relationship Prefix-KV） |
 
 Relationship compiler `relationship-conditioning.v2` 发布 14 维 dyad 读出：
 `rel_trust` / `rel_cumulative_trust` / `rel_continuity` /
@@ -89,7 +89,7 @@ confidence、cold-start 空串。回滚 = 配置置 `DISABLED`（模块停发）
   逐字节保持单 bank 行为），且要求 non-cold、confidence > 0、未撤销。
 - **独立载体门**：`FinalRolloutConfig.relationship_conditioning_mode` 与
   Personal carrier 分离。默认 `text` 保持既有 owner-rendered prompt 路径；
-  显式 `residual` 把同一 scoped `ConditioningBankSnapshot` 封装为
+  显式 `residual` / `prefix_kv` 把同一 scoped `ConditioningBankSnapshot` 封装为
   `ConditioningBankLatentCarrier`（`conditioning-bank-latent-carrier.v1`），
   text statement 必须为空。cold-start / zero confidence / freshness=0 /
   REVOKED 在 carrier 构造前归零或拒绝，禁止只记 lineage 不产生因果路径。
@@ -105,11 +105,21 @@ confidence、cold-start 空串。回滚 = 配置置 `DISABLED`（模块停发）
   零向量不报告 applied；bank type、labels 或 projector version 不匹配必须
   fail loudly。Personal 与 Relationship delta 各自消费自己的 layer gains，
   禁止先合并后误用 Personal gain。
+- `relationship-prefix-kv.v1` 是 substrate-owned 的 Relationship 专属 wrapper：
+  它把通用 `PrefixKVArtifact` 绑定到 `RELATIONSHIP` bank、
+  `relationship-conditioning.v2` owner schema 和精确 14 维 labels，并用独立
+  artifact id / `relationship-prefix-kv-carrier.v1:<artifact_id>` 防止 Personal
+  或 Character artifact 因几何相同而误装。加载时精确校验 model、attention
+  geometry 与 `norm_cap <= 0.12`；推理时 carrier version、labels、scale 还要与
+  已加载 artifact 再次相等。Relationship 状态按 `confidence × freshness` 向
+  neutral 收缩后生成每层 K/V slots，拼接次序固定为 Character → Personal →
+  Relationship。缺失或漂移均 fail loudly，禁止静默回落 residual。
 - `GenerationResult.conditioning_bank_carriers_applied` 是物理投递真值；
-  response rationale 发布 `relationship_conditioning=residual:<version>:<fp>`，
+  response rationale 发布 `relationship_conditioning=<carrier>:<version>:<fp>`，
   `ConditioningLineage.state_encoder_version` 发布同一 version。不能根据“传入了
   carrier”推断 applied。synthetic runtime 只做可观察 trace-only intake 并报告
-  applied 空集；vLLM 不暴露 residual hooks，收到 carrier 必须明确 fail loudly。
+  applied 空集；vLLM 不暴露 residual hooks 或 Prefix-KV cache injection，收到
+  carrier 必须明确 fail loudly。
 - text 模式下 prompt 状态段按 bank 顺序携带各 owner 渲染的 statement
   段落，审计 ref 以 `;` 同序连接；turn 级 `ConditioningLineage` 经
   `bank_readout_to_bank` 投影携带多 bank 指纹（按 bank_type 排序），
@@ -191,6 +201,15 @@ confidence、cold-start 空串。回滚 = 配置置 `DISABLED`（模块停发）
   `1.0`。因此 model-derived **线性 residual** 方向已被该门否证，默认继续
   text + SHADOW；不得靠扩大同构样本或调高 `0.12` 上限追分。下一收敛包应建立
   Relationship 专属、版本化 Prefix-KV artifact，并复用相同 matched gate。
+- 2026-07-31 Relationship Prefix-KV 包冻结 `relationship-prefix-kv.v1` artifact
+  `e0d60083731bb7b013c69696c7959a8480d4fa054442d0bde2bb687486dfbb46`：训练只用
+  owner-derived 14 维 interior states，repair / steady endpoint 与 pilot probes
+  全部 held out；基底 Qwen2.5-0.5B 保持冻结，4 slots、rank 4、
+  `norm_cap=0.12`。同一 none / text / Prefix 三 profile、两 persona、4 probes 的
+  24-turn matched pilot 通过 source fingerprint `8/8`、Prefix applied `8/8`、
+  prompt identity `4/4`；三臂 blind match 仍均为 `0.50`。因此专属载体、隔离和
+  审计已实现，但当前小样本未证明 Relationship 增益；默认继续 text + SHADOW，
+  Prefix profile 只作可回滚证据路径，不进入 P6 promotion。
 
 ## 3. 当前收敛包：生成前残差预置
 

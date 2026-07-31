@@ -74,6 +74,13 @@ from volvence_zero.substrate.prefix_kv_diagnostics import (
     fit_ridge_probe,
     profile_spread,
 )
+from volvence_zero.substrate.relationship_prefix_kv_artifact import (
+    RELATIONSHIP_PREFIX_KV_CARRIER_VERSION,
+    RELATIONSHIP_PREFIX_KV_SCHEMA_VERSION,
+    RelationshipPrefixKVArtifact,
+    bind_relationship_prefix_artifact,
+    load_relationship_prefix_generator,
+)
 from volvence_zero.substrate.rare_heavy_training import (
     RARE_HEAVY_PEFT_TRAINING_MODE,
     PeftLoraRareHeavyBackend,
@@ -168,7 +175,10 @@ __all__ = [
     "RELATIONSHIP_CONTRASTIVE_RESIDUAL_TRAINING_MODE",
     "RELATIONSHIP_RESIDUAL_PROJECTOR_VERSION",
     "RELATIONSHIP_RESIDUAL_DEFAULT_SCALE",
+    "RELATIONSHIP_PREFIX_KV_CARRIER_VERSION",
+    "RELATIONSHIP_PREFIX_KV_SCHEMA_VERSION",
     "RelationshipConditioningProjectorArtifact",
+    "RelationshipPrefixKVArtifact",
     "ControlBasisArtifact",
     "ExpertActionTarget",
     "FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE",
@@ -178,9 +188,11 @@ __all__ = [
     "build_conditioning_bank_residual_basis",
     "build_conditioning_bank_residual_delta",
     "build_relationship_contrastive_projector_artifact",
+    "bind_relationship_prefix_artifact",
     "control_basis_fingerprint",
     "fit_transition_control_basis",
     "load_relationship_projector_basis",
+    "load_relationship_prefix_generator",
     "FeatureSignal",
     "feature_signal_map",
     "feature_signal_value",

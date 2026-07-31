@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a matched text-vs-residual pilot for the Relationship bank."""
+"""Run a matched text-vs-latent pilot for the Relationship bank."""
 
 from __future__ import annotations
 
@@ -51,6 +51,7 @@ from volvence_zero.state_kv_blind_judge import (  # noqa: E402
 )
 from volvence_zero.substrate import (  # noqa: E402
     RelationshipConditioningProjectorArtifact,
+    RelationshipPrefixKVArtifact,
     SubstrateTextEncoderBackend,
     TransformersOpenWeightResidualRuntime,
 )
@@ -58,7 +59,7 @@ from volvence_zero.substrate import (  # noqa: E402
 PROFILE_NONE = "state-kv-bank-none"
 PROFILE_TEXT = "state-kv-bank-relationship-only"
 PROFILE_LATENT = "state-kv-bank-relationship-latent-pure"
-PROFILES = (PROFILE_NONE, PROFILE_TEXT, PROFILE_LATENT)
+PROFILE_PREFIX = "state-kv-bank-relationship-prefix-pure"
 
 
 def _tag_value(tags: tuple[str, ...], key: str) -> str:
@@ -151,10 +152,11 @@ async def _collect(
     runtime: TransformersOpenWeightResidualRuntime,
     max_new_tokens: int,
     probes: tuple[tuple[str, str], ...],
+    profiles: tuple[str, ...],
 ) -> tuple[dict[str, Any], ...]:
     snapshots = await _build_persona_snapshots(runtime=runtime)
     rows = []
-    for profile in PROFILES:
+    for profile in profiles:
         for persona in sorted(PERSONAS):
             for probe_id, user_input in probes:
                 rows.append(
@@ -246,6 +248,11 @@ def _parser() -> argparse.ArgumentParser:
         default="",
         help="Optional model-derived Relationship projector artifact.",
     )
+    parser.add_argument(
+        "--relationship-prefix",
+        default="",
+        help="Optional dedicated Relationship Prefix-KV artifact.",
+    )
     parser.add_argument("--max-new-tokens", type=int, default=16)
     parser.add_argument("--gain-probe-limit", type=int, default=2)
     parser.add_argument("--irrelevant-probe-limit", type=int, default=2)
@@ -261,6 +268,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.relationship_projector and args.relationship_prefix:
+        raise ValueError(
+            "choose exactly one latent Relationship artifact: projector or "
+            "Prefix-KV"
+        )
     if args.max_new_tokens <= 0:
         raise ValueError("--max-new-tokens must be positive")
     if not 1 <= args.gain_probe_limit <= len(GAIN_PROBES):
@@ -294,6 +306,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.relationship_projector
         else None
     )
+    relationship_prefix = (
+        RelationshipPrefixKVArtifact.from_json(
+            (REPO_ROOT / args.relationship_prefix)
+            .resolve()
+            .read_text(encoding="utf-8")
+        )
+        if args.relationship_prefix
+        else None
+    )
+    latent_profile = (
+        PROFILE_PREFIX if relationship_prefix is not None else PROFILE_LATENT
+    )
+    profiles = (PROFILE_NONE, PROFILE_TEXT, latent_profile)
     runtime = TransformersOpenWeightResidualRuntime(
         model_id=args.model_id,
         pretrained_source=str(substrate_root),
@@ -301,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
         local_files_only=True,
         runtime_origin="hf-local",
         relationship_conditioning_projector=relationship_projector,
+        relationship_conditioning_prefix=relationship_prefix,
     )
     set_semantic_embedding_backend(
         SubstrateTextEncoderBackend(runtime),
@@ -312,6 +338,7 @@ def main(argv: list[str] | None = None) -> int:
                 runtime=runtime,
                 max_new_tokens=args.max_new_tokens,
                 probes=probes,
+                profiles=profiles,
             )
         )
     finally:
@@ -325,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
         observations[(PROFILE_TEXT, persona, probe_id)][
             "relationship_source_fingerprint"
         ]
-        == observations[(PROFILE_LATENT, persona, probe_id)][
+        == observations[(latent_profile, persona, probe_id)][
             "relationship_source_fingerprint"
         ]
         for persona in sorted(PERSONAS)
@@ -334,17 +361,20 @@ def main(argv: list[str] | None = None) -> int:
     matched_total = len(PERSONAS) * len(probes)
     latent_applied = sum(
         str(
-            observations[(PROFILE_LATENT, persona, probe_id)][
+            observations[(latent_profile, persona, probe_id)][
                 "relationship_carrier_tag"
             ]
-        ).startswith("relationship_conditioning=residual:")
+        ).startswith(
+            "relationship_conditioning="
+            + ("prefix_kv:" if relationship_prefix is not None else "residual:")
+        )
         for persona in sorted(PERSONAS)
         for probe_id, _ in probes
     )
     latent_prompt_identity = sum(
         len(
             {
-                observations[(PROFILE_LATENT, persona, probe_id)][
+                observations[(latent_profile, persona, probe_id)][
                     "prompt_fingerprint"
                 ]
                 for persona in sorted(PERSONAS)
@@ -370,7 +400,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     gain_probe_ids = tuple(probe_id for probe_id, _ in gain_probes)
     accuracies = {}
-    for profile in PROFILES:
+    for profile in profiles:
         correct, total = _accuracy(
             profile=profile,
             probe_ids=gain_probe_ids,
@@ -392,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
         }
 
     persona_divergence = {}
-    for profile in PROFILES:
+    for profile in profiles:
         divergent = sum(
             len(
                 {
@@ -412,12 +442,25 @@ def main(argv: list[str] | None = None) -> int:
     output = (REPO_ROOT / args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema_version": "state-kv-relationship-carrier-pilot.v1",
-        "projector": {
-            "version": runtime.relationship_conditioning_projector_version,
-            "artifact_id": runtime.relationship_conditioning_projector_id,
+        "schema_version": "state-kv-relationship-carrier-pilot.v2",
+        "carrier": {
+            "type": (
+                "prefix_kv" if relationship_prefix is not None else "residual"
+            ),
+            "version": (
+                runtime.relationship_conditioning_prefix_version
+                if relationship_prefix is not None
+                else runtime.relationship_conditioning_projector_version
+            ),
+            "artifact_id": (
+                runtime.relationship_conditioning_prefix_id
+                if relationship_prefix is not None
+                else runtime.relationship_conditioning_projector_id
+            ),
             "training_mode": (
-                runtime.relationship_conditioning_projector_training_mode
+                relationship_prefix.prefix_artifact.training_mode
+                if relationship_prefix is not None
+                else runtime.relationship_conditioning_projector_training_mode
             ),
         },
         "substrate": _fingerprint_weights(
@@ -432,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
             "max_new_tokens": args.max_new_tokens,
             "temperature": 0.0,
         },
-        "profiles": list(PROFILES),
+        "profiles": list(profiles),
         "matched_source_fingerprints": {
             "count": matched_fingerprints,
             "total": matched_total,
