@@ -12,9 +12,13 @@ import {
 import {
   defaultConfig,
   type AppArm,
+  type AppFrame,
   type AppMode,
   type AppObjective,
+  type AppRunState,
+  type EvidenceProjection,
   type ExperimentConfig,
+  type RunStatus,
   type WorldObjectKind,
   type WorldObjectSnapshot,
 } from "./types";
@@ -23,6 +27,43 @@ import { type CanvasTool, WorldCanvas } from "./WorldCanvas";
 function numberValue(value: string): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isTerminalRunState(state: AppRunState | undefined): boolean {
+  return state === "completed" || state === "failed" || state === "stopped";
+}
+
+function statusLabel(state: AppRunState | undefined): string {
+  if (state === "running") return "观察中";
+  if (state === "paused") return "已暂停";
+  if (state === "completed") return "已完成";
+  if (state === "failed") return "运行异常";
+  if (state === "stopped") return "已停止";
+  return "未启动";
+}
+
+function stageTitle(frame: AppFrame | null, status: RunStatus | null): string {
+  if (!frame) return "等待蚁群进入环境";
+  const colony = `${frame.ants.length} 只蚂蚁`;
+  if (status?.state === "paused") return `${colony}已暂停，保留当前环境帧`;
+  if (status?.state === "stopped") return `${colony}已停止，保留最后环境帧`;
+  if (status?.state === "completed") return `${colony}已完成本次实验`;
+  if (status?.state === "failed") return `${colony}的实验运行异常`;
+  if (frame.arm === "fixed_rule") return `${colony}正在按固定规则行动`;
+  if (frame.arm === "no_optimize") return `${colony}正在运行无优化对照`;
+  if (frame.evidence.checkpoint_loaded) return `${colony}正在使用晋级 checkpoint 行动`;
+  return `${colony}正在从冷启动在线学习`;
+}
+
+function checkpointLabel(
+  arm: AppArm,
+  evidence: EvidenceProjection | undefined,
+): string {
+  if (arm === "fixed_rule") return "不适用（固定规则基线）";
+  if (arm === "no_optimize") return "不加载（no-optimize 对照）";
+  return evidence?.checkpoint_loaded
+    ? `${evidence.checkpoint_verdict} · ${evidence.checkpoint_fingerprint.slice(0, 12)}`
+    : "未加载（冷启动在线学习）";
 }
 
 export default function App() {
@@ -43,7 +84,22 @@ export default function App() {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(
     null,
   );
+  const [selectedAntId, setSelectedAntId] = useState(0);
   const sourceRef = useRef<EventSource | null>(null);
+
+  const frame = stream.frame;
+  const status = stream.status;
+  const evidence = frame?.evidence;
+  const verdict = evidence?.verdict ?? "BLOCK";
+  const runIsTerminal = isTerminalRunState(status?.state);
+  const hasActiveRun = Boolean(runId && status && !runIsTerminal);
+  const configLocked = busy || hasActiveRun;
+  const canEditEcology = Boolean(
+    runId && status && !runIsTerminal && status.objective === "ecology",
+  );
+  const activeAnt =
+    frame?.ants.find((ant) => ant.body_id === selectedAntId) ?? frame?.ants[0];
+  const activeArm = frame?.arm ?? status?.arm ?? config.arm;
 
   useEffect(() => {
     if (!runId) return;
@@ -74,9 +130,14 @@ export default function App() {
   async function startRun() {
     setBusy(true);
     await withRequest(async () => {
+      if (runId && status && !isTerminalRunState(status.state)) {
+        await sendCommand(runId, "stop");
+      }
       sourceRef.current?.close();
+      setRunId("");
       dispatch({ type: "reset" });
       setSelectedObjectId(null);
+      setSelectedAntId(0);
       const created = await createRun(config);
       setRunId(created.run_id);
       dispatch({
@@ -91,7 +152,7 @@ export default function App() {
   async function command(
     kind: "pause" | "resume" | "step" | "stop",
   ) {
-    if (!runId) return;
+    if (!canEditEcology) return;
     await withRequest(async () => {
       const status = await sendCommand(runId, kind);
       dispatch({
@@ -123,7 +184,7 @@ export default function App() {
     start: [number, number],
     end?: [number, number],
   ) {
-    if (!runId) return;
+    if (!canEditEcology) return;
     const objectId = `${kind}-${crypto.randomUUID()}`;
     void withRequest(async () => {
       if (kind === "wood_stick") {
@@ -181,7 +242,7 @@ export default function App() {
   }
 
   function removeSelectedObject() {
-    if (!runId || !selectedObjectId) return;
+    if (!canEditEcology || !selectedObjectId) return;
     void withRequest(async () => {
       await sendDisturbance(runId, {
         kind: "remove_world_object",
@@ -201,12 +262,6 @@ export default function App() {
     }));
   }
 
-  const frame = stream.frame;
-  const status = stream.status;
-  const evidence = frame?.evidence;
-  const verdict = evidence?.verdict ?? "BLOCK";
-  const activeAnt = frame?.ants[0];
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -220,15 +275,7 @@ export default function App() {
         <div className="status-stack">
           <span className={`live-dot ${status?.state ?? "idle"}`} />
           <strong>
-            {status?.state === "running"
-              ? "观察中"
-              : status?.state === "paused"
-                ? "已暂停"
-                : status?.state === "completed"
-                  ? "已完成"
-                  : status?.state === "failed"
-                    ? "运行异常"
-                    : "未启动"}
+            {statusLabel(status?.state)}
           </strong>
           <span>tick {frame?.tick ?? 0}</span>
         </div>
@@ -243,6 +290,7 @@ export default function App() {
               {(["solo", "colony"] as AppMode[]).map((mode) => (
                 <button
                   className={config.mode === mode ? "selected" : ""}
+                  disabled={configLocked}
                   key={mode}
                   onClick={() => setMode(mode)}
                 >
@@ -253,6 +301,7 @@ export default function App() {
             <label>
               控制臂
               <select
+                disabled={configLocked}
                 value={config.arm}
                 onChange={(event) =>
                   setConfig({
@@ -270,7 +319,7 @@ export default function App() {
               目标
               <select
                 value={config.objective}
-                disabled={config.mode === "colony"}
+                disabled={configLocked || config.mode === "colony"}
                 onChange={(event) =>
                   setConfig({
                     ...config,
@@ -288,6 +337,7 @@ export default function App() {
                 seed
                 <input
                   type="number"
+                  disabled={configLocked}
                   value={config.seed}
                   onChange={(event) =>
                     setConfig({
@@ -303,7 +353,7 @@ export default function App() {
                   type="number"
                   min={1}
                   max={16}
-                  disabled={config.mode === "solo"}
+                  disabled={configLocked || config.mode === "solo"}
                   value={config.n_ants}
                   onChange={(event) =>
                     setConfig({
@@ -318,6 +368,7 @@ export default function App() {
                 <input
                   type="number"
                   min={0}
+                  disabled={busy}
                   value={config.tick_interval_ms}
                   onChange={(event) =>
                     setConfig({
@@ -335,6 +386,7 @@ export default function App() {
                 <input
                   type="number"
                   min={1}
+                  disabled={configLocked}
                   value={config.max_ticks}
                   onChange={(event) =>
                     setConfig({
@@ -348,24 +400,28 @@ export default function App() {
             <button
               className="primary-action"
               onClick={startRun}
-              disabled={busy}
+              disabled={configLocked}
             >
-              {busy ? "正在唤醒蚁群…" : "创建真实闭环"}
+              {busy
+                ? "正在唤醒蚁群…"
+                : hasActiveRun
+                  ? "当前闭环运行中"
+                  : "创建真实闭环"}
             </button>
             <div className="transport">
-              <button onClick={() => command("pause")} disabled={!runId}>
+              <button onClick={() => command("pause")} disabled={status?.state !== "running"}>
                 暂停
               </button>
-              <button onClick={() => command("step")} disabled={!runId}>
+              <button onClick={() => command("step")} disabled={status?.state !== "paused"}>
                 单步
               </button>
-              <button onClick={() => command("resume")} disabled={!runId}>
+              <button onClick={() => command("resume")} disabled={status?.state !== "paused"}>
                 继续
               </button>
-              <button onClick={updateSpeed} disabled={!runId}>
+              <button onClick={updateSpeed} disabled={!hasActiveRun}>
                 应用速度
               </button>
-              <button onClick={() => command("stop")} disabled={!runId}>
+              <button onClick={() => command("stop")} disabled={!hasActiveRun}>
                 停止
               </button>
             </div>
@@ -382,19 +438,19 @@ export default function App() {
               <input
                 aria-label="食物 X"
                 type="number"
-                disabled={config.objective === "ecology"}
+                disabled={!hasActiveRun || status?.objective === "ecology"}
                 value={foodX}
                 onChange={(event) => setFoodX(numberValue(event.target.value))}
               />
               <input
                 aria-label="食物 Y"
                 type="number"
-                disabled={config.objective === "ecology"}
+                disabled={!hasActiveRun || status?.objective === "ecology"}
                 value={foodY}
                 onChange={(event) => setFoodY(numberValue(event.target.value))}
               />
               <button
-                disabled={!runId || config.objective === "ecology"}
+                disabled={!hasActiveRun || status?.objective === "ecology"}
                 onClick={() =>
                   withRequest(async () => {
                     await sendDisturbance(runId, {
@@ -417,7 +473,7 @@ export default function App() {
                 onChange={(event) => setAlarm(numberValue(event.target.value))}
               />
               <button
-                disabled={!runId}
+                disabled={!hasActiveRun}
                 onClick={() =>
                   withRequest(async () => {
                     await sendDisturbance(runId, {
@@ -450,7 +506,7 @@ export default function App() {
                 }
               />
               <button
-                disabled={!runId}
+                disabled={!hasActiveRun}
                 onClick={() =>
                   withRequest(async () => {
                     await sendDisturbance(runId, {
@@ -479,10 +535,7 @@ export default function App() {
                 "尚无通过冻结门槛的正式 artifact；画面仍是真实内核行动。"}
             </p>
             <p className="checkpoint-status">
-              learned checkpoint：
-              {evidence?.checkpoint_loaded
-                ? `${evidence.checkpoint_verdict} · ${evidence.checkpoint_fingerprint.slice(0, 12)}`
-                : "未加载（冷启动）"}
+              checkpoint：{checkpointLabel(activeArm, evidence)}
             </p>
             {runId && (
               <a
@@ -500,9 +553,7 @@ export default function App() {
           <div className="stage-heading">
             <div>
               <p className="panel-kicker">实时生态观察箱</p>
-              <h2>
-                {frame ? `${frame.ants.length} 只蚂蚁正在自主行动` : "等待蚁群进入环境"}
-              </h2>
+              <h2>{stageTitle(frame, status)}</h2>
             </div>
             <div className="field-readout">
               <span>拾取 <strong>{frame?.pickups ?? 0}</strong></span>
@@ -524,7 +575,7 @@ export default function App() {
                   key={tool}
                   className={canvasTool === tool ? "selected" : ""}
                   onClick={() => setCanvasTool(tool)}
-                  disabled={!runId || config.objective !== "ecology"}
+                  disabled={!canEditEcology}
                   aria-pressed={canvasTool === tool}
                 >
                   <span className={`tool-icon ${icon}`} aria-hidden="true" />
@@ -542,7 +593,7 @@ export default function App() {
             <button
               className="delete-object"
               onClick={removeSelectedObject}
-              disabled={!runId || !selectedObjectId}
+              disabled={!canEditEcology || !selectedObjectId}
             >
               移除选中物体
             </button>
@@ -551,6 +602,7 @@ export default function App() {
           <div className="canvas-shell">
             <WorldCanvas
               frame={frame}
+              interactionEnabled={canEditEcology}
               tool={canvasTool}
               selectedObjectId={selectedObjectId}
               onPlaceObject={placeObject}
@@ -564,21 +616,21 @@ export default function App() {
           </div>
           <div className="metrics-strip">
             <article>
-              <span>拾取 / 回巢</span>
+              <span>群体拾取 / 回巢</span>
               <strong>
                 {frame?.pickups ?? 0} / {frame?.delivered ?? 0}
               </strong>
             </article>
             <article>
-              <span>动作</span>
+              <span>蚂蚁 #{activeAnt?.body_id ?? "—"} 动作</span>
               <strong>{activeAnt?.action ?? "—"}</strong>
             </article>
             <article>
-              <span>策略切换 β</span>
+              <span>蚂蚁 #{activeAnt?.body_id ?? "—"} 策略切换 β</span>
               <strong>{activeAnt?.switch_gate.toFixed(3) ?? "—"}</strong>
             </article>
             <article>
-              <span>预测误差 / 信用</span>
+              <span>蚂蚁 #{activeAnt?.body_id ?? "—"} PE / 信用</span>
               <strong>
                 {activeAnt
                   ? `${activeAnt.pe_magnitude.toFixed(3)} / ${activeAnt.cumulative_credit.toFixed(3)}`
@@ -586,7 +638,7 @@ export default function App() {
               </strong>
             </article>
             <article>
-              <span>闭环结算 / 可用</span>
+              <span>群体闭环结算 / 可用</span>
               <strong>
                 {evidence
                   ? `${evidence.runtime_replay_settled}/${Math.max(
@@ -598,7 +650,7 @@ export default function App() {
               </strong>
             </article>
             <article>
-              <span>每步耗时</span>
+              <span>群体 round 耗时</span>
               <strong>
                 {frame ? `${frame.tick_latency_ms.toFixed(1)} ms` : "—"}
               </strong>
@@ -607,7 +659,26 @@ export default function App() {
 
           <div className="lower-grid">
             <section className="telemetry">
-              <h2>真实动作传导</h2>
+              <div className="telemetry-heading">
+                <h2>单蚁真实动作传导</h2>
+                <label>
+                  遥测对象
+                  <select
+                    aria-label="遥测对象"
+                    value={activeAnt?.body_id ?? 0}
+                    disabled={!frame || frame.ants.length <= 1}
+                    onChange={(event) =>
+                      setSelectedAntId(numberValue(event.target.value))
+                    }
+                  >
+                    {(frame?.ants ?? []).map((ant) => (
+                      <option key={ant.body_id} value={ant.body_id}>
+                        蚂蚁 #{ant.body_id}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <dl>
                 <div>
                   <dt>z_t</dt>

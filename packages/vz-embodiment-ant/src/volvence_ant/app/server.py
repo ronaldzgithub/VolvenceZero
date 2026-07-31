@@ -11,6 +11,7 @@ from uuid import uuid4
 from aiohttp import web
 
 from volvence_ant.app.contracts import (
+    APP_SCHEMA_VERSION,
     AppArm,
     AppCommand,
     AppCommandKind,
@@ -217,6 +218,15 @@ async def get_replay(request: web.Request) -> web.Response:
     return web.json_response(_run(request).replay_payload())
 
 
+async def health(_request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "service": "digital-ant-app",
+            "schema_version": APP_SCHEMA_VERSION,
+        }
+    )
+
+
 async def stream_events(request: web.Request) -> web.StreamResponse:
     run = _run(request)
     try:
@@ -294,6 +304,7 @@ def create_app(
     app[_MANAGER_KEY] = manager or AntAppManager()
     app[_WEB_ROOT_KEY] = web_root if web_root is not None else default_web_root()
     app.cleanup_ctx.append(_manager_context)
+    app.router.add_get("/api/v1/health", health)
     app.router.add_post("/api/v1/runs", create_run)
     app.router.add_get("/api/v1/runs/{run_id}/status", get_status)
     app.router.add_get("/api/v1/runs/{run_id}/events", stream_events)

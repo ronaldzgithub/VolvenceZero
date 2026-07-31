@@ -198,11 +198,42 @@ async def test_future_disturbance_waits_for_requested_tick_boundary() -> None:
     await manager.close()
 
 
+async def test_world_object_disturbances_require_ecology_objective() -> None:
+    manager = AntAppManager()
+    run = await manager.create_run(
+        AppExperimentConfig(
+            arm=AppArm.FIXED_RULE,
+            objective=AppObjective.FORAGING,
+            autostart=False,
+        ),
+        run_id="non-ecology-objects",
+    )
+
+    with pytest.raises(ValueError, match="requires objective=ecology"):
+        await run.queue_disturbance(
+            AppDisturbance(
+                event_id="invalid-stick",
+                kind=AppDisturbanceKind.UPSERT_WORLD_OBJECT,
+                object_id="stick-1",
+                object_kind=WorldObjectKind.WOOD_STICK,
+                start_x=0.0,
+                start_y=0.0,
+                end_x=1.0,
+                end_y=1.0,
+            )
+        )
+
+    assert not run.world.world_object_snapshots()
+    assert run.status().pending_disturbances == 0
+    await manager.close()
+
+
 async def test_ecology_object_upsert_move_and_remove_are_boundary_applied() -> None:
     manager = AntAppManager()
     run = await manager.create_run(
         AppExperimentConfig(
             arm=AppArm.FIXED_RULE,
+            objective=AppObjective.ECOLOGY,
             autostart=False,
             tick_interval_ms=0,
             max_ticks=5,
@@ -223,7 +254,12 @@ async def test_ecology_object_upsert_move_and_remove_are_boundary_applied() -> N
     )
     await run.apply_command(AppCommand(command_id="place-step", kind=AppCommandKind.STEP))
     await _wait_for_tick(run, 1)
-    assert run.world.world_object_snapshots()[0].object_id == "stick-1"
+    stick = next(
+        item
+        for item in run.world.world_object_snapshots()
+        if item.object_id == "stick-1"
+    )
+    assert stick.center == (1.0, 0.0)
 
     await run.queue_disturbance(
         AppDisturbance(
@@ -236,7 +272,12 @@ async def test_ecology_object_upsert_move_and_remove_are_boundary_applied() -> N
     )
     await run.apply_command(AppCommand(command_id="move-step", kind=AppCommandKind.STEP))
     await _wait_for_tick(run, 2)
-    assert run.world.world_object_snapshots()[0].center[0] == 3.0
+    moved_stick = next(
+        item
+        for item in run.world.world_object_snapshots()
+        if item.object_id == "stick-1"
+    )
+    assert moved_stick.center[0] == 3.0
 
     await run.queue_disturbance(
         AppDisturbance(
@@ -247,7 +288,10 @@ async def test_ecology_object_upsert_move_and_remove_are_boundary_applied() -> N
     )
     await run.apply_command(AppCommand(command_id="remove-step", kind=AppCommandKind.STEP))
     await _wait_for_tick(run, 3)
-    assert run.world.world_object_snapshots() == ()
+    assert all(
+        item.object_id != "stick-1"
+        for item in run.world.world_object_snapshots()
+    )
     await manager.close()
 
 

@@ -6,26 +6,63 @@ import type {
   WorldObjectKind,
 } from "./types";
 
+export const REQUEST_TIMEOUT_MS = 10_000;
+const EXPECTED_SERVICE = "digital-ant-app";
+const EXPECTED_SCHEMA_VERSION = "digital-ant-app.v2";
+
 async function requestJson<T>(
   url: string,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
-  if (!response.ok) {
-    throw new Error((await response.text()) || `${response.status}`);
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(
+    () => controller.abort(),
+    REQUEST_TIMEOUT_MS,
+  );
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
+    if (!response.ok) {
+      throw new Error((await response.text()) || `${response.status}`);
+    }
+    return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(
+        `后端请求超过 ${REQUEST_TIMEOUT_MS / 1000} 秒，请确认 Digital Ant 服务正在运行`,
+      );
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
   }
-  return (await response.json()) as T;
+}
+
+async function verifyBackend(): Promise<void> {
+  const health = await requestJson<{
+    service?: string;
+    schema_version?: string;
+  }>("/api/v1/health");
+  if (
+    health.service !== EXPECTED_SERVICE ||
+    health.schema_version !== EXPECTED_SCHEMA_VERSION
+  ) {
+    throw new Error(
+      `后端身份不匹配：需要 ${EXPECTED_SERVICE} ${EXPECTED_SCHEMA_VERSION}`,
+    );
+  }
 }
 
 export async function createRun(
   config: ExperimentConfig,
 ): Promise<{ run_id: string; status: RunStatus }> {
+  await verifyBackend();
   return requestJson("/api/v1/runs", {
     method: "POST",
     body: JSON.stringify(config),

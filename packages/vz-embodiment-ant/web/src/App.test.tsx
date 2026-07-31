@@ -18,5 +18,11 @@ describe("truthful evidence surface", () => {
     expect(
       screen.getByRole("button", { name: "燃烧火柴" }),
     ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "暂停" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "停止" })).toBeDisabled();
+    expect(screen.getByLabelText("遥测对象")).toBeDisabled();
+    expect(
+      screen.getByText(/未加载（冷启动在线学习）/),
+    ).toBeInTheDocument();
   });
 });

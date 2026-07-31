@@ -65,6 +65,13 @@ from volvence_ant.runtime import (
 
 
 _LIVE_FRAME_CAPACITY = 64
+_ECOLOGY_OBJECT_DISTURBANCES = frozenset(
+    {
+        AppDisturbanceKind.UPSERT_WORLD_OBJECT,
+        AppDisturbanceKind.MOVE_WORLD_OBJECT,
+        AppDisturbanceKind.REMOVE_WORLD_OBJECT,
+    }
+)
 
 
 class AntAppRun:
@@ -344,6 +351,13 @@ class AntAppRun:
         return self.status()
 
     async def queue_disturbance(self, disturbance: AppDisturbance) -> AppDisturbanceRecord:
+        if (
+            disturbance.kind in _ECOLOGY_OBJECT_DISTURBANCES
+            and self.config.objective is not AppObjective.ECOLOGY
+        ):
+            raise ValueError(
+                f"{disturbance.kind.value} requires objective={AppObjective.ECOLOGY.value}"
+            )
         async with self._lock:
             if self.terminal:
                 raise RuntimeError(f"run {self.run_id} is terminal ({self._state.value})")

@@ -11,6 +11,20 @@ from aiohttp.test_utils import TestClient, TestServer
 from volvence_ant.app.server import create_app
 
 
+async def test_health_identifies_the_service_and_schema() -> None:
+    client = TestClient(TestServer(create_app()))
+    await client.start_server()
+    try:
+        response = await client.get("/api/v1/health")
+        assert response.status == 200
+        assert await response.json() == {
+            "service": "digital-ant-app",
+            "schema_version": "digital-ant-app.v2",
+        }
+    finally:
+        await client.close()
+
+
 async def test_app_api_runs_one_real_fixed_rule_tick_and_exports_replay() -> None:
     client = TestClient(TestServer(create_app()))
     await client.start_server()
@@ -136,6 +150,35 @@ async def test_api_places_ecology_objects_at_authoritative_boundary() -> None:
         replay = await (await client.get(f"/api/v1/runs/{run_id}/replay")).json()
         assert replay["frames"][0]["objects"]
         assert any(item["object_id"] == "match-ui" for item in replay["frames"][0]["objects"])
+    finally:
+        await client.close()
+
+
+async def test_api_rejects_ecology_objects_for_non_ecology_run() -> None:
+    client = TestClient(TestServer(create_app()))
+    await client.start_server()
+    try:
+        response = await client.post(
+            "/api/v1/runs",
+            json={
+                "arm": "fixed_rule",
+                "objective": "foraging",
+                "autostart": False,
+            },
+        )
+        run_id = (await response.json())["run_id"]
+        rejected = await client.post(
+            f"/api/v1/runs/{run_id}/disturbances",
+            json={
+                "kind": "upsert_world_object",
+                "object_id": "invalid-match",
+                "object_kind": "burning_match",
+                "x": 2.0,
+                "y": -1.0,
+            },
+        )
+        assert rejected.status == 400
+        assert "requires objective=ecology" in await rejected.text()
     finally:
         await client.close()
 

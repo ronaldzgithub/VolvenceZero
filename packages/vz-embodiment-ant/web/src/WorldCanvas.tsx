@@ -687,6 +687,7 @@ export type CanvasTool = "select" | WorldObjectKind;
 
 interface WorldCanvasProps {
   frame: AppFrame | null;
+  interactionEnabled: boolean;
   tool: CanvasTool;
   selectedObjectId: string | null;
   onPlaceObject: (
@@ -753,6 +754,7 @@ function hitTestObject(
 
 export function WorldCanvas({
   frame,
+  interactionEnabled,
   tool,
   selectedObjectId,
   onPlaceObject,
@@ -826,7 +828,7 @@ export function WorldCanvas({
   }
 
   function pointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (!frame) return;
+    if (!frame || !interactionEnabled) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = eventWorldPoint(event);
     if (tool === "wood_stick") {
@@ -880,7 +882,13 @@ export function WorldCanvas({
   }
 
   const cursor =
-    tool === "select" ? (movingObject ? "grabbing" : "grab") : "crosshair";
+    !interactionEnabled
+      ? "not-allowed"
+      : tool === "select"
+        ? movingObject
+          ? "grabbing"
+          : "grab"
+        : "crosshair";
 
   return (
     <canvas
@@ -889,6 +897,7 @@ export function WorldCanvas({
       width={WIDTH}
       height={HEIGHT}
       aria-label="数字蚂蚁真实生态环境，可放置和移动黄油、木棍与燃烧火柴"
+      aria-disabled={!interactionEnabled}
       onPointerDown={pointerDown}
       onPointerMove={pointerMove}
       onPointerUp={endPointer}
