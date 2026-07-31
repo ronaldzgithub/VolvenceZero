@@ -231,7 +231,7 @@ class ForgeConfig:
             components.add(entry.component)
             if entry.validation is not None:
                 suite_glob = entry.validation.frozen_suite
-                if suite_glob not in self.read_only:
+                if not _glob_covered_by_read_only(suite_glob, self.read_only):
                     raise ForgeConfigError(
                         f"Component frozen suite must be explicitly read-only: {suite_glob}"
                     )
@@ -334,3 +334,22 @@ def _glob_matches(path: PurePosixPath, pattern: str) -> bool:
             parent.match(prefix_pattern) for parent in path.parents
         )
     return path.match(pattern)
+
+
+def _glob_covered_by_read_only(pattern: str, read_only: tuple[str, ...]) -> bool:
+    """Check that a validation glob is guarded by an explicit read-only glob."""
+
+    for guard in read_only:
+        if guard == pattern:
+            return True
+        if guard.endswith("/**"):
+            prefix = guard[:-3].rstrip("/")
+            if pattern == prefix or pattern.startswith(prefix + "/"):
+                return True
+        if "/**/" in guard:
+            prefix, suffix = guard.split("/**/", 1)
+            if pattern.startswith(prefix.rstrip("/") + "/") and pattern.endswith(
+                "/" + suffix.lstrip("/")
+            ):
+                return True
+    return False

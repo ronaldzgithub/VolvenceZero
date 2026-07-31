@@ -306,3 +306,18 @@ def test_prediction_check_is_inconclusive_without_post_apply_window(tmp_path: Pa
 
     assert unbounded[0]["status"] == "inconclusive"
     assert post_apply[0]["status"] == "fulfilled"
+
+
+def test_v2_editable_surface_accepts_read_only_frozen_suite_glob() -> None:
+    config = ForgeConfig.load(
+        ForgePaths.discover(
+            repo_root=REPO_ROOT,
+            transcripts_root=REPO_ROOT / "artifacts" / "transcripts",
+        )
+    )
+    assert config.schema_version == "forge-editable-surface.v2"
+    component = next(
+        entry for entry in config.editable if entry.component == "character_scenario_semantics"
+    )
+    assert component.requires_offline_gate is True
+    assert component.validation is not None
