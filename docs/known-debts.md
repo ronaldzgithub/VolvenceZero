@@ -2200,6 +2200,26 @@ return (
 > 产生的后完成同源 formal run 记为 `invalid-duplicate-not-admitted`，
 > 不进入 verdict 或 CI。
 
+> **2026-07-31 owner 机制改造战役 checkpoint**：依次修复并重跑 Gate
+> `9 / 1 / 6 / 4 / 10`。五包的 mechanism gates 全绿，但五个预注册 causal
+> verdict 均为 `not-supported`，且全部触发 kill condition：M3 慢动量接入
+> 后相对 plain momentum 的 tracking/recovery margin 为
+> `-0.001589 / -0.001875`；PE modulation 进入 ndim code 后 next-session
+> policy-loss reduction 为 `-0.000881`；conditioned CMS meta-init 相对
+> copy-init effect 为 `-0.049077` 且 negative-transfer rate=`1.0`；
+> learned label-utility 相对 turn/random 均多用 `1.0` 个标签；rare-heavy
+> structural target 的 held-out gain=`-0.004695`，虽 forgetting=`0.013869`
+> 且 rollback exact=`1.0`。因此不降低门槛、不追加同版调参：
+> M3 与 PE runtime modulation 的生产默认关闭，CMS 生产 reset 回到
+> `copy-init`，Gate 4 learned selector 不获晋升，Gate 10 仅保留
+> review/import/reject/rollback 闭环。Gate 7 不重跑：Gate 1 修复后的 PE
+> 控制面有可测差异但方向为负，未提供重开 Gate 7 五臂所需的正向信号前提。
+> #92 台账不变：mechanism coverage 完整；causal-supported 仍为 Gate
+> `2/8/11`，longitudinal-supported 仍为 Gate `8/11`，full-chain rollback
+> 仍由 Gate 10 满足；共同等级=`mechanism-supported`、
+> `thesis_retained=false`、production/live promotion 禁止。reconciliation：
+> `artifacts/mechanism_repair_campaign_20260731`。
+
 - **路径**：
   - 总论与需求：[`docs/volvence-thesis.md`](volvence-thesis.md) · [`docs/next_gen_emogpt.md`](next_gen_emogpt.md)
   - PE / LSS：[`docs/specs/prediction-error-loop.md`](specs/prediction-error-loop.md)
@@ -2272,6 +2292,16 @@ return (
   status=`not-supported`；本门当前只支持“PE 是可审计原始信号”，不支持
   “PE 驱动在该 held-out 行为面产生已测得增益”。artifact：
   `artifacts/gate1_pe_causal_20260730`。
+- **2026-07-31 owner 机制版 v3（kill condition）**：
+  `gate1-pe-causal-v3-retest.v1` 把 PE-derived temporal weights 以
+  identity-centered、可清零的有界 modulation 接入 ndim
+  `controller_state.code`。机制测试证明 PE=0 与旧行为逐字节相同、PE>0
+  时 code 可测分叉；三 development seed 的 lineage、source non-mutation
+  与 rollback 门全绿。但 mean next-session policy-loss reduction
+  `=-0.000881360`，最差 seed `=-0.002758678`，方向为负，故
+  verdict=`not-supported`。生产 flag 保持关闭；本结果把失败从“参数改了但
+  行为空”升级为“当前 PE→temporal 信号合成无因果价值”，也不足以重开
+  Gate 7。artifact：`artifacts/gate1_pe_causal_v3_retest_20260731`。
 
 ### Gate 2 — ETA 的 `z_t / beta_t` 涌现与因果残差控制
 
@@ -2671,6 +2701,17 @@ return (
   可变长/multi-family apprentice episodes；本 locked 分区不得重跑。
   artifacts：`artifacts/gate4_segment_settled_trace_20260730`、
   `artifacts/gate4_active_learning_20260730`。
+- **2026-07-31 learned label-utility v3（kill condition）**：
+  `gate4-label-utility-v3-retest.v1` 已移除 segment-aware 的固定
+  `0.15/0.10` 加权项，改由 cognition owner 在线拟合 bounded
+  label-utility；监督目标是新标签加入前后同一已标注集合上的 log-loss
+  改善，输入含 uncertainty、PE、segment novelty/boundary/coverage 与
+  segment 聚合坐标，样本不足时显式回退 uncertainty。机制门全绿且每个
+  learned arm 有 `8` 次真实 utility 排序，但相对 turn/random 平均
+  labels saved 均为 `-1.0`、相对 shuffled 为 `-0.333333`，最小最终精度
+  margin=`-0.083333`。verdict=`not-supported`，结论升级为“当前 segment
+  表示对该 readout 任务族无信息增量”，不再向 acquisition policy 追加投入。
+  artifact：`artifacts/gate4_label_utility_v3_retest_20260731`。
 
 ### Gate 5 — CMS 多时间尺度记忆与抗遗忘
 
@@ -2721,6 +2762,17 @@ return (
   最大 pairwise MAE 仅约 `2.27e-6`，后续若重开必须使用全新、
   context-diverse 且可审计 user-prior 的 corpus，禁止重跑本 locked。
   artifact：`artifacts/gate6_meta_init_20260730`。
+- **2026-07-31 conditioned meta-init v3（kill condition）**：
+  `gate6-conditioned-meta-init-v3-retest.v1` 在 CMS owner 内增加最多 8 个
+  context prototype，按 context similarity 混合 reset target；`k=1` 且关闭
+  conditioning 时与旧 EMA 等价。`slow_to_fast_init_benefit` 同时改为 reset
+  后 owner-internal copy shadow 的 loss 差，不再表示向量位移。所有隔离、
+  fact leakage、slow-parameter non-mutation 与 rollback 机制门通过，但
+  conditioned meta-init 相对 copy-init effect=`-0.0490765`、final error
+  delta=`+0.0750111`、negative-transfer rate=`1.0`。verdict
+  `not-supported`；生产 `reset_nested_context()` 已切回 `copy-init`，
+  条件化原型只保留为 evidence/prototype 路径。artifact：
+  `artifacts/gate6_conditioned_meta_init_v3_retest_20260731`。
 
 ### Gate 7 — SSL→Internal RL 交替与 causal takeover
 
@@ -2808,6 +2860,16 @@ return (
   `not-supported`；M3/Titans/Hope 只保留为实现候选/设计模式，DGD/真
   Hope recursion 仍是 backlog。artifact：
   `artifacts/gate9_bounded_selfmod_20260730`。
+- **2026-07-31 M3 慢动量接线 v2（kill condition）**：
+  `gate9-bounded-selfmod.v2` 让显式证据臂按
+  `param += lr * (fast + slow_gain * slow)` 更新，并把 `slow_gain` 纳入
+  checkpoint/restore 契约；`slow_gain=0` 与旧/plain trajectory 精确等价。
+  mechanism gates 全绿且 M3/plain 已不再数值恒等，但 M3 相对 plain 的
+  tracking gain=`-0.00158911`、recovery gain=`-0.00187450`，仅 settling
+  gain 为正，optimizer verdict 仍为 `not-supported`。因此生产默认
+  `slow_gain=0`，Gate 9 optimizer 分支按“该任务族下无效的设计模式”关闭；
+  PE-gated memory 子套件历史结论不变。artifact：
+  `artifacts/gate9_m3_slow_update_v2_20260731`。
 
 ### Gate 10 — Rare-heavy artifact 晋升与持续改进闭环
 
@@ -2831,6 +2893,17 @@ return (
   review/import/reject/rollback mechanism 与 review-only artifact，不授权
   production promotion。authoritative artifact：
   `artifacts/gate10_rare_heavy_promotion_v2_20260730`。
+- **2026-07-31 structural-transfer v3（kill condition）**：
+  `gate10-rare-heavy-promotion.v3` 由 substrate owner 发布统一
+  `content-position-v1` structural objective，training/held-out 共用同一
+  spec；synthetic adapter 训练改为逐 trace/target 配对 loss，并按预注册
+  `Adam(lr=0.02) × 80` 信噪预算拟合，原 `0.008` 因果门不变。candidate
+  metadata、privacy、compatibility、owner import 与 full-chain rollback
+  全绿，forgetting=`0.0138691`、leakage=`0`、rollback exact=`1.0`；
+  但 held-out gain=`-0.00469533`，仍为负。verdict=`not-supported`，说明
+  当前 synthetic constant-delta 载体没有可迁移内容；学习分支冻结，
+  review/import/reject/rollback 机制结论保留且不授权 production promotion。
+  artifact：`artifacts/gate10_structural_transfer_v3_20260731`。
 
 ### Gate 11 — 每用户生命体状态与跨会话连续性
 

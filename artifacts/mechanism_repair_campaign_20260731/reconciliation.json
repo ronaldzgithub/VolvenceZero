@@ -1,0 +1,87 @@
+{
+  "schema_version": "mechanism-repair-reconciliation.v1",
+  "package_results": [
+    {
+      "gate": 9,
+      "schema_version": "gate9-bounded-selfmod.v2",
+      "mechanism_supported": true,
+      "verdict": "not-supported",
+      "kill_condition_triggered": true,
+      "primary_effect": {
+        "tracking_gain_vs_plain": -0.0015891096,
+        "recovery_gain_vs_plain": -0.0018745
+      },
+      "production_rollback": "M3Optimizer.slow_gain=0"
+    },
+    {
+      "gate": 1,
+      "schema_version": "gate1-pe-causal-v3-retest.v1",
+      "mechanism_supported": true,
+      "verdict": "not-supported",
+      "kill_condition_triggered": true,
+      "primary_effect": {
+        "mean_policy_loss_reduction": -0.0008813600155742988,
+        "minimum_seed_direction": -0.0027586781158653317
+      },
+      "production_rollback": "prediction_error_runtime_modulation_enabled=false"
+    },
+    {
+      "gate": 6,
+      "schema_version": "gate6-conditioned-meta-init-v3-retest.v1",
+      "mechanism_supported": true,
+      "verdict": "not-supported",
+      "kill_condition_triggered": true,
+      "primary_effect": {
+        "effect_vs_copy_init": -0.04907651773604175,
+        "negative_transfer_rate": 1.0
+      },
+      "production_rollback": "reset_nested_context mode=copy-init"
+    },
+    {
+      "gate": 4,
+      "schema_version": "gate4-label-utility-v3-retest.v1",
+      "mechanism_supported": true,
+      "verdict": "not-supported",
+      "kill_condition_triggered": true,
+      "primary_effect": {
+        "mean_labels_saved_vs_turn": -1.0,
+        "mean_labels_saved_vs_random": -1.0,
+        "minimum_final_accuracy_margin": -0.08333333333333337
+      },
+      "production_rollback": "learned selector not promoted"
+    },
+    {
+      "gate": 10,
+      "schema_version": "gate10-rare-heavy-promotion.v3",
+      "mechanism_supported": true,
+      "verdict": "not-supported",
+      "kill_condition_triggered": true,
+      "primary_effect": {
+        "heldout_gain_vs_review_only": -0.0046953301905832134,
+        "catastrophic_forgetting": 0.013869119471766833,
+        "rollback_exact_rate": 1.0
+      },
+      "production_rollback": "review-only; no production promotion"
+    }
+  ],
+  "gate7_reassessment": {
+    "rerun_authorized": false,
+    "reason": "Gate 1 PE-to-control modulation produced a measurable but negative causal direction, so it does not satisfy the signal precondition for a fresh Gate 7 five-arm run."
+  },
+  "exit_ledger": {
+    "mechanism_coverage_complete": true,
+    "causal_supported_gates": [
+      2,
+      8,
+      11
+    ],
+    "longitudinal_supported_gates": [
+      8,
+      11
+    ],
+    "full_chain_rollback_satisfied": true,
+    "campaign_level": "mechanism-supported",
+    "thesis_retained": false,
+    "production_live_promotion_authorized": false
+  }
+}

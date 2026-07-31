@@ -422,6 +422,46 @@
   不支持该 offline candidate 带来持续改进；不授权 production promotion。
   authoritative artifact：
   `artifacts/gate10_rare_heavy_promotion_v2_20260730`。
+- 2026-07-31 owner 机制改造战役不复写此前 locked verdict，五个包均沿用
+  已冻结效应门并只消费 development 或确定性 optimizer/synthetic suite：
+  - Gate 9 `gate9-bounded-selfmod.v2` 显式预注册 `slow_gain=1.0`，把 slow
+    momentum 接入参数更新；`slow_gain=0` 是逐字节回滚基线。机制门通过，
+    但相对 plain tracking/recovery gain 为
+    `-0.00158911 / -0.00187450`，故 optimizer
+    verdict=`not-supported`，生产默认保持 `slow_gain=0`。artifact：
+    `artifacts/gate9_m3_slow_update_v2_20260731`。
+  - Gate 1 `gate1-pe-causal-v3-retest.v1` 让 PE temporal weights 经
+    identity-centered bounded modulation 进入 ndim code；PE=0 精确 no-op。
+    三 seed mean loss reduction=`-0.000881360`、最差 seed
+    `=-0.002758678`，故 verdict=`not-supported`，生产 modulation flag
+    关闭。因为修复后方向为负，Gate 7 不具备重开条件。artifact：
+    `artifacts/gate1_pe_causal_v3_retest_20260731`。
+  - Gate 6 `gate6-conditioned-meta-init-v3-retest.v1` 用最多 8 个
+    context prototype 条件化 reset，并把 `slow_to_fast_init_benefit`
+    定义为 owner-internal copy shadow 的 post-reset loss 差。机制门通过，
+    但 vs copy effect=`-0.0490765`、negative transfer=`1.0`，故
+    verdict=`not-supported`；生产 reset 使用 `copy-init`。artifact：
+    `artifacts/gate6_conditioned_meta_init_v3_retest_20260731`。
+  - Gate 4 `gate4-label-utility-v3-retest.v1` 以实际 label 后 readout
+    loss 改善拟合 bounded utility，替换 segment 固定加权；冷启动只按
+    uncertainty。learned selector 机制真实激活，但相对 turn/random 的
+    mean labels saved 均为 `-1.0`，final accuracy minimum margin
+    `=-0.083333`，故 verdict=`not-supported`。artifact：
+    `artifacts/gate4_label_utility_v3_retest_20260731`。
+  - Gate 10 `gate10-rare-heavy-promotion.v3` 由 substrate
+    `content-position-v1` objective 同时驱动 train/eval，synthetic trainer
+    使用逐样本配对 loss 与 `Adam(lr=0.02) × 80`；原 held-out
+    `0.008` 门不变。forgetting=`0.013869`、rollback exact=`1.0`，但
+    held-out gain=`-0.004695`，故 verdict=`not-supported`，仅保留
+    review/import/reject/rollback。artifact：
+    `artifacts/gate10_structural_transfer_v3_20260731`。
+- 五包全部触发 kill condition 后，总台账没有新增 causal 或 longitudinal
+  support：causal-supported 仍为 Gate `2/8/11`，
+  longitudinal-supported 仍为 `8/11`；mechanism coverage 完整，
+  full-chain rollback EXIT 已满足，但共同等级仍为
+  `mechanism-supported`，`thesis_retained=false`，不授权 production/live
+  promotion。SHA256 绑定的 reconciliation artifact：
+  `artifacts/mechanism_repair_campaign_20260731`。
 - Gate 7/9/10 第三战役总对账只读取并 SHA256 绑定上述 immutable verdict，
   不重算或抬高门级结论。Gate 1-10 mechanism coverage 已完整（#92 无
   Gate 3）；causal-supported 仅 Gate 2 v35 与 Gate 8，Gate

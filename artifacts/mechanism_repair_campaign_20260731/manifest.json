@@ -1,0 +1,45 @@
+{
+  "schema_version": "mechanism-repair-campaign.v1",
+  "source_git_sha": "676b2c750dcc4acbb672ecc5e75bf3d0e6fec777",
+  "campaign_date": "2026-07-31",
+  "ordered_packages": [
+    "gate9-m3-slow-update",
+    "gate1-pe-ndim-modulation",
+    "gate6-conditioned-meta-init",
+    "gate4-learned-label-utility",
+    "gate10-structural-transfer"
+  ],
+  "verdict_sources": [
+    {
+      "gate": 9,
+      "path": "artifacts/gate9_m3_slow_update_v2_20260731/promotion_verdict.json",
+      "sha256": "f6330d21e99dd4cceefd0414a80ad783fed677587465932ca9ee744122d9281c"
+    },
+    {
+      "gate": 1,
+      "path": "artifacts/gate1_pe_causal_v3_retest_20260731/promotion_verdict.json",
+      "sha256": "2dddc480064232c18e1d949a06b2939e60d9b04b15edebd7f174078627150b7d"
+    },
+    {
+      "gate": 6,
+      "path": "artifacts/gate6_conditioned_meta_init_v3_retest_20260731/promotion_verdict.json",
+      "sha256": "90c6dd8f72666053eb25c0b9cfdce79963ffaa05762d08de31f54363996eaa9b"
+    },
+    {
+      "gate": 4,
+      "path": "artifacts/gate4_label_utility_v3_retest_20260731/promotion_verdict.json",
+      "sha256": "4be1fc14f33ff2fadab8171535f30ac1189b0d5349436c9f4a06ed63ce0c225d"
+    },
+    {
+      "gate": 10,
+      "path": "artifacts/gate10_structural_transfer_v3_20260731/promotion_verdict.json",
+      "sha256": "446591ebdc8e168ad9c78a429e5a160e9ed1952dc138a962d9d8d9a84c41d616"
+    }
+  ],
+  "artifact_contract": {
+    "files_per_gate": 12,
+    "thresholds_changed_after_run": false,
+    "locked_confirmation_consumed": false,
+    "production_promotion_authorized": false
+  }
+}
