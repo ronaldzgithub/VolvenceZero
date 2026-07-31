@@ -476,7 +476,7 @@
 **核心不变量**：
 - 0.5B live-through 只提供训练 provenance，residual 向量必须在目标 1.5B 基底上重新训练
 - 包必须绑定目标模型、hidden width、hook layers、模板完整性和训练证据
-- residual 与 Prefix/KV 不能未经 held-out gate 同时晋升；默认均可 shadow 回滚
+- residual 是 rollback-only legacy carrier；新角色只通过 Manifest 的 Prefix/KV + optional LoRA 经过 held-out gate 晋升，residual 默认仅 shadow
 
 ---
 

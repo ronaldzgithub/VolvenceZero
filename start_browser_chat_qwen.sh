@@ -564,6 +564,13 @@ def main() -> int:
             "ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=active requires "
             "ZHANG_WUJI_CHARACTER_RESIDUAL_PATH"
         )
+    if character_manifest_paths_raw is not None and (
+        character_residual_path is not None or character_residual_mode == "active"
+    ):
+        raise RuntimeError(
+            "CharacterResidualAdapterPackage is a deprecated rollback-only "
+            "carrier and cannot be combined with unified character manifests."
+        )
     character_prefix_package = None
     character_prefix_registry = None
     common_adapter_bundle = None

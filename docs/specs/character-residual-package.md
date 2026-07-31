@@ -2,11 +2,13 @@
 
 ## Purpose
 
-`CharacterResidualAdapterPackage` is the model-side artifact for a reviewed
-character. It is distinct from the `LifeformTemplate`, application case
-memory, relationship conditioning and Character Prefix/KV package. The
+`CharacterResidualAdapterPackage` is the legacy model-side artifact for a
+reviewed character. It is distinct from the `LifeformTemplate`, application
+case memory, relationship conditioning and Character Prefix/KV package. The
 template and reviewed ledger provide training provenance; the adapter is
-trained again on the pinned target model.
+trained again on the pinned target model. New character promotion uses the
+unified CharacterPackageManifest with Prefix/KV and optional LoRA carriers;
+this residual package remains only as a rollback-compatible shadow carrier.
 
 ## Contract
 
@@ -39,17 +41,21 @@ the explicit substrate path. `GenerationResult.character_residual_applied`
 and `character_residual_adapter_id` attest physical delivery; they do not by
 themselves establish behavior quality.
 
-## Rollout
+## Rollout and deprecation
 
-`start_browser_chat_zhang_wuji.sh` points at the target-model artifact but
-keeps `ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=shadow` by default. Active delivery
-requires:
+`start_browser_chat_zhang_wuji.sh` may still load the target-model artifact in
+`ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=shadow` for rollback comparison. Active
+delivery is rejected because the residual path is deprecated:
 
 ```bash
 ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=active \
   bash start_browser_chat_zhang_wuji.sh
 ```
 
-Prefix/KV remains independently controlled and shadow by default. The
-residual adapter and Prefix/KV paths are not simultaneously promoted until a
-held-out behavior-quality gate passes for the residual arm.
+fails loudly. Use `CHARACTER_PACKAGE_MANIFESTS` plus
+`COMMON_ADAPTER_BUNDLE_PATH` and the `CHARACTER_PACKAGE_MODE` wiring instead.
+
+The residual adapter and Prefix/KV paths are not promoted together. Existing
+residual artifacts remain loadable for physical delivery evidence and exact
+rollback, but they do not authorize a new ACTIVE rollout or replace the
+Manifest gate.

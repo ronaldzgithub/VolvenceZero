@@ -27,7 +27,19 @@ for _src in sorted((REPO_ROOT / "packages").glob("*/src")):
 from volvence_zero.substrate import (  # noqa: E402
     CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE,
     CharacterPrefixKVPackage,
+    CommonAdapterBundle,
     build_teacher_distilled_prefix_artifact,
+    fingerprint_model_weight_files,
+    install_rare_heavy_checkpoint_hooks,
+    remove_forward_hooks,
+)
+from lifeform_domain_character import (  # noqa: E402
+    CharacterArtifactRef,
+    CharacterLoRARef,
+    CharacterPackageManifest,
+    character_fidelity_evidence_from_json,
+    character_package_gate_record_from_json,
+    sha256_path,
 )
 
 
@@ -73,6 +85,28 @@ def _parser() -> argparse.ArgumentParser:
         / "artifacts/character-packages/zhang_wuji/"
         "zhang-wuji-qwen2.5-1.5b.character-prefix.json",
     )
+    parser.add_argument(
+        "--common-adapter-bundle",
+        type=Path,
+        default=REPO_ROOT
+        / "artifacts/common-adapters/qwen2.5-1.5b/common-adapter-bundle.json",
+    )
+    parser.add_argument(
+        "--manifest-output",
+        type=Path,
+        default=REPO_ROOT
+        / "artifacts/character-packages/zhang_wuji/character-package-manifest.json",
+    )
+    parser.add_argument("--fidelity-evidence", type=Path)
+    parser.add_argument("--gate-record", type=Path)
+    parser.add_argument(
+        "--revalidation-mode",
+        choices=("full-rebake", "fidelity-only"),
+        default="full-rebake",
+    )
+    parser.add_argument("--character-lora", type=Path)
+    parser.add_argument("--character-lora-training-plan-hash", default="")
+    parser.add_argument("--character-lora-parameter-count", type=int, default=0)
     parser.add_argument("--device", choices=("auto", "cpu", "mps", "cuda"), default="auto")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--max-cases", type=int, default=12)
@@ -86,6 +120,13 @@ def _parser() -> argparse.ArgumentParser:
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _relative_locator(path: Path, *, manifest_path: Path) -> str:
+    try:
+        return path.resolve().relative_to(manifest_path.parent.resolve()).as_posix()
+    except ValueError:
+        return str(path.resolve())
 
 
 def _load_cases(path: Path, *, max_cases: int) -> list[dict[str, str]]:
@@ -231,9 +272,40 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("epochs, max-cases, and slots must be positive")
     if not 0.0 < args.norm_cap <= 0.5:
         raise ValueError("norm-cap must be in (0, 0.5]")
-    for required in (args.template, args.proof, args.ledger, args.model_source):
+    if bool(args.fidelity_evidence) != bool(args.gate_record):
+        raise ValueError(
+            "--fidelity-evidence and --gate-record must be supplied together."
+        )
+    if args.character_lora is not None and (
+        not args.character_lora_training_plan_hash.strip()
+        or args.character_lora_parameter_count <= 0
+    ):
+        raise ValueError(
+            "--character-lora requires a training-plan hash and positive "
+            "parameter count."
+        )
+    for required in (
+        args.template,
+        args.proof,
+        args.ledger,
+        args.model_source,
+        args.common_adapter_bundle,
+    ):
         if not required.exists():
             raise FileNotFoundError(required)
+
+    common_bundle = CommonAdapterBundle.from_json(
+        args.common_adapter_bundle.read_text(encoding="utf-8")
+    )
+    common_bundle.require_active()
+    if common_bundle.base_model_id != args.model_id:
+        raise ValueError("common adapter bundle model_id does not match --model-id.")
+    actual_weights_sha256 = fingerprint_model_weight_files(args.model_source)
+    if actual_weights_sha256 != common_bundle.base_model_weights_sha256:
+        raise ValueError(
+            "character bake model weights do not match the common adapter "
+            "bundle's frozen base digest."
+        )
 
     template = json.loads(args.template.read_text(encoding="utf-8"))
     manifest = template.get("manifest")
@@ -246,7 +318,12 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("template manifest has no integrity_hash")
     proof_digest = _sha256(args.proof)
     source_fingerprint = hashlib.sha256(
-        (args.template.read_bytes() + args.proof.read_bytes() + args.ledger.read_bytes())
+        (
+            args.template.read_bytes()
+            + args.proof.read_bytes()
+            + args.ledger.read_bytes()
+            + common_bundle.bundle_id.encode("utf-8")
+        )
     ).hexdigest()
     cases = _load_cases(args.ledger, max_cases=args.max_cases)
 
@@ -265,6 +342,11 @@ def main(argv: list[str] | None = None) -> int:
     model.eval()
     for parameter in model.parameters():
         parameter.requires_grad_(False)
+    adapter_hooks = install_rare_heavy_checkpoint_hooks(
+        model=model,
+        checkpoint=common_bundle.rare_heavy_checkpoint,
+        expected_model_id=args.model_id,
+    )
 
     config = model.config
     layers = int(config.num_hidden_layers)
@@ -366,14 +448,80 @@ def main(argv: list[str] | None = None) -> int:
         description=(
             "Zhang Wuji model-side character package: reviewed 0.5B "
             "live-through provenance is retained, while the Prefix/KV carrier "
-            "is baked against the frozen Qwen 1.5B substrate."
+            "is baked against the frozen Qwen 1.5B substrate plus common "
+            f"adapter {common_bundle.common_adapter_version}."
         ),
     )
+    remove_forward_hooks(adapter_hooks)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(package.to_json() + "\n", encoding="utf-8")
+
+    fidelity_evidence = (
+        character_fidelity_evidence_from_json(
+            args.fidelity_evidence.read_text(encoding="utf-8")
+        )
+        if args.fidelity_evidence is not None
+        else None
+    )
+    gate_record = (
+        character_package_gate_record_from_json(
+            args.gate_record.read_text(encoding="utf-8")
+        )
+        if args.gate_record is not None
+        else None
+    )
+    manifest_path = args.manifest_output.expanduser().resolve()
+    template_ref = CharacterArtifactRef(
+        locator=_relative_locator(args.template, manifest_path=manifest_path),
+        sha256=sha256_path(args.template),
+        artifact_id=template_integrity,
+        media_type="application/vnd.volvence.lifeform-template+json",
+    )
+    prefix_ref = CharacterArtifactRef(
+        locator=_relative_locator(args.output, manifest_path=manifest_path),
+        sha256=sha256_path(args.output),
+        artifact_id=package.package_id,
+        media_type="application/vnd.volvence.character-prefix-kv+json",
+    )
+    lora_ref = None
+    if args.character_lora is not None:
+        lora_ref = CharacterLoRARef(
+            locator=_relative_locator(
+                args.character_lora, manifest_path=manifest_path
+            ),
+            sha256=sha256_path(args.character_lora),
+            training_plan_hash=args.character_lora_training_plan_hash,
+            parameter_count=args.character_lora_parameter_count,
+        )
+    package_manifest = CharacterPackageManifest.create(
+        character_id=CHARACTER_ID,
+        character_name=CHARACTER_NAME,
+        base_model_id=args.model_id,
+        common_adapter_version=common_bundle.common_adapter_version,
+        compatibility_fingerprint=common_bundle.compatibility_fingerprint,
+        template_ref=template_ref,
+        prefix_kv_ref=prefix_ref,
+        lora_ref=lora_ref,
+        fidelity_evidence=fidelity_evidence,
+        gate_record=gate_record,
+        revalidation_mode=args.revalidation_mode,
+        description=(
+            "Unified Zhang Wuji L2 package bound to the reviewed template, "
+            "model-side Prefix/KV and one immutable common-adapter release."
+        ),
+    )
+    if fidelity_evidence is not None:
+        package_manifest.require_active()
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(package_manifest.to_json() + "\n", encoding="utf-8")
     print(
         f"[package] wrote {args.output} package_id={package.package_id} "
         f"artifact_id={artifact.artifact_id}",
+        flush=True,
+    )
+    print(
+        f"[manifest] wrote {manifest_path} package_id={package_manifest.package_id} "
+        f"active_eligible={package_manifest.active_eligible}",
         flush=True,
     )
     return 0
