@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import contextlib
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, replace
-from enum import Enum
-import hashlib
 import importlib
 import logging
 import math
 import os
 import re
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Sequence
 
 from volvence_zero.conditioning_bank_contracts import (
     ConditioningBankLatentCarrier,
@@ -22,20 +18,17 @@ from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
 
-_LOG = logging.getLogger("volvence_zero.substrate.residual_backend")
-
 from volvence_zero.substrate.adapter import (
     FeatureSignal,
     ResidualActivation,
     ResidualSequenceStep,
-    ResidualStreamSubstrateAdapter,
     SubstrateSnapshot,
 )
 
-if False:
+if TYPE_CHECKING:
     from volvence_zero.agent.response import GenerationConstraints
 
-
+_LOG = logging.getLogger("volvence_zero.substrate.residual_backend")
 
 # Slice S.3 (2026-05-04): pure data contracts, ABCs, statistical helpers,
 # intervention backends, the synthetic runtime, and training-trace
@@ -302,6 +295,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         character_prefix_package: CharacterPrefixKVPackage | None = None,
         character_prefix_registry: CharacterPrefixKVRegistry | None = None,
         common_adapter_bundle: CommonAdapterBundle | None = None,
+        loaded_base_model_weights_sha256: str = "",
         character_residual_package: CharacterResidualAdapterPackage | None = None,
         local_files_only: bool = False,
         runtime_origin: str = "hf-pretrained",
@@ -335,6 +329,23 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         )
         self._runtime_origin = runtime_origin
         self.runtime_origin = runtime_origin
+        self._loaded_base_model_weights_sha256 = (
+            loaded_base_model_weights_sha256.strip()
+        )
+        if common_adapter_bundle is not None:
+            if not self._loaded_base_model_weights_sha256:
+                raise ValueError(
+                    "common_adapter_bundle requires the verified loaded base "
+                    "model weights SHA-256."
+                )
+            if (
+                self._loaded_base_model_weights_sha256
+                != common_adapter_bundle.base_model_weights_sha256
+            ):
+                raise ValueError(
+                    "verified loaded base model weights SHA-256 does not match "
+                    "the common adapter bundle."
+                )
         self._tokenizer = tokenizer or self._load_tokenizer(
             model_id=self._pretrained_source,
             local_files_only=local_files_only,
@@ -1934,7 +1945,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             description=(
                 f"Generated {token_count} tokens from {self.model_id} "
                 f"device={self._device} temp={effective_temperature} "
-                f"profile={generation_constraints.decoding_profile if generation_constraints is not None else 'balanced'} "
+                "profile="
+                f"{generation_constraints.decoding_profile if generation_constraints is not None else 'balanced'} "
                 f"control={'on' if control_active else 'off'} "
                 "personal_conditioning="
                 f"{'on' if personal_conditioning_applied else 'off'} "
@@ -2225,8 +2237,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     local_files_only=True,
                     use_fast=False,
                 )
-            except Exception:
-                raise first_exc
+            except Exception as fallback_exc:
+                raise first_exc from fallback_exc
 
     def _load_model(self, *, model_id: str, local_files_only: bool):
         load_kwargs: dict[str, object] = {"local_files_only": local_files_only}
@@ -2477,9 +2489,19 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             return (0.9, 0.1)
         return (0.55, 0.45)
 
-    def _semantic_profile_from_capture(self, *, source_text: str, captured_layers: dict[int, object]) -> tuple[float, ...]:
-        text_profile = _hashed_semantic_embedding(source_text, dim=self._semantic_projection_dim)
-        residual_profile = self._residual_semantic_profile(captured_layers=captured_layers)
+    def _semantic_profile_from_capture(
+        self,
+        *,
+        source_text: str,
+        captured_layers: dict[int, object],
+    ) -> tuple[float, ...]:
+        text_profile = _hashed_semantic_embedding(
+            source_text,
+            dim=self._semantic_projection_dim,
+        )
+        residual_profile = self._residual_semantic_profile(
+            captured_layers=captured_layers
+        )
         text_weight, residual_weight = _normalize_semantic_weights(
             text_weight=self._rare_heavy_semantic_text_weight,
             residual_weight=self._rare_heavy_semantic_residual_weight,
@@ -2490,16 +2512,32 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         )
         return _normalize_vector(combined)
 
-    def _residual_semantic_profile(self, *, captured_layers: dict[int, object]) -> tuple[float, ...]:
+    def _residual_semantic_profile(
+        self,
+        *,
+        captured_layers: dict[int, object],
+    ) -> tuple[float, ...]:
         stacked = self._torch.stack(
-            [captured_layers[layer_index][0].to(self._device, dtype=self._torch.float32) for layer_index in self._layer_indices],
+            [
+                captured_layers[layer_index][0].to(
+                    self._device,
+                    dtype=self._torch.float32,
+                )
+                for layer_index in self._layer_indices
+            ],
             dim=0,
         )
         mean_hidden = stacked.mean(dim=(0, 1))
         tail_hidden = stacked[:, -1, :].mean(dim=0)
-        dispersion_hidden = stacked.std(dim=1).mean(dim=0) if stacked.shape[1] > 1 else self._torch.zeros_like(mean_hidden)
+        dispersion_hidden = (
+            stacked.std(dim=1).mean(dim=0)
+            if stacked.shape[1] > 1
+            else self._torch.zeros_like(mean_hidden)
+        )
         composite = mean_hidden * 0.55 + tail_hidden * 0.30 + dispersion_hidden * 0.15
-        projected = self._semantic_basis.to(dtype=self._torch.float32) @ composite.to(dtype=self._torch.float32)
+        projected = self._semantic_basis.to(
+            dtype=self._torch.float32
+        ) @ composite.to(dtype=self._torch.float32)
         norm = projected.norm().clamp_min(1e-6)
         normalized = (projected / norm).detach().cpu().tolist()
         return tuple(float(value) for value in normalized)
@@ -2720,7 +2758,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             "exploration": "semantic_exploration_pull",
             "directive": "semantic_directive_pull",
         }
-        weights = tuple(_mean_feature_value(substrates, name=feature_names[anchor]) for anchor in RARE_HEAVY_ANCHOR_ORDER)
+        weights = tuple(
+            _mean_feature_value(substrates, name=feature_names[anchor])
+            for anchor in RARE_HEAVY_ANCHOR_ORDER
+        )
         if any(weight > 1e-6 for weight in weights):
             target = self._torch.zeros(self._semantic_projection_dim, dtype=self._torch.float32, device=self._device)
             for anchor, weight in zip(RARE_HEAVY_ANCHOR_ORDER, weights, strict=True):
@@ -2759,7 +2800,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     ) -> tuple[tuple[SubstrateDeltaAdapterLayer, ...], float]:
         if not traces or not substrate_steps_per_trace:
             return ((), 0.0)
-        paired = tuple(zip(traces, substrate_steps_per_trace))
+        paired = tuple(zip(traces, substrate_steps_per_trace, strict=True))
         if not paired:
             return ((), 0.0)
         parameters = {
@@ -3287,7 +3328,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             )
             if checkpoint.compatibility_fingerprint != expected:
                 raise ValueError(
-                    f"Checkpoint fingerprint {checkpoint.compatibility_fingerprint!r} does not match runtime {expected!r}."
+                    "Checkpoint fingerprint "
+                    f"{checkpoint.compatibility_fingerprint!r} does not match "
+                    f"runtime {expected!r}."
                 )
         text_weight, residual_weight = _normalize_semantic_weights(
             text_weight=checkpoint.semantic_text_weight,
@@ -3413,6 +3456,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             character_prefix_package=self._character_prefix_package,
             character_prefix_registry=self._character_prefix_registry,
             common_adapter_bundle=self._common_adapter_bundle,
+            loaded_base_model_weights_sha256=(
+                self._loaded_base_model_weights_sha256
+            ),
             character_residual_package=self._character_residual_package,
             runtime_origin=self._runtime_origin,
             allow_offline_substrate_training=True,
@@ -3621,7 +3667,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             if isinstance(outputs, tuple):
                 logits = outputs[0]
             else:
-                raise TypeError(f"Transformers runtime '{self.model_id}' outputs did not expose logits.")
+                raise TypeError(
+                    f"Transformers runtime '{self.model_id}' outputs did not "
+                    "expose logits."
+                ) from None
         if not isinstance(logits, self._torch.Tensor):
             raise TypeError(f"Transformers runtime '{self.model_id}' logits were not tensor-shaped.")
         return logits.detach().cpu()
@@ -3682,7 +3731,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             layer_index for layer_index in self._layer_indices if layer_index in captured_layers
         )
         if not captured_layer_indices:
-            raise RuntimeError(f"Transformers runtime '{self.model_id}' did not record any requested hooked activations.")
+            raise RuntimeError(
+                f"Transformers runtime '{self.model_id}' did not record any "
+                "requested hooked activations."
+            )
         planned_layer_fraction = _clamp_unit(len(self._layer_indices) / max(len(self._block_modules), 1))
         hook_fire_rate = _clamp_unit(len(captured_layer_indices) / max(len(self._layer_indices), 1))
         available_step_count = min(
@@ -3935,7 +3987,7 @@ def build_builtin_transformers_runtime(
                 n_head=4,
             )
         )
-    
+
     return TransformersOpenWeightResidualRuntime(
         model_id=model_id,
         model=model,
@@ -4009,6 +4061,7 @@ def build_transformers_runtime_with_fallback(
         resolved_mode = SubstrateFallbackMode.ALLOW_BUILTIN
         effective_runtime_origin = "hf-local"
     effective_model_source = model_source or model_id
+    loaded_base_model_weights_sha256 = ""
     if common_adapter_bundle is not None:
         candidate = Path(effective_model_source).expanduser()
         if candidate.is_dir():
@@ -4041,6 +4094,7 @@ def build_transformers_runtime_with_fallback(
             )
         effective_model_source = str(weights_root)
         effective_local_files_only = True
+        loaded_base_model_weights_sha256 = actual_weights_sha256
     try:
         return TransformersOpenWeightResidualRuntime(
             model_id=model_id,
@@ -4055,6 +4109,9 @@ def build_transformers_runtime_with_fallback(
             character_prefix_package=character_prefix_package,
             character_prefix_registry=character_prefix_registry,
             common_adapter_bundle=common_adapter_bundle,
+            loaded_base_model_weights_sha256=(
+                loaded_base_model_weights_sha256
+            ),
             character_residual_package=character_residual_package,
         )
     except Exception as exc:

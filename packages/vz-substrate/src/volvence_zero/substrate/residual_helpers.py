@@ -14,8 +14,7 @@ from dataclasses import replace
 
 import hashlib
 import math
-import random
-from typing import Any, Sequence
+from typing import Sequence
 
 from volvence_zero.substrate.adapter import (
     ResidualActivation,
@@ -26,7 +25,6 @@ from volvence_zero.substrate.residual_contracts import (
     LocalSubstrateRuntimeMode,
     SubstrateDeltaAdapterLayer,
     SubstrateFallbackMode,
-    SubstrateOnlineFastCheckpoint,
     SubstrateRareHeavyCheckpoint,
 )
 
@@ -437,4 +435,3 @@ def resolve_local_runtime_mode(
     if local_files_only and resolved_fallback is SubstrateFallbackMode.ALLOW_BUILTIN:
         return LocalSubstrateRuntimeMode.PREFER_LOCAL
     return None
-

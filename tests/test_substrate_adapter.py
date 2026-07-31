@@ -431,7 +431,15 @@ def test_transformers_open_weight_runtime_applies_residual_control_via_hooks():
     )
 
     assert applied.backend_name == "transformers-open-weight:tiny-transformers-runtime"
-    assert applied.applied_snapshot.residual_sequence
+    # apply_control is a high-frequency internal-RL path and intentionally
+    # publishes one pooled activation per hooked layer instead of a token-level
+    # residual sequence. The physical-control assertion remains the changed
+    # activations and non-zero downstream effect below.
+    assert applied.applied_snapshot.residual_sequence == ()
+    assert any(
+        signal.name == "control_summary_layers"
+        for signal in applied.applied_snapshot.feature_surface
+    )
     assert applied.downstream_effect != (0.0, 0.0, 0.0)
     assert applied.applied_snapshot.residual_activations != snapshot.residual_activations
 
