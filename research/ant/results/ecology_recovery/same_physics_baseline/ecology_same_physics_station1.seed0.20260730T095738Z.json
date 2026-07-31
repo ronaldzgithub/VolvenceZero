@@ -1,0 +1,184 @@
+{
+  "candidate_blocks": {
+    "burning_near": {
+      "deliveries": 2,
+      "pickups": 17
+    },
+    "butter_near": {
+      "deliveries": 1,
+      "pickups": 6
+    },
+    "composite_near": {
+      "deliveries": 0,
+      "pickups": 2
+    },
+    "forced_return": {
+      "deliveries": 3,
+      "pickups": 21
+    }
+  },
+  "candidate_to_control_pickup_ratio": 0.8518518518518519,
+  "candidate_total_pickups": 46,
+  "completed_episode_count_per_arm": 20,
+  "control_blocks": {
+    "burning_near": {
+      "deliveries": 7,
+      "pickups": 18
+    },
+    "butter_near": {
+      "deliveries": 9,
+      "pickups": 12
+    },
+    "composite_near": {
+      "deliveries": 0,
+      "pickups": 3
+    },
+    "forced_return": {
+      "deliveries": 1,
+      "pickups": 21
+    }
+  },
+  "control_total_pickups": 54,
+  "evidence_envelope_schema_version": "digital-ant-evidence.v3",
+  "gates": {
+    "control_signal": true,
+    "no_candidate_zero_block": true,
+    "pickup_noninferiority": true,
+    "typed_milestone_structure": false
+  },
+  "next_episode_authorized": null,
+  "preregistration_sha256": "5f13f3c49f4b3be86545b905bc66e5a7577978f5af2a1e2fce4f05301237cc30",
+  "provenance": {
+    "config_digest": "b2e469ffcdc4ea51d790f93dceb61017e42e23881275dcf73abe44992f1c4a86",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "effective_backend": "pure:cpu",
+    "git_branch": "main",
+    "git_sha": "cd49114a3ef67e0bb1d5be7b13a708abb0a66114",
+    "layout_seeds": [],
+    "model_fingerprint": "5f13f3c49f4b3be86545b905bc66e5a7577978f5af2a1e2fce4f05301237cc30",
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "requested_device": "cpu",
+    "seed_schedule": [
+      0
+    ],
+    "training_seeds": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "schedule_sha256": "57f0e58def9c562efc29f43feb20e574ef9279129cc691d3ada8e0b7de5d9e45",
+  "schema_version": "digital-ant-ecology-same-physics-station1.v1",
+  "structural_lanes": [
+    {
+      "body_id": 0,
+      "first_post_pickup_switch_step": 1,
+      "passed": false,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 1,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 0,
+      "first_post_pickup_switch_step": 1,
+      "passed": false,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 1,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 1,
+      "first_post_pickup_switch_step": 1,
+      "passed": false,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 1,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 1,
+      "first_post_pickup_switch_step": 1,
+      "passed": false,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 1,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 2,
+      "first_post_pickup_switch_step": 1,
+      "passed": false,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 1,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 2,
+      "first_post_pickup_switch_step": 1,
+      "passed": false,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 1,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 3,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "left",
+      "temporal_learning_fingerprint_stable": true
+    },
+    {
+      "body_id": 3,
+      "first_post_pickup_switch_step": 1,
+      "passed": true,
+      "picked_up": true,
+      "policy_fingerprint_stable": true,
+      "post_pickup_switch_observed": true,
+      "post_switch_family_survival_actions": 15,
+      "side": "right",
+      "temporal_learning_fingerprint_stable": true
+    }
+  ],
+  "verdict": "BLOCK"
+}

@@ -40,6 +40,7 @@ from volvence_ant.evidence.runtime_profile import (
     ANT_RUNTIME_EXPLORATION_STRENGTH,
     ANT_RUNTIME_MODULATION_STRENGTH,
     ANT_RUNTIME_SEGMENT_MAX_STEPS,
+    ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS,
     ant_runtime_replay_rollout_config,
 )
 
@@ -59,6 +60,7 @@ __all__ = [
     "ANT_RUNTIME_EXPLORATION_STRENGTH",
     "ANT_RUNTIME_MODULATION_STRENGTH",
     "ANT_RUNTIME_SEGMENT_MAX_STEPS",
+    "ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS",
     "SeedPartialStore",
     "ant_stage_fingerprint",
     "ant_runtime_replay_rollout_config",

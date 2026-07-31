@@ -19,6 +19,7 @@ from volvence_ant.evidence import (
     ANT_RUNTIME_EXPLORATION_STRENGTH,
     ANT_RUNTIME_MODULATION_STRENGTH,
     ANT_RUNTIME_SEGMENT_MAX_STEPS,
+    ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS,
     ant_runtime_replay_rollout_config,
 )
 from volvence_ant.env import AntWorld, AntWorldConfig
@@ -43,6 +44,11 @@ def test_production_rollout_defaults_remain_disabled_and_zero() -> None:
         is None
     )
     assert config.internal_rl_causal_action_head_input_mirror_signs is None
+    assert (
+        config.temporal_post_switch_min_dwell
+        is WiringLevel.DISABLED
+    )
+    assert config.temporal_post_switch_min_dwell_actions == 0
 
 
 def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> None:
@@ -69,6 +75,15 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         config.internal_rl_runtime_segment_max_steps
         == ANT_RUNTIME_SEGMENT_MAX_STEPS
         == 7
+    )
+    assert (
+        config.temporal_post_switch_min_dwell
+        is WiringLevel.ACTIVE
+    )
+    assert (
+        config.temporal_post_switch_min_dwell_actions
+        == ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS
+        == 4
     )
     assert (
         config.internal_rl_causal_action_head_rank
@@ -162,6 +177,16 @@ def test_ant_evidence_profile_opens_real_replay_without_changing_defaults() -> N
         session.runner.world_temporal_policy
         .causal_action_head_contrast_pairs
         == ((0, 1),)
+    )
+    assert (
+        session.runner.world_temporal_policy
+        .post_switch_min_dwell_wiring
+        is WiringLevel.ACTIVE
+    )
+    assert (
+        session.runner.world_temporal_policy
+        .post_switch_min_dwell_actions
+        == 4
     )
     assert (
         session.runner.world_temporal_policy

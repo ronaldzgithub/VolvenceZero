@@ -1,0 +1,137 @@
+{
+  "schema_version": "persistence-churn-attribution.v1",
+  "experiment_id": "ecology-same-physics-seed0-20260730T095738Z",
+  "checkpoint_episode": 20,
+  "frozen_replay": true,
+  "learning_writes_enabled": false,
+  "source_artifacts": {
+    "station1_report": {
+      "path": "research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_station1.seed0.20260730T095738Z.json",
+      "sha256": "5856bd393d7ded9a341c09913d0bf71db4143b58581fadfd3464637a668cf42d"
+    },
+    "learned_switch_trace": {
+      "path": "research/ant/results/ecology_recovery/same_physics_baseline/post_pickup_switch_trace.learned.seed0.20260730T095738Z.json",
+      "sha256": "b29715705f7c6ef38bd08fb1ec081d0710cfadbd22d3d90d8be28e55ca0b85f8"
+    },
+    "control_switch_trace": {
+      "path": "research/ant/results/ecology_recovery/same_physics_baseline/post_pickup_switch_trace.control.seed0.20260730T095738Z.json",
+      "sha256": "c41517ba46bd48554dc983f0ca7ae4be0019983431c36508ba28c7cb7bae55f4"
+    },
+    "historical_station1_persistence": {
+      "path": "research/ant/results/.partials/ecology_p1_v31/post_pickup_family_persistence.station1.json",
+      "sha256": "aaaf149050110767e02c0206d049aaae84683829342061bbbcae40b03741d326",
+      "checkpoint_sha256": "a5a944bb28b7de8ac301875a76bb610a1e8acb42e0a8acbdb2afa4b3716f089c"
+    }
+  },
+  "per_body": [
+    {
+      "body_id": 0,
+      "learned": {
+        "beta_threshold": 0.55,
+        "switch_gate_range": [0.5661312786274835, 0.5741066543246465],
+        "steps_since_switch_values": [0],
+        "lane_survival_actions": [1, 1]
+      },
+      "control": {
+        "beta_threshold": 0.55,
+        "switch_gate_range": [0.6047628778116574, 0.6119083440765454],
+        "steps_since_switch_values": [0],
+        "lane_survival_actions": [1, 1]
+      }
+    },
+    {
+      "body_id": 1,
+      "learned": {
+        "beta_threshold": 0.576691291485633,
+        "switch_gate_range": [0.6130095000283018, 0.6201188746568442],
+        "steps_since_switch_values": [0],
+        "lane_survival_actions": [1, 1]
+      },
+      "control": {
+        "beta_threshold": 0.5739328179214239,
+        "switch_gate_range": [0.6341268924421724, 0.640492345817754],
+        "steps_since_switch_values": [0],
+        "lane_survival_actions": [1, 1]
+      }
+    },
+    {
+      "body_id": 2,
+      "learned": {
+        "beta_threshold": 0.55,
+        "switch_gate_range": [0.5944256399512308, 0.6018007086411522],
+        "steps_since_switch_values": [0],
+        "lane_survival_actions": [1, 1]
+      },
+      "control": {
+        "beta_threshold": 0.5528707219141845,
+        "switch_gate_range": [0.592270776597498, 0.5996044700412936],
+        "steps_since_switch_values": [0],
+        "lane_survival_actions": [1, 1]
+      }
+    },
+    {
+      "body_id": 3,
+      "learned": {
+        "beta_threshold": 0.55,
+        "switch_gate_range": [0.4962511124783171, 0.55],
+        "steps_since_switch_values": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+        "lane_survival_actions": [15, 15]
+      },
+      "control": {
+        "beta_threshold": 0.55,
+        "switch_gate_range": [0.4924316210730669, 0.55],
+        "steps_since_switch_values": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+        "lane_survival_actions": [15, 15]
+      }
+    }
+  ],
+  "candidate_distance": {
+    "pickup_to_first_post_pickup_latent_l2_range": [
+      0.12858681604856126,
+      0.20376316764234523
+    ],
+    "pickup_to_first_post_pickup_turn_delta_abs_range": [
+      0.000021282743884090032,
+      0.002586154804787827
+    ],
+    "same_family_before_and_after_count": 8,
+    "lane_count": 8
+  },
+  "pressure_attribution": {
+    "fast_prior_switch_pressure": "zero_all_lanes",
+    "prediction_error_switch_pressure": "zero_or_below_0.001155",
+    "typed_milestone_causal_for_churn": false,
+    "evidence": "The milestone-disabled matched control reproduces the same 6/8 one-action churn split."
+  },
+  "horizon_runtime_ablation": {
+    "baseline_segment_horizon": 7,
+    "ablation_segment_horizon": 16,
+    "probe_payload_sha256_horizon_7": "b29715705f7c6ef38bd08fb1ec081d0710cfadbd22d3d90d8be28e55ca0b85f8",
+    "probe_payload_sha256_horizon_16": "b29715705f7c6ef38bd08fb1ec081d0710cfadbd22d3d90d8be28e55ca0b85f8",
+    "exactly_equal": true,
+    "interpretation": "The segment horizon does not enter frozen serving forward. Any horizon effect must operate through the checkpoint learned during training."
+  },
+  "historical_contrast": {
+    "historical_lane_survival_actions": [15, 15, 15, 15, 15, 15, 15, 15],
+    "historical_exact_archive_available": false,
+    "current_code_cross_replay_performed": false,
+    "limitation": "The a5a944 checkpoint archive was overwritten by the documented concurrent writer; only its immutable read-only probe artifact remains."
+  },
+  "hypothesis_verdicts": {
+    "H1_training_rhythm_changes_learned_beta_state": "supported_but_not_isolated",
+    "H2_forced_switch_path_omits_persistence_initialization": "refuted_as_primary_cause",
+    "H3_no_distinct_carrying_family": "supported",
+    "H4_measurement_semantics_only": "refuted"
+  },
+  "root_cause": "For bodies 0-2 in both matched arms, learned beta remains above threshold after the first post-pickup switch. Every termination resets steps_since_switch to zero, so the existing continuation term cannot bootstrap; the owner repeatedly terminates and reselects the same discovered family. Body 3 drops below threshold and accumulates persistence normally.",
+  "next_package": {
+    "selected": "B1_temporal_owner_min_dwell",
+    "reason": "A bounded, wiring-controlled post-switch dwell breaks the zero-step self-reset in the temporal owner without changing evaluation thresholds or adding ant/action semantics. Carrying warm-start is not selected because all eight lanes already retain the same family across pickup.",
+    "rejected": [
+      "lower_family_persistence_gate",
+      "expression_layer_behavior_patch",
+      "milestone_only_forced_path_patch",
+      "carrying_family_clone_warm_start"
+    ]
+  }
+}

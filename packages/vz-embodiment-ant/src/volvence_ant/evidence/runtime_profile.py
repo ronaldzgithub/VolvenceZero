@@ -68,6 +68,9 @@ ANT_CAUSAL_ACTION_HEAD_EXCLUSIVE_STEERING = True
 # were out of band, i.e. no previously-valid configuration moved. This domain's
 # own WORLD track (1.0749) is among the untouched.
 ANT_CAUSAL_ACTION_HEAD_ENVELOPE_ENFORCED = True
+# Generic temporal option commitment. The switch action counts as action one;
+# a later typed milestone can still interrupt the dwell.
+ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS = 4
 # Frozen embodiment reflection: left/right receptors swap, oriented
 # pseudoscalars (gradient, egocentric sine, prior turn) change sign. The
 # temporal owner consumes this transform without learning or reconstructing
@@ -206,6 +209,10 @@ def ant_runtime_replay_rollout_config(
             if enable_environment_milestone_switch
             else WiringLevel.DISABLED
         ),
+        temporal_post_switch_min_dwell=WiringLevel.ACTIVE,
+        temporal_post_switch_min_dwell_actions=(
+            ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS
+        ),
     )
 
 
@@ -221,5 +228,6 @@ __all__ = [
     "ANT_RUNTIME_BATCH_TRANSITION_SIZE",
     "ANT_RUNTIME_MODULATION_STRENGTH",
     "ANT_RUNTIME_SEGMENT_MAX_STEPS",
+    "ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS",
     "ant_runtime_replay_rollout_config",
 ]

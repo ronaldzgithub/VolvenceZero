@@ -20,6 +20,7 @@ from typing import Any, Mapping
 from volvence_zero.runtime import WiringLevel
 
 from volvence_ant.evidence.runtime_profile import (
+    ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS,
     ant_runtime_replay_rollout_config,
 )
 from volvence_ant.experiments.ecology_curriculum import (
@@ -47,7 +48,7 @@ from volvence_ant.substrate import AntSenseSchema
 
 
 ECOLOGY_SAME_PHYSICS_BASELINE_SCHEMA_VERSION = (
-    "digital-ant-ecology-same-physics-baseline-preregistration.v1"
+    "digital-ant-ecology-same-physics-baseline-preregistration.v2"
 )
 ECOLOGY_SAME_PHYSICS_CANDIDATE_ARM = "learned"
 ECOLOGY_SAME_PHYSICS_CONTROL_ARM = "typed_milestone_disabled"
@@ -78,6 +79,7 @@ _SOURCE_PATHS = (
     "packages/vz-runtime/src/volvence_zero/agent/session_observation.py",
     "packages/vz-runtime/src/volvence_zero/integration/final_wiring.py",
     "packages/vz-temporal/src/volvence_zero/joint_loop/runtime.py",
+    "packages/vz-temporal/src/volvence_zero/temporal/interface.py",
     "scripts/run_ant_ecology_same_physics_station1.py",
 )
 
@@ -368,6 +370,23 @@ def build_ecology_same_physics_baseline_packet(
                 "candidate_family_persistence_actions_min": (
                     ECOLOGY_POST_PICKUP_MIN_FAMILY_PERSISTENCE_ACTIONS
                 ),
+                "family_persistence_counting": (
+                    "The switch action counts as action 1; any later beta "
+                    "switch ends survival even when the selected family label "
+                    "is unchanged."
+                ),
+                "post_switch_min_dwell_actions": (
+                    ANT_TEMPORAL_POST_SWITCH_MIN_DWELL_ACTIONS
+                ),
+                "candidate_food_alignment_direct_station2_bodies": (
+                    config.n_ants
+                ),
+                "food_alignment_probe_seed_offset": 700_003,
+                "food_alignment_review_episode_count": 5,
+                "food_alignment_review_stage": "butter-near",
+                "food_alignment_review_reprobe_required_bodies": (
+                    config.n_ants
+                ),
             },
             "station2": {
                 "episode_end_exclusive": (
@@ -400,6 +419,13 @@ def build_ecology_same_physics_baseline_packet(
             "station1_go": (
                 "All station1 thresholds pass; otherwise BLOCK and do not "
                 "run episode 20."
+            ),
+            "station1_alignment": (
+                "After the four causal station1 gates pass, 4/4 aligned food "
+                "bodies authorize episode 20 directly. Any lower count "
+                "authorizes exactly five preregistered butter-near review "
+                "episodes and one frozen re-probe; if the re-probe is still "
+                "below 4/4, BLOCK without running episode 20."
             ),
             "station2_go": (
                 "All station2 thresholds pass; otherwise BLOCK and do not "
@@ -451,6 +477,9 @@ def validate_ecology_same_physics_baseline_packet(
         comparable = json.loads(json.dumps(packet))
         comparable["execution_contract"]["source_bindings"] = (
             expected["execution_contract"]["source_bindings"]
+        )
+        comparable["execution_contract"]["code_tree_binding"] = (
+            expected["execution_contract"]["code_tree_binding"]
         )
     if comparable != expected:
         raise EcologySamePhysicsBaselinePacketError(

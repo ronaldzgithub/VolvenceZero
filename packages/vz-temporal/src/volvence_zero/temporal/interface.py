@@ -3767,6 +3767,11 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         # is byte-equivalent to the historical deterministic posterior.
         self._runtime_exploration_strength = 0.0
         self._runtime_exploration_context_digest = ""
+        self._post_switch_min_dwell_wiring = WiringLevel.DISABLED
+        self._post_switch_min_dwell_actions = 0
+        self._latest_post_switch_dwell_would_suppress = False
+        self._latest_post_switch_dwell_applied = False
+        self._latest_post_switch_dwell_remaining = 0
         self._learning_writes_enabled = True
         self._causal_action_head_wiring = WiringLevel.DISABLED
         self._causal_action_head_track = Track.WORLD
@@ -3790,6 +3795,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._previous_hidden_state = _nz_zeros(n_z)
         self._previous_beta_binary = 0
         self._has_recurrent_state = False
+        self._latest_post_switch_dwell_would_suppress = False
+        self._latest_post_switch_dwell_applied = False
+        self._latest_post_switch_dwell_remaining = 0
         self._parameter_store.reset_episode_runtime_telemetry()
 
     @property
@@ -3865,6 +3873,60 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             sha256(context.encode("utf-8")).hexdigest()
             if context
             else ""
+        )
+
+    def set_post_switch_min_dwell(
+        self,
+        *,
+        wiring_level: WiringLevel,
+        min_actions: int,
+    ) -> None:
+        """Configure bounded option commitment after a beta switch.
+
+        The switch action counts as action one. A typed external boundary
+        always remains able to interrupt the dwell. DISABLED with zero actions
+        is the exact historical rollback.
+        """
+
+        if isinstance(min_actions, bool) or not isinstance(min_actions, int):
+            raise TypeError(
+                "post-switch min dwell actions must be an integer, got "
+                f"{min_actions!r}"
+            )
+        if min_actions < 0:
+            raise ValueError(
+                "post-switch min dwell actions must be >= 0, got "
+                f"{min_actions!r}"
+            )
+        if wiring_level is not WiringLevel.DISABLED and min_actions < 2:
+            raise ValueError(
+                "post-switch min dwell requires at least 2 actions when "
+                f"{wiring_level.value}, got {min_actions!r}"
+            )
+        self._post_switch_min_dwell_wiring = wiring_level
+        self._post_switch_min_dwell_actions = min_actions
+        self._latest_post_switch_dwell_would_suppress = False
+        self._latest_post_switch_dwell_applied = False
+        self._latest_post_switch_dwell_remaining = 0
+
+    @property
+    def post_switch_min_dwell_wiring(self) -> WiringLevel:
+        return self._post_switch_min_dwell_wiring
+
+    @property
+    def post_switch_min_dwell_actions(self) -> int:
+        return self._post_switch_min_dwell_actions
+
+    @property
+    def latest_post_switch_dwell_evidence(
+        self,
+    ) -> tuple[bool, bool, int]:
+        """Return ``(would_suppress, applied, remaining_actions)``."""
+
+        return (
+            self._latest_post_switch_dwell_would_suppress,
+            self._latest_post_switch_dwell_applied,
+            self._latest_post_switch_dwell_remaining,
         )
 
     @property
@@ -4472,6 +4534,38 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             result.append((track.value, projected))
         return tuple(result)
 
+    def _resolve_post_switch_min_dwell(
+        self,
+        *,
+        natural_switch_requested: bool,
+        previous_steps_since_switch: int,
+        external_boundary_requested: bool,
+        has_previous_state: bool,
+    ) -> bool:
+        """Return whether ACTIVE dwell suppresses this natural beta switch."""
+
+        completed_actions = previous_steps_since_switch + 1
+        would_suppress = bool(
+            self._post_switch_min_dwell_wiring
+            is not WiringLevel.DISABLED
+            and has_previous_state
+            and natural_switch_requested
+            and not external_boundary_requested
+            and completed_actions
+            < self._post_switch_min_dwell_actions
+        )
+        self._latest_post_switch_dwell_would_suppress = would_suppress
+        self._latest_post_switch_dwell_applied = bool(
+            would_suppress
+            and self._post_switch_min_dwell_wiring is WiringLevel.ACTIVE
+        )
+        self._latest_post_switch_dwell_remaining = (
+            self._post_switch_min_dwell_actions - completed_actions
+            if would_suppress
+            else 0
+        )
+        return self._latest_post_switch_dwell_applied
+
     def _step_impl(
         self,
         *,
@@ -4806,6 +4900,12 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                     )
                 )
         if binary_gate_override:
+            self._resolve_post_switch_min_dwell(
+                natural_switch_requested=False,
+                previous_steps_since_switch=previous_steps,
+                external_boundary_requested=True,
+                has_previous_state=self._has_recurrent_state,
+            )
             is_switching_scalar = (
                 not self._has_recurrent_state
                 or _should_take_binary_override(
@@ -4834,6 +4934,20 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 or effective_scalar_beta
                 >= self._parameter_store.beta_threshold
             )
+            if self._resolve_post_switch_min_dwell(
+                natural_switch_requested=is_switching_scalar,
+                previous_steps_since_switch=previous_steps,
+                external_boundary_requested=external_boundary_requested,
+                has_previous_state=self._has_recurrent_state,
+            ):
+                is_switching_scalar = False
+                effective_scalar_beta = min(
+                    effective_scalar_beta,
+                    math.nextafter(
+                        self._parameter_store.beta_threshold,
+                        0.0,
+                    ),
+                )
             effective_gate = tuple(
                 1.0 if is_switching_scalar else 0.0
                 for _ in range(n_z)
@@ -4897,7 +5011,12 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             f"effective_beta={effective_scalar_beta:.3f}, seq_len={encoded.sequence_length}, "
             f"{encoded.summary}, {decoder_control.summary}, "
             f"replacement_score={policy_replacement_score:.3f}, "
-            f"fast_prior_switch_delta={fast_prior_switch_pressure_delta:.3f}, {decoder_summary}."
+            f"fast_prior_switch_delta={fast_prior_switch_pressure_delta:.3f}, "
+            "post_switch_dwell="
+            f"{self._post_switch_min_dwell_wiring.value}:"
+            f"{self._latest_post_switch_dwell_applied}:"
+            f"{self._latest_post_switch_dwell_remaining}, "
+            f"{decoder_summary}."
         )
         self._previous_code = latent_code
         self._previous_hidden_state = encoded.posterior.hidden_state
@@ -4989,6 +5108,12 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         )
         z_candidate = latent_override or encoded.z_tilde
         if binary_gate_override:
+            self._resolve_post_switch_min_dwell(
+                natural_switch_requested=False,
+                previous_steps_since_switch=previous_steps,
+                external_boundary_requested=True,
+                has_previous_state=previous_snapshot is not None,
+            )
             is_switching = (
                 not self._has_recurrent_state
                 or _should_take_binary_override(
@@ -5017,9 +5142,24 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
                 external_boundary_requested
                 or bool(switch_decision.beta_binary)
             )
-            mean_persistence_window = switch_decision.mean_persistence_window
-            binary_switch_rate = switch_decision.binary_switch_rate
-            switch_sparsity = switch_decision.sparsity
+            dwell_applied = self._resolve_post_switch_min_dwell(
+                natural_switch_requested=is_switching,
+                previous_steps_since_switch=previous_steps,
+                external_boundary_requested=external_boundary_requested,
+                has_previous_state=previous_snapshot is not None,
+            )
+            if dwell_applied:
+                is_switching = False
+                effective_switch_gate = 0.0
+                mean_persistence_window = float(previous_steps + 1)
+                binary_switch_rate = 0.0
+                switch_sparsity = 1.0
+            else:
+                mean_persistence_window = (
+                    switch_decision.mean_persistence_window
+                )
+                binary_switch_rate = switch_decision.binary_switch_rate
+                switch_sparsity = switch_decision.sparsity
         latent_code = tuple(
             _clamp(effective_switch_gate * current + (1.0 - effective_switch_gate) * previous)
             for current, previous in zip(z_candidate, previous_code, strict=True)
@@ -5075,7 +5215,12 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             f"Full-learned metacontroller {switch_decision.summary}, "
             f"effective_beta={effective_switch_gate:.3f}, seq_len={encoded.sequence_length}, "
             f"{encoded.summary}, {decoder_control.summary}, replacement_score={policy_replacement_score:.3f}, "
-            f"fast_prior_switch_delta={fast_prior_switch_pressure_delta:.3f}, {decoder_summary}."
+            f"fast_prior_switch_delta={fast_prior_switch_pressure_delta:.3f}, "
+            "post_switch_dwell="
+            f"{self._post_switch_min_dwell_wiring.value}:"
+            f"{self._latest_post_switch_dwell_applied}:"
+            f"{self._latest_post_switch_dwell_remaining}, "
+            f"{decoder_summary}."
         )
         self._previous_code = latent_code
         self._previous_hidden_state = encoded.posterior.hidden_state

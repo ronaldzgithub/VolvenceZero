@@ -432,6 +432,16 @@ class AntSession:
                     rollout.environment_milestone_temporal_switch.value,
                 ),
                 (
+                    "temporal_post_switch_min_dwell",
+                    rollout.temporal_post_switch_min_dwell.value,
+                ),
+                (
+                    "temporal_post_switch_min_dwell_actions",
+                    str(
+                        rollout.temporal_post_switch_min_dwell_actions
+                    ),
+                ),
+                (
                     "internal_rl_runtime_exploration_strength",
                     f"{rollout.internal_rl_runtime_exploration_strength:.6f}",
                 ),

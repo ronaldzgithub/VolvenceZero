@@ -35,12 +35,24 @@ from volvence_zero.temporal.interface import (
     FullLearnedTemporalPolicy,
     LearnedLiteTemporalPolicy,
     MetacontrollerParameterStore,
+    TemporalStep,
 )
+from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 from volvence_zero.tensor_backend import is_torch_available
 
 torch_only = pytest.mark.skipif(not is_torch_available(), reason="torch not installed")
 
 _NDIM = 16
+
+
+def _step_snapshot(step: TemporalStep) -> TemporalAbstractionSnapshot:
+    return TemporalAbstractionSnapshot(
+        controller_state=step.controller_state,
+        active_abstract_action=step.active_abstract_action,
+        controller_params_hash=step.controller_params_hash,
+        description=step.description,
+        action_family_version=step.action_family_version,
+    )
 
 
 def _trace(trace_id: str = "vz-temporal-contract") -> object:
@@ -794,6 +806,96 @@ def test_external_boundary_request_crosses_learned_beta_threshold(
         previous_snapshot=None,
     )
     assert after_clear.controller_state.is_switching is False
+
+
+@pytest.mark.parametrize(
+    ("wiring", "expected_switches"),
+    (
+        (WiringLevel.DISABLED, (True, True, True, True, True)),
+        (WiringLevel.SHADOW, (True, True, True, True, True)),
+        (WiringLevel.ACTIVE, (True, False, False, False, True)),
+    ),
+)
+def test_post_switch_min_dwell_is_bounded_and_wiring_controlled(
+    wiring: WiringLevel,
+    expected_switches: tuple[bool, ...],
+) -> None:
+    snapshot = _trace_step_snapshot(_trace("post-switch-min-dwell"))
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    store.beta_threshold = 0.0
+    policy = FullLearnedTemporalPolicy(parameter_store=store)
+    policy.set_post_switch_min_dwell(
+        wiring_level=wiring,
+        min_actions=4 if wiring is not WiringLevel.DISABLED else 0,
+    )
+
+    previous = None
+    observed = []
+    for _ in expected_switches:
+        step = policy.step(
+            substrate_snapshot=snapshot,
+            previous_snapshot=previous,
+        )
+        observed.append(step.controller_state.is_switching)
+        previous = _step_snapshot(step)
+
+    assert tuple(observed) == expected_switches
+    if wiring is WiringLevel.SHADOW:
+        assert policy.latest_post_switch_dwell_evidence == (True, False, 3)
+
+
+def test_typed_boundary_interrupts_active_post_switch_dwell() -> None:
+    snapshot = _trace_step_snapshot(_trace("dwell-boundary-interrupt"))
+    store = MetacontrollerParameterStore(n_z=_NDIM)
+    store.beta_threshold = 0.0
+    policy = FullLearnedTemporalPolicy(parameter_store=store)
+    policy.set_post_switch_min_dwell(
+        wiring_level=WiringLevel.ACTIVE,
+        min_actions=4,
+    )
+
+    first = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=None,
+    )
+    held = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=_step_snapshot(first),
+    )
+    assert held.controller_state.is_switching is False
+
+    store.record_external_boundary_request(True)
+    interrupted = policy.step(
+        substrate_snapshot=snapshot,
+        previous_snapshot=_step_snapshot(held),
+    )
+
+    assert interrupted.controller_state.is_switching is True
+    assert policy.latest_post_switch_dwell_evidence == (False, False, 0)
+
+
+@pytest.mark.parametrize(
+    ("wiring", "min_actions", "error"),
+    (
+        (WiringLevel.ACTIVE, 1, ValueError),
+        (WiringLevel.SHADOW, 0, ValueError),
+        (WiringLevel.DISABLED, -1, ValueError),
+        (WiringLevel.ACTIVE, True, TypeError),
+    ),
+)
+def test_post_switch_min_dwell_rejects_invalid_configuration(
+    wiring: WiringLevel,
+    min_actions: int,
+    error: type[Exception],
+) -> None:
+    policy = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=_NDIM)
+    )
+    with pytest.raises(error):
+        policy.set_post_switch_min_dwell(
+            wiring_level=wiring,
+            min_actions=min_actions,
+        )
 
 
 @torch_only

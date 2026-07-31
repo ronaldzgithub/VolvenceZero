@@ -490,6 +490,15 @@ class FinalRolloutConfig:
     # step) never qualify: only the environment owner's explicit declaration
     # does. DISABLED is the byte-stable default and exact rollback.
     environment_milestone_temporal_switch: WiringLevel = WiringLevel.DISABLED
+    # Generic option-commitment guard in the temporal owner. ACTIVE keeps the
+    # selected option for at least ``temporal_post_switch_min_dwell_actions``
+    # actions after any beta switch; a later typed external boundary may still
+    # interrupt it. SHADOW publishes the would-suppress decision without
+    # changing beta, and DISABLED is the byte-stable rollback.
+    temporal_post_switch_min_dwell: WiringLevel = WiringLevel.DISABLED
+    # The switch action itself counts as the first dwell action. Zero is valid
+    # only while the wiring is DISABLED.
+    temporal_post_switch_min_dwell_actions: int = 0
     # Phase 2 W2.B of the EQ-owner uplift: session_post_slow_loop is
     # ACTIVE by default. The module's own ``default_wiring_level`` is
     # already ACTIVE; the previous SHADOW override was a treatment-mode

@@ -1,0 +1,207 @@
+{
+  "accepted_station1_report_schema_version": "digital-ant-ecology-same-physics-station1.v2",
+  "authorization": {
+    "additional_training_after_failure_forbidden": true,
+    "review_fail_verdict": "BLOCK",
+    "review_pass_next_episode_authorized": 20,
+    "station1_alignment_review_authorized": true,
+    "station1_next_episode_authorized": null,
+    "station1_verdict": "GO"
+  },
+  "evidence_envelope_schema_version": "digital-ant-evidence.v3",
+  "execution_contract": {
+    "code_tree_binding": {
+      "file_count": 1430,
+      "scope": "packages/**/*.py,scripts/**/*.py,**/pyproject.toml,uv.lock",
+      "sha256": "c6620766e465035537fdda66adcad627c5637b3d17abe69a0eeb824fa7e16f4e",
+      "total_size_bytes": 18359833
+    },
+    "device": "cpu",
+    "new_empty_progress_directory_required": true,
+    "numeric_precision": "float64",
+    "single_writer_lock_required": true,
+    "source_bindings": [
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_curriculum.py",
+        "sha256": "a73e4d01820aeb7c3441581ff87cc618f457fde47a795b365b6447cfb9ba62cf",
+        "size_bytes": 130980
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_p1.py",
+        "sha256": "16e4d66259d4755e6fd05749d551cf8cb02557a385f6430e34118abc8e08b6cd",
+        "size_bytes": 110622
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_probe.py",
+        "sha256": "a78c4f8a64a6e4cf26759b2aea259307b4ca90c99838e9f82157b8cb3df6b0cc",
+        "size_bytes": 50474
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_same_physics_baseline.py",
+        "sha256": "991960ffa58af4d82a6f2be6b5e975c4d2634377398f1fb88183d058c0bf563f",
+        "size_bytes": 18249
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_same_physics_review.py",
+        "sha256": "3d6b152a21e11a38a53189c20bdf626832761878627d415b0ae775858b44a52f",
+        "size_bytes": 6300
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/experiments/ecology_same_physics_run.py",
+        "sha256": "7d33f9f26b4740903f84940f1f26d504111cbcd3f4d117962e273a76cdbcfa04",
+        "size_bytes": 30933
+      },
+      {
+        "path": "packages/vz-embodiment-ant/src/volvence_ant/runtime/ant_session.py",
+        "sha256": "d35315d66b7644fc95f6bf0218569bf7265cfed48032f09ed85289d42341f8e3",
+        "size_bytes": 32220
+      },
+      {
+        "path": "packages/vz-runtime/src/volvence_zero/agent/session.py",
+        "sha256": "8a0b51d699a50ab4580b8e616b993699d1b9a829244ef246872a26e1eaf02c02",
+        "size_bytes": 104031
+      },
+      {
+        "path": "packages/vz-runtime/src/volvence_zero/integration/final_wiring.py",
+        "sha256": "fef349e51a9428562ee1865e21f5c0e99a52d9a3a8eb66914aaeed3c96717c0f",
+        "size_bytes": 166419
+      },
+      {
+        "path": "packages/vz-temporal/src/volvence_zero/temporal/interface.py",
+        "sha256": "cfc4fc32ddafa0f33ef0817d437afd23562a67ccecbb741cf73f28a8a97c4b9e",
+        "size_bytes": 272129
+      },
+      {
+        "path": "scripts/preregister_ant_ecology_same_physics_alignment_review.py",
+        "sha256": "c3b0c19a295960d7a85a1500bfe3ad88b221737e642ca7ad45ded5128434165a",
+        "size_bytes": 4131
+      },
+      {
+        "path": "scripts/run_ant_ecology_same_physics_alignment_review.py",
+        "sha256": "b3a7a755c1d696e7111de9a3b929950dcc11330a5cf77098a8ab18aa862b2259",
+        "size_bytes": 7303
+      }
+    ],
+    "station1_candidate_checkpoint_digest_required": true
+  },
+  "formal_config": {
+    "body_success_ratio": 0.6,
+    "evaluation_rounds": 120,
+    "harmful_tick_rate_max": 0.05,
+    "layout_success_ratio": 0.6,
+    "layouts_per_tier": 5,
+    "n_ants": 4,
+    "seed": 0,
+    "temporal_latent_dim": 16,
+    "training_rounds": 49
+  },
+  "output_report_schema_version": "digital-ant-ecology-same-physics-alignment-review.v1",
+  "probe": {
+    "attempt_count": 1,
+    "required_aligned_bodies": 4,
+    "seed_offset": 700003
+  },
+  "provenance": {
+    "config_digest": "85b2fcbe7d5dbdc5a24c1eef4d26d631c619b5f8980ac9e5c9f20d0a84da6de3",
+    "dependency_versions": [
+      [
+        "vz-contracts",
+        "0.1.0"
+      ],
+      [
+        "vz-substrate",
+        "0.1.0"
+      ],
+      [
+        "vz-runtime",
+        "0.1.0"
+      ],
+      [
+        "numpy",
+        "2.3.3"
+      ],
+      [
+        "torch",
+        "2.10.0"
+      ]
+    ],
+    "effective_backend": "pure:cpu",
+    "git_branch": "main",
+    "git_sha": "676b2c750dcc4acbb672ecc5e75bf3d0e6fec777",
+    "layout_seeds": [],
+    "model_fingerprint": null,
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "requested_device": "cpu",
+    "seed_schedule": [
+      0
+    ],
+    "training_seeds": [
+      0
+    ],
+    "working_tree_dirty": true
+  },
+  "review_schedule": {
+    "episode_count": 5,
+    "rows": [
+      {
+        "episode_index": 0,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10000,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 1,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10101,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 2,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10202,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 3,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10303,
+        "stage": "butter",
+        "tier": "near"
+      },
+      {
+        "episode_index": 4,
+        "forced_approach": false,
+        "forced_escape": false,
+        "forced_return": false,
+        "interleaved": false,
+        "seed": 10404,
+        "stage": "butter",
+        "tier": "near"
+      }
+    ],
+    "sha256": "f94ee27652c8e1eff14ebc4be19f880099ae0f4dcad7f37480942c43747582cf",
+    "source": "station1_preregistration.schedule.rows[0:5]"
+  },
+  "schema_version": "digital-ant-ecology-same-physics-alignment-review-preregistration.v1",
+  "station1_preregistration": {
+    "schema_version": "digital-ant-ecology-same-physics-baseline-preregistration.v2",
+    "sha256": "e88a9887dcf1d6da24e16d71327cfe95dcc1d078c9a714840a37714899fafd15"
+  },
+  "status": "PREREGISTERED"
+}

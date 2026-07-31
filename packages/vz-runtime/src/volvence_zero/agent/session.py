@@ -647,6 +647,12 @@ class AgentSessionRunner(
         _runtime_backend = self._config.temporal_runtime_backend
         _track_modulation = self._config.internal_rl_runtime_modulation_strength
         _runtime_exploration = self._config.internal_rl_runtime_exploration_strength
+        _post_switch_min_dwell_wiring = (
+            self._config.temporal_post_switch_min_dwell
+        )
+        _post_switch_min_dwell_actions = (
+            self._config.temporal_post_switch_min_dwell_actions
+        )
         _causal_head_wiring = self._config.internal_rl_causal_action_head
         _causal_head_strength = (
             self._config.internal_rl_causal_action_head_strength
@@ -662,6 +668,10 @@ class AgentSessionRunner(
             )
             self._world_temporal_policy.set_runtime_exploration_context(
                 runtime_exploration_context
+            )
+            self._world_temporal_policy.set_post_switch_min_dwell(
+                wiring_level=_post_switch_min_dwell_wiring,
+                min_actions=_post_switch_min_dwell_actions,
             )
             self._world_temporal_policy.set_causal_action_head(
                 wiring_level=_causal_head_wiring,
@@ -703,6 +713,10 @@ class AgentSessionRunner(
             )
             self._self_temporal_policy.set_runtime_exploration_context(
                 runtime_exploration_context
+            )
+            self._self_temporal_policy.set_post_switch_min_dwell(
+                wiring_level=_post_switch_min_dwell_wiring,
+                min_actions=_post_switch_min_dwell_actions,
             )
             self._self_temporal_policy.set_causal_action_head(
                 wiring_level=_causal_head_wiring,

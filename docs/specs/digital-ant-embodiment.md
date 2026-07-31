@@ -115,8 +115,17 @@ carrying credit 混回拾取前 segment。该声明只标记“这是离散任�
 或动作标签；DISABLED 是逐字节回滚。PE-off 匹配对照臂只关加性 PE prior，里程碑通道在两臂保持
 一致（它是环境发布的事实，不是 PE readout）。
 
+同物理 station1 暴露的重复终止不是 milestone 专属副作用：ACTIVE 与 DISABLED 两臂都在
+body0/1/2 上逐拍 beta 超阈、`steps_since_switch=0`，并重选同一个 discovered family；body3
+则在首拍后降到阈值下并持续 15 拍。Ant profile 因此显式启用通用 temporal-owner option
+commitment：`temporal_post_switch_min_dwell=ACTIVE`、
+`temporal_post_switch_min_dwell_actions=4`。switch action 计作第 1 拍；窗口内只抑制自然 beta
+termination，新的 pickup/delivery typed milestone 仍可立即打断。该配置不读取 carrying、food、
+home 或 family label，DISABLED/0 为回滚；旧 checkpoint 冻结预检 8 lane 的 family survival 为
+`[4,4,4,4,4,4,15,15]`，但正式结论必须从全新 prereg v2 与空 journal 重训获得。
+
 v31 因历史 near 物理课程口径不一致而早停后，重开必须先生成
-`digital-ant-ecology-same-physics-baseline-preregistration.v1`。该 causal packet 的两臂从同一
+`digital-ant-ecology-same-physics-baseline-preregistration.v2`。该 causal packet 的两臂从同一
 owner-exported 初始 checkpoint 分叉，使用同一 CPU float64 配置、完整 55-episode schedule、seed、
 物理世界、reward、PE、credit、optimizer 与探索设置；唯一允许差异是
 `environment_milestone_temporal_switch=ACTIVE / DISABLED`。`ant_runtime_replay_rollout_config`
@@ -126,7 +135,12 @@ binding 漂移必须 fail loudly 并升 packet 版本，禁止沿用旧阈值继
 
 同物理判读按站执行：站1（ep0–19）要求 milestone-active 总 pickup 不低于 matched control 的
 80%，control 每个物理块至少出现一次 pickup，active 不得在 control 非零的块归零；delivery 因
-小样本稀疏只记录、不作站1门，同时既有 post-pickup switch/persistence 结构门必须通过。站2
+小样本稀疏只记录、不作站1门，同时既有 post-pickup switch/persistence 结构门必须通过。四个
+因果门全部通过后，还必须在冻结的 4 条 food-transfer lane 上达到 4/4 对齐，才可直接授权
+episode 20；若不足 4/4，只授权固定 5 局 butter-near review，随后冻结 checkpoint 只复测一次。
+review 不新增或挑选 seed，而是按原顺序复用 packet 已绑定的 station schedule rows 0–4
+（seed `10000/10101/10202/10303/10404`）及其完整 rollout config；复测仍不足 4/4 即 BLOCK，
+不得用追加训练、换 seed 或调 probe 继续试探。站2
 （ep20–29）要求 medium pickup 保持 80% 非劣、delivery **严格超过** matched control，且
 carrying-home alignment 与 U-turn 进度转正；失败即 BLOCK，禁止进入 ep30。站3只在前两站 GO 后
 运行，matched block pickup 继续使用 80% 非劣，far 保持 D3 描述项。历史绝对数字不得重新进入

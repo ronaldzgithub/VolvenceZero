@@ -234,3 +234,54 @@ python scripts/run_ant_ecology_p1.py --seed 1 \
   --progress-dir research/ant/results/.partials/ecology_p1/seed1 \
   --report research/ant/results/ecology_recovery/p1/ecology_p1.seed1.json
 ```
+
+## 2026-07-31：同物理 station1 判词、persistence 归因与 dwell 收敛包
+
+隔离快照 `095738Z` 的正式 matched station1 已完成并回收到
+`research/ant/results/ecology_recovery/same_physics_baseline/`。control 为
+`54 pickup / 17 delivery`，milestone-active candidate 为 `46 / 6`；pickup 比
+`0.85185` 通过 80% 非劣，control signal 与逐 block 非零门也通过，但 candidate 的 frozen
+post-pickup family survival 为 `[1,1,1,1,1,1,15,15]`，因此
+`typed_milestone_structure=FAIL`，终局 **BLOCK**，没有授权 episode 20。
+
+包A 的只读归因 artifact 为
+`persistence_churn_attribution.seed0.20260730T095738Z.json`。逐体轨迹显示 body0/1/2
+在两条 matched arm 上都持续 beta 超阈，`steps_since_switch` 每拍重置为 0；body3 首拍后
+降到阈值下并累积到 14。fast prior 全零，PE pressure 为零或小于 `0.001155`；milestone
+DISABLED control 复现同一 6/8 churn，故 typed request 不是根因。八条 lane 在 pickup 前后
+选择的 family label 全部相同，turn delta 仅 `2.1e-5…2.6e-3`，carrying 专属 family 尚未形成。
+冻结 checkpoint 上把 segment horizon 7→16 的完整 probe payload 逐字节相同，证明 horizon
+不进入 serving forward；它若有影响，只能经训练态改变 learned beta。历史 `a5a944…`
+checkpoint 的 immutable probe artifact 仍证明旧态 8/8 survival=15，但 archive 已被已记录的
+并行 writer 覆盖，无法在当前代码上交叉 hydrate，此限制已写入 attribution。
+
+包B 选择 temporal-owner 通用 min-dwell，不降低 persistence 门、不加入 ant/carrying/action
+字符串规则。`FinalRolloutConfig.temporal_post_switch_min_dwell` 默认 DISABLED，
+`temporal_post_switch_min_dwell_actions` 默认 0；Ant profile 显式 ACTIVE/4。switch action
+计第 1 拍，窗口内仅抑制自然 beta termination，新的 typed milestone 可立即打断；SHADOW
+只记录 would-suppress，DISABLED/0 回滚。原 station1 learned checkpoint 的隔离冻结预检把
+survival 提升为 `[4,4,4,4,4,4,15,15]`，8/8 首拍切换、学习指纹稳定，probe ACCEPT。
+验证：temporal owner 105/105、same-physics/profile 13/13、ecology 定向 11/11 通过；
+`tests/contracts` 为 3954 passed / 2 skipped，另有 4 个既有失败和 5 个 sandbox 禁止绑定
+localhost 的错误，与本包无关；整文件 Ruff 仍命中主仓并行重构的既有 unused/line-length，
+本包独立文件 Ruff 与三个核心文件 `py_compile` 通过。
+
+包C 使用 schema v2 预注册：有效 bundle 为
+`ecology_same_physics_prereg.seed0.20260731T052300Z.json`，完整源码树 binding 已在隔离快照与
+主仓库双重验证。两臂仍只允许
+`environment_milestone_temporal_switch=ACTIVE/DISABLED` 一个差异；ACTIVE/4 dwell 在两臂
+相同。station1 另冻结 food alignment 形成时点：四个 causal gate 通过且 4/4 对齐才直接授权
+episode 20；否则只授权 5 局 butter-near review 和一次 frozen re-probe，仍不足 4/4 即 BLOCK。
+若触发 review，五局严格按 packet 已绑定的 station schedule rows 0–4 重放，即 seed
+`10000/10101/10202/10303/10404` 与原 rollout config，不新增 seed 选择自由度。
+在读取新 station1 结果前，review 执行契约也已单独签发为
+`ecology_same_physics_alignment_review_prereg.seed0.20260731T053814Z.json`：它绑定旧
+station1 prereg SHA、当前完整源码树、五局 schedule digest、单次 probe 与
+GO/BLOCK 授权；review progress 还必须绑定实际 station1 candidate checkpoint SHA。
+隔离快照为 `/private/tmp/volvence-ecology-review.8I2FFV`，packet 与 manifest 已在该
+快照内复验。只有 station1 明确发布 `alignment_review_authorized=true` 时才注入 checkpoint
+并执行；直接 GO 或 causal BLOCK 都不会消费这五局预算。
+`051841Z` 因隔离快照漏复制外层 `pyproject.toml` 被 code-tree validator 拒绝，保留为
+`INVALID_CODE_TREE` 审计件，禁止执行。正式新 journal 位于
+`/private/tmp/volvence-ecology-dwell4.ul0hkm/research/ant/results/.partials/ecology_same_physics/seed0-20260731T052300Z`；
+control ep0 已原子提交，余下 station1 由 detached PID 21059 执行。
