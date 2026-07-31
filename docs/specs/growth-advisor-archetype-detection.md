@@ -1,12 +1,13 @@
 # Growth-Advisor Archetype Detection Spec
 
 > Status: scaffold v0.1 (SHADOW)
+> Last updated: 2026-08-01
 > Owner: growth-advisor-pilot-packet G-C (debt #66)
 > Implementation: [`packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/archetype_classifier.py`](../../packages/lifeform-domain-growth-advisor/src/lifeform_domain_growth_advisor/archetype_classifier.py)
 
 ## 1. 问题
 
-`profile.py` 的 5 archetype seeds 没有识别机制，导致下游 boundary policy / playbook day routing / 月报 archetype distribution 失去信号源。本 spec 锁定 SHADOW 用 (a) LLMArchetypeClassifier、长期过渡到 (c) metacontroller β_t。
+`profile.py` 提供 5 archetype seeds，`LLMArchetypeClassifier` 已提供 SHADOW typed 识别路径，但下游 boundary / playbook / 月报的 ACTIVE 消费与跨 family 证据仍未完成。长期候选仍是 metacontroller `β_t`，不使用关键词规则。
 
 ## 2. 三路径决策表
 

@@ -1,6 +1,6 @@
 # Common Adapter 与 Character Package
 
-> Status: L1/L2 contracts and SHADOW deployment path landed; ACTIVE remains gate-bound
+> Status: L1/L2 contracts、per-session 多角色路由与 SHADOW attestation 已落地；ACTIVE 仍受证据门约束
 > Last updated: 2026-08-01
 
 ## Purpose 与 owner
@@ -40,6 +40,10 @@ runtime 加载 L1 时重新解析本地 Hugging Face snapshot 并计算权重文
 校验 model id、hidden width、hook layers、rare-heavy runtime fingerprint、
 State-KV geometry 与 control basis geometry。任一漂移 fail loudly。省略整个 bundle
 是 byte-identical rollback；运行时禁止替换 bundle 或在线改基础权重。
+`COMMON_ADAPTER_BUNDLE_PATH` 是独立的 L1 启动入口：即使没有加载任何 L2 manifest，
+启动器也必须解析 bundle、执行 `require_active()` 并把它交给 runtime；禁止只在角色包
+存在时才加载，或把显式配置的 bundle 静默降成 base-only。Unix shell 与 Windows
+PowerShell 两个 browser-chat 入口必须保持同一 admission 与 per-session binding 语义。
 
 `CharacterPackageManifest` 统一绑定：
 
@@ -54,8 +58,9 @@ State-KV geometry 与 control basis geometry。任一漂移 fail loudly。省略
 
 manifest、template、Prefix/KV、LoRA 目录与 fidelity report 都是内容寻址的不可变
 对象。ACTIVE 必须有 Prefix/KV、held-out + source-immutable + feedback-free pass、
-相同 L1 双指纹和可逆 allow gate；包含角色 LoRA 时还必须有
-`base + common adapter + character LoRA` 组合臂证据。
+相同 L1 双指纹和可逆 allow gate。角色 LoRA 还需要 prefix-only / LoRA-only /
+prefix+LoRA 三臂证据；该 typed evidence 未落地前含 `lora_ref` 的 manifest 只能
+SHADOW。
 
 ## 训练顺序
 
@@ -101,14 +106,31 @@ external validation。manifest locator 重定位时，proposal 绑定重定位�
 
 `CharacterPrefixKVRegistry` 是进程内只读注册表，键为 typed `character_id`。每个
 entry 同时冻结 manifest package id、L1 version/fingerprint、wiring level 和
-Prefix/KV package。`POST /v1/sessions` 可提交 `character_id`；service 只接受与所选
-vertical 声明的 immutable character id 完全一致的值。随后 expression 每次调用
-`runtime.generate(character_id=...)`：
+Prefix/KV package。service loader 同时发布不可变 `CharacterSessionBinding`，把
+`character_id → manifest package id → content-addressed LifeformTemplate path →
+Prefix/KV registry key → optional Character LoRA figure id` 冻结成一次正式交换。
+`POST /v1/sessions` 可提交任一已加载且非 DISABLED 的 `character_id`；所选 vertical
+只需实现 `CharacterPackageTemplateAdapter`，不再要求该 id 等于 vertical 的历史硬编码
+默认角色。显式 `template_id` 不得覆盖 manifest 的 content-addressed template。
+
+SessionManager 从 binding 调用 `give_birth`，并把该 session 的 `character_id` 与角色
+LoRA scoped pool 绑定到新 Lifeform；expression synthesizer 的 id 来自此 session
+binding，而不是 vertical factory 的硬编码值。若 dynamic id 与 vertical 的历史默认 id
+不同，默认角色专属 grounding text 必须清空，角色语义只由 manifest template owner
+发布。随后 expression 每次调用 `runtime.generate(character_id=...)`：
 
 - ACTIVE entry 拼入该角色的 DynamicCache slots；
 - SHADOW entry 只在 `GenerationResult.character_prefix_shadow_id` 留下载入事实；
 - unknown / 空 character id 不注入；
 - 可选 Character LoRA 只在该角色当前 generate 的上下文管理器内激活。
+
+Character LoRA 使用 `CharacterRuntimeAssets` 私有的 `PersonaLoRAPool`，不得注册到
+进程级 default pool。DLaaS figure/persona LoRA 继续使用 per-ai_id pool；两者同时存在时
+角色 manifest LoRA 优先，且只允许一个 activation context，角色没有已晋升 LoRA 时才
+允许 figure/persona LoRA 激活，禁止 nested activation 或 last-register-wins 覆盖。
+当前 `includes_character_lora` 只证明旧组合臂，不满足重量档晋升；在包 F 的
+prefix-only / LoRA-only / prefix+LoRA typed 消融证据落地前，任何含 `lora_ref` 的
+manifest 都只能 SHADOW，`active_eligible` 与 service loader 双重 fail-closed。
 
 同一 transformers runtime 仍是串行 decode；多个角色包可以同驻内存，但 L3
 conditioning 和 memory 必须继续按 tenant:user 隔离。
@@ -129,8 +151,13 @@ conditioning 和 memory 必须继续按 tenant:user 隔离。
 - 生成路径对空或 unknown `character_id` 不注入 Prefix/KV；离线
   `score_conditioned_continuation(character_id=...)` 为防 evidence candidate 静默变成
   control arm，对 unknown/SHADOW id 反而必须 fail loudly；
-- `POST /v1/sessions` 的 `character_id` 仍须与 selected vertical 声明的 immutable id
-  精确一致，不允许从用户文本猜角色。
+- `POST /v1/sessions` 的 `character_id` 只接受 loader 发布的
+  `CharacterSessionBinding`；不允许从用户文本猜角色，unknown
+  或 DISABLED id 返回 typed `invalid_character_id`；`GET /v1/verticals` 发布可选 id。
+- `ZHANG_WUJI_CHARACTER_PREFIX_MODE=active` 永久拒绝；legacy 单 Prefix 路径只允许
+  SHADOW attestation；`ZHANG_WUJI_CHARACTER_RESIDUAL_MODE=active` 同样永久拒绝，
+  residual 只保留显式 SHADOW 回滚审计。ACTIVE 唯一入口是
+  `CHARACTER_PACKAGE_MANIFESTS`，必须经过 `manifest.require_active()`。
 
 张无忌现有 residual artifact 只作为 `CharacterResidualAdapterPackage` 的 SHADOW、
 只读回滚证据保留；新角色以及重新 bake 的张无忌特色载体只走统一
@@ -143,6 +170,12 @@ conditioning 和 memory 必须继续按 tenant:user 隔离。
 character_prefix_id / character_prefix_wiring_level / character_prefix_shadow_id`
 只证明物理路由，不证明角色 fidelity。行为晋升证据只能来自 manifest 指向的 held-out
 report 与 gate record。
+
+SHADOW 的正式语义是 **attestation-only**：loader 校验 manifest、L1 双指纹和全部
+artifact digest，注册 typed binding/registry entry；生成时不拼 Prefix/KV、不激活角色
+LoRA，只在 `GenerationResult.character_prefix_shadow_id` 留下载入事实。SHADOW 不做
+legacy 单包与 registry 的在线双注入/输出并跑；数值 parity 由离线 evaluate 的 matched
+arms 负责，避免把未经晋升的载体带入 serving forward。
 
 L1 从 vN 升级到 vN+1 时，所有 L2 manifest 因双指纹不匹配而自动失效：
 
@@ -159,3 +192,8 @@ L1 从 vN 升级到 vN+1 时，所有 L2 manifest 因双指纹不匹配而自动
 `CharacterResidualAdapterPackage` 已废弃，只保留旧 artifact 的 SHADOW 审计与回滚
 读取能力，不得与统一 manifest 同时 ACTIVE，也不得新建晋升证据链。角色表达层只允许
 Prefix/KV 与可选 PEFT Character LoRA 两档数值载体。
+
+`ZHANG_WUJI_CHARACTER_PACKAGE_PATH` 同样是 legacy SHADOW-only 单 Prefix 入口。退出条件：
+张无忌 unified manifest 首次以 ACTIVE 在正式默认启动路径稳定发布后保留一个版本作为
+显式回滚观察窗，下一版本删除该环境变量、loader 分支和对应文档；观察窗内回滚只允许
+切 manifest 为 SHADOW/DISABLED 或显式启用 legacy SHADOW，绝不恢复 legacy ACTIVE。

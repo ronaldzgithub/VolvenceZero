@@ -1,12 +1,19 @@
 # Substrate Upgrade Protocol
 
-> Status: scaffold v0.1 (SHADOW)
-> Last updated: 2026-05-13
+> Status: compatibility contracts implemented; operational upgrade gate remains SHADOW
+> Last updated: 2026-08-01
 > Owner: cross-cutting-foundation-packet F-C (debt #47)
 
 ## 1. 范围
 
-任何 substrate 升级（如 `Qwen2.5-1.5B → Qwen3-1.5B` / `Llama-3 → Llama-4`）触发后，本 spec 决定下游三个商业方向（P5 / P1 / P2）的 artifact 兼容性判定 + 升级 / 降级 / 不兼容三档处置。
+任何 substrate 升级（如 `Qwen2.5-1.5B → Qwen3-1.5B` / `Llama-3 → Llama-4`）触发后，本 spec 决定下游 artifact 的兼容性判定、重烧录和回滚。当前 workspace 有七个产品 vertical；本文中 figure / growth-advisor / companion-bench 是已有 fingerprint 字段的三个直接 consumer，不表示系统只有三个 vertical。
+
+### 1.1 2026-08-01 实现对账
+
+- `SubstrateFingerprint`、figure `compatible_substrates`、growth-advisor `validated_substrates` 与 companion-bench `sut_substrate_fingerprint` 已落地，并有契约测试。
+- 当前 character 路径还有更严格的 `CommonAdapterBundle`：绑定 base model ID、weights SHA-256、State-KV artifact/geometry、common adapter version 和 compatibility fingerprint。
+- `CharacterPackageManifest` / prefix registry 必须与 common adapter version 及 fingerprint 一致；升级 L1 或 base weights 会使旧角色包失效，ACTIVE 启动必须 fail loudly，不得静默挂到新基底。
+- 统一真实负载升级流程和 30 分钟 artifact 尚未落地，因此 operational gate 仍是 SHADOW。
 
 参考：[`commercialization-assessment.md`](../business/commercialization-assessment.md) §8.1.1（"substrate 升级对 figure bundle 兼容性破坏"列为高 × 高风险）+ cross-cutting-foundation-packet F-C 子任务 1-3。
 
@@ -42,6 +49,8 @@ SubstrateFingerprint(
 | 同 model_id + 同 version + **不同 weights**（如 fine-tune） | 微小变化 | **重 bake**（L2 LoRA 不能复用） | warn but continue | 新榜单组（标 fork） |
 | 同 model_id + **不同 version** | 中等变化 | **必须重 bake**；旧 bundle 通过 fingerprint mismatch fail-loud | 推荐 re-validate；若 validated_substrates 不为空 warn | 新榜单组 |
 | **不同 model_id**（如 Qwen → Llama） | 大变化 | 完全不兼容；旧 bundle 不可降级运行 | 推荐 re-validate；warn | 新榜单组（独立比较） |
+
+Character package 在上表基础上再加一层判定：即使 substrate fingerprint 没有改变，只要 `common_adapter_version`、State-KV artifact/geometry 或 compatibility fingerprint 改变，现有 manifest 也必须 rebind/rebake 并重跑 fidelity gate。
 
 ## 5. 降级路径（rollback to N-1）
 
@@ -87,4 +96,5 @@ substrate 团队主动升级前必须完成：
 
 ## 变更日志
 
+- 2026-08-01: 补充 39-wheel/七 vertical 现状，把 CommonAdapterBundle、State-KV 和 CharacterPackageManifest 纳入升级兼容性契约；明确真负载 operational gate 仍未 ACTIVE。
 - 2026-05-13: v0.1 SHADOW scaffold land。

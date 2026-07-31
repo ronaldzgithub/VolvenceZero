@@ -1,7 +1,9 @@
 # Growth-Advisor Monthly Report Spec
 
 > Status: scaffold v0.2 (SHADOW; schema v0.2)
+> Last updated: 2026-08-01
 > Owner: growth-advisor-pilot-packet G-D (debt #67 + #49)
+> Review note: deterministic in-memory aggregation exists; persistence, admin serving and PDF/HTML remain ACTIVE exit work.
 > Implementation: [`packages/lifeform-service/src/lifeform_service/monthly_report_owner.py`](../../packages/lifeform-service/src/lifeform_service/monthly_report_owner.py)
 
 ## 1. 范围

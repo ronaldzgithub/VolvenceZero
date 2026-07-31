@@ -1,8 +1,14 @@
 # Persona Market — Template Economy
 
-Status: spec for the cross-tenant AI template economy. The persona
-market is the platform-tier economic SSOT that turns a company-trained
-AI into a licensable, metered, revenue-split asset.
+> Status: contracts and in-memory service implemented; durable economic ledger pending
+> Last updated: 2026-08-01
+> Owner: `dlaas-platform-contracts` + `dlaas-platform-api`
+
+The persona market is the platform-tier economic SSOT that turns a company-trained
+AI into a licensable, metered, revenue-split asset. Current code implements listing,
+sanitised asset bundles, subscription/re-mint, usage metering, the default 70/30 split
+and append-style ledger semantics in a single-process in-memory store; persistence and
+multi-process consistency are not yet production claims.
 
 ## Why
 

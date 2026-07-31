@@ -1,7 +1,8 @@
 # Figure-Vertical Persona Verification Spec
 
-> Status: draft v0.2
-> Last updated: 2026-05-14
+> Status: v0.2 pipeline and smoke verdicts implemented; production evidence SHADOW
+> Last updated: 2026-08-01
+> Review note: four-gate CLI/smoke path exists; multi-figure, multi-substrate ROC calibration is not complete.
 > 对应需求: R2, R8, R12, R15
 > 对应代码: `packages/lifeform-domain-figure/src/lifeform_domain_figure/verification/persona/`
 > 对应 debt: #39 (coverage_map retrieval-augmented floor) / #42 (refusal precision N=25 + ROC re-calibration)

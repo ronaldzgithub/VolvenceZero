@@ -1,7 +1,9 @@
 # Persona Marketplace — Cross-Tenant Identity Exchange (R14)
 
-Status: implemented (Full Version Track 2). Owner: `dlaas-platform-contracts`
-(types) + `dlaas-platform-api` (service surface).
+> Status: implemented (Full Version Track 2); in-memory store
+> Last updated: 2026-08-01
+> Owner: `dlaas-platform-contracts` (types) + `dlaas-platform-api` (service surface)
+> Review note: provenance/consent routes remain implemented; durable persistence is still a follow-up.
 
 ## Why
 

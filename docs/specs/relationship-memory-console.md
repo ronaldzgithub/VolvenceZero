@@ -162,6 +162,18 @@ become PE, credit or ModificationGate input by themselves.
   transcript；harness 会替换显式 user id，输出不含原始 user id 的 L4 material。
 - harness 落地不等于真人 pilot 已完成；真人结论必须引用实际 7-day artifact。
 
+## P7 Automated Seven-Day Evidence Extension
+
+- `SevenDayCompanionOrchestrator` 经公开 service HTTP 端点执行 7 sessions × 5
+  exchanges，并在每天创建 session 后、首个 turn 前采集 cold-start readout；日终仍由
+  `RelationshipAssistantPilotHarness.capture_day` 落去标识材料。
+- 虚拟日历只在 service 显式 `allow_evidence_time_override` 模式启用；产品默认关闭。
+- 每个 `(scenario, seed)` 的 35 个模拟用户 turns 先冻结，各 state/sleep arm 逐字节重放，
+  防止 assistant response 反向改变实验输入。
+- 权威协议与当前运行状态见
+  [`seven-day-companion-evidence.md`](./seven-day-companion-evidence.md)。该扩展复用本 spec
+  已有 owner、slot 和 hydration 路径，不改变 `relationship_continuity=SHADOW`。
+
 ## Rollback
 
 - P1 rollback: remove or ignore `relationship_update_proposals`; reflection
@@ -173,6 +185,8 @@ become PE, credit or ModificationGate input by themselves.
   unchanged.
 - P6 rollback: remove the CI artifact check and stop pilot capture; production
   relationship routing is unchanged because neither path runs in-turn.
+- P7 rollback: stop the external seven-day runner and withdraw its evaluation
+  artifacts; no product owner state, learning source, or wiring level changes.
 
 ## Pilot Exit
 

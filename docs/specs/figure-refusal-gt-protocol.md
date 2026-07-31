@@ -1,7 +1,8 @@
 # Figure Refusal Ground-Truth Protocol
 
 > Status: scaffold v0.1 (SHADOW)
-> Last updated: 2026-05-13
+> Last updated: 2026-08-01
+> Review note: only `.example` data is present; 50+50 reviewer GT and ACTIVE report remain absent.
 > Owner: figure-evidence-packet G-A (debt #58)
 
 ## 1. 范围

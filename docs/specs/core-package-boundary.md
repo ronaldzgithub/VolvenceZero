@@ -1,7 +1,7 @@
 # Core Package Boundary Spec
 
-> Status: draft
-> Last updated: 2026-04-25
+> Status: implemented; public facade stable, distribution remains workspace-local
+> Last updated: 2026-08-01
 > 对应需求: R2, R8, R11, R15
 
 ## 要解决的问题
@@ -23,7 +23,7 @@
 - core package 默认不需要模型权重；默认 `BrainConfig` 使用 synthetic substrate。
 - Hugging Face / Qwen runtime 必须显式选择 `substrate_mode="hf"`，并通过 optional extra 安装依赖。
 - 模型 ID 是配置，不是 package data。
-- HTTP 服务是后续薄适配层，不属于当前 core package 边界。
+- HTTP / OpenAI-compatible 服务已作为 `lifeform-service` / `lifeform-openai-compat` 薄适配层落地，但仍不属于 core 公共 API 边界。
 
 ## 包内内容
 
@@ -49,7 +49,8 @@
 
 ## 当前实现口径
 
-- 根目录 `pyproject.toml` 定义本地可安装包 `volvence-zero`，core dependencies 为空，`hf` / `bench` / `dev` extras 才包含 `torch` 和 `transformers`。
+- 根目录 `pyproject.toml` 只是 **workspace meta-package**，不承载运行时代码。稳定 facade 与编排实现属于 `packages/vz-runtime`，并以 `vz-contracts` 为公共契约底座。
+- workspace 当前包含 39 个 wheel：8 个 `vz-*`、19 个 `lifeform-*`、6 个 `dlaas-platform-*` 和 6 个 `companion-*`。完整边界见 [`package_usage.md`](../package_usage.md) 和 [`archetecture.md`](../../archetecture.md)。
 - `volvence_zero.brain` 提供稳定 facade：
   - `BrainConfig(substrate_mode="synthetic")` 默认不拉取外部模型
   - `BrainConfig(substrate_mode="hf")` 才显式构建 HF substrate
@@ -73,6 +74,7 @@
 
 ## 变更日志
 
+- 2026-08-01: 按 39-wheel workspace 现状对账；纠正“根目录包承载运行时”的过时描述，补充薄服务适配层已落地的边界。
 - 2026-04-25: 初始版本，建立 package-first core 边界、optional HF extra、stable Brain facade 和不发布外网原则。
 - 2026-04-25: HF optional runtime 的 auto device 增加 Apple MPS 支持，用于本机 7B 交互实验。
 - 2026-04-25: 将语义状态 proposal runtime contracts 与 prompt/schema 资源纳入本地安装包边界。

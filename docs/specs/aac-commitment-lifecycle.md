@@ -3,9 +3,10 @@
 > **R-#:** R8 (snapshot-first), R11 (publishable internal state), R14 (regime persistent identity \u2014 commitments belong to the relationship axis)
 > **Owner wheel:** `vz-cognition` (`semantic_state.CommitmentModule`)
 > **Status:** v1 \u2014 typed lifecycle landed, follow-up surfacing wired in `lifeform-core`.
+> **Last reviewed:** 2026-08-01
 
 This is the canonical AAC lifecycle contract. `docs/specs/aac-lifecycle.md`
-remains as the PRD Gap 7 design mapping; implementation and contract questions
+remains the historical design mapping; implementation and contract questions
 should start here.
 
 ## Why this exists
@@ -116,6 +117,6 @@ The follow-up handler is intentionally minimal: it dedupes on `record_id`, fires
 
 ## Open follow-ups
 
-* **Reflection writeback `outcome_kind` enum** (Gap 7 part 2 in `docs/todo`): `commitment_progressed / completed / stalled / rejected / followup_no_response`. Should be derived from per-record lifecycle aggregates over a session, not from new owner state.
+* **Reflection writeback `outcome_kind` enum**: `commitment_progressed / completed / stalled / rejected / followup_no_response`. It should be derived from per-record lifecycle aggregates over a session, not from a second owner. This remains an implementation follow-up; [`todo.md`](../todo.md) no longer duplicates the field-level backlog.
 * **Per-record evidence pointers**. `CommitmentLifecycleEntry` could carry a `last_operation: SemanticProposalOperation` field so reflection can audit *why* the lifecycle advanced; deferred to keep this round small.
 * **`outcome_kind` on `relationship_state`** (Gap 9 / Gap 10 territory): when a commitment lifecycle ends in `REJECT`, the relationship axis should observe a typed delta, not infer it from text.

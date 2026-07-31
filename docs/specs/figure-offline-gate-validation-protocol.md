@@ -1,7 +1,8 @@
 # Figure OFFLINE Gate Validation Protocol
 
 > Status: scaffold v0.2 (SHADOW；audit ledger 接通)
-> Last updated: 2026-05-14
+> Last updated: 2026-08-01
+> Review note: v0.2 audit fields remain wired; mandatory downstream-score v0.3 promotion evidence is still absent.
 > Owner: figure-evidence-packet G-E (debt #62)
 
 ## 1. 范围
@@ -95,4 +96,4 @@ ACTIVE 节奏：W6（#58/#59 ACTIVE）+ #41（Phase B 早期）→ 本协议 ACT
 ## 变更日志
 
 - 2026-05-13: v0.1 SHADOW scaffold。
-- 2026-05-14: v0.2 audit ledger 接通——`apply_persona_lora_through_gate` 加 `audit_log_dir` / `downstream_score_delta` / `downstream_score_delta_method` kwargs + `OfflineGateAuditEntry` typed dataclass + per-day jsonl rotation；contract test ([`tests/contracts/test_figure_offline_gate_audit_ledger.py`](../../tests/contracts/test_figure_offline_gate_audit_ledger.py)) 守门 schema 字段稳定 + ALLOW/BLOCK 都有 audit row + rollback evidence 必填。
+- 2026-05-14: v0.2 audit ledger 接通——`apply_persona_lora_through_gate` 加 `audit_log_dir` / `downstream_score_delta` / `downstream_score_delta_method` kwargs + `OfflineGateAuditEntry` typed dataclass + per-day jsonl rotation；contract test ([`test_figure_c2_eval_pipeline_and_audit.py`](../../tests/contracts/test_figure_c2_eval_pipeline_and_audit.py)) 守门 schema 字段稳定 + ALLOW/BLOCK 都有 audit row + rollback evidence 必填。

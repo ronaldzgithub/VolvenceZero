@@ -1,5 +1,6 @@
 # CMS ATLAS / Titans Uplift — SHADOW Evidence and ACTIVE Decision (2026-05-06)
 
+> Evidence status: frozen historical snapshot; reviewed 2026-08-01 and intentionally not recomputed or rewritten.
 > Companion brief to [`cms-atlas-titans-uplift.md`](./cms-atlas-titans-uplift.md) §7–§8.
 > Smoke command: `python scripts/run_atlas_titans_cms_shadow_smoke.py --case-limit 2`
 > Paper-suite-small shadow command: inline runner over `DEFAULT_DIALOGUE_PROOF_CASES`, 5 seeds, profiles `pe-eta` + `atlas-titans-cms-uplift`

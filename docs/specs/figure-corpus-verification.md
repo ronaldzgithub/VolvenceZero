@@ -1,7 +1,7 @@
 # Figure Corpus Verification + Audit (L2) Spec
 
 > Status: full set landed (first batch + second batch)
-> Last updated: 2026-05-10
+> Last updated: 2026-08-01
 > 对应需求: R8（snapshot / contract first）、R12（evaluation 单向性）、R15（迁移可解释 + 可回滚）
 
 ## 要解决的问题
@@ -22,7 +22,7 @@
 4. **`VerificationCheck` 不可变**（frozen dataclass）；`evidence` 必须是非空 tuple；`reviewer_id` 必须形如 `auto:<verifier_id>:<int>` 或 `human:<reviewer-id>`。
 5. **Ledger append-only**。`VerificationLedger.append(check)` 永不删除或重写历史；override 通过 append 一条 `human:<id>` check 来实现；`latest_per_kind(...)` 取每 kind 最新 append 一条作为生效 verdict。
 6. **Anchor key = `source_byte_sha256` = `SourceProvenance.byte_sha256` = L1 `RawDocument.raw_sha256`**。content-addressable 三段贯通；任何破坏这条对应关系的 PR 在 `cleaned_to_source_provenance(cleaned, raw, ...)` 的 `__post_init__` 校验里 fail loud。
-7. **Gate 阶段性放行**。bundle gate 只检查 `IMPLEMENTED_CHECK_KINDS` 的全 PASS（本 packet = 3 个 first batch）；deferred kinds 不强制。新 kind 实现时必须**同步**加入 `IMPLEMENTED_CHECK_KINDS`，contract test 自动 surface 缺失覆盖。
+7. **Gate 覆盖全集**。bundle gate 检查 `IMPLEMENTED_CHECK_KINDS` 的全 PASS；当前该集合包含 7 个 `CheckKind`。任一新 kind 必须同步实现 verifier、CLI 调度与 contract coverage。
 
 ## R-ID
 
@@ -216,7 +216,7 @@ flowchart LR
 | Bundle build (`compiler.py:build_figure_artifact_bundle`) | gate 挂载点；`FigureBundleInputs` 加 3 个默认字段，既有 caller 零回归 |
 | `compute_bundle_integrity_hash` (`figure_artifact.py`) | 本 packet **不**折入 verification fingerprint（属 #25 工作） |
 | L0 crawler frontier ([figure-corpus-crawl.md](./figure-corpus-crawl.md)) | **landed (2026-05-10)**；crawler 输出字节流给 L1，L1 输出 + curator metadata 由 `cleaned_to_source_provenance` 桥到 L2；L0 与 L2 通过 L1 间接耦合，no direct import |
-| #26 metadata client | deferred 4 verifier 的前置依赖；schema 已立，stub 在 `verifiers/__init__.py` |
+| #26 metadata client | 已支撑 second-batch 4 个 metadata-dependent verifier；缺少 context/extras 时产出 `NEEDS_REVIEW`，不静默 PASS |
 
 ## 测试
 

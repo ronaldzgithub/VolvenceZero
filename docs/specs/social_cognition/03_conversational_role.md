@@ -1,7 +1,7 @@
 # Conversational Role Spec
 
-> Status: draft
-> Last updated: 2026-05-02
+> Status: Phase 3 implemented; default final rollout ACTIVE
+> Last updated: 2026-08-01
 > 对应需求: R18, R16, R17, R3, R4, R-PE, R8, R15
 
 ## 要解决的问题
@@ -46,12 +46,11 @@ Role owner 在 action 前预测：
 
 `conversational_role` 影响 latent control: direct answer to addressee, repair to subject, grounding to group, or silence / deferral when overhearer constraints dominate. The metacontroller learns these switches in `z_t` / `beta_t` space. Renderer only surfaces the selected stance.
 
-## 工程挑战
+## 当前落地与剩余边界
 
-- Host / CLI 当前没有 canonical Environment Event conversational frame，需要 default role scaffold。
-- Memory / semantic write APIs 需要 role scope。
-- `ResponseContext` 与 `ResponseAssemblySnapshot` 需要带 role summary，但不能成为 role owner。
-- 需要 3-party evidence scenarios，而不是继续只跑一对一 companion transcript。
+- `FinalRolloutConfig.conversational_role` 当前默认 ACTIVE，owner 消费 canonical `EnvironmentEvent.frame`，缺失时使用 `primary/self` 兼容帧。
+- role prediction 已可见于 response assembly 诊断，但 planner/renderer 仍不把它重建为文本路由规则。
+- 当前证据覆盖 typed frame 与 wrong-addressee PE；真实三人长轨迹、witness/overhearer 推断仍是后续证据与实现边界。
 
 ## 算法候选
 
@@ -110,6 +109,7 @@ Implemented Phase 3 scaffold:
 
 ## 变更日志
 
+- 2026-08-01: 按 final rollout 对账；标记 Phase 3 已落地且默认 ACTIVE，并分离 typed-frame 证据与未完成的真实多人长轨迹证据。
 - 2026-05-02: R18 Phase 3 slice 8 landed: `conversational_role` promoted to ACTIVE by default; kill-switch rollback preserved; R18A evidence gate added for active role frame diagnostics.
 - 2026-05-02: R18 Phase 3 slice 6 landed: `conversational_role` active prediction count surfaces in `response_assembly.semantic_record_counts` as diagnostics only; no planner / renderer consumption.
 - 2026-05-02: R18 Phase 3 slice 7 landed: Social Cognition evidence report R2 gate covers role prediction diagnostic visibility.

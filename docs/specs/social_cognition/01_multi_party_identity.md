@@ -1,7 +1,7 @@
 # Multi-Party Identity Spec
 
-> Status: draft
-> Last updated: 2026-05-02
+> Status: Phase 1 implemented; default final rollout ACTIVE
+> Last updated: 2026-08-01
 > 对应需求: R16, R7, R-PE, R1, R8, R15
 
 ## 要解决的问题
@@ -52,12 +52,11 @@ Owner 在 action 前发布 social predictions：
 
 `multi_party_identity` 是 compact social state。`regime`、`temporal_abstraction`、`response_assembly`、`PromptPlanner` 可读它，但不得重新从 text 构造身份逻辑。长期适应发生在 controller code `z_t` 和 switch unit `beta_t` 空间；renderer 只表达已选 plan。
 
-## 工程挑战
+## 当前落地与剩余边界
 
-- 现有 snapshot 和 tests 大量假设 flat `user_model` / `relationship_state`。
-- MemoryStore 当前只有 `track`，没有 subject / audience scope。
-- ResponseContext 当前没有 active speaker / audience。
-- 需要可回滚迁移：SHADOW keyed views 与 flat snapshot 并跑，证据稳定后切 ACTIVE。
+- `FinalRolloutConfig.multi_party_identity` 、`social_prediction` 与 `social_prediction_error` 当前均默认 ACTIVE，仍可通过 `WiringLevel` 降级回滚。
+- `MemoryEntry` / `MemoryWriteRequest` 已有 subject / audience scope，`ResponseContext` 与 `AgentTurnResult` 已发布 speaker / addressee / subject / audience。
+- 当前证据主要覆盖显式 `EnvironmentEvent.frame` 和跨 subject 记忆抑制；不等于已证明模糊自然语言中的身份自动解析。
 
 ## 算法候选
 
@@ -121,6 +120,7 @@ Implemented Phase 1 scaffold:
 
 ## 变更日志
 
+- 2026-08-01: 按 final rollout 与当前 memory/response 契约对账；状态从 draft 改为 Phase 1 已落地且默认 ACTIVE。
 - 2026-05-02: R16 Phase 1 Slice 13 landed: `social_prediction` and `social_prediction_error` promoted to ACTIVE by default; primary/self default remains empty; R16B active social PE memory-visibility evidence gate added.
 - 2026-05-02: R16 Phase 1 Slice 12 landed: `multi_party_identity` promoted to ACTIVE by default; one-user turns remain `primary/self`; explicit EnvironmentEvent frames now drive active memory subject/audience scope; evidence gate R16A added.
 - 2026-05-02: R16 Phase 1 Slice 11 landed: `MemoryStore.retrieve` strict subject-scope filter, `MemorySnapshot.suppressed_cross_scope_entries`, self-emitted `MEMORY_VISIBILITY` prediction, self-derived `DISCONFIRMED` PE, social PE → credit ledger via the existing path.  No injection required.  Default config remains compatible.

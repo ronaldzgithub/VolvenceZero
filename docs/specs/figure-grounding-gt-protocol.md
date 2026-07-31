@@ -1,7 +1,8 @@
 # Figure Grounding Ground-Truth Protocol
 
 > Status: scaffold v0.1 (SHADOW)
-> Last updated: 2026-05-13
+> Last updated: 2026-08-01
+> Review note: only `.example` data is present; reviewer-curated 100-item GT and ACTIVE evidence remain absent.
 > Owner: figure-evidence-packet G-B (debt #59)
 
 ## 1. 范围

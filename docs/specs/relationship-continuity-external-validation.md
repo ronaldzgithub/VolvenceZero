@@ -98,6 +98,19 @@ digest 必须精确相等。
 preference；manifest 对三份文件做 SHA-256 绑定。pilot 产物恒为
 `human_anchor_claim_allowed=false`，不能被上层报告误读为 formal 结论。
 
+### Simulated-user capture 兼容性（2026-08-01）
+
+对冻结 `gate811-human-anchor-prereg.v1` 的逐字段审计表明：v1 冻结了 matched
+variables、3 sessions/30 turns、capture seeds、事件覆盖、blinding 与真实非项目 rater，
+但没有将聊天者来源限定为真人。因此七日自动化产生的 synthetic-user transcript 可直接
+进入 v1 capture shape，无需篡改 v1 或另开 v2。
+
+该兼容性只解决盲评**材料来源**，不改变 external-validity 主张：simulated capture 经
+真人评分后最多标记为 `human-rated-simulated-user-transcripts-only`，不得标记为
+`external_validated` real-user product value，也不能单独关闭 #93。评分者仍须真人；没有
+完成 ratings 时，盲包只是 `human_ratings_pending` 材料。实现与冻结边界见
+[`seven-day-companion-evidence.md`](./seven-day-companion-evidence.md)。
+
 ### Pilot 分析与 power-freeze 工具边界
 
 `gate811_human_anchor_analysis` 只接受逐哈希绑定的 blind packet、内部 key、原始评分
@@ -142,6 +155,8 @@ familywise `0.05` 下两 contrast 的保守 Bonferroni 双侧规划，对 prefer
 
 ## 变更日志
 
+- 2026-08-01: 审明 v1 可接 simulated-user capture，不要求 v2；冻结
+  `human-rated-simulated-user-transcripts-only` 与 real-user EXIT 的隔离边界。
 - 2026-07-31: 新增 Gate 8/11 专用双盲预注册，冻结 matched arms、fresh
   capture、pilot/power/formal 分离、三维量表、成对偏好、一致性、非劣与多重比较门。
 - 2026-07-31: 新增 typed capture 校验、exact matched pairing、盲包/内部 key

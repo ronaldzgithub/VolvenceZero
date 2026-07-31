@@ -1,7 +1,8 @@
 # Figure Corpus Crawler (L0) Spec
 
-> Status: draft (first packet landed; closes debt #19 V2 + debt #28 L0)
-> Last updated: 2026-05-10
+> Status: L0 implemented (closes debt #19 V2 + debt #28 L0)
+> Last updated: 2026-08-01
+> Review note: scope, SSRF, robots and content-addressable contracts rechecked; no rollout promotion claim added.
 > 对应需求: R8（snapshot / contract first）、R12（evaluation 单向性）、R15（迁移可解释 + 可回滚）
 
 ## 要解决的问题
@@ -264,7 +265,7 @@ flowchart LR
 |---|---|
 | L1 cleaning ([figure-corpus-cleaning.md](./figure-corpus-cleaning.md)) | L0 SUCCESS 直接写 L1 `CleaningStore.put_raw`；anchor key 同步 |
 | L2 verification ([figure-corpus-verification.md](./figure-corpus-verification.md)) | L0 不感知 verifier；curator 在 L1 → L2 bridging 时构造 SourceProvenance（继承 L0/L1 的 raw_sha256） |
-| `_OfflineArchiveFetcher` ([archives/__init__.py](packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/archives/__init__.py)) | 行为不变；新增 `live_archive_fetcher` 工厂关闭 #19 V2 |
+| `_OfflineArchiveFetcher` ([archives/__init__.py](../../packages/lifeform-domain-figure/src/lifeform_domain_figure/corpus/archives/__init__.py)) | 行为不变；新增 `live_archive_fetcher` 工厂关闭 #19 V2 |
 | #15 DLaaS asset.uri fetcher | DLaaS 平台层的并行需求；可考虑共用 `BaseHTTPClient` 与 `ScopePolicy`（follow-up packet） |
 | #26 metadata client | OpenAlex / Wikidata / Crossref / SEP，shape 不同（JSON API），独立 follow-up；可共用 `BaseHTTPClient` |
 

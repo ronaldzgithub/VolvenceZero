@@ -1,7 +1,7 @@
 # Rupture and Repair Spec
 
-> Status: draft
-> Last updated: 2026-05-05
+> Status: core loop implemented; module default SHADOW, final rollout ACTIVE
+> Last updated: 2026-08-01
 > 对应需求: R-PE, R7, R8, R11, R15
 
 ## 要解决的问题
@@ -94,7 +94,7 @@ Companion AI 不是封闭优化问题。关系不是通过完美响应建立，�
 
 | Slot | Owner | Value | Wiring | Frequency | Consumers |
 |---|---|---|---|---|---|
-| `rupture_state` | `RuptureStateModule`（vz-cognition） | `RuptureStateSnapshot` | SHADOW | per turn | reflection, dialogue_trace (diagnostic) |
+| `rupture_state` | `RuptureStateModule`（vz-cognition） | `RuptureStateSnapshot` | module SHADOW / final rollout ACTIVE | per turn | reflection, dialogue_trace, protocol context |
 | `dialogue_external_outcome` | `DialogueExternalOutcomeModule`（vz-runtime） | `DialogueExternalOutcomeSnapshot` | ACTIVE | per turn | prediction_error, regime, rupture_state, reflection |
 
 ### `RuptureStateSnapshot`
@@ -141,8 +141,7 @@ class DialogueExternalOutcomeSnapshot:
 - **不做的事**：
   - 不直接写 memory、不直接改 regime、不直接改 ETA；
   - 不从自由文本推断；
-  - response_assembly 在 v0 **不**根据 `rupture_state` 调整输出
-    （只 SHADOW 发布；active repair primitive 属于 post-v0 M7）。
+  - response_assembly 不得直接根据 `rupture_state` 重建决策；表达调整仍只能消费显式 typed advisory / 上游已选立场。
 
 ## MemoryEntry / Kind 的实现选择
 
@@ -171,7 +170,7 @@ rupture-repair 变成承重能力，**post-v0 迁移路径**是在 vz-memory 引
 
 - 任何情绪分类器（本 spec 是 evidence-bucket，不是 sentiment）；
 - 任何从 user text 的关键词匹配；
-- 在 v0 把 `rupture_state` 提升到 ACTIVE（属于 post-v0 M7）；
+- 从 `rupture_state` 的 ACTIVE 发布等同推导 renderer 表达策略；ACTIVE 只改变正式快照可见性。
 - 在 v0 启用 LLM proposal（属于 post-v0 M9）；
 - 跨用户自动学习（属于 post-v0 M12，需要人工 review）；
 - 把 human review 变成 reward（永远禁止）。
@@ -181,8 +180,8 @@ rupture-repair 变成承重能力，**post-v0 迁移路径**是在 vz-memory 引
 Closed alpha 允许在**内部脚本 / demo / tests** 中让 `rupture_state`
 影响下一轮表达，但只能通过一次性的 typed advisory：
 
-1. `RuptureStateModule` 仍然是 rupture 的唯一 owner，`rupture_state`
-   仍默认 SHADOW；
+1. `RuptureStateModule` 仍然是 rupture 的唯一 owner；模块类默认 SHADOW，
+   当前 final rollout 默认 ACTIVE，两者都不授权 expression 绕过 typed advisory；
 2. runtime 编排层可在 propagate 后读取 `rupture_state`，派生
    `RepairExpressionAdvisory` 并放入 `ResponseContext`；
 3. expression planner 只能消费该 advisory，不能 import
@@ -205,4 +204,5 @@ observed repair memory。treatment 还必须证明同一 user scope 的新 sessi
 
 ## 变更日志
 
+- 2026-08-01: 对账 final rollout ACTIVE 与 no-double-writeback 契约；区分模块 SHADOW 安全默认、产品 ACTIVE 编排与 expression advisory 权限。
 - 2026-05-05: 初稿（M0）。

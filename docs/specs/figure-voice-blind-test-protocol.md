@@ -1,7 +1,8 @@
 # Figure Voice Blind Test Protocol
 
 > Status: scaffold v0.1 (SHADOW)
-> Last updated: 2026-05-13
+> Last updated: 2026-08-01
+> Review note: generation script exists, but the N=20 human panel artifact required for ACTIVE does not.
 > Owner: figure-evidence-packet G-C (debt #60)
 
 ## 1. 范围

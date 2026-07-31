@@ -1,7 +1,9 @@
 # Growth-Advisor Boundary Baseline
 
 > Status: scaffold v0.2 (SHADOW; pipeline 接 fake-judge injection)
+> Last updated: 2026-08-01
 > Owner: growth-advisor-pilot-packet G-A (debt #64 / #68)
+> Review note: all production baseline cells remain TBD; fake-judge coverage is not ACTIVE evidence.
 > Driver: [`scripts/growth_advisor_boundary_eval.py`](../../scripts/growth_advisor_boundary_eval.py) + [`scripts/growth_advisor_drive_ablation.py`](../../scripts/growth_advisor_drive_ablation.py)
 
 ## 1. 范围

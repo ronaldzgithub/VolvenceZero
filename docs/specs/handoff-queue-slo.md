@@ -1,8 +1,10 @@
 # Handoff Queue SLO Spec
 
 > Status: scaffold v0.2 (SHADOW；single-process N=10 stress test 接通)
+> Last updated: 2026-08-01
 > Owner: growth-advisor-pilot-packet G-E (debt #70)
 > Implementation: [`packages/dlaas-platform-registry/src/dlaas_platform_registry/handoff.py`](../../packages/dlaas-platform-registry/src/dlaas_platform_registry/handoff.py) `HandoffTicketStore`
+> Review note: current store uses the registry database; the JSONL persistence text below is a superseded target. Cross-restart and production P99 evidence remain pending.
 
 ## 1. 范围
 

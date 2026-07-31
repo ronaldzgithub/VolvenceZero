@@ -1,7 +1,7 @@
 # Interlocutor State Spec
 
-> Status: stable (W2 of ssot-cleanup-p0-p4)
-> Last updated: 2026-05-06
+> Status: stable; module default SHADOW, final rollout ACTIVE
+> Last updated: 2026-08-01
 > 对应需求: R8 (契约优先 / 快照优先), R11 (内部状态可发布 / 可命名), R15 (可回滚演进)
 
 ## 要解决的问题
@@ -20,8 +20,9 @@ W2 之前，12 维读出在三个消费者各自重建：`prompt_planner` / `res
 / `LifeformSession.interlocutor_state` 都从同一组上游 snapshot 各自跑一遍 duck-typed
 builder + 各自定义阈值。这是典型的 R8 违反：消费者重建了生产者的内部状态。
 
-W2 把读出收敛成一个 SHADOW owner：`InterlocutorStateModule`，并把阈值常量收敛到一个
-`InterlocutorThresholds` 类。
+W2 把读出收敛成一个 owner：`InterlocutorStateModule`，并把阈值常量收敛到一个
+`InterlocutorThresholds` 类。owner 类的 `default_wiring_level` 仍为 SHADOW，但当前
+`FinalRolloutConfig.interlocutor_state` 已默认 ACTIVE；两者分别表示模块安全默认和产品编排默认。
 
 ## 关键不变量
 
@@ -44,7 +45,7 @@ W2 把读出收敛成一个 SHADOW owner：`InterlocutorStateModule`，并把阈
   必须用 `object.__setattr__`。
 - 既有测试通过 `replace(neutral_state, emotional_weight=0.7)` 构造极端态。`replace`
   会触发 `__post_init__` —— zone bool 自动重算，测试无需改。
-- `lifeform-core/lifeform.py` 在 SHADOW slot 缺失时仍要工作（legacy tests 不注册
+- `lifeform-core/lifeform.py` 在 slot 缺失或被显式降级时仍要工作（legacy tests 不注册
   owner）。回退路径调用同一个 `readout_interlocutor_state`，所以行为与 owner 一致。
 
 ## 接口契约
@@ -106,18 +107,19 @@ dashboards，不重新拼。
     section add/drop / question budget cap 不再重新算阈值。
   - `lifeform-expression.response_synthesizer` — `_state_indicates_*` 读 zone bool；
     渲染 variant 选择不再重新算阈值。
-  - `lifeform-core.LifeformSession.interlocutor_state` — 优先读 SHADOW snapshot；
-    legacy fallback 通过 `readout_interlocutor_state` 重建（行为等价）。
+  - `lifeform-core.LifeformSession.interlocutor_state` — 优先读 ACTIVE snapshot；
+    显式 SHADOW/未注册场景的 legacy fallback 通过 `readout_interlocutor_state` 重建（行为等价）。
 
 ## 不在范围
 
 - 不接 ETA/NL 的 z_t 选择面：W2 是观察侧 SSOT，不动控制器。
-- 不开 ACTIVE：v0 默认 SHADOW；ACTIVE 由后续 wave 在通过 matched-control gate
-  后单独 promote。
+- 不改模块类的 SHADOW 安全默认；产品 final rollout 已经通过
+  `test_interlocutor_state_active_matched_control.py` 提升为 ACTIVE，可显式降级回滚。
 - LLM 解析 user text 给 axis 提供 proposal 的 path 不在 W2，按 R8 是新工作。
 
 ## 变更日志
 
+- **2026-08-01**：对账 `FinalRolloutConfig`；区分 owner 类 SHADOW 默认与产品编排 ACTIVE 默认，记录 matched-control 回滚边界。
 - **2026-05-06**：初版（W2）。模块从单文件拆成 `contracts.py` / `readout.py`
   / `owner.py`；新增 `InterlocutorThresholds` 单一阈值源、10 个 zone bool；
   `InterlocutorStateModule` 注册到 `final_wiring` SHADOW；`prompt_planner` /

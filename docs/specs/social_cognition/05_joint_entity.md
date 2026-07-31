@@ -1,7 +1,8 @@
 # Joint Entity Spec
 
-> Status: draft
-> Last updated: 2026-05-02
+> Status: SHADOW GroupModule implemented; learned group semantics remain incomplete
+> Last updated: 2026-08-01
+> Review note: `groups` remains SHADOW in `FinalRolloutConfig`; no ACTIVE promotion is claimed.
 > 对应需求: R20, R16, R18, R19, R7, R14, R-PE, R1, R8, R15
 
 ## 要解决的问题

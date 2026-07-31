@@ -1,7 +1,9 @@
 # Growth-Advisor Drives Ablation Evidence
 
 > Status: scaffold v0.1 (SHADOW)
+> Last updated: 2026-08-01
 > Owner: growth-advisor-pilot-packet G-A (debt #68)
+> Review note: the 4×4 causal matrix remains unfilled; no promotion claim is supported.
 > Driver: [`scripts/growth_advisor_drive_ablation.py`](../../scripts/growth_advisor_drive_ablation.py)
 
 ## 1. 范围

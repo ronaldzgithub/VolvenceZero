@@ -208,12 +208,12 @@ NL-对齐裁判线（与 A-Mem 的对照）：
 - `vz-memory/memory/store.py::MemoryStore._owner_signal(...)` 现在优先把 substrate-derived signal 作为 dense 维度的主成分（substrate 缺席时权重退化为 0），semantic + metadata 仍保留稳定贡献，消费侧 cosine 行为不变。
 - `MemoryStore.observe_substrate(...)` 在 turn 起始处缓存 `feature_surface`，使写入与查询 hit 同一份；`MemoryStore.apply_prediction_error_signal(...)` 缓存 PE intensity / primary axis / regime_id / `pe_decomposition.epistemic_magnitude` / `pe_decomposition.aleatoric_magnitude`。
 - `MemoryStore.write(...)` 在每条新 entry 上 pin 一个 owner-internal `MemoryAttributeReadout`：PE 字段来自缓存，`substrate_feature_digest` 来自 `_substrate_embedding(..., dim=min(learned_signal_dim, 8))`。
-- `MemorySnapshot.attribute_summary` 是 capped tuple（默认 16，按 `timestamp_ms` 倒序），让下游有结构化窗口可读。**`MemoryEntry` schema 不动**，checkpoint / persistence / 现有测试保持不变。
+- `MemorySnapshot.attribute_summary` 是 capped tuple（默认 16，按 `timestamp_ms` 倒序），让下游有结构化窗口可读。**`MemoryEntry` schema 不动**；`MemoryStoreCheckpoint.entry_attributes` 以默认空 tuple 的 additive 字段保存 owner-coupled attribute 投影，使删除/改写回滚保持 artifact、semantic index 与 attribute index 原子一致。
 
 下游兼容性：
 
 - 现有 `MemoryEntry.tags`-driven retrieval / write paths 行为保持不变（tags 仍是规则字符串）。
-- attribute index 不写入 checkpoint：重启后由 PE 与 substrate 自然回填。
+- attribute index 写入 checkpoint / persistence；旧 checkpoint 缺字段时按空 tuple 恢复。它仍是 Memory owner 内部投影，不成为新的事实 owner 或学习信号源。
 - 不参与 acceptance gate；未来 Phase 2.A / 2.B 可让 credit / temporal 在自家 owner 内消费 attribute_summary 以做更精细的 contribution 估计。
 
 **NL 路线明确不做**：
@@ -340,6 +340,7 @@ policy 本身，且 policy 也会老化。未来 memory snapshot 至少应能发
 - 2026-07-20: 新增 §"时间定位、证据区间与记忆 claim 的行为证据阶梯"：S-EMBER 时间定位/证据区间双指标要求、Beyond Perplexity 三层行为证据阶梯（loss↓ 不构成记忆 claim）、retrieval policy 版本化 motivation。不改 schema；来源 `research/frontier-sweep-2026-07-20.md` §6 同步项。
 - 2026-07-17: G4 reflection consolidation learned SHADOW 候选（反思沉淀节）。新增 `vz-cognition.reflection.consolidation_learner.ConsolidationScoreLearner`：有界线性残差 head，输入为既有 consolidation 特征（memory_pressure / cross_tension / alert_pressure / positive・negative credit / pe_penalty），固定公式 = 初始化 + 回滚点；session-held（`AgentSessionRunner` 持有，经 final wiring 注入 per-turn `ReflectionEngine`），`ConsolidationScore.learned_promotion_score`（默认 None）report-only 发布；settlement 用下一 turn realized PE magnitude（一 turn 窗口，gate-learner 语义）。promote / decay / writeback gate 全部不读 learner。测试：`tests/test_reflection_consolidation_learner.py`。
 - 2026-05-06: Phase 1.C 上线 substrate-feature retrieval embedding 与 owner-internal `MemoryAttributeReadout`；新 `MemorySnapshot.attribute_summary` 字段，`MemoryEntry` schema 不动；明确 A-Mem / HippoRAG 2 不进路线图，Titans / ATLAS update-rule 子集走 `cms-atlas-titans-uplift.md` 中期专项。
+- 2026-08-01: P2 relationship-memory console 增加 scope-guarded 单条删除/改写；`MemoryStore.delete_artifact_entry` 原子清理 artifact、semantic index 与 attribute index，checkpoint 新增向后兼容的 `entry_attributes`，保证持久化失败可完整回滚。
 - 2026-04-25: 与 `DATA_CONTRACT.md` 3.3 对齐，明确 continuum / tower / learned-update 字段已经是 public `cms_state` 读数，不是 consumer 侧推断
 - 2026-04-20: 接口契约改为直接消费 `prediction_error`；当前实现口径明确 memory owner 已将 PE 用于记忆事件写入、promotion threshold 调节和 retrieval facets
 - 2026-04-22: 默认慢反思执行路径切到 session-post slow loop；memory durable apply 不再与 turn 主链同频，而由 context boundary 后的 queued consolidation 驱动

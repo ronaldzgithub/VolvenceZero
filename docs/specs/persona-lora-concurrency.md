@@ -1,7 +1,7 @@
 # PersonaLoRA Pool Concurrency Spec
 
-> Status: scaffold v0.1 (SHADOW)
-> Last updated: 2026-05-13
+> Status: correctness isolation implemented; GPU throughput gate remains SHADOW
+> Last updated: 2026-08-01
 > Owner: figure-evidence-packet G-D (debt #61)
 
 ## 1. 范围
@@ -51,21 +51,12 @@
 | Per-session logits determinism | 100% | 同上：每 session 单独跑 + 并发跑，logits L1 距离 < 1e-6 |
 | Frozen base state_dict_hash | unchanged 全程 | 同上：activate 前 / 中 / 后 三次抽 SHA-256 |
 
-## 4. 实施策略（待 ACTIVE）
+## 4. 当前并发策略
 
-### Option A: per-layer asyncio.Lock（推荐）
-
-每 `delta_vector` 应用到 attention block 时加锁。开销小，但限制并发。
-
-### Option B: per-session forward hook clone
-
-每 session 进入 activate context 时 clone forward hook；退出时 restore。开销大，但完全隔离。
-
-### Option C: 多 process（fallback）
-
-如 Option A/B 都不 work，回退到 launcher 多进程（一个进程 = 一个 figure 实例），代价是 substrate 加载 N 次。
-
-ACTIVE 阶段先试 Option A，stress test 不通过升 Option B；最差 Option C。
+- service 路径使用 `SessionManager` 作用域的 `PersonaLoRAPool`，避免不同 tenant/session 共享 `last-register-wins` 状态。
+- vLLM 路径使用 per-request `LoRARequest` 和 `contextvars`；同 task 嵌套 activate 仍 fail loudly。
+- Transformers 路径保持 serial-decode / 单作用域守门；未获得 GPU stress evidence 前不宣称真并行。
+- character prefix package 的 manifest + common adapter 精确路由是另一契约，不得当作 PersonaLoRA 并发 SLO 的替代证据。
 
 ## 5. 与横切 F-A perf 床的耦合
 
@@ -82,4 +73,5 @@ ACTIVE 节奏：F-A ACTIVE (W5) → 本测试 ACTIVE (W7)。
 
 ## 变更日志
 
+- 2026-08-01: 对账 scoped pool 与 vLLM per-request 实现；删除已过时的待选锁方案，保留 N≥10 真 GPU 确定性与 latency 为 ACTIVE 缺口。
 - 2026-05-13: v0.1 SHADOW scaffold。

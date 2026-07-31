@@ -1,7 +1,8 @@
 # Audit Owner Spec
 
-> Status: draft
-> Last updated: 2026-05-13
+> Status: schema and SHADOW publisher implemented; audit-agent content pending
+> Last updated: 2026-08-01
+> Review note: `AuditModule` / `AuditSnapshot` and gate input exist; this does not claim OA-4 probe coverage is complete.
 > 对应需求: R8, R9, R10, R12（架构 packet A5）
 > 对应改造路线图: [`docs/moving forward/experiment-arch-uplift.md`](../moving%20forward/experiment-arch-uplift.md) §2 A5
 > 对应 plan：架构改造 plan T3 spec-first 前置

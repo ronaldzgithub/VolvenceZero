@@ -206,6 +206,10 @@ invoker 侧按**载荷形状**（`claims` 键）而非工具名提取，所以�
   消费者无需读取 owner 内部字段即可完成 settlement 消费。第二波
   （plan_intent / open_loop / belief_assumption / user_model）kind 已在闭集
   enum 预留，publisher 于 2026-07-14 接线（见上方条目）。
+- 2026-08-01: `SemanticStateStore` persistence schema 升为 v2，将 CP-12
+  outstanding prediction 与 per-slot id sequence 纳入 owner hydration。新 session
+  hydrate 后由原 semantic owner 结算，PE 仍是唯一 mismatch 计算者。读取 v1
+  snapshot 时显式初始化为空 pending（兼容旧 artifact）；未知版本继续 fail loudly。
 - 2026-07-13: 登记 character chapter adapter flow。逐章主观烘焙的
   `CharacterSemanticEventBundle` 只能作为 typed proposal source，仍由
   `SemanticStateStore` 单写者合并；禁止用原文关键词或角色 vertical 直写 9 个

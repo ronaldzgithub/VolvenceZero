@@ -1,7 +1,7 @@
 # Lifeform Template Spec
 
-> Status: draft
-> Last updated: 2026-05-09
+> Status: implemented; schema v2, v1/v2 readable
+> Last updated: 2026-08-01
 > 对应需求: R5（连续记忆）, R8（契约优先）, R10（有界自修改）, R11（内部状态可发布）, R14（regime 持久身份）, R15（迁移可解释性和可回滚）
 
 ## 要解决的问题
@@ -12,8 +12,9 @@
 
 - `LifeformTemplate` 是 **schema + 序列化产物**，不是 runtime owner。它没有 `process()`，不发布 snapshot，不拥有任何运行时状态。
 - 模板内每个组件都来自既有 owner-side export / restore API（`MemoryStore.create_checkpoint`、`Lifeform(memory_store=...)`、`ApplicationDomainKnowledgeStore.create_checkpoint` 等），**禁止**绕过 owner 直接读写私有状态。
-- 每个 `LifeformTemplate` 携带 `schema_version: int`（当前 `1`）；`give_birth` 在版本不匹配时抛 `IncompatibleTemplateVersion`，禁止跨版本静默加载。
+- 每个 `LifeformTemplate` 携带 `schema_version: int`；当前写出 v2，显式支持读取 v1/v2，`give_birth` 对其他版本抛 `IncompatibleTemplateVersion`，禁止跨版本静默加载。
 - `integrity_hash` 是 SHA-256，覆盖**身份载荷**：manifest（除 hash 字段）+ profile + evolved_profile + vitals_bootstrap + vitals_drive_levels + application_state。`memory_checkpoint` 与 `replay_report` 因含动态 id（`checkpoint_id`、float drive levels）不在身份 hash 内，但它们各有自己的 schema 校验。
+- v2 manifest 增加 `preserve_memory`；开启时 `give_birth` 不得被 alpha 模式的 `skip_memory_restore` 跳过，用于需要保留角色正典前世记忆的 vertical。
 - `give_birth` 默认 `verify_integrity=True`；只有调试 tampered 模板时才允许显式关闭。
 - 重生时 vitals `initial_level` **必须**用模板保存的 `vitals_drive_levels`，让新实例从"上辈子的体感"启动而不是从 spec 默认值。
 - LLM-assisted 提取（profile / scene）只产 *candidate*；转换为 typed artifact 必须经 `review_*_candidate` 显式人审入口（reviewer + locator 双必填）。
@@ -86,4 +87,5 @@ flowchart LR
 
 ## 变更日志
 
+- 2026-08-01: 对账当前 schema v2；记录 v1/v2 读取兼容与 `preserve_memory` 语义。
 - 2026-05-09: 初始版本。Lifeform Template + Birth Pipeline 完整落地（waves T1-T11）；schema_version=1。

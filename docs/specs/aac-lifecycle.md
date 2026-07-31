@@ -1,7 +1,7 @@
 # AAC Commitment Lifecycle Spec
 
-> Status: draft
-> Last updated: 2026-04-29
+> Status: frozen background/design mapping; canonical v1 implemented elsewhere
+> Last updated: 2026-08-01
 > 对应需求: R-PE, R8, R11, R14
 > 来源: `docs/implementation/13_emogpt_prd_alignment_upgrade.md` Gap 7
 
@@ -9,6 +9,7 @@
 > contract and operation truth table live in
 > `docs/specs/aac-commitment-lifecycle.md`. If the two documents disagree,
 > prefer `aac-commitment-lifecycle.md` and update this mapping document.
+> 2026-08-01 review: this document remains historical context and is not a second contract owner.
 
 ## 要解决的问题
 

@@ -1,75 +1,62 @@
 # Perf Baseline Spec
 
-> Status: scaffold v0.1 (SHADOW)
-> Last updated: 2026-05-13
-> Owner: cross-cutting-foundation-packet F-A (debt #45)
-> 对应 commercialisation-evidence-rollout.md §3 W2 SHADOW + W5 ACTIVE
+> Status: SHADOW harness implemented; production baselines not captured
+> Last updated: 2026-08-01
+> Owner: cross-cutting performance evidence (debt #45)
 
-## 1. 范围
+## 1. 范围与当前结论
 
-定义 VolvenceZero 三个商业方向（companion / figure / growth-advisor）在生产并发条件下的 SLO baseline。**baseline 数据由 ACTIVE 阶段的 `tests/perf/` 与 `scripts/realistic_load_*.py` 真跑回填**；本 spec 当前只锁定 SLO **目标值** + 测量方法。
+Volvence 当前有七个产品 vertical，但本 spec 只锁定已有真负载脚本的三个商业面：`companion` / `figure` / `growth-advisor`。表中数值都是 **SLO 目标**，不是已验证基线。
 
-## 2. 三方向 SLO 目标（ACTIVE）
+当前代码现状：
 
-| 维度 | 维度说明 | companion | figure | growth-advisor |
-|---|---|---|---|---|
-| P50 turn latency | 用户体感主观慢的拐点 | < 1.5s | < 2.5s | < 1.5s |
-| P99 turn latency | 投诉率拐点 | < 3.0s | < 5.0s | < 3.0s |
-| 并发 ai_id 上限 | 单 substrate 节点 | ≥ 50 | ≥ 20 | ≥ 100 |
-| GPU mem peak | 单节点峰值 | < 70% capacity | < 80% capacity | < 50% capacity |
-| Owner snapshot dispatch P50 | 5 vertical 共载下 | < 50ms | < 50ms | < 50ms |
-| L3 引证率（figure 专属） | bundle 上线 SLA | n/a | ≥ 0.95 | n/a |
-| L4 拒答率（figure 专属） | OOS 题命中拒答 | n/a | ≥ 0.85 | n/a |
-| Boundary 触发率（growth-advisor 专属） | per-boundary | n/a | n/a | ∈ [0.05, 0.50] |
-| LoRA swap overhead P50 | hot-swap 开销 | n/a | < 200ms | n/a |
-| Handoff queue P99 | 触发到 SE 接手 | n/a | n/a | < 30s |
+- `tests/perf/` 已有并发 session、多 vertical owner 传播、PersonaLoRA、handoff queue 和 production rollback drill 测试。
+- 三个 `scripts/realistic_load_*.py` 只支持 `--dry-run` placeholder artifact；非 dry-run 会明确拒绝，尚未连接真实 HTTP/DLaaS 负载。
+- 仓库中没有可作为 30 分钟 sustained production baseline 的当前 artifact，因此不得声称 ACTIVE 达标。
 
-**baseline 测量条件**：
-- substrate：Qwen2.5-32B-Instruct（默认）/ 可切 Llama-3.1-70B 做对照
-- GPU：单卡 A100-80G 等价物
-- 跑分时长：30 min sustained load
-- 并发模型：`asyncio.gather` N 个 LifeformSession 各跑 turn 序列
+## 2. SLO 目标（未验证）
 
-## 3. 测量方法
+| 维度 | companion | figure | growth-advisor |
+|---|---:|---:|---:|
+| P50 turn latency | < 1.5s | < 2.5s | < 1.5s |
+| P99 turn latency | < 3.0s | < 5.0s | < 3.0s |
+| 单 substrate 节点并发 ai_id | ≥ 50 | ≥ 20 | ≥ 100 |
+| GPU memory peak | < 70% | < 80% | < 50% |
+| Owner snapshot dispatch P50 | < 50ms | < 50ms | < 50ms |
+| Figure LoRA swap P50 / P99 | n/a | ≤ 200ms / ≤ 500ms | n/a |
+| Figure L3 引证率 / L4 拒答率 | n/a | ≥ 0.95 / ≥ 0.85 | n/a |
+| Boundary 触发率 | n/a | n/a | [0.05, 0.50] |
+| Handoff queue P99 | n/a | n/a | < 30s |
 
-### 3.1 单元 perf test（`tests/perf/`）
+基线测量条件必须随 artifact 固定：模型 ID 与 weights fingerprint、后端、硬件、并发数、轨迹数、持续时间、warm-up 策略、代码 revision 与 wiring config。原 v0.1 的 Qwen2.5-32B/A100-80G/30min 只是建议基准环境，不是仓库默认运行时事实。
 
-| 文件 | 覆盖维度 | 默认状态 |
+## 3. 已落地的测量面
+
+| 文件 | 范围 | 证据等级 |
 |---|---|---|
-| `test_concurrent_lifeform_sessions.py` | P50 / P99 turn latency × 3 vertical | `@pytest.mark.perf` skip-by-default |
-| `test_multi_vertical_owner_propagation.py` | Owner snapshot dispatch + PE owner 跨 vertical 隔离 | 同上 |
-| `test_persona_lora_hot_swap_concurrency.py` | figure LoRA hot-swap × 10 并发 + frozen base byte-identical | `@pytest.mark.perf @pytest.mark.hf` 双标 |
+| `tests/perf/test_concurrent_lifeform_sessions.py` | 并发 Lifeform session latency scaffold | synthetic/perf harness |
+| `tests/perf/test_multi_vertical_owner_propagation.py` | owner dispatch 与 PE 隔离 | contract/perf harness |
+| `tests/perf/test_persona_lora_hot_swap_concurrency.py` | PersonaLoRA 并发与 frozen-base 守门 | `perf` + `hf`; 需真 GPU |
+| `tests/perf/test_handoff_queue_concurrent_load.py` | handoff queue 并发 | perf harness |
+| `tests/perf/test_production_rollback_drill.py` | 生产形态回滚 drill | `perf` + `hf`; 需真环境 |
+| `scripts/realistic_load_{companion,figure,growth_advisor}.py` | artifact schema / CLI | dry-run placeholder only |
 
-### 3.2 真负载脚本（`scripts/realistic_load_*.py`）
+## 4. ACTIVE 准入
 
-每个脚本走对应方向的真实服务面（closed-alpha 或 DLaaS），跑 30 min sustained，输出 `artifacts/perf/<vertical>-<date>.json` 带 P50/P99/GPU mem/方向特定指标（L3/L4/boundary trigger 等）。
+ACTIVE 需要同时满足：
 
-### 3.3 跨方向 baseline 复现条件
+1. 三个真负载脚本接入实际服务面，非 dry-run 运行不再拒绝。
+2. 每个 vertical 产出至少一份 30 分钟 sustained artifact，包含上述完整复现指纹。
+3. 相关 SLO 全部达标，失败值不得被 placeholder 或 skip 隐藏。
+4. nightly/per-release 执行责任有明确 owner，substrate 升级后必须对比 N/N+1。
 
-- 每周一夜跑一次（`@pytest.mark.perf` 走 nightly tier）
-- 每次 substrate 升级后必跑（参见 [`substrate-upgrade-protocol.md`](substrate-upgrade-protocol.md)）
-- 任何 latency 相关重构 PR 必跑
+## 5. SSOT 与回滚
 
-## 4. 退出标准
-
-| 阶段 | 标准 |
-|---|---|
-| **SHADOW**（W1-W2） | `tests/perf/` 目录骨架 + 3 核心 contract test 通过；3 个 realistic_load 脚本能 `--dry-run` 出 placeholder artifact；本 spec v0.1 落档 |
-| **ACTIVE**（W5） | Qwen-1.5B baseline 上 3 个 vertical SLO 全达标；3 个 realistic_load 真跑 30 min 出真 artifact；nightly perf workflow 在 CI 上线 |
-
-## 5. SSOT 约束
-
-1. perf 测试**只读** owner snapshot / metrics，**不写**任何 kernel owner（R8 / R12）
-2. GPU 内存采样是 telemetry readout，**不**反向喂 reward / Face / 任何学习信号
-3. 所有 SLO 目标值的修订必须 commit 到本 spec，禁止散落在 test 文件常量
-4. 跨 vertical PE owner 必须隔离（[`test_multi_vertical_owner_propagation.py`](../../tests/perf/test_multi_vertical_owner_propagation.py) 守门）
-
-## 6. 与 commercialisation 单位经济的对账
-
-- §6.1 假设单 ai_id × 月成本 ≈ 30 元（包含 thinking/followup/tick 内部 turn）— 由本 spec ACTIVE baseline 数据回填验证
-- §6.4 P3（C 端陪伴）单位经济假设 ARPU 80 元/月 — 依赖本 spec 的 P99 latency < 3s SLO 才能保证用户感知不明显慢
-- §6.3 P2 多席位（10 席位/客户）— 依赖 growth-advisor 并发 ai_id ≥ 100 的 SLO
+- perf 代码只读 owner snapshot / telemetry，不回写 kernel owner，不把 latency/GPU 指标当作学习 reward。
+- 目标值只在本 spec 修订；实测值只来自带 provenance 的 artifact。
+- 任一真负载 gate 失败时保持 SHADOW，回滚到上一个 weights fingerprint / artifact 组合，不通过放宽断言推广。
 
 ## 变更日志
 
-- 2026-05-13: v0.1 SHADOW scaffold land，SLO 目标值定义；baseline 数据待 ACTIVE 阶段回填。
+- 2026-08-01: 对账当前 perf 测试与三个 dry-run 脚本；明确 SLO 是未验证目标，不再把 scaffold 描述成 ACTIVE baseline。
+- 2026-05-13: v0.1 SHADOW scaffold 落地，定义首批 SLO 目标。
