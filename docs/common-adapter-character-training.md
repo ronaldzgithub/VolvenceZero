@@ -256,6 +256,12 @@ python scripts/evaluate_character_package.py \
 - manifest 有 Character LoRA 时，candidate 额外通过真实 PEFT checkpoint 激活 LoRA；
 - wrong-state：candidate 使用同 case 的 counterfactual Personal state。
 
+当前这组物理臂只提供 common-only 与 prefix+optional-LoRA 组合证据，没有独立的
+prefix-only / LoRA-only / prefix+LoRA 三臂消融。因此含 `lora_ref` 的 evaluated
+manifest 仍只能作为 SHADOW 诊断产物，`active_eligible` 会 fail-closed；不得把
+`includes_character_lora=true` 当成重量档晋升许可。角色 LoRA ACTIVE 必须等待包 F
+扩展 typed report/evidence schema、重跑三臂并重新经过 OFFLINE gate。
+
 L2 held-out 的 `applied_control` 仍须匹配 control basis rank，且至少一例非零，避免
 组合臂完全绕过 `z_t` 交互。
 
@@ -319,6 +325,62 @@ python scripts/revalidate_character_packages.py \
 smoke 只证明依赖、几何、序列化、base/candidate/counterfactual 三臂和 Gate 路径能
 运行；它不是 promotion evidence。smoke 得到 deny/退出 2 是正常结果，禁止伪造 allow
 以继续 L2。
+
+仓库提供两份只用于连通性验证的最小数据：
+
+- `data/common-adapter/smoke-train.jsonl`：2 条通用训练 trace；
+- `data/common-adapter/smoke-held-out.jsonl`：1 条 improve、1 条 preserve，并包含
+  counterfactual state 与非零 control。
+
+它们的 case 数、覆盖面和独立性均不满足正式 promotion，不得复制或改名后用作正式
+held-out。可复现的 CPU smoke 命令如下，输出只写临时目录：
+
+```bash
+python scripts/train_common_adapter_model.py train \
+  --model-id Qwen/Qwen2.5-0.5B-Instruct \
+  --model-source .local/hf-cache/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775 \
+  --common-adapter-version qwen2.5-0.5b-common-smoke-20260801 \
+  --traces data/common-adapter/smoke-train.jsonl \
+  --control-basis artifacts/state_kv/control_basis_full_dimension_candidate.json \
+  --output-dir /private/tmp/volvence-common-adapter-smoke-20260801 \
+  --device cpu \
+  --target-modules q_proj v_proj o_proj \
+  --lora-rank 2 \
+  --lora-alpha 4 \
+  --max-steps 2 \
+  --seed 20260801 \
+  --state-kv-states 2 \
+  --state-kv-epochs 1 \
+  --state-kv-slots 1 \
+  --state-kv-rank 1 \
+  --state-kv-seed 20260726
+
+python scripts/train_common_adapter_model.py evaluate \
+  --candidate /private/tmp/volvence-common-adapter-smoke-20260801/common-adapter-candidate.json \
+  --model-source .local/hf-cache/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775 \
+  --held-out data/common-adapter/smoke-held-out.jsonl \
+  --report /private/tmp/volvence-common-adapter-smoke-20260801/held-out-evaluation.json \
+  --gate-record-output /private/tmp/volvence-common-adapter-smoke-20260801/gate-record.json \
+  --device cpu \
+  --min-case-count 2
+
+python scripts/train_common_adapter_model.py publish \
+  --candidate /private/tmp/volvence-common-adapter-smoke-20260801/common-adapter-candidate.json \
+  --gate-record /private/tmp/volvence-common-adapter-smoke-20260801/gate-record.json \
+  --evaluation-report /private/tmp/volvence-common-adapter-smoke-20260801/held-out-evaluation.json \
+  --held-out data/common-adapter/smoke-held-out.jsonl \
+  --output /private/tmp/volvence-common-adapter-smoke-20260801/common-adapter-bundle.json
+```
+
+2026-08-01 的基线 smoke 在 CPU 上真实执行成功：candidate 与 State-KV artifact 均成功
+产生；Gate 因平均相对 NLL 下降、回归率、preserve 回归和 counterfactual accuracy
+不足而 `deny`，evaluate 退出 2；deny bundle 可以发布留审计，但 `require_active()`
+按契约拒绝加载。这组结果只证明链路和 fail-closed 行为，不是模型质量证据。
+
+正式 1.5B 战役开始前必须同时满足：CUDA 训练设备可用、正式 `train.jsonl` 与冻结的
+`held-out.jsonl` 已就绪、为 1.5B 重新生成匹配几何的 control basis，以及有足够空间
+保存只读 run。缺少任一项时保持 SHADOW/旧 ACTIVE，不得把 smoke 产物复制进
+`artifacts/common-adapters/`。
 
 正式训练交付必须保存：命令、git SHA、dirty 状态、模型 snapshot、设备、依赖版本、
 训练/held-out digest、candidate、全部原始 observations、Gate record、回滚路径和最终
