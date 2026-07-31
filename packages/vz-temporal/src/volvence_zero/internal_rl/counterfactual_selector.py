@@ -6,6 +6,10 @@ import hashlib
 import json
 import math
 
+from volvence_zero.conditioning_bank_contracts import (
+    ConditioningBankReadout,
+    ConditioningBankType,
+)
 from volvence_zero.substrate import SubstrateSnapshot
 from volvence_zero.temporal.metacontroller_components import (
     residual_sequence_from_snapshot,
@@ -43,6 +47,55 @@ class CounterfactualActionSelection:
     audit_oracle_regret: float | None
     audit_selected_positive: bool | None
     model_fingerprint: str
+
+
+RELATIONSHIP_CONDITIONED_SELECTOR_FEATURE_SCHEMA_VERSION = (
+    "residual-state+relationship-owner-readout.v1"
+)
+
+
+def relationship_conditioned_selector_state_vector(
+    substrate_snapshot: SubstrateSnapshot,
+    relationship_readout: ConditioningBankReadout,
+) -> tuple[float, ...]:
+    """Append one admitted Relationship owner readout to residual state.
+
+    The temporal selector treats the ordered owner vector as an opaque,
+    bounded condition.  It does not interpret label names or reconstruct
+    relationship semantics.  Cold, zero-confidence, or wrong-bank inputs
+    fail closed so a purported conditioned lane cannot silently collapse to
+    the historical unconditioned v35 selector.
+    """
+
+    if relationship_readout.bank_type is not ConditioningBankType.RELATIONSHIP:
+        raise ValueError(
+            "relationship-conditioned selector requires a RELATIONSHIP bank"
+        )
+    if relationship_readout.is_cold_start:
+        raise ValueError(
+            "relationship-conditioned selector cannot consume a cold-start "
+            "Relationship readout"
+        )
+    if relationship_readout.confidence <= 0.0:
+        raise ValueError(
+            "relationship-conditioned selector requires positive owner "
+            "confidence"
+        )
+    if not relationship_readout.readout:
+        raise ValueError(
+            "relationship-conditioned selector requires a non-empty owner "
+            "readout"
+        )
+    conditioned = tuple(
+        (2.0 * value - 1.0) * relationship_readout.confidence
+        for value in relationship_readout.readout
+    )
+    if any(not -1.0 <= value <= 1.0 for value in conditioned):
+        raise RuntimeError(
+            "relationship-conditioned selector produced an unbounded owner "
+            "condition"
+        )
+    return residual_action_state_vector(substrate_snapshot) + conditioned
 
 
 @dataclass(frozen=True)

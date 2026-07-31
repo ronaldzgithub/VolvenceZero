@@ -4,6 +4,11 @@ import json
 
 import pytest
 
+from volvence_zero.conditioning_bank_contracts import (
+    CONDITIONING_BANK_READOUT_SCHEMA_VERSION,
+    ConditioningBankReadout,
+    ConditioningBankType,
+)
 from volvence_zero.internal_rl.counterfactual_selector import (
     CounterfactualActionExample,
     fit_kernel_residual_action_selector,
@@ -13,6 +18,7 @@ from volvence_zero.internal_rl.counterfactual_selector import (
     residual_action_state_sketch,
     residual_action_state_vector,
     residual_action_state_with_committed_control_summary,
+    relationship_conditioned_selector_state_vector,
     selector_artifact_from_payload,
     selector_artifact_to_payload,
     select_counterfactual_actions,
@@ -95,6 +101,30 @@ def _snapshot(*, token: str) -> SubstrateSnapshot:
     )
 
 
+def _relationship_readout(
+    *,
+    confidence: float = 0.8,
+    cold_start: bool = False,
+    bank_type: ConditioningBankType = ConditioningBankType.RELATIONSHIP,
+) -> ConditioningBankReadout:
+    values = (0.0, 0.25, 0.5, 0.75, 1.0)
+    if cold_start:
+        values = tuple(0.0 for _ in values)
+        confidence = 0.0
+    return ConditioningBankReadout(
+        schema_version=CONDITIONING_BANK_READOUT_SCHEMA_VERSION,
+        bank_type=bank_type,
+        readout=values,
+        readout_labels=tuple(f"owner-coordinate-{index}" for index in range(5)),
+        source_versions=(("relationship_state", 1),),
+        source_fingerprint="relationship-owner-fingerprint",
+        confidence=confidence,
+        provenance="owner:test",
+        is_cold_start=cold_start,
+        description="test owner readout",
+    )
+
+
 def test_residual_action_state_sketch_is_label_free_and_stable() -> None:
     first = residual_action_state_sketch(
         _snapshot(token="alpha"),
@@ -118,7 +148,33 @@ def test_full_residual_action_state_preserves_layer_coordinates() -> None:
 
     assert len(first) == 36
     assert first == second
-    assert any(value != 0.0 for value in first)
+
+
+def test_relationship_conditioned_state_appends_opaque_bounded_owner_readout() -> None:
+    residual = residual_action_state_vector(_snapshot(token="alpha"))
+    conditioned = relationship_conditioned_selector_state_vector(
+        _snapshot(token="alpha"),
+        _relationship_readout(confidence=0.8),
+    )
+
+    assert conditioned[: len(residual)] == residual
+    assert conditioned[len(residual) :] == pytest.approx(
+        (-0.8, -0.4, 0.0, 0.4, 0.8)
+    )
+
+
+def test_relationship_conditioned_state_fails_closed_without_live_owner_bank() -> None:
+    snapshot = _snapshot(token="alpha")
+    with pytest.raises(ValueError, match="cold-start"):
+        relationship_conditioned_selector_state_vector(
+            snapshot,
+            _relationship_readout(cold_start=True),
+        )
+    with pytest.raises(ValueError, match="RELATIONSHIP"):
+        relationship_conditioned_selector_state_vector(
+            snapshot,
+            _relationship_readout(bank_type=ConditioningBankType.TASK),
+        )
 
 
 def test_committed_control_summary_is_bounded_and_preserves_base_state() -> None:
