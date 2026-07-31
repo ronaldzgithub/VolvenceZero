@@ -28,6 +28,7 @@ def load_character_runtime_assets(
     common_adapter_bundle_path: Path,
     manifest_paths: tuple[Path, ...],
     wiring_by_character: Mapping[str, WiringLevel],
+    default_wiring: WiringLevel = WiringLevel.SHADOW,
 ) -> CharacterRuntimeAssets:
     """Load, verify, and register L2 packages against one L1 bundle."""
 
@@ -67,7 +68,7 @@ def load_character_runtime_assets(
         )
         wiring = wiring_by_character.get(
             manifest.character_id,
-            WiringLevel.SHADOW,
+            default_wiring,
         )
         if wiring is WiringLevel.DISABLED:
             manifest_ids.append(manifest.package_id)

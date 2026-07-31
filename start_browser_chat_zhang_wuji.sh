@@ -17,6 +17,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 default_template_path="${ROOT_DIR}/artifacts/lifeform-templates/zhang_wuji/zhang-wuji-live-through.json"
+default_character_package_path="${ROOT_DIR}/artifacts/character-packages/zhang_wuji/zhang-wuji-qwen2.5-1.5b.character-prefix.json"
+default_character_residual_path="${ROOT_DIR}/artifacts/character-packages/zhang_wuji/zhang-wuji-qwen2.5-1.5b.character-residual.json"
 default_character_manifest_path="${ROOT_DIR}/artifacts/character-packages/zhang_wuji/character-package-manifest.json"
 default_common_adapter_path="${ROOT_DIR}/artifacts/common-adapters/qwen2.5-1.5b/common-adapter-bundle.json"
 export VERTICAL="${VERTICAL:-zhang_wuji}"
@@ -29,12 +31,15 @@ export ZHANG_WUJI_TEMPLATE_PATH="${ZHANG_WUJI_TEMPLATE_PATH:-${default_template_
 if [[ -z "${CHARACTER_PACKAGE_MANIFESTS:-}" && "${MODEL_ID}" == "Qwen/Qwen2.5-1.5B-Instruct" ]]; then
   if [[ -f "${default_character_manifest_path}" && -f "${default_common_adapter_path}" ]]; then
     export CHARACTER_PACKAGE_MANIFESTS="${default_character_manifest_path}"
-  elif [[ -z "${ZHANG_WUJI_CHARACTER_PACKAGE_PATH:-}" ]]; then
+  elif [[ -z "${ZHANG_WUJI_CHARACTER_PACKAGE_PATH:-}" && -f "${default_character_package_path}" ]]; then
     export ZHANG_WUJI_CHARACTER_PACKAGE_PATH="${default_character_package_path}"
   fi
 fi
 if [[ -z "${COMMON_ADAPTER_BUNDLE_PATH:-}" && "${MODEL_ID}" == "Qwen/Qwen2.5-1.5B-Instruct" ]]; then
   export COMMON_ADAPTER_BUNDLE_PATH="${default_common_adapter_path}"
+fi
+if [[ -z "${ZHANG_WUJI_CHARACTER_RESIDUAL_PATH:-}" && "${MODEL_ID}" == "Qwen/Qwen2.5-1.5B-Instruct" && -f "${default_character_residual_path}" ]]; then
+  export ZHANG_WUJI_CHARACTER_RESIDUAL_PATH="${default_character_residual_path}"
 fi
 
 if [[ ! -f "${ZHANG_WUJI_TEMPLATE_PATH}" ]]; then

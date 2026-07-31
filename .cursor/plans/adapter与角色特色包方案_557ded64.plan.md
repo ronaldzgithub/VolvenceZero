@@ -4,19 +4,19 @@ overview: 设计"一个共享通用 Adapter Model + 每角色一个特色包"的
 todos:
   - id: packet1-manifest
     content: 收敛包1：CharacterPackageManifest 统一契约 + DATA_CONTRACT 注册 + spec
-    status: pending
+    status: completed
   - id: packet2-substrate-routing
     content: 收敛包2：substrate 多角色 Prefix/KV 注册表与 per-session 路由（含 adapter 版本指纹）
-    status: pending
+    status: completed
   - id: packet3-service-tenant
     content: 收敛包3：lifeform-service 按 character_id 装配会话 + ACTIVE 质量门强制
-    status: pending
+    status: completed
   - id: packet4-training
     content: 收敛包4：通用 Adapter Model 训练管线（rare-heavy LoRA + State-KV 生成器联训顺序）
-    status: pending
+    status: completed
   - id: packet5-bake-evidence
     content: 收敛包5：角色包 bake 管线升级（绑定 adapter 版本）+ 行为保真证据接入晋升门
-    status: pending
+    status: completed
 isProject: false
 ---
 

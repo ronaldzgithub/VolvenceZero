@@ -130,6 +130,10 @@
 #   TEMPLATES_ROOT_DIR=$ROOT_DIR/artifacts/lifeform-templates
 #                                            # chat UI lists/saves templates
 #                                            # under <root>/<vertical>/*.json
+#   CHARACTER_PACKAGE_MANIFESTS=             # os.pathsep-separated L2 manifests
+#   COMMON_ADAPTER_BUNDLE_PATH=               # one gate-admitted process L1 bundle
+#   CHARACTER_PACKAGE_MODE=shadow             # default wiring for all manifests
+#   CHARACTER_PACKAGE_WIRING=                 # optional comma list: id=active,id=shadow
 #   MODEL_ID_ALLOWLIST=                      # comma-separated extra Qwen ids
 #                                            # for the chat UI's "Switch Model"
 #                                            # dropdown; empty = curated default
@@ -478,6 +482,30 @@ def _env_str_or_none(name: str) -> str | None:
     return raw or None
 
 
+def _character_wiring_overrides(raw: str | None) -> dict[str, WiringLevel]:
+    if raw is None:
+        return {}
+    overrides: dict[str, WiringLevel] = {}
+    for item in raw.split(","):
+        character_id, separator, mode = item.strip().partition("=")
+        if not separator or not character_id or not mode:
+            raise RuntimeError(
+                "CHARACTER_PACKAGE_WIRING entries must use character_id=mode."
+            )
+        if character_id in overrides:
+            raise RuntimeError(
+                f"duplicate CHARACTER_PACKAGE_WIRING id {character_id!r}."
+            )
+        try:
+            overrides[character_id] = WiringLevel(mode)
+        except ValueError as exc:
+            raise RuntimeError(
+                "CHARACTER_PACKAGE_WIRING mode must be disabled, shadow, or "
+                f"active; got {mode!r}."
+            ) from exc
+    return overrides
+
+
 def _build_alpha_config() -> AlphaServiceConfig:
     """Compose the AlphaServiceConfig from environment variables.
 
@@ -585,10 +613,14 @@ def main() -> int:
             if value.strip()
         )
         wiring = WiringLevel(character_package_mode)
+        wiring_overrides = _character_wiring_overrides(
+            _env_str_or_none("CHARACTER_PACKAGE_WIRING")
+        )
         assets = load_character_runtime_assets(
             common_adapter_bundle_path=Path(common_adapter_path),
             manifest_paths=manifest_paths,
-            wiring_by_character={"zhang-wuji": wiring},
+            wiring_by_character=wiring_overrides,
+            default_wiring=wiring,
         )
         character_prefix_registry = assets.prefix_registry
         common_adapter_bundle = assets.common_adapter_bundle
