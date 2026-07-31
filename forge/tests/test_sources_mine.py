@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import shutil
 
@@ -9,7 +11,7 @@ import pytest
 
 from volvence_forge.config import ForgeConfig, ForgePaths
 from volvence_forge.foundation import PromptStore, SchemaStore
-from volvence_forge.mine import mine_bundle
+from volvence_forge.mine import _prediction_checks, mine_bundle
 from volvence_forge.sources import SourceParseError, load_source_bundle
 
 
@@ -162,7 +164,7 @@ def test_mine_bundle_uses_semantic_backend_and_schema(tmp_path: Path) -> None:
     )
 
     assert patterns
-    assert patterns[0]["schema_version"] == "forge-failure-pattern.v1"
+    assert patterns[0]["schema_version"] == "forge-failure-pattern.v2"
     assert patterns[0]["surface_status"] == "in-surface"
     assert patterns[0]["editable_target"] == ".cursor/rules/test.mdc"
     assert str(patterns[0]["pattern_id"]).startswith("fp_")
@@ -186,3 +188,121 @@ def test_mine_does_not_merge_near_but_distinct_failure_causes(tmp_path: Path) ->
         ("promotion_verdict",),
         ("transcript",),
     }
+
+
+def test_source_bundle_since_filters_by_evidence_mtime(tmp_path: Path) -> None:
+    config, _ = _fixture_root(tmp_path)
+    transcript = config.paths.transcripts_root / "run.jsonl"
+    verdict = tmp_path / "artifacts" / "run" / "promotion_verdict.json"
+    now = datetime.now(timezone.utc)
+    old = now - timedelta(days=2)
+    os.utime(transcript, (old.timestamp(), old.timestamp()))
+
+    bundle = load_source_bundle(config.paths, since=now - timedelta(days=1))
+
+    assert bundle.transcripts == ()
+    assert len(bundle.verdicts) == 1
+    assert bundle.evidence_since is not None
+    assert verdict in {source.path for source in bundle.verdicts}
+
+
+def test_bench_bundle_parses_turn_axis_and_disqualifier_failures(tmp_path: Path) -> None:
+    config, _ = _fixture_root(tmp_path)
+    bench = tmp_path / "bench"
+    bench.mkdir()
+    bundle_path = bench / "arc-fixture.bundle.json"
+    bundle_path.write_text(
+        json.dumps(
+            {
+                "arc": {
+                    "arc_id": "arc-fixture",
+                    "scenario_id": "F1-fixture",
+                    "family": "F1",
+                    "sessions": [
+                        {
+                            "turns": [
+                                {
+                                    "session_index": 1,
+                                    "turn_index": 1,
+                                    "user_text": "I need you to remember a prior detail.",
+                                    "assistant_text": "I invented a detail instead.",
+                                }
+                            ]
+                        }
+                    ],
+                },
+                "perturn_rubric": {
+                    "turn_scores": [
+                        {
+                            "session_index": 1,
+                            "turn_index": 1,
+                            "scores": {"demonstrated_empathy": 1, "message_tailoring": 3},
+                            "average": 2.0,
+                        }
+                    ]
+                },
+                "disqualifier_report": {
+                    "any_triggered": True,
+                    "results": [
+                        {
+                            "kind": "fabricated_callback",
+                            "triggered": True,
+                            "detail": "invented a prior detail",
+                        }
+                    ],
+                },
+                "arc_axis_scores": {"scores": {"A1": 40, "A2": 80}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    bundle = load_source_bundle(
+        config.paths,
+        max_transcripts=0,
+        max_verdicts=0,
+        max_plans=0,
+        bench_root=bench,
+    )
+
+    assert len(bundle.bench_bundles) == 1
+    source = bundle.bench_bundles[0]
+    assert source.analysis_record()["source_kind"] == "bench_bundle"
+    assert {ref.locator for ref in source.failure_refs} == {
+        "arc:arc-fixture/session:1/turn:1",
+        "arc:arc-fixture/disqualifier:fabricated_callback",
+        "arc:arc-fixture/axis:A1",
+    }
+    assert "arc_axis_scores.A2" in source.passing_behaviors
+
+
+def test_prediction_check_is_inconclusive_without_post_apply_window(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(
+        json.dumps(
+            {
+                "event": "proposal_decision",
+                "decision": "applied",
+                "proposal_id": "pr_fixture",
+                "timestamp": "2026-08-01T00:00:00Z",
+                "prediction": {
+                    "pattern_id": "fp_fixture",
+                    "baseline_value": 2,
+                    "expected_delta": -1,
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    patterns = ({"pattern_id": "fp_fixture", "occurrence_count": 1},)
+
+    unbounded = _prediction_checks(patterns, ledger, evidence_since=None)
+    post_apply = _prediction_checks(
+        patterns,
+        ledger,
+        evidence_since="2026-08-01T00:00:01Z",
+    )
+
+    assert unbounded[0]["status"] == "inconclusive"
+    assert post_apply[0]["status"] == "fulfilled"

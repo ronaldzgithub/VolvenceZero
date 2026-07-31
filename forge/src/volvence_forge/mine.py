@@ -8,6 +8,7 @@ observable failure, not a hidden second decision owner.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import hashlib
 import json
 import math
@@ -31,6 +32,7 @@ from .foundation import (
     utc_stamp,
 )
 from .sources import (
+    BenchBundleSource,
     EvidenceRef,
     PlanSource,
     SourceBundle,
@@ -97,15 +99,20 @@ def _analysis_text(analysis: FailureAnalysis) -> str:
     )
 
 
-def _source_objects(bundle: SourceBundle) -> tuple[TranscriptSource | VerdictSource, ...]:
+def _source_objects(
+    bundle: SourceBundle,
+) -> tuple[TranscriptSource | VerdictSource | BenchBundleSource, ...]:
     """Select only sources carrying explicit structured failure evidence."""
 
     failed_transcripts = tuple(source for source in bundle.transcripts if source.error_refs)
     failed_verdicts = tuple(source for source in bundle.verdicts if source.failed_gate_refs)
-    return failed_transcripts + failed_verdicts
+    failed_bench = tuple(source for source in bundle.bench_bundles if source.failure_refs)
+    return failed_transcripts + failed_verdicts + failed_bench
 
 
-def _fallback_ref(source: TranscriptSource | VerdictSource | PlanSource) -> EvidenceRef:
+def _fallback_ref(
+    source: TranscriptSource | VerdictSource | PlanSource | BenchBundleSource,
+) -> EvidenceRef:
     record = source.analysis_record()
     excerpt = canonical_json(record)[:1200]
     digest = hashlib.sha256(f"{source.source_id}\nsource\n{excerpt}".encode()).hexdigest()
@@ -118,11 +125,15 @@ def _fallback_ref(source: TranscriptSource | VerdictSource | PlanSource) -> Evid
     )
 
 
-def _evidence_refs(source: TranscriptSource | VerdictSource | PlanSource) -> tuple[EvidenceRef, ...]:
+def _evidence_refs(
+    source: TranscriptSource | VerdictSource | PlanSource | BenchBundleSource,
+) -> tuple[EvidenceRef, ...]:
     if isinstance(source, TranscriptSource) and source.error_refs:
         return source.error_refs
     if isinstance(source, VerdictSource) and source.failed_gate_refs:
         return source.failed_gate_refs
+    if isinstance(source, BenchBundleSource) and source.failure_refs:
+        return source.failure_refs
     return (_fallback_ref(source),)
 
 
@@ -249,7 +260,7 @@ def mine_bundle(
             "evidence_refs": evidence_refs,
         }
         pattern = {
-            "schema_version": "forge-failure-pattern.v1",
+            "schema_version": "forge-failure-pattern.v2",
             "pattern_id": _pattern_id(base),
             "title": representative.exposed_mechanism[:240],
             **base,
@@ -308,25 +319,35 @@ def mine_failures(
     destination.mkdir(parents=True, exist_ok=False)
     pattern_path = write_failure_patterns(patterns, destination / "failure_patterns.jsonl")
     inventory = {
-        "schema_version": "forge-source-inventory.v1",
+        "schema_version": "forge-source-inventory.v2",
         "created_at": utc_now(),
         "source_bundle_digest": source_bundle_digest(sources),
         "analysis_backend": backend.backend_name,
         "analysis_model": backend.model_name,
         "embedding_model": embedder.model_name,
+        "evidence_since": sources.evidence_since,
         "counts": {
             "transcripts": len(sources.transcripts),
             "promotion_verdicts": len(sources.verdicts),
             "plans": len(sources.plans),
+            "bench_bundles": len(sources.bench_bundles),
             "explicit_failed_sources": len(_source_objects(sources)),
             "failure_patterns": len(patterns),
         },
     }
     atomic_write_json(destination / "source_inventory.json", inventory)
-    prediction_checks = _prediction_checks(patterns, config.paths.ledger_path)
+    prediction_checks = _prediction_checks(
+        patterns,
+        config.paths.ledger_path,
+        evidence_since=sources.evidence_since,
+    )
     atomic_write_json(
         destination / "prediction_checks.json",
-        {"schema_version": "forge-prediction-checks.v1", "checks": prediction_checks},
+        {
+            "schema_version": "forge-prediction-checks.v2",
+            "evidence_since": sources.evidence_since,
+            "checks": prediction_checks,
+        },
     )
     report_path = destination / "report.md"
     atomic_write_text(report_path, _render_mine_report(inventory, patterns, prediction_checks))
@@ -340,7 +361,10 @@ def mine_failures(
 
 
 def _prediction_checks(
-    patterns: Sequence[Mapping[str, object]], ledger_path: Path
+    patterns: Sequence[Mapping[str, object]],
+    ledger_path: Path,
+    *,
+    evidence_since: str | None,
 ) -> list[dict[str, object]]:
     if not ledger_path.exists():
         return []
@@ -366,6 +390,14 @@ def _prediction_checks(
         if not isinstance(pattern_id, str) or not isinstance(baseline, int) or not isinstance(expected_delta, int):
             raise ValueError(f"invalid prediction fields at {ledger_path}:{line_number}")
         observed = counts.get(pattern_id, 0)
+        applied_at = event.get("timestamp")
+        if not isinstance(applied_at, str):
+            raise ValueError(f"applied ledger event lacks timestamp at {ledger_path}:{line_number}")
+        comparable = evidence_since is not None and _iso_timestamp(evidence_since) >= _iso_timestamp(applied_at)
+        if not comparable:
+            status = "inconclusive"
+        else:
+            status = "fulfilled" if observed <= max(0, baseline + expected_delta) else "refuted"
         checks.append(
             {
                 "proposal_id": event.get("proposal_id"),
@@ -373,10 +405,22 @@ def _prediction_checks(
                 "baseline_value": baseline,
                 "expected_delta": expected_delta,
                 "observed_value": observed,
-                "status": "fulfilled" if observed <= max(0, baseline + expected_delta) else "refuted",
+                "evidence_since": evidence_since,
+                "applied_at": applied_at,
+                "status": status,
             }
         )
     return checks
+
+
+def _iso_timestamp(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"invalid ISO timestamp {value!r}: {exc}") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"timestamp must include timezone: {value!r}")
+    return parsed
 
 
 def _render_mine_report(
@@ -393,7 +437,8 @@ def _render_mine_report(
         f"- Analysis backend: `{inventory['analysis_backend']}` / `{inventory['analysis_model']}`",
         f"- Embedding model: `{inventory['embedding_model']}`",
         f"- Inputs: {counts['transcripts']} transcripts, {counts['promotion_verdicts']} verdicts, "
-        f"{counts['plans']} plans",
+        f"{counts['plans']} plans, {counts['bench_bundles']} bench bundles",
+        f"- Evidence since: `{inventory['evidence_since'] or 'unbounded'}`",
         f"- Explicit failed sources: {counts['explicit_failed_sources']}",
         f"- Failure patterns: {counts['failure_patterns']}",
         "",

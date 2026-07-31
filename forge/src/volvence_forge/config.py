@@ -53,10 +53,22 @@ class ForgePaths:
 
 
 @dataclass(frozen=True)
+class ComponentValidationPolicy:
+    frozen_suite: str
+    held_in_commands: tuple[tuple[str, ...], ...]
+    held_out_commands: tuple[tuple[str, ...], ...]
+
+
+@dataclass(frozen=True)
 class EditableSurfaceEntry:
     component: str
-    glob: str
+    globs: tuple[str, ...]
     semantic_description: str
+    requires_offline_gate: bool = False
+    validation: ComponentValidationPolicy | None = None
+
+    def matches(self, path: PurePosixPath) -> bool:
+        return any(_glob_matches(path, pattern) for pattern in self.globs)
 
 
 @dataclass(frozen=True)
@@ -89,7 +101,8 @@ class ForgeConfig:
             raise ForgeConfigError(f"Invalid YAML in {paths.editable_surface_path}: {exc}") from exc
         if not isinstance(raw, dict):
             raise ForgeConfigError("editable_surface.yaml must contain a mapping")
-        if raw.get("schema_version") != "forge-editable-surface.v1":
+        schema_version = raw.get("schema_version")
+        if schema_version not in {"forge-editable-surface.v1", "forge-editable-surface.v2"}:
             raise ForgeConfigError("Unsupported editable-surface schema_version")
 
         editable_raw = _require_list(raw, "editable")
@@ -97,13 +110,29 @@ class ForgeConfig:
         for index, item in enumerate(editable_raw):
             if not isinstance(item, dict):
                 raise ForgeConfigError(f"editable[{index}] must be a mapping")
+            globs = _editable_globs(item, f"editable[{index}]")
+            requires_offline_gate = item.get("requires_offline_gate", False)
+            if not isinstance(requires_offline_gate, bool):
+                raise ForgeConfigError(
+                    f"editable[{index}].requires_offline_gate must be boolean"
+                )
+            component_validation = _component_validation(
+                item.get("validation"),
+                context=f"editable[{index}].validation",
+            )
+            if requires_offline_gate and component_validation is None:
+                raise ForgeConfigError(
+                    f"editable[{index}] requires an immutable component validation policy"
+                )
             editable_entries.append(
                 EditableSurfaceEntry(
                     component=_require_nonempty_string(item, "component", f"editable[{index}]"),
-                    glob=_require_safe_glob(item, "glob", f"editable[{index}]"),
+                    globs=globs,
                     semantic_description=_require_nonempty_string(
                         item, "semantic_description", f"editable[{index}]"
                     ),
+                    requires_offline_gate=requires_offline_gate,
+                    validation=component_validation,
                 )
             )
 
@@ -118,13 +147,13 @@ class ForgeConfig:
             raise ForgeConfigError("validation.command_timeout_seconds must be a positive integer")
         validation = ValidationPolicy(
             command_timeout_seconds=timeout,
-            static_commands=_parse_commands(validation_raw, "static"),
-            held_in_commands=_parse_commands(validation_raw, "held_in"),
-            held_out_commands=_parse_commands(validation_raw, "held_out"),
+            static_commands=_parse_commands(validation_raw, "static", context="validation"),
+            held_in_commands=_parse_commands(validation_raw, "held_in", context="validation"),
+            held_out_commands=_parse_commands(validation_raw, "held_out", context="validation"),
         )
         config = cls(
             paths=paths,
-            schema_version="forge-editable-surface.v1",
+            schema_version=str(schema_version),
             optimization_stage=_require_nonempty_string(raw, "optimization_stage", "root"),
             editable=tuple(editable_entries),
             read_only=read_only,
@@ -156,7 +185,7 @@ class ForgeConfig:
         if self.is_read_only(normalized):
             return None
         path = PurePosixPath(normalized)
-        return next((entry for entry in self.editable if path.match(entry.glob)), None)
+        return next((entry for entry in self.editable if entry.matches(path)), None)
 
     def resolve_target(self, relative_path: str | Path, *, must_exist: bool) -> Path:
         normalized = self.normalize_relative_path(relative_path)
@@ -168,13 +197,18 @@ class ForgeConfig:
 
     def editable_assets(self) -> tuple[tuple[EditableSurfaceEntry, str, Path], ...]:
         assets: list[tuple[EditableSurfaceEntry, str, Path]] = []
+        seen: set[str] = set()
         for entry in self.editable:
-            for path in sorted(self.paths.repo_root.glob(entry.glob)):
-                if not path.is_file():
-                    continue
-                relative = path.relative_to(self.paths.repo_root).as_posix()
-                if self.editable_entry_for(relative) is not None:
-                    assets.append((entry, relative, path))
+            for pattern in entry.globs:
+                for path in sorted(self.paths.repo_root.glob(pattern)):
+                    if not path.is_file():
+                        continue
+                    relative = path.relative_to(self.paths.repo_root).as_posix()
+                    if relative in seen:
+                        continue
+                    if self.editable_entry_for(relative) is entry:
+                        assets.append((entry, relative, path))
+                        seen.add(relative)
         return tuple(assets)
 
     def _assert_policy_disjoint(self) -> None:
@@ -190,6 +224,17 @@ class ForgeConfig:
                 raise ForgeConfigError(f"Governance path must remain read-only: {path}")
             if self.editable_entry_for(path) is not None:
                 raise ForgeConfigError(f"Read-only governance path also matched editable surface: {path}")
+        components: set[str] = set()
+        for entry in self.editable:
+            if entry.component in components:
+                raise ForgeConfigError(f"Editable component must be unique: {entry.component}")
+            components.add(entry.component)
+            if entry.validation is not None:
+                suite_glob = entry.validation.frozen_suite
+                if suite_glob not in self.read_only:
+                    raise ForgeConfigError(
+                        f"Component frozen suite must be explicitly read-only: {suite_glob}"
+                    )
 
 
 def _require_mapping(raw: dict[str, Any], key: str) -> dict[str, Any]:
@@ -227,6 +272,33 @@ def _require_safe_glob(raw: dict[str, Any], key: str, context: str) -> str:
     return _validate_glob(raw.get(key), f"{context}.{key}")
 
 
+def _editable_globs(raw: dict[str, Any], context: str) -> tuple[str, ...]:
+    has_glob = "glob" in raw
+    has_paths = "paths" in raw
+    if has_glob == has_paths:
+        raise ForgeConfigError(f"{context} must declare exactly one of glob or paths")
+    if has_glob:
+        return (_require_safe_glob(raw, "glob", context),)
+    paths = raw.get("paths")
+    if not isinstance(paths, list) or not paths:
+        raise ForgeConfigError(f"{context}.paths must be a non-empty list")
+    return tuple(_validate_glob(value, f"{context}.paths[{index}]") for index, value in enumerate(paths))
+
+
+def _component_validation(value: Any, *, context: str) -> ComponentValidationPolicy | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ForgeConfigError(f"{context} must be a mapping")
+    frozen_suite = _require_nonempty_string(value, "frozen_suite", context)
+    _validate_glob(frozen_suite, f"{context}.frozen_suite")
+    return ComponentValidationPolicy(
+        frozen_suite=frozen_suite,
+        held_in_commands=_parse_commands(value, "held_in", context=context),
+        held_out_commands=_parse_commands(value, "held_out", context=context),
+    )
+
+
 def _bounded_float(raw: dict[str, Any], key: str) -> float:
     value = raw.get(key)
     if not isinstance(value, (int, float)) or isinstance(value, bool):
@@ -237,16 +309,18 @@ def _bounded_float(raw: dict[str, Any], key: str) -> float:
     return numeric
 
 
-def _parse_commands(raw: dict[str, Any], key: str) -> tuple[tuple[str, ...], ...]:
+def _parse_commands(
+    raw: dict[str, Any], key: str, *, context: str
+) -> tuple[tuple[str, ...], ...]:
     commands = raw.get(key)
     if not isinstance(commands, list) or not commands:
-        raise ForgeConfigError(f"validation.{key} must be a non-empty command list")
+        raise ForgeConfigError(f"{context}.{key} must be a non-empty command list")
     parsed: list[tuple[str, ...]] = []
     for index, command in enumerate(commands):
         if not isinstance(command, list) or not command:
-            raise ForgeConfigError(f"validation.{key}[{index}] must be a non-empty argv list")
+            raise ForgeConfigError(f"{context}.{key}[{index}] must be a non-empty argv list")
         if not all(isinstance(part, str) and part for part in command):
-            raise ForgeConfigError(f"validation.{key}[{index}] contains an invalid argv item")
+            raise ForgeConfigError(f"{context}.{key}[{index}] contains an invalid argv item")
         parsed.append(tuple(command))
     return tuple(parsed)
 
@@ -255,6 +329,8 @@ def _glob_matches(path: PurePosixPath, pattern: str) -> bool:
     """Match repository globs with explicit recursive ``/**`` semantics."""
 
     if pattern.endswith("/**"):
-        prefix = PurePosixPath(pattern[:-3].rstrip("/"))
-        return path == prefix or prefix in path.parents
+        prefix_pattern = pattern[:-3].rstrip("/")
+        return path.match(prefix_pattern) or any(
+            parent.match(prefix_pattern) for parent in path.parents
+        )
     return path.match(pattern)

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, TypeVar
 
 import yaml
 
@@ -23,6 +24,9 @@ VERDICT_GATE_FIELDS = (
 )
 PASSING_VERDICTS = frozenset({"causal-supported", "supported", "pass", "passed", "promoted"})
 FAILING_VERDICTS = frozenset({"not-supported", "blocked", "fail", "failed", "rejected"})
+BENCH_TURN_AVERAGE_THRESHOLD = 3.0
+BENCH_ARC_AXIS_THRESHOLD = 60.0
+_T = TypeVar("_T")
 
 
 class SourceParseError(ForgeError):
@@ -109,10 +113,35 @@ class PlanSource:
 
 
 @dataclass(frozen=True)
+class BenchBundleSource:
+    source_id: str
+    path: Path
+    arc_id: str
+    scenario_id: str
+    family: str
+    failure_refs: tuple[EvidenceRef, ...]
+    passing_behaviors: tuple[str, ...]
+
+    def analysis_record(self) -> dict[str, Any]:
+        return {
+            "source_id": self.source_id,
+            "source_kind": "bench_bundle",
+            "path": str(self.path),
+            "arc_id": self.arc_id,
+            "scenario_id": self.scenario_id,
+            "family": self.family,
+            "failures": [ref.as_dict() for ref in self.failure_refs],
+            "passing_behaviors": list(self.passing_behaviors),
+        }
+
+
+@dataclass(frozen=True)
 class SourceBundle:
     transcripts: tuple[TranscriptSource, ...]
     verdicts: tuple[VerdictSource, ...]
     plans: tuple[PlanSource, ...]
+    bench_bundles: tuple[BenchBundleSource, ...] = ()
+    evidence_since: str | None = None
 
 
 def parse_transcript(path: Path) -> TranscriptSource:
@@ -312,6 +341,193 @@ def _parse_legacy_markdown_plan(path: Path, text: str) -> PlanSource:
     )
 
 
+def parse_bench_bundle(path: Path) -> BenchBundleSource:
+    """Parse a judged Companion Bench arc into bounded, turn-level evidence."""
+
+    raw = _read_json_object(path, context="Companion Bench bundle")
+    arc = _required_mapping(raw, "arc", path)
+    arc_id = _required_string(arc, "arc_id", path)
+    scenario_id = _required_string(arc, "scenario_id", path)
+    family = _required_string(arc, "family", path)
+    turns = _bench_turn_index(arc, path)
+    failures: list[EvidenceRef] = []
+    passing: set[str] = set()
+
+    perturn = _required_mapping(raw, "perturn_rubric", path)
+    turn_scores = perturn.get("turn_scores")
+    if not isinstance(turn_scores, list):
+        raise SourceParseError(f"perturn_rubric.turn_scores must be a list: {path}")
+    criterion_values: dict[str, list[float]] = {}
+    low_rows: list[tuple[float, int, int, dict[str, float]]] = []
+    for index, row in enumerate(turn_scores):
+        if not isinstance(row, dict):
+            raise SourceParseError(f"turn_scores[{index}] must be a mapping: {path}")
+        session_index = _required_integer(row, "session_index", path)
+        turn_index = _required_integer(row, "turn_index", path)
+        scores_raw = row.get("scores")
+        if not isinstance(scores_raw, dict) or not scores_raw:
+            raise SourceParseError(f"turn_scores[{index}].scores must be a non-empty mapping: {path}")
+        scores: dict[str, float] = {}
+        for criterion, value in scores_raw.items():
+            if not isinstance(criterion, str) or not criterion:
+                raise SourceParseError(f"turn_scores[{index}] has an invalid criterion name: {path}")
+            numeric = _finite_number(value, f"turn_scores[{index}].scores.{criterion}", path)
+            if not 0.0 <= numeric <= 5.0:
+                raise SourceParseError(f"turn score must be in [0, 5] at {path}:{index}")
+            scores[criterion] = numeric
+            criterion_values.setdefault(criterion, []).append(numeric)
+        average = _finite_number(row.get("average"), f"turn_scores[{index}].average", path)
+        recomputed = sum(scores.values()) / len(scores)
+        if abs(average - recomputed) > 1e-6:
+            raise SourceParseError(
+                f"turn_scores[{index}].average does not match criterion scores: {path}"
+            )
+        if average < BENCH_TURN_AVERAGE_THRESHOLD:
+            low_rows.append((average, session_index, turn_index, scores))
+
+    source_id = _source_id("bench_bundle", path)
+    for average, session_index, turn_index, scores in sorted(
+        low_rows, key=lambda item: (item[0], item[1], item[2])
+    )[:12]:
+        turn = turns.get((session_index, turn_index))
+        if turn is None:
+            raise SourceParseError(
+                f"per-turn score has no matching dialogue turn session={session_index} "
+                f"turn={turn_index}: {path}"
+            )
+        excerpt = canonical_json(
+            {
+                "average": average,
+                "scores": scores,
+                "user_text": _normalize_excerpt(_required_string(turn, "user_text", path), 500),
+                "assistant_text": _normalize_excerpt(
+                    _required_string(turn, "assistant_text", path), 500
+                ),
+            }
+        )
+        failures.append(
+            _evidence_ref(
+                source_id,
+                "bench_bundle",
+                f"arc:{arc_id}/session:{session_index}/turn:{turn_index}",
+                excerpt,
+            )
+        )
+    for criterion, values in criterion_values.items():
+        if values and sum(values) / len(values) >= BENCH_TURN_AVERAGE_THRESHOLD:
+            passing.add(f"perturn_rubric.{criterion}")
+
+    disqualifier = _required_mapping(raw, "disqualifier_report", path)
+    any_triggered = disqualifier.get("any_triggered")
+    if not isinstance(any_triggered, bool):
+        raise SourceParseError(f"disqualifier_report.any_triggered must be boolean: {path}")
+    results = disqualifier.get("results")
+    if not isinstance(results, list):
+        raise SourceParseError(f"disqualifier_report.results must be a list: {path}")
+    triggered_count = 0
+    for index, result in enumerate(results):
+        if not isinstance(result, dict):
+            raise SourceParseError(f"disqualifier_report.results[{index}] must be a mapping: {path}")
+        kind = _required_string(result, "kind", path)
+        triggered = result.get("triggered")
+        if not isinstance(triggered, bool):
+            raise SourceParseError(
+                f"disqualifier_report.results[{index}].triggered must be boolean: {path}"
+            )
+        if triggered:
+            triggered_count += 1
+            detail = _required_string(result, "detail", path)
+            failures.append(
+                _evidence_ref(
+                    source_id,
+                    "bench_bundle",
+                    f"arc:{arc_id}/disqualifier:{kind}",
+                    detail,
+                )
+            )
+        else:
+            passing.add(f"disqualifier.{kind}=false")
+    if any_triggered != (triggered_count > 0):
+        raise SourceParseError(f"disqualifier_report.any_triggered is inconsistent: {path}")
+
+    arc_scores = _required_mapping(_required_mapping(raw, "arc_axis_scores", path), "scores", path)
+    for axis, value in arc_scores.items():
+        if not isinstance(axis, str) or not axis:
+            raise SourceParseError(f"arc_axis_scores has an invalid axis name: {path}")
+        numeric = _finite_number(value, f"arc_axis_scores.scores.{axis}", path)
+        if not 0.0 <= numeric <= 100.0:
+            raise SourceParseError(f"arc axis score must be in [0, 100] at {path}:{axis}")
+        if numeric < BENCH_ARC_AXIS_THRESHOLD:
+            failures.append(
+                _evidence_ref(
+                    source_id,
+                    "bench_bundle",
+                    f"arc:{arc_id}/axis:{axis}",
+                    f"arc_axis_scores.{axis}={numeric:.3f}",
+                )
+            )
+        else:
+            passing.add(f"arc_axis_scores.{axis}")
+
+    return BenchBundleSource(
+        source_id=source_id,
+        path=path,
+        arc_id=arc_id,
+        scenario_id=scenario_id,
+        family=family,
+        failure_refs=tuple(_deduplicate_refs(failures)),
+        passing_behaviors=tuple(sorted(passing)),
+    )
+
+
+def parse_arc_failure_log(path: Path) -> tuple[BenchBundleSource, ...]:
+    """Parse transport/runtime failures that prevented a bench arc bundle."""
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (FileNotFoundError, UnicodeDecodeError) as exc:
+        raise SourceParseError(f"Cannot read arc failure log {path}: {exc}") from exc
+    sources: list[BenchBundleSource] = []
+    for line_number, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        try:
+            raw = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise SourceParseError(f"Invalid arc failure JSON at {path}:{line_number}: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise SourceParseError(f"Arc failure row must be a mapping at {path}:{line_number}")
+        scenario_id = _required_string(raw, "scenario_id", path)
+        stage = _required_string(raw, "stage", path)
+        exception_type = _required_string(raw, "exception_type", path)
+        exception = _required_string(raw, "exception", path)
+        source_id = f"bench_bundle:{sha256_text(f'{path.resolve()}:{line_number}')[:16]}"
+        reference = _evidence_ref(
+            source_id,
+            "bench_bundle",
+            f"arc_failure:{line_number}/stage:{stage}",
+            canonical_json(
+                {
+                    "exception": _normalize_excerpt(exception, 800),
+                    "exception_type": exception_type,
+                    "stage": stage,
+                }
+            ),
+        )
+        sources.append(
+            BenchBundleSource(
+                source_id=source_id,
+                path=path,
+                arc_id=f"failed:{scenario_id}:{line_number}",
+                scenario_id=scenario_id,
+                family="arc_failure",
+                failure_refs=(reference,),
+                passing_behaviors=(),
+            )
+        )
+    return tuple(sources)
+
+
 def load_source_bundle(
     paths: ForgePaths,
     *,
@@ -319,27 +535,169 @@ def load_source_bundle(
     max_verdicts: int | None = None,
     max_plans: int | None = None,
     verdict_root: Path | None = None,
+    bench_root: Path | None = None,
+    max_bench_bundles: int | None = None,
+    since: datetime | None = None,
 ) -> SourceBundle:
+    if since is not None and since.tzinfo is None:
+        raise SourceParseError("evidence since timestamp must include a timezone")
     transcript_paths = sorted(paths.transcripts_root.rglob("*.jsonl")) if paths.transcripts_root.exists() else []
     verdict_base = (verdict_root or paths.artifacts_root).resolve()
     verdict_paths = sorted(verdict_base.rglob("promotion_verdict.json")) if verdict_base.exists() else []
     plan_paths = sorted(paths.plans_root.glob("*.plan.md")) if paths.plans_root.exists() else []
+    bench_base = (bench_root or paths.artifacts_root).resolve()
+    bench_paths = sorted(bench_base.rglob("*.bundle.json")) if bench_base.exists() else []
+    arc_failure_paths = sorted(bench_base.rglob("arc_failure.jsonl")) if bench_base.exists() else []
+    transcript_paths = _modified_since(transcript_paths, since)
+    verdict_paths = _modified_since(verdict_paths, since)
+    plan_paths = _modified_since(plan_paths, since)
+    bench_paths = _modified_since(bench_paths, since)
+    arc_failure_paths = _modified_since(arc_failure_paths, since)
     transcript_paths = _limit(transcript_paths, max_transcripts)
     verdict_paths = _limit(verdict_paths, max_verdicts)
     plan_paths = _limit(plan_paths, max_plans)
+    bench_sources: list[BenchBundleSource] = [parse_bench_bundle(path) for path in bench_paths]
+    for path in arc_failure_paths:
+        bench_sources.extend(parse_arc_failure_log(path))
+    bench_sources = _limit(bench_sources, max_bench_bundles)
     return SourceBundle(
         transcripts=tuple(parse_transcript(path) for path in transcript_paths),
         verdicts=tuple(parse_verdict(path) for path in verdict_paths),
         plans=tuple(parse_plan(path) for path in plan_paths),
+        bench_bundles=tuple(bench_sources),
+        evidence_since=_render_timestamp(since) if since is not None else None,
     )
 
 
-def _limit(paths: list[Path], maximum: int | None) -> list[Path]:
+def parse_evidence_timestamp(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise SourceParseError(f"Invalid evidence timestamp {value!r}: {exc}") from exc
+    if parsed.tzinfo is None:
+        raise SourceParseError("Evidence timestamp must include a timezone")
+    return parsed.astimezone(timezone.utc)
+
+
+def latest_applied_timestamp(ledger_path: Path) -> datetime:
+    if not ledger_path.exists():
+        raise SourceParseError(f"Missing Forge ledger: {ledger_path}")
+    timestamps: list[datetime] = []
+    for line_number, line in enumerate(ledger_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise SourceParseError(f"Invalid ledger JSON at {ledger_path}:{line_number}: {exc}") from exc
+        if not isinstance(event, dict):
+            raise SourceParseError(f"Ledger event must be a mapping at {ledger_path}:{line_number}")
+        if event.get("event") != "proposal_decision" or event.get("decision") != "applied":
+            continue
+        timestamp = event.get("timestamp")
+        if not isinstance(timestamp, str):
+            raise SourceParseError(f"Applied ledger event lacks timestamp at {ledger_path}:{line_number}")
+        timestamps.append(parse_evidence_timestamp(timestamp))
+    if not timestamps:
+        raise SourceParseError("--evidence-since-ledger requires at least one applied proposal event")
+    return max(timestamps)
+
+
+def _limit(values: list[_T], maximum: int | None) -> list[_T]:
     if maximum is None:
-        return paths
+        return values
     if maximum < 0:
         raise SourceParseError("Source limits must be non-negative")
-    return paths[:maximum]
+    return values[:maximum]
+
+
+def _modified_since(paths: list[Path], since: datetime | None) -> list[Path]:
+    if since is None:
+        return paths
+    threshold = since.timestamp()
+    selected: list[Path] = []
+    for path in paths:
+        try:
+            modified = path.stat().st_mtime
+        except OSError as exc:
+            raise SourceParseError(f"Cannot stat evidence source {path}: {exc}") from exc
+        if modified >= threshold:
+            selected.append(path)
+    return selected
+
+
+def _render_timestamp(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _read_json_object(path: Path, *, context: str) -> dict[str, Any]:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise SourceParseError(f"Missing {context}: {path}") from exc
+    except UnicodeDecodeError as exc:
+        raise SourceParseError(f"Cannot decode {context} {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise SourceParseError(f"Invalid {context} JSON {path}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise SourceParseError(f"{context} must be a mapping: {path}")
+    return raw
+
+
+def _required_mapping(raw: dict[str, Any], key: str, path: Path) -> dict[str, Any]:
+    value = raw.get(key)
+    if not isinstance(value, dict):
+        raise SourceParseError(f"{key} must be a mapping: {path}")
+    return value
+
+
+def _required_string(raw: dict[str, Any], key: str, path: Path) -> str:
+    value = raw.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise SourceParseError(f"{key} must be a non-empty string: {path}")
+    return value.strip()
+
+
+def _required_integer(raw: dict[str, Any], key: str, path: Path) -> int:
+    value = raw.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise SourceParseError(f"{key} must be an integer: {path}")
+    return value
+
+
+def _finite_number(value: Any, context: str, path: Path) -> float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise SourceParseError(f"{context} must be numeric: {path}")
+    numeric = float(value)
+    if numeric != numeric or numeric in {float("inf"), float("-inf")}:
+        raise SourceParseError(f"{context} must be finite: {path}")
+    return numeric
+
+
+def _bench_turn_index(arc: dict[str, Any], path: Path) -> dict[tuple[int, int], dict[str, Any]]:
+    sessions = arc.get("sessions")
+    if not isinstance(sessions, list):
+        raise SourceParseError(f"arc.sessions must be a list: {path}")
+    indexed: dict[tuple[int, int], dict[str, Any]] = {}
+    for session_position, session in enumerate(sessions):
+        if not isinstance(session, dict):
+            raise SourceParseError(f"arc.sessions[{session_position}] must be a mapping: {path}")
+        turns = session.get("turns")
+        if not isinstance(turns, list):
+            raise SourceParseError(f"arc.sessions[{session_position}].turns must be a list: {path}")
+        for turn_position, turn in enumerate(turns):
+            if not isinstance(turn, dict):
+                raise SourceParseError(
+                    f"arc.sessions[{session_position}].turns[{turn_position}] must be a mapping: {path}"
+                )
+            identity = (
+                _required_integer(turn, "session_index", path),
+                _required_integer(turn, "turn_index", path),
+            )
+            if identity in indexed:
+                raise SourceParseError(f"Duplicate bench turn identity {identity}: {path}")
+            indexed[identity] = turn
+    return indexed
 
 
 def _source_id(kind: str, path: Path) -> str:
@@ -429,5 +787,7 @@ def source_bundle_digest(bundle: SourceBundle) -> str:
         "transcripts": [source.analysis_record() for source in bundle.transcripts],
         "verdicts": [source.analysis_record() for source in bundle.verdicts],
         "plans": [source.analysis_record() for source in bundle.plans],
+        "bench_bundles": [source.analysis_record() for source in bundle.bench_bundles],
+        "evidence_since": bundle.evidence_since,
     }
     return sha256_text(canonical_json(payload))

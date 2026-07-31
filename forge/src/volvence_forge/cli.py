@@ -20,7 +20,7 @@ from .foundation import (
 )
 from .mine import mine_failures
 from .propose import propose_changes
-from .sources import load_source_bundle
+from .sources import latest_applied_timestamp, load_source_bundle, parse_evidence_timestamp
 from .validate import validate_proposal
 
 
@@ -35,9 +35,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_backend_arguments(mine, default="openai", allow_none=False)
     mine.add_argument("--output", type=Path)
     mine.add_argument("--verdict-root", type=Path)
+    mine.add_argument("--bench-root", type=Path)
     mine.add_argument("--max-transcripts", type=int)
     mine.add_argument("--max-verdicts", type=int)
     mine.add_argument("--max-plans", type=int)
+    mine.add_argument("--max-bench-bundles", type=int)
+    evidence_window = mine.add_mutually_exclusive_group()
+    evidence_window.add_argument("--evidence-since")
+    evidence_window.add_argument("--evidence-since-ledger", action="store_true")
 
     propose = subparsers.add_parser("propose", help="Generate bounded proposal bundles")
     propose.add_argument("failure_patterns", type=Path)
@@ -69,12 +74,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "mine":
             backend = _required_backend(args)
             embedder = _embedder(args)
+            evidence_since = None
+            if args.evidence_since is not None:
+                evidence_since = parse_evidence_timestamp(args.evidence_since)
+            elif args.evidence_since_ledger:
+                evidence_since = latest_applied_timestamp(paths.ledger_path)
             sources = load_source_bundle(
                 paths,
                 max_transcripts=args.max_transcripts,
                 max_verdicts=args.max_verdicts,
                 max_plans=args.max_plans,
                 verdict_root=args.verdict_root,
+                bench_root=args.bench_root,
+                max_bench_bundles=args.max_bench_bundles,
+                since=evidence_since,
             )
             result = mine_failures(
                 config=config,
