@@ -8,6 +8,7 @@ optimizer-level "reflection" that can feed into CMS session-medium band.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 
 def _clamp(value: float) -> float:
@@ -25,6 +26,7 @@ class M3OptimizerState:
     fast_beta: float
     slow_beta: float
     slow_interval: int
+    slow_gain: float
     mean_fast_norm: float
     mean_slow_norm: float
     description: str
@@ -46,12 +48,18 @@ class M3Optimizer:
         fast_beta: float = 0.9,
         slow_beta: float = 0.99,
         slow_interval: int = 4,
+        slow_gain: float = 0.0,
     ) -> None:
+        if not math.isfinite(slow_gain) or not 0.0 <= slow_gain <= 1.0:
+            raise ValueError(
+                f"M3 slow_gain must be finite and in [0, 1], got {slow_gain!r}"
+            )
         self._num_groups = num_groups
         self._group_dim = group_dim
         self._fast_beta = fast_beta
         self._slow_beta = slow_beta
         self._slow_interval = max(slow_interval, 1)
+        self._slow_gain = slow_gain
         self._fast_momentum: list[list[float]] = [
             [0.0] * group_dim for _ in range(num_groups)
         ]
@@ -100,9 +108,17 @@ class M3Optimizer:
                     + (1.0 - self._fast_beta) * float(grad[dim_idx])
                 )
             new_values: list[float] = []
+            slow = self._slow_momentum[group_idx]
             for dim_idx in range(self._group_dim):
                 new_values.append(
-                    _clamp(float(param[dim_idx]) + learning_rate * fast[dim_idx])
+                    _clamp(
+                        float(param[dim_idx])
+                        + learning_rate
+                        * (
+                            fast[dim_idx]
+                            + self._slow_gain * slow[dim_idx]
+                        )
+                    )
                 )
             updated.append(tuple(new_values))
 
@@ -160,6 +176,7 @@ class M3Optimizer:
             fast_beta=self._fast_beta,
             slow_beta=self._slow_beta,
             slow_interval=self._slow_interval,
+            slow_gain=self._slow_gain,
             mean_fast_norm=mean_fast_norm,
             mean_slow_norm=mean_slow_norm,
             description=(
@@ -167,14 +184,42 @@ class M3Optimizer:
                 f"slow_updates={self._slow_update_count}, "
                 f"groups={self._num_groups}, dim={self._group_dim}, "
                 f"fast_beta={self._fast_beta}, slow_beta={self._slow_beta}, "
-                f"slow_interval={self._slow_interval}, "
+                f"slow_interval={self._slow_interval}, slow_gain={self._slow_gain}, "
                 f"mean_fast_norm={mean_fast_norm:.3f}, mean_slow_norm={mean_slow_norm:.3f}."
             ),
         )
 
     def restore_state(self, state: M3OptimizerState) -> None:
-        for group_idx in range(min(self._num_groups, len(state.fast_momentum))):
-            for dim_idx in range(min(self._group_dim, len(state.fast_momentum[group_idx]))):
+        expected_config = (
+            self._num_groups,
+            self._group_dim,
+            self._fast_beta,
+            self._slow_beta,
+            self._slow_interval,
+            self._slow_gain,
+        )
+        state_config = (
+            state.num_groups,
+            state.group_dim,
+            state.fast_beta,
+            state.slow_beta,
+            state.slow_interval,
+            state.slow_gain,
+        )
+        if state_config != expected_config:
+            raise ValueError(
+                "M3 optimizer state configuration mismatch: "
+                f"state={state_config!r}, optimizer={expected_config!r}"
+            )
+        if (
+            len(state.fast_momentum) != self._num_groups
+            or len(state.slow_momentum) != self._num_groups
+            or any(len(row) != self._group_dim for row in state.fast_momentum)
+            or any(len(row) != self._group_dim for row in state.slow_momentum)
+        ):
+            raise ValueError("M3 optimizer state momentum shape mismatch")
+        for group_idx in range(self._num_groups):
+            for dim_idx in range(self._group_dim):
                 self._fast_momentum[group_idx][dim_idx] = state.fast_momentum[group_idx][dim_idx]
                 self._slow_momentum[group_idx][dim_idx] = state.slow_momentum[group_idx][dim_idx]
         self._step_count = state.step_count

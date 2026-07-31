@@ -37,8 +37,9 @@ from volvence_zero.prediction import (
 from volvence_zero.temporal import M3Optimizer
 
 
-GATE9_SCHEMA_VERSION = "gate9-bounded-selfmod.v1"
+GATE9_SCHEMA_VERSION = "gate9-bounded-selfmod.v2"
 GATE9_SEEDS = GATE7_V3_TRACE_SEEDS
+GATE9_M3_SLOW_GAIN = 1.0
 GATE9_OPTIMIZER_ARMS = ("m3", "sgd", "plain-momentum", "adam")
 GATE9_OPTIMIZER_SCENARIOS = (
     "direction-switch",
@@ -308,6 +309,7 @@ def _run_optimizer_arm(
         fast_beta=0.9,
         slow_beta=0.99,
         slow_interval=4,
+        slow_gain=GATE9_M3_SLOW_GAIN,
     ) if arm == "m3" else None
     m3_initial = m3.export_state() if m3 is not None else None
     momentum = [0.0 for _ in range(dim)]

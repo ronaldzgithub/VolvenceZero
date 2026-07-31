@@ -1,0 +1,12 @@
+{"arm":"pe-gated","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.2448311562944208,"owner_drift":0.006894759369172051,"seed":727}
+{"arm":"no-update","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.25,"owner_drift":0.0,"seed":727}
+{"arm":"always-update","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.2447707375271715,"owner_drift":0.006968987126987829,"seed":727}
+{"arm":"random-gate","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.2448181501007819,"owner_drift":0.006905896233789268,"seed":727}
+{"arm":"pe-gated","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.2632940730621333,"owner_drift":0.007050085198823706,"seed":733}
+{"arm":"no-update","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.26875,"owner_drift":0.0,"seed":733}
+{"arm":"always-update","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.26322740811789264,"owner_drift":0.007129177672604745,"seed":733}
+{"arm":"random-gate","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.26329007837588314,"owner_drift":0.00705358174498382,"seed":733}
+{"arm":"pe-gated","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.2438187225966998,"owner_drift":0.007604888914333658,"seed":739}
+{"arm":"no-update","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.25,"owner_drift":0.0,"seed":739}
+{"arm":"always-update","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.24374010655351705,"owner_drift":0.007694893415763048,"seed":739}
+{"arm":"random-gate","frozen_substrate_mutation_count":0,"old_mode_forgetting":0.24381296314525913,"owner_drift":0.0076086031133855096,"seed":739}

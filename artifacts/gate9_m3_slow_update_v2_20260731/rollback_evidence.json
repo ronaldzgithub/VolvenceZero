@@ -1,0 +1,283 @@
+{
+  "memory_rows": [
+    {
+      "arm": "pe-gated",
+      "exact": true,
+      "seed": 727
+    },
+    {
+      "arm": "no-update",
+      "exact": true,
+      "seed": 727
+    },
+    {
+      "arm": "always-update",
+      "exact": true,
+      "seed": 727
+    },
+    {
+      "arm": "random-gate",
+      "exact": true,
+      "seed": 727
+    },
+    {
+      "arm": "pe-gated",
+      "exact": true,
+      "seed": 733
+    },
+    {
+      "arm": "no-update",
+      "exact": true,
+      "seed": 733
+    },
+    {
+      "arm": "always-update",
+      "exact": true,
+      "seed": 733
+    },
+    {
+      "arm": "random-gate",
+      "exact": true,
+      "seed": 733
+    },
+    {
+      "arm": "pe-gated",
+      "exact": true,
+      "seed": 739
+    },
+    {
+      "arm": "no-update",
+      "exact": true,
+      "seed": 739
+    },
+    {
+      "arm": "always-update",
+      "exact": true,
+      "seed": 739
+    },
+    {
+      "arm": "random-gate",
+      "exact": true,
+      "seed": 739
+    }
+  ],
+  "optimizer_rows": [
+    {
+      "arm": "m3",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 727
+    },
+    {
+      "arm": "sgd",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 727
+    },
+    {
+      "arm": "plain-momentum",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 727
+    },
+    {
+      "arm": "adam",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 727
+    },
+    {
+      "arm": "m3",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 727
+    },
+    {
+      "arm": "sgd",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 727
+    },
+    {
+      "arm": "plain-momentum",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 727
+    },
+    {
+      "arm": "adam",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 727
+    },
+    {
+      "arm": "m3",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 727
+    },
+    {
+      "arm": "sgd",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 727
+    },
+    {
+      "arm": "plain-momentum",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 727
+    },
+    {
+      "arm": "adam",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 727
+    },
+    {
+      "arm": "m3",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 733
+    },
+    {
+      "arm": "sgd",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 733
+    },
+    {
+      "arm": "plain-momentum",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 733
+    },
+    {
+      "arm": "adam",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 733
+    },
+    {
+      "arm": "m3",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 733
+    },
+    {
+      "arm": "sgd",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 733
+    },
+    {
+      "arm": "plain-momentum",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 733
+    },
+    {
+      "arm": "adam",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 733
+    },
+    {
+      "arm": "m3",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 733
+    },
+    {
+      "arm": "sgd",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 733
+    },
+    {
+      "arm": "plain-momentum",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 733
+    },
+    {
+      "arm": "adam",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 733
+    },
+    {
+      "arm": "m3",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 739
+    },
+    {
+      "arm": "sgd",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 739
+    },
+    {
+      "arm": "plain-momentum",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 739
+    },
+    {
+      "arm": "adam",
+      "exact": true,
+      "scenario": "direction-switch",
+      "seed": 739
+    },
+    {
+      "arm": "m3",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 739
+    },
+    {
+      "arm": "sgd",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 739
+    },
+    {
+      "arm": "plain-momentum",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 739
+    },
+    {
+      "arm": "adam",
+      "exact": true,
+      "scenario": "scale-drift",
+      "seed": 739
+    },
+    {
+      "arm": "m3",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 739
+    },
+    {
+      "arm": "sgd",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 739
+    },
+    {
+      "arm": "plain-momentum",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 739
+    },
+    {
+      "arm": "adam",
+      "exact": true,
+      "scenario": "intermittent-reversal",
+      "seed": 739
+    }
+  ],
+  "schema_version": "gate9-bounded-selfmod.v2"
+}
