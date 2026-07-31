@@ -455,6 +455,7 @@ from lifeform_service.substrate_registry import (
     build_qwen_runtime_loader,
     build_substrate_provider_from_env,
 )
+from lifeform_service.character_packages import load_character_runtime_assets
 from lifeform_service.verticals import default_vertical_name, discover_verticals
 from volvence_zero.substrate import (
     CharacterPrefixKVPackage,
@@ -462,6 +463,7 @@ from volvence_zero.substrate import (
     SubstrateFallbackMode,
     build_transformers_runtime_with_fallback,
 )
+from volvence_zero.runtime import WiringLevel
 
 
 def _env_bool(name: str, *, default: bool = False) -> bool:
@@ -517,6 +519,18 @@ def main() -> int:
     max_sessions = int(os.environ["MAX_SESSIONS"])
     idle_eviction_seconds = float(os.environ["IDLE_EVICTION_SECONDS"])
     character_package_path = _env_str_or_none("ZHANG_WUJI_CHARACTER_PACKAGE_PATH")
+    character_manifest_paths_raw = _env_str_or_none(
+        "CHARACTER_PACKAGE_MANIFESTS"
+    )
+    common_adapter_path = _env_str_or_none("COMMON_ADAPTER_BUNDLE_PATH")
+    character_package_mode = (
+        os.environ.get("CHARACTER_PACKAGE_MODE", "shadow").strip().lower()
+    )
+    if character_package_mode not in {"shadow", "active", "disabled"}:
+        raise RuntimeError(
+            "CHARACTER_PACKAGE_MODE must be 'disabled', 'shadow', or "
+            f"'active', got {character_package_mode!r}"
+        )
     character_residual_path = _env_str_or_none(
         "ZHANG_WUJI_CHARACTER_RESIDUAL_PATH"
     )
@@ -551,7 +565,35 @@ def main() -> int:
             "ZHANG_WUJI_CHARACTER_RESIDUAL_PATH"
         )
     character_prefix_package = None
-    if character_package_path is not None:
+    character_prefix_registry = None
+    common_adapter_bundle = None
+    if character_manifest_paths_raw is not None:
+        if common_adapter_path is None:
+            raise RuntimeError(
+                "CHARACTER_PACKAGE_MANIFESTS requires COMMON_ADAPTER_BUNDLE_PATH"
+            )
+        manifest_paths = tuple(
+            Path(value)
+            for value in character_manifest_paths_raw.split(os.pathsep)
+            if value.strip()
+        )
+        wiring = WiringLevel(character_package_mode)
+        assets = load_character_runtime_assets(
+            common_adapter_bundle_path=Path(common_adapter_path),
+            manifest_paths=manifest_paths,
+            wiring_by_character={"zhang-wuji": wiring},
+        )
+        character_prefix_registry = assets.prefix_registry
+        common_adapter_bundle = assets.common_adapter_bundle
+        print(
+            "[start-browser-chat-qwen] character manifests loaded: "
+            f"packages={assets.manifest_package_ids!r} "
+            f"characters={assets.prefix_registry.character_ids!r} "
+            f"mode={character_package_mode} "
+            f"common_adapter={common_adapter_bundle.common_adapter_version}",
+            flush=True,
+        )
+    elif character_package_path is not None:
         loaded_character_package = CharacterPrefixKVPackage.from_json(
             Path(character_package_path).read_text(encoding="utf-8")
         )
@@ -639,6 +681,8 @@ def main() -> int:
         fallback_mode=SubstrateFallbackMode.DENY,
         allow_live_substrate_mutation=False,
         character_prefix_package=character_prefix_package,
+        character_prefix_registry=character_prefix_registry,
+        common_adapter_bundle=common_adapter_bundle,
         character_residual_package=character_residual_package,
     )
     runtime_origin = getattr(runtime, "runtime_origin")
@@ -654,6 +698,8 @@ def main() -> int:
         local_files_only=local_files_only,
         fallback_mode=SubstrateFallbackMode.DENY,
         character_prefix_package=character_prefix_package,
+        character_prefix_registry=character_prefix_registry,
+        common_adapter_bundle=common_adapter_bundle,
         character_residual_package=character_residual_package,
     )
     substrate_provider = build_substrate_provider_from_env(
