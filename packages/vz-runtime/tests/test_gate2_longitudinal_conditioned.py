@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
@@ -12,12 +13,14 @@ from volvence_zero.agent.gate2_longitudinal_conditioned import (
     GATE2_CONDITIONED_SOURCE_SCHEMA_VERSION,
     GATE2_RELATIONSHIP_PROFILES,
     build_gate2_conditioned_source_plans,
+    build_gate2_conditioned_preregistration,
     build_gate2_conditioned_training_example,
     gate2_conditioned_permutation_action_index,
     gate2_conditioned_permuted_profile_id,
     gate2_conditioned_plan_digest,
     gate2_relationship_readouts,
     summarize_gate2_conditioned_seed,
+    validate_gate2_conditioned_preregistration,
 )
 from volvence_zero.internal_rl import residual_action_state_vector
 from volvence_zero.substrate import (
@@ -179,3 +182,25 @@ def test_single_seed_stoploss_requires_conditioned_effect() -> None:
         "selector_minus_condition_permutation_at_least_0_02"
     ] is False
     assert summary["single_seed_stoploss_passed"] is False
+
+
+def test_preregistration_binds_fresh_plans_code_and_candidate_mapping() -> None:
+    repository_root = Path(__file__).resolve().parents[3]
+    payload = build_gate2_conditioned_preregistration(
+        repo_root=repository_root,
+        candidate_artifact_path=(
+            "artifacts/"
+            "eta_gate2_residual_causal_v35_selector_null_fresh_"
+            "fullwidth896_qwen25_05b_cpu_1seed_20260729/"
+            "counterfactual_outcomes.jsonl"
+        ),
+        substrate_fingerprint="frozen-test-substrate",
+    )
+
+    validate_gate2_conditioned_preregistration(
+        payload,
+        repo_root=repository_root,
+    )
+    assert payload["evaluation"]["seeds"] == [1301, 1313, 1327]
+    assert payload["forbidden_reuse"]["historical_routes_reused"] is False
+    assert payload["mechanism"]["conditioned_input_shape"] == 8090
