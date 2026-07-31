@@ -1,128 +1,100 @@
-# VolvenceZero Architecture Boundary Charter
+# Volvence Architecture Boundary Charter
 
 > Status: active architecture entry
-> Last updated: 2026-05-02
-
-This document is the stable entry point for the code boundary story referenced by
-`docs/specs/00_INDEX.md`, `docs/DATA_CONTRACT.md`, `docs/SYSTEM_DESIGN.md`, and
-`SPLIT.md`. The filename keeps the historical spelling used by those documents.
+> Last updated: 2026-08-01
+> 文件名保留历史拼写，供现有链接兼容。
 
 ## First Principles
 
-VolvenceZero is a layered adaptive organism, not a prompt stack. The architecture
-is intentionally organized around a few invariants:
+- Prediction Error 是原始学习信号；credit/evaluation 是下游聚合与只读 gate。
+- owner 间只交换不可变 snapshot；consumer 不持有、调用或重建 producer。
+- frozen substrate 与 bounded controller 分离；在线不端到端更新 base。
+- `beta_t/z_t` 与 Internal RL 属于 temporal owner，不在 token 空间学习长期策略。
+- World / Self、semantic owners、platform governance 各有唯一写者。
+- 新能力以 `DISABLED/SHADOW/ACTIVE` 渐进迁移，并有证据、退出和回滚条件。
 
-- **Prediction error first**: `prediction_error` is the primitive learning signal;
-  `credit` and `evaluation` are downstream readout / aggregation layers.
-- **Snapshot-only exchange**: runtime owners publish immutable snapshots; consumers
-  read those snapshots and do not call owner internals or rebuild owner summaries.
-- **Stable substrate, adaptive controllers**: the base model remains slow or
-  frozen; online adaptation happens in bounded controller / memory / credit layers.
-- **Latent control over token control**: long-running behavior is learned in
-  temporal controller state (`z_t`, `beta_t`) rather than through surface-text
-  keyword rules.
-- **Human guidance is typed intake**: mentor guidance is classified into
-  protocol / revision / experience / knowledge / case / boundary intake and
-  routed to the corresponding owner. It is not a prompt override and not a
-  platform-owned cognitive state.
-- **Rollback by construction**: new owners and fields enter through
-  `WiringLevel.DISABLED` / `SHADOW` / `ACTIVE`, with contract tests and evidence
-  gates before widening their consumer radius.
+## Current Wheel Boundary（39）
 
-## Current Wheel Boundary
+### Kernel / research core（8）
 
-The Phase 1 repository shape is one monorepo with multiple wheels. Repository
-boundary is not the module boundary; wheel boundary is.
+| Wheel | Unique responsibility |
+|---|---|
+| `vz-contracts` | Snapshot、RuntimeModule、guards、propagate、跨 wheel frozen types |
+| `vz-substrate` | frozen LLM/non-language adapter surface、residual capture、bounded carriers |
+| `vz-temporal` | metacontroller、`beta_t/z_t`、Internal RL、SSL/RL loop |
+| `vz-memory` | CMS continuum、retrieval、promotion/decay、checkpoint |
+| `vz-cognition` | PE、credit、gate、dual track、semantic/social owners、regime、reflection、evaluation |
+| `vz-application` | knowledge、case、playbook、boundary、retrieval/assembly、experience owners |
+| `vz-runtime` | Brain facade 与唯一跨业务 wheel 编排 |
+| `vz-embodiment-ant` | public-facade-only non-language embodiment testbed |
 
-| Wheel | Owns | Boundary rule |
-|---|---|---|
-| `companion-standard` | Relationship Representation Standard (public, Phase A1): nine semantic snapshot value types + slot registry, `OtherMindRecord`, `OwnerPredictionSignal`, `SemanticEmbeddingBackend` seam + stub, `Snapshot` container, canonical trajectory schema | Zero-dependency stdlib wheel; SSOT for shared representation types; must not import `volvence_zero.*` / `lifeform_*`; kernel consumes via re-export sites only (see `docs/specs/oss-relationship-representation-standard.md`) |
-| `vz-contracts` | `RuntimeModule`, `WiringLevel`, `propagate`, shared guards; re-exports the shared representation types from `companion-standard` | Internal foundation; no upstream `volvence_zero.*` imports; sits on `companion-standard` only |
-| `vz-substrate` | frozen LLM substrate, residual capture, bounded adapter-delta entry | No policy ownership |
-| `vz-memory` | continuum memory, CMS state, reflection-backed memory readouts | Publishes memory summaries and stable memory readouts |
-| `vz-cognition` | PE, credit, dual-track, regime, semantic owners, evaluation, social cognition types | Current home for PE / credit / self-model capabilities |
-| `vz-application` | domain knowledge, case memory, playbook, boundary policy, retrieval / assembly owners | Consumes cognition and memory snapshots; does not own kernel state |
-| `vz-temporal` | metacontroller, `beta_t` segment closure, internal RL on `z_t` | Owns temporal abstraction and controller state |
-| `vz-runtime` | orchestration and stable `Brain` / `BrainSession` facade | The only kernel wheel allowed to compose all business wheels |
-| `lifeform-*` | product / lifeform adapters, vitals, expression, vertical packages, services, evolution loops | May depend on kernel facade and contracts; kernel must not import lifeform |
-| `lifeform-synthetic-data` | proprietary offline unified experience corpus: frozen master schema, deterministic world/FSM truth, expression-only LLM rendering, public-snapshot live-through capture, task projections and audit gates | Unique owner of offline master truth; not a runtime owner and adds no slot. May read `companion-standard` plus the `lifeform-core` public facade; must not import Companion held-out/evaluation loaders, `lifeform-evolution`, or kernel internals |
-| `lifeform-domain-figure` | real-person digital revival vertical: `HistoricalFigureProfile` + corpus ingest + `FigureArtifactBundle` (retrieval index / coverage map / style prior / steering / persona LoRA) | Parallel to `lifeform-domain-character`; never imports it. Compiles into existing application owners; rare-heavy artifacts (steering / LoRA) gated through `ModificationGate.OFFLINE` |
-| `lifeform-domain-growth-advisor` | long-term private-domain growth-advisor companion (LTV path): `GrowthAdvisorProfile` (谌老师 reference) compiles to existing `DomainExperiencePackage` + `VitalsBootstrap`, encodes onboarding-arc playbook (icebreaker → baseline → empathy → pain mining → rapport → targeted advice → summary) + 4 need-mining funnels + 4 anti-sales boundaries (`bp-no-hard-sell` / `bp-no-overclaim` / `bp-no-flooding` / `bp-no-judgmental`) | Parallel to `lifeform-domain-character` / `lifeform-domain-figure`; never imports either. No new kernel owner; behaviour differences across onboarding phases reach the kernel through `applicability_scope` (funnel/regime tags) and PE-driven phase routing via `BehaviorProtocol.TemporalArc.progression_signals` in protocol-runtime — calendar-day routing was removed 2026-05-14 |
-| `dlaas-platform-contracts` | DLaaS typed dataclass: `InteractionEnvelope` / `OutputAct` / `TenantSpec` / `ShellSpec` / `AssetSpec` / `TemplateSpec` / `ContractSpec` / `FocusPersonSpec` / `IdentityLinkSpec` / `HandoffTicketSpec` | Foundation for the platform tier; zero `vz-*` / `lifeform-*` imports |
-| `dlaas-platform-registry` | Multi-tenant resource SSOT (tenants / shells / assets / templates / contracts / focus_persons / identity_links); SQLite-backed CRUD + auth | Talks to no kernel; surfaces `tenant_state` / `contract_state` |
-| `dlaas-platform-launcher` | `InstanceManager`: `{ai_id → Lifeform}`, shared substrate, awake/sleep/LRU; surfaces `instance_status` | Composes `lifeform-core.Lifeform` facade + `lifeform-service.SessionManager`; never imports kernel internals |
-| `dlaas-platform-api` | aiohttp `/dlaas/*` router + three auth-header middleware (`X-Tenant-Api-Key/Secret`, `X-Control-Plane-Secret`, `X-Service-Secret`); typed `InteractionEnvelope` dispatch + `OutputAct` packaging | Pure HTTP boundary; no cognitive state |
-| `dlaas-platform-ops` | pause / resume / operator-message / handoff queue / SSE conversations stream; ledger; surfaces `handoff_ticket_state` | Reads `rupture_state` snapshot via `lifeform-service` to drive handoff; never adds kernel owners |
-| `dlaas-platform-eval` | audience analysis / exam questions+runs / launch license gate; LLM judge as readout only | Reuses `lifeform-evolution.closed_alpha_preflight` framework; never writes kernel learning state |
+### Lifeform / vertical / product（19）
 
-Historical capability names such as `vz-pe-credit`, `vz-self-model`, or
-`vz-evaluation` are not current wheel names. In this repository they are owned by
-`vz-cognition` subpackages (`prediction`, `credit`, `dual_track`, `regime`,
-`semantic_state`, `evaluation`). If a future split extracts them, the first step is
-to update `docs/DATA_CONTRACT.md`, `tests/contracts/test_import_boundaries.py`, and
-each affected `pyproject.toml` in the same change.
+| Group | Wheels |
+|---|---|
+| Core product | `lifeform-core`, `lifeform-affordance`, `lifeform-thinking`, `lifeform-ingestion`, `lifeform-expression`, `lifeform-service` |
+| Evolution / intake | `lifeform-evolution`, `lifeform-cultivation`, `lifeform-protocol-runtime`, `lifeform-mcp-bridge`, `lifeform-openai-compat`, `lifeform-synthetic-data` |
+| Verticals | `lifeform-domain-emogpt`, `lifeform-domain-coding`, `lifeform-domain-character`, `lifeform-domain-figure`, `lifeform-domain-growth-advisor`, `lifeform-domain-repair30`, `lifeform-domain-digital-employee` |
+
+`lifeform-*` 只能经 Brain facade、contracts 与 ModificationGate 进入 brain core；禁止
+`vz-*` 反向 import `lifeform-*`。Vertical content 编译进既有 application/cognition
+owner，不建立第二 memory/regime/policy owner。
+
+### DLaaS platform（6）
+
+| Wheel | Boundary |
+|---|---|
+| `dlaas-platform-contracts` | zero-kernel-dependency governance DTO |
+| `dlaas-platform-registry` | tenant/resource SQLite SSOT |
+| `dlaas-platform-launcher` | instance/session lifecycle、shared substrate |
+| `dlaas-platform-api` | typed HTTP dispatch |
+| `dlaas-platform-ops` | pause/handoff/operator/SSE/ledger |
+| `dlaas-platform-eval` | audience/exam/license readouts |
+
+平台不拥有 cognitive state；只调用 lifeform facade、读取公共 snapshot/readout。
+
+### Companion ecosystem（6）
+
+| Wheel | Boundary |
+|---|---|
+| `companion-standard` | zero-dependency relationship representation SSOT |
+| `companion-bench` | benchmark reference implementation |
+| `companion-ref-harness` | minimal memory reference baseline |
+| `companion-camel-baseline` | CAMEL same-substrate baseline |
+| `companion-trajgen` | canonical synthetic trajectory generation |
+| `companion-encoder` | relationship encoder training/eval scaffold |
+
+这些 wheel 的 evaluator/encoder 是 readout 或 proposal source，不成为 runtime owner。
 
 ## Split Axes
 
-Each boundary exists to protect one invariant, not to mirror a directory layout:
+- R2：substrate 与 online adaptation 分离。
+- R3/R4：temporal 独占 latent control 与 abstract action。
+- R5/R6：memory 独占记忆连续谱。
+- R-PE/R7/R9–R12/R14：cognition 独占 PE、credit、semantic/social、regime、evaluation。
+- R8/R15：contracts + runtime 使交换和迁移显式化。
+- Product variability：lifeform verticals；governance variability：DLaaS；外部评测：Companion。
 
-- R2: `vz-substrate` isolates rare-heavy substrate refresh from online control.
-- R3/R4: `vz-temporal` owns latent temporal control and abstract actions.
-- R5/R6: `vz-memory` owns memory strata and their summaries.
-- R-PE/R9/R10/R11/R12/R14: `vz-cognition` owns PE, credit, semantic state,
-  evaluation readouts, dual-track and regime identity.
-- R8/R15: `vz-contracts` and the contract tests make cross-wheel exchange explicit.
-- Product variability stays in `lifeform-*` and vertical packages, not in kernel
-  owners.
-- DLaaS multi-tenant governance + runtime envelope translation + ops + eval gate
-  stay in `dlaas-platform-*` (third tier); they never become kernel owners and
-  never add cognitive state. See `docs/specs/dlaas-platform.md`.
+历史能力名 `vz-pe-credit`、`vz-self-model`、`vz-evaluation` 不是当前 wheel。未来物理
+拆分必须同改 `DATA_CONTRACT.md`、本章程、import-boundary tests 和依赖声明。
 
 ## Migration Rules
 
-1. Add or change a runtime slot only through `docs/DATA_CONTRACT.md` and the owning
-   spec under `docs/specs/`.
-2. Declare every cross-wheel import in both the consumer `pyproject.toml` and
-   `tests/contracts/test_import_boundaries.py`.
-3. Prefer enriching the publishing owner snapshot over adding runtime-side
-   reconstruction logic.
-4. Keep benchmark and evaluation gates tied to structured snapshots or artifacts;
-   free-text heuristics may exist only as explicitly local diagnostics.
-5. Move a wheel boundary only when `SPLIT.md` trigger conditions and evidence gates
-   justify the cost.
-6. New hydratable owners must implement `volvence_zero.owner_hydration.HydratableOwnerProtocol`
-   (`export_persistence_snapshot` / `hydrate_from_persistence`) and ship a
-   round-trip contract test alongside the implementation. See
-   `docs/specs/owner-hydration.md`. Owners that do not implement the protocol
-   simply do not participate in cross-session hydration; the kernel does not
-   require it. When implementing it, hydration failures must use typed
-   `HydrationError` subclasses (no silent fallbacks per
-   `.cursor/rules/no-swallow-errors-no-hasattr-abuse.mdc`).
-7. New external MCP bundles (`MCPServerSpec` entries on
-   `LifeformConfig.mcp_server_specs`) MUST ship a reviewed
-   `.vzbridge.yaml` safety manifest covering every tool the server
-   exposes. Manifest entries must declare `safety_model` /
-   `cost_model` / `when_to_use` (>=50 chars) /
-   `when_not_to_use` (>=50 chars) per tool. Bridge fail-loud rejects
-   missing entries (`MCPMissingSafetyManifestError`) and never
-   defaults to "safe-but-quiet". See `docs/specs/mcp-bridge.md` and
-   `docs/integration/external-bundle.md`. The bridge wheel
-   (`lifeform-mcp-bridge`) is a lifeform-side wheel; CI
-   `tests/contracts/test_mcp_bridge_import_boundary.py` enforces it
-   does not reverse-import any kernel internals. The manifest **schema +
-   validation SSOT** (`SafetyManifest` / `SafetyManifestEntry` /
-   `build_safety_manifest` / `load_safety_manifest` /
-   `SafetyManifestSchemaError`) lives in `vz-contracts`
-   (`volvence_zero.mcp_safety_manifest`) so the `dlaas-platform-*` tier
-   consumes one schema without importing the bridge wheel; the bridge
-   keeps a thin `load_manifest` shim that re-raises the schema error as
-   the `MCPBridgeError`-subclass `MCPSafetyManifestSchemaError`.
+1. 新 slot 先登记 owner、value type、dependencies、wiring、退出与回滚。
+2. 公共 shape/owner/boundary 改变时，同步能力 spec。
+3. 跨 wheel import 必须符合单向层级并有 contract test；不得用函数内 import 绕过。
+4. 缺字段时丰富 publisher；不得在 consumer 建 shadow owner 或宽泛 fallback。
+5. 多文件架构改动一次只收敛一个 owner、一个 snapshot、一个主要 consumer。
+6. benchmark/evaluation 只读 structured artifact；不得反向写 PE/reward。
+7. rare-heavy artifact 必须 content-addressed、gate-bound、可回滚。
+8. 只有 [SPLIT.md](./SPLIT.md) 的触发条件满足时才移动仓库边界。
 
 ## Document Map
 
-- `docs/specs/00_INDEX.md` is the first stop for capability-domain routing.
-- `docs/DATA_CONTRACT.md` is the slot and snapshot contract registry.
-- `docs/SYSTEM_DESIGN.md` explains the current data flow and implementation shape.
-- `SPLIT.md` defines repository split timing and mechanics.
-- `docs/next_gen_emogpt.md` is the design source for R-IDs and NL / ETA rationale.
-- `docs/specs/rupture-and-repair.md` defines the v0 `rupture_state` owner and the `dialogue_external_outcome` snapshot channel (single legal path for external outcomes into the kernel).
+- [docs/specs/00_INDEX.md](./docs/specs/00_INDEX.md)：能力域默认入口。
+- [docs/DATA_CONTRACT.md](./docs/DATA_CONTRACT.md)：slot/schema/依赖注册表。
+- [docs/SYSTEM_DESIGN.md](./docs/SYSTEM_DESIGN.md)：当前系统数据流。
+- [docs/package_usage.md](./docs/package_usage.md)：完整包地图与 API 用法。
+- [docs/current.md](./docs/current.md)：实现、证据和生产边界。
+- [docs/next_gen_emogpt.md](./docs/next_gen_emogpt.md)：R-ID 与 NL/ETA 设计依据。
+- [SPLIT.md](./SPLIT.md)：monorepo 拆分 charter。

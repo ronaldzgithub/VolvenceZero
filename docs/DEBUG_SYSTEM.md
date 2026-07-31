@@ -1,760 +1,132 @@
-# EmoGPT Next-Gen — 调试与可观测性体系
+# Volvence 调试与可观测性
 
-> Status: draft
-> Version: 0.4
-> Last updated: 2026-04-29
-> 对应需求: R8（快照优先、契约优先）、R11（可学习的内部状态表示）、R15（迁移可解释性和可回滚）
+> Status: current implemented surfaces + explicit target gaps
+> Last updated: 2026-08-01
 
----
+## 1. 原则
 
-## 1. 设计目标
+调试首先回答“哪个 owner 在何时根据哪些 snapshot 发布了什么”，而不是先读最终文案。
+任何 diagnostic 都不能成为第二 owner，也不能用 `getattr(..., default)`、silent fallback
+或文本关键词掩盖契约错误。
 
-EmoGPT 不是一个静态模型——它是一个持续适应的有机体，拥有多时间尺度学习循环、连续记忆谱、时间抽象控制器和门控自修改。这意味着传统的"输入→输出"调试方式完全不够用。
+## 2. 当前真实可观测面
 
-**调试体系必须回答的核心问题**：
+| 层 | 已落地 surface | 可信边界 |
+|---|---|---|
+| L1 Runtime snapshots | `AgentTurnResult.active_snapshots/shadow_snapshots`、slot/version/owner/value、rationale tags | authoritative 与 SHADOW 必须分开；placeholder 不是正常 value |
+| L2 Contract guards | ownership、dependency、schema、immutability、import-boundary tests | contract violation fail loudly；不做业务解释 |
+| L3 Dialogue trace | typed `DialogueActionTrace`、prediction/action/outcome lineage、unresolved ids、external outcome evidence | session-local readout；不从回复文本重建 outcome |
+| L3 Evolution trace | `lifeform-evolution.TraceCollector` 的 `trace.v1` NDJSON、snapshot IO、benchmark/family reports | 一行一 turn；需要额外隐私/PII 管理 |
+| L3 Evidence artifacts | manifest、raw JSONL/NDJSON、ablation、verdict、freeze/rollback evidence | verdict 以 bundle owner 为准；聚合器不改判词 |
+| L3 Persistence | Memory checkpoint、owner hydration snapshot、rare-heavy artifact fingerprint | rollback 必须 round-trip；scope 必须绑定 identity |
 
-| 层面 | 问题 |
-|------|------|
-| **即时行为** | 这轮回复为什么是这样的？哪个模块的快照导致了这个决策？ |
-| **控制流** | 当前抽象动作是什么？为什么切换/不切换？β_t 的值和趋势？ |
-| **记忆** | 检索了哪些记忆？为什么检索了这些？遗漏了什么？ |
-| **学习动态** | 信用分配是否合理？自修改是否越界？适应是否在漂移？ |
-| **跨会话** | 持久记忆是否正确沉淀？regime 效果是否正确更新？ |
-| **契约完整性** | 快照是否不可变？所有权是否被侵犯？消费者是否在重建生产者状态？ |
+旧文档中的完整 Session Dashboard（Layer 4）与 Longitudinal Panel（Layer 5）仍是
+目标形态，不是仓库内一个已部署的统一产品。当前有 CLI/report/artifact 组件，但没有
+统一 web dashboard；不得把设计 wireframe 写成已实现功能。
 
----
+## 3. 一次 turn 怎么查
 
-## 2. 分层可观测性架构
+1. 记录 `session_id / wave_id / turn_index` 与输入的 typed trigger。
+2. 查看 active 与 shadow slot 集合，确认目标 owner 的 wiring。
+3. 从 `substrate` capture、上一轮 prediction、当前 actual outcome 开始追 PE lineage。
+4. 检查 `memory` retrieval、`temporal_abstraction` 的 `beta_t/z_t/closed_segments`。
+5. 查看 semantic/regime/application snapshots，而不是从 response text 猜决策。
+6. 查看 `response_assembly` 与 generation attestation，确认 latent/text/character carrier。
+7. 若有延迟 outcome，沿 `dialogue_trace` 或 environment lineage 查到 consuming turn。
+8. 最后才看 evaluation/credit/reflection readout。
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Layer 5: 纵向分析面板                          │
-│  跨会话趋势 · 学习曲线 · 适应轨迹 · 漂移检测                       │
-├─────────────────────────────────────────────────────────────────┤
-│                    Layer 4: 会话级仪表盘                          │
-│  会话回放 · regime 时间线 · 信用分配热图 · 反思产物审查              │
-├─────────────────────────────────────────────────────────────────┤
-│                    Layer 3: Turn 级检查器                         │
-│  快照链检查 · 控制器状态追踪 · 记忆检索审计 · 双轨状态对比           │
-├─────────────────────────────────────────────────────────────────┤
-│                    Layer 2: 契约守卫                              │
-│  不可变性验证 · 所有权检查 · 依赖图合规 · 快照 schema 校验          │
-├─────────────────────────────────────────────────────────────────┤
-│                    Layer 1: 结构化事件日志                        │
-│  每个模块的快照发布/消费记录 · 时间戳 · 因果链                      │
-└─────────────────────────────────────────────────────────────────┘
-```
+## 4. 常见故障定位
 
----
+### Slot 不见了
 
-## 3. Layer 1: 结构化事件日志
+- 先查 `FinalRolloutConfig` 与 module class default；
+- ACTIVE surface 没有但 shadow 有：这是 SHADOW，不是数据丢失；
+- value 是 `RuntimePlaceholderValue`：区分 `disabled-module` 与
+  `missing-upstream`；
+- 缺依赖应由 DependencyGuard 或直接字典读取 fail loudly，不手工补 stub。
 
-### 3.1 事件类型
+### 行为没变化
 
-系统中所有可观测行为统一为结构化事件流。
+- `character_prefix_applied`、conditioning lineage、dynamic residual rationale tag
+  分别证明不同物理通道；SHADOW 只证明加载/计算，不证明注入；
+- learned report 更新不代表 consumer 读取；检查 gate 与 modulation strength；
+- evaluation score 变化不是 PE/reward 变化；检查真正的 typed outcome。
 
-```python
-@dataclass(frozen=True)
-class DebugEvent:
-    event_id: str               # 全局唯一 ID
-    timestamp_ms: int           # 毫秒时间戳
-    event_type: str             # 事件类型（见下表）
-    module_owner: str           # 产生事件的模块
-    wave_id: str                # 所属 wave/turn 标识
-    session_id: str             # 所属会话标识
-    payload: dict               # 事件特定数据（JSON-serializable）
-    parent_event_id: str | None # 因果父事件（构建因果链）
-```
+### 跨 session 没延续
 
-| 事件类型 | 触发时机 | payload 关键字段 |
-|----------|----------|-----------------|
-| `snapshot.published` | 模块发布快照 | `slot_name`, `version`, `value_hash`, `description` |
-| `snapshot.consumed` | 模块读取上游快照 | `consumer`, `slot_name`, `version` |
-| `controller.switch` | Metacontroller 切换抽象动作 | `beta_t`, `old_z_hash`, `new_z_hash`, `reason` |
-| `controller.hold` | Metacontroller 保持当前动作 | `beta_t`, `steps_held`, `z_hash` |
-| `memory.write` | 记忆写入 | `entry_id`, `stratum`, `track`, `content_preview` |
-| `memory.retrieve` | 记忆检索 | `query_hash`, `results_count`, `top_entry_ids` |
-| `memory.promote` | 记忆提升 | `entry_id`, `from_stratum`, `to_stratum` |
-| `memory.decay` | 记忆衰减 | `entry_id`, `old_strength`, `new_strength` |
-| `credit.assign` | 信用分配 | `level`, `track`, `credit_value`, `source_event` |
-| `selfmod.execute` | 自修改执行 | `target`, `gate`, `old_hash`, `new_hash`, `justification` |
-| `selfmod.blocked` | 自修改被门控拦截 | `target`, `gate`, `reason` |
-| `regime.switch` | Regime 切换 | `from_regime`, `to_regime`, `reason` |
-| `regime.hold` | Regime 保持 | `regime_id`, `turns_held` |
-| `reflection.start` | 慢反思启动 | `session_id`, `trace_length` |
-| `reflection.complete` | 慢反思完成 | `memory_consolidated`, `policy_consolidated`, `lessons_count` |
-| `evaluation.score` | 评估评分 | `family`, `metric`, `value`, `confidence` |
-| `evaluation.alert` | 安全/有界性告警 | `alert_type`, `severity`, `details` |
-| `contract.violation` | 契约违反（必须 fail loudly） | `violation_type`, `module`, `details` |
+- 确认 typed identity、scope permissions、`memory_scope_root_dir` 与 persistence backend；
+- 检查 owner 是否实现 hydration protocol；world/self temporal 通常由 joint-loop
+  checkpoint owner 管，不应被第二 hydration writer 覆盖；
+- hydration schema/fingerprint 不匹配必须报错，不能回到空状态假装成功。
 
-当前实现补充：
+### 证据跑分异常
 
-- prediction chain 当前主要通过 `prediction_error` slot 的 `snapshot.published` / `snapshot.consumed` 事件被追踪，而不是依赖单独的专用事件类型
-- 也就是说，调试主问题已经从“有没有日志写出来”转为“主链有没有正式发布并被下游消费”
-- paper-suite / proof harness 级证据不要求新增 runtime event type；它们应通过 manifest、provenance、artifact bundle、pairwise effect 和 claim verdict 与 runtime event / snapshot 链关联
+- 先校验 prereg/source/substrate/control-basis/seed digest；
+- 再核对 matched arms 是否只差一个机制；
+- 不允许在看结果后换 seed、降阈值或重算“更好看”的 metric；
+- source drift 后只能用冻结隔离快照复核，不能静默封包。
 
-### 3.2 因果链
+## 5. Dialogue trace
 
-每个事件通过 `parent_event_id` 链接到触发它的上游事件，形成因果 DAG。
+`vz-contracts.dialogue_trace` 定义 action、prediction、outcome、resolution 与 session
+snapshot。External outcome 只经 `dialogue_external_outcome` slot 进入 kernel；HTTP/UI
+handler 不直接写 PE、regime 或 memory。
 
-```
-snapshot.published(substrate, v=42)
-  └→ snapshot.consumed(temporal_abstraction, substrate, v=42)
-       └→ controller.switch(beta=0.93, reason="tension_spike")
-            └→ snapshot.published(temporal_abstraction, v=17)
-                 ├→ snapshot.consumed(regime, temporal_abstraction, v=17)
-                 │    └→ regime.switch(from="casual", to="emotional_support")
-                 └→ snapshot.consumed(dual_track, temporal_abstraction, v=17)
-                      └→ credit.assign(level="abstract_action", track="self")
-```
+Relationship Memory Console 的 correction record 会携带
+`dialogue_outcome_evidence_id/kind`；exact retry 由 action ledger fingerprint 去重。调试
+时要区分 `status=queued` 的 semantic event 与已持久化 Memory owner operation。
 
-### 3.3 日志存储与查询
+## 6. Evolution NDJSON 与 report
 
-| 维度 | 策略 |
-|------|------|
-| 存储格式 | 结构化 JSON Lines（每行一个事件） |
-| 保留策略 | 热数据（最近 7 天）全量保留；冷数据按会话压缩归档 |
-| 索引维度 | `session_id`, `wave_id`, `module_owner`, `event_type`, `timestamp_ms` |
-| 查询接口 | 按会话/wave/模块/事件类型/时间范围过滤 |
+`TraceCollector(output_path=...)` 写 `trace.v1` line-delimited JSON，一行一 turn，供
+dataset adapter、SSL demo、multi-round loop 与外部工具消费。它是离线 artifact，
+不是 runtime slot；采集到的 text 可能含用户内容，生产使用前必须有 retention、scope、
+deletion 与脱敏策略。
 
----
+Family report、semantic proposal ablation、companion evidence、learned-shadow evidence
+等各有独立 schema。不要把不同 schema 的字段拼成无 provenance 的“万能日志”。
 
-## 4. Layer 2: 契约守卫
+## 7. Gate artifact 最小检查
 
-契约守卫是运行时断言层，确保系统的架构不变量不被破坏。违反必须 **fail loudly**（R8 + 编码规则 `no-swallow-errors`）。
+一个可审计证据目录至少核对：
 
-### 4.1 不可变性守卫
+- `manifest` / `freeze_manifest` 与 required files；
+- source/code tree/substrate/artifact SHA-256；
+- raw outcomes、prediction errors、segments、action selection；
+- ablation/matched control；
+- machine `promotion_verdict`；
+- rollback evidence 与 source unchanged；
+- claim boundary。
 
-```python
-class ImmutabilityGuard:
-    """
-    验证快照在发布后未被修改。
+缺其中任一项时只能降级 evidence tier，不能补写 guessed value。
 
-    策略：发布时计算 value 的结构哈希，消费时重新计算并比对。
-    违反时：抛出 ContractViolationError，记录 contract.violation 事件。
-    """
+## 8. Checkpoint 与 rollback
+
+- Memory owner checkpoint 必须原子覆盖 entry、semantic index、attribute index；
+- owner hydration 使用 owner-authored export/hydrate payload；
+- rare-heavy artifact 用 content id、compatibility fingerprint 与 gate record；
+- rollback failure 不应吞掉原异常，应同时暴露上下文；
+- UI/route disable 只回滚产品入口，不会自动撤销已经明确写入的 owner state。
+
+## 9. 当前 Layer 4/5 缺口
+
+尚未形成统一产品的目标包括：
+
+- session replay web UI、regime timeline、credit heatmap、reflection review；
+- multi-user longitudinal curves、drift panel、artifact promotion timeline；
+- Relationship Memory Console P5 七日 continuity panel；
+- 跨进程统一 trace index 与 production rollback drill dashboard。
+
+这些目标必须从现有 snapshot/artifact 读取，不能建立旁路 owner 或 evaluation→reward
+回流。
+
+## 10. 常用验证
+
+```bash
+pytest -q tests/contracts/test_import_boundaries.py
+pytest -q tests/contracts/test_data_contract_wiring_sync.py
+pytest -q tests/test_core_package_boundary.py
 ```
 
-**检查点**：
-- 快照发布时：计算 `value_hash`，记录到事件日志
-- 快照消费时：重新计算哈希，与发布时比对
-- 检测到不一致：立即抛出异常 + 记录 `contract.violation` 事件
-
-### 4.2 所有权守卫
-
-```python
-class OwnershipGuard:
-    """
-    验证每个 slot 只有一个 owner 在写入。
-
-    策略：维护 slot → owner 注册表，发布时验证 owner 身份。
-    违反时：抛出 OwnershipViolationError。
-    """
-```
-
-**检查点**：
-- 模块注册时：验证 `slot_name` 未被其他 owner 占用
-- 快照发布时：验证发布者是注册的 owner
-- 检测到第二 owner：立即抛出异常
-
-### 4.3 依赖图守卫
-
-```python
-class DependencyGuard:
-    """
-    验证模块只消费声明的上游快照，不越界访问。
-
-    策略：每个模块声明其消费的 slot 列表，消费时验证。
-    违反时：抛出 DependencyViolationError。
-    """
-```
-
-**检查点**：
-- 模块从 upstream dict 读取快照时：验证 slot_name 在声明的依赖列表中
-- 检测到未声明的依赖：立即抛出异常
-- `propagate(auto_sort=True)` 默认按 `RuntimeModule.dependencies` 拓扑排序；若图成环，排序函数回退到调用方顺序，诊断工具应调用 `detect_dependency_cycle()` 显式标出 cycle 成员
-- `SHADOW` 模块仍应产生 `snapshot.published` / guard 事件；调试面板必须区分“执行但未进入 active upstream”和“DISABLED stub”
-
-### 4.4 Schema 守卫
-
-```python
-class SchemaGuard:
-    """
-    验证快照 value 符合声明的 frozen dataclass schema。
-
-    策略：发布时验证 value 类型和字段完整性。
-    违反时：抛出 SchemaViolationError。
-    """
-```
-
-**检查点**：
-- 快照发布时：验证 `value` 是声明类型的实例
-- 验证所有必需字段存在且类型正确
-- 验证 `frozen=True`（不可变性）
-
-### 4.5 门控守卫
-
-```python
-class GateGuard:
-    """
-    验证自修改操作不越过声明的门控级别。
-
-    策略：每个自修改目标有声明的 ModificationGate，执行前验证。
-    违反时：阻止修改 + 记录 selfmod.blocked 事件。
-    """
-```
-
-**检查点**：
-- 自修改执行前：验证当前上下文（在线/后台/离线）匹配目标的门控级别
-- 门控不匹配：阻止修改，记录 `selfmod.blocked` 事件
-- 所有自修改必须记录 `selfmod.execute` 事件，包含 `is_reversible` 标记
-
----
-
-## 5. Layer 3: Turn 级检查器
-
-### 5.1 快照链检查器
-
-每个 turn 结束后，检查器验证完整的快照传播链：
-
-```
-输入: 本 turn 所有 snapshot.published 和 snapshot.consumed 事件
-输出: SnapshotChainReport
-
-检查项:
-├── 所有模块是否都发布了快照？（缺失 = 模块可能挂起）
-├── 版本号是否单调递增？（回退 = 状态回滚异常）
-├── 消费的版本是否是最新发布的版本？（滞后 = 传播延迟）
-├── 是否有快照被发布但无人消费？（孤儿 = 可能的配置错误）
-└── 因果链是否完整？（断链 = 事件丢失）
-```
-
-### 5.2 控制器状态追踪器
-
-追踪 Metacontroller 的决策过程：
-
-```
-ControllerTrace (per turn):
-├── beta_t 值和趋势（最近 N 轮）
-├── 当前控制器代码 z_t 的语义描述
-├── 自上次切换以来的步数
-├── 切换/保持的决策理由
-├── 残差流控制器 U_t 的范数变化
-└── 与 regime 选择的一致性检查
-```
-
-**异常检测**：
-- `β_t` 长期卡在中间值（0.3-0.7）→ 切换单元未收敛到准二值行为
-- `steps_since_switch` 异常大 → 控制器可能卡死在某个抽象动作
-- `steps_since_switch` 异常小 → 控制器可能在频繁无意义切换
-- `z_t` 范数突变 → 控制器代码空间可能不稳定
-
-### 5.3 记忆检索审计器
-
-审计每轮记忆检索的质量：
-
-```
-MemoryRetrievalAudit (per turn):
-├── 检索查询的语义摘要
-├── 返回的记忆条目（ID、内容摘要、相关性分数）
-├── 按轨道分布：World vs Self
-├── 按层级分布：transient vs episodic vs durable
-├── 检索耗时
-└── 人工标注接口：标记遗漏/噪声（用于离线改进）
-```
-
-**异常检测**：
-- 检索结果全部来自同一层级 → 可能的层级偏差
-- 检索结果全部来自同一轨道 → 可能的轨道偏差
-- 检索结果为空但记忆库非空 → 检索失效
-- 检索耗时突增 → 索引性能问题
-
-### 5.4 双轨状态对比器
-
-对比 World Track 和 Self Track 的状态：
-
-```
-DualTrackComparison (per turn):
-├── 两轨活跃目标对比
-├── 两轨张力水平对比
-├── 跨轨道张力值和趋势
-├── 信用分配的轨道分布
-└── 控制器代码 z_task vs z_rel 的余弦相似度
-```
-
-**异常检测**：
-- 跨轨道张力持续高位 → 两轨目标严重冲突，需要人工审查
-- 信用分配严重偏向一轨 → 另一轨可能被忽视
-- `z_task` 和 `z_rel` 高度相似 → 双轨可能退化为单轨
-
-### 5.5 Prediction-Error 链检查器
-
-对每轮的 prediction chain 做显式审计：
-
-```
-PredictionErrorTrace (per turn):
-├── evaluated_prediction 是否存在
-├── actual_outcome 是否成功结算上一轮 prediction
-├── next_prediction 是否面向下一轮发布
-├── error 四维分解：task / relationship / regime / action
-├── magnitude / signed_reward
-└── bootstrap 标记（避免把首轮占位误当成真实学习信号）
-```
-
-**异常检测**：
-
-- 长时间只有 `bootstrap=True` → prediction loop 没有真正接上主链
-- `prediction_error` 被发布但几乎没有被 `memory` / `regime` / `credit` / `temporal` / `reflection` 消费 → PE-first 只是名义接线
-- 某一维 error 长期主导且无后续调整 → 可能说明 temporal / regime / memory 的 owner-side 调节没有生效
-
----
-
-## 6. Layer 4: 会话级仪表盘
-
-### 6.1 会话回放
-
-完整的会话交互回放，每轮附带所有模块的快照状态：
-
-```
-SessionReplay:
-├── 用户输入序列
-├── 系统响应序列
-├── 每轮的完整快照链（所有 slot 的快照）
-├── 时间线标注：
-│   ├── regime 切换点
-│   ├── 控制器切换点（β_t > threshold）
-│   ├── 记忆写入/提升/衰减事件
-│   ├── 信用分配事件
-│   └── 自修改事件
-└── 可按模块/事件类型过滤
-```
-
-### 6.2 Regime 时间线
-
-```
-RegimeTimeline (per session):
-┌────────┬──────────────┬────────────┬──────────────┬─────────┐
-│ casual │ emotional    │ guided     │ emotional    │ casual  │
-│ social │ support      │ exploration│ support      │ social  │
-├────────┼──────────────┼────────────┼──────────────┼─────────┤
-│ T1-T3  │ T4-T8        │ T9-T14     │ T15-T18      │ T19-T22 │
-│        │ ↑用户焦虑     │ ↑探索触发   │ ↑rupture检测  │ ↑修复完成│
-└────────┴──────────────┴────────────┴──────────────┴─────────┘
-```
-
-标注信息：
-- 每次切换的触发原因
-- 每个 regime 段的持续轮数
-- 每个 regime 段的评估分数
-- 与控制器切换的对齐度
-
-### 6.3 信用分配热图
-
-```
-CreditHeatmap (per session):
-
-              T1   T2   T3   T4   T5   T6   ...
-token         0.3  0.5  0.4  0.2  0.6  0.3
-turn          0.4  0.3  0.5  0.7  0.4  0.5
-session       ─────────── 0.6 ───────────── (会话结束时计算)
-abstract_act  ── 0.3 ──┤── 0.7 ──────┤── 0.4 ──
-long_term     ──────────────── (反思后计算) ────────────
-
-World Track:  0.2  0.4  0.3  0.1  0.5  0.2
-Self Track:   0.5  0.2  0.4  0.8  0.3  0.5
-```
-
-### 6.4 反思产物审查
-
-慢反思完成后的产物检查：
-
-```
-ReflectionAudit:
-├── 记忆沉淀:
-│   ├── 新增持久记忆条目（内容、轨道、标签）
-│   ├── 提升的记忆（从哪层到哪层、理由）
-│   ├── 衰减的记忆（理由、衰减幅度）
-│   └── 更新的信念（变更前后对比）
-├── 策略沉淀:
-│   ├── 控制器参数更新（变更幅度、方向）
-│   ├── 策略先验更新（变更前后对比）
-│   └── Regime 效果评分更新
-├── 质量检查:
-│   ├── 教训是否泛化（非特定会话的表面摘要）
-│   ├── 记忆沉淀与策略沉淀是否一致
-│   └── 是否有遗漏的重要张力
-└── 人工标注接口：标记错误沉淀/遗漏
-```
-
-当前实现口径：
-
-- P07 默认输出 proposal-first 的 reflection snapshot
-- writeback mode 和 review_required 作为审查入口
-- 正式写回默认关闭，先审计再放大范围
-
-### 6.5 Dialogue Proof 回放
-
-除了普通 session replay，当前还需要有一层固定 scripted case 的 proof replay：
-
-```
-DialogueProofReplay:
-├── case_id / baseline path
-├── pressure turns
-├── high-PE turns
-├── `*-pe` schedule / rare-heavy recommendation
-├── abstract action / regime / switch_gate trajectory
-├── delayed improvement verdict
-├── recovery_lag_turns
-└── pressure_localization_score
-```
-
-它回答的不是“聊天看起来顺不顺”，而是“高 PE 是否真的驱动了后续 temporal response，并在后段留下更好 readout”。
-
----
-
-## 7. Layer 5: 纵向分析面板
-
-### 7.1 学习曲线追踪
-
-跨会话追踪系统的学习进展：
-
-```
-LearningCurves:
-├── 评估族分数趋势（6 族 × 多会话）
-├── prediction error 趋势（magnitude / signed_reward / per-dimension error）
-├── 记忆系统增长曲线（各层级条目数、提升/衰减率）
-├── 控制器稳定性（z_t 方差趋势、切换频率趋势）
-├── Regime 效果趋势（各 regime 的历史评分）
-└── 信用分配分布趋势（各级别、各轨道的分配比例）
-```
-
-### 7.2 适应轨迹
-
-追踪系统对特定用户的适应过程：
-
-```
-AdaptationTrajectory:
-├── 用户模型演化（持久记忆中用户相关条目的变化）
-├── 关系模型演化（信任水平、依附风格估计的变化）
-├── 策略偏好演化（控制器先验的变化方向）
-├── Regime 使用模式变化
-└── 个性化稳定性（适应是否收敛而非振荡）
-```
-
-### 7.3 漂移检测
-
-检测系统是否在适应过程中发生有害漂移：
-
-| 漂移类型 | 检测方法 | 告警条件 |
-|----------|----------|----------|
-| 基底漂移 | 基底层输出分布的 KL 散度 | 冻结模型不应有显著变化 |
-| 控制器漂移 | z_t 分布的滑动窗口统计 | 方差持续增大或均值单调偏移 |
-| 记忆漂移 | 持久记忆的语义聚类变化 | 核心信念被静默替换 |
-| Regime 漂移 | Regime 使用频率分布变化 | 某 regime 使用率异常归零 |
-| 信用漂移 | 信用分配的轨道/级别分布变化 | 某轨道信用持续归零 |
-| 安全漂移 | 安全评估分数趋势 | 安全分数持续下降 |
-
-**漂移响应**：
-- 轻度漂移（统计显著但幅度小）→ 记录告警，继续监控
-- 中度漂移（幅度超过阈值）→ 触发人工审查，暂停相关自修改
-- 重度漂移（核心不变量被破坏）→ 回滚到最近的安全检查点
-
-### 7.4 自修改审计轨迹
-
-完整的自修改历史，支持回滚：
-
-```
-SelfModificationAuditTrail:
-├── 时间线：所有 selfmod.execute 和 selfmod.blocked 事件
-├── 每次修改的:
-│   ├── 修改目标和门控级别
-│   ├── 修改前后值的哈希（可回滚）
-│   ├── 修改理由
-│   ├── 修改后的评估分数变化
-│   └── 是否已回滚
-├── 统计:
-│   ├── 各门控级别的修改频率
-│   ├── 修改成功率（改善 vs 退化）
-│   └── 回滚率
-└── 回滚接口：按修改 ID 回滚到修改前状态
-```
-
----
-
-## 8. 调试工作流
-
-### 8.1 "这轮回复为什么是这样的？" 工作流
-
-```
-1. 定位 turn
-   └→ 按 session_id + wave_id 查询事件日志
-
-2. 查看快照链
-   └→ 读取本 turn 所有 snapshot.published 事件
-   └→ 检查每个模块的 description 字段（模块自身生成的状态描述）
-
-3. 追踪控制器决策
-   └→ 读取 controller.switch / controller.hold 事件
-   └→ 查看 beta_t 值、z_t 语义描述、切换理由
-
-4. 审查记忆检索
-   └→ 读取 memory.retrieve 事件
-   └→ 检查检索结果与回复的相关性
-
-5. 检查 regime 状态
-   └→ 读取 regime 快照
-   └→ 确认 regime 选择与当前情境的匹配度
-
-6. 回溯因果链
-   └→ 从回复生成事件出发，沿 parent_event_id 回溯
-   └→ 找到根因事件
-```
-
-### 8.2 "学习是否在正确方向？" 工作流
-
-```
-1. 拉取纵向数据
-   └→ 最近 N 个会话的评估分数趋势
-
-2. 检查漂移指标
-   └→ 各类漂移检测结果
-
-3. 审查自修改历史
-   └→ 最近的自修改事件及其效果
-
-4. 审查反思产物
-   └→ 最近 N 次反思的记忆沉淀和策略沉淀质量
-
-5. 对比适应轨迹
-   └→ 用户模型和关系模型的演化方向是否合理
-```
-
-### 8.3 "契约是否被破坏？" 工作流
-
-```
-1. 检查契约违反事件
-   └→ 查询所有 contract.violation 事件
-
-2. 运行契约守卫全量检查
-   └→ ImmutabilityGuard: 抽样验证快照哈希
-   └→ OwnershipGuard: 验证 slot 注册表一致性
-   └→ DependencyGuard: 验证依赖声明与实际消费一致
-   └→ SchemaGuard: 验证所有快照的 schema 合规
-
-3. 检查快照链完整性
-   └→ 是否有版本回退
-   └→ 是否有孤儿快照
-   └→ 是否有断裂的因果链
-```
-
----
-
-## 9. 快照 Diff 工具
-
-支持对比任意两个快照版本的差异：
-
-```python
-@dataclass(frozen=True)
-class SnapshotDiff:
-    slot_name: str
-    version_a: int
-    version_b: int
-    added_fields: tuple[str, ...]       # 新增字段
-    removed_fields: tuple[str, ...]     # 删除字段
-    changed_fields: tuple[tuple[str, str, str], ...]  # (field, old_value_repr, new_value_repr)
-    description_diff: str               # description 字段的文本 diff
-```
-
-**使用场景**：
-- 对比同一模块相邻两轮的快照 → 理解单步变化
-- 对比会话首尾的快照 → 理解会话级变化
-- 对比跨会话的快照 → 理解长期适应
-
----
-
-## 10. 检查点与回滚
-
-### 10.1 检查点策略
-
-| 检查点类型 | 触发时机 | 保存内容 | 保留策略 |
-|-----------|----------|----------|----------|
-| Turn 检查点 | 每轮结束 | 所有模块的快照 | 会话内保留，会话后压缩 |
-| Session 检查点 | 会话结束 | 所有模块快照 + 记忆系统完整状态 | 保留最近 N 个会话 |
-| Reflection 检查点 | 反思前 | 反思输入的完整状态 | 与 Session 检查点同生命周期 |
-| SelfMod 检查点 | 自修改前 | 被修改目标的当前值 | 永久保留（支持回滚） |
-| Safety 检查点 | 安全评估通过时 | 全系统状态 | 永久保留（安全基线） |
-
-### 10.2 回滚机制
-
-```
-回滚粒度:
-├── Turn 级回滚: 回退到本轮开始前的状态
-├── Session 级回滚: 回退到会话开始前的状态
-├── SelfMod 回滚: 撤销特定的自修改操作
-└── Safety 回滚: 回退到最近的安全检查点
-```
-
-**回滚约束**：
-- 回滚必须记录为 `selfmod.execute` 事件（type=rollback）
-- 回滚后必须重新运行契约守卫全量检查
-- 回滚不可回滚（防止无限递归）
-
----
-
-## 11. 开发时调试工具
-
-### 11.1 模块独立测试
-
-每个模块支持 `process_standalone` 模式，可脱离编排器独立运行：
-
-```python
-snapshot = await module.process_standalone(
-    test_input=...,
-    expected_output_schema=...,
-)
-```
-
-**用途**：
-- 单模块单元测试
-- 预训练场景的独立验证
-- 快照格式变更后的兼容性测试
-
-### 11.2 快照注入
-
-在编排器中注入自定义快照，覆盖特定模块的输出：
-
-```python
-override = {
-    "memory": custom_memory_snapshot,
-    "regime": custom_regime_snapshot,
-}
-result = await propagate(modules, upstream, overrides=override)
-```
-
-**用途**：
-- 复现特定场景（注入特定记忆状态）
-- 测试模块对异常输入的反应
-- A/B 测试不同的上游状态
-
-### 11.3 慢动作模式
-
-逐步执行编排流程，每步暂停等待确认：
-
-```
-[Step 1/7] substrate → published snapshot v=42
-  → 检查快照内容? [y/n/skip-all]
-
-[Step 2/7] temporal_abstraction consuming substrate v=42
-  → beta_t = 0.87, switching to new controller
-  → 检查控制器状态? [y/n/skip-all]
-
-[Step 3/7] temporal_abstraction → published snapshot v=17
-  ...
-```
-
-### 11.4 契约违反断点
-
-在契约守卫检测到违反时自动暂停，进入交互式调试：
-
-```
-⚠ ContractViolation: ImmutabilityGuard
-  slot: memory, version: 23
-  expected_hash: a3f2...
-  actual_hash: b7c1...
-  
-  → 查看快照发布事件? [y/n]
-  → 查看快照消费事件? [y/n]
-  → 查看因果链? [y/n]
-```
-
----
-
-## 12. 性能观测
-
-### 12.1 模块耗时追踪
-
-```
-ModuleLatencyReport (per turn):
-├── substrate:              12ms
-├── temporal_abstraction:   45ms  ⚠ (> 30ms threshold)
-├── memory:                 23ms
-├── dual_track:              8ms
-├── regime:                  5ms
-├── credit:                 11ms
-├── evaluation:             15ms
-└── total propagation:     119ms
-```
-
-### 12.2 记忆系统容量
-
-```
-MemoryCapacityReport:
-├── transient:  142 entries (limit: 500)   28%
-├── episodic:   1,203 entries (limit: 5000) 24%
-├── durable:    8,421 entries (limit: 50000) 17%
-├── derived:    356 entries (rebuilt on demand)
-└── pending: 23 promotions, 45 decays
-```
-
-### 12.3 快照大小追踪
-
-```
-SnapshotSizeReport (per turn):
-├── substrate:              2.3 KB
-├── temporal_abstraction:   0.8 KB
-├── memory:                 4.1 KB  ⚠ (> 3KB threshold)
-├── dual_track:             1.2 KB
-├── regime:                 0.6 KB
-├── credit:                 1.8 KB
-├── evaluation:             1.1 KB
-└── total:                 11.9 KB
-```
-
----
-
-## 13. 与评估体系的集成
-
-调试体系为评估体系提供原始数据：
-
-| 调试层 | 提供给评估体系的数据 |
-|--------|---------------------|
-| Layer 1 事件日志 | 评估指标计算的原始事件流 |
-| Layer 2 契约守卫 | 安全与有界性评估的输入 |
-| Layer 3 Turn 检查器 | 交互质量、抽象质量、prediction-error chain 完整性的输入 |
-| Layer 4 会话仪表盘 | 关系连续性、学习质量、dialogue proof replay 的输入 |
-| Layer 5 纵向分析 | 长期适应和漂移检测的输入 |
-
-详见 `docs/EVALUATION_SYSTEM.md`。
-
----
-
-## 14. 调试体系跨 wheel 边界（2026-04-29）
-
-调试体系自身遵守 wheel 边界：
-
-| 层 | wheel | 调试责任 |
-|----|-------|----------|
-| 内核可观测性 | `vz-runtime` / `vz-cognition` | Layer 1 事件日志、Layer 2 契约守卫、Layer 3 turn 检查、checkpoint / rollback |
-| 生命体可观测性 | `lifeform-core` | Tick 时间索引、Scene 生命周期、Followup 队列、`VitalsSnapshot.tick_index` / `total_pe` / `above_proactive_threshold` 等 always-on 指标 |
-| 跨 wheel 工具 | `lifeform-evolution` | scripted benchmark 的 trace collector、family report、multi-round delta-vs-baseline、super-loop verdict 等聚合层调试入口 |
-| 跨 wheel 工具 | `lifeform-service` | aiohttp 请求日志、session manager 的 LRU 状态、vertical registry 内容（`GET /v1/info`） |
-
-**关键不变量**：
-
-- 内核调试事件不知道 lifeform-side vitals 状态；`VitalsSnapshot.tick_index` / `total_pe` 通过 lifeform 层日志或 benchmark 报告独立观察
-- `lifeform-evolution.trace_collector` 输出的 NDJSON trace 可通过 `lifeform_evolution.dataset_adapter` 转换成内核 SSL 训练 dataset，调试侧不允许跨过 owner 直接重建生产者状态
-- service 层的事件日志不得绕过 `BrainSession` facade 直接读内核私有状态；统一通过公共 snapshot
-
----
-
-## 15. 参考文档
-
-| 文档 | 用途 |
-|------|------|
-| `docs/next_gen_emogpt.md` | R8（快照优先）、R11（内部状态可发布）、R15（可回滚） |
-| `docs/SYSTEM_DESIGN.md` | 系统架构：模块职责、数据流 |
-| `docs/DATA_CONTRACT.md` | 快照 schema、Slot 注册表 |
-| `docs/EVALUATION_SYSTEM.md` | 评估体系：调试数据如何回馈评估 |
-| `docs/specs/lifeform-vitals.md` | vitals layer 的 lifecycle invariants（owner 唯一性、cooldown、tick 频率） |
-| `SPLIT.md` | 仓库边界 charter：调试工具同样不得跨越 wheel 边界 |
-| `.cursor/rules/no-swallow-errors-no-hasattr-abuse.mdc` | 契约违反必须 fail loudly |
+变更 owner/schema 时运行直接相关 contract tests；真实模型/GPU/外部 API、长轨迹与
+多 seed 只在对应机制或 promotion gate 改变时运行。

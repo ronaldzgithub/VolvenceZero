@@ -1,8 +1,8 @@
 # VolvenceZero 系统全景指南
 
 > **副标题**：一份给初学者的旅行图，给研究者的参考册
-> **Status**: v1.1
-> **Last updated**: 2026-05-10
+> **Status**: v1.2
+> **Last updated**: 2026-08-01
 > **位置**：`docs/SYSTEM_GUIDE.md`
 > **与其他文档的关系**：
 > - 想知道**为什么这样设计**（设计源头）：读 `docs/next_gen_emogpt.md`
@@ -268,7 +268,7 @@
                               │
 ┌─────────────────────────────────────────────────────────────────┐
 │  Layer 2 — 契约式运行时（vz-contracts, vz-runtime）                │
-│  Snapshot / RuntimeModule / Orchestrator / Guards                │
+│  Snapshot / RuntimeModule / propagate / Guards                   │
 │  这一层"组织一切"——它定义了模块怎么注册、怎么通信、怎么调度          │
 └─────────────────────────────────────────────────────────────────┘
                               ▲
@@ -712,13 +712,13 @@ class RuntimeModule(ABC, Generic[ValueT]):
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[ValueT]: ...
 ```
 
-**编排器**（Orchestrator）：
+**`propagate(...)` 契约运行时**：
 - Wave 级调度
 - 按 `dependencies` 拓扑排序（`auto_sort=True`）
 - 通过 `propagate(...)` 收集快照、构建 guarded upstream view
 - 不调用模块的私有方法
 
-**五个守卫**：
+**四个守卫 + guarded upstream view**：
 - `OwnershipGuard`：slot → owner 唯一性、版本单调
 - `DependencyGuard`：模块只能消费声明的 upstream
 - `SchemaGuard`：发布值必须符合声明 schema
@@ -728,7 +728,7 @@ class RuntimeModule(ABC, Generic[ValueT]):
 #### 🧬 代码与论文锚点
 
 - **R8 / R11 / R15**：snapshot-first / 内部状态可发布 / 可回滚演进
-- 实现：`packages/vz-contracts/`（Snapshot、RuntimeModule、Guards）+ `packages/vz-runtime/`（Orchestrator）
+- 实现：`packages/vz-contracts/`（Snapshot、RuntimeModule、Guards、`propagate`）+ `packages/vz-runtime/`（薄编排、初始化与 session wiring）
 - Spec：`docs/specs/contract-runtime.md`
 - 数据契约：`docs/DATA_CONTRACT.md`
 
@@ -791,7 +791,7 @@ DriveSpec(
 - **衰减只在 SYSTEM tick**：ENERGY / CONTEXT tick 只推进 tick_index，不消耗
 - **Cooldown 由 owner 强制**：避免主动 followup 洪泛
 
-**五个 vertical 的实例**：
+**七个 vertical 的实例**：
 
 | Vertical | Archetype | Drive set / 特殊机制 |
 |---|---|---|
@@ -800,10 +800,12 @@ DriveSpec(
 | `lifeform-domain-character` | 虚构角色（小说 / IP） | per-profile `CharacterDrivePrior`（每个角色档案自定义） |
 | `lifeform-domain-figure` | 真实人物（Einstein 等） | per-profile drive；多源一手语料 → 不可变 `FigureArtifactBundle`；L1-L4 保真阶梯 |
 | `lifeform-domain-growth-advisor` | 私域 LTV 顾问 | per-profile drive；onboarding-arc playbook 通过 `applicability_scope`（funnel/regime tags）+ `regime_tags` 携带漂移；关系阶段路由走 `BehaviorProtocol.TemporalArc.progression_signals`（PE-driven） |
+| `lifeform-domain-repair30` | 现场维修助手 | diagnosis / safety-gate / parts-and-procedure data-only priors |
+| `lifeform-domain-digital-employee` | B2B 数字员工 | org-agent / employee-twin data-only priors |
 
 `direction_certainty` 在 `guided_exploration` regime 下用**负向 recharge**——这证明了 drive 层可以编码"探索期间确定性应该被消耗"这种非单调激励。
 
-五个 vertical 在同一 Python 进程内共存，drive 集合互不重叠；`PARALLEL_VERTICAL_PAIRS` 强制互不 import；service registry 自动发现。这是 SPLIT.md 触发条件 ② 的现场证据。
+七个 vertical 在同一 Python 进程内共存；service registry 自动发现，import-boundary tests 强制 vertical 不反向污染内核。这是 SPLIT.md 触发条件 ② 的现场证据。
 
 #### 🧬 代码与论文锚点
 
@@ -851,12 +853,14 @@ DriveSpec(
 > - **DomainExperiencePackage**：冷启动的领域经验
 > - **scenarios**：用于训练和评估的场景包
 >
-> 当前共存 5 个 vertical：
+> 当前共存 7 个 vertical：
 > - `lifeform-domain-emogpt`：关系陪伴 archetype
 > - `lifeform-domain-coding`：工程结对 archetype（pair-programmer）
 > - `lifeform-domain-character`：虚构角色 archetype
 > - `lifeform-domain-figure`：真实人物 archetype（一手资料数字复生）
 > - `lifeform-domain-growth-advisor`：私域 LTV 顾问 archetype
+> - `lifeform-domain-repair30`：现场维修 archetype
+> - `lifeform-domain-digital-employee`：B2B 数字员工 archetype
 >
 > 它们在**同一个 Python 进程**里共存，drive 集合互不重叠，service 注册表自动发现——内核对加载了哪个 vertical 完全无感知。这就是 `SPLIT.md` 触发条件 ② 的现场证据。
 
@@ -864,7 +868,7 @@ DriveSpec(
 
 1. Vertical 不是新的 owner——它是**对现有 owner 的配置**
 2. 内核（`vz-*`）不能反向 import vertical（`lifeform-*`）；CI 强制
-3. 5 个 `lifeform-domain-*` vertical 互不 import（`PARALLEL_VERTICAL_PAIRS`）
+3. 7 个 `lifeform-domain-*` vertical 不建立横向 owner 依赖
 4. 不能用人口学关键词（"用户说了 X 就触发 Y"）硬编码行为
 
 ---
@@ -976,7 +980,7 @@ DriveSpec(
 
 #### 📌 不变量（CI 强制）
 
-1. **vz-* 内核 7 个 wheel diff = 0 行**——任何 PR 修改 `packages/vz-*` 都必须有显式书面理由
+1. **8 个 `vz-*` wheel 不感知 platform state**——任何为 platform 需求修改 kernel owner 的 PR 都必须有显式书面理由
 2. `dlaas-platform-* ↛ volvence_zero.{cognition,memory,temporal,substrate,application,runtime}.*`（只能通过 `vz-contracts` 公共类型 + `lifeform-core.Lifeform` facade + `lifeform-service` HTTP 入口）
 3. `dlaas-platform-* ↛ lifeform_domain_*` internals（只能通过 `lifeform-service.app` + `lifeform-core.Lifeform` + `lifeform-affordance` 公共 schema）
 4. **interaction_type 必须 typed enum dispatch**——禁止从 `human_brief` 等自然语言字段关键词推断
@@ -1051,53 +1055,22 @@ DriveSpec(
 
 ## 7. 实现细节地图
 
-### 7.1 仓库结构（25 个 wheel）
+### 7.1 仓库结构（39 个 wheel）
 
 ```
-VolvenceZero/
-├── packages/
-│   ├── ── 内核（vz-*，7） ─────────────────────────────────────────────────
-│   ├── vz-contracts/           [Layer 2] R8/R15 — 所有 wheel 的依赖底
-│   ├── vz-substrate/           [Layer 1] R2 — 冻结 LLM + residual capture
-│   ├── vz-temporal/            [Layer 3] R3/R4 — Metacontroller + Internal RL
-│   ├── vz-memory/              [Layer 3] R5/R6 — CMS + ReflectionEngine
-│   ├── vz-cognition/           [Layer 3] R7/R-PE/R9/R10/R12/R14 —
-│   │                                     PredictionError + DualTrack + Regime
-│   │                                     + Credit + Evaluation + ModificationGate
-│   │                                     + RuptureState
-│   ├── vz-runtime/             [Layer 2] — 编排器（薄）
-│   ├── vz-application/         [Layer 3] — 4 阶段应用层（retrieval / case_memory /
-│   │                                     strategy_playbook / experience_consolidation）
-│   │
-│   ├── ── 数字生命体（lifeform-*，12） ─────────────────────────────────────
-│   ├── lifeform-core/          [Layer 4] — Lifeform / Tick / Scene / Followup / Vitals
-│   ├── lifeform-thinking/      [Layer 4] — 中频 ThinkingScheduler + 三类 read-only worker
-│   ├── lifeform-affordance/    [Layer 4] — 4 Kind 描述符 + 4 渲染器
-│   ├── lifeform-ingestion/     [Layer 4] — book / web / task_result 三类 source adapter
-│   ├── lifeform-expression/    [Layer 4] — 表达层（PromptPlanner、ResponseSynthesizer）
-│   ├── lifeform-service/       [Layer 4] — aiohttp + vertical registry
-│   ├── lifeform-evolution/     [Layer 4] — scripted benchmark + super-loop + R12 family report
-│   ├── lifeform-openai-compat/ [Layer 4] — OpenAI Chat Completions facade（read-only，喂外部 benchmark / arena）
-│   ├── lifeform-domain-emogpt/         [Vertical] — 关系陪伴
-│   ├── lifeform-domain-coding/         [Vertical] — 工程结对
-│   ├── lifeform-domain-character/      [Vertical] — 虚构人物（小说 / IP）
-│   ├── lifeform-domain-figure/         [Vertical] — 真实人物（一手资料 L1-L4 保真）
-│   ├── lifeform-domain-growth-advisor/ [Vertical] — 私域 LTV 长程顾问
-│   │
-│   ├── ── 平台治理（dlaas-platform-*，6） ──────────────────────────────────
-│   ├── dlaas-platform-contracts/       [Layer 5] — 全部 frozen dataclass + JSON schema
-│   ├── dlaas-platform-registry/        [Layer 5] — 多租户持久化 + auth 中间件
-│   ├── dlaas-platform-launcher/        [Layer 5] — InstanceManager + shared substrate
-│   ├── dlaas-platform-api/             [Layer 5] — aiohttp /dlaas/* router + OutputAct
-│   ├── dlaas-platform-ops/             [Layer 5] — pause / resume / handoff / SSE
-│   ├── dlaas-platform-eval/            [Layer 5] — audience / exam / launch license（仅 readout）
-│   │
-│   └── ── 外发基准（system-agnostic，1） ──────────────────────────────────
-│       companion-bench/        [独立] — Companion Bench (formerly Companion Bench) v1.0；
-│                                        6 轴；24 公开 + 96 held-out；Apache 2.0
-│
-├── docs/                       — 见 docs/specs/00_INDEX.md
-└── tests/                      — 多层测试
+VolvenceZero/packages/
+├── vz-* (8)
+│   ├── contracts / substrate / temporal / memory
+│   └── cognition / application / runtime / embodiment-ant
+├── lifeform-* (19)
+│   ├── core / affordance / thinking / ingestion / expression / service
+│   ├── evolution / cultivation / protocol-runtime / mcp-bridge
+│   ├── openai-compat / synthetic-data
+│   └── domain-{emogpt,coding,character,figure,growth-advisor,repair30,digital-employee}
+├── dlaas-platform-* (6)
+│   └── contracts / registry / launcher / api / ops / eval
+└── companion-* (6)
+    └── standard / bench / ref-harness / camel-baseline / trajgen / encoder
 ```
 
 ### 7.2 关键 Slot 速览
@@ -1113,6 +1086,10 @@ VolvenceZero/
 | `regime` | vz-cognition | active regime、historical_effectiveness |
 | `credit` | vz-cognition | 层级信用账本 |
 | `evaluation` | vz-cognition | 6 族评估 readout |
+| `evaluation_mid` / `evaluation_expensive` / `evaluation_cross_generation` | vz-cognition | SHADOW/DISABLED 深层级联与跨代 gate evidence |
+| `decision_workspace` | vz-cognition | SHADOW 决策结构；不成为第十个 semantic spine owner |
+| `protocol_phase` / `protocol_registry` / `protocol_revision_log` | vz-application | ACTIVE protocol phase/introspection readouts |
+| `protocol_reflection` / `protocol_revision_queue` | vz-cognition / vz-application | SHADOW background mutation proposal/review |
 | `reflection` | vz-cognition | 慢反思产物 |
 | `vitals` | lifeform-core | drive levels、above_proactive_threshold |
 | `case_memory` / `strategy_playbook` / ... | vz-application | 应用层 4 阶段 |
@@ -1125,7 +1102,7 @@ VolvenceZero/
 |---|---|---|
 | 跑一个完整 turn | `LifeformSession.run_turn(text)` | `lifeform-core` |
 | 推进时间（tick） | `LifeformSession.advance_tick(N, kind=...)` | `lifeform-core` |
-| 直接调内核 | `BrainSession` | `vz-application` 通过 `volvence_zero.brain` |
+| 直接调内核 | `BrainSession` | `vz-runtime` 的 `volvence_zero.brain` facade |
 | 跑内部评估 | `lifeform-bench --vertical {companion,coding,...} --family-report` | `lifeform-evolution` CLI |
 | 跑训练 / 预训练 bootstraps | `lifeform-super-loop --vertical ...` | `lifeform-evolution` CLI |
 | 起服务 | aiohttp service | `lifeform-service` |
@@ -1135,6 +1112,17 @@ VolvenceZero/
 | 编译虚构角色 vertical | `build_character_lifeform(profile)` | `lifeform-domain-character` |
 | 编译真实人物 vertical | `figure-bake` CLI / `build_figure_artifact_bundle(...)` | `lifeform-domain-figure` |
 | 编译私域顾问 vertical | `build_growth_advisor_lifeform(profile)` | `lifeform-domain-growth-advisor` |
+
+### 7.4 当前默认路径（2026-08-01）
+
+- 基础 Memory / PredictionError / Temporal owner、session-post loop、experience
+  consolidation、owner hydration 与 protocol runtime 在 final rollout 中 ACTIVE；
+- decision workspace、evaluation mid、protocol reflection/revision queue 与多类 learned
+  candidate 保持 SHADOW；
+- temporal SSL/runtime、Internal RL、CMS Torch、evaluation expensive/cross-generation
+  默认 DISABLED，RL modulation 为 `0.0`；
+- #92 总 EXIT=`thesis-rejected`，Gate 2 conditioned longitudinal=`not-supported`，
+  Ecology station1-v4=`BLOCK`；这些终局不授权一刀切 ACTIVE。
 
 ---
 
@@ -1417,12 +1405,13 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 - **CI 强制 4 条边界**：① `vz-* ↛ lifeform-*` ② `vz-* ↛ dlaas-platform-*` / `companion-bench` ③ `dlaas-platform-* ↛` 内核 cognitive 子包 ④ `companion-bench ↛` 任何 `volvence_zero.*` / `lifeform_*`
 - **多速演进**：内核稳定（半年级别）、生命体中速（月级别）、平台治理快速（周级别）、外发 benchmark 独立时间线——一个仓库做不到这种节奏分层
 
-截至 2026-05-10 共 25 wheel：内核 7 + 生命体 12 + 平台 6 + 外发基准 1。
+截至 2026-08-01 共 39 wheel：`vz-*` 8 + `lifeform-*` 19 +
+`dlaas-platform-*` 6 + `companion-*` 6。
 
 ### Q10: "你们怎么保证不退化？"
 
 **A**: 几道防线：
-- Snapshot 的不可变性 + 5 个 guards（OwnershipGuard、DependencyGuard、SchemaGuard、ImmutabilityGuard、UpstreamView）
+- Snapshot 的不可变性 + 4 个 guards（OwnershipGuard、DependencyGuard、SchemaGuard、ImmutabilityGuard）+ UpstreamView
 - WiringLevel 三态 + bounded writeback + checkpoint / rollback
 - R12 6 族评估 + 改进 vs 弱基线 acceptance（`--require-improvement-vs-baseline` fail-closed gate）
 - ModificationGate 守门
@@ -1622,4 +1611,3 @@ Internal RL 在 z 空间做，动作空间几十维、时间尺度几十-上百 
 每一个具体设计——PE 主链、CMS 多频带、β_t / z_t、双轨、vitals、snapshot、wiring level——都是从这个核心愿景**第一性推导**出来的。不是为了炫技，不是为了赶论文，是因为如果你想做一个"会随时间长大的数字生命体"，你**绕不开**这些机制。
 
 读到这里，欢迎你成为这个项目的同行人。下一步看 §11，挑一条适合你的路。
-
