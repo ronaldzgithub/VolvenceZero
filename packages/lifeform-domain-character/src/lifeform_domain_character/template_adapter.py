@@ -274,6 +274,7 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
         # checkpoint for studio-style replay continuity.
         bundle: RebirthBundle = give_birth(
             template_path,
+            reviewed_profile_overlay=self._default_profile_factory(),
             config=config,
             substrate_runtime=runtime,
             response_synthesizer=synthesizer,

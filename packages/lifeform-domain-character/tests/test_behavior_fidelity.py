@@ -19,6 +19,7 @@ from lifeform_domain_character import (
     ChapterLiveThroughDriver,
     ReviewedBehaviorFidelityAssessment,
     build_character_lifeform,
+    build_character_package,
     build_scene_behavior_fidelity_inputs,
     build_zhang_wuji_profile,
     behavior_fidelity_capture_from_dict,
@@ -82,6 +83,33 @@ def _held_out_profile():
             if prior.rule_id != "crisis-decisive-when-bystander-at-risk"
         ),
     )
+
+
+def test_yielded_opponent_behavior_is_compiled_into_case_and_playbook() -> None:
+    profile = build_zhang_wuji_profile()
+    case = next(
+        item
+        for item in profile.signature_cases
+        if item.case_id == "opponent-yields-and-asks-mercy"
+    )
+    prior = next(
+        item
+        for item in profile.strategy_priors
+        if item.rule_id == "yielded-opponent-mercy-with-verification"
+    )
+
+    assert case.intervention_ordering == prior.recommended_ordering
+    assert case.risk_markers == ("risk-medium",)
+
+    package = build_character_package(profile)
+    compiled_case = next(
+        item for item in package.case_records if item.case_id.endswith(case.case_id)
+    )
+    compiled_rule = next(
+        item for item in package.playbook_rules if item.rule_id.endswith(prior.rule_id)
+    )
+    assert compiled_case.intervention_ordering == case.intervention_ordering
+    assert compiled_rule.recommended_ordering == prior.recommended_ordering
 
 
 class _ReviewedCrossChapterAbstractionProvider:

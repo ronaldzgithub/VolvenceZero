@@ -73,6 +73,9 @@ class VerticalSpec:
     # different layout sets this explicitly. Absolute paths are NOT
     # accepted here — the service-level root is the policy boundary.
     template_subdir: str | None = None
+    # Optional immutable character identity used to select the L2 model-side
+    # package on every generation. It is never inferred from user text.
+    character_id: str = ""
 
 
 def _expression_synthesizer_for_runtime(
@@ -81,6 +84,7 @@ def _expression_synthesizer_for_runtime(
     repair_alpha_enabled: bool = False,
     character_grounding_statement: str = "",
     character_grounding_ref: str = "",
+    character_id: str = "",
     temperature: float = 0.7,
 ):
     """Use the LLM expression path only when a real/shared runtime exists."""
@@ -110,6 +114,7 @@ def _expression_synthesizer_for_runtime(
         max_new_tokens=max_new_tokens,
         temperature=temperature,
         planner=PromptPlanner(repair_alpha_enabled=repair_alpha_enabled),
+        character_id=character_id,
         character_grounding_statement=character_grounding_statement,
         character_grounding_ref=character_grounding_ref,
     )
@@ -838,6 +843,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
         from lifeform_domain_character import (
             build_character_template_adapter,
             build_zhang_wuji_lifeform,
+            build_zhang_wuji_profile,
             give_birth,
         )
     except ImportError:
@@ -857,6 +863,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
         return _expression_synthesizer_for_runtime(
             runtime,
             repair_alpha_enabled=repair_alpha_enabled,
+            character_id="zhang-wuji",
             character_grounding_statement=(
                 "内部约束，不要逐句复述：身份=张无忌；视角=亲历其事，不做旁观评述武侠史的助手；"
                 "时间位置=光明顶之后；事实护栏=明教不是六大派之一，六大派曾围攻明教，我止住血战后承担教主之责；"
@@ -877,6 +884,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
         if template_path is not None:
             bundle = give_birth(
                 template_path,
+                reviewed_profile_overlay=build_zhang_wuji_profile(),
                 substrate_runtime=runtime,
                 response_synthesizer=synthesizer,
                 semantic_proposal_runtime=semantic_runtime,
@@ -912,6 +920,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
             # inheriting another user's lived memories.
             bundle = give_birth(
                 template_path,
+                reviewed_profile_overlay=build_zhang_wuji_profile(),
                 config=config,
                 substrate_runtime=runtime,
                 response_synthesizer=synthesizer,
@@ -941,6 +950,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
         alpha_factory=alpha_factory,
         template_adapter=template_adapter,
         template_subdir="zhang_wuji",
+        character_id="zhang-wuji",
     )
 
 

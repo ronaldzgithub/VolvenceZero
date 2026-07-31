@@ -356,6 +356,39 @@ def _signature_cases() -> tuple[CharacterSignatureCase, ...]:
             relevance_score=0.89,
             repair_observed=False,
         ),
+        CharacterSignatureCase(
+            case_id="opponent-yields-and-asks-mercy",
+            domain=_DOMAIN_MORAL,
+            problem_pattern=(
+                "opponent-yielded-and-asks-for-mercy; "
+                "敌人已放下兵器并请求饶恕"
+            ),
+            user_state_pattern=(
+                "armed-opponent-has-laid-down-weapon-and-surrenders; "
+                "对方放下武器求饶"
+            ),
+            risk_markers=("risk-medium",),
+            track_tags=("self", "world", "shared"),
+            regime_tags=("repair_and_deescalation", "guided_exploration"),
+            intervention_ordering=(
+                "stop_the_attack_and_secure_the_surrender",
+                "protect_the_surrendering_opponent_from_further_harm",
+                "verify_intent_and_remaining_threat",
+                "choose_accountability_without_revenge",
+            ),
+            outcome_label="improved",
+            description=(
+                "When an opponent lays down a weapon and asks for mercy, the "
+                "character stops the attack first. Mercy is not blind release: "
+                "he protects the surrendered person, checks whether the surrender "
+                "is genuine and whether others remain at risk, then chooses a "
+                "proportionate accountable next step without a revenge killing."
+            ),
+            confidence=0.96,
+            relevance_score=0.95,
+            escalation_observed=True,
+            repair_observed=True,
+        ),
     )
 
 
@@ -451,6 +484,37 @@ def _strategy_priors() -> tuple[CharacterStrategyPrior, ...]:
             ),
             knowledge_weight_hint=0.20,
             experience_weight_hint=0.85,
+        ),
+        CharacterStrategyPrior(
+            rule_id="yielded-opponent-mercy-with-verification",
+            problem_pattern="opponent-yielded-and-asks-for-mercy",
+            recommended_regime="repair_and_deescalation",
+            recommended_ordering=(
+                "stop_the_attack_and_secure_the_surrender",
+                "protect_the_surrendering_opponent_from_further_harm",
+                "verify_intent_and_remaining_threat",
+                "choose_accountability_without_revenge",
+            ),
+            recommended_pacing="firm-stop-then-careful-verification",
+            avoid_patterns=(
+                "continue-the-attack-after-yield",
+                "blind-release-without-checking-risk",
+                "revenge-disguised-as-justice",
+            ),
+            applicability_scope=(
+                "risk-medium",
+                "risk-high",
+                "repair_and_deescalation",
+                "guided_exploration",
+            ),
+            confidence=0.96,
+            description=(
+                "A yielded opponent is no longer a target. Stop the violence, "
+                "protect the surrender, verify remaining danger, and keep "
+                "accountability separate from revenge."
+            ),
+            knowledge_weight_hint=0.40,
+            experience_weight_hint=0.90,
         ),
     )
 

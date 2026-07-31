@@ -89,6 +89,7 @@ def give_birth(
     skip_memory_restore: bool = False,
     config: LifeformConfig | None = None,
     rare_heavy_enabled: bool = False,
+    reviewed_profile_overlay: CharacterSoulProfile | None = None,
 ) -> RebirthBundle:
     """Construct a fresh :class:`Lifeform` from a saved template.
 
@@ -105,6 +106,10 @@ def give_birth(
     Returns:
         A :class:`RebirthBundle` carrying the lifeform, the profile
         used, the inflated template, and the stores that back it.
+
+    ``reviewed_profile_overlay`` is an additive migration input for a newer
+    reviewed profile. It updates application-owner artifacts while leaving
+    the template's lived memory, vitals levels, and owner checkpoints intact.
 
     Raises:
         IncompatibleTemplateVersion: schema_version mismatch.
@@ -148,6 +153,11 @@ def give_birth(
     # Choose the profile: prefer evolved_profile if Phase 4 promoted
     # one (drive evolution), else the base profile.
     chosen_profile = inflated.evolved_profile or inflated.profile
+    if reviewed_profile_overlay is not None:
+        chosen_profile = _merge_reviewed_profile_artifacts(
+            chosen_profile,
+            reviewed_profile_overlay,
+        )
 
     # Compile profile into an application package; this re-seeds the
     # 4 application owners with the (possibly evolved) profile content.
@@ -276,6 +286,49 @@ def give_birth(
         memory_store=active_memory_store,
         domain_knowledge_store=domain_store,
         case_memory_store=case_store,
+    )
+
+
+def _merge_reviewed_profile_artifacts(
+    base: CharacterSoulProfile,
+    overlay: CharacterSoulProfile,
+) -> CharacterSoulProfile:
+    """Add current reviewed artifacts without replacing lived template state."""
+
+    if base.profile_id != overlay.profile_id:
+        raise ValueError(
+            "give_birth: reviewed_profile_overlay profile_id does not match "
+            f"template profile: base={base.profile_id!r} overlay={overlay.profile_id!r}."
+        )
+
+    def merge_by_id(base_items, overlay_items, field_name: str):
+        merged = {getattr(item, field_name): item for item in base_items}
+        for item in overlay_items:
+            merged[getattr(item, field_name)] = item
+        return tuple(merged.values())
+
+    return _replace(
+        base,
+        knowledge_seeds=merge_by_id(
+            base.knowledge_seeds,
+            overlay.knowledge_seeds,
+            "seed_id",
+        ),
+        signature_cases=merge_by_id(
+            base.signature_cases,
+            overlay.signature_cases,
+            "case_id",
+        ),
+        strategy_priors=merge_by_id(
+            base.strategy_priors,
+            overlay.strategy_priors,
+            "rule_id",
+        ),
+        boundary_priors=merge_by_id(
+            base.boundary_priors,
+            overlay.boundary_priors,
+            "boundary_id",
+        ),
     )
 
 
