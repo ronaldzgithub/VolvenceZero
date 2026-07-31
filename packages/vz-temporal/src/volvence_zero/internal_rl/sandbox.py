@@ -17,7 +17,6 @@ from volvence_zero.credit.gate import (
 from volvence_zero.environment import EnvironmentMeasurement, EnvironmentOutcome
 from volvence_zero.internal_rl.environment import (
     InternalRLDelayedCreditAssignment,
-    InternalRLEnvStep,
     InternalRLEnvironment,
     InternalRLProofEpisode,
     InternalRLProofProgress,
@@ -1819,10 +1818,20 @@ class CausalZPolicy:
         new_std: tuple[float, ...],
     ) -> float:
         total = 0.0
-        for om, os, nm, ns in zip(old_mean, old_std, new_mean, new_std, strict=True):
-            old_var = max(os * os, 1e-6)
-            new_var = max(ns * ns, 1e-6)
-            total += math.log(max(ns, 1e-6) / max(os, 1e-6)) + (old_var + (om - nm) ** 2) / (2.0 * new_var) - 0.5
+        for old_mu, old_sigma, new_mu, new_sigma in zip(
+            old_mean,
+            old_std,
+            new_mean,
+            new_std,
+            strict=True,
+        ):
+            old_var = max(old_sigma * old_sigma, 1e-6)
+            new_var = max(new_sigma * new_sigma, 1e-6)
+            total += math.log(
+                max(new_sigma, 1e-6) / max(old_sigma, 1e-6)
+            ) + (old_var + (old_mu - new_mu) ** 2) / (
+                2.0 * new_var
+            ) - 0.5
         return total / max(len(old_mean), 1)
 
     def _mean_abs_delta(
@@ -3030,7 +3039,10 @@ class InternalRLSandbox:
             return (0.0, 0.0, 0.0, 0.0, 0.0)
         self._apply_family_outcome_feedbacks(normalized_rollouts)
         credit_alignment = self._delayed_credit_alignment(normalized_rollouts)
-        terminal_success_rate = sum(float(rollout.terminal_success) for rollout in normalized_rollouts) / len(normalized_rollouts)
+        terminal_success_rate = sum(
+            float(rollout.terminal_success)
+            for rollout in normalized_rollouts
+        ) / len(normalized_rollouts)
         family_assignment_rate = sum(
             (
                 sum(1.0 for family_id in rollout.completed_family_ids if family_id != "unassigned")
@@ -3130,9 +3142,13 @@ class InternalRLSandbox:
             )
             if not valid_transitions:
                 continue
-            rollout_family_ids = tuple(dict.fromkeys(
-                transition.active_family_id for transition in valid_transitions if transition.active_family_id is not None
-            ))
+            rollout_family_ids = tuple(
+                dict.fromkeys(
+                    transition.active_family_id
+                    for transition in valid_transitions
+                    if transition.active_family_id is not None
+                )
+            )
             session_payoff_share = _clamp(rollout.total_reward / max(len(rollout_family_ids), 1))
             for family_id in rollout_family_ids:
                 family_session_payoffs.setdefault(family_id, []).append(session_payoff_share)
