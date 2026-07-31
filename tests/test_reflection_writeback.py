@@ -158,6 +158,64 @@ def test_reflection_consumes_prediction_error_snapshot():
     assert any("prediction_error" in tension for tension in snapshot.tensions_identified)
     assert "prediction_error=task" in snapshot.interaction_trace_summary
     assert snapshot.consolidation_score.description
+    assert snapshot.relationship_update_proposals
+    relationship_proposals = tuple(
+        proposal
+        for proposal in snapshot.relationship_update_proposals
+        if proposal.target_owner_slot == "relationship_state"
+    )
+    assert relationship_proposals
+    assert all(proposal.shadow_only for proposal in relationship_proposals)
+    assert all(
+        proposal.requires_user_confirmation
+        for proposal in relationship_proposals
+    )
+    assert all(
+        proposal.proposal_id.startswith("relationship-update:")
+        for proposal in relationship_proposals
+    )
+
+
+def test_reflection_relationship_update_proposals_are_owner_authored_readout():
+    store = MemoryStore()
+    memory_snapshot = asyncio.run(
+        MemoryModule(store=store, wiring_level=WiringLevel.ACTIVE).process_standalone(
+            user_text="remember that the user prefers quieter follow-up",
+            timestamp_ms=30,
+        )
+    ).value
+
+    first = asyncio.run(
+        ReflectionModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            memory_snapshot=memory_snapshot,
+            timestamp_ms=31,
+        )
+    ).value
+    second = asyncio.run(
+        ReflectionModule(wiring_level=WiringLevel.ACTIVE).process_standalone(
+            memory_snapshot=memory_snapshot,
+            timestamp_ms=32,
+        )
+    ).value
+
+    assert first.relationship_update_proposals
+    remember_proposals = tuple(
+        proposal
+        for proposal in first.relationship_update_proposals
+        if proposal.operation == "promote"
+    )
+    assert remember_proposals
+    proposal = remember_proposals[0]
+    assert proposal.target_owner_slot == "memory"
+    assert proposal.source_evidence
+    assert proposal.human_readable_description
+    assert proposal.shadow_only is True
+    assert proposal.requires_user_confirmation is True
+    assert tuple(
+        proposal.proposal_id for proposal in first.relationship_update_proposals
+    ) == tuple(
+        proposal.proposal_id for proposal in second.relationship_update_proposals
+    )
 
 
 def test_reflection_consumes_dialogue_pe_and_regime_delayed_evidence_without_mutation():

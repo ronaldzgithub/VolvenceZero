@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Mapping
 from uuid import uuid4
 
+import hashlib
 import json
 
 from volvence_zero.credit.gate import CreditSnapshot, GateDecision
@@ -33,6 +34,14 @@ class WritebackMode(str, Enum):
     DISABLED = "disabled"
     PROPOSAL_ONLY = "proposal-only"
     APPLY = "apply"
+
+
+class RelationshipUpdateProposalOperation(str, Enum):
+    REMEMBER = "remember"
+    PROMOTE = "promote"
+    DECAY = "decay"
+    REINFORCE = "reinforce"
+    REVIEW = "review"
 
 
 class ReflectionTensionId(str, Enum):
@@ -216,6 +225,18 @@ class ConsolidationScore:
 
 
 @dataclass(frozen=True)
+class RelationshipUpdateProposal:
+    proposal_id: str
+    target_owner_slot: str
+    operation: str
+    human_readable_description: str
+    source_evidence: tuple[str, ...]
+    confidence: float
+    requires_user_confirmation: bool = True
+    shadow_only: bool = True
+
+
+@dataclass(frozen=True)
 class ReflectionSnapshot:
     memory_consolidation: MemoryConsolidation
     policy_consolidation: PolicyConsolidation
@@ -230,6 +251,7 @@ class ReflectionSnapshot:
     primary_prediction_error_dimension: str | None = None
     repeated_prediction_failures: tuple[str, ...] = ()
     error_driven_lesson_count: int = 0
+    relationship_update_proposals: tuple[RelationshipUpdateProposal, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -344,6 +366,65 @@ def _prediction_error_lessons(
 def _count_error_driven_lessons(lessons: tuple[str, ...]) -> int:
     pe_lesson_values = {item.value for item in PE_DERIVED_LESSON_IDS}
     return sum(1 for lesson in lessons if lesson in pe_lesson_values)
+
+
+def _relationship_proposal_id(
+    *,
+    target_owner_slot: str,
+    operation: RelationshipUpdateProposalOperation,
+    evidence: tuple[str, ...],
+    description: str,
+) -> str:
+    payload = {
+        "target_owner_slot": target_owner_slot,
+        "operation": operation.value,
+        "source_evidence": list(evidence),
+        "description": description,
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"relationship-update:{digest[:16]}"
+
+
+def _relationship_update_proposal(
+    *,
+    target_owner_slot: str,
+    operation: RelationshipUpdateProposalOperation,
+    description: str,
+    evidence: tuple[str, ...],
+    confidence: float,
+) -> RelationshipUpdateProposal:
+    if target_owner_slot not in {
+        "memory",
+        "commitment",
+        "open_loop",
+        "user_model",
+        "belief_assumption",
+        "relationship_state",
+        "boundary_consent",
+    }:
+        raise ValueError(
+            "relationship update proposal target_owner_slot is not supported: "
+            f"{target_owner_slot!r}"
+        )
+    if not description.strip():
+        raise ValueError("relationship update proposal description must be non-empty.")
+    if not evidence:
+        raise ValueError("relationship update proposal evidence must be non-empty.")
+    return RelationshipUpdateProposal(
+        proposal_id=_relationship_proposal_id(
+            target_owner_slot=target_owner_slot,
+            operation=operation,
+            evidence=evidence,
+            description=description,
+        ),
+        target_owner_slot=target_owner_slot,
+        operation=operation.value,
+        human_readable_description=description,
+        source_evidence=evidence,
+        confidence=_clamp(confidence),
+    )
 
 
 # Positive external outcome kinds that resolve a rupture-repair as observed
@@ -595,6 +676,13 @@ class ReflectionEngine:
         primary_error_dimension = _primary_prediction_error_dimension(prediction_error_snapshot)
         repeated_failures = _repeated_prediction_failures(prediction_error_snapshot)
         error_driven_lesson_count = _count_error_driven_lessons(lessons)
+        relationship_update_proposals = self._relationship_update_proposals(
+            memory_consolidation=memory_consolidation,
+            tensions=tensions,
+            lessons=lessons,
+            repeated_failures=repeated_failures,
+            consolidation_score=consolidation_score,
+        )
         trace_summary = self._interaction_trace_summary(
             memory_snapshot=memory_snapshot,
             dual_track_snapshot=dual_track_snapshot,
@@ -622,6 +710,7 @@ class ReflectionEngine:
             review_required=review_required,
             description=description,
             proposal_success_rate=self.proposal_success_rate,
+            relationship_update_proposals=relationship_update_proposals,
         )
 
     def apply(
@@ -1348,6 +1437,135 @@ class ReflectionEngine:
             )
         lessons.extend(_prediction_error_lessons(prediction_error_snapshot))
         return tuple(dict.fromkeys(lessons))
+
+    def _relationship_update_proposals(
+        self,
+        *,
+        memory_consolidation: MemoryConsolidation,
+        tensions: tuple[str, ...],
+        lessons: tuple[str, ...],
+        repeated_failures: tuple[str, ...],
+        consolidation_score: ConsolidationScore,
+    ) -> tuple[RelationshipUpdateProposal, ...]:
+        proposals: list[RelationshipUpdateProposal] = []
+        confidence = consolidation_score.confidence
+        for entry in memory_consolidation.new_durable_entries[:4]:
+            evidence = (
+                f"memory_entry:{entry.entry_id}",
+                f"track:{entry.track.value}",
+                f"stratum:{entry.stratum}",
+            )
+            proposals.append(
+                _relationship_update_proposal(
+                    target_owner_slot="memory",
+                    operation=RelationshipUpdateProposalOperation.REMEMBER,
+                    description=(
+                        "Review this reflection-derived durable memory before "
+                        "using it as long-term relationship context."
+                    ),
+                    evidence=evidence,
+                    confidence=max(confidence, entry.strength),
+                )
+            )
+        for entry_id in memory_consolidation.promoted_entries[:4]:
+            proposals.append(
+                _relationship_update_proposal(
+                    target_owner_slot="memory",
+                    operation=RelationshipUpdateProposalOperation.PROMOTE,
+                    description=(
+                        "Confirm whether this retrieved memory should become "
+                        "more durable for future sessions."
+                    ),
+                    evidence=(f"memory_entry:{entry_id}",),
+                    confidence=confidence,
+                )
+            )
+        for entry_id in memory_consolidation.decayed_entries[:4]:
+            proposals.append(
+                _relationship_update_proposal(
+                    target_owner_slot="memory",
+                    operation=RelationshipUpdateProposalOperation.DECAY,
+                    description=(
+                        "Review whether this memory should be weakened or "
+                        "removed from future relationship context."
+                    ),
+                    evidence=(f"memory_entry:{entry_id}",),
+                    confidence=consolidation_score.decay_score,
+                )
+            )
+        for belief in memory_consolidation.beliefs_updated[:4]:
+            proposals.append(
+                _relationship_update_proposal(
+                    target_owner_slot="belief_assumption",
+                    operation=RelationshipUpdateProposalOperation.REINFORCE,
+                    description=(
+                        "Review whether this belief reinforcement should be "
+                        "kept as durable relationship context."
+                    ),
+                    evidence=(f"belief_update:{belief}",),
+                    confidence=confidence,
+                )
+            )
+        relationship_tensions = {
+            ReflectionTensionId.PE_RELATIONSHIP_MISMATCH.value,
+            ReflectionTensionId.RELATIONSHIP_STABILITY_SOFT_DROP.value,
+            ReflectionTensionId.CROSS_TRACK_TENSION_HIGH.value,
+            ReflectionTensionId.CROSS_TRACK_ALIGNMENT_DRIFT.value,
+        }
+        if any(tension in relationship_tensions for tension in tensions):
+            proposals.append(
+                _relationship_update_proposal(
+                    target_owner_slot="relationship_state",
+                    operation=RelationshipUpdateProposalOperation.REVIEW,
+                    description=(
+                        "Review the relationship state after reflection found "
+                        "a relationship or cross-track tension."
+                    ),
+                    evidence=tuple(
+                        f"tension:{tension}"
+                        for tension in tensions
+                        if tension in relationship_tensions
+                    ),
+                    confidence=confidence,
+                )
+            )
+        if "prediction_error:relationship" in repeated_failures:
+            proposals.append(
+                _relationship_update_proposal(
+                    target_owner_slot="relationship_state",
+                    operation=RelationshipUpdateProposalOperation.REVIEW,
+                    description=(
+                        "Review the relationship model because a relationship "
+                        "prediction failed this turn."
+                    ),
+                    evidence=("prediction_error:relationship",),
+                    confidence=max(confidence, 0.55),
+                )
+            )
+        if ReflectionLessonId.REVIEW_TENSION_BEFORE_AUTO_WRITEBACK.value in lessons:
+            proposals.append(
+                _relationship_update_proposal(
+                    target_owner_slot="boundary_consent",
+                    operation=RelationshipUpdateProposalOperation.REVIEW,
+                    description=(
+                        "Review whether any remembered relationship update "
+                        "needs a boundary or proactive-mention limit."
+                    ),
+                    evidence=(
+                        "lesson:"
+                        f"{ReflectionLessonId.REVIEW_TENSION_BEFORE_AUTO_WRITEBACK.value}",
+                    ),
+                    confidence=confidence,
+                )
+            )
+        deduped: list[RelationshipUpdateProposal] = []
+        seen: set[str] = set()
+        for proposal in proposals:
+            if proposal.proposal_id in seen:
+                continue
+            seen.add(proposal.proposal_id)
+            deduped.append(proposal)
+        return tuple(deduped[:12])
 
     def _interaction_trace_summary(
         self,
