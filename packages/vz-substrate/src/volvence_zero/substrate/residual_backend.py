@@ -10,6 +10,7 @@ import logging
 import math
 import os
 import re
+from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
 from volvence_zero.conditioning_bank_contracts import (
@@ -122,6 +123,7 @@ from volvence_zero.substrate.prefix_kv_artifact import (  # noqa: E402
 )
 from volvence_zero.substrate.common_adapter_bundle import (  # noqa: E402
     CommonAdapterBundle,
+    fingerprint_model_weight_files,
 )
 from volvence_zero.substrate.character_residual_artifact import (  # noqa: E402
     CharacterResidualAdapterPackage,
@@ -3211,6 +3213,21 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"bundle={bundle.base_model_id!r}, runtime={self.model_id!r}."
             )
         checkpoint = bundle.rare_heavy_checkpoint
+        expected_checkpoint_fingerprint = _build_compatibility_fingerprint(
+            model_id=self.model_id,
+            runtime_origin=self.runtime_origin,
+            hidden_size=self._hidden_size,
+            layer_indices=self._layer_indices,
+            training_mode=checkpoint.training_mode,
+        )
+        if (
+            checkpoint.compatibility_fingerprint
+            != expected_checkpoint_fingerprint
+        ):
+            raise ValueError(
+                "common adapter rare-heavy compatibility fingerprint does "
+                "not match this runtime."
+            )
         unavailable_layers = sorted(
             set(layer.layer_index for layer in checkpoint.adapter_layers)
             - set(self._layer_indices)
@@ -3991,10 +4008,43 @@ def build_transformers_runtime_with_fallback(
         effective_local_files_only = True
         resolved_mode = SubstrateFallbackMode.ALLOW_BUILTIN
         effective_runtime_origin = "hf-local"
+    effective_model_source = model_source or model_id
+    if common_adapter_bundle is not None:
+        candidate = Path(effective_model_source).expanduser()
+        if candidate.is_dir():
+            weights_root = candidate.resolve()
+        else:
+            try:
+                from huggingface_hub import snapshot_download
+            except ImportError as exc:
+                raise RuntimeError(
+                    "loading a common adapter by model id requires "
+                    "huggingface_hub so the frozen weight digest can be "
+                    "verified."
+                ) from exc
+            weights_root = Path(
+                snapshot_download(
+                    repo_id=effective_model_source,
+                    local_files_only=effective_local_files_only,
+                )
+            ).resolve()
+        actual_weights_sha256 = fingerprint_model_weight_files(weights_root)
+        if (
+            actual_weights_sha256
+            != common_adapter_bundle.base_model_weights_sha256
+        ):
+            raise ValueError(
+                "common adapter base weight digest does not match the frozen "
+                f"runtime snapshot: declared="
+                f"{common_adapter_bundle.base_model_weights_sha256}, "
+                f"actual={actual_weights_sha256}."
+            )
+        effective_model_source = str(weights_root)
+        effective_local_files_only = True
     try:
         return TransformersOpenWeightResidualRuntime(
             model_id=model_id,
-            pretrained_source=model_source or model_id,
+            pretrained_source=effective_model_source,
             device=device,
             layer_indices=layer_indices,
             hook_layer_selection=hook_layer_selection,

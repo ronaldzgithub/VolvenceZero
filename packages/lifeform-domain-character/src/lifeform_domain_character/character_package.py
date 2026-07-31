@@ -540,6 +540,29 @@ def rebind_fidelity_only(
     return rebound
 
 
+def character_fidelity_evidence_from_json(
+    payload: str,
+) -> CharacterFidelityEvidence:
+    raw = json.loads(payload)
+    if not isinstance(raw, dict):
+        raise ValueError("character fidelity evidence must be a JSON object.")
+    values = dict(raw)
+    report_raw = _require_object(values.pop("report_ref", None), "report_ref")
+    return CharacterFidelityEvidence(
+        report_ref=CharacterArtifactRef(**report_raw),
+        **values,
+    )
+
+
+def character_package_gate_record_from_json(
+    payload: str,
+) -> CharacterPackageGateRecord:
+    raw = json.loads(payload)
+    if not isinstance(raw, dict):
+        raise ValueError("character package gate record must be a JSON object.")
+    return CharacterPackageGateRecord(**raw)
+
+
 def _verify_ref(
     ref: CharacterArtifactRef | CharacterLoRARef,
     *,
@@ -587,6 +610,8 @@ __all__ = [
     "CharacterLoRARef",
     "CharacterPackageGateRecord",
     "CharacterPackageManifest",
+    "character_fidelity_evidence_from_json",
+    "character_package_gate_record_from_json",
     "rebind_fidelity_only",
     "resolve_artifact_path",
     "sha256_path",
