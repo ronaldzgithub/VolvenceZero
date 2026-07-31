@@ -37,6 +37,7 @@ from volvence_zero.substrate import (
     SyntheticOpenWeightResidualRuntime,
     build_training_trace,
 )
+from volvence_zero.substrate.rare_heavy_training import _resolve_target_modules
 
 
 def _traces() -> tuple:
@@ -195,12 +196,61 @@ def test_clearing_backend_restores_builtin_path() -> None:
 
 
 def test_peft_backend_config_validation_fails_loudly() -> None:
-    with pytest.raises(ValueError, match="target_modules"):
-        PeftLoraRareHeavyBackend(target_modules=())
+    with pytest.raises(ValueError, match="entries"):
+        PeftLoraRareHeavyBackend(target_modules=("",))
     with pytest.raises(ValueError, match="rank/alpha"):
         PeftLoraRareHeavyBackend(rank=0)
     with pytest.raises(ValueError, match="max_steps"):
         PeftLoraRareHeavyBackend(max_steps=0)
+
+
+class _FakeConfig:
+    def __init__(self, model_type: str) -> None:
+        self.model_type = model_type
+
+
+class _FakeModel:
+    def __init__(self, model_type: str, module_names: tuple[str, ...]) -> None:
+        self.config = _FakeConfig(model_type)
+        self._module_names = module_names
+
+    def named_modules(self):
+        return tuple((name, object()) for name in self._module_names)
+
+
+def test_peft_backend_infers_qwen_targets_from_loaded_model() -> None:
+    model = _FakeModel(
+        "qwen2",
+        (
+            "model.layers.0.self_attn.q_proj",
+            "model.layers.0.self_attn.v_proj",
+            "model.layers.0.self_attn.o_proj",
+        ),
+    )
+
+    assert _resolve_target_modules(base_model=model, configured=(), source="qwen") == (
+        "q_proj",
+        "v_proj",
+        "o_proj",
+    )
+
+
+def test_peft_backend_rejects_mismatched_explicit_targets_before_peft() -> None:
+    model = _FakeModel(
+        "qwen2",
+        (
+            "model.layers.0.self_attn.q_proj",
+            "model.layers.0.self_attn.v_proj",
+            "model.layers.0.self_attn.o_proj",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="missing=.*c_attn"):
+        _resolve_target_modules(
+            base_model=model,
+            configured=("c_attn",),
+            source="qwen",
+        )
 
 
 def test_brain_config_peft_lora_requires_transformers_runtime() -> None:

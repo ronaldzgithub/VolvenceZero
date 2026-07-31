@@ -46,8 +46,13 @@ from volvence_zero.substrate.residual_contracts import (
 
 RARE_HEAVY_PEFT_TRAINING_MODE = "peft-lora-v1"
 
-_DEFAULT_TARGET_MODULES: tuple[str, ...] = ("c_attn",)
 _DEFAULT_MAX_STEPS = 20
+
+_TARGET_MODULES_BY_MODEL_TYPE: dict[str, tuple[str, ...]] = {
+    "gpt2": ("c_attn",),
+    "qwen2": ("q_proj", "v_proj", "o_proj"),
+    "qwen3": ("q_proj", "v_proj", "o_proj"),
+}
 
 
 @dataclass(frozen=True)
@@ -136,7 +141,10 @@ class PeftLoraRareHeavyBackend:
       tiny models); production runs raise it from the artifact plan.
     """
 
-    target_modules: tuple[str, ...] = _DEFAULT_TARGET_MODULES
+    # Empty means "infer from the loaded model family".  Keeping inference
+    # here, after AutoModel has resolved the actual config, avoids silently
+    # applying GPT-2's ``c_attn`` default to Qwen/Llama-style models.
+    target_modules: tuple[str, ...] = ()
     rank: int = 8
     alpha: int = 16
     dropout: float = 0.0
@@ -146,8 +154,10 @@ class PeftLoraRareHeavyBackend:
     extra_config: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not self.target_modules:
-            raise ValueError("PeftLoraRareHeavyBackend.target_modules must be non-empty")
+        if any(not value.strip() for value in self.target_modules):
+            raise ValueError(
+                "PeftLoraRareHeavyBackend.target_modules entries must be non-empty"
+            )
         if self.rank <= 0 or self.alpha <= 0:
             raise ValueError("PeftLoraRareHeavyBackend rank/alpha must be > 0")
         if not (0.0 <= self.dropout < 1.0):
@@ -184,6 +194,11 @@ class PeftLoraRareHeavyBackend:
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token or "[PAD]"
         base_model = transformers.AutoModelForCausalLM.from_pretrained(source)
+        target_modules = _resolve_target_modules(
+            base_model=base_model,
+            configured=self.target_modules,
+            source=str(source),
+        )
         device = torch.device(request.device if request.device else "cpu")
         base_model.to(device)
         for param in base_model.parameters():
@@ -193,7 +208,7 @@ class PeftLoraRareHeavyBackend:
             r=self.rank,
             lora_alpha=self.alpha,
             lora_dropout=self.dropout,
-            target_modules=list(self.target_modules),
+            target_modules=list(target_modules),
             bias="none",
             task_type="CAUSAL_LM",
         )
@@ -204,7 +219,7 @@ class PeftLoraRareHeavyBackend:
         if not trainable:
             raise RuntimeError(
                 "PeftLoraRareHeavyBackend.train: peft marked no parameters trainable; "
-                f"target_modules={self.target_modules!r} does not match any module "
+                f"target_modules={target_modules!r} does not match any module "
                 f"in {source!r}."
             )
         optimizer = torch.optim.AdamW(trainable, lr=self.learning_rate)
@@ -270,13 +285,13 @@ class PeftLoraRareHeavyBackend:
 
         delta_matrices = _collect_lora_products(
             peft_model=peft_model,
-            target_modules=self.target_modules,
+            target_modules=target_modules,
             torch=torch,
         )
         if not delta_matrices:
             raise RuntimeError(
                 "PeftLoraRareHeavyBackend.train: no LoRA adapter products extracted; "
-                f"target_modules={self.target_modules!r} produced no state-dict "
+                f"target_modules={target_modules!r} produced no state-dict "
                 "entries."
             )
         adapter_layers = _project_products_to_layers(
@@ -294,10 +309,55 @@ class PeftLoraRareHeavyBackend:
             steps_taken=steps_taken,
             description=(
                 f"PEFT LoRA rare-heavy training on {source}: rank={self.rank} "
+                f"targets={target_modules!r} "
                 f"steps={steps_taken} init_loss={initial_loss:.4f} "
                 f"final_loss={final_loss:.4f} layers={len(adapter_layers)}."
             ),
         )
+
+
+def _resolve_target_modules(
+    *, base_model: Any, configured: tuple[str, ...], source: str
+) -> tuple[str, ...]:
+    """Resolve and validate LoRA targets against the loaded model.
+
+    Target selection is a substrate concern because a wrong family mapping
+    otherwise fails late inside PEFT (or, worse, adapts an unintended module).
+    Explicit targets are still accepted, but every requested suffix must occur
+    in the loaded module graph before training starts.
+    """
+
+    module_names = tuple(name for name, _module in base_model.named_modules())
+    model_type = str(base_model.config.model_type).strip().lower()
+    targets = configured
+    if not targets:
+        targets = _TARGET_MODULES_BY_MODEL_TYPE.get(model_type, ())
+        if not targets:
+            qwen_style = ("q_proj", "v_proj", "o_proj")
+            if all(_target_exists(module_names, target) for target in qwen_style):
+                targets = qwen_style
+            elif _target_exists(module_names, "c_attn"):
+                targets = ("c_attn",)
+            else:
+                raise ValueError(
+                    "PeftLoraRareHeavyBackend cannot infer target_modules for "
+                    f"model_type={model_type!r} source={source!r}; pass explicit "
+                    "target_modules matching the loaded model."
+                )
+    missing = tuple(
+        target for target in targets if not _target_exists(module_names, target)
+    )
+    if missing:
+        raise ValueError(
+            "PeftLoraRareHeavyBackend target_modules do not match the loaded "
+            f"model: missing={missing!r} model_type={model_type!r} "
+            f"source={source!r}."
+        )
+    return targets
+
+
+def _target_exists(module_names: tuple[str, ...], target: str) -> bool:
+    return any(name == target or name.endswith(f".{target}") for name in module_names)
 
 
 def _collect_lora_products(
