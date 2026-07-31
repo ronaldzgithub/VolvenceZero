@@ -32,7 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     mine = subparsers.add_parser("mine", help="Parse evidence and mine semantic failure patterns")
     _add_embedding_arguments(mine)
-    _add_backend_arguments(mine, default="none", allow_none=True)
+    _add_backend_arguments(mine, default="openai", allow_none=False)
     mine.add_argument("--output", type=Path)
     mine.add_argument("--verdict-root", type=Path)
     mine.add_argument("--max-transcripts", type=int)
@@ -67,7 +67,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         paths = ForgePaths.discover(repo_root=args.repo_root, transcripts_root=args.transcripts_root)
         config = ForgeConfig.load(paths)
         if args.command == "mine":
-            backend = _backend(args)
+            backend = _required_backend(args)
             embedder = _embedder(args)
             sources = load_source_bundle(
                 paths,

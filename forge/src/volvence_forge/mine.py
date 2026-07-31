@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import json
 import math
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -22,9 +23,11 @@ from .foundation import (
     PromptStore,
     SchemaStore,
     StructuredBackend,
+    atomic_write_json,
     atomic_write_text,
     canonical_json,
     normalized,
+    utc_now,
     utc_stamp,
 )
 from .sources import (
@@ -304,20 +307,29 @@ def mine_failures(
     destination = (output_dir or config.paths.artifacts_root / f"forge_mine_{utc_stamp()}").resolve()
     destination.mkdir(parents=True, exist_ok=False)
     pattern_path = write_failure_patterns(patterns, destination / "failure_patterns.jsonl")
+    inventory = {
+        "schema_version": "forge-source-inventory.v1",
+        "created_at": utc_now(),
+        "source_bundle_digest": source_bundle_digest(sources),
+        "analysis_backend": backend.backend_name,
+        "analysis_model": backend.model_name,
+        "embedding_model": embedder.model_name,
+        "counts": {
+            "transcripts": len(sources.transcripts),
+            "promotion_verdicts": len(sources.verdicts),
+            "plans": len(sources.plans),
+            "explicit_failed_sources": len(_source_objects(sources)),
+            "failure_patterns": len(patterns),
+        },
+    }
+    atomic_write_json(destination / "source_inventory.json", inventory)
+    prediction_checks = _prediction_checks(patterns, config.paths.ledger_path)
+    atomic_write_json(
+        destination / "prediction_checks.json",
+        {"schema_version": "forge-prediction-checks.v1", "checks": prediction_checks},
+    )
     report_path = destination / "report.md"
-    report_lines = [
-        "# Forge Mine Report",
-        "",
-        f"- Source bundle digest: `{source_bundle_digest(sources)}`",
-        f"- Structured backend: `{backend.backend_name}` / `{backend.model_name}`",
-        f"- Embedding backend: `{embedder.model_name}`",
-        f"- Patterns: {len(patterns)}",
-        f"- In-surface: {sum(pattern['surface_status'] == 'in-surface' for pattern in patterns)}",
-        "",
-        "Patterns are read-only evidence; no target file was modified.",
-        "",
-    ]
-    atomic_write_text(report_path, "\n".join(report_lines))
+    atomic_write_text(report_path, _render_mine_report(inventory, patterns, prediction_checks))
     return MineResult(
         output_dir=destination,
         pattern_path=pattern_path,
@@ -325,3 +337,93 @@ def mine_failures(
         pattern_count=len(patterns),
         in_surface_count=sum(pattern["surface_status"] == "in-surface" for pattern in patterns),
     )
+
+
+def _prediction_checks(
+    patterns: Sequence[Mapping[str, object]], ledger_path: Path
+) -> list[dict[str, object]]:
+    if not ledger_path.exists():
+        return []
+    counts = {str(pattern["pattern_id"]): int(pattern["occurrence_count"]) for pattern in patterns}
+    checks: list[dict[str, object]] = []
+    for line_number, line in enumerate(ledger_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid ledger JSON at {ledger_path}:{line_number}: {exc}") from exc
+        if not isinstance(event, dict):
+            raise ValueError(f"ledger event must be an object at {ledger_path}:{line_number}")
+        if event.get("event") != "proposal_decision" or event.get("decision") != "applied":
+            continue
+        prediction = event.get("prediction")
+        if not isinstance(prediction, dict):
+            raise ValueError(f"applied ledger event lacks prediction at {ledger_path}:{line_number}")
+        pattern_id = prediction.get("pattern_id")
+        baseline = prediction.get("baseline_value")
+        expected_delta = prediction.get("expected_delta")
+        if not isinstance(pattern_id, str) or not isinstance(baseline, int) or not isinstance(expected_delta, int):
+            raise ValueError(f"invalid prediction fields at {ledger_path}:{line_number}")
+        observed = counts.get(pattern_id, 0)
+        checks.append(
+            {
+                "proposal_id": event.get("proposal_id"),
+                "pattern_id": pattern_id,
+                "baseline_value": baseline,
+                "expected_delta": expected_delta,
+                "observed_value": observed,
+                "status": "fulfilled" if observed <= max(0, baseline + expected_delta) else "refuted",
+            }
+        )
+    return checks
+
+
+def _render_mine_report(
+    inventory: Mapping[str, object],
+    patterns: Sequence[Mapping[str, object]],
+    checks: Sequence[Mapping[str, object]],
+) -> str:
+    counts = inventory["counts"]
+    assert isinstance(counts, dict)
+    lines = [
+        "# Forge Failure Mining Report",
+        "",
+        f"- Created: {inventory['created_at']}",
+        f"- Analysis backend: `{inventory['analysis_backend']}` / `{inventory['analysis_model']}`",
+        f"- Embedding model: `{inventory['embedding_model']}`",
+        f"- Inputs: {counts['transcripts']} transcripts, {counts['promotion_verdicts']} verdicts, "
+        f"{counts['plans']} plans",
+        f"- Explicit failed sources: {counts['explicit_failed_sources']}",
+        f"- Failure patterns: {counts['failure_patterns']}",
+        "",
+        "## Failure patterns",
+        "",
+    ]
+    for pattern in patterns:
+        target = pattern["editable_target"] or "out-of-surface"
+        lines.extend(
+            (
+                f"### {pattern['pattern_id']}",
+                "",
+                f"- Occurrences: {pattern['occurrence_count']}",
+                f"- Surface: `{pattern['surface_status']}` → `{target}` "
+                f"(similarity={float(pattern['surface_similarity']):.3f})",
+                f"- Verifier cause: {pattern['verifier_cause']}",
+                f"- Agent behavior: {pattern['agent_behavior_cause']}",
+                f"- Mechanism: {pattern['exposed_mechanism']}",
+                "",
+            )
+        )
+    lines.extend(("## Prediction checks", ""))
+    if checks:
+        for check in checks:
+            lines.append(
+                f"- `{check['proposal_id']}` / `{check['pattern_id']}`: **{check['status']}** "
+                f"(baseline={check['baseline_value']}, observed={check['observed_value']}, "
+                f"expected_delta={check['expected_delta']})"
+            )
+    else:
+        lines.append("- No previously applied proposal is awaiting longitudinal comparison.")
+    lines.append("")
+    return "\n".join(lines)

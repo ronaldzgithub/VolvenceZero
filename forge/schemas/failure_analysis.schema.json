@@ -16,7 +16,11 @@
           "verifier_cause": {"type": "string", "minLength": 1, "maxLength": 1000},
           "agent_behavior_cause": {"type": "string", "minLength": 1, "maxLength": 1000},
           "exposed_mechanism": {"type": "string", "minLength": 1, "maxLength": 1000},
-          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "preserve_behaviors": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1, "maxLength": 500}
+          }
         }
       }
     }
