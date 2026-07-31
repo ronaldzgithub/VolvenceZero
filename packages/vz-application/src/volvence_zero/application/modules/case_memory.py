@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import logging
 import math
 from typing import TYPE_CHECKING, Any, Mapping
 
@@ -78,6 +79,7 @@ _MIN_ACTION_REQUEST_ALIGNMENT = 0.16
 _MIN_ACTION_REQUEST_ALIGNMENT_REAL_BACKEND = 0.02
 _MIN_ACTION_REQUEST_MARGIN_REAL_BACKEND = 0.0
 _MIN_ACTION_APPLICABILITY_CONFIDENCE = 0.75
+_LOGGER = logging.getLogger(__name__)
 
 
 class CaseMemoryModule(RuntimeModule[CaseMemorySnapshot]):
@@ -473,6 +475,16 @@ def _select_action_grounding(
             if backend_state == "backend"
             else _MIN_ACTION_REQUEST_ALIGNMENT
         )
+        if backend_state == "backend":
+            _LOGGER.warning(
+                "character action gate query=%r action=%.6f reflective=%.6f "
+                "minimum=%.6f margin=%.6f",
+                query_text,
+                action_request_alignment,
+                reflective_alignment,
+                minimum_alignment,
+                _MIN_ACTION_REQUEST_MARGIN_REAL_BACKEND,
+            )
         if (
             action_request_alignment < minimum_alignment
             or (
