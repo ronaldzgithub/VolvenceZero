@@ -34,7 +34,9 @@ from volvence_zero.evaluation.types import (
 from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.joint_loop.pipeline import RareHeavyArtifact
 from volvence_zero.substrate import (
+    RARE_HEAVY_STRUCTURAL_OBJECTIVE_VERSION,
     ResidualActivation,
+    RareHeavyStructuralObjective,
     SubstrateSnapshot,
     SurfaceKind,
     SyntheticOpenWeightResidualRuntime,
@@ -43,7 +45,7 @@ from volvence_zero.substrate import (
 from volvence_zero.temporal import DualTrackRareHeavySnapshot
 
 
-GATE10_SCHEMA_VERSION = "gate10-rare-heavy-promotion.v2"
+GATE10_SCHEMA_VERSION = "gate10-rare-heavy-promotion.v3"
 GATE10_SEEDS = (1021, 1031, 1033)
 GATE10_ARMS = (
     "full-import",
@@ -84,7 +86,7 @@ _OLD_SOURCES = (
     "legacy shared route alpha beta",
     "legacy shared route gamma delta",
 )
-_TARGET_RESIDUAL_DELTA = 0.012
+_STRUCTURAL_OBJECTIVE = RareHeavyStructuralObjective()
 
 
 @dataclass(frozen=True)
@@ -253,9 +255,17 @@ def _target_snapshot(
             activation=tuple(
                 max(
                     -1.0,
-                    min(1.0, value + _TARGET_RESIDUAL_DELTA),
+                    min(1.0, value + delta),
                 )
-                for value in activation.activation
+                for value, delta in zip(
+                    activation.activation,
+                    _STRUCTURAL_OBJECTIVE.residual_delta(
+                        source_text=source_text,
+                        layer_index=activation.layer_index,
+                        width=len(activation.activation),
+                    ),
+                    strict=True,
+                )
             ),
             step=activation.step,
         )
@@ -278,7 +288,9 @@ def _target_snapshot(
         unavailable_fields=(),
         description=(
             "Gate 10 offline target snapshot derived from a shared structured "
-            "cohort; no per-user state is present."
+            "cohort with structural objective "
+            f"{RARE_HEAVY_STRUCTURAL_OBJECTIVE_VERSION}; no per-user state "
+            "is present."
         ),
     )
 
@@ -505,10 +517,28 @@ def _run_arm(
     )
     heldout_targets = tuple(
         tuple(
-            max(-1.0, min(1.0, value + _TARGET_RESIDUAL_DELTA))
-            for value in values
+            max(-1.0, min(1.0, value + delta))
+            for value, delta in zip(
+                values,
+                tuple(
+                    delta
+                    for activation in runtime.capture(
+                        source_text=source
+                    ).residual_activations
+                    for delta in _STRUCTURAL_OBJECTIVE.residual_delta(
+                        source_text=source,
+                        layer_index=activation.layer_index,
+                        width=len(activation.activation),
+                    )
+                ),
+                strict=True,
+            )
         )
-        for values in baseline_heldout_values
+        for source, values in zip(
+            _HELDOUT_SOURCES,
+            baseline_heldout_values,
+            strict=True,
+        )
     )
     baseline_old_values = tuple(
         _capture_values(runtime, source_text=source)
@@ -1062,6 +1092,9 @@ def export_gate10_evidence_bundle(
         "required_files": GATE10_REQUIRED_FILES,
         "cohort_scope": "shared-synthetic-cohort",
         "training_mode": "offline-clone:adapter-delta-v2",
+        "structural_objective": (
+            RARE_HEAVY_STRUCTURAL_OBJECTIVE_VERSION
+        ),
         "parameter_count_source": "SubstrateRareHeavyCheckpoint",
         "substrate_fingerprint_source": (
             "SubstrateRareHeavyCheckpoint.compatibility_fingerprint"

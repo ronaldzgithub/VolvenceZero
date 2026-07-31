@@ -81,6 +81,10 @@ from volvence_zero.substrate.rare_heavy_training import (
     RareHeavyAdapterTrainingResult,
     RareHeavyTrainingRequest,
 )
+from volvence_zero.substrate.rare_heavy_objective import (
+    RARE_HEAVY_STRUCTURAL_OBJECTIVE_VERSION,
+    RareHeavyStructuralObjective,
+)
 from volvence_zero.substrate.control_basis import (
     CONTROL_BASIS_ARTIFACT_SCHEMA_VERSION,
     FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE,
@@ -239,6 +243,8 @@ __all__ = [
     "RareHeavyAdapterTrainingBackend",
     "RareHeavyAdapterTrainingResult",
     "RareHeavyTrainingRequest",
+    "RARE_HEAVY_STRUCTURAL_OBJECTIVE_VERSION",
+    "RareHeavyStructuralObjective",
     "SubstrateDeltaAdapterLayer",
     "SubstrateOnlineFastCheckpoint",
     "SubstrateRareHeavyCheckpoint",

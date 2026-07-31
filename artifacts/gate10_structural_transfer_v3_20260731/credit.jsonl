@@ -1,0 +1,12 @@
+{"arm":"full-import","automatic_rejection":false,"gate_decision":"allow","import_applied":true,"seed":1021}
+{"arm":"candidate-review-only","automatic_rejection":false,"gate_decision":"allow","import_applied":false,"seed":1021}
+{"arm":"rejected-candidate","automatic_rejection":true,"gate_decision":"block","import_applied":false,"seed":1021}
+{"arm":"rollback-to-previous","automatic_rejection":false,"gate_decision":"allow","import_applied":true,"seed":1021}
+{"arm":"full-import","automatic_rejection":false,"gate_decision":"allow","import_applied":true,"seed":1031}
+{"arm":"candidate-review-only","automatic_rejection":false,"gate_decision":"allow","import_applied":false,"seed":1031}
+{"arm":"rejected-candidate","automatic_rejection":true,"gate_decision":"block","import_applied":false,"seed":1031}
+{"arm":"rollback-to-previous","automatic_rejection":false,"gate_decision":"allow","import_applied":true,"seed":1031}
+{"arm":"full-import","automatic_rejection":false,"gate_decision":"allow","import_applied":true,"seed":1033}
+{"arm":"candidate-review-only","automatic_rejection":false,"gate_decision":"allow","import_applied":false,"seed":1033}
+{"arm":"rejected-candidate","automatic_rejection":true,"gate_decision":"block","import_applied":false,"seed":1033}
+{"arm":"rollback-to-previous","automatic_rejection":false,"gate_decision":"allow","import_applied":true,"seed":1033}

@@ -1,0 +1,12 @@
+{"arm":"full-import","old_scenario_replay_count":2,"seed":1021}
+{"arm":"candidate-review-only","old_scenario_replay_count":2,"seed":1021}
+{"arm":"rejected-candidate","old_scenario_replay_count":2,"seed":1021}
+{"arm":"rollback-to-previous","old_scenario_replay_count":2,"seed":1021}
+{"arm":"full-import","old_scenario_replay_count":2,"seed":1031}
+{"arm":"candidate-review-only","old_scenario_replay_count":2,"seed":1031}
+{"arm":"rejected-candidate","old_scenario_replay_count":2,"seed":1031}
+{"arm":"rollback-to-previous","old_scenario_replay_count":2,"seed":1031}
+{"arm":"full-import","old_scenario_replay_count":2,"seed":1033}
+{"arm":"candidate-review-only","old_scenario_replay_count":2,"seed":1033}
+{"arm":"rejected-candidate","old_scenario_replay_count":2,"seed":1033}
+{"arm":"rollback-to-previous","old_scenario_replay_count":2,"seed":1033}

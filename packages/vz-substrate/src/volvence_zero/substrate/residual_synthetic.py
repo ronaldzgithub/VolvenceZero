@@ -15,11 +15,6 @@ from __future__ import annotations
 
 import importlib
 
-import hashlib
-import math
-import random
-from typing import Any, Sequence
-from uuid import uuid4
 
 from volvence_zero.conditioning_bank_contracts import (
     ConditioningBankLatentCarrier,
@@ -32,31 +27,22 @@ from volvence_zero.substrate.adapter import (
     ResidualActivation,
     ResidualSequenceStep,
     SubstrateSnapshot,
-    SurfaceKind,
-    UnavailableField,
 )
 
 from volvence_zero.substrate.residual_contracts import (
     GenerationResult,
-    HashingWhitespaceTokenizer,
-    LocalModelCompatibilityReport,
-    LocalSubstrateRuntimeMode,
     OpenWeightRuntimeCapture,
     ResidualControlApplication,
     SubstrateDeltaAdapterLayer,
-    SubstrateFallbackMode,
     SubstrateOnlineFastCheckpoint,
     SubstrateRareHeavyCheckpoint,
     TrainingTrace,
 )
 from volvence_zero.substrate.residual_interfaces import (
     OpenWeightResidualRuntime,
-    ResidualInterventionBackend,
 )
 from volvence_zero.substrate.residual_intervention import (
-    NoOpResidualInterventionBackend,
     TraceResidualInterventionBackend,
-    apply_residual_control,
 )
 from volvence_zero.substrate.rare_heavy_training import (
     RareHeavyAdapterTrainingBackend,
@@ -66,30 +52,14 @@ from volvence_zero.substrate.residual_training import build_training_trace
 from volvence_zero.substrate.residual_helpers import (
     RARE_HEAVY_ANCHOR_ORDER,
     _adapter_parameter_count,
-    _anchor_profile_bank,
     _build_compatibility_fingerprint,
     _checkpoint_with_adapter_payload,
     _clamp_delta_vector,
     _clamp_signed,
     _clamp_unit,
-    _cosine_similarity,
-    _derive_anchor_bias,
     _derive_rare_heavy_checkpoint,
-    _flatten_substrate_batches,
-    _hashed_semantic_embedding,
     _mean_abs_delta,
-    _mean_feature_value,
-    _mean_residual_magnitude,
-    _mean_sequence_length,
     _normalize_semantic_weights,
-    _normalize_vector,
-    _normalized_entropy,
-    _semantic_tokens,
-    _softmax_probabilities,
-    _summarize_activations,
-    _summarize_real_activations,
-    resolve_local_runtime_mode,
-    resolve_substrate_fallback_mode,
 )
 
 
@@ -650,10 +620,34 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     ) -> tuple[tuple[SubstrateDeltaAdapterLayer, ...], float]:
         if not traces or not substrate_steps_per_trace:
             return ((), 0.0)
+        if len(traces) != len(substrate_steps_per_trace):
+            raise ValueError(
+                "Synthetic rare-heavy traces and target batches must align"
+            )
         torch = importlib.import_module("torch")
-        target_vectors = self._target_layer_vectors(substrate_steps_per_trace=substrate_steps_per_trace)
-        base_vectors = self._trace_layer_vectors(traces=traces)
-        common_layers = tuple(layer for layer in self._rare_heavy_layer_indices if layer in target_vectors and layer in base_vectors)
+        training_pairs: dict[
+            int,
+            list[tuple[tuple[float, ...], tuple[float, ...]]],
+        ] = {}
+        for trace, target_batch in zip(
+            traces,
+            substrate_steps_per_trace,
+            strict=True,
+        ):
+            target_vectors = self._target_layer_vectors(
+                substrate_steps_per_trace=(target_batch,)
+            )
+            base_vectors = self._trace_layer_vectors(traces=(trace,))
+            for layer in self._rare_heavy_layer_indices:
+                if layer in target_vectors and layer in base_vectors:
+                    training_pairs.setdefault(layer, []).append(
+                        (base_vectors[layer], target_vectors[layer])
+                    )
+        common_layers = tuple(
+            layer
+            for layer in self._rare_heavy_layer_indices
+            if training_pairs.get(layer)
+        )
         if not common_layers or self._rare_heavy_activation_width <= 0:
             return ((), 0.0)
         parameters = {
@@ -667,17 +661,26 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             )
             for layer in common_layers
         }
-        optimizer = torch.optim.Adam(tuple(parameters.values()), lr=0.08)
+        optimizer = torch.optim.Adam(tuple(parameters.values()), lr=0.02)
         final_loss = 0.0
-        for _ in range(12):
+        for _ in range(80):
             optimizer.zero_grad()
             total_loss = torch.tensor(0.0, dtype=torch.float32)
             for layer in common_layers:
-                base = torch.tensor(base_vectors[layer], dtype=torch.float32)
-                target = torch.tensor(target_vectors[layer], dtype=torch.float32)
-                predicted = base + parameters[layer]
-                total_loss = total_loss + torch.mean((predicted - target) ** 2)
-                total_loss = total_loss + torch.mean(parameters[layer] ** 2) * 0.01
+                layer_loss = torch.tensor(0.0, dtype=torch.float32)
+                for base_values, target_values in training_pairs[layer]:
+                    base = torch.tensor(base_values, dtype=torch.float32)
+                    target = torch.tensor(target_values, dtype=torch.float32)
+                    predicted = base + parameters[layer]
+                    layer_loss = layer_loss + torch.mean(
+                        (predicted - target) ** 2
+                    )
+                total_loss = total_loss + (
+                    layer_loss / len(training_pairs[layer])
+                )
+                total_loss = total_loss + (
+                    torch.mean(parameters[layer] ** 2) * 0.01
+                )
             total_loss.backward()
             optimizer.step()
             final_loss = float(total_loss.detach().item())
