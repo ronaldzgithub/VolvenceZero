@@ -273,6 +273,7 @@ class OpenWeightResidualRuntime(ABC):
             ConditioningBankLatentCarrier, ...
         ] = (),
         sampling_seed: int | None = None,
+        character_id: str = "",
     ) -> GenerationResult:
         """Generate text using the underlying model.
 
@@ -291,7 +292,7 @@ class OpenWeightResidualRuntime(ABC):
         conditioned). Runtimes that can apply or observably trace the
         conditioning override ``generate``.
         """
-        del generation_constraints, capture_residuals, sampling_seed
+        del generation_constraints, capture_residuals, sampling_seed, character_id
         if personal_conditioning is not None or conditioning_bank_carriers:
             raise NotImplementedError(
                 f"{type(self).__name__} cannot apply latent conditioning "

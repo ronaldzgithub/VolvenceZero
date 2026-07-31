@@ -97,6 +97,7 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         figure_bundle: object | None = None,
         persona_lora_enabled: bool = True,
         persona_lora_pool: object | None = None,
+        character_id: str = "",
         character_grounding_statement: str = "",
         character_grounding_ref: str = "",
     ) -> None:
@@ -104,6 +105,7 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
             runtime=runtime,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
+            character_id=character_id,
         )
         self._planner = planner or PromptPlanner()
         self._last_plan: PromptPlan | None = None
@@ -232,6 +234,7 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
             figure_bundle=self._figure_bundle,
             persona_lora_enabled=self._persona_lora_enabled,
             persona_lora_pool=self._persona_lora_pool,
+            character_id=self._character_id,
             character_grounding_statement=self._character_grounding_statement,
             character_grounding_ref=self._character_grounding_ref,
         )
@@ -306,7 +309,13 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
             enabled=self._persona_lora_enabled,
             pool=self._persona_lora_pool,
         ):
-            response = super().synthesize(context=context, assembly=assembly)
+            with _maybe_activate_character_lora(
+                character_id=self._character_id,
+                runtime=self._runtime,
+                enabled=self._persona_lora_enabled,
+                pool=self._persona_lora_pool,
+            ):
+                response = super().synthesize(context=context, assembly=assembly)
 
         # L3 (Wave F closure): post-generation grounding verify. The
         # decoder reports unsupported assertions; we attach the
@@ -558,6 +567,25 @@ def _maybe_activate_persona_lora(
         yield
         return
     with active_pool.activate(figure_id, runtime=runtime):
+        yield
+
+
+@contextlib.contextmanager
+def _maybe_activate_character_lora(
+    *, character_id: str, runtime: Any, enabled: bool = True, pool: Any = None
+):
+    """Activate an optional manifest-registered character PEFT adapter."""
+
+    if not enabled or not character_id:
+        yield
+        return
+    from volvence_zero.substrate import default_persona_lora_pool
+
+    active_pool = pool if pool is not None else default_persona_lora_pool()
+    if not active_pool.has(character_id):
+        yield
+        return
+    with active_pool.activate(character_id, runtime=runtime):
         yield
 
 

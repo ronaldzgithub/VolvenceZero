@@ -66,6 +66,22 @@ from lifeform_domain_character.compiler import (
     build_character_package,
     build_character_vitals_bootstrap,
 )
+from lifeform_domain_character.character_package import (
+    CHARACTER_ARTIFACT_REF_SCHEMA_VERSION,
+    CHARACTER_FIDELITY_EVIDENCE_SCHEMA_VERSION,
+    CHARACTER_LORA_REF_SCHEMA_VERSION,
+    CHARACTER_PACKAGE_GATE_SCHEMA_VERSION,
+    CHARACTER_PACKAGE_MANIFEST_SCHEMA_VERSION,
+    CharacterArtifactRef,
+    CharacterFidelityEvidence,
+    CharacterLoRARef,
+    CharacterPackageGateRecord,
+    CharacterPackageManifest,
+    rebind_fidelity_only,
+    resolve_artifact_path,
+    sha256_path,
+    verify_manifest_artifacts,
+)
 from lifeform_domain_character.first_person import (
     FirstPersonRewriteResult,
     to_first_person,
@@ -161,6 +177,11 @@ from lifeform_domain_character.profiles import build_zhang_wuji_profile
 from lifeform_domain_character.sample_excerpts import zhang_wuji_long_arc_excerpt
 
 __all__ = [
+    "CHARACTER_ARTIFACT_REF_SCHEMA_VERSION",
+    "CHARACTER_FIDELITY_EVIDENCE_SCHEMA_VERSION",
+    "CHARACTER_LORA_REF_SCHEMA_VERSION",
+    "CHARACTER_PACKAGE_GATE_SCHEMA_VERSION",
+    "CHARACTER_PACKAGE_MANIFEST_SCHEMA_VERSION",
     "BEHAVIOR_FIDELITY_DIMENSIONS",
     "BEHAVIOR_FIDELITY_MATRIX_SCHEMA_VERSION",
     "BEHAVIOR_FIDELITY_SCHEMA_VERSION",
@@ -186,6 +207,11 @@ __all__ = [
     "PromotionExpectation",
     "RealProviderBehaviorEvidenceReport",
     "CharacterBoundaryPrior",
+    "CharacterArtifactRef",
+    "CharacterFidelityEvidence",
+    "CharacterLoRARef",
+    "CharacterPackageGateRecord",
+    "CharacterPackageManifest",
     "ChapterCoverageKind",
     "ChapterLiveThroughDriver",
     "ChapterLiveThroughLedger",
@@ -222,6 +248,10 @@ __all__ = [
     "load_zhang_wuji_action_applicability_matrix",
     "review_behavior_fidelity",
     "reviewed_behavior_fidelity_assessment_from_dict",
+    "rebind_fidelity_only",
+    "resolve_artifact_path",
+    "sha256_path",
+    "verify_manifest_artifacts",
     "ReplayReport",
     "SceneReplayRecord",
     "to_first_person",

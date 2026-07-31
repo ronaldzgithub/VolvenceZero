@@ -187,6 +187,7 @@ class _SessionEntry:
     # created via the legacy single-factory ctor path (DLaaS launcher),
     # in which case the manager's default vertical applies.
     vertical_name: str = ""
+    character_id: str = ""
     # Optional per-session payload produced by the vertical's template
     # adapter when this session was created via ``build_*_session_context``.
     # Sessions created via the legacy ``factory`` / ``alpha_factory`` path
@@ -823,6 +824,14 @@ class SessionManager:
             raise SessionNotFoundError(session_id)
         return entry.vertical_name or self._registry.default_name
 
+    def character_id_for(self, session_id: str) -> str:
+        """Return the immutable character package bound to this session."""
+
+        entry = self._sessions.get(session_id)
+        if entry is None:
+            raise SessionNotFoundError(session_id)
+        return entry.character_id
+
     def session_end_user(self, session_id: str) -> str | None:
         """Return the end-user this session was created for, or None.
 
@@ -869,6 +878,7 @@ class SessionManager:
         user_id: str | None = None,
         template_id: str | None = None,
         vertical_name: str | None = None,
+        character_id: str | None = None,
         tenant_id: str | None = None,
     ) -> LifeformSession:
         """Mint a new live session.
@@ -907,6 +917,20 @@ class SessionManager:
 
             chosen_name = (vertical_name or self._registry.default_name).strip()
             chosen_spec = self._registry.require(chosen_name)
+            requested_character_id = (character_id or "").strip()
+            bound_character_id = chosen_spec.character_id.strip()
+            if requested_character_id:
+                if not bound_character_id:
+                    raise ValueError(
+                        f"vertical {chosen_name!r} does not bind a character "
+                        "package; character_id cannot be selected dynamically."
+                    )
+                if requested_character_id != bound_character_id:
+                    raise ValueError(
+                        f"character_id {requested_character_id!r} does not match "
+                        f"vertical {chosen_name!r} character "
+                        f"{bound_character_id!r}."
+                    )
             alpha_enabled = self._alpha_identity_provider is not None
             identity_provider: "IdentityProvider | None" = None
             if alpha_enabled:
@@ -1053,6 +1077,7 @@ class SessionManager:
                 lifeform=life,
                 last_active_at=self._clock(),
                 vertical_name=chosen_name,
+                character_id=bound_character_id,
                 template_context=template_context,
                 end_user_ref=(user_id or ""),
             )

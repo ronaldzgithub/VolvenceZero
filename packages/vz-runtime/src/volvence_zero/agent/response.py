@@ -558,10 +558,12 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         runtime: object,
         max_new_tokens: int = 512,
         temperature: float = 0.7,
+        character_id: str = "",
     ) -> None:
         self._runtime = runtime
         self._max_new_tokens = max_new_tokens
         self._temperature = temperature
+        self._character_id = character_id.strip()
 
     @staticmethod
     def _decoding_profile_for_assembly(assembly: ResponseAssemblySnapshot) -> str:
@@ -663,6 +665,8 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             carrier_kwargs["conditioning_bank_carriers"] = (
                 context.conditioning_bank_carriers
             )
+        if self._character_id:
+            carrier_kwargs["character_id"] = self._character_id
         result = self._runtime.generate(
             prompt=user_input,
             system_context=system_prompt,
@@ -712,6 +716,12 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         )
         if context.sampling_seed is not None:
             rationale_parts.append(f"sampling_seed={context.sampling_seed}")
+        if self._character_id:
+            rationale_parts.append(f"character_id={self._character_id}")
+            rationale_parts.append(
+                "character_prefix="
+                f"{getattr(result, 'character_prefix_wiring_level', 'disabled')}"
+            )
         if assembly is not None and assembly.abstract_action:
             rationale_parts.append(f"temporal={assembly.abstract_action}")
         elif context.abstract_action:

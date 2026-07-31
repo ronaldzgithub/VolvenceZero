@@ -38,6 +38,7 @@ from typing import Any, Sequence
 from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_VECTOR_LABELS,
 )
+from volvence_zero.runtime import WiringLevel
 
 PREFIX_KV_SCHEMA_VERSION = "state-kv-prefix.v1"
 TEACHER_DISTILLED_PREFIX_TRAINING_MODE = "teacher-distilled-prefix-v1"
@@ -61,6 +62,7 @@ SUPPORTED_PREFIX_TRAINING_MODES = frozenset(
 # text, not a differently-toned answer.
 MAX_PREFIX_NORM_CAP = 0.5
 CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION = "character-prefix-kv-package.v1"
+CHARACTER_PREFIX_REGISTRY_SCHEMA_VERSION = "character-prefix-kv-registry.v1"
 
 
 def _is_finite_matrix(rows: Sequence[Sequence[float]]) -> bool:
@@ -581,6 +583,110 @@ class CharacterPrefixKVPackage:
         )
 
 
+@dataclass(frozen=True)
+class CharacterPrefixKVRegistryEntry:
+    """One manifest-admitted character Prefix/KV registration."""
+
+    manifest_package_id: str
+    common_adapter_version: str
+    compatibility_fingerprint: str
+    wiring_level: WiringLevel
+    prefix_package: CharacterPrefixKVPackage
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("manifest_package_id", self.manifest_package_id),
+            ("common_adapter_version", self.common_adapter_version),
+            ("compatibility_fingerprint", self.compatibility_fingerprint),
+        ):
+            if not value.strip():
+                raise ValueError(
+                    f"character prefix registry entry {name} must be non-empty."
+                )
+        if self.wiring_level is WiringLevel.DISABLED:
+            raise ValueError(
+                "disabled character packages must be omitted from the registry."
+            )
+
+    @property
+    def character_id(self) -> str:
+        return self.prefix_package.character_id
+
+
+@dataclass(frozen=True)
+class CharacterPrefixKVRegistry:
+    """Read-only process registry used for per-generation character routing."""
+
+    base_model_id: str
+    common_adapter_version: str
+    compatibility_fingerprint: str
+    entries: tuple[CharacterPrefixKVRegistryEntry, ...]
+    schema_version: str = CHARACTER_PREFIX_REGISTRY_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != CHARACTER_PREFIX_REGISTRY_SCHEMA_VERSION:
+            raise ValueError(
+                "character prefix registry schema_version must be "
+                f"{CHARACTER_PREFIX_REGISTRY_SCHEMA_VERSION!r}."
+            )
+        for name, value in (
+            ("base_model_id", self.base_model_id),
+            ("common_adapter_version", self.common_adapter_version),
+            ("compatibility_fingerprint", self.compatibility_fingerprint),
+        ):
+            if not value.strip():
+                raise ValueError(
+                    f"character prefix registry {name} must be non-empty."
+                )
+        character_ids = tuple(entry.character_id for entry in self.entries)
+        if len(character_ids) != len(set(character_ids)):
+            raise ValueError(
+                "character prefix registry character_id values must be unique."
+            )
+        manifest_ids = tuple(entry.manifest_package_id for entry in self.entries)
+        if len(manifest_ids) != len(set(manifest_ids)):
+            raise ValueError(
+                "character prefix registry manifest package ids must be unique."
+            )
+        for entry in self.entries:
+            package = entry.prefix_package
+            if package.model_id != self.base_model_id:
+                raise ValueError(
+                    "character prefix registry package model_id does not match "
+                    f"base_model_id: character={entry.character_id!r}."
+                )
+            if entry.common_adapter_version != self.common_adapter_version:
+                raise ValueError(
+                    "character prefix registry common_adapter_version drifted "
+                    f"for character={entry.character_id!r}."
+                )
+            if entry.compatibility_fingerprint != self.compatibility_fingerprint:
+                raise ValueError(
+                    "character prefix registry compatibility_fingerprint drifted "
+                    f"for character={entry.character_id!r}."
+                )
+
+    def get(self, character_id: str) -> CharacterPrefixKVRegistryEntry | None:
+        if not character_id.strip():
+            return None
+        return next(
+            (entry for entry in self.entries if entry.character_id == character_id),
+            None,
+        )
+
+    def require(self, character_id: str) -> CharacterPrefixKVRegistryEntry:
+        entry = self.get(character_id)
+        if entry is None:
+            raise LookupError(
+                f"character prefix registry has no package for {character_id!r}."
+            )
+        return entry
+
+    @property
+    def character_ids(self) -> tuple[str, ...]:
+        return tuple(entry.character_id for entry in self.entries)
+
+
 class PrefixKVGenerator:
     """Materialized, inference-only view of one artifact on one device.
 
@@ -729,6 +835,9 @@ def load_prefix_generator(
 
 
 __all__ = [
+    "CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION",
+    "CHARACTER_PREFIX_REGISTRY_SCHEMA_VERSION",
+    "CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE",
     "MAX_PREFIX_NORM_CAP",
     "PREFIX_KV_SCHEMA_VERSION",
     "ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE",
@@ -736,6 +845,9 @@ __all__ = [
     "TEACHER_DISTILLED_PREFIX_TRAINING_MODE",
     "PrefixKVArtifact",
     "PrefixKVGenerator",
+    "CharacterPrefixKVPackage",
+    "CharacterPrefixKVRegistry",
+    "CharacterPrefixKVRegistryEntry",
     "build_teacher_distilled_prefix_artifact",
     "load_prefix_generator",
 ]

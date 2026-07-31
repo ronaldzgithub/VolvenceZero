@@ -112,10 +112,10 @@ class PersonaLoRARecord:
             raise ValueError(
                 "PersonaLoRARecord.training_plan_hash must be non-empty"
             )
-        if not self.adapter_layers:
+        if not self.adapter_layers and not self.peft_checkpoint_dir.strip():
             raise ValueError(
-                "PersonaLoRARecord.adapter_layers must be non-empty; the "
-                "pool refuses to hold a degenerate record."
+                "PersonaLoRARecord requires adapter_layers or a real PEFT "
+                "checkpoint directory; the pool refuses a degenerate record."
             )
         if self.parameter_count <= 0:
             raise ValueError(

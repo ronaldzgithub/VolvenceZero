@@ -391,8 +391,18 @@ def _enforce_frozen_for_sharing(runtime: "OpenWeightResidualRuntime") -> None:
 async def _error_middleware(request: web.Request, handler):
     try:
         return await handler(request)
-    except web.HTTPException:
-        raise  # already a structured HTTP error
+    except web.HTTPException as exc:
+        # API callers always receive JSON, including errors raised by aiohttp
+        # itself. The browser turn client parses every /v1 response as JSON;
+        # leaking aiohttp's plain-text 500 body turns the real server error
+        # into a misleading "Unexpected non-whitespace" parse failure.
+        if request.path.startswith("/v1/"):
+            return _json_error(
+                status=exc.status,
+                error="http_error",
+                detail=exc.reason or "HTTP request failed",
+            )
+        raise
     except SessionNotFoundError as exc:
         return _json_error(
             status=404,
@@ -486,6 +496,7 @@ async def _handle_create_session(request: web.Request) -> web.Response:
     requested_id = None
     template_id: str | None = None
     requested_vertical: str | None = None
+    requested_character_id: str | None = None
     if isinstance(payload, dict):
         raw = payload.get("session_id")
         if raw is not None and not isinstance(raw, str):
@@ -502,6 +513,13 @@ async def _handle_create_session(request: web.Request) -> web.Response:
             raise _BadRequest("invalid_vertical", "vertical must be a string")
         if isinstance(raw_vertical, str) and raw_vertical.strip():
             requested_vertical = raw_vertical.strip()
+        raw_character = payload.get("character_id")
+        if raw_character is not None and not isinstance(raw_character, str):
+            raise _BadRequest(
+                "invalid_character_id", "character_id must be a string"
+            )
+        if isinstance(raw_character, str) and raw_character.strip():
+            requested_character_id = raw_character.strip()
     manager: SessionManager = request.app["session_manager"]
     alpha: AlphaServiceConfig = request.app["alpha_config"]
     user_id = None
@@ -513,6 +531,7 @@ async def _handle_create_session(request: web.Request) -> web.Response:
             user_id=user_id,
             template_id=template_id,
             vertical_name=requested_vertical,
+            character_id=requested_character_id,
         )
     except UnknownVerticalError as exc:
         return _json_error(
@@ -548,6 +567,7 @@ async def _handle_create_session(request: web.Request) -> web.Response:
         vertical=bound_vertical_name,
         has_temporal_bootstrap=bound_spec.has_temporal_bootstrap,
         has_regime_bootstrap=bound_spec.has_regime_bootstrap,
+        character_id=manager.character_id_for(session.session_id),
         user_id=user_id,
         service_version=alpha.service_version if alpha.enabled else "",
         policy_version=alpha.policy_version if alpha.enabled else "",
@@ -2700,7 +2720,17 @@ _CHAT_UI_HTML = r"""<!doctype html>
         ...options,
       });
       const text = await response.text();
-      const payload = text ? JSON.parse(text) : {};
+      let payload = {};
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch (parseError) {
+          throw new Error(
+            `HTTP ${response.status}: ${text.slice(0, 240)} `
+            + `(invalid JSON: ${parseError.message})`,
+          );
+        }
+      }
       if (!response.ok) {
         throw new Error(`${payload.error || response.status}: ${payload.detail || text}`);
       }

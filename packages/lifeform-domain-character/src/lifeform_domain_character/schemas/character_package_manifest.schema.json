@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://volvence.ai/schemas/character-package-manifest.v1.json",
+  "title": "CharacterPackageManifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "character_id",
+    "character_name",
+    "base_model_id",
+    "common_adapter_version",
+    "compatibility_fingerprint",
+    "template_ref",
+    "prefix_kv_ref",
+    "lora_ref",
+    "fidelity_evidence",
+    "gate_record",
+    "revalidation_mode",
+    "description"
+  ],
+  "properties": {
+    "schema_version": {"const": "character-package-manifest.v1"},
+    "package_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "character_id": {"type": "string", "minLength": 1},
+    "character_name": {"type": "string", "minLength": 1},
+    "base_model_id": {"type": "string", "minLength": 1},
+    "common_adapter_version": {"type": "string", "minLength": 1},
+    "compatibility_fingerprint": {"type": "string", "minLength": 1},
+    "template_ref": {"$ref": "#/$defs/artifactRef"},
+    "prefix_kv_ref": {
+      "oneOf": [{"$ref": "#/$defs/artifactRef"}, {"type": "null"}]
+    },
+    "lora_ref": {
+      "oneOf": [{"$ref": "#/$defs/loraRef"}, {"type": "null"}]
+    },
+    "fidelity_evidence": {
+      "oneOf": [{"$ref": "#/$defs/fidelityEvidence"}, {"type": "null"}]
+    },
+    "gate_record": {
+      "oneOf": [{"$ref": "#/$defs/gateRecord"}, {"type": "null"}]
+    },
+    "revalidation_mode": {"enum": ["full-rebake", "fidelity-only"]},
+    "description": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256", "artifact_id", "media_type", "schema_version"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "artifact_id": {"type": "string", "minLength": 1},
+        "media_type": {"type": "string", "minLength": 1},
+        "schema_version": {"const": "character-artifact-ref.v1"}
+      }
+    },
+    "loraRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256", "training_plan_hash", "parameter_count", "backend_id", "schema_version"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "training_plan_hash": {"type": "string", "minLength": 1},
+        "parameter_count": {"type": "integer", "minimum": 1},
+        "backend_id": {"type": "string", "minLength": 1},
+        "schema_version": {"const": "character-lora-ref.v1"}
+      }
+    },
+    "fidelityEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_ref",
+        "evidence_source",
+        "verdict",
+        "passed",
+        "held_out",
+        "source_immutable",
+        "feedback_free",
+        "includes_character_lora",
+        "common_adapter_version",
+        "compatibility_fingerprint",
+        "schema_version"
+      ],
+      "properties": {
+        "report_ref": {"$ref": "#/$defs/artifactRef"},
+        "evidence_source": {"enum": ["system_self_eval", "llm_judge", "external_validated"]},
+        "verdict": {"type": "string", "minLength": 1},
+        "passed": {"type": "boolean"},
+        "held_out": {"type": "boolean"},
+        "source_immutable": {"type": "boolean"},
+        "feedback_free": {"type": "boolean"},
+        "includes_character_lora": {"type": "boolean"},
+        "common_adapter_version": {"type": "string", "minLength": 1},
+        "compatibility_fingerprint": {"type": "string", "minLength": 1},
+        "schema_version": {"const": "character-fidelity-evidence.v1"}
+      }
+    },
+    "gateRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "decision",
+        "desired_gate",
+        "fidelity_report_sha256",
+        "rollback_evidence",
+        "is_reversible",
+        "common_adapter_version",
+        "compatibility_fingerprint",
+        "schema_version"
+      ],
+      "properties": {
+        "proposal_id": {"type": "string", "minLength": 1},
+        "decision": {"enum": ["allow", "deny"]},
+        "desired_gate": {"const": "offline"},
+        "fidelity_report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "rollback_evidence": {"type": "string", "minLength": 1},
+        "is_reversible": {"type": "boolean"},
+        "common_adapter_version": {"type": "string", "minLength": 1},
+        "compatibility_fingerprint": {"type": "string", "minLength": 1},
+        "schema_version": {"const": "character-package-gate-record.v1"}
+      }
+    }
+  }
+}

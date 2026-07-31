@@ -17,6 +17,7 @@ from typing import Any
 class CreateSessionRequest:
     session_id: str | None = None
     vertical: str | None = None  # reserved for future multi-vertical service
+    character_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,7 @@ class CreateSessionResponse:
     vertical: str
     has_temporal_bootstrap: bool
     has_regime_bootstrap: bool
+    character_id: str = ""
     user_id: str | None = None
     service_version: str = ""
     policy_version: str = ""
@@ -36,6 +38,7 @@ class CreateSessionResponse:
             "vertical": self.vertical,
             "has_temporal_bootstrap": self.has_temporal_bootstrap,
             "has_regime_bootstrap": self.has_regime_bootstrap,
+            "character_id": self.character_id,
             "user_id": self.user_id,
             "service_version": self.service_version,
             "policy_version": self.policy_version,
