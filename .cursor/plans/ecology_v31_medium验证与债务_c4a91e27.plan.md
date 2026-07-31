@@ -79,7 +79,7 @@ PE 幅值边界已被实测**证伪**（分离裕度 −0.38，自然 medium 拾
 | # | 债务 | 现状与影响 | 处置 | 修改后的目标 |
 |---|---|---|---|---|
 | D8 | MPS 设备口径未校准 | 首测 2.4→6→14+ 分/局且逐局恶化（CPU 基线约 1 分/局）；已杀掉 MPS 进程、清空 journal、CPU 重起；闩旗假设已排除（`set_external_learning_signals` 每轮无条件刷新） | 已处置（本计划全程 CPU float64） | v31 全程用与 v21–v24 同口径的 CPU；如未来需 GPU，先做独立 device 校准包（含逐局耗时曲线归因） |
-| D9 | main 既有失败项 | 5 个 pre-existing test failures（rare-heavy/binary-override 族）、`sandbox.py` 既有 ruff lints、`test_matched_control` fingerprint mismatch——均已验证与本链改动无关 | 不在本计划修 | 终局报告如实列出，不静默；修复另行立项 |
+| D9 | main 既有失败项 | **CLOSED**：5 个 rare-heavy/binary-override 族、`sandbox.py` Ruff、matched-control fingerprint 与零训练冷内核陈旧断言均已独立修复 | 已处置 | 冷内核只冻结诚实负证据；非零训练的正式 P1/P2 门槛未降低 |
 | D10 | 终端回收杀训练进程 | 已由 `scripts/_detach_run.py`（setsid + execvp）解决，v24 后半程与 v31 均用 | **已清偿** | 保持所有 >10 分钟的训练/测量走 detach 启动 |
 
 ## 修改后的总目标（"跑通 medium"的硬判据）

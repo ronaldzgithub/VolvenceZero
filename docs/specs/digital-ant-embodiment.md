@@ -521,6 +521,12 @@ artifact：`research/ant/results/ecology_checkpoint_smoke.v2.json` + manifest；
   所以当前断点是探索接触与 held-out 泛化，不是 replay 或 policy writeback 断链。证据：
   `research/ant/results/matched_control.json` + manifest；dirty-tree artifact
   `externally_retainable=false`，只能作本轮本地冻结结论。
+  快速行为 smoke 的默认 `training_ticks=0` 只代表冷内核，不得命名或解释为
+  “learned arm 应超过 random floor”；冻结 seed 0、40 tick 下该臂没有 policy
+  divergence、没有食物接触，且 food exposure 低于 random，测试必须如实保留
+  `learned_beats_random_food=false` 与
+  `diagnostic_breakpoint=exploration-no-food-contact`。只有显式非零训练预算且通过
+  training→held-out 契约的 packet 才能评估 learned 性能。
 - **ant-active-evidence lane（Workstream F）**：复用 `evaluate_learned_active_candidate` gate 形态；
   替换 HF 绑定为 `:ant:` real-trace 定义与蚂蚁对照臂；产出
   `digital-ant-evidence-bundle.v2.json` + manifest。旧

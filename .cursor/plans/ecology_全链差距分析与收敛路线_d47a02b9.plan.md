@@ -90,7 +90,7 @@ isProject: false
 | # | 差距 | 现状 | 目标 |
 |---|---|---|---|
 | G1 | 设备口径（D8） | CPU float64 唯一合法基线（~3.7 min/局）；MPS 实测 2.4→14 min/局且逐局恶化，未归因 | 可选校准包；在此之前禁止 MPS 进正式链 |
-| G2 | main 既有失败（D9） | 5 个 rare-heavy/binary-override 族测试失败 + `sandbox.py` ruff 遗留 | 单独立项修复；正式报告持续如实标注 |
+| G2 | main 既有失败（D9） | **CLOSED**：5 个 rare-heavy/binary-override 族失败、`sandbox.py` Ruff 遗留及零训练冷内核的陈旧 random-floor 正向断言均已清偿 | matched-control 冻结真实负证据；正式 P1/P2 门槛不变 |
 | G3 | 多会话协调 | flock 已挡 CLI 双写（D10 CLOSED）；但计划文件/门槛被并行会话双向改写的问题发生过（站1 v24 门 vs v30 基线之争） | 预注册包（含源码树 SHA binding）已是答案：**门槛只能在 prereg 包里改版本，不能在计划文件里就地改** |
 
 ## 三、最前沿 blocker 归因：persistence 崩塌（包A 详细设计）

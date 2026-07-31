@@ -117,11 +117,23 @@ async def test_behavioral_matched_control_arms_present() -> None:
     assert learned.trained_policy_fingerprint is not None
 
 
-async def test_learned_arm_beats_random_floor() -> None:
-    report = await run_behavioral_matched_control(ticks=40, seed=0)
+async def test_cold_kernel_reports_random_floor_failure_honestly() -> None:
+    report = await run_behavioral_matched_control(
+        ticks=40,
+        training_ticks=0,
+        seed=0,
+    )
     by_arm = {arm.arm: arm for arm in report.arms}
-    # a controller that senses food should not do worse than the random floor
-    assert by_arm["learned"].mean_food_experienced >= by_arm["random"].mean_food_experienced
+    learned = by_arm["learned"]
+
+    # With no training budget this arm is a cold kernel, not evidence of
+    # learned foraging.  The frozen seed-0 lane currently fails the random
+    # food-exposure floor and must publish that negative result unchanged.
+    assert not learned.policy_parameters_changed
+    assert learned.training_food_pickups == 0
+    assert learned.diagnostic_breakpoint == "exploration-no-food-contact"
+    assert learned.mean_food_experienced < by_arm["random"].mean_food_experienced
+    assert report.learned_beats_random_food is False
 
 
 @pytest.mark.skipif(not _HAS_TORCH, reason="latent proofs require torch")

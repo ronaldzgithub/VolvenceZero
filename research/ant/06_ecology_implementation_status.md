@@ -294,3 +294,12 @@ control ep0 已原子提交，余下 station1 由 detached PID 21059 执行。
 原始文件的字节数与 SHA-256。v30 日志首行的 `device=mps:0` 与旧 v31 已越过站 1
 边界的事实分别作为排除理由。归档只用于审计，不能作为 progress root，也不能改变
 `20260731T052300Z` 同物理 packet 的 matched 判词。
+
+D9/G2 的最后一项陈旧测试契约也已关闭。`run_behavioral_matched_control`
+默认 `training_ticks=0`，该 lane 没有 policy divergence，冻结 seed 0、40 tick
+实测没有食物接触且 food exposure 低于 random；旧测试却要求名为 `learned`
+的冷内核必须超过 random，既与运行事实冲突，也与正式 matched-control BLOCK
+结论冲突。测试现要求完整保留这一负证据与
+`learned_beats_random_food=false`，不修改实现、不降低非零训练预算的 P1/P2
+门。验证为 matched-control 同文件 9/9 通过，其中 spawn 多进程项在允许读取
+macOS semaphore 上限的沙箱外通过；测试文件 Ruff 通过。
