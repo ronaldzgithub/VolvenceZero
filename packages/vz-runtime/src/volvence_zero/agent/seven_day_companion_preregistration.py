@@ -120,6 +120,7 @@ def build_seven_day_companion_preregistration(
                 ),
                 "local_files_only": True,
                 "frozen": True,
+                "max_new_tokens": 64,
             },
             "simulator": {
                 "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
@@ -130,7 +131,7 @@ def build_seven_day_companion_preregistration(
                 ),
                 "local_files_only": True,
                 "temperature": 0.0,
-                "max_new_tokens": 96,
+                "max_new_tokens": 32,
             },
         },
         "source_requirements": {

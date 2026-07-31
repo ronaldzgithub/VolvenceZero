@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from companion_bench.seven_day_driver import (
     FrozenSevenDayUserDriver,
     build_frozen_seven_day_user_script,
+    load_frozen_seven_day_user_script,
 )
 from companion_bench.spec import load_scenario_yaml
 from companion_bench.user_simulator import DeterministicFakeUtteranceClient
@@ -64,3 +66,19 @@ def test_driver_fails_on_coordinate_drift() -> None:
             exchange_index=1,
             recent_assistant_turns=(),
         )
+
+
+def test_frozen_script_round_trip_and_tamper_detection(tmp_path: Path) -> None:
+    script = _script()
+    path = tmp_path / "script.json"
+    path.write_text(
+        json.dumps(script.to_json(), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    assert load_frozen_seven_day_user_script(path) == script
+
+    payload = script.to_json()
+    payload["turns"][0]["text"] = "tampered"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="digest drift"):
+        load_frozen_seven_day_user_script(path)

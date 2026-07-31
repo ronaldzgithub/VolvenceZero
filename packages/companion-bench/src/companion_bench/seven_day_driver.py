@@ -14,7 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
-from typing import Sequence
+from pathlib import Path
+from typing import Mapping, Sequence
 
 from companion_bench.spec import ScenarioSpec
 from companion_bench.user_simulator import (
@@ -94,6 +95,93 @@ class FrozenSevenDayUserScript:
             ],
             "script_sha256": self.script_sha256,
         }
+
+
+def load_frozen_seven_day_user_script(
+    path: str | Path,
+) -> FrozenSevenDayUserScript:
+    """Load and authenticate one immutable seven-day user script."""
+
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, Mapping):
+        raise ValueError("frozen seven-day user script must be an object")
+    schema = payload.get("schema_version")
+    if schema != SEVEN_DAY_USER_SCRIPT_SCHEMA_VERSION:
+        raise ValueError("frozen seven-day user script schema drift")
+    scenario_id = payload.get("scenario_id")
+    seed = payload.get("paraphrase_seed")
+    identity_name = payload.get("identity_name")
+    identity_occupation = payload.get("identity_occupation")
+    digest = payload.get("script_sha256")
+    if not isinstance(scenario_id, str) or not scenario_id:
+        raise ValueError("frozen script scenario_id must be non-empty")
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+        raise ValueError("frozen script paraphrase_seed must be non-negative")
+    if not isinstance(identity_name, str) or not identity_name:
+        raise ValueError("frozen script identity_name must be non-empty")
+    if not isinstance(identity_occupation, str) or not identity_occupation:
+        raise ValueError("frozen script identity_occupation must be non-empty")
+    if not isinstance(digest, str) or len(digest) != 64:
+        raise ValueError("frozen script script_sha256 must be SHA-256")
+    raw_turns = payload.get("turns")
+    if not isinstance(raw_turns, list) or len(raw_turns) != 35:
+        raise ValueError("frozen seven-day script must contain 35 turns")
+    turns: list[FrozenSevenDayUserTurn] = []
+    for index, raw in enumerate(raw_turns):
+        if not isinstance(raw, Mapping):
+            raise ValueError("frozen seven-day turn must be an object")
+        expected_day = index // 5 + 1
+        expected_exchange = index % 5 + 1
+        if raw.get("day_index") != expected_day:
+            raise ValueError("frozen seven-day turn day order drift")
+        if raw.get("exchange_index") != expected_exchange:
+            raise ValueError("frozen seven-day exchange order drift")
+        text = raw.get("text")
+        action = raw.get("fsm_action")
+        action_payload = raw.get("fsm_payload")
+        event_tags = raw.get("event_tags")
+        if not isinstance(text, str) or not text:
+            raise ValueError("frozen seven-day turn text must be non-empty")
+        if action is not None and not isinstance(action, str):
+            raise ValueError("frozen seven-day fsm_action must be string/null")
+        if action_payload is not None and not isinstance(action_payload, str):
+            raise ValueError("frozen seven-day fsm_payload must be string/null")
+        if not isinstance(event_tags, list) or not all(
+            isinstance(tag, str) and tag for tag in event_tags
+        ):
+            raise ValueError("frozen seven-day event_tags must be strings")
+        turns.append(
+            FrozenSevenDayUserTurn(
+                day_index=expected_day,
+                exchange_index=expected_exchange,
+                text=text,
+                fsm_action=action,
+                fsm_payload=action_payload,
+                event_tags=tuple(event_tags),
+            )
+        )
+    body = {
+        key: payload[key]
+        for key in (
+            "schema_version",
+            "scenario_id",
+            "paraphrase_seed",
+            "identity_name",
+            "identity_occupation",
+            "turns",
+        )
+    }
+    if hashlib.sha256(_canonical_bytes(body)).hexdigest() != digest:
+        raise ValueError("frozen seven-day user script digest drift")
+    return FrozenSevenDayUserScript(
+        schema_version=schema,
+        scenario_id=scenario_id,
+        paraphrase_seed=seed,
+        identity_name=identity_name,
+        identity_occupation=identity_occupation,
+        turns=tuple(turns),
+        script_sha256=digest,
+    )
 
 
 def build_frozen_seven_day_user_script(

@@ -14,6 +14,7 @@ from companion_bench.seven_day_driver import (
     FrozenSevenDayUserDriver,
     FrozenSevenDayUserScript,
     build_frozen_seven_day_user_script,
+    load_frozen_seven_day_user_script,
 )
 from companion_bench.spec import load_scenario_yaml
 from companion_bench.user_simulator import (
@@ -145,6 +146,7 @@ class _LocalFormalExecutor:
         scripts: dict[str, FrozenSevenDayUserScript],
         source_attestation: SimulatedSourceAttestation,
         sut_model_id: str,
+        sut_max_new_tokens: int,
         device: str,
         host: str,
         port: int,
@@ -157,6 +159,7 @@ class _LocalFormalExecutor:
         self._scripts = scripts
         self._source_attestation = source_attestation
         self._sut_model_id = sut_model_id
+        self._sut_max_new_tokens = sut_max_new_tokens
         self._device = device
         self._host = host
         self._port = port
@@ -260,6 +263,9 @@ class _LocalFormalExecutor:
         environment["PYTHONPATH"] = _workspace_pythonpath(self._repo_root)
         environment["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
         environment["TRANSFORMERS_VERBOSITY"] = "error"
+        environment["VZ_LIFEFORM_MAX_NEW_TOKENS"] = str(
+            self._sut_max_new_tokens
+        )
         host = SubprocessSevenDayServiceHost(
             command=command,
             service=service,
@@ -329,8 +335,8 @@ def main() -> int:
             "select exactly one of --preflight-only, --smoke-one-run, "
             "or --execute"
         )
-    if args.resume and not args.execute:
-        raise ValueError("--resume is valid only with --execute")
+    if args.resume and args.preflight_only:
+        raise ValueError("--resume is invalid with --preflight-only")
     root = args.repo_root.resolve()
     preregistration = json.loads(
         args.preregistration.read_text(encoding="utf-8")
@@ -360,7 +366,7 @@ def main() -> int:
         return 0
     target = args.output_dir.resolve()
     if target.exists():
-        if not (args.execute and args.resume):
+        if not args.resume:
             raise FileExistsError(f"formal output is immutable: {target}")
     else:
         target.mkdir(parents=True)
@@ -399,13 +405,34 @@ def main() -> int:
     scenario_paths = preregistration["scenario_paths"]
     assert isinstance(scenario_paths, dict)
     scripts = {}
+    script_root = target / "user_scripts"
+    script_root.mkdir(parents=True, exist_ok=True)
     for case in cases:
-        spec = load_scenario_yaml(root / str(scenario_paths[case.scenario_id]))
-        scripts[case.case_id] = build_frozen_seven_day_user_script(
-            spec=spec,
-            paraphrase_seed=case.paraphrase_seed,
-            backend=simulator_backend,
+        script_path = script_root / (
+            hashlib.sha256(case.case_id.encode("utf-8")).hexdigest()
+            + ".json"
         )
+        if script_path.exists():
+            script = load_frozen_seven_day_user_script(script_path)
+            if (
+                script.scenario_id != case.scenario_id
+                or script.paraphrase_seed != case.paraphrase_seed
+            ):
+                raise ValueError(f"cached user script case drift: {script_path}")
+            print(f"[script-resume] {case.case_id}", flush=True)
+        else:
+            print(f"[script] {case.case_id}", flush=True)
+            spec = load_scenario_yaml(
+                root / str(scenario_paths[case.scenario_id])
+            )
+            script = build_frozen_seven_day_user_script(
+                spec=spec,
+                paraphrase_seed=case.paraphrase_seed,
+                backend=simulator_backend,
+            )
+            script_path.write_bytes(_canonical_bytes(script.to_json()))
+            print(f"[script-complete] {case.case_id}", flush=True)
+        scripts[case.case_id] = script
     model_fingerprint = _sha256(
         {
             "sut_model_id": sut["model_id"],
@@ -428,6 +455,7 @@ def main() -> int:
         scripts=scripts,
         source_attestation=source_attestation,
         sut_model_id=str(sut["model_id"]),
+        sut_max_new_tokens=int(sut["max_new_tokens"]),
         device=args.device,
         host=args.host,
         port=args.port,
