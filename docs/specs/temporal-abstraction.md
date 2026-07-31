@@ -210,6 +210,14 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   active fraction 1 维）。空历史严格为零；非法 window、control shape 或非有限
   值 fail loudly。该 readout 不新增公共 snapshot/slot，只进入 train-only
   selector artifact；默认关闭时保持 v37 feature 字节不变。
+- 五杠杆 L3 的新机制使用
+  `residual-state+relationship-owner-readout.v1`。temporal owner 在完整 residual state 后
+  追加 `RelationshipConditioningModule` 发布的**完整、有序、不透明** readout，只执行
+  `(2x-1) × confidence` 的有界变换；不解释 label、不重建 relationship state，
+  不读原文。输入必须是 non-cold、positive-confidence 的 `RELATIONSHIP` owner
+  readout，错 bank、cold start 或零置信度立即 fail loudly，禁止伪装为新机制却静默
+  回落 8076 维 v35 无条件 selector。该 feature 只供隔离 Gate 2 证据 selector，
+  不进 live session、不新增 slot，也不改变 Relationship bank 的语义 owner。
 - 当前 proof profile 已包含 matched ablation `full-no-fast-prior`：它保留 full internal RL + causal replacement，但关闭 temporal fast prior ingestion，用于衡量 fast prior 对 held-out family reuse、credit alignment 与 strong success 的增益
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter
