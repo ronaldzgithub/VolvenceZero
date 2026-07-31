@@ -1,0 +1,6 @@
+{"arm":"pe-eta-v3","lineage_coverage":1.0,"mean_prediction_error_magnitude":1.0545333333333333,"partition":"trace-development-heldout","seed":701}
+{"arm":"pe-drive-off-v3","lineage_coverage":1.0,"mean_prediction_error_magnitude":1.0545333333333333,"partition":"trace-development-heldout","seed":701}
+{"arm":"pe-eta-v3","lineage_coverage":1.0,"mean_prediction_error_magnitude":1.0545333333333333,"partition":"trace-development-heldout","seed":709}
+{"arm":"pe-drive-off-v3","lineage_coverage":1.0,"mean_prediction_error_magnitude":1.0545333333333333,"partition":"trace-development-heldout","seed":709}
+{"arm":"pe-eta-v3","lineage_coverage":1.0,"mean_prediction_error_magnitude":1.0545333333333333,"partition":"trace-development-heldout","seed":719}
+{"arm":"pe-drive-off-v3","lineage_coverage":1.0,"mean_prediction_error_magnitude":1.0545333333333333,"partition":"trace-development-heldout","seed":719}

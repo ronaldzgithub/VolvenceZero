@@ -41,19 +41,23 @@ def test_gate1_v2_keeps_pe_drive_matched_and_rollback_exact(
         evaluation_limit=1,
     )
     assert {row.arm for row in report.results} == {
-        "pe-eta-v2",
-        "pe-drive-off-v2",
+        "pe-eta-v3",
+        "pe-drive-off-v3",
     }
     assert all(row.lineage_coverage == 1.0 for row in report.results)
     assert all(row.rollback_exact for row in report.results)
-    full = next(row for row in report.results if row.arm == "pe-eta-v2")
+    full = next(row for row in report.results if row.arm == "pe-eta-v3")
     disabled = next(
-        row for row in report.results if row.arm == "pe-drive-off-v2"
+        row for row in report.results if row.arm == "pe-drive-off-v3"
     )
     assert full.pe_applied_count == 1
     assert full.temporal_parameter_change_count == 1
     assert disabled.pe_applied_count == 0
     assert disabled.temporal_parameter_change_count == 0
+    assert (
+        full.mean_next_session_policy_loss
+        != disabled.mean_next_session_policy_loss
+    )
 
 
 def test_gate4_v2_uses_all_preregistered_controls(trace_root) -> None:

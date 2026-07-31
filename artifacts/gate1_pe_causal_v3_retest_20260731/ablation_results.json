@@ -1,0 +1,121 @@
+{
+  "aggregate_metrics": [
+    [
+      "mean_policy_loss_reduction",
+      -0.0008813600155742988
+    ],
+    [
+      "minimum_seed_policy_loss_reduction",
+      -0.0027586781158653317
+    ],
+    [
+      "prediction_error_lineage_coverage",
+      1.0
+    ],
+    [
+      "source_mutation_count",
+      0.0
+    ],
+    [
+      "rollback_mismatch_count",
+      0.0
+    ]
+  ],
+  "arm_results": [
+    {
+      "arm": "pe-eta-v3",
+      "episode_count": 12,
+      "lineage_coverage": 1.0,
+      "mean_next_session_policy_loss": 0.30275896703936633,
+      "mean_prediction_error_magnitude": 1.0545333333333333,
+      "partition": "trace-development-heldout",
+      "pe_applied_count": 12,
+      "rollback_after": "efbde182c675382ebee5a13e60ecd3a03dc664cf63b15087e8f83af38b2be3f4",
+      "rollback_before": "efbde182c675382ebee5a13e60ecd3a03dc664cf63b15087e8f83af38b2be3f4",
+      "rollback_exact": true,
+      "seed": 701,
+      "source_mutation_count": 0,
+      "temporal_parameter_change_count": 12
+    },
+    {
+      "arm": "pe-drive-off-v3",
+      "episode_count": 12,
+      "lineage_coverage": 1.0,
+      "mean_next_session_policy_loss": 0.300000288923501,
+      "mean_prediction_error_magnitude": 1.0545333333333333,
+      "partition": "trace-development-heldout",
+      "pe_applied_count": 0,
+      "rollback_after": "efbde182c675382ebee5a13e60ecd3a03dc664cf63b15087e8f83af38b2be3f4",
+      "rollback_before": "efbde182c675382ebee5a13e60ecd3a03dc664cf63b15087e8f83af38b2be3f4",
+      "rollback_exact": true,
+      "seed": 701,
+      "source_mutation_count": 0,
+      "temporal_parameter_change_count": 0
+    },
+    {
+      "arm": "pe-eta-v3",
+      "episode_count": 12,
+      "lineage_coverage": 1.0,
+      "mean_next_session_policy_loss": 0.3011035830894544,
+      "mean_prediction_error_magnitude": 1.0545333333333333,
+      "partition": "trace-development-heldout",
+      "pe_applied_count": 12,
+      "rollback_after": "16e23f6d4c3944616619e582a8833c21a08279afb0d4ddf696742539b8d89acf",
+      "rollback_before": "16e23f6d4c3944616619e582a8833c21a08279afb0d4ddf696742539b8d89acf",
+      "rollback_exact": true,
+      "seed": 709,
+      "source_mutation_count": 0,
+      "temporal_parameter_change_count": 12
+    },
+    {
+      "arm": "pe-drive-off-v3",
+      "episode_count": 12,
+      "lineage_coverage": 1.0,
+      "mean_next_session_policy_loss": 0.3001702482207747,
+      "mean_prediction_error_magnitude": 1.0545333333333333,
+      "partition": "trace-development-heldout",
+      "pe_applied_count": 0,
+      "rollback_after": "16e23f6d4c3944616619e582a8833c21a08279afb0d4ddf696742539b8d89acf",
+      "rollback_before": "16e23f6d4c3944616619e582a8833c21a08279afb0d4ddf696742539b8d89acf",
+      "rollback_exact": true,
+      "seed": 709,
+      "source_mutation_count": 0,
+      "temporal_parameter_change_count": 0
+    },
+    {
+      "arm": "pe-eta-v3",
+      "episode_count": 12,
+      "lineage_coverage": 1.0,
+      "mean_next_session_policy_loss": 0.2989521430434154,
+      "mean_prediction_error_magnitude": 1.0545333333333333,
+      "partition": "trace-development-heldout",
+      "pe_applied_count": 12,
+      "rollback_after": "f43d7f0d568edbf11a825b09d3a39a2913283e809f932f7cc98cd7a4faffbfeb",
+      "rollback_before": "f43d7f0d568edbf11a825b09d3a39a2913283e809f932f7cc98cd7a4faffbfeb",
+      "rollback_exact": true,
+      "seed": 719,
+      "source_mutation_count": 0,
+      "temporal_parameter_change_count": 12
+    },
+    {
+      "arm": "pe-drive-off-v3",
+      "episode_count": 12,
+      "lineage_coverage": 1.0,
+      "mean_next_session_policy_loss": 0.3000000759812375,
+      "mean_prediction_error_magnitude": 1.0545333333333333,
+      "partition": "trace-development-heldout",
+      "pe_applied_count": 0,
+      "rollback_after": "f43d7f0d568edbf11a825b09d3a39a2913283e809f932f7cc98cd7a4faffbfeb",
+      "rollback_before": "f43d7f0d568edbf11a825b09d3a39a2913283e809f932f7cc98cd7a4faffbfeb",
+      "rollback_exact": true,
+      "seed": 719,
+      "source_mutation_count": 0,
+      "temporal_parameter_change_count": 0
+    }
+  ],
+  "arm_schedule": [
+    "pe-eta-v3",
+    "pe-drive-off-v3"
+  ],
+  "schema_version": "gate1-pe-causal-v3-retest.v1"
+}

@@ -111,6 +111,14 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 第二阶段 runtime 已补充一个独立的参数化 causal z-policy sandbox，支持 dual-track rollout、checkpoint/rollback 和 trajectory-level clipped surrogate objective；当前其 online owner 由 `ETANLJointLoop` 承担，offline/batch owner 由 `SSLRLTrainingPipeline` 承担
 - `learned-lite temporal` 与 causal z-policy 当前共享同一控制器参数 store，但 owner 侧已引入显式 `learning_phase` / `structure_frozen` 边界：SSL 阶段允许 discovered action family 更新，RL/runtime 阶段默认冻结结构层，仅在 owner API 内做受限策略更新
 - 当前 ndim metacontroller 已收敛到**单一 owner 参数面**：SSL trainer、runtime policy、internal RL、rare-heavy snapshot/export/import 共享同一个 `MetacontrollerParameterStore` 可见的 encoder/switch/decoder 权重，不再允许 ndim 路径在 trainer/runtime 内各自持有私有网络参数
+- PE→ndim 的 runtime 消费面现有显式、可回滚 owner gate：
+  `MetacontrollerParameterStore.runtime_prediction_error_modulated_code()`
+  把 PE 学到的 `residual/memory/reflection` temporal weights 编译成
+  identity-centered `[0.5, 1.5]` code gain；PE=0 或
+  `prediction_error_runtime_modulation_enabled=False` 时严格 no-op。Gate 1
+  v3 证明该通路能改变 next-session code，但 policy-loss effect
+  `=-0.000881360`，方向为负，因此生产默认 flag 为 `False`，不得把“已接线”
+  写成 PE 学习增益；重新启用必须有 fresh 信号设计与 causal evidence。
 - ndim encoder 的 `n_input` 与 latent `n_z` 是两个独立契约：`n_input` 必须等于 substrate 发布的完整残差宽度，GRU 再把它压缩为低维 `n_z`。runtime facade 负责在构造时声明并校验 `n_input`；禁止按 `n_z` 截断后部感知通道。encoder checkpoint 与 compact parameter fingerprint 均绑定 `n_input`。
 - Transformers residual publisher 的 `activation_width` 是显式、正整数配置：默认 `8` 保持现有生产成本与回滚行为，hidden width 不超过该值时逐坐标原样发布，超过时做确定性 chunk mean。Gate 2 full-width evidence 显式使用 Qwen hidden width `896`，并在 artifact 中同时登记 manifest 与 runtime provenance；两者不一致必须 fail loudly。
 - 当前 `TemporalModule` 默认以 `full-learned` 作为 runtime owner policy，并可通过 owner API 导出 machine-readable metacontroller runtime state；这条导出链不改变 `temporal_abstraction` 公共 snapshot schema

@@ -1,0 +1,6 @@
+{"arm":"pe-eta-v3","partition":"trace-development-heldout","seed":701,"source_mutation_count":0,"temporal_parameter_change_count":12}
+{"arm":"pe-drive-off-v3","partition":"trace-development-heldout","seed":701,"source_mutation_count":0,"temporal_parameter_change_count":0}
+{"arm":"pe-eta-v3","partition":"trace-development-heldout","seed":709,"source_mutation_count":0,"temporal_parameter_change_count":12}
+{"arm":"pe-drive-off-v3","partition":"trace-development-heldout","seed":709,"source_mutation_count":0,"temporal_parameter_change_count":0}
+{"arm":"pe-eta-v3","partition":"trace-development-heldout","seed":719,"source_mutation_count":0,"temporal_parameter_change_count":12}
+{"arm":"pe-drive-off-v3","partition":"trace-development-heldout","seed":719,"source_mutation_count":0,"temporal_parameter_change_count":0}

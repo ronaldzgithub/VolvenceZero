@@ -2569,6 +2569,44 @@ class MetacontrollerParameterStore:
             modulated.append(_clamp(code[i] * gain))
         return tuple(modulated)
 
+    def runtime_prediction_error_modulated_code(
+        self,
+        code: tuple[float, ...],
+        *,
+        strength: float,
+    ) -> tuple[float, ...]:
+        """Let PE-updated temporal weights reach the ndim runtime latent.
+
+        The three formal temporal axes repeat across the opaque latent width.
+        Their normalized mean is one third, so ``3 * weight`` is an identity-
+        centred gain. The PE strength and final gain are both bounded; zero
+        strength returns the original tuple object for exact rollback.
+        """
+
+        if strength <= 0.0 or not code:
+            return code
+        bounded_strength = min(float(strength), 1.0)
+        axes = (
+            self.temporal_weights["residual"],
+            self.temporal_weights["memory"],
+            self.temporal_weights["reflection"],
+        )
+        return tuple(
+            _clamp(
+                value
+                * max(
+                    0.5,
+                    min(
+                        1.5,
+                        1.0
+                        + bounded_strength
+                        * (axes[index % len(axes)] * len(axes) - 1.0),
+                    ),
+                )
+            )
+            for index, value in enumerate(code)
+        )
+
 
 def _clamp(value: float) -> float:
     lower, upper = LATENT_CODE_BOUNDS
@@ -3772,6 +3810,9 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._latest_post_switch_dwell_would_suppress = False
         self._latest_post_switch_dwell_applied = False
         self._latest_post_switch_dwell_remaining = 0
+        # Evidence-only PE -> ndim consumer bridge. Production remains frozen
+        # after the preregistered Gate 1 v3 retest returned a negative effect.
+        self._prediction_error_runtime_modulation_enabled = False
         self._learning_writes_enabled = True
         self._causal_action_head_wiring = WiringLevel.DISABLED
         self._causal_action_head_track = Track.WORLD
@@ -3928,6 +3969,14 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             self._latest_post_switch_dwell_applied,
             self._latest_post_switch_dwell_remaining,
         )
+
+    def set_prediction_error_runtime_modulation_enabled(
+        self,
+        enabled: bool,
+    ) -> None:
+        """Enable the bounded Gate 1 PE -> ndim evidence bridge."""
+
+        self._prediction_error_runtime_modulation_enabled = bool(enabled)
 
     @property
     def learning_writes_enabled(self) -> bool:
@@ -4805,6 +4854,22 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             z_candidate = self._parameter_store.runtime_track_modulated_code(
                 z_candidate, strength=self._runtime_track_modulation
             )
+        pe_modulation_strength = min(
+            self._parameter_store.prediction_error_switch_pressure_delta()
+            / 0.18,
+            1.0,
+        )
+        if (
+            latent_override is None
+            and self._prediction_error_runtime_modulation_enabled
+            and pe_modulation_strength > 0.0
+        ):
+            z_candidate = (
+                self._parameter_store.runtime_prediction_error_modulated_code(
+                    z_candidate,
+                    strength=pe_modulation_strength,
+                )
+            )
         if (
             latent_override is None
             and self._causal_action_head_exclusive_steering
@@ -5442,6 +5507,12 @@ class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
             return
         pe = prediction_error_snapshot.error
+        if isinstance(self._policy, FullLearnedTemporalPolicy):
+            self._policy.parameter_store.record_prediction_error_switch_pressure(
+                _clamp(pe.magnitude) * 0.18
+            )
+        if pe.magnitude <= 0.0:
+            return
         signed_reward = pe.signed_reward
         target_residual = _clamp(0.45 + abs(pe.task_error) * 0.30 + max(signed_reward, 0.0) * 0.10)
         target_memory = _clamp(0.25 + abs(pe.regime_error) * 0.25 + abs(pe.action_error) * 0.10)

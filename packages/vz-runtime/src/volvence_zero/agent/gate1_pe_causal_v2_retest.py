@@ -42,9 +42,9 @@ from volvence_zero.temporal import (
 )
 
 
-GATE1_V2_SCHEMA_VERSION = "gate1-pe-causal-v2-retest.v1"
-GATE1_V2_SUITE_ID = "gate1-pe-causal-v2-retest"
-GATE1_V2_ARMS = ("pe-eta-v2", "pe-drive-off-v2")
+GATE1_V2_SCHEMA_VERSION = "gate1-pe-causal-v3-retest.v1"
+GATE1_V2_SUITE_ID = "gate1-pe-causal-v3-retest"
+GATE1_V2_ARMS = ("pe-eta-v3", "pe-drive-off-v3")
 
 
 @dataclass(frozen=True)
@@ -219,6 +219,7 @@ def _run_arm(
                 initialization_seed=seed,
             )
         )
+        policy.set_prediction_error_runtime_modulation_enabled(True)
         module = TemporalModule(
             policy=policy,
             wiring_level=WiringLevel.ACTIVE,
@@ -229,7 +230,7 @@ def _run_arm(
         session_two = _substrate_snapshot(plan=plan, session=2)
         source_before = _sha256((session_one, session_two))
         pe_snapshot = _prediction_error(plan)
-        signal = pe_snapshot if arm == "pe-eta-v2" else None
+        signal = pe_snapshot if arm == "pe-eta-v3" else None
         asyncio.run(
             module.process_standalone(
                 substrate_snapshot=session_one,
@@ -326,12 +327,12 @@ def run_gate1_v2_retest(
         next(
             row.mean_next_session_policy_loss
             for row in results
-            if row.seed == seed and row.arm == "pe-drive-off-v2"
+            if row.seed == seed and row.arm == "pe-drive-off-v3"
         )
         - next(
             row.mean_next_session_policy_loss
             for row in results
-            if row.seed == seed and row.arm == "pe-eta-v2"
+            if row.seed == seed and row.arm == "pe-eta-v3"
         )
         for seed in seed_schedule
     )
@@ -423,7 +424,7 @@ def export_gate1_v2_bundle(
             for base, row in zip(common, rows, strict=True)
         ),
         "credit.jsonl": tuple(
-            {**base, "pe_drive_active": row.arm == "pe-eta-v2"}
+            {**base, "pe_drive_active": row.arm == "pe-eta-v3"}
             for base, row in zip(common, rows, strict=True)
         ),
         "state_diff.jsonl": tuple(

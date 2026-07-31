@@ -1,0 +1,6 @@
+{"arm":"pe-eta-v3","next_session_policy_loss":0.30275896703936633,"partition":"trace-development-heldout","seed":701}
+{"arm":"pe-drive-off-v3","next_session_policy_loss":0.300000288923501,"partition":"trace-development-heldout","seed":701}
+{"arm":"pe-eta-v3","next_session_policy_loss":0.3011035830894544,"partition":"trace-development-heldout","seed":709}
+{"arm":"pe-drive-off-v3","next_session_policy_loss":0.3001702482207747,"partition":"trace-development-heldout","seed":709}
+{"arm":"pe-eta-v3","next_session_policy_loss":0.2989521430434154,"partition":"trace-development-heldout","seed":719}
+{"arm":"pe-drive-off-v3","next_session_policy_loss":0.3000000759812375,"partition":"trace-development-heldout","seed":719}
