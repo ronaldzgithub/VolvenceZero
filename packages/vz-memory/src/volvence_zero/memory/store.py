@@ -79,6 +79,8 @@ def build_default_memory_store(
     cms_replay_window_size: int | None = 8,
     cms_torch_backend: "WiringLevel | None" = None,
     persistence_backend: PersistenceBackend | None = None,
+    cms_context_conditioned_meta_init: bool = False,
+    cms_context_prototype_count: int = 8,
 ) -> "MemoryStore":
     """Build a default :class:`MemoryStore` with ATLAS / Titans CMS uplift.
 
@@ -115,6 +117,8 @@ def build_default_memory_store(
         pe_features_enabled=cms_pe_features_enabled,
         replay_window_sizes=replay_window_sizes,
         cms_backend=cms_torch_backend,
+        context_conditioned_meta_init=cms_context_conditioned_meta_init,
+        context_prototype_count=cms_context_prototype_count,
     )
     return MemoryStore(
         learned_core=learned_core,
@@ -152,6 +156,10 @@ class MemoryStore:
         self._last_context_reset_target_distance_before = 0.0
         self._last_context_reset_target_distance_after = 0.0
         self._last_context_reset_target_alignment_gain = 0.0
+        self._context_reset_copy_shadow: CMSMemoryCore | None = None
+        self._context_reset_benefit_sum = 0.0
+        self._context_reset_benefit_count = 0
+        self._context_reset_benefit_horizon = 5
         self._artifact_consolidation_count = 0
         self._learned_recall_count = 0
         self._last_recall_confidence = 0.0
@@ -220,7 +228,13 @@ class MemoryStore:
     def _semantic_index(self) -> dict[str, tuple[float, ...]]:
         return self._derived_index._artifact_embeddings
 
-    def reset_nested_context(self, *, reason: str, timestamp_ms: int) -> tuple[str, ...]:
+    def reset_nested_context(
+        self,
+        *,
+        reason: str,
+        timestamp_ms: int,
+        context_signal: tuple[float, ...] | None = None,
+    ) -> tuple[str, ...]:
         if (
             self._learned_core is None
             or self._learned_core.mode != "mlp"
@@ -236,10 +250,11 @@ class MemoryStore:
             self._last_context_reset_target_distance_after = 0.0
             self._last_context_reset_target_alignment_gain = 0.0
             return ()
-        evidence = self.initialize_nested_context_for_evidence(
-            mode="meta-init",
+        self.initialize_nested_context_for_evidence(
+            mode="copy-init",
             reason=reason,
             timestamp_ms=timestamp_ms,
+            context_signal=context_signal,
         )
         return ("nested-context-reset",)
 
@@ -251,6 +266,7 @@ class MemoryStore:
         timestamp_ms: int,
         random_seed: int | None = None,
         external_targets: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+        context_signal: tuple[float, ...] | None = None,
     ) -> CMSContextInitializationEvidence:
         """Run one auditable nested initializer through the memory owner.
 
@@ -265,10 +281,22 @@ class MemoryStore:
             raise RuntimeError(
                 "Evidence initialization requires a nested MLP MemoryStore."
             )
+        self._context_reset_copy_shadow = None
+        self._context_reset_benefit_sum = 0.0
+        self._context_reset_benefit_count = 0
+        if mode == "meta-init":
+            copy_shadow = self._learned_core.clone_empty()
+            copy_shadow.restore_state(self._learned_core.export_state())
+            copy_shadow.reset_context_with_initialization(
+                mode="copy-init",
+                context_signal=context_signal,
+            )
+            self._context_reset_copy_shadow = copy_shadow
         evidence = self._learned_core.reset_context_with_initialization(
             mode=mode,
             random_seed=random_seed,
             external_targets=external_targets,
+            context_signal=context_signal,
         )
         before_online = evidence.online_before
         after_online = evidence.online_after
@@ -282,10 +310,7 @@ class MemoryStore:
         self._last_context_reset_session_seed_strength = sum(abs(value) for value in after_session) / max(
             len(after_session), 1
         )
-        self._last_context_reset_transfer_strength = sum(
-            abs(after_value - before_value)
-            for after_value, before_value in zip(after_online, before_online, strict=True)
-        ) / max(len(after_online), 1)
+        self._last_context_reset_transfer_strength = 0.0
         self._last_context_reset_target_distance_before = sum(
             abs(before_value - target_value)
             for before_value, target_value in zip(before_online, online_target, strict=True)
@@ -769,6 +794,7 @@ class MemoryStore:
         signal: tuple[float, ...],
         timestamp_ms: int,
         prediction_error: "PredictionErrorSnapshot | None" = None,
+        context_signal: tuple[float, ...] | None = None,
     ) -> None:
         """Replay one immutable public signal through the memory owner.
 
@@ -782,7 +808,52 @@ class MemoryStore:
                 signal=signal,
                 timestamp_ms=timestamp_ms,
                 prediction_error=prediction_error,
+                context_signal=context_signal,
             )
+            if (
+                self._context_reset_copy_shadow is not None
+                and self._context_reset_benefit_count
+                < self._context_reset_benefit_horizon
+            ):
+                self._context_reset_copy_shadow.observe_replay_signal(
+                    signal=signal,
+                    timestamp_ms=timestamp_ms,
+                    prediction_error=prediction_error,
+                    context_signal=context_signal,
+                )
+                actual = self._learned_core.snapshot().online_fast.vector
+                copy = (
+                    self._context_reset_copy_shadow.snapshot()
+                    .online_fast.vector
+                )
+                target = _align_signal(
+                    signal,
+                    dim=self._learned_signal_dim(),
+                )
+                actual_loss = sum(
+                    abs(value - expected)
+                    for value, expected in zip(
+                        actual,
+                        target,
+                        strict=True,
+                    )
+                ) / max(len(target), 1)
+                copy_loss = sum(
+                    abs(value - expected)
+                    for value, expected in zip(
+                        copy,
+                        target,
+                        strict=True,
+                    )
+                ) / max(len(target), 1)
+                self._context_reset_benefit_sum += (
+                    copy_loss - actual_loss
+                )
+                self._context_reset_benefit_count += 1
+                self._last_context_reset_transfer_strength = (
+                    self._context_reset_benefit_sum
+                    / self._context_reset_benefit_count
+                )
 
     def apply_prediction_error_signal(
         self,
@@ -956,6 +1027,9 @@ class MemoryStore:
         return self.create_checkpoint(checkpoint_id=checkpoint_id or "rare-heavy-memory")
 
     def restore_checkpoint(self, checkpoint: MemoryStoreCheckpoint) -> None:
+        self._context_reset_copy_shadow = None
+        self._context_reset_benefit_sum = 0.0
+        self._context_reset_benefit_count = 0
         self._artifact_store.restore(
             entries=checkpoint.entries,
             pending_promotions=checkpoint.pending_promotions,

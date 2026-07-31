@@ -178,6 +178,9 @@ class CMSContextInitializationEvidence:
     session_after: tuple[float, ...]
     slow_state_unchanged: bool
     parameter_state_unchanged: bool
+    context_conditioned: bool = False
+    prototype_count: int = 0
+    context_match_score: float = 0.0
 
 
 @dataclass(frozen=True)

@@ -1376,7 +1376,17 @@ class MemoryAttributeReadout:
 - `cms_state.continuum_profile` 是连续谱频率 contract 的机器可读入口；消费者需要理解 bands / reconstruction edges / readout band 时读取该字段，不从三带摘要反推
 - `cms_state.tower_profile` / `tower_depth` 只发布 nested tower 的 compact readout 与层级身份，不暴露 owner 内部全量参数
 - `cms_state.update_rule_state` 与 `hope_self_modification_state` 只作为 owner-side learned update / bounded self-modification 证据，不授权外部消费者写入 CMS 参数
-- `lifecycle_metrics` 只发布 owner 自身负责的 nested lifecycle telemetry；消费者不得自行推断 reset、slow-to-fast transfer、或 learned-core-guided recall 是否发生
+- `lifecycle_metrics` 只发布 owner 自身负责的 nested lifecycle telemetry；
+  消费者不得自行推断 reset、slow-to-fast transfer、或
+  learned-core-guided recall 是否发生。其中
+  `slow_to_fast_init_benefit` 的 value type 为 finite `float`，owner 为
+  `vz-memory MemoryStore`，dependencies 为当前 reset mode、owner-internal
+  copy-init shadow 与 reset 后最多 5 次 replay loss，wiring level 跟随
+  `memory` slot；值定义为 `mean(copy_shadow_loss - active_init_loss)`，
+  没有 matched observation 时为 `0.0`。consumer 禁止以 band 向量位移
+  重算该值。`CMSContextInitializationEvidence` 可发布
+  `context_conditioned / prototype_count / context_match_score`，只证明
+  initializer 选择，不授权外部写入 prototype。
 - `hope_self_modification_state` 是 Memory owner 内部 tiny Hope 机制的只读证据面；它描述 owner 生成的有界 update 系数和 guard 状态，不授权消费者改写 CMS 参数
 - 显式 `MemoryEntry` 属于 artifact / explanation layer；主记忆基底由 owner 内部 learned core 承担
 - `social_pe_signals` 是 Memory owner 对社交 PE 主链的唯一 typed 入口；下游 `social_prediction` / `social_prediction_error` owner 必须通过 `social_prediction_from_memory_signal` / `social_prediction_error_from_memory_signal` 升级，**禁止**消费者从 `suppressed_cross_scope_entries` / `active_subject_scope` 反向重建 `SocialPrediction` / `SocialPredictionError`，也禁止借用 `MemoryModule` 名字写到下游 owner 的 snapshot 中

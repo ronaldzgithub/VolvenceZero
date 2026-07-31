@@ -75,6 +75,8 @@ _CMS_PROMOTION_MSE_SLACK: float = 1e-6
 _CMS_KILL_MSE_DEGRADATION: float = 0.05
 # Bounded window for the #89 anti-forgetting gain-curve hooks.
 _ANTI_FORGETTING_WINDOW: int = 64
+_CONTEXT_PROTOTYPE_EMA: float = 0.25
+_CONTEXT_PROTOTYPE_NEW_SLOT_DISTANCE: float = 0.12
 
 
 @dataclass(frozen=True)
@@ -163,6 +165,8 @@ class CMSMemoryCore:
         pe_features_enabled: bool = False,
         replay_window_sizes: Mapping[str, int] | None = None,
         cms_backend: "WiringLevel | None" = None,
+        context_conditioned_meta_init: bool = False,
+        context_prototype_count: int = 8,
     ) -> None:
         if mode not in ("vector", "mlp"):
             raise ValueError(f"mode must be 'vector' or 'mlp', got {mode!r}")
@@ -203,6 +207,20 @@ class CMSMemoryCore:
         self._momentum_beta = momentum_beta
         self._anti_forgetting = anti_forgetting
         self._pe_features_enabled = bool(pe_features_enabled)
+        if context_prototype_count < 1:
+            raise ValueError("context_prototype_count must be >= 1")
+        self._context_conditioned_meta_init = bool(
+            context_conditioned_meta_init
+        )
+        self._context_prototype_capacity = int(context_prototype_count)
+        self._context_prototypes: list[
+            tuple[
+                tuple[float, ...],
+                tuple[float, ...],
+                tuple[float, ...],
+                int,
+            ]
+        ] = []
         # ATLAS / Titans uplift: feature_dim depends on the PE-gating flag.
         # pe_off keeps the legacy ``max(12, d_in)`` layout so the canonical
         # CMS path is bit-equal to pre-uplift behavior. pe_on uses the
@@ -327,6 +345,10 @@ class CMSMemoryCore:
             replay_window_sizes=(
                 dict(self._replay_window_sizes) if self._atlas_replay_active else None
             ),
+            context_conditioned_meta_init=(
+                self._context_conditioned_meta_init
+            ),
+            context_prototype_count=self._context_prototype_capacity,
         )
 
     @property
@@ -916,6 +938,7 @@ class CMSMemoryCore:
         signal: tuple[float, ...],
         timestamp_ms: int,
         prediction_error: "PredictionErrorSnapshot | None" = None,
+        context_signal: tuple[float, ...] | None = None,
     ) -> None:
         """Replay an immutable owner-published signal through the live CMS law.
 
@@ -933,6 +956,7 @@ class CMSMemoryCore:
             signal=self._align_signal_dim(signal),
             timestamp_ms=timestamp_ms,
             prediction_error=prediction_error,
+            context_signal=context_signal,
         )
 
     def _observe_resolved_signal(
@@ -941,6 +965,7 @@ class CMSMemoryCore:
         signal: tuple[float, ...],
         timestamp_ms: int,
         prediction_error: "PredictionErrorSnapshot | None",
+        context_signal: tuple[float, ...] | None = None,
     ) -> None:
         self._set_latest_pe_features(prediction_error)
         self._total_observations += 1
@@ -1009,7 +1034,9 @@ class CMSMemoryCore:
             )
 
             if self._variant is CMSVariant.NESTED:
-                self._update_nested_meta_targets()
+                self._update_nested_meta_targets(
+                    context_signal=context_signal
+                )
 
             if self._anti_forgetting > 0:
                 self._apply_anti_forgetting_mlp()
@@ -1261,6 +1288,7 @@ class CMSMemoryCore:
         mode: str,
         random_seed: int | None = None,
         external_targets: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+        context_signal: tuple[float, ...] | None = None,
     ) -> CMSContextInitializationEvidence:
         """Reset fast bands through an explicit owner-controlled initializer.
 
@@ -1302,6 +1330,12 @@ class CMSMemoryCore:
             raise ValueError(
                 f"external_targets are only valid for external-meta-init, got mode={mode!r}."
             )
+        if context_signal is not None:
+            if not context_signal:
+                raise ValueError("context_signal must be non-empty when provided")
+            if not all(math.isfinite(value) for value in context_signal):
+                raise ValueError("context_signal must contain only finite values")
+            context_signal = self._align_signal_dim(context_signal)
 
         online_before = self._online_mlp.representation_vector()
         session_before = self._session_mlp.representation_vector()
@@ -1310,6 +1344,7 @@ class CMSMemoryCore:
             self._nested_online_init_target,
             self._nested_session_init_target,
         )
+        context_prototypes_before = tuple(self._context_prototypes)
         update_rule_before = self._update_rule.export_state()
         hope_before = self._hope_state()
         params_before = tuple(
@@ -1322,11 +1357,15 @@ class CMSMemoryCore:
             for params in mlp.export_params()[2:]
         )
         if mode == "meta-init":
-            online_target = self._nested_online_init_target
-            session_target = self._nested_session_init_target
+            (
+                online_target,
+                session_target,
+                context_match_score,
+            ) = self._context_conditioned_reset_targets(context_signal)
         elif mode == "copy-init":
             online_target = online_before
             session_target = session_before
+            context_match_score = 0.0
         elif mode == "random-init":
             generator = random.Random(random_seed)
             online_target = tuple(
@@ -1335,12 +1374,15 @@ class CMSMemoryCore:
             session_target = tuple(
                 generator.uniform(-0.125, 0.125) for _ in range(self._dim)
             )
+            context_match_score = 0.0
         elif mode == "no-init":
             online_target = tuple(0.0 for _ in range(self._dim))
             session_target = tuple(0.0 for _ in range(self._dim))
+            context_match_score = 0.0
         else:
             assert external_targets is not None
             online_target, session_target = external_targets
+            context_match_score = 0.0
 
         for target_name, target in (
             ("online_target", online_target),
@@ -1433,17 +1475,103 @@ class CMSMemoryCore:
             parameter_state_unchanged=(
                 params_after == params_before
                 and nested_targets_after == nested_targets_before
+                and tuple(self._context_prototypes)
+                == context_prototypes_before
                 and updater_learned_state_unchanged
                 and self._hope_state() == hope_before
             ),
+            context_conditioned=(
+                mode == "meta-init"
+                and context_signal is not None
+                and bool(self._context_prototypes)
+                and self._context_conditioned_meta_init
+            ),
+            prototype_count=len(self._context_prototypes),
+            context_match_score=context_match_score,
         )
 
-    def nested_reset_targets(self) -> tuple[tuple[float, ...], tuple[float, ...]] | None:
+    def nested_reset_targets(
+        self,
+        *,
+        context_signal: tuple[float, ...] | None = None,
+    ) -> tuple[tuple[float, ...], tuple[float, ...]] | None:
         if self._variant is not CMSVariant.NESTED or self._mode != "mlp":
             return None
-        return (self._nested_online_init_target, self._nested_session_init_target)
+        online, session, _score = self._context_conditioned_reset_targets(
+            context_signal
+        )
+        return (online, session)
 
-    def _update_nested_meta_targets(self) -> None:
+    def _context_conditioned_reset_targets(
+        self,
+        context_signal: tuple[float, ...] | None,
+    ) -> tuple[tuple[float, ...], tuple[float, ...], float]:
+        if (
+            not self._context_conditioned_meta_init
+            or context_signal is None
+            or not self._context_prototypes
+        ):
+            return (
+                self._nested_online_init_target,
+                self._nested_session_init_target,
+                0.0,
+            )
+        key = self._align_signal_dim(context_signal)
+        ranked = sorted(
+            (
+                (
+                    max(
+                        0.0,
+                        1.0 - self._mean_distance(key, prototype_key),
+                    )
+                    ** 8,
+                    online_target,
+                    session_target,
+                )
+                for (
+                    prototype_key,
+                    online_target,
+                    session_target,
+                    _support,
+                ) in self._context_prototypes
+            ),
+            key=lambda item: item[0],
+            reverse=True,
+        )[:2]
+        total_weight = sum(score for score, _online, _session in ranked)
+        if total_weight <= 1e-12:
+            return (
+                self._nested_online_init_target,
+                self._nested_session_init_target,
+                0.0,
+            )
+        online = tuple(
+            _clamp(
+                sum(
+                    score * target[index]
+                    for score, target, _session in ranked
+                )
+                / total_weight
+            )
+            for index in range(self._dim)
+        )
+        session = tuple(
+            _clamp(
+                sum(
+                    score * target[index]
+                    for score, _online, target in ranked
+                )
+                / total_weight
+            )
+            for index in range(self._dim)
+        )
+        return (online, session, ranked[0][0])
+
+    def _update_nested_meta_targets(
+        self,
+        *,
+        context_signal: tuple[float, ...] | None = None,
+    ) -> None:
         """Meta-learn initialization targets for faster bands.
 
         The slow band observes what the session band converged to and
@@ -1506,6 +1634,60 @@ class CMSMemoryCore:
             before=online_before,
             after=self._nested_online_init_target,
             target=online_converged,
+        )
+        if (
+            self._context_conditioned_meta_init
+            and context_signal is not None
+        ):
+            self._update_context_prototype(
+                context_signal=self._align_signal_dim(context_signal),
+                online_target=online_converged,
+                session_target=session_converged,
+            )
+
+    def _update_context_prototype(
+        self,
+        *,
+        context_signal: tuple[float, ...],
+        online_target: tuple[float, ...],
+        session_target: tuple[float, ...],
+    ) -> None:
+        if not self._context_prototypes:
+            self._context_prototypes.append(
+                (context_signal, online_target, session_target, 1)
+            )
+            return
+        nearest_index, nearest_distance = min(
+            (
+                (
+                    index,
+                    self._mean_distance(context_signal, prototype[0]),
+                )
+                for index, prototype in enumerate(
+                    self._context_prototypes
+                )
+            ),
+            key=lambda item: item[1],
+        )
+        if (
+            len(self._context_prototypes)
+            < self._context_prototype_capacity
+            and nearest_distance
+            > _CONTEXT_PROTOTYPE_NEW_SLOT_DISTANCE
+        ):
+            self._context_prototypes.append(
+                (context_signal, online_target, session_target, 1)
+            )
+            return
+        key, online, session, support = self._context_prototypes[
+            nearest_index
+        ]
+        rate = _CONTEXT_PROTOTYPE_EMA
+        self._context_prototypes[nearest_index] = (
+            self._blend_signal(key, context_signal, rate=rate),
+            self._blend_signal(online, online_target, rate=rate),
+            self._blend_signal(session, session_target, rate=rate),
+            support + 1,
         )
 
     # ------------------------------------------------------------------
@@ -2153,20 +2335,69 @@ class CMSMemoryCore:
     def _export_tower_meta_levels(self) -> tuple[tuple[str, tuple[float, ...]], ...]:
         if self._variant is not CMSVariant.NESTED or self._mode != "mlp":
             return ()
-        return (
+        base_levels = (
             ("nested-online-prior", self._nested_online_init_target),
             ("nested-session-prior", self._nested_session_init_target),
         )
+        prototype_levels = tuple(
+            (
+                f"context-prototype-{index}",
+                (
+                    *context_signal,
+                    *online_target,
+                    *session_target,
+                    float(support),
+                ),
+            )
+            for index, (
+                context_signal,
+                online_target,
+                session_target,
+                support,
+            ) in enumerate(self._context_prototypes)
+        )
+        return base_levels + prototype_levels
 
     def _restore_tower_meta_levels(
         self,
         tower_meta_levels: tuple[tuple[str, tuple[float, ...]], ...],
     ) -> None:
+        restored_prototypes: list[
+            tuple[
+                tuple[float, ...],
+                tuple[float, ...],
+                tuple[float, ...],
+                int,
+            ]
+        ] = []
         for level_id, vector in tower_meta_levels:
             if level_id == "nested-online-prior" and vector:
                 self._nested_online_init_target = vector
             elif level_id == "nested-session-prior" and vector:
                 self._nested_session_init_target = vector
+            elif level_id.startswith("context-prototype-") and vector:
+                expected_width = self._dim * 3 + 1
+                if len(vector) != expected_width:
+                    raise ValueError(
+                        "CMS context prototype checkpoint width "
+                        f"{len(vector)} != {expected_width}"
+                    )
+                restored_prototypes.append(
+                    (
+                        vector[: self._dim],
+                        vector[self._dim : self._dim * 2],
+                        vector[self._dim * 2 : self._dim * 3],
+                        max(1, int(vector[-1])),
+                    )
+                )
+        if (
+            len(restored_prototypes)
+            > self._context_prototype_capacity
+        ):
+            raise ValueError(
+                "CMS context prototype checkpoint exceeds configured capacity"
+            )
+        self._context_prototypes = restored_prototypes
 
     def _build_tower_profile(
         self,

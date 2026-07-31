@@ -509,7 +509,7 @@ def test_memory_store_tower_guided_retrieval_publishes_tower_metrics():
     assert snapshot.cms_state.tower_profile.profile_id != "artifact-only"
 
 
-def test_memory_store_composite_tower_alignment_improves_after_fast_signal_and_nested_reset():
+def test_memory_store_copy_init_preserves_fast_signal_alignment_after_nested_reset():
     store = build_default_memory_store(latent_dim=6, nested_profile=True)
     store.write(
         MemoryWriteRequest(
@@ -545,6 +545,7 @@ def test_memory_store_composite_tower_alignment_improves_after_fast_signal_and_n
     assert improved_metrics["fast_memory_signal_count"] >= 4.0
     assert improved_metrics["last_nested_reset_applied"] == 1.0
     assert improved_metrics["last_memory_tower_alignment"] > baseline_alignment
+    assert improved_metrics["slow_to_fast_init_benefit"] == 0.0
     assert improved_snapshot.cms_state is not None
     assert improved_snapshot.cms_state.update_rule_state is not None
     reset_decisions = {
@@ -552,10 +553,7 @@ def test_memory_store_composite_tower_alignment_improves_after_fast_signal_and_n
         for decision in improved_snapshot.cms_state.update_rule_state.last_decisions
         if "reset" in decision.target_id
     }
-    assert "nested-online-reset" in reset_decisions
-    assert "nested-session-reset" in reset_decisions
-    assert reset_decisions["nested-online-reset"].reset_mix > 0.0
-    assert reset_decisions["nested-session-reset"].slow_mix > 0.0
+    assert not reset_decisions
 
 
 def test_memory_store_publishes_tiny_hope_self_modification_state_and_rolls_back():
@@ -1025,4 +1023,3 @@ def test_memory_store_retrieve_without_scope_filter_returns_all_subjects():
     assert len(result.entries) == 2
     assert result.suppressed_cross_scope_entries == ()
     assert result.active_subject_scope == ()
-

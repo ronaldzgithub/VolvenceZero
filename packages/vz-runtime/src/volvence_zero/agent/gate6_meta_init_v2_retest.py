@@ -23,8 +23,8 @@ from volvence_zero.agent.gate_v2_retest_common import (
 from volvence_zero.memory import build_default_memory_store
 
 
-GATE6_V2_SCHEMA_VERSION = "gate6-meta-init-v2-retest.v1"
-GATE6_V2_SUITE_ID = "gate6-meta-init-v2-retest"
+GATE6_V2_SCHEMA_VERSION = "gate6-conditioned-meta-init-v3-retest.v1"
+GATE6_V2_SUITE_ID = "gate6-conditioned-meta-init-v3-retest"
 GATE6_V2_PRIMARY_ARMS = (
     "meta-init",
     "copy-init",
@@ -39,6 +39,7 @@ GATE6_V2_ARMS = (*GATE6_V2_PRIMARY_ARMS, *GATE6_V2_DIAGNOSTIC_ARMS)
 _ADAPTATION_STEPS = 5
 _EARLY_K = 5
 _TARGET_ERROR = 0.05
+_CONTEXT_PROTOTYPE_COUNT = 8
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class Gate6V2EpisodeResult:
     rollback_exact: bool
     rollback_before: str
     rollback_after: str
+    owner_slow_to_fast_init_benefit: float
 
 
 @dataclass(frozen=True)
@@ -102,6 +104,26 @@ def _signal(plan: Gate78EpisodePlan) -> tuple[float, float, float, float]:
     )  # type: ignore[return-value]
 
 
+def _context_signal(
+    plan: Gate78EpisodePlan,
+) -> tuple[float, float, float, float]:
+    context = plan.context_centroid
+    projected = (
+        context[0] + 0.50 * context[4] + 0.25 * context[5],
+        context[1] + 0.50 * context[5] + 0.25 * context[4],
+        context[2] + 0.50 * context[4],
+        context[3] + 0.50 * context[5],
+    )
+    return tuple(
+        min(max(0.55 * base + 0.45 * prior, 0.0), 1.0)
+        for base, prior in zip(
+            projected,
+            plan.user_prior,
+            strict=True,
+        )
+    )  # type: ignore[return-value]
+
+
 def _mae(left: tuple[float, ...], right: tuple[float, ...]) -> float:
     return _mean(
         tuple(
@@ -126,11 +148,16 @@ def _train_store(
     *,
     seed: int,
 ):
-    store = build_default_memory_store(latent_dim=4)
+    store = build_default_memory_store(
+        latent_dim=4,
+        cms_context_conditioned_meta_init=True,
+        cms_context_prototype_count=_CONTEXT_PROTOTYPE_COUNT,
+    )
     for index, plan in enumerate(plans):
         store.observe_replay_signal(
             signal=_signal(plan),
             timestamp_ms=seed * 1000 + index,
+            context_signal=_context_signal(plan),
         )
     checkpoint = store.create_checkpoint(
         checkpoint_id=f"gate6-v2:{seed}:train"
@@ -197,6 +224,7 @@ def _run_episode(
         timestamp_ms=seed * 10000 + plan.global_index,
         random_seed=random_seed,
         external_targets=external_targets,
+        context_signal=_context_signal(plan),
     )
     if evidence is None:
         raise RuntimeError("Gate 6 v2 owner did not return init evidence")
@@ -208,6 +236,7 @@ def _run_episode(
             timestamp_ms=(
                 seed * 10000 + plan.global_index * 10 + step + 1
             ),
+            context_signal=_context_signal(plan),
         )
         snapshot = store.snapshot(
             retrieved_entries=(),
@@ -263,6 +292,9 @@ def _run_episode(
         rollback_exact=rollback_before == rollback_after,
         rollback_before=rollback_before,
         rollback_after=rollback_after,
+        owner_slow_to_fast_init_benefit=dict(
+            snapshot.lifecycle_metrics
+        )["slow_to_fast_init_benefit"],
     )
 
 
@@ -449,6 +481,16 @@ def run_gate6_v2_retest(
         ("fact_leakage_count", float(leakage)),
         ("source_mutation_count", float(mutation)),
         ("rollback_mismatch_count", float(rollback_mismatch)),
+        (
+            "mean_owner_slow_to_fast_init_benefit",
+            _mean(
+                tuple(
+                    row.owner_slow_to_fast_init_benefit
+                    for row in results
+                    if row.arm == "meta-init"
+                )
+            ),
+        ),
     )
     mechanism_gates = (
         ("source-consumer-admission", True, 1.0),
@@ -518,6 +560,9 @@ def export_gate6_v2_bundle(
                 "steps_to_target": row.steps_to_target,
                 "early_adaptation_auc": row.early_adaptation_auc,
                 "final_error": row.final_error,
+                "owner_slow_to_fast_init_benefit": (
+                    row.owner_slow_to_fast_init_benefit
+                ),
                 "final_quality": row.final_quality,
             }
             for base, row in zip(common, rows, strict=True)

@@ -106,7 +106,13 @@ y_t = MLP^(ν_K)(MLP^(ν_{K-1})(... MLP^(ν_1)(x_t)))
 - 当前 reflection 已可消费 regime owner 发布的 `delayed_outcomes + identity_hints`，并在 credit gate 允许时把 typed identity proposal 沉淀为 durable identity entries；memory owner 仍是唯一持久写入 owner
 - 当前 `MemoryModule` 已直接消费 `prediction_error` slot：owner 会把 PE 写成 `prediction_error:*` 记忆事件、调节 `promotion_threshold`，并把主导误差维度纳入 retrieval facets
 - 当前 turn-time memory ingest 不再只依赖 substrate 序列重建；orchestrator 会把当前 `user_text` 作为 owner-side turn input 直接交给 `MemoryModule`，使用户原话本身进入 transient write / retrieval query
-- 当前默认 memory owner 已携带 nested MLP CMS profile；context boundary 与 rare-heavy import 后会通过 owner-side `reset_nested_context()` 触发 slow->fast 初始化，并把 `nested_context_reset_count` / `last_nested_reset_applied` / `slow_to_fast_init_benefit` 发布到 lifecycle telemetry
+- 当前默认 memory owner 已携带 nested MLP CMS profile；context boundary 与
+  rare-heavy import 后会通过 owner-side `reset_nested_context()` 触发
+  slow->fast 初始化，并把 `nested_context_reset_count` /
+  `last_nested_reset_applied` / `slow_to_fast_init_benefit` 发布到 lifecycle
+  telemetry。`slow_to_fast_init_benefit` 的正式语义是 reset 后最多 5 次
+  replay 中 `copy-init shadow loss - active-init loss` 的均值；没有 matched
+  shadow 时为 `0`，禁止再解释为 reset 前后向量位移。
 - 当前 CMS 的 fast / session / slow / nested 更新律已开始通过 owner-side `learned_update_rule` 统一发布：`CMSState` / checkpoint 现可携带 updater state、effective learning rate、update gate、slow-mix 与 update summary，使 memory 不再只是“learned core + hand-tuned write rule”的混合体
 - 当前默认慢反思已改为 session-post queued orchestration：turn-time wiring 只生成 deferred consolidation request，真正的 durable promotion / decay / belief writeback / temporal-prior apply 在 context boundary 后由 session-post slow loop 执行；memory owner 仍是唯一 durable 写入 owner
 - 当前 session-post slow loop 还会通过独立 `session_post_slow_loop` slot 发布 queue state 与 recent completion summaries，使 memory/cadence 证明面不再依赖 runner 私有 telemetry；queue owner 对完全一致的 session-post job 实施 session-lifetime 幂等并公开 duplicate count，避免重试导致 memory / temporal 双重写回，同 ID 不同 payload 则显式拒绝
@@ -122,14 +128,21 @@ y_t = MLP^(ν_K)(MLP^(ν_{K-1})(... MLP^(ν_1)(x_t)))
   模式，发布不可变 `CMSContextInitializationEvidence`，并保证初始化不改
   background-slow state、MLP 权重、nested target 或 updater 的 learned
   parameter state（reset decision telemetry 仍按 owner 规则更新）。生产
-  `reset_nested_context()` 仍只委托 `meta-init`；其余模式不能成为 live
-  policy 或第二 memory owner。
+  `reset_nested_context()` 当前委托 `copy-init` 作为生产回滚路径；其余模式
+  不能成为 live policy 或第二 memory owner。conditioned meta-init 只在
+  显式 evidence 构造中启用。
 - 2026-07-30 `gate6-meta-init.v1` 正式结果为 mechanism PASS / causal
   NO-GO：meta-init 胜过 random/no-init，但与 copy-init 的 locked
   steps-to-target 均为 `0`，早期 AUC 还低 `0.000171`；paired/swapped
   diagnostic 无可区分优势。当前只能证明 owner-side nested initializer
   可运行、可审计、零事实泄漏且可 checkpoint rollback，不能声称 slow
   meta-prior 相比直接复制更快适应，也不能声称 user-related prior。
+- 2026-07-31 `gate6-conditioned-meta-init-v3-retest.v1` 在同一 owner 内
+  增加 context prototype（最近原型 EMA、reset 时相似度混合），并提供
+  `context_conditioned/prototype_count/context_match_score` 不可变证据；
+  `k=1` 且关闭 conditioning 时回到旧 global EMA。机制门全绿，但相对
+  copy-init effect=`-0.0490765`、negative-transfer rate=`1.0`，故触发
+  kill condition，生产继续使用 copy-init。
 
 ## 当前 proof surface
 
