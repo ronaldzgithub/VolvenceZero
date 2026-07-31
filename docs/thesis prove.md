@@ -498,3 +498,38 @@ debt_92 = CLOSED
 ```
 
 这是对当前机制与冻结证据计划的诚实终局，不是对 Volvence 长期研究方向的否定。未来可以提出新的机制和新的 thesis，但不能篡改本战役已经产生的负证据。
+
+## 13. 五杠杆后续战役追加判词：Ecology L1 终局
+
+> 追加日期：2026-07-31。本节是对 #92 终局之后新机制、新 schema 和 fresh source 的独立记录；
+> 它不重开、改写或减轻上述 `thesis-rejected` 判词。
+
+五杠杆计划的 Ecology L1 按合法重开路径走到了自己的终态：
+
+1. **L1-A 归因**：失败者稳定为 body 2；H1 learning-state divergence 获得支持，H2
+   课程暴露不均被排除，H3 因旧 journal 没有发布逐更新梯度而保持 inconclusive。
+2. **L1-B 机制**：temporal owner 实现了通用、有界、可回滚的 action-head 形成期保护；
+   默认为 `DISABLED / 0 / 1.0`，Digital Ant evidence profile 为 `ACTIVE / 160 / 0.25`。
+   旧 checkpoint 的 no-write precheck 证明 forward 等价与回滚可用，没有冒充净增益证据。
+3. **L1-C fresh station1-v4**：隔离源码快照、新空 journal、candidate/control 各 20 局。
+   pickup=`47/52`（ratio=`0.9038461538461539`），四个共同门中除 alignment 外均过，
+   8/8 structural/persistence lanes 全过；但 food alignment 仍为 3/4。body 2 的
+   left/right turn=`-0.00038541260576263365 / +0.00038709291851802386`，反向幅度大于
+   旧 station1。machine verdict=`BLOCK`。
+
+因此，L1 的唯一合法结论是：**形成期保护机制可实现、可预检、可回滚，但没有在冻结
+station1 上产生要求的 learned uplift，不获得 production/live 晋升**。station2 medium 因前置
+门失败而不执行，所以 medium 层是“未测且不授权”，不是 PASS，也不伪造为 FAIL。
+`alignment_review_authorized=false`、`next_episode_authorized=null`；禁止第二次 review、换 seed、降低
+4/4 门或加训练量。
+
+这个 kill 同时关闭了依赖 station2 GO 的 L2 Ecology 路线：
+`ecology-gate-evidence-admission.v2`、Gate 4 ecology corpus、P1/P2 以及拟用 Ecology 重开的
+Gate 5/9/10/1 都没有获得授权。这些 gate 的 #92 等级和本文 §12 的总判词均不改变。
+
+权威追加 artifacts：
+
+- [L1-A 归因](../research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_attribution.v1.json)
+- [L1-B no-write precheck](../research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_protection_precheck.v1.json)
+- [L1-C preregistration](../research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_prereg.seed0.20260731T135415Z.json)
+- [L1-C station1-v4 终局 report](../research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_station1.seed0.20260731T135415Z.json)

@@ -491,6 +491,11 @@ L1-C 的 `station1-v4` 使用 fresh
 结果可见前冻结 `ecology-gate-evidence-admission.v2`（五杠杆 L2-A）并声明 v3 source 的准入映射。
 在此之前其 #92 状态保持 `not-admitted`，禁止直接替换上表的 v2 source 或追认新 gate。
 
+2026-07-31 的 station1-v4 正式结果为 `BLOCK`：food alignment 仍为 3/4，
+`alignment_review_authorized=false`、`next_episode_authorized=null`。因此 station2 没有执行，
+L2-A 未获授权；v3 source 在本分支中以 `not-admitted` 终态关闭，不得事后创建 v2 映射
+把 station1 负结果接入 Gate 5/9/10/4/1。
+
 ### #92 终局对账（2026-07-31）
 
 权威 artifact 为 `artifacts/causal_evidence_final_campaign_20260731/`，统一

@@ -180,6 +180,16 @@ milestone 的 matched 因果变量。v4 沿用原 pickup、structure、persisten
 立即 BLOCK。packet 只授权新空 progress directory 中的 station1 ep0–19；station2、P1、P2 仍须
 等待 station1 GO，且正式运行必须固定在 packet 绑定的隔离源码快照。
 
+2026-07-31 的 fresh station1-v4 已实际消耗两臂各 20 局并发布 station1 report v3。
+candidate/control pickup=`47/52`（ratio=`0.9038461538461539`），其余四门与 8/8
+structural/persistence lanes 通过，但 food alignment 仍为 3/4。失败 body 2 的
+left/right turn=`-0.00038541260576263365 / +0.00038709291851802386`，没有显示形成期保护
+带来预注册要求的净增益。因此 verdict=`BLOCK`、
+`food_alignment_review_authorized=false`、`next_episode_authorized=null`；station2 不执行，
+P1/P2 与 Gate 4 ecology corpus 不授权。这个负结果只证伪当前 L1-B 机制达到冻结
+station1 uplift 的主张；station2 medium 因为前置门失败而未测，不得伪造为 medium PASS 或
+FAIL。本代不得再做 review、seed 替换、门槛放松或训练加量。
+
 这里的“只有两个 task milestone”不等于系统其余 PE 必须为零：局部 food/pheromone/heading 感知仍会
 产生 substrate prediction mismatch，Internal-RL 可把它作为内在 PE 信号。它不读取食物坐标或全局距离，
 不是 task shaping；但因此 learned-vs-PE-off 只能证明“含内在 PE 的完整架构贡献”，不能写成

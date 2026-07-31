@@ -350,3 +350,19 @@ packet 逐字绑定 L1-B no-write precheck 与当前 code tree；两臂共同启
 显式为 false；20 局 checkpoint 必须直接 food alignment 4/4，旧 v2 五局 review 在本代
 `authorized=false`。manifest 已复算通过。当前只授权隔离源码快照、新空 journal 的 station1
 ep0–19；station2、P1、P2 仍未授权，也尚未消耗任何新 episode。
+
+五杠杆 L1-C 正式 station1-v4 已于 2026-07-31 在隔离源码快照
+`/private/tmp/volvence-station1-v4.7NY9Ep` 和新空 journal 中完成，两臂各 20 局；可恢复
+progress 已归档到
+`research/ant/results/.partials/ecology_same_physics_station1_v4/seed0-20260731T135415Z`。正式 report 为
+`research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_station1.seed0.20260731T135415Z.json`
+（artifact SHA256 `882b133a581db13fa916f961d97f71af9f8c5e2b5391f02cade107100b97ff15`，manifest
+SHA256 `50584808c42ebfbb41c8e7f5c3e097bacf2a18747d00f275d867d24e4ddfa2cb`）。candidate/control
+pickup=`47/52`（ratio=`0.9038461538461539`），delivery=`7/15`（station1 描述性读数）；control
+signal、pickup non-inferiority、no-zero-block、typed structure 与 8/8 structural lanes 全过。
+food alignment 仍为 3/4，body 2 left/right turn=`-0.00038541260576263365 /
++0.00038709291851802386`，反向幅度大于旧 station1，未显示形成期保护带来预注册净增益。
+机器判词=`BLOCK`、`alignment_review_authorized=false`、`next_episode_authorized=null`。
+按冻结 kill，本代禁止再 review、换 seed、降门槛或加训练量；station2 不执行，相依的
+L2-A/L2-B/L2-C、Gate 4 ecology corpus、P1/P2 均不授权。L1 以 terminal negative evidence
+收口，不授权 production/live 晋升。
