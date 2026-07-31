@@ -35,6 +35,7 @@ from lifeform_domain_character import (
     save_lifeform_template,
     vitals_drive_levels_from_session,
 )
+from lifeform_expression import LifeformLLMResponseSynthesizer
 from lifeform_service.alpha import AlphaIdentityProvider
 from lifeform_service.verticals import VerticalSpec, discover_verticals
 from volvence_zero.evaluation.types import EvaluationScore, EvaluationSnapshot
@@ -253,3 +254,31 @@ def test_zhang_wuji_adapter_default_with_env_uses_live_through_template(
     payload = context.payload["_character_payload"]
     assert payload.source_template_id == "zhang-wuji-contract-test"
     assert payload.source_arc_id == "zhang-wuji-demo-arc-v0-test-trimmed"
+
+
+def test_zhang_wuji_llm_synthesizer_carries_character_grounding():
+    class RuntimeProbe:
+        model_id = "probe-runtime"
+
+    spec = discover_verticals()["zhang_wuji"]
+    synthesizer = spec.template_adapter._build_synthesizer(  # noqa: SLF001
+        RuntimeProbe(), repair_alpha_enabled=False
+    )
+
+    assert isinstance(synthesizer, LifeformLLMResponseSynthesizer)
+    assert "身份=张无忌" in synthesizer.character_grounding_statement
+    assert "光明顶" in synthesizer.character_grounding_statement
+    assert "明教不是六大派之一" in synthesizer.character_grounding_statement
+    assert "不把本教说成全然无辜的白道门派" in (
+        synthesizer.character_grounding_statement
+    )
+    assert "不要逐句复述" in synthesizer.character_grounding_statement
+    assert "每轮只用与用户问题直接相关" in synthesizer.character_grounding_statement
+    assert "敌人" not in synthesizer.character_grounding_statement
+    assert "求饶" not in synthesizer.character_grounding_statement
+    assert "放下兵器" not in synthesizer.character_grounding_statement
+    assert (
+        synthesizer.character_grounding_ref
+        == "character:zhang-wuji:live-through-grounding:v1"
+    )
+    assert synthesizer._temperature == 0.0  # noqa: SLF001

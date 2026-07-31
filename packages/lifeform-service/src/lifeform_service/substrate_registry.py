@@ -61,6 +61,7 @@ from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
 from volvence_zero.substrate import (
+    CharacterPrefixKVPackage,
     SubstrateFallbackMode,
     build_transformers_runtime_with_fallback,
 )
@@ -577,6 +578,7 @@ def build_qwen_runtime_loader(
     device: str,
     local_files_only: bool,
     fallback_mode: SubstrateFallbackMode,
+    character_prefix_package: CharacterPrefixKVPackage | None = None,
 ) -> "Callable[[str], OpenWeightResidualRuntime]":
     """Return a closure that builds a runtime for a given model_id.
 
@@ -586,12 +588,19 @@ def build_qwen_runtime_loader(
     """
 
     def _load(model_id: str) -> "OpenWeightResidualRuntime":
+        package = character_prefix_package
+        if package is not None and package.model_id != model_id:
+            raise ValueError(
+                "character prefix package is pinned to "
+                f"{package.model_id!r}; refusing runtime swap to {model_id!r}."
+            )
         runtime = build_transformers_runtime_with_fallback(
             model_id=model_id,
             device=device,
             local_files_only=local_files_only,
             fallback_mode=fallback_mode,
             allow_live_substrate_mutation=False,
+            character_prefix_package=package,
         )
         runtime_origin = getattr(runtime, "runtime_origin", "unknown")
         if runtime_origin == "builtin-fallback":

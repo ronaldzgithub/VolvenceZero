@@ -116,8 +116,10 @@ claim 状态相同的运行无法区分测的是哪条通道。判据 4 的控�
 - **不变表达规则段**（invariant）：人格与语气基调、只回复最新 user 消息、紧凑自然、语言匹配、
   不暴露内部模块名。这些段不消费 assembly / context 的任何状态字段，因此对全部用户全部会话逐字节相同。
 - **状态派生段**（state-derived）：regime guidance、`personal_conditioning_statement`、
-  `prompt_residue_summary`、`speech_plan`、citation / clarification / refer-out / disclaimer 标签、
-  ordering、regime switch 提示。`suppressed` 下整组不进 prompt。
+  `character_grounding_statement`、`prompt_residue_summary`、`speech_plan`、citation /
+  clarification / refer-out / disclaimer 标签、ordering、regime switch 提示。`suppressed`
+  下整组不进 prompt；任何 caller 若试图同时携带 character grounding 或 rendered
+  personal conditioning，构造期必须 fail loudly，避免假装已投递但实际被关闭。
 
 ### 审计标签（rationale tags）
 
@@ -128,6 +130,7 @@ claim 状态相同的运行无法区分测的是哪条通道。判据 4 的控�
 | `prompt_fp=<sha256[:16]>` | 实际送入 substrate 的 system prompt + chat messages 的 canonical 指纹 |
 | `prompt_state_sections=<n>` | 本轮进入 prompt 的状态派生段数量；`suppressed` 下必须为 0 |
 | `decode_fp=<sha256[:16]>` | 解码相关配置（profile / temperature / max tokens / 约束 / sampling seed）的指纹 |
+| `character_grounding=<ref>` | character vertical 的第一人称身份 / lived-state grounding lineage；只在该 carrier 进入 prompt 时发布 |
 | `sampling_seed=<int>` | 仅 stochastic rollout 出现；由 base rollout seed + arm + probe 派生，刻意不含 user id |
 
 三个 tag 在**所有** LLM turn 上无条件发出，不只在实验臂——否则「默认臂也没有 prompt 载运」

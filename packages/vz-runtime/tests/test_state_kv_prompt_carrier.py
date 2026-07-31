@@ -129,6 +129,8 @@ def _context(
     prompt_state_delivery: str = "text",
     conditioning: PersonalConditioningSnapshot | None = None,
     sampling_seed: int | None = None,
+    character_grounding_statement: str = "",
+    character_grounding_ref: str = "",
 ) -> ResponseContext:
     return ResponseContext(
         regime_id="steady",
@@ -148,6 +150,8 @@ def _context(
         prompt_state_delivery=prompt_state_delivery,
         personal_conditioning=conditioning,
         sampling_seed=sampling_seed,
+        character_grounding_statement=character_grounding_statement,
+        character_grounding_ref=character_grounding_ref,
     )
 
 
@@ -194,6 +198,26 @@ def test_default_delivery_prompt_diverges_between_users() -> None:
     bob = build_system_prompt(assembly=_bob_assembly(), context=_context())
 
     assert alice != bob
+
+
+def test_character_grounding_reaches_default_prompt_and_attestation() -> None:
+    context = _context(
+        character_grounding_statement=(
+            "我是张无忌，要从光明顶之后的亲历位置回答。"
+        ),
+        character_grounding_ref="character:zhang-wuji:test",
+    )
+
+    prompt = build_system_prompt(assembly=_alice_assembly(), context=context)
+    response = LLMResponseSynthesizer(runtime=_RecordingRuntime()).synthesize(
+        context=context, assembly=_alice_assembly()
+    )
+
+    assert "Character grounding for this turn" in prompt
+    assert "not content to summarize" in prompt
+    assert "Use only the parts directly relevant" in prompt
+    assert "我是张无忌" in prompt
+    assert _tag_value(response, "character_grounding") == "character:zhang-wuji:test"
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +399,20 @@ def test_response_context_rejects_statement_under_suppression() -> None:
             _context(prompt_state_delivery="suppressed"),
             personal_conditioning_statement="Stable, high continuity.",
             personal_conditioning_statement_ref="v1:0.70:abcdef",
+        )
+
+
+def test_response_context_rejects_character_grounding_without_ref() -> None:
+    with pytest.raises(ValueError, match="character grounding"):
+        _context(character_grounding_statement="我是张无忌。")
+
+
+def test_response_context_rejects_character_grounding_under_suppression() -> None:
+    with pytest.raises(ValueError, match="suppressed"):
+        _context(
+            prompt_state_delivery="suppressed",
+            character_grounding_statement="我是张无忌。",
+            character_grounding_ref="character:zhang-wuji:test",
         )
 
 

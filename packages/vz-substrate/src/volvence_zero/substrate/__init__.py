@@ -56,6 +56,9 @@ from volvence_zero.substrate.personal_conditioning_projector import (
     load_projector_basis,
 )
 from volvence_zero.substrate.prefix_kv_artifact import (
+    CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION,
+    CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE,
+    CharacterPrefixKVPackage,
     MAX_PREFIX_NORM_CAP,
     PREFIX_KV_SCHEMA_VERSION,
     TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
@@ -217,9 +220,12 @@ __all__ = [
     "build_contrastive_projector_artifact",
     "load_projector_basis",
     "MAX_PREFIX_NORM_CAP",
+    "CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION",
+    "CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE",
     "PREFIX_KV_SCHEMA_VERSION",
     "TEACHER_DISTILLED_PREFIX_TRAINING_MODE",
     "PrefixKVArtifact",
+    "CharacterPrefixKVPackage",
     "PrefixKVGenerator",
     "PrefixAttentionProfile",
     "ProbeFit",

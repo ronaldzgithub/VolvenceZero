@@ -117,6 +117,12 @@ class ResponseContext:
     # was rendered from, since the snapshot itself is not forwarded.
     personal_conditioning_statement: str = ""
     personal_conditioning_statement_ref: str = ""
+    # Character verticals may publish a short, owner-rendered identity
+    # grounding for small LLMs that otherwise drift back to a generic
+    # assistant voice. This is not a routing or decision rule: it is a
+    # state-derived expression carrier, audited by ``character_grounding_ref``.
+    character_grounding_statement: str = ""
+    character_grounding_ref: str = ""
     # Whether state-derived sections reach the system prompt at all
     # (docs/specs/state-kv-identification-evidence.md §契约). "text" is the
     # production default and byte-for-byte the historical behaviour;
@@ -222,6 +228,19 @@ class ResponseContext:
                 "conditioning statement while prompt_state_delivery is "
                 "'suppressed'."
             )
+        if self.character_grounding_statement and not self.character_grounding_ref:
+            raise ValueError(
+                "ResponseContext character grounding requires an audit "
+                "lineage reference."
+            )
+        if (
+            self.character_grounding_statement
+            and self.prompt_state_delivery == "suppressed"
+        ):
+            raise ValueError(
+                "ResponseContext cannot deliver character grounding while "
+                "prompt_state_delivery is 'suppressed'."
+            )
 
 
 @dataclass(frozen=True)
@@ -304,11 +323,17 @@ class ResponseSynthesizer:
 
         transition_hint = ""
         if context.temporal_is_switching or context.temporal_switch_gate >= 0.65:
-            transition_hint = " I am deliberately shifting the internal control path rather than answering on autopilot."
+            transition_hint = (
+                " I am deliberately shifting the internal control path "
+                "rather than answering on autopilot."
+            )
         elif context.joint_schedule_action in {"ssl-only", "ssl-only-pe"}:
             transition_hint = " I am keeping the current frame stable long enough to consolidate it before widening."
         elif context.joint_schedule_action in {"full-cycle", "full-cycle-pe"}:
-            transition_hint = " I have already run a deeper internal cycle, so I can shape this reply more deliberately."
+            transition_hint = (
+                " I have already run a deeper internal cycle, "
+                "so I can shape this reply more deliberately."
+            )
 
         regime_shift_hint = ""
         if context.regime_switched:
@@ -465,7 +490,8 @@ class ResponseSynthesizer:
             # assembly; emit a single neutral fallback so the regime
             # owner stays the single source of behavioural specialisation.
             text = (
-                "I can stay with the current context and respond in a way that keeps both usefulness and continuity in view."
+                "I can stay with the current context and respond in a way "
+                "that keeps both usefulness and continuity in view."
             )
 
         if context.alert_count:
@@ -503,6 +529,10 @@ class ResponseSynthesizer:
             rationale_parts.append(f"primary_tension={context.primary_reflection_tension}")
         if context.reflection_writeback_applied:
             rationale_parts.append("reflection_writeback=applied")
+        if context.character_grounding_statement:
+            rationale_parts.append(
+                f"character_grounding={context.character_grounding_ref}"
+            )
         rationale = ", ".join(rationale_parts)
 
         return AgentResponse(
@@ -729,6 +759,14 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             rationale_parts.append(
                 "personal_conditioning_text="
                 f"{context.personal_conditioning_statement_ref}"
+            )
+        if context.character_grounding_statement:
+            rationale_parts.append(
+                f"character_grounding={context.character_grounding_ref}"
+            )
+        if result.character_prefix_applied:
+            rationale_parts.append(
+                f"character_prefix_kv={result.character_prefix_id}"
             )
         for carrier in context.conditioning_bank_carriers:
             bank_type = carrier.bank.bank_type.value

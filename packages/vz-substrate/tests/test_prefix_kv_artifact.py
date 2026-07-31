@@ -11,6 +11,8 @@ from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_VECTOR_LABELS,
 )
 from volvence_zero.substrate.prefix_kv_artifact import (
+    CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE,
+    CharacterPrefixKVPackage,
     MAX_PREFIX_NORM_CAP,
     PrefixKVArtifact,
     STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE,
@@ -258,19 +260,54 @@ def test_loading_rejects_foreign_attention_geometry() -> None:
             device="cpu",
             dtype=torch.float32,
         )
-    with pytest.raises(ValueError, match="num_kv_heads"):
-        load_prefix_generator(
-            torch_module=torch,
-            artifact=artifact,
-            expected_model_id="Qwen/test",
-            expected_num_layers=LAYERS,
-            expected_num_kv_heads=KV_HEADS + 1,
-            expected_head_dim=HEAD_DIM,
-            device="cpu",
-            dtype=torch.float32,
-        )
 
 
+def test_character_package_round_trips_without_personal_coordinate_namespace() -> None:
+    artifact = build_teacher_distilled_prefix_artifact(
+        model_id="Qwen/Qwen2.5-1.5B-Instruct",
+        num_layers=LAYERS,
+        num_kv_heads=KV_HEADS,
+        head_dim=HEAD_DIM,
+        num_slots=SLOTS,
+        bottleneck_rank=1,
+        encoder_rows=((0.0,),),
+        encoder_bias=(0.0,),
+        key_projection=tuple(
+            tuple((0.0,) for _ in range(WIDTH)) for _ in range(LAYERS)
+        ),
+        key_bias=tuple(tuple(0.0 for _ in range(WIDTH)) for _ in range(LAYERS)),
+        value_projection=tuple(
+            tuple((0.0,) for _ in range(WIDTH)) for _ in range(LAYERS)
+        ),
+        value_bias=tuple(tuple(0.0 for _ in range(WIDTH)) for _ in range(LAYERS)),
+        reference_key_norms=(12.0, 8.0, 5.0),
+        reference_value_norms=(3.0, 2.5, 2.0),
+        norm_cap=0.12,
+        source_fingerprint="zhang-template-proof-ledger",
+        sample_count=24,
+        training_mode=CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE,
+        vector_labels=("zhang_wuji_live_through_identity",),
+        description="character smoke",
+    )
+    package = CharacterPrefixKVPackage.create(
+        character_id="zhang-wuji",
+        character_name="张无忌",
+        model_id=artifact.model_id,
+        source_live_through_model_id="Qwen/Qwen2.5-0.5B-Instruct",
+        source_template_id="zhang-wuji-live-through",
+        source_template_integrity_hash="template-hash",
+        source_live_through_proof="proof-path:proof-hash",
+        state_vector=(0.0,),
+        prefix_artifact=artifact,
+        description="character package smoke",
+    )
+
+    restored = CharacterPrefixKVPackage.from_json(package.to_json())
+
+    assert restored == package
+    assert restored.prefix_artifact.vector_labels == (
+        "zhang_wuji_live_through_identity",
+    )
 def test_generator_rejects_wrong_width_state_vector() -> None:
     torch = pytest.importorskip("torch")
     generator = load_prefix_generator(

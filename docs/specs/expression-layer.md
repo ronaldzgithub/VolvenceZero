@@ -1,7 +1,7 @@
 # Expression Layer Spec
 
 > Status: draft
-> Last updated: 2026-07-28
+> Last updated: 2026-07-31
 > 对应需求: R4 (内部控制在 token 空间之上), R8 (契约优先 / 快照优先), R11 (内部状态可发布)
 
 ## 要解决的问题
@@ -46,6 +46,10 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 9. `action-grounded` intent 只能渲染
    `ResponseAssemblySnapshot.action_realization` 已绑定的 case-owned action statement；
    Face 不得按 abstract-action id、regime 或用户文本重建动作语义。
+10. Character vertical 的第一人称身份 / lived-state grounding 通过
+    `ResponseContext.character_grounding_statement` 进入集中 prompt assembly，并用
+    `character_grounding_ref` 发布 lineage。它是 state-derived expression carrier，不是
+    用户文本路由规则；`prompt_state_delivery="suppressed"` 时必须 fail loudly，不能静默丢弃。
 
 ## 工程挑战
 
@@ -72,6 +76,7 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 | `interlocutor` | `InterlocutorState` | `interlocutor_conf=<float>`, `il_*` |
 | `reflection` | `ReflectionSnapshot` | `primary_lesson=<id>`, `primary_tension=<id>`, `reflection_writeback=applied` |
 | `affordance` (lifeform) | `AffordanceSnapshot` | `affordance=selected:<name>;score:<float>`, `affordance_blocked=<n>` |
+| `character vertical` | `ResponseContext.character_grounding_statement` | `character_grounding=<ref>` |
 
 ### Outputs
 
@@ -108,6 +113,9 @@ substring 匹配是脆弱硬编码（违反 `no-keyword-matching-hacks`）。
 
 ## 变更日志
 
+- **2026-07-31**: 新增 character grounding 表达载体。角色 vertical 可发布一段
+  owner-rendered 第一人称身份 / lived-state grounding；集中 prompt assembly 负责渲染，
+  LLM 与 kernel response 均发布 `character_grounding=<ref>` 审计标签。
 - **2026-07-28**: 增加 `action-grounded` 表达契约。Grounded 与 kernel synthesizer 均消费 ResponseAssembly 已发布的具体行动计划，Face 只负责渲染并发布来源标签，禁止自己解释 temporal family。
 - **2026-05-06**: 初版（W1 part A + part B）。引入 `rationale_tags` 字段、render
   section variant tags、`ReflectionLessonId` / `ReflectionTensionId` enum、

@@ -16,11 +16,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 default_template_path="${ROOT_DIR}/artifacts/lifeform-templates/zhang_wuji/zhang-wuji-live-through.json"
+default_character_package_path="${ROOT_DIR}/artifacts/character-packages/zhang_wuji/zhang-wuji-qwen2.5-1.5b.character-prefix.json"
 export VERTICAL="${VERTICAL:-zhang_wuji}"
 export MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-1.5B-Instruct}"
 export ALPHA_MODE="${ALPHA_MODE:-0}"
 export TEMPLATES_ROOT_DIR="${TEMPLATES_ROOT_DIR:-${ROOT_DIR}/artifacts/lifeform-templates}"
 export ZHANG_WUJI_TEMPLATE_PATH="${ZHANG_WUJI_TEMPLATE_PATH:-${default_template_path}}"
+if [[ -z "${ZHANG_WUJI_CHARACTER_PACKAGE_PATH:-}" && "${MODEL_ID}" == "Qwen/Qwen2.5-1.5B-Instruct" ]]; then
+  export ZHANG_WUJI_CHARACTER_PACKAGE_PATH="${default_character_package_path}"
+fi
 
 if [[ ! -f "${ZHANG_WUJI_TEMPLATE_PATH}" ]]; then
   cat >&2 <<EOF
@@ -31,6 +35,17 @@ Rebuild it with:
   ${ROOT_DIR}/.venv/bin/python examples/bake_zhang_wuji_live_through.py --save-template
 
 Or point ZHANG_WUJI_TEMPLATE_PATH at another saved LifeformTemplate JSON.
+EOF
+  exit 1
+fi
+
+if [[ -n "${ZHANG_WUJI_CHARACTER_PACKAGE_PATH:-}" && ! -f "${ZHANG_WUJI_CHARACTER_PACKAGE_PATH}" ]]; then
+  cat >&2 <<EOF
+Cannot find the baked 张无忌 character package:
+  ZHANG_WUJI_CHARACTER_PACKAGE_PATH=${ZHANG_WUJI_CHARACTER_PACKAGE_PATH}
+
+Build it with:
+  ${ROOT_DIR}/.venv/bin/python scripts/bake_zhang_wuji_character_package.py
 EOF
   exit 1
 fi

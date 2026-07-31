@@ -114,6 +114,7 @@ from volvence_zero.substrate.personal_conditioning_projector import (  # noqa: E
     load_projector_basis,
 )
 from volvence_zero.substrate.prefix_kv_artifact import (  # noqa: E402
+    CharacterPrefixKVPackage,
     PrefixKVArtifact,
     load_prefix_generator,
 )
@@ -128,6 +129,30 @@ from volvence_zero.substrate.residual_training import (  # noqa: E402,F401
 
 
 PERSONAL_CONDITIONING_SCALE_CAP = 0.12
+
+
+def _concat_prefix_pairs(
+    torch_module: Any,
+    left: list[tuple[Any, Any]] | None,
+    right: list[tuple[Any, Any]] | None,
+) -> list[tuple[Any, Any]] | None:
+    """Concatenate static character and dynamic personal KV slots."""
+
+    if left is None:
+        return right
+    if right is None:
+        return left
+    if len(left) != len(right):
+        raise ValueError(
+            "character and personal prefix artifacts must have the same layer count."
+        )
+    return [
+        (
+            torch_module.cat((left[index][0], right[index][0]), dim=-2),
+            torch_module.cat((left[index][1], right[index][1]), dim=-2),
+        )
+        for index in range(len(left))
+    ]
 
 
 def clamp_personal_conditioning_scale(scale: float) -> float:
@@ -238,6 +263,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             RelationshipConditioningProjectorArtifact | None
         ) = None,
         personal_conditioning_prefix: PrefixKVArtifact | None = None,
+        character_prefix_package: CharacterPrefixKVPackage | None = None,
         local_files_only: bool = False,
         runtime_origin: str = "hf-pretrained",
         allow_live_substrate_mutation: bool = False,
@@ -376,6 +402,31 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             self._personal_conditioning_prefix_id = (
                 personal_conditioning_prefix.artifact_id
             )
+        self._character_prefix_generator = None
+        self._character_prefix_id = ""
+        self._character_prefix_pairs = None
+        self._character_prefix_package = character_prefix_package
+        if character_prefix_package is not None:
+            if character_prefix_package.model_id != self.model_id:
+                raise ValueError(
+                    "character prefix package model_id "
+                    f"{character_prefix_package.model_id!r} does not match "
+                    f"runtime {self.model_id!r}."
+                )
+            self._character_prefix_generator = load_prefix_generator(
+                torch_module=self._torch,
+                artifact=character_prefix_package.prefix_artifact,
+                expected_model_id=self.model_id,
+                expected_num_layers=len(self._block_modules),
+                expected_num_kv_heads=self._resolve_num_kv_heads(),
+                expected_head_dim=self._resolve_head_dim(),
+                device=self._device,
+                dtype=self._model_dtype(),
+            )
+            self._character_prefix_pairs = self._character_prefix_generator.build(
+                character_prefix_package.state_vector
+            )
+            self._character_prefix_id = character_prefix_package.package_id
         self._semantic_projection_dim = 24
         self._semantic_basis = self._build_semantic_basis(
             hidden_size=self._hidden_size,
@@ -1427,13 +1478,19 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         prompt_length = int(input_ids.shape[-1])
 
         control_active = bool(control_parameters and control_scale > 0)
-        # The two carriers are mutually exclusive by construction: an arm that
-        # ran both would not identify which channel carried the state.
-        prefix_pairs = None
+        # A character prefix is a static application carrier. A personal
+        # prefix, when explicitly selected, is concatenated after it so the
+        # two owners remain separately auditable.
+        prefix_pairs = self._character_prefix_pairs
         personal_delta = None
         if personal_conditioning_carrier == "prefix_kv":
-            prefix_pairs = self._build_personal_conditioning_prefix(
+            personal_prefix_pairs = self._build_personal_conditioning_prefix(
                 conditioning=personal_conditioning
+            )
+            prefix_pairs = _concat_prefix_pairs(
+                self._torch,
+                prefix_pairs,
+                personal_prefix_pairs,
             )
         else:
             personal_delta = self._build_personal_conditioning_delta(
@@ -1527,6 +1584,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             if hook_required
             else []
         )
+        prefix_carrier_active = prefix_pairs is not None
         try:
             with self._torch.no_grad():
                 generate_kwargs: dict[str, object] = {
@@ -1548,7 +1606,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     generate_kwargs["temperature"] = effective_temperature
                     if effective_top_p < 0.999:
                         generate_kwargs["top_p"] = effective_top_p
-                if personal_conditioning_carrier == "prefix_kv":
+                if prefix_carrier_active:
                     output_ids = self._generate_with_prefix(
                         model_inputs=model_inputs,
                         prefix_pairs=prefix_pairs,
@@ -1557,6 +1615,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                         temperature=effective_temperature,
                         top_p=effective_top_p,
                         sampling_seed=sampling_seed,
+                        require_sampling_seed=(
+                            personal_conditioning_carrier == "prefix_kv"
+                        ),
                     )
                 else:
                     with self._temporary_torch_seed(sampling_seed):
@@ -1651,6 +1712,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             conditioning_bank_carriers_applied=(
                 conditioning_bank_carriers_applied
             ),
+            character_prefix_applied=self._character_prefix_pairs is not None,
+            character_prefix_id=self._character_prefix_id,
         )
         if str(self._device).startswith("mps"):
             # MPS uses unified memory and retains released generation buffers
@@ -2641,6 +2704,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         temperature: float,
         top_p: float,
         sampling_seed: int | None,
+        require_sampling_seed: bool = True,
     ):
         """Decode over a state-derived key/value prefix.
 
@@ -2665,12 +2729,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             # the two users for the same arm/probe. Letting prefix-KV sample
             # without an explicit per-turn seed would let RNG masquerade as a
             # state carrier.
-            if sampling_seed is None:
+            if require_sampling_seed and sampling_seed is None:
                 raise ValueError(
                     "the prefix-KV carrier requires sampling_seed when "
                     "temperature > 0."
                 )
-        elif sampling_seed is not None:
+        elif require_sampling_seed and sampling_seed is not None:
             raise ValueError(
                 "sampling_seed has no effect when temperature=0 on the "
                 "prefix-KV carrier; omit it or open stochastic rollout."
@@ -2981,6 +3045,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             relationship_conditioning_projector=(
                 self._relationship_conditioning_projector
             ),
+            character_prefix_package=self._character_prefix_package,
             runtime_origin=self._runtime_origin,
             allow_offline_substrate_training=True,
         )
@@ -3481,7 +3546,7 @@ def build_builtin_transformers_runtime(
     hook_layer_selection: str = "middle",
     activation_width: int = 8,
     allow_live_substrate_mutation: bool = False,
-) -> TransformersOpenWeightResidualRuntime:
+    ) -> TransformersOpenWeightResidualRuntime:
     transformers = importlib.import_module("transformers")
     torch = importlib.import_module("torch")
     with torch.random.fork_rng(devices=[]):
@@ -3525,6 +3590,7 @@ def build_transformers_runtime_with_fallback(
     runtime_mode: LocalSubstrateRuntimeMode | str | None = None,
     builtin_model_id: str = "builtin-transformers-runtime",
     allow_live_substrate_mutation: bool = False,
+    character_prefix_package: CharacterPrefixKVPackage | None = None,
 ) -> TransformersOpenWeightResidualRuntime:
     resolved_runtime_mode = resolve_local_runtime_mode(
         runtime_mode=runtime_mode,
@@ -3533,6 +3599,11 @@ def build_transformers_runtime_with_fallback(
         fallback_to_builtin=fallback_to_builtin,
     )
     if resolved_runtime_mode is LocalSubstrateRuntimeMode.BUILTIN_ONLY:
+        if character_prefix_package is not None:
+            raise ValueError(
+                "character prefix packages require a real HF runtime; "
+                "builtin fallback cannot provide model-compatible KV geometry."
+            )
         return build_builtin_transformers_runtime(
             model_id=builtin_model_id,
             device=device,
@@ -3566,10 +3637,17 @@ def build_transformers_runtime_with_fallback(
             local_files_only=effective_local_files_only,
             runtime_origin=effective_runtime_origin,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
+            character_prefix_package=character_prefix_package,
         )
     except Exception as exc:
         if resolved_mode is not SubstrateFallbackMode.ALLOW_BUILTIN or not _is_transformers_runtime_fallback_error(exc):
             raise
+        if character_prefix_package is not None:
+            raise RuntimeError(
+                "real HF runtime failed while a character prefix package was "
+                "requested; refusing to fall back to an incompatible builtin "
+                "substrate."
+            ) from exc
         return build_builtin_transformers_runtime(
             model_id=builtin_model_id,
             device=device,

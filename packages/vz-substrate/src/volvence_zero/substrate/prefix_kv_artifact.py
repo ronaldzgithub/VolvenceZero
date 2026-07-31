@@ -45,11 +45,13 @@ ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE = (
     "teacher-distilled-routed-prefix-v1"
 )
 STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE = "state-strategy-routed-prefix-v1"
+CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE = "character-teacher-forced-prefix-v1"
 SUPPORTED_PREFIX_TRAINING_MODES = frozenset(
     {
         TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
         ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
         STATE_STRATEGY_ROUTED_PREFIX_TRAINING_MODE,
+        CHARACTER_TEACHER_FORCED_PREFIX_TRAINING_MODE,
     }
 )
 
@@ -58,6 +60,7 @@ SUPPORTED_PREFIX_TRAINING_MODES = frozenset(
 # substrate has never attended over; the measured failure mode is degenerate
 # text, not a differently-toned answer.
 MAX_PREFIX_NORM_CAP = 0.5
+CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION = "character-prefix-kv-package.v1"
 
 
 def _is_finite_matrix(rows: Sequence[Sequence[float]]) -> bool:
@@ -124,11 +127,13 @@ class PrefixKVArtifact:
         ):
             if value <= 0:
                 raise ValueError(f"prefix artifact {name} must be positive.")
-        if self.vector_labels != PERSONAL_CONDITIONING_VECTOR_LABELS:
-            raise ValueError(
-                "prefix artifact vector_labels must match "
-                "personal-conditioning.v1."
-            )
+        if not self.vector_labels or any(
+            not isinstance(label, str) or not label.strip()
+            for label in self.vector_labels
+        ):
+            raise ValueError("prefix artifact vector_labels must be non-empty strings.")
+        if len(set(self.vector_labels)) != len(self.vector_labels):
+            raise ValueError("prefix artifact vector_labels must be unique.")
         rank = self.bottleneck_rank
         width = self.output_width
         coordinates = len(self.vector_labels)
@@ -341,6 +346,8 @@ def build_teacher_distilled_prefix_artifact(
     source_fingerprint: str,
     sample_count: int,
     training_mode: str = ROUTED_TEACHER_DISTILLED_PREFIX_TRAINING_MODE,
+    vector_labels: Sequence[str] = PERSONAL_CONDITIONING_VECTOR_LABELS,
+    description: str | None = None,
 ) -> PrefixKVArtifact:
     """Freeze a trained generator into the versioned artifact."""
 
@@ -352,7 +359,7 @@ def build_teacher_distilled_prefix_artifact(
         head_dim=head_dim,
         num_slots=num_slots,
         bottleneck_rank=bottleneck_rank,
-        vector_labels=PERSONAL_CONDITIONING_VECTOR_LABELS,
+        vector_labels=tuple(str(value) for value in vector_labels),
         encoder_rows=tuple(
             tuple(float(value) for value in row) for row in encoder_rows
         ),
@@ -377,12 +384,201 @@ def build_teacher_distilled_prefix_artifact(
         training_mode=training_mode,
         source_fingerprint=source_fingerprint,
         sample_count=sample_count,
-        description=(
+        description=description
+        or (
             "State-KV prefix generator distilled from the frozen substrate's "
             f"own text-state arm; mode={training_mode} layers={num_layers} "
             f"slots={num_slots} rank={bottleneck_rank} norm_cap={norm_cap}."
         ),
     )
+
+
+@dataclass(frozen=True)
+class CharacterPrefixKVPackage:
+    """Portable, static model-side carrier for one reviewed character.
+
+    The prefix artifact remains a substrate-owned numeric generator. This
+    wrapper records the application owner that produced its fixed state
+    vector, so a character package cannot be confused with a user's personal
+    conditioning readout or loaded onto a different frozen model.
+    """
+
+    schema_version: str
+    package_id: str
+    character_id: str
+    character_name: str
+    model_id: str
+    source_live_through_model_id: str
+    source_template_id: str
+    source_template_integrity_hash: str
+    source_live_through_proof: str
+    state_vector: tuple[float, ...]
+    prefix_artifact: PrefixKVArtifact
+    description: str
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        character_id: str,
+        character_name: str,
+        model_id: str,
+        source_live_through_model_id: str,
+        source_template_id: str,
+        source_template_integrity_hash: str,
+        source_live_through_proof: str,
+        state_vector: Sequence[float],
+        prefix_artifact: PrefixKVArtifact,
+        description: str,
+    ) -> "CharacterPrefixKVPackage":
+        """Create a package and derive its content address."""
+
+        payload = {
+            "schema_version": CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION,
+            "character_id": character_id,
+            "character_name": character_name,
+            "model_id": model_id,
+            "source_live_through_model_id": source_live_through_model_id,
+            "source_template_id": source_template_id,
+            "source_template_integrity_hash": source_template_integrity_hash,
+            "source_live_through_proof": source_live_through_proof,
+            "state_vector": [float(value) for value in state_vector],
+            "prefix_artifact": json.loads(prefix_artifact.to_json()),
+            "description": description,
+        }
+        package_id = hashlib.sha256(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        return cls(
+            schema_version=CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION,
+            package_id=package_id,
+            character_id=character_id,
+            character_name=character_name,
+            model_id=model_id,
+            source_live_through_model_id=source_live_through_model_id,
+            source_template_id=source_template_id,
+            source_template_integrity_hash=source_template_integrity_hash,
+            source_live_through_proof=source_live_through_proof,
+            state_vector=tuple(float(value) for value in state_vector),
+            prefix_artifact=prefix_artifact,
+            description=description,
+        )
+
+    def __post_init__(self) -> None:
+        if self.schema_version != CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION:
+            raise ValueError(
+                "character prefix package schema_version must be "
+                f"{CHARACTER_PREFIX_PACKAGE_SCHEMA_VERSION!r}."
+            )
+        for field_name, value in (
+            ("character_id", self.character_id),
+            ("character_name", self.character_name),
+            ("model_id", self.model_id),
+            ("source_live_through_model_id", self.source_live_through_model_id),
+            ("source_template_id", self.source_template_id),
+            ("source_template_integrity_hash", self.source_template_integrity_hash),
+            ("source_live_through_proof", self.source_live_through_proof),
+            ("description", self.description),
+        ):
+            if not value.strip():
+                raise ValueError(
+                    f"character prefix package {field_name} must be non-empty."
+                )
+        if self.prefix_artifact.model_id != self.model_id:
+            raise ValueError(
+                "character prefix package model_id must match its prefix artifact."
+            )
+        if len(self.state_vector) != len(self.prefix_artifact.vector_labels):
+            raise ValueError(
+                "character prefix package state_vector length must match "
+                "prefix artifact vector_labels."
+            )
+        if any(not math.isfinite(float(value)) for value in self.state_vector):
+            raise ValueError("character prefix package state_vector must be finite.")
+        canonical_id = self._canonical_id()
+        if self.package_id != canonical_id:
+            raise ValueError(
+                "character prefix package_id does not match its canonical payload."
+            )
+
+    def _canonical_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "character_id": self.character_id,
+            "character_name": self.character_name,
+            "model_id": self.model_id,
+            "source_live_through_model_id": self.source_live_through_model_id,
+            "source_template_id": self.source_template_id,
+            "source_template_integrity_hash": self.source_template_integrity_hash,
+            "source_live_through_proof": self.source_live_through_proof,
+            "state_vector": list(self.state_vector),
+            "prefix_artifact": json.loads(self.prefix_artifact.to_json()),
+            "description": self.description,
+        }
+
+    def _canonical_id(self) -> str:
+        payload = json.dumps(
+            self._canonical_payload(),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def to_json(self) -> str:
+        payload = self._canonical_payload()
+        payload["package_id"] = self.package_id
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+
+    @classmethod
+    def from_json(cls, payload: str) -> "CharacterPrefixKVPackage":
+        raw = json.loads(payload)
+        if not isinstance(raw, dict):
+            raise ValueError("character prefix package must be a JSON object.")
+        required = {
+            "schema_version",
+            "package_id",
+            "character_id",
+            "character_name",
+            "model_id",
+            "source_live_through_model_id",
+            "source_template_id",
+            "source_template_integrity_hash",
+            "source_live_through_proof",
+            "state_vector",
+            "prefix_artifact",
+            "description",
+        }
+        missing = sorted(required - set(raw))
+        extra = sorted(set(raw) - required)
+        if missing or extra:
+            raise ValueError(
+                "character prefix package fields do not match schema; "
+                f"missing={missing}, extra={extra}"
+            )
+        artifact_payload = raw["prefix_artifact"]
+        if not isinstance(artifact_payload, dict):
+            raise ValueError("character prefix package prefix_artifact must be an object.")
+        artifact = PrefixKVArtifact.from_json(json.dumps(artifact_payload, ensure_ascii=False))
+        return cls(
+            schema_version=str(raw["schema_version"]),
+            package_id=str(raw["package_id"]),
+            character_id=str(raw["character_id"]),
+            character_name=str(raw["character_name"]),
+            model_id=str(raw["model_id"]),
+            source_live_through_model_id=str(raw["source_live_through_model_id"]),
+            source_template_id=str(raw["source_template_id"]),
+            source_template_integrity_hash=str(raw["source_template_integrity_hash"]),
+            source_live_through_proof=str(raw["source_live_through_proof"]),
+            state_vector=tuple(float(value) for value in raw["state_vector"]),
+            prefix_artifact=artifact,
+            description=str(raw["description"]),
+        )
 
 
 class PrefixKVGenerator:

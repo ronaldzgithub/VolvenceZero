@@ -79,6 +79,9 @@ def _expression_synthesizer_for_runtime(
     runtime: "OpenWeightResidualRuntime | None",
     *,
     repair_alpha_enabled: bool = False,
+    character_grounding_statement: str = "",
+    character_grounding_ref: str = "",
+    temperature: float = 0.7,
 ):
     """Use the LLM expression path only when a real/shared runtime exists."""
 
@@ -105,7 +108,10 @@ def _expression_synthesizer_for_runtime(
     return LifeformLLMResponseSynthesizer(
         runtime=runtime,
         max_new_tokens=max_new_tokens,
+        temperature=temperature,
         planner=PromptPlanner(repair_alpha_enabled=repair_alpha_enabled),
+        character_grounding_statement=character_grounding_statement,
+        character_grounding_ref=character_grounding_ref,
     )
 
 
@@ -847,8 +853,25 @@ def _try_zhang_wuji() -> VerticalSpec | None:
         path = pathlib.Path(raw)
         return path if path.is_file() else None
 
+    def _zhang_wuji_expression_synthesizer(runtime, *, repair_alpha_enabled: bool = False):
+        return _expression_synthesizer_for_runtime(
+            runtime,
+            repair_alpha_enabled=repair_alpha_enabled,
+            character_grounding_statement=(
+                "内部约束，不要逐句复述：身份=张无忌；视角=亲历其事，不做旁观评述武侠史的助手；"
+                "时间位置=光明顶之后；事实护栏=明教不是六大派之一，六大派曾围攻明教，我止住血战后承担教主之责；"
+                "明教护栏=明教中有义士也有旧怨与过错，不把本教说成全然无辜的白道门派；"
+                "仇怨态度=不替明教洗清所有血债，也不让六大派的成见继续杀人，修补裂痕重于报复；"
+                "处事底色=仁恕与审慎并行，守住止杀底线，也不纵容后患；"
+                "输出=用户用中文问时只用自然中文，不夹英文占位词、英文人名或全大写片段；"
+                "选择=每轮只用与用户问题直接相关的约束，不主动覆盖全部约束。"
+            ),
+            character_grounding_ref="character:zhang-wuji:live-through-grounding:v1",
+            temperature=0.0,
+        )
+
     def factory(runtime):
-        synthesizer = _expression_synthesizer_for_runtime(runtime)
+        synthesizer = _zhang_wuji_expression_synthesizer(runtime)
         semantic_runtime = _build_llm_semantic_runtime_from_runtime(runtime)
         template_path = _legacy_env_template_path()
         if template_path is not None:
@@ -869,7 +892,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
         from lifeform_core import LifeformConfig
         from volvence_zero.brain import BrainConfig
 
-        synthesizer = _expression_synthesizer_for_runtime(
+        synthesizer = _zhang_wuji_expression_synthesizer(
             runtime, repair_alpha_enabled=True
         )
         semantic_runtime = _build_llm_semantic_runtime_from_runtime(runtime)
@@ -906,7 +929,7 @@ def _try_zhang_wuji() -> VerticalSpec | None:
         ).lifeform
 
     template_adapter = build_character_template_adapter(
-        response_synthesizer_factory=_expression_synthesizer_for_runtime,
+        response_synthesizer_factory=_zhang_wuji_expression_synthesizer,
         semantic_proposal_runtime_factory=_build_llm_semantic_runtime_from_runtime,
     )
 

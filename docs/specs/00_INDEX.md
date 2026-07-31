@@ -456,6 +456,17 @@
 - 角色画像必须是 reviewed structured artifact，不用关键词匹配从小说文本直接驱动行为
 - 原文小说只通过 canonical ingestion path 进入，durable 化仍由 R6 slow loop 处理
 
+### 17B. Character Prefix/KV Package
+
+| Spec | 内容 |
+|------|------|
+| [character-prefix-package.md](./character-prefix-package.md) | reviewed live-through provenance 到冻结 Qwen substrate 的人物 Prefix/KV 包、严格模型几何校验、DynamicCache 投递与证据边界 |
+
+**核心不变量**：
+- 人物 Prefix/KV 是 rare-heavy model-side artifact，不新增 kernel slot，也不伪装成个人或关系状态
+- 基础模型权重保持冻结；包哈希、模板哈希、proof locator 和目标模型必须可审计
+- `character_prefix_applied` 只证明物理载体注入，不等于人物行为 fidelity 已达标
+
 ---
 
 ### 17A. Rupture and Repair Loop（v0 SHADOW, M0 contract landed）

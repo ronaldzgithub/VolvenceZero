@@ -2063,6 +2063,25 @@ Relationship 与 Personal delta 在 hook 前保持独立，不能共享 layer ga
 version。`FinalRolloutConfig.relationship_conditioning_mode` 默认 `text`；
 显式 `residual` profile 才启用 latent，回滚为 `text` 或将 owner 置
 `SHADOW` / `DISABLED`。
+
+### 6.4 Character model-side Prefix/KV package
+
+人物包不新增 kernel runtime slot，也不把人物身份伪装成
+`personal_conditioning` 或 `relationship_conditioning`。`vz-substrate` 的
+`CharacterPrefixKVPackage` 是由 lifeform character owner 产生、由 frozen HF
+runtime 消费的 rare-heavy artifact，schema 为
+`character-prefix-kv-package.v1`。包必须同时声明 `character_id`、目标
+`model_id`、源 live-through `model_id`、源 `LifeformTemplate` 的 `template_id/integrity_hash`、
+live-through proof locator、固定 state vector 和 `PrefixKVArtifact`。
+
+`PrefixKVArtifact` 的每层 K/V 几何必须与 runtime 的 layer count、KV head count
+和 head dimension 精确匹配；模型不匹配、包哈希不匹配或 builtin fallback 均
+fail loudly。runtime 只把包内 K/V slots 追加到 DynamicCache，不改基础模型
+权重；`GenerationResult.character_prefix_applied` 与
+`character_prefix_id` 是本轮物理投递的唯一审计事实。缺少包时保持旧路径，
+但张无忌 1.5B 启动 wrapper 默认要求包存在。人物包的 Prefix/KV 质量评估与
+live-through coverage 是两个独立 verdict，不能用载体已注入推断人物行为已
+达到 canonical fidelity。
 | `rupture_state` | RuptureStateModule | RuptureStateSnapshot | SHADOW | 每 turn | reflection, dialogue_trace (diagnostic) |
 | `interlocutor_state` | InterlocutorStateModule | InterlocutorStateSnapshot | SHADOW | 每 turn | prompt_planner, response_synthesizer, lifeform-core (LifeformSession.interlocutor_state) |
 | `active_mixture` | ProtocolRegistryModule | ActiveMixtureSnapshot | SHADOW | 每 turn | （packet 1.2+ 接入：boundary_policy / metacontroller / vitals / strategy_playbook 读 IDs+权重，不读内容本体） |

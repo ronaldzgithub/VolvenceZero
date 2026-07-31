@@ -97,6 +97,8 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         figure_bundle: object | None = None,
         persona_lora_enabled: bool = True,
         persona_lora_pool: object | None = None,
+        character_grounding_statement: str = "",
+        character_grounding_ref: str = "",
     ) -> None:
         super().__init__(
             runtime=runtime,
@@ -121,6 +123,13 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         # last-register-wins). ``None`` falls back to the process-wide
         # default pool, preserving standalone behaviour.
         self._persona_lora_pool = persona_lora_pool
+        if character_grounding_statement and not character_grounding_ref:
+            raise ValueError(
+                "LifeformLLMResponseSynthesizer character grounding requires "
+                "an audit reference."
+            )
+        self._character_grounding_statement = character_grounding_statement
+        self._character_grounding_ref = character_grounding_ref
 
     @property
     def planner(self) -> PromptPlanner:
@@ -149,6 +158,14 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
     @property
     def persona_lora_pool(self) -> object | None:
         return self._persona_lora_pool
+
+    @property
+    def character_grounding_statement(self) -> str:
+        return self._character_grounding_statement
+
+    @property
+    def character_grounding_ref(self) -> str:
+        return self._character_grounding_ref
 
     def with_figure_bundle(
         self, bundle: object | None
@@ -215,6 +232,8 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
             figure_bundle=self._figure_bundle,
             persona_lora_enabled=self._persona_lora_enabled,
             persona_lora_pool=self._persona_lora_pool,
+            character_grounding_statement=self._character_grounding_statement,
+            character_grounding_ref=self._character_grounding_ref,
         )
         return clone
 
@@ -224,6 +243,15 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         context: ResponseContext,
         assembly: ResponseAssemblySnapshot | None = None,
     ) -> AgentResponse:
+        if (
+            self._character_grounding_statement
+            and not context.character_grounding_statement
+        ):
+            context = replace(
+                context,
+                character_grounding_statement=self._character_grounding_statement,
+                character_grounding_ref=self._character_grounding_ref,
+            )
         plan = self._planner.plan(context=context, assembly=assembly)
         self._last_plan = plan
         history_turns = self._snapshot_history()

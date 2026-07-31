@@ -120,6 +120,8 @@ class GenerationResult:
     description: str
     personal_conditioning_applied: bool = False
     conditioning_bank_carriers_applied: tuple[tuple[str, str], ...] = ()
+    character_prefix_applied: bool = False
+    character_prefix_id: str = ""
 
 
 @dataclass(frozen=True)

@@ -456,7 +456,11 @@ from lifeform_service.substrate_registry import (
     build_substrate_provider_from_env,
 )
 from lifeform_service.verticals import default_vertical_name, discover_verticals
-from volvence_zero.substrate import SubstrateFallbackMode, build_transformers_runtime_with_fallback
+from volvence_zero.substrate import (
+    CharacterPrefixKVPackage,
+    SubstrateFallbackMode,
+    build_transformers_runtime_with_fallback,
+)
 
 
 def _env_bool(name: str, *, default: bool = False) -> bool:
@@ -511,6 +515,24 @@ def main() -> int:
     local_files_only = _env_bool("LOCAL_FILES_ONLY")
     max_sessions = int(os.environ["MAX_SESSIONS"])
     idle_eviction_seconds = float(os.environ["IDLE_EVICTION_SECONDS"])
+    character_package_path = _env_str_or_none("ZHANG_WUJI_CHARACTER_PACKAGE_PATH")
+    character_prefix_package = None
+    if character_package_path is not None:
+        character_prefix_package = CharacterPrefixKVPackage.from_json(
+            Path(character_package_path).read_text(encoding="utf-8")
+        )
+        if character_prefix_package.model_id != model_id:
+            raise RuntimeError(
+                "character package model_id does not match MODEL_ID: "
+                f"package={character_prefix_package.model_id!r} model={model_id!r}"
+            )
+        print(
+            "[start-browser-chat-qwen] character prefix package loaded: "
+            f"character={character_prefix_package.character_id} "
+            f"package_id={character_prefix_package.package_id} "
+            f"source_template={character_prefix_package.source_template_id}",
+            flush=True,
+        )
 
     verticals = discover_verticals()
     if not verticals:
@@ -544,6 +566,7 @@ def main() -> int:
         local_files_only=local_files_only,
         fallback_mode=SubstrateFallbackMode.DENY,
         allow_live_substrate_mutation=False,
+        character_prefix_package=character_prefix_package,
     )
     runtime_origin = getattr(runtime, "runtime_origin")
     if runtime_origin == "builtin-fallback":
@@ -557,6 +580,7 @@ def main() -> int:
         device=device,
         local_files_only=local_files_only,
         fallback_mode=SubstrateFallbackMode.DENY,
+        character_prefix_package=character_prefix_package,
     )
     substrate_provider = build_substrate_provider_from_env(
         initial_runtime=runtime,
