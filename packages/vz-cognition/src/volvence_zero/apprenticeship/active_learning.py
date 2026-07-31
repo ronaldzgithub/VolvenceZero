@@ -147,6 +147,177 @@ class BoundedBinaryAlignmentReadout:
             raise ValueError("Gate 4 predictor features must be finite")
 
 
+class BoundedLabelUtilityReadout:
+    """Bounded owner-side estimate of the value of requesting one label."""
+
+    def __init__(
+        self,
+        *,
+        feature_count: int,
+        minimum_observations: int = 4,
+        learning_rate: float = 0.08,
+        l2_penalty: float = 0.03,
+        epoch_count: int = 120,
+        utility_scale: float = 0.10,
+    ) -> None:
+        if feature_count < 1:
+            raise ValueError("feature_count must be positive")
+        if minimum_observations < 1:
+            raise ValueError("minimum_observations must be positive")
+        if (
+            learning_rate <= 0.0
+            or l2_penalty < 0.0
+            or epoch_count < 1
+            or utility_scale <= 0.0
+        ):
+            raise ValueError("invalid bounded utility optimizer configuration")
+        self._feature_count = feature_count
+        self._minimum_observations = minimum_observations
+        self._learning_rate = learning_rate
+        self._l2_penalty = l2_penalty
+        self._epoch_count = epoch_count
+        self._utility_scale = utility_scale
+        self._weights = (0.0,) * feature_count
+        self._bias = 0.0
+        self._observations: list[tuple[tuple[float, ...], float]] = []
+
+    @property
+    def feature_count(self) -> int:
+        return self._feature_count
+
+    @property
+    def observation_count(self) -> int:
+        return len(self._observations)
+
+    @property
+    def ready(self) -> bool:
+        return self.observation_count >= self._minimum_observations
+
+    @property
+    def parameters(self) -> tuple[float, ...]:
+        return (*self._weights, self._bias)
+
+    def observe_loss_delta(
+        self,
+        *,
+        features: tuple[float, ...],
+        loss_before: float,
+        loss_after: float,
+    ) -> float:
+        self._validate_features(features)
+        if not math.isfinite(loss_before) or not math.isfinite(loss_after):
+            raise ValueError("Gate 4 utility losses must be finite")
+        utility = loss_before - loss_after
+        bounded_utility = math.tanh(utility / self._utility_scale)
+        self._observations.append((features, bounded_utility))
+        self._fit()
+        return utility
+
+    def predict_utility(self, features: tuple[float, ...]) -> float:
+        self._validate_features(features)
+        if not self.ready:
+            raise RuntimeError(
+                "Gate 4 utility readout is still in cold start"
+            )
+        return math.tanh(
+            self._bias
+            + sum(
+                weight * value
+                for weight, value in zip(
+                    self._weights,
+                    features,
+                    strict=True,
+                )
+            )
+        )
+
+    def _fit(self) -> None:
+        weights = [0.0] * self._feature_count
+        bias = 0.0
+        scale = 1.0 / len(self._observations)
+        for _ in range(self._epoch_count):
+            weight_gradients = [0.0] * self._feature_count
+            bias_gradient = 0.0
+            for features, target in self._observations:
+                prediction = math.tanh(
+                    bias
+                    + sum(
+                        weight * value
+                        for weight, value in zip(
+                            weights,
+                            features,
+                            strict=True,
+                        )
+                    )
+                )
+                residual = prediction - target
+                derivative = 1.0 - prediction * prediction
+                bias_gradient += residual * derivative
+                for index, value in enumerate(features):
+                    weight_gradients[index] += (
+                        residual * derivative * value
+                    )
+            for index, gradient in enumerate(weight_gradients):
+                update = self._learning_rate * (
+                    gradient * scale
+                    + self._l2_penalty * weights[index]
+                )
+                weights[index] = _clamp(weights[index] - update, -4.0, 4.0)
+            bias = _clamp(
+                bias - self._learning_rate * bias_gradient * scale,
+                -4.0,
+                4.0,
+            )
+        self._weights = tuple(weights)
+        self._bias = bias
+
+    def _validate_features(self, features: tuple[float, ...]) -> None:
+        if len(features) != self._feature_count:
+            raise ValueError(
+                "Gate 4 utility feature width drifted: "
+                f"expected {self._feature_count}, got {len(features)}"
+            )
+        if not all(math.isfinite(value) for value in features):
+            raise ValueError("Gate 4 utility features must be finite")
+
+
+def label_utility_features(
+    *,
+    candidate: Gate4FeedbackCandidate,
+    probability: float,
+    selected_segment_features: Sequence[tuple[float, ...]],
+) -> tuple[float, ...]:
+    if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+        raise ValueError("Gate 4 candidate probability must be in [0, 1]")
+    segment_novelty = _segment_novelty(
+        candidate.segment_features,
+        selected_segment_features,
+    )
+    beta_open = candidate.segment_features[-3]
+    beta_close = candidate.segment_features[-2]
+    segment_length = candidate.segment_features[-1]
+    boundary_strength = _clamp(
+        (
+            abs(beta_close - beta_open)
+            + min(abs(segment_length) / 4.0, 1.0)
+        )
+        / 2.0,
+        0.0,
+        1.0,
+    )
+    return (
+        1.0 - abs(2.0 * probability - 1.0),
+        candidate.pe_magnitude / (1.0 + candidate.pe_magnitude),
+        segment_novelty,
+        boundary_strength,
+        1.0 - segment_novelty,
+        *(
+            value / (1.0 + abs(value))
+            for value in candidate.segment_features
+        ),
+    )
+
+
 def random_feedback_order(
     candidates: Sequence[Gate4FeedbackCandidate],
 ) -> tuple[int, ...]:
@@ -189,6 +360,7 @@ def select_active_candidate(
     probabilities: Sequence[float],
     selected_indices: frozenset[int],
     policy: str,
+    utility_readout: BoundedLabelUtilityReadout | None = None,
 ) -> int:
     if policy not in {
         "segment-aware-active",
@@ -216,29 +388,16 @@ def select_active_candidate(
         )
         if policy == "turn-level-active":
             score = 0.65 * uncertainty + 0.35 * pe_strength
-        else:
-            segment_novelty = _segment_novelty(
-                candidate.segment_features,
-                selected_segment_features,
-            )
-            beta_open = candidate.segment_features[-3]
-            beta_close = candidate.segment_features[-2]
-            segment_length = candidate.segment_features[-1]
-            boundary_strength = _clamp(
-                (
-                    abs(beta_close - beta_open)
-                    + min(segment_length / 4.0, 1.0)
+        elif utility_readout is not None and utility_readout.ready:
+            score = utility_readout.predict_utility(
+                label_utility_features(
+                    candidate=candidate,
+                    probability=probability,
+                    selected_segment_features=selected_segment_features,
                 )
-                / 2.0,
-                0.0,
-                1.0,
             )
-            score = (
-                0.45 * uncertainty
-                + 0.30 * pe_strength
-                + 0.15 * segment_novelty
-                + 0.10 * boundary_strength
-            )
+        else:
+            score = uncertainty
         scored.append((score, candidate.transition_id, index))
     return max(scored, key=lambda item: (item[0], item[1]))[2]
 
@@ -287,7 +446,9 @@ def _clamp(value: float, lower: float, upper: float) -> float:
 __all__ = [
     "GATE4_ACTIVE_POLICIES",
     "BoundedBinaryAlignmentReadout",
+    "BoundedLabelUtilityReadout",
     "Gate4FeedbackCandidate",
+    "label_utility_features",
     "random_feedback_order",
     "select_active_candidate",
 ]

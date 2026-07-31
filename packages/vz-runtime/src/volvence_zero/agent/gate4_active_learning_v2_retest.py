@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import math
 from pathlib import Path
 import statistics
 
 from volvence_zero.apprenticeship import (
     BoundedBinaryAlignmentReadout,
+    BoundedLabelUtilityReadout,
     Gate4FeedbackCandidate,
+    label_utility_features,
     random_feedback_order,
     select_active_candidate,
 )
@@ -28,8 +31,8 @@ from volvence_zero.agent.gate_v2_retest_common import (
 )
 
 
-GATE4_V2_SCHEMA_VERSION = "gate4-active-learning-v2-retest.v1"
-GATE4_V2_SUITE_ID = "gate4-active-learning-v2-retest"
+GATE4_V2_SCHEMA_VERSION = "gate4-label-utility-v3-retest.v1"
+GATE4_V2_SUITE_ID = "gate4-label-utility-v3-retest"
 GATE4_V2_ARMS = (
     "segment-aware-active",
     "turn-level-active",
@@ -57,6 +60,9 @@ class Gate4V2ArmResult:
     typed_candidate_lineage_coverage: float
     source_mutation_count: int
     isolated_reset_exact: bool
+    utility_observation_count: int
+    learned_utility_selection_count: int
+    cold_start_selection_count: int
 
 
 @dataclass(frozen=True)
@@ -76,6 +82,15 @@ def _sha256(value: object) -> str:
 
 def _mean(values: tuple[float, ...]) -> float:
     return statistics.fmean(values) if values else 0.0
+
+
+def _binary_log_loss(probability: float, label: bool) -> float:
+    bounded = max(1e-9, min(1.0 - 1e-9, probability))
+    return (
+        -math.log(bounded)
+        if label
+        else -math.log(1.0 - bounded)
+    )
 
 
 def _predictor_features(plan: Gate78EpisodePlan) -> tuple[float, ...]:
@@ -195,13 +210,20 @@ def _run_arm(
     readout = BoundedBinaryAlignmentReadout(
         feature_count=len(candidates[0].predictor_features)
     )
+    utility_readout = BoundedLabelUtilityReadout(
+        feature_count=5 + len(candidates[0].segment_features),
+        minimum_observations=_BOOTSTRAP_LABELS,
+    )
     initial_parameters = readout.parameters
+    initial_utility_parameters = utility_readout.parameters
     selected: set[int] = set()
     selected_order: list[int] = []
     labels_needed = _LABEL_BUDGET + 1
     cumulative_regret = 0
     random_order = random_feedback_order(candidates)
     budget = 0 if arm == "no-feedback" else _LABEL_BUDGET
+    learned_utility_selection_count = 0
+    cold_start_selection_count = 0
 
     def refit() -> None:
         readout.fit(
@@ -247,15 +269,53 @@ def _run_arm(
                 if candidate_index not in selected
             )
         else:
+            utility_ready = utility_readout.ready
             index = select_active_candidate(
                 candidates=selection_candidates,
                 probabilities=probabilities,
                 selected_indices=frozenset(selected),
                 policy=arm,
+                utility_readout=utility_readout,
             )
+            learned_utility_selection_count += int(utility_ready)
+            cold_start_selection_count += int(not utility_ready)
+        utility_features = label_utility_features(
+            candidate=selection_candidates[index],
+            probability=probabilities[index],
+            selected_segment_features=tuple(
+                selection_candidates[candidate_index].segment_features
+                for candidate_index in sorted(selected)
+            ),
+        )
+        utility_indices = (*selected_order, index)
+        loss_before = _mean(
+            tuple(
+                _binary_log_loss(
+                    probabilities[candidate_index],
+                    labels[candidate_index],
+                )
+                for candidate_index in utility_indices
+            )
+        )
         selected.add(index)
         selected_order.append(index)
         refit()
+        loss_after = _mean(
+            tuple(
+                _binary_log_loss(
+                    readout.predict_probability(
+                        candidates[candidate_index].predictor_features
+                    ),
+                    labels[candidate_index],
+                )
+                for candidate_index in utility_indices
+            )
+        )
+        utility_readout.observe_loss_delta(
+            features=utility_features,
+            loss_before=loss_before,
+            loss_after=loss_after,
+        )
         if (
             labels_needed == _LABEL_BUDGET + 1
             and evaluation_accuracy() >= _TARGET_ACCURACY
@@ -264,6 +324,10 @@ def _run_arm(
     final_accuracy = evaluation_accuracy()
     reset = BoundedBinaryAlignmentReadout(
         feature_count=len(candidates[0].predictor_features)
+    )
+    utility_reset = BoundedLabelUtilityReadout(
+        feature_count=5 + len(candidates[0].segment_features),
+        minimum_observations=_BOOTSTRAP_LABELS,
     )
     return Gate4V2ArmResult(
         seed=seed,
@@ -291,7 +355,13 @@ def _run_arm(
         source_mutation_count=int(
             source_before != _sha256((train_plans, evaluation_plans))
         ),
-        isolated_reset_exact=reset.parameters == initial_parameters,
+        isolated_reset_exact=(
+            reset.parameters == initial_parameters
+            and utility_reset.parameters == initial_utility_parameters
+        ),
+        utility_observation_count=utility_readout.observation_count,
+        learned_utility_selection_count=learned_utility_selection_count,
+        cold_start_selection_count=cold_start_selection_count,
     )
 
 
@@ -374,6 +444,21 @@ def run_gate4_v2_retest(
     )
     mutation = sum(row.source_mutation_count for row in results)
     reset_mismatch = sum(not row.isolated_reset_exact for row in results)
+    learned_rows = tuple(
+        row
+        for row in results
+        if row.arm in {
+            "segment-aware-active",
+            "shuffled-segment-boundary",
+        }
+    )
+    minimum_learned_selections = min(
+        row.learned_utility_selection_count for row in learned_rows
+    )
+    observation_mismatch = sum(
+        row.utility_observation_count != row.requested_label_count
+        for row in results
+    )
     metrics = tuple(
         (
             f"mean_labels_saved_vs_{control}",
@@ -385,12 +470,30 @@ def run_gate4_v2_retest(
         ("typed_candidate_lineage_coverage", lineage),
         ("source_mutation_count", float(mutation)),
         ("isolated_reset_mismatch_count", float(reset_mismatch)),
+        (
+            "minimum_learned_utility_selection_count",
+            float(minimum_learned_selections),
+        ),
+        (
+            "utility_observation_mismatch_count",
+            float(observation_mismatch),
+        ),
     )
     mechanism_gates = (
         ("source-consumer-admission", True, 1.0),
         ("typed-candidate-lineage-complete", lineage >= 1.0, lineage),
         ("source-mutation-zero", mutation == 0, float(mutation)),
         ("readout-isolated-reset-exact", reset_mismatch == 0, float(reset_mismatch)),
+        (
+            "label-utility-observations-complete",
+            observation_mismatch == 0,
+            float(observation_mismatch),
+        ),
+        (
+            "learned-utility-selector-active",
+            minimum_learned_selections > 0,
+            float(minimum_learned_selections),
+        ),
     )
     causal_gates = tuple(
         (
@@ -481,6 +584,15 @@ def export_gate4_v2_bundle(
                 **base,
                 "typed_candidate_lineage_coverage": (
                     row.typed_candidate_lineage_coverage
+                ),
+                "utility_observation_count": (
+                    row.utility_observation_count
+                ),
+                "learned_utility_selection_count": (
+                    row.learned_utility_selection_count
+                ),
+                "cold_start_selection_count": (
+                    row.cold_start_selection_count
                 ),
             }
             for base, row in zip(common, rows, strict=True)

@@ -12,6 +12,7 @@ import asyncio
 from dataclasses import asdict, dataclass
 import hashlib
 import json
+import math
 from pathlib import Path
 import platform
 import statistics
@@ -23,8 +24,10 @@ from typing import Any, Mapping, Sequence
 from volvence_zero.apprenticeship import (
     ApprenticeshipAlignmentModule,
     BoundedBinaryAlignmentReadout,
+    BoundedLabelUtilityReadout,
     Gate4FeedbackCandidate,
     build_intent_constraint,
+    label_utility_features,
     random_feedback_order,
     select_active_candidate,
 )
@@ -45,7 +48,7 @@ from volvence_zero.semantic_state import (
 from volvence_zero.substrate import PlaceholderSubstrateAdapter
 
 
-GATE4_ACTIVE_LEARNING_SCHEMA_VERSION = "gate4-active-learning.v1"
+GATE4_ACTIVE_LEARNING_SCHEMA_VERSION = "gate4-active-learning.v2"
 GATE4_REQUIRED_FILES = (
     "manifest.yaml",
     "predictions.jsonl",
@@ -100,6 +103,9 @@ class Gate4ArmMetrics:
     source_closure_coverage: float
     lineage_complete: bool
     frozen_substrate_mutation_count: int
+    utility_observation_count: int = 0
+    learned_utility_selection_count: int = 0
+    cold_start_selection_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -113,6 +119,15 @@ class Gate4Comparison:
 
 def _mean(values: Sequence[float], *, default: float = 0.0) -> float:
     return statistics.fmean(values) if values else default
+
+
+def _binary_log_loss(probability: float, label: bool) -> float:
+    bounded = max(1e-9, min(1.0 - 1e-9, probability))
+    return (
+        -math.log(bounded)
+        if label
+        else -math.log(1.0 - bounded)
+    )
 
 
 def _git_output(*args: str) -> str:
@@ -528,6 +543,10 @@ def run_gate4_arm(
     readout = BoundedBinaryAlignmentReadout(
         feature_count=feature_count
     )
+    utility_readout = BoundedLabelUtilityReadout(
+        feature_count=5 + len(candidates[0].segment_features),
+        minimum_observations=GATE4_BOOTSTRAP_LABELS,
+    )
     random_order = random_feedback_order(candidates)
     budget = 0 if arm == "no-feedback" else GATE4_LABEL_BUDGET
     selected_order: list[int] = []
@@ -536,6 +555,8 @@ def run_gate4_arm(
     labels_needed = GATE4_LABEL_BUDGET + 1
     cumulative_regret = 0
     ineffective_requests = 0
+    learned_utility_selection_count = 0
+    cold_start_selection_count = 0
 
     def refit() -> None:
         readout.fit(
@@ -580,13 +601,35 @@ def run_gate4_arm(
                     index for index in random_order if index not in selected
                 )
             else:
+                utility_ready = utility_readout.ready
                 candidate_index = select_active_candidate(
                     candidates=selection_candidates,
                     probabilities=train_probabilities,
                     selected_indices=frozenset(selected),
                     policy=arm,
+                    utility_readout=utility_readout,
                 )
+                learned_utility_selection_count += int(utility_ready)
+                cold_start_selection_count += int(not utility_ready)
             prequery_probability = train_probabilities[candidate_index]
+            utility_features = label_utility_features(
+                candidate=selection_candidates[candidate_index],
+                probability=prequery_probability,
+                selected_segment_features=tuple(
+                    selection_candidates[index].segment_features
+                    for index in sorted(selected)
+                ),
+            )
+            utility_indices = (*selected_order, candidate_index)
+            loss_before = _mean(
+                tuple(
+                    _binary_log_loss(
+                        train_probabilities[index],
+                        train_labels[index],
+                    )
+                    for index in utility_indices
+                )
+            )
             prequery_uncertainty = (
                 1.0 - abs(2.0 * prequery_probability - 1.0)
             )
@@ -597,6 +640,22 @@ def run_gate4_arm(
             selected.add(candidate_index)
             selected_order.append(candidate_index)
             refit()
+            loss_after = _mean(
+                tuple(
+                    _binary_log_loss(
+                        readout.predict_probability(
+                            candidates[index].predictor_features
+                        ),
+                        train_labels[index],
+                    )
+                    for index in utility_indices
+                )
+            )
+            observed_utility = utility_readout.observe_loss_delta(
+                features=utility_features,
+                loss_before=loss_before,
+                loss_after=loss_after,
+            )
             accuracy = heldout_accuracy()
             if (
                 labels_needed == GATE4_LABEL_BUDGET + 1
@@ -621,6 +680,8 @@ def run_gate4_arm(
                     ),
                     "heldout_balanced_accuracy": accuracy,
                     "readout_parameters": list(readout.parameters),
+                    "observed_label_utility": observed_utility,
+                    "utility_readout_ready": utility_readout.ready,
                 }
             )
     final_heldout = heldout_accuracy()
@@ -698,6 +759,9 @@ def run_gate4_arm(
             bool(record["substrate"]["mutation_applied"])
             for record in records
         ),
+        utility_observation_count=utility_readout.observation_count,
+        learned_utility_selection_count=learned_utility_selection_count,
+        cold_start_selection_count=cold_start_selection_count,
     )
     for row in request_rows:
         row["seed"] = seed
@@ -827,6 +891,19 @@ def compare_gate4_arms(
             metric.proposal_count == 0
             and metric.boundary_digest_unchanged
             for metric in metrics
+        ),
+        "label_utility_observations_complete": all(
+            metric.utility_observation_count
+            == metric.requested_label_count
+            for metric in metrics
+        ),
+        "learned_utility_selector_active": all(
+            by_key[(seed, arm)].learned_utility_selection_count > 0
+            for seed in SHARED_SETTLED_TRACE_SEEDS
+            for arm in (
+                "segment-aware-active",
+                "shuffled-segment-boundary",
+            )
         ),
         "segment_primary_vs_turn_and_random": all(
             comparison.primary_non_worse

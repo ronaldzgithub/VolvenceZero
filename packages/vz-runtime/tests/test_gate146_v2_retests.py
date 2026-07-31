@@ -71,6 +71,18 @@ def test_gate4_v2_uses_all_preregistered_controls(trace_root) -> None:
         for row in report.results
     )
     assert all(row.isolated_reset_exact for row in report.results)
+    assert all(
+        row.utility_observation_count == row.requested_label_count
+        for row in report.results
+    )
+    assert all(
+        row.learned_utility_selection_count > 0
+        for row in report.results
+        if row.arm in {
+            "segment-aware-active",
+            "shuffled-segment-boundary",
+        }
+    )
 
 
 def test_gate6_v2_uses_owner_init_and_exact_rollback(trace_root) -> None:

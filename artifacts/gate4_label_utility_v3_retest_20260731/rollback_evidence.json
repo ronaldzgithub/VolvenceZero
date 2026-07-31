@@ -1,0 +1,95 @@
+{
+  "rows": [
+    {
+      "arm": "segment-aware-active",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 701
+    },
+    {
+      "arm": "turn-level-active",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 701
+    },
+    {
+      "arm": "random-feedback",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 701
+    },
+    {
+      "arm": "no-feedback",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 701
+    },
+    {
+      "arm": "shuffled-segment-boundary",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 701
+    },
+    {
+      "arm": "segment-aware-active",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 709
+    },
+    {
+      "arm": "turn-level-active",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 709
+    },
+    {
+      "arm": "random-feedback",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 709
+    },
+    {
+      "arm": "no-feedback",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 709
+    },
+    {
+      "arm": "shuffled-segment-boundary",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 709
+    },
+    {
+      "arm": "segment-aware-active",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 719
+    },
+    {
+      "arm": "turn-level-active",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 719
+    },
+    {
+      "arm": "random-feedback",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 719
+    },
+    {
+      "arm": "no-feedback",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 719
+    },
+    {
+      "arm": "shuffled-segment-boundary",
+      "exact": true,
+      "scope": "bounded-readout-isolation",
+      "seed": 719
+    }
+  ],
+  "schema_version": "gate4-label-utility-v3-retest.v1"
+}

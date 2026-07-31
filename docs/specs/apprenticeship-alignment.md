@@ -103,9 +103,13 @@ topic，也不写 semantic state：
 
 - 五臂共享同一 readout；prediction 与当前 public controller 数值坐标进入
   predictor，actual outcome、PE、episode phase、user/context 文本不进入。
-- PE 只参与 acquisition score；segment-aware 臂额外消费
-  `TemporalSegmentClosure` 已发布的 z/beta/length 与 segment-space novelty。
-  runtime harness 不从 action/family 文本重建 segment。
+- turn-level control 沿用 uncertainty/PE acquisition score。segment-aware
+  不再使用固定 novelty/boundary 加权和，而由
+  `BoundedLabelUtilityReadout` 在线拟合 label utility；输入是
+  uncertainty、PE、segment novelty/boundary/coverage 与 closure 数值聚合，
+  监督目标是加入新标签前后同一已标注集合上的 binary log-loss 改善。
+  observation 不足时显式回退 uncertainty。runtime harness 不从
+  action/family 文本重建 segment，也不得用 held-out label 训练 utility。
 - 被 selector 选中的 candidate 仍必须进入
   `ApprenticeshipAlignmentModule`，由 owner 发布 typed feedback request，再由
   `OpenLoopModule` 冒出 verification request；evidence run 固定
@@ -123,6 +127,12 @@ topic，也不写 semantic state：
   non-mutation 机制门全部通过。因此当前只能陈述“反馈请求机制可运行、可
   审计、可回滚”，不能陈述 PE-driven 或 segment-aware 标签效率增益；同一
   locked 分区不得调参重跑。
+- 2026-07-31 `gate4-label-utility-v3-retest.v1` 的 utility observations 与
+  learned-selector activation 机制门全绿，但 segment-aware 相对
+  turn/random 的 mean labels saved 均为 `-1.0`，final accuracy minimum
+  margin=`-0.083333`。因此当前 segment 表示对该 readout 任务族没有信息
+  增量，learned selector 不获生产晋升；后续应先改变 temporal segment
+  representation，而不是恢复固定权重或降低标签门槛。
 
 ## 8. 迁移（WiringLevel 三态）
 
