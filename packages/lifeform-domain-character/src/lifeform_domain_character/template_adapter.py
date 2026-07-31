@@ -200,6 +200,7 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
                 identity_provider=identity_provider,
                 memory_scope_root_dir=memory_scope_root_dir,
                 alpha_enabled=alpha_enabled,
+                reviewed_profile_overlay=self._default_profile_factory(),
             )
         profile = self._default_profile_factory()
         synthesizer = self._build_synthesizer(
@@ -247,6 +248,33 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
             identity_provider=identity_provider,
             memory_scope_root_dir=memory_scope_root_dir,
             alpha_enabled=alpha_enabled,
+            reviewed_profile_overlay=self._default_profile_factory(),
+        )
+
+    def build_session_context_from_package_template(
+        self,
+        *,
+        template_path: pathlib.Path,
+        runtime: "OpenWeightResidualRuntime | None",
+        identity_provider: "IdentityProvider | None",
+        memory_scope_root_dir: str | None,
+        alpha_enabled: bool,
+    ) -> tuple[Lifeform, TemplateContext]:
+        """Reincarnate the exact content-addressed package template.
+
+        Unlike the vertical's ordinary template picker, this path does not
+        overlay the adapter's default profile.  A single character-capable
+        vertical can therefore host multiple admitted manifests without
+        leaking its historical default character into another session.
+        """
+
+        return self._build_session_context_from_template_path(
+            template_path=template_path,
+            runtime=runtime,
+            identity_provider=identity_provider,
+            memory_scope_root_dir=memory_scope_root_dir,
+            alpha_enabled=alpha_enabled,
+            reviewed_profile_overlay=None,
         )
 
     def _build_session_context_from_template_path(
@@ -257,6 +285,7 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
         identity_provider: "IdentityProvider | None",
         memory_scope_root_dir: str | None,
         alpha_enabled: bool,
+        reviewed_profile_overlay: CharacterSoulProfile | None = None,
     ) -> tuple[Lifeform, TemplateContext]:
         synthesizer = self._build_synthesizer(
             runtime, repair_alpha_enabled=alpha_enabled
@@ -274,7 +303,7 @@ class CharacterTemplateAdapter(VerticalTemplateAdapter):
         # checkpoint for studio-style replay continuity.
         bundle: RebirthBundle = give_birth(
             template_path,
-            reviewed_profile_overlay=self._default_profile_factory(),
+            reviewed_profile_overlay=reviewed_profile_overlay,
             config=config,
             substrate_runtime=runtime,
             response_synthesizer=synthesizer,

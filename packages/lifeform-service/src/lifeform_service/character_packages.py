@@ -12,8 +12,54 @@ from volvence_zero.substrate import (
     CharacterPrefixKVRegistry,
     CharacterPrefixKVRegistryEntry,
     CommonAdapterBundle,
-    default_persona_lora_pool,
+    PersonaLoRAPool,
 )
+
+
+@dataclass(frozen=True)
+class CharacterSessionBinding:
+    """Immutable service binding resolved from one admitted manifest.
+
+    The service consumes this value as one package-level exchange: the
+    template path, runtime Prefix/KV routing key, and optional character LoRA
+    key cannot drift independently after a session has been created.
+    """
+
+    character_id: str
+    manifest_package_id: str
+    template_path: Path
+    wiring_level: WiringLevel
+    prefix_registry_key: str
+    character_lora_figure_id: str
+
+    def __post_init__(self) -> None:
+        if not self.character_id.strip():
+            raise ValueError("character session binding character_id is empty.")
+        if not self.manifest_package_id.strip():
+            raise ValueError(
+                "character session binding manifest_package_id is empty."
+            )
+        if not self.template_path.is_file():
+            raise FileNotFoundError(self.template_path)
+        if self.wiring_level is WiringLevel.DISABLED:
+            raise ValueError(
+                "disabled character manifests cannot publish session bindings."
+            )
+        for name, value in (
+            ("prefix_registry_key", self.prefix_registry_key),
+            ("character_lora_figure_id", self.character_lora_figure_id),
+        ):
+            if value and value != self.character_id:
+                raise ValueError(
+                    f"character session binding {name} must match character_id."
+                )
+        if (
+            self.wiring_level is WiringLevel.SHADOW
+            and self.character_lora_figure_id
+        ):
+            raise ValueError(
+                "SHADOW character bindings cannot activate a LoRA carrier."
+            )
 
 
 @dataclass(frozen=True)
@@ -21,6 +67,33 @@ class CharacterRuntimeAssets:
     common_adapter_bundle: CommonAdapterBundle
     prefix_registry: CharacterPrefixKVRegistry
     manifest_package_ids: tuple[str, ...]
+    session_bindings: tuple[CharacterSessionBinding, ...]
+    character_lora_pool: PersonaLoRAPool
+
+    def get_binding(self, character_id: str) -> CharacterSessionBinding | None:
+        compact = character_id.strip()
+        if not compact:
+            return None
+        return next(
+            (
+                binding
+                for binding in self.session_bindings
+                if binding.character_id == compact
+            ),
+            None,
+        )
+
+    def require_binding(self, character_id: str) -> CharacterSessionBinding:
+        binding = self.get_binding(character_id)
+        if binding is None:
+            raise LookupError(
+                f"no enabled character manifest is loaded for {character_id!r}."
+            )
+        return binding
+
+    @property
+    def character_ids(self) -> tuple[str, ...]:
+        return tuple(binding.character_id for binding in self.session_bindings)
 
 
 def load_character_runtime_assets(
@@ -45,8 +118,9 @@ def load_character_runtime_assets(
     )
 
     entries: list[CharacterPrefixKVRegistryEntry] = []
+    bindings: list[CharacterSessionBinding] = []
     manifest_ids: list[str] = []
-    pool = default_persona_lora_pool()
+    pool = PersonaLoRAPool()
     seen_characters: set[str] = set()
     for manifest_path in manifest_paths:
         manifest = CharacterPackageManifest.from_json(
@@ -62,7 +136,7 @@ def load_character_runtime_assets(
             common_adapter_version=common_bundle.common_adapter_version,
             compatibility_fingerprint=common_bundle.compatibility_fingerprint,
         )
-        _, prefix_path, lora_path, _ = verify_manifest_artifacts(
+        template_path, prefix_path, lora_path, _ = verify_manifest_artifacts(
             manifest,
             manifest_path=manifest_path,
         )
@@ -75,6 +149,12 @@ def load_character_runtime_assets(
             continue
         if wiring is WiringLevel.ACTIVE:
             manifest.require_active()
+            if manifest.lora_ref is not None:
+                raise RuntimeError(
+                    "ACTIVE character lora_ref requires prefix-only, LoRA-only, "
+                    "and prefix+LoRA ablation evidence; the current evidence "
+                    "schema does not admit this carrier."
+                )
         if prefix_path is not None:
             prefix = CharacterPrefixKVPackage.from_json(
                 prefix_path.read_text(encoding="utf-8")
@@ -108,6 +188,23 @@ def load_character_runtime_assets(
                 ),
                 peft_checkpoint_dir=str(lora_path),
             )
+        bindings.append(
+            CharacterSessionBinding(
+                character_id=manifest.character_id,
+                manifest_package_id=manifest.package_id,
+                template_path=template_path,
+                wiring_level=wiring,
+                prefix_registry_key=(
+                    manifest.character_id if prefix_path is not None else ""
+                ),
+                character_lora_figure_id=(
+                    manifest.character_id
+                    if wiring is WiringLevel.ACTIVE
+                    and manifest.lora_ref is not None
+                    else ""
+                ),
+            )
+        )
         manifest_ids.append(manifest.package_id)
 
     return CharacterRuntimeAssets(
@@ -119,6 +216,8 @@ def load_character_runtime_assets(
             entries=tuple(entries),
         ),
         manifest_package_ids=tuple(manifest_ids),
+        session_bindings=tuple(bindings),
+        character_lora_pool=pool,
     )
 
 
@@ -142,4 +241,8 @@ def _validate_prefix_reference(*, manifest, prefix: CharacterPrefixKVPackage) ->
         )
 
 
-__all__ = ["CharacterRuntimeAssets", "load_character_runtime_assets"]
+__all__ = [
+    "CharacterRuntimeAssets",
+    "CharacterSessionBinding",
+    "load_character_runtime_assets",
+]

@@ -326,6 +326,11 @@ class Lifeform:
         # last-register-wins across tenants). None keeps the default
         # pool fallback for the standalone path.
         self._persona_lora_pool: Any = None
+        # Character packages bind a separate, session-selected identity and
+        # LoRA pool.  It must not share the figure/persona pool because the two
+        # owners have different scoping and promotion evidence.
+        self._character_id: str = ""
+        self._character_lora_pool: Any = None
         # mcp-tools-bundle-bridge packet — lazily initialised state
         # for the optional MCP server pool. ``Lifeform.start()``
         # (async) populates these once when there are non-empty
@@ -561,6 +566,15 @@ class Lifeform:
         clone consults this pool instead of the process-wide default.
         """
         self._persona_lora_pool = pool
+
+    def bind_character_package(self, *, character_id: str, lora_pool: Any) -> None:
+        """Bind one admitted character package for subsequently minted sessions."""
+
+        compact = character_id.strip()
+        if not compact:
+            raise ValueError("bind_character_package requires character_id")
+        self._character_id = compact
+        self._character_lora_pool = lora_pool
 
     def with_domain_experience(
         self,
@@ -847,6 +861,11 @@ class Lifeform:
         # runtime + planner, only the history buffer is independent.
         if isinstance(synth, LifeformLLMResponseSynthesizer):
             cloned_llm = synth.clone_for_session()
+            if self._character_id:
+                cloned_llm = cloned_llm.with_character_binding(
+                    character_id=self._character_id,
+                    lora_pool=self._character_lora_pool,
+                )
             if self._figure_bundle is not None:
                 cloned_llm = cloned_llm.with_figure_bundle(self._figure_bundle)
             if not self._persona_lora_enabled:

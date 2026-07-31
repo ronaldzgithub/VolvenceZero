@@ -13,6 +13,10 @@ dependencies = [
     "vz-memory==0.1.*",
     "vz-application==0.1.*",
     "vz-runtime==0.1.*",
+    # CharacterRuntimeAssets owns the manifest-admitted Prefix/KV registry
+    # and isolated character LoRA pool. The character vertical itself stays
+    # a lazy plugin to avoid reversing its existing template Protocol edge.
+    "vz-substrate==0.1.*",
     "lifeform-core==0.1.*",
     "lifeform-affordance==0.1.*",
     "lifeform-expression==0.1.*",

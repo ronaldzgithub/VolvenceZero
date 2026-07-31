@@ -175,7 +175,29 @@ class VerticalTemplateAdapter(Protocol):
         """
 
 
+@runtime_checkable
+class CharacterPackageTemplateAdapter(Protocol):
+    """Narrow capability for loading a manifest-pinned template path.
+
+    Character package templates are content-addressed and may live outside a
+    vertical's normal ``<root>/<template_id>.json`` directory.  The package
+    loader has already verified their digest, so the service passes the exact
+    path instead of reconstructing it from a user-controlled template id.
+    """
+
+    def build_session_context_from_package_template(
+        self,
+        *,
+        template_path: Path,
+        runtime: "OpenWeightResidualRuntime | None",
+        identity_provider: "IdentityProvider | None",
+        memory_scope_root_dir: str | None,
+        alpha_enabled: bool,
+    ) -> "tuple[Lifeform, TemplateContext]": ...
+
+
 __all__ = [
+    "CharacterPackageTemplateAdapter",
     "TemplateContext",
     "TemplateMetadata",
     "VerticalTemplateAdapter",

@@ -98,6 +98,7 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         persona_lora_enabled: bool = True,
         persona_lora_pool: object | None = None,
         character_id: str = "",
+        character_lora_pool: object | None = None,
         character_grounding_statement: str = "",
         character_grounding_ref: str = "",
     ) -> None:
@@ -125,6 +126,10 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         # last-register-wins). ``None`` falls back to the process-wide
         # default pool, preserving standalone behaviour.
         self._persona_lora_pool = persona_lora_pool
+        # Character-package LoRA uses a session-bound pool distinct from the
+        # figure/persona pool.  This prevents a package manifest in one
+        # service from mutating or shadowing a DLaaS tenant's figure record.
+        self._character_lora_pool = character_lora_pool
         if character_grounding_statement and not character_grounding_ref:
             raise ValueError(
                 "LifeformLLMResponseSynthesizer character grounding requires "
@@ -168,6 +173,14 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
     @property
     def character_grounding_ref(self) -> str:
         return self._character_grounding_ref
+
+    @property
+    def character_id(self) -> str:
+        return self._character_id
+
+    @property
+    def character_lora_pool(self) -> object | None:
+        return self._character_lora_pool
 
     def with_figure_bundle(
         self, bundle: object | None
@@ -214,6 +227,30 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         clone._figure_bundle = self._figure_bundle  # noqa: SLF001
         return clone
 
+    def with_character_binding(
+        self,
+        *,
+        character_id: str,
+        lora_pool: object | None,
+    ) -> "LifeformLLMResponseSynthesizer":
+        """Return a clone bound to one session's admitted character.
+
+        Grounding text authored for a vertical's historical default character
+        is retained only when the selected id is the same.  Selecting another
+        manifest clears that default-specific text so identities cannot bleed
+        across sessions; the manifest template remains the semantic owner.
+        """
+
+        compact = character_id.strip()
+        clone = self.clone_for_session()
+        previous_id = clone._character_id  # noqa: SLF001
+        clone._character_id = compact  # noqa: SLF001
+        clone._character_lora_pool = lora_pool  # noqa: SLF001
+        if previous_id and compact != previous_id:
+            clone._character_grounding_statement = ""  # noqa: SLF001
+            clone._character_grounding_ref = ""  # noqa: SLF001
+        return clone
+
     def clone_for_session(self) -> "LifeformLLMResponseSynthesizer":
         """Return a session-local clone with an empty history buffer.
 
@@ -235,6 +272,7 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
             persona_lora_enabled=self._persona_lora_enabled,
             persona_lora_pool=self._persona_lora_pool,
             character_id=self._character_id,
+            character_lora_pool=self._character_lora_pool,
             character_grounding_statement=self._character_grounding_statement,
             character_grounding_ref=self._character_grounding_ref,
         )
@@ -303,19 +341,15 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         # super().synthesize() call. The frozen base is never
         # mutated; the activate context restores the pre-call
         # forward state on exit (R2 + R15).
-        with _maybe_activate_persona_lora(
+        with _maybe_activate_bound_lora(
             bundle=bundle,
+            character_id=self._character_id,
             runtime=self._runtime,
             enabled=self._persona_lora_enabled,
-            pool=self._persona_lora_pool,
+            persona_pool=self._persona_lora_pool,
+            character_pool=self._character_lora_pool,
         ):
-            with _maybe_activate_character_lora(
-                character_id=self._character_id,
-                runtime=self._runtime,
-                enabled=self._persona_lora_enabled,
-                pool=self._persona_lora_pool,
-            ):
-                response = super().synthesize(context=context, assembly=assembly)
+            response = super().synthesize(context=context, assembly=assembly)
 
         # L3 (Wave F closure): post-generation grounding verify. The
         # decoder reports unsupported assertions; we attach the
@@ -576,16 +610,63 @@ def _maybe_activate_character_lora(
 ):
     """Activate an optional manifest-registered character PEFT adapter."""
 
-    if not enabled or not character_id:
+    if not enabled or not character_id or pool is None:
         yield
         return
-    from volvence_zero.substrate import default_persona_lora_pool
+    from volvence_zero.substrate import LoRAAwareResidualRuntime
 
-    active_pool = pool if pool is not None else default_persona_lora_pool()
-    if not active_pool.has(character_id):
+    if not pool.has(character_id):
         yield
         return
-    with active_pool.activate(character_id, runtime=runtime):
+    if not isinstance(runtime, LoRAAwareResidualRuntime):
+        raise RuntimeError(
+            "an ACTIVE character package declares LoRA, but the selected "
+            "substrate runtime does not support LoRA activation."
+        )
+    with pool.activate(character_id, runtime=runtime):
+        yield
+
+
+@contextlib.contextmanager
+def _maybe_activate_bound_lora(
+    *,
+    bundle: Any,
+    character_id: str,
+    runtime: Any,
+    enabled: bool,
+    persona_pool: Any,
+    character_pool: Any,
+):
+    """Activate exactly one session-scoped LoRA, with character priority.
+
+    A manifest-bound character adapter defines the selected identity and wins
+    over a figure bundle's persona adapter.  If the selected character has no
+    admitted LoRA record, the independent figure/persona lane may activate.
+    This single context prevents nested adapter activation and makes the
+    priority observable and testable.
+    """
+
+    character_available = (
+        enabled
+        and bool(character_id)
+        and character_pool is not None
+        and character_pool.has(character_id)
+    )
+    if character_available:
+        with _maybe_activate_character_lora(
+            character_id=character_id,
+            runtime=runtime,
+            enabled=enabled,
+            pool=character_pool,
+        ):
+            yield
+        return
+    with _maybe_activate_persona_lora(
+        bundle=bundle,
+        runtime=runtime,
+        enabled=enabled,
+        pool=persona_pool,
+    ):
         yield
 
 

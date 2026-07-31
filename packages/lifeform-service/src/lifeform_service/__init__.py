@@ -33,6 +33,11 @@ from lifeform_service.bundle_root_scanner import (
     scan_and_register_bundles,
 )
 from lifeform_service.cli import main
+from lifeform_service.character_packages import (
+    CharacterRuntimeAssets,
+    CharacterSessionBinding,
+    load_character_runtime_assets,
+)
 from lifeform_service.einstein_resolver import (
     EinsteinBundleResolution,
     resolve_einstein_bundle,
@@ -45,6 +50,7 @@ from lifeform_service.figure_bundle_store import (
     register_bundle_persona_lora,
 )
 from lifeform_service.session_manager import (
+    CharacterSelectionError,
     InvalidTemporalForkError,
     ScopeNotAuthorizedError,
     SessionAlreadyExistsError,
@@ -64,6 +70,9 @@ from lifeform_service.verticals import (
 
 __all__ = (
     "BundleScanReport",
+    "CharacterRuntimeAssets",
+    "CharacterSelectionError",
+    "CharacterSessionBinding",
     "EinsteinBundleResolution",
     "FigureBundleNotFound",
     "FigureBundleStore",
@@ -83,6 +92,7 @@ __all__ = (
     "discover_companion_ablation_verticals",
     "discover_verticals",
     "lookup_figure_bundle",
+    "load_character_runtime_assets",
     "main",
     "register_bundle_persona_lora",
     "resolve_einstein_bundle",

@@ -60,9 +60,11 @@ from lifeform_service.substrate_registry import (
     fixed_provider_from_runtime,
 )
 from lifeform_service.templates import (
+    CharacterPackageTemplateAdapter,
     TemplateContext,
     VerticalTemplateAdapter,
 )
+from lifeform_service.character_packages import CharacterRuntimeAssets
 from lifeform_service.default_mcp_bundle import with_default_mcp_bundle
 from lifeform_service.plugin_attach import (
     apply_contract_policy_for_plugins,
@@ -238,6 +240,7 @@ class SessionManager:
         tenant_id: str = "",
         scope_strategy: str = "",
         instance_ai_id: str = "",
+        character_runtime_assets: CharacterRuntimeAssets | None = None,
     ) -> None:
         """Construct a multi-vertical session manager.
 
@@ -283,6 +286,7 @@ class SessionManager:
         self._idle_eviction_seconds = idle_eviction_seconds
         self._clock = clock
         self._substrate_provider = substrate_provider
+        self._character_runtime_assets = character_runtime_assets
         self._sessions: dict[str, _SessionEntry] = {}
         self._lock = asyncio.Lock()
         # Tenant + memory scope strategy (DLaaS adopt). ``tenant_id`` is
@@ -832,6 +836,11 @@ class SessionManager:
             raise SessionNotFoundError(session_id)
         return entry.character_id
 
+    @property
+    def available_character_ids(self) -> tuple[str, ...]:
+        assets = self._character_runtime_assets
+        return assets.character_ids if assets is not None else ()
+
     def session_end_user(self, session_id: str) -> str | None:
         """Return the end-user this session was created for, or None.
 
@@ -919,18 +928,42 @@ class SessionManager:
             chosen_spec = self._registry.require(chosen_name)
             requested_character_id = (character_id or "").strip()
             bound_character_id = chosen_spec.character_id.strip()
+            character_binding = None
             if requested_character_id:
-                if not bound_character_id:
-                    raise ValueError(
-                        f"vertical {chosen_name!r} does not bind a character "
-                        "package; character_id cannot be selected dynamically."
+                if self._character_runtime_assets is None:
+                    raise CharacterSelectionError(
+                        "character_id selection requires admitted "
+                        "CHARACTER_PACKAGE_MANIFESTS."
                     )
-                if requested_character_id != bound_character_id:
-                    raise ValueError(
-                        f"character_id {requested_character_id!r} does not match "
-                        f"vertical {chosen_name!r} character "
-                        f"{bound_character_id!r}."
+                character_binding = self._character_runtime_assets.get_binding(
+                    requested_character_id
+                )
+                if character_binding is None:
+                    raise CharacterSelectionError(
+                        f"character_id {requested_character_id!r} is not an "
+                        "enabled loaded manifest; available="
+                        f"{self._character_runtime_assets.character_ids!r}."
                     )
+                bound_character_id = requested_character_id
+            elif bound_character_id and self._character_runtime_assets is not None:
+                character_binding = self._character_runtime_assets.get_binding(
+                    bound_character_id
+                )
+                if character_binding is None:
+                    raise CharacterSelectionError(
+                        f"default character_id {bound_character_id!r} has no "
+                        "enabled loaded manifest; select one of "
+                        f"{self._character_runtime_assets.character_ids!r}."
+                    )
+            if (
+                character_binding is not None
+                and character_binding.character_lora_figure_id
+                and not self._persona_lora_enabled
+            ):
+                raise CharacterSelectionError(
+                    f"character package {bound_character_id!r} requires its "
+                    "admitted LoRA carrier, but this contract disables LoRA."
+                )
             alpha_enabled = self._alpha_identity_provider is not None
             identity_provider: "IdentityProvider | None" = None
             if alpha_enabled:
@@ -991,7 +1024,27 @@ class SessionManager:
             adapter_dir = self.templates_dir_for(chosen_name)
 
             template_context: TemplateContext | None = None
-            if template_id is not None and template_id.strip():
+            if character_binding is not None:
+                if template_id is not None and template_id.strip():
+                    raise CharacterSelectionError(
+                        "template_id cannot override a character manifest's "
+                        "content-addressed template."
+                    )
+                if not isinstance(adapter, CharacterPackageTemplateAdapter):
+                    raise CharacterSelectionError(
+                        f"vertical {chosen_name!r} cannot load character package "
+                        "templates."
+                    )
+                life, template_context = (
+                    adapter.build_session_context_from_package_template(
+                        template_path=character_binding.template_path,
+                        runtime=runtime,
+                        identity_provider=identity_provider,
+                        memory_scope_root_dir=self._alpha_memory_scope_root_dir,
+                        alpha_enabled=alpha_enabled,
+                    )
+                )
+            elif template_id is not None and template_id.strip():
                 if adapter is None or adapter_dir is None:
                     raise TemplatesNotSupportedError(
                         f"vertical {chosen_name!r} does not support "
@@ -1034,6 +1087,17 @@ class SessionManager:
                     life, self._contract_plugins
                 )
             life = self._inject_uptake_seed_protocols(life)
+            if bound_character_id:
+                lora_pool = (
+                    self._character_runtime_assets.character_lora_pool
+                    if character_binding is not None
+                    and self._character_runtime_assets is not None
+                    else None
+                )
+                life.bind_character_package(
+                    character_id=bound_character_id,
+                    lora_pool=lora_pool,
+                )
             if self._figure_bundle is not None:
                 bind = getattr(life, "bind_figure_bundle", None)
                 if callable(bind):
@@ -1353,6 +1417,10 @@ class SessionManager:
 
 class SessionNotFoundError(LookupError):
     """Raised when a session_id is not in the manager."""
+
+
+class CharacterSelectionError(ValueError):
+    """Raised when a request cannot form one immutable manifest binding."""
 
 
 class TimeNodeNotFoundError(LookupError):

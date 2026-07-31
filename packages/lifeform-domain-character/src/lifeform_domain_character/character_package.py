@@ -314,7 +314,12 @@ class CharacterPackageManifest:
             return False
         if not evidence.active_eligible or not gate.allows_active:
             return False
-        if self.lora_ref is not None and not evidence.includes_character_lora:
+        # ``includes_character_lora`` only proves the historical combined
+        # arm.  It cannot attest the prefix-only / LoRA-only / prefix+LoRA
+        # ablation required before heavyweight character carriers are
+        # admitted. Keep lora_ref fail-closed until packet F adds that typed
+        # evidence contract; SHADOW manifests remain verifiable.
+        if self.lora_ref is not None:
             return False
         expected_proposal_prefix = (
             f"character-package:{self.ungated_candidate_id}:"
@@ -349,7 +354,8 @@ class CharacterPackageManifest:
                 "held-out immutable feedback-free fidelity pass, matching "
                 "common-adapter fingerprints, and an allowed reversible "
                 "OFFLINE gate record are required; character LoRA packages "
-                "also require an adapter+LoRA evidence arm."
+                "remain SHADOW-only until prefix-only, LoRA-only, and "
+                "prefix+LoRA ablation evidence is part of the contract."
             )
 
     def assert_common_adapter(

@@ -93,7 +93,7 @@ def _manifest(tmp_path, *, with_lora: bool = False, mode: str = "fidelity-only")
 
 
 def test_manifest_round_trip_active_gate_and_artifact_verification(tmp_path) -> None:
-    manifest = _manifest(tmp_path, with_lora=True)
+    manifest = _manifest(tmp_path, with_lora=False)
     path = tmp_path / "manifest.json"
     path.write_text(manifest.to_json(), encoding="utf-8")
 
@@ -103,29 +103,16 @@ def test_manifest_round_trip_active_gate_and_artifact_verification(tmp_path) -> 
 
     assert restored == manifest
     assert resolved[0].name == "template.json"
-    assert resolved[2] is not None and resolved[2].name == "lora"
+    assert resolved[2] is None
 
 
-def test_active_gate_requires_fidelity_and_lora_combination_arm(tmp_path) -> None:
+def test_active_gate_keeps_lora_closed_until_multi_arm_ablation(tmp_path) -> None:
     manifest = _manifest(tmp_path, with_lora=True)
-    evidence = replace(manifest.fidelity_evidence, includes_character_lora=False)
-    denied = CharacterPackageManifest.create(
-        character_id=manifest.character_id,
-        character_name=manifest.character_name,
-        base_model_id=manifest.base_model_id,
-        common_adapter_version=manifest.common_adapter_version,
-        compatibility_fingerprint=manifest.compatibility_fingerprint,
-        template_ref=manifest.template_ref,
-        prefix_kv_ref=manifest.prefix_kv_ref,
-        lora_ref=manifest.lora_ref,
-        fidelity_evidence=evidence,
-        gate_record=manifest.gate_record,
-        revalidation_mode=manifest.revalidation_mode,
-        description=manifest.description,
-    )
 
-    with pytest.raises(ValueError, match=r"adapter\+LoRA"):
-        denied.require_active()
+    assert manifest.fidelity_evidence.includes_character_lora
+    assert not manifest.active_eligible
+    with pytest.raises(ValueError, match="remain SHADOW-only"):
+        manifest.require_active()
 
 
 def test_active_gate_must_bind_the_exact_ungated_candidate(tmp_path) -> None:
