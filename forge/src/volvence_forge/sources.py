@@ -256,7 +256,7 @@ def parse_plan(path: Path) -> PlanSource:
     except (FileNotFoundError, UnicodeDecodeError) as exc:
         raise SourceParseError(f"Cannot read plan {path}: {exc}") from exc
     if not text.startswith("---\n"):
-        raise SourceParseError(f"Plan is missing YAML frontmatter: {path}")
+        return _parse_legacy_markdown_plan(path, text)
     closing = text.find("\n---\n", 4)
     if closing < 0:
         raise SourceParseError(f"Plan frontmatter is not terminated: {path}")
@@ -290,6 +290,25 @@ def parse_plan(path: Path) -> PlanSource:
         name=name.strip(),
         overview=_normalize_excerpt(overview, 1200),
         todo_summary=tuple(todos),
+    )
+
+
+def _parse_legacy_markdown_plan(path: Path, text: str) -> PlanSource:
+    """Parse the repository's one pre-frontmatter plan format explicitly."""
+
+    lines = text.splitlines()
+    heading = next((line[2:].strip() for line in lines if line.startswith("# ") and line[2:].strip()), None)
+    if heading is None:
+        raise SourceParseError(f"Legacy plan needs a level-one heading: {path}")
+    body = "\n".join(line for line in lines if not line.startswith("# ")).strip()
+    if not body:
+        raise SourceParseError(f"Legacy plan needs non-empty narrative context: {path}")
+    return PlanSource(
+        source_id=_source_id("plan", path),
+        path=path,
+        name=heading,
+        overview=_normalize_excerpt(body, 1200),
+        todo_summary=(),
     )
 
 

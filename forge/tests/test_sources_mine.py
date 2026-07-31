@@ -104,6 +104,14 @@ def test_invalid_transcript_fails_loudly(tmp_path: Path) -> None:
         load_source_bundle(config.paths)
 
 
+def test_legacy_heading_only_plan_is_explicitly_supported(tmp_path: Path) -> None:
+    config, _ = _fixture_root(tmp_path)
+    legacy = config.paths.plans_root / "legacy.plan.md"
+    legacy.write_text("# Legacy campaign\n\n> Frozen evidence narrative.\n", encoding="utf-8")
+    bundle = load_source_bundle(config.paths)
+    assert any(plan.name == "Legacy campaign" for plan in bundle.plans)
+
+
 def test_mine_bundle_uses_semantic_backend_and_schema(tmp_path: Path) -> None:
     config, forge_root = _fixture_root(tmp_path)
     bundle = load_source_bundle(config.paths, max_transcripts=1, max_verdicts=1, max_plans=1)
