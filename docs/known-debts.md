@@ -2220,6 +2220,15 @@ return (
 > `thesis_retained=false`、production/live promotion 禁止。reconciliation：
 > `artifacts/mechanism_repair_campaign_20260731`。
 
+> **2026-07-31 ecology 准入映射预注册**：
+> `ecology-gate-evidence-admission.v1` 已在 station1 `052300Z` 尚无判词时
+> 冻结。#92 没有 Gate 3，原计划的 `beta_t / z_t + typed boundary` 映射
+> 归一到 Gate 2；Gate 2 ← station1+station2、Gate 7 ← 双 seed P1 的
+> learned vs `segment_credit_off`、Gate 1 ← P2 PE-on/off、Gate 4 ← A2 GO
+> 后的 fresh ecology label-utility。Gate 6/9/10 不重开。各 source 的字段、
+> 效应门、共同 provenance/lineage/rollback 门与最高等级以
+> `docs/specs/evidence_program.md` 的同名 v1 表为 SSOT，结果后不得改 v1。
+
 - **路径**：
   - 总论与需求：[`docs/volvence-thesis.md`](volvence-thesis.md) · [`docs/next_gen_emogpt.md`](next_gen_emogpt.md)
   - PE / LSS：[`docs/specs/prediction-error-loop.md`](specs/prediction-error-loop.md)
@@ -2302,10 +2311,21 @@ return (
   verdict=`not-supported`。生产 flag 保持关闭；本结果把失败从“参数改了但
   行为空”升级为“当前 PE→temporal 信号合成无因果价值”，也不足以重开
   Gate 7。artifact：`artifacts/gate1_pe_causal_v3_retest_20260731`。
+- **ecology v1 admission**：只有 P1 已 PASS 后的正式 P2 PE-on/off matched
+  bundle 可重开本门；要求 `learned` vs `pe_off` paired mean delta 与 95% CI
+  下界都严格大于 0，且 P2 `pe_eta_causal_degradation` 与完整 verdict 均
+  PASS。零/负效应或 CI 跨 0 直接维持 `not-supported`，不得用 station1
+  milestone 结构旁证替代 PE 消融。
 
 ### Gate 2 — ETA 的 `z_t / beta_t` 涌现与因果残差控制
 
 - **命题**：`z_t` 携带可复用抽象动作，`beta_t` 标记有后果意义的切换边界；KL/rate pressure 控制抽象粒度，next-action/prediction loss 保留任务信息；decoder 输出 `U_t` 对真实 frozen substrate residual stream 产生可测因果作用。
+- **ecology v1 admission**：#92 没有 Gate 3；typed milestone 的
+  `beta_t / z_t` 结构证据归本门。station1 四门与 8/8 persistence 只够
+  mechanism 子证据；只有同 prereg 的 station2 再同时通过 medium pickup
+  80% 非劣、delivery 严格超 control、carrying alignment 转正和 U-turn 门，
+  才能把 typed-boundary 子主张记为 causal-supported。该短程包不满足
+  `>=500` 跨 session 条件，禁止借此升级 longitudinal。
 - **2026-07-28 residual matched-control packet**：`eta-gate2-residual-causal`
 	  已演进到 v30 证据契约，在同一已训练 policy checkpoint、场景、seed、
 	  prefix 和 Qwen2.5-0.5B frozen substrate 上逐步比较
@@ -2712,6 +2732,12 @@ return (
   margin=`-0.083333`。verdict=`not-supported`，结论升级为“当前 segment
   表示对该 readout 任务族无信息增量”，不再向 acquisition policy 追加投入。
   artifact：`artifacts/gate4_label_utility_v3_retest_20260731`。
+- **ecology v1 conditional admission**：只有 Gate 2 station2 因果门 GO 后
+  才允许用其 settled trace 造 fresh corpus；继续复用 cognition owner 的
+  learned utility，而不是恢复固定 segment 权重。相对 turn/random 的 mean
+  labels saved 都必须严格 `>0`，最低最终精度 margin 必须 `>=0`，并通过
+  typed request、lineage、source non-mutation 与 rollback 门。A2 未过时记
+  `not-admitted`；准入后主效应失败即 kill。
 
 ### Gate 5 — CMS 多时间尺度记忆与抗遗忘
 
@@ -2801,6 +2827,12 @@ return (
   mechanism-supported，不再主张 causal advantage；本 locked 不得复用，
   同版机制不得以 v4 重试。artifact：
   `artifacts/gate7_causal_takeover_v3_20260730`。
+- **ecology v1 admission**：可用 seed 0+1 的正式 P1 fresh 报告重开一次，
+  但两份 report 都必须 PASS 且 repeat direction、frozen evaluation、
+  replay lineage、archive roundtrip 全绿。按相同 capability/layout 对齐后，
+  learned 相对 `segment_credit_off` 的总体与 `composite`
+  `successful_bodies / required_bodies` 差都必须严格为正；任一失败即保持
+  现有 `not-supported`，训练期 pickup/delivery 不得救回正式 held-out 门。
 
 ### Gate 8 — Wake/sleep 与 background-slow 反思
 

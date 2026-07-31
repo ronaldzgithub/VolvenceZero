@@ -462,6 +462,28 @@
   `mechanism-supported`，`thesis_retained=false`，不授权 production/live
   promotion。SHA256 绑定的 reconciliation artifact：
   `artifacts/mechanism_repair_campaign_20260731`。
+
+### Ecology 到 #92 台账的预注册准入（v1）
+
+`ecology-gate-evidence-admission.v1` 于 station1 `052300Z` 尚未产生判词时
+冻结。当前 #92 的编号 SSOT **没有 Gate 3**；计划中原称 “Gate 3 的
+`beta_t / z_t` 涌现 + typed boundary” 的内容统一归入现行 **Gate 2**，
+不得为迁就旧计划另建平行 gate。以下映射只规定 fresh ecology artifact
+如何进入既有台账，不改写机制改造战役的 immutable verdict：
+
+| #92 gate | 唯一可准入的 ecology source | 预注册字段与通过门槛 | 最高可升级等级 |
+|---|---|---|---|
+| Gate 2 | station1 `digital-ant-ecology-same-physics-station1.v2` + 同 prereg 续跑的 station2 报告 | station1 的 `verdict="GO"`、四个 `gates.*=true`、8 条 `structural_lanes[].passed=true`，且 direct/review 后 `next_episode_authorized=20`；station2 必须同时满足 medium pickup ratio `>=0.8`、candidate delivery 严格大于 control、`carrying_home_action_alignment` 为正及 U-turn `net_progress>=0.4`、连续接近巢穴 `>=3` 步 | `causal-supported` 的 typed-boundary 子主张；station1 单独最多 `mechanism-supported`。不满足真 substrate、跨 session、`>=500` settled transitions，禁止标为 longitudinal |
+| Gate 7 | seed 0 + seed 1 的正式 P1 `digital-ant-ecology-p1-development.v31` | 两份 report 均 `verdict="PASS"`、`repeat_run_same_direction=true`，并按相同 capability/layout 对齐 `layout_results` 后，learned 相对 `segment_credit_off` 的总体及 `composite` `successful_bodies / required_bodies` 均严格为正；`frozen_evaluation / replay_lineage / checkpoint_archive_roundtrip=true` | `causal-supported`；任一 seed、composition 或完整性门失败即保持现有 `not-supported`，不得用训练期 pickup/delivery 旁证救回 |
+| Gate 1 | P1 PASS 后的正式 P2 PE-on/off matched confirmatory | `paired_effects` 中 `learned` vs `pe_off` 的 mean delta `>0` 且 paired bootstrap `ci95.low>0`，`pe_eta_causal_degradation=true`、`verdict="PASS"`；两臂必须共享 milestone、seed、physics、substrate fingerprint，仅 `prediction_error_enabled` 不同 | `causal-supported`；零/负效应或 CI 跨 0 即 `not-supported`，并把 additive PE prior 生产默认保持 DISABLED |
+| Gate 4 | **仅 Gate 2 station2 上述因果门通过后**，由 ecology settled trace 生成的 fresh label-utility bundle | 必须复用 Gate 4 v3 的 learned utility owner 与最终质量门；`mean_labels_saved_vs_turn>0`、`mean_labels_saved_vs_random>0`、`minimum_final_accuracy_margin>=0`，同时 utility observation、typed request、lineage、source non-mutation 与 rollback 全绿 | `causal-supported`；A2 未过时状态为 `not-admitted`，不是 `not-supported`。准入后任一主效应失败即 kill，不降低 `saved labels > 0` 门槛 |
+
+所有 source 还必须通过共同完整性门：artifact/manifest SHA256 可复算、
+preregistration 与 code-tree binding 精确匹配、matched 臂只有声明的单变量
+差异、frozen evaluation owner fingerprint 不漂移、journal lineage 无 drop。
+任一共同门失败时 artifact 标记 `invalid`，不得进入等级集合。Gate 6/9/10
+保持机制改造战役的 kill 关闭状态；v1 不为它们声明 ecology source。结果产生
+后不得增删本表字段或门槛；新对应面只能另开明确标注事后性的 v2。
 - Gate 7/9/10 第三战役总对账只读取并 SHA256 绑定上述 immutable verdict，
   不重算或抬高门级结论。Gate 1-10 mechanism coverage 已完整（#92 无
   Gate 3）；causal-supported 仅 Gate 2 v35 与 Gate 8，Gate
