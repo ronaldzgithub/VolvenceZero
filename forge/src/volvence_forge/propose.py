@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import difflib
 import json
+import os
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -119,6 +121,10 @@ def propose_changes(
             before=before,
             response=response,
             backend=backend,
+            rollback_command=(
+                "git apply --reverse "
+                f"{shlex.quote(os.path.relpath(proposal_dir / 'patch.diff', config.paths.repo_root))}"
+            ),
         )
         schema_store.validate(manifesto, "proposal_manifesto.schema.json")
         atomic_write_text(proposal_dir / "patch.diff", patch)
@@ -214,6 +220,7 @@ def _manifesto(
     before: str,
     response: dict[str, Any],
     backend: StructuredBackend,
+    rollback_command: str,
 ) -> dict[str, Any]:
     prediction = response["prediction"]
     return {
@@ -233,7 +240,8 @@ def _manifesto(
         "preserve_behaviors": pattern["preserve_behaviors"],
         "rollback": {
             "method": "reverse_patch",
-            "command": "git apply --reverse patch.diff  # run from the proposal bundle directory",
+            "working_directory": "repository_root",
+            "command": rollback_command,
         },
         "generator": {"backend": backend.backend_name, "model": backend.model_name},
         "created_at": utc_now(),

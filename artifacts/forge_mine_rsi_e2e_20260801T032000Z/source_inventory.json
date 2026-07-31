@@ -1,0 +1,15 @@
+{
+  "analysis_backend": "replay",
+  "analysis_model": "rsi-e2e-reviewed-replay-v1",
+  "counts": {
+    "explicit_failed_sources": 11,
+    "failure_patterns": 2,
+    "plans": 29,
+    "promotion_verdicts": 1,
+    "transcripts": 93
+  },
+  "created_at": "2026-07-31T18:52:08.984062Z",
+  "embedding_model": "moka-ai/m3e-base",
+  "schema_version": "forge-source-inventory.v1",
+  "source_bundle_digest": "d056adc6a8cf5e88a490e7a1dbfad745c80d44b3e5cdd48ef3c0d94a31ac9b10"
+}

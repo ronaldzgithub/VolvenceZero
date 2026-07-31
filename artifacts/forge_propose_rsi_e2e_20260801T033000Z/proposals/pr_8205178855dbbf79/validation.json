@@ -1,0 +1,55 @@
+{
+  "checks": [
+    {
+      "detail": "manifesto=fp_9678e251a9209250, frozen_pattern=fp_9678e251a9209250",
+      "name": "bundle-pattern-consistency",
+      "status": "PASS"
+    },
+    {
+      "detail": "single target forge/prompts/failure_mining.system.md in component forge_analysis_prompts",
+      "name": "editable-surface",
+      "status": "PASS"
+    },
+    {
+      "detail": "expected=bfca20505897c534b38e586120d0ee367179855de97726ac1d147c50462c1c51, current=bfca20505897c534b38e586120d0ee367179855de97726ac1d147c50462c1c51",
+      "name": "target-preimage",
+      "status": "PASS"
+    },
+    {
+      "detail": "returncode=0",
+      "name": "git-apply-check",
+      "status": "PASS"
+    },
+    {
+      "detail": "no deleted hunk lines",
+      "name": "phase1-append-only",
+      "status": "PASS"
+    },
+    {
+      "detail": "The append-only patch addresses the cited mechanism at its mapped owner, preserves all existing target content and frozen passing behaviors, and does not alter verifier code or validation commands.",
+      "name": "targeted-relevance-held-in",
+      "status": "PASS"
+    },
+    {
+      "detail": "{\"stderr\":\"\",\"stdout\":\"All checks passed!\\n\"}",
+      "name": "static:0:ruff check forge tests/contracts/test_forge_boundaries.py",
+      "status": "PASS"
+    },
+    {
+      "detail": "{\"stderr\":\"\",\"stdout\":\"..........                                                               [100%]\\n10 passed in 0.23s\\n\"}",
+      "name": "held-in:0:pytest forge/tests -q",
+      "status": "PASS"
+    },
+    {
+      "detail": "{\"stderr\":\"\",\"stdout\":\"........................................................................ [  5%]\\n........................................................................ [ 11%]\\n........................................................................ [ 17%]\\n........................................................................ [ 23%]\\n........................................................................ [ 29%]\\n........................................................................ [ 35%]\\n........................................................................ [ 41%]\\n........................................................................ [ 47%]\\n........................................................................ [ 53%]\\n........................................................................ [ 59%]\\n........................................................................ [ 65%]\\n........................................................................ [ 71%]\\n........................................................................ [ 77%]\\n........................................................................ [ 83%]\\n........................................................................ [ 89%]\\n........................................................................ [ 95%]\\n....................................................                     [100%]\\n1204 passed in 2.24s\\n\"}",
+      "name": "held-out:0:pytest tests/contracts/test_forge_boundaries.py -q",
+      "status": "PASS"
+    }
+  ],
+  "manifesto_sha256": "cc65910e82492c633ef423b06c72e8a7898c47ee312da3079eab0b61cc74a477",
+  "patch_sha256": "27b721696f93efe7fb9d3fa7581c43b4c22dc8fbbbe65bc60d4b0674c61e661f",
+  "proposal_id": "pr_8205178855dbbf79",
+  "schema_version": "forge-validation-report.v1",
+  "status": "PASS",
+  "validated_at": "2026-07-31T18:57:40.391587Z"
+}

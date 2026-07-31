@@ -1,0 +1,208 @@
+{
+  "at_risk_regressions": [
+    "过早把可在当前轨迹修复的局部错误判定为外部阻塞",
+    "恢复证据包增加短期上下文开销"
+  ],
+  "created_at": "2026-07-31T18:57:27.251616Z",
+  "evidence": [
+    {
+      "digest": "063c38396a8c315cce09c57b92e5b01b06625a93093d6001b50dd680aafb6f1b",
+      "excerpt": "User aborted request",
+      "locator": "line:72",
+      "source_id": "transcript:090314ac107ea1f5",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "e6b070ae48351c81fc3b549b064cc3f056c72705071fd330a9ef76a8c339df62",
+      "excerpt": "User aborted request",
+      "locator": "line:165",
+      "source_id": "transcript:090314ac107ea1f5",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "f3424a61815a7b93e4d7436dc1ba98022b4568d2c594f2c652bd6696cf9c7a2a",
+      "excerpt": "[unauthenticated] Error",
+      "locator": "line:200",
+      "source_id": "transcript:090314ac107ea1f5",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "7c54a1bfd26d9168bceee93cfdefca6a4c505f44232546707163ca4a7e48464f",
+      "excerpt": "[unauthenticated] Error",
+      "locator": "line:201",
+      "source_id": "transcript:090314ac107ea1f5",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "d6cd12883593a090368b0448704e41dc7dcc76e8960d8dbfd4f091ae9322afaf",
+      "excerpt": "You have an unpaid invoice Visit [cursor.com/dashboard](https://cursor.com/dashboard) and pay your invoice in Stripe to resume requests.",
+      "locator": "line:847",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "834955e8f748a27577a262d5d04381c0eb07298be872775569bf65af7896e41f",
+      "excerpt": "You have an unpaid invoice Visit [cursor.com/dashboard](https://cursor.com/dashboard) and pay your invoice in Stripe to resume requests.",
+      "locator": "line:848",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "19c070d201fb404af9bc84fba81c74df3f856fd918391992684acc2ad9bda7dc",
+      "excerpt": "You have an unpaid invoice Visit [cursor.com/dashboard](https://cursor.com/dashboard) and pay your invoice in Stripe to resume requests.",
+      "locator": "line:849",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "2f5c0ac716d74d640d4c1e0a76cf212612a50e1d603646d925c026842af5b22e",
+      "excerpt": "You have an unpaid invoice Visit [cursor.com/dashboard](https://cursor.com/dashboard) and pay your invoice in Stripe to resume requests.",
+      "locator": "line:850",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "f6003ccbc8babcd2e359d03e86e76d5751205e3b45ac1bd394f75a69a5ae461e",
+      "excerpt": "You have an unpaid invoice Visit [cursor.com/dashboard](https://cursor.com/dashboard) and pay your invoice in Stripe to resume requests.",
+      "locator": "line:851",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "96128808ff1d966bcb1e91eec4c24e16e472b6de3e8cf43bca08ec71a091f85f",
+      "excerpt": "You have an unpaid invoice Visit [cursor.com/dashboard](https://cursor.com/dashboard) and pay your invoice in Stripe to resume requests.",
+      "locator": "line:852",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "d603dbc4109b1ec6630163e305cd14400becf7ebc28497215fbed6b3ed327014",
+      "excerpt": "Review Data Policy You must acknowledge Fable 5's data retention policy to use the model.",
+      "locator": "line:854",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "bb95cd32b55f5bb894be04d75115a4498888b95b5ae1bb52710c0534fc42871d",
+      "excerpt": "User aborted request",
+      "locator": "line:855",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "f79135ea1282b92da7c204166b0afeef27c05e62cb6d0ebb2105f93537a55bc2",
+      "excerpt": "Canceled",
+      "locator": "line:935",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "3d11d65a2c895f349ad64d10797e385e8b5d9a1314e19dd6f061dcf9160a6d1e",
+      "excerpt": "User aborted request",
+      "locator": "line:936",
+      "source_id": "transcript:3d9e62bb3b463e36",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "4ecd5d440ea96d1c09c4f413498f29017b5ee9b3ae08e7be1ba2278633a3ad37",
+      "excerpt": "User aborted request",
+      "locator": "line:10",
+      "source_id": "transcript:c771907f81d57e8d",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "51464e2b5ac79e0b2dbecc01394ff573e71db7276ad2cd6089812063c6c39032",
+      "excerpt": "User aborted request",
+      "locator": "line:172",
+      "source_id": "transcript:1dba5fa5b1db1630",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "9a7c23bac91cfe4a78829f283273113354fa9144fd8497bc3ab8fdd2653ded12",
+      "excerpt": "Connection failed repeatedly",
+      "locator": "line:3",
+      "source_id": "transcript:7cbcef9fa676bfc4",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "c3c875efd295fa05e44ba7cab3407a24890537e5fb70e2e819efa3f414af2f1a",
+      "excerpt": "You have an unpaid invoice Visit [cursor.com/dashboard](https://cursor.com/dashboard) and pay your invoice in Stripe to resume requests.",
+      "locator": "line:1",
+      "source_id": "transcript:b539248f2849c0c5",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "1d03641be539d8566025d21cefa0675835f2e8f4adbf5fa7e7208d38186e6f38",
+      "excerpt": "User aborted request",
+      "locator": "line:82",
+      "source_id": "transcript:9d3ed0e9ded79227",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "9442150b621fa4bfdb727ee99fa5c79e63c9af4c11bb5f5e2d21821ff8dba238",
+      "excerpt": "User aborted request",
+      "locator": "line:115",
+      "source_id": "transcript:e0ec4ad0c2630944",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "fecb8779dc897abf2d7e2d9f2e6c96c5e59ad1ffcc04d5f22764c8eec6e91c4d",
+      "excerpt": "User aborted request",
+      "locator": "line:119",
+      "source_id": "transcript:e0ec4ad0c2630944",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "8a82c118de228a91c66fdcc4b01e325b98c7d66f36d2ea94e6eb131eb694a6e0",
+      "excerpt": "User aborted request",
+      "locator": "line:21",
+      "source_id": "transcript:877eacb264dfe61c",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "0885d4381086aefe581f782fb8819186a5f35d6339c25213efd5c503ed528d39",
+      "excerpt": "You have an unpaid invoice Visit [cursor.com/dashboard](https://cursor.com/dashboard) and pay your invoice in Stripe to resume requests.",
+      "locator": "line:688",
+      "source_id": "transcript:4005327577155074",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "2121fdfde7adc389943c519bca261fa05b0cd915721917cf0dce1a73c7cc2890",
+      "excerpt": "Review Data Policy You must acknowledge Fable 5's data retention policy to use the model.",
+      "locator": "line:690",
+      "source_id": "transcript:4005327577155074",
+      "source_kind": "transcript"
+    },
+    {
+      "digest": "124b26736f806832fdbcd49a16b40d9072f708695d39b87de17494c8ece67c00",
+      "excerpt": "User aborted request",
+      "locator": "line:701",
+      "source_id": "transcript:4005327577155074",
+      "source_kind": "transcript"
+    }
+  ],
+  "generator": {
+    "backend": "replay",
+    "model": "rsi-e2e-reviewed-replay-v1"
+  },
+  "pattern_id": "fp_84eabb42585228d0",
+  "predicted_impact": {
+    "baseline_value": 10,
+    "direction": "decrease",
+    "evaluation_window": "next_mine_run",
+    "expected_delta": -3,
+    "metric": "pattern_occurrence_count"
+  },
+  "preserve_behaviors": [],
+  "proposal_id": "pr_3166d2cd166a039a",
+  "rollback": {
+    "command": "git apply --reverse artifacts/forge_propose_rsi_e2e_20260801T033000Z/proposals/pr_3166d2cd166a039a/patch.diff",
+    "method": "reverse_patch",
+    "working_directory": "repository_root"
+  },
+  "root_cause": "现有收敛工作流没有冻结结构化错误后的证据、重试资格和交接条件，导致相同失败序列无法收敛到成功或可恢复终态。",
+  "schema_version": "forge-proposal-manifesto.v1",
+  "target": ".cursor/rules/cursor-convergence-workflow.mdc",
+  "target_preimage_sha256": "d3b72a409ff8ca13cf8700aaad4a86b5b5d81f0260a5b966575090b7edcfa733",
+  "targeted_fix": "在唯一的长程收敛规则中加入一次有界、证据增量驱动的恢复协议，并将外部前置条件失败转换为显式交接。"
+}

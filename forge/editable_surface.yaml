@@ -36,7 +36,9 @@ read_only:
 
 semantic_mapping:
   minimum_similarity: 0.30
-  cluster_similarity: 0.72
+  # Kept above the observed 0.772 similarity between unrelated runtime-error
+  # recovery and causal promotion-gate failures in the repository drill.
+  cluster_similarity: 0.80
   proposal_duplicate_similarity: 0.90
 
 # The commands are frozen outside the proposal loop. `held_in` checks Forge's

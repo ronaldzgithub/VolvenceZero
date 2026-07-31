@@ -43,9 +43,11 @@
       "items": {"type": "string", "minLength": 1, "maxLength": 500}
     },
     "rollback": {
-      "type": "object", "additionalProperties": false, "required": ["method", "command"],
+      "type": "object", "additionalProperties": false,
+      "required": ["method", "working_directory", "command"],
       "properties": {
         "method": {"const": "reverse_patch"},
+        "working_directory": {"const": "repository_root"},
         "command": {"type": "string", "minLength": 1}
       }
     },

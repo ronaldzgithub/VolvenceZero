@@ -4,31 +4,31 @@ overview: 在仓库新建与 packages/ 平级的顶层元层 forge/,实现"失�
 todos:
   - id: packet0-skeleton
     content: 包0:建 forge/ 骨架、README(思考沉淀)、editable_surface.yaml、pyproject
-    status: pending
+    status: completed
   - id: packet0-spec
     content: 包0:写 docs/specs/rsi-forge.md 并登记 00_INDEX
-    status: pending
+    status: completed
   - id: packet0-boundary
     content: 包0:新增 tests/contracts/test_forge_boundaries.py 双向边界测试
-    status: pending
+    status: completed
   - id: packet1-sources
     content: 包1:sources.py 解析 transcripts / verdict bundle / plans
-    status: pending
+    status: completed
   - id: packet1-mine
     content: 包1:mine.py 三层失败记录 + 语义聚类 + prompts/schemas
-    status: pending
+    status: completed
   - id: packet2-propose
     content: 包2:propose.py 有界提案(diff + manifesto)+ 去重
-    status: pending
+    status: completed
   - id: packet3-validate
     content: 包3:validate.py fail-closed 校验 + 回归检查
-    status: pending
+    status: completed
   - id: packet3-apply
     content: 包3:apply.py 人审落地 + ledger 预测兑现闭环
-    status: pending
+    status: completed
   - id: verify-e2e
     content: 端到端演练:对真实 transcripts+gate 失败跑一轮循环,产出 proposal bundle
-    status: pending
+    status: completed
 isProject: false
 ---
 

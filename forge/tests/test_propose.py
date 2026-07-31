@@ -106,4 +106,10 @@ def test_propose_writes_bundle_without_mutating_target(tmp_path: Path) -> None:
     assert (proposal_dir / "patch.diff").is_file()
     assert (proposal_dir / "manifesto.json").is_file()
     assert (proposal_dir / "failure_pattern.json").is_file()
+    manifesto = json.loads((proposal_dir / "manifesto.json").read_text(encoding="utf-8"))
+    rollback_command = manifesto["rollback"]["command"]
+    assert manifesto["rollback"]["working_directory"] == "repository_root"
+    assert rollback_command.startswith("git apply --reverse ")
+    assert "proposal-output/proposals/" in rollback_command
+    assert str(tmp_path) not in rollback_command
     assert target.read_text(encoding="utf-8") == before

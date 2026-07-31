@@ -85,6 +85,43 @@ class _EmbeddingBackend:
         return np.tile(np.asarray((1.0, 0.0), dtype=np.float64), (len(texts), 1))
 
 
+class _DistinctCauseBackend:
+    backend_name = "test-replay"
+    model_name = "distinct-causes"
+
+    def __init__(self) -> None:
+        self._cursor = 0
+
+    def complete_json(self, *, system, user, schema):
+        del system, user, schema
+        mechanisms = ("runtime recovery mechanism", "causal promotion gate mechanism")
+        mechanism = mechanisms[self._cursor]
+        self._cursor += 1
+        return {
+            "records": [
+                {
+                    "verifier_cause": mechanism,
+                    "agent_behavior_cause": mechanism,
+                    "exposed_mechanism": mechanism,
+                    "confidence": 0.9,
+                }
+            ]
+        }
+
+
+class _NearButDistinctEmbeddingBackend:
+    model_name = "fixture-near-distinct"
+
+    def encode(self, texts):
+        values = []
+        for value in texts:
+            if "causal promotion gate mechanism" in value:
+                values.append((0.78, np.sqrt(1.0 - 0.78**2)))
+            else:
+                values.append((1.0, 0.0))
+        return np.asarray(values, dtype=np.float64)
+
+
 def test_load_source_bundle_is_structured_and_deterministic(tmp_path: Path) -> None:
     config, _ = _fixture_root(tmp_path)
     bundle = load_source_bundle(config.paths)
@@ -129,3 +166,23 @@ def test_mine_bundle_uses_semantic_backend_and_schema(tmp_path: Path) -> None:
     assert patterns[0]["surface_status"] == "in-surface"
     assert patterns[0]["editable_target"] == ".cursor/rules/test.mdc"
     assert str(patterns[0]["pattern_id"]).startswith("fp_")
+
+
+def test_mine_does_not_merge_near_but_distinct_failure_causes(tmp_path: Path) -> None:
+    config, forge_root = _fixture_root(tmp_path)
+    bundle = load_source_bundle(config.paths, max_transcripts=1, max_verdicts=1, max_plans=1)
+
+    patterns = mine_bundle(
+        bundle=bundle,
+        config=config,
+        structured_backend=_DistinctCauseBackend(),
+        embedding_backend=_NearButDistinctEmbeddingBackend(),
+        schema_store=SchemaStore(forge_root / "schemas"),
+        prompt_store=PromptStore(forge_root / "prompts"),
+    )
+
+    assert len(patterns) == 2
+    assert {tuple(pattern["source_kinds"]) for pattern in patterns} == {
+        ("promotion_verdict",),
+        ("transcript",),
+    }
