@@ -10,19 +10,19 @@ todos:
     status: completed
   - id: p2-console-api
     content: P2：lifeform-service 逐条记忆 console API（六操作映射 owner API）
-    status: pending
+    status: completed
   - id: p3-console-ui
     content: P3：内嵌 chat UI 记忆面板
-    status: pending
+    status: completed
   - id: p4-outcome
     content: P4：console 纠正事件回流 dialogue_external_outcome + 验证 CP-12 跨 session 结算
-    status: pending
+    status: completed
   - id: p5-metrics
     content: P5：evaluation 七项 continuity 指标 readout + metrics 端点
-    status: pending
+    status: completed
   - id: p6-pilot
     content: P6：Gate 11 负控离线回归门 + 7 天邀请制 pilot harness（对接 L4 素材）
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -99,3 +99,16 @@ P0 → P1 → (P2 → P3) 与 P4 并行 → P5 → P6。基底层零改动；全
 - 每包只跑直接相关测试：P1 补 reflection readout 单测；P2/P4 补 service 集成测试（含 delete/rewrite 后 next-session 不再出现该条目）；P5 补 readout 单测。
 - P1/P5 涉及新 slot → 追加 `pytest tests/contracts`。
 - 验收沿用提案七指标，不追 DAU；kill 条款：pilot 中 boundary violation 或 wrong-user attribution 非零且不可归因于工程 bug → console 默认策略收紧为全提案人工确认。
+
+## 2026-08-01 自动化证据扩展对账
+
+MVP P0–P6 的产品 owner/wiring 不变；新增 out-of-turn 七日证据执行面见
+`docs/specs/seven-day-companion-evidence.md`。它把模拟用户、HTTP session、虚拟日历、
+persist/restart/hydrate、cold-start/日终指标和 Gate 8/11 capture 接通，但不新增 runtime
+slot，也不把 Gate 11 负控带入生产路由。
+
+预注册工件为 `artifacts/seven_day_companion_simulated_prereg_20260731T193423Z.json`
+（SHA-256 `aa28e684c82faf14d63c2b3188633be670e2c822ad26d538dc1888d8a0fc73db`）。正式
+36-run/252-session 矩阵尚未执行，因此 MVP 当前没有新的 simulated effect verdict；
+也没有 L4 真人评分或 real-user product-value 结论。此扩展不授权任何 production ACTIVE
+翻转。
