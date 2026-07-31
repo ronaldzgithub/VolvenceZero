@@ -84,3 +84,32 @@ Gate 2 longitudinal 保持 `not-supported`，v35 causal verdict 不撤销。
 - formal artifact 记录 source、selector、candidate artifact 的前后 SHA256；
 - 回滚为删除 companion artifact。source、selector、模型权重和 runtime
   owner state 不需要恢复。
+
+## 6. 结果（2026-07-30）
+
+真实 Qwen full-width smoke 精确复现 learned basis fingerprint
+`326aecdd…`，v35 selector shape/fingerprint 与 22 臂 candidate mapping 全绿；
+随后正式运行 seed 1201 全部 510 transitions / 51 sessions。
+
+正式结果：
+
+- selector−permutation mean=`-0.0018949574`；
+- selector−zero mean=`-0.0026506022`；
+- session primary positive rate=`0.2745098`；
+- selected action coverage=`3/22`，action 5/18/20 分别选择
+  `152 / 340 / 18` 次（诊断）；
+- input/outcome=`510/510`，fallback/mutation/owner write=`0`；
+- source、selector、candidate artifact SHA256 前后一致；
+- companion row 明确为
+  `isolated-residual-forward->realized-continuation-nll-readout`，
+  `typed_pe_credit_executed=false`，不冒充 typed PE/credit owner 路径；
+- 12-file evidence bundle 加两份核心 companion 的 14-entry freeze manifest
+  全绿。
+
+第 4、5、7 门同时失败，machine status=`single-seed-stoploss`。按 §4 不运行
+seed 1213/1223，不改变 selector/basis/null/阈值重跑。本包判
+`longitudinal-readout-supported=false`；Gate 2 官方 longitudinal verdict
+保持 `not-supported`，v35 causal-supported 不撤销。权威 artifact：
+`artifacts/gate2_longitudinal_v35_companion_seed1201_formal_20260730`。
+smoke artifact 只证明执行契约：
+`artifacts/gate2_longitudinal_v35_companion_smoke_20260730`。

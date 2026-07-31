@@ -1,0 +1,84 @@
+{
+  "cross_seed_ci_gate": false,
+  "primary_confidence_interval_95": [
+    -0.0018949574115229588,
+    -0.0018949574115229588
+  ],
+  "primary_seed_means": [
+    -0.0018949574115229588
+  ],
+  "readout_supported": false,
+  "schema_version": "gate2-longitudinal-v35-companion-capture.v1",
+  "seed_summaries": [
+    {
+      "complete": true,
+      "consumer_session_count": 51,
+      "gates": {
+        "count_at_least_500": true,
+        "selector_minus_permutation_at_least_0_02": false,
+        "selector_minus_zero_at_least_0_02": false,
+        "session_positive_rate_at_least_0_60": false
+      },
+      "matched_outcome_count": 510,
+      "readout_input_count": 510,
+      "seed": 1201,
+      "selected_action_counts": {
+        "5": 152,
+        "18": 340,
+        "20": 18
+      },
+      "selected_action_coverage": 3,
+      "selected_action_entropy": 0.7491204496434002,
+      "selected_equals_permutation_rate": 0.049019607843137254,
+      "selector_minus_permutation_mean": -0.0018949574115229588,
+      "selector_minus_zero_mean": -0.002650602191102271,
+      "session_primary_positive_rate": 0.27450980392156865,
+      "single_seed_stoploss_passed": false,
+      "source_transition_count": 510
+    },
+    {
+      "complete": false,
+      "consumer_session_count": 0,
+      "gates": {
+        "count_at_least_500": false,
+        "selector_minus_permutation_at_least_0_02": false,
+        "selector_minus_zero_at_least_0_02": false,
+        "session_positive_rate_at_least_0_60": false
+      },
+      "matched_outcome_count": 0,
+      "readout_input_count": 0,
+      "seed": 1213,
+      "selected_action_counts": {},
+      "selected_action_coverage": 0,
+      "selected_action_entropy": 0,
+      "selected_equals_permutation_rate": 0.0,
+      "selector_minus_permutation_mean": 0.0,
+      "selector_minus_zero_mean": 0.0,
+      "session_primary_positive_rate": 0.0,
+      "single_seed_stoploss_passed": false,
+      "source_transition_count": 510
+    },
+    {
+      "complete": false,
+      "consumer_session_count": 0,
+      "gates": {
+        "count_at_least_500": false,
+        "selector_minus_permutation_at_least_0_02": false,
+        "selector_minus_zero_at_least_0_02": false,
+        "session_positive_rate_at_least_0_60": false
+      },
+      "matched_outcome_count": 0,
+      "readout_input_count": 0,
+      "seed": 1223,
+      "selected_action_counts": {},
+      "selected_action_coverage": 0,
+      "selected_action_entropy": 0,
+      "selected_equals_permutation_rate": 0.0,
+      "selector_minus_permutation_mean": 0.0,
+      "selector_minus_zero_mean": 0.0,
+      "session_primary_positive_rate": 0.0,
+      "single_seed_stoploss_passed": false,
+      "source_transition_count": 510
+    }
+  ]
+}

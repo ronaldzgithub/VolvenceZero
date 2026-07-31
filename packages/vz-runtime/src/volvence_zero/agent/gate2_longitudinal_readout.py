@@ -295,11 +295,14 @@ def _validate_matched_outcome(
     ):
         _finite_number(row.get(field), field=f"{transition_id}.{field}")
     if row.get("outcome_chain") != (
-        "isolated-residual-forward->realized-continuation-nll"
-        "->prediction-error->action-credit"
+        "isolated-residual-forward->realized-continuation-nll-readout"
     ):
         raise ValueError(
             f"{transition_id} outcome is not from the isolated matched lane"
+        )
+    if row.get("typed_pe_credit_executed") is not False:
+        raise ValueError(
+            f"{transition_id} readout must not claim typed PE/credit execution"
         )
     if row.get("source_fixed_outcome_reused") is not False:
         raise ValueError(

@@ -1,0 +1,16 @@
+{
+  "ablation_results.json": "9c43fc7d45824947e90251c1abe664ac5b971cecb1bbcedcfa13d1cc51fb3c1e",
+  "action_selection.jsonl": "55996dd419e0a4e3ad42fce80bad4f210a4b86d60883921bd1ec36c4f87dcfad",
+  "credit.jsonl": "220a354d1825d10ecc86822c0a27d8a593e416ee6dd6c400435261ef9a4a1deb",
+  "manifest.yaml": "2d8bc96156bf585ad44237624552b4be53a2ad7a969d5c1304efefee83c93d3f",
+  "outcomes.jsonl": "cee4d62e58069ad0a8c8c0f137216746b9f01991542ec27558a80ac7dd5ef520",
+  "prediction_errors.jsonl": "66ca00f4a0d9a93bae4d1db5859c603eb5be7496ccdd16329a89062f48268cd9",
+  "predictions.jsonl": "2a7990c927a3bfaa7404f49266c0a4288866d1eed538abb7b1df9b8429542134",
+  "promotion_verdict.json": "b6cf77219af6e509dd813cc9c25523d47e8b342e7345210b4fb8f99638d8770d",
+  "report.md": "a08ca1ca7ddf55b92b79af3d97a1472f59555fe45c5fcb9a4ec1e8a227607a62",
+  "rollback_evidence.json": "62ceecab264d3055f9c61d338e0039df36722d7e612ce06d653b47f1cb5524a1",
+  "seed_1201/selector_matched_outcomes.jsonl": "75a5ba2725eb6e40ed3669b57ac57e03b911e67e4c7ed6af606b4479591b534e",
+  "seed_1201/selector_readout_inputs.jsonl": "fb2d0b4185d0a9593f89f6183e868c0fc7306e2acbf94beb258ec37d1c730537",
+  "segments.jsonl": "98940d4713f1a33dbc7991659e079076827a4dc115c32078a787510a50f731a9",
+  "state_diff.jsonl": "813faffbba5c790dbd8baecfb697ba1c776e1e55d2129b91ead05768edac30d0"
+}

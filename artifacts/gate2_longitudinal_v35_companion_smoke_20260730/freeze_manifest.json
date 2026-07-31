@@ -9,6 +9,8 @@
   "promotion_verdict.json": "2edb1ace240c567ce6f43ce79b11119a1541e4fdcf5eabcac1bf3993ae44ffff",
   "report.md": "2f22ec89da0791ad8d5c73b3738721ace86a58abb8554a0d1756b80010ddf82a",
   "rollback_evidence.json": "62ceecab264d3055f9c61d338e0039df36722d7e612ce06d653b47f1cb5524a1",
+  "seed_1201/selector_matched_outcomes.jsonl": "c3e963722006fe406319f28a505da87a5ccc821f4bdd878dc697740055e24315",
+  "seed_1201/selector_readout_inputs.jsonl": "1dbe625c765634c1623f37cb1fd444538b03faa93a4f1bcd55d8aea8a5400893",
   "segments.jsonl": "0fcdbbe4183b5ff48c06fd9c02be858178250c69106591b40de87138d425509b",
   "state_diff.jsonl": "813faffbba5c790dbd8baecfb697ba1c776e1e55d2129b91ead05768edac30d0"
 }

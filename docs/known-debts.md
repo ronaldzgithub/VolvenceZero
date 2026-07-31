@@ -2589,6 +2589,27 @@ return (
   capture 与 isolated selected/zero/permutation counterfactual lane 发布两份
   companion，再一次性检验 `validation_delta ≥ 0.02`。artifact：
   `artifacts/gate2_longitudinal_v35_readout_admission_20260730`。
+- **2026-07-30 longitudinal v35 read-only companion（SINGLE-SEED
+  STOP-LOSS）**：按
+  [`.cursor/plans/gate-2-longitudinal-v35-companion-capture_20260730.plan.md`](../.cursor/plans/gate-2-longitudinal-v35-companion-capture_20260730.plan.md)
+  冻结 Qwen2.5-0.5B CPU、width 896、hook 20/21/22、v35 selector/basis、
+  22 臂 applied-control 映射、track scale 0.7 与 balanced permutation
+  schedule。执行契约 smoke 精确复现 selector `ef360e0e…`、basis
+  `326aecdd…` 和 8076 维 input 后，seed 1201 完成全部 `510` transitions /
+  `51` sessions。正式 selector−permutation=`−0.001895`、
+  selector−zero=`−0.002651`、session primary positive
+  rate=`0.274510`，三项分别低于预注册 `0.02 / 0.02 / 0.60` 门；
+  selected action 仅覆盖 `3/22`（5/18/20=`152/340/18`，诊断）。
+  machine status=`single-seed-stoploss`，故不运行 seed 1213/1223，也不调
+  selector、basis、null schedule、track scale 或阈值重跑同一 source。
+  两份 companion 均 `510/510`，fallback/mutation/owner write=`0`，
+  source/selector/candidate SHA256 前后一致；row 明确是 isolated NLL
+  readout、`typed_pe_credit_executed=false`，12-file bundle 加核心 companion
+  的 14-entry freeze manifest 全绿。**主张收缩**：v35 在短合成 route 上的
+  causal support 保留，但其 open-loop readout 未迁移到本 ≥500
+  real-substrate、跨 session source；Gate 2 longitudinal 维持
+  `not-supported`，不允许声明“涌现抽象已证明”。artifact：
+  `artifacts/gate2_longitudinal_v35_companion_seed1201_formal_20260730`。
 - **证据污染约束**：现有 heldout 已在 v1-v15 调参中反复观察，只能记为
   `development-heldout`。v16 晋升必须同时满足 eval 方向为正，以及一个
   从未用于本轮设计/停止决策的 locked `confirmation` split 相对最佳

@@ -60,9 +60,10 @@ def _outcome(
         "zero_realized_delta": 0.0,
         "permutation_null_mean": 0.005,
         "outcome_chain": (
-            "isolated-residual-forward->realized-continuation-nll"
-            "->prediction-error->action-credit"
+            "isolated-residual-forward->"
+            "realized-continuation-nll-readout"
         ),
+        "typed_pe_credit_executed": False,
         "source_fixed_outcome_reused": False,
     }
 

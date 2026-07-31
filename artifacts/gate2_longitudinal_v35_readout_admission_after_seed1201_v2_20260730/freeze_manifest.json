@@ -1,0 +1,14 @@
+{
+  "ablation_results.json": "cfacaf5447aef35dfd41fcffc4499d35303ec795c01b5a2b64625ff5cd2289d3",
+  "action_selection.jsonl": "472262583405effa099f56ce1a1675acd151dddf8fa8eb26efcddda21c092f0d",
+  "credit.jsonl": "742aac590d286388513a0817634a95f283b5633eeec299f67aa883b021e34414",
+  "manifest.yaml": "6ce88c26a60d4dd47bf5d7d165f14b03105b9da8cdd2393a831d0d5cc5add870",
+  "outcomes.jsonl": "ca625c842055dd75035dcfc7e77a682c45976d58ba090e95e26ebd6699a0379d",
+  "prediction_errors.jsonl": "580de037351083a773afc7f4ccbf048eaeaadbe6e711efc775a76211c9544215",
+  "predictions.jsonl": "c354d4c13f7bf0cddf0476d645b39857720c4d41ab65b772c82f94b9b994f0b3",
+  "promotion_verdict.json": "eb6591600e6b38710679341fe2d8971d42bd825f1024062b382f9d5b123a492f",
+  "report.md": "5551e1769b3a707266c41863bfbb550efb3557889ce0c6bab1b608268cbde48c",
+  "rollback_evidence.json": "b12c1515fc00f0788cd0570cb568f2779e8a0dc0c36577db5d9ef9ad91cc539e",
+  "segments.jsonl": "9d828796cd4baa5abb5710b106de66ba8c7fd336ed202f42ddd2ece748161688",
+  "state_diff.jsonl": "e10cd3cdcedfd2221c485c43c232503937f93aabb8d81a1ef898c1fcb3c488e2"
+}

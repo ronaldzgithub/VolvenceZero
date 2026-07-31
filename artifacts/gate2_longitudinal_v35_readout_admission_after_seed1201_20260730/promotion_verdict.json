@@ -1,0 +1,11 @@
+{
+  "admission_status": "capture-required",
+  "inherited_gate2_evidence_level": "causal-supported",
+  "longitudinal_verdict": "not-supported",
+  "next_action": "capture-fullwidth-readout-inputs-and-matched-outcomes",
+  "promotion_allowed": false,
+  "readout_ready": false,
+  "schema_version": "gate2-longitudinal-open-loop-readout-admission.v1",
+  "source_admitted": true,
+  "validation_delta_computed": false
+}

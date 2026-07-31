@@ -1,0 +1,51 @@
+{
+  "basis_provenance": {
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "control_basis_fit_route_ids": "train-corridor-alpha-beta-delta,train-zigzag-beta-gamma-alpha,train-loop-delta-beta-epsilon,train-expanded-alpha-gamma-beta-epsilon,train-expanded-beta-delta-gamma-epsilon,train-expanded-delta-beta-alpha-gamma,train-expanded-hub-beta-delta-epsilon,train-expanded-alpha-delta-hub-epsilon,train-independent-forecast-revision,train-independent-delayed-decision,train-independent-changing-conditions,train-independent-promise-ledger,train-independent-reliable-response,train-independent-visible-priorities,train-independent-unfamiliar-information,train-independent-recorded-recovery",
+    "control_basis_fit_split": "train",
+    "control_basis_mode": "train-transition-pca-v1",
+    "control_basis_provenance": "train-transition-pca-v1:326aecddc8d0b7e8",
+    "control_basis_transition_count": "106"
+  },
+  "candidate_artifact_path": "artifacts/eta_gate2_residual_causal_v35_selector_null_fresh_fullwidth896_qwen25_05b_cpu_1seed_20260729/counterfactual_outcomes.jsonl",
+  "candidate_mapping_fingerprint": "b62fd7f09f702590f370a2eb261e8891d868cd48da8cd539ff8f30f29aca284d",
+  "min_effect": 0.02,
+  "min_session_positive_rate": 0.6,
+  "permutation_schedule": "(global_index+seed_rank*7)%22",
+  "preregistered_plan": ".cursor/plans/gate-2-longitudinal-v35-companion-capture_20260730.plan.md",
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "schema_version": "gate2-longitudinal-v35-companion-capture.v1",
+  "selector_artifact_path": "artifacts/eta_gate2_v36_recent_k1_development_20260730/selector_artifact.json",
+  "selector_lineage": {
+    "artifact_sha256": "929514071865d4c44020eaadce5940a2da95e4931215dfdb7d6d3d313e819905",
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "fit_split": "train",
+    "run_id": "eta-gate2-v36-recent-k1-diagnostic-ci-smoke:run-01",
+    "run_seed": 0,
+    "selector_action_count": 22,
+    "selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+    "selector_input_dim": 8076,
+    "selector_model_kind": "linear-kernel-ridge-v1",
+    "selector_schema_version": "residual-action-selector.v1",
+    "wrapper_schema_version": "eta-gate2-selector-artifact.v1"
+  },
+  "source_root": "artifacts/gate11_longitudinal_source_v2_20260730",
+  "track_scale": [
+    0.7,
+    0.7,
+    0.7
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "companion_root": "artifacts/gate2_longitudinal_v35_companion_seed1201_formal_20260730",
+  "contract": {
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "min_consumer_session_count": 2,
+    "min_settled_transition_count": 500,
+    "selector_action_count": 22,
+    "selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+    "selector_input_dim": 8076
+  },
+  "git_commit": "676b2c750dcc4acbb672ecc5e75bf3d0e6fec777",
+  "git_status": "?? artifacts/gate2_longitudinal_v35_companion_seed1201_formal_20260730/",
+  "preregistered_plan": ".cursor/plans/gate-2-longitudinal-v35-readout-admission_20260730.plan.md",
+  "required_files": [
+    "manifest.yaml",
+    "predictions.jsonl",
+    "outcomes.jsonl",
+    "prediction_errors.jsonl",
+    "segments.jsonl",
+    "credit.jsonl",
+    "state_diff.jsonl",
+    "action_selection.jsonl",
+    "ablation_results.json",
+    "promotion_verdict.json",
+    "rollback_evidence.json",
+    "report.md"
+  ],
+  "run_kind": "read-only-admission",
+  "schema_version": "gate2-longitudinal-open-loop-readout-admission.v1",
+  "selector_artifact_path": "artifacts/eta_gate2_v36_recent_k1_development_20260730/selector_artifact.json",
+  "selector_lineage": {
+    "artifact_sha256": "929514071865d4c44020eaadce5940a2da95e4931215dfdb7d6d3d313e819905",
+    "control_basis_fingerprint": "326aecddc8d0b7e81161568121d457267d8473c22dc74c11b0dc1396b4d9761b",
+    "fit_split": "train",
+    "run_id": "eta-gate2-v36-recent-k1-diagnostic-ci-smoke:run-01",
+    "run_seed": 0,
+    "selector_action_count": 22,
+    "selector_fingerprint": "ef360e0e72e00d235e7fc0df39b249178e080bf2065c6443dad801dfd77f4293",
+    "selector_input_dim": 8076,
+    "selector_model_kind": "linear-kernel-ridge-v1",
+    "selector_schema_version": "residual-action-selector.v1",
+    "wrapper_schema_version": "eta-gate2-selector-artifact.v1"
+  },
+  "source_root": "artifacts/gate11_longitudinal_source_v2_20260730"
+}

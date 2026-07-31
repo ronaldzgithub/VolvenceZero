@@ -425,9 +425,10 @@ def capture_gate2_longitudinal_seed(
                 "(global_index+seed_rank*7)%22"
             ),
             "outcome_chain": (
-                "isolated-residual-forward->realized-continuation-nll"
-                "->prediction-error->action-credit"
+                "isolated-residual-forward->"
+                "realized-continuation-nll-readout"
             ),
+            "typed_pe_credit_executed": False,
             "source_fixed_outcome_reused": False,
             "substrate_mutation_applied": False,
             "source_record_sha256": record["record_sha256"],
@@ -813,8 +814,69 @@ def export_gate2_longitudinal_capture_bundle(
         name: _sha256_file(root / name)
         for name in GATE2_LONGITUDINAL_CAPTURE_REQUIRED_FILES
     }
+    for seed in GATE11_LONGITUDINAL_SOURCE_SEEDS:
+        for name in (
+            GATE2_LONGITUDINAL_INPUT_FILENAME,
+            GATE2_LONGITUDINAL_OUTCOME_FILENAME,
+        ):
+            path = root / f"seed_{seed}" / name
+            if path.is_file():
+                freeze_manifest[str(path.relative_to(root))] = (
+                    _sha256_file(path)
+                )
     _write_json(root / "freeze_manifest.json", freeze_manifest)
     return verdict
+
+
+def reconcile_gate2_longitudinal_readout_chain(
+    *,
+    output_root: str | Path,
+) -> int:
+    """Correct the readout provenance label and refresh row digests."""
+
+    root = Path(output_root)
+    updated_count = 0
+    for seed in GATE11_LONGITUDINAL_SOURCE_SEEDS:
+        path = (
+            root
+            / f"seed_{seed}"
+            / GATE2_LONGITUDINAL_OUTCOME_FILENAME
+        )
+        if not path.is_file():
+            continue
+        rows = _load_companion_records(path)
+        normalized_rows = []
+        for row in rows.values():
+            normalized = dict(row)
+            normalized.pop("record_sha256", None)
+            normalized["outcome_chain"] = (
+                "isolated-residual-forward->"
+                "realized-continuation-nll-readout"
+            )
+            normalized["typed_pe_credit_executed"] = False
+            normalized["record_sha256"] = hashlib.sha256(
+                _canonical_bytes(normalized)
+            ).hexdigest()
+            normalized_rows.append(normalized)
+        _write_jsonl(path, tuple(normalized_rows))
+        updated_count += len(normalized_rows)
+    freeze_manifest = {
+        name: _sha256_file(root / name)
+        for name in GATE2_LONGITUDINAL_CAPTURE_REQUIRED_FILES
+        if (root / name).is_file()
+    }
+    for seed in GATE11_LONGITUDINAL_SOURCE_SEEDS:
+        for name in (
+            GATE2_LONGITUDINAL_INPUT_FILENAME,
+            GATE2_LONGITUDINAL_OUTCOME_FILENAME,
+        ):
+            path = root / f"seed_{seed}" / name
+            if path.is_file():
+                freeze_manifest[str(path.relative_to(root))] = (
+                    _sha256_file(path)
+                )
+    _write_json(root / "freeze_manifest.json", freeze_manifest)
+    return updated_count
 
 
 def run_gate2_longitudinal_companion_capture(

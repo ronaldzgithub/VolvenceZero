@@ -1042,6 +1042,22 @@
 	  primary 的 95% t-CI 下界 `>=0.02`。本包即使通过也只产
 	  `longitudinal-readout-supported` 子证据，不能跳过 Gate 2 EXIT 的
 	  abstraction-quality reconciliation。
+
+	  同日 full-width smoke 精确复现 v35 basis/selector/candidate mapping 后，
+	  seed 1201 正式完成 `510` transitions / `51` sessions。结果
+	  selector−permutation=`−0.001895`、selector−zero=`−0.002651`、session
+	  primary positive rate=`0.274510`，分别失败 `0.02 / 0.02 / 0.60`
+	  三个预注册门；selected action 只覆盖 `3/22`（index 5/18/20 =
+	  `152/340/18`，仅诊断）。因此 machine status=`single-seed-stoploss`，
+	  按计划不运行 seed 1213/1223，`longitudinal_readout_supported=false`。
+	  两份 companion 均 510/510、full-width 8076，fallback/mutation/owner
+	  write=0，source/selector/candidate SHA256 前后一致。row provenance 已
+	  明确为 isolated NLL readout、`typed_pe_credit_executed=false`；12-file
+	  bundle 加两份 companion 的 14-entry freeze manifest 全绿。本反证说明
+	  v35 在短合成 route 上成立的条件化动作价值未迁移到该 ≥500
+	  real-substrate 跨 session source；不撤销原 causal verdict，但 Gate 2
+	  longitudinal 继续 `not-supported`。artifact：
+	  `artifacts/gate2_longitudinal_v35_companion_seed1201_formal_20260730`。
 - NL slow-loop 支持 ETA fast path 的 claim 需要读取 memory / credit / family payoff / long-horizon coverage 等 runtime evidence，不能只用“有 slow loop job 完成”作为结论
 - Phase 2/3 SHADOW candidate smoke 现在有独立 artifact schema：`phase2_shadow_evidence_smoke.json`，`schema_version="phase2-shadow-evidence-smoke.v1"`。该 artifact 由 `scripts/run_phase2_shadow_evidence_smoke.py` 生成，覆盖 SYS-1 / COG-1 / COG-2 / COG-3 单项 profile 与可选 Phase 3 组合 profile；它是 SHADOW review artifact，不是 retain/fail claim verdict 的替代。
 - Phase 2/3 multi-seed evidence 现在有独立 artifact schema：`phase2_shadow_evidence_multiseed.json`，`schema_version="phase2-shadow-evidence-multiseed.v1"`；阶段 D decision report schema 为 `phase2_shadow_decision_report.json`，`schema_version="phase2-shadow-decision-report.v1"`。二者仍是 SHADOW/decision-support artifact，不直接替代完整 paper-suite claim verdict。
