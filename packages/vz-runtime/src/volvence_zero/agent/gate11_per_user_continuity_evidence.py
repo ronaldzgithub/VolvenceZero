@@ -109,6 +109,79 @@ class Gate11SeedMetric:
     persistence_roundtrip_exact: bool
 
 
+@dataclass(frozen=True)
+class Gate11ContinuityRegressionResult:
+    passed: bool
+    failed_gates: tuple[str, ...]
+    comparison_gains: tuple[tuple[str, float], ...]
+    schema_version: str
+
+
+_GATE11_REGRESSION_REQUIRED_GATES = (
+    "all_arms_all_seeds_present",
+    "settled_transition_count_510_per_arm_seed",
+    "multiple_sessions_per_arm_seed",
+    "constructor_restarts_present",
+    "persistence_roundtrip_exact",
+    "same_current_probe_all_arms",
+    "swapped_state_target_hits_zero",
+    "cross_user_read_leakage_zero",
+    "cross_user_write_leakage_zero",
+    "cross_user_key_collision_zero",
+    "delete_exact",
+    "rollback_exact",
+    "correct_vs_stateless_effect",
+    "correct_vs_swapped_effect",
+    "correct_vs_shuffled_effect",
+)
+
+
+def evaluate_gate11_continuity_regression(
+    artifact_root: str | Path,
+) -> Gate11ContinuityRegressionResult:
+    """Validate an existing four-arm artifact without rerunning evidence."""
+
+    root = Path(artifact_root)
+    payload = json.loads((root / "ablation_results.json").read_text(encoding="utf-8"))
+    schema_version = str(payload.get("schema_version", ""))
+    if schema_version != GATE11_CONTINUITY_SCHEMA_VERSION:
+        raise ValueError(
+            f"Gate 11 regression schema mismatch: {schema_version!r}"
+        )
+    gates = payload.get("gates")
+    comparisons = payload.get("comparisons")
+    if not isinstance(gates, dict) or not isinstance(comparisons, dict):
+        raise ValueError("Gate 11 regression artifact lacks gates/comparisons")
+    failed = tuple(
+        name
+        for name in _GATE11_REGRESSION_REQUIRED_GATES
+        if gates.get(name) is not True
+    )
+    gains: list[tuple[str, float]] = []
+    for control in (
+        "stateless",
+        "swapped-user-state",
+        "shuffled-history",
+    ):
+        comparison = comparisons.get(control)
+        if not isinstance(comparison, dict):
+            raise ValueError(f"Gate 11 regression lacks comparison {control!r}")
+        mean_gain = float(comparison["mean_gain"])
+        interval = comparison["confidence_interval_95"]
+        if not isinstance(interval, list) or len(interval) != 2:
+            raise ValueError(f"Gate 11 comparison {control!r} has invalid CI")
+        if mean_gain <= 0.0 or float(interval[0]) <= 0.0:
+            failed += (f"comparison:{control}",)
+        gains.append((control, mean_gain))
+    failed = tuple(dict.fromkeys(failed))
+    return Gate11ContinuityRegressionResult(
+        passed=not failed,
+        failed_gates=failed,
+        comparison_gains=tuple(gains),
+        schema_version=schema_version,
+    )
+
+
 def _canonical_bytes(payload: object) -> bytes:
     return json.dumps(
         payload,
@@ -1329,6 +1402,8 @@ __all__ = [
     "GATE11_MIN_GAIN_SWAPPED",
     "Gate11SeedMetric",
     "Gate11UserMetric",
+    "Gate11ContinuityRegressionResult",
+    "evaluate_gate11_continuity_regression",
     "export_gate11_per_user_continuity_bundle",
     "reconcile_gate11_preregistered_verdict",
 ]

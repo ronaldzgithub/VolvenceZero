@@ -533,3 +533,82 @@ Gate 5/9/10/1 都没有获得授权。这些 gate 的 #92 等级和本文 §12 �
 - [L1-B no-write precheck](../research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_protection_precheck.v1.json)
 - [L1-C preregistration](../research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_prereg.seed0.20260731T135415Z.json)
 - [L1-C station1-v4 终局 report](../research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_station1.seed0.20260731T135415Z.json)
+
+## 14. 五杠杆后续战役追加判词：Gate 2 L3 终局
+
+> 追加日期：2026-07-31。本节使用新 longitudinal readout、新 schema 和 fresh
+> capture 独立检验 Gate 2；它不改写 #92 的 `thesis-rejected`或 v35 的历史因果判词。
+
+L3-A 将 `RelationshipConditioningModule` 发布的 14 维有序 readout 追加到完整
+8076 维 residual state，形成 8090 维
+`residual-state+relationship-owner-readout.v1`。该路径只做
+`(2x-1)×confidence` 有界变换，不解释 label、不重建关系语义；错 bank、
+cold-start 和 zero-confidence 全部 fail loudly，所以它是与 v35 无条件
+selector 可机器区分的新机制，但未进入 live session。
+
+L3-B 冻结 `eta-gate2-longitudinal-conditioned.v1`：训练 seed 1291/64 条，
+formal seeds 1301/1313/1327 各 510 条；同 source 的 correct Relationship condition
+对比 action permutation、zero 和 matched wrong-condition。单 seed 三个 mean 都要
+≥`0.02`，wrong-condition session positive rate 要 ≥`0.60`；1301 为先行完整
+stop-loss。预注册 SHA-256 为
+`c51848d41888ea3e7f2a4f83174d6b49483928b7f73dc4655f44f77e7877d1ea`。
+
+L3-C 的 seed 1301 已跑满 510 条、51 个 sessions，但只有 count 门通过：
+
+| 冻结门 | seed 1301 | 门槛 | 结果 |
+|---|---:|---:|---|
+| selector − action permutation mean | `+0.003287669022878011` | `≥ 0.02` | FAIL |
+| selector − zero mean | `+0.004308079037011838` | `≥ 0.02` | FAIL |
+| selector − matched wrong-condition mean | `+0.000055160709455901504` | `≥ 0.02` | FAIL |
+| wrong-condition session positive rate | `0.1568627450980392` | `≥ 0.60` | FAIL |
+
+因此 machine status=`single-seed-stoploss`，official Gate 2 longitudinal
+verdict=`not-supported`。1313/1327 依预注册不运行，不允许 refit、换 seed、
+降阈值或把 carrier existence 写成 longitudinal gain。本轮没有安装 selector、
+没有改 substrate 权重、没有写 runtime owner state，所以
+`production_live_promotion_authorized=false`。
+
+正式进程在启动时通过 prereg/code-tree 验证；完成 510 条后，工作区的
+`residual_backend.py` 被并行改写，第一次封包因 source hash drift 正确拒绝。
+为保留这项改动，后续使用 Git commit
+`79d142f7dfc78e22247aa70222ad4bff0964c1d7` 的隔离快照复核预注册中全部十个 code
+digests，仅重做 validation/export，不重算 outcomes。封包后
+`source_unchanged=true`、`selector_installed_live=false`、
+`substrate_weights_updated=false`。
+
+这条线的最终主张边界是：**Gate 2 继续保留 v35 的受限 open-loop
+`causal-supported`；relationship-conditioned carrier 的机制存在且可审计，但新纵向净收益
+不成立，不升为 production/live ACTIVE。**
+
+权威追加 artifacts：
+
+- [L3 预注册](../artifacts/gate2_longitudinal_conditioned_prereg_20260731T170122Z.json)
+- [L3 正式报告](../artifacts/gate2_longitudinal_conditioned_seed1301_formal_20260731T170122Z/report.md)
+- [L3 promotion verdict](../artifacts/gate2_longitudinal_conditioned_seed1301_formal_20260731T170122Z/promotion_verdict.json)
+- [L3 freeze manifest](../artifacts/gate2_longitudinal_conditioned_seed1301_formal_20260731T170122Z/freeze_manifest.json)
+
+## 15. Thesis v2 是新提案，不是已通过的新终局
+
+L1 与 L3 都已进入冻结 stop-loss 后，五杠杆 L5 已产出独立
+[`thesis-v2-proposal.md`](thesis-v2-proposal.md) 与 known debt #93。它继承本文的
+`thesis-rejected`、Ecology L1 `BLOCK` 与 Gate 2 L3
+`single-seed-stoploss`，不修改任何历史数字。
+
+v2 只保留四类受限主张：Gate 11 per-user owner continuity、Gate 8
+wake/sleep owner-readout consolidation、Gate 2 v35 open-loop causal control，以及
+owner/snapshot/lineage/persistence/rollback 基础设施。多频 CMS、PE 行为驱动、
+learned 主动学习、SSL→RL、M3、rare-heavy 自动晋升、Ecology medium 和
+Gate 2 longitudinal 全部排除出 v2 EXIT。
+
+v2 唯一新证据面是已预注册的 Gate 8/11 真实人类盲评。L4-A 协议与
+L4-B 工具已完成，但真实 transcript、非项目 rater、pilot/power 与 formal
+run 尚未完成。因此当前状态必须写为
+`preregistered-proposal / not-yet-retained`，不是 thesis 新证明。Gate 8 与 Gate 11
+两门都过才可终态 `product-continuity-retained`；任一门失败则终态
+`product-continuity-rejected`，并永久把失败 gate 限定为 owner metric。
+
+machine preregistration：
+[`artifacts/thesis_v2_product_continuity_prereg_20260731T181500Z.json`](../artifacts/thesis_v2_product_continuity_prereg_20260731T181500Z.json)，
+SHA-256 `8bcabb75a6d63068d3dc40e6cbd7e9497560f17cab364017a1cfb76b6fb8f3c2`。
+该 artifact 同时冻结 `production_live_promotion_authorized=false`；v2 即使未来 retained，
+也不自动翻转任何 `WiringLevel`。

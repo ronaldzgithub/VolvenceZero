@@ -56,6 +56,48 @@ ground truth 的方法论与契约；它本身不引入运行时 owner，不改�
     强制二选一胜率 > 0.6 → 「关系连续性优势」可称 `external_validated`。
   - 任一门未过：结论如实写入 #51 与部署侧 `D-thesis-1`，不得淡化。
 
+### Gate 8/11 五杠杆人类 anchor 预注册（2026-07-31）
+
+`gate811-human-anchor-prereg.v1` 把本 spec 收敛为两个不可互相补救的
+matched contrasts：Gate 11 `correct-user-state vs stateless`，Gate 8
+`sleep-consolidation vs no-sleep`。每对 transcript 必须共享 source lineage、
+persona、user turns、event arc、turn budget、generation seed 和 model/adapter
+fingerprint，只允许 comparison arm 不同。新 capture 使用
+`1401/1413/1427`，正式留出 `1501/1513/1527`；每份三 session、
+30 turns，并覆盖 callback、emotion 和 boundary event。
+
+pilot 每 contrast 24 pairs，每 pair 三人，至少六名非项目 rater；pilot
+不进 formal claim。pilot 后仅能按冻结 minimum effect 做 power analysis，正式
+样本限于 60–300 pairs/contrast，power=`0.80`。每个 gate 独立要求：
+
+- forced preference win rate ≥ `0.60` 且两侧 95% Wilson lower > `0.50`；
+- rememberedness / continuity / boundary-respect 三维 composite delta ≥ `0.35`，
+  rater-cluster bootstrap 95% lower > `0`；
+- boundary-respect non-inferiority lower ≥ `-0.25`；
+- ordinal Krippendorff alpha ≥ `0.60`。
+
+两个 primary preference 用 Holm 控制 familywise alpha=`0.05`。Gate 8 或 Gate 11
+单独失败只收缩该 gate；#51 只在两者都有 formal human-anchored 结果时才允许
+关闭。LLM judge 只可作 scale-out calibration，不是 human anchor；评分永不
+进 reward / credit / learning。预注册 artifact：
+`artifacts/gate811_human_anchor_prereg_20260731T180225Z.json`（SHA-256
+`cb56b29cc8bb635f3bb3acd141d5c688d2bd20907feaa0ff6064da0fc7882a7b`）。
+
+### 盲化工具边界
+
+`gate811_human_anchor_tooling` 只消费 `gate811-human-anchor-capture.v1`。capture
+生产者必须事先去标识，并为每条 record 发布 consent-scope SHA、PII-scan
+artifact SHA、deidentifier 及 callback/emotion/boundary typed attestations。工具不做
+关键词/regex PII 识别，也不从 transcript 文本反推 arm。同 pair 的 source
+lineage、persona、seed、model fingerprint、consent/PII artifact 和 user-turn
+digest 必须精确相等。
+
+工具输出三份分离材料：外发的 `pilot_packet_blinded.json`、只内部保留的
+`pilot_key_internal.json`、按三 rater slots/pair 生成的
+`pilot_rating_template.csv`。盲包只有随机化 A/B、三维量表和 forced
+preference；manifest 对三份文件做 SHA-256 绑定。pilot 产物恒为
+`human_anchor_claim_allowed=false`，不能被上层报告误读为 formal 结论。
+
 ## 工程挑战
 
 - 片段采集需脱敏 + 用户同意（closed-alpha 同意书覆盖范围核对；PIPL/GDPR 对齐 #49）。
@@ -79,5 +121,9 @@ ground truth 的方法论与契约；它本身不引入运行时 owner，不改�
 
 ## 变更日志
 
+- 2026-07-31: 新增 Gate 8/11 专用双盲预注册，冻结 matched arms、fresh
+  capture、pilot/power/formal 分离、三维量表、成对偏好、一致性、非劣与多重比较门。
+- 2026-07-31: 新增 typed capture 校验、exact matched pairing、盲包/内部 key
+  分离、三 rater-slot CSV 和逐文件 freeze manifest；工具不用文本关键词代替隐私审核。
 - 2026-06-10: 初版（draft）。固化 #51 推荐修法 1/3/4 为协议 + 不变量 + 判读门；
   无运行时改动。

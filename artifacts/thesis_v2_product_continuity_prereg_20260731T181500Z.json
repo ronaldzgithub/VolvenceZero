@@ -1,0 +1,88 @@
+{
+  "authorization": {
+    "human_ratings_may_enter_reward_or_credit": false,
+    "production_live_promotion_authorized": false,
+    "proposal_may_rewrite_thesis_92": false,
+    "proposal_may_rewrite_l1_or_l3_stoploss": false
+  },
+  "created_at_iso": "2026-07-31T18:15:00Z",
+  "excluded_from_exit": [
+    "multi_frequency_cms_net_uplift",
+    "pe_runtime_behavior_superiority",
+    "learned_active_learning_label_efficiency",
+    "ssl_to_rl_takeover_net_uplift",
+    "m3_optimizer_superiority",
+    "rare_heavy_automatic_production_promotion",
+    "ecology_medium_or_general_physical_autonomy",
+    "gate2_longitudinal_or_live_takeover"
+  ],
+  "exit": {
+    "final_reconciliation_requirements": [
+      "all_source_hashes_unchanged",
+      "pilot_rows_excluded_from_formal",
+      "gate8_and_gate11_verdicts_reported_independently",
+      "aggregate_verdict_reported",
+      "human_ratings_readout_only_attested",
+      "production_live_promotion_authorized_false"
+    ],
+    "gate8_human_anchor": {
+      "boundary_noninferiority_lower_min": -0.25,
+      "minimum_composite_likert_delta": 0.35,
+      "minimum_ordinal_krippendorff_alpha": 0.6,
+      "minimum_preference_win_rate": 0.6,
+      "required": true,
+      "wilson_95_lower_strictly_greater_than": 0.5
+    },
+    "gate11_human_anchor": {
+      "boundary_noninferiority_lower_min": -0.25,
+      "minimum_composite_likert_delta": 0.35,
+      "minimum_ordinal_krippendorff_alpha": 0.6,
+      "minimum_preference_win_rate": 0.6,
+      "required": true,
+      "wilson_95_lower_strictly_greater_than": 0.5
+    },
+    "pilot": {
+      "minimum_unique_raters": 6,
+      "pairs_per_contrast": 24,
+      "rows_may_enter_formal": false,
+      "target_power": 0.8
+    },
+    "power_analysis": {
+      "formal_maximum_pairs_per_contrast": 300,
+      "formal_minimum_pairs_per_contrast": 60,
+      "must_freeze_before_formal_outcome": true
+    }
+  },
+  "inherited_sources": {
+    "gate2_l3_promotion_verdict": {
+      "path": "artifacts/gate2_longitudinal_conditioned_seed1301_formal_20260731T170122Z/promotion_verdict.json",
+      "sha256": "f54fcdd67c50317f8c8b8d639b1ea69d5029619e939adefdcd2cf9fca9e733"
+    },
+    "l1_station1_v4_report": {
+      "path": "research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_station1.seed0.20260731T135415Z.json",
+      "sha256": "882b133a581db13fa916f961d97f71af9f8c5e2b5391f02cade107100b97ff15"
+    },
+    "l4_human_anchor_preregistration": {
+      "path": "artifacts/gate811_human_anchor_prereg_20260731T180225Z.json",
+      "sha256": "cb56b29cc8bb635f3bb3acd141d5c688d2bd20907feaa0ff6064da0fc7882a7b"
+    },
+    "thesis_92_reconciliation": {
+      "path": "artifacts/causal_evidence_final_campaign_20260731/reconciliation.json",
+      "sha256": "0bcdfadfe070611adc1739f219a2d102be36f0da5456a42037717595bf295b4f"
+    }
+  },
+  "proposal_id": "thesis-v2-product-continuity",
+  "retained_claims": [
+    "gate11_bounded_per_user_owner_continuity",
+    "gate8_wake_sleep_owner_readout_consolidation",
+    "gate2_v35_bounded_open_loop_causal_control",
+    "auditable_owner_snapshot_lineage_persistence_rollback_infrastructure"
+  ],
+  "schema_version": "thesis-v2-product-continuity-prereg.v1",
+  "status": "preregistered-proposal",
+  "terminal_verdicts": {
+    "failure_of_either_human_anchor_gate": "product-continuity-rejected",
+    "gate_specific_failure_boundary": "owner-metric-only",
+    "pass_of_both_human_anchor_gates": "product-continuity-retained"
+  }
+}

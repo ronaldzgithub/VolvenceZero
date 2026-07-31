@@ -1,7 +1,8 @@
 # Known Architecture Debt
 
 > Status: tracked, not blocking
-> Last updated: **2026-07-31** (v13 — **#92 终局关闭并删除 open section**：统一 verdict=`thesis-rejected`；mechanism coverage 完整，causal-supported=Gate 2/8/11，longitudinal-supported=Gate 8/11，full-chain rollback 通过但总 EXIT 不成立。Ecology station1 四门与 8/8 structure 通过，唯一预签 alignment review 后仍 3/4，station2/P1/P2 未获授权。生产/live promotion 保持禁止；权威对账 `artifacts/causal_evidence_final_campaign_20260731/`。完整历史由 git 保留)
+> Last updated: **2026-07-31** (v14 — 新开 **#93 thesis v2 产品连续性验证债**：继承 #92/L1/L3 负证据，把 Gate 2 限定为 open-loop causal，把 Gate 8/11 human anchor 作为唯一新外部效度 EXIT；L4-A 预注册与 L4-B 盲化工具已完成，pilot/formal 仍等待真实 transcript 与非项目评审者)
+> Previous: **2026-07-31** (v13 — **#92 终局关闭并删除 open section**：统一 verdict=`thesis-rejected`；mechanism coverage 完整，causal-supported=Gate 2/8/11，longitudinal-supported=Gate 8/11，full-chain rollback 通过但总 EXIT 不成立。Ecology station1 四门与 8/8 structure 通过，唯一预签 alignment review 后仍 3/4，station2/P1/P2 未获授权。生产/live promotion 保持禁止；权威对账 `artifacts/causal_evidence_final_campaign_20260731/`。完整历史由 git 保留)
 > Earlier: **2026-07-17** (v11 — `should-be-learned` 桶两条漏网项清账（纯代码侧）：**#89 残余**「`apply_prediction_error_signal` 固定写入阈值」learned 门控化——新增 `vz-memory` `PeWriteGate`（0.15 固定阈值=初始化+回滚点；PE 写入按 realized usefulness settle，±0.10 包络；readout 经 `lifecycle_metrics` 发布，阈值随 checkpoint 往返），coverage spec 5.3 该行移入 `bounded-learned`，契约测试 `tests/test_memory_pe_write_gate.py` 8/8 绿，见 #89 section；**#91 残余**「`semantic_feature_surface_from_text` hash pull 覆盖真实 readout」修复——adapter 追加 fallback 改单一 owner merge，runtime 混合 hidden-state 语义 pull 不再被 hash 按名覆盖，synthetic/文本-only 路径逐字节不变，契约测试 `tests/contracts/test_substrate_semantic_surface_ownership.py` 4/4 绿，见 #91 section)
 > Earlier: **2026-07-16** (v10 — 认知 AGI 代码完整度提升计划 A1/A2 debt 影响：**#81 关闭（A2）**——`runtime_helpers` 的 6 个 `if domain == "X":` hint summary / topic_tags 分支迁移为 `vz-cognition.regime.contracts` 的 typed `DomainHintCatalog`（`ApplicationBrief` 旁，含 `language` i18n 接缝 + `DEFAULT_DOMAIN_HINT_CATALOG` 字节不变文本），runtime_helpers 只留读 catalog 的薄 wrapper，契约测试 `tests/contracts/test_domain_hint_catalog.py`（literal-domain 分支归零 + summary/tag 一致性守门 + verbatim 读取）；**#90 protocol 层残余代码侧闭合（A1）**——见 #90 section 2026-07-16 进展（PE-shaped overlay readout + protocol-lineage conflict → typed 修订提案经 `ProtocolRevisionQueueModule` 单 router 走 R10 gate 人审，`tests/contracts/test_apprenticeship_protocol_revision_path.py`）。同日更早 packet（T1-T3/C1-C4/M1/M2/S1）见 [learned-vs-heuristic-coverage.md](specs/learned-vs-heuristic-coverage.md) 变更日志 2026-07-16)
 > Earlier: **2026-07-15** (v9 — **Windows long-soak native crash 根因定案 + 首个连续 real-trace promotion artifact 落地**：v8 记录的 `0xC0000005`/`0xC0000409` 系列崩溃根因是**宿主 CPU 硬件缺陷**——i9-14900KF 运行 pre-fix 微码 `0x120`（Intel 13/14 代 Raptor Lake Vmin Shift 不稳定问题，修复微码 0x125/0x129/0x12B/0x12F 均未安装），P-core 单线程 ~6GHz boost 恰是纯 Python 热循环的工况，故崩溃跨 Windows/WSL、跨进程（Defender mpengine.dll 同期 crash）、位置漂移且 12GB RAM 压测全绿。**软件侧证据**：进程钉到 E-core（affinity `0xFFFF0000`，launcher `.local/run_on_ecores.py`）后 510-turn HF CUDA full-combo soak 连续两次零崩溃跑完；此前生效的 `PYTHON_DISABLE_SPECIALIZATION` 经查在 python312.dll 中不存在该字符串，属安慰剂。**硬件侧待办（用户操作）**：更新 BIOS 至含 0x12B/0x12F 微码版本；CPU 可能已发生不可逆退化，更新后仍不稳则需 RMA。**Lane 变化**：`residual_backend.capture` / `temporal/ssl.py` / `internal_rl/sandbox.py` 三处 Windows-CUDA 降级守卫接入 `VZ_TORCH_BACKENDS_FORCE=1` 旁路（与 `final_wiring.py` 同开关，可回滚）；E-core+force lane 产出首个连续 real-trace soak artifact（`artifacts/learned_active_evidence_root_510_ecore_force/`：`real_trace_turns=509`、strict ETA gate PASS、no-optimize proof PASS、latency SLO OK（3.71s/turn < 5s）、CMS A/B PASS、capacity ladder n_z 16/64/256 synthetic 500-turn 执行）。**promotion 仍 BLOCKED（诚实）**：`validation_delta=0.0139 < 0.02`（学习强度差距，非 infra）+ `pe_off/eta_off` 组件对照位待同基底 P1 ablation verdict；见 #86/#88/#89)
@@ -1192,6 +1193,14 @@ return (
   `00_INDEX.md` §8）。**evidence run 本身仍 OPEN**（评估员招募 + 片段采集 + 真实
   评分未做）；部署侧 `VolvenceDeploy/docs/known-debts.md` `D-thesis-1` EXIT 条件 (b)
   以本 spec 的两个判读门为可执行定义。
+- **进展（2026-07-31）**：L4-A 已冻结 Gate 11 `correct-user-state/stateless`
+  与 Gate 8 `sleep-consolidation/no-sleep` 两个独立人评 contrast，pilot 每门
+  24 pairs、三 rater/pair、power 决定 60–300 formal pairs，并冻结偏好、三维
+  Likert、boundary non-inferiority 与 ordinal alpha 门；预注册 SHA-256
+  `cb56b29cc8bb635f3bb3acd141d5c688d2bd20907feaa0ff6064da0fc7882a7b`。L4-B
+  typed capture、consent/PII attestation、exact pairing、盲包/内部 key/CSV 工具也已
+  落地。**真实 pilot/formal 仍 OPEN**：缺 consented transcript 与至少 6 名非项目
+  rater；不得用 synthetic 或 LLM judge 代替。
 - **优先级**：**低-中**（Phase B 中期；与 P2 30 天试点同 packet 设计；与 #33 human-eval 联动）
 
 ---
@@ -2120,6 +2129,51 @@ return (
   3. 保持 R8：嵌入仍是 `vz-contracts` 单一 SSOT，消费者零改动。
 - **优先级**：**中**（可与 [#88](#88) substrate runtime forward ACTIVE 同 packet 复用 residual）
 - **关联**：[#3](#3)（SSOT 收敛前史，本债专记「stub→真实嵌入」不重复 SSOT 收敛）· [#88](#88)（substrate residual 复用来源）· [#10D](#10)（retrieval facet disambiguation 同域）· [#86](#86)（learned coverage 子项）
+
+---
+
+## 93. Thesis v2 产品连续性主张：已收窄但缺 Gate 8/11 真实人类 anchor
+
+- **Owner**：Evidence Program（`docs/specs/evidence_program.md`）；协议/工具的唯一
+  工程 owner 是 `vz-runtime` evaluation tooling。Gate 8 memory/temporal 与 Gate 11
+  per-user state 语义 owner 不变，人评不新增 runtime slot。
+- **与 #92 的关系**：#92 保持 `CLOSED / thesis-rejected`，机器对账 SHA-256
+  `0bcdfadfe070611adc1739f219a2d102be36f0da5456a42037717595bf295b4f`。#93
+  继承而不改写其全部负证据；Ecology L1 `BLOCK`、Gate 2 L3
+  `single-seed-stoploss` 都是 v2 的冻结排除条款。
+- **收窄主张**：
+  1. Gate 11 只主张“隔离 per-user owner state 能跨 session/restart 保持连续性”；
+  2. Gate 8 只主张“wake/sleep 在 deterministic owner readout 上有纵向效果”；
+  3. Gate 2 只保留 v35 的受限 open-loop `z_t` action-value causal claim，明确
+     排除 longitudinal takeover/live selector；
+  4. owner/snapshot/lineage/persistence/rollback 只作基础设施与安全主张，不代替收益。
+- **永久排除出 v2 EXIT**：多频 CMS 净增益、PE 行为驱动优越性、learned 主动学习
+  省标签、SSL→RL takeover、M3 优于普通 optimizer、rare-heavy 自动晋升、
+  Ecology medium/一般物理自主性、Gate 2 longitudinal gain。它们可作新机制研究，
+  但不能用来补救或阻塞 #93 EXIT。
+- **冻结 EXIT**：
+  1. #92 reconciliation、L1 station1-v4 BLOCK、L3 stop-loss 与 L4-A prereg 全部
+     逐哈希绑定；
+  2. Gate 8 与 Gate 11 的既有 longitudinal artifacts 保持 immutable；
+  3. L4 pilot 每 contrast 24 pairs/3 ratings，ordinal alpha ≥`0.60`，并在看到 formal
+     outcome 前冻结 60–300 pairs/contrast 的 power artifact；
+  4. formal Gate 8 和 Gate 11 分别过 preference、Likert composite、boundary
+     non-inferiority、agreement 门，且人评来自非项目真实 rater；
+  5. 最终 reconciliation 必须同时发布每门 verdict、两门总判词、不可推出边界和
+     `production_live_promotion_authorized=false`。
+- **终态**：两门都过才可关闭为 `product-continuity-retained`；任一门失败则关闭为
+  `product-continuity-rejected`，并把该 gate 永久限定为 owner metric。不允许换 rater、
+  降阈值、把 pilot 混入 formal 或使用 LLM judge 替代人类 anchor。kill 是关闭态，
+  不留存僵尸债。
+- **回滚**：本债只管 evaluation artifacts；回滚是不发布/撤下盲包与结论报告，不修改
+  Gate 8/11 owner state、reward、credit 或 production wiring。
+- **当前状态**：`OPEN / externally-blocked-after-tooling`。L4-A/L4-B 已完成；剩余是
+  consented fresh transcripts、非项目 rater 招募、pilot/power 与 formal run。权威提案：
+  [`docs/thesis-v2-proposal.md`](thesis-v2-proposal.md)；machine preregistration：
+  `artifacts/thesis_v2_product_continuity_prereg_20260731T181500Z.json`（SHA-256
+  `8bcabb75a6d63068d3dc40e6cbd7e9497560f17cab364017a1cfb76b6fb8f3c2`）。
+- **优先级**：**高（外部日历依赖）**。不阻塞基础产品使用，但阻塞“人类已感知到
+  Gate 8/11 关系质量优势”与 `product-continuity-retained` 对外主张。
 
 ---
 
