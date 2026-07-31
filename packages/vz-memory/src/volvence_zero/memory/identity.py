@@ -10,9 +10,8 @@ to a specific user identity (Rupture-and-Repair M4). It owns:
   and for hosts that want to bind a lifeform session to a known user.
 * :func:`build_scoped_memory_store` — builds a ``MemoryStore`` (optionally
   filesystem-backed) for a given identity.
-* :func:`list_durable_entries_for_scope` / :func:`delete_entries_for_scope`
-  — helpers that inspect and delete rupture-repair entries tagged with
-  the given ``user_scope``.
+* scoped list / delete / rewrite helpers for durable entries tagged with the
+  given ``user_scope``.
 
 Design rationale: ``vz-memory`` is the SSOT for memory-store lifecycle, so
 the contract lives here in v0. If a second kernel package later consumes
@@ -32,6 +31,7 @@ from volvence_zero.memory.contracts import (
     MemoryEntry,
     MemoryStoreCheckpoint,
     MemoryStratum,
+    MemoryWriteRequest,
 )
 from volvence_zero.memory.persistence import (
     FileSystemPersistenceBackend,
@@ -428,18 +428,101 @@ def delete_entries_for_scope(
     """
 
     tags = _scope_tags(user_scope, extra_scopes)
-    artifact_store = store._artifact_store  # noqa: SLF001
     targets = tuple(
         entry.entry_id
-        for entry in artifact_store.entries_for(MemoryStratum.DURABLE)
+        for entry in store._artifact_store.entries_for(  # noqa: SLF001
+            MemoryStratum.DURABLE
+        )
         if any(tag in entry.tags for tag in tags)
     )
     deleted: list[str] = []
     for entry_id in targets:
-        removed = artifact_store.delete_entry(entry_id)
+        removed = store.delete_artifact_entry(entry_id)
         if removed is not None:
             deleted.append(entry_id)
     return tuple(deleted)
+
+
+def delete_entry_for_scope(
+    store: MemoryStore,
+    *,
+    user_scope: str,
+    entry_id: str,
+    extra_scopes: tuple[str, ...] = (),
+) -> MemoryEntry | None:
+    """Delete one entry only when it belongs to ``user_scope``.
+
+    The scope check and mutation stay inside the Memory owner boundary so a
+    product-facing per-item console cannot turn an arbitrary entry id into a
+    cross-user deletion primitive.
+    """
+
+    if not entry_id.strip():
+        raise ValueError("entry_id must be non-empty")
+    tags = _scope_tags(user_scope, extra_scopes)
+    target = next(
+        (
+            entry
+            for entry in store._artifact_store.export_entries()  # noqa: SLF001
+            if entry.entry_id == entry_id and any(tag in entry.tags for tag in tags)
+        ),
+        None,
+    )
+    if target is None:
+        return None
+    return store.delete_artifact_entry(entry_id)
+
+
+def rewrite_entry_for_scope(
+    store: MemoryStore,
+    *,
+    user_scope: str,
+    entry_id: str,
+    replacement_content: str,
+    timestamp_ms: int,
+    extra_scopes: tuple[str, ...] = (),
+) -> MemoryEntry | None:
+    """Replace one scoped entry with a DURABLE user-authored record.
+
+    The replacement is written before the old entry is removed. A failed
+    write therefore leaves the original intact instead of silently losing the
+    user's memory. The returned entry has a new id so the audit trail can
+    distinguish the user-authored rewrite from the superseded record.
+    """
+
+    content = replacement_content.strip()
+    if not content:
+        raise ValueError("replacement_content must be non-empty")
+    tags = _scope_tags(user_scope, extra_scopes)
+    target = next(
+        (
+            entry
+            for entry in store._artifact_store.export_entries()  # noqa: SLF001
+            if entry.entry_id == entry_id and any(tag in entry.tags for tag in tags)
+        ),
+        None,
+    )
+    if target is None:
+        return None
+    replacement = store.write(
+        MemoryWriteRequest(
+            content=content,
+            track=target.track,
+            stratum=MemoryStratum.DURABLE,
+            tags=tuple(dict.fromkeys((*target.tags, f"rewrites:{target.entry_id}"))),
+            strength=target.strength,
+            subject_ids=target.subject_ids,
+            audience_ids=target.audience_ids,
+        ),
+        timestamp_ms=timestamp_ms,
+    )
+    removed = store.delete_artifact_entry(target.entry_id)
+    if removed is None:
+        store.delete_artifact_entry(replacement.entry_id)
+        raise RuntimeError(
+            "memory rewrite could not remove the superseded scoped entry"
+        )
+    return replacement
 
 
 __all__ = [
@@ -451,10 +534,12 @@ __all__ = [
     "TenantIdentity",
     "UserIdentity",
     "build_scoped_memory_store",
+    "delete_entry_for_scope",
     "delete_entries_for_scope",
     "derive_scope_key",
     "legacy_single_layer_scope",
     "list_durable_entries_for_scope",
+    "rewrite_entry_for_scope",
     "scope_key_for",
     "scoped_memory_dir",
 ]

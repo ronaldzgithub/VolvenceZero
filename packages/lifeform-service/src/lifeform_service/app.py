@@ -34,6 +34,7 @@ import json
 import logging
 import os
 import pathlib
+import time
 from hashlib import sha256
 from collections.abc import Mapping
 from uuid import uuid4
@@ -81,6 +82,16 @@ from lifeform_service.teaching_case import (
     register_teaching_case_routes,
 )
 from lifeform_service.protocol_uptake import ProtocolUptakeService
+from lifeform_service.relationship_memory_console import (
+    RelationshipMemoryAction,
+    RelationshipMemoryActionConflictError,
+    RelationshipMemoryActionLedger,
+    RelationshipMemoryCorrectionKind,
+    dialogue_outcome_kind_for_action,
+    proposal_memory_entry_id,
+    proposal_to_json,
+    semantic_event_for_action,
+)
 from lifeform_service.session_manager import (
     SessionAlreadyExistsError,
     SessionManager,
@@ -116,6 +127,9 @@ from volvence_zero.memory import (
     build_scoped_memory_store,
     delete_entries_for_scope,
     list_durable_entries_for_scope,
+)
+from volvence_zero.relationship_continuity import (
+    RelationshipContinuityConsoleOutcome,
 )
 from volvence_zero.semantic_state import CommitmentSnapshot, OpenLoopSnapshot
 
@@ -255,6 +269,9 @@ def create_app(
     # don't read this key — no behavior change.
     app["external_llm_client"] = external_llm_client
     app["protocol_uptake_service"] = protocol_uptake_service
+    app["relationship_memory_action_ledger"] = RelationshipMemoryActionLedger(
+        persistence_root=alpha.memory_scope_root_dir
+    )
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
     app.router.add_get("/v1/health", _handle_health)
@@ -284,6 +301,18 @@ def create_app(
     app.router.add_get(
         "/v1/users/me/relationship-summary",
         _handle_relationship_summary,
+    )
+    app.router.add_get(
+        "/v1/users/me/relationship-memory",
+        _handle_relationship_memory,
+    )
+    app.router.add_post(
+        "/v1/users/me/relationship-memory/{item_id}/action",
+        _handle_relationship_memory_action,
+    )
+    app.router.add_get(
+        "/v1/users/me/continuity-metrics",
+        _handle_relationship_continuity_metrics,
     )
     app.router.add_get(
         "/v1/users/me/memory/rupture-repair",
@@ -414,6 +443,12 @@ async def _error_middleware(request: web.Request, handler):
         return _json_error(
             status=409,
             error="session_already_exists",
+            detail=str(exc),
+        )
+    except RelationshipMemoryActionConflictError as exc:
+        return _json_error(
+            status=409,
+            error="relationship_memory_action_conflict",
             detail=str(exc),
         )
     except _BadRequest as exc:
@@ -1477,6 +1512,403 @@ async def _handle_relationship_summary(request: web.Request) -> web.Response:
     )
 
 
+async def _handle_relationship_memory(request: web.Request) -> web.Response:
+    _require_alpha(request)
+    user_id = _alpha_user_id(request, None)
+    session_id = _required_relationship_memory_session_id(
+        request.query.get("session_id")
+    )
+    manager: SessionManager = request.app["session_manager"]
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    reflection = session.brain_session.relationship_reflection_snapshot()
+    ledger: RelationshipMemoryActionLedger = request.app[
+        "relationship_memory_action_ledger"
+    ]
+    resolved = ledger.resolved_proposal_ids(
+        user_id=user_id,
+        session_id=session_id,
+    )
+    proposals = (
+        tuple(
+            proposal
+            for proposal in reflection.relationship_update_proposals
+            if proposal.proposal_id not in resolved
+        )
+        if reflection is not None
+        else ()
+    )
+    entries = session.brain_session.relationship_memory_entries()
+    return _json_ok(
+        {
+            "user_id": user_id,
+            "session_id": session_id,
+            "pending_proposals": [proposal_to_json(item) for item in proposals],
+            "durable_entries": [_memory_entry_to_json(item) for item in entries],
+        }
+    )
+
+
+async def _handle_relationship_memory_action(request: web.Request) -> web.Response:
+    _require_alpha(request)
+    payload = await _require_json(request)
+    user_id = _alpha_user_id(request, payload)
+    session_id = _required_relationship_memory_session_id(
+        payload.get("session_id")
+    )
+    raw_action = payload.get("action")
+    if not isinstance(raw_action, str):
+        raise _BadRequest(
+            "invalid_relationship_memory_action",
+            "action must be a string",
+        )
+    try:
+        action = RelationshipMemoryAction(raw_action)
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in RelationshipMemoryAction)
+        raise _BadRequest(
+            "invalid_relationship_memory_action",
+            f"action must be one of: {allowed}",
+        ) from exc
+    raw_replacement = payload.get("replacement")
+    if raw_replacement is not None and not isinstance(raw_replacement, str):
+        raise _BadRequest(
+            "invalid_relationship_memory_replacement",
+            "replacement must be a string",
+        )
+    replacement = raw_replacement.strip() if isinstance(raw_replacement, str) else None
+    if action is RelationshipMemoryAction.REWRITE and not replacement:
+        raise _BadRequest(
+            "missing_relationship_memory_replacement",
+            "rewrite requires a non-empty replacement",
+        )
+    if action is not RelationshipMemoryAction.REWRITE and replacement is not None:
+        raise _BadRequest(
+            "unexpected_relationship_memory_replacement",
+            "replacement is only accepted for rewrite",
+        )
+    raw_correction_kind = payload.get("correction_kind")
+    if raw_correction_kind is not None and not isinstance(raw_correction_kind, str):
+        raise _BadRequest(
+            "invalid_relationship_memory_correction_kind",
+            "correction_kind must be a string",
+        )
+    correction_kind: RelationshipMemoryCorrectionKind | None = None
+    if isinstance(raw_correction_kind, str):
+        try:
+            correction_kind = RelationshipMemoryCorrectionKind(raw_correction_kind)
+        except ValueError as exc:
+            allowed = ", ".join(item.value for item in RelationshipMemoryCorrectionKind)
+            raise _BadRequest(
+                "invalid_relationship_memory_correction_kind",
+                f"correction_kind must be one of: {allowed}",
+            ) from exc
+    correction_actions = {
+        RelationshipMemoryAction.DELETE,
+        RelationshipMemoryAction.REWRITE,
+        RelationshipMemoryAction.MARK_SENSITIVE,
+        RelationshipMemoryAction.NO_PROACTIVE_MENTION,
+    }
+    if correction_kind is not None and action not in correction_actions:
+        raise _BadRequest(
+            "unexpected_relationship_memory_correction_kind",
+            "correction_kind is only accepted for corrective actions",
+        )
+    if correction_kind is None and action in {
+        RelationshipMemoryAction.DELETE,
+        RelationshipMemoryAction.REWRITE,
+    }:
+        correction_kind = RelationshipMemoryCorrectionKind.CONTENT_INACCURATE
+    if correction_kind is None and action in {
+        RelationshipMemoryAction.MARK_SENSITIVE,
+        RelationshipMemoryAction.NO_PROACTIVE_MENTION,
+    }:
+        correction_kind = RelationshipMemoryCorrectionKind.BOUNDARY_PREFERENCE
+
+    manager: SessionManager = request.app["session_manager"]
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    item_id = request.match_info["item_id"].strip()
+    if not item_id:
+        raise _BadRequest(
+            "invalid_relationship_memory_item_id",
+            "item_id must be non-empty",
+        )
+    ledger: RelationshipMemoryActionLedger = request.app[
+        "relationship_memory_action_ledger"
+    ]
+    fingerprint = ledger.request_fingerprint(
+        action=action,
+        replacement=replacement,
+        correction_kind=correction_kind,
+    )
+    existing = ledger.existing(
+        user_id=user_id,
+        session_id=session_id,
+        item_id=item_id,
+        request_fingerprint=fingerprint,
+    )
+    if existing is not None:
+        return _json_ok(existing.to_json())
+
+    reflection = session.brain_session.relationship_reflection_snapshot()
+    proposal = (
+        next(
+            (
+                candidate
+                for candidate in reflection.relationship_update_proposals
+                if candidate.proposal_id == item_id
+            ),
+            None,
+        )
+        if reflection is not None
+        else None
+    )
+    durable_entry = next(
+        (
+            entry
+            for entry in session.brain_session.relationship_memory_entries()
+            if entry.entry_id == item_id
+        ),
+        None,
+    )
+    if proposal is None and durable_entry is None:
+        raise web.HTTPNotFound(reason="relationship memory item not found")
+    if proposal is not None:
+        ledger.ensure_proposal_open(
+            user_id=user_id,
+            session_id=session_id,
+            proposal_id=proposal.proposal_id,
+            request_fingerprint=fingerprint,
+        )
+    if action is RelationshipMemoryAction.SESSION_ONLY and proposal is None:
+        raise _BadRequest(
+            "relationship_memory_item_already_durable",
+            "session_only is only valid for a pending proposal",
+        )
+
+    created_at_ms = int(time.time() * 1000)
+    owner_operations: tuple[str, ...] = ()
+    replacement_entry_id: str | None = None
+    status = "applied"
+    if action is RelationshipMemoryAction.SESSION_ONLY:
+        status = "session_only"
+    elif action in {
+        RelationshipMemoryAction.MARK_SENSITIVE,
+        RelationshipMemoryAction.NO_PROACTIVE_MENTION,
+    }:
+        batch = semantic_event_for_action(
+            proposal=proposal,
+            item_id=item_id,
+            action=action,
+            replacement=None,
+            created_at_ms=created_at_ms,
+        )
+        owner_operations = session.submit_semantic_events(batch)
+        status = "queued"
+    elif action is RelationshipMemoryAction.KEEP:
+        if durable_entry is not None:
+            status = "unchanged"
+        elif proposal is not None and proposal.target_owner_slot == "memory":
+            owner_operations = (
+                session.brain_session.apply_confirmed_relationship_memory_proposal(
+                    proposal_id=proposal.proposal_id,
+                    timestamp_ms=created_at_ms,
+                )
+            )
+        else:
+            batch = semantic_event_for_action(
+                proposal=proposal,
+                item_id=item_id,
+                action=action,
+                replacement=None,
+                created_at_ms=created_at_ms,
+            )
+            owner_operations = session.submit_semantic_events(batch)
+            status = "queued"
+    elif action is RelationshipMemoryAction.DELETE:
+        if durable_entry is not None:
+            removed = session.brain_session.delete_relationship_memory_entry(
+                entry_id=durable_entry.entry_id
+            )
+            if removed is None:
+                raise RuntimeError("Memory owner rejected scoped item deletion")
+            owner_operations = (f"deleted:{removed.entry_id}",)
+        elif proposal is not None and proposal.target_owner_slot == "memory":
+            source_entry_id = proposal_memory_entry_id(proposal)
+            removed = (
+                session.brain_session.delete_relationship_memory_entry(
+                    entry_id=source_entry_id
+                )
+                if source_entry_id is not None
+                else None
+            )
+            owner_operations = (
+                (f"deleted:{removed.entry_id}",)
+                if removed is not None
+                else ("proposal-dismissed",)
+            )
+        else:
+            batch = semantic_event_for_action(
+                proposal=proposal,
+                item_id=item_id,
+                action=action,
+                replacement=None,
+                created_at_ms=created_at_ms,
+            )
+            owner_operations = session.submit_semantic_events(batch)
+            status = "queued"
+    elif action is RelationshipMemoryAction.REWRITE:
+        if durable_entry is not None:
+            rewritten = session.brain_session.rewrite_relationship_memory_entry(
+                entry_id=durable_entry.entry_id,
+                replacement_content=replacement or "",
+                timestamp_ms=created_at_ms,
+            )
+        elif proposal is not None and proposal.target_owner_slot == "memory":
+            source_entry_id = proposal_memory_entry_id(proposal)
+            rewritten = (
+                session.brain_session.rewrite_relationship_memory_entry(
+                    entry_id=source_entry_id,
+                    replacement_content=replacement or "",
+                    timestamp_ms=created_at_ms,
+                )
+                if source_entry_id is not None
+                else None
+            )
+            if rewritten is None and proposal.operation == "remember":
+                session.brain_session.apply_confirmed_relationship_memory_proposal(
+                    proposal_id=proposal.proposal_id,
+                    timestamp_ms=created_at_ms,
+                )
+                rewritten = session.brain_session.rewrite_relationship_memory_entry(
+                    entry_id=source_entry_id or "",
+                    replacement_content=replacement or "",
+                    timestamp_ms=created_at_ms + 1,
+                )
+        else:
+            batch = semantic_event_for_action(
+                proposal=proposal,
+                item_id=item_id,
+                action=action,
+                replacement=replacement,
+                created_at_ms=created_at_ms,
+            )
+            owner_operations = session.submit_semantic_events(batch)
+            status = "queued"
+            rewritten = None
+        if status != "queued":
+            if rewritten is None:
+                raise RuntimeError("Memory owner rejected scoped item rewrite")
+            replacement_entry_id = rewritten.entry_id
+            owner_operations = (
+                f"rewritten:{item_id}->{rewritten.entry_id}",
+            )
+
+    outcome_kind = dialogue_outcome_kind_for_action(action)
+    dialogue_outcome_evidence_id: str | None = None
+    if outcome_kind is not None:
+        consuming_turn = len(session.turn_summaries) + 1
+        action_turn = len(session.turn_summaries) or -1
+        outcome_evidence = session.submit_dialogue_outcome(
+            kind=outcome_kind,
+            source=DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
+            confidence=1.0,
+            turn_index=consuming_turn,
+            action_turn_index=action_turn,
+            evidence_ref=(
+                f"relationship-memory-console:{action.value}:{item_id}:"
+                f"timestamp-{created_at_ms}"
+            ),
+            description=(
+                f"User relationship memory correction: {correction_kind.value}"
+                if correction_kind is not None
+                else "User relationship memory correction."
+            ),
+        )
+        dialogue_outcome_evidence_id = outcome_evidence.evidence_id
+
+    record = ledger.record(
+        user_id=user_id,
+        session_id=session_id,
+        item_id=item_id,
+        action=action,
+        request_fingerprint=fingerprint,
+        status=status,
+        owner_operations=owner_operations,
+        replacement_entry_id=replacement_entry_id,
+        correction_kind=correction_kind,
+        dialogue_outcome_evidence_id=dialogue_outcome_evidence_id,
+        dialogue_outcome_kind=outcome_kind,
+        created_at_ms=created_at_ms,
+        resolves_proposal=proposal is not None,
+    )
+    return _json_ok(record.to_json(), status=201)
+
+
+async def _handle_relationship_continuity_metrics(
+    request: web.Request,
+) -> web.Response:
+    _require_alpha(request)
+    user_id = _alpha_user_id(request, None)
+    session_id = _required_relationship_memory_session_id(
+        request.query.get("session_id")
+    )
+    manager: SessionManager = request.app["session_manager"]
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    ledger: RelationshipMemoryActionLedger = request.app[
+        "relationship_memory_action_ledger"
+    ]
+    outcomes = tuple(
+        RelationshipContinuityConsoleOutcome(
+            outcome_id=record.action_id,
+            observed_at_ms=record.created_at_ms,
+            is_correction=record.correction_kind is not None,
+            is_wrong_user_attribution=(
+                record.correction_kind
+                == RelationshipMemoryCorrectionKind.WRONG_USER_ATTRIBUTION.value
+            ),
+            is_boundary_violation=(
+                record.correction_kind
+                == RelationshipMemoryCorrectionKind.BOUNDARY_PREFERENCE.value
+            ),
+            remembered_item_useful=(
+                True
+                if record.action == RelationshipMemoryAction.KEEP.value
+                else False
+                if record.action
+                in {
+                    RelationshipMemoryAction.DELETE.value,
+                    RelationshipMemoryAction.REWRITE.value,
+                }
+                else None
+            ),
+        )
+        for record in ledger.records_for_user(user_id=user_id)
+    )
+    observed_at_ms = int(time.time() * 1000)
+    readout = session.brain_session.relationship_continuity_readout(
+        user_id=user_id,
+        observation_id=f"{session_id}:turn-{len(session.turn_summaries)}",
+        observed_at_ms=observed_at_ms,
+        console_outcomes=outcomes,
+    )
+    return _json_ok(readout.to_json())
+
+
 async def _handle_rupture_repair_memory(request: web.Request) -> web.Response:
     alpha = _require_alpha(request)
     user_id = _alpha_user_id(request, None)
@@ -1735,6 +2167,28 @@ def _require_alpha(request: web.Request) -> AlphaServiceConfig:
             "memory_scope_root_dir is required for this alpha route",
         )
     return alpha
+
+
+def _required_relationship_memory_session_id(raw: object) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise _BadRequest(
+            "missing_relationship_memory_session_id",
+            "session_id is required for relationship memory console access",
+        )
+    return raw.strip()
+
+
+def _require_relationship_memory_session_owner(
+    *,
+    manager: SessionManager,
+    session_id: str,
+    user_id: str,
+) -> None:
+    session_user = manager.session_end_user(session_id)
+    if session_user != user_id:
+        raise PermissionError(
+            "relationship memory session does not belong to the authenticated user"
+        )
 
 
 def _build_scoped_store(alpha: AlphaServiceConfig, user_id: str):
@@ -2039,6 +2493,36 @@ _CHAT_UI_HTML = r"""<!doctype html>
       color: #bbf7d0; border: 1px solid #166534; font-size: 12px;
     }
     .gov-banner.empty { background: #0f172a; color: #94a3b8; border-color: #1f2937; }
+    .memory-console-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .memory-console-status { color: #94a3b8; font-size: 11px; }
+    .memory-console-list {
+      display: grid; gap: 7px; margin-top: 7px;
+      max-height: 260px; overflow: auto;
+    }
+    .memory-console-item {
+      display: grid; gap: 6px; padding: 8px;
+      border: 1px solid #263244; border-radius: 6px; background: #0b1322;
+    }
+    .memory-console-item p {
+      margin: 0; color: #e2e8f0; font-size: 12px; line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+    .memory-console-meta {
+      color: #94a3b8; font-family: ui-monospace, Menlo, monospace;
+      font-size: 10px; overflow-wrap: anywhere;
+    }
+    .memory-console-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+    .memory-console-actions button { padding: 5px 7px; font-size: 11px; }
+    .memory-console-rewrite {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px;
+    }
+    .memory-console-rewrite input { min-width: 0; width: 100%; box-sizing: border-box; }
+    .memory-console-empty {
+      padding: 8px; color: #64748b; border: 1px dashed #263244;
+      border-radius: 6px; font-size: 11px;
+    }
 
     /* ----- Simulator FSM badge inside chat log ----- */
     .msg.user .fsm-badge {
@@ -2178,6 +2662,21 @@ _CHAT_UI_HTML = r"""<!doctype html>
           set userId + create session to track
         </div>
       </div>
+      <div class="gov-section span-2" id="memoryConsoleSection">
+        <div class="memory-console-head">
+          <div class="gov-label" style="margin-bottom: 0;">Relationship Memory</div>
+          <button id="memoryRefreshBtn" class="secondary" disabled>Refresh</button>
+        </div>
+        <div id="memoryConsoleStatus" class="memory-console-status">session required</div>
+        <details open>
+          <summary class="memory-console-status">Pending <span id="memoryPendingCount">0</span></summary>
+          <div id="memoryPendingList" class="memory-console-list"></div>
+        </details>
+        <details>
+          <summary class="memory-console-status">Remembered <span id="memoryDurableCount">0</span></summary>
+          <div id="memoryDurableList" class="memory-console-list"></div>
+        </details>
+      </div>
     </aside>
   </main>
   <div id="protocolsPanel" hidden style="
@@ -2288,6 +2787,12 @@ _CHAT_UI_HTML = r"""<!doctype html>
     const promptSystemText = document.getElementById("promptSystemText");
     const promptMeta = document.getElementById("promptMeta");
     const promptUserInput = document.getElementById("promptUserInput");
+    const memoryRefreshBtn = document.getElementById("memoryRefreshBtn");
+    const memoryConsoleStatus = document.getElementById("memoryConsoleStatus");
+    const memoryPendingCount = document.getElementById("memoryPendingCount");
+    const memoryDurableCount = document.getElementById("memoryDurableCount");
+    const memoryPendingList = document.getElementById("memoryPendingList");
+    const memoryDurableList = document.getElementById("memoryDurableList");
 
     // 12 distinct colours so the regime colour-band stays readable
     // even on long arcs; the mapping is order-of-first-appearance
@@ -2339,6 +2844,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
       runSimBtn.disabled = !(ready && haveScenario) || state.simRunning;
       stopSimBtn.disabled = !state.simRunning;
       forgetMeBtn.disabled = !ready;
+      memoryRefreshBtn.disabled = !(ready && state.alphaEnabled);
     }
 
     // ----- Governance panel -----
@@ -2514,6 +3020,155 @@ _CHAT_UI_HTML = r"""<!doctype html>
         govRelationshipBanner.textContent =
           `relationship-summary failed: ${err.message}`;
         govRelationshipBanner.classList.add("empty");
+      }
+    }
+
+    function memoryActionButton(label, action, item, danger, correctionKind) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.className = danger ? "danger" : "secondary";
+      button.addEventListener("click", () => applyMemoryAction(
+        item,
+        action,
+        undefined,
+        typeof correctionKind === "function" ? correctionKind() : correctionKind,
+      ));
+      return button;
+    }
+
+    function renderMemoryItem(item, pending) {
+      const row = document.createElement("article");
+      row.className = "memory-console-item";
+      const text = document.createElement("p");
+      text.textContent = pending ? item.description : item.content;
+      const meta = document.createElement("div");
+      meta.className = "memory-console-meta";
+      meta.textContent = pending
+        ? `${item.target_owner_slot} / ${item.operation} / ${Math.round(item.confidence * 100)}%`
+        : `${item.track} / ${item.stratum}`;
+      const actions = document.createElement("div");
+      actions.className = "memory-console-actions";
+      const correctionSelect = document.createElement("select");
+      correctionSelect.title = "Correction type";
+      correctionSelect.style.minWidth = "0";
+      correctionSelect.style.fontSize = "11px";
+      for (const [value, label] of [
+        ["content_inaccurate", "Inaccurate"],
+        ["wrong_user_attribution", "Wrong person"],
+        ["stale", "Outdated"],
+      ]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        correctionSelect.appendChild(option);
+      }
+      if (pending) {
+        actions.appendChild(memoryActionButton("Keep", "keep", item, false));
+        actions.appendChild(memoryActionButton("Session only", "session_only", item, false));
+      }
+      actions.appendChild(memoryActionButton(
+        "Delete", "delete", item, true, () => correctionSelect.value,
+      ));
+      actions.appendChild(memoryActionButton(
+        "Sensitive", "mark_sensitive", item, false, "boundary_preference",
+      ));
+      actions.appendChild(memoryActionButton(
+        "Do not mention",
+        "no_proactive_mention",
+        item,
+        false,
+        "boundary_preference",
+      ));
+      actions.appendChild(correctionSelect);
+      const rewrite = document.createElement("div");
+      rewrite.className = "memory-console-rewrite";
+      const rewriteInput = document.createElement("input");
+      rewriteInput.placeholder = "Rewrite memory";
+      rewriteInput.value = pending ? item.description : item.content;
+      const rewriteButton = document.createElement("button");
+      rewriteButton.type = "button";
+      rewriteButton.className = "secondary";
+      rewriteButton.textContent = "Rewrite";
+      rewriteButton.addEventListener("click", () => {
+        const replacement = rewriteInput.value.trim();
+        if (replacement) {
+          applyMemoryAction(
+            item,
+            "rewrite",
+            replacement,
+            correctionSelect.value,
+          );
+        }
+      });
+      rewrite.appendChild(rewriteInput);
+      rewrite.appendChild(rewriteButton);
+      row.appendChild(text);
+      row.appendChild(meta);
+      row.appendChild(actions);
+      row.appendChild(rewrite);
+      return row;
+    }
+
+    function renderMemoryList(container, items, pending) {
+      container.replaceChildren();
+      if (items.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "memory-console-empty";
+        empty.textContent = pending ? "No pending proposals" : "No remembered items";
+        container.appendChild(empty);
+        return;
+      }
+      for (const item of items) container.appendChild(renderMemoryItem(item, pending));
+    }
+
+    async function refreshRelationshipMemory() {
+      if (!state.sessionId || !state.alphaEnabled || !userIdEl.value.trim()) {
+        memoryConsoleStatus.textContent = "alpha session required";
+        memoryPendingCount.textContent = "0";
+        memoryDurableCount.textContent = "0";
+        renderMemoryList(memoryPendingList, [], true);
+        renderMemoryList(memoryDurableList, [], false);
+        return;
+      }
+      memoryRefreshBtn.disabled = true;
+      memoryConsoleStatus.textContent = "loading";
+      try {
+        const payload = await requestJson(
+          `/v1/users/me/relationship-memory?session_id=${encodeURIComponent(state.sessionId)}`,
+          { method: "GET" },
+        );
+        const pending = Array.isArray(payload.pending_proposals)
+          ? payload.pending_proposals : [];
+        const durable = Array.isArray(payload.durable_entries)
+          ? payload.durable_entries : [];
+        memoryPendingCount.textContent = String(pending.length);
+        memoryDurableCount.textContent = String(durable.length);
+        renderMemoryList(memoryPendingList, pending, true);
+        renderMemoryList(memoryDurableList, durable, false);
+        memoryConsoleStatus.textContent = `updated ${new Date().toLocaleTimeString()}`;
+      } catch (err) {
+        memoryConsoleStatus.textContent = `failed: ${err.message}`;
+      } finally {
+        memoryRefreshBtn.disabled = !(state.sessionId && state.alphaEnabled);
+      }
+    }
+
+    async function applyMemoryAction(item, action, replacement, correctionKind) {
+      const itemId = item.proposal_id || item.entry_id;
+      const body = { session_id: state.sessionId, action };
+      if (action === "rewrite") body.replacement = replacement;
+      if (correctionKind) body.correction_kind = correctionKind;
+      memoryConsoleStatus.textContent = `applying ${action}`;
+      try {
+        await requestJson(
+          `/v1/users/me/relationship-memory/${encodeURIComponent(itemId)}/action`,
+          { method: "POST", body: JSON.stringify(body) },
+        );
+        await refreshRelationshipMemory();
+        await refreshRelationshipSummary();
+      } catch (err) {
+        memoryConsoleStatus.textContent = `${action} failed: ${err.message}`;
       }
     }
 
@@ -2761,6 +3416,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
         if (payload.alpha_disclaimer) addMessage("system", payload.alpha_disclaimer);
         await refreshSessionStateGauges();
         await refreshRelationshipSummary();
+        await refreshRelationshipMemory();
         inputEl.focus();
       } catch (err) {
         addMessage("system", `Create failed: ${err.message}`);
@@ -3086,6 +3742,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
         }
         await refreshSessionStateGauges();
         await refreshRelationshipSummary();
+        await refreshRelationshipMemory();
       } catch (err) {
         addMessage("system", `End scene failed: ${err.message}`);
       }
@@ -3101,6 +3758,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
     runSimBtn.addEventListener("click", runSimulator);
     stopSimBtn.addEventListener("click", stopSimulator);
     forgetMeBtn.addEventListener("click", forgetMe);
+    memoryRefreshBtn.addEventListener("click", refreshRelationshipMemory);
     scenarioSelectEl.addEventListener("change", () => {
       setReady(Boolean(state.sessionId));
     });
@@ -3110,6 +3768,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
     userIdEl.addEventListener("change", () => {
       updateScopeChip();
       refreshRelationshipSummary();
+      refreshRelationshipMemory();
     });
     inputEl.addEventListener("keydown", event => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -3509,6 +4168,7 @@ _CHAT_UI_HTML = r"""<!doctype html>
     loadScenarios();
     resetGovernancePanel();
     updateScopeChip();
+    refreshRelationshipMemory();
   </script>
 </body>
 </html>

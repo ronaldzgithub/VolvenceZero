@@ -29,19 +29,31 @@ from volvence_zero.environment import (
     EnvironmentEventKind,
     EnvironmentOutcome,
 )
+from volvence_zero.evaluation import RelationshipContinuityEvaluationModule
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.integration import FinalRolloutConfig, resolve_final_rollout_config
 from volvence_zero.memory import (
     AnonymousIdentityProvider,
     IdentityProvider,
+    MemoryEntry,
     MemoryStore,
     MemoryStoreCheckpoint,
-    UserIdentity,
     build_scoped_memory_store,
+    delete_entry_for_scope,
+    list_durable_entries_for_scope,
+    rewrite_entry_for_scope,
     scope_key_for,
 )
 from volvence_zero.owner_hydration_store import OwnerHydrationStore
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
+from volvence_zero.reflection import (
+    ReflectionSnapshot,
+    RelationshipUpdateProposalOperation,
+)
+from volvence_zero.relationship_continuity import (
+    RelationshipContinuityConsoleOutcome,
+    RelationshipContinuitySnapshot,
+)
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
@@ -244,6 +256,11 @@ class BrainSession:
 
     def __init__(self, *, runner: AgentSessionRunner) -> None:
         self._runner = runner
+        self._relationship_continuity_evaluation = (
+            RelationshipContinuityEvaluationModule(
+                persistence_backend=runner.memory_store.persistence_backend
+            )
+        )
 
     @property
     def runner(self) -> AgentSessionRunner:
@@ -268,6 +285,203 @@ class BrainSession:
         """Return the Memory owner-published artifact-entry count."""
 
         return self._runner.memory_store.entry_count()
+
+    def relationship_reflection_snapshot(self) -> ReflectionSnapshot | None:
+        """Return the latest typed reflection readout for product consumers."""
+
+        published = self._runner.upstream_snapshots.get("reflection")
+        if published is None:
+            return None
+        if not isinstance(published.value, ReflectionSnapshot):
+            raise TypeError(
+                "reflection slot must publish ReflectionSnapshot for relationship console"
+            )
+        return published.value
+
+    def relationship_memory_entries(self) -> tuple[MemoryEntry, ...]:
+        """List this session's scoped durable entries through Memory owner API."""
+
+        return list_durable_entries_for_scope(
+            self._runner.memory_store,
+            user_scope=self._runner.user_scope,
+        )
+
+    def relationship_continuity_readout(
+        self,
+        *,
+        user_id: str,
+        observation_id: str,
+        observed_at_ms: int,
+        console_outcomes: tuple[RelationshipContinuityConsoleOutcome, ...],
+    ) -> RelationshipContinuitySnapshot:
+        """Publish the evaluation owner's read-only seven-day readout."""
+
+        return self._relationship_continuity_evaluation.observe(
+            user_id=user_id,
+            observation_id=observation_id,
+            observed_at_ms=observed_at_ms,
+            snapshots=self._runner.upstream_snapshots,
+            console_outcomes=console_outcomes,
+        )
+
+    def _persist_relationship_memory_or_rollback(
+        self,
+        *,
+        checkpoint: MemoryStoreCheckpoint,
+        failure_message: str,
+    ) -> None:
+        try:
+            persisted = self._runner.memory_store.save_to_backend()
+        except Exception as exc:
+            self._runner.memory_store.restore_checkpoint(checkpoint)
+            raise RuntimeError(failure_message) from exc
+        if persisted:
+            return
+        self._runner.memory_store.restore_checkpoint(checkpoint)
+        raise RuntimeError(failure_message)
+
+    def apply_confirmed_relationship_memory_proposal(
+        self,
+        *,
+        proposal_id: str,
+        timestamp_ms: int,
+    ) -> tuple[str, ...]:
+        """Apply one user-confirmed reflection proposal through Memory owner."""
+
+        reflection = self.relationship_reflection_snapshot()
+        if reflection is None:
+            raise RuntimeError("relationship memory proposal requires a reflection snapshot")
+        proposal = next(
+            (
+                candidate
+                for candidate in reflection.relationship_update_proposals
+                if candidate.proposal_id == proposal_id
+            ),
+            None,
+        )
+        if proposal is None:
+            raise KeyError(proposal_id)
+        if proposal.target_owner_slot != "memory":
+            raise ValueError(
+                "apply_confirmed_relationship_memory_proposal only accepts memory proposals"
+            )
+
+        evidence_ids = tuple(
+            item.removeprefix("memory_entry:")
+            for item in proposal.source_evidence
+            if item.startswith("memory_entry:")
+        )
+        if len(evidence_ids) != 1 or not evidence_ids[0]:
+            raise ValueError(
+                "memory relationship proposal must identify exactly one memory_entry"
+            )
+        entry_id = evidence_ids[0]
+        operation = RelationshipUpdateProposalOperation(proposal.operation)
+        new_entries: tuple[MemoryEntry, ...] = ()
+        promoted_entries: tuple[str, ...] = ()
+        decayed_entries: tuple[str, ...] = ()
+        if operation is RelationshipUpdateProposalOperation.REMEMBER:
+            source = next(
+                (
+                    entry
+                    for entry in reflection.memory_consolidation.new_durable_entries
+                    if entry.entry_id == entry_id
+                ),
+                None,
+            )
+            if source is None:
+                raise ValueError(
+                    "remember proposal evidence is absent from reflection memory consolidation"
+                )
+            scope_tag = f"user_scope:{self._runner.user_scope}"
+            new_entries = (
+                replace(
+                    source,
+                    tags=tuple(dict.fromkeys((*source.tags, scope_tag))),
+                ),
+            )
+        elif operation is RelationshipUpdateProposalOperation.PROMOTE:
+            promoted_entries = (entry_id,)
+        elif operation is RelationshipUpdateProposalOperation.DECAY:
+            decayed_entries = (entry_id,)
+        else:
+            raise ValueError(
+                f"unsupported memory relationship proposal operation: {operation.value}"
+            )
+
+        checkpoint = self._runner.memory_store.create_checkpoint(
+            checkpoint_id=f"relationship-memory:{proposal_id}"
+        )
+        applied = self._runner.memory_store.apply_reflection_consolidation(
+            new_durable_entries=new_entries,
+            promoted_entries=promoted_entries,
+            decayed_entries=decayed_entries,
+            beliefs_updated=(),
+            promotion_boost=reflection.consolidation_score.promotion_score,
+            decay_scale=reflection.consolidation_score.decay_score,
+            lesson_count=len(reflection.lessons_extracted),
+            timestamp_ms=timestamp_ms,
+        )
+        if not applied:
+            self._runner.memory_store.restore_checkpoint(checkpoint)
+            raise RuntimeError(
+                "Memory owner rejected the confirmed relationship proposal"
+            )
+        self._persist_relationship_memory_or_rollback(
+            checkpoint=checkpoint,
+            failure_message=(
+                "confirmed relationship memory proposal could not be persisted"
+            ),
+        )
+        return applied
+
+    def delete_relationship_memory_entry(self, *, entry_id: str) -> MemoryEntry | None:
+        """Delete one scoped durable entry and persist the Memory owner."""
+
+        checkpoint = self._runner.memory_store.create_checkpoint(
+            checkpoint_id=f"relationship-memory-delete:{entry_id}"
+        )
+        removed = delete_entry_for_scope(
+            self._runner.memory_store,
+            user_scope=self._runner.user_scope,
+            entry_id=entry_id,
+        )
+        if removed is not None:
+            self._persist_relationship_memory_or_rollback(
+                checkpoint=checkpoint,
+                failure_message=(
+                    "relationship memory deletion could not be persisted"
+                ),
+            )
+        return removed
+
+    def rewrite_relationship_memory_entry(
+        self,
+        *,
+        entry_id: str,
+        replacement_content: str,
+        timestamp_ms: int,
+    ) -> MemoryEntry | None:
+        """Rewrite one scoped durable entry and persist the Memory owner."""
+
+        checkpoint = self._runner.memory_store.create_checkpoint(
+            checkpoint_id=f"relationship-memory-rewrite:{entry_id}"
+        )
+        replacement = rewrite_entry_for_scope(
+            self._runner.memory_store,
+            user_scope=self._runner.user_scope,
+            entry_id=entry_id,
+            replacement_content=replacement_content,
+            timestamp_ms=timestamp_ms,
+        )
+        if replacement is not None:
+            self._persist_relationship_memory_or_rollback(
+                checkpoint=checkpoint,
+                failure_message=(
+                    "relationship memory rewrite could not be persisted"
+                ),
+            )
+        return replacement
 
     def submit_environment_outcome(self, outcome: EnvironmentOutcome) -> None:
         """Submit one canonical outcome to next-turn Prediction Error settlement."""
@@ -529,6 +743,7 @@ class BrainSession:
         turn_index: int | None = None,
         evidence_ref: str | None = None,
         description: str = "",
+        action_turn_index: int | None = None,
     ) -> DialogueExternalOutcomeEvidence:
         """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
 
@@ -546,6 +761,7 @@ class BrainSession:
             turn_index=turn_index,
             evidence_ref=evidence_ref,
             description=description,
+            action_turn_index=action_turn_index,
         )
 
     def export_snapshot_replay_artifact(self) -> dict[str, object]:

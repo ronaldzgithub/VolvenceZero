@@ -153,6 +153,7 @@ class MemoryStoreCheckpoint:
     # #89 residual: learned PE write-gate threshold. Default keeps
     # pre-gate checkpoints loadable (they restore the initial 0.15).
     pe_write_gate_threshold: float = 0.15
+    entry_attributes: tuple[MemoryAttributeReadout, ...] = ()
 
 
 def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | None:
@@ -294,6 +295,22 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
             (str(pair[0]), tuple(float(v) for v in pair[1]))
             for pair in semantic_raw
         )
+        entry_attributes = tuple(
+            MemoryAttributeReadout(
+                entry_id=str(item["entry_id"]),
+                pe_intensity=float(item["pe_intensity"]),
+                pe_primary_axis=str(item["pe_primary_axis"]),
+                regime_id=str(item["regime_id"]),
+                substrate_feature_digest=tuple(
+                    float(value)
+                    for value in item.get("substrate_feature_digest", ())
+                ),
+                epistemic_magnitude=float(item["epistemic_magnitude"]),
+                aleatoric_magnitude=float(item["aleatoric_magnitude"]),
+                timestamp_ms=int(item["timestamp_ms"]),
+            )
+            for item in parsed.get("entry_attributes", ())
+        )
         return MemoryStoreCheckpoint(
             checkpoint_id=str(parsed.get("checkpoint_id", "restored")),
             entries=entries,
@@ -303,6 +320,7 @@ def _reconstruct_checkpoint(parsed: dict[str, Any]) -> MemoryStoreCheckpoint | N
             promotion_threshold=float(parsed.get("promotion_threshold", 0.3)),
             semantic_index=semantic_index,
             pe_write_gate_threshold=float(parsed.get("pe_write_gate_threshold", 0.15)),
+            entry_attributes=entry_attributes,
         )
     except (KeyError, TypeError, ValueError):
         return None

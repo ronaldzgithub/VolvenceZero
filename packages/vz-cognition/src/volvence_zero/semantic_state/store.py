@@ -25,6 +25,7 @@ from volvence_zero.owner_hydration import (
     HydrationVersionMismatchError,
     OwnerPersistenceSnapshot,
 )
+from volvence_zero.owner_prediction import OwnerPredictionKind, OwnerPredictionSignal
 from volvence_zero.semantic_state.contracts import (
     SEMANTIC_OWNER_SLOTS,
     AdvocacyState,
@@ -47,14 +48,12 @@ from volvence_zero.semantic_state.lifecycle import (
     _outcome_record_for_slot,
     commitment_followup_policy_for_operation,
     commitment_lifecycle_for_operation,
-    commitment_outcome_for_operation,
-    execution_result_outcome_for_operation,
-    plan_intent_outcome_for_operation,
 )
 
 
 _SEMANTIC_STATE_OWNER_NAME = "semantic_state"
-_SEMANTIC_STATE_SCHEMA_VERSION = 1
+_SEMANTIC_STATE_SCHEMA_VERSION = 2
+_SEMANTIC_STATE_COMPATIBLE_SCHEMA_VERSIONS = frozenset({1, 2})
 
 
 class OwnerForecastDimensionMismatchError(ValueError):
@@ -245,7 +244,13 @@ class SemanticStateStore:
         learner = self._forecast_learner(slot)
         return (learner.update_count, learner.running_abs_error)
 
-    def apply(self, *, slot: str, proposals: tuple[SemanticProposal, ...], turn_index: int) -> tuple[SemanticRecord, ...]:
+    def apply(
+        self,
+        *,
+        slot: str,
+        proposals: tuple[SemanticProposal, ...],
+        turn_index: int,
+    ) -> tuple[SemanticRecord, ...]:
         existing = list(self._records[slot])
         completed_refs = list(self._completed_refs[slot])
         revision_count = self._revision_counts[slot]
@@ -434,6 +439,13 @@ class SemanticStateStore:
                     }
                     for slot, outcomes in self._record_outcome.items()
                 },
+                "pending_owner_predictions": {
+                    slot: _serialize_owner_prediction(signal)
+                    for slot, signal in self._pending_owner_prediction.items()
+                },
+                "owner_prediction_sequence": dict(
+                    self._owner_prediction_sequence
+                ),
             },
             description=(
                 f"SemanticStateStore snapshot v{_SEMANTIC_STATE_SCHEMA_VERSION} "
@@ -463,11 +475,12 @@ class SemanticStateStore:
                 f"mismatch — expected {_SEMANTIC_STATE_OWNER_NAME!r}, "
                 f"got {snapshot.owner_name!r}"
             )
-        if snapshot.schema_version != _SEMANTIC_STATE_SCHEMA_VERSION:
+        if snapshot.schema_version not in _SEMANTIC_STATE_COMPATIBLE_SCHEMA_VERSIONS:
             raise HydrationVersionMismatchError(
                 f"SemanticStateStore.hydrate_from_persistence: unknown "
                 f"schema_version={snapshot.schema_version!r}; this build "
-                f"only knows version {_SEMANTIC_STATE_SCHEMA_VERSION}."
+                f"knows versions "
+                f"{sorted(_SEMANTIC_STATE_COMPATIBLE_SCHEMA_VERSIONS)!r}."
             )
         payload = snapshot.payload
         try:
@@ -482,6 +495,18 @@ class SemanticStateStore:
                 f"SemanticStateStore.hydrate_from_persistence: missing "
                 f"required key {exc.args[0]!r} in payload"
             ) from exc
+        if snapshot.schema_version >= 2:
+            try:
+                prediction_blob = payload["pending_owner_predictions"]
+                sequence_blob = payload["owner_prediction_sequence"]
+            except KeyError as exc:
+                raise HydrationPayloadInvalidError(
+                    "SemanticStateStore.hydrate_from_persistence: missing "
+                    f"required v2 key {exc.args[0]!r} in payload"
+                ) from exc
+        else:
+            prediction_blob = {}
+            sequence_blob = {}
         # Validate that every slot referenced is in our registry.
         for blob_name, blob in (
             ("records", records_blob),
@@ -490,6 +515,8 @@ class SemanticStateStore:
             ("record_lifecycle", lifecycle_blob),
             ("record_followup_policy", policy_blob),
             ("record_outcome", outcome_blob),
+            ("pending_owner_predictions", prediction_blob),
+            ("owner_prediction_sequence", sequence_blob),
         ):
             unknown_slots = set(blob).difference(SEMANTIC_OWNER_SLOTS)
             if unknown_slots:
@@ -534,6 +561,13 @@ class SemanticStateStore:
         self._record_lifecycle = new_lifecycle
         self._record_followup_policy = new_followup
         self._record_outcome = new_outcome
+        self._pending_owner_prediction = {
+            slot: _deserialize_owner_prediction(item)
+            for slot, item in prediction_blob.items()
+        }
+        self._owner_prediction_sequence = {
+            slot: int(sequence) for slot, sequence in sequence_blob.items()
+        }
 
 
 def _serialize_semantic_record(record: SemanticRecord) -> dict[str, Any]:
@@ -565,6 +599,58 @@ def _deserialize_semantic_record(blob: Mapping[str, Any]) -> SemanticRecord:
         raise HydrationPayloadInvalidError(
             f"semantic_state record missing required key {exc.args[0]!r}; "
             f"got blob={blob!r}"
+        ) from exc
+
+
+def _serialize_owner_prediction(signal: OwnerPredictionSignal) -> dict[str, Any]:
+    return {
+        "signal_id": signal.signal_id,
+        "prediction_id": signal.prediction_id,
+        "source_owner": signal.source_owner,
+        "source_slot": signal.source_slot,
+        "track": signal.track,
+        "kind": signal.kind.value,
+        "predicted_vector": list(signal.predicted_vector),
+        "confidence": signal.confidence,
+        "description": signal.description,
+        "source_turn_index": signal.source_turn_index,
+        "evidence": list(signal.evidence),
+        "outcome_evidence": list(signal.outcome_evidence),
+        "settled_vector": (
+            list(signal.settled_vector)
+            if signal.settled_vector is not None
+            else None
+        ),
+    }
+
+
+def _deserialize_owner_prediction(blob: Mapping[str, Any]) -> OwnerPredictionSignal:
+    try:
+        settled_blob = blob["settled_vector"]
+        return OwnerPredictionSignal(
+            signal_id=str(blob["signal_id"]),
+            prediction_id=str(blob["prediction_id"]),
+            source_owner=str(blob["source_owner"]),
+            source_slot=str(blob["source_slot"]),
+            track=str(blob["track"]),
+            kind=OwnerPredictionKind(str(blob["kind"])),
+            predicted_vector=tuple(float(item) for item in blob["predicted_vector"]),
+            confidence=float(blob["confidence"]),
+            description=str(blob["description"]),
+            source_turn_index=int(blob["source_turn_index"]),
+            evidence=tuple(str(item) for item in blob["evidence"]),
+            outcome_evidence=tuple(
+                str(item) for item in blob["outcome_evidence"]
+            ),
+            settled_vector=(
+                tuple(float(item) for item in settled_blob)
+                if settled_blob is not None
+                else None
+            ),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HydrationPayloadInvalidError(
+            f"semantic_state owner prediction blob is invalid: {blob!r}"
         ) from exc
 
 
@@ -625,4 +711,6 @@ def clone_semantic_store(source: SemanticStateStore) -> SemanticStateStore:
         target._record_lifecycle[slot] = source.lifecycle_for(slot)
         target._record_followup_policy[slot] = source.followup_policy_for(slot)
         target._record_outcome[slot] = source.outcome_for(slot)
+    target._pending_owner_prediction = dict(source._pending_owner_prediction)
+    target._owner_prediction_sequence = dict(source._owner_prediction_sequence)
     return target

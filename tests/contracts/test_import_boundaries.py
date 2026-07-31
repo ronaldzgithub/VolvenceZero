@@ -142,6 +142,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # computer) constructs OwnerPredictionSettlement. Both types live
             # in vz-contracts.owner_prediction.
             "owner_prediction",
+            "relationship_continuity",
         }
     ),
     "vz-application": frozenset(
@@ -277,6 +278,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # ``build_final_runtime_modules`` and passed to
             # ``DualTrackModule`` constructor.
             "identity_seed",
+            "relationship_continuity",
             "social", "social_cognition", "environment",
             # vz-application:
             "application",

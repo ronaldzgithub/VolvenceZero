@@ -225,3 +225,35 @@ async def test_pe_owner_computes_settlement_from_settled_signals() -> None:
         assert 0.0 <= settlement.mismatch_magnitude <= 1.0
         assert settlement.settled_turn_index == pe_value.turn_index
         assert settlement.description
+
+
+@pytest.mark.parametrize(
+    ("slot", "kind"),
+    (
+        ("commitment", OwnerPredictionKind.COMMITMENT_FOLLOW_THROUGH),
+        ("open_loop", OwnerPredictionKind.OPEN_LOOP_CLOSURE),
+        ("boundary_consent", OwnerPredictionKind.BOUNDARY_CONSENT_STABILITY),
+    ),
+)
+async def test_cp12_pending_prediction_settles_after_owner_hydration(
+    slot: str,
+    kind: OwnerPredictionKind,
+) -> None:
+    from volvence_zero.semantic_state import SemanticStateStore
+    from volvence_zero.semantic_state.owners import SEMANTIC_MODULE_TYPES
+
+    module_type = next(m for m in SEMANTIC_MODULE_TYPES if m.slot_name == slot)
+    source = SemanticStateStore()
+    first = await _owner_snapshot(module_type, source, turn_index=1)
+    pending = first.owner_prediction_signals[-1]
+    assert pending.kind is kind
+    assert pending.settled is False
+
+    hydrated = SemanticStateStore()
+    hydrated.hydrate_from_persistence(source.export_persistence_snapshot())
+    resumed = await _owner_snapshot(module_type, hydrated, turn_index=1)
+    settled, fresh = resumed.owner_prediction_signals
+    assert settled.prediction_id == pending.prediction_id
+    assert settled.settled is True
+    assert fresh.settled is False
+    assert fresh.prediction_id != settled.prediction_id

@@ -63,6 +63,12 @@ from volvence_zero.evaluation.backbone import (
     EvaluationBackbone,
     EvaluationModule,
 )
+from volvence_zero.evaluation.relationship_continuity import (
+    RelationshipContinuityConsoleOutcome,
+    RelationshipContinuityEvaluationModule,
+    RelationshipContinuityObservation,
+    RelationshipContinuitySnapshot,
+)
 
 __all__ = [
     "CounterfactualContributionReadout",
@@ -99,6 +105,10 @@ __all__ = [
     "build_cross_generation_aggregate_snapshot",
     "build_deterministic_head_to_head_snapshot",
     "PairwiseMetricEffect",
+    "RelationshipContinuityConsoleOutcome",
+    "RelationshipContinuityEvaluationModule",
+    "RelationshipContinuityObservation",
+    "RelationshipContinuitySnapshot",
     "build_metric_interval_summaries",
     "build_metric_interval_summary",
     "build_pairwise_metric_effect",

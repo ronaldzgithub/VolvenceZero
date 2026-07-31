@@ -105,7 +105,7 @@ def test_semantic_state_store_round_trip() -> None:
 
     exported = source.export_persistence_snapshot()
     assert exported.owner_name == "semantic_state"
-    assert exported.schema_version == 1
+    assert exported.schema_version == 2
 
     target = SemanticStateStore()
     target.hydrate_from_persistence(exported)

@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from pathlib import Path
 
 import pytest
 
-from volvence_zero.agent import default_active_runner
 from volvence_zero.agent.session import AgentSessionRunner
 from volvence_zero.brain import Brain, BrainConfig
 from volvence_zero.dialogue_trace import (
@@ -19,12 +17,18 @@ from volvence_zero.integration import FinalRolloutConfig
 from volvence_zero.memory import (
     ANONYMOUS_USER_SCOPE,
     AnonymousIdentityProvider,
+    FileSystemPersistenceBackend,
     MemoryStratum,
+    MemoryWriteRequest,
     StaticIdentityProvider,
+    Track,
     UserIdentity,
+    build_default_memory_store,
     build_scoped_memory_store,
+    delete_entry_for_scope,
     delete_entries_for_scope,
     list_durable_entries_for_scope,
+    rewrite_entry_for_scope,
     scope_key_for,
     scoped_memory_dir,
 )
@@ -207,5 +211,82 @@ def test_delete_entries_for_scope_removes_only_matching_entries(tmp_path: Path) 
     )
     assert post == ()
     # The unrelated entry is still there.
-    all_durable = runner._memory_store._entries_for(MemoryStratum.DURABLE)  # noqa: SLF001
+    all_durable = runner._memory_store._entries_for(  # noqa: SLF001
+        MemoryStratum.DURABLE
+    )
     assert any(entry.entry_id == "unrelated-1" for entry in all_durable)
+
+
+def test_per_item_delete_and_rewrite_are_scope_guarded(tmp_path: Path) -> None:
+    backend = FileSystemPersistenceBackend(base_dir=str(tmp_path / "memory"))
+    store = build_default_memory_store(persistence_backend=backend)
+    alice = store.write(
+        MemoryWriteRequest(
+            content="Alice prefers quiet follow-up",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            tags=("user_scope:alice", "preference"),
+            strength=0.8,
+        ),
+        timestamp_ms=10,
+    )
+    bob = store.write(
+        MemoryWriteRequest(
+            content="Bob prefers concise updates",
+            track=Track.SELF,
+            stratum=MemoryStratum.DURABLE,
+            tags=("user_scope:bob", "preference"),
+            strength=0.7,
+        ),
+        timestamp_ms=11,
+    )
+
+    assert delete_entry_for_scope(
+        store,
+        user_scope="alice",
+        entry_id=bob.entry_id,
+    ) is None
+    replacement = rewrite_entry_for_scope(
+        store,
+        user_scope="alice",
+        entry_id=alice.entry_id,
+        replacement_content="Alice prefers quiet written follow-up",
+        timestamp_ms=12,
+    )
+    assert replacement is not None
+    assert replacement.entry_id != alice.entry_id
+    assert replacement.content == "Alice prefers quiet written follow-up"
+    assert f"rewrites:{alice.entry_id}" in replacement.tags
+    checkpoint = store.create_checkpoint(checkpoint_id="after-rewrite")
+    semantic_entry_ids = {entry_id for entry_id, _ in checkpoint.semantic_index}
+    attribute_entry_ids = {item.entry_id for item in checkpoint.entry_attributes}
+    assert alice.entry_id not in semantic_entry_ids
+    assert alice.entry_id not in attribute_entry_ids
+    assert replacement.entry_id in semantic_entry_ids
+    assert replacement.entry_id in attribute_entry_ids
+    assert store.save_to_backend()
+    reloaded = build_default_memory_store(persistence_backend=backend)
+    assert reloaded.load_from_backend()
+    reloaded_checkpoint = reloaded.create_checkpoint(
+        checkpoint_id="after-rewrite-reload"
+    )
+    assert replacement.entry_id in {
+        item.entry_id for item in reloaded_checkpoint.entry_attributes
+    }
+
+    alice_entries = list_durable_entries_for_scope(store, user_scope="alice")
+    bob_entries = list_durable_entries_for_scope(store, user_scope="bob")
+    assert alice_entries == (replacement,)
+    assert bob_entries == (bob,)
+    assert delete_entry_for_scope(
+        store,
+        user_scope="alice",
+        entry_id=replacement.entry_id,
+    ) == replacement
+    deleted_checkpoint = store.create_checkpoint(checkpoint_id="after-delete")
+    assert replacement.entry_id not in {
+        entry_id for entry_id, _ in deleted_checkpoint.semantic_index
+    }
+    assert replacement.entry_id not in {
+        item.entry_id for item in deleted_checkpoint.entry_attributes
+    }

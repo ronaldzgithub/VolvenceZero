@@ -8,16 +8,13 @@ historic public API from ``volvence_zero.memory.store``.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 from uuid import uuid4
 
-from volvence_zero.learned_update import LearnedUpdateRuleState
 from volvence_zero.memory.artifacts import ArtifactStore
 from volvence_zero.memory.cms import (
-    CMSCheckpointState,
     CMSContextInitializationEvidence,
     CMSMemoryCore,
-    CMSState,
     CMSTowerConsolidationUpdate,
     CMSTowerProfile,
 )
@@ -65,7 +62,7 @@ from volvence_zero.social_cognition import (
     MultiPartyIdentitySnapshot,
     build_memory_visibility_signals,
 )
-from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot, SurfaceKind
+from volvence_zero.substrate import FeatureSignal, SubstrateSnapshot
 
 if TYPE_CHECKING:
     from volvence_zero.prediction.error import PredictionErrorSnapshot
@@ -361,6 +358,18 @@ class MemoryStore:
         )
         return entry
 
+    def delete_artifact_entry(self, entry_id: str) -> MemoryEntry | None:
+        """Delete one explicit artifact and every owner-coupled projection."""
+
+        if not entry_id.strip():
+            raise ValueError("entry_id must be non-empty")
+        removed = self._artifact_store.delete_entry(entry_id)
+        if removed is None:
+            return None
+        self._derived_index.delete_entry(entry_id)
+        self._entry_attributes.pop(entry_id, None)
+        return removed
+
     def enforce_artifact_capacity(
         self,
         max_entries: int,
@@ -397,13 +406,9 @@ class MemoryStore:
         )
         evicted: list[str] = []
         for entry in candidates[:excess]:
-            removed = self._artifact_store.delete_entry(
-                entry.entry_id
-            )
+            removed = self.delete_artifact_entry(entry.entry_id)
             if removed is None:
                 continue
-            self._derived_index.delete_entry(entry.entry_id)
-            self._entry_attributes.pop(entry.entry_id, None)
             evicted.append(entry.entry_id)
         return tuple(evicted)
 
@@ -1021,6 +1026,7 @@ class MemoryStore:
             promotion_threshold=self._promotion_threshold,
             semantic_index=self._derived_index.export_state(),
             pe_write_gate_threshold=self._pe_write_gate.threshold,
+            entry_attributes=tuple(self._entry_attributes.values()),
         )
 
     def export_rare_heavy_state(self, *, checkpoint_id: str | None = None) -> MemoryStoreCheckpoint:
@@ -1038,6 +1044,9 @@ class MemoryStore:
         self._promotion_threshold = checkpoint.promotion_threshold
         self._pe_write_gate.restore_threshold(checkpoint.pe_write_gate_threshold)
         self._derived_index.restore(checkpoint.semantic_index)
+        self._entry_attributes = {
+            item.entry_id: item for item in checkpoint.entry_attributes
+        }
         if self._learned_core is not None and checkpoint.cms_state is not None:
             self._learned_core.restore_state(checkpoint.cms_state)
 

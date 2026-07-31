@@ -90,6 +90,11 @@ from lifeform_evolution.relationship_repair_alpha_gate import (
     run_relationship_repair_alpha_gate,
     run_relationship_repair_alpha_gate_async,
 )
+from lifeform_evolution.relationship_assistant_pilot import (
+    PilotDayEvidence,
+    PilotTranscriptTurn,
+    RelationshipAssistantPilotHarness,
+)
 from lifeform_evolution.social_cognition_evidence import (
     SocialCognitionEvidenceGate,
     SocialCognitionEvidenceReport,
@@ -160,11 +165,14 @@ __all__ = (
     "FamilyReport",
     "LearningLoopReport",
     "MultiRoundLearningLoopReport",
+    "PilotDayEvidence",
+    "PilotTranscriptTurn",
     "RegimeBootstrapArtifact",
     "RegimeCalibrationReport",
     "RegimeCalibrationRoundReport",
     "RepairAlphaArmReport",
     "RepairAlphaGateReport",
+    "RelationshipAssistantPilotHarness",
     "RoundDeltaVsBaseline",
     "RoundQualityMetrics",
     "RoundReport",

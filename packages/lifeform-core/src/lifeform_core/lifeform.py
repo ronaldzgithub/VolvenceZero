@@ -1845,6 +1845,7 @@ class LifeformSession:
         turn_index: int | None = None,
         evidence_ref: str | None = None,
         description: str = "",
+        action_turn_index: int | None = None,
     ) -> DialogueExternalOutcomeEvidence:
         """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
 
@@ -1861,6 +1862,7 @@ class LifeformSession:
             turn_index=turn_index,
             evidence_ref=evidence_ref,
             description=description,
+            action_turn_index=action_turn_index,
         )
 
     # ------------------------------------------------------------------
