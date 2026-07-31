@@ -1,7 +1,7 @@
 # 证据计划 Spec
 
 > Status: draft
-> Last updated: 2026-04-25
+> Last updated: 2026-08-01
 > 对应需求: R12, R15
 
 ## 要解决的问题
@@ -577,6 +577,25 @@ Gate 4 ecology source=`not-admitted`，P1/P2 不执行。该 kill 是冻结计�
   `artifacts/gate8_longitudinal_fifth_campaign_20260730`。共享工作区并发
   竞态产生的后完成同源 formal run 已记为
   `invalid-duplicate-not-admitted`，不进入 verdict 或 CI。
+- 五杠杆 L3 以新机制
+  `residual-state+relationship-owner-readout.v1`、新 schema
+  `eta-gate2-longitudinal-conditioned.v1` 和 fresh seeds
+  `1301/1313/1327` 合法重开 Gate 2 longitudinal readout。训练只用 seed
+  1291 的 64 条，selector 一次拟合后冻结；formal seed 1301 完成
+  510 条、51 sessions。selector−action permutation=`+0.003287669`、
+  selector−zero=`+0.004308079`、selector−matched wrong-condition=
+  `+0.000055161`，均未达 `0.02`；wrong-condition session positive
+  rate=`0.156863 < 0.60`。因此完整 seed 1301 触发
+  `single-seed-stoploss`，后续 1313/1327 不获授权，official Gate 2
+  longitudinal verdict 仍为 `not-supported`。v35 `causal-supported` 不受改写，
+  live/production promotion 仍为 false。正式 bundle：
+  `artifacts/gate2_longitudinal_conditioned_seed1301_formal_20260731T170122Z`；
+  prereg SHA-256=`c51848d41888ea3e7f2a4f83174d6b49483928b7f73dc4655f44f77e7877d1ea`，
+  promotion verdict SHA-256=`f54fcdd67c50317f8c8c8b8d639b1ea69d5029619e939adefdcd2cf9fca9e733`。
+  正式进程启动时已验证冻结 code tree；结尾封包遇到工作区并行
+  `residual_backend.py` 改写而 fail loudly，最终在与预注册十个 code digest
+  全部匹配的 Git `79d142f7dfc78e22247aa70222ad4bff0964c1d7` 隔离快照上只重做
+  validation/export，不重算 510 条 outcomes，也不覆盖并行改动。
 - Gate 4 主动学习使用 schema `gate4-active-learning.v1`，在实现与首次读取
   `trace-locked-confirmation` label 前冻结以下协议：
   - 原 `artifacts/gate456_shared_settled_trace_20260730` 保持不可变。前置
@@ -1671,7 +1690,50 @@ prompt identity `4/4`，证明专属 attention carrier 已物理接通且没有 
 默认保持 text + SHADOW，Prefix profile 可由 omit artifact 或切回 text / SHADOW /
 DISABLED 立即回滚；该结果不支持扩同构样本、提高 norm cap 或进入 P6 freeze。
 
+## Gate 2 relationship-conditioned longitudinal prereg（冻结终局）
+
+这条 evidence lane 独立于历史 v35 无条件 selector，用 cognition owner 发布的
+14 维 `ConditioningBankReadout` 条件化完整 residual state：8076 维历史输入变为
+8090 维 `residual-state+relationship-owner-readout.v1`。变换仅做
+`(2x-1)×confidence`；错 bank、cold-start、零 confidence 均 fail loudly，且 selector
+没有安装到 live session。
+
+冻结入口与 schema：
+
+| 入口 | 契约 |
+|---|---|
+| `scripts/preregister_gate2_longitudinal_conditioned.py` | 生成并校验 `eta-gate2-longitudinal-conditioned.v1` prereg；绑定 code tree、substrate、v35 candidate、训练与评估计划 |
+| `scripts/run_gate2_longitudinal_conditioned.py` | 在冻结计划上训练 selector 并运行 formal capture |
+| `volvence_zero.agent.gate2_longitudinal_conditioned` | owner readout → selector state、prereg validation、capture 与 verdict 的唯一实现 |
+| `gate2-longitudinal-conditioned-capture.v1` | manifest、selector、outcomes、PE、segments、action selection、ablation、verdict、rollback 与报告的 bundle schema |
+
+预注册冻结训练 seed `1291`、64 条 train-only examples；formal seeds
+`1301/1313/1327` 各 510 条，seed 1301 是 stop-loss，未通过即禁止继续后两 seed。
+correct condition 对 action permutation、zero、matched wrong-condition 的单 seed
+均值都必须 `>=0.02`，wrong-condition session positive rate 必须 `>=0.60`；完整
+三 seed 的 95% t-CI 下界还必须 `>=0.02`。禁止事后 refit、换 seed、放宽阈值或复用
+历史 1201/1213/1223 route。
+
+冻结 prereg 是
+`artifacts/gate2_longitudinal_conditioned_prereg_20260731T170122Z.json`，SHA-256
+`c51848d41888ea3e7f2a4f83174d6b49483928b7f73dc4655f44f77e7877d1ea`。
+正式 seed1301 bundle 位于
+`artifacts/gate2_longitudinal_conditioned_seed1301_formal_20260731T170122Z/`。
+510 条 / 51 sessions 全部完成，但 selector−action permutation=`0.0032876690`、
+selector−zero=`0.0043080790`、selector−wrong-condition=`0.0000551607`、
+positive rate=`0.1568627451`，四个效果门全部失败。
+
+因此 machine status=`single-seed-stoploss`、official longitudinal
+verdict=`not-supported`、`production_live_promotion_authorized=false`；1313/1327
+按预注册不运行。v35 的历史结论只保留为受限 open-loop `causal-supported`，不能由
+carrier existence 外推成纵向净收益，也不能改写 #92 的 `thesis-rejected`。
+rollback evidence 证明 source hash 前后相同、未写 runtime owner state、未更新
+substrate weights；删除隔离 evidence directory 即可回滚本 lane。
+
 ## 变更日志
+
+- 2026-08-01: 登记 Gate 2 relationship-conditioned longitudinal prereg、seed1301
+  stop-loss 终局与 claim 边界；正式 verdict 为 `not-supported`，不授权 live 晋升。
 
 - 2026-07-28: 归档 ETA Gate 2 v30 prefix expected-value 2+2 校准。新增固定
   seed target/audit cohort、fresh validation、action selection audit readout
@@ -1759,6 +1821,27 @@ DISABLED 立即回滚；该结果不支持扩同构样本、提高 norm cap 或�
 
 ## 变更日志补充（longitudinal + human anchor）
 
+- 2026-07-31: Gate 8/11 专用 human-anchor preregistration。新增
+  `volvence_zero.agent.gate811_human_anchor`，以 source manifest SHA 绑定 Gate 11
+  `correct-user-state/stateless` 与 Gate 8 `sleep-consolidation/no-sleep`，冻结
+  fresh capture/formal seeds、三 session 30-turn matched transcript、pilot 24
+  pairs/contrast、功效决定的 60–300 formal pairs、偏好/Likert/
+  boundary non-inferiority/ordinal alpha 四门及 Holm 多重比较。人评只是
+  evaluation readout，不回灌学习；预注册不授权 production。测试：
+  `packages/vz-runtime/tests/test_gate811_human_anchor.py`。
+- 2026-07-31: Gate 8/11 pilot packet tooling。新增
+  `volvence_zero.agent.gate811_human_anchor_tooling`，仅接受绑定 prereg SHA 且携带
+  consent/PII/event typed attestations 的 capture，按 lineage/persona/seed/model/
+  user-turn digest 精确配对。定向随机化后分别导出 rater-safe packet、
+  internal key 和三 rater-slot 评分 CSV，manifest 绑定 SHA；产物始终标记
+  pilot-only/non-claim/non-production。测试：
+  `packages/vz-runtime/tests/test_gate811_human_anchor_tooling.py`。
+- 2026-07-31: Gate 8/11 pilot analysis tooling。新增
+  `volvence_zero.agent.gate811_human_anchor_analysis` 与两个 CLI，冻结 typed human/
+  non-project roster、template/hash 校验、ordinal Krippendorff α、Wilson、10,000 次
+  rater-cluster bootstrap 和 60–300 formal pair power rule。分析 prereg SHA-256
+  `240742e54524b657fb3803382d93af4e651f59f5fb8c8be9e85823ffd5bb95af`；当前没有
+  consented transcript 或真实评分，故 L4-C 仍是 external pending。
 - 2026-07-13: longitudinal + human-anchor study manifest. 新增
   `volvence_zero.agent.longitudinal_human_anchor`：`LongitudinalPersonaPlan` /
   `HumanAnchorProtocol` / `build_longitudinal_human_anchor_manifest()`，冻结计划

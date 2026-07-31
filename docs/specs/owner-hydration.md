@@ -107,6 +107,13 @@ owner_hydration/followup_manager
 owner_hydration/vitals
 ```
 
+`owner_hydration/semantic_state` 当前 schema v2 除 9 slot records/lifecycle 外，
+还携带 CP-12 outstanding owner prediction 与 per-slot sequence。这样 scene 结束后
+持久化的 `COMMITMENT_FOLLOW_THROUGH`、`OPEN_LOOP_CLOSURE`、
+`BOUNDARY_CONSENT_STABILITY` 等预测能在下一 session 由各自 owner 结算。v1
+snapshot 仍可读取，并明确视为没有 pending prediction；未知版本继续抛
+`HydrationVersionMismatchError`。
+
 Key 前缀使其在 listing 时可被识别为 hydration 类型（与 `memory/store` 区分）。
 
 ### LifeformTemplate v2 bridge（character live-through）

@@ -1,7 +1,7 @@
 # Semantic Embedding Backend Spec
 
 > Status: v0.2
-> Last updated: 2026-07-16
+> Last updated: 2026-08-01
 > 对应需求: R2（冻结基底 + 有界控制器）、R4（表达层不替代内部控制）、R8（快照 SSOT / 单一所有者）、R15（可回滚迁移）
 
 ## 要解决的问题
@@ -49,8 +49,28 @@
   seam 排序；缺少有效判定时 promotion fail closed。
 - **多 substrate 进程共存（v0.2）**：owner-scoped 安装 + conflict 降级 stub（见上），多实例部署不再依赖"人工保持 DISABLED"；conflict 可经 `semantic_embedding_backend_status()` 观测。
 
+### CaseMemory 具体行动双门
+
+`CaseMemoryModule._select_action_grounding(...)` 对“用户是否要求一个现在可执行的具体
+行动”使用 backend-aware 双门，避免把反思/评价问题误落成 case action：
+
+- stub/fallback 路径保持历史 16 维 topic-similarity 与最低 action alignment
+  `0.16`，作为 byte-identical rollback；
+- 真实 backend 路径的第一门使用最低 alignment `0.02`；阈值更低是因为真实
+  `SubstrateTextEncoderBackend` 的截断投影分布与 stub 不同，不代表放宽语义边界；
+- 真实 backend 必须再以 `_REAL_ACTION_EMBEDDING_DIM=64` 重算 query、action
+  prototypes 与 reflective-opinion prototypes，并要求
+  `wide_action_alignment - wide_reflective_alignment >= 0.0`；
+- prototype 与 query 始终走同一 active backend、同一维度。backend status 为
+  `conflict-stub` 或无 backend 时不得假装执行 64 维真实门；
+- 此门只判“action request vs reflective opinion”。learned action promotion 的
+  结构化适用性仍由 `ActionApplicabilityEvaluator` 拥有，confidence 必须 `>=0.75`；
+  embedding 不解释否定、同意或风险条件。
+
 ## 变更日志
 
+- 2026-08-01：补录 CaseMemory 真实 backend 双阈值、64 维宽向量 action-vs-reflective
+  margin 与 structured applicability 的职责边界。
 - 2026-07-29：明确 learned action promotion 的否定/同意语义不由 embedding 阈值承担，CaseMemory 先做 structured applicability gate，再做 topic-similarity 排序。
 - 2026-07-16：v0.2（M1 / #91 follow-up）。owner-scoped 安装 + 多 substrate conflict 降级 + `semantic_embedding_backend_status` 可观测性；新增 `semantic_topic_similarity` hybrid 接缝并迁移 apprenticeship 矛盾检测与 protocol alignment 覆盖匹配；scoring_helpers 确认逐调用 lazy 嵌入。契约测试扩 owner/conflict/topic-similarity 分支（`tests/contracts/test_semantic_embedding_ssot.py`）。
 - 2026-07-04：v0.1 初版。seam（vz-contracts）+ SubstrateTextEncoderBackend（vz-substrate）+ Brain 注入 + dual_track/evaluation/storage 迁移 + 契约测试。落地 known-debts #91 修法 1。

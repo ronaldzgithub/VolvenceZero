@@ -98,6 +98,27 @@ digest 必须精确相等。
 preference；manifest 对三份文件做 SHA-256 绑定。pilot 产物恒为
 `human_anchor_claim_allowed=false`，不能被上层报告误读为 formal 结论。
 
+### Pilot 分析与 power-freeze 工具边界
+
+`gate811_human_anchor_analysis` 只接受逐哈希绑定的 blind packet、内部 key、原始评分
+模板、completed ratings，以及 `gate811-human-anchor-rater-roster.v1`。roster 必须逐名
+typed attestation `human_rater_attested=true`、`non_project_member_attested=true`，并携带
+eligibility review artifact SHA；工具不从姓名、邮箱或文本推断资格。评分行必须与模板
+保持完全相同的 pair/slot 顺序，每 pair 恰好三名不同 rater，任一 malformed row 都阻止
+power freeze。
+
+分析方法在真实评分出现前冻结为 `gate811-human-anchor-analysis-prereg.v1`：pooled
+pair-side-dimension ordinal Krippendorff α；forced preference 的 95% Wilson；Likert
+delta 的 10,000 次 deterministic rater-cluster percentile bootstrap；正式 pair 数用
+familywise `0.05` 下两 contrast 的保守 Bonferroni 双侧规划，对 preference、composite
+和 boundary 所需数量取最大并执行已冻结的 60–300 下上界。pilot 分析只决定 rubric/
+样本量是否可进入 formal，不运行 formal admission gate，不产生 human-anchored claim。
+
+权威分析预注册：
+`artifacts/gate811_human_anchor_analysis_prereg_20260731T182514Z.json`（SHA-256
+`240742e54524b657fb3803382d93af4e651f59f5fb8c8be9e85823ffd5bb95af`）。截至
+2026-07-31 只有工具与预注册，没有真实评分 report。
+
 ## 工程挑战
 
 - 片段采集需脱敏 + 用户同意（closed-alpha 同意书覆盖范围核对；PIPL/GDPR 对齐 #49）。
@@ -125,5 +146,7 @@ preference；manifest 对三份文件做 SHA-256 绑定。pilot 产物恒为
   capture、pilot/power/formal 分离、三维量表、成对偏好、一致性、非劣与多重比较门。
 - 2026-07-31: 新增 typed capture 校验、exact matched pairing、盲包/内部 key
   分离、三 rater-slot CSV 和逐文件 freeze manifest；工具不用文本关键词代替隐私审核。
+- 2026-07-31: 冻结 pilot ratings/roster 校验、ordinal agreement、cluster bootstrap 与
+  formal power-freeze 方法；分析测试不冒充真实人评证据。
 - 2026-06-10: 初版（draft）。固化 #51 推荐修法 1/3/4 为协议 + 不变量 + 判读门；
   无运行时改动。

@@ -1,6 +1,7 @@
 # Specs 分层知识入口总索引
 
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
+> Last reconciled: 2026-08-01（83 份 spec 全量挂载）
 
 ---
 
@@ -193,7 +194,7 @@
 
 ---
 
-### 6D. Relationship Memory Console（MVP P0/P1）
+### 6D. Relationship Memory Console（MVP P0-P6）
 
 **对应需求**：R5（连续记忆）、R6（反思与沉淀）、R7（关系连续性）、R8（快照优先）、R12（评估单向性）、R15（可回滚演进）
 
@@ -206,6 +207,10 @@
 - MVP 提案默认 `SHADOW` 且需要用户确认；持久写入仍走目标 owner 的正式 API
 - console 纠正通过 typed `dialogue_external_outcome` 回流；连续性指标只读，不成为 PE 或 credit 源
 - Gate 11 负控只用于离线回归，不进入生产路由
+- `relationship_continuity` 只读 owner 默认 `SHADOW`，由 Brain facade
+  接收 immutable console outcome 并发布七日窗口；缺少样本时指标为 `null`
+- 七日 pilot harness 仅接收邀请用户、去标识化 transcript 与 metrics snapshot；
+  真人 pilot 是否完成必须由实际 evidence artifact 证明
 
 ---
 
@@ -252,6 +257,8 @@
 | [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
+| [thesis-v2-proposal.md](../thesis-v2-proposal.md) | #93 有界产品连续性提案：继承 #92/L1/L3 负证据，把 Gate 8/11 真实人类 anchor 作为唯一新 EXIT，明确排除失败 learned uplift 与 production 自动晋升 |
+| Gate 2 conditioned longitudinal（[temporal](./temporal-abstraction.md) / [conditioning](./personal-conditioning.md) / [evidence](./evidence_program.md)） | 14 维 Relationship owner readout 条件化 8076→8090 residual selector；seed1301 stop-loss 终局 `not-supported`，不授权 live promotion |
 
 **核心不变量**：
 - 对外主张必须映射到 required gates、artifact 与 verdict
@@ -472,19 +479,21 @@
 - 角色画像必须是 reviewed structured artifact，不用关键词匹配从小说文本直接驱动行为
 - 原文小说只通过 canonical ingestion path 进入，durable 化仍由 R6 slow loop 处理
 
-### 17B. Common Adapter 与 Character Package
+### 17A. Common Adapter 与 Character Package
 
 | Spec | 内容 |
 |------|------|
 | [character-prefix-package.md](./character-prefix-package.md) | 共享 `CommonAdapterBundle`、统一 `CharacterPackageManifest`、rare-heavy → State-KV → 角色 bake 顺序、多角色 session 路由、ACTIVE gate 与批量再验证 |
+| [Common Adapter 与角色特色包训练手册](../common-adapter-character-training.md) | 可执行训练数据 schema、control basis、L1 train/evaluate/publish、L2 bake/fidelity/gate、SHADOW→ACTIVE、升级与回滚命令 |
 
 **核心不变量**：
 - L1 是进程级唯一共享 adapter；L2 只承载角色差异；L3 tenant 状态永不写回包
 - State-KV 与角色 Prefix/KV 必须在 `base + common adapter vN` 上蒸馏
 - runtime 必须校验基础权重 SHA-256、bundle/manifest 双指纹和模型几何
 - `character_prefix_applied` 只证明物理载体注入，不等于人物行为 fidelity 已达标
+- 训练 candidate 必须绑定数据/超参数/seed provenance；L1/L2 allow 都只能来自 immutable held-out 对照臂和 cognition `ModificationGate.OFFLINE`
 
-### 17C. Character Residual Adapter（Deprecated）
+### 17B. Character Residual Adapter（Deprecated）
 
 | Spec | 内容 |
 |------|------|
@@ -496,7 +505,7 @@
 
 ---
 
-### 17A. Rupture and Repair Loop（v0 SHADOW, M0 contract landed）
+### 18. Rupture and Repair Loop（v0 SHADOW, M0 contract landed）
 
 **对应需求**：R-PE、R7、R8、R11、R15
 
@@ -515,7 +524,7 @@
 
 ---
 
-### 17B. Expression Layer (rationale_tags + reflection-hint SSOT)
+### 19. Expression Layer (rationale_tags + reflection-hint SSOT)
 
 **对应需求**：R4（内部控制在 token 之上）、R8（契约优先）、R11（内部状态可发布）
 
@@ -533,7 +542,7 @@
 
 ---
 
-### 17C. Interlocutor State (12-axis SHADOW owner)
+### 20. Interlocutor State (12-axis SHADOW owner)
 
 **对应需求**：R8（契约优先 / 快照优先）、R11（内部状态可发布）、R15（可回滚演进）
 
@@ -552,7 +561,7 @@
 
 ---
 
-### 17D. Figure Corpus Cleaning Pipeline (L1)
+### 21. Figure Corpus Cleaning Pipeline (L1)
 
 **对应需求**：R8（契约优先 / 快照优先）、R15（迁移可解释性 + 可回滚）
 
@@ -567,11 +576,11 @@
 - 每个 `CleaningOpRecord` 满足 `chars_after <= chars_before`（monotonically non-expanding）
 - raw bytes content-addressable by sha256；cleaner 版本目录（`v{N}/`）多版本共存，永不覆盖旧版
 
-来源：`docs/known-debts.md` debt #28 L1 packet（2026-05-10）。本 spec 只覆盖 L1；L0 crawler frontier 仍是 follow-up；L2 verification 见 17E。
+来源：`docs/known-debts.md` debt #28 L1 packet（2026-05-10）。本 spec 只覆盖 L1；L0 crawler 见 23；L2 verification 见 22。
 
 ---
 
-### 17E. Figure Corpus Verification + Audit (L2)
+### 22. Figure Corpus Verification + Audit (L2)
 
 **对应需求**：R8（snapshot / contract first）、R12（evaluation 单向性）、R15（迁移可解释 + 可回滚）
 
@@ -587,11 +596,11 @@
 - Ledger append-only；override 通过 append 一条 `human:` check 实现；`latest_per_kind` 取每 kind 最新一条作为生效 verdict
 - Bundle gate 阶段性放行：只检查 `IMPLEMENTED_CHECK_KINDS` 全 PASS（本 packet = 3 个）；新 kind 实现时必须同步加入 frozenset，contract test 自动 surface 缺失覆盖
 
-来源：`docs/known-debts.md` debt #28 L2 first batch (2026-05-10) + L2 second batch (2026-05-10, debt #26 closure)。**全 7 个 verifier 已实现**；bundle gate 现要求 `IMPLEMENTED_CHECK_KINDS = frozenset(CheckKind)` 全 7 PASS。L0 已落地见 17F；metadata client V2 + bundle metadata fingerprint 折入也于本轮落地。
+来源：`docs/known-debts.md` debt #28 L2 first batch (2026-05-10) + L2 second batch (2026-05-10, debt #26 closure)。**全 7 个 verifier 已实现**；bundle gate 现要求 `IMPLEMENTED_CHECK_KINDS = frozenset(CheckKind)` 全 7 PASS。L0 已落地见 23；metadata client V2 + bundle metadata fingerprint 折入也于本轮落地。
 
 ---
 
-### 17F. Figure Corpus Crawler (L0)
+### 23. Figure Corpus Crawler (L0)
 
 **对应需求**：R8（snapshot / contract first）、R12（evaluation 单向性）、R15（迁移可解释 + 可回滚）
 
@@ -614,7 +623,7 @@
 
 ---
 
-### 18. Social Cognition Learning Layer
+### 24. Social Cognition Learning Layer
 
 **对应需求**：R16（多人身份学习）、R17（Theory of Mind owner 分解）、R18（会话角色学习）、R19（共同基础学习）、R20（群体实体学习）、R-PE、R1、R3/R4、R7、R8、R11、R14、R15
 
@@ -634,7 +643,7 @@
 
 ---
 
-### 21. MCP Bundle Bridge (mcp-tools-bundle-bridge packet)
+### 25. MCP Bundle Bridge (mcp-tools-bundle-bridge packet)
 
 **对应需求**：R3, R4, R5, R8, R10, R11, R15
 
@@ -655,7 +664,7 @@
 
 ---
 
-### 20. Owner Hydration (Packet D — long-horizon-closure)
+### 26. Owner Hydration (Packet D — long-horizon-closure)
 
 **对应需求**：R5（连续记忆）, R6（反思与沉淀）, R8（快照优先 / 单一所有者）, R11（内部状态可发布）, R15（迁移可解释性 + 可回滚）
 
@@ -676,7 +685,7 @@
 
 ---
 
-### 19. DLaaS Platform Layer（治理 / 编排基底，新增第三层 wheel 前缀）
+### 27. DLaaS Platform Layer（治理 / 编排基底，新增第三层 wheel 前缀）
 
 **对应需求**：R2（稳定基底 + 自适应控制器）、R4（控制不在 token 空间）、R8（快照优先 / 单一所有者）、R11（内部状态可发布）、R15（迁移可解释性 + 可回滚）
 
@@ -698,7 +707,7 @@
 
 ---
 
-### 22. Learned vs Heuristic Coverage（内核 learned 占比盘点）
+### 28. Learned vs Heuristic Coverage（内核 learned 占比盘点）
 
 **对应需求**：R2（稳定基底 + 自适应控制器）、R3/R4（时间抽象 + 内部控制）、R-PE、R8（快照 SSOT）、R9（层级信用）、R15（可回滚迁移）
 
@@ -715,7 +724,7 @@
 
 ---
 
-### 23. OSS 发布：关系表征标准 + 开源关系编码器
+### 29. OSS 发布：关系表征标准 + 开源关系编码器
 
 **对应需求**：R2（稳定基底 + 自适应控制器）、R8（快照优先 / 契约优先）、R11（内部状态可发布）、R12（评估只读）、R15（可回滚 + 证据先行）
 
@@ -735,7 +744,7 @@
 
 ---
 
-### 24. 统一合成经验母语料
+### 30. 统一合成经验母语料
 
 **对应需求**：R1–R8、R11–R15、R16–R20、R-PE
 
@@ -749,6 +758,27 @@
 - 所有派生视图可逆追踪到 master hash，不维护第二份真值
 - Companion Bench held-out、PII、秘密和无授权版权语料永不进入训练
 - LLM 只负责稳定文本槽渲染；场景选择与控制逻辑不使用关键词匹配
+
+---
+
+### 31. 补充协议、证据门与垂直交付 spec
+
+下表挂载不适合单独占用主干编号、但仍属于正式知识入口的全部 spec。状态与正文以各
+文件为准；冻结证据件只读，不因本索引日期更新而改写历史 verdict。
+
+| 能力族 | Specs |
+|---|---|
+| Apprenticeship / protocol | [protocol-layer draft](./apprenticeship-alignment-protocol-layer-draft.md)、[protocol runtime](./protocol-runtime.md) |
+| Evidence governance | [evaluation cascade](./evaluation-cascade.md)、[evidence deletion](./evidence-deletion-protocol.md)、[external validation](./external-validation-protocol.md)、[rollback drill](./rollback-drill-cadence.md)、[handoff SLO](./handoff-queue-slo.md)、[perf baseline](./perf-baseline.md) |
+| Audit / frozen CMS evidence | [audit owner](./audit-owner.md)、[CMS SHADOW evidence snapshot](./cms-atlas-titans-uplift-shadow-evidence-2026-05-06.md) |
+| Character / persona lifecycle | [profile registry](./profile-registry.md)、[persona LoRA concurrency](./persona-lora-concurrency.md)、[lifeform template](./lifeform-template.md)、[cross-tenant exchange](./persona_market/01_cross_tenant_exchange.md)、[template economy](./persona_market/01_template_economy.md)、[substrate upgrade](./substrate-upgrade-protocol.md) |
+| Companion benchmark | [companion-bench](./companion-bench.md) |
+| Figure vertical / evidence | [figure vertical](./figure-vertical.md)、[grounding GT](./figure-grounding-gt-protocol.md)、[offline gate](./figure-offline-gate-validation-protocol.md)、[persona verification](./figure-persona-verification.md)、[refusal GT](./figure-refusal-gt-protocol.md)、[voice blind test](./figure-voice-blind-test-protocol.md) |
+| Growth advisor | [archetype detection](./growth-advisor-archetype-detection.md)、[boundary baseline](./growth-advisor-boundary-baseline.md)、[drive ablation evidence](./growth-advisor-drive-ablation-evidence.md)、[monthly report](./growth-advisor-monthly-report.md) |
+| RSI / harness governance | [RSI Forge](./rsi-forge.md)（开发环 failure mining → bounded proposal → loop-external validation；不进入 runtime wheel） |
+
+**索引完整性不变量**：`find docs/specs -name '*.md'` 新增文件时，必须在主干章节或
+本补充表出现；不得依靠目录搜索让正式 spec 处于“存在但不可发现”状态。
 
 ---
 

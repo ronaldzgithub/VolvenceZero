@@ -218,6 +218,13 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   readout，错 bank、cold start 或零置信度立即 fail loudly，禁止伪装为新机制却静默
   回落 8076 维 v35 无条件 selector。该 feature 只供隔离 Gate 2 证据 selector，
   不进 live session、不新增 slot，也不改变 Relationship bank 的语义 owner。
+- L3 formal 已在 `eta-gate2-longitudinal-conditioned.v1` 下跑满 fresh seed
+  1301 的 510 条 matched outcomes。selector 相对 action permutation / zero /
+  matched wrong-condition 的 mean gain 为 `0.003287669 / 0.004308079 /
+  0.000055161`，wrong-condition session positive rate=`0.156863`；四个效应门
+  全部失败，因此触发 single-seed stop-loss，禁止后续 seeds 1313/1327。
+  该载体契约与 fail-loud 机制保留，但不进 live selector，Gate 2 继续只保留
+  v35 的受限 open-loop `causal-supported`。
 - 当前 proof profile 已包含 matched ablation `full-no-fast-prior`：它保留 full internal RL + causal replacement，但关闭 temporal fast prior ingestion，用于衡量 fast prior 对 held-out family reuse、credit alignment 与 strong success 的增益
 - 当前 runtime 已新增 `full-learned` metacontroller owner：内部采用 sequence encoder + learned switch unit + residual decoder 的最小可执行实现，优先消费 `substrate.residual_sequence`
 - 当前 `AgentSessionRunner` 默认已切到 hook-shaped residual substrate adapter；默认 session turn 会优先发布 `SurfaceKind.RESIDUAL_STREAM` 而不再停留在纯 trace-sim feature adapter

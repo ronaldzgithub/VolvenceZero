@@ -1,7 +1,7 @@
 # Domain Experience Layer Spec
 
 > Status: draft
-> Last updated: 2026-07-28
+> Last updated: 2026-08-01
 > 对应需求: R5, R6, R7, R8, R12, R15
 
 ## 要解决的问题
@@ -79,6 +79,14 @@ expression 根据 family id 建立字符串映射。具体行动沿以下正式�
 
 `action_grounding=None` 是冷启动/非行动轮的正常显式状态。恢复旧行为的回滚方式是让
 CaseMemory 不发布 grounding；不需要删除 temporal family、case records 或修改模型权重。
+
+具体行动请求的语义门与一般 case 排序是两件事。无真实 backend 时，行动请求门保持
+历史 stub 阈值 `0.16`；安装真实 backend 时先用 `0.02` 的 backend-aware topic
+alignment，再以 64 维同 backend 向量要求 action prototype 不弱于 reflective-opinion
+prototype。第二门防止“怎么看这段冲突”一类反思问题被误当成“现在采取什么行动”。
+这两个阈值只决定是否进入 reviewed case grounding，不能替代 learned promotion 的
+`ActionApplicabilityEvaluator`：带 promotion 的 record 仍须有 typed
+`applicability_conditions`、`applicable=true` 且 confidence `>=0.75`，否则 fail closed。
 
 ### Lived action 的慢层落地
 
@@ -225,6 +233,8 @@ owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早�
 
 ## 变更日志
 
+- 2026-08-01: 对账 CaseMemory 真实 semantic backend 的 `0.02`/stub `0.16`
+  action gate、64 维 action-vs-reflective margin 与 structured applicability 独立门。
 - 2026-07-29: promotion checkpoint 增加 typed `applicability_conditions`，CaseMemory 增加 turn-time structured applicability gate；缺 provider/条件/有效高置信判定时 learned promotion fail closed，正例命中与同意照护负例拒绝均由独立行为保真测试覆盖。
 - 2026-07-29: 增加 ch-11/ch-17 真实 schema-holdout 跨章节晋升证据；修复 compact CaseMemory snapshot 回灌擦除 owner-only typed evidence，并明确 family ID 是聚合身份、`action_family_version` 是允许跨经历变化的全局 bank revision。
 - 2026-07-28: 冻结 CaseMemory-owned action-abstraction pending/promotion checkpoint 契约：schema-free evidence 可跨 session 恢复，consumer 只读类型化 owner API；矛盾 outcome fail loudly，已晋升 family/version 自动停止重复提案。

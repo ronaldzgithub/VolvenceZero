@@ -669,7 +669,10 @@ class HydrationOwnerMismatchError(HydrationError): ...
 
 **Persistence backend key 前缀**：`owner_hydration/<owner_name>` 写入与 `MemoryStore` 同一 `PersistenceBackend`（`memory/store` 是 MemoryStore 的；`owner_hydration/...` 是这层的，互不冲突）。当前已落地三个 hydratable owner：
 
-- `owner_hydration/semantic_state` — 9 个 SemanticStateStore slot
+- `owner_hydration/semantic_state` — 9 个 SemanticStateStore slot；schema v2
+  额外持久化 CP-12 outstanding `OwnerPredictionSignal` 与 per-slot sequence，
+  使 commitment/open_loop/boundary_consent 等预测能在新 session 由原 owner
+  结算；v1 明确兼容为“无 pending prediction”
 - `owner_hydration/followup_manager` — FollowupManager 的 pending queue / dedup keys / counter
 - `owner_hydration/vitals` — VitalsModule 的 drive levels / 提前提示 / IQR baseline
 
@@ -2044,11 +2047,15 @@ reflection ──────────────→ proposals; runtime invo
 | `apprenticeship_alignment` | ApprenticeshipAlignmentModule | ApprenticeshipAlignmentSnapshot | ACTIVE | 每 turn（学徒/ingestion） | prediction_error（离散事件 PE 源）；belief_assumption / goal_value（经 SemanticProposal 单写）；apprenticeship_protocol_alignment（消费 enriched `guidance_constraints`）；**open_loop（#90：消费 `should_request_feedback` 冒出 verification 开环 actuator）**；#90 起 ACTIVE，仅 apprentice/ingestion turn 生效（普通轮 idle → PE overlay + 请求均 no-op），快照新增 `should_request_feedback` / `feedback_request_reason` / `feedback_request_urgency`；详见 [`docs/specs/apprenticeship-alignment.md`](./specs/apprenticeship-alignment.md) |
 | `apprenticeship_protocol_alignment` | ApprenticeshipProtocolAlignmentModule (vz-application) | ApprenticeshipProtocolAlignmentSnapshot | SHADOW | 每 turn（学徒/ingestion） | 把 `apprenticeship_alignment.guidance_constraints` 与编译后 protocol 工件（strategy_playbook / domain_knowledge / boundary_policy）做有限选项集层比对；A1（#90 残余，2026-07-16）：快照新增 `pe_overlay_magnitude` / `pe_overlay_source`（结构裁决派生的 PE-shaped 只读 overlay，application 侧消费，kernel PE 不跨 tier 读）与 `revision_proposals`（protocol-lineage 冲突 → 保守 WEIGHT_DECAY L3 typed 提案），`protocol_revision_queue` 消费 `revision_proposals` 走 R10 gate + 人审队列；详见 [`docs/specs/apprenticeship-alignment-protocol-layer-draft.md`](./specs/apprenticeship-alignment-protocol-layer-draft.md) |
 | `evaluation` | EvaluationModule | EvaluationSnapshot | ACTIVE | 每 turn ~ 每会话 | regime, prediction_error, credit, reflection |
+| `evaluation_mid` | MidLayerModule | MidLayerSnapshot | DISABLED（模块）/ SHADOW（`FinalRolloutConfig`） | session / evidence batch | 只读聚合 `evaluation`、`credit`、`prediction_error`、`regime`；`evaluation_expensive` |
+| `evaluation_expensive` | ExpensiveLayerModule | ExpensiveLayerSnapshot | DISABLED | submitted judge / evidence batch | 只读消费 `evaluation_mid`、`substrate`；`evaluation_cross_generation` |
+| `evaluation_cross_generation` | CrossGenerationAggregatorModule | CrossGenerationAggregateSnapshot | DISABLED | generation / promotion window | bounded generation window、promotion report；不进入 PE / credit 学习源 |
+| `decision_workspace` | DecisionWorkspaceModule | DecisionWorkspaceSnapshot | SHADOW | 每 turn | 只读消费 `regime`、`plan_intent`、`goal_value`、`open_loop`、`belief_assumption`、`boundary_policy`；当前无 authoritative consumer |
 | `regime` | RegimeModule | RegimeSnapshot | SHADOW | 每 turn | prediction_error, reflection, retrieval_policy |
 | `prediction_error` | PredictionErrorModule | PredictionErrorSnapshot | ACTIVE | 每 turn | memory, temporal_abstraction, regime, credit, reflection；另在 final wiring 中被 evaluation enrichment 读取 |
 | `credit` | CreditModule | CreditSnapshot | SHADOW | 每 turn ~ 每会话 | reflection; consumes `prediction_error` + `temporal_abstraction.closed_segments` for PE-derived segment credit |
 | `reflection` | ReflectionModule | ReflectionSnapshot（含 `relationship_update_proposals`） | SHADOW / session-post | 每会话后（异步） | temporal_abstraction、lifeform-service 关系记忆 console；另外通过 owner-side writeback 影响 memory / credit / regime |
-| `relationship_continuity` | RelationshipContinuityEvaluationModule（P5 planned） | RelationshipContinuitySnapshot | DISABLED → SHADOW | 每会话 / 每日 pilot 汇总 | lifeform-service continuity metrics、pilot evidence；只读消费 evaluation、semantic owner lifecycle 与 typed console outcomes，不进入 PE / credit / ModificationGate |
+| `relationship_continuity` | RelationshipContinuityEvaluationModule | RelationshipContinuitySnapshot | SHADOW | metrics 查询 / 每日 pilot 汇总 | Brain facade、lifeform-service continuity metrics、pilot evidence；只读消费 `prediction_error` CP-12 settlements、`open_loop` / `boundary_consent` / `relationship_state` 快照与 `RelationshipContinuityConsoleOutcome`，不进入 PE / credit / ModificationGate；持久化 key `evaluation/relationship_continuity`，回滚为 DISABLED / 隐藏 endpoint |
 | `session_post_slow_loop` | SessionPostSlowLoopModule | SessionPostSlowLoopSnapshot | ACTIVE | context / session boundary | reports / experience_consolidation |
 | `retrieval_policy` | RetrievalPolicyModule | RetrievalPolicySnapshot | ACTIVE | 每 turn | domain_knowledge, case_memory, boundary_policy, response_assembly |
 | `domain_knowledge` | DomainKnowledgeModule | DomainKnowledgeSnapshot | ACTIVE | 每 turn | boundary_policy, response_assembly, evaluation |
@@ -2059,6 +2066,11 @@ reflection ──────────────→ proposals; runtime invo
 | `experience_consolidation` | ExperienceConsolidationModule | ExperienceConsolidationSnapshot | ACTIVE | session-post | experience_fast_prior, reports |
 | `experience_fast_prior` | ExperienceFastPriorModule | ExperienceFastPriorSnapshot | SHADOW | 每 turn / session-post carryover | temporal, retrieval_policy, regime |
 | `dialogue_external_outcome` | DialogueExternalOutcomeModule | DialogueExternalOutcomeSnapshot | ACTIVE | 每 turn | prediction_error, regime, rupture_state, reflection |
+| `protocol_phase` | ProtocolPhaseModule | ProtocolPhaseSnapshot | SHADOW（模块）/ ACTIVE（`FinalRolloutConfig`） | 每 turn | `active_mixture`；依赖 prediction_error、interlocutor_state、regime、rupture_state、boundary_policy |
+| `protocol_registry` | ProtocolRegistryIntrospectionModule | ProtocolRegistrySnapshot | SHADOW（模块）/ ACTIVE（`FinalRolloutConfig`） | 每 turn / registry 变更后 | protocol_reflection、CLI / monitoring；无 upstream 依赖 |
+| `protocol_revision_log` | ProtocolRevisionLogModule | ProtocolRevisionLogSnapshot | SHADOW（模块）/ ACTIVE（`FinalRolloutConfig`） | 每 turn / registry 变更后 | CLI / monitoring；无 upstream 依赖 |
+| `protocol_reflection` | ProtocolReflectionEngine | ProtocolReflectionSnapshot | SHADOW | background-slow scan | protocol_revision_queue；依赖 prediction_error、active_mixture、domain_knowledge、case_memory、protocol_registry |
+| `protocol_revision_queue` | ProtocolRevisionQueueModule | ProtocolRevisionQueueSnapshot | SHADOW | proposal / review event | review / registry apply；依赖 protocol_reflection、apprenticeship_protocol_alignment |
 
 State KV P4-c 不新增 runtime slot。temporal owner 对候选
 `ConditioningBankSnapshot` 执行 `topk-semantic.v1` 并发布不可变
@@ -2124,6 +2136,11 @@ carrier id/geometry。HF runtime 加载时重新解析 snapshot、按 weight fil
 bytes 计算 SHA-256，并核对 rare-heavy hidden width/hook layers/runtime fingerprint、
 State-KV K/V geometry 与 control basis；任何不一致 fail loudly。L1 在进程内只读，
 禁止 live mutation。
+L1 `common-adapter-candidate.v2` 的 content id 还必须绑定训练集 SHA-256/数量、LoRA 与 State-KV
+超参数、hook layers 和显式 seed；held-out evaluation 只能以只读 base/candidate/
+counterfactual arms 产生 readout，再由 cognition `ModificationGate.OFFLINE` 决策。
+L1 publish 必须复核 held-out digest、从 observation 重算 summary/cognition decision，
+并要求 gate `evaluation_ref` 绑定 evaluation report SHA-256；四者不能独立替换。
 
 L2 manifest 必须绑定相同的 `base_model_id + common_adapter_version +
 compatibility_fingerprint`，且所有 ref 都有 locator + SHA-256 + artifact id。ACTIVE
@@ -2132,6 +2149,9 @@ fingerprint 与可逆 OFFLINE allow gate；有 Character LoRA 时 fidelity 必�
 common-adapter + LoRA 组合臂。`lifeform-service` 只构造只读
 `CharacterPrefixKVRegistry` 并按 session 中的 typed `character_id` 选择 entry，禁止
 文本匹配或 consumer 重建角色 owner 状态。
+`CharacterPackageGateRecord.proposal_id` 必须绑定移除 fidelity/gate 后的 exact ungated
+manifest content id，`fidelity_report_sha256` 必须绑定同一次 held-out report；证据不得
+跨角色、跨 carrier set 或跨 common-adapter 指纹复用。
 
 `GenerationResult.character_id / character_prefix_applied / character_prefix_id /
 character_prefix_wiring_level / character_prefix_shadow_id` 是每轮物理投递/SHADOW
@@ -2251,8 +2271,9 @@ carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
 | Slot Name | Owner 模块 | Wheel | Value 类型 | 默认接线 | 发布频率 | 消费者 |
 |-----------|-----------|-------|-----------|----------|----------|--------|
 | `vitals` | VitalsModule | `lifeform-core` | VitalsSnapshot | per-vertical | SYSTEM tick + per-turn | lifeform-expression, followup_manager, prompt_planner |
-| `affordance` | AffordanceModule | `lifeform-affordance`（**slice 1 落地，slice 2 执行面进行中**） | AffordanceSnapshot | N/A（slice 1 未接 runtime propagate；host 按需 `build_neutral_snapshot(registry)` 或构造 snapshot） | per-call scaffold | prompt_planner, response_synthesizer, AffordanceInvoker（slice 2） |
-| `thinking_loop` | ThinkingScheduler | `lifeform-thinking`（**新建中，Phase 1**） | ThinkingLoopSnapshot | DISABLED（v0）→ SHADOW → ACTIVE | scene 内异步 | family_report metrics, debug dashboard |
+| `affordance` | AffordanceModule | `lifeform-affordance`（registry、renderers 与 invoker 已落地） | AffordanceSnapshot | ACTIVE（lifeform host 接线；不进入 kernel propagate） | per-call / per-turn | prompt_planner, response_synthesizer, AffordanceInvoker |
+| `thinking_loop` | ThinkingScheduler | `lifeform-thinking`（Phase 1 slice 1/2a/2b 已落地） | ThinkingLoopSnapshot | SHADOW（默认 advisory/report-only）→ ACTIVE（显式 opt-in） | scene 内异步 | temporal advisory ingress、family_report metrics、debug dashboard |
+| `relationship_memory_console` | RelationshipMemoryActionLedger | `lifeform-service` | RelationshipMemoryActionRecord | ACTIVE（closed-alpha MVP） | 用户 console action | relationship-memory API、P5 continuity metrics；只记录 action/idempotency，不复制 kernel relationship state，semantic mutation 经 Brain facade 排入 owner event queue |
 
 **lifeform-side slot 不变量**：
 
@@ -2266,10 +2287,10 @@ carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
 
 | Slot Name | Owner 模块 | Wheel | Value 类型 | 默认接线 | 发布频率 | 消费者 |
 |-----------|-----------|-------|-----------|----------|----------|--------|
-| `tenant_state` | TenantRegistry | `dlaas-platform-registry`（**Phase 1 占位**） | TenantState | DISABLED → SHADOW | CRUD 时 | `dlaas-platform-api` auth 中间件、`dlaas-platform-launcher` quota 检查 |
-| `contract_state` | ContractRegistry | `dlaas-platform-registry`（**Phase 1 占位**） | ContractState | DISABLED → SHADOW | CRUD 时 / lifecycle 切换 | `dlaas-platform-launcher`（adopt / awake）、`dlaas-platform-api`（runtime 路由） |
-| `instance_status` | InstanceManager | `dlaas-platform-launcher`（**Phase 1 占位**） | InstanceStatus | DISABLED → SHADOW | adopt / awake / sleep / evict | `dlaas-platform-api`、`dlaas-platform-ops` |
-| `handoff_ticket_state` | HandoffQueue | `dlaas-platform-ops`（**Phase 1 占位**） | HandoffTicketState | DISABLED → SHADOW | rupture_state 快照触发 / 操作员手动 | `dlaas-platform-api`、admin SSE stream |
+| `tenant_state` | TenantRegistry | `dlaas-platform-registry`（SQLite CRUD 已实现） | TenantState | ACTIVE（platform control plane） | CRUD 时 | `dlaas-platform-api` auth 中间件、`dlaas-platform-launcher` quota 检查 |
+| `contract_state` | ContractRegistry | `dlaas-platform-registry`（SQLite CRUD 已实现） | ContractState | ACTIVE（platform control plane） | CRUD 时 / lifecycle 切换 | `dlaas-platform-launcher`（adopt / awake）、`dlaas-platform-api`（runtime 路由） |
+| `instance_status` | InstanceManager | `dlaas-platform-launcher`（instance map 已实现） | InstanceStatus | ACTIVE（platform control plane） | adopt / awake / sleep / evict | `dlaas-platform-api`、`dlaas-platform-ops` |
+| `handoff_ticket_state` | HandoffQueue | `dlaas-platform-ops`（queue / ticket / SSE 已实现） | HandoffTicketState | ACTIVE（platform control plane） | rupture_state 快照触发 / 操作员手动 | `dlaas-platform-api`、admin SSE stream |
 
 **platform-side slot 不变量**：
 
@@ -2291,6 +2312,7 @@ carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
 | `case_memory` | `support_prior: float`、`task_prior: float` | case_memory owner 发布 track prior，runtime 不再遍历 `hit.track_tags` 推导 |
 | `strategy_playbook` | `support_prior: float`、`task_prior: float` | strategy_playbook owner 发布 playbook prior，runtime 不再按 regime 字符串集合分类 |
 | `reflection` | `relationship_update_proposals: tuple[RelationshipUpdateProposal, ...]` | reflection owner 从 consolidation、typed tension / lesson 与 PE failure readout 发布可审阅关系更新提案；consumer 不得从原始文本重建；P1 默认 SHADOW、必须用户确认 |
+| `memory` | `MemoryStoreCheckpoint.entry_attributes: tuple[MemoryAttributeReadout, ...]` | memory owner 在 checkpoint/rollback 中原子保存 artifact 的 PE/substrate attribute 投影；旧 checkpoint 默认空 tuple，避免 Console 删除/改写回滚后留下或丢失耦合投影 |
 
 **字段扩展不变量**：
 

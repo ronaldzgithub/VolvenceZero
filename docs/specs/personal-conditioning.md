@@ -220,6 +220,14 @@ readout：`residual-state+relationship-owner-readout.v1`。这与 v35 的 8076 �
 state readout 是可机器检查的机制差异。它不解释关系坐标，不建第二 relationship
 owner，也不授权 live injection；正式增益只能由后续 fresh prereg/capture 判定。
 
+**L3 正式判定（2026-07-31）**：后续 fresh capture 已跑满 seed 1301 的
+510 条。新 selector 能够真实消费 14 维 owner readout，但相对 matched
+wrong-relationship condition 的 mean gain 仅 `0.000055161`，session positive
+rate=`0.156863`，未过 `0.02 / 0.60` 冻结门。因此这是“载体与读取机制
+存在，纵向净收益不成立”；Relationship bank 生产默认仍为
+`SHADOW/text`，不安装该 evidence selector，不触发 residual/prefix live
+promotion。
+
 ## 3. 当前收敛包：生成前残差预置
 
 当前实现采用最小、可回滚的 residual bootstrap：

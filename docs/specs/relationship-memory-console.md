@@ -1,6 +1,6 @@
 # Relationship Memory Console
 
-> Status: MVP P0/P1 landed; P2-P6 planned
+> Status: MVP P0-P6 implementation landed; live seven-day human pilot not yet run
 > Last updated: 2026-08-01
 > Scope: Gate 8/11 productization for the 7-day relationship assistant MVP
 
@@ -80,9 +80,53 @@ Unsupported actions must fail loudly. A missing target owner snapshot or failed
 write must be returned to the console as an explicit rejected action, not a
 silent success.
 
-## Metrics
+## HTTP Contract
 
-The MVP continuity panel exposes seven read-only metrics:
+- `GET /v1/users/me/relationship-memory?session_id=<id>` returns the current
+  session's unresolved reflection proposals and Memory-owner-scoped durable
+  entries. The session must belong to the authenticated alpha user.
+- `POST /v1/users/me/relationship-memory/{item_id}/action` accepts
+  `{session_id, action, replacement?, correction_kind?}`. `replacement` is
+  required only for `rewrite` and rejected for other actions.
+- `action` is exactly one of `keep | session_only | delete | rewrite |
+  mark_sensitive | no_proactive_mention`; `correction_kind` is exactly one of
+  `content_inaccurate | wrong_user_attribution | stale | boundary_preference`
+  and is only accepted for corrective actions.
+- GET returns `{user_id, session_id, pending_proposals, durable_entries}`. POST
+  returns the frozen action record `{action_id, user_id, session_id, item_id,
+  action, status, owner_operations, replacement_entry_id, correction_kind,
+  dialogue_outcome_evidence_id, dialogue_outcome_kind, created_at_ms}`; exact
+  retry returns 200 with the prior record, first apply returns 201.
+- Memory keep/delete/rewrite operations run synchronously through the
+  `BrainSession` facade and Memory owner API, then require persistence success.
+- Semantic and boundary operations enqueue a typed `GenericSemanticEvent` and
+  return `status=queued`; the owning semantic module applies it on the next
+  canonical turn. The API never reports a queued event as already durable.
+- Exact retries are idempotent. A proposal cannot be resolved by two different
+  actions; durable entries can receive later actions as their lifecycle changes.
+- `RelationshipMemoryActionLedger` owns only product action/idempotency state.
+  It does not copy relationship facts or interpret user text. Its internal
+  `request_fingerprint = sha256(action + NUL + replacement + NUL +
+  correction_kind)` keys exact retries by `(user_id, session_id, item_id,
+  fingerprint)`; resolved proposals also bind their first fingerprint so a
+  conflicting second action returns 409.
+- `create_app()` binds the ledger to `AlphaServiceConfig.memory_scope_root_dir`
+  when configured and hydrates `relationship-memory-console-actions.json` at
+  startup. Persistence failure rolls back the just-added ledger record and is
+  surfaced; this action ledger still never becomes relationship-state SSOT.
+- delete/rewrite use Memory owner checkpoint + persistence and restore the full
+  checkpoint on failure. Semantic/boundary changes remain `status=queued` until
+  the next canonical owner turn.
+- Corrective actions submit a typed `dialogue_external_outcome` with
+  `USER_EXPLICIT` evidence. This implemented evidence path may settle PE on a
+  later turn; it does not mean P5 continuity aggregation exists.
+
+## Continuity Metrics
+
+`RelationshipContinuityEvaluationModule` 是 `relationship_continuity` 的唯一只读
+owner，默认 `SHADOW`。immutable exchange shape 位于
+`vz-contracts.relationship_continuity`；runtime 通过 Brain facade 注入公开 snapshot
+与 typed console outcome，service 不直接 import cognition owner。
 
 | Metric | Source |
 |---|---|
@@ -97,6 +141,27 @@ The MVP continuity panel exposes seven read-only metrics:
 These metrics are evaluation readouts and pilot evidence only. They do not
 become PE, credit or ModificationGate input by themselves.
 
+- `GET /v1/users/me/continuity-metrics?session_id=<id>` 要求 alpha user 拥有该
+  session，返回去标识化 `user_scope_hash`、七项指标、`sample_sizes` 和
+  `wiring_level=shadow`。
+- 七日窗口按 timestamp 剪裁。没有有效分母时返回 `null`，禁止用零冒充证据。
+- readout 持久化于 scoped Memory backend 的
+  `evaluation/relationship_continuity` key；多 session 查询前重新 hydrate 后合并。
+- `seven_day_trust_delta` 只使用 owner-published cumulative trust trajectory；L4
+  人评 anchor 作为独立材料保留，不混入该数值。
+
+## P6 Regression And Pilot Harness
+
+- `evaluate_gate11_continuity_regression()` 只读取现有 Gate 11
+  `ablation_results.json`，要求 correct-user-state 对 stateless、swapped-user-state、
+  shuffled-history 三臂均有正增益和正 95% CI 下界，并要求隔离、持久化、删除、
+  rollback 等 preregistered gates 全部通过。CLI 为
+  `scripts/check_gate11_relationship_continuity.py`；它不运行在生产路径。
+- `RelationshipAssistantPilotHarness` 只接受邀请 allowlist 与 day 1-7，按
+  participant hash 写每日 metrics 和 transcript artifact。调用者传入 structured
+  transcript；harness 会替换显式 user id，输出不含原始 user id 的 L4 material。
+- harness 落地不等于真人 pilot 已完成；真人结论必须引用实际 7-day artifact。
+
 ## Rollback
 
 - P1 rollback: remove or ignore `relationship_update_proposals`; reflection
@@ -106,6 +171,8 @@ become PE, credit or ModificationGate input by themselves.
   made remain subject to the explicit user action log.
 - P5 rollback: hide continuity metrics; evaluation learning boundaries remain
   unchanged.
+- P6 rollback: remove the CI artifact check and stop pilot capture; production
+  relationship routing is unchanged because neither path runs in-turn.
 
 ## Pilot Exit
 
