@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument("--analysis-preregistration", type=Path, required=True)
     parser.add_argument("--packet-dir", type=Path, required=True)
     parser.add_argument("--ratings", type=Path, required=True)
+    parser.add_argument("--rater-roster", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -38,12 +39,15 @@ def main() -> None:
     manifest_path = args.packet_dir / "manifest.json"
     packet_bytes = packet_path.read_bytes()
     key_bytes = key_path.read_bytes()
+    rater_roster_bytes = args.rater_roster.read_bytes()
     report = analyze_gate811_pilot_ratings(
         human_anchor_preregistration=human,
+        human_anchor_preregistration_bytes=human_bytes,
         human_anchor_preregistration_sha256=hashlib.sha256(
             human_bytes
         ).hexdigest(),
         analysis_preregistration=analysis,
+        analysis_preregistration_bytes=analysis_bytes,
         analysis_preregistration_sha256=hashlib.sha256(
             analysis_bytes
         ).hexdigest(),
@@ -54,6 +58,8 @@ def main() -> None:
         packet_manifest=json.loads(manifest_path.read_text(encoding="utf-8")),
         rating_template_csv=template_path.read_text(encoding="utf-8"),
         rating_csv=args.ratings.read_text(encoding="utf-8"),
+        rater_roster=json.loads(rater_roster_bytes),
+        rater_roster_bytes=rater_roster_bytes,
     )
     manifest = export_gate811_pilot_analysis(
         report=report,

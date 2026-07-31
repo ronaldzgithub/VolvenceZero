@@ -10,6 +10,7 @@ import pytest
 
 from volvence_zero.agent.gate811_human_anchor_analysis import (
     GATE811_PILOT_ANALYSIS_SCHEMA_VERSION,
+    GATE811_RATER_ROSTER_SCHEMA_VERSION,
     analyze_gate811_pilot_ratings,
     build_gate811_analysis_preregistration,
     validate_gate811_analysis_preregistration,
@@ -166,15 +167,40 @@ def _analysis_inputs(tmp_path: Path) -> dict[str, object]:
     )
     packet_bytes = (packet_dir / "pilot_packet_blinded.json").read_bytes()
     key_bytes = (packet_dir / "pilot_key_internal.json").read_bytes()
+    analysis_sha256 = hashlib.sha256(analysis_bytes).hexdigest()
     rating_template = bundle["rating_template_csv"]
     assert isinstance(rating_template, str)
+    rater_roster = {
+        "schema_version": GATE811_RATER_ROSTER_SCHEMA_VERSION,
+        "human_anchor_preregistration_sha256": human_sha256,
+        "analysis_preregistration_sha256": analysis_sha256,
+        "entries": [
+            {
+                "rater_id": f"rater-external-{index:02d}",
+                "human_rater_attested": True,
+                "non_project_member_attested": True,
+                "eligibility_review_artifact_sha256": "5" * 64,
+                "attested_by": "human:study-operator",
+            }
+            for index in range(1, 7)
+        ],
+    }
+    rater_roster_bytes = (
+        json.dumps(
+            rater_roster,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        + b"\n"
+    )
     return {
         "human_anchor_preregistration": human,
+        "human_anchor_preregistration_bytes": human_bytes,
         "human_anchor_preregistration_sha256": human_sha256,
         "analysis_preregistration": analysis,
-        "analysis_preregistration_sha256": hashlib.sha256(
-            analysis_bytes
-        ).hexdigest(),
+        "analysis_preregistration_bytes": analysis_bytes,
+        "analysis_preregistration_sha256": analysis_sha256,
         "packet": json.loads(packet_bytes),
         "packet_bytes": packet_bytes,
         "internal_key": json.loads(key_bytes),
@@ -185,6 +211,8 @@ def _analysis_inputs(tmp_path: Path) -> dict[str, object]:
             template=rating_template,
             internal_key=bundle["internal_key"],
         ),
+        "rater_roster": rater_roster,
+        "rater_roster_bytes": rater_roster_bytes,
     }
 
 
@@ -245,4 +273,22 @@ def test_packet_manifest_hash_drift_fails_loudly(tmp_path: Path) -> None:
     inputs = _analysis_inputs(tmp_path)
     inputs["packet_bytes"] += b" "
     with pytest.raises(ValueError, match="manifest hash drift"):
+        analyze_gate811_pilot_ratings(**inputs)
+
+
+def test_non_project_human_attestation_is_required(tmp_path: Path) -> None:
+    inputs = _analysis_inputs(tmp_path)
+    inputs["rater_roster"]["entries"][0][
+        "non_project_member_attested"
+    ] = False
+    inputs["rater_roster_bytes"] = (
+        json.dumps(
+            inputs["rater_roster"],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        + b"\n"
+    )
+    with pytest.raises(ValueError, match="non_project_member_attested"):
         analyze_gate811_pilot_ratings(**inputs)

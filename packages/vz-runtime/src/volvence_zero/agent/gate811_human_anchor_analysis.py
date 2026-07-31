@@ -25,6 +25,7 @@ GATE811_ANALYSIS_PREREG_SCHEMA_VERSION = (
 GATE811_PILOT_ANALYSIS_SCHEMA_VERSION = (
     "gate811-human-anchor-pilot-analysis.v1"
 )
+GATE811_RATER_ROSTER_SCHEMA_VERSION = "gate811-human-anchor-rater-roster.v1"
 GATE811_ANALYSIS_CODE_PATHS = (
     (
         "packages/vz-runtime/src/volvence_zero/agent/"
@@ -134,6 +135,7 @@ def build_gate811_analysis_preregistration(
             "minimum_unique_non_project_raters": source["pilot"][
                 "minimum_unique_raters"
             ],
+            "typed_human_non_project_roster_attestation_required": True,
             "integer_likert_range": [
                 source["rating"]["scale_min"],
                 source["rating"]["scale_max"],
@@ -446,6 +448,51 @@ def _validate_rating_coverage(
     return raters
 
 
+def _validate_rater_roster(
+    *,
+    roster: Mapping[str, object],
+    raters: set[str],
+    human_anchor_preregistration_sha256: str,
+    analysis_preregistration_sha256: str,
+) -> None:
+    if roster.get("schema_version") != GATE811_RATER_ROSTER_SCHEMA_VERSION:
+        raise ValueError("rater roster schema drift")
+    if roster.get("human_anchor_preregistration_sha256") != (
+        human_anchor_preregistration_sha256
+    ):
+        raise ValueError("rater roster human-anchor binding drift")
+    if roster.get("analysis_preregistration_sha256") != (
+        analysis_preregistration_sha256
+    ):
+        raise ValueError("rater roster analysis binding drift")
+    entries = roster.get("entries")
+    if not isinstance(entries, list):
+        raise ValueError("rater roster entries must be a list")
+    roster_ids = set()
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            raise ValueError("rater roster entry must be an object")
+        rater_id = entry.get("rater_id")
+        if not isinstance(rater_id, str) or not rater_id.strip():
+            raise ValueError("rater roster rater_id must be non-empty")
+        if rater_id in roster_ids:
+            raise ValueError("duplicate rater roster rater_id")
+        roster_ids.add(rater_id)
+        if entry.get("human_rater_attested") is not True:
+            raise ValueError("human_rater_attested must be true")
+        if entry.get("non_project_member_attested") is not True:
+            raise ValueError("non_project_member_attested must be true")
+        _require_sha256(
+            entry.get("eligibility_review_artifact_sha256"),
+            field="eligibility_review_artifact_sha256",
+        )
+        attested_by = entry.get("attested_by")
+        if not isinstance(attested_by, str) or not attested_by.strip():
+            raise ValueError("rater roster attested_by must be non-empty")
+    if roster_ids != raters:
+        raise ValueError("rater roster must exactly cover completed ratings")
+
+
 def _wilson_interval(successes: int, count: int) -> tuple[float, float]:
     if count <= 0:
         raise ValueError("Wilson interval requires observations")
@@ -705,8 +752,10 @@ def _formal_pair_recommendation(
 def analyze_gate811_pilot_ratings(
     *,
     human_anchor_preregistration: Mapping[str, object],
+    human_anchor_preregistration_bytes: bytes,
     human_anchor_preregistration_sha256: str,
     analysis_preregistration: Mapping[str, object],
+    analysis_preregistration_bytes: bytes,
     analysis_preregistration_sha256: str,
     packet: Mapping[str, object],
     packet_bytes: bytes,
@@ -715,6 +764,8 @@ def analyze_gate811_pilot_ratings(
     packet_manifest: Mapping[str, object],
     rating_template_csv: str,
     rating_csv: str,
+    rater_roster: Mapping[str, object],
+    rater_roster_bytes: bytes,
 ) -> dict[str, object]:
     """Validate a completed pilot and produce a non-claim power report."""
 
@@ -726,6 +777,22 @@ def analyze_gate811_pilot_ratings(
         analysis_preregistration_sha256,
         field="analysis_preregistration_sha256",
     )
+    if _sha256_bytes(human_anchor_preregistration_bytes) != (
+        human_anchor_preregistration_sha256
+    ):
+        raise ValueError("human-anchor preregistration hash drift")
+    if json.loads(human_anchor_preregistration_bytes) != dict(
+        human_anchor_preregistration
+    ):
+        raise ValueError("human-anchor preregistration bytes drift")
+    if _sha256_bytes(analysis_preregistration_bytes) != (
+        analysis_preregistration_sha256
+    ):
+        raise ValueError("analysis preregistration hash drift")
+    if json.loads(analysis_preregistration_bytes) != dict(
+        analysis_preregistration
+    ):
+        raise ValueError("analysis preregistration bytes drift")
     analysis_source = _require_mapping(
         analysis_preregistration.get("source_preregistration"),
         field="source_preregistration",
@@ -734,6 +801,12 @@ def analyze_gate811_pilot_ratings(
         raise ValueError("analysis preregistration source binding drift")
     rating_bytes = rating_csv.encode("utf-8")
     rating_template_bytes = rating_template_csv.encode("utf-8")
+    if json.loads(packet_bytes) != dict(packet):
+        raise ValueError("blinded packet bytes drift")
+    if json.loads(internal_key_bytes) != dict(internal_key):
+        raise ValueError("internal key bytes drift")
+    if json.loads(rater_roster_bytes) != dict(rater_roster):
+        raise ValueError("rater roster bytes drift")
     key_by_pair, pair_count = _validate_packet_bundle(
         packet=packet,
         internal_key=internal_key,
@@ -759,6 +832,14 @@ def analyze_gate811_pilot_ratings(
         malformed=malformed,
         key_by_pair=key_by_pair,
         human_anchor_preregistration=human_anchor_preregistration,
+    )
+    _validate_rater_roster(
+        roster=rater_roster,
+        raters=raters,
+        human_anchor_preregistration_sha256=(
+            human_anchor_preregistration_sha256
+        ),
+        analysis_preregistration_sha256=analysis_preregistration_sha256,
     )
     rating = _require_mapping(
         human_anchor_preregistration.get("rating"), field="rating"
@@ -876,6 +957,7 @@ def analyze_gate811_pilot_ratings(
         "packet_sha256": _sha256_bytes(packet_bytes),
         "internal_key_sha256": _sha256_bytes(internal_key_bytes),
         "ratings_sha256": _sha256_bytes(rating_bytes),
+        "rater_roster_sha256": _sha256_bytes(rater_roster_bytes),
         "pilot_only": True,
         "pilot_rows_excluded_from_formal": True,
         "pair_count": pair_count,
@@ -914,6 +996,7 @@ __all__ = [
     "GATE811_ANALYSIS_CODE_PATHS",
     "GATE811_ANALYSIS_PREREG_SCHEMA_VERSION",
     "GATE811_PILOT_ANALYSIS_SCHEMA_VERSION",
+    "GATE811_RATER_ROSTER_SCHEMA_VERSION",
     "analyze_gate811_pilot_ratings",
     "build_gate811_analysis_preregistration",
     "export_gate811_pilot_analysis",
