@@ -13,10 +13,14 @@
 - 实时行为可通过内部状态转换引导，而非仅通过表面文本损失
 - 抽象动作可组合、可训练、无需详尽手动标签
 - 冻结基础模型是发现时间抽象的前提（ETA rate-distortion 证明）。
-  **2026-08-01 本仓复现判定 `kill-eta`**：仪器通过联合臂有效性对照，但冻结臂
-  扫遍 alpha 网格无论文预言的近垂直 gap（`artifacts/eta_rate_distortion_20260801`，
-  见变更日志）；该前提在本仓当前规模（0.5B / proof environment）下未获支持，
-  不得作为新设计的依据引用
+  **2026-08-01 本仓首次复现读数为 `kill-eta`，但该次运行不具备正式资格**
+  （`artifacts/eta_rate_distortion_20260801`，见变更日志）：仪器通过联合臂有效性
+  对照，冻结臂扫遍 alpha 网格无论文预言的近垂直 gap。判据阈值与 verdict 映射在
+  运行前已固定于源码，因此不是事后调参；但该次运行无预注册 artifact、无源码冻结
+  （`working_tree_dirty=true`）、与七日矩阵并行占用同一 MPS、无逐 cell checkpoint，
+  也未 attest 算子级 CPU fallback 已禁用。因此其状态为 mechanism-grade
+  `kill-eta (not preregistered)`：**足以阻止把该前提当作已确立的依据引用，
+  不足以据此摘除 ETA 主张或退役 `_step_impl_legacy`**；两者需等预注册重跑
 - 内部控制空间维度低于原始 token 动作空间
 
 ## 工程挑战
@@ -355,8 +359,27 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
-- 2026-08-01: ETA Eq.3 rate-distortion 判据第一次可执行并给出正式 verdict
-  `kill-eta`（`artifacts/eta_rate_distortion_20260801`）。本包先修掉与论文
+- 2026-08-02: 为 rate-distortion 判据补齐执行纪律，判据逻辑本身不变。
+  (a) `scripts/preregister_eta_rate_distortion.py` 冻结 alpha 网格、seed
+  schedule、优化预算、gap 阈值、arm-separation 规则、封闭 verdict 集与 5 个源码
+  SHA；runner 的 `--preregistration` 在 sweep 变量、gap 阈值或源码任一漂移时
+  fail closed，缺预注册时 artifact 与 `report.md` 标记
+  `claim_scope=mechanism-only-smoke` / `verdict_authoritative=false`。
+  (b) 裁决从 sweep 中抽出为纯函数 `adjudicate_rate_distortion(curves, gaps)`，
+  审计者可脱离模型与加速器从 `curves.json` / `gap_assessments.json` 复算 verdict。
+  (c) runner 接入共享 `artifacts/.companion-evidence-mps.lock` 与 `require_mps()`；
+  此前它绕过控制面，`PYTORCH_ENABLE_MPS_FALLBACK` 从未被检查。
+  (d) 每个 `(arm, alpha, seed)` cell 落不可变 checkpoint，`--resume` 按 cell 续跑；
+  此前全部输出只在结束时一次性写盘，中断即全损。
+  (e) `runtime_origin` / `fallback_active` 的 `getattr(..., default)` 改为直接属性
+  访问——默认值会在属性改名时把 `fallback_active: false` 静默写进证据。
+  (f) 补 31 项 rate-distortion 测试与 20 项 `TransformersSteeredActionScorer`
+  测试（此前两者合计 1237 行零测试），覆盖梯度只到控制 delta 不到冻结基底、
+  norm cap、joint 臂 pristine 恢复、gap 检测三条拒绝路径与全部 verdict 分支。
+- 2026-08-01: ETA Eq.3 rate-distortion 判据第一次可执行，读数为
+  `kill-eta`，但**该次运行不具备正式资格**（无预注册、脏工作树、与七日矩阵并行
+  占用 MPS、无 checkpoint）；状态为 mechanism-grade，摘除 ETA 主张须等预注册
+  重跑（`artifacts/eta_rate_distortion_20260801`）。本包先修掉与论文
   Eq.3 的四处结构性偏离：(a) `vz-substrate` 新增
   `TransformersSteeredActionScorer` 可微受控前向（hook 层注入控制 delta、
   上半部保留在 autograd 图内、基础参数 `requires_grad=False`、可微 norm cap），
@@ -371,11 +394,12 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   3 seed x 40 updates：联合臂曲线完全平坦（distortion 恒 `0.0001`），两臂
   分离 `0.4059` >> 阈值，仪器有效；冻结臂 tradeoff 存在但最大坠落段占
   48.5% rate 跨度（阈值 25%）、无近垂直 gap，gap 判定段内 boundary F1
-  `0.000` 低于段外 `0.141`，rate 轴对 alpha 响应弱且非单调。按预注册规则
-  verdict = kill-eta；"冻结基底 + 元控制器可涌现子目标对齐时间抽象"主张
-  在本仓证据下不成立。ETA 主张摘除与 `vz-temporal` 退回 legacy 路径属于
-  后续独立收敛包；`_step_impl_legacy` 与全部 switch 正则代码保留为回滚
-  基线。详见
+  `0.000` 低于段外 `0.141`，rate 轴对 alpha 响应弱且非单调。按运行前已固定于
+  源码的判据规则，verdict = kill-eta。该读数足以阻止把"冻结基底 + 元控制器可
+  涌现子目标对齐时间抽象"当作已确立前提引用，但因缺预注册与源码冻结，不足以
+  据此摘除 ETA 主张。ETA 主张摘除与 `vz-temporal` 退回 legacy 路径须先有
+  预注册重跑，且属于后续独立收敛包；`_step_impl_legacy` 与全部 switch 正则代码
+  保留为回滚基线。详见
   `research/eta/eta-segment-credit-evidence-plan.zh.md` 2026-08-01 节。
 - 2026-07-29: ETA Gate 2 v32 对 v31 的 `3168` 条 Qwen 候选记录增加
   target-oracle 到独立 audit 的 permutation-null transfer gate，并把 selector
