@@ -327,6 +327,7 @@
 **核心不变量**：
 - Domain Experience Package 不是新的运行时 owner
 - 垂直经验编译到现有 `domain_knowledge` / `case_memory` / `strategy_playbook` / `boundary_policy` / rare-heavy application state
+- companion Forge overlay 只 additive 编译到既有 `strategy_playbook`；外部 wiring 默认 DISABLED，asset 不能自授权 ACTIVE
 - 包内容是冷启动 scaffold 和评测锚点，不等同于真实长期经验成熟
 - 不通过人口学关键词硬编码行为
 
@@ -494,6 +495,7 @@
 - runtime 必须校验基础权重 SHA-256、bundle/manifest 双指纹和模型几何
 - `character_prefix_applied` 只证明物理载体注入，不等于人物行为 fidelity 已达标
 - 训练 candidate 必须绑定数据/超参数/seed provenance；L1/L2 allow 都只能来自 immutable held-out 对照臂和 cognition `ModificationGate.OFFLINE`
+- Forge rare-heavy request 固定 DISABLED 且只计划训练；loop-external READY 只证明证据绑定，不能 publish/activate L1
 
 ### 17B. Character Residual Adapter（Deprecated）
 
@@ -777,7 +779,7 @@
 | Companion benchmark | [companion-bench](./companion-bench.md) |
 | Figure vertical / evidence | [figure vertical](./figure-vertical.md)、[grounding GT](./figure-grounding-gt-protocol.md)、[offline gate](./figure-offline-gate-validation-protocol.md)、[persona verification](./figure-persona-verification.md)、[refusal GT](./figure-refusal-gt-protocol.md)、[voice blind test](./figure-voice-blind-test-protocol.md) |
 | Growth advisor | [archetype detection](./growth-advisor-archetype-detection.md)、[boundary baseline](./growth-advisor-boundary-baseline.md)、[drive ablation evidence](./growth-advisor-drive-ablation-evidence.md)、[monthly report](./growth-advisor-monthly-report.md) |
-| RSI / harness governance | [RSI Forge](./rsi-forge.md)（开发环 failure mining → bounded proposal → loop-external validation；不进入 runtime wheel） |
+| RSI / harness governance | [RSI Forge](./rsi-forge.md)（开发环 failure mining → 单一 companion runtime overlay 双门 → Pareto/STOP → DISABLED rare-heavy request；不进入 runtime wheel） |
 
 **索引完整性不变量**：`find docs/specs -name '*.md'` 新增文件时，必须在主干章节或
 本补充表出现；不得依靠目录搜索让正式 spec 处于“存在但不可发现”状态。

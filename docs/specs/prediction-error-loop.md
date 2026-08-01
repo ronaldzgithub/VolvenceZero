@@ -1,7 +1,7 @@
 # Prediction Error 主链 Spec
 
 > Status: draft
-> Last updated: 2026-07-20
+> Last updated: 2026-08-01
 > 对应需求: R-PE
 
 ## 要解决的问题
@@ -79,14 +79,24 @@
 
 | WiringLevel | actual outcome 的 `family_signals` | evaluation→credit | 退出条件 |
 | --- | --- | --- | --- |
-| `SHADOW`（默认，env 未设/falsey） | 来自 `_family_signals(EvaluationSnapshot)`（旧行为，逐字保留） | `derive_learning_evidence_credit_records` + counterfactual `propose_update` 写回照旧 | — |
-| `ACTIVE`（`VZ_PE_EVALUATION_DECOUPLED` truthy） | `{}`（中性 0.5），actual outcome 仅由 substrate / dual-track / regime / external-outcome 驱动 | evaluation-derived credit 置空；counterfactual 不传 evaluation（学习写回不触发），仅保留 historical/readout 记录 | SHADOW 对比证据（`tests/test_pe_evaluation_credit_decoupling.py`）显示 ACTIVE 下 actual outcome 对 evaluation 内容不敏感且与 SHADOW 可测量地不同；在此基础上由 operator 决定切 ACTIVE |
+| `ACTIVE`（默认，env 未设或 truthy） | `{}`（中性 0.5），actual outcome 仅由 substrate / dual-track / regime / external-outcome 驱动 | evaluation-derived credit 置空；counterfactual 不传 evaluation（学习写回不触发），仅保留 historical/readout 记录 | 默认部署；matched ACTIVE/SHADOW 证据必须保持 ACTIVE 对 evaluation byte-invariant、SHADOW evaluation-sensitive、两臂不同 |
+| `SHADOW`（显式 env falsey） | 来自 `_family_signals(EvaluationSnapshot)`（旧行为） | `derive_learning_evidence_credit_records` + counterfactual `propose_update` 写回照旧 | 仅作为 `VZ_PE_EVALUATION_DECOUPLED=SHADOW` 的显式回滚；不得用于新证据主臂 |
 
 - 实现位置：`vz-cognition/.../prediction/error.py::pe_evaluation_decoupled_active` + `_build_outcome_evidence`；`vz-runtime/.../integration/final_wiring.py` 的 credit 派生段复用同一 gate。
-- 默认 SHADOW 保证此 packet 对既有 PE/credit 测试与运行时行为零影响（R15 可回滚）。
+- 2026-08-01 起默认 ACTIVE；matched ablation 只证明 evaluation-fed 信号确实改变 PE/credit、因而该通道 load-bearing，不把这种机制差异冒充产品行为改善。`SHADOW` 是单 env flag 回滚点（R15）。
 - 当前 proof harness 允许显式区分两层含义：一层是 **PE publication/readout**（slot + evaluation evidence 仍存在），另一层是 **PE primary dominance**（是否直接主导 joint-loop schedule 与 RL reward）。`pe-eta-pe-readout-only` 用于只保留前者
 - `bootstrap=True` 表示当前 turn 尚无可结算的上一轮 prediction；下游不应把这类快照当作真实 learning evidence
 - live runtime 中，部分 consumer 会把 `prediction_error` 当作“上一轮结算出的 carryover signal”，以维持单轮 DAG 和 owner 边界
+
+### N+1 表示前向预测（离线研究面）
+
+`PredictionErrorModule` 额外拥有一条显式配置的高吞吐 batch surface：turn N 的冻结上下文表示预测 turn N+1 的冻结观测表示，下一轮以同一 target 同时训练和结算。它不替换当前 live 四轴 head，也不新增第二个 mismatch owner。
+
+- 输入契约为 frozen `ForwardRepresentationBatch`：`sample_ids`、context、N+1 target、persistence baseline 与 `history_turns` 必须逐样本对齐、维度一致且全为有限值。
+- owner-internal `TorchForwardRepresentationHead` 使用 `input -> tanh(n_z) -> target` 的有界瓶颈；结算发布逐样本 predicted / actual / signed error、MSE、cosine，以及同 target 上的 persistence baseline。
+- `ForwardRepresentationBatchSnapshot` 是离线 research artifact，不是 runtime `Snapshot`，不注册 §6 slot，也不进入 `propagate`。调用方只能经 `PredictionErrorModule.process_forward_representation_batch(...)` 训练或评估，禁止直接实例化 head 形成第二 owner。
+- checkpoint 为 float-only、带 geometry/schema/fingerprint 校验；恢复失败必须 loudly fail。该通道的 target 表示由冻结 encoder 外部提供，PE owner只拥有预测与 mismatch，不拥有 encoder 语义。
+- promotion 条件：真实人类 multi-session heldout 上，N+1 head 必须优于同 target 的 persistence，并通过容量阶梯、长上下文 matched baseline 和多 seed 门；此前保持 offline/report-only。旧 CP-11 四轴手工 head 的 output/target space 与冻结话语表示不同，不能伪造一个跨空间数值对照；它只保留为旧 live-chain mechanism baseline，除非未来先预注册共享 target adapter。
 
 ### Gate 1 LSS link registry
 
@@ -442,6 +452,13 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 | 被依赖 | 慢反思路径 | reflection 将 PE 作为 tensions、lessons 和 policy consolidation 的正式输入 |
 
 ## 变更日志
+
+- 2026-08-01: R2 research packet。`VZ_PE_EVALUATION_DECOUPLED` 默认从
+  SHADOW 翻为 ACTIVE，`SHADOW` 保留单 env rollback；matched evidence 同时
+  要求 ACTIVE evaluation-invariant、SHADOW evaluation-sensitive 与 cross-arm
+  difference。新增 PE-owner offline `ForwardRepresentationBatch` N+1 表示预测
+  surface、float-only checkpoint 与同 target persistence settlement；不新增 slot，
+  不改 live 四轴 schema。
 
 - 2026-07-30: `PredictionErrorModule` 增加 owner-side frozen learning gate。
   `learning_enabled=False` 时仍计算并发布 PE、滚动分布 readout 与下一轮预测上下文，但

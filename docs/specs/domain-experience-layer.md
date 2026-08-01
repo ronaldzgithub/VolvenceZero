@@ -220,6 +220,32 @@ owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早�
 - `run_final_wiring_turn()` 可接收 `domain_experience_packages`，用于测试、评测或无状态调用中的 package 注入。
 - package records 继续由 `ApplicationDomainKnowledgeStore` / `ApplicationCaseMemoryStore` 持久化；playbook 与 boundary hints 进入 `ApplicationRareHeavyState`，再由现有 runtime modules 读取。
 
+### Companion additive playbook overlay
+
+`lifeform-domain-emogpt` 是 companion vertical package 的 owner。其
+`runtime_assets/companion_playbook_overlay.json` 是唯一可由 Forge 形成产品候选的垂直资产，
+但它不是新的 application owner：loader 只把通过验证的 `PlaybookRule` 追加到
+`build_companion_package()` 构造的 `DomainExperiencePackage`，随后仍由既有
+`strategy_playbook` owner 编译和发布。
+
+正式边界如下：
+
+- asset schema 固定为 `companion-playbook-overlay.v1`，顶层只接受
+  `schema_version / overlay_id / version / owner / playbook_rules / description`；rule id 必须使用
+  `rid-companion:forge:` 前缀；
+- baseline rule id、baseline `problem_pattern`、重复 id/pattern、未知字段或越界 numeric prior
+  全部 fail loudly；overlay 只能 additive，不能替换 baseline；
+- `WiringLevel` 是调用方参数，不在 asset 内。`DISABLED` 不读取文件；`SHADOW` 验证并发布
+  candidate 对照但 live package 不变；`ACTIVE` 才把规则放入 live package；
+- `build_companion_lifeform()` 与 `build_companion_package()` 默认都是 `DISABLED`。因此 apply JSON
+  与部署 ACTIVE 是两次独立人审动作，asset 不能自我晋升；
+- frozen `test_suite.yaml`、owner validator 与 held-in/out 位于 Forge 提案循环外。删除 overlay
+  rule 或把 wiring 切回 `DISABLED` 即回滚，不影响 domain knowledge、case memory、boundary owner
+  或任何基础模型权重。
+
+该 overlay 复用现有 `DomainExperiencePackage → strategy_playbook` 通道，没有新增 snapshot/slot，
+故不在 `docs/DATA_CONTRACT.md` 注册第二条交换契约。
+
 ## 与其他能力域的关系
 
 | 关系 | 能力域 | 说明 |
@@ -233,6 +259,9 @@ owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早�
 
 ## 变更日志
 
+- 2026-08-01: 新增 companion additive playbook overlay：真实消费链编译到既有
+  `strategy_playbook` owner，外部 `DISABLED/SHADOW/ACTIVE` wiring、严格 additive schema 与
+  Forge 双门分离；未新增 DATA_CONTRACT slot。
 - 2026-08-01: 对账 CaseMemory 真实 semantic backend 的 `0.02`/stub `0.16`
   action gate、64 维 action-vs-reflective margin 与 structured applicability 独立门。
 - 2026-07-29: promotion checkpoint 增加 typed `applicability_conditions`，CaseMemory 增加 turn-time structured applicability gate；缺 provider/条件/有效高置信判定时 learned promotion fail closed，正例命中与同意照护负例拒绝均由独立行为保真测试覆盖。

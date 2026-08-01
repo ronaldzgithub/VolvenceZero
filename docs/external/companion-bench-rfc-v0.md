@@ -290,6 +290,25 @@ Any system exposing an OpenAI-compatible chat completion endpoint. The system mu
 
 Systems without explicit cross-session API still benefit because some scenarios are within-session, and long-context systems can scoreA3 by stuffing prior sessions into the prompt within the context window.
 
+For matched research ablations, the reference runner exposes three declared
+history policies: `session` (historical default), `stateless` (latest user
+observation only), and `full` (complete prior-session transcript). The `full`
+arm is the required long-context control and must use the same frozen substrate,
+system prompt and decoding parameters as the other arms. If a configured
+context budget is exceeded, the runner keeps a contiguous recency suffix and
+records estimated preflight context, actual SUT-reported prompt tokens, latency
+and dropped-message count. These controls are experiment metadata and do not
+prescribe a leaderboard submission's internal architecture.
+
+The MSC v0.1 adapter also defines a separate external-human N+1 research lane;
+it is not part of the scenario leaderboard. Turn N predicts a frozen
+representation of the observed human turn N+1. Four matched arms are required:
+complete Volvence runtime, stateless, full-history long context, and summary
+retrieval. Formal evidence requires the frozen official 501-dyad heldout split,
+at least three seeds, identical sample lineage across arms, one frozen model
+fingerprint, and token/latency/truncation curves. Partial-corpus or bounded-state
+prototype runs are pilots and cannot select a thesis claim.
+
 ### 7.2 Submission package
 
 A submission consists of:

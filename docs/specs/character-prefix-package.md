@@ -91,6 +91,26 @@ capacity cost 和 rollback readout 交给 cognition `ModificationGate.OFFLINE`�
 `publish` 必须重算 observation summary/cognition decision，并同时核对 held-out digest、
 evaluation report SHA-256 与 gate `evaluation_ref`，不得只凭 candidate id 接收 allow。
 
+### Forge rare-heavy request boundary
+
+Forge 第五阶段只在 L1 训练入口之前增加 content-addressed build request，不改变本节 owner：
+
+- `forge plan-rare-heavy` 绑定 base model id/weights SHA-256、traces、control basis、held-out corpus、
+  显式 hook layers、全部 LoRA/State-KV 超参数与评估阈值；请求固定
+  `owner=vz-substrate`、`requested_wiring=DISABLED`、
+  `training_order=rare-heavy→state-kv→offline-gate`、`training_decides_gate=false`；
+- 请求只写 `artifacts/`，不能成为 runtime bundle path，也不能触发 train/evaluate/publish；
+- `validate_common_adapter_evidence()` 是 substrate pipeline 的公开只读验证 seam，统一复核
+  candidate nested artifact、State-KV manifest、held-out report 和 cognition gate；`publish_bundle()`
+  复用同一 seam，避免裁决与发布形成两套验证逻辑；
+- loop-external `forge_common_adapter_adjudicator.py` 还要逐项核对请求与 candidate provenance、
+  control/checkpoint、held-out digest、评估阈值及 gate decision。只有全部匹配且 gate 是可逆
+  ALLOW 才输出 `READY`，其他情况为 `STOP`；READY 仍不执行 publish。
+
+本阶段没有新的真实 GPU candidate/ALLOW evidence；因此该接口的落地不改变任何现有 L1 ACTIVE
+资格。回滚只需停止生成请求或删除未发布的 request/verdict；已发布 L1 仍按本 spec 的 bundle
+回滚规则处理。
+
 `scripts/bake_zhang_wuji_character_package.py`（后续角色可使用同形入口）必须加载
 ACTIVE L1、核对基础权重哈希，并在 `base + common adapter vN` 前向上测 reference
 norm、teacher-force 角色 Prefix/KV。无 fidelity/gate 时只产出 SHADOW manifest；

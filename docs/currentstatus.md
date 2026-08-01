@@ -1,7 +1,7 @@
 # VolvenceZero Cognitive AGI 当前状态
 
 > Status: live status summary
-> Last updated: 2026-07-31（#92 因果证据终局判词）
+> Last updated: 2026-08-01（#92 后研究路线校正）
 > 详细判断、晋升协议与命令见 [`current.md`](./current.md)。
 > 本文件只记录当前事实、剩余代码、晋升状态和下一步，不把计划写成已完成。
 
@@ -89,52 +89,55 @@ live 决策仍由结构 + 启发式主导；SHADOW learners（regime / affordanc
 - learned persona / function vectors 与 mesa-objective readout（P2）；
 - 跨模态 latent action basis、开放环境因果结构发现（P2，研究前沿）。
 
-## 6. 核心结论：瓶颈已从代码转移到证据
+## 6. 核心结论：瓶颈是信号真实性、学习器容量与外部真值
 
-两轮补齐后的关键判断：**写代码已经不是瓶颈**。每个 learned 部件都有实现、SHADOW 双跑、promotion readout 与回滚路径，但没有一个拿到过晋升证据——当前所有 SHADOW learner 的 settle 计数为零或接近零，四个 torch backend 的 component gate 未全绿。"还差多少"的答案已经从"差代码"变成"差证据"。
+> 2026-08-01 校正：#92 已证伪“只差把现有 evidence pipeline 跑完”的
+> 判断。下方旧 evidence lane 记录仅保留为历史机制回归说明，不再构成整体
+> thesis 或默认 ACTIVE 晋升依据。
 
-下一步按杠杆大小排序：
+旧判断把 owner 内部 readout、合成轨迹与晋升门的完整性误当成了研究命题
+本身；即使 `promotion_report.json` 全绿，也不能回答关系状态是否产生了对
+未来的真实预测优势。当前三项根缺口是：
 
-### 第一优先：跑证据线（不需要写代码）
+1. **信号真实性**：现有 PE 的 predicted / actual 主要是同批上游读数的两套
+   owner 内投影，不是对未来观察的前向预测；
+2. **学习器容量**：默认 `n_z=3`，且真实目标上的容量曲线尚不存在；
+3. **外部真值**：既有主证据来自人写 FSM 与模拟用户，没有独立的真人多
+   session held-out 未来作为标签。
 
-```bash
-bash run_learned_active_evidence.sh --resume --substrate-mode hf --substrate-device mps
-bash run_companion_bench_p1.sh --resume
-```
+研究路线改为：以真实多 session 对话的 N+1 表示为免费标签，先建立同一
+冻结表示基底上的 stateless / 全量历史长上下文 / 摘要检索 / Volvence 四臂
+对照，再判断 PE 与 ETA 是否 load-bearing。合成数据只保留为 sanity check。
 
-目标是 `promotion_report.json` 的 `terminal_candidate_ready=true`，然后只按
-`staged_gate.next_component` 逐组件 ACTIVE；四项完成后
-`production_terminal_ready=true`：
+R4 主实验形成独立 verdict 前，冻结新 wheel 与新 spec；允许删除无效主张、
+更新既有 owner/spec，以及增加不进入 runtime DAG 的研究 harness。大批量研究
+直接调用正式 owner 的 immutable batch contract，绕过逐 turn `propagate`
+调度开销，但不得复制 prediction-error owner 或重建第二套 mismatch 语义。
 
-```text
-读取现有 real-trace missing_gates
-→ capacity ladder
-→ P1 9-track
-→ promotion report（terminal_candidate_ready=true）
-→ temporal runtime ACTIVE canary
-→ SSL → Internal RL → CMS torch
-→ P2 held-out multi-seed（first-stage-retained）
-```
+截至 2026-08-01，地基与 pilot 已落地：MSC v0.1 的 train/validation/heldout
+hash 与 1001/500/501 dyad 划分冻结；`PredictionErrorModule` 新增 offline
+N+1 表示 batch head；evaluation→PE gate 默认 ACTIVE 且 matched SHADOW
+rollback 通过；Companion Bench 支持 stateless/session/full history 与 token/
+latency/truncation 审计；Internal-RL 的 `math.sin` 伪噪声已替换为带 checkpoint
+RNG state 的真实随机抽样。
 
-这是把 learned 主导度从 10–20% 提上去的唯一合法路径。
+一次真实 MSC CPU pilot（24/12/12 dyads、583/362/352 N+1 samples、四臂、
+3 seeds、8 epochs）只用于机制校验：validation capacity curve 的 mean cosine
+为 `n_z=3:0.047716 / 16:0.275870 / 64:0.317985 / 256:0.311662`；第五 session
+bounded-state prototype 相对 256-token long-context 的 cosine 差为 `0.027586`
+（dyad bootstrap 95% CI `[0.019191, 0.035425]`），token/latency ratio 分别
+`0.1530/0.2481`。它仍被 evaluator 强制判为 `INELIGIBLE_PILOT`：只覆盖
+12/501 heldout dyads，且 bounded-state arm 不是完整 Volvence runtime；不能据此
+晋升 temporal `n_z`、退役 legacy controller 或选择 thesis v3。
 
-### 第二优先：让 SHADOW learners 积累 settle（采集 lane 已补，2026-07-17）
+### 已降级的旧 evidence lane（机制回归用途）
 
-RegimeScoreLearner / AffordanceScoreLearner / ConsolidationScoreLearner 各需 ≥50 次 settle + MAE 领先 margin 才达 promotion readout 的 ready。采集面现已闭合：
-
-- soak artifact（`run_learned_shadow_soak.py`）新增 `regime_score_learner` / `reflection_consolidation_learner` / `credit_learned_heads` 三段 readout——regime 与 consolidation learner 在 kernel 主链内每 turn 自然 settle，soak 即积累（8-turn 冒烟已见 settle 5 / 7 次）；
-- affordance learner 的 settlement 只来自真实工具调用，kernel-only soak 覆盖不到，已补独立 lifeform 级 lane：`run_affordance_learner_probe.sh` / `.ps1`（真实 registry → module → invoker → outcome listener 全链，机制证据 EXIT(0) 已过；promotion 仍需 ≥50 次真实使用 settle）。
-
-### 第三优先：跨 session continuity 证据（longitudinal lane 已补，2026-07-17）
-
-- 新增 `tests/longitudinal/test_cross_session_learned_state_continuity.py`：同一用户 20 sessions × 2 turns，断言 social record（种子 ToM record 跨全部边界存活）、regime `turn_index` 累计到 40、dual-track gate learner ≥20 次 settle、PE critic / COCOA head 计数跨边界不回退、六个 hydratable owner 每 session 全部持久化；另有跨用户隔离用例（bob 全部计数从零开始）。本机已跑通（2 passed）。
-- 双平台入口：`run_longitudinal_continuity.sh` / `.ps1`（含既有 owner-hydration longitudinal 套件）。
-- 剩余：在真实部署 scoped backend 上重复该 lane 作为发布证据。
-
-### 第四优先（唯一的代码大项）：World / Self predictive model 扩容
-
-建议等 capacity ladder 结果出来再定容量方向——如果 `n_z=16→64` 无增益，盲目扩 World/Self model 容量是浪费。
+`run_learned_active_evidence.sh`、`run_companion_bench_p1.sh`、SHADOW learner
+settle lane 与跨 session hydration 测试仍用于防止机制退化和验证 rollback；它们
+的产物一律标记 `thesis_status=not-evaluated`。World / Self 扩容只能在真实
+N+1 目标的 `n_z ∈ {3,16,64,256}` validation 曲线显示容量增益后进行；曲线
+平坦则触发 ETA kill review，而不是继续堆容量。
 
 ## 7. 最简状态陈述
 
-> 第一阶段认知系统代码经 P0 + P1 两轮补齐后约完成 91–95%：owner continuity、learned regime/affordance/consolidation SHADOW 候选、9/9 semantic LLM proposal、session-held credit owner、group 产品 consumer 与 thinking advisory SHADOW 链均已在代码中。默认 learned 主导度仍约 10–20%；四个 torch backend 与全部 SHADOW learners 的 ACTIVE 均 gate 于 ≥500 real-trace、validation delta、控制臂、回滚、性能、安全与 P2 held-out multi-seed 证据。当前状态是 wiring-ready 且 promotion-path-complete，不是 first-stage-retained。**瓶颈已从"写代码"转移到"跑证据"：最优的下一步不是继续写实现，而是把 promotion pipeline 真正跑完一遍。**
+> 第一阶段 wiring 仍约完成 91–95%，但这只说明 owner、SHADOW 与回滚骨架齐备。#92 后的研究瓶颈是取得真实未来标签、真实前向 PE 与容量/长上下文强基线；任何整体 thesis 都必须由新的 held-out 多 seed 主实验重新挣得。
