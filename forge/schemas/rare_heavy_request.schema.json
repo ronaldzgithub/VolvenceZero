@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.rare-heavy-request.v1",
+  "title": "Forge rare-heavy build request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "created_at",
+    "owner",
+    "requested_wiring",
+    "base_model",
+    "inputs",
+    "training",
+    "evaluation",
+    "training_order",
+    "training_decides_gate"
+  ],
+  "properties": {
+    "schema_version": {"const": "forge-rare-heavy-request.v1"},
+    "request_id": {"type": "string", "pattern": "^rare-heavy:[0-9a-f]{64}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "owner": {"const": "vz-substrate"},
+    "requested_wiring": {"const": "DISABLED"},
+    "base_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "weights_sha256"],
+      "properties": {
+        "model_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "weights_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["traces", "control_basis", "held_out"],
+      "properties": {
+        "traces": {"$ref": "#/$defs/trace_ref"},
+        "control_basis": {"$ref": "#/$defs/content_ref"},
+        "held_out": {"$ref": "#/$defs/content_ref"}
+      }
+    },
+    "training": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "common_adapter_version",
+        "runtime_origin",
+        "description",
+        "seed",
+        "target_modules",
+        "hook_layers",
+        "control_scale",
+        "lora_rank",
+        "lora_alpha",
+        "lora_dropout",
+        "learning_rate",
+        "max_steps",
+        "state_kv_seed",
+        "state_kv_states",
+        "state_kv_epochs",
+        "state_kv_slots",
+        "state_kv_rank",
+        "state_kv_norm_cap",
+        "state_kv_learning_rate"
+      ],
+      "properties": {
+        "common_adapter_version": {"type": "string", "minLength": 1, "maxLength": 128},
+        "runtime_origin": {"enum": ["hf-local", "hf-pretrained"]},
+        "description": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+        "target_modules": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,127}$"}
+        },
+        "hook_layers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 0, "maximum": 1023}
+        },
+        "control_scale": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "lora_rank": {"type": "integer", "minimum": 1, "maximum": 64},
+        "lora_alpha": {"type": "integer", "minimum": 1, "maximum": 256},
+        "lora_dropout": {"type": "number", "minimum": 0, "maximum": 0.5},
+        "learning_rate": {"type": "number", "exclusiveMinimum": 0, "maximum": 0.1},
+        "max_steps": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "state_kv_seed": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+        "state_kv_states": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "state_kv_epochs": {"type": "integer", "minimum": 1, "maximum": 100},
+        "state_kv_slots": {"type": "integer", "minimum": 1, "maximum": 64},
+        "state_kv_rank": {"type": "integer", "minimum": 1, "maximum": 64},
+        "state_kv_norm_cap": {"type": "number", "exclusiveMinimum": 0, "maximum": 10},
+        "state_kv_learning_rate": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_case_count",
+        "min_mean_relative_improvement",
+        "max_regression_rate",
+        "max_preservation_nll_regression",
+        "min_counterfactual_accuracy"
+      ],
+      "properties": {
+        "min_case_count": {"type": "integer", "minimum": 2, "maximum": 100000},
+        "min_mean_relative_improvement": {"type": "number", "minimum": 0, "maximum": 1},
+        "max_regression_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "max_preservation_nll_regression": {"type": "number", "minimum": 0, "maximum": 10},
+        "min_counterfactual_accuracy": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "training_order": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "rare-heavy"},
+        {"const": "state-kv"},
+        {"const": "offline-gate"}
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "training_decides_gate": {"const": false}
+  },
+  "$defs": {
+    "trace_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256", "trace_count"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "trace_count": {"type": "integer", "minimum": 1, "maximum": 10000000}
+      }
+    },
+    "content_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "sha256"],
+      "properties": {
+        "locator": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

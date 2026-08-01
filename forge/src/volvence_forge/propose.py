@@ -47,9 +47,12 @@ def propose_changes(
     embedder: EmbeddingBackend,
     output_dir: Path | None = None,
     max_proposals: int = 3,
+    candidates_per_pattern: int = 1,
 ) -> ProposeResult:
     if max_proposals <= 0:
         raise ForgeError("max_proposals must be positive")
+    if not 1 <= candidates_per_pattern <= 16:
+        raise ForgeError("candidates_per_pattern must be within [1, 16]")
     schema_store = SchemaStore(config.paths.forge_root / "schemas")
     prompt_store = PromptStore(config.paths.forge_root / "prompts")
     patterns = _load_patterns(failure_patterns_path, schema_store)
@@ -68,7 +71,12 @@ def propose_changes(
     proposal_dirs: list[Path] = []
     skipped_duplicates = 0
     skips: list[str] = []
-    for pattern in candidates:
+    population = tuple(
+        pattern
+        for pattern in candidates
+        for _candidate_index in range(candidates_per_pattern)
+    )
+    for pattern in population:
         if len(proposal_dirs) >= max_proposals:
             break
         target = pattern["editable_target"]
@@ -205,10 +213,18 @@ def _validate_candidate(response: dict[str, Any], pattern: dict[str, Any], confi
         if document_path != "/scenes":
             raise BackendError("scenes.yaml append must use document_path=/scenes")
     elif operation == "append_json_array_item":
-        if not entry.requires_offline_gate or not target.endswith("/ssot_fragment.json"):
-            raise BackendError("append_json_array_item is limited to gated ssot_fragment.json assets")
-        if document_path not in {"/paths", "/arc_specs"}:
-            raise BackendError("ssot_fragment append path must be /paths or /arc_specs")
+        if not entry.requires_offline_gate:
+            raise BackendError("append_json_array_item requires an offline-gated asset")
+        if target.endswith("/ssot_fragment.json"):
+            if document_path not in {"/paths", "/arc_specs"}:
+                raise BackendError("ssot_fragment append path must be /paths or /arc_specs")
+        elif target.endswith("/companion_playbook_overlay.json"):
+            if document_path != "/playbook_rules":
+                raise BackendError(
+                    "companion playbook overlay append must use document_path=/playbook_rules"
+                )
+        else:
+            raise BackendError("append_json_array_item target is not an approved structured asset")
     else:
         raise BackendError(f"Unsupported proposal operation: {operation}")
     expected_preserve = set(pattern["preserve_behaviors"])
@@ -297,8 +313,17 @@ def _append_json_array_item(
     if not isinstance(collection, list):
         raise BackendError(f"JSON document path {document_path} is not a sequence")
     collection.append(item)
-    identifier = "path_id" if key == "paths" else "arc_spec_id"
+    identifiers = {
+        "paths": "path_id",
+        "arc_specs": "arc_spec_id",
+        "playbook_rules": "rule_id",
+    }
+    identifier = identifiers.get(key)
+    if identifier is None:
+        raise BackendError(f"Unsupported JSON append collection: {key}")
     _ensure_unique_identifier(collection, identifier, target)
+    if key == "playbook_rules":
+        _ensure_unique_identifier(collection, "problem_pattern", target)
     return json.dumps(baseline, ensure_ascii=False, indent=2) + "\n"
 
 

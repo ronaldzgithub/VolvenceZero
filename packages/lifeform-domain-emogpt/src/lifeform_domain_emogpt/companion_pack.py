@@ -19,6 +19,8 @@ don't collide.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from volvence_zero.application import (
     BoundaryPriorHint,
     CaseMemoryRecord,
@@ -26,6 +28,12 @@ from volvence_zero.application import (
     DomainExperiencePackage,
     DomainKnowledgeRecord,
     PlaybookRule,
+)
+from volvence_zero.runtime import WiringLevel
+
+from lifeform_domain_emogpt.runtime_overlay import (
+    CompanionPlaybookOverlayResolution,
+    resolve_companion_playbook_overlay,
 )
 
 
@@ -357,8 +365,37 @@ def _boundary_hints() -> tuple[BoundaryPriorHint, ...]:
 # ---------------------------------------------------------------------------
 
 
-def build_companion_package() -> DomainExperiencePackage:
-    """Return the canonical relationship-companion package."""
+def resolve_companion_package_overlay(
+    *,
+    wiring_level: WiringLevel = WiringLevel.DISABLED,
+    overlay_path: Path | None = None,
+) -> CompanionPlaybookOverlayResolution:
+    """Resolve baseline/candidate/live playbook rules for audited SHADOW use."""
+
+    return resolve_companion_playbook_overlay(
+        baseline_rules=_playbook_rules(),
+        wiring_level=wiring_level,
+        overlay_path=overlay_path,
+    )
+
+
+def build_companion_package(
+    *,
+    playbook_overlay_wiring: WiringLevel = WiringLevel.DISABLED,
+    playbook_overlay_path: Path | None = None,
+) -> DomainExperiencePackage:
+    """Return the canonical relationship-companion package.
+
+    The reviewed overlay defaults to DISABLED, which does not read the asset
+    and preserves the historical package exactly. SHADOW validates and exposes
+    a candidate through :func:`resolve_companion_package_overlay` but leaves
+    this live package unchanged. ACTIVE is an explicit, code-side promotion.
+    """
+
+    overlay = resolve_companion_package_overlay(
+        wiring_level=playbook_overlay_wiring,
+        overlay_path=playbook_overlay_path,
+    )
     return DomainExperiencePackage(
         manifest=DomainExperienceManifest(
             package_id=_PACKAGE_ID,
@@ -382,6 +419,6 @@ def build_companion_package() -> DomainExperiencePackage:
         ),
         knowledge_records=_knowledge_records(),
         case_records=_case_records(),
-        playbook_rules=_playbook_rules(),
+        playbook_rules=overlay.live_rules,
         boundary_hints=_boundary_hints(),
     )

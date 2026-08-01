@@ -144,6 +144,7 @@ def _config(tmp_path: Path, *, enable_runtime_fixture: bool = False) -> ForgeCon
                         "packages/lifeform-domain-character/src/lifeform_domain_character/"
                         "scenario_packages/*/test_suite.yaml"
                     ),
+                    "candidate": [["python", "fixture-validator.py", "{candidate_path}"]],
                     "held_in": [["pytest", "fixture-held-in", "-q"]],
                     "held_out": [["pytest", "fixture-held-out", "-q"]],
                 },
@@ -418,17 +419,32 @@ def test_runtime_validation_emits_delta_and_apply_requires_offline_allow(tmp_pat
     config = _config(tmp_path, enable_runtime_fixture=True)
     proposal_dir, target = _runtime_proposal(config, tmp_path)
     before = target.read_text(encoding="utf-8")
+    validated_candidates: list[str] = []
+
+    def candidate_aware_runner(argv, *, cwd, timeout):
+        del cwd, timeout
+        if "fixture-validator.py" in argv:
+            candidate_path = Path(argv[-1])
+            assert candidate_path.is_file()
+            assert "scenario_id: repair_02" in candidate_path.read_text(
+                encoding="utf-8"
+            )
+            validated_candidates.append(str(candidate_path))
+        return CommandOutcome(returncode=0, stdout="ok", stderr="")
+
     validation = validate_proposal(
         config=config,
         proposal_dir=proposal_dir,
         relevance_backend=_RuntimeValidationBackend(),
-        command_runner=_pass_command,
+        command_runner=candidate_aware_runner,
     )
     report = json.loads(validation.report_path.read_text(encoding="utf-8"))
 
     assert validation.status == "PASS"
     assert report["runtime_gate_evidence"]["validation_delta"] == 0.5
     assert report["runtime_gate_evidence"]["rollback_resilience"] is True
+    assert len(validated_candidates) == 1
+    assert "{candidate_path}" not in validated_candidates[0]
     assert target.read_text(encoding="utf-8") == before
     with pytest.raises(ApplyError, match="requires readable OFFLINE gate decision"):
         apply_proposal(

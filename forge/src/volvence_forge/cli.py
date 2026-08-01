@@ -19,7 +19,13 @@ from .foundation import (
     StructuredBackend,
 )
 from .mine import mine_failures
+from .optimize import select_pareto_candidates
 from .propose import propose_changes
+from .rare_heavy import (
+    RareHeavyEvaluationSpec,
+    RareHeavyTrainingSpec,
+    create_rare_heavy_request,
+)
 from .sources import latest_applied_timestamp, load_source_bundle, parse_evidence_timestamp
 from .validate import validate_proposal
 
@@ -50,6 +56,65 @@ def build_parser() -> argparse.ArgumentParser:
     _add_backend_arguments(propose, default="openai", allow_none=False)
     propose.add_argument("--output", type=Path)
     propose.add_argument("--max-proposals", type=int, default=3)
+    propose.add_argument("--candidates-per-pattern", type=int, default=1)
+
+    select = subparsers.add_parser(
+        "select",
+        help="Select a bounded Pareto front or emit an explicit STOP decision",
+    )
+    select.add_argument("proposals_root", type=Path)
+    select.add_argument("--output", type=Path)
+    select.add_argument("--selection-limit-per-component", type=int, default=1)
+
+    rare_heavy = subparsers.add_parser(
+        "plan-rare-heavy",
+        help="Freeze a DISABLED, content-addressed Common Adapter build request",
+    )
+    rare_heavy.add_argument("--model-id", required=True)
+    rare_heavy.add_argument("--model-weights-sha256", required=True)
+    rare_heavy.add_argument("--common-adapter-version", required=True)
+    rare_heavy.add_argument("--traces", type=Path, required=True)
+    rare_heavy.add_argument("--control-basis", type=Path, required=True)
+    rare_heavy.add_argument("--held-out", type=Path, required=True)
+    rare_heavy.add_argument("--output", type=Path)
+    rare_heavy.add_argument(
+        "--runtime-origin",
+        choices=("hf-local", "hf-pretrained"),
+        default="hf-pretrained",
+    )
+    rare_heavy.add_argument(
+        "--target-modules",
+        nargs="+",
+        default=("q_proj", "v_proj", "o_proj"),
+    )
+    rare_heavy.add_argument(
+        "--hook-layers",
+        required=True,
+        help="Comma-separated, explicit layer indices",
+    )
+    rare_heavy.add_argument("--lora-rank", type=int, default=8)
+    rare_heavy.add_argument("--lora-alpha", type=int, default=16)
+    rare_heavy.add_argument("--lora-dropout", type=float, default=0.0)
+    rare_heavy.add_argument("--learning-rate", type=float, default=5e-4)
+    rare_heavy.add_argument("--max-steps", type=int, default=200)
+    rare_heavy.add_argument("--seed", type=int, default=20260801)
+    rare_heavy.add_argument("--control-scale", type=float, default=0.12)
+    rare_heavy.add_argument("--state-kv-states", type=int, default=16)
+    rare_heavy.add_argument("--state-kv-epochs", type=int, default=4)
+    rare_heavy.add_argument("--state-kv-slots", type=int, default=4)
+    rare_heavy.add_argument("--state-kv-rank", type=int, default=4)
+    rare_heavy.add_argument("--state-kv-norm-cap", type=float, default=0.2)
+    rare_heavy.add_argument("--state-kv-learning-rate", type=float, default=0.05)
+    rare_heavy.add_argument("--state-kv-seed", type=int, default=20260726)
+    rare_heavy.add_argument("--min-case-count", type=int, default=8)
+    rare_heavy.add_argument("--min-mean-relative-improvement", type=float, default=0.01)
+    rare_heavy.add_argument("--max-regression-rate", type=float, default=0.25)
+    rare_heavy.add_argument("--max-preservation-nll-regression", type=float, default=0.05)
+    rare_heavy.add_argument("--min-counterfactual-accuracy", type=float, default=0.60)
+    rare_heavy.add_argument(
+        "--description",
+        default="Shared common adapter: PEFT rare-heavy then State-KV distillation.",
+    )
 
     validate = subparsers.add_parser("validate", help="Validate one proposal without applying it")
     validate.add_argument("proposal_dir", type=Path)
@@ -110,12 +175,81 @@ def main(argv: Sequence[str] | None = None) -> int:
                 embedder=_embedder(args),
                 output_dir=args.output,
                 max_proposals=args.max_proposals,
+                candidates_per_pattern=args.candidates_per_pattern,
             )
             print(
                 f"generated {len(result.proposal_dirs)} bundles; "
                 f"skipped {result.skipped_duplicates} duplicates: {result.output_dir}"
             )
             return 0 if result.proposal_dirs else 2
+        if args.command == "select":
+            result = select_pareto_candidates(
+                config=config,
+                proposals_root=args.proposals_root,
+                output_path=args.output,
+                selection_limit_per_component=args.selection_limit_per_component,
+            )
+            print(
+                f"{result.decision}: selected={list(result.selected_proposal_ids)}; "
+                f"report={result.report_path}"
+            )
+            return 0 if result.decision == "SELECT" else 2
+        if args.command == "plan-rare-heavy":
+            try:
+                hook_layers = tuple(
+                    int(value.strip())
+                    for value in args.hook_layers.split(",")
+                    if value.strip()
+                )
+            except ValueError as exc:
+                raise ForgeError(
+                    "--hook-layers must contain comma-separated integers"
+                ) from exc
+            result = create_rare_heavy_request(
+                config=config,
+                model_id=args.model_id,
+                model_weights_sha256=args.model_weights_sha256,
+                traces_path=args.traces,
+                control_basis_path=args.control_basis,
+                held_out_path=args.held_out,
+                training=RareHeavyTrainingSpec(
+                    common_adapter_version=args.common_adapter_version,
+                    runtime_origin=args.runtime_origin,
+                    description=args.description,
+                    seed=args.seed,
+                    target_modules=tuple(args.target_modules),
+                    hook_layers=hook_layers,
+                    control_scale=args.control_scale,
+                    lora_rank=args.lora_rank,
+                    lora_alpha=args.lora_alpha,
+                    lora_dropout=args.lora_dropout,
+                    learning_rate=args.learning_rate,
+                    max_steps=args.max_steps,
+                    state_kv_seed=args.state_kv_seed,
+                    state_kv_states=args.state_kv_states,
+                    state_kv_epochs=args.state_kv_epochs,
+                    state_kv_slots=args.state_kv_slots,
+                    state_kv_rank=args.state_kv_rank,
+                    state_kv_norm_cap=args.state_kv_norm_cap,
+                    state_kv_learning_rate=args.state_kv_learning_rate,
+                ),
+                evaluation=RareHeavyEvaluationSpec(
+                    min_case_count=args.min_case_count,
+                    min_mean_relative_improvement=(
+                        args.min_mean_relative_improvement
+                    ),
+                    max_regression_rate=args.max_regression_rate,
+                    max_preservation_nll_regression=(
+                        args.max_preservation_nll_regression
+                    ),
+                    min_counterfactual_accuracy=(
+                        args.min_counterfactual_accuracy
+                    ),
+                ),
+                output_path=args.output,
+            )
+            print(f"planned {result.request_id}: {result.request_path}")
+            return 0
         if args.command == "validate":
             result = validate_proposal(
                 config=config,

@@ -5,10 +5,11 @@ from pathlib import Path
 import shutil
 
 import numpy as np
+import pytest
 import yaml
 
 from volvence_forge.config import ForgeConfig, ForgePaths
-from volvence_forge.foundation import EmbeddingBackend, StructuredBackend
+from volvence_forge.foundation import EmbeddingBackend, ForgeError, StructuredBackend
 from volvence_forge.propose import propose_changes
 
 
@@ -39,6 +40,7 @@ def _config(tmp_path: Path, *, enable_runtime_fixture: bool = False) -> ForgeCon
                         "packages/lifeform-domain-character/src/lifeform_domain_character/"
                         "scenario_packages/*/test_suite.yaml"
                     ),
+                    "candidate": [["python", "fixture-validator.py", "{candidate_path}"]],
                     "held_in": [["pytest", "fixture-held-in", "-q"]],
                     "held_out": [["pytest", "fixture-held-out", "-q"]],
                 },
@@ -122,6 +124,64 @@ class _RuntimeBackend(StructuredBackend):
             "at_risk_regressions": ["the new scene overlaps an existing semantic regime"],
             "preserve_behaviors": ["boundary rubric remains passing"],
         }
+
+
+class _CompanionOverlayBackend(StructuredBackend):
+    backend_name = "test-replay"
+    model_name = "companion-overlay-fixture"
+
+    def complete_json(self, *, system, user, schema):
+        del system, user, schema
+        return {
+            "target": (
+                "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/"
+                "runtime_assets/companion_playbook_overlay.json"
+            ),
+            "operation": "append_json_array_item",
+            "document_path": "/playbook_rules",
+            "section_content": json.dumps(
+                {
+                    "rule_id": "rid-companion:forge:memory-gap-repair",
+                    "problem_pattern": "relationship-memory-gap-repair",
+                    "recommended_regime": "repair_and_deescalation",
+                    "recommended_ordering": [
+                        "acknowledge_memory_gap",
+                        "avoid_invented_callback",
+                        "invite_user_restoration",
+                    ],
+                    "recommended_pacing": "repair-first",
+                    "avoid_patterns": ["invented-callback"],
+                    "knowledge_weight_hint": 0.3,
+                    "experience_weight_hint": 0.8,
+                    "applicability_scope": ["relationship-continuity"],
+                    "confidence": 0.82,
+                    "description": "Repair continuity without inventing shared history.",
+                }
+            ),
+            "root_cause": "The companion runtime lacks a reviewed memory-gap repair strategy.",
+            "targeted_fix": "Append one owner-bound additive playbook rule.",
+            "prediction": {
+                "metric": "pattern_occurrence_count",
+                "direction": "decrease",
+                "expected_delta": -1,
+                "evaluation_window": "next_mine_run",
+            },
+            "at_risk_regressions": ["unrelated task routing becomes over-personalized"],
+            "preserve_behaviors": ["negative task routing remains passing"],
+        }
+
+
+def test_proposal_population_size_is_bounded(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+
+    with pytest.raises(ForgeError, match=r"within \[1, 16\]"):
+        propose_changes(
+            config=config,
+            failure_patterns_path=tmp_path / "not-read.jsonl",
+            backend=_Backend(),
+            embedder=_Embedder(),
+            candidates_per_pattern=17,
+        )
 
 
 def test_propose_writes_bundle_without_mutating_target(tmp_path: Path) -> None:
@@ -249,4 +309,75 @@ def test_propose_appends_one_runtime_yaml_item_without_mutating_target(tmp_path:
     patch = (result.proposal_dirs[0] / "patch.diff").read_text(encoding="utf-8")
     assert "+  - scenario_id: runtime_repair_01" in patch
     assert not any(line.startswith("-") and not line.startswith("---") for line in patch.splitlines())
+    assert target.read_text(encoding="utf-8") == before
+
+
+def test_propose_appends_one_companion_playbook_rule_without_mutating_target(
+    tmp_path: Path,
+) -> None:
+    config = _config(tmp_path)
+    target = (
+        tmp_path
+        / "packages"
+        / "lifeform-domain-emogpt"
+        / "src"
+        / "lifeform_domain_emogpt"
+        / "runtime_assets"
+        / "companion_playbook_overlay.json"
+    )
+    target.parent.mkdir(parents=True)
+    shutil.copy2(
+        REPO_ROOT
+        / "packages"
+        / "lifeform-domain-emogpt"
+        / "src"
+        / "lifeform_domain_emogpt"
+        / "runtime_assets"
+        / "companion_playbook_overlay.json",
+        target,
+    )
+    before = target.read_text(encoding="utf-8")
+    patterns = tmp_path / "companion-patterns.jsonl"
+    patterns.write_text(
+        json.dumps(
+            {
+                "schema_version": "forge-failure-pattern.v2",
+                "pattern_id": "fp_2123456789abcdef",
+                "title": "relationship memory gap repair",
+                "verifier_cause": "bench continuity rubric failed",
+                "agent_behavior_cause": "the response invented a callback",
+                "exposed_mechanism": "companion playbook lacks memory-gap repair",
+                "occurrence_count": 1,
+                "evidence_refs": [
+                    {
+                        "source_id": "bench_bundle:fixture",
+                        "source_kind": "bench_bundle",
+                        "locator": "arc:fixture/session:2/turn:1",
+                        "excerpt": "fabricated callback",
+                        "digest": "e" * 64,
+                    }
+                ],
+                "source_kinds": ["bench_bundle"],
+                "centroid_digest": "f" * 64,
+                "editable_target": target.relative_to(tmp_path).as_posix(),
+                "editable_component": "companion_runtime_playbook_overlay",
+                "surface_status": "in-surface",
+                "surface_similarity": 0.92,
+                "preserve_behaviors": ["negative task routing remains passing"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = propose_changes(
+        config=config,
+        failure_patterns_path=patterns,
+        backend=_CompanionOverlayBackend(),
+        embedder=_Embedder(),
+        output_dir=tmp_path / "companion-proposal-output",
+    )
+
+    patch = (result.proposal_dirs[0] / "patch.diff").read_text(encoding="utf-8")
+    assert '"rule_id": "rid-companion:forge:memory-gap-repair"' in patch
     assert target.read_text(encoding="utf-8") == before

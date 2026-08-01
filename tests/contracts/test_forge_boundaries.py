@@ -87,6 +87,10 @@ def test_root_workspace_does_not_install_forge() -> None:
         "scenario_packages/zhang_wuji_character_migration_v1/ssot_fragment.json",
         "packages/lifeform-domain-character/src/lifeform_domain_character/"
         "scenario_packages/zhang_wuji_character_migration_v1/test_suite.yaml",
+        "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/"
+        "runtime_assets/test_suite.yaml",
+        "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/"
+        "schemas/companion_playbook_overlay.schema.json",
         "packages/companion-bench/src/companion_bench/scenarios/seven_day/manifest.yaml",
         "packages/lifeform-domain-character/src/lifeform_domain_character/evaluation/judge.json",
         "scripts/forge_gate_adjudicator.py",
@@ -96,3 +100,21 @@ def test_runtime_evaluator_and_gate_surfaces_are_not_editable(protected_target: 
     config = ForgeConfig.load(ForgePaths.discover(repo_root=REPO_ROOT))
     assert config.is_read_only(protected_target)
     assert config.editable_entry_for(protected_target) is None
+
+
+def test_only_owner_bound_companion_overlay_is_runtime_editable() -> None:
+    config = ForgeConfig.load(ForgePaths.discover(repo_root=REPO_ROOT))
+    overlay = (
+        "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/"
+        "runtime_assets/companion_playbook_overlay.json"
+    )
+    entry = config.editable_entry_for(overlay)
+    assert entry is not None
+    assert entry.component == "companion_runtime_playbook_overlay"
+    assert entry.requires_offline_gate
+    assert config.editable_entry_for(
+        "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/companion_pack.py"
+    ) is None
+    assert config.editable_entry_for(
+        "packages/lifeform-domain-coding/src/lifeform_domain_coding/coding_pack.py"
+    ) is None

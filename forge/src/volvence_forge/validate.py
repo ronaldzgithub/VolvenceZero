@@ -119,6 +119,7 @@ def validate_proposal(
     _check(checks, "targeted-relevance-held-in", relevance_ok, relevance_detail)
 
     runtime_gate_evidence: dict[str, Any] | None = None
+    candidate: str | None = None
     if entry is not None and entry.requires_offline_gate:
         candidate, rollback_resilience, materialize_detail = _materialize_candidate(
             repo_root=config.paths.repo_root,
@@ -145,6 +146,16 @@ def validate_proposal(
         _check(checks, "runtime-frozen-suite-evaluation", runtime_ok, runtime_detail)
 
     runner = command_runner or _run_command
+    if entry is not None and entry.validation is not None:
+        _run_candidate_command_group(
+            checks,
+            component=entry.component,
+            commands=entry.validation.candidate_commands,
+            candidate=candidate,
+            target=manifesto["target"],
+            config=config,
+            runner=runner,
+        )
     _run_command_group(
         checks,
         group_name="static",
@@ -497,6 +508,55 @@ def _run_command_group(
             passed = False
             detail = f"command exceeded {config.validation.command_timeout_seconds}s timeout"
         _check(checks, name, passed, detail)
+
+
+def _run_candidate_command_group(
+    checks: list[dict[str, str]],
+    *,
+    component: str,
+    commands: tuple[tuple[str, ...], ...],
+    candidate: str | None,
+    target: str,
+    config: ForgeConfig,
+    runner: CommandRunner,
+) -> None:
+    if candidate is None:
+        _check(
+            checks,
+            f"component-candidate:{component}:materialized",
+            False,
+            "candidate content is unavailable",
+        )
+        return
+    suffix = Path(target).suffix or ".txt"
+    with tempfile.TemporaryDirectory(prefix="forge-candidate-validator-") as temporary:
+        candidate_path = Path(temporary) / f"candidate{suffix}"
+        candidate_path.write_text(candidate, encoding="utf-8")
+        for index, template in enumerate(commands):
+            argv = tuple(
+                part.replace("{candidate_path}", str(candidate_path))
+                for part in template
+            )
+            name = f"component-candidate:{component}:{index}:{' '.join(template)}"
+            try:
+                outcome = runner(
+                    argv,
+                    cwd=config.paths.repo_root,
+                    timeout=config.validation.command_timeout_seconds,
+                )
+                passed = outcome.returncode == 0
+                detail = _command_detail(outcome.stdout, outcome.stderr) or (
+                    f"returncode={outcome.returncode}"
+                )
+            except FileNotFoundError as exc:
+                passed = False
+                detail = f"command unavailable: {exc}"
+            except subprocess.TimeoutExpired:
+                passed = False
+                detail = (
+                    f"command exceeded {config.validation.command_timeout_seconds}s timeout"
+                )
+            _check(checks, name, passed, detail)
 
 
 def _check(checks: list[dict[str, str]], name: str, passed: bool, detail: str) -> None:

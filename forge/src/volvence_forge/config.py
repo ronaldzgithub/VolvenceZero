@@ -55,6 +55,7 @@ class ForgePaths:
 @dataclass(frozen=True)
 class ComponentValidationPolicy:
     frozen_suite: str
+    candidate_commands: tuple[tuple[str, ...], ...]
     held_in_commands: tuple[tuple[str, ...], ...]
     held_out_commands: tuple[tuple[str, ...], ...]
 
@@ -123,6 +124,14 @@ class ForgeConfig:
             if requires_offline_gate and component_validation is None:
                 raise ForgeConfigError(
                     f"editable[{index}] requires an immutable component validation policy"
+                )
+            if (
+                requires_offline_gate
+                and component_validation is not None
+                and not component_validation.candidate_commands
+            ):
+                raise ForgeConfigError(
+                    f"editable[{index}] requires candidate validation commands"
                 )
             editable_entries.append(
                 EditableSurfaceEntry(
@@ -292,8 +301,16 @@ def _component_validation(value: Any, *, context: str) -> ComponentValidationPol
         raise ForgeConfigError(f"{context} must be a mapping")
     frozen_suite = _require_nonempty_string(value, "frozen_suite", context)
     _validate_glob(frozen_suite, f"{context}.frozen_suite")
+    candidate_commands = _parse_commands(value, "candidate", context=context)
+    for index, command in enumerate(candidate_commands):
+        if sum(part.count("{candidate_path}") for part in command) != 1:
+            raise ForgeConfigError(
+                f"{context}.candidate[{index}] must contain exactly one "
+                "{candidate_path} placeholder"
+            )
     return ComponentValidationPolicy(
         frozen_suite=frozen_suite,
+        candidate_commands=candidate_commands,
         held_in_commands=_parse_commands(value, "held_in", context=context),
         held_out_commands=_parse_commands(value, "held_out", context=context),
     )

@@ -1,0 +1,8 @@
+{
+  "schema_version": "companion-playbook-overlay.v1",
+  "overlay_id": "companion-forge-reviewed-v1",
+  "version": "1.0.0",
+  "owner": "lifeform-domain-emogpt",
+  "playbook_rules": [],
+  "description": "Human-reviewed additive companion playbook rules admitted through Forge OFFLINE gate and separate wiring promotion."
+}

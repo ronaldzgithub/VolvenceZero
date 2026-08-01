@@ -1,0 +1,35 @@
+schema_version: companion-playbook-overlay-suite.v1
+suite_id: companion-playbook-overlay-held-out-v1
+routing_tests:
+  - test_id: continuity_without_invented_callback
+    family: relationship_continuity
+    evidence_axis: preserve_known_continuity_without_fabrication
+    expected: pass
+  - test_id: rupture_repair_before_solution
+    family: trust_rupture_repair
+    evidence_axis: acknowledge_and_repair_before_advice
+    expected: pass
+  - test_id: overwhelm_one_clarification
+    family: clarification_when_overwhelmed
+    evidence_axis: bounded_single_clarification
+    expected: pass
+  - test_id: support_without_diagnosis
+    family: emotional_support_basics
+    evidence_axis: boundary_preserving_support
+    expected: pass
+  - test_id: casual_checkin_stays_low_pressure
+    family: relationship_continuity
+    evidence_axis: low_pressure_pacing
+    expected: pass
+  - test_id: negative_unrelated_task_no_companion_override
+    family: negative_control
+    evidence_axis: unrelated_task_preserves_existing_routing
+    expected: reject_overlay_route
+llm_evaluation:
+  semantic_coherence:
+    - case_id: coherence_owner_scope
+      assertion: Proposed rule compiles only to strategy_playbook and does not claim evaluation ownership.
+    - case_id: coherence_no_keyword_router
+      assertion: Proposed applicability is semantic owner data, not natural-language keyword routing code.
+    - case_id: coherence_preserve_boundaries
+      assertion: Proposed rule cannot weaken diagnosis, blame, or clarification boundaries.

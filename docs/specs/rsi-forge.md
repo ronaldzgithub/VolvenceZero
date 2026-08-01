@@ -1,6 +1,6 @@
 # RSI Forge Spec
 
-> Status: development-loop phase 1 active / runtime-gate infrastructure disabled
+> Status: phase 3–5 contracts landed；唯一 runtime overlay 默认 DISABLED；无 live/GPU promotion
 > Last updated: 2026-08-01
 > 对应需求: R8, R10, R12, R15
 
@@ -31,6 +31,8 @@ snapshot，也不成为 PE、credit、evaluation、gate、memory 或 temporal �
 | `.cursor/plans/*.plan.md` | YAML frontmatter + Markdown；显式兼容历史 heading-only 文件 | 只读 | 战役上下文，不是失败真值 |
 | `forge/ledger.jsonl` | append-only event stream | Forge 只追加 | 已应用/拒绝决策与 frozen prediction |
 | `forge/editable_surface.yaml` | 启动时加载 | 只读治理 | 写面、保护面、阈值与固定验证命令 |
+| companion runtime overlay + frozen suite | JSON/YAML + owner validator | 单一候选写面 / suite 只读 | 只允许向既有 `strategy_playbook` owner 添加结构化规则；不拥有语义决策 |
+| Common Adapter train/evaluate/gate artifacts | content-addressed JSON | Forge 只读 | 第五阶段只核对构建请求与 `vz-substrate`/cognition 证据，不训练、不发布、不激活 |
 
 契约违反（非法 JSON/YAML、未知 schema version、path 越界、hash 不一致）必须 fail loudly。
 
@@ -73,33 +75,62 @@ proposal 只表达候选，不拥有目标文件。只有 `apply` 在验证和�
 hash、reviewer、decision、timestamp；applied event 还冻结 prediction baseline。拒绝不删除候选，
 必须记录原因。ledger 不提供在线 reward，也不回灌 Volvence credit owner。
 
+### Population / rare-heavy artifacts
+
+- `optimizer_decision.json` 遵循 `forge-optimizer-decision.v1`。它按 component 在
+  `validation_delta ↑ / capacity_cost ↓ / added_lines ↓ / risk_count ↓` 上计算确定性
+  Pareto front；只有 PASS 且所需 OFFLINE gate 为 ALLOW 的候选可入选。空 population 或
+  无 eligible candidate 必须发布 `STOP`，不得为了持续循环强选候选。
+- `rare_heavy_request.schema.json` 定义 `forge-rare-heavy-request.v1`：绑定 frozen base
+  weights digest、traces、control basis、held-out corpus、全部 LoRA/State-KV 超参数和评估阈值；
+  `owner=vz-substrate`、`requested_wiring=DISABLED`、`training_decides_gate=false` 为常量。
+- `rare_heavy_verdict.schema.json` 定义 loop-external `READY/STOP`。`READY` 只表示请求、
+  `common-adapter-candidate.v2`、held-out report 与 cognition OFFLINE ALLOW record 完整绑定；
+  它不等于 publish，也不创建 `CommonAdapterBundle`。
+
 ## 优化对象阶梯
 
-phase 1 只开放 instruction/structured-context：`.cursor/rules/*.mdc` 与 `forge/prompts/**`。
-`editable_surface.v2` 已能表达 `requires_offline_gate` 与 component-specific frozen validation，
-但生产配置目前没有任何 runtime editable component。workflow、Forge code、optimizer code、产品
-runtime 与权重仍是后续独立 convergence packet；任何扩面必须由人类先修改治理文件、补 verifier
-与回滚证据，不能由本循环提案。
+开发环继续开放 instruction/structured-context：`.cursor/rules/*.mdc` 与 `forge/prompts/**`。
+第三阶段只新增一个精确的产品候选面：
+`packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/runtime_assets/companion_playbook_overlay.json`。
+它是 additive package-data，不是代码、schema、suite、evaluator 或新 owner；其他 `packages/**`
+仍因未进入 allow list 或命中保护面而关闭。第四阶段的 optimizer 与第五阶段的 rare-heavy planner
+是人工工程实现，始终位于 Forge 自身提案循环外，不能修改自己、阈值或权限配置。
 
-## 第二战役预检与收敛结论（2026-08-01）
+## 第三至第五阶段收敛结论（2026-08-01）
 
-第二战役已接通 runtime 失败来源、证据时间窗、结构化 YAML/JSON 候选、候选沙箱物化、组件级
-held-in/out、冻结 suite 对照、回滚演练、`ModificationGate.OFFLINE` 裁决和人审 apply 双闸。
-这些是可复用的门禁基础设施，不等于已经开放产品写面。
+第二战役预检排除了仅供验收的 character scenario package。第三阶段随后定位到真实产品消费链：
+`lifeform-domain-emogpt.build_companion_package()` 构造 `DomainExperiencePackage`，Brain 再把其
+`PlaybookRule` 导入 `vz-application` 的 `strategy_playbook` owner。新增 overlay loader 由
+`lifeform-domain-emogpt` 拥有，并使用外部 `WiringLevel`：
 
-预检确认 `lifeform-domain-character/scenario_packages/*/{scenes.yaml,ssot_fragment.json}` 只被
-迁移验收测试消费；`character-soul-bootstrap.md` 明确规定整个 scenario package 是 SHADOW
-验收包、不是 runtime owner。把它加入 production editable surface 会让 evaluator artifact
-冒充运行时资产，并破坏“evaluation 在学习循环外”的不变量。因此生产配置继续把全部
-`packages/**`（包括 scenario package）设为只读；结构化 runtime proposal 与双闸链只在隔离
-fixture 中验证，等待真正 runtime-consumed、owner-bound 的语义资产出现后再由人工治理扩面。
+- `DISABLED`：不读取 overlay，live/candidate 都是 baseline；
+- `SHADOW`：读取并严格验证，candidate=baseline+overlay，live 仍为 baseline；
+- `ACTIVE`：把 additive rules 编译进既有 package/owner；overlay 不得替换 baseline rule id 或
+  problem pattern，也不能在文件内自授权 wiring。
+
+生产 overlay 初始为空且所有 builder 默认 `DISABLED`。Forge 可形成该单文件的结构化
+`append_json_array_item /playbook_rules` 候选，但 apply 仍需要 candidate schema/owner validator、
+冻结 suite baseline/candidate 对照、component held-in/out、loop-external OFFLINE ALLOW 与 named
+human approval。apply 只改变 package-data；从 `DISABLED/SHADOW` 切到 `ACTIVE` 是另一个人工部署
+决定，不由候选资产控制。
+
+第四阶段允许每个 failure pattern 生成有界候选 population，并由 `forge select` 发布 Pareto
+选择或正式 STOP。selector 重算 patch/manifesto/validation/gate digest，拒绝 stale evidence；
+它只选择 proposal id，不 apply。
+
+第五阶段把权重演化限制为“计划请求”：`forge plan-rare-heavy` 只写 content-addressed
+DISABLED request。真实训练仍由 `scripts/train_common_adapter_model.py train` 按
+`rare-heavy → State-KV → offline-gate` 执行；公开 `validate_common_adapter_evidence()` 复核全部
+nested artifact、held-out report 与 cognition gate。`scripts/forge_common_adapter_adjudicator.py`
+再核对请求参数与这些证据，只发布 READY/STOP，绝不调用 publish 或修改 runtime wiring。
 
 失败来源采用 typed provenance lane 隔离：
 
 - transcript / promotion verdict 只能映射到 development-harness component；
 - `bench_bundle` 只能映射到显式 `requires_offline_gate` 的 runtime component；
-- 两类来源不跨 lane 聚类。当前没有合格 runtime component，所以 bench failure 必须稳定产出
-  `out-of-surface`，不得因与 rule/prompt 文本语义相似而误提案。
+- 两类来源不跨 lane 聚类。只有明确映射到 `companion_runtime_playbook_overlay` 的 bench failure
+  可以进入 runtime lane；其他 bench failure 仍为 `out-of-surface`，不得退回开发 rules/prompts。
 
 runtime gate 的预注册折算保持冻结：
 
@@ -111,8 +142,8 @@ runtime gate 的预注册折算保持冻结：
   或不一致都 fail closed。
 
 `scripts/forge_gate_adjudicator.py` 位于循环外并调用 cognition owner 的 OFFLINE gate；Forge
-本体继续禁止 import `vz-*`。这条基础设施只有在生产治理文件出现合格 runtime component 时才会
-激活。
+本体继续禁止 import `vz-*`。该裁决器只为精确 companion overlay 提案激活；第五阶段 Common
+Adapter 使用独立的 `forge_common_adapter_adjudicator.py`，两种 gate artifact 不可互换。
 
 ## 三类可观测性
 
@@ -123,8 +154,8 @@ runtime gate 的预注册折算保持冻结：
 ## 关键不变量
 
 1. 保护面检查优先于白名单；allow 不能覆盖 deny。
-2. packages、tests、gate/verifier scripts、spec、DATA_CONTRACT、artifacts、Forge code/schema/config/
-   ledger 永远不在当前循环可编辑面。
+2. 除精确 companion overlay JSON 外，packages、tests、gate/verifier scripts、spec、
+   DATA_CONTRACT、artifacts、Forge code/schema/config/ledger 永远不在当前循环可编辑面。
 3. Forge 顶层不得 import `volvence_zero.*` 或 `lifeform_*`；业务 wheel 不得 import
    `volvence_forge`。
 4. evaluator、permission control、LLM configuration 与 validation commands 位于循环外。
@@ -138,6 +169,8 @@ runtime gate 的预注册折算保持冻结：
     `fulfilled/refuted`。
 11. bench evidence 没有 OFFLINE-gated runtime owner 时必须 `out-of-surface`；禁止退而映射到开发
     rules/prompts。
+12. optimizer 无 eligible candidate 必须 STOP；selector 不能 apply，rare-heavy request/verdict
+    不能 publish 或激活 bundle。
 
 ## 验证契约
 
@@ -149,9 +182,10 @@ runtime gate 的预注册折算保持冻结：
 4. `git apply --check`；
 5. `.mdc` 无删除行（phase 1 hard-constraint preservation）；
 6. 循环外 relevance judge 对 failure pattern/manifesto/diff 给出全部肯定；
-7. frozen static commands；
-8. held-in Forge tests；
-9. held-out boundary contract tests。
+7. runtime component 的候选先在临时文件执行 owner/schema validator，再运行冻结 suite 对照；
+8. component-specific held-in/out 与 frozen static commands；
+9. held-in Forge tests；
+10. held-out boundary contract tests。
 
 检查不短路：报告尽可能记录全部失败，但任一 BLOCK 使总状态 BLOCK。
 
@@ -177,19 +211,23 @@ phase 1 完成条件：
 关系后在仓库根目录执行 bundle 记录的 repo-relative reverse patch 命令；若已提交，创建独立
 revert commit。ledger 保留审计史。
 
-扩展到 runtime 的进入条件：存在被产品运行链实际消费的唯一 owner 资产、独立 spec、
-DATA_CONTRACT slot/owner（若新增跨模块交换）、`ModificationGate.OFFLINE`、
-`DISABLED → SHADOW → ACTIVE` 对照、rollback drill 和任务级 held-out evidence 全部先行。
-scenario/evaluator/bench/prereg artifact 不能用来满足“实际 runtime consumer”条件。
+companion overlay 的第三阶段进入条件已由真实 DomainExperiencePackage consumer、外部 wiring、
+owner validator、frozen suite、rollback drill 和 OFFLINE gate 满足；因为它编译到既有
+`strategy_playbook`，没有新增跨模块交换，故不注册新 DATA_CONTRACT slot。退出时将 wiring 设为
+`DISABLED` 即恢复 baseline；若已 apply 某 rule，再按 proposal reverse patch 或独立 revert
+恢复空/前一 overlay。扩展第二个 runtime asset 仍须重复同样 owner/consumer/slot 审查，不能复用
+本例授权。
 
 ## 已知限制
 
 - phase 1 的 task-level held-out benchmark 尚未建立；结构 PASS 不等于真实开发效率已提升。
 - transcript 的结构化错误并不总能支持强因果分析；低置信记录必须保留不确定性。
 - proposal 语义 judge 仍是模糊 evaluator，因此 judge 只能收紧，不可单独授权 apply。
-- 多候选搜索只做 embedding 去重，尚未实现 Pareto population 或 STOP 式 optimizer evolution。
-- 当前没有满足进入条件的 runtime semantic editable component；第二战役只完成门禁能力与
-  fail-closed 预检，没有发生产品 runtime apply。
+- Pareto 目前使用四个冻结工程指标，不声称已经学习到 optimizer；也不会自动繁殖下一代。
+- companion overlay 的能力链已开放，但生产资产仍为空、默认 DISABLED；本阶段没有执行 runtime
+  apply 或 ACTIVE 部署。
+- rare-heavy 请求/裁决契约已落地，但本阶段没有可用的冻结模型 snapshot、训练 trace、GPU run 与
+  新 held-out ALLOW 证据，因此没有生成或发布新的 CommonAdapterBundle。
 - live mine/propose 仍依赖显式 `FORGE_LLM_API_KEY`/`FORGE_LLM_MODEL`；无凭据时只运行 replay
   契约演练，不把它宣称为真实模型晋级证据。
 

@@ -282,8 +282,28 @@ def test_bench_bundle_parses_turn_axis_and_disqualifier_failures(tmp_path: Path)
     assert "arc_axis_scores.A2" in source.passing_behaviors
 
 
-def test_bench_failure_stays_out_of_surface_without_runtime_owner(tmp_path: Path) -> None:
+def test_bench_failure_maps_only_to_companion_runtime_owner(tmp_path: Path) -> None:
     config, forge_root = _fixture_root(tmp_path)
+    runtime_asset = (
+        tmp_path
+        / "packages"
+        / "lifeform-domain-emogpt"
+        / "src"
+        / "lifeform_domain_emogpt"
+        / "runtime_assets"
+        / "companion_playbook_overlay.json"
+    )
+    runtime_asset.parent.mkdir(parents=True)
+    shutil.copy2(
+        REPO_ROOT
+        / "packages"
+        / "lifeform-domain-emogpt"
+        / "src"
+        / "lifeform_domain_emogpt"
+        / "runtime_assets"
+        / "companion_playbook_overlay.json",
+        runtime_asset,
+    )
     bench = tmp_path / "bench"
     bench.mkdir()
     (bench / "arc-fixture.bundle.json").write_text(
@@ -341,13 +361,33 @@ def test_bench_failure_stays_out_of_surface_without_runtime_owner(tmp_path: Path
 
     assert len(patterns) == 1
     assert patterns[0]["source_kinds"] == ["bench_bundle"]
-    assert patterns[0]["surface_status"] == "out-of-surface"
-    assert patterns[0]["editable_target"] is None
-    assert patterns[0]["editable_component"] is None
+    assert patterns[0]["surface_status"] == "in-surface"
+    assert patterns[0]["editable_target"] == runtime_asset.relative_to(tmp_path).as_posix()
+    assert patterns[0]["editable_component"] == "companion_runtime_playbook_overlay"
 
 
 def test_runtime_and_development_evidence_do_not_cross_cluster_lanes(tmp_path: Path) -> None:
     config, forge_root = _fixture_root(tmp_path)
+    runtime_asset = (
+        tmp_path
+        / "packages"
+        / "lifeform-domain-emogpt"
+        / "src"
+        / "lifeform_domain_emogpt"
+        / "runtime_assets"
+        / "companion_playbook_overlay.json"
+    )
+    runtime_asset.parent.mkdir(parents=True)
+    shutil.copy2(
+        REPO_ROOT
+        / "packages"
+        / "lifeform-domain-emogpt"
+        / "src"
+        / "lifeform_domain_emogpt"
+        / "runtime_assets"
+        / "companion_playbook_overlay.json",
+        runtime_asset,
+    )
     development = load_source_bundle(
         config.paths,
         max_transcripts=1,
@@ -390,7 +430,11 @@ def test_runtime_and_development_evidence_do_not_cross_cluster_lanes(tmp_path: P
     assert len(patterns) == 2
     by_kind = {tuple(pattern["source_kinds"]): pattern for pattern in patterns}
     assert by_kind[("transcript",)]["surface_status"] == "in-surface"
-    assert by_kind[("bench_bundle",)]["surface_status"] == "out-of-surface"
+    assert by_kind[("bench_bundle",)]["surface_status"] == "in-surface"
+    assert (
+        by_kind[("bench_bundle",)]["editable_component"]
+        == "companion_runtime_playbook_overlay"
+    )
 
 
 def test_prediction_check_is_inconclusive_without_post_apply_window(tmp_path: Path) -> None:
@@ -425,7 +469,7 @@ def test_prediction_check_is_inconclusive_without_post_apply_window(tmp_path: Pa
     assert post_apply[0]["status"] == "fulfilled"
 
 
-def test_v2_production_surface_keeps_runtime_assets_closed() -> None:
+def test_v2_production_surface_opens_only_companion_overlay() -> None:
     config = ForgeConfig.load(
         ForgePaths.discover(
             repo_root=REPO_ROOT,
@@ -433,7 +477,15 @@ def test_v2_production_surface_keeps_runtime_assets_closed() -> None:
         )
     )
     assert config.schema_version == "forge-editable-surface.v2"
-    assert not any(entry.requires_offline_gate for entry in config.editable)
+    gated = tuple(entry for entry in config.editable if entry.requires_offline_gate)
+    assert tuple(entry.component for entry in gated) == (
+        "companion_runtime_playbook_overlay",
+    )
+    overlay = (
+        "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/"
+        "runtime_assets/companion_playbook_overlay.json"
+    )
+    assert config.editable_entry_for(overlay) is gated[0]
     scenario_root = (
         "packages/lifeform-domain-character/src/lifeform_domain_character/"
         "scenario_packages/zhang_wuji_character_migration_v1"

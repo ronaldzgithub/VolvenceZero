@@ -1,5 +1,5 @@
 schema_version: forge-editable-surface.v2
-optimization_stage: instruction-context-with-runtime-gate-infrastructure
+optimization_stage: companion-runtime-overlay-pareto-and-rare-heavy-request
 
 # Component observability: every writable component is named, described and
 # represented by files. Expanding this list is a human-reviewed governance
@@ -17,15 +17,39 @@ editable:
       Meta-level prompts that compress execution evidence, propose narrow
       harness improvements and judge whether a proposal addresses its cited
       failure pattern.
+  - component: companion_runtime_playbook_overlay
+    glob: packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/runtime_assets/companion_playbook_overlay.json
+    semantic_description: >-
+      Human-reviewed additive relationship-companion strategy playbook rules.
+      The lifeform-domain-emogpt owner loads this declarative asset under an
+      external DISABLED/SHADOW/ACTIVE wiring level and compiles ACTIVE rules
+      into the existing vz-application strategy_playbook owner.
+    requires_offline_gate: true
+    validation:
+      frozen_suite: packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/runtime_assets/test_suite.yaml
+      candidate:
+        - [python, scripts/validate_companion_playbook_overlay.py, "{candidate_path}"]
+      held_in:
+        - [pytest, packages/lifeform-domain-emogpt/tests/test_runtime_playbook_overlay.py, -q]
+      held_out:
+        - [pytest, tests/test_domain_experience.py, -q]
 
 # These surfaces remain outside the optimization loop. Entries are checked
 # before editable entries so no broad allow pattern can override protection.
 read_only:
   - tests/**
   - scripts/**
-  # Product wheels remain closed until a runtime-consumed semantic asset has
-  # a unique owner, formal exchange, SHADOW evidence and rollback contract.
-  - packages/**
+  # Product code, tests, manifests, schemas and evaluator assets stay closed.
+  # The only package-data exception is the exact overlay file named above;
+  # every other package path remains absent from the allow list.
+  - packages/**/src/**/*.py
+  - packages/**/tests/**
+  - packages/**/pyproject.toml
+  - packages/**/src/**/schemas/**
+  - packages/**/src/**/scenarios/**
+  - packages/**/src/**/evaluation/**
+  - packages/**/src/**/bootstraps/**
+  - packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/runtime_assets/test_suite.yaml
   - packages/companion-bench/**
   - packages/vz-*/**
   - packages/*/tests/**

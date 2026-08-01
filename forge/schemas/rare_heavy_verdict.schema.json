@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.rare-heavy-verdict.v1",
+  "title": "Forge rare-heavy evidence verdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "decision",
+    "candidate_id",
+    "gate_decision",
+    "bindings",
+    "reasons",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "forge-rare-heavy-verdict.v1"},
+    "request_id": {"type": "string", "pattern": "^rare-heavy:[0-9a-f]{64}$"},
+    "decision": {"enum": ["READY", "STOP"]},
+    "candidate_id": {"type": ["string", "null"]},
+    "gate_decision": {"enum": ["allow", "deny", "unavailable"]},
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate", "training", "held_out", "evaluation", "gate"],
+      "properties": {
+        "candidate": {"type": "boolean"},
+        "training": {"type": "boolean"},
+        "held_out": {"type": "boolean"},
+        "evaluation": {"type": "boolean"},
+        "gate": {"type": "boolean"}
+      }
+    },
+    "reasons": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "maxItems": 64
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["request_sha256", "candidate_sha256", "evaluation_sha256", "gate_sha256", "held_out_sha256"],
+      "properties": {
+        "request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidate_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "evaluation_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "gate_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "held_out_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

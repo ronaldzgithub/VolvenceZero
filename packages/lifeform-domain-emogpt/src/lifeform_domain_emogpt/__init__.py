@@ -34,11 +34,21 @@ import hashlib
 from typing import Any
 
 from volvence_zero.regime import RegimeBootstrap
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import SemanticFeatureSurfaceSubstrateAdapter
 from volvence_zero.temporal import MetacontrollerParameterSnapshot
 
-from lifeform_domain_emogpt.companion_pack import build_companion_package
+from lifeform_domain_emogpt.companion_pack import (
+    build_companion_package,
+    resolve_companion_package_overlay,
+)
 from lifeform_domain_emogpt.companion_vitals import build_companion_vitals_bootstrap
+from lifeform_domain_emogpt.runtime_overlay import (
+    CompanionPlaybookOverlay,
+    CompanionPlaybookOverlayResolution,
+    companion_playbook_overlay_path,
+    load_companion_playbook_overlay,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +201,8 @@ def build_companion_lifeform(
     memory_store: Any = None,
     response_synthesizer: Any = None,
     identity_provider: Any = None,
+    playbook_overlay_wiring: WiringLevel = WiringLevel.DISABLED,
+    playbook_overlay_path: pathlib.Path | None = None,
 ) -> Any:
     """Build a Lifeform with the companion vertical fully wired in.
 
@@ -227,6 +239,11 @@ def build_companion_lifeform(
             ``allow_live_substrate_mutation=False`` (the default) so
             sharing does not corrupt one session's weights from another's
             updates; this is enforced fail-loud at the service layer.
+        playbook_overlay_wiring: trusted DISABLED/SHADOW/ACTIVE control for
+            the reviewed declarative playbook overlay. The asset cannot set
+            this value itself.
+        playbook_overlay_path: optional test/operator path override. Production
+            defaults to the content shipped inside this wheel.
     """
     from dataclasses import replace as _replace
     from lifeform_core import Lifeform, LifeformConfig
@@ -245,7 +262,12 @@ def build_companion_lifeform(
         brain_config=_replace(base_config.brain_config, **brain_overrides),
     )
     base_config = base_config.with_domain_experience(
-        (build_companion_package(),)
+        (
+            build_companion_package(
+                playbook_overlay_wiring=playbook_overlay_wiring,
+                playbook_overlay_path=playbook_overlay_path,
+            ),
+        )
     )
 
     if use_vitals_bootstrap:
@@ -308,10 +330,15 @@ __all__ = (
     "build_companion_lifeform_with_real_substrate",
     "build_companion_package",
     "build_companion_vitals_bootstrap",
+    "companion_playbook_overlay_path",
     "CompanionLifeformBundle",
+    "CompanionPlaybookOverlay",
+    "CompanionPlaybookOverlayResolution",
     "DEFAULT_REAL_MODEL_ID",
     "DEFAULT_REAL_MODEL_SOURCE",
     "load_companion_regime_bootstrap",
+    "load_companion_playbook_overlay",
     "load_companion_temporal_bootstrap",
+    "resolve_companion_package_overlay",
     "scenarios_dir",
 )

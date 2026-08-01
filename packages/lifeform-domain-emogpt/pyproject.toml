@@ -23,6 +23,9 @@ include = ["lifeform_domain_emogpt*"]
 [tool.setuptools.package-data]
 "lifeform_domain_emogpt" = [
     "packages/*.json",
+    "runtime_assets/*.json",
+    "runtime_assets/*.yaml",
+    "schemas/*.json",
     "regimes/*.json",
     "scenarios/*.json",
     "bootstraps/*.snap",

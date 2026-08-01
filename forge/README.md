@@ -29,8 +29,8 @@ runtime owner；若做成完全独立项目，它又失去对本仓库 rules、�
 Harness 的优化对象可以逐步从指令、结构化上下文、工作流，扩展到 harness code，再扩展到
 optimizer code。越向后，搜索空间和收益上限越大，权限风险、归因混淆与回归半径也越大。
 
-Forge 的生产写面仍刻意停在阶梯前两级；runtime 双闸基础设施已经实现，但没有 ACTIVE
-runtime component：
+Forge 的生产写面仍高度收窄：开发环资产之外只开放一个真实消费的 companion additive
+playbook overlay。它默认 `DISABLED`，apply 与 ACTIVE 部署是两个独立决定：
 
 | 阶段 | 对象 | 当前状态 | 晋升要求 |
 |---|---|---|---|
@@ -38,8 +38,9 @@ runtime component：
 | L2 | `forge/prompts/**` 分析与提案上下文 | 开放、append-only proposal | 人审 + schema/回归验证 |
 | L3 | 工作流定义 | 未开放 | 独立 convergence packet + 新 verifier |
 | L4 | `forge/src/**` harness code | 永久在当前循环外 | 第二层 Forge 或人工工程变更 |
-| L5 | proposer/optimizer code | 未开放 | STOP 式元优化战役，不能自授权 |
-| L6 | 产品 runtime / 模型参数 | 门禁就绪、写面关闭 | runtime consumer/owner + `ModificationGate.OFFLINE` + SHADOW/rare-heavy 证据 |
+| L5 | proposer/optimizer code | 循环外实现 Pareto/STOP，提案不可编辑 | 新指标或自演化需独立人工战役 |
+| L6a | companion runtime overlay | 精确单文件候选面开放，live 默认 DISABLED | owner validator + frozen suite + OFFLINE ALLOW + 人审；另行部署 wiring |
+| L6b | 模型参数 | 只开放 DISABLED rare-heavy build request | substrate train/evaluate + cognition gate + loop-external READY；publish 仍独立 |
 
 白名单由 [`editable_surface.yaml`](./editable_surface.yaml) 冻结。Forge 不能编辑白名单自身，
 也不能通过更宽的 glob 覆盖保护面。
@@ -96,8 +97,8 @@ harness 能协调很长的工作链，但固定流程本身不是 RSI。Forge �
 
 ## 三条硬边界
 
-1. **循环外只读**：packages、tests、gate/verifier 脚本、spec、DATA_CONTRACT、Forge code、
-   schema、权限配置与 LLM 配置都不可成为 proposal target。
+1. **循环外只读**：除精确 companion overlay JSON 外，packages、tests、gate/verifier 脚本、
+   spec、DATA_CONTRACT、Forge code、schema、权限配置与 LLM 配置都不可成为 proposal target。
 2. **可编辑面显式白名单**：所有 diff path 必须先通过保护面，再通过 allow glob；第一阶段
    只允许单文件、append-only 候选。
 3. **决策可观测**：没有 evidence ref、manifesto、预测、风险与回滚的候选不可验证；没有
@@ -134,7 +135,9 @@ gate verdict 和 patch apply 都是较硬的信号。遇到只靠 LLM judge 的�
 
 重复出现的高分改法可能把所有 rules 推向同一种冗长模板。`propose.py` 使用与 failure mining
 相同的语义 embedding 空间，对本轮候选和 ledger 历史补丁做余弦去重；相似度过高就拒绝。
-后续若演化候选池，还需 Pareto 维度覆盖可维护性、范围与验证成本，而非只看单一 pass rate。
+`--candidates-per-pattern` 可形成有界候选池；`forge select` 同时考虑 validation delta、capacity
+cost、added lines 与 risk count，并在无 eligible candidate 时发布 STOP。它仍是冻结的工程
+selector，不声称已经学会优化器，也不自动 apply。
 
 ### Reward hacking
 
@@ -148,7 +151,7 @@ manifesto 都做内容哈希，apply 前再次核对，防止 validate 后替换
 和 at-risk regressions；append-only 是第一阶段的保守限制，不是长期最佳编辑策略。只有在积累
 足够 negative result 与 rollback drill 后，才考虑允许结构化替换。
 
-## 两阶段路线
+## 战役一与第三至第五阶段
 
 ### 战役一：开发环 Forge（本目录）
 
@@ -158,18 +161,23 @@ manifesto 都做内容哈希，apply 前再次核对，防止 validate 后替换
 - 不 import `volvence_zero.*` 或 `lifeform_*`；
 - 不写 runtime slot，不更新模型权重。
 
-### 战役二：产品 runtime Forge（门禁基础设施完成，生产写面关闭）
+### 阶段三：唯一 runtime overlay
 
-Forge 已能读取 Companion Bench、限制 post-apply 证据窗、生成结构化 YAML/JSON 候选、执行
-component-specific held-in/out、冻结 suite 基线/候选对照与 byte-identical rollback drill，并由
-循环外 adjudicator 产生 `ModificationGate.OFFLINE` 决策。runtime apply 同时要求 gate `ALLOW`
-和 named human approval。
+`lifeform-domain-emogpt` 的 companion package 是真实 runtime consumer。Forge 只允许向
+`runtime_assets/companion_playbook_overlay.json` 的 `/playbook_rules` 追加结构化 rule；owner loader
+禁止替换 baseline id/pattern，并按外部 `DISABLED/SHADOW/ACTIVE` 编译到既有
+`DomainExperiencePackage → strategy_playbook` 通道。生产 asset 初始为空、builder 默认 DISABLED。
 
-预检同时发现当前 `scenario_packages/*/{scenes.yaml,ssot_fragment.json}` 是 SHADOW 验收资产，
-没有产品 runtime consumer，不能充当可编辑 runtime owner。因此生产 `editable_surface.yaml` 仍将
-全部 `packages/**` 设为只读；bench failure 在合格 owner 出现前稳定标记 `out-of-surface`。未来
-候选面必须先有 runtime consumer、正式 owner 契约和 `DISABLED → SHADOW → ACTIVE` 证据，再由
-人工治理扩面。开发环 ledger 不能直接充当 runtime credit，也不能让 evaluation 反向成为 PE 源。
+### 阶段四：population、Pareto 与 STOP
+
+同一 failure pattern 可生成多个 bounded proposal。`forge select` 重算 proposal/validation/gate
+哈希，只从 PASS + 所需 OFFLINE ALLOW 候选中取 component-specific Pareto front；空集必须 STOP。
+
+### 阶段五：rare-heavy 请求，不是权重自写
+
+`forge plan-rare-heavy` 冻结模型、数据、control basis、held-out 与全部超参数，只写 DISABLED
+request。训练和评估仍由既有 `train_common_adapter_model.py` 执行，cognition gate 仍是唯一
+ALLOW owner。外部 adjudicator 只发布 READY/STOP，不创建或激活 `CommonAdapterBundle`。
 
 ## 使用
 
@@ -194,7 +202,8 @@ forge mine --bench-root artifacts --evidence-since-ledger
 生成候选（需要显式 OpenAI-compatible 环境配置，或测试/演练用 replay backend）：
 
 ```bash
-forge propose artifacts/forge_mine_<timestamp>/failure_patterns.jsonl
+forge propose artifacts/forge_mine_<timestamp>/failure_patterns.jsonl \
+  --candidates-per-pattern 3
 ```
 
 验证不会修改目标文件：
@@ -203,11 +212,17 @@ forge propose artifacts/forge_mine_<timestamp>/failure_patterns.jsonl
 forge validate artifacts/forge_propose_<timestamp>/proposals/<proposal_id>
 ```
 
-若目标属于未来人工开放的 `requires_offline_gate` component，还必须先在循环外裁决：
+若目标属于 `requires_offline_gate` component（当前只有 companion overlay），还必须先在循环外裁决：
 
 ```bash
 python scripts/forge_gate_adjudicator.py \
   artifacts/forge_propose_<timestamp>/proposals/<proposal_id>
+```
+
+对一个已验证 population 选择 Pareto front；没有合格候选时命令以 STOP/非零退出：
+
+```bash
+forge select artifacts/forge_propose_<timestamp>/proposals
 ```
 
 只有人类明确批准后才能落盘：
@@ -224,9 +239,38 @@ forge apply artifacts/forge_propose_<timestamp>/proposals/<proposal_id> \
 forge apply <proposal_dir> --reject --reason '<reason>' --human-approved-by '<reviewer>'
 ```
 
+第五阶段只规划 rare-heavy 构建请求（所有输入必须已经冻结并可计算 SHA-256）：
+
+```bash
+forge plan-rare-heavy \
+  --model-id '<model-id>' \
+  --model-weights-sha256 '<64-hex>' \
+  --common-adapter-version '<version>' \
+  --traces '<traces.jsonl>' \
+  --control-basis '<control-basis.json>' \
+  --held-out '<held-out.jsonl>' \
+  --hook-layers '10,11,12'
+```
+
+真实训练、held-out evaluate 与 cognition gate 完成后，可做只读绑定裁决：
+
+```bash
+python scripts/forge_common_adapter_adjudicator.py \
+  --request '<request.json>' \
+  --candidate '<common-adapter-candidate.json>' \
+  --evaluation-report '<evaluation.json>' \
+  --gate-record '<gate.json>' \
+  --held-out '<held-out.jsonl>' \
+  --output '<artifacts/.../verdict.json>'
+```
+
+`READY` 之后仍需单独执行 substrate 的 publish 流程；Forge 不替用户执行该动作。
+
 ## 回滚与退出条件
 
-Forge 自身全部是新增目录；移除 `forge/`、对应 spec 与 contract test 即可回滚，不影响 runtime。
+Forge 自身可独立移除；companion overlay 的运行时回滚优先把 wiring 设为 `DISABLED`，若已经
+apply 内容，再执行 proposal 记录的 reverse patch 或恢复前一 overlay。rare-heavy request/verdict
+未发布时可直接停止使用，不影响 runtime。
 已 apply、尚未提交的 rule 改动在仓库根目录执行 manifesto 中记录的精确
 `git apply --reverse <repo-relative-patch>` 命令回滚；提交后的改动按仓库纪律用独立 revert commit 回滚，ledger
 保留历史，不删除负结果。
