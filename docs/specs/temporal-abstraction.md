@@ -111,14 +111,20 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 第二阶段 runtime 已补充一个独立的参数化 causal z-policy sandbox，支持 dual-track rollout、checkpoint/rollback 和 trajectory-level clipped surrogate objective；当前其 online owner 由 `ETANLJointLoop` 承担，offline/batch owner 由 `SSLRLTrainingPipeline` 承担
 - `learned-lite temporal` 与 causal z-policy 当前共享同一控制器参数 store，但 owner 侧已引入显式 `learning_phase` / `structure_frozen` 边界：SSL 阶段允许 discovered action family 更新，RL/runtime 阶段默认冻结结构层，仅在 owner API 内做受限策略更新
 - 当前 ndim metacontroller 已收敛到**单一 owner 参数面**：SSL trainer、runtime policy、internal RL、rare-heavy snapshot/export/import 共享同一个 `MetacontrollerParameterStore` 可见的 encoder/switch/decoder 权重，不再允许 ndim 路径在 trainer/runtime 内各自持有私有网络参数
-- PE→ndim 的 runtime 消费面现有显式、可回滚 owner gate：
+- PE→runtime code 的消费面现有显式、可回滚 owner gate：
   `MetacontrollerParameterStore.runtime_prediction_error_modulated_code()`
   把 PE 学到的 `residual/memory/reflection` temporal weights 编译成
   identity-centered `[0.5, 1.5]` code gain；PE=0 或
   `prediction_error_runtime_modulation_enabled=False` 时严格 no-op。Gate 1
   v3 证明该通路能改变 next-session code，但 policy-loss effect
   `=-0.000881360`，方向为负，因此生产默认 flag 为 `False`，不得把“已接线”
-  写成 PE 学习增益；重新启用必须有 fresh 信号设计与 causal evidence。
+  写成 PE 学习增益；重新启用必须有 fresh 信号设计与 causal evidence。该 gate
+  现在由 `FinalRolloutConfig.prediction_error_runtime_modulation` 显式传入，并同时覆盖
+  shipped companion bootstrap 使用的 legacy 3 维 forward 与 ndim forward；默认仍为
+  `DISABLED`。`BrainConfig.external_prediction_error_drive=False` 还必须关闭 late
+  `TrackTemporalConsolidationModule` 的 PE 参数写入与 PE family-outcome 输入，但保留
+  `PredictionErrorSnapshot` publication/readout，防止 PE-off matched arm 只关 joint-loop
+  日志、却从 consolidation 旁路继续学习。
 - ndim encoder 的 `n_input` 与 latent `n_z` 是两个独立契约：`n_input` 必须等于 substrate 发布的完整残差宽度，GRU 再把它压缩为低维 `n_z`。runtime facade 负责在构造时声明并校验 `n_input`；禁止按 `n_z` 截断后部感知通道。encoder checkpoint 与 compact parameter fingerprint 均绑定 `n_input`。
 - Transformers residual publisher 的 `activation_width` 是显式、正整数配置：默认 `8` 保持现有生产成本与回滚行为，hidden width 不超过该值时逐坐标原样发布，超过时做确定性 chunk mean。Gate 2 full-width evidence 显式使用 Qwen hidden width `896`，并在 artifact 中同时登记 manifest 与 runtime provenance；两者不一致必须 fail loudly。
 - 当前 `TemporalModule` 默认以 `full-learned` 作为 runtime owner policy，并可通过 owner API 导出 machine-readable metacontroller runtime state；这条导出链不改变 `temporal_abstraction` 公共 snapshot schema
@@ -277,6 +283,15 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - **ndim drift 语义**：`n_z>3` 的 serving path 只消费 Ndim encoder/switch/decoder 与正式 `track_weights` modulation；Internal-RL 对 track 的更新不得再同步写入仅供 legacy 3-D controller 使用的 `temporal_weights/switch_bias`。否则 `switch_bias=1-persistence` 的无效兼容字段跳变会被 rollback gate 当成真实 metacontroller drift，回滚同批 action-head 更新。dual-track aggregate 的 `track_parameters` 必须发布两个 owner 的正式 track weights（shared 取两 owner 均值），禁止用逐拍 `latent_mean` 冒充参数；state variation 与 parameter drift 必须隔离。legacy `n_z<=3` 的 alignment 行为保持不变。
 - **有界 posterior 探索**：`FinalRolloutConfig.internal_rl_runtime_exploration_strength` 默认 `0.0`（精确回滚基线），`(0,1]` 时由 `FullLearnedTemporalPolicy` 把原 sample noise 与可复现 low-discrepancy sample 混合，并设置有界 latent entropy floor（`0.4 * strength`），防止获得首个稀疏 milestone 前 posterior 方差塌缩。采样按 8-step coherent option 分段：sample residual 只由 owner-local `segment + latent dimension` 决定并在整段保持；posterior mean/std 仍逐拍消费当前状态，因此 option 连续性不得抹平 state-conditioned policy。调用方可以附加不透明、非语义的 exploration context；temporal owner 只保存其 SHA256 摘要并把摘要纳入 option identity，禁止保留原文或解释业务含义。未提供 context 时必须保持历史全局序列精确不变；matched arms 必须共享 context，而独立 episode/body 应使用不同 context，避免同一噪声序列被重复奖励成全局固定转向。禁止把连续变化的 posterior mean 写入 option identity，也禁止在 coast 阶段把逐维 residual 换成 common-mode residual；前者令同一 option 每拍跳变，后者会撤销 opponent-coded latent steering。该 horizon 保证 16/24-step 的有界稀疏实验至少覆盖 2/3 个方向 option，而不是把整个 episode 退化成一条射线。该机制是通用 temporal option 探索，不读取任务真值或动作语义。有效 posterior mean/std、最终 sample noise 与 `z_tilde` 均由 owner runtime state 发布，runtime replay likelihood 可精确重建。实验对照各臂必须共享该值，探索本身不算学习收益；已有 dense PE 的任务应保持 `0.0`。
 - **真实 no-optimize 对照**：`apply_writeback` 只负责 reflection/memory/regime consolidation，不能冒充 Internal-RL 消融。此前 `no_optimize` 仅设 `joint_apply_writeback=False`，但 `run_cycle()` 已在该门之前直接执行 sandbox optimizer，因此 learned/no-optimize 都会更新 PPO，因果对照无效。现新增独立 `apply_policy_optimization` gate：两臂运行相同 SSL、substrate rollout、PE、optimizer 与报告；gate=False 时在 SSL 后/RL 前建立 owner checkpoint，并在 optimizer 后恢复 policy+critic，使 RL 更新不持久化，同时保留 SSL 更新与完整候选证据。默认 True 不改变生产行为。数字蚂蚁正式 no-optimize 令此 gate=False、reflection writeback 与 learned 保持一致，仅隔离 Internal-RL policy optimization。`CausalPolicyCheckpoint.policy_optimization_fingerprint` 由 Internal-RL owner 仅基于 update step 与 critic 参数生成；共享 reflection prior 可以合法改变 temporal track weights，但不会因此把 no-optimize 误判为 RL 写回。
+- **七天 no-SSL 与 M3 slow matched control（2026-08-02）**：`apply_ssl_optimization=False`
+  仍对同一 frozen trace 执行 SSL optimizer 并发布 loss/M3 candidate readout，但随后恢复 cycle
+  起点的 world/self owner checkpoint，再进入相同 RL rollout；因此它隔离的是 SSL 持久写入，
+  不是通过跳过 schedule 制造不同样本。默认 `True` 不改变产品行为。`temporal_ssl_m3_slow_gain`
+  由 `FinalRolloutConfig` 注入同一个 `MetacontrollerSSLTrainer` 的 encoder/decoder M3 optimizer，
+  合法范围 `[0,1]`，默认 `0.0`；七天 Gate 9 用 `1.0/0.0` matched profiles，并经
+  `SSLTrainingReport.encoder_optimizer_state.slow_gain` 与 `m3_slow_momentum_signal` 证明变量真实
+  进入 owner。两项开关都是 evidence process-start 配置，不能由 evaluation、prompt 或 turn
+  文本动态修改。
 - **ETA-off 维度契约**：`LearnedLiteTemporalPolicy` 的 code 维度必须等于其 `MetacontrollerParameterStore.n_z`；legacy 三维 readout 在 `n_z>3` 时由 temporal owner 确定性投影到配置维度。正式 ETA-off 因此与其他 arm 共用 ACTIVE runtime replay 的严格维度检查，不靠关闭 replay 隐藏 schema 破裂。
 - 当前 decoder 已升级为 bounded FFN-like control generator；环境侧显式区分 `decoder_output`、`applied_control`、`downstream_effect`
 - 当前 SSL trainer 已改成更接近 Eq.3 的结构：prefix posterior inference + Gaussian-like prior regularization + action prediction + closed-form KL，并发布 posterior drift

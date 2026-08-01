@@ -66,6 +66,9 @@ def test_preregistration_freezes_exact_gate_matrix(gate_id: int) -> None:
     formal = payload["formal_run"]
     assert formal["pair_count"] == 18
     assert formal["run_count"] == 18 * len(GATE_ARM_SCHEDULES[gate_id])
+    source = payload["execution_source_snapshot"]
+    assert source["file_count"] > 1_000
+    assert len(source["tree_sha256"]) == 64
     assert payload["authorization"]["production_promotion_authorized"] is False
 
 

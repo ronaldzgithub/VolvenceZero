@@ -48,6 +48,15 @@ GATE_SUITE_CODE_PATHS = (
     "scripts/run_seven_day_companion_formal.py",
     "scripts/run_seven_day_gate_suite_formal.py",
 )
+GATE_SUITE_EXECUTION_SOURCE_ROOTS = (
+    "packages/*/src",
+    "packages/*/pyproject.toml",
+    "pyproject.toml",
+    "scripts/audit_seven_day_gate_suite_formal.py",
+    "scripts/preregister_seven_day_gate_suite.py",
+    "scripts/run_seven_day_companion_formal.py",
+    "scripts/run_seven_day_gate_suite_formal.py",
+)
 
 
 def _canonical_bytes(value: object) -> bytes:
@@ -66,6 +75,38 @@ def _file_sha256(path: Path) -> str:
     if not path.is_file():
         raise FileNotFoundError(path)
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _execution_source_snapshot(root: Path) -> dict[str, object]:
+    files: set[Path] = set()
+    for pattern in GATE_SUITE_EXECUTION_SOURCE_ROOTS:
+        for candidate in root.glob(pattern):
+            if candidate.is_dir():
+                files.update(path for path in candidate.rglob("*") if path.is_file())
+            elif candidate.is_file():
+                files.add(candidate)
+    included = tuple(
+        sorted(
+            (path for path in files if "__pycache__" not in path.parts and path.suffix not in {".pyc", ".pyo"}),
+            key=lambda path: path.relative_to(root).as_posix(),
+        )
+    )
+    if not included:
+        raise FileNotFoundError("gate-suite execution source snapshot is empty")
+    digest = hashlib.sha256()
+    for path in included:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        content = path.read_bytes()
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return {
+        "roots": list(GATE_SUITE_EXECUTION_SOURCE_ROOTS),
+        "excluded": ["**/__pycache__/**", "**/*.pyc", "**/*.pyo"],
+        "file_count": len(included),
+        "tree_sha256": digest.hexdigest(),
+    }
 
 
 def _model_contract(contract: Mapping[str, object], *, role: str) -> dict[str, object]:
@@ -136,6 +177,7 @@ def build_companion_gate_suite_preregistration(
     }
     scenario_sha256 = {scenario_id: _file_sha256(root / relative) for scenario_id, relative in scenario_paths.items()}
     code_manifest = {relative: _file_sha256(root / relative) for relative in GATE_SUITE_CODE_PATHS}
+    execution_source_snapshot = _execution_source_snapshot(root)
     pair_count = len(SEVEN_DAY_SCENARIO_IDS) * len(seeds)
     run_count = pair_count * len(arms)
     primary_names = {
@@ -156,6 +198,7 @@ def build_companion_gate_suite_preregistration(
         "scenario_sha256": scenario_sha256,
         "code_manifest": code_manifest,
         "code_tree_sha256": hashlib.sha256(_canonical_bytes(code_manifest)).hexdigest(),
+        "execution_source_snapshot": execution_source_snapshot,
         "profile_contracts": normalized_profiles,
         "formal_run": {
             "paraphrase_seeds": list(seeds),
@@ -275,6 +318,7 @@ def write_companion_gate_suite_preregistration(*, output_path: str | Path, paylo
 __all__ = [
     "GATE_SUITE_CODE_PATHS",
     "GATE_SUITE_DEFAULT_SEEDS",
+    "GATE_SUITE_EXECUTION_SOURCE_ROOTS",
     "GATE_SUITE_PREREG_SCHEMA_VERSION",
     "build_companion_gate_suite_preregistration",
     "validate_companion_gate_suite_preregistration",

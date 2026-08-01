@@ -1,7 +1,7 @@
 # Seven-Day Simulated Companion Evidence Spec
 
 > Status: tooling + full-source frozen preregistration + product-path smoke complete; replacement formal 36-run matrix running
-> Last updated: 2026-08-01
+> Last updated: 2026-08-02
 > 对应需求: R5、R6、R7、R8、R12、R15
 > 关联债务: #93（只提供 simulated-longitudinal 辅助证据，不关闭 real-user EXIT）
 
@@ -149,6 +149,107 @@ capture bundle 完成后还必须调用 `scripts/audit_gate811_simulated_capture
 source runs、144 条 capture records、48 个盲评 pairs、内部 key、空白评分 CSV 和全部 SHA
 绑定。该审计恒保留 `human_ratings_pending=true`；打包成功不等于人评通过。
 
+## MPS 命令行测试控制面
+
+`scripts/run_seven_day_companion_test_plan.py` 是本实验唯一推荐的人类命令行入口，提供
+`status / preflight / smoke / formal / audit / all` 六阶段。控制面不拥有实验变量或 verdict；
+它只把冻结 preregistration、指定 execution root、formal runner 与 independent auditor 串联，
+并纳入新 preregistration 的源码哈希范围。
+
+所有涉及模型推理的阶段必须通过真实 MPS tensor 算术探针，固定
+`PYTORCH_ENABLE_MPS_FALLBACK=0`，并持有共享的
+`artifacts/.companion-evidence-mps.lock`。因此经两个新控制面启动的七日计划与 MSC N+1
+计划不能并发占用 MPS，
+也不能在 MPS 不可用时悄悄改用 CPU。`status` 与 `audit` 不占 MPS；`all` 的顺序固定为
+preflight → formal → audit，任何一步非零退出都会停止后续阶段。
+控制面落地前已经手工启动的进程不持有该锁，必须在原终端单独确认已退出。
+
+formal runner 在运行中自动落盘冻结 user script、每个已完成臂的 run
+envelope、每日 measurement checkpoint、archive/loaded-copy digest 和 service log。
+`--resume` 只可在同一 preregistration 和冻结 execution root 上跳过已完成 run；
+任一源码、脚本或状态证明漂移都走既有 fail-closed 路径。运行期 `status`
+只报完成数；全矩阵与独立审计完成前，中间文件不得产生效应 verdict、
+变更预注册或触发 promotion。
+
+## Gate 1 七天 matched 扩展
+
+Gate 1 使用独立的新预注册和输出根，不得 retrofit 当前 Gate 8/11 的 36-run 冻结矩阵。
+两臂固定为 `gate1-pe-temporal-on-v1` 与 `gate1-pe-temporal-off-v1`，都发布同一正式
+`PredictionErrorSnapshot`、使用同一 frozen SUT、temperature=0、temporal/regime bootstrap、
+correct-user-state、slow-loop drain、场景、seed 与用户脚本。on/off 只改变预注册的 PE drive
+bundle：joint-loop external PE drive、primary PE dominance，以及 temporal consolidation 的
+直接 PE 学习；bounded runtime-code modulation gate 在两臂都为 `ACTIVE`，off 臂因没有 PE
+drive/late write 而保持 no-op。生产默认仍为 `DISABLED`。
+
+`lifeform-serve --companion-evidence-profile ...` 只有同时启用 closed alpha、独立 memory/evidence
+root、virtual-calendar override、`hf-shared` 和 `local-files-only` 才能启动；否则 fail loudly。
+每个 service evidence root 必须产生 immutable
+`companion_evidence_runtime_profile.json`。CUDA 运行还必须记录 GPU name、compute capability、
+显存、Torch/CUDA/cuDNN 版本；因此 4090 是新的 hardware-specific prereg，不可把 MPS artifact
+搬过去续跑。
+
+HTTP turn evidence append-only 发布 PE magnitude/bootstrap 与 world/self temporal PE-applied flag。
+`Gate1SevenDayHarness` 要求每个 case 两臂各 35 个 PE readout、on 臂所有 non-bootstrap turn 的
+双轨 PE write load-bearing、off 臂为零写入；效应主判据是 Day 1–2 到 Day 6–7 的 PE adaptation
+相对 off 增益，产品次判据为 Day-7 continuity composite，二者都要求 mean ≥ `0.02` 且 paired
+95% CI 下界大于零，并要求 boundary/wrong-user safety 零退化。即使全部通过，自动实验仍固定
+`production_promotion_authorized=false`；它最多把 Gate 1 提升为 simulated product-ecology
+causal support，生产晋升仍需独立真人/部署证据。
+
+入口为 `scripts/preregister_seven_day_gate1.py`、
+`scripts/run_seven_day_gate1_formal.py` 与独立重算入口
+`scripts/audit_seven_day_gate1_formal.py`；正式默认至少 6 scenarios × 3 seeds × 2 arms = 36 runs、
+252 sessions、1260 exchanges。`--resume` 只跳过完全存在且随后通过 profile/run 审计的 arm，
+缺字段、attestation SHA 漂移或 matrix extra/missing 一律在效果分析前中止。
+
+## Gate 4/5/6/7/9/10 专用配对包（2026-08-02）
+
+这些 Gate 不能从原 Gate 8/11 state/sleep 矩阵事后推断。仓库现提供独立的
+`companion-gate-suite-seven-day-prereg.v1`，每个 Gate 必须单独开新的
+hardware/model-specific preregistration 和输出根。共同执行形状为 6 scenarios × 3 seeds；
+Gate 7 是 3 臂、54 runs / 378 sessions / 1,890 exchanges，其余均为 2 臂、36 runs /
+252 sessions / 1,260 exchanges。所有臂逐字节重放同一冻结用户脚本，使用 correct-user-state、
+每日 slow-loop drain、6 次真实进程 restart 和同一 frozen SUT；每个 run 都必须携带 immutable
+runtime profile attestation 与 typed HTTP telemetry。
+
+专用 arm 与唯一 owner-level 干预如下：
+
+| Gate | treatment | matched control | load-bearing owner / 主 readout |
+|---|---|---|---|
+| 4 | `gate4-active-selector-v1` | `gate4-random-feedback-v1` | apprenticeship owner；typed boundary/callback opportunity 上的 feedback request utility |
+| 5 | `gate5-multifrequency-cms-v1` | `gate5-single-timescale-v1` | memory owner；nested 2/4 cadence 对 independent 1/1，PE gate 与 ATLAS replay 两臂相同；Day 6–7 absorption/retention |
+| 6 | `gate6-conditioned-meta-init-v1` | `gate6-copy-init-v1` | memory owner；真实 day-boundary reset 使用 conditioned prototype 或 copy-init；Day 2–7 首 turn PE |
+| 7 | `gate7-ssl-rl-full-v1` | `gate7-no-ssl-v1`、`gate7-no-rl-v1` | temporal owner；两控制臂运行同一候选 optimizer/readout，分别在 owner checkpoint 恢复 SSL 写入或 RL policy/critic 写入；late-vs-early Internal-RL reward |
+| 9 | `gate9-m3-slow-on-v1` | `gate9-m3-slow-off-v1` | temporal SSL owner；`slow_gain=1.0/0.0`，M3 slow signal 与 optimizer state 经 HTTP attest；early-vs-late SSL loss |
+| 10 | `gate10-rare-heavy-import-v1` | `gate10-rare-heavy-review-v1` | rare-heavy + ModificationGate；pre-import suite 后 bounded import 对 frozen review-only；early-vs-late PE |
+
+Gate 10 是唯一允许 mutable shared substrate 的证据 profile，并且只允许
+`max_sessions=1`、fixed/non-swappable provider、独立 evidence root。任一条件缺失时 service
+沿用共享 frozen-runtime guard 并 fail loudly。该例外不改变产品默认：无 evidence profile 时
+substrate live mutation 仍禁止，review-only 仍是回滚线。
+
+正式判读先过 mechanism load-bearing，再比较 treatment 对每个 control 的 paired primary、
+Day-7 continuity 与 safety。primary 和 continuity 都要求 mean ≥ `0.02` 且 paired 95% CI
+下界大于零，boundary/wrong-user 不得退化；缺 arm、缺 telemetry、profile SHA 漂移、重启不完整、
+HTTP 4xx/5xx 或源码 manifest 漂移均在效应判读前中止。自动结果恒为
+`simulated-seven-day-product-ecology-only` 且
+`production_promotion_authorized=false`：包已实现不等于 Gate 已通过，更不等于 production ACTIVE。
+
+统一入口：
+
+```bash
+.venv/bin/python scripts/preregister_seven_day_gate_suite.py --gate 4 ...
+.venv/bin/python scripts/run_seven_day_gate_suite_formal.py --gate 4 --preflight-only ...
+.venv/bin/python scripts/run_seven_day_gate_suite_formal.py --gate 4 --smoke-one-pair ...
+.venv/bin/python scripts/run_seven_day_gate_suite_formal.py --gate 4 --execute ...
+.venv/bin/python scripts/audit_seven_day_gate_suite_formal.py --gate 4 ...
+```
+
+`--gate` 可取 `4/5/6/7/9/10`，`--resume` 只跳过同一 frozen prereg/source root 下已经完整
+落盘的 run。MPS 与 4090/CUDA artifact 不能混跑或续跑；换硬件必须生成新 prereg。独立审计从
+只读 execution root 重算物理 artifact 数、profile attestation、HTTP error、全部 paired effect
+和 verdict，不信任磁盘上的 evaluation JSON。
+
 ## 失败、退出与回滚
 
 - correct-state 不优于 stateless：把连续性主张收缩到 typed owner metric 行为；不换
@@ -167,3 +268,10 @@ source runs、144 条 capture records、48 个盲评 pairs、内部 key、空白
 - `packages/vz-runtime/tests/test_seven_day_companion_evidence.py`
 - `packages/vz-runtime/tests/test_gate811_simulated_capture.py`
 - `packages/vz-runtime/tests/test_seven_day_companion_preregistration.py`
+- `packages/vz-runtime/tests/test_companion_test_plan_cli.py`
+- `packages/vz-runtime/tests/test_companion_gate1_evidence_wiring.py`
+- `packages/vz-runtime/tests/test_gate1_seven_day_evidence.py`
+- `packages/vz-runtime/tests/test_companion_gate_suite_evidence.py`
+- `packages/vz-runtime/tests/test_companion_gate_suite_preregistration.py`
+- `packages/vz-temporal/tests/test_gate_suite_evidence_controls.py`
+- `packages/vz-memory/tests/test_context_conditioned_meta_init.py`

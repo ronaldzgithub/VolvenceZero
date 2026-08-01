@@ -270,6 +270,13 @@ CI 证明 gate 会以**精确的、可定位的理由**拒绝（对齐 teeth 纪
 - joint loop 现在也会把 metacontroller runtime state + policy objective 直接编码成 owner-side credit record，不再只靠 rollout 后处理 credit
 - 当前 final wiring / session runtime 也会把 `retrieval_quality`、`reflection_usefulness`、`joint_learning_progress` 这些 learning evidence 转成 shared credit records，进入正式 `credit` snapshot
 - 当前 session runtime 已新增 online-fast substrate self-mod audit：当 `substrate_self_mod` owner 提出 bounded delta proposal 时，session owner 会把 allow/block 结果写成 `SelfModificationRecord(target=\"substrate.online_fast.delta\")` 进入正式 `credit` snapshot。默认主路径下，这类 proposal 会在通过 schedule + ONLINE gate 后走 substrate runtime apply surface；显式 frozen runner 则保持 review-only
+- 七天 Gate 10 的 import 对照只在显式 evidence profile 下开放：service 必须是
+  `max_sessions=1`、fixed/non-swappable substrate provider、独立 evidence/state root，且 profile
+  自身声明 `allow_single_session_live_substrate_mutation=true`。app 与 provider 两层都 fail closed；
+  仅传一个布尔参数、使用其他 Gate profile、允许第二 session 或启用 model swap 均不能绕过
+  shared-runtime frozen guard。对照臂保留同一 rare-heavy proposal、trace bundle、pre-import suite
+  与 ModificationGate，但 substrate 维持 review-only。该例外不改变 production 默认，也不授权
+  Gate 通过后自动 ACTIVE。
 - 当前 direct module dependencies 已收敛到 `dual_track + evaluation + prediction_error`；抽象动作 / delayed outcome 证据通过 dual-track、regime ledger 和 prediction-error chain 进入 credit owner，而不是要求 credit 直接持有 temporal owner
 - reflection / writeback 仍以 bounded adaptation 为边界，不做无限制在线自修改
 - 当前 internal RL delayed credit 也已补充 batch-friendly bookkeeping：proof path 的 delayed assignment 现在会显式携带 `alignment_score`、`window_length` 与 `reward_mode`，便于同一套 credit 结构同时服务训练和 proof report

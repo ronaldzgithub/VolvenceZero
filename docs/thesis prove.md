@@ -663,3 +663,18 @@ SHA-256 `5f13ed395f66eac59021c6a8515742b5b2400b995cdc32aba8a7786e66b73ee2`，冻
 `ad58546d9f508e1c1810f99289dedc413eae22b33f09338f4170d1c8b2adb2bf`。它准备执行 72 runs / 504
 sessions 并产出 144 capture records、48 个盲评 pairs；当前尚未启动，以避免与正式矩阵争用
 MPS。即使该包完整产出，在真人评分前仍只是 `unrated-simulated-user-transcript-packet-only`。
+
+### 16.1 Gate 4/5/6/7/9/10 七天专用配对仪器
+
+2026-08-02 已把这六门各自的 owner-level 干预接入同一真实七天 HTTP/restart/hydrate 路径：
+Gate 4 active-selector/random-feedback、Gate 5 multifrequency/single-timescale CMS、Gate 6
+conditioned meta-init/copy-init、Gate 7 full/no-SSL/no-RL、Gate 9 M3 slow-on/off、Gate 10
+rare-heavy import/review-only。每门都有冻结 profile attestation、typed mechanism telemetry、
+paired primary/continuity/safety 判据、可续跑 runner 和独立物证重算 auditor；Gate 10 的 mutable
+臂被限制为单 session fixed provider，生产默认仍 frozen。
+
+这项结论只说明**专用配对包的代码和审计契约已经实现**。目前尚无这六门的新 hardware-specific
+正式 preregistration、36/54-run artifact 或 independent audit，所以 §3 与 §12 的既有
+mechanism-supported / causal-NO-GO / production-disabled 判词完全不变。尤其不能把“包已实现”写成
+“Gate 已通过”或“可升 production ACTIVE”。新的判词只能在新硬件上先冻结 prereg/source root，
+完成 preflight、one-pair mechanism smoke、全矩阵和只读独立审计后产生。

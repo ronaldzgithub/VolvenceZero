@@ -201,6 +201,20 @@ checkpoint rollback 门通过；full 对所有 control 在 `0.01` 容差内 Pare
 可运行、可审计且可回滚”的机制主张，不能声称真实 trace 上的吸收-保持因果
 优势。artifact：`artifacts/gate5_cms_pareto_20260730`。
 
+### 7.7 七天产品路径 matched construction（2026-08-02）
+
+`BrainConfig` → scoped `MemoryStore` 的正式构造链现显式传递 CMS variant、session/background
+cadence、PE feature、ATLAS replay window、context-conditioned prototype 与 nested reset mode。
+这不是新的 memory owner：所有状态、解释和 checkpoint 仍由 `CMSMemoryCore/MemoryStore`
+发布。默认仍是 nested 2/4 + PE/ATLAS、conditioned 关闭、day-boundary copy-init。
+
+证据 profile 可以在进程启动时选择 `nested(2/4)` 对 `independent(1/1)`，或选择
+conditioned meta-init 对 copy-init。conditioned 模式的 live `observe_substrate` 必须把同一
+owner 已解析的 runtime backbone signal 同时作为 context signal，不能只在离线 replay
+入口训练 prototype；day-boundary reset 也只能消费 owner 缓存的最后信号或显式传入的 typed
+signal。`no-init` 是只读 rollback control。所有选择随 runtime profile attestation 冻结，
+不允许 turn 中动态切换或由 evaluation 回写。
+
 ## 8. Acceptance ladder (must pass in order)
 
 1. Unit: `test_cms_uplift_disabled_path_is_bit_equal_to_legacy` — disabled flags reproduce pre-uplift band MLP / decisions for a deterministic seed.

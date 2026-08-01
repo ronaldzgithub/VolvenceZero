@@ -138,9 +138,25 @@ target blocker 已在独立收敛包关闭：`vz-substrate` 现在发布冻结
 layer/width/readout 和 sample/value hashes 冻结 lineage；PE batch/head/checkpoint
 强制绑定该 lineage。真实 Qwen CPU smoke 已落到
 [`artifacts/msc_n_plus_one_substrate_target_smoke_20260801/`](../artifacts/msc_n_plus_one_substrate_target_smoke_20260801/)，
-并保持 `thesis_status=not-evaluated`。剩余 blocker 是同 substrate 的 32k/128k
+并保持 `thesis_status=not-evaluated`。剩余 blocker 是同 substrate 的零截断 full-history
 长上下文 steelman、完整 Volvence runtime 臂和只改变 temporal controller 的容量
 实验；三者完成前不能晋升 `temporal_n_z`、退役 legacy controller 或选择 thesis v3。
+
+两条证据线现有彼此独立的 MPS CLI：七日产品实验用
+`scripts/run_seven_day_companion_test_plan.py`，N+1 研究用
+`scripts/run_msc_prediction_test_plan.py`。经两个新入口启动的任务共享 MPS 互斥锁并禁止
+CPU fallback；控制面落地前手工启动的旧进程不受该锁保护，必须另行确认结束。
+研究 CLI 当前只允许 preflight/mechanism smoke，`formal` 对上述三个 blocker 固定返回
+退出码 3。长上下文不再机械要求一个“128k”标签：若冻结 tokenizer 的全体 MSC 历史都
+低于 32k，32k 已是零截断 full-history exposure；只有未来样本真正超过 32k 时才另开
+真实 128k model/config/hardware prereg。
+
+N+1 mechanism runner 现按语料索引、数值 context/target、arm/split、capacity/seed
+和 heldout/seed 自动落盘不可变 checkpoint，并用精确语料/模型/源码/参数
+fingerprint 续跑；不保留 MSC 原文。最终 manifest 封口前禁止效应分析，
+封口后仍只允许 mechanism-pilot 分析、不允许 formal claim。七日线继续以每个
+完成 run 为续跑单元；`status` 可随时并行，只读 `audit` 仅可针对已封口
+bundle 并可与另一条 MPS 执行并行，但任何两个 MPS 阶段不可并行。
 
 ### 已降级的旧 evidence lane（机制回归用途）
 

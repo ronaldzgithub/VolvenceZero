@@ -98,6 +98,24 @@
 - checkpoint 为 float-only、带 geometry/schema/parameter fingerprint 与完整 target lineage 校验；head 在第一批绑定 lineage，后续 batch、restore 或 model/readout/sample snapshot 漂移必须 loudly fail。
 - target 语义只由 `vz-substrate` 解释：冻结模型最后 token、选定 residual layers、稳定 layer order、L2-normalized readout。PE owner只拥有预测与 mismatch，不遍历 capture、不编码原文。MiniLM/其它外部 sentence encoder target 只允许作为历史 mechanism pilot，不能构造新的 `ForwardRepresentationBatch` 或取得 thesis 资格。
 - promotion 条件：真实人类 multi-session heldout 上，N+1 head 必须优于同 substrate target 的 persistence，并通过 temporal-owner 容量阶梯、同一冻结 substrate 的长上下文 matched baseline、完整 runtime attestation 和多 seed 门；此前保持 offline/report-only。PE forward-head `n_z` 只代表 predictor capacity，不是 temporal-controller `n_z`。旧 CP-11 四轴手工 head 的 output/target space 与 substrate 表示不同，不能伪造跨空间数值对照。
+- `scripts/run_msc_prediction_test_plan.py` 是该研究线的独立 MPS 命令行控制面。它固定禁止
+  CPU fallback，并与经新控制面启动的七日产品实验共享 MPS 互斥锁；控制面落地前手工
+  启动的旧进程必须另行确认退出。当前只授权 `preflight` 与
+  `mechanism-only-smoke`；`formal` 在 same-substrate context、完整 runtime collector、
+  temporal-controller capacity 三门未齐时固定返回退出码 3。CLI 状态不是 evidence，不能由
+  “命令存在”推导 thesis 已执行。
+- mechanism runner 必须以精确 configuration fingerprint 管理可续跑 journal。语料
+  provenance、模型/源码 SHA、device、split 限制、seed、层和超参必须全部进入
+  fingerprint；`--resume` 遇任一漂移或已登记文件 SHA 变化都必须 fail loudly。
+  语料索引、context/target 数值张量、arm/split 和 seed 结算为不可变单元；
+  journal 不得保留 MSC 原文。`run_state.json` 只是可变控制面，不进 evidence
+  hash；最终 manifest 封口前 `analysis_allowed=false`，封口后仍保持
+  `formal_claim_allowed=false`。中间 checkpoint 禁止用于换 seed、选容量或产生
+  effect verdict。`status --output-dir` 只允许暴露进度和 gate，不暴露效应值。
+- 长上下文资格由实际语料 token exposure 决定：同一冻结 Qwen tokenizer 对每条 full history
+  记录 raw token；若全体低于 32k 声明上限，则 32k 已是零截断 full-history steelman，128k
+  不构成不同实验臂。只有样本真实超过 32k 时，才允许另开真实 128k model/config/hardware
+  prereg；禁止运行时篡改冻结模型 config 冒充 128k。
 
 ### Gate 1 LSS link registry
 
@@ -453,6 +471,10 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 | 被依赖 | 慢反思路径 | reflection 将 PE 作为 tensions、lessons 和 policy consolidation 的正式输入 |
 
 ## 变更日志
+
+- 2026-08-01: 增加两实验隔离的 MPS CLI 控制面。MSC 线的 status/preflight/smoke/formal
+  分级，MPS 算术探针、CPU fallback 禁止、跨实验互斥锁与 formal blocker 退出码均 fail
+  closed；32k/128k 改按实际 token exposure 判定，避免在 MSC 全历史未超过 32k 时制造伪臂。
 
 - 2026-08-01: substrate-target owner convergence。新增
   `substrate_forward_representation` offline SHADOW slot；冻结 Qwen target 由
