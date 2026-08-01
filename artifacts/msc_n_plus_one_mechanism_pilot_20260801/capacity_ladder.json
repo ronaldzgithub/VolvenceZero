@@ -1,0 +1,95 @@
+{
+  "best_mean_cosine": 0.31798450788293636,
+  "best_n_z": 64,
+  "capacity_is_flat": false,
+  "description": "Real-target capacity ladder is pilot; best n_z=64, cosine gain over n_z=3 is 0.270268, exit=INELIGIBLE_PILOT.",
+  "eta_claim_exit": "INELIGIBLE_PILOT",
+  "evidence_level": "pilot",
+  "gain_over_n_z_3": 0.2702683782873231,
+  "observations": [
+    {
+      "mean_cosine_similarity": 0.05691631251381057,
+      "mean_squared_error": 0.010627317125778536,
+      "n_z": 3,
+      "seed": 0,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.04019337871277156,
+      "mean_squared_error": 0.009660079556732542,
+      "n_z": 3,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.046038697560257656,
+      "mean_squared_error": 0.00884243963988786,
+      "n_z": 3,
+      "seed": 2,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.27597858604583975,
+      "mean_squared_error": 0.0024711261633093705,
+      "n_z": 16,
+      "seed": 0,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.2707552963461363,
+      "mean_squared_error": 0.0024767309212090868,
+      "n_z": 16,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.2808773469315869,
+      "mean_squared_error": 0.0024489311305214314,
+      "n_z": 16,
+      "seed": 2,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.318859425043172,
+      "mean_squared_error": 0.00238211000038449,
+      "n_z": 64,
+      "seed": 0,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.3161723565743654,
+      "mean_squared_error": 0.0023882636705219117,
+      "n_z": 64,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.3189217420312717,
+      "mean_squared_error": 0.002385696327443153,
+      "n_z": 64,
+      "seed": 2,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.3235841051339859,
+      "mean_squared_error": 0.002520230836239258,
+      "n_z": 256,
+      "seed": 0,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.3056756038542431,
+      "mean_squared_error": 0.0025358538341244074,
+      "n_z": 256,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "mean_cosine_similarity": 0.305726083518171,
+      "mean_squared_error": 0.002542189070111664,
+      "n_z": 256,
+      "seed": 2,
+      "split": "validation"
+    }
+  ]
+}

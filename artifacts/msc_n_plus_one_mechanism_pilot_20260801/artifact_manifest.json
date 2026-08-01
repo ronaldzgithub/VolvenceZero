@@ -1,0 +1,59 @@
+{
+  "corpus_provenance_source": {
+    "sha256": "887b81a78180caf99b07e546bc087eeb56f9f0a4da96011f9264c6ee2e6ebadb",
+    "size_bytes": 1764
+  },
+  "evidence_level": "mechanism-only-pilot",
+  "formal_experiment_executed": false,
+  "hash_scope": "artifact_manifest.json is excluded to avoid a recursive self-hash",
+  "result_files": {
+    "capacity_ladder.json": {
+      "sha256": "86bc3e13d251fbfd2721cd8b10dcd432c8b461ded1e0ff71bb6d6dafd2cde711",
+      "size_bytes": 2487
+    },
+    "corpus_provenance.json": {
+      "sha256": "a7e9dd3ab704f46060924ebd9b9c075bb1f86c473bf4512a47d1b2364960e9b2",
+      "size_bytes": 1764
+    },
+    "manifest.json": {
+      "sha256": "191202e908f67f53f5e2ae4dd5ce60265e6a516c7eb21323b841b7a3c2e87241",
+      "size_bytes": 4905
+    },
+    "prediction_observations.jsonl": {
+      "sha256": "5936ede2299e75a46c066199277af21eb4fbafbbbe7814d91d57f402b2409514",
+      "size_bytes": 1781115
+    },
+    "prediction_verdict.json": {
+      "sha256": "4bd7308fa2d781b8f8d41df8070667ba61b04a7759390085bf349c8c3f7ae475",
+      "size_bytes": 9470
+    },
+    "report.md": {
+      "sha256": "26490ac0e5cc9c75a430cf2f74049fc9b4e2a60da78b7f55e3a28d0f6ac8991e",
+      "size_bytes": 480
+    }
+  },
+  "schema_version": "msc-mechanism-artifact.v1",
+  "source_files": {
+    "packages/companion-bench/src/companion_bench/msc_corpus.py": {
+      "sha256": "d665cd0900fbf256077fa5259bb8490deebfdfc4615dc09df7d1a37d04540a9f",
+      "size_bytes": 11163
+    },
+    "packages/companion-bench/src/companion_bench/prediction_research.py": {
+      "sha256": "6c4f71b251e0ebd63f13fc4d7ef37d0de840065fc2439febfed5f19541e5b587",
+      "size_bytes": 20254
+    },
+    "packages/vz-cognition/src/volvence_zero/prediction/error.py": {
+      "sha256": "eee3cdf79a2542decf5f435ba666bdc4596bcc973853ea94fe19eaa8be29a383",
+      "size_bytes": 132975
+    },
+    "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py": {
+      "sha256": "afc754f3f63a43f6161992db78c411f71190ecda238705d6e47df94bc1b5e074",
+      "size_bytes": 14899
+    },
+    "scripts/run_msc_prediction_research.py": {
+      "sha256": "6684845b3559c749b9a6f4b689e93e74af5a7d72e0b96c87994495793a0217f2",
+      "size_bytes": 30539
+    }
+  },
+  "thesis_status": "not-evaluated"
+}
