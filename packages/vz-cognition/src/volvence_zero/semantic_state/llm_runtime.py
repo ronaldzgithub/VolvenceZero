@@ -455,6 +455,97 @@ def _parse_generic_proposals(text: str, *, target_slot: str) -> tuple[_ParsedPro
     return tuple(parsed)
 
 
+def _structured_json_payload(text: str) -> dict[str, object] | None:
+    raw = text.strip()
+    if raw.startswith("```"):
+        lines = raw.splitlines()
+        if len(lines) < 3 or lines[-1].strip() != "```":
+            return None
+        raw = "\n".join(lines[1:-1]).strip()
+    if not raw.startswith("{"):
+        return None
+    try:
+        payload = json.loads(raw)
+    except JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _parse_user_model_proposals(text: str) -> tuple[_ParsedProposal, ...] | None:
+    payload = _structured_json_payload(text)
+    if payload is None:
+        return None
+    facts_raw = payload.get("facts")
+    if not isinstance(facts_raw, list):
+        return None
+    parsed: list[_ParsedProposal] = []
+    allowed_operations = {
+        SemanticProposalOperation.CREATE,
+        SemanticProposalOperation.REVISE,
+        SemanticProposalOperation.ACTIVATE,
+        SemanticProposalOperation.BLOCK,
+    }
+    for item in facts_raw:
+        if not isinstance(item, dict):
+            return None
+        operation_raw = item.get("operation")
+        semantic_key_raw = item.get("semantic_key")
+        canonical_value_raw = item.get("canonical_value")
+        evidence_raw = item.get("evidence")
+        confidence_raw = item.get("confidence")
+        if not isinstance(operation_raw, str):
+            return None
+        operation = _VALID_COMMITMENT_LABELS.get(operation_raw.strip().lower())
+        if operation not in allowed_operations:
+            return None
+        if not isinstance(semantic_key_raw, str) or not isinstance(canonical_value_raw, str):
+            return None
+        semantic_key = semantic_key_raw.strip()
+        canonical_value = canonical_value_raw.strip()
+        if (
+            not semantic_key
+            or len(semantic_key) > 64
+            or not semantic_key[0].islower()
+            or any(
+                character not in "abcdefghijklmnopqrstuvwxyz0123456789_"
+                for character in semantic_key
+            )
+        ):
+            return None
+        if operation in {
+            SemanticProposalOperation.CREATE,
+            SemanticProposalOperation.REVISE,
+        } and not canonical_value:
+            return None
+        if operation in {
+            SemanticProposalOperation.ACTIVATE,
+            SemanticProposalOperation.BLOCK,
+        } and canonical_value:
+            return None
+        if not isinstance(evidence_raw, str) or not evidence_raw.strip():
+            return None
+        if isinstance(confidence_raw, bool) or not isinstance(confidence_raw, (int, float)):
+            return None
+        confidence = float(confidence_raw)
+        if confidence < _MIN_GENERIC_PROPOSAL_CONFIDENCE or confidence > 1.0:
+            continue
+        evidence = evidence_raw.strip()[:160]
+        parsed.append(
+            _ParsedProposal(
+                operation=operation,
+                summary=f"self-reported-profile:{semantic_key}",
+                detail=evidence,
+                confidence=confidence,
+                evidence=evidence,
+                control_signal=_OPERATION_CONTROL[operation],
+                requires_confirmation=False,
+                semantic_key=semantic_key,
+                canonical_value=canonical_value[:160],
+            )
+        )
+    return tuple(parsed)
+
+
 class LLMSemanticProposalRuntime(SemanticProposalRuntime):
     """Upgrades selected slots with LLM-classified typed proposals.
 
@@ -708,7 +799,15 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
             ),
             temperature=0.0,
         )
-        parsed = _parse_generic_proposals(raw, target_slot=target_slot)
+        parsed = (
+            _parse_user_model_proposals(raw)
+            if target_slot == "user_model"
+            else _parse_generic_proposals(raw, target_slot=target_slot)
+        )
+        if parsed is None and target_slot == "user_model":
+            # Compatibility for reviewed providers that still emit the
+            # shared proposal schema for non-factual user preferences.
+            parsed = _parse_generic_proposals(raw, target_slot=target_slot)
         if parsed is None:
             self._counters.record_attempt(
                 parse_status="parse_error",

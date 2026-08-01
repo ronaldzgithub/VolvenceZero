@@ -316,20 +316,14 @@ def test_runtime_emits_user_model_typed_proposal_from_schema_payload() -> None:
 def test_runtime_emits_structured_user_profile_fact_and_recall_request() -> None:
     provider = _ScriptedProvider([
         (
-            '{"runtime_id":"test","schema_version":1,"description":"fact",'
-            '"proposals":[{"proposal_id":"ignored","target_slot":"user_model",'
-            '"operation":"create","summary":"self-reported age",'
-            '"detail":"The user explicitly reported their age.","confidence":0.98,'
+            '```json\n{"facts":[{"operation":"create","confidence":0.98,'
             '"evidence":"我17岁了。","semantic_key":"age",'
-            '"canonical_value":"17"}]}'
+            '"canonical_value":"17"}]}\n```'
         ),
         (
-            '{"runtime_id":"test","schema_version":1,"description":"recall",'
-            '"proposals":[{"proposal_id":"ignored","target_slot":"user_model",'
-            '"operation":"activate","summary":"recall age",'
-            '"detail":"The user asks the assistant to recall their age.",'
-            '"confidence":0.94,"evidence":"我多大了？",'
-            '"semantic_key":"age","canonical_value":""}]}'
+            '{"facts":[{"operation":"activate","confidence":0.94,'
+            '"evidence":"我多大了？","semantic_key":"age",'
+            '"canonical_value":""}]}'
         ),
     ])
     runtime = LLMSemanticProposalRuntime(provider=provider, max_new_tokens=160)
