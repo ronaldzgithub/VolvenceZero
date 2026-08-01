@@ -72,6 +72,10 @@ data/figure_corpus/
 data/encoder/
 runs/encoder/
 
+# Licensed external research corpora are downloaded locally and verified by
+# checksum.  Loaders/manifests are versioned; raw conversations are not.
+data/external/msc/
+
 # Unified synthetic experience corpus: generated master shards, object store,
 # projections, live-through snapshots, journals, and audit reports.
 data/synthetic/unified_v1/

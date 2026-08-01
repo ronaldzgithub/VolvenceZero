@@ -1,0 +1,32 @@
+{
+  "schema_version": "msc-corpus-manifest.v1",
+  "dataset": "Multi-Session Chat",
+  "dataset_version": "v0.1",
+  "source_url": "https://parl.ai/downloads/msc/msc_v0.1.tar.gz",
+  "archive_sha256": "e640e37cf4317cd09fc02a4cd57ef130a185f23635f4003b0cee341ffcb45e60",
+  "license_policy": "noncommercial-research-only-pending-commercial-clearance",
+  "minimum_sessions": 3,
+  "splits": {
+    "train": {
+      "relative_path": "msc_dialogue/session_4/train.txt",
+      "conversation_count": 1001,
+      "file_sha256": "0094d6374541e3b8e690e1b5b2f56d6121d268db41257d81b7afae3d647d453c",
+      "sorted_id_sha256": "59f7abe7c2625a6d5629c1bbfa09557ae3559b8de3c1b6eed47bec2092975fca",
+      "session_count": 4
+    },
+    "validation": {
+      "relative_path": "msc_dialogue/session_5/valid.txt",
+      "conversation_count": 500,
+      "file_sha256": "8bb7a4bd621c9dcd0692a2ad4ec5171dc62a419e168767a80731fe00923faebb",
+      "sorted_id_sha256": "8976ab8e8859a2861b1f038469c317780beb4b5af2c7676362639b98dc2443a5",
+      "session_count": 5
+    },
+    "heldout": {
+      "relative_path": "msc_dialogue/session_5/test.txt",
+      "conversation_count": 501,
+      "file_sha256": "8807776265cc3bde441d18b4864449753f874bb8a06aaea352a519925b054d46",
+      "sorted_id_sha256": "58a61e1b08a9d0ae384b413a677e161d2e809cacc1bd81ba79beb557588e5777",
+      "session_count": 5
+    }
+  }
+}

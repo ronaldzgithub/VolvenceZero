@@ -41,6 +41,7 @@ include = ["companion_bench*"]
 
 [tool.setuptools.package-data]
 companion_bench = [
+    "corpora/*.json",
     "scenarios/public/*.yaml",
     "scenarios/public/**/*.yaml",
     "scenarios/seven_day/*.yaml",

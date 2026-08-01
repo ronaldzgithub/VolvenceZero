@@ -33,13 +33,11 @@ import json
 import pathlib
 import random
 import time
-import uuid
 from typing import Any
 
 from companion_bench.spec import ScenarioSpec
 from companion_bench.sut_client import SUTClient, SUTResponse
 from companion_bench.user_simulator import (
-    GeneratedUserTurn,
     TurnContext,
     UserSimulator,
     UtteranceClient,
@@ -66,6 +64,11 @@ class ArcTurn:
     sut_prompt_tokens: int | None
     sut_completion_tokens: int | None
     sut_telemetry: dict[str, str]
+    sut_latency_ms: float = 0.0
+    context_history_policy: str = "session"
+    context_message_count: int = 0
+    context_estimated_tokens: int = 0
+    context_truncated_messages: int = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -153,6 +156,23 @@ class ArcRunConfig:
     sut_max_tokens: int | None = 512
     sut_temperature: float | None = 0.0
     system_prompt: str = ""
+    history_policy: str = "session"
+    history_token_budget: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.history_policy not in {"session", "stateless", "full"}:
+            raise ValueError(
+                "history_policy must be one of ['full', 'session', 'stateless']; "
+                f"got {self.history_policy!r}"
+            )
+        budget = self.history_token_budget
+        if budget is not None and (
+            isinstance(budget, bool) or not isinstance(budget, int) or budget < 1
+        ):
+            raise ValueError(
+                "history_token_budget must be a positive integer or None; "
+                f"got {budget!r}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -194,16 +214,18 @@ def run_arc(
     arc_seed_str = f"arc|{spec.scenario_id}|{paraphrase_seed}"
     rng = random.Random(arc_seed_str)
 
-    # Initial transcript carries the manifest system prompt at the
-    # head when one is declared (debt #74). The session-boundary reset
-    # below preserves this prefix because every SUT call has the same
-    # persona contract from the manifest.
+    # Initial transcripts carry the manifest system prompt at the head when
+    # declared (debt #74). ``full_transcript`` is the canonical arc history;
+    # ``session_transcript`` is the session-local view used by the historical
+    # benchmark policy. Keeping both lets the long-context control consume all
+    # sessions without changing what the default session arm sees.
     def _fresh_history() -> list[dict[str, str]]:
         if config.system_prompt.strip():
             return [{"role": "system", "content": config.system_prompt}]
         return []
 
-    transcript_messages: list[dict[str, str]] = _fresh_history()
+    full_transcript: list[dict[str, str]] = _fresh_history()
+    session_transcript: list[dict[str, str]] = _fresh_history()
     sessions: list[ArcSession] = []
 
     for s_idx in range(1, spec.arc_length_sessions + 1):
@@ -211,10 +233,10 @@ def run_arc(
             gap_days = 0
         else:
             gap_days = spec.inter_session_gap_days[s_idx - 2]
-            # Inject a user-side time-elapsed marker so the SUT sees
-            # session boundaries explicitly. Kept inside the user
-            # turn (not the system prompt) per RFC §7.1.
-            transcript_messages = _fresh_history()  # session_id changes; reset history view
+            # The time-elapsed marker below makes the boundary explicit. Only
+            # the session-local view resets here; the canonical full history
+            # remains intact for the steelman long-context arm.
+            session_transcript = _fresh_history()
         session_id = f"{arc_id}-s{s_idx}"
         turn_count = _draw_turn_count(rng=rng, spec=spec)
 
@@ -227,17 +249,36 @@ def run_arc(
             )
             generated = sim.next_turn(ctx)
             user_text = _maybe_add_gap_prefix(generated.text, gap_days, t_idx)
-            transcript_messages.append({"role": "user", "content": user_text})
+            user_message = {"role": "user", "content": user_text}
+            full_transcript.append(user_message)
+            session_transcript.append(user_message)
 
+            history_view = _history_view(
+                full_transcript=full_transcript,
+                session_transcript=session_transcript,
+                system_prompt=config.system_prompt,
+                policy=config.history_policy,
+            )
+            request_messages, context_estimated_tokens, truncated_messages = (
+                _apply_recency_budget(
+                    history_view,
+                    token_budget=config.history_token_budget,
+                )
+            )
+
+            call_started = time.perf_counter()
             sut_resp = sut_client.chat(
-                messages=transcript_messages.copy(),
+                messages=request_messages,
                 session_id=session_id,
                 user_id=None,
                 max_tokens=config.sut_max_tokens,
                 temperature=config.sut_temperature,
             )
+            sut_latency_ms = (time.perf_counter() - call_started) * 1000.0
             assistant_text = sut_resp.text
-            transcript_messages.append({"role": "assistant", "content": assistant_text})
+            assistant_message = {"role": "assistant", "content": assistant_text}
+            full_transcript.append(assistant_message)
+            session_transcript.append(assistant_message)
             sim.append_assistant(assistant_text)
 
             turns.append(
@@ -257,6 +298,11 @@ def run_arc(
                     sut_prompt_tokens=sut_resp.usage_prompt_tokens,
                     sut_completion_tokens=sut_resp.usage_completion_tokens,
                     sut_telemetry=_extract_companionbench_telemetry(sut_resp),
+                    sut_latency_ms=round(sut_latency_ms, 3),
+                    context_history_policy=config.history_policy,
+                    context_message_count=len(request_messages),
+                    context_estimated_tokens=context_estimated_tokens,
+                    context_truncated_messages=truncated_messages,
                 ),
             )
 
@@ -290,6 +336,26 @@ def run_arc(
             "identity_occupation": sim.identity.occupation,
             "lexicon_version": sim.identity.lexicon_version,
             "total_turns": sum(len(s.turns) for s in sessions),
+            "history_policy": config.history_policy,
+            "history_token_budget": config.history_token_budget,
+            "context_truncated_messages": sum(
+                turn.context_truncated_messages
+                for session in sessions
+                for turn in session.turns
+            ),
+            "sut_prompt_tokens": sum(
+                turn.sut_prompt_tokens or 0
+                for session in sessions
+                for turn in session.turns
+            ),
+            "sut_latency_ms": round(
+                sum(
+                    turn.sut_latency_ms
+                    for session in sessions
+                    for turn in session.turns
+                ),
+                3,
+            ),
         },
     )
 
@@ -319,6 +385,92 @@ def _derive_arc_id(*, submission_id: str, scenario_id: str, paraphrase_seed: int
 def _draw_turn_count(*, rng: random.Random, spec: ScenarioSpec) -> int:
     lo, hi = spec.session_turn_range
     return rng.randint(lo, hi)
+
+
+def _history_view(
+    *,
+    full_transcript: list[dict[str, str]],
+    session_transcript: list[dict[str, str]],
+    system_prompt: str,
+    policy: str,
+) -> list[dict[str, str]]:
+    """Return the explicit context arm for one SUT request.
+
+    ``full`` is the steelman long-context control and never resets between
+    sessions. ``session`` preserves the historical benchmark behaviour.
+    ``stateless`` keeps only the persona system message (when present) and the
+    current user observation.
+    """
+
+    if policy == "full":
+        return list(full_transcript)
+    if policy == "session":
+        return list(session_transcript)
+    if policy != "stateless":
+        raise ValueError(f"unsupported history policy {policy!r}")
+    latest_user = full_transcript[-1]
+    if latest_user.get("role") != "user":
+        raise ValueError("stateless history requires the latest message to be user")
+    messages: list[dict[str, str]] = []
+    if system_prompt.strip():
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append(latest_user)
+    return messages
+
+
+def _estimated_message_tokens(message: dict[str, str]) -> int:
+    """Conservative, model-agnostic context estimate used only for truncation.
+
+    OpenAI-compatible endpoints do not expose a standard preflight tokenizer.
+    We therefore use an auditable UTF-8 byte estimate (four bytes per token,
+    rounded up) plus four chat-envelope tokens. The SUT-reported
+    ``usage_prompt_tokens`` remains the authoritative observed cost.
+    """
+
+    content = message.get("content")
+    role = message.get("role")
+    if not isinstance(content, str) or not isinstance(role, str):
+        raise ValueError(f"history messages require string role/content: {message!r}")
+    byte_count = len(content.encode("utf-8"))
+    return 4 + max(1, (byte_count + 3) // 4)
+
+
+def _apply_recency_budget(
+    messages: list[dict[str, str]],
+    *,
+    token_budget: int | None,
+) -> tuple[list[dict[str, str]], int, int]:
+    """Recency-truncate a context view while preserving system + latest user."""
+
+    costs = tuple(_estimated_message_tokens(message) for message in messages)
+    total = sum(costs)
+    if token_budget is None or total <= token_budget:
+        return list(messages), total, 0
+
+    system_prefix: list[dict[str, str]] = []
+    system_cost = 0
+    start = 0
+    if messages and messages[0].get("role") == "system":
+        system_prefix = [messages[0]]
+        system_cost = costs[0]
+        start = 1
+    latest = messages[-1]
+    latest_cost = costs[-1]
+    if system_cost + latest_cost > token_budget:
+        raise ValueError(
+            "history_token_budget cannot fit the required system/latest-user "
+            f"messages: required={system_cost + latest_cost}, budget={token_budget}"
+        )
+    selected_reversed = [latest]
+    used = system_cost + latest_cost
+    for index in range(len(messages) - 2, start - 1, -1):
+        cost = costs[index]
+        if used + cost > token_budget:
+            break
+        selected_reversed.append(messages[index])
+        used += cost
+    selected = system_prefix + list(reversed(selected_reversed))
+    return selected, used, len(messages) - len(selected)
 
 
 def _maybe_add_gap_prefix(text: str, gap_days: int, turn_index: int) -> str:

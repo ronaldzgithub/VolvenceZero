@@ -121,6 +121,102 @@ def test_run_arc_passes_metadata_session_id_per_session(tmp_path: pathlib.Path) 
     assert len(arc_prefixes) == 1
 
 
+def test_default_session_history_resets_at_session_boundary(tmp_path: pathlib.Path) -> None:
+    spec = _load(tmp_path)
+    sut = EchoFakeSUTClient()
+    run_arc(
+        spec=spec,
+        paraphrase_seed=0,
+        sut_client=sut,
+        user_backend=DeterministicFakeUtteranceClient(),
+        config=ArcRunConfig(submission_id="session", user_simulator_model="fake"),
+    )
+    first_session_id = sut.calls[0]["session_id"]
+    first_session_texts = {
+        message["content"]
+        for call in sut.calls
+        if call["session_id"] == first_session_id
+        for message in call["messages"]
+    }
+    second_session_first = next(
+        call for call in sut.calls if call["session_id"] != first_session_id
+    )
+    assert not first_session_texts.intersection(
+        message["content"] for message in second_session_first["messages"]
+    )
+
+
+def test_full_history_carries_prior_sessions_without_reset(tmp_path: pathlib.Path) -> None:
+    spec = _load(tmp_path)
+    sut = EchoFakeSUTClient()
+    record = run_arc(
+        spec=spec,
+        paraphrase_seed=0,
+        sut_client=sut,
+        user_backend=DeterministicFakeUtteranceClient(),
+        config=ArcRunConfig(
+            submission_id="full",
+            user_simulator_model="fake",
+            history_policy="full",
+        ),
+    )
+    first_session_id = sut.calls[0]["session_id"]
+    first_user_text = next(
+        message["content"]
+        for message in sut.calls[0]["messages"]
+        if message["role"] == "user"
+    )
+    second_session_first = next(
+        call for call in sut.calls if call["session_id"] != first_session_id
+    )
+    assert first_user_text in {
+        message["content"] for message in second_session_first["messages"]
+    }
+    assert record.summary_extra["history_policy"] == "full"
+
+
+def test_stateless_history_only_sends_system_and_latest_user(tmp_path: pathlib.Path) -> None:
+    spec = _load(tmp_path)
+    sut = EchoFakeSUTClient()
+    run_arc(
+        spec=spec,
+        paraphrase_seed=0,
+        sut_client=sut,
+        user_backend=DeterministicFakeUtteranceClient(),
+        config=ArcRunConfig(
+            submission_id="stateless",
+            user_simulator_model="fake",
+            history_policy="stateless",
+            system_prompt="stable persona",
+        ),
+    )
+    assert all(
+        [message["role"] for message in call["messages"]] == ["system", "user"]
+        for call in sut.calls
+    )
+
+
+def test_full_history_recency_budget_is_audited(tmp_path: pathlib.Path) -> None:
+    spec = _load(tmp_path)
+    sut = EchoFakeSUTClient()
+    record = run_arc(
+        spec=spec,
+        paraphrase_seed=0,
+        sut_client=sut,
+        user_backend=DeterministicFakeUtteranceClient(),
+        config=ArcRunConfig(
+            submission_id="budgeted",
+            user_simulator_model="fake",
+            history_policy="full",
+            history_token_budget=120,
+        ),
+    )
+    audited_turns = [turn for session in record.sessions for turn in session.turns]
+    assert any(turn.context_truncated_messages > 0 for turn in audited_turns)
+    assert all(turn.context_estimated_tokens <= 120 for turn in audited_turns)
+    assert record.summary_extra["context_truncated_messages"] > 0
+
+
 def test_run_arc_arc_id_stable_for_same_inputs(tmp_path: pathlib.Path) -> None:
     spec = _load(tmp_path)
     sut1 = EchoFakeSUTClient()

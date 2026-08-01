@@ -33,7 +33,7 @@ from companion_bench.aggregator import (
     aggregate_arc,
     aggregate_submission,
 )
-from companion_bench.arc_runner import ArcRecord, ArcRunConfig, run_arc, write_arc_record
+from companion_bench.arc_runner import ArcRecord, ArcRunConfig, run_arc
 from companion_bench.callback_ledger import (
     CallbackLedger,
     HeuristicCallbackExtractor,
@@ -57,11 +57,11 @@ from companion_bench.judge_perturn import (
     PerTurnJudge,
     score_arc_perturn,
 )
-from companion_bench.spec import AxisId, ScenarioSpec, scenario_hash
-
-_LOG = logging.getLogger("companion_bench.submission")
+from companion_bench.spec import AxisId, ScenarioSpec
 from companion_bench.sut_client import SUTClient
 from companion_bench.user_simulator import UtteranceClient
+
+_LOG = logging.getLogger("companion_bench.submission")
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +345,12 @@ def _arc_run_config_from_manifest(
         sut_max_tokens=max_tokens,
         sut_temperature=temperature,
         system_prompt=manifest.system_prompt,
+        history_policy=str(gen.get("history_policy", "session")),
+        history_token_budget=(
+            int(gen["history_token_budget"])
+            if gen.get("history_token_budget") is not None
+            else None
+        ),
     )
 
 
