@@ -351,7 +351,38 @@ def main() -> int:
     _verify_model(simulator)
     if sut["model_family"] == simulator["model_family"]:
         raise ValueError("formal SUT and simulator model families overlap")
+    formal = preregistration.get("formal_run")
+    scenario_paths = preregistration.get("scenario_paths")
+    if not isinstance(formal, dict) or not isinstance(scenario_paths, dict):
+        raise ValueError("formal run metadata is malformed")
+    seeds = formal.get("paraphrase_seeds")
+    scenario_ids = preregistration.get("scenario_ids")
+    if not isinstance(seeds, list) or not isinstance(scenario_ids, list):
+        raise ValueError("formal case schedule is malformed")
+    if args.device != formal.get("execution_device"):
+        raise ValueError("execution device differs from preregistration")
+    simulator_backend = LocalTransformersUtteranceClient(
+        model_id=str(simulator["model_id"]),
+        device=args.device,
+        local_files_only=True,
+        max_new_tokens=int(simulator["max_new_tokens"]),
+    )
     if args.preflight_only:
+        script_digests = {}
+        for scenario_id in scenario_ids:
+            for seed in seeds:
+                spec = load_scenario_yaml(
+                    root / str(scenario_paths[str(scenario_id)])
+                )
+                script = build_frozen_seven_day_user_script(
+                    spec=spec,
+                    paraphrase_seed=int(seed),
+                    backend=simulator_backend,
+                    temperature=float(simulator["temperature"]),
+                )
+                script_digests[
+                    f"{scenario_id}:seed-{seed}"
+                ] = script.script_sha256
         print(
             json.dumps(
                 {
@@ -359,6 +390,8 @@ def main() -> int:
                     "sut_model_id": sut["model_id"],
                     "simulator_model_id": simulator["model_id"],
                     "device": args.device,
+                    "validated_script_count": len(script_digests),
+                    "script_sha256": script_digests,
                 },
                 sort_keys=True,
             )
@@ -385,25 +418,12 @@ def main() -> int:
             raise ValueError("existing synthetic source audit drift")
     else:
         source_audit_path.write_bytes(source_audit_bytes)
-    simulator_backend = LocalTransformersUtteranceClient(
-        model_id=str(simulator["model_id"]),
-        device=args.device,
-        local_files_only=True,
-        max_new_tokens=int(simulator["max_new_tokens"]),
-    )
-    formal = preregistration["formal_run"]
-    assert isinstance(formal, dict)
-    seeds = formal["paraphrase_seeds"]
-    scenario_ids = preregistration["scenario_ids"]
-    assert isinstance(seeds, list) and isinstance(scenario_ids, list)
     all_cases = tuple(
         SevenDayExperimentCase(str(scenario_id), int(seed))
         for scenario_id in scenario_ids
         for seed in seeds
     )
     cases = all_cases[:1] if args.smoke_one_run else all_cases
-    scenario_paths = preregistration["scenario_paths"]
-    assert isinstance(scenario_paths, dict)
     scripts = {}
     script_root = target / "user_scripts"
     script_root.mkdir(parents=True, exist_ok=True)
@@ -429,6 +449,7 @@ def main() -> int:
                 spec=spec,
                 paraphrase_seed=case.paraphrase_seed,
                 backend=simulator_backend,
+                temperature=float(simulator["temperature"]),
             )
             script_path.write_bytes(_canonical_bytes(script.to_json()))
             print(f"[script-complete] {case.case_id}", flush=True)

@@ -161,6 +161,7 @@ class UserSimulator:
         spec: ScenarioSpec,
         paraphrase_seed: int,
         backend: UtteranceClient,
+        temperature: float = 0.0,
     ) -> None:
         if paraphrase_seed < 0 or paraphrase_seed >= spec.paraphrase_seed_count:
             raise ValueError(
@@ -170,6 +171,9 @@ class UserSimulator:
         self._spec = spec
         self._paraphrase_seed = paraphrase_seed
         self._backend = backend
+        if temperature < 0.0 or temperature > 2.0:
+            raise ValueError("temperature must be in [0, 2]")
+        self._temperature = temperature
         self._identity = draw_identity(
             scenario_id=spec.scenario_id,
             paraphrase_seed=paraphrase_seed,
@@ -203,7 +207,7 @@ class UserSimulator:
         text = self._backend.complete(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=0.0,
+            temperature=self._temperature,
             seed=backend_seed,
         )
         # Light paraphrase nonce: consume one rng draw so the simulator
@@ -533,10 +537,8 @@ class LocalTransformersUtteranceClient:
         temperature: float,
         seed: int,
     ) -> str:
-        if temperature != 0.0:
-            raise ValueError(
-                "formal local utterance rendering requires temperature=0"
-            )
+        if temperature < 0.0 or temperature > 2.0:
+            raise ValueError("local utterance temperature must be in [0, 2]")
         prompt = self._tokenizer.apply_chat_template(
             (
                 {"role": "system", "content": system_prompt},
@@ -552,16 +554,27 @@ class LocalTransformersUtteranceClient:
         }
         input_length = int(model_inputs["input_ids"].shape[-1])
         self._torch.manual_seed(seed)
+        if self._device == "mps":
+            self._torch.mps.manual_seed(seed)
+        do_sample = temperature > 0.0
         with self._torch.inference_mode():
-            generated = self._model.generate(
-                **model_inputs,
-                max_new_tokens=self._max_new_tokens,
-                do_sample=False,
-                pad_token_id=(
+            generation_options: dict[str, object] = {
+                "max_new_tokens": self._max_new_tokens,
+                "do_sample": do_sample,
+                "pad_token_id": (
                     self._tokenizer.pad_token_id
                     if self._tokenizer.pad_token_id is not None
                     else self._tokenizer.eos_token_id
                 ),
+            }
+            if do_sample:
+                generation_options.update(
+                    temperature=temperature,
+                    top_p=0.9,
+                )
+            generated = self._model.generate(
+                **model_inputs,
+                **generation_options,
             )
         text = self._tokenizer.decode(
             generated[0][input_length:],

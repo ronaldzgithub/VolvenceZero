@@ -24,11 +24,13 @@ SEVEN_DAY_SCENARIO_IDS = (
 )
 SEVEN_DAY_FORMAL_SEEDS = (1501,)
 SEVEN_DAY_PREREG_CODE_PATHS = (
+    "packages/lifeform-service/src/lifeform_service/app.py",
     "packages/lifeform-evolution/src/lifeform_evolution/seven_day_companion.py",
     "packages/lifeform-evolution/src/lifeform_evolution/seven_day_process_host.py",
     "packages/lifeform-evolution/src/lifeform_evolution/seven_day_state_control.py",
     "packages/companion-bench/src/companion_bench/seven_day_driver.py",
     "packages/companion-bench/src/companion_bench/user_simulator.py",
+    "packages/vz-cognition/src/volvence_zero/evaluation/relationship_continuity.py",
     "packages/vz-runtime/src/volvence_zero/agent/seven_day_companion_evidence.py",
     "packages/vz-runtime/src/volvence_zero/agent/gate811_simulated_capture.py",
     "packages/vz-runtime/src/volvence_zero/agent/seven_day_companion_preregistration.py",
@@ -109,29 +111,29 @@ def build_seven_day_companion_preregistration(
             "six_process_restarts_per_run": True,
             "virtual_calendar_day_gap_ms": 86_400_000,
             "virtual_start_ms": 1_800_000_000_000,
+            "execution_device": "mps",
         },
         "formal_models": {
             "sut": {
-                "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
-                "model_family": "qwen",
-                "weights_sha256": (
-                    "857fff1d6ea77f337a33305e4ad259b59"
-                    "a8a4dd039df027f8df902521432bbdc"
-                ),
+                "model_id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+                "model_family": "smollm",
+                "weights_sha256": "f2a59a2f8f71f33baf444c37bf0ea1901211e237d2b970fcb91335c278b4b9ad",
                 "local_files_only": True,
                 "frozen": True,
-                "max_new_tokens": 64,
+                "max_new_tokens": 96,
             },
             "simulator": {
-                "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-                "model_family": "llama",
-                "weights_sha256": (
-                    "3038d9115f898a2a433c1f5276fc7a02"
-                    "dc4b7713c6b69465d3f5e00b167c4059"
-                ),
+                "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+                "model_family": "qwen",
+                "weights_sha256": "fb8c44c48b8359fdd306cdc5f473d7c04d88955013f0dd8549f266e248194da4",
                 "local_files_only": True,
                 "temperature": 0.0,
-                "max_new_tokens": 32,
+                "top_p": 1.0,
+                "max_new_tokens": 12,
+                "rendering_contract": (
+                    "typed-FSM substantive draft plus closed-list local-LLM "
+                    "style-opener selection"
+                ),
             },
         },
         "source_requirements": {
@@ -143,6 +145,7 @@ def build_seven_day_companion_preregistration(
             "judge_family_must_differ_when_present": True,
             "model_and_adapter_fingerprint_exact_across_arms": True,
             "frozen_user_script_exact_across_arms": True,
+            "typed_fsm_substantive_content_cannot_be_rewritten_by_simulator": True,
         },
         "interventions": {
             "correct-user-state": "load same-user owner snapshots in order",
@@ -168,7 +171,13 @@ def build_seven_day_companion_preregistration(
                 "end_scene_slow_loop_drain",
             ],
             "state_archive_and_loaded_copy_sha256_required": True,
+            "measurement_checkpoint_excluded_from_state_intervention": True,
+            "measurement_checkpoint_preserved_sha256_required": True,
             "state_files_are_archived_without_deletion": True,
+            "daily_console_probe_policy": (
+                "keep first sorted pending memory proposal; delete second sorted "
+                "pending memory proposal using content_inaccurate"
+            ),
         },
         "readouts": {
             "daily_owner_metrics": list(SEVEN_DAY_METRICS),
@@ -178,6 +187,7 @@ def build_seven_day_companion_preregistration(
             "fsm_probe_pass_rate": "secondary when typed scorer is present",
             "llm_judge": "secondary-only",
             "missing_metric_policy": "no imputation; fail metric-coverage gate",
+            "console_metrics_source": "public relationship-memory action API",
             "evaluation_writeback_allowed": False,
         },
         "minimum_effects": {

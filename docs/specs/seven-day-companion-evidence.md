@@ -1,6 +1,6 @@
 # Seven-Day Simulated Companion Evidence Spec
 
-> Status: tooling + preregistration complete; formal product-path run not started
+> Status: tooling + final preregistration + product-path smoke complete; formal 36-run matrix running
 > Last updated: 2026-08-01
 > 对应需求: R5、R6、R7、R8、R12、R15
 > 关联债务: #93（只提供 simulated-longitudinal 辅助证据，不关闭 real-user EXIT）
@@ -25,8 +25,9 @@ EXIT。
   lifecycle port；不 import 或直调 Brain 内部 owner。它发布
   `seven-day-companion-run.v1` 与每日 `seven-day-companion-day.v1`。
 - `companion-bench.FrozenSevenDayUserScript` 是每个 `(scenario, seed)` 的冻结用户输入
-  owner。LLM/FSM 先渲染 35 个 user turns，各消融臂逐字节重放；臂间 assistant response
-  不得回头改变用户输入。
+  owner。typed FSM 先生成不可变的实质句，本地 Qwen 只从封闭候选中选择语气开场；
+  它不得改写事实、preference、boundary 或 callback。35 个 turns 通过 SHA 冻结，各消融
+  臂逐字节重放；臂间 assistant response 不得回头改变用户输入。
 - `vz-runtime.seven_day_companion_evidence` 是 out-of-turn evaluation owner，只读 run
   artifact，发布 `seven-day-companion-ablation.v1`。结果禁止进入 PE、credit、reward、
   ModificationGate 或 owner hydration。
@@ -37,7 +38,8 @@ EXIT。
 
 每个场景固定 7 sessions、每天 5 exchanges、相邻 session 虚拟时间间隔
 `86_400_000 ms`。每天顺序为：create session → cold-start readout → 5 turns →
-end-scene → end-of-day readout → pilot capture → close/persist。Day 1–6 后必须产生新的
+console `keep/delete` probe → end-of-day readout → end-scene → pilot capture → close/persist。
+readout 必须位于 end-scene 之前，因为 end-scene 会清空当前上游快照。Day 1–6 后必须产生新的
 service instance identity，health check 成功且 persistence scope 不变；Day N+1 在同一
 user scope 建 session，由 owner 正式 hydration 路径读取状态。
 
@@ -45,7 +47,9 @@ user scope 建 session，由 owner 正式 hydration 路径读取状态。
 进程、轮询 `/v1/health`、再把 HTTP client 绑定到新的 generation/PID identity。state
 controller 只允许操作显式 evidence root 的子目录，不删除数据：当天 active scope 原子
 rename 为 immutable `day-N` archive，再按臂把来源 archive copy 到下一实例的 active
-scope；archive 与 loaded copy 都发布 SHA-256。
+scope；archive 与 loaded copy 都发布 SHA-256。`evaluation__relationship_continuity_v1.json`
+是测量 checkpoint，不属于被操纵的产品 owner state：state digest 明确排除它，所有臂在
+staging 后恢复当臂自己的 measurement bytes，并单独发布 SHA-256。
 
 service 的 `observed_at_ms` 覆盖只在显式 `allow_evidence_time_override` 模式开放；产品
 默认拒绝客户端伪造时间。
@@ -76,26 +80,31 @@ Sleep 两臂：`sleep-consolidation` 在 end-scene drain slow loop，`no-sleep` 
 各臂必须共享 scenario、seed、35 个 user turns、虚拟日历、SUT model/adapter fingerprint
 和模型版本；唯一操纵变量是 state loading policy 或 slow-loop drain。
 
+每天通过公开 relationship-memory console API 对排序第一、第二的 pending memory proposal
+分别执行 `keep` 与 `delete(content_inaccurate)`；两项行为在所有臂完全相同，提供 console、
+correction、wrong-attribution 与 usefulness 的真实分母，不做指标插补，也不直调 owner。
+
 每日记录七项 owner readout、cold-start/end-of-day 两个 phase、typed callback
-opportunity 与可选 `fsm_probe_pass_rate`。主判据不做缺失值插补：七项任一为 `null` 时
-composite 为 `null`，formal metric-coverage gate 失败。LLM judge 和 FSM semantic scorer
-只能是次级 readout。
+opportunity 与可选 `fsm_probe_pass_rate`。主判据不做缺失值插补：单个 phase 七项任一为
+`null` 时该 phase composite 为 `null`；coverage gate 要求 Day-7 composite、callback pair
+和 Day 2–7 至少一个完整 cold-start composite 对每个预注册 case 成对齐全。Day-1 只有一个
+trust point，允许其 trust delta 为 `null`。LLM judge 和 FSM semantic scorer只能是次级 readout。
 
 ## 冻结预注册与当前状态
 
 权威 preregistration：
-`artifacts/seven_day_companion_simulated_prereg_20260731T193423Z.json`，SHA-256
-`aa28e684c82faf14d63c2b3188633be670e2c822ad26d538dc1888d8a0fc73db`。正式矩阵冻结为
+`artifacts/seven_day_companion_simulated_prereg_20260731T222910Z.json`，SHA-256
+`9ae32c6cf4c7484502f21ce090532ff5c9f31c793364d40e75e24501fcb8792c`。正式矩阵冻结为
 6 scenarios × seed `1501` × 6 arms = 36 runs、252 sessions、1260 exchanges；formal
-禁止 deterministic fake，模拟用户与 SUT 必须来自不同模型家族。
+禁止 deterministic fake。模拟器为冻结的 `Qwen/Qwen2.5-1.5B-Instruct`（Qwen family），
+SUT 为冻结的 `HuggingFaceTB/SmolLM2-360M-Instruct`（SmolLM family），设备固定 MPS。
 
-截至 2026-08-01，编排、场景、分析、capture 与 blind-packet 工具已经完成，但 36-run
-产品路径工件尚不存在，因此状态是 `not-run / no causal result yet`。没有“通过”、
-“失败”或“没有提升”的 effect verdict；缺数据不能按零增益解释。
-环境/执行阻塞对账为
-`artifacts/seven_day_companion_formal_status_20260731T193423Z.json`。`192101Z`
-预注册在任何正式 run 前被本版的 state archive/load SHA-256 与 managed process host
-约束取代；supersession artifact 保留该方法学变更，不删除历史文件。
+截至 2026-08-01，最终 6-scenario/210-turn 模拟器预检通过；一条非 claim smoke 完成
+35 个真实 SUT 回合、14 个 console actions、6 次不同进程重启，run SHA-256 为
+`e5df2bb0bcafbec971b0ae1cb0dc97127731f6050b1d4ece684ce0f40a214a45`。正式 36-run
+矩阵正在 `artifacts/seven_day_companion_formal_20260731T222910Z/` 执行，因此状态仍是
+`running / no causal result yet`，没有“通过”“失败”或“没有提升”的 effect verdict。
+`193423Z` 在任何正式 outcome 前被本版取代，supersession artifact 保留方法学变更。
 
 ## Gate 8/11 v1 capture 兼容性
 

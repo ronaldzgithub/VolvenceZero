@@ -17,6 +17,7 @@ from volvence_zero.memory import scoped_memory_dir
 
 
 SEVEN_DAY_SHUFFLED_SOURCE_DAYS = (1, 1, 2, 1, 4, 3)
+_MEASUREMENT_CHECKPOINT_NAME = "evaluation__relationship_continuity_v1.json"
 _STATE_POLICY_BY_ARM = {
     "correct-user-state": "correct-user-state",
     "stateless": "stateless",
@@ -43,7 +44,11 @@ def _directory_sha256(root: Path) -> str:
     if not root.is_dir():
         raise FileNotFoundError(f"state directory does not exist: {root}")
     digest = hashlib.sha256()
-    for path in sorted(item for item in root.rglob("*") if item.is_file()):
+    for path in sorted(
+        item
+        for item in root.rglob("*")
+        if item.is_file() and item.name != _MEASUREMENT_CHECKPOINT_NAME
+    ):
         relative = path.relative_to(root).as_posix().encode("utf-8")
         digest.update(len(relative).to_bytes(8, "big"))
         digest.update(relative)
@@ -60,6 +65,7 @@ class StateInterventionEvidence:
     after_day_index: int
     archived_state_ref: str
     archived_state_sha256: str
+    measurement_checkpoint_sha256: str
     next_day_source_arm: str | None
     next_day_source_day_index: int | None
     next_day_loaded_state_sha256: str | None
@@ -72,6 +78,8 @@ class StateInterventionEvidence:
             raise ValueError("state intervention day must be in [1, 6]")
         if len(self.archived_state_sha256) != 64:
             raise ValueError("archived state digest must be SHA-256")
+        if len(self.measurement_checkpoint_sha256) != 64:
+            raise ValueError("measurement checkpoint digest must be SHA-256")
         if self.state_loading_policy == "stateless":
             if any(
                 value is not None
@@ -182,6 +190,13 @@ class SevenDayFilesystemStateController:
         archive = self._archive_root / f"day-{day_index}"
         if archive.exists():
             raise FileExistsError(f"state archive is immutable: {archive}")
+        measurement_path = active / _MEASUREMENT_CHECKPOINT_NAME
+        if not measurement_path.is_file():
+            raise FileNotFoundError(
+                "relationship continuity measurement checkpoint is missing"
+            )
+        measurement_bytes = measurement_path.read_bytes()
+        measurement_sha = hashlib.sha256(measurement_bytes).hexdigest()
         archive.parent.mkdir(parents=True, exist_ok=True)
         active.rename(archive)
         archived_sha = _directory_sha256(archive)
@@ -195,12 +210,21 @@ class SevenDayFilesystemStateController:
             loaded_sha = _directory_sha256(active)
             if loaded_sha != _directory_sha256(source):
                 raise RuntimeError("staged owner state digest drift")
+        else:
+            active.mkdir(parents=True)
+        staged_measurement_path = active / _MEASUREMENT_CHECKPOINT_NAME
+        staged_measurement_path.write_bytes(measurement_bytes)
+        if hashlib.sha256(staged_measurement_path.read_bytes()).hexdigest() != (
+            measurement_sha
+        ):
+            raise RuntimeError("measurement checkpoint changed during state staging")
         return StateInterventionEvidence(
             experiment_arm_label=self._experiment_arm_label,
             state_loading_policy=self._policy,
             after_day_index=day_index,
             archived_state_ref=str(archive.relative_to(self._evidence_root)),
             archived_state_sha256=archived_sha,
+            measurement_checkpoint_sha256=measurement_sha,
             next_day_source_arm=source_arm,
             next_day_source_day_index=source_day,
             next_day_loaded_state_sha256=loaded_sha,

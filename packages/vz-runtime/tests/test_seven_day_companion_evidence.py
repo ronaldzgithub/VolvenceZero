@@ -74,7 +74,11 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                     ),
                     "assistant_text": f"{arm} response",
                     "fsm_action": "callback_probe" if tags == ["callback"] else None,
-                    "fsm_payload": None,
+                    "fsm_payload": (
+                        "typed payload"
+                        if day_index == 1 and exchange_index == 1
+                        else None
+                    ),
                     "event_tags": tags,
                     "fsm_probe_passed": score >= 0.8 if tags else None,
                 }
@@ -101,6 +105,7 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                     "after_day_index": day_index,
                     "archived_state_ref": f"archive/day-{day_index}",
                     "archived_state_sha256": "4" * 64,
+                    "measurement_checkpoint_sha256": "6" * 64,
                     "next_day_source_arm": (
                         "correct-user-state" if stateful else None
                     ),
@@ -128,6 +133,28 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                 "service_instance_id": f"i-{day_index}",
                 "cold_start_continuity_metrics": _metrics(score),
                 "turns": turns,
+                "console_probe_actions": [
+                    {
+                        "item_id": f"proposal:{day_index}:keep",
+                        "action_id": f"action:{day_index}:keep",
+                        "action": "keep",
+                        "correction_kind": None,
+                        "replacement_sha256": None,
+                        "created_at_ms": 1_800_000_000_000
+                        + (day_index - 1) * 86_400_000,
+                        "status": "applied",
+                    },
+                    {
+                        "item_id": f"proposal:{day_index}:delete",
+                        "action_id": f"action:{day_index}:delete",
+                        "action": "delete",
+                        "correction_kind": "content_inaccurate",
+                        "replacement_sha256": None,
+                        "created_at_ms": 1_800_000_000_000
+                        + (day_index - 1) * 86_400_000,
+                        "status": "applied",
+                    },
+                ],
                 "continuity_metrics": _metrics(score),
                 "pilot_day_evidence_ref": "pilot.json",
                 "pilot_day_transcript_sha256": "2" * 64,

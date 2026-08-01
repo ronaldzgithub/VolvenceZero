@@ -617,29 +617,31 @@ SHA-256 `8bcabb75a6d63068d3dc40e6cbd7e9497560f17cab364017a1cfb76b6fb8f3c2`。
 该 artifact 同时冻结 `production_live_promotion_authorized=false`；v2 即使未来 retained，
 也不自动翻转任何 `WiringLevel`。
 
-## 16. 七天自动化证据闭环：工具完成，不等于新增益已取得
+## 16. 七天自动化证据闭环：真实产品路径已跑通，正式矩阵运行中
 
 2026-08-01 完成了 simulated user × 真实七日 lifecycle 的证据执行面：六个
 scenario（3 persona × 渐进升温/裂痕修复）、每场 7 sessions × 5 exchanges、每日
 cold-start/end-of-day 七项 readout、6 次 persist/restart/hydrate 边界、Gate 11 四臂、
 Gate 8 sleep 两臂，以及 Gate 8/11 v1 capture→blind packet 适配器。各臂共享冻结的
-35 个 user turns，evaluation 只读且不回灌学习。
+35 个 user turns，evaluation 只读且不回灌学习。最终模拟用户由 typed FSM 固定实质句，
+本地 Qwen 只选择封闭式语气开场，避免模型改写 preference、boundary 与 callback；SUT
+使用不同家族的本地 SmolLM2。
 
 正式协议已冻结为
-[`seven_day_companion_simulated_prereg_20260731T193423Z.json`](../artifacts/seven_day_companion_simulated_prereg_20260731T193423Z.json)，
-SHA-256 `aa28e684c82faf14d63c2b3188633be670e2c822ad26d538dc1888d8a0fc73db`。正式矩阵是
+[`seven_day_companion_simulated_prereg_20260731T222910Z.json`](../artifacts/seven_day_companion_simulated_prereg_20260731T222910Z.json)，
+SHA-256 `9ae32c6cf4c7484502f21ce090532ff5c9f31c793364d40e75e24501fcb8792c`。正式矩阵是
 36 runs / 252 sessions / 1260 exchanges，禁止 deterministic fake，且 user simulator 与
 SUT 必须跨模型家族。
 
-但截至本次对账，正式 run 工件尚不存在，所以这里**没有新增“稳定净增益”结论**，也不能
-说实验发现“没有提升”：正确状态是 `not-run / no causal result yet`。工具测试只证明
-arm schedule、matching、指标缺失 fail-loud、capture 形状与盲化流程正确，不证明某臂
-效果更好。正式状态工件为
-[`seven_day_companion_formal_status_20260731T193423Z.json`](../artifacts/seven_day_companion_formal_status_20260731T193423Z.json)。较早的
-`192101Z` prereg 在任何 run 前被 process/state-attestation 强化版取代，未观察 outcome，
-不构成看结果后改协议。
+真实产品路径 smoke 已完成 7 sessions、35 个 SmolLM2 回复、14 个公开 console actions 和
+6 次不同进程 restart；archive/loaded owner digest 与独立 measurement digest 均通过机器
+复核，run SHA-256 为 `e5df2bb0bcafbec971b0ae1cb0dc97127731f6050b1d4ece684ce0f40a214a45`。
+这证明仪器能测，不证明某臂效果更好。正式 36-run 当前正在执行，所以这里**仍没有新增
+“稳定净增益”结论**，也不能说实验发现“没有提升”：正确状态是
+`running / no causal result yet`。`193423Z` prereg 在任何正式 outcome 前被最终的模型、
+measurement 隔离和 console probe 协议取代，未观察 outcome，不构成看结果后改协议。
 
 冻结 v1 没有限定聊天者必须真人，因此 simulated transcript 可以用于 pilot；真人评分后
 最多得到 `human-rated-simulated-user-transcripts-only`。它不能替代 #93 的 real-user
-product-value EXIT。盲评未完成、正式 run 未完成、production promotion 仍为 false，
+product-value EXIT。盲评未完成、正式矩阵尚未完成、production promotion 仍为 false，
 所有相关机制的现有 `WiringLevel` 均不因本工具链改变。

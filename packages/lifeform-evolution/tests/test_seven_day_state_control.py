@@ -41,6 +41,10 @@ def _write_active(
         value,
         encoding="utf-8",
     )
+    (
+        controller.active_scope_dir
+        / "evaluation__relationship_continuity_v1.json"
+    ).write_text(f"measurement:{value}", encoding="utf-8")
 
 
 def test_correct_state_archives_then_stages_exact_copy(tmp_path: Path) -> None:
@@ -53,6 +57,7 @@ def test_correct_state_archives_then_stages_exact_copy(tmp_path: Path) -> None:
     assert evidence.archived_state_sha256 == (
         evidence.next_day_loaded_state_sha256
     )
+    assert len(evidence.measurement_checkpoint_sha256) == 64
     assert (controller.active_scope_dir / "owner_v1.json").read_text() == (
         "day-one"
     )
@@ -65,7 +70,10 @@ def test_stateless_archives_without_staging_prior_state(tmp_path: Path) -> None:
     evidence = controller.archive_and_stage_after_day(day_index=1)
     assert evidence.next_day_source_arm is None
     assert evidence.next_day_loaded_state_sha256 is None
-    assert not controller.active_scope_dir.exists()
+    assert controller.active_scope_dir.is_dir()
+    assert tuple(path.name for path in controller.active_scope_dir.iterdir()) == (
+        "evaluation__relationship_continuity_v1.json",
+    )
     assert (tmp_path / "archive-stateless/day-1/owner_v1.json").is_file()
 
 
@@ -74,6 +82,10 @@ def test_swapped_state_loads_matched_donor_archive(tmp_path: Path) -> None:
     (donor / "day-1").mkdir(parents=True)
     (donor / "day-1/owner_v1.json").write_text(
         "donor-state",
+        encoding="utf-8",
+    )
+    (donor / "day-1/evaluation__relationship_continuity_v1.json").write_text(
+        "donor-measurement",
         encoding="utf-8",
     )
     controller = _controller(
@@ -90,6 +102,10 @@ def test_swapped_state_loads_matched_donor_archive(tmp_path: Path) -> None:
     assert (controller.active_scope_dir / "owner_v1.json").read_text() == (
         "donor-state"
     )
+    assert (
+        controller.active_scope_dir
+        / "evaluation__relationship_continuity_v1.json"
+    ).read_text() == "measurement:target-state"
 
 
 def test_shuffled_history_uses_frozen_non_monotonic_day_schedule(
@@ -100,6 +116,13 @@ def test_shuffled_history_uses_frozen_non_monotonic_day_schedule(
         (reference / f"day-{day_index}").mkdir(parents=True)
         (reference / f"day-{day_index}/owner_v1.json").write_text(
             f"reference-{day_index}",
+            encoding="utf-8",
+        )
+        (
+            reference
+            / f"day-{day_index}/evaluation__relationship_continuity_v1.json"
+        ).write_text(
+            f"reference-measurement-{day_index}",
             encoding="utf-8",
         )
     controller = _controller(

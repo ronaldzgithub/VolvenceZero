@@ -196,6 +196,9 @@ def _validate_source_run(run: Mapping[str, object], *, arm: str) -> None:
             or intervention.get("after_day_index") != day_index
         ):
             raise ValueError("capture source state intervention drift")
+        measurement_digest = intervention.get("measurement_checkpoint_sha256")
+        if not isinstance(measurement_digest, str) or len(measurement_digest) != 64:
+            raise ValueError("capture source measurement checkpoint is missing")
 
 
 def _events(day: Mapping[str, object]) -> frozenset[str]:

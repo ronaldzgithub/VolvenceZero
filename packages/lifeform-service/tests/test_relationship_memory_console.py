@@ -392,6 +392,47 @@ async def test_continuity_metrics_virtual_time_is_evidence_gated(
     assert calls[-1]["observed_at_ms"] == 1234
 
 
+async def test_console_action_virtual_time_is_evidence_gated(
+    aiohttp_client, tmp_path
+):
+    path = (
+        "/v1/users/me/relationship-memory/"
+        "relationship-update:test/action"
+    )
+    body = {
+        "session_id": "session-1",
+        "action": "keep",
+        "observed_at_ms": 1234,
+    }
+    blocked = await aiohttp_client(
+        _app(brain=_FakeBrain(proposal=_proposal()), tmp_path=tmp_path)
+    )
+    blocked_response = await blocked.post(
+        path,
+        headers={"X-Alpha-User": "alice"},
+        json=body,
+    )
+    assert blocked_response.status == 400
+    assert (await blocked_response.json())["error"] == (
+        "evidence_time_override_disabled"
+    )
+
+    enabled = await aiohttp_client(
+        _app(
+            brain=_FakeBrain(proposal=_proposal()),
+            tmp_path=tmp_path / "enabled",
+            allow_evidence_time_override=True,
+        )
+    )
+    response = await enabled.post(
+        path,
+        headers={"X-Alpha-User": "alice"},
+        json=body,
+    )
+    assert response.status == 201
+    assert (await response.json())["created_at_ms"] == 1234
+
+
 def test_action_ledger_round_trips_persistent_idempotency(tmp_path) -> None:
     ledger = RelationshipMemoryActionLedger(persistence_root=tmp_path)
     fingerprint = ledger.request_fingerprint(

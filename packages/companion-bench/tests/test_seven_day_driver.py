@@ -11,9 +11,6 @@ from companion_bench.seven_day_driver import (
     load_frozen_seven_day_user_script,
 )
 from companion_bench.spec import load_scenario_yaml
-from companion_bench.user_simulator import DeterministicFakeUtteranceClient
-
-
 SCENARIO = (
     Path(__file__).resolve().parents[1]
     / "src/companion_bench/scenarios/seven_day/"
@@ -21,11 +18,24 @@ SCENARIO = (
 )
 
 
+class _StyleFake:
+    def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+        seed: int,
+    ) -> str:
+        del system_prompt, user_prompt, temperature
+        return ("Honestly,", "Right now,")[seed % 2]
+
+
 def _script():
     return build_frozen_seven_day_user_script(
         spec=load_scenario_yaml(SCENARIO),
         paraphrase_seed=1401,
-        backend=DeterministicFakeUtteranceClient(),
+        backend=_StyleFake(),
     )
 
 
@@ -78,7 +88,7 @@ def test_frozen_script_round_trip_and_tamper_detection(tmp_path: Path) -> None:
     assert load_frozen_seven_day_user_script(path) == script
 
     payload = script.to_json()
-    payload["turns"][0]["text"] = "tampered"
+    payload["turns"][0]["text"] = "I tampered with this."
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError, match="digest drift"):
         load_frozen_seven_day_user_script(path)

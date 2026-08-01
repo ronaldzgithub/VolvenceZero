@@ -339,6 +339,30 @@ def _validate_run(
         typed_turns = tuple(
             _require_mapping(turn, field="turn") for turn in turns
         )
+        probe_actions = day.get("console_probe_actions")
+        if not isinstance(probe_actions, (list, tuple)) or len(probe_actions) != 2:
+            raise ValueError("day must contain exactly two console probe actions")
+        typed_actions = tuple(
+            _require_mapping(item, field="console_probe_action")
+            for item in probe_actions
+        )
+        if tuple(item.get("action") for item in typed_actions) != (
+            "keep",
+            "delete",
+        ):
+            raise ValueError("console probe action policy drift")
+        if typed_actions[0].get("item_id") == typed_actions[1].get("item_id"):
+            raise ValueError("console probe actions must target distinct proposals")
+        virtual_time = day.get("virtual_observed_at_ms")
+        if any(item.get("created_at_ms") != virtual_time for item in typed_actions):
+            raise ValueError("console probe virtual time drift")
+        if (
+            typed_actions[0].get("correction_kind") is not None
+            or typed_actions[0].get("replacement_sha256") is not None
+            or typed_actions[1].get("correction_kind") != "content_inaccurate"
+            or typed_actions[1].get("replacement_sha256") is not None
+        ):
+            raise ValueError("console probe typed correction policy drift")
         drained = day.get("end_scene_slow_loop_drained")
         expected_drained = envelope.arm_label != "no-sleep"
         if drained is not expected_drained:
@@ -364,6 +388,14 @@ def _validate_run(
             archived_digest = intervention.get("archived_state_sha256")
             if not isinstance(archived_digest, str) or len(archived_digest) != 64:
                 raise ValueError("state archive digest is missing")
+            measurement_digest = intervention.get(
+                "measurement_checkpoint_sha256"
+            )
+            if (
+                not isinstance(measurement_digest, str)
+                or len(measurement_digest) != 64
+            ):
+                raise ValueError("measurement checkpoint digest is missing")
             source_day = intervention.get("next_day_source_day_index")
             loaded_digest = intervention.get("next_day_loaded_state_sha256")
             if expected_policy == "stateless":

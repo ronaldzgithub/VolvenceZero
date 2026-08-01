@@ -67,6 +67,42 @@ class _Service:
         self.events.append(("metrics", (session_id, observed_at_ms)))
         return dict(_METRICS)
 
+    def relationship_memory(
+        self, *, session_id: str
+    ) -> Mapping[str, object]:
+        self.events.append(("memory", session_id))
+        return {
+            "pending_proposals": [
+                {
+                    "proposal_id": f"{session_id}:proposal-{index}",
+                    "target_owner_slot": "memory",
+                }
+                for index in (1, 2)
+            ],
+            "durable_entries": [{"entry_id": "memory-1"}],
+        }
+
+    def relationship_memory_action(
+        self,
+        *,
+        session_id: str,
+        item_id: str,
+        action: str,
+        observed_at_ms: int,
+        replacement: str | None = None,
+        correction_kind: str | None = None,
+    ) -> Mapping[str, object]:
+        self.events.append(("memory-action", (item_id, action)))
+        return {
+            "item_id": item_id,
+            "action_id": f"action:{item_id}",
+            "action": action,
+            "status": "applied",
+            "created_at_ms": observed_at_ms,
+            "replacement": replacement,
+            "correction_kind": correction_kind,
+        }
+
     def close_session(self, *, session_id: str) -> Mapping[str, object]:
         self.events.append(("close", session_id))
         return {"closed": True}
@@ -91,6 +127,7 @@ class _Lifecycle:
                 after_day_index=day_index,
                 archived_state_ref=f"archive/day-{day_index}",
                 archived_state_sha256="3" * 64,
+                measurement_checkpoint_sha256="4" * 64,
                 next_day_source_arm="correct-user-state",
                 next_day_source_day_index=day_index,
                 next_day_loaded_state_sha256="3" * 64,
@@ -193,10 +230,21 @@ def test_orchestrator_runs_seven_days_with_six_real_restart_boundaries(
     assert run.external_human_value_claim_allowed is False
     assert run.production_promotion_authorized is False
     assert all(len(day.turns) == 5 for day in run.days)
+    assert all(
+        tuple(item.action for item in day.console_probe_actions)
+        == ("keep", "delete")
+        for day in run.days
+    )
     assert all(day.owner_persisted_before_restart for day in run.days)
     assert len({day.service_instance_id for day in run.days}) == 7
     assert (tmp_path / "run.json").is_file()
     assert len(list((tmp_path / "pilot").rglob("day-*-transcript.json"))) == 7
+    end_indexes = [
+        index
+        for index, (event, _) in enumerate(service.events)
+        if event == "end"
+    ]
+    assert all(service.events[index - 1][0] == "metrics" for index in end_indexes)
 
 
 def test_schedule_must_cover_all_three_l4_event_families() -> None:

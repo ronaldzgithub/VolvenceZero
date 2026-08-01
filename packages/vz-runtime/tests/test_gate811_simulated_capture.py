@@ -75,6 +75,7 @@ def _run(case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                     "state_loading_policy": policy,
                     "after_day_index": day_index,
                     "archived_state_sha256": "4" * 64,
+                    "measurement_checkpoint_sha256": "6" * 64,
                     "next_day_source_day_index": (
                         day_index if stateful else None
                     ),

@@ -2179,9 +2179,10 @@ return (
   `240742e54524b657fb3803382d93af4e651f59f5fb8c8be9e85823ffd5bb95af`。2026-08-01
   又完成七日模拟用户 × 产品生命周期工具链，并冻结
   `seven-day-companion-simulated.v1`（SHA-256
-  `aa28e684c82faf14d63c2b3188633be670e2c822ad26d538dc1888d8a0fc73db`）；v1 capture
-  shape 可接 simulated user，能把真人工作收缩为盲评评分。但正式 36-run/252-session
-  产品路径矩阵尚未执行，当前没有 simulated causal verdict；即使未来该自动 run 与真人
+  `9ae32c6cf4c7484502f21ce090532ff5c9f31c793364d40e75e24501fcb8792c`）；最终本地模型
+  预检与一条 7-session/35-reply/6-restart 产品路径 smoke 已通过，v1 capture shape 可接
+  simulated user，能把真人工作收缩为盲评评分。正式 36-run/252-session 产品路径矩阵
+  正在执行，当前仍没有 simulated causal verdict；即使未来该自动 run 与真人
   评分通过，也只产生 `human-rated-simulated-user-transcripts-only`，不等于真实用户产品
   价值。#93 剩余仍是 real-user consented fresh transcripts、非项目 rater 招募、真实
   pilot/power 与 formal run。权威提案：

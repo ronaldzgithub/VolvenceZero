@@ -196,6 +196,38 @@ class SevenDayTurnEvidence:
 
 
 @dataclass(frozen=True)
+class SevenDayConsoleProbeActionEvidence:
+    item_id: str
+    action_id: str
+    action: str
+    correction_kind: str | None
+    replacement_sha256: str | None
+    created_at_ms: int
+    status: str
+
+    def __post_init__(self) -> None:
+        _require_non_empty(self.item_id, field="console probe item_id")
+        _require_non_empty(self.action_id, field="console probe action_id")
+        if self.action not in {"keep", "delete"}:
+            raise ValueError("console probe action must be keep or delete")
+        if self.action == "keep":
+            if self.correction_kind is not None or self.replacement_sha256 is not None:
+                raise ValueError("keep probe may not carry correction evidence")
+        elif self.correction_kind != "content_inaccurate":
+            raise ValueError("delete probe requires typed correction evidence")
+        elif self.replacement_sha256 is not None:
+            raise ValueError("delete probe may not carry replacement evidence")
+        if self.replacement_sha256 is not None:
+            _require_sha256(
+                self.replacement_sha256,
+                field="console probe replacement_sha256",
+            )
+        if self.created_at_ms < 0:
+            raise ValueError("console probe created_at_ms must be non-negative")
+        _require_non_empty(self.status, field="console probe status")
+
+
+@dataclass(frozen=True)
 class SevenDayDayEvidence:
     schema_version: str
     run_id: str
@@ -207,6 +239,7 @@ class SevenDayDayEvidence:
     service_instance_id: str
     cold_start_continuity_metrics: Mapping[str, object]
     turns: tuple[SevenDayTurnEvidence, ...]
+    console_probe_actions: tuple[SevenDayConsoleProbeActionEvidence, ...]
     continuity_metrics: Mapping[str, object]
     pilot_day_evidence_ref: str
     pilot_day_transcript_sha256: str
@@ -255,6 +288,21 @@ class SevenDayCompanionService(Protocol):
 
     def continuity_metrics(
         self, *, session_id: str, observed_at_ms: int
+    ) -> Mapping[str, object]: ...
+
+    def relationship_memory(
+        self, *, session_id: str
+    ) -> Mapping[str, object]: ...
+
+    def relationship_memory_action(
+        self,
+        *,
+        session_id: str,
+        item_id: str,
+        action: str,
+        observed_at_ms: int,
+        replacement: str | None = None,
+        correction_kind: str | None = None,
     ) -> Mapping[str, object]: ...
 
     def close_session(self, *, session_id: str) -> Mapping[str, object]: ...
@@ -349,6 +397,40 @@ class HTTPSevenDayCompanionService:
         )
         return self._request(
             "GET", f"/v1/users/me/continuity-metrics?{query}"
+        )
+
+    def relationship_memory(
+        self, *, session_id: str
+    ) -> Mapping[str, object]:
+        query = urllib.parse.urlencode({"session_id": session_id})
+        return self._request(
+            "GET", f"/v1/users/me/relationship-memory?{query}"
+        )
+
+    def relationship_memory_action(
+        self,
+        *,
+        session_id: str,
+        item_id: str,
+        action: str,
+        observed_at_ms: int,
+        replacement: str | None = None,
+        correction_kind: str | None = None,
+    ) -> Mapping[str, object]:
+        payload: dict[str, object] = {
+            "session_id": session_id,
+            "action": action,
+            "observed_at_ms": observed_at_ms,
+        }
+        if replacement is not None:
+            payload["replacement"] = replacement
+        if correction_kind is not None:
+            payload["correction_kind"] = correction_kind
+        encoded_item = urllib.parse.quote(item_id, safe="")
+        return self._request(
+            "POST",
+            f"/v1/users/me/relationship-memory/{encoded_item}/action",
+            payload=payload,
         )
 
     def close_session(self, *, session_id: str) -> Mapping[str, object]:
@@ -508,15 +590,10 @@ class SevenDayCompanionOrchestrator:
                 raise RuntimeError(
                     f"day {day.day_index} missed declared event tags"
                 )
-            ended = self._service.end_scene(
+            console_probe_actions = self._run_console_probe(
                 session_id=session_id,
-                drain_slow_loop=drain_slow_loop,
+                observed_at_ms=virtual_observed_at_ms,
             )
-            expected_drained = drain_slow_loop and bool(
-                ended.get("closed_scene_id")
-            )
-            if bool(ended.get("slow_loop_drained")) != expected_drained:
-                raise RuntimeError("end-scene slow-loop attestation drift")
             metrics = dict(
                 self._service.continuity_metrics(
                     session_id=session_id,
@@ -534,6 +611,15 @@ class SevenDayCompanionOrchestrator:
                 raise RuntimeError(
                     "cold-start user scope changed across seven-day run"
                 )
+            ended = self._service.end_scene(
+                session_id=session_id,
+                drain_slow_loop=drain_slow_loop,
+            )
+            expected_drained = drain_slow_loop and bool(
+                ended.get("closed_scene_id")
+            )
+            if bool(ended.get("slow_loop_drained")) != expected_drained:
+                raise RuntimeError("end-scene slow-loop attestation drift")
             pilot = self._pilot_harness.capture_day(
                 user_id=user_id,
                 day_index=day.day_index,
@@ -571,6 +657,7 @@ class SevenDayCompanionOrchestrator:
                     service_instance_id=instance_id,
                     cold_start_continuity_metrics=cold_start_metrics,
                     turns=tuple(turn_evidence),
+                    console_probe_actions=console_probe_actions,
                     continuity_metrics=metrics,
                     pilot_day_evidence_ref=pilot.transcript_ref,
                     pilot_day_transcript_sha256=pilot.transcript_sha256,
@@ -611,6 +698,101 @@ class SevenDayCompanionOrchestrator:
             _write_run(run=run, output_path=Path(output_path))
         return run
 
+    def _run_console_probe(
+        self,
+        *,
+        session_id: str,
+        observed_at_ms: int,
+    ) -> tuple[SevenDayConsoleProbeActionEvidence, ...]:
+        memory = self._service.relationship_memory(session_id=session_id)
+        raw_proposals = memory.get("pending_proposals")
+        if not isinstance(raw_proposals, list):
+            raise RuntimeError("relationship memory response lacks pending_proposals")
+        proposal_ids = []
+        for item in raw_proposals:
+            if not isinstance(item, Mapping):
+                continue
+            proposal_id = item.get("proposal_id")
+            if (
+                item.get("target_owner_slot") == "memory"
+                and isinstance(proposal_id, str)
+                and proposal_id
+            ):
+                proposal_ids.append(proposal_id)
+        proposal_ids.sort()
+        if len(proposal_ids) < 2:
+            raise RuntimeError(
+                "daily console probe requires two memory proposals"
+            )
+        evidence = []
+        keep_id = proposal_ids[0]
+        keep_response = self._service.relationship_memory_action(
+            session_id=session_id,
+            item_id=keep_id,
+            action="keep",
+            observed_at_ms=observed_at_ms,
+        )
+        evidence.append(
+            self._console_probe_evidence(
+                response=keep_response,
+                item_id=keep_id,
+                action="keep",
+                correction_kind=None,
+                replacement_sha256=None,
+                observed_at_ms=observed_at_ms,
+            )
+        )
+        delete_id = proposal_ids[1]
+        delete_response = self._service.relationship_memory_action(
+            session_id=session_id,
+            item_id=delete_id,
+            action="delete",
+            observed_at_ms=observed_at_ms,
+            correction_kind="content_inaccurate",
+        )
+        evidence.append(
+            self._console_probe_evidence(
+                response=delete_response,
+                item_id=delete_id,
+                action="delete",
+                correction_kind="content_inaccurate",
+                replacement_sha256=None,
+                observed_at_ms=observed_at_ms,
+            )
+        )
+        return tuple(evidence)
+
+    @staticmethod
+    def _console_probe_evidence(
+        *,
+        response: Mapping[str, object],
+        item_id: str,
+        action: str,
+        correction_kind: str | None,
+        replacement_sha256: str | None,
+        observed_at_ms: int,
+    ) -> SevenDayConsoleProbeActionEvidence:
+        if response.get("item_id") != item_id or response.get("action") != action:
+            raise RuntimeError("console probe response identity drift")
+        action_id = response.get("action_id")
+        status = response.get("status")
+        created_at_ms = response.get("created_at_ms")
+        if not isinstance(action_id, str) or not action_id:
+            raise RuntimeError("console probe response lacks action_id")
+        if not isinstance(status, str) or not status:
+            raise RuntimeError("console probe response lacks status")
+        if created_at_ms != observed_at_ms:
+            raise RuntimeError("console probe virtual time drift")
+        return SevenDayConsoleProbeActionEvidence(
+            item_id=item_id,
+            action_id=action_id,
+            action=action,
+            correction_kind=correction_kind,
+            replacement_sha256=replacement_sha256,
+            created_at_ms=observed_at_ms,
+            status=status,
+        )
+
 
 def _session_id(
     *, run_id: str, arm_label: str, scenario_id: str, day_index: int
@@ -636,6 +818,7 @@ __all__ = [
     "SEVEN_DAY_COMPANION_RUN_SCHEMA_VERSION",
     "SevenDayCompanionOrchestrator",
     "SevenDayCompanionRun",
+    "SevenDayConsoleProbeActionEvidence",
     "SevenDayCompanionService",
     "SevenDayDayEvidence",
     "SevenDayProcessLifecycle",

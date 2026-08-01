@@ -89,7 +89,8 @@ class RelationshipContinuityEvaluationModule:
             observed_at_ms=observed_at_ms,
             snapshots=snapshots,
         )
-        self._observations.setdefault(scope_hash, {})[observation_id] = observation
+        if observation is not None:
+            self._observations.setdefault(scope_hash, {})[observation_id] = observation
         self._prune(window_end_ms=observed_at_ms)
         self._persist()
         return self.readout(
@@ -264,7 +265,7 @@ def _observation_from_snapshots(
     observation_id: str,
     observed_at_ms: int,
     snapshots: Mapping[str, Snapshot[Any]],
-) -> RelationshipContinuityObservation:
+) -> RelationshipContinuityObservation | None:
     from volvence_zero.prediction.error import PredictionErrorSnapshot
 
     pe = _typed_snapshot_value(snapshots, "prediction_error", PredictionErrorSnapshot)
@@ -275,6 +276,8 @@ def _observation_from_snapshots(
     relationship = _typed_snapshot_value(
         snapshots, "relationship_state", RelationshipStateSnapshot
     )
+    if pe is None and boundary is None and open_loop is None and relationship is None:
+        return None
     callback_settlements = (
         tuple(
             item

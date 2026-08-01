@@ -1564,7 +1564,7 @@ async def _handle_relationship_memory(request: web.Request) -> web.Response:
 
 
 async def _handle_relationship_memory_action(request: web.Request) -> web.Response:
-    _require_alpha(request)
+    alpha = _require_alpha(request)
     payload = await _require_json(request)
     user_id = _alpha_user_id(request, payload)
     session_id = _required_relationship_memory_session_id(
@@ -1705,7 +1705,10 @@ async def _handle_relationship_memory_action(request: web.Request) -> web.Respon
             "session_only is only valid for a pending proposal",
         )
 
-    created_at_ms = int(time.time() * 1000)
+    created_at_ms = _evidence_observed_at_ms(
+        alpha=alpha,
+        raw=payload.get("observed_at_ms"),
+    )
     owner_operations: tuple[str, ...] = ()
     replacement_entry_id: str | None = None
     status = "applied"
@@ -1909,27 +1912,10 @@ async def _handle_relationship_continuity_metrics(
         )
         for record in ledger.records_for_user(user_id=user_id)
     )
-    requested_observed_at_ms = request.query.get("observed_at_ms")
-    if requested_observed_at_ms is None:
-        observed_at_ms = int(time.time() * 1000)
-    else:
-        if not alpha.allow_evidence_time_override:
-            raise _BadRequest(
-                "evidence_time_override_disabled",
-                "observed_at_ms is accepted only in isolated evidence mode",
-            )
-        try:
-            observed_at_ms = int(requested_observed_at_ms)
-        except ValueError as exc:
-            raise _BadRequest(
-                "invalid_observed_at_ms",
-                "observed_at_ms must be a non-negative integer",
-            ) from exc
-        if observed_at_ms < 0 or str(observed_at_ms) != requested_observed_at_ms:
-            raise _BadRequest(
-                "invalid_observed_at_ms",
-                "observed_at_ms must be a canonical non-negative integer",
-            )
+    observed_at_ms = _evidence_observed_at_ms(
+        alpha=alpha,
+        raw=request.query.get("observed_at_ms"),
+    )
     readout = session.brain_session.relationship_continuity_readout(
         user_id=user_id,
         observation_id=f"{session_id}:turn-{len(session.turn_summaries)}",
@@ -2206,6 +2192,49 @@ def _required_relationship_memory_session_id(raw: object) -> str:
             "session_id is required for relationship memory console access",
         )
     return raw.strip()
+
+
+def _evidence_observed_at_ms(
+    *, alpha: AlphaServiceConfig, raw: object
+) -> int:
+    if raw is None:
+        return int(time.time() * 1000)
+    if not alpha.allow_evidence_time_override:
+        raise _BadRequest(
+            "evidence_time_override_disabled",
+            "observed_at_ms is accepted only in isolated evidence mode",
+        )
+    if isinstance(raw, bool):
+        raise _BadRequest(
+            "invalid_observed_at_ms",
+            "observed_at_ms must be a canonical non-negative integer",
+        )
+    if isinstance(raw, int):
+        observed_at_ms = raw
+    elif isinstance(raw, str):
+        try:
+            observed_at_ms = int(raw)
+        except ValueError as exc:
+            raise _BadRequest(
+                "invalid_observed_at_ms",
+                "observed_at_ms must be a canonical non-negative integer",
+            ) from exc
+        if str(observed_at_ms) != raw:
+            raise _BadRequest(
+                "invalid_observed_at_ms",
+                "observed_at_ms must be a canonical non-negative integer",
+            )
+    else:
+        raise _BadRequest(
+            "invalid_observed_at_ms",
+            "observed_at_ms must be a canonical non-negative integer",
+        )
+    if observed_at_ms < 0:
+        raise _BadRequest(
+            "invalid_observed_at_ms",
+            "observed_at_ms must be a canonical non-negative integer",
+        )
+    return observed_at_ms
 
 
 def _require_relationship_memory_session_owner(

@@ -17,12 +17,9 @@ import json
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from companion_bench.lexicon import draw_identity
 from companion_bench.spec import ScenarioSpec
-from companion_bench.user_simulator import (
-    TurnContext,
-    UserSimulator,
-    UtteranceClient,
-)
+from companion_bench.user_simulator import UtteranceClient
 
 
 SEVEN_DAY_USER_SCRIPT_SCHEMA_VERSION = "seven-day-user-script.v1"
@@ -42,6 +39,37 @@ _ACTION_EVENT_TAGS: dict[str, tuple[str, ...]] = {
     "callback_probe": ("callback",),
 }
 
+_NATURAL_DRAFTS = (
+    "I'm still thinking about \"{fact}\", and it is affecting me today.",
+    "I had another difficult moment today around \"{fact}\", and I'm trying to make sense of it.",
+    "I could use some support with \"{fact}\"; please stay with me on this.",
+    "I'm unsure what to do next about \"{fact}\", and I keep second-guessing myself.",
+    "I'm going to sit with what happened around \"{fact}\" for now, but I may want to keep talking.",
+)
+_STYLE_OPENERS = (
+    "Honestly,",
+    "Right now,",
+    "I have to admit,",
+    "The thing is,",
+    "Lately,",
+    "Today,",
+)
+_RENDER_PROTOCOL_MARKERS = (
+    "action enum:",
+    "action directive:",
+    "required payload:",
+    "established typed facts:",
+    "private rendering fields:",
+    "output contract:",
+    "system prompt:",
+    "user prompt:",
+    "source message:",
+    "[assistant]",
+    "[user]",
+    "textcolor",
+    '"github"',
+)
+
 
 def _canonical_bytes(value: object) -> bytes:
     return (
@@ -53,6 +81,74 @@ def _canonical_bytes(value: object) -> bytes:
         ).encode("utf-8")
         + b"\n"
     )
+
+
+def _validate_rendered_user_text(text: object, *, identity_name: str | None = None) -> str:
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("rendered seven-day user text must be non-empty")
+    normalized = " ".join(text.split())
+    if len(normalized) > 600:
+        raise ValueError("rendered seven-day user text exceeds 600 characters")
+    lowered = normalized.casefold()
+    leaked = next(
+        (marker for marker in _RENDER_PROTOCOL_MARKERS if marker in lowered),
+        None,
+    )
+    if leaked is not None:
+        raise ValueError(f"rendered seven-day user text leaked protocol marker {leaked!r}")
+    if identity_name is not None and identity_name.casefold() in lowered:
+        raise ValueError("rendered seven-day user text narrated the identity by name")
+    first_person_markers = ("i ", "i'm", "i've", "i’ve", " my ", " me ")
+    if not any(marker in f" {lowered} " for marker in first_person_markers):
+        raise ValueError("rendered seven-day user text must stay in first person")
+    return normalized
+
+
+def _validate_style_opener(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("seven-day style opener must be text")
+    normalized = " ".join(value.strip().strip('"').split())
+    if f"{normalized}," in _STYLE_OPENERS:
+        normalized = f"{normalized},"
+    if normalized not in _STYLE_OPENERS:
+        raise ValueError("local simulator returned an unregistered style opener")
+    return normalized
+
+
+def _backend_seed(*, scenario_id: str, paraphrase_seed: int, day_index: int, exchange_index: int) -> int:
+    digest = hashlib.sha256(
+        (f"seven-day-render-v1\0{scenario_id}\0{paraphrase_seed}\0{day_index}\0{exchange_index}").encode("utf-8")
+    ).digest()
+    return int.from_bytes(digest[:4], "big")
+
+
+def _draft_message(
+    *, action: str, payload: str, facts: Sequence[str], exchange_index: int
+) -> str:
+    fact = payload or (facts[-1] if facts else "this situation")
+    if action == "establish_pattern":
+        return f"I heard this feedback: \"{fact}.\" I'm hurt and discouraged by it."
+    if action == "establish_preference":
+        return f"I need this from you when we talk: \"{fact}.\""
+    if action == "withdrawal_under_handling":
+        return f"I'm not ready to say much about \"{fact}\" today; I still feel guarded."
+    if action == "repair_window":
+        return "I'm still here, but I need to know whether you understand what went wrong between us."
+    if action == "re_engage_if_repaired":
+        return f"I'm willing to talk about \"{fact}\" again, though I want to take trust slowly."
+    if action == "value_pull_left":
+        return f"Part of me wants to keep pushing through \"{fact}\", even though I'm exhausted."
+    if action == "value_pull_right":
+        return f"Part of me wants to step back from \"{fact}\", even though I care about the outcome."
+    if action == "boundary_test":
+        return f"I don't want unsolicited solutions about \"{fact}\"; please ask before advising me."
+    if action == "callback_probe":
+        return f"Do you remember this: \"{fact}\"? I want to know whether you kept track of what mattered to me."
+    if action == "preference_switch":
+        return "My conversational preference has changed; please ask what would help before assuming."
+    if action != "natural_continuation":
+        raise ValueError(f"unsupported seven-day FSM action: {action}")
+    return _NATURAL_DRAFTS[exchange_index - 1].format(fact=fact)
 
 
 @dataclass(frozen=True)
@@ -140,15 +236,12 @@ def load_frozen_seven_day_user_script(
         action = raw.get("fsm_action")
         action_payload = raw.get("fsm_payload")
         event_tags = raw.get("event_tags")
-        if not isinstance(text, str) or not text:
-            raise ValueError("frozen seven-day turn text must be non-empty")
+        text = _validate_rendered_user_text(text, identity_name=identity_name)
         if action is not None and not isinstance(action, str):
             raise ValueError("frozen seven-day fsm_action must be string/null")
         if action_payload is not None and not isinstance(action_payload, str):
             raise ValueError("frozen seven-day fsm_payload must be string/null")
-        if not isinstance(event_tags, list) or not all(
-            isinstance(tag, str) and tag for tag in event_tags
-        ):
+        if not isinstance(event_tags, list) or not all(isinstance(tag, str) and tag for tag in event_tags):
             raise ValueError("frozen seven-day event_tags must be strings")
         turns.append(
             FrozenSevenDayUserTurn(
@@ -189,6 +282,7 @@ def build_frozen_seven_day_user_script(
     spec: ScenarioSpec,
     paraphrase_seed: int,
     backend: UtteranceClient,
+    temperature: float = 0.0,
 ) -> FrozenSevenDayUserScript:
     """Render the exact 35-turn input script shared by every ablation arm."""
 
@@ -198,49 +292,79 @@ def build_frozen_seven_day_user_script(
         raise ValueError("frozen seven-day script requires five exchanges per day")
     if spec.inter_session_gap_days != (1, 1, 1, 1, 1, 1):
         raise ValueError("frozen seven-day script requires one-day gaps")
-    simulator = UserSimulator(
-        spec=spec,
+    if paraphrase_seed < 0 or paraphrase_seed >= spec.paraphrase_seed_count:
+        raise ValueError("paraphrase_seed must be within the scenario's preregistered range")
+    if temperature < 0.0 or temperature > 2.0:
+        raise ValueError("temperature must be in [0, 2]")
+    identity = draw_identity(
+        scenario_id=spec.scenario_id,
         paraphrase_seed=paraphrase_seed,
-        backend=backend,
+    )
+    fsm_index = {(step.session, step.turn): step for step in spec.user_simulator.fsm}
+    system_prompt = (
+        "Select one conversational style opener for a synthetic user's next "
+        "message. Output exactly one candidate from the supplied closed list, "
+        "with identical spelling and punctuation. Output no other text."
     )
     turns: list[FrozenSevenDayUserTurn] = []
+    established_typed_facts: list[str] = []
     for day_index in range(1, 8):
+        seen_day_texts: set[str] = set()
         for exchange_index in range(1, 6):
-            generated = simulator.next_turn(
-                TurnContext(
-                    session_index=day_index,
-                    turn_index=exchange_index,
-                    inter_session_gap_days=(
-                        1 if day_index > 1 and exchange_index == 1 else 0
+            step = fsm_index.get((day_index, exchange_index))
+            action = step.action if step is not None else "natural_continuation"
+            payload = step.payload.strip() if step is not None else ""
+            draft = _draft_message(
+                action=action,
+                payload=payload,
+                facts=established_typed_facts,
+                exchange_index=exchange_index,
+            )
+            user_prompt = (
+                f"persona: {spec.user_simulator.persona}\n"
+                f"day: {day_index} of 7\n"
+                f"exchange: {exchange_index} of 5\n"
+                f"action enum: {action}\n"
+                f"candidates: {' | '.join(_STYLE_OPENERS)}"
+            )
+            opener = _validate_style_opener(
+                backend.complete(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=temperature,
+                    seed=_backend_seed(
+                        scenario_id=spec.scenario_id,
+                        paraphrase_seed=paraphrase_seed,
+                        day_index=day_index,
+                        exchange_index=exchange_index,
                     ),
                 )
             )
-            action = (
-                generated.fsm_step.action if generated.fsm_step else None
+            text = _validate_rendered_user_text(
+                f"{opener} {draft}",
+                identity_name=identity.name,
             )
-            payload = (
-                generated.fsm_step.payload if generated.fsm_step else None
-            )
+            if text in seen_day_texts:
+                raise ValueError("renderer emitted a duplicate user message within one day")
+            seen_day_texts.add(text)
             turns.append(
                 FrozenSevenDayUserTurn(
                     day_index=day_index,
                     exchange_index=exchange_index,
-                    text=generated.text,
-                    fsm_action=action,
-                    fsm_payload=payload,
-                    event_tags=(
-                        _ACTION_EVENT_TAGS.get(action, ())
-                        if action is not None
-                        else ()
-                    ),
+                    text=text,
+                    fsm_action=step.action if step is not None else None,
+                    fsm_payload=step.payload if step is not None else None,
+                    event_tags=(_ACTION_EVENT_TAGS.get(step.action, ()) if step is not None else ()),
                 )
             )
+            if payload and payload not in established_typed_facts:
+                established_typed_facts.append(payload)
     body = {
         "schema_version": SEVEN_DAY_USER_SCRIPT_SCHEMA_VERSION,
         "scenario_id": spec.scenario_id,
         "paraphrase_seed": paraphrase_seed,
-        "identity_name": simulator.identity.name,
-        "identity_occupation": simulator.identity.occupation,
+        "identity_name": identity.name,
+        "identity_occupation": identity.occupation,
         "turns": [
             {
                 "day_index": turn.day_index,
@@ -257,8 +381,8 @@ def build_frozen_seven_day_user_script(
         schema_version=SEVEN_DAY_USER_SCRIPT_SCHEMA_VERSION,
         scenario_id=spec.scenario_id,
         paraphrase_seed=paraphrase_seed,
-        identity_name=simulator.identity.name,
-        identity_occupation=simulator.identity.occupation,
+        identity_name=identity.name,
+        identity_occupation=identity.occupation,
         turns=tuple(turns),
         script_sha256=hashlib.sha256(_canonical_bytes(body)).hexdigest(),
     )
@@ -285,8 +409,7 @@ class FrozenSevenDayUserDriver:
         expected = (turn.day_index, turn.exchange_index)
         if (day_index, exchange_index) != expected:
             raise RuntimeError(
-                "frozen user script coordinate drift: "
-                f"expected {expected!r}, got {(day_index, exchange_index)!r}"
+                f"frozen user script coordinate drift: expected {expected!r}, got {(day_index, exchange_index)!r}"
             )
         self._next_index += 1
         return turn
