@@ -1534,7 +1534,9 @@ async def _handle_end_scene(request: web.Request) -> web.Response:
         session=session,
         closed_scene_id=closed.scene_id if closed is not None else None,
     )
-    memory_snapshot = session.brain_session.runner.memory_store.snapshot()
+    memory_snapshot = session.brain_session.runner.memory_store.snapshot(
+        retrieved_entries=()
+    )
     lifecycle_metrics = dict(memory_snapshot.lifecycle_metrics)
     body = EndSceneResponse(
         session_id=session_id,
