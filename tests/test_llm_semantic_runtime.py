@@ -353,7 +353,8 @@ def test_runtime_emits_structured_user_profile_fact_and_recall_request() -> None
     assert recalled.operation is SemanticProposalOperation.ACTIVATE
     assert recalled.semantic_key == "age"
     assert recalled.canonical_value == ""
-    assert "explicit self-reported profile facts" in provider.prompts[0]
+    assert "Extract only explicit self-reported user profile facts" in provider.prompts[0]
+    assert provider.kwargs[0]["max_new_tokens"] == 192
 
 
 def test_runtime_rejects_profile_metadata_on_non_user_model_owner() -> None:

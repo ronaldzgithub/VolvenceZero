@@ -108,6 +108,7 @@ _COMMITMENT_PROMPT = (
 
 _MIN_STRUCTURED_COMMITMENT_CONFIDENCE = 0.40
 _MIN_GENERIC_PROPOSAL_CONFIDENCE = 0.35
+_USER_MODEL_MAX_NEW_TOKENS = 192
 # W2-B: extended to ``relationship_state`` and ``user_model`` so verticals
 # that need typed relational signals (LTV / private-domain ops, EQ
 # companion under stress) can drive these owners through the same JSON-
@@ -338,6 +339,20 @@ def _generic_prompt(*, target_slot: str, user_input: str) -> str:
         "Return JSON matching this schema. Only emit proposals whose target_slot equals the target owner slot.\n"
         f"Schema:\n{schema}\n\n"
         "User message:\n"
+        '"""\n'
+        f"{user_input}\n"
+        '"""\n'
+        "Return JSON only."
+    )
+
+
+def _user_model_prompt(*, user_input: str) -> str:
+    template = load_semantic_prompt_template("user_profile_facts.md")
+    schema = load_semantic_json_schema("user_profile_facts.schema.json")
+    return (
+        f"{template}\n\n"
+        f"Schema:\n{schema}\n\n"
+        "Latest user message:\n"
         '"""\n'
         f"{user_input}\n"
         '"""\n'
@@ -676,13 +691,21 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
         turn_index: int,
     ) -> SemanticProposalBatch:
         del substrate_snapshot, memory_snapshot, previous_snapshot
-        prompt = _generic_prompt(
-            target_slot=target_slot,
-            user_input=user_input.strip()[:600],
+        prompt = (
+            _user_model_prompt(user_input=user_input.strip()[:600])
+            if target_slot == "user_model"
+            else _generic_prompt(
+                target_slot=target_slot,
+                user_input=user_input.strip()[:600],
+            )
         )
         raw = self._provider.generate(
             prompt=prompt,
-            max_new_tokens=self._max_new_tokens,
+            max_new_tokens=(
+                max(self._max_new_tokens, _USER_MODEL_MAX_NEW_TOKENS)
+                if target_slot == "user_model"
+                else self._max_new_tokens
+            ),
             temperature=0.0,
         )
         parsed = _parse_generic_proposals(raw, target_slot=target_slot)
