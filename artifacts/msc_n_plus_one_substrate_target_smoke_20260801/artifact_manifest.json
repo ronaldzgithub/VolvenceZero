@@ -1,0 +1,63 @@
+{
+  "corpus_provenance_source": {
+    "sha256": "887b81a78180caf99b07e546bc087eeb56f9f0a4da96011f9264c6ee2e6ebadb",
+    "size_bytes": 1764
+  },
+  "evidence_level": "mechanism-only-pilot",
+  "formal_experiment_executed": false,
+  "hash_scope": "artifact_manifest.json is excluded to avoid a recursive self-hash",
+  "result_files": {
+    "capacity_ladder.json": {
+      "sha256": "07bd083218d31345bee9fcb3e12f0ca48443ed63c2a627cf3b1344a73eb3dde4",
+      "size_bytes": 2806
+    },
+    "corpus_provenance.json": {
+      "sha256": "a7e9dd3ab704f46060924ebd9b9c075bb1f86c473bf4512a47d1b2364960e9b2",
+      "size_bytes": 1764
+    },
+    "manifest.json": {
+      "sha256": "78d1542a4205e46fe55e04b677e1dce028197bd3b273b261b13a1236b867411f",
+      "size_bytes": 6335
+    },
+    "prediction_observations.jsonl": {
+      "sha256": "1da61c8498dafc6f15e3f39cbc547c4cec7d97ed4cf6c2258baca702ce8fa37b",
+      "size_bytes": 147193
+    },
+    "prediction_verdict.json": {
+      "sha256": "d49f45558c118a17d5d46fa5ece814217f0e6b649d43dd5ac6159c9939584aa4",
+      "size_bytes": 9275
+    },
+    "report.md": {
+      "sha256": "dbeee245bab0be52590943a78264f852fad63b80e7f90130fc44fcf928a00e5d",
+      "size_bytes": 692
+    }
+  },
+  "schema_version": "msc-mechanism-artifact.v1",
+  "source_files": {
+    "packages/companion-bench/src/companion_bench/msc_corpus.py": {
+      "sha256": "d665cd0900fbf256077fa5259bb8490deebfdfc4615dc09df7d1a37d04540a9f",
+      "size_bytes": 11163
+    },
+    "packages/companion-bench/src/companion_bench/prediction_research.py": {
+      "sha256": "c0da88480afea04ca187308058f418c2193f9d7af17593080a30d1194aa39493",
+      "size_bytes": 20676
+    },
+    "packages/vz-cognition/src/volvence_zero/prediction/error.py": {
+      "sha256": "eee3cdf79a2542decf5f435ba666bdc4596bcc973853ea94fe19eaa8be29a383",
+      "size_bytes": 132975
+    },
+    "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py": {
+      "sha256": "83508b0694455d76fa760c0b036659f60dc72ce66622feb1deb119fc2ff682db",
+      "size_bytes": 16573
+    },
+    "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py": {
+      "sha256": "fd1ff435efb38aaec83d2107694add1c17d6fdd0a41d5ad330e8edb65eb6f059",
+      "size_bytes": 12181
+    },
+    "scripts/run_msc_prediction_research.py": {
+      "sha256": "de6aeb9294dc705443deea538ad223f6c8c4db59404ad996da89dc9145aad651",
+      "size_bytes": 36192
+    }
+  },
+  "thesis_status": "not-evaluated"
+}

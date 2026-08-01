@@ -1,0 +1,95 @@
+{
+  "best_forward_head_n_z": 256,
+  "best_mean_cosine": 0.17653459858439893,
+  "description": "Real-target forward-head capacity ladder is pilot; best forward_head_n_z=256, cosine gain over forward_head_n_z=3 is 0.177048, exit=INELIGIBLE_PILOT. This does not test temporal-controller capacity.",
+  "evidence_level": "pilot",
+  "forward_head_capacity_is_flat": false,
+  "forward_head_claim_exit": "INELIGIBLE_PILOT",
+  "gain_over_forward_head_n_z_3": 0.17704847619688807,
+  "observations": [
+    {
+      "forward_head_n_z": 3,
+      "mean_cosine_similarity": 0.023676590687444276,
+      "mean_squared_error": 0.10790928306850399,
+      "seed": 0,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 3,
+      "mean_cosine_similarity": -0.005187201016651276,
+      "mean_squared_error": 0.11078826877187513,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 3,
+      "mean_cosine_similarity": -0.020031022508260377,
+      "mean_squared_error": 0.10724746337075505,
+      "seed": 2,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 16,
+      "mean_cosine_similarity": 0.024227643309626096,
+      "mean_squared_error": 0.019390533231045386,
+      "seed": 0,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 16,
+      "mean_cosine_similarity": -0.0049045255194117955,
+      "mean_squared_error": 0.019118389765670166,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 16,
+      "mean_cosine_similarity": 0.0014401232758402716,
+      "mean_squared_error": 0.019575685472471932,
+      "seed": 2,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 64,
+      "mean_cosine_similarity": 0.0005476729772613189,
+      "mean_squared_error": 0.004594365033151885,
+      "seed": 0,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 64,
+      "mean_cosine_similarity": -0.004431583022163722,
+      "mean_squared_error": 0.004320936400288141,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 64,
+      "mean_cosine_similarity": 0.00012623879198965488,
+      "mean_squared_error": 0.004557050832325446,
+      "seed": 2,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 256,
+      "mean_cosine_similarity": 0.17718542074296129,
+      "mean_squared_error": 0.0007978086298257488,
+      "seed": 0,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 256,
+      "mean_cosine_similarity": 0.16918977113186065,
+      "mean_squared_error": 0.0007940993338220681,
+      "seed": 1,
+      "split": "validation"
+    },
+    {
+      "forward_head_n_z": 256,
+      "mean_cosine_similarity": 0.18322860387837492,
+      "mean_squared_error": 0.0007878557213262033,
+      "seed": 2,
+      "split": "validation"
+    }
+  ]
+}
