@@ -71,6 +71,28 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _audit_payload(audit: object, *, msc_root: Path) -> dict[str, object]:
+    payload = asdict(audit)  # type: ignore[arg-type]
+    audit_path = Path(str(payload["path"])).resolve()
+    try:
+        payload["path"] = audit_path.relative_to(msc_root.resolve()).as_posix()
+    except ValueError as exc:
+        raise ValueError(
+            f"MSC audit path {audit_path} is outside corpus root {msc_root.resolve()}"
+        ) from exc
+    payload["path_base"] = "msc_root"
+    return payload
+
+
+def _hashed_file(path: Path) -> dict[str, object]:
+    if not path.is_file():
+        raise FileNotFoundError(f"artifact lineage file does not exist: {path}")
+    return {
+        "sha256": _sha256_file(path),
+        "size_bytes": path.stat().st_size,
+    }
+
+
 class FrozenSentenceEncoder:
     def __init__(
         self,
@@ -474,6 +496,25 @@ def main() -> int:
         raise ValueError("research run requires at least three unique non-negative seeds")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
+    msc_root = args.msc_root.resolve()
+    corpus_provenance = msc_root.parent / "DOWNLOAD_PROVENANCE.json"
+    if not corpus_provenance.is_file():
+        raise FileNotFoundError(
+            "MSC artifact capture requires DOWNLOAD_PROVENANCE.json next to the "
+            f"extracted corpus root; missing {corpus_provenance}"
+        )
+    try:
+        corpus_provenance_payload = json.loads(
+            corpus_provenance.read_text(encoding="utf-8")
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"MSC corpus provenance is not valid JSON: {corpus_provenance}"
+        ) from exc
+    if not isinstance(corpus_provenance_payload, dict):
+        raise ValueError("MSC corpus provenance root must be a JSON object")
+    if corpus_provenance_payload.get("schema_version") != "msc-download-provenance.v1":
+        raise ValueError("MSC corpus provenance schema_version is unsupported")
 
     split_payload: dict[str, tuple[MSCDyad, ...]] = {}
     audits = {}
@@ -483,7 +524,7 @@ def main() -> int:
         "heldout": args.heldout_dyads,
     }
     for split in ("train", "validation", "heldout"):
-        dyads, audit = load_msc_split(args.msc_root, split=split, strict=True)
+        dyads, audit = load_msc_split(msc_root, split=split, strict=True)
         split_payload[split] = _stable_subset(dyads, limits[split])
         audits[split] = audit
     examples_by_split = {
@@ -639,7 +680,9 @@ def main() -> int:
         "license_policy": "noncommercial-research-only",
         "corpus": {
             split: {
-                "official_audit": asdict(audits[split]),
+                "official_audit": _audit_payload(
+                    audits[split], msc_root=msc_root
+                ),
                 "selected_dyads": len(split_payload[split]),
                 "prediction_examples": len(examples_by_split[split]),
                 "example_fingerprint": examples_fingerprint(examples_by_split[split]),
@@ -680,8 +723,26 @@ def main() -> int:
             "This runner produces pilot mechanism evidence only because the "
             "volvence arm bypasses propagate and is not the complete runtime stack."
         ),
+        "execution_status": {
+            "evidence_level": "mechanism-only-pilot",
+            "thesis_status": "not-evaluated",
+            "formal_experiment_executed": False,
+        },
+        "run_configuration": {
+            "train_dyads": args.train_dyads,
+            "validation_dyads": args.validation_dyads,
+            "heldout_dyads": args.heldout_dyads,
+            "encoder_batch_size": args.encoder_batch_size,
+            "head_batch_size": args.head_batch_size,
+            "epochs": args.epochs,
+            "learning_rate": args.learning_rate,
+            "retrieval_count": args.retrieval_count,
+            "requested_max_seq_length": args.max_seq_length,
+            "seeds": seeds,
+        },
     }
     _write_json(output / "manifest.json", manifest)
+    _write_json(output / "corpus_provenance.json", corpus_provenance_payload)
     _write_json(output / "capacity_ladder.json", capacity_verdict)
     _write_json(output / "prediction_verdict.json", prediction_verdict)
     with (output / "prediction_observations.jsonl").open("w", encoding="utf-8") as handle:
@@ -693,6 +754,8 @@ def main() -> int:
                 "# MSC N+1 prediction research report",
                 "",
                 f"- Evidence level: `{prediction_verdict.evidence_level}`",
+                "- Thesis status: `not-evaluated`",
+                "- Formal experiment executed: `false`",
                 f"- Thesis exit: `{prediction_verdict.thesis_exit}`",
                 f"- Capacity exit: `{capacity_verdict.eta_claim_exit}`",
                 f"- Selected n_z: `{chosen_n_z}`",
@@ -709,6 +772,46 @@ def main() -> int:
             )
         ),
         encoding="utf-8",
+    )
+    repository_root = Path(__file__).resolve().parents[1]
+    source_paths = (
+        Path(__file__).resolve(),
+        repository_root
+        / "packages/companion-bench/src/companion_bench/msc_corpus.py",
+        repository_root
+        / "packages/companion-bench/src/companion_bench/prediction_research.py",
+        repository_root
+        / "packages/vz-cognition/src/volvence_zero/prediction/error.py",
+        repository_root
+        / "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py",
+    )
+    result_names = (
+        "manifest.json",
+        "corpus_provenance.json",
+        "capacity_ladder.json",
+        "prediction_verdict.json",
+        "prediction_observations.jsonl",
+        "report.md",
+    )
+    _write_json(
+        output / "artifact_manifest.json",
+        {
+            "schema_version": "msc-mechanism-artifact.v1",
+            "evidence_level": "mechanism-only-pilot",
+            "thesis_status": "not-evaluated",
+            "formal_experiment_executed": False,
+            "corpus_provenance_source": _hashed_file(corpus_provenance),
+            "source_files": {
+                path.relative_to(repository_root).as_posix(): _hashed_file(path)
+                for path in source_paths
+            },
+            "result_files": {
+                name: _hashed_file(output / name) for name in result_names
+            },
+            "hash_scope": (
+                "artifact_manifest.json is excluded to avoid a recursive self-hash"
+            ),
+        },
     )
     print(output)
     print(prediction_verdict.description)
