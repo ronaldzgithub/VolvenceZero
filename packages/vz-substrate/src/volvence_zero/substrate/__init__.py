@@ -178,6 +178,10 @@ from volvence_zero.substrate.residual_contracts import (
 from volvence_zero.substrate.residual_helpers import (
     build_rare_heavy_compatibility_fingerprint,
 )
+from volvence_zero.substrate.steered_action_scoring import (
+    SteeredActionOption,
+    TransformersSteeredActionScorer,
+)
 from volvence_zero.substrate.vllm_runtime import (
     VLLMLoRARouter,
     VLLMOpenWeightResidualRuntime,
@@ -340,7 +344,9 @@ __all__ = [
     "SurfaceKind",
     "semantic_feature_surface_from_text",
     "SyntheticOpenWeightResidualRuntime",
+    "SteeredActionOption",
     "SubstrateFallbackMode",
+    "TransformersSteeredActionScorer",
     "TextGenerationProvider",
     "TraceResidualInterventionBackend",
     "TransformersOpenWeightResidualRuntime",

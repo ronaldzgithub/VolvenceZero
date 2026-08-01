@@ -302,9 +302,24 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         runtime_origin: str = "hf-pretrained",
         allow_live_substrate_mutation: bool = False,
         allow_offline_substrate_training: bool = False,
+        model_dtype: str | None = None,
     ) -> None:
         self._torch = importlib.import_module("torch")
         self._transformers = importlib.import_module("transformers")
+        if model_dtype is not None and model_dtype not in (
+            "float16",
+            "float32",
+            "bfloat16",
+        ):
+            raise ValueError(
+                "model_dtype must be one of 'float16', 'float32', "
+                f"'bfloat16' or None, got {model_dtype!r}."
+            )
+        # Explicit load-dtype override. None keeps the historical default
+        # (float16 on MPS, checkpoint dtype elsewhere). The rate-distortion
+        # joint arm needs float32 because fp16 master weights overflow
+        # under Adam.
+        self._requested_model_dtype = model_dtype
         self.model_id = model_id
         self._pretrained_source = pretrained_source or model_id
         self.is_frozen = True
@@ -604,6 +619,78 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         """Frozen hook surface available to projector artifacts."""
 
         return self._layer_indices
+
+    def build_steered_action_scorer(
+        self,
+        *,
+        action_options,
+        injection_layer_index: int | None = None,
+        prompt_suffix: str = "\nNext move:",
+        max_length: int = 96,
+        control_norm_ratio: float = 0.25,
+        probe_texts: tuple[str, ...] = (),
+        joint_training: bool = False,
+    ):
+        """Build the differentiable steered action scorer for ETA Eq.3.
+
+        Substrate-owned offline evidence surface: injects a per-step control
+        delta at one hooked block, keeps the upper blocks inside the autograd
+        graph, and scores expert actions against the frozen LM head. See
+        :mod:`volvence_zero.substrate.steered_action_scoring`.
+        """
+
+        from volvence_zero.substrate.steered_action_scoring import (
+            TransformersSteeredActionScorer,
+        )
+
+        resolved_layer = (
+            injection_layer_index
+            if injection_layer_index is not None
+            else min(self._layer_indices)
+        )
+        final_norm = self._resolve_final_norm_module()
+        return TransformersSteeredActionScorer(
+            torch_module=self._torch,
+            model=self._model,
+            tokenizer=self._tokenizer,
+            block_modules=self._block_modules,
+            final_norm_module=final_norm,
+            injection_layer_index=resolved_layer,
+            hidden_size=self._hidden_size,
+            device=self._device,
+            model_id=self.model_id,
+            action_options=action_options,
+            prompt_suffix=prompt_suffix,
+            max_length=max_length,
+            control_norm_ratio=control_norm_ratio,
+            probe_texts=probe_texts,
+            joint_training=joint_training,
+        )
+
+    def _resolve_final_norm_module(self):
+        """Locate the final pre-LM-head norm module for joint-arm training."""
+
+        candidate_paths = (
+            ("model", "norm"),
+            ("base_model", "model", "norm"),
+            ("transformer", "ln_f"),
+            ("gpt_neox", "final_layer_norm"),
+        )
+        for path in candidate_paths:
+            current = self._model
+            resolved = True
+            for segment in path:
+                try:
+                    current = getattr(current, segment)
+                except AttributeError:
+                    resolved = False
+                    break
+            if resolved:
+                return current
+        raise NotImplementedError(
+            f"Transformers runtime '{self.model_id}' could not resolve the "
+            "final norm module for steered action scoring."
+        )
 
     @property
     def hidden_size(self) -> int:
@@ -2438,7 +2525,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
     def _load_model(self, *, model_id: str, local_files_only: bool):
         load_kwargs: dict[str, object] = {"local_files_only": local_files_only}
-        if self._device == "mps":
+        if self._requested_model_dtype is not None:
+            load_kwargs["torch_dtype"] = getattr(
+                self._torch, self._requested_model_dtype
+            )
+        elif self._device == "mps":
             load_kwargs["torch_dtype"] = self._torch.float16
         if os.name == "nt" and str(self._device).startswith("cuda"):
             # Windows CUDA has been observed to terminate the interpreter with
@@ -4216,6 +4307,7 @@ def build_transformers_runtime_with_fallback(
     character_prefix_registry: CharacterPrefixKVRegistry | None = None,
     common_adapter_bundle: CommonAdapterBundle | None = None,
     character_residual_package: CharacterResidualAdapterPackage | None = None,
+    model_dtype: str | None = None,
 ) -> TransformersOpenWeightResidualRuntime:
     resolved_runtime_mode = resolve_local_runtime_mode(
         runtime_mode=runtime_mode,
@@ -4309,6 +4401,7 @@ def build_transformers_runtime_with_fallback(
                 loaded_base_model_weights_sha256
             ),
             character_residual_package=character_residual_package,
+            model_dtype=model_dtype,
         )
     except Exception as exc:
         if resolved_mode is not SubstrateFallbackMode.ALLOW_BUILTIN or not _is_transformers_runtime_fallback_error(exc):

@@ -428,6 +428,10 @@ class ETAOpenWeightRuntimeConfig:
     builtin_model_id: str = "eta-builtin-transformers-runtime"
     max_prefix_steps: int = 6
     require_real_backend: bool = True
+    # None keeps the runtime default (float16 on MPS). The rate-distortion
+    # criterion runs float32 so the joint validity-control arm can train
+    # substrate parameters without fp16 Adam overflow.
+    model_dtype: str | None = None
     min_hook_coverage: float = 0.75
     max_fallback_rate: float = 0.0
     calibrate_proof_signatures: bool = True
@@ -499,6 +503,7 @@ def _build_eta_open_weight_runtime(config: ETAOpenWeightRuntimeConfig | None = N
         runtime_mode=active_config.runtime_mode,
         builtin_model_id=active_config.builtin_model_id,
         allow_live_substrate_mutation=False,
+        model_dtype=active_config.model_dtype,
     )
 
 

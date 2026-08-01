@@ -61,6 +61,11 @@ class TraceStep:
     feature_surface: tuple[FeatureSignal, ...]
     residual_activations: tuple[ResidualActivation, ...]
     expert_action_target: ExpertActionTarget | None = None
+    # ETA Eq.3 steered-action supervision needs the observation prompt that
+    # produced this step's residual capture, so the SSL distortion can be
+    # re-scored through the controlled frozen model. Empty for legacy
+    # residual-proxy traces.
+    observation_text: str = ""
 
 
 @dataclass(frozen=True)
