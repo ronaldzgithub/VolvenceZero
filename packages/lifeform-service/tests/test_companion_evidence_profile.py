@@ -168,3 +168,38 @@ def test_mutable_shared_runtime_is_only_allowed_for_gate10_single_session() -> N
         max_sessions=1,
     )
     assert app["companion_evidence_profile"] == GATE10_RARE_HEAVY_IMPORT
+
+
+async def test_product_http_path_publishes_typed_gate_telemetry(
+    aiohttp_client,
+) -> None:
+    app = create_app(
+        vertical=_try_companion(evidence_profile=GATE5_MULTIFREQUENCY_CMS),
+        companion_evidence_profile=GATE5_MULTIFREQUENCY_CMS,
+        max_sessions=1,
+    )
+    client = await aiohttp_client(app)
+    created = await client.post("/v1/sessions", json={"session_id": "gate-suite-http"})
+    assert created.status == 201
+
+    response = await client.post(
+        "/v1/sessions/gate-suite-http/turns",
+        json={"user_input": "I want to revisit the plan we discussed."},
+    )
+    assert response.status == 200
+    payload = await response.json()
+    telemetry = payload["evidence_telemetry"]
+    assert telemetry["cms_variant"] == "nested"
+    assert telemetry["cms_atlas_replay_active"] is True
+    assert telemetry["cms_pe_gate_active"] is True
+
+    ended = await client.post(
+        "/v1/sessions/gate-suite-http/end-scene",
+        json={"drain_slow_loop": True},
+    )
+    assert ended.status == 200
+    end_payload = await ended.json()
+    assert isinstance(
+        end_payload["evidence_telemetry"]["nested_context_reset_applied"],
+        bool,
+    )
