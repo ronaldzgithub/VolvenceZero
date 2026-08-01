@@ -46,9 +46,7 @@ class _Service:
         self.events.append(("create", (session_id, user_id)))
         return {"session_id": session_id}
 
-    def submit_turn(
-        self, *, session_id: str, user_input: str
-    ) -> Mapping[str, object]:
+    def submit_turn(self, *, session_id: str, user_input: str) -> Mapping[str, object]:
         self.events.append(("turn", (session_id, user_input)))
         return {
             "response_text": f"assistant response to {user_input}",
@@ -58,24 +56,18 @@ class _Service:
             "self_temporal_prediction_error_applied": True,
         }
 
-    def end_scene(
-        self, *, session_id: str, drain_slow_loop: bool
-    ) -> Mapping[str, object]:
+    def end_scene(self, *, session_id: str, drain_slow_loop: bool) -> Mapping[str, object]:
         self.events.append(("end", (session_id, drain_slow_loop)))
         return {
             "closed_scene_id": f"{session_id}:scene",
             "slow_loop_drained": drain_slow_loop,
         }
 
-    def continuity_metrics(
-        self, *, session_id: str, observed_at_ms: int
-    ) -> Mapping[str, object]:
+    def continuity_metrics(self, *, session_id: str, observed_at_ms: int) -> Mapping[str, object]:
         self.events.append(("metrics", (session_id, observed_at_ms)))
         return dict(_METRICS)
 
-    def relationship_memory(
-        self, *, session_id: str
-    ) -> Mapping[str, object]:
+    def relationship_memory(self, *, session_id: str) -> Mapping[str, object]:
         self.events.append(("memory", session_id))
         return {
             "pending_proposals": [
@@ -139,6 +131,22 @@ class _Lifecycle:
                 next_day_loaded_state_sha256="3" * 64,
             ),
         )
+
+
+class _CharacterService(_Service):
+    def create_session(self, *, session_id: str, user_id: str) -> Mapping[str, object]:
+        payload = dict(super().create_session(session_id=session_id, user_id=user_id))
+        payload["character_id"] = "zhang-wuji"
+        return payload
+
+    def submit_turn(self, *, session_id: str, user_input: str) -> Mapping[str, object]:
+        payload = dict(super().submit_turn(session_id=session_id, user_input=user_input))
+        payload["response_rationale_tags"] = [
+            "character_id=zhang-wuji",
+            "character_prefix=active",
+            "character_prefix_kv=prefix-v1",
+        ]
+        return payload
 
 
 class _Driver:
@@ -205,6 +213,24 @@ def _attestation() -> SimulatedSourceAttestation:
     )
 
 
+def _character_attestation() -> SimulatedSourceAttestation:
+    return SimulatedSourceAttestation(
+        simulator_model_id="smollm-local",
+        simulator_model_family="smollm",
+        sut_model_id="qwen-local",
+        sut_model_family="qwen",
+        model_and_adapter_fingerprint="1" * 64,
+        pii_scan_artifact_sha256="2" * 64,
+        common_adapter_bundle_id="common-bundle-v1",
+        common_adapter_version="common-v1",
+        common_adapter_compatibility_fingerprint="compat-v1",
+        character_manifest_package_id="manifest-v1",
+        character_id="zhang-wuji",
+        character_prefix_package_id="prefix-v1",
+        character_wiring_level="active",
+    )
+
+
 def test_orchestrator_runs_seven_days_with_six_real_restart_boundaries(
     tmp_path: Path,
 ) -> None:
@@ -236,31 +262,45 @@ def test_orchestrator_runs_seven_days_with_six_real_restart_boundaries(
     assert run.external_human_value_claim_allowed is False
     assert run.production_promotion_authorized is False
     assert all(len(day.turns) == 5 for day in run.days)
-    assert all(
-        tuple(item.action for item in day.console_probe_actions)
-        == ("keep", "delete")
-        for day in run.days
-    )
+    assert all(tuple(item.action for item in day.console_probe_actions) == ("keep", "delete") for day in run.days)
     assert all(day.owner_persisted_before_restart for day in run.days)
     assert len({day.service_instance_id for day in run.days}) == 7
     assert (tmp_path / "run.json").is_file()
     assert len(list((tmp_path / "pilot").rglob("day-*-transcript.json"))) == 7
-    end_indexes = [
-        index
-        for index, (event, _) in enumerate(service.events)
-        if event == "end"
-    ]
+    end_indexes = [index for index, (event, _) in enumerate(service.events) if event == "end"]
     assert all(service.events[index - 1][0] == "metrics" for index in end_indexes)
+
+
+def test_orchestrator_requires_active_character_carrier_on_every_turn(
+    tmp_path: Path,
+) -> None:
+    service = _CharacterService()
+    run = SevenDayCompanionOrchestrator(
+        service=service,
+        lifecycle=_Lifecycle(service),
+        pilot_harness=RelationshipAssistantPilotHarness(
+            root_dir=tmp_path / "pilot",
+            pilot_id="character-stack-seven-day",
+            invited_user_ids=frozenset({"synthetic-user"}),
+        ),
+    ).run(
+        run_id="character-stack-run",
+        arm_label="correct-user-state",
+        paraphrase_seed=1401,
+        user_id="synthetic-user",
+        schedule=_schedule(),
+        user_driver=_Driver(),
+        source_attestation=_character_attestation(),
+        drain_slow_loop=True,
+        output_path=tmp_path / "character-stack-run.json",
+    )
+
+    assert all("character_prefix=active" in turn.response_rationale_tags for day in run.days for turn in day.turns)
 
 
 def test_schedule_must_cover_all_three_l4_event_families() -> None:
     schedule = _schedule()
-    days = tuple(
-        replace(day, required_event_tags=())
-        if day.day_index == 7
-        else day
-        for day in schedule.days
-    )
+    days = tuple(replace(day, required_event_tags=()) if day.day_index == 7 else day for day in schedule.days)
     with pytest.raises(ValueError, match="callback, emotion, and boundary"):
         replace(schedule, days=days)
 

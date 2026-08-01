@@ -11,6 +11,10 @@ from volvence_zero.agent.seven_day_companion_evidence import (
     SevenDayExperimentCase,
     SevenDayRunEnvelope,
     evaluate_seven_day_ablation,
+    validate_seven_day_character_stack_run,
+)
+from volvence_zero.agent.seven_day_companion_preregistration import (
+    seven_day_source_attestation_contract,
 )
 
 
@@ -69,16 +73,11 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                 {
                     "exchange_index": exchange_index,
                     "user_text": (
-                        f"{case.scenario_id} seed {case.paraphrase_seed} "
-                        f"day {day_index} exchange {exchange_index}"
+                        f"{case.scenario_id} seed {case.paraphrase_seed} day {day_index} exchange {exchange_index}"
                     ),
                     "assistant_text": f"{arm} response",
                     "fsm_action": "callback_probe" if tags == ["callback"] else None,
-                    "fsm_payload": (
-                        "typed payload"
-                        if day_index == 1 and exchange_index == 1
-                        else None
-                    ),
+                    "fsm_payload": ("typed payload" if day_index == 1 and exchange_index == 1 else None),
                     "event_tags": tags,
                     "fsm_probe_passed": score >= 0.8 if tags else None,
                 }
@@ -106,15 +105,9 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                     "archived_state_ref": f"archive/day-{day_index}",
                     "archived_state_sha256": "4" * 64,
                     "measurement_checkpoint_sha256": "6" * 64,
-                    "next_day_source_arm": (
-                        "correct-user-state" if stateful else None
-                    ),
-                    "next_day_source_day_index": (
-                        day_index if stateful else None
-                    ),
-                    "next_day_loaded_state_sha256": (
-                        "5" * 64 if stateful else None
-                    ),
+                    "next_day_source_arm": ("correct-user-state" if stateful else None),
+                    "next_day_source_day_index": (day_index if stateful else None),
+                    "next_day_loaded_state_sha256": ("5" * 64 if stateful else None),
                 },
             }
             if day_index < 7
@@ -127,8 +120,7 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                 "arm_label": arm,
                 "scenario_id": case.scenario_id,
                 "day_index": day_index,
-                "virtual_observed_at_ms": 1_800_000_000_000
-                + (day_index - 1) * 86_400_000,
+                "virtual_observed_at_ms": 1_800_000_000_000 + (day_index - 1) * 86_400_000,
                 "session_id": f"s-{day_index}",
                 "service_instance_id": f"i-{day_index}",
                 "cold_start_continuity_metrics": _metrics(score),
@@ -140,8 +132,7 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                         "action": "keep",
                         "correction_kind": None,
                         "replacement_sha256": None,
-                        "created_at_ms": 1_800_000_000_000
-                        + (day_index - 1) * 86_400_000,
+                        "created_at_ms": 1_800_000_000_000 + (day_index - 1) * 86_400_000,
                         "status": "applied",
                     },
                     {
@@ -150,8 +141,7 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                         "action": "delete",
                         "correction_kind": "content_inaccurate",
                         "replacement_sha256": None,
-                        "created_at_ms": 1_800_000_000_000
-                        + (day_index - 1) * 86_400_000,
+                        "created_at_ms": 1_800_000_000_000 + (day_index - 1) * 86_400_000,
                         "status": "applied",
                     },
                 ],
@@ -204,6 +194,76 @@ def _envelopes() -> list[SevenDayRunEnvelope]:
     ]
 
 
+def _v2_stack_preregistration() -> dict[str, object]:
+    payload = _prereg()
+    payload["schema_version"] = "seven-day-companion-simulated.v2"
+    payload["formal_models"] = {
+        "simulator": {
+            "model_id": "tinyllama",
+            "model_family": "llama",
+        },
+        "sut": {
+            "model_id": "qwen",
+            "model_family": "qwen",
+            "weights_sha256": "3" * 64,
+        },
+    }
+    payload["runtime_stack"] = {
+        "wiring_level": "active",
+        "selected_character_id": "zhang-wuji",
+        "common_adapter": {
+            "sha256": "4" * 64,
+            "bundle_id": "common-bundle-v1",
+            "common_adapter_version": "common-v1",
+            "compatibility_fingerprint": "compat-v1",
+        },
+        "character_manifests": [
+            {
+                "character_id": "zhang-wuji",
+                "sha256": "5" * 64,
+                "package_id": "manifest-v1",
+                "prefix_package_id": "prefix-v1",
+            }
+        ],
+    }
+    return payload
+
+
+def _v2_stack_run(
+    preregistration: dict[str, object],
+) -> dict[str, object]:
+    run = _run(
+        case=SevenDayExperimentCase("persona-researcher", 1401),
+        arm="correct-user-state",
+    )
+    run["source_attestation"].update(
+        seven_day_source_attestation_contract(preregistration)
+    )
+    run["runtime_stack_attestation"] = {
+        "common_adapter": {
+            "bundle_id": "common-bundle-v1",
+            "common_adapter_version": "common-v1",
+            "compatibility_fingerprint": "compat-v1",
+        },
+        "session_bindings": [
+            {
+                "character_id": "zhang-wuji",
+                "manifest_package_id": "manifest-v1",
+                "prefix_package_id": "prefix-v1",
+                "wiring_level": "active",
+            }
+        ],
+    }
+    for day in run["days"]:
+        for turn in day["turns"]:
+            turn["response_rationale_tags"] = [
+                "character_id=zhang-wuji",
+                "character_prefix=active",
+                "character_prefix_kv=prefix-v1",
+            ]
+    return run
+
+
 def test_two_persona_regression_covers_all_arms_and_daily_readouts() -> None:
     result = evaluate_seven_day_ablation(
         runs=_envelopes(),
@@ -216,6 +276,24 @@ def test_two_persona_regression_covers_all_arms_and_daily_readouts() -> None:
     assert len(result.comparisons) == 4
     assert result.production_promotion_authorized is False
     assert result.evaluation_writeback_allowed is False
+
+
+def test_v2_stack_requires_exact_active_carrier_on_every_turn() -> None:
+    preregistration = _v2_stack_preregistration()
+    run = _v2_stack_run(preregistration)
+    validate_seven_day_character_stack_run(
+        run=run,
+        preregistration=preregistration,
+    )
+    run["days"][3]["turns"][2]["response_rationale_tags"] = [
+        "character_id=zhang-wuji",
+        "character_prefix=disabled",
+    ]
+    with pytest.raises(ValueError, match="carrier attestation"):
+        validate_seven_day_character_stack_run(
+            run=run,
+            preregistration=preregistration,
+        )
 
 
 def test_exact_user_turn_matching_fails_loudly() -> None:
@@ -234,9 +312,7 @@ def test_exact_user_turn_matching_fails_loudly() -> None:
 def test_missing_owner_metric_cannot_pass_evidence_gate() -> None:
     runs = _envelopes()
     mutated = deepcopy(runs[0].run)
-    mutated["days"][6]["continuity_metrics"][
-        "remembered_item_usefulness"
-    ] = None
+    mutated["days"][6]["continuity_metrics"]["remembered_item_usefulness"] = None
     runs[0] = SevenDayRunEnvelope(
         case=runs[0].case,
         arm_label=runs[0].arm_label,
@@ -247,11 +323,7 @@ def test_missing_owner_metric_cannot_pass_evidence_gate() -> None:
         preregistration=_prereg(),
     )
     assert result.passed is False
-    assert any(
-        not passed
-        for name, passed in result.gates.items()
-        if "metric-coverage" in name
-    )
+    assert any(not passed for name, passed in result.gates.items() if "metric-coverage" in name)
 
 
 def test_harness_freezes_arm_and_sleep_schedule(tmp_path: Path) -> None:
@@ -280,10 +352,6 @@ def test_harness_freezes_arm_and_sleep_schedule(tmp_path: Path) -> None:
         output_dir=tmp_path,
     )
     assert result.passed is True
-    assert calls == [
-        (arm, arm != "no-sleep")
-        for arm in SEVEN_DAY_ALL_ARMS
-        for _case in range(2)
-    ]
+    assert calls == [(arm, arm != "no-sleep") for arm in SEVEN_DAY_ALL_ARMS for _case in range(2)]
     assert (tmp_path / "manifest.json").is_file()
     assert (tmp_path / "daily_metrics.jsonl").is_file()

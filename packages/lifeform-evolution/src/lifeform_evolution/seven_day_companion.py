@@ -70,6 +70,13 @@ class SimulatedSourceAttestation:
     consent_scope: str = "synthetic-no-human-subject"
     pii_scan_artifact_sha256: str = ""
     judge_model_family: str | None = None
+    common_adapter_bundle_id: str | None = None
+    common_adapter_version: str | None = None
+    common_adapter_compatibility_fingerprint: str | None = None
+    character_manifest_package_id: str | None = None
+    character_id: str | None = None
+    character_prefix_package_id: str | None = None
+    character_wiring_level: str | None = None
 
     def __post_init__(self) -> None:
         _require_non_empty(self.simulator_model_id, field="simulator_model_id")
@@ -95,6 +102,24 @@ class SimulatedSourceAttestation:
             judge = _require_non_empty(self.judge_model_family, field="judge_model_family").strip().lower()
             if judge in families:
                 raise ValueError("judge model family must differ from simulator and SUT")
+        stack_fields = {
+            "common_adapter_bundle_id": self.common_adapter_bundle_id,
+            "common_adapter_version": self.common_adapter_version,
+            "common_adapter_compatibility_fingerprint": (self.common_adapter_compatibility_fingerprint),
+            "character_manifest_package_id": (self.character_manifest_package_id),
+            "character_id": self.character_id,
+            "character_prefix_package_id": self.character_prefix_package_id,
+            "character_wiring_level": self.character_wiring_level,
+        }
+        configured = tuple(value is not None for value in stack_fields.values())
+        if any(configured) and not all(configured):
+            raise ValueError("base+adapter+character source attestation must provide every runtime stack field.")
+        if all(configured):
+            for name, value in stack_fields.items():
+                assert value is not None
+                _require_non_empty(value, field=name)
+            if self.character_wiring_level != "active":
+                raise ValueError("seven-day character runtime attestation requires ACTIVE wiring.")
 
 
 @dataclass(frozen=True)
@@ -186,6 +211,7 @@ class SevenDayTurnEvidence:
     world_temporal_prediction_error_applied: bool | None = None
     self_temporal_prediction_error_applied: bool | None = None
     gate_telemetry: tuple[tuple[str, object], ...] = ()
+    response_rationale_tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -320,12 +346,14 @@ class HTTPSevenDayCompanionService:
         user_id: str,
         instance_id: str,
         vertical: str | None = None,
+        character_id: str | None = None,
         timeout_s: float = 120.0,
     ) -> None:
         self._base_url = _require_non_empty(base_url, field="base_url").rstrip("/")
         self._user_id = _require_non_empty(user_id, field="user_id")
         self._instance_id = _require_non_empty(instance_id, field="instance_id")
         self._vertical = vertical.strip() if vertical else None
+        self._character_id = character_id.strip() if character_id else None
         if timeout_s <= 0:
             raise ValueError("timeout_s must be positive")
         self._timeout_s = timeout_s
@@ -346,6 +374,8 @@ class HTTPSevenDayCompanionService:
         }
         if self._vertical:
             payload["vertical"] = self._vertical
+        if self._character_id:
+            payload["character_id"] = self._character_id
         return self._request("POST", "/v1/sessions", payload=payload)
 
     def submit_turn(self, *, session_id: str, user_input: str) -> Mapping[str, object]:
@@ -485,6 +515,9 @@ class SevenDayCompanionOrchestrator:
             )
             if created.get("session_id") != session_id:
                 raise RuntimeError("service created the wrong session")
+            expected_character_id = source_attestation.character_id
+            if expected_character_id is not None and created.get("character_id") != expected_character_id:
+                raise RuntimeError("service did not bind the preregistered character package")
             cold_start_metrics = dict(
                 self._service.continuity_metrics(
                     session_id=session_id,
@@ -548,6 +581,21 @@ class SevenDayCompanionOrchestrator:
                 if not isinstance(raw_gate_telemetry, Mapping):
                     raise RuntimeError("service evidence_telemetry must be an object")
                 gate_telemetry = tuple(sorted((str(key), value) for key, value in raw_gate_telemetry.items()))
+                raw_rationale_tags = response.get("response_rationale_tags", ())
+                if not isinstance(raw_rationale_tags, (list, tuple)) or not all(
+                    isinstance(item, str) and item for item in raw_rationale_tags
+                ):
+                    raise RuntimeError("service response_rationale_tags must be a string list")
+                rationale_tags = tuple(raw_rationale_tags)
+                if expected_character_id is not None:
+                    required_tags = {
+                        f"character_id={expected_character_id}",
+                        "character_prefix=active",
+                        (f"character_prefix_kv={source_attestation.character_prefix_package_id}"),
+                    }
+                    missing_tags = required_tags.difference(rationale_tags)
+                    if missing_tags:
+                        raise RuntimeError(f"turn lacks ACTIVE character carrier attestation: {sorted(missing_tags)!r}")
                 transcript.extend(
                     (
                         PilotTranscriptTurn(role="user", text=generated.text),
@@ -568,6 +616,7 @@ class SevenDayCompanionOrchestrator:
                         world_temporal_prediction_error_applied=(world_pe_applied),
                         self_temporal_prediction_error_applied=(self_pe_applied),
                         gate_telemetry=gate_telemetry,
+                        response_rationale_tags=rationale_tags,
                     )
                 )
             if not set(day.required_event_tags).issubset(day_event_tags):

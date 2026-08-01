@@ -256,7 +256,7 @@
 |------|------|
 | [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
-| [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：冻结 user script、state 四臂与 sleep 两臂、cold-start/日终 readout、Gate 8/11 simulated capture 兼容边界与正式 run 预注册 |
+| [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：v1 base-only 冻结矩阵；v2 冻结 `base + CommonAdapterBundle + per-session CharacterPackageManifest`、每 turn 物理载体证明、state/sleep 消融与独立审计 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
 | [thesis-v2-proposal.md](../thesis-v2-proposal.md) | #93 有界产品连续性提案：继承 #92/L1/L3 负证据，把 Gate 8/11 真实人类 anchor 作为唯一新 EXIT，明确排除失败 learned uplift 与 production 自动晋升 |
 | Gate 2 conditioned longitudinal（[temporal](./temporal-abstraction.md) / [conditioning](./personal-conditioning.md) / [evidence](./evidence_program.md)） | 14 维 Relationship owner readout 条件化 8076→8090 residual selector；seed1301 stop-loss 终局 `not-supported`，不授权 live promotion |
@@ -487,13 +487,14 @@
 | Spec | 内容 |
 |------|------|
 | [character-prefix-package.md](./character-prefix-package.md) | 共享 `CommonAdapterBundle`、统一 `CharacterPackageManifest`、rare-heavy → State-KV → 角色 bake 顺序、多角色 session 路由、ACTIVE gate 与批量再验证 |
-| [Common Adapter 与角色特色包训练手册](../common-adapter-character-training.md) | 可执行训练数据 schema、control basis、L1 train/evaluate/publish、L2 bake/fidelity/gate、SHADOW→ACTIVE、升级与回滚命令 |
+| [Common Adapter 与角色特色包训练手册](../common-adapter-character-training.md) | 可执行训练数据 schema、control basis、L1 train/evaluate/publish、L2 bake/fidelity/gate、SHADOW→ACTIVE、七天 v2 prereg/smoke、升级与回滚命令 |
 
 **核心不变量**：
 - L1 是进程级唯一共享 adapter；L2 只承载角色差异；L3 tenant 状态永不写回包
 - State-KV 与角色 Prefix/KV 必须在 `base + common adapter vN` 上蒸馏
 - runtime 必须校验基础权重 SHA-256、bundle/manifest 双指纹和模型几何
 - `character_prefix_applied` 只证明物理载体注入，不等于人物行为 fidelity 已达标
+- 七天 v2 必须逐 turn 证明 ACTIVE Prefix/KV；旧 v1 `adapter:none` 证据不得就地改签或混入 v2
 - 训练 candidate 必须绑定数据/超参数/seed provenance；L1/L2 allow 都只能来自 immutable held-out 对照臂和 cognition `ModificationGate.OFFLINE`
 - Forge rare-heavy request 固定 DISABLED 且只计划训练；loop-external READY 只证明证据绑定，不能 publish/activate L1
 

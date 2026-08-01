@@ -19,15 +19,15 @@ from volvence_zero.agent.seven_day_companion_evidence import (
     SevenDayExperimentCase,
     SevenDayRunEnvelope,
     evaluate_seven_day_ablation,
+    validate_seven_day_character_stack_run,
 )
 from volvence_zero.agent.seven_day_companion_preregistration import (
+    seven_day_source_attestation_contract,
     validate_seven_day_companion_preregistration,
 )
 
 
-_MEASUREMENT_CHECKPOINT_NAME = (
-    "evaluation__relationship_continuity_v1.json"
-)
+_MEASUREMENT_CHECKPOINT_NAME = "evaluation__relationship_continuity_v1.json"
 _SHUFFLED_SOURCE_DAYS = (1, 1, 2, 1, 4, 3)
 _HTTP_ERROR_RE = re.compile(r'HTTP/1\.[01]" [45][0-9][0-9]')
 
@@ -57,9 +57,7 @@ def _directory_sha256(root: Path) -> str:
         raise FileNotFoundError(f"state archive is missing: {root}")
     digest = hashlib.sha256()
     for path in sorted(
-        item
-        for item in root.rglob("*")
-        if item.is_file() and item.name != _MEASUREMENT_CHECKPOINT_NAME
+        item for item in root.rglob("*") if item.is_file() and item.name != _MEASUREMENT_CHECKPOINT_NAME
     ):
         relative = path.relative_to(root).as_posix().encode("utf-8")
         digest.update(len(relative).to_bytes(8, "big"))
@@ -103,35 +101,18 @@ def _resolve_artifact_ref(root: Path, ref: object, *, field: str) -> Path:
 def _expected_cases(
     preregistration: Mapping[str, object],
 ) -> tuple[SevenDayExperimentCase, ...]:
-    scenario_ids = _require_list(
-        preregistration.get("scenario_ids"), field="scenario_ids"
-    )
-    formal = _require_mapping(
-        preregistration.get("formal_run"), field="formal_run"
-    )
-    seeds = _require_list(
-        formal.get("paraphrase_seeds"), field="paraphrase_seeds"
-    )
+    scenario_ids = _require_list(preregistration.get("scenario_ids"), field="scenario_ids")
+    formal = _require_mapping(preregistration.get("formal_run"), field="formal_run")
+    seeds = _require_list(formal.get("paraphrase_seeds"), field="paraphrase_seeds")
     if not all(isinstance(value, str) and value for value in scenario_ids):
         raise ValueError("scenario_ids contains an invalid value")
-    if not all(
-        isinstance(value, int) and not isinstance(value, bool) and value >= 0
-        for value in seeds
-    ):
+    if not all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in seeds):
         raise ValueError("paraphrase_seeds contains an invalid value")
-    return tuple(
-        SevenDayExperimentCase(str(scenario_id), int(seed))
-        for scenario_id in scenario_ids
-        for seed in seeds
-    )
+    return tuple(SevenDayExperimentCase(str(scenario_id), int(seed)) for scenario_id in scenario_ids for seed in seeds)
 
 
-def _expected_run_path(
-    *, output_root: Path, case: SevenDayExperimentCase, arm: str
-) -> Path:
-    name = hashlib.sha256(
-        f"{case.case_id}\0{arm}".encode("utf-8")
-    ).hexdigest()
+def _expected_run_path(*, output_root: Path, case: SevenDayExperimentCase, arm: str) -> Path:
+    name = hashlib.sha256(f"{case.case_id}\0{arm}".encode("utf-8")).hexdigest()
     return output_root / "runs" / f"{name}.json"
 
 
@@ -161,11 +142,7 @@ def _run_turns(run: Mapping[str, object]) -> tuple[tuple[object, ...], ...]:
                     turn.get("exchange_index"),
                     turn.get("fsm_action"),
                     turn.get("fsm_payload"),
-                    tuple(
-                        _require_list(
-                            turn.get("event_tags"), field="turn.event_tags"
-                        )
-                    ),
+                    tuple(_require_list(turn.get("event_tags"), field="turn.event_tags")),
                     turn.get("user_text"),
                 )
             )
@@ -186,40 +163,23 @@ def _expected_source(
         return None, None, None
     if arm == "swapped-user-state":
         donor = cases[(case_index + 1) % len(cases)]
-        donor_key = hashlib.sha256(
-            donor.case_id.encode("utf-8")
-        ).hexdigest()[:20]
+        donor_key = hashlib.sha256(donor.case_id.encode("utf-8")).hexdigest()[:20]
         return (
             "matched-donor-correct-user-state",
             day_index,
-            output_root
-            / "state"
-            / donor_key
-            / "archives"
-            / "correct-user-state"
-            / f"day-{day_index}",
+            output_root / "state" / donor_key / "archives" / "correct-user-state" / f"day-{day_index}",
         )
     if arm == "shuffled-history":
         source_day = _SHUFFLED_SOURCE_DAYS[day_index - 1]
         return (
             "same-user-correct-reference",
             source_day,
-            output_root
-            / "state"
-            / case_key
-            / "archives"
-            / "correct-user-state"
-            / f"day-{source_day}",
+            output_root / "state" / case_key / "archives" / "correct-user-state" / f"day-{source_day}",
         )
     return (
         "correct-user-state",
         day_index,
-        output_root
-        / "state"
-        / case_key
-        / "archives"
-        / arm
-        / f"day-{day_index}",
+        output_root / "state" / case_key / "archives" / arm / f"day-{day_index}",
     )
 
 
@@ -235,12 +195,8 @@ def _verify_physical_run(
 ) -> dict[str, set[str]]:
     if _run_turns(run) != _script_turns(script):
         raise ValueError(f"run does not replay the frozen script: {script.case_id}")
-    attestation = _require_mapping(
-        run.get("source_attestation"), field="source_attestation"
-    )
-    if attestation.get("pii_scan_artifact_sha256") != (
-        expected_source_audit_sha256
-    ):
+    attestation = _require_mapping(run.get("source_attestation"), field="source_attestation")
+    if attestation.get("pii_scan_artifact_sha256") != (expected_source_audit_sha256):
         raise ValueError("synthetic source audit digest drift")
     case = cases[case_index]
     case_key = hashlib.sha256(case.case_id.encode("utf-8")).hexdigest()[:20]
@@ -270,23 +226,13 @@ def _verify_physical_run(
         ids["service_instance_ids"].add(service_id)
         ids["session_ids"].add(session_id)
         session_path = (
-            output_root
-            / "service_evidence"
-            / case_key
-            / arm
-            / "sessions"
-            / session_id
-            / "session_evidence.json"
+            output_root / "service_evidence" / case_key / arm / "sessions" / session_id / "session_evidence.json"
         )
-        session_payload = _load_mapping(
-            session_path, field="service session evidence"
-        )
+        session_payload = _load_mapping(session_path, field="service session evidence")
         if session_payload.get("session_id") != session_id:
             raise ValueError("service session evidence identity drift")
         ids["service_evidence"].add(str(session_path.relative_to(output_root)))
-        for raw_action in _require_list(
-            day.get("console_probe_actions"), field="console_probe_actions"
-        ):
+        for raw_action in _require_list(day.get("console_probe_actions"), field="console_probe_actions"):
             action = _require_mapping(raw_action, field="console_probe_action")
             action_id = action.get("action_id")
             if not isinstance(action_id, str) or not action_id:
@@ -303,10 +249,7 @@ def _verify_physical_run(
             raise ValueError("pilot transcript digest drift")
         metrics_path = transcript.with_name(f"day-{day_index}-metrics.json")
         metrics = _load_mapping(metrics_path, field="pilot metrics")
-        if (
-            metrics.get("transcript_sha256") != expected_transcript_sha
-            or metrics.get("day_index") != day_index
-        ):
+        if metrics.get("transcript_sha256") != expected_transcript_sha or metrics.get("day_index") != day_index:
             raise ValueError("pilot metric/transcript linkage drift")
         ids["pilot_transcripts"].add(str(transcript.relative_to(output_root)))
         ids["pilot_metrics"].add(str(metrics_path.relative_to(output_root)))
@@ -327,14 +270,7 @@ def _verify_physical_run(
             restart_payload.get("state_intervention"),
             field="state_intervention",
         )
-        expected_archive = (
-            output_root
-            / "state"
-            / case_key
-            / "archives"
-            / arm
-            / f"day-{day_index}"
-        )
+        expected_archive = output_root / "state" / case_key / "archives" / arm / f"day-{day_index}"
         archived_ref = _resolve_artifact_ref(
             output_root,
             intervention.get("archived_state_ref"),
@@ -346,9 +282,7 @@ def _verify_physical_run(
         if intervention.get("archived_state_sha256") != archive_sha:
             raise ValueError("state archive digest drift")
         measurement = archived_ref / _MEASUREMENT_CHECKPOINT_NAME
-        if _file_sha256(measurement) != intervention.get(
-            "measurement_checkpoint_sha256"
-        ):
+        if _file_sha256(measurement) != intervention.get("measurement_checkpoint_sha256"):
             raise ValueError("measurement checkpoint digest drift")
         expected_source_arm, expected_source_day, source = _expected_source(
             output_root=output_root,
@@ -359,8 +293,7 @@ def _verify_physical_run(
         )
         if (
             intervention.get("next_day_source_arm") != expected_source_arm
-            or intervention.get("next_day_source_day_index")
-            != expected_source_day
+            or intervention.get("next_day_source_day_index") != expected_source_day
         ):
             raise ValueError("state intervention source selection drift")
         loaded_sha = intervention.get("next_day_loaded_state_sha256")
@@ -370,15 +303,11 @@ def _verify_physical_run(
         elif loaded_sha != _directory_sha256(source):
             raise ValueError("loaded state/source archive digest drift")
         ids["state_archives"].add(str(archived_ref.relative_to(output_root)))
-        ids["measurement_checkpoints"].add(
-            str(measurement.relative_to(output_root))
-        )
+        ids["measurement_checkpoints"].add(str(measurement.relative_to(output_root)))
     return ids
 
 
-def _merge_ids(
-    target: dict[str, set[str]], source: Mapping[str, set[str]]
-) -> None:
+def _merge_ids(target: dict[str, set[str]], source: Mapping[str, set[str]]) -> None:
     for key, values in source.items():
         overlap = target[key].intersection(values)
         if overlap:
@@ -387,9 +316,7 @@ def _merge_ids(
 
 
 def _expected_daily_metrics_bytes(result_payload: Mapping[str, object]) -> bytes:
-    readouts = _require_list(
-        result_payload.get("daily_readouts"), field="daily_readouts"
-    )
+    readouts = _require_list(result_payload.get("daily_readouts"), field="daily_readouts")
     return b"".join(_canonical_bytes(readout) for readout in readouts)
 
 
@@ -399,9 +326,7 @@ def audit(
     preregistration_path: Path,
     output_root: Path,
 ) -> dict[str, object]:
-    preregistration = _load_mapping(
-        preregistration_path, field="preregistration"
-    )
+    preregistration = _load_mapping(preregistration_path, field="preregistration")
     validate_seven_day_companion_preregistration(
         preregistration,
         repo_root=execution_root,
@@ -410,9 +335,7 @@ def audit(
     expected_run_count = len(cases) * len(SEVEN_DAY_ALL_ARMS)
     run_files = sorted((output_root / "runs").glob("*.json"))
     if len(run_files) != expected_run_count:
-        raise ValueError(
-            f"expected {expected_run_count} run files, found {len(run_files)}"
-        )
+        raise ValueError(f"expected {expected_run_count} run files, found {len(run_files)}")
     source_audit_path = output_root / "synthetic_source_audit.json"
     source_audit_sha = _file_sha256(source_audit_path)
     source_audit = _load_mapping(source_audit_path, field="source audit")
@@ -425,8 +348,8 @@ def audit(
         raise ValueError("synthetic source audit claim boundary drift")
     scripts: dict[str, FrozenSevenDayUserScript] = {}
     for case in cases:
-        script_path = output_root / "user_scripts" / (
-            hashlib.sha256(case.case_id.encode("utf-8")).hexdigest() + ".json"
+        script_path = (
+            output_root / "user_scripts" / (hashlib.sha256(case.case_id.encode("utf-8")).hexdigest() + ".json")
         )
         script = load_frozen_seven_day_user_script(script_path)
         if (
@@ -437,20 +360,7 @@ def audit(
             raise ValueError(f"frozen user script case drift: {case.case_id}")
         scripts[case.case_id] = script
     envelopes = []
-    formal_models = _require_mapping(
-        preregistration.get("formal_models"), field="formal_models"
-    )
-    sut_model = _require_mapping(formal_models.get("sut"), field="sut model")
-    simulator_model = _require_mapping(
-        formal_models.get("simulator"), field="simulator model"
-    )
-    expected_model_fingerprint = _canonical_sha256(
-        {
-            "sut_model_id": sut_model.get("model_id"),
-            "sut_weights_sha256": sut_model.get("weights_sha256"),
-            "adapter": "none",
-        }
-    )
+    expected_attestation = seven_day_source_attestation_contract(preregistration)
     all_ids = {
         "run_ids": set(),
         "session_ids": set(),
@@ -462,31 +372,20 @@ def audit(
         "measurement_checkpoints": set(),
         "service_evidence": set(),
     }
-    scope_hashes: dict[str, set[object]] = {
-        case.case_id: set() for case in cases
-    }
+    scope_hashes: dict[str, set[object]] = {case.case_id: set() for case in cases}
     for arm in SEVEN_DAY_ALL_ARMS:
         for case_index, case in enumerate(cases):
-            run_path = _expected_run_path(
-                output_root=output_root, case=case, arm=arm
-            )
+            run_path = _expected_run_path(output_root=output_root, case=case, arm=arm)
             run = _load_mapping(run_path, field="formal run")
-            attestation = _require_mapping(
-                run.get("source_attestation"), field="source_attestation"
-            )
-            expected_attestation = {
-                "simulator_model_id": simulator_model.get("model_id"),
-                "simulator_model_family": simulator_model.get("model_family"),
-                "sut_model_id": sut_model.get("model_id"),
-                "sut_model_family": sut_model.get("model_family"),
-                "model_and_adapter_fingerprint": expected_model_fingerprint,
-            }
+            attestation = _require_mapping(run.get("source_attestation"), field="source_attestation")
             for field, expected_value in expected_attestation.items():
                 if attestation.get(field) != expected_value:
                     raise ValueError(f"formal source attestation {field} drift")
-            envelopes.append(
-                SevenDayRunEnvelope(case=case, arm_label=arm, run=run)
+            validate_seven_day_character_stack_run(
+                run=run,
+                preregistration=preregistration,
             )
+            envelopes.append(SevenDayRunEnvelope(case=case, arm_label=arm, run=run))
             scope_hashes[case.case_id].add(run.get("user_scope_hash"))
             _merge_ids(
                 all_ids,
@@ -502,25 +401,15 @@ def audit(
             )
     if any(len(values) != 1 for values in scope_hashes.values()):
         raise ValueError("logical user scope differs across matched arms")
-    result = evaluate_seven_day_ablation(
-        runs=tuple(envelopes), preregistration=preregistration
-    )
+    result = evaluate_seven_day_ablation(runs=tuple(envelopes), preregistration=preregistration)
     recomputed_result = json.loads(_canonical_bytes(result.to_json()))
-    on_disk_result = _load_mapping(
-        output_root / "ablation_results.json", field="ablation results"
-    )
+    on_disk_result = _load_mapping(output_root / "ablation_results.json", field="ablation results")
     if on_disk_result != recomputed_result:
         raise ValueError("recomputed ablation result differs from disk")
-    if (output_root / "daily_metrics.jsonl").read_bytes() != (
-        _expected_daily_metrics_bytes(recomputed_result)
-    ):
+    if (output_root / "daily_metrics.jsonl").read_bytes() != (_expected_daily_metrics_bytes(recomputed_result)):
         raise ValueError("daily metrics export differs from recomputation")
-    verdict = _load_mapping(
-        output_root / "promotion_verdict.json", field="promotion verdict"
-    )
-    expected_failed = [
-        name for name, passed in result.gates.items() if not passed
-    ]
+    verdict = _load_mapping(output_root / "promotion_verdict.json", field="promotion verdict")
+    expected_failed = [name for name, passed in result.gates.items() if not passed]
     expected_verdict = {
         "schema_version": "seven-day-companion-verdict.v1",
         "passed": result.passed,
@@ -546,20 +435,13 @@ def audit(
         ],
         "claim_scope": "simulated-user-real-lifecycle-only",
     }
-    if _load_mapping(output_root / "manifest.json", field="manifest") != (
-        expected_manifest
-    ):
+    if _load_mapping(output_root / "manifest.json", field="manifest") != (expected_manifest):
         raise ValueError("formal manifest differs from recomputation")
     report_path = output_root / "report.md"
-    if not report_path.is_file() or not report_path.read_text(
-        encoding="utf-8"
-    ).strip():
+    if not report_path.is_file() or not report_path.read_text(encoding="utf-8").strip():
         raise ValueError("formal report is missing or empty")
     log_files = sorted((output_root / "service_logs").rglob("service-*.log"))
-    http_error_count = sum(
-        len(_HTTP_ERROR_RE.findall(path.read_text(encoding="utf-8")))
-        for path in log_files
-    )
+    http_error_count = sum(len(_HTTP_ERROR_RE.findall(path.read_text(encoding="utf-8"))) for path in log_files)
     if http_error_count:
         raise ValueError(f"service logs contain {http_error_count} HTTP errors")
     expected_counts = {
@@ -575,33 +457,21 @@ def audit(
     }
     actual_counts = {key: len(value) for key, value in all_ids.items()}
     if actual_counts != expected_counts:
-        raise ValueError(
-            f"physical artifact counts drift: {actual_counts} != {expected_counts}"
-        )
+        raise ValueError(f"physical artifact counts drift: {actual_counts} != {expected_counts}")
     physical_sets = {
         "pilot_transcripts": {
-            str(path.relative_to(output_root))
-            for path in (output_root / "pilot_days").rglob(
-                "day-*-transcript.json"
-            )
+            str(path.relative_to(output_root)) for path in (output_root / "pilot_days").rglob("day-*-transcript.json")
         },
         "pilot_metrics": {
-            str(path.relative_to(output_root))
-            for path in (output_root / "pilot_days").rglob(
-                "day-*-metrics.json"
-            )
+            str(path.relative_to(output_root)) for path in (output_root / "pilot_days").rglob("day-*-metrics.json")
         },
         "service_evidence": {
             str(path.relative_to(output_root))
-            for path in (output_root / "service_evidence").rglob(
-                "session_evidence.json"
-            )
+            for path in (output_root / "service_evidence").rglob("session_evidence.json")
         },
         "measurement_checkpoints": {
             str(path.relative_to(output_root))
-            for path in (output_root / "state").rglob(
-                _MEASUREMENT_CHECKPOINT_NAME
-            )
+            for path in (output_root / "state").rglob(_MEASUREMENT_CHECKPOINT_NAME)
             if "archives" in path.parts
         },
     }
@@ -620,15 +490,9 @@ def audit(
         "schema_version": "seven-day-companion-independent-audit.v1",
         "passed": True,
         "preregistration_sha256": prereg_sha,
-        "execution_source_snapshot": preregistration.get(
-            "execution_source_snapshot"
-        ),
-        "ablation_results_sha256": _file_sha256(
-            output_root / "ablation_results.json"
-        ),
-        "promotion_verdict_sha256": _file_sha256(
-            output_root / "promotion_verdict.json"
-        ),
+        "execution_source_snapshot": preregistration.get("execution_source_snapshot"),
+        "ablation_results_sha256": _file_sha256(output_root / "ablation_results.json"),
+        "promotion_verdict_sha256": _file_sha256(output_root / "promotion_verdict.json"),
         "counts": {
             "cases": len(cases),
             "runs": expected_run_count,
@@ -640,9 +504,7 @@ def audit(
             "pilot_transcripts": actual_counts["pilot_transcripts"],
             "pilot_metrics": actual_counts["pilot_metrics"],
             "state_archives": actual_counts["state_archives"],
-            "measurement_checkpoints": actual_counts[
-                "measurement_checkpoints"
-            ],
+            "measurement_checkpoints": actual_counts["measurement_checkpoints"],
             "service_evidence": actual_counts["service_evidence"],
             "service_logs": len(log_files),
             "http_errors": http_error_count,
@@ -671,9 +533,7 @@ def main() -> int:
     parser.add_argument("--execution-root", type=Path, required=True)
     parser.add_argument("--preregistration", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument(
-        "--report-name", default="independent_audit.json"
-    )
+    parser.add_argument("--report-name", default="independent_audit.json")
     args = parser.parse_args()
     output_root = args.output_dir.resolve()
     result = audit(

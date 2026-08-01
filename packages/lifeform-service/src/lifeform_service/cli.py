@@ -42,6 +42,10 @@ from lifeform_service.companion_evidence_profile import (
     resolve_companion_evidence_profile,
     write_companion_evidence_profile_attestation,
 )
+from lifeform_service.character_packages import (
+    load_character_runtime_assets,
+    write_character_runtime_stack_attestation,
+)
 from lifeform_service.verticals import (
     default_vertical_name,
     discover_companion_ablation_verticals,
@@ -49,7 +53,9 @@ from lifeform_service.verticals import (
 )
 
 if TYPE_CHECKING:
-    from volvence_zero.substrate import OpenWeightResidualRuntime
+    from lifeform_service.character_packages import CharacterRuntimeAssets
+    from volvence_zero.runtime import WiringLevel
+    from volvence_zero.substrate import CommonAdapterBundle, OpenWeightResidualRuntime
 
 
 _LOG = logging.getLogger("lifeform-serve")
@@ -132,6 +138,35 @@ def _build_parser() -> argparse.ArgumentParser:
         "--substrate-local-files-only",
         action="store_true",
         help="Forbid HF Hub network fetches (use only the local cache).",
+    )
+    parser.add_argument(
+        "--common-adapter-bundle",
+        type=Path,
+        default=None,
+        help=(
+            "Path to one OFFLINE-gated ACTIVE CommonAdapterBundle. The bundle "
+            "is loaded process-wide and must match --substrate-model-id."
+        ),
+    )
+    parser.add_argument(
+        "--character-package-manifest",
+        type=Path,
+        action="append",
+        default=[],
+        help=("Path to an admitted CharacterPackageManifest. Repeat to load multiple per-session character choices."),
+    )
+    parser.add_argument(
+        "--character-package-mode",
+        choices=("disabled", "shadow", "active"),
+        default="shadow",
+        help="Default wiring for --character-package-manifest entries.",
+    )
+    parser.add_argument(
+        "--character-package-wiring",
+        action="append",
+        default=[],
+        metavar="CHARACTER_ID=MODE",
+        help=("Per-character disabled/shadow/active override. Repeat for more than one character."),
     )
     parser.add_argument(
         "--list-verticals",
@@ -284,7 +319,68 @@ def _maybe_build_protocol_uptake_service(args: argparse.Namespace):
     return service
 
 
-def _build_shared_substrate(args: argparse.Namespace) -> "OpenWeightResidualRuntime | None":
+def _character_wiring_overrides(
+    values: list[str],
+) -> dict[str, "WiringLevel"]:
+    from volvence_zero.runtime import WiringLevel
+
+    overrides: dict[str, WiringLevel] = {}
+    for value in values:
+        character_id, separator, mode = value.strip().partition("=")
+        if not separator or not character_id or not mode:
+            raise ValueError("--character-package-wiring must use CHARACTER_ID=MODE.")
+        if character_id in overrides:
+            raise ValueError(f"duplicate --character-package-wiring id {character_id!r}.")
+        try:
+            overrides[character_id] = WiringLevel(mode)
+        except ValueError as exc:
+            raise ValueError(
+                f"--character-package-wiring MODE must be disabled, shadow, or active; got {mode!r}."
+            ) from exc
+    return overrides
+
+
+def _load_admitted_character_stack(
+    args: argparse.Namespace,
+) -> tuple["CommonAdapterBundle | None", "CharacterRuntimeAssets | None"]:
+    from volvence_zero.runtime import WiringLevel
+    from volvence_zero.substrate import CommonAdapterBundle
+
+    bundle_path = args.common_adapter_bundle
+    manifest_paths = tuple(args.character_package_manifest)
+    if bundle_path is None:
+        if manifest_paths:
+            raise ValueError("--character-package-manifest requires --common-adapter-bundle.")
+        if args.character_package_wiring:
+            raise ValueError("--character-package-wiring requires --character-package-manifest.")
+        return None, None
+    if args.substrate_mode != "hf-shared":
+        raise ValueError("--common-adapter-bundle requires --substrate-mode hf-shared.")
+    common_bundle = CommonAdapterBundle.from_json(bundle_path.read_text(encoding="utf-8"))
+    common_bundle.require_active()
+    if common_bundle.base_model_id != args.substrate_model_id:
+        raise ValueError("common adapter bundle base_model_id does not match --substrate-model-id.")
+    if not manifest_paths:
+        if args.character_package_wiring:
+            raise ValueError("--character-package-wiring requires --character-package-manifest.")
+        return common_bundle, None
+    assets = load_character_runtime_assets(
+        common_adapter_bundle_path=bundle_path,
+        manifest_paths=manifest_paths,
+        wiring_by_character=_character_wiring_overrides(args.character_package_wiring),
+        default_wiring=WiringLevel(args.character_package_mode),
+    )
+    if assets.common_adapter_bundle.bundle_id != common_bundle.bundle_id:
+        raise ValueError("character manifest loader resolved a different common adapter.")
+    return assets.common_adapter_bundle, assets
+
+
+def _build_shared_substrate(
+    args: argparse.Namespace,
+    *,
+    common_adapter_bundle: "CommonAdapterBundle | None" = None,
+    character_runtime_assets: "CharacterRuntimeAssets | None" = None,
+) -> "OpenWeightResidualRuntime | None":
     """Construct the service-wide shared substrate runtime.
 
     Returns ``None`` for ``--substrate-mode synthetic`` so the vertical
@@ -323,6 +419,10 @@ def _build_shared_substrate(args: argparse.Namespace) -> "OpenWeightResidualRunt
             # invariant impossible to mis-configure. ``create_app``
             # double-checks via _enforce_frozen_for_sharing.
             allow_live_substrate_mutation=allow_live_mutation,
+            common_adapter_bundle=common_adapter_bundle,
+            character_prefix_registry=(
+                character_runtime_assets.prefix_registry if character_runtime_assets is not None else None
+            ),
         )
         _LOG.info(
             "shared substrate ready: model_id=%s runtime_origin=%s",
@@ -449,7 +549,12 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     try:
-        substrate_runtime = _build_shared_substrate(args)
+        common_adapter_bundle, character_runtime_assets = _load_admitted_character_stack(args)
+        substrate_runtime = _build_shared_substrate(
+            args,
+            common_adapter_bundle=common_adapter_bundle,
+            character_runtime_assets=character_runtime_assets,
+        )
     except ModuleNotFoundError as exc:
         print(
             f"--substrate-mode {args.substrate_mode} requires optional deps: {exc}\n"
@@ -481,6 +586,26 @@ def main(argv: list[str] | None = None) -> int:
             attestation_path,
         )
 
+    if common_adapter_bundle is not None and args.evidence_root_dir is not None:
+        try:
+            stack_attestation_path = write_character_runtime_stack_attestation(
+                output_dir=Path(args.evidence_root_dir),
+                common_adapter_bundle=common_adapter_bundle,
+                character_runtime_assets=character_runtime_assets,
+                substrate_model_id=args.substrate_model_id,
+                substrate_device=args.substrate_device,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(
+                f"Failed to attest admitted character runtime stack: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        _LOG.info(
+            "character runtime stack attestation=%s",
+            stack_attestation_path,
+        )
+
     protocol_uptake_service = _maybe_build_protocol_uptake_service(args)
 
     app_kwargs = {
@@ -496,6 +621,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.companion_evidence_profile
             ).allow_single_session_live_substrate_mutation
         ),
+        "character_runtime_assets": character_runtime_assets,
     }
     if args.ablation_bundle:
         app = create_app(

@@ -143,7 +143,12 @@ layer/width/readout 和 sample/value hashes 冻结 lineage；PE batch/head/check
 实验；三者完成前不能晋升 `temporal_n_z`、退役 legacy controller 或选择 thesis v3。
 
 两条证据线现有彼此独立的 MPS CLI：七日产品实验用
-`scripts/run_seven_day_companion_test_plan.py`，N+1 研究用
+`scripts/run_seven_day_companion_test_plan.py`，并已按 preregistration schema 覆盖
+Gate 1/4/5/6/7/8/9/10/11；Gate 1、Gate 4/5/6/7/9/10 和 Gate 8/11 仍分别调用自己的
+正式 runner/auditor，不共享干预或 verdict。未知 schema/gate 和非 MPS preregistration 会
+fail loudly；`status` 只有在 exact matrix、evaluation 与 prereg/evaluation-SHA-bound
+independent audit 同时有效时才允许分析。formal 退出码 2 作为完整否定性科学结果仍会进入审计。
+N+1 研究用
 `scripts/run_msc_prediction_test_plan.py`。经两个新入口启动的任务共享 MPS 互斥锁并禁止
 CPU fallback；控制面落地前手工启动的旧进程不受该锁保护，必须另行确认结束。
 研究 CLI 当前只允许 preflight/mechanism smoke，`formal` 对上述三个 blocker 固定返回
@@ -154,9 +159,18 @@ CPU fallback；控制面落地前手工启动的旧进程不受该锁保护，�
 N+1 mechanism runner 现按语料索引、数值 context/target、arm/split、capacity/seed
 和 heldout/seed 自动落盘不可变 checkpoint，并用精确语料/模型/源码/参数
 fingerprint 续跑；不保留 MSC 原文。最终 manifest 封口前禁止效应分析，
-封口后仍只允许 mechanism-pilot 分析、不允许 formal claim。七日线继续以每个
-完成 run 为续跑单元；`status` 可随时并行，只读 `audit` 仅可针对已封口
-bundle 并可与另一条 MPS 执行并行，但任何两个 MPS 阶段不可并行。
+封口后仍只允许 mechanism-pilot 分析、不允许 formal claim。`status` 可随时并行，
+只读 `audit` 仅可针对已封口 bundle 并可与另一条 MPS 执行并行，但任何两个 MPS
+阶段不可并行。
+
+2026-08-02，七日替代 36-run 矩阵在 16/36 处按 spec 既有回滚条款停跑，记录为
+`artifacts/seven_day_companion_formal_frozen_20260801T122037Z/halt_record.json`，
+`halt_class=instrument-discrimination`。停跑理由是七项 readout 中两项被构造性钉死、
+`callback_hit_rate` 测的是 owner 自洽性而非跨日回忆、唯一观测 SUT 行为的
+`fsm_probe_pass_rate` 全为 null；这不是 effect verdict，也不是“没有提升”。该目录
+不允许原样续跑，仪器须先换成冻结 N+1 substrate 表示预测目标并另开预注册。同日
+`scripts/run_eta_rate_distortion.py` 补接共享 MPS 互斥锁与 `require_mps()`——此前它
+绕过控制面，曾与七日矩阵并行占用 MPS。
 
 ### 已降级的旧 evidence lane（机制回归用途）
 

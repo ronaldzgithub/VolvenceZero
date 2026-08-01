@@ -179,6 +179,15 @@ conditioning 和 memory 必须继续按 tenant:user 隔离。
   residual 只保留显式 SHADOW 回滚审计。ACTIVE 唯一入口是
   `CHARACTER_PACKAGE_MANIFESTS`，必须经过 `manifest.require_active()`。
 
+`lifeform-serve` 现在复用同一 loader，正式参数为
+`--common-adapter-bundle`、可重复的 `--character-package-manifest`、
+`--character-package-mode` 和可重复的
+`--character-package-wiring CHARACTER_ID=MODE`。L1/L2 任一不匹配时必须在监听端口前失败；
+不能因为入口不是浏览器脚本而退回 base-only。配置 evidence root 时，服务在真实 HF runtime
+成功构造后写不可变 `character-runtime-stack-attestation.v1`，发布 L1 bundle
+ID/version/fingerprint 与全部 `CharacterSessionBinding`。七天 v2 runner 只通过这组正式参数和
+`POST /v1/sessions.character_id` 接入，不持有 loader 内部对象。
+
 张无忌现有 residual artifact 只作为 `CharacterResidualAdapterPackage` 的 SHADOW、
 只读回滚证据保留；新角色以及重新 bake 的张无忌特色载体只走统一
 `CharacterPackageManifest + Character Prefix/KV`（可选真实 PEFT Character LoRA）。

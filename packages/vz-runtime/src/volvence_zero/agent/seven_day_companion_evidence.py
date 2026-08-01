@@ -19,6 +19,11 @@ from typing import Mapping, Protocol, Sequence
 
 SEVEN_DAY_ABLATION_SCHEMA_VERSION = "seven-day-companion-ablation.v1"
 SEVEN_DAY_PREREG_SCHEMA_VERSION = "seven-day-companion-simulated.v1"
+SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION = "seven-day-companion-simulated.v2"
+SEVEN_DAY_PREREG_SCHEMA_VERSIONS = (
+    SEVEN_DAY_PREREG_SCHEMA_VERSION,
+    SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION,
+)
 SEVEN_DAY_STATE_ARMS = (
     "correct-user-state",
     "stateless",
@@ -83,6 +88,124 @@ def _require_string(value: object, *, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field} must be non-empty")
     return value
+
+
+def validate_seven_day_character_stack_run(
+    *,
+    run: Mapping[str, object],
+    preregistration: Mapping[str, object],
+) -> None:
+    """Validate v2 L1/L2 startup, session binding, and per-turn delivery."""
+
+    schema = preregistration.get("schema_version")
+    if schema == SEVEN_DAY_PREREG_SCHEMA_VERSION:
+        if run.get("runtime_stack_attestation") is not None:
+            raise ValueError("base-only seven-day run has runtime stack attestation")
+        return
+    if schema != SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION:
+        raise ValueError("seven-day preregistration schema drift")
+    stack_contract = _require_mapping(preregistration.get("runtime_stack"), field="runtime_stack")
+    common_contract = _require_mapping(stack_contract.get("common_adapter"), field="runtime_stack.common_adapter")
+    selected_character_id = _require_string(
+        stack_contract.get("selected_character_id"),
+        field="runtime_stack.selected_character_id",
+    )
+    manifests = stack_contract.get("character_manifests")
+    if not isinstance(manifests, list):
+        raise ValueError("runtime_stack.character_manifests must be a list")
+    selected_manifest = next(
+        (
+            _require_mapping(item, field="character_manifest")
+            for item in manifests
+            if isinstance(item, Mapping) and item.get("character_id") == selected_character_id
+        ),
+        None,
+    )
+    if selected_manifest is None:
+        raise ValueError("selected seven-day character manifest is missing")
+    formal_models = _require_mapping(
+        preregistration.get("formal_models"), field="formal_models"
+    )
+    sut = _require_mapping(formal_models.get("sut"), field="formal_models.sut")
+    simulator = _require_mapping(
+        formal_models.get("simulator"), field="formal_models.simulator"
+    )
+    expected_fingerprint = _sha256(
+        {
+            "sut_model_id": sut.get("model_id"),
+            "sut_weights_sha256": sut.get("weights_sha256"),
+            "common_adapter_bundle_sha256": common_contract.get("sha256"),
+            "common_adapter_bundle_id": common_contract.get("bundle_id"),
+            "common_adapter_version": common_contract.get("common_adapter_version"),
+            "compatibility_fingerprint": common_contract.get("compatibility_fingerprint"),
+            "character_manifest_sha256": selected_manifest.get("sha256"),
+            "character_manifest_package_id": selected_manifest.get("package_id"),
+            "character_id": selected_character_id,
+            "character_prefix_package_id": selected_manifest.get("prefix_package_id"),
+            "character_wiring_level": stack_contract.get("wiring_level"),
+        }
+    )
+    source = _require_mapping(run.get("source_attestation"), field="source_attestation")
+    expected_source = {
+        "simulator_model_id": simulator.get("model_id"),
+        "simulator_model_family": simulator.get("model_family"),
+        "sut_model_id": sut.get("model_id"),
+        "sut_model_family": sut.get("model_family"),
+        "model_and_adapter_fingerprint": expected_fingerprint,
+        "common_adapter_bundle_id": common_contract.get("bundle_id"),
+        "common_adapter_version": common_contract.get("common_adapter_version"),
+        "common_adapter_compatibility_fingerprint": common_contract.get("compatibility_fingerprint"),
+        "character_manifest_package_id": selected_manifest.get("package_id"),
+        "character_id": selected_character_id,
+        "character_prefix_package_id": selected_manifest.get("prefix_package_id"),
+        "character_wiring_level": "active",
+    }
+    for field, expected in expected_source.items():
+        if source.get(field) != expected:
+            raise ValueError(f"seven-day character source {field} drift")
+    stack_attestation = _require_mapping(
+        run.get("runtime_stack_attestation"),
+        field="runtime_stack_attestation",
+    )
+    common_attestation = _require_mapping(
+        stack_attestation.get("common_adapter"),
+        field="runtime_stack_attestation.common_adapter",
+    )
+    for field in (
+        "bundle_id",
+        "common_adapter_version",
+        "compatibility_fingerprint",
+    ):
+        if common_attestation.get(field) != common_contract.get(field):
+            raise ValueError(f"runtime stack common adapter {field} drift")
+    bindings = stack_attestation.get("session_bindings")
+    if not isinstance(bindings, list) or not any(
+        isinstance(binding, Mapping)
+        and binding.get("character_id") == selected_character_id
+        and binding.get("manifest_package_id") == selected_manifest.get("package_id")
+        and binding.get("prefix_package_id") == selected_manifest.get("prefix_package_id")
+        and binding.get("wiring_level") == "active"
+        for binding in bindings
+    ):
+        raise ValueError("runtime stack ACTIVE character binding drift")
+    required_tags = {
+        f"character_id={selected_character_id}",
+        "character_prefix=active",
+        f"character_prefix_kv={selected_manifest.get('prefix_package_id')}",
+    }
+    days = run.get("days")
+    if not isinstance(days, (list, tuple)):
+        raise ValueError("seven-day run days must be a sequence")
+    for day in days:
+        day_mapping = _require_mapping(day, field="run.day")
+        turns = day_mapping.get("turns")
+        if not isinstance(turns, (list, tuple)):
+            raise ValueError("seven-day run turns must be a sequence")
+        for turn in turns:
+            turn_mapping = _require_mapping(turn, field="run.turn")
+            tags = turn_mapping.get("response_rationale_tags")
+            if not isinstance(tags, (list, tuple)) or not required_tags.issubset(tags):
+                raise ValueError("seven-day turn lacks ACTIVE character carrier attestation")
 
 
 def _metric(value: object, *, field: str) -> float | None:
@@ -205,10 +328,7 @@ class SevenDayCompanionAblationHarness:
         for arm in SEVEN_DAY_ALL_ARMS:
             for case in cases:
                 output_path = run_root / (
-                    hashlib.sha256(
-                        f"{case.case_id}\0{arm}".encode("utf-8")
-                    ).hexdigest()
-                    + ".json"
+                    hashlib.sha256(f"{case.case_id}\0{arm}".encode("utf-8")).hexdigest() + ".json"
                 )
                 payload = self._executor.execute(
                     case=case,
@@ -258,27 +378,12 @@ def _readout(
     turns: Sequence[Mapping[str, object]],
 ) -> SevenDayDailyReadout:
     payload = _require_mapping(raw_metrics, field=f"day {day_index} {phase}")
-    metrics = {
-        name: _metric(
-            payload.get(name), field=f"day {day_index} {phase}.{name}"
-        )
-        for name in SEVEN_DAY_METRICS
-    }
-    callback_opportunity = any(
-        "callback" in tuple(turn.get("event_tags", ())) for turn in turns
-    )
-    probe_values = tuple(
-        turn.get("fsm_probe_passed")
-        for turn in turns
-        if turn.get("fsm_probe_passed") is not None
-    )
+    metrics = {name: _metric(payload.get(name), field=f"day {day_index} {phase}.{name}") for name in SEVEN_DAY_METRICS}
+    callback_opportunity = any("callback" in tuple(turn.get("event_tags", ())) for turn in turns)
+    probe_values = tuple(turn.get("fsm_probe_passed") for turn in turns if turn.get("fsm_probe_passed") is not None)
     if any(not isinstance(value, bool) for value in probe_values):
         raise ValueError("fsm_probe_passed must be bool or null")
-    probe_rate = (
-        sum(bool(value) for value in probe_values) / len(probe_values)
-        if probe_values
-        else None
-    )
+    probe_rate = sum(bool(value) for value in probe_values) / len(probe_values) if probe_values else None
     return SevenDayDailyReadout(
         case_id=case_id,
         arm_label=arm_label,
@@ -293,6 +398,8 @@ def _readout(
 
 def _validate_run(
     envelope: SevenDayRunEnvelope,
+    *,
+    preregistration: Mapping[str, object] | None = None,
 ) -> tuple[SevenDayDailyReadout, ...]:
     run = _require_mapping(envelope.run, field="run")
     if run.get("schema_version") != "seven-day-companion-run.v1":
@@ -303,9 +410,7 @@ def _validate_run(
         raise ValueError("seven-day run scenario drift")
     if run.get("paraphrase_seed") != envelope.case.paraphrase_seed:
         raise ValueError("seven-day run paraphrase seed drift")
-    if run.get("process_restart_count") != 6 or run.get(
-        "all_restarts_exact"
-    ) is not True:
+    if run.get("process_restart_count") != 6 or run.get("all_restarts_exact") is not True:
         raise ValueError("seven-day run lacks six exact process restarts")
     if run.get("simulated_longitudinal_only") is not True:
         raise ValueError("seven-day run claim scope drift")
@@ -313,16 +418,17 @@ def _validate_run(
         raise ValueError("automated run may not claim external human value")
     if run.get("production_promotion_authorized") is not False:
         raise ValueError("automated run may not authorize production")
-    attestation = _require_mapping(
-        run.get("source_attestation"), field="source_attestation"
-    )
+    if preregistration is not None:
+        validate_seven_day_character_stack_run(
+            run=run,
+            preregistration=preregistration,
+        )
+    attestation = _require_mapping(run.get("source_attestation"), field="source_attestation")
     simulator_family = _require_string(
         attestation.get("simulator_model_family"),
         field="simulator_model_family",
     ).lower()
-    sut_family = _require_string(
-        attestation.get("sut_model_family"), field="sut_model_family"
-    ).lower()
+    sut_family = _require_string(attestation.get("sut_model_family"), field="sut_model_family").lower()
     if simulator_family == sut_family:
         raise ValueError("simulator and SUT families must differ")
     days = run.get("days")
@@ -336,16 +442,11 @@ def _validate_run(
         turns = day.get("turns")
         if not isinstance(turns, (list, tuple)) or len(turns) != 5:
             raise ValueError("seven-day run must contain five exchanges per day")
-        typed_turns = tuple(
-            _require_mapping(turn, field="turn") for turn in turns
-        )
+        typed_turns = tuple(_require_mapping(turn, field="turn") for turn in turns)
         probe_actions = day.get("console_probe_actions")
         if not isinstance(probe_actions, (list, tuple)) or len(probe_actions) != 2:
             raise ValueError("day must contain exactly two console probe actions")
-        typed_actions = tuple(
-            _require_mapping(item, field="console_probe_action")
-            for item in probe_actions
-        )
+        typed_actions = tuple(_require_mapping(item, field="console_probe_action") for item in probe_actions)
         if tuple(item.get("action") for item in typed_actions) != (
             "keep",
             "delete",
@@ -369,32 +470,23 @@ def _validate_run(
             raise ValueError("sleep arm end-scene intervention drift")
         restart = day.get("restart_after_day")
         if expected_day < 7:
-            restart_payload = _require_mapping(
-                restart, field="restart_after_day"
-            )
+            restart_payload = _require_mapping(restart, field="restart_after_day")
             intervention = _require_mapping(
                 restart_payload.get("state_intervention"),
                 field="state_intervention",
             )
             expected_policy = _STATE_POLICY_BY_ARM[envelope.arm_label]
             if (
-                intervention.get("experiment_arm_label")
-                != envelope.arm_label
-                or intervention.get("state_loading_policy")
-                != expected_policy
+                intervention.get("experiment_arm_label") != envelope.arm_label
+                or intervention.get("state_loading_policy") != expected_policy
                 or intervention.get("after_day_index") != expected_day
             ):
                 raise ValueError("state intervention attestation drift")
             archived_digest = intervention.get("archived_state_sha256")
             if not isinstance(archived_digest, str) or len(archived_digest) != 64:
                 raise ValueError("state archive digest is missing")
-            measurement_digest = intervention.get(
-                "measurement_checkpoint_sha256"
-            )
-            if (
-                not isinstance(measurement_digest, str)
-                or len(measurement_digest) != 64
-            ):
+            measurement_digest = intervention.get("measurement_checkpoint_sha256")
+            if not isinstance(measurement_digest, str) or len(measurement_digest) != 64:
                 raise ValueError("measurement checkpoint digest is missing")
             source_day = intervention.get("next_day_source_day_index")
             loaded_digest = intervention.get("next_day_loaded_state_sha256")
@@ -481,29 +573,17 @@ def _comparison(
     for case_id in case_ids:
         final_treatment = by_key[(case_id, experimental_arm, 7, "end_of_day")]
         final_control = by_key[(case_id, control_arm, 7, "end_of_day")]
-        if (
-            final_treatment.continuity_composite is not None
-            and final_control.continuity_composite is not None
-        ):
-            composite_gains.append(
-                final_treatment.continuity_composite
-                - final_control.continuity_composite
-            )
+        if final_treatment.continuity_composite is not None and final_control.continuity_composite is not None:
+            composite_gains.append(final_treatment.continuity_composite - final_control.continuity_composite)
         treatment_callbacks = []
         control_callbacks = []
         treatment_probes = []
         control_probes = []
         for day_index in range(1, 8):
-            treatment = by_key[
-                (case_id, experimental_arm, day_index, "end_of_day")
-            ]
-            control = by_key[
-                (case_id, control_arm, day_index, "end_of_day")
-            ]
+            treatment = by_key[(case_id, experimental_arm, day_index, "end_of_day")]
+            control = by_key[(case_id, control_arm, day_index, "end_of_day")]
             if treatment.callback_opportunity:
-                treatment_callbacks.append(
-                    treatment.metrics["callback_hit_rate"]
-                )
+                treatment_callbacks.append(treatment.metrics["callback_hit_rate"])
                 control_callbacks.append(control.metrics["callback_hit_rate"])
             treatment_probes.append(treatment.fsm_probe_pass_rate)
             control_probes.append(control.fsm_probe_pass_rate)
@@ -516,19 +596,10 @@ def _comparison(
         if treatment_probe is not None and control_probe is not None:
             probe_gains.append(treatment_probe - control_probe)
         treatment_cold = _mean_present(
-            [
-                by_key[
-                    (case_id, experimental_arm, day, "cold_start")
-                ].continuity_composite
-                for day in range(2, 8)
-            ]
+            [by_key[(case_id, experimental_arm, day, "cold_start")].continuity_composite for day in range(2, 8)]
         )
         control_cold = _mean_present(
-            [
-                by_key[(case_id, control_arm, day, "cold_start")]
-                .continuity_composite
-                for day in range(2, 8)
-            ]
+            [by_key[(case_id, control_arm, day, "cold_start")].continuity_composite for day in range(2, 8)]
         )
         if treatment_cold is not None and control_cold is not None:
             cold_start_gains.append(treatment_cold - control_cold)
@@ -561,26 +632,20 @@ def evaluate_seven_day_ablation(
 ) -> SevenDayAblationResult:
     """Validate exact matching and evaluate all preregistered contrasts."""
 
-    if preregistration.get("schema_version") != SEVEN_DAY_PREREG_SCHEMA_VERSION:
+    preregistration_schema = preregistration.get("schema_version")
+    if preregistration_schema not in SEVEN_DAY_PREREG_SCHEMA_VERSIONS:
         raise ValueError("seven-day preregistration schema drift")
     prereg_sha = _sha256(preregistration)
     scenario_ids = preregistration.get("scenario_ids")
-    formal_run = _require_mapping(
-        preregistration.get("formal_run"), field="formal_run"
-    )
+    formal_run = _require_mapping(preregistration.get("formal_run"), field="formal_run")
     seeds = formal_run.get("paraphrase_seeds")
-    if not isinstance(scenario_ids, list) or not all(
-        isinstance(item, str) and item for item in scenario_ids
-    ):
+    if not isinstance(scenario_ids, list) or not all(isinstance(item, str) and item for item in scenario_ids):
         raise ValueError("preregistration scenario_ids are missing")
     if not isinstance(seeds, list) or not all(
-        isinstance(item, int) and not isinstance(item, bool) and item >= 0
-        for item in seeds
+        isinstance(item, int) and not isinstance(item, bool) and item >= 0 for item in seeds
     ):
         raise ValueError("preregistration paraphrase seeds are missing")
-    thresholds = _require_mapping(
-        preregistration.get("minimum_effects"), field="minimum_effects"
-    )
+    thresholds = _require_mapping(preregistration.get("minimum_effects"), field="minimum_effects")
     composite_min = _metric(
         thresholds.get("final_day_continuity_composite_gain"),
         field="final_day_continuity_composite_gain",
@@ -597,21 +662,17 @@ def evaluate_seven_day_ablation(
         raise ValueError("minimum effects may not be null")
     case_ids = tuple(sorted({envelope.case.case_id for envelope in runs}))
     planned_case_ids = {
-        SevenDayExperimentCase(scenario_id, seed).case_id
-        for scenario_id in scenario_ids
-        for seed in seeds
+        SevenDayExperimentCase(scenario_id, seed).case_id for scenario_id in scenario_ids for seed in seeds
     }
     if set(case_ids) != planned_case_ids:
         raise ValueError("formal run case matrix drifted from preregistration")
-    expected_keys = {
-        (case_id, arm) for case_id in case_ids for arm in SEVEN_DAY_ALL_ARMS
-    }
+    expected_keys = {(case_id, arm) for case_id in case_ids for arm in SEVEN_DAY_ALL_ARMS}
     keyed = {(item.case.case_id, item.arm_label): item for item in runs}
     if len(keyed) != len(runs) or set(keyed) != expected_keys:
         raise ValueError("seven-day arm/case matrix is incomplete or duplicated")
     readouts = []
     for envelope in runs:
-        readouts.extend(_validate_run(envelope))
+        readouts.extend(_validate_run(envelope, preregistration=preregistration))
     for case_id in case_ids:
         case_runs = [keyed[(case_id, arm)].run for arm in SEVEN_DAY_ALL_ARMS]
         if len({_user_turn_digest(run) for run in case_runs}) != 1:
@@ -625,6 +686,17 @@ def evaluate_seven_day_ablation(
             "sut_model_family",
             "model_and_adapter_fingerprint",
         )
+        if preregistration_schema == SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION:
+            matched_fields = (
+                *matched_fields,
+                "common_adapter_bundle_id",
+                "common_adapter_version",
+                "common_adapter_compatibility_fingerprint",
+                "character_manifest_package_id",
+                "character_id",
+                "character_prefix_package_id",
+                "character_wiring_level",
+            )
         for field in matched_fields:
             if len({item[field] for item in attestations}) != 1:
                 raise ValueError(f"matched arm source {field} drift")
@@ -632,15 +704,10 @@ def evaluate_seven_day_ablation(
         for run in case_runs:
             days = run["days"]
             assert isinstance(days, (list, tuple))
-            timestamps.append(
-                tuple(day["virtual_observed_at_ms"] for day in days)
-            )
+            timestamps.append(tuple(day["virtual_observed_at_ms"] for day in days))
         if len(set(timestamps)) != 1:
             raise ValueError("matched arm virtual calendar drift")
-    by_readout = {
-        (item.case_id, item.arm_label, item.day_index, item.phase): item
-        for item in readouts
-    }
+    by_readout = {(item.case_id, item.arm_label, item.day_index, item.phase): item for item in readouts}
     comparisons = []
     for control in SEVEN_DAY_STATE_ARMS[1:]:
         comparisons.append(
@@ -681,10 +748,7 @@ def evaluate_seven_day_ablation(
             interval = comparison.final_day_composite_gain_ci95
             minimum = composite_min
         gates[f"{comparison.contrast_id}:primary-effect"] = bool(
-            mean is not None
-            and interval is not None
-            and mean >= minimum
-            and interval[0] > 0.0
+            mean is not None and interval is not None and mean >= minimum and interval[0] > 0.0
         )
         gates[f"{comparison.contrast_id}:callback-effect"] = bool(
             comparison.callback_gain_mean is not None
@@ -732,9 +796,7 @@ def export_seven_day_ablation_bundle(
         "external_human_value_claim_allowed": False,
         "production_promotion_authorized": False,
         "evaluation_writeback_allowed": False,
-        "failed_gates": [
-            name for name, passed in result.gates.items() if not passed
-        ],
+        "failed_gates": [name for name, passed in result.gates.items() if not passed],
     }
     _write_json(target / "promotion_verdict.json", verdict)
     manifest = {
@@ -790,9 +852,7 @@ def load_seven_day_run_envelopes(
         run = _require_mapping(payload, field=str(path))
         if run.get("schema_version") != "seven-day-companion-run.v1":
             raise ValueError(f"non-run JSON found in formal run directory: {path}")
-        scenario_id = _require_string(
-            run.get("scenario_id"), field="scenario_id"
-        )
+        scenario_id = _require_string(run.get("scenario_id"), field="scenario_id")
         seed = run.get("paraphrase_seed")
         if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
             raise ValueError("formal run paraphrase_seed is invalid")
@@ -811,7 +871,9 @@ __all__ = [
     "SEVEN_DAY_ABLATION_SCHEMA_VERSION",
     "SEVEN_DAY_ALL_ARMS",
     "SEVEN_DAY_METRICS",
+    "SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION",
     "SEVEN_DAY_PREREG_SCHEMA_VERSION",
+    "SEVEN_DAY_PREREG_SCHEMA_VERSIONS",
     "SEVEN_DAY_SLEEP_ARMS",
     "SEVEN_DAY_STATE_ARMS",
     "SevenDayAblationResult",
@@ -823,4 +885,5 @@ __all__ = [
     "evaluate_seven_day_ablation",
     "export_seven_day_ablation_bundle",
     "load_seven_day_run_envelopes",
+    "validate_seven_day_character_stack_run",
 ]

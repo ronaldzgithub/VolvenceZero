@@ -44,8 +44,10 @@ GATE_SUITE_CODE_PATHS = (
     "packages/vz-temporal/src/volvence_zero/joint_loop/runtime.py",
     "packages/vz-temporal/src/volvence_zero/temporal/ssl.py",
     "scripts/audit_seven_day_gate_suite_formal.py",
+    "scripts/companion_test_plan_common.py",
     "scripts/preregister_seven_day_gate_suite.py",
     "scripts/run_seven_day_companion_formal.py",
+    "scripts/run_seven_day_companion_test_plan.py",
     "scripts/run_seven_day_gate_suite_formal.py",
 )
 GATE_SUITE_EXECUTION_SOURCE_ROOTS = (
@@ -53,8 +55,10 @@ GATE_SUITE_EXECUTION_SOURCE_ROOTS = (
     "packages/*/pyproject.toml",
     "pyproject.toml",
     "scripts/audit_seven_day_gate_suite_formal.py",
+    "scripts/companion_test_plan_common.py",
     "scripts/preregister_seven_day_gate_suite.py",
     "scripts/run_seven_day_companion_formal.py",
+    "scripts/run_seven_day_companion_test_plan.py",
     "scripts/run_seven_day_gate_suite_formal.py",
 )
 

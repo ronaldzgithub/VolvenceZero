@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import replace
+import hashlib
 import json
 from pathlib import Path
 import sys
+from typing import Sequence
 
 import pytest
 
@@ -17,6 +20,42 @@ import companion_test_plan_common as common  # noqa: E402
 import msc_prediction_checkpoint as prediction_checkpoint  # noqa: E402
 import run_msc_prediction_test_plan as prediction_plan  # noqa: E402
 import run_seven_day_companion_test_plan as seven_day_plan  # noqa: E402
+
+
+def _seven_day_preregistration(
+    *, schema: str, arms: tuple[str, ...], gate_id: int | None = None
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "schema_version": schema,
+        "claim_scope": (
+            "simulated-user-real-lifecycle-only"
+            if schema in seven_day_plan.CONTINUITY_SCHEMAS
+            else "simulated-seven-day-product-ecology-only"
+        ),
+        "scenario_ids": ["F1-01"],
+        "formal_run": {
+            "paraphrase_seeds": [1],
+            "arm_schedule": list(arms),
+            "run_count": len(arms),
+            "execution_device": "mps",
+        },
+    }
+    if gate_id is not None:
+        payload["gate_id"] = gate_id
+    return payload
+
+
+def _write_canonical_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        + b"\n"
+    )
 
 
 def test_execution_environment_disables_mps_fallback(tmp_path: Path) -> None:
@@ -79,8 +118,15 @@ def test_seven_day_formal_command_is_mps_and_prereg_bound(
     preregistration = tmp_path / "prereg.json"
     preregistration.write_text("{}", encoding="utf-8")
     output = tmp_path / "artifact"
+    campaign = seven_day_plan._campaign_from_preregistration(
+        _seven_day_preregistration(
+            schema="seven-day-companion-simulated.v1",
+            arms=("correct-user-state", "stateless"),
+        )
+    )
 
     command = seven_day_plan._runner_command(
+        campaign=campaign,
         python=Path("/usr/bin/python3"),
         execution_root=tmp_path,
         preregistration=preregistration,
@@ -104,24 +150,261 @@ def test_seven_day_formal_command_is_mps_and_prereg_bound(
 
 def test_seven_day_status_keeps_simulated_claim_boundary(tmp_path: Path) -> None:
     preregistration = tmp_path / "prereg.json"
-    preregistration.write_text(
-        json.dumps(
-            {
-                "claim_scope": "simulated-user-real-lifecycle-only",
-                "formal_run": {"run_count": 36, "execution_device": "mps"},
-            }
+    payload = _seven_day_preregistration(
+        schema="seven-day-companion-simulated.v1",
+        arms=(
+            "correct-user-state",
+            "stateless",
+            "swapped-user-state",
+            "shuffled-history",
+            "sleep-consolidation",
+            "no-sleep",
         ),
-        encoding="utf-8",
     )
+    _write_canonical_json(preregistration, payload)
 
     status = seven_day_plan._status(
         preregistration=preregistration,
         output_dir=None,
     )
 
-    assert status["expected_runs"] == 36
+    assert status["expected_runs"] == 6
     assert status["matrix_complete"] is False
+    assert status["analysis_allowed"] is False
     assert status["production_promotion_authorized"] is False
+
+
+@pytest.mark.parametrize(
+    ("payload", "runner_name", "auditor_name", "smoke_flag", "gate_arg"),
+    (
+        (
+            _seven_day_preregistration(
+                schema="seven-day-companion-simulated.v1",
+                arms=("correct-user-state", "stateless"),
+            ),
+            "run_seven_day_companion_formal.py",
+            "audit_seven_day_companion_formal.py",
+            "--smoke-one-run",
+            None,
+        ),
+        (
+            _seven_day_preregistration(
+                schema="seven-day-companion-simulated.v2",
+                arms=("correct-user-state", "stateless"),
+            ),
+            "run_seven_day_companion_formal.py",
+            "audit_seven_day_companion_formal.py",
+            "--smoke-one-run",
+            None,
+        ),
+        (
+            _seven_day_preregistration(
+                schema=seven_day_plan.GATE1_SCHEMA,
+                arms=("gate1-pe-temporal-on-v1", "gate1-pe-temporal-off-v1"),
+            ),
+            "run_seven_day_gate1_formal.py",
+            "audit_seven_day_gate1_formal.py",
+            "--smoke-one-pair",
+            None,
+        ),
+        (
+            _seven_day_preregistration(
+                schema=seven_day_plan.GATE_SUITE_SCHEMA,
+                arms=("gate7-ssl-rl-full-v1", "gate7-no-ssl-v1", "gate7-no-rl-v1"),
+                gate_id=7,
+            ),
+            "run_seven_day_gate_suite_formal.py",
+            "audit_seven_day_gate_suite_formal.py",
+            "--smoke-one-pair",
+            "7",
+        ),
+    ),
+)
+def test_seven_day_schema_dispatches_exact_runner_and_auditor(
+    tmp_path: Path,
+    payload: dict[str, object],
+    runner_name: str,
+    auditor_name: str,
+    smoke_flag: str,
+    gate_arg: str | None,
+) -> None:
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / runner_name).write_text("", encoding="utf-8")
+    (scripts / auditor_name).write_text("", encoding="utf-8")
+    campaign = seven_day_plan._campaign_from_preregistration(payload)
+    preregistration = tmp_path / "prereg.json"
+    output = tmp_path / "artifact"
+    audit_output = output / "audit"
+
+    command = seven_day_plan._runner_command(
+        campaign=campaign,
+        python=Path("/usr/bin/python3"),
+        execution_root=tmp_path,
+        preregistration=preregistration,
+        stage="smoke",
+        output_dir=output,
+        host="127.0.0.1",
+        port=campaign.default_port,
+        startup_timeout_s=600.0,
+        resume=False,
+    )
+    audit = seven_day_plan._audit_command(
+        campaign=campaign,
+        python=Path("/usr/bin/python3"),
+        execution_root=tmp_path,
+        preregistration=preregistration,
+        output_dir=output,
+        audit_output_dir=audit_output,
+    )
+
+    assert Path(command[1]).name == runner_name
+    assert smoke_flag in command
+    assert Path(audit[1]).name == auditor_name
+    if gate_arg is None:
+        assert "--gate" not in command
+        assert "--gate" not in audit
+    else:
+        assert command[command.index("--gate") + 1] == gate_arg
+        assert audit[audit.index("--gate") + 1] == gate_arg
+
+
+def test_seven_day_status_opens_analysis_only_after_exact_independent_audit(
+    tmp_path: Path,
+) -> None:
+    preregistration = tmp_path / "prereg.json"
+    payload = _seven_day_preregistration(
+        schema=seven_day_plan.GATE1_SCHEMA,
+        arms=("gate1-pe-temporal-on-v1", "gate1-pe-temporal-off-v1"),
+    )
+    _write_canonical_json(preregistration, payload)
+    output = tmp_path / "artifact"
+    expected = seven_day_plan._expected_run_identities(payload)
+    for name, (scenario, seed, arm) in expected.items():
+        _write_canonical_json(
+            output / "runs" / name,
+            {
+                "schema_version": "seven-day-companion-run.v1",
+                "scenario_id": scenario,
+                "paraphrase_seed": seed,
+                "arm_label": arm,
+            },
+        )
+    _write_canonical_json(output / "gate1_evaluation.json", {"complete": True})
+    evaluation_sha256 = hashlib.sha256(
+        (output / "gate1_evaluation.json").read_bytes()
+    ).hexdigest()
+
+    before_audit = seven_day_plan._status(
+        preregistration=preregistration, output_dir=output
+    )
+    assert before_audit["matrix_complete"] is True
+    assert before_audit["analysis_allowed"] is False
+
+    _write_canonical_json(
+        output / "audit/gate1_independent_audit.json",
+        {
+            "schema_version": "gate1-seven-day-independent-audit.v1",
+            "audit_passed": True,
+            "preregistration_sha256": hashlib.sha256(
+                preregistration.read_bytes()
+            ).hexdigest(),
+            "gate1_evaluation_sha256": evaluation_sha256,
+            "counts": {"runs": len(expected)},
+            "claim_scope": payload["claim_scope"],
+        },
+    )
+    after_audit = seven_day_plan._status(
+        preregistration=preregistration, output_dir=output
+    )
+    assert after_audit["independent_audit_valid"] is True
+    assert after_audit["analysis_allowed"] is True
+
+    _write_canonical_json(output / "gate1_evaluation.json", {"mutated": True})
+    with_mutated_evaluation = seven_day_plan._status(
+        preregistration=preregistration, output_dir=output
+    )
+    assert with_mutated_evaluation["independent_audit_valid"] is False
+    assert with_mutated_evaluation["analysis_allowed"] is False
+    _write_canonical_json(output / "gate1_evaluation.json", {"complete": True})
+
+    _write_canonical_json(output / "runs/unregistered.json", {"extra": True})
+    with_extra = seven_day_plan._status(
+        preregistration=preregistration, output_dir=output
+    )
+    assert with_extra["unexpected_run_files"] == 1
+    assert with_extra["analysis_allowed"] is False
+
+
+def test_seven_day_mps_control_rejects_cuda_preregistration() -> None:
+    payload = _seven_day_preregistration(
+        schema=seven_day_plan.GATE1_SCHEMA,
+        arms=("on", "off"),
+    )
+    payload["formal_run"]["execution_device"] = "cuda"
+
+    with pytest.raises(ValueError, match="execution_device='mps'"):
+        seven_day_plan._require_mps_preregistration(payload)
+
+
+def test_seven_day_all_audits_a_complete_negative_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    for name in (
+        "run_seven_day_gate1_formal.py",
+        "audit_seven_day_gate1_formal.py",
+    ):
+        (scripts / name).write_text("", encoding="utf-8")
+    (tmp_path / "packages/example/src").mkdir(parents=True)
+    preregistration = tmp_path / "prereg.json"
+    _write_canonical_json(
+        preregistration,
+        _seven_day_preregistration(
+            schema=seven_day_plan.GATE1_SCHEMA,
+            arms=("gate1-pe-temporal-on-v1", "gate1-pe-temporal-off-v1"),
+        ),
+    )
+    output = tmp_path / "artifact"
+    output.mkdir()
+    commands: list[tuple[str, ...]] = []
+    return_codes = iter((0, seven_day_plan.SCIENTIFIC_NEGATIVE_EXIT, 0))
+
+    def fake_run(argv: Sequence[str], **_: object) -> int:
+        commands.append(tuple(argv))
+        return next(return_codes)
+
+    monkeypatch.setattr(seven_day_plan, "run_plan_command", fake_run)
+    monkeypatch.setattr(
+        seven_day_plan,
+        "require_mps",
+        lambda: common.MPSAvailability("fixture", True, True, True),
+    )
+    monkeypatch.setattr(
+        seven_day_plan,
+        "exclusive_mps_lock",
+        lambda *_args, **_kwargs: nullcontext(),
+    )
+
+    exit_code = seven_day_plan.main(
+        (
+            "all",
+            "--execution-root",
+            str(tmp_path),
+            "--preregistration",
+            str(preregistration),
+            "--output-dir",
+            str(output),
+        )
+    )
+
+    assert exit_code == seven_day_plan.SCIENTIFIC_NEGATIVE_EXIT
+    assert len(commands) == 3
+    assert "--preflight-only" in commands[0]
+    assert "--execute" in commands[1]
+    assert Path(commands[2][1]).name == "audit_seven_day_gate1_formal.py"
 
 
 def test_prediction_smoke_uses_mps_for_encoder_head_and_substrate(

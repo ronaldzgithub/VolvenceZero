@@ -34,8 +34,21 @@ GATE1_SEVEN_DAY_CODE_PATHS = (
     "packages/vz-runtime/src/volvence_zero/integration/final_wiring.py",
     "packages/vz-temporal/src/volvence_zero/temporal/interface.py",
     "scripts/audit_seven_day_gate1_formal.py",
+    "scripts/companion_test_plan_common.py",
     "scripts/preregister_seven_day_gate1.py",
     "scripts/run_seven_day_companion_formal.py",
+    "scripts/run_seven_day_companion_test_plan.py",
+    "scripts/run_seven_day_gate1_formal.py",
+)
+GATE1_SEVEN_DAY_EXECUTION_SOURCE_ROOTS = (
+    "packages/*/src",
+    "packages/*/pyproject.toml",
+    "pyproject.toml",
+    "scripts/audit_seven_day_gate1_formal.py",
+    "scripts/companion_test_plan_common.py",
+    "scripts/preregister_seven_day_gate1.py",
+    "scripts/run_seven_day_companion_formal.py",
+    "scripts/run_seven_day_companion_test_plan.py",
     "scripts/run_seven_day_gate1_formal.py",
 )
 
@@ -56,6 +69,43 @@ def _file_sha256(path: Path) -> str:
     if not path.is_file():
         raise FileNotFoundError(path)
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _execution_source_snapshot(root: Path) -> dict[str, object]:
+    files: set[Path] = set()
+    for pattern in GATE1_SEVEN_DAY_EXECUTION_SOURCE_ROOTS:
+        for candidate in root.glob(pattern):
+            if candidate.is_dir():
+                files.update(path for path in candidate.rglob("*") if path.is_file())
+            elif candidate.is_file():
+                files.add(candidate)
+    included = tuple(
+        sorted(
+            (
+                path
+                for path in files
+                if "__pycache__" not in path.parts
+                and path.suffix not in {".pyc", ".pyo"}
+            ),
+            key=lambda path: path.relative_to(root).as_posix(),
+        )
+    )
+    if not included:
+        raise FileNotFoundError("Gate 1 execution source snapshot is empty")
+    digest = hashlib.sha256()
+    for path in included:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        content = path.read_bytes()
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return {
+        "roots": list(GATE1_SEVEN_DAY_EXECUTION_SOURCE_ROOTS),
+        "excluded": ["**/__pycache__/**", "**/*.pyc", "**/*.pyo"],
+        "file_count": len(included),
+        "tree_sha256": digest.hexdigest(),
+    }
 
 
 def _validate_model_contract(
@@ -141,6 +191,7 @@ def build_gate1_seven_day_preregistration(
         relative: _file_sha256(root / relative)
         for relative in GATE1_SEVEN_DAY_CODE_PATHS
     }
+    execution_source_snapshot = _execution_source_snapshot(root)
     pair_count = len(SEVEN_DAY_SCENARIO_IDS) * len(seeds)
     return {
         "schema_version": GATE1_SEVEN_DAY_PREREG_SCHEMA_VERSION,
@@ -153,6 +204,7 @@ def build_gate1_seven_day_preregistration(
         "code_tree_sha256": hashlib.sha256(
             _canonical_bytes(code_manifest)
         ).hexdigest(),
+        "execution_source_snapshot": execution_source_snapshot,
         "formal_run": {
             "paraphrase_seeds": list(seeds),
             "arm_schedule": list(GATE1_SEVEN_DAY_ARMS),
@@ -284,6 +336,7 @@ def write_gate1_seven_day_preregistration(
 __all__ = [
     "GATE1_SEVEN_DAY_CODE_PATHS",
     "GATE1_SEVEN_DAY_DEFAULT_SEEDS",
+    "GATE1_SEVEN_DAY_EXECUTION_SOURCE_ROOTS",
     "GATE1_SEVEN_DAY_PREREG_SCHEMA_VERSION",
     "build_gate1_seven_day_preregistration",
     "validate_gate1_seven_day_preregistration",

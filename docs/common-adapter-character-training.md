@@ -385,3 +385,40 @@ python scripts/train_common_adapter_model.py publish \
 正式训练交付必须保存：命令、git SHA、dirty 状态、模型 snapshot、设备、依赖版本、
 训练/held-out digest、candidate、全部原始 observations、Gate record、回滚路径和最终
 bundle/manifest ID。
+
+## 13. 把 ACTIVE 产物接入七天产品验证
+
+只有第 7、9 节分别得到可 `require_active()` 的 bundle 和 evaluated manifest 后，才能生成
+七天 v2 预注册。bundle、manifest 及其全部 locator 必须位于仓库根目录下的只读 artifact
+目录；预注册会冻结相对路径、文件 SHA-256 和内容 ID。
+
+```bash
+.venv/bin/python scripts/preregister_seven_day_companion_simulated.py \
+  --repo-root . \
+  --common-adapter-bundle artifacts/common-adapters/qwen2.5-1.5b/v1/common-adapter-bundle.json \
+  --character-package-manifest artifacts/character-packages/zhang_wuji/v1/evaluated-manifest.json \
+  --character-id zhang-wuji \
+  --character-vertical zhang_wuji \
+  --sut-model-family qwen \
+  --output artifacts/seven-day-character-stack-v2/preregistration.json
+```
+
+先在新的输出根执行一条非 claim smoke：
+
+```bash
+.venv/bin/python scripts/run_seven_day_companion_formal.py \
+  --repo-root . \
+  --preregistration artifacts/seven-day-character-stack-v2/preregistration.json \
+  --output-dir artifacts/seven-day-character-stack-v2/smoke \
+  --device mps \
+  --smoke-one-run
+```
+
+smoke 必须完成 7 sessions、35 个真实 SUT turns 和 6 次真实进程重启，并在 run artifact 中
+同时出现 `runtime_stack_attestation` 与每 turn 的 ACTIVE Prefix/KV typed tags。通过 smoke 后，
+重新建立正式 preregistration/source snapshot 与独立 formal 输出根，再通过七天控制面执行
+`formal → audit`；不得把 smoke 目录改名后当正式矩阵，也不得把 v1 的 base-only run 混入。
+
+如果预注册阶段报告 bundle/manifest 非 ACTIVE，回到训练或 fidelity gate；如果运行阶段报告
+carrier attestation 缺失，修 runtime 路由而不是降低审计断言。回滚是停止 v2 runner、恢复前一
+bundle/manifest 或把 L2 切回 SHADOW；L0 base 与 L3 tenant memory 均不修改。

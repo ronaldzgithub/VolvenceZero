@@ -22,6 +22,7 @@ from companion_bench.user_simulator import (
     LocalTransformersUtteranceClient,
 )
 from huggingface_hub import snapshot_download
+from lifeform_service.character_packages import load_character_runtime_assets
 from lifeform_evolution.relationship_assistant_pilot import (
     RelationshipAssistantPilotHarness,
 )
@@ -44,8 +45,10 @@ from volvence_zero.agent.seven_day_companion_evidence import (
     SevenDayExperimentCase,
 )
 from volvence_zero.agent.seven_day_companion_preregistration import (
+    seven_day_source_attestation_contract,
     validate_seven_day_companion_preregistration,
 )
+from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import fingerprint_model_weight_files
 
 
@@ -96,6 +99,50 @@ def _verify_model(contract: dict[str, object]) -> Path:
     return root
 
 
+def _resolve_character_stack(*, preregistration: Mapping[str, object], repo_root: Path) -> dict[str, object] | None:
+    raw_stack = preregistration.get("runtime_stack")
+    if raw_stack is None:
+        return None
+    if not isinstance(raw_stack, Mapping):
+        raise ValueError("preregistration runtime_stack must be an object")
+    raw_common = raw_stack.get("common_adapter")
+    raw_manifests = raw_stack.get("character_manifests")
+    if not isinstance(raw_common, Mapping) or not isinstance(raw_manifests, list):
+        raise ValueError("preregistration character runtime stack is malformed")
+    common_path = repo_root / str(raw_common["locator"])
+    manifest_paths = tuple(repo_root / str(item["locator"]) for item in raw_manifests if isinstance(item, Mapping))
+    if len(manifest_paths) != len(raw_manifests):
+        raise ValueError("preregistration character manifest locator is malformed")
+    assets = load_character_runtime_assets(
+        common_adapter_bundle_path=common_path,
+        manifest_paths=manifest_paths,
+        wiring_by_character={},
+        default_wiring=WiringLevel.ACTIVE,
+    )
+    selected_character_id = str(raw_stack["selected_character_id"])
+    binding = assets.require_binding(selected_character_id)
+    if binding.wiring_level is not WiringLevel.ACTIVE:
+        raise ValueError("preregistered seven-day character binding is not ACTIVE")
+    expected_manifest_ids = tuple(str(item["package_id"]) for item in raw_manifests if isinstance(item, Mapping))
+    if assets.manifest_package_ids != expected_manifest_ids:
+        raise ValueError("loaded seven-day character manifest ids drifted")
+    selected_descriptor = next(
+        item
+        for item in raw_manifests
+        if isinstance(item, Mapping) and item.get("character_id") == selected_character_id
+    )
+    prefix_entry = assets.prefix_registry.require(selected_character_id)
+    if prefix_entry.prefix_package.package_id != selected_descriptor.get("prefix_package_id"):
+        raise ValueError("loaded seven-day character Prefix/KV id drifted")
+    return {
+        "vertical": str(raw_stack["vertical"]),
+        "character_id": selected_character_id,
+        "common_adapter_bundle_path": common_path,
+        "manifest_paths": manifest_paths,
+        "manifest_package_ids": expected_manifest_ids,
+    }
+
+
 def _schedule(
     *,
     script: FrozenSevenDayUserScript,
@@ -137,6 +184,7 @@ class _LocalFormalExecutor:
         port: int,
         startup_timeout_s: float,
         virtual_start_ms: int,
+        character_stack: Mapping[str, object] | None = None,
         evidence_profile_by_arm: Mapping[str, str] | None = None,
         state_loading_policy_by_arm: Mapping[str, str] | None = None,
     ) -> None:
@@ -152,6 +200,7 @@ class _LocalFormalExecutor:
         self._port = port
         self._startup_timeout_s = startup_timeout_s
         self._virtual_start_ms = virtual_start_ms
+        self._character_stack = dict(character_stack) if character_stack is not None else None
         self._evidence_profile_by_arm = dict(evidence_profile_by_arm or {})
         self._state_loading_policy_by_arm = dict(state_loading_policy_by_arm or {})
         self._case_index = {case.case_id: index for index, case in enumerate(cases)}
@@ -198,11 +247,14 @@ class _LocalFormalExecutor:
             donor_archive_root=(donor_archive if arm_label == "swapped-user-state" else None),
         )
         base_url = f"http://{self._host}:{self._port}"
+        vertical = str(self._character_stack["vertical"]) if self._character_stack is not None else "companion"
+        character_id = str(self._character_stack["character_id"]) if self._character_stack is not None else None
         service = HTTPSevenDayCompanionService(
             base_url=base_url,
             user_id=user_id,
             instance_id="not-started",
-            vertical="companion",
+            vertical=vertical,
+            character_id=character_id,
             timeout_s=600.0,
         )
         service_evidence = self._output_root / "service_evidence" / case_key / arm_label
@@ -215,7 +267,7 @@ class _LocalFormalExecutor:
             "--port",
             str(self._port),
             "--vertical",
-            "companion",
+            vertical,
             "--substrate-mode",
             "hf-shared",
             "--substrate-model-id",
@@ -236,6 +288,20 @@ class _LocalFormalExecutor:
             "--log-level",
             "INFO",
         )
+        if self._character_stack is not None:
+            command = (
+                *command,
+                "--common-adapter-bundle",
+                str(self._character_stack["common_adapter_bundle_path"]),
+                "--character-package-mode",
+                "active",
+            )
+            for manifest_path in self._character_stack["manifest_paths"]:
+                command = (
+                    *command,
+                    "--character-package-manifest",
+                    str(manifest_path),
+                )
         evidence_profile = self._evidence_profile_by_arm.get(arm_label)
         if evidence_profile is not None:
             command = (
@@ -291,12 +357,37 @@ class _LocalFormalExecutor:
             lifecycle.close()
         print(f"[complete] {case.case_id} / {arm_label}", flush=True)
         payload = run.to_json()
+        payload_changed = False
         if evidence_profile is not None:
             profile_path = service_evidence / "companion_evidence_runtime_profile.json"
             profile_payload = json.loads(profile_path.read_text(encoding="utf-8"))
             if profile_payload.get("profile") != evidence_profile:
                 raise ValueError("service evidence profile attestation drift")
             payload["runtime_profile_attestation"] = profile_payload
+            payload_changed = True
+        if self._character_stack is not None:
+            stack_path = service_evidence / "character_runtime_stack_attestation.json"
+            stack_payload = json.loads(stack_path.read_text(encoding="utf-8"))
+            if stack_payload.get("substrate_model_id") != self._sut_model_id:
+                raise ValueError("service character runtime substrate drift")
+            common = stack_payload.get("common_adapter")
+            if not isinstance(common, Mapping) or common.get("bundle_id") != (
+                self._source_attestation.common_adapter_bundle_id
+            ):
+                raise ValueError("service common adapter attestation drift")
+            bindings = stack_payload.get("session_bindings")
+            if not isinstance(bindings, list) or not any(
+                isinstance(binding, Mapping)
+                and binding.get("character_id") == self._source_attestation.character_id
+                and binding.get("manifest_package_id") == self._source_attestation.character_manifest_package_id
+                and binding.get("prefix_package_id") == self._source_attestation.character_prefix_package_id
+                and binding.get("wiring_level") == "active"
+                for binding in bindings
+            ):
+                raise ValueError("service ACTIVE character binding attestation drift")
+            payload["runtime_stack_attestation"] = stack_payload
+            payload_changed = True
+        if payload_changed:
             output_path.write_bytes(_canonical_bytes(payload))
         return payload
 
@@ -324,6 +415,10 @@ def main() -> int:
     preregistration = json.loads(args.preregistration.read_text(encoding="utf-8"))
     validate_seven_day_companion_preregistration(
         preregistration,
+        repo_root=root,
+    )
+    character_stack = _resolve_character_stack(
+        preregistration=preregistration,
         repo_root=root,
     )
     sut = _model_contract(preregistration, role="sut")
@@ -367,6 +462,9 @@ def main() -> int:
                     "sut_model_id": sut["model_id"],
                     "simulator_model_id": simulator["model_id"],
                     "device": args.device,
+                    "runtime_mode": (
+                        "base+common-adapter+character-package" if character_stack is not None else "base-only"
+                    ),
                     "validated_script_count": len(script_digests),
                     "script_sha256": script_digests,
                 },
@@ -421,19 +519,9 @@ def main() -> int:
             script_path.write_bytes(_canonical_bytes(script.to_json()))
             print(f"[script-complete] {case.case_id}", flush=True)
         scripts[case.case_id] = script
-    model_fingerprint = _sha256(
-        {
-            "sut_model_id": sut["model_id"],
-            "sut_weights_sha256": sut["weights_sha256"],
-            "adapter": "none",
-        }
-    )
+    attestation_contract = seven_day_source_attestation_contract(preregistration)
     source_attestation = SimulatedSourceAttestation(
-        simulator_model_id=str(simulator["model_id"]),
-        simulator_model_family=str(simulator["model_family"]),
-        sut_model_id=str(sut["model_id"]),
-        sut_model_family=str(sut["model_family"]),
-        model_and_adapter_fingerprint=model_fingerprint,
+        **attestation_contract,
         pii_scan_artifact_sha256=hashlib.sha256(source_audit_bytes).hexdigest(),
     )
     executor = _LocalFormalExecutor(
@@ -449,6 +537,7 @@ def main() -> int:
         port=args.port,
         startup_timeout_s=args.startup_timeout_s,
         virtual_start_ms=int(formal["virtual_start_ms"]),
+        character_stack=character_stack,
     )
     if args.smoke_one_run:
         smoke_case = cases[0]

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+import json
 
 import pytest
 
 import lifeform_domain_character
-from lifeform_service.character_packages import load_character_runtime_assets
+from lifeform_service import cli
+from lifeform_service.character_packages import (
+    load_character_runtime_assets,
+    write_character_runtime_stack_attestation,
+)
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
     CharacterPrefixKVPackage,
@@ -15,7 +20,9 @@ from volvence_zero.substrate import (
 
 
 class _CommonBundle:
+    bundle_id = "bundle-v1"
     base_model_id = "Qwen/test"
+    base_model_weights_sha256 = "1" * 64
     common_adapter_version = "common-v1"
     compatibility_fingerprint = "compat-v1"
 
@@ -195,3 +202,114 @@ def test_loader_omits_disabled_manifest_from_session_selection(
     assert assets.manifest_package_ids == ("manifest:disabled-character",)
     with pytest.raises(LookupError, match="no enabled character manifest"):
         assets.require_binding("disabled-character")
+
+
+def test_cli_shared_runtime_receives_admitted_common_and_character_registry(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    manifest = _Manifest("character-one")
+    _install_loader_fakes(monkeypatch, tmp_path, (manifest,))
+    common, paths = _write_inputs(tmp_path, (manifest,))
+    assets = load_character_runtime_assets(
+        common_adapter_bundle_path=common,
+        manifest_paths=paths,
+        wiring_by_character={"character-one": WiringLevel.ACTIVE},
+    )
+    captured = {}
+
+    def build_runtime(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(
+            model_id="Qwen/test",
+            runtime_origin="hf-local",
+        )
+
+    monkeypatch.setattr(
+        "volvence_zero.substrate.build_transformers_runtime_with_fallback",
+        build_runtime,
+    )
+    args = SimpleNamespace(
+        substrate_mode="hf-shared",
+        substrate_model_id="Qwen/test",
+        substrate_device="cpu",
+        substrate_local_files_only=True,
+        companion_evidence_profile=None,
+    )
+
+    runtime = cli._build_shared_substrate(
+        args,
+        common_adapter_bundle=assets.common_adapter_bundle,
+        character_runtime_assets=assets,
+    )
+
+    assert runtime.model_id == "Qwen/test"
+    assert captured["common_adapter_bundle"] is assets.common_adapter_bundle
+    assert captured["character_prefix_registry"] is assets.prefix_registry
+
+
+def test_cli_loads_admitted_stack_and_applies_active_default(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    manifest = _Manifest("character-one")
+    _install_loader_fakes(monkeypatch, tmp_path, (manifest,))
+    common, paths = _write_inputs(tmp_path, (manifest,))
+    args = SimpleNamespace(
+        common_adapter_bundle=common,
+        character_package_manifest=list(paths),
+        character_package_wiring=[],
+        character_package_mode="active",
+        substrate_mode="hf-shared",
+        substrate_model_id="Qwen/test",
+    )
+
+    bundle, assets = cli._load_admitted_character_stack(args)
+
+    assert bundle is not None
+    assert assets is not None
+    assert bundle.bundle_id == "bundle-v1"
+    assert assets.require_binding("character-one").wiring_level is WiringLevel.ACTIVE
+
+
+def test_runtime_stack_attestation_is_immutable_and_lists_active_binding(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    manifest = _Manifest("character-one")
+    _install_loader_fakes(monkeypatch, tmp_path, (manifest,))
+    common, paths = _write_inputs(tmp_path, (manifest,))
+    assets = load_character_runtime_assets(
+        common_adapter_bundle_path=common,
+        manifest_paths=paths,
+        wiring_by_character={"character-one": WiringLevel.ACTIVE},
+    )
+
+    first = write_character_runtime_stack_attestation(
+        output_dir=tmp_path / "evidence",
+        common_adapter_bundle=assets.common_adapter_bundle,
+        character_runtime_assets=assets,
+        substrate_model_id="Qwen/test",
+        substrate_device="cpu",
+    )
+    second = write_character_runtime_stack_attestation(
+        output_dir=tmp_path / "evidence",
+        common_adapter_bundle=assets.common_adapter_bundle,
+        character_runtime_assets=assets,
+        substrate_model_id="Qwen/test",
+        substrate_device="cpu",
+    )
+
+    assert first == second
+    payload = json.loads(first.read_text(encoding="utf-8"))
+    assert payload["common_adapter"]["bundle_id"] == "bundle-v1"
+    assert payload["session_bindings"] == [
+        {
+            "character_id": "character-one",
+            "character_lora_figure_id": None,
+            "manifest_package_id": "manifest:character-one",
+            "prefix_package_id": "prefix:character-one",
+            "wiring_level": "active",
+        }
+    ]
+    assert len(payload["attestation_sha256"]) == 64

@@ -1,6 +1,6 @@
 # Seven-Day Simulated Companion Evidence Spec
 
-> Status: tooling + full-source frozen preregistration + product-path smoke complete; replacement formal 36-run matrix running
+> Status: v1 base-only smoke complete / formal halted at 16/36 for instrument-discrimination；v2 base+adapter+character contract and tooling complete, no ACTIVE artifact smoke yet
 > Last updated: 2026-08-02
 > 对应需求: R5、R6、R7、R8、R12、R15
 > 关联债务: #93（只提供 simulated-longitudinal 辅助证据，不关闭 real-user EXIT）
@@ -108,10 +108,60 @@ prereg 还冻结 `packages/*/src`、package/root pyproject 与七日 runner 的 
 
 截至 2026-08-01，替代 6-scenario/210-turn 模拟器预检通过；一条非 claim smoke 完成
 35 个真实 SUT 回合、14 个 console actions、6 次不同进程重启，run SHA-256 为
-`8ddc857cdad8c7951cae31b7b3e1ed05c95b55cd650e5be2062bddcda4a6985a`。替代正式 36-run
-矩阵正在 `artifacts/seven_day_companion_formal_frozen_20260801T122037Z/` 执行，因此状态仍是
-`running / no causal result yet`，没有“通过”“失败”或“没有提升”的 effect verdict。
+`8ddc857cdad8c7951cae31b7b3e1ed05c95b55cd650e5be2062bddcda4a6985a`。
 supersession 与 source-drift invalidation artifact 均单独保留方法学变更。
+
+2026-08-02，替代正式 36-run 矩阵在 16/36 处按本 spec `失败、退出与回滚` 的
+「停止七日证据 runner」与「metric 缺失 → 分析前 abort，先修 instrumentation」两条既有
+条款停跑，记录为
+`artifacts/seven_day_companion_formal_frozen_20260801T122037Z/halt_record.json`。
+停跑理由是 `instrument-discrimination`：`user_correction_rate` 与
+`remembered_item_usefulness` 由逐字节相同的每日 console 探针产生因而被构造性钉在 `0.5`；
+`callback_hit_rate` 比较的是 owner 对自身 compact readout 的 forecast 与 realized readout，
+测的是 owner 自洽性而非 SUT 是否用上跨日事实；唯一观测 SUT 行为的
+`fsm_probe_pass_rate` 全为 null。因此该目录状态是
+`halted / instrument-discrimination`，既不是 effect verdict，也不是
+`no improvement`；停跑前未读取该矩阵任何 measurement，未换 seed、未降阈值、未改预注册。
+
+16 个完整 run envelope 与 pilot day 产物全部保留并以 rollup SHA 封存。该目录
+**不允许原样 `--resume`**：仪器须先按收窄计划 S3 换成冻结 N+1 substrate 表示预测目标
+（arm-independent、非循环），并另开预注册；七项 owner readout 届时降为 secondary。
+
+v1 已完成 run 全部冻结为
+`HuggingFaceTB/SmolLM2-360M-Instruct + adapter:none`，每个 run 都有 6 次进程重启。这些
+run 不得在完成后补写 common adapter 或角色包字段，也不得与 v2 合并分析。
+
+## v2：base + Common Adapter + per-session Character Package
+
+`seven-day-companion-simulated.v2` 是独立的新预注册协议，不改变 v1。v2 只接受：
+
+- 一个通过 `ModificationGate.OFFLINE`、`require_active()` 成功的
+  `CommonAdapterBundle`；
+- 至少一个所有内容引用均通过校验、`require_active()` 成功的
+  `CharacterPackageManifest`；
+- 一个显式 `selected_character_id`、支持角色 package template 的 vertical，以及
+  `wiring_level=active`；
+- 与 common bundle 完全相同的 base model ID 和权重 SHA-256；冻结模拟器使用不同模型族。
+
+预注册冻结 bundle/manifest 的仓库内相对 locator、文件 SHA-256、内容 ID、common adapter
+version/compatibility fingerprint、角色 Prefix/KV ID、vertical 与选角。正式 runner 只从这份
+`runtime_stack` 构造 `lifeform-serve` argv，不接受运行时另传 adapter 或角色覆盖值。服务启动后
+写不可变的 `character-runtime-stack-attestation.v1`；七天 run 还必须同时证明：
+
+1. 每天创建 session 的响应都绑定预注册的 `character_id`；
+2. 每个真实 SUT turn 的 typed `response_rationale_tags` 都包含精确的
+   `character_id=...`、`character_prefix=active` 与
+   `character_prefix_kv=<frozen-prefix-id>`；
+3. 七个服务实例发布相同 L1 bundle ID/version/fingerprint 和 L2 manifest binding；
+4. 六个 matched arms 使用相同的完整模型栈指纹。
+
+任一字段缺失、SHADOW/disabled、文件 digest 漂移、Prefix/KV 未真实应用、进程重启后装载栈
+变化，均在 effect analysis 前 fail closed。v2 smoke 仍是
+`simulated-user-real-lifecycle-only`，不授权 production promotion。
+
+v2 必须使用新的输出根和新 preregistration；不能对当前 v1 目录执行 `--resume`。当前仓库尚无
+通过正式 ALLOW gate 的 common bundle/角色 manifest，因此状态是“实现和测试接线完成，真实
+ACTIVE 七天 smoke 待训练产物”，不能表述为已跑通。
 
 ## Gate 8/11 v1 capture 兼容性
 
@@ -151,25 +201,39 @@ source runs、144 条 capture records、48 个盲评 pairs、内部 key、空白
 
 ## MPS 命令行测试控制面
 
-`scripts/run_seven_day_companion_test_plan.py` 是本实验唯一推荐的人类命令行入口，提供
-`status / preflight / smoke / formal / audit / all` 六阶段。控制面不拥有实验变量或 verdict；
-它只把冻结 preregistration、指定 execution root、formal runner 与 independent auditor 串联，
-并纳入新 preregistration 的源码哈希范围。
+`scripts/run_seven_day_companion_test_plan.py` 是七日产品证据的统一人类命令行入口，提供
+`status / preflight / smoke / formal / audit / all` 六阶段。它以 preregistration schema 为
+dispatch SSOT，不拥有实验变量、readout 或 verdict：
+
+| preregistration schema | 自动路由的 Gate | campaign runner / auditor |
+|---|---|---|
+| `seven-day-companion-simulated.v1` / character-stack `v2` | 8/11 | `run_seven_day_companion_formal.py` / `audit_seven_day_companion_formal.py` |
+| `gate1-seven-day-companion-prereg.v1` | 1 | `run_seven_day_gate1_formal.py` / `audit_seven_day_gate1_formal.py` |
+| `companion-gate-suite-seven-day-prereg.v1` | 4/5/6/7/9/10，由冻结 `gate_id` 唯一选择 | `run_seven_day_gate_suite_formal.py` / `audit_seven_day_gate_suite_formal.py` |
+
+未知 schema、未知 `gate_id` 或非 MPS hardware-specific preregistration 一律 fail loudly。共同
+control-plane helper 与本入口纳入所有后续七日 preregistration 的执行源码快照；已经冻结的旧
+preregistration 不做 retrofit，仍只能从它自己的只读 execution root 完成。
 
 所有涉及模型推理的阶段必须通过真实 MPS tensor 算术探针，固定
 `PYTORCH_ENABLE_MPS_FALLBACK=0`，并持有共享的
 `artifacts/.companion-evidence-mps.lock`。因此经两个新控制面启动的七日计划与 MSC N+1
 计划不能并发占用 MPS，
 也不能在 MPS 不可用时悄悄改用 CPU。`status` 与 `audit` 不占 MPS；`all` 的顺序固定为
-preflight → formal → audit，任何一步非零退出都会停止后续阶段。
+preflight → formal → audit。完整 formal 的退出码 `0` 表示预注册判据支持、`2` 表示预注册
+判据未支持；二者都是必须继续独立审计的科学终态。源码漂移、artifact 不完整、service 故障等
+integrity failure 才会停止后续阶段；审计失败覆盖 formal 结果并返回失败。
 控制面落地前已经手工启动的进程不持有该锁，必须在原终端单独确认已退出。
 
 formal runner 在运行中自动落盘冻结 user script、每个已完成臂的 run
 envelope、每日 measurement checkpoint、archive/loaded-copy digest 和 service log。
 `--resume` 只可在同一 preregistration 和冻结 execution root 上跳过已完成 run；
-任一源码、脚本或状态证明漂移都走既有 fail-closed 路径。运行期 `status`
-只报完成数；全矩阵与独立审计完成前，中间文件不得产生效应 verdict、
-变更预注册或触发 promotion。
+任一源码、脚本或状态证明漂移都走既有 fail-closed 路径。运行期 `status` 按冻结的
+scenario × seed × arm 精确重建预期文件名，再校验每个 run envelope 的 schema 与身份；额外、
+损坏或错配的 run 都单独报告。只有 exact matrix、campaign evaluation artifact 和同时绑定
+同一 preregistration SHA 与当前 evaluation SHA 的有效 independent audit 存在时，
+`analysis_allowed=true`。此前的中间
+文件不得用于效应判读、变更预注册或触发 promotion。
 
 ## Gate 1 七天 matched 扩展
 

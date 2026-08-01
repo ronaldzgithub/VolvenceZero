@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-from typing import Iterator, Mapping, Sequence
+from typing import Iterator, Mapping, Sequence, TextIO
 
 
 MPS_LOCK_SCHEMA_VERSION = "companion-evidence-mps-lock.v1"
@@ -133,25 +133,33 @@ def exclusive_mps_lock(lock_path: Path, *, plan_id: str) -> Iterator[None]:
             raise MPSLockBusyError(
                 f"MPS evidence lock is already held at {target}: {owner}"
             ) from exc
-        handle.seek(0)
-        handle.truncate()
-        handle.write(
-            json.dumps(
-                {
-                    "schema_version": MPS_LOCK_SCHEMA_VERSION,
-                    "plan_id": plan_id,
-                    "pid": os.getpid(),
-                    "python": sys.executable,
-                },
-                sort_keys=True,
-            )
-            + "\n"
-        )
-        handle.flush()
+        _write_lock_record(handle, plan_id=plan_id, state="held")
         try:
             yield
         finally:
+            # The advisory flock is released when this process exits, so a
+            # leftover "held" record would misreport a free device as busy.
+            _write_lock_record(handle, plan_id=plan_id, state="released")
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _write_lock_record(handle: TextIO, *, plan_id: str, state: str) -> None:
+    handle.seek(0)
+    handle.truncate()
+    handle.write(
+        json.dumps(
+            {
+                "schema_version": MPS_LOCK_SCHEMA_VERSION,
+                "plan_id": plan_id,
+                "pid": os.getpid(),
+                "python": sys.executable,
+                "state": state,
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    handle.flush()
 
 
 def print_json(payload: object) -> None:
