@@ -90,12 +90,14 @@ def _run(case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
         days.append(
             {
                 "day_index": day_index,
+                "end_scene_slow_loop_drained": arm != "no-sleep",
                 "turns": turns,
                 "restart_after_day": restart,
             }
         )
     return {
         "schema_version": "seven-day-companion-run.v1",
+        "arm_label": arm,
         "scenario_id": case.scenario_id,
         "paraphrase_seed": case.paraphrase_seed,
         "persona_ref": case.scenario_id.split("-")[-1],
@@ -187,6 +189,50 @@ def test_capture_rejects_arm_specific_user_turns() -> None:
         )
 
 
+def test_capture_rejects_sleep_intervention_drift() -> None:
+    runs = _runs()
+    target = next(
+        index
+        for index, envelope in enumerate(runs)
+        if envelope.arm_label == "no-sleep"
+    )
+    mutated = deepcopy(runs[target].run)
+    mutated["days"][0]["end_scene_slow_loop_drained"] = True
+    runs[target] = SevenDayRunEnvelope(
+        case=runs[target].case,
+        arm_label=runs[target].arm_label,
+        run=mutated,
+    )
+    with pytest.raises(ValueError, match="sleep intervention drift"):
+        build_gate811_simulated_capture(
+            runs=runs,
+            preregistration=_prereg(),
+            preregistration_sha256="1" * 64,
+        )
+
+
+def test_capture_rejects_missing_sleep_intervention_attestation() -> None:
+    runs = _runs()
+    target = next(
+        index
+        for index, envelope in enumerate(runs)
+        if envelope.arm_label == "no-sleep"
+    )
+    mutated = deepcopy(runs[target].run)
+    del mutated["days"][0]["end_scene_slow_loop_drained"]
+    runs[target] = SevenDayRunEnvelope(
+        case=runs[target].case,
+        arm_label=runs[target].arm_label,
+        run=mutated,
+    )
+    with pytest.raises(ValueError, match="sleep intervention drift"):
+        build_gate811_simulated_capture(
+            runs=runs,
+            preregistration=_prereg(),
+            preregistration_sha256="1" * 64,
+        )
+
+
 def test_explicit_real_user_only_clause_requires_new_preregistration() -> None:
     prereg = deepcopy(_prereg())
     prereg["capture"]["source_population"] = "real-user-only"
@@ -206,6 +252,11 @@ def test_export_writes_capture_audit_and_blinded_packet(tmp_path: Path) -> None:
     )
     assert manifest["capture_record_count"] == 144
     assert manifest["human_ratings_pending"] is True
+    written_manifest = json.loads(
+        (tmp_path / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert written_manifest == manifest
+    assert written_manifest["real_user_product_value_claim_allowed"] is False
     for relative in (
         "simulated_capture.json",
         "compatibility_audit.json",

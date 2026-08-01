@@ -38,6 +38,7 @@ def test_preregistration_freezes_six_scenarios_six_arms_and_real_models() -> Non
     assert source_snapshot["file_count"] > len(payload["code_manifest"])
     assert len(source_snapshot["tree_sha256"]) == 64
     assert "packages/*/src" in source_snapshot["roots"]
+    assert "scripts/run_gate811_simulated_capture.py" in source_snapshot["roots"]
     validate_seven_day_companion_preregistration(
         payload,
         repo_root=REPO_ROOT,

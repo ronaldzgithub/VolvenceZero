@@ -41,6 +41,7 @@ SEVEN_DAY_EXECUTION_SOURCE_ROOTS = (
     "packages/*/pyproject.toml",
     "pyproject.toml",
     "scripts/preregister_seven_day_companion_simulated.py",
+    "scripts/run_gate811_simulated_capture.py",
     "scripts/run_seven_day_companion_formal.py",
 )
 

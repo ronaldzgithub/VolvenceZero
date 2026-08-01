@@ -166,6 +166,8 @@ def _days(run: Mapping[str, object]) -> tuple[Mapping[str, object], ...]:
 def _validate_source_run(run: Mapping[str, object], *, arm: str) -> None:
     if run.get("schema_version") != "seven-day-companion-run.v1":
         raise ValueError("capture source run schema drift")
+    if run.get("arm_label") != arm:
+        raise ValueError("capture source arm label drift")
     if run.get("process_restart_count") != 6 or run.get(
         "all_restarts_exact"
     ) is not True:
@@ -178,6 +180,10 @@ def _validate_source_run(run: Mapping[str, object], *, arm: str) -> None:
         raise ValueError("capture source may not authorize production")
     expected_policy = _STATE_POLICY_BY_ARM[arm]
     for day_index, day in enumerate(_days(run), start=1):
+        drained = day.get("end_scene_slow_loop_drained")
+        expected_drained = arm != "no-sleep"
+        if not isinstance(drained, bool) or drained is not expected_drained:
+            raise ValueError("capture source sleep intervention drift")
         restart = day.get("restart_after_day")
         if day_index == 7:
             if restart is not None:
@@ -443,17 +449,19 @@ def export_gate811_simulated_pilot(
         preregistration=preregistration,
         preregistration_sha256=preregistration_sha256,
     )
-    manifest = export_gate811_pilot_packet(
+    packet_manifest = export_gate811_pilot_packet(
         bundle=bundle,
         output_dir=target,
     )
-    return {
-        **manifest,
+    manifest = {
+        **packet_manifest,
         "capture_record_count": len(capture["records"]),
         "capture_source_scope": capture["capture_source_scope"],
         "real_user_product_value_claim_allowed": False,
         "human_ratings_pending": True,
     }
+    (target / "manifest.json").write_bytes(_canonical_bytes(manifest))
+    return manifest
 
 
 __all__ = [
