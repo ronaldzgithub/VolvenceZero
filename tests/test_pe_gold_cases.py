@@ -167,4 +167,7 @@ def test_gate1_evaluation_decoupled_trace_is_byte_invariant(
         report.active_payload_sha256_a
         == report.active_payload_sha256_b
     )
+    assert report.shadow_evaluation_sensitive
+    assert report.active_shadow_different
+    assert report.pe_load_bearing
     assert "VZ_PE_EVALUATION_DECOUPLED" not in __import__("os").environ

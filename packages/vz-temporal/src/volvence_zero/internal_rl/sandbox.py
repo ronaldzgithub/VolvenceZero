@@ -6,6 +6,7 @@ from enum import Enum
 import inspect
 import math
 import os
+import random
 
 from volvence_zero.credit.gate import (
     CreditRecord,
@@ -55,6 +56,8 @@ from volvence_zero.temporal.causal_action_projection import (
 )
 
 _CAUSAL_ACTION_ADVANTAGE_SCALE_FLOOR = 0.05
+
+RandomState = tuple[int, tuple[int, ...], float | None]
 
 
 def causal_action_head_formation_scales(
@@ -336,6 +339,7 @@ class CausalPolicyCheckpoint:
     policy_optimization_fingerprint: str = ""
     temporal_learning_fingerprint: str = ""
     runtime_replay: RuntimeReplayCheckpoint | None = None
+    exploration_rng_state: RandomState | None = None
 
 
 @dataclass(frozen=True)
@@ -935,9 +939,21 @@ class CausalZPolicy:
         causal_action_head_formation_conflict_scale: float = 1.0,
         causal_action_head_state_dim: int | None = None,
         latent_unit_clamp: bool = False,
+        exploration_seed: int = 0,
     ) -> None:
         self._parameter_store = parameter_store
         self._rl_backend = rl_backend
+        if (
+            isinstance(exploration_seed, bool)
+            or not isinstance(exploration_seed, int)
+            or exploration_seed < 0
+        ):
+            raise ValueError(
+                "exploration_seed must be a non-negative integer, "
+                f"got {exploration_seed!r}"
+            )
+        self._exploration_seed = exploration_seed
+        self._exploration_rng = random.Random(exploration_seed)
         # Latent-code bound contract. False is the exact rollback (historic
         # signed [-1, 1] bound); True adopts the live owner's [0, 1] latent
         # bound for latent-code / mean reconstruction only.
@@ -1356,6 +1372,7 @@ class CausalZPolicy:
             temporal_learning_fingerprint=(
                 self._parameter_store.learning_parameter_fingerprint()
             ),
+            exploration_rng_state=self._exploration_rng.getstate(),
         )
 
     def restore_checkpoint(self, checkpoint: CausalPolicyCheckpoint) -> None:
@@ -1380,6 +1397,8 @@ class CausalZPolicy:
             params.track: params.update_step for params in checkpoint.parameters_by_track
         }
         self._parameter_store.restore_parameter_snapshot(checkpoint.metacontroller_snapshot)
+        if checkpoint.exploration_rng_state is not None:
+            self._exploration_rng.setstate(checkpoint.exploration_rng_state)
 
     def _project_track_weights(self, *, track: Track, n: int) -> tuple[float, ...]:
         weights = self._parameter_store.track_weights[track]
@@ -1522,19 +1541,13 @@ class CausalZPolicy:
         step_index: int,
         track: Track,
     ) -> tuple[float, ...]:
-        track_factor = {
-            Track.WORLD: 1.0,
-            Track.SELF: 1.7,
-            Track.SHARED: 2.3,
-        }[track]
+        # These arguments still describe the sampled transition and remain in
+        # the signature for call-site auditability. They must not deterministically
+        # manufacture exploration noise: the owner-local PRNG is the sole source.
+        del surface, step_index, track
         return tuple(
-            math.sin(
-                (step_index + 1) * (index + 1) * 1.618
-                + hidden_state[index] * 7.0
-                + surface[index] * 11.0
-                + track_factor
-            )
-            for index in range(len(hidden_state))
+            self._exploration_rng.gauss(0.0, 1.0)
+            for _ in hidden_state
         )
 
     def _sample_action(
@@ -2522,6 +2535,7 @@ class InternalRLSandbox:
         rl_backend: WiringLevel = WiringLevel.DISABLED,
         latent_unit_clamp: bool = False,
         causal_action_head_state_dim: int | None = None,
+        exploration_seed: int = 0,
     ) -> None:
         self._policy = policy or FullLearnedTemporalPolicy()
         runtime_track_modulation_strength = (
@@ -2610,6 +2624,7 @@ class InternalRLSandbox:
             ),
             causal_action_head_state_dim=causal_action_head_state_dim,
             latent_unit_clamp=latent_unit_clamp,
+            exploration_seed=exploration_seed,
         )
         self._env = env or InternalRLEnvironment()
         self._residual_runtime = residual_runtime

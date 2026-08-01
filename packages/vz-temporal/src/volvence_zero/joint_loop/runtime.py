@@ -104,6 +104,7 @@ from volvence_zero.temporal import (
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
     TemporalAggregateModule,
+    TemporalModule,
     TrackTemporalConsolidationModule,
     TrackTemporalModule,
     build_temporal_runtime_state_aggregate,
@@ -265,12 +266,14 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             residual_runtime=residual_runtime,
             rl_backend=internal_rl_backend,
             latent_unit_clamp=self._runtime_replay_latent_unit_clamp,
+            exploration_seed=0,
         )
         self._self_sandbox = InternalRLSandbox(
             policy=self._self_policy,
             residual_runtime=residual_runtime,
             rl_backend=internal_rl_backend,
             latent_unit_clamp=self._runtime_replay_latent_unit_clamp,
+            exploration_seed=1,
         )
         self._residual_runtime = residual_runtime
         self._ssl_trainer = MetacontrollerSSLTrainer(n_z=world_latent_dim, ssl_backend=ssl_backend)

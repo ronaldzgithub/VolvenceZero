@@ -1029,6 +1029,60 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
             0.0 for _ in _HEAD_AXES
         )
         self._head_has_lag = False
+        # R2 research channel: one true N+1 representation head owned by PE.
+        # It is configured explicitly for offline batches and never registered
+        # as a runtime module/slot, so high-throughput corpus research bypasses
+        # per-turn propagate without creating a second mismatch owner.
+        self._forward_representation_head: Any | None = None
+
+    def configure_forward_representation_head(
+        self,
+        *,
+        input_dim: int,
+        target_dim: int,
+        n_z: int,
+        seed: int,
+        learning_rate: float = 1e-3,
+        device: str = "auto",
+    ) -> None:
+        from volvence_zero.prediction.forward_representation import (
+            TorchForwardRepresentationHead,
+        )
+
+        self._forward_representation_head = TorchForwardRepresentationHead(
+            input_dim=input_dim,
+            target_dim=target_dim,
+            n_z=n_z,
+            seed=seed,
+            learning_rate=learning_rate,
+            device=device,
+        )
+
+    def process_forward_representation_batch(self, batch, *, update: bool):
+        """Train/evaluate true N+1 targets through the PE-owned batch head."""
+
+        head = self._forward_representation_head
+        if head is None:
+            raise RuntimeError(
+                "forward representation head is not configured on prediction_error"
+            )
+        return head.process(batch, update=update)
+
+    def export_forward_representation_checkpoint(self, *, checkpoint_id: str):
+        head = self._forward_representation_head
+        if head is None:
+            raise RuntimeError(
+                "forward representation head is not configured on prediction_error"
+            )
+        return head.export_checkpoint(checkpoint_id=checkpoint_id)
+
+    def restore_forward_representation_checkpoint(self, checkpoint) -> None:
+        head = self._forward_representation_head
+        if head is None:
+            raise RuntimeError(
+                "forward representation head is not configured on prediction_error"
+            )
+        head.restore_checkpoint(checkpoint)
 
     # ------------------------------------------------------------------
     # Offline gradient-LSS rare-heavy surface (Phase F). Runtime PE is
@@ -1752,15 +1806,23 @@ class PredictionErrorModule(RuntimeModule[PredictionErrorSnapshot]):
         world_baseline_mae = self._head_abs_error_sums["world_baseline"] / count
         self_learned_mae = self._head_abs_error_sums["self_learned"] / count
         self_baseline_mae = self._head_abs_error_sums["self_baseline"] / count
+        rounded_world_learned_mae = round(world_learned_mae, 4)
+        rounded_world_baseline_mae = round(world_baseline_mae, 4)
+        rounded_self_learned_mae = round(self_learned_mae, 4)
+        rounded_self_baseline_mae = round(self_baseline_mae, 4)
         window = self._window_readout()
         return PredictiveHeadReadout(
-            world_learned_mae=round(world_learned_mae, 4),
-            world_baseline_mae=round(world_baseline_mae, 4),
-            self_learned_mae=round(self_learned_mae, 4),
-            self_baseline_mae=round(self_baseline_mae, 4),
+            world_learned_mae=rounded_world_learned_mae,
+            world_baseline_mae=rounded_world_baseline_mae,
+            self_learned_mae=rounded_self_learned_mae,
+            self_baseline_mae=rounded_self_baseline_mae,
             sample_count=count,
-            world_improvement=round(world_baseline_mae - world_learned_mae, 4),
-            self_improvement=round(self_baseline_mae - self_learned_mae, 4),
+            world_improvement=round(
+                rounded_world_baseline_mae - rounded_world_learned_mae, 4
+            ),
+            self_improvement=round(
+                rounded_self_baseline_mae - rounded_self_learned_mae, 4
+            ),
             description=(
                 f"CP-11 SHADOW heads over {count} samples: world learned/baseline "
                 f"MAE {world_learned_mae:.3f}/{world_baseline_mae:.3f}, self "
@@ -2210,6 +2272,7 @@ def derive_actual_outcome_from_substrate(
 
 
 _PE_DECOUPLE_TRUTHY = frozenset({"1", "true", "yes", "on", "active"})
+_PE_DECOUPLE_FALSEY = frozenset({"0", "false", "no", "off", "shadow", "disabled"})
 
 
 def pe_evaluation_decoupled_active() -> bool:
@@ -2218,9 +2281,9 @@ def pe_evaluation_decoupled_active() -> bool:
     When ACTIVE (``VZ_PE_EVALUATION_DECOUPLED`` truthy) the PE actual
     outcome no longer derives its ``family_signals`` from the
     :class:`EvaluationSnapshot`; the outcome is driven only by substrate /
-    dual-track / regime / external-outcome evidence. Default is SHADOW
-    (env unset/false), which preserves the legacy behaviour exactly so
-    this packet is a no-op until an operator opts in (R15 reversibility).
+    dual-track / regime / external-outcome evidence. Default is ACTIVE as of
+    the post-#92 R2 packet. Setting the variable to ``SHADOW`` is the explicit
+    byte-compatible rollback to the legacy evaluation-fed behaviour.
 
     Decoupling mechanism: an empty ``family_signals`` mapping makes every
     ``evidence.family_signals.get(family, 0.5)`` lookup in
@@ -2228,8 +2291,17 @@ def pe_evaluation_decoupled_active() -> bool:
     neutral 0.5, so evaluation can no longer bias the outcome while the
     substrate-derived axes keep contributing unchanged.
     """
-    raw = (os.environ.get("VZ_PE_EVALUATION_DECOUPLED", "") or "").strip().lower()
-    return raw in _PE_DECOUPLE_TRUTHY
+    raw = (
+        os.environ.get("VZ_PE_EVALUATION_DECOUPLED", "active") or ""
+    ).strip().lower()
+    if raw in _PE_DECOUPLE_TRUTHY:
+        return True
+    if raw in _PE_DECOUPLE_FALSEY:
+        return False
+    raise ValueError(
+        "VZ_PE_EVALUATION_DECOUPLED must be ACTIVE or SHADOW (boolean aliases "
+        f"accepted); got {raw!r}"
+    )
 
 
 def _build_outcome_evidence(
@@ -2247,7 +2319,7 @@ def _build_outcome_evidence(
             trend_map.get(regime_snapshot.active_regime.regime_id, 0.5)
         )
     # R-PE #1: when the decouple gate is ACTIVE, evaluation scores do NOT
-    # feed PE actual outcome (neutral family_signals). SHADOW (default)
+    # feed PE actual outcome (neutral family_signals). SHADOW (explicit rollback)
     # keeps the legacy evaluation-derived signals.
     family_signals = (
         {} if pe_evaluation_decoupled_active() else _family_signals(evaluation_snapshot)

@@ -63,7 +63,12 @@ class Gate1LineageAudit:
 class Gate1EvaluationDecouplingReport:
     active_payload_sha256_a: str
     active_payload_sha256_b: str
+    shadow_payload_sha256_a: str
+    shadow_payload_sha256_b: str
     byte_invariant: bool
+    shadow_evaluation_sensitive: bool
+    active_shadow_different: bool
+    pe_load_bearing: bool
     rollback_gate: str
     passed: bool
     description: str
@@ -314,6 +319,9 @@ def evaluate_evaluation_decoupling() -> Gate1EvaluationDecouplingReport:
     try:
         payload_a = _json_bytes(_decoupled_trace_payload(0.1))
         payload_b = _json_bytes(_decoupled_trace_payload(0.9))
+        os.environ[variable_name] = "shadow"
+        shadow_payload_a = _json_bytes(_decoupled_trace_payload(0.1))
+        shadow_payload_b = _json_bytes(_decoupled_trace_payload(0.9))
     finally:
         if previous is None:
             os.environ.pop(variable_name, None)
@@ -321,16 +329,28 @@ def evaluate_evaluation_decoupling() -> Gate1EvaluationDecouplingReport:
             os.environ[variable_name] = previous
     fingerprint_a = hashlib.sha256(payload_a).hexdigest()
     fingerprint_b = hashlib.sha256(payload_b).hexdigest()
+    shadow_fingerprint_a = hashlib.sha256(shadow_payload_a).hexdigest()
+    shadow_fingerprint_b = hashlib.sha256(shadow_payload_b).hexdigest()
     byte_invariant = payload_a == payload_b
+    shadow_sensitive = shadow_payload_a != shadow_payload_b
+    active_shadow_different = payload_a != shadow_payload_a
+    pe_load_bearing = active_shadow_different and shadow_sensitive
     return Gate1EvaluationDecouplingReport(
         active_payload_sha256_a=fingerprint_a,
         active_payload_sha256_b=fingerprint_b,
+        shadow_payload_sha256_a=shadow_fingerprint_a,
+        shadow_payload_sha256_b=shadow_fingerprint_b,
         byte_invariant=byte_invariant,
+        shadow_evaluation_sensitive=shadow_sensitive,
+        active_shadow_different=active_shadow_different,
+        pe_load_bearing=pe_load_bearing,
         rollback_gate="VZ_PE_EVALUATION_DECOUPLED=SHADOW",
-        passed=byte_invariant,
+        passed=byte_invariant and shadow_sensitive and active_shadow_different,
         description=(
-            "ACTIVE evaluation-decoupled actual outcome, PE and PE-derived "
-            f"credit byte invariant: {byte_invariant}."
+            "Matched ACTIVE/SHADOW evaluation ablation: ACTIVE byte invariant="
+            f"{byte_invariant}, SHADOW evaluation-sensitive={shadow_sensitive}, "
+            f"cross-arm difference={active_shadow_different}. This establishes "
+            "PE/credit signal load-bearing status only, not product behavior."
         ),
     )
 

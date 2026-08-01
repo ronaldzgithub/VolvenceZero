@@ -23,6 +23,13 @@ from volvence_zero.prediction.lss_rare_heavy import (
     LSSRareHeavyCheckpoint,
     build_lss_rare_heavy_checkpoint,
 )
+from volvence_zero.prediction.forward_representation import (
+    FORWARD_REPRESENTATION_CHECKPOINT_SCHEMA_VERSION,
+    ForwardRepresentationBatch,
+    ForwardRepresentationBatchSnapshot,
+    ForwardRepresentationCheckpoint,
+    ForwardRepresentationSettlement,
+)
 
 __all__ = [
     "PREDICTIVE_HEAD_CHECKPOINT_SCHEMA_VERSION",
@@ -44,4 +51,9 @@ __all__ = [
     "LSSEntry",
     "LSSRareHeavyCheckpoint",
     "build_lss_rare_heavy_checkpoint",
+    "FORWARD_REPRESENTATION_CHECKPOINT_SCHEMA_VERSION",
+    "ForwardRepresentationBatch",
+    "ForwardRepresentationBatchSnapshot",
+    "ForwardRepresentationCheckpoint",
+    "ForwardRepresentationSettlement",
 ]
