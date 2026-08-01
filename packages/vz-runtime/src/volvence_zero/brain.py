@@ -39,6 +39,7 @@ from volvence_zero.memory import (
     MemoryEntry,
     MemoryStore,
     MemoryStoreCheckpoint,
+    build_default_memory_store,
     build_scoped_memory_store,
     delete_entry_for_scope,
     list_durable_entries_for_scope,
@@ -987,6 +988,23 @@ class Brain:
                     cms_context_prototype_count=(self._config.cms_context_prototype_count),
                     nested_context_reset_mode=(self._config.nested_context_reset_mode),
                 )
+        if session_memory_store is None:
+            session_memory_store = build_default_memory_store(
+                latent_dim=self._config.resolved_temporal_latent_dim(),
+                cms_variant=self._config.cms_variant,
+                cms_session_cadence=self._config.cms_session_cadence,
+                cms_background_cadence=self._config.cms_background_cadence,
+                cms_pe_features_enabled=self._config.cms_pe_features_enabled,
+                cms_replay_window_size=self._config.cms_replay_window_size,
+                cms_torch_backend=resolve_final_rollout_config(
+                    self._config.final_rollout_config
+                ).cms_torch_backend,
+                cms_context_conditioned_meta_init=(
+                    self._config.cms_context_conditioned_meta_init
+                ),
+                cms_context_prototype_count=self._config.cms_context_prototype_count,
+                nested_context_reset_mode=self._config.nested_context_reset_mode,
+            )
         # Packet D (long-horizon-closure): build the OwnerHydrationStore
         # only when (a) hydration wiring is non-DISABLED AND (b) the
         # memory store actually has a persistence backend. The store

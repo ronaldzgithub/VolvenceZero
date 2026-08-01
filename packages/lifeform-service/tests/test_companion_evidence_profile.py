@@ -204,3 +204,33 @@ async def test_product_http_path_publishes_typed_gate_telemetry(
         bool,
     )
     assert end_payload["evidence_telemetry"]["nested_context_reset_copy_init"] is True
+
+
+async def test_conditioned_meta_init_is_load_bearing_at_http_day_boundary(
+    aiohttp_client,
+) -> None:
+    app = create_app(
+        vertical=_try_companion(evidence_profile=GATE6_CONDITIONED_META_INIT),
+        companion_evidence_profile=GATE6_CONDITIONED_META_INIT,
+        max_sessions=1,
+    )
+    client = await aiohttp_client(app)
+    created = await client.post("/v1/sessions", json={"session_id": "gate6-http"})
+    assert created.status == 201
+    for index in range(5):
+        response = await client.post(
+            "/v1/sessions/gate6-http/turns",
+            json={"user_input": f"Day-boundary context observation {index}."},
+        )
+        assert response.status == 200
+
+    ended = await client.post(
+        "/v1/sessions/gate6-http/end-scene",
+        json={"drain_slow_loop": True},
+    )
+    assert ended.status == 200
+    telemetry = (await ended.json())["evidence_telemetry"]
+    assert telemetry["nested_context_reset_meta_init"] is True
+    assert telemetry["nested_context_reset_copy_init"] is False
+    assert telemetry["nested_context_reset_conditioned"] is True
+    assert telemetry["nested_context_reset_prototype_count"] > 0
