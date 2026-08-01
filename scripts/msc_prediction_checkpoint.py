@@ -1,10 +1,15 @@
-"""Crash-safe checkpoint journal for the MSC N+1 research runner.
+"""Crash-safe checkpoint journal for the long-running evidence runners.
 
 The journal is execution control, not an evaluation owner.  Immutable unit
 files contain only numeric representations, hashes, sample ids, and metrics;
-raw MSC utterances are never persisted here.  ``run_state.json`` is mutable
+raw source text is never persisted here.  ``run_state.json`` is mutable
 and intentionally excluded from evidence hashes because it only records
 which immutable units are available for resume.
+
+``schema_namespace`` keeps each campaign's journal self-identifying: the MSC
+N+1 runner keeps the default, and other sweeps (for example the ETA
+rate-distortion criterion) pass their own namespace so a journal can never be
+resumed by the wrong runner.
 """
 
 from __future__ import annotations
@@ -17,6 +22,8 @@ from pathlib import Path, PurePosixPath
 import tempfile
 from typing import Mapping
 
+
+DEFAULT_CHECKPOINT_SCHEMA_NAMESPACE = "msc-prediction"
 
 MSC_PREDICTION_RUN_STATE_SCHEMA_VERSION = "msc-prediction-run-state.v1"
 MSC_PREDICTION_JSON_CHECKPOINT_SCHEMA_VERSION = (
@@ -102,11 +109,18 @@ class PredictionRunCheckpointStore:
         output_dir: Path,
         configuration: Mapping[str, object],
         resume: bool,
+        schema_namespace: str = DEFAULT_CHECKPOINT_SCHEMA_NAMESPACE,
     ) -> None:
+        if not schema_namespace.strip():
+            raise ValueError("checkpoint schema_namespace must be non-empty")
+        self.schema_namespace = schema_namespace
+        self._run_state_schema = f"{schema_namespace}-run-state.v1"
+        self._json_schema = f"{schema_namespace}-json-checkpoint.v1"
+        self._array_schema = f"{schema_namespace}-array-checkpoint.v1"
         self.output_dir = output_dir.resolve()
         normalized_configuration = _json_normalize(dict(configuration))
         if not isinstance(normalized_configuration, dict):
-            raise ValueError("prediction checkpoint configuration must be an object")
+            raise ValueError(f"{self.schema_namespace} checkpoint configuration must be an object")
         self.configuration = normalized_configuration
         self.configuration_fingerprint = _sha256_bytes(
             _canonical_bytes(self.configuration)
@@ -115,26 +129,26 @@ class PredictionRunCheckpointStore:
         if self.output_dir.exists():
             if not resume:
                 raise FileExistsError(
-                    f"prediction output is immutable without --resume: {self.output_dir}"
+                    f"{self.schema_namespace} output is immutable without --resume: {self.output_dir}"
                 )
             if not self._state_path.is_file():
                 raise FileNotFoundError(
-                    "prediction resume requires run_state.json; legacy or partial "
+                    f"{self.schema_namespace} resume requires run_state.json; legacy or partial "
                     f"output cannot be adopted: {self.output_dir}"
                 )
             state = json.loads(self._state_path.read_text(encoding="utf-8"))
             if not isinstance(state, dict):
-                raise ValueError("prediction run_state root must be an object")
+                raise ValueError(f"{self.schema_namespace} run_state root must be an object")
             self._state = state
             self._validate_state()
         else:
             if resume:
                 raise FileNotFoundError(
-                    f"prediction --resume output does not exist: {self.output_dir}"
+                    f"{self.schema_namespace} --resume output does not exist: {self.output_dir}"
                 )
             self.output_dir.mkdir(parents=True)
             self._state: dict[str, object] = {
-                "schema_version": MSC_PREDICTION_RUN_STATE_SCHEMA_VERSION,
+                "schema_version": self._run_state_schema,
                 "configuration": self.configuration,
                 "configuration_fingerprint": self.configuration_fingerprint,
                 "status": "running",
@@ -149,51 +163,51 @@ class PredictionRunCheckpointStore:
     def _validate_state(self) -> None:
         if (
             self._state.get("schema_version")
-            != MSC_PREDICTION_RUN_STATE_SCHEMA_VERSION
+            != self._run_state_schema
         ):
-            raise ValueError("prediction run_state schema_version mismatch")
+            raise ValueError(f"{self.schema_namespace} run_state schema_version mismatch")
         if self._state.get("configuration") != self.configuration:
-            raise ValueError("prediction resume configuration drift")
+            raise ValueError(f"{self.schema_namespace} resume configuration drift")
         if (
             self._state.get("configuration_fingerprint")
             != self.configuration_fingerprint
         ):
-            raise ValueError("prediction resume configuration fingerprint drift")
+            raise ValueError(f"{self.schema_namespace} resume configuration fingerprint drift")
         units = self._state.get("completed_units")
         if not isinstance(units, dict):
-            raise ValueError("prediction run_state completed_units is invalid")
+            raise ValueError(f"{self.schema_namespace} run_state completed_units is invalid")
         status = self._state.get("status")
         analysis_allowed = self._state.get("analysis_allowed")
         if status not in {"running", "complete"}:
-            raise ValueError("prediction run_state status is invalid")
+            raise ValueError(f"{self.schema_namespace} run_state status is invalid")
         if (
             not isinstance(analysis_allowed, bool)
             or analysis_allowed != (status == "complete")
         ):
-            raise ValueError("prediction run_state analysis gate is invalid")
+            raise ValueError(f"{self.schema_namespace} run_state analysis gate is invalid")
         if self._state.get("formal_claim_allowed") is not False:
-            raise ValueError("prediction run_state cannot authorize a formal claim")
+            raise ValueError(f"{self.schema_namespace} run_state cannot authorize a formal claim")
         if self._state.get("raw_corpus_text_retained") is not False:
-            raise ValueError("prediction checkpoint cannot retain raw corpus text")
+            raise ValueError(f"{self.schema_namespace} checkpoint cannot retain raw corpus text")
         registered_paths: set[str] = set()
         for unit, raw_entry in units.items():
             if not isinstance(unit, str) or not isinstance(raw_entry, dict):
-                raise ValueError("prediction run_state unit entry is invalid")
+                raise ValueError(f"{self.schema_namespace} run_state unit entry is invalid")
             entry = self._parse_entry(unit, raw_entry)
             if entry.relative_path in registered_paths:
                 raise ValueError(
-                    "prediction checkpoint path is registered to multiple units: "
+                    f"{self.schema_namespace} checkpoint path is registered to multiple units: "
                     f"{entry.relative_path}"
                 )
             registered_paths.add(entry.relative_path)
             path = self.output_dir / _safe_relative_path(entry.relative_path)
             if not path.is_file():
                 raise FileNotFoundError(
-                    f"registered prediction checkpoint is missing: {path}"
+                    f"registered {self.schema_namespace} checkpoint is missing: {path}"
                 )
             if _sha256_file(path) != entry.sha256:
                 raise ValueError(
-                    f"registered prediction checkpoint hash drift: {path}"
+                    f"registered {self.schema_namespace} checkpoint hash drift: {path}"
                 )
 
     def _write_state(self) -> None:
@@ -215,7 +229,7 @@ class PredictionRunCheckpointStore:
             or not isinstance(size_bytes, int)
             or size_bytes < 1
         ):
-            raise ValueError(f"prediction checkpoint entry is invalid: {unit!r}")
+            raise ValueError(f"checkpoint entry is invalid: {unit!r}")
         _safe_relative_path(relative_path)
         return CheckpointFile(
             unit=unit,
@@ -228,12 +242,12 @@ class PredictionRunCheckpointStore:
     def _registered_entry(self, unit: str) -> CheckpointFile | None:
         units = self._state["completed_units"]
         if not isinstance(units, dict):
-            raise RuntimeError("prediction checkpoint unit registry changed type")
+            raise RuntimeError(f"{self.schema_namespace} checkpoint unit registry changed type")
         value = units.get(unit)
         if value is None:
             return None
         if not isinstance(value, dict):
-            raise ValueError(f"prediction checkpoint entry is invalid: {unit!r}")
+            raise ValueError(f"{self.schema_namespace} checkpoint entry is invalid: {unit!r}")
         return self._parse_entry(unit, value)
 
     def _register(self, *, unit: str, path: Path, kind: str) -> None:
@@ -246,10 +260,10 @@ class PredictionRunCheckpointStore:
         }
         units = self._state["completed_units"]
         if not isinstance(units, dict):
-            raise RuntimeError("prediction checkpoint unit registry changed type")
+            raise RuntimeError(f"{self.schema_namespace} checkpoint unit registry changed type")
         existing = units.get(unit)
         if existing is not None and existing != entry:
-            raise ValueError(f"prediction checkpoint unit registration drift: {unit}")
+            raise ValueError(f"{self.schema_namespace} checkpoint unit registration drift: {unit}")
         units[unit] = entry
         self._state["last_completed_unit"] = unit
         self._write_state()
@@ -262,14 +276,14 @@ class PredictionRunCheckpointStore:
         kind: str,
     ) -> tuple[Path, CheckpointFile | None]:
         if not unit.strip():
-            raise ValueError("prediction checkpoint unit must be non-empty")
+            raise ValueError(f"{self.schema_namespace} checkpoint unit must be non-empty")
         path = self.output_dir / _safe_relative_path(relative_path)
         registered = self._registered_entry(unit)
         if registered is not None:
             if registered.relative_path != relative_path or registered.kind != kind:
-                raise ValueError(f"prediction checkpoint unit path/kind drift: {unit}")
+                raise ValueError(f"{self.schema_namespace} checkpoint unit path/kind drift: {unit}")
             if not path.is_file() or _sha256_file(path) != registered.sha256:
-                raise ValueError(f"prediction checkpoint unit file drift: {unit}")
+                raise ValueError(f"{self.schema_namespace} checkpoint unit file drift: {unit}")
         return path, registered
 
     def load_json(
@@ -287,16 +301,16 @@ class PredictionRunCheckpointStore:
             return None
         payload = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
-            raise ValueError(f"prediction JSON checkpoint is not an object: {path}")
+            raise ValueError(f"{self.schema_namespace} JSON checkpoint is not an object: {path}")
         if (
             payload.get("schema_version")
-            != MSC_PREDICTION_JSON_CHECKPOINT_SCHEMA_VERSION
+            != self._json_schema
             or payload.get("unit") != unit
             or payload.get("configuration_fingerprint")
             != self.configuration_fingerprint
             or "payload" not in payload
         ):
-            raise ValueError(f"prediction JSON checkpoint metadata drift: {path}")
+            raise ValueError(f"{self.schema_namespace} JSON checkpoint metadata drift: {path}")
         if registered is None:
             self._register(unit=unit, path=path, kind="json")
         return payload["payload"]
@@ -314,9 +328,9 @@ class PredictionRunCheckpointStore:
             kind="json",
         )
         if registered is not None or path.exists():
-            raise FileExistsError(f"prediction JSON checkpoint already exists: {path}")
+            raise FileExistsError(f"{self.schema_namespace} JSON checkpoint already exists: {path}")
         envelope = {
-            "schema_version": MSC_PREDICTION_JSON_CHECKPOINT_SCHEMA_VERSION,
+            "schema_version": self._json_schema,
             "unit": unit,
             "configuration_fingerprint": self.configuration_fingerprint,
             "payload": payload,
@@ -341,23 +355,23 @@ class PredictionRunCheckpointStore:
         try:
             import numpy as np
         except ImportError as exc:
-            raise RuntimeError("prediction array checkpoints require numpy") from exc
+            raise RuntimeError(f"{self.schema_namespace} array checkpoints require numpy") from exc
         with np.load(path, allow_pickle=False) as archive:
             if "metadata_json" not in archive.files:
-                raise ValueError(f"prediction array checkpoint lacks metadata: {path}")
+                raise ValueError(f"{self.schema_namespace} array checkpoint lacks metadata: {path}")
             metadata = json.loads(str(archive["metadata_json"].item()))
             if not isinstance(metadata, dict):
                 raise ValueError(
-                    f"prediction array checkpoint metadata is not an object: {path}"
+                    f"{self.schema_namespace} array checkpoint metadata is not an object: {path}"
                 )
             expected_envelope = {
-                "schema_version": MSC_PREDICTION_ARRAY_CHECKPOINT_SCHEMA_VERSION,
+                "schema_version": self._array_schema,
                 "unit": unit,
                 "configuration_fingerprint": self.configuration_fingerprint,
                 "payload": _json_normalize(dict(expected_metadata)),
             }
             if metadata != expected_envelope:
-                raise ValueError(f"prediction array checkpoint metadata drift: {path}")
+                raise ValueError(f"{self.schema_namespace} array checkpoint metadata drift: {path}")
             arrays = {
                 name: archive[name].copy()
                 for name in archive.files
@@ -381,13 +395,13 @@ class PredictionRunCheckpointStore:
             kind="arrays",
         )
         if registered is not None or path.exists():
-            raise FileExistsError(f"prediction array checkpoint already exists: {path}")
+            raise FileExistsError(f"{self.schema_namespace} array checkpoint already exists: {path}")
         try:
             import numpy as np
         except ImportError as exc:
-            raise RuntimeError("prediction array checkpoints require numpy") from exc
+            raise RuntimeError(f"{self.schema_namespace} array checkpoints require numpy") from exc
         envelope = {
-            "schema_version": MSC_PREDICTION_ARRAY_CHECKPOINT_SCHEMA_VERSION,
+            "schema_version": self._array_schema,
             "unit": unit,
             "configuration_fingerprint": self.configuration_fingerprint,
             "payload": _json_normalize(dict(metadata)),
@@ -420,12 +434,12 @@ class PredictionRunCheckpointStore:
     def immutable_file_manifest(self) -> dict[str, dict[str, object]]:
         units = self._state["completed_units"]
         if not isinstance(units, dict):
-            raise RuntimeError("prediction checkpoint unit registry changed type")
+            raise RuntimeError(f"{self.schema_namespace} checkpoint unit registry changed type")
         manifest: dict[str, dict[str, object]] = {}
         for unit in sorted(units):
             raw = units[unit]
             if not isinstance(raw, dict):
-                raise ValueError(f"prediction checkpoint entry is invalid: {unit!r}")
+                raise ValueError(f"{self.schema_namespace} checkpoint entry is invalid: {unit!r}")
             entry = self._parse_entry(unit, raw)
             manifest[entry.relative_path] = {
                 "unit": entry.unit,
@@ -444,6 +458,7 @@ class PredictionRunCheckpointStore:
 
 __all__ = [
     "CheckpointFile",
+    "DEFAULT_CHECKPOINT_SCHEMA_NAMESPACE",
     "MSC_PREDICTION_ARRAY_CHECKPOINT_SCHEMA_VERSION",
     "MSC_PREDICTION_JSON_CHECKPOINT_SCHEMA_VERSION",
     "MSC_PREDICTION_RUN_STATE_SCHEMA_VERSION",

@@ -437,28 +437,6 @@ def main() -> None:
         model_id=args.model_id,
         device=args.device,
     )
-    checkpoint_store = PredictionRunCheckpointStore(
-        output_dir=output_dir,
-        configuration={
-            "experiment_id": "eta-rate-distortion-criterion",
-            "alpha_grid": list(args.alphas),
-            "seed_schedule": list(range(args.seeds)),
-            "n_z": args.n_z,
-            "updates_per_run": args.updates,
-            "learning_rate": args.learning_rate,
-            "substrate_learning_rate": args.substrate_learning_rate,
-            "switch_threshold": args.switch_threshold,
-            "arms": list(args.arms),
-            "model_id": args.model_id,
-            "device": args.device,
-            "preregistration_sha256": preregistration_sha256,
-            "source_sha256": {
-                name: _sha256(_REPO_ROOT / name) for name in _KEY_SOURCE_FILES
-            },
-        },
-        resume=args.resume,
-        schema_namespace=CHECKPOINT_SCHEMA_NAMESPACE,
-    )
     uses_mps = args.device.startswith("mps")
     with ExitStack() as stack:
         mps: MPSAvailability | None = None
@@ -469,6 +447,31 @@ def main() -> None:
                 exclusive_mps_lock(args.mps_lock, plan_id=PLAN_ID)
             )
             mps = require_mps()
+        # Created only once the device is actually ours, so a failed preflight
+        # leaves no half-made journal that a later run would have to --resume.
+        checkpoint_store = PredictionRunCheckpointStore(
+            output_dir=output_dir,
+            configuration={
+                "experiment_id": "eta-rate-distortion-criterion",
+                "alpha_grid": list(args.alphas),
+                "seed_schedule": list(range(args.seeds)),
+                "n_z": args.n_z,
+                "updates_per_run": args.updates,
+                "learning_rate": args.learning_rate,
+                "substrate_learning_rate": args.substrate_learning_rate,
+                "switch_threshold": args.switch_threshold,
+                "arms": list(args.arms),
+                "model_id": args.model_id,
+                "device": args.device,
+                "preregistration_sha256": preregistration_sha256,
+                "source_sha256": {
+                    name: _sha256(_REPO_ROOT / name)
+                    for name in _KEY_SOURCE_FILES
+                },
+            },
+            resume=args.resume,
+            schema_namespace=CHECKPOINT_SCHEMA_NAMESPACE,
+        )
         started = time.perf_counter()
         report = run_eta_rate_distortion_evidence(
             alpha_grid=tuple(args.alphas),
