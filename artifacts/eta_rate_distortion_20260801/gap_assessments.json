@@ -1,0 +1,38 @@
+[
+  {
+    "arm": "frozen",
+    "gap_detected": false,
+    "distortion_span": 0.3995606460375711,
+    "rate_span": 0.19338650089996084,
+    "noise_scale": 0.03474581757186602,
+    "max_drop": 0.39797894373812054,
+    "max_drop_share": 0.9960413961806894,
+    "max_drop_rate_share": 0.4849708674204243,
+    "gap_low_alpha": 3.0,
+    "gap_high_alpha": 0.03,
+    "drop_share_threshold": 0.5,
+    "rate_share_threshold": 0.25,
+    "noise_multiple": 2.0,
+    "boundary_f1_gap_region": 0.0,
+    "boundary_f1_outside_gap": 0.1414141414141414,
+    "description": "arm=frozen gap_detected=False max_drop=0.3980 (99.60% of span) over 48.50% of the rate span between alpha=3.0 and alpha=0.03."
+  },
+  {
+    "arm": "joint",
+    "gap_detected": false,
+    "distortion_span": 2.325631539092767e-05,
+    "rate_span": 0.2889223803984138,
+    "noise_scale": 2.881783172868735e-05,
+    "max_drop": 2.325631539092767e-05,
+    "max_drop_share": 1.0,
+    "max_drop_rate_share": 0.20235025602556664,
+    "gap_low_alpha": 3.0,
+    "gap_high_alpha": 0.01,
+    "drop_share_threshold": 0.5,
+    "rate_share_threshold": 0.25,
+    "noise_multiple": 2.0,
+    "boundary_f1_gap_region": 0.0,
+    "boundary_f1_outside_gap": 0.03508771929824561,
+    "description": "arm=joint gap_detected=False max_drop=0.0000 (100.00% of span) over 20.24% of the rate span between alpha=3.0 and alpha=0.01."
+  }
+]

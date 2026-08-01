@@ -1,7 +1,7 @@
 # 时间抽象与内部控制 Spec
 
 > Status: draft
-> Last updated: 2026-07-28
+> Last updated: 2026-08-01
 > 对应需求: R3, R4
 
 ## 要解决的问题
@@ -12,7 +12,11 @@
 
 - 实时行为可通过内部状态转换引导，而非仅通过表面文本损失
 - 抽象动作可组合、可训练、无需详尽手动标签
-- 冻结基础模型是发现时间抽象的前提（ETA rate-distortion 证明）
+- 冻结基础模型是发现时间抽象的前提（ETA rate-distortion 证明）。
+  **2026-08-01 本仓复现判定 `kill-eta`**：仪器通过联合臂有效性对照，但冻结臂
+  扫遍 alpha 网格无论文预言的近垂直 gap（`artifacts/eta_rate_distortion_20260801`，
+  见变更日志）；该前提在本仓当前规模（0.5B / proof environment）下未获支持，
+  不得作为新设计的依据引用
 - 内部控制空间维度低于原始 token 动作空间
 
 ## 工程挑战
@@ -295,6 +299,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - **ETA-off 维度契约**：`LearnedLiteTemporalPolicy` 的 code 维度必须等于其 `MetacontrollerParameterStore.n_z`；legacy 三维 readout 在 `n_z>3` 时由 temporal owner 确定性投影到配置维度。正式 ETA-off 因此与其他 arm 共用 ACTIVE runtime replay 的严格维度检查，不靠关闭 replay 隐藏 schema 破裂。
 - 当前 decoder 已升级为 bounded FFN-like control generator；环境侧显式区分 `decoder_output`、`applied_control`、`downstream_effect`
 - 当前 SSL trainer 已改成更接近 Eq.3 的结构：prefix posterior inference + Gaussian-like prior regularization + action prediction + closed-form KL，并发布 posterior drift
+- **steered-action Eq.3 模式（2026-08-01）**：`StoreSSLTrainingSession` 接受可选 `action_scorer`（`vz-substrate::TransformersSteeredActionScorer`）。启用时 distortion 是穿过被控制冻结模型的专家动作 NLL（受限动作词表 softmax，与 `n_z` 解耦），`z_tilde` 走 seeded `torch.Generator` 真实重参数化，beta gate 用连续 `effective_gate`，损失只有 `distortion + alpha * KL` 两项；传入非零 switch 正则权重或 `write_back=True` 均 fail loudly。同时 `torch_store_ssl` 与 `ssl.py` 的 `switch_rate/binary/group/gate_choice` 默认权重已从非零改为 `0.0`——旧非零值是对 never-switch 塌缩的症状压制，且 2026-08-01 rate-distortion 判据显示该塌缩本身就是诊断读数。需要旧行为的对照臂必须显式传入非零权重。joint 有效性对照经 `build_steered_action_scorer(joint_training=True)` 解冻注入层之上的块（含 final norm），跑完必须 `restore_and_freeze()`；substrate 参数以独立 `substrate_learning_rate` 参与 optimizer 参数组。运行时构造新增 `model_dtype` 显式覆盖（`float16/float32/bfloat16/None`），rate-distortion 判据强制 fp32。
 - 当前两阶段 ETA owner 约束已从 telemetry 收紧为**运行时守卫**：`MetacontrollerSSLTrainer.optimize()` 只能在 `ssl*` discovery phase 下运行；causal override / internal RL rollout / optimize 只能在 `runtime` / `rl*` 等 structure-frozen takeover phase 下运行。session 的 `joint_learning_enabled=False` 必须同时进入 joint-loop 与 temporal policy/store owner：joint-loop 返回 `frozen-evidence-only`，即使恢复的 checkpoint 带有 pending batch、PE pressure 或 continuation due，也不得触发 SSL、Internal RL、writeback 或 rare-heavy 推荐；temporal owner 禁止 `fit_from_signals`、action-family history/topology/cache 与 learned family-match 权重写入，只允许更新不持久化的推理 telemetry。该 gate 是 runner mode，不进入 checkpoint；冻结 held-out 以 `learning_parameter_fingerprint` 前后严格相等为证据。
 - causal takeover 后的 `structure_frozen=True` 同时冻结 action-family topology：runtime 仍可更新 reuse / competition 等观测 telemetry，但 anti-collapse split/create/merge/prune 只能在显式允许 topology maintenance 的非冻结 SSL phase 执行。RL 期间 family identity、centroid 与 discovery confidence 的结构指纹必须保持不变；若发生拓扑漂移，整轮证据 invalid 并由 whole-cycle checkpoint 回滚。
 - 当前 env 已新增 owner-side residual intervention backend，用 `e_{t,l} ← e_{t,l} + U_t · e_{t,l}` 形式的近似 hook 生成 `downstream_effect`；session / joint-loop 主链默认优先走 open-weight residual runtime，trace backend 退为 fallback
@@ -350,6 +355,28 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-08-01: ETA Eq.3 rate-distortion 判据第一次可执行并给出正式 verdict
+  `kill-eta`（`artifacts/eta_rate_distortion_20260801`）。本包先修掉与论文
+  Eq.3 的四处结构性偏离：(a) `vz-substrate` 新增
+  `TransformersSteeredActionScorer` 可微受控前向（hook 层注入控制 delta、
+  上半部保留在 autograd 图内、基础参数 `requires_grad=False`、可微 norm cap），
+  distortion 第一次是穿过被控制冻结模型的动作 NLL；(b) `torch_store_ssl`
+  的 `z_tilde` 改为 seeded `torch.Generator` 真实重参数化采样；(c) distortion
+  目标由动作词表受限 softmax 决定、与 `n_z` 解耦；(d)
+  `switch_rate/binary/group/gate_choice` 权重默认归零（`torch_store_ssl` 与
+  `ssl.py` 双处），steered 模式传非零 switch 权重 fail loudly，损失恢复为
+  论文两项。观测协议改为 partially-observable（不再泄漏 remaining route）。
+  运行时新增 `model_dtype` 显式加载覆盖（joint 臂 fp16 主权重在 Adam 下
+  溢出，两臂统一 fp32 以免 dtype 混淆对比）。正式扫描为两臂 x 6 alpha x
+  3 seed x 40 updates：联合臂曲线完全平坦（distortion 恒 `0.0001`），两臂
+  分离 `0.4059` >> 阈值，仪器有效；冻结臂 tradeoff 存在但最大坠落段占
+  48.5% rate 跨度（阈值 25%）、无近垂直 gap，gap 判定段内 boundary F1
+  `0.000` 低于段外 `0.141`，rate 轴对 alpha 响应弱且非单调。按预注册规则
+  verdict = kill-eta；"冻结基底 + 元控制器可涌现子目标对齐时间抽象"主张
+  在本仓证据下不成立。ETA 主张摘除与 `vz-temporal` 退回 legacy 路径属于
+  后续独立收敛包；`_step_impl_legacy` 与全部 switch 正则代码保留为回滚
+  基线。详见
+  `research/eta/eta-segment-credit-evidence-plan.zh.md` 2026-08-01 节。
 - 2026-07-29: ETA Gate 2 v32 对 v31 的 `3168` 条 Qwen 候选记录增加
   target-oracle 到独立 audit 的 permutation-null transfer gate，并把 selector
   injection 门收紧为 train/eval/heldout/validation 四个冻结分区 audit 均为正。

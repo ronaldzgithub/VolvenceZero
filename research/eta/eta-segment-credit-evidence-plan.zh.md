@@ -432,3 +432,67 @@ PE 改善都没有证据。
    避免单 batch quantile threshold 过校准。
 2. 让 expert-action decoder 的可分控制真正进入 action-family topology；
    在多个 family 跨 seed 涌现之前，不再跑 PE retain gate，也不扩大模型。
+
+## 2026-08-01 第五收敛包：Eq.3 rate-distortion 判据（verdict: kill-eta）
+
+本包不再调参数，而是把论文自己的可证伪判据第一次跑通：扫 `alpha` 画
+(rate, distortion) 曲线，冻结基底下应出现"rate 微增、distortion 大幅下降"的
+近垂直 gap；联合训练基底时 gap 消失。执行前先修掉了与 Eq.3 的四处结构性偏离
+（此前所有 artifact 的 distortion 都不是论文语义）：
+
+1. **可微受控前向**（`vz-substrate::TransformersSteeredActionScorer`）：
+   在 hook 层注入控制 delta、上半部保留在 autograd 图内、基础模型参数
+   `requires_grad=False`；distortion 第一次是穿过被控制冻结模型的
+   `-log p(a_t | o_1:t, z_1:t)`，不再是 decoder MSE 回归。
+2. **真实重参数化**：`z_tilde ~ N(mu, sigma)` 改为 seeded `torch.Generator`
+   采样，`alpha * KL` 恢复为信息率约束。
+3. **目标与 n_z 解耦**：distortion 由动作词表（6 个 move 目标的受限 softmax）
+   决定，不再 `_project_to_ndim`。
+4. **switch 正则全部归零**：`switch_rate/binary/group/gate_choice` 默认 0，
+   损失恢复为论文的两项；beta 边界 F1 与切换频率只作 evaluation 读数。
+   steered 模式下传入非零 switch 权重会 fail loudly。
+
+观测协议同时修正了此前的标签泄漏：观测文本不再包含 remaining route
+（旧 bundle 把下一步专家动作原文写进 prompt），路线身份只出现在抽象
+task-context 里，`z_t` 是唯一能降低动作不确定性的通道
+（`observation_protocol=partially-observable-no-remaining-route.v1`）。
+
+正式配置：冻结 Qwen2.5-0.5B-Instruct、MPS、float32（fp16 主权重在联合臂
+Adam 下溢出，为不让 dtype 混淆两臂对比，两臂统一 fp32）、`n_z=16`、
+alpha 网格 `{0.01, 0.03, 0.1, 0.3, 1.0, 3.0}` x 3 seeds x 40 updates、
+两臂（frozen / joint 上半块可训）。总耗时 4909s。
+
+Artifact：`artifacts/eta_rate_distortion_20260801`（原始扫描点、两臂聚合
+曲线、gap 判定、曲线 PNG、源码 SHA 与环境 provenance）。
+
+结果：
+
+- **仪器有效**：两臂最大分离 `0.4059`（阈值 `0.0347`）。联合臂在所有 alpha
+  下 train distortion 恒为 `0.0001`、曲线完全平坦——与论文预言的"联合训练时
+  任务被基底吸收、z_t 不携带信息"一致；其 heldout distortion `8.3` 也
+  显著劣于冻结臂。
+- **冻结臂无 gap**：train distortion 随 alpha 从 `0.0065`（α=0.01）单调升到
+  `0.4060`（α=3），tradeoff 存在；但最大相邻坠落段（99.6% 的 distortion 跨度）
+  占了 48.5% 的 rate 跨度，不满足预注册的近垂直判据（≤25%）。且 rate 轴对
+  alpha 几乎不响应（全网格 0.44–0.64 nats/dim，非单调），alpha 主要作用在
+  distortion 端而不是 rate 端。
+- **gap 区域无子目标对齐**：判定段内 boundary F1 为 `0.000`，低于段外
+  `0.141`；α≥0.3 时切换频率归零。
+- 附带读数：冻结臂 train `0.007` vs heldout `4.7`（30 个训练步被记忆化），
+  heldout distortion 随 alpha 增大反而改善（α=3 时 `2.62`），KL 起到常规
+  正则作用，但没有换来论文语义的时间抽象。
+
+**verdict = `kill-eta`**：仪器通过联合臂有效性对照，冻结臂扫遍 alpha 网格
+无近垂直 gap。按预注册判定规则，ETA"冻结基底 + 元控制器可涌现子目标对齐
+时间抽象"主张在本仓当前证据下不成立；这与前四包"动作族恒为 1、boundary F1
+不稳定"的失败序列相互印证。
+
+诚实边界（不改变 verdict，但限定其外推范围）：训练集只有 3 条路线 30 个
+观测步、40 updates；rate 轴对 alpha 响应弱说明 posterior 的方差参数化可能
+饱和；proof environment 与 0.5B 模型都远小于论文设置。任何推翻本 verdict
+的尝试必须先解释冻结臂 rate 轴为何不受 alpha 控制，而不是直接扩大模型或
+语料。
+
+后续处置（按计划判定条款）：删除 ETA 主张、保留记忆与连续性部分、
+`vz-temporal` 退回 legacy 路径，属于独立的收敛包，不在本包内执行。
+`_step_impl_legacy` 与全部 switch 正则代码已保留为回滚基线。
