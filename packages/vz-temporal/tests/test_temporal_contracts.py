@@ -2508,6 +2508,35 @@ def test_pe_magnitude_is_inert_for_boundaries_and_milestone_owns_them() -> None:
         assert decisions == below[0][0]
 
 
+def test_gate1_runtime_modulation_is_load_bearing_for_legacy_companion_width() -> None:
+    """The evidence bridge must affect the shipped three-axis controller too."""
+
+    base = FullLearnedTemporalPolicy(
+        parameter_store=MetacontrollerParameterStore(n_z=3)
+    )
+    base.fit_from_signals(
+        residual_strength=0.90,
+        memory_strength=0.10,
+        reflection_strength=0.20,
+    )
+    checkpoint = base.export_rare_heavy_snapshot()
+    pe_on = FullLearnedTemporalPolicy.from_bootstrap_snapshot(checkpoint)
+    pe_off = FullLearnedTemporalPolicy.from_bootstrap_snapshot(checkpoint)
+    for policy in (pe_on, pe_off):
+        policy.parameter_store.record_prediction_error_switch_pressure(0.18)
+    pe_on.set_prediction_error_runtime_modulation_enabled(True)
+
+    snapshot = _trace_step_snapshot(_trace("gate1-legacy-runtime"))
+    pe_on.step(substrate_snapshot=snapshot, previous_snapshot=None)
+    pe_off.step(substrate_snapshot=snapshot, previous_snapshot=None)
+
+    assert pe_on.prediction_error_runtime_modulation_enabled is True
+    assert pe_off.prediction_error_runtime_modulation_enabled is False
+    assert pe_on.export_runtime_state().z_tilde != (
+        pe_off.export_runtime_state().z_tilde
+    )
+
+
 def test_clone_temporal_policy_preserves_mode_and_splits_the_store() -> None:
     """The second track must be an independent store in the source mode.
 

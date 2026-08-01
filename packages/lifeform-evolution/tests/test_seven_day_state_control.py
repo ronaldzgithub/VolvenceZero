@@ -190,3 +190,31 @@ def test_state_control_is_bound_to_process_restart_evidence(
     assert evidence.previous_instance_id == "instance-1"
     assert evidence.next_instance_id == "instance-2"
     assert evidence.state_intervention.next_day_source_day_index == 1
+
+
+def test_custom_mechanism_arm_requires_explicit_state_policy(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="unsupported seven-day experiment arm"):
+        SevenDayFilesystemStateController(
+            evidence_root=tmp_path,
+            active_scope_root=tmp_path / "active-missing-policy",
+            archive_root=tmp_path / "archive-missing-policy",
+            user_id="synthetic-user",
+            experiment_arm_label="gate1-pe-temporal-on-v1",
+        )
+
+    controller = SevenDayFilesystemStateController(
+        evidence_root=tmp_path,
+        active_scope_root=tmp_path / "active-gate1",
+        archive_root=tmp_path / "archive-gate1",
+        user_id="synthetic-user",
+        experiment_arm_label="gate1-pe-temporal-on-v1",
+        state_loading_policy="correct-user-state",
+    )
+    controller.prepare_initial_day()
+    _write_active(controller, "gate1-day-one")
+    evidence = controller.archive_and_stage_after_day(day_index=1)
+
+    assert evidence.experiment_arm_label == "gate1-pe-temporal-on-v1"
+    assert evidence.state_loading_policy == "correct-user-state"

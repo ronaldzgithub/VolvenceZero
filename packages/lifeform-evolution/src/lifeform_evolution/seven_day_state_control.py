@@ -26,6 +26,7 @@ _STATE_POLICY_BY_ARM = {
     "sleep-consolidation": "correct-user-state",
     "no-sleep": "correct-user-state",
 }
+_STATE_LOADING_POLICIES = frozenset(_STATE_POLICY_BY_ARM.values())
 
 
 def _require_descendant(*, root: Path, path: Path, field: str) -> Path:
@@ -72,8 +73,10 @@ class StateInterventionEvidence:
 
     def __post_init__(self) -> None:
         expected = _STATE_POLICY_BY_ARM.get(self.experiment_arm_label)
-        if expected is None or self.state_loading_policy != expected:
+        if expected is not None and self.state_loading_policy != expected:
             raise ValueError("state intervention arm/policy mismatch")
+        if self.state_loading_policy not in _STATE_LOADING_POLICIES:
+            raise ValueError("unsupported state loading policy")
         if self.after_day_index < 1 or self.after_day_index > 6:
             raise ValueError("state intervention day must be in [1, 6]")
         if len(self.archived_state_sha256) != 64:
@@ -115,14 +118,24 @@ class SevenDayFilesystemStateController:
         archive_root: str | Path,
         user_id: str,
         experiment_arm_label: str,
+        state_loading_policy: str | None = None,
         correct_reference_archive_root: str | Path | None = None,
         donor_archive_root: str | Path | None = None,
     ) -> None:
         if not user_id.strip():
             raise ValueError("state controller user_id must be non-empty")
-        policy = _STATE_POLICY_BY_ARM.get(experiment_arm_label)
+        policy = (
+            state_loading_policy
+            if state_loading_policy is not None
+            else _STATE_POLICY_BY_ARM.get(experiment_arm_label)
+        )
         if policy is None:
             raise ValueError("unsupported seven-day experiment arm")
+        if policy not in _STATE_LOADING_POLICIES:
+            raise ValueError("unsupported state loading policy")
+        expected_policy = _STATE_POLICY_BY_ARM.get(experiment_arm_label)
+        if expected_policy is not None and policy != expected_policy:
+            raise ValueError("state intervention arm/policy mismatch")
         root = Path(evidence_root).resolve()
         self._evidence_root = root
         self._active_root = _require_descendant(

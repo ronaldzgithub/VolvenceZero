@@ -120,7 +120,10 @@ def _expression_synthesizer_for_runtime(
     )
 
 
-def _try_companion() -> VerticalSpec | None:
+def _try_companion(
+    *,
+    evidence_profile: str | None = None,
+) -> VerticalSpec | None:
     try:
         from lifeform_domain_emogpt import (
             bootstraps_dir,
@@ -136,14 +139,21 @@ def _try_companion() -> VerticalSpec | None:
         from lifeform_core import LifeformConfig
         from volvence_zero.brain import BrainConfig
 
-        config = LifeformConfig(
-            brain_config=BrainConfig(
-                memory_scope_root_dir=memory_scope_root_dir,
-                apprenticeship_constraint_extractor=(
-                    _build_apprenticeship_extractor_from_runtime(runtime)
-                ),
-            )
+        brain_config = BrainConfig(
+            memory_scope_root_dir=memory_scope_root_dir,
+            apprenticeship_constraint_extractor=(
+                _build_apprenticeship_extractor_from_runtime(runtime)
+            ),
         )
+        if evidence_profile is not None:
+            from lifeform_service.companion_evidence_profile import (
+                resolve_companion_evidence_profile,
+            )
+
+            brain_config = resolve_companion_evidence_profile(
+                evidence_profile
+            ).apply(brain_config)
+        config = LifeformConfig(brain_config=brain_config)
         lifeform = build_companion_lifeform(
             config=config,
             substrate_runtime=runtime,
@@ -151,6 +161,7 @@ def _try_companion() -> VerticalSpec | None:
             response_synthesizer=_expression_synthesizer_for_runtime(
                 runtime,
                 repair_alpha_enabled=alpha,
+                temperature=0.0 if evidence_profile is not None else 0.7,
             ),
             semantic_proposal_runtime=_build_llm_semantic_runtime_from_runtime(runtime),
         )
@@ -1704,11 +1715,18 @@ COMPANION_ABLATION_VERTICAL_NAMES: tuple[str, ...] = (
 )
 
 
-def discover_verticals() -> dict[str, VerticalSpec]:
+def discover_verticals(
+    *,
+    companion_evidence_profile: str | None = None,
+) -> dict[str, VerticalSpec]:
     """Return every vertical that successfully imports in this environment."""
     out: dict[str, VerticalSpec] = {}
     for builder in _BUILDERS:
-        spec = builder()
+        spec = (
+            _try_companion(evidence_profile=companion_evidence_profile)
+            if builder is _try_companion
+            else builder()
+        )
         if spec is not None:
             out[spec.name] = spec
     return out

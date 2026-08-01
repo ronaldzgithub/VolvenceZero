@@ -2575,7 +2575,7 @@ class MetacontrollerParameterStore:
         *,
         strength: float,
     ) -> tuple[float, ...]:
-        """Let PE-updated temporal weights reach the ndim runtime latent.
+        """Let PE-updated temporal weights reach the runtime latent.
 
         The three formal temporal axes repeat across the opaque latent width.
         Their normalized mean is one third, so ``3 * weight`` is an identity-
@@ -3810,8 +3810,10 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self._latest_post_switch_dwell_would_suppress = False
         self._latest_post_switch_dwell_applied = False
         self._latest_post_switch_dwell_remaining = 0
-        # Evidence-only PE -> ndim consumer bridge. Production remains frozen
-        # after the preregistered Gate 1 v3 retest returned a negative effect.
+        # Evidence-only PE -> runtime-code consumer bridge. Production remains
+        # frozen after the preregistered Gate 1 v3 retest returned a negative
+        # effect. Both legacy-three-axis and ndim forwards consume this same
+        # owner-local switch; the default remains an exact no-op.
         self._prediction_error_runtime_modulation_enabled = False
         self._learning_writes_enabled = True
         self._causal_action_head_wiring = WiringLevel.DISABLED
@@ -3977,9 +3979,15 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
         self,
         enabled: bool,
     ) -> None:
-        """Enable the bounded Gate 1 PE -> ndim evidence bridge."""
+        """Enable the bounded Gate 1 PE -> runtime-code evidence bridge."""
 
         self._prediction_error_runtime_modulation_enabled = bool(enabled)
+
+    @property
+    def prediction_error_runtime_modulation_enabled(self) -> bool:
+        """Whether the evidence-only PE -> runtime-code bridge is live."""
+
+        return self._prediction_error_runtime_modulation_enabled
 
     @property
     def learning_writes_enabled(self) -> bool:
@@ -5250,6 +5258,22 @@ class FullLearnedTemporalPolicy(TemporalPolicy):
             beta_threshold=self._parameter_store.beta_threshold,
         )
         z_candidate = latent_override or encoded.z_tilde
+        pe_modulation_strength = min(
+            self._parameter_store.prediction_error_switch_pressure_delta()
+            / 0.18,
+            1.0,
+        )
+        if (
+            latent_override is None
+            and self._prediction_error_runtime_modulation_enabled
+            and pe_modulation_strength > 0.0
+        ):
+            z_candidate = (
+                self._parameter_store.runtime_prediction_error_modulated_code(
+                    z_candidate,
+                    strength=pe_modulation_strength,
+                )
+            )
         if binary_gate_override:
             self._resolve_post_switch_min_dwell(
                 natural_switch_requested=False,
@@ -6316,6 +6340,7 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
         *,
         track: Track,
         policy: TemporalPolicy | None = None,
+        prediction_error_learning_enabled: bool = True,
         wiring_level: WiringLevel | None = None,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
@@ -6323,6 +6348,13 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
         self.slot_name = f"{track.value}_temporal_consolidation"
         self.owner = f"{track.value.title()}TemporalConsolidationModule"
         self._policy = policy or FullLearnedTemporalPolicy()
+        self._prediction_error_learning_enabled = bool(
+            prediction_error_learning_enabled
+        )
+
+    @property
+    def prediction_error_learning_enabled(self) -> bool:
+        return self._prediction_error_learning_enabled
 
     async def process(
         self,
@@ -6340,10 +6372,14 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
             else None
         )
         credit_value = credit_snapshot.value if isinstance(credit_snapshot.value, CreditSnapshot) else None
-        prediction_error_applied = _apply_track_prediction_error_signal(
-            track=self._track,
-            policy=self._policy,
-            prediction_error_snapshot=prediction_error_value,
+        prediction_error_applied = (
+            _apply_track_prediction_error_signal(
+                track=self._track,
+                policy=self._policy,
+                prediction_error_snapshot=prediction_error_value,
+            )
+            if self._prediction_error_learning_enabled
+            else False
         )
         cpd_switch_readout = _build_cpd_switch_readout(
             track=self._track,
@@ -6352,7 +6388,11 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
         self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
         family_outcome_applied = self._policy.observe_family_outcome_feedback(
             track=self._track,
-            prediction_error_snapshot=prediction_error_value,
+            prediction_error_snapshot=(
+                prediction_error_value
+                if self._prediction_error_learning_enabled
+                else None
+            ),
             credit_snapshot=credit_value,
         )
         runtime_state = self._policy.export_runtime_state()
@@ -6418,10 +6458,14 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
         reflection_value = reflection_snapshot if isinstance(reflection_snapshot, ReflectionSnapshot) else None
         credit_value = credit_snapshot if isinstance(credit_snapshot, CreditSnapshot) else None
         self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
-        prediction_error_applied = _apply_track_prediction_error_signal(
-            track=self._track,
-            policy=self._policy,
-            prediction_error_snapshot=prediction_error_value,
+        prediction_error_applied = (
+            _apply_track_prediction_error_signal(
+                track=self._track,
+                policy=self._policy,
+                prediction_error_snapshot=prediction_error_value,
+            )
+            if self._prediction_error_learning_enabled
+            else False
         )
         cpd_switch_readout = _build_cpd_switch_readout(
             track=self._track,
@@ -6429,7 +6473,11 @@ class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapsh
         )
         family_outcome_applied = self._policy.observe_family_outcome_feedback(
             track=self._track,
-            prediction_error_snapshot=prediction_error_value,
+            prediction_error_snapshot=(
+                prediction_error_value
+                if self._prediction_error_learning_enabled
+                else None
+            ),
             credit_snapshot=credit_value,
         )
         runtime_state = self._policy.export_runtime_state()

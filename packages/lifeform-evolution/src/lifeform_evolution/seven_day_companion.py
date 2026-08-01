@@ -73,9 +73,7 @@ class SimulatedSourceAttestation:
 
     def __post_init__(self) -> None:
         _require_non_empty(self.simulator_model_id, field="simulator_model_id")
-        _require_non_empty(
-            self.simulator_model_family, field="simulator_model_family"
-        )
+        _require_non_empty(self.simulator_model_family, field="simulator_model_family")
         _require_non_empty(self.sut_model_id, field="sut_model_id")
         _require_non_empty(self.sut_model_family, field="sut_model_family")
         _require_sha256(
@@ -94,13 +92,9 @@ class SimulatedSourceAttestation:
         if len(families) != 2:
             raise ValueError("simulator and SUT model families must differ")
         if self.judge_model_family is not None:
-            judge = _require_non_empty(
-                self.judge_model_family, field="judge_model_family"
-            ).strip().lower()
+            judge = _require_non_empty(self.judge_model_family, field="judge_model_family").strip().lower()
             if judge in families:
-                raise ValueError(
-                    "judge model family must differ from simulator and SUT"
-                )
+                raise ValueError("judge model family must differ from simulator and SUT")
 
 
 @dataclass(frozen=True)
@@ -137,13 +131,9 @@ class SevenDayScenarioSchedule:
             raise ValueError("virtual_start_ms must be non-negative")
         if tuple(day.day_index for day in self.days) != tuple(range(1, 8)):
             raise ValueError("seven-day schedule must contain consecutive days 1..7")
-        covered = {
-            tag for day in self.days for tag in day.required_event_tags
-        }
+        covered = {tag for day in self.days for tag in day.required_event_tags}
         if not _REQUIRED_EVENT_TAGS.issubset(covered):
-            raise ValueError(
-                "seven-day schedule must declare callback, emotion, and boundary"
-            )
+            raise ValueError("seven-day schedule must declare callback, emotion, and boundary")
 
 
 @dataclass(frozen=True)
@@ -172,9 +162,7 @@ class ProcessRestartEvidence:
     def __post_init__(self) -> None:
         if self.after_day_index < 1 or self.after_day_index > 6:
             raise ValueError("restart day must be in [1, 6]")
-        _require_non_empty(
-            self.previous_instance_id, field="previous_instance_id"
-        )
+        _require_non_empty(self.previous_instance_id, field="previous_instance_id")
         _require_non_empty(self.next_instance_id, field="next_instance_id")
         if self.previous_instance_id == self.next_instance_id:
             raise ValueError("process restart must change instance identity")
@@ -193,6 +181,11 @@ class SevenDayTurnEvidence:
     fsm_payload: str | None
     event_tags: tuple[str, ...]
     fsm_probe_passed: bool | None
+    pe_magnitude: float | None = None
+    pe_bootstrap: bool | None = None
+    world_temporal_prediction_error_applied: bool | None = None
+    self_temporal_prediction_error_applied: bool | None = None
+    gate_telemetry: tuple[tuple[str, object], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -246,6 +239,7 @@ class SevenDayDayEvidence:
     end_scene_slow_loop_drained: bool
     owner_persisted_before_restart: bool
     restart_after_day: ProcessRestartEvidence | None
+    end_scene_gate_telemetry: tuple[tuple[str, object], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -278,21 +272,13 @@ class SevenDayCompanionService(Protocol):
 
     def create_session(self, *, session_id: str, user_id: str) -> Mapping[str, object]: ...
 
-    def submit_turn(
-        self, *, session_id: str, user_input: str
-    ) -> Mapping[str, object]: ...
+    def submit_turn(self, *, session_id: str, user_input: str) -> Mapping[str, object]: ...
 
-    def end_scene(
-        self, *, session_id: str, drain_slow_loop: bool
-    ) -> Mapping[str, object]: ...
+    def end_scene(self, *, session_id: str, drain_slow_loop: bool) -> Mapping[str, object]: ...
 
-    def continuity_metrics(
-        self, *, session_id: str, observed_at_ms: int
-    ) -> Mapping[str, object]: ...
+    def continuity_metrics(self, *, session_id: str, observed_at_ms: int) -> Mapping[str, object]: ...
 
-    def relationship_memory(
-        self, *, session_id: str
-    ) -> Mapping[str, object]: ...
+    def relationship_memory(self, *, session_id: str) -> Mapping[str, object]: ...
 
     def relationship_memory_action(
         self,
@@ -336,13 +322,9 @@ class HTTPSevenDayCompanionService:
         vertical: str | None = None,
         timeout_s: float = 120.0,
     ) -> None:
-        self._base_url = _require_non_empty(
-            base_url, field="base_url"
-        ).rstrip("/")
+        self._base_url = _require_non_empty(base_url, field="base_url").rstrip("/")
         self._user_id = _require_non_empty(user_id, field="user_id")
-        self._instance_id = _require_non_empty(
-            instance_id, field="instance_id"
-        )
+        self._instance_id = _require_non_empty(instance_id, field="instance_id")
         self._vertical = vertical.strip() if vertical else None
         if timeout_s <= 0:
             raise ValueError("timeout_s must be positive")
@@ -353,9 +335,7 @@ class HTTPSevenDayCompanionService:
         return self._instance_id
 
     def replace_instance_id(self, instance_id: str) -> None:
-        self._instance_id = _require_non_empty(
-            instance_id, field="instance_id"
-        )
+        self._instance_id = _require_non_empty(instance_id, field="instance_id")
 
     def create_session(self, *, session_id: str, user_id: str) -> Mapping[str, object]:
         if user_id != self._user_id:
@@ -368,18 +348,14 @@ class HTTPSevenDayCompanionService:
             payload["vertical"] = self._vertical
         return self._request("POST", "/v1/sessions", payload=payload)
 
-    def submit_turn(
-        self, *, session_id: str, user_input: str
-    ) -> Mapping[str, object]:
+    def submit_turn(self, *, session_id: str, user_input: str) -> Mapping[str, object]:
         return self._request(
             "POST",
             f"/v1/sessions/{urllib.parse.quote(session_id, safe='')}/turns",
             payload={"user_input": user_input},
         )
 
-    def end_scene(
-        self, *, session_id: str, drain_slow_loop: bool
-    ) -> Mapping[str, object]:
+    def end_scene(self, *, session_id: str, drain_slow_loop: bool) -> Mapping[str, object]:
         return self._request(
             "POST",
             f"/v1/sessions/{urllib.parse.quote(session_id, safe='')}/end-scene",
@@ -389,23 +365,13 @@ class HTTPSevenDayCompanionService:
             },
         )
 
-    def continuity_metrics(
-        self, *, session_id: str, observed_at_ms: int
-    ) -> Mapping[str, object]:
-        query = urllib.parse.urlencode(
-            {"session_id": session_id, "observed_at_ms": observed_at_ms}
-        )
-        return self._request(
-            "GET", f"/v1/users/me/continuity-metrics?{query}"
-        )
+    def continuity_metrics(self, *, session_id: str, observed_at_ms: int) -> Mapping[str, object]:
+        query = urllib.parse.urlencode({"session_id": session_id, "observed_at_ms": observed_at_ms})
+        return self._request("GET", f"/v1/users/me/continuity-metrics?{query}")
 
-    def relationship_memory(
-        self, *, session_id: str
-    ) -> Mapping[str, object]:
+    def relationship_memory(self, *, session_id: str) -> Mapping[str, object]:
         query = urllib.parse.urlencode({"session_id": session_id})
-        return self._request(
-            "GET", f"/v1/users/me/relationship-memory?{query}"
-        )
+        return self._request("GET", f"/v1/users/me/relationship-memory?{query}")
 
     def relationship_memory_action(
         self,
@@ -457,20 +423,13 @@ class HTTPSevenDayCompanionService:
             method=method,
         )
         try:
-            with urllib.request.urlopen(
-                request, timeout=self._timeout_s
-            ) as response:
+            with urllib.request.urlopen(request, timeout=self._timeout_s) as response:
                 decoded = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"seven-day service {method} {path} failed: "
-                f"HTTP {exc.code}: {detail}"
-            ) from exc
+            raise RuntimeError(f"seven-day service {method} {path} failed: HTTP {exc.code}: {detail}") from exc
         except urllib.error.URLError as exc:
-            raise RuntimeError(
-                f"seven-day service {method} {path} unavailable: {exc.reason}"
-            ) from exc
+            raise RuntimeError(f"seven-day service {method} {path} unavailable: {exc.reason}") from exc
         if not isinstance(decoded, Mapping):
             raise TypeError("seven-day service response must be an object")
         return decoded
@@ -512,10 +471,7 @@ class SevenDayCompanionOrchestrator:
         observed_event_tags = set()
         stable_user_scope_hash = None
         for day in schedule.days:
-            virtual_observed_at_ms = (
-                schedule.virtual_start_ms
-                + (day.day_index - 1) * _DAY_MILLISECONDS
-            )
+            virtual_observed_at_ms = schedule.virtual_start_ms + (day.day_index - 1) * _DAY_MILLISECONDS
             session_id = _session_id(
                 run_id=run_id,
                 arm_label=arm_label,
@@ -537,9 +493,7 @@ class SevenDayCompanionOrchestrator:
             )
             cold_start_scope = cold_start_metrics.get("user_scope_hash")
             if not isinstance(cold_start_scope, str) or not cold_start_scope:
-                raise RuntimeError(
-                    "cold-start continuity metrics lack user_scope_hash"
-                )
+                raise RuntimeError("cold-start continuity metrics lack user_scope_hash")
             transcript = []
             turn_evidence = []
             recent_assistant_turns = []
@@ -561,18 +515,43 @@ class SevenDayCompanionOrchestrator:
                     raise RuntimeError("service turn lacks response_text")
                 recent_assistant_turns.append(assistant_text)
                 fsm_probe_passed = response.get("fsm_probe_passed")
-                if fsm_probe_passed is not None and not isinstance(
-                    fsm_probe_passed, bool
+                if fsm_probe_passed is not None and not isinstance(fsm_probe_passed, bool):
+                    raise RuntimeError("service fsm_probe_passed must be bool or null")
+                pe_magnitude = response.get("pe_magnitude")
+                if (
+                    isinstance(pe_magnitude, bool)
+                    or not isinstance(pe_magnitude, (int, float))
+                    or float(pe_magnitude) < 0.0
                 ):
-                    raise RuntimeError(
-                        "service fsm_probe_passed must be bool or null"
-                    )
+                    raise RuntimeError("service pe_magnitude must be a non-negative number")
+                pe_bootstrap = response.get("pe_bootstrap")
+                world_pe_applied = response.get("world_temporal_prediction_error_applied")
+                self_pe_applied = response.get("self_temporal_prediction_error_applied")
+                for field_name, field_value in (
+                    ("pe_bootstrap", pe_bootstrap),
+                    (
+                        "world_temporal_prediction_error_applied",
+                        world_pe_applied,
+                    ),
+                    (
+                        "self_temporal_prediction_error_applied",
+                        self_pe_applied,
+                    ),
+                ):
+                    if not isinstance(field_value, bool):
+                        raise RuntimeError(f"service {field_name} must be bool")
+                # Legacy/non-evidence services predate the optional typed
+                # gate telemetry envelope.  Dedicated gate evaluators require
+                # their registered fields, while the generic seven-day runner
+                # remains backward compatible with an absent envelope.
+                raw_gate_telemetry = response.get("evidence_telemetry", {})
+                if not isinstance(raw_gate_telemetry, Mapping):
+                    raise RuntimeError("service evidence_telemetry must be an object")
+                gate_telemetry = tuple(sorted((str(key), value) for key, value in raw_gate_telemetry.items()))
                 transcript.extend(
                     (
                         PilotTranscriptTurn(role="user", text=generated.text),
-                        PilotTranscriptTurn(
-                            role="assistant", text=assistant_text
-                        ),
+                        PilotTranscriptTurn(role="assistant", text=assistant_text),
                     )
                 )
                 turn_evidence.append(
@@ -584,12 +563,15 @@ class SevenDayCompanionOrchestrator:
                         fsm_payload=generated.fsm_payload,
                         event_tags=generated.event_tags,
                         fsm_probe_passed=fsm_probe_passed,
+                        pe_magnitude=float(pe_magnitude),
+                        pe_bootstrap=pe_bootstrap,
+                        world_temporal_prediction_error_applied=(world_pe_applied),
+                        self_temporal_prediction_error_applied=(self_pe_applied),
+                        gate_telemetry=gate_telemetry,
                     )
                 )
             if not set(day.required_event_tags).issubset(day_event_tags):
-                raise RuntimeError(
-                    f"day {day.day_index} missed declared event tags"
-                )
+                raise RuntimeError(f"day {day.day_index} missed declared event tags")
             console_probe_actions = self._run_console_probe(
                 session_id=session_id,
                 observed_at_ms=virtual_observed_at_ms,
@@ -608,18 +590,20 @@ class SevenDayCompanionOrchestrator:
             elif user_scope_hash != stable_user_scope_hash:
                 raise RuntimeError("user scope changed across seven-day run")
             if cold_start_scope != stable_user_scope_hash:
-                raise RuntimeError(
-                    "cold-start user scope changed across seven-day run"
-                )
+                raise RuntimeError("cold-start user scope changed across seven-day run")
             ended = self._service.end_scene(
                 session_id=session_id,
                 drain_slow_loop=drain_slow_loop,
             )
-            expected_drained = drain_slow_loop and bool(
-                ended.get("closed_scene_id")
-            )
+            expected_drained = drain_slow_loop and bool(ended.get("closed_scene_id"))
             if bool(ended.get("slow_loop_drained")) != expected_drained:
                 raise RuntimeError("end-scene slow-loop attestation drift")
+            raw_end_scene_telemetry = ended.get("evidence_telemetry", {})
+            if not isinstance(raw_end_scene_telemetry, Mapping):
+                raise RuntimeError("end-scene evidence_telemetry must be an object")
+            end_scene_gate_telemetry = tuple(
+                sorted((str(key), value) for key, value in raw_end_scene_telemetry.items())
+            )
             pilot = self._pilot_harness.capture_day(
                 user_id=user_id,
                 day_index=day.day_index,
@@ -633,17 +617,12 @@ class SevenDayCompanionOrchestrator:
                 raise RuntimeError("session close did not attest persistence boundary")
             restart = None
             if day.day_index < 7:
-                restart = self._lifecycle.restart_after_day(
-                    day_index=day.day_index
-                )
+                restart = self._lifecycle.restart_after_day(day_index=day.day_index)
                 if restart.previous_instance_id != instance_id:
                     raise RuntimeError("restart previous instance drift")
                 if self._service.instance_id != restart.next_instance_id:
                     raise RuntimeError("service instance was not rebound after restart")
-                if (
-                    restart.state_intervention.experiment_arm_label
-                    != arm_label
-                ):
+                if restart.state_intervention.experiment_arm_label != arm_label:
                     raise RuntimeError("restart state intervention arm drift")
             days.append(
                 SevenDayDayEvidence(
@@ -664,6 +643,7 @@ class SevenDayCompanionOrchestrator:
                     end_scene_slow_loop_drained=expected_drained,
                     owner_persisted_before_restart=owner_persisted,
                     restart_after_day=restart,
+                    end_scene_gate_telemetry=(end_scene_gate_telemetry),
                 )
             )
         if not _REQUIRED_EVENT_TAGS.issubset(observed_event_tags):
@@ -684,10 +664,7 @@ class SevenDayCompanionOrchestrator:
             process_restart_count=6,
             all_restarts_exact=all(
                 day.restart_after_day is None
-                or (
-                    day.restart_after_day.healthcheck_passed
-                    and day.restart_after_day.persistence_scope_unchanged
-                )
+                or (day.restart_after_day.healthcheck_passed and day.restart_after_day.persistence_scope_unchanged)
                 for day in days
             ),
             simulated_longitudinal_only=True,
@@ -713,17 +690,11 @@ class SevenDayCompanionOrchestrator:
             if not isinstance(item, Mapping):
                 continue
             proposal_id = item.get("proposal_id")
-            if (
-                item.get("target_owner_slot") == "memory"
-                and isinstance(proposal_id, str)
-                and proposal_id
-            ):
+            if item.get("target_owner_slot") == "memory" and isinstance(proposal_id, str) and proposal_id:
                 proposal_ids.append(proposal_id)
         proposal_ids.sort()
         if len(proposal_ids) < 2:
-            raise RuntimeError(
-                "daily console probe requires two memory proposals"
-            )
+            raise RuntimeError("daily console probe requires two memory proposals")
         evidence = []
         keep_id = proposal_ids[0]
         keep_response = self._service.relationship_memory_action(
@@ -794,12 +765,8 @@ class SevenDayCompanionOrchestrator:
         )
 
 
-def _session_id(
-    *, run_id: str, arm_label: str, scenario_id: str, day_index: int
-) -> str:
-    digest = hashlib.sha256(
-        f"{run_id}\0{arm_label}\0{scenario_id}\0{day_index}".encode("utf-8")
-    ).hexdigest()
+def _session_id(*, run_id: str, arm_label: str, scenario_id: str, day_index: int) -> str:
+    digest = hashlib.sha256(f"{run_id}\0{arm_label}\0{scenario_id}\0{day_index}".encode("utf-8")).hexdigest()
     return f"seven-day-{digest[:24]}"
 
 

@@ -186,6 +186,7 @@ from volvence_zero.substrate import (
     SubstrateSelfModSnapshot,
     SubstrateSnapshot,
 )
+
 # Reward-eligibility contract owned by the runtime-replay settlement owner in
 # vz-temporal. Re-exported below so domain profiles can declare it through the
 # vz-runtime rollout-config facade without importing kernel internals.
@@ -353,6 +354,10 @@ class FinalRolloutConfig:
     #   - cms_torch_backend: CMSMemoryCore band gradient kernel
     # See docs/specs/temporal-abstraction.md / multi-timescale-learning.md.
     temporal_ssl_backend: WiringLevel = WiringLevel.DISABLED
+    # Slow-momentum contribution inside the temporal SSL owner's M3
+    # optimizer. Zero is the shipped rollback after Gate 9; evidence profiles
+    # may set a bounded positive value without changing any product default.
+    temporal_ssl_m3_slow_gain: float = 0.0
     temporal_runtime_backend: WiringLevel = WiringLevel.DISABLED
     internal_rl_backend: WiringLevel = WiringLevel.DISABLED
     # Independent transition-source gate for Internal-RL. DISABLED preserves
@@ -416,9 +421,7 @@ class FinalRolloutConfig:
     # Optional disjoint opponent-coded coordinate pairs. The temporal owner
     # removes each pair's common mode from both live residuals and replay
     # gradients. None preserves historical independent-coordinate behavior.
-    internal_rl_causal_action_head_contrast_pairs: (
-        tuple[tuple[int, int], ...] | None
-    ) = None
+    internal_rl_causal_action_head_contrast_pairs: tuple[tuple[int, int], ...] | None = None
     # Exclusive steering ownership transfer (R2): when True the temporal
     # owner removes the deterministic base policy's antisymmetric component
     # on every contrast pair (live forward, sandbox policy mean, pure and
@@ -433,12 +436,8 @@ class FinalRolloutConfig:
     # evaluates the same action head on s and mirror(s), then projects the
     # opponent-coded output onto the reflection-equivariant subspace.
     # Both fields must be provided together; None is the exact rollback path.
-    internal_rl_causal_action_head_input_mirror_permutation: (
-        tuple[int, ...] | None
-    ) = None
-    internal_rl_causal_action_head_input_mirror_signs: (
-        tuple[int, ...] | None
-    ) = None
+    internal_rl_causal_action_head_input_mirror_permutation: tuple[int, ...] | None = None
+    internal_rl_causal_action_head_input_mirror_signs: tuple[int, ...] | None = None
     # Archive-side magnitude validation for the frozen action-head envelope.
     # The owner's own disciplined write paths (pure update, projected torch
     # write-back) always enforce it; this declaration is what extends the same
@@ -456,9 +455,7 @@ class FinalRolloutConfig:
     # oppose the batch's net advantage-weighted projected score gradient;
     # SHADOW reports the same decisions without changing parameters. The
     # DISABLED/0/1.0 triple is the exact historical rollback.
-    internal_rl_causal_action_head_formation_protection: WiringLevel = (
-        WiringLevel.DISABLED
-    )
+    internal_rl_causal_action_head_formation_protection: WiringLevel = WiringLevel.DISABLED
     internal_rl_causal_action_head_formation_max_update_steps: int = 0
     internal_rl_causal_action_head_formation_conflict_scale: float = 1.0
     cms_torch_backend: WiringLevel = WiringLevel.DISABLED
@@ -490,6 +487,14 @@ class FinalRolloutConfig:
     prediction_error_temporal_switch: WiringLevel = WiringLevel.DISABLED
     prediction_error_temporal_switch_strength: float = 0.35
     prediction_error_temporal_switch_floor: float = 0.5
+    # Evidence-only PE -> runtime-code consumer bridge.  ACTIVE lets the
+    # temporal owner apply the bounded, identity-centred gain compiled from
+    # PE-updated residual/memory/reflection weights.  DISABLED is the shipped
+    # production default and exact rollback after Gate 1 v3 measured a
+    # negative causal effect.  This is separate from the additive beta prior
+    # above: enabling switch pressure must not silently enable code
+    # modulation.
+    prediction_error_runtime_modulation: WiringLevel = WiringLevel.DISABLED
     # Typed boundary events (R-PE: which event closes a segment is a typed
     # readout, not an inference from raw amplitude). ACTIVE lets an
     # owner-declared discrete environment milestone
@@ -658,6 +663,8 @@ class FinalRolloutConfig:
     )
 
     def __post_init__(self) -> None:
+        if not 0.0 <= self.temporal_ssl_m3_slow_gain <= 1.0:
+            raise ValueError("temporal_ssl_m3_slow_gain must be within [0, 1]")
         if not isinstance(
             self.internal_rl_runtime_reward_eligibility,
             RuntimeReplayRewardEligibility,
@@ -691,19 +698,12 @@ class FinalRolloutConfig:
                 f"got {self.relationship_conditioning_mode!r}."
             )
         if self.conditioning_router_top_k < 1:
-            raise ValueError(
-                "conditioning_router_top_k must be >= 1, "
-                f"got {self.conditioning_router_top_k!r}."
-            )
+            raise ValueError(f"conditioning_router_top_k must be >= 1, got {self.conditioning_router_top_k!r}.")
         if self.prompt_state_delivery not in ("text", "suppressed"):
             raise ValueError(
-                "prompt_state_delivery must be 'text' or 'suppressed', "
-                f"got {self.prompt_state_delivery!r}."
+                f"prompt_state_delivery must be 'text' or 'suppressed', got {self.prompt_state_delivery!r}."
             )
-        if (
-            self.personal_conditioning_mode == "text"
-            and self.prompt_state_delivery == "suppressed"
-        ):
+        if self.personal_conditioning_mode == "text" and self.prompt_state_delivery == "suppressed":
             # Arm B-prime renders the readout into the prompt; suppression
             # then discards it. Configuring both would silently produce an
             # unconditioned arm that still reports as text-delivered.
@@ -830,10 +830,7 @@ def resolve_final_rollout_config(
         raw_value = os.environ.get(env_name, "").strip().lower()
         if raw_value:
             if raw_value not in level_by_protocol_value:
-                raise ValueError(
-                    f"{env_name} must be one of disabled, shadow, active; "
-                    f"received {raw_value!r}."
-                )
+                raise ValueError(f"{env_name} must be one of disabled, shadow, active; received {raw_value!r}.")
             overrides[field_name] = level_by_protocol_value[raw_value]
         elif legacy_active:
             overrides[field_name] = WiringLevel.ACTIVE
@@ -849,11 +846,12 @@ def resolve_final_rollout_config(
     # GPU substrate stay live, and heuristic online updates remain the writer.
     # Bypass with VZ_TORCH_BACKENDS_FORCE=1 (e.g. on Linux CI). Reversible.
     force = os.environ.get("VZ_TORCH_BACKENDS_FORCE", "").strip().lower() in (
-        "1", "true", "on", "yes",
+        "1",
+        "true",
+        "on",
+        "yes",
     )
-    if not force and os.name == "nt" and os.environ.get(
-        "VZ_SUBSTRATE_DEVICE", ""
-    ).startswith("cuda"):
+    if not force and os.name == "nt" and os.environ.get("VZ_SUBSTRATE_DEVICE", "").startswith("cuda"):
         return config
     return replace(config, **overrides)
 
@@ -999,15 +997,13 @@ def _apply_temporal_reflection_writeback(
                 for group in target_groups
             ),
         )
-    blocked_groups = (
-        tuple(
-            group
-            for group in target_groups
-            if credit_snapshot is not None
-            and has_blocking_writeback(
-                credit_snapshot,
-                target_prefix=f"{temporal_prior_update.target}.{group}",
-            )
+    blocked_groups = tuple(
+        group
+        for group in target_groups
+        if credit_snapshot is not None
+        and has_blocking_writeback(
+            credit_snapshot,
+            target_prefix=f"{temporal_prior_update.target}.{group}",
         )
     )
     allowed_groups = tuple(group for group in target_groups if group not in blocked_groups)
@@ -1095,8 +1091,7 @@ def _build_session_post_writeback_request(
     )
     evaluation_value = (
         evaluation_snapshot.value
-        if evaluation_snapshot is not None
-        and isinstance(evaluation_snapshot.value, EvaluationSnapshot)
+        if evaluation_snapshot is not None and isinstance(evaluation_snapshot.value, EvaluationSnapshot)
         else None
     )
     return SessionPostWritebackRequest(
@@ -1225,8 +1220,7 @@ def _apply_application_prior_writeback(
                     old_value_hash=before_hash,
                     new_value_hash=before_hash,
                     justification=(
-                        "Application case-memory prior writeback skipped because "
-                        f"{blocked_reason.replace('-', ' ')}."
+                        f"Application case-memory prior writeback skipped because {blocked_reason.replace('-', ' ')}."
                     ),
                     timestamp_ms=timestamp_ms,
                     is_reversible=True,
@@ -1236,9 +1230,7 @@ def _apply_application_prior_writeback(
             continue
         if update.modification_evidence is not None:
             if evaluation_snapshot is None:
-                gate_reasons = (
-                    "background modification gate requires evaluation snapshot",
-                )
+                gate_reasons = ("background modification gate requires evaluation snapshot",)
             else:
                 evidence = update.modification_evidence
                 gate_reasons = evaluate_gate_reasons(
@@ -1257,10 +1249,7 @@ def _apply_application_prior_writeback(
                 )
             if gate_reasons:
                 blocked_targets.append(update.target)
-                blocked_operations.append(
-                    "application-prior:block:"
-                    f"{update.target}:modification-gate-block"
-                )
+                blocked_operations.append(f"application-prior:block:{update.target}:modification-gate-block")
                 audit_records.append(
                     SelfModificationRecord(
                         target=update.target,
@@ -1269,9 +1258,7 @@ def _apply_application_prior_writeback(
                         old_value_hash=before_hash,
                         new_value_hash=before_hash,
                         justification=(
-                            "Application action abstraction blocked by "
-                            "ModificationGate: "
-                            + "; ".join(gate_reasons)
+                            "Application action abstraction blocked by ModificationGate: " + "; ".join(gate_reasons)
                         ),
                         timestamp_ms=timestamp_ms,
                         is_reversible=True,
@@ -1392,18 +1379,14 @@ def _apply_application_prior_writeback(
         superseded = getattr(update, "supersedes_record_id", None)
         superseded_count = 0
         if superseded and superseded != update.record.record_id:
-            superseded_count = domain_knowledge_store.remove_records_by_id_prefix(
-                superseded
-            )
+            superseded_count = domain_knowledge_store.remove_records_by_id_prefix(superseded)
         domain_knowledge_store.upsert_records((update.record,))
         domain_knowledge_store.save_to_backend()
         after_hash = current_domain_knowledge_hash()
         applied_targets.append(update.target)
         applied_operations.append(f"application-prior:domain-knowledge:{update.record.record_id}")
         if superseded_count:
-            applied_operations.append(
-                f"application-prior:supersede:{superseded}:retired={superseded_count}"
-            )
+            applied_operations.append(f"application-prior:supersede:{superseded}:retired={superseded_count}")
         audit_records.append(
             SelfModificationRecord(
                 target=update.target,
@@ -1431,8 +1414,7 @@ def _apply_application_prior_writeback(
                     old_value_hash=before_hash,
                     new_value_hash=before_hash,
                     justification=(
-                        "Application playbook prior writeback skipped because "
-                        f"{blocked_reason.replace('-', ' ')}."
+                        f"Application playbook prior writeback skipped because {blocked_reason.replace('-', ' ')}."
                     ),
                     timestamp_ms=timestamp_ms,
                     is_reversible=True,
@@ -1488,8 +1470,7 @@ def _apply_application_prior_writeback(
                     old_value_hash=before_hash,
                     new_value_hash=before_hash,
                     justification=(
-                        "Application boundary prior writeback skipped because "
-                        f"{blocked_reason.replace('-', ' ')}."
+                        f"Application boundary prior writeback skipped because {blocked_reason.replace('-', ' ')}."
                     ),
                     timestamp_ms=timestamp_ms,
                     is_reversible=True,
@@ -1610,10 +1591,7 @@ def _prune_disabled_stub_snapshots(snapshots: dict[str, Snapshot[Any]]) -> dict[
     return {
         slot_name: snapshot
         for slot_name, snapshot in snapshots.items()
-        if not (
-            isinstance(snapshot.value, RuntimePlaceholderValue)
-            and snapshot.value.reason == "disabled-module"
-        )
+        if not (isinstance(snapshot.value, RuntimePlaceholderValue) and snapshot.value.reason == "disabled-module")
     }
 
 
@@ -1624,9 +1602,7 @@ def apply_session_post_writeback_request(
     temporal_policy: TemporalPolicy | None,
     regime_module: RegimeModule | None,
 ) -> tuple[WritebackResult | None, tuple[SelfModificationRecord, ...]]:
-    structural_apply_enabled = (
-        request.reflection_apply_enabled and request.structural_writeback_allowed
-    )
+    structural_apply_enabled = request.reflection_apply_enabled and request.structural_writeback_allowed
     if request.reflection_apply_enabled:
         writeback_result = ReflectionEngine(writeback_mode=WritebackMode.APPLY).apply(
             memory_store=memory_store,
@@ -1640,9 +1616,7 @@ def apply_session_post_writeback_request(
             and writeback_result is not None
             and not writeback_result.blocked_operations
         ):
-            regime_checkpoint = regime_module.create_checkpoint(
-                checkpoint_id=f"{request.checkpoint_id}:regime"
-            )
+            regime_checkpoint = regime_module.create_checkpoint(checkpoint_id=f"{request.checkpoint_id}:regime")
             regime_operations = regime_module.apply_policy_consolidation(
                 strategy_updates=request.reflection_snapshot.policy_consolidation.strategy_priors_updated,
                 regime_effectiveness_updates=request.reflection_snapshot.policy_consolidation.regime_effectiveness_updated,
@@ -1670,15 +1644,10 @@ def apply_session_post_writeback_request(
                         f"Regime owner applied {len(regime_operations)} consolidation operations."
                     ),
                 )
-        if (
-            not structural_apply_enabled
-            and writeback_result is not None
-            and not writeback_result.blocked_operations
-        ):
+        if not structural_apply_enabled and writeback_result is not None and not writeback_result.blocked_operations:
             writeback_result = replace(
                 writeback_result,
-                blocked_operations=writeback_result.blocked_operations
-                + ("evolution-judge-block:structural-only",),
+                blocked_operations=writeback_result.blocked_operations + ("evolution-judge-block:structural-only",),
                 description=(
                     f"{writeback_result.description} "
                     "Structural writeback was gated by the evolution judge; "
@@ -1739,27 +1708,16 @@ def _prediction_action_context_from_upstream(
     environment_outcome: EnvironmentOutcome | None = None,
     external_outcome_lineages: tuple[ConditioningLineage, ...] = (),
 ) -> PredictionActionContext:
-    temporal_snapshot = (
-        upstream_snapshots.get("temporal_abstraction")
-        if upstream_snapshots is not None
-        else None
-    )
+    temporal_snapshot = upstream_snapshots.get("temporal_abstraction") if upstream_snapshots is not None else None
     temporal_value = (
         temporal_snapshot.value
-        if temporal_snapshot is not None
-        and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
+        if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
         else None
     )
     segment = (
-        temporal_value.closed_segments[-1]
-        if temporal_value is not None and temporal_value.closed_segments
-        else None
+        temporal_value.closed_segments[-1] if temporal_value is not None and temporal_value.closed_segments else None
     )
-    regime_snapshot = (
-        upstream_snapshots.get("regime")
-        if upstream_snapshots is not None
-        else None
-    )
+    regime_snapshot = upstream_snapshots.get("regime") if upstream_snapshots is not None else None
     regime_value = (
         regime_snapshot.value
         if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot)
@@ -1776,9 +1734,7 @@ def _prediction_action_context_from_upstream(
     # consume. Same channel as every other temporal readout above; empty
     # refs stay an empty summary ("no bank was live" is a real negative).
     lineage_summary = summarize_conditioning_lineage_refs(
-        temporal_value.conditioning_lineage_refs
-        if temporal_value is not None
-        else ()
+        temporal_value.conditioning_lineage_refs if temporal_value is not None else ()
     )
     conditioning_bank_set = lineage_summary.bank_set
     conditioning_bank_fingerprints = lineage_summary.bank_fingerprints
@@ -1787,31 +1743,13 @@ def _prediction_action_context_from_upstream(
         # Delayed external outcomes must credit the bank set that produced
         # the rated action, never whichever bank happens to be live now.
         conditioning_bank_set = tuple(
-            sorted(
-                {
-                    bank
-                    for lineage in external_outcome_lineages
-                    for bank in lineage.selected_bank_set
-                }
-            )
+            sorted({bank for lineage in external_outcome_lineages for bank in lineage.selected_bank_set})
         )
         conditioning_bank_fingerprints = tuple(
-            sorted(
-                {
-                    pair
-                    for lineage in external_outcome_lineages
-                    for pair in lineage.bank_fingerprints
-                }
-            )
+            sorted({pair for lineage in external_outcome_lineages for pair in lineage.bank_fingerprints})
         )
         conditioning_router_version = ",".join(
-            sorted(
-                {
-                    lineage.router_version
-                    for lineage in external_outcome_lineages
-                    if lineage.router_version
-                }
-            )
+            sorted({lineage.router_version for lineage in external_outcome_lineages if lineage.router_version})
         )
     return PredictionActionContext(
         segment_id=segment.segment_id if segment is not None else "",
@@ -1825,15 +1763,9 @@ def _prediction_action_context_from_upstream(
         affordance_name=(segment.affordance_name or "") if segment is not None else "",
         environment_event_id=environment_event.event_id if environment_event is not None else "",
         environment_outcome_id=environment_outcome_id,
-        environment_task_progress=(
-            measurement.task_progress if measurement is not None else None
-        ),
-        environment_action_payoff=(
-            measurement.action_payoff if measurement is not None else None
-        ),
-        environment_outcome_terminal=(
-            measurement.terminal if measurement is not None else False
-        ),
+        environment_task_progress=(measurement.task_progress if measurement is not None else None),
+        environment_action_payoff=(measurement.action_payoff if measurement is not None else None),
+        environment_outcome_terminal=(measurement.terminal if measurement is not None else False),
         prediction_id=environment_prediction_id,
         conditioning_bank_set=conditioning_bank_set,
         conditioning_bank_fingerprints=conditioning_bank_fingerprints,
@@ -1909,6 +1841,7 @@ def build_final_runtime_modules(
     social_record_store: SocialRecordStore | None = None,
     reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
     learning_enabled: bool = True,
+    prediction_error_temporal_learning_enabled: bool = True,
     # State KV P5-c: session-lived bounded credit-feedback states for the
     # conditioning bank owners, so the online-fast EMA survives per-turn
     # module reconstruction. None = per-call private state (tests /
@@ -1939,89 +1872,51 @@ def build_final_runtime_modules(
     _runtime_backend = config.temporal_runtime_backend
     if isinstance(resolved_world_temporal_policy, FullLearnedTemporalPolicy):
         resolved_world_temporal_policy.set_runtime_backend(_runtime_backend)
-        resolved_world_temporal_policy.set_runtime_track_modulation(
-            config.internal_rl_runtime_modulation_strength
+        resolved_world_temporal_policy.set_prediction_error_runtime_modulation_enabled(
+            config.prediction_error_runtime_modulation is WiringLevel.ACTIVE
         )
-        resolved_world_temporal_policy.set_runtime_exploration(
-            config.internal_rl_runtime_exploration_strength
-        )
+        resolved_world_temporal_policy.set_runtime_track_modulation(config.internal_rl_runtime_modulation_strength)
+        resolved_world_temporal_policy.set_runtime_exploration(config.internal_rl_runtime_exploration_strength)
         resolved_world_temporal_policy.set_causal_action_head(
             wiring_level=config.internal_rl_causal_action_head,
             track=Track.WORLD,
             strength=config.internal_rl_causal_action_head_strength,
             rank=config.internal_rl_causal_action_head_rank,
             effective_dims=config.internal_rl_causal_action_head_effective_dims,
-            contrast_pairs=(
-                config.internal_rl_causal_action_head_contrast_pairs
-            ),
-            exclusive_steering=(
-                config.internal_rl_causal_action_head_exclusive_steering
-            ),
-            input_mirror_permutation=(
-                config
-                .internal_rl_causal_action_head_input_mirror_permutation
-            ),
-            input_mirror_signs=(
-                config.internal_rl_causal_action_head_input_mirror_signs
-            ),
-            envelope_enforced=(
-                config.internal_rl_causal_action_head_envelope_enforced
-            ),
+            contrast_pairs=(config.internal_rl_causal_action_head_contrast_pairs),
+            exclusive_steering=(config.internal_rl_causal_action_head_exclusive_steering),
+            input_mirror_permutation=(config.internal_rl_causal_action_head_input_mirror_permutation),
+            input_mirror_signs=(config.internal_rl_causal_action_head_input_mirror_signs),
+            envelope_enforced=(config.internal_rl_causal_action_head_envelope_enforced),
         )
         resolved_world_temporal_policy.set_causal_action_head_formation_protection(
-            wiring_level=(
-                config.internal_rl_causal_action_head_formation_protection
-            ),
-            max_update_steps=(
-                config
-                .internal_rl_causal_action_head_formation_max_update_steps
-            ),
-            conflict_scale=(
-                config.internal_rl_causal_action_head_formation_conflict_scale
-            ),
+            wiring_level=(config.internal_rl_causal_action_head_formation_protection),
+            max_update_steps=(config.internal_rl_causal_action_head_formation_max_update_steps),
+            conflict_scale=(config.internal_rl_causal_action_head_formation_conflict_scale),
         )
     if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
         resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
-        resolved_self_temporal_policy.set_runtime_track_modulation(
-            config.internal_rl_runtime_modulation_strength
+        resolved_self_temporal_policy.set_prediction_error_runtime_modulation_enabled(
+            config.prediction_error_runtime_modulation is WiringLevel.ACTIVE
         )
-        resolved_self_temporal_policy.set_runtime_exploration(
-            config.internal_rl_runtime_exploration_strength
-        )
+        resolved_self_temporal_policy.set_runtime_track_modulation(config.internal_rl_runtime_modulation_strength)
+        resolved_self_temporal_policy.set_runtime_exploration(config.internal_rl_runtime_exploration_strength)
         resolved_self_temporal_policy.set_causal_action_head(
             wiring_level=config.internal_rl_causal_action_head,
             track=Track.SELF,
             strength=config.internal_rl_causal_action_head_strength,
             rank=config.internal_rl_causal_action_head_rank,
             effective_dims=config.internal_rl_causal_action_head_effective_dims,
-            contrast_pairs=(
-                config.internal_rl_causal_action_head_contrast_pairs
-            ),
-            exclusive_steering=(
-                config.internal_rl_causal_action_head_exclusive_steering
-            ),
-            input_mirror_permutation=(
-                config
-                .internal_rl_causal_action_head_input_mirror_permutation
-            ),
-            input_mirror_signs=(
-                config.internal_rl_causal_action_head_input_mirror_signs
-            ),
-            envelope_enforced=(
-                config.internal_rl_causal_action_head_envelope_enforced
-            ),
+            contrast_pairs=(config.internal_rl_causal_action_head_contrast_pairs),
+            exclusive_steering=(config.internal_rl_causal_action_head_exclusive_steering),
+            input_mirror_permutation=(config.internal_rl_causal_action_head_input_mirror_permutation),
+            input_mirror_signs=(config.internal_rl_causal_action_head_input_mirror_signs),
+            envelope_enforced=(config.internal_rl_causal_action_head_envelope_enforced),
         )
         resolved_self_temporal_policy.set_causal_action_head_formation_protection(
-            wiring_level=(
-                config.internal_rl_causal_action_head_formation_protection
-            ),
-            max_update_steps=(
-                config
-                .internal_rl_causal_action_head_formation_max_update_steps
-            ),
-            conflict_scale=(
-                config.internal_rl_causal_action_head_formation_conflict_scale
-            ),
+            wiring_level=(config.internal_rl_causal_action_head_formation_protection),
+            max_update_steps=(config.internal_rl_causal_action_head_formation_max_update_steps),
+            conflict_scale=(config.internal_rl_causal_action_head_formation_conflict_scale),
         )
     # protocol-temporal-prior bridge: only ACTIVE lets the recorded
     # protocol switch-pressure prior reach beta_t. SHADOW records evidence
@@ -2034,9 +1929,7 @@ def build_final_runtime_modules(
     semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
     action_applicability_evaluator = NoOpActionApplicabilityEvaluator()
     if isinstance(semantic_runtime, LLMSemanticProposalRuntime):
-        action_applicability_evaluator = LLMActionApplicabilityEvaluator(
-            provider=semantic_runtime.text_provider
-        )
+        action_applicability_evaluator = LLMActionApplicabilityEvaluator(provider=semantic_runtime.text_provider)
     # Phase 1 W1.C of the EQ-owner uplift: when an explicit
     # ``tom_proposal_runtime`` is not provided AND the semantic runtime
     # is LLM-backed, share its text provider so the four ToM owners
@@ -2052,12 +1945,8 @@ def build_final_runtime_modules(
     # 0 ToM / common-ground records. We emit a one-shot
     # ``UserWarning`` for that case so the wrapper situation surfaces
     # in any default test runner output instead of staying silent.
-    if tom_proposal_runtime is None and isinstance(
-        semantic_runtime, LLMSemanticProposalRuntime
-    ):
-        tom_proposal_runtime = LLMToMProposalRuntime(
-            provider=semantic_runtime.text_provider
-        )
+    if tom_proposal_runtime is None and isinstance(semantic_runtime, LLMSemanticProposalRuntime):
+        tom_proposal_runtime = LLMToMProposalRuntime(provider=semantic_runtime.text_provider)
     elif (
         tom_proposal_runtime is None
         and not isinstance(semantic_runtime, LLMSemanticProposalRuntime)
@@ -2081,12 +1970,8 @@ def build_final_runtime_modules(
     # still produces atoms whenever upstream evidence exists; this
     # default just adds an LLM proposal source on top when one is
     # available.
-    if common_ground_proposal_runtime is None and isinstance(
-        semantic_runtime, LLMSemanticProposalRuntime
-    ):
-        common_ground_proposal_runtime = LLMCommonGroundProposalRuntime(
-            provider=semantic_runtime.text_provider
-        )
+    if common_ground_proposal_runtime is None and isinstance(semantic_runtime, LLMSemanticProposalRuntime):
+        common_ground_proposal_runtime = LLMCommonGroundProposalRuntime(provider=semantic_runtime.text_provider)
     elif (
         common_ground_proposal_runtime is None
         and not isinstance(semantic_runtime, LLMSemanticProposalRuntime)
@@ -2123,13 +2008,8 @@ def build_final_runtime_modules(
     # so topological sort places it early; rupture_state declares
     # prediction_error / relationship_state / response_assembly /
     # dialogue_external_outcome as dependencies, so it runs after them.
-    dialogue_external_outcome_owner = (
-        dialogue_external_outcome_module
-        or DialogueExternalOutcomeModule(
-            wiring_level=config.level_for(
-                "dialogue_external_outcome", WiringLevel.ACTIVE
-            ),
-        )
+    dialogue_external_outcome_owner = dialogue_external_outcome_module or DialogueExternalOutcomeModule(
+        wiring_level=config.level_for("dialogue_external_outcome", WiringLevel.ACTIVE),
     )
     dialogue_external_outcome_owner.set_turn_index(turn_index)
     rupture_state_owner = rupture_state_module or RuptureStateModule(
@@ -2182,24 +2062,18 @@ def build_final_runtime_modules(
     # same ProtocolRegistry instance via constructor injection so
     # phase tracking sees the same loaded protocols.
     protocol_phase_owner = ProtocolPhaseModule(
-        wiring_level=config.level_for(
-            "protocol_phase", WiringLevel.SHADOW
-        ),
+        wiring_level=config.level_for("protocol_phase", WiringLevel.SHADOW),
         registry=protocol_registry_owner.registry,
     )
     # Packet 6.8: introspection sibling owners (registry summary +
     # revision log). Both SHADOW by default; share the same registry
     # handle as the active_mixture owner.
     protocol_registry_introspection_owner = ProtocolRegistryIntrospectionModule(
-        wiring_level=config.level_for(
-            "protocol_registry", WiringLevel.SHADOW
-        ),
+        wiring_level=config.level_for("protocol_registry", WiringLevel.SHADOW),
         registry=protocol_registry_owner.registry,
     )
     protocol_revision_log_owner = ProtocolRevisionLogModule(
-        wiring_level=config.level_for(
-            "protocol_revision_log", WiringLevel.SHADOW
-        ),
+        wiring_level=config.level_for("protocol_revision_log", WiringLevel.SHADOW),
         registry=protocol_registry_owner.registry,
     )
     # Packet 9.0: closes the PE→learning loop. Consumes
@@ -2208,9 +2082,7 @@ def build_final_runtime_modules(
     # auto-applies AUTO_APPROVED ones via the registry. SHADOW
     # default — production opts in.
     protocol_revision_queue_owner = ProtocolRevisionQueueModule(
-        wiring_level=config.level_for(
-            "protocol_revision_queue", WiringLevel.SHADOW
-        ),
+        wiring_level=config.level_for("protocol_revision_queue", WiringLevel.SHADOW),
         registry_module=protocol_registry_owner,
     )
     _runtime_modules = [
@@ -2235,9 +2107,7 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("multi_party_identity", WiringLevel.SHADOW),
         ),
         MemoryModule(
-            store=memory_store or build_default_memory_store(
-                cms_torch_backend=config.cms_torch_backend
-            ),
+            store=memory_store or build_default_memory_store(cms_torch_backend=config.cms_torch_backend),
             wiring_level=config.level_for("memory", WiringLevel.SHADOW),
             user_text=user_input,
             learning_enabled=learning_enabled,
@@ -2308,22 +2178,14 @@ def build_final_runtime_modules(
             level_for=config.level_for,
         ),
         PersonalConditioningModule(
-            wiring_level=config.level_for(
-                "personal_conditioning", WiringLevel.SHADOW
-            ),
+            wiring_level=config.level_for("personal_conditioning", WiringLevel.SHADOW),
             credit_feedback_state=personal_conditioning_credit_state,
-            credit_feedback_level=config.level_for(
-                "conditioning_credit_feedback", WiringLevel.SHADOW
-            ),
+            credit_feedback_level=config.level_for("conditioning_credit_feedback", WiringLevel.SHADOW),
         ),
         RelationshipConditioningModule(
-            wiring_level=config.level_for(
-                "relationship_conditioning", WiringLevel.SHADOW
-            ),
+            wiring_level=config.level_for("relationship_conditioning", WiringLevel.SHADOW),
             credit_feedback_state=relationship_conditioning_credit_state,
-            credit_feedback_level=config.level_for(
-                "conditioning_credit_feedback", WiringLevel.SHADOW
-            ),
+            credit_feedback_level=config.level_for("conditioning_credit_feedback", WiringLevel.SHADOW),
         ),
         TrackTemporalModule(
             track=Track.WORLD,
@@ -2346,9 +2208,7 @@ def build_final_runtime_modules(
             gate_learner=dual_track_gate_learner,
         ),
         ApprenticeshipAlignmentModule(
-            wiring_level=config.level_for(
-                "apprenticeship_alignment", WiringLevel.SHADOW
-            ),
+            wiring_level=config.level_for("apprenticeship_alignment", WiringLevel.SHADOW),
             user_input=user_input,
             turn_index=turn_index,
             apprenticeship=apprenticeship_turn,
@@ -2388,15 +2248,12 @@ def build_final_runtime_modules(
         CaseMemoryModule(
             user_input=(
                 user_input
-                if semantic_embedding_backend_status()
-                == ("backend", "Qwen/Qwen2.5-1.5B-Instruct", False)
+                if semantic_embedding_backend_status() == ("backend", "Qwen/Qwen2.5-1.5B-Instruct", False)
                 else None
             ),
             rare_heavy_state=application_rare_heavy_state,
             store=case_memory_store,
-            action_applicability_evaluator=(
-                action_applicability_evaluator
-            ),
+            action_applicability_evaluator=(action_applicability_evaluator),
             wiring_level=config.level_for("case_memory", WiringLevel.SHADOW),
         ),
         StrategyPlaybookModule(
@@ -2404,9 +2261,7 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("strategy_playbook", WiringLevel.SHADOW),
         ),
         ApprenticeshipProtocolAlignmentModule(
-            wiring_level=config.level_for(
-                "apprenticeship_protocol_alignment", WiringLevel.SHADOW
-            ),
+            wiring_level=config.level_for("apprenticeship_protocol_alignment", WiringLevel.SHADOW),
         ),
         BoundaryPolicyModule(
             rare_heavy_state=application_rare_heavy_state,
@@ -2437,9 +2292,7 @@ def build_final_runtime_modules(
             generation_id=wave_id,
         ),
         CrossGenerationAggregatorModule(
-            wiring_level=config.level_for(
-                "evaluation_cross_generation", WiringLevel.DISABLED
-            ),
+            wiring_level=config.level_for("evaluation_cross_generation", WiringLevel.DISABLED),
         ),
         AuditModule(
             wiring_level=config.level_for("audit", WiringLevel.SHADOW),
@@ -2452,18 +2305,18 @@ def build_final_runtime_modules(
             wiring_level=config.level_for("reflection", WiringLevel.SHADOW),
         ),
         ProtocolReflectionEngine(
-            wiring_level=config.level_for(
-                "protocol_reflection", WiringLevel.SHADOW
-            ),
+            wiring_level=config.level_for("protocol_reflection", WiringLevel.SHADOW),
         ),
         TrackTemporalConsolidationModule(
             track=Track.WORLD,
             policy=resolved_world_temporal_policy,
+            prediction_error_learning_enabled=(prediction_error_temporal_learning_enabled),
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
         ),
         TrackTemporalConsolidationModule(
             track=Track.SELF,
             policy=resolved_self_temporal_policy,
+            prediction_error_learning_enabled=(prediction_error_temporal_learning_enabled),
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
         ),
         rupture_state_owner,
@@ -2490,22 +2343,12 @@ def _reposition_open_loop_after_apprenticeship(modules: list) -> list:
     and ``response_assembly`` (runs last) — so moving ``open_loop`` later is
     safe. No-op when the graph is already ordered or either owner is absent.
     """
-    open_loop_index = next(
-        (i for i, m in enumerate(modules) if m.slot_name == "open_loop"), None
-    )
+    open_loop_index = next((i for i, m in enumerate(modules) if m.slot_name == "open_loop"), None)
     appr_index = next(
-        (
-            i
-            for i, m in enumerate(modules)
-            if m.slot_name == "apprenticeship_alignment"
-        ),
+        (i for i, m in enumerate(modules) if m.slot_name == "apprenticeship_alignment"),
         None,
     )
-    if (
-        open_loop_index is None
-        or appr_index is None
-        or open_loop_index > appr_index
-    ):
+    if open_loop_index is None or appr_index is None or open_loop_index > appr_index:
         return modules
     open_loop_module = modules.pop(open_loop_index)
     # After popping the earlier open_loop, apprenticeship shifted left by
@@ -2549,6 +2392,7 @@ async def run_final_wiring_turn(
     social_record_store: SocialRecordStore | None = None,
     reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
     learning_enabled: bool = True,
+    prediction_error_temporal_learning_enabled: bool = True,
     personal_conditioning_credit_state: BankCreditFeedbackState | None = None,
     relationship_conditioning_credit_state: BankCreditFeedbackState | None = None,
     user_scope: str = "anonymous",
@@ -2586,9 +2430,7 @@ async def run_final_wiring_turn(
                 previous_snapshot.value,
                 TemporalAbstractionSnapshot,
             ):
-                raise TypeError(
-                    f"{slot_name} must publish TemporalAbstractionSnapshot."
-                )
+                raise TypeError(f"{slot_name} must publish TemporalAbstractionSnapshot.")
             previous_track_temporal[slot_name] = previous_snapshot.value
     prediction_action_context = _prediction_action_context_from_upstream(
         upstream_snapshots=upstream_snapshots,
@@ -2617,12 +2459,8 @@ async def run_final_wiring_turn(
         temporal_policy=temporal_policy,
         world_temporal_policy=world_temporal_policy,
         self_temporal_policy=self_temporal_policy,
-        previous_world_temporal_snapshot=previous_track_temporal.get(
-            "world_temporal"
-        ),
-        previous_self_temporal_snapshot=previous_track_temporal.get(
-            "self_temporal"
-        ),
+        previous_world_temporal_snapshot=previous_track_temporal.get("world_temporal"),
+        previous_self_temporal_snapshot=previous_track_temporal.get("self_temporal"),
         prediction_module=prediction_module,
         regime_module=regime_module,
         credit_module=credit_module,
@@ -2655,6 +2493,7 @@ async def run_final_wiring_turn(
         social_record_store=social_record_store,
         reflection_consolidation_learner=reflection_consolidation_learner,
         learning_enabled=learning_enabled,
+        prediction_error_temporal_learning_enabled=(prediction_error_temporal_learning_enabled),
         personal_conditioning_credit_state=personal_conditioning_credit_state,
         relationship_conditioning_credit_state=relationship_conditioning_credit_state,
     )
@@ -2671,9 +2510,7 @@ async def run_final_wiring_turn(
     # dependency would cycle via ``retrieval_policy → world_temporal``.
     if config.protocol_temporal_prior is not WiringLevel.DISABLED and upstream_snapshots:
         _prev_active_mixture = upstream_snapshots.get("active_mixture")
-        _prev_active_mixture_value = (
-            _prev_active_mixture.value if _prev_active_mixture is not None else None
-        )
+        _prev_active_mixture_value = _prev_active_mixture.value if _prev_active_mixture is not None else None
         for module in modules:
             if isinstance(module, _TEMPORAL_PRIOR_CARRYOVER_TYPES):
                 module.observe_active_mixture_carryover(_prev_active_mixture_value)
@@ -2718,11 +2555,7 @@ async def run_final_wiring_turn(
     evaluation_module = next((module for module in modules if isinstance(module, EvaluationModule)), None)
     credit_module = next((module for module in modules if isinstance(module, CreditModule)), None)
     regime_module = next((module for module in modules if isinstance(module, RegimeModule)), None)
-    temporal_modules = tuple(
-        module
-        for module in modules
-        if isinstance(module, TrackTemporalModule)
-    )
+    temporal_modules = tuple(module for module in modules if isinstance(module, TrackTemporalModule))
     reflection_snapshot = active_snapshots.get("reflection")
     if reflection_snapshot is None:
         reflection_snapshot = shadow_snapshots.get("reflection")
@@ -2808,9 +2641,7 @@ async def run_final_wiring_turn(
             metacontroller_state=temporal_runtime_state_for_evaluation,
         )
         joint_kernel_scores = (
-            joint_loop_result.kernel_scores
-            if isinstance(joint_loop_result, ScheduledJointLoopResult)
-            else ()
+            joint_loop_result.kernel_scores if isinstance(joint_loop_result, ScheduledJointLoopResult) else ()
         )
         if joint_kernel_scores:
             enriched_evaluation = evaluation_module.backbone.record_external_scores(
@@ -2851,14 +2682,19 @@ async def run_final_wiring_turn(
             wave_id=wave_id,
             timestamp_ms=evaluation_snapshot.timestamp_ms + 5,
             base_snapshot=enriched_evaluation,
-            memory_snapshot=active_snapshots.get("memory").value if active_snapshots.get("memory") is not None else None,
+            memory_snapshot=active_snapshots.get("memory").value
+            if active_snapshots.get("memory") is not None
+            else None,
             reflection_snapshot=reflection_snapshot.value if reflection_snapshot is not None else None,
             writeback_result=writeback_result,
             joint_loop_result=joint_loop_result,
-            regime_snapshot=active_snapshots.get("regime").value if active_snapshots.get("regime") is not None else None,
+            regime_snapshot=active_snapshots.get("regime").value
+            if active_snapshots.get("regime") is not None
+            else None,
             domain_knowledge_snapshot=(
                 domain_knowledge_snapshot.value
-                if domain_knowledge_snapshot is not None and isinstance(domain_knowledge_snapshot.value, DomainKnowledgeSnapshot)
+                if domain_knowledge_snapshot is not None
+                and isinstance(domain_knowledge_snapshot.value, DomainKnowledgeSnapshot)
                 else None
             ),
             case_memory_snapshot=(
@@ -2880,12 +2716,14 @@ async def run_final_wiring_turn(
             ),
             boundary_policy_snapshot=(
                 boundary_policy_snapshot.value
-                if boundary_policy_snapshot is not None and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot)
+                if boundary_policy_snapshot is not None
+                and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot)
                 else None
             ),
             response_assembly_snapshot=(
                 response_assembly_snapshot.value
-                if response_assembly_snapshot is not None and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
+                if response_assembly_snapshot is not None
+                and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
                 else None
             ),
             semantic_state_snapshots=semantic_state_values,
@@ -2965,9 +2803,7 @@ async def run_final_wiring_turn(
             )
             cross_session_verdict = cross_session_report.verdict
         cycle_report = (
-            joint_loop_result.cycle_report
-            if isinstance(joint_loop_result, ScheduledJointLoopResult)
-            else None
+            joint_loop_result.cycle_report if isinstance(joint_loop_result, ScheduledJointLoopResult) else None
         )
         evolution_judgement = cycle_report.evolution_judgement if cycle_report is not None else None
         if evolution_judgement is None:
@@ -2987,9 +2823,7 @@ async def run_final_wiring_turn(
             reflection_accuracy=reflection_accuracy,
             longitudinal_verdict=cross_session_verdict,
         )
-        active_snapshots["evaluation"] = _validated_evaluation_snapshot(
-            evaluation_module.publish(enriched_evaluation)
-        )
+        active_snapshots["evaluation"] = _validated_evaluation_snapshot(evaluation_module.publish(enriched_evaluation))
         reflection_promote, reflection_promote_reason = reflection_promotion_eligible(
             evaluation_snapshot=enriched_evaluation,
             reflection_engine=reflection_module.engine if reflection_module is not None else None,
@@ -3011,9 +2845,7 @@ async def run_final_wiring_turn(
                 )
             )
             regime_snapshot_value_for_credit = (
-                active_snapshots.get("regime").value
-                if active_snapshots.get("regime") is not None
-                else None
+                active_snapshots.get("regime").value if active_snapshots.get("regime") is not None else None
             )
             delayed_credits = derive_delayed_attribution_credit_records(
                 regime_snapshot=regime_snapshot_value_for_credit,
@@ -3056,9 +2888,9 @@ async def run_final_wiring_turn(
                 regime_snapshot=regime_snapshot_value_for_credit,
                 timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 6,
             )
-            social_prediction_error_snapshot = active_snapshots.get(
+            social_prediction_error_snapshot = active_snapshots.get("social_prediction_error") or shadow_snapshots.get(
                 "social_prediction_error"
-            ) or shadow_snapshots.get("social_prediction_error")
+            )
             if (
                 social_prediction_error_snapshot is not None
                 and isinstance(
@@ -3067,12 +2899,9 @@ async def run_final_wiring_turn(
                 )
                 and social_prediction_error_snapshot.value.errors
             ):
-                extra_credits = (
-                    extra_credits
-                    + derive_social_prediction_error_credit_records(
-                        social_errors=social_prediction_error_snapshot.value.errors,
-                        timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 4,
-                    )
+                extra_credits = extra_credits + derive_social_prediction_error_credit_records(
+                    social_errors=social_prediction_error_snapshot.value.errors,
+                    timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 4,
                 )
             if extra_credits:
                 credit_module.ledger.record_credits(extra_credits)
@@ -3094,22 +2923,16 @@ async def run_final_wiring_turn(
     # The single legal rupture_repair write path remains
     # ``ReflectionEngine.apply`` -> ``memory_store`` (see
     # docs/specs/rupture-and-repair.md).
-    if (
-        reflection_snapshot is not None
-        and isinstance(reflection_snapshot.value, ReflectionSnapshot)
-    ):
+    if reflection_snapshot is not None and isinstance(reflection_snapshot.value, ReflectionSnapshot):
         rupture_active = active_snapshots.get("rupture_state")
         rupture_shadow = shadow_snapshots.get("rupture_state")
         rupture_carrier = rupture_active or rupture_shadow
         rupture_value = (
             rupture_carrier.value
-            if rupture_carrier is not None
-            and isinstance(rupture_carrier.value, RuptureStateSnapshot)
+            if rupture_carrier is not None and isinstance(rupture_carrier.value, RuptureStateSnapshot)
             else None
         )
-        external_outcome_snapshot_for_reflection = active_snapshots.get(
-            "dialogue_external_outcome"
-        )
+        external_outcome_snapshot_for_reflection = active_snapshots.get("dialogue_external_outcome")
         external_outcome_value = (
             external_outcome_snapshot_for_reflection.value
             if external_outcome_snapshot_for_reflection is not None
@@ -3119,9 +2942,7 @@ async def run_final_wiring_turn(
             )
             else None
         )
-        regime_snapshot_for_reflection = active_snapshots.get(
-            "regime"
-        ) or shadow_snapshots.get("regime")
+        regime_snapshot_for_reflection = active_snapshots.get("regime") or shadow_snapshots.get("regime")
         regime_value_for_reflection = (
             regime_snapshot_for_reflection.value
             if regime_snapshot_for_reflection is not None
@@ -3157,11 +2978,7 @@ async def run_final_wiring_turn(
         semantic_state_values=semantic_state_values,
         evaluation_snapshot=active_snapshots.get("evaluation"),
     )
-    if (
-        apply_slow_writeback
-        and session_post_writeback_request is not None
-        and memory_store is not None
-    ):
+    if apply_slow_writeback and session_post_writeback_request is not None and memory_store is not None:
         writeback_result, temporal_audits = apply_session_post_writeback_request(
             request=session_post_writeback_request,
             memory_store=memory_store,
@@ -3183,9 +3000,7 @@ async def run_final_wiring_turn(
     ):
         writeback_result = None
     if credit_module is not None:
-        active_snapshots["credit"] = _validated_credit_snapshot(
-            credit_module.publish(credit_module.ledger.snapshot())
-        )
+        active_snapshots["credit"] = _validated_credit_snapshot(credit_module.publish(credit_module.ledger.snapshot()))
     active_snapshots = _prune_disabled_stub_snapshots(active_snapshots)
     acceptance_report = build_acceptance_report(
         config=config,
@@ -3206,8 +3021,7 @@ async def run_final_wiring_turn(
             ("self", "self_temporal"),
         )
         for snapshot in (active_snapshots.get(slot_name),)
-        if snapshot is not None
-        and isinstance(snapshot.value, TemporalAbstractionSnapshot)
+        if snapshot is not None and isinstance(snapshot.value, TemporalAbstractionSnapshot)
     )
     temporal_runtime_state = None
     if len(track_runtime_states) == 2:
@@ -3345,16 +3159,11 @@ def build_acceptance_report(
     ):
         evaluation_value = active_snapshots["evaluation"].value
         if isinstance(evaluation_value, EvaluationSnapshot):
-            metric_values = {
-                score.metric_name: score.value
-                for score in evaluation_value.turn_scores
-            }
+            metric_values = {score.metric_name: score.value for score in evaluation_value.turn_scores}
             if "semantic_spine_coverage" not in metric_values:
                 issues.append("Evaluation did not publish semantic_spine_coverage for the active semantic spine.")
             elif metric_values["semantic_spine_coverage"] < 1.0:
-                issues.append(
-                    "Semantic spine coverage is below 1.0 while all core semantic owners are ACTIVE."
-                )
+                issues.append("Semantic spine coverage is below 1.0 while all core semantic owners are ACTIVE.")
             if "cognitive_loop_readiness" not in metric_values:
                 issues.append("Evaluation did not publish cognitive_loop_readiness for the active semantic spine.")
 
@@ -3362,7 +3171,11 @@ def build_acceptance_report(
     if violation_count:
         issues.append(f"Observed {violation_count} contract violation events during final wiring.")
 
-    if resolved_level("reflection") is WiringLevel.SHADOW and "reflection" not in shadow_slots and "reflection" not in active_slots:
+    if (
+        resolved_level("reflection") is WiringLevel.SHADOW
+        and "reflection" not in shadow_slots
+        and "reflection" not in active_slots
+    ):
         issues.append("Reflection wiring configured but no reflection snapshot was produced.")
     if resolved_level("reflection") is WiringLevel.ACTIVE and "reflection" not in active_slots:
         issues.append("Reflection is configured ACTIVE but did not publish into the active chain.")
@@ -3439,11 +3252,23 @@ def build_acceptance_report(
     if resolved_level("response_assembly") is WiringLevel.ACTIVE and "response_assembly" not in active_slots:
         issues.append("Response assembly is configured ACTIVE but did not publish into the active chain.")
 
-    if resolved_level("temporal") is WiringLevel.SHADOW and "temporal_abstraction" not in shadow_slots and "temporal_abstraction" not in active_slots:
+    if (
+        resolved_level("temporal") is WiringLevel.SHADOW
+        and "temporal_abstraction" not in shadow_slots
+        and "temporal_abstraction" not in active_slots
+    ):
         issues.append("Temporal wiring configured but no temporal snapshot was produced.")
-    if resolved_level("temporal") is WiringLevel.SHADOW and "world_temporal" not in shadow_slots and "world_temporal" not in active_slots:
+    if (
+        resolved_level("temporal") is WiringLevel.SHADOW
+        and "world_temporal" not in shadow_slots
+        and "world_temporal" not in active_slots
+    ):
         issues.append("World temporal wiring configured but no world_temporal snapshot was produced.")
-    if resolved_level("temporal") is WiringLevel.SHADOW and "self_temporal" not in shadow_slots and "self_temporal" not in active_slots:
+    if (
+        resolved_level("temporal") is WiringLevel.SHADOW
+        and "self_temporal" not in shadow_slots
+        and "self_temporal" not in active_slots
+    ):
         issues.append("Self temporal wiring configured but no self_temporal snapshot was produced.")
     if resolved_level("temporal") is WiringLevel.ACTIVE and "temporal_abstraction" not in active_slots:
         issues.append("Temporal is configured ACTIVE but did not publish into the active chain.")
@@ -3473,11 +3298,10 @@ def build_acceptance_report(
     if config.is_active("boundary_policy"):
         recommendations.append("Validate boundary policy triggers against rollout evidence before widening scope.")
     if config.is_active("response_assembly"):
-        recommendations.append("Keep response assembly as the single public expression-control surface, not a second prompt owner.")
-    if (
-        config.is_active("evaluation")
-        and all(config.is_active(slot) for slot in core_semantic_spine_slots)
-    ):
+        recommendations.append(
+            "Keep response assembly as the single public expression-control surface, not a second prompt owner."
+        )
+    if config.is_active("evaluation") and all(config.is_active(slot) for slot in core_semantic_spine_slots):
         recommendations.append("Use cognitive_loop_readiness as the gate before widening beyond the semantic spine.")
     if not recommendations:
         recommendations.append("Core chain is wired; next step is controlled widening via rollout evidence.")

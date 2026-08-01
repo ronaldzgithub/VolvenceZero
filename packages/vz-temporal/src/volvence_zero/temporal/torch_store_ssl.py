@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, Protocol, Sequence
 
 from volvence_zero.substrate import TrainingTrace
 from volvence_zero.temporal.metacontroller_components import (
@@ -52,6 +52,34 @@ def _require_torch() -> Any:
             "Torch store SSL requires torch. Install the vz-temporal '[torch]' extra."
         ) from exc
     return torch
+
+
+class SteeredActionNLLScorer(Protocol):
+    """Substrate-owned differentiable action likelihood through the frozen model.
+
+    ETA Eq.3 distortion contract: the scorer injects per-step control deltas
+    into the (frozen) base model's residual stream and returns the
+    differentiable NLL of the expert action per step, so the metacontroller
+    is trained *through* the controlled model instead of regressing the
+    action vector directly. Implemented by
+    ``volvence_zero.substrate.TransformersSteeredActionScorer``; wired by the
+    orchestration layer (vz-runtime), never constructed here.
+    """
+
+    @property
+    def hidden_size(self) -> int: ...
+
+    def action_index(self, action_id: str) -> int: ...
+
+    def action_nll(
+        self,
+        *,
+        source_texts: tuple[str, ...],
+        control_deltas: Any,
+        action_indices: tuple[int, ...],
+    ) -> Any: ...
+
+    def trainable_parameters(self) -> tuple[Any, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -97,6 +125,32 @@ class StoreSSLReport:
     candidate_encoder_parameters: NdimEncoderParameters | None = None
     candidate_switch_parameters: NdimSwitchParameters | None = None
     candidate_decoder_parameters: NdimDecoderParameters | None = None
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class StoreSSLEvaluationReport:
+    """No-grad readout of the SSL objective on held-out traces.
+
+    ``kl_rate`` is the mean per-dimension posterior KL (the rate axis of the
+    ETA rate-distortion criterion); ``distortion`` is the mean prediction
+    loss under the session's supervision mode (action NLL in steered mode).
+    """
+
+    batch_id: str
+    trace_count: int
+    step_count: int
+    distortion: float
+    kl_rate: float
+    mean_switch_probability: float
+    hard_switch_frequency: float
+    boundary_precision: float
+    boundary_recall: float
+    boundary_f1: float
+    boundary_switch_probability: float
+    continuation_switch_probability: float
+    switch_threshold: float
+    supervision_target: str
     description: str = ""
 
 
@@ -196,15 +250,40 @@ class _TorchNdimMetacontroller:
             + (bounded_control - raw_control).detach()
         )
 
-    def rollout(self, step_inputs: Sequence[tuple[float, ...]], *, switch_threshold: float):
-        """Run the training forward with one hard segment gate per step.
+    def rollout(
+        self,
+        step_inputs: Sequence[tuple[float, ...]],
+        *,
+        switch_threshold: float,
+        generator: Any | None = None,
+        gate_mode: str = "hard-st",
+    ):
+        """Run the training forward with one segment gate per step.
 
         The switch network still emits an ndim proposal so its stored shape
         remains runtime-compatible. Its mean is the scalar segment hazard.
-        A straight-through hard gate is used for the latent transition; the
-        group loss keeps per-dimension proposals coherent with that hazard.
+
+        ``generator``: when provided, ``z_tilde`` is a genuine
+        reparameterized sample ``mu + sigma * eps`` with seeded Gaussian
+        noise, so ``alpha * KL`` acts as a real information-rate constraint
+        (ETA Eq.3). When ``None`` (evaluation), the posterior mean is used —
+        the standard deterministic readout the runtime consumes.
+
+        ``gate_mode``:
+
+        - ``"hard-st"`` (legacy / control arm): hard straight-through gate on
+          the latent transition.
+        - ``"continuous"`` (Eq.3 SSL relaxation, paper §E.1): the scalar
+          switch probability itself interpolates ``z_tilde`` with the
+          previous code; hard switches are threshold telemetry only and do
+          not enter the transition.
         """
 
+        if gate_mode not in ("hard-st", "continuous"):
+            raise ValueError(
+                f"Unsupported gate_mode {gate_mode!r}; expected 'hard-st' or "
+                "'continuous'."
+            )
         torch = self._torch
         h = torch.zeros(self.n_z, dtype=self._dtype)
         prev_code = torch.zeros(self.n_z, dtype=self._dtype)
@@ -240,8 +319,15 @@ class _TorchNdimMetacontroller:
             posterior_std = torch.clamp(
                 torch.abs(torch.matmul(self.posterior_std_proj, h)), 0.05, 0.95
             )
-            sample_noise = torch.clamp(avg_hidden - 0.5 * posterior_mean, -1.0, 1.0)
-            z_tilde = torch.clamp(posterior_mean + 0.5 * posterior_std * sample_noise, 0.0, 1.0)
+            if generator is None:
+                z_tilde = posterior_mean
+            else:
+                sample_noise = torch.randn(
+                    self.n_z, generator=generator, dtype=self._dtype
+                )
+                z_tilde = torch.clamp(
+                    posterior_mean + posterior_std * sample_noise, 0.0, 1.0
+                )
             # switch gate: the pure ndim code uses ``gate_input = delta + z_tilde``
             # as tuple CONCATENATION (2*n_z dims), matching the n_z*2-column W1.
             gate_input = torch.cat([z_tilde - prev_code, z_tilde])
@@ -254,17 +340,30 @@ class _TorchNdimMetacontroller:
                 if count == 1
                 else (switch_probability >= switch_threshold).to(self._dtype)
             )
-            straight_through_gate = (
-                hard_switch.detach()
-                - switch_probability.detach()
-                + switch_probability
-            )
-            latent_code = torch.clamp(
-                straight_through_gate * z_tilde
-                + (1.0 - straight_through_gate) * prev_code,
-                0.0,
-                1.0,
-            )
+            if gate_mode == "continuous":
+                effective_gate = (
+                    torch.ones((), dtype=self._dtype)
+                    if count == 1
+                    else switch_probability
+                )
+                latent_code = torch.clamp(
+                    effective_gate * z_tilde
+                    + (1.0 - effective_gate) * prev_code,
+                    0.0,
+                    1.0,
+                )
+            else:
+                straight_through_gate = (
+                    hard_switch.detach()
+                    - switch_probability.detach()
+                    + switch_probability
+                )
+                latent_code = torch.clamp(
+                    straight_through_gate * z_tilde
+                    + (1.0 - straight_through_gate) * prev_code,
+                    0.0,
+                    1.0,
+                )
             applied_control = self._decode(latent_code)
             controls.append(applied_control)
             keep_controls.append(self._decode(prev_code))
@@ -334,14 +433,23 @@ class StoreSSLTrainingSession:
         alpha: float = 0.1,
         learning_rate: float = 0.02,
         switch_prior: float = 0.10,
-        switch_rate_weight: float = 0.05,
-        switch_binary_weight: float = 0.01,
-        switch_group_weight: float = 0.01,
+        # Rate-distortion packet (2026-08): the switch regularizers and the
+        # manufactured gate supervision are OFF by default. They were
+        # stability patches for the never-switch collapse, but the ETA paper
+        # treats that collapse as a diagnostic readout; suppressing the
+        # symptom destroys the diagnosis. Non-zero values remain supported as
+        # the explicit legacy/control arm.
+        switch_rate_weight: float = 0.0,
+        switch_binary_weight: float = 0.0,
+        switch_group_weight: float = 0.0,
         proposal_prediction_weight: float = 0.50,
-        gate_choice_weight: float = 1.0,
+        gate_choice_weight: float = 0.0,
         gate_choice_temperature: float = 0.02,
         prediction_horizon: int = 3,
         distortion_target: str = "innovation",
+        action_scorer: SteeredActionNLLScorer | None = None,
+        reparam_seed: int = 20260801,
+        substrate_learning_rate: float = 1e-4,
     ) -> None:
         if n_z <= 3:
             raise RuntimeError(
@@ -370,6 +478,25 @@ class StoreSSLTrainingSession:
             raise ValueError(
                 "distortion_target must be 'absolute' or 'innovation'."
             )
+        if action_scorer is not None and any(
+            value != 0.0
+            for value in (
+                switch_rate_weight,
+                switch_binary_weight,
+                switch_group_weight,
+                proposal_prediction_weight,
+                gate_choice_weight,
+            )
+        ):
+            # Eq.3 has exactly two loss terms: action NLL + alpha * KL. The
+            # steered-action mode exists to test emergence; direct switch
+            # supervision would contaminate the instrument.
+            raise ValueError(
+                "Steered-action SSL (ETA Eq.3) forbids switch regularizers "
+                "and gate/proposal supervision; set switch_rate_weight, "
+                "switch_binary_weight, switch_group_weight, "
+                "proposal_prediction_weight and gate_choice_weight to 0."
+            )
         self._n_z = n_z
         self._alpha = alpha
         self._learning_rate = learning_rate
@@ -382,7 +509,16 @@ class StoreSSLTrainingSession:
         self._gate_choice_temperature = gate_choice_temperature
         self._prediction_horizon = prediction_horizon
         self._distortion_target = distortion_target
+        self._action_scorer = action_scorer
+        self._reparam_seed = reparam_seed
+        if substrate_learning_rate <= 0.0:
+            raise ValueError("substrate_learning_rate must be positive.")
+        self._substrate_learning_rate = substrate_learning_rate
+        self._generator: Any = None
+        self._steer_W: Any = None
+        self._steer_b: Any = None
         self._module: _TorchNdimMetacontroller | None = None
+        self._optimizer_parameters: tuple[Any, ...] = ()
         self._optimizer: Any = None
         self._store_identity: int | None = None
         self._optimizer_step = 0
@@ -395,6 +531,10 @@ class StoreSSLTrainingSession:
     @property
     def optimizer_step(self) -> int:
         return self._optimizer_step
+
+    @property
+    def steered_action_mode(self) -> bool:
+        return self._action_scorer is not None
 
     def _ensure_initialized(self, *, store: Any) -> None:
         if (
@@ -419,11 +559,55 @@ class StoreSSLTrainingSession:
             switch=store.ndim_switch_parameters,
             decoder=store.ndim_decoder_parameters,
         )
-        self._optimizer = torch.optim.Adam(
-            self._module.parameters(),
-            lr=self._learning_rate,
+        self._generator = torch.Generator()
+        self._generator.manual_seed(self._reparam_seed)
+        optimizer_parameters = list(self._module.parameters())
+        if self._action_scorer is not None:
+            hidden_size = int(self._action_scorer.hidden_size)
+            # Steering expansion head (part of the controller phi): maps the
+            # bounded n_z control to a residual-stream-width delta. Small
+            # non-zero init so gradient reaches the controller from step one.
+            self._steer_W = (
+                0.05
+                * torch.randn(
+                    (hidden_size, self._n_z),
+                    generator=self._generator,
+                    dtype=torch.float64,
+                )
+            ).requires_grad_(True)
+            self._steer_b = torch.zeros(
+                hidden_size, dtype=torch.float64, requires_grad=True
+            )
+            optimizer_parameters.append(self._steer_W)
+            optimizer_parameters.append(self._steer_b)
+        substrate_parameters = (
+            list(self._action_scorer.trainable_parameters())
+            if self._action_scorer is not None
+            else []
+        )
+        parameter_groups = [
+            {"params": optimizer_parameters, "lr": self._learning_rate}
+        ]
+        if substrate_parameters:
+            # Joint (non-frozen) validity-control arm: the substrate's upper
+            # blocks co-adapt at a conventional fine-tuning rate, not the
+            # controller rate.
+            parameter_groups.append(
+                {
+                    "params": substrate_parameters,
+                    "lr": self._substrate_learning_rate,
+                }
+            )
+        self._optimizer = torch.optim.Adam(parameter_groups)
+        self._optimizer_parameters = tuple(
+            optimizer_parameters + substrate_parameters
         )
         self._store_identity = id(store)
+
+    def _all_parameters(self) -> tuple[Any, ...]:
+        if self._module is None:
+            raise RuntimeError("Store SSL module is not initialized.")
+        return self._optimizer_parameters
 
     def _assert_active_store_not_mutated(self, *, store: Any) -> None:
         if self._last_written_parameters is None:
@@ -454,12 +638,19 @@ class StoreSSLTrainingSession:
         *,
         trace: TrainingTrace,
         switch_threshold: float,
+        use_sampling: bool = False,
     ) -> dict[str, Any]:
         if self._module is None:
             raise RuntimeError("Store SSL module is not initialized.")
         if len(trace.steps) < 2:
             raise ValueError(
                 f"Store SSL trace {trace.trace_id!r} must contain at least two steps."
+            )
+        if self._action_scorer is not None:
+            return self._trace_objective_steered(
+                trace=trace,
+                switch_threshold=switch_threshold,
+                use_sampling=use_sampling,
             )
         torch = _require_torch()
         inputs = _step_input_vectors(trace, self._module.n_input)
@@ -571,6 +762,8 @@ class StoreSSLTrainingSession:
         out = self._module.rollout(
             rollout_inputs,
             switch_threshold=switch_threshold,
+            generator=self._generator if use_sampling else None,
+            gate_mode="hard-st",
         )
 
         def distortion(control: Any, target: Any) -> Any:
@@ -760,6 +953,280 @@ class StoreSSLTrainingSession:
             ),
         }
 
+    def _trace_objective_steered(
+        self,
+        *,
+        trace: TrainingTrace,
+        switch_threshold: float,
+        use_sampling: bool,
+    ) -> dict[str, Any]:
+        """ETA Eq.3 objective: distortion is the expert-action NLL through
+        the steered frozen model, so the target dimension is the action
+        space (decoupled from n_z) and gradient reaches the controller only
+        via the controlled substrate forward."""
+
+        torch = _require_torch()
+        scorer = self._action_scorer
+        if scorer is None or self._module is None:
+            raise RuntimeError(
+                "Steered objective requires an action scorer and an "
+                "initialized module."
+            )
+        if self._steer_W is None or self._steer_b is None:
+            raise RuntimeError(
+                "Steered objective requires the initialized steering head."
+            )
+        action_targets = tuple(
+            step.expert_action_target for step in trace.steps
+        )
+        if any(target is None for target in action_targets):
+            raise ValueError(
+                f"Steered-action SSL trace {trace.trace_id!r} requires an "
+                "ExpertActionTarget on every step."
+            )
+        observation_texts = tuple(
+            step.observation_text for step in trace.steps
+        )
+        if any(not text.strip() for text in observation_texts):
+            raise ValueError(
+                f"Steered-action SSL trace {trace.trace_id!r} requires a "
+                "nonempty observation_text on every step."
+            )
+        inputs = _step_input_vectors(trace, self._module.n_input)
+        out = self._module.rollout(
+            inputs,
+            switch_threshold=switch_threshold,
+            generator=self._generator if use_sampling else None,
+            gate_mode="continuous",
+        )
+        control_stack = torch.stack(out["controls"])
+        deltas = (
+            torch.matmul(control_stack, self._steer_W.transpose(0, 1))
+            + self._steer_b
+        )
+        action_indices = tuple(
+            scorer.action_index(target.action_id)
+            for target in action_targets
+        )
+        nll = scorer.action_nll(
+            source_texts=observation_texts,
+            control_deltas=deltas,
+            action_indices=action_indices,
+        )
+        prediction_terms = list(torch.unbind(nll))
+        kl_terms: list[Any] = []
+        for mean, std in zip(out["means"], out["stds"], strict=True):
+            kl_terms.append(
+                0.5
+                * torch.mean(
+                    mean.pow(2) + std.pow(2) - 1.0 - 2.0 * torch.log(std)
+                )
+            )
+        eligible_probabilities = out["switch_probabilities"][1:]
+        zero = prediction_terms[0].detach() * 0.0
+        # Switch-rate telemetry (never enters the Eq.3 loss; the session
+        # constructor forces all switch weights to zero in this mode).
+        if eligible_probabilities:
+            epsilon = 1e-8
+            prior = torch.tensor(self._switch_prior, dtype=torch.float64)
+            mean_probability = torch.clamp(
+                torch.stack(
+                    [p.detach() for p in eligible_probabilities]
+                ).mean(),
+                epsilon,
+                1.0 - epsilon,
+            )
+            switch_rate_loss = (
+                mean_probability * torch.log(mean_probability / prior)
+                + (1.0 - mean_probability)
+                * torch.log((1.0 - mean_probability) / (1.0 - prior))
+            )
+        else:
+            switch_rate_loss = zero
+        gate_preferences = tuple(
+            torch.zeros((), dtype=torch.float64)
+            for _ in eligible_probabilities
+        )
+        target_values: list[float] = []
+        for target in action_targets:
+            target_values.extend(target.values)
+        return {
+            "prediction_loss": torch.stack(prediction_terms).mean(),
+            "keep_prediction_loss": zero,
+            "switch_prediction_loss": zero,
+            "kl_loss": torch.stack(kl_terms).mean(),
+            "switch_rate_loss": switch_rate_loss,
+            "switch_binary_loss": zero,
+            "switch_group_loss": zero,
+            "gate_choice_loss": zero,
+            "trained_steps": len(prediction_terms),
+            "switch_probabilities": eligible_probabilities,
+            "hard_switches": out["hard_switches"][1:],
+            "gate_preferences": gate_preferences,
+            "supervision_target": "steered-action-nll",
+            "expert_action_supervision": True,
+            "prediction_horizon": 1,
+            "expert_action_switch_labels": tuple(
+                float(
+                    action_targets[index].action_id
+                    != action_targets[index - 1].action_id
+                )
+                for index in range(1, len(action_targets))
+            ),
+            "target_variance": (
+                sum(
+                    (value - sum(target_values) / len(target_values)) ** 2
+                    for value in target_values
+                )
+                / len(target_values)
+                if target_values
+                else 0.0
+            ),
+        }
+
+    def evaluate_batch(
+        self,
+        *,
+        store: Any,
+        traces: tuple[TrainingTrace, ...],
+        batch_id: str,
+        switch_threshold: float = 0.55,
+    ) -> StoreSSLEvaluationReport:
+        """Deterministic no-grad readout of rate/distortion on given traces.
+
+        Uses the posterior mean (no sampling) so the readout is the same
+        deterministic path the runtime would consume. Never mutates the
+        store or the optimizer state.
+        """
+
+        if not traces:
+            raise ValueError("Store SSL evaluation requires at least one trace.")
+        self._ensure_initialized(store=store)
+        torch = _require_torch()
+        with torch.no_grad():
+            objectives = tuple(
+                self._trace_objective(
+                    trace=trace,
+                    switch_threshold=switch_threshold,
+                    use_sampling=False,
+                )
+                for trace in traces
+            )
+        supervision_targets = {
+            str(objective["supervision_target"]) for objective in objectives
+        }
+        if len(supervision_targets) != 1:
+            raise ValueError(
+                "Store SSL evaluation cannot mix supervision modes: "
+                f"{tuple(sorted(supervision_targets))}."
+            )
+        total_steps = sum(
+            int(objective["trained_steps"]) for objective in objectives
+        )
+        distortion = float(
+            sum(
+                float(objective["prediction_loss"])
+                * int(objective["trained_steps"])
+                for objective in objectives
+            )
+            / total_steps
+        )
+        kl_rate = float(
+            sum(
+                float(objective["kl_loss"]) * int(objective["trained_steps"])
+                for objective in objectives
+            )
+            / total_steps
+        )
+        probabilities = tuple(
+            float(probability)
+            for objective in objectives
+            for probability in objective["switch_probabilities"]
+        )
+        hard_switches = tuple(
+            float(hard)
+            for objective in objectives
+            for hard in objective["hard_switches"]
+        )
+        rows = tuple(
+            (
+                float(probability),
+                float(hard),
+                expected,
+            )
+            for objective in objectives
+            if objective["expert_action_switch_labels"]
+            for probability, hard, expected in zip(
+                objective["switch_probabilities"],
+                objective["hard_switches"],
+                objective["expert_action_switch_labels"],
+                strict=True,
+            )
+        )
+        true_positive = sum(
+            1 for _p, predicted, expected in rows
+            if predicted >= 0.5 and expected >= 0.5
+        )
+        predicted_positive = sum(
+            1 for _p, predicted, _e in rows if predicted >= 0.5
+        )
+        expected_positive = sum(
+            1 for _p, _predicted, expected in rows if expected >= 0.5
+        )
+        precision = true_positive / max(predicted_positive, 1)
+        recall = true_positive / max(expected_positive, 1)
+        f1 = (
+            2.0 * precision * recall / (precision + recall)
+            if precision + recall > 0.0
+            else 0.0
+        )
+        boundary_probabilities = tuple(
+            probability for probability, _h, expected in rows
+            if expected >= 0.5
+        )
+        continuation_probabilities = tuple(
+            probability for probability, _h, expected in rows
+            if expected < 0.5
+        )
+        return StoreSSLEvaluationReport(
+            batch_id=batch_id,
+            trace_count=len(traces),
+            step_count=total_steps,
+            distortion=distortion,
+            kl_rate=kl_rate,
+            mean_switch_probability=(
+                sum(probabilities) / len(probabilities)
+                if probabilities
+                else 0.0
+            ),
+            hard_switch_frequency=(
+                sum(hard_switches) / len(hard_switches)
+                if hard_switches
+                else 0.0
+            ),
+            boundary_precision=precision,
+            boundary_recall=recall,
+            boundary_f1=f1,
+            boundary_switch_probability=(
+                sum(boundary_probabilities) / len(boundary_probabilities)
+                if boundary_probabilities
+                else 0.0
+            ),
+            continuation_switch_probability=(
+                sum(continuation_probabilities)
+                / len(continuation_probabilities)
+                if continuation_probabilities
+                else 0.0
+            ),
+            switch_threshold=switch_threshold,
+            supervision_target=next(iter(supervision_targets)),
+            description=(
+                f"store SSL evaluation batch={batch_id} "
+                f"traces={len(traces)} steps={total_steps} "
+                f"distortion={distortion:.4f} kl_rate={kl_rate:.4f}"
+            ),
+        )
+
     def train_batch(
         self,
         *,
@@ -773,6 +1240,14 @@ class StoreSSLTrainingSession:
 
         if not traces:
             raise ValueError("Store SSL batch requires at least one trace.")
+        if write_back and self._action_scorer is not None:
+            # The steering head and any joint-arm substrate parameters have
+            # no representation in the pure ndim store; writing back only the
+            # ndim floats would silently drop half the trained controller.
+            raise RuntimeError(
+                "Steered-action SSL sessions cannot write back to the pure "
+                "ndim parameter store; run with write_back=False."
+            )
         self._ensure_initialized(store=store)
         if write_back:
             self._assert_active_store_not_mutated(store=store)
@@ -781,13 +1256,14 @@ class StoreSSLTrainingSession:
         torch = _require_torch()
         before = [
             parameter.detach().clone()
-            for parameter in self._module.parameters()
+            for parameter in self._all_parameters()
         ]
         self._optimizer.zero_grad()
         objectives = tuple(
             self._trace_objective(
                 trace=trace,
                 switch_threshold=switch_threshold,
+                use_sampling=True,
             )
             for trace in traces
         )
@@ -845,7 +1321,7 @@ class StoreSSLTrainingSession:
         grad_norm = math.sqrt(
             sum(
                 float(parameter.grad.pow(2).sum())
-                for parameter in self._module.parameters()
+                for parameter in self._all_parameters()
                 if parameter.grad is not None
             )
         )
@@ -856,10 +1332,10 @@ class StoreSSLTrainingSession:
         total_params = 0
         for old, current in zip(
             before,
-            self._module.parameters(),
+            self._all_parameters(),
             strict=True,
         ):
-            difference = (current.detach() - old).abs()
+            difference = (current.detach().to(old.device) - old).abs()
             changed += int((difference > 1e-12).sum())
             total_params += int(difference.numel())
 
@@ -888,13 +1364,30 @@ class StoreSSLTrainingSession:
                 fallback=switch_threshold,
             )
         )
-        with torch.no_grad():
-            diagnostic_objectives = tuple(
-                self._trace_objective(
-                    trace=trace,
-                    switch_threshold=calibrated_threshold,
+        if self._action_scorer is None:
+            with torch.no_grad():
+                diagnostic_objectives = tuple(
+                    self._trace_objective(
+                        trace=trace,
+                        switch_threshold=calibrated_threshold,
+                    )
+                    for trace in traces
                 )
-                for trace in traces
+        else:
+            # Steered mode: hard switches are pure threshold telemetry on the
+            # continuous gate, so re-thresholding the post-update pass is
+            # exact and avoids a second full pass through the frozen model.
+            diagnostic_objectives = tuple(
+                {
+                    **objective,
+                    "hard_switches": tuple(
+                        (
+                            probability.detach() >= calibrated_threshold
+                        ).to(torch.float64)
+                        for probability in objective["switch_probabilities"]
+                    ),
+                }
+                for objective in post_update_objectives
             )
         switch_probabilities = tuple(
             float(probability.detach())
@@ -1020,7 +1513,11 @@ class StoreSSLTrainingSession:
             switch_prediction_loss=float(switch_prediction_loss.detach()),
             mean_switch_probability=mean_probability,
             prediction_horizon=effective_prediction_horizon,
-            distortion_target=self._distortion_target,
+            distortion_target=(
+                "steered-action-nll"
+                if self._action_scorer is not None
+                else self._distortion_target
+            ),
             supervision_target=supervision_target,
             expert_action_supervision=expert_action_supervision,
             expert_action_boundary_f1=expert_action_boundary_f1,
@@ -1073,11 +1570,11 @@ def train_store_ssl(
     learning_rate: float = 0.02,
     switch_threshold: float = 0.55,
     switch_prior: float = 0.10,
-    switch_rate_weight: float = 0.05,
-    switch_binary_weight: float = 0.01,
-    switch_group_weight: float = 0.01,
+    switch_rate_weight: float = 0.0,
+    switch_binary_weight: float = 0.0,
+    switch_group_weight: float = 0.0,
     proposal_prediction_weight: float = 0.50,
-    gate_choice_weight: float = 1.0,
+    gate_choice_weight: float = 0.0,
     gate_choice_temperature: float = 0.02,
     prediction_horizon: int = 3,
     distortion_target: str = "innovation",

@@ -139,10 +139,7 @@ class SubstrateSwapError(RuntimeError):
         previous_model_id: str,
         cause: BaseException,
     ) -> None:
-        super().__init__(
-            f"Failed to swap substrate to {target_model_id!r} "
-            f"(previous={previous_model_id!r}): {cause}"
-        )
+        super().__init__(f"Failed to swap substrate to {target_model_id!r} (previous={previous_model_id!r}): {cause}")
         self.target_model_id = target_model_id
         self.previous_model_id = previous_model_id
         self.__cause__ = cause
@@ -187,14 +184,15 @@ class SubstrateRuntimeProvider:
         available: Sequence[SubstrateModelSpec],
         runtime_loader: "Callable[[str], OpenWeightResidualRuntime]",
         swap_supported: bool = True,
+        allow_fixed_mutable_runtime: bool = False,
         on_pre_swap: "Callable[[], int] | None" = None,
         clock: Callable[[], float] | None = None,
     ) -> None:
         if initial_runtime is not None and not initial_model_id:
-            raise ValueError(
-                "initial_runtime supplied without initial_model_id"
-            )
-        if initial_runtime is not None:
+            raise ValueError("initial_runtime supplied without initial_model_id")
+        if allow_fixed_mutable_runtime and swap_supported:
+            raise ValueError("a mutable evidence runtime requires a fixed, non-swappable provider")
+        if initial_runtime is not None and not allow_fixed_mutable_runtime:
             _enforce_frozen_for_sharing(initial_runtime)
         if not available:
             raise ValueError("SubstrateRuntimeProvider needs a non-empty allowlist")
@@ -207,10 +205,7 @@ class SubstrateRuntimeProvider:
             deduped.append(spec)
         self._available: tuple[SubstrateModelSpec, ...] = tuple(deduped)
         if initial_runtime is not None and initial_model_id not in seen:
-            raise ValueError(
-                f"initial_model_id={initial_model_id!r} is not in the "
-                f"allowlist: {sorted(seen)!r}"
-            )
+            raise ValueError(f"initial_model_id={initial_model_id!r} is not in the allowlist: {sorted(seen)!r}")
         self._loader = runtime_loader
         self._swap_supported = swap_supported
         self._on_pre_swap = on_pre_swap
@@ -259,8 +254,7 @@ class SubstrateRuntimeProvider:
         runtime = self._state.current_runtime
         if runtime is None:
             raise RuntimeError(
-                "SubstrateRuntimeProvider has no current runtime — "
-                "call ensure_loaded() or swap() before accessing it."
+                "SubstrateRuntimeProvider has no current runtime — call ensure_loaded() or swap() before accessing it."
             )
         return runtime
 
@@ -268,9 +262,7 @@ class SubstrateRuntimeProvider:
     # Mutation API
     # ------------------------------------------------------------------
 
-    def set_pre_swap_callback(
-        self, callback: "Callable[[], int] | None"
-    ) -> None:
+    def set_pre_swap_callback(self, callback: "Callable[[], int] | None") -> None:
         """Install / replace the pre-swap callback.
 
         Wired by ``create_app`` after :class:`SessionManager` is
@@ -304,8 +296,7 @@ class SubstrateRuntimeProvider:
         """
         if not self._swap_supported:
             raise RuntimeError(
-                "SubstrateRuntimeProvider was constructed with "
-                "swap_supported=False; the runtime is fixed."
+                "SubstrateRuntimeProvider was constructed with swap_supported=False; the runtime is fixed."
             )
         if not isinstance(model_id, str) or not model_id.strip():
             raise ValueError("swap(model_id): model_id must be a non-empty string")
@@ -318,17 +309,12 @@ class SubstrateRuntimeProvider:
 
         async with self._lock:
             previous_model_id = self._state.current_model_id
-            if (
-                target == previous_model_id
-                and self._state.current_runtime is not None
-            ):
+            if target == previous_model_id and self._state.current_runtime is not None:
                 # Idempotent: no-op when the requested model is already loaded.
                 return SubstrateSwapResult(
                     model_id=target,
                     previous_model_id=previous_model_id,
-                    runtime_origin=getattr(
-                        self._state.current_runtime, "runtime_origin", "unknown"
-                    ),
+                    runtime_origin=getattr(self._state.current_runtime, "runtime_origin", "unknown"),
                     closed_session_count=0,
                     duration_seconds=0.0,
                 )
@@ -345,9 +331,7 @@ class SubstrateRuntimeProvider:
                 # active runtime". Operators read last_swap_error
                 # for the previous-model context.
                 self._state.current_model_id = ""
-                self._state.last_swap_error = (
-                    f"load failed for {target!r}: {exc}"
-                )
+                self._state.last_swap_error = f"load failed for {target!r}: {exc}"
                 raise SubstrateSwapError(
                     target_model_id=target,
                     previous_model_id=previous_model_id,
@@ -597,31 +581,21 @@ def build_qwen_runtime_loader(
         package = character_prefix_package
         if package is not None and package.model_id != model_id:
             raise ValueError(
-                "character prefix package is pinned to "
-                f"{package.model_id!r}; refusing runtime swap to {model_id!r}."
+                f"character prefix package is pinned to {package.model_id!r}; refusing runtime swap to {model_id!r}."
             )
-        if (
-            character_prefix_registry is not None
-            and character_prefix_registry.base_model_id != model_id
-        ):
+        if character_prefix_registry is not None and character_prefix_registry.base_model_id != model_id:
             raise ValueError(
                 "character prefix registry is pinned to "
                 f"{character_prefix_registry.base_model_id!r}; refusing "
                 f"runtime swap to {model_id!r}."
             )
-        if (
-            common_adapter_bundle is not None
-            and common_adapter_bundle.base_model_id != model_id
-        ):
+        if common_adapter_bundle is not None and common_adapter_bundle.base_model_id != model_id:
             raise ValueError(
                 "common adapter bundle is pinned to "
                 f"{common_adapter_bundle.base_model_id!r}; refusing runtime "
                 f"swap to {model_id!r}."
             )
-        if (
-            character_residual_package is not None
-            and character_residual_package.model_id != model_id
-        ):
+        if character_residual_package is not None and character_residual_package.model_id != model_id:
             raise ValueError(
                 "character residual adapter is pinned to "
                 f"{character_residual_package.model_id!r}; refusing runtime "
@@ -664,9 +638,7 @@ def build_substrate_provider_from_env(
     custom ``MODEL_ID`` is never locked out.
     """
     allowlist = parse_model_id_allowlist(allowlist_env)
-    full = merge_initial_into_allowlist(
-        initial_model_id=initial_model_id, allowlist=allowlist
-    )
+    full = merge_initial_into_allowlist(initial_model_id=initial_model_id, allowlist=allowlist)
     return SubstrateRuntimeProvider(
         initial_runtime=initial_runtime,
         initial_model_id=initial_model_id,
@@ -678,6 +650,8 @@ def build_substrate_provider_from_env(
 
 def fixed_provider_from_runtime(
     runtime: "OpenWeightResidualRuntime | None",
+    *,
+    allow_mutable_evidence_runtime: bool = False,
 ) -> SubstrateRuntimeProvider | None:
     """Wrap a single pre-built runtime in a non-swappable provider.
 
@@ -710,6 +684,7 @@ def fixed_provider_from_runtime(
         available=(spec,),
         runtime_loader=_refuse,
         swap_supported=False,
+        allow_fixed_mutable_runtime=allow_mutable_evidence_runtime,
     )
 
 

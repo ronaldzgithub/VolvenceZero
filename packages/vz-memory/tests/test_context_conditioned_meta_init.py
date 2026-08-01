@@ -3,6 +3,13 @@ from __future__ import annotations
 import pytest
 
 from volvence_zero.memory import CMSMemoryCore, MemoryStore
+from volvence_zero.memory.store import build_default_memory_store
+from volvence_zero.substrate import (
+    FeatureSignal,
+    ResidualActivation,
+    SubstrateSnapshot,
+    SurfaceKind,
+)
 
 
 def _core(
@@ -68,12 +75,8 @@ def test_conditioned_prototypes_are_stable_and_checkpointed() -> None:
     checkpoint = core.export_state()
     restored = _core(conditioned=True, prototype_count=2)
     restored.restore_state(checkpoint)
-    restored_a = restored.nested_reset_targets(
-        context_signal=context_a
-    )
-    restored_b = restored.nested_reset_targets(
-        context_signal=context_b
-    )
+    restored_a = restored.nested_reset_targets(context_signal=context_a)
+    restored_b = restored.nested_reset_targets(context_signal=context_b)
     assert restored_a is not None
     assert restored_b is not None
     for actual, expected in zip(restored_a, second_a, strict=True):
@@ -99,10 +102,12 @@ def test_conditioning_off_with_one_slot_matches_legacy_ema() -> None:
 
 
 def test_store_publishes_copy_init_loss_advantage() -> None:
-    store = MemoryStore(learned_core=_core(
-        conditioned=True,
-        prototype_count=2,
-    ))
+    store = MemoryStore(
+        learned_core=_core(
+            conditioned=True,
+            prototype_count=2,
+        )
+    )
     context = (1.0, 0.0, 0.0, 0.0)
     target = (0.9, 0.1, 0.2, 0.1)
     for step in range(12):
@@ -123,9 +128,60 @@ def test_store_publishes_copy_init_loss_advantage() -> None:
             context_signal=context,
             timestamp_ms=21 + step,
         )
-    metrics = dict(store.snapshot(
-        retrieved_entries=(),
-        active_subject_scope=(),
-    ).lifecycle_metrics)
+    metrics = dict(
+        store.snapshot(
+            retrieved_entries=(),
+            active_subject_scope=(),
+        ).lifecycle_metrics
+    )
 
     assert metrics["slow_to_fast_init_benefit"] != 0.0
+
+
+def test_live_substrate_signal_trains_conditioned_reset_prototype() -> None:
+    core = _core(conditioned=True, prototype_count=2)
+    snapshot = SubstrateSnapshot(
+        model_id="conditioned-live-fixture",
+        is_frozen=True,
+        surface_kind=SurfaceKind.RESIDUAL_STREAM,
+        token_logits=(0.4, 0.2),
+        feature_surface=(FeatureSignal("semantic_task_pull", (0.8,), "fixture"),),
+        residual_activations=(ResidualActivation(0, (0.7, 0.2, 0.1, 0.4), 0),),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="conditioned meta-init live fixture",
+    )
+
+    for timestamp in range(1, 9):
+        core.observe_substrate(
+            substrate_snapshot=snapshot,
+            timestamp_ms=timestamp,
+        )
+
+    checkpoint = core.export_state()
+    assert any(level_id.startswith("context-prototype-") for level_id, _vector in checkpoint.tower_meta_levels)
+
+
+def test_configured_reset_mode_is_load_bearing_and_no_init_is_rollback() -> None:
+    meta = build_default_memory_store(
+        latent_dim=4,
+        cms_context_conditioned_meta_init=True,
+        nested_context_reset_mode="meta-init",
+    )
+    rollback = build_default_memory_store(
+        latent_dim=4,
+        nested_context_reset_mode="no-init",
+    )
+
+    assert meta.reset_nested_context(
+        reason="day-boundary",
+        timestamp_ms=10,
+        context_signal=(1.0, 0.0, 0.0, 0.0),
+    ) == ("nested-context-reset",)
+    assert (
+        rollback.reset_nested_context(
+            reason="day-boundary",
+            timestamp_ms=10,
+        )
+        == ()
+    )

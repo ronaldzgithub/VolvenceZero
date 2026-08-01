@@ -72,12 +72,16 @@ def build_default_memory_store(
     *,
     latent_dim: int = 8,
     nested_profile: bool = True,
+    cms_variant: str | None = None,
+    cms_session_cadence: int = 2,
+    cms_background_cadence: int = 4,
     cms_pe_features_enabled: bool = True,
     cms_replay_window_size: int | None = 8,
     cms_torch_backend: "WiringLevel | None" = None,
     persistence_backend: PersistenceBackend | None = None,
     cms_context_conditioned_meta_init: bool = False,
     cms_context_prototype_count: int = 8,
+    nested_context_reset_mode: str = "copy-init",
 ) -> "MemoryStore":
     """Build a default :class:`MemoryStore` with ATLAS / Titans CMS uplift.
 
@@ -95,7 +99,7 @@ def build_default_memory_store(
 
     See ``docs/specs/cms-atlas-titans-uplift.md`` §7.
     """
-    variant = "nested" if nested_profile else "sequential"
+    variant = cms_variant if cms_variant is not None else ("nested" if nested_profile else "sequential")
     replay_window_sizes: dict[str, int] | None = None
     if cms_replay_window_size is not None:
         online_k = max(1, int(cms_replay_window_size))
@@ -109,8 +113,8 @@ def build_default_memory_store(
         d_in=max(latent_dim, 4),
         d_hidden=max(latent_dim * 2, 8),
         variant=variant,
-        session_cadence=2,
-        background_cadence=4,
+        session_cadence=cms_session_cadence,
+        background_cadence=cms_background_cadence,
         pe_features_enabled=cms_pe_features_enabled,
         replay_window_sizes=replay_window_sizes,
         cms_backend=cms_torch_backend,
@@ -120,6 +124,7 @@ def build_default_memory_store(
     return MemoryStore(
         learned_core=learned_core,
         persistence_backend=persistence_backend,
+        nested_context_reset_mode=nested_context_reset_mode,
     )
 
 
@@ -132,7 +137,14 @@ class MemoryStore:
         learned_core: CMSMemoryCore | None = None,
         promotion_threshold: float = 0.7,
         persistence_backend: PersistenceBackend | None = None,
+        nested_context_reset_mode: str = "copy-init",
     ) -> None:
+        if nested_context_reset_mode not in {
+            "meta-init",
+            "copy-init",
+            "no-init",
+        }:
+            raise ValueError("nested_context_reset_mode must be 'meta-init', 'copy-init', or 'no-init'")
         self._learned_core = learned_core
         self._artifact_store = ArtifactStore()
         self._derived_index = DerivedRetrievalIndex()
@@ -142,6 +154,7 @@ class MemoryStore:
         # initialisation and rollback point.
         self._pe_write_gate = PeWriteGate()
         self._persistence_backend = persistence_backend
+        self._nested_context_reset_mode = nested_context_reset_mode
         self._persistence_version = 0
         self._context_reset_count = 0
         self._last_context_reset_ms = 0
@@ -233,7 +246,8 @@ class MemoryStore:
         context_signal: tuple[float, ...] | None = None,
     ) -> tuple[str, ...]:
         if (
-            self._learned_core is None
+            self._nested_context_reset_mode == "no-init"
+            or self._learned_core is None
             or self._learned_core.mode != "mlp"
             or self._learned_core.variant != "nested"
         ):
@@ -247,8 +261,14 @@ class MemoryStore:
             self._last_context_reset_target_distance_after = 0.0
             self._last_context_reset_target_alignment_gain = 0.0
             return ()
+        if (
+            context_signal is None
+            and self._learned_core.context_conditioned_meta_init_enabled
+            and self._last_runtime_backbone_signal
+        ):
+            context_signal = self._last_runtime_backbone_signal
         self.initialize_nested_context_for_evidence(
-            mode="copy-init",
+            mode=self._nested_context_reset_mode,
             reason=reason,
             timestamp_ms=timestamp_ms,
             context_signal=context_signal,
@@ -275,9 +295,7 @@ class MemoryStore:
         self._last_context_reset_ms = timestamp_ms
         self._last_context_reset_reason = reason
         if self._learned_core is None or self._learned_core.mode != "mlp" or self._learned_core.variant != "nested":
-            raise RuntimeError(
-                "Evidence initialization requires a nested MLP MemoryStore."
-            )
+            raise RuntimeError("Evidence initialization requires a nested MLP MemoryStore.")
         self._context_reset_copy_shadow = None
         self._context_reset_benefit_sum = 0.0
         self._context_reset_benefit_count = 0
@@ -438,9 +456,7 @@ class MemoryStore:
             )
             if score <= 0:
                 continue
-            if active_subject_ids is not None and not _entry_in_subject_scope(
-                entry, active_subject_ids
-            ):
+            if active_subject_ids is not None and not _entry_in_subject_scope(entry, active_subject_ids):
                 suppressed.append((score, entry))
                 continue
             if record_access:
@@ -468,9 +484,7 @@ class MemoryStore:
         return RetrievalResult(
             query=query,
             entries=tuple(entry for _, entry in matches[: query.limit]),
-            suppressed_cross_scope_entries=tuple(
-                entry for _, entry in suppressed[: query.limit]
-            ),
+            suppressed_cross_scope_entries=tuple(entry for _, entry in suppressed[: query.limit]),
             active_subject_scope=tuple(active_subject_ids) if active_subject_ids is not None else (),
         )
 
@@ -501,9 +515,7 @@ class MemoryStore:
             else 0.0
         )
         continuum_retrieval_mass = (
-            sum(band.retrieval_weight for band in continuum_profile.bands)
-            if continuum_profile is not None
-            else 0.0
+            sum(band.retrieval_weight for band in continuum_profile.bands) if continuum_profile is not None else 0.0
         )
         description = (
             f"Memory store with learned core primary and {self._artifact_store.entry_count()} artifact entries "
@@ -558,26 +570,23 @@ class MemoryStore:
                 )
             )
         return MemorySnapshot(
-            transient_summary=summarize_entries(
-                transient_entries, fallback="No transient working-state memories."
-            ),
-            episodic_summary=summarize_entries(
-                episodic_entries, fallback="No episodic session-state memories."
-            ),
-            durable_summary=summarize_entries(
-                durable_entries, fallback="No durable artifact memories."
-            ),
+            transient_summary=summarize_entries(transient_entries, fallback="No transient working-state memories."),
+            episodic_summary=summarize_entries(episodic_entries, fallback="No episodic session-state memories."),
+            durable_summary=summarize_entries(durable_entries, fallback="No durable artifact memories."),
             retrieved_entries=retrieved_entries,
             total_entries_by_stratum=total_entries,
             pending_promotions=len(self._artifact_store.pending_promotions),
             pending_decays=len(self._artifact_store.pending_decays),
             cms_state=cms_state,
             lifecycle_metrics=(
-                ("nested_profile_active", float(
-                    self._learned_core is not None
-                    and self._learned_core.mode == "mlp"
-                    and self._learned_core.variant == "nested"
-                )),
+                (
+                    "nested_profile_active",
+                    float(
+                        self._learned_core is not None
+                        and self._learned_core.mode == "mlp"
+                        and self._learned_core.variant == "nested"
+                    ),
+                ),
                 ("nested_context_reset_count", float(self._context_reset_count)),
                 ("last_nested_reset_applied", float(self._last_context_reset_applied)),
                 ("last_nested_reset_online_seed_strength", self._last_context_reset_online_seed_strength),
@@ -817,8 +826,7 @@ class MemoryStore:
             )
             if (
                 self._context_reset_copy_shadow is not None
-                and self._context_reset_benefit_count
-                < self._context_reset_benefit_horizon
+                and self._context_reset_benefit_count < self._context_reset_benefit_horizon
             ):
                 self._context_reset_copy_shadow.observe_replay_signal(
                     signal=signal,
@@ -827,10 +835,7 @@ class MemoryStore:
                     context_signal=context_signal,
                 )
                 actual = self._learned_core.snapshot().online_fast.vector
-                copy = (
-                    self._context_reset_copy_shadow.snapshot()
-                    .online_fast.vector
-                )
+                copy = self._context_reset_copy_shadow.snapshot().online_fast.vector
                 target = _align_signal(
                     signal,
                     dim=self._learned_signal_dim(),
@@ -851,13 +856,10 @@ class MemoryStore:
                         strict=True,
                     )
                 ) / max(len(target), 1)
-                self._context_reset_benefit_sum += (
-                    copy_loss - actual_loss
-                )
+                self._context_reset_benefit_sum += copy_loss - actual_loss
                 self._context_reset_benefit_count += 1
                 self._last_context_reset_transfer_strength = (
-                    self._context_reset_benefit_sum
-                    / self._context_reset_benefit_count
+                    self._context_reset_benefit_sum / self._context_reset_benefit_count
                 )
 
     def apply_prediction_error_signal(
@@ -896,9 +898,7 @@ class MemoryStore:
         # entry attribute index. Decomposition is optional (Phase 1.B).
         self._current_pe_intensity = float(magnitude)
         self._current_pe_primary_axis = primary_dimension
-        self._current_pe_regime_id = (
-            prediction_error_snapshot.action_context.regime_id
-        )
+        self._current_pe_regime_id = prediction_error_snapshot.action_context.regime_id
         decomposition = prediction_error_snapshot.pe_decomposition
         if decomposition is not None:
             self._current_pe_epistemic = float(decomposition.epistemic_magnitude)
@@ -907,8 +907,10 @@ class MemoryStore:
             self._current_pe_epistemic = 0.0
             self._current_pe_aleatoric = 0.0
         target_track = (
-            Track.WORLD if primary_dimension == "task"
-            else Track.SELF if primary_dimension == "relationship"
+            Track.WORLD
+            if primary_dimension == "task"
+            else Track.SELF
+            if primary_dimension == "relationship"
             else Track.SHARED
         )
         if self._pe_write_gate.should_write(magnitude):
@@ -922,9 +924,7 @@ class MemoryStore:
                 ),
                 timestamp_ms=timestamp_ms,
             )
-            self._pe_write_gate.record_write(
-                entry_id=entry.entry_id, strength=entry.strength
-            )
+            self._pe_write_gate.record_write(entry_id=entry.entry_id, strength=entry.strength)
             operations.append(f"prediction-error-write:{entry.entry_id}")
         if pe.relationship_error < -0.15:
             self._promotion_threshold = _clamp_strength(self._promotion_threshold - 0.03)
@@ -1044,9 +1044,7 @@ class MemoryStore:
         self._promotion_threshold = checkpoint.promotion_threshold
         self._pe_write_gate.restore_threshold(checkpoint.pe_write_gate_threshold)
         self._derived_index.restore(checkpoint.semantic_index)
-        self._entry_attributes = {
-            item.entry_id: item for item in checkpoint.entry_attributes
-        }
+        self._entry_attributes = {item.entry_id: item for item in checkpoint.entry_attributes}
         if self._learned_core is not None and checkpoint.cms_state is not None:
             self._learned_core.restore_state(checkpoint.cms_state)
 
@@ -1074,7 +1072,9 @@ class MemoryStore:
         data = serialize_checkpoint(checkpoint)
         self._persistence_version += 1
         self._persistence_backend.save_checkpoint(
-            key=key, data=data, version=self._persistence_version,
+            key=key,
+            data=data,
+            version=self._persistence_version,
         )
         return True
 
@@ -1231,9 +1231,7 @@ class MemoryStore:
                 )
                 if part
             ),
-            tags=tags
-            + ((track.value,) if track is not None else ())
-            + ((stratum,) if stratum is not None else ()),
+            tags=tags + ((track.value,) if track is not None else ()) + ((stratum,) if stratum is not None else ()),
             dim=dim,
         )
         metadata = _semantic_embedding(
@@ -1286,11 +1284,7 @@ class MemoryStore:
         dim = self._learned_signal_dim()
         if tower_profile is None:
             return tuple(0.0 for _ in range(dim))
-        matched_levels = tuple(
-            level.vector
-            for level in tower_profile.levels
-            if level.level_id in level_ids
-        )
+        matched_levels = tuple(level.vector for level in tower_profile.levels if level.level_id in level_ids)
         if not matched_levels:
             return tuple(0.0 for _ in range(dim))
         return _blend_signals(
@@ -1389,8 +1383,7 @@ class MemoryStore:
             for belief in beliefs_updated
         )
         lesson_signal = tuple(
-            _clamp_strength(lesson_count / (index + 3))
-            for index in range(self._learned_signal_dim())
+            _clamp_strength(lesson_count / (index + 3)) for index in range(self._learned_signal_dim())
         )
         recent_fast_signal = self._recent_fast_memory_signal()
         transfer_signal = self._transfer_alignment_signal(tower_profile=tower_profile)
@@ -1499,9 +1492,9 @@ class MemoryStore:
         composite_alignment = _blend_signals(
             dim=1,
             weighted_signals=(
-                (( _cosine_similarity(query_signal, core_signal),), 0.45),
-                (( _cosine_similarity(query_signal, composite_anchor),), 0.35),
-                (( _cosine_similarity(query_signal, tower_context_signal),), 0.20 if any(tower_context_signal) else 0.0),
+                ((_cosine_similarity(query_signal, core_signal),), 0.45),
+                ((_cosine_similarity(query_signal, composite_anchor),), 0.35),
+                ((_cosine_similarity(query_signal, tower_context_signal),), 0.20 if any(tower_context_signal) else 0.0),
             ),
         )[0]
         transfer_alignment = (
@@ -1706,12 +1699,11 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         prediction_error_snapshot = upstream.get("prediction_error")
         multi_party_identity_snapshot = upstream.get("multi_party_identity")
         substrate_value = substrate_snapshot.value if isinstance(substrate_snapshot.value, SubstrateSnapshot) else None
-        subject_ids, audience_ids = _memory_scope_from_identity_snapshot(
-            multi_party_identity_snapshot
-        )
+        subject_ids, audience_ids = _memory_scope_from_identity_snapshot(multi_party_identity_snapshot)
         prediction_error_value = (
             prediction_error_snapshot.value
-            if prediction_error_snapshot is not None and isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
+            if prediction_error_snapshot is not None
+            and isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
             else None
         )
         if self._learning_enabled:
@@ -1721,9 +1713,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
                 prediction_error=prediction_error_value,
             )
             temporal_feedback_signal = _temporal_feedback_signal(
-                temporal_snapshot.value
-                if temporal_snapshot is not None
-                else None
+                temporal_snapshot.value if temporal_snapshot is not None else None
             )
             if temporal_feedback_signal:
                 self._store.observe_temporal_feedback(
@@ -1802,9 +1792,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
         substrate_snapshot = kwargs.get("substrate_snapshot")
         substrate_value = substrate_snapshot if isinstance(substrate_snapshot, SubstrateSnapshot) else None
         prediction_error_value = (
-            prediction_error_snapshot
-            if isinstance(prediction_error_snapshot, PredictionErrorSnapshot)
-            else None
+            prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None
         )
         if self._learning_enabled:
             self._store.observe_substrate(
@@ -1812,9 +1800,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
                 timestamp_ms=timestamp_ms,
                 prediction_error=prediction_error_value,
             )
-            temporal_feedback_signal = _temporal_feedback_signal(
-                temporal_snapshot
-            )
+            temporal_feedback_signal = _temporal_feedback_signal(temporal_snapshot)
             if temporal_feedback_signal:
                 self._store.observe_temporal_feedback(
                     encoder_signal=temporal_feedback_signal,
@@ -1851,7 +1837,9 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
                     substrate_snapshot=substrate_value,
                     temporal_value=temporal_snapshot,
                     dual_track_value=dual_track_snapshot,
-                    prediction_error_value=prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None,
+                    prediction_error_value=prediction_error_snapshot
+                    if isinstance(prediction_error_snapshot, PredictionErrorSnapshot)
+                    else None,
                 ),
             ),
             timestamp_ms=timestamp_ms,
@@ -1868,9 +1856,7 @@ class MemoryModule(RuntimeModule[MemorySnapshot]):
             )
         )
 
-    def _build_social_pe_signals(
-        self, *, retrieval: RetrievalResult
-    ) -> tuple[MemorySocialPESignal, ...]:
+    def _build_social_pe_signals(self, *, retrieval: RetrievalResult) -> tuple[MemorySocialPESignal, ...]:
         active_scope = retrieval.active_subject_scope
         if not active_scope or active_scope == (PRIMARY_INTERLOCUTOR_ID,):
             return ()

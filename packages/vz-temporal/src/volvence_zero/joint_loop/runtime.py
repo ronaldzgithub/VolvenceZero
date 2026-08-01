@@ -52,6 +52,7 @@ from volvence_zero.internal_rl import (
     ZRollout,
     derive_abstract_action_credit,
 )
+
 # Reward-eligibility contract lives with the settlement owner. The
 # ``volvence_zero.internal_rl`` facade does not re-export it yet, so the
 # module path is the SSOT import until that facade is extended.
@@ -192,6 +193,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         primary_prediction_error_dominance_enabled: bool = True,
         rl_batch_accumulation_size: int = 1,
         ssl_backend: WiringLevel = WiringLevel.DISABLED,
+        ssl_m3_slow_gain: float = 0.0,
+        apply_ssl_optimization: bool = True,
         internal_rl_backend: WiringLevel = WiringLevel.DISABLED,
         internal_rl_runtime_replay: WiringLevel = WiringLevel.DISABLED,
         # (a) PE drives learning signals: the PE-derived segment-credit bonus
@@ -224,9 +227,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         # v30 replay measurement showed routine PE overlaps event PE, so PE
         # magnitude cannot decide boundaries (see
         # research/ant/06_ecology_implementation_status.md, v31 verdict).
-        environment_milestone_temporal_switch: WiringLevel = (
-            WiringLevel.DISABLED
-        ),
+        environment_milestone_temporal_switch: WiringLevel = (WiringLevel.DISABLED),
     ) -> None:
         self._world_policy = world_policy or policy or FullLearnedTemporalPolicy()
         self._self_policy = self_policy or FullLearnedTemporalPolicy(
@@ -258,9 +259,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             raise ValueError(
                 f"ETANLJointLoop requires aligned world/self latent dims, got {world_latent_dim} and {self_latent_dim}."
             )
-        self._runtime_replay_latent_unit_clamp = bool(
-            runtime_replay_latent_unit_clamp
-        )
+        self._runtime_replay_latent_unit_clamp = bool(runtime_replay_latent_unit_clamp)
         self._world_sandbox = InternalRLSandbox(
             policy=self._world_policy,
             residual_runtime=residual_runtime,
@@ -276,7 +275,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             exploration_seed=1,
         )
         self._residual_runtime = residual_runtime
-        self._ssl_trainer = MetacontrollerSSLTrainer(n_z=world_latent_dim, ssl_backend=ssl_backend)
+        self._ssl_trainer = MetacontrollerSSLTrainer(
+            n_z=world_latent_dim,
+            ssl_backend=ssl_backend,
+            m3_slow_gain=ssl_m3_slow_gain,
+        )
+        self._apply_ssl_optimization = bool(apply_ssl_optimization)
         default_latent_dim = world_latent_dim
         self._memory_store = memory_store or build_default_memory_store(latent_dim=default_latent_dim)
         self._evaluation_backbone = evaluation_backbone or EvaluationBackbone()
@@ -286,35 +290,19 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._previous_family_signals: dict[str, float] = {}
         self._previous_credit_snapshot: CreditSnapshot | None = None
         self._external_learning_signals: dict[str, float] = {}
-        self._prediction_error_temporal_switch = (
-            prediction_error_temporal_switch
-        )
+        self._prediction_error_temporal_switch = prediction_error_temporal_switch
         if not 0.0 <= prediction_error_temporal_switch_strength <= 1.0:
-            raise ValueError(
-                "prediction_error_temporal_switch_strength must be within "
-                "[0, 1]"
-            )
+            raise ValueError("prediction_error_temporal_switch_strength must be within [0, 1]")
         if prediction_error_temporal_switch_floor < 0.0:
-            raise ValueError(
-                "prediction_error_temporal_switch_floor must be >= 0"
-            )
-        self._prediction_error_temporal_switch_strength = float(
-            prediction_error_temporal_switch_strength
-        )
-        self._prediction_error_temporal_switch_floor = float(
-            prediction_error_temporal_switch_floor
-        )
-        self._environment_milestone_temporal_switch = (
-            environment_milestone_temporal_switch
-        )
+            raise ValueError("prediction_error_temporal_switch_floor must be >= 0")
+        self._prediction_error_temporal_switch_strength = float(prediction_error_temporal_switch_strength)
+        self._prediction_error_temporal_switch_floor = float(prediction_error_temporal_switch_floor)
+        self._environment_milestone_temporal_switch = environment_milestone_temporal_switch
         self._primary_prediction_error_dominance_enabled = primary_prediction_error_dominance_enabled
         self._last_schedule_action = "evidence-only"
         self._last_learning_turn_index = 0
         if rl_batch_accumulation_size < 1:
-            raise ValueError(
-                "rl_batch_accumulation_size must be >= 1, "
-                f"got {rl_batch_accumulation_size!r}"
-            )
+            raise ValueError(f"rl_batch_accumulation_size must be >= 1, got {rl_batch_accumulation_size!r}")
         self._rl_batch_accumulation_size = rl_batch_accumulation_size
         self._pending_task_rollouts: list[ZRollout] = []
         self._pending_relationship_rollouts: list[ZRollout] = []
@@ -323,27 +311,16 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._internal_rl_runtime_replay = internal_rl_runtime_replay
         self._runtime_replay_segment_credit = runtime_replay_segment_credit
         if runtime_replay_segment_max_steps < 1:
-            raise ValueError(
-                "runtime_replay_segment_max_steps must be >= 1, "
-                f"got {runtime_replay_segment_max_steps!r}"
-            )
-        self._runtime_replay_segment_max_steps = (
-            runtime_replay_segment_max_steps
-        )
-        self._runtime_replay_prediction_error_enabled = bool(
-            runtime_replay_prediction_error_enabled
-        )
-        if not isinstance(
-            runtime_replay_reward_eligibility, RuntimeReplayRewardEligibility
-        ):
+            raise ValueError(f"runtime_replay_segment_max_steps must be >= 1, got {runtime_replay_segment_max_steps!r}")
+        self._runtime_replay_segment_max_steps = runtime_replay_segment_max_steps
+        self._runtime_replay_prediction_error_enabled = bool(runtime_replay_prediction_error_enabled)
+        if not isinstance(runtime_replay_reward_eligibility, RuntimeReplayRewardEligibility):
             raise TypeError(
                 "runtime_replay_reward_eligibility must be a "
                 "RuntimeReplayRewardEligibility member, got "
                 f"{runtime_replay_reward_eligibility!r}"
             )
-        self._runtime_replay_reward_eligibility = (
-            runtime_replay_reward_eligibility
-        )
+        self._runtime_replay_reward_eligibility = runtime_replay_reward_eligibility
         if runtime_replay_outcome_payoff_reward is not None and not isinstance(
             runtime_replay_outcome_payoff_reward, bool
         ):
@@ -351,17 +328,13 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 "runtime_replay_outcome_payoff_reward must be None or bool, "
                 f"got {runtime_replay_outcome_payoff_reward!r}"
             )
-        self._runtime_replay_outcome_payoff_reward = (
-            runtime_replay_outcome_payoff_reward
-        )
+        self._runtime_replay_outcome_payoff_reward = runtime_replay_outcome_payoff_reward
         self._runtime_replay_captured_count = 0
         self._runtime_replay_settled_count = 0
         self._runtime_replay_transition_count = 0
         self._runtime_replay_lineage_match_count = 0
         self._runtime_replay_drop_reasons: list[str] = []
-        self._runtime_replay_outcome_lineages: list[
-            RuntimeReplayOutcomeLineage
-        ] = []
+        self._runtime_replay_outcome_lineages: list[RuntimeReplayOutcomeLineage] = []
         # Optimizer-visible reward stream audit (published, never consumed).
         self._runtime_reward_eligible_count = 0
         self._runtime_reward_ineligible_count = 0
@@ -396,13 +369,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         # into later decisions.
         milestone_boundary = (
             self._environment_milestone_temporal_switch is WiringLevel.ACTIVE
-            and float(signals.get("environment_milestone_boundary", 0.0))
-            > 0.0
+            and float(signals.get("environment_milestone_boundary", 0.0)) > 0.0
         )
         for policy in (self._world_policy, self._self_policy):
-            policy.parameter_store.record_external_boundary_request(
-                milestone_boundary
-            )
+            policy.parameter_store.record_external_boundary_request(milestone_boundary)
         if self._prediction_error_temporal_switch is WiringLevel.DISABLED:
             return
         # Additive-only PE switch prior (a readout-scaled bias, never a
@@ -414,16 +384,11 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         )
         switch_pressure = min(
             0.18,
-            self._prediction_error_temporal_switch_strength
-            * math.tanh(excess),
+            self._prediction_error_temporal_switch_strength * math.tanh(excess),
         )
-        applied = (
-            self._prediction_error_temporal_switch is WiringLevel.ACTIVE
-        )
+        applied = self._prediction_error_temporal_switch is WiringLevel.ACTIVE
         for policy in (self._world_policy, self._self_policy):
-            policy.parameter_store.record_prediction_error_switch_pressure(
-                switch_pressure if applied else 0.0
-            )
+            policy.parameter_store.record_prediction_error_switch_pressure(switch_pressure if applied else 0.0)
 
     @property
     def internal_rl_runtime_replay(self) -> WiringLevel:
@@ -458,51 +423,26 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         entered the Internal-RL batch.
         """
 
-        settled = (
-            self._runtime_reward_eligible_count
-            + self._runtime_reward_ineligible_count
-        )
+        settled = self._runtime_reward_eligible_count + self._runtime_reward_ineligible_count
         return RuntimeReplayRewardStream(
-            eligibility_contract=(
-                self._runtime_replay_reward_eligibility.value
-            ),
+            eligibility_contract=(self._runtime_replay_reward_eligibility.value),
             outcome_payoff_reward=(
                 "derived-from-eligibility"
                 if self._runtime_replay_outcome_payoff_reward is None
-                else (
-                    "enabled"
-                    if self._runtime_replay_outcome_payoff_reward
-                    else "disabled"
-                )
+                else ("enabled" if self._runtime_replay_outcome_payoff_reward else "disabled")
             ),
-            prediction_error_reward_enabled=(
-                self._runtime_replay_prediction_error_enabled
-            ),
+            prediction_error_reward_enabled=(self._runtime_replay_prediction_error_enabled),
             settled_transition_count=settled,
             eligible_transition_count=self._runtime_reward_eligible_count,
-            ineligible_transition_count=(
-                self._runtime_reward_ineligible_count
-            ),
-            nonzero_reward_transition_count=(
-                self._runtime_reward_nonzero_count
-            ),
-            nonzero_realized_payoff_transition_count=(
-                self._runtime_reward_nonzero_payoff_count
-            ),
-            nonzero_segment_bonus_transition_count=(
-                self._runtime_reward_nonzero_bonus_count
-            ),
+            ineligible_transition_count=(self._runtime_reward_ineligible_count),
+            nonzero_reward_transition_count=(self._runtime_reward_nonzero_count),
+            nonzero_realized_payoff_transition_count=(self._runtime_reward_nonzero_payoff_count),
+            nonzero_segment_bonus_transition_count=(self._runtime_reward_nonzero_bonus_count),
             realized_action_payoff_sum=self._runtime_realized_payoff_sum,
             segment_bonus_sum=self._runtime_segment_bonus_sum,
             reward_sum=self._runtime_reward_sum,
-            eligibility_reason_counts=tuple(
-                sorted(
-                    self._runtime_reward_eligibility_reason_counts.items()
-                )
-            ),
-            last_eligibility_reason=(
-                self._runtime_last_reward_eligibility_reason
-            ),
+            eligibility_reason_counts=tuple(sorted(self._runtime_reward_eligibility_reason_counts.items())),
+            last_eligibility_reason=(self._runtime_last_reward_eligibility_reason),
             description=(
                 "Internal-RL optimizer reward stream "
                 f"eligibility={self._runtime_replay_reward_eligibility.value} "
@@ -530,16 +470,11 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             for sandbox in (self._world_sandbox, self._self_sandbox)
         )
         staged_rollout_count = (
-            len(self._pending_task_rollouts)
-            + len(self._pending_relationship_rollouts)
+            len(self._pending_task_rollouts) + len(self._pending_relationship_rollouts)
             if self._internal_rl_runtime_replay is WiringLevel.ACTIVE
             else 0
         )
-        source = (
-            "synthetic"
-            if self._internal_rl_runtime_replay is WiringLevel.DISABLED
-            else "runtime-replay"
-        )
+        source = "synthetic" if self._internal_rl_runtime_replay is WiringLevel.DISABLED else "runtime-replay"
         return RuntimeReplayReport(
             wiring_level=self._internal_rl_runtime_replay.value,
             transition_source=source,
@@ -561,20 +496,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 f"closed_segments={self._runtime_segment_closed_count}."
             ),
             segment_credit_wiring=self._runtime_replay_segment_credit.value,
-            open_segment_transition_count=len(
-                self._open_task_segment_rollouts
-            ),
+            open_segment_transition_count=len(self._open_task_segment_rollouts),
             closed_segment_count=self._runtime_segment_closed_count,
             longest_segment_length=self._runtime_longest_segment_length,
-            last_segment_close_reason=(
-                self._runtime_last_segment_close_reason
-            ),
-            segment_close_reason_counts=tuple(
-                sorted(self._runtime_segment_close_reason_counts.items())
-            ),
-            outcome_lineages=tuple(
-                self._runtime_replay_outcome_lineages[-64:]
-            ),
+            last_segment_close_reason=(self._runtime_last_segment_close_reason),
+            segment_close_reason_counts=tuple(sorted(self._runtime_segment_close_reason_counts.items())),
+            outcome_lineages=tuple(self._runtime_replay_outcome_lineages[-64:]),
         )
 
     def observe_runtime_transition(
@@ -597,8 +524,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         prediction_id = prediction_error_snapshot.next_prediction.prediction_id
         if not prediction_id:
             raise RuntimeError(
-                "runtime replay requires prediction_error.next_prediction "
-                "to carry the PE-owner prediction_id"
+                "runtime replay requires prediction_error.next_prediction to carry the PE-owner prediction_id"
             )
         world_settlement, _ = self._world_sandbox.observe_runtime_transition(
             turn_index=turn_index,
@@ -610,12 +536,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             environment_outcome=environment_outcome,
             prediction_error_snapshot=prediction_error_snapshot,
             credit_snapshot=credit_snapshot,
-            prediction_error_reward_enabled=(
-                self._runtime_replay_prediction_error_enabled
-            ),
-            outcome_payoff_reward_enabled=(
-                self._runtime_replay_outcome_payoff_reward
-            ),
+            prediction_error_reward_enabled=(self._runtime_replay_prediction_error_enabled),
+            outcome_payoff_reward_enabled=(self._runtime_replay_outcome_payoff_reward),
             reward_eligibility=self._runtime_replay_reward_eligibility,
         )
         self_settlement, _ = self._self_sandbox.observe_runtime_transition(
@@ -628,12 +550,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             environment_outcome=environment_outcome,
             prediction_error_snapshot=prediction_error_snapshot,
             credit_snapshot=credit_snapshot,
-            prediction_error_reward_enabled=(
-                self._runtime_replay_prediction_error_enabled
-            ),
-            outcome_payoff_reward_enabled=(
-                self._runtime_replay_outcome_payoff_reward
-            ),
+            prediction_error_reward_enabled=(self._runtime_replay_prediction_error_enabled),
+            outcome_payoff_reward_enabled=(self._runtime_replay_outcome_payoff_reward),
             reward_eligibility=self._runtime_replay_reward_eligibility,
         )
         self._runtime_replay_captured_count += 2
@@ -643,46 +561,25 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         ):
             if settlement.rollout is not None:
                 self._runtime_replay_settled_count += 1
-                self._runtime_replay_transition_count += len(
-                    settlement.rollout.transitions
-                )
-                self._runtime_replay_lineage_match_count += int(
-                    settlement.lineage_matched
-                )
+                self._runtime_replay_transition_count += len(settlement.rollout.transitions)
+                self._runtime_replay_lineage_match_count += int(settlement.lineage_matched)
                 self._record_runtime_reward_stream(settlement)
             elif settlement.drop_reason not in {"", "no-pending-capture"}:
-                self._runtime_replay_drop_reasons.append(
-                    f"{track_name}:{settlement.drop_reason}"
-                )
+                self._runtime_replay_drop_reasons.append(f"{track_name}:{settlement.drop_reason}")
                 if len(self._runtime_replay_drop_reasons) > 20:
                     del self._runtime_replay_drop_reasons[:-20]
-        if (
-            world_settlement.rollout is not None
-            and self_settlement.rollout is not None
-        ):
+        if world_settlement.rollout is not None and self_settlement.rollout is not None:
             world_transition = world_settlement.rollout.transitions[0]
             self_transition = self_settlement.rollout.transitions[0]
             if (
-                world_transition.environment_outcome_id
-                != self_transition.environment_outcome_id
-                or world_transition.prediction_id
-                != self_transition.prediction_id
-                or world_settlement.credit_record_ids
-                != self_settlement.credit_record_ids
+                world_transition.environment_outcome_id != self_transition.environment_outcome_id
+                or world_transition.prediction_id != self_transition.prediction_id
+                or world_settlement.credit_record_ids != self_settlement.credit_record_ids
             ):
-                raise RuntimeError(
-                    "runtime replay outcome/PE/credit lineage diverged "
-                    "between world and self tracks"
-                )
+                raise RuntimeError("runtime replay outcome/PE/credit lineage diverged between world and self tracks")
             outcome_id = world_transition.environment_outcome_id
-            if any(
-                lineage.environment_outcome_id == outcome_id
-                for lineage in self._runtime_replay_outcome_lineages
-            ):
-                raise RuntimeError(
-                    "runtime replay published duplicate outcome lineage: "
-                    f"{outcome_id!r}"
-                )
+            if any(lineage.environment_outcome_id == outcome_id for lineage in self._runtime_replay_outcome_lineages):
+                raise RuntimeError(f"runtime replay published duplicate outcome lineage: {outcome_id!r}")
             self._runtime_replay_outcome_lineages.append(
                 RuntimeReplayOutcomeLineage(
                     environment_outcome_id=outcome_id,
@@ -691,47 +588,26 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                     self_capture_id=self_settlement.capture_id,
                     credit_record_ids=world_settlement.credit_record_ids,
                     transition_count=(
-                        len(world_settlement.rollout.transitions)
-                        + len(self_settlement.rollout.transitions)
+                        len(world_settlement.rollout.transitions) + len(self_settlement.rollout.transitions)
                     ),
                 )
             )
             if len(self._runtime_replay_outcome_lineages) > 64:
                 del self._runtime_replay_outcome_lineages[:-64]
         if self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
-            if (
-                world_settlement.rollout is None
-            ) != (
-                self_settlement.rollout is None
-            ):
-                raise RuntimeError(
-                    "runtime replay settlement diverged between world and self tracks"
-                )
-            if (
-                world_settlement.rollout is not None
-                and self_settlement.rollout is not None
-            ):
-                if (
-                    self._runtime_replay_segment_credit
-                    is WiringLevel.ACTIVE
-                ):
+            if (world_settlement.rollout is None) != (self_settlement.rollout is None):
+                raise RuntimeError("runtime replay settlement diverged between world and self tracks")
+            if world_settlement.rollout is not None and self_settlement.rollout is not None:
+                if self._runtime_replay_segment_credit is WiringLevel.ACTIVE:
                     self._stage_runtime_segment_pair(
                         world_rollout=world_settlement.rollout,
                         self_rollout=self_settlement.rollout,
                     )
                 else:
-                    self._pending_task_rollouts.append(
-                        world_settlement.rollout
-                    )
-                    self._pending_relationship_rollouts.append(
-                        self_settlement.rollout
-                    )
-            if len(self._pending_task_rollouts) != len(
-                self._pending_relationship_rollouts
-            ):
-                raise RuntimeError(
-                    "runtime replay staging diverged between world and self tracks"
-                )
+                    self._pending_task_rollouts.append(world_settlement.rollout)
+                    self._pending_relationship_rollouts.append(self_settlement.rollout)
+            if len(self._pending_task_rollouts) != len(self._pending_relationship_rollouts):
+                raise RuntimeError("runtime replay staging diverged between world and self tracks")
         return self.latest_runtime_replay_report
 
     def _record_runtime_reward_stream(
@@ -755,9 +631,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             self._runtime_reward_eligibility_reason_counts.get(reason, 0) + 1
         )
         self._runtime_last_reward_eligibility_reason = reason
-        self._runtime_realized_payoff_sum += (
-            settlement.realized_action_payoff
-        )
+        self._runtime_realized_payoff_sum += settlement.realized_action_payoff
         self._runtime_segment_bonus_sum += settlement.segment_bonus
         self._runtime_reward_sum += settlement.reward
         if abs(settlement.reward) > 1e-12:
@@ -791,8 +665,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             pending.remove(lineage.environment_outcome_id)
         if pending:
             raise RuntimeError(
-                "optimizer consumed runtime replay without published outcome "
-                f"lineage: {tuple(sorted(pending))!r}"
+                f"optimizer consumed runtime replay without published outcome lineage: {tuple(sorted(pending))!r}"
             )
         self._runtime_replay_outcome_lineages = updated
 
@@ -802,24 +675,15 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         world_rollout: ZRollout,
         self_rollout: ZRollout,
     ) -> None:
-        if (
-            len(world_rollout.transitions) != 1
-            or len(self_rollout.transitions) != 1
-        ):
-            raise ValueError(
-                "runtime segment staging requires one settled transition "
-                "per track"
-            )
+        if len(world_rollout.transitions) != 1 or len(self_rollout.transitions) != 1:
+            raise ValueError("runtime segment staging requires one settled transition per track")
         world_transition = world_rollout.transitions[0]
         self_transition = self_rollout.transitions[0]
         # World and self metacontrollers switch independently, so a segment
         # boundary is a beta_t switch on either track (matching the OR
         # semantics milestone/terminal closure already uses below). Segments
         # stay pairwise aligned; a divergent switch only shortens them.
-        boundary = (
-            world_transition.controller_state.is_switching
-            or self_transition.controller_state.is_switching
-        )
+        boundary = world_transition.controller_state.is_switching or self_transition.controller_state.is_switching
         if boundary and self._open_task_segment_rollouts:
             self._close_runtime_segment(reason="beta-switch")
         self._open_task_segment_rollouts.append(world_rollout)
@@ -830,10 +694,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             or self_transition.runtime_terminal
             or self_transition.runtime_milestone
         )
-        close_for_bound = (
-            len(self._open_task_segment_rollouts)
-            >= self._runtime_replay_segment_max_steps
-        )
+        close_for_bound = len(self._open_task_segment_rollouts) >= self._runtime_replay_segment_max_steps
         if close_for_milestone:
             self._close_runtime_segment(reason="environment-milestone")
         elif close_for_bound:
@@ -842,56 +703,38 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     def _close_runtime_segment(self, *, reason: str) -> None:
         if not self._open_task_segment_rollouts:
             return
-        if len(self._open_task_segment_rollouts) != len(
-            self._open_relationship_segment_rollouts
-        ):
-            raise RuntimeError(
-                "open runtime segment diverged between world and self tracks"
-            )
+        if len(self._open_task_segment_rollouts) != len(self._open_relationship_segment_rollouts):
+            raise RuntimeError("open runtime segment diverged between world and self tracks")
         segment_length = len(self._open_task_segment_rollouts)
         world_first = self._open_task_segment_rollouts[0].transitions[0]
         world_last = self._open_task_segment_rollouts[-1].transitions[-1]
         self_first = self._open_relationship_segment_rollouts[0].transitions[0]
         self_last = self._open_relationship_segment_rollouts[-1].transitions[-1]
         task_segment = self._merge_runtime_rollouts(
-            rollout_id=(
-                "runtime-segment:world:"
-                f"{world_first.runtime_turn_index}-{world_last.runtime_turn_index}"
-            ),
+            rollout_id=(f"runtime-segment:world:{world_first.runtime_turn_index}-{world_last.runtime_turn_index}"),
             track=Track.WORLD,
             rollouts=tuple(self._open_task_segment_rollouts),
         )
         relationship_segment = self._merge_runtime_rollouts(
-            rollout_id=(
-                "runtime-segment:self:"
-                f"{self_first.runtime_turn_index}-{self_last.runtime_turn_index}"
-            ),
+            rollout_id=(f"runtime-segment:self:{self_first.runtime_turn_index}-{self_last.runtime_turn_index}"),
             track=Track.SELF,
             rollouts=tuple(self._open_relationship_segment_rollouts),
         )
         self._pending_task_rollouts.append(
             replace(
                 task_segment,
-                description=(
-                    f"Closed runtime beta_t segment ({reason}) with "
-                    f"{segment_length} real transitions."
-                ),
+                description=(f"Closed runtime beta_t segment ({reason}) with {segment_length} real transitions."),
             )
         )
         self._pending_relationship_rollouts.append(
             replace(
                 relationship_segment,
-                description=(
-                    f"Closed runtime beta_t segment ({reason}) with "
-                    f"{segment_length} real transitions."
-                ),
+                description=(f"Closed runtime beta_t segment ({reason}) with {segment_length} real transitions."),
             )
         )
         self._runtime_segment_closed_count += 1
         self._runtime_last_segment_close_reason = reason
-        self._runtime_segment_close_reason_counts[reason] = (
-            self._runtime_segment_close_reason_counts.get(reason, 0) + 1
-        )
+        self._runtime_segment_close_reason_counts[reason] = self._runtime_segment_close_reason_counts.get(reason, 0) + 1
         self._runtime_longest_segment_length = max(
             self._runtime_longest_segment_length,
             segment_length,
@@ -917,9 +760,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._last_ssl_prediction_loss = current_ssl_prediction_loss
         if previous is None:
             return
-        self._schedule_gate_learner.observe_realized_outcome(
-            realized_gain=previous - current_ssl_prediction_loss
-        )
+        self._schedule_gate_learner.observe_realized_outcome(realized_gain=previous - current_ssl_prediction_loss)
 
     @property
     def primary_prediction_error_dominance_enabled(self) -> bool:
@@ -929,7 +770,6 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         self._primary_prediction_error_dominance_enabled = enabled
         self._world_sandbox._env.set_primary_prediction_error_enabled(enabled)
         self._self_sandbox._env.set_primary_prediction_error_enabled(enabled)
-
 
     def _apply_temporal_reflection_writeback(
         self,
@@ -1067,45 +907,17 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             ),
             world_temporal_snapshot=self._world_policy.export_rare_heavy_snapshot(),
             self_temporal_snapshot=self._self_policy.export_rare_heavy_snapshot(),
-            memory_checkpoint=self._memory_store.create_checkpoint(
-                checkpoint_id=f"{checkpoint_id}:memory"
-            ),
-            pending_task_rollouts=(
-                tuple(self._pending_task_rollouts)
-                if include_runtime_replay
-                else ()
-            ),
-            pending_relationship_rollouts=tuple(
-                self._pending_relationship_rollouts
-            )
-            if include_runtime_replay
-            else (),
-            runtime_replay_report=(
-                self.latest_runtime_replay_report
-                if include_runtime_replay
-                else None
-            ),
+            memory_checkpoint=self._memory_store.create_checkpoint(checkpoint_id=f"{checkpoint_id}:memory"),
+            pending_task_rollouts=(tuple(self._pending_task_rollouts) if include_runtime_replay else ()),
+            pending_relationship_rollouts=tuple(self._pending_relationship_rollouts) if include_runtime_replay else (),
+            runtime_replay_report=(self.latest_runtime_replay_report if include_runtime_replay else None),
             schedule_gate_state=self._schedule_gate_learner.export_state(),
-            open_task_segment_rollouts=(
-                tuple(self._open_task_segment_rollouts)
-                if include_runtime_replay
-                else ()
-            ),
+            open_task_segment_rollouts=(tuple(self._open_task_segment_rollouts) if include_runtime_replay else ()),
             open_relationship_segment_rollouts=(
-                tuple(self._open_relationship_segment_rollouts)
-                if include_runtime_replay
-                else ()
+                tuple(self._open_relationship_segment_rollouts) if include_runtime_replay else ()
             ),
-            runtime_segment_closed_count=(
-                self._runtime_segment_closed_count
-                if include_runtime_replay
-                else 0
-            ),
-            runtime_longest_segment_length=(
-                self._runtime_longest_segment_length
-                if include_runtime_replay
-                else 0
-            ),
+            runtime_segment_closed_count=(self._runtime_segment_closed_count if include_runtime_replay else 0),
+            runtime_longest_segment_length=(self._runtime_longest_segment_length if include_runtime_replay else 0),
         )
 
     def export_learning_persistence_snapshot(
@@ -1127,8 +939,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             schema_version=_JOINT_LEARNING_SCHEMA_VERSION,
             payload=payload,
             description=(
-                "Joint-loop learned state "
-                f"runtime_replay={'included' if include_runtime_replay else 'excluded'}"
+                f"Joint-loop learned state runtime_replay={'included' if include_runtime_replay else 'excluded'}"
             ),
         )
 
@@ -1153,9 +964,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             dict[str, Any],
         )
         if not isinstance(payload, dict):
-            raise RuntimeError(
-                "joint-loop persistence fingerprint codec did not produce an object"
-            )
+            raise RuntimeError("joint-loop persistence fingerprint codec did not produce an object")
         policy_payload = {
             "world": payload["world_policy_checkpoint"],
             "self": payload["self_policy_checkpoint"],
@@ -1169,9 +978,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         return (
             hashlib.sha256(canonical_json_bytes(policy_payload)).hexdigest(),
             hashlib.sha256(canonical_json_bytes(temporal_payload)).hexdigest(),
-            hashlib.sha256(
-                canonical_json_bytes(payload["memory_checkpoint"])
-            ).hexdigest(),
+            hashlib.sha256(canonical_json_bytes(payload["memory_checkpoint"])).hexdigest(),
         )
 
     @staticmethod
@@ -1180,8 +987,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
     ) -> RareHeavyImportCheckpoint:
         if snapshot.owner_name != _JOINT_LEARNING_OWNER_NAME:
             raise HydrationOwnerMismatchError(
-                "ETANLJointLoop expected owner_name="
-                f"{_JOINT_LEARNING_OWNER_NAME!r}, got {snapshot.owner_name!r}"
+                f"ETANLJointLoop expected owner_name={_JOINT_LEARNING_OWNER_NAME!r}, got {snapshot.owner_name!r}"
             )
         if snapshot.schema_version != _JOINT_LEARNING_SCHEMA_VERSION:
             raise HydrationVersionMismatchError(
@@ -1195,31 +1001,19 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 RareHeavyImportCheckpoint,
             )
         except CanonicalJsonError as exc:
-            raise HydrationPayloadInvalidError(
-                f"ETANLJointLoop learning payload is invalid: {exc}"
-            ) from exc
+            raise HydrationPayloadInvalidError(f"ETANLJointLoop learning payload is invalid: {exc}") from exc
         if not isinstance(checkpoint, RareHeavyImportCheckpoint):
-            raise HydrationPayloadInvalidError(
-                "ETANLJointLoop codec returned an unexpected checkpoint type"
-            )
+            raise HydrationPayloadInvalidError("ETANLJointLoop codec returned an unexpected checkpoint type")
         return checkpoint
 
-    def restore_learning_checkpoint(
-        self, checkpoint: RareHeavyImportCheckpoint
-    ) -> tuple[str, ...]:
+    def restore_learning_checkpoint(self, checkpoint: RareHeavyImportCheckpoint) -> tuple[str, ...]:
         """Restore a checkpoint created by :meth:`create_learning_checkpoint`."""
 
-        self._ssl_trainer.invalidate_store_session(
-            store=self._world_policy.parameter_store
-        )
-        self._ssl_trainer.invalidate_store_session(
-            store=self._self_policy.parameter_store
-        )
+        self._ssl_trainer.invalidate_store_session(store=self._world_policy.parameter_store)
+        self._ssl_trainer.invalidate_store_session(store=self._self_policy.parameter_store)
         operations = self.rollback_rare_heavy_import(checkpoint)
         if checkpoint.schedule_gate_state is not None:
-            self._schedule_gate_learner.restore_state(
-                checkpoint.schedule_gate_state
-            )
+            self._schedule_gate_learner.restore_state(checkpoint.schedule_gate_state)
             operations = operations + ("schedule-gate:restored",)
         if checkpoint.runtime_replay_report is None:
             self._world_sandbox.reset_runtime_replay_for_episode_transfer()
@@ -1339,18 +1133,9 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         rollouts: tuple[ZRollout, ...],
     ) -> ZRollout:
         if any(rollout.track is not track for rollout in rollouts):
-            raise ValueError(
-                f"cannot merge runtime replay rollouts across tracks for {track.value}"
-            )
-        flattened = tuple(
-            transition
-            for rollout in rollouts
-            for transition in rollout.transitions
-        )
-        transitions = tuple(
-            replace(transition, step_index=index)
-            for index, transition in enumerate(flattened)
-        )
+            raise ValueError(f"cannot merge runtime replay rollouts across tracks for {track.value}")
+        flattened = tuple(transition for rollout in rollouts for transition in rollout.transitions)
+        transitions = tuple(replace(transition, step_index=index) for index, transition in enumerate(flattened))
         return ZRollout(
             rollout_id=rollout_id,
             track=track,
@@ -1390,16 +1175,16 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         apply_writeback: bool = True,
         apply_policy_optimization: bool = True,
     ) -> JointCycleReport:
-        world_cycle_checkpoint = self._world_sandbox.create_checkpoint(
-            checkpoint_id=f"joint-cycle-{cycle_index}:world"
-        )
-        self_cycle_checkpoint = self._self_sandbox.create_checkpoint(
-            checkpoint_id=f"joint-cycle-{cycle_index}:self"
-        )
+        world_cycle_checkpoint = self._world_sandbox.create_checkpoint(checkpoint_id=f"joint-cycle-{cycle_index}:world")
+        self_cycle_checkpoint = self._self_sandbox.create_checkpoint(checkpoint_id=f"joint-cycle-{cycle_index}:self")
         self._world_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
         world_ssl_report = self._ssl_trainer.optimize(policy=self._world_policy, trace=trace)
         self._self_policy.parameter_store.set_learning_phase("ssl-online", structure_frozen=False)
         self_ssl_report = self._ssl_trainer.optimize(policy=self._self_policy, trace=trace)
+        ssl_intervention_rollback = not self._apply_ssl_optimization
+        if ssl_intervention_rollback:
+            self._world_sandbox.restore_checkpoint(world_cycle_checkpoint)
+            self._self_sandbox.restore_checkpoint(self_cycle_checkpoint)
         substrate_snapshots = tuple(self._snapshot_from_trace_step(step, trace) for step in trace.steps)
         self._world_policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
         self._self_policy.parameter_store.set_learning_phase("rl-online", structure_frozen=True)
@@ -1414,18 +1199,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             checkpoint_id=f"joint-cycle-{cycle_index}:self-pre-rl"
         )
         if self._internal_rl_runtime_replay is WiringLevel.ACTIVE:
-            if len(self._pending_task_rollouts) != len(
-                self._pending_relationship_rollouts
-            ):
-                raise RuntimeError(
-                    "ACTIVE runtime replay staging diverged between tracks"
-                )
+            if len(self._pending_task_rollouts) != len(self._pending_relationship_rollouts):
+                raise RuntimeError("ACTIVE runtime replay staging diverged between tracks")
             batch_due = self._rl_batch_ready_for_optimization()
             if batch_due:
                 task_batch = tuple(self._pending_task_rollouts)
-                relationship_batch = tuple(
-                    self._pending_relationship_rollouts
-                )
+                relationship_batch = tuple(self._pending_relationship_rollouts)
                 task_rollout = self._merge_runtime_rollouts(
                     rollout_id=f"joint-{cycle_index}:runtime-task",
                     track=Track.WORLD,
@@ -1450,18 +1229,12 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                     reason="waiting-for-runtime-replay",
                 )
         else:
-            self._world_sandbox.configure_runtime_backend(
-                source_text=trace.source_text
-            )
-            self._self_sandbox.configure_runtime_backend(
-                source_text=trace.source_text
-            )
+            self._world_sandbox.configure_runtime_backend(source_text=trace.source_text)
+            self._self_sandbox.configure_runtime_backend(source_text=trace.source_text)
             eval_signals = dict(self._previous_family_signals)
             eval_signals.update(self._external_learning_signals)
             if self._previous_credit_snapshot is not None:
-                credit_bonus = extract_abstract_action_credit_bonus(
-                    self._previous_credit_snapshot
-                )
+                credit_bonus = extract_abstract_action_credit_bonus(self._previous_credit_snapshot)
                 eval_signals.update(credit_bonus)
             if eval_signals:
                 self._world_sandbox._env.set_evaluation_signals(eval_signals)
@@ -1481,14 +1254,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             self._pending_task_rollouts.append(task_rollout)
             self._pending_relationship_rollouts.append(relationship_rollout)
             batch_due = self._rl_batch_ready_for_optimization()
-            task_batch = (
-                tuple(self._pending_task_rollouts) if batch_due else ()
-            )
-            relationship_batch = (
-                tuple(self._pending_relationship_rollouts)
-                if batch_due
-                else ()
-            )
+            task_batch = tuple(self._pending_task_rollouts) if batch_due else ()
+            relationship_batch = tuple(self._pending_relationship_rollouts) if batch_due else ()
         dual_track_rollout = DualTrackRollout(
             task_rollout=task_rollout,
             relationship_rollout=relationship_rollout,
@@ -1497,17 +1264,11 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 f"relationship_reward={relationship_rollout.total_reward:.2f}."
             ),
         )
-        world_before_hash = stable_value_hash(
-            self._world_sandbox.causal_policy.export_parameters()
-        )
-        self_before_hash = stable_value_hash(
-            self._self_sandbox.causal_policy.export_parameters()
-        )
+        world_before_hash = stable_value_hash(self._world_sandbox.causal_policy.export_parameters())
+        self_before_hash = stable_value_hash(self._self_sandbox.causal_policy.export_parameters())
         if batch_due:
             task_report = self._world_sandbox.optimize(task_batch)
-            relationship_report = self._self_sandbox.optimize(
-                relationship_batch
-            )
+            relationship_report = self._self_sandbox.optimize(relationship_batch)
             if not apply_policy_optimization:
                 self._world_sandbox.restore_checkpoint(world_pre_rl_checkpoint)
                 self._self_sandbox.restore_checkpoint(self_pre_rl_checkpoint)
@@ -1535,10 +1296,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 kl_penalty=0.0,
                 parameter_summary="waiting-for-batch",
                 rollout_count=len(self._pending_task_rollouts),
-                transition_count=sum(
-                    len(rollout.transitions)
-                    for rollout in self._pending_task_rollouts
-                ),
+                transition_count=sum(len(rollout.transitions) for rollout in self._pending_task_rollouts),
             )
             relationship_report = OptimizationReport(
                 track=Track.SELF,
@@ -1550,10 +1308,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 kl_penalty=0.0,
                 parameter_summary="waiting-for-batch",
                 rollout_count=len(self._pending_relationship_rollouts),
-                transition_count=sum(
-                    len(rollout.transitions)
-                    for rollout in self._pending_relationship_rollouts
-                ),
+                transition_count=sum(len(rollout.transitions) for rollout in self._pending_relationship_rollouts),
             )
             rl_batch_rollout_count = len(self._pending_task_rollouts)
         if not isinstance(task_report, OptimizationReport):
@@ -1599,8 +1354,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             task_report=task_report,
             relationship_report=relationship_report,
             description=(
-                f"task_adv={task_report.mean_advantage:.3f}, "
-                f"rel_adv={relationship_report.mean_advantage:.3f}"
+                f"task_adv={task_report.mean_advantage:.3f}, rel_adv={relationship_report.mean_advantage:.3f}"
             ),
         )
         optimization_result = PolicyOptimizationResult(
@@ -1623,8 +1377,16 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 wiring_level=WiringLevel.ACTIVE,
                 memory_feedback_signal=tuple(
                     (
-                        (world_ssl_report.m3_slow_momentum_signal[index] if index < len(world_ssl_report.m3_slow_momentum_signal) else 0.0)
-                        + (self_ssl_report.m3_slow_momentum_signal[index] if index < len(self_ssl_report.m3_slow_momentum_signal) else 0.0)
+                        (
+                            world_ssl_report.m3_slow_momentum_signal[index]
+                            if index < len(world_ssl_report.m3_slow_momentum_signal)
+                            else 0.0
+                        )
+                        + (
+                            self_ssl_report.m3_slow_momentum_signal[index]
+                            if index < len(self_ssl_report.m3_slow_momentum_signal)
+                            else 0.0
+                        )
                     )
                     / 2.0
                     for index in range(
@@ -1672,14 +1434,10 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             ),
         ]
         world_temporal_module = next(
-            module
-            for module in modules
-            if isinstance(module, TrackTemporalModule) and module.track is Track.WORLD
+            module for module in modules if isinstance(module, TrackTemporalModule) and module.track is Track.WORLD
         )
         self_temporal_module = next(
-            module
-            for module in modules
-            if isinstance(module, TrackTemporalModule) and module.track is Track.SELF
+            module for module in modules if isinstance(module, TrackTemporalModule) and module.track is Track.SELF
         )
         recorder = EventRecorder()
         active_snapshots = await propagate(
@@ -1707,10 +1465,11 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             ),
         )
         total_reward = (
-            dual_track_rollout.task_rollout.total_reward
-            + dual_track_rollout.relationship_rollout.total_reward
+            dual_track_rollout.task_rollout.total_reward + dual_track_rollout.relationship_rollout.total_reward
         )
-        all_transitions = dual_track_rollout.task_rollout.transitions + dual_track_rollout.relationship_rollout.transitions
+        all_transitions = (
+            dual_track_rollout.task_rollout.transitions + dual_track_rollout.relationship_rollout.transitions
+        )
         mean_transition_reward = total_reward / len(all_transitions) if all_transitions else 0.0
         backend_fidelity = (
             sum(transition.backend_fidelity for transition in all_transitions) / len(all_transitions)
@@ -1752,22 +1511,17 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             optimization_report=optimization_report,
             metacontroller_state=pre_rollback_metacontroller_state,
             optimization_evidence_available=not (
-                self._internal_rl_runtime_replay is WiringLevel.ACTIVE
-                and not batch_due
+                self._internal_rl_runtime_replay is WiringLevel.ACTIVE and not batch_due
             ),
         )
         rollback_required = bool(rollback_reasons)
         policy_rollback_applied = False
-        ssl_rollback_applied = False
+        ssl_rollback_applied = ssl_intervention_rollback
         if rollback_required:
             self._world_sandbox.restore_checkpoint(world_cycle_checkpoint)
             self._self_sandbox.restore_checkpoint(self_cycle_checkpoint)
-            self._ssl_trainer.invalidate_store_session(
-                store=self._world_policy.parameter_store
-            )
-            self._ssl_trainer.invalidate_store_session(
-                store=self._self_policy.parameter_store
-            )
+            self._ssl_trainer.invalidate_store_session(store=self._world_policy.parameter_store)
+            self._ssl_trainer.invalidate_store_session(store=self._self_policy.parameter_store)
             policy_rollback_applied = True
             ssl_rollback_applied = True
         metacontroller_state = self._aggregate_metacontroller_state()
@@ -1843,21 +1597,14 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         ):
             self._world_sandbox.restore_checkpoint(world_cycle_checkpoint)
             self._self_sandbox.restore_checkpoint(self_cycle_checkpoint)
-            self._ssl_trainer.invalidate_store_session(
-                store=self._world_policy.parameter_store
-            )
-            self._ssl_trainer.invalidate_store_session(
-                store=self._self_policy.parameter_store
-            )
+            self._ssl_trainer.invalidate_store_session(store=self._world_policy.parameter_store)
+            self._ssl_trainer.invalidate_store_session(store=self._self_policy.parameter_store)
             policy_rollback_applied = True
             ssl_rollback_applied = True
             rollback_reasons = rollback_reasons + ("evolution-judge-rollback",)
-        judge_allows_structural = (
-            evolution_judgement.decision is EvolutionDecision.PROMOTE
-            or (
-                evolution_judgement.decision is EvolutionDecision.HOLD
-                and evolution_judgement.category is not JudgementCategory.UNSAFE_MUTATION
-            )
+        judge_allows_structural = evolution_judgement.decision is EvolutionDecision.PROMOTE or (
+            evolution_judgement.decision is EvolutionDecision.HOLD
+            and evolution_judgement.category is not JudgementCategory.UNSAFE_MUTATION
         )
         owner_writeback_enabled = (
             apply_writeback
@@ -1881,12 +1628,14 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             timestamp_ms=active_snapshots["credit"].timestamp_ms + 175,
             apply_enabled=owner_writeback_enabled,
         )
-        self_track_temporal_writeback_operations, self_track_temporal_writeback_audits = self._apply_temporal_reflection_writeback(
-            temporal_module=self_temporal_module,
-            reflection_snapshot=reflection_snapshot,
-            credit_snapshot=enriched_credit_snapshot,
-            timestamp_ms=active_snapshots["credit"].timestamp_ms + 176,
-            apply_enabled=owner_writeback_enabled,
+        self_track_temporal_writeback_operations, self_track_temporal_writeback_audits = (
+            self._apply_temporal_reflection_writeback(
+                temporal_module=self_temporal_module,
+                reflection_snapshot=reflection_snapshot,
+                credit_snapshot=enriched_credit_snapshot,
+                timestamp_ms=active_snapshots["credit"].timestamp_ms + 176,
+                apply_enabled=owner_writeback_enabled,
+            )
         )
         if temporal_writeback_audits:
             enriched_credit_snapshot = extend_credit_snapshot(
@@ -1919,8 +1668,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                     reflection_writeback_result = replace(
                         reflection_writeback_result,
                         applied_operations=(
-                            reflection_writeback_result.applied_operations
-                            + reflection_regime_operations
+                            reflection_writeback_result.applied_operations + reflection_regime_operations
                         ),
                         description=(
                             f"{reflection_writeback_result.description} "
@@ -1937,9 +1685,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         elif rollback_required or policy_rollback_applied or ssl_rollback_applied:
             blocked_writeback_operations = ("owner-writeback:rollback-protection",)
         applied_operations = (
-            applied_operations
-            + temporal_writeback_operations
-            + self_track_temporal_writeback_operations
+            applied_operations + temporal_writeback_operations + self_track_temporal_writeback_operations
         )
         if ssl_rollback_applied:
             applied_operations = applied_operations + ("ssl-rollback",)
@@ -1951,22 +1697,14 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         # signals cache / previous credit snapshot). It never mutates shared
         # owner instances.
         # ========================================================================
-        if not (
-            self._internal_rl_runtime_replay is WiringLevel.ACTIVE
-            and not batch_due
-        ):
+        if not (self._internal_rl_runtime_replay is WiringLevel.ACTIVE and not batch_due):
             self._previous_total_reward = total_reward
         self._previous_metacontroller_state = metacontroller_state
         self._previous_family_signals = self._evaluation_backbone.family_signals(evaluation_snapshot)
         self._previous_credit_snapshot = enriched_credit_snapshot
         rare_heavy_review_recommended = self._pe_rare_heavy_due(schedule=JointLoopSchedule())
-        temporal_writeback_applied = bool(
-            temporal_writeback_operations or self_track_temporal_writeback_operations
-        )
-        if (
-            self._internal_rl_runtime_replay is WiringLevel.ACTIVE
-            and batch_due
-        ):
+        temporal_writeback_applied = bool(temporal_writeback_operations or self_track_temporal_writeback_operations)
+        if self._internal_rl_runtime_replay is WiringLevel.ACTIVE and batch_due:
             task_outcome_ids = tuple(
                 dict.fromkeys(
                     transition.environment_outcome_id
@@ -1984,10 +1722,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 )
             )
             if set(task_outcome_ids) != set(relationship_outcome_ids):
-                raise RuntimeError(
-                    "optimizer runtime replay outcome lineage diverged "
-                    "between world and self batches"
-                )
+                raise RuntimeError("optimizer runtime replay outcome lineage diverged between world and self batches")
             self._mark_runtime_outcomes_consumed(
                 outcome_ids=task_outcome_ids,
                 policy_update_applied=bool(
@@ -2128,8 +1863,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 owner_path=self.owner_path,
                 schedule_telemetry=schedule_telemetry,
                 description=(
-                    f"Scheduled joint loop owner={self.owner_path} collected "
-                    f"frozen evidence only at turn {turn_index}."
+                    f"Scheduled joint loop owner={self.owner_path} collected frozen evidence only at turn {turn_index}."
                 ),
                 substrate_online_fast_due=False,
                 rare_heavy_review_recommended=False,
@@ -2180,9 +1914,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             substrate_online_fast_due=substrate_online_fast_due,
             rare_heavy_review_recommended=rare_heavy_review_recommended,
         )
-        should_run_cycle = (
-            batch_schedule_action is not None and batch_schedule_action.startswith("full-cycle")
-        ) or (
+        should_run_cycle = (batch_schedule_action is not None and batch_schedule_action.startswith("full-cycle")) or (
             self._effective_rl_batch_target() <= 1
             and (pe_full_cycle_due or rl_due or rl_batch_ready_due or rl_batch_wait_due)
         )
@@ -2223,7 +1955,8 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 schedule_telemetry=schedule_telemetry,
                 description=cycle_report.description,
                 substrate_online_fast_due=substrate_online_fast_due,
-                rare_heavy_review_recommended=rare_heavy_review_recommended or cycle_report.rare_heavy_review_recommended,
+                rare_heavy_review_recommended=rare_heavy_review_recommended
+                or cycle_report.rare_heavy_review_recommended,
                 default_continual_learning_surface=cycle_report.default_continual_learning_surface,
                 runtime_replay_report=cycle_report.runtime_replay_report,
             )
@@ -2247,9 +1980,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
                 self._world_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
                 self._self_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
                 self._settle_schedule_gate(
-                    current_ssl_prediction_loss=(
-                        world_ssl_report.prediction_loss + self_ssl_report.prediction_loss
-                    )
+                    current_ssl_prediction_loss=(world_ssl_report.prediction_loss + self_ssl_report.prediction_loss)
                     / 2.0
                 )
                 return ScheduledJointLoopResult(
@@ -2303,10 +2034,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             self._world_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
             self._self_policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
             self._settle_schedule_gate(
-                current_ssl_prediction_loss=(
-                    world_ssl_report.prediction_loss + self_ssl_report.prediction_loss
-                )
-                / 2.0
+                current_ssl_prediction_loss=(world_ssl_report.prediction_loss + self_ssl_report.prediction_loss) / 2.0
             )
             schedule_action = (
                 "ssl-only-pe"
@@ -2403,27 +2131,20 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
         # authoritative safety blockers.
         if family_signals.get("relationship", 1.0) < 0.3:
             reasons.append("relationship-critical")
-        if any(
-            alert.severity in {"HIGH", "CRITICAL"}
-            for alert in evaluation_snapshot.structured_alerts
-        ):
+        if any(alert.severity in {"HIGH", "CRITICAL"} for alert in evaluation_snapshot.structured_alerts):
             reasons.append("evaluation-alert")
-        synthetic_surrogate_gate = (
-            self._internal_rl_runtime_replay is not WiringLevel.ACTIVE
-        )
+        synthetic_surrogate_gate = self._internal_rl_runtime_replay is not WiringLevel.ACTIVE
         if (
             optimization_evidence_available
             and synthetic_surrogate_gate
             and (
                 optimization_report.task_report.surrogate_objective < -0.1
-                or optimization_report.relationship_report.surrogate_objective
-                < -0.1
+                or optimization_report.relationship_report.surrogate_objective < -0.1
             )
         ):
             reasons.append("negative-surrogate")
         if optimization_evidence_available and (
-            optimization_report.task_report.kl_penalty > 0.4
-            or optimization_report.relationship_report.kl_penalty > 0.4
+            optimization_report.task_report.kl_penalty > 0.4 or optimization_report.relationship_report.kl_penalty > 0.4
         ):
             reasons.append("excessive-kl")
         surrogate_total = (
@@ -2481,9 +2202,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             abs(current_temporal.reflection_weight - previous_temporal.reflection_weight),
             abs(current_temporal.switch_bias - previous_temporal.switch_bias),
         )
-        persistence_shift = abs(
-            metacontroller_state.persistence - self._previous_metacontroller_state.persistence
-        )
+        persistence_shift = abs(metacontroller_state.persistence - self._previous_metacontroller_state.persistence)
         current_tracks = dict(metacontroller_state.track_parameters)
         previous_tracks = dict(self._previous_metacontroller_state.track_parameters)
         track_shift = max(
@@ -2501,8 +2220,7 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             is_frozen=True,
             surface_kind=SurfaceKind.RESIDUAL_STREAM,
             token_logits=tuple(
-                min(sum(feature.values) / max(len(feature.values), 1), 1.0)
-                for feature in step.feature_surface
+                min(sum(feature.values) / max(len(feature.values), 1), 1.0) for feature in step.feature_surface
             ),
             feature_surface=step.feature_surface,
             residual_activations=step.residual_activations,
@@ -2519,7 +2237,6 @@ class ETANLJointLoop(_JointLoopSchedulingMixin, _JointLoopArtifactImportMixin):
             unavailable_fields=(),
             description=f"Trace step {step.step} for {trace.trace_id}.",
         )
-
 
 
 __all__ = [

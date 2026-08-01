@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 
@@ -36,6 +37,11 @@ from aiohttp import web
 
 from lifeform_service.app import create_app
 from lifeform_service.alpha import AlphaServiceConfig, load_alpha_users
+from lifeform_service.companion_evidence_profile import (
+    COMPANION_EVIDENCE_PROFILE_NAMES,
+    resolve_companion_evidence_profile,
+    write_companion_evidence_profile_attestation,
+)
 from lifeform_service.verticals import (
     default_vertical_name,
     discover_companion_ablation_verticals,
@@ -60,11 +66,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--host", default="127.0.0.1",
+        "--host",
+        default="127.0.0.1",
         help="Bind host (default 127.0.0.1).",
     )
     parser.add_argument(
-        "--port", type=int, default=8765,
+        "--port",
+        type=int,
+        default=8765,
         help="Bind port (default 8765).",
     )
     parser.add_argument(
@@ -85,11 +94,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--max-sessions", type=int, default=256,
+        "--max-sessions",
+        type=int,
+        default=256,
         help="Cap on concurrently live sessions before LRU eviction (default 256).",
     )
     parser.add_argument(
-        "--idle-eviction-seconds", type=float, default=1800.0,
+        "--idle-eviction-seconds",
+        type=float,
+        default=1800.0,
         help=(
             "Sessions idle longer than this many seconds are auto-closed. "
             "Pass 0 (or negative) to disable idle eviction."
@@ -108,10 +121,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--substrate-model-id",
         default="Qwen/Qwen2.5-0.5B-Instruct",
-        help=(
-            "HF model id to load when --substrate-mode=hf-shared "
-            "(default Qwen/Qwen2.5-0.5B-Instruct)."
-        ),
+        help=("HF model id to load when --substrate-mode=hf-shared (default Qwen/Qwen2.5-0.5B-Instruct)."),
     )
     parser.add_argument(
         "--substrate-device",
@@ -124,11 +134,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Forbid HF Hub network fetches (use only the local cache).",
     )
     parser.add_argument(
-        "--list-verticals", action="store_true",
+        "--list-verticals",
+        action="store_true",
         help="Print the verticals discovered in this install and exit.",
     )
     parser.add_argument(
-        "--log-level", default="INFO",
+        "--log-level",
+        default="INFO",
         help="Python logging level (default INFO).",
     )
     parser.add_argument(
@@ -157,6 +169,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Allow observed_at_ms on continuity-metrics for isolated "
             "virtual-calendar evidence runs. Never enable in product service."
+        ),
+    )
+    parser.add_argument(
+        "--companion-evidence-profile",
+        choices=COMPANION_EVIDENCE_PROFILE_NAMES,
+        default=None,
+        help=(
+            "Evidence-only matched-intervention startup profile. Requires "
+            "the companion vertical, closed-alpha isolation, a dedicated "
+            "evidence root, virtual-calendar mode, hf-shared, and local "
+            "model files. Never use in product service."
         ),
     )
     parser.add_argument(
@@ -250,7 +273,8 @@ def _maybe_build_protocol_uptake_service(args: argparse.Namespace):
         _LOG.info(
             "protocol library: discovered %d persisted protocol(s) in %s "
             "(use POST /v1/protocols/library/<id>/load to activate)",
-            len(persisted), approved_dir,
+            len(persisted),
+            approved_dir,
         )
     else:
         _LOG.info(
@@ -274,9 +298,15 @@ def _build_shared_substrate(args: argparse.Namespace) -> "OpenWeightResidualRunt
     if args.substrate_mode == "hf-shared":
         from volvence_zero.substrate import build_transformers_runtime_with_fallback
 
+        profile = (
+            resolve_companion_evidence_profile(args.companion_evidence_profile)
+            if args.companion_evidence_profile is not None
+            else None
+        )
+        allow_live_mutation = bool(profile is not None and profile.allow_single_session_live_substrate_mutation)
+
         _LOG.info(
-            "substrate_mode=hf-shared; eagerly loading model_id=%s on device=%s "
-            "(local_files_only=%s)",
+            "substrate_mode=hf-shared; eagerly loading model_id=%s on device=%s (local_files_only=%s)",
             args.substrate_model_id,
             args.substrate_device,
             args.substrate_local_files_only,
@@ -292,7 +322,7 @@ def _build_shared_substrate(args: argparse.Namespace) -> "OpenWeightResidualRunt
             # Sharing requires frozen weights; explicit kwargs make the
             # invariant impossible to mis-configure. ``create_app``
             # double-checks via _enforce_frozen_for_sharing.
-            allow_live_substrate_mutation=False,
+            allow_live_substrate_mutation=allow_live_mutation,
         )
         _LOG.info(
             "shared substrate ready: model_id=%s runtime_origin=%s",
@@ -315,12 +345,41 @@ def main(argv: list[str] | None = None) -> int:
     if args.ablation_bundle and args.vertical:
         print("--ablation-bundle cannot be combined with --vertical", file=sys.stderr)
         return 1
+    if args.companion_evidence_profile is not None:
+        evidence_profile_errors = []
+        if args.ablation_bundle:
+            evidence_profile_errors.append("--ablation-bundle is not allowed")
+        if args.vertical not in (None, "companion"):
+            evidence_profile_errors.append("--vertical must be companion")
+        if not args.alpha_enabled:
+            evidence_profile_errors.append("--alpha-enabled is required")
+        if args.evidence_root_dir is None:
+            evidence_profile_errors.append("--evidence-root-dir is required")
+        if not args.allow_evidence_time_override:
+            evidence_profile_errors.append("--allow-evidence-time-override is required")
+        if args.substrate_mode != "hf-shared":
+            evidence_profile_errors.append("--substrate-mode must be hf-shared")
+        if not args.substrate_local_files_only:
+            evidence_profile_errors.append("--substrate-local-files-only is required")
+        profile = resolve_companion_evidence_profile(args.companion_evidence_profile)
+        if profile.allow_single_session_live_substrate_mutation and args.max_sessions != 1:
+            evidence_profile_errors.append("mutable evidence profile requires --max-sessions 1")
+        if evidence_profile_errors:
+            print(
+                "--companion-evidence-profile rejected: " + "; ".join(evidence_profile_errors),
+                file=sys.stderr,
+            )
+            return 1
 
     try:
         discovered = (
             discover_companion_ablation_verticals()
             if args.ablation_bundle
-            else discover_verticals()
+            else (
+                discover_verticals(companion_evidence_profile=(args.companion_evidence_profile))
+                if args.companion_evidence_profile is not None
+                else discover_verticals()
+            )
         )
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
@@ -402,6 +461,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Failed to build shared substrate runtime: {exc}", file=sys.stderr)
         return 1
 
+    if args.companion_evidence_profile is not None:
+        try:
+            attestation_path = write_companion_evidence_profile_attestation(
+                output_dir=Path(args.evidence_root_dir),
+                profile=resolve_companion_evidence_profile(args.companion_evidence_profile),
+                substrate_model_id=args.substrate_model_id,
+                substrate_device=args.substrate_device,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(
+                f"Failed to attest --companion-evidence-profile: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        _LOG.info(
+            "companion evidence profile=%s attestation=%s",
+            args.companion_evidence_profile,
+            attestation_path,
+        )
+
     protocol_uptake_service = _maybe_build_protocol_uptake_service(args)
 
     app_kwargs = {
@@ -410,6 +489,13 @@ def main(argv: list[str] | None = None) -> int:
         "substrate_runtime": substrate_runtime,
         "alpha_config": alpha_config,
         "protocol_uptake_service": protocol_uptake_service,
+        "companion_evidence_profile": args.companion_evidence_profile,
+        "allow_evidence_single_session_mutation": bool(
+            args.companion_evidence_profile is not None
+            and resolve_companion_evidence_profile(
+                args.companion_evidence_profile
+            ).allow_single_session_live_substrate_mutation
+        ),
     }
     if args.ablation_bundle:
         app = create_app(
@@ -439,24 +525,21 @@ def main(argv: list[str] | None = None) -> int:
         api_key_env = args.openai_compat_api_key_env.strip()
         if not api_key_env:
             print(
-                "--enable-openai-compat requires a non-empty "
-                "--openai-compat-api-key-env name",
+                "--enable-openai-compat requires a non-empty --openai-compat-api-key-env name",
                 file=sys.stderr,
             )
             return 1
         api_key = os.environ.get(api_key_env, "").strip()
         if not api_key:
             print(
-                f"--enable-openai-compat requires env var {api_key_env} "
-                "to contain the local OpenAI-compatible API key",
+                f"--enable-openai-compat requires env var {api_key_env} to contain the local OpenAI-compatible API key",
                 file=sys.stderr,
             )
             return 1
         add_openai_routes(app, api_keys=(api_key,))
     print(
         (
-            "[lifeform-serve] ablation_bundle="
-            f"{','.join(discovered.keys())}  default_vertical={name}  "
+            f"[lifeform-serve] ablation_bundle={','.join(discovered.keys())}  default_vertical={name}  "
             if args.ablation_bundle
             else (
                 f"[lifeform-serve] vertical={spec.name}  "
@@ -466,14 +549,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         + f"substrate_mode={args.substrate_mode}"
         + (f"  alpha_enabled={args.alpha_enabled}" if args.alpha_enabled else "")
+        + (f"  openai_compat=on(auth_env={args.openai_compat_api_key_env})" if args.enable_openai_compat else "")
+        + (f"  model_id={args.substrate_model_id}" if args.substrate_mode == "hf-shared" else "")
         + (
-            f"  openai_compat=on(auth_env={args.openai_compat_api_key_env})"
-            if args.enable_openai_compat
-            else ""
-        )
-        + (
-            f"  model_id={args.substrate_model_id}"
-            if args.substrate_mode == "hf-shared"
+            f"  evidence_profile={args.companion_evidence_profile}"
+            if args.companion_evidence_profile is not None
             else ""
         )
     )

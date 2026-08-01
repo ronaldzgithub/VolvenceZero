@@ -10,7 +10,7 @@ shapes, not by reaching into ``Lifeform`` internals.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping
 
 
 @dataclass(frozen=True)
@@ -68,6 +68,9 @@ class TurnResponse:
     active_abstract_action: str | None
     expression_intent: str | None
     pe_magnitude: float
+    pe_bootstrap: bool
+    world_temporal_prediction_error_applied: bool
+    self_temporal_prediction_error_applied: bool
     open_loop_count: int
     commitment_count: int
     response_rationale_tags: tuple[str, ...] = ()
@@ -80,6 +83,7 @@ class TurnResponse:
     # owner of prompt state. ``None`` when no LLM-backed synthesizer
     # ran (deterministic substrate, scope refusal, error path).
     llm_envelope: dict[str, Any] | None = None
+    evidence_telemetry: Mapping[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -91,11 +95,15 @@ class TurnResponse:
             "active_abstract_action": self.active_abstract_action,
             "expression_intent": self.expression_intent,
             "pe_magnitude": self.pe_magnitude,
+            "pe_bootstrap": self.pe_bootstrap,
+            "world_temporal_prediction_error_applied": (self.world_temporal_prediction_error_applied),
+            "self_temporal_prediction_error_applied": (self.self_temporal_prediction_error_applied),
             "open_loop_count": self.open_loop_count,
             "commitment_count": self.commitment_count,
             "response_rationale_tags": list(self.response_rationale_tags),
             "safety": self.safety,
             "llm_envelope": self.llm_envelope,
+            "evidence_telemetry": dict(self.evidence_telemetry),
         }
 
 
@@ -105,6 +113,7 @@ class EndSceneResponse:
     closed_scene_id: str | None
     slow_loop_drained: bool
     evidence_artifact_ref: str | None = None
+    evidence_telemetry: Mapping[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -112,6 +121,7 @@ class EndSceneResponse:
             "closed_scene_id": self.closed_scene_id,
             "slow_loop_drained": self.slow_loop_drained,
             "evidence_artifact_ref": self.evidence_artifact_ref,
+            "evidence_telemetry": dict(self.evidence_telemetry),
         }
 
 

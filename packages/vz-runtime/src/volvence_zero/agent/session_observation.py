@@ -197,32 +197,22 @@ def _relationship_conditioning_delivery_from_config(
             "'prefix_kv', "
             f"got {relationship_conditioning_mode!r}."
         )
-    if (
-        relationship_bank is None
-        or revocation_state is ConditioningRevocationState.REVOKED
-    ):
+    if relationship_bank is None or revocation_state is ConditioningRevocationState.REVOKED:
         return None, "", ""
     if relationship_conditioning_mode == "prefix_kv":
         if not prefix_version or not 0.0 < prefix_norm_cap <= 0.12:
             raise ValueError(
-                "relationship_conditioning_mode='prefix_kv' requires a "
-                "loaded, bounded Relationship Prefix-KV artifact."
+                "relationship_conditioning_mode='prefix_kv' requires a loaded, bounded Relationship Prefix-KV artifact."
             )
         carrier = "prefix_kv"
         carrier_version = prefix_version
         scale = prefix_norm_cap
-        description = (
-            "Versioned Relationship bank Prefix-KV request for the frozen "
-            "substrate."
-        )
+        description = "Versioned Relationship bank Prefix-KV request for the frozen substrate."
     else:
         carrier = "residual"
         carrier_version = projector_version
         scale = RELATIONSHIP_RESIDUAL_DEFAULT_SCALE
-        description = (
-            "Versioned Relationship bank residual request for the frozen "
-            "substrate."
-        )
+        description = "Versioned Relationship bank residual request for the frozen substrate."
     return (
         ConditioningBankLatentCarrier(
             schema_version=CONDITIONING_BANK_LATENT_CARRIER_SCHEMA_VERSION,
@@ -256,11 +246,7 @@ def _merge_text_delivery(
         return statement, statement_ref
     return (
         f"{statement}\n\n{extra_statement}" if statement else extra_statement,
-        (
-            f"{statement_ref};{extra_statement_ref}"
-            if statement_ref
-            else extra_statement_ref
-        ),
+        (f"{statement_ref};{extra_statement_ref}" if statement_ref else extra_statement_ref),
     )
 
 
@@ -268,9 +254,7 @@ def _personal_conditioning_delivery_from_config(
     *,
     active_conditioning: PersonalConditioningSnapshot | None,
     personal_conditioning_mode: str,
-    revocation_state: ConditioningRevocationState = (
-        ConditioningRevocationState.ACTIVE
-    ),
+    revocation_state: ConditioningRevocationState = (ConditioningRevocationState.ACTIVE),
 ) -> tuple[PersonalConditioningSnapshot | None, str, str, str]:
     """Select exactly one live personal-state delivery carrier."""
 
@@ -303,8 +287,7 @@ def _personal_conditioning_delivery_from_config(
     if personal_conditioning_mode == "prefix_kv":
         return active_conditioning, "", "", "prefix_kv"
     raise ValueError(
-        "personal_conditioning_mode must be 'residual', 'text', or "
-        f"'prefix_kv', got {personal_conditioning_mode!r}."
+        f"personal_conditioning_mode must be 'residual', 'text', or 'prefix_kv', got {personal_conditioning_mode!r}."
     )
 
 
@@ -315,9 +298,7 @@ def _substrate_conditioning_lineage_from_previous(
     session_scope: str,
     personal_conditioning_wiring: WiringLevel,
     personal_conditioning_mode: str,
-    revocation_state: ConditioningRevocationState = (
-        ConditioningRevocationState.ACTIVE
-    ),
+    revocation_state: ConditioningRevocationState = (ConditioningRevocationState.ACTIVE),
 ) -> ConditioningLineageRef | None:
     if personal_conditioning_wiring is not WiringLevel.ACTIVE:
         return None
@@ -362,9 +343,7 @@ class SessionObservationMixin:
             revocation_state=self._personal_conditioning_revocation_state,
         )
         capture_conditioning = (
-            self._previous_personal_conditioning_snapshot
-            if conditioning_lineage is not None
-            else None
+            self._previous_personal_conditioning_snapshot if conditioning_lineage is not None else None
         )
         return OpenWeightResidualStreamSubstrateAdapter(
             runtime=self._default_residual_runtime,
@@ -373,8 +352,7 @@ class SessionObservationMixin:
             personal_conditioning=capture_conditioning,
             personal_conditioning_carrier=(
                 self._config.personal_conditioning_mode
-                if self._config.personal_conditioning_mode
-                in _SUBSTRATE_LINEAGE_CARRIERS
+                if self._config.personal_conditioning_mode in _SUBSTRATE_LINEAGE_CARRIERS
                 else "residual"
             ),
         )
@@ -450,9 +428,7 @@ class SessionObservationMixin:
         temporal_snapshot = integration_result.active_snapshots.get(
             "temporal_abstraction"
         ) or integration_result.shadow_snapshots.get("temporal_abstraction")
-        if temporal_snapshot is not None and isinstance(
-            temporal_snapshot.value, TemporalAbstractionSnapshot
-        ):
+        if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot):
             active_abstract_action = temporal_snapshot.value.active_abstract_action
             temporal_switch_gate = temporal_snapshot.value.controller_state.switch_gate
             temporal_is_switching = temporal_snapshot.value.controller_state.is_switching
@@ -542,9 +518,9 @@ class SessionObservationMixin:
         reflection_tension_count = 0
         primary_reflection_lesson = None
         primary_reflection_tension = None
-        reflection_snapshot = integration_result.active_snapshots.get("reflection") or integration_result.shadow_snapshots.get(
+        reflection_snapshot = integration_result.active_snapshots.get(
             "reflection"
-        )
+        ) or integration_result.shadow_snapshots.get("reflection")
         if reflection_snapshot is not None and isinstance(reflection_snapshot.value, ReflectionSnapshot):
             reflection_lesson_count = len(reflection_snapshot.value.lessons_extracted)
             reflection_tension_count = len(reflection_snapshot.value.tensions_identified)
@@ -554,12 +530,11 @@ class SessionObservationMixin:
         response_assembly_snapshot = integration_result.active_snapshots.get("response_assembly")
         response_assembly = (
             response_assembly_snapshot.value
-            if response_assembly_snapshot is not None and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
+            if response_assembly_snapshot is not None
+            and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
             else None
         )
-        personal_conditioning_snapshot = integration_result.active_snapshots.get(
-            "personal_conditioning"
-        )
+        personal_conditioning_snapshot = integration_result.active_snapshots.get("personal_conditioning")
         active_conditioning = (
             personal_conditioning_snapshot.value
             if personal_conditioning_snapshot is not None
@@ -586,9 +561,7 @@ class SessionObservationMixin:
         # State KV P4-b: second bank. Only an ACTIVE-wired publication (it
         # lands in active_snapshots) with live evidence is a delivery
         # candidate; SHADOW keeps today's single-bank behaviour byte-for-byte.
-        relationship_conditioning_snapshot = integration_result.active_snapshots.get(
-            RELATIONSHIP_CONDITIONING_SLOT
-        )
+        relationship_conditioning_snapshot = integration_result.active_snapshots.get(RELATIONSHIP_CONDITIONING_SLOT)
         active_relationship_readout = (
             relationship_conditioning_snapshot.value
             if relationship_conditioning_snapshot is not None
@@ -615,9 +588,7 @@ class SessionObservationMixin:
                 readout=active_relationship_readout,
                 slot_name=RELATIONSHIP_CONDITIONING_SLOT,
                 scope=conditioning_scope,
-                revocation_state=(
-                    self._personal_conditioning_revocation_state
-                ),
+                revocation_state=(self._personal_conditioning_revocation_state),
             )
             if active_relationship_readout is not None
             else None
@@ -629,22 +600,11 @@ class SessionObservationMixin:
         ) = _relationship_conditioning_delivery_from_config(
             relationship_readout=active_relationship_readout,
             relationship_bank=relationship_bank,
-            relationship_conditioning_mode=(
-                self._config.relationship_conditioning_mode
-            ),
+            relationship_conditioning_mode=(self._config.relationship_conditioning_mode),
             revocation_state=self._personal_conditioning_revocation_state,
-            projector_version=(
-                self._default_residual_runtime
-                .relationship_conditioning_projector_version
-            ),
-            prefix_version=(
-                self._default_residual_runtime
-                .relationship_conditioning_prefix_version
-            ),
-            prefix_norm_cap=(
-                self._default_residual_runtime
-                .relationship_conditioning_prefix_norm_cap
-            ),
+            projector_version=(self._default_residual_runtime.relationship_conditioning_projector_version),
+            prefix_version=(self._default_residual_runtime.relationship_conditioning_prefix_version),
+            prefix_norm_cap=(self._default_residual_runtime.relationship_conditioning_prefix_norm_cap),
         )
         # State KV P1 lineage: project the ACTIVE personal snapshot onto the
         # generic bank so this turn records which state versions shaped it.
@@ -655,17 +615,13 @@ class SessionObservationMixin:
                 personal_conditioning_to_bank(
                     snapshot=active_conditioning,
                     scope=conditioning_scope,
-                    revocation_state=(
-                        self._personal_conditioning_revocation_state
-                    ),
+                    revocation_state=(self._personal_conditioning_revocation_state),
                 ),
             )
             if active_conditioning is not None
             else ()
         )
-        if relationship_bank is not None and (
-            relationship_statement or relationship_latent_carrier is not None
-        ):
+        if relationship_bank is not None and (relationship_statement or relationship_latent_carrier is not None):
             conditioning_banks = (*conditioning_banks, relationship_bank)
         # State KV P4-c: Top-K semantic router over the candidate banks.
         # SHADOW computes the decision report-only (delivery stays
@@ -694,11 +650,7 @@ class SessionObservationMixin:
                     relationship_latent_carrier = None
                     relationship_statement = ""
                     relationship_statement_ref = ""
-                conditioning_banks = tuple(
-                    bank
-                    for bank in conditioning_banks
-                    if bank.bank_type.value in selected
-                )
+                conditioning_banks = tuple(bank for bank in conditioning_banks if bank.bank_type.value in selected)
                 lineage_router_version = router_decision.router_version
                 lineage_router_scores = router_decision.scores
             else:
@@ -724,9 +676,8 @@ class SessionObservationMixin:
         addressee_ids = (SELF_INTERLOCUTOR_ID,)
         subject_ids = (PRIMARY_INTERLOCUTOR_ID,)
         audience_ids = (SELF_INTERLOCUTOR_ID,)
-        if (
-            multi_party_identity_snapshot is not None
-            and isinstance(multi_party_identity_snapshot.value, MultiPartyIdentitySnapshot)
+        if multi_party_identity_snapshot is not None and isinstance(
+            multi_party_identity_snapshot.value, MultiPartyIdentitySnapshot
         ):
             identity_scope = multi_party_identity_snapshot.value
             active_speaker_id = identity_scope.active_speaker_id
@@ -742,9 +693,7 @@ class SessionObservationMixin:
         # regime module (RegimeIdentity.expression_brief). The
         # synthesizer reads context.regime_expression_brief to pick
         # variant prose instead of branching on regime_id strings.
-        if regime_snapshot is not None and isinstance(
-            regime_snapshot.value, RegimeSnapshot
-        ):
+        if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot):
             regime_value = regime_snapshot.value
             regime_name_value = regime_value.active_regime.name
             regime_expression_brief = regime_value.active_regime.expression_brief
@@ -752,6 +701,7 @@ class SessionObservationMixin:
             from volvence_zero.regime import (
                 ExpressionBrief as _ExpressionBriefDefault,
             )
+
             regime_name_value = "current context"
             regime_expression_brief = _ExpressionBriefDefault()
         response = self._response_synthesizer.synthesize(
@@ -784,14 +734,10 @@ class SessionObservationMixin:
                 personal_conditioning_statement_ref=personal_conditioning_statement_ref,
                 personal_conditioning_carrier=personal_conditioning_carrier,
                 conditioning_bank_carriers=(
-                    (relationship_latent_carrier,)
-                    if relationship_latent_carrier is not None
-                    else ()
+                    (relationship_latent_carrier,) if relationship_latent_carrier is not None else ()
                 ),
                 prompt_state_delivery=self._config.prompt_state_delivery,
-                dynamic_residual_wiring=(
-                    self._config.generation_dynamic_residual.value
-                ),
+                dynamic_residual_wiring=(self._config.generation_dynamic_residual.value),
             ),
             assembly=response_assembly,
         )
@@ -814,14 +760,19 @@ class SessionObservationMixin:
                 wave_id=wave_id,
                 timestamp_ms=evaluation_snapshot.timestamp_ms + 20,
                 base_snapshot=evaluation_snapshot.value,
-                memory_snapshot=memory_snapshot.value if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot) else None,
+                memory_snapshot=memory_snapshot.value
+                if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot)
+                else None,
                 reflection_snapshot=reflection_snapshot.value if reflection_snapshot is not None else None,
                 writeback_result=integration_result.writeback_result,
                 joint_loop_result=joint_result,
-                regime_snapshot=regime_snapshot.value if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot) else None,
+                regime_snapshot=regime_snapshot.value
+                if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot)
+                else None,
                 domain_knowledge_snapshot=(
                     domain_knowledge_snapshot.value
-                    if domain_knowledge_snapshot is not None and isinstance(domain_knowledge_snapshot.value, DomainKnowledgeSnapshot)
+                    if domain_knowledge_snapshot is not None
+                    and isinstance(domain_knowledge_snapshot.value, DomainKnowledgeSnapshot)
                     else None
                 ),
                 case_memory_snapshot=(
@@ -831,12 +782,14 @@ class SessionObservationMixin:
                 ),
                 strategy_playbook_snapshot=(
                     strategy_playbook_snapshot.value
-                    if strategy_playbook_snapshot is not None and isinstance(strategy_playbook_snapshot.value, StrategyPlaybookSnapshot)
+                    if strategy_playbook_snapshot is not None
+                    and isinstance(strategy_playbook_snapshot.value, StrategyPlaybookSnapshot)
                     else None
                 ),
                 boundary_policy_snapshot=(
                     boundary_policy_snapshot.value
-                    if boundary_policy_snapshot is not None and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot)
+                    if boundary_policy_snapshot is not None
+                    and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot)
                     else None
                 ),
                 experience_fast_prior_snapshot=experience_fast_prior_snapshot.value,
@@ -873,28 +826,20 @@ class SessionObservationMixin:
 
         outcome_evidence: tuple[DialogueOutcomeEvidence, ...] = ()
         if self._dialogue_pe_continued_evidence_enabled:
-            pe_snapshot = active_snapshots.get("prediction_error") or shadow_snapshots.get(
-                "prediction_error"
-            )
+            pe_snapshot = active_snapshots.get("prediction_error") or shadow_snapshots.get("prediction_error")
             outcome_evidence = (
                 *outcome_evidence,
                 *pe_continued_evidence_from_prediction_error(
-                    prediction_error_snapshot=(
-                        pe_snapshot.value if pe_snapshot is not None else None
-                    ),
+                    prediction_error_snapshot=(pe_snapshot.value if pe_snapshot is not None else None),
                     wave_id=wave_id,
                 ),
             )
         if self._dialogue_commitment_outcome_evidence_enabled:
-            commitment_snapshot = active_snapshots.get("commitment") or shadow_snapshots.get(
-                "commitment"
-            )
+            commitment_snapshot = active_snapshots.get("commitment") or shadow_snapshots.get("commitment")
             outcome_evidence = (
                 *outcome_evidence,
                 *commitment_outcome_evidence_from_commitment(
-                    commitment_snapshot=(
-                        commitment_snapshot.value if commitment_snapshot is not None else None
-                    ),
+                    commitment_snapshot=(commitment_snapshot.value if commitment_snapshot is not None else None),
                     wave_id=wave_id,
                     current_turn_index=self._turn_index,
                 ),
@@ -921,9 +866,7 @@ class SessionObservationMixin:
                 session_scope=self._session_id,
                 banks=conditioning_banks,
                 state_encoder_version=(
-                    relationship_latent_carrier.projector_version
-                    if relationship_latent_carrier is not None
-                    else ""
+                    relationship_latent_carrier.projector_version if relationship_latent_carrier is not None else ""
                 ),
                 # P4-c: the routing decision that actually shaped delivery,
                 # plus the Top-K shadow audit when the router ran
@@ -971,6 +914,16 @@ class SessionObservationMixin:
                         shadow_snapshots["credit"] = new_credit_snapshot
 
         self._previous_personal_conditioning_snapshot = active_conditioning
+        ssl_m3_slow_momentum_norm = 0.0
+        ssl_m3_slow_gain = 0.0
+        latest_ssl_report = self._joint_loop.latest_ssl_report
+        if latest_ssl_report is not None:
+            slow_signal = latest_ssl_report.m3_slow_momentum_signal
+            if slow_signal:
+                ssl_m3_slow_momentum_norm = sum(abs(value) for value in slow_signal) / len(slow_signal)
+            optimizer_state = latest_ssl_report.encoder_optimizer_state
+            if optimizer_state is not None:
+                ssl_m3_slow_gain = optimizer_state.slow_gain
         return AgentTurnResult(
             session_id=self.active_context_session_id,
             wave_id=wave_id,
@@ -988,8 +941,7 @@ class SessionObservationMixin:
             next_prediction=next_prediction,
             prediction_error=prediction_error,
             bounded_writeback_applied=bool(
-                effective_writeback_result is not None
-                and effective_writeback_result.applied_operations
+                effective_writeback_result is not None and effective_writeback_result.applied_operations
             ),
             writeback_source=integration_result.writeback_source,
             writeback_operations=effective_writeback_result.applied_operations
@@ -1054,6 +1006,8 @@ class SessionObservationMixin:
             session_post_completed_job_count=effective_queue_state.completed_job_count,
             session_post_last_completed_job_id=effective_queue_state.last_completed_job_id,
             online_fast_substrate_result=online_fast_substrate_result,
+            ssl_m3_slow_momentum_norm=ssl_m3_slow_momentum_norm,
+            ssl_m3_slow_gain=ssl_m3_slow_gain,
         )
 
     def _run_imagination(self, integration_result: FinalIntegrationResult) -> ImaginationResult | None:

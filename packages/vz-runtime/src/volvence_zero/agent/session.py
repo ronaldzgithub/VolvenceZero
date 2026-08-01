@@ -141,6 +141,7 @@ from volvence_zero.joint_loop import (
     ScheduledJointLoopResult,
     OnlineFastImportResult,
 )
+
 # Runtime-replay reward-stream contract. The ``volvence_zero.joint_loop``
 # facade does not re-export it yet, so the owning module is the SSOT import
 # until that facade is extended.
@@ -221,6 +222,7 @@ from volvence_zero.agent.session_post_slow_loop import (
     SessionPostSlowLoopResult,
     SessionPostSlowLoopSnapshot,
 )
+
 # Debt #9 wave 1: ``AgentSessionRunner`` is composed from four
 # phase-grouped mixins. The mixins host the bulk of method bodies so
 # this file shrinks to instance setup (``__init__``), the public
@@ -331,6 +333,8 @@ class AgentTurnResult:
     session_post_last_completed_job_id: str | None = None
     online_fast_substrate_result: "OnlineFastSubstrateTurnResult | None" = None
     track_z_t_codes: tuple[tuple[str, tuple[float, ...]], ...] = ()
+    ssl_m3_slow_momentum_norm: float = 0.0
+    ssl_m3_slow_gain: float = 0.0
 
 
 # W5 of ssot-cleanup-p0-p4: pure helper functions extracted to
@@ -528,6 +532,7 @@ class AgentSessionRunner(
         joint_loop: ETANLJointLoop | None = None,
         joint_schedule: JointLoopSchedule | None = None,
         joint_apply_writeback: bool = False,
+        joint_apply_ssl_optimization: bool = True,
         joint_apply_policy_optimization: bool = True,
         joint_learning_enabled: bool = True,
         temporal_bootstrap: MetacontrollerParameterSnapshot | DualTrackRareHeavySnapshot | None = None,
@@ -549,21 +554,14 @@ class AgentSessionRunner(
         seed_protocols: tuple[Any, ...] = (),
     ) -> None:
         if temporal_latent_dim < 3:
-            raise ValueError(
-                f"temporal_latent_dim must be >= 3, got {temporal_latent_dim!r}"
-            )
+            raise ValueError(f"temporal_latent_dim must be >= 3, got {temporal_latent_dim!r}")
         if temporal_input_dim is not None and temporal_input_dim < 1:
-            raise ValueError(
-                f"temporal_input_dim must be >= 1, got {temporal_input_dim!r}"
-            )
+            raise ValueError(f"temporal_input_dim must be >= 1, got {temporal_input_dim!r}")
         self._session_id = session_id
         self._dialogue_pe_continued_evidence_enabled = dialogue_pe_continued_evidence_enabled
         self._dialogue_commitment_outcome_evidence_enabled = dialogue_commitment_outcome_evidence_enabled
         if apprenticeship_feedback_policy not in {"owner", "random", "disabled"}:
-            raise ValueError(
-                "apprenticeship_feedback_policy must be one of "
-                "'owner', 'random', 'disabled'"
-            )
+            raise ValueError("apprenticeship_feedback_policy must be one of 'owner', 'random', 'disabled'")
         self._apprenticeship_feedback_policy = apprenticeship_feedback_policy
         self._apprenticeship_constraint_extractor = apprenticeship_constraint_extractor
         # Rupture-and-Repair v0: LLM-sourced external outcome proposals
@@ -577,9 +575,7 @@ class AgentSessionRunner(
         # sessions pass the user's scope key here through the Brain
         # facade so rupture_repair entries stay attributable.
         self._user_scope = str(user_scope) if user_scope else "anonymous"
-        self._personal_conditioning_revocation_state = (
-            ConditioningRevocationState.ACTIVE
-        )
+        self._personal_conditioning_revocation_state = ConditioningRevocationState.ACTIVE
         self._config = config or FinalRolloutConfig()
         self._reflection_mode = reflection_mode
         world_bootstrap_snapshot = resolve_temporal_bootstrap_snapshot(
@@ -595,9 +591,7 @@ class AgentSessionRunner(
         elif temporal_policy is not None:
             self._world_temporal_policy = temporal_policy
         elif world_bootstrap_snapshot is not None:
-            self._world_temporal_policy = FullLearnedTemporalPolicy.from_bootstrap_snapshot(
-                world_bootstrap_snapshot
-            )
+            self._world_temporal_policy = FullLearnedTemporalPolicy.from_bootstrap_snapshot(world_bootstrap_snapshot)
         else:
             self._world_temporal_policy = FullLearnedTemporalPolicy(
                 parameter_store=MetacontrollerParameterStore(
@@ -608,9 +602,7 @@ class AgentSessionRunner(
         if self_temporal_policy is not None:
             self._self_temporal_policy = self_temporal_policy
         elif self_bootstrap_snapshot is not None:
-            self._self_temporal_policy = FullLearnedTemporalPolicy.from_bootstrap_snapshot(
-                self_bootstrap_snapshot
-            )
+            self._self_temporal_policy = FullLearnedTemporalPolicy.from_bootstrap_snapshot(self_bootstrap_snapshot)
         elif isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
             self._self_temporal_policy = clone_full_learned_temporal_policy(self._world_temporal_policy)
         else:
@@ -628,8 +620,7 @@ class AgentSessionRunner(
             ):
                 if not isinstance(policy, FullLearnedTemporalPolicy):
                     raise ValueError(
-                        "temporal_input_dim requires a FullLearnedTemporalPolicy "
-                        f"for the {track_name} track"
+                        f"temporal_input_dim requires a FullLearnedTemporalPolicy for the {track_name} track"
                     )
                 actual_input_dim = policy.parameter_store.n_input
                 if actual_input_dim != temporal_input_dim:
@@ -647,28 +638,16 @@ class AgentSessionRunner(
         _runtime_backend = self._config.temporal_runtime_backend
         _track_modulation = self._config.internal_rl_runtime_modulation_strength
         _runtime_exploration = self._config.internal_rl_runtime_exploration_strength
-        _post_switch_min_dwell_wiring = (
-            self._config.temporal_post_switch_min_dwell
-        )
-        _post_switch_min_dwell_actions = (
-            self._config.temporal_post_switch_min_dwell_actions
-        )
+        _post_switch_min_dwell_wiring = self._config.temporal_post_switch_min_dwell
+        _post_switch_min_dwell_actions = self._config.temporal_post_switch_min_dwell_actions
         _causal_head_wiring = self._config.internal_rl_causal_action_head
-        _causal_head_strength = (
-            self._config.internal_rl_causal_action_head_strength
-        )
+        _causal_head_strength = self._config.internal_rl_causal_action_head_strength
         if isinstance(self._world_temporal_policy, FullLearnedTemporalPolicy):
-            self._world_temporal_policy.set_learning_writes_enabled(
-                joint_learning_enabled
-            )
+            self._world_temporal_policy.set_learning_writes_enabled(joint_learning_enabled)
             self._world_temporal_policy.set_runtime_backend(_runtime_backend)
             self._world_temporal_policy.set_runtime_track_modulation(_track_modulation)
-            self._world_temporal_policy.set_runtime_exploration(
-                _runtime_exploration
-            )
-            self._world_temporal_policy.set_runtime_exploration_context(
-                runtime_exploration_context
-            )
+            self._world_temporal_policy.set_runtime_exploration(_runtime_exploration)
+            self._world_temporal_policy.set_runtime_exploration_context(runtime_exploration_context)
             self._world_temporal_policy.set_post_switch_min_dwell(
                 wiring_level=_post_switch_min_dwell_wiring,
                 min_actions=_post_switch_min_dwell_actions,
@@ -678,56 +657,24 @@ class AgentSessionRunner(
                 track=Track.WORLD,
                 strength=_causal_head_strength,
                 rank=self._config.internal_rl_causal_action_head_rank,
-                effective_dims=(
-                    self._config.internal_rl_causal_action_head_effective_dims
-                ),
-                contrast_pairs=(
-                    self._config
-                    .internal_rl_causal_action_head_contrast_pairs
-                ),
-                exclusive_steering=(
-                    self._config
-                    .internal_rl_causal_action_head_exclusive_steering
-                ),
-                input_mirror_permutation=(
-                    self._config
-                    .internal_rl_causal_action_head_input_mirror_permutation
-                ),
-                input_mirror_signs=(
-                    self._config
-                    .internal_rl_causal_action_head_input_mirror_signs
-                ),
-                envelope_enforced=(
-                    self._config
-                    .internal_rl_causal_action_head_envelope_enforced
-                ),
+                effective_dims=(self._config.internal_rl_causal_action_head_effective_dims),
+                contrast_pairs=(self._config.internal_rl_causal_action_head_contrast_pairs),
+                exclusive_steering=(self._config.internal_rl_causal_action_head_exclusive_steering),
+                input_mirror_permutation=(self._config.internal_rl_causal_action_head_input_mirror_permutation),
+                input_mirror_signs=(self._config.internal_rl_causal_action_head_input_mirror_signs),
+                envelope_enforced=(self._config.internal_rl_causal_action_head_envelope_enforced),
             )
             self._world_temporal_policy.set_causal_action_head_formation_protection(
-                wiring_level=(
-                    self._config
-                    .internal_rl_causal_action_head_formation_protection
-                ),
-                max_update_steps=(
-                    self._config
-                    .internal_rl_causal_action_head_formation_max_update_steps
-                ),
-                conflict_scale=(
-                    self._config
-                    .internal_rl_causal_action_head_formation_conflict_scale
-                ),
+                wiring_level=(self._config.internal_rl_causal_action_head_formation_protection),
+                max_update_steps=(self._config.internal_rl_causal_action_head_formation_max_update_steps),
+                conflict_scale=(self._config.internal_rl_causal_action_head_formation_conflict_scale),
             )
         if isinstance(self._self_temporal_policy, FullLearnedTemporalPolicy):
-            self._self_temporal_policy.set_learning_writes_enabled(
-                joint_learning_enabled
-            )
+            self._self_temporal_policy.set_learning_writes_enabled(joint_learning_enabled)
             self._self_temporal_policy.set_runtime_backend(_runtime_backend)
             self._self_temporal_policy.set_runtime_track_modulation(_track_modulation)
-            self._self_temporal_policy.set_runtime_exploration(
-                _runtime_exploration
-            )
-            self._self_temporal_policy.set_runtime_exploration_context(
-                runtime_exploration_context
-            )
+            self._self_temporal_policy.set_runtime_exploration(_runtime_exploration)
+            self._self_temporal_policy.set_runtime_exploration_context(runtime_exploration_context)
             self._self_temporal_policy.set_post_switch_min_dwell(
                 wiring_level=_post_switch_min_dwell_wiring,
                 min_actions=_post_switch_min_dwell_actions,
@@ -737,43 +684,17 @@ class AgentSessionRunner(
                 track=Track.SELF,
                 strength=_causal_head_strength,
                 rank=self._config.internal_rl_causal_action_head_rank,
-                effective_dims=(
-                    self._config.internal_rl_causal_action_head_effective_dims
-                ),
-                contrast_pairs=(
-                    self._config
-                    .internal_rl_causal_action_head_contrast_pairs
-                ),
-                exclusive_steering=(
-                    self._config
-                    .internal_rl_causal_action_head_exclusive_steering
-                ),
-                input_mirror_permutation=(
-                    self._config
-                    .internal_rl_causal_action_head_input_mirror_permutation
-                ),
-                input_mirror_signs=(
-                    self._config
-                    .internal_rl_causal_action_head_input_mirror_signs
-                ),
-                envelope_enforced=(
-                    self._config
-                    .internal_rl_causal_action_head_envelope_enforced
-                ),
+                effective_dims=(self._config.internal_rl_causal_action_head_effective_dims),
+                contrast_pairs=(self._config.internal_rl_causal_action_head_contrast_pairs),
+                exclusive_steering=(self._config.internal_rl_causal_action_head_exclusive_steering),
+                input_mirror_permutation=(self._config.internal_rl_causal_action_head_input_mirror_permutation),
+                input_mirror_signs=(self._config.internal_rl_causal_action_head_input_mirror_signs),
+                envelope_enforced=(self._config.internal_rl_causal_action_head_envelope_enforced),
             )
             self._self_temporal_policy.set_causal_action_head_formation_protection(
-                wiring_level=(
-                    self._config
-                    .internal_rl_causal_action_head_formation_protection
-                ),
-                max_update_steps=(
-                    self._config
-                    .internal_rl_causal_action_head_formation_max_update_steps
-                ),
-                conflict_scale=(
-                    self._config
-                    .internal_rl_causal_action_head_formation_conflict_scale
-                ),
+                wiring_level=(self._config.internal_rl_causal_action_head_formation_protection),
+                max_update_steps=(self._config.internal_rl_causal_action_head_formation_max_update_steps),
+                conflict_scale=(self._config.internal_rl_causal_action_head_formation_conflict_scale),
             )
         self._evaluation_backbone = EvaluationBackbone()
         self._application_rare_heavy_state = ApplicationRareHeavyState()
@@ -789,9 +710,7 @@ class AgentSessionRunner(
         self._domain_knowledge_store = domain_knowledge_store or build_default_domain_knowledge_store(
             persistence_backend=domain_backend
         )
-        self._case_memory_store = case_memory_store or build_default_case_memory_store(
-            persistence_backend=case_backend
-        )
+        self._case_memory_store = case_memory_store or build_default_case_memory_store(persistence_backend=case_backend)
         self._domain_experience_application_report = None
         if domain_experience_packages:
             self._domain_experience_application_report = apply_domain_experience_packages(
@@ -824,9 +743,7 @@ class AgentSessionRunner(
         # returns False from load_snapshot so this is a no-op there.
         self._owner_hydration_store = owner_hydration_store
         if self._owner_hydration_store is not None:
-            self._owner_hydration_store.hydrate_owner_if_present(
-                self._semantic_state_store, "semantic_state"
-            )
+            self._owner_hydration_store.hydrate_owner_if_present(self._semantic_state_store, "semantic_state")
         # ``protocol-online-learning-active`` packet (sub-packet A):
         # construct ONE stable ``ProtocolRegistryModule`` here in
         # ``__init__`` so its ``_alpha`` / ``_beta`` / ``_pe_utility``
@@ -853,9 +770,7 @@ class AgentSessionRunner(
         # the same store mutations, but the new path also enables
         # α/β learning on the seeded protocols.
         self._protocol_registry_module = ProtocolRegistryModule(
-            wiring_level=self._config.level_for(
-                "protocol_runtime", WiringLevel.SHADOW
-            ),
+            wiring_level=self._config.level_for("protocol_runtime", WiringLevel.SHADOW),
             application_rare_heavy_state=self._application_rare_heavy_state,
             domain_knowledge_store=self._domain_knowledge_store,
             case_memory_store=self._case_memory_store,
@@ -876,9 +791,7 @@ class AgentSessionRunner(
         # propagate as typed ``HydrationError`` per the no-swallow
         # rule.
         if self._owner_hydration_store is not None:
-            self._owner_hydration_store.hydrate_owner_if_present(
-                self._protocol_registry_module, "protocol_registry"
-            )
+            self._owner_hydration_store.hydrate_owner_if_present(self._protocol_registry_module, "protocol_registry")
         self._semantic_proposal_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
         # Wave E1 follow-up (option B / debt #10B item 3): when the
         # session is wired with an LLM-backed semantic runtime, derive
@@ -896,13 +809,9 @@ class AgentSessionRunner(
         # fail-closes the ToM / common-ground LLM auto-wire.
         self._tom_proposal_runtime: SemanticProposalRuntime | None = None
         self._common_ground_proposal_runtime: LLMCommonGroundProposalRuntime | None = None
-        self._action_abstraction_decoder: ActionAbstractionDecoder = (
-            NoOpActionAbstractionDecoder()
-        )
+        self._action_abstraction_decoder: ActionAbstractionDecoder = NoOpActionAbstractionDecoder()
         if isinstance(self._semantic_proposal_runtime, LLMSemanticProposalRuntime):
-            self._tom_proposal_runtime = LLMToMProposalRuntime(
-                provider=self._semantic_proposal_runtime.text_provider
-            )
+            self._tom_proposal_runtime = LLMToMProposalRuntime(provider=self._semantic_proposal_runtime.text_provider)
             self._common_ground_proposal_runtime = LLMCommonGroundProposalRuntime(
                 provider=self._semantic_proposal_runtime.text_provider
             )
@@ -921,9 +830,7 @@ class AgentSessionRunner(
         # can carry the affordance call's plan_ref.
         self._pending_environment_prediction_id: str = ""
         self._dialogue_trace_store = DialogueTraceStore()
-        self._pending_external_outcome_lineages: list[
-            ConditioningLineage
-        ] = []
+        self._pending_external_outcome_lineages: list[ConditioningLineage] = []
         self._credit_proposals = credit_proposals
         if response_synthesizer is not None:
             self._response_synthesizer = response_synthesizer
@@ -936,9 +843,7 @@ class AgentSessionRunner(
             learning_enabled=joint_learning_enabled,
         )
         if self._owner_hydration_store is not None:
-            self._owner_hydration_store.hydrate_owner_if_present(
-                self._regime_module, "regime"
-            )
+            self._owner_hydration_store.hydrate_owner_if_present(self._regime_module, "regime")
         # G1: ONE stable CreditModule per session so the ledger's learned
         # heads (COCOA rewarding-state + gate-risk) accumulate across turns
         # instead of resetting on the per-turn module rebuild. The per-turn
@@ -949,9 +854,7 @@ class AgentSessionRunner(
             learning_enabled=joint_learning_enabled,
         )
         if self._owner_hydration_store is not None:
-            self._owner_hydration_store.hydrate_owner_if_present(
-                self._credit_module, "credit_heads"
-            )
+            self._owner_hydration_store.hydrate_owner_if_present(self._credit_module, "credit_heads")
         # Behavior Protocol Runtime packet 1.3''' (production wiring of
         # 1.3'' machinery): the identity seed flows through to
         # ``run_final_wiring_turn`` each turn, populating
@@ -984,17 +887,13 @@ class AgentSessionRunner(
         # predictions, and drive PE-weighted promote/retire.
         self._social_record_store = SocialRecordStore()
         if self._owner_hydration_store is not None:
-            self._owner_hydration_store.hydrate_owner_if_present(
-                self._social_record_store, "social_record_store"
-            )
+            self._owner_hydration_store.hydrate_owner_if_present(self._social_record_store, "social_record_store")
         self._prediction_module = PredictionErrorModule(
             wiring_level=self._config.level_for("prediction_error", WiringLevel.ACTIVE),
             learning_enabled=joint_learning_enabled,
         )
         if self._owner_hydration_store is not None:
-            self._owner_hydration_store.hydrate_owner_if_present(
-                self._prediction_module, "prediction_error_heads"
-            )
+            self._owner_hydration_store.hydrate_owner_if_present(self._prediction_module, "prediction_error_heads")
         # State KV P5-c: session-held bounded credit-feedback states so the
         # conditioning bank owners' online-fast EMA survives the per-turn
         # module rebuild (same lifetime pattern as the gate/consolidation
@@ -1003,15 +902,11 @@ class AgentSessionRunner(
         self._personal_conditioning_credit_state = BankCreditFeedbackState()
         self._relationship_conditioning_credit_state = BankCreditFeedbackState()
         self._dialogue_external_outcome_module = DialogueExternalOutcomeModule(
-            wiring_level=self._config.level_for(
-                "dialogue_external_outcome", WiringLevel.ACTIVE
-            ),
+            wiring_level=self._config.level_for("dialogue_external_outcome", WiringLevel.ACTIVE),
             allow_llm_outcome_proposals=self._allow_llm_outcome_proposals,
         )
         self._substrate_runtime_mode = (
-            LocalSubstrateRuntimeMode(substrate_runtime_mode)
-            if substrate_runtime_mode is not None
-            else None
+            LocalSubstrateRuntimeMode(substrate_runtime_mode) if substrate_runtime_mode is not None else None
         )
         self._default_residual_runtime = default_residual_runtime or build_transformers_runtime_with_fallback(
             model_id=substrate_model_id,
@@ -1032,6 +927,8 @@ class AgentSessionRunner(
             evaluation_backbone=self._evaluation_backbone,
             primary_prediction_error_dominance_enabled=primary_prediction_error_dominance_enabled,
             ssl_backend=self._config.temporal_ssl_backend,
+            ssl_m3_slow_gain=self._config.temporal_ssl_m3_slow_gain,
+            apply_ssl_optimization=joint_apply_ssl_optimization,
             internal_rl_backend=self._config.internal_rl_backend,
             internal_rl_runtime_replay=self._config.internal_rl_runtime_replay,
             # ``external_prediction_error_drive`` is contract (a) only: PE
@@ -1040,64 +937,33 @@ class AgentSessionRunner(
             # the environment-published outcome payoff reaches the optimizer;
             # contract (b) below owns that, and under a strict eligibility
             # declaration a PE-off arm keeps earning the environment payoff.
-            runtime_replay_prediction_error_enabled=(
-                external_prediction_error_drive
-            ),
-            runtime_replay_outcome_payoff_reward=(
-                self._config.internal_rl_runtime_outcome_payoff_reward
-            ),
-            runtime_replay_reward_eligibility=(
-                self._config.internal_rl_runtime_reward_eligibility
-            ),
-            runtime_replay_latent_unit_clamp=(
-                self._config.internal_rl_runtime_latent_unit_clamp
-            ),
-            runtime_replay_segment_credit=(
-                self._config.internal_rl_runtime_segment_credit
-            ),
-            runtime_replay_segment_max_steps=(
-                self._config.internal_rl_runtime_segment_max_steps
-            ),
-            rl_batch_accumulation_size=(
-                self._config.internal_rl_batch_accumulation_size
-            ),
-            prediction_error_temporal_switch=(
-                self._config.prediction_error_temporal_switch
-            ),
-            prediction_error_temporal_switch_strength=(
-                self._config.prediction_error_temporal_switch_strength
-            ),
-            prediction_error_temporal_switch_floor=(
-                self._config.prediction_error_temporal_switch_floor
-            ),
-            environment_milestone_temporal_switch=(
-                self._config.environment_milestone_temporal_switch
-            ),
+            runtime_replay_prediction_error_enabled=(external_prediction_error_drive),
+            runtime_replay_outcome_payoff_reward=(self._config.internal_rl_runtime_outcome_payoff_reward),
+            runtime_replay_reward_eligibility=(self._config.internal_rl_runtime_reward_eligibility),
+            runtime_replay_latent_unit_clamp=(self._config.internal_rl_runtime_latent_unit_clamp),
+            runtime_replay_segment_credit=(self._config.internal_rl_runtime_segment_credit),
+            runtime_replay_segment_max_steps=(self._config.internal_rl_runtime_segment_max_steps),
+            rl_batch_accumulation_size=(self._config.internal_rl_batch_accumulation_size),
+            prediction_error_temporal_switch=(self._config.prediction_error_temporal_switch),
+            prediction_error_temporal_switch_strength=(self._config.prediction_error_temporal_switch_strength),
+            prediction_error_temporal_switch_floor=(self._config.prediction_error_temporal_switch_floor),
+            environment_milestone_temporal_switch=(self._config.environment_milestone_temporal_switch),
         )
-        if (
-            self._joint_loop.internal_rl_runtime_replay
-            is not self._config.internal_rl_runtime_replay
-        ):
+        if self._joint_loop.internal_rl_runtime_replay is not self._config.internal_rl_runtime_replay:
             raise ValueError(
                 "AgentSessionRunner config/joint-loop runtime replay wiring "
                 "mismatch: config="
                 f"{self._config.internal_rl_runtime_replay.value}, loop="
                 f"{self._joint_loop.internal_rl_runtime_replay.value}"
             )
-        if (
-            self._joint_loop.runtime_replay_segment_credit
-            is not self._config.internal_rl_runtime_segment_credit
-        ):
+        if self._joint_loop.runtime_replay_segment_credit is not self._config.internal_rl_runtime_segment_credit:
             raise ValueError(
                 "AgentSessionRunner config/joint-loop runtime replay segment "
                 "credit mismatch: config="
                 f"{self._config.internal_rl_runtime_segment_credit.value}, "
                 f"loop={self._joint_loop.runtime_replay_segment_credit.value}"
             )
-        if (
-            self._joint_loop.rl_batch_accumulation_size
-            != self._config.internal_rl_batch_accumulation_size
-        ):
+        if self._joint_loop.rl_batch_accumulation_size != self._config.internal_rl_batch_accumulation_size:
             raise ValueError(
                 "AgentSessionRunner config/joint-loop RL batch accumulation "
                 "mismatch: config="
@@ -1125,32 +991,27 @@ class AgentSessionRunner(
                 f"{self._config.internal_rl_runtime_outcome_payoff_reward!r}, "
                 f"loop={self._joint_loop.runtime_replay_outcome_payoff_reward!r}"
             )
-        if (
-            self._joint_loop.runtime_replay_latent_unit_clamp
-            is not self._config.internal_rl_runtime_latent_unit_clamp
-        ):
+        if self._joint_loop.runtime_replay_latent_unit_clamp is not self._config.internal_rl_runtime_latent_unit_clamp:
             raise ValueError(
                 "AgentSessionRunner config/joint-loop runtime replay latent "
                 "unit clamp mismatch: config="
                 f"{self._config.internal_rl_runtime_latent_unit_clamp!r}, "
                 f"loop={self._joint_loop.runtime_replay_latent_unit_clamp!r}"
             )
-        if self._owner_hydration_store is not None:
-            joint_learning_snapshot = (
-                self._owner_hydration_store.load_snapshot(
-                    "joint_loop.learning"
-                )
+        for policy in (
+            self._joint_loop.world_temporal_policy,
+            self._joint_loop.self_temporal_policy,
+        ):
+            policy.set_prediction_error_runtime_modulation_enabled(
+                self._config.prediction_error_runtime_modulation is WiringLevel.ACTIVE
             )
+        if self._owner_hydration_store is not None:
+            joint_learning_snapshot = self._owner_hydration_store.load_snapshot("joint_loop.learning")
             if joint_learning_snapshot is not None:
-                self._joint_loop.hydrate_learning_from_persistence(
-                    joint_learning_snapshot
-                )
+                self._joint_loop.hydrate_learning_from_persistence(joint_learning_snapshot)
         self._joint_loop.set_primary_prediction_error_dominance_enabled(primary_prediction_error_dominance_enabled)
         if not joint_learning_enabled and joint_schedule is not None:
-            raise ValueError(
-                "joint_learning_enabled=False cannot be combined with a "
-                "custom joint_schedule"
-            )
+            raise ValueError("joint_learning_enabled=False cannot be combined with a custom joint_schedule")
         self._joint_learning_enabled = joint_learning_enabled
         self._joint_schedule = (
             joint_schedule
@@ -1162,9 +1023,7 @@ class AgentSessionRunner(
                     rl_batch_max_wait_turns=0,
                     pe_full_cycle_threshold=1_000_000_000.0,
                     pe_ssl_threshold=1_000_000_000.0,
-                    pe_substrate_online_fast_threshold=(
-                        1_000_000_000.0
-                    ),
+                    pe_substrate_online_fast_threshold=(1_000_000_000.0),
                     pe_rare_heavy_threshold=1_000_000_000.0,
                     latent_continuation_threshold=2.0,
                 )
@@ -1189,9 +1048,7 @@ class AgentSessionRunner(
         self._turn_index = 0
         self._upstream_snapshots: dict[str, Snapshot[Any]] = {}
         self._previous_substrate_snapshot: SubstrateSnapshot | None = None
-        self._online_training_substrate_snapshots: list[
-            SubstrateSnapshot
-        ] = []
+        self._online_training_substrate_snapshots: list[SubstrateSnapshot] = []
         self._previous_personal_conditioning_snapshot: PersonalConditioningSnapshot | None = None
         self._previous_prediction_reward: float = 0.0
         self._previous_prediction_magnitude: float = 0.0
@@ -1270,9 +1127,7 @@ class AgentSessionRunner(
                 )
             ).encode("utf-8")
         ).hexdigest()
-        memory_fingerprint = hashlib.sha256(
-            repr(joint_state.memory_checkpoint).encode("utf-8")
-        ).hexdigest()
+        memory_fingerprint = hashlib.sha256(repr(joint_state.memory_checkpoint).encode("utf-8")).hexdigest()
         replay_report = joint_state.runtime_replay_report
         fingerprint_joint_state = joint_state
         if replay_report is not None:
@@ -1294,9 +1149,7 @@ class AgentSessionRunner(
             fingerprint_joint_state,
             *components[1:],
         )
-        fingerprint = hashlib.sha256(
-            repr(fingerprint_components).encode("utf-8")
-        ).hexdigest()
+        fingerprint = hashlib.sha256(repr(fingerprint_components).encode("utf-8")).hexdigest()
         learning_owner_fingerprints = (
             (
                 "joint-loop/policy",
@@ -1343,9 +1196,7 @@ class AgentSessionRunner(
             temporal_fingerprint=temporal_fingerprint,
             memory_fingerprint=memory_fingerprint,
             fingerprint=fingerprint,
-            temporal_learning_fingerprint=(
-                temporal_learning_fingerprint
-            ),
+            temporal_learning_fingerprint=(temporal_learning_fingerprint),
             learning_owner_fingerprints=learning_owner_fingerprints,
         )
 
@@ -1358,9 +1209,7 @@ class AgentSessionRunner(
         """Export owner-authored canonical JSON without exposing owner fields."""
 
         if include_runtime_replay:
-            raise ValueError(
-                "persistent learning archives exclude ephemeral runtime replay"
-            )
+            raise ValueError("persistent learning archives exclude ephemeral runtime replay")
         return self._encode_current_learning_archive(
             checkpoint_id=checkpoint_id,
             include_runtime_replay=False,
@@ -1379,9 +1228,7 @@ class AgentSessionRunner(
             policy_fingerprint,
             temporal_fingerprint,
             memory_fingerprint,
-        ) = self._joint_loop.learning_persistence_fingerprints(
-            owner_snapshots[0]
-        )
+        ) = self._joint_loop.learning_persistence_fingerprints(owner_snapshots[0])
         return encode_agent_learning_archive(
             checkpoint_id=checkpoint_id,
             owner_snapshots=owner_snapshots,
@@ -1411,20 +1258,14 @@ class AgentSessionRunner(
         )
         if record.info.owner_versions != expected:
             raise ValueError(
-                "learning archive owner/version mismatch: "
-                f"expected={expected!r}, actual={record.info.owner_versions!r}"
+                f"learning archive owner/version mismatch: expected={expected!r}, actual={record.info.owner_versions!r}"
             )
-        archived_snapshots = {
-            snapshot.owner_name: snapshot
-            for snapshot in record.owner_snapshots
-        }
+        archived_snapshots = {snapshot.owner_name: snapshot for snapshot in record.owner_snapshots}
         (
             policy_fingerprint,
             temporal_fingerprint,
             memory_fingerprint,
-        ) = self._joint_loop.learning_persistence_fingerprints(
-            archived_snapshots[current_snapshots[0].owner_name]
-        )
+        ) = self._joint_loop.learning_persistence_fingerprints(archived_snapshots[current_snapshots[0].owner_name])
         archived_fingerprints = (
             record.info.policy_fingerprint,
             record.info.temporal_fingerprint,
@@ -1453,10 +1294,7 @@ class AgentSessionRunner(
 
         target = decode_agent_learning_archive(archive)
         self.validate_learning_checkpoint_archive(archive)
-        if (
-            expected_state_fingerprint is not None
-            and target.info.state_fingerprint != expected_state_fingerprint
-        ):
+        if expected_state_fingerprint is not None and target.info.state_fingerprint != expected_state_fingerprint:
             raise ValueError(
                 "learning archive fingerprint mismatch: "
                 f"expected={expected_state_fingerprint}, "
@@ -1527,36 +1365,19 @@ class AgentSessionRunner(
         *,
         expected_owner_names: tuple[str, ...],
     ) -> tuple[str, ...]:
-        snapshots = {
-            snapshot.owner_name: snapshot
-            for snapshot in record.owner_snapshots
-        }
+        snapshots = {snapshot.owner_name: snapshot for snapshot in record.owner_snapshots}
         if set(snapshots) != set(expected_owner_names):
             raise ValueError(
                 "learning archive owner set mismatch during restore: "
                 f"expected={sorted(expected_owner_names)!r}, "
                 f"actual={sorted(snapshots)!r}"
             )
-        operations = list(
-            self._joint_loop.hydrate_learning_from_persistence(
-                snapshots[expected_owner_names[0]]
-            )
-        )
-        self._prediction_module.hydrate_from_persistence(
-            snapshots[expected_owner_names[1]]
-        )
-        self._credit_module.hydrate_from_persistence(
-            snapshots[expected_owner_names[2]]
-        )
-        self._regime_module.hydrate_from_persistence(
-            snapshots[expected_owner_names[3]]
-        )
-        self._dual_track_gate_learner.hydrate_from_persistence(
-            snapshots[expected_owner_names[4]]
-        )
-        self._reflection_consolidation_learner.hydrate_from_persistence(
-            snapshots[expected_owner_names[5]]
-        )
+        operations = list(self._joint_loop.hydrate_learning_from_persistence(snapshots[expected_owner_names[0]]))
+        self._prediction_module.hydrate_from_persistence(snapshots[expected_owner_names[1]])
+        self._credit_module.hydrate_from_persistence(snapshots[expected_owner_names[2]])
+        self._regime_module.hydrate_from_persistence(snapshots[expected_owner_names[3]])
+        self._dual_track_gate_learner.hydrate_from_persistence(snapshots[expected_owner_names[4]])
+        self._reflection_consolidation_learner.hydrate_from_persistence(snapshots[expected_owner_names[5]])
         operations.extend(
             (
                 "learning-archive:prediction-restored",
@@ -1592,9 +1413,7 @@ class AgentSessionRunner(
                 f"actual={actual_fingerprints!r}"
             )
 
-    def restore_learning_checkpoint(
-        self, checkpoint: AgentLearningCheckpoint
-    ) -> tuple[str, ...]:
+    def restore_learning_checkpoint(self, checkpoint: AgentLearningCheckpoint) -> tuple[str, ...]:
         """Atomically restore the in-process checkpoint used by experiments."""
 
         preimage = self.export_learning_checkpoint(
@@ -1617,22 +1436,12 @@ class AgentSessionRunner(
         self,
         checkpoint: AgentLearningCheckpoint,
     ) -> tuple[str, ...]:
-        operations = list(
-            self._joint_loop.restore_learning_checkpoint(
-                checkpoint.joint_loop_state
-            )
-        )
-        self._prediction_module.hydrate_from_persistence(
-            checkpoint.prediction_state
-        )
+        operations = list(self._joint_loop.restore_learning_checkpoint(checkpoint.joint_loop_state))
+        self._prediction_module.hydrate_from_persistence(checkpoint.prediction_state)
         self._credit_module.hydrate_from_persistence(checkpoint.credit_state)
         self._regime_module.hydrate_from_persistence(checkpoint.regime_state)
-        self._dual_track_gate_learner.hydrate_from_persistence(
-            checkpoint.dual_track_gate_state
-        )
-        self._reflection_consolidation_learner.hydrate_from_persistence(
-            checkpoint.reflection_state
-        )
+        self._dual_track_gate_learner.hydrate_from_persistence(checkpoint.dual_track_gate_state)
+        self._reflection_consolidation_learner.hydrate_from_persistence(checkpoint.reflection_state)
         operations.extend(
             (
                 "learning-checkpoint:prediction-restored",
@@ -1644,9 +1453,7 @@ class AgentSessionRunner(
         )
         restored = self.export_learning_checkpoint(
             checkpoint_id=checkpoint.checkpoint_id,
-            include_runtime_replay=(
-                checkpoint.joint_loop_state.runtime_replay_report is not None
-            ),
+            include_runtime_replay=(checkpoint.joint_loop_state.runtime_replay_report is not None),
         )
         if restored.fingerprint != checkpoint.fingerprint:
             raise RuntimeError(
@@ -1700,9 +1507,7 @@ class AgentSessionRunner(
         """Atomically revoke or restore personal conditioning admission."""
 
         if not isinstance(state, ConditioningRevocationState):
-            raise TypeError(
-                "state must be a ConditioningRevocationState member"
-            )
+            raise TypeError("state must be a ConditioningRevocationState member")
         self._personal_conditioning_revocation_state = state
         if state is ConditioningRevocationState.REVOKED:
             self._previous_personal_conditioning_snapshot = None
@@ -1891,12 +1696,20 @@ class AgentSessionRunner(
             substrate_adapter = self._build_substrate_adapter(user_input=user_input)
             trace = self._build_training_trace_from_substrate(user_input=user_input)
             self._record_training_trace(trace)
-            pe_task_error = self._previous_prediction_error.task_error if self._previous_prediction_error is not None else 0.0
-            pe_relationship_error = (
-                self._previous_prediction_error.relationship_error if self._previous_prediction_error is not None else 0.0
+            pe_task_error = (
+                self._previous_prediction_error.task_error if self._previous_prediction_error is not None else 0.0
             )
-            pe_regime_error = self._previous_prediction_error.regime_error if self._previous_prediction_error is not None else 0.0
-            pe_action_error = self._previous_prediction_error.action_error if self._previous_prediction_error is not None else 0.0
+            pe_relationship_error = (
+                self._previous_prediction_error.relationship_error
+                if self._previous_prediction_error is not None
+                else 0.0
+            )
+            pe_regime_error = (
+                self._previous_prediction_error.regime_error if self._previous_prediction_error is not None else 0.0
+            )
+            pe_action_error = (
+                self._previous_prediction_error.action_error if self._previous_prediction_error is not None else 0.0
+            )
             experience_eta_signals = self._experience_eta_signals()
             # Typed boundary events: last turn's still-buffered environment
             # outcome (consumed for PE settlement later this turn) may carry
@@ -1910,10 +1723,8 @@ class AgentSessionRunner(
                 {"environment_milestone_boundary": 1.0}
                 if (
                     pending_outcome_for_boundary is not None
-                    and pending_outcome_for_boundary.outcome.measurement
-                    is not None
-                    and pending_outcome_for_boundary.outcome.measurement
-                    .discrete_milestone
+                    and pending_outcome_for_boundary.outcome.measurement is not None
+                    and pending_outcome_for_boundary.outcome.measurement.discrete_milestone
                 )
                 else {}
             )
@@ -1927,10 +1738,7 @@ class AgentSessionRunner(
                         "prediction_error_regime_error": pe_regime_error,
                         "prediction_error_action_error": pe_action_error,
                     }
-                    if (
-                        abs(self._previous_prediction_reward) > 1e-8
-                        or self._previous_prediction_magnitude > 1e-8
-                    )
+                    if (abs(self._previous_prediction_reward) > 1e-8 or self._previous_prediction_magnitude > 1e-8)
                     else {}
                 )
                 self._joint_loop.set_external_learning_signals(
@@ -1942,12 +1750,8 @@ class AgentSessionRunner(
                 )
             else:
                 readout_only_signals = dict(experience_eta_signals)
-                if (
-                    self._prediction_error_readout_only
-                    and (
-                        abs(self._previous_prediction_reward) > 1e-8
-                        or self._previous_prediction_magnitude > 1e-8
-                    )
+                if self._prediction_error_readout_only and (
+                    abs(self._previous_prediction_reward) > 1e-8 or self._previous_prediction_magnitude > 1e-8
                 ):
                     readout_only_signals = {
                         "prediction_error_reward_readout": self._previous_prediction_reward,
@@ -1971,18 +1775,10 @@ class AgentSessionRunner(
                 learning_enabled=self._joint_learning_enabled,
             )
             pending_semantic_events = self._drain_pending_semantic_events()
-            settled_environment_action = (
-                self._consume_pending_environment_outcome()
-            )
-            environment_outcome = (
-                settled_environment_action.outcome
-                if settled_environment_action is not None
-                else None
-            )
+            settled_environment_action = self._consume_pending_environment_outcome()
+            environment_outcome = settled_environment_action.outcome if settled_environment_action is not None else None
             if settled_environment_action is not None:
-                self._settled_environment_outcomes.append(
-                    settled_environment_action
-                )
+                self._settled_environment_outcomes.append(settled_environment_action)
             environment_outcome_id = (
                 environment_outcome.outcome_id
                 if environment_outcome is not None
@@ -1992,9 +1788,7 @@ class AgentSessionRunner(
             # spot so it lands on this turn's PE action context together
             # with environment_outcome_id (both produced by the same
             # ``submit_tool_result`` call last turn).
-            environment_prediction_id = (
-                self._consume_pending_environment_prediction_id()
-            )
+            environment_prediction_id = self._consume_pending_environment_prediction_id()
             active_semantic_runtime: SemanticProposalRuntime = (
                 AdapterSemanticProposalRuntime(
                     base_runtime=self._semantic_proposal_runtime,
@@ -2023,9 +1817,7 @@ class AgentSessionRunner(
                 environment_outcome_id=environment_outcome_id,
                 environment_outcome=environment_outcome,
                 environment_prediction_id=environment_prediction_id,
-                external_outcome_lineages=tuple(
-                    self._pending_external_outcome_lineages
-                ),
+                external_outcome_lineages=tuple(self._pending_external_outcome_lineages),
                 apprenticeship_turn=apprenticeship_turn,
                 apprenticeship_feedback_policy=self._apprenticeship_feedback_policy,
                 apprenticeship_constraint_extractor=self._apprenticeship_constraint_extractor,
@@ -2051,6 +1843,7 @@ class AgentSessionRunner(
                 social_record_store=self._social_record_store,
                 reflection_consolidation_learner=self._reflection_consolidation_learner,
                 learning_enabled=self._joint_learning_enabled,
+                prediction_error_temporal_learning_enabled=(self._external_prediction_error_drive),
                 personal_conditioning_credit_state=self._personal_conditioning_credit_state,
                 relationship_conditioning_credit_state=self._relationship_conditioning_credit_state,
             )
@@ -2068,16 +1861,12 @@ class AgentSessionRunner(
             ):
                 from volvence_zero.application.runtime import CaseMemoryModule
 
-                self._case_memory_store.upsert_records(
-                    CaseMemoryModule.records_from_snapshot(case_snapshot.value)
-                )
+                self._case_memory_store.upsert_records(CaseMemoryModule.records_from_snapshot(case_snapshot.value))
                 self._case_memory_store.save_to_backend()
             substrate_snap = integration_result.active_snapshots.get("substrate")
             if substrate_snap is not None and isinstance(substrate_snap.value, SubstrateSnapshot):
                 self._previous_substrate_snapshot = substrate_snap.value
-                self._online_training_substrate_snapshots.append(
-                    substrate_snap.value
-                )
+                self._online_training_substrate_snapshots.append(substrate_snap.value)
                 del self._online_training_substrate_snapshots[:-2]
                 substrate_batch = self._substrate_batch_from_snapshot(substrate_snap.value)
                 self._record_substrate_batch(substrate_batch)
@@ -2088,16 +1877,10 @@ class AgentSessionRunner(
                     substrate_batch=substrate_batch,
                 )
             if self._config.internal_rl_runtime_replay is not WiringLevel.DISABLED:
-                world_temporal = integration_result.active_snapshots.get(
-                    "world_temporal"
-                )
-                self_temporal = integration_result.active_snapshots.get(
-                    "self_temporal"
-                )
+                world_temporal = integration_result.active_snapshots.get("world_temporal")
+                self_temporal = integration_result.active_snapshots.get("self_temporal")
                 credit = integration_result.active_snapshots.get("credit")
-                prediction_error_snapshot = (
-                    integration_result.prediction_error_snapshot
-                )
+                prediction_error_snapshot = integration_result.prediction_error_snapshot
                 if (
                     substrate_snap is None
                     or not isinstance(substrate_snap.value, SubstrateSnapshot)
@@ -2120,12 +1903,8 @@ class AgentSessionRunner(
                         "world_temporal, self_temporal, prediction_error, and "
                         "credit snapshots"
                     )
-                world_runtime_state = (
-                    self._joint_loop.world_temporal_policy.export_runtime_state()
-                )
-                self_runtime_state = (
-                    self._joint_loop.self_temporal_policy.export_runtime_state()
-                )
+                world_runtime_state = self._joint_loop.world_temporal_policy.export_runtime_state()
+                self_runtime_state = self._joint_loop.self_temporal_policy.export_runtime_state()
                 self._joint_loop.observe_runtime_transition(
                     turn_index=self._turn_index,
                     substrate_snapshot=substrate_snap.value,
@@ -2147,10 +1926,7 @@ class AgentSessionRunner(
                 # internals) and feeds the session-held learner; bootstrap
                 # turns are skipped inside the learner (no prior features).
                 pe_actual = integration_result.prediction_error_snapshot.actual_outcome
-                if (
-                    self._joint_learning_enabled
-                    and not integration_result.prediction_error_snapshot.bootstrap
-                ):
+                if self._joint_learning_enabled and not integration_result.prediction_error_snapshot.bootstrap:
                     self._dual_track_gate_learner.observe_realized_outcome(
                         task_progress=pe_actual.task_progress,
                         relationship_delta=pe_actual.relationship_delta,
@@ -2200,6 +1976,7 @@ class AgentSessionRunner(
     # (``session_training_phase.py``) and ``SessionObservationMixin``
     # (``session_observation.py``). Wave-1 split moved them
     # out verbatim; the public surface is unchanged.
+
 
 def default_active_runner() -> AgentSessionRunner:
     return AgentSessionRunner(
@@ -2272,8 +2049,7 @@ async def run_substrate_path_benchmark(
         if eval_snapshot is not None and isinstance(eval_snapshot.value, EvaluationSnapshot):
             turn_score_count = len(eval_snapshot.value.turn_scores)
             metric_pairs = tuple(
-                (f"{score.family}:{score.metric_name}", score.value)
-                for score in eval_snapshot.value.turn_scores
+                (f"{score.family}:{score.metric_name}", score.value) for score in eval_snapshot.value.turn_scores
             )
             for key, value in metric_pairs:
                 metric_totals[key] = metric_totals.get(key, 0.0) + value
@@ -2282,11 +2058,7 @@ async def run_substrate_path_benchmark(
         temporal_snapshot = result.active_snapshots.get("temporal_abstraction")
         if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot):
             family_version = temporal_snapshot.value.action_family_version
-        policy_objective = (
-            result.joint_cycle_report.policy_objective
-            if result.joint_cycle_report is not None
-            else 0.0
-        )
+        policy_objective = result.joint_cycle_report.policy_objective if result.joint_cycle_report is not None else 0.0
         turns.append(
             SubstrateBenchmarkTurn(
                 turn_index=runner.turn_index,
@@ -2305,21 +2077,9 @@ async def run_substrate_path_benchmark(
                 metrics=metric_pairs,
             )
         )
-    acceptance_rate = (
-        sum(1 for turn in turns if turn.acceptance_passed) / max(len(turns), 1)
-        if turns
-        else 0.0
-    )
-    mean_seq_len = (
-        sum(turn.substrate_residual_sequence_length for turn in turns) / max(len(turns), 1)
-        if turns
-        else 0.0
-    )
-    mean_turn_scores = (
-        sum(turn.turn_score_count for turn in turns) / max(len(turns), 1)
-        if turns
-        else 0.0
-    )
+    acceptance_rate = sum(1 for turn in turns if turn.acceptance_passed) / max(len(turns), 1) if turns else 0.0
+    mean_seq_len = sum(turn.substrate_residual_sequence_length for turn in turns) / max(len(turns), 1) if turns else 0.0
+    mean_turn_scores = sum(turn.turn_score_count for turn in turns) / max(len(turns), 1) if turns else 0.0
     full_cycle_count = sum(1 for turn in turns if turn.joint_schedule_action in {"full-cycle", "full-cycle-pe"})
     metric_means = tuple(
         sorted(
@@ -2330,11 +2090,7 @@ async def run_substrate_path_benchmark(
             for key in metric_totals
         )
     )
-    mean_policy_objective = (
-        sum(turn.policy_objective for turn in turns) / max(len(turns), 1)
-        if turns
-        else 0.0
-    )
+    mean_policy_objective = sum(turn.policy_objective for turn in turns) / max(len(turns), 1) if turns else 0.0
     max_family_version = max((turn.action_family_version for turn in turns), default=0)
     return SubstrateBenchmarkReport(
         path_label=path_label,
@@ -2377,10 +2133,7 @@ async def run_multi_path_benchmark(
             continue
         report_metrics = dict(report.metric_means)
         keys = sorted(set(report_metrics) | set(baseline_metrics))
-        deltas = tuple(
-            (key, round(report_metrics.get(key, 0.0) - baseline_metrics.get(key, 0.0), 4))
-            for key in keys
-        )
+        deltas = tuple((key, round(report_metrics.get(key, 0.0) - baseline_metrics.get(key, 0.0), 4)) for key in keys)
         metric_deltas.append((report.path_label, deltas))
     return MultiPathBenchmarkReport(
         path_reports=tuple(reports),

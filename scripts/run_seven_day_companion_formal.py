@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import sys
+from typing import Mapping
 
 from companion_bench.seven_day_driver import (
     FrozenSevenDayUserDriver,
@@ -68,18 +69,12 @@ def _sha256(value: object) -> str:
 
 
 def _workspace_pythonpath(repo_root: Path) -> str:
-    paths = tuple(
-        str(path)
-        for path in sorted((repo_root / "packages").glob("*/src"))
-        if path.is_dir()
-    )
+    paths = tuple(str(path) for path in sorted((repo_root / "packages").glob("*/src")) if path.is_dir())
     inherited = os.environ.get("PYTHONPATH", "").strip()
     return os.pathsep.join((*paths, *((inherited,) if inherited else ())))
 
 
-def _model_contract(
-    preregistration: dict[str, object], *, role: str
-) -> dict[str, object]:
+def _model_contract(preregistration: dict[str, object], *, role: str) -> dict[str, object]:
     formal_models = preregistration.get("formal_models")
     if not isinstance(formal_models, dict):
         raise ValueError("preregistration lacks formal_models")
@@ -97,9 +92,7 @@ def _verify_model(contract: dict[str, object]) -> Path:
     root = Path(snapshot_download(model_id, local_files_only=True))
     actual = fingerprint_model_weight_files(root)
     if actual != expected_sha:
-        raise ValueError(
-            f"formal model weights drift for {model_id}: {actual}"
-        )
+        raise ValueError(f"formal model weights drift for {model_id}: {actual}")
     return root
 
 
@@ -108,21 +101,13 @@ def _schedule(
     script: FrozenSevenDayUserScript,
     virtual_start_ms: int,
 ) -> SevenDayScenarioSchedule:
-    tags_by_day: dict[int, set[str]] = {
-        day_index: set() for day_index in range(1, 8)
-    }
+    tags_by_day: dict[int, set[str]] = {day_index: set() for day_index in range(1, 8)}
     for turn in script.turns:
         tags_by_day[turn.day_index].update(turn.event_tags)
-    arc_type = (
-        "progressive_warmth"
-        if script.scenario_id.startswith("F1-")
-        else "rupture_repair"
-    )
+    arc_type = "progressive_warmth" if script.scenario_id.startswith("F1-") else "rupture_repair"
     return SevenDayScenarioSchedule(
         scenario_id=script.scenario_id,
-        persona_ref=(
-            f"{script.identity_name}:{script.identity_occupation}"
-        ),
+        persona_ref=(f"{script.identity_name}:{script.identity_occupation}"),
         arc_type=arc_type,
         virtual_start_ms=virtual_start_ms,
         days=tuple(
@@ -152,6 +137,8 @@ class _LocalFormalExecutor:
         port: int,
         startup_timeout_s: float,
         virtual_start_ms: int,
+        evidence_profile_by_arm: Mapping[str, str] | None = None,
+        state_loading_policy_by_arm: Mapping[str, str] | None = None,
     ) -> None:
         self._repo_root = repo_root
         self._output_root = output_root
@@ -165,9 +152,9 @@ class _LocalFormalExecutor:
         self._port = port
         self._startup_timeout_s = startup_timeout_s
         self._virtual_start_ms = virtual_start_ms
-        self._case_index = {
-            case.case_id: index for index, case in enumerate(cases)
-        }
+        self._evidence_profile_by_arm = dict(evidence_profile_by_arm or {})
+        self._state_loading_policy_by_arm = dict(state_loading_policy_by_arm or {})
+        self._case_index = {case.case_id: index for index, case in enumerate(cases)}
 
     def execute(
         self,
@@ -194,15 +181,8 @@ class _LocalFormalExecutor:
         correct_reference = state_root / "archives/correct-user-state"
         donor_index = (self._case_index[case.case_id] + 1) % len(self._cases)
         donor = self._cases[donor_index]
-        donor_key = hashlib.sha256(
-            donor.case_id.encode("utf-8")
-        ).hexdigest()[:20]
-        donor_archive = (
-            self._output_root
-            / "state"
-            / donor_key
-            / "archives/correct-user-state"
-        )
+        donor_key = hashlib.sha256(donor.case_id.encode("utf-8")).hexdigest()[:20]
+        donor_archive = self._output_root / "state" / donor_key / "archives/correct-user-state"
         # The physical state roots are arm-isolated, while the logical user
         # identity stays exact across arms.  Otherwise user-id drift would be
         # an unregistered second intervention in a paired comparison.
@@ -213,12 +193,9 @@ class _LocalFormalExecutor:
             archive_root=archive_root,
             user_id=user_id,
             experiment_arm_label=arm_label,
-            correct_reference_archive_root=(
-                correct_reference if arm_label == "shuffled-history" else None
-            ),
-            donor_archive_root=(
-                donor_archive if arm_label == "swapped-user-state" else None
-            ),
+            state_loading_policy=self._state_loading_policy_by_arm.get(arm_label),
+            correct_reference_archive_root=(correct_reference if arm_label == "shuffled-history" else None),
+            donor_archive_root=(donor_archive if arm_label == "swapped-user-state" else None),
         )
         base_url = f"http://{self._host}:{self._port}"
         service = HTTPSevenDayCompanionService(
@@ -228,9 +205,7 @@ class _LocalFormalExecutor:
             vertical="companion",
             timeout_s=600.0,
         )
-        service_evidence = (
-            self._output_root / "service_evidence" / case_key / arm_label
-        )
+        service_evidence = self._output_root / "service_evidence" / case_key / arm_label
         command = (
             sys.executable,
             "-m",
@@ -254,18 +229,25 @@ class _LocalFormalExecutor:
             "--evidence-root-dir",
             str(service_evidence),
             "--allow-evidence-time-override",
+            "--max-sessions",
+            "1",
             "--idle-eviction-seconds",
             "0",
             "--log-level",
             "INFO",
         )
+        evidence_profile = self._evidence_profile_by_arm.get(arm_label)
+        if evidence_profile is not None:
+            command = (
+                *command,
+                "--companion-evidence-profile",
+                evidence_profile,
+            )
         environment = os.environ.copy()
         environment["PYTHONPATH"] = _workspace_pythonpath(self._repo_root)
         environment["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
         environment["TRANSFORMERS_VERBOSITY"] = "error"
-        environment["VZ_LIFEFORM_MAX_NEW_TOKENS"] = str(
-            self._sut_max_new_tokens
-        )
+        environment["VZ_LIFEFORM_MAX_NEW_TOKENS"] = str(self._sut_max_new_tokens)
         host = SubprocessSevenDayServiceHost(
             command=command,
             service=service,
@@ -300,9 +282,7 @@ class _LocalFormalExecutor:
                     script=self._scripts[case.case_id],
                     virtual_start_ms=self._virtual_start_ms,
                 ),
-                user_driver=FrozenSevenDayUserDriver(
-                    self._scripts[case.case_id]
-                ),
+                user_driver=FrozenSevenDayUserDriver(self._scripts[case.case_id]),
                 source_attestation=self._source_attestation,
                 drain_slow_loop=drain_slow_loop,
                 output_path=output_path,
@@ -310,7 +290,15 @@ class _LocalFormalExecutor:
         finally:
             lifecycle.close()
         print(f"[complete] {case.case_id} / {arm_label}", flush=True)
-        return run.to_json()
+        payload = run.to_json()
+        if evidence_profile is not None:
+            profile_path = service_evidence / "companion_evidence_runtime_profile.json"
+            profile_payload = json.loads(profile_path.read_text(encoding="utf-8"))
+            if profile_payload.get("profile") != evidence_profile:
+                raise ValueError("service evidence profile attestation drift")
+            payload["runtime_profile_attestation"] = profile_payload
+            output_path.write_bytes(_canonical_bytes(payload))
+        return payload
 
 
 def main() -> int:
@@ -327,20 +315,13 @@ def main() -> int:
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
-    selected_modes = sum(
-        (args.preflight_only, args.smoke_one_run, args.execute)
-    )
+    selected_modes = sum((args.preflight_only, args.smoke_one_run, args.execute))
     if selected_modes != 1:
-        raise ValueError(
-            "select exactly one of --preflight-only, --smoke-one-run, "
-            "or --execute"
-        )
+        raise ValueError("select exactly one of --preflight-only, --smoke-one-run, or --execute")
     if args.resume and args.preflight_only:
         raise ValueError("--resume is invalid with --preflight-only")
     root = args.repo_root.resolve()
-    preregistration = json.loads(
-        args.preregistration.read_text(encoding="utf-8")
-    )
+    preregistration = json.loads(args.preregistration.read_text(encoding="utf-8"))
     validate_seven_day_companion_preregistration(
         preregistration,
         repo_root=root,
@@ -371,18 +352,14 @@ def main() -> int:
         script_digests = {}
         for scenario_id in scenario_ids:
             for seed in seeds:
-                spec = load_scenario_yaml(
-                    root / str(scenario_paths[str(scenario_id)])
-                )
+                spec = load_scenario_yaml(root / str(scenario_paths[str(scenario_id)]))
                 script = build_frozen_seven_day_user_script(
                     spec=spec,
                     paraphrase_seed=int(seed),
                     backend=simulator_backend,
                     temperature=float(simulator["temperature"]),
                 )
-                script_digests[
-                    f"{scenario_id}:seed-{seed}"
-                ] = script.script_sha256
+                script_digests[f"{scenario_id}:seed-{seed}"] = script.script_sha256
         print(
             json.dumps(
                 {
@@ -419,32 +396,22 @@ def main() -> int:
     else:
         source_audit_path.write_bytes(source_audit_bytes)
     all_cases = tuple(
-        SevenDayExperimentCase(str(scenario_id), int(seed))
-        for scenario_id in scenario_ids
-        for seed in seeds
+        SevenDayExperimentCase(str(scenario_id), int(seed)) for scenario_id in scenario_ids for seed in seeds
     )
     cases = all_cases[:1] if args.smoke_one_run else all_cases
     scripts = {}
     script_root = target / "user_scripts"
     script_root.mkdir(parents=True, exist_ok=True)
     for case in cases:
-        script_path = script_root / (
-            hashlib.sha256(case.case_id.encode("utf-8")).hexdigest()
-            + ".json"
-        )
+        script_path = script_root / (hashlib.sha256(case.case_id.encode("utf-8")).hexdigest() + ".json")
         if script_path.exists():
             script = load_frozen_seven_day_user_script(script_path)
-            if (
-                script.scenario_id != case.scenario_id
-                or script.paraphrase_seed != case.paraphrase_seed
-            ):
+            if script.scenario_id != case.scenario_id or script.paraphrase_seed != case.paraphrase_seed:
                 raise ValueError(f"cached user script case drift: {script_path}")
             print(f"[script-resume] {case.case_id}", flush=True)
         else:
             print(f"[script] {case.case_id}", flush=True)
-            spec = load_scenario_yaml(
-                root / str(scenario_paths[case.scenario_id])
-            )
+            spec = load_scenario_yaml(root / str(scenario_paths[case.scenario_id]))
             script = build_frozen_seven_day_user_script(
                 spec=spec,
                 paraphrase_seed=case.paraphrase_seed,
@@ -500,9 +467,7 @@ def main() -> int:
             "formal_claim_allowed": False,
             "purpose": "product-path preflight before formal preregistration",
         }
-        (target / "smoke_manifest.json").write_bytes(
-            _canonical_bytes(smoke_manifest)
-        )
+        (target / "smoke_manifest.json").write_bytes(_canonical_bytes(smoke_manifest))
         print(json.dumps(smoke_manifest, sort_keys=True))
         return 0
     result = SevenDayCompanionAblationHarness(executor=executor).run(

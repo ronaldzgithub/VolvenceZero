@@ -32,6 +32,7 @@ from volvence_zero.environment import (
 from volvence_zero.evaluation import RelationshipContinuityEvaluationModule
 from volvence_zero.identity_seed import IdentitySeed
 from volvence_zero.integration import FinalRolloutConfig, resolve_final_rollout_config
+from volvence_zero.joint_loop import JointLoopSchedule
 from volvence_zero.memory import (
     AnonymousIdentityProvider,
     IdentityProvider,
@@ -126,6 +127,13 @@ class BrainConfig:
     domain_experience_packages: tuple[DomainExperiencePackage, ...] = ()
     final_rollout_config: FinalRolloutConfig | None = None
     rare_heavy_enabled: bool = True
+    rare_heavy_trace_window: int = 5
+    rare_heavy_min_traces: int = 4
+    rare_heavy_cooldown_turns: int = 3
+    allow_live_substrate_mutation: bool = False
+    joint_schedule: JointLoopSchedule | None = None
+    joint_apply_ssl_optimization: bool = True
+    joint_apply_policy_optimization: bool = True
     # Same-substrate component-causal ablation controls (#87 claim 3).
     # These expose dialogue-runner PE/ETA knobs through the stable package API
     # so real `lifeform-serve` endpoints can run matched controls.
@@ -133,9 +141,7 @@ class BrainConfig:
     external_prediction_error_drive: bool = True
     prediction_error_readout_only: bool = False
     primary_prediction_error_dominance_enabled: bool = True
-    apprenticeship_feedback_policy: Literal[
-        "owner", "random", "disabled"
-    ] = "owner"
+    apprenticeship_feedback_policy: Literal["owner", "random", "disabled"] = "owner"
     apprenticeship_constraint_extractor: Any = None
     # Rupture-and-Repair v0 Risk 2 mitigation: LLM-sourced external
     # outcome proposals are OFF by default. Set this to True ONLY after
@@ -156,6 +162,16 @@ class BrainConfig:
     # character durably co-evolves with the player instead of resetting
     # to the checkpoint every session. None = no seed (current behavior).
     memory_seed_checkpoint: MemoryStoreCheckpoint | None = None
+    # Evidence-selectable CMS construction. Defaults are the shipped
+    # multi-frequency CMS and remain unchanged outside an explicit profile.
+    cms_variant: Literal["nested", "independent", "sequential"] = "nested"
+    cms_session_cadence: int = 2
+    cms_background_cadence: int = 4
+    cms_pe_features_enabled: bool = True
+    cms_replay_window_size: int | None = 8
+    cms_context_conditioned_meta_init: bool = False
+    cms_context_prototype_count: int = 8
+    nested_context_reset_mode: Literal["meta-init", "copy-init", "no-init"] = "copy-init"
     # Packet D (long-horizon-closure): cross-session owner hydration
     # wiring level. ACTIVE is the production-grade default — long
     # horizon continuity is the whole point of the lifeform shape,
@@ -222,10 +238,7 @@ class BrainConfig:
                 f"expected one of {sorted(TEMPORAL_PROFILE_LATENT_DIMS)}"
             )
         if self.temporal_latent_dim != 3:
-            raise ValueError(
-                "pass either temporal_profile or an explicit "
-                "temporal_latent_dim, not both"
-            )
+            raise ValueError("pass either temporal_profile or an explicit temporal_latent_dim, not both")
         return TEMPORAL_PROFILE_LATENT_DIMS[self.temporal_profile]
 
 
@@ -256,10 +269,8 @@ class BrainSession:
 
     def __init__(self, *, runner: AgentSessionRunner) -> None:
         self._runner = runner
-        self._relationship_continuity_evaluation = (
-            RelationshipContinuityEvaluationModule(
-                persistence_backend=runner.memory_store.persistence_backend
-            )
+        self._relationship_continuity_evaluation = RelationshipContinuityEvaluationModule(
+            persistence_backend=runner.memory_store.persistence_backend
         )
 
     @property
@@ -293,9 +304,7 @@ class BrainSession:
         if published is None:
             return None
         if not isinstance(published.value, ReflectionSnapshot):
-            raise TypeError(
-                "reflection slot must publish ReflectionSnapshot for relationship console"
-            )
+            raise TypeError("reflection slot must publish ReflectionSnapshot for relationship console")
         return published.value
 
     def relationship_memory_entries(self) -> tuple[MemoryEntry, ...]:
@@ -362,19 +371,13 @@ class BrainSession:
         if proposal is None:
             raise KeyError(proposal_id)
         if proposal.target_owner_slot != "memory":
-            raise ValueError(
-                "apply_confirmed_relationship_memory_proposal only accepts memory proposals"
-            )
+            raise ValueError("apply_confirmed_relationship_memory_proposal only accepts memory proposals")
 
         evidence_ids = tuple(
-            item.removeprefix("memory_entry:")
-            for item in proposal.source_evidence
-            if item.startswith("memory_entry:")
+            item.removeprefix("memory_entry:") for item in proposal.source_evidence if item.startswith("memory_entry:")
         )
         if len(evidence_ids) != 1 or not evidence_ids[0]:
-            raise ValueError(
-                "memory relationship proposal must identify exactly one memory_entry"
-            )
+            raise ValueError("memory relationship proposal must identify exactly one memory_entry")
         entry_id = evidence_ids[0]
         operation = RelationshipUpdateProposalOperation(proposal.operation)
         new_entries: tuple[MemoryEntry, ...] = ()
@@ -382,17 +385,11 @@ class BrainSession:
         decayed_entries: tuple[str, ...] = ()
         if operation is RelationshipUpdateProposalOperation.REMEMBER:
             source = next(
-                (
-                    entry
-                    for entry in reflection.memory_consolidation.new_durable_entries
-                    if entry.entry_id == entry_id
-                ),
+                (entry for entry in reflection.memory_consolidation.new_durable_entries if entry.entry_id == entry_id),
                 None,
             )
             if source is None:
-                raise ValueError(
-                    "remember proposal evidence is absent from reflection memory consolidation"
-                )
+                raise ValueError("remember proposal evidence is absent from reflection memory consolidation")
             scope_tag = f"user_scope:{self._runner.user_scope}"
             new_entries = (
                 replace(
@@ -405,13 +402,9 @@ class BrainSession:
         elif operation is RelationshipUpdateProposalOperation.DECAY:
             decayed_entries = (entry_id,)
         else:
-            raise ValueError(
-                f"unsupported memory relationship proposal operation: {operation.value}"
-            )
+            raise ValueError(f"unsupported memory relationship proposal operation: {operation.value}")
 
-        checkpoint = self._runner.memory_store.create_checkpoint(
-            checkpoint_id=f"relationship-memory:{proposal_id}"
-        )
+        checkpoint = self._runner.memory_store.create_checkpoint(checkpoint_id=f"relationship-memory:{proposal_id}")
         applied = self._runner.memory_store.apply_reflection_consolidation(
             new_durable_entries=new_entries,
             promoted_entries=promoted_entries,
@@ -424,23 +417,17 @@ class BrainSession:
         )
         if not applied:
             self._runner.memory_store.restore_checkpoint(checkpoint)
-            raise RuntimeError(
-                "Memory owner rejected the confirmed relationship proposal"
-            )
+            raise RuntimeError("Memory owner rejected the confirmed relationship proposal")
         self._persist_relationship_memory_or_rollback(
             checkpoint=checkpoint,
-            failure_message=(
-                "confirmed relationship memory proposal could not be persisted"
-            ),
+            failure_message=("confirmed relationship memory proposal could not be persisted"),
         )
         return applied
 
     def delete_relationship_memory_entry(self, *, entry_id: str) -> MemoryEntry | None:
         """Delete one scoped durable entry and persist the Memory owner."""
 
-        checkpoint = self._runner.memory_store.create_checkpoint(
-            checkpoint_id=f"relationship-memory-delete:{entry_id}"
-        )
+        checkpoint = self._runner.memory_store.create_checkpoint(checkpoint_id=f"relationship-memory-delete:{entry_id}")
         removed = delete_entry_for_scope(
             self._runner.memory_store,
             user_scope=self._runner.user_scope,
@@ -449,9 +436,7 @@ class BrainSession:
         if removed is not None:
             self._persist_relationship_memory_or_rollback(
                 checkpoint=checkpoint,
-                failure_message=(
-                    "relationship memory deletion could not be persisted"
-                ),
+                failure_message=("relationship memory deletion could not be persisted"),
             )
         return removed
 
@@ -477,9 +462,7 @@ class BrainSession:
         if replacement is not None:
             self._persist_relationship_memory_or_rollback(
                 checkpoint=checkpoint,
-                failure_message=(
-                    "relationship memory rewrite could not be persisted"
-                ),
+                failure_message=("relationship memory rewrite could not be persisted"),
             )
         return replacement
 
@@ -855,9 +838,7 @@ class Brain:
         # ``session_id`` into an optional ``UserIdentity``. Default is
         # the anonymous provider; existing callers that don't pass a
         # provider behave exactly as before.
-        self._identity_provider: IdentityProvider = (
-            identity_provider or AnonymousIdentityProvider()
-        )
+        self._identity_provider: IdentityProvider = identity_provider or AnonymousIdentityProvider()
 
     @property
     def config(self) -> BrainConfig:
@@ -996,6 +977,15 @@ class Brain:
                     # NW10: seed the per-relationship store once from the
                     # baked canonical checkpoint, then let it accumulate.
                     seed_checkpoint=self._config.memory_seed_checkpoint,
+                    cms_variant=self._config.cms_variant,
+                    cms_session_cadence=self._config.cms_session_cadence,
+                    cms_background_cadence=(self._config.cms_background_cadence),
+                    cms_pe_features_enabled=(self._config.cms_pe_features_enabled),
+                    cms_replay_window_size=(self._config.cms_replay_window_size),
+                    cms_torch_backend=resolve_final_rollout_config(self._config.final_rollout_config).cms_torch_backend,
+                    cms_context_conditioned_meta_init=(self._config.cms_context_conditioned_meta_init),
+                    cms_context_prototype_count=(self._config.cms_context_prototype_count),
+                    nested_context_reset_mode=(self._config.nested_context_reset_mode),
                 )
         # Packet D (long-horizon-closure): build the OwnerHydrationStore
         # only when (a) hydration wiring is non-DISABLED AND (b) the
@@ -1006,11 +996,7 @@ class Brain:
         # its own owners through the same backend.
         owner_hydration_store: OwnerHydrationStore | None = None
         if self._config.owner_hydration_wiring is not WiringLevel.DISABLED:
-            backend = (
-                session_memory_store.persistence_backend
-                if session_memory_store is not None
-                else None
-            )
+            backend = session_memory_store.persistence_backend if session_memory_store is not None else None
             if backend is not None:
                 owner_hydration_store = OwnerHydrationStore(
                     backend=backend,
@@ -1031,6 +1017,13 @@ class Brain:
             semantic_proposal_runtime=self._semantic_proposal_runtime,
             temporal_latent_dim=self._config.resolved_temporal_latent_dim(),
             rare_heavy_enabled=self._config.rare_heavy_enabled,
+            rare_heavy_trace_window=self._config.rare_heavy_trace_window,
+            rare_heavy_min_traces=self._config.rare_heavy_min_traces,
+            rare_heavy_cooldown_turns=(self._config.rare_heavy_cooldown_turns),
+            allow_live_substrate_mutation=(self._config.allow_live_substrate_mutation),
+            joint_schedule=self._config.joint_schedule,
+            joint_apply_ssl_optimization=(self._config.joint_apply_ssl_optimization),
+            joint_apply_policy_optimization=(self._config.joint_apply_policy_optimization),
             regime_bootstrap=self._regime_bootstrap,
             identity_seed=self._identity_seed,
             seed_protocols=self._seed_protocols,
@@ -1040,36 +1033,28 @@ class Brain:
             owner_hydration_store=owner_hydration_store,
             external_prediction_error_drive=self._config.external_prediction_error_drive,
             prediction_error_readout_only=self._config.prediction_error_readout_only,
-            primary_prediction_error_dominance_enabled=(
-                self._config.primary_prediction_error_dominance_enabled
-            ),
+            primary_prediction_error_dominance_enabled=(self._config.primary_prediction_error_dominance_enabled),
             apprenticeship_feedback_policy=self._config.apprenticeship_feedback_policy,
-            apprenticeship_constraint_extractor=(
-                self._config.apprenticeship_constraint_extractor
-            ),
+            apprenticeship_constraint_extractor=(self._config.apprenticeship_constraint_extractor),
         )
         if self._temporal_bootstrap is not None:
             # Build fresh policies per session from the trained snapshot so
             # sessions never share mutable controller state. Both world and
             # self tracks are seeded from the same bootstrap; the runner
             # will clone the world track for the self track when needed.
-            runner_kwargs["world_temporal_policy"] = (
-                FullLearnedTemporalPolicy.from_bootstrap_snapshot(self._temporal_bootstrap)
+            runner_kwargs["world_temporal_policy"] = FullLearnedTemporalPolicy.from_bootstrap_snapshot(
+                self._temporal_bootstrap
             )
         elif self._config.temporal_policy_kind == "learned_lite":
             from volvence_zero.temporal import LearnedLiteTemporalPolicy
 
             runner_kwargs["temporal_policy"] = LearnedLiteTemporalPolicy()
         elif self._config.temporal_policy_kind != "full":
-            raise ValueError(
-                f"unknown temporal_policy_kind {self._config.temporal_policy_kind!r}"
-            )
+            raise ValueError(f"unknown temporal_policy_kind {self._config.temporal_policy_kind!r}")
         runner = AgentSessionRunner(**runner_kwargs)
         return BrainSession(runner=runner)
 
-    def _install_semantic_embedding_backend(
-        self, runtime: OpenWeightResidualRuntime
-    ) -> None:
+    def _install_semantic_embedding_backend(self, runtime: OpenWeightResidualRuntime) -> None:
         """Install the real embedding backend for real transformers runtimes.
 
         #91: reuse the loaded LM as a text encoder behind the vz-contracts
@@ -1082,8 +1067,7 @@ class Brain:
 
         override = os.environ.get("VZ_SEMANTIC_EMBEDDING_BACKEND", "").strip().lower()
         if override == "stub" or (
-            self._config.semantic_embedding_backend_wiring is WiringLevel.DISABLED
-            and override != "substrate"
+            self._config.semantic_embedding_backend_wiring is WiringLevel.DISABLED and override != "substrate"
         ):
             reset_semantic_embedding_backend()
             return
@@ -1100,9 +1084,7 @@ class Brain:
         else:
             reset_semantic_embedding_backend()
 
-    def _install_rare_heavy_training_backend(
-        self, runtime: OpenWeightResidualRuntime
-    ) -> None:
+    def _install_rare_heavy_training_backend(self, runtime: OpenWeightResidualRuntime) -> None:
         """Install the configured offline rare-heavy training backend (S1).
 
         ``"builtin"`` leaves the runtime untouched (built-in adapter-delta
@@ -1149,7 +1131,6 @@ class Brain:
                 )
             except ModuleNotFoundError as exc:
                 raise RuntimeError(
-                    "BrainConfig(substrate_mode='hf') requires optional dependencies; "
-                    "install with volvence-zero[hf]."
+                    "BrainConfig(substrate_mode='hf') requires optional dependencies; install with volvence-zero[hf]."
                 ) from exc
         raise ValueError(f"Unsupported substrate_mode: {self._config.substrate_mode}")

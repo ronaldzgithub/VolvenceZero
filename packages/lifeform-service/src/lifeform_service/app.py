@@ -62,7 +62,7 @@ from lifeform_service.alpha import (
     AlphaServiceConfig,
     alpha_config_to_json,
 )
-from lifeform_core import LlmJsonClient
+from lifeform_core import LlmJsonClient, TurnTriggerKind
 from lifeform_protocol_runtime import (
     MentorIntakeApplyMode,
     MentorIntakeKind,
@@ -125,15 +125,19 @@ from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeKind,
 )
 from volvence_zero.memory import (
+    MemorySnapshot,
     UserIdentity,
     build_scoped_memory_store,
     delete_entries_for_scope,
     list_durable_entries_for_scope,
 )
+from volvence_zero.apprenticeship import ApprenticeshipAlignmentSnapshot
+from volvence_zero.prediction import PredictionErrorSnapshot
 from volvence_zero.relationship_continuity import (
     RelationshipContinuityConsoleOutcome,
 )
 from volvence_zero.semantic_state import CommitmentSnapshot, OpenLoopSnapshot
+from volvence_zero.temporal import TemporalConsolidationSnapshot
 
 
 _LOG = logging.getLogger("lifeform_service")
@@ -159,6 +163,8 @@ def create_app(
     external_llm_client: "LlmJsonClient | None" = None,
     utterance_backend: Any = None,
     character_runtime_assets: "CharacterRuntimeAssets | None" = None,
+    companion_evidence_profile: str | None = None,
+    allow_evidence_single_session_mutation: bool = False,
 ) -> web.Application:
     """Build the aiohttp Application.
 
@@ -198,18 +204,35 @@ def create_app(
     plus the rest) are unchanged from the prior release.
     """
     if substrate_runtime is not None and substrate_provider is not None:
-        raise ValueError(
-            "create_app: pass substrate_runtime OR substrate_provider, not both"
-        )
+        raise ValueError("create_app: pass substrate_runtime OR substrate_provider, not both")
+    allow_mutable_evidence_runtime = False
     if substrate_runtime is not None:
-        _enforce_frozen_for_sharing(substrate_runtime)
-        substrate_provider = fixed_provider_from_runtime(substrate_runtime)
+        mutable = bool(
+            getattr(
+                substrate_runtime,
+                "supports_live_substrate_mutation",
+                False,
+            )
+        )
+        if mutable:
+            profile_allows_mutation = False
+            if companion_evidence_profile is not None:
+                from lifeform_service.companion_evidence_profile import (
+                    resolve_companion_evidence_profile,
+                )
+
+                profile_allows_mutation = resolve_companion_evidence_profile(
+                    companion_evidence_profile
+                ).allow_single_session_live_substrate_mutation
+            if not (allow_evidence_single_session_mutation and profile_allows_mutation and max_sessions == 1):
+                _enforce_frozen_for_sharing(substrate_runtime)
+            allow_mutable_evidence_runtime = True
+        substrate_provider = fixed_provider_from_runtime(
+            substrate_runtime,
+            allow_mutable_evidence_runtime=allow_mutable_evidence_runtime,
+        )
     alpha = alpha_config or AlphaServiceConfig()
-    alpha_provider = (
-        AlphaIdentityProvider(allowed_users=alpha.alpha_users)
-        if alpha.enabled
-        else None
-    )
+    alpha_provider = AlphaIdentityProvider(allowed_users=alpha.alpha_users) if alpha.enabled else None
     registry = _build_vertical_registry(
         vertical=vertical,
         verticals=verticals,
@@ -222,13 +245,13 @@ def create_app(
             "alpha mode (no alpha_factory and no template_adapter)"
         )
     service_templates_root = (
-        pathlib.Path(templates_root_dir).expanduser()
-        if templates_root_dir and templates_root_dir.strip()
-        else None
+        pathlib.Path(templates_root_dir).expanduser() if templates_root_dir and templates_root_dir.strip() else None
     )
-    attach_default_mcp_bundle = os.environ.get(
-        "VZ_ATTACH_DEFAULT_MCP_BUNDLE", "1"
-    ).strip() not in {"0", "false", "False"}
+    attach_default_mcp_bundle = os.environ.get("VZ_ATTACH_DEFAULT_MCP_BUNDLE", "1").strip() not in {
+        "0",
+        "false",
+        "False",
+    }
     manager = SessionManager(
         vertical_registry=registry,
         alpha_identity_provider=alpha_provider,
@@ -256,10 +279,9 @@ def create_app(
     app["vertical_spec"] = registry.default
     app["vertical_registry"] = registry
     app["substrate_provider"] = substrate_provider
-    app["substrate_runtime"] = (
-        substrate_provider.current_runtime if substrate_provider is not None else None
-    )
+    app["substrate_runtime"] = substrate_provider.current_runtime if substrate_provider is not None else None
     app["alpha_config"] = alpha
+    app["companion_evidence_profile"] = companion_evidence_profile
     # D6 (#alpha-reload): keep the identity provider reachable from
     # request handlers so the allow-list can be hot-reloaded (reload
     # endpoint / SIGHUP) without a platform restart.
@@ -348,11 +370,7 @@ def create_app(
     # we do NOT swallow that ValueError here — mirrors the JSON-mode
     # sibling ``build_client_from_env`` contract and the
     # ``no-swallow-errors-no-hasattr-abuse.mdc`` rule.
-    resolved_backend = (
-        utterance_backend
-        if utterance_backend is not None
-        else build_utterance_client_from_env()
-    )
+    resolved_backend = utterance_backend if utterance_backend is not None else build_utterance_client_from_env()
     install_simulator_cache(app, utterance_backend=resolved_backend)
     register_simulator_routes(app)
     return app
@@ -374,22 +392,15 @@ def _build_vertical_registry(
     * Both / neither → ``ValueError``.
     """
     if vertical is not None and verticals is not None:
-        raise ValueError(
-            "create_app: pass `vertical=` (single) OR `verticals=` "
-            "(multi), not both"
-        )
+        raise ValueError("create_app: pass `vertical=` (single) OR `verticals=` (multi), not both")
     if vertical is not None:
         return VerticalRegistry.single(vertical, alpha_enabled=alpha_enabled)
     if verticals is None or not verticals:
         raise ValueError(
-            "create_app: at least one vertical is required (pass "
-            "`vertical=` or `verticals=` with `default_vertical=`)"
+            "create_app: at least one vertical is required (pass `vertical=` or `verticals=` with `default_vertical=`)"
         )
     if default_vertical is None or not default_vertical.strip():
-        raise ValueError(
-            "create_app: `default_vertical=` is required when "
-            "`verticals=` is supplied"
-        )
+        raise ValueError("create_app: `default_vertical=` is required when `verticals=` is supplied")
     return VerticalRegistry.from_mapping(
         verticals,
         default_name=default_vertical.strip(),
@@ -494,9 +505,7 @@ async def _handle_info(request: web.Request) -> web.Response:
     # app["substrate_runtime"] is only the initial value and goes
     # stale after the first swap.
     provider: SubstrateRuntimeProvider | None = request.app.get("substrate_provider")
-    runtime = (
-        provider.current_runtime if provider is not None else request.app.get("substrate_runtime")
-    )
+    runtime = provider.current_runtime if provider is not None else request.app.get("substrate_runtime")
     body = ServiceInfoResponse(
         vertical=spec.name,
         has_temporal_bootstrap=spec.has_temporal_bootstrap,
@@ -556,9 +565,7 @@ async def _handle_create_session(request: web.Request) -> web.Response:
             requested_vertical = raw_vertical.strip()
         raw_character = payload.get("character_id")
         if raw_character is not None and not isinstance(raw_character, str):
-            raise _BadRequest(
-                "invalid_character_id", "character_id must be a string"
-            )
+            raise _BadRequest("invalid_character_id", "character_id must be a string")
         if isinstance(raw_character, str) and raw_character.strip():
             requested_character_id = raw_character.strip()
     manager: SessionManager = request.app["session_manager"]
@@ -575,34 +582,22 @@ async def _handle_create_session(request: web.Request) -> web.Response:
             character_id=requested_character_id,
         )
     except UnknownVerticalError as exc:
-        return _json_error(
-            status=422, error="unknown_vertical", detail=str(exc)
-        )
+        return _json_error(status=422, error="unknown_vertical", detail=str(exc))
     except VerticalNotAlphaCapableError as exc:
-        return _json_error(
-            status=422, error="vertical_not_alpha_capable", detail=str(exc)
-        )
+        return _json_error(status=422, error="vertical_not_alpha_capable", detail=str(exc))
     except CharacterSelectionError as exc:
-        return _json_error(
-            status=422, error="invalid_character_id", detail=str(exc)
-        )
+        return _json_error(status=422, error="invalid_character_id", detail=str(exc))
     except TemplatesNotSupportedError as exc:
-        return _json_error(
-            status=503, error="templates_not_supported", detail=str(exc)
-        )
+        return _json_error(status=503, error="templates_not_supported", detail=str(exc))
     except FileNotFoundError as exc:
-        return _json_error(
-            status=404, error="template_not_found", detail=str(exc)
-        )
+        return _json_error(status=404, error="template_not_found", detail=str(exc))
     except SessionAlreadyExistsError:
         # Re-raise so the middleware's specific handler returns 409
         # — SessionAlreadyExistsError extends ValueError so we MUST
         # let it through before the generic ValueError catch below.
         raise
     except ValueError as exc:
-        return _json_error(
-            status=400, error="invalid_template_id", detail=str(exc)
-        )
+        return _json_error(status=400, error="invalid_template_id", detail=str(exc))
     bound_vertical_name = manager.vertical_name_for(session.session_id)
     bound_spec = manager.vertical_registry.get(bound_vertical_name)
     if bound_spec is None:
@@ -651,9 +646,7 @@ async def _handle_list_models(request: web.Request) -> web.Response:
             "vertical": spec.name,
             "swap_supported": provider.swap_supported,
             "current_model_id": provider.current_model_id or None,
-            "current_runtime_origin": (
-                getattr(runtime, "runtime_origin", None) if runtime is not None else None
-            ),
+            "current_runtime_origin": (getattr(runtime, "runtime_origin", None) if runtime is not None else None),
             "swap_count": provider.swap_count,
             "last_swap_error": provider.last_swap_error,
             "models": [spec.to_json() for spec in provider.available],
@@ -691,16 +684,12 @@ async def _handle_swap_substrate(request: web.Request) -> web.Response:
     payload = await _require_json(request)
     raw = payload.get("model_id")
     if not isinstance(raw, str) or not raw.strip():
-        raise _BadRequest(
-            "invalid_model_id", "model_id is required and must be a string"
-        )
+        raise _BadRequest("invalid_model_id", "model_id is required and must be a string")
     model_id = raw.strip()
     try:
         result = await provider.swap(model_id)
     except UnknownSubstrateModelError as exc:
-        return _json_error(
-            status=400, error="unknown_model_id", detail=str(exc)
-        )
+        return _json_error(status=400, error="unknown_model_id", detail=str(exc))
     except SubstrateSwapError as exc:
         # Loader failure: respond 503 with the cause so the operator
         # can decide whether to retry. Provider has already cleared
@@ -750,10 +739,7 @@ async def _handle_list_templates(request: web.Request) -> web.Response:
         return _json_error(
             status=422,
             error="unknown_vertical",
-            detail=(
-                f"vertical {target_name!r} is not registered; available: "
-                f"{sorted(registry.names)!r}"
-            ),
+            detail=(f"vertical {target_name!r} is not registered; available: {sorted(registry.names)!r}"),
         )
     adapter = manager.template_adapter_for(target_name)
     root = manager.templates_dir_for(target_name)
@@ -769,9 +755,7 @@ async def _handle_list_templates(request: web.Request) -> web.Response:
     try:
         items = adapter.list_templates(root)
     except (NotADirectoryError, ValueError) as exc:
-        return _json_error(
-            status=500, error="templates_listing_failed", detail=str(exc)
-        )
+        return _json_error(status=500, error="templates_listing_failed", detail=str(exc))
     return _json_ok(
         {
             "vertical": target_name,
@@ -807,25 +791,17 @@ async def _handle_save_as_template(request: web.Request) -> web.Response:
     payload = await _require_json(request)
     raw_id = payload.get("template_id")
     if not isinstance(raw_id, str) or not raw_id.strip():
-        raise _BadRequest(
-            "invalid_template_id", "template_id is required and must be a string"
-        )
+        raise _BadRequest("invalid_template_id", "template_id is required and must be a string")
     template_id = raw_id.strip()
     replay_provenance = payload.get("replay_provenance", "")
     if not isinstance(replay_provenance, str):
-        raise _BadRequest(
-            "invalid_replay_provenance", "replay_provenance must be a string"
-        )
+        raise _BadRequest("invalid_replay_provenance", "replay_provenance must be a string")
     include_memory = payload.get("include_memory", True)
     if not isinstance(include_memory, bool):
-        raise _BadRequest(
-            "invalid_include_memory", "include_memory must be a boolean"
-        )
+        raise _BadRequest("invalid_include_memory", "include_memory must be a boolean")
     overwrite_existing = payload.get("overwrite_existing", False)
     if not isinstance(overwrite_existing, bool):
-        raise _BadRequest(
-            "invalid_overwrite_existing", "overwrite_existing must be a boolean"
-        )
+        raise _BadRequest("invalid_overwrite_existing", "overwrite_existing must be a boolean")
     session = await manager.get_session(session_id)
     context = manager.template_context_for(session_id)
     if context is None:
@@ -849,13 +825,9 @@ async def _handle_save_as_template(request: web.Request) -> web.Response:
             overwrite_existing=overwrite_existing,
         )
     except FileExistsError as exc:
-        return _json_error(
-            status=409, error="template_already_exists", detail=str(exc)
-        )
+        return _json_error(status=409, error="template_already_exists", detail=str(exc))
     except (ValueError, TypeError) as exc:
-        return _json_error(
-            status=400, error="invalid_save_request", detail=str(exc)
-        )
+        return _json_error(status=400, error="invalid_save_request", detail=str(exc))
     return _json_ok({"saved": metadata.to_json()}, status=201)
 
 
@@ -884,9 +856,7 @@ async def _handle_session_state(request: web.Request) -> web.Response:
         turn_count=len(summaries),
         pending_followup_count=len(session.all_pending_followups()),
         last_active_regime=last_summary.active_regime if last_summary else None,
-        last_active_abstract_action=(
-            last_summary.active_abstract_action if last_summary else None
-        ),
+        last_active_abstract_action=(last_summary.active_abstract_action if last_summary else None),
         last_response_text=session.latest_response_text,
     )
     return _json_ok(body.to_json())
@@ -900,7 +870,22 @@ async def _handle_turn(request: web.Request) -> web.Response:
     if not isinstance(user_input, str) or not user_input.strip():
         raise _BadRequest("invalid_user_input", "user_input must be a non-empty string")
     session = await manager.get_session(session_id)
-    result = await session.run_turn(user_input)
+    trigger_kind = TurnTriggerKind.USER_INPUT
+    evidence_profile_name = request.app.get("companion_evidence_profile")
+    if evidence_profile_name is not None:
+        from lifeform_service.companion_evidence_profile import (
+            resolve_companion_evidence_profile,
+        )
+
+        evidence_profile = resolve_companion_evidence_profile(str(evidence_profile_name))
+        if evidence_profile.turn_trigger_kind == "apprentice":
+            trigger_kind = TurnTriggerKind.APPRENTICE
+        elif evidence_profile.turn_trigger_kind != "user_input":
+            raise RuntimeError(f"unsupported evidence turn trigger kind {evidence_profile.turn_trigger_kind!r}")
+    result = await session.run_turn(
+        user_input,
+        trigger_kind=trigger_kind,
+    )
 
     summaries = session.turn_summaries
     summary = summaries[-1] if summaries else None
@@ -919,9 +904,94 @@ async def _handle_turn(request: web.Request) -> web.Response:
     if commitment is not None and isinstance(commitment.value, CommitmentSnapshot):
         commitment_count = len(commitment.value.active_commitments)
     pe_magnitude = summary.pe_magnitude if summary is not None else 0.0
+    prediction_error = result.active_snapshots.get("prediction_error")
+    pe_bootstrap = bool(
+        prediction_error is not None
+        and isinstance(prediction_error.value, PredictionErrorSnapshot)
+        and prediction_error.value.bootstrap
+    )
 
-    llm_envelope = _derive_llm_envelope(
-        assembly=assembly_value, user_input=user_input
+    def temporal_pe_applied(slot_name: str) -> bool:
+        snapshot = result.active_snapshots.get(slot_name)
+        return bool(
+            snapshot is not None
+            and isinstance(snapshot.value, TemporalConsolidationSnapshot)
+            and snapshot.value.prediction_error_applied
+        )
+
+    llm_envelope = _derive_llm_envelope(assembly=assembly_value, user_input=user_input)
+
+    telemetry: dict[str, Any] = {
+        "environment_trigger_kind": result.environment_trigger_kind,
+        "joint_schedule_action": result.joint_schedule_action,
+        "ssl_m3_slow_momentum_norm": result.ssl_m3_slow_momentum_norm,
+        "ssl_m3_slow_gain": result.ssl_m3_slow_gain,
+        "nested_profile_active": result.nested_profile_active,
+        "nested_context_reset_applied": (result.nested_context_reset_applied),
+        "nested_context_reset_total_count": (result.nested_context_reset_total_count),
+        "slow_to_fast_init_benefit": result.slow_to_fast_init_benefit,
+        "slow_to_fast_target_alignment_gain": (result.slow_to_fast_target_alignment_gain),
+    }
+    apprenticeship = result.active_snapshots.get("apprenticeship_alignment")
+    if apprenticeship is not None and isinstance(apprenticeship.value, ApprenticeshipAlignmentSnapshot):
+        telemetry.update(
+            {
+                "apprenticeship_active": True,
+                "feedback_requested": (apprenticeship.value.should_request_feedback),
+                "feedback_request_urgency": (apprenticeship.value.feedback_request_urgency),
+                "guidance_surprise": apprenticeship.value.guidance_surprise,
+            }
+        )
+    else:
+        telemetry["apprenticeship_active"] = False
+    memory = result.active_snapshots.get("memory")
+    if memory is not None and isinstance(memory.value, MemorySnapshot):
+        cms = memory.value.cms_state
+        if cms is not None:
+            telemetry.update(
+                {
+                    "cms_variant": cms.variant,
+                    "cms_total_observations": cms.total_observations,
+                    "cms_atlas_replay_active": cms.atlas_replay_active,
+                    "cms_pe_gate_active": cms.titans_pe_gate_active,
+                    "cms_new_knowledge_absorption": (cms.new_knowledge_absorption),
+                    "cms_old_knowledge_retention": (cms.old_knowledge_retention),
+                }
+            )
+    if result.joint_cycle_report is not None:
+        cycle = result.joint_cycle_report
+        telemetry.update(
+            {
+                "joint_cycle_executed": True,
+                "ssl_prediction_loss": cycle.ssl_prediction_loss,
+                "ssl_posterior_drift": cycle.ssl_posterior_drift,
+                "ssl_rollback_applied": cycle.ssl_rollback_applied,
+                "internal_rl_policy_update_applied": (cycle.policy_update_applied),
+                "internal_rl_total_reward": cycle.total_reward,
+            }
+        )
+    else:
+        telemetry["joint_cycle_executed"] = False
+    if result.runtime_replay_report is not None:
+        replay = result.runtime_replay_report
+        telemetry.update(
+            {
+                "runtime_replay_wiring": replay.wiring_level,
+                "runtime_replay_transition_count": replay.transition_count,
+                "runtime_replay_lineage_match_count": (replay.lineage_match_count),
+            }
+        )
+    rare_heavy = result.rare_heavy_result
+    telemetry.update(
+        {
+            "rare_heavy_recommended": bool(rare_heavy is not None and rare_heavy.recommended),
+            "rare_heavy_applied": bool(rare_heavy is not None and rare_heavy.applied),
+            "rare_heavy_import_decision": (rare_heavy.import_decision if rare_heavy is not None else "not-run"),
+            "rare_heavy_pre_import_passed": bool(rare_heavy is not None and rare_heavy.pre_import_passed),
+            "rare_heavy_pre_import_mean_score_delta": (
+                rare_heavy.pre_import_mean_score_delta if rare_heavy is not None else 0.0
+            ),
+        }
     )
 
     open_scene = session.open_scene
@@ -934,11 +1004,15 @@ async def _handle_turn(request: web.Request) -> web.Response:
         active_abstract_action=result.active_abstract_action,
         expression_intent=expression_intent,
         pe_magnitude=pe_magnitude,
+        pe_bootstrap=pe_bootstrap,
+        world_temporal_prediction_error_applied=temporal_pe_applied("world_temporal_consolidation"),
+        self_temporal_prediction_error_applied=temporal_pe_applied("self_temporal_consolidation"),
         open_loop_count=open_loop_count,
         commitment_count=commitment_count,
         response_rationale_tags=tuple(result.response.rationale_tags),
         safety=_safety_metadata(result.response.rationale_tags),
         llm_envelope=llm_envelope,
+        evidence_telemetry=telemetry,
     )
     return _json_ok(body.to_json())
 
@@ -956,10 +1030,7 @@ async def _handle_mentor_intake(request: web.Request) -> web.Response:
         return _json_error(
             status=503,
             error="mentor_intake_llm_not_configured",
-            detail=(
-                "mentor intake requires the shared OpenAI-compatible JSON "
-                "LLM client."
-            ),
+            detail=("mentor intake requires the shared OpenAI-compatible JSON LLM client."),
         )
 
     apply_mode = _parse_mentor_apply_mode(payload.get("apply_mode"))
@@ -1032,9 +1103,7 @@ async def _handle_mentor_intake(request: web.Request) -> web.Response:
         )
 
     if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW:
-        service: ProtocolUptakeService | None = request.app.get(
-            "protocol_uptake_service"
-        )
+        service: ProtocolUptakeService | None = request.app.get("protocol_uptake_service")
         if service is None:
             return _json_error(
                 status=503,
@@ -1113,8 +1182,7 @@ async def _apply_extended_mentor_intake(
 
     if not _mentor_intake_extended_kinds_enabled():
         response["unsupported_reason"] = decision.unsupported_reason or (
-            f"{kind.value} intake apply is disabled "
-            "(set LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS=1 to enable)."
+            f"{kind.value} intake apply is disabled (set LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS=1 to enable)."
         )
         status = 202 if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW else 422
         return _json_ok(response, status=status)
@@ -1129,8 +1197,7 @@ async def _apply_extended_mentor_intake(
     }:
         response["submitted_for_review"] = False
         response["unsupported_reason"] = (
-            f"{kind.value} submit_for_review queue is not wired; use "
-            "apply_to_session for live application."
+            f"{kind.value} submit_for_review queue is not wired; use apply_to_session for live application."
         )
         return _json_ok(response, status=202)
 
@@ -1141,9 +1208,7 @@ async def _apply_extended_mentor_intake(
             draft = extract_reviewed_knowledge_from_guidance(
                 guidance,
                 llm_client=llm_client,
-                knowledge_id=_mentor_knowledge_id(
-                    session_id=session_id, guidance=guidance
-                ),
+                knowledge_id=_mentor_knowledge_id(session_id=session_id, guidance=guidance),
                 mentor_id=mentor_id,
             )
         except (ValueError, RuntimeError) as exc:
@@ -1207,9 +1272,7 @@ async def _apply_extended_mentor_intake(
 
     if kind is MentorIntakeKind.EXPERIENCE:
         try:
-            outcome_kind = resolve_experience_outcome_kind(
-                payload.get("outcome_kind")
-            )
+            outcome_kind = resolve_experience_outcome_kind(payload.get("outcome_kind"))
         except ValueError as exc:
             return _json_error(
                 status=422,
@@ -1256,10 +1319,7 @@ async def _apply_extended_mentor_intake(
             return _json_error(
                 status=422,
                 error="mentor_revision_targets_required",
-                detail=(
-                    "protocol_revision requires explicit targets; missing: "
-                    + ", ".join(missing)
-                ),
+                detail=("protocol_revision requires explicit targets; missing: " + ", ".join(missing)),
             )
         proposed_payload = payload.get("proposed_payload")
         if proposed_payload is not None and not isinstance(proposed_payload, dict):
@@ -1270,9 +1330,7 @@ async def _apply_extended_mentor_intake(
             )
         try:
             proposal = build_protocol_revision_proposal(
-                proposal_id=_mentor_revision_id(
-                    session_id=session_id, guidance=guidance
-                ),
+                proposal_id=_mentor_revision_id(session_id=session_id, guidance=guidance),
                 target_protocol_id=rev_target_protocol or "",
                 target_field=target_field or "",
                 target_entry_id=target_entry_id or "",
@@ -1411,29 +1469,20 @@ async def _handle_dialogue_outcome(request: web.Request) -> web.Response:
     # User-facing feedback is consumed by the next kernel turn, so by
     # default bind it to that upcoming turn. Review tools may pass an
     # explicit historical turn_index when needed.
-    turn_index = (
-        raw_turn_index
-        if isinstance(raw_turn_index, int)
-        else len(session.turn_summaries) + 1
-    )
+    turn_index = raw_turn_index if isinstance(raw_turn_index, int) else len(session.turn_summaries) + 1
     # Attribution needs the turn that *produced* the response being rated,
     # which is the last completed turn -- one behind the consuming turn bound
     # above. An explicit turn_index from a review tool already names the
     # historical turn, so it serves as both. With no completed turns there is
     # no action to attribute to, and -1 keeps the entry out of credit
     # assignment instead of pinning it to a turn that never ran.
-    action_turn_index = (
-        raw_turn_index
-        if isinstance(raw_turn_index, int)
-        else (len(session.turn_summaries) or -1)
-    )
+    action_turn_index = raw_turn_index if isinstance(raw_turn_index, int) else (len(session.turn_summaries) or -1)
     evidence = session.submit_dialogue_outcome(
         kind=kind,
         source=DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
         confidence=float(confidence),
         turn_index=turn_index,
-        evidence_ref=evidence_ref
-        or f"service:{session_id}:{kind.value}:turn-{turn_index}:{uuid4().hex[:12]}",
+        evidence_ref=evidence_ref or f"service:{session_id}:{kind.value}:turn-{turn_index}:{uuid4().hex[:12]}",
         description=description,
         action_turn_index=action_turn_index,
     )
@@ -1471,9 +1520,7 @@ async def _handle_end_scene(request: web.Request) -> web.Response:
     if isinstance(payload, dict):
         if "drain_slow_loop" in payload:
             if not isinstance(payload["drain_slow_loop"], bool):
-                raise _BadRequest(
-                    "invalid_drain_flag", "drain_slow_loop must be boolean"
-                )
+                raise _BadRequest("invalid_drain_flag", "drain_slow_loop must be boolean")
             drain = payload["drain_slow_loop"]
         if "reason" in payload:
             if not isinstance(payload["reason"], str):
@@ -1487,11 +1534,19 @@ async def _handle_end_scene(request: web.Request) -> web.Response:
         session=session,
         closed_scene_id=closed.scene_id if closed is not None else None,
     )
+    memory_snapshot = session.brain_session.runner.memory_store.snapshot()
+    lifecycle_metrics = dict(memory_snapshot.lifecycle_metrics)
     body = EndSceneResponse(
         session_id=session_id,
         closed_scene_id=closed.scene_id if closed is not None else None,
         slow_loop_drained=drain and closed is not None,
         evidence_artifact_ref=evidence_ref,
+        evidence_telemetry={
+            "nested_context_reset_applied": (lifecycle_metrics.get("last_nested_reset_applied", 0.0) > 0.0),
+            "nested_context_reset_total_count": int(lifecycle_metrics.get("nested_context_reset_count", 0.0)),
+            "slow_to_fast_init_benefit": lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0),
+            "slow_to_fast_target_alignment_gain": lifecycle_metrics.get("slow_to_fast_target_alignment_gain", 0.0),
+        },
     )
     return _json_ok(body.to_json())
 
@@ -1501,14 +1556,7 @@ async def _handle_relationship_summary(request: web.Request) -> web.Response:
     user_id = _alpha_user_id(request, None)
     entries = _scoped_rupture_repair_entries(alpha, user_id)
     observed = tuple(entry for entry in entries if "repair_outcome:observed" in entry.tags)
-    kinds = sorted(
-        {
-            tag.split(":", 1)[1]
-            for entry in entries
-            for tag in entry.tags
-            if tag.startswith("rupture_kind:")
-        }
-    )
+    kinds = sorted({tag.split(":", 1)[1] for entry in entries for tag in entry.tags if tag.startswith("rupture_kind:")})
     return _json_ok(
         {
             "user_id": user_id,
@@ -1525,9 +1573,7 @@ async def _handle_relationship_summary(request: web.Request) -> web.Response:
 async def _handle_relationship_memory(request: web.Request) -> web.Response:
     _require_alpha(request)
     user_id = _alpha_user_id(request, None)
-    session_id = _required_relationship_memory_session_id(
-        request.query.get("session_id")
-    )
+    session_id = _required_relationship_memory_session_id(request.query.get("session_id"))
     manager: SessionManager = request.app["session_manager"]
     session = await manager.get_session(session_id)
     _require_relationship_memory_session_owner(
@@ -1536,19 +1582,13 @@ async def _handle_relationship_memory(request: web.Request) -> web.Response:
         user_id=user_id,
     )
     reflection = session.brain_session.relationship_reflection_snapshot()
-    ledger: RelationshipMemoryActionLedger = request.app[
-        "relationship_memory_action_ledger"
-    ]
+    ledger: RelationshipMemoryActionLedger = request.app["relationship_memory_action_ledger"]
     resolved = ledger.resolved_proposal_ids(
         user_id=user_id,
         session_id=session_id,
     )
     proposals = (
-        tuple(
-            proposal
-            for proposal in reflection.relationship_update_proposals
-            if proposal.proposal_id not in resolved
-        )
+        tuple(proposal for proposal in reflection.relationship_update_proposals if proposal.proposal_id not in resolved)
         if reflection is not None
         else ()
     )
@@ -1567,9 +1607,7 @@ async def _handle_relationship_memory_action(request: web.Request) -> web.Respon
     alpha = _require_alpha(request)
     payload = await _require_json(request)
     user_id = _alpha_user_id(request, payload)
-    session_id = _required_relationship_memory_session_id(
-        payload.get("session_id")
-    )
+    session_id = _required_relationship_memory_session_id(payload.get("session_id"))
     raw_action = payload.get("action")
     if not isinstance(raw_action, str):
         raise _BadRequest(
@@ -1652,9 +1690,7 @@ async def _handle_relationship_memory_action(request: web.Request) -> web.Respon
             "invalid_relationship_memory_item_id",
             "item_id must be non-empty",
         )
-    ledger: RelationshipMemoryActionLedger = request.app[
-        "relationship_memory_action_ledger"
-    ]
+    ledger: RelationshipMemoryActionLedger = request.app["relationship_memory_action_ledger"]
     fingerprint = ledger.request_fingerprint(
         action=action,
         replacement=replacement,
@@ -1672,22 +1708,14 @@ async def _handle_relationship_memory_action(request: web.Request) -> web.Respon
     reflection = session.brain_session.relationship_reflection_snapshot()
     proposal = (
         next(
-            (
-                candidate
-                for candidate in reflection.relationship_update_proposals
-                if candidate.proposal_id == item_id
-            ),
+            (candidate for candidate in reflection.relationship_update_proposals if candidate.proposal_id == item_id),
             None,
         )
         if reflection is not None
         else None
     )
     durable_entry = next(
-        (
-            entry
-            for entry in session.brain_session.relationship_memory_entries()
-            if entry.entry_id == item_id
-        ),
+        (entry for entry in session.brain_session.relationship_memory_entries() if entry.entry_id == item_id),
         None,
     )
     if proposal is None and durable_entry is None:
@@ -1731,11 +1759,9 @@ async def _handle_relationship_memory_action(request: web.Request) -> web.Respon
         if durable_entry is not None:
             status = "unchanged"
         elif proposal is not None and proposal.target_owner_slot == "memory":
-            owner_operations = (
-                session.brain_session.apply_confirmed_relationship_memory_proposal(
-                    proposal_id=proposal.proposal_id,
-                    timestamp_ms=created_at_ms,
-                )
+            owner_operations = session.brain_session.apply_confirmed_relationship_memory_proposal(
+                proposal_id=proposal.proposal_id,
+                timestamp_ms=created_at_ms,
             )
         else:
             batch = semantic_event_for_action(
@@ -1749,26 +1775,18 @@ async def _handle_relationship_memory_action(request: web.Request) -> web.Respon
             status = "queued"
     elif action is RelationshipMemoryAction.DELETE:
         if durable_entry is not None:
-            removed = session.brain_session.delete_relationship_memory_entry(
-                entry_id=durable_entry.entry_id
-            )
+            removed = session.brain_session.delete_relationship_memory_entry(entry_id=durable_entry.entry_id)
             if removed is None:
                 raise RuntimeError("Memory owner rejected scoped item deletion")
             owner_operations = (f"deleted:{removed.entry_id}",)
         elif proposal is not None and proposal.target_owner_slot == "memory":
             source_entry_id = proposal_memory_entry_id(proposal)
             removed = (
-                session.brain_session.delete_relationship_memory_entry(
-                    entry_id=source_entry_id
-                )
+                session.brain_session.delete_relationship_memory_entry(entry_id=source_entry_id)
                 if source_entry_id is not None
                 else None
             )
-            owner_operations = (
-                (f"deleted:{removed.entry_id}",)
-                if removed is not None
-                else ("proposal-dismissed",)
-            )
+            owner_operations = (f"deleted:{removed.entry_id}",) if removed is not None else ("proposal-dismissed",)
         else:
             batch = semantic_event_for_action(
                 proposal=proposal,
@@ -1822,9 +1840,7 @@ async def _handle_relationship_memory_action(request: web.Request) -> web.Respon
             if rewritten is None:
                 raise RuntimeError("Memory owner rejected scoped item rewrite")
             replacement_entry_id = rewritten.entry_id
-            owner_operations = (
-                f"rewritten:{item_id}->{rewritten.entry_id}",
-            )
+            owner_operations = (f"rewritten:{item_id}->{rewritten.entry_id}",)
 
     outcome_kind = dialogue_outcome_kind_for_action(action)
     dialogue_outcome_evidence_id: str | None = None
@@ -1837,10 +1853,7 @@ async def _handle_relationship_memory_action(request: web.Request) -> web.Respon
             confidence=1.0,
             turn_index=consuming_turn,
             action_turn_index=action_turn,
-            evidence_ref=(
-                f"relationship-memory-console:{action.value}:{item_id}:"
-                f"timestamp-{created_at_ms}"
-            ),
+            evidence_ref=(f"relationship-memory-console:{action.value}:{item_id}:timestamp-{created_at_ms}"),
             description=(
                 f"User relationship memory correction: {correction_kind.value}"
                 if correction_kind is not None
@@ -1872,9 +1885,7 @@ async def _handle_relationship_continuity_metrics(
 ) -> web.Response:
     alpha = _require_alpha(request)
     user_id = _alpha_user_id(request, None)
-    session_id = _required_relationship_memory_session_id(
-        request.query.get("session_id")
-    )
+    session_id = _required_relationship_memory_session_id(request.query.get("session_id"))
     manager: SessionManager = request.app["session_manager"]
     session = await manager.get_session(session_id)
     _require_relationship_memory_session_owner(
@@ -1882,21 +1893,17 @@ async def _handle_relationship_continuity_metrics(
         session_id=session_id,
         user_id=user_id,
     )
-    ledger: RelationshipMemoryActionLedger = request.app[
-        "relationship_memory_action_ledger"
-    ]
+    ledger: RelationshipMemoryActionLedger = request.app["relationship_memory_action_ledger"]
     outcomes = tuple(
         RelationshipContinuityConsoleOutcome(
             outcome_id=record.action_id,
             observed_at_ms=record.created_at_ms,
             is_correction=record.correction_kind is not None,
             is_wrong_user_attribution=(
-                record.correction_kind
-                == RelationshipMemoryCorrectionKind.WRONG_USER_ATTRIBUTION.value
+                record.correction_kind == RelationshipMemoryCorrectionKind.WRONG_USER_ATTRIBUTION.value
             ),
             is_boundary_violation=(
-                record.correction_kind
-                == RelationshipMemoryCorrectionKind.BOUNDARY_PREFERENCE.value
+                record.correction_kind == RelationshipMemoryCorrectionKind.BOUNDARY_PREFERENCE.value
             ),
             remembered_item_useful=(
                 True
@@ -2034,13 +2041,7 @@ async def _handle_admin_weekly_report(request: web.Request) -> web.Response:
     alpha = _require_alpha(request)
     manager: SessionManager = request.app["session_manager"]
     sessions = await manager.session_summaries()
-    active_users = sorted(
-        {
-            str(item["user_id"])
-            for item in sessions
-            if isinstance(item.get("user_id"), str)
-        }
-    )
+    active_users = sorted({str(item["user_id"]) for item in sessions if isinstance(item.get("user_id"), str)})
     return _json_ok(
         {
             "service_version": alpha.service_version,
@@ -2194,9 +2195,7 @@ def _required_relationship_memory_session_id(raw: object) -> str:
     return raw.strip()
 
 
-def _evidence_observed_at_ms(
-    *, alpha: AlphaServiceConfig, raw: object
-) -> int:
+def _evidence_observed_at_ms(*, alpha: AlphaServiceConfig, raw: object) -> int:
     if raw is None:
         return int(time.time() * 1000)
     if not alpha.allow_evidence_time_override:
@@ -2245,9 +2244,7 @@ def _require_relationship_memory_session_owner(
 ) -> None:
     session_user = manager.session_end_user(session_id)
     if session_user != user_id:
-        raise PermissionError(
-            "relationship memory session does not belong to the authenticated user"
-        )
+        raise PermissionError("relationship memory session does not belong to the authenticated user")
 
 
 def _build_scoped_store(alpha: AlphaServiceConfig, user_id: str):
@@ -2266,9 +2263,7 @@ def _build_scoped_store(alpha: AlphaServiceConfig, user_id: str):
 def _scoped_rupture_repair_entries(alpha: AlphaServiceConfig, user_id: str):
     store = _build_scoped_store(alpha, user_id)
     return tuple(
-        entry
-        for entry in list_durable_entries_for_scope(store, user_scope=user_id)
-        if "rupture_repair" in entry.tags
+        entry for entry in list_durable_entries_for_scope(store, user_scope=user_id) if "rupture_repair" in entry.tags
     )
 
 
@@ -2298,9 +2293,7 @@ def _safety_metadata(tags: tuple[str, ...]) -> dict[str, Any]:
         "boundary_tags": [
             tag
             for tag in tags
-            if tag.startswith("risk=")
-            or tag.startswith("boundary")
-            or tag.startswith("repair_alpha=")
+            if tag.startswith("risk=") or tag.startswith("boundary") or tag.startswith("repair_alpha=")
         ],
     }
 

@@ -34,14 +34,18 @@ SEVEN_DAY_PREREG_CODE_PATHS = (
     "packages/vz-runtime/src/volvence_zero/agent/seven_day_companion_evidence.py",
     "packages/vz-runtime/src/volvence_zero/agent/gate811_simulated_capture.py",
     "packages/vz-runtime/src/volvence_zero/agent/seven_day_companion_preregistration.py",
+    "scripts/companion_test_plan_common.py",
+    "scripts/run_seven_day_companion_test_plan.py",
     "scripts/run_seven_day_companion_formal.py",
 )
 SEVEN_DAY_EXECUTION_SOURCE_ROOTS = (
     "packages/*/src",
     "packages/*/pyproject.toml",
     "pyproject.toml",
+    "scripts/companion_test_plan_common.py",
     "scripts/preregister_seven_day_companion_simulated.py",
     "scripts/run_gate811_simulated_capture.py",
+    "scripts/run_seven_day_companion_test_plan.py",
     "scripts/run_seven_day_companion_formal.py",
 )
 

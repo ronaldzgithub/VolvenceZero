@@ -39,6 +39,7 @@ from volvence_zero.memory.persistence import (
     resolve_persistence_backend,
 )
 from volvence_zero.memory.store import MemoryStore, build_default_memory_store
+from volvence_zero.runtime import WiringLevel
 
 
 ANONYMOUS_USER_SCOPE = "anonymous"
@@ -269,6 +270,15 @@ def build_scoped_memory_store(
     root_dir: str | os.PathLike[str] | None = None,
     latent_dim: int = 8,
     nested_profile: bool = True,
+    cms_variant: str | None = None,
+    cms_session_cadence: int = 2,
+    cms_background_cadence: int = 4,
+    cms_pe_features_enabled: bool = True,
+    cms_replay_window_size: int | None = 8,
+    cms_torch_backend: WiringLevel | None = None,
+    cms_context_conditioned_meta_init: bool = False,
+    cms_context_prototype_count: int = 8,
+    nested_context_reset_mode: str = "copy-init",
     seed_checkpoint: MemoryStoreCheckpoint | None = None,
     persistence_backend: PersistenceBackend | None = None,
 ) -> MemoryStore:
@@ -307,7 +317,17 @@ def build_scoped_memory_store(
 
     if identity is None or not identity.has_permission("persist"):
         store = build_default_memory_store(
-            latent_dim=latent_dim, nested_profile=nested_profile
+            latent_dim=latent_dim,
+            nested_profile=nested_profile,
+            cms_variant=cms_variant,
+            cms_session_cadence=cms_session_cadence,
+            cms_background_cadence=cms_background_cadence,
+            cms_pe_features_enabled=cms_pe_features_enabled,
+            cms_replay_window_size=cms_replay_window_size,
+            cms_torch_backend=cms_torch_backend,
+            cms_context_conditioned_meta_init=(cms_context_conditioned_meta_init),
+            cms_context_prototype_count=cms_context_prototype_count,
+            nested_context_reset_mode=nested_context_reset_mode,
         )
         # No durable backend → at least give the (ephemeral) session the
         # canonical baseline so an unscoped fallback isn't a blank slate.
@@ -326,8 +346,7 @@ def build_scoped_memory_store(
         if backend_choice in ("", "filesystem", "file", "fs"):
             if root_dir is None:
                 raise ValueError(
-                    "root_dir is required when building a scoped MemoryStore "
-                    "for a known identity (filesystem backend)."
+                    "root_dir is required when building a scoped MemoryStore for a known identity (filesystem backend)."
                 )
             user_dir = scoped_memory_dir(root_dir=root_dir, user_id=identity.user_id)
             user_dir.mkdir(parents=True, exist_ok=True)
@@ -339,7 +358,17 @@ def build_scoped_memory_store(
                 backend=backend_choice,
             )
     store = build_default_memory_store(
-        latent_dim=latent_dim, nested_profile=nested_profile
+        latent_dim=latent_dim,
+        nested_profile=nested_profile,
+        cms_variant=cms_variant,
+        cms_session_cadence=cms_session_cadence,
+        cms_background_cadence=cms_background_cadence,
+        cms_pe_features_enabled=cms_pe_features_enabled,
+        cms_replay_window_size=cms_replay_window_size,
+        cms_torch_backend=cms_torch_backend,
+        cms_context_conditioned_meta_init=(cms_context_conditioned_meta_init),
+        cms_context_prototype_count=cms_context_prototype_count,
+        nested_context_reset_mode=nested_context_reset_mode,
     )
     store._persistence_backend = backend  # noqa: SLF001
     # Eagerly load so the session starts with any prior durable content.
@@ -400,11 +429,7 @@ def list_durable_entries_for_scope(
     """
 
     tags = _scope_tags(user_scope, extra_scopes)
-    return tuple(
-        entry
-        for entry in _durable_entries_iter(store)
-        if any(tag in entry.tags for tag in tags)
-    )
+    return tuple(entry for entry in _durable_entries_iter(store) if any(tag in entry.tags for tag in tags))
 
 
 def delete_entries_for_scope(
@@ -519,9 +544,7 @@ def rewrite_entry_for_scope(
     removed = store.delete_artifact_entry(target.entry_id)
     if removed is None:
         store.delete_artifact_entry(replacement.entry_id)
-        raise RuntimeError(
-            "memory rewrite could not remove the superseded scoped entry"
-        )
+        raise RuntimeError("memory rewrite could not remove the superseded scoped entry")
     return replacement
 
 

@@ -50,7 +50,13 @@ class _Service:
         self, *, session_id: str, user_input: str
     ) -> Mapping[str, object]:
         self.events.append(("turn", (session_id, user_input)))
-        return {"response_text": f"assistant response to {user_input}"}
+        return {
+            "response_text": f"assistant response to {user_input}",
+            "pe_magnitude": 0.2,
+            "pe_bootstrap": False,
+            "world_temporal_prediction_error_applied": True,
+            "self_temporal_prediction_error_applied": True,
+        }
 
     def end_scene(
         self, *, session_id: str, drain_slow_loop: bool
