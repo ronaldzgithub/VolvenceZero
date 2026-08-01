@@ -406,6 +406,317 @@ def test_rate_distortion_cli_refuses_to_start_when_cpu_fallback_is_enabled(
     assert not (output / "artifact_manifest.json").exists()
 
 
+def _preregistration(tmp_path: Path, **overrides: object) -> Path:
+    import preregister_eta_rate_distortion as prereg
+
+    payload = prereg.build_preregistration(
+        alphas=(0.01, 0.1, 1.0),
+        seeds=2,
+        n_z=4,
+        updates=1,
+        learning_rate=0.02,
+        substrate_learning_rate=1e-4,
+        switch_threshold=0.55,
+        model_id="fixture-model",
+        device="mps",
+        arms=("frozen", "joint"),
+    )
+    payload.update(overrides)
+    target = tmp_path / "prereg.json"
+    target.write_text(json.dumps(payload), encoding="utf-8")
+    return target
+
+
+def _matching_args(**overrides: object):
+    import argparse
+
+    values = {
+        "alphas": [0.01, 0.1, 1.0],
+        "seeds": 2,
+        "n_z": 4,
+        "updates": 1,
+        "learning_rate": 0.02,
+        "substrate_learning_rate": 1e-4,
+        "switch_threshold": 0.55,
+        "model_id": "fixture-model",
+        "device": "mps",
+        "arms": ["frozen", "joint"],
+    }
+    values.update(overrides)
+    return argparse.Namespace(**values)
+
+
+def test_preregistration_accepts_the_execution_it_froze(tmp_path: Path) -> None:
+    import run_eta_rate_distortion as cli
+
+    payload = cli._validate_preregistration(
+        json.loads(_preregistration(tmp_path).read_text(encoding="utf-8")),
+        args=_matching_args(),
+    )
+
+    assert payload["claim_scope"] == "eta-temporal-abstraction-criterion-only"
+
+
+@pytest.mark.parametrize(
+    ("override", "message"),
+    (
+        ({"alphas": [0.01, 0.1, 2.0]}, "alpha_grid"),
+        ({"seeds": 3}, "seed_schedule"),
+        ({"n_z": 16}, "n_z"),
+        ({"updates": 40}, "updates_per_run"),
+        ({"model_id": "other-model"}, "model_id"),
+        ({"arms": ["frozen"]}, "arms"),
+    ),
+)
+def test_preregistration_rejects_a_changed_sweep_variable(
+    tmp_path: Path, override: dict[str, object], message: str
+) -> None:
+    import run_eta_rate_distortion as cli
+
+    with pytest.raises(cli.PreregistrationMismatch, match=message):
+        cli._validate_preregistration(
+            json.loads(_preregistration(tmp_path).read_text(encoding="utf-8")),
+            args=_matching_args(**override),
+        )
+
+
+def test_preregistration_rejects_a_loosened_gap_threshold(
+    tmp_path: Path,
+) -> None:
+    import run_eta_rate_distortion as cli
+
+    path = _preregistration(
+        tmp_path,
+        gap_thresholds={
+            "drop_share_threshold": 0.1,
+            "rate_share_threshold": 0.9,
+            "noise_multiple": 0.5,
+        },
+    )
+
+    with pytest.raises(
+        cli.PreregistrationMismatch, match="drop_share_threshold"
+    ):
+        cli._validate_preregistration(
+            json.loads(path.read_text(encoding="utf-8")),
+            args=_matching_args(),
+        )
+
+
+def test_preregistration_rejects_source_drift_since_freezing(
+    tmp_path: Path,
+) -> None:
+    import run_eta_rate_distortion as cli
+
+    path = _preregistration(
+        tmp_path,
+        frozen_source_files={
+            "scripts/run_eta_rate_distortion.py": "0" * 64,
+        },
+    )
+
+    with pytest.raises(cli.PreregistrationMismatch, match="source drift"):
+        cli._validate_preregistration(
+            json.loads(path.read_text(encoding="utf-8")),
+            args=_matching_args(),
+        )
+
+
+def test_preregistration_rejects_a_foreign_schema(tmp_path: Path) -> None:
+    import run_eta_rate_distortion as cli
+
+    path = _preregistration(tmp_path, schema_version="something-else.v9")
+
+    with pytest.raises(cli.PreregistrationMismatch, match="schema_version"):
+        cli._validate_preregistration(
+            json.loads(path.read_text(encoding="utf-8")),
+            args=_matching_args(),
+        )
+
+
+def _checkpoint_cache(tmp_path: Path, *, resume: bool = False):
+    import msc_prediction_checkpoint as checkpoint
+    import run_eta_rate_distortion as cli
+
+    store = checkpoint.PredictionRunCheckpointStore(
+        output_dir=tmp_path / "run",
+        configuration={"experiment_id": "eta-rate-distortion-criterion"},
+        resume=resume,
+        schema_namespace=cli.CHECKPOINT_SCHEMA_NAMESPACE,
+    )
+    return cli.RateDistortionCheckpointCache(store), store
+
+
+def _point(*, arm: str, alpha: float, seed: int) -> RateDistortionPoint:
+    return RateDistortionPoint(
+        arm=arm,
+        alpha=alpha,
+        seed=seed,
+        train_rate=0.1,
+        train_distortion=1.5,
+        heldout_rate=0.1,
+        heldout_distortion=1.6,
+        baseline_train_distortion=2.0,
+        baseline_heldout_distortion=2.1,
+        mean_switch_probability=0.4,
+        hard_switch_frequency=0.2,
+        train_boundary_f1=0.5,
+        heldout_boundary_f1=0.5,
+        optimizer_steps=1,
+        final_total_loss=1.5,
+        final_grad_norm=0.01,
+        wall_seconds=0.1,
+    )
+
+
+def test_checkpoint_cache_round_trips_a_cell_across_processes(
+    tmp_path: Path,
+) -> None:
+    cache, _ = _checkpoint_cache(tmp_path)
+    point = _point(arm="frozen", alpha=0.03, seed=1)
+
+    assert cache.load_point(arm="frozen", alpha=0.03, seed=1) is None
+    cache.store_point(point)
+
+    resumed_cache, _ = _checkpoint_cache(tmp_path, resume=True)
+    assert resumed_cache.load_point(arm="frozen", alpha=0.03, seed=1) == point
+    assert resumed_cache.load_point(arm="joint", alpha=0.03, seed=1) is None
+
+
+def test_checkpoint_journal_refuses_an_existing_output_without_resume(
+    tmp_path: Path,
+) -> None:
+    _checkpoint_cache(tmp_path)
+
+    with pytest.raises(FileExistsError, match="immutable without --resume"):
+        _checkpoint_cache(tmp_path)
+
+
+def test_checkpoint_journal_namespace_is_not_the_prediction_journal(
+    tmp_path: Path,
+) -> None:
+    _, store = _checkpoint_cache(tmp_path)
+
+    state = json.loads(
+        (store.output_dir / "run_state.json").read_text(encoding="utf-8")
+    )
+    assert state["schema_version"] == "eta-rate-distortion-run-state.v1"
+
+
+def _stub_sweep_dependencies(
+    monkeypatch: pytest.MonkeyPatch, *, executed: list[tuple[str, float, int]]
+) -> None:
+    """Replace the model-bound parts of the sweep with cheap stand-ins."""
+
+    from types import SimpleNamespace
+
+    from volvence_zero.agent import eta_rate_distortion_evidence as module
+
+    scorer = SimpleNamespace(
+        injection_layer_index=11,
+        control_norm_cap=1.0,
+        probe_hidden_norm=2.0,
+        reset_joint_parameters=lambda: None,
+        restore_and_freeze=lambda: None,
+    )
+    runtime = SimpleNamespace(
+        model_id="fixture-model",
+        runtime_origin="hf-pretrained",
+        fallback_active=False,
+        build_steered_action_scorer=lambda **_: scorer,
+    )
+    trace = SimpleNamespace(steps=(object(),))
+
+    monkeypatch.setattr(
+        module, "_build_eta_open_weight_runtime", lambda _config: runtime
+    )
+    monkeypatch.setattr(
+        module, "_validate_eta_open_weight_runtime", lambda **_: None
+    )
+    monkeypatch.setattr(
+        module, "build_default_eta_proof_environment", lambda: object()
+    )
+    monkeypatch.setattr(
+        module,
+        "_action_options",
+        lambda _environment: (
+            SimpleNamespace(action_id="alpha"),
+            SimpleNamespace(action_id="beta"),
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "default_eta_proof_cases",
+        lambda: (
+            SimpleNamespace(case_id="train-1", split="train"),
+            SimpleNamespace(case_id="heldout-1", split="heldout"),
+        ),
+    )
+    monkeypatch.setattr(
+        module, "_build_traces", lambda _cases, **_kwargs: (trace,)
+    )
+    monkeypatch.setattr(module, "_baseline_distortion", lambda *_a: 2.0)
+
+    def fake_run_single(*, arm: str, alpha: float, seed: int, **_kwargs):
+        executed.append((arm, alpha, seed))
+        return _point(arm=arm, alpha=alpha, seed=seed)
+
+    monkeypatch.setattr(module, "_run_single", fake_run_single)
+
+
+def test_sweep_skips_cells_already_present_in_the_resume_journal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from volvence_zero.agent.eta_rate_distortion_evidence import (
+        run_eta_rate_distortion_evidence,
+    )
+
+    alphas = (0.01, 0.1, 1.0)
+    cache, _ = _checkpoint_cache(tmp_path)
+    cache.store_point(_point(arm="frozen", alpha=0.1, seed=0))
+
+    executed: list[tuple[str, float, int]] = []
+    _stub_sweep_dependencies(monkeypatch, executed=executed)
+
+    report = run_eta_rate_distortion_evidence(
+        alpha_grid=alphas,
+        seed_schedule=(0,),
+        n_z=4,
+        updates_per_run=1,
+        point_cache=cache,
+    )
+
+    assert ("frozen", 0.1, 0) not in executed
+    assert len(executed) == 5
+    assert len(report.points) == 6
+    assert {(point.arm, point.alpha) for point in report.points} == {
+        (arm, alpha) for arm in ("frozen", "joint") for alpha in alphas
+    }
+
+
+def test_sweep_journals_every_cell_it_computes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from volvence_zero.agent.eta_rate_distortion_evidence import (
+        run_eta_rate_distortion_evidence,
+    )
+
+    cache, store = _checkpoint_cache(tmp_path)
+    _stub_sweep_dependencies(monkeypatch, executed=[])
+
+    run_eta_rate_distortion_evidence(
+        alpha_grid=(0.01, 0.1, 1.0),
+        seed_schedule=(0,),
+        n_z=4,
+        updates_per_run=1,
+        point_cache=cache,
+    )
+
+    assert len(store.immutable_file_manifest()) == 6
+
+
 def test_released_mps_lock_does_not_advertise_a_live_owner(
     tmp_path: Path,
 ) -> None:
