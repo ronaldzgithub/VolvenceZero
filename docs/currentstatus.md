@@ -130,18 +130,25 @@ bundle 对语料 provenance、结果与关键源码逐文件哈希，并硬标�
 artifact，不再写入预注册正文或用作当前状态结论。
 
 **正式 R4 仍未执行。** 现有 pilot 的 `volvence` 是 bounded-state prototype，
-`long_context` 只有 256 tokens，target 是外部 MiniLM 句向量，capacity ladder
-测的是 forward head 而不是 ETA temporal controller。四项分别接通完整 runtime、
-现代长上下文冻结基底、substrate N+1 表示和 temporal owner 之前，不能据此晋升
-temporal `n_z`、退役 legacy controller 或选择 thesis v3。
+`long_context` 只有 256 tokens，且 capacity ladder 测的是 forward head 而不是
+ETA temporal controller。
+
+target blocker 已在独立收敛包关闭：`vz-substrate` 现在发布冻结
+`SubstrateForwardRepresentationSnapshot`，以 model weights SHA、runtime origin、
+layer/width/readout 和 sample/value hashes 冻结 lineage；PE batch/head/checkpoint
+强制绑定该 lineage。真实 Qwen CPU smoke 已落到
+[`artifacts/msc_n_plus_one_substrate_target_smoke_20260801/`](../artifacts/msc_n_plus_one_substrate_target_smoke_20260801/)，
+并保持 `thesis_status=not-evaluated`。剩余 blocker 是同 substrate 的 32k/128k
+长上下文 steelman、完整 Volvence runtime 臂和只改变 temporal controller 的容量
+实验；三者完成前不能晋升 `temporal_n_z`、退役 legacy controller 或选择 thesis v3。
 
 ### 已降级的旧 evidence lane（机制回归用途）
 
 `run_learned_active_evidence.sh`、`run_companion_bench_p1.sh`、SHADOW learner
 settle lane 与跨 session hydration 测试仍用于防止机制退化和验证 rollback；它们
-的产物一律标记 `thesis_status=not-evaluated`。World / Self 扩容只能在真实
-N+1 目标的 `n_z ∈ {3,16,64,256}` validation 曲线显示容量增益后进行；曲线
-平坦则触发 ETA kill review，而不是继续堆容量。
+的产物一律标记 `thesis_status=not-evaluated`。World / Self 扩容只能在冻结
+substrate/PE 后、唯一变量为 `temporal_n_z ∈ {3,16,64,256}` 的 validation 曲线
+显示容量增益后进行；`forward_head_n_z` 曲线永远不授权 ETA 晋升。
 
 ## 7. 最简状态陈述
 

@@ -654,3 +654,12 @@ seed、36 runs / 252 sessions / 1260 exchanges、阈值与置信方法不变，�
 最多得到 `human-rated-simulated-user-transcripts-only`。它不能替代 #93 的 real-user
 product-value EXIT。盲评未完成、正式矩阵尚未完成、production promotion 仍为 false，
 所有相关机制的现有 `WiringLevel` 均不因本工具链改变。
+
+Gate 8/11 capture 在昂贵运行前又完成了一次 fail-closed 静态封口：首份 capture freeze
+缺少 runner 需要的 manifest `pair_count`，因此在 0 次 capture run、0 次评分的状态下废止。
+替代源码 prereg 为
+[`seven_day_companion_capture_source_prereg_frozen_20260801T133600Z.json`](../artifacts/seven_day_companion_capture_source_prereg_frozen_20260801T133600Z.json)，
+SHA-256 `5f13ed395f66eac59021c6a8515742b5b2400b995cdc32aba8a7786e66b73ee2`，冻结执行树 SHA-256
+`ad58546d9f508e1c1810f99289dedc413eae22b33f09338f4170d1c8b2adb2bf`。它准备执行 72 runs / 504
+sessions 并产出 144 capture records、48 个盲评 pairs；当前尚未启动，以避免与正式矩阵争用
+MPS。即使该包完整产出，在真人评分前仍只是 `unrated-simulated-user-transcript-packet-only`。

@@ -2177,11 +2177,13 @@ return (
 - **当前状态**：`OPEN / externally-blocked-after-tooling`。L4-A/L4-B 与 L4-C
   分析/power-freeze 执行器已完成，analysis prereg SHA-256
   `240742e54524b657fb3803382d93af4e651f59f5fb8c8be9e85823ffd5bb95af`。2026-08-01
-  又完成七日模拟用户 × 产品生命周期工具链，并冻结
+  又完成七日模拟用户 × 产品生命周期工具链，并以全执行源树重新冻结
   `seven-day-companion-simulated.v1`（SHA-256
-  `9ae32c6cf4c7484502f21ce090532ff5c9f31c793364d40e75e24501fcb8792c`）；最终本地模型
+  `9674ec62f363a362f09ef692ec82b176ee43da0ec47ac906879a1fcbddbed1fd`）；最终本地模型
   预检与一条 7-session/35-reply/6-restart 产品路径 smoke 已通过，v1 capture shape 可接
-  simulated user，能把真人工作收缩为盲评评分。正式 36-run/252-session 产品路径矩阵
+  simulated user，能把真人工作收缩为盲评评分。capture 执行源 prereg 已在 0-run 静态修复
+  manifest `pair_count` 后重新冻结（SHA-256
+  `5f13ed395f66eac59021c6a8515742b5b2400b995cdc32aba8a7786e66b73ee2`）。正式 36-run/252-session 产品路径矩阵
   正在执行，当前仍没有 simulated causal verdict；即使未来该自动 run 与真人
   评分通过，也只产生 `human-rated-simulated-user-transcripts-only`，不等于真实用户产品
   价值。#93 剩余仍是 real-user consented fresh transcripts、非项目 rater 招募、真实

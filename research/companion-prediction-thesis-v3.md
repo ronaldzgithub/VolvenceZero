@@ -103,6 +103,11 @@ SHA-256；同时硬标记 `evidence_level=mechanism-only-pilot`、
 3. target 是外部 MiniLM 句向量，不是冻结 substrate 的 N+1 内部表示；
 4. `n_z` ladder 改变的是 forward head 容量，不是 temporal controller 容量。
 
-在四项接线完成并产出新的正式 bundle 前，本文唯一合法状态是
+后续 target-only 收敛包已把 N+1 target 改为 substrate-owned Qwen residual，并
+单独保存于
+[`artifacts/msc_n_plus_one_substrate_target_smoke_20260801/`](../artifacts/msc_n_plus_one_substrate_target_smoke_20260801/)；
+它只关闭上列第 3 项，不改变本预注册的结果状态，也不把 smoke 指标写回本文。
+
+其余接线完成并产出新的正式 bundle 前，本文唯一合法状态是
 `formal run not yet eligible`；pilot 不授权 thesis、temporal promotion、legacy
 controller 退役或产品关系质量主张。
