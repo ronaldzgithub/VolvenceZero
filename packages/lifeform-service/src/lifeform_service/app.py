@@ -1545,6 +1545,30 @@ async def _handle_end_scene(request: web.Request) -> web.Response:
         evidence_artifact_ref=evidence_ref,
         evidence_telemetry={
             "nested_context_reset_applied": (lifecycle_metrics.get("last_nested_reset_applied", 0.0) > 0.0),
+            "nested_context_reset_meta_init": (
+                lifecycle_metrics.get("last_nested_reset_meta_init", 0.0)
+                > 0.0
+            ),
+            "nested_context_reset_copy_init": (
+                lifecycle_metrics.get("last_nested_reset_copy_init", 0.0)
+                > 0.0
+            ),
+            "nested_context_reset_conditioned": (
+                lifecycle_metrics.get(
+                    "last_nested_reset_context_conditioned", 0.0
+                )
+                > 0.0
+            ),
+            "nested_context_reset_prototype_count": int(
+                lifecycle_metrics.get(
+                    "last_nested_reset_prototype_count", 0.0
+                )
+            ),
+            "nested_context_reset_context_match_score": (
+                lifecycle_metrics.get(
+                    "last_nested_reset_context_match_score", 0.0
+                )
+            ),
             "nested_context_reset_total_count": int(lifecycle_metrics.get("nested_context_reset_count", 0.0)),
             "slow_to_fast_init_benefit": lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0),
             "slow_to_fast_target_alignment_gain": lifecycle_metrics.get("slow_to_fast_target_alignment_gain", 0.0),

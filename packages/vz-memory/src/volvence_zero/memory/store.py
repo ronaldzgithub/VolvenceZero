@@ -166,6 +166,10 @@ class MemoryStore:
         self._last_context_reset_target_distance_before = 0.0
         self._last_context_reset_target_distance_after = 0.0
         self._last_context_reset_target_alignment_gain = 0.0
+        self._last_context_reset_mode = "not-run"
+        self._last_context_reset_conditioned = False
+        self._last_context_reset_prototype_count = 0
+        self._last_context_reset_context_match_score = 0.0
         self._context_reset_copy_shadow: CMSMemoryCore | None = None
         self._context_reset_benefit_sum = 0.0
         self._context_reset_benefit_count = 0
@@ -260,6 +264,10 @@ class MemoryStore:
             self._last_context_reset_target_distance_before = 0.0
             self._last_context_reset_target_distance_after = 0.0
             self._last_context_reset_target_alignment_gain = 0.0
+            self._last_context_reset_mode = self._nested_context_reset_mode
+            self._last_context_reset_conditioned = False
+            self._last_context_reset_prototype_count = 0
+            self._last_context_reset_context_match_score = 0.0
             return ()
         if (
             context_signal is None
@@ -287,7 +295,7 @@ class MemoryStore:
     ) -> CMSContextInitializationEvidence:
         """Run one auditable nested initializer through the memory owner.
 
-        The production reset delegates here with ``mode="meta-init"``.
+        The production rollback delegates here with ``mode="copy-init"``.
         Other modes are matched evidence controls; they are intentionally
         unavailable when the store has no nested MLP core.
         """
@@ -336,6 +344,12 @@ class MemoryStore:
         ) / max(len(after_online), 1)
         self._last_context_reset_target_alignment_gain = (
             self._last_context_reset_target_distance_before - self._last_context_reset_target_distance_after
+        )
+        self._last_context_reset_mode = evidence.mode
+        self._last_context_reset_conditioned = evidence.context_conditioned
+        self._last_context_reset_prototype_count = evidence.prototype_count
+        self._last_context_reset_context_match_score = (
+            evidence.context_match_score
         )
         return evidence
 
@@ -589,6 +603,26 @@ class MemoryStore:
                 ),
                 ("nested_context_reset_count", float(self._context_reset_count)),
                 ("last_nested_reset_applied", float(self._last_context_reset_applied)),
+                (
+                    "last_nested_reset_meta_init",
+                    float(self._last_context_reset_mode == "meta-init"),
+                ),
+                (
+                    "last_nested_reset_copy_init",
+                    float(self._last_context_reset_mode == "copy-init"),
+                ),
+                (
+                    "last_nested_reset_context_conditioned",
+                    float(self._last_context_reset_conditioned),
+                ),
+                (
+                    "last_nested_reset_prototype_count",
+                    float(self._last_context_reset_prototype_count),
+                ),
+                (
+                    "last_nested_reset_context_match_score",
+                    self._last_context_reset_context_match_score,
+                ),
                 ("last_nested_reset_online_seed_strength", self._last_context_reset_online_seed_strength),
                 ("last_nested_reset_session_seed_strength", self._last_context_reset_session_seed_strength),
                 ("slow_to_fast_init_benefit", self._last_context_reset_transfer_strength),
