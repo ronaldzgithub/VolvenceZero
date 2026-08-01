@@ -127,6 +127,11 @@ def _run(gate_id: int, case: SevenDayExperimentCase, arm: str) -> dict[str, obje
             )
         end_telemetry = {
             "nested_context_reset_applied": gate_id == 6,
+            "nested_context_reset_meta_init": gate_id == 6 and treatment,
+            "nested_context_reset_copy_init": gate_id == 6 and not treatment,
+            "nested_context_reset_conditioned": gate_id == 6 and treatment,
+            "nested_context_reset_prototype_count": (2 if gate_id == 6 and treatment else 0),
+            "nested_context_reset_context_match_score": (0.8 if gate_id == 6 and treatment else 0.0),
             "slow_to_fast_target_alignment_gain": (0.2 if gate_id == 6 and treatment else 0.0),
         }
         days.append(

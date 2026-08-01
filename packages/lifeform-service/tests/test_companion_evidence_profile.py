@@ -203,3 +203,4 @@ async def test_product_http_path_publishes_typed_gate_telemetry(
         end_payload["evidence_telemetry"]["nested_context_reset_applied"],
         bool,
     )
+    assert end_payload["evidence_telemetry"]["nested_context_reset_copy_init"] is True

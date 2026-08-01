@@ -260,26 +260,36 @@ def _gate6_score(
 ) -> tuple[float, dict[str, int]]:
     first_turn_pe = []
     reset_count = 0
-    positive_alignment = 0
+    meta_init_count = 0
+    copy_init_count = 0
+    conditioned_count = 0
+    prototype_backed_count = 0
     for day_index, day in enumerate(days, start=1):
         end = _pairs(
             day.get("end_scene_gate_telemetry"),
             field=f"day-{day_index}.end_scene_gate_telemetry",
         )
         reset_count += int(end.get("nested_context_reset_applied") is True)
-        positive_alignment += int(
-            _number(
-                end.get("slow_to_fast_target_alignment_gain"),
-                field="slow_to_fast_target_alignment_gain",
-            )
-            > 0.0
+        meta_init_count += int(end.get("nested_context_reset_meta_init") is True)
+        copy_init_count += int(end.get("nested_context_reset_copy_init") is True)
+        conditioned_count += int(end.get("nested_context_reset_conditioned") is True)
+        prototype_count = end.get("nested_context_reset_prototype_count")
+        if isinstance(prototype_count, bool) or not isinstance(prototype_count, int):
+            raise ValueError("nested_context_reset_prototype_count must be an integer")
+        prototype_backed_count += int(prototype_count > 0)
+        _number(
+            end.get("nested_context_reset_context_match_score"),
+            field="nested_context_reset_context_match_score",
         )
     for day, turn, _telemetry in turns:
         if day >= 2 and turn.get("exchange_index") == 1:
             first_turn_pe.append(_number(turn.get("pe_magnitude"), field="pe_magnitude"))
     return -statistics.fmean(first_turn_pe), {
         "nested_context_resets": reset_count,
-        "positive_target_alignment_resets": positive_alignment,
+        "meta_init_resets": meta_init_count,
+        "copy_init_resets": copy_init_count,
+        "conditioned_resets": conditioned_count,
+        "prototype_backed_resets": prototype_backed_count,
     }
 
 
@@ -477,11 +487,14 @@ def _mechanism_passed(*, gate_id: int, arm: str, counts: Mapping[str, int]) -> b
     if gate_id == 6:
         if counts["nested_context_resets"] != 7:
             return False
-        return (
-            counts["positive_target_alignment_resets"] > 0
-            if arm == GATE_TREATMENT_ARMS[6]
-            else counts["positive_target_alignment_resets"] == 0
-        )
+        if arm == GATE_TREATMENT_ARMS[6]:
+            return (
+                counts["meta_init_resets"] == 7
+                and counts["copy_init_resets"] == 0
+                and counts["conditioned_resets"] > 0
+                and counts["prototype_backed_resets"] > 0
+            )
+        return counts["copy_init_resets"] == 7 and counts["meta_init_resets"] == 0 and counts["conditioned_resets"] == 0
     if gate_id == 7:
         if counts["joint_cycles"] == 0:
             return False
