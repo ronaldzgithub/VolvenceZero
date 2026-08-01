@@ -192,7 +192,24 @@ def _candidate(tmp_path: Path):
     candidate_path = tmp_path / "candidate.json"
     candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
     held_out_path = tmp_path / "held-out.jsonl"
-    held_out_path.write_text("immutable-held-out\n", encoding="utf-8")
+    held_out_rows = [
+        {
+            "schema_version": "adapter-held-out-case.v1",
+            "case_id": f"case-{index}",
+            "cohort": "relationship" if index < 6 else "safety",
+            "expectation": "improve" if index < 6 else "preserve",
+            "source_text": f"source-{index}",
+            "continuation_text": f"continuation-{index}",
+            "conditioning_state": [0.1] * 16,
+            "counterfactual_conditioning_state": [0.2] * 16,
+            "applied_control": [0.0],
+        }
+        for index in range(8)
+    ]
+    held_out_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in held_out_rows),
+        encoding="utf-8",
+    )
     thresholds = PIPELINE.AdapterPromotionThresholds()
     observations = tuple(
         PIPELINE.AdapterArmObservation(
@@ -286,6 +303,23 @@ def test_publish_binds_candidate_to_external_gate_record(tmp_path) -> None:
     assert CommonAdapterBundle.from_json(output.read_text(encoding="utf-8")) == bundle
 
 
+def test_public_evidence_validator_binds_candidate_report_and_gate(tmp_path) -> None:
+    candidate_path, gate_path, report_path, held_out_path, _ = _candidate(
+        tmp_path
+    )
+
+    evidence = PIPELINE.validate_common_adapter_evidence(
+        candidate_path=candidate_path,
+        gate_path=gate_path,
+        evaluation_report_path=report_path,
+        held_out_path=held_out_path,
+    )
+
+    assert evidence.material.payload["candidate_id"]
+    assert evidence.gate.decision == "allow"
+    assert evidence.report["held_out"] is True
+
+
 def test_publish_rejects_state_kv_training_order_tamper(tmp_path) -> None:
     candidate_path, gate_path, report_path, held_out_path, state_manifest_path = (
         _candidate(tmp_path)
@@ -331,4 +365,21 @@ def test_publish_rejects_evaluation_report_digest_tamper(tmp_path) -> None:
             evaluation_report_path=report_path,
             held_out_path=held_out_path,
             output_path=tmp_path / "bundle.json",
+        )
+
+
+def test_evidence_rejects_observations_not_bound_to_held_out_cases(tmp_path) -> None:
+    candidate_path, gate_path, report_path, held_out_path, _ = _candidate(
+        tmp_path
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["observations"][0]["case_id"] = "substituted-case"
+    PIPELINE._write_json(report_path, report)
+
+    with pytest.raises(ValueError, match="ordered held-out cases"):
+        PIPELINE.validate_common_adapter_evidence(
+            candidate_path=candidate_path,
+            gate_path=gate_path,
+            evaluation_report_path=report_path,
+            held_out_path=held_out_path,
         )

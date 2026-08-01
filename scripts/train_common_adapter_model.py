@@ -799,6 +799,29 @@ def _validated_evaluation_report(
         raise ValueError(
             "common adapter evaluation observations contain duplicate case ids."
         )
+    held_out_cases = load_held_out_cases(held_out_path)
+    held_out_bindings = tuple(
+        (
+            case.case_id,
+            case.cohort,
+            case.expectation,
+            case.counterfactual_conditioning_state is not None,
+        )
+        for case in held_out_cases
+    )
+    observation_bindings = tuple(
+        (
+            row.case_id,
+            row.cohort,
+            row.expectation,
+            row.own_state_margin is not None,
+        )
+        for row in observations
+    )
+    if observation_bindings != held_out_bindings:
+        raise ValueError(
+            "common adapter observations do not bind the ordered held-out cases."
+        )
     summary = summarize_observations(
         observations=observations,
         thresholds=thresholds,
@@ -855,18 +878,29 @@ def _validated_evaluation_report(
     return report
 
 
-def publish_bundle(
+@dataclass(frozen=True)
+class CommonAdapterValidatedEvidence:
+    """Verified candidate material and cognition-owned promotion evidence."""
+
+    material: CommonAdapterCandidateMaterial
+    gate: CommonAdapterGateRecord
+    report: dict[str, Any]
+
+
+def validate_common_adapter_evidence(
     *,
     candidate_path: Path,
     gate_path: Path,
     evaluation_report_path: Path,
     held_out_path: Path,
-    output_path: Path,
-) -> CommonAdapterBundle:
+) -> CommonAdapterValidatedEvidence:
+    """Validate the complete rare-heavy/State-KV/OFFLINE-gate evidence chain."""
+
     material = load_candidate_material(candidate_path)
     candidate = material.payload
-
-    gate_raw = json.loads(gate_path.expanduser().resolve().read_text(encoding="utf-8"))
+    gate_raw = json.loads(
+        gate_path.expanduser().resolve().read_text(encoding="utf-8")
+    )
     if not isinstance(gate_raw, dict):
         raise ValueError("common adapter gate record must be an object.")
     gate = CommonAdapterGateRecord(**gate_raw)
@@ -875,12 +909,35 @@ def publish_bundle(
         raise ValueError(
             "gate proposal_id does not bind this common adapter candidate."
         )
-    _validated_evaluation_report(
+    report = _validated_evaluation_report(
         candidate=candidate,
         gate=gate,
         report_path=evaluation_report_path,
         held_out_path=held_out_path,
     )
+    return CommonAdapterValidatedEvidence(
+        material=material,
+        gate=gate,
+        report=report,
+    )
+
+
+def publish_bundle(
+    *,
+    candidate_path: Path,
+    gate_path: Path,
+    evaluation_report_path: Path,
+    held_out_path: Path,
+    output_path: Path,
+) -> CommonAdapterBundle:
+    evidence = validate_common_adapter_evidence(
+        candidate_path=candidate_path,
+        gate_path=gate_path,
+        evaluation_report_path=evaluation_report_path,
+        held_out_path=held_out_path,
+    )
+    material = evidence.material
+    candidate = material.payload
     bundle = CommonAdapterBundle.create(
         common_adapter_version=str(candidate["common_adapter_version"]),
         base_model_id=str(candidate["base_model_id"]),
@@ -888,7 +945,7 @@ def publish_bundle(
         rare_heavy_checkpoint=material.rare_heavy_checkpoint,
         state_kv_artifact=material.state_kv_artifact,
         control_basis_artifact=material.control_basis_artifact,
-        gate_record=gate,
+        gate_record=evidence.gate,
         description=str(candidate["description"]),
     )
     if bundle.compatibility_fingerprint != candidate.get(
