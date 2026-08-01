@@ -22,7 +22,12 @@
           "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
           "evidence": { "type": "string" },
           "control_signal": { "type": "number", "minimum": 0, "maximum": 1 },
-          "requires_confirmation": { "type": "boolean" }
+          "requires_confirmation": { "type": "boolean" },
+          "semantic_key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "canonical_value": { "type": "string", "maxLength": 160 }
         }
       }
     }

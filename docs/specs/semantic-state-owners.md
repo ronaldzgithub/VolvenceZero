@@ -152,6 +152,12 @@ invoker 侧按**载荷形状**（`claims` 键）而非工具名提取，所以�
 
 - `TrackTemporalModule` 直接消费九个 semantic slots，并把它们压成 `semantic_pressure`，作为 control advisory 写入 public temporal description / feedback signal。
 - `ResponseAssemblyModule` 消费九个 slots，发布 `semantic_record_counts`、`semantic_control_signal`、`semantic_residue_summary`。
+- `user_model` 对用户明确自述的 profile fact 使用 proposal / record 上的
+  `semantic_key` 与 `canonical_value` 建立稳定身份；`CREATE/REVISE/BLOCK`
+  分别表示新增、纠正与撤回，`ACTIVATE` 表示本轮直接核实请求。owner 按 key
+  只发布最新有效值，并通过 `profile_context_statement` 给出 bounded、可审计的
+  回复上下文；response assembly 只转发该 owner statement，不解析原始对话或
+  `SemanticRecord.detail`。事实均标记为 self-reported，不冒充外部核验结果。
 - `BoundaryPolicyModule` 消费 `boundary_consent`，缺失授权或拒绝边界会提升澄清/边界约束。
 - `EvaluationBackbone` 记录 semantic readout metrics，并发布 `semantic_spine_coverage` / `cognitive_loop_readiness` 作为窄 cognitive loop 的证据读数；evaluation 只消费 owner 快照，不把 evaluation 变成学习源头。
 - session-post request 携带 semantic state descriptions，供 background-slow 层沉淀与审计。
@@ -180,6 +186,12 @@ invoker 侧按**载荷形状**（`claims` 键）而非工具名提取，所以�
 
 ## 变更日志
 
+- 2026-08-02: 补齐“用户事实记忆 → 核实 → 回复”闭环。`SemanticProposal` /
+  `SemanticRecord` 新增 `semantic_key` / `canonical_value`，`UserModelSnapshot`
+  发布去重后的 `profile_facts`、本轮 `requested_profile_fact_keys` 与 owner-authored
+  `profile_context_statement`；`ResponseAssemblySnapshot.user_profile_context` 只承载
+  owner readout。SemanticStateStore persistence 升为 v3，兼容读取 v1/v2，纠正、
+  撤回和跨 session hydration 均保持单一 `user_model` owner。
 - 2026-07-27 (P4 最后一公里): 全景真正出现在回复里。`PanoramaRenderPlan` + `plan_panorama_render`（认知层决定能说什么）、`SectionId.DECISION_PANORAMA` + planner 接线、`_render_decision_panorama`（表达层决定怎么说，措辞受 licence 约束）、`LifeformSession.panorama_render_plan` provider。此前三档 prompt plan 完全相同、workspace 读者为 0。测试 `tests/test_panorama_render.py`。
 - 2026-07-27 (P4 研究工具): 证据溯源契约（`EvidenceProvenance` + `ToolResultSemanticEvent.provenance`），溯源不全的主张按 `BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD` 封顶从而落入 `verification_needs`；阈值由字面量提为具名常量供 owner 与 adapter 共用。`research_public_company` 描述符落在 growth-advisor vertical，schema 强制 source/as_of/scope、参数不接受个人、需 `public_research` 授权且在情绪/修复 regime 下禁用。invoker 按载荷形状提取 claims（非按工具名路由）。`submit_tool_result` 增加 `provenance` 形参，走既有 `EnvironmentOutcome` 通道，无新数据通道。测试 `tests/test_research_evidence_path.py`。
 - 2026-07-27 (P4): `decision_workspace` 增加安全保留（读 `boundary_policy`，经 vz-contracts `BoundaryReadout` 协议，`BoundaryDecisionReadout` 补 `risk_band`）、区间估值 / 期权价值 / VOI（`valuation.py`）与 claim licence（`rendering.py`）。模块位置移到 `boundary_policy` 之后以保证同轮读取。过程中修掉一处 VOI 盲区：宽度收益原本只测 leader 区间，导致加宽挑战者的未知得 0 分；改为测头两名的重叠减少量。测试 `tests/test_decision_valuation.py`（含第四幕验收样本）+ `tests/test_decision_workspace.py` 安全段。

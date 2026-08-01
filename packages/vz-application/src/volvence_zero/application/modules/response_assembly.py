@@ -253,7 +253,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
         non_semantic_values = tuple(
             type(value).__name__
             for value in semantic_values
-            if not isinstance(value, SemanticSnapshotValue)
+            if not isinstance(value, (SemanticSnapshotValue, RuntimePlaceholderValue))
         )
         if non_semantic_values:
             raise TypeError(
@@ -269,9 +269,23 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
             for value in semantic_values
         )
         semantic_residue_summary = " ".join(semantic_descriptions[:4])
+        from volvence_zero.semantic_state import UserModelSnapshot
+
+        user_model_value = semantic_snapshots["user_model"].value
+        if isinstance(user_model_value, RuntimePlaceholderValue):
+            user_profile_context = ""
+        elif isinstance(user_model_value, UserModelSnapshot):
+            user_profile_context = user_model_value.profile_context_statement
+        else:
+            raise TypeError("user_model must publish UserModelSnapshot.")
         if semantic_residue_summary:
             prompt_residue_summary = f"{prompt_residue_summary} Semantic state: {semantic_residue_summary}"
             prompt_residue_ratio = _clamp(prompt_residue_ratio + min(len(semantic_descriptions), 4) * 0.04)
+        if user_profile_context:
+            prompt_residue_summary = (
+                f"{prompt_residue_summary} {user_profile_context}"
+            )
+            prompt_residue_ratio = _clamp(prompt_residue_ratio + 0.08)
         required_disclaimers = (
             boundary_policy_value.active_decision.required_disclaimers
             if boundary_expression_relevant
@@ -395,6 +409,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                 support_before_decision_pressure=support_before_decision_pressure,
                 eta_action_family=eta_action_family,
                 action_realization=action_realization,
+                user_profile_context=user_profile_context,
                 description=(
                     f"Response assembly published mode={response_mode.value} depth="
                     f"{boundary_policy_value.active_decision.answer_depth_limit} "
@@ -405,6 +420,7 @@ class ResponseAssemblyModule(RuntimeModule[ResponseAssemblySnapshot]):
                     f"support_before_decision={support_before_decision_pressure:.2f} "
                     f"eta_action_family={eta_action_family or 'none'} "
                     f"action_realization={action_realization.source_case_id if action_realization is not None else 'none'} "
+                    f"profile_context={'present' if user_profile_context else 'empty'} "
                     f"questions={speech_plan.question_budget}."
                 ),
             )

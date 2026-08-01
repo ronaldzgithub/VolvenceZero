@@ -681,6 +681,49 @@ class UserModelModule(SemanticOwnerModule):
         sensitive_boundaries = _records_with_status(records, "blocked")
         durable_goals = tuple(record for record in records if ":durable-goal:" in record.record_id)[-4:]
         active_records = _records_with_status(records, "active")
+        latest_profile_facts: dict[str, SemanticRecord] = {}
+        for record in records:
+            if not record.semantic_key:
+                continue
+            if record.status in {"blocked", "closed", "completed"}:
+                latest_profile_facts.pop(record.semantic_key, None)
+                continue
+            if record.canonical_value:
+                latest_profile_facts[record.semantic_key] = record
+        profile_facts = tuple(latest_profile_facts.values())[-12:]
+        requested_profile_fact_keys = tuple(
+            dict.fromkeys(
+                proposal.semantic_key
+                for proposal in batch.proposals
+                if proposal.operation is SemanticProposalOperation.ACTIVATE
+                and proposal.semantic_key
+            )
+        )
+        requested_facts = tuple(
+            fact
+            for fact in profile_facts
+            if fact.semantic_key in requested_profile_fact_keys
+        )
+        context_facts = requested_facts or profile_facts
+        profile_context_statement = ""
+        if context_facts:
+            rendered_facts = "; ".join(
+                f"{fact.semantic_key}={fact.canonical_value}"
+                for fact in context_facts
+            )
+            if requested_facts:
+                profile_context_statement = (
+                    "User-model owner resolved the latest direct recall request from "
+                    f"persisted self-reported facts: {rendered_facts}. Answer directly "
+                    "from these values, attribute them to what the user previously told "
+                    "you, and do not claim that a present value is unavailable."
+                )
+            else:
+                profile_context_statement = (
+                    "Persisted self-reported user facts for relevant continuity: "
+                    f"{rendered_facts}. Use only when relevant, attribute them to the "
+                    "user's own report, and never infer an absent fact."
+                )
         stability_score = self._mean_confidence(records)
         overwhelm_pattern_strength = _clamp(
             _mean_record_control(records) * 0.52
@@ -716,13 +759,17 @@ class UserModelModule(SemanticOwnerModule):
             description=(
                 f"User-model owner published {len(records)} profile records; "
                 f"pacing={preferred_support_pacing} decision_style={decision_style} "
-                f"overwhelm={overwhelm_pattern_strength:.2f} durable_goals={len(durable_goals)}."
+                f"overwhelm={overwhelm_pattern_strength:.2f} durable_goals={len(durable_goals)} "
+                f"profile_facts={len(profile_facts)} recall_requests={len(requested_profile_fact_keys)}."
             ),
             preferred_support_pacing=preferred_support_pacing,
             decision_style=decision_style,
             overwhelm_pattern_strength=overwhelm_pattern_strength,
             owner_prediction_signals=prediction_signals,
             interlocutor_ids=self._current_interlocutor_ids,
+            profile_facts=profile_facts,
+            requested_profile_fact_keys=requested_profile_fact_keys,
+            profile_context_statement=profile_context_statement,
         )
 
 

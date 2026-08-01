@@ -154,6 +154,11 @@ class SemanticRecord:
     source_turn: int
     evidence: str
     control_signal: float = 0.0
+    # Optional owner-specific structured identity. ``user_model`` uses
+    # these fields for explicit self-reported profile facts so revisions
+    # can replace the same fact without parsing prose in a consumer.
+    semantic_key: str = ""
+    canonical_value: str = ""
 
 
 @dataclass(frozen=True)
@@ -354,6 +359,12 @@ class UserModelSnapshot:
     # the canonical ``multi_party_identity`` snapshot, not a second owner
     # for ToM / common-ground state.
     interlocutor_ids: tuple[str, ...] = ()
+    # Explicit self-reported facts are keyed and de-duplicated by the
+    # user_model owner. Consumers use the owner-authored context statement;
+    # they must not reinterpret raw records or conversation text.
+    profile_facts: tuple[SemanticRecord, ...] = ()
+    requested_profile_fact_keys: tuple[str, ...] = ()
+    profile_context_statement: str = ""
 
 
 @dataclass(frozen=True)

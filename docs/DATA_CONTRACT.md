@@ -669,10 +669,11 @@ class HydrationOwnerMismatchError(HydrationError): ...
 
 **Persistence backend key 前缀**：`owner_hydration/<owner_name>` 写入与 `MemoryStore` 同一 `PersistenceBackend`（`memory/store` 是 MemoryStore 的；`owner_hydration/...` 是这层的，互不冲突）。当前已落地三个 hydratable owner：
 
-- `owner_hydration/semantic_state` — 9 个 SemanticStateStore slot；schema v2
+- `owner_hydration/semantic_state` — 9 个 SemanticStateStore slot；schema v3
   额外持久化 CP-12 outstanding `OwnerPredictionSignal` 与 per-slot sequence，
   使 commitment/open_loop/boundary_consent 等预测能在新 session 由原 owner
-  结算；v1 明确兼容为“无 pending prediction”
+  结算；v3 record 新增可选 `semantic_key` / `canonical_value` 供 `user_model`
+  profile facts 使用；v1/v2 兼容读取时新字段为空
 - `owner_hydration/followup_manager` — FollowupManager 的 pending queue / dedup keys / counter
 - `owner_hydration/vitals` — VitalsModule 的 drive levels / 提前提示 / IQR baseline
 
@@ -2083,7 +2084,7 @@ reflection ──────────────→ proposals; runtime invo
 | `plan_intent` | PlanIntentModule | PlanIntentSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence |
 | `commitment` | CommitmentModule | CommitmentSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence |
 | `open_loop` | OpenLoopModule | OpenLoopSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence；#90：额外依赖 `apprenticeship_alignment`（消费其 `should_request_feedback`），快照新增 `apprenticeship_verification_requests` |
-| `user_model` | UserModelModule | UserModelSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence |
+| `user_model` | UserModelModule | UserModelSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, session-post evidence；显式自述 profile fact 通过 `SemanticProposal.semantic_key/canonical_value` 单写入，owner 按 key 发布最新有效 `profile_facts`、核实请求键与 `profile_context_statement`；纠正/撤回对应 `REVISE/BLOCK`，consumer 禁止解析原始记录重建事实 |
 | `execution_result` | ExecutionResultModule | ExecutionResultSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation, prediction-error evidence |
 | `belief_assumption` | BeliefAssumptionModule | BeliefAssumptionSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation |
 | `relationship_state` | RelationshipStateModule | RelationshipStateSnapshot | ACTIVE | 每 turn | temporal, response_assembly, evaluation |
@@ -2274,7 +2275,7 @@ carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
 
 | Snapshot | Owner-side readout fields | 主要消费者 |
 |----------|---------------------------|------------|
-| `UserModelSnapshot` | `preferred_support_pacing`, `decision_style`, `overwhelm_pattern_strength`, `durable_goals` | dual_track, response_assembly, evaluation |
+| `UserModelSnapshot` | `preferred_support_pacing`, `decision_style`, `overwhelm_pattern_strength`, `durable_goals`, `profile_facts`, `requested_profile_fact_keys`, `profile_context_statement` | dual_track, response_assembly, evaluation；精确用户事实只由 user_model owner 解释，response_assembly 只转发 owner statement |
 | `CommitmentSnapshot` | `due_followup_count`, `stalled_commitment_count`, `recent_completion_count` | followup, response_assembly, evaluation |
 | `OpenLoopSnapshot` | `oldest_open_turn`, `stale_loop_count`, `confirmation_debt_count`, `closure_readiness` | response_assembly, evaluation, session-post evidence |
 | `RelationshipStateSnapshot` | `emotional_load`, `repair_need`, `trust_delta`, `attunement_gap`, `stabilization_need`, `recent_repair_count`, `unresolved_tension_count`, `attunement_trend`, `trust_recovery_signal`, `relationship_continuity_score`, **W2-A**: `cumulative_trust_level` (long-horizon integrated trust 0-1), `relationship_age_turns` (current_turn − first_record_turn), `funnel_stage` (typed string label: `unknown` / `prospecting` / `discovery` / `nurturing` / `recommending` / `converting` / `repurchasing`; vocabulary in [`packages/vz-cognition/src/volvence_zero/semantic_state/contracts.py`](../packages/vz-cognition/src/volvence_zero/semantic_state/contracts.py) `FUNNEL_STAGE_*` constants) | dual_track, response_assembly, evaluation, dlaas-platform-ops.OutboundScheduler |

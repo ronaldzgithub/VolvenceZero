@@ -102,10 +102,27 @@ def test_semantic_state_store_round_trip() -> None:
         ),
         turn_index=5,
     )
+    source.apply(
+        slot="user_model",
+        proposals=(
+            SemanticProposal(
+                proposal_id="profile-age-1",
+                target_slot="user_model",
+                operation=SemanticProposalOperation.CREATE,
+                summary="self-reported age",
+                detail="The user explicitly reported their age.",
+                evidence="I am 17.",
+                confidence=0.98,
+                semantic_key="age",
+                canonical_value="17",
+            ),
+        ),
+        turn_index=6,
+    )
 
     exported = source.export_persistence_snapshot()
     assert exported.owner_name == "semantic_state"
-    assert exported.schema_version == 2
+    assert exported.schema_version == 3
 
     target = SemanticStateStore()
     target.hydrate_from_persistence(exported)
@@ -118,6 +135,7 @@ def test_semantic_state_store_round_trip() -> None:
     assert target.records_for("commitment") == source.records_for("commitment")
     assert target.lifecycle_for("commitment") == source.lifecycle_for("commitment")
     assert target.records_for("open_loop") == source.records_for("open_loop")
+    assert target.records_for("user_model") == source.records_for("user_model")
 
 
 def test_social_record_store_round_trip_drops_pending_predictions() -> None:

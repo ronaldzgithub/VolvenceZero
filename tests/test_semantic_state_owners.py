@@ -175,6 +175,52 @@ class EmotionalDecisionRuntime(SemanticProposalRuntime):
         )
 
 
+class ProfileFactRuntime(SemanticProposalRuntime):
+    runtime_id = "profile-fact-test"
+
+    def propose(
+        self,
+        *,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: object | None,
+        memory_snapshot: object | None,
+        previous_snapshot: object | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        del user_input, substrate_snapshot, memory_snapshot, previous_snapshot
+        proposals: tuple[SemanticProposal, ...] = ()
+        if target_slot == "user_model":
+            operation_by_turn = {
+                1: SemanticProposalOperation.CREATE,
+                2: SemanticProposalOperation.ACTIVATE,
+                3: SemanticProposalOperation.REVISE,
+                4: SemanticProposalOperation.BLOCK,
+            }
+            operation = operation_by_turn.get(turn_index)
+            if operation is not None:
+                value = "17" if turn_index == 1 else "18" if turn_index == 3 else ""
+                proposals = (
+                    SemanticProposal(
+                        proposal_id=f"user_model:profile-age:{turn_index}",
+                        target_slot="user_model",
+                        operation=operation,
+                        summary="self-reported age",
+                        detail="typed profile fact test",
+                        confidence=0.98,
+                        evidence=f"turn-{turn_index}",
+                        semantic_key="age",
+                        canonical_value=value,
+                    ),
+                )
+        return SemanticProposalBatch(
+            proposals=proposals,
+            runtime_id=self.runtime_id,
+            schema_version=1,
+            description=f"profile fact proposal for {target_slot}",
+        )
+
+
 def _adapter() -> FeatureSurfaceSubstrateAdapter:
     return FeatureSurfaceSubstrateAdapter(
         model_id="semantic-state-test-model",
@@ -720,6 +766,80 @@ def test_profile_adapter_updates_user_model_goal_and_consent() -> None:
     assert result.active_snapshots["goal_value"].value.explicit_goals
     assert result.active_snapshots["relationship_state"].value.rapport_signals
     assert result.active_snapshots["boundary_consent"].value.denied_boundaries
+
+
+def test_user_profile_fact_survives_hydration_and_drives_direct_recall() -> None:
+    source_store = SemanticStateStore()
+    first = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            user_input="我17岁了。",
+            semantic_state_store=source_store,
+            semantic_proposal_runtime=ProfileFactRuntime(),
+            session_id="semantic-profile-fact-create",
+            wave_id="wave-profile-fact",
+            turn_index=1,
+        )
+    )
+    first_user_model = first.active_snapshots["user_model"].value
+    assert isinstance(first_user_model, UserModelSnapshot)
+    assert tuple(
+        (fact.semantic_key, fact.canonical_value)
+        for fact in first_user_model.profile_facts
+    ) == (("age", "17"),)
+
+    hydrated_store = SemanticStateStore()
+    hydrated_store.hydrate_from_persistence(
+        source_store.export_persistence_snapshot()
+    )
+    recalled = asyncio.run(
+        run_final_wiring_turn(
+            config=FinalRolloutConfig(),
+            substrate_adapter=_adapter(),
+            user_input="我多大了？",
+            semantic_state_store=hydrated_store,
+            semantic_proposal_runtime=ProfileFactRuntime(),
+            session_id="semantic-profile-fact-recall",
+            wave_id="wave-profile-fact",
+            turn_index=2,
+        )
+    )
+    recalled_user_model = recalled.active_snapshots["user_model"].value
+    recalled_assembly = recalled.active_snapshots["response_assembly"].value
+
+    assert recalled_user_model.requested_profile_fact_keys == ("age",)
+    assert "age=17" in recalled_user_model.profile_context_statement
+    assert "direct recall request" in recalled_user_model.profile_context_statement
+    assert recalled_assembly.user_profile_context == (
+        recalled_user_model.profile_context_statement
+    )
+    assert "age=17" in recalled_assembly.prompt_residue_summary
+
+
+def test_user_profile_fact_revision_replaces_value_and_block_revokes_it() -> None:
+    store = SemanticStateStore()
+    runtime = ProfileFactRuntime()
+    snapshots: list[UserModelSnapshot] = []
+    for turn_index in (1, 3, 4):
+        result = asyncio.run(
+            run_final_wiring_turn(
+                config=FinalRolloutConfig(),
+                substrate_adapter=_adapter(),
+                user_input=f"turn {turn_index}",
+                semantic_state_store=store,
+                semantic_proposal_runtime=runtime,
+                session_id="semantic-profile-fact-revision",
+                wave_id="wave-profile-fact",
+                turn_index=turn_index,
+            )
+        )
+        snapshots.append(result.active_snapshots["user_model"].value)
+
+    assert snapshots[0].profile_facts[0].canonical_value == "17"
+    assert snapshots[1].profile_facts[0].canonical_value == "18"
+    assert snapshots[2].profile_facts == ()
+    assert snapshots[2].profile_context_statement == ""
 
 
 def test_semantic_owners_publish_emotional_decision_readouts() -> None:

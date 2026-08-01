@@ -108,6 +108,10 @@ class SemanticProposal:
     evidence: str
     control_signal: float = 0.0
     requires_confirmation: bool = False
+    # ``user_model``-owned structured fact identity. Empty for proposals
+    # that are not explicit profile facts or fact-recall requests.
+    semantic_key: str = ""
+    canonical_value: str = ""
 
 
 @dataclass(frozen=True)

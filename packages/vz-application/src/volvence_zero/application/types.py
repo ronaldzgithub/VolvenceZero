@@ -490,6 +490,9 @@ class ResponseAssemblySnapshot:
     support_before_decision_pressure: float = 0.0
     eta_action_family: str = ""
     action_realization: ResponseActionRealization | None = None
+    # Owner-authored exact user facts. This is a prompt carrier, not a
+    # second user-model owner; response assembly never parses raw records.
+    user_profile_context: str = ""
 
 
 @dataclass(frozen=True)

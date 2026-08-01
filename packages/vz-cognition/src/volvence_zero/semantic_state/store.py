@@ -52,8 +52,8 @@ from volvence_zero.semantic_state.lifecycle import (
 
 
 _SEMANTIC_STATE_OWNER_NAME = "semantic_state"
-_SEMANTIC_STATE_SCHEMA_VERSION = 2
-_SEMANTIC_STATE_COMPATIBLE_SCHEMA_VERSIONS = frozenset({1, 2})
+_SEMANTIC_STATE_SCHEMA_VERSION = 3
+_SEMANTIC_STATE_COMPATIBLE_SCHEMA_VERSIONS = frozenset({1, 2, 3})
 
 
 class OwnerForecastDimensionMismatchError(ValueError):
@@ -280,6 +280,8 @@ class SemanticStateStore:
                     source_turn=turn_index,
                     evidence=proposal.evidence,
                     control_signal=_clamp(proposal.control_signal),
+                    semantic_key=proposal.semantic_key,
+                    canonical_value=proposal.canonical_value,
                 )
             )
             previous = lifecycle_map.get(proposal.proposal_id)
@@ -580,6 +582,8 @@ def _serialize_semantic_record(record: SemanticRecord) -> dict[str, Any]:
         "source_turn": record.source_turn,
         "evidence": record.evidence,
         "control_signal": record.control_signal,
+        "semantic_key": record.semantic_key,
+        "canonical_value": record.canonical_value,
     }
 
 
@@ -594,6 +598,8 @@ def _deserialize_semantic_record(blob: Mapping[str, Any]) -> SemanticRecord:
             source_turn=int(blob["source_turn"]),
             evidence=str(blob["evidence"]),
             control_signal=float(blob.get("control_signal", 0.0)),
+            semantic_key=str(blob.get("semantic_key", "")),
+            canonical_value=str(blob.get("canonical_value", "")),
         )
     except KeyError as exc:
         raise HydrationPayloadInvalidError(

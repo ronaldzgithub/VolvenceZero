@@ -313,6 +313,72 @@ def test_runtime_emits_user_model_typed_proposal_from_schema_payload() -> None:
     assert proposal.confidence == 0.74
 
 
+def test_runtime_emits_structured_user_profile_fact_and_recall_request() -> None:
+    provider = _ScriptedProvider([
+        (
+            '{"runtime_id":"test","schema_version":1,"description":"fact",'
+            '"proposals":[{"proposal_id":"ignored","target_slot":"user_model",'
+            '"operation":"create","summary":"self-reported age",'
+            '"detail":"The user explicitly reported their age.","confidence":0.98,'
+            '"evidence":"我17岁了。","semantic_key":"age",'
+            '"canonical_value":"17"}]}'
+        ),
+        (
+            '{"runtime_id":"test","schema_version":1,"description":"recall",'
+            '"proposals":[{"proposal_id":"ignored","target_slot":"user_model",'
+            '"operation":"activate","summary":"recall age",'
+            '"detail":"The user asks the assistant to recall their age.",'
+            '"confidence":0.94,"evidence":"我多大了？",'
+            '"semantic_key":"age","canonical_value":""}]}'
+        ),
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider, max_new_tokens=160)
+
+    created = _propose(
+        runtime,
+        target_slot="user_model",
+        user_input="我17岁了。",
+        turn_index=1,
+    ).proposals[0]
+    recalled = _propose(
+        runtime,
+        target_slot="user_model",
+        user_input="我多大了？",
+        turn_index=2,
+    ).proposals[0]
+
+    assert created.operation is SemanticProposalOperation.CREATE
+    assert created.semantic_key == "age"
+    assert created.canonical_value == "17"
+    assert recalled.operation is SemanticProposalOperation.ACTIVATE
+    assert recalled.semantic_key == "age"
+    assert recalled.canonical_value == ""
+    assert "explicit self-reported profile facts" in provider.prompts[0]
+
+
+def test_runtime_rejects_profile_metadata_on_non_user_model_owner() -> None:
+    provider = _ScriptedProvider([
+        (
+            '{"runtime_id":"test","schema_version":1,"description":"bad",'
+            '"proposals":[{"proposal_id":"ignored","target_slot":"goal_value",'
+            '"operation":"create","summary":"wrong owner","detail":"Wrong owner.",'
+            '"confidence":0.9,"evidence":"evidence","semantic_key":"age",'
+            '"canonical_value":"17"}]}'
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(
+        runtime,
+        target_slot="goal_value",
+        user_input="I am 17.",
+        turn_index=1,
+    )
+
+    assert "fell back to base" in batch.description
+    assert all(not proposal.semantic_key for proposal in batch.proposals)
+
+
 @pytest.mark.parametrize(
     ("slot", "operation", "expected_op"),
     [

@@ -138,6 +138,16 @@ _GENERIC_LLM_SLOT_IDS = frozenset({
 # slot-generic template unchanged so the original four slots' prompts
 # stay byte-identical.
 _GENERIC_SLOT_SEMANTIC_HINTS: dict[str, str] = {
+    "user_model": (
+        "user_model tracks only explicit self-reported profile facts and durable preferences. "
+        "For a profile fact, set semantic_key to a stable lowercase snake_case attribute "
+        "(for example age, name, pronouns, locale, or occupation) and canonical_value to the "
+        "concise value the user stated. Use create for a new fact, revise for an explicit "
+        "correction, block when the user explicitly asks to forget or revoke that fact, and "
+        "activate with semantic_key and an empty canonical_value when the user directly asks "
+        "the assistant to recall that fact. Never infer a profile fact. Preference proposals "
+        "that are not factual attributes must leave both fields empty."
+    ),
     "plan_intent": (
         "plan_intent tracks concrete plans or intentions the user states "
         "for themselves or asks the assistant to help with."
@@ -251,6 +261,8 @@ class _ParsedProposal:
     evidence: str
     control_signal: float
     requires_confirmation: bool
+    semantic_key: str
+    canonical_value: str
 
 
 def _parse_commitment_decision(text: str) -> _CommitmentDecision | None:
@@ -381,6 +393,37 @@ def _parse_generic_proposals(text: str, *, target_slot: str) -> tuple[_ParsedPro
         requires_confirmation_raw = item.get("requires_confirmation", False)
         if not isinstance(requires_confirmation_raw, bool):
             return None
+        semantic_key_raw = item.get("semantic_key", "")
+        canonical_value_raw = item.get("canonical_value", "")
+        if not isinstance(semantic_key_raw, str) or not isinstance(canonical_value_raw, str):
+            return None
+        semantic_key = semantic_key_raw.strip()
+        canonical_value = canonical_value_raw.strip()
+        if target_slot != "user_model" and (semantic_key or canonical_value):
+            return None
+        if semantic_key:
+            if (
+                len(semantic_key) > 64
+                or not semantic_key[0].islower()
+                or any(
+                    character not in "abcdefghijklmnopqrstuvwxyz0123456789_"
+                    for character in semantic_key
+                )
+            ):
+                return None
+        if canonical_value and not semantic_key:
+            return None
+        if (
+            target_slot == "user_model"
+            and semantic_key
+            and operation in {
+                SemanticProposalOperation.CREATE,
+                SemanticProposalOperation.REVISE,
+                SemanticProposalOperation.OBSERVE,
+            }
+            and not canonical_value
+        ):
+            return None
         parsed.append(
             _ParsedProposal(
                 operation=operation,
@@ -390,6 +433,8 @@ def _parse_generic_proposals(text: str, *, target_slot: str) -> tuple[_ParsedPro
                 evidence=evidence_raw.strip()[:320],
                 control_signal=max(0.0, min(1.0, float(control_raw))),
                 requires_confirmation=requires_confirmation_raw,
+                semantic_key=semantic_key,
+                canonical_value=canonical_value[:160],
             )
         )
     return tuple(parsed)
@@ -690,6 +735,8 @@ class LLMSemanticProposalRuntime(SemanticProposalRuntime):
                 evidence=item.evidence,
                 control_signal=item.control_signal,
                 requires_confirmation=item.requires_confirmation,
+                semantic_key=item.semantic_key,
+                canonical_value=item.canonical_value,
             )
             for index, item in enumerate(parsed)
         )
