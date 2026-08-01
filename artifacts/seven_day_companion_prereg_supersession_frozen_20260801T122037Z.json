@@ -1,0 +1,24 @@
+{
+  "schema_version": "seven-day-companion-prereg-supersession.v1",
+  "created_at_unix_ms": 1785589889000,
+  "superseded": {
+    "path": "artifacts/seven_day_companion_simulated_prereg_20260731T222910Z.json",
+    "sha256": "9ae32c6cf4c7484502f21ce090532ff5c9f31c793364d40e75e24501fcb8792c",
+    "reason": "The selected-file code manifest did not cover transitive runtime source and could not detect concurrent source drift. Its partial matrix is methodologically invalidated before effect analysis."
+  },
+  "replacement": {
+    "path": "artifacts/seven_day_companion_simulated_prereg_frozen_20260801T122037Z.json",
+    "sha256": "9674ec62f363a362f09ef692ec82b176ee43da0ec47ac906879a1fcbddbed1fd",
+    "execution_source_tree_sha256": "5aab91ad394f0d9c5e6b09519a8010566e8f8bc2324777ee6dc21130417f7b8d",
+    "execution_source_file_count": 1245,
+    "same_scenarios": true,
+    "same_seed": true,
+    "same_arm_schedule": true,
+    "same_models": true,
+    "same_effect_thresholds": true,
+    "same_confidence_method": true
+  },
+  "effect_values_observed_before_supersession": false,
+  "thresholds_changed_after_observation": false,
+  "production_promotion_authorized": false
+}
