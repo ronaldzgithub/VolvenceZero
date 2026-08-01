@@ -14,8 +14,11 @@ from dataclasses import asdict
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import random
+import struct
+import tempfile
 import time
 from typing import Any, Iterable
 
@@ -44,6 +47,8 @@ from volvence_zero.substrate import (
     fingerprint_model_weight_files,
 )
 
+from msc_prediction_checkpoint import PredictionRunCheckpointStore
+
 
 def _jsonable(value: object) -> object:
     if hasattr(value, "__dataclass_fields__"):
@@ -51,10 +56,37 @@ def _jsonable(value: object) -> object:
     raise TypeError(f"unsupported JSON value {type(value).__name__}")
 
 
+def _write_immutable_bytes(path: Path, payload: bytes) -> None:
+    if path.exists():
+        if path.read_bytes() != payload:
+            raise ValueError(f"existing final result differs: {path}")
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="wb",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as handle:
+        temporary = Path(handle.name)
+        handle.write(payload)
+        handle.flush()
+        os.fsync(handle.fileno())
+    try:
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
 def _write_json(path: Path, payload: object) -> None:
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, default=_jsonable) + "\n",
-        encoding="utf-8",
+    _write_immutable_bytes(
+        path,
+        (
+            json.dumps(payload, indent=2, sort_keys=True, default=_jsonable)
+            + "\n"
+        ).encode("utf-8"),
     )
 
 
@@ -77,6 +109,14 @@ def _sha256_file(path: Path) -> str:
         while chunk := handle.read(1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _sha256_vector(values: tuple[float, ...]) -> str:
+    return hashlib.sha256(struct.pack(f"!{len(values)}d", *values)).hexdigest()
+
+
+def _source_sha256s(texts: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(hashlib.sha256(text.encode("utf-8")).hexdigest() for text in texts)
 
 
 def _audit_payload(audit: object, *, msc_root: Path) -> dict[str, object]:
@@ -248,13 +288,9 @@ def _embedding_map(
     return dict(zip(texts, rows, strict=True)), per_item_ms
 
 
-def _build_substrate_target_publisher(
-    *,
-    model_id: str,
-    device: str,
-    activation_width: int,
-    layer_indices: tuple[int, ...] | None,
-) -> tuple[SubstrateForwardRepresentationPublisher, SubstrateFingerprint]:
+def _substrate_target_contract(
+    *, model_id: str
+) -> tuple[Path, SubstrateFingerprint]:
     try:
         from huggingface_hub import snapshot_download
     except ImportError as exc:
@@ -267,6 +303,18 @@ def _build_substrate_target_publisher(
         version=snapshot.name,
         weights_sha256=fingerprint_model_weight_files(snapshot),
     )
+    return snapshot, model_fingerprint
+
+
+def _build_substrate_target_publisher(
+    *,
+    model_id: str,
+    snapshot: Path,
+    model_fingerprint: SubstrateFingerprint,
+    device: str,
+    activation_width: int,
+    layer_indices: tuple[int, ...] | None,
+) -> SubstrateForwardRepresentationPublisher:
     runtime = build_transformers_runtime_with_fallback(
         model_id=model_id,
         model_source=str(snapshot),
@@ -278,12 +326,9 @@ def _build_substrate_target_publisher(
         fallback_mode="deny",
         runtime_mode="strict-local",
     )
-    return (
-        SubstrateForwardRepresentationPublisher(
-            runtime,
-            model_fingerprint=model_fingerprint,
-        ),
-        model_fingerprint,
+    return SubstrateForwardRepresentationPublisher(
+        runtime,
+        model_fingerprint=model_fingerprint,
     )
 
 
@@ -302,6 +347,282 @@ def _substrate_target_map(
             for text, row in zip(texts, snapshot.representations, strict=True)
         },
         snapshot,
+    )
+
+
+def _require_numpy() -> Any:
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError("MSC prediction checkpoints require numpy") from exc
+    return np
+
+
+def _array_vectors(
+    value: object,
+    *,
+    rows: int,
+    dimension: int | None,
+    field: str,
+) -> tuple[tuple[float, ...], ...]:
+    np = _require_numpy()
+    array = np.asarray(value)
+    if array.ndim != 2 or array.shape[0] != rows:
+        raise ValueError(
+            f"{field} checkpoint shape mismatch: expected {rows} rows, got {array.shape}"
+        )
+    if dimension is not None and array.shape[1] != dimension:
+        raise ValueError(
+            f"{field} checkpoint dimension mismatch: expected {dimension}, "
+            f"got {array.shape[1]}"
+        )
+    if not np.isfinite(array).all():
+        raise ValueError(f"{field} checkpoint contains non-finite values")
+    return tuple(tuple(float(item) for item in row) for row in array.tolist())
+
+
+def _array_ints(value: object, *, rows: int, field: str) -> tuple[int, ...]:
+    np = _require_numpy()
+    array = np.asarray(value)
+    if array.ndim != 1 or array.shape[0] != rows:
+        raise ValueError(f"{field} checkpoint shape mismatch")
+    if not np.issubdtype(array.dtype, np.integer):
+        raise ValueError(f"{field} checkpoint dtype must be integer")
+    return tuple(int(item) for item in array.tolist())
+
+
+def _array_floats(value: object, *, rows: int, field: str) -> tuple[float, ...]:
+    np = _require_numpy()
+    array = np.asarray(value)
+    if array.ndim != 1 or array.shape[0] != rows:
+        raise ValueError(f"{field} checkpoint shape mismatch")
+    if not np.isfinite(array).all():
+        raise ValueError(f"{field} checkpoint contains non-finite values")
+    return tuple(float(item) for item in array.tolist())
+
+
+def _lineage_from_payload(value: object) -> SubstrateForwardRepresentationLineage:
+    if not isinstance(value, dict):
+        raise ValueError("substrate target checkpoint lineage must be an object")
+    model = value.get("model_fingerprint")
+    if not isinstance(model, dict):
+        raise ValueError("substrate target checkpoint model fingerprint is invalid")
+    try:
+        model_fingerprint = SubstrateFingerprint(
+            model_id=str(model["model_id"]),
+            version=str(model["version"]),
+            weights_sha256=str(model["weights_sha256"]),
+        )
+        return SubstrateForwardRepresentationLineage(
+            schema_version=str(value["schema_version"]),
+            snapshot_fingerprint=str(value["snapshot_fingerprint"]),
+            model_fingerprint=model_fingerprint,
+            runtime_origin=str(value["runtime_origin"]),
+            readout_kind=str(value["readout_kind"]),
+            layer_indices=tuple(int(item) for item in value["layer_indices"]),
+            activation_widths=tuple(
+                int(item) for item in value["activation_widths"]
+            ),
+            representation_dim=int(value["representation_dim"]),
+        )
+    except KeyError as exc:
+        raise ValueError(
+            f"substrate target checkpoint lineage lacks {exc.args[0]!r}"
+        ) from exc
+
+
+def _load_or_build_atomic_embeddings(
+    *,
+    store: PredictionRunCheckpointStore,
+    encoder: FrozenSentenceEncoder,
+    texts: tuple[str, ...],
+) -> tuple[dict[str, tuple[float, ...]], float]:
+    np = _require_numpy()
+    metadata = {
+        "encoder_fingerprint": encoder.fingerprint,
+        "embedding_dim": encoder.embedding_dim,
+        "source_sha256": _source_sha256s(texts),
+        "raw_text_retained": False,
+    }
+    unit = "contexts/atomic"
+    arrays = store.load_arrays(
+        unit=unit,
+        relative_path="checkpoints/contexts/atomic.npz",
+        expected_metadata=metadata,
+    )
+    if arrays is None:
+        vectors, per_item_ms = encoder.encode(texts)
+        store.save_arrays(
+            unit=unit,
+            relative_path="checkpoints/contexts/atomic.npz",
+            metadata=metadata,
+            arrays={
+                "vectors": np.asarray(vectors, dtype=np.float64),
+                "per_item_ms": np.asarray((per_item_ms,), dtype=np.float64),
+            },
+        )
+        return dict(zip(texts, vectors, strict=True)), per_item_ms
+    vectors = _array_vectors(
+        arrays.get("vectors"),
+        rows=len(texts),
+        dimension=encoder.embedding_dim,
+        field="atomic context vectors",
+    )
+    latency = _array_floats(
+        arrays.get("per_item_ms"), rows=1, field="atomic context latency"
+    )[0]
+    return dict(zip(texts, vectors, strict=True)), latency
+
+
+def _load_or_build_substrate_targets(
+    *,
+    store: PredictionRunCheckpointStore,
+    texts: tuple[str, ...],
+    model_id: str,
+    device: str,
+    activation_width: int,
+    layer_indices: tuple[int, ...] | None,
+) -> tuple[
+    dict[str, tuple[float, ...]],
+    SubstrateForwardRepresentationLineage,
+    SubstrateFingerprint,
+]:
+    np = _require_numpy()
+    snapshot, model_fingerprint = _substrate_target_contract(model_id=model_id)
+    source_hashes = _source_sha256s(texts)
+    metadata = {
+        "model_fingerprint": asdict(model_fingerprint),
+        "requested_activation_width": activation_width,
+        "requested_layer_indices": layer_indices,
+        "source_sha256": source_hashes,
+        "raw_text_retained": False,
+    }
+    unit = "targets/substrate"
+    arrays = store.load_arrays(
+        unit=unit,
+        relative_path="checkpoints/targets/substrate.npz",
+        expected_metadata=metadata,
+    )
+    if arrays is None:
+        publisher = _build_substrate_target_publisher(
+            model_id=model_id,
+            snapshot=snapshot,
+            model_fingerprint=model_fingerprint,
+            device=device,
+            activation_width=activation_width,
+            layer_indices=layer_indices,
+        )
+        embedding_map, target_snapshot = _substrate_target_map(publisher, texts)
+        vectors = tuple(embedding_map[text] for text in texts)
+        value_hashes = tuple(
+            row.values_sha256 for row in target_snapshot.representations
+        )
+        store.save_arrays(
+            unit=unit,
+            relative_path="checkpoints/targets/substrate.npz",
+            metadata=metadata,
+            arrays={
+                "vectors": np.asarray(vectors, dtype=np.float64),
+                "values_sha256": np.asarray(value_hashes),
+                "lineage_json": np.asarray(
+                    json.dumps(asdict(target_snapshot.lineage), sort_keys=True)
+                ),
+            },
+        )
+        return embedding_map, target_snapshot.lineage, model_fingerprint
+    lineage_raw = arrays.get("lineage_json")
+    if lineage_raw is None:
+        raise ValueError("substrate target checkpoint lacks lineage_json")
+    lineage = _lineage_from_payload(json.loads(str(lineage_raw.item())))
+    if lineage.model_fingerprint != model_fingerprint:
+        raise ValueError("substrate target checkpoint model fingerprint drift")
+    vectors = _array_vectors(
+        arrays.get("vectors"),
+        rows=len(texts),
+        dimension=lineage.representation_dim,
+        field="substrate target vectors",
+    )
+    hashes_raw = arrays.get("values_sha256")
+    if hashes_raw is None:
+        raise ValueError("substrate target checkpoint lacks values_sha256")
+    value_hashes = tuple(str(item) for item in hashes_raw.tolist())
+    if len(value_hashes) != len(vectors) or any(
+        expected != _sha256_vector(vector)
+        for expected, vector in zip(value_hashes, vectors, strict=True)
+    ):
+        raise ValueError("substrate target checkpoint vector hash drift")
+    return dict(zip(texts, vectors, strict=True)), lineage, model_fingerprint
+
+
+def _load_or_build_arm_vectors(
+    *,
+    store: PredictionRunCheckpointStore,
+    arm: str,
+    split: str,
+    examples: tuple[MSCNextTurnExample, ...],
+    encoder: FrozenSentenceEncoder,
+    atomic_embeddings: dict[str, tuple[float, ...]],
+    atomic_latency_ms: float,
+    retrieval_count: int,
+) -> tuple[
+    tuple[tuple[float, ...], ...],
+    tuple[int, ...],
+    tuple[int, ...],
+    tuple[float, ...],
+]:
+    np = _require_numpy()
+    metadata = {
+        "arm": arm,
+        "split": split,
+        "encoder_fingerprint": encoder.fingerprint,
+        "example_fingerprint": examples_fingerprint(examples),
+        "sample_ids": tuple(example.sample_id for example in examples),
+        "retrieval_count": retrieval_count,
+        "raw_text_retained": False,
+    }
+    unit = f"contexts/{arm}/{split}"
+    relative_path = f"checkpoints/contexts/{arm}-{split}.npz"
+    arrays = store.load_arrays(
+        unit=unit,
+        relative_path=relative_path,
+        expected_metadata=metadata,
+    )
+    if arrays is None:
+        prepared = _prepare_arm_vectors(
+            arm=arm,
+            examples=examples,
+            encoder=encoder,
+            atomic_embeddings=atomic_embeddings,
+            atomic_latency_ms=atomic_latency_ms,
+            retrieval_count=retrieval_count,
+        )
+        vectors, tokens, truncated, latency = prepared
+        store.save_arrays(
+            unit=unit,
+            relative_path=relative_path,
+            metadata=metadata,
+            arrays={
+                "vectors": np.asarray(vectors, dtype=np.float64),
+                "tokens": np.asarray(tokens, dtype=np.int64),
+                "truncated": np.asarray(truncated, dtype=np.int64),
+                "latency_ms": np.asarray(latency, dtype=np.float64),
+            },
+        )
+        return prepared
+    return (
+        _array_vectors(
+            arrays.get("vectors"),
+            rows=len(examples),
+            dimension=encoder.embedding_dim,
+            field=f"{arm}/{split} context vectors",
+        ),
+        _array_ints(arrays.get("tokens"), rows=len(examples), field="tokens"),
+        _array_ints(
+            arrays.get("truncated"), rows=len(examples), field="truncated"
+        ),
+        _array_floats(
+            arrays.get("latency_ms"), rows=len(examples), field="latency_ms"
+        ),
     )
 
 
@@ -575,6 +896,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-dyads", type=int, default=12)
     parser.add_argument("--heldout-dyads", type=int, default=12)
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    parser.add_argument("--resume", action="store_true")
     return parser.parse_args()
 
 
@@ -593,8 +915,8 @@ def main() -> int:
     seeds = tuple(args.seeds)
     if len(seeds) < 3 or len(set(seeds)) != len(seeds) or min(seeds) < 0:
         raise ValueError("research run requires at least three unique non-negative seeds")
+
     output = args.output.resolve()
-    output.mkdir(parents=True, exist_ok=False)
     msc_root = args.msc_root.resolve()
     corpus_provenance = msc_root.parent / "DOWNLOAD_PROVENANCE.json"
     if not corpus_provenance.is_file():
@@ -615,6 +937,60 @@ def main() -> int:
     if corpus_provenance_payload.get("schema_version") != "msc-download-provenance.v1":
         raise ValueError("MSC corpus provenance schema_version is unsupported")
 
+    repository_root = Path(__file__).resolve().parents[1]
+    source_paths = (
+        Path(__file__).resolve(),
+        repository_root / "scripts/companion_test_plan_common.py",
+        repository_root / "scripts/msc_prediction_checkpoint.py",
+        repository_root / "scripts/run_msc_prediction_test_plan.py",
+        repository_root
+        / "packages/companion-bench/src/companion_bench/msc_corpus.py",
+        repository_root
+        / "packages/companion-bench/src/companion_bench/prediction_research.py",
+        repository_root
+        / "packages/vz-cognition/src/volvence_zero/prediction/error.py",
+        repository_root
+        / "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py",
+        repository_root
+        / "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py",
+    )
+    source_hashes = {
+        path.relative_to(repository_root).as_posix(): _sha256_file(path)
+        for path in source_paths
+    }
+    layer_indices = (
+        tuple(args.substrate_layer_indices)
+        if args.substrate_layer_indices is not None
+        else None
+    )
+    run_configuration = {
+        "schema_version": "msc-n-plus-one-resumable-run.v1",
+        "msc_root": os.fspath(msc_root),
+        "corpus_provenance_sha256": _sha256_file(corpus_provenance),
+        "encoder": args.encoder,
+        "device": args.device,
+        "substrate_model": args.substrate_model,
+        "substrate_device": args.substrate_device,
+        "substrate_activation_width": args.substrate_activation_width,
+        "substrate_layer_indices": layer_indices,
+        "max_seq_length": args.max_seq_length,
+        "encoder_batch_size": args.encoder_batch_size,
+        "head_batch_size": args.head_batch_size,
+        "epochs": args.epochs,
+        "learning_rate": args.learning_rate,
+        "retrieval_count": args.retrieval_count,
+        "train_dyads": args.train_dyads,
+        "validation_dyads": args.validation_dyads,
+        "heldout_dyads": args.heldout_dyads,
+        "seeds": seeds,
+        "source_sha256": source_hashes,
+    }
+    store = PredictionRunCheckpointStore(
+        output_dir=output,
+        configuration=run_configuration,
+        resume=args.resume,
+    )
+
     split_payload: dict[str, tuple[MSCDyad, ...]] = {}
     audits = {}
     limits = {
@@ -630,6 +1006,27 @@ def main() -> int:
         split: build_msc_next_turn_examples(dyads)
         for split, dyads in split_payload.items()
     }
+    corpus_index = {
+        split: {
+            "official_audit": _audit_payload(audits[split], msc_root=msc_root),
+            "selected_dyads": len(split_payload[split]),
+            "prediction_examples": len(examples_by_split[split]),
+            "example_fingerprint": examples_fingerprint(examples_by_split[split]),
+        }
+        for split in ("train", "validation", "heldout")
+    }
+    cached_corpus_index = store.load_json(
+        unit="corpus/index",
+        relative_path="checkpoints/corpus/index.json",
+    )
+    if cached_corpus_index is None:
+        store.save_json(
+            unit="corpus/index",
+            relative_path="checkpoints/corpus/index.json",
+            payload=corpus_index,
+        )
+    elif cached_corpus_index != corpus_index:
+        raise ValueError("MSC corpus/example fingerprint drift on resume")
 
     encoder = FrozenSentenceEncoder(
         model_id=args.encoder,
@@ -637,22 +1034,22 @@ def main() -> int:
         max_seq_length=args.max_seq_length,
         batch_size=args.encoder_batch_size,
     )
-    atomic_embeddings, atomic_latency_ms = _embedding_map(
-        encoder, _all_atomic_texts(examples_by_split)
+    atomic_texts = _all_atomic_texts(examples_by_split)
+    atomic_embeddings, atomic_latency_ms = _load_or_build_atomic_embeddings(
+        store=store,
+        encoder=encoder,
+        texts=atomic_texts,
     )
-    target_publisher, target_model_fingerprint = _build_substrate_target_publisher(
-        model_id=args.substrate_model,
-        device=args.substrate_device,
-        activation_width=args.substrate_activation_width,
-        layer_indices=(
-            tuple(args.substrate_layer_indices)
-            if args.substrate_layer_indices is not None
-            else None
-        ),
-    )
-    target_embeddings, target_snapshot = _substrate_target_map(
-        target_publisher,
-        _target_atomic_texts(examples_by_split),
+    target_texts = _target_atomic_texts(examples_by_split)
+    target_embeddings, target_lineage, target_model_fingerprint = (
+        _load_or_build_substrate_targets(
+            store=store,
+            texts=target_texts,
+            model_id=args.substrate_model,
+            device=args.substrate_device,
+            activation_width=args.substrate_activation_width,
+            layer_indices=layer_indices,
+        )
     )
     targets_by_split = {
         split: _targets(examples, target_embeddings)
@@ -674,8 +1071,10 @@ def main() -> int:
     ] = {}
     for arm in PREDICTION_ARMS:
         for split, examples in examples_by_split.items():
-            prepared[(arm, split)] = _prepare_arm_vectors(
+            prepared[(arm, split)] = _load_or_build_arm_vectors(
+                store=store,
                 arm=arm,
+                split=split,
                 examples=examples,
                 encoder=encoder,
                 atomic_embeddings=atomic_embeddings,
@@ -683,88 +1082,106 @@ def main() -> int:
                 retrieval_count=args.retrieval_count,
             )
 
-    capacity_rows = []
+    capacity_rows: list[CapacityObservation] = []
     for n_z in (3, 16, 64, 256):
         for seed in seeds:
-            module = _train_head(
-                train_examples=examples_by_split["train"],
-                train_contexts=prepared[("volvence", "train")][0],
-                train_targets=targets_by_split["train"],
-                train_persistence=persistence_by_split["train"],
-                n_z=n_z,
-                seed=seed,
-                epochs=args.epochs,
-                batch_size=args.head_batch_size,
-                learning_rate=args.learning_rate,
-                device=args.device,
-                target_lineage=target_snapshot.lineage,
-            )
-            settlements, _, _ = _evaluate_head(
-                module=module,
-                examples=examples_by_split["validation"],
-                context_vectors=prepared[("volvence", "validation")][0],
-                target_vectors=targets_by_split["validation"],
-                persistence_vectors=persistence_by_split["validation"],
-                batch_size=args.head_batch_size,
-                target_lineage=target_snapshot.lineage,
-            )
-            capacity_rows.append(
-                CapacityObservation(
+            unit = f"capacity/nz-{n_z}/seed-{seed}"
+            relative_path = f"checkpoints/capacity/nz-{n_z}-seed-{seed}.json"
+            cached = store.load_json(unit=unit, relative_path=relative_path)
+            if cached is None:
+                module = _train_head(
+                    train_examples=examples_by_split["train"],
+                    train_contexts=prepared[("volvence", "train")][0],
+                    train_targets=targets_by_split["train"],
+                    train_persistence=persistence_by_split["train"],
+                    n_z=n_z,
+                    seed=seed,
+                    epochs=args.epochs,
+                    batch_size=args.head_batch_size,
+                    learning_rate=args.learning_rate,
+                    device=args.device,
+                    target_lineage=target_lineage,
+                )
+                settlements, _, _ = _evaluate_head(
+                    module=module,
+                    examples=examples_by_split["validation"],
+                    context_vectors=prepared[("volvence", "validation")][0],
+                    target_vectors=targets_by_split["validation"],
+                    persistence_vectors=persistence_by_split["validation"],
+                    batch_size=args.head_batch_size,
+                    target_lineage=target_lineage,
+                )
+                row = CapacityObservation(
                     forward_head_n_z=n_z,
                     seed=seed,
                     split="validation",
                     mean_cosine_similarity=sum(
-                        row.cosine_similarity for row in settlements
+                        item.cosine_similarity for item in settlements
                     )
                     / len(settlements),
-                    mean_squared_error=sum(row.mean_squared_error for row in settlements)
+                    mean_squared_error=sum(
+                        item.mean_squared_error for item in settlements
+                    )
                     / len(settlements),
                 )
-            )
+                store.save_json(
+                    unit=unit,
+                    relative_path=relative_path,
+                    payload=asdict(row),
+                )
+            else:
+                if not isinstance(cached, dict):
+                    raise ValueError(f"capacity checkpoint is not an object: {unit}")
+                row = CapacityObservation(**cached)
+                if row.forward_head_n_z != n_z or row.seed != seed:
+                    raise ValueError(f"capacity checkpoint identity drift: {unit}")
+            capacity_rows.append(row)
     capacity_verdict = adjudicate_capacity_ladder(
         tuple(capacity_rows),
-        complete_train=(len(split_payload["train"]) == audits["train"].conversation_count),
+        complete_train=(
+            len(split_payload["train"]) == audits["train"].conversation_count
+        ),
         complete_validation=(
             len(split_payload["validation"])
             == audits["validation"].conversation_count
         ),
     )
 
-    observations = []
-    head_fingerprints = {}
+    observations: list[PredictionObservation] = []
+    head_fingerprints: dict[str, str] = {}
     chosen_n_z = capacity_verdict.best_forward_head_n_z
     for arm in PREDICTION_ARMS:
         for seed in seeds:
-            module = _train_head(
-                train_examples=examples_by_split["train"],
-                train_contexts=prepared[(arm, "train")][0],
-                train_targets=targets_by_split["train"],
-                train_persistence=persistence_by_split["train"],
-                n_z=chosen_n_z,
-                seed=seed,
-                epochs=args.epochs,
-                batch_size=args.head_batch_size,
-                learning_rate=args.learning_rate,
-                device=args.device,
-                target_lineage=target_snapshot.lineage,
-            )
-            settlements, head_latency, fingerprint = _evaluate_head(
-                module=module,
-                examples=examples_by_split["heldout"],
-                context_vectors=prepared[(arm, "heldout")][0],
-                target_vectors=targets_by_split["heldout"],
-                persistence_vectors=persistence_by_split["heldout"],
-                batch_size=args.head_batch_size,
-                target_lineage=target_snapshot.lineage,
-            )
-            head_fingerprints[f"{arm}:seed{seed}"] = fingerprint
-            tokens = prepared[(arm, "heldout")][1]
-            truncated = prepared[(arm, "heldout")][2]
-            context_latency = prepared[(arm, "heldout")][3]
-            for index, (example, settlement) in enumerate(
-                zip(examples_by_split["heldout"], settlements, strict=True)
-            ):
-                observations.append(
+            unit = f"heldout/{arm}/seed-{seed}"
+            relative_path = f"checkpoints/heldout/{arm}-seed-{seed}.json"
+            cached = store.load_json(unit=unit, relative_path=relative_path)
+            if cached is None:
+                module = _train_head(
+                    train_examples=examples_by_split["train"],
+                    train_contexts=prepared[(arm, "train")][0],
+                    train_targets=targets_by_split["train"],
+                    train_persistence=persistence_by_split["train"],
+                    n_z=chosen_n_z,
+                    seed=seed,
+                    epochs=args.epochs,
+                    batch_size=args.head_batch_size,
+                    learning_rate=args.learning_rate,
+                    device=args.device,
+                    target_lineage=target_lineage,
+                )
+                settlements, head_latency, fingerprint = _evaluate_head(
+                    module=module,
+                    examples=examples_by_split["heldout"],
+                    context_vectors=prepared[(arm, "heldout")][0],
+                    target_vectors=targets_by_split["heldout"],
+                    persistence_vectors=persistence_by_split["heldout"],
+                    batch_size=args.head_batch_size,
+                    target_lineage=target_lineage,
+                )
+                tokens = prepared[(arm, "heldout")][1]
+                truncated = prepared[(arm, "heldout")][2]
+                context_latency = prepared[(arm, "heldout")][3]
+                rows = tuple(
                     PredictionObservation(
                         arm=arm,
                         seed=seed,
@@ -784,28 +1201,65 @@ def main() -> int:
                         context_truncated_tokens=truncated[index],
                         latency_ms=context_latency[index] + head_latency[index],
                     )
+                    for index, (example, settlement) in enumerate(
+                        zip(
+                            examples_by_split["heldout"],
+                            settlements,
+                            strict=True,
+                        )
+                    )
                 )
+                store.save_json(
+                    unit=unit,
+                    relative_path=relative_path,
+                    payload={
+                        "arm": arm,
+                        "seed": seed,
+                        "selected_forward_head_n_z": chosen_n_z,
+                        "target_snapshot_fingerprint": (
+                            target_lineage.snapshot_fingerprint
+                        ),
+                        "head_fingerprint": fingerprint,
+                        "observations": tuple(asdict(row) for row in rows),
+                    },
+                )
+            else:
+                if not isinstance(cached, dict):
+                    raise ValueError(f"heldout checkpoint is not an object: {unit}")
+                if (
+                    cached.get("arm") != arm
+                    or cached.get("seed") != seed
+                    or cached.get("selected_forward_head_n_z") != chosen_n_z
+                    or cached.get("target_snapshot_fingerprint")
+                    != target_lineage.snapshot_fingerprint
+                ):
+                    raise ValueError(f"heldout checkpoint identity drift: {unit}")
+                raw_rows = cached.get("observations")
+                fingerprint = cached.get("head_fingerprint")
+                if not isinstance(raw_rows, list) or not isinstance(fingerprint, str):
+                    raise ValueError(f"heldout checkpoint payload is invalid: {unit}")
+                rows = tuple(
+                    PredictionObservation(**raw_row)
+                    for raw_row in raw_rows
+                    if isinstance(raw_row, dict)
+                )
+                if len(rows) != len(raw_rows):
+                    raise ValueError(f"heldout checkpoint row is invalid: {unit}")
+                if any(row.arm != arm or row.seed != seed for row in rows):
+                    raise ValueError(f"heldout checkpoint row identity drift: {unit}")
+            observations.extend(rows)
+            head_fingerprints[f"{arm}:seed{seed}"] = fingerprint
+
     prediction_verdict = adjudicate_prediction_experiment(
         tuple(observations),
         heldout_sorted_id_sha256=audits["heldout"].sorted_id_sha256,
         encoder_fingerprint=target_model_fingerprint.weights_sha256,
         volvence_full_stack=False,
     )
-
     manifest = {
         "schema_version": "msc-n-plus-one-research.v1",
         "license_policy": "noncommercial-research-only",
-        "corpus": {
-            split: {
-                "official_audit": _audit_payload(
-                    audits[split], msc_root=msc_root
-                ),
-                "selected_dyads": len(split_payload[split]),
-                "prediction_examples": len(examples_by_split[split]),
-                "example_fingerprint": examples_fingerprint(examples_by_split[split]),
-            }
-            for split in ("train", "validation", "heldout")
-        },
+        "corpus": corpus_index,
         "encoder": {
             "role": "context-only-prototype; not the N+1 target owner",
             "model_id": encoder.model_id,
@@ -816,8 +1270,8 @@ def main() -> int:
         },
         "target_representation": {
             "owner": "vz-substrate",
-            "lineage": asdict(target_snapshot.lineage),
-            "captured_text_count": len(target_snapshot.representations),
+            "lineage": asdict(target_lineage),
+            "captured_text_count": len(target_texts),
             "raw_text_retained": False,
         },
         "training": {
@@ -828,6 +1282,16 @@ def main() -> int:
             "learning_rate": args.learning_rate,
             "head_batch_size": args.head_batch_size,
             "head_fingerprints": head_fingerprints,
+        },
+        "checkpointing": {
+            "schema_version": "msc-prediction-run-state.v1",
+            "resume_supported": True,
+            "resume_requires_exact_configuration_and_source_sha": True,
+            "immutable_unit_count": len(store.immutable_file_manifest()),
+            "mutable_control_state": "run_state.json",
+            "mutable_control_state_is_evidence": False,
+            "intermediate_effect_analysis_allowed": False,
+            "raw_corpus_text_retained": False,
         },
         "arms": {
             "volvence": (
@@ -846,7 +1310,8 @@ def main() -> int:
         "claim_boundary": (
             "The target is now a frozen substrate-owned N+1 residual representation, "
             "but this remains pilot evidence: contexts still use MiniLM, long_context "
-            "is limited to 256 tokens, and volvence bypasses the complete runtime stack."
+            f"is limited to {encoder.max_seq_length} tokens, and volvence bypasses "
+            "the complete runtime stack."
         ),
         "execution_status": {
             "evidence_level": "mechanism-only-pilot",
@@ -862,31 +1327,21 @@ def main() -> int:
                 "temporal-controller-capacity-ladder",
             ),
         },
-        "run_configuration": {
-            "train_dyads": args.train_dyads,
-            "validation_dyads": args.validation_dyads,
-            "heldout_dyads": args.heldout_dyads,
-            "encoder_batch_size": args.encoder_batch_size,
-            "head_batch_size": args.head_batch_size,
-            "epochs": args.epochs,
-            "learning_rate": args.learning_rate,
-            "retrieval_count": args.retrieval_count,
-            "requested_max_seq_length": args.max_seq_length,
-            "substrate_model": args.substrate_model,
-            "substrate_device": args.substrate_device,
-            "substrate_activation_width": args.substrate_activation_width,
-            "substrate_layer_indices": args.substrate_layer_indices,
-            "seeds": seeds,
-        },
+        "run_configuration": run_configuration,
     }
     _write_json(output / "manifest.json", manifest)
     _write_json(output / "corpus_provenance.json", corpus_provenance_payload)
     _write_json(output / "capacity_ladder.json", capacity_verdict)
     _write_json(output / "prediction_verdict.json", prediction_verdict)
-    with (output / "prediction_observations.jsonl").open("w", encoding="utf-8") as handle:
-        for observation in observations:
-            handle.write(json.dumps(asdict(observation), sort_keys=True) + "\n")
-    (output / "report.md").write_text(
+    _write_immutable_bytes(
+        output / "prediction_observations.jsonl",
+        "".join(
+            json.dumps(asdict(observation), sort_keys=True) + "\n"
+            for observation in observations
+        ).encode("utf-8"),
+    )
+    _write_immutable_bytes(
+        output / "report.md",
         "\n".join(
             (
                 "# MSC N+1 prediction research report",
@@ -896,7 +1351,7 @@ def main() -> int:
                 "- Formal experiment executed: `false`",
                 (
                     "- N+1 target owner: `vz-substrate` / "
-                    f"`{target_snapshot.lineage.readout_kind}`"
+                    f"`{target_lineage.readout_kind}`"
                 ),
                 (
                     "- N+1 target model: "
@@ -914,28 +1369,21 @@ def main() -> int:
                 ),
                 f"- Token ratio: `{prediction_verdict.longest_token_ratio:.6f}`",
                 f"- Latency ratio: `{prediction_verdict.longest_latency_ratio:.6f}`",
+                "- Resume checkpoints: `complete`",
                 "",
                 "This is pilot-only: the bounded-state arm is not the complete ",
                 "Volvence runtime stack, and partial corpus runs cannot select thesis v3.",
                 "",
             )
-        ),
-        encoding="utf-8",
+        ).encode("utf-8"),
     )
-    repository_root = Path(__file__).resolve().parents[1]
-    source_paths = (
-        Path(__file__).resolve(),
-        repository_root
-        / "packages/companion-bench/src/companion_bench/msc_corpus.py",
-        repository_root
-        / "packages/companion-bench/src/companion_bench/prediction_research.py",
-        repository_root
-        / "packages/vz-cognition/src/volvence_zero/prediction/error.py",
-        repository_root
-        / "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py",
-        repository_root
-        / "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py",
-    )
+
+    current_source_hashes = {
+        path.relative_to(repository_root).as_posix(): _sha256_file(path)
+        for path in source_paths
+    }
+    if current_source_hashes != source_hashes:
+        raise ValueError("MSC runner source drifted during execution")
     result_names = (
         "manifest.json",
         "corpus_provenance.json",
@@ -947,7 +1395,7 @@ def main() -> int:
     _write_json(
         output / "artifact_manifest.json",
         {
-            "schema_version": "msc-mechanism-artifact.v1",
+            "schema_version": "msc-mechanism-artifact.v2",
             "evidence_level": "mechanism-only-pilot",
             "thesis_status": "not-evaluated",
             "formal_experiment_executed": False,
@@ -959,11 +1407,18 @@ def main() -> int:
             "result_files": {
                 name: _hashed_file(output / name) for name in result_names
             },
+            "checkpoint_files": store.immutable_file_manifest(),
+            "mutable_control_files_excluded": {
+                "run_state.json": (
+                    "resume journal only; not an effect input or evidence result"
+                )
+            },
             "hash_scope": (
                 "artifact_manifest.json is excluded to avoid a recursive self-hash"
             ),
         },
     )
+    store.mark_complete()
     print(output)
     print(prediction_verdict.description)
     print(capacity_verdict.description)

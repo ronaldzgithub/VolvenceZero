@@ -114,6 +114,7 @@ artifacts/companion_bench_smoke/*
 artifacts/seven_day_companion_formal_*/
 artifacts/seven_day_companion_smoke_frozen_*/
 artifacts/seven_day_companion_simulated_prereg_frozen_*.json
+/artifacts/.companion-evidence-mps.lock
 /.local
 /.local
 /.venv

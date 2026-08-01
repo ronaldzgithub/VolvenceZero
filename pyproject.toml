@@ -55,7 +55,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-hf = ["vz-runtime[hf]==0.1.*"]
+hf = [
+    "vz-runtime[hf]==0.1.*",
+    "sentence-transformers>=2.7",
+]
 torch = ["vz-runtime[torch]==0.1.*"]
 # mcp-tools-bundle-bridge packet: the bridge wheel itself ships under
 # the always-installed list above (``lifeform-mcp-bridge==0.1.*``). The
