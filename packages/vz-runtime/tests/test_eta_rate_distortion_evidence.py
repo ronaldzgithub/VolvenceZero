@@ -7,6 +7,7 @@ aggregate curve, and how the frozen/joint arm pair maps onto the verdict set.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -369,6 +370,127 @@ def test_rate_distortion_cli_holds_the_shared_mps_lock_during_the_sweep(
     )
     assert manifest["mps_exclusive_lock"] == str(lock)
     assert manifest["mps_attestation"]["fallback_disabled"] is True
+
+
+def test_rate_distortion_cli_marks_an_unpreregistered_run_as_smoke(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import run_eta_rate_distortion as cli
+
+    output = tmp_path / "artifact"
+    monkeypatch.setattr(
+        cli, "run_eta_rate_distortion_evidence", lambda **_: _report_fixture()
+    )
+    monkeypatch.setattr(
+        cli,
+        "require_mps",
+        lambda: common.MPSAvailability("fixture", True, True, True),
+    )
+    monkeypatch.setattr(cli, "_maybe_plot", lambda *_a, **_k: "")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        (
+            "run_eta_rate_distortion.py",
+            "--output-dir",
+            str(output),
+            "--mps-lock",
+            str(tmp_path / "mps.lock"),
+        ),
+    )
+
+    cli.main()
+
+    manifest = json.loads(
+        (output / "artifact_manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["preregistered"] is False
+    assert manifest["verdict_authoritative"] is False
+    assert manifest["claim_scope"] == "mechanism-only-smoke"
+    report = (output / "report.md").read_text(encoding="utf-8")
+    assert "not authoritative" in report
+
+
+def test_rate_distortion_cli_binds_an_authoritative_run_to_its_protocol(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import preregister_eta_rate_distortion as prereg
+    import run_eta_rate_distortion as cli
+
+    payload = prereg.build_preregistration(
+        alphas=(0.01, 0.1, 1.0),
+        seeds=2,
+        n_z=4,
+        updates=1,
+        learning_rate=0.02,
+        substrate_learning_rate=1e-4,
+        switch_threshold=0.55,
+        model_id="fixture-model",
+        device="mps",
+        arms=("frozen", "joint"),
+    )
+    preregistration = tmp_path / "prereg.json"
+    preregistration.write_text(json.dumps(payload), encoding="utf-8")
+    output = tmp_path / "artifact"
+
+    monkeypatch.setattr(
+        cli, "run_eta_rate_distortion_evidence", lambda **_: _report_fixture()
+    )
+    monkeypatch.setattr(
+        cli,
+        "require_mps",
+        lambda: common.MPSAvailability("fixture", True, True, True),
+    )
+    monkeypatch.setattr(cli, "_maybe_plot", lambda *_a, **_k: "")
+    argv = (
+        "run_eta_rate_distortion.py",
+        "--output-dir",
+        str(output),
+        "--mps-lock",
+        str(tmp_path / "mps.lock"),
+        "--preregistration",
+        str(preregistration),
+        "--alphas",
+        "0.01",
+        "0.1",
+        "1.0",
+        "--seeds",
+        "2",
+        "--n-z",
+        "4",
+        "--updates",
+        "1",
+        "--model-id",
+        "fixture-model",
+    )
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    manifest = json.loads(
+        (output / "artifact_manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["preregistered"] is True
+    assert manifest["verdict_authoritative"] is True
+    assert manifest["preregistration_sha256"] == hashlib.sha256(
+        preregistration.read_bytes()
+    ).hexdigest()
+
+    # A run whose grid disagrees with the frozen protocol must not start.
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        (
+            *argv[:2],
+            str(tmp_path / "artifact-2"),
+            *argv[3:-1],
+            "other-model",
+        ),
+    )
+    with pytest.raises(cli.PreregistrationMismatch, match="model_id"):
+        cli.main()
 
 
 def test_rate_distortion_cli_refuses_to_start_when_cpu_fallback_is_enabled(
