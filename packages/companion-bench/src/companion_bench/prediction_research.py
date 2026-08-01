@@ -154,15 +154,17 @@ class PredictionExperimentVerdict:
 
 @dataclass(frozen=True)
 class CapacityObservation:
-    n_z: int
+    forward_head_n_z: int
     seed: int
     split: str
     mean_cosine_similarity: float
     mean_squared_error: float
 
     def __post_init__(self) -> None:
-        if self.n_z not in {3, 16, 64, 256}:
-            raise ValueError("capacity observation n_z must be one of 3/16/64/256")
+        if self.forward_head_n_z not in {3, 16, 64, 256}:
+            raise ValueError(
+                "capacity observation forward_head_n_z must be one of 3/16/64/256"
+            )
         if self.seed < 0 or self.split not in {"validation", "heldout"}:
             raise ValueError("capacity observation seed/split is invalid")
         if not math.isfinite(self.mean_cosine_similarity) or not math.isfinite(
@@ -174,11 +176,11 @@ class CapacityObservation:
 @dataclass(frozen=True)
 class CapacityLadderVerdict:
     evidence_level: str
-    best_n_z: int
+    best_forward_head_n_z: int
     best_mean_cosine: float
-    gain_over_n_z_3: float
-    capacity_is_flat: bool
-    eta_claim_exit: str
+    gain_over_forward_head_n_z_3: float
+    forward_head_capacity_is_flat: bool
+    forward_head_claim_exit: str
     observations: tuple[CapacityObservation, ...]
     description: str
 
@@ -519,18 +521,24 @@ def adjudicate_capacity_ladder(
     if not observations:
         raise ValueError("capacity ladder requires observations")
     expected = {3, 16, 64, 256}
-    if {row.n_z for row in observations} != expected:
-        raise ValueError("capacity ladder must contain n_z 3/16/64/256")
+    if {row.forward_head_n_z for row in observations} != expected:
+        raise ValueError(
+            "capacity ladder must contain forward_head_n_z 3/16/64/256"
+        )
     validation = tuple(row for row in observations if row.split == "validation")
     seeds_by_nz = {
-        n_z: {row.seed for row in validation if row.n_z == n_z}
+        n_z: {
+            row.seed for row in validation if row.forward_head_n_z == n_z
+        }
         for n_z in expected
     }
     if len({frozenset(seeds) for seeds in seeds_by_nz.values()}) != 1:
         raise ValueError("capacity ladder seeds must be matched across n_z")
     means = {
         n_z: _mean(
-            row.mean_cosine_similarity for row in validation if row.n_z == n_z
+            row.mean_cosine_similarity
+            for row in validation
+            if row.forward_head_n_z == n_z
         )
         for n_z in expected
     }
@@ -539,23 +547,25 @@ def adjudicate_capacity_ladder(
     formal = complete_train and complete_validation and len(seeds_by_nz[3]) >= 3
     flat = gain < minimum_gain
     if not formal:
-        eta_exit = "INELIGIBLE_PILOT"
+        head_exit = "INELIGIBLE_PILOT"
     elif flat:
-        eta_exit = "KILL_ETA_CAPACITY_CLAIM"
+        head_exit = "KEEP_MINIMAL_FORWARD_HEAD"
     else:
-        eta_exit = f"PROMOTE_N_Z_{best_n_z}"
+        head_exit = f"SELECT_FORWARD_HEAD_N_Z_{best_n_z}"
     return CapacityLadderVerdict(
         evidence_level="formal" if formal else "pilot",
-        best_n_z=best_n_z,
+        best_forward_head_n_z=best_n_z,
         best_mean_cosine=means[best_n_z],
-        gain_over_n_z_3=gain,
-        capacity_is_flat=formal and flat,
-        eta_claim_exit=eta_exit,
+        gain_over_forward_head_n_z_3=gain,
+        forward_head_capacity_is_flat=formal and flat,
+        forward_head_claim_exit=head_exit,
         observations=observations,
         description=(
-            f"Real-target capacity ladder is {'formal' if formal else 'pilot'}; "
-            f"best n_z={best_n_z}, cosine gain over n_z=3 is {gain:.6f}, "
-            f"exit={eta_exit}."
+            "Real-target forward-head capacity ladder is "
+            f"{'formal' if formal else 'pilot'}; "
+            f"best forward_head_n_z={best_n_z}, cosine gain over "
+            f"forward_head_n_z=3 is {gain:.6f}, exit={head_exit}. "
+            "This does not test temporal-controller capacity."
         ),
     )
 

@@ -140,7 +140,7 @@ def test_prediction_adjudicator_rejects_unmatched_arm_rows() -> None:
 def test_capacity_ladder_fail_closes_pilot_and_can_formally_kill() -> None:
     rows = tuple(
         CapacityObservation(
-            n_z=n_z,
+            forward_head_n_z=n_z,
             seed=seed,
             split="validation",
             mean_cosine_similarity=0.5 + n_z / 100_000,
@@ -152,12 +152,12 @@ def test_capacity_ladder_fail_closes_pilot_and_can_formally_kill() -> None:
     pilot = adjudicate_capacity_ladder(
         rows, complete_train=False, complete_validation=False
     )
-    assert pilot.eta_claim_exit == "INELIGIBLE_PILOT"
+    assert pilot.forward_head_claim_exit == "INELIGIBLE_PILOT"
     formal = adjudicate_capacity_ladder(
         rows, complete_train=True, complete_validation=True
     )
-    assert formal.capacity_is_flat
-    assert formal.eta_claim_exit == "KILL_ETA_CAPACITY_CLAIM"
+    assert formal.forward_head_capacity_is_flat
+    assert formal.forward_head_claim_exit == "KEEP_MINIMAL_FORWARD_HEAD"
 
 
 def test_prediction_observation_rejects_unknown_arm() -> None:

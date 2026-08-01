@@ -191,6 +191,14 @@ from volvence_zero.substrate.self_mod import (
 from volvence_zero.substrate.text_encoder import (
     SubstrateTextEncoderBackend,
 )
+from volvence_zero.substrate.forward_representation import (
+    SUBSTRATE_FORWARD_READOUT_KIND,
+    SUBSTRATE_FORWARD_REPRESENTATION_SCHEMA_VERSION,
+    SubstrateForwardRepresentation,
+    SubstrateForwardRepresentationLineage,
+    SubstrateForwardRepresentationPublisher,
+    SubstrateForwardRepresentationSnapshot,
+)
 from volvence_zero.substrate.text_generation import (
     HFTextGenerationProvider,
     TextGenerationProvider,
@@ -230,6 +238,12 @@ __all__ = [
     "GroundingVerdict",
     "HFTextGenerationProvider",
     "SubstrateTextEncoderBackend",
+    "SUBSTRATE_FORWARD_READOUT_KIND",
+    "SUBSTRATE_FORWARD_REPRESENTATION_SCHEMA_VERSION",
+    "SubstrateForwardRepresentation",
+    "SubstrateForwardRepresentationLineage",
+    "SubstrateForwardRepresentationPublisher",
+    "SubstrateForwardRepresentationSnapshot",
     "HashingWhitespaceTokenizer",
     "HookLayerCalibrationCase",
     "HookLayerCalibrationReport",

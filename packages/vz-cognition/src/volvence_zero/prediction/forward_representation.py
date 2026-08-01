@@ -14,8 +14,10 @@ import math
 import time
 from typing import Any
 
+from volvence_zero.substrate import SubstrateForwardRepresentationLineage
 
-FORWARD_REPRESENTATION_CHECKPOINT_SCHEMA_VERSION = "forward-representation-head.v1"
+
+FORWARD_REPRESENTATION_CHECKPOINT_SCHEMA_VERSION = "forward-representation-head.v2"
 
 
 def _require_finite_vector(
@@ -39,6 +41,7 @@ class ForwardRepresentationBatch:
     target_representations: tuple[tuple[float, ...], ...]
     persistence_representations: tuple[tuple[float, ...], ...]
     history_turns: tuple[int, ...]
+    target_lineage: SubstrateForwardRepresentationLineage
 
     def __post_init__(self) -> None:
         if not self.batch_id.strip():
@@ -60,6 +63,11 @@ class ForwardRepresentationBatch:
             )
         input_dim = len(self.context_representations[0])
         target_dim = len(self.target_representations[0])
+        if self.target_lineage.representation_dim != target_dim:
+            raise ValueError(
+                "forward representation target lineage dimension mismatch: "
+                f"expected {target_dim}, got {self.target_lineage.representation_dim}"
+            )
         for index in range(count):
             _require_finite_vector(
                 self.context_representations[index],
@@ -117,6 +125,7 @@ class ForwardRepresentationBatchSnapshot:
     mse_improvement_over_persistence: float
     elapsed_ms: float
     parameter_fingerprint: str
+    target_lineage: SubstrateForwardRepresentationLineage
     settlements: tuple[ForwardRepresentationSettlement, ...]
     description: str
 
@@ -130,6 +139,7 @@ class ForwardRepresentationCheckpoint:
     seed: int
     parameter_values: tuple[tuple[str, tuple[int, ...], tuple[float, ...]], ...]
     parameter_fingerprint: str
+    target_lineage: SubstrateForwardRepresentationLineage
     schema_version: str = FORWARD_REPRESENTATION_CHECKPOINT_SCHEMA_VERSION
 
 
@@ -215,6 +225,7 @@ class TorchForwardRepresentationHead:
         self.n_z = n_z
         self.seed = seed
         self.device = resolved_device
+        self._target_lineage: SubstrateForwardRepresentationLineage | None = None
 
     def process(
         self,
@@ -227,6 +238,12 @@ class TorchForwardRepresentationHead:
                 "forward representation batch/head dimension mismatch: "
                 f"batch=({batch.input_dim},{batch.target_dim}) "
                 f"head=({self.input_dim},{self.target_dim})"
+            )
+        if self._target_lineage is None:
+            self._target_lineage = batch.target_lineage
+        elif batch.target_lineage != self._target_lineage:
+            raise ValueError(
+                "forward representation target lineage changed after head binding"
             )
         torch = self._torch
         started = time.perf_counter()
@@ -295,6 +312,7 @@ class TorchForwardRepresentationHead:
             mse_improvement_over_persistence=persistence_mse - mean_mse,
             elapsed_ms=elapsed_ms,
             parameter_fingerprint=fingerprint,
+            target_lineage=batch.target_lineage,
             settlements=tuple(settlements),
             description=(
                 f"N+1 representation batch {batch.batch_id}: n_z={self.n_z}, "
@@ -329,6 +347,10 @@ class TorchForwardRepresentationHead:
     def export_checkpoint(self, *, checkpoint_id: str) -> ForwardRepresentationCheckpoint:
         if not checkpoint_id.strip():
             raise ValueError("forward representation checkpoint_id must be non-empty")
+        if self._target_lineage is None:
+            raise RuntimeError(
+                "forward representation checkpoint requires a bound target lineage"
+            )
         return ForwardRepresentationCheckpoint(
             checkpoint_id=checkpoint_id,
             input_dim=self.input_dim,
@@ -337,6 +359,7 @@ class TorchForwardRepresentationHead:
             seed=self.seed,
             parameter_values=self._parameter_rows(),
             parameter_fingerprint=self.parameter_fingerprint(),
+            target_lineage=self._target_lineage,
         )
 
     def restore_checkpoint(self, checkpoint: ForwardRepresentationCheckpoint) -> None:
@@ -351,6 +374,17 @@ class TorchForwardRepresentationHead:
             raise ValueError(
                 f"forward representation checkpoint geometry mismatch: "
                 f"expected={expected}, got={actual}"
+            )
+        if checkpoint.target_lineage.representation_dim != self.target_dim:
+            raise ValueError(
+                "forward representation checkpoint target lineage dimension mismatch"
+            )
+        if (
+            self._target_lineage is not None
+            and self._target_lineage != checkpoint.target_lineage
+        ):
+            raise ValueError(
+                "forward representation checkpoint target lineage mismatch"
             )
         parameter_by_name = dict(self._model.named_parameters())
         if set(parameter_by_name) != {row[0] for row in checkpoint.parameter_values}:
@@ -369,6 +403,7 @@ class TorchForwardRepresentationHead:
                 parameter.copy_(tensor)
         if self.parameter_fingerprint() != checkpoint.parameter_fingerprint:
             raise ValueError("forward representation checkpoint fingerprint mismatch")
+        self._target_lineage = checkpoint.target_lineage
 
 
 __all__ = (

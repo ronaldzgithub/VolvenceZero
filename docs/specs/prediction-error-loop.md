@@ -92,11 +92,12 @@
 
 `PredictionErrorModule` 额外拥有一条显式配置的高吞吐 batch surface：turn N 的冻结上下文表示预测 turn N+1 的冻结观测表示，下一轮以同一 target 同时训练和结算。它不替换当前 live 四轴 head，也不新增第二个 mismatch owner。
 
-- 输入契约为 frozen `ForwardRepresentationBatch`：`sample_ids`、context、N+1 target、persistence baseline 与 `history_turns` 必须逐样本对齐、维度一致且全为有限值。
+- 输入契约为 frozen `ForwardRepresentationBatch`：`sample_ids`、context、N+1 target、persistence baseline 与 `history_turns` 必须逐样本对齐、维度一致且全为有限值；`target_lineage` 必须是 substrate owner 发布的 `SubstrateForwardRepresentationLineage`，其维度必须与 target/persistence 一致。
 - owner-internal `TorchForwardRepresentationHead` 使用 `input -> tanh(n_z) -> target` 的有界瓶颈；结算发布逐样本 predicted / actual / signed error、MSE、cosine，以及同 target 上的 persistence baseline。
-- `ForwardRepresentationBatchSnapshot` 是离线 research artifact，不是 runtime `Snapshot`，不注册 §6 slot，也不进入 `propagate`。调用方只能经 `PredictionErrorModule.process_forward_representation_batch(...)` 训练或评估，禁止直接实例化 head 形成第二 owner。
-- checkpoint 为 float-only、带 geometry/schema/fingerprint 校验；恢复失败必须 loudly fail。该通道的 target 表示由冻结 encoder 外部提供，PE owner只拥有预测与 mismatch，不拥有 encoder 语义。
-- promotion 条件：真实人类 multi-session heldout 上，N+1 head 必须优于同 target 的 persistence，并通过容量阶梯、长上下文 matched baseline 和多 seed 门；此前保持 offline/report-only。旧 CP-11 四轴手工 head 的 output/target space 与冻结话语表示不同，不能伪造一个跨空间数值对照；它只保留为旧 live-chain mechanism baseline，除非未来先预注册共享 target adapter。
+- `ForwardRepresentationBatchSnapshot` 是 PE owner 的离线 settlement artifact，不进入 live `propagate`；其 target 来自 DATA_CONTRACT §3.1 / §6 注册的 offline SHADOW slot `substrate_forward_representation`。调用方只能经 `PredictionErrorModule.process_forward_representation_batch(...)` 训练或评估，禁止直接实例化 head 形成第二 owner。
+- checkpoint 为 float-only、带 geometry/schema/parameter fingerprint 与完整 target lineage 校验；head 在第一批绑定 lineage，后续 batch、restore 或 model/readout/sample snapshot 漂移必须 loudly fail。
+- target 语义只由 `vz-substrate` 解释：冻结模型最后 token、选定 residual layers、稳定 layer order、L2-normalized readout。PE owner只拥有预测与 mismatch，不遍历 capture、不编码原文。MiniLM/其它外部 sentence encoder target 只允许作为历史 mechanism pilot，不能构造新的 `ForwardRepresentationBatch` 或取得 thesis 资格。
+- promotion 条件：真实人类 multi-session heldout 上，N+1 head 必须优于同 substrate target 的 persistence，并通过 temporal-owner 容量阶梯、同一冻结 substrate 的长上下文 matched baseline、完整 runtime attestation 和多 seed 门；此前保持 offline/report-only。PE forward-head `n_z` 只代表 predictor capacity，不是 temporal-controller `n_z`。旧 CP-11 四轴手工 head 的 output/target space 与 substrate 表示不同，不能伪造跨空间数值对照。
 
 ### Gate 1 LSS link registry
 
@@ -452,6 +453,14 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 | 被依赖 | 慢反思路径 | reflection 将 PE 作为 tensions、lessons 和 policy consolidation 的正式输入 |
 
 ## 变更日志
+
+- 2026-08-01: substrate-target owner convergence。新增
+  `substrate_forward_representation` offline SHADOW slot；冻结 Qwen target 由
+  substrate owner 以 model weights SHA、runtime origin、latest-token selected-layer
+  residual geometry 与 sample/value hashes 发布。PE `ForwardRepresentationBatch`
+  和 checkpoint 升级为 v2 target-lineage binding；MiniLM target 不再能构造正式
+  batch。Companion Bench 容量字段改名 `forward_head_n_z`，并删除所有 ETA
+  promotion/kill 语义。
 
 - 2026-08-01: R2 research packet。`VZ_PE_EVALUATION_DECOUPLED` 默认从
   SHADOW 翻为 ACTIVE，`SHADOW` 保留单 env rollback；matched evidence 同时

@@ -35,6 +35,14 @@ from companion_bench.prediction_research import (
     render_summary_retrieval_context,
 )
 from volvence_zero.prediction import ForwardRepresentationBatch, PredictionErrorModule
+from volvence_zero.substrate import (
+    SubstrateFingerprint,
+    SubstrateForwardRepresentationLineage,
+    SubstrateForwardRepresentationPublisher,
+    SubstrateForwardRepresentationSnapshot,
+    build_transformers_runtime_with_fallback,
+    fingerprint_model_weight_files,
+)
 
 
 def _jsonable(value: object) -> object:
@@ -216,12 +224,85 @@ def _all_atomic_texts(
     return tuple(texts)
 
 
+def _target_atomic_texts(
+    examples_by_split: dict[str, tuple[MSCNextTurnExample, ...]],
+) -> tuple[str, ...]:
+    texts: dict[str, None] = {}
+    for examples in examples_by_split.values():
+        for example in examples:
+            texts[example.target_text] = None
+            texts[example.latest_text] = None
+    return tuple(
+        sorted(
+            texts,
+            key=lambda value: hashlib.sha256(value.encode("utf-8")).hexdigest(),
+        )
+    )
+
+
 def _embedding_map(
     encoder: FrozenSentenceEncoder,
     texts: tuple[str, ...],
 ) -> tuple[dict[str, tuple[float, ...]], float]:
     rows, per_item_ms = encoder.encode(texts)
     return dict(zip(texts, rows, strict=True)), per_item_ms
+
+
+def _build_substrate_target_publisher(
+    *,
+    model_id: str,
+    device: str,
+    activation_width: int,
+    layer_indices: tuple[int, ...] | None,
+) -> tuple[SubstrateForwardRepresentationPublisher, SubstrateFingerprint]:
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError as exc:
+        raise RuntimeError(
+            "MSC substrate target capture requires huggingface-hub"
+        ) from exc
+    snapshot = Path(snapshot_download(repo_id=model_id, local_files_only=True))
+    model_fingerprint = SubstrateFingerprint(
+        model_id=model_id,
+        version=snapshot.name,
+        weights_sha256=fingerprint_model_weight_files(snapshot),
+    )
+    runtime = build_transformers_runtime_with_fallback(
+        model_id=model_id,
+        model_source=str(snapshot),
+        device=device,
+        layer_indices=layer_indices,
+        hook_layer_selection="middle",
+        activation_width=activation_width,
+        local_files_only=True,
+        fallback_mode="deny",
+        runtime_mode="strict-local",
+    )
+    return (
+        SubstrateForwardRepresentationPublisher(
+            runtime,
+            model_fingerprint=model_fingerprint,
+        ),
+        model_fingerprint,
+    )
+
+
+def _substrate_target_map(
+    publisher: SubstrateForwardRepresentationPublisher,
+    texts: tuple[str, ...],
+) -> tuple[dict[str, tuple[float, ...]], SubstrateForwardRepresentationSnapshot]:
+    sample_sources = tuple(
+        (f"text:{hashlib.sha256(value.encode('utf-8')).hexdigest()}", value)
+        for value in texts
+    )
+    snapshot = publisher.publish(sample_sources)
+    return (
+        {
+            text: row.values
+            for text, row in zip(texts, snapshot.representations, strict=True)
+        },
+        snapshot,
+    )
 
 
 def _retrieved_turns(
@@ -357,6 +438,7 @@ def _make_batch(
     target_vectors: tuple[tuple[float, ...], ...],
     persistence_vectors: tuple[tuple[float, ...], ...],
     indices: tuple[int, ...],
+    target_lineage: SubstrateForwardRepresentationLineage,
 ) -> ForwardRepresentationBatch:
     return ForwardRepresentationBatch(
         batch_id=batch_id,
@@ -367,6 +449,7 @@ def _make_batch(
             persistence_vectors[index] for index in indices
         ),
         history_turns=tuple(examples[index].history_turns for index in indices),
+        target_lineage=target_lineage,
     )
 
 
@@ -382,6 +465,7 @@ def _train_head(
     batch_size: int,
     learning_rate: float,
     device: str,
+    target_lineage: SubstrateForwardRepresentationLineage,
 ) -> PredictionErrorModule:
     module = PredictionErrorModule()
     module.configure_forward_representation_head(
@@ -407,6 +491,7 @@ def _train_head(
                     target_vectors=train_targets,
                     persistence_vectors=train_persistence,
                     indices=batch_indices,
+                    target_lineage=target_lineage,
                 ),
                 update=True,
             )
@@ -421,6 +506,7 @@ def _evaluate_head(
     target_vectors: tuple[tuple[float, ...], ...],
     persistence_vectors: tuple[tuple[float, ...], ...],
     batch_size: int,
+    target_lineage: SubstrateForwardRepresentationLineage,
 ) -> tuple[tuple[Any, ...], tuple[float, ...], str]:
     settlements = []
     latencies = []
@@ -435,6 +521,7 @@ def _evaluate_head(
                 target_vectors=target_vectors,
                 persistence_vectors=persistence_vectors,
                 indices=batch_indices,
+                target_lineage=target_lineage,
             ),
             update=False,
         )
@@ -472,6 +559,12 @@ def parse_args() -> argparse.Namespace:
         "--encoder", default="sentence-transformers/all-MiniLM-L6-v2"
     )
     parser.add_argument("--device", default="cpu")
+    parser.add_argument(
+        "--substrate-model", default="Qwen/Qwen2.5-0.5B-Instruct"
+    )
+    parser.add_argument("--substrate-device", default="auto")
+    parser.add_argument("--substrate-activation-width", type=int, default=896)
+    parser.add_argument("--substrate-layer-indices", type=int, nargs="+")
     parser.add_argument("--max-seq-length", type=int, default=512)
     parser.add_argument("--encoder-batch-size", type=int, default=32)
     parser.add_argument("--head-batch-size", type=int, default=64)
@@ -489,8 +582,14 @@ def main() -> int:
     args = parse_args()
     if not args.accept_noncommercial_license:
         raise SystemExit("MSC license acceptance flag is required")
-    if args.epochs < 1 or args.retrieval_count < 1:
-        raise ValueError("epochs/retrieval-count must be positive")
+    if (
+        args.epochs < 1
+        or args.retrieval_count < 1
+        or args.substrate_activation_width < 1
+    ):
+        raise ValueError(
+            "epochs/retrieval-count/substrate-activation-width must be positive"
+        )
     seeds = tuple(args.seeds)
     if len(seeds) < 3 or len(set(seeds)) != len(seeds) or min(seeds) < 0:
         raise ValueError("research run requires at least three unique non-negative seeds")
@@ -541,12 +640,26 @@ def main() -> int:
     atomic_embeddings, atomic_latency_ms = _embedding_map(
         encoder, _all_atomic_texts(examples_by_split)
     )
+    target_publisher, target_model_fingerprint = _build_substrate_target_publisher(
+        model_id=args.substrate_model,
+        device=args.substrate_device,
+        activation_width=args.substrate_activation_width,
+        layer_indices=(
+            tuple(args.substrate_layer_indices)
+            if args.substrate_layer_indices is not None
+            else None
+        ),
+    )
+    target_embeddings, target_snapshot = _substrate_target_map(
+        target_publisher,
+        _target_atomic_texts(examples_by_split),
+    )
     targets_by_split = {
-        split: _targets(examples, atomic_embeddings)
+        split: _targets(examples, target_embeddings)
         for split, examples in examples_by_split.items()
     }
     persistence_by_split = {
-        split: _persistence(examples, atomic_embeddings)
+        split: _persistence(examples, target_embeddings)
         for split, examples in examples_by_split.items()
     }
 
@@ -584,6 +697,7 @@ def main() -> int:
                 batch_size=args.head_batch_size,
                 learning_rate=args.learning_rate,
                 device=args.device,
+                target_lineage=target_snapshot.lineage,
             )
             settlements, _, _ = _evaluate_head(
                 module=module,
@@ -592,10 +706,11 @@ def main() -> int:
                 target_vectors=targets_by_split["validation"],
                 persistence_vectors=persistence_by_split["validation"],
                 batch_size=args.head_batch_size,
+                target_lineage=target_snapshot.lineage,
             )
             capacity_rows.append(
                 CapacityObservation(
-                    n_z=n_z,
+                    forward_head_n_z=n_z,
                     seed=seed,
                     split="validation",
                     mean_cosine_similarity=sum(
@@ -617,7 +732,7 @@ def main() -> int:
 
     observations = []
     head_fingerprints = {}
-    chosen_n_z = capacity_verdict.best_n_z
+    chosen_n_z = capacity_verdict.best_forward_head_n_z
     for arm in PREDICTION_ARMS:
         for seed in seeds:
             module = _train_head(
@@ -631,6 +746,7 @@ def main() -> int:
                 batch_size=args.head_batch_size,
                 learning_rate=args.learning_rate,
                 device=args.device,
+                target_lineage=target_snapshot.lineage,
             )
             settlements, head_latency, fingerprint = _evaluate_head(
                 module=module,
@@ -639,6 +755,7 @@ def main() -> int:
                 target_vectors=targets_by_split["heldout"],
                 persistence_vectors=persistence_by_split["heldout"],
                 batch_size=args.head_batch_size,
+                target_lineage=target_snapshot.lineage,
             )
             head_fingerprints[f"{arm}:seed{seed}"] = fingerprint
             tokens = prepared[(arm, "heldout")][1]
@@ -671,7 +788,7 @@ def main() -> int:
     prediction_verdict = adjudicate_prediction_experiment(
         tuple(observations),
         heldout_sorted_id_sha256=audits["heldout"].sorted_id_sha256,
-        encoder_fingerprint=encoder.fingerprint,
+        encoder_fingerprint=target_model_fingerprint.weights_sha256,
         volvence_full_stack=False,
     )
 
@@ -690,16 +807,23 @@ def main() -> int:
             for split in ("train", "validation", "heldout")
         },
         "encoder": {
+            "role": "context-only-prototype; not the N+1 target owner",
             "model_id": encoder.model_id,
             "fingerprint": encoder.fingerprint,
             "embedding_dim": encoder.embedding_dim,
             "max_seq_length": encoder.max_seq_length,
             "device": encoder.device,
         },
+        "target_representation": {
+            "owner": "vz-substrate",
+            "lineage": asdict(target_snapshot.lineage),
+            "captured_text_count": len(target_snapshot.representations),
+            "raw_text_retained": False,
+        },
         "training": {
             "seeds": seeds,
-            "capacity_n_z": (3, 16, 64, 256),
-            "selected_n_z": chosen_n_z,
+            "forward_head_capacity_n_z": (3, 16, 64, 256),
+            "selected_forward_head_n_z": chosen_n_z,
             "epochs": args.epochs,
             "learning_rate": args.learning_rate,
             "head_batch_size": args.head_batch_size,
@@ -720,13 +844,23 @@ def main() -> int:
             ),
         },
         "claim_boundary": (
-            "This runner produces pilot mechanism evidence only because the "
-            "volvence arm bypasses propagate and is not the complete runtime stack."
+            "The target is now a frozen substrate-owned N+1 residual representation, "
+            "but this remains pilot evidence: contexts still use MiniLM, long_context "
+            "is limited to 256 tokens, and volvence bypasses the complete runtime stack."
         ),
         "execution_status": {
             "evidence_level": "mechanism-only-pilot",
             "thesis_status": "not-evaluated",
             "formal_experiment_executed": False,
+            "completed_blockers": (
+                "official-msc-corpus",
+                "substrate-n-plus-one-target",
+            ),
+            "remaining_blockers": (
+                "same-substrate-long-context-steelman",
+                "complete-volvence-runtime-arm",
+                "temporal-controller-capacity-ladder",
+            ),
         },
         "run_configuration": {
             "train_dyads": args.train_dyads,
@@ -738,6 +872,10 @@ def main() -> int:
             "learning_rate": args.learning_rate,
             "retrieval_count": args.retrieval_count,
             "requested_max_seq_length": args.max_seq_length,
+            "substrate_model": args.substrate_model,
+            "substrate_device": args.substrate_device,
+            "substrate_activation_width": args.substrate_activation_width,
+            "substrate_layer_indices": args.substrate_layer_indices,
             "seeds": seeds,
         },
     }
@@ -756,9 +894,20 @@ def main() -> int:
                 f"- Evidence level: `{prediction_verdict.evidence_level}`",
                 "- Thesis status: `not-evaluated`",
                 "- Formal experiment executed: `false`",
+                (
+                    "- N+1 target owner: `vz-substrate` / "
+                    f"`{target_snapshot.lineage.readout_kind}`"
+                ),
+                (
+                    "- N+1 target model: "
+                    f"`{target_model_fingerprint.to_short_id()}`"
+                ),
                 f"- Thesis exit: `{prediction_verdict.thesis_exit}`",
-                f"- Capacity exit: `{capacity_verdict.eta_claim_exit}`",
-                f"- Selected n_z: `{chosen_n_z}`",
+                (
+                    "- Forward-head capacity exit: "
+                    f"`{capacity_verdict.forward_head_claim_exit}`"
+                ),
+                f"- Selected PE forward_head_n_z: `{chosen_n_z}`",
                 (
                     "- Longest-session cosine advantage vs long context: "
                     f"`{prediction_verdict.longest_quality_advantage:.6f}`"
@@ -784,6 +933,8 @@ def main() -> int:
         / "packages/vz-cognition/src/volvence_zero/prediction/error.py",
         repository_root
         / "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py",
+        repository_root
+        / "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py",
     )
     result_names = (
         "manifest.json",

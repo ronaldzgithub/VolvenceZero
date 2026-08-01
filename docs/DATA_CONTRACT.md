@@ -1110,6 +1110,51 @@ class SubstrateSnapshot:
     personal_conditioning_applied: bool = False
 ```
 
+**Offline N+1 representation exchange（2026-08-01）**：
+
+`vz-substrate` 额外拥有研究用 `substrate_forward_representation` publisher；它不是
+新的模型或第二个 embedding owner，而是对同一冻结 substrate capture 的正式解释。
+
+```python
+@dataclass(frozen=True)
+class SubstrateForwardRepresentation:
+    sample_id: str
+    source_sha256: str                 # 只保存原文 SHA，不发布原文
+    values: tuple[float, ...]          # L2-normalized residual readout
+    values_sha256: str
+
+@dataclass(frozen=True)
+class SubstrateForwardRepresentationLineage:
+    schema_version: str                # substrate-forward-representation.v1
+    snapshot_fingerprint: str
+    model_fingerprint: SubstrateFingerprint
+    runtime_origin: str
+    readout_kind: str                  # latest-token-selected-layer-residual-l2.v1
+    layer_indices: tuple[int, ...]
+    activation_widths: tuple[int, ...]
+    representation_dim: int
+
+@dataclass(frozen=True)
+class SubstrateForwardRepresentationSnapshot:
+    lineage: SubstrateForwardRepresentationLineage
+    representations: tuple[SubstrateForwardRepresentation, ...]
+    description: str
+```
+
+- publisher 只接受 `is_frozen=True`、完整 64-hex weights SHA、显式
+  `runtime_origin` 的 runtime；model id 不一致、residual 缺失、跨样本 geometry
+  漂移、非有限/零范数或 conditioned capture 全部 fail loudly。
+- readout 由 source text 的最后 token、已选 residual layers 依 layer index 排序展平并
+  L2 normalize；layer/width/model/readout/sample/value hashes 全部进入 snapshot
+  fingerprint。consumer 不得另行遍历 `OpenWeightRuntimeCapture` 重建该向量。
+- 原文只存在于 substrate capture 调用期间；公共交换只发布 `source_sha256`。
+- `prediction_error` 的 offline `ForwardRepresentationBatch` 必须携带此 lineage，且
+  target/persistence 与 `representation_dim` 同空间。head 首批绑定 lineage，后续
+  batch 或 checkpoint 漂移立即失败。
+- 此 slot 当前为 offline/report-only SHADOW，不进入 live `propagate` DAG；回滚为
+  停止发布/消费该 slot，旧外部 sentence-encoder pilot 只能保留
+  `thesis_status=not-evaluated`，不得自动恢复 thesis 资格。
+
 **阶段化 contract**：
 
 - 当前稳定 contract：`surface_kind=FEATURE_SURFACE`，发布 `feature_surface` 与可选 `token_logits`
@@ -2027,6 +2072,7 @@ reflection ──────────────→ proposals; runtime invo
 | Slot Name | Owner 模块 | Value 类型 | 默认接线 | 发布频率 | 消费者 |
 |-----------|-----------|-----------|----------|----------|--------|
 | `substrate` | SubstrateModule | SubstrateSnapshot | SHADOW | 每 turn | temporal_abstraction, memory, dual_track, evaluation, prediction_error |
+| `substrate_forward_representation` | SubstrateForwardRepresentationPublisher (`vz-substrate`) | SubstrateForwardRepresentationSnapshot | SHADOW（offline research） | frozen corpus batch | prediction_error offline ForwardRepresentationBatch；不进入 live DAG |
 | `substrate_self_mod` | SubstrateSelfModModule | SubstrateSelfModSnapshot | SHADOW | 每 turn / schedule | session / credit audit / rare-heavy review |
 | `world_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |
 | `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |
