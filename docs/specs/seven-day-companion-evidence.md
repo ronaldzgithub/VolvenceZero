@@ -125,6 +125,17 @@ capture 仍须携带 synthetic consent-scope SHA、PII scan artifact SHA、明�
 `human_anchor_claim_allowed=false`、`human_ratings_pending=true`；未取得真人评分时只是可发给
 rater 的材料，不是 human evidence。
 
+## 独立完成审计
+
+正式 bundle 完成后，必须从只读的 execution root 调用
+`scripts/audit_seven_day_companion_formal.py`，重新校验 preregistration、冻结用户脚本、
+36 个 run、service/session identity、重启链、state archive/loaded copy digest、measurement
+checkpoint、pilot transcript、每日 readout、console actions 和 promotion verdict。审计器
+重新运行同一 `evaluate_seven_day_ablation`，磁盘结果与重算结果不完全相等即 fail closed；
+同时拒绝 service log 中的 HTTP 4xx/5xx，并将 `production_promotion_authorized=false`、
+`evaluation_writeback_allowed=false` 写入 `seven-day-companion-independent-audit.v1`
+报告。审计报告只证明物证完整，不改变 simulated-user-only claim scope，也不替代真人评分。
+
 ## 失败、退出与回滚
 
 - correct-state 不优于 stateless：把连续性主张收缩到 typed owner metric 行为；不换
