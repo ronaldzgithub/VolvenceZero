@@ -9,8 +9,10 @@ with source SHAs.
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import hashlib
 import importlib.util
+import inspect
 import json
 import platform
 import subprocess
@@ -23,13 +25,149 @@ from pathlib import Path
 import torch
 import transformers
 
+from companion_test_plan_common import (
+    MPSAvailability,
+    exclusive_mps_lock,
+    mps_payload,
+    require_mps,
+)
+from msc_prediction_checkpoint import PredictionRunCheckpointStore
+from preregister_eta_rate_distortion import (
+    PREREGISTRATION_SCHEMA_VERSION,
+    VERDICT_SET,
+)
 from volvence_zero.agent.eta_proof_benchmark import ETAOpenWeightRuntimeConfig
 from volvence_zero.agent.eta_rate_distortion_evidence import (
     RateDistortionEvidenceReport,
+    RateDistortionPoint,
+    assess_gap,
     run_eta_rate_distortion_evidence,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+
+PLAN_ID = "eta-rate-distortion-mps.v1"
+CHECKPOINT_SCHEMA_NAMESPACE = "eta-rate-distortion"
+
+
+class PreregistrationMismatch(RuntimeError):
+    """Raised when the frozen protocol disagrees with what would be run."""
+
+
+class RateDistortionCheckpointCache:
+    """Per-cell resume journal for the sweep.
+
+    Each ``(arm, alpha, seed)`` cell is a separate immutable unit, so an
+    interrupted sweep resumes at cell granularity instead of discarding hours
+    of accelerator time.
+    """
+
+    def __init__(self, store: PredictionRunCheckpointStore) -> None:
+        self._store = store
+
+    @staticmethod
+    def _unit(*, arm: str, alpha: float, seed: int) -> str:
+        return f"points/{arm}/alpha-{alpha:g}/seed-{seed}"
+
+    def _relative_path(self, *, arm: str, alpha: float, seed: int) -> str:
+        return f"checkpoints/{self._unit(arm=arm, alpha=alpha, seed=seed)}.json"
+
+    def load_point(
+        self, *, arm: str, alpha: float, seed: int
+    ) -> RateDistortionPoint | None:
+        payload = self._store.load_json(
+            unit=self._unit(arm=arm, alpha=alpha, seed=seed),
+            relative_path=self._relative_path(arm=arm, alpha=alpha, seed=seed),
+        )
+        if payload is None:
+            return None
+        if not isinstance(payload, dict):
+            raise ValueError(
+                f"rate-distortion checkpoint for {arm}/{alpha:g}/{seed} is not "
+                "an object"
+            )
+        return RateDistortionPoint(**payload)
+
+    def store_point(self, point: RateDistortionPoint) -> None:
+        self._store.save_json(
+            unit=self._unit(
+                arm=point.arm, alpha=point.alpha, seed=point.seed
+            ),
+            relative_path=self._relative_path(
+                arm=point.arm, alpha=point.alpha, seed=point.seed
+            ),
+            payload=asdict(point),
+        )
+
+
+def _validate_preregistration(
+    payload: object, *, args: argparse.Namespace
+) -> dict[str, object]:
+    """Fail closed unless the frozen protocol matches this exact execution."""
+
+    if not isinstance(payload, dict):
+        raise PreregistrationMismatch("preregistration root must be an object")
+    if payload.get("schema_version") != PREREGISTRATION_SCHEMA_VERSION:
+        raise PreregistrationMismatch(
+            "preregistration schema_version must be "
+            f"{PREREGISTRATION_SCHEMA_VERSION!r}, got "
+            f"{payload.get('schema_version')!r}"
+        )
+    sweep = payload.get("sweep")
+    if not isinstance(sweep, dict):
+        raise PreregistrationMismatch("preregistration sweep must be an object")
+    requested = {
+        "alpha_grid": list(args.alphas),
+        "seed_schedule": list(range(args.seeds)),
+        "n_z": args.n_z,
+        "updates_per_run": args.updates,
+        "learning_rate": args.learning_rate,
+        "substrate_learning_rate": args.substrate_learning_rate,
+        "switch_threshold": args.switch_threshold,
+        "arms": list(args.arms),
+        "model_id": args.model_id,
+        "device": args.device,
+    }
+    for key, value in requested.items():
+        if sweep.get(key) != value:
+            raise PreregistrationMismatch(
+                f"preregistered {key}={sweep.get(key)!r} does not match the "
+                f"requested {key}={value!r}"
+            )
+
+    thresholds = payload.get("gap_thresholds")
+    if not isinstance(thresholds, dict):
+        raise PreregistrationMismatch(
+            "preregistration gap_thresholds must be an object"
+        )
+    defaults = inspect.signature(assess_gap).parameters
+    for name in (
+        "drop_share_threshold",
+        "rate_share_threshold",
+        "noise_multiple",
+    ):
+        if thresholds.get(name) != defaults[name].default:
+            raise PreregistrationMismatch(
+                f"preregistered {name}={thresholds.get(name)!r} does not match "
+                f"the executing default {defaults[name].default!r}"
+            )
+
+    frozen_sources = payload.get("frozen_source_files")
+    if not isinstance(frozen_sources, dict) or not frozen_sources:
+        raise PreregistrationMismatch(
+            "preregistration must freeze at least one source file"
+        )
+    drifted = {
+        name: {"preregistered": expected, "current": _sha256(_REPO_ROOT / name)}
+        for name, expected in frozen_sources.items()
+        if _sha256(_REPO_ROOT / name) != expected
+    }
+    if drifted:
+        raise PreregistrationMismatch(
+            "source drift since preregistration; a mid-campaign source change "
+            f"invalidates the run: {json.dumps(drifted, sort_keys=True)}"
+        )
+    return payload
 
 _KEY_SOURCE_FILES = (
     "packages/vz-substrate/src/volvence_zero/substrate/steered_action_scoring.py",
@@ -132,7 +270,9 @@ def _maybe_plot(report: RateDistortionEvidenceReport, output_dir: Path) -> str:
     return plot_path.name
 
 
-def _report_markdown(report: RateDistortionEvidenceReport) -> str:
+def _report_markdown(
+    report: RateDistortionEvidenceReport, *, preregistered: bool
+) -> str:
     lines = [
         "# ETA rate-distortion criterion",
         "",
@@ -152,6 +292,13 @@ def _report_markdown(report: RateDistortionEvidenceReport) -> str:
         f"## Verdict: `{report.verdict}`",
         "",
         report.verdict_reason,
+        "",
+        (
+            "This verdict is authoritative under the frozen protocol."
+            if preregistered
+            else "**Not preregistered — mechanism-only smoke.** This verdict "
+            "is not authoritative and must not be cited as evidence."
+        ),
         "",
         f"- arms distinguishable: {report.arms_distinguishable} "
         f"(max separation {report.arm_separation:.4f}, "
@@ -236,6 +383,33 @@ def main() -> None:
     parser.add_argument("--switch-threshold", type=float, default=0.55)
     parser.add_argument("--device", default="mps")
     parser.add_argument(
+        "--mps-lock",
+        type=Path,
+        default=Path("artifacts/.companion-evidence-mps.lock"),
+        help=(
+            "Shared lock preventing this sweep from running while another "
+            "companion evidence plan already owns the MPS device."
+        ),
+    )
+    parser.add_argument(
+        "--preregistration",
+        type=Path,
+        default=None,
+        help=(
+            "Frozen protocol from preregister_eta_rate_distortion.py. Without "
+            "it the run is stamped mechanism-only-smoke and its verdict is "
+            "not authoritative."
+        ),
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Reuse an existing output directory's per-cell checkpoints. "
+            "Without it an existing output directory is refused."
+        ),
+    )
+    parser.add_argument(
         "--model-id", default=ETAOpenWeightRuntimeConfig().model_id
     )
     parser.add_argument(
@@ -251,24 +425,70 @@ def main() -> None:
         parser.error("--updates must be at least 1")
 
     output_dir: Path = args.output_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
-    started = time.perf_counter()
+    preregistration: dict[str, object] | None = None
+    preregistration_sha256 = ""
+    if args.preregistration is not None:
+        preregistration = _validate_preregistration(
+            json.loads(args.preregistration.read_text(encoding="utf-8")),
+            args=args,
+        )
+        preregistration_sha256 = _sha256(args.preregistration)
     config = ETAOpenWeightRuntimeConfig(
         model_id=args.model_id,
         device=args.device,
     )
-    report = run_eta_rate_distortion_evidence(
-        alpha_grid=tuple(args.alphas),
-        seed_schedule=tuple(range(args.seeds)),
-        n_z=args.n_z,
-        updates_per_run=args.updates,
-        learning_rate=args.learning_rate,
-        substrate_learning_rate=args.substrate_learning_rate,
-        switch_threshold=args.switch_threshold,
-        open_weight_config=config,
-        arms=tuple(args.arms),
+    checkpoint_store = PredictionRunCheckpointStore(
+        output_dir=output_dir,
+        configuration={
+            "experiment_id": "eta-rate-distortion-criterion",
+            "alpha_grid": list(args.alphas),
+            "seed_schedule": list(range(args.seeds)),
+            "n_z": args.n_z,
+            "updates_per_run": args.updates,
+            "learning_rate": args.learning_rate,
+            "substrate_learning_rate": args.substrate_learning_rate,
+            "switch_threshold": args.switch_threshold,
+            "arms": list(args.arms),
+            "model_id": args.model_id,
+            "device": args.device,
+            "preregistration_sha256": preregistration_sha256,
+            "source_sha256": {
+                name: _sha256(_REPO_ROOT / name) for name in _KEY_SOURCE_FILES
+            },
+        },
+        resume=args.resume,
+        schema_namespace=CHECKPOINT_SCHEMA_NAMESPACE,
     )
-    elapsed = time.perf_counter() - started
+    uses_mps = args.device.startswith("mps")
+    with ExitStack() as stack:
+        mps: MPSAvailability | None = None
+        if uses_mps:
+            # Two MPS evidence stages must never share the device: the memory
+            # contention silently distorts every wall-clock readout.
+            stack.enter_context(
+                exclusive_mps_lock(args.mps_lock, plan_id=PLAN_ID)
+            )
+            mps = require_mps()
+        started = time.perf_counter()
+        report = run_eta_rate_distortion_evidence(
+            alpha_grid=tuple(args.alphas),
+            seed_schedule=tuple(range(args.seeds)),
+            n_z=args.n_z,
+            updates_per_run=args.updates,
+            learning_rate=args.learning_rate,
+            substrate_learning_rate=args.substrate_learning_rate,
+            switch_threshold=args.switch_threshold,
+            open_weight_config=config,
+            arms=tuple(args.arms),
+            point_cache=RateDistortionCheckpointCache(checkpoint_store),
+        )
+        elapsed = time.perf_counter() - started
+    checkpoint_store.mark_complete()
+    if report.verdict not in VERDICT_SET:
+        raise RuntimeError(
+            f"verdict {report.verdict!r} is outside the frozen verdict set "
+            f"{VERDICT_SET}"
+        )
 
     _write_json(output_dir / "report.json", asdict(report))
     points_path = output_dir / "points.jsonl"
@@ -285,7 +505,8 @@ def main() -> None:
     )
     plot_name = _maybe_plot(report, output_dir)
     (output_dir / "report.md").write_text(
-        _report_markdown(report), encoding="utf-8"
+        _report_markdown(report, preregistered=preregistration is not None),
+        encoding="utf-8",
     )
 
     result_files = [
@@ -305,6 +526,19 @@ def main() -> None:
         "working_tree_dirty": bool(_git_value("status", "--short")),
         "verdict": report.verdict,
         "verdict_reason": report.verdict_reason,
+        "preregistered": preregistration is not None,
+        "preregistration_path": (
+            str(args.preregistration) if args.preregistration else ""
+        ),
+        "preregistration_sha256": preregistration_sha256,
+        "verdict_authoritative": preregistration is not None,
+        "claim_scope": (
+            "eta-temporal-abstraction-criterion-only"
+            if preregistration is not None
+            else "mechanism-only-smoke"
+        ),
+        "resumed": bool(args.resume),
+        "checkpoint_units": checkpoint_store.immutable_file_manifest(),
         "arms": list(report.arms),
         "alpha_grid": list(report.alpha_grid),
         "seed_schedule": list(report.seed_schedule),
@@ -326,6 +560,8 @@ def main() -> None:
         "torch_version": str(torch.__version__),
         "transformers_version": str(transformers.__version__),
         "mps_available": bool(torch.backends.mps.is_available()),
+        "mps_exclusive_lock": str(args.mps_lock) if uses_mps else "not-required",
+        "mps_attestation": mps_payload(mps) if mps is not None else "not-required",
         "matplotlib_plot": plot_name or "unavailable",
         "result_files": {
             name: _sha256(output_dir / name) for name in result_files

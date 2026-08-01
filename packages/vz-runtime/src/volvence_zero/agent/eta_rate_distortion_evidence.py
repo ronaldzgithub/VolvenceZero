@@ -38,6 +38,7 @@ from dataclasses import dataclass, replace
 import math
 import statistics
 import time
+from typing import Protocol
 
 from volvence_zero.agent.eta_proof_benchmark import (
     ETAOpenWeightRuntimeConfig,
@@ -574,125 +575,31 @@ def assess_gap(
     )
 
 
-def _arm_separation(
-    frozen_curve: tuple[RateDistortionCurvePoint, ...],
-    joint_curve: tuple[RateDistortionCurvePoint, ...],
-) -> float:
-    by_alpha = {row.alpha: row for row in joint_curve}
-    gaps = tuple(
-        abs(row.distortion_mean - by_alpha[row.alpha].distortion_mean)
-        for row in frozen_curve
-    )
-    return max(gaps) if gaps else 0.0
+@dataclass(frozen=True)
+class RateDistortionAdjudication:
+    """The retain/kill decision derived purely from the aggregate curves.
+
+    Kept separate from the sweep so an auditor can recompute the verdict
+    from ``curves.json`` and ``gap_assessments.json`` alone, without the
+    model or an accelerator.
+    """
+
+    arms_distinguishable: bool
+    arm_separation: float
+    arm_separation_threshold: float
+    verdict: str
+    verdict_reason: str
 
 
-def run_eta_rate_distortion_evidence(
+def adjudicate_rate_distortion(
+    curves: tuple[RateDistortionCurvePoint, ...],
+    gaps: tuple[GapAssessment, ...],
     *,
-    alpha_grid: tuple[float, ...] = (0.01, 0.03, 0.1, 0.3, 1.0, 3.0),
-    seed_schedule: tuple[int, ...] = (0, 1, 2),
-    n_z: int = 16,
-    updates_per_run: int = 40,
-    learning_rate: float = 0.02,
-    substrate_learning_rate: float = 1e-4,
-    switch_threshold: float = 0.55,
-    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
-    arms: tuple[str, ...] = _ARMS,
-) -> RateDistortionEvidenceReport:
-    if len(alpha_grid) < 3:
-        raise ValueError("alpha_grid needs at least three values.")
-    if len(set(alpha_grid)) != len(alpha_grid):
-        raise ValueError("alpha_grid values must be unique.")
-    if not seed_schedule:
-        raise ValueError("seed_schedule must contain at least one seed.")
-    unknown_arms = set(arms) - set(_ARMS)
-    if unknown_arms or not arms:
-        raise ValueError(f"arms must be a subset of {_ARMS}, got {arms!r}.")
-    config = open_weight_config or ETAOpenWeightRuntimeConfig(device="mps")
-    if config.model_dtype != "float32":
-        # fp16 master weights overflow under Adam in the joint arm, and the
-        # arm comparison must not be confounded by dtype; force fp32.
-        config = replace(config, model_dtype="float32")
-    runtime = _build_eta_open_weight_runtime(config)
-    _validate_eta_open_weight_runtime(runtime=runtime, config=config)
+    arms: tuple[str, ...],
+) -> RateDistortionAdjudication:
+    """Map aggregate curves and gap assessments onto the frozen verdict set."""
 
-    environment = build_default_eta_proof_environment()
-    options = _action_options(environment)
-    cases = default_eta_proof_cases()
-    train_cases = tuple(case for case in cases if case.split == "train")
-    heldout_cases = tuple(case for case in cases if case.split != "train")
-    if not train_cases or not heldout_cases:
-        raise RuntimeError(
-            "Rate-distortion sweep needs both train and heldout proof cases."
-        )
-    train_traces = _build_traces(train_cases, runtime=runtime, label="train")
-    heldout_traces = _build_traces(
-        heldout_cases, runtime=runtime, label="heldout"
-    )
-    train_step_count = sum(len(trace.steps) for trace in train_traces)
-    heldout_step_count = sum(len(trace.steps) for trace in heldout_traces)
-
-    points: list[RateDistortionPoint] = []
-    frozen_scorer = None
-    injection_layer_index = -1
-    control_norm_cap = 0.0
-    probe_hidden_norm = 0.0
-    for arm in arms:
-        joint = arm == "joint"
-        scorer = runtime.build_steered_action_scorer(
-            action_options=options,
-            joint_training=joint,
-        )
-        if not joint:
-            frozen_scorer = scorer
-        injection_layer_index = scorer.injection_layer_index
-        control_norm_cap = scorer.control_norm_cap
-        probe_hidden_norm = scorer.probe_hidden_norm
-        try:
-            for alpha in alpha_grid:
-                for seed in seed_schedule:
-                    if joint:
-                        scorer.reset_joint_parameters()
-                    baseline_train = _baseline_distortion(
-                        train_traces, scorer
-                    )
-                    baseline_heldout = _baseline_distortion(
-                        heldout_traces, scorer
-                    )
-                    points.append(
-                        _run_single(
-                            arm=arm,
-                            alpha=alpha,
-                            seed=seed,
-                            n_z=n_z,
-                            scorer=scorer,
-                            train_traces=train_traces,
-                            heldout_traces=heldout_traces,
-                            updates_per_run=updates_per_run,
-                            learning_rate=learning_rate,
-                            substrate_learning_rate=substrate_learning_rate,
-                            switch_threshold=switch_threshold,
-                            baseline_train=baseline_train,
-                            baseline_heldout=baseline_heldout,
-                        )
-                    )
-        finally:
-            if joint:
-                # Never leave the shared frozen runtime dirty, even if a
-                # sweep cell raised.
-                scorer.restore_and_freeze()
-    del frozen_scorer
-
-    point_tuple = tuple(points)
-    curves: list[RateDistortionCurvePoint] = []
-    gaps: list[GapAssessment] = []
-    for arm in arms:
-        arm_curve = _aggregate_curve(
-            point_tuple, arm=arm, alpha_grid=alpha_grid
-        )
-        curves.extend(arm_curve)
-        gaps.append(assess_gap(arm_curve, arm=arm))
     gap_by_arm = {gap.arm: gap for gap in gaps}
-
     pooled_std = _mean(tuple(row.distortion_std for row in curves))
     arm_separation_threshold = max(2.0 * pooled_std, 0.02)
     if set(arms) == set(_ARMS):
@@ -754,13 +661,170 @@ def run_eta_rate_distortion_evidence(
             "The joint arm also shows a gap, contradicting the paper's "
             "prediction; the instrument is suspect."
         )
+    return RateDistortionAdjudication(
+        arms_distinguishable=arms_distinguishable,
+        arm_separation=arm_separation,
+        arm_separation_threshold=arm_separation_threshold,
+        verdict=verdict,
+        verdict_reason=verdict_reason,
+    )
+
+
+def _arm_separation(
+    frozen_curve: tuple[RateDistortionCurvePoint, ...],
+    joint_curve: tuple[RateDistortionCurvePoint, ...],
+) -> float:
+    by_alpha = {row.alpha: row for row in joint_curve}
+    gaps = tuple(
+        abs(row.distortion_mean - by_alpha[row.alpha].distortion_mean)
+        for row in frozen_curve
+    )
+    return max(gaps) if gaps else 0.0
+
+
+class RateDistortionPointCache(Protocol):
+    """Per-cell resume journal owned by the caller, not by this module.
+
+    A sweep is 2 arms x |alpha grid| x |seeds| independently trained cells,
+    each costing minutes of exclusive accelerator time. Without a journal an
+    interrupt discards the whole sweep, which in practice pressures the
+    operator into shortening the grid.
+    """
+
+    def load_point(
+        self, *, arm: str, alpha: float, seed: int
+    ) -> RateDistortionPoint | None: ...
+
+    def store_point(self, point: RateDistortionPoint) -> None: ...
+
+
+def run_eta_rate_distortion_evidence(
+    *,
+    alpha_grid: tuple[float, ...] = (0.01, 0.03, 0.1, 0.3, 1.0, 3.0),
+    seed_schedule: tuple[int, ...] = (0, 1, 2),
+    n_z: int = 16,
+    updates_per_run: int = 40,
+    learning_rate: float = 0.02,
+    substrate_learning_rate: float = 1e-4,
+    switch_threshold: float = 0.55,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
+    arms: tuple[str, ...] = _ARMS,
+    point_cache: RateDistortionPointCache | None = None,
+) -> RateDistortionEvidenceReport:
+    if len(alpha_grid) < 3:
+        raise ValueError("alpha_grid needs at least three values.")
+    if len(set(alpha_grid)) != len(alpha_grid):
+        raise ValueError("alpha_grid values must be unique.")
+    if not seed_schedule:
+        raise ValueError("seed_schedule must contain at least one seed.")
+    unknown_arms = set(arms) - set(_ARMS)
+    if unknown_arms or not arms:
+        raise ValueError(f"arms must be a subset of {_ARMS}, got {arms!r}.")
+    config = open_weight_config or ETAOpenWeightRuntimeConfig(device="mps")
+    if config.model_dtype != "float32":
+        # fp16 master weights overflow under Adam in the joint arm, and the
+        # arm comparison must not be confounded by dtype; force fp32.
+        config = replace(config, model_dtype="float32")
+    runtime = _build_eta_open_weight_runtime(config)
+    _validate_eta_open_weight_runtime(runtime=runtime, config=config)
+
+    environment = build_default_eta_proof_environment()
+    options = _action_options(environment)
+    cases = default_eta_proof_cases()
+    train_cases = tuple(case for case in cases if case.split == "train")
+    heldout_cases = tuple(case for case in cases if case.split != "train")
+    if not train_cases or not heldout_cases:
+        raise RuntimeError(
+            "Rate-distortion sweep needs both train and heldout proof cases."
+        )
+    train_traces = _build_traces(train_cases, runtime=runtime, label="train")
+    heldout_traces = _build_traces(
+        heldout_cases, runtime=runtime, label="heldout"
+    )
+    train_step_count = sum(len(trace.steps) for trace in train_traces)
+    heldout_step_count = sum(len(trace.steps) for trace in heldout_traces)
+
+    points: list[RateDistortionPoint] = []
+    frozen_scorer = None
+    injection_layer_index = -1
+    control_norm_cap = 0.0
+    probe_hidden_norm = 0.0
+    for arm in arms:
+        joint = arm == "joint"
+        scorer = runtime.build_steered_action_scorer(
+            action_options=options,
+            joint_training=joint,
+        )
+        if not joint:
+            frozen_scorer = scorer
+        injection_layer_index = scorer.injection_layer_index
+        control_norm_cap = scorer.control_norm_cap
+        probe_hidden_norm = scorer.probe_hidden_norm
+        try:
+            for alpha in alpha_grid:
+                for seed in seed_schedule:
+                    if point_cache is not None:
+                        cached = point_cache.load_point(
+                            arm=arm, alpha=alpha, seed=seed
+                        )
+                        if cached is not None:
+                            points.append(cached)
+                            continue
+                    if joint:
+                        # Every cell starts from pristine upper blocks, so a
+                        # resumed sweep is identical to an uninterrupted one.
+                        scorer.reset_joint_parameters()
+                    baseline_train = _baseline_distortion(
+                        train_traces, scorer
+                    )
+                    baseline_heldout = _baseline_distortion(
+                        heldout_traces, scorer
+                    )
+                    point = _run_single(
+                        arm=arm,
+                        alpha=alpha,
+                        seed=seed,
+                        n_z=n_z,
+                        scorer=scorer,
+                        train_traces=train_traces,
+                        heldout_traces=heldout_traces,
+                        updates_per_run=updates_per_run,
+                        learning_rate=learning_rate,
+                        substrate_learning_rate=substrate_learning_rate,
+                        switch_threshold=switch_threshold,
+                        baseline_train=baseline_train,
+                        baseline_heldout=baseline_heldout,
+                    )
+                    if point_cache is not None:
+                        point_cache.store_point(point)
+                    points.append(point)
+        finally:
+            if joint:
+                # Never leave the shared frozen runtime dirty, even if a
+                # sweep cell raised.
+                scorer.restore_and_freeze()
+    del frozen_scorer
+
+    point_tuple = tuple(points)
+    curves: list[RateDistortionCurvePoint] = []
+    gaps: list[GapAssessment] = []
+    for arm in arms:
+        arm_curve = _aggregate_curve(
+            point_tuple, arm=arm, alpha_grid=alpha_grid
+        )
+        curves.extend(arm_curve)
+        gaps.append(assess_gap(arm_curve, arm=arm))
+
+    adjudication = adjudicate_rate_distortion(
+        tuple(curves), tuple(gaps), arms=arms
+    )
 
     return RateDistortionEvidenceReport(
         schema_version=RATE_DISTORTION_SCHEMA_VERSION,
         model_id=runtime.model_id,
         device=config.device,
-        runtime_origin=str(getattr(runtime, "runtime_origin", "unknown")),
-        fallback_active=bool(getattr(runtime, "fallback_active", False)),
+        runtime_origin=str(runtime.runtime_origin),
+        fallback_active=bool(runtime.fallback_active),
         injection_layer_index=injection_layer_index,
         control_norm_cap=control_norm_cap,
         probe_hidden_norm=probe_hidden_norm,
@@ -785,15 +849,15 @@ def run_eta_rate_distortion_evidence(
         points=point_tuple,
         curves=tuple(curves),
         gaps=tuple(gaps),
-        arms_distinguishable=arms_distinguishable,
-        arm_separation=arm_separation,
-        arm_separation_threshold=arm_separation_threshold,
-        verdict=verdict,
-        verdict_reason=verdict_reason,
+        arms_distinguishable=adjudication.arms_distinguishable,
+        arm_separation=adjudication.arm_separation,
+        arm_separation_threshold=adjudication.arm_separation_threshold,
+        verdict=adjudication.verdict,
+        verdict_reason=adjudication.verdict_reason,
         description=(
             "ETA Eq.3 rate-distortion criterion: "
             f"{len(arms)} arms x {len(alpha_grid)} alphas x "
             f"{len(seed_schedule)} seeds, {updates_per_run} updates per "
-            f"run, verdict={verdict}."
+            f"run, verdict={adjudication.verdict}."
         ),
     )
