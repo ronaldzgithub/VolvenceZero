@@ -415,6 +415,14 @@ def audit(
         )
     source_audit_path = output_root / "synthetic_source_audit.json"
     source_audit_sha = _file_sha256(source_audit_path)
+    source_audit = _load_mapping(source_audit_path, field="source audit")
+    if (
+        source_audit.get("real_person_data") is not False
+        or source_audit.get("consent_scope") != "synthetic-no-human-subject"
+        or source_audit.get("semantic_event_tags_are_typed") is not True
+        or source_audit.get("text_keyword_pii_inference_used") is not False
+    ):
+        raise ValueError("synthetic source audit claim boundary drift")
     scripts: dict[str, FrozenSevenDayUserScript] = {}
     for case in cases:
         script_path = output_root / "user_scripts" / (
@@ -429,6 +437,20 @@ def audit(
             raise ValueError(f"frozen user script case drift: {case.case_id}")
         scripts[case.case_id] = script
     envelopes = []
+    formal_models = _require_mapping(
+        preregistration.get("formal_models"), field="formal_models"
+    )
+    sut_model = _require_mapping(formal_models.get("sut"), field="sut model")
+    simulator_model = _require_mapping(
+        formal_models.get("simulator"), field="simulator model"
+    )
+    expected_model_fingerprint = _canonical_sha256(
+        {
+            "sut_model_id": sut_model.get("model_id"),
+            "sut_weights_sha256": sut_model.get("weights_sha256"),
+            "adapter": "none",
+        }
+    )
     all_ids = {
         "run_ids": set(),
         "session_ids": set(),
@@ -449,6 +471,19 @@ def audit(
                 output_root=output_root, case=case, arm=arm
             )
             run = _load_mapping(run_path, field="formal run")
+            attestation = _require_mapping(
+                run.get("source_attestation"), field="source_attestation"
+            )
+            expected_attestation = {
+                "simulator_model_id": simulator_model.get("model_id"),
+                "simulator_model_family": simulator_model.get("model_family"),
+                "sut_model_id": sut_model.get("model_id"),
+                "sut_model_family": sut_model.get("model_family"),
+                "model_and_adapter_fingerprint": expected_model_fingerprint,
+            }
+            for field, expected_value in expected_attestation.items():
+                if attestation.get(field) != expected_value:
+                    raise ValueError(f"formal source attestation {field} drift")
             envelopes.append(
                 SevenDayRunEnvelope(case=case, arm_label=arm, run=run)
             )
@@ -470,7 +505,7 @@ def audit(
     result = evaluate_seven_day_ablation(
         runs=tuple(envelopes), preregistration=preregistration
     )
-    recomputed_result = result.to_json()
+    recomputed_result = json.loads(_canonical_bytes(result.to_json()))
     on_disk_result = _load_mapping(
         output_root / "ablation_results.json", field="ablation results"
     )
@@ -486,16 +521,40 @@ def audit(
     expected_failed = [
         name for name, passed in result.gates.items() if not passed
     ]
-    if (
-        verdict.get("passed") is not result.passed
-        or verdict.get("failed_gates") != expected_failed
-        or verdict.get("claim_scope")
-        != "simulated-user-real-lifecycle-only"
-        or verdict.get("external_human_value_claim_allowed") is not False
-        or verdict.get("production_promotion_authorized") is not False
-        or verdict.get("evaluation_writeback_allowed") is not False
-    ):
+    expected_verdict = {
+        "schema_version": "seven-day-companion-verdict.v1",
+        "passed": result.passed,
+        "claim_scope": "simulated-user-real-lifecycle-only",
+        "external_human_value_claim_allowed": False,
+        "production_promotion_authorized": False,
+        "evaluation_writeback_allowed": False,
+        "failed_gates": expected_failed,
+    }
+    if verdict != expected_verdict:
         raise ValueError("promotion verdict differs from recomputation")
+    expected_manifest = {
+        "schema_version": "seven-day-companion-ablation.v1",
+        "preregistration_sha256": result.preregistration_sha256,
+        "arm_schedule": list(SEVEN_DAY_ALL_ARMS),
+        "case_count": result.case_count,
+        "run_count": result.run_count,
+        "required_files": [
+            "ablation_results.json",
+            "daily_metrics.jsonl",
+            "promotion_verdict.json",
+            "report.md",
+        ],
+        "claim_scope": "simulated-user-real-lifecycle-only",
+    }
+    if _load_mapping(output_root / "manifest.json", field="manifest") != (
+        expected_manifest
+    ):
+        raise ValueError("formal manifest differs from recomputation")
+    report_path = output_root / "report.md"
+    if not report_path.is_file() or not report_path.read_text(
+        encoding="utf-8"
+    ).strip():
+        raise ValueError("formal report is missing or empty")
     log_files = sorted((output_root / "service_logs").rglob("service-*.log"))
     http_error_count = sum(
         len(_HTTP_ERROR_RE.findall(path.read_text(encoding="utf-8")))
@@ -519,6 +578,39 @@ def audit(
         raise ValueError(
             f"physical artifact counts drift: {actual_counts} != {expected_counts}"
         )
+    physical_sets = {
+        "pilot_transcripts": {
+            str(path.relative_to(output_root))
+            for path in (output_root / "pilot_days").rglob(
+                "day-*-transcript.json"
+            )
+        },
+        "pilot_metrics": {
+            str(path.relative_to(output_root))
+            for path in (output_root / "pilot_days").rglob(
+                "day-*-metrics.json"
+            )
+        },
+        "service_evidence": {
+            str(path.relative_to(output_root))
+            for path in (output_root / "service_evidence").rglob(
+                "session_evidence.json"
+            )
+        },
+        "measurement_checkpoints": {
+            str(path.relative_to(output_root))
+            for path in (output_root / "state").rglob(
+                _MEASUREMENT_CHECKPOINT_NAME
+            )
+            if "archives" in path.parts
+        },
+    }
+    for key, paths in physical_sets.items():
+        if paths != all_ids[key]:
+            raise ValueError(f"unreferenced or missing physical {key}")
+    script_files = tuple((output_root / "user_scripts").glob("*.json"))
+    if len(script_files) != len(cases):
+        raise ValueError("frozen user script file count drift")
     if len(log_files) != expected_run_count * 7:
         raise ValueError("service log count drift")
     prereg_sha = _canonical_sha256(preregistration)

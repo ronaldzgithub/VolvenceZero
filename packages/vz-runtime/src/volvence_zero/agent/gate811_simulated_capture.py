@@ -456,6 +456,7 @@ def export_gate811_simulated_pilot(
     manifest = {
         **packet_manifest,
         "capture_record_count": len(capture["records"]),
+        "pair_count": bundle["packet"]["pair_count"],
         "capture_source_scope": capture["capture_source_scope"],
         "real_user_product_value_claim_allowed": False,
         "human_ratings_pending": True,

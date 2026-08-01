@@ -125,6 +125,15 @@ capture 仍须携带 synthetic consent-scope SHA、PII scan artifact SHA、明�
 `human_anchor_claim_allowed=false`、`human_ratings_pending=true`；未取得真人评分时只是可发给
 rater 的材料，不是 human evidence。
 
+capture 的执行源码冻结在
+`artifacts/seven_day_companion_capture_source_prereg_frozen_20260801T133600Z.json`，SHA-256
+`5f13ed395f66eac59021c6a8515742b5b2400b995cdc32aba8a7786e66b73ee2`；1,247 文件执行树
+SHA-256 为 `ad58546d9f508e1c1810f99289dedc413eae22b33f09338f4170d1c8b2adb2bf`。此前
+`20260801T131953Z` 冻结在执行前静态复核时发现导出 manifest 缺少 runner 封口所需的
+`pair_count`，没有运行 capture、没有读取评分或效应即被 supersession artifact 废止。
+替代 runner 必须先完成 18-script MPS preflight，再执行 18 cases × 4 arms = 72 runs；正式
+七日矩阵占用 MPS 时不得并发运行。
+
 ## 独立完成审计
 
 正式 bundle 完成后，必须从只读的 execution root 调用
@@ -135,6 +144,10 @@ checkpoint、pilot transcript、每日 readout、console actions 和 promotion v
 同时拒绝 service log 中的 HTTP 4xx/5xx，并将 `production_promotion_authorized=false`、
 `evaluation_writeback_allowed=false` 写入 `seven-day-companion-independent-audit.v1`
 报告。审计报告只证明物证完整，不改变 simulated-user-only claim scope，也不替代真人评分。
+
+capture bundle 完成后还必须调用 `scripts/audit_gate811_simulated_capture.py`，独立复算 72 个
+source runs、144 条 capture records、48 个盲评 pairs、内部 key、空白评分 CSV 和全部 SHA
+绑定。该审计恒保留 `human_ratings_pending=true`；打包成功不等于人评通过。
 
 ## 失败、退出与回滚
 

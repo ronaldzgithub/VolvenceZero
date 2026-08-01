@@ -251,6 +251,7 @@ def test_export_writes_capture_audit_and_blinded_packet(tmp_path: Path) -> None:
         output_dir=tmp_path,
     )
     assert manifest["capture_record_count"] == 144
+    assert manifest["pair_count"] == 48
     assert manifest["human_ratings_pending"] is True
     written_manifest = json.loads(
         (tmp_path / "manifest.json").read_text(encoding="utf-8")
