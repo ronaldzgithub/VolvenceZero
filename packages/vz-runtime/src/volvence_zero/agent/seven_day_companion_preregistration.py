@@ -36,6 +36,13 @@ SEVEN_DAY_PREREG_CODE_PATHS = (
     "packages/vz-runtime/src/volvence_zero/agent/seven_day_companion_preregistration.py",
     "scripts/run_seven_day_companion_formal.py",
 )
+SEVEN_DAY_EXECUTION_SOURCE_ROOTS = (
+    "packages/*/src",
+    "packages/*/pyproject.toml",
+    "pyproject.toml",
+    "scripts/preregister_seven_day_companion_simulated.py",
+    "scripts/run_seven_day_companion_formal.py",
+)
 
 
 def _canonical_bytes(value: object) -> bytes:
@@ -52,6 +59,43 @@ def _canonical_bytes(value: object) -> bytes:
 
 def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _execution_source_snapshot(root: Path) -> dict[str, object]:
+    files: set[Path] = set()
+    for pattern in SEVEN_DAY_EXECUTION_SOURCE_ROOTS:
+        for candidate in root.glob(pattern):
+            if candidate.is_dir():
+                files.update(path for path in candidate.rglob("*") if path.is_file())
+            elif candidate.is_file():
+                files.add(candidate)
+    included = tuple(
+        sorted(
+            (
+                path
+                for path in files
+                if "__pycache__" not in path.parts
+                and path.suffix not in {".pyc", ".pyo"}
+            ),
+            key=lambda path: path.relative_to(root).as_posix(),
+        )
+    )
+    if not included:
+        raise FileNotFoundError("seven-day execution source snapshot is empty")
+    digest = hashlib.sha256()
+    for path in included:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        content = path.read_bytes()
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return {
+        "roots": list(SEVEN_DAY_EXECUTION_SOURCE_ROOTS),
+        "excluded": ["**/__pycache__/**", "**/*.pyc", "**/*.pyo"],
+        "file_count": len(included),
+        "tree_sha256": digest.hexdigest(),
+    }
 
 
 def build_seven_day_companion_preregistration(
@@ -79,6 +123,7 @@ def build_seven_day_companion_preregistration(
         relative: _file_sha256(root / relative)
         for relative in SEVEN_DAY_PREREG_CODE_PATHS
     }
+    execution_source_snapshot = _execution_source_snapshot(root)
     return {
         "schema_version": SEVEN_DAY_PREREG_SCHEMA_VERSION,
         "created_at_unix_ms": created_at_unix_ms,
@@ -90,6 +135,7 @@ def build_seven_day_companion_preregistration(
         "code_tree_sha256": hashlib.sha256(
             _canonical_bytes(code_manifest)
         ).hexdigest(),
+        "execution_source_snapshot": execution_source_snapshot,
         "formal_run": {
             "paraphrase_seeds": list(SEVEN_DAY_FORMAL_SEEDS),
             "arm_schedule": list(SEVEN_DAY_ALL_ARMS),
@@ -255,6 +301,7 @@ def write_seven_day_companion_preregistration(
 __all__ = [
     "SEVEN_DAY_FORMAL_SEEDS",
     "SEVEN_DAY_PREREG_CODE_PATHS",
+    "SEVEN_DAY_EXECUTION_SOURCE_ROOTS",
     "SEVEN_DAY_SCENARIO_IDS",
     "build_seven_day_companion_preregistration",
     "validate_seven_day_companion_preregistration",

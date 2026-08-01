@@ -34,6 +34,10 @@ def test_preregistration_freezes_six_scenarios_six_arms_and_real_models() -> Non
     assert payload["authorization"][
         "production_promotion_authorized"
     ] is False
+    source_snapshot = payload["execution_source_snapshot"]
+    assert source_snapshot["file_count"] > len(payload["code_manifest"])
+    assert len(source_snapshot["tree_sha256"]) == 64
+    assert "packages/*/src" in source_snapshot["roots"]
     validate_seven_day_companion_preregistration(
         payload,
         repo_root=REPO_ROOT,
@@ -45,6 +49,16 @@ def test_preregistration_drift_fails_loudly() -> None:
     payload["minimum_effects"][
         "callback_hit_rate_gain"
     ] = 0.0
+    with pytest.raises(ValueError, match="drift"):
+        validate_seven_day_companion_preregistration(
+            payload,
+            repo_root=REPO_ROOT,
+        )
+
+
+def test_execution_source_tree_drift_fails_loudly() -> None:
+    payload = deepcopy(_payload())
+    payload["execution_source_snapshot"]["tree_sha256"] = "0" * 64
     with pytest.raises(ValueError, match="drift"):
         validate_seven_day_companion_preregistration(
             payload,
