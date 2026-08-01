@@ -107,6 +107,13 @@ artifacts/companion-ablation/*
 !artifacts/companion-ablation/.gitkeep
 artifacts/companion_bench_smoke/*
 !artifacts/companion_bench_smoke/.gitkeep
+
+# Seven-day formal/smoke runs are large generated evidence trees. Curated
+# preregistration and summary artifacts belong in reviewed evidence commits;
+# raw run directories and stale generated prereg snapshots stay local.
+artifacts/seven_day_companion_formal_*/
+artifacts/seven_day_companion_smoke_frozen_*/
+artifacts/seven_day_companion_simulated_prereg_frozen_*.json
 /.local
 /.local
 /.venv
