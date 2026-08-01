@@ -9,6 +9,11 @@ from lifeform_service import verticals
 class _FakeLifeform:
     def __init__(self) -> None:
         self.affordance_registry_ready = False
+        self.thinking_adapter_factory = None
+
+    def with_thinking_adapter_factory(self, factory):
+        self.thinking_adapter_factory = factory
+        return self
 
     def ensure_affordance_registry(self) -> tuple[object, object]:
         self.affordance_registry_ready = True
