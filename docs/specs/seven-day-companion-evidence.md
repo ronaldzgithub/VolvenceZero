@@ -1,6 +1,6 @@
 # Seven-Day Simulated Companion Evidence Spec
 
-> Status: tooling + final preregistration + product-path smoke complete; formal 36-run matrix running
+> Status: tooling + full-source frozen preregistration + product-path smoke complete; replacement formal 36-run matrix running
 > Last updated: 2026-08-01
 > 对应需求: R5、R6、R7、R8、R12、R15
 > 关联债务: #93（只提供 simulated-longitudinal 辅助证据，不关闭 real-user EXIT）
@@ -93,18 +93,25 @@ trust point，允许其 trust delta 为 `null`。LLM judge 和 FSM semantic scor
 ## 冻结预注册与当前状态
 
 权威 preregistration：
-`artifacts/seven_day_companion_simulated_prereg_20260731T222910Z.json`，SHA-256
-`9ae32c6cf4c7484502f21ce090532ff5c9f31c793364d40e75e24501fcb8792c`。正式矩阵冻结为
+`artifacts/seven_day_companion_simulated_prereg_frozen_20260801T122037Z.json`，SHA-256
+`9674ec62f363a362f09ef692ec82b176ee43da0ec47ac906879a1fcbddbed1fd`。正式矩阵冻结为
 6 scenarios × seed `1501` × 6 arms = 36 runs、252 sessions、1260 exchanges；formal
 禁止 deterministic fake。模拟器为冻结的 `Qwen/Qwen2.5-1.5B-Instruct`（Qwen family），
 SUT 为冻结的 `HuggingFaceTB/SmolLM2-360M-Instruct`（SmolLM family），设备固定 MPS。
 
-截至 2026-08-01，最终 6-scenario/210-turn 模拟器预检通过；一条非 claim smoke 完成
+prereg 还冻结 `packages/*/src`、package/root pyproject 与七日 runner 的 1,245 文件执行源
+树，SHA-256 为 `5aab91ad394f0d9c5e6b09519a8010566e8f8bc2324777ee6dc21130417f7b8d`；正式进程只从
+只读副本导入。此前 `20260731T222910Z` 只覆盖 11 个选定文件，运行到 32 个完整样本后
+被主工作区并发源码变更污染，并在 Day 6→7 hydration 出现
+`exploration_rng_state` schema drift；它在读取任何 effect 前失效，完整/部分原始记录均只
+保留作 interruption audit，不进入分析。
+
+截至 2026-08-01，替代 6-scenario/210-turn 模拟器预检通过；一条非 claim smoke 完成
 35 个真实 SUT 回合、14 个 console actions、6 次不同进程重启，run SHA-256 为
-`e5df2bb0bcafbec971b0ae1cb0dc97127731f6050b1d4ece684ce0f40a214a45`。正式 36-run
-矩阵正在 `artifacts/seven_day_companion_formal_20260731T222910Z/` 执行，因此状态仍是
+`8ddc857cdad8c7951cae31b7b3e1ed05c95b55cd650e5be2062bddcda4a6985a`。替代正式 36-run
+矩阵正在 `artifacts/seven_day_companion_formal_frozen_20260801T122037Z/` 执行，因此状态仍是
 `running / no causal result yet`，没有“通过”“失败”或“没有提升”的 effect verdict。
-`193423Z` 在任何正式 outcome 前被本版取代，supersession artifact 保留方法学变更。
+supersession 与 source-drift invalidation artifact 均单独保留方法学变更。
 
 ## Gate 8/11 v1 capture 兼容性
 

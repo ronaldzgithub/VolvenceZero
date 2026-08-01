@@ -627,19 +627,28 @@ Gate 8 sleep 两臂，以及 Gate 8/11 v1 capture→blind packet 适配器。各
 本地 Qwen 只选择封闭式语气开场，避免模型改写 preference、boundary 与 callback；SUT
 使用不同家族的本地 SmolLM2。
 
-正式协议已冻结为
-[`seven_day_companion_simulated_prereg_20260731T222910Z.json`](../artifacts/seven_day_companion_simulated_prereg_20260731T222910Z.json)，
-SHA-256 `9ae32c6cf4c7484502f21ce090532ff5c9f31c793364d40e75e24501fcb8792c`。正式矩阵是
-36 runs / 252 sessions / 1260 exchanges，禁止 deterministic fake，且 user simulator 与
-SUT 必须跨模型家族。
+最初协议
+[`seven_day_companion_simulated_prereg_20260731T222910Z.json`](../artifacts/seven_day_companion_simulated_prereg_20260731T222910Z.json)
+只冻结 11 个选定文件。运行到 32 个完整 run 后，主工作区的 PE/temporal 源码在矩阵中途
+变化，并在 Day 6→7 hydration 暴露缺少 `exploration_rng_state` 的 schema drift；因此该
+矩阵在读取任何 effect 前被
+[`source_drift_invalidation.json`](../artifacts/seven_day_companion_formal_20260731T222910Z/source_drift_invalidation.json)
+否决。保留的 32 个 envelope 与三份 partial 只是中断审计，不是负结果，也不进入因果分析。
 
-真实产品路径 smoke 已完成 7 sessions、35 个 SmolLM2 回复、14 个公开 console actions 和
+替代协议为
+[`seven_day_companion_simulated_prereg_frozen_20260801T122037Z.json`](../artifacts/seven_day_companion_simulated_prereg_frozen_20260801T122037Z.json)，
+SHA-256 `9674ec62f363a362f09ef692ec82b176ee43da0ec47ac906879a1fcbddbed1fd`。它保持原来的模型、
+seed、36 runs / 252 sessions / 1260 exchanges、阈值与置信方法不变，新增 1,245 个运行时
+源文件的只读树冻结（tree SHA-256
+`5aab91ad394f0d9c5e6b09519a8010566e8f8bc2324777ee6dc21130417f7b8d`）。
+
+替代冻结源码的真实产品路径 smoke 已完成 7 sessions、35 个 SmolLM2 回复、14 个公开 console actions 和
 6 次不同进程 restart；archive/loaded owner digest 与独立 measurement digest 均通过机器
-复核，run SHA-256 为 `e5df2bb0bcafbec971b0ae1cb0dc97127731f6050b1d4ece684ce0f40a214a45`。
-这证明仪器能测，不证明某臂效果更好。正式 36-run 当前正在执行，所以这里**仍没有新增
+复核，run SHA-256 为 `8ddc857cdad8c7951cae31b7b3e1ed05c95b55cd650e5be2062bddcda4a6985a`。
+这证明冻结仪器能测，不证明某臂效果更好。替代正式 36-run 当前正在执行，所以这里**仍没有新增
 “稳定净增益”结论**，也不能说实验发现“没有提升”：正确状态是
-`running / no causal result yet`。`193423Z` prereg 在任何正式 outcome 前被最终的模型、
-measurement 隔离和 console probe 协议取代，未观察 outcome，不构成看结果后改协议。
+`running / no causal result yet`。源码冻结修复发生在读取任何 outcome 前，且没有改变
+阈值、seed 或判据，不构成看结果后改协议。
 
 冻结 v1 没有限定聊天者必须真人，因此 simulated transcript 可以用于 pilot；真人评分后
 最多得到 `human-rated-simulated-user-transcripts-only`。它不能替代 #93 的 real-user

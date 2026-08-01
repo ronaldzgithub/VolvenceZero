@@ -3,6 +3,7 @@
 > Status: preregistered; formal run not yet eligible
 > Frozen: 2026-08-01
 > Claim boundary: 只讨论预测性与成本，不讨论“用户感到被记住”、关系质量或 AGI
+> Amendment: 2026-08-01 物证审计后移除 §8 的 pilot 数字；命题、阈值与 EXIT 未改
 
 ## 1. 命题
 
@@ -83,20 +84,25 @@ sample ids、同一 seeds 与相同 PE head 训练预算；只改变可用状态
 attestation。任一缺失都强制 `INELIGIBLE_PILOT`，即使点估计超过阈值也不能
 选择 thesis。
 
-## 8. 2026-08-01 pilot（不参与 thesis 选择）
+## 8. 执行状态（不是结果）
 
-配置：24/12/12 dyads、583/362/352 N+1 samples、3 seeds、8 epochs、冻结
-`all-MiniLM-L6-v2` 384d、声明 context limit 256、encoder fingerprint
-`1997d37c9b09ebb06a66d736fc403f6186957feb7e7003838b6fe1d353429f52`。
+**正式四臂实验尚未执行，thesis v3 没有结果。** 预注册正文不得冻结或转述
+mechanism pilot 的点估计、置信区间、模型 fingerprint 或容量曲线；正式结果只能
+来自满足 §7 全部资格条件的独立 artifact。
 
-- validation capacity mean cosine：`3=0.047716, 16=0.275870,
-  64=0.317985, 256=0.311662`；pilot best=`64`；
-- session-5 prototype−long-context cosine=`0.027586`，95% CI
-  `[0.019191, 0.035425]`，slope=`0.007104`；
-- token ratio=`0.153013`，latency ratio=`0.248077`；
-- long-context 平均接收 256 tokens、平均截断 1456.657 tokens，说明该本地
-  encoder 不是现代百万-token steelman；
-- 正式 verdict=`INELIGIBLE_PILOT`（12/501 heldout；非完整 runtime）。
+2026-08-01 的小样本 CPU run 已从官方 MSC 语料重跑并保存在
+[`artifacts/msc_n_plus_one_mechanism_pilot_20260801/`](../artifacts/msc_n_plus_one_mechanism_pilot_20260801/)。
+其 `artifact_manifest.json` 对语料 provenance、六个结果文件与关键源码逐文件
+SHA-256；同时硬标记 `evidence_level=mechanism-only-pilot`、
+`thesis_status=not-evaluated`、`formal_experiment_executed=false`。
 
-该 pilot 只证明真实 target、容量敏感性、四臂配对、成本审计与 fail-closed
-EXIT 代码能运行。它不授权 thesis、temporal promotion 或产品关系质量主张。
+它不构成本文结果，原因不是样本量一项，而是实验对象仍不成立：
+
+1. `volvence` 臂是绕过 `propagate` 的 bounded-state prototype，不是完整 runtime；
+2. `long_context` 受 MiniLM 的 256-token 上限约束，不是现代长上下文 steelman；
+3. target 是外部 MiniLM 句向量，不是冻结 substrate 的 N+1 内部表示；
+4. `n_z` ladder 改变的是 forward head 容量，不是 temporal controller 容量。
+
+在四项接线完成并产出新的正式 bundle 前，本文唯一合法状态是
+`formal run not yet eligible`；pilot 不授权 thesis、temporal promotion、legacy
+controller 退役或产品关系质量主张。

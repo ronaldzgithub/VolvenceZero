@@ -114,21 +114,26 @@ R4 主实验形成独立 verdict 前，冻结新 wheel 与新 spec；允许删�
 直接调用正式 owner 的 immutable batch contract，绕过逐 turn `propagate`
 调度开销，但不得复制 prediction-error owner 或重建第二套 mismatch 语义。
 
-截至 2026-08-01，地基与 pilot 已落地：MSC v0.1 的 train/validation/heldout
-hash 与 1001/500/501 dyad 划分冻结；`PredictionErrorModule` 新增 offline
+截至 2026-08-01，地基与 mechanism harness 已落地：MSC v0.1 原文已下载到
+gitignored 的 `data/external/msc/v0.1/`，其 archive 与 train/validation/heldout
+hash、1001/500/501 dyad 划分已由 `DOWNLOAD_PROVENANCE.json` 复核；
+`PredictionErrorModule` 新增 offline
 N+1 表示 batch head；evaluation→PE gate 默认 ACTIVE 且 matched SHADOW
 rollback 通过；Companion Bench 支持 stateless/session/full history 与 token/
 latency/truncation 审计；Internal-RL 的 `math.sin` 伪噪声已替换为带 checkpoint
 RNG state 的真实随机抽样。
 
-一次真实 MSC CPU pilot（24/12/12 dyads、583/362/352 N+1 samples、四臂、
-3 seeds、8 epochs）只用于机制校验：validation capacity curve 的 mean cosine
-为 `n_z=3:0.047716 / 16:0.275870 / 64:0.317985 / 256:0.311662`；第五 session
-bounded-state prototype 相对 256-token long-context 的 cosine 差为 `0.027586`
-（dyad bootstrap 95% CI `[0.019191, 0.035425]`），token/latency ratio 分别
-`0.1530/0.2481`。它仍被 evaluator 强制判为 `INELIGIBLE_PILOT`：只覆盖
-12/501 heldout dyads，且 bounded-state arm 不是完整 Volvence runtime；不能据此
-晋升 temporal `n_z`、退役 legacy controller 或选择 thesis v3。
+一次真实 MSC CPU mechanism pilot 已重跑并落到
+[`artifacts/msc_n_plus_one_mechanism_pilot_20260801/`](../artifacts/msc_n_plus_one_mechanism_pilot_20260801/)；
+bundle 对语料 provenance、结果与关键源码逐文件哈希，并硬标记
+`thesis_status=not-evaluated`、`formal_experiment_executed=false`。精确指标只留在
+artifact，不再写入预注册正文或用作当前状态结论。
+
+**正式 R4 仍未执行。** 现有 pilot 的 `volvence` 是 bounded-state prototype，
+`long_context` 只有 256 tokens，target 是外部 MiniLM 句向量，capacity ladder
+测的是 forward head 而不是 ETA temporal controller。四项分别接通完整 runtime、
+现代长上下文冻结基底、substrate N+1 表示和 temporal owner 之前，不能据此晋升
+temporal `n_z`、退役 legacy controller 或选择 thesis v3。
 
 ### 已降级的旧 evidence lane（机制回归用途）
 
