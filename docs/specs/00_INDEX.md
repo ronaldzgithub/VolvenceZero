@@ -94,6 +94,8 @@
 **核心不变量**：
 - 用户无需自行做 context engineering；系统只从正式 owner 快照自动加载个人状态
 - 精确事实仍走可审计上下文，压缩状态才走神经侧条件，二者不得互相替代
+- Prefix-KV 的一级价值是让 owner 维护的持续向量状态不经自然语言序列化即可被
+  冻结模型读取；文本 renderer 只共享来源范围，不是潜向量的充分统计量或等价载体
 - 冻结基底不在线更新；个人条件只能通过有界、可关闭、可追溯的控制入口生效
 - 当前实现只承诺最终生成前的最早 hook 注入，不冒充整条认知链已经完成前置条件化
 
@@ -797,7 +799,7 @@
 | `docs/prd.md` | 产品需求文档：愿景、工程分解、必要脚手架、里程碑 | 理解工程规划和交付计划 |
 | `archetecture.md` | 8 wheel 切分轴 + 替换映射 + 迁移路线 | 理解仓库与 wheel 切分思路 |
 | `SPLIT.md` | 仓库边界 charter：Phase 1 monorepo → Phase 2 触发条件 | 理解仓库分裂时机与机械流程 |
-| `docs/SYSTEM_DESIGN.md` | 系统架构设计：总体架构、模块职责、数据流、多时间尺度学习循环、wheel 边界、迁移策略 | 理解系统整体结构和模块关系 |
+| `docs/SYSTEM_DESIGN.md` | 系统架构设计：总体架构、模块职责、数据流、State KV 非 Prompt 向量通道、多时间尺度学习循环、wheel 边界、迁移策略 | 理解系统整体结构和模块关系 |
 | `docs/DATA_CONTRACT.md` | 数据契约：快照 schema、模块接口、Slot 注册表、依赖图、wheel 边界、变更协议 | 理解模块间数据交换格式和约束 |
 | `docs/CONTRACT_MIGRATION_LOG.md` | 契约迁移流水：planned / SHADOW slots、字段扩展、shared type slice changelog | 查实现阶段和 rollout notes，避免污染稳定契约 |
 | `docs/DEBUG_SYSTEM.md` | 调试与可观测性体系：5 层可观测性架构、契约守卫、检查点与回滚、跨 wheel 调试边界 | 理解如何调试和监控系统运行 |
