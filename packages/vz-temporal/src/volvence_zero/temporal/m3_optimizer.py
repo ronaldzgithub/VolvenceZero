@@ -31,6 +31,23 @@ class M3OptimizerState:
     mean_slow_norm: float
     description: str
 
+    def __setstate__(self, state: object) -> None:
+        """Load pre-slow-gain pickles at the exact rollback baseline."""
+        if not isinstance(state, dict):
+            raise TypeError("M3 optimizer pickle state must be a dictionary")
+        normalized = dict(state)
+        normalized.setdefault("slow_gain", 0.0)
+        field_names = tuple(type(self).__dataclass_fields__)
+        missing = tuple(name for name in field_names if name not in normalized)
+        unexpected = tuple(name for name in normalized if name not in field_names)
+        if missing or unexpected:
+            raise ValueError(
+                "M3 optimizer pickle state schema mismatch: "
+                f"missing={missing!r}, unexpected={unexpected!r}"
+            )
+        for name in field_names:
+            object.__setattr__(self, name, normalized[name])
+
 
 class M3Optimizer:
     """Dual-timescale momentum for parameter groups.

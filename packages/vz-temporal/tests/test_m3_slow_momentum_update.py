@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pickle
+
 import pytest
 
 from volvence_zero.temporal import M3Optimizer
@@ -72,3 +74,18 @@ def test_slow_gain_round_trips_and_mismatched_restore_fails_loudly() -> None:
             slow_interval=1,
             slow_gain=0.0,
         ).restore_state(state)
+
+
+def test_pre_slow_gain_pickle_loads_at_exact_rollback_baseline() -> None:
+    legacy_state = M3Optimizer(
+        num_groups=1,
+        group_dim=1,
+        slow_interval=1,
+    ).export_state()
+    object.__delattr__(legacy_state, "slow_gain")
+
+    restored = pickle.loads(pickle.dumps(legacy_state))
+
+    assert restored.slow_gain == 0.0
+    assert restored.fast_momentum == legacy_state.fast_momentum
+    assert restored.slow_momentum == legacy_state.slow_momentum

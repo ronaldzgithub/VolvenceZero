@@ -116,6 +116,8 @@ rare-heavy (定期离线):
   fail loudly；`slow_gain=0` 与旧行为精确等价。2026-07-31 Gate 9 v2
   接线后 tracking/recovery 均劣于 plain momentum，因此 production 默认
   固定为 `0`，M3 只保留为显式 evidence/design-mode，不作为默认优化优势。
+  新字段发布前生成的可信本地 pickle 可在反序列化时仅补 `slow_gain=0`；任何
+  其他缺失或额外字段仍 fail loudly，避免旧 vertical bootstrap 到场景结束才崩溃。
 - 当前 substrate owner 已补充 rare-heavy `export / import / rollback / clone_for_rare_heavy / train_rare_heavy` surface；session 不直写 substrate 内部状态，而是通过 artifact 交给 owner 审阅或在实验/rare-heavy lane 应用。默认 continual learner 的主证据来自 memory / temporal / regime / reflection owner writeback；offline clone 仍是训练 owner，显式 frozen runner 保留 review-only / no-import 语义
 - synthetic rare-heavy fallback 现按 trace 与 target batch 一一配对优化，长度
   漂移 fail loudly；Gate 10 的 train/eval 共同消费 substrate owner 发布的
@@ -178,6 +180,8 @@ rare-heavy (定期离线):
 
 ## 变更日志
 
+- 2026-08-02: M3 owner 为新增 `slow_gain` 前的可信本地 pickle 增加窄兼容迁移，
+  缺省值固定为行为等价的回滚基线 `0.0`；其他 schema 漂移继续 fail loudly。
 - 2026-06-29: autograd-owner-integration 上线形式（CMS）。CMS torch backend 现可经 `FinalRolloutConfig.cms_torch_backend` 运行时配置 —— `AgentSessionRunner` / `build_final_runtime_modules` 把它线进 `build_default_memory_store(cms_torch_backend=...)` -> `CMSMemoryCore(cms_backend=...)`。默认 `DISABLED`（纯 band 基线，行为不变),回滚即重置。
 - 2026-06-29: autograd-owner-integration（CMS 主链）。`CMSMemoryCore(cms_backend=WiringLevel)` 与 `build_default_memory_store(cms_torch_backend=...)` 把 torch autograd band 梯度核接入 `_band_mlp_update`：DISABLED 走纯 `CMSBandMLP`（默认/回滚基线）；SHADOW 跑真 autograd 步作证据不写回；ACTIVE 用 `torch_cms_band.torch_band_update_from_params` 做权威 W1/W2 梯度步，并保留 band 的纯 state/momentum 以维持 backflow/mix_from/checkpoint 一致。跨 `SEQUENTIAL/INDEPENDENT/NESTED` × replay on/off 验证；ATLAS/Titans uplift 与 torch backend 正交。`CMSMemoryCore.latest_cms_backend_evidence` 暴露只读证据。
 - 2026-06-29: NL 全量真 autograd 迁移 Phase 4–5。新增 `memory/torch_cms_band`（CMS band 真 autograd + backend-agnostic 前向 + SHADOW parity vs 生产 band）、`m3_optimizer.DeltaMomentumOptimizer`（NL Figure 4 delta-momentum + overshoot 证明）、`prediction/torch_lss`（真梯度 LSS offline artifact + runtime PE == −LSS 桥接）。Adam-as-memory / DGD / 自修改 Titans / 统一 nested autograd tower 列为显式 backlog。
