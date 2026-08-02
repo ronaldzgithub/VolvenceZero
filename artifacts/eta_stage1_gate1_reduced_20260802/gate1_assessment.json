@@ -1,0 +1,33 @@
+{
+  "schema_version": "eta-stage1-gate1-assessment.v1",
+  "created_at": "2026-08-02T07:33:35.937641+00:00",
+  "preregistration": "artifacts/eta_stage1_gate1_reduced_prereg_20260802/preregistration.json",
+  "preregistration_sha256": "f9d3a3077b1a750e2f91d617efaef6665cf729ef05dfb2f6df1baaf24c4cbed3",
+  "sweep_artifact": "artifacts/eta_stage1_gate1_reduced_20260802",
+  "rate_distortion_verdict": "incomplete-sweep",
+  "rate_distortion_verdict_note": "Expected for Gate 1: only the frozen arm was pre-registered. incomplete-sweep means the dual-arm rate-distortion criterion cannot adjudicate retain/kill; Gate 1 uses the separate rate-axis gate.",
+  "gate_1": {
+    "gate_id": "gate-1-rate-axis-response",
+    "spearman_alpha_rate": -0.6571,
+    "rate_span": 0.5847,
+    "rate_min": 0.2118,
+    "rate_max": 0.7966,
+    "thresholds": {
+      "spearman_alpha_rate_max": -0.8,
+      "rate_span_min": 0.3,
+      "baseline_rate_span_7_route": 0.2
+    },
+    "spearman_pass": false,
+    "rate_span_pass": true,
+    "materially_above_baseline": true,
+    "verdict": "FAIL",
+    "rule": "Gate 1 passes iff spearman(alpha, rate) <= -0.8 AND rate_span >= 0.3 AND rate_span materially larger than the 7-route baseline. Failing means fix posterior variance parameterization; do NOT proceed to Stage 2 pretraining."
+  },
+  "directional_reads": [
+    "Memorization resolved: train and heldout distortion track closely across alphas.",
+    "Rate axis wakes: span 0.58 is ~3x the 0.20 seven-route baseline and clears 0.30.",
+    "Monotonicity fails: alpha=1.0 rebounds rate (0.42) above neighbors, so spearman only -0.66.",
+    "Distortion rises with alpha overall (KL buys action error in the right direction).",
+    "switch_frequency and boundary F1 remain 0.0 across the grid."
+  ]
+}

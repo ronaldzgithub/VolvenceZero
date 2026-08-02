@@ -1,0 +1,211 @@
+{
+  "schema_version": "eta-rate-distortion-manifest.v1",
+  "experiment_id": "eta-rate-distortion-criterion",
+  "created_at": "2026-08-02T07:33:02.454477+00:00",
+  "git_sha": "b6dafe471f8ec6945a60b42a93b3d6216f7d0d9c",
+  "working_tree_dirty": true,
+  "verdict": "incomplete-sweep",
+  "verdict_reason": "Both arms are required for the validity control; ran only ('frozen',).",
+  "preregistered": true,
+  "preregistration_path": "artifacts/eta_stage1_gate1_reduced_prereg_20260802/preregistration.json",
+  "preregistration_sha256": "f9d3a3077b1a750e2f91d617efaef6665cf729ef05dfb2f6df1baaf24c4cbed3",
+  "verdict_authoritative": true,
+  "claim_scope": "eta-temporal-abstraction-criterion-only",
+  "resumed": false,
+  "checkpoint_units": {
+    "checkpoints/points/frozen/alpha-0.01/seed-0.json": {
+      "unit": "points/frozen/alpha-0.01/seed-0",
+      "kind": "json",
+      "sha256": "7e72892031c7bd33023064d646d3b2a57c19070459af4d8a613324ae59ef5f07",
+      "size_bytes": 811
+    },
+    "checkpoints/points/frozen/alpha-0.01/seed-1.json": {
+      "unit": "points/frozen/alpha-0.01/seed-1",
+      "kind": "json",
+      "sha256": "8ae42bcc6930117cc26ecaa13a54909bff93416ec266e4d416b29b572d982fdd",
+      "size_bytes": 809
+    },
+    "checkpoints/points/frozen/alpha-0.01/seed-2.json": {
+      "unit": "points/frozen/alpha-0.01/seed-2",
+      "kind": "json",
+      "sha256": "4b5d825b20a6e15125152670f54aa115b0d10581a38fa2cb29b4fef086c90d4e",
+      "size_bytes": 815
+    },
+    "checkpoints/points/frozen/alpha-0.03/seed-0.json": {
+      "unit": "points/frozen/alpha-0.03/seed-0",
+      "kind": "json",
+      "sha256": "fe64d11f8251afd90c454c04639b5e0d0e5046fd4e458d6a49548a649648c324",
+      "size_bytes": 817
+    },
+    "checkpoints/points/frozen/alpha-0.03/seed-1.json": {
+      "unit": "points/frozen/alpha-0.03/seed-1",
+      "kind": "json",
+      "sha256": "1d9eb8c92fdd49fc98048d2bd2e935e5952ba6f06b8760d7df9c182ab28791a4",
+      "size_bytes": 812
+    },
+    "checkpoints/points/frozen/alpha-0.03/seed-2.json": {
+      "unit": "points/frozen/alpha-0.03/seed-2",
+      "kind": "json",
+      "sha256": "0cc458ad852135d8fd81d6f2716c361fe74fc834c248390d6f26378c8ac5e43c",
+      "size_bytes": 816
+    },
+    "checkpoints/points/frozen/alpha-0.1/seed-0.json": {
+      "unit": "points/frozen/alpha-0.1/seed-0",
+      "kind": "json",
+      "sha256": "eca4128a45c6bc7664add1bd9b82bb6ffb7364b3d51b37854fad4b26e0bb23fd",
+      "size_bytes": 815
+    },
+    "checkpoints/points/frozen/alpha-0.1/seed-1.json": {
+      "unit": "points/frozen/alpha-0.1/seed-1",
+      "kind": "json",
+      "sha256": "e1cee8c2453232e596e29a075e94d0b6fcef80714aa3caf5660a32c7a2fbd183",
+      "size_bytes": 812
+    },
+    "checkpoints/points/frozen/alpha-0.1/seed-2.json": {
+      "unit": "points/frozen/alpha-0.1/seed-2",
+      "kind": "json",
+      "sha256": "449b3ce02e1d17952dfd647fd9ca2842f5d9b6d581e6b834e813fd6e43cf524e",
+      "size_bytes": 810
+    },
+    "checkpoints/points/frozen/alpha-0.3/seed-0.json": {
+      "unit": "points/frozen/alpha-0.3/seed-0",
+      "kind": "json",
+      "sha256": "496dd251e3f2f682e989f9c7e40855c5ee222c8a4b9ecd736ea80eacd4fe156b",
+      "size_bytes": 815
+    },
+    "checkpoints/points/frozen/alpha-0.3/seed-1.json": {
+      "unit": "points/frozen/alpha-0.3/seed-1",
+      "kind": "json",
+      "sha256": "1a752fe71a0a12986458f10adb32aed88328c6963ce7aaa2ec5f1274bd1fbb74",
+      "size_bytes": 811
+    },
+    "checkpoints/points/frozen/alpha-0.3/seed-2.json": {
+      "unit": "points/frozen/alpha-0.3/seed-2",
+      "kind": "json",
+      "sha256": "fff19f24da6ea16a3d204070207d3c108b3bebdfea4e88c910bd9118f2e8f146",
+      "size_bytes": 810
+    },
+    "checkpoints/points/frozen/alpha-1/seed-0.json": {
+      "unit": "points/frozen/alpha-1/seed-0",
+      "kind": "json",
+      "sha256": "9208d6eff110ebddcb40f89ee33d579215cf725f6c78c310328c820d04553e6b",
+      "size_bytes": 810
+    },
+    "checkpoints/points/frozen/alpha-1/seed-1.json": {
+      "unit": "points/frozen/alpha-1/seed-1",
+      "kind": "json",
+      "sha256": "ff5649b4ce83ef2720a542e0e405c799896a8ca5255d5675969265d9acf35528",
+      "size_bytes": 809
+    },
+    "checkpoints/points/frozen/alpha-1/seed-2.json": {
+      "unit": "points/frozen/alpha-1/seed-2",
+      "kind": "json",
+      "sha256": "6413a348fd89e070c89e927c6a8dcab4383022c88de79f5e4f4b10437522f15a",
+      "size_bytes": 810
+    },
+    "checkpoints/points/frozen/alpha-3/seed-0.json": {
+      "unit": "points/frozen/alpha-3/seed-0",
+      "kind": "json",
+      "sha256": "1ffbd267a2108b63e2d52bd8eb6336e9ddb71f602d1ceeaa76039a0e9dcea376",
+      "size_bytes": 814
+    },
+    "checkpoints/points/frozen/alpha-3/seed-1.json": {
+      "unit": "points/frozen/alpha-3/seed-1",
+      "kind": "json",
+      "sha256": "f8b728136a250c8677b3041127f66f4bccc0b8f64554abd464391ef6df269a55",
+      "size_bytes": 805
+    },
+    "checkpoints/points/frozen/alpha-3/seed-2.json": {
+      "unit": "points/frozen/alpha-3/seed-2",
+      "kind": "json",
+      "sha256": "6960443c6be5b078bf4671814ca046a66fb4b7ab73f476ecf3a69def3f6c8fff",
+      "size_bytes": 809
+    }
+  },
+  "arms": [
+    "frozen"
+  ],
+  "alpha_grid": [
+    0.01,
+    0.03,
+    0.1,
+    0.3,
+    1.0,
+    3.0
+  ],
+  "seed_schedule": [
+    0,
+    1,
+    2
+  ],
+  "n_z": 16,
+  "updates_per_run": 24,
+  "learning_rate": 0.02,
+  "substrate_learning_rate": 0.0001,
+  "switch_threshold": 0.55,
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "device": "mps",
+  "runtime_origin": "hf-local",
+  "fallback_active": false,
+  "injection_layer_index": 20,
+  "control_norm_cap": 24.33156967163086,
+  "observation_protocol": "partially-observable-no-remaining-route.v1",
+  "corpus": {
+    "corpus_origin": "generated-seeded",
+    "corpus_seed": 20260802,
+    "objective_count": 8,
+    "corridor_count": 2,
+    "extra_edge_probability": 0.35,
+    "train_routes": 64,
+    "heldout_routes": 24,
+    "train_lengths": [
+      2,
+      3
+    ],
+    "heldout_lengths": [
+      3,
+      4
+    ],
+    "environment_id": "eta-generated-hierarchy",
+    "report_corpus_origin": "generated-seeded",
+    "report_train_route_count": 64,
+    "report_heldout_route_count": 24
+  },
+  "rate_axis_responses": {
+    "frozen": {
+      "spearman_alpha_rate": -0.6571,
+      "rate_span": 0.5847,
+      "rate_min": 0.2118,
+      "rate_max": 0.7966
+    }
+  },
+  "elapsed_seconds": 22055.283,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+  "torch_version": "2.13.0",
+  "transformers_version": "5.14.1",
+  "mps_available": true,
+  "mps_exclusive_lock": "artifacts/.companion-evidence-mps.lock",
+  "mps_attestation": {
+    "torch_version": "2.13.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "matplotlib_plot": "rate_distortion_curves.png",
+  "result_files": {
+    "report.json": "9554fec7e6399f75bfacf6ec8eb914478a05a47761db5498a0fb31494ecc1805",
+    "points.jsonl": "238611ded4a336b8ed196f9ad6fe3b713b216f009d6b6bdc16381938eee9a7bc",
+    "curves.json": "c9709c99cdfd88b1ee044f2fea3ab97bb2e2c8a8f70c0d8b454f5dba0573208a",
+    "gap_assessments.json": "0777ba0d5692480fa35ad8f13a2574600b0ef76d14f6cbfc629cad6e2796be8a",
+    "report.md": "6113661a41b24d89e3980fb6275585426eb29689ac547efd579b04587ec637a9",
+    "rate_distortion_curves.png": "d36cf7712d40ac924640e6df2882ce6265e1326dd1666d9e92e5391bace7738a"
+  },
+  "source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/steered_action_scoring.py": "c88e118139a9be882812b34a16011e13b4f9fab183d053bbf3a11f211122145e",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "7147229ec24df00adfcabd325fe6eeb85a5ef8aa73b48813a6b6ff5b9c1cb8af",
+    "packages/vz-temporal/src/volvence_zero/temporal/torch_store_ssl.py": "c686285a1fa5414312b2850e409a05e3bbefe1ed8efb5ca53de8a517d9dc8e55",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "f78e0226b2b626a702b389751d6a6bb1e8aec73ec5add7b93e43ae6120379795",
+    "scripts/run_eta_rate_distortion.py": "2cfc8c90c97cec880762c9cad4b464ed1fc2885f0911a6f71a526a1485952399"
+  }
+}
