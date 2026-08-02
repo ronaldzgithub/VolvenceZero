@@ -1,7 +1,7 @@
 # 时间抽象与内部控制 Spec
 
 > Status: draft
-> Last updated: 2026-08-01
+> Last updated: 2026-08-02
 > 对应需求: R3, R4
 
 ## 要解决的问题
@@ -376,6 +376,37 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   (f) 补 31 项 rate-distortion 测试与 20 项 `TransformersSteeredActionScorer`
   测试（此前两者合计 1237 行零测试），覆盖梯度只到控制 delta 不到冻结基底、
   norm cap、joint 臂 pristine 恢复、gap 检测三条拒绝路径与全部 verdict 分支。
+- 2026-08-02: 启动 **ETA 迁移 LLM 四级阶梯**，把论文成立的前提逐级搬到冻结 LLM 上；
+  `kill-eta` 判定在 Stage 3 通过前保持有效。本包只建机器 + 预注册 + 直接相关 smoke，
+  不做昂贵全量运行（受本机内存 + 用户在运行的 lifeform_service 限制）。
+  **Stage 1（数据机制）**：环境 owner `vz-temporal::internal_rl/proof_environment.py`
+  新增 seeded 程序化生成器（`generate_hierarchical_environment` + hub relay 保证任意
+  子目标序可达 + `stitch_waypoints` BFS 拼接 + `generate_hierarchical_routes`
+  按 ordering 哈希分区做 train/heldout 组合不相交）；`eta_proof_benchmark` 新增
+  `generate_eta_proof_corpus`/`ETAProofCorpus`，rate-distortion harness 增
+  `corpus=` 注入与 `RateAxisResponse`（frozen 臂 spearman(alpha,rate) + rate span，
+  可离线复算）。Gate 1 阈值预注册于
+  `artifacts/eta_stage1_rate_axis_prereg_20260802/`（frozen 臂 spearman ≤ −0.8 且
+  rate_span ≥ 0.30）。**可行性 pilot（非正式）**
+  `artifacts/eta_stage1_rate_axis_pilot_20260802/`：6→24 路线、1 seed、3 alpha、
+  8 updates 下，8-01 kill 的两处异常里**记忆化已消除**（24 路线 train≈heldout
+  distortion），**rate span 升到 0.64–0.81（远超 ~0.20 基线）**，但 rate 对 alpha
+  非单调（α=3.0 回弹），spearman 仅 −0.5，未达 −0.8——支持数据机制假设但需正式
+  200 路线扫描或修 posterior 方差参数化后才能过 Gate 1。**Stage 2（补前提）**：
+  substrate owner 新增 `continued_pretrain_and_merge`（rare-heavy PEFT LoRA →
+  merge_and_unload → 冻结落盘 + 权重指纹，离线 substrate refresh，不动原始 Qwen）
+  与线性分类 probe `fit_linear_classification_probe`（对齐论文附录 B，从各层
+  final-position hidden 解码 active subgoal）；`eta_route_probe_rows` +
+  `render_eta_route_documents` 提供 SSOT 观测/动作表面；Gate 2（补课后 heldout
+  probe ≥ 2× 随机、随前缀上升、优于原始 Qwen）预注册于
+  `artifacts/eta_stage2_gate2_prereg_20260802/`，不过则整体 kill。**Stage 3**：
+  `run_eta_rate_distortion.py` 增 `--corpus-seed/--train-routes/--model-source`，
+  可在补课基底上按 `eta-rate-distortion-evidence.v1` 已冻结规则重跑双臂判据；
+  预注册于 `artifacts/eta_stage3_prereg_20260802/`（6 alpha × 3 seed × 2 臂）。
+  **Stage 4（contingent）**：仅设计骨架
+  `research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md`（对话无子目标真值，
+  boundary F1 不可作门，退回 gap + heldout 泛化），不执行。所有新代码为 evidence
+  lane，不改任何 production WiringLevel，补课基底为独立 artifact，可回滚。
 - 2026-08-01: ETA Eq.3 rate-distortion 判据第一次可执行，读数为
   `kill-eta`，但**该次运行不具备正式资格**（无预注册、脏工作树、与七日矩阵并行
   占用 MPS、无 checkpoint）；状态为 mechanism-grade，摘除 ETA 主张须等预注册

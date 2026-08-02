@@ -93,9 +93,11 @@ from volvence_zero.substrate.offline_adapter_hooks import (
     resolve_transformer_blocks,
 )
 from volvence_zero.substrate.prefix_kv_diagnostics import (
+    ClassificationProbeFit,
     PrefixAttentionProfile,
     ProbeFit,
     capture_prefix_diagnostics,
+    fit_linear_classification_probe,
     fit_ridge_probe,
     profile_spread,
 )
@@ -107,11 +109,14 @@ from volvence_zero.substrate.relationship_prefix_kv_artifact import (
     load_relationship_prefix_generator,
 )
 from volvence_zero.substrate.rare_heavy_training import (
+    RARE_HEAVY_CONTINUED_PRETRAIN_MODE,
     RARE_HEAVY_PEFT_TRAINING_MODE,
+    ContinuedPretrainResult,
     PeftLoraRareHeavyBackend,
     RareHeavyAdapterTrainingBackend,
     RareHeavyAdapterTrainingResult,
     RareHeavyTrainingRequest,
+    continued_pretrain_and_merge,
 )
 from volvence_zero.substrate.rare_heavy_objective import (
     RARE_HEAVY_STRUCTURAL_OBJECTIVE_VERSION,
@@ -295,6 +300,8 @@ __all__ = [
     "PrefixAttentionProfile",
     "ProbeFit",
     "capture_prefix_diagnostics",
+    "ClassificationProbeFit",
+    "fit_linear_classification_probe",
     "fit_ridge_probe",
     "profile_spread",
     "build_teacher_distilled_prefix_artifact",
@@ -316,6 +323,9 @@ __all__ = [
     "resolve_hidden_size",
     "resolve_transformer_blocks",
     "RARE_HEAVY_PEFT_TRAINING_MODE",
+    "RARE_HEAVY_CONTINUED_PRETRAIN_MODE",
+    "ContinuedPretrainResult",
+    "continued_pretrain_and_merge",
     "PeftLoraRareHeavyBackend",
     "RareHeavyAdapterTrainingBackend",
     "RareHeavyAdapterTrainingResult",

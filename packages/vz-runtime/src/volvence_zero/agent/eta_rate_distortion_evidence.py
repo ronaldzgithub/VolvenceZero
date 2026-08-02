@@ -43,13 +43,17 @@ from typing import Protocol
 from volvence_zero.agent.eta_proof_benchmark import (
     ETAOpenWeightRuntimeConfig,
     ETAProofCase,
+    ETAProofCorpus,
     _build_eta_open_weight_runtime,
     _runtime_capture_snapshot,
     _validate_eta_open_weight_runtime,
     build_default_eta_proof_environment,
     default_eta_proof_cases,
 )
-from volvence_zero.internal_rl import HierarchicalRouteSpec
+from volvence_zero.internal_rl import (
+    HierarchicalRouteSpec,
+    MiniHierarchicalEnvironment,
+)
 from volvence_zero.substrate import (
     ExpertActionTarget,
     OpenWeightResidualRuntime,
@@ -69,6 +73,26 @@ from volvence_zero.temporal.torch_store_ssl import (
 RATE_DISTORTION_SCHEMA_VERSION = "eta-rate-distortion-evidence.v1"
 
 _ARMS = ("frozen", "joint")
+
+
+@dataclass(frozen=True)
+class RateAxisResponse:
+    """Stage-1 diagnostic: does the KL rate axis respond to alpha at all?
+
+    The 2026-08-01 kill-eta run left the rate axis unexplained -- it barely
+    moved with alpha, which meant either the posterior was saturated or the
+    corpus was so small the controller never had to trade information for
+    accuracy. This measures the response on the rate-ordered-by-alpha curve so
+    the data-richness hypothesis can be gated before any pretraining spend.
+    """
+
+    arm: str
+    spearman_alpha_rate: float
+    rate_span: float
+    rate_min: float
+    rate_max: float
+    alpha_count: int
+    description: str = ""
 
 
 @dataclass(frozen=True)
@@ -159,6 +183,11 @@ class RateDistortionEvidenceReport:
     switch_threshold: float
     arms: tuple[str, ...]
     observation_protocol: str
+    corpus_origin: str
+    corpus_seed: int
+    corpus_objective_count: int
+    train_route_count: int
+    heldout_route_count: int
     action_vocabulary: tuple[str, ...]
     train_case_ids: tuple[str, ...]
     heldout_case_ids: tuple[str, ...]
@@ -167,6 +196,7 @@ class RateDistortionEvidenceReport:
     points: tuple[RateDistortionPoint, ...]
     curves: tuple[RateDistortionCurvePoint, ...]
     gaps: tuple[GapAssessment, ...]
+    rate_axis_responses: tuple[RateAxisResponse, ...]
     arms_distinguishable: bool
     arm_separation: float
     arm_separation_threshold: float
@@ -202,6 +232,7 @@ def _action_options(
 def _rate_distortion_observation_bundle(
     case: ETAProofCase,
     *,
+    environment: MiniHierarchicalEnvironment,
     open_weight_runtime: OpenWeightResidualRuntime,
 ) -> tuple[
     tuple[SubstrateSnapshot, ...],
@@ -214,9 +245,11 @@ def _rate_distortion_observation_bundle(
     remaining-route leak: the expert action is not readable from any single
     observation, so the temporal abstraction (active route segment) is the
     only channel that can reduce action uncertainty.
+
+    ``environment`` is passed explicitly so a seeded generated corpus replays
+    against the same graph it was built from, rather than the hardcoded default.
     """
 
-    environment = build_default_eta_proof_environment()
     route = HierarchicalRouteSpec(
         case_id=case.case_id,
         split=case.split,
@@ -311,13 +344,14 @@ def _rate_distortion_observation_bundle(
 def _build_traces(
     cases: tuple[ETAProofCase, ...],
     *,
+    environment: MiniHierarchicalEnvironment,
     runtime: OpenWeightResidualRuntime,
     label: str,
 ) -> tuple[TrainingTrace, ...]:
     traces: list[TrainingTrace] = []
     for case in cases:
         snapshots, texts, targets = _rate_distortion_observation_bundle(
-            case, open_weight_runtime=runtime
+            case, environment=environment, open_weight_runtime=runtime
         )
         traces.append(
             build_training_trace_from_substrate_snapshots(
@@ -575,6 +609,75 @@ def assess_gap(
     )
 
 
+def _spearman(xs: tuple[float, ...], ys: tuple[float, ...]) -> float:
+    """Spearman rank correlation; 0.0 for degenerate (constant) inputs."""
+
+    if len(xs) != len(ys) or len(xs) < 2:
+        return 0.0
+
+    def _rank(values: tuple[float, ...]) -> tuple[float, ...]:
+        order = sorted(range(len(values)), key=lambda i: values[i])
+        ranks = [0.0] * len(values)
+        index = 0
+        while index < len(order):
+            end = index
+            while (
+                end + 1 < len(order)
+                and values[order[end + 1]] == values[order[index]]
+            ):
+                end += 1
+            average_rank = (index + end) / 2.0
+            for position in range(index, end + 1):
+                ranks[order[position]] = average_rank
+            index = end + 1
+        return tuple(ranks)
+
+    rx = _rank(xs)
+    ry = _rank(ys)
+    mean_x = _mean(rx)
+    mean_y = _mean(ry)
+    numerator = sum(
+        (a - mean_x) * (b - mean_y) for a, b in zip(rx, ry, strict=True)
+    )
+    denom_x = math.sqrt(sum((a - mean_x) ** 2 for a in rx))
+    denom_y = math.sqrt(sum((b - mean_y) ** 2 for b in ry))
+    if denom_x <= 1e-12 or denom_y <= 1e-12:
+        return 0.0
+    return numerator / (denom_x * denom_y)
+
+
+def assess_rate_axis_response(
+    curve: tuple[RateDistortionCurvePoint, ...],
+    *,
+    arm: str,
+) -> RateAxisResponse:
+    """Measure how the KL rate responds to alpha on one arm's curve."""
+
+    arm_rows = tuple(
+        sorted((row for row in curve if row.arm == arm), key=lambda r: r.alpha)
+    )
+    if len(arm_rows) < 3:
+        raise ValueError(
+            f"Rate-axis response needs >=3 alpha cells for arm {arm!r}."
+        )
+    alphas = tuple(row.alpha for row in arm_rows)
+    rates = tuple(row.rate_mean for row in arm_rows)
+    spearman = _spearman(alphas, rates)
+    rate_span = max(rates) - min(rates)
+    return RateAxisResponse(
+        arm=arm,
+        spearman_alpha_rate=spearman,
+        rate_span=rate_span,
+        rate_min=min(rates),
+        rate_max=max(rates),
+        alpha_count=len(arm_rows),
+        description=(
+            f"arm={arm} spearman(alpha,rate)={spearman:.4f} "
+            f"rate_span={rate_span:.4f} over {len(arm_rows)} alphas."
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class RateDistortionAdjudication:
     """The retain/kill decision derived purely from the aggregate curves.
@@ -710,6 +813,7 @@ def run_eta_rate_distortion_evidence(
     open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
     arms: tuple[str, ...] = _ARMS,
     point_cache: RateDistortionPointCache | None = None,
+    corpus: ETAProofCorpus | None = None,
 ) -> RateDistortionEvidenceReport:
     if len(alpha_grid) < 3:
         raise ValueError("alpha_grid needs at least three values.")
@@ -728,18 +832,31 @@ def run_eta_rate_distortion_evidence(
     runtime = _build_eta_open_weight_runtime(config)
     _validate_eta_open_weight_runtime(runtime=runtime, config=config)
 
-    environment = build_default_eta_proof_environment()
+    if corpus is not None:
+        environment = corpus.environment
+        train_cases = corpus.train_cases
+        heldout_cases = corpus.heldout_cases
+        corpus_origin = "generated-seeded"
+        corpus_seed = corpus.seed
+        corpus_objective_count = corpus.objective_count
+    else:
+        environment = build_default_eta_proof_environment()
+        cases = default_eta_proof_cases()
+        train_cases = tuple(case for case in cases if case.split == "train")
+        heldout_cases = tuple(case for case in cases if case.split != "train")
+        corpus_origin = "default-hardcoded-7-route"
+        corpus_seed = -1
+        corpus_objective_count = len(environment.objective_locations())
     options = _action_options(environment)
-    cases = default_eta_proof_cases()
-    train_cases = tuple(case for case in cases if case.split == "train")
-    heldout_cases = tuple(case for case in cases if case.split != "train")
     if not train_cases or not heldout_cases:
         raise RuntimeError(
             "Rate-distortion sweep needs both train and heldout proof cases."
         )
-    train_traces = _build_traces(train_cases, runtime=runtime, label="train")
+    train_traces = _build_traces(
+        train_cases, environment=environment, runtime=runtime, label="train"
+    )
     heldout_traces = _build_traces(
-        heldout_cases, runtime=runtime, label="heldout"
+        heldout_cases, environment=environment, runtime=runtime, label="heldout"
     )
     train_step_count = sum(len(trace.steps) for trace in train_traces)
     heldout_step_count = sum(len(trace.steps) for trace in heldout_traces)
@@ -808,12 +925,16 @@ def run_eta_rate_distortion_evidence(
     point_tuple = tuple(points)
     curves: list[RateDistortionCurvePoint] = []
     gaps: list[GapAssessment] = []
+    rate_axis_responses: list[RateAxisResponse] = []
     for arm in arms:
         arm_curve = _aggregate_curve(
             point_tuple, arm=arm, alpha_grid=alpha_grid
         )
         curves.extend(arm_curve)
         gaps.append(assess_gap(arm_curve, arm=arm))
+        rate_axis_responses.append(
+            assess_rate_axis_response(tuple(arm_curve), arm=arm)
+        )
 
     adjudication = adjudicate_rate_distortion(
         tuple(curves), tuple(gaps), arms=arms
@@ -839,6 +960,11 @@ def run_eta_rate_distortion_evidence(
         observation_protocol=(
             "partially-observable-no-remaining-route.v1"
         ),
+        corpus_origin=corpus_origin,
+        corpus_seed=corpus_seed,
+        corpus_objective_count=corpus_objective_count,
+        train_route_count=len(train_cases),
+        heldout_route_count=len(heldout_cases),
         action_vocabulary=tuple(
             option.action_id for option in options
         ),
@@ -849,6 +975,7 @@ def run_eta_rate_distortion_evidence(
         points=point_tuple,
         curves=tuple(curves),
         gaps=tuple(gaps),
+        rate_axis_responses=tuple(rate_axis_responses),
         arms_distinguishable=adjudication.arms_distinguishable,
         arm_separation=adjudication.arm_separation,
         arm_separation_threshold=adjudication.arm_separation_threshold,

@@ -1,0 +1,55 @@
+{
+  "schema_version": "eta-stage2-gate2-prereg.v1",
+  "experiment_id": "eta-stage2-linear-classification-probe",
+  "created_at": "2026-08-02T00:00:00+00:00",
+  "claim_scope": "does-the-llm-residual-carry-the-behaviour-hierarchy",
+  "precondition": "Only run after Gate 1 passes; otherwise the ladder is paused.",
+  "corpus": {
+    "corpus_origin": "generated-seeded",
+    "corpus_seed": 20260802,
+    "objective_count": 8,
+    "train_routes": 120,
+    "heldout_routes": 60,
+    "train_lengths": [
+      2,
+      3
+    ],
+    "heldout_lengths": [
+      3,
+      4
+    ],
+    "note": "Probe fits on train-split routes, scores on compositionally disjoint heldout routes; class space is the 8 objective ids."
+  },
+  "probe": {
+    "kind": "linear-least-squares-classification",
+    "feature": "final-prompt-position hidden state per layer (capture_prefix_diagnostics, prefix_pairs=None)",
+    "target": "active subgoal = next objective ahead on the route",
+    "layer_selection": "final transformer layer, fixed before held-out scoring",
+    "ridge_alpha": 1.0
+  },
+  "gate2_thresholds": {
+    "gate_id": "gate-2-residual-carries-subgoal",
+    "condition_2x_chance": "pretrained best-layer heldout accuracy >= 2 * (1/class_count)",
+    "condition_rises_with_prefix": "pretrained late-step-bucket accuracy >= early-step-bucket accuracy",
+    "condition_beats_base": "pretrained best-layer accuracy > original-Qwen best-layer accuracy (causal contrast)",
+    "decision": "all three must hold to pass"
+  },
+  "decision_rules": [
+    "Gate 2 passes only if all three conditions hold; then Stage 3 reruns the rate-distortion criterion on the merged base.",
+    "Gate 2 fails otherwise: the claim 'the LLM residual stream can host the behaviour hierarchy' is rejected and the entire LLM-transfer route is killed; no Stage-3 rerun is run.",
+    "The continued-pretrained base is an offline rare-heavy substrate refresh (merged, frozen, fingerprinted); the original Qwen path is untouched.",
+    "The pretraining corpus contains only train-split orderings; heldout orderings are excluded at generation time, so the base never sees a Stage-3 evaluation trajectory."
+  ],
+  "prohibited_after_execution": [
+    "changing any of the three Gate-2 conditions or the 2x-chance multiplier",
+    "selecting the probe layer against heldout after seeing accuracies for the purpose of passing",
+    "using the ridge/regression probe R^2 in place of the classification accuracy gate",
+    "reusing the pretraining corpus routes as probe/Stage-3 evaluation routes"
+  ],
+  "frozen_source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/prefix_kv_diagnostics.py": "fit_linear_classification_probe owner",
+    "packages/vz-substrate/src/volvence_zero/substrate/rare_heavy_training.py": "continued_pretrain_and_merge owner",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "eta_route_probe_rows + corpus owner",
+    "scripts/run_eta_stage2_probe.py": "Gate-2 runner + assess_gate2"
+  }
+}

@@ -16,6 +16,7 @@ import pytest
 
 from volvence_zero.agent.eta_rate_distortion_evidence import (
     GapAssessment,
+    RateAxisResponse,
     RateDistortionCurvePoint,
     RateDistortionPoint,
     adjudicate_rate_distortion,
@@ -307,6 +308,11 @@ def _report_fixture(verdict: str = "kill-eta"):
         switch_threshold=0.55,
         arms=("frozen", "joint"),
         observation_protocol="partially-observable-no-remaining-route.v1",
+        corpus_origin="fixture",
+        corpus_seed=0,
+        corpus_objective_count=2,
+        train_route_count=1,
+        heldout_route_count=1,
         action_vocabulary=("alpha",),
         train_case_ids=("case-train",),
         heldout_case_ids=("case-heldout",),
@@ -315,6 +321,26 @@ def _report_fixture(verdict: str = "kill-eta"):
         points=(point,),
         curves=curves,
         gaps=(_gap("frozen", detected=False), _gap("joint", detected=False)),
+        rate_axis_responses=(
+            RateAxisResponse(
+                arm="frozen",
+                spearman_alpha_rate=0.0,
+                rate_span=1.0,
+                rate_min=0.0,
+                rate_max=1.0,
+                alpha_count=4,
+                description="fixture",
+            ),
+            RateAxisResponse(
+                arm="joint",
+                spearman_alpha_rate=0.0,
+                rate_span=1.0,
+                rate_min=0.0,
+                rate_max=1.0,
+                alpha_count=4,
+                description="fixture",
+            ),
+        ),
         arms_distinguishable=True,
         arm_separation=1.0,
         arm_separation_threshold=0.02,
@@ -561,8 +587,17 @@ def _matching_args(**overrides: object):
         "substrate_learning_rate": 1e-4,
         "switch_threshold": 0.55,
         "model_id": "fixture-model",
+        "model_source": None,
         "device": "mps",
         "arms": ["frozen", "joint"],
+        "corpus_seed": None,
+        "objective_count": 8,
+        "corridor_count": 2,
+        "extra_edge_probability": 0.35,
+        "train_routes": 200,
+        "heldout_routes": 60,
+        "train_lengths": [2, 3],
+        "heldout_lengths": [3, 4],
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -755,8 +790,9 @@ def _stub_sweep_dependencies(
     monkeypatch.setattr(
         module, "_validate_eta_open_weight_runtime", lambda **_: None
     )
+    environment = SimpleNamespace(objective_locations=lambda: ("alpha",))
     monkeypatch.setattr(
-        module, "build_default_eta_proof_environment", lambda: object()
+        module, "build_default_eta_proof_environment", lambda: environment
     )
     monkeypatch.setattr(
         module,

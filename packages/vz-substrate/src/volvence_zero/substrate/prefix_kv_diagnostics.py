@@ -27,9 +27,11 @@ from typing import Any, Sequence
 
 __all__ = [
     "RIDGE_ALPHA_GRID",
+    "ClassificationProbeFit",
     "PrefixAttentionProfile",
     "ProbeFit",
     "capture_prefix_diagnostics",
+    "fit_linear_classification_probe",
     "fit_ridge_probe",
     "profile_spread",
     "select_ridge_alpha",
@@ -235,6 +237,103 @@ def fit_ridge_probe(
         layer_index=layer_index,
         mean_r2=mean_r2,
         per_coordinate_r2=tuple(scores),
+    )
+
+
+@dataclass(frozen=True)
+class ClassificationProbeFit:
+    """Held-out linear classification probe result for one layer.
+
+    Decodes a discrete label (e.g. the active subgoal) from a hidden state by
+    least-squares classification: closed-form ridge onto one-hot targets, then
+    argmax. Scored on held-out states. ``chance_accuracy`` is the uniform
+    1/class baseline; ``majority_accuracy`` is the majority-class baseline. Gate
+    checks that read "N x random" compare against ``chance_accuracy``.
+    """
+
+    layer_index: int
+    accuracy: float
+    chance_accuracy: float
+    majority_accuracy: float
+    class_count: int
+    support: int
+
+    def as_json_dict(self) -> dict[str, object]:
+        return {
+            "layer": self.layer_index,
+            "accuracy": round(self.accuracy, 6),
+            "chance_accuracy": round(self.chance_accuracy, 6),
+            "majority_accuracy": round(self.majority_accuracy, 6),
+            "class_count": self.class_count,
+            "support": self.support,
+        }
+
+
+def fit_linear_classification_probe(
+    *,
+    torch_module: Any,
+    train_features: Any,
+    train_labels: Any,
+    eval_features: Any,
+    eval_labels: Any,
+    layer_index: int,
+    class_count: int,
+    alpha: float = 1.0,
+) -> ClassificationProbeFit:
+    """Least-squares linear classifier from hidden state to a discrete label.
+
+    ``*_labels`` are 1-D integer tensors of class ids in ``[0, class_count)``.
+    The fit is closed-form ridge onto one-hot targets (deterministic, no
+    iteration), and accuracy is argmax agreement on the held-out states. This
+    is the classification analogue of :func:`fit_ridge_probe`; it exists so a
+    gate can ask "is the active subgoal linearly decodable" rather than "is the
+    16-dim readout linearly recoverable".
+    """
+
+    torch = torch_module
+    if class_count < 2:
+        raise ValueError("class_count must be at least 2 for a classification probe.")
+    train_labels_long = train_labels.to(torch.long)
+    eval_labels_long = eval_labels.to(torch.long)
+    if alpha <= 0.0:
+        raise ValueError("classification probe alpha must be > 0.")
+    if train_labels_long.ndim != 1 or eval_labels_long.ndim != 1:
+        raise ValueError("classification probe labels must be one-dimensional.")
+    if int(train_labels_long.shape[0]) == 0 or int(eval_labels_long.shape[0]) == 0:
+        raise ValueError("classification probe requires non-empty train and eval labels.")
+    if train_features.ndim != 2 or eval_features.ndim != 2:
+        raise ValueError("classification probe features must be two-dimensional.")
+    if int(train_features.shape[0]) != int(train_labels_long.shape[0]):
+        raise ValueError("train feature and label counts must match.")
+    if int(eval_features.shape[0]) != int(eval_labels_long.shape[0]):
+        raise ValueError("eval feature and label counts must match.")
+    if int(train_features.shape[1]) != int(eval_features.shape[1]):
+        raise ValueError("train and eval feature widths must match.")
+    if int(train_labels_long.min()) < 0 or int(train_labels_long.max()) >= class_count:
+        raise ValueError("train labels fall outside [0, class_count).")
+    if int(eval_labels_long.min()) < 0 or int(eval_labels_long.max()) >= class_count:
+        raise ValueError("eval labels fall outside [0, class_count).")
+    one_hot = torch.zeros(
+        (int(train_labels_long.shape[0]), class_count),
+        dtype=train_features.dtype,
+        device=train_features.device,
+    )
+    one_hot.scatter_(1, train_labels_long.unsqueeze(1), 1.0)
+    fitted = _ridge_solve(torch, train_features, one_hot, alpha)
+    scores = _predict(eval_features, fitted)
+    predictions = scores.argmax(dim=1)
+    support = int(eval_labels_long.shape[0])
+    correct = int((predictions == eval_labels_long).sum())
+    accuracy = correct / support if support else 0.0
+    counts = torch.bincount(eval_labels_long, minlength=class_count)
+    majority_accuracy = float(counts.max()) / support if support else 0.0
+    return ClassificationProbeFit(
+        layer_index=layer_index,
+        accuracy=accuracy,
+        chance_accuracy=1.0 / class_count,
+        majority_accuracy=majority_accuracy,
+        class_count=class_count,
+        support=support,
     )
 
 

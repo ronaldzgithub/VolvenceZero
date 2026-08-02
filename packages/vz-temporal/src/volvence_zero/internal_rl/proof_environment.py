@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import random
+from collections import deque
 from dataclasses import dataclass
 
-from volvence_zero.internal_rl.environment import InternalRLProofEpisode, InternalRLProofSubgoal, sparse_proof_reward_taxonomy
+from volvence_zero.internal_rl.environment import (
+    InternalRLProofEpisode,
+    InternalRLProofSubgoal,
+    sparse_proof_reward_taxonomy,
+)
 
 
 @dataclass(frozen=True)
@@ -124,7 +131,9 @@ class MiniHierarchicalEnvironment:
         for transition in self.transitions:
             if transition.source_id not in location_map or transition.target_id not in location_map:
                 raise ValueError(
-                    f"Unknown transition edge {transition.source_id!r}->{transition.target_id!r} in environment {self.env_id!r}."
+                    "Unknown transition edge "
+                    f"{transition.source_id!r}->{transition.target_id!r} "
+                    f"in environment {self.env_id!r}."
                 )
             adjacency[transition.source_id].append(transition)
         return {location_id: tuple(edges) for location_id, edges in adjacency.items()}
@@ -159,7 +168,11 @@ class MiniHierarchicalEnvironment:
         next_targets = tuple(
             transition.target_id for transition in adjacency.get(state.current_location_id, ())
         )
-        remaining_route = state.route_waypoints[state.step_index + 1 :] if state.step_index + 1 < len(state.route_waypoints) else ()
+        remaining_route = (
+            state.route_waypoints[state.step_index + 1 :]
+            if state.step_index + 1 < len(state.route_waypoints)
+            else ()
+        )
         return HierarchicalObservation(
             case_id=state.case_id,
             current_location_id=state.current_location_id,
@@ -250,6 +263,64 @@ class MiniHierarchicalEnvironment:
             feedback=feedback,
         )
 
+    def shortest_path(self, source_id: str, target_id: str) -> tuple[str, ...]:
+        """BFS shortest directed path source->target, inclusive of both ends.
+
+        Raises when the two nodes are unknown or unreachable. Ties are broken
+        deterministically by transition declaration order so a generated
+        corpus is reproducible from its seed alone.
+        """
+
+        location_map = self._location_map()
+        if source_id not in location_map:
+            raise ValueError(f"Unknown path source {source_id!r} in {self.env_id!r}.")
+        if target_id not in location_map:
+            raise ValueError(f"Unknown path target {target_id!r} in {self.env_id!r}.")
+        if source_id == target_id:
+            return (source_id,)
+        adjacency = self._adjacency()
+        predecessor: dict[str, str] = {source_id: source_id}
+        queue: deque[str] = deque((source_id,))
+        while queue:
+            current = queue.popleft()
+            for transition in adjacency.get(current, ()):  # declaration order
+                nxt = transition.target_id
+                if nxt in predecessor:
+                    continue
+                predecessor[nxt] = current
+                if nxt == target_id:
+                    queue.clear()
+                    break
+                queue.append(nxt)
+        if target_id not in predecessor:
+            raise ValueError(
+                f"No directed path {source_id!r}->{target_id!r} in {self.env_id!r}."
+            )
+        reversed_path = [target_id]
+        while reversed_path[-1] != source_id:
+            reversed_path.append(predecessor[reversed_path[-1]])
+        return tuple(reversed(reversed_path))
+
+    def stitch_waypoints(self, objective_order: tuple[str, ...]) -> tuple[str, ...]:
+        """Expand an ordered objective visit list into a full waypoint path.
+
+        Starts at the entry, then walks the shortest path to each objective in
+        turn, dropping the duplicated junction node at each join so the result
+        is a valid step-by-step route consumable by ``reset``/``step``.
+        """
+
+        if not objective_order:
+            raise ValueError("objective_order must contain at least one objective.")
+        waypoints: list[str] = [self.entry_location_id]
+        for objective_id in objective_order:
+            leg = self.shortest_path(waypoints[-1], objective_id)
+            waypoints.extend(leg[1:])
+        if len(waypoints) < 2:
+            raise ValueError(
+                f"Stitched route for {objective_order!r} collapsed to a single node."
+            )
+        return tuple(waypoints)
+
     def route_branch_depth(self, waypoints: tuple[str, ...]) -> int:
         adjacency = self._adjacency()
         depth = 0
@@ -276,7 +347,9 @@ class MiniHierarchicalEnvironment:
         adjacency = self._adjacency()
         for location_id in route.waypoints:
             self.location(location_id)
-        for source_id, target_id in zip(route.waypoints, route.waypoints[1:]):
+        for source_id, target_id in zip(
+            route.waypoints, route.waypoints[1:], strict=False
+        ):
             if target_id not in {transition.target_id for transition in adjacency.get(source_id, ())}:
                 raise ValueError(
                     f"Route {route.case_id!r} uses missing transition {source_id!r}->{target_id!r} "
@@ -295,7 +368,11 @@ class MiniHierarchicalEnvironment:
 
     def _route_distractors(self, route: HierarchicalRouteSpec) -> tuple[HierarchicalLocation, ...]:
         if route.distractor_ids:
-            return tuple(self.location(location_id) for location_id in route.distractor_ids if self.location(location_id).is_objective)
+            return tuple(
+                self.location(location_id)
+                for location_id in route.distractor_ids
+                if self.location(location_id).is_objective
+            )
         route_ids = set(route.waypoints)
         return tuple(
             location
@@ -334,7 +411,10 @@ class MiniHierarchicalEnvironment:
             reward_taxonomy=sparse_proof_reward_taxonomy(),
             description=(
                 route.description
-                or f"Mini hierarchical episode in {self.env_id} over route {route.waypoints} with {len(distractors)} distractors."
+                or (
+                    f"Mini hierarchical episode in {self.env_id} over route "
+                    f"{route.waypoints} with {len(distractors)} distractors."
+                )
             ),
         )
 
@@ -354,3 +434,337 @@ class MiniHierarchicalEnvironment:
             proof_episode=proof_episode,
             description=route.description or proof_episode.description,
         )
+
+
+# ---------------------------------------------------------------------------
+# Seeded procedural generation (ETA LLM-transfer ladder, Stage 1).
+#
+# The 7 hardcoded default routes were too few for the rate-distortion criterion:
+# a controller could memorise them, so the KL rate axis never had to trade
+# information for action accuracy. These generators build a larger, seeded
+# environment and a compositionally train/heldout-disjoint route corpus so the
+# rate axis can be tested against genuine data richness. They are the
+# environment owner's own construction path (no consumer rebuilds this state).
+# ---------------------------------------------------------------------------
+
+# Objective labels must (a) be highly common single BPE tokens so the steered
+# action scorer's distinct-first-token contract holds, and (b) carry no route
+# ordering information. Colour words satisfy both and mirror the paper's
+# coloured-location tasks.
+_GENERATOR_OBJECTIVE_WORDS: tuple[str, ...] = (
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "orange",
+    "purple",
+    "black",
+    "white",
+    "brown",
+    "silver",
+)
+
+# Relay-corridor labels. Corridors are also action targets (a route may step
+# through one), so like objectives they must be distinct single tokens; these
+# compass words never collide with the colour objectives or "hub".
+_GENERATOR_CORRIDOR_WORDS: tuple[str, ...] = (
+    "north",
+    "south",
+    "east",
+    "west",
+    "center",
+    "edge",
+)
+
+# Neutral thematic vocabulary for the abstract task-context sentence. It is
+# route-correlated (seeded by the objective ordering) but never names an
+# objective, so route identity stays a latent the controller must recover.
+_GENERATOR_CONTEXT_WORDS: tuple[str, ...] = (
+    "steady",
+    "guidance",
+    "alignment",
+    "planning",
+    "support",
+    "corridor",
+    "branch",
+    "anchor",
+    "careful",
+    "repair",
+    "warmth",
+    "continuity",
+    "reflective",
+    "memory",
+    "return",
+    "loop",
+    "dense",
+    "reordering",
+    "horizon",
+    "patient",
+    "grounded",
+    "attentive",
+    "resilient",
+    "deliberate",
+)
+
+
+def _stable_hash(text: str) -> int:
+    """Process-independent hash (Python's ``hash`` is salted per process)."""
+
+    return int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big")
+
+
+def _seeded_signature(rng: random.Random) -> tuple[float, ...]:
+    return tuple(round(rng.uniform(0.12, 0.98), 4) for _ in range(3))
+
+
+def generate_hierarchical_environment(
+    *,
+    seed: int,
+    objective_count: int = 8,
+    corridor_count: int = 2,
+    extra_edge_probability: float = 0.35,
+    env_id: str = "eta-generated-hierarchy",
+) -> MiniHierarchicalEnvironment:
+    """Build a seeded hierarchical environment with a hub-relay backbone.
+
+    The hub guarantees every objective ordering is realizable (obj->hub->obj),
+    while seeded direct objective->objective corridors and entry shortcuts give
+    genuine branch structure and shared subprograms across routes. Increasing
+    ``objective_count`` widens the route space; ``extra_edge_probability`` tunes
+    how many routes share direct corridors versus relaying through the hub.
+    """
+
+    if not 2 <= objective_count <= len(_GENERATOR_OBJECTIVE_WORDS):
+        raise ValueError(
+            "objective_count must be in "
+            f"[2, {len(_GENERATOR_OBJECTIVE_WORDS)}], got {objective_count}."
+        )
+    if not 0 <= corridor_count <= len(_GENERATOR_CORRIDOR_WORDS):
+        raise ValueError(
+            "corridor_count must be in "
+            f"[0, {len(_GENERATOR_CORRIDOR_WORDS)}], got {corridor_count}."
+        )
+    if not 0.0 <= extra_edge_probability <= 1.0:
+        raise ValueError("extra_edge_probability must be in [0, 1].")
+    rng = random.Random(seed)
+    objectives = _GENERATOR_OBJECTIVE_WORDS[:objective_count]
+    corridors = _GENERATOR_CORRIDOR_WORDS[:corridor_count]
+
+    locations: list[HierarchicalLocation] = [
+        HierarchicalLocation(
+            location_id="entry",
+            role="entry",
+            description="Generated environment entry anchor.",
+        ),
+        HierarchicalLocation(
+            location_id="hub",
+            role="hub",
+            description="Central relay hub shared by every route.",
+        ),
+    ]
+    for objective_id in objectives:
+        locations.append(
+            HierarchicalLocation(
+                location_id=objective_id,
+                role="objective",
+                target_signature=_seeded_signature(rng),
+                completion_threshold=round(rng.uniform(0.70, 0.80), 3),
+                min_persistence=rng.randint(1, 3),
+                credit_horizon=rng.randint(2, 3),
+                observation_weight=0.22,
+                effect_weight=0.56,
+                control_weight=0.22,
+                description=f"Generated objective location {objective_id}.",
+            )
+        )
+    for corridor_id in corridors:
+        locations.append(
+            HierarchicalLocation(
+                location_id=corridor_id,
+                role="corridor",
+                description=f"Generated relay corridor {corridor_id}.",
+            )
+        )
+
+    edges: list[HierarchicalTransition] = [
+        HierarchicalTransition("entry", "hub", structural_role="branch"),
+    ]
+    # Hub relay backbone: guarantees reachability for any objective ordering.
+    for objective_id in objectives:
+        edges.append(
+            HierarchicalTransition("hub", objective_id, structural_role="corridor")
+        )
+        edges.append(
+            HierarchicalTransition(objective_id, "hub", structural_role="return")
+        )
+    # Corridors hang off the hub to add optional depth.
+    for corridor_id in corridors:
+        edges.append(
+            HierarchicalTransition("hub", corridor_id, structural_role="loop")
+        )
+        edges.append(
+            HierarchicalTransition(corridor_id, "hub", structural_role="loop")
+        )
+    # A direct entry shortcut so not every route opens through the hub.
+    edges.append(
+        HierarchicalTransition("entry", objectives[0], structural_role="corridor")
+    )
+    # Seeded direct objective->objective corridors for shared subprograms.
+    seen_edges = {(edge.source_id, edge.target_id) for edge in edges}
+    for source_id in objectives:
+        for target_id in objectives:
+            if source_id == target_id:
+                continue
+            if (source_id, target_id) in seen_edges:
+                continue
+            if rng.random() < extra_edge_probability:
+                edges.append(
+                    HierarchicalTransition(
+                        source_id, target_id, structural_role="branch"
+                    )
+                )
+                seen_edges.add((source_id, target_id))
+
+    return MiniHierarchicalEnvironment(
+        env_id=env_id,
+        entry_location_id="entry",
+        locations=tuple(locations),
+        transitions=tuple(edges),
+        description=(
+            f"Seeded hierarchical environment (seed={seed}) with "
+            f"{objective_count} objectives, {corridor_count} corridors, and a "
+            "hub relay backbone for the ETA rate-distortion corpus."
+        ),
+    )
+
+
+def _context_sentence(objective_order: tuple[str, ...], *, word_count: int = 8) -> str:
+    """Deterministic non-leaking thematic sentence keyed to the route order."""
+
+    rng = random.Random(_stable_hash("|".join(objective_order)))
+    picks = rng.sample(
+        _GENERATOR_CONTEXT_WORDS,
+        k=min(word_count, len(_GENERATOR_CONTEXT_WORDS)),
+    )
+    return " ".join(picks)
+
+
+def _distinct_orderings(
+    objectives: tuple[str, ...],
+    *,
+    length: int,
+    rng: random.Random,
+) -> list[tuple[str, ...]]:
+    from itertools import permutations
+
+    pool = [tuple(order) for order in permutations(objectives, length)]
+    rng.shuffle(pool)
+    return pool
+
+
+def generate_hierarchical_routes(
+    *,
+    environment: MiniHierarchicalEnvironment,
+    seed: int,
+    train_count: int,
+    heldout_count: int,
+    train_lengths: tuple[int, ...] = (2, 3),
+    heldout_lengths: tuple[int, ...] = (3, 4),
+    distractor_count: int = 2,
+) -> tuple[HierarchicalRouteSpec, ...]:
+    """Sample a compositionally train/heldout-disjoint route corpus.
+
+    Routes are built from ordered objective visit lists stitched into full
+    waypoint paths via the environment's hub relay. Train and heldout objective
+    orderings are guaranteed set-disjoint: lengths present in only one split go
+    wholly to that split, and any shared length is hash-partitioned so no
+    ordering appears in both. This operationalises the paper's compositional /
+    length-generalization OOD split without leaking any evaluation label.
+    """
+
+    if train_count < 1 or heldout_count < 1:
+        raise ValueError("train_count and heldout_count must both be >= 1.")
+    objectives = tuple(
+        location.location_id
+        for location in environment.objective_locations()
+    )
+    if len(objectives) < max((*train_lengths, *heldout_lengths)):
+        raise ValueError(
+            "environment has too few objectives for the requested route "
+            f"lengths: {len(objectives)} objectives vs max length "
+            f"{max((*train_lengths, *heldout_lengths))}."
+        )
+    rng = random.Random(seed * 2_654_435_761 % (2**63))
+    shared_lengths = set(train_lengths) & set(heldout_lengths)
+
+    train_pool: list[tuple[str, ...]] = []
+    heldout_pool: list[tuple[str, ...]] = []
+    for length in sorted(set(train_lengths) | set(heldout_lengths)):
+        orderings = _distinct_orderings(objectives, length=length, rng=rng)
+        in_train = length in set(train_lengths)
+        in_heldout = length in set(heldout_lengths)
+        for ordering in orderings:
+            if length in shared_lengths:
+                # Hash-partition shared lengths so the same ordering can never
+                # land in both splits.
+                bucket = _stable_hash("split|" + "|".join(ordering)) % 2
+                if bucket == 0:
+                    train_pool.append(ordering)
+                else:
+                    heldout_pool.append(ordering)
+            elif in_train:
+                train_pool.append(ordering)
+            elif in_heldout:
+                heldout_pool.append(ordering)
+
+    if len(train_pool) < train_count:
+        raise ValueError(
+            f"train pool has only {len(train_pool)} distinct orderings for "
+            f"{train_count} requested train routes; raise objective_count or "
+            "lengths."
+        )
+    if len(heldout_pool) < heldout_count:
+        raise ValueError(
+            f"heldout pool has only {len(heldout_pool)} distinct orderings for "
+            f"{heldout_count} requested heldout routes; raise objective_count "
+            "or lengths."
+        )
+    rng.shuffle(train_pool)
+    rng.shuffle(heldout_pool)
+    train_orderings = train_pool[:train_count]
+    heldout_orderings = heldout_pool[:heldout_count]
+
+    overlap = set(train_orderings) & set(heldout_orderings)
+    if overlap:
+        raise RuntimeError(
+            f"train/heldout ordering overlap detected: {sorted(overlap)[:3]}."
+        )
+
+    routes: list[HierarchicalRouteSpec] = []
+    for split, orderings in (
+        ("train", train_orderings),
+        ("heldout", heldout_orderings),
+    ):
+        for index, ordering in enumerate(orderings):
+            waypoints = environment.stitch_waypoints(ordering)
+            ordering_set = set(ordering)
+            distractors = tuple(
+                objective_id
+                for objective_id in objectives
+                if objective_id not in ordering_set
+            )[:distractor_count]
+            routes.append(
+                HierarchicalRouteSpec(
+                    case_id=f"gen-{split}-{index:04d}-{'-'.join(ordering)}",
+                    split=split,
+                    source_text=_context_sentence(ordering),
+                    waypoints=waypoints,
+                    distractor_ids=distractors,
+                    split_detail=f"generated-{split}-len{len(ordering)}",
+                    description=(
+                        f"Generated {split} route visiting {', '.join(ordering)} "
+                        f"over {len(waypoints)} waypoints."
+                    ),
+                )
+            )
+    return tuple(routes)

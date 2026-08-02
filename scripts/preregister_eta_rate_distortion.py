@@ -60,6 +60,9 @@ def build_preregistration(
     model_id: str,
     device: str,
     arms: tuple[str, ...],
+    model_source: str | None = None,
+    corpus: dict[str, object] | None = None,
+    rate_axis_gate: dict[str, object] | None = None,
 ) -> dict[str, object]:
     gap_defaults = inspect.signature(assess_gap).parameters
     return {
@@ -77,7 +80,25 @@ def build_preregistration(
             "switch_threshold": switch_threshold,
             "arms": list(arms),
             "model_id": model_id,
+            "model_source": model_source or model_id,
             "device": device,
+            "corpus": corpus or {"corpus_origin": "default-hardcoded-7-route"},
+        },
+        "rate_axis_gate": rate_axis_gate
+        or {
+            "gate_id": "gate-1-rate-axis-response",
+            "arm": "frozen",
+            "spearman_alpha_rate_max": -0.8,
+            "rate_span_min": 0.30,
+            "baseline_rate_span_7_route": 0.20,
+            "rule": (
+                "Gate 1 passes iff the frozen arm's spearman(alpha, rate) <= "
+                "-0.8 AND rate_span >= rate_span_min AND rate_span is "
+                "materially larger than the 7-route baseline. Failing means "
+                "the rate axis still does not trade information for accuracy: "
+                "fix posterior variance parameterization, do NOT proceed to "
+                "Stage 2 pretraining."
+            ),
         },
         "gap_thresholds": {
             "drop_share_threshold": gap_defaults[
@@ -146,6 +167,15 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         "--arms", nargs="+", choices=("frozen", "joint"),
         default=("frozen", "joint"),
     )
+    parser.add_argument("--model-source", default=None)
+    parser.add_argument("--corpus-seed", type=int, default=None)
+    parser.add_argument("--objective-count", type=int, default=8)
+    parser.add_argument("--corridor-count", type=int, default=2)
+    parser.add_argument("--extra-edge-probability", type=float, default=0.35)
+    parser.add_argument("--train-routes", type=int, default=200)
+    parser.add_argument("--heldout-routes", type=int, default=60)
+    parser.add_argument("--train-lengths", type=int, nargs="+", default=(2, 3))
+    parser.add_argument("--heldout-lengths", type=int, nargs="+", default=(3, 4))
     args = parser.parse_args(argv)
 
     output: Path = args.output
@@ -153,6 +183,20 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         raise SystemExit(
             f"refusing to overwrite an existing preregistration: {output}"
         )
+    if args.corpus_seed is not None:
+        corpus = {
+            "corpus_origin": "generated-seeded",
+            "corpus_seed": args.corpus_seed,
+            "objective_count": args.objective_count,
+            "corridor_count": args.corridor_count,
+            "extra_edge_probability": args.extra_edge_probability,
+            "train_routes": args.train_routes,
+            "heldout_routes": args.heldout_routes,
+            "train_lengths": list(args.train_lengths),
+            "heldout_lengths": list(args.heldout_lengths),
+        }
+    else:
+        corpus = {"corpus_origin": "default-hardcoded-7-route"}
     payload = build_preregistration(
         alphas=tuple(args.alphas),
         seeds=args.seeds,
@@ -164,6 +208,8 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         model_id=args.model_id,
         device=args.device,
         arms=tuple(args.arms),
+        model_source=args.model_source,
+        corpus=corpus,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

@@ -50,6 +50,8 @@ from volvence_zero.internal_rl import (
     KernelResidualActionSelectorArtifact,
     MiniHierarchicalEnvironment,
     ZRollout,
+    generate_hierarchical_environment,
+    generate_hierarchical_routes,
     fit_kernel_residual_action_selector,
     grouped_cross_validate_kernel_residual_action_selector,
     residual_action_state_vector,
@@ -1829,6 +1831,231 @@ def _build_eta_proof_cases(
 
 def default_eta_proof_cases() -> tuple[ETAProofCase, ...]:
     return _build_eta_proof_cases(default_eta_proof_routes())
+
+
+def _build_eta_proof_cases_for_environment(
+    environment: MiniHierarchicalEnvironment,
+    routes: tuple[HierarchicalRouteSpec, ...],
+) -> tuple[ETAProofCase, ...]:
+    """Build ETA proof cases against a caller-supplied (e.g. generated) env.
+
+    Mirrors ``_build_eta_proof_cases`` but does not rebuild the default
+    environment, so a seeded generated environment threads through unchanged.
+    """
+
+    return tuple(
+        ETAProofCase(
+            case_id=case.case_id,
+            source_text=case.source_text,
+            proof_episode=case.proof_episode,
+            split=case.split,
+            description=case.description,
+            environment_id=case.environment_id,
+            route_signature=case.route_signature,
+            branch_depth=case.branch_depth,
+            split_detail=case.split_detail,
+            reward_profile=case.proof_episode.reward_profile,
+            reward_taxonomy=case.proof_episode.reward_taxonomy,
+            route_length=len(case.route_signature),
+            distractor_count=len(case.proof_episode.distractor_signatures),
+        )
+        for case in (environment.build_case(route) for route in routes)
+    )
+
+
+@dataclass(frozen=True)
+class ETAProbeRow:
+    """One (observation, active-subgoal) pair for the Stage-2 probe.
+
+    ``subgoal_label`` is the index (into ``subgoal_vocabulary``) of the next
+    objective the route will reach from this step -- the currently active
+    subgoal the paper's linear probe decodes. ``case_id`` groups rows so the
+    probe train/eval split never puts two views of the same route on both
+    sides.
+    """
+
+    case_id: str
+    split: str
+    observation_text: str
+    subgoal_label: int
+    step_index: int
+
+
+@dataclass(frozen=True)
+class ETAProofCorpus:
+    """A seeded ETA proof corpus: one environment plus its train/heldout cases.
+
+    Bundles the generated environment with the cases built against it so the
+    rate-distortion harness consumes a single self-consistent object rather than
+    re-deriving the environment from case metadata.
+    """
+
+    environment: MiniHierarchicalEnvironment
+    train_cases: tuple[ETAProofCase, ...]
+    heldout_cases: tuple[ETAProofCase, ...]
+    seed: int
+    objective_count: int
+    train_route_count: int
+    heldout_route_count: int
+    description: str = ""
+
+
+def _route_from_case(case: ETAProofCase) -> HierarchicalRouteSpec:
+    return HierarchicalRouteSpec(
+        case_id=case.case_id,
+        split=case.split,
+        source_text=case.source_text,
+        waypoints=case.route_signature,
+        split_detail=case.split_detail,
+        description=case.description,
+    )
+
+
+def render_eta_route_documents(
+    environment: MiniHierarchicalEnvironment,
+    cases: tuple[ETAProofCase, ...],
+) -> tuple[str, ...]:
+    """Render each route as a self-contained continued-pretraining document.
+
+    The document teaches the domain's observation->action structure in the same
+    surface language the rate-distortion observations use, so the base model's
+    residual stream can come to carry the active subgoal. No boundary label,
+    reward, or heldout content leaks: only the route's own steps are described.
+    """
+
+    documents: list[str] = []
+    for case in cases:
+        route = _route_from_case(case)
+        state = environment.reset(route)
+        lines = [
+            f"Navigation episode. Context: {case.source_text}.",
+        ]
+        for step_index, target_id in enumerate(route.waypoints[1:]):
+            observation = environment.observe(state)
+            lines.append(
+                f"Step {step_index + 1}: at {observation.current_location_id}, "
+                f"options {', '.join(observation.available_targets)}; "
+                f"go to {target_id}."
+            )
+            state = environment.step(state, target_id=target_id).next_state
+        lines.append("Episode complete.")
+        documents.append("\n".join(lines))
+    return tuple(documents)
+
+
+def eta_route_probe_rows(
+    environment: MiniHierarchicalEnvironment,
+    cases: tuple[ETAProofCase, ...],
+) -> tuple[tuple[ETAProbeRow, ...], tuple[str, ...]]:
+    """Build (observation, active-subgoal) probe rows and the label vocabulary.
+
+    The active subgoal at a step is the next objective location the route will
+    reach from there. Observation phrasing matches the partially-observable
+    rate-distortion protocol (no remaining route), so the probe measures what
+    the residual carries under the same non-leaking view the criterion uses.
+    """
+
+    objective_ids = tuple(
+        location.location_id for location in environment.objective_locations()
+    )
+    objective_set = set(objective_ids)
+    label_index = {name: index for index, name in enumerate(objective_ids)}
+    rows: list[ETAProbeRow] = []
+    for case in cases:
+        route = _route_from_case(case)
+        waypoints = route.waypoints
+        state = environment.reset(route)
+        for step_index, _target_id in enumerate(waypoints[1:]):
+            observation = environment.observe(state)
+            # Active subgoal = the next objective ahead in the route.
+            next_objective = next(
+                (
+                    node
+                    for node in waypoints[step_index + 1 :]
+                    if node in objective_set
+                ),
+                None,
+            )
+            if next_objective is not None:
+                completed = (
+                    ", ".join(observation.completed_objective_ids)
+                    if observation.completed_objective_ids
+                    else "none"
+                )
+                rows.append(
+                    ETAProbeRow(
+                        case_id=case.case_id,
+                        split=case.split,
+                        observation_text=(
+                            "Task context: "
+                            f"{case.source_text}. Current location: "
+                            f"{observation.current_location_id}. Available "
+                            f"transitions: {', '.join(observation.available_targets)}. "
+                            f"Completed objectives: {completed}."
+                        ),
+                        subgoal_label=label_index[next_objective],
+                        step_index=step_index,
+                    )
+                )
+            state = environment.step(
+                state, target_id=waypoints[step_index + 1]
+            ).next_state
+    return tuple(rows), objective_ids
+
+
+def generate_eta_proof_corpus(
+    *,
+    seed: int = 20260802,
+    objective_count: int = 8,
+    corridor_count: int = 2,
+    extra_edge_probability: float = 0.35,
+    train_route_count: int = 200,
+    heldout_route_count: int = 60,
+    train_lengths: tuple[int, ...] = (2, 3),
+    heldout_lengths: tuple[int, ...] = (3, 4),
+) -> ETAProofCorpus:
+    """Generate a seeded, compositionally-disjoint ETA proof corpus.
+
+    The environment owner (``vz-temporal``) constructs the graph and routes;
+    this function only compiles them into ETA proof cases. No evaluation label
+    (subgoal boundary, reward, outcome) leaks into the observation surface.
+    """
+
+    environment = generate_hierarchical_environment(
+        seed=seed,
+        objective_count=objective_count,
+        corridor_count=corridor_count,
+        extra_edge_probability=extra_edge_probability,
+    )
+    routes = generate_hierarchical_routes(
+        environment=environment,
+        seed=seed,
+        train_count=train_route_count,
+        heldout_count=heldout_route_count,
+        train_lengths=train_lengths,
+        heldout_lengths=heldout_lengths,
+    )
+    cases = _build_eta_proof_cases_for_environment(environment, routes)
+    train_cases = tuple(case for case in cases if case.split == "train")
+    heldout_cases = tuple(case for case in cases if case.split == "heldout")
+    if not train_cases or not heldout_cases:
+        raise RuntimeError(
+            "generated corpus produced an empty train or heldout split."
+        )
+    return ETAProofCorpus(
+        environment=environment,
+        train_cases=train_cases,
+        heldout_cases=heldout_cases,
+        seed=seed,
+        objective_count=objective_count,
+        train_route_count=len(train_cases),
+        heldout_route_count=len(heldout_cases),
+        description=(
+            f"Seeded ETA proof corpus (seed={seed}): {len(train_cases)} train / "
+            f"{len(heldout_cases)} heldout routes over {objective_count} "
+            "objectives."
+        ),
+    )
 
 
 def eta_gate2_expanded_cases() -> tuple[ETAProofCase, ...]:

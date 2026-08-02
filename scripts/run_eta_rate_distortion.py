@@ -36,7 +36,10 @@ from preregister_eta_rate_distortion import (
     PREREGISTRATION_SCHEMA_VERSION,
     VERDICT_SET,
 )
-from volvence_zero.agent.eta_proof_benchmark import ETAOpenWeightRuntimeConfig
+from volvence_zero.agent.eta_proof_benchmark import (
+    ETAOpenWeightRuntimeConfig,
+    generate_eta_proof_corpus,
+)
 from volvence_zero.agent.eta_rate_distortion_evidence import (
     RateDistortionEvidenceReport,
     RateDistortionPoint,
@@ -116,6 +119,20 @@ def _validate_preregistration(
     sweep = payload.get("sweep")
     if not isinstance(sweep, dict):
         raise PreregistrationMismatch("preregistration sweep must be an object")
+    if args.corpus_seed is not None:
+        requested_corpus: dict[str, object] = {
+            "corpus_origin": "generated-seeded",
+            "corpus_seed": args.corpus_seed,
+            "objective_count": args.objective_count,
+            "corridor_count": args.corridor_count,
+            "extra_edge_probability": args.extra_edge_probability,
+            "train_routes": args.train_routes,
+            "heldout_routes": args.heldout_routes,
+            "train_lengths": list(args.train_lengths),
+            "heldout_lengths": list(args.heldout_lengths),
+        }
+    else:
+        requested_corpus = {"corpus_origin": "default-hardcoded-7-route"}
     requested = {
         "alpha_grid": list(args.alphas),
         "seed_schedule": list(range(args.seeds)),
@@ -126,7 +143,9 @@ def _validate_preregistration(
         "switch_threshold": args.switch_threshold,
         "arms": list(args.arms),
         "model_id": args.model_id,
+        "model_source": args.model_source or args.model_id,
         "device": args.device,
+        "corpus": requested_corpus,
     }
     for key, value in requested.items():
         if sweep.get(key) != value:
@@ -418,6 +437,34 @@ def main() -> None:
         choices=("frozen", "joint"),
         default=("frozen", "joint"),
     )
+    parser.add_argument(
+        "--model-source",
+        default=None,
+        help=(
+            "Optional local path/id to load the substrate from (e.g. a Stage-2 "
+            "continued-pretrained merged checkpoint). Defaults to --model-id."
+        ),
+    )
+    parser.add_argument(
+        "--corpus-seed",
+        type=int,
+        default=None,
+        help=(
+            "If set, use a seeded generated corpus instead of the 7 hardcoded "
+            "routes. Required to move off the legacy corpus."
+        ),
+    )
+    parser.add_argument("--objective-count", type=int, default=8)
+    parser.add_argument("--corridor-count", type=int, default=2)
+    parser.add_argument("--extra-edge-probability", type=float, default=0.35)
+    parser.add_argument("--train-routes", type=int, default=200)
+    parser.add_argument("--heldout-routes", type=int, default=60)
+    parser.add_argument(
+        "--train-lengths", type=int, nargs="+", default=(2, 3)
+    )
+    parser.add_argument(
+        "--heldout-lengths", type=int, nargs="+", default=(3, 4)
+    )
     args = parser.parse_args()
     if args.seeds < 1:
         parser.error("--seeds must be at least 1")
@@ -435,8 +482,34 @@ def main() -> None:
         preregistration_sha256 = _sha256(args.preregistration)
     config = ETAOpenWeightRuntimeConfig(
         model_id=args.model_id,
+        model_source=args.model_source,
         device=args.device,
     )
+    corpus = None
+    corpus_provenance: dict[str, object] = {"corpus_origin": "default-hardcoded-7-route"}
+    if args.corpus_seed is not None:
+        corpus = generate_eta_proof_corpus(
+            seed=args.corpus_seed,
+            objective_count=args.objective_count,
+            corridor_count=args.corridor_count,
+            extra_edge_probability=args.extra_edge_probability,
+            train_route_count=args.train_routes,
+            heldout_route_count=args.heldout_routes,
+            train_lengths=tuple(args.train_lengths),
+            heldout_lengths=tuple(args.heldout_lengths),
+        )
+        corpus_provenance = {
+            "corpus_origin": "generated-seeded",
+            "corpus_seed": args.corpus_seed,
+            "objective_count": args.objective_count,
+            "corridor_count": args.corridor_count,
+            "extra_edge_probability": args.extra_edge_probability,
+            "train_routes": corpus.train_route_count,
+            "heldout_routes": corpus.heldout_route_count,
+            "train_lengths": list(args.train_lengths),
+            "heldout_lengths": list(args.heldout_lengths),
+            "environment_id": corpus.environment.env_id,
+        }
     uses_mps = args.device.startswith("mps")
     with ExitStack() as stack:
         mps: MPSAvailability | None = None
@@ -462,7 +535,9 @@ def main() -> None:
                 "switch_threshold": args.switch_threshold,
                 "arms": list(args.arms),
                 "model_id": args.model_id,
+                "model_source": args.model_source or args.model_id,
                 "device": args.device,
+                "corpus": corpus_provenance,
                 "preregistration_sha256": preregistration_sha256,
                 "source_sha256": {
                     name: _sha256(_REPO_ROOT / name)
@@ -484,6 +559,7 @@ def main() -> None:
             open_weight_config=config,
             arms=tuple(args.arms),
             point_cache=RateDistortionCheckpointCache(checkpoint_store),
+            corpus=corpus,
         )
         elapsed = time.perf_counter() - started
     checkpoint_store.mark_complete()
@@ -557,6 +633,21 @@ def main() -> None:
         "injection_layer_index": report.injection_layer_index,
         "control_norm_cap": report.control_norm_cap,
         "observation_protocol": report.observation_protocol,
+        "corpus": {
+            **corpus_provenance,
+            "report_corpus_origin": report.corpus_origin,
+            "report_train_route_count": report.train_route_count,
+            "report_heldout_route_count": report.heldout_route_count,
+        },
+        "rate_axis_responses": {
+            response.arm: {
+                "spearman_alpha_rate": round(response.spearman_alpha_rate, 4),
+                "rate_span": round(response.rate_span, 4),
+                "rate_min": round(response.rate_min, 4),
+                "rate_max": round(response.rate_max, 4),
+            }
+            for response in report.rate_axis_responses
+        },
         "elapsed_seconds": round(elapsed, 3),
         "python_version": platform.python_version(),
         "python_executable": sys.executable,
@@ -582,6 +673,17 @@ def main() -> None:
                 "verdict_reason": report.verdict_reason,
                 "arms_distinguishable": report.arms_distinguishable,
                 "arm_separation": round(report.arm_separation, 4),
+                "corpus_origin": report.corpus_origin,
+                "train_routes": report.train_route_count,
+                "rate_axis": {
+                    response.arm: {
+                        "spearman_alpha_rate": round(
+                            response.spearman_alpha_rate, 4
+                        ),
+                        "rate_span": round(response.rate_span, 4),
+                    }
+                    for response in report.rate_axis_responses
+                },
                 "gaps": {
                     gap.arm: {
                         "detected": gap.gap_detected,

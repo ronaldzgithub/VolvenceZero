@@ -38,6 +38,8 @@ from volvence_zero.internal_rl.proof_environment import (
     HierarchicalTransition,
     MiniHierarchicalCase,
     MiniHierarchicalEnvironment,
+    generate_hierarchical_environment,
+    generate_hierarchical_routes,
 )
 from volvence_zero.internal_rl.sandbox import (
     CausalPolicyCheckpoint,
@@ -112,6 +114,8 @@ __all__ = [
     "ZRollout",
     "ZTransition",
     "derive_abstract_action_credit",
+    "generate_hierarchical_environment",
+    "generate_hierarchical_routes",
     "fit_kernel_residual_action_selector",
     "fit_residual_action_selector",
     "grouped_cross_validate_kernel_residual_action_selector",

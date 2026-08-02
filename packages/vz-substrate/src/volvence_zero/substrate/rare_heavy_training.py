@@ -33,10 +33,12 @@ Boundary notes (R2 / R9 / R10):
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import importlib.util
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from volvence_zero.substrate.residual_contracts import (
@@ -45,6 +47,7 @@ from volvence_zero.substrate.residual_contracts import (
 )
 
 RARE_HEAVY_PEFT_TRAINING_MODE = "peft-lora-v1"
+RARE_HEAVY_CONTINUED_PRETRAIN_MODE = "peft-lora-continued-pretrain-merged-v1"
 
 _DEFAULT_MAX_STEPS = 20
 
@@ -316,6 +319,231 @@ class PeftLoraRareHeavyBackend:
         )
 
 
+@dataclass(frozen=True)
+class ContinuedPretrainResult:
+    """Outcome of a rare-heavy continued-pretraining substrate refresh.
+
+    Unlike :class:`RareHeavyAdapterTrainingResult` (bounded delta vectors for
+    the live adapter path), this produces a NEW frozen base model on disk by
+    merging the trained LoRA into the weights. It is an offline rare-heavy
+    artifact: the original base snapshot is never mutated, and the merged model
+    only becomes a substrate when a later run loads ``merged_model_dir`` as its
+    frozen base. ``weight_fingerprint`` pins that artifact for provenance.
+    """
+
+    training_mode: str
+    merged_model_dir: str
+    weight_fingerprint: str
+    base_model_source: str
+    target_modules: tuple[str, ...]
+    initial_loss: float
+    final_loss: float
+    steps_taken: int
+    document_count: int
+    token_count: int
+    description: str
+
+
+def _fingerprint_directory(directory: Path) -> str:
+    """Stable sha256 over the saved weight files (sorted, streamed)."""
+
+    digest = hashlib.sha256()
+    weight_files = sorted(
+        path
+        for path in directory.rglob("*")
+        if path.is_file()
+        and path.suffix in {".safetensors", ".bin", ".json"}
+    )
+    if not weight_files:
+        raise RuntimeError(
+            f"no weight/config files found under {directory} to fingerprint."
+        )
+    for path in weight_files:
+        digest.update(path.relative_to(directory).as_posix().encode("utf-8"))
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
+def continued_pretrain_and_merge(
+    *,
+    base_model_source: str,
+    output_dir: str,
+    documents: tuple[str, ...],
+    device: str = "cpu",
+    target_modules: tuple[str, ...] = (),
+    rank: int = 16,
+    alpha: int = 32,
+    dropout: float = 0.0,
+    learning_rate: float = 2e-4,
+    max_steps: int = 200,
+    max_length: int = 256,
+) -> ContinuedPretrainResult:
+    """Continued-pretrain a frozen base via LoRA, then merge to a new base.
+
+    Reuses the rare-heavy PEFT stack (frozen base + LoRA + causal-LM loss) so
+    the substrate stays the owner of base-model modification. After training,
+    the LoRA is merged into the weights (``merge_and_unload``) and the merged
+    model + tokenizer are saved to ``output_dir`` as an independent frozen
+    artifact. The caller (Stage-3 harness) loads it via ``model_source``.
+    """
+
+    if rank <= 0 or alpha <= 0:
+        raise ValueError("continued pretraining rank/alpha must be > 0.")
+    if not (0.0 <= dropout < 1.0):
+        raise ValueError("continued pretraining dropout must be in [0, 1).")
+    if learning_rate <= 0.0:
+        raise ValueError("continued pretraining learning_rate must be > 0.")
+    if max_steps <= 0:
+        raise ValueError("continued pretraining max_steps must be > 0.")
+    if max_length < 2:
+        raise ValueError("continued pretraining max_length must be at least 2.")
+    if not base_model_source.strip():
+        raise ValueError("continued pretraining base_model_source must be non-empty.")
+    if not _peft_stack_available():
+        raise ImportError(
+            "continued_pretrain_and_merge requires peft + transformers + torch. "
+            "Install via ``pip install vz-runtime[torch]``."
+        )
+    non_empty = tuple(doc for doc in documents if doc.strip())
+    if not non_empty:
+        raise ValueError(
+            "continued_pretrain_and_merge received no non-empty documents; "
+            "refusing to write a merged artifact from an empty training pass."
+        )
+    torch = importlib.import_module("torch")
+    peft_mod = importlib.import_module("peft")
+    transformers = importlib.import_module("transformers")
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(base_model_source)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token or "[PAD]"
+    base_model = transformers.AutoModelForCausalLM.from_pretrained(
+        base_model_source
+    )
+    resolved_targets = _resolve_target_modules(
+        base_model=base_model,
+        configured=target_modules,
+        source=str(base_model_source),
+    )
+    torch_device = torch.device(device if device else "cpu")
+    base_model.to(torch_device)
+    for param in base_model.parameters():
+        param.requires_grad = False
+
+    lora_config = peft_mod.LoraConfig(
+        r=rank,
+        lora_alpha=alpha,
+        lora_dropout=dropout,
+        target_modules=list(resolved_targets),
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+    peft_model = peft_mod.get_peft_model(base_model, lora_config)
+    peft_model.train()
+    peft_model.to(torch_device)
+    trainable = [p for p in peft_model.parameters() if p.requires_grad]
+    if not trainable:
+        raise RuntimeError(
+            "continued_pretrain_and_merge: peft marked no parameters trainable; "
+            f"target_modules={resolved_targets!r} matched nothing in "
+            f"{base_model_source!r}."
+        )
+    optimizer = torch.optim.AdamW(trainable, lr=learning_rate)
+
+    rows = []
+    token_count = 0
+    for text in non_empty:
+        encoded = tokenizer(
+            text, return_tensors="pt", truncation=True, max_length=max_length
+        )
+        input_ids = encoded["input_ids"].to(torch_device)
+        if input_ids.shape[1] < 2:
+            continue
+        token_count += int(input_ids.shape[1])
+        attention_mask = encoded.get("attention_mask")
+        attention_mask = (
+            attention_mask.to(torch_device)
+            if attention_mask is not None
+            else torch.ones_like(input_ids)
+        )
+        rows.append(
+            {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "labels": input_ids.clone(),
+            }
+        )
+    if not rows:
+        raise ValueError(
+            "continued_pretrain_and_merge: no document survived tokenization."
+        )
+
+    def _mean_loss() -> float:
+        with torch.no_grad():
+            losses = [
+                float(
+                    peft_model(
+                        input_ids=row["input_ids"],
+                        attention_mask=row["attention_mask"],
+                        labels=row["labels"],
+                    ).loss.detach().cpu().item()
+                )
+                for row in rows
+            ]
+        return sum(losses) / len(losses)
+
+    initial_loss = _mean_loss()
+    steps_taken = 0
+    while steps_taken < max_steps:
+        for row in rows:
+            if steps_taken >= max_steps:
+                break
+            optimizer.zero_grad()
+            loss = peft_model(
+                input_ids=row["input_ids"],
+                attention_mask=row["attention_mask"],
+                labels=row["labels"],
+            ).loss
+            loss.backward()
+            optimizer.step()
+            steps_taken += 1
+    peft_model.eval()
+    final_loss = _mean_loss()
+
+    merged = peft_model.merge_and_unload()
+    out_path = Path(output_dir)
+    if out_path.exists():
+        if not out_path.is_dir() or any(out_path.iterdir()):
+            raise FileExistsError(
+                "continued pretraining refuses to overwrite the merged "
+                f"artifact target: {out_path}"
+            )
+    out_path.mkdir(parents=True, exist_ok=True)
+    merged.save_pretrained(str(out_path))
+    tokenizer.save_pretrained(str(out_path))
+    fingerprint = _fingerprint_directory(out_path)
+    return ContinuedPretrainResult(
+        training_mode=RARE_HEAVY_CONTINUED_PRETRAIN_MODE,
+        merged_model_dir=str(out_path),
+        weight_fingerprint=fingerprint,
+        base_model_source=str(base_model_source),
+        target_modules=resolved_targets,
+        initial_loss=initial_loss,
+        final_loss=final_loss,
+        steps_taken=steps_taken,
+        document_count=len(rows),
+        token_count=token_count,
+        description=(
+            f"Continued-pretrain merged base from {base_model_source}: "
+            f"rank={rank} targets={resolved_targets!r} steps={steps_taken} "
+            f"docs={len(rows)} tokens={token_count} "
+            f"init_loss={initial_loss:.4f} final_loss={final_loss:.4f}."
+        ),
+    )
+
+
 def _resolve_target_modules(
     *, base_model: Any, configured: tuple[str, ...], source: str
 ) -> tuple[str, ...]:
@@ -452,8 +680,11 @@ def _bucket_pool(values: Any, dim: int, *, torch: Any) -> Any:
 
 __all__ = [
     "RARE_HEAVY_PEFT_TRAINING_MODE",
+    "RARE_HEAVY_CONTINUED_PRETRAIN_MODE",
+    "ContinuedPretrainResult",
     "PeftLoraRareHeavyBackend",
     "RareHeavyAdapterTrainingBackend",
     "RareHeavyAdapterTrainingResult",
     "RareHeavyTrainingRequest",
+    "continued_pretrain_and_merge",
 ]

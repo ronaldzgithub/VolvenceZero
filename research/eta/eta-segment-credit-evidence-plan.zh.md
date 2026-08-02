@@ -496,3 +496,54 @@ Artifact：`artifacts/eta_rate_distortion_20260801`（原始扫描点、两臂�
 后续处置（按计划判定条款）：删除 ETA 主张、保留记忆与连续性部分、
 `vz-temporal` 退回 legacy 路径，属于独立的收敛包，不在本包内执行。
 `_step_impl_legacy` 与全部 switch 正则代码已保留为回滚基线。
+
+## 2026-08-02 第六收敛包：ETA 迁移 LLM 四级阶梯（机器 + 预注册 + pilot）
+
+第五包的 `kill-eta` 留下两处未解释异常：rate 轴对 alpha 弱/非单调，以及
+3 路线被记忆化（train distortion 0.007 vs heldout 4.7）。本包不推翻 verdict，
+而是按"先补前提、再审判"的顺序把论文成立条件逐级搬到冻结 LLM 上，每级设 kill
+门，死在哪级停在哪级；`kill-eta` 在 Stage 3 通过前保持有效。本包只交付机器、
+预注册与直接相关 smoke，不做昂贵全量运行（本机内存受限 + 用户在运行
+lifeform_service 1.5B，后台 MPS 训练多次被 jetsam 杀）。
+
+**Stage 1（数据机制假设）**：环境 owner 新增 seeded 程序化生成器
+（`generate_hierarchical_environment` + hub relay 保证任意子目标序可达 +
+`stitch_waypoints` + `generate_hierarchical_routes` 按 ordering 哈希分区
+train/heldout 组合不相交）；harness 增 `corpus=` 注入与可离线复算的
+`RateAxisResponse`。Gate 1 预注册
+`artifacts/eta_stage1_rate_axis_prereg_20260802/`（frozen 臂
+spearman(alpha,rate) ≤ −0.8 且 rate_span ≥ 0.30）。**可行性 pilot（非正式，
+不可引用为 verdict）** `artifacts/eta_stage1_rate_axis_pilot_20260802/`：
+6→24 路线、1 seed、3 alpha、8 updates——**记忆化消除**（24 路线 train≈heldout
+distortion，1.64/1.70/1.83 vs 1.64/1.70/1.85），**rate_span 升到 0.64–0.81
+（远超 ~0.20 基线，过 0.30 门）**，distortion 随 alpha 单调上升（方向正确），
+但 rate 对 alpha 非单调（α=3.0 回弹），spearman 仅 −0.5 未达 −0.8。方向上支持
+数据机制假设，但正式 Gate 1 须跑预注册的 200 路线 × 6 alpha × 3 seed × 40
+updates 冻结扫描；若 α=3.0 回弹持续，即 Gate 1 预注册所列的 posterior 方差
+参数化 fallback，修好再跑，未过前不得进入 Stage 2。
+
+**Stage 2（补领域内预训练 + probe 前置检验）**：substrate owner 新增
+`continued_pretrain_and_merge`（rare-heavy PEFT LoRA → `merge_and_unload` →
+冻结落盘 + 权重指纹，离线 substrate refresh，原始 Qwen 不动）；语料导出
+`scripts/run_eta_stage2_corpus.py`（只含 train-split ordering，与 Stage 3
+heldout 生成期即不相交，带 SHA provenance）；线性分类 probe
+`fit_linear_classification_probe`（从各层 final-position hidden 解码 active
+subgoal）+ `run_eta_stage2_probe.py` 的 Gate 2（补课后 heldout ≥ 2× 随机、随
+前缀上升、优于原始 Qwen），预注册
+`artifacts/eta_stage2_gate2_prereg_20260802/`，不过则整体 kill。三条链路均已
+CPU smoke 打通（loss 2.42→2.08 merge+指纹；probe base/pretrained/gate2 逻辑）。
+
+**Stage 3（补课基底重审判据）**：`run_eta_rate_distortion.py` 增
+`--corpus-seed/--train-routes/--model-source`，在补课冻结 LLM 上按
+`eta-rate-distortion-evidence.v1` 已冻结规则重跑双臂判据，预注册
+`artifacts/eta_stage3_prereg_20260802/`（6 alpha × 3 seed × 2 臂）。出 gap 且
+段内 F1 更高 → 撤销 kill-eta 改判 retain-eta-on-llm；无 gap → kill 升级为
+跨原生小模型与领域内预训练 LLM 两种机制均不成立。
+
+**Stage 4（contingent，仅设计）**：
+`research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md`，对话无子目标
+真值故 boundary F1 不可作门，退回 rate-distortion gap + heldout 泛化，仅前
+三级全过后才转正式预注册并执行。
+
+回滚：全部新代码为 evidence lane，不改任何 production WiringLevel；补课基底是
+独立 artifact，原始 Qwen 路径不受影响。
