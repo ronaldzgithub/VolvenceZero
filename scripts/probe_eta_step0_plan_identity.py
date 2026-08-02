@@ -111,6 +111,29 @@ def _cross_validated_accuracy(
     }
 
 
+def _capture_last_raw(capture) -> tuple[float, ...]:
+    raw: list[float] = []
+    for act in capture.residual_activations:
+        raw.extend(act.activation)
+    return tuple(raw)
+
+
+def _capture_mean_raw(capture, *, tail: int | None = None) -> tuple[float, ...]:
+    steps = capture.residual_sequence[-tail:] if tail else capture.residual_sequence
+    per_layer_sums: dict[int, list[float]] = {}
+    for sequence_step in steps:
+        for act in sequence_step.residual_activations:
+            bucket = per_layer_sums.setdefault(
+                act.layer_index, [0.0] * len(act.activation)
+            )
+            for index, value in enumerate(act.activation):
+                bucket[index] += value
+    raw: list[float] = []
+    for layer_index in sorted(per_layer_sums):
+        raw.extend(value / len(steps) for value in per_layer_sums[layer_index])
+    return tuple(raw)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
@@ -196,9 +219,12 @@ def main() -> None:
     mean_raws: list[tuple[float, ...]] = []
     plan_end_raws: list[tuple[float, ...]] = []
     plan_end_tail_raws: list[tuple[float, ...]] = []
+    plan_alone_last_raws: list[tuple[float, ...]] = []
+    plan_alone_mean_raws: list[tuple[float, ...]] = []
     label_target_1: list[str] = []
     label_target_2: list[str] = []
     label_plan_length: list[str] = []
+    label_last_transition: list[str] = []
     for case in cases:
         texts, _targets = _rate_distortion_observation_texts(
             case,
@@ -207,26 +233,8 @@ def main() -> None:
         )
         step0_text = texts[0]
         capture = runtime.capture(source_text=step0_text)
-        last_raw: list[float] = []
-        for act in capture.residual_activations:
-            last_raw.extend(act.activation)
-        last_raws.append(tuple(last_raw))
-
-        per_layer_sums: dict[int, list[float]] = {}
-        step_count = len(capture.residual_sequence)
-        for sequence_step in capture.residual_sequence:
-            for act in sequence_step.residual_activations:
-                bucket = per_layer_sums.setdefault(
-                    act.layer_index, [0.0] * len(act.activation)
-                )
-                for index, value in enumerate(act.activation):
-                    bucket[index] += value
-        mean_raw: list[float] = []
-        for layer_index in sorted(per_layer_sums):
-            mean_raw.extend(
-                value / step_count for value in per_layer_sums[layer_index]
-            )
-        mean_raws.append(tuple(mean_raw))
+        last_raws.append(_capture_last_raw(capture))
+        mean_raws.append(_capture_mean_raw(capture))
 
         plan_prefix = f"Route plan: {case.source_text}. "
         if not step0_text.startswith(plan_prefix):
@@ -239,35 +247,46 @@ def main() -> None:
             f"{step0_text[len(plan_prefix):]} Route plan: {case.source_text}."
         )
         plan_end_capture = runtime.capture(source_text=plan_end_text)
-        plan_end_raw: list[float] = []
-        for act in plan_end_capture.residual_activations:
-            plan_end_raw.extend(act.activation)
-        plan_end_raws.append(tuple(plan_end_raw))
+        plan_end_raws.append(_capture_last_raw(plan_end_capture))
+        plan_end_tail_raws.append(_capture_mean_raw(plan_end_capture, tail=8))
 
-        tail_steps = plan_end_capture.residual_sequence[-8:]
-        tail_sums: dict[int, list[float]] = {}
-        for sequence_step in tail_steps:
-            for act in sequence_step.residual_activations:
-                bucket = tail_sums.setdefault(
-                    act.layer_index, [0.0] * len(act.activation)
-                )
-                for index, value in enumerate(act.activation):
-                    bucket[index] += value
-        tail_raw: list[float] = []
-        for layer_index in sorted(tail_sums):
-            tail_raw.extend(
-                value / len(tail_steps) for value in tail_sums[layer_index]
+        plan_alone_capture = runtime.capture(
+            source_text=f"Route plan: {case.source_text}."
+        )
+        plan_alone_last_raws.append(_capture_last_raw(plan_alone_capture))
+        plan_alone_mean_raws.append(_capture_mean_raw(plan_alone_capture))
+
+        # Readability control: the final transition name is spelled by the
+        # very last content tokens of the step-0 prompt; if even this is not
+        # linearly readable from the last-token capture, no prompt content is.
+        transitions_marker = "Available transitions: "
+        marker_index = step0_text.rindex(transitions_marker)
+        transition_list = step0_text[
+            marker_index + len(transitions_marker) :
+        ].rstrip(".")
+        label_last_transition.append(
+            transition_list.split(", ")[-1].strip()
+        )
+
+        # route_signature is the full waypoint path including corridor hops;
+        # the plan stated in the step-0 text is the ordered OBJECTIVE
+        # sequence. Label with objectives only.
+        objectives = tuple(
+            waypoint
+            for waypoint in case.route_signature
+            if corpus.environment.location(waypoint).is_objective
+        )
+        if len(objectives) < 2:
+            raise RuntimeError(
+                f"route {case.case_id!r} has fewer than two planned "
+                "objectives; probe labels would be undefined."
             )
-        plan_end_tail_raws.append(tuple(tail_raw))
-
-        # route_signature = (start, target_1, target_2, ...); every frozen
-        # route has at least two planned targets.
-        label_target_1.append(case.route_signature[1])
-        label_target_2.append(case.route_signature[2])
-        # Positive control: plan length (2 vs 3 targets) is trivially encoded
-        # by prompt length; if the probe cannot recover even this, the probe
-        # method itself (not the representation) is broken.
-        label_plan_length.append(str(len(case.route_signature) - 1))
+        label_target_1.append(objectives[0])
+        label_target_2.append(objectives[1])
+        # Positive control: plan length (objective count) is trivially
+        # encoded by prompt length; if the probe cannot recover even this,
+        # the probe method itself (not the representation) is broken.
+        label_plan_length.append(str(len(objectives)))
 
     results: dict[str, object] = {}
     for pooling, raws in (
@@ -275,6 +294,10 @@ def main() -> None:
         ("token-mean", mean_raws),
         ("plan-at-end-last-token", plan_end_raws),
         ("plan-at-end-last8-mean", plan_end_tail_raws),
+        ("plan-alone-last-token", plan_alone_last_raws),
+        ("plan-alone-mean", plan_alone_mean_raws),
+        ("plan-alone-last-token", plan_alone_last_raws),
+        ("plan-alone-mean", plan_alone_mean_raws),
     ):
         for n_input in args.n_inputs:
             features = torch.tensor(
@@ -288,6 +311,9 @@ def main() -> None:
             for name, raw_labels in (
                 ("target_1", label_target_1),
                 ("target_2", label_target_2),
+                ("plan_length_control", label_plan_length),
+                ("last_transition_control", label_last_transition),
+                ("last_transition_control", label_last_transition),
             ):
                 vocabulary = sorted(set(raw_labels))
                 labels = torch.tensor(

@@ -134,6 +134,18 @@ residual；三个 `n_input` 窗口的 target-1/target-2 结果逐项相同。这
 旧 `residual_sequence[-1]` 取法与旧 summary 相同，不代表完整序列平均也相同。三种
 pooling 都没有形成可接受的计划身份读出，仍是非权威诊断。
 
+最后一轮控制还修正了 probe label：`route_signature` 包含 corridor hop，不能直接把
+前两项当作 objective targets；脚本现在从 environment 中筛出有序 objective 序列，并
+另报 `plan_length_control`。224-route、`n_input=64` 的 control bundle 与 fixed-label
+bundle 均未通过计划身份门：fixed-label target-2 在四种 pooling 下为
+`0.080/0.125/0.147/0.116`，多数基线约 `0.143`，而 plan-length control 也低于其
+多数基线 `0.665`。这只证明标签污染已被隔离，不能把 control/null 差异升级为 latent
+计划身份证据。
+
+脚本随后补充了 plan-alone（只保留计划文本）与 last-transition readability controls；
+这两组只作为方法学自检，尚未形成新的物证 bundle，也不能替代 fixed-label target
+结果。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）
