@@ -123,24 +123,57 @@ def main() -> None:
     )
     parser.add_argument("--model-id", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--device", default="mps")
-    parser.add_argument("--n-input", type=int, default=16)
+    parser.add_argument(
+        "--n-inputs",
+        type=int,
+        nargs="+",
+        default=(16,),
+        help=(
+            "Controller input widths to evaluate. Folding is applied "
+            "post-hoc per width from one shared capture, so several widths "
+            "cost one sweep of model forwards."
+        ),
+    )
+    parser.add_argument(
+        "--activation-width",
+        type=int,
+        default=8,
+        help=(
+            "Per-layer capture width (chunk-mean pooling of the 896-dim "
+            "hidden state). The Gate-1 default is 8; wider widths test "
+            "whether the pooling itself is what destroys plan identity."
+        ),
+    )
+    parser.add_argument(
+        "--probe-route-count",
+        type=int,
+        default=None,
+        help=(
+            "Override the train-route count for probe power. Default keeps "
+            "the frozen Gate-1 corpus (64 train + 24 heldout routes)."
+        ),
+    )
     parser.add_argument("--corpus-seed", type=int, default=20260802)
     parser.add_argument("--folds", type=int, default=4)
     args = parser.parse_args()
 
-    # Identical corpus to the frozen Gate-1 protocol.
+    # Identical corpus family to the frozen Gate-1 protocol (route count may
+    # be raised for probe power; the graph/renderer are the same).
     corpus = generate_eta_proof_corpus(
         seed=args.corpus_seed,
         objective_count=8,
         corridor_count=2,
         extra_edge_probability=0.35,
-        train_route_count=64,
+        train_route_count=args.probe_route_count or 64,
         heldout_route_count=24,
         train_lengths=(2, 3),
         heldout_lengths=(3, 4),
     )
     config = ETAOpenWeightRuntimeConfig(
-        model_id=args.model_id, device=args.device, model_dtype="float32"
+        model_id=args.model_id,
+        device=args.device,
+        model_dtype="float32",
+        activation_width=args.activation_width,
     )
     runtime = _build_eta_open_weight_runtime(config)
     _validate_eta_open_weight_runtime(runtime=runtime, config=config)
@@ -154,56 +187,61 @@ def main() -> None:
         protocol_version=OBSERVATION_PROTOCOL_V2,
     )
 
-    step0_vectors: list[tuple[float, ...]] = []
     label_target_1: list[str] = []
     label_target_2: list[str] = []
-    for case, trace in zip(cases, traces, strict=True):
-        step0_vectors.append(_step_input_vectors(trace, args.n_input)[0])
+    for case in cases:
         # route_signature = (start, target_1, target_2, ...); every frozen
         # route has at least two planned targets.
         label_target_1.append(case.route_signature[1])
         label_target_2.append(case.route_signature[2])
 
-    features = torch.tensor(step0_vectors, dtype=torch.float64)
-    features = (features - features.mean(dim=0)) / (
-        features.std(dim=0) + 1e-9
-    )
-
     results: dict[str, object] = {}
-    for name, raw_labels in (
-        ("target_1", label_target_1),
-        ("target_2", label_target_2),
-    ):
-        vocabulary = sorted(set(raw_labels))
-        labels = torch.tensor(
-            [vocabulary.index(value) for value in raw_labels]
+    for n_input in args.n_inputs:
+        step0_vectors = [
+            _step_input_vectors(trace, n_input)[0] for trace in traces
+        ]
+        features = torch.tensor(step0_vectors, dtype=torch.float64)
+        features = (features - features.mean(dim=0)) / (
+            features.std(dim=0) + 1e-9
         )
-        counts = torch.bincount(labels, minlength=len(vocabulary))
-        majority_share = float(counts.max()) / len(raw_labels)
-        real = _cross_validated_accuracy(
-            features, labels, class_count=len(vocabulary), folds=args.folds
-        )
-        shuffle_generator = torch.Generator().manual_seed(1234)
-        null = _cross_validated_accuracy(
-            features,
-            labels[torch.randperm(len(raw_labels), generator=shuffle_generator)],
-            class_count=len(vocabulary),
-            folds=args.folds,
-        )
-        results[name] = {
-            "class_count": len(vocabulary),
-            "majority_class_share": majority_share,
-            "probe": real,
-            "shuffled_label_null": null,
-        }
-        print(
-            f"{name}: classes={len(vocabulary)} "
-            f"majority={majority_share:.3f} "
-            f"probe={real['mean_test_accuracy']:.3f}"
-            f"+/-{real['std_test_accuracy']:.3f} "
-            f"null={null['mean_test_accuracy']:.3f}"
-            f"+/-{null['std_test_accuracy']:.3f}"
-        )
+        width_results: dict[str, object] = {}
+        for name, raw_labels in (
+            ("target_1", label_target_1),
+            ("target_2", label_target_2),
+        ):
+            vocabulary = sorted(set(raw_labels))
+            labels = torch.tensor(
+                [vocabulary.index(value) for value in raw_labels]
+            )
+            counts = torch.bincount(labels, minlength=len(vocabulary))
+            majority_share = float(counts.max()) / len(raw_labels)
+            real = _cross_validated_accuracy(
+                features, labels, class_count=len(vocabulary), folds=args.folds
+            )
+            shuffle_generator = torch.Generator().manual_seed(1234)
+            null = _cross_validated_accuracy(
+                features,
+                labels[
+                    torch.randperm(len(raw_labels), generator=shuffle_generator)
+                ],
+                class_count=len(vocabulary),
+                folds=args.folds,
+            )
+            width_results[name] = {
+                "class_count": len(vocabulary),
+                "majority_class_share": majority_share,
+                "probe": real,
+                "shuffled_label_null": null,
+            }
+            print(
+                f"n_input={n_input} {name}: classes={len(vocabulary)} "
+                f"majority={majority_share:.3f} "
+                f"probe={real['mean_test_accuracy']:.3f}"
+                f"+/-{real['std_test_accuracy']:.3f} "
+                f"null={null['mean_test_accuracy']:.3f}"
+                f"+/-{null['std_test_accuracy']:.3f}"
+            )
+        results[f"n_input_{n_input}"] = width_results
 
     payload = {
         "schema_version": "eta-step0-plan-identity-probe.v1",
@@ -217,7 +255,8 @@ def main() -> None:
         "fallback_active": runtime.fallback_active,
         "device": args.device,
         "observation_protocol": OBSERVATION_PROTOCOL_V2,
-        "n_input": args.n_input,
+        "n_inputs": list(args.n_inputs),
+        "activation_width": args.activation_width,
         "corpus_seed": args.corpus_seed,
         "route_count": len(cases),
         "folds": args.folds,

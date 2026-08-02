@@ -103,6 +103,12 @@ screen，再用真实 substrate 证伪，不能把 surrogate 通过写成 ETA �
 “latent 已携带第二子目标”主张。该结果提示 16 维 substrate summary 可能是瓶颈，
 但不改变 Gate 1 失败规则，也不授权扩大训练预算。
 
+随后在同一 frozen Gate-1 corpus 上把 route 数提高到 88、capture width 提高到 64，
+并使用 Qwen `hf-local` 的 step-0 probe 复核容量：target-2 准确率 `0.148`，shuffle
+null `0.102`，仍低于 8 类多数基线 `0.193`；target-1 也未超过多数基线
+（`0.784` 对 `0.875`）。这只是更宽激活摘要的非权威诊断，不能升级为 Gate 2/3
+证据，也没有改变 `kill-eta` 或生产 wiring。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）

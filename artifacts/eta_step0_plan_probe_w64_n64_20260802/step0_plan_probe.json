@@ -1,0 +1,65 @@
+{
+  "schema_version": "eta-step0-plan-identity-probe.v1",
+  "created_at": "2026-08-02T15:31:23.022557+00:00",
+  "note": "Capacity diagnostic for the step-0 encoder input under protocol v2 on the frozen Gate-1 corpus. Not authoritative evidence.",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "runtime_origin": "hf-local",
+  "fallback_active": false,
+  "device": "mps",
+  "observation_protocol": "partially-observable-no-route-identity.v2",
+  "n_input": 64,
+  "activation_width": 64,
+  "corpus_seed": 20260802,
+  "route_count": 88,
+  "folds": 4,
+  "results": {
+    "target_1": {
+      "class_count": 2,
+      "majority_class_share": 0.875,
+      "probe": {
+        "mean_test_accuracy": 0.7840909090909091,
+        "std_test_accuracy": 0.06722817935340476,
+        "fold_accuracies": [
+          0.8636363636363636,
+          0.6818181818181818,
+          0.8181818181818182,
+          0.7727272727272727
+        ]
+      },
+      "shuffled_label_null": {
+        "mean_test_accuracy": 0.7613636363636364,
+        "std_test_accuracy": 0.04953294254023496,
+        "fold_accuracies": [
+          0.6818181818181818,
+          0.7727272727272727,
+          0.8181818181818182,
+          0.7727272727272727
+        ]
+      }
+    },
+    "target_2": {
+      "class_count": 8,
+      "majority_class_share": 0.19318181818181818,
+      "probe": {
+        "mean_test_accuracy": 0.14772727272727273,
+        "std_test_accuracy": 0.037688918072220454,
+        "fold_accuracies": [
+          0.18181818181818182,
+          0.18181818181818182,
+          0.13636363636363635,
+          0.09090909090909091
+        ]
+      },
+      "shuffled_label_null": {
+        "mean_test_accuracy": 0.10227272727272728,
+        "std_test_accuracy": 0.04953294254023493,
+        "fold_accuracies": [
+          0.09090909090909091,
+          0.18181818181818182,
+          0.09090909090909091,
+          0.045454545454545456
+        ]
+      }
+    }
+  }
+}
