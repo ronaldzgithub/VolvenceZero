@@ -2,16 +2,16 @@
   "schema_version": "seven-day-formal-checkpoint.v1",
   "campaign": "Gate-8/11",
   "run_id": "20260802T152751Z",
-  "status": "partial-formal-day3",
+  "status": "partial-formal-day4",
   "authoritative": false,
   "synthetic_source_audit": true,
   "user_script_count": 6,
   "user_script_turns_each": 35,
-  "formal_runs_completed": 3,
+  "formal_runs_completed": 4,
   "completed_scenarios": 1,
-  "completed_days": 3,
+  "completed_days": 4,
   "formal_campaign_completed": false,
   "independent_audit_completed": false,
   "state_evaluation_observations_present": true,
-  "note": "封存合成数据审计、六份用户脚本，以及一个参与者的 day-1/day-2/day-3/session 物证；day-3 boundary_violation_rate=0.222222，formal campaign 尚未完成，未生成 run verdict 或 independent audit 结论，不得据此宣称七日 Gate 通过。"
+  "note": "封存合成数据审计、六份用户脚本，以及一个参与者的 day-1/day-2/day-3/day-4/session 物证；day-4 boundary_violation_rate=0.250000，formal campaign 尚未完成，未生成 run verdict 或 independent audit 结论，不得据此宣称七日 Gate 通过。"
 }
