@@ -115,6 +115,11 @@ null `0.102`，仍低于 8 类多数基线 `0.193`；target-1 也未超过多数
 `0.714`，均不高于多数基线 `0.866`。该 bundle 仍是非权威容量诊断，target-2
 没有形成可接受的计划身份读出，不能作为 Stage 2/3 的前置通过门。
 
+同一全宽、224-route capture 还对比了当前 token-mean 与被丢弃的 last-token
+residual；三个 `n_input` 窗口的 target-1/target-2 结果逐项相同。这说明当前
+`residual_sequence` 在该 step-0 协议下没有提供与 token-mean 不同的可用观测，不能
+把 pooling 选择当作已定位的根因；该结论同样只是诊断，不改变 Gate 1。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）
