@@ -265,3 +265,27 @@
 | 2026Q4 | qwen | Q4 quota allocation. | 2026-07-31T17:02:10.417300+00:00 |
 | 2026Q3 | deepseek | Test run for contract. | 2026-07-31T17:18:43.690804+00:00 |
 | 2026Q4 | qwen | Q4 quota allocation. | 2026-07-31T17:18:43.694602+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-07-31T17:44:56.558583+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-07-31T17:44:56.561412+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-07-31T18:07:56.602348+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-07-31T18:07:56.603596+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-07-31T18:16:35.371873+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-07-31T18:16:35.373145+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-07-31T18:18:12.815939+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-07-31T18:18:12.818029+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-07-31T18:29:15.439838+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-07-31T18:29:15.441467+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-07-31T19:23:58.235361+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-07-31T19:23:58.236567+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-08-01T12:34:14.461222+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-08-01T12:34:14.462758+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-08-01T12:35:17.746524+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-08-01T12:35:17.747737+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-08-01T16:07:07.420257+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-08-01T16:07:07.422725+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-08-01T16:09:24.903533+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-08-01T16:09:24.905474+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-08-01T17:05:07.801721+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-08-01T17:05:07.803777+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-08-01T17:54:18.434117+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-08-01T17:54:18.436157+00:00 |
