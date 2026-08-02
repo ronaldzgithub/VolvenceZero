@@ -67,6 +67,38 @@ Gate 8/11 已支持受限的 wake/sleep 与 per-user owner continuity 主张，�
 - [Relationship Memory Console 规范](docs/specs/relationship-memory-console.md)
 - [产品需求文档](docs/prd.md)
 
+## 启动关系助手
+
+根目录提供了面向当前产品闭环的一键启动脚本。它默认启动 `companion` vertical，
+使用通过用户事实记忆验收的 `Qwen/Qwen2.5-1.5B-Instruct`，并开启按用户隔离的
+持久记忆：
+
+```bash
+./start_relationship_assistant.sh
+```
+
+服务就绪后访问 [http://127.0.0.1:8877/chat](http://127.0.0.1:8877/chat)。脚本在
+前台运行，按 `Ctrl-C` 停止。默认记忆和证据分别保存在
+`~/.volvence/alpha-memory` 与 `~/.volvence/alpha-evidence`。
+
+可通过环境变量覆盖运行参数：
+
+```bash
+# Apple Silicon 默认 auto 会选择可用的 MPS；也可显式指定 cpu。
+DEVICE=mps ./start_relationship_assistant.sh
+
+# 模型已在 Hugging Face 本地缓存时禁止联网读取。
+LOCAL_FILES_ONLY=1 ./start_relationship_assistant.sh
+
+# 改用其他端口。
+PORT=8878 ./start_relationship_assistant.sh
+```
+
+可用变量包括 `HOST`、`PORT`、`MODEL_ID`、`DEVICE`、`LOCAL_FILES_ONLY`、
+`MEMORY_SCOPE_ROOT_DIR`、`EVIDENCE_ROOT_DIR` 和 `PYTHON`。0.5B 模型仅适合机制
+冒烟测试，不能作为用户事实抽取与召回的产品验收模型。CPU 上完整认知链单轮可能
+需要数分钟，交互部署应优先使用 MPS、CUDA 或后续的 vLLM 批处理服务。
+
 ## 可复现证据命令行（Apple MPS）
 
 ### 脚本完备性与证据状态
