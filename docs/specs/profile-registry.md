@@ -492,6 +492,17 @@ disclaimer prompt 安全段。`build_standard_dialogue_runner` 对它执行额�
 `Qwen/Qwen2.5-0.5B-Instruct`，loaded prefix ID 必须等于绑定 ID；任何不匹配都
 fail loudly。通过部署门只授权这个显式 profile，默认 `pe-eta` 仍是 SHADOW/residual。
 
+绑定值现为正式
+`FinalRolloutConfig.personal_conditioning_prefix_artifact_id` 字段；所有 State-KV
+profile（包含 `state-kv-active-v1`）统一经 `ResolvedProfile.apply_to_config`，
+runner 启动后在首 turn 前比较 config id 与 loaded runtime id，不再由 `_legacy`
+为部署 profile 建立特殊分支。
+
+默认切换不属于本轮：触发条件冻结为尽调 C2/C3/C5/C6 proven 且 Personal
+bank-gain panel pass。满足后仍需独立 SHADOW→ACTIVE 迁移包，将 `pe-eta` 同时
+切到 prefix_kv 并绑定 artifact；回滚开关是恢复 SHADOW/residual 与 binding=None。
+当前 C5/bank-gain fail，禁止提前切换。
+
 ---
 
 ## 错误处理与 fail-loudly

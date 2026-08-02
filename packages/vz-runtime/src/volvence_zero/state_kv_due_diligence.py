@@ -529,6 +529,21 @@ def build_due_diligence_report(
         "claim_credit_feedback_improves_matched_outcome",
     )
     conclusion_5 = credit_mechanism and credit_outcome_state == "pass"
+    conclusion_6 = (
+        _gate_pass(payloads, "deployment")
+        and _gate_pass(payloads, "generation_seed")
+        and _gate_pass(payloads, "safety_negatives")
+        and _claim_pass(
+            payloads,
+            "safety_negatives",
+            "claim_stale_conditioning_is_inert",
+        )
+        and _claim_pass(
+            payloads,
+            "safety_negatives",
+            "claim_latent_state_resists_output_extraction",
+        )
+    )
     conclusions = (
         DueDiligenceConclusion(
             conclusion_id="C1",
@@ -613,12 +628,21 @@ def build_due_diligence_report(
         DueDiligenceConclusion(
             conclusion_id="C6",
             statement="错用户/过期/撤销无残留且潜状态不可抽取",
-            state="not-yet-proven",
-            evidence_ids=("deployment", "generation_seed"),
+            state="proven" if conclusion_6 else "not-yet-proven",
+            evidence_ids=(
+                "deployment",
+                "generation_seed",
+                "safety_negatives",
+            ),
             detail=(
-                "撤销、冷启动、scope 隔离、freshness=0 过期硬门与回滚已有"
-                "契约回归；错用户/过期的完整冻结负控和潜状态抽取攻击仍无"
-                "完整证据门，因此结论不能整体标 proven。"
+                "冻结 deployment/generation-seed 门通过；freshness=0 状态"
+                "在 carrier 边界被拒且 baseline-equivalent/applied=false，"
+                "24 样本直接提示与 held-out 线性探针均低于预注册抽取阈值。"
+                if conclusion_6
+                else (
+                    "deployment、generation-seed、stale-state 与 extraction "
+                    "attack 冻结证据未全部通过。"
+                )
             ),
         ),
         DueDiligenceConclusion(

@@ -92,6 +92,20 @@ def _evidence(root: Path) -> dict[str, str]:
             "schema_version": "seed.v1",
             "gate_state": "pass",
         },
+        "safety_negatives": {
+            "schema_version": "safety-negatives.v1",
+            "gate_state": "pass",
+            "claims": [
+                {
+                    "claim": "claim_stale_conditioning_is_inert",
+                    "state": "pass",
+                },
+                {
+                    "claim": "claim_latent_state_resists_output_extraction",
+                    "state": "pass",
+                },
+            ],
+        },
         "identification": {
             "schema_version": "identification.v1",
             "verdict_state": "retain-strict",
@@ -211,7 +225,39 @@ def test_due_diligence_marks_only_directly_supported_claim_proven(
     assert states["C2"] == "proven"
     assert states["C1"] == "not-yet-proven"
     assert states["C3"] == "not-yet-proven"
+    assert states["C6"] == "proven"
     assert states["C7"] == "not-yet-proven"
+
+
+def test_due_diligence_c6_fails_when_extraction_negative_fails(
+    tmp_path: Path,
+) -> None:
+    prefix_manifest_path = _prefix_manifest(tmp_path)
+    evidence_paths = _evidence(tmp_path)
+    safety_path = tmp_path / evidence_paths["safety_negatives"]
+    payload = json.loads(safety_path.read_text(encoding="utf-8"))
+    payload["gate_state"] = "fail"
+    payload["claims"][1]["state"] = "fail"
+    _write_json(safety_path, payload)
+    manifest = build_freeze_manifest(
+        repo_root=tmp_path,
+        prefix_manifest_path=prefix_manifest_path,
+        evidence_paths=evidence_paths,
+        profile_labels=("arm-a", "arm-g"),
+        generation_seeds=(1, 2, 3),
+        scenario_sets=("heldout",),
+        metric_definitions=("matching-ci",),
+        judge_panel=("judge-a", "judge-b"),
+        experiment_config={"generation": {"max_new_tokens": 8}},
+    )
+
+    report = build_due_diligence_report(repo_root=tmp_path, manifest=manifest)
+
+    states = {
+        conclusion.conclusion_id: conclusion.state
+        for conclusion in report.conclusions
+    }
+    assert states["C6"] == "not-yet-proven"
 
 
 def test_due_diligence_c3_requires_live_matching_prefix_and_five_arm_control(

@@ -3,9 +3,9 @@
     {
       "evidence_id": "bank_gain",
       "observed_state": "fail",
-      "path": "artifacts/state_kv/verdict_bank_gain.json",
-      "schema_version": "state-kv-bank-gain.v3",
-      "sha256": "9e6d09fd3f09034c89bad44871a7af213ea62c98c77223befdae81889710e566"
+      "path": "artifacts/state_kv/bank-gain-v4/verdict_bank_gain.json",
+      "schema_version": "state-kv-bank-gain.v4",
+      "sha256": "117f1df2fce50cbe58192d6ea5870c34013e0c8f7067ae0b6e3051081ae52fdf"
     },
     {
       "evidence_id": "carrier_diagnostics",
@@ -31,9 +31,9 @@
     {
       "evidence_id": "credit_longitudinal",
       "observed_state": "mechanism_supported",
-      "path": "artifacts/state_kv/verdict_credit_longitudinal.json",
-      "schema_version": "state-kv-credit-longitudinal.v1",
-      "sha256": "e683e1f228ef9dc1ee3d8d3f9f2e53eb3879567aaa73610663cffd6fd2f667fc"
+      "path": "artifacts/state_kv/credit-longitudinal-v2/verdict_credit_longitudinal.json",
+      "schema_version": "state-kv-credit-longitudinal.v2",
+      "sha256": "db6c3f7d150ef15a28053ddbe7329d50739185417e1877f534696c0089e255eb"
     },
     {
       "evidence_id": "deployment",
@@ -85,6 +85,13 @@
       "sha256": "7fcb18ec80070c8caa9a8844cc035ac8a2013de26fa46737915e47fdcdcaccb4"
     },
     {
+      "evidence_id": "safety_negatives",
+      "observed_state": "pass",
+      "path": "artifacts/state_kv/safety-negatives-v1/verdict_safety_negatives.json",
+      "schema_version": "state-kv-safety-negatives.v1",
+      "sha256": "55473c72f4dc5ce8789424a0c32e1012b90c6fe0e35855ddef42d97f32b7841e"
+    },
+    {
       "evidence_id": "temporal_causal",
       "observed_state": "pass",
       "path": "artifacts/state_kv/temporal-causal-state-strategy-routed-cpu/verdict_temporal_causal.json",
@@ -94,7 +101,7 @@
   ],
   "experiment_config": {
     "generation": {
-      "bank_gain_max_new_tokens": 4,
+      "bank_gain_max_new_tokens": 48,
       "max_new_tokens": 16,
       "probe_limit": 0,
       "sampling_seeds": [
@@ -119,7 +126,8 @@
       }
     ],
     "metric_thresholds": {
-      "bank_gain_minimum_samples": 8,
+      "bank_gain_minimum_samples": 16,
+      "bank_gain_probe_count": 8,
       "bank_irrelevant_router_score_ceiling": 0.2,
       "control_dim_minimum_outcome_delta": 0.02,
       "control_dim_minimum_samples": 8,
@@ -498,8 +506,8 @@
     },
     "schema_version": "state-kv-experiment-config.v1"
   },
-  "experiment_config_sha256": "e056adfa642f828acd01ca46e670c9ca9f680761c8a5ca2e6757526b6920e06e",
-  "freeze_id": "2bc5bdcd955e28d8a0082af33c8672a2eca2a1a053cb66533a85861846c68cdc",
+  "experiment_config_sha256": "e745872eb692fe7838a918aa3ed32e7abaaa9b9c5e5022ac418d5e88e221bff0",
+  "freeze_id": "5ce637be4bcdf4f225b6515e3c5282aa870ae1ef3473a2b98eaaa7b36b587b3f",
   "generation_seeds": [
     1701,
     1702,
@@ -521,7 +529,8 @@
     "revocation-baseline-equivalence",
     "paired-bank-match-gain-bootstrap-ci",
     "full-minus-rank3-matched-outcome",
-    "pe-closed-loop-longitudinal-increment"
+    "pe-closed-loop-longitudinal-increment",
+    "heldout-linear-state-extraction-advantage"
   ],
   "model": {
     "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
@@ -556,7 +565,8 @@
     "deployment-safety-controls",
     "bank-gain-four-arm",
     "control-dimension-three-arm",
-    "credit-feedback-long-session"
+    "credit-feedback-long-session",
+    "stale-and-extraction-safety-negatives"
   ],
   "schema_version": "state-kv-freeze-manifest.v2"
 }

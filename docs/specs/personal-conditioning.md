@@ -157,6 +157,13 @@ confidence、cold-start 空串。回滚 = 配置置 `DISABLED`（模块停发）
   可在不重生成 turn 的前提下重裁判冻结观测。缺观测同样只记
   `insufficient_data`，只有对比、隔离都完整后的明确失败才冻结 bank 数量；
   回滚只需将 router 或 Relationship bank 置 `DISABLED`。
+- 2026-08-02 的 `state-kv-bank-gain.v4` 在新目录冻结 48-token、temperature 0、
+  8 个 gain probes、16 个每-bank 配对样本，并让 `BAAI/bge-m3` 与
+  `moka-ai/m3e-base` 对同一 observation SHA 独立裁决；panel 采用
+  all-judges-pass，不允许为第二裁判重生成样本。Personal gain 分别为
+  `-0.0625`（CI `-0.1875..0`）与 `-0.125`（CI `-0.3125..0`），Relationship
+  gain 也失败，故 `gate_state=fail`、`bank_count_frozen=true`。该结果按预注册
+  终止“4-token 判别力不足”假设，禁止继续增加同构 probe 追分。
 - 2026-07-29 的 v1 run 因 repair / steady 在 Relationship bank 上发布相同
   material 与 fingerprint，已作废为无效 treatment，不进入冻结结论。
   2026-07-30 v3 最终 matched run 通过正式 typed external semantic event 注入
@@ -444,6 +451,22 @@ stochastic 稳定性和双裁判复核。runtime wiring 已把 prefix-KV 接成�
 `state-kv-deployment-gate.v1` 的 cold-start、零置信度、SHADOW、revocation、
 跨用户隔离、稳定重放与原子回滚门。仓库默认 profile 仍为 SHADOW/residual；
 这是显式 opt-in 晋升，不是全局默认切换。
+
+artifact 绑定现在是正式 runtime config 契约：
+`FinalRolloutConfig.personal_conditioning_prefix_artifact_id` 默认 `None`，
+`state-kv-active-v1` 通过 registry 将其设为上述 promoted id；
+`AgentSessionRunner` 在首 turn 前把该值与 loaded runtime prefix id 精确比较，
+不匹配即 fail loudly。`build_standard_dialogue_runner` 不再为该 profile 走
+`_legacy` 私有 builder，而与其他 State-KV profile 一样经
+`ResolvedProfile.apply_to_config(...)` 构造。回滚仍是 omit binding 并将
+Personal owner 切回 SHADOW/residual。
+
+默认切换预案保持未执行：只有 P6 尽调 C2/C3/C5/C6 全部 proven，且 Personal
+bank-gain panel pass 时，才允许单独迁移包把 `pe-eta` 的 Personal wiring 从
+SHADOW 切为 ACTIVE/prefix_kv，并同时绑定 artifact id。该包必须保留一个
+SHADOW/residual 回滚开关并复跑启动 mismatch、revocation、cold-start 与原子
+rollback tests。当前 freeze 中 C5 与 Personal bank-gain 均 fail，因此默认值
+不得切换。
 
 完整数据与反主张边界见
 [`state-kv-identification-evidence.md`](./state-kv-identification-evidence.md) §P3 / §P4。

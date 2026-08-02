@@ -44,7 +44,7 @@
     },
     {
       "conclusion_id": "C5",
-      "detail": "I/J 长 session 已有冻结观测窗口；mechanism_pass=True，matched_outcome=insufficient_data。响应分叉不能替代质量/真实结局增量。",
+      "detail": "I/J 长 session 已有冻结观测窗口；mechanism_pass=True，matched_outcome=fail。响应分叉不能替代质量/真实结局增量。",
       "evidence_ids": [
         "bank_gain",
         "credit_longitudinal"
@@ -54,12 +54,13 @@
     },
     {
       "conclusion_id": "C6",
-      "detail": "撤销、冷启动、scope 隔离、freshness=0 过期硬门与回滚已有契约回归；错用户/过期的完整冻结负控和潜状态抽取攻击仍无完整证据门，因此结论不能整体标 proven。",
+      "detail": "冻结 deployment/generation-seed 门通过；freshness=0 状态在 carrier 边界被拒且 baseline-equivalent/applied=false，24 样本直接提示与 held-out 线性探针均低于预注册抽取阈值。",
       "evidence_ids": [
         "deployment",
-        "generation_seed"
+        "generation_seed",
+        "safety_negatives"
       ],
-      "state": "not-yet-proven",
+      "state": "proven",
       "statement": "错用户/过期/撤销无残留且潜状态不可抽取"
     },
     {
@@ -73,11 +74,11 @@
     }
   ],
   "evidence_fingerprints": {
-    "bank_gain": "9e6d09fd3f09034c89bad44871a7af213ea62c98c77223befdae81889710e566",
+    "bank_gain": "117f1df2fce50cbe58192d6ea5870c34013e0c8f7067ae0b6e3051081ae52fdf",
     "carrier_diagnostics": "73dcad7bb8993d5abee72b760e66a549f47be4807b9a856210fb002e1f851b1a",
     "control_dim": "c3bcfcd256379500d35b264773a0caca2a195634ae41065d2cfb651f95ba89fd",
     "cost": "4d1ed9d6f9db2204e431f3456c2cd8c08554d29bb7d3971f124d96dfe7c95ad7",
-    "credit_longitudinal": "e683e1f228ef9dc1ee3d8d3f9f2e53eb3879567aaa73610663cffd6fd2f667fc",
+    "credit_longitudinal": "db6c3f7d150ef15a28053ddbe7329d50739185417e1877f534696c0089e255eb",
     "deployment": "2d8c93381347b29c2198805e8567b2f2dcc176bc7d2417415201351341d58862",
     "five_arm_identification": "d5156e6296004be7bb184840f95c12db35b76258e69f8a44dfc460d1dd4063db",
     "generation_seed": "3f51fb31aea6d391c973243de58664dceeed314bc884233292c49f7c5a6df0d6",
@@ -85,13 +86,14 @@
     "judge_court": "b3e27f5c7e540e797d6d63aeadc6325231110c1cb77170bfd15553afc8f51e35",
     "quality_noninferiority": "b4d123b8c808dad02b0fbe78cc2f6fad564fa388e68c8f4e928b5b885992c327",
     "retention": "7fcb18ec80070c8caa9a8844cc035ac8a2013de26fa46737915e47fdcdcaccb4",
+    "safety_negatives": "55473c72f4dc5ce8789424a0c32e1012b90c6fe0e35855ddef42d97f32b7841e",
     "temporal_causal": "3189115d78bbed60cd96e0b55a6debd688037e7beddb21e3c6b48678223b5c3c"
   },
-  "freeze_id": "2bc5bdcd955e28d8a0082af33c8672a2eca2a1a053cb66533a85861846c68cdc",
+  "freeze_id": "5ce637be4bcdf4f225b6515e3c5282aa870ae1ef3473a2b98eaaa7b36b587b3f",
   "gate_state": "partial",
   "schema_version": "state-kv-due-diligence.v1",
   "summary": {
-    "not_yet_proven": 5,
-    "proven": 2
+    "not_yet_proven": 4,
+    "proven": 3
   }
 }

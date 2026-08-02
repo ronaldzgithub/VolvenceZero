@@ -1662,6 +1662,21 @@ matched-outcome rubric；两名 judge 的净改善均为 `0`，因此 outcome cl
 gate=`mechanism_supported`，机制增长不得升级为行为质量提升。
 P6 七结论报告必须直接消费这些终态 verdict，不得把机制通过改写为质量增益通过。
 
+2026-08-02 的 bank-gain v4 将生成预算冻结为 48 tokens，并用 8 gain probes、
+16 paired samples 与 bge-m3/m3e 双裁判重测同一观测。Personal 两个 blind
+match-gain CI 下界均不大于 0，panel=`fail`，因此独立增益按预算无关失败冻结，
+不再扩同构样本。credit-longitudinal v2 的两位 outcome judge 同样得到净改善 0，
+机制 claim pass 但 matched outcome claim fail，C5 继续 not-yet-proven。
+
+C6 新增 `state-kv-safety-negatives.v1`：freshness=0 bank 在 latent carrier
+构造期被拒，withheld 生成与 baseline 字节相同且 `applied=false`；抽取攻击对
+24 个实际 applied 的 16 维状态运行直接数值提示，以 bge-m3 output embedding
+做 16-train/8-test ridge probe。精确三位小数泄漏为 0，probe held-out MAE
+`0.226960` 不优于 train-mean baseline `0.224898`，相对 extraction advantage
+`-0.009168 <= 0.10`。该 artifact 与 deployment/generation-seed 同时进入新
+freeze `5ce637be4bcdf4f225b6515e3c5282aa870ae1ef3473a2b98eaaa7b36b587b3f`，
+C6 因而 proven；report 当前为 C2/C3/C6 共 3/7 proven。
+
 2026-08-02 的 C3 refreeze 修正了证据映射：carrier diagnostic 必须绑定标准
 Prefix artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238`
 对应的 `p4-state-strategy-routed` verdict，并同时要求该 verdict 明确发布

@@ -33,7 +33,9 @@ PREFIX_MANIFEST = (
     "qwen2.5-0.5b-state-strategy-routed-prefix.manifest.json"
 )
 EVIDENCE_PATHS = {
-    "bank_gain": "artifacts/state_kv/verdict_bank_gain.json",
+    "bank_gain": (
+        "artifacts/state_kv/bank-gain-v4/verdict_bank_gain.json"
+    ),
     "carrier_diagnostics": (
         "artifacts/state_kv/p4-state-strategy-routed/"
         "verdict_carrier_diagnostics.json"
@@ -42,7 +44,8 @@ EVIDENCE_PATHS = {
         "artifacts/state_kv/verdict_control_dim_diagnostic.json"
     ),
     "credit_longitudinal": (
-        "artifacts/state_kv/verdict_credit_longitudinal.json"
+        "artifacts/state_kv/credit-longitudinal-v2/"
+        "verdict_credit_longitudinal.json"
     ),
     "cost": "artifacts/state_kv/cost-gate/verdict_cost_gate.json",
     "deployment": (
@@ -79,6 +82,10 @@ EVIDENCE_PATHS = {
         "p2-state-strategy-routed-rollout-seed-1701-full-max16-"
         "retention/verdict_retention_gate.json"
     ),
+    "safety_negatives": (
+        "artifacts/state_kv/safety-negatives-v1/"
+        "verdict_safety_negatives.json"
+    ),
     "temporal_causal": (
         "artifacts/state_kv/temporal-causal-state-strategy-routed-cpu/"
         "verdict_temporal_causal.json"
@@ -109,6 +116,7 @@ SCENARIO_SETS = (
     "bank-gain-four-arm",
     "control-dimension-three-arm",
     "credit-feedback-long-session",
+    "stale-and-extraction-safety-negatives",
 )
 METRIC_DEFINITIONS = (
     "blind-identification-bootstrap-ci",
@@ -123,6 +131,7 @@ METRIC_DEFINITIONS = (
     "paired-bank-match-gain-bootstrap-ci",
     "full-minus-rank3-matched-outcome",
     "pe-closed-loop-longitudinal-increment",
+    "heldout-linear-state-extraction-advantage",
 )
 JUDGE_PANEL = ("BAAI/bge-m3", "moka-ai/m3e-base")
 
@@ -173,7 +182,7 @@ def _resolved_experiment_config() -> dict[str, object]:
         "resolved_profiles": profiles,
         "generation": {
             "max_new_tokens": 16,
-            "bank_gain_max_new_tokens": 4,
+            "bank_gain_max_new_tokens": 48,
             "temperature": 0.2,
             "sampling_seeds": [1701, 1702, 1703],
             "probe_limit": 0,
@@ -186,7 +195,8 @@ def _resolved_experiment_config() -> dict[str, object]:
             ],
         },
         "metric_thresholds": {
-            "bank_gain_minimum_samples": 8,
+            "bank_gain_minimum_samples": 16,
+            "bank_gain_probe_count": 8,
             "bank_irrelevant_router_score_ceiling": 0.2,
             "control_dim_minimum_samples": 8,
             "control_dim_minimum_outcome_delta": 0.02,
@@ -257,7 +267,13 @@ def _run_evidence_lanes(args: argparse.Namespace) -> None:
                 sys.executable,
                 "scripts/run_state_kv_bank_gain_gate.py",
                 "--max-new-tokens",
-                "4",
+                "48",
+                "--minimum-samples",
+                "16",
+                "--gain-probe-limit",
+                "8",
+                "--secondary-judge-model-id",
+                "moka-ai/m3e-base",
                 *(
                     ["--model-source", args.model_source]
                     if args.model_source
@@ -291,6 +307,14 @@ def _run_evidence_lanes(args: argparse.Namespace) -> None:
                 "scripts/run_state_kv_credit_longitudinal.py",
             ],
             REPO_ROOT / EVIDENCE_PATHS["credit_longitudinal"],
+        ),
+        (
+            "safety_negatives",
+            [
+                sys.executable,
+                "scripts/run_state_kv_safety_negatives.py",
+            ],
+            REPO_ROOT / EVIDENCE_PATHS["safety_negatives"],
         ),
     )
     for lane_id, command, output in commands:

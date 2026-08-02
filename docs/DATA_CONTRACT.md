@@ -2130,10 +2130,19 @@ State KV P4-c 不新增 runtime slot。temporal owner 对候选
 `ConditioningLineage.shadow_router_version / shadow_router_scores`；
 `ACTIVE` 才把同一 selected set 应用于 prompt、latent carrier 与 lineage，
 并将实际 `router_version / router_scores` 发布为 `topk-semantic.v1`；
-`DISABLED` 为无评分的立即回滚。bank 增益 verdict 是只读 artifact
-`state-kv-bank-gain.v3`，不进入学习链路、不成为第二 evaluation owner。
+`DISABLED` 为无评分的立即回滚。单 judge bank 增益 verdict 是只读 artifact
+`state-kv-bank-gain.v3`；正式双裁判聚合为 `state-kv-bank-gain.v4`，要求
+distinct judge、同一 observation SHA / substrate / router / claim set，并采用
+all-judges-pass。两者都不进入学习链路、不成为第二 evaluation owner。
 `freshness=0` 是正式过期语义，必须令 `is_injectable=False`，因此不能进入
 router、lineage 或任何 carrier。
+
+Personal Prefix-KV 的 deployment binding 不新增 slot：
+`FinalRolloutConfig.personal_conditioning_prefix_artifact_id: str | None` 默认
+`None`；非空时只允许 `personal_conditioning_mode="prefix_kv"`，runner 必须在
+启动期与 substrate owner 发布的 `personal_conditioning_prefix_id` 精确比较。
+profile registry 是该字段的正式配置来源，unknown/mismatched/empty binding 均
+fail loudly。即时回滚是 binding=None 且 Personal wiring=SHADOW/residual。
 
 Relationship latent carrier 不新增 slot，也不改变
 `relationship_conditioning` owner。runtime 先把 ACTIVE
