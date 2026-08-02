@@ -429,6 +429,13 @@ class LocalEmbeddingBlindJudge:
             self.tie_count += 1
         return ids[0] if scores[0] > scores[1] else ids[1]
 
+    def embed_text(self, text: str) -> tuple[float, ...]:
+        """Return the frozen normalized embedding used by this judge."""
+
+        if not text.strip():
+            raise ValueError("cannot embed empty text")
+        return tuple(float(value) for value in self._embed(text).cpu().tolist())
+
     def as_json_dict(self) -> dict[str, Any]:
         return {
             "judge_model_id": self._judge_model_id,
