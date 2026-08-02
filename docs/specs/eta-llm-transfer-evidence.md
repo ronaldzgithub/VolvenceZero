@@ -125,6 +125,15 @@ residual；三个 `n_input` 窗口的 target-1/target-2 结果逐项相同。这
 导致末 token 不携带计划”的解释。该对照尚未产生可权威 artifact；若运行，必须与
 真实协议共享同一 corpus、fold 与 null seed，并独立记录为非权威诊断。
 
+随后完成的 corrected pooling bundle
+`artifacts/eta_step0_plan_probe_pooling_20260802` 对 `residual_sequence` 做显式
+逐步平均，并加入 plan-at-end counterfactual（224 routes、896 维 capture、
+`n_input={16,64}`）：last-token 的 target-2 为 `0.174/0.179`，token-mean 为
+`0.125/0.147`，plan-at-end-last-token 为 `0.107/0.161`，8 类多数基线均为
+`0.161`。这修正了前一份 one-step legacy 对照“逐项相同”的适用范围：它只说明
+旧 `residual_sequence[-1]` 取法与旧 summary 相同，不代表完整序列平均也相同。三种
+pooling 都没有形成可接受的计划身份读出，仍是非权威诊断。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）
