@@ -23,6 +23,7 @@ from volvence_zero.agent.eta_proof_benchmark import ETAOpenWeightRuntimeConfig
 from volvence_zero.agent.eta_rate_distortion_evidence import (
     OBSERVATION_PROTOCOL_V1,
     OBSERVATION_PROTOCOL_V2,
+    OBSERVATION_PROTOCOL_V3,
     assess_gap,
 )
 from volvence_zero.temporal.metacontroller_components import (
@@ -194,7 +195,11 @@ def main(argv: tuple[str, ...] | None = None) -> int:
     parser.add_argument("--heldout-lengths", type=int, nargs="+", default=(3, 4))
     parser.add_argument(
         "--observation-protocol",
-        choices=(OBSERVATION_PROTOCOL_V1, OBSERVATION_PROTOCOL_V2),
+        choices=(
+            OBSERVATION_PROTOCOL_V1,
+            OBSERVATION_PROTOCOL_V2,
+            OBSERVATION_PROTOCOL_V3,
+        ),
         default=OBSERVATION_PROTOCOL_V1,
     )
     parser.add_argument(

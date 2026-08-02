@@ -152,6 +152,24 @@ fixed-label target-2 最高为 `0.138`，plan-length control 最高为 `0.647`�
 `1.000`，因此不提供可辨别性。该 bundle 仍是非权威诊断；后续新增的 raw-PCA 变体
 尚未产生独立 artifact。
 
+随后封存的
+`artifacts/eta_step0_plan_probe_pca_20260802/step0_plan_probe.json` 在同一
+224-route、896 维、protocol v2 corpus 上加入 32 维 raw-PCA 对照。raw-PCA 的
+fixed-label target-2 在各 pooling/counterfactual 组合中最高为 `0.120536`，低于
+8 类多数基线 `0.142857`；plan-length control 最高为 `0.522321`，低于多数基线
+`0.665179`。因此“folding 丢失了计划信号”没有被支持，当前 v2 的 step-0 surface
+本身仍不能读出第二子目标；该物证继续保持非权威诊断，不开启 Stage 2/3。
+
+上述诊断还暴露了 v2 的协议缺口：v2 所谓的 `Route plan` 实际填入的是
+`case.source_text` 的哈希指纹，并没有把 objective 顺序写给冻结 substrate。运行时
+现在注册 `partially-observable-explicit-plan.v3` 作为候选协议，并由
+`scripts/probe_eta_step0_plan_identity.py --observation-protocol ...`、预注册脚本和
+执行脚本共享同一个 SSOT renderer。v3 只在 step-0 写出可读的 ordered objectives，
+后续仍只暴露 current location 与 out-edges，不泄露 completed objectives 或每步
+fingerprint；它尚未经过正式 Gate 1，不能把可读计划候选或任何 probe 改善写成 ETA
+通过证据。v2 结果、v3 候选和生产 wiring 继续隔离，退出条件仍是先取得独立的
+surrogate/真实 substrate 证据，再决定是否预注册新的正式 sweep。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）

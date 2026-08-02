@@ -364,6 +364,7 @@ def test_v2_protocol_states_the_plan_once_and_drops_progress_leaks() -> None:
     from volvence_zero.agent.eta_rate_distortion_evidence import (
         OBSERVATION_PROTOCOL_V1,
         OBSERVATION_PROTOCOL_V2,
+        OBSERVATION_PROTOCOL_V3,
         _rate_distortion_observation_bundle,
     )
 
@@ -404,6 +405,12 @@ def test_v2_protocol_states_the_plan_once_and_drops_progress_leaks() -> None:
             open_weight_runtime=object(),
             protocol_version=OBSERVATION_PROTOCOL_V2,
         )
+        _, v3_texts, v3_targets = _rate_distortion_observation_bundle(
+            case,
+            environment=corpus.environment,
+            open_weight_runtime=object(),
+            protocol_version=OBSERVATION_PROTOCOL_V3,
+        )
 
     # Same expert supervision under both surfaces.
     assert v1_targets == v2_targets
@@ -420,6 +427,13 @@ def test_v2_protocol_states_the_plan_once_and_drops_progress_leaks() -> None:
     for text in v2_texts:
         assert "Completed objectives" not in text
         assert "Task context" not in text
+    # v3 makes the step-0 plan readable to the frozen substrate while keeping
+    # the same locality and no-progress-leak contract.
+    assert v3_targets == v2_targets
+    assert v3_texts[0].startswith("Route plan: visit ")
+    assert case.source_text not in " ".join(v3_texts)
+    assert all("Completed objectives" not in text for text in v3_texts)
+    assert all("Route plan" not in text for text in v3_texts[1:])
     # v1, by contrast, repeats the fingerprint and progress on every step.
     assert all("Task context" in text for text in v1_texts)
 

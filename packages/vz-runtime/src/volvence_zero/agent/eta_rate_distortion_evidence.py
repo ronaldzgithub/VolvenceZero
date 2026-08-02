@@ -96,9 +96,29 @@ RATE_DISTORTION_SCHEMA_VERSION = "eta-rate-distortion-evidence.v1"
 # a node with a different next action, so the active subgoal can only be carried
 # by an EVOLVING latent code -- switching becomes necessary rather than
 # redundant.
+#
+# v3 fixes the fatal flaw the step-0 plan-identity probe exposed in v2
+# (artifacts/eta_step0_plan_probe_*_20260802): the "route plan" v2 shows at
+# step 0 is ``case.source_text``, which the corpus generator produces as a
+# deterministic hash-fingerprint of the ordering ("memory warmth repair
+# anchor ..."). It never states the objectives, so a frozen substrate cannot
+# ground it and NO representation of the step-0 observation carries the plan
+# (probes on last-token / token-mean / plan-at-end / raw-PCA all sit at the
+# shuffled-label null). Boundary switching is then structurally impossible
+# regardless of the rate objective. v3 keeps the v2 locality contract (later
+# steps expose only the current node and out-edges; no fingerprint, no
+# progress field) but spells the ordered objectives explicitly at step 0
+# ("Route plan: visit white, then purple."), which is what a readable plan
+# means for a frozen language substrate. The latent still has to transport
+# the plan across boundaries, so this is not a leak.
 OBSERVATION_PROTOCOL_V1 = "partially-observable-no-remaining-route.v1"
 OBSERVATION_PROTOCOL_V2 = "partially-observable-no-route-identity.v2"
-_OBSERVATION_PROTOCOLS = (OBSERVATION_PROTOCOL_V1, OBSERVATION_PROTOCOL_V2)
+OBSERVATION_PROTOCOL_V3 = "partially-observable-explicit-plan.v3"
+_OBSERVATION_PROTOCOLS = (
+    OBSERVATION_PROTOCOL_V1,
+    OBSERVATION_PROTOCOL_V2,
+    OBSERVATION_PROTOCOL_V3,
+)
 
 _ARMS = ("frozen", "joint")
 
@@ -388,16 +408,30 @@ def _rate_distortion_observation_texts(
                     f"{completed}. Phase {phase_index + 1} of {phase_count}."
                 )
             else:
-                # v2: the ordered route plan is stated once at step 0; every
-                # later observation exposes only the current node and its
-                # out-edges, so the active subgoal must be carried by the
-                # latent code. No source_text, no completed-objectives leak.
+                # v2/v3: the route plan is stated once at step 0; every later
+                # observation exposes only the current node and its out-edges,
+                # so the active subgoal must be carried by the latent code.
+                # No per-step fingerprint, no completed-objectives leak.
+                #
+                # v2 uses the corpus fingerprint sentence as the "plan"; the
+                # step-0 probe proved a frozen substrate cannot ground it. v3
+                # spells the ordered objectives so the plan is readable.
                 is_first_step = not observation_texts
-                plan_prefix = (
-                    f"Route plan: {case.source_text}. "
-                    if is_first_step
-                    else ""
-                )
+                if not is_first_step:
+                    plan_prefix = ""
+                elif protocol_version == OBSERVATION_PROTOCOL_V3:
+                    ordered_objectives = tuple(
+                        waypoint
+                        for waypoint in route.waypoints
+                        if environment.location(waypoint).is_objective
+                    )
+                    plan_prefix = (
+                        "Route plan: visit "
+                        + ", then ".join(ordered_objectives)
+                        + ". "
+                    )
+                else:
+                    plan_prefix = f"Route plan: {case.source_text}. "
                 observation_texts.append(
                     f"{plan_prefix}Current location: "
                     f"{observation.current_location_id}. Available "

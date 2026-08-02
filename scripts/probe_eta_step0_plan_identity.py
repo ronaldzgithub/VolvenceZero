@@ -1,7 +1,8 @@
 """Linear probe: does the step-0 encoder input still carry the plan identity?
 
-Under observation protocol v2 the ordered route plan is stated exactly once, in
-the step-0 observation text. The metacontroller never sees that text directly;
+Under observation protocol v2 or the explicit-plan candidate v3, the route plan
+is stated exactly once in the step-0 observation text. The metacontroller never
+sees that text directly;
 it sees a 16-dim folded summary of the frozen substrate's residual capture
 (``_step_input_vectors``, mirroring ``_summarize_substrate_ndim``). If that
 summary destroys the plan identity, no rate objective -- gated or not -- can
@@ -9,7 +10,7 @@ make the latent code carry the active subgoal across boundaries, and
 ``boundary_f1 = 0`` is a foregone conclusion regardless of the rate economics.
 
 This diagnostic captures the *same* traces the Gate-1 sweep trains on (same
-frozen corpus seed, same v2 protocol, same real substrate) and fits a
+frozen corpus seed, selected observation protocol, same real substrate) and fits a
 multinomial linear probe from each route's step-0 input vector to:
 
 - ``target_1``: the first planned subgoal (near-trivially present if anything
@@ -46,6 +47,7 @@ from volvence_zero.agent.eta_proof_benchmark import (
 )
 from volvence_zero.agent.eta_rate_distortion_evidence import (
     OBSERVATION_PROTOCOL_V2,
+    OBSERVATION_PROTOCOL_V3,
     _rate_distortion_observation_texts,
 )
 from volvence_zero.temporal.metacontroller_components import (
@@ -149,6 +151,15 @@ def main() -> None:
     parser.add_argument("--model-id", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--device", default="mps")
     parser.add_argument(
+        "--observation-protocol",
+        choices=(OBSERVATION_PROTOCOL_V2, OBSERVATION_PROTOCOL_V3),
+        default=OBSERVATION_PROTOCOL_V2,
+        help=(
+            "Protocol whose step-0 rendering is probed. v2 states the corpus "
+            "hash-fingerprint as the plan; v3 spells the objective order."
+        ),
+    )
+    parser.add_argument(
         "--n-inputs",
         type=int,
         nargs="+",
@@ -229,30 +240,29 @@ def main() -> None:
         texts, _targets = _rate_distortion_observation_texts(
             case,
             environment=corpus.environment,
-            protocol_version=OBSERVATION_PROTOCOL_V2,
+            protocol_version=args.observation_protocol,
         )
         step0_text = texts[0]
         capture = runtime.capture(source_text=step0_text)
         last_raws.append(_capture_last_raw(capture))
         mean_raws.append(_capture_mean_raw(capture))
 
-        plan_prefix = f"Route plan: {case.source_text}. "
-        if not step0_text.startswith(plan_prefix):
+        location_marker = " Current location: "
+        if location_marker not in step0_text:
             raise RuntimeError(
-                f"v2 step-0 text for {case.case_id!r} does not start with "
-                "the expected route-plan prefix; the counterfactual "
-                "rendering below would drift from the real protocol."
+                f"step-0 text for {case.case_id!r} lacks the expected "
+                f"{location_marker!r} marker; the counterfactual renderings "
+                "below would drift from the real protocol."
             )
+        plan_sentence, local_part = step0_text.split(location_marker, 1)
         plan_end_text = (
-            f"{step0_text[len(plan_prefix):]} Route plan: {case.source_text}."
+            f"Current location: {local_part} {plan_sentence}"
         )
         plan_end_capture = runtime.capture(source_text=plan_end_text)
         plan_end_raws.append(_capture_last_raw(plan_end_capture))
         plan_end_tail_raws.append(_capture_mean_raw(plan_end_capture, tail=8))
 
-        plan_alone_capture = runtime.capture(
-            source_text=f"Route plan: {case.source_text}."
-        )
+        plan_alone_capture = runtime.capture(source_text=plan_sentence)
         plan_alone_last_raws.append(_capture_last_raw(plan_alone_capture))
         plan_alone_mean_raws.append(_capture_mean_raw(plan_alone_capture))
 
@@ -296,14 +306,25 @@ def main() -> None:
         ("plan-at-end-last8-mean", plan_end_tail_raws),
         ("plan-alone-last-token", plan_alone_last_raws),
         ("plan-alone-mean", plan_alone_mean_raws),
-        ("plan-alone-last-token", plan_alone_last_raws),
-        ("plan-alone-mean", plan_alone_mean_raws),
     ):
-        for n_input in args.n_inputs:
-            features = torch.tensor(
-                [_fold_residual_to_ndim(raw, n_input) for raw in raws],
-                dtype=torch.float64,
+        feature_variants: list[tuple[str, "torch.Tensor"]] = [
+            (
+                f"n_input={n_input}",
+                torch.tensor(
+                    [_fold_residual_to_ndim(raw, n_input) for raw in raws],
+                    dtype=torch.float64,
+                ),
             )
+            for n_input in args.n_inputs
+        ]
+        # PCA of the raw (pre-fold) vectors: separates "the fold destroys
+        # the signal" from "the capture never had it".
+        raw_matrix = torch.tensor(raws, dtype=torch.float64)
+        centered = raw_matrix - raw_matrix.mean(dim=0)
+        pca_dims = min(32, centered.shape[0], centered.shape[1])
+        _u, _s, v = torch.linalg.svd(centered, full_matrices=False)
+        feature_variants.append((f"pca{pca_dims}-raw", centered @ v[:pca_dims].T))
+        for variant_name, features in feature_variants:
             features = (features - features.mean(dim=0)) / (
                 features.std(dim=0) + 1e-9
             )
@@ -312,7 +333,6 @@ def main() -> None:
                 ("target_1", label_target_1),
                 ("target_2", label_target_2),
                 ("plan_length_control", label_plan_length),
-                ("last_transition_control", label_last_transition),
                 ("last_transition_control", label_last_transition),
             ):
                 vocabulary = sorted(set(raw_labels))
@@ -345,7 +365,7 @@ def main() -> None:
                     "shuffled_label_null": null,
                 }
                 print(
-                    f"{pooling} n_input={n_input} {name}: "
+                    f"{pooling} {variant_name} {name}: "
                     f"classes={len(vocabulary)} "
                     f"majority={majority_share:.3f} "
                     f"probe={real['mean_test_accuracy']:.3f}"
@@ -353,7 +373,7 @@ def main() -> None:
                     f"null={null['mean_test_accuracy']:.3f}"
                     f"+/-{null['std_test_accuracy']:.3f}"
                 )
-            results[f"{pooling}:n_input_{n_input}"] = width_results
+            results[f"{pooling}:{variant_name}"] = width_results
 
     payload = {
         "schema_version": "eta-step0-plan-identity-probe.v1",
@@ -366,7 +386,7 @@ def main() -> None:
         "runtime_origin": runtime.runtime_origin,
         "fallback_active": runtime.fallback_active,
         "device": args.device,
-        "observation_protocol": OBSERVATION_PROTOCOL_V2,
+        "observation_protocol": args.observation_protocol,
         "n_inputs": list(args.n_inputs),
         "activation_width": args.activation_width,
         "corpus_seed": args.corpus_seed,

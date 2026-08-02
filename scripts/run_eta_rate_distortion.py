@@ -43,6 +43,7 @@ from volvence_zero.agent.eta_proof_benchmark import (
 from volvence_zero.agent.eta_rate_distortion_evidence import (
     OBSERVATION_PROTOCOL_V1,
     OBSERVATION_PROTOCOL_V2,
+    OBSERVATION_PROTOCOL_V3,
     RateDistortionEvidenceReport,
     RateDistortionPoint,
     assess_gap,
@@ -481,7 +482,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--observation-protocol",
-        choices=(OBSERVATION_PROTOCOL_V1, OBSERVATION_PROTOCOL_V2),
+        choices=(
+            OBSERVATION_PROTOCOL_V1,
+            OBSERVATION_PROTOCOL_V2,
+            OBSERVATION_PROTOCOL_V3,
+        ),
         default=OBSERVATION_PROTOCOL_V1,
         help=(
             "Observation surface. v1 repeats source_text + completed "
