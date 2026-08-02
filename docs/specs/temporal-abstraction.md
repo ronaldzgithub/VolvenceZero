@@ -377,8 +377,10 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   测试（此前两者合计 1237 行零测试），覆盖梯度只到控制 delta 不到冻结基底、
   norm cap、joint 臂 pristine 恢复、gap 检测三条拒绝路径与全部 verdict 分支。
 - 2026-08-02: 启动 **ETA 迁移 LLM 四级阶梯**，把论文成立的前提逐级搬到冻结 LLM 上；
-  `kill-eta` 判定在 Stage 3 通过前保持有效。本包只建机器 + 预注册 + 直接相关 smoke，
-  不做昂贵全量运行（受本机内存 + 用户在运行的 lifeform_service 限制）。
+  `kill-eta` 判定在 Stage 3 通过前保持有效。**证据 SSOT**：
+  [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)（已挂
+  `evidence_program` claim registry / `00_INDEX` §9）。本包只建机器 + 预注册 +
+  直接相关 smoke；缩减 Gate 1 权威扫见该 SSOT 当前状态（FAIL，修方差后重跑）。
   **前提事实核对（这是阶梯存在的根据）**：ETA 原论文的证明**不在 LLM 残差流上**，
   而在作者**从零预训练的小模型**残差流上——网格世界用因果 Transformer、ant 用 SSM
   Hawk，数据 `D` 是领域内观测-动作轨迹（`research/eta/emergent-temporal-abstractions-2512.20605.zh.md`

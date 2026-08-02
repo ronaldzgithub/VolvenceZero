@@ -255,6 +255,7 @@
 | Spec | 内容 |
 |------|------|
 | [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
+| [eta-llm-transfer-evidence.md](./eta-llm-transfer-evidence.md) | ETA 迁移 LLM 四级阶梯证据 SSOT：Gate 1 rate 轴校准 → Gate 2 领域续训+分类 probe → Gate 3 补课基底 rate–distortion 终审 → Stage 4 对话迁移（contingent）；`kill-eta` 在 Stage 3 通过前保持有效；当前缩减 Gate 1 = FAIL |
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 | [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：v1 base-only 冻结矩阵；v2 冻结 `base + CommonAdapterBundle + per-session CharacterPackageManifest`、每 turn 物理载体证明、state/sleep 消融与独立审计 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
@@ -267,6 +268,7 @@
 - 证据结论必须可回溯到 manifest / provenance / 原始 artifact
 - same-substrate ablation：九 track 必须字节级同基底并由单 frozen substrate owner 承载（fingerprint + topology 守门）；裁判/用户模拟器非 substrate 家族；`first-stage-retained` 才可称人类世界模型 thesis 第一阶段成立，物理侧扩张需独立 benchmark
 - 七日 simulated evidence 必须逐字节匹配 user turns、真实走 persist/restart/hydrate、缺失 owner metric 不插补；自动结果只支持 simulated-longitudinal，不授权 real-user 或 production 主张
+- ETA-on-LLM 四级阶梯：Gate 1 失败只修仪器不杀主张；Gate 2 失败杀迁移路线；Gate 3 失败才永久摘除 ETA；不进 `vz-cognition.evaluation` runtime 包
 
 ---
 

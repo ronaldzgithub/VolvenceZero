@@ -1,7 +1,7 @@
 # 证据计划 Spec
 
 > Status: draft
-> Last updated: 2026-08-01
+> Last updated: 2026-08-02
 > 对应需求: R12, R15
 
 ## 要解决的问题
@@ -1202,6 +1202,19 @@ Gate 4 ecology source=`not-admitted`，P1/P2 不执行。该 kill 是冻结计�
   - 当前轻量 verdict 先绑定 `semantic-spine-ready`、`canonical_mean_semantic_spine_coverage`、`canonical_mean_cognitive_loop_readiness` 与 `cross-session-growth`，作为完整 companion 证据前的地基门
 - repeated-run verdict 优先使用 paper-suite secondary metric summary 的 sample count / mean，避免只看单次 reference dashboard
 
+### ETA-on-LLM transfer ladder claims（详见 [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）
+
+四级阶梯是机制 `kill-eta` 之后的公平重审程序，不是 runtime evaluation 六族指标：
+
+| Claim | Gate | 当前状态 |
+|---|---|---|
+| `claim_eta_rate_axis_instrument_valid` | Gate 1：spearman(α,rate)≤−0.8 且 rate_span≥0.30 | 缩减权威扫 **FAIL**（−0.657 / 0.585）；修方差参数化后重跑，不开 Stage 2 |
+| `claim_llm_residual_carries_subgoal_hierarchy` | Gate 2：补课 probe ≥2× 随机 + 前缀单调 + 优于裸 Qwen | 机器就绪；Gate 1 未过禁止开跑 |
+| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap | 未开跑；通过前 `kill-eta` 保持有效 |
+| `claim_eta_dialogue_transfer` | Stage 4 contingent | 仅骨架，前三级全过才预注册执行 |
+
+不变量：Gate 1 FAIL ≠ 杀主张；Gate 2 FAIL = 杀 LLM 迁移；Gate 3 FAIL = 永久摘除 ETA。产物归 evidence lane，不回灌学习。
+
 ### Semantic grounding claims（设计冻结；详见 [`semantic-grounding-evidence.md`](./semantic-grounding-evidence.md)）
 
 - `claim_latent_abstraction_semantically_grounded`
@@ -1821,6 +1834,12 @@ substrate weights；删除隔离 evidence directory 即可回滚本 lane。
 
 ## 变更日志补充（longitudinal + human anchor）
 
+- 2026-08-02: ETA 迁移 LLM 四级阶梯证据 SSOT 入册。新增
+  [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)，把 Cursor 计划 /
+  research 日志 / temporal changelog 中分散的 Gate 1–3 + contingent Stage 4
+  收敛为 claim-to-evidence 程序；挂入本文件 claim registry 与 `00_INDEX` §9。
+  当前缩减 Gate 1 = FAIL（`artifacts/eta_stage1_gate1_reduced_20260802/`），
+  下一步修 posterior 方差参数化，不开 Stage 2 续训。
 - 2026-07-31: Gate 8/11 专用 human-anchor preregistration。新增
   `volvence_zero.agent.gate811_human_anchor`，以 source manifest SHA 绑定 Gate 11
   `correct-user-state/stateless` 与 Gate 8 `sleep-consolidation/no-sleep`，冻结

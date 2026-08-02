@@ -499,12 +499,22 @@ Artifact：`artifacts/eta_rate_distortion_20260801`（原始扫描点、两臂�
 
 ## 2026-08-02 第六收敛包：ETA 迁移 LLM 四级阶梯（机器 + 预注册 + pilot）
 
+> **证据 SSOT（此后以它为准）**：
+> [`docs/specs/eta-llm-transfer-evidence.md`](../../docs/specs/eta-llm-transfer-evidence.md)
+> ——已挂入 `docs/specs/evidence_program.md` claim registry 与 `00_INDEX` §9。
+> 本节保留为研究日志；门槛 / 当前 Gate 状态 / 处置规则以 SSOT 为准。
+
 第五包的 `kill-eta` 留下两处未解释异常：rate 轴对 alpha 弱/非单调，以及
 3 路线被记忆化（train distortion 0.007 vs heldout 4.7）。本包不推翻 verdict，
 而是按"先补前提、再审判"的顺序把论文成立条件逐级搬到冻结 LLM 上，每级设 kill
 门，死在哪级停在哪级；`kill-eta` 在 Stage 3 通过前保持有效。本包只交付机器、
 预注册与直接相关 smoke，不做昂贵全量运行（本机内存受限 + 用户在运行
 lifeform_service 1.5B，后台 MPS 训练多次被 jetsam 杀）。
+
+**2026-08-02 下午补记**：缩减权威 Gate 1
+（`artifacts/eta_stage1_gate1_reduced_20260802/`）正式 **FAIL**——spearman
+−0.657 / rate_span 0.585；α=1.0 回弹。记忆化已消、跨度已过门，但未达 −0.8。
+按 SSOT：修 posterior 方差参数化后重跑 Gate 1，**不开 Stage 2**。
 
 **Stage 1（数据机制假设）**：环境 owner 新增 seeded 程序化生成器
 （`generate_hierarchical_environment` + hub relay 保证任意子目标序可达 +
