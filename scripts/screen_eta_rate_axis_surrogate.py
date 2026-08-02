@@ -43,6 +43,8 @@ from volvence_zero.substrate.steered_action_scoring import (
 )
 from volvence_zero.temporal.metacontroller_components import (
     POSTERIOR_PARAMETERIZATION_SMOOTH,
+    RATE_GATING_PER_STEP,
+    RATE_GATING_SWITCH,
 )
 
 _SURROGATE_HIDDEN = 16
@@ -224,6 +226,16 @@ def main() -> None:
         "--layer-indices", type=int, nargs="+", default=(1, 2, 3)
     )
     parser.add_argument(
+        "--rate-gating",
+        choices=(RATE_GATING_PER_STEP, RATE_GATING_SWITCH),
+        default=RATE_GATING_PER_STEP,
+        help=(
+            "Rate definition to screen. switch-gated multiplies each step's "
+            "KL by the code-mixing gate (ETA transmit-only-at-switch), which "
+            "is the candidate fix for the never-switch collapse."
+        ),
+    )
+    parser.add_argument(
         "--spearman-max",
         type=float,
         default=-0.5,
@@ -275,24 +287,42 @@ def main() -> None:
         corpus=corpus,
         observation_protocol=OBSERVATION_PROTOCOL_V2,
         posterior_parameterization=POSTERIOR_PARAMETERIZATION_SMOOTH,
+        rate_gating=args.rate_gating,
         runtime=runtime,
         scorer_factory=scorer_factory,
     )
 
-    # Per-alpha rate spread across seeds (screening for bimodal collapse).
-    rates_by_alpha: dict[float, list[float]] = {}
+    # Per-alpha rate spread across seeds (screening for bimodal collapse),
+    # plus switching telemetry (the whole point of the gated-rate screen).
+    points_by_alpha: dict[float, list] = {}
     for point in report.points:
         if point.arm != "frozen":
             continue
-        rates_by_alpha.setdefault(point.alpha, []).append(point.train_rate)
+        points_by_alpha.setdefault(point.alpha, []).append(point)
     per_alpha = []
     max_cv = 0.0
-    for alpha in sorted(rates_by_alpha):
-        rates = rates_by_alpha[alpha]
+    max_switch_probability = 0.0
+    max_hard_switch_frequency = 0.0
+    max_boundary_f1 = 0.0
+    for alpha in sorted(points_by_alpha):
+        cell = points_by_alpha[alpha]
+        rates = [point.train_rate for point in cell]
         mean = statistics.fmean(rates)
         std = statistics.pstdev(rates) if len(rates) > 1 else 0.0
         cv = std / mean if mean > 1e-9 else 0.0
         max_cv = max(max_cv, cv)
+        switch_probability = statistics.fmean(
+            point.mean_switch_probability for point in cell
+        )
+        hard_switch_frequency = statistics.fmean(
+            point.hard_switch_frequency for point in cell
+        )
+        boundary_f1 = max(point.train_boundary_f1 for point in cell)
+        max_switch_probability = max(max_switch_probability, switch_probability)
+        max_hard_switch_frequency = max(
+            max_hard_switch_frequency, hard_switch_frequency
+        )
+        max_boundary_f1 = max(max_boundary_f1, boundary_f1)
         per_alpha.append(
             {
                 "alpha": alpha,
@@ -300,6 +330,9 @@ def main() -> None:
                 "rate_std": std,
                 "rate_cv": cv,
                 "rates": rates,
+                "mean_switch_probability": switch_probability,
+                "hard_switch_frequency": hard_switch_frequency,
+                "max_train_boundary_f1": boundary_f1,
             }
         )
 
@@ -330,11 +363,15 @@ def main() -> None:
         },
         "posterior_parameterization": report.posterior_parameterization,
         "observation_protocol": report.observation_protocol,
+        "rate_gating": report.rate_gating,
         "alpha_grid": list(args.alphas),
         "per_alpha": per_alpha,
         "spearman_alpha_rate": spearman,
         "rate_span": rate_span,
         "max_seed_cv": max_cv,
+        "max_mean_switch_probability": max_switch_probability,
+        "max_hard_switch_frequency": max_hard_switch_frequency,
+        "max_train_boundary_f1": max_boundary_f1,
         "thresholds": {
             "spearman_max": args.spearman_max,
             "max_seed_cv": args.max_seed_cv,
@@ -356,6 +393,12 @@ def main() -> None:
         f"{monotone_ok}), rate_span={rate_span:.3f}"
     )
     print(f"max seed CV={max_cv:.3f} (<= {args.max_seed_cv} ? {variance_ok})")
+    print(
+        f"switching [{report.rate_gating}]: "
+        f"max mean switch prob={max_switch_probability:.3f}, "
+        f"max hard-switch freq={max_hard_switch_frequency:.3f}, "
+        f"max train boundary F1={max_boundary_f1:.3f}"
+    )
     print(f"SCREEN: {'PASS' if screen_pass else 'FAIL'}")
     raise SystemExit(0 if screen_pass else 1)
 

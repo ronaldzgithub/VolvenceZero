@@ -1466,6 +1466,21 @@ _POSTERIOR_PARAMETERIZATIONS = (
 )
 POSTERIOR_STD_SMOOTH_FLOOR = 1e-4
 
+# Rate gating (ETA Eq.3 fidelity, 2026-08 Gate-1 repair). The paper's rate is
+# transmit-only-at-switch: when the gate keeps the previous code no new
+# information flows, so that step contributes zero KL; a switch resamples z and
+# pays KL against the prior once for the whole segment. ``per-step`` is the
+# historical objective that charges KL unconditionally every step -- under it
+# holding a plan for T steps costs T x KL, switching earns no discount, and the
+# near-vertical rate-distortion gap is structurally impossible. ``switch-gated``
+# multiplies each step's KL by the same gate that mixes the code (straight-
+# through in hard mode, the switch probability in continuous mode), restoring
+# the segment economics. Default stays ``per-step`` so the change is opt-in and
+# reversible; only the ETA rate-distortion evidence path selects switch-gated.
+RATE_GATING_PER_STEP = "per-step"
+RATE_GATING_SWITCH = "switch-gated"
+_RATE_GATINGS = (RATE_GATING_PER_STEP, RATE_GATING_SWITCH)
+
 
 def _softplus_scalar(value: float) -> float:
     """Numerically stable softplus for the pure-Python encoder mirrors."""

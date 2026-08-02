@@ -28,6 +28,8 @@ from volvence_zero.agent.eta_rate_distortion_evidence import (
 from volvence_zero.temporal.metacontroller_components import (
     POSTERIOR_PARAMETERIZATION_LEGACY,
     POSTERIOR_PARAMETERIZATION_SMOOTH,
+    RATE_GATING_PER_STEP,
+    RATE_GATING_SWITCH,
 )
 
 PREREGISTRATION_SCHEMA_VERSION = "eta-rate-distortion-prereg.v1"
@@ -73,6 +75,7 @@ def build_preregistration(
     rate_axis_gate: dict[str, object] | None = None,
     observation_protocol: str = OBSERVATION_PROTOCOL_V1,
     posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
+    rate_gating: str = RATE_GATING_PER_STEP,
 ) -> dict[str, object]:
     gap_defaults = inspect.signature(assess_gap).parameters
     return {
@@ -95,6 +98,7 @@ def build_preregistration(
             "corpus": corpus or {"corpus_origin": "default-hardcoded-7-route"},
             "observation_protocol": observation_protocol,
             "posterior_parameterization": posterior_parameterization,
+            "rate_gating": rate_gating,
         },
         "rate_axis_gate": rate_axis_gate
         or {
@@ -201,6 +205,11 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         ),
         default=POSTERIOR_PARAMETERIZATION_LEGACY,
     )
+    parser.add_argument(
+        "--rate-gating",
+        choices=(RATE_GATING_PER_STEP, RATE_GATING_SWITCH),
+        default=RATE_GATING_PER_STEP,
+    )
     args = parser.parse_args(argv)
 
     output: Path = args.output
@@ -237,6 +246,7 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         corpus=corpus,
         observation_protocol=args.observation_protocol,
         posterior_parameterization=args.posterior_parameterization,
+        rate_gating=args.rate_gating,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

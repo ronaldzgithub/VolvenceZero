@@ -1,0 +1,121 @@
+{
+  "schema_version": "eta-rate-axis-surrogate-screen.v1",
+  "created_at": "2026-08-02T15:18:59.870037+00:00",
+  "note": "Surrogate (tiny builtin) screen. Rate-axis shape only; distortion values are meaningless. Not authoritative.",
+  "runtime": {
+    "model_id": "eta-builtin-transformers-runtime",
+    "runtime_origin": "builtin-fallback",
+    "fallback_active": true,
+    "injection_layer_index": 1
+  },
+  "posterior_parameterization": "smooth",
+  "observation_protocol": "partially-observable-no-route-identity.v2",
+  "rate_gating": "switch-gated",
+  "alpha_grid": [
+    0.01,
+    0.03,
+    0.1,
+    0.3,
+    1.0,
+    3.0
+  ],
+  "per_alpha": [
+    {
+      "alpha": 0.01,
+      "rate_mean": 0.10571096110992413,
+      "rate_std": 0.021562609009813646,
+      "rate_cv": 0.20397704063433542,
+      "rates": [
+        0.11063823139849287,
+        0.07718565551663199,
+        0.12930899641464758
+      ],
+      "mean_switch_probability": 0.2205541224019083,
+      "hard_switch_frequency": 0.0,
+      "max_train_boundary_f1": 0.0
+    },
+    {
+      "alpha": 0.03,
+      "rate_mean": 0.04448176793204792,
+      "rate_std": 0.018243595169151874,
+      "rate_cv": 0.41013646753028116,
+      "rates": [
+        0.0636887015812977,
+        0.01995974146217444,
+        0.04979686075267162
+      ],
+      "mean_switch_probability": 0.18771933375309513,
+      "hard_switch_frequency": 0.0,
+      "max_train_boundary_f1": 0.0
+    },
+    {
+      "alpha": 0.1,
+      "rate_mean": 0.012418368753411638,
+      "rate_std": 0.006048771337340267,
+      "rate_cv": 0.4870825997720931,
+      "rates": [
+        0.020901226141120933,
+        0.007221796121721897,
+        0.009132083997392085
+      ],
+      "mean_switch_probability": 0.17337743503444727,
+      "hard_switch_frequency": 0.0,
+      "max_train_boundary_f1": 0.0
+    },
+    {
+      "alpha": 0.3,
+      "rate_mean": 0.004090609984347065,
+      "rate_std": 0.0011485181255311769,
+      "rate_cv": 0.2807694035672044,
+      "rates": [
+        0.005678542113518035,
+        0.0035924385983316705,
+        0.0030008492411914885
+      ],
+      "mean_switch_probability": 0.20467703923783742,
+      "hard_switch_frequency": 0.0,
+      "max_train_boundary_f1": 0.0
+    },
+    {
+      "alpha": 1.0,
+      "rate_mean": 0.0019434932825306015,
+      "rate_std": 0.0003623713200203377,
+      "rate_cv": 0.18645360047167128,
+      "rates": [
+        0.0024319623634722703,
+        0.0018334896181014736,
+        0.0015650278660180603
+      ],
+      "mean_switch_probability": 0.25076421761270934,
+      "hard_switch_frequency": 0.0,
+      "max_train_boundary_f1": 0.0
+    },
+    {
+      "alpha": 3.0,
+      "rate_mean": 0.002137182495708661,
+      "rate_std": 8.085181887913672e-05,
+      "rate_cv": 0.037831031763306364,
+      "rates": [
+        0.0022515225956081944,
+        0.0020794822662415645,
+        0.0020805426252762235
+      ],
+      "mean_switch_probability": 0.2572340785508083,
+      "hard_switch_frequency": 0.0,
+      "max_train_boundary_f1": 0.0
+    }
+  ],
+  "spearman_alpha_rate": -0.9428571428571428,
+  "rate_span": 0.10376746782739353,
+  "max_seed_cv": 0.4870825997720931,
+  "max_mean_switch_probability": 0.2572340785508083,
+  "max_hard_switch_frequency": 0.0,
+  "max_train_boundary_f1": 0.0,
+  "thresholds": {
+    "spearman_max": -0.5,
+    "max_seed_cv": 0.6
+  },
+  "monotone_ok": true,
+  "variance_ok": true,
+  "screen_pass": true
+}

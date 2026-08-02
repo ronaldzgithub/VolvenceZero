@@ -36,7 +36,10 @@ from volvence_zero.temporal.metacontroller_components import (
     POSTERIOR_PARAMETERIZATION_LEGACY,
     POSTERIOR_PARAMETERIZATION_SMOOTH,
     POSTERIOR_STD_SMOOTH_FLOOR,
+    RATE_GATING_PER_STEP,
+    RATE_GATING_SWITCH,
     _POSTERIOR_PARAMETERIZATIONS,
+    _RATE_GATINGS,
     NdimDecoderParameters,
     NdimEncoderParameters,
     NdimFFNParams,
@@ -326,6 +329,7 @@ class _TorchNdimMetacontroller:
         hard_switches: list[Any] = []
         keep_controls: list[Any] = []
         switch_controls: list[Any] = []
+        effective_gates: list[Any] = []
         count = 0
         for raw in step_inputs:
             x = torch.tensor(list(raw), dtype=self._dtype)
@@ -396,6 +400,7 @@ class _TorchNdimMetacontroller:
                     - switch_probability.detach()
                     + switch_probability
                 )
+                effective_gate = straight_through_gate
                 mixed_code = (
                     straight_through_gate * z_tilde
                     + (1.0 - straight_through_gate) * prev_code
@@ -405,6 +410,7 @@ class _TorchNdimMetacontroller:
                     if smooth_posterior
                     else torch.clamp(mixed_code, 0.0, 1.0)
                 )
+            effective_gates.append(effective_gate)
             applied_control = self._decode(latent_code)
             controls.append(applied_control)
             keep_controls.append(self._decode(prev_code))
@@ -424,6 +430,10 @@ class _TorchNdimMetacontroller:
             "hard_switches": hard_switches,
             "keep_controls": keep_controls,
             "switch_controls": switch_controls,
+            # The gate actually applied when mixing z_tilde with the carried
+            # code (1 at step 0). Switch-gated rate multiplies each step's KL
+            # by this, so keeping the code is free and switching pays once.
+            "effective_gates": effective_gates,
         }
 
     # --- write-back to the ndim parameter dataclasses (float tuples) ---
@@ -492,6 +502,7 @@ class StoreSSLTrainingSession:
         reparam_seed: int = 20260801,
         substrate_learning_rate: float = 1e-4,
         posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
+        rate_gating: str = RATE_GATING_PER_STEP,
     ) -> None:
         if n_z <= 3:
             raise RuntimeError(
@@ -560,6 +571,12 @@ class StoreSSLTrainingSession:
                 f"{posterior_parameterization!r}."
             )
         self._posterior_parameterization = posterior_parameterization
+        if rate_gating not in _RATE_GATINGS:
+            raise ValueError(
+                f"rate_gating must be one of {_RATE_GATINGS}, got "
+                f"{rate_gating!r}."
+            )
+        self._rate_gating = rate_gating
         if substrate_learning_rate <= 0.0:
             raise ValueError("substrate_learning_rate must be positive.")
         self._substrate_learning_rate = substrate_learning_rate
@@ -886,15 +903,17 @@ class StoreSSLTrainingSession:
             )
             mean = out["means"][step_index]
             std = out["stds"][step_index]
-            kl_terms.append(
-                0.5
-                * torch.mean(
-                    mean.pow(2)
-                    + std.pow(2)
-                    - 1.0
-                    - 2.0 * torch.log(std)
-                )
+            step_kl = 0.5 * torch.mean(
+                mean.pow(2)
+                + std.pow(2)
+                - 1.0
+                - 2.0 * torch.log(std)
             )
+            if self._rate_gating == RATE_GATING_SWITCH:
+                # Same transmit-only-at-switch economics as the steered
+                # objective (straight-through gate in this hard-st path).
+                step_kl = out["effective_gates"][step_index] * step_kl
+            kl_terms.append(step_kl)
 
         eligible_probabilities = out["switch_probabilities"][1:]
         eligible_betas = out["betas"][1:]
@@ -1066,13 +1085,20 @@ class StoreSSLTrainingSession:
         )
         prediction_terms = list(torch.unbind(nll))
         kl_terms: list[Any] = []
-        for mean, std in zip(out["means"], out["stds"], strict=True):
-            kl_terms.append(
-                0.5
-                * torch.mean(
-                    mean.pow(2) + std.pow(2) - 1.0 - 2.0 * torch.log(std)
-                )
+        for step_index, (mean, std) in enumerate(
+            zip(out["means"], out["stds"], strict=True)
+        ):
+            step_kl = 0.5 * torch.mean(
+                mean.pow(2) + std.pow(2) - 1.0 - 2.0 * torch.log(std)
             )
+            if self._rate_gating == RATE_GATING_SWITCH:
+                # ETA Eq.3 rate economics: information is transmitted only at
+                # a switch, so a kept code contributes zero rate and a segment
+                # pays its KL once at the boundary. The gate is the same one
+                # that mixes the code, so cost and information flow share a
+                # single differentiable path.
+                step_kl = out["effective_gates"][step_index] * step_kl
+            kl_terms.append(step_kl)
         eligible_probabilities = out["switch_probabilities"][1:]
         zero = prediction_terms[0].detach() * 0.0
         # Switch-rate telemetry (never enters the Eq.3 loss; the session

@@ -51,6 +51,8 @@ from volvence_zero.agent.eta_rate_distortion_evidence import (
 from volvence_zero.temporal.metacontroller_components import (
     POSTERIOR_PARAMETERIZATION_LEGACY,
     POSTERIOR_PARAMETERIZATION_SMOOTH,
+    RATE_GATING_PER_STEP,
+    RATE_GATING_SWITCH,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -154,6 +156,7 @@ def _validate_preregistration(
         "corpus": requested_corpus,
         "observation_protocol": args.observation_protocol,
         "posterior_parameterization": args.posterior_parameterization,
+        "rate_gating": args.rate_gating,
     }
     for key, value in requested.items():
         if sweep.get(key) != value:
@@ -315,6 +318,7 @@ def _report_markdown(
         f"- observation protocol: `{report.observation_protocol}`",
         f"- posterior parameterization: "
         f"`{report.posterior_parameterization}`",
+        f"- rate gating: `{report.rate_gating}`",
         f"- train steps={report.train_step_count}, "
         f"heldout steps={report.heldout_step_count}",
         "",
@@ -501,6 +505,18 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--rate-gating",
+        choices=(RATE_GATING_PER_STEP, RATE_GATING_SWITCH),
+        default=RATE_GATING_PER_STEP,
+        help=(
+            "Rate definition. per-step charges posterior KL unconditionally "
+            "every step (legacy; switching earns no discount). switch-gated "
+            "multiplies each step's KL by the code-mixing gate (ETA Eq.3 "
+            "transmit-only-at-switch economics: keeping a code is free, a "
+            "switch pays KL once per segment)."
+        ),
+    )
+    parser.add_argument(
         "--no-prefix-cache",
         dest="prefix_cache",
         action="store_false",
@@ -609,6 +625,7 @@ def main() -> None:
             corpus=corpus,
             observation_protocol=args.observation_protocol,
             posterior_parameterization=args.posterior_parameterization,
+            rate_gating=args.rate_gating,
             prefix_cache=args.prefix_cache,
         )
         elapsed = time.perf_counter() - started
@@ -684,6 +701,7 @@ def main() -> None:
         "control_norm_cap": report.control_norm_cap,
         "observation_protocol": report.observation_protocol,
         "posterior_parameterization": report.posterior_parameterization,
+        "rate_gating": report.rate_gating,
         "prefix_cache": args.prefix_cache,
         "corpus": {
             **corpus_provenance,

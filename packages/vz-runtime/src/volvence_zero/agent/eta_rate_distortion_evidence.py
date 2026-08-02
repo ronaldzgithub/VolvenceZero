@@ -68,7 +68,9 @@ from volvence_zero.temporal import (
 )
 from volvence_zero.temporal.metacontroller_components import (
     POSTERIOR_PARAMETERIZATION_LEGACY,
+    RATE_GATING_PER_STEP,
     _POSTERIOR_PARAMETERIZATIONS,
+    _RATE_GATINGS,
 )
 from volvence_zero.temporal.torch_store_ssl import (
     StoreSSLEvaluationReport,
@@ -210,6 +212,7 @@ class RateDistortionEvidenceReport:
     arms: tuple[str, ...]
     observation_protocol: str
     posterior_parameterization: str
+    rate_gating: str
     corpus_origin: str
     corpus_seed: int
     corpus_objective_count: int
@@ -476,6 +479,7 @@ def _run_single(
     baseline_train: float,
     baseline_heldout: float,
     posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
+    rate_gating: str = RATE_GATING_PER_STEP,
 ) -> RateDistortionPoint:
     start = time.perf_counter()
     store = MetacontrollerParameterStore(
@@ -495,6 +499,7 @@ def _run_single(
         action_scorer=scorer,
         reparam_seed=seed * 1_000_003 + 17,
         posterior_parameterization=posterior_parameterization,
+        rate_gating=rate_gating,
     )
     final_report = None
     for update_index in range(updates_per_run):
@@ -882,6 +887,7 @@ def run_eta_rate_distortion_evidence(
     corpus: ETAProofCorpus | None = None,
     observation_protocol: str = OBSERVATION_PROTOCOL_V1,
     posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
+    rate_gating: str = RATE_GATING_PER_STEP,
     runtime: OpenWeightResidualRuntime | None = None,
     scorer_factory: Callable[..., Any] | None = None,
     prefix_cache: bool = True,
@@ -896,6 +902,11 @@ def run_eta_rate_distortion_evidence(
             f"Unknown posterior parameterization "
             f"{posterior_parameterization!r}; expected one of "
             f"{_POSTERIOR_PARAMETERIZATIONS}."
+        )
+    if rate_gating not in _RATE_GATINGS:
+        raise ValueError(
+            f"Unknown rate gating {rate_gating!r}; expected one of "
+            f"{_RATE_GATINGS}."
         )
     if len(alpha_grid) < 3:
         raise ValueError("alpha_grid needs at least three values.")
@@ -1016,6 +1027,7 @@ def run_eta_rate_distortion_evidence(
                         baseline_train=baseline_train,
                         baseline_heldout=baseline_heldout,
                         posterior_parameterization=posterior_parameterization,
+                        rate_gating=rate_gating,
                     )
                     if point_cache is not None:
                         point_cache.store_point(point)
@@ -1064,6 +1076,7 @@ def run_eta_rate_distortion_evidence(
         arms=arms,
         observation_protocol=observation_protocol,
         posterior_parameterization=posterior_parameterization,
+        rate_gating=rate_gating,
         corpus_origin=corpus_origin,
         corpus_seed=corpus_seed,
         corpus_objective_count=corpus_objective_count,

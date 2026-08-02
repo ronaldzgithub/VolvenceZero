@@ -309,6 +309,7 @@ def _report_fixture(verdict: str = "kill-eta"):
         arms=("frozen", "joint"),
         observation_protocol="partially-observable-no-remaining-route.v1",
         posterior_parameterization="legacy",
+        rate_gating="per-step",
         corpus_origin="fixture",
         corpus_seed=0,
         corpus_objective_count=2,
@@ -673,6 +674,7 @@ def _matching_args(**overrides: object):
         "heldout_lengths": [3, 4],
         "observation_protocol": "partially-observable-no-remaining-route.v1",
         "posterior_parameterization": "legacy",
+        "rate_gating": "per-step",
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -705,6 +707,10 @@ def test_preregistration_accepts_the_execution_it_froze(tmp_path: Path) -> None:
         (
             {"posterior_parameterization": "smooth"},
             "posterior_parameterization",
+        ),
+        (
+            {"rate_gating": "switch-gated"},
+            "rate_gating",
         ),
     ),
 )

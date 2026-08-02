@@ -91,6 +91,13 @@ rate–distortion（Gate 3），对话迁移仅在前三级全过后预注册（
 - 记忆化已消除（train ≈ heldout distortion）
 - 非单调点在 α=1.0 回弹；下一步按预注册修方差参数化后重跑，不开续训
 
+**2026-08-02 smooth/v2 重跑结果**：smooth posterior 与 v2 观测协议修复了 rate
+轴（Spearman `-1.000`、rate span `0.691`），但 frozen 臂仍无 boundary F1 / hard
+switch，rate–distortion 曲线近水平，Gate 1 仍 **FAIL**。因此不进入 Stage 2。
+后续 `switch-gated` rate 仅作为论文 Eq.3 的独立候选修正：它把 KL 乘以实际 code
+mix gate，使保持旧 code 的 segment 不付重复 rate；必须另行预注册、先过 surrogate
+screen，再用真实 substrate 证伪，不能把 surrogate 通过写成 ETA 证据。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）
@@ -158,6 +165,8 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
 - 全部为 evidence lane；production WiringLevel 不变
 - 补课基底为独立 artifact，原始 Qwen 路径不受影响
 - Gate 1/2 FAIL 不触发主张永久摘除；仅 Gate 3 FAIL 或后续独立处置包才摘除
+- `switch-gated` 只是可回滚的 rate 定义候选；默认 `per-step` 保留历史路径，候选
+  失败时恢复默认，不得修改已封存的 smooth/v2 负结果
 
 ## 变更日志
 
@@ -165,3 +174,6 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
   （spearman −0.657 / span 0.585，α=1.0 回弹）与“先修方差参数化、不开 Stage 2”
   的当前处置。机器、预注册与 Stage 4 骨架此前已在 temporal /
   research evidence plan changelog 中记录。
+- 2026-08-02: smooth/v2 复跑使 rate 轴通过但 switching gate 失败；新增
+  `switch-gated` 作为 Eq.3 rate economics 候选，明确 surrogate 非权威与不启动
+  Stage 2 的退出条件。
