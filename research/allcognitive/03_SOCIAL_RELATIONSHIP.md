@@ -56,6 +56,8 @@ claim 必须落在可观察的长期功能性适应、校准依赖、健康不�
 
 ## 2. Emotion Concepts and their Function in an LLM（`2604.07729`）
 
+> 扩展深读见 [`research/anthropic-emotion-concepts-2026-04/`](../anthropic-emotion-concepts-2026-04/)：基于 Transformer Circuits 完整交互版 + 全附录，补充 emotion deflection 向量、持久状态 probe 的证伪、层分工与采样点口径、post-training 全局 affect 偏移，以及三源事实核查。谱系扩展见同目录 [`04_LINEAGE_DEEP_READ.md`](../anthropic-emotion-concepts-2026-04/04_LINEAGE_DEEP_READ.md) / [`05_LINEAGE_VZ_VALUE.md`](../anthropic-emotion-concepts-2026-04/05_LINEAGE_VZ_VALUE.md)（Soligo distress 压制反证、VA lexical mediation、Lynch blackmail 因子分解等）。本节裁决不变。
+
 1. **论文事实**：Sofroniew、Kauvar、Saunders 等，Anthropic，2026 年 archival preprint；研究
    Claude Sonnet 4.5。构造 171 个 emotion concepts，每个情绪跨 100 个主题、每主题 12 个故事；
    另用真实语料、数值强度模板、64 项活动的 4,032 个成对选择及生产对齐评估验证。
