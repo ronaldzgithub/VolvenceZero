@@ -10,9 +10,9 @@
     {
       "evidence_id": "carrier_diagnostics",
       "observed_state": "reported",
-      "path": "artifacts/state_kv/p4-diagnostics/verdict_carrier_diagnostics.json",
+      "path": "artifacts/state_kv/p4-state-strategy-routed/verdict_carrier_diagnostics.json",
       "schema_version": "state-kv-carrier-diagnostics.v1",
-      "sha256": "55af083c9c5da9919e7a534b301cd9baa37d68cad6270b130c069466be3d6514"
+      "sha256": "73dcad7bb8993d5abee72b760e66a549f47be4807b9a856210fb002e1f851b1a"
     },
     {
       "evidence_id": "control_dim",
@@ -41,6 +41,13 @@
       "path": "artifacts/state_kv/deployment-state-strategy-routed-cpu/verdict_deployment_gate.json",
       "schema_version": "state-kv-deployment-gate.v1",
       "sha256": "2d8c93381347b29c2198805e8567b2f2dcc176bc7d2417415201351341d58862"
+    },
+    {
+      "evidence_id": "five_arm_identification",
+      "observed_state": "retain-strict",
+      "path": "artifacts/state_kv/p3-state-strategy-routed/verdict_identification.json",
+      "schema_version": "state-kv-identification.v1",
+      "sha256": "d5156e6296004be7bb184840f95c12db35b76258e69f8a44dfc460d1dd4063db"
     },
     {
       "evidence_id": "generation_seed",
@@ -492,7 +499,7 @@
     "schema_version": "state-kv-experiment-config.v1"
   },
   "experiment_config_sha256": "e056adfa642f828acd01ca46e670c9ca9f680761c8a5ca2e6757526b6920e06e",
-  "freeze_id": "7edad06933e8b23cb6adbea57b8a511e44d67abdf0767101b83034861fa64ac5",
+  "freeze_id": "2bc5bdcd955e28d8a0082af33c8672a2eca2a1a053cb66533a85861846c68cdc",
   "generation_seeds": [
     1701,
     1702,
@@ -509,6 +516,7 @@
     "conditioning-attention-slot-cost",
     "latency-per-generated-token",
     "slot-attention-differentiation",
+    "prefix-vs-residual-identification",
     "temporal-code-causal-distance",
     "revocation-baseline-equivalence",
     "paired-bank-match-gain-bootstrap-ci",
@@ -544,6 +552,7 @@
     "boundary-vs-commit",
     "repair-vs-execute",
     "carrier-diagnostics",
+    "five-arm-carrier-comparison",
     "deployment-safety-controls",
     "bank-gain-four-arm",
     "control-dimension-three-arm",

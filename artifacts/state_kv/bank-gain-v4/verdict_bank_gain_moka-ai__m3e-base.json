@@ -1,0 +1,125 @@
+{
+  "artifact_id": "fe9aaef177d3c26b46914e24bf2a8b1d88742f928c88e2b65afcab9c3f5cba2b",
+  "bank_count_frozen": true,
+  "bootstrap_seed": 7301,
+  "claims": [
+    {
+      "claim": "claim_personal_state_contrast",
+      "detail": "probes=8, material_contrasts=8, fingerprint_contrasts=8",
+      "state": "pass"
+    },
+    {
+      "claim": "claim_personal_non_bank_isolation",
+      "detail": "n=16, judged=16, accuracy=0.25, ci=(0.0625, 0.4375), chance=0.500",
+      "state": "pass"
+    },
+    {
+      "claim": "claim_personal_independent_gain",
+      "detail": "n=16, judged=16, divergence=0.875, match_gain=-0.125, ci=(-0.3125, 0.0)",
+      "state": "fail"
+    },
+    {
+      "claim": "claim_relationship_state_contrast",
+      "detail": "probes=8, material_contrasts=8, fingerprint_contrasts=8",
+      "state": "pass"
+    },
+    {
+      "claim": "claim_relationship_non_bank_isolation",
+      "detail": "n=16, judged=16, accuracy=0.375, ci=(0.125, 0.625), chance=0.500",
+      "state": "pass"
+    },
+    {
+      "claim": "claim_relationship_independent_gain",
+      "detail": "n=16, judged=16, divergence=0.562, match_gain=-0.375, ci=(-0.625, -0.125)",
+      "state": "fail"
+    },
+    {
+      "claim": "claim_irrelevant_bank_negative_control",
+      "detail": "n=8, judged=8, max_router_score=0.026223242844061353, match_gain_ci=(0.0, 0.0), ceiling=0.200",
+      "state": "insufficient_data"
+    }
+  ],
+  "freeze_reason": "At least one fully observed independent-gain or irrelevant-bank control failed; freeze the bank count at Personal + Relationship.",
+  "gate_state": "fail",
+  "irrelevant_router_score_ceiling": 0.2,
+  "judge": {
+    "family": "bert",
+    "material_kind": "rendered-state-statement",
+    "model_id": "moka-ai/m3e-base"
+  },
+  "metrics": [
+    {
+      "bank_type": "personal",
+      "blind_match_gain": -0.125,
+      "blind_match_gain_ci": [
+        -0.3125,
+        0.0
+      ],
+      "judged_sample_count": 16,
+      "output_divergence_rate": 0.875,
+      "sample_count": 16
+    },
+    {
+      "bank_type": "relationship",
+      "blind_match_gain": -0.375,
+      "blind_match_gain_ci": [
+        -0.625,
+        -0.125
+      ],
+      "judged_sample_count": 16,
+      "output_divergence_rate": 0.5625,
+      "sample_count": 16
+    }
+  ],
+  "minimum_samples": 16,
+  "non_bank_chance_accuracy": 0.5,
+  "non_bank_persona_metrics": [
+    {
+      "bank_type": "personal",
+      "blind_match_accuracy": 0.25,
+      "blind_match_accuracy_ci": [
+        0.0625,
+        0.4375
+      ],
+      "judged_sample_count": 16,
+      "sample_count": 16
+    },
+    {
+      "bank_type": "relationship",
+      "blind_match_accuracy": 0.375,
+      "blind_match_accuracy_ci": [
+        0.125,
+        0.625
+      ],
+      "judged_sample_count": 16,
+      "sample_count": 16
+    }
+  ],
+  "observation_artifact_sha256": "fe9aaef177d3c26b46914e24bf2a8b1d88742f928c88e2b65afcab9c3f5cba2b",
+  "persona_contrasts": [
+    {
+      "bank_type": "personal",
+      "fingerprint_contrast_count": 8,
+      "material_contrast_count": 8,
+      "passed": true,
+      "probe_count": 8
+    },
+    {
+      "bank_type": "relationship",
+      "fingerprint_contrast_count": 8,
+      "material_contrast_count": 8,
+      "passed": true,
+      "probe_count": 8
+    }
+  ],
+  "profile_labels": [
+    "state-kv-bank-none",
+    "state-kv-bank-personal-only",
+    "state-kv-bank-relationship-only",
+    "state-kv-bank-dual"
+  ],
+  "router_version": "topk-semantic.v1",
+  "schema_version": "state-kv-bank-gain.v3",
+  "semantic_backend": "backend:Qwen/Qwen2.5-0.5B-Instruct:False",
+  "substrate_fingerprint": "Qwen/Qwen2.5-0.5B-Instruct@857fff1d6ea77f33"
+}

@@ -8,6 +8,7 @@ from volvence_zero.state_kv_bank_gain_gate import (
     IrrelevantBankControlSample,
     NonBankPersonaControlSample,
     PairedBankGainSample,
+    build_bank_gain_panel_verdict,
     build_bank_gain_verdict,
 )
 
@@ -214,4 +215,82 @@ def test_paired_judge_outcomes_must_be_complete() -> None:
             ablated_output="ablated",
             dual_match_correct=True,
             ablated_match_correct=None,
+        )
+
+
+def test_v4_panel_requires_two_distinct_judges_on_same_observations() -> None:
+    first = build_bank_gain_verdict(
+        paired_samples=(*_gain_samples("personal"), *_gain_samples("relationship")),
+        irrelevant_controls=_irrelevant_controls(),
+        non_bank_persona_controls=_non_bank_controls(),
+        persona_contrasts=tuple(
+            BankPersonaContrast(
+                bank_type=bank_type,
+                probe_count=4,
+                material_contrast_count=4,
+                fingerprint_contrast_count=4,
+            )
+            for bank_type in ("personal", "relationship")
+        ),
+        artifact_id="bank-gain-test",
+        substrate_fingerprint="substrate-fp",
+        router_version="topk-semantic.v1",
+        judge_model_id="judge-a",
+        observation_artifact_sha256="a" * 64,
+    )
+    second = build_bank_gain_verdict(
+        paired_samples=(*_gain_samples("personal"), *_gain_samples("relationship")),
+        irrelevant_controls=_irrelevant_controls(),
+        non_bank_persona_controls=_non_bank_controls(),
+        persona_contrasts=tuple(
+            BankPersonaContrast(
+                bank_type=bank_type,
+                probe_count=4,
+                material_contrast_count=4,
+                fingerprint_contrast_count=4,
+            )
+            for bank_type in ("personal", "relationship")
+        ),
+        artifact_id="bank-gain-test",
+        substrate_fingerprint="substrate-fp",
+        router_version="topk-semantic.v1",
+        judge_model_id="judge-b",
+        observation_artifact_sha256="a" * 64,
+    )
+
+    panel = build_bank_gain_panel_verdict(
+        judge_verdicts=(first, second),
+        preregistration_sha256="b" * 64,
+    )
+
+    assert panel.gate_state == "pass"
+    assert panel.as_json_dict()["schema_version"] == "state-kv-bank-gain.v4"
+    assert len(panel.as_json_dict()["judge_panel"]) == 2
+
+
+def test_v4_panel_rejects_duplicate_judge() -> None:
+    verdict = build_bank_gain_verdict(
+        paired_samples=(*_gain_samples("personal"), *_gain_samples("relationship")),
+        irrelevant_controls=_irrelevant_controls(),
+        non_bank_persona_controls=_non_bank_controls(),
+        persona_contrasts=tuple(
+            BankPersonaContrast(
+                bank_type=bank_type,
+                probe_count=4,
+                material_contrast_count=4,
+                fingerprint_contrast_count=4,
+            )
+            for bank_type in ("personal", "relationship")
+        ),
+        artifact_id="bank-gain-test",
+        substrate_fingerprint="substrate-fp",
+        router_version="topk-semantic.v1",
+        judge_model_id="judge-a",
+        observation_artifact_sha256="a" * 64,
+    )
+
+    with pytest.raises(ValueError, match="distinct"):
+        build_bank_gain_panel_verdict(
+            judge_verdicts=(verdict, verdict),
+            preregistration_sha256="b" * 64,
         )

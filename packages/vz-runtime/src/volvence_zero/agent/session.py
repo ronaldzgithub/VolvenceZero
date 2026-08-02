@@ -919,6 +919,18 @@ class AgentSessionRunner(
             builtin_model_id="runner-transformers-runtime",
             allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
+        bound_prefix_id = self._config.personal_conditioning_prefix_artifact_id
+        if (
+            bound_prefix_id is not None
+            and self._default_residual_runtime.personal_conditioning_prefix_id
+            != bound_prefix_id
+        ):
+            raise ValueError(
+                "configured Personal Prefix-KV artifact does not match the "
+                "loaded runtime: "
+                f"{self._default_residual_runtime.personal_conditioning_prefix_id!r} "
+                f"!= {bound_prefix_id!r}"
+            )
         self._joint_loop = joint_loop or ETANLJointLoop(
             world_policy=self._world_temporal_policy,
             self_policy=self._self_temporal_policy,

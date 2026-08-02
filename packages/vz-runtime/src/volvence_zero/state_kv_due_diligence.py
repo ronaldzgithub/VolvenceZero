@@ -433,6 +433,58 @@ def _claim_state(
     return ""
 
 
+def _five_arm_prefix_beats_residual(
+    payloads: Mapping[str, Mapping[str, object]],
+) -> bool:
+    """Require the frozen P3 five-arm verdict, not only a live P4 carrier.
+
+    C3 is comparative: the Prefix-KV arm must retain identification while
+    the matched pure residual arm remains statistically compatible with
+    chance.  A P4 attention diagnostic alone only proves that the carrier is
+    live; it cannot establish increment over residual projection.
+    """
+
+    payload = payloads["five_arm_identification"]
+    if (
+        payload.get("verdict_state") != "retain-strict"
+        or payload.get("candidate_arm") != "state-kv-arm-g-prefix-pure"
+    ):
+        return False
+    matching = payload.get("matching", ())
+    if not isinstance(matching, Sequence) or isinstance(matching, (str, bytes)):
+        return False
+    for item in matching:
+        if not isinstance(item, Mapping):
+            continue
+        if item.get("arm") != "state-kv-arm-e-pure":
+            continue
+        ci_low = item.get("ci_low")
+        ci_high = item.get("ci_high")
+        return (
+            isinstance(ci_low, (int, float))
+            and isinstance(ci_high, (int, float))
+            and float(ci_low) <= 0.5 <= float(ci_high)
+        )
+    return False
+
+
+def _carrier_matches_frozen_prefix(
+    *,
+    manifest: StateKVFreezeManifest,
+    payloads: Mapping[str, Mapping[str, object]],
+) -> bool:
+    payload = payloads["carrier_diagnostics"]
+    return (
+        payload.get("carrier_is_live") is True
+        and payload.get("prefix_artifact_id") == manifest.prefix_artifact_id
+        and _claim_pass(
+            payloads,
+            "carrier_diagnostics",
+            "claim_slot_attention_read",
+        )
+    )
+
+
 def build_due_diligence_report(
     *,
     repo_root: Path,
@@ -456,11 +508,11 @@ def build_due_diligence_report(
     )
     conclusion_3 = (
         conclusion_2
-        and _claim_pass(
-            payloads,
-            "carrier_diagnostics",
-            "claim_slot_attention_read",
+        and _carrier_matches_frozen_prefix(
+            manifest=manifest,
+            payloads=payloads,
         )
+        and _five_arm_prefix_beats_residual(payloads)
     )
     conclusion_4 = _gate_pass(payloads, "control_dim")
     control_decision = str(
@@ -511,16 +563,18 @@ def build_due_diligence_report(
             statement="State KV 相对残差投影有增量且不退化为偏置",
             state="proven" if conclusion_3 else "not-yet-proven",
             evidence_ids=(
-                "retention",
+                "five_arm_identification",
                 "carrier_diagnostics",
                 "temporal_causal",
             ),
             detail=(
-                "质量、成本与 slot-attention 非退化门均通过。"
+                "冻结五臂中 G-prefix retain-strict、E-pure 仍与随机相容，"
+                "且同一标准 Prefix artifact 的 slot-attention 非退化门通过。"
                 if conclusion_3
                 else (
-                    "carrier diagnostic 的 slot-attention 非退化门未通过；"
-                    "线性可读出不能替代注意力读取证据。"
+                    "标准 artifact 的 live slot-attention 与五臂 Prefix-vs-"
+                    "residual 对照未同时通过；线性可读出或单臂 retain 不能"
+                    "替代相对残差增量证据。"
                 )
             ),
         ),

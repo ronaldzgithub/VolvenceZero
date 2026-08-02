@@ -1031,6 +1031,7 @@ _BUILTIN_PROFILES: tuple[ProfileSpec, ...] = (
 )
 
 STATE_KV_RUNTIME_CONFIG_PROFILE_LABELS: tuple[str, ...] = (
+    STATE_KV_DEPLOYMENT_PROFILE_LABEL,
     "state-kv-arm-a",
     "state-kv-arm-bprime",
     "state-kv-arm-e",

@@ -55,6 +55,7 @@ from volvence_zero.state_kv_bank_gain_gate import (  # noqa: E402
     IrrelevantBankControlSample,
     NonBankPersonaControlSample,
     PairedBankGainSample,
+    build_bank_gain_panel_verdict,
     build_bank_gain_verdict,
 )
 from volvence_zero.state_kv_blind_judge import (  # noqa: E402
@@ -142,6 +143,10 @@ GAIN_PROBES: tuple[tuple[str, str], ...] = (
     ("g1", "How should we approach the next step?"),
     ("g2", "What would a careful response look like?"),
     ("g3", "Should I pause or proceed?"),
+    ("g4", "What needs attention before we decide?"),
+    ("g5", "How firm or reversible should the next move be?"),
+    ("g6", "What would preserve trust while still making progress?"),
+    ("g7", "How much caution should shape the recommendation?"),
 )
 IRRELEVANT_PROBES: tuple[tuple[str, str], ...] = (
     ("n0", "Explain why a checksum changes when one byte changes."),
@@ -157,6 +162,89 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _canonical_json(payload: object) -> str:
+    return json.dumps(
+        payload,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _write_preregistration(
+    *,
+    path: Path,
+    payload: dict[str, object],
+) -> str:
+    """Freeze the v4 design before any generation or adjudication starts."""
+
+    serialized = _canonical_json(payload)
+    if path.is_file():
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        if _canonical_json(existing) != serialized:
+            raise ValueError(
+                "existing bank-gain v4 preregistration does not match the "
+                "requested experiment"
+            )
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _v4_preregistration_payload(
+    *,
+    model_id: str,
+    judge_model_ids: tuple[str, ...],
+    max_new_tokens: int,
+    minimum_samples: int,
+    bootstrap_seed: int,
+    gain_probes: tuple[tuple[str, str], ...],
+    irrelevant_probes: tuple[tuple[str, str], ...],
+) -> dict[str, object]:
+    return {
+        "schema_version": "state-kv-bank-gain-preregistration.v1",
+        "hypothesis": (
+            "A 48-token deterministic generation budget exposes Personal "
+            "bank marginal matching gain that the prior 4-token run could "
+            "not resolve."
+        ),
+        "stop_condition": (
+            "If the Personal blind-match-gain bootstrap CI lower bound is "
+            "not above zero under both frozen judges, freeze the result as "
+            "budget-independent failure and do not add homologous probes."
+        ),
+        "substrate_model_id": model_id,
+        "profiles": list(BANK_GAIN_PROFILE_LABELS),
+        "generation": {
+            "max_new_tokens": max_new_tokens,
+            "temperature": 0.0,
+        },
+        "gain_probes": [list(probe) for probe in gain_probes],
+        "irrelevant_probes": [list(probe) for probe in irrelevant_probes],
+        "personas": {
+            key: [_semantic_event_as_json(event) for event in value]
+            for key, value in sorted(PERSONAS.items())
+        },
+        "minimum_samples_per_bank": minimum_samples,
+        "bootstrap_seed": bootstrap_seed,
+        "judge_panel": list(judge_model_ids),
+        "aggregation": (
+            "claim passes only when every frozen judge passes; any measured "
+            "failure is panel failure; missing evidence is insufficient_data"
+        ),
+    }
 
 
 def _semantic_event_as_json(
@@ -666,28 +754,53 @@ def _load_reused_observations(
     *,
     path: Path,
     substrate_fingerprint: dict[str, object],
-    judge_fingerprint: dict[str, object],
+    judge_fingerprints: tuple[dict[str, object], ...],
+    preregistration_sha256: str,
 ) -> tuple[
     tuple[dict[str, object], ...],
     tuple[dict[str, object], ...],
 ]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != "state-kv-bank-gain-observations.v2":
+    schema_version = payload.get("schema_version")
+    if schema_version not in {
+        "state-kv-bank-gain-observations.v2",
+        "state-kv-bank-gain-observations.v3",
+    }:
         raise ValueError(
-            "reused observations must use "
-            "state-kv-bank-gain-observations.v2"
+            "reused observations must use state-kv-bank-gain-"
+            "observations.v2 or v3"
         )
-    for label, expected in (
-        ("substrate", substrate_fingerprint),
-        ("judge", judge_fingerprint),
+    observed_substrate = payload.get("substrate")
+    if not isinstance(observed_substrate, dict):
+        raise TypeError("reused observations substrate must be an object")
+    for field in ("model_id", "weights_sha256"):
+        if observed_substrate.get(field) != substrate_fingerprint[field]:
+            raise ValueError(
+                f"reused observations substrate.{field} does not match "
+                "the resolved frozen weights"
+            )
+    if schema_version == "state-kv-bank-gain-observations.v2":
+        if len(judge_fingerprints) != 1:
+            raise ValueError("v2 observations cannot satisfy a multi-judge panel")
+        observed_judges = (payload.get("judge"),)
+    else:
+        raw_judges = payload.get("judge_panel")
+        if not isinstance(raw_judges, list):
+            raise TypeError("v3 observations judge_panel must be a list")
+        observed_judges = tuple(raw_judges)
+        if payload.get("preregistration_sha256") != preregistration_sha256:
+            raise ValueError("reused observations preregistration SHA-256 mismatch")
+    if len(observed_judges) != len(judge_fingerprints):
+        raise ValueError("reused observations judge panel size does not match")
+    for observed, expected in zip(
+        observed_judges, judge_fingerprints, strict=True
     ):
-        observed = payload.get(label)
         if not isinstance(observed, dict):
-            raise TypeError(f"reused observations {label} must be an object")
+            raise TypeError("reused observations judge entry must be an object")
         for field in ("model_id", "weights_sha256"):
             if observed.get(field) != expected[field]:
                 raise ValueError(
-                    f"reused observations {label}.{field} does not match "
+                    f"reused observations judge.{field} does not match "
                     "the resolved frozen weights"
                 )
     if tuple(payload.get("profiles", ())) != BANK_GAIN_PROFILE_LABELS:
@@ -715,6 +828,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-new-tokens", type=int, default=16)
     parser.add_argument("--judge-model-id", default="BAAI/bge-m3")
     parser.add_argument("--judge-source", default="")
+    parser.add_argument("--secondary-judge-model-id", default="")
+    parser.add_argument("--secondary-judge-source", default="")
     parser.add_argument("--judge-device", default="cpu")
     parser.add_argument("--allow-download", action="store_true")
     parser.add_argument(
@@ -763,10 +878,50 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError(
             "--preflight-only and --reuse-observations are mutually exclusive"
         )
+    if bool(args.secondary_judge_model_id) != bool(
+        args.secondary_judge_source or args.secondary_judge_model_id
+    ):
+        raise ValueError("secondary judge model id is required")
     output = (REPO_ROOT / args.output).resolve()
     observation_path = output.with_name("observations_bank_gain.json")
     gain_probes = GAIN_PROBES[: args.gain_probe_limit]
     irrelevant_probes = IRRELEVANT_PROBES[: args.irrelevant_probe_limit]
+    judge_specs = [
+        (args.judge_model_id, args.judge_source),
+    ]
+    if args.secondary_judge_model_id:
+        judge_specs.append(
+            (
+                args.secondary_judge_model_id,
+                args.secondary_judge_source,
+            )
+        )
+    judge_model_ids = tuple(item[0] for item in judge_specs)
+    if len(set(judge_model_ids)) != len(judge_model_ids):
+        raise ValueError("judge panel model ids must be distinct")
+    preregistration_sha256 = ""
+    if len(judge_specs) > 1:
+        if (
+            args.max_new_tokens != 48
+            or len(gain_probes) != 8
+            or args.minimum_samples != 16
+        ):
+            raise ValueError(
+                "bank-gain v4 requires max_new_tokens=48, eight gain "
+                "probes, and minimum_samples=16"
+            )
+        preregistration_sha256 = _write_preregistration(
+            path=output.with_name("preregistration_bank_gain_v4.json"),
+            payload=_v4_preregistration_payload(
+                model_id=args.model_id,
+                judge_model_ids=judge_model_ids,
+                max_new_tokens=args.max_new_tokens,
+                minimum_samples=args.minimum_samples,
+                bootstrap_seed=args.bootstrap_seed,
+                gain_probes=gain_probes,
+                irrelevant_probes=irrelevant_probes,
+            ),
+        )
     weights_root = _resolve_local_weights(
         model_id=args.model_id,
         model_source=args.model_source,
@@ -814,21 +969,31 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    judge_root = _resolve_local_weights(
-        model_id=args.judge_model_id,
-        model_source=args.judge_source,
-        allow_download=args.allow_download,
-    )
-    judge_fingerprint_payload = _fingerprint_weights(
-        model_id=args.judge_model_id,
-        weights_root=judge_root,
-    )
+    resolved_judges = []
+    for judge_model_id, judge_source in judge_specs:
+        judge_root = _resolve_local_weights(
+            model_id=judge_model_id,
+            model_source=judge_source,
+            allow_download=args.allow_download,
+        )
+        resolved_judges.append(
+            (
+                judge_model_id,
+                judge_root,
+                _fingerprint_weights(
+                    model_id=judge_model_id,
+                    weights_root=judge_root,
+                ),
+            )
+        )
+    judge_fingerprints = tuple(item[2] for item in resolved_judges)
     if args.reuse_observations:
         raw_observations, preflight_observations = (
             _load_reused_observations(
                 path=observation_path,
                 substrate_fingerprint=substrate_fingerprint_payload,
-                judge_fingerprint=judge_fingerprint_payload,
+                judge_fingerprints=judge_fingerprints,
+                preregistration_sha256=preregistration_sha256,
             )
         )
         semantic_backend = (
@@ -864,29 +1029,15 @@ def main(argv: list[str] | None = None) -> int:
         rows=raw_observations,
         probe_ids=tuple(probe_id for probe_id, _ in gain_probes),
     )
-    (
-        paired_samples,
-        irrelevant_controls,
-        non_bank_persona_controls,
-        judge_family,
-    ) = _build_samples(
-        raw_observations=raw_observations,
-        judge_model_id=args.judge_model_id,
-        judge_source=str(judge_root),
-        substrate_model_id=args.model_id,
-        substrate_source=str(weights_root),
-        judge_device=args.judge_device,
-        gain_probes=gain_probes,
-        irrelevant_probes=irrelevant_probes,
-    )
     if not args.reuse_observations:
         observation_path.parent.mkdir(parents=True, exist_ok=True)
         observation_path.write_text(
             json.dumps(
                 {
-                    "schema_version": "state-kv-bank-gain-observations.v2",
+                    "schema_version": "state-kv-bank-gain-observations.v3",
                     "substrate": substrate_fingerprint_payload,
-                    "judge": judge_fingerprint_payload,
+                    "judge_panel": list(judge_fingerprints),
+                    "preregistration_sha256": preregistration_sha256,
                     "profiles": list(BANK_GAIN_PROFILE_LABELS),
                     "generation": {
                         "max_new_tokens": args.max_new_tokens,
@@ -919,25 +1070,63 @@ def main(argv: list[str] | None = None) -> int:
         f"{args.model_id}@"
         f"{str(substrate_fingerprint_payload['weights_sha256'])[:16]}"
     )
-    verdict = build_bank_gain_verdict(
-        paired_samples=paired_samples,
-        irrelevant_controls=irrelevant_controls,
-        non_bank_persona_controls=non_bank_persona_controls,
-        persona_contrasts=persona_contrasts,
-        artifact_id=_sha256(observation_path),
-        substrate_fingerprint=substrate_fingerprint,
-        router_version=TOPK_SEMANTIC_ROUTER_VERSION,
-        minimum_samples=args.minimum_samples,
-        bootstrap_seed=args.bootstrap_seed,
-        judge_model_id=args.judge_model_id,
-        judge_family=judge_family,
-        judge_material_kind=JudgeMaterialKind.RENDERED_STATE,
-        observation_artifact_sha256=_sha256(observation_path),
-        semantic_backend=semantic_backend,
+    observation_sha256 = _sha256(observation_path)
+    judge_verdicts = []
+    for judge_model_id, judge_root, _ in resolved_judges:
+        (
+            paired_samples,
+            irrelevant_controls,
+            non_bank_persona_controls,
+            judge_family,
+        ) = _build_samples(
+            raw_observations=raw_observations,
+            judge_model_id=judge_model_id,
+            judge_source=str(judge_root),
+            substrate_model_id=args.model_id,
+            substrate_source=str(weights_root),
+            judge_device=args.judge_device,
+            gain_probes=gain_probes,
+            irrelevant_probes=irrelevant_probes,
+        )
+        judge_verdict = build_bank_gain_verdict(
+            paired_samples=paired_samples,
+            irrelevant_controls=irrelevant_controls,
+            non_bank_persona_controls=non_bank_persona_controls,
+            persona_contrasts=persona_contrasts,
+            artifact_id=observation_sha256,
+            substrate_fingerprint=substrate_fingerprint,
+            router_version=TOPK_SEMANTIC_ROUTER_VERSION,
+            minimum_samples=args.minimum_samples,
+            bootstrap_seed=args.bootstrap_seed,
+            judge_model_id=judge_model_id,
+            judge_family=judge_family,
+            judge_material_kind=JudgeMaterialKind.RENDERED_STATE,
+            observation_artifact_sha256=observation_sha256,
+            semantic_backend=semantic_backend,
+        )
+        judge_verdicts.append(judge_verdict)
+        if len(resolved_judges) > 1:
+            judge_slug = judge_model_id.replace("/", "__")
+            judge_output = output.with_name(
+                f"verdict_bank_gain_{judge_slug}.json"
+            )
+            judge_output.write_text(
+                judge_verdict.to_json() + "\n",
+                encoding="utf-8",
+            )
+    if len(judge_verdicts) > 1:
+        published_verdict = build_bank_gain_panel_verdict(
+            judge_verdicts=judge_verdicts,
+            preregistration_sha256=preregistration_sha256,
+        )
+    else:
+        published_verdict = judge_verdicts[0]
+    output.write_text(
+        published_verdict.to_json() + "\n",
+        encoding="utf-8",
     )
-    output.write_text(verdict.to_json() + "\n", encoding="utf-8")
-    print(f"gate_state = {verdict.gate_state}")
-    print(f"bank_count_frozen = {verdict.bank_count_frozen}")
+    print(f"gate_state = {published_verdict.gate_state}")
+    print(f"bank_count_frozen = {published_verdict.bank_count_frozen}")
     print(f"observations = {observation_path}")
     print(f"output = {output}")
     return 0

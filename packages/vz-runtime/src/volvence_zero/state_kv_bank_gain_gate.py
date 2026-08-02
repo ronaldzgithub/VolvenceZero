@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 BANK_GAIN_SCHEMA_VERSION = "state-kv-bank-gain.v3"
+BANK_GAIN_PANEL_SCHEMA_VERSION = "state-kv-bank-gain.v4"
 BANK_GAIN_PROFILE_LABELS = (
     "state-kv-bank-none",
     "state-kv-bank-personal-only",
@@ -269,6 +270,145 @@ class BankGainVerdict:
             indent=2,
             sort_keys=True,
         )
+
+
+@dataclass(frozen=True)
+class BankGainPanelVerdict:
+    """Two-judge confirmation over one frozen observation artifact."""
+
+    preregistration_sha256: str
+    observation_artifact_sha256: str
+    judge_verdicts: tuple[BankGainVerdict, ...]
+    claims: tuple[BankGainClaim, ...]
+
+    @property
+    def gate_state(self) -> str:
+        states = {claim.state for claim in self.claims}
+        if states == {"pass"}:
+            return "pass"
+        if "fail" in states:
+            return "fail"
+        return "insufficient_data"
+
+    @property
+    def bank_count_frozen(self) -> bool:
+        freeze_eligible = {
+            "claim_personal_independent_gain",
+            "claim_relationship_independent_gain",
+            "claim_irrelevant_bank_negative_control",
+        }
+        return any(
+            claim.claim in freeze_eligible and claim.state == "fail"
+            for claim in self.claims
+        )
+
+    def as_json_dict(self) -> dict[str, object]:
+        first = self.judge_verdicts[0]
+        return {
+            "schema_version": BANK_GAIN_PANEL_SCHEMA_VERSION,
+            "gate_state": self.gate_state,
+            "artifact_id": first.artifact_id,
+            "substrate_fingerprint": first.substrate_fingerprint,
+            "router_version": first.router_version,
+            "profile_labels": list(BANK_GAIN_PROFILE_LABELS),
+            "preregistration_sha256": self.preregistration_sha256,
+            "observation_artifact_sha256": (
+                self.observation_artifact_sha256
+            ),
+            "judge_panel": [
+                verdict.as_json_dict() for verdict in self.judge_verdicts
+            ],
+            "claims": [
+                {
+                    "claim": claim.claim,
+                    "state": claim.state,
+                    "detail": claim.detail,
+                }
+                for claim in self.claims
+            ],
+            "bank_count_frozen": self.bank_count_frozen,
+            "freeze_reason": (
+                "At least one fully observed panel-confirmed independent-"
+                "gain or irrelevant-bank control failed; freeze the bank "
+                "count at Personal + Relationship."
+                if self.bank_count_frozen
+                else ""
+            ),
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(
+            self.as_json_dict(),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+
+
+def build_bank_gain_panel_verdict(
+    *,
+    judge_verdicts: Sequence[BankGainVerdict],
+    preregistration_sha256: str,
+) -> BankGainPanelVerdict:
+    """Require two distinct frozen judges over byte-identical observations."""
+
+    verdicts = tuple(judge_verdicts)
+    if len(verdicts) < 2:
+        raise ValueError("bank-gain v4 requires at least two judge verdicts")
+    judge_ids = tuple(verdict.judge_model_id for verdict in verdicts)
+    if any(not judge_id for judge_id in judge_ids):
+        raise ValueError("bank-gain v4 requires non-empty judge model ids")
+    if len(set(judge_ids)) != len(judge_ids):
+        raise ValueError("bank-gain v4 requires distinct judge model ids")
+    if not preregistration_sha256:
+        raise ValueError("bank-gain v4 requires preregistration SHA-256")
+    observation_ids = {
+        verdict.observation_artifact_sha256 for verdict in verdicts
+    }
+    if "" in observation_ids or len(observation_ids) != 1:
+        raise ValueError(
+            "bank-gain v4 judge verdicts must share one observation artifact"
+        )
+    artifact_ids = {verdict.artifact_id for verdict in verdicts}
+    substrates = {verdict.substrate_fingerprint for verdict in verdicts}
+    routers = {verdict.router_version for verdict in verdicts}
+    if len(artifact_ids) != 1 or len(substrates) != 1 or len(routers) != 1:
+        raise ValueError(
+            "bank-gain v4 judge verdicts must share artifact, substrate, and router"
+        )
+    claim_names = tuple(claim.claim for claim in verdicts[0].claims)
+    if any(
+        tuple(claim.claim for claim in verdict.claims) != claim_names
+        for verdict in verdicts[1:]
+    ):
+        raise ValueError("bank-gain v4 judge claim sets do not match")
+    panel_claims = []
+    for index, claim_name in enumerate(claim_names):
+        states = tuple(verdict.claims[index].state for verdict in verdicts)
+        if all(state == "pass" for state in states):
+            state = "pass"
+        elif any(state == "fail" for state in states):
+            state = "fail"
+        else:
+            state = "insufficient_data"
+        panel_claims.append(
+            BankGainClaim(
+                claim=claim_name,
+                state=state,
+                detail="; ".join(
+                    f"{judge_id}={judge_state}"
+                    for judge_id, judge_state in zip(
+                        judge_ids, states, strict=True
+                    )
+                ),
+            )
+        )
+    return BankGainPanelVerdict(
+        preregistration_sha256=preregistration_sha256,
+        observation_artifact_sha256=next(iter(observation_ids)),
+        judge_verdicts=verdicts,
+        claims=tuple(panel_claims),
+    )
 
 
 def _paired_bootstrap_ci(
@@ -592,13 +732,16 @@ def build_bank_gain_verdict(
 __all__ = [
     "BANK_GAIN_PROFILE_LABELS",
     "BANK_GAIN_SCHEMA_VERSION",
+    "BANK_GAIN_PANEL_SCHEMA_VERSION",
     "BankGainClaim",
     "BankGainMetric",
     "BankPersonaContrast",
     "BankGainVerdict",
+    "BankGainPanelVerdict",
     "IrrelevantBankControlSample",
     "NonBankPersonaControlSample",
     "NonBankPersonaMetric",
     "PairedBankGainSample",
     "build_bank_gain_verdict",
+    "build_bank_gain_panel_verdict",
 ]

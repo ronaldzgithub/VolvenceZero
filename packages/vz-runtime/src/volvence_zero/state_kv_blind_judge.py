@@ -67,8 +67,9 @@ class JudgeMaterialKind:
 
     SESSION_HISTORY = "session-history-summary"
     RENDERED_STATE = "rendered-state-statement"
+    MATCHED_OUTCOME_RUBRIC = "matched-outcome-rubric"
 
-    ALL = (SESSION_HISTORY, RENDERED_STATE)
+    ALL = (SESSION_HISTORY, RENDERED_STATE, MATCHED_OUTCOME_RUBRIC)
 
 
 @dataclass(frozen=True)

@@ -1659,6 +1659,15 @@ control-dim 三臂在 8 个 matched track 上失败并保留 rank-3；
 credit-longitudinal 的 10 轮 I/J 机制增长通过但 matched outcome 仍缺裁判。
 P6 七结论报告必须直接消费这些终态 verdict，不得把机制通过改写为质量增益通过。
 
+2026-08-02 的 C3 refreeze 修正了证据映射：carrier diagnostic 必须绑定标准
+Prefix artifact `8064f8b6de8ec215807619f404c84404087109076634d1ffda53112b4684e238`
+对应的 `p4-state-strategy-routed` verdict，并同时要求该 verdict 明确发布
+`carrier_is_live=true` 与 `claim_slot_attention_read=pass`。此外 C3 必须消费冻结
+P3 五臂 verdict：候选必须是 `state-kv-arm-g-prefix-pure` 且达到
+`retain-strict`，而 `state-kv-arm-e-pure` 的 bootstrap CI 仍覆盖 chance。这样
+“不退化为偏置”和“相对残差有增量”分别由 P4 与 P3 机械守门；旧
+`p4-diagnostics` 的失败 artifact 保留但不再代表标准 artifact。
+
 同日非 promotion 的 max16 probe-limited pilot 保存 32 个 turn（2 gain + 2
 irrelevant、两 persona、四臂，minimum samples 4）：Personal blind match gain
 为 `+0.25`（CI `0..0.75`），Relationship 仍为 `0.0`（CI `[0,0]`），两者

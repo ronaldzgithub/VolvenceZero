@@ -35,7 +35,7 @@ PREFIX_MANIFEST = (
 EVIDENCE_PATHS = {
     "bank_gain": "artifacts/state_kv/verdict_bank_gain.json",
     "carrier_diagnostics": (
-        "artifacts/state_kv/p4-diagnostics/"
+        "artifacts/state_kv/p4-state-strategy-routed/"
         "verdict_carrier_diagnostics.json"
     ),
     "control_dim": (
@@ -59,6 +59,10 @@ EVIDENCE_PATHS = {
         "artifacts/state_kv/"
         "p2-state-strategy-routed-repair-vs-execute-"
         "rollout-seed-1701-full-max16/"
+        "verdict_identification.json"
+    ),
+    "five_arm_identification": (
+        "artifacts/state_kv/p3-state-strategy-routed/"
         "verdict_identification.json"
     ),
     "judge_court": (
@@ -100,6 +104,7 @@ SCENARIO_SETS = (
     "boundary-vs-commit",
     "repair-vs-execute",
     "carrier-diagnostics",
+    "five-arm-carrier-comparison",
     "deployment-safety-controls",
     "bank-gain-four-arm",
     "control-dimension-three-arm",
@@ -112,6 +117,7 @@ METRIC_DEFINITIONS = (
     "conditioning-attention-slot-cost",
     "latency-per-generated-token",
     "slot-attention-differentiation",
+    "prefix-vs-residual-identification",
     "temporal-code-causal-distance",
     "revocation-baseline-equivalence",
     "paired-bank-match-gain-bootstrap-ci",

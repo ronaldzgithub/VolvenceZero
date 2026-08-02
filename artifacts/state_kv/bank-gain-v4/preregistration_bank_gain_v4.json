@@ -1,0 +1,147 @@
+{
+  "aggregation": "claim passes only when every frozen judge passes; any measured failure is panel failure; missing evidence is insufficient_data",
+  "bootstrap_seed": 7301,
+  "gain_probes": [
+    [
+      "g0",
+      "What should I protect before I act?"
+    ],
+    [
+      "g1",
+      "How should we approach the next step?"
+    ],
+    [
+      "g2",
+      "What would a careful response look like?"
+    ],
+    [
+      "g3",
+      "Should I pause or proceed?"
+    ],
+    [
+      "g4",
+      "What needs attention before we decide?"
+    ],
+    [
+      "g5",
+      "How firm or reversible should the next move be?"
+    ],
+    [
+      "g6",
+      "What would preserve trust while still making progress?"
+    ],
+    [
+      "g7",
+      "How much caution should shape the recommendation?"
+    ]
+  ],
+  "generation": {
+    "max_new_tokens": 48,
+    "temperature": 0.0
+  },
+  "hypothesis": "A 48-token deterministic generation budget exposes Personal bank marginal matching gain that the prior 4-token run could not resolve.",
+  "irrelevant_probes": [
+    [
+      "n0",
+      "Explain why a checksum changes when one byte changes."
+    ],
+    [
+      "n1",
+      "Compare breadth-first and depth-first traversal."
+    ],
+    [
+      "n2",
+      "What does an HTTP 304 response mean?"
+    ],
+    [
+      "n3",
+      "Describe how binary search narrows its interval."
+    ]
+  ],
+  "judge_panel": [
+    "BAAI/bge-m3",
+    "moka-ai/m3e-base"
+  ],
+  "minimum_samples_per_bank": 16,
+  "personas": {
+    "repair": [
+      {
+        "confidence": 0.45,
+        "control_signal": 0.95,
+        "detail": "Trust is fragile and repair must precede forward motion.",
+        "event_id": "bank-gain:repair:relationship:rupture",
+        "evidence": "human-review:bank-gain-repair-relationship-1",
+        "operation": "block",
+        "requires_confirmation": false,
+        "summary": "Reviewed unresolved relational rupture.",
+        "target_slot": "relationship_state"
+      },
+      {
+        "confidence": 0.55,
+        "control_signal": 0.85,
+        "detail": "The dyad requires acknowledgement and stabilization.",
+        "event_id": "bank-gain:repair:relationship:tension",
+        "evidence": "human-review:bank-gain-repair-relationship-2",
+        "operation": "block",
+        "requires_confirmation": false,
+        "summary": "Reviewed unresolved tension.",
+        "target_slot": "relationship_state"
+      },
+      {
+        "confidence": 0.5,
+        "control_signal": 0.9,
+        "detail": "Do not advance beyond a reversible next step.",
+        "event_id": "bank-gain:repair:boundary:reversible",
+        "evidence": "human-review:bank-gain-repair-boundary-1",
+        "operation": "block",
+        "requires_confirmation": false,
+        "summary": "Reviewed boundary requires reversibility.",
+        "target_slot": "boundary_consent"
+      }
+    ],
+    "steady": [
+      {
+        "confidence": 0.95,
+        "control_signal": 0.05,
+        "detail": "Prior coordination helped and the direction is trusted.",
+        "event_id": "bank-gain:steady:relationship:trust",
+        "evidence": "human-review:bank-gain-steady-relationship-1",
+        "operation": "observe",
+        "requires_confirmation": false,
+        "summary": "Reviewed stable relational trust.",
+        "target_slot": "relationship_state"
+      },
+      {
+        "confidence": 0.92,
+        "control_signal": 0.08,
+        "detail": "The prior exchange completed without unresolved tension.",
+        "event_id": "bank-gain:steady:relationship:continuity",
+        "evidence": "human-review:bank-gain-steady-relationship-2",
+        "operation": "complete",
+        "requires_confirmation": false,
+        "summary": "Reviewed successful continuity checkpoint.",
+        "target_slot": "relationship_state"
+      },
+      {
+        "confidence": 0.95,
+        "control_signal": 0.05,
+        "detail": "Proceed within the already agreed scope.",
+        "event_id": "bank-gain:steady:boundary:granted",
+        "evidence": "human-review:bank-gain-steady-boundary-1",
+        "operation": "observe",
+        "requires_confirmation": false,
+        "summary": "Reviewed consent for the bounded next step.",
+        "target_slot": "boundary_consent"
+      }
+    ]
+  },
+  "profiles": [
+    "state-kv-bank-none",
+    "state-kv-bank-personal-only",
+    "state-kv-bank-relationship-only",
+    "state-kv-bank-dual"
+  ],
+  "schema_version": "state-kv-bank-gain-preregistration.v1",
+  "stop_condition": "If the Personal blind-match-gain bootstrap CI lower bound is not above zero under both frozen judges, freeze the result as budget-independent failure and do not add homologous probes.",
+  "substrate_model_id": "Qwen/Qwen2.5-0.5B-Instruct"
+}

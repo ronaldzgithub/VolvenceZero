@@ -9,7 +9,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
     OpenWeightResidualRuntime,
     TransformersOpenWeightResidualRuntime,
@@ -228,11 +227,7 @@ def build_state_kv_deployment_config(
         raise ValueError(
             f"{STATE_KV_DEPLOYMENT_PROFILE_LABEL} registry binding drifted"
         )
-    return FinalRolloutConfig(
-        personal_conditioning=WiringLevel.ACTIVE,
-        personal_conditioning_mode="prefix_kv",
-        prompt_state_delivery="text",
-    )
+    return profile.apply_to_config(FinalRolloutConfig())
 
 
 def _panel_artifact_ids(payload: Mapping[str, Any], path: Path) -> set[str]:

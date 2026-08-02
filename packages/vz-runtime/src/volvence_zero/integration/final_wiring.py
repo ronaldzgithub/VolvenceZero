@@ -239,6 +239,12 @@ class FinalRolloutConfig:
     #     a compatible prefix artifact loaded; otherwise it fails loudly.
     # Ignored while personal_conditioning is SHADOW/DISABLED.
     personal_conditioning_mode: str = "residual"
+    # Optional fail-closed binding for a promoted Personal Prefix-KV
+    # artifact. Evidence profiles may leave this unset while loading a
+    # preregistered candidate explicitly; deployment profiles bind the exact
+    # promoted artifact id and AgentSessionRunner verifies the loaded runtime
+    # before the first turn.
+    personal_conditioning_prefix_artifact_id: str | None = None
     # Relationship conditioning bank owner. SHADOW publishes the auditable
     # scope-free readout without delivery; ACTIVE permits the independently
     # gated carrier below. DISABLED is the immediate rollback path.
@@ -686,6 +692,22 @@ class FinalRolloutConfig:
                 "personal_conditioning_mode must be 'residual', 'text', or "
                 "'prefix_kv', "
                 f"got {self.personal_conditioning_mode!r}."
+            )
+        if self.personal_conditioning_prefix_artifact_id is not None and not (
+            isinstance(self.personal_conditioning_prefix_artifact_id, str)
+            and self.personal_conditioning_prefix_artifact_id
+        ):
+            raise ValueError(
+                "personal_conditioning_prefix_artifact_id must be None or a "
+                "non-empty string"
+            )
+        if (
+            self.personal_conditioning_prefix_artifact_id is not None
+            and self.personal_conditioning_mode != "prefix_kv"
+        ):
+            raise ValueError(
+                "personal_conditioning_prefix_artifact_id requires "
+                "personal_conditioning_mode='prefix_kv'"
             )
         if self.relationship_conditioning_mode not in (
             "text",

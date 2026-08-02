@@ -21,6 +21,7 @@ from volvence_zero.agent.dialogue import (
     DEFAULT_DIALOGUE_PROOF_CASES,
     build_standard_dialogue_runner,
 )
+from volvence_zero.agent.session import AgentSessionRunner
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.state_kv_deployment import (
     DeploymentGateState,
@@ -127,6 +128,10 @@ def test_deployment_profile_binds_active_prefix_and_artifact() -> None:
     config = build_state_kv_deployment_config(_runtime())
     assert config.personal_conditioning is WiringLevel.ACTIVE
     assert config.personal_conditioning_mode == "prefix_kv"
+    assert (
+        config.personal_conditioning_prefix_artifact_id
+        == STATE_KV_DEPLOYMENT_ARTIFACT_ID
+    )
     assert config.prompt_state_delivery == "text"
 
 
@@ -137,6 +142,34 @@ def test_default_profile_remains_shadow_residual() -> None:
 
     assert config.personal_conditioning is WiringLevel.SHADOW
     assert config.personal_conditioning_mode == "residual"
+    assert config.personal_conditioning_prefix_artifact_id is None
+
+
+def test_deployment_profile_applies_through_formal_config_contract() -> None:
+    from volvence_zero.integration.final_wiring import FinalRolloutConfig
+
+    config = resolve_profile(STATE_KV_DEPLOYMENT_PROFILE_LABEL).apply_to_config(
+        FinalRolloutConfig()
+    )
+
+    assert (
+        config.personal_conditioning_prefix_artifact_id
+        == STATE_KV_DEPLOYMENT_ARTIFACT_ID
+    )
+
+
+def test_runner_fails_closed_when_formal_artifact_binding_mismatches() -> None:
+    from volvence_zero.integration.final_wiring import FinalRolloutConfig
+
+    with pytest.raises(ValueError, match="does not match the loaded runtime"):
+        AgentSessionRunner(
+            config=FinalRolloutConfig(
+                personal_conditioning=WiringLevel.ACTIVE,
+                personal_conditioning_mode="prefix_kv",
+                personal_conditioning_prefix_artifact_id="wrong-artifact",
+            ),
+            default_residual_runtime=_runtime(),
+        )
 
 
 def test_standard_runner_accepts_only_the_bound_deployment_runtime() -> None:

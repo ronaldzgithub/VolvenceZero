@@ -49,6 +49,8 @@ def _evidence(root: Path) -> dict[str, str]:
         },
         "carrier_diagnostics": {
             "schema_version": "carrier.v1",
+            "prefix_artifact_id": "prefix-artifact",
+            "carrier_is_live": False,
             "claims": [
                 {
                     "claim": "claim_slot_attention_read",
@@ -103,6 +105,19 @@ def _evidence(root: Path) -> dict[str, str]:
                     "arm": "state-kv-arm-bprime",
                     "accuracy": 0.5,
                 },
+            ],
+        },
+        "five_arm_identification": {
+            "schema_version": "identification.v1",
+            "verdict_state": "retain-strict",
+            "candidate_arm": "state-kv-arm-g-prefix-pure",
+            "matching": [
+                {
+                    "arm": "state-kv-arm-e-pure",
+                    "accuracy": 0.5,
+                    "ci_low": 0.25,
+                    "ci_high": 0.75,
+                }
             ],
         },
     }
@@ -197,3 +212,47 @@ def test_due_diligence_marks_only_directly_supported_claim_proven(
     assert states["C1"] == "not-yet-proven"
     assert states["C3"] == "not-yet-proven"
     assert states["C7"] == "not-yet-proven"
+
+
+def test_due_diligence_c3_requires_live_matching_prefix_and_five_arm_control(
+    tmp_path: Path,
+) -> None:
+    prefix_manifest_path = _prefix_manifest(tmp_path)
+    evidence_paths = _evidence(tmp_path)
+    carrier_path = tmp_path / evidence_paths["carrier_diagnostics"]
+    _write_json(
+        carrier_path,
+        {
+            "schema_version": "carrier.v1",
+            "prefix_artifact_id": "prefix-artifact",
+            "carrier_is_live": True,
+            "claims": [
+                {
+                    "claim": "claim_slot_attention_read",
+                    "state": "pass",
+                }
+            ],
+        },
+    )
+    manifest = build_freeze_manifest(
+        repo_root=tmp_path,
+        prefix_manifest_path=prefix_manifest_path,
+        evidence_paths=evidence_paths,
+        profile_labels=("arm-a", "arm-e", "arm-g"),
+        generation_seeds=(1, 2, 3),
+        scenario_sets=("heldout",),
+        metric_definitions=("matching-ci",),
+        judge_panel=("judge-a", "judge-b"),
+        experiment_config={"generation": {"max_new_tokens": 8}},
+    )
+
+    report = build_due_diligence_report(
+        repo_root=tmp_path,
+        manifest=manifest,
+    )
+
+    states = {
+        conclusion.conclusion_id: conclusion.state
+        for conclusion in report.conclusions
+    }
+    assert states["C3"] == "proven"
