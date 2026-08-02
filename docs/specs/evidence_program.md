@@ -1715,6 +1715,15 @@ prompt identity `4/4`，证明专属 attention carrier 已物理接通且没有 
 默认保持 text + SHADOW，Prefix profile 可由 omit artifact 或切回 text / SHADOW /
 DISABLED 立即回滚；该结果不支持扩同构样本、提高 norm cap 或进入 P6 freeze。
 
+2026-08-02 仅完成下一轮 Relationship 训练器的候选实现，尚未 bake 或接入任何
+promotion gate。`scripts/train_relationship_prefix_kv.py` 将训练状态改为 owner 的
+14 维双正交轴 interior sampler，加入 wrong-user margin 与训练后独立 control，冻结
+128 个样本、3 epochs、48-token target、`norm_cap=0.12` 和 `route_weight=1.0`。
+新输出路径使用独立的 `relationship-prefix-v2` artifact identity；旧 v1 artifact
+仍保持可读，生产默认仍是 text + SHADOW。候选代码必须先通过 wrong-user control，
+再按 P4 → matched pilot → held-out 识别 → bank-gain 的顺序逐级验证；在此之前不得
+把训练器改动描述为 Relationship 识别增益或晋升证据。
+
 ## Gate 2 relationship-conditioned longitudinal prereg（冻结终局）
 
 这条 evidence lane 独立于历史 v35 无条件 selector，用 cognition owner 发布的

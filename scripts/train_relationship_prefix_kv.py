@@ -67,7 +67,7 @@ DEFAULT_WARM_START = (
     / "artifacts"
     / "state_kv"
     / "projectors"
-    / "qwen2.5-0.5b-prefix.json"
+    / "qwen2.5-0.5b-state-strategy-routed-prefix.json"
 )
 SYSTEM_PROMPT = (
     "You are a careful assistant. Respond to the user directly and keep the "
@@ -123,27 +123,85 @@ def _sample_states(
     if count < 2:
         raise ValueError("Relationship Prefix-KV needs at least two states.")
     rng = random.Random(seed)
+    center = tuple(
+        (repair_value + steady_value) / 2.0
+        for repair_value, steady_value in zip(repair, steady, strict=True)
+    )
+    primary = tuple(
+        (steady_value - repair_value) / 2.0
+        for repair_value, steady_value in zip(repair, steady, strict=True)
+    )
+    primary_norm_sq = sum(value * value for value in primary)
+    if primary_norm_sq <= 0.0:
+        raise ValueError("Relationship endpoints must define a non-zero axis")
+    # A deterministic second direction in the owner's 14-D readout space,
+    # Gram-Schmidt orthogonalized against repair<->steady. This adds off-axis
+    # states without inventing a second semantic owner or touching held-out
+    # endpoints.
+    seed_axis = tuple(
+        (
+            0.0
+            if center_value in (0.0, 1.0) and primary_value == 0.0
+            else math.sin(index + 1.0) + 0.5 * math.cos(2.0 * index + 1.0)
+        )
+        for index, (center_value, primary_value) in enumerate(
+            zip(center, primary, strict=True)
+        )
+    )
+    projection = sum(
+        left * right for left, right in zip(seed_axis, primary, strict=True)
+    ) / primary_norm_sq
+    orthogonal = tuple(
+        seed_value - projection * primary_value
+        for seed_value, primary_value in zip(seed_axis, primary, strict=True)
+    )
+    orthogonal_norm = math.sqrt(sum(value * value for value in orthogonal))
+    if orthogonal_norm <= 0.0:
+        raise ValueError("Relationship second state axis collapsed")
+    unit_orthogonal = tuple(value / orthogonal_norm for value in orthogonal)
+    max_orthogonal_scale = min(
+        min(center_value, 1.0 - center_value) / abs(axis_value)
+        for center_value, axis_value in zip(
+            center, unit_orthogonal, strict=True
+        )
+        if abs(axis_value) > 1e-12
+    )
+    orthogonal_scale = min(
+        0.35 * math.sqrt(primary_norm_sq),
+        0.8 * max_orthogonal_scale,
+    )
+    secondary = tuple(
+        value * orthogonal_scale for value in unit_orthogonal
+    )
     states = []
     for index in range(count):
-        # Strictly inside (0, 1): the owner-derived evaluation endpoints stay
-        # held out while the generator learns the relationship continuum.
-        position = (index + 1) / (count + 1)
+        # Stratified two-dimensional interior samples. Neither axis reaches
+        # its endpoint, so repair/steady (u=+/-1,v=0) remain held out.
+        u = -0.8 + 1.6 * ((index + 0.5) / count)
+        v = rng.uniform(-0.8, 0.8)
         state = tuple(
-            min(
-                0.98,
-                max(
-                    0.02,
-                    repair_value * (1.0 - position)
-                    + steady_value * position
-                    + rng.gauss(0.0, 0.008),
-                ),
-            )
-            for repair_value, steady_value in zip(
-                repair, steady, strict=True
+            center_value + u * primary_value + v * secondary_value
+            for center_value, primary_value, secondary_value in zip(
+                center, primary, secondary, strict=True
             )
         )
+        if any(not 0.0 <= value <= 1.0 for value in state):
+            raise RuntimeError("Relationship 2-D sampler escaped owner bounds")
         states.append(state)
     return tuple(states)
+
+
+def _wilson_lower(*, correct: int, total: int, z: float = 1.96) -> float:
+    if total <= 0:
+        return 0.0
+    proportion = correct / total
+    denominator = 1.0 + z * z / total
+    center = proportion + z * z / (2.0 * total)
+    radius = z * math.sqrt(
+        proportion * (1.0 - proportion) / total
+        + z * z / (4.0 * total * total)
+    )
+    return (center - radius) / denominator
 
 
 def _coordinate(state: tuple[float, ...], label: str) -> float:
@@ -218,13 +276,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model-source", default="")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--material", default=str(DEFAULT_MATERIAL))
-    parser.add_argument("--states", type=int, default=6)
-    parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--states", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--slots", type=int, default=4)
     parser.add_argument("--rank", type=int, default=4)
     parser.add_argument("--norm-cap", type=float, default=0.12)
     parser.add_argument("--learning-rate", type=float, default=0.03)
-    parser.add_argument("--max-new-tokens", type=int, default=16)
+    parser.add_argument("--max-new-tokens", type=int, default=48)
+    parser.add_argument("--margin", type=float, default=0.5)
+    parser.add_argument("--margin-weight", type=float, default=1.0)
     parser.add_argument("--route-weight", type=float, default=1.0)
     parser.add_argument(
         "--route-temperature", type=float, default=DEFAULT_ROUTE_TEMPERATURE
@@ -238,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
             / "artifacts"
             / "state_kv"
             / "projectors"
-            / "qwen2.5-0.5b-relationship-prefix.json"
+            / "qwen2.5-0.5b-relationship-prefix-v2.json"
         ),
     )
     parser.add_argument("--allow-download", action="store_true")
@@ -247,6 +307,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--norm-cap must be in (0, 0.12]")
     if args.epochs <= 0 or args.states < 2:
         parser.error("--epochs must be positive and --states >= 2")
+    if args.margin <= 0.0 or args.margin_weight < 0.0:
+        parser.error("--margin must be positive and --margin-weight non-negative")
+    if args.states * 4 != 128 or args.epochs != 3 or args.max_new_tokens != 48:
+        parser.error(
+            "Relationship v2 preregistration requires 128 samples, 3 epochs, "
+            "and a 48-token target"
+        )
 
     material_path = Path(args.material).expanduser().resolve()
     labels, repair, steady, probes, owner_version = _load_material(
@@ -377,6 +444,7 @@ def main(argv: list[str] | None = None) -> int:
     for epoch in range(args.epochs):
         rng.shuffle(order)
         distil_total = 0.0
+        margin_total = 0.0
         route_total = 0.0
         for step, index in enumerate(order):
             sample = samples[index]
@@ -393,6 +461,36 @@ def main(argv: list[str] | None = None) -> int:
             )
             selected = logprobs.gather(-1, sample["top_indices"])
             distil = -(sample["top_values"] * selected).sum(dim=-1).mean()
+            margin = torch.zeros((), device=logprobs.device)
+            partners = [
+                other
+                for other in order
+                if samples[other]["state_index"] != sample["state_index"]
+                and not torch.equal(
+                    samples[other]["continuation"], sample["continuation"]
+                )
+            ]
+            if partners and args.margin_weight > 0.0:
+                partner = samples[rng.choice(partners)]
+                other_logprobs = _student_logprobs(
+                    torch=torch,
+                    transformers=transformers,
+                    model=model,
+                    generator=generator,
+                    state=state,
+                    student_ids=sample["student_ids"],
+                    continuation=partner["continuation"],
+                    dtype=dtype,
+                )
+                own = logprobs.gather(
+                    -1, sample["continuation"].unsqueeze(-1)
+                ).mean()
+                foreign = other_logprobs.gather(
+                    -1, partner["continuation"].unsqueeze(-1)
+                ).mean()
+                margin = torch.clamp(
+                    args.margin - (own - foreign), min=0.0
+                )
             route = _student_route_loss(
                 torch=torch,
                 transformers=transformers,
@@ -403,21 +501,79 @@ def main(argv: list[str] | None = None) -> int:
                 dtype=dtype,
                 temperature=args.route_temperature,
             )
-            loss = distil + args.route_weight * route
+            loss = (
+                distil
+                + args.margin_weight * margin
+                + args.route_weight * route
+            )
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(generator.parameters(), 1.0)
             optimizer.step()
             distil_total += float(distil.detach())
+            margin_total += float(margin.detach())
             route_total += float(route.detach())
             if (step + 1) % 8 == 0:
                 print(
                     f"epoch {epoch + 1} step {step + 1}/{len(order)} "
                     f"distil={distil_total / (step + 1):.4f} "
+                    f"margin={margin_total / (step + 1):.4f} "
                     f"route={route_total / (step + 1):.4f} "
                     f"elapsed={time.time() - started:.0f}s",
                     flush=True,
                 )
+
+    correct = 0
+    checked = 0
+    with torch.no_grad():
+        for index, sample in enumerate(samples):
+            candidates = [
+                candidate
+                for candidate in samples[index + 1 :] + samples[:index]
+                if candidate["state_index"] != sample["state_index"]
+                and not torch.equal(
+                    candidate["continuation"], sample["continuation"]
+                )
+            ]
+            if not candidates:
+                continue
+            partner = candidates[0]
+            own = float(
+                _student_logprobs(
+                    torch=torch,
+                    transformers=transformers,
+                    model=model,
+                    generator=generator,
+                    state=state_tensor(sample["state"]),
+                    student_ids=sample["student_ids"],
+                    continuation=sample["continuation"],
+                    dtype=dtype,
+                )
+                .gather(-1, sample["continuation"].unsqueeze(-1))
+                .mean()
+            )
+            foreign = float(
+                _student_logprobs(
+                    torch=torch,
+                    transformers=transformers,
+                    model=model,
+                    generator=generator,
+                    state=state_tensor(partner["state"]),
+                    student_ids=sample["student_ids"],
+                    continuation=sample["continuation"],
+                    dtype=dtype,
+                )
+                .gather(-1, sample["continuation"].unsqueeze(-1))
+                .mean()
+            )
+            checked += 1
+            correct += int(own > foreign)
+    wrong_user_accuracy = correct / checked if checked else 0.0
+    wrong_user_ci_lower = _wilson_lower(correct=correct, total=checked)
+    print(
+        f"wrong-user control: {correct}/{checked} "
+        f"accuracy={wrong_user_accuracy:.3f} ci_lower={wrong_user_ci_lower:.3f}"
+    )
 
     def as_list(tensor):
         return tensor.detach().to("cpu", torch.float32).tolist()
@@ -487,6 +643,13 @@ def main(argv: list[str] | None = None) -> int:
         "norm_cap": args.norm_cap,
         "route_weight": args.route_weight,
         "route_temperature": args.route_temperature,
+        "margin": args.margin,
+        "margin_weight": args.margin_weight,
+        "wrong_user_control_accuracy": round(wrong_user_accuracy, 6),
+        "wrong_user_control_ci_lower": round(wrong_user_ci_lower, 6),
+        "wrong_user_control_samples": checked,
+        "wrong_user_control_passed": wrong_user_ci_lower > 0.5,
+        "state_geometry": "two-orthogonal-axes-interior-v1",
         "evaluation_endpoints_held_out": True,
         "evaluation_probes_held_out": True,
         "base_model_mutated": False,
