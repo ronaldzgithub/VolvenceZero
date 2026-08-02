@@ -221,6 +221,25 @@ file count 和逐文件 SHA。已有目录不会被覆盖。
 
 #### 3. preflight、smoke、formal、续跑和审计
 
+Gate 8/11 也可以直接从仓库根目录一键启动。该入口会自动生成新的 v1 preregistration、
+冻结只读 execution root，并执行 `all = preflight → formal → audit`：
+
+```bash
+bash run_seven_day_gate.sh
+```
+
+中断后不要重新生成 preregistration；使用第一次启动时打印出的三条路径续跑：
+
+```bash
+bash run_seven_day_gate.sh --resume \
+  --preregistration artifacts/preregistrations/<same-run>.json \
+  --execution-root /private/tmp/volvence-seven-day-<same-run> \
+  --output-dir artifacts/seven-day-formal-<same-run>
+```
+
+根目录入口只封装 Gate 8/11；Gate 1、4、5、6、7、9、10 仍必须各自生成 preregistration，
+并分别运行同一个 schema-driven control plane。旧的 `halt_record.json` 输出根不会被续跑。
+
 ```bash
 SEVEN_DAY_OUTPUT="artifacts/seven-day-formal-$(date -u +%Y%m%dT%H%M%SZ)"
 
