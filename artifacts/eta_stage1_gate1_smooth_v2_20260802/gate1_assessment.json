@@ -1,0 +1,45 @@
+{
+  "schema_version": "eta-gate1-assessment.v2",
+  "created_at": "2026-08-02T14:09:02.208190+00:00",
+  "title": "Gate 1 assessment (smooth posterior + v2 observation, reduced authoritative sweep)",
+  "verdict": "FAIL",
+  "combined_rule": "Gate 1 passes iff the rate-axis gate passes AND boundary_f1 > 0.",
+  "runner_verdict": "incomplete-sweep",
+  "runner_verdict_note": "The companion runner stamps incomplete-sweep because only the frozen arm ran (the joint validity control was not part of this Gate-1 protocol). That is expected and is not the Gate-1 decision.",
+  "rate_axis_gate": {
+    "gate_id": "gate-1-rate-axis-response",
+    "arm": "frozen",
+    "spearman_alpha_rate": -1.0,
+    "spearman_alpha_rate_max": -0.8,
+    "rate_span": 0.6905702884977428,
+    "rate_span_min": 0.3,
+    "baseline_rate_span_7_route": 0.2,
+    "pass": true
+  },
+  "switching_gate": {
+    "gate_id": "gate-1-switching-nonzero",
+    "requirement": "boundary_f1 > 0 on some cell",
+    "max_boundary_f1": 0.0,
+    "max_hard_switch_frequency": 0.0,
+    "max_mean_switch_probability": 0.456,
+    "switch_threshold": 0.55,
+    "pass": false
+  },
+  "combined_pass": false,
+  "rate_distortion_shape": {
+    "distortion_span": 0.0446,
+    "rate_span": 0.6906,
+    "unsteered_baseline_distortion_train": 2.4239,
+    "steered_best_distortion_train": 1.4551,
+    "steered_worst_distortion_train": 1.4997,
+    "shape": "near-horizontal",
+    "note": "Rate spans 0.001->0.69 (~600x) for only a 0.045 distortion improvement (1.4997->1.4551). Steering itself drops distortion from the 2.4239 unsteered baseline to ~1.50, but time-varying high-information codes add almost nothing. This is the OPPOSITE of the ETA near-vertical gap prediction."
+  },
+  "interpretation": [
+    "The smooth posterior reparameterization fixed the rate axis: spearman moved from -0.657 (legacy, non-monotone rebound at alpha=1.0) to a perfect -1.0, and seed variance collapsed. The instrument is now clean and the monotonicity confound is removed.",
+    "The v2 observation protocol removed the leakage (source_text and completed-objectives) that previously made segmentation trivially unnecessary; the audit showed v2 forces intra-route ambiguity in 74/88 routes.",
+    "With both confounds removed, the controller still never switches (max boundary_f1 = 0, max hard_switch_frequency = 0; mean switch probability peaks at 0.456, under the frozen 0.55 threshold) and the rate-distortion curve is near-horizontal rather than near-vertical.",
+    "This is a clean, un-confounded negative: at Qwen2.5-0.5B and this scale the ETA signature (steep gap + subgoal-aligned switching) does not appear. The learned control collapses to a near-constant steering direction, matching the degenerate 'switch once' baseline the paper warns about."
+  ],
+  "next_step": "Do NOT proceed to Stage 2 continued pretraining on the strength of temporal abstraction. The rate-axis mechanism is now healthy, so the remaining question is scale/substrate capacity, not the posterior artifact. Any further ETA claim must first show a near-vertical gap and boundary_f1 > 0 on a larger substrate before spending pretraining compute."
+}

@@ -1,0 +1,74 @@
+[
+  {
+    "arm": "frozen",
+    "alpha": 0.01,
+    "rate_mean": 0.6916768488442431,
+    "rate_std": 0.09015748798494913,
+    "distortion_mean": 1.4550946239839522,
+    "distortion_std": 0.01945155675583547,
+    "heldout_distortion_mean": 1.4780653222456757,
+    "boundary_f1_mean": 0.0,
+    "switch_frequency_mean": 0.0,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 0.03,
+    "rate_mean": 0.2792584307605844,
+    "rate_std": 0.00612982799745302,
+    "distortion_mean": 1.4606769641042117,
+    "distortion_std": 0.01626236187705038,
+    "heldout_distortion_mean": 1.481331877510085,
+    "boundary_f1_mean": 0.0,
+    "switch_frequency_mean": 0.0,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 0.1,
+    "rate_mean": 0.10277785951799932,
+    "rate_std": 0.026286879108762408,
+    "distortion_mean": 1.4608853007996363,
+    "distortion_std": 0.01729401848948626,
+    "heldout_distortion_mean": 1.4830433404615093,
+    "boundary_f1_mean": 0.0,
+    "switch_frequency_mean": 0.0,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 0.3,
+    "rate_mean": 0.013807091285201648,
+    "rate_std": 0.003616309184928763,
+    "distortion_mean": 1.4883364302010984,
+    "distortion_std": 0.005788612433870106,
+    "heldout_distortion_mean": 1.4991620519014706,
+    "boundary_f1_mean": 0.0,
+    "switch_frequency_mean": 0.0,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 1.0,
+    "rate_mean": 0.001970030343898676,
+    "rate_std": 0.00021838999276688404,
+    "distortion_mean": 1.498914966225642,
+    "distortion_std": 0.0038442439737671834,
+    "heldout_distortion_mean": 1.4999042427833862,
+    "boundary_f1_mean": 0.0,
+    "switch_frequency_mean": 0.0,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 3.0,
+    "rate_mean": 0.0011065603465002022,
+    "rate_std": 0.00011746648568831649,
+    "distortion_mean": 1.4997035319867889,
+    "distortion_std": 0.0036024803811781393,
+    "heldout_distortion_mean": 1.500778656822516,
+    "boundary_f1_mean": 0.0,
+    "switch_frequency_mean": 0.0,
+    "seed_count": 3
+  }
+]
