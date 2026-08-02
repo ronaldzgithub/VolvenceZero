@@ -82,7 +82,10 @@ rate–distortion（Gate 3），对话迁移仅在前三级全过后预注册（
 | 全量 Gate 1 预注册 | `artifacts/eta_stage1_rate_axis_prereg_20260802/` |
 | 缩减 Gate 1 预注册 | `artifacts/eta_stage1_gate1_reduced_prereg_20260802/` |
 | 可行性 pilot（非正式） | `artifacts/eta_stage1_rate_axis_pilot_20260802/` |
-| 缩减权威扫（当前） | `artifacts/eta_stage1_gate1_reduced_20260802/` |
+| 缩减权威扫 | `artifacts/eta_stage1_gate1_reduced_20260802/` |
+| smooth/v2 权威扫（rate 轴过、switching FAIL） | `artifacts/eta_stage1_gate1_smooth_v2_20260802/` |
+| v3+gated 预注册（冻结，门槛不变） | `artifacts/eta_stage1_gate1_v3_gated_20260802_prereg.json` |
+| v3+gated 权威扫（排队/进行中） | `artifacts/eta_stage1_gate1_v3_gated_20260802/` |
 
 **当前状态（2026-08-02）**：缩减权威扫 **Gate 1 = FAIL**。
 
@@ -259,3 +262,10 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
 - 2026-08-02: smooth/v2 复跑使 rate 轴通过但 switching gate 失败；新增
   `switch-gated` 作为 Eq.3 rate economics 候选，明确 surrogate 非权威与不启动
   Stage 2 的退出条件。
+- 2026-08-02: step-0 probe 定位 v2 协议缺口（`Route plan` 为哈希指纹，冻结
+  substrate 不可读）；注册 v3 协议（step-0 明文 ordered objectives，后续步保持
+  v2 locality），v3 capacity diagnostic 显示 target-2 读出恢复
+  （`0.554–0.933` 对 null 约 `0.1`）。冻结 v3+smooth+switch-gated 预注册
+  （`artifacts/eta_stage1_gate1_v3_gated_20260802_prereg.json`，门槛不变：
+  spearman ≤ −0.8、rate_span ≥ 0.30、switching gate 同前），权威扫在 MPS
+  设备释放后启动。任何通过判定仍以该权威扫的 `gate1_assessment` 为准。
