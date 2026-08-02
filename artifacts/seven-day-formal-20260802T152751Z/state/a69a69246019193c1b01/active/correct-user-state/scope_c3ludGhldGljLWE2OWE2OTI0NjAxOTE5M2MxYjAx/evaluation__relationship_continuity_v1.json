@@ -1,0 +1,1 @@
+{"observations": {"6b3845124cdab78606822668": [{"boundary_observed": true, "boundary_violation": false, "callback_hits": 2, "callback_total": 2, "observation_id": "seven-day-7f12b013c7aacf0120221b40:turn-5", "observed_at_ms": 1800000000000, "open_loop_closed": 0, "open_loop_total": 5, "trust_level": 0.312}]}, "schema_version": 1}
