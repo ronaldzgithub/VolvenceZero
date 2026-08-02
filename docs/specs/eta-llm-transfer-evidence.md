@@ -120,6 +120,11 @@ residual；三个 `n_input` 窗口的 target-1/target-2 结果逐项相同。这
 `residual_sequence` 在该 step-0 协议下没有提供与 token-mean 不同的可用观测，不能
 把 pooling 选择当作已定位的根因；该结论同样只是诊断，不改变 Gate 1。
 
+诊断脚本现另提供 plan-at-end-last-token counterfactual：保持 route 内容不变，仅把
+计划文本移到 step-0 observation 的末尾，用来分离“信息未进入 capture”与“因果 recency
+导致末 token 不携带计划”的解释。该对照尚未产生可权威 artifact；若运行，必须与
+真实协议共享同一 corpus、fold 与 null seed，并独立记录为非权威诊断。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）

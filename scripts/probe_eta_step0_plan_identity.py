@@ -182,38 +182,100 @@ def main() -> None:
 
     cases = tuple(corpus.train_cases) + tuple(corpus.heldout_cases)
 
-    # One capture per route (step-0 observation only). Each capture exposes
-    # two candidate encoder inputs:
-    # - token-mean: what the Gate-1 pipeline feeds the encoder today (mean
-    #   over all prompt token positions, per hooked layer), and
-    # - last-token: the final token position from residual_sequence, which
-    #   the pipeline currently strips before training.
-    mean_raws: list[tuple[float, ...]] = []
+    # Two captures per route (step-0 observation only), three candidate
+    # encoder inputs:
+    # - last-token: what the Gate-1 pipeline feeds the encoder today
+    #   (``capture.residual_activations`` is the final token position);
+    # - token-mean: true mean over every prompt token position, computed from
+    #   ``residual_sequence`` (the pipeline currently strips this); and
+    # - plan-at-end last-token: a counterfactual v2 rendering with the route
+    #   plan restated at the END of the step-0 text, testing whether causal
+    #   recency (not capture pooling) is what hides the plan from the final
+    #   token's hidden state.
     last_raws: list[tuple[float, ...]] = []
+    mean_raws: list[tuple[float, ...]] = []
+    plan_end_raws: list[tuple[float, ...]] = []
+    plan_end_tail_raws: list[tuple[float, ...]] = []
     label_target_1: list[str] = []
     label_target_2: list[str] = []
+    label_plan_length: list[str] = []
     for case in cases:
         texts, _targets = _rate_distortion_observation_texts(
             case,
             environment=corpus.environment,
             protocol_version=OBSERVATION_PROTOCOL_V2,
         )
-        capture = runtime.capture(source_text=texts[0])
-        mean_raw: list[float] = []
-        for act in capture.residual_activations:
-            mean_raw.extend(act.activation)
+        step0_text = texts[0]
+        capture = runtime.capture(source_text=step0_text)
         last_raw: list[float] = []
-        for act in capture.residual_sequence[-1].residual_activations:
+        for act in capture.residual_activations:
             last_raw.extend(act.activation)
-        mean_raws.append(tuple(mean_raw))
         last_raws.append(tuple(last_raw))
+
+        per_layer_sums: dict[int, list[float]] = {}
+        step_count = len(capture.residual_sequence)
+        for sequence_step in capture.residual_sequence:
+            for act in sequence_step.residual_activations:
+                bucket = per_layer_sums.setdefault(
+                    act.layer_index, [0.0] * len(act.activation)
+                )
+                for index, value in enumerate(act.activation):
+                    bucket[index] += value
+        mean_raw: list[float] = []
+        for layer_index in sorted(per_layer_sums):
+            mean_raw.extend(
+                value / step_count for value in per_layer_sums[layer_index]
+            )
+        mean_raws.append(tuple(mean_raw))
+
+        plan_prefix = f"Route plan: {case.source_text}. "
+        if not step0_text.startswith(plan_prefix):
+            raise RuntimeError(
+                f"v2 step-0 text for {case.case_id!r} does not start with "
+                "the expected route-plan prefix; the counterfactual "
+                "rendering below would drift from the real protocol."
+            )
+        plan_end_text = (
+            f"{step0_text[len(plan_prefix):]} Route plan: {case.source_text}."
+        )
+        plan_end_capture = runtime.capture(source_text=plan_end_text)
+        plan_end_raw: list[float] = []
+        for act in plan_end_capture.residual_activations:
+            plan_end_raw.extend(act.activation)
+        plan_end_raws.append(tuple(plan_end_raw))
+
+        tail_steps = plan_end_capture.residual_sequence[-8:]
+        tail_sums: dict[int, list[float]] = {}
+        for sequence_step in tail_steps:
+            for act in sequence_step.residual_activations:
+                bucket = tail_sums.setdefault(
+                    act.layer_index, [0.0] * len(act.activation)
+                )
+                for index, value in enumerate(act.activation):
+                    bucket[index] += value
+        tail_raw: list[float] = []
+        for layer_index in sorted(tail_sums):
+            tail_raw.extend(
+                value / len(tail_steps) for value in tail_sums[layer_index]
+            )
+        plan_end_tail_raws.append(tuple(tail_raw))
+
         # route_signature = (start, target_1, target_2, ...); every frozen
         # route has at least two planned targets.
         label_target_1.append(case.route_signature[1])
         label_target_2.append(case.route_signature[2])
+        # Positive control: plan length (2 vs 3 targets) is trivially encoded
+        # by prompt length; if the probe cannot recover even this, the probe
+        # method itself (not the representation) is broken.
+        label_plan_length.append(str(len(case.route_signature) - 1))
 
     results: dict[str, object] = {}
-    for pooling, raws in (("token-mean", mean_raws), ("last-token", last_raws)):
+    for pooling, raws in (
+        ("last-token", last_raws),
+        ("token-mean", mean_raws),
+        ("plan-at-end-last-token", plan_end_raws),
+        ("plan-at-end-last8-mean", plan_end_tail_raws),
+    ):
         for n_input in args.n_inputs:
             features = torch.tensor(
                 [_fold_residual_to_ndim(raw, n_input) for raw in raws],
