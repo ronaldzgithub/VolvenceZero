@@ -1657,6 +1657,9 @@ Relationship blind match gain 仍均为 `0.0`（CI `[0,0]`），无关 bank 负�
 通过，故以 contrast-valid、isolation-valid 的独立增益失败冻结两 bank。
 control-dim 三臂在 8 个 matched track 上失败并保留 rank-3；
 credit-longitudinal 的 10 轮 I/J 机制增长通过但 matched outcome 仍缺裁判。
+2026-08-02 的 v2 credit-longitudinal 已补齐两名冻结 embedding judge 与
+matched-outcome rubric；两名 judge 的净改善均为 `0`，因此 outcome claim=`fail`、
+gate=`mechanism_supported`，机制增长不得升级为行为质量提升。
 P6 七结论报告必须直接消费这些终态 verdict，不得把机制通过改写为质量增益通过。
 
 2026-08-02 的 C3 refreeze 修正了证据映射：carrier diagnostic 必须绑定标准

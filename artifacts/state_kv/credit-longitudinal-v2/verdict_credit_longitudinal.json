@@ -1,0 +1,51 @@
+{
+  "artifact_id": "state-kv-credit-longitudinal:eb4ba33aa2c59b698dfe78ffe074d5681f7ad1ae0d125c282a754a43df8857c6",
+  "claims": [
+    {
+      "claim": "claim_credit_feedback_applied_increment_grows",
+      "detail": "first_half=0.010165986291848972, second_half=0.029683685528978532, growth=0.01951769923712956",
+      "state": "pass"
+    },
+    {
+      "claim": "claim_credit_feedback_improves_matched_outcome",
+      "detail": "Frozen dual embedding judges score the same matched responses against the preregistered outcome rubric; judges=2, minimum_net_improvement=1.",
+      "state": "fail"
+    }
+  ],
+  "description": "Matched I/J long-session readout. Confidence and owner-published credit deltas are mechanism evidence; the verdict does not promote behavioral quality without an outcome judge.",
+  "gate_state": "mechanism_supported",
+  "growth": 0.01951769923712956,
+  "mean_first_half_increment": 0.010165986291848972,
+  "mean_second_half_increment": 0.029683685528978532,
+  "outcome_judges": [
+    {
+      "active_matched_count": 7,
+      "improvement_count": 0,
+      "judge_family": "xlm-roberta",
+      "judge_model_id": "BAAI/bge-m3",
+      "net_improvement": 0,
+      "regression_count": 0,
+      "sample_count": 10,
+      "shadow_matched_count": 7
+    },
+    {
+      "active_matched_count": 7,
+      "improvement_count": 0,
+      "judge_family": "bert",
+      "judge_model_id": "moka-ai/m3e-base",
+      "net_improvement": 0,
+      "regression_count": 0,
+      "sample_count": 10,
+      "shadow_matched_count": 7
+    }
+  ],
+  "outcome_preregistration": {
+    "aggregation": "all-judges-pass",
+    "maximum_regressions": 0,
+    "minimum_distinct_judges": 2,
+    "minimum_net_improvement": 1
+  },
+  "response_divergence_rate": 0.0,
+  "sample_count": 10,
+  "schema_version": "state-kv-credit-longitudinal.v2"
+}
