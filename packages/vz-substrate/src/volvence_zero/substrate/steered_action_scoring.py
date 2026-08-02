@@ -356,31 +356,69 @@ class TransformersSteeredActionScorer:
                 return (adjusted, *output[1:])
             return adjusted
 
+        # Capture the post-final-norm hidden state directly. The restricted
+        # action softmax only needs the candidate rows of the output
+        # embedding, so materialising the full [batch, seq, vocab] logits
+        # tensor (>10 GiB past a few dozen routes) is pure waste. We project
+        # only the candidate columns from the captured hidden state, which is
+        # numerically identical to the previous full-logits path.
+        captured_hidden: list[Any] = []
+
+        def final_norm_hook(module: Any, args: Any, output: Any) -> None:
+            del module, args
+            hidden = output[0] if isinstance(output, tuple) else output
+            if not isinstance(hidden, torch.Tensor):
+                raise TypeError(
+                    f"Steered scorer final-norm hook on {self.model_id!r} saw "
+                    "a non-tensor output."
+                )
+            captured_hidden.append(hidden)
+            return None
+
         handle = self._blocks[
             self._injection_layer_index
         ].register_forward_hook(hook)
+        norm_handle = self._final_norm.register_forward_hook(final_norm_hook)
         try:
             grad_context = (
                 torch.enable_grad() if enable_grad else torch.no_grad()
             )
             with grad_context:
-                outputs = self._model(
+                # logits_to_keep=1 stops the frozen LM head from projecting the
+                # full sequence over the ~151k vocab; we never read
+                # outputs.logits, so the padded last-position slice it computes
+                # is irrelevant.
+                self._model(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
                     use_cache=False,
+                    logits_to_keep=1,
                 )
         finally:
             handle.remove()
-        logits = outputs.logits
-        if not isinstance(logits, torch.Tensor):
-            raise TypeError(
-                f"Steered scorer on {self.model_id!r} did not receive tensor "
-                "logits."
+            norm_handle.remove()
+        if len(captured_hidden) != 1:
+            raise RuntimeError(
+                f"Steered scorer on {self.model_id!r} captured "
+                f"{len(captured_hidden)} final-norm outputs; expected exactly "
+                "one."
             )
+        hidden_states = captured_hidden[0]
         lengths = attention_mask.sum(dim=-1) - 1
         row_index = torch.arange(batch, device=self._device)
-        last_logits = logits[row_index, lengths]
-        candidate_logits = last_logits[:, self._candidate_token_ids]
+        hidden_last = hidden_states[row_index, lengths]
+        output_embeddings = self._model.get_output_embeddings()
+        candidate_weight = output_embeddings.weight.index_select(
+            0, self._candidate_token_ids
+        )
+        candidate_logits = hidden_last.to(
+            dtype=candidate_weight.dtype
+        ) @ candidate_weight.t()
+        output_bias = getattr(output_embeddings, "bias", None)
+        if output_bias is not None:
+            candidate_logits = candidate_logits + output_bias.index_select(
+                0, self._candidate_token_ids
+            )
         log_probs = torch.log_softmax(
             candidate_logits.to(dtype=torch.float32), dim=-1
         )

@@ -44,19 +44,26 @@ class _TinyCausalLM(torch.nn.Module):
         self.final_norm = torch.nn.LayerNorm(hidden_size)
         self.lm_head = torch.nn.Linear(hidden_size, vocab_size, bias=False)
 
+    def get_output_embeddings(self) -> torch.nn.Linear:
+        return self.lm_head
+
     def forward(
         self,
         *,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         use_cache: bool = False,
+        logits_to_keep: int = 0,
     ) -> SimpleNamespace:
         del attention_mask, use_cache
         hidden = self.embed(input_ids)
         for block in self.blocks:
             hidden = block(hidden)
         hidden = self.final_norm(hidden)
-        return SimpleNamespace(logits=self.lm_head(hidden))
+        slice_indices = (
+            slice(-logits_to_keep, None) if logits_to_keep else slice(None)
+        )
+        return SimpleNamespace(logits=self.lm_head(hidden[:, slice_indices, :]))
 
 
 class _WordTokenizer:
@@ -222,6 +229,68 @@ def test_baseline_nll_is_detached_and_finite() -> None:
     assert len(baseline) == 2
     assert all(value == value and value < float("inf") for value in baseline)
     assert all(parameter.grad is None for parameter in model.parameters())
+
+
+def test_candidate_projection_matches_full_logits_restricted_softmax() -> None:
+    # The scorer projects only the candidate rows of the output embedding from
+    # the captured post-norm hidden state instead of materialising the full
+    # [batch, seq, vocab] logits. This must be numerically identical to the
+    # pre-refactor path: full logits at the last real token, then a restricted
+    # softmax over the candidate action tokens. Both computations must share
+    # one tokenizer instance so lazily-assigned token ids line up.
+    model = _build_model()
+    tokenizer = _WordTokenizer()
+    scorer = TransformersSteeredActionScorer(
+        torch_module=torch,
+        model=model,
+        tokenizer=tokenizer,
+        block_modules=tuple(model.blocks),
+        final_norm_module=model.final_norm,
+        injection_layer_index=INJECTION_LAYER,
+        hidden_size=HIDDEN_SIZE,
+        device="cpu",
+        model_id="tiny-test-lm",
+        action_options=_OPTIONS,
+        control_norm_ratio=0.25,
+    )
+    action_indices = (0, 2)
+
+    scorer_nll = scorer.baseline_action_nll(
+        source_texts=_TEXTS, action_indices=action_indices
+    )
+
+    prompt_suffix = "\nNext move:"
+    candidate_ids = [
+        tokenizer(" " + option.surface_text, add_special_tokens=False)[
+            "input_ids"
+        ][0]
+        for option in _OPTIONS
+    ]
+    encoded = tokenizer(
+        [text + prompt_suffix for text in _TEXTS],
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=96,
+    )
+    with torch.no_grad():
+        full_logits = model(
+            input_ids=encoded["input_ids"],
+            attention_mask=encoded["attention_mask"],
+        ).logits
+    lengths = encoded["attention_mask"].sum(dim=-1) - 1
+    rows = torch.arange(len(_TEXTS))
+    last_logits = full_logits[rows, lengths]
+    candidate_logits = last_logits[:, torch.tensor(candidate_ids)]
+    log_probs = torch.log_softmax(candidate_logits.to(torch.float32), dim=-1)
+    reference = [
+        -float(log_probs[index, action_indices[index]])
+        for index in range(len(_TEXTS))
+    ]
+
+    assert len(scorer_nll) == len(reference)
+    for got, expected in zip(scorer_nll, reference, strict=True):
+        assert abs(got - expected) < 1e-6
 
 
 def test_joint_arm_thaws_only_the_blocks_above_the_injection_layer() -> None:

@@ -379,6 +379,15 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 2026-08-02: 启动 **ETA 迁移 LLM 四级阶梯**，把论文成立的前提逐级搬到冻结 LLM 上；
   `kill-eta` 判定在 Stage 3 通过前保持有效。本包只建机器 + 预注册 + 直接相关 smoke，
   不做昂贵全量运行（受本机内存 + 用户在运行的 lifeform_service 限制）。
+  **前提事实核对（这是阶梯存在的根据）**：ETA 原论文的证明**不在 LLM 残差流上**，
+  而在作者**从零预训练的小模型**残差流上——网格世界用因果 Transformer、ant 用 SSM
+  Hawk，数据 `D` 是领域内观测-动作轨迹（`research/eta/emergent-temporal-abstractions-2512.20605.zh.md`
+  L51/L61/L227/L265），且先冻结基底再训元控制器（L93/L243）；论文自证前先用线性
+  probe 确认残差流携带子目标信念（L73、附录 B）。LLM 在论文里只作动机类比（L19）与
+  未来展望（L215/L217「期待研究……能否迁移到 LLM」），**从未被验证**。我们 8-01 的
+  `kill-eta` 直接抓通用 Qwen（从未在本领域轨迹上预训练、残差流是否携带子目标从未
+  probe）故对 ETA 不构成公平证伪；四级阶梯的 Stage 2（继续预训练 + 分类 probe 前置）
+  正是把论文 L51/L73 的前提补到 LLM 上，Gate 全过前不重判。
   **Stage 1（数据机制）**：环境 owner `vz-temporal::internal_rl/proof_environment.py`
   新增 seeded 程序化生成器（`generate_hierarchical_environment` + hub relay 保证任意
   子目标序可达 + `stitch_waypoints` BFS 拼接 + `generate_hierarchical_routes`
