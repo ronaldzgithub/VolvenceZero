@@ -191,7 +191,8 @@ invoker 侧按**载荷形状**（`claims` 键）而非工具名提取，所以�
   发布去重后的 `profile_facts`、本轮 `requested_profile_fact_keys` 与 owner-authored
   `profile_context_statement`；`ResponseAssemblySnapshot.user_profile_context` 只承载
   owner readout。SemanticStateStore persistence 升为 v3，兼容读取 v1/v2，纠正、
-  撤回和跨 session hydration 均保持单一 `user_model` owner。
+  撤回和跨 session hydration 均保持单一 `user_model` owner。产品验收使用至少
+  Qwen2.5-1.5B-Instruct；0.5B 仅保留为机制冒烟测试，不作为用户资料抽取质量基线。
 - 2026-07-27 (P4 最后一公里): 全景真正出现在回复里。`PanoramaRenderPlan` + `plan_panorama_render`（认知层决定能说什么）、`SectionId.DECISION_PANORAMA` + planner 接线、`_render_decision_panorama`（表达层决定怎么说，措辞受 licence 约束）、`LifeformSession.panorama_render_plan` provider。此前三档 prompt plan 完全相同、workspace 读者为 0。测试 `tests/test_panorama_render.py`。
 - 2026-07-27 (P4 研究工具): 证据溯源契约（`EvidenceProvenance` + `ToolResultSemanticEvent.provenance`），溯源不全的主张按 `BELIEF_VERIFICATION_CONFIDENCE_THRESHOLD` 封顶从而落入 `verification_needs`；阈值由字面量提为具名常量供 owner 与 adapter 共用。`research_public_company` 描述符落在 growth-advisor vertical，schema 强制 source/as_of/scope、参数不接受个人、需 `public_research` 授权且在情绪/修复 regime 下禁用。invoker 按载荷形状提取 claims（非按工具名路由）。`submit_tool_result` 增加 `provenance` 形参，走既有 `EnvironmentOutcome` 通道，无新数据通道。测试 `tests/test_research_evidence_path.py`。
 - 2026-07-27 (P4): `decision_workspace` 增加安全保留（读 `boundary_policy`，经 vz-contracts `BoundaryReadout` 协议，`BoundaryDecisionReadout` 补 `risk_band`）、区间估值 / 期权价值 / VOI（`valuation.py`）与 claim licence（`rendering.py`）。模块位置移到 `boundary_policy` 之后以保证同轮读取。过程中修掉一处 VOI 盲区：宽度收益原本只测 leader 区间，导致加宽挑战者的未知得 0 分；改为测头两名的重叠减少量。测试 `tests/test_decision_valuation.py`（含第四幕验收样本）+ `tests/test_decision_workspace.py` 安全段。

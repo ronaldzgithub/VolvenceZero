@@ -126,8 +126,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--substrate-model-id",
-        default="Qwen/Qwen2.5-0.5B-Instruct",
-        help=("HF model id to load when --substrate-mode=hf-shared (default Qwen/Qwen2.5-0.5B-Instruct)."),
+        default="Qwen/Qwen2.5-1.5B-Instruct",
+        help=("HF model id to load when --substrate-mode=hf-shared (default Qwen/Qwen2.5-1.5B-Instruct)."),
     )
     parser.add_argument(
         "--substrate-device",

@@ -43,3 +43,9 @@ def test_ablation_bundle_cli_uses_multi_vertical_app(monkeypatch) -> None:
 def test_ablation_bundle_cli_rejects_single_vertical() -> None:
     rc = cli.main(["--ablation-bundle", "--vertical", "companion"])
     assert rc == 1
+
+
+def test_lifeform_cli_defaults_to_the_product_profile_model() -> None:
+    args = cli._build_parser().parse_args([])
+
+    assert args.substrate_model_id == "Qwen/Qwen2.5-1.5B-Instruct"

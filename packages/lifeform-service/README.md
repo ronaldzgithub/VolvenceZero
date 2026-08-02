@@ -22,7 +22,7 @@ lifeform-serve --vertical companion --substrate-mode synthetic
 lifeform-serve \
   --vertical companion \
   --substrate-mode hf-shared \
-  --substrate-model-id Qwen/Qwen2.5-0.5B-Instruct \
+  --substrate-model-id Qwen/Qwen2.5-1.5B-Instruct \
   --substrate-device auto
 
 # Companion Bench same-substrate ablation:
@@ -35,6 +35,10 @@ lifeform-serve \
   --substrate-device cuda \
   --enable-openai-compat
 ```
+
+The 1.5B model is the minimum product acceptance baseline for structured user-profile
+fact extraction and recall. The 0.5B variant is suitable only for mechanism smoke
+tests; it does not reliably satisfy the profile-memory output contract.
 
 In `hf-shared` mode the model is **eagerly loaded once at service startup** and the same `TransformersOpenWeightResidualRuntime` Python object is passed into every Brain that the service constructs. Concurrent sessions take turns on it through the asyncio event loop's single-threaded execution model — `runtime.generate(...)` is a blocking torch call, so there is no parallelism inside one process and no need for an explicit lock. Throughput is "one decode in flight at a time"; if you need more, run multiple service processes (one model copy each) behind a load balancer, or graduate to a vLLM-backed runtime.
 

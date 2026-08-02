@@ -30,7 +30,7 @@
 #   VOLVENCE_SYSTEMD_USER=1    user systemd unit instead of system unit
 #   VOLVENCE_SERVICE_USER       unix user for system unit (default: volvence)
 #   VOLVENCE_SUBSTRATE_MODE     synthetic|hf-shared (for systemd unit)
-#   VOLVENCE_SUBSTRATE_MODEL    HF model id (default: Qwen/Qwen2.5-0.5B-Instruct)
+#   VOLVENCE_SUBSTRATE_MODEL    HF model id (default: Qwen/Qwen2.5-1.5B-Instruct)
 #   VOLVENCE_SERVICE_PORT       bind port (default: 8765)
 #   VOLVENCE_SERVICE_HOST       bind host (default: 0.0.0.0)
 
@@ -51,7 +51,7 @@ INSTALL_SYSTEMD=0
 SYSTEMD_USER=0
 SERVICE_USER="${VOLVENCE_SERVICE_USER:-volvence}"
 SUBSTRATE_MODE="${VOLVENCE_SUBSTRATE_MODE:-synthetic}"
-SUBSTRATE_MODEL="${VOLVENCE_SUBSTRATE_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}"
+SUBSTRATE_MODEL="${VOLVENCE_SUBSTRATE_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}"
 SERVICE_PORT="${VOLVENCE_SERVICE_PORT:-8765}"
 SERVICE_HOST="${VOLVENCE_SERVICE_HOST:-0.0.0.0}"
 DRY_RUN=0
