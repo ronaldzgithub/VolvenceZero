@@ -67,6 +67,235 @@ Gate 8/11 已支持受限的 wake/sleep 与 per-user owner continuity 主张，�
 - [Relationship Memory Console 规范](docs/specs/relationship-memory-console.md)
 - [产品需求文档](docs/prd.md)
 
+## 可复现证据命令行（Apple MPS）
+
+### 脚本完备性与证据状态
+
+这里必须区分“执行脚本已经闭环”和“科学命题已经获得正式证据”：
+
+当前结论是：七日各 Gate 的预注册、正式 runner、独立 auditor 和统一 MPS 控制面已经
+闭环；MSC 当前获准执行的 corpus/preflight/mechanism-smoke 链也已闭环。**原研究计划并未
+全部完成**：MSC formal 的三个架构 blocker，以及 Gate 8/11 capture 的正式运行和真人评分，
+仍然是未完成工作，不能把“CLI 存在”写成“证据成立”。
+
+| 证据线 | 可执行链 | 当前证据状态 |
+|---|---|---|
+| 七日 Gate 8/11，base-only v1 | preregistration → 冻结执行根 → status/preflight/smoke/formal/resume → independent audit | 原正式矩阵因 `instrument-discrimination` 在 16/36 停止；禁止原样续跑，没有 effect verdict |
+| 七日 Gate 8/11，base + Common Adapter + Character Package v2 | 同上；额外冻结并审计 L1/L2 artifact 与逐 turn carrier attestation | 契约和脚本完成；尚无通过 ALLOW gate 的 ACTIVE 七日 smoke artifact |
+| 七日 Gate 1 | 两臂专用 prereg/runner/auditor，由统一 MPS 入口调度 | 脚本完成；尚无正式 MPS 矩阵 artifact |
+| 七日 Gate 4/5/6/7/9/10 | 每门独立 prereg；Gate 7 三臂，其余两臂；各自 runner/auditor | 脚本完成；尚无各门 hardware-specific 正式矩阵 artifact |
+| Gate 8/11 simulated capture + human anchor | capture runner → independent audit → blind packet → ratings analysis | 独立 CLI 已存在，但尚未纳入统一 MPS 锁/fallback 控制；替代 72-run bundle 未运行，真人 ratings 仍是外部硬依赖 |
+| MSC N+1 表示预测 | corpus download/status/preflight/resumable mechanism smoke | mechanism-only 可运行；formal 有意 fail-closed，固定退出码 `3` |
+
+七日自动化结果最多支持 `simulated-user-real-lifecycle-only` 或对应 Gate 的
+simulated product-ecology claim。它不替代真人盲评，不授权 production promotion，
+也不能单独证明 AGI。
+
+### 共同运行纪律
+
+- 统一七日 Gate 控制面与 MSC N+1 控制面共享 `artifacts/.companion-evidence-mps.lock`；
+  两个 MPS 阶段不能并行。
+- 模型阶段强制 `PYTORCH_ENABLE_MPS_FALLBACK=0`，MPS 不可用时不得悄悄改用 CPU。
+- `status` 和七日 `audit` 不占用 MPS，可以在另一条 MPS 任务运行时只读执行。
+- 控制面启动的子进程设置 `PYTHONDONTWRITEBYTECODE=1`，不会向只读 execution root 写入 bytecode。
+- 控制面落地前手工启动的旧进程不持有共享锁，开始新任务前必须单独确认它已经退出。
+- standalone Gate 8/11 capture runner 当前也不持有这把共享锁，必须人工串行，并显式设置
+  `PYTORCH_ENABLE_MPS_FALLBACK=0`；在纳入控制面前不得称为完整的一键 MPS 计划。
+- 一个 preregistration 只对应一个 hardware/model/source snapshot 和一个输出根；MPS 与 CUDA
+  artifact、不同 Gate、v1/v2、不同源码树均不得混跑或跨根续跑。
+
+### 七日证据：统一入口
+
+`scripts/run_seven_day_companion_test_plan.py` 根据 preregistration schema 自动选择正式
+runner 和 auditor；用户不需要再给统一入口传 `--gate`：
+
+| preregistration schema | 自动路由 |
+|---|---|
+| `seven-day-companion-simulated.v1` / `.v2` | Gate 8/11 continuity campaign |
+| `gate1-seven-day-companion-prereg.v1` | Gate 1 |
+| `companion-gate-suite-seven-day-prereg.v1` + `gate_id` | Gate 4/5/6/7/9/10 |
+
+未知 schema、未知 `gate_id`、非 MPS preregistration、源码漂移、额外/损坏 run、审计 SHA
+漂移都会 fail loudly。
+
+#### 1. 创建新的 preregistration
+
+base-only Gate 8/11 v1：
+
+```bash
+mkdir -p artifacts/preregistrations
+SEVEN_DAY_PREREG="artifacts/preregistrations/seven-day-v1-$(date -u +%Y%m%dT%H%M%SZ).json"
+.venv/bin/python scripts/preregister_seven_day_companion_simulated.py \
+  --repo-root . \
+  --output "$SEVEN_DAY_PREREG"
+```
+
+Gate 1（默认模型必须已经位于本机 Hugging Face cache）：
+
+```bash
+SEVEN_DAY_PREREG="artifacts/preregistrations/gate1-mps-$(date -u +%Y%m%dT%H%M%SZ).json"
+.venv/bin/python scripts/preregister_seven_day_gate1.py \
+  --repo-root . \
+  --created-at-unix-ms "$(date +%s)000" \
+  --device mps \
+  --output "$SEVEN_DAY_PREREG"
+```
+
+Gate 4/5/6/7/9/10 示例（每门必须单独运行；这里以 Gate 7 为例）：
+
+```bash
+SEVEN_DAY_PREREG="artifacts/preregistrations/gate7-mps-$(date -u +%Y%m%dT%H%M%SZ).json"
+.venv/bin/python scripts/preregister_seven_day_gate_suite.py \
+  --gate 7 \
+  --repo-root . \
+  --created-at-unix-ms "$(date +%s)000" \
+  --device mps \
+  --output "$SEVEN_DAY_PREREG"
+```
+
+v2 只有在 Common Adapter bundle 和 Character Package manifest 已通过各自 ALLOW gate、
+且所有引用 artifact 都位于仓库根目录下时才可预注册：
+
+```bash
+SEVEN_DAY_PREREG="artifacts/preregistrations/seven-day-v2-$(date -u +%Y%m%dT%H%M%SZ).json"
+.venv/bin/python scripts/preregister_seven_day_companion_simulated.py \
+  --repo-root . \
+  --common-adapter-bundle artifacts/common-adapters/qwen/v1/common-adapter-bundle.json \
+  --character-package-manifest artifacts/characters/example/manifest.json \
+  --character-id example \
+  --character-vertical zhang_wuji \
+  --output "$SEVEN_DAY_PREREG"
+```
+
+上述 v2 路径只是命令形状；文件不存在、digest 漂移、SHADOW/disabled package、缺失
+Prefix/KV 或 Character LoRA 混入时都会被拒绝，不能为跑通命令而伪造 artifact。
+
+#### 2. 生成 preregistration-bound 只读执行根
+
+不要直接从会被其他 session 修改的工作区启动长矩阵。冻结器只复制 preregistration
+`execution_source_snapshot` 中登记的文件，逐文件复算同一 tree SHA，并将结果设为只读；
+目标目录必须不存在且位于源码仓库之外。
+
+```bash
+SEVEN_DAY_FROZEN_ROOT="/private/tmp/volvence-seven-day-$(date -u +%Y%m%dT%H%M%SZ)"
+.venv/bin/python scripts/freeze_seven_day_execution_root.py \
+  --repo-root . \
+  --preregistration "$SEVEN_DAY_PREREG" \
+  --output-root "$SEVEN_DAY_FROZEN_ROOT"
+```
+
+冻结目录会包含 `frozen_execution_root_manifest.json`，记录 preregistration SHA、tree SHA、
+file count 和逐文件 SHA。已有目录不会被覆盖。
+
+#### 3. preflight、smoke、formal、续跑和审计
+
+```bash
+SEVEN_DAY_OUTPUT="artifacts/seven-day-formal-$(date -u +%Y%m%dT%H%M%SZ)"
+
+# MPS/model/scenario 预检；不创建 formal 输出目录。
+.venv/bin/python "$SEVEN_DAY_FROZEN_ROOT/scripts/run_seven_day_companion_test_plan.py" preflight \
+  --execution-root "$SEVEN_DAY_FROZEN_ROOT" \
+  --preregistration "$SEVEN_DAY_PREREG"
+
+# 非 claim 的 one-run/one-pair smoke；输出目录必须不存在。
+.venv/bin/python "$SEVEN_DAY_FROZEN_ROOT/scripts/run_seven_day_companion_test_plan.py" smoke \
+  --execution-root "$SEVEN_DAY_FROZEN_ROOT" \
+  --preregistration "$SEVEN_DAY_PREREG" \
+  --output-dir "${SEVEN_DAY_OUTPUT}-smoke"
+
+# 初次正式运行：preflight → exact preregistered matrix → independent audit。
+.venv/bin/python "$SEVEN_DAY_FROZEN_ROOT/scripts/run_seven_day_companion_test_plan.py" all \
+  --execution-root "$SEVEN_DAY_FROZEN_ROOT" \
+  --preregistration "$SEVEN_DAY_PREREG" \
+  --output-dir "$SEVEN_DAY_OUTPUT"
+```
+
+运行中可在另一个终端查看状态：
+
+```bash
+.venv/bin/python "$SEVEN_DAY_FROZEN_ROOT/scripts/run_seven_day_companion_test_plan.py" status \
+  --preregistration "$SEVEN_DAY_PREREG" \
+  --output-dir "$SEVEN_DAY_OUTPUT"
+```
+
+正常中断后只允许在同一 preregistration、同一冻结 execution root、同一输出根上续跑；
+存在 `halt_record.json` 且 `resume_as_is_authorized=false` 时控制面会硬拒绝续跑：
+
+```bash
+.venv/bin/python "$SEVEN_DAY_FROZEN_ROOT/scripts/run_seven_day_companion_test_plan.py" formal \
+  --execution-root "$SEVEN_DAY_FROZEN_ROOT" \
+  --preregistration "$SEVEN_DAY_PREREG" \
+  --output-dir "$SEVEN_DAY_OUTPUT" \
+  --resume
+
+.venv/bin/python "$SEVEN_DAY_FROZEN_ROOT/scripts/run_seven_day_companion_test_plan.py" audit \
+  --execution-root "$SEVEN_DAY_FROZEN_ROOT" \
+  --preregistration "$SEVEN_DAY_PREREG" \
+  --output-dir "$SEVEN_DAY_OUTPUT"
+```
+
+formal 返回 `0` 表示预注册判据获得支持，返回 `2` 表示完整但否定性的科学结果；`all`
+对这两种结果都会继续独立审计，并在审计通过后保留 formal 的退出码。其他非零退出码表示
+执行或完整性失败。只有 exact matrix、当前 evaluation SHA 和绑定同一 preregistration SHA
+的 independent audit 同时有效时，`status` 才会输出 `analysis_allowed=true`。
+
+正式 runner 会自动持续落盘 frozen user scripts、每个完成臂的 run envelope、每日
+measurement checkpoints、跨日 archive/loaded-copy digests、service logs、evaluation 和
+verdict；这些中间材料首先用于续跑和完整性审计，不能在矩阵封口前用于挑 seed、改阈值或
+形成 effect claim。
+
+Gate 8/11 simulated capture 与真人盲评是独立的后续证据线，不由上面的 schema-dispatch
+控制面启动。它的 runner、独立 auditor、盲包生成器和 ratings analyzer 均已有 CLI，但当前
+standalone runner 还没有共享 MPS 锁与统一 fallback 门；同时，
+替代 capture source preregistration 尚未执行完 72-run bundle，且真人评分不能自动化。
+因此 README 暂不把旧冻结 preregistration 写成可续跑的一键命令；必须先按当前源码生成新的
+preregistration/只读执行根，并确保七日或 MSC 的 MPS 阶段已经退出。详细 shape 与历史冻结
+状态见下方 evidence spec。
+
+### MSC N+1 表示预测研究线
+
+MSC v0.1 只允许在接受 noncommercial research 条款后下载。下载器执行 archive SHA、split
+数量和 sorted-id SHA 校验，并生成 `DOWNLOAD_PROVENANCE.json`：
+
+```bash
+.venv/bin/python scripts/download_msc_corpus.py \
+  --accept-noncommercial-license \
+  --output-dir data/external/msc/v0.1
+```
+
+当前控制面允许 status、真实 MPS preflight 和可续跑的 mechanism-only smoke：
+
+```bash
+.venv/bin/python scripts/run_msc_prediction_test_plan.py status
+
+.venv/bin/python scripts/run_msc_prediction_test_plan.py preflight \
+  --msc-root data/external/msc/v0.1/extracted \
+  --preflight-report artifacts/msc-n-plus-one/preflight.json
+
+.venv/bin/python scripts/run_msc_prediction_test_plan.py smoke \
+  --msc-root data/external/msc/v0.1/extracted \
+  --output-dir artifacts/msc-n-plus-one/mechanism-smoke \
+  --resume
+```
+
+smoke journal 按 corpus/model/source/configuration fingerprint 续跑，不保留 MSC 原文；最终
+manifest 封口前 `analysis_allowed=false`，封口后仍为 mechanism pilot，不能取得 thesis
+formal claim。当前执行：
+
+```bash
+.venv/bin/python scripts/run_msc_prediction_test_plan.py formal
+```
+
+会固定返回退出码 `3`，直到以下三项全部落地并预注册：
+
+1. 同一冻结 substrate 的 full-history context encoder；
+2. 完整 Volvence runtime arm/collector；
+3. 只改变 temporal-controller `n_z` 的容量阶梯。
+
+详细证据契约见 [Seven-Day Companion Evidence](docs/specs/seven-day-companion-evidence.md)、
+[Prediction Error Loop](docs/specs/prediction-error-loop.md) 和
+[当前状态](docs/currentstatus.md)。
+
 ## State-KV Carrier Identification
 
 The State-KV runner tests whether two users can receive distinguishable

@@ -84,7 +84,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--preregistration", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path)
     parser.add_argument(
         "--device", choices=("mps", "cuda", "cuda:0"), required=True
     )
@@ -103,6 +103,8 @@ def main() -> int:
         )
     if args.resume and args.preflight_only:
         raise ValueError("--resume is invalid with --preflight-only")
+    if not args.preflight_only and args.output_dir is None:
+        raise ValueError("Gate 1 smoke/formal requires --output-dir")
 
     root = args.repo_root.resolve()
     preregistration = json.loads(
@@ -171,6 +173,8 @@ def main() -> int:
         )
         return 0
 
+    if args.output_dir is None:
+        raise RuntimeError("Gate 1 output directory validation drift")
     target = args.output_dir.resolve()
     if target.exists():
         if not args.resume:

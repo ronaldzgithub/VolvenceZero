@@ -92,6 +92,7 @@ def execution_environment(execution_root: Path) -> dict[str, str]:
         (*source_roots, *((inherited,) if inherited else ()))
     )
     environment["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
     environment["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
     environment["TRANSFORMERS_VERBOSITY"] = "error"
     return environment

@@ -194,6 +194,8 @@ def test_gate1_preregistration_round_trips_current_code() -> None:
     assert source["file_count"] > 1_000
     assert len(source["tree_sha256"]) == 64
     assert "scripts/companion_test_plan_common.py" in source["roots"]
+    assert "scripts/freeze_seven_day_execution_root.py" in source["roots"]
     assert "scripts/run_seven_day_companion_test_plan.py" in source["roots"]
     assert "scripts/companion_test_plan_common.py" in payload["code_manifest"]
+    assert "scripts/freeze_seven_day_execution_root.py" in payload["code_manifest"]
     assert "scripts/run_seven_day_companion_test_plan.py" in payload["code_manifest"]

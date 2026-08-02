@@ -215,6 +215,15 @@ dispatch SSOT，不拥有实验变量、readout 或 verdict：
 control-plane helper 与本入口纳入所有后续七日 preregistration 的执行源码快照；已经冻结的旧
 preregistration 不做 retrofit，仍只能从它自己的只读 execution root 完成。
 
+`scripts/freeze_seven_day_execution_root.py` 是新的 preregistration-bound 执行根物化入口。
+它只复制 `execution_source_snapshot.roots` 命中的文件，在复制前后分别复算冻结的 file count
+与 tree SHA-256，拒绝 symlink、源码漂移、仓库内部目标和已存在目标。成功后写入
+`frozen_execution_root_manifest.json`，其中包含 preregistration canonical SHA、源码树 SHA、
+file count 和逐文件 SHA；整个目标树随后改为只读。该冻结器本身也纳入所有后续七日
+preregistration 的 code manifest 与 execution source roots，避免“负责冻结的脚本不在冻结树”
+形成新的未绑定执行面。Gate 8/11 的正式 auditor 与 simulated-capture auditor 同样必须进入
+后续 continuity preregistration 的两份清单；否则 runner 可执行但独立复算链不完整。
+
 所有涉及模型推理的阶段必须通过真实 MPS tensor 算术探针，固定
 `PYTORCH_ENABLE_MPS_FALLBACK=0`，并持有共享的
 `artifacts/.companion-evidence-mps.lock`。因此经两个新控制面启动的七日计划与 MSC N+1
@@ -224,6 +233,8 @@ preflight → formal → audit。完整 formal 的退出码 `0` 表示预注册�
 判据未支持；二者都是必须继续独立审计的科学终态。源码漂移、artifact 不完整、service 故障等
 integrity failure 才会停止后续阶段；审计失败覆盖 formal 结果并返回失败。
 控制面落地前已经手工启动的进程不持有该锁，必须在原终端单独确认已退出。
+`preflight` 不需要 `--output-dir`，也不得创建 formal 输出根；`smoke / formal / audit / all`
+必须显式绑定输出根。
 
 formal runner 在运行中自动落盘冻结 user script、每个已完成臂的 run
 envelope、每日 measurement checkpoint、archive/loaded-copy digest 和 service log。
@@ -234,6 +245,12 @@ scenario × seed × arm 精确重建预期文件名，再校验每个 run envelo
 同一 preregistration SHA 与当前 evaluation SHA 的有效 independent audit 存在时，
 `analysis_allowed=true`。此前的中间
 文件不得用于效应判读、变更预注册或触发 promotion。
+
+若输出根包含合法 `seven-day-companion-halt-record.v1`，`status` 必须复核其
+preregistration SHA、已保存/预期 run 数、禁止 effect/promotion 与禁止原样续跑声明，并输出
+`run_state=halted`、`analysis_allowed=false`。halt record 损坏或与磁盘 run 状态不一致时必须
+fail loudly；`formal` 与 `all` 在取得 MPS 锁或启动任何模型进程之前硬拒绝该目录。修复仪器后
+只能创建新的 preregistration、冻结执行根和输出根，不能把正式停机误当成普通进程中断。
 
 ## Gate 1 七天 matched 扩展
 

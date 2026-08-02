@@ -76,9 +76,15 @@ def test_preregistration_freezes_six_scenarios_six_arms_and_real_models() -> Non
     assert len(source_snapshot["tree_sha256"]) == 64
     assert "packages/*/src" in source_snapshot["roots"]
     assert "scripts/run_gate811_simulated_capture.py" in source_snapshot["roots"]
+    assert "scripts/audit_gate811_simulated_capture.py" in source_snapshot["roots"]
+    assert "scripts/audit_seven_day_companion_formal.py" in source_snapshot["roots"]
     assert "scripts/companion_test_plan_common.py" in source_snapshot["roots"]
+    assert "scripts/freeze_seven_day_execution_root.py" in source_snapshot["roots"]
     assert "scripts/run_seven_day_companion_test_plan.py" in source_snapshot["roots"]
     assert "scripts/run_seven_day_companion_test_plan.py" in payload["code_manifest"]
+    assert "scripts/freeze_seven_day_execution_root.py" in payload["code_manifest"]
+    assert "scripts/audit_gate811_simulated_capture.py" in payload["code_manifest"]
+    assert "scripts/audit_seven_day_companion_formal.py" in payload["code_manifest"]
     validate_seven_day_companion_preregistration(
         payload,
         repo_root=REPO_ROOT,

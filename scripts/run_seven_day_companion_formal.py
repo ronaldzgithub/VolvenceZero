@@ -396,7 +396,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--preregistration", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--device", choices=("cpu", "cuda", "mps"), default="cpu")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=18765)
@@ -411,6 +411,8 @@ def main() -> int:
         raise ValueError("select exactly one of --preflight-only, --smoke-one-run, or --execute")
     if args.resume and args.preflight_only:
         raise ValueError("--resume is invalid with --preflight-only")
+    if not args.preflight_only and args.output_dir is None:
+        raise ValueError("seven-day smoke/formal requires --output-dir")
     root = args.repo_root.resolve()
     preregistration = json.loads(args.preregistration.read_text(encoding="utf-8"))
     validate_seven_day_companion_preregistration(
@@ -472,6 +474,8 @@ def main() -> int:
             )
         )
         return 0
+    if args.output_dir is None:
+        raise RuntimeError("seven-day output directory validation drift")
     target = args.output_dir.resolve()
     if target.exists():
         if not args.resume:

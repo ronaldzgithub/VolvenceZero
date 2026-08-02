@@ -240,6 +240,53 @@ def _file_sha256(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _halt_state(
+    *,
+    preregistration: Mapping[str, object],
+    output_dir: Path,
+    completed_run_count: int,
+    expected_run_count: int,
+) -> dict[str, object] | None:
+    path = output_dir / "halt_record.json"
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("seven-day halt record is unreadable") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("seven-day halt record root must be an object")
+    halted_preregistration = payload.get("halted_preregistration")
+    preserved_state = payload.get("preserved_state")
+    discipline = payload.get("discipline_attestation")
+    resumption = payload.get("resumption_policy")
+    if (
+        payload.get("schema_version") != "seven-day-companion-halt-record.v1"
+        or not isinstance(halted_preregistration, dict)
+        or halted_preregistration.get("sha256")
+        != _canonical_sha256(preregistration)
+        or not isinstance(preserved_state, dict)
+        or preserved_state.get("complete_run_envelopes_preserved")
+        != completed_run_count
+        or preserved_state.get("expected_run_count") != expected_run_count
+        or not isinstance(discipline, dict)
+        or discipline.get("effect_claim_allowed") is not False
+        or discipline.get("production_promotion_authorized") is not False
+        or not isinstance(resumption, dict)
+        or resumption.get("resume_as_is_authorized") is not False
+    ):
+        raise ValueError("seven-day halt record contract drift")
+    halt_class = payload.get("halt_class")
+    if not isinstance(halt_class, str) or not halt_class:
+        raise ValueError("seven-day halt record lacks halt_class")
+    return {
+        "halt_record_present": True,
+        "halt_class": halt_class,
+        "resume_as_is_authorized": False,
+        "halted_at_unix_ms": payload.get("halted_at_unix_ms"),
+    }
+
+
 def _audit_state(
     *,
     campaign: SevenDayCampaign,
@@ -316,6 +363,7 @@ def _status(
     audit_present = False
     audit_valid = False
     audit_error: str | None = None
+    halt: dict[str, object] | None = None
     if output_dir is not None and output_dir.is_dir():
         valid, invalid, unexpected = _valid_completed_runs(output_dir=output_dir, expected=expected)
         evaluation_present = (output_dir / campaign.evaluation_relative_path).is_file()
@@ -326,8 +374,27 @@ def _status(
             expected_run_count=len(expected),
             audit_output_dir=audit_output_dir,
         )
+        halt = _halt_state(
+            preregistration=payload,
+            output_dir=output_dir,
+            completed_run_count=len(valid),
+            expected_run_count=len(expected),
+        )
     matrix_complete = len(valid) == len(expected) and not invalid and not unexpected
-    analysis_allowed = matrix_complete and evaluation_present and audit_valid
+    if halt is not None and matrix_complete:
+        raise ValueError("halted seven-day matrix cannot also be complete")
+    analysis_allowed = (
+        halt is None and matrix_complete and evaluation_present and audit_valid
+    )
+    run_state = (
+        "halted"
+        if halt is not None
+        else "complete"
+        if matrix_complete
+        else "running"
+        if output_dir is not None and output_dir.is_dir()
+        else "not-started"
+    )
     status: dict[str, object] = {
         "plan_id": campaign.plan_id,
         "campaign": campaign.key,
@@ -339,6 +406,7 @@ def _status(
         "completed_valid_run_files": len(valid),
         "invalid_run_files": len(invalid),
         "unexpected_run_files": len(unexpected),
+        "run_state": run_state,
         "matrix_complete": matrix_complete,
         "evaluation_present": evaluation_present,
         "independent_audit_present": audit_present,
@@ -349,6 +417,8 @@ def _status(
     }
     if audit_error is not None:
         status["audit_error"] = audit_error
+    if halt is not None:
+        status.update(halt)
     return status
 
 
@@ -487,6 +557,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.stage in {"smoke", "formal", "audit", "all"} and output_dir is None:
         raise ValueError(f"seven-day {args.stage} requires --output-dir")
+    if (
+        args.stage in {"formal", "all"}
+        and output_dir is not None
+        and output_dir.is_dir()
+        and _status(
+            preregistration=preregistration,
+            output_dir=output_dir,
+        )["run_state"]
+        == "halted"
+    ):
+        raise RuntimeError(
+            "seven-day output is formally halted and cannot be resumed as-is; "
+            "create a new preregistration and output root"
+        )
     environment = execution_environment(execution_root)
     audit_output = (
         requested_audit_output

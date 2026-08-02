@@ -17,7 +17,11 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import companion_test_plan_common as common  # noqa: E402
+import freeze_seven_day_execution_root as execution_freezer  # noqa: E402
 import msc_prediction_checkpoint as prediction_checkpoint  # noqa: E402
+import run_seven_day_companion_formal as continuity_runner  # noqa: E402
+import run_seven_day_gate1_formal as gate1_runner  # noqa: E402
+import run_seven_day_gate_suite_formal as gate_suite_runner  # noqa: E402
 import run_msc_prediction_test_plan as prediction_plan  # noqa: E402
 import run_seven_day_companion_test_plan as seven_day_plan  # noqa: E402
 
@@ -63,7 +67,73 @@ def test_execution_environment_disables_mps_fallback(tmp_path: Path) -> None:
     environment = common.execution_environment(tmp_path)
 
     assert environment["PYTORCH_ENABLE_MPS_FALLBACK"] == "0"
+    assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
     assert str(tmp_path / "packages/example/src") in environment["PYTHONPATH"]
+
+
+def test_execution_freezer_materializes_exact_read_only_snapshot(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    sources = (
+        repo / "packages/example/src/example.py",
+        repo / "pyproject.toml",
+        repo / "scripts/runner.py",
+    )
+    for index, path in enumerate(sources):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"fixture-{index}\n", encoding="utf-8")
+    roots = ("packages/*/src", "pyproject.toml", "scripts/runner.py")
+    files = execution_freezer._collect_files(repo, roots)
+    preregistration = tmp_path / "preregistration.json"
+    _write_canonical_json(
+        preregistration,
+        {
+            "schema_version": "fixture.v1",
+            "execution_source_snapshot": {
+                "roots": list(roots),
+                "excluded": list(execution_freezer.EXCLUDED_PATTERNS),
+                "file_count": len(files),
+                "tree_sha256": execution_freezer._tree_sha256(repo, files),
+            },
+        },
+    )
+    frozen = tmp_path / "frozen"
+
+    try:
+        manifest = execution_freezer.freeze_execution_root(
+            repo_root=repo,
+            preregistration_path=preregistration,
+            output_root=frozen,
+        )
+
+        assert manifest["file_count"] == 3
+        assert (frozen / "packages/example/src/example.py").read_text(
+            encoding="utf-8"
+        ) == "fixture-0\n"
+        assert (frozen.stat().st_mode & 0o222) == 0
+        assert (
+            frozen / "frozen_execution_root_manifest.json"
+        ).is_file()
+        with pytest.raises(FileExistsError, match="already exists"):
+            execution_freezer.freeze_execution_root(
+                repo_root=repo,
+                preregistration_path=preregistration,
+                output_root=frozen,
+            )
+
+        sources[0].write_text("drift\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="differs"):
+            execution_freezer.freeze_execution_root(
+                repo_root=repo,
+                preregistration_path=preregistration,
+                output_root=tmp_path / "drifted-frozen",
+            )
+    finally:
+        if frozen.exists():
+            frozen.chmod(0o755)
+            for path in frozen.rglob("*"):
+                path.chmod(0o755 if path.is_dir() else 0o644)
 
 
 def test_require_mps_fails_loudly_when_backend_is_unavailable(
@@ -146,6 +216,57 @@ def test_seven_day_formal_command_is_mps_and_prereg_bound(
     )
     assert "--execute" in command
     assert "--resume" in command
+
+
+@pytest.mark.parametrize(
+    ("runner_main", "argv"),
+    (
+        (
+            continuity_runner.main,
+            (
+                "run_seven_day_companion_formal.py",
+                "--preregistration",
+                "missing.json",
+                "--device",
+                "mps",
+                "--preflight-only",
+            ),
+        ),
+        (
+            gate1_runner.main,
+            (
+                "run_seven_day_gate1_formal.py",
+                "--preregistration",
+                "missing.json",
+                "--device",
+                "mps",
+                "--preflight-only",
+            ),
+        ),
+        (
+            gate_suite_runner.main,
+            (
+                "run_seven_day_gate_suite_formal.py",
+                "--gate",
+                "4",
+                "--preregistration",
+                "missing.json",
+                "--device",
+                "mps",
+                "--preflight-only",
+            ),
+        ),
+    ),
+)
+def test_campaign_preflight_does_not_require_output_directory(
+    runner_main: object,
+    argv: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "argv", list(argv))
+
+    with pytest.raises(FileNotFoundError):
+        runner_main()
 
 
 def test_seven_day_status_keeps_simulated_claim_boundary(tmp_path: Path) -> None:
@@ -334,6 +455,69 @@ def test_seven_day_status_opens_analysis_only_after_exact_independent_audit(
     )
     assert with_extra["unexpected_run_files"] == 1
     assert with_extra["analysis_allowed"] is False
+
+
+def test_seven_day_halt_record_blocks_analysis_and_resume(
+    tmp_path: Path,
+) -> None:
+    preregistration = tmp_path / "prereg.json"
+    payload = _seven_day_preregistration(
+        schema=seven_day_plan.GATE1_SCHEMA,
+        arms=("on", "off"),
+    )
+    _write_canonical_json(preregistration, payload)
+    output = tmp_path / "artifact"
+    expected = seven_day_plan._expected_run_identities(payload)
+    name, (scenario, seed, arm) = next(iter(expected.items()))
+    _write_canonical_json(
+        output / "runs" / name,
+        {
+            "schema_version": "seven-day-companion-run.v1",
+            "scenario_id": scenario,
+            "paraphrase_seed": seed,
+            "arm_label": arm,
+        },
+    )
+    _write_canonical_json(
+        output / "halt_record.json",
+        {
+            "schema_version": "seven-day-companion-halt-record.v1",
+            "halted_at_unix_ms": 1,
+            "halt_class": "instrument-discrimination",
+            "halted_preregistration": {
+                "sha256": hashlib.sha256(preregistration.read_bytes()).hexdigest()
+            },
+            "preserved_state": {
+                "complete_run_envelopes_preserved": 1,
+                "expected_run_count": len(expected),
+            },
+            "discipline_attestation": {
+                "effect_claim_allowed": False,
+                "production_promotion_authorized": False,
+            },
+            "resumption_policy": {"resume_as_is_authorized": False},
+        },
+    )
+
+    status = seven_day_plan._status(
+        preregistration=preregistration,
+        output_dir=output,
+    )
+    assert status["run_state"] == "halted"
+    assert status["halt_class"] == "instrument-discrimination"
+    assert status["analysis_allowed"] is False
+
+    with pytest.raises(RuntimeError, match="cannot be resumed as-is"):
+        seven_day_plan.main(
+            (
+                "formal",
+                "--preregistration",
+                str(preregistration),
+                "--output-dir",
+                str(output),
+                "--resume",
+            )
+        )
 
 
 def test_seven_day_mps_control_rejects_cuda_preregistration() -> None:
