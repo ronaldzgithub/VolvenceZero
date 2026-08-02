@@ -20,6 +20,10 @@ from volvence_zero.temporal.interface import (
     MetacontrollerParameterStore,
 )
 from volvence_zero.temporal.metacontroller_components import (
+    POSTERIOR_PARAMETERIZATION_LEGACY,
+    POSTERIOR_PARAMETERIZATION_SMOOTH,
+    POSTERIOR_STD_SMOOTH_FLOOR,
+    _POSTERIOR_PARAMETERIZATIONS,
     DecoderControl,
     EncodedSequence,
     NdimResidualDecoder,
@@ -87,10 +91,35 @@ def _bias_update(
     return tuple(values)
 
 
-def _posterior_std_row_scales(values: tuple[float, ...]) -> tuple[float, ...]:
+def _posterior_std_row_scales(
+    values: tuple[float, ...],
+    *,
+    posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
+) -> tuple[float, ...]:
+    """Heuristic M3 row scale that pulls posterior std toward an informative target.
+
+    Under ``legacy`` the encoder produces ``sigma = clamp(|W h|, 0.05, 0.95)``,
+    so ``sigma`` IS (a bounded function of) the projection magnitude and the
+    scale ``0.25 - sigma`` is a direct pseudo-gradient on ``posterior_std_proj``.
+
+    Under ``smooth`` the encoder produces ``sigma = softplus(W h) + floor``, so
+    ``sigma`` is no longer the projection itself. The correct chain rule through
+    ``softplus`` multiplies the target scale by ``d sigma / d pre =
+    sigmoid(pre) = 1 - exp(-(sigma - floor))``, which is bounded in (0, 1) and
+    keeps the update stable for the now-unbounded ``sigma``.
+    """
+
+    smooth = posterior_parameterization == POSTERIOR_PARAMETERIZATION_SMOOTH
     result: list[float] = []
     for value in values:
-        result.append(0.25 - float(value))
+        sigma = float(value)
+        target_scale = 0.25 - sigma
+        if smooth:
+            softplus_pre = max(sigma - POSTERIOR_STD_SMOOTH_FLOOR, 0.0)
+            sigmoid_pre = 1.0 - math.exp(-softplus_pre)
+            result.append(target_scale * sigmoid_pre)
+        else:
+            result.append(target_scale)
     return tuple(result)
 
 
@@ -308,6 +337,7 @@ class MetacontrollerSSLTrainer:
         gate_choice_temperature: float = 0.02,
         prediction_horizon: int = 3,
         distortion_target: str = "innovation",
+        posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
     ) -> None:
         if not 0.0 < switch_prior < 1.0:
             raise ValueError("switch_prior must be strictly between 0 and 1.")
@@ -343,6 +373,13 @@ class MetacontrollerSSLTrainer:
         self._gate_choice_temperature = gate_choice_temperature
         self._prediction_horizon = prediction_horizon
         self._distortion_target = distortion_target
+        if posterior_parameterization not in _POSTERIOR_PARAMETERIZATIONS:
+            raise ValueError(
+                "posterior_parameterization must be one of "
+                f"{_POSTERIOR_PARAMETERIZATIONS}, got "
+                f"{posterior_parameterization!r}."
+            )
+        self._posterior_parameterization = posterior_parameterization
         self._encoder = SequenceEncoder()
         self._decoder = ResidualDecoder()
         self._switch = SwitchUnit()
@@ -542,6 +579,7 @@ class MetacontrollerSSLTrainer:
                     substrate_snapshot=substrate_snapshot,
                     previous_hidden_state=previous_hidden_state,
                     params=store.ndim_encoder_parameters,
+                    posterior_parameterization=self._posterior_parameterization,
                 )
             else:
                 encoded = self._encoder.encode(
@@ -974,6 +1012,7 @@ class MetacontrollerSSLTrainer:
                     substrate_snapshot=snapshot,
                     previous_hidden_state=previous_hidden_state,
                     params=store.ndim_encoder_parameters,
+                    posterior_parameterization=self._posterior_parameterization,
                 )
                 _beta_vector, _beta_binary, scalar_beta = self._ndim_switch.compute(
                     z_tilde=encoded.z_tilde,
@@ -1314,7 +1353,12 @@ class MetacontrollerSSLTrainer:
                 current_proj=store.ndim_encoder_parameters.current_proj,
                 posterior_std_proj=self._m3_encoder.update(
                     gradients=_scaled_outer_rows(
-                        row_scales=_posterior_std_row_scales(encoded.posterior.posterior_std),
+                        row_scales=_posterior_std_row_scales(
+                            encoded.posterior.posterior_std,
+                            posterior_parameterization=(
+                                self._posterior_parameterization
+                            ),
+                        ),
                         columns=encoded.posterior.hidden_state,
                         row_count=len(store.ndim_encoder_parameters.posterior_std_proj),
                         col_count=len(store.ndim_encoder_parameters.posterior_std_proj[0]),

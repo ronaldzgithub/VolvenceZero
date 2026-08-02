@@ -34,11 +34,12 @@ exactly the temporal abstraction the criterion tests.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 import math
 import statistics
 import time
-from typing import Protocol
+from typing import Any, Protocol
 
 from volvence_zero.agent.eta_proof_benchmark import (
     ETAOpenWeightRuntimeConfig,
@@ -65,12 +66,37 @@ from volvence_zero.temporal import (
     MetacontrollerParameterStore,
     build_training_trace_from_substrate_snapshots,
 )
+from volvence_zero.temporal.metacontroller_components import (
+    POSTERIOR_PARAMETERIZATION_LEGACY,
+    _POSTERIOR_PARAMETERIZATIONS,
+)
 from volvence_zero.temporal.torch_store_ssl import (
     StoreSSLEvaluationReport,
     StoreSSLTrainingSession,
 )
 
 RATE_DISTORTION_SCHEMA_VERSION = "eta-rate-distortion-evidence.v1"
+
+# Observation-protocol versions for the rate-distortion demonstration.
+#
+# v1 repeats the per-route ``source_text`` fingerprint (plus a monotone
+# ``completed objectives`` progress field) on every step. The zero-compute
+# determinism audit (artifacts/eta_stage1_protocol_audit_20260802) proved that
+# under v1 the expert action is a perfect function of a single observation
+# (determinism 1.0, zero intra-route conflict), so a constant control code
+# solves the task and the switch gate never fires -- the Gate-1 "never-switch
+# collapse".
+#
+# v2 gives the ordered route plan exactly once at step 0 and then exposes only
+# the current location and its out-edges. It removes BOTH the per-step
+# ``source_text`` fingerprint and the ``completed objectives`` progress field.
+# The audit showed this is the minimal surface that makes 74/88 routes revisit
+# a node with a different next action, so the active subgoal can only be carried
+# by an EVOLVING latent code -- switching becomes necessary rather than
+# redundant.
+OBSERVATION_PROTOCOL_V1 = "partially-observable-no-remaining-route.v1"
+OBSERVATION_PROTOCOL_V2 = "partially-observable-no-route-identity.v2"
+_OBSERVATION_PROTOCOLS = (OBSERVATION_PROTOCOL_V1, OBSERVATION_PROTOCOL_V2)
 
 _ARMS = ("frozen", "joint")
 
@@ -183,6 +209,7 @@ class RateDistortionEvidenceReport:
     switch_threshold: float
     arms: tuple[str, ...]
     observation_protocol: str
+    posterior_parameterization: str
     corpus_origin: str
     corpus_seed: int
     corpus_objective_count: int
@@ -234,6 +261,7 @@ def _rate_distortion_observation_bundle(
     *,
     environment: MiniHierarchicalEnvironment,
     open_weight_runtime: OpenWeightResidualRuntime,
+    protocol_version: str = OBSERVATION_PROTOCOL_V1,
 ) -> tuple[
     tuple[SubstrateSnapshot, ...],
     tuple[str, ...],
@@ -241,14 +269,29 @@ def _rate_distortion_observation_bundle(
 ]:
     """Partially observable expert demonstration for one proof route.
 
-    One observation per expert controller-action phase, WITHOUT the
-    remaining-route leak: the expert action is not readable from any single
-    observation, so the temporal abstraction (active route segment) is the
-    only channel that can reduce action uncertainty.
+    One observation per expert controller-action phase.
+
+    Under ``OBSERVATION_PROTOCOL_V1`` every step repeats the per-route
+    ``source_text`` fingerprint and a monotone ``completed objectives`` field;
+    the determinism audit proved this makes the expert action a function of one
+    observation, so segmentation is redundant and the switch gate never fires.
+
+    Under ``OBSERVATION_PROTOCOL_V2`` the ordered route plan is stated once at
+    step 0 and later steps expose only the current location and its out-edges
+    (no ``source_text``, no ``completed objectives``). The active subgoal can
+    then only be carried by an evolving latent code, so switching becomes
+    necessary. See the module docstring on the protocol constants for the audit
+    evidence.
 
     ``environment`` is passed explicitly so a seeded generated corpus replays
     against the same graph it was built from, rather than the hardcoded default.
     """
+
+    if protocol_version not in _OBSERVATION_PROTOCOLS:
+        raise ValueError(
+            f"Unknown observation protocol {protocol_version!r}; expected one "
+            f"of {_OBSERVATION_PROTOCOLS}."
+        )
 
     route = HierarchicalRouteSpec(
         case_id=case.case_id,
@@ -287,15 +330,32 @@ def _rate_distortion_observation_bundle(
             if observation.completed_objective_ids
             else "none"
         )
+        transitions = ", ".join(observation.available_targets)
         for phase_index in range(phase_count):
-            observation_texts.append(
-                "Task context: "
-                f"{case.source_text}. Current location: "
-                f"{observation.current_location_id}. Available transitions: "
-                f"{', '.join(observation.available_targets)}. Completed "
-                f"objectives: {completed}. Phase {phase_index + 1} of "
-                f"{phase_count}."
-            )
+            if protocol_version == OBSERVATION_PROTOCOL_V1:
+                observation_texts.append(
+                    "Task context: "
+                    f"{case.source_text}. Current location: "
+                    f"{observation.current_location_id}. Available "
+                    f"transitions: {transitions}. Completed objectives: "
+                    f"{completed}. Phase {phase_index + 1} of {phase_count}."
+                )
+            else:
+                # v2: the ordered route plan is stated once at step 0; every
+                # later observation exposes only the current node and its
+                # out-edges, so the active subgoal must be carried by the
+                # latent code. No source_text, no completed-objectives leak.
+                is_first_step = not observation_texts
+                plan_prefix = (
+                    f"Route plan: {case.source_text}. "
+                    if is_first_step
+                    else ""
+                )
+                observation_texts.append(
+                    f"{plan_prefix}Current location: "
+                    f"{observation.current_location_id}. Available "
+                    f"transitions: {transitions}."
+                )
             expert_targets.append(
                 ExpertActionTarget(
                     action_id=f"move:{target_id}",
@@ -347,11 +407,15 @@ def _build_traces(
     environment: MiniHierarchicalEnvironment,
     runtime: OpenWeightResidualRuntime,
     label: str,
+    protocol_version: str = OBSERVATION_PROTOCOL_V1,
 ) -> tuple[TrainingTrace, ...]:
     traces: list[TrainingTrace] = []
     for case in cases:
         snapshots, texts, targets = _rate_distortion_observation_bundle(
-            case, environment=environment, open_weight_runtime=runtime
+            case,
+            environment=environment,
+            open_weight_runtime=runtime,
+            protocol_version=protocol_version,
         )
         traces.append(
             build_training_trace_from_substrate_snapshots(
@@ -411,6 +475,7 @@ def _run_single(
     switch_threshold: float,
     baseline_train: float,
     baseline_heldout: float,
+    posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
 ) -> RateDistortionPoint:
     start = time.perf_counter()
     store = MetacontrollerParameterStore(
@@ -429,6 +494,7 @@ def _run_single(
         gate_choice_weight=0.0,
         action_scorer=scorer,
         reparam_seed=seed * 1_000_003 + 17,
+        posterior_parameterization=posterior_parameterization,
     )
     final_report = None
     for update_index in range(updates_per_run):
@@ -814,7 +880,23 @@ def run_eta_rate_distortion_evidence(
     arms: tuple[str, ...] = _ARMS,
     point_cache: RateDistortionPointCache | None = None,
     corpus: ETAProofCorpus | None = None,
+    observation_protocol: str = OBSERVATION_PROTOCOL_V1,
+    posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
+    runtime: OpenWeightResidualRuntime | None = None,
+    scorer_factory: Callable[..., Any] | None = None,
+    prefix_cache: bool = True,
 ) -> RateDistortionEvidenceReport:
+    if observation_protocol not in _OBSERVATION_PROTOCOLS:
+        raise ValueError(
+            f"Unknown observation protocol {observation_protocol!r}; expected "
+            f"one of {_OBSERVATION_PROTOCOLS}."
+        )
+    if posterior_parameterization not in _POSTERIOR_PARAMETERIZATIONS:
+        raise ValueError(
+            f"Unknown posterior parameterization "
+            f"{posterior_parameterization!r}; expected one of "
+            f"{_POSTERIOR_PARAMETERIZATIONS}."
+        )
     if len(alpha_grid) < 3:
         raise ValueError("alpha_grid needs at least three values.")
     if len(set(alpha_grid)) != len(alpha_grid):
@@ -829,8 +911,15 @@ def run_eta_rate_distortion_evidence(
         # fp16 master weights overflow under Adam in the joint arm, and the
         # arm comparison must not be confounded by dtype; force fp32.
         config = replace(config, model_dtype="float32")
-    runtime = _build_eta_open_weight_runtime(config)
-    _validate_eta_open_weight_runtime(runtime=runtime, config=config)
+    if runtime is None:
+        # Authoritative path: load and validate the real frozen substrate.
+        runtime = _build_eta_open_weight_runtime(config)
+        _validate_eta_open_weight_runtime(runtime=runtime, config=config)
+    # else: surrogate-screening path -- the caller supplies a cheap runtime
+    # (e.g. a tiny builtin transformers model) and/or a scorer_factory so seed
+    # variance and rate-axis monotonicity of the smooth parameterization can be
+    # checked in minutes. This never yields an authoritative verdict; the
+    # runner CLI still gates authority on the preregistration + real backend.
 
     if corpus is not None:
         environment = corpus.environment
@@ -853,10 +942,18 @@ def run_eta_rate_distortion_evidence(
             "Rate-distortion sweep needs both train and heldout proof cases."
         )
     train_traces = _build_traces(
-        train_cases, environment=environment, runtime=runtime, label="train"
+        train_cases,
+        environment=environment,
+        runtime=runtime,
+        label="train",
+        protocol_version=observation_protocol,
     )
     heldout_traces = _build_traces(
-        heldout_cases, environment=environment, runtime=runtime, label="heldout"
+        heldout_cases,
+        environment=environment,
+        runtime=runtime,
+        label="heldout",
+        protocol_version=observation_protocol,
     )
     train_step_count = sum(len(trace.steps) for trace in train_traces)
     heldout_step_count = sum(len(trace.steps) for trace in heldout_traces)
@@ -868,10 +965,17 @@ def run_eta_rate_distortion_evidence(
     probe_hidden_norm = 0.0
     for arm in arms:
         joint = arm == "joint"
-        scorer = runtime.build_steered_action_scorer(
-            action_options=options,
-            joint_training=joint,
-        )
+        if scorer_factory is not None:
+            scorer = scorer_factory(
+                action_options=options,
+                joint_training=joint,
+            )
+        else:
+            scorer = runtime.build_steered_action_scorer(
+                action_options=options,
+                joint_training=joint,
+                prefix_cache=prefix_cache,
+            )
         if not joint:
             frozen_scorer = scorer
         injection_layer_index = scorer.injection_layer_index
@@ -911,6 +1015,7 @@ def run_eta_rate_distortion_evidence(
                         switch_threshold=switch_threshold,
                         baseline_train=baseline_train,
                         baseline_heldout=baseline_heldout,
+                        posterior_parameterization=posterior_parameterization,
                     )
                     if point_cache is not None:
                         point_cache.store_point(point)
@@ -957,9 +1062,8 @@ def run_eta_rate_distortion_evidence(
         substrate_learning_rate=substrate_learning_rate,
         switch_threshold=switch_threshold,
         arms=arms,
-        observation_protocol=(
-            "partially-observable-no-remaining-route.v1"
-        ),
+        observation_protocol=observation_protocol,
+        posterior_parameterization=posterior_parameterization,
         corpus_origin=corpus_origin,
         corpus_seed=corpus_seed,
         corpus_objective_count=corpus_objective_count,

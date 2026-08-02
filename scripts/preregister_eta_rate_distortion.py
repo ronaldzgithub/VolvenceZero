@@ -20,7 +20,15 @@ import json
 from pathlib import Path
 
 from volvence_zero.agent.eta_proof_benchmark import ETAOpenWeightRuntimeConfig
-from volvence_zero.agent.eta_rate_distortion_evidence import assess_gap
+from volvence_zero.agent.eta_rate_distortion_evidence import (
+    OBSERVATION_PROTOCOL_V1,
+    OBSERVATION_PROTOCOL_V2,
+    assess_gap,
+)
+from volvence_zero.temporal.metacontroller_components import (
+    POSTERIOR_PARAMETERIZATION_LEGACY,
+    POSTERIOR_PARAMETERIZATION_SMOOTH,
+)
 
 PREREGISTRATION_SCHEMA_VERSION = "eta-rate-distortion-prereg.v1"
 
@@ -63,6 +71,8 @@ def build_preregistration(
     model_source: str | None = None,
     corpus: dict[str, object] | None = None,
     rate_axis_gate: dict[str, object] | None = None,
+    observation_protocol: str = OBSERVATION_PROTOCOL_V1,
+    posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
 ) -> dict[str, object]:
     gap_defaults = inspect.signature(assess_gap).parameters
     return {
@@ -83,6 +93,8 @@ def build_preregistration(
             "model_source": model_source or model_id,
             "device": device,
             "corpus": corpus or {"corpus_origin": "default-hardcoded-7-route"},
+            "observation_protocol": observation_protocol,
+            "posterior_parameterization": posterior_parameterization,
         },
         "rate_axis_gate": rate_axis_gate
         or {
@@ -176,6 +188,19 @@ def main(argv: tuple[str, ...] | None = None) -> int:
     parser.add_argument("--heldout-routes", type=int, default=60)
     parser.add_argument("--train-lengths", type=int, nargs="+", default=(2, 3))
     parser.add_argument("--heldout-lengths", type=int, nargs="+", default=(3, 4))
+    parser.add_argument(
+        "--observation-protocol",
+        choices=(OBSERVATION_PROTOCOL_V1, OBSERVATION_PROTOCOL_V2),
+        default=OBSERVATION_PROTOCOL_V1,
+    )
+    parser.add_argument(
+        "--posterior-parameterization",
+        choices=(
+            POSTERIOR_PARAMETERIZATION_LEGACY,
+            POSTERIOR_PARAMETERIZATION_SMOOTH,
+        ),
+        default=POSTERIOR_PARAMETERIZATION_LEGACY,
+    )
     args = parser.parse_args(argv)
 
     output: Path = args.output
@@ -210,6 +235,8 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         arms=tuple(args.arms),
         model_source=args.model_source,
         corpus=corpus,
+        observation_protocol=args.observation_protocol,
+        posterior_parameterization=args.posterior_parameterization,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

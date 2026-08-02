@@ -630,6 +630,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         control_norm_ratio: float = 0.25,
         probe_texts: tuple[str, ...] = (),
         joint_training: bool = False,
+        prefix_cache: bool = False,
     ):
         """Build the differentiable steered action scorer for ETA Eq.3.
 
@@ -665,6 +666,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             control_norm_ratio=control_norm_ratio,
             probe_texts=probe_texts,
             joint_training=joint_training,
+            prefix_cache=prefix_cache,
         )
 
     def _resolve_final_norm_module(self):

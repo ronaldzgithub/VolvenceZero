@@ -39,11 +39,16 @@ from volvence_zero.temporal.metacontroller_components import (
     NDIM_POSTERIOR_CURRENT_WEIGHT,
     NDIM_POSTERIOR_HISTORY_WEIGHT,
     NDIM_POSTERIOR_RECURRENT_WEIGHT,
+    POSTERIOR_PARAMETERIZATION_LEGACY,
+    POSTERIOR_PARAMETERIZATION_SMOOTH,
+    POSTERIOR_STD_SMOOTH_FLOOR,
+    _POSTERIOR_PARAMETERIZATIONS,
     NdimDecoderParameters,
     NdimEncoderParameters,
     NdimSwitchParameters,
     PosteriorState,
     _current_observation_signal,
+    _softplus_scalar,
     _summarize_substrate_ndim,
 )
 
@@ -95,7 +100,17 @@ class BackendNdimMetacontroller:
         previous_hidden_state: tuple[float, ...] | None,
         cms_context: tuple[float, ...] | None,
         params: NdimEncoderParameters,
+        posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
     ) -> EncodedSequence:
+        if posterior_parameterization not in _POSTERIOR_PARAMETERIZATIONS:
+            raise ValueError(
+                "posterior_parameterization must be one of "
+                f"{_POSTERIOR_PARAMETERIZATIONS}, got "
+                f"{posterior_parameterization!r}."
+            )
+        smooth_posterior = (
+            posterior_parameterization == POSTERIOR_PARAMETERIZATION_SMOOTH
+        )
         b = self._b
         n = self._n_z
         gru = _gru_params(b, params)
@@ -133,29 +148,46 @@ class BackendNdimMetacontroller:
                     n,
                 )
             )
-            posterior_mean = b.clamp(
+            mean_linear = b.add(
                 b.add(
-                    b.add(
-                        b.scale(
-                            b.matvec(posterior_proj, h),
-                            NDIM_POSTERIOR_RECURRENT_WEIGHT,
-                        ),
-                        b.scale(
-                            avg_hidden,
-                            NDIM_POSTERIOR_HISTORY_WEIGHT,
-                        ),
+                    b.scale(
+                        b.matvec(posterior_proj, h),
+                        NDIM_POSTERIOR_RECURRENT_WEIGHT,
                     ),
                     b.scale(
-                        b.matvec(current_proj, current_signal),
-                        NDIM_POSTERIOR_CURRENT_WEIGHT,
+                        avg_hidden,
+                        NDIM_POSTERIOR_HISTORY_WEIGHT,
                     ),
                 ),
-                0.0, 1.0,
+                b.scale(
+                    b.matvec(current_proj, current_signal),
+                    NDIM_POSTERIOR_CURRENT_WEIGHT,
+                ),
             )
-            posterior_std = b.clamp(b.abs(b.matvec(posterior_std_proj, h)), 0.05, 0.95)
+            std_raw = b.matvec(posterior_std_proj, h)
+            if smooth_posterior:
+                posterior_mean = mean_linear
+                # No softplus on the TensorBackend protocol; encode() runs under
+                # no_grad, so applying the shared scalar softplus on floats and
+                # rebuilding the vector is exact and keeps parity with the
+                # pure-Python encoder mirror.
+                posterior_std = b.vector(
+                    tuple(
+                        _softplus_scalar(value) + POSTERIOR_STD_SMOOTH_FLOOR
+                        for value in b.to_floats(std_raw)
+                    )
+                )
+            else:
+                posterior_mean = b.clamp(mean_linear, 0.0, 1.0)
+                posterior_std = b.clamp(b.abs(std_raw), 0.05, 0.95)
             sample_noise = b.clamp(b.sub(avg_hidden, b.scale(posterior_mean, 0.5)), -1.0, 1.0)
-            z_tilde = b.clamp(
-                b.add(posterior_mean, b.scale(b.mul(posterior_std, sample_noise), 0.5)), 0.0, 1.0
+            z_tilde_raw = b.add(
+                posterior_mean, b.scale(b.mul(posterior_std, sample_noise), 0.5)
+            )
+            z_tilde = (
+                z_tilde_raw
+                if smooth_posterior
+                else b.clamp(z_tilde_raw, 0.0, 1.0)
             )
             base_for_prior = b.vector(prev) if prev is not None else h
             prior_mean = b.clamp(b.scale(base_for_prior, 0.35), 0.0, 1.0)

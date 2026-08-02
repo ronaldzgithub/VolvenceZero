@@ -308,6 +308,7 @@ def _report_fixture(verdict: str = "kill-eta"):
         switch_threshold=0.55,
         arms=("frozen", "joint"),
         observation_protocol="partially-observable-no-remaining-route.v1",
+        posterior_parameterization="legacy",
         corpus_origin="fixture",
         corpus_seed=0,
         corpus_objective_count=2,
@@ -348,6 +349,78 @@ def _report_fixture(verdict: str = "kill-eta"):
         verdict_reason="fixture",
         description="fixture",
     )
+
+
+def test_v2_protocol_states_the_plan_once_and_drops_progress_leaks() -> None:
+    """v2 must give source_text only at step 0 and never leak completed objectives."""
+
+    import dataclasses
+
+    from volvence_zero.agent import eta_rate_distortion_evidence as module
+    from volvence_zero.agent.eta_proof_benchmark import (
+        generate_eta_proof_corpus,
+    )
+    from volvence_zero.agent.eta_rate_distortion_evidence import (
+        OBSERVATION_PROTOCOL_V1,
+        OBSERVATION_PROTOCOL_V2,
+        _rate_distortion_observation_bundle,
+    )
+
+    @dataclasses.dataclass(frozen=True)
+    class _StubSnapshot:
+        description: str = "stub"
+        residual_sequence: tuple[object, ...] = ()
+
+    corpus = generate_eta_proof_corpus(
+        seed=7,
+        objective_count=4,
+        corridor_count=2,
+        extra_edge_probability=0.35,
+        train_route_count=6,
+        heldout_route_count=3,
+        train_lengths=(2, 3),
+        heldout_lengths=(3, 4),
+    )
+    case = corpus.train_cases[0]
+
+    import pytest as _pytest
+
+    with _pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            module,
+            "_runtime_capture_snapshot",
+            lambda **_kwargs: _StubSnapshot(),
+        )
+        _, v1_texts, v1_targets = _rate_distortion_observation_bundle(
+            case,
+            environment=corpus.environment,
+            open_weight_runtime=object(),
+            protocol_version=OBSERVATION_PROTOCOL_V1,
+        )
+        _, v2_texts, v2_targets = _rate_distortion_observation_bundle(
+            case,
+            environment=corpus.environment,
+            open_weight_runtime=object(),
+            protocol_version=OBSERVATION_PROTOCOL_V2,
+        )
+
+    # Same expert supervision under both surfaces.
+    assert v1_targets == v2_targets
+    assert len(v2_texts) == len(v1_texts)
+
+    # The route plan appears exactly once, only at step 0.
+    assert case.source_text in v2_texts[0]
+    for text in v2_texts[1:]:
+        assert case.source_text not in text
+        assert "Route plan" not in text
+
+    # v2 never leaks progress via completed objectives, and never repeats the
+    # per-step task-context fingerprint.
+    for text in v2_texts:
+        assert "Completed objectives" not in text
+        assert "Task context" not in text
+    # v1, by contrast, repeats the fingerprint and progress on every step.
+    assert all("Task context" in text for text in v1_texts)
 
 
 def test_rate_distortion_cli_holds_the_shared_mps_lock_during_the_sweep(
@@ -598,6 +671,8 @@ def _matching_args(**overrides: object):
         "heldout_routes": 60,
         "train_lengths": [2, 3],
         "heldout_lengths": [3, 4],
+        "observation_protocol": "partially-observable-no-remaining-route.v1",
+        "posterior_parameterization": "legacy",
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -623,6 +698,14 @@ def test_preregistration_accepts_the_execution_it_froze(tmp_path: Path) -> None:
         ({"updates": 40}, "updates_per_run"),
         ({"model_id": "other-model"}, "model_id"),
         ({"arms": ["frozen"]}, "arms"),
+        (
+            {"observation_protocol": "partially-observable-no-route-identity.v2"},
+            "observation_protocol",
+        ),
+        (
+            {"posterior_parameterization": "smooth"},
+            "posterior_parameterization",
+        ),
     ),
 )
 def test_preregistration_rejects_a_changed_sweep_variable(
@@ -851,6 +934,124 @@ def test_sweep_skips_cells_already_present_in_the_resume_journal(
     assert {(point.arm, point.alpha) for point in report.points} == {
         (arm, alpha) for arm in ("frozen", "joint") for alpha in alphas
     }
+
+
+def test_surrogate_seam_uses_injected_runtime_and_scorer_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A surrogate screen must never touch the real backend."""
+
+    from types import SimpleNamespace
+
+    from volvence_zero.agent import eta_rate_distortion_evidence as module
+    from volvence_zero.agent.eta_rate_distortion_evidence import (
+        run_eta_rate_distortion_evidence,
+    )
+
+    executed: list[tuple[str, float, int]] = []
+    _stub_sweep_dependencies(monkeypatch, executed=executed)
+
+    # If the seam works, the real backend is never built or validated.
+    def forbidden_build(_config: object) -> object:
+        raise AssertionError("surrogate screen built the real backend")
+
+    monkeypatch.setattr(
+        module, "_build_eta_open_weight_runtime", forbidden_build
+    )
+    monkeypatch.setattr(
+        module,
+        "_validate_eta_open_weight_runtime",
+        lambda **_: (_ for _ in ()).throw(
+            AssertionError("surrogate screen validated the real backend")
+        ),
+    )
+
+    factory_calls: list[bool] = []
+    surrogate_scorer = SimpleNamespace(
+        injection_layer_index=3,
+        control_norm_cap=1.0,
+        probe_hidden_norm=2.0,
+        reset_joint_parameters=lambda: None,
+        restore_and_freeze=lambda: None,
+    )
+
+    def scorer_factory(*, action_options: object, joint_training: bool):
+        del action_options
+        factory_calls.append(joint_training)
+        return surrogate_scorer
+
+    injected_runtime = SimpleNamespace(
+        model_id="surrogate-tiny",
+        runtime_origin="surrogate",
+        fallback_active=False,
+    )
+
+    report = run_eta_rate_distortion_evidence(
+        alpha_grid=(0.01, 0.1, 1.0),
+        seed_schedule=(0,),
+        n_z=4,
+        updates_per_run=1,
+        arms=("frozen", "joint"),
+        runtime=injected_runtime,
+        scorer_factory=scorer_factory,
+        posterior_parameterization="smooth",
+    )
+
+    assert factory_calls == [False, True]
+    assert report.model_id == "surrogate-tiny"
+    assert report.posterior_parameterization == "smooth"
+    assert len(executed) == 6
+
+
+def test_surrogate_runtime_without_factory_uses_its_own_scorer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Injecting only a tiny runtime uses that runtime's own scorer."""
+
+    from types import SimpleNamespace
+
+    from volvence_zero.agent import eta_rate_distortion_evidence as module
+    from volvence_zero.agent.eta_rate_distortion_evidence import (
+        run_eta_rate_distortion_evidence,
+    )
+
+    executed: list[tuple[str, float, int]] = []
+    _stub_sweep_dependencies(monkeypatch, executed=executed)
+    monkeypatch.setattr(
+        module,
+        "_build_eta_open_weight_runtime",
+        lambda _c: (_ for _ in ()).throw(
+            AssertionError("real backend built for a surrogate run")
+        ),
+    )
+
+    scorer = SimpleNamespace(
+        injection_layer_index=3,
+        control_norm_cap=1.0,
+        probe_hidden_norm=2.0,
+        reset_joint_parameters=lambda: None,
+        restore_and_freeze=lambda: None,
+    )
+    built: list[bool] = []
+    injected_runtime = SimpleNamespace(
+        model_id="surrogate-tiny",
+        runtime_origin="surrogate",
+        fallback_active=False,
+        build_steered_action_scorer=lambda **kw: (
+            built.append(kw["joint_training"]) or scorer
+        ),
+    )
+
+    report = run_eta_rate_distortion_evidence(
+        alpha_grid=(0.01, 0.1, 1.0),
+        seed_schedule=(0,),
+        n_z=4,
+        updates_per_run=1,
+        runtime=injected_runtime,
+    )
+
+    assert built == [False, True]
+    assert report.model_id == "surrogate-tiny"
 
 
 def test_sweep_journals_every_cell_it_computes(

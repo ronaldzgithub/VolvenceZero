@@ -33,6 +33,10 @@ from volvence_zero.temporal.metacontroller_components import (
     NDIM_POSTERIOR_CURRENT_WEIGHT,
     NDIM_POSTERIOR_HISTORY_WEIGHT,
     NDIM_POSTERIOR_RECURRENT_WEIGHT,
+    POSTERIOR_PARAMETERIZATION_LEGACY,
+    POSTERIOR_PARAMETERIZATION_SMOOTH,
+    POSTERIOR_STD_SMOOTH_FLOOR,
+    _POSTERIOR_PARAMETERIZATIONS,
     NdimDecoderParameters,
     NdimEncoderParameters,
     NdimFFNParams,
@@ -257,6 +261,7 @@ class _TorchNdimMetacontroller:
         switch_threshold: float,
         generator: Any | None = None,
         gate_mode: str = "hard-st",
+        posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
     ):
         """Run the training forward with one segment gate per step.
 
@@ -277,6 +282,22 @@ class _TorchNdimMetacontroller:
           switch probability itself interpolates ``z_tilde`` with the
           previous code; hard switches are threshold telemetry only and do
           not enter the transition.
+
+        ``posterior_parameterization``:
+
+        - ``"legacy"``: ``mu = clamp(.., 0, 1)``, ``sigma = clamp(|W h|,
+          0.05, 0.95)``, and ``z_tilde``/``latent_code`` clamped to [0,1].
+          The ``abs`` is non-differentiable at 0 and every clamp zeroes the
+          gradient at its boundary, which made the Gate-1 rate axis noisy and
+          non-monotonic (bimodal seeds).
+        - ``"smooth"``: ``mu`` is unbounded and ``sigma = softplus(W h) +
+          1e-4`` is smooth and strictly positive, so the KL/rate responds
+          smoothly to ``alpha``. The decoder's straight-through clamp still
+          bounds the applied control, so the code stays runtime-compatible.
+
+        The KL formula in the objective is unchanged: it reads ``mu`` and
+        ``sigma`` directly, so ``0.5*(mu^2 + sigma^2 - 1 - 2 log sigma)`` keeps
+        its meaning under either parameterization.
         """
 
         if gate_mode not in ("hard-st", "continuous"):
@@ -284,6 +305,15 @@ class _TorchNdimMetacontroller:
                 f"Unsupported gate_mode {gate_mode!r}; expected 'hard-st' or "
                 "'continuous'."
             )
+        if posterior_parameterization not in _POSTERIOR_PARAMETERIZATIONS:
+            raise ValueError(
+                "Unsupported posterior_parameterization "
+                f"{posterior_parameterization!r}; expected one of "
+                f"{_POSTERIOR_PARAMETERIZATIONS}."
+            )
+        smooth_posterior = (
+            posterior_parameterization == POSTERIOR_PARAMETERIZATION_SMOOTH
+        )
         torch = self._torch
         h = torch.zeros(self.n_z, dtype=self._dtype)
         prev_code = torch.zeros(self.n_z, dtype=self._dtype)
@@ -307,27 +337,32 @@ class _TorchNdimMetacontroller:
             count += 1
             hidden_sum = hidden_sum + h
             avg_hidden = hidden_sum / count
-            posterior_mean = torch.clamp(
+            mean_linear = (
                 NDIM_POSTERIOR_RECURRENT_WEIGHT
                 * torch.matmul(self.posterior_proj, h)
                 + NDIM_POSTERIOR_HISTORY_WEIGHT * avg_hidden
                 + NDIM_POSTERIOR_CURRENT_WEIGHT
-                * torch.matmul(self.current_proj, current_signal),
-                0.0,
-                1.0,
+                * torch.matmul(self.current_proj, current_signal)
             )
-            posterior_std = torch.clamp(
-                torch.abs(torch.matmul(self.posterior_std_proj, h)), 0.05, 0.95
-            )
+            std_raw = torch.matmul(self.posterior_std_proj, h)
+            if smooth_posterior:
+                posterior_mean = mean_linear
+                posterior_std = (
+                    torch.nn.functional.softplus(std_raw)
+                    + POSTERIOR_STD_SMOOTH_FLOOR
+                )
+            else:
+                posterior_mean = torch.clamp(mean_linear, 0.0, 1.0)
+                posterior_std = torch.clamp(torch.abs(std_raw), 0.05, 0.95)
             if generator is None:
                 z_tilde = posterior_mean
             else:
                 sample_noise = torch.randn(
                     self.n_z, generator=generator, dtype=self._dtype
                 )
-                z_tilde = torch.clamp(
-                    posterior_mean + posterior_std * sample_noise, 0.0, 1.0
-                )
+                z_tilde = posterior_mean + posterior_std * sample_noise
+                if not smooth_posterior:
+                    z_tilde = torch.clamp(z_tilde, 0.0, 1.0)
             # switch gate: the pure ndim code uses ``gate_input = delta + z_tilde``
             # as tuple CONCATENATION (2*n_z dims), matching the n_z*2-column W1.
             gate_input = torch.cat([z_tilde - prev_code, z_tilde])
@@ -346,11 +381,14 @@ class _TorchNdimMetacontroller:
                     if count == 1
                     else switch_probability
                 )
-                latent_code = torch.clamp(
+                mixed_code = (
                     effective_gate * z_tilde
-                    + (1.0 - effective_gate) * prev_code,
-                    0.0,
-                    1.0,
+                    + (1.0 - effective_gate) * prev_code
+                )
+                latent_code = (
+                    mixed_code
+                    if smooth_posterior
+                    else torch.clamp(mixed_code, 0.0, 1.0)
                 )
             else:
                 straight_through_gate = (
@@ -358,11 +396,14 @@ class _TorchNdimMetacontroller:
                     - switch_probability.detach()
                     + switch_probability
                 )
-                latent_code = torch.clamp(
+                mixed_code = (
                     straight_through_gate * z_tilde
-                    + (1.0 - straight_through_gate) * prev_code,
-                    0.0,
-                    1.0,
+                    + (1.0 - straight_through_gate) * prev_code
+                )
+                latent_code = (
+                    mixed_code
+                    if smooth_posterior
+                    else torch.clamp(mixed_code, 0.0, 1.0)
                 )
             applied_control = self._decode(latent_code)
             controls.append(applied_control)
@@ -450,6 +491,7 @@ class StoreSSLTrainingSession:
         action_scorer: SteeredActionNLLScorer | None = None,
         reparam_seed: int = 20260801,
         substrate_learning_rate: float = 1e-4,
+        posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
     ) -> None:
         if n_z <= 3:
             raise RuntimeError(
@@ -511,6 +553,13 @@ class StoreSSLTrainingSession:
         self._distortion_target = distortion_target
         self._action_scorer = action_scorer
         self._reparam_seed = reparam_seed
+        if posterior_parameterization not in _POSTERIOR_PARAMETERIZATIONS:
+            raise ValueError(
+                "posterior_parameterization must be one of "
+                f"{_POSTERIOR_PARAMETERIZATIONS}, got "
+                f"{posterior_parameterization!r}."
+            )
+        self._posterior_parameterization = posterior_parameterization
         if substrate_learning_rate <= 0.0:
             raise ValueError("substrate_learning_rate must be positive.")
         self._substrate_learning_rate = substrate_learning_rate
@@ -764,6 +813,7 @@ class StoreSSLTrainingSession:
             switch_threshold=switch_threshold,
             generator=self._generator if use_sampling else None,
             gate_mode="hard-st",
+            posterior_parameterization=self._posterior_parameterization,
         )
 
         def distortion(control: Any, target: Any) -> Any:
@@ -998,6 +1048,7 @@ class StoreSSLTrainingSession:
             switch_threshold=switch_threshold,
             generator=self._generator if use_sampling else None,
             gate_mode="continuous",
+            posterior_parameterization=self._posterior_parameterization,
         )
         control_stack = torch.stack(out["controls"])
         deltas = (

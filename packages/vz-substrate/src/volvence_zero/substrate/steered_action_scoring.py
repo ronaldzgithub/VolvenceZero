@@ -44,6 +44,24 @@ class SteeredActionOption:
     surface_text: str
 
 
+@dataclass
+class _PrefixCacheEntry:
+    """Delta-independent lower-stack state cached across hot-loop updates.
+
+    ``prefix_hidden`` is the output of the injection block *before* the control
+    delta is added; it is a constant with respect to the delta and (because the
+    lower blocks stay frozen in both arms) with respect to any joint-arm weight
+    update, so it is computed once and reused. ``upper_call`` records how each
+    upper block and the final norm were invoked during the reference forward so
+    the hot loop can replay them verbatim on any architecture.
+    """
+
+    prefix_hidden: Any
+    upper_call: tuple[tuple[tuple[Any, ...], dict[str, Any]], ...]
+    lengths: Any
+    row_index: Any
+
+
 class TransformersSteeredActionScorer:
     """Differentiable action NLL through a hook-steered frozen model."""
 
@@ -65,6 +83,7 @@ class TransformersSteeredActionScorer:
         control_norm_ratio: float = 0.25,
         probe_texts: tuple[str, ...] = (),
         joint_training: bool = False,
+        prefix_cache: bool = False,
     ) -> None:
         if len(action_options) < 2:
             raise ValueError(
@@ -94,6 +113,8 @@ class TransformersSteeredActionScorer:
         self._max_length = max(8, max_length)
         self._joint_training = joint_training
         self._model_dtype = next(iter(model.parameters())).dtype
+        self._prefix_cache_enabled = prefix_cache
+        self._prefix_cache: dict[tuple[str, ...], _PrefixCacheEntry] = {}
 
         if self._tokenizer.pad_token_id is None:
             if self._tokenizer.eos_token_id is None:
@@ -186,6 +207,10 @@ class TransformersSteeredActionScorer:
     @property
     def joint_training(self) -> bool:
         return self._joint_training
+
+    @property
+    def prefix_cache_enabled(self) -> bool:
+        return self._prefix_cache_enabled
 
     @property
     def action_option_ids(self) -> tuple[str, ...]:
@@ -341,6 +366,62 @@ class TransformersSteeredActionScorer:
         scale = torch.clamp(self._control_norm_cap / norms, max=1.0)
         deltas = (deltas * scale).to(self._device, dtype=self._model_dtype)
 
+        grad_context = torch.enable_grad() if enable_grad else torch.no_grad()
+        if self._prefix_cache_enabled:
+            hidden_states, lengths, row_index = self._forward_via_prefix_cache(
+                source_texts=source_texts,
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                deltas=deltas,
+                batch=batch,
+                grad_context=grad_context,
+            )
+        else:
+            hidden_states, lengths, row_index = self._forward_full(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                deltas=deltas,
+                batch=batch,
+                grad_context=grad_context,
+            )
+
+        hidden_last = hidden_states[row_index, lengths]
+        output_embeddings = self._model.get_output_embeddings()
+        candidate_weight = output_embeddings.weight.index_select(
+            0, self._candidate_token_ids
+        )
+        candidate_logits = hidden_last.to(
+            dtype=candidate_weight.dtype
+        ) @ candidate_weight.t()
+        output_bias = getattr(output_embeddings, "bias", None)
+        if output_bias is not None:
+            candidate_logits = candidate_logits + output_bias.index_select(
+                0, self._candidate_token_ids
+            )
+        log_probs = torch.log_softmax(
+            candidate_logits.to(dtype=torch.float32), dim=-1
+        )
+        target = torch.tensor(
+            list(action_indices), dtype=torch.long, device=self._device
+        )
+        nll = -log_probs[row_index, target]
+        # MPS cannot represent float64; hop to CPU first, then widen so the
+        # temporal owner's float64 objective can consume the graph directly.
+        return nll.to(device="cpu").to(dtype=torch.float64)
+
+    def _forward_full(
+        self,
+        *,
+        input_ids: Any,
+        attention_mask: Any,
+        deltas: Any,
+        batch: int,
+        grad_context: Any,
+    ) -> tuple[Any, Any, Any]:
+        """Reference forward: run the whole stack with an injection hook."""
+
+        torch = self._torch
+
         def hook(module: Any, args: Any, output: Any) -> Any:
             del module, args
             hidden = output[0] if isinstance(output, tuple) else output
@@ -380,9 +461,6 @@ class TransformersSteeredActionScorer:
         ].register_forward_hook(hook)
         norm_handle = self._final_norm.register_forward_hook(final_norm_hook)
         try:
-            grad_context = (
-                torch.enable_grad() if enable_grad else torch.no_grad()
-            )
             with grad_context:
                 # logits_to_keep=1 stops the frozen LM head from projecting the
                 # full sequence over the ~151k vocab; we never read
@@ -406,29 +484,160 @@ class TransformersSteeredActionScorer:
         hidden_states = captured_hidden[0]
         lengths = attention_mask.sum(dim=-1) - 1
         row_index = torch.arange(batch, device=self._device)
-        hidden_last = hidden_states[row_index, lengths]
-        output_embeddings = self._model.get_output_embeddings()
-        candidate_weight = output_embeddings.weight.index_select(
-            0, self._candidate_token_ids
-        )
-        candidate_logits = hidden_last.to(
-            dtype=candidate_weight.dtype
-        ) @ candidate_weight.t()
-        output_bias = getattr(output_embeddings, "bias", None)
-        if output_bias is not None:
-            candidate_logits = candidate_logits + output_bias.index_select(
-                0, self._candidate_token_ids
+        return hidden_states, lengths, row_index
+
+    def _forward_via_prefix_cache(
+        self,
+        *,
+        source_texts: tuple[str, ...],
+        input_ids: Any,
+        attention_mask: Any,
+        deltas: Any,
+        batch: int,
+        grad_context: Any,
+    ) -> tuple[Any, Any, Any]:
+        """Delta hot path: reuse the cached lower-stack prefix, rerun upper blocks.
+
+        The injection delta only enters at the output of the injection block,
+        so blocks ``0..injection`` are a constant with respect to the delta and
+        (lower blocks stay frozen in both arms) with respect to any joint-arm
+        weight update. We compute that prefix once per token surface and, on
+        every subsequent update, add the fresh delta and replay only the upper
+        blocks plus the final norm. This is numerically identical to
+        ``_forward_full``; ``test_prefix_cache_matches_full_forward`` guards it.
+        """
+
+        entry = self._prefix_cache.get(tuple(source_texts))
+        if entry is None:
+            entry = self._build_prefix_entry(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                batch=batch,
             )
-        log_probs = torch.log_softmax(
-            candidate_logits.to(dtype=torch.float32), dim=-1
+            self._prefix_cache[tuple(source_texts)] = entry
+
+        steered = entry.prefix_hidden + deltas.view(
+            batch, 1, self._hidden_size
+        ).to(dtype=entry.prefix_hidden.dtype)
+        with grad_context:
+            hidden = steered
+            upper_indices = range(
+                self._injection_layer_index + 1, len(self._blocks)
+            )
+            for position, block_index in enumerate(upper_indices):
+                extra_args, kwargs = entry.upper_call[position]
+                output = self._blocks[block_index](hidden, *extra_args, **kwargs)
+                hidden = output[0] if isinstance(output, tuple) else output
+            final_args, final_kwargs = entry.upper_call[-1]
+            final_output = self._final_norm(hidden, *final_args, **final_kwargs)
+            hidden_states = (
+                final_output[0]
+                if isinstance(final_output, tuple)
+                else final_output
+            )
+        return hidden_states, entry.lengths, entry.row_index
+
+    def _build_prefix_entry(
+        self,
+        *,
+        input_ids: Any,
+        attention_mask: Any,
+        batch: int,
+    ) -> _PrefixCacheEntry:
+        """Run one reference forward, recording the delta-independent prefix.
+
+        We capture the injection block's *unsteered* output and the exact
+        positional/keyword arguments every upper block and the final norm were
+        called with, so the hot loop can replay them verbatim regardless of the
+        model architecture (rotary position embeddings, causal masks, etc. are
+        the same tensors across a decoder stack and get reused as constants).
+        """
+
+        torch = self._torch
+        prefix_holder: list[Any] = []
+
+        def capture_prefix(module: Any, args: Any, output: Any) -> None:
+            del module, args
+            hidden = output[0] if isinstance(output, tuple) else output
+            if not isinstance(hidden, torch.Tensor):
+                raise TypeError(
+                    f"Steered scorer prefix hook on {self.model_id!r} saw a "
+                    "non-tensor block output."
+                )
+            prefix_holder.append(hidden.detach())
+            return None
+
+        upper_indices = tuple(
+            range(self._injection_layer_index + 1, len(self._blocks))
         )
-        target = torch.tensor(
-            list(action_indices), dtype=torch.long, device=self._device
+        recorded: dict[int, tuple[tuple[Any, ...], dict[str, Any]]] = {}
+
+        def make_recorder(slot: int):
+            def pre_hook(module: Any, args: Any, kwargs: dict[str, Any]):
+                del module
+                # args[0] is the running hidden state supplied by the hot loop;
+                # everything else (mask, position embeddings, ...) is constant.
+                extra_args = tuple(args[1:])
+                aux = dict(kwargs)
+                aux.pop("past_key_value", None)
+                aux.pop("past_key_values", None)
+                if "use_cache" in aux:
+                    aux["use_cache"] = False
+                recorded[slot] = (extra_args, aux)
+                return None
+
+            return pre_hook
+
+        handles = [
+            self._blocks[self._injection_layer_index].register_forward_hook(
+                capture_prefix
+            )
+        ]
+        for slot, block_index in enumerate(upper_indices):
+            handles.append(
+                self._blocks[block_index].register_forward_pre_hook(
+                    make_recorder(slot), with_kwargs=True
+                )
+            )
+        final_slot = len(upper_indices)
+        handles.append(
+            self._final_norm.register_forward_pre_hook(
+                make_recorder(final_slot), with_kwargs=True
+            )
         )
-        nll = -log_probs[row_index, target]
-        # MPS cannot represent float64; hop to CPU first, then widen so the
-        # temporal owner's float64 objective can consume the graph directly.
-        return nll.to(device="cpu").to(dtype=torch.float64)
+        try:
+            with torch.no_grad():
+                self._model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    use_cache=False,
+                    logits_to_keep=1,
+                )
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        if len(prefix_holder) != 1:
+            raise RuntimeError(
+                f"Steered scorer on {self.model_id!r} captured "
+                f"{len(prefix_holder)} injection outputs; expected exactly one."
+            )
+        expected_slots = len(upper_indices) + 1
+        if len(recorded) != expected_slots:
+            raise RuntimeError(
+                f"Steered scorer on {self.model_id!r} recorded "
+                f"{len(recorded)} upper-call signatures; expected "
+                f"{expected_slots}."
+            )
+        upper_call = tuple(recorded[slot] for slot in range(expected_slots))
+        lengths = attention_mask.sum(dim=-1) - 1
+        row_index = torch.arange(batch, device=self._device)
+        return _PrefixCacheEntry(
+            prefix_hidden=prefix_holder[0],
+            upper_call=upper_call,
+            lengths=lengths,
+            row_index=row_index,
+        )
 
     def _probe_hidden_norm(self, probe_texts: tuple[str, ...]) -> float:
         torch = self._torch

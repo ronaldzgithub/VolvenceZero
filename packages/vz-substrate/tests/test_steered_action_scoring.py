@@ -185,6 +185,127 @@ def test_frozen_arm_sends_gradient_to_the_control_delta_only() -> None:
     assert all(parameter.grad is None for parameter in model.parameters())
 
 
+def _make_scorer(
+    *,
+    model: _TinyCausalLM,
+    tokenizer: _WordTokenizer,
+    prefix_cache: bool,
+    joint_training: bool = False,
+) -> TransformersSteeredActionScorer:
+    return TransformersSteeredActionScorer(
+        torch_module=torch,
+        model=model,
+        tokenizer=tokenizer,
+        block_modules=tuple(model.blocks),
+        final_norm_module=model.final_norm,
+        injection_layer_index=INJECTION_LAYER,
+        hidden_size=HIDDEN_SIZE,
+        device="cpu",
+        model_id="tiny-test-lm",
+        action_options=_OPTIONS,
+        control_norm_ratio=0.25,
+        joint_training=joint_training,
+        prefix_cache=prefix_cache,
+    )
+
+
+def test_prefix_cache_matches_full_forward_frozen_arm() -> None:
+    # The cached hot path must be numerically identical to the reference full
+    # forward, across repeated updates that reuse the cached prefix.
+    model = _build_model()
+    tokenizer = _WordTokenizer()
+    full = _make_scorer(model=model, tokenizer=tokenizer, prefix_cache=False)
+    cached = _make_scorer(model=model, tokenizer=tokenizer, prefix_cache=True)
+
+    torch.manual_seed(5)
+    for _ in range(3):
+        base = torch.randn(2, HIDDEN_SIZE)
+        deltas_full = base.clone().requires_grad_(True)
+        deltas_cached = base.clone().requires_grad_(True)
+
+        nll_full = full.action_nll(
+            source_texts=_TEXTS, control_deltas=deltas_full, action_indices=(0, 1)
+        )
+        nll_cached = cached.action_nll(
+            source_texts=_TEXTS,
+            control_deltas=deltas_cached,
+            action_indices=(0, 1),
+        )
+        assert torch.allclose(nll_full, nll_cached, atol=1e-6)
+
+        nll_full.sum().backward()
+        nll_cached.sum().backward()
+        assert deltas_full.grad is not None
+        assert deltas_cached.grad is not None
+        assert torch.allclose(deltas_full.grad, deltas_cached.grad, atol=1e-6)
+
+    # One prefix entry per token surface, reused across the three updates.
+    assert cached.prefix_cache_enabled
+    assert len(cached._prefix_cache) == 1
+
+
+def test_prefix_cache_matches_full_forward_joint_arm() -> None:
+    # Separate but identical models so upper-block gradients stay independent.
+    model_full = _build_model()
+    model_cached = _build_model()
+    tokenizer = _WordTokenizer()
+    full = _make_scorer(
+        model=model_full,
+        tokenizer=tokenizer,
+        prefix_cache=False,
+        joint_training=True,
+    )
+    cached = _make_scorer(
+        model=model_cached,
+        tokenizer=tokenizer,
+        prefix_cache=True,
+        joint_training=True,
+    )
+
+    torch.manual_seed(7)
+    base = torch.randn(2, HIDDEN_SIZE)
+    deltas_full = base.clone().requires_grad_(True)
+    deltas_cached = base.clone().requires_grad_(True)
+
+    nll_full = full.action_nll(
+        source_texts=_TEXTS, control_deltas=deltas_full, action_indices=(0, 2)
+    )
+    nll_cached = cached.action_nll(
+        source_texts=_TEXTS, control_deltas=deltas_cached, action_indices=(0, 2)
+    )
+    assert torch.allclose(nll_full, nll_cached, atol=1e-6)
+
+    nll_full.sum().backward()
+    nll_cached.sum().backward()
+
+    # Gradient reaches the trainable upper blocks identically. INJECTION_LAYER
+    # is 1, so blocks 2 and 3 plus the final norm are the joint parameters.
+    for index in (2, 3):
+        grad_full = model_full.blocks[index].linear.weight.grad
+        grad_cached = model_cached.blocks[index].linear.weight.grad
+        assert grad_full is not None
+        assert grad_cached is not None
+        assert torch.allclose(grad_full, grad_cached, atol=1e-6)
+    # Lower (frozen) blocks below the injection point never receive gradient.
+    assert model_cached.blocks[0].linear.weight.grad is None
+
+
+def test_prefix_cache_baseline_matches_full_forward() -> None:
+    model = _build_model()
+    tokenizer = _WordTokenizer()
+    full = _make_scorer(model=model, tokenizer=tokenizer, prefix_cache=False)
+    cached = _make_scorer(model=model, tokenizer=tokenizer, prefix_cache=True)
+
+    baseline_full = full.baseline_action_nll(
+        source_texts=_TEXTS, action_indices=(0, 1)
+    )
+    baseline_cached = cached.baseline_action_nll(
+        source_texts=_TEXTS, action_indices=(0, 1)
+    )
+    for got, expected in zip(baseline_cached, baseline_full, strict=True):
+        assert abs(got - expected) < 1e-6
+
+
 def test_frozen_arm_refuses_to_score_a_thawed_base_parameter() -> None:
     model = _build_model()
     scorer = _build_scorer(model=model)

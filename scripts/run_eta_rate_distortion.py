@@ -41,10 +41,16 @@ from volvence_zero.agent.eta_proof_benchmark import (
     generate_eta_proof_corpus,
 )
 from volvence_zero.agent.eta_rate_distortion_evidence import (
+    OBSERVATION_PROTOCOL_V1,
+    OBSERVATION_PROTOCOL_V2,
     RateDistortionEvidenceReport,
     RateDistortionPoint,
     assess_gap,
     run_eta_rate_distortion_evidence,
+)
+from volvence_zero.temporal.metacontroller_components import (
+    POSTERIOR_PARAMETERIZATION_LEGACY,
+    POSTERIOR_PARAMETERIZATION_SMOOTH,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -146,6 +152,8 @@ def _validate_preregistration(
         "model_source": args.model_source or args.model_id,
         "device": args.device,
         "corpus": requested_corpus,
+        "observation_protocol": args.observation_protocol,
+        "posterior_parameterization": args.posterior_parameterization,
     }
     for key, value in requested.items():
         if sweep.get(key) != value:
@@ -305,6 +313,8 @@ def _report_markdown(
         f"seeds={list(report.seed_schedule)}, "
         f"updates/run={report.updates_per_run}",
         f"- observation protocol: `{report.observation_protocol}`",
+        f"- posterior parameterization: "
+        f"`{report.posterior_parameterization}`",
         f"- train steps={report.train_step_count}, "
         f"heldout steps={report.heldout_step_count}",
         "",
@@ -465,6 +475,43 @@ def main() -> None:
     parser.add_argument(
         "--heldout-lengths", type=int, nargs="+", default=(3, 4)
     )
+    parser.add_argument(
+        "--observation-protocol",
+        choices=(OBSERVATION_PROTOCOL_V1, OBSERVATION_PROTOCOL_V2),
+        default=OBSERVATION_PROTOCOL_V1,
+        help=(
+            "Observation surface. v1 repeats source_text + completed "
+            "objectives every step (segmentation redundant); v2 gives the "
+            "route plan once at step 0 and then only location + transitions "
+            "so switching becomes necessary."
+        ),
+    )
+    parser.add_argument(
+        "--posterior-parameterization",
+        choices=(
+            POSTERIOR_PARAMETERIZATION_LEGACY,
+            POSTERIOR_PARAMETERIZATION_SMOOTH,
+        ),
+        default=POSTERIOR_PARAMETERIZATION_LEGACY,
+        help=(
+            "Posterior variance parameterization. legacy uses "
+            "clamp(|W h|, 0.05, 0.95) (saturating, non-monotonic rate axis); "
+            "smooth uses softplus(W h) + 1e-4 with unbounded mean for a smooth "
+            "KL/rate response."
+        ),
+    )
+    parser.add_argument(
+        "--no-prefix-cache",
+        dest="prefix_cache",
+        action="store_false",
+        help=(
+            "Disable the steered-scorer prefix cache. The cache reuses the "
+            "delta-independent lower-stack forward across hot-loop updates "
+            "(~6x fewer block evaluations per step) and is numerically "
+            "identical to the full forward; only disable it for debugging."
+        ),
+    )
+    parser.set_defaults(prefix_cache=True)
     args = parser.parse_args()
     if args.seeds < 1:
         parser.error("--seeds must be at least 1")
@@ -560,6 +607,9 @@ def main() -> None:
             arms=tuple(args.arms),
             point_cache=RateDistortionCheckpointCache(checkpoint_store),
             corpus=corpus,
+            observation_protocol=args.observation_protocol,
+            posterior_parameterization=args.posterior_parameterization,
+            prefix_cache=args.prefix_cache,
         )
         elapsed = time.perf_counter() - started
     checkpoint_store.mark_complete()
@@ -633,6 +683,8 @@ def main() -> None:
         "injection_layer_index": report.injection_layer_index,
         "control_norm_cap": report.control_norm_cap,
         "observation_protocol": report.observation_protocol,
+        "posterior_parameterization": report.posterior_parameterization,
+        "prefix_cache": args.prefix_cache,
         "corpus": {
             **corpus_provenance,
             "report_corpus_origin": report.corpus_origin,

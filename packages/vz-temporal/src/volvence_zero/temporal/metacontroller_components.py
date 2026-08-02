@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from volvence_zero.substrate import (
@@ -1443,6 +1444,38 @@ NDIM_POSTERIOR_RECURRENT_WEIGHT = 0.2
 NDIM_POSTERIOR_HISTORY_WEIGHT = 0.1
 NDIM_POSTERIOR_CURRENT_WEIGHT = 0.7
 
+# Posterior parameterization mode (SSOT for every encoder mirror).
+#
+# ``legacy`` reproduces the historical ``mu = clamp(.., 0, 1)`` / ``sigma =
+# clamp(|W h|, 0.05, 0.95)`` surface. Its ``abs`` is non-differentiable at 0
+# and every clamp zeroes the gradient at its boundary, which the 2026-08-02
+# Gate-1 sweep showed makes the rate axis noisy and bimodal across seeds.
+#
+# ``smooth`` leaves ``mu`` unbounded and uses ``sigma = softplus(W h) +
+# POSTERIOR_STD_SMOOTH_FLOOR`` (smooth, strictly positive), so the KL/rate is a
+# smooth function of the projections. Downstream decoders keep a
+# straight-through clamp, so the applied control remains bounded and
+# runtime-compatible. Every mirror defaults to ``legacy`` so the switch is
+# opt-in and fully reversible; only the ETA rate-distortion evidence path
+# selects ``smooth``.
+POSTERIOR_PARAMETERIZATION_LEGACY = "legacy"
+POSTERIOR_PARAMETERIZATION_SMOOTH = "smooth"
+_POSTERIOR_PARAMETERIZATIONS = (
+    POSTERIOR_PARAMETERIZATION_LEGACY,
+    POSTERIOR_PARAMETERIZATION_SMOOTH,
+)
+POSTERIOR_STD_SMOOTH_FLOOR = 1e-4
+
+
+def _softplus_scalar(value: float) -> float:
+    """Numerically stable softplus for the pure-Python encoder mirrors."""
+
+    if value > 20.0:
+        return value
+    if value < -20.0:
+        return math.exp(value)
+    return math.log1p(math.exp(value))
+
 
 @dataclass(frozen=True)
 class NdimGRUParams:
@@ -1628,7 +1661,17 @@ class NdimSequenceEncoder:
         previous_hidden_state: Vec | None = None,
         cms_context: Vec | None = None,
         params: NdimEncoderParameters | None = None,
+        posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
     ) -> EncodedSequence:
+        if posterior_parameterization not in _POSTERIOR_PARAMETERIZATIONS:
+            raise ValueError(
+                "posterior_parameterization must be one of "
+                f"{_POSTERIOR_PARAMETERIZATIONS}, got "
+                f"{posterior_parameterization!r}."
+            )
+        smooth_posterior = (
+            posterior_parameterization == POSTERIOR_PARAMETERIZATION_SMOOTH
+        )
         active_params = params or self._params
         h = previous_hidden_state or zeros(self._n_z)
         step_vectors = _summarize_substrate_ndim(substrate_snapshot, active_params.n_input)
@@ -1664,39 +1707,47 @@ class NdimSequenceEncoder:
             max(0.05, 1.0 - abs(prior_mean[i] - avg_hidden[i]) * 0.5)
             for i in range(self._n_z)
         )
-        posterior_mean = vec_clamp(
+        mean_linear = vec_add(
             vec_add(
-                vec_add(
-                    vec_scale(
-                        mat_vec(active_params.posterior_proj, h),
-                        NDIM_POSTERIOR_RECURRENT_WEIGHT,
-                    ),
-                    vec_scale(
-                        avg_hidden,
-                        NDIM_POSTERIOR_HISTORY_WEIGHT,
-                    ),
+                vec_scale(
+                    mat_vec(active_params.posterior_proj, h),
+                    NDIM_POSTERIOR_RECURRENT_WEIGHT,
                 ),
                 vec_scale(
-                    mat_vec(
-                        active_params.current_proj,
-                        _current_observation_signal(current_input, self._n_z),
-                    ),
-                    NDIM_POSTERIOR_CURRENT_WEIGHT,
+                    avg_hidden,
+                    NDIM_POSTERIOR_HISTORY_WEIGHT,
                 ),
             ),
-            0.0, 1.0,
+            vec_scale(
+                mat_vec(
+                    active_params.current_proj,
+                    _current_observation_signal(current_input, self._n_z),
+                ),
+                NDIM_POSTERIOR_CURRENT_WEIGHT,
+            ),
         )
-        posterior_std = vec_clamp(
-            vec_abs(mat_vec(active_params.posterior_std_proj, h)),
-            0.05, 0.95,
-        )
+        std_raw = mat_vec(active_params.posterior_std_proj, h)
+        if smooth_posterior:
+            posterior_mean = mean_linear
+            posterior_std = tuple(
+                _softplus_scalar(value) + POSTERIOR_STD_SMOOTH_FLOOR
+                for value in std_raw
+            )
+        else:
+            posterior_mean = vec_clamp(mean_linear, 0.0, 1.0)
+            posterior_std = vec_clamp(vec_abs(std_raw), 0.05, 0.95)
         sample_noise = vec_clamp(
             vec_sub(avg_hidden, vec_scale(posterior_mean, 0.5)),
             -1.0, 1.0,
         )
-        z_tilde = vec_clamp(
-            vec_add(posterior_mean, vec_scale(vec_mul(posterior_std, sample_noise), 0.5)),
-            0.0, 1.0,
+        z_tilde_raw = vec_add(
+            posterior_mean,
+            vec_scale(vec_mul(posterior_std, sample_noise), 0.5),
+        )
+        z_tilde = (
+            z_tilde_raw
+            if smooth_posterior
+            else vec_clamp(z_tilde_raw, 0.0, 1.0)
         )
         drift = max(abs(h[i] - (previous_hidden_state or zeros(self._n_z))[i]) for i in range(self._n_z))
         return EncodedSequence(
