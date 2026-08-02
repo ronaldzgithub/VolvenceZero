@@ -380,7 +380,8 @@ def main() -> None:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "note": (
             "Capacity diagnostic for the step-0 encoder input under protocol "
-            "v2 on the frozen Gate-1 corpus. Not authoritative evidence."
+            f"{args.observation_protocol} on the frozen Gate-1 corpus. "
+            "Not authoritative evidence."
         ),
         "model_id": runtime.model_id,
         "runtime_origin": runtime.runtime_origin,

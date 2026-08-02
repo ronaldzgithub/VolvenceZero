@@ -170,6 +170,16 @@ fingerprint；它尚未经过正式 Gate 1，不能把可读计划候选或任�
 通过证据。v2 结果、v3 候选和生产 wiring 继续隔离，退出条件仍是先取得独立的
 surrogate/真实 substrate 证据，再决定是否预注册新的正式 sweep。
 
+随后产生的 v3 capacity diagnostic
+`artifacts/eta_step0_plan_probe_v3_20260802/step0_plan_probe.json` 仅使用
+`activation_width=8` 做开发性 sanity check，并非 Gate 1：token-mean 的 fixed-label
+target-2 为 `0.727679`，raw-PCA 变体最高为 `0.933036`，均明显高于 8 类多数基线
+约 `0.143`；plan-length control 最高为 `1.000`。这说明“把 objective 顺序以可读
+计划写入 step-0”确实改变了输入面的可辨识性，但不能证明 latent 已跨边界携带计划、
+不能证明 switch-gated rate objective，也不能授权 Stage 2/3。该 artifact 的
+`production_promotion_authorized` 等 Gate 字段不存在，故继续按非权威 capacity
+diagnostic 管理。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）
