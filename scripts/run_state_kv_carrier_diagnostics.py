@@ -48,6 +48,12 @@ from train_state_kv_prefix import (  # noqa: E402
     _chat_messages_for,
     _sample_states,
 )
+from train_relationship_prefix_kv import (  # noqa: E402
+    DEFAULT_MATERIAL as RELATIONSHIP_MATERIAL,
+    SYSTEM_PROMPT as RELATIONSHIP_SYSTEM_PROMPT,
+    _load_material as _load_relationship_material,
+    _sample_states as _sample_relationship_states,
+)
 from volvence_zero.state_kv_carrier_diagnostics import (  # noqa: E402
     build_carrier_diagnostics_verdict,
     evaluate_slot_attention_read,
@@ -60,6 +66,7 @@ from volvence_zero.substrate.prefix_kv_artifact import (  # noqa: E402
     PrefixKVArtifact,
     load_prefix_generator,
 )
+from volvence_zero.substrate import RelationshipPrefixKVArtifact  # noqa: E402
 from volvence_zero.substrate.prefix_kv_diagnostics import (  # noqa: E402
     capture_prefix_diagnostics,
     fit_ridge_probe,
@@ -73,7 +80,25 @@ from volvence_zero.substrate.prefix_kv_diagnostics import (  # noqa: E402
 DIAGNOSTIC_SENTENCES: tuple[str, ...] = TRAIN_PROBE_SENTENCES[:4]
 
 
-def _encode(tokenizer, torch, *, state, sentence, user_id, device):
+def _encode(
+    tokenizer,
+    torch,
+    *,
+    state,
+    sentence,
+    user_id,
+    device,
+    state_domain="personal",
+):
+    if state_domain == "relationship":
+        payload = [
+            {"role": "system", "content": RELATIONSHIP_SYSTEM_PROMPT},
+            {"role": "user", "content": sentence},
+        ]
+        text = tokenizer.apply_chat_template(
+            payload, tokenize=False, add_generation_prompt=True
+        )
+        return tokenizer(text, return_tensors="pt")["input_ids"].to(device)
     _, messages = _chat_messages_for(
         arm_label=PREFIX_ARM_LABEL,
         state=state,
@@ -93,6 +118,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model-source", default="")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--prefix-kv-artifact", required=True)
+    parser.add_argument(
+        "--state-domain",
+        choices=("personal", "relationship"),
+        default="personal",
+    )
     parser.add_argument("--train-states", type=int, default=96)
     parser.add_argument("--eval-states", type=int, default=32)
     parser.add_argument("--random-draws", type=int, default=4)
@@ -122,9 +152,18 @@ def main(argv: list[str] | None = None) -> int:
     weights = _fingerprint_weights(
         model_id=args.model_id, weights_root=weights_root
     )
-    artifact = PrefixKVArtifact.from_json(
-        Path(args.prefix_kv_artifact).expanduser().read_text(encoding="utf-8")
+    artifact_payload = Path(args.prefix_kv_artifact).expanduser().read_text(
+        encoding="utf-8"
     )
+    if args.state_domain == "relationship":
+        relationship_artifact = RelationshipPrefixKVArtifact.from_json(
+            artifact_payload
+        )
+        artifact = relationship_artifact.prefix_artifact
+        bound_artifact_id = relationship_artifact.artifact_id
+    else:
+        artifact = PrefixKVArtifact.from_json(artifact_payload)
+        bound_artifact_id = artifact.artifact_id
     tokenizer = transformers.AutoTokenizer.from_pretrained(str(weights_root))
     # Eager attention: the fused kernels the generation path uses do not
     # materialise the weight matrix this diagnostic reads.
@@ -158,14 +197,33 @@ def main(argv: list[str] | None = None) -> int:
             return transformers.DynamicCache()
         return transformers.DynamicCache(ddp_cache_data=list(pairs))
 
-    train_states = _sample_states(count=args.train_states, seed=args.seed)
-    eval_states = list(
-        _sample_states(count=args.eval_states, seed=args.seed + 1)
-    )
-    # The two hand-checked identification personas are extrapolation for the
-    # generator (trained inside |u| <= 0.8); scoring the probe on them is the
-    # point of contact with the identification lane.
-    eval_states.extend(vector for _, vector, _, _ in PERSONAS)
+    if args.state_domain == "relationship":
+        _, repair, steady, _, _ = _load_relationship_material(
+            RELATIONSHIP_MATERIAL
+        )
+        train_states = _sample_relationship_states(
+            repair=repair,
+            steady=steady,
+            count=args.train_states,
+            seed=args.seed,
+        )
+        eval_states = list(
+            _sample_relationship_states(
+                repair=repair,
+                steady=steady,
+                count=args.eval_states,
+                seed=args.seed + 1,
+            )
+        )
+        eval_states.extend((repair, steady))
+    else:
+        train_states = _sample_states(count=args.train_states, seed=args.seed)
+        eval_states = list(
+            _sample_states(count=args.eval_states, seed=args.seed + 1)
+        )
+        # The two hand-checked identification personas are extrapolation for
+        # the generator (trained inside |u| <= 0.8).
+        eval_states.extend(vector for _, vector, _, _ in PERSONAS)
     print(
         f"states: {len(train_states)} train / {len(eval_states)} held-out; "
         f"sentences: {len(DIAGNOSTIC_SENTENCES)}"
@@ -209,6 +267,7 @@ def main(argv: list[str] | None = None) -> int:
             input_ids = _encode(
                 tokenizer, torch, state=state, sentence=sentence,
                 user_id=user_id, device=device,
+                state_domain=args.state_domain,
             )
             profile = capture_prefix_diagnostics(
                 torch_module=torch,
@@ -226,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     reference_ids = _encode(
         tokenizer, torch, state=all_states[0],
         sentence=DIAGNOSTIC_SENTENCES[0], user_id="diag-control", device=device,
+        state_domain=args.state_domain,
     )
     zero_profile = capture_prefix_diagnostics(
         torch_module=torch, model=model, input_ids=reference_ids,
@@ -313,6 +373,7 @@ def main(argv: list[str] | None = None) -> int:
                 tokenizer, torch, state=all_states[state_index],
                 sentence=sentence, user_id=f"diag-{state_index:04d}",
                 device=device,
+                state_domain=args.state_domain,
             )
             profile = capture_prefix_diagnostics(
                 torch_module=torch, model=model, input_ids=ids,
@@ -395,7 +456,7 @@ def main(argv: list[str] | None = None) -> int:
         substrate_fingerprint=(
             f"{args.model_id}@{str(weights['weights_sha256'])[:16]}"
         ),
-        prefix_artifact_id=artifact.artifact_id,
+        prefix_artifact_id=bound_artifact_id,
         attention_claim=attention_claim,
         readable_claim=readable_claim,
         slot_mass_report={
@@ -426,7 +487,8 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(
             {
                 **weights,
-                "prefix_artifact_id": artifact.artifact_id,
+                "prefix_artifact_id": bound_artifact_id,
+                "state_domain": args.state_domain,
                 "device_request": args.device,
                 "attn_implementation": "eager",
                 "diagnostic_sentences": list(DIAGNOSTIC_SENTENCES),

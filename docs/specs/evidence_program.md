@@ -1732,6 +1732,14 @@ promotion gate。`scripts/train_relationship_prefix_kv.py` 将训练状态改为
 训练候选满足预先冻结的 wrong-user 起始门，P4、matched pilot、held-out 识别和
 bank-gain 尚未运行，因此 artifact 不进入 P6 freeze，生产默认仍是 text + SHADOW。
 
+紧接着运行 Relationship v2 的 P4 carrier diagnostics，结果为 **FAIL**：
+`carrier_is_live=false`，门 A `claim_slot_attention_read=fail`（22/24 层的 slot
+profile 更受 probe sentence 影响，state spread `0.01355` 小于 sentence spread
+`0.01992`），门 B `claim_state_linearly_readable=pass`（最佳 held-out mean R²
+`0.8123`，shuffle null ceiling `0.0344`，no-prefix control `-0.0002`）。该结果
+否证了当前 v2 artifact 的 attention routing 机制，按阶梯规则停止在 P4，不运行
+matched pilot、held-out 识别或 bank-gain；旧 v1 与 v2 均不进入 P6 freeze。
+
 ## Gate 2 relationship-conditioned longitudinal prereg（冻结终局）
 
 这条 evidence lane 独立于历史 v35 无条件 selector，用 cognition owner 发布的
