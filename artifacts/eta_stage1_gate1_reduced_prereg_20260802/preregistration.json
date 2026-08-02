@@ -1,0 +1,90 @@
+{
+  "schema_version": "eta-rate-distortion-prereg.v1",
+  "experiment_id": "eta-rate-distortion-criterion",
+  "created_at": "2026-08-02T01:25:11.710192+00:00",
+  "claim_scope": "eta-temporal-abstraction-criterion-only",
+  "sweep": {
+    "alpha_grid": [
+      0.01,
+      0.03,
+      0.1,
+      0.3,
+      1.0,
+      3.0
+    ],
+    "seed_schedule": [
+      0,
+      1,
+      2
+    ],
+    "n_z": 16,
+    "updates_per_run": 24,
+    "learning_rate": 0.02,
+    "substrate_learning_rate": 0.0001,
+    "switch_threshold": 0.55,
+    "arms": [
+      "frozen"
+    ],
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_source": "Qwen/Qwen2.5-0.5B-Instruct",
+    "device": "mps",
+    "corpus": {
+      "corpus_origin": "generated-seeded",
+      "corpus_seed": 20260802,
+      "objective_count": 8,
+      "corridor_count": 2,
+      "extra_edge_probability": 0.35,
+      "train_routes": 64,
+      "heldout_routes": 24,
+      "train_lengths": [
+        2,
+        3
+      ],
+      "heldout_lengths": [
+        3,
+        4
+      ]
+    }
+  },
+  "rate_axis_gate": {
+    "gate_id": "gate-1-rate-axis-response",
+    "arm": "frozen",
+    "spearman_alpha_rate_max": -0.8,
+    "rate_span_min": 0.3,
+    "baseline_rate_span_7_route": 0.2,
+    "rule": "Gate 1 passes iff the frozen arm's spearman(alpha, rate) <= -0.8 AND rate_span >= rate_span_min AND rate_span is materially larger than the 7-route baseline. Failing means the rate axis still does not trade information for accuracy: fix posterior variance parameterization, do NOT proceed to Stage 2 pretraining."
+  },
+  "gap_thresholds": {
+    "drop_share_threshold": 0.5,
+    "rate_share_threshold": 0.25,
+    "noise_multiple": 2.0
+  },
+  "arm_separation_rule": "max(2.0 * pooled_distortion_std, 0.02)",
+  "verdict_set": [
+    "retain-eta",
+    "retain-weak",
+    "kill-eta",
+    "instrument-invalid",
+    "inconclusive-joint-arm-gap",
+    "incomplete-sweep"
+  ],
+  "decision_rules": [
+    "The joint arm is a mandatory validity control. If the frozen and joint curves are indistinguishable the round yields instrument-invalid and no thesis conclusion may be drawn.",
+    "retain-eta requires the frozen arm to show the gap, the joint arm not to, and beta boundary F1 to be higher inside the gap region than outside.",
+    "kill-eta requires a distinguishable arm pair and no gap on the frozen arm.",
+    "Distortion is the expert-action NLL through the steered frozen model; rate is the mean per-dimension posterior KL of z_t. No other term may enter the loss."
+  ],
+  "prohibited_after_execution": [
+    "changing the alpha grid, seed schedule, or optimisation budget",
+    "changing any gap threshold or the arm-separation rule",
+    "reporting a verdict outside the frozen verdict set",
+    "using a forward-head capacity ladder to support an ETA capacity claim"
+  ],
+  "frozen_source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/steered_action_scoring.py": "c88e118139a9be882812b34a16011e13b4f9fab183d053bbf3a11f211122145e",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "7147229ec24df00adfcabd325fe6eeb85a5ef8aa73b48813a6b6ff5b9c1cb8af",
+    "packages/vz-temporal/src/volvence_zero/temporal/torch_store_ssl.py": "c686285a1fa5414312b2850e409a05e3bbefe1ed8efb5ca53de8a517d9dc8e55",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "f78e0226b2b626a702b389751d6a6bb1e8aec73ec5add7b93e43ae6120379795",
+    "scripts/run_eta_rate_distortion.py": "2cfc8c90c97cec880762c9cad4b464ed1fc2885f0911a6f71a526a1485952399"
+  }
+}
