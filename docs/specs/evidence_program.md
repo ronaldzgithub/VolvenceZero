@@ -1724,6 +1724,14 @@ promotion gate。`scripts/train_relationship_prefix_kv.py` 将训练状态改为
 再按 P4 → matched pilot → held-out 识别 → bank-gain 的顺序逐级验证；在此之前不得
 把训练器改动描述为 Relationship 识别增益或晋升证据。
 
+随后完成了该候选的 bake，但只通过了第一道训练后控制门：artifact
+`a6f0883faba59ba4896acd2f41377f84a40248653300cee9c49a728662da9d97`（manifest
+`relationship-prefix-kv-bake.v1`）记录 128 samples、3 epochs、48-token target、
+`norm_cap=0.12`、`route_weight=1.0`、双正交轴 geometry；wrong-user control 为
+`97/128=0.757812`，Wilson 95% 下界 `0.676787`，control gate pass。该结果只证明
+训练候选满足预先冻结的 wrong-user 起始门，P4、matched pilot、held-out 识别和
+bank-gain 尚未运行，因此 artifact 不进入 P6 freeze，生产默认仍是 text + SHADOW。
+
 ## Gate 2 relationship-conditioned longitudinal prereg（冻结终局）
 
 这条 evidence lane 独立于历史 v35 无条件 selector，用 cognition owner 发布的
