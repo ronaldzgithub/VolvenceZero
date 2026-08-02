@@ -98,6 +98,11 @@ switch，rate–distortion 曲线近水平，Gate 1 仍 **FAIL**。因此不进�
 mix gate，使保持旧 code 的 segment 不付重复 rate；必须另行预注册、先过 surrogate
 screen，再用真实 substrate 证伪，不能把 surrogate 通过写成 ETA 证据。
 
+同日 step-0 plan identity probe 仅作 capacity diagnostic：target-2 线性 probe
+准确率 `0.170`，shuffle null 为 `0.136`，仍接近 8 类多数基线 `0.193`，不能支撑
+“latent 已携带第二子目标”主张。该结果提示 16 维 substrate summary 可能是瓶颈，
+但不改变 Gate 1 失败规则，也不授权扩大训练预算。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）
