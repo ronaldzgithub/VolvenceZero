@@ -146,6 +146,12 @@ bundle 均未通过计划身份门：fixed-label target-2 在四种 pooling 下�
 这两组只作为方法学自检，尚未形成新的物证 bundle，也不能替代 fixed-label target
 结果。
 
+最终的 224-route、896 维 bundle 已封存六种 pooling/control 组合（`n_input=16`）。
+fixed-label target-2 最高为 `0.138`，plan-length control 最高为 `0.647`，均未超过
+对应多数基线（约 `0.143` 与 `0.665`）；last-transition control 的真实与 null 均为
+`1.000`，因此不提供可辨别性。该 bundle 仍是非权威诊断；后续新增的 raw-PCA 变体
+尚未产生独立 artifact。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）
