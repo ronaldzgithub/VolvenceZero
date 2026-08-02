@@ -1,0 +1,15 @@
+{
+  "schema_version": "eta-protocol-audit-manifest.v1",
+  "created_at": "2026-08-02T08:03:58.416827+00:00",
+  "report": "protocol_determinism.json",
+  "report_sha256": "1c1920ce4d6f075966cdd203fec1cbb06d68f249451435f8924eeb681cb1fad4",
+  "verdict": {
+    "segmentation_redundant_under_v1": true,
+    "source_text_leak_determinism_delta": -0.515294,
+    "views_that_force_switching": [
+      "local_no_completed"
+    ],
+    "completed_objectives_leak_blocks_switching": true,
+    "note": "segmentation_redundant_under_v1=True confirms problem B: with the v1 observation surface the expert action is a function of one observation, so a constant control code suffices and the switch gate has no reason to fire. A large negative source_text_leak_determinism_delta means removing the per-route source_text fingerprint is what breaks determinism. But dropping source_text alone leaves intra-route conflict at zero, so a CONSTANT per-route code still solves the task -- no switching pressure. Only when BOTH source_text and the completed-objectives progress field are removed from recurring steps does a single route revisit a node with a different action, which can only be resolved by an EVOLVING latent code (genuine switching). Therefore protocol v2 must give the route plan once at step 0 and drop both source_text and completed objectives from every later step."
+  }
+}

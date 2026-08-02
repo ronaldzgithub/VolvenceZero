@@ -1,0 +1,107 @@
+{
+  "schema_version": "eta-protocol-determinism-audit.v1",
+  "created_at": "2026-08-02T08:03:58.416827+00:00",
+  "corpus": {
+    "seed": 20260802,
+    "objective_count": 8,
+    "corridor_count": 2,
+    "extra_edge_probability": 0.35,
+    "train_routes": 64,
+    "heldout_routes": 24,
+    "train_lengths": [
+      2,
+      3
+    ],
+    "heldout_lengths": [
+      3,
+      4
+    ]
+  },
+  "action_vocabulary": [
+    "hub",
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "orange",
+    "purple",
+    "black",
+    "white",
+    "north",
+    "south"
+  ],
+  "total_steps": 850,
+  "view_assessments": [
+    {
+      "view": "full",
+      "total_steps": 850,
+      "distinct_texts": 850,
+      "ambiguous_texts": 0,
+      "ambiguous_steps": 0,
+      "determinism_rate": 1.0,
+      "interpretation": "expert action is a deterministic function of a single observation (segmentation redundant)"
+    },
+    {
+      "view": "no_source",
+      "total_steps": 850,
+      "distinct_texts": 302,
+      "ambiguous_texts": 63,
+      "ambiguous_steps": 438,
+      "determinism_rate": 0.484706,
+      "interpretation": "some observations map to multiple expert actions (latent memory could help)"
+    },
+    {
+      "view": "local_only",
+      "total_steps": 850,
+      "distinct_texts": 130,
+      "ambiguous_texts": 45,
+      "ambiguous_steps": 688,
+      "determinism_rate": 0.190588,
+      "interpretation": "some observations map to multiple expert actions (latent memory could help)"
+    },
+    {
+      "view": "local_no_completed",
+      "total_steps": 850,
+      "distinct_texts": 10,
+      "ambiguous_texts": 10,
+      "ambiguous_steps": 850,
+      "determinism_rate": 0.0,
+      "interpretation": "some observations map to multiple expert actions (latent memory could help)"
+    }
+  ],
+  "intra_route_ambiguity": [
+    {
+      "view": "full",
+      "routes_total": 88,
+      "routes_with_intra_route_conflict": 0,
+      "conflicting_observation_slots": 0
+    },
+    {
+      "view": "no_source",
+      "routes_total": 88,
+      "routes_with_intra_route_conflict": 0,
+      "conflicting_observation_slots": 0
+    },
+    {
+      "view": "local_only",
+      "routes_total": 88,
+      "routes_with_intra_route_conflict": 0,
+      "conflicting_observation_slots": 0
+    },
+    {
+      "view": "local_no_completed",
+      "routes_total": 88,
+      "routes_with_intra_route_conflict": 74,
+      "conflicting_observation_slots": 74
+    }
+  ],
+  "verdict": {
+    "segmentation_redundant_under_v1": true,
+    "source_text_leak_determinism_delta": -0.515294,
+    "views_that_force_switching": [
+      "local_no_completed"
+    ],
+    "completed_objectives_leak_blocks_switching": true,
+    "note": "segmentation_redundant_under_v1=True confirms problem B: with the v1 observation surface the expert action is a function of one observation, so a constant control code suffices and the switch gate has no reason to fire. A large negative source_text_leak_determinism_delta means removing the per-route source_text fingerprint is what breaks determinism. But dropping source_text alone leaves intra-route conflict at zero, so a CONSTANT per-route code still solves the task -- no switching pressure. Only when BOTH source_text and the completed-objectives progress field are removed from recurring steps does a single route revisit a node with a different action, which can only be resolved by an EVOLVING latent code (genuine switching). Therefore protocol v2 must give the route plan once at step 0 and drop both source_text and completed objectives from every later step."
+  }
+}
