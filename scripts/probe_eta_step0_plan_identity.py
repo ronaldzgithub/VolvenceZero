@@ -46,9 +46,11 @@ from volvence_zero.agent.eta_proof_benchmark import (
 )
 from volvence_zero.agent.eta_rate_distortion_evidence import (
     OBSERVATION_PROTOCOL_V2,
-    _build_traces,
+    _rate_distortion_observation_texts,
 )
-from volvence_zero.temporal.torch_store_ssl import _step_input_vectors
+from volvence_zero.temporal.metacontroller_components import (
+    _fold_residual_to_ndim,
+)
 
 
 def _fit_linear_probe(
@@ -179,69 +181,91 @@ def main() -> None:
     _validate_eta_open_weight_runtime(runtime=runtime, config=config)
 
     cases = tuple(corpus.train_cases) + tuple(corpus.heldout_cases)
-    traces = _build_traces(
-        cases,
-        environment=corpus.environment,
-        runtime=runtime,
-        label="step0-probe",
-        protocol_version=OBSERVATION_PROTOCOL_V2,
-    )
 
+    # One capture per route (step-0 observation only). Each capture exposes
+    # two candidate encoder inputs:
+    # - token-mean: what the Gate-1 pipeline feeds the encoder today (mean
+    #   over all prompt token positions, per hooked layer), and
+    # - last-token: the final token position from residual_sequence, which
+    #   the pipeline currently strips before training.
+    mean_raws: list[tuple[float, ...]] = []
+    last_raws: list[tuple[float, ...]] = []
     label_target_1: list[str] = []
     label_target_2: list[str] = []
     for case in cases:
+        texts, _targets = _rate_distortion_observation_texts(
+            case,
+            environment=corpus.environment,
+            protocol_version=OBSERVATION_PROTOCOL_V2,
+        )
+        capture = runtime.capture(source_text=texts[0])
+        mean_raw: list[float] = []
+        for act in capture.residual_activations:
+            mean_raw.extend(act.activation)
+        last_raw: list[float] = []
+        for act in capture.residual_sequence[-1].residual_activations:
+            last_raw.extend(act.activation)
+        mean_raws.append(tuple(mean_raw))
+        last_raws.append(tuple(last_raw))
         # route_signature = (start, target_1, target_2, ...); every frozen
         # route has at least two planned targets.
         label_target_1.append(case.route_signature[1])
         label_target_2.append(case.route_signature[2])
 
     results: dict[str, object] = {}
-    for n_input in args.n_inputs:
-        step0_vectors = [
-            _step_input_vectors(trace, n_input)[0] for trace in traces
-        ]
-        features = torch.tensor(step0_vectors, dtype=torch.float64)
-        features = (features - features.mean(dim=0)) / (
-            features.std(dim=0) + 1e-9
-        )
-        width_results: dict[str, object] = {}
-        for name, raw_labels in (
-            ("target_1", label_target_1),
-            ("target_2", label_target_2),
-        ):
-            vocabulary = sorted(set(raw_labels))
-            labels = torch.tensor(
-                [vocabulary.index(value) for value in raw_labels]
+    for pooling, raws in (("token-mean", mean_raws), ("last-token", last_raws)):
+        for n_input in args.n_inputs:
+            features = torch.tensor(
+                [_fold_residual_to_ndim(raw, n_input) for raw in raws],
+                dtype=torch.float64,
             )
-            counts = torch.bincount(labels, minlength=len(vocabulary))
-            majority_share = float(counts.max()) / len(raw_labels)
-            real = _cross_validated_accuracy(
-                features, labels, class_count=len(vocabulary), folds=args.folds
+            features = (features - features.mean(dim=0)) / (
+                features.std(dim=0) + 1e-9
             )
-            shuffle_generator = torch.Generator().manual_seed(1234)
-            null = _cross_validated_accuracy(
-                features,
-                labels[
-                    torch.randperm(len(raw_labels), generator=shuffle_generator)
-                ],
-                class_count=len(vocabulary),
-                folds=args.folds,
-            )
-            width_results[name] = {
-                "class_count": len(vocabulary),
-                "majority_class_share": majority_share,
-                "probe": real,
-                "shuffled_label_null": null,
-            }
-            print(
-                f"n_input={n_input} {name}: classes={len(vocabulary)} "
-                f"majority={majority_share:.3f} "
-                f"probe={real['mean_test_accuracy']:.3f}"
-                f"+/-{real['std_test_accuracy']:.3f} "
-                f"null={null['mean_test_accuracy']:.3f}"
-                f"+/-{null['std_test_accuracy']:.3f}"
-            )
-        results[f"n_input_{n_input}"] = width_results
+            width_results: dict[str, object] = {}
+            for name, raw_labels in (
+                ("target_1", label_target_1),
+                ("target_2", label_target_2),
+            ):
+                vocabulary = sorted(set(raw_labels))
+                labels = torch.tensor(
+                    [vocabulary.index(value) for value in raw_labels]
+                )
+                counts = torch.bincount(labels, minlength=len(vocabulary))
+                majority_share = float(counts.max()) / len(raw_labels)
+                real = _cross_validated_accuracy(
+                    features,
+                    labels,
+                    class_count=len(vocabulary),
+                    folds=args.folds,
+                )
+                shuffle_generator = torch.Generator().manual_seed(1234)
+                null = _cross_validated_accuracy(
+                    features,
+                    labels[
+                        torch.randperm(
+                            len(raw_labels), generator=shuffle_generator
+                        )
+                    ],
+                    class_count=len(vocabulary),
+                    folds=args.folds,
+                )
+                width_results[name] = {
+                    "class_count": len(vocabulary),
+                    "majority_class_share": majority_share,
+                    "probe": real,
+                    "shuffled_label_null": null,
+                }
+                print(
+                    f"{pooling} n_input={n_input} {name}: "
+                    f"classes={len(vocabulary)} "
+                    f"majority={majority_share:.3f} "
+                    f"probe={real['mean_test_accuracy']:.3f}"
+                    f"+/-{real['std_test_accuracy']:.3f} "
+                    f"null={null['mean_test_accuracy']:.3f}"
+                    f"+/-{null['std_test_accuracy']:.3f}"
+                )
+            results[f"{pooling}:n_input_{n_input}"] = width_results
 
     payload = {
         "schema_version": "eta-step0-plan-identity-probe.v1",

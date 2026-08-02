@@ -290,6 +290,50 @@ def _rate_distortion_observation_bundle(
     against the same graph it was built from, rather than the hardcoded default.
     """
 
+    observation_texts, expert_targets = _rate_distortion_observation_texts(
+        case, environment=environment, protocol_version=protocol_version
+    )
+    snapshots = tuple(
+        _runtime_capture_snapshot(
+            runtime=open_weight_runtime,
+            case=case,
+            source_text=source_text,
+            step_index=step_index,
+            total_steps=len(observation_texts),
+        )
+        for step_index, source_text in enumerate(observation_texts)
+    )
+    normalized_snapshots = tuple(
+        replace(
+            snapshot,
+            residual_sequence=(),
+            description=(
+                f"{snapshot.description} Normalized to one environment-level "
+                "residual step for rate-distortion SSL."
+            ),
+        )
+        for snapshot in snapshots
+    )
+    return (
+        normalized_snapshots,
+        observation_texts,
+        expert_targets,
+    )
+
+
+def _rate_distortion_observation_texts(
+    case: ETAProofCase,
+    *,
+    environment: MiniHierarchicalEnvironment,
+    protocol_version: str = OBSERVATION_PROTOCOL_V1,
+) -> tuple[tuple[str, ...], tuple[ExpertActionTarget, ...]]:
+    """Render the per-phase observation texts and expert targets for a route.
+
+    Single source of truth for the observation protocol rendering; the trace
+    builder captures residuals for these texts, and diagnostics (e.g. the
+    step-0 plan-identity probe) reuse the exact same rendering.
+    """
+
     if protocol_version not in _OBSERVATION_PROTOCOLS:
         raise ValueError(
             f"Unknown observation protocol {protocol_version!r}; expected one "
@@ -376,32 +420,7 @@ def _rate_distortion_observation_bundle(
             f"Rate-distortion route {case.case_id!r} must publish at least "
             "two phases."
         )
-    snapshots = tuple(
-        _runtime_capture_snapshot(
-            runtime=open_weight_runtime,
-            case=case,
-            source_text=source_text,
-            step_index=step_index,
-            total_steps=len(observation_texts),
-        )
-        for step_index, source_text in enumerate(observation_texts)
-    )
-    normalized_snapshots = tuple(
-        replace(
-            snapshot,
-            residual_sequence=(),
-            description=(
-                f"{snapshot.description} Normalized to one environment-level "
-                "residual step for rate-distortion SSL."
-            ),
-        )
-        for snapshot in snapshots
-    )
-    return (
-        normalized_snapshots,
-        tuple(observation_texts),
-        tuple(expert_targets),
-    )
+    return (tuple(observation_texts), tuple(expert_targets))
 
 
 def _build_traces(
