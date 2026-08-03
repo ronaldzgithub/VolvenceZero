@@ -182,6 +182,8 @@ class ProcessRestartEvidence:
     next_instance_id: str
     healthcheck_passed: bool
     persistence_scope_unchanged: bool
+    previous_persistence_scope_sha256: str
+    next_persistence_scope_sha256: str
     state_intervention: StateInterventionEvidence
 
     def __post_init__(self) -> None:
@@ -195,6 +197,19 @@ class ProcessRestartEvidence:
             raise RuntimeError("restarted service failed health check")
         if not self.persistence_scope_unchanged:
             raise RuntimeError("restart changed the owner persistence scope")
+        _require_sha256(
+            self.previous_persistence_scope_sha256,
+            field="previous_persistence_scope_sha256",
+        )
+        _require_sha256(
+            self.next_persistence_scope_sha256,
+            field="next_persistence_scope_sha256",
+        )
+        if (
+            self.previous_persistence_scope_sha256
+            != self.next_persistence_scope_sha256
+        ):
+            raise RuntimeError("restart health reports different persistence scopes")
 
 
 @dataclass(frozen=True)

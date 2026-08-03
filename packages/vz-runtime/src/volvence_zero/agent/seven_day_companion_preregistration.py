@@ -7,11 +7,18 @@ import json
 from pathlib import Path
 from typing import Mapping
 
+from volvence_zero.agent.evidence_statistics import PAIRED_STUDENT_T_95_METHOD
 from volvence_zero.agent.seven_day_companion_evidence import (
     SEVEN_DAY_ALL_ARMS,
     SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION,
     SEVEN_DAY_METRICS,
     SEVEN_DAY_PREREG_SCHEMA_VERSION,
+)
+from volvence_zero.agent.seven_day_n_plus_one import (
+    build_seven_day_n_plus_one_contract,
+)
+from volvence_zero.seven_day_evidence_contract import (
+    SEVEN_DAY_SHUFFLED_SOURCE_DAYS,
 )
 
 
@@ -28,6 +35,7 @@ SEVEN_DAY_PREREG_CODE_PATHS = (
     "packages/lifeform-service/src/lifeform_service/app.py",
     "packages/lifeform-service/src/lifeform_service/character_packages.py",
     "packages/lifeform-service/src/lifeform_service/cli.py",
+    "packages/lifeform-service/src/lifeform_service/dto.py",
     "packages/lifeform-service/src/lifeform_service/session_manager.py",
     "packages/lifeform-evolution/src/lifeform_evolution/seven_day_companion.py",
     "packages/lifeform-evolution/src/lifeform_evolution/seven_day_process_host.py",
@@ -38,6 +46,11 @@ SEVEN_DAY_PREREG_CODE_PATHS = (
     "packages/vz-runtime/src/volvence_zero/agent/seven_day_companion_evidence.py",
     "packages/vz-runtime/src/volvence_zero/agent/gate811_simulated_capture.py",
     "packages/vz-runtime/src/volvence_zero/agent/seven_day_companion_preregistration.py",
+    "packages/vz-runtime/src/volvence_zero/agent/evidence_statistics.py",
+    "packages/vz-runtime/src/volvence_zero/agent/seven_day_n_plus_one.py",
+    "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py",
+    "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py",
+    "packages/vz-contracts/src/volvence_zero/seven_day_evidence_contract.py",
     "packages/vz-substrate/src/volvence_zero/substrate/common_adapter_bundle.py",
     "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py",
     "packages/lifeform-domain-character/src/lifeform_domain_character/character_package.py",
@@ -356,6 +369,7 @@ def build_seven_day_companion_preregistration(
         root,
         extra_paths=runtime_artifact_paths,
     )
+    formal_models = _formal_models(normalized_runtime_stack)
     payload: dict[str, object] = {
         "schema_version": (
             SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION
@@ -387,7 +401,11 @@ def build_seven_day_companion_preregistration(
             "virtual_start_ms": 1_800_000_000_000,
             "execution_device": "mps",
         },
-        "formal_models": _formal_models(normalized_runtime_stack),
+        "formal_models": formal_models,
+        "n_plus_one_measurement": build_seven_day_n_plus_one_contract(
+            sut_model=_require_mapping(formal_models["sut"], field="formal_models.sut"),
+            execution_device="mps",
+        ),
         "source_requirements": {
             "simulator_backend": "real-llm-or-local-open-weight",
             "sut_backend": "real-frozen-substrate",
@@ -404,14 +422,9 @@ def build_seven_day_companion_preregistration(
             "stateless": "load no prior owner snapshot at each new day",
             "swapped-user-state": ("load a matched donor user's owner snapshots only"),
             "shuffled-history": ("load same-user owner snapshots in preregistered shuffled order"),
-            "shuffled_history_source_days_after_day_1_to_6": [
-                1,
-                1,
-                2,
-                1,
-                4,
-                3,
-            ],
+            "shuffled_history_source_days_after_day_1_to_6": list(
+                SEVEN_DAY_SHUFFLED_SOURCE_DAYS
+            ),
             "sleep-consolidation": "drain the end-scene slow loop",
             "no-sleep": "do not drain the end-scene slow loop",
             "only_manipulated_variables": [
@@ -429,29 +442,39 @@ def build_seven_day_companion_preregistration(
         },
         "readouts": {
             "daily_owner_metrics": list(SEVEN_DAY_METRICS),
-            "primary_state": "day-7 direction-normalized continuity composite",
-            "primary_sleep": "day-2..7 cold-start continuity composite",
+            "primary_state": (
+                "days6-7 frozen-SUT substrate N+1 cosine prediction gain"
+            ),
+            "primary_sleep": (
+                "days6-7 frozen-SUT substrate N+1 cosine prediction gain"
+            ),
+            "owner_metrics_role": "secondary diagnostics only",
             "callback": "typed callback-opportunity callback_hit_rate",
             "fsm_probe_pass_rate": "secondary when typed scorer is present",
             "llm_judge": "secondary-only",
-            "missing_metric_policy": "no imputation; fail metric-coverage gate",
+            "missing_metric_policy": (
+                "no imputation; preserve null as a secondary diagnostic; "
+                "N+1 primary remains independently evaluable"
+            ),
             "console_metrics_source": "public relationship-memory action API",
             "evaluation_writeback_allowed": False,
         },
         "minimum_effects": {
-            "final_day_continuity_composite_gain": 0.02,
-            "callback_hit_rate_gain": 0.02,
-            "cold_start_continuity_composite_gain": 0.02,
+            "n_plus_one_prediction_quality_gain": 0.02,
         },
         "confidence": {
-            "method": "paired normal 95% interval",
+            "method": PAIRED_STUDENT_T_95_METHOD,
             "lower_bound_must_exceed_zero": True,
             "all_preregistered_cases_required": True,
         },
         "kill_conditions": {
-            "correct_not_better_than_stateless": ("shrink continuity claim to typed owner-metric behavior only"),
-            "sleep_not_better_than_no_sleep": ("do not make next-day consolidation product claim"),
-            "missing_owner_metric": "no causal verdict; repair instrumentation",
+            "correct_not_better_than_stateless": (
+                "N+1 state benefit not supported; retain rollback"
+            ),
+            "sleep_not_better_than_no_sleep": (
+                "N+1 consolidation benefit not supported; retain rollback"
+            ),
+            "missing_n_plus_one_evidence": "no causal verdict; repair instrumentation",
             "arm_matching_drift": "abort run before analysis",
             "model_family_overlap": "abort run before analysis",
         },

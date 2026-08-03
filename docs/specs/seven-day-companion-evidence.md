@@ -1,17 +1,18 @@
 # Seven-Day Simulated Companion Evidence Spec
 
-> Status: v1 base-only smoke complete / formal halted at 16/36 for instrument-discrimination；v2 base+adapter+character contract and tooling complete, no ACTIVE artifact smoke yet
-> Last updated: 2026-08-02
+> Status: historical v1 formal halted at 16/36；N+1-based v3 base-only / v4 character-stack contracts, runners, smoke gate, resume validation and auditors implemented；no new formal artifact yet
+> Last updated: 2026-08-03
 > 对应需求: R5、R6、R7、R8、R12、R15
 > 关联债务: #93（只提供 simulated-longitudinal 辅助证据，不关闭 real-user EXIT）
 
 ## 目的与主张边界
 
 本能力把 `companion-bench` 的 typed FSM 模拟用户、`lifeform-service` 的公开 HTTP
-session/end-scene 接口、owner persist/restart/hydrate 生命周期和
-`relationship_continuity` 七项只读指标接成七个虚拟日的自动证据回路。它回答的是：
-在**模拟用户 + 真实产品生命周期**下，仅改变 per-user state loading 或 sleep drain
-是否导致对话级连续性 readout 改善。
+session/end-scene 接口、owner persist/restart/hydrate 生命周期、冻结 substrate N+1 表示
+预测和七项只读 owner diagnostics 接成七个虚拟日的自动证据回路。它回答的是：在
+**模拟用户 + 真实产品生命周期**下，仅改变预注册机制时，系统自身冻结 substrate 的下一
+用户表示是否变得更可预测，以及 Gate 专用 owner readout 是否出现成对改善。七项
+`relationship_continuity` 指标只保留为 secondary diagnostics，不再充当因果共同主判据。
 
 自动结果的唯一允许措辞是 `simulated-user-real-lifecycle-only`。它不等于真实用户产品
 价值，不授权 production promotion，也不改变任何运行时 `WiringLevel`。L4 盲评中聊天者
@@ -28,11 +29,17 @@ EXIT。
   owner。typed FSM 先生成不可变的实质句，本地 Qwen 只从封闭候选中选择语气开场；
   它不得改写事实、preference、boundary 或 callback。35 个 turns 通过 SHA 冻结，各消融
   臂逐字节重放；臂间 assistant response 不得回头改变用户输入。
+- `vz-substrate.SubstrateForwardRepresentationPublisher` 发布同一冻结正式 SUT 的无个人
+  条件 residual target；`vz-cognition.prediction_error` 拥有有界
+  `Linear → Tanh → Linear` forward head。context 只含 canonical user/assistant product
+  transcript prefix，不含 owner/evaluation readout；Day 1–5 训练后冻结，Day 6–7 held-out，
+  同时发布 persistence baseline。
 - `vz-runtime.seven_day_companion_evidence` 是 out-of-turn evaluation owner，只读 run
-  artifact，发布 `seven-day-companion-ablation.v1`。结果禁止进入 PE、credit、reward、
+  artifact，发布 `seven-day-companion-ablation.v2`。结果禁止进入 PE、credit、reward、
   ModificationGate 或 owner hydration。
-- 复用既有 `relationship_continuity` slot 和 owner hydration 契约，不新增 runtime slot；
-  因此 `docs/DATA_CONTRACT.md` 无新注册项。
+- N+1 target 复用已注册的 substrate forward-representation public exchange；七日 evaluator
+  不新增 runtime slot。乱序 source-day 常量由 `vz-contracts` 的
+  `SEVEN_DAY_SHUFFLED_SOURCE_DAYS` 单一发布，state controller、预注册和 auditor 共同消费。
 
 ## 七日日程与生命周期
 
@@ -43,10 +50,14 @@ readout 必须位于 end-scene 之前，因为 end-scene 会清空当前上游�
 service instance identity，health check 成功且 persistence scope 不变；Day N+1 在同一
 user scope 建 session，由 owner 正式 hydration 路径读取状态。
 
-正式 process host 以 argv（`shell=false`）启动 service，每次重启先终止自己拥有的旧
-进程、轮询 `/v1/health`、再把 HTTP client 绑定到新的 generation/PID identity。state
-controller 只允许操作显式 evidence root 的子目录，不删除数据：当天 active scope 原子
-rename 为 immutable `day-N` archive，再按臂把来源 archive copy 到下一实例的 active
+正式 process host 以 argv（`shell=false`）启动 service。Day 1–6 的硬顺序是
+`stop old service → archive/stage state → start new service → validate health`；旧进程彻底退出前
+禁止 rename/copy active scope，避免 shutdown persist 污染已经计 digest 的 archive。新旧
+`/v1/health` 都必须实际上报由已解析 persistence root 计算的 SHA-256，两个值须相同且等于
+runner 预期 scope；`healthcheck_passed` 与 `persistence_scope_unchanged` 不允许硬编码。
+
+state controller 只允许操作显式 evidence root 的子目录，不删除数据：当天 active scope
+原子 rename 为 immutable `day-N` archive，再按臂把来源 archive copy 到下一实例的 active
 scope；archive 与 loaded copy 都发布 SHA-256。`evaluation__relationship_continuity_v1.json`
 是测量 checkpoint，不属于被操纵的产品 owner state：state digest 明确排除它，所有臂在
 staging 后恢复当臂自己的 measurement bytes，并单独发布 SHA-256。
@@ -84,11 +95,23 @@ Sleep 两臂：`sleep-consolidation` 在 end-scene drain slow loop，`no-sleep` 
 分别执行 `keep` 与 `delete(content_inaccurate)`；两项行为在所有臂完全相同，提供 console、
 correction、wrong-attribution 与 usefulness 的真实分母，不做指标插补，也不直调 owner。
 
-每日记录七项 owner readout、cold-start/end-of-day 两个 phase、typed callback
-opportunity 与可选 `fsm_probe_pass_rate`。主判据不做缺失值插补：单个 phase 七项任一为
-`null` 时该 phase composite 为 `null`；coverage gate 要求 Day-7 composite、callback pair
-和 Day 2–7 至少一个完整 cold-start composite 对每个预注册 case 成对齐全。Day-1 只有一个
-trust point，允许其 trust delta 为 `null`。LLM judge 和 FSM semantic scorer只能是次级 readout。
+每个 run 还必须内嵌 `seven-day-substrate-n-plus-one.v1`：35 个 arm-independent user target
+rows、34 个 arm-conditioned transcript-prefix context rows、24 个 Day 1–5 training examples、
+10 个 Day 6–7 held-out observations、完整 prediction/actual/persistence vectors、逐项 metric、
+target/model/head fingerprints 与 aggregate readout。evaluator 会从存储向量重算 MSE、cosine、
+persistence baseline 和所有 SHA；同一 case 的所有臂必须共享完全相同的 target sequence 与
+target snapshot。target 捕获若应用 personal conditioning、context 若含 owner/evaluation
+readout、held-out 期间更新 head，均属于契约失败。
+
+因果共同主判据是 treatment 相对 control 的 held-out mean cosine-similarity gain：mean 至少
+`0.02`，paired two-sided Student-t 95% CI 下界大于 `0`。固定表使用
+`t_(0.975, df)`；`n<2` 没有 CI，禁止把单对样本的 point estimate 冒充置信区间。
+
+每日七项 owner readout、cold-start/end-of-day phase、typed callback opportunity 与可选
+`fsm_probe_pass_rate` 继续原样记录，但只是 secondary diagnostics。任何缺失值保持 `null`、
+不得插补，也不阻断独立完整的 N+1 主判据；Gate 专用 mechanism、primary 与
+boundary/wrong-user safety 字段仍必须齐全并 fail loudly。LLM judge 和 FSM semantic scorer
+同样只能是次级 readout。
 
 ## 冻结预注册与当前状态
 
@@ -127,13 +150,22 @@ supersession 与 source-drift invalidation artifact 均单独保留方法学变�
 **不允许原样 `--resume`**：仪器须先按收窄计划 S3 换成冻结 N+1 substrate 表示预测目标
 （arm-independent、非循环），并另开预注册；七项 owner readout 届时降为 secondary。
 
+该替换现已在协议与执行代码中完成：base-only 新 schema 是
+`seven-day-companion-simulated.v3`，character-stack 新 schema 是 `.v4`；Gate 1 与 suite
+分别是 `gate1-seven-day-companion-prereg.v2` 和
+`companion-gate-suite-seven-day-prereg.v2`。这些版本没有继承旧矩阵 measurement，也没有
+事后改写旧 artifact；必须重新生成 hardware/model/source-specific preregistration、冻结
+execution root 和输出根。截至 2026-08-03 尚未生成新 formal bundle，因此这里陈述的是
+“实验已可严格执行”，不是“N+1 效应已经成立”。
+
 v1 已完成 run 全部冻结为
 `HuggingFaceTB/SmolLM2-360M-Instruct + adapter:none`，每个 run 都有 6 次进程重启。这些
 run 不得在完成后补写 common adapter 或角色包字段，也不得与 v2 合并分析。
 
-## v2：base + Common Adapter + per-session Character Package
+## v4：base + Common Adapter + per-session Character Package
 
-`seven-day-companion-simulated.v2` 是独立的新预注册协议，不改变 v1。v2 只接受：
+`seven-day-companion-simulated.v4` 在历史 v2 character-stack contract 上加入同一 N+1
+measurement、Student-t CI、smoke admission 与严格 resume。它不改变 v1/v2 artifact。v4 只接受：
 
 - 一个通过 `ModificationGate.OFFLINE`、`require_active()` 成功的
   `CommonAdapterBundle`；
@@ -156,10 +188,10 @@ version/compatibility fingerprint、角色 Prefix/KV ID、vertical 与选角。�
 4. 六个 matched arms 使用相同的完整模型栈指纹。
 
 任一字段缺失、SHADOW/disabled、文件 digest 漂移、Prefix/KV 未真实应用、进程重启后装载栈
-变化，均在 effect analysis 前 fail closed。v2 smoke 仍是
+变化，均在 effect analysis 前 fail closed。v4 smoke 仍是
 `simulated-user-real-lifecycle-only`，不授权 production promotion。
 
-v2 必须使用新的输出根和新 preregistration；不能对当前 v1 目录执行 `--resume`。当前仓库尚无
+v4 必须使用新的输出根和新 preregistration；不能对当前 v1/v2 目录执行 `--resume`。当前仓库尚无
 通过正式 ALLOW gate 的 common bundle/角色 manifest，因此状态是“实现和测试接线完成，真实
 ACTIVE 七天 smoke 待训练产物”，不能表述为已跑通。
 
@@ -207,9 +239,9 @@ dispatch SSOT，不拥有实验变量、readout 或 verdict：
 
 | preregistration schema | 自动路由的 Gate | campaign runner / auditor |
 |---|---|---|
-| `seven-day-companion-simulated.v1` / character-stack `v2` | 8/11 | `run_seven_day_companion_formal.py` / `audit_seven_day_companion_formal.py` |
-| `gate1-seven-day-companion-prereg.v1` | 1 | `run_seven_day_gate1_formal.py` / `audit_seven_day_gate1_formal.py` |
-| `companion-gate-suite-seven-day-prereg.v1` | 4/5/6/7/9/10，由冻结 `gate_id` 唯一选择 | `run_seven_day_gate_suite_formal.py` / `audit_seven_day_gate_suite_formal.py` |
+| `seven-day-companion-simulated.v3` / character-stack `v4` | 8/11 | `run_seven_day_companion_formal.py` / `audit_seven_day_companion_formal.py` |
+| `gate1-seven-day-companion-prereg.v2` | 1 | `run_seven_day_gate1_formal.py` / `audit_seven_day_gate1_formal.py` |
+| `companion-gate-suite-seven-day-prereg.v2` | 4/5/6/7/9/10，由冻结 `gate_id` 唯一选择 | `run_seven_day_gate_suite_formal.py` / `audit_seven_day_gate_suite_formal.py` |
 
 未知 schema、未知 `gate_id` 或非 MPS hardware-specific preregistration 一律 fail loudly。共同
 control-plane helper 与本入口纳入所有后续七日 preregistration 的执行源码快照；已经冻结的旧
@@ -228,8 +260,11 @@ preregistration 的 code manifest 与 execution source roots，避免“负责�
 `PYTORCH_ENABLE_MPS_FALLBACK=0`，并持有共享的
 `artifacts/.companion-evidence-mps.lock`。因此经两个新控制面启动的七日计划与 MSC N+1
 计划不能并发占用 MPS，
-也不能在 MPS 不可用时悄悄改用 CPU。`status` 与 `audit` 不占 MPS；`all` 的顺序固定为
-preflight → formal → audit。完整 formal 的退出码 `0` 表示预注册判据支持、`2` 表示预注册
+也不能在 MPS 不可用时悄悄改用 CPU。MPS 锁在 campaign runner 的直接入口再次执行，绕过
+控制面的手工直调也不能占用同一设备。`status` 与 `audit` 不占 MPS；`all` 的顺序固定为
+preflight → smoke → formal → audit。formal 必须验证同一 preregistration SHA 下的独立
+`smoke_manifest.json`；Gate 7/9 smoke 还必须同时观察到 Day ≤2 与 Day ≥6 的真实 joint cycle，
+否则在大矩阵启动前终止。完整 formal 的退出码 `0` 表示预注册判据支持、`2` 表示预注册
 判据未支持；二者都是必须继续独立审计的科学终态。源码漂移、artifact 不完整、service 故障等
 integrity failure 才会停止后续阶段；审计失败覆盖 formal 结果并返回失败。
 控制面落地前已经手工启动的进程不持有该锁，必须在原终端单独确认已退出。
@@ -238,8 +273,12 @@ integrity failure 才会停止后续阶段；审计失败覆盖 formal 结果并
 
 formal runner 在运行中自动落盘冻结 user script、每个已完成臂的 run
 envelope、每日 measurement checkpoint、archive/loaded-copy digest 和 service log。
-`--resume` 只可在同一 preregistration 和冻结 execution root 上跳过已完成 run；
-任一源码、脚本或状态证明漂移都走既有 fail-closed 路径。运行期 `status` 按冻结的
+`--resume` 只可在同一 preregistration 和冻结 execution root 上跳过已完成且重新验证通过的
+run；验证覆盖 schema、case/arm identity、7×5 turn matrix、六次 restart 与服务 scope 链、
+runtime profile SHA、v4 stack attestation 和完整 N+1 vectors/lineage。损坏、部分写入或旧格式
+run 连同残留 state/service/pilot 目录会移入输出根内的 recoverable `quarantine/`，随后只重跑
+该 arm；最终 JSON 只在全部追加证据验证通过后原子落盘。任一源码、脚本或状态证明漂移都走
+既有 fail-closed 路径。运行期 `status` 按冻结的
 scenario × seed × arm 精确重建预期文件名，再校验每个 run envelope 的 schema 与身份；额外、
 损坏或错配的 run 都单独报告。只有 exact matrix、campaign evaluation artifact 和同时绑定
 同一 preregistration SHA 与当前 evaluation SHA 的有效 independent audit 存在时，
@@ -272,21 +311,22 @@ root、virtual-calendar override、`hf-shared` 和 `local-files-only` 才能启�
 HTTP turn evidence append-only 发布 PE magnitude/bootstrap 与 world/self temporal PE-applied flag。
 `Gate1SevenDayHarness` 要求每个 case 两臂各 35 个 PE readout、on 臂所有 non-bootstrap turn 的
 双轨 PE write load-bearing、off 臂为零写入；效应主判据是 Day 1–2 到 Day 6–7 的 PE adaptation
-相对 off 增益，产品次判据为 Day-7 continuity composite，二者都要求 mean ≥ `0.02` 且 paired
-95% CI 下界大于零，并要求 boundary/wrong-user safety 零退化。即使全部通过，自动实验仍固定
+相对 off 增益，共同主判据是 held-out N+1 substrate cosine prediction gain；二者都要求
+mean ≥ `0.02` 且 paired Student-t 95% CI 下界大于零，并要求 boundary/wrong-user safety
+零退化。Day-7 continuity composite 是 nullable、非 gating secondary。即使全部通过，自动实验仍固定
 `production_promotion_authorized=false`；它最多把 Gate 1 提升为 simulated product-ecology
 causal support，生产晋升仍需独立真人/部署证据。
 
 入口为 `scripts/preregister_seven_day_gate1.py`、
 `scripts/run_seven_day_gate1_formal.py` 与独立重算入口
 `scripts/audit_seven_day_gate1_formal.py`；正式默认至少 6 scenarios × 3 seeds × 2 arms = 36 runs、
-252 sessions、1260 exchanges。`--resume` 只跳过完全存在且随后通过 profile/run 审计的 arm，
+252 sessions、1260 exchanges。`--resume` 只跳过完全存在且随后通过 profile/run/N+1 审计的 arm，
 缺字段、attestation SHA 漂移或 matrix extra/missing 一律在效果分析前中止。
 
-## Gate 4/5/6/7/9/10 专用配对包（2026-08-02）
+## Gate 4/5/6/7/9/10 专用配对包（2026-08-03）
 
 这些 Gate 不能从原 Gate 8/11 state/sleep 矩阵事后推断。仓库现提供独立的
-`companion-gate-suite-seven-day-prereg.v1`，每个 Gate 必须单独开新的
+`companion-gate-suite-seven-day-prereg.v2`，每个 Gate 必须单独开新的
 hardware/model-specific preregistration 和输出根。共同执行形状为 6 scenarios × 3 seeds；
 Gate 7 是 3 臂、54 runs / 378 sessions / 1,890 exchanges，其余均为 2 臂、36 runs /
 252 sessions / 1,260 exchanges。所有臂逐字节重放同一冻结用户脚本，使用 correct-user-state、
@@ -309,9 +349,13 @@ Gate 10 是唯一允许 mutable shared substrate 的证据 profile，并且只�
 沿用共享 frozen-runtime guard 并 fail loudly。该例外不改变产品默认：无 evidence profile 时
 substrate live mutation 仍禁止，review-only 仍是回滚线。
 
-正式判读先过 mechanism load-bearing，再比较 treatment 对每个 control 的 paired primary、
-Day-7 continuity 与 safety。primary 和 continuity 都要求 mean ≥ `0.02` 且 paired 95% CI
-下界大于零，boundary/wrong-user 不得退化；缺 arm、缺 telemetry、profile SHA 漂移、重启不完整、
+正式判读先过 mechanism load-bearing，再比较 treatment 对每个 control 的 Gate-specific
+primary、N+1共同主判据与 safety。Gate-specific primary 和 N+1 都要求 mean ≥ `0.02` 且
+paired Student-t 95% CI 下界大于零；Day-7 continuity 仅作 nullable secondary，
+boundary/wrong-user 仍不得退化。Gate 9 只在 `joint_cycle_executed=true` 的 turn 读取
+`ssl_m3_slow_gain`，因此 cycle 前 treatment 发布的 `0.0` 不污染配置证明；on/off 两臂仍都须
+观测非零 slow momentum，以证明 `slow_gain=0` 只关参数应用而未移除 M3 signal。缺 arm、缺
+telemetry、profile SHA 漂移、重启不完整、
 HTTP 4xx/5xx 或源码 manifest 漂移均在效应判读前中止。自动结果恒为
 `simulated-seven-day-product-ecology-only` 且
 `production_promotion_authorized=false`：包已实现不等于 Gate 已通过，更不等于 production ACTIVE。
@@ -333,22 +377,25 @@ HTTP 4xx/5xx 或源码 manifest 漂移均在效应判读前中止。自动结果
 
 ## 失败、退出与回滚
 
-- correct-state 不优于 stateless：把连续性主张收缩到 typed owner metric 行为；不换
+- correct-state 的 N+1 prediction 不优于 stateless：不支持状态使 substrate 表示更可预测；不换
   seed、不降阈值。
-- sleep 不优于 no-sleep：禁止次日巩固产品主张。
-- metric 缺失、模型族重叠、user-turn/calendar/fingerprint 不匹配：分析前 abort，先修
-  instrumentation，不能产生效应判词。
+- sleep 的 N+1 prediction 不优于 no-sleep：禁止次日巩固产品主张。
+- N+1、机制、safety 字段缺失，或模型族重叠、user-turn/calendar/fingerprint 不匹配：分析前
+  abort，先修 instrumentation，不能产生效应判词。secondary owner metric 缺失保持 null，
+  不插补也不阻断独立主判据。
 - 回滚：停止七日证据 runner、隐藏/撤下对应 evaluation artifact；不删除 owner 已有
   产品状态，不修改 reward/credit/learning，也不切换 production wiring。
 
 ## 验证
 
 - `packages/lifeform-evolution/tests/test_seven_day_companion.py`
+- `packages/lifeform-evolution/tests/test_seven_day_state_control.py`
 - `packages/companion-bench/tests/test_seven_day_driver.py`
 - `packages/companion-bench/tests/test_seven_day_scenario_package.py`
 - `packages/vz-runtime/tests/test_seven_day_companion_evidence.py`
 - `packages/vz-runtime/tests/test_gate811_simulated_capture.py`
 - `packages/vz-runtime/tests/test_seven_day_companion_preregistration.py`
+- `packages/vz-runtime/tests/test_evidence_statistics.py`
 - `packages/vz-runtime/tests/test_companion_test_plan_cli.py`
 - `packages/vz-runtime/tests/test_companion_gate1_evidence_wiring.py`
 - `packages/vz-runtime/tests/test_gate1_seven_day_evidence.py`

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import sys
 
 from companion_bench.seven_day_driver import (
     FrozenSevenDayUserScript,
@@ -29,6 +30,9 @@ from volvence_zero.agent.companion_gate_suite_preregistration import (
 from volvence_zero.agent.seven_day_companion_evidence import (
     SevenDayExperimentCase,
 )
+from volvence_zero.agent.seven_day_n_plus_one import (
+    build_seven_day_n_plus_one_compiler,
+)
 
 from run_seven_day_companion_formal import (
     _LocalFormalExecutor,
@@ -36,6 +40,11 @@ from run_seven_day_companion_formal import (
     _model_contract,
     _sha256,
     _verify_model,
+)
+from companion_test_plan_common import (
+    guarded_mps_runner_entrypoint,
+    validate_seven_day_smoke_manifest,
+    write_seven_day_smoke_manifest,
 )
 
 
@@ -92,6 +101,7 @@ def main() -> int:
     parser.add_argument("--smoke-one-pair", action="store_true")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--smoke-evidence-root", type=Path)
     args = parser.parse_args()
     if sum((args.preflight_only, args.smoke_one_pair, args.execute)) != 1:
         raise ValueError("select exactly one of --preflight-only, --smoke-one-pair, or --execute")
@@ -110,6 +120,17 @@ def main() -> int:
         repo_root=root,
         expected_profile_contracts=_profile_contracts(args.gate),
     )
+    if args.execute:
+        if args.smoke_evidence_root is None:
+            raise ValueError(
+                "gate-suite formal execution requires --smoke-evidence-root"
+            )
+        validate_seven_day_smoke_manifest(
+            smoke_root=args.smoke_evidence_root.resolve(),
+            preregistration=preregistration,
+            campaign=f"gate{args.gate}",
+            gate_id=args.gate,
+        )
     formal = preregistration.get("formal_run")
     scenario_ids = preregistration.get("scenario_ids")
     scenario_paths = preregistration.get("scenario_paths")
@@ -122,7 +143,7 @@ def main() -> int:
         raise ValueError("gate-suite formal seeds are malformed")
     sut = _model_contract(preregistration, role="sut")
     simulator = _model_contract(preregistration, role="simulator")
-    _verify_model(sut)
+    sut_snapshot = _verify_model(sut)
     _verify_model(simulator)
     if sut["model_family"] == simulator["model_family"]:
         raise ValueError("formal SUT and simulator model families overlap")
@@ -133,6 +154,9 @@ def main() -> int:
         max_new_tokens=int(simulator["max_new_tokens"]),
     )
     cases = tuple(SevenDayExperimentCase(str(scenario_id), int(seed)) for scenario_id in scenario_ids for seed in seeds)
+    n_plus_one_contract = preregistration.get("n_plus_one_measurement")
+    if not isinstance(n_plus_one_contract, dict):
+        raise ValueError("gate-suite preregistration lacks N+1 measurement")
     if args.preflight_only:
         digests = {}
         for case in cases:
@@ -146,6 +170,10 @@ def main() -> int:
                 temperature=float(simulator["temperature"]),
             )
             digests[case.case_id] = script.script_sha256
+        build_seven_day_n_plus_one_compiler(
+            model_source=sut_snapshot,
+            contract=n_plus_one_contract,
+        )
         print(
             json.dumps(
                 {
@@ -155,6 +183,7 @@ def main() -> int:
                     "pair_count": len(cases),
                     "run_count": len(cases) * len(GATE_ARM_SCHEDULES[args.gate]),
                     "profiles": list(GATE_ARM_SCHEDULES[args.gate]),
+                    "n_plus_one_measurement": "load-and-contract-passed",
                     "script_sha256": digests,
                 },
                 sort_keys=True,
@@ -207,12 +236,21 @@ def main() -> int:
         ),
         pii_scan_artifact_sha256=hashlib.sha256(source_audit_bytes).hexdigest(),
     )
+    del simulator_backend
+    n_plus_one_compiler = build_seven_day_n_plus_one_compiler(
+        model_source=sut_snapshot,
+        contract=n_plus_one_contract,
+    )
     arms = GATE_ARM_SCHEDULES[args.gate]
     executor = _LocalFormalExecutor(
         repo_root=root,
         output_root=target,
         cases=selected_cases,
         scripts=scripts,
+        scenario_paths={
+            str(scenario_id): str(path)
+            for scenario_id, path in scenario_paths.items()
+        },
         source_attestation=source_attestation,
         sut_model_id=str(sut["model_id"]),
         sut_max_new_tokens=int(sut["max_new_tokens"]),
@@ -223,11 +261,14 @@ def main() -> int:
         virtual_start_ms=int(formal["virtual_start_ms"]),
         evidence_profile_by_arm={arm: arm for arm in arms},
         state_loading_policy_by_arm={arm: "correct-user-state" for arm in arms},
+        n_plus_one_compiler=n_plus_one_compiler,
+        n_plus_one_contract=n_plus_one_contract,
     )
     result = CompanionGateSuiteHarness(gate_id=args.gate, executor=executor).run(
         cases=selected_cases,
         preregistration=preregistration,
         output_dir=target,
+        evidence_tier="smoke" if args.smoke_one_pair else "formal",
     )
     print(
         json.dumps(
@@ -243,9 +284,41 @@ def main() -> int:
         )
     )
     if args.smoke_one_pair:
+        evaluation_path = target / f"gate{args.gate}_smoke_evaluation.json"
+        early_late_coverage = True
+        if args.gate in {7, 9}:
+            early_late_coverage = all(
+                dict(row.mechanism_counts).get("early_joint_cycles", 0) > 0
+                and dict(row.mechanism_counts).get("late_joint_cycles", 0) > 0
+                for row in result.readouts
+            )
+        write_seven_day_smoke_manifest(
+            output_root=target,
+            preregistration=preregistration,
+            campaign=f"gate{args.gate}",
+            gate_id=args.gate,
+            evidence_file=evaluation_path.relative_to(target).as_posix(),
+            evidence_sha256=hashlib.sha256(
+                evaluation_path.read_bytes()
+            ).hexdigest(),
+            checks={
+                "mechanism-load-bearing": result.mechanism_supported,
+                "early-late-cycle-coverage": early_late_coverage,
+                "n-plus-one-artifacts-valid": all(
+                    row.n_plus_one_target_sequence_sha256
+                    for row in result.readouts
+                ),
+            },
+        )
         return 0 if result.mechanism_supported else 2
     return 0 if result.causal_supported else 2
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(
+        guarded_mps_runner_entrypoint(
+            main,
+            plan_id="seven-day-gate-suite-formal-runner",
+            argv=sys.argv[1:],
+        )
+    )

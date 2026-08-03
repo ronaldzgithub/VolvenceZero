@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from lifeform_service import cli
+from lifeform_service.alpha import AlphaServiceConfig
 from lifeform_service.app import create_app
 from lifeform_service.companion_evidence_profile import (
     GATE10_RARE_HEAVY_IMPORT,
@@ -28,6 +31,33 @@ from lifeform_service.companion_evidence_profile import (
 from lifeform_service.verticals import _try_companion
 from volvence_zero.brain import BrainConfig
 from volvence_zero.runtime import WiringLevel
+
+
+async def test_health_publishes_resolved_persistence_scope_sha256(
+    tmp_path,
+) -> None:
+    persistence_root = tmp_path / "owner-state"
+    persistence_root.mkdir()
+    app = create_app(
+        vertical=_try_companion(),
+        alpha_config=AlphaServiceConfig(
+            memory_scope_root_dir=str(persistence_root),
+        )
+    )
+    health_route = next(
+        route
+        for route in app.router.routes()
+        if route.method == "GET"
+        and route.resource.canonical == "/v1/health"
+    )
+
+    response = await health_route.handler(SimpleNamespace(app=app))
+
+    assert response.status == 200
+    payload = json.loads(response.body)
+    assert payload["persistence_scope_sha256"] == hashlib.sha256(
+        persistence_root.resolve().as_posix().encode("utf-8")
+    ).hexdigest()
 
 
 def test_gate1_profiles_keep_publication_and_match_non_pe_runtime() -> None:

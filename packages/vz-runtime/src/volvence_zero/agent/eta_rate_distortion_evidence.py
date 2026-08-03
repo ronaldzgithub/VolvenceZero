@@ -111,16 +111,49 @@ RATE_DISTORTION_SCHEMA_VERSION = "eta-rate-distortion-evidence.v1"
 # ("Route plan: visit white, then purple."), which is what a readable plan
 # means for a frozen language substrate. The latent still has to transport
 # the plan across boundaries, so this is not a leak.
+#
+# v4 fixes the structural incentive flaw v3 exposed at runtime (the
+# eta_stage1_gate1_v3_gated_20260802 partial sweep): under v3 ALL plan
+# information arrives at step 0, the step-0 gate is forced to 1 anyway, and
+# the full plan (~6 bits) trivially fits in a 16-dim latent, so
+# "encode once, keep forever" is the information-theoretic optimum of Eq.3 --
+# a mid-route switch cannot transmit information the encoder never newly
+# receives, it can only pay KL. The observed signature was distortion pinned
+# at ~1.45 across a 5x rate range with zero hard switches. v4 therefore
+# staggers information arrival: step 0 reveals only the FIRST objective, and
+# each arrival at an objective reveals the NEXT one ("Reached white. Next
+# objective: purple."). Corridor steps stay strictly local. A never-switch
+# controller now provably cannot carry the second leg's target (it was not in
+# any input the step-0 code saw), so its second-leg steering degrades to the
+# unsteered baseline; re-encoding exactly at the true boundary earns the
+# steering gap as a distortion reward. This restores the paper's premise that
+# information is transmitted at switches: new information must actually
+# arrive mid-trajectory for a switch to be worth its KL.
 OBSERVATION_PROTOCOL_V1 = "partially-observable-no-remaining-route.v1"
 OBSERVATION_PROTOCOL_V2 = "partially-observable-no-route-identity.v2"
 OBSERVATION_PROTOCOL_V3 = "partially-observable-explicit-plan.v3"
+OBSERVATION_PROTOCOL_V4 = "partially-observable-staged-plan.v4"
 _OBSERVATION_PROTOCOLS = (
     OBSERVATION_PROTOCOL_V1,
     OBSERVATION_PROTOCOL_V2,
     OBSERVATION_PROTOCOL_V3,
+    OBSERVATION_PROTOCOL_V4,
 )
 
 _ARMS = ("frozen", "joint")
+
+# Gate relaxation for the Eq.3 steered objective (see
+# StoreSSLTrainingSession.steered_gate_mode). 'continuous' is the historical
+# default; the v4 budget diagnostic (eta_stage1_gate1_v4_budget_20260803)
+# showed it lets the controller transmit fresh posterior information at tiny
+# per-step gate amplitudes while paying only that fraction of the
+# switch-gated KL -- so discrete switches never become worthwhile and the
+# gate shows zero boundary contrast. 'hard-st' restores the paper's discrete
+# switch economics (code fully replaced or fully kept, straight-through
+# gradient).
+GATE_MODE_CONTINUOUS = "continuous"
+GATE_MODE_HARD_ST = "hard-st"
+_GATE_MODES = (GATE_MODE_CONTINUOUS, GATE_MODE_HARD_ST)
 
 
 @dataclass(frozen=True)
@@ -165,6 +198,12 @@ class RateDistortionPoint:
     final_grad_norm: float
     wall_seconds: float
     description: str = ""
+    # Gate-contrast telemetry: mean switch probability on true boundary steps
+    # vs continuation steps (train eval). Shows whether the gate is learning
+    # boundary structure even while probabilities sit below the hard
+    # threshold. 0.0 on points recorded before this field existed.
+    boundary_switch_probability: float = 0.0
+    continuation_switch_probability: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -233,6 +272,7 @@ class RateDistortionEvidenceReport:
     observation_protocol: str
     posterior_parameterization: str
     rate_gating: str
+    gate_mode: str
     corpus_origin: str
     corpus_seed: int
     corpus_objective_count: int
@@ -379,6 +419,12 @@ def _rate_distortion_observation_texts(
     state = environment.reset(route)
     observation_texts: list[str] = []
     expert_targets: list[ExpertActionTarget] = []
+    ordered_objectives = tuple(
+        waypoint
+        for waypoint in route.waypoints
+        if environment.location(waypoint).is_objective
+    )
+    reached_objectives = 0
     for target_id in route.waypoints[1:]:
         observation = environment.observe(state)
         target_location = environment.location(target_id)
@@ -416,15 +462,39 @@ def _rate_distortion_observation_texts(
                 # v2 uses the corpus fingerprint sentence as the "plan"; the
                 # step-0 probe proved a frozen substrate cannot ground it. v3
                 # spells the ordered objectives so the plan is readable.
-                is_first_step = not observation_texts
-                if not is_first_step:
+                is_first_step = not observation_texts and phase_index == 0
+                if protocol_version == OBSERVATION_PROTOCOL_V4:
+                    # Staged revelation: the next objective is announced only
+                    # at step 0 (first objective) and on arrival at each
+                    # objective (the following one). Corridor steps carry no
+                    # plan text, so mid-leg steering must ride on the latent.
+                    just_arrived = (
+                        phase_index == 0
+                        and reached_objectives < len(ordered_objectives)
+                        and observation.current_location_id
+                        == ordered_objectives[reached_objectives]
+                    )
+                    if is_first_step:
+                        plan_prefix = (
+                            f"Next objective: {ordered_objectives[0]}. "
+                        )
+                    elif just_arrived:
+                        arrived = ordered_objectives[reached_objectives]
+                        reached_objectives += 1
+                        if reached_objectives < len(ordered_objectives):
+                            plan_prefix = (
+                                f"Reached {arrived}. Next objective: "
+                                f"{ordered_objectives[reached_objectives]}. "
+                            )
+                        else:
+                            plan_prefix = (
+                                f"Reached {arrived}. Route complete. "
+                            )
+                    else:
+                        plan_prefix = ""
+                elif not is_first_step:
                     plan_prefix = ""
                 elif protocol_version == OBSERVATION_PROTOCOL_V3:
-                    ordered_objectives = tuple(
-                        waypoint
-                        for waypoint in route.waypoints
-                        if environment.location(waypoint).is_objective
-                    )
                     plan_prefix = (
                         "Route plan: visit "
                         + ", then ".join(ordered_objectives)
@@ -533,6 +603,7 @@ def _run_single(
     baseline_heldout: float,
     posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
     rate_gating: str = RATE_GATING_PER_STEP,
+    gate_mode: str = GATE_MODE_CONTINUOUS,
 ) -> RateDistortionPoint:
     start = time.perf_counter()
     store = MetacontrollerParameterStore(
@@ -553,6 +624,7 @@ def _run_single(
         reparam_seed=seed * 1_000_003 + 17,
         posterior_parameterization=posterior_parameterization,
         rate_gating=rate_gating,
+        steered_gate_mode=gate_mode,
     )
     final_report = None
     for update_index in range(updates_per_run):
@@ -594,6 +666,10 @@ def _run_single(
         baseline_heldout_distortion=baseline_heldout,
         mean_switch_probability=train_eval.mean_switch_probability,
         hard_switch_frequency=train_eval.hard_switch_frequency,
+        boundary_switch_probability=train_eval.boundary_switch_probability,
+        continuation_switch_probability=(
+            train_eval.continuation_switch_probability
+        ),
         train_boundary_f1=train_eval.boundary_f1,
         heldout_boundary_f1=heldout_eval.boundary_f1,
         optimizer_steps=session.optimizer_step,
@@ -941,6 +1017,7 @@ def run_eta_rate_distortion_evidence(
     observation_protocol: str = OBSERVATION_PROTOCOL_V1,
     posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
     rate_gating: str = RATE_GATING_PER_STEP,
+    gate_mode: str = GATE_MODE_CONTINUOUS,
     runtime: OpenWeightResidualRuntime | None = None,
     scorer_factory: Callable[..., Any] | None = None,
     prefix_cache: bool = True,
@@ -960,6 +1037,10 @@ def run_eta_rate_distortion_evidence(
         raise ValueError(
             f"Unknown rate gating {rate_gating!r}; expected one of "
             f"{_RATE_GATINGS}."
+        )
+    if gate_mode not in _GATE_MODES:
+        raise ValueError(
+            f"Unknown gate mode {gate_mode!r}; expected one of {_GATE_MODES}."
         )
     if len(alpha_grid) < 3:
         raise ValueError("alpha_grid needs at least three values.")
@@ -1081,6 +1162,7 @@ def run_eta_rate_distortion_evidence(
                         baseline_heldout=baseline_heldout,
                         posterior_parameterization=posterior_parameterization,
                         rate_gating=rate_gating,
+                        gate_mode=gate_mode,
                     )
                     if point_cache is not None:
                         point_cache.store_point(point)
@@ -1130,6 +1212,7 @@ def run_eta_rate_distortion_evidence(
         observation_protocol=observation_protocol,
         posterior_parameterization=posterior_parameterization,
         rate_gating=rate_gating,
+        gate_mode=gate_mode,
         corpus_origin=corpus_origin,
         corpus_seed=corpus_seed,
         corpus_objective_count=corpus_objective_count,

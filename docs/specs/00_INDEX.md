@@ -259,17 +259,19 @@
 | [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
 | [eta-llm-transfer-evidence.md](./eta-llm-transfer-evidence.md) | ETA 迁移 LLM 四级阶梯证据 SSOT：Gate 1 rate 轴校准 → Gate 2 领域续训+分类 probe → Gate 3 补课基底 rate–distortion 终审 → Stage 4 对话迁移（contingent）；`kill-eta` 在 Stage 3 通过前保持有效；当前缩减 Gate 1 = FAIL |
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
-| [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：v1 base-only 冻结矩阵；v2 冻结 `base + CommonAdapterBundle + per-session CharacterPackageManifest`、每 turn 物理载体证明、state/sleep 消融与独立审计 |
+| [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：N+1-based v3 base-only / v4 character-stack、Gate 1/suite v2、强制 smoke、严格 resume、state/sleep 消融与独立审计；历史 v1 formal 已停机且不可原样续跑 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
 | [thesis-v2-proposal.md](../thesis-v2-proposal.md) | #93 有界产品连续性提案：继承 #92/L1/L3 负证据，把 Gate 8/11 真实人类 anchor 作为唯一新 EXIT，明确排除失败 learned uplift 与 production 自动晋升 |
 | Gate 2 conditioned longitudinal（[temporal](./temporal-abstraction.md) / [conditioning](./personal-conditioning.md) / [evidence](./evidence_program.md)） | 14 维 Relationship owner readout 条件化 8076→8090 residual selector；seed1301 stop-loss 终局 `not-supported`，不授权 live promotion |
+
+> 各证据 run 的**任务级操作手册**（怎么跑 / 怎么评 / 当前结果 / 下一步）见 [`../evaluation.md`](../evaluation.md)。
 
 **核心不变量**：
 - 对外主张必须映射到 required gates、artifact 与 verdict
 - 盲评外发包不得泄漏 profile 条件
 - 证据结论必须可回溯到 manifest / provenance / 原始 artifact
 - same-substrate ablation：九 track 必须字节级同基底并由单 frozen substrate owner 承载（fingerprint + topology 守门）；裁判/用户模拟器非 substrate 家族；`first-stage-retained` 才可称人类世界模型 thesis 第一阶段成立，物理侧扩张需独立 benchmark
-- 七日 simulated evidence 必须逐字节匹配 user turns、真实走 persist/restart/hydrate、缺失 owner metric 不插补；自动结果只支持 simulated-longitudinal，不授权 real-user 或 production 主张
+- 七日 simulated evidence 必须逐字节匹配 user turns、真实走 stop→persist/restart/hydrate、以冻结 substrate N+1 预测为主判据、缺失 owner metric 不插补且只作 secondary；自动结果只支持 simulated-longitudinal，不授权 real-user 或 production 主张
 - ETA-on-LLM 四级阶梯：Gate 1 失败只修仪器不杀主张；Gate 2 失败杀迁移路线；Gate 3 失败才永久摘除 ETA；不进 `vz-cognition.evaluation` runtime 包
 
 ---
@@ -490,7 +492,7 @@
 
 | Spec | 内容 |
 |------|------|
-| [character-prefix-package.md](./character-prefix-package.md) | 共享 `CommonAdapterBundle`、统一 `CharacterPackageManifest`、rare-heavy → State-KV → 角色 bake 顺序、多角色 session 路由、ACTIVE gate 与批量再验证 |
+| [character-prefix-package.md](./character-prefix-package.md) | 共享 `CommonAdapterBundle`、统一 `CharacterPackageManifest`、训练态 LoRA→部署态 bounded delta/State-KV 的产物边界、文件/容量/数据证据口径、rare-heavy → State-KV → 角色 bake 顺序、多角色 session 路由、ACTIVE gate 与批量再验证 |
 | [Common Adapter 与角色特色包训练手册](../common-adapter-character-training.md) | 可执行训练数据 schema、control basis、L1 train/evaluate/publish、L2 bake/fidelity/gate、SHADOW→ACTIVE、七天 v2 prereg/smoke、升级与回滚命令 |
 
 **核心不变量**：
@@ -500,6 +502,7 @@
 - `character_prefix_applied` 只证明物理载体注入，不等于人物行为 fidelity 已达标
 - 七天 v2 必须逐 turn 证明 ACTIVE Prefix/KV；旧 v1 `adapter:none` 证据不得就地改签或混入 v2
 - 训练 candidate 必须绑定数据/超参数/seed provenance；L1/L2 allow 都只能来自 immutable held-out 对照臂和 cognition `ModificationGate.OFFLINE`
+- 训练态 PEFT LoRA 当前不作为 L1 输出；正式 serving 只加载匹配 frozen base 的自包含 `CommonAdapterBundle`，再按 session 选择 evaluated character manifest
 - Forge rare-heavy request 固定 DISABLED 且只计划训练；loop-external READY 只证明证据绑定，不能 publish/activate L1
 
 ### 17B. Character Residual Adapter（Deprecated）
@@ -804,6 +807,7 @@
 | `docs/CONTRACT_MIGRATION_LOG.md` | 契约迁移流水：planned / SHADOW slots、字段扩展、shared type slice changelog | 查实现阶段和 rollout notes，避免污染稳定契约 |
 | `docs/DEBUG_SYSTEM.md` | 调试与可观测性体系：5 层可观测性架构、契约守卫、检查点与回滚、跨 wheel 调试边界 | 理解如何调试和监控系统运行 |
 | `docs/EVALUATION_SYSTEM.md` | 评估体系：6 族评估框架、双轨评估隔离、信号回馈、lifeform-bench family report | 理解如何评估系统表现和驱动学习 |
+| `docs/evaluation.md` | 评测任务总账（Runbook）：七日 / 七日 Gate 套件 / MSC N+1 / Learned Active / Companion Bench / State-KV·Prefix-KV / ETA rate-distortion·LLM 阶梯 / ETA 内部 RL 每项的怎么跑、怎么评、当前结果、下一步 | 要实际运行/查证据 run 的状态与命令时 |
 | `docs/package_usage.md` | 本机 package 安装、稳定 Brain API、HF/Qwen 可选 runtime、其他项目接入边界 | 其他项目需要调用 core package 时 |
 
 ### 文档依赖图

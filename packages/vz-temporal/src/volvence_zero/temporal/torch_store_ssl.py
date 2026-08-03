@@ -503,6 +503,7 @@ class StoreSSLTrainingSession:
         substrate_learning_rate: float = 1e-4,
         posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
         rate_gating: str = RATE_GATING_PER_STEP,
+        steered_gate_mode: str = "continuous",
     ) -> None:
         if n_z <= 3:
             raise RuntimeError(
@@ -577,6 +578,21 @@ class StoreSSLTrainingSession:
                 f"{rate_gating!r}."
             )
         self._rate_gating = rate_gating
+        if steered_gate_mode not in ("continuous", "hard-st"):
+            raise ValueError(
+                "steered_gate_mode must be 'continuous' or 'hard-st', got "
+                f"{steered_gate_mode!r}."
+            )
+        # Gate relaxation for the Eq.3 steered objective. 'continuous' (the
+        # historical default) mixes codes by the raw switch probability; the
+        # v4 budget diagnostic showed it lets the controller smuggle fresh
+        # posterior information at tiny per-step gate amplitudes while paying
+        # only that fraction of the switch-gated KL, so hard switches never
+        # become worthwhile. 'hard-st' forces the paper's discrete switch
+        # economics in the forward pass (code fully replaced or fully kept,
+        # straight-through gradient), making a boundary switch the only way
+        # to transmit newly revealed information.
+        self._steered_gate_mode = steered_gate_mode
         if substrate_learning_rate <= 0.0:
             raise ValueError("substrate_learning_rate must be positive.")
         self._substrate_learning_rate = substrate_learning_rate
@@ -1066,7 +1082,7 @@ class StoreSSLTrainingSession:
             inputs,
             switch_threshold=switch_threshold,
             generator=self._generator if use_sampling else None,
-            gate_mode="continuous",
+            gate_mode=self._steered_gate_mode,
             posterior_parameterization=self._posterior_parameterization,
         )
         control_stack = torch.stack(out["controls"])

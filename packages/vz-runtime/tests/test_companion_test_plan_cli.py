@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
+from copy import deepcopy
 from dataclasses import replace
 import hashlib
 import json
@@ -9,6 +10,15 @@ import sys
 from typing import Sequence
 
 import pytest
+
+from companion_bench.seven_day_driver import (
+    FrozenSevenDayUserScript,
+    FrozenSevenDayUserTurn,
+)
+from companion_bench.spec import load_scenario_yaml
+from volvence_zero.agent.seven_day_companion_evidence import (
+    SevenDayExperimentCase,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -60,6 +70,53 @@ def _write_canonical_json(path: Path, payload: object) -> None:
         ).encode("utf-8")
         + b"\n"
     )
+
+
+def _resumable_run(
+    *, case: SevenDayExperimentCase, arm: str
+) -> dict[str, object]:
+    days = []
+    for day_index in range(1, 8):
+        restart = None
+        if day_index < 7:
+            restart = {
+                "after_day_index": day_index,
+                "previous_instance_id": f"instance-{day_index}",
+                "next_instance_id": f"instance-{day_index + 1}",
+                "healthcheck_passed": True,
+                "persistence_scope_unchanged": True,
+                "previous_persistence_scope_sha256": "a" * 64,
+                "next_persistence_scope_sha256": "a" * 64,
+                "state_intervention": {"after_day_index": day_index},
+            }
+        days.append(
+            {
+                "day_index": day_index,
+                "service_instance_id": f"instance-{day_index}",
+                "turns": [
+                    {
+                        "exchange_index": exchange_index,
+                        "user_text": (
+                            f"{case.case_id} day {day_index} turn {exchange_index}"
+                        ),
+                        "assistant_text": f"{arm} reply {day_index}-{exchange_index}",
+                        "event_tags": [],
+                    }
+                    for exchange_index in range(1, 6)
+                ],
+                "restart_after_day": restart,
+            }
+        )
+    return {
+        "schema_version": "seven-day-companion-run.v1",
+        "scenario_id": case.scenario_id,
+        "paraphrase_seed": case.paraphrase_seed,
+        "arm_label": arm,
+        "days": days,
+        "process_restart_count": 6,
+        "all_restarts_exact": True,
+        "production_promotion_authorized": False,
+    }
 
 
 def test_execution_environment_disables_mps_fallback(tmp_path: Path) -> None:
@@ -179,6 +236,192 @@ def test_shared_mps_lock_rejects_a_second_plan(tmp_path: Path) -> None:
                 pytest.fail("a second MPS plan acquired the shared lock")
 
 
+def test_direct_mps_runner_acquires_shared_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    @contextmanager
+    def fake_lock(_path: Path, *, plan_id: str):
+        events.append(f"lock:{plan_id}")
+        yield
+        events.append("unlock")
+
+    monkeypatch.delenv("VZ_COMPANION_MPS_LOCK_HELD", raising=False)
+    monkeypatch.setenv(
+        "VZ_COMPANION_MPS_LOCK_PATH", str(tmp_path / "shared.lock")
+    )
+    monkeypatch.setattr(common, "exclusive_mps_lock", fake_lock)
+    monkeypatch.setattr(common, "require_mps", lambda: events.append("mps"))
+
+    result = common.guarded_mps_runner_entrypoint(
+        lambda: events.append("main") or 7,
+        plan_id="direct-seven-day",
+        argv=("--device", "mps", "--execute"),
+    )
+
+    assert result == 7
+    assert events == ["lock:direct-seven-day", "mps", "main", "unlock"]
+
+
+def test_resume_validation_rejects_partial_and_v2_incomplete_runs(
+    tmp_path: Path,
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
+    case = SevenDayExperimentCase("F2-resume", 7)
+    run = _resumable_run(case=case, arm="correct-user-state")
+    attach_n_plus_one(run, 0.8)
+    continuity_runner._validate_resumable_run(
+        payload=run,
+        case=case,
+        arm_label="correct-user-state",
+        evidence_profile=None,
+        require_character_stack=False,
+        n_plus_one_contract=seven_day_n_plus_one_contract,
+    )
+
+    missing_n_plus_one = deepcopy(run)
+    del missing_n_plus_one["n_plus_one_representation_evidence"]
+    with pytest.raises(ValueError, match="n_plus_one_representation_evidence"):
+        continuity_runner._validate_resumable_run(
+            payload=missing_n_plus_one,
+            case=case,
+            arm_label="correct-user-state",
+            evidence_profile=None,
+            require_character_stack=False,
+            n_plus_one_contract=seven_day_n_plus_one_contract,
+        )
+
+    with pytest.raises(ValueError, match="character stack attestation"):
+        continuity_runner._validate_resumable_run(
+            payload=run,
+            case=case,
+            arm_label="correct-user-state",
+            evidence_profile=None,
+            require_character_stack=True,
+            n_plus_one_contract=seven_day_n_plus_one_contract,
+        )
+    run["runtime_stack_attestation"] = {"wiring_level": "active"}
+    continuity_runner._validate_resumable_run(
+        payload=run,
+        case=case,
+        arm_label="correct-user-state",
+        evidence_profile=None,
+        require_character_stack=True,
+        n_plus_one_contract=seven_day_n_plus_one_contract,
+    )
+
+    invalid_path = tmp_path / "runs/incomplete.json"
+    _write_canonical_json(invalid_path, missing_n_plus_one)
+    continuity_runner._quarantine_path(
+        output_root=tmp_path,
+        path=invalid_path,
+        reason="invalid-run",
+    )
+    assert not invalid_path.exists()
+    quarantined = tuple(
+        (tmp_path / "quarantine").glob("*-invalid-run/runs/incomplete.json")
+    )
+    assert len(quarantined) == 1
+
+
+def test_resume_validation_accepts_fresh_tuple_payload(
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
+    case = SevenDayExperimentCase("F1-fresh", 9)
+    run = _resumable_run(case=case, arm="correct-user-state")
+    attach_n_plus_one(run, 0.8)
+    for day in run["days"]:
+        day["turns"] = tuple(
+            {**turn, "event_tags": tuple(turn["event_tags"])}
+            for turn in day["turns"]
+        )
+    run["days"] = tuple(run["days"])
+
+    continuity_runner._validate_resumable_run(
+        payload=run,
+        case=case,
+        arm_label="correct-user-state",
+        evidence_profile=None,
+        require_character_stack=False,
+        n_plus_one_contract=seven_day_n_plus_one_contract,
+    )
+
+
+def test_swapped_state_runner_rejects_self_donor_matrix(tmp_path: Path) -> None:
+    case = SevenDayExperimentCase("F1-only", 1)
+    executor = continuity_runner._LocalFormalExecutor(
+        repo_root=REPO_ROOT,
+        output_root=tmp_path,
+        cases=(case,),
+        scripts={},
+        scenario_paths={},
+        source_attestation=object(),
+        sut_model_id="fixture",
+        sut_max_new_tokens=1,
+        device="mps",
+        host="127.0.0.1",
+        port=18765,
+        startup_timeout_s=1.0,
+        virtual_start_ms=1,
+    )
+    with pytest.raises(ValueError, match="at least two matched cases"):
+        executor.execute(
+            case=case,
+            arm_label="swapped-user-state",
+            drain_slow_loop=True,
+            output_path=tmp_path / "runs/run.json",
+        )
+
+
+def test_schedule_uses_typed_yaml_family_not_scenario_prefix() -> None:
+    source = load_scenario_yaml(
+        REPO_ROOT
+        / "packages/companion-bench/src/companion_bench/scenarios/seven_day/F2-seven-day-repair-researcher.yaml"
+    )
+    spec = replace(source, scenario_id="F1-misleading-prefix")
+    turns = []
+    for day_index in range(1, 8):
+        for exchange_index in range(1, 6):
+            tags: tuple[str, ...] = ()
+            if day_index == 1 and exchange_index == 1:
+                tags = ("emotion",)
+            elif day_index == 4 and exchange_index == 1:
+                tags = ("boundary",)
+            elif day_index == 7 and exchange_index == 1:
+                tags = ("callback",)
+            turns.append(
+                FrozenSevenDayUserTurn(
+                    day_index=day_index,
+                    exchange_index=exchange_index,
+                    text="I am sharing a typed fixture.",
+                    fsm_action=None,
+                    fsm_payload=None,
+                    event_tags=tags,
+                )
+            )
+    script = FrozenSevenDayUserScript(
+        schema_version="seven-day-user-script.v1",
+        scenario_id=spec.scenario_id,
+        paraphrase_seed=1,
+        identity_name="Fixture",
+        identity_occupation="tester",
+        turns=tuple(turns),
+        script_sha256="a" * 64,
+    )
+
+    schedule = continuity_runner._schedule(
+        script=script,
+        scenario_spec=spec,
+        virtual_start_ms=1,
+    )
+
+    assert schedule.arc_type == "rupture_repair"
+
+
 def test_seven_day_formal_command_is_mps_and_prereg_bound(
     tmp_path: Path,
 ) -> None:
@@ -190,7 +433,7 @@ def test_seven_day_formal_command_is_mps_and_prereg_bound(
     output = tmp_path / "artifact"
     campaign = seven_day_plan._campaign_from_preregistration(
         _seven_day_preregistration(
-            schema="seven-day-companion-simulated.v1",
+            schema="seven-day-companion-simulated.v3",
             arms=("correct-user-state", "stateless"),
         )
     )
@@ -202,6 +445,7 @@ def test_seven_day_formal_command_is_mps_and_prereg_bound(
         preregistration=preregistration,
         stage="formal",
         output_dir=output,
+        smoke_evidence_root=tmp_path / "artifact_smoke",
         host="127.0.0.1",
         port=18765,
         startup_timeout_s=600.0,
@@ -300,7 +544,7 @@ def test_seven_day_status_keeps_simulated_claim_boundary(tmp_path: Path) -> None
     (
         (
             _seven_day_preregistration(
-                schema="seven-day-companion-simulated.v1",
+                schema="seven-day-companion-simulated.v3",
                 arms=("correct-user-state", "stateless"),
             ),
             "run_seven_day_companion_formal.py",
@@ -310,7 +554,7 @@ def test_seven_day_status_keeps_simulated_claim_boundary(tmp_path: Path) -> None
         ),
         (
             _seven_day_preregistration(
-                schema="seven-day-companion-simulated.v2",
+                schema="seven-day-companion-simulated.v4",
                 arms=("correct-user-state", "stateless"),
             ),
             "run_seven_day_companion_formal.py",
@@ -365,6 +609,7 @@ def test_seven_day_schema_dispatches_exact_runner_and_auditor(
         preregistration=preregistration,
         stage="smoke",
         output_dir=output,
+        smoke_evidence_root=None,
         host="127.0.0.1",
         port=campaign.default_port,
         startup_timeout_s=600.0,
@@ -554,7 +799,9 @@ def test_seven_day_all_audits_a_complete_negative_result(
     output = tmp_path / "artifact"
     output.mkdir()
     commands: list[tuple[str, ...]] = []
-    return_codes = iter((0, seven_day_plan.SCIENTIFIC_NEGATIVE_EXIT, 0))
+    return_codes = iter(
+        (0, 0, seven_day_plan.SCIENTIFIC_NEGATIVE_EXIT, 0)
+    )
 
     def fake_run(argv: Sequence[str], **_: object) -> int:
         commands.append(tuple(argv))
@@ -585,10 +832,12 @@ def test_seven_day_all_audits_a_complete_negative_result(
     )
 
     assert exit_code == seven_day_plan.SCIENTIFIC_NEGATIVE_EXIT
-    assert len(commands) == 3
+    assert len(commands) == 4
     assert "--preflight-only" in commands[0]
-    assert "--execute" in commands[1]
-    assert Path(commands[2][1]).name == "audit_seven_day_gate1_formal.py"
+    assert "--smoke-one-pair" in commands[1]
+    assert "--execute" in commands[2]
+    assert "--smoke-evidence-root" in commands[2]
+    assert Path(commands[3][1]).name == "audit_seven_day_gate1_formal.py"
 
 
 def test_prediction_smoke_uses_mps_for_encoder_head_and_substrate(

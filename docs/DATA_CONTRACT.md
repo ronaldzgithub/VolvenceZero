@@ -2195,6 +2195,25 @@ carrier id/geometry。HF runtime 加载时重新解析 snapshot、按 weight fil
 bytes 计算 SHA-256，并核对 rare-heavy hidden width/hook layers/runtime fingerprint、
 State-KV K/V geometry 与 control basis；任何不一致 fail loudly。L1 在进程内只读，
 禁止 live mutation。
+
+L1/L2 build 目录中的文件按以下契约分层；中间文件是不可变 build/evidence artifact，
+不是可由 runtime 单独消费的新 slot：
+
+| 阶段 | artifact | 契约地位 |
+|---|---|---|
+| control basis diagnostic | `control-basis.json`、observations、verdict | substrate geometry/provenance；不授权 promotion |
+| L1 train | `rare-heavy-checkpoint.json`、`state-kv-prefix.json`、State-KV manifest、candidate、gate proposal | candidate nested material；禁止 serving、自批或写 ACTIVE |
+| L1 evaluate | held-out report/observations、`common-adapter-gate-record.json` | cognition 只读 evidence 与 allow/deny decision；禁止绕过 publish |
+| L1 publish | `common-adapter-bundle.json` | 唯一 L1 runtime artifact；内嵌 rare-heavy、State-KV、control basis 与 gate record |
+| L2 bake | `character-prefix.json`、`shadow-manifest.json` | 角色 candidate；只允许 SHADOW |
+| L2 evaluate | fidelity report/evidence、gate、`evaluated-manifest.json` | 唯一可申请 L2 ACTIVE 的 manifest/evidence set |
+
+L1 训练阶段的 PEFT LoRA 只用于冻结 base 上的优化和 `B@A` 投影；当前正式 pipeline
+不发布 `adapter_model.safetensors`，也不把训练态 LoRA 目录登记成
+`common_adapter_bundle`。最终 bundle 是匹配 frozen base 的自包含数值载荷，不是
+merged full model；任何 future PEFT checkpoint 输出都必须新增明确 owner、schema、
+digest、Gate 与 rollback 契约后才能成为正式交换。
+
 L1 `common-adapter-candidate.v2` 的 content id 还必须绑定训练集 SHA-256/数量、LoRA 与 State-KV
 超参数、hook layers 和显式 seed；held-out evaluation 只能以只读 base/candidate/
 counterfactual arms 产生 readout，再由 cognition `ModificationGate.OFFLINE` 决策。

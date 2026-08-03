@@ -10,14 +10,19 @@ from pathlib import Path
 import statistics
 from typing import Mapping, Sequence
 
+from volvence_zero.agent.evidence_statistics import paired_student_t_ci95
 from volvence_zero.agent.seven_day_companion_evidence import (
     SEVEN_DAY_METRICS,
     SevenDayArmExecutor,
     SevenDayExperimentCase,
 )
+from volvence_zero.agent.seven_day_n_plus_one import (
+    validate_seven_day_n_plus_one_evidence,
+)
 
 
-GATE1_SEVEN_DAY_SCHEMA_VERSION = "gate1-seven-day-companion.v1"
+GATE1_SEVEN_DAY_SCHEMA_VERSION = "gate1-seven-day-companion.v2"
+GATE1_SEVEN_DAY_SMOKE_SCHEMA_VERSION = "gate1-seven-day-companion-smoke.v1"
 GATE1_PE_ON_ARM = "gate1-pe-temporal-on-v1"
 GATE1_PE_OFF_ARM = "gate1-pe-temporal-off-v1"
 GATE1_SEVEN_DAY_ARMS = (GATE1_PE_ON_ARM, GATE1_PE_OFF_ARM)
@@ -61,11 +66,14 @@ def _finite_number(value: object, *, field: str) -> float:
     return result
 
 
-def _continuity_composite(raw: object, *, field: str) -> float:
+def _continuity_composite(raw: object, *, field: str) -> float | None:
     metrics = _require_mapping(raw, field=field)
     values = []
     for name in SEVEN_DAY_METRICS:
-        value = _finite_number(metrics.get(name), field=f"{field}.{name}")
+        raw_value = metrics.get(name)
+        if raw_value is None:
+            return None
+        value = _finite_number(raw_value, field=f"{field}.{name}")
         if name == "seven_day_trust_delta":
             if value < -1.0 or value > 1.0:
                 raise ValueError(f"{field}.{name} is outside [-1, 1]")
@@ -82,11 +90,7 @@ def _continuity_composite(raw: object, *, field: str) -> float:
 
 
 def _paired_ci95(values: Sequence[float]) -> tuple[float, float] | None:
-    if len(values) < 2:
-        return None
-    mean = statistics.fmean(values)
-    half_width = 1.96 * statistics.stdev(values) / math.sqrt(len(values))
-    return (mean - half_width, mean + half_width)
+    return paired_student_t_ci95(values)
 
 
 @dataclass(frozen=True)
@@ -100,7 +104,13 @@ class Gate1ArmReadout:
     early_pe_mean: float
     late_pe_mean: float
     pe_adaptation: float
-    final_day_continuity_composite: float
+    final_day_continuity_composite: float | None
+    n_plus_one_prediction_quality: float
+    n_plus_one_cosine_error: float
+    n_plus_one_mean_squared_error: float
+    n_plus_one_persistence_quality: float
+    n_plus_one_target_sequence_sha256: str
+    n_plus_one_target_snapshot_fingerprint: str
     final_day_boundary_violation_rate: float
     final_day_wrong_user_attribution_rate: float
     runtime_profile_attestation_sha256: str
@@ -109,14 +119,17 @@ class Gate1ArmReadout:
 @dataclass(frozen=True)
 class Gate1SevenDayResult:
     schema_version: str
+    evidence_tier: str
     preregistration_sha256: str
     run_count: int
     pair_count: int
     readouts: tuple[Gate1ArmReadout, ...]
     pe_adaptation_gain_mean: float
     pe_adaptation_gain_ci95: tuple[float, float] | None
-    final_day_continuity_gain_mean: float
+    final_day_continuity_gain_mean: float | None
     final_day_continuity_gain_ci95: tuple[float, float] | None
+    n_plus_one_prediction_gain_mean: float
+    n_plus_one_prediction_gain_ci95: tuple[float, float] | None
     gates: Mapping[str, bool]
     mechanism_supported: bool
     causal_supported: bool
@@ -139,6 +152,7 @@ class Gate1SevenDayHarness:
         cases: Sequence[SevenDayExperimentCase],
         preregistration: Mapping[str, object],
         output_dir: str | Path,
+        evidence_tier: str = "formal",
     ) -> Gate1SevenDayResult:
         if not cases:
             raise ValueError("Gate 1 seven-day evidence requires cases")
@@ -164,8 +178,14 @@ class Gate1SevenDayHarness:
             cases=cases,
             runs=runs,
             preregistration=preregistration,
+            evidence_tier=evidence_tier,
         )
-        _write_json(target / "gate1_evaluation.json", result.to_json())
+        filename = (
+            "gate1_evaluation.json"
+            if evidence_tier == "formal"
+            else "gate1_smoke_evaluation.json"
+        )
+        _write_json(target / filename, result.to_json())
         return result
 
 
@@ -210,6 +230,7 @@ def _arm_readout(
     case: SevenDayExperimentCase,
     arm_label: str,
     run_value: Mapping[str, object],
+    n_plus_one_contract: Mapping[str, object],
 ) -> Gate1ArmReadout:
     if run_value.get("schema_version") != "seven-day-companion-run.v1":
         raise ValueError("seven-day run schema drift")
@@ -277,6 +298,10 @@ def _arm_readout(
     final_metrics = _require_mapping(
         final_day.get("continuity_metrics"), field="day-7.continuity_metrics"
     )
+    n_plus_one = validate_seven_day_n_plus_one_evidence(
+        run=run_value,
+        contract=n_plus_one_contract,
+    )
     return Gate1ArmReadout(
         case_id=case.case_id,
         arm_label=arm_label,
@@ -289,6 +314,20 @@ def _arm_readout(
         pe_adaptation=early_pe - late_pe,
         final_day_continuity_composite=_continuity_composite(
             final_metrics, field="day-7.continuity_metrics"
+        ),
+        n_plus_one_prediction_quality=(
+            n_plus_one.heldout_mean_cosine_similarity
+        ),
+        n_plus_one_cosine_error=n_plus_one.heldout_mean_cosine_error,
+        n_plus_one_mean_squared_error=n_plus_one.heldout_mean_squared_error,
+        n_plus_one_persistence_quality=(
+            n_plus_one.heldout_persistence_mean_cosine_similarity
+        ),
+        n_plus_one_target_sequence_sha256=(
+            n_plus_one.target_sequence_sha256
+        ),
+        n_plus_one_target_snapshot_fingerprint=(
+            n_plus_one.target_snapshot_fingerprint
         ),
         final_day_boundary_violation_rate=_finite_number(
             final_metrics.get("boundary_violation_rate"),
@@ -307,11 +346,16 @@ def evaluate_gate1_seven_day_runs(
     cases: Sequence[SevenDayExperimentCase],
     runs: Mapping[tuple[str, str], Mapping[str, object]],
     preregistration: Mapping[str, object],
+    evidence_tier: str = "formal",
 ) -> Gate1SevenDayResult:
     if preregistration.get("schema_version") != (
-        "gate1-seven-day-companion-prereg.v1"
+        "gate1-seven-day-companion-prereg.v2"
     ):
         raise ValueError("Gate 1 preregistration schema drift")
+    if evidence_tier not in {"formal", "smoke"}:
+        raise ValueError("Gate 1 evidence_tier must be formal or smoke")
+    if evidence_tier == "smoke" and len(cases) != 1:
+        raise ValueError("Gate 1 smoke requires exactly one matched pair")
     expected_keys = {
         (case.case_id, arm_label)
         for case in cases
@@ -322,29 +366,35 @@ def evaluate_gate1_seven_day_runs(
     formal = _require_mapping(
         preregistration.get("formal_run"), field="formal_run"
     )
-    if formal.get("run_count") != len(expected_keys):
-        raise ValueError("Gate 1 preregistered run count drift")
-    if formal.get("pair_count") != len(cases):
-        raise ValueError("Gate 1 preregistered pair count drift")
+    if evidence_tier == "formal":
+        if formal.get("run_count") != len(expected_keys):
+            raise ValueError("Gate 1 preregistered run count drift")
+        if formal.get("pair_count") != len(cases):
+            raise ValueError("Gate 1 preregistered pair count drift")
     thresholds = _require_mapping(
         preregistration.get("minimum_effects"), field="minimum_effects"
     )
     pe_min = _finite_number(
         thresholds.get("pe_adaptation_gain"), field="pe_adaptation_gain"
     )
-    continuity_min = _finite_number(
-        thresholds.get("final_day_continuity_composite_gain"),
-        field="final_day_continuity_composite_gain",
+    n_plus_one_min = _finite_number(
+        thresholds.get("n_plus_one_prediction_quality_gain"),
+        field="n_plus_one_prediction_quality_gain",
     )
     safety_margin = _finite_number(
         thresholds.get("maximum_safety_regression"),
         field="maximum_safety_regression",
+    )
+    n_plus_one_contract = _require_mapping(
+        preregistration.get("n_plus_one_measurement"),
+        field="n_plus_one_measurement",
     )
     readouts = tuple(
         _arm_readout(
             case=case,
             arm_label=arm_label,
             run_value=runs[(case.case_id, arm_label)],
+            n_plus_one_contract=n_plus_one_contract,
         )
         for case in cases
         for arm_label in GATE1_SEVEN_DAY_ARMS
@@ -352,15 +402,31 @@ def evaluate_gate1_seven_day_runs(
     by_key = {(item.case_id, item.arm_label): item for item in readouts}
     pe_gains = []
     continuity_gains = []
+    n_plus_one_gains = []
     safety_regressions = []
     for case in cases:
         pe_on = by_key[(case.case_id, GATE1_PE_ON_ARM)]
         pe_off = by_key[(case.case_id, GATE1_PE_OFF_ARM)]
         pe_gains.append(pe_on.pe_adaptation - pe_off.pe_adaptation)
-        continuity_gains.append(
-            pe_on.final_day_continuity_composite
-            - pe_off.final_day_continuity_composite
+        if (
+            pe_on.final_day_continuity_composite is not None
+            and pe_off.final_day_continuity_composite is not None
+        ):
+            continuity_gains.append(
+                pe_on.final_day_continuity_composite
+                - pe_off.final_day_continuity_composite
+            )
+        n_plus_one_gains.append(
+            pe_on.n_plus_one_prediction_quality
+            - pe_off.n_plus_one_prediction_quality
         )
+        if (
+            pe_on.n_plus_one_target_sequence_sha256
+            != pe_off.n_plus_one_target_sequence_sha256
+            or pe_on.n_plus_one_target_snapshot_fingerprint
+            != pe_off.n_plus_one_target_snapshot_fingerprint
+        ):
+            raise ValueError("Gate 1 N+1 target differs across matched arms")
         safety_regressions.extend(
             (
                 pe_on.final_day_boundary_violation_rate
@@ -370,9 +436,13 @@ def evaluate_gate1_seven_day_runs(
             )
         )
     pe_mean = statistics.fmean(pe_gains)
-    continuity_mean = statistics.fmean(continuity_gains)
+    continuity_mean = (
+        statistics.fmean(continuity_gains) if continuity_gains else None
+    )
+    n_plus_one_mean = statistics.fmean(n_plus_one_gains)
     pe_ci = _paired_ci95(pe_gains)
     continuity_ci = _paired_ci95(continuity_gains)
+    n_plus_one_ci = _paired_ci95(n_plus_one_gains)
     pe_on_rows = tuple(
         item for item in readouts if item.arm_label == GATE1_PE_ON_ARM
     )
@@ -399,9 +469,9 @@ def evaluate_gate1_seven_day_runs(
         ),
         "pe-adaptation-minimum-effect": pe_mean >= pe_min,
         "pe-adaptation-ci-positive": pe_ci is not None and pe_ci[0] > 0.0,
-        "continuity-minimum-effect": continuity_mean >= continuity_min,
-        "continuity-ci-positive": (
-            continuity_ci is not None and continuity_ci[0] > 0.0
+        "n-plus-one-minimum-effect": n_plus_one_mean >= n_plus_one_min,
+        "n-plus-one-ci-positive": (
+            n_plus_one_ci is not None and n_plus_one_ci[0] > 0.0
         ),
         "safety-noninferior": max(safety_regressions) <= safety_margin,
     }
@@ -414,19 +484,24 @@ def evaluate_gate1_seven_day_runs(
             "pe-off-temporal-path-closed",
         )
     )
-    causal_supported = mechanism_supported and all(
+    causal_supported = evidence_tier == "formal" and mechanism_supported and all(
         gates[name]
         for name in (
             "pe-adaptation-minimum-effect",
             "pe-adaptation-ci-positive",
-            "continuity-minimum-effect",
-            "continuity-ci-positive",
+            "n-plus-one-minimum-effect",
+            "n-plus-one-ci-positive",
             "safety-noninferior",
         )
     )
     prereg_sha = hashlib.sha256(_canonical_bytes(preregistration)).hexdigest()
     return Gate1SevenDayResult(
-        schema_version=GATE1_SEVEN_DAY_SCHEMA_VERSION,
+        schema_version=(
+            GATE1_SEVEN_DAY_SCHEMA_VERSION
+            if evidence_tier == "formal"
+            else GATE1_SEVEN_DAY_SMOKE_SCHEMA_VERSION
+        ),
+        evidence_tier=evidence_tier,
         preregistration_sha256=prereg_sha,
         run_count=len(readouts),
         pair_count=len(cases),
@@ -435,6 +510,8 @@ def evaluate_gate1_seven_day_runs(
         pe_adaptation_gain_ci95=pe_ci,
         final_day_continuity_gain_mean=continuity_mean,
         final_day_continuity_gain_ci95=continuity_ci,
+        n_plus_one_prediction_gain_mean=n_plus_one_mean,
+        n_plus_one_prediction_gain_ci95=n_plus_one_ci,
         gates=gates,
         mechanism_supported=mechanism_supported,
         causal_supported=causal_supported,
@@ -448,6 +525,7 @@ __all__ = [
     "GATE1_PE_ON_ARM",
     "GATE1_SEVEN_DAY_ARMS",
     "GATE1_SEVEN_DAY_SCHEMA_VERSION",
+    "GATE1_SEVEN_DAY_SMOKE_SCHEMA_VERSION",
     "Gate1ArmReadout",
     "Gate1SevenDayHarness",
     "Gate1SevenDayResult",

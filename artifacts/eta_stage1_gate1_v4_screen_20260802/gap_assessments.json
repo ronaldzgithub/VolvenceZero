@@ -1,0 +1,20 @@
+[
+  {
+    "arm": "frozen",
+    "gap_detected": false,
+    "distortion_span": 0.02625823146012851,
+    "rate_span": 0.5411790558899789,
+    "noise_scale": 0.0,
+    "max_drop": 0.02486000500092045,
+    "max_drop_share": 0.9467509279392566,
+    "max_drop_rate_share": 0.36865114694703555,
+    "gap_low_alpha": 1.0,
+    "gap_high_alpha": 0.1,
+    "drop_share_threshold": 0.5,
+    "rate_share_threshold": 0.25,
+    "noise_multiple": 2.0,
+    "boundary_f1_gap_region": 0.0,
+    "boundary_f1_outside_gap": 0.0,
+    "description": "arm=frozen gap_detected=False max_drop=0.0249 (94.68% of span) over 36.87% of the rate span between alpha=1.0 and alpha=0.1."
+  }
+]

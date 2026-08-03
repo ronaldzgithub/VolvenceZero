@@ -21,9 +21,12 @@ from pathlib import Path
 
 from volvence_zero.agent.eta_proof_benchmark import ETAOpenWeightRuntimeConfig
 from volvence_zero.agent.eta_rate_distortion_evidence import (
+    GATE_MODE_CONTINUOUS,
+    GATE_MODE_HARD_ST,
     OBSERVATION_PROTOCOL_V1,
     OBSERVATION_PROTOCOL_V2,
     OBSERVATION_PROTOCOL_V3,
+    OBSERVATION_PROTOCOL_V4,
     assess_gap,
 )
 from volvence_zero.temporal.metacontroller_components import (
@@ -77,6 +80,7 @@ def build_preregistration(
     observation_protocol: str = OBSERVATION_PROTOCOL_V1,
     posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
     rate_gating: str = RATE_GATING_PER_STEP,
+    gate_mode: str = GATE_MODE_CONTINUOUS,
 ) -> dict[str, object]:
     gap_defaults = inspect.signature(assess_gap).parameters
     return {
@@ -100,6 +104,7 @@ def build_preregistration(
             "observation_protocol": observation_protocol,
             "posterior_parameterization": posterior_parameterization,
             "rate_gating": rate_gating,
+            "gate_mode": gate_mode,
         },
         "rate_axis_gate": rate_axis_gate
         or {
@@ -199,6 +204,7 @@ def main(argv: tuple[str, ...] | None = None) -> int:
             OBSERVATION_PROTOCOL_V1,
             OBSERVATION_PROTOCOL_V2,
             OBSERVATION_PROTOCOL_V3,
+            OBSERVATION_PROTOCOL_V4,
         ),
         default=OBSERVATION_PROTOCOL_V1,
     )
@@ -214,6 +220,11 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         "--rate-gating",
         choices=(RATE_GATING_PER_STEP, RATE_GATING_SWITCH),
         default=RATE_GATING_PER_STEP,
+    )
+    parser.add_argument(
+        "--gate-mode",
+        choices=(GATE_MODE_CONTINUOUS, GATE_MODE_HARD_ST),
+        default=GATE_MODE_CONTINUOUS,
     )
     args = parser.parse_args(argv)
 
@@ -252,6 +263,7 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         observation_protocol=args.observation_protocol,
         posterior_parameterization=args.posterior_parameterization,
         rate_gating=args.rate_gating,
+        gate_mode=args.gate_mode,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

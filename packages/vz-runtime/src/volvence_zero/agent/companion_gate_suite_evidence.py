@@ -14,13 +14,19 @@ from pathlib import Path
 import statistics
 from typing import Mapping, Protocol, Sequence
 
+from volvence_zero.agent.evidence_statistics import paired_student_t_ci95
 from volvence_zero.agent.seven_day_companion_evidence import (
     SEVEN_DAY_METRICS,
     SevenDayExperimentCase,
 )
+from volvence_zero.agent.seven_day_n_plus_one import (
+    SevenDayNPlusOneReadout,
+    validate_seven_day_n_plus_one_evidence,
+)
 
 
-GATE_SUITE_SCHEMA_VERSION = "companion-gate-suite-seven-day.v1"
+GATE_SUITE_SCHEMA_VERSION = "companion-gate-suite-seven-day.v2"
+GATE_SUITE_SMOKE_SCHEMA_VERSION = "companion-gate-suite-seven-day-smoke.v1"
 GATE_ARM_SCHEDULES: Mapping[int, tuple[str, ...]] = {
     4: ("gate4-active-selector-v1", "gate4-random-feedback-v1"),
     5: ("gate5-multifrequency-cms-v1", "gate5-single-timescale-v1"),
@@ -99,11 +105,14 @@ def _pairs(value: object, *, field: str) -> dict[str, object]:
     return output
 
 
-def _continuity_composite(value: object, *, field: str) -> float:
+def _continuity_composite(value: object, *, field: str) -> float | None:
     metrics = _mapping(value, field=field)
     normalized = []
     for name in SEVEN_DAY_METRICS:
-        item = _number(metrics.get(name), field=f"{field}.{name}")
+        raw_item = metrics.get(name)
+        if raw_item is None:
+            return None
+        item = _number(raw_item, field=f"{field}.{name}")
         if name == "seven_day_trust_delta":
             if not -1.0 <= item <= 1.0:
                 raise ValueError(f"{field}.{name} is outside [-1, 1]")
@@ -116,11 +125,7 @@ def _continuity_composite(value: object, *, field: str) -> float:
 
 
 def _ci95(values: Sequence[float]) -> tuple[float, float] | None:
-    if len(values) < 2:
-        return None
-    mean = statistics.fmean(values)
-    half = 1.96 * statistics.stdev(values) / math.sqrt(len(values))
-    return (mean - half, mean + half)
+    return paired_student_t_ci95(values)
 
 
 def _profile_sha(
@@ -157,7 +162,13 @@ class GateSuiteArmReadout:
     case_id: str
     arm_label: str
     primary_score: float
-    final_day_continuity_composite: float
+    final_day_continuity_composite: float | None
+    n_plus_one_prediction_quality: float
+    n_plus_one_cosine_error: float
+    n_plus_one_mean_squared_error: float
+    n_plus_one_persistence_quality: float
+    n_plus_one_target_sequence_sha256: str
+    n_plus_one_target_snapshot_fingerprint: str
     boundary_violation_rate: float
     wrong_user_attribution_rate: float
     mechanism_counts: tuple[tuple[str, int], ...]
@@ -169,8 +180,10 @@ class GateSuiteComparison:
     control_arm: str
     primary_gain_mean: float
     primary_gain_ci95: tuple[float, float] | None
-    continuity_gain_mean: float
+    continuity_gain_mean: float | None
     continuity_gain_ci95: tuple[float, float] | None
+    n_plus_one_prediction_gain_mean: float
+    n_plus_one_prediction_gain_ci95: tuple[float, float] | None
     safety_regression_max: float
 
 
@@ -178,6 +191,7 @@ class GateSuiteComparison:
 class GateSuiteResult:
     schema_version: str
     gate_id: int
+    evidence_tier: str
     preregistration_sha256: str
     arm_schedule: tuple[str, ...]
     run_count: int
@@ -251,6 +265,8 @@ def _gate5_score(
                 field="cms_old_knowledge_retention",
             )
             late_scores.append((absorption + retention) / 2.0)
+    if not late_scores:
+        raise ValueError("Gate 5 lacks day6-7 CMS readouts")
     return statistics.fmean(late_scores), counts
 
 
@@ -299,6 +315,8 @@ def _gate7_score(
     rewards: dict[str, list[float]] = {"early": [], "late": []}
     counts = {
         "joint_cycles": 0,
+        "early_joint_cycles": 0,
+        "late_joint_cycles": 0,
         "ssl_rollbacks": 0,
         "policy_updates": 0,
         "runtime_replay_active_turns": 0,
@@ -307,6 +325,8 @@ def _gate7_score(
     for day, _turn, telemetry in turns:
         if telemetry.get("joint_cycle_executed") is True:
             counts["joint_cycles"] += 1
+            counts["early_joint_cycles"] += int(day <= 2)
+            counts["late_joint_cycles"] += int(day >= 6)
             counts["ssl_rollbacks"] += int(telemetry.get("ssl_rollback_applied") is True)
             counts["policy_updates"] += int(telemetry.get("internal_rl_policy_update_applied") is True)
             reward = _number(
@@ -332,13 +352,9 @@ def _gate9_score(
     gains = set()
     positive_slow_signal = 0
     cycles = 0
+    early_cycles = 0
+    late_cycles = 0
     for day, _turn, telemetry in turns:
-        gains.add(
-            _number(
-                telemetry.get("ssl_m3_slow_gain"),
-                field="ssl_m3_slow_gain",
-            )
-        )
         positive_slow_signal += int(
             _number(
                 telemetry.get("ssl_m3_slow_momentum_norm"),
@@ -347,7 +363,15 @@ def _gate9_score(
             > 0.0
         )
         if telemetry.get("joint_cycle_executed") is True:
+            gains.add(
+                _number(
+                    telemetry.get("ssl_m3_slow_gain"),
+                    field="ssl_m3_slow_gain",
+                )
+            )
             cycles += 1
+            early_cycles += int(day <= 2)
+            late_cycles += int(day >= 6)
             loss = _number(
                 telemetry.get("ssl_prediction_loss"),
                 field="ssl_prediction_loss",
@@ -361,6 +385,8 @@ def _gate9_score(
     gain_x1000 = int(round(next(iter(gains)) * 1000)) if len(gains) == 1 else -1
     return (statistics.fmean(losses["early"]) - statistics.fmean(losses["late"])), {
         "joint_cycles": cycles,
+        "early_joint_cycles": early_cycles,
+        "late_joint_cycles": late_cycles,
         "positive_slow_signal_turns": positive_slow_signal,
         "configured_slow_gain_x1000": gain_x1000,
     }
@@ -386,6 +412,8 @@ def _gate10_score(
         counts["rare_heavy_imports"] += int(telemetry.get("rare_heavy_applied") is True)
         counts["rare_heavy_review_only"] += int(telemetry.get("rare_heavy_import_decision") == "blocked-by-doctrine")
         counts["pre_import_passes"] += int(telemetry.get("rare_heavy_pre_import_passed") is True)
+    if not pe["early"] or not pe["late"]:
+        raise ValueError("Gate 10 lacks early/late prediction-error readouts")
     return statistics.fmean(pe["early"]) - statistics.fmean(pe["late"]), counts
 
 
@@ -396,6 +424,7 @@ def _arm_readout(
     arm: str,
     run: Mapping[str, object],
     profile_contract: Mapping[str, object],
+    n_plus_one_contract: Mapping[str, object],
 ) -> GateSuiteArmReadout:
     if run.get("schema_version") != "seven-day-companion-run.v1":
         raise ValueError("seven-day run schema drift")
@@ -428,6 +457,11 @@ def _arm_readout(
             raise ValueError("seven-day gate day must contain five turns")
         for turn_index, raw_turn in enumerate(raw_turns, start=1):
             turn = _mapping(raw_turn, field=f"day-{day_index}.turn-{turn_index}")
+            event_tags = turn.get("event_tags")
+            if not isinstance(event_tags, (list, tuple)) or not all(
+                isinstance(tag, str) for tag in event_tags
+            ):
+                raise ValueError("seven-day gate turn event_tags are invalid")
             telemetry = _pairs(
                 turn.get("gate_telemetry"),
                 field=f"day-{day_index}.turn-{turn_index}.gate_telemetry",
@@ -451,11 +485,31 @@ def _arm_readout(
         days[-1].get("continuity_metrics"),
         field="day-7.continuity_metrics",
     )
+    n_plus_one: SevenDayNPlusOneReadout = (
+        validate_seven_day_n_plus_one_evidence(
+            run=run,
+            contract=n_plus_one_contract,
+        )
+    )
     return GateSuiteArmReadout(
         case_id=case.case_id,
         arm_label=arm,
         primary_score=primary,
         final_day_continuity_composite=_continuity_composite(final_metrics, field="day-7.continuity_metrics"),
+        n_plus_one_prediction_quality=(
+            n_plus_one.heldout_mean_cosine_similarity
+        ),
+        n_plus_one_cosine_error=n_plus_one.heldout_mean_cosine_error,
+        n_plus_one_mean_squared_error=n_plus_one.heldout_mean_squared_error,
+        n_plus_one_persistence_quality=(
+            n_plus_one.heldout_persistence_mean_cosine_similarity
+        ),
+        n_plus_one_target_sequence_sha256=(
+            n_plus_one.target_sequence_sha256
+        ),
+        n_plus_one_target_snapshot_fingerprint=(
+            n_plus_one.target_snapshot_fingerprint
+        ),
         boundary_violation_rate=_number(
             final_metrics.get("boundary_violation_rate"),
             field="boundary_violation_rate",
@@ -496,7 +550,11 @@ def _mechanism_passed(*, gate_id: int, arm: str, counts: Mapping[str, int]) -> b
             )
         return counts["copy_init_resets"] == 7 and counts["meta_init_resets"] == 0 and counts["conditioned_resets"] == 0
     if gate_id == 7:
-        if counts["joint_cycles"] == 0:
+        if (
+            counts["joint_cycles"] == 0
+            or counts["early_joint_cycles"] == 0
+            or counts["late_joint_cycles"] == 0
+        ):
             return False
         if arm == "gate7-no-ssl-v1":
             return counts["ssl_rollbacks"] > 0
@@ -511,6 +569,8 @@ def _mechanism_passed(*, gate_id: int, arm: str, counts: Mapping[str, int]) -> b
         expected_gain = 1000 if arm == GATE_TREATMENT_ARMS[9] else 0
         return (
             counts["joint_cycles"] > 0
+            and counts["early_joint_cycles"] > 0
+            and counts["late_joint_cycles"] > 0
             and counts["positive_slow_signal_turns"] > 0
             and counts["configured_slow_gain_x1000"] == expected_gain
         )
@@ -529,21 +589,36 @@ def evaluate_companion_gate_suite(
     cases: Sequence[SevenDayExperimentCase],
     runs: Mapping[tuple[str, str], Mapping[str, object]],
     preregistration: Mapping[str, object],
+    evidence_tier: str = "formal",
 ) -> GateSuiteResult:
     if gate_id not in GATE_ARM_SCHEDULES:
         raise ValueError(f"unsupported seven-day gate {gate_id}")
     if (
-        preregistration.get("schema_version") != ("companion-gate-suite-seven-day-prereg.v1")
+        preregistration.get("schema_version") != ("companion-gate-suite-seven-day-prereg.v2")
         or preregistration.get("gate_id") != gate_id
     ):
         raise ValueError("gate-suite preregistration drift")
     arms = GATE_ARM_SCHEDULES[gate_id]
+    if evidence_tier not in {"formal", "smoke"}:
+        raise ValueError("gate-suite evidence_tier must be formal or smoke")
+    if evidence_tier == "smoke" and len(cases) != 1:
+        raise ValueError("gate-suite smoke requires exactly one matched pair")
     expected_keys = {(case.case_id, arm) for case in cases for arm in arms}
     if set(runs) != expected_keys:
         raise ValueError("gate-suite run matrix incomplete or contains extras")
     profile_contracts = _mapping(preregistration.get("profile_contracts"), field="profile_contracts")
     if set(profile_contracts) != set(arms):
         raise ValueError("gate-suite profile contract schedule drift")
+    formal = _mapping(preregistration.get("formal_run"), field="formal_run")
+    if evidence_tier == "formal":
+        if formal.get("pair_count") != len(cases):
+            raise ValueError("gate-suite preregistered pair count drift")
+        if formal.get("run_count") != len(expected_keys):
+            raise ValueError("gate-suite preregistered run count drift")
+    n_plus_one_contract = _mapping(
+        preregistration.get("n_plus_one_measurement"),
+        field="n_plus_one_measurement",
+    )
     readouts = tuple(
         _arm_readout(
             gate_id=gate_id,
@@ -551,21 +626,43 @@ def evaluate_companion_gate_suite(
             arm=arm,
             run=runs[(case.case_id, arm)],
             profile_contract=_mapping(profile_contracts[arm], field=f"profile_contracts.{arm}"),
+            n_plus_one_contract=n_plus_one_contract,
         )
         for case in cases
         for arm in arms
     )
     by_key = {(row.case_id, row.arm_label): row for row in readouts}
     treatment = GATE_TREATMENT_ARMS[gate_id]
+    for case in cases:
+        case_rows = tuple(by_key[(case.case_id, arm)] for arm in arms)
+        if len({row.n_plus_one_target_sequence_sha256 for row in case_rows}) != 1:
+            raise ValueError("gate-suite N+1 target sequence differs across arms")
+        if len(
+            {
+                row.n_plus_one_target_snapshot_fingerprint
+                for row in case_rows
+            }
+        ) != 1:
+            raise ValueError("gate-suite N+1 target snapshot differs across arms")
     comparisons = []
     for control in arms[1:]:
         primary = [
             by_key[(case.case_id, treatment)].primary_score - by_key[(case.case_id, control)].primary_score
             for case in cases
         ]
-        continuity = [
-            by_key[(case.case_id, treatment)].final_day_continuity_composite
-            - by_key[(case.case_id, control)].final_day_continuity_composite
+        continuity = []
+        for case in cases:
+            treatment_continuity = by_key[
+                (case.case_id, treatment)
+            ].final_day_continuity_composite
+            control_continuity = by_key[
+                (case.case_id, control)
+            ].final_day_continuity_composite
+            if treatment_continuity is not None and control_continuity is not None:
+                continuity.append(treatment_continuity - control_continuity)
+        n_plus_one = [
+            by_key[(case.case_id, treatment)].n_plus_one_prediction_quality
+            - by_key[(case.case_id, control)].n_plus_one_prediction_quality
             for case in cases
         ]
         safety = [
@@ -582,8 +679,12 @@ def evaluate_companion_gate_suite(
                 control_arm=control,
                 primary_gain_mean=statistics.fmean(primary),
                 primary_gain_ci95=_ci95(primary),
-                continuity_gain_mean=statistics.fmean(continuity),
+                continuity_gain_mean=(
+                    statistics.fmean(continuity) if continuity else None
+                ),
                 continuity_gain_ci95=_ci95(continuity),
+                n_plus_one_prediction_gain_mean=statistics.fmean(n_plus_one),
+                n_plus_one_prediction_gain_ci95=_ci95(n_plus_one),
                 safety_regression_max=max(safety),
             )
         )
@@ -602,12 +703,12 @@ def evaluate_companion_gate_suite(
         ).get("primary_gain"),
         field="minimum_effects.primary_gain",
     )
-    continuity_minimum = _number(
+    n_plus_one_minimum = _number(
         _mapping(
             preregistration.get("minimum_effects"),
             field="minimum_effects",
-        ).get("continuity_gain"),
-        field="minimum_effects.continuity_gain",
+        ).get("n_plus_one_prediction_quality_gain"),
+        field="minimum_effects.n_plus_one_prediction_quality_gain",
     )
     gates = {
         "matrix-complete": len(readouts) == len(expected_keys),
@@ -616,18 +717,26 @@ def evaluate_companion_gate_suite(
         "primary-ci-positive-all-controls": all(
             row.primary_gain_ci95 is not None and row.primary_gain_ci95[0] > 0.0 for row in comparisons
         ),
-        "continuity-minimum-effect-all-controls": all(
-            row.continuity_gain_mean >= continuity_minimum for row in comparisons
+        "n-plus-one-minimum-effect-all-controls": all(
+            row.n_plus_one_prediction_gain_mean >= n_plus_one_minimum
+            for row in comparisons
         ),
-        "continuity-ci-positive-all-controls": all(
-            row.continuity_gain_ci95 is not None and row.continuity_gain_ci95[0] > 0.0 for row in comparisons
+        "n-plus-one-ci-positive-all-controls": all(
+            row.n_plus_one_prediction_gain_ci95 is not None
+            and row.n_plus_one_prediction_gain_ci95[0] > 0.0
+            for row in comparisons
         ),
         "safety-noninferior-all-controls": all(row.safety_regression_max <= 0.0 for row in comparisons),
     }
-    causal = mechanism and all(gates.values())
+    causal = evidence_tier == "formal" and mechanism and all(gates.values())
     return GateSuiteResult(
-        schema_version=GATE_SUITE_SCHEMA_VERSION,
+        schema_version=(
+            GATE_SUITE_SCHEMA_VERSION
+            if evidence_tier == "formal"
+            else GATE_SUITE_SMOKE_SCHEMA_VERSION
+        ),
         gate_id=gate_id,
+        evidence_tier=evidence_tier,
         preregistration_sha256=hashlib.sha256(_canonical_bytes(preregistration)).hexdigest(),
         arm_schedule=arms,
         run_count=len(readouts),
@@ -655,6 +764,7 @@ class CompanionGateSuiteHarness:
         cases: Sequence[SevenDayExperimentCase],
         preregistration: Mapping[str, object],
         output_dir: str | Path,
+        evidence_tier: str = "formal",
     ) -> GateSuiteResult:
         if not cases:
             raise ValueError("gate-suite evidence requires cases")
@@ -678,8 +788,14 @@ class CompanionGateSuiteHarness:
             cases=cases,
             runs=runs,
             preregistration=preregistration,
+            evidence_tier=evidence_tier,
         )
-        (target / f"gate{self._gate_id}_evaluation.json").write_bytes(_canonical_bytes(result.to_json()))
+        filename = (
+            f"gate{self._gate_id}_evaluation.json"
+            if evidence_tier == "formal"
+            else f"gate{self._gate_id}_smoke_evaluation.json"
+        )
+        (target / filename).write_bytes(_canonical_bytes(result.to_json()))
         return result
 
 
@@ -687,6 +803,7 @@ __all__ = [
     "GATE_ARM_SCHEDULES",
     "GATE_PRIMARY_MINIMUMS",
     "GATE_SUITE_SCHEMA_VERSION",
+    "GATE_SUITE_SMOKE_SCHEMA_VERSION",
     "GATE_TREATMENT_ARMS",
     "CompanionGateSuiteHarness",
     "GateSuiteArmReadout",

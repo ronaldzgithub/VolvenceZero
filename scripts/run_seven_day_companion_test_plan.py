@@ -28,12 +28,17 @@ from companion_test_plan_common import (
 
 CONTINUITY_SCHEMAS = frozenset(
     {
+        # v1/v2 remain readable so the stopped 2026-08-02 campaign can still
+        # be audited as halted.  The campaign-specific runner rejects them
+        # for execution because only v3/v4 contain the N+1 contract.
         "seven-day-companion-simulated.v1",
         "seven-day-companion-simulated.v2",
+        "seven-day-companion-simulated.v3",
+        "seven-day-companion-simulated.v4",
     }
 )
-GATE1_SCHEMA = "gate1-seven-day-companion-prereg.v1"
-GATE_SUITE_SCHEMA = "companion-gate-suite-seven-day-prereg.v1"
+GATE1_SCHEMA = "gate1-seven-day-companion-prereg.v2"
+GATE_SUITE_SCHEMA = "companion-gate-suite-seven-day-prereg.v2"
 GATE_SUITE_IDS = (4, 5, 6, 7, 9, 10)
 SCIENTIFIC_NEGATIVE_EXIT = 2
 FORMAL_RESULT_EXITS = frozenset({0, SCIENTIFIC_NEGATIVE_EXIT})
@@ -430,6 +435,7 @@ def _runner_command(
     preregistration: Path,
     stage: str,
     output_dir: Path | None,
+    smoke_evidence_root: Path | None,
     host: str,
     port: int,
     startup_timeout_s: float,
@@ -468,9 +474,19 @@ def _runner_command(
             raise ValueError("seven-day smoke requires --output-dir")
         argv.extend(("--output-dir", str(output_dir), campaign.smoke_flag))
     elif stage == "formal":
-        if output_dir is None:
-            raise ValueError("seven-day formal requires --output-dir")
-        argv.extend(("--output-dir", str(output_dir), "--execute"))
+        if output_dir is None or smoke_evidence_root is None:
+            raise ValueError(
+                "seven-day formal requires output and smoke evidence roots"
+            )
+        argv.extend(
+            (
+                "--output-dir",
+                str(output_dir),
+                "--smoke-evidence-root",
+                str(smoke_evidence_root),
+                "--execute",
+            )
+        )
     else:
         raise ValueError(f"unsupported seven-day runner stage: {stage}")
     if resume:
@@ -541,6 +557,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     campaign = _campaign_from_preregistration(preregistration_payload)
     _require_mps_preregistration(preregistration_payload)
     output_dir = args.output_dir.resolve() if args.output_dir is not None else None
+    smoke_output_dir = (
+        output_dir.with_name(f"{output_dir.name}_smoke")
+        if output_dir is not None
+        else None
+    )
     requested_audit_output = (
         args.audit_output_dir.resolve()
         if args.audit_output_dir is not None
@@ -600,8 +621,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     formal_return_code = 0
     with exclusive_mps_lock(args.mps_lock, plan_id=campaign.plan_id):
         mps = require_mps()
-        stages = ("preflight", "formal") if args.stage == "all" else (args.stage,)
+        environment["VZ_COMPANION_MPS_LOCK_HELD"] = "1"
+        environment["VZ_COMPANION_MPS_LOCK_PATH"] = str(
+            args.mps_lock.resolve()
+        )
+        stages = (
+            ("preflight", "smoke", "formal")
+            if args.stage == "all"
+            else (args.stage,)
+        )
         for stage in stages:
+            stage_output_dir = (
+                smoke_output_dir if stage == "smoke" else output_dir
+            )
             return_code = run_plan_command(
                 _runner_command(
                     campaign=campaign,
@@ -609,11 +641,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     execution_root=execution_root,
                     preregistration=preregistration,
                     stage=stage,
-                    output_dir=output_dir,
+                    output_dir=stage_output_dir,
+                    smoke_evidence_root=smoke_output_dir,
                     host=args.host,
                     port=port,
                     startup_timeout_s=args.startup_timeout_s,
-                    resume=args.resume and stage == "formal",
+                    resume=args.resume and stage in {"smoke", "formal"},
                 ),
                 execution_root=execution_root,
                 environment=environment,

@@ -14,9 +14,11 @@ from pathlib import Path
 import shutil
 
 from volvence_zero.memory import scoped_memory_dir
+from volvence_zero.seven_day_evidence_contract import (
+    SEVEN_DAY_SHUFFLED_SOURCE_DAYS,
+)
 
 
-SEVEN_DAY_SHUFFLED_SOURCE_DAYS = (1, 1, 2, 1, 4, 3)
 _MEASUREMENT_CHECKPOINT_NAME = "evaluation__relationship_continuity_v1.json"
 _STATE_POLICY_BY_ARM = {
     "correct-user-state": "correct-user-state",

@@ -213,7 +213,170 @@ residual 对照结论改写为失败。
 与可审计上下文。State KV 承载的是关系姿态、稳定程度、边界风险、决策准备度等有界
 连续状态，两条通道互补而不互相冒充。
 
-## 8. 多时间尺度
+## 8. Base + Common Adapter + Character Package 交付设计
+
+系统的可部署模型不是一份按角色复制的完整权重，也不是“base + 一个长期保留的训练态
+LoRA”。正式运行单元分为四层：
+
+| 层 | 内容 | 作用域 | 更新方式 |
+|---|---|---|---|
+| L0 | frozen base model + weights SHA-256 | process / 多角色共享 | 冻结或独立 rare-heavy substrate 升级 |
+| L1 | `CommonAdapterBundle` | process / 多角色共享 | offline rare-heavy train → evaluate → publish |
+| L2 | `CharacterPackageManifest` + Character Prefix/KV + optional Character LoRA | character | offline bake → fidelity evaluate |
+| L3 | memory、personal/relationship conditioning snapshots | tenant:user/session | bounded online / session-medium / background-slow |
+
+L1 只学习跨角色共享的关系、边界、安全、状态跟随和计划能力；角色姓名、身份故事、立场
+与表达特色留在 L2。L3 是活体经历，按 tenant scope 隔离，永远不反向写入 L1/L2
+artifact。这样一个 base 和一个 Common Adapter 可以服务多个角色，每个 session 只选择
+对应的不可变角色包。
+
+### 8.1 训练态 LoRA 不等于部署态 Adapter
+
+```mermaid
+flowchart LR
+    T["跨角色 train traces"] --> L["临时 PEFT LoRA<br/>冻结 base，只训 q/v/o projections"]
+    L --> D["B@A 投影为<br/>bounded residual deltas"]
+    D --> K["base + deltas 上蒸馏<br/>State-KV generator"]
+    K --> C["common-adapter-candidate.v2"]
+    C --> E["immutable held-out<br/>base / candidate / wrong-state"]
+    E --> G["ModificationGate.OFFLINE"]
+    G --> B["CommonAdapterBundle"]
+    B --> P["角色 Prefix/KV bake"]
+    P --> F["角色 fidelity + gate"]
+    F --> M["evaluated CharacterPackageManifest"]
+```
+
+`PeftLoraRareHeavyBackend` 中的 LoRA 是训练工具：训练结束后取各目标模块的 `B@A`
+乘积，投影为默认三个 hook layer、每层一个 hidden-width delta。当前 L1 主流程不调用
+`peft_model.save_pretrained()`，因此不会发布标准 Hugging Face
+`adapter_model.safetensors`，也不能用 L1 产物直接恢复该临时 LoRA 继续训练。需要恢复
+训练时必须以冻结的 base snapshot、训练集 digest、显式 seed 和全部超参数重跑一个新
+version；需要标准 PEFT checkpoint 的 serving 场景必须另建显式、门控的 artifact
+contract，不能把它误称为当前 `CommonAdapterBundle`。
+
+最终 `common-adapter-bundle.json` 自包含以下运行材料：
+
+- `SubstrateRareHeavyCheckpoint`：有界 residual delta、训练模式、兼容指纹和训练 readout；
+- `PrefixKVArtifact`：16 维正式 conditioning state 到逐层 K/V slots 的低秩生成器；
+- `ControlBasisArtifact`：把 temporal `z_t` control 映射到目标 hidden geometry；
+- base model ID、base weights SHA-256、common adapter version 和由所有载体派生的
+  compatibility fingerprint；
+- cognition `ModificationGate.OFFLINE` record、evaluation ref、capacity cost 与
+  rollback evidence。
+
+bundle 内嵌这些数值 artifact，而不是只保存易漂移的外部路径。runtime 仍需单独加载
+匹配 SHA-256 的 L0 base；bundle 不是 merged full model。
+
+### 8.2 训练、评估与发布产生的文件
+
+一次正式 run 的模型 snapshot、输入数据和输出目录都必须只读保留。推荐发布目录是：
+
+```text
+data/common-adapter/
+├── train.jsonl
+├── held-out.jsonl
+└── character-<id>-held-out.jsonl
+
+artifacts/common-adapters/<base>/<version>/
+├── control-basis.json
+├── control-basis-observations.json
+├── control-basis-verdict.json
+├── rare-heavy-checkpoint.json
+├── state-kv-prefix.json
+├── state-kv-prefix.manifest.json
+├── common-adapter-candidate.json
+├── modification-gate-proposal.json
+├── held-out-evaluation.json
+├── common-adapter-gate-record.json
+└── common-adapter-bundle.json
+
+artifacts/character-packages/<character>/<version>/
+├── character-prefix.json
+├── shadow-manifest.json
+├── fidelity-report.json
+├── fidelity-evidence.json
+├── gate-record.json
+└── evaluated-manifest.json
+```
+
+各阶段的发布边界如下：
+
+| 阶段 | 主要输出 | 能否 serving |
+|---|---|---|
+| control-basis diagnostic | basis、observations、verdict | 否，只是 geometry/provenance |
+| L1 `train` | rare-heavy、State-KV、candidate、gate proposal | 否，训练不得自批 |
+| L1 `evaluate` | held-out observations/report、allow/deny gate record | 否，仍需完整 publish 校验 |
+| L1 `publish` | `common-adapter-bundle.json` | 仅可逆 OFFLINE `ALLOW` 可 ACTIVE；`DENY` 只留审计 |
+| L2 `bake` | Character Prefix/KV、`shadow-manifest.json` | 只可 SHADOW |
+| L2 `evaluate` | fidelity report/evidence、gate、`evaluated-manifest.json` | 通过 `require_active()` 后才可 ACTIVE |
+
+`common-adapter-candidate.json` 绑定输入和各 nested artifact 的 locator/digest；最终 bundle
+重新读取并内嵌已验证材料。`evaluated-manifest.json` 不复制角色内容，它以 locator、
+SHA-256、artifact ID 和 L1 双指纹绑定 `LifeformTemplate`、Character Prefix/KV、可选
+Character LoRA 及证据。任何输入、report、gate 或 locator 重定位都会改变 content ID，
+不得跨 version 重签。
+
+### 8.3 当前容量预算
+
+以当前 Qwen2.5-1.5B、28 层、hidden size 1536、2 个 KV heads、State-KV 4 slots / rank
+4、control basis rank 16、默认三个 rare-heavy hook layers 为例：
+
+| 材料 | 当前几何下的量级 | 磁盘口径 |
+|---|---:|---:|
+| L0 base | 约 15 亿参数 | 当前本地 BF16 safetensors 约 3.09 GB，进程共享一份 |
+| 训练态 rank-8 LoRA (`q_proj/v_proj/o_proj`) | 约 177.8 万 trainable params | BF16 约 3.4 MiB / FP32 约 6.8 MiB；当前不发布 |
+| rare-heavy residual deltas | 3 × 1536 = 4,608 floats | FP32 约 18 KiB，JSON 更大 |
+| State-KV generator | 约 286,788 floats | FP32 约 1.09 MiB |
+| rank-16 control basis | 约 24,576 floats | FP32 约 96 KiB |
+| 完整 L1 数值载荷 | 约 31.6 万 floats | 紧凑 FP32 约 1.2 MiB；当前 pretty JSON 预计 8–12 MiB |
+| 默认 rank-1 Character Prefix/KV | 角色独立 | 当前张无忌 1.5B artifact 实测约 3.53 MiB JSON |
+
+这些数字是容量规划基线，不是兼容契约。模型层数、hidden width、KV heads、slots、rank
+或 JSON/binary 编码变化都会改变大小；runtime 必须按 artifact geometry 和 digest 校验，
+不能按“约 10 MB”猜测兼容性。可选 Character LoRA 另计，而且在 prefix-only、
+LoRA-only、prefix+LoRA 三臂 typed evidence 完成前只能 SHADOW。
+
+### 8.4 数据量与证据等级
+
+当前 L1 输入每行是唯一 `trace_id` 加完整 causal-LM `source_text`；tokenizer 最多读取
+128 tokens，不做 assistant-only loss masking。State-KV 的 `states` 是内部蒸馏状态数，
+不能替代外部 train traces 或独立 held-out。
+
+| 等级 | 建议 train | 建议冻结 held-out | 可支持的结论 |
+|---|---:|---:|---|
+| plumbing smoke | 2–10 | 2–10 | 依赖、几何、序列化、三臂与 fail-closed Gate 可运行 |
+| 首轮有效实验 | 500–1,000 | 200–300 | 是否出现跨 cohort 的稳定正向信号 |
+| 正式 promotion candidate | 5,000–20,000 | 1,000–2,000，至少 3 seeds | 能力增益、preserve、wrong-state、回归率与跨 seed 稳定性 |
+
+代码的 held-out 硬下限是 8 cases，但这只是 schema/Gate 连通性下限，不是统计可信的
+promotion 规模。正式 held-out 必须同时覆盖 `improve` 与 `preserve`，按关系、边界、
+安全、状态跟随、计划等 cohort 分层；至少一组使用不同 counterfactual conditioning
+state，且至少一例施加非零 `z_t` control。训练集、Common Adapter held-out、角色 bake
+材料和角色 fidelity held-out 必须相互隔离；看到 Gate 结果后修改数据需要发布新 version，
+不得复用旧 digest 或旧 gate。
+
+当前仓库的 `smoke-train.jsonl` 与 `smoke-held-out.jsonl` 各只有 2 条，只证明链路；
+0.5B CPU smoke 的 `DENY` 是有效的 fail-closed 证据。正式 1.5B `train.jsonl`、冻结
+held-out、可加载的 `ALLOW CommonAdapterBundle` 和相应 evaluated character manifest
+仍是 ACTIVE 的前置条件，不能把 smoke 或已有单独 Prefix artifact 复制后当作晋升产物。
+
+### 8.5 Serving、升级与回滚
+
+启动时 L1 通过 `--common-adapter-bundle` 独立加载；即使没有任何角色 manifest，显式
+配置的 bundle 也必须 `require_active()`，禁止静默退回 base-only。L2 通过可重复的
+`--character-package-manifest` 加载，并按 session 的 typed `character_id` 选择；不能从
+用户文本推断角色。
+
+Common Adapter 从 vN 升级到 vN+1 会改变 L1 version/fingerprint，使旧 L2 manifest
+自动失效：载体几何变化走 `full-rebake`，载体可复用也必须走 `fidelity-only` 重评和
+重新 gate。L2 回滚是切到 `SHADOW/DISABLED` 或恢复前一 manifest；L1 回滚是省略新
+bundle 或恢复前一 bundle。两者都不修改 L0 base 与 L3 tenant state。
+
+详细字段、命令和 Gate 阈值见
+[character-prefix-package.md](./specs/character-prefix-package.md) 与
+[common-adapter-character-training.md](./common-adapter-character-training.md)。
+
+## 9. 多时间尺度
 
 | Timescale | 典型 owner/动作 | 边界 |
 |---|---|---|
@@ -222,7 +385,7 @@ residual 对照结论改写为失败。
 | background-slow | reflection、memory/policy consolidation、experience fast prior、protocol proposal | 不阻塞实时 turn；只产 proposal/readout 后由 owner apply |
 | rare-heavy | adapter/State-KV/Prefix-KV、offline evaluator、promotion gate | immutable artifact + fingerprint + ModificationGate |
 
-## 9. Snapshot、owner 与 wiring
+## 10. Snapshot、owner 与 wiring
 
 `RuntimeModule` 用 class-level `slot_name / owner / value_type / dependencies /
 default_wiring_level` 声明安全默认。`FinalRolloutConfig` 是部署 rollout override：
@@ -235,7 +398,7 @@ default_wiring_level` 声明安全默认。`FinalRolloutConfig` 是部署 rollou
 SHADOW，而 production final wiring 已是 ACTIVE。两层差异必须写入契约，不能混写成
 一个“默认”。
 
-## 10. 当前实现与证据边界
+## 11. 当前实现与证据边界
 
 基础 Memory/PE/Temporal owner、session-post loop、experience consolidation、hydration、
 protocol runtime 等已 ACTIVE。`evaluation_mid`、decision workspace 与多类 learner 仍
@@ -247,7 +410,7 @@ learned takeover。relationship-conditioned Gate 2 longitudinal seed1301 stop-lo
 Digital Ant ecology station1-v4 都已按冻结门终止。完整台账见
 [current.md](./current.md) 和 [thesis prove.md](./thesis%20prove.md)。
 
-## 11. 修改系统时的入口
+## 12. 修改系统时的入口
 
 1. 从 [specs/00_INDEX.md](./specs/00_INDEX.md) 定位 owner；
 2. 查 [DATA_CONTRACT.md](./DATA_CONTRACT.md) 的 slot 与依赖；

@@ -48,6 +48,7 @@ from volvence_zero.agent.eta_proof_benchmark import (
 from volvence_zero.agent.eta_rate_distortion_evidence import (
     OBSERVATION_PROTOCOL_V2,
     OBSERVATION_PROTOCOL_V3,
+    OBSERVATION_PROTOCOL_V4,
     _rate_distortion_observation_texts,
 )
 from volvence_zero.temporal.metacontroller_components import (
@@ -152,11 +153,20 @@ def main() -> None:
     parser.add_argument("--device", default="mps")
     parser.add_argument(
         "--observation-protocol",
-        choices=(OBSERVATION_PROTOCOL_V2, OBSERVATION_PROTOCOL_V3),
+        choices=(
+            OBSERVATION_PROTOCOL_V2,
+            OBSERVATION_PROTOCOL_V3,
+            OBSERVATION_PROTOCOL_V4,
+        ),
         default=OBSERVATION_PROTOCOL_V2,
         help=(
             "Protocol whose step-0 rendering is probed. v2 states the corpus "
-            "hash-fingerprint as the plan; v3 spells the objective order."
+            "hash-fingerprint as the plan; v3 spells the objective order; v4 "
+            "staggers revelation, so the PASS criteria invert: step-0 must "
+            "decode target_1 but target_2 must sit AT the null (no leak), "
+            "while the first-arrival step must decode target_2 (the reveal "
+            "reaches the encoder input). v4 skips the v2-era counterfactual "
+            "renderings and instead captures the first-arrival step."
         ),
     )
     parser.add_argument(
@@ -226,18 +236,21 @@ def main() -> None:
     #   plan restated at the END of the step-0 text, testing whether causal
     #   recency (not capture pooling) is what hides the plan from the final
     #   token's hidden state.
+    staged_protocol = args.observation_protocol == OBSERVATION_PROTOCOL_V4
     last_raws: list[tuple[float, ...]] = []
     mean_raws: list[tuple[float, ...]] = []
     plan_end_raws: list[tuple[float, ...]] = []
     plan_end_tail_raws: list[tuple[float, ...]] = []
     plan_alone_last_raws: list[tuple[float, ...]] = []
     plan_alone_mean_raws: list[tuple[float, ...]] = []
+    arrival_last_raws: list[tuple[float, ...]] = []
+    arrival_mean_raws: list[tuple[float, ...]] = []
     label_target_1: list[str] = []
     label_target_2: list[str] = []
     label_plan_length: list[str] = []
     label_last_transition: list[str] = []
     for case in cases:
-        texts, _targets = _rate_distortion_observation_texts(
+        texts, targets = _rate_distortion_observation_texts(
             case,
             environment=corpus.environment,
             protocol_version=args.observation_protocol,
@@ -247,24 +260,69 @@ def main() -> None:
         last_raws.append(_capture_last_raw(capture))
         mean_raws.append(_capture_mean_raw(capture))
 
-        location_marker = " Current location: "
-        if location_marker not in step0_text:
-            raise RuntimeError(
-                f"step-0 text for {case.case_id!r} lacks the expected "
-                f"{location_marker!r} marker; the counterfactual renderings "
-                "below would drift from the real protocol."
-            )
-        plan_sentence, local_part = step0_text.split(location_marker, 1)
-        plan_end_text = (
-            f"Current location: {local_part} {plan_sentence}"
+        objectives = tuple(
+            waypoint
+            for waypoint in case.route_signature
+            if corpus.environment.location(waypoint).is_objective
         )
-        plan_end_capture = runtime.capture(source_text=plan_end_text)
-        plan_end_raws.append(_capture_last_raw(plan_end_capture))
-        plan_end_tail_raws.append(_capture_mean_raw(plan_end_capture, tail=8))
+        if len(objectives) < 2:
+            raise RuntimeError(
+                f"route {case.case_id!r} has fewer than two planned "
+                "objectives; probe labels would be undefined."
+            )
 
-        plan_alone_capture = runtime.capture(source_text=plan_sentence)
-        plan_alone_last_raws.append(_capture_last_raw(plan_alone_capture))
-        plan_alone_mean_raws.append(_capture_mean_raw(plan_alone_capture))
+        if staged_protocol:
+            # First-arrival step: the observation emitted when the agent
+            # stands on the first objective, i.e. the step right after the
+            # last expert action that moves onto it (structural index; no
+            # text matching). Under v4 this is where target_2 is revealed.
+            move_action = f"move:{objectives[0]}"
+            pursuit_indices = tuple(
+                index
+                for index, target in enumerate(targets)
+                if target.action_id == move_action
+            )
+            if not pursuit_indices:
+                raise RuntimeError(
+                    f"route {case.case_id!r} never issues {move_action!r}; "
+                    "cannot locate the first-arrival step."
+                )
+            # End of the FIRST contiguous pursuit block (dwell phases repeat
+            # the same expert action), then the next step is the arrival
+            # observation.
+            arrival_index = pursuit_indices[0]
+            while arrival_index + 1 in pursuit_indices:
+                arrival_index += 1
+            arrival_index += 1
+            if arrival_index >= len(texts):
+                raise RuntimeError(
+                    f"route {case.case_id!r} ends before the first-arrival "
+                    "observation; probe would be undefined."
+                )
+            arrival_capture = runtime.capture(source_text=texts[arrival_index])
+            arrival_last_raws.append(_capture_last_raw(arrival_capture))
+            arrival_mean_raws.append(_capture_mean_raw(arrival_capture))
+        else:
+            location_marker = " Current location: "
+            if location_marker not in step0_text:
+                raise RuntimeError(
+                    f"step-0 text for {case.case_id!r} lacks the expected "
+                    f"{location_marker!r} marker; the counterfactual "
+                    "renderings below would drift from the real protocol."
+                )
+            plan_sentence, local_part = step0_text.split(location_marker, 1)
+            plan_end_text = (
+                f"Current location: {local_part} {plan_sentence}"
+            )
+            plan_end_capture = runtime.capture(source_text=plan_end_text)
+            plan_end_raws.append(_capture_last_raw(plan_end_capture))
+            plan_end_tail_raws.append(
+                _capture_mean_raw(plan_end_capture, tail=8)
+            )
+
+            plan_alone_capture = runtime.capture(source_text=plan_sentence)
+            plan_alone_last_raws.append(_capture_last_raw(plan_alone_capture))
+            plan_alone_mean_raws.append(_capture_mean_raw(plan_alone_capture))
 
         # Readability control: the final transition name is spelled by the
         # very last content tokens of the step-0 prompt; if even this is not
@@ -281,16 +339,6 @@ def main() -> None:
         # route_signature is the full waypoint path including corridor hops;
         # the plan stated in the step-0 text is the ordered OBJECTIVE
         # sequence. Label with objectives only.
-        objectives = tuple(
-            waypoint
-            for waypoint in case.route_signature
-            if corpus.environment.location(waypoint).is_objective
-        )
-        if len(objectives) < 2:
-            raise RuntimeError(
-                f"route {case.case_id!r} has fewer than two planned "
-                "objectives; probe labels would be undefined."
-            )
         label_target_1.append(objectives[0])
         label_target_2.append(objectives[1])
         # Positive control: plan length (objective count) is trivially
@@ -299,14 +347,24 @@ def main() -> None:
         label_plan_length.append(str(len(objectives)))
 
     results: dict[str, object] = {}
-    for pooling, raws in (
-        ("last-token", last_raws),
-        ("token-mean", mean_raws),
-        ("plan-at-end-last-token", plan_end_raws),
-        ("plan-at-end-last8-mean", plan_end_tail_raws),
-        ("plan-alone-last-token", plan_alone_last_raws),
-        ("plan-alone-mean", plan_alone_mean_raws),
-    ):
+    pooling_sets: tuple[tuple[str, list[tuple[float, ...]]], ...]
+    if staged_protocol:
+        pooling_sets = (
+            ("last-token", last_raws),
+            ("token-mean", mean_raws),
+            ("arrival-last-token", arrival_last_raws),
+            ("arrival-token-mean", arrival_mean_raws),
+        )
+    else:
+        pooling_sets = (
+            ("last-token", last_raws),
+            ("token-mean", mean_raws),
+            ("plan-at-end-last-token", plan_end_raws),
+            ("plan-at-end-last8-mean", plan_end_tail_raws),
+            ("plan-alone-last-token", plan_alone_last_raws),
+            ("plan-alone-mean", plan_alone_mean_raws),
+        )
+    for pooling, raws in pooling_sets:
         feature_variants: list[tuple[str, "torch.Tensor"]] = [
             (
                 f"n_input={n_input}",

@@ -12,6 +12,9 @@ from volvence_zero.agent.seven_day_companion_preregistration import (
     validate_seven_day_companion_preregistration,
     write_seven_day_companion_preregistration,
 )
+from volvence_zero.seven_day_evidence_contract import (
+    SEVEN_DAY_SHUFFLED_SOURCE_DAYS,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -65,12 +68,21 @@ def _character_runtime_stack() -> dict[str, object]:
 
 def test_preregistration_freezes_six_scenarios_six_arms_and_real_models() -> None:
     payload = _payload()
+    assert payload["schema_version"] == "seven-day-companion-simulated.v3"
     assert len(payload["scenario_ids"]) == 6
     assert payload["formal_run"]["run_count"] == 36
     assert payload["formal_run"]["session_count"] == 252
     assert payload["formal_run"]["exchange_count"] == 1260
     assert payload["source_requirements"]["deterministic_fake_allowed_in_formal"] is False
     assert payload["authorization"]["production_promotion_authorized"] is False
+    assert payload["readouts"]["owner_metrics_role"] == (
+        "secondary diagnostics only"
+    )
+    assert payload["n_plus_one_measurement"]["target_owner"] == "vz-substrate"
+    assert payload["n_plus_one_measurement"]["target_arm_independent"] is True
+    assert payload["interventions"][
+        "shuffled_history_source_days_after_day_1_to_6"
+    ] == list(SEVEN_DAY_SHUFFLED_SOURCE_DAYS)
     source_snapshot = payload["execution_source_snapshot"]
     assert source_snapshot["file_count"] > len(payload["code_manifest"])
     assert len(source_snapshot["tree_sha256"]) == 64
@@ -93,7 +105,7 @@ def test_preregistration_freezes_six_scenarios_six_arms_and_real_models() -> Non
 
 def test_preregistration_drift_fails_loudly() -> None:
     payload = deepcopy(_payload())
-    payload["minimum_effects"]["callback_hit_rate_gain"] = 0.0
+    payload["minimum_effects"]["n_plus_one_prediction_quality_gain"] = 0.0
     with pytest.raises(ValueError, match="drift"):
         validate_seven_day_companion_preregistration(
             payload,
@@ -101,14 +113,14 @@ def test_preregistration_drift_fails_loudly() -> None:
         )
 
 
-def test_v2_preregistration_freezes_active_base_adapter_character_stack() -> None:
+def test_v4_preregistration_freezes_active_base_adapter_character_stack() -> None:
     payload = build_seven_day_companion_preregistration(
         repo_root=REPO_ROOT,
         created_at_unix_ms=1_786_032_000_000,
         runtime_stack=_character_runtime_stack(),
     )
 
-    assert payload["schema_version"] == "seven-day-companion-simulated.v2"
+    assert payload["schema_version"] == "seven-day-companion-simulated.v4"
     assert payload["formal_models"]["sut"]["model_id"] == ("Qwen/Qwen2.5-1.5B-Instruct")
     assert payload["formal_models"]["simulator"]["model_family"] == "smollm"
     assert "docs/prd.md" in payload["execution_source_snapshot"]["roots"]

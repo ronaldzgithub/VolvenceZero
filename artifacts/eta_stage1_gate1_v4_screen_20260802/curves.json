@@ -1,0 +1,38 @@
+[
+  {
+    "arm": "frozen",
+    "alpha": 0.01,
+    "rate_mean": 0.54705239175061,
+    "rate_std": 0.0,
+    "distortion_mean": 1.24833927039199,
+    "distortion_std": 0.0,
+    "heldout_distortion_mean": 1.2407332150122294,
+    "boundary_f1_mean": 0.0,
+    "switch_frequency_mean": 0.0,
+    "seed_count": 1
+  },
+  {
+    "arm": "frozen",
+    "alpha": 0.1,
+    "rate_mean": 0.2053796155181857,
+    "rate_std": 0.0,
+    "distortion_mean": 1.249737496851198,
+    "distortion_std": 0.0,
+    "heldout_distortion_mean": 1.237510190734696,
+    "boundary_f1_mean": 0.0,
+    "switch_frequency_mean": 0.0,
+    "seed_count": 1
+  },
+  {
+    "arm": "frozen",
+    "alpha": 1.0,
+    "rate_mean": 0.005873335860631104,
+    "rate_std": 0.0,
+    "distortion_mean": 1.2745975018521185,
+    "distortion_std": 0.0,
+    "heldout_distortion_mean": 1.2656686700207733,
+    "boundary_f1_mean": 0.0,
+    "switch_frequency_mean": 0.0,
+    "seed_count": 1
+  }
+]

@@ -310,6 +310,7 @@ def _report_fixture(verdict: str = "kill-eta"):
         observation_protocol="partially-observable-no-remaining-route.v1",
         posterior_parameterization="legacy",
         rate_gating="per-step",
+        gate_mode="continuous",
         corpus_origin="fixture",
         corpus_seed=0,
         corpus_objective_count=2,
@@ -436,6 +437,105 @@ def test_v2_protocol_states_the_plan_once_and_drops_progress_leaks() -> None:
     assert all("Route plan" not in text for text in v3_texts[1:])
     # v1, by contrast, repeats the fingerprint and progress on every step.
     assert all("Task context" in text for text in v1_texts)
+
+
+def test_v4_protocol_staggers_revelation_at_objective_arrivals() -> None:
+    """v4: step 0 names only the first objective; each arrival at an
+    objective reveals the next; corridor steps stay strictly local."""
+
+    import dataclasses
+
+    import pytest as _pytest
+
+    from volvence_zero.agent import eta_rate_distortion_evidence as module
+    from volvence_zero.agent.eta_proof_benchmark import (
+        generate_eta_proof_corpus,
+    )
+    from volvence_zero.agent.eta_rate_distortion_evidence import (
+        OBSERVATION_PROTOCOL_V3,
+        OBSERVATION_PROTOCOL_V4,
+        _rate_distortion_observation_bundle,
+    )
+
+    @dataclasses.dataclass(frozen=True)
+    class _StubSnapshot:
+        description: str = "stub"
+        residual_sequence: tuple[object, ...] = ()
+
+    corpus = generate_eta_proof_corpus(
+        seed=7,
+        objective_count=4,
+        corridor_count=2,
+        extra_edge_probability=0.35,
+        train_route_count=6,
+        heldout_route_count=3,
+        train_lengths=(2, 3),
+        heldout_lengths=(3, 4),
+    )
+
+    with _pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            module,
+            "_runtime_capture_snapshot",
+            lambda **_kwargs: _StubSnapshot(),
+        )
+        for case in corpus.train_cases + corpus.heldout_cases:
+            objectives = tuple(
+                waypoint
+                for waypoint in case.route_signature
+                if corpus.environment.location(waypoint).is_objective
+            )
+            _, v3_texts, v3_targets = _rate_distortion_observation_bundle(
+                case,
+                environment=corpus.environment,
+                open_weight_runtime=object(),
+                protocol_version=OBSERVATION_PROTOCOL_V3,
+            )
+            _, v4_texts, v4_targets = _rate_distortion_observation_bundle(
+                case,
+                environment=corpus.environment,
+                open_weight_runtime=object(),
+                protocol_version=OBSERVATION_PROTOCOL_V4,
+            )
+
+            # Identical expert supervision and step count.
+            assert v4_targets == v3_targets
+            assert len(v4_texts) == len(v3_texts)
+
+            # Step 0 reveals ONLY the first objective; later objectives are
+            # absent from the step-0 text's plan prefix.
+            assert v4_texts[0].startswith(
+                f"Next objective: {objectives[0]}. "
+            )
+            step0_plan = v4_texts[0].split(" Current location: ")[0]
+            for later in objectives[1:]:
+                assert later not in step0_plan
+
+            # Every non-final objective is revealed exactly once, on the
+            # arrival step at its predecessor.
+            for index in range(1, len(objectives)):
+                reveal = (
+                    f"Reached {objectives[index - 1]}. "
+                    f"Next objective: {objectives[index]}. "
+                )
+                matching = [
+                    text for text in v4_texts if text.startswith(reveal)
+                ]
+                assert len(matching) == 1
+                assert (
+                    f"Current location: {objectives[index - 1]}."
+                    in matching[0]
+                )
+
+            # All other steps are strictly local (no plan text at all).
+            reveal_free = [
+                text
+                for text in v4_texts[1:]
+                if not text.startswith("Reached ")
+            ]
+            for text in reveal_free:
+                assert text.startswith("Current location: ")
+                assert "objective" not in text.lower()
 
 
 def test_rate_distortion_cli_holds_the_shared_mps_lock_during_the_sweep(
@@ -689,6 +789,7 @@ def _matching_args(**overrides: object):
         "observation_protocol": "partially-observable-no-remaining-route.v1",
         "posterior_parameterization": "legacy",
         "rate_gating": "per-step",
+        "gate_mode": "continuous",
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -725,6 +826,10 @@ def test_preregistration_accepts_the_execution_it_froze(tmp_path: Path) -> None:
         (
             {"rate_gating": "switch-gated"},
             "rate_gating",
+        ),
+        (
+            {"gate_mode": "hard-st"},
+            "gate_mode",
         ),
     ),
 )

@@ -1,0 +1,38 @@
+[
+  {
+    "arm": "frozen",
+    "alpha": 0.01,
+    "rate_mean": 2.5079092110168553,
+    "rate_std": 0.0,
+    "distortion_mean": 1.0421511914584778,
+    "distortion_std": 0.0,
+    "heldout_distortion_mean": 1.1437602033363077,
+    "boundary_f1_mean": 0.6657534246575343,
+    "switch_frequency_mean": 1.0,
+    "seed_count": 1
+  },
+  {
+    "arm": "frozen",
+    "alpha": 0.1,
+    "rate_mean": 0.31161144934421303,
+    "rate_std": 0.0,
+    "distortion_mean": 1.128058429217372,
+    "distortion_std": 0.0,
+    "heldout_distortion_mean": 1.2093223012854535,
+    "boundary_f1_mean": 0.4342507645259939,
+    "switch_frequency_mean": 0.17248459958932238,
+    "seed_count": 1
+  },
+  {
+    "arm": "frozen",
+    "alpha": 1.0,
+    "rate_mean": 0.13048913531639522,
+    "rate_std": 0.0,
+    "distortion_mean": 0.9466843508104092,
+    "distortion_std": 0.0,
+    "heldout_distortion_mean": 1.1235245454688592,
+    "boundary_f1_mean": 0.4166666666666667,
+    "switch_frequency_mean": 0.38809034907597534,
+    "seed_count": 1
+  }
+]

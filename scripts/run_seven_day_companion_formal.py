@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 from typing import Mapping
 
 from companion_bench.seven_day_driver import (
@@ -17,7 +18,7 @@ from companion_bench.seven_day_driver import (
     build_frozen_seven_day_user_script,
     load_frozen_seven_day_user_script,
 )
-from companion_bench.spec import load_scenario_yaml
+from companion_bench.spec import FamilyId, ScenarioSpec, load_scenario_yaml
 from companion_bench.user_simulator import (
     LocalTransformersUtteranceClient,
 )
@@ -48,8 +49,19 @@ from volvence_zero.agent.seven_day_companion_preregistration import (
     seven_day_source_attestation_contract,
     validate_seven_day_companion_preregistration,
 )
+from volvence_zero.agent.seven_day_n_plus_one import (
+    SevenDayNPlusOneCompiler,
+    build_seven_day_n_plus_one_compiler,
+    validate_seven_day_n_plus_one_evidence,
+)
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import fingerprint_model_weight_files
+
+from companion_test_plan_common import (
+    guarded_mps_runner_entrypoint,
+    validate_seven_day_smoke_manifest,
+    write_seven_day_smoke_manifest,
+)
 
 
 _DAY_MS = 86_400_000
@@ -146,12 +158,24 @@ def _resolve_character_stack(*, preregistration: Mapping[str, object], repo_root
 def _schedule(
     *,
     script: FrozenSevenDayUserScript,
+    scenario_spec: ScenarioSpec,
     virtual_start_ms: int,
 ) -> SevenDayScenarioSchedule:
     tags_by_day: dict[int, set[str]] = {day_index: set() for day_index in range(1, 8)}
     for turn in script.turns:
         tags_by_day[turn.day_index].update(turn.event_tags)
-    arc_type = "progressive_warmth" if script.scenario_id.startswith("F1-") else "rupture_repair"
+    if scenario_spec.scenario_id != script.scenario_id:
+        raise ValueError("seven-day scenario/script identity drift")
+    arc_type_by_family = {
+        FamilyId.F1_CONTINUITY: "progressive_warmth",
+        FamilyId.F2_REPAIR: "rupture_repair",
+    }
+    try:
+        arc_type = arc_type_by_family[scenario_spec.family]
+    except KeyError as exc:
+        raise ValueError(
+            "seven-day scenario family lacks a registered typed arc"
+        ) from exc
     return SevenDayScenarioSchedule(
         scenario_id=script.scenario_id,
         persona_ref=(f"{script.identity_name}:{script.identity_occupation}"),
@@ -168,6 +192,140 @@ def _schedule(
     )
 
 
+def _write_atomic_json(path: Path, payload: Mapping[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f"{path.suffix}.tmp")
+    temporary.write_bytes(_canonical_bytes(payload))
+    temporary.replace(path)
+
+
+def _quarantine_path(*, output_root: Path, path: Path, reason: str) -> None:
+    if not path.exists():
+        return
+    try:
+        relative = path.resolve().relative_to(output_root.resolve())
+    except ValueError as exc:
+        raise ValueError("seven-day quarantine path escaped output root") from exc
+    quarantine_root = (
+        output_root
+        / "quarantine"
+        / f"{time.time_ns()}-{reason}"
+    )
+    destination = quarantine_root / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    path.replace(destination)
+
+
+def _validate_resumable_run(
+    *,
+    payload: Mapping[str, object],
+    case: SevenDayExperimentCase,
+    arm_label: str,
+    evidence_profile: str | None,
+    require_character_stack: bool,
+    n_plus_one_contract: Mapping[str, object] | None,
+) -> None:
+    if payload.get("schema_version") != "seven-day-companion-run.v1":
+        raise ValueError("resumable seven-day run schema drift")
+    if (
+        payload.get("scenario_id") != case.scenario_id
+        or payload.get("paraphrase_seed") != case.paraphrase_seed
+        or payload.get("arm_label") != arm_label
+    ):
+        raise ValueError("resumable seven-day run identity drift")
+    days = payload.get("days")
+    if not isinstance(days, (list, tuple)) or len(days) != 7:
+        raise ValueError("resumable seven-day run is incomplete")
+    previous_next_instance: str | None = None
+    for day_index, raw_day in enumerate(days, start=1):
+        if not isinstance(raw_day, Mapping) or raw_day.get("day_index") != day_index:
+            raise ValueError("resumable seven-day run day order drift")
+        turns = raw_day.get("turns")
+        if not isinstance(turns, (list, tuple)) or len(turns) != 5:
+            raise ValueError("resumable seven-day run turn matrix is incomplete")
+        for exchange_index, raw_turn in enumerate(turns, start=1):
+            if (
+                not isinstance(raw_turn, Mapping)
+                or raw_turn.get("exchange_index") != exchange_index
+                or not isinstance(raw_turn.get("user_text"), str)
+                or not str(raw_turn.get("user_text")).strip()
+                or not isinstance(raw_turn.get("assistant_text"), str)
+                or not str(raw_turn.get("assistant_text")).strip()
+            ):
+                raise ValueError("resumable seven-day run turn contract drift")
+            event_tags = raw_turn.get("event_tags")
+            if not isinstance(event_tags, (list, tuple)) or not all(
+                isinstance(tag, str) for tag in event_tags
+            ):
+                raise ValueError("resumable seven-day run event_tags drift")
+        service_instance_id = raw_day.get("service_instance_id")
+        if not isinstance(service_instance_id, str) or not service_instance_id:
+            raise ValueError("resumable seven-day service identity is missing")
+        if (
+            previous_next_instance is not None
+            and service_instance_id != previous_next_instance
+        ):
+            raise ValueError("resumable seven-day restart identity chain drift")
+        restart = raw_day.get("restart_after_day")
+        if day_index == 7:
+            if restart is not None:
+                raise ValueError("resumable day seven unexpectedly restarts")
+            continue
+        if not isinstance(restart, Mapping):
+            raise ValueError("resumable seven-day restart evidence is missing")
+        previous_scope = restart.get("previous_persistence_scope_sha256")
+        next_scope = restart.get("next_persistence_scope_sha256")
+        if (
+            restart.get("after_day_index") != day_index
+            or restart.get("previous_instance_id") != service_instance_id
+            or restart.get("healthcheck_passed") is not True
+            or restart.get("persistence_scope_unchanged") is not True
+            or not isinstance(previous_scope, str)
+            or len(previous_scope) != 64
+            or any(character not in "0123456789abcdef" for character in previous_scope)
+            or next_scope != previous_scope
+            or not isinstance(restart.get("state_intervention"), Mapping)
+        ):
+            raise ValueError("resumable seven-day restart contract drift")
+        previous_next_instance = restart.get("next_instance_id")
+        if (
+            not isinstance(previous_next_instance, str)
+            or not previous_next_instance
+            or previous_next_instance == service_instance_id
+        ):
+            raise ValueError("resumable seven-day restart identity drift")
+    if (
+        payload.get("process_restart_count") != 6
+        or payload.get("all_restarts_exact") is not True
+        or payload.get("production_promotion_authorized") is not False
+    ):
+        raise ValueError("resumable seven-day lifecycle evidence is incomplete")
+    if evidence_profile is not None:
+        profile = payload.get("runtime_profile_attestation")
+        if not isinstance(profile, Mapping) or profile.get("profile") != evidence_profile:
+            raise ValueError("resumable seven-day profile attestation is incomplete")
+        claimed_sha = profile.get("attestation_sha256")
+        unhashed = dict(profile)
+        unhashed.pop("attestation_sha256", None)
+        if (
+            not isinstance(claimed_sha, str)
+            or claimed_sha
+            != hashlib.sha256(
+                _canonical_bytes(unhashed).rstrip(b"\n")
+            ).hexdigest()
+        ):
+            raise ValueError("resumable seven-day profile SHA drift")
+    if require_character_stack and not isinstance(
+        payload.get("runtime_stack_attestation"), Mapping
+    ):
+        raise ValueError("resumable v4 character stack attestation is incomplete")
+    if n_plus_one_contract is not None:
+        validate_seven_day_n_plus_one_evidence(
+            run=payload,
+            contract=n_plus_one_contract,
+        )
+
+
 class _LocalFormalExecutor:
     def __init__(
         self,
@@ -176,6 +334,7 @@ class _LocalFormalExecutor:
         output_root: Path,
         cases: tuple[SevenDayExperimentCase, ...],
         scripts: dict[str, FrozenSevenDayUserScript],
+        scenario_paths: Mapping[str, str],
         source_attestation: SimulatedSourceAttestation,
         sut_model_id: str,
         sut_max_new_tokens: int,
@@ -187,11 +346,14 @@ class _LocalFormalExecutor:
         character_stack: Mapping[str, object] | None = None,
         evidence_profile_by_arm: Mapping[str, str] | None = None,
         state_loading_policy_by_arm: Mapping[str, str] | None = None,
+        n_plus_one_compiler: SevenDayNPlusOneCompiler | None = None,
+        n_plus_one_contract: Mapping[str, object] | None = None,
     ) -> None:
         self._repo_root = repo_root
         self._output_root = output_root
         self._cases = cases
         self._scripts = scripts
+        self._scenario_paths = dict(scenario_paths)
         self._source_attestation = source_attestation
         self._sut_model_id = sut_model_id
         self._sut_max_new_tokens = sut_max_new_tokens
@@ -203,6 +365,18 @@ class _LocalFormalExecutor:
         self._character_stack = dict(character_stack) if character_stack is not None else None
         self._evidence_profile_by_arm = dict(evidence_profile_by_arm or {})
         self._state_loading_policy_by_arm = dict(state_loading_policy_by_arm or {})
+        self._n_plus_one_compiler = n_plus_one_compiler
+        self._n_plus_one_contract = (
+            dict(n_plus_one_contract)
+            if n_plus_one_contract is not None
+            else None
+        )
+        if (self._n_plus_one_compiler is None) != (
+            self._n_plus_one_contract is None
+        ):
+            raise ValueError(
+                "seven-day N+1 compiler and contract must be supplied together"
+            )
         self._case_index = {case.case_id: index for index, case in enumerate(cases)}
 
     def execute(
@@ -213,25 +387,63 @@ class _LocalFormalExecutor:
         drain_slow_loop: bool,
         output_path: Path,
     ) -> dict[str, object]:
+        evidence_profile = self._evidence_profile_by_arm.get(arm_label)
         if output_path.exists():
-            payload = json.loads(output_path.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict):
-                raise ValueError(f"existing run is not an object: {output_path}")
-            print(
-                f"[resume] {case.case_id} / {arm_label}",
-                flush=True,
-            )
-            return payload
+            try:
+                payload = json.loads(output_path.read_text(encoding="utf-8"))
+                if not isinstance(payload, dict):
+                    raise ValueError("existing run is not an object")
+                _validate_resumable_run(
+                    payload=payload,
+                    case=case,
+                    arm_label=arm_label,
+                    evidence_profile=evidence_profile,
+                    require_character_stack=self._character_stack is not None,
+                    n_plus_one_contract=self._n_plus_one_contract,
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+                _quarantine_path(
+                    output_root=self._output_root,
+                    path=output_path,
+                    reason="invalid-run",
+                )
+                print(
+                    f"[resume-quarantine] {case.case_id} / {arm_label}: {exc}",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"[resume] {case.case_id} / {arm_label}",
+                    flush=True,
+                )
+                return payload
         print(f"[run] {case.case_id} / {arm_label}", flush=True)
         case_key = hashlib.sha256(case.case_id.encode("utf-8")).hexdigest()[:20]
         state_root = self._output_root / "state" / case_key
         archive_root = state_root / "archives" / arm_label
         active_root = state_root / "active" / arm_label
         correct_reference = state_root / "archives/correct-user-state"
-        donor_index = (self._case_index[case.case_id] + 1) % len(self._cases)
-        donor = self._cases[donor_index]
-        donor_key = hashlib.sha256(donor.case_id.encode("utf-8")).hexdigest()[:20]
-        donor_archive = self._output_root / "state" / donor_key / "archives/correct-user-state"
+        for stale_path in (archive_root, active_root):
+            _quarantine_path(
+                output_root=self._output_root,
+                path=stale_path,
+                reason="incomplete-state",
+            )
+        donor_archive = None
+        if arm_label == "swapped-user-state":
+            if len(self._cases) < 2:
+                raise ValueError(
+                    "swapped-user-state requires at least two matched cases"
+                )
+            donor_index = (self._case_index[case.case_id] + 1) % len(self._cases)
+            donor = self._cases[donor_index]
+            donor_key = hashlib.sha256(donor.case_id.encode("utf-8")).hexdigest()[:20]
+            donor_archive = (
+                self._output_root
+                / "state"
+                / donor_key
+                / "archives/correct-user-state"
+            )
         # The physical state roots are arm-isolated, while the logical user
         # identity stays exact across arms.  Otherwise user-id drift would be
         # an unregistered second intervention in a paired comparison.
@@ -244,7 +456,7 @@ class _LocalFormalExecutor:
             experiment_arm_label=arm_label,
             state_loading_policy=self._state_loading_policy_by_arm.get(arm_label),
             correct_reference_archive_root=(correct_reference if arm_label == "shuffled-history" else None),
-            donor_archive_root=(donor_archive if arm_label == "swapped-user-state" else None),
+            donor_archive_root=donor_archive,
         )
         base_url = f"http://{self._host}:{self._port}"
         vertical = str(self._character_stack["vertical"]) if self._character_stack is not None else "companion"
@@ -258,6 +470,14 @@ class _LocalFormalExecutor:
             timeout_s=600.0,
         )
         service_evidence = self._output_root / "service_evidence" / case_key / arm_label
+        service_log_dir = self._output_root / "service_logs" / case_key / arm_label
+        pilot_root = self._output_root / "pilot_days" / case_key / arm_label
+        for stale_path in (service_evidence, service_log_dir, pilot_root):
+            _quarantine_path(
+                output_root=self._output_root,
+                path=stale_path,
+                reason="incomplete-run",
+            )
         command = (
             sys.executable,
             "-m",
@@ -302,7 +522,6 @@ class _LocalFormalExecutor:
                     "--character-package-manifest",
                     str(manifest_path),
                 )
-        evidence_profile = self._evidence_profile_by_arm.get(arm_label)
         if evidence_profile is not None:
             command = (
                 *command,
@@ -318,8 +537,10 @@ class _LocalFormalExecutor:
             command=command,
             service=service,
             health_url=f"{base_url}/v1/health",
-            persistence_scope_id=user_id,
-            log_dir=self._output_root / "service_logs" / case_key / arm_label,
+            expected_persistence_scope_sha256=hashlib.sha256(
+                active_root.resolve().as_posix().encode("utf-8")
+            ).hexdigest(),
+            log_dir=service_log_dir,
             cwd=self._repo_root,
             environment=environment,
             startup_timeout_s=self._startup_timeout_s,
@@ -329,12 +550,18 @@ class _LocalFormalExecutor:
             state_controller=controller,
         )
         pilot = RelationshipAssistantPilotHarness(
-            root_dir=self._output_root / "pilot_days" / case_key / arm_label,
+            root_dir=pilot_root,
             pilot_id=f"seven-day-formal-{case_key}-{arm_label}",
             invited_user_ids=frozenset({user_id}),
         )
         lifecycle.start_initial()
         try:
+            scenario_relative = self._scenario_paths.get(case.scenario_id)
+            if not isinstance(scenario_relative, str):
+                raise ValueError("seven-day scenario path mapping drift")
+            scenario_spec = load_scenario_yaml(
+                self._repo_root / scenario_relative
+            )
             run = SevenDayCompanionOrchestrator(
                 service=service,
                 lifecycle=lifecycle,
@@ -346,25 +573,24 @@ class _LocalFormalExecutor:
                 user_id=user_id,
                 schedule=_schedule(
                     script=self._scripts[case.case_id],
+                    scenario_spec=scenario_spec,
                     virtual_start_ms=self._virtual_start_ms,
                 ),
                 user_driver=FrozenSevenDayUserDriver(self._scripts[case.case_id]),
                 source_attestation=self._source_attestation,
                 drain_slow_loop=drain_slow_loop,
-                output_path=output_path,
+                output_path=None,
             )
         finally:
             lifecycle.close()
         print(f"[complete] {case.case_id} / {arm_label}", flush=True)
         payload = run.to_json()
-        payload_changed = False
         if evidence_profile is not None:
             profile_path = service_evidence / "companion_evidence_runtime_profile.json"
             profile_payload = json.loads(profile_path.read_text(encoding="utf-8"))
             if profile_payload.get("profile") != evidence_profile:
                 raise ValueError("service evidence profile attestation drift")
             payload["runtime_profile_attestation"] = profile_payload
-            payload_changed = True
         if self._character_stack is not None:
             stack_path = service_evidence / "character_runtime_stack_attestation.json"
             stack_payload = json.loads(stack_path.read_text(encoding="utf-8"))
@@ -386,9 +612,20 @@ class _LocalFormalExecutor:
             ):
                 raise ValueError("service ACTIVE character binding attestation drift")
             payload["runtime_stack_attestation"] = stack_payload
-            payload_changed = True
-        if payload_changed:
-            output_path.write_bytes(_canonical_bytes(payload))
+        if self._n_plus_one_compiler is not None:
+            assert self._n_plus_one_contract is not None
+            payload["n_plus_one_representation_evidence"] = (
+                self._n_plus_one_compiler.compile(payload)
+            )
+        _validate_resumable_run(
+            payload=payload,
+            case=case,
+            arm_label=arm_label,
+            evidence_profile=evidence_profile,
+            require_character_stack=self._character_stack is not None,
+            n_plus_one_contract=self._n_plus_one_contract,
+        )
+        _write_atomic_json(output_path, payload)
         return payload
 
 
@@ -405,6 +642,7 @@ def main() -> int:
     parser.add_argument("--smoke-one-run", action="store_true")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--smoke-evidence-root", type=Path)
     args = parser.parse_args()
     selected_modes = sum((args.preflight_only, args.smoke_one_run, args.execute))
     if selected_modes != 1:
@@ -419,13 +657,22 @@ def main() -> int:
         preregistration,
         repo_root=root,
     )
+    if args.execute:
+        if args.smoke_evidence_root is None:
+            raise ValueError("formal execution requires --smoke-evidence-root")
+        validate_seven_day_smoke_manifest(
+            smoke_root=args.smoke_evidence_root.resolve(),
+            preregistration=preregistration,
+            campaign="continuity",
+            gate_id=None,
+        )
     character_stack = _resolve_character_stack(
         preregistration=preregistration,
         repo_root=root,
     )
     sut = _model_contract(preregistration, role="sut")
     simulator = _model_contract(preregistration, role="simulator")
-    _verify_model(sut)
+    sut_snapshot = _verify_model(sut)
     _verify_model(simulator)
     if sut["model_family"] == simulator["model_family"]:
         raise ValueError("formal SUT and simulator model families overlap")
@@ -437,6 +684,9 @@ def main() -> int:
     scenario_ids = preregistration.get("scenario_ids")
     if not isinstance(seeds, list) or not isinstance(scenario_ids, list):
         raise ValueError("formal case schedule is malformed")
+    n_plus_one_contract = preregistration.get("n_plus_one_measurement")
+    if not isinstance(n_plus_one_contract, Mapping):
+        raise ValueError("formal preregistration lacks N+1 measurement")
     if args.device != formal.get("execution_device"):
         raise ValueError("execution device differs from preregistration")
     simulator_backend = LocalTransformersUtteranceClient(
@@ -457,6 +707,10 @@ def main() -> int:
                     temperature=float(simulator["temperature"]),
                 )
                 script_digests[f"{scenario_id}:seed-{seed}"] = script.script_sha256
+        build_seven_day_n_plus_one_compiler(
+            model_source=sut_snapshot,
+            contract=n_plus_one_contract,
+        )
         print(
             json.dumps(
                 {
@@ -468,6 +722,7 @@ def main() -> int:
                         "base+common-adapter+character-package" if character_stack is not None else "base-only"
                     ),
                     "validated_script_count": len(script_digests),
+                    "n_plus_one_measurement": "load-and-contract-passed",
                     "script_sha256": script_digests,
                 },
                 sort_keys=True,
@@ -528,11 +783,21 @@ def main() -> int:
         **attestation_contract,
         pii_scan_artifact_sha256=hashlib.sha256(source_audit_bytes).hexdigest(),
     )
+    del simulator_backend
+    n_plus_one_compiler = build_seven_day_n_plus_one_compiler(
+        model_source=sut_snapshot,
+        contract=n_plus_one_contract,
+    )
+    normalized_scenario_paths = {
+        str(scenario_id): str(path)
+        for scenario_id, path in scenario_paths.items()
+    }
     executor = _LocalFormalExecutor(
         repo_root=root,
         output_root=target,
         cases=cases,
         scripts=scripts,
+        scenario_paths=normalized_scenario_paths,
         source_attestation=source_attestation,
         sut_model_id=str(sut["model_id"]),
         sut_max_new_tokens=int(sut["max_new_tokens"]),
@@ -542,6 +807,8 @@ def main() -> int:
         startup_timeout_s=args.startup_timeout_s,
         virtual_start_ms=int(formal["virtual_start_ms"]),
         character_stack=character_stack,
+        n_plus_one_compiler=n_plus_one_compiler,
+        n_plus_one_contract=n_plus_one_contract,
     )
     if args.smoke_one_run:
         smoke_case = cases[0]
@@ -552,15 +819,22 @@ def main() -> int:
             drain_slow_loop=True,
             output_path=smoke_path,
         )
-        smoke_manifest = {
-            "schema_version": "seven-day-companion-smoke.v1",
-            "case_id": smoke_case.case_id,
-            "arm_label": "correct-user-state",
-            "run_sha256": _sha256(payload),
-            "formal_claim_allowed": False,
-            "purpose": "product-path preflight before formal preregistration",
-        }
-        (target / "smoke_manifest.json").write_bytes(_canonical_bytes(smoke_manifest))
+        smoke_manifest = write_seven_day_smoke_manifest(
+            output_root=target,
+            preregistration=preregistration,
+            campaign="continuity",
+            gate_id=None,
+            evidence_file=smoke_path.relative_to(target).as_posix(),
+            evidence_sha256=hashlib.sha256(smoke_path.read_bytes()).hexdigest(),
+            checks={
+                "run-complete": len(payload.get("days", ())) == 7,
+                "six-restarts-exact": (
+                    payload.get("process_restart_count") == 6
+                    and payload.get("all_restarts_exact") is True
+                ),
+                "n-plus-one-artifact-valid": True,
+            },
+        )
         print(json.dumps(smoke_manifest, sort_keys=True))
         return 0
     result = SevenDayCompanionAblationHarness(executor=executor).run(
@@ -582,4 +856,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(
+        guarded_mps_runner_entrypoint(
+            main,
+            plan_id="seven-day-continuity-formal-runner",
+            argv=sys.argv[1:],
+        )
+    )

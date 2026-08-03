@@ -7,16 +7,20 @@ import json
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from volvence_zero.agent.evidence_statistics import PAIRED_STUDENT_T_95_METHOD
 from volvence_zero.agent.gate1_seven_day_evidence import (
     GATE1_SEVEN_DAY_ARMS,
 )
 from volvence_zero.agent.seven_day_companion_preregistration import (
     SEVEN_DAY_SCENARIO_IDS,
 )
+from volvence_zero.agent.seven_day_n_plus_one import (
+    build_seven_day_n_plus_one_contract,
+)
 
 
 GATE1_SEVEN_DAY_PREREG_SCHEMA_VERSION = (
-    "gate1-seven-day-companion-prereg.v1"
+    "gate1-seven-day-companion-prereg.v2"
 )
 GATE1_SEVEN_DAY_DEFAULT_SEEDS = (1601, 1607, 1613)
 GATE1_SEVEN_DAY_CODE_PATHS = (
@@ -30,9 +34,15 @@ GATE1_SEVEN_DAY_CODE_PATHS = (
     "packages/lifeform-evolution/src/lifeform_evolution/seven_day_state_control.py",
     "packages/vz-runtime/src/volvence_zero/agent/gate1_seven_day_evidence.py",
     "packages/vz-runtime/src/volvence_zero/agent/gate1_seven_day_preregistration.py",
+    "packages/vz-runtime/src/volvence_zero/agent/evidence_statistics.py",
+    "packages/vz-runtime/src/volvence_zero/agent/seven_day_n_plus_one.py",
+    "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py",
+    "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py",
+    "packages/vz-contracts/src/volvence_zero/seven_day_evidence_contract.py",
     "packages/vz-runtime/src/volvence_zero/agent/session.py",
     "packages/vz-runtime/src/volvence_zero/integration/final_wiring.py",
     "packages/vz-temporal/src/volvence_zero/temporal/interface.py",
+    "scripts/audit_seven_day_companion_formal.py",
     "scripts/audit_seven_day_gate1_formal.py",
     "scripts/companion_test_plan_common.py",
     "scripts/freeze_seven_day_execution_root.py",
@@ -45,6 +55,7 @@ GATE1_SEVEN_DAY_EXECUTION_SOURCE_ROOTS = (
     "packages/*/src",
     "packages/*/pyproject.toml",
     "pyproject.toml",
+    "scripts/audit_seven_day_companion_formal.py",
     "scripts/audit_seven_day_gate1_formal.py",
     "scripts/companion_test_plan_common.py",
     "scripts/freeze_seven_day_execution_root.py",
@@ -223,6 +234,10 @@ def build_gate1_seven_day_preregistration(
             "virtual_start_ms": 1_800_000_000_000,
         },
         "formal_models": {"sut": sut, "simulator": simulator},
+        "n_plus_one_measurement": build_seven_day_n_plus_one_contract(
+            sut_model=sut,
+            execution_device=execution_device,
+        ),
         "intervention": {
             "pe_on_profile": GATE1_SEVEN_DAY_ARMS[0],
             "pe_off_profile": GATE1_SEVEN_DAY_ARMS[1],
@@ -253,21 +268,27 @@ def build_gate1_seven_day_preregistration(
                 "self_temporal_prediction_error_applied",
             ],
             "primary": "day1-2 minus day6-7 mean PE adaptation gain",
+            "co_primary": (
+                "days6-7 frozen-SUT substrate N+1 cosine prediction gain"
+            ),
             "product_secondary": "day-7 continuity composite gain",
             "safety": [
                 "boundary_violation_rate",
                 "wrong_user_attribution_rate",
             ],
-            "missing_policy": "no imputation; fail loudly",
+            "missing_policy": (
+                "mechanism, N+1, and safety fields fail loudly; nullable owner "
+                "continuity metrics remain non-gating secondary diagnostics"
+            ),
             "evaluation_writeback_allowed": False,
         },
         "minimum_effects": {
             "pe_adaptation_gain": 0.02,
-            "final_day_continuity_composite_gain": 0.02,
+            "n_plus_one_prediction_quality_gain": 0.02,
             "maximum_safety_regression": 0.0,
         },
         "confidence": {
-            "method": "paired normal 95% interval",
+            "method": PAIRED_STUDENT_T_95_METHOD,
             "positive_lower_bound_required": True,
         },
         "stop_rules": {
@@ -277,8 +298,8 @@ def build_gate1_seven_day_preregistration(
             "primary_below_minimum_or_ci_nonpositive": (
                 "causal-not-supported; no production promotion"
             ),
-            "continuity_below_minimum_or_ci_nonpositive": (
-                "product-benefit-not-supported; no production promotion"
+            "n_plus_one_below_minimum_or_ci_nonpositive": (
+                "forward-prediction-benefit-not-supported; no production promotion"
             ),
             "safety_regression": "causal-not-supported; retain rollback",
         },

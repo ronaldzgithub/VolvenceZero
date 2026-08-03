@@ -175,3 +175,67 @@ def test_switch_gated_rate_is_cheaper_than_per_step_and_keeps_step0_charge() -> 
 def test_unknown_rate_gating_is_rejected() -> None:
     with pytest.raises(ValueError, match="rate_gating"):
         StoreSSLTrainingSession(n_z=_N_Z, rate_gating="bogus")
+
+
+def test_unknown_steered_gate_mode_is_rejected() -> None:
+    with pytest.raises(ValueError, match="steered_gate_mode"):
+        StoreSSLTrainingSession(n_z=_N_Z, steered_gate_mode="soft")
+
+
+def test_hard_st_steered_objective_charges_zero_kl_when_gate_never_fires() -> None:
+    """Under hard-st + switch-gated rate, an untrained gate (probabilities
+    below threshold) keeps the step-0 code, so every post-step-0 KL term is
+    multiplied by a hard 0 and the rate collapses to the step-0 charge alone.
+    The continuous relaxation instead pays the fractional 'smuggling' rate on
+    every step, which is the loophole hard-st exists to close."""
+
+    trace = _steered_trace()
+
+    def kl_rate(steered_gate_mode: str) -> tuple[float, float]:
+        store = MetacontrollerParameterStore(n_z=_N_Z, initialization_seed=7)
+        session = StoreSSLTrainingSession(
+            n_z=_N_Z,
+            alpha=0.1,
+            switch_rate_weight=0.0,
+            switch_binary_weight=0.0,
+            switch_group_weight=0.0,
+            proposal_prediction_weight=0.0,
+            gate_choice_weight=0.0,
+            action_scorer=_StubScorer(),
+            rate_gating=RATE_GATING_SWITCH,
+            steered_gate_mode=steered_gate_mode,
+        )
+        report = session.evaluate_batch(
+            store=store,
+            traces=(trace,),
+            batch_id=f"kl:{steered_gate_mode}",
+        )
+        return report.kl_rate, report.hard_switch_frequency
+
+    continuous_rate, _ = kl_rate("continuous")
+    hard_rate, hard_frequency = kl_rate("hard-st")
+
+    assert hard_frequency == pytest.approx(0.0)
+    # No post-step-0 switches fire, so only step 0 pays KL; the continuous
+    # path pays a strictly larger fractional rate on the same store.
+    assert 0.0 < hard_rate < continuous_rate
+
+
+def test_hard_st_straight_through_gradient_reaches_switch_parameters() -> None:
+    """Even with all hard gates at 0, the ST estimator must pass a gradient
+    through the gate to the switch FFN so switching can be learned."""
+
+    module = _module()
+    inputs = _step_inputs(module)
+    out = module.rollout(
+        inputs, switch_threshold=0.55, generator=None, gate_mode="hard-st"
+    )
+    # A loss that depends on the applied controls (as Eq.3 distortion does).
+    loss = torch.stack(out["controls"]).pow(2).mean()
+    loss.backward()
+    switch_grads = [
+        parameter.grad
+        for parameter in (module.sw_W1, module.sw_b1, module.sw_W2, module.sw_b2)
+    ]
+    assert all(grad is not None for grad in switch_grads)
+    assert any(float(grad.abs().sum()) > 0.0 for grad in switch_grads)

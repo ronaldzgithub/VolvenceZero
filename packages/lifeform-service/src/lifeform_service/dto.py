@@ -158,12 +158,14 @@ class HealthResponse:
     status: str
     session_count: int
     vertical: str
+    persistence_scope_sha256: str | None
 
     def to_json(self) -> dict[str, Any]:
         return {
             "status": self.status,
             "session_count": self.session_count,
             "vertical": self.vertical,
+            "persistence_scope_sha256": self.persistence_scope_sha256,
         }
 
 

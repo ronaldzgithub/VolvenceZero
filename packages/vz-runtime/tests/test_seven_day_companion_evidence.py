@@ -18,15 +18,20 @@ from volvence_zero.agent.seven_day_companion_preregistration import (
 )
 
 
-def _prereg() -> dict[str, object]:
+def _prereg(
+    n_plus_one_contract: dict[str, object],
+) -> dict[str, object]:
     return {
-        "schema_version": "seven-day-companion-simulated.v1",
+        "schema_version": "seven-day-companion-simulated.v3",
         "scenario_ids": ["persona-researcher", "persona-nurse"],
-        "formal_run": {"paraphrase_seeds": [1401]},
+        "formal_run": {
+            "paraphrase_seeds": [1401],
+            "case_count": 2,
+            "run_count": 12,
+        },
+        "n_plus_one_measurement": n_plus_one_contract,
         "minimum_effects": {
-            "final_day_continuity_composite_gain": 0.02,
-            "callback_hit_rate_gain": 0.02,
-            "cold_start_continuity_composite_gain": 0.02,
+            "n_plus_one_prediction_quality_gain": 0.02,
         },
     }
 
@@ -98,6 +103,8 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
                 "next_instance_id": f"i-{day_index + 1}",
                 "healthcheck_passed": True,
                 "persistence_scope_unchanged": True,
+                "previous_persistence_scope_sha256": "7" * 64,
+                "next_persistence_scope_sha256": "7" * 64,
                 "state_intervention": {
                     "experiment_arm_label": arm,
                     "state_loading_policy": policy,
@@ -182,21 +189,26 @@ def _run(*, case: SevenDayExperimentCase, arm: str) -> dict[str, object]:
     }
 
 
-def _envelopes() -> list[SevenDayRunEnvelope]:
+def _envelopes(attach_n_plus_one) -> list[SevenDayRunEnvelope]:
     cases = (
         SevenDayExperimentCase("persona-researcher", 1401),
         SevenDayExperimentCase("persona-nurse", 1401),
     )
-    return [
+    envelopes = [
         SevenDayRunEnvelope(case=case, arm_label=arm, run=_run(case=case, arm=arm))
         for case in cases
         for arm in SEVEN_DAY_ALL_ARMS
     ]
+    for envelope in envelopes:
+        attach_n_plus_one(envelope.run, _score(envelope.arm_label))
+    return envelopes
 
 
-def _v2_stack_preregistration() -> dict[str, object]:
-    payload = _prereg()
-    payload["schema_version"] = "seven-day-companion-simulated.v2"
+def _v2_stack_preregistration(
+    n_plus_one_contract: dict[str, object],
+) -> dict[str, object]:
+    payload = _prereg(n_plus_one_contract)
+    payload["schema_version"] = "seven-day-companion-simulated.v4"
     payload["formal_models"] = {
         "simulator": {
             "model_id": "tinyllama",
@@ -264,10 +276,13 @@ def _v2_stack_run(
     return run
 
 
-def test_two_persona_regression_covers_all_arms_and_daily_readouts() -> None:
+def test_two_persona_regression_covers_all_arms_and_daily_readouts(
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
     result = evaluate_seven_day_ablation(
-        runs=_envelopes(),
-        preregistration=_prereg(),
+        runs=_envelopes(attach_n_plus_one),
+        preregistration=_prereg(seven_day_n_plus_one_contract),
     )
     assert result.passed is True
     assert result.case_count == 2
@@ -278,8 +293,12 @@ def test_two_persona_regression_covers_all_arms_and_daily_readouts() -> None:
     assert result.evaluation_writeback_allowed is False
 
 
-def test_v2_stack_requires_exact_active_carrier_on_every_turn() -> None:
-    preregistration = _v2_stack_preregistration()
+def test_v2_stack_requires_exact_active_carrier_on_every_turn(
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
+    preregistration = _v2_stack_preregistration(
+        seven_day_n_plus_one_contract
+    )
     run = _v2_stack_run(preregistration)
     validate_seven_day_character_stack_run(
         run=run,
@@ -296,21 +315,71 @@ def test_v2_stack_requires_exact_active_carrier_on_every_turn() -> None:
         )
 
 
-def test_exact_user_turn_matching_fails_loudly() -> None:
-    runs = _envelopes()
+def test_exact_user_turn_matching_fails_loudly(
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
+    runs = _envelopes(attach_n_plus_one)
     mutated = deepcopy(runs[1].run)
     mutated["days"][0]["turns"][0]["user_text"] = "arm-specific input"
+    attach_n_plus_one(mutated, _score(runs[1].arm_label))
     runs[1] = SevenDayRunEnvelope(
         case=runs[1].case,
         arm_label=runs[1].arm_label,
         run=mutated,
     )
     with pytest.raises(ValueError, match="exact user turns"):
-        evaluate_seven_day_ablation(runs=runs, preregistration=_prereg())
+        evaluate_seven_day_ablation(
+            runs=runs,
+            preregistration=_prereg(seven_day_n_plus_one_contract),
+        )
 
 
-def test_missing_owner_metric_cannot_pass_evidence_gate() -> None:
-    runs = _envelopes()
+def test_restart_scope_attestation_drift_fails_loudly(
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
+    runs = _envelopes(attach_n_plus_one)
+    mutated = deepcopy(runs[0].run)
+    mutated["days"][0]["restart_after_day"][
+        "next_persistence_scope_sha256"
+    ] = "8" * 64
+    runs[0] = SevenDayRunEnvelope(
+        case=runs[0].case,
+        arm_label=runs[0].arm_label,
+        run=mutated,
+    )
+    with pytest.raises(ValueError, match="health/scope"):
+        evaluate_seven_day_ablation(
+            runs=runs,
+            preregistration=_prereg(seven_day_n_plus_one_contract),
+        )
+
+
+def test_missing_event_tags_fail_loudly(
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
+    runs = _envelopes(attach_n_plus_one)
+    mutated = deepcopy(runs[0].run)
+    del mutated["days"][0]["turns"][0]["event_tags"]
+    runs[0] = SevenDayRunEnvelope(
+        case=runs[0].case,
+        arm_label=runs[0].arm_label,
+        run=mutated,
+    )
+    with pytest.raises(ValueError, match="event_tags"):
+        evaluate_seven_day_ablation(
+            runs=runs,
+            preregistration=_prereg(seven_day_n_plus_one_contract),
+        )
+
+
+def test_missing_owner_metric_is_secondary_to_n_plus_one_primary(
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
+    runs = _envelopes(attach_n_plus_one)
     mutated = deepcopy(runs[0].run)
     mutated["days"][6]["continuity_metrics"]["remembered_item_usefulness"] = None
     runs[0] = SevenDayRunEnvelope(
@@ -320,13 +389,17 @@ def test_missing_owner_metric_cannot_pass_evidence_gate() -> None:
     )
     result = evaluate_seven_day_ablation(
         runs=runs,
-        preregistration=_prereg(),
+        preregistration=_prereg(seven_day_n_plus_one_contract),
     )
-    assert result.passed is False
-    assert any(not passed for name, passed in result.gates.items() if "metric-coverage" in name)
+    assert result.passed is True
+    assert all("n-plus-one" in name for name in result.gates)
 
 
-def test_harness_freezes_arm_and_sleep_schedule(tmp_path: Path) -> None:
+def test_harness_freezes_arm_and_sleep_schedule(
+    tmp_path: Path,
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
     calls: list[tuple[str, bool]] = []
 
     class Executor:
@@ -340,6 +413,7 @@ def test_harness_freezes_arm_and_sleep_schedule(tmp_path: Path) -> None:
         ) -> dict[str, object]:
             calls.append((arm_label, drain_slow_loop))
             payload = _run(case=case, arm=arm_label)
+            attach_n_plus_one(payload, _score(arm_label))
             output_path.write_text("{}\n", encoding="utf-8")
             return payload
 
@@ -348,7 +422,7 @@ def test_harness_freezes_arm_and_sleep_schedule(tmp_path: Path) -> None:
             SevenDayExperimentCase("persona-researcher", 1401),
             SevenDayExperimentCase("persona-nurse", 1401),
         ),
-        preregistration=_prereg(),
+        preregistration=_prereg(seven_day_n_plus_one_contract),
         output_dir=tmp_path,
     )
     assert result.passed is True

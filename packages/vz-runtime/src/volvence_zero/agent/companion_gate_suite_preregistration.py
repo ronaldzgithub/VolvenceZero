@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from volvence_zero.agent.evidence_statistics import PAIRED_STUDENT_T_95_METHOD
 from volvence_zero.agent.companion_gate_suite_evidence import (
     GATE_ARM_SCHEDULES,
     GATE_PRIMARY_MINIMUMS,
@@ -14,9 +15,12 @@ from volvence_zero.agent.companion_gate_suite_evidence import (
 from volvence_zero.agent.seven_day_companion_preregistration import (
     SEVEN_DAY_SCENARIO_IDS,
 )
+from volvence_zero.agent.seven_day_n_plus_one import (
+    build_seven_day_n_plus_one_contract,
+)
 
 
-GATE_SUITE_PREREG_SCHEMA_VERSION = "companion-gate-suite-seven-day-prereg.v1"
+GATE_SUITE_PREREG_SCHEMA_VERSION = "companion-gate-suite-seven-day-prereg.v2"
 GATE_SUITE_DEFAULT_SEEDS: Mapping[int, tuple[int, ...]] = {
     4: (1701, 1709, 1721),
     5: (1801, 1811, 1823),
@@ -32,17 +36,25 @@ GATE_SUITE_CODE_PATHS = (
     "packages/lifeform-service/src/lifeform_service/dto.py",
     "packages/lifeform-service/src/lifeform_service/substrate_registry.py",
     "packages/lifeform-evolution/src/lifeform_evolution/seven_day_companion.py",
+    "packages/lifeform-evolution/src/lifeform_evolution/seven_day_process_host.py",
+    "packages/lifeform-evolution/src/lifeform_evolution/seven_day_state_control.py",
     "packages/vz-memory/src/volvence_zero/memory/cms.py",
     "packages/vz-memory/src/volvence_zero/memory/identity.py",
     "packages/vz-memory/src/volvence_zero/memory/store.py",
     "packages/vz-runtime/src/volvence_zero/agent/companion_gate_suite_evidence.py",
     "packages/vz-runtime/src/volvence_zero/agent/companion_gate_suite_preregistration.py",
+    "packages/vz-runtime/src/volvence_zero/agent/evidence_statistics.py",
+    "packages/vz-runtime/src/volvence_zero/agent/seven_day_n_plus_one.py",
+    "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py",
+    "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py",
+    "packages/vz-contracts/src/volvence_zero/seven_day_evidence_contract.py",
     "packages/vz-runtime/src/volvence_zero/agent/session.py",
     "packages/vz-runtime/src/volvence_zero/agent/session_observation.py",
     "packages/vz-runtime/src/volvence_zero/brain.py",
     "packages/vz-runtime/src/volvence_zero/integration/final_wiring.py",
     "packages/vz-temporal/src/volvence_zero/joint_loop/runtime.py",
     "packages/vz-temporal/src/volvence_zero/temporal/ssl.py",
+    "scripts/audit_seven_day_companion_formal.py",
     "scripts/audit_seven_day_gate_suite_formal.py",
     "scripts/companion_test_plan_common.py",
     "scripts/freeze_seven_day_execution_root.py",
@@ -55,6 +67,7 @@ GATE_SUITE_EXECUTION_SOURCE_ROOTS = (
     "packages/*/src",
     "packages/*/pyproject.toml",
     "pyproject.toml",
+    "scripts/audit_seven_day_companion_formal.py",
     "scripts/audit_seven_day_gate_suite_formal.py",
     "scripts/companion_test_plan_common.py",
     "scripts/freeze_seven_day_execution_root.py",
@@ -220,6 +233,10 @@ def build_companion_gate_suite_preregistration(
             "virtual_start_ms": 1_800_000_000_000,
         },
         "formal_models": {"sut": sut, "simulator": simulator},
+        "n_plus_one_measurement": build_seven_day_n_plus_one_contract(
+            sut_model=sut,
+            execution_device=execution_device,
+        ),
         "intervention": {
             "treatment_profile": arms[0],
             "control_profiles": list(arms[1:]),
@@ -239,21 +256,27 @@ def build_companion_gate_suite_preregistration(
         "readouts": {
             "mechanism": "gate-specific owner telemetry",
             "primary": primary_names[gate_id],
+            "co_primary": (
+                "days6-7 frozen-SUT substrate N+1 cosine prediction gain"
+            ),
             "product_secondary": "day-7 continuity composite gain",
             "safety": [
                 "boundary_violation_rate",
                 "wrong_user_attribution_rate",
             ],
-            "missing_policy": "no imputation; fail loudly",
+            "missing_policy": (
+                "mechanism, N+1, and safety fields fail loudly; nullable owner "
+                "continuity metrics remain non-gating secondary diagnostics"
+            ),
             "evaluation_writeback_allowed": False,
         },
         "minimum_effects": {
             "primary_gain": GATE_PRIMARY_MINIMUMS[gate_id],
-            "continuity_gain": 0.02,
+            "n_plus_one_prediction_quality_gain": 0.02,
             "maximum_safety_regression": 0.0,
         },
         "confidence": {
-            "method": "paired normal 95% interval",
+            "method": PAIRED_STUDENT_T_95_METHOD,
             "positive_lower_bound_required": True,
         },
         "stop_rules": {

@@ -127,7 +127,10 @@ def _run(
     }
 
 
-def test_gate1_evaluator_requires_load_bearing_path_and_product_gain() -> None:
+def test_gate1_evaluator_requires_load_bearing_path_and_product_gain(
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
     cases = tuple(
         SevenDayExperimentCase("F1-seven-day-test", seed)
         for seed in (1, 2, 3)
@@ -137,12 +140,18 @@ def test_gate1_evaluator_requires_load_bearing_path_and_product_gain() -> None:
         for case in cases
         for arm in (GATE1_PE_ON_ARM, GATE1_PE_OFF_ARM)
     }
+    for (_case_id, arm), run in runs.items():
+        attach_n_plus_one(
+            run,
+            0.9 if arm == GATE1_PE_ON_ARM else 0.5,
+        )
     preregistration = {
-        "schema_version": "gate1-seven-day-companion-prereg.v1",
+        "schema_version": "gate1-seven-day-companion-prereg.v2",
         "formal_run": {"run_count": 6, "pair_count": 3},
+        "n_plus_one_measurement": seven_day_n_plus_one_contract,
         "minimum_effects": {
             "pe_adaptation_gain": 0.02,
-            "final_day_continuity_composite_gain": 0.02,
+            "n_plus_one_prediction_quality_gain": 0.02,
             "maximum_safety_regression": 0.0,
         },
     }
@@ -157,7 +166,48 @@ def test_gate1_evaluator_requires_load_bearing_path_and_product_gain() -> None:
     assert result.causal_supported is True
     assert result.pe_adaptation_gain_ci95[0] > 0.0
     assert result.final_day_continuity_gain_ci95[0] > 0.0
+    assert result.n_plus_one_prediction_gain_ci95[0] > 0.0
     assert result.production_promotion_authorized is False
+
+
+def test_gate1_missing_secondary_continuity_metric_does_not_block_n_plus_one(
+    attach_n_plus_one,
+    seven_day_n_plus_one_contract: dict[str, object],
+) -> None:
+    cases = tuple(
+        SevenDayExperimentCase("F1-seven-day-test", seed)
+        for seed in (1, 2, 3)
+    )
+    runs = {
+        (case.case_id, arm): _run(case=case, arm=arm)
+        for case in cases
+        for arm in (GATE1_PE_ON_ARM, GATE1_PE_OFF_ARM)
+    }
+    for (_case_id, arm), run in runs.items():
+        attach_n_plus_one(
+            run,
+            0.9 if arm == GATE1_PE_ON_ARM else 0.5,
+        )
+    runs[(cases[0].case_id, GATE1_PE_ON_ARM)]["days"][-1][
+        "continuity_metrics"
+    ]["remembered_item_usefulness"] = None
+    result = evaluate_gate1_seven_day_runs(
+        cases=cases,
+        runs=runs,
+        preregistration={
+            "schema_version": "gate1-seven-day-companion-prereg.v2",
+            "formal_run": {"run_count": 6, "pair_count": 3},
+            "n_plus_one_measurement": seven_day_n_plus_one_contract,
+            "minimum_effects": {
+                "pe_adaptation_gain": 0.02,
+                "n_plus_one_prediction_quality_gain": 0.02,
+                "maximum_safety_regression": 0.0,
+            },
+        },
+    )
+
+    assert result.causal_supported is True
+    assert result.readouts[0].final_day_continuity_composite is None
 
 
 def test_gate1_preregistration_round_trips_current_code() -> None:
@@ -194,8 +244,15 @@ def test_gate1_preregistration_round_trips_current_code() -> None:
     assert source["file_count"] > 1_000
     assert len(source["tree_sha256"]) == 64
     assert "scripts/companion_test_plan_common.py" in source["roots"]
+    assert "scripts/audit_seven_day_companion_formal.py" in source["roots"]
     assert "scripts/freeze_seven_day_execution_root.py" in source["roots"]
     assert "scripts/run_seven_day_companion_test_plan.py" in source["roots"]
     assert "scripts/companion_test_plan_common.py" in payload["code_manifest"]
+    assert "scripts/audit_seven_day_companion_formal.py" in payload["code_manifest"]
+    assert (
+        "packages/vz-contracts/src/volvence_zero/"
+        "seven_day_evidence_contract.py"
+        in payload["code_manifest"]
+    )
     assert "scripts/freeze_seven_day_execution_root.py" in payload["code_manifest"]
     assert "scripts/run_seven_day_companion_test_plan.py" in payload["code_manifest"]

@@ -15,6 +15,7 @@ from companion_bench.seven_day_driver import (
     load_frozen_seven_day_user_script,
 )
 from volvence_zero.agent.seven_day_companion_evidence import (
+    SEVEN_DAY_ABLATION_SCHEMA_VERSION,
     SEVEN_DAY_ALL_ARMS,
     SevenDayExperimentCase,
     SevenDayRunEnvelope,
@@ -25,10 +26,12 @@ from volvence_zero.agent.seven_day_companion_preregistration import (
     seven_day_source_attestation_contract,
     validate_seven_day_companion_preregistration,
 )
+from volvence_zero.seven_day_evidence_contract import (
+    SEVEN_DAY_SHUFFLED_SOURCE_DAYS,
+)
 
 
 _MEASUREMENT_CHECKPOINT_NAME = "evaluation__relationship_continuity_v1.json"
-_SHUFFLED_SOURCE_DAYS = (1, 1, 2, 1, 4, 3)
 _HTTP_ERROR_RE = re.compile(r'HTTP/1\.[01]" [45][0-9][0-9]')
 
 
@@ -170,7 +173,7 @@ def _expected_source(
             output_root / "state" / donor_key / "archives" / "correct-user-state" / f"day-{day_index}",
         )
     if arm == "shuffled-history":
-        source_day = _SHUFFLED_SOURCE_DAYS[day_index - 1]
+        source_day = SEVEN_DAY_SHUFFLED_SOURCE_DAYS[day_index - 1]
         return (
             "same-user-correct-reference",
             source_day,
@@ -259,10 +262,26 @@ def _verify_physical_run(
                 raise ValueError("day seven unexpectedly contains restart evidence")
             continue
         restart_payload = _require_mapping(restart, field="restart_after_day")
+        expected_scope_sha256 = hashlib.sha256(
+            (
+                output_root
+                / "state"
+                / case_key
+                / "active"
+                / arm
+            )
+            .resolve()
+            .as_posix()
+            .encode("utf-8")
+        ).hexdigest()
         if (
             restart_payload.get("previous_instance_id") != service_id
             or restart_payload.get("healthcheck_passed") is not True
             or restart_payload.get("persistence_scope_unchanged") is not True
+            or restart_payload.get("previous_persistence_scope_sha256")
+            != expected_scope_sha256
+            or restart_payload.get("next_persistence_scope_sha256")
+            != expected_scope_sha256
         ):
             raise ValueError("restart lifecycle evidence drift")
         previous_next_instance = restart_payload.get("next_instance_id")
@@ -422,7 +441,7 @@ def audit(
     if verdict != expected_verdict:
         raise ValueError("promotion verdict differs from recomputation")
     expected_manifest = {
-        "schema_version": "seven-day-companion-ablation.v1",
+        "schema_version": SEVEN_DAY_ABLATION_SCHEMA_VERSION,
         "preregistration_sha256": result.preregistration_sha256,
         "arm_schedule": list(SEVEN_DAY_ALL_ARMS),
         "case_count": result.case_count,

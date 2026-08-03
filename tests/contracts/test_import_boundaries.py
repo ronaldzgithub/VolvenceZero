@@ -218,6 +218,9 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
             # under and records the per-turn lineage, so it constructs the
             # generic value type directly.
             "conditioning_bank_contracts",
+            # Seven-day evidence consumers share one frozen shuffled-history
+            # source-day schedule published by vz-contracts.
+            "seven_day_evidence_contract",
             # Per-bank adapters (owner snapshot -> generic bank) live in
             # vz-cognition; runtime calls them with the session scope.
             "conditioning_bank_adapters",

@@ -16,10 +16,15 @@ from pathlib import Path
 import statistics
 from typing import Mapping, Protocol, Sequence
 
+from volvence_zero.agent.evidence_statistics import paired_student_t_ci95
+from volvence_zero.agent.seven_day_n_plus_one import (
+    SevenDayNPlusOneReadout,
+    validate_seven_day_n_plus_one_evidence,
+)
 
-SEVEN_DAY_ABLATION_SCHEMA_VERSION = "seven-day-companion-ablation.v1"
-SEVEN_DAY_PREREG_SCHEMA_VERSION = "seven-day-companion-simulated.v1"
-SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION = "seven-day-companion-simulated.v2"
+SEVEN_DAY_ABLATION_SCHEMA_VERSION = "seven-day-companion-ablation.v2"
+SEVEN_DAY_PREREG_SCHEMA_VERSION = "seven-day-companion-simulated.v3"
+SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION = "seven-day-companion-simulated.v4"
 SEVEN_DAY_PREREG_SCHEMA_VERSIONS = (
     SEVEN_DAY_PREREG_SCHEMA_VERSION,
     SEVEN_DAY_CHARACTER_STACK_PREREG_SCHEMA_VERSION,
@@ -263,6 +268,7 @@ class SevenDayComparison:
     complete_composite_pair_count: int
     complete_callback_pair_count: int
     complete_cold_start_pair_count: int
+    complete_n_plus_one_pair_count: int
     final_day_composite_gain_mean: float | None
     final_day_composite_gain_ci95: tuple[float, float] | None
     callback_gain_mean: float | None
@@ -270,6 +276,8 @@ class SevenDayComparison:
     cold_start_composite_gain_mean: float | None
     cold_start_composite_gain_ci95: tuple[float, float] | None
     fsm_probe_pass_gain_mean: float | None
+    n_plus_one_prediction_gain_mean: float | None
+    n_plus_one_prediction_gain_ci95: tuple[float, float] | None
 
 
 @dataclass(frozen=True)
@@ -379,7 +387,14 @@ def _readout(
 ) -> SevenDayDailyReadout:
     payload = _require_mapping(raw_metrics, field=f"day {day_index} {phase}")
     metrics = {name: _metric(payload.get(name), field=f"day {day_index} {phase}.{name}") for name in SEVEN_DAY_METRICS}
-    callback_opportunity = any("callback" in tuple(turn.get("event_tags", ())) for turn in turns)
+    callback_opportunity = False
+    for turn in turns:
+        event_tags = turn.get("event_tags")
+        if not isinstance(event_tags, (list, tuple)) or not all(
+            isinstance(tag, str) for tag in event_tags
+        ):
+            raise ValueError("seven-day turn event_tags must be a string list")
+        callback_opportunity = callback_opportunity or "callback" in event_tags
     probe_values = tuple(turn.get("fsm_probe_passed") for turn in turns if turn.get("fsm_probe_passed") is not None)
     if any(not isinstance(value, bool) for value in probe_values):
         raise ValueError("fsm_probe_passed must be bool or null")
@@ -471,6 +486,23 @@ def _validate_run(
         restart = day.get("restart_after_day")
         if expected_day < 7:
             restart_payload = _require_mapping(restart, field="restart_after_day")
+            previous_scope = restart_payload.get(
+                "previous_persistence_scope_sha256"
+            )
+            next_scope = restart_payload.get("next_persistence_scope_sha256")
+            if (
+                restart_payload.get("after_day_index") != expected_day
+                or restart_payload.get("healthcheck_passed") is not True
+                or restart_payload.get("persistence_scope_unchanged") is not True
+                or not isinstance(previous_scope, str)
+                or len(previous_scope) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in previous_scope
+                )
+                or next_scope != previous_scope
+            ):
+                raise ValueError("restart health/scope attestation drift")
             intervention = _require_mapping(
                 restart_payload.get("state_intervention"),
                 field="state_intervention",
@@ -547,10 +579,7 @@ def _paired_summary(
     if not values:
         return None, None
     mean = statistics.fmean(values)
-    if len(values) == 1:
-        return mean, (mean, mean)
-    half = 1.96 * statistics.stdev(values) / math.sqrt(len(values))
-    return mean, (mean - half, mean + half)
+    return mean, paired_student_t_ci95(values)
 
 
 def _mean_present(values: Sequence[float | None]) -> float | None:
@@ -565,11 +594,15 @@ def _comparison(
     control_arm: str,
     case_ids: Sequence[str],
     by_key: Mapping[tuple[str, str, int, str], SevenDayDailyReadout],
+    n_plus_one_by_key: Mapping[
+        tuple[str, str], SevenDayNPlusOneReadout
+    ],
 ) -> SevenDayComparison:
     composite_gains = []
     callback_gains = []
     cold_start_gains = []
     probe_gains = []
+    n_plus_one_gains = []
     for case_id in case_ids:
         final_treatment = by_key[(case_id, experimental_arm, 7, "end_of_day")]
         final_control = by_key[(case_id, control_arm, 7, "end_of_day")]
@@ -603,10 +636,19 @@ def _comparison(
         )
         if treatment_cold is not None and control_cold is not None:
             cold_start_gains.append(treatment_cold - control_cold)
+        treatment_prediction = n_plus_one_by_key[
+            (case_id, experimental_arm)
+        ]
+        control_prediction = n_plus_one_by_key[(case_id, control_arm)]
+        n_plus_one_gains.append(
+            treatment_prediction.heldout_mean_cosine_similarity
+            - control_prediction.heldout_mean_cosine_similarity
+        )
     composite_mean, composite_ci = _paired_summary(composite_gains)
     callback_mean, callback_ci = _paired_summary(callback_gains)
     cold_mean, cold_ci = _paired_summary(cold_start_gains)
     probe_mean, _probe_ci = _paired_summary(probe_gains)
+    n_plus_one_mean, n_plus_one_ci = _paired_summary(n_plus_one_gains)
     return SevenDayComparison(
         contrast_id=contrast_id,
         experimental_arm=experimental_arm,
@@ -615,6 +657,7 @@ def _comparison(
         complete_composite_pair_count=len(composite_gains),
         complete_callback_pair_count=len(callback_gains),
         complete_cold_start_pair_count=len(cold_start_gains),
+        complete_n_plus_one_pair_count=len(n_plus_one_gains),
         final_day_composite_gain_mean=composite_mean,
         final_day_composite_gain_ci95=composite_ci,
         callback_gain_mean=callback_mean,
@@ -622,6 +665,8 @@ def _comparison(
         cold_start_composite_gain_mean=cold_mean,
         cold_start_composite_gain_ci95=cold_ci,
         fsm_probe_pass_gain_mean=probe_mean,
+        n_plus_one_prediction_gain_mean=n_plus_one_mean,
+        n_plus_one_prediction_gain_ci95=n_plus_one_ci,
     )
 
 
@@ -645,21 +690,19 @@ def evaluate_seven_day_ablation(
         isinstance(item, int) and not isinstance(item, bool) and item >= 0 for item in seeds
     ):
         raise ValueError("preregistration paraphrase seeds are missing")
-    thresholds = _require_mapping(preregistration.get("minimum_effects"), field="minimum_effects")
-    composite_min = _metric(
-        thresholds.get("final_day_continuity_composite_gain"),
-        field="final_day_continuity_composite_gain",
+    thresholds = _require_mapping(
+        preregistration.get("minimum_effects"), field="minimum_effects"
     )
-    callback_min = _metric(
-        thresholds.get("callback_hit_rate_gain"),
-        field="callback_hit_rate_gain",
+    n_plus_one_min = _metric(
+        thresholds.get("n_plus_one_prediction_quality_gain"),
+        field="n_plus_one_prediction_quality_gain",
     )
-    cold_min = _metric(
-        thresholds.get("cold_start_continuity_composite_gain"),
-        field="cold_start_continuity_composite_gain",
+    if n_plus_one_min is None:
+        raise ValueError("N+1 minimum effect may not be null")
+    n_plus_one_contract = _require_mapping(
+        preregistration.get("n_plus_one_measurement"),
+        field="n_plus_one_measurement",
     )
-    if None in (composite_min, callback_min, cold_min):
-        raise ValueError("minimum effects may not be null")
     case_ids = tuple(sorted({envelope.case.case_id for envelope in runs}))
     planned_case_ids = {
         SevenDayExperimentCase(scenario_id, seed).case_id for scenario_id in scenario_ids for seed in seeds
@@ -670,13 +713,35 @@ def evaluate_seven_day_ablation(
     keyed = {(item.case.case_id, item.arm_label): item for item in runs}
     if len(keyed) != len(runs) or set(keyed) != expected_keys:
         raise ValueError("seven-day arm/case matrix is incomplete or duplicated")
+    if formal_run.get("case_count") != len(case_ids):
+        raise ValueError("seven-day preregistered case count drift")
+    if formal_run.get("run_count") != len(expected_keys):
+        raise ValueError("seven-day preregistered run count drift")
     readouts = []
+    n_plus_one_by_key: dict[
+        tuple[str, str], SevenDayNPlusOneReadout
+    ] = {}
     for envelope in runs:
         readouts.extend(_validate_run(envelope, preregistration=preregistration))
+        n_plus_one_by_key[(envelope.case.case_id, envelope.arm_label)] = (
+            validate_seven_day_n_plus_one_evidence(
+                run=envelope.run,
+                contract=n_plus_one_contract,
+            )
+        )
     for case_id in case_ids:
         case_runs = [keyed[(case_id, arm)].run for arm in SEVEN_DAY_ALL_ARMS]
         if len({_user_turn_digest(run) for run in case_runs}) != 1:
             raise ValueError("matched arms do not share exact user turns")
+        prediction_rows = tuple(
+            n_plus_one_by_key[(case_id, arm)] for arm in SEVEN_DAY_ALL_ARMS
+        )
+        if len({row.target_sequence_sha256 for row in prediction_rows}) != 1:
+            raise ValueError("matched arms do not share exact N+1 targets")
+        if len(
+            {row.target_snapshot_fingerprint for row in prediction_rows}
+        ) != 1:
+            raise ValueError("matched arms do not share N+1 target snapshot")
         attestations = [run["source_attestation"] for run in case_runs]
         assert all(isinstance(item, Mapping) for item in attestations)
         matched_fields = (
@@ -717,6 +782,7 @@ def evaluate_seven_day_ablation(
                 control_arm=control,
                 case_ids=case_ids,
                 by_key=by_readout,
+                n_plus_one_by_key=n_plus_one_by_key,
             )
         )
     comparisons.append(
@@ -726,35 +792,22 @@ def evaluate_seven_day_ablation(
             control_arm="no-sleep",
             case_ids=case_ids,
             by_key=by_readout,
+            n_plus_one_by_key=n_plus_one_by_key,
         )
     )
     gates: dict[str, bool] = {}
     for comparison in comparisons:
         complete = comparison.expected_pair_count
-        gates[f"{comparison.contrast_id}:metric-coverage"] = all(
-            count == complete
-            for count in (
-                comparison.complete_composite_pair_count,
-                comparison.complete_callback_pair_count,
-                comparison.complete_cold_start_pair_count,
-            )
+        gates[f"{comparison.contrast_id}:n-plus-one-coverage"] = (
+            comparison.complete_n_plus_one_pair_count == complete
         )
-        if comparison.experimental_arm == "sleep-consolidation":
-            mean = comparison.cold_start_composite_gain_mean
-            interval = comparison.cold_start_composite_gain_ci95
-            minimum = cold_min
-        else:
-            mean = comparison.final_day_composite_gain_mean
-            interval = comparison.final_day_composite_gain_ci95
-            minimum = composite_min
-        gates[f"{comparison.contrast_id}:primary-effect"] = bool(
-            mean is not None and interval is not None and mean >= minimum and interval[0] > 0.0
-        )
-        gates[f"{comparison.contrast_id}:callback-effect"] = bool(
-            comparison.callback_gain_mean is not None
-            and comparison.callback_gain_ci95 is not None
-            and comparison.callback_gain_mean >= callback_min
-            and comparison.callback_gain_ci95[0] > 0.0
+        mean = comparison.n_plus_one_prediction_gain_mean
+        interval = comparison.n_plus_one_prediction_gain_ci95
+        gates[f"{comparison.contrast_id}:n-plus-one-primary-effect"] = bool(
+            mean is not None
+            and interval is not None
+            and mean >= n_plus_one_min
+            and interval[0] > 0.0
         )
     return SevenDayAblationResult(
         schema_version=SEVEN_DAY_ABLATION_SCHEMA_VERSION,
@@ -828,10 +881,12 @@ def export_seven_day_ablation_bundle(
     ]
     for comparison in result.comparisons:
         report.append(
-            f"- `{comparison.contrast_id}`: final composite "
-            f"`{comparison.final_day_composite_gain_mean}`, callback "
-            f"`{comparison.callback_gain_mean}`, cold-start "
-            f"`{comparison.cold_start_composite_gain_mean}`"
+            f"- `{comparison.contrast_id}`: primary N+1 cosine gain "
+            f"`{comparison.n_plus_one_prediction_gain_mean}`; paired CI "
+            f"`{comparison.n_plus_one_prediction_gain_ci95}`. Secondary: "
+            f"final continuity `{comparison.final_day_composite_gain_mean}`, "
+            f"callback `{comparison.callback_gain_mean}`, cold-start "
+            f"`{comparison.cold_start_composite_gain_mean}`."
         )
     (target / "report.md").write_text("\n".join(report) + "\n", encoding="utf-8")
     return result

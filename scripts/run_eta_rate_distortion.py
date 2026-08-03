@@ -41,9 +41,12 @@ from volvence_zero.agent.eta_proof_benchmark import (
     generate_eta_proof_corpus,
 )
 from volvence_zero.agent.eta_rate_distortion_evidence import (
+    GATE_MODE_CONTINUOUS,
+    GATE_MODE_HARD_ST,
     OBSERVATION_PROTOCOL_V1,
     OBSERVATION_PROTOCOL_V2,
     OBSERVATION_PROTOCOL_V3,
+    OBSERVATION_PROTOCOL_V4,
     RateDistortionEvidenceReport,
     RateDistortionPoint,
     assess_gap,
@@ -158,6 +161,7 @@ def _validate_preregistration(
         "observation_protocol": args.observation_protocol,
         "posterior_parameterization": args.posterior_parameterization,
         "rate_gating": args.rate_gating,
+        "gate_mode": args.gate_mode,
     }
     for key, value in requested.items():
         if sweep.get(key) != value:
@@ -320,6 +324,7 @@ def _report_markdown(
         f"- posterior parameterization: "
         f"`{report.posterior_parameterization}`",
         f"- rate gating: `{report.rate_gating}`",
+        f"- gate mode: `{report.gate_mode}`",
         f"- train steps={report.train_step_count}, "
         f"heldout steps={report.heldout_step_count}",
         "",
@@ -486,13 +491,17 @@ def main() -> None:
             OBSERVATION_PROTOCOL_V1,
             OBSERVATION_PROTOCOL_V2,
             OBSERVATION_PROTOCOL_V3,
+            OBSERVATION_PROTOCOL_V4,
         ),
         default=OBSERVATION_PROTOCOL_V1,
         help=(
             "Observation surface. v1 repeats source_text + completed "
             "objectives every step (segmentation redundant); v2 gives the "
             "route plan once at step 0 and then only location + transitions "
-            "so switching becomes necessary."
+            "so switching becomes necessary; v3 makes the step-0 plan "
+            "readable (explicit objective order); v4 staggers revelation "
+            "(step 0 names only the first objective, each arrival names the "
+            "next) so a mid-route switch has a genuine distortion payoff."
         ),
     )
     parser.add_argument(
@@ -519,6 +528,20 @@ def main() -> None:
             "multiplies each step's KL by the code-mixing gate (ETA Eq.3 "
             "transmit-only-at-switch economics: keeping a code is free, a "
             "switch pays KL once per segment)."
+        ),
+    )
+    parser.add_argument(
+        "--gate-mode",
+        choices=(GATE_MODE_CONTINUOUS, GATE_MODE_HARD_ST),
+        default=GATE_MODE_CONTINUOUS,
+        help=(
+            "Gate relaxation for the Eq.3 steered objective. continuous "
+            "(legacy) mixes codes by the raw switch probability, which lets "
+            "the controller smuggle information at tiny per-step gate "
+            "amplitudes and never switch discretely. hard-st forces the "
+            "paper's discrete switch (code fully replaced or fully kept, "
+            "straight-through gradient), so a boundary switch is the only "
+            "way to transmit newly revealed information."
         ),
     )
     parser.add_argument(
@@ -631,6 +654,7 @@ def main() -> None:
             observation_protocol=args.observation_protocol,
             posterior_parameterization=args.posterior_parameterization,
             rate_gating=args.rate_gating,
+            gate_mode=args.gate_mode,
             prefix_cache=args.prefix_cache,
         )
         elapsed = time.perf_counter() - started
@@ -707,6 +731,7 @@ def main() -> None:
         "observation_protocol": report.observation_protocol,
         "posterior_parameterization": report.posterior_parameterization,
         "rate_gating": report.rate_gating,
+        "gate_mode": report.gate_mode,
         "prefix_cache": args.prefix_cache,
         "corpus": {
             **corpus_provenance,

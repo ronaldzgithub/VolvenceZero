@@ -1,7 +1,7 @@
 # Common Adapter 与 Character Package
 
 > Status: L1/L2 contracts、per-session 多角色路由与 SHADOW attestation 已落地；ACTIVE 仍受证据门约束
-> Last updated: 2026-08-01
+> Last updated: 2026-08-03
 
 ## Purpose 与 owner
 
@@ -90,6 +90,64 @@ capacity cost 和 rollback readout 交给 cognition `ModificationGate.OFFLINE`�
 证据，不能通过手写 gate record 或降低断言绕过。
 `publish` 必须重算 observation summary/cognition decision，并同时核对 held-out digest、
 evaluation report SHA-256 与 gate `evaluation_ref`，不得只凭 candidate id 接收 allow。
+
+### L1/L2 产物与发布单元
+
+训练态 PEFT LoRA 不是 L1 的部署 artifact。`PeftLoraRareHeavyBackend` 训练冻结 base 上的
+`q_proj/v_proj/o_proj` LoRA 后，提取 `B@A` 并投影为有界、hidden-width 的
+`SubstrateDeltaAdapterLayer`；当前 L1 主流程不调用 `save_pretrained()`，不会生成或保留
+标准 `adapter_model.safetensors`。正式 serving 单元是独立的 frozen base snapshot 加
+`common-adapter-bundle.json`，不是 merged model，也不能从 bundle 恢复训练态 LoRA。
+
+一次不可变 L1 run 应保存：
+
+```text
+control-basis.json
+control-basis-observations.json
+control-basis-verdict.json
+rare-heavy-checkpoint.json
+state-kv-prefix.json
+state-kv-prefix.manifest.json
+common-adapter-candidate.json
+modification-gate-proposal.json
+held-out-evaluation.json
+common-adapter-gate-record.json
+common-adapter-bundle.json
+```
+
+- control-basis 三件套是 substrate geometry/provenance，不代替 L1 promotion gate；
+- `train` 只产生 candidate 与 proposal；candidate 以 locator + SHA-256 绑定 standalone
+  rare-heavy、State-KV、State-KV training manifest 和 control basis；
+- `evaluate` 产生 immutable held-out observations/report 与 cognition gate record；
+- `publish` 通过公开 evidence validator 重算并核对全部 digest，随后把 rare-heavy、
+  State-KV、control basis 和 gate record **内嵌**进 `CommonAdapterBundle`；
+- `DENY` bundle 可以留作审计，但 `CommonAdapterBundle.require_active()` 必须拒绝 serving。
+
+一次 L2 run 应保存 `character-prefix.json`、`shadow-manifest.json`、
+`fidelity-report.json`、`fidelity-evidence.json`、`gate-record.json` 与
+`evaluated-manifest.json`。bake 只写 SHADOW；evaluate 才能写带 evidence/gate 的新
+manifest。manifest 使用 content-addressed ref 绑定 template、Prefix/KV、可选 Character
+LoRA 和 report，不复制或重新解释角色 owner 内容。
+
+当前 Qwen2.5-1.5B 默认几何的容量规划基线是：训练态 rank-8 LoRA 约 177.8 万参数
+（BF16 约 3.4 MiB，当前不发布）；部署态 rare-heavy + State-KV + rank-16 control basis
+约 31.6 万浮点值，紧凑 FP32 约 1.2 MiB。由于当前 bundle 使用 pretty JSON 和完整浮点
+文本，预计约 8–12 MiB。现有默认 rank-1 张无忌 Character Prefix/KV JSON 实测约
+3.53 MiB。该估算只用于容量规划；兼容性只以正式 geometry、artifact id 和 digest 为准。
+
+数据与证据分级如下，数值是当前 1.5B 战役的工程起始口径，不替代冻结 Gate：
+
+| 等级 | train traces | frozen held-out | 允许结论 |
+|---|---:|---:|---|
+| smoke | 2–10 | 2–10 | 链路、几何、序列化、三臂和 fail-closed |
+| first signal | 500–1,000 | 200–300 | 跨 cohort 是否存在稳定正向信号 |
+| promotion candidate | 5,000–20,000 | 1,000–2,000，至少 3 seeds | 增益、preserve、counterfactual、回归和跨 seed 稳定性 |
+
+实现允许的 8-case held-out 是连通性硬下限，不是可信 promotion 样本量。训练文本最多
+128 tokens 且使用完整 causal-LM loss；长轨迹必须预先切分。held-out 必须有 improve、
+preserve、wrong-state 与非零 control coverage，并与训练集、角色 bake 材料和角色
+fidelity held-out 隔离。当前仓库只有 2-trace/2-case smoke 数据，不存在可据此晋升的
+正式 1.5B L1 evidence。
 
 ### Forge rare-heavy request boundary
 

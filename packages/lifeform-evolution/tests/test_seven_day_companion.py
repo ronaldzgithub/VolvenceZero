@@ -119,6 +119,8 @@ class _Lifecycle:
             next_instance_id=self._service.instance_id,
             healthcheck_passed=True,
             persistence_scope_unchanged=True,
+            previous_persistence_scope_sha256="5" * 64,
+            next_persistence_scope_sha256="5" * 64,
             state_intervention=StateInterventionEvidence(
                 experiment_arm_label="correct-user-state",
                 state_loading_policy="correct-user-state",

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import sys
 
 from companion_bench.seven_day_driver import (
     FrozenSevenDayUserScript,
@@ -34,6 +35,10 @@ from volvence_zero.agent.seven_day_companion_evidence import (
 from volvence_zero.agent.seven_day_companion_preregistration import (
     validate_seven_day_companion_preregistration,
 )
+from volvence_zero.agent.seven_day_n_plus_one import (
+    build_seven_day_n_plus_one_compiler,
+)
+from companion_test_plan_common import guarded_mps_runner_entrypoint
 
 
 _CAPTURE_ARMS = (
@@ -144,7 +149,7 @@ def main() -> int:
     )
     sut = _model_contract(seven_day_prereg, role="sut")
     simulator = _model_contract(seven_day_prereg, role="simulator")
-    _verify_model(sut)
+    sut_snapshot = _verify_model(sut)
     _verify_model(simulator)
     if sut["model_family"] == simulator["model_family"]:
         raise ValueError("capture SUT and simulator model families overlap")
@@ -190,6 +195,13 @@ def main() -> int:
         scripts[case.case_id] = script
         script_digests[case.case_id] = script.script_sha256
     if args.preflight_only:
+        n_plus_one_contract = seven_day_prereg.get("n_plus_one_measurement")
+        if not isinstance(n_plus_one_contract, dict):
+            raise ValueError("seven-day preregistration lacks N+1 measurement")
+        build_seven_day_n_plus_one_compiler(
+            model_source=sut_snapshot,
+            contract=n_plus_one_contract,
+        )
         print(
             json.dumps(
                 {
@@ -220,11 +232,23 @@ def main() -> int:
             "adapter": "none",
         }
     )
+    n_plus_one_contract = seven_day_prereg.get("n_plus_one_measurement")
+    if not isinstance(n_plus_one_contract, dict):
+        raise ValueError("seven-day preregistration lacks N+1 measurement")
+    del simulator_backend
+    n_plus_one_compiler = build_seven_day_n_plus_one_compiler(
+        model_source=sut_snapshot,
+        contract=n_plus_one_contract,
+    )
     executor = _LocalFormalExecutor(
         repo_root=repo_root,
         output_root=target,
         cases=cases,
         scripts=scripts,
+        scenario_paths={
+            str(scenario_id): str(path)
+            for scenario_id, path in scenario_paths.items()
+        },
         source_attestation=SimulatedSourceAttestation(
             simulator_model_id=str(simulator["model_id"]),
             simulator_model_family=str(simulator["model_family"]),
@@ -240,6 +264,8 @@ def main() -> int:
         port=args.port,
         startup_timeout_s=args.startup_timeout_s,
         virtual_start_ms=int(seven_day_formal["virtual_start_ms"]),
+        n_plus_one_compiler=n_plus_one_compiler,
+        n_plus_one_contract=n_plus_one_contract,
     )
     run_root = target / "runs"
     run_root.mkdir(parents=True, exist_ok=True)
@@ -295,4 +321,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(
+        guarded_mps_runner_entrypoint(
+            main,
+            plan_id="seven-day-gate811-capture-runner",
+            argv=sys.argv[1:],
+        )
+    )

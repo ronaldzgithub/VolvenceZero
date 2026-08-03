@@ -1,0 +1,119 @@
+{
+  "schema_version": "eta-rate-distortion-manifest.v1",
+  "experiment_id": "eta-rate-distortion-criterion",
+  "created_at": "2026-08-02T18:40:24.401943+00:00",
+  "git_sha": "3279adbf94f53728ed8739bd8ab723e68f4e33e4",
+  "working_tree_dirty": true,
+  "verdict": "incomplete-sweep",
+  "verdict_reason": "Both arms are required for the validity control; ran only ('frozen',).",
+  "preregistered": false,
+  "preregistration_path": "",
+  "preregistration_sha256": "",
+  "verdict_authoritative": false,
+  "claim_scope": "mechanism-only-smoke",
+  "resumed": false,
+  "checkpoint_units": {
+    "checkpoints/points/frozen/alpha-0.01/seed-0.json": {
+      "unit": "points/frozen/alpha-0.01/seed-0",
+      "kind": "json",
+      "sha256": "3092b18d63ea4b5025850b4b04b3a452969ec7ce3ee97f3d0cef02088b0d7565",
+      "size_bytes": 913
+    },
+    "checkpoints/points/frozen/alpha-0.1/seed-0.json": {
+      "unit": "points/frozen/alpha-0.1/seed-0",
+      "kind": "json",
+      "sha256": "e6f142492b4816429d69e4284f21a4e4b9eea71826adf73148a8c77b9907cecc",
+      "size_bytes": 912
+    },
+    "checkpoints/points/frozen/alpha-1/seed-0.json": {
+      "unit": "points/frozen/alpha-1/seed-0",
+      "kind": "json",
+      "sha256": "cbc3e8aed0be7af42f357683a7f1b6c4989cf1e7cf7eb0d6d4efa02d89a3f564",
+      "size_bytes": 912
+    }
+  },
+  "arms": [
+    "frozen"
+  ],
+  "alpha_grid": [
+    0.01,
+    0.1,
+    1.0
+  ],
+  "seed_schedule": [
+    0
+  ],
+  "n_z": 16,
+  "updates_per_run": 300,
+  "learning_rate": 0.02,
+  "substrate_learning_rate": 0.0001,
+  "switch_threshold": 0.55,
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "device": "mps",
+  "runtime_origin": "hf-local",
+  "fallback_active": false,
+  "injection_layer_index": 20,
+  "control_norm_cap": 24.33156967163086,
+  "observation_protocol": "partially-observable-staged-plan.v4",
+  "posterior_parameterization": "smooth",
+  "rate_gating": "switch-gated",
+  "prefix_cache": true,
+  "corpus": {
+    "corpus_origin": "generated-seeded",
+    "corpus_seed": 20260802,
+    "objective_count": 8,
+    "corridor_count": 2,
+    "extra_edge_probability": 0.35,
+    "train_routes": 64,
+    "heldout_routes": 24,
+    "train_lengths": [
+      2,
+      3
+    ],
+    "heldout_lengths": [
+      3,
+      4
+    ],
+    "environment_id": "eta-generated-hierarchy",
+    "report_corpus_origin": "generated-seeded",
+    "report_train_route_count": 64,
+    "report_heldout_route_count": 24
+  },
+  "rate_axis_responses": {
+    "frozen": {
+      "spearman_alpha_rate": -1.0,
+      "rate_span": 0.6306,
+      "rate_min": 0.0324,
+      "rate_max": 0.663
+    }
+  },
+  "elapsed_seconds": 4088.098,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+  "torch_version": "2.13.0",
+  "transformers_version": "5.14.1",
+  "mps_available": true,
+  "mps_exclusive_lock": "artifacts/.companion-evidence-mps.lock",
+  "mps_attestation": {
+    "torch_version": "2.13.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "matplotlib_plot": "rate_distortion_curves.png",
+  "result_files": {
+    "report.json": "b3b7c57040527c149281d1cc2d02b830131cc6106e5eef330d0c1e1ab9ec5c7a",
+    "points.jsonl": "f64eb4d6e24558864d5c65ac665899f25e77d6e01e9069e24a11e54e9c69ff27",
+    "curves.json": "7e3ef8a384311b9537da4186df65e39b9c764bbefa8c154bf45c842142396e51",
+    "gap_assessments.json": "b7103a6c7436642700f1ecea675891ea32c2ab07c3e1955fb6fea891ee7aa6f0",
+    "report.md": "83b30508520069b95ffad12842bc0be6749ef0c61649d28bf885da9a659a0160",
+    "rate_distortion_curves.png": "1f2cd75470bb64417c43df557f69d262df7803388709503e6bbb825607e0e3c2"
+  },
+  "source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/steered_action_scoring.py": "f4bc43fd5af93feff6dd1f48ac9d4147212fda3b5a4f2cbfd072664d52171b0e",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "45874b7cc76f8ab872becd38efdd3b7f622abcf2cde59b622ef34170e1cd3bdb",
+    "packages/vz-temporal/src/volvence_zero/temporal/torch_store_ssl.py": "17c577f2ed2cdc9176a9a451182f36adc78ac555f15aef70c341eeb453753ec0",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "7f6ae2c54f9435308c46a6e52541671ae0f4dc17936b4f5e411b4dd76a905faf",
+    "scripts/run_eta_rate_distortion.py": "c3479f03903b25057360ce476ec0ed32f499d9b730f22bc00dd3e7da2ca6aae6"
+  }
+}

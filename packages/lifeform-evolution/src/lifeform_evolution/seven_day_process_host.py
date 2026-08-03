@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -27,17 +28,24 @@ class RebindableSevenDayService(Protocol):
 
 
 @dataclass(frozen=True)
-class ServiceProcessRestart:
+class ServiceProcessStop:
     previous_instance_id: str
+    persistence_scope_sha256: str
+
+
+@dataclass(frozen=True)
+class ServiceProcessStart:
     next_instance_id: str
     healthcheck_passed: bool
-    persistence_scope_unchanged: bool
+    persistence_scope_sha256: str
 
 
 class SevenDayServiceHost(Protocol):
     def start_initial(self) -> str: ...
 
-    def restart(self) -> ServiceProcessRestart: ...
+    def stop_for_restart(self) -> ServiceProcessStop: ...
+
+    def start_after_restart(self) -> ServiceProcessStart: ...
 
     def close(self) -> None: ...
 
@@ -51,7 +59,7 @@ class SubprocessSevenDayServiceHost:
         command: tuple[str, ...],
         service: RebindableSevenDayService,
         health_url: str,
-        persistence_scope_id: str,
+        expected_persistence_scope_sha256: str,
         log_dir: str | Path,
         cwd: str | Path,
         environment: Mapping[str, str] | None = None,
@@ -62,14 +70,24 @@ class SubprocessSevenDayServiceHost:
             raise ValueError("service command must be a non-empty argv tuple")
         if not health_url.strip():
             raise ValueError("health_url must be non-empty")
-        if not persistence_scope_id.strip():
-            raise ValueError("persistence_scope_id must be non-empty")
+        if (
+            len(expected_persistence_scope_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in expected_persistence_scope_sha256
+            )
+        ):
+            raise ValueError(
+                "expected_persistence_scope_sha256 must be a SHA-256"
+            )
         if startup_timeout_s <= 0 or stop_timeout_s <= 0:
             raise ValueError("process timeouts must be positive")
         self._command = command
         self._service = service
         self._health_url = health_url
-        self._persistence_scope_id = persistence_scope_id
+        self._expected_persistence_scope_sha256 = (
+            expected_persistence_scope_sha256
+        )
         self._log_dir = Path(log_dir)
         self._cwd = Path(cwd)
         self._environment = (
@@ -80,26 +98,39 @@ class SubprocessSevenDayServiceHost:
         self._process: subprocess.Popen[bytes] | None = None
         self._log_handle: BinaryIO | None = None
         self._generation = 0
+        self._last_health_scope_sha256: str | None = None
 
     def start_initial(self) -> str:
         if self._process is not None:
             raise RuntimeError("seven-day service host is already running")
         return self._start()
 
-    def restart(self) -> ServiceProcessRestart:
+    def stop_for_restart(self) -> ServiceProcessStop:
         if self._process is None:
             raise RuntimeError("seven-day service host has not started")
         previous = self._service.instance_id
-        scope_before = self._persistence_scope_id
+        scope_before = self._last_health_scope_sha256
+        if scope_before is None:
+            raise RuntimeError("seven-day service lacks health scope evidence")
         self._stop()
-        next_instance = self._start()
-        return ServiceProcessRestart(
+        return ServiceProcessStop(
             previous_instance_id=previous,
+            persistence_scope_sha256=scope_before,
+        )
+
+    def start_after_restart(self) -> ServiceProcessStart:
+        if self._process is not None:
+            raise RuntimeError("seven-day service host is already running")
+        next_instance = self._start()
+        scope_after = self._last_health_scope_sha256
+        if scope_after is None:
+            raise RuntimeError("restarted service lacks health scope evidence")
+        return ServiceProcessStart(
             next_instance_id=next_instance,
-            healthcheck_passed=True,
-            persistence_scope_unchanged=(
-                scope_before == self._persistence_scope_id
+            healthcheck_passed=(
+                scope_after == self._expected_persistence_scope_sha256
             ),
+            persistence_scope_sha256=scope_after,
         )
 
     def close(self) -> None:
@@ -124,15 +155,16 @@ class SubprocessSevenDayServiceHost:
                 f"service-generation-{self._generation}-pid-"
                 f"{self._process.pid}"
             )
-            self._wait_until_healthy()
+            health_scope_sha256 = self._wait_until_healthy()
         except (OSError, RuntimeError, TimeoutError):
             if self._process is not None:
                 self._terminate_failed_start()
             raise
         self._service.replace_instance_id(instance_id)
+        self._last_health_scope_sha256 = health_scope_sha256
         return instance_id
 
-    def _wait_until_healthy(self) -> None:
+    def _wait_until_healthy(self) -> str:
         assert self._process is not None
         deadline = time.monotonic() + self._startup_timeout_s
         last_error = "health endpoint did not respond"
@@ -148,7 +180,28 @@ class SubprocessSevenDayServiceHost:
                     timeout=min(2.0, self._startup_timeout_s),
                 ) as response:
                     if 200 <= response.status < 300:
-                        return
+                        raw = response.read()
+                        try:
+                            payload = json.loads(raw.decode("utf-8"))
+                        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                            raise RuntimeError(
+                                "seven-day health response is not valid JSON"
+                            ) from exc
+                        if not isinstance(payload, Mapping):
+                            raise RuntimeError(
+                                "seven-day health response must be an object"
+                            )
+                        scope = payload.get("persistence_scope_sha256")
+                        if payload.get("status") != "ok":
+                            raise RuntimeError(
+                                "seven-day health response status is not ok"
+                            )
+                        if scope != self._expected_persistence_scope_sha256:
+                            raise RuntimeError(
+                                "seven-day service health persistence scope drift"
+                            )
+                        assert isinstance(scope, str)
+                        return scope
                     last_error = f"health endpoint returned {response.status}"
             except urllib.error.URLError as exc:
                 last_error = str(exc.reason)
@@ -167,6 +220,7 @@ class SubprocessSevenDayServiceHost:
             process.kill()
             process.wait(timeout=self._stop_timeout_s)
         self._process = None
+        self._last_health_scope_sha256 = None
         if self._log_handle is not None:
             self._log_handle.close()
             self._log_handle = None
@@ -204,18 +258,25 @@ class StateControlledSubprocessLifecycle:
         return self._host.start_initial()
 
     def restart_after_day(self, *, day_index: int) -> ProcessRestartEvidence:
+        stopped = self._host.stop_for_restart()
         intervention = self._state_controller.archive_and_stage_after_day(
             day_index=day_index
         )
-        process = self._host.restart()
+        started = self._host.start_after_restart()
+        scope_unchanged = (
+            stopped.persistence_scope_sha256
+            == started.persistence_scope_sha256
+        )
         return ProcessRestartEvidence(
             after_day_index=day_index,
-            previous_instance_id=process.previous_instance_id,
-            next_instance_id=process.next_instance_id,
-            healthcheck_passed=process.healthcheck_passed,
-            persistence_scope_unchanged=(
-                process.persistence_scope_unchanged
+            previous_instance_id=stopped.previous_instance_id,
+            next_instance_id=started.next_instance_id,
+            healthcheck_passed=started.healthcheck_passed,
+            persistence_scope_unchanged=scope_unchanged,
+            previous_persistence_scope_sha256=(
+                stopped.persistence_scope_sha256
             ),
+            next_persistence_scope_sha256=started.persistence_scope_sha256,
             state_intervention=intervention,
         )
 
@@ -225,7 +286,8 @@ class StateControlledSubprocessLifecycle:
 
 __all__ = [
     "RebindableSevenDayService",
-    "ServiceProcessRestart",
+    "ServiceProcessStart",
+    "ServiceProcessStop",
     "SevenDayServiceHost",
     "StateControlledSubprocessLifecycle",
     "SubprocessSevenDayServiceHost",

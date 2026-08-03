@@ -2,7 +2,7 @@
 # Gate 8/11 七日陪伴证据的一键启动器。
 #
 # 首次运行：生成新的 preregistration、冻结只读 execution root，然后执行
-# preflight -> 36-run formal -> independent audit。
+# preflight -> one-run smoke -> 36-run formal -> independent audit。
 #
 # 续跑：必须显式传入同一份 preregistration、execution root 和 output root，
 # 只允许从同一物证链上 --resume；旧 halt_record 目录会由控制面拒绝。
@@ -114,7 +114,7 @@ if [[ "$RESUME" -eq 1 ]]; then
   OUTPUT_DIR="$(resolve_repo_path "$OUTPUT_DIR")"
 else
   RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
-  PREREGISTRATION="${REPO_ROOT}/artifacts/preregistrations/seven-day-v1-${RUN_ID}.json"
+  PREREGISTRATION="${REPO_ROOT}/artifacts/preregistrations/seven-day-v3-${RUN_ID}.json"
   EXECUTION_ROOT="/private/tmp/volvence-seven-day-${RUN_ID}"
   OUTPUT_DIR="${REPO_ROOT}/artifacts/seven-day-formal-${RUN_ID}"
   mkdir -p "$(dirname "$PREREGISTRATION")" "$(dirname "$OUTPUT_DIR")"

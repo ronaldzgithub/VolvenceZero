@@ -490,10 +490,22 @@ async def _handle_chat_ui(request: web.Request) -> web.Response:  # noqa: ARG001
 
 async def _handle_health(request: web.Request) -> web.Response:
     manager: SessionManager = request.app["session_manager"]
+    persistence_root = manager.alpha_memory_scope_root_dir
+    persistence_scope_sha256 = (
+        sha256(
+            pathlib.Path(persistence_root)
+            .resolve()
+            .as_posix()
+            .encode("utf-8")
+        ).hexdigest()
+        if persistence_root is not None
+        else None
+    )
     body = HealthResponse(
         status="ok",
         session_count=manager.session_count(),
         vertical=manager.vertical_name,
+        persistence_scope_sha256=persistence_scope_sha256,
     )
     return _json_ok(body.to_json())
 

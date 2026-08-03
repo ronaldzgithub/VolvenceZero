@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -9,8 +10,10 @@ from lifeform_evolution.seven_day_state_control import (
     SevenDayFilesystemStateController,
 )
 from lifeform_evolution.seven_day_process_host import (
-    ServiceProcessRestart,
+    ServiceProcessStart,
+    ServiceProcessStop,
     StateControlledSubprocessLifecycle,
+    SubprocessSevenDayServiceHost,
 )
 
 
@@ -164,17 +167,29 @@ def test_state_control_is_bound_to_process_restart_evidence(
     tmp_path: Path,
 ) -> None:
     controller = _controller(tmp_path, arm="correct-user-state")
+    calls: list[str] = []
 
     class Host:
         def start_initial(self) -> str:
+            calls.append("start-initial")
             return "instance-1"
 
-        def restart(self) -> ServiceProcessRestart:
-            return ServiceProcessRestart(
+        def stop_for_restart(self) -> ServiceProcessStop:
+            calls.append("stop")
+            assert controller.active_scope_dir.is_dir()
+            assert not (tmp_path / "archive-correct-user-state/day-1").exists()
+            return ServiceProcessStop(
                 previous_instance_id="instance-1",
+                persistence_scope_sha256="a" * 64,
+            )
+
+        def start_after_restart(self) -> ServiceProcessStart:
+            calls.append("start-after-restart")
+            assert (tmp_path / "archive-correct-user-state/day-1").is_dir()
+            return ServiceProcessStart(
                 next_instance_id="instance-2",
                 healthcheck_passed=True,
-                persistence_scope_unchanged=True,
+                persistence_scope_sha256="a" * 64,
             )
 
         def close(self) -> None:
@@ -190,6 +205,92 @@ def test_state_control_is_bound_to_process_restart_evidence(
     assert evidence.previous_instance_id == "instance-1"
     assert evidence.next_instance_id == "instance-2"
     assert evidence.state_intervention.next_day_source_day_index == 1
+    assert evidence.previous_persistence_scope_sha256 == "a" * 64
+    assert evidence.next_persistence_scope_sha256 == "a" * 64
+    assert calls == ["start-initial", "stop", "start-after-restart"]
+
+
+def test_restart_rejects_server_reported_scope_drift(tmp_path: Path) -> None:
+    controller = _controller(tmp_path, arm="correct-user-state")
+
+    class Host:
+        def start_initial(self) -> str:
+            return "instance-1"
+
+        def stop_for_restart(self) -> ServiceProcessStop:
+            return ServiceProcessStop(
+                previous_instance_id="instance-1",
+                persistence_scope_sha256="a" * 64,
+            )
+
+        def start_after_restart(self) -> ServiceProcessStart:
+            return ServiceProcessStart(
+                next_instance_id="instance-2",
+                healthcheck_passed=True,
+                persistence_scope_sha256="b" * 64,
+            )
+
+        def close(self) -> None:
+            return None
+
+    lifecycle = StateControlledSubprocessLifecycle(
+        host=Host(),
+        state_controller=controller,
+    )
+    lifecycle.start_initial()
+    _write_active(controller, "day-one")
+    with pytest.raises(RuntimeError, match="persistence scope"):
+        lifecycle.restart_after_day(day_index=1)
+
+
+def test_subprocess_host_rejects_health_endpoint_scope_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Service:
+        instance_id = "not-started"
+
+        def replace_instance_id(self, instance_id: str) -> None:
+            self.instance_id = instance_id
+
+    class Process:
+        def poll(self) -> None:
+            return None
+
+    class Response:
+        status = 200
+
+        def __enter__(self) -> "Response":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "status": "ok",
+                    "persistence_scope_sha256": "b" * 64,
+                }
+            ).encode("utf-8")
+
+    host = SubprocessSevenDayServiceHost(
+        command=("fixture",),
+        service=Service(),
+        health_url="http://127.0.0.1:1/v1/health",
+        expected_persistence_scope_sha256="a" * 64,
+        log_dir=tmp_path / "logs",
+        cwd=tmp_path,
+        startup_timeout_s=1.0,
+    )
+    host._process = Process()
+    monkeypatch.setattr(
+        "lifeform_evolution.seven_day_process_host.urllib.request.urlopen",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    with pytest.raises(RuntimeError, match="persistence scope drift"):
+        host._wait_until_healthy()
 
 
 def test_custom_mechanism_arm_requires_explicit_state_policy(

@@ -113,7 +113,8 @@ from lifeform_evolution.seven_day_state_control import (
     SevenDayFilesystemStateController,
 )
 from lifeform_evolution.seven_day_process_host import (
-    ServiceProcessRestart,
+    ServiceProcessStart,
+    ServiceProcessStop,
     StateControlledSubprocessLifecycle,
     SubprocessSevenDayServiceHost,
 )
@@ -206,7 +207,8 @@ __all__ = (
     "SevenDayScenarioSchedule",
     "SevenDayScheduleDay",
     "SevenDayTurnEvidence",
-    "ServiceProcessRestart",
+    "ServiceProcessStart",
+    "ServiceProcessStop",
     "SimulatedSourceAttestation",
     "SimulatedUserTurn",
     "StateInterventionEvidence",

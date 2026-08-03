@@ -85,7 +85,11 @@ rate–distortion（Gate 3），对话迁移仅在前三级全过后预注册（
 | 缩减权威扫 | `artifacts/eta_stage1_gate1_reduced_20260802/` |
 | smooth/v2 权威扫（rate 轴过、switching FAIL） | `artifacts/eta_stage1_gate1_smooth_v2_20260802/` |
 | v3+gated 预注册（冻结，门槛不变） | `artifacts/eta_stage1_gate1_v3_gated_20260802_prereg.json` |
-| v3+gated 权威扫（排队/进行中） | `artifacts/eta_stage1_gate1_v3_gated_20260802/` |
+| v3+gated 权威扫（部分完成后中止，见 v4 根因） | `artifacts/eta_stage1_gate1_v3_gated_20260802/` |
+| v4 staged-plan probe（step-0 无泄漏 + arrival 可读） | `artifacts/eta_step0_plan_probe_v4_20260802/` |
+| v4 缩减筛查（非权威，40 updates） | `artifacts/eta_stage1_gate1_v4_screen_20260802/` |
+| v4 预算诊断（非权威，300 updates，暴露连续门走私） | `artifacts/eta_stage1_gate1_v4_budget_20260803/` |
+| v4+hard-st 缩减筛查（非权威） | `artifacts/eta_stage1_gate1_v4_hardst_20260803/` |
 
 **当前状态（2026-08-02）**：缩减权威扫 **Gate 1 = FAIL**。
 
@@ -183,6 +187,25 @@ target-2 为 `0.727679`，raw-PCA 变体最高为 `0.933036`，均明显高于 8
 `production_promotion_authorized` 等 Gate 字段不存在，故继续按非权威 capacity
 diagnostic 管理。
 
+**v3 的结构性激励缺陷（v3+gated 权威扫 7/18 cell 后中止）**：v3 把全部计划信息
+一次性写在 step-0，而 step-0 门本就强制为 1、16 维 z 足以容纳约 6 bits 的计划身份，
+因此 Eq.3 的最优解是“step-0 编码一次、之后永远 keep”——中途切换传输不了编码器
+没有新收到的信息，只会白付 KL。部分权威扫的读数与该论证一致：alpha 0.01→0.1 间
+rate 从 `0.463` 单调压到 `0.086`（gated rate 定义工作正常），但 distortion 钉在
+`1.43–1.47`（baseline `2.54`）、hard switch 频率与 boundary F1 全为 0。这不是优化
+失败，是该协议下 never-switch 即最优；论文的边界涌现前提是**信息在轨迹中途持续
+到达**且 decoder 无法自行做条件推理。据此注册
+`partially-observable-staged-plan.v4`（分段揭示）：step-0 只写第一个 objective，
+到达每个 objective 的观测步写出下一个（"Reached white. Next objective:
+purple."），走廊步保持严格局部。never-switch 控制器在第二段物理上无法携带
+第二目标（该信息不在 step-0 输入中），在真边界处重新编码可赢得实测约 1.0 nats 的
+steering gap，激励恰好落在真边界。v4 probe
+（`artifacts/eta_step0_plan_probe_v4_20260802/`，200 train routes、width 8、
+n_input 16）验证信息时刻表：step-0 target-1 = `1.000`、target-2 =
+`0.089–0.103`（null `0.085–0.121`，无泄漏）；first-arrival 步 target-2 =
+`1.000`（null 约 `0.07`，揭示可读）。v4 尚未经过正式 Gate 1；任何缩减筛查
+通过都不得写成 ETA 证据，正式判定须另行冻结 v4 预注册后重跑权威扫。
+
 ### Stage / Gate 2 — 领域续训 + 线性分类 probe
 
 **问题**：补课后的 Qwen 残差流是否携带子目标信念？（对齐论文附录 B）
@@ -269,3 +292,32 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
   （`artifacts/eta_stage1_gate1_v3_gated_20260802_prereg.json`，门槛不变：
   spearman ≤ −0.8、rate_span ≥ 0.30、switching gate 同前），权威扫在 MPS
   设备释放后启动。任何通过判定仍以该权威扫的 `gate1_assessment` 为准。
+- 2026-08-03: v3+gated 权威扫 7/18 cell 后中止：rate 轴单调但 distortion 平坦、
+  零切换。定位下一层根因为 v3 的信息到达时刻表（全部计划 step-0 一次到达 →
+  never-switch 即 Eq.3 最优）；注册 v4 staged-plan 协议（step-0 只揭示第一
+  objective，各 arrival 揭示下一个），v4 probe 证实 step-0 无 target-2 泄漏且
+  arrival 步 target-2 完全可读。v4 缩减筛查与后续权威扫须另行冻结预注册。
+- 2026-08-03: v4 预算诊断（300 updates，`eta_stage1_gate1_v4_budget_20260803`）
+  证明 40 updates 是 distortion 瓶颈（alpha=0.01 distortion 1.248→0.919，
+  distortion 首次响应 rate：0.92↔1.08），但同时暴露**连续门走私漏洞**：
+  alpha=0.01 时门塌缩至 0.03 且边界/延续门概率零对比（新增
+  `boundary_switch_probability` / `continuation_switch_probability` point 级
+  遥测），控制器以微小门幅度逐步混入新后验信息、按门值分数支付 switch-gated
+  KL，离散切换永不值得。修复：`StoreSSLTrainingSession` 新增
+  `steered_gate_mode`（`continuous` legacy / `hard-st` 论文式离散开关 +
+  straight-through 梯度），runner/CLI/预注册新增 `gate_mode` 字段并纳入预注册
+  校验。单测覆盖：hard-st 下门不 fire 时 KL 塌缩至 step-0、ST 梯度可达 switch
+  FFN、未知模式拒绝。v4+hard-st 缩减筛查为非权威诊断；正式判定须冻结含
+  `gate_mode` 的新预注册后重跑权威扫。
+- 2026-08-03: v4+hard-st 缩减筛查（`eta_stage1_gate1_v4_hardst_20260803`，
+  300 updates，非权威）首次打破 never-switch：hard switch 真实发生
+  （alpha=0.1/1.0 频率 0.172/0.388），heldout boundary F1 首次 > 0
+  （0.352–0.678），门出现边界对比（alpha=1.0：0.454 vs 0.394），且 alpha=1.0
+  以最低 rate 0.131 取得最低 distortion 0.947（选择性切换的 rate-distortion
+  效率形态）。rate 轴 Spearman −1.0、span 2.377。据此冻结 v4+smooth+
+  switch-gated+hard-st 权威预注册
+  （`artifacts/eta_stage1_gate1_v4_hardst_20260803_prereg.json`，
+  sha256 `b0d18f60…`，18 cells，updates=300，门槛不变：spearman ≤ −0.8、
+  rate_span ≥ 0.30、switching gate 同前），权威扫
+  `artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/` 已启动。任何通过
+  判定以该权威扫的 `gate1_assessment` 为准；筛查数字不得引用为证据。
