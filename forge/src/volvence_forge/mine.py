@@ -34,6 +34,7 @@ from .foundation import (
 from .sources import (
     BenchBundleSource,
     EvidenceRef,
+    LiveDialogueOutcomeSource,
     PlanSource,
     SourceBundle,
     TranscriptSource,
@@ -101,16 +102,26 @@ def _analysis_text(analysis: FailureAnalysis) -> str:
 
 def _source_objects(
     bundle: SourceBundle,
-) -> tuple[TranscriptSource | VerdictSource | BenchBundleSource, ...]:
+) -> tuple[
+    TranscriptSource | VerdictSource | BenchBundleSource | LiveDialogueOutcomeSource,
+    ...,
+]:
     """Select only sources carrying explicit structured failure evidence."""
 
     failed_transcripts = tuple(source for source in bundle.transcripts if source.error_refs)
     failed_verdicts = tuple(source for source in bundle.verdicts if source.failed_gate_refs)
     failed_bench = tuple(source for source in bundle.bench_bundles if source.failure_refs)
-    return failed_transcripts + failed_verdicts + failed_bench
+    return (
+        failed_transcripts
+        + failed_verdicts
+        + failed_bench
+        + bundle.live_dialogue_outcomes
+    )
 
 
-def _evidence_lane(source: TranscriptSource | VerdictSource | BenchBundleSource) -> str:
+def _evidence_lane(
+    source: TranscriptSource | VerdictSource | BenchBundleSource | LiveDialogueOutcomeSource,
+) -> str:
     """Keep product-runtime observations out of the development-harness lane.
 
     The source kind is a typed provenance boundary, not a natural-language
@@ -118,11 +129,15 @@ def _evidence_lane(source: TranscriptSource | VerdictSource | BenchBundleSource)
     governance has explicitly marked for the loop-external OFFLINE gate.
     """
 
-    return "runtime" if isinstance(source, BenchBundleSource) else "development"
+    return (
+        "runtime"
+        if isinstance(source, (BenchBundleSource, LiveDialogueOutcomeSource))
+        else "development"
+    )
 
 
 def _fallback_ref(
-    source: TranscriptSource | VerdictSource | PlanSource | BenchBundleSource,
+    source: TranscriptSource | VerdictSource | PlanSource | BenchBundleSource | LiveDialogueOutcomeSource,
 ) -> EvidenceRef:
     record = source.analysis_record()
     excerpt = canonical_json(record)[:1200]
@@ -137,7 +152,7 @@ def _fallback_ref(
 
 
 def _evidence_refs(
-    source: TranscriptSource | VerdictSource | PlanSource | BenchBundleSource,
+    source: TranscriptSource | VerdictSource | PlanSource | BenchBundleSource | LiveDialogueOutcomeSource,
 ) -> tuple[EvidenceRef, ...]:
     if isinstance(source, TranscriptSource) and source.error_refs:
         return source.error_refs
@@ -145,6 +160,8 @@ def _evidence_refs(
         return source.failed_gate_refs
     if isinstance(source, BenchBundleSource) and source.failure_refs:
         return source.failure_refs
+    if isinstance(source, LiveDialogueOutcomeSource):
+        return (source.observation_ref,)
     return (_fallback_ref(source),)
 
 
@@ -285,7 +302,7 @@ def mine_bundle(
             "evidence_refs": evidence_refs,
         }
         pattern = {
-            "schema_version": "forge-failure-pattern.v2",
+        "schema_version": "forge-failure-pattern.v3",
             "pattern_id": _pattern_id(base),
             "title": representative.exposed_mechanism[:240],
             **base,
@@ -344,7 +361,7 @@ def mine_failures(
     destination.mkdir(parents=True, exist_ok=False)
     pattern_path = write_failure_patterns(patterns, destination / "failure_patterns.jsonl")
     inventory = {
-        "schema_version": "forge-source-inventory.v2",
+        "schema_version": "forge-source-inventory.v3",
         "created_at": utc_now(),
         "source_bundle_digest": source_bundle_digest(sources),
         "analysis_backend": backend.backend_name,
@@ -356,7 +373,8 @@ def mine_failures(
             "promotion_verdicts": len(sources.verdicts),
             "plans": len(sources.plans),
             "bench_bundles": len(sources.bench_bundles),
-            "explicit_failed_sources": len(_source_objects(sources)),
+            "live_dialogue_outcomes": len(sources.live_dialogue_outcomes),
+            "structured_analysis_sources": len(_source_objects(sources)),
             "failure_patterns": len(patterns),
         },
     }
@@ -462,9 +480,10 @@ def _render_mine_report(
         f"- Analysis backend: `{inventory['analysis_backend']}` / `{inventory['analysis_model']}`",
         f"- Embedding model: `{inventory['embedding_model']}`",
         f"- Inputs: {counts['transcripts']} transcripts, {counts['promotion_verdicts']} verdicts, "
-        f"{counts['plans']} plans, {counts['bench_bundles']} bench bundles",
+        f"{counts['plans']} plans, {counts['bench_bundles']} bench bundles, "
+        f"{counts['live_dialogue_outcomes']} live dialogue outcomes",
         f"- Evidence since: `{inventory['evidence_since'] or 'unbounded'}`",
-        f"- Explicit failed sources: {counts['explicit_failed_sources']}",
+        f"- Structured analysis sources: {counts['structured_analysis_sources']}",
         f"- Failure patterns: {counts['failure_patterns']}",
         "",
         "## Failure patterns",

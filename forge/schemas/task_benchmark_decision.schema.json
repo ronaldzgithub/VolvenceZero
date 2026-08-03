@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.task-benchmark-decision.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id",
+    "classification",
+    "next_action",
+    "target_lane",
+    "preserve_evidence",
+    "confidence"
+  ],
+  "properties": {
+    "case_id": {"type": "string", "pattern": "^tb_[a-z0-9_]+$"},
+    "classification": {
+      "enum": [
+        "execution_failure",
+        "negative_evidence",
+        "external_blocker",
+        "runtime_behavior_gap",
+        "non_failure"
+      ]
+    },
+    "next_action": {
+      "enum": [
+        "propose_bounded_fix",
+        "bounded_retry",
+        "handoff",
+        "preserve_and_stop",
+        "no_action"
+      ]
+    },
+    "target_lane": {
+      "enum": ["development", "runtime", "out_of_surface", "none"]
+    },
+    "preserve_evidence": {"type": "boolean"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+  }
+}

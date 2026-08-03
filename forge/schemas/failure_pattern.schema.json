@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "forge.failure-pattern.v2",
+  "$id": "forge.failure-pattern.v3",
   "$defs": {
     "evidence_ref": {
       "type": "object",
@@ -8,7 +8,7 @@
       "required": ["source_id", "source_kind", "locator", "excerpt", "digest"],
       "properties": {
         "source_id": {"type": "string", "minLength": 1},
-        "source_kind": {"enum": ["transcript", "promotion_verdict", "bench_bundle", "plan", "ledger"]},
+        "source_kind": {"enum": ["transcript", "promotion_verdict", "bench_bundle", "live_dialogue_outcome", "plan", "ledger"]},
         "locator": {"type": "string", "minLength": 1},
         "excerpt": {"type": "string", "maxLength": 1200},
         "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
@@ -24,7 +24,7 @@
     "editable_component", "surface_status", "surface_similarity", "preserve_behaviors"
   ],
   "properties": {
-    "schema_version": {"enum": ["forge-failure-pattern.v1", "forge-failure-pattern.v2"]},
+    "schema_version": {"enum": ["forge-failure-pattern.v1", "forge-failure-pattern.v2", "forge-failure-pattern.v3"]},
     "pattern_id": {"type": "string", "pattern": "^fp_[0-9a-f]{16}$"},
     "title": {"type": "string", "minLength": 1, "maxLength": 240},
     "verifier_cause": {"type": "string", "minLength": 1, "maxLength": 2000},
@@ -39,7 +39,7 @@
     "source_kinds": {
       "type": "array",
       "uniqueItems": true,
-      "items": {"enum": ["transcript", "promotion_verdict", "bench_bundle", "plan", "ledger"]}
+      "items": {"enum": ["transcript", "promotion_verdict", "bench_bundle", "live_dialogue_outcome", "plan", "ledger"]}
     },
     "centroid_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "editable_target": {"type": ["string", "null"]},

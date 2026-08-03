@@ -125,5 +125,23 @@ flowchart LR
 ## 明确不做
 
 - 产品 prompts / substrate anchors / CharacterPackageManifest+LoRA 扩面(验证太贵或缺内容级回归,留第三批)。
-- lifeform-service 增加 live 失败流落盘(独立收敛包,归 lifeform-service owner)。
+- lifeform-service 增加 live 失败流落盘(不属于本战役，必须另开独立收敛包)。
 - 提案器 meta 优化、自动 apply(无人审)。
+
+## 后续独立收敛包执行记录（2026-08-03）
+
+- `lifeform-service` 已增加 closed-alpha opt-in 的 `lifeform-live-dialogue-outcome.v1` 出口：只消费
+  owner-issued typed outcome，保存无文本 action-turn readout，identity/session/scene/evidence 只留
+  SHA-256，create-only 且复核 content hash；默认未配置 evidence root 时不落盘。
+- Forge failure schema 升到 v3，新增 `live_dialogue_outcome` 只读 provenance。CLI 只在显式
+  `--live-outcome-root` 时解析该隐私目录，并以 artifact 内 `recorded_at_iso` 执行 evidence window；
+  typed outcome 本身不是 failure，结构化语义 backend 可以返回零条 record。
+- 该链路只补齐真实产品 evidence source，不完成 live remine；当前仍缺 opt-in artifact 样本与
+  `FORGE_LLM_API_KEY` / `FORGE_LLM_MODEL`。
+- 新增 loop-external `forge benchmark` 诊断包：冻结 8 个 structured task-decision cases，分别覆盖
+  负向晋升证据、transient retry、外部凭据/权限 blocker、只读 evaluator、唯一 runtime overlay、
+  out-of-surface kernel gap 与 positive live outcome。baseline/candidate 使用同一 suite exact scoring，
+  critical failure 或阈值/增量不达标即 BLOCK。
+- benchmark suite、prompt、schema 已加入 Forge read-only surface；模型请求不含 expected/critical/
+  confidence threshold。报告强制 `diagnostic_only=true`、`causal_claim_authorized=false`，不接入
+  promotion gate；真实仓库任务 causal benchmark 仍为后续独立收敛包。

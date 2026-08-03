@@ -27,6 +27,7 @@ from .rare_heavy import (
     create_rare_heavy_request,
 )
 from .sources import latest_applied_timestamp, load_source_bundle, parse_evidence_timestamp
+from .task_benchmark import run_task_benchmark
 from .validate import validate_proposal
 
 
@@ -42,13 +43,32 @@ def build_parser() -> argparse.ArgumentParser:
     mine.add_argument("--output", type=Path)
     mine.add_argument("--verdict-root", type=Path)
     mine.add_argument("--bench-root", type=Path)
+    mine.add_argument(
+        "--live-outcome-root",
+        type=Path,
+        help=(
+            "Explicit lifeform-service live_dialogue_outcomes directory. "
+            "It is never auto-discovered because these are privacy-scoped artifacts."
+        ),
+    )
     mine.add_argument("--max-transcripts", type=int)
     mine.add_argument("--max-verdicts", type=int)
     mine.add_argument("--max-plans", type=int)
     mine.add_argument("--max-bench-bundles", type=int)
+    mine.add_argument("--max-live-outcomes", type=int)
     evidence_window = mine.add_mutually_exclusive_group()
     evidence_window.add_argument("--evidence-since")
     evidence_window.add_argument("--evidence-since-ledger", action="store_true")
+
+    benchmark = subparsers.add_parser(
+        "benchmark",
+        help="Run the loop-external task-level diagnostic benchmark",
+    )
+    benchmark.add_argument("target", help="Repository-relative editable harness asset")
+    _add_backend_arguments(benchmark, default="openai", allow_none=False)
+    benchmark.add_argument("--candidate-asset", type=Path)
+    benchmark.add_argument("--suite", type=Path)
+    benchmark.add_argument("--output", type=Path)
 
     propose = subparsers.add_parser("propose", help="Generate bounded proposal bundles")
     propose.add_argument("failure_patterns", type=Path)
@@ -152,6 +172,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 verdict_root=args.verdict_root,
                 bench_root=args.bench_root,
                 max_bench_bundles=args.max_bench_bundles,
+                live_outcome_root=args.live_outcome_root,
+                max_live_outcomes=args.max_live_outcomes,
                 since=evidence_since,
             )
             result = mine_failures(
@@ -166,6 +188,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"{result.output_dir}"
             )
             return 0
+        if args.command == "benchmark":
+            result = run_task_benchmark(
+                config=config,
+                target=args.target,
+                backend=_required_backend(args),
+                candidate_asset_path=args.candidate_asset,
+                suite_path=args.suite,
+                report_path=args.output,
+            )
+            candidate_summary = (
+                "none"
+                if result.candidate_pass_rate is None
+                else f"{result.candidate_pass_rate:.3f}"
+            )
+            print(
+                f"{result.status}: baseline={result.baseline_pass_rate:.3f}; "
+                f"candidate={candidate_summary}; report={result.report_path}"
+            )
+            return 0 if result.status == "PASS" else 2
         if args.command == "propose":
             backend = _required_backend(args)
             result = propose_changes(

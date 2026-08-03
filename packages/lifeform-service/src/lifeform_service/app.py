@@ -77,6 +77,10 @@ from lifeform_protocol_runtime import (
 from lifeform_service.openai_utterance_client import (
     build_utterance_client_from_env,
 )
+from lifeform_service.live_dialogue_outcome_evidence import (
+    build_live_dialogue_outcome_artifact,
+    write_live_dialogue_outcome_artifact,
+)
 from lifeform_service.protocol_routes import register_protocol_routes
 from lifeform_service.teaching_case import (
     TeachingCaseService,
@@ -121,6 +125,7 @@ from volvence_zero.agent.prompts import build_system_prompt
 from volvence_zero.application.types import ResponseAssemblySnapshot
 from volvence_zero.behavior_protocol import ReviewLevel, ReviewStatus
 from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
     DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeKind,
 )
@@ -1498,6 +1503,12 @@ async def _handle_dialogue_outcome(request: web.Request) -> web.Response:
         description=description,
         action_turn_index=action_turn_index,
     )
+    evidence_artifact_ref = _write_live_dialogue_outcome_evidence(
+        request=request,
+        session_id=session_id,
+        session=session,
+        evidence=evidence,
+    )
     return _json_ok(
         {
             "session_id": session_id,
@@ -1505,6 +1516,7 @@ async def _handle_dialogue_outcome(request: web.Request) -> web.Response:
             "kind": evidence.kind.value,
             "source": evidence.source.value,
             "confidence": evidence.confidence,
+            "evidence_artifact_ref": evidence_artifact_ref,
         },
         status=201,
     )
@@ -2371,6 +2383,41 @@ def _write_session_evidence(
     }
     path = root / "session_evidence.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return str(path)
+
+
+def _write_live_dialogue_outcome_evidence(
+    *,
+    request: web.Request,
+    session_id: str,
+    session: Any,
+    evidence: DialogueExternalOutcomeEvidence,
+) -> str | None:
+    """Persist typed feedback only for explicitly configured closed alpha."""
+
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    if not alpha.enabled or alpha.evidence_root_dir is None:
+        return None
+    identity_provider: AlphaIdentityProvider | None = request.app["alpha_provider"]
+    if identity_provider is None:
+        raise RuntimeError("closed-alpha live outcome evidence requires an identity provider")
+    identity = identity_provider.resolve(session_id)
+    if identity is None:
+        raise RuntimeError(
+            "closed-alpha live outcome evidence requires a bound session identity"
+        )
+    artifact = build_live_dialogue_outcome_artifact(
+        subject_scope=identity.scope_key,
+        session_id=session_id,
+        evidence=evidence,
+        turn_summaries=session.turn_summaries,
+        service_version=alpha.service_version,
+        policy_version=alpha.policy_version,
+    )
+    path = write_live_dialogue_outcome_artifact(
+        evidence_root=Path(alpha.evidence_root_dir),
+        artifact=artifact,
+    )
     return str(path)
 
 

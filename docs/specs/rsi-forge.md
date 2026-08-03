@@ -1,7 +1,7 @@
 # RSI Forge Spec
 
 > Status: phase 3–5 contracts landed；唯一 runtime overlay 默认 DISABLED；无 live/GPU promotion
-> Last updated: 2026-08-01
+> Last updated: 2026-08-03
 > 对应需求: R8, R10, R12, R15
 
 ## 要解决的问题
@@ -28,6 +28,7 @@ snapshot，也不成为 PE、credit、evaluation、gate、memory 或 temporal �
 | Cursor transcript `*.jsonl` | 结构化逐行解析 | 只读 | tool 序列、显式错误、turn status；不复制完整用户对话到工件 |
 | `promotion_verdict.json` | JSON + 显式布尔 gate leaf | 只读 | 同目录 `report.md` 只提供有限摘要 |
 | Companion Bench `*.bundle.json` / `arc_failure.jsonl` | 结构化解析 | 只读 | 逐轮 rubric、disqualifier、arc axis 与 transport/runtime failure；不把 judge 变成学习 owner |
+| lifeform-service `lifeform-live-dialogue-outcome.v1` | exact JSON + content hash | 显式路径、只读 | closed-alpha typed outcome 与无文本 action context；不自动发现隐私目录、不由代码判定 failure |
 | `.cursor/plans/*.plan.md` | YAML frontmatter + Markdown；显式兼容历史 heading-only 文件 | 只读 | 战役上下文，不是失败真值 |
 | `forge/ledger.jsonl` | append-only event stream | Forge 只追加 | 已应用/拒绝决策与 frozen prediction |
 | `forge/editable_surface.yaml` | 启动时加载 | 只读治理 | 写面、保护面、阈值与固定验证命令 |
@@ -41,6 +42,9 @@ snapshot，也不成为 PE、credit、evaluation、gate、memory 或 temporal �
 ### Failure pattern
 
 正式 schema：`forge/schemas/failure_pattern.schema.json`。
+
+当前输出为 `forge-failure-pattern.v3`，新增 `live_dialogue_outcome` provenance；v1/v2 仍可作为
+历史 proposal bundle 输入验证。
 
 每个 pattern 必须包含：
 
@@ -88,6 +92,19 @@ hash、reviewer、decision、timestamp；applied event 还冻结 prediction base
   `common-adapter-candidate.v2`、held-out report 与 cognition OFFLINE ALLOW record 完整绑定；
   它不等于 publish，也不创建 `CommonAdapterBundle`。
 
+### Task-level held-out 诊断
+
+`forge benchmark <target>` 对 `repository_agent_rules` 或 `forge_analysis_prompts` 运行冻结的
+`forge-task-benchmark-suite.v1`。基准、判定 prompt、decision/report schema 全部位于 proposal
+循环的只读面；每个模型请求只包含当前 harness asset、task 和 structured evidence，不包含
+`expected / critical / minimum_confidence` 标签。
+
+报告遵循 `forge-task-benchmark-report.v1`，记录 baseline/candidate asset hash、逐 case 失败、
+critical failure 数、pass rate 和 candidate delta。候选必须同时满足绝对 pass-rate 阈值、零 critical
+退化和非负 delta，否则 `BLOCK`。该输出固定声明 `diagnostic_only=true`、
+`causal_claim_authorized=false`：它用于发现明显决策退化，不进入 `validate/apply` promotion gate，
+也不能证明真实开发效率、长期仓库健康或因果收益。
+
 ## 优化对象阶梯
 
 开发环继续开放 instruction/structured-context：`.cursor/rules/*.mdc` 与 `forge/prompts/**`。
@@ -128,9 +145,14 @@ nested artifact、held-out report 与 cognition gate。`scripts/forge_common_ada
 失败来源采用 typed provenance lane 隔离：
 
 - transcript / promotion verdict 只能映射到 development-harness component；
-- `bench_bundle` 只能映射到显式 `requires_offline_gate` 的 runtime component；
-- 两类来源不跨 lane 聚类。只有明确映射到 `companion_runtime_playbook_overlay` 的 bench failure
-  可以进入 runtime lane；其他 bench failure 仍为 `out-of-surface`，不得退回开发 rules/prompts。
+- `bench_bundle` / `live_dialogue_outcome` 只能映射到显式 `requires_offline_gate` 的 runtime component；
+- 两条 provenance lane 不跨 lane 聚类。只有明确映射到
+  `companion_runtime_playbook_overlay` 的 runtime observation 才能进入该 component；其他 runtime
+  failure 仍为 `out-of-surface`，不得退回开发 rules/prompts。
+
+live outcome 不是自动 failure label。`mine --live-outcome-root <dir>` 只验证并提交 typed metadata；
+结构化语义 backend 可以返回零条 failure record，且不得重建 artifact 已刻意删除的对话内容。
+`--evidence-since` 对该来源使用 artifact 内 content-bound `recorded_at_iso`，不信任可变文件 mtime。
 
 runtime gate 的预注册折算保持冻结：
 
@@ -171,6 +193,10 @@ Adapter 使用独立的 `forge_common_adapter_adjudicator.py`，两种 gate arti
     rules/prompts。
 12. optimizer 无 eligible candidate 必须 STOP；selector 不能 apply，rare-heavy request/verdict
     不能 publish 或激活 bundle。
+13. live outcome 目录只能显式提供；typed outcome 不等于 failure，parser 不保存或重建原始对话，
+    content hash、隐私 profile 或 recorded timestamp 不合规时必须 fail loudly。
+14. task benchmark 的 suite/prompt/schema 对提案循环只读，case label 不进入模型输入；synthetic
+    PASS 只能形成诊断证据，不能授权 apply 或 runtime promotion。
 
 ## 验证契约
 
@@ -220,16 +246,20 @@ owner validator、frozen suite、rollback drill 和 OFFLINE gate 满足；因为
 
 ## 已知限制
 
-- phase 1 的 task-level held-out benchmark 尚未建立；结构 PASS 不等于真实开发效率已提升。
+- 已建立冻结 synthetic task-decision held-out split，可对 harness baseline/candidate 做 exact scoring；
+  尚未建立执行真实仓库任务、由独立 verifier 裁决的 causal benchmark，因此 diagnostic PASS 仍不等于
+  真实开发效率或长期成功率已提升。
 - transcript 的结构化错误并不总能支持强因果分析；低置信记录必须保留不确定性。
 - proposal 语义 judge 仍是模糊 evaluator，因此 judge 只能收紧，不可单独授权 apply。
 - Pareto 目前使用四个冻结工程指标，不声称已经学习到 optimizer；也不会自动繁殖下一代。
-- companion overlay 的能力链已开放，但生产资产仍为空、默认 DISABLED；本阶段没有执行 runtime
-  apply 或 ACTIVE 部署。
+- companion overlay 的能力链已开放，产品服务现可通过显式 CLI 进入 SHADOW 并在监听前验证候选；
+  生产资产仍为空、默认 DISABLED，服务边界拒绝 ACTIVE，本阶段没有执行 runtime apply 或 ACTIVE
+  部署。
 - rare-heavy 请求/裁决契约已落地，但本阶段没有可用的冻结模型 snapshot、训练 trace、GPU run 与
   新 held-out ALLOW 证据，因此没有生成或发布新的 CommonAdapterBundle。
 - live mine/propose 仍依赖显式 `FORGE_LLM_API_KEY`/`FORGE_LLM_MODEL`；无凭据时只运行 replay
-  契约演练，不把它宣称为真实模型晋级证据。
+  契约演练，不把它宣称为真实模型晋级证据。产品 typed outcome source 已打通，但当前工作区尚无
+  实际 opt-in closed-alpha outcome artifact，不能据此宣称 live prediction check 已完成。
 
 ## 参考
 

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.task-benchmark-report.v1",
+  "$defs": {
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "critical", "mismatches", "decision"],
+      "properties": {
+        "case_id": {"type": "string", "pattern": "^tb_[a-z0-9_]+$"},
+        "critical": {"type": "boolean"},
+        "mismatches": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "decision": {"$ref": "forge.task-benchmark-decision.v1"}
+      }
+    },
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "asset_sha256",
+        "pass_rate",
+        "critical_failure_count",
+        "passed_case_ids",
+        "failures"
+      ],
+      "properties": {
+        "label": {"enum": ["baseline", "candidate"]},
+        "asset_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "critical_failure_count": {"type": "integer", "minimum": 0},
+        "passed_case_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^tb_[a-z0-9_]+$"}
+        },
+        "failures": {"type": "array", "items": {"$ref": "#/$defs/failure"}}
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "suite_id",
+    "suite_sha256",
+    "target",
+    "component",
+    "backend",
+    "model",
+    "thresholds",
+    "baseline",
+    "candidate",
+    "candidate_delta",
+    "status",
+    "diagnostic_only",
+    "causal_claim_authorized",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "forge-task-benchmark-report.v1"},
+    "suite_id": {"type": "string", "pattern": "^forge-task-held-out-[a-z0-9-]+$"},
+    "suite_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "target": {"type": "string", "minLength": 1},
+    "component": {"enum": ["repository_agent_rules", "forge_analysis_prompts"]},
+    "backend": {"type": "string", "minLength": 1},
+    "model": {"type": "string", "minLength": 1},
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_pass_rate", "maximum_critical_failures", "minimum_candidate_delta"],
+      "properties": {
+        "minimum_pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "maximum_critical_failures": {"type": "integer", "minimum": 0},
+        "minimum_candidate_delta": {"type": "number", "minimum": -1, "maximum": 1}
+      }
+    },
+    "baseline": {
+      "allOf": [
+        {"$ref": "#/$defs/arm"},
+        {"type": "object", "properties": {"label": {"const": "baseline"}}}
+      ]
+    },
+    "candidate": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "allOf": [
+            {"$ref": "#/$defs/arm"},
+            {"type": "object", "properties": {"label": {"const": "candidate"}}}
+          ]
+        }
+      ]
+    },
+    "candidate_delta": {"type": ["number", "null"], "minimum": -1, "maximum": 1},
+    "status": {"enum": ["PASS", "BLOCK"]},
+    "diagnostic_only": {"const": true},
+    "causal_claim_authorized": {"const": false},
+    "created_at": {"type": "string", "minLength": 1}
+  }
+}

@@ -26,9 +26,10 @@
 | 4 | Learned Active（torch 后端晋升） | 四个 SHADOW torch 后端能否晋升 ACTIVE | `scripts/run_learned_active_evidence.py` | `partial-promotion-blocked`（validation_delta 0.0138 < 0.02） | 续跑连续 soak 过门 + PE-off/ETA-off 对照 + 执行 capacity ladder |
 | 5 | Companion Bench（对外榜） | 系统无关的多 session 陪伴基准（A1–A6 六轴） | `packages/companion-bench` CLI + `scripts/companion_bench/*` | 站点数据**全是 demo/smoke**，无正式榜 | judge 稳健性(#48)→校准(#52)→统计功效(#54)→10 系统全量(#82) |
 | 6 | State-KV / Prefix-KV 辨识 | 同 prompt 空上下文，两用户产生可被盲判归属的差异 | `scripts/run_state_kv_identification.py` 等 | Personal 全链 **pass**；尽调 **partial(3/7)**；Relationship 停在 chance | 关闭 C5 credit 与 bank-gain；Relationship 记为负结果 |
-| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Gate1 **PASS**；Gate2 v1 FAIL 经审计定罪仪器（天花板 0.18<0.25），v2 可读仪器实测残差**承载**子目标（0.901/0.944，两实质条件 PASS）但按字面 FAIL（第二条件 regime 错配）；`kill-eta` 有效 | 待决策：v3 预注册修第二条件为保持类判据后终审 Gate 2 |
+| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Gate1 **PASS**；Gate2 三轮字面 FAIL 封存但残差可承载已证实；**Stage3 权威扫进行中**（14/36） | 跑完 Stage3 → `retain-eta-on-llm` 或永久摘除；Stage4 仅骨架 |
 | 8 | ETA 内部 RL / 段信用强证据 | 段级信用 vs turn 级、抽象动作复用等论文式命题 | `scripts/run_eta_segment_credit_evidence.py` / paper suite | 段信用 v13 **retain**（12 门全过） | 作为机制回归保留；不等于 rate-distortion retain |
 | 9 | Digital Ant ecology（same-physics） | 无 LLM 的 2D 感觉运动床上，typed-milestone ACTIVE vs DISABLED 是否有因果净增益 | `scripts/run_ant_ecology_same_physics_station1.py` | L1-C station1-v4 **BLOCK**（food alignment 3/4）；station2/P1/P2 **not-authorized** | 新 owner 机制 + 新 prereg 才可重开；禁止二审/换 seed/降阈值 |
+| 10 | RSI Forge（开发环自改进） | 从真实失败挖模式 → 有界提案 → 循环外验证/人审 → ledger 预测兑现 | `forge` CLI（`mine/propose/validate/select/apply`） | 战役一 e2e 已 apply 2 条；overlay 默认 DISABLED；无 live/GPU 晋升 | 下一轮 `mine --evidence-since-ledger` 兑现预测；扩 task-level held-out；rare-heavy 需冻结权重证据 |
 
 > 术语：`SHADOW` = 双跑只读、不主导行为；`ACTIVE` = 生产主链；`DISABLED` = 未启用。晋升一律「先 SHADOW/matched → 单组件 canary → 可回滚切换」。
 
@@ -444,34 +445,78 @@ Personal（晋升路径）**全链 pass**：P3 `retain-strict`（12/12 bge-m3）
 
 | Stage | Gate | 问题 | 关键脚本 | 过 → / 不过 → |
 |---|---|---|---|---|
-| 1 | Gate 1 | 种子语料上 rate 仪器有效吗？ | `run_eta_rate_distortion.py`(frozen)、`run_eta_rate_axis_pilot.py`、`screen_eta_rate_axis_surrogate.py` | **PASS**（2026-08-03）→ 进 Stage 2 |
-| 2 | Gate 2 | 域续训 LLM residual 是否载子目标？ | `run_eta_stage2_corpus.py → _pretrain.py → _probe.py`（v2 仪器 + `--gate-conditions retention.v3`） | 三轮字面 FAIL 封存：v1 定罪仪器、v2 定罪判据、v3 定罪对照设计（裸基底 0.977 已在天花板）；**"残差可承载"跨两 seed 四臂证实**→ 阶梯处置待用户决策 |
-| 3 | Gate 3 | 补课冻结 LLM 上出现率失真 gap 吗？ | `run_eta_rate_distortion.py --model-source artifacts/eta_stage2_merged_v2_20260803 --arms frozen joint` | **权威扫进行中**（2026-08-03 用户裁定解锁；prereg `eta_stage3_prereg_v2_20260803`） |
-| 4 | 待定 | 对话迁移（MSC） | 仅骨架 `research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md` | — |
+| 1 | Gate 1 | 种子语料上 rate 仪器有效吗？ | `run_eta_rate_distortion.py`(frozen)、`run_eta_rate_axis_pilot.py`、`screen_eta_rate_axis_surrogate.py` | **PASS**（2026-08-03，v4+hard-st 权威扫）→ 进 Stage 2 |
+| 2 | Gate 2 | 域续训 LLM residual 是否载子目标？ | `run_eta_stage2_corpus.py → _pretrain.py → _probe.py`（v1→v2→v3） | 三轮字面 FAIL 封存（仪器/判据/对照）；实质命题跨两 seed 四臂证实 → **用户裁定 (b) 解锁 Stage 3** |
+| 3 | Gate 3 | 补课冻结 LLM 上出现率失真 gap 吗？ | `run_eta_rate_distortion.py --model-source artifacts/eta_stage2_merged_v2_20260803 --arms frozen joint` | **权威扫进行中**（14/36 cells，prereg `eta_stage3_prereg_v2_20260803`）；PASS→`retain-eta-on-llm` / FAIL→永久摘除 |
+| 4 | 待定 | 对话迁移（MSC） | 仅骨架 `research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md` | 仅 Gate 3 PASS 后启用 |
 
-### 7.2 怎么运行（Stage 1）
+### 7.2 怎么运行
+
+**Gate 1 权威扫（已封存 PASS；复现用）**：
 
 ```bash
-# 冻结协议
-.venv/bin/python scripts/preregister_eta_rate_distortion.py --output artifacts/eta_rate_distortion_prereg_<ts>.json \
-  --alphas 0.01 0.03 0.1 0.3 1.0 3.0 --seeds 3 --n-z 16 --updates 40 --device mps \
-  --arms frozen joint --model-id Qwen/Qwen2.5-0.5B-Instruct --corpus-seed 20260802 \
-  --train-routes 200 --heldout-routes 60 --observation-protocol partially-observable-explicit-plan.v3 \
-  --posterior-parameterization smooth --rate-gating switch-gated
-
-# 执行 sweep（frozen 臂足以判 Gate 1）
-.venv/bin/python scripts/run_eta_rate_distortion.py --output-dir artifacts/eta_rate_distortion_<ts> \
-  --preregistration artifacts/eta_rate_distortion_prereg_<ts>.json --corpus-seed 20260802 \
-  --train-routes 200 --heldout-routes 60 --observation-protocol partially-observable-explicit-plan.v3 \
-  --posterior-parameterization smooth --rate-gating switch-gated [--resume]
+# 预注册已冻结：artifacts/eta_stage1_gate1_v4_hardst_20260803_prereg.json
+# 关键参数：v4 staged-plan + smooth + switch-gated + hard-st，updates=300，
+# corpus_seed 20260802，64 train / 24 heldout，frozen 臂，6α×3seed=18 cells
+.venv/bin/python scripts/run_eta_rate_distortion.py \
+  --output-dir artifacts/eta_stage1_gate1_v4_hardst_auth_20260803 \
+  --preregistration artifacts/eta_stage1_gate1_v4_hardst_20260803_prereg.json \
+  --device mps --arms frozen \
+  --observation-protocol partially-observable-staged-plan.v4 \
+  --posterior-parameterization smooth --rate-gating switch-gated --gate-mode hard-st \
+  --corpus-seed 20260802 --train-routes 64 --heldout-routes 24 \
+  --updates 300 --n-z 16 --seeds 3 [--resume]
 ```
 
-> MPS 独占锁 `artifacts/.companion-evidence-mps.lock`（`plan_id=eta-rate-distortion-mps.v1`）+ `require_mps()`（`PYTORCH_ENABLE_MPS_FALLBACK` 必须 0）。runner fail-closed 校验 sweep 参数 / gap 阈值 / 5 个冻结源 SHA。无 prereg → `mechanism-only-smoke`，非权威。
+**Gate 2 全链（v3 终审配方；v1/v2 封存不重跑）**：
+
+```bash
+# 1) 语料（v3 用全新 seed 20260804 挡 forking paths；v4 可读 staged-plan）
+.venv/bin/python scripts/run_eta_stage2_corpus.py \
+  --output-dir artifacts/eta_stage2_corpus_v3_20260803 \
+  --corpus-seed 20260804 --train-routes 120 --heldout-routes 60 \
+  --document-protocol partially-observable-staged-plan.v4
+
+# 2) 续训 + merge（v3 探针文本最长 507 → --max-length 512 即可；v2 用 640）
+.venv/bin/python scripts/run_eta_stage2_pretrain.py \
+  --corpus-file artifacts/eta_stage2_corpus_v3_20260803/corpus.jsonl \
+  --merged-out artifacts/eta_stage2_merged_v3_20260803 \
+  --output-dir artifacts/eta_stage2_pretrain_v3_20260803 \
+  --device mps --max-steps 2000 --max-length 512
+
+# 3) 线性 probe + Gate 2（累积轨迹前缀 + retention.v3 + train-split 选层）
+.venv/bin/python scripts/run_eta_stage2_probe.py \
+  --output-dir artifacts/eta_stage2_probe_v3_20260803 \
+  --pretrained-model-source artifacts/eta_stage2_merged_v3_20260803 \
+  --corpus-seed 20260804 --device mps \
+  --probe-protocol partially-observable-staged-plan.v4 \
+  --layer-selection train-split --max-length 640 \
+  --gate-conditions retention.v3
+```
+
+**Gate 3 权威扫（当前主线，进行中）**：
+
+```bash
+# 预注册：artifacts/eta_stage3_prereg_v2_20260803/preregistration.json
+# Gate-1 同款尺子 + Stage-2 v2 merged 基底 + frozen/joint 双臂 = 36 cells
+.venv/bin/python scripts/run_eta_rate_distortion.py \
+  --output-dir artifacts/eta_stage3_rate_distortion_20260803 \
+  --preregistration artifacts/eta_stage3_prereg_v2_20260803/preregistration.json \
+  --model-source artifacts/eta_stage2_merged_v2_20260803 \
+  --device mps --arms frozen joint \
+  --observation-protocol partially-observable-staged-plan.v4 \
+  --posterior-parameterization smooth --rate-gating switch-gated --gate-mode hard-st \
+  --corpus-seed 20260802 --train-routes 64 --heldout-routes 24 \
+  --updates 300 --n-z 16 --seeds 3 [--resume]
+```
+
+> MPS 独占锁 `artifacts/.companion-evidence-mps.lock`（`plan_id=eta-rate-distortion-mps.v1`）+ `require_mps()`（`PYTORCH_ENABLE_MPS_FALLBACK` 必须 0）。runner fail-closed 校验 sweep 参数 / gap 阈值 / 冻结源 SHA。无 prereg → `mechanism-only-smoke`，非权威。Stage 3 未完成前禁止读任何部分 cell 做效应分析（`analysis_allowed=false`）。
 
 ### 7.3 怎么评价
 
-- **Gate 1**（frozen 足够）：`spearman(alpha, rate) ≤ −0.8`；`rate_span ≥ 0.30` 且显著大于 7-route 基线；切换存在（boundary F1 > 0、有硬切换）。
-- **Gate 3**（需 frozen + joint 两臂）：两臂可区分（分离 ≥ max(2×pooled_std, 0.02)）；frozen 有 gap（drop_share ≥ 0.5，跨 ≤ 25% rate span）且 joint 无 gap；gap 内 boundary F1 > gap 外 → `retain-eta`；frozen 无 gap → `kill-eta`；两臂不可区分 → `instrument-invalid`；单臂 → `incomplete-sweep`。
+- **Gate 1**（frozen 足够）：`spearman(alpha, rate) ≤ −0.8`；`rate_span ≥ 0.30`；切换存在（boundary F1 > 0、有硬切换）。权威扫另要求 `gate_mode=hard-st`（堵住连续门微幅走私）。
+- **Gate 2**（线性 probe，三条件全过才字面 PASS）：`2×chance`（heldout acc ≥ 0.25）；第二条件按仪器版本分化——v1/v2=`rises-with-prefix.v1`，v3=`retention.v3`（late ≥ 2×chance 且 early−late ≤ 0.15）；`续训 > 裸基底`。字面 FAIL 不自动等于「残差装不下」——须看仪器审计与失败方向。
+- **Gate 3**（需 frozen + joint 两臂）：两臂可区分（分离 ≥ max(2×pooled_std, 0.02)）；frozen 有 gap（drop_share ≥ 0.5，跨 ≤ 25% rate span）且 joint 无 gap；gap 内 boundary F1 > gap 外 → `retain-eta` / `retain-eta-on-llm`；frozen 无 gap → `kill-eta`（永久摘除）；两臂不可区分 → `instrument-invalid`；单臂 → `incomplete-sweep`。
 
 ### 7.4 当前结果
 
@@ -485,16 +530,20 @@ Personal（晋升路径）**全链 pass**：P3 `retain-strict`（12/12 bge-m3）
 | `artifacts/eta_stage2_probe_20260803` | Gate 2 v1 仪器 FAIL（**经审计定罪仪器**） | 续训臂末层 0.131、裸 Qwen 0.166（=majority）；审计：计划载体为哈希指纹，heldout 信息天花板 0.1805 < 及格线 0.25，**构造性不可过**，实测值恰在天花板附近 |
 | **`artifacts/eta_stage2_probe_v2_20260803`** | Gate 2 v2 仪器：实质两条件 PASS，按字面 **FAIL** | 裸 Qwen `0.901`（全层 0.795–0.976）、续训 `0.944`（后段层 0.99–1.00）；`2×chance` PASS（7.5×）、`续训>基线` PASS（+4.3pp）、`随前缀上升` FAIL（early 0.979/late 0.879，保持衰减非推断累积，判据 regime 错配） |
 | **`artifacts/eta_stage2_probe_v3_20260803`** | Gate 2 v3（新 seed 20260804 + retention 判据）：字面 **FAIL**，败因反转 | `2×chance` PASS（0.967 = 7.7×）、`retention.v3` PASS（0.995/0.918，衰减 0.077 ≤ 0.15）、`续训>基线` FAIL——**裸 Qwen 基底 0.977 反超续训臂 0.967**（基底无需续训已在天花板携带子目标） |
+| **`artifacts/eta_stage3_rate_distortion_20260803`** | **进行中**（14/36） | `run_state.json` status=`running`、`analysis_allowed=false`；frozen 臂已至 alpha=1.0 seed-1；尚无 `report.json`；基底=`eta_stage2_merged_v2_20260803` |
 
 **Gate 1 = PASS（2026-08-03）**：修尺子四层根因——smooth posterior + v4 分段揭示协议（step-0 只给第一目标、各 arrival 揭示下一个）+ switch-gated KL（keep 免费/switch 付费）+ hard-st 离散门（堵住连续门每步微幅走私）+ 300 updates。frozen 臂另检出方向性近垂直 gap（drop share 0.744 / rate share 0.196），但缺 joint 臂且 gap 区内 F1（0.394）未高于区外（0.537），属 Gate 3 范畴不予主张。
 
-**Gate 2（2026-08-03，三代仪器/判据）**：v1 全链 FAIL（0.131/0.166）后仪器审计发现计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的协议 v2 缺陷同类）：非指纹信息的 heldout 贝叶斯天花板仅 0.1805，**v1 的 2×chance 条件构造性不可过**，FAIL 定罪仪器而非基底。仪器 v2（v4 staged-plan 渲染语料 + 累积轨迹前缀 probe + train-split 选层，prereg `c0a54454…` 含 ceiling 1.0 验证）重跑全链：**残差流大幅承载 active subgoal**（0.901/0.944），因果对照成立；仅 `随前缀上升` 败（regime 错配），字面 FAIL 封存。v3（用户授权）修第二条件为 `retention.v3` 并**换全新 seed 20260804 挡 forking paths**（prereg `2f3b3bf4…` 在新读数前冻结）：修正后的两条件双 PASS（0.967 = 7.7×；late 0.918 / 衰减 0.077），但因果对照反向失效——**裸 Qwen 基底 0.977 已在天花板，续训无超越余量**，字面仍 FAIL 封存。三轮合并判读：实质命题"0.5B 残差可线性承载子目标层级"跨两 seed 四臂复现（0.901/0.944/0.977/0.967）；被证伪的是"续训必要性"。整体 `kill-eta`（2026-08-01）持续有效。
+**Gate 2（2026-08-03，三代仪器/判据）**：v1 全链 FAIL（0.131/0.166）后仪器审计发现计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的协议 v2 缺陷同类）：非指纹信息的 heldout 贝叶斯天花板仅 0.1805，**v1 的 2×chance 条件构造性不可过**，FAIL 定罪仪器而非基底。仪器 v2（v4 staged-plan 渲染语料 + 累积轨迹前缀 probe + train-split 选层，prereg `c0a54454…` 含 ceiling 1.0 验证）重跑全链：**残差流大幅承载 active subgoal**（0.901/0.944），因果对照成立；仅 `随前缀上升` 败（regime 错配），字面 FAIL 封存。v3（用户授权）修第二条件为 `retention.v3` 并**换全新 seed 20260804 挡 forking paths**（prereg `2f3b3bf4…` 在新读数前冻结）：修正后的两条件双 PASS（0.967 = 7.7×；late 0.918 / 衰减 0.077），但因果对照反向失效——**裸 Qwen 基底 0.977 已在天花板，续训无超越余量**，字面仍 FAIL 封存。三轮合并判读：实质命题"0.5B 残差可线性承载子目标层级"跨两 seed 四臂复现（0.901/0.944/0.977/0.967）；被证伪的是"续训必要性"。三个字面 FAIL **原样封存不改判**；用户程序级裁定取处置 **(b)**——Gate-2 看门前提已实质达成，解锁 Stage 3 推进权（不是把任一 FAIL 改成 PASS）。机制级 `kill-eta`（2026-08-01）在 Stage 3 撤销前**持续有效**。
 
 ### 7.5 下一步
 
-1. **Stage 3 权威扫进行中**（2026-08-03 用户程序级裁定取处置 (b) 解锁；三个 Gate-2 字面 FAIL 封存不改判）：prereg `artifacts/eta_stage3_prereg_v2_20260803/`，Gate-1 同款参数 + Stage-2 v2 merged 基底 + frozen/joint 双臂 36 cells，产物 `artifacts/eta_stage3_rate_distortion_20260803/`。判读规则见 7.3 Gate 3：`retain-eta` → 撤销 `kill-eta`；frozen 无 gap → 永久摘除。
-2. Stage 4 仅骨架，待 Gate 3 verdict。
-3. Gate 1 权威扫仍作机制回归基线：相关 owner / 算法变量 / 证据契约改变时按预注册重跑，普通重构不触发重复昂贵 evidence run。
+1. **跑完 Stage 3 权威扫**（当前 14/36；产物 `artifacts/eta_stage3_rate_distortion_20260803/`）：勿并发其它 MPS 证据任务；中断用同 prereg + `--resume`。完成后读 `report.json` / `gap_assessments.json`：
+   - `retain-eta` / `retain-eta-on-llm` → 撤销机制 `kill-eta`；复活 `vz-temporal` 须**另开收敛包**；
+   - frozen 无 gap → 永久摘除 ETA 主张（处置包：删主张、保留记忆/连续性、`vz-temporal`→legacy）；
+   - Stage 3 FAIL 时可用裸 Qwen 做敏感性分析（设计已预留），不回溯改 Gate-2。
+2. Stage 4 仅骨架，**仅 Gate 3 PASS 后**才启用（对话无子目标真值，boundary F1 不可作门）。
+3. Gate 1 / Gate 2 封存件作机制回归基线：相关 owner / 算法变量 / 证据契约改变时按预注册重跑，普通重构不触发重复昂贵 evidence run。
 
 ---
 
@@ -641,19 +690,138 @@ Station1 上的 delivery 只作**描述性**读数，不是硬门。PE-off 对�
 
 ---
 
-## 10. 跨评测纪律（务必遵守）
+## 10. RSI Forge（开发环自改进评测）
 
-- **MPS 独占**：七日 / MSC / ETA rate-distortion / gate suite 共享同一把锁 `artifacts/.companion-evidence-mps.lock`，`PYTORCH_ENABLE_MPS_FALLBACK=0`，**不得并发**；控制面外手工启动的旧进程不受锁保护，须另行确认结束。Digital Ant ecology 走 **CPU float64**，不占该锁，但仍勿与其它会改同一源码树/journal 的 formal 包并行污染。
-- **冻结在先**：长任务前冻结执行根/源码树 + 预注册 SHA；读到任何 outcome 之前不改阈值/seed/判据；封包后源码漂移一律拒绝（用隔离 commit 快照复核，只重做 validation/export）。Ecology 正式跑另要求**隔离源码快照 + 新空 progress 目录**。
-- **停跑与 kill 是合格终态**：不换 seed、不降阈值、不挑 metric 把结论磨成通过；停跑目录禁止原样 resume，重开必须新 prereg。Ecology 的 `not-authorized` 下游不得写成已执行的新负证据。
-- **证据等级不互相冒充**：`mechanism-supported`（能跑/可回滚/可审计）≠ `causal-supported`（冻结 matched control 下达门的因果差）≠ `longitudinal-supported`（跨 session 持续）≠ `thesis-retained`。可回滚是安全证据，不是收益证据。
-- **evaluation 只读**：所有金标评测不回灌 PE/credit，不反向训练 probe，不静默成为第二 owner。
-- **production 晋升**：#92 终局 `production_live_promotion_authorized=false`；本文任何门通过都不自动翻转 `WiringLevel`；晋升走 SHADOW→单组件 canary→可回滚切换，并先登记 `docs/DATA_CONTRACT.md`。
+**Spec**：[`specs/rsi-forge.md`](./specs/rsi-forge.md)；包 README [`forge/README.md`](../forge/README.md)
+**Owner**：`volvence_forge`（仓库根旁独立包 `forge/`；**不是** `vz-*` / `lifeform-*` wheel，不注册 runtime slot）
+**依据**：Lilian Weng *Harness Engineering for Self-Improvement*（本地归档 `docs/external/lilian-weng-harness-engineering-2026-07-04.*`）+ R8/R10/R12/R15
 
-## 11. 权威参考
+### 10.1 目的
+
+把「失败发生 → 找到机制 → 有界改动 → 验证 → 沉淀 → 下一轮证伪」做成可审计的开发环 RSI，**不**让生成提案的系统修改 evaluator、权限边界、runtime owner 或自身优化器。
+
+它首先是速度与经济杠杆（缩短 harness 修复周期），**不能**把 harness 收益冒充 NL/ETA 机制收益，也不能绕开 `ModificationGate` 改产品 runtime。优化对象阶梯：
+
+| 阶 | 对象 | 当前 | 晋升要求 |
+|---|---|---|---|
+| L1 | `.cursor/rules/*.mdc` | 开放、append-only | 人审 + held-in/out |
+| L2 | `forge/prompts/**` | 开放、append-only | 人审 + schema/回归 |
+| L3 | 工作流定义 | 未开放 | 独立 convergence packet |
+| L4–L5 | Forge 自身 code / optimizer | **循环外** | 人工工程或独立战役 |
+| L6a | companion playbook overlay（单文件） | 候选面开放；live 默认 **DISABLED** | owner validator + frozen suite + OFFLINE ALLOW + 人审；wiring 另行部署 |
+| L6b | 模型参数 | 只开 DISABLED rare-heavy **请求** | substrate train/evaluate + cognition gate + loop-external READY；publish 仍独立 |
+
+闭环：
+
+```text
+公开轨迹/证据 → 三层失败记录 → 语义聚类 → 有界 proposal
+  → 循环外 validate →（runtime: OFFLINE gate）→ 人审 apply → ledger 预测
+  → 下一轮 mine 发布 fulfilled / refuted / pending / inconclusive
+```
+
+### 10.2 怎么运行
+
+Forge **不进根 workspace**，需单独安装：
+
+```bash
+python -m pip install -e 'forge[dev]'
+
+# 1) 挖失败模式（真实 LLM 需 FORGE_LLM_API_KEY + FORGE_LLM_MODEL；无凭据时用 replay 只做契约演练）
+forge mine
+# 只读 applied 之后的新证据，并可挂 Companion Bench
+forge mine --bench-root artifacts --evidence-since-ledger
+
+# 2) 生成有界候选（单文件 append-only；可 --candidates-per-pattern 3）
+forge propose artifacts/forge_mine_<timestamp>/failure_patterns.jsonl --candidates-per-pattern 3
+
+# 3) 验证（不改目标文件）；任一 BLOCK → 总状态 BLOCK
+forge validate artifacts/forge_propose_<timestamp>/proposals/<proposal_id>
+
+# 4) runtime component（当前仅 companion overlay）必须先走循环外 OFFLINE 裁决
+python scripts/forge_gate_adjudicator.py \
+  artifacts/forge_propose_<timestamp>/proposals/<proposal_id>
+
+# 5) population 上 Pareto 选择；无合格候选 → STOP / 非零退出
+forge select artifacts/forge_propose_<timestamp>/proposals
+
+# 6) 人审后落盘或拒绝（缺 PASS validation 或 named reviewer → fail-closed）
+forge apply artifacts/forge_propose_<timestamp>/proposals/<proposal_id> \
+  --validation-report artifacts/forge_propose_<timestamp>/proposals/<proposal_id>/validation.json \
+  --human-approved-by '<reviewer>'
+forge apply <proposal_dir> --reject --reason '<reason>' --human-approved-by '<reviewer>'
+
+# 7) 第五阶段：只规划 DISABLED rare-heavy 请求（不训练、不发布）
+forge plan-rare-heavy \
+  --model-id '<model-id>' --model-weights-sha256 '<64-hex>' \
+  --common-adapter-version '<version>' \
+  --traces '<traces.jsonl>' --control-basis '<control-basis.json>' \
+  --held-out '<held-out.jsonl>' --hook-layers '10,11,12'
+
+# 训练/held-out/cognition gate 完成后，只读绑定裁决 READY/STOP（绝不 publish）
+python scripts/forge_common_adapter_adjudicator.py \
+  --request '<request.json>' --candidate '<common-adapter-candidate.json>' \
+  --evaluation-report '<evaluation.json>' --gate-record '<gate.json>' \
+  --held-out '<held-out.jsonl>' --output '<artifacts/.../verdict.json>'
+```
+
+契约回归（战役一退出门槛的一部分）：
+
+```bash
+ruff check forge/ tests/contracts/test_forge_boundaries.py
+pytest forge/tests tests/contracts/test_forge_boundaries.py
+```
+
+### 10.3 怎么评价
+
+**不是** F1–F6 family score，也不是 thesis gate；正式评价面是：
+
+1. **结构 / 边界门（validate）**：schema 一致 → 单路径白名单且未命中保护面 → preimage hash → `git apply --check` → phase-1 无删除行 → 循环外 relevance judge 全肯定 →（runtime）临时文件 owner/schema + 冻结 suite 对照 → component held-in/out + 冻结静态命令 → Forge held-in tests → boundary held-out tests。检查不短路；任一 BLOCK → 总 BLOCK。
+2. **Runtime OFFLINE 折算（冻结）**：`validation_delta = candidate_pass_rate - baseline_pass_rate`，最低增益 **0.05**；`capacity_cost=0.1`（文件级）；`contract_integrity` / `rollback_resilience` 仅当未触冻结 suite/阈值且 reverse patch 逐字节还原为 1.0。apply 必须 **gate ALLOW + 输入哈希一致 + named human approval** 三者同时成立。
+3. **Optimizer / STOP**：`forge select` 在 `validation_delta ↑ / capacity_cost ↓ / added_lines ↓ / risk_count ↓` 上取确定性 Pareto；空 population 或无 eligible → 必须 `STOP`，不得强选。
+4. **纵向证伪（ledger 预测）**：apply 冻结 `pattern_occurrence_count` baseline / 方向 / expected delta；下一轮 `mine` 只能报 `fulfilled / refuted / pending`；证据未显式晚于 applied → 必须 `inconclusive`，不得用历史样本污染。
+5. **Rare-heavy**：`READY` 只表示请求 + candidate + held-out + OFFLINE ALLOW **绑定完整**；不等于 publish，也不创建 `CommonAdapterBundle`。
+
+硬边界：保护面优先于白名单；Forge 顶层不得 import `volvence_zero.*` / `lifeform_*`；业务 wheel 不得 import `volvence_forge`；bench 与 transcript provenance **分 lane**，未映射到 OFFLINE-gated runtime owner 的 bench failure 必须 `out-of-surface`。
+
+### 10.4 当前结果
+
+| 项 | 状态 |
+|---|---|
+| Spec / 契约 | phase 3–5 contracts landed（2026-08-01）；`editable_surface.yaml` 冻结写面 |
+| 战役一 e2e | `artifacts/forge_mine_rsi_e2e_20260801T032000Z/`：93 transcript + 1 verdict + 29 plan → **2** in-surface pattern；`artifacts/forge_propose_rsi_e2e_20260801T033000Z/`：**2** bundle |
+| Ledger | `forge/ledger.jsonl`：**2** 条 `applied`（`forge/prompts/failure_mining.system.md`、`.cursor/rules/cursor-convergence-workflow.mdc`，reviewer=`mengfu`） |
+| 预测兑现 | 该 mine 跑在 apply **之前**，`prediction_checks` 为空；**尚未**有一轮 `--evidence-since-ledger` 的纵向 fulfilled/refuted 报告 |
+| Companion overlay | 生产 asset 为空；builder 默认 **DISABLED**；服务边界拒绝 ACTIVE；本阶段**无** runtime apply / ACTIVE 部署 |
+| Rare-heavy | 请求/裁决契约已落地；**无**冻结模型 snapshot / GPU train / 新 held-out ALLOW → **无**新 CommonAdapterBundle |
+| Live mine/propose | 依赖显式 `FORGE_LLM_*`；无凭据时只有 replay 契约演练，**不得**写成真实模型晋级证据 |
+
+主张边界：结构 PASS ≠ 真实开发效率已提升；harness 编辑收益 ≠ substrate/ETA 机制收益；`READY` ≠ publish。
+
+### 10.5 下一步
+
+1. **纵向兑现**：在已 apply 的两条之后跑 `forge mine --evidence-since-ledger`（可选 `--bench-root artifacts`），发布正式 `fulfilled / refuted / pending / inconclusive`；这是最早的纵向评测面。
+2. **Task-level held-out**：phase 1 尚无大规模任务级 held-out benchmark；扩写面前先建独立 split，避免只靠结构 PASS。
+3. **Overlay 路径**：若要对 companion playbook 提案，走 validate → `forge_gate_adjudicator.py` → 人审 apply；`DISABLED→SHADOW→ACTIVE` 是**另一**人工部署决定，不由候选资产自授权。
+4. **Rare-heavy**：凑齐冻结 weights SHA、traces、control basis、held-out 与 cognition ALLOW 后再 `plan-rare-heavy` + train + `forge_common_adapter_adjudicator.py`；`READY` 后仍走独立 substrate publish。
+5. **禁止**：让 Forge 改自己的 validator/权限/LLM 配置；把 STOP 磨成 SELECT；跨 lane 把 bench 失败映射到 rules/prompts；用 judge 分数回灌 PE/credit。
+
+回滚：删 `forge/` + 本 spec 入口即移除 Forge；已 apply 未提交用 manifesto 中的 `git apply --reverse`；已提交用独立 revert；overlay 优先 `wiring=DISABLED`。ledger **保留**负结果，不删。
+
+---
+
+## 11. 跨评测纪律（务必遵守）
+
+- **MPS 独占**：七日 / MSC / ETA rate-distortion / gate suite 共享同一把锁 `artifacts/.companion-evidence-mps.lock`，`PYTORCH_ENABLE_MPS_FALLBACK=0`，**不得并发**；控制面外手工启动的旧进程不受锁保护，须另行确认结束。Digital Ant ecology 走 **CPU float64**，不占该锁，但仍勿与其它会改同一源码树/journal 的 formal 包并行污染。RSI Forge 是离线开发环工具，默认不占 MPS；若其 rare-heavy 训练调用 substrate train，则与其它 GPU/MPS evidence **串行**并另开隔离 progress。
+- **冻结在先**：长任务前冻结执行根/源码树 + 预注册 SHA；读到任何 outcome 之前不改阈值/seed/判据；封包后源码漂移一律拒绝（用隔离 commit 快照复核，只重做 validation/export）。Ecology 正式跑另要求**隔离源码快照 + 新空 progress 目录**。Forge 的写面由 `editable_surface.yaml` 冻结，提案不能改白名单/保护面/验证命令。
+- **停跑与 kill 是合格终态**：不换 seed、不降阈值、不挑 metric 把结论磨成通过；停跑目录禁止原样 resume，重开必须新 prereg。Ecology 的 `not-authorized` 下游不得写成已执行的新负证据。Forge 的 `STOP` / `BLOCK` / 拒绝 ledger 同为合格负证据。
+- **证据等级不互相冒充**：`mechanism-supported`（能跑/可回滚/可审计）≠ `causal-supported`（冻结 matched control 下达门的因果差）≠ `longitudinal-supported`（跨 session 持续）≠ `thesis-retained`。可回滚是安全证据，不是收益证据。Forge 结构 PASS ≠ harness 效率因果；harness 收益 ≠ NL/ETA 机制收益。
+- **evaluation 只读**：所有金标评测不回灌 PE/credit，不反向训练 probe，不静默成为第二 owner。Forge 的 judge / suite / ledger 同属只读 gate evidence（R12）。
+- **production 晋升**：#92 终局 `production_live_promotion_authorized=false`；本文任何门通过都不自动翻转 `WiringLevel`；晋升走 SHADOW→单组件 canary→可回滚切换，并先登记 `docs/DATA_CONTRACT.md`。Forge overlay ACTIVE 与 rare-heavy publish 均需独立人工部署，绝不由候选自授权。
+
+## 12. 权威参考
 
 - 框架口径：[`EVALUATION_SYSTEM.md`](./EVALUATION_SYSTEM.md)、[`specs/evaluation.md`](./specs/evaluation.md)、[`specs/evaluation-cascade.md`](./specs/evaluation-cascade.md)
 - 终局判词与 Gate 台账：[`thesis prove.md`](./thesis%20prove.md)、[`specs/evidence_program.md`](./specs/evidence_program.md)
 - 当前事实与剩余代码：[`currentstatus.md`](./currentstatus.md)
 - 七日 × MSC 静态缺陷/仪器清单：[`moving forward/七日msctodo.md`](./moving%20forward/七日msctodo.md)
-- 各评测 spec：[`specs/seven-day-companion-evidence.md`](./specs/seven-day-companion-evidence.md)、[`specs/companion-bench.md`](./specs/companion-bench.md)、[`specs/state-kv-identification-evidence.md`](./specs/state-kv-identification-evidence.md)、[`specs/character-prefix-package.md`](./specs/character-prefix-package.md)、[`specs/eta-llm-transfer-evidence.md`](./specs/eta-llm-transfer-evidence.md)、[`specs/learned-vs-heuristic-coverage.md`](./specs/learned-vs-heuristic-coverage.md)、[`specs/digital-ant-embodiment.md`](./specs/digital-ant-embodiment.md)
+- 各评测 spec：[`specs/seven-day-companion-evidence.md`](./specs/seven-day-companion-evidence.md)、[`specs/companion-bench.md`](./specs/companion-bench.md)、[`specs/state-kv-identification-evidence.md`](./specs/state-kv-identification-evidence.md)、[`specs/character-prefix-package.md`](./specs/character-prefix-package.md)、[`specs/eta-llm-transfer-evidence.md`](./specs/eta-llm-transfer-evidence.md)、[`specs/learned-vs-heuristic-coverage.md`](./specs/learned-vs-heuristic-coverage.md)、[`specs/digital-ant-embodiment.md`](./specs/digital-ant-embodiment.md)、[`specs/rsi-forge.md`](./specs/rsi-forge.md)

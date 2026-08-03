@@ -26,6 +26,8 @@ PASSING_VERDICTS = frozenset({"causal-supported", "supported", "pass", "passed",
 FAILING_VERDICTS = frozenset({"not-supported", "blocked", "fail", "failed", "rejected"})
 BENCH_TURN_AVERAGE_THRESHOLD = 3.0
 BENCH_ARC_AXIS_THRESHOLD = 60.0
+LIVE_DIALOGUE_OUTCOME_SCHEMA_VERSION = "lifeform-live-dialogue-outcome.v1"
+LIVE_DIALOGUE_OUTCOME_PRIVACY_PROFILE = "typed-metadata-only.v1"
 _T = TypeVar("_T")
 
 
@@ -136,11 +138,47 @@ class BenchBundleSource:
 
 
 @dataclass(frozen=True)
+class LiveDialogueOutcomeSource:
+    source_id: str
+    path: Path
+    artifact_id: str
+    recorded_at_iso: str
+    outcome_kind: str
+    evidence_source: str
+    confidence: float
+    consuming_turn_index: int
+    action_turn_index: int
+    action_context: dict[str, Any] | None
+    service_version: str
+    policy_version: str
+    observation_ref: EvidenceRef
+
+    def analysis_record(self) -> dict[str, Any]:
+        return {
+            "source_id": self.source_id,
+            "source_kind": "live_dialogue_outcome",
+            "path_sha256": sha256_text(str(self.path.resolve())),
+            "artifact_id": self.artifact_id,
+            "recorded_at_iso": self.recorded_at_iso,
+            "outcome_kind": self.outcome_kind,
+            "evidence_source": self.evidence_source,
+            "confidence": self.confidence,
+            "consuming_turn_index": self.consuming_turn_index,
+            "action_turn_index": self.action_turn_index,
+            "action_context": self.action_context,
+            "service_version": self.service_version,
+            "policy_version": self.policy_version,
+            "observation": self.observation_ref.as_dict(),
+        }
+
+
+@dataclass(frozen=True)
 class SourceBundle:
     transcripts: tuple[TranscriptSource, ...]
     verdicts: tuple[VerdictSource, ...]
     plans: tuple[PlanSource, ...]
     bench_bundles: tuple[BenchBundleSource, ...] = ()
+    live_dialogue_outcomes: tuple[LiveDialogueOutcomeSource, ...] = ()
     evidence_since: str | None = None
 
 
@@ -528,6 +566,103 @@ def parse_arc_failure_log(path: Path) -> tuple[BenchBundleSource, ...]:
     return tuple(sources)
 
 
+def parse_live_dialogue_outcome(path: Path) -> LiveDialogueOutcomeSource:
+    """Parse one privacy-bounded service outcome without classifying failure."""
+
+    raw = _read_json_object(path, context="live dialogue outcome")
+    expected_fields = {
+        "schema_version",
+        "artifact_id",
+        "recorded_at_iso",
+        "subject_scope_sha256",
+        "session_scope_sha256",
+        "source_evidence_sha256",
+        "outcome_kind",
+        "evidence_source",
+        "confidence",
+        "consuming_turn_index",
+        "action_turn_index",
+        "action_context",
+        "service_version",
+        "policy_version",
+        "privacy_profile",
+        "content_sha256",
+    }
+    if set(raw) != expected_fields:
+        raise SourceParseError(
+            f"live dialogue outcome has unexpected schema fields: {path}"
+        )
+    if raw["schema_version"] != LIVE_DIALOGUE_OUTCOME_SCHEMA_VERSION:
+        raise SourceParseError(f"unsupported live dialogue outcome schema: {path}")
+    if raw["privacy_profile"] != LIVE_DIALOGUE_OUTCOME_PRIVACY_PROFILE:
+        raise SourceParseError(f"unsupported live dialogue outcome privacy profile: {path}")
+    stored_digest = _required_sha256(raw, "content_sha256", path)
+    content_body = {key: value for key, value in raw.items() if key != "content_sha256"}
+    computed_digest = sha256_text(_canonical_ascii_json(content_body))
+    if stored_digest != computed_digest:
+        raise SourceParseError(f"live dialogue outcome content_sha256 mismatch: {path}")
+
+    recorded_at_iso = _required_string(raw, "recorded_at_iso", path)
+    parse_evidence_timestamp(recorded_at_iso)
+    source_evidence_sha256 = _required_sha256(raw, "source_evidence_sha256", path)
+    artifact_id = _required_string(raw, "artifact_id", path)
+    if artifact_id != f"live-dialogue-outcome:{source_evidence_sha256[:24]}":
+        raise SourceParseError(f"live dialogue outcome artifact_id is not content-bound: {path}")
+    _required_sha256(raw, "subject_scope_sha256", path)
+    _required_sha256(raw, "session_scope_sha256", path)
+    outcome_kind = _required_string(raw, "outcome_kind", path)
+    evidence_source = _required_string(raw, "evidence_source", path)
+    confidence = _finite_number(raw.get("confidence"), "confidence", path)
+    if not 0.0 <= confidence <= 1.0:
+        raise SourceParseError(f"live dialogue outcome confidence must be in [0, 1]: {path}")
+    consuming_turn_index = _required_integer(raw, "consuming_turn_index", path)
+    action_turn_index = _required_integer(raw, "action_turn_index", path)
+    if consuming_turn_index < 0:
+        raise SourceParseError(f"consuming_turn_index must be non-negative: {path}")
+    if action_turn_index < -1:
+        raise SourceParseError(f"action_turn_index must be non-negative or -1: {path}")
+    action_context = _parse_live_action_context(
+        raw.get("action_context"),
+        action_turn_index=action_turn_index,
+        path=path,
+    )
+    service_version = _required_string(raw, "service_version", path)
+    policy_version = _required_string(raw, "policy_version", path)
+    source_id = f"live_dialogue_outcome:{source_evidence_sha256[:16]}"
+    observation = canonical_json(
+        {
+            "outcome_kind": outcome_kind,
+            "evidence_source": evidence_source,
+            "confidence": confidence,
+            "consuming_turn_index": consuming_turn_index,
+            "action_turn_index": action_turn_index,
+            "action_context": action_context,
+            "service_version": service_version,
+            "policy_version": policy_version,
+        }
+    )
+    return LiveDialogueOutcomeSource(
+        source_id=source_id,
+        path=path,
+        artifact_id=artifact_id,
+        recorded_at_iso=recorded_at_iso,
+        outcome_kind=outcome_kind,
+        evidence_source=evidence_source,
+        confidence=confidence,
+        consuming_turn_index=consuming_turn_index,
+        action_turn_index=action_turn_index,
+        action_context=action_context,
+        service_version=service_version,
+        policy_version=policy_version,
+        observation_ref=_evidence_ref(
+            source_id,
+            "live_dialogue_outcome",
+            f"artifact:{artifact_id}/action-turn:{action_turn_index}",
+            observation,
+        ),
+    )
+
+
 def load_source_bundle(
     paths: ForgePaths,
     *,
@@ -537,6 +672,8 @@ def load_source_bundle(
     verdict_root: Path | None = None,
     bench_root: Path | None = None,
     max_bench_bundles: int | None = None,
+    live_outcome_root: Path | None = None,
+    max_live_outcomes: int | None = None,
     since: datetime | None = None,
 ) -> SourceBundle:
     if since is not None and since.tzinfo is None:
@@ -548,6 +685,14 @@ def load_source_bundle(
     bench_base = (bench_root or paths.artifacts_root).resolve()
     bench_paths = sorted(bench_base.rglob("*.bundle.json")) if bench_base.exists() else []
     arc_failure_paths = sorted(bench_base.rglob("arc_failure.jsonl")) if bench_base.exists() else []
+    live_outcome_paths: list[Path] = []
+    if live_outcome_root is not None:
+        resolved_live_root = live_outcome_root.expanduser().resolve()
+        if not resolved_live_root.is_dir():
+            raise SourceParseError(
+                f"live outcome root must be an existing directory: {resolved_live_root}"
+            )
+        live_outcome_paths = sorted(resolved_live_root.rglob("*.json"))
     transcript_paths = _modified_since(transcript_paths, since)
     verdict_paths = _modified_since(verdict_paths, since)
     plan_paths = _modified_since(plan_paths, since)
@@ -560,11 +705,23 @@ def load_source_bundle(
     for path in arc_failure_paths:
         bench_sources.extend(parse_arc_failure_log(path))
     bench_sources = _limit(bench_sources, max_bench_bundles)
+    live_outcomes = [parse_live_dialogue_outcome(path) for path in live_outcome_paths]
+    live_source_ids = [source.source_id for source in live_outcomes]
+    if len(live_source_ids) != len(set(live_source_ids)):
+        raise SourceParseError("live outcome root contains duplicate source evidence ids")
+    if since is not None:
+        live_outcomes = [
+            source
+            for source in live_outcomes
+            if parse_evidence_timestamp(source.recorded_at_iso) >= since.astimezone(timezone.utc)
+        ]
+    live_outcomes = _limit(live_outcomes, max_live_outcomes)
     return SourceBundle(
         transcripts=tuple(parse_transcript(path) for path in transcript_paths),
         verdicts=tuple(parse_verdict(path) for path in verdict_paths),
         plans=tuple(parse_plan(path) for path in plan_paths),
         bench_bundles=tuple(bench_sources),
+        live_dialogue_outcomes=tuple(live_outcomes),
         evidence_since=_render_timestamp(since) if since is not None else None,
     )
 
@@ -663,6 +820,60 @@ def _required_integer(raw: dict[str, Any], key: str, path: Path) -> int:
     if not isinstance(value, int) or isinstance(value, bool):
         raise SourceParseError(f"{key} must be an integer: {path}")
     return value
+
+
+def _required_sha256(raw: dict[str, Any], key: str, path: Path) -> str:
+    value = _required_string(raw, key, path)
+    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+        raise SourceParseError(f"{key} must be a lowercase SHA-256 digest: {path}")
+    return value
+
+
+def _parse_live_action_context(
+    value: Any,
+    *,
+    action_turn_index: int,
+    path: Path,
+) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise SourceParseError(f"action_context must be a mapping or null: {path}")
+    expected = {
+        "turn_index",
+        "scene_id_sha256",
+        "trigger_kind",
+        "active_regime",
+        "active_abstract_action",
+        "prediction_error_magnitude",
+        "open_loop_count",
+        "commitment_count",
+        "elapsed_at_tick",
+    }
+    if set(value) != expected:
+        raise SourceParseError(f"action_context has unexpected schema fields: {path}")
+    turn_index = _required_integer(value, "turn_index", path)
+    if turn_index != action_turn_index:
+        raise SourceParseError(f"action_context.turn_index must equal action_turn_index: {path}")
+    _required_sha256(value, "scene_id_sha256", path)
+    _required_string(value, "trigger_kind", path)
+    for key in ("active_regime", "active_abstract_action"):
+        optional = value.get(key)
+        if optional is not None and (not isinstance(optional, str) or not optional.strip()):
+            raise SourceParseError(f"action_context.{key} must be null or a non-empty string: {path}")
+    _finite_number(
+        value.get("prediction_error_magnitude"),
+        "action_context.prediction_error_magnitude",
+        path,
+    )
+    for key in ("open_loop_count", "commitment_count", "elapsed_at_tick"):
+        if _required_integer(value, key, path) < 0:
+            raise SourceParseError(f"action_context.{key} must be non-negative: {path}")
+    return dict(value)
+
+
+def _canonical_ascii_json(value: dict[str, Any]) -> str:
+    return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
 
 def _finite_number(value: Any, context: str, path: Path) -> float:
@@ -788,6 +999,9 @@ def source_bundle_digest(bundle: SourceBundle) -> str:
         "verdicts": [source.analysis_record() for source in bundle.verdicts],
         "plans": [source.analysis_record() for source in bundle.plans],
         "bench_bundles": [source.analysis_record() for source in bundle.bench_bundles],
+        "live_dialogue_outcomes": [
+            source.analysis_record() for source in bundle.live_dialogue_outcomes
+        ],
         "evidence_since": bundle.evidence_since,
     }
     return sha256_text(canonical_json(payload))

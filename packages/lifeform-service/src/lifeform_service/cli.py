@@ -34,6 +34,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from aiohttp import web
+from volvence_zero.runtime import WiringLevel
 
 from lifeform_service.app import create_app
 from lifeform_service.alpha import AlphaServiceConfig, load_alpha_users
@@ -196,7 +197,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--evidence-root-dir",
         default=None,
-        help="Root directory for closed-alpha session/deletion evidence bundles.",
+        help=(
+            "Root directory for closed-alpha session, typed dialogue-outcome, "
+            "and deletion evidence bundles."
+        ),
     )
     parser.add_argument(
         "--allow-evidence-time-override",
@@ -215,6 +219,26 @@ def _build_parser() -> argparse.ArgumentParser:
             "the companion vertical, closed-alpha isolation, a dedicated "
             "evidence root, virtual-calendar mode, hf-shared, and local "
             "model files. Never use in product service."
+        ),
+    )
+    parser.add_argument(
+        "--companion-playbook-overlay-mode",
+        choices=("disabled", "shadow"),
+        default="disabled",
+        help=(
+            "Operator-controlled companion playbook overlay rollout. "
+            "disabled does not read the asset; shadow validates the candidate "
+            "before startup while keeping live behavior on the baseline. "
+            "ACTIVE is intentionally unavailable at this service boundary."
+        ),
+    )
+    parser.add_argument(
+        "--companion-playbook-overlay-path",
+        type=Path,
+        default=None,
+        help=(
+            "Optional companion overlay candidate path for shadow validation. "
+            "Omit to use the immutable asset shipped by lifeform-domain-emogpt."
         ),
     )
     parser.add_argument(
@@ -445,6 +469,29 @@ def main(argv: list[str] | None = None) -> int:
     if args.ablation_bundle and args.vertical:
         print("--ablation-bundle cannot be combined with --vertical", file=sys.stderr)
         return 1
+    overlay_shadow_requested = args.companion_playbook_overlay_mode == "shadow"
+    if args.companion_playbook_overlay_path is not None and not overlay_shadow_requested:
+        print(
+            "--companion-playbook-overlay-path requires "
+            "--companion-playbook-overlay-mode shadow",
+            file=sys.stderr,
+        )
+        return 1
+    if overlay_shadow_requested:
+        overlay_errors = []
+        if args.ablation_bundle:
+            overlay_errors.append("--ablation-bundle is not allowed")
+        if args.vertical not in (None, "companion"):
+            overlay_errors.append("--vertical must be companion")
+        if args.companion_evidence_profile is not None:
+            overlay_errors.append("--companion-evidence-profile is not allowed")
+        if overlay_errors:
+            print(
+                "--companion-playbook-overlay-mode shadow rejected: "
+                + "; ".join(overlay_errors),
+                file=sys.stderr,
+            )
+            return 1
     if args.companion_evidence_profile is not None:
         evidence_profile_errors = []
         if args.ablation_bundle:
@@ -475,13 +522,17 @@ def main(argv: list[str] | None = None) -> int:
         discovered = (
             discover_companion_ablation_verticals()
             if args.ablation_bundle
-            else (
-                discover_verticals(companion_evidence_profile=(args.companion_evidence_profile))
-                if args.companion_evidence_profile is not None
-                else discover_verticals()
+            else discover_verticals(
+                companion_evidence_profile=args.companion_evidence_profile,
+                companion_playbook_overlay_wiring=WiringLevel(
+                    args.companion_playbook_overlay_mode
+                ),
+                companion_playbook_overlay_path=(
+                    args.companion_playbook_overlay_path
+                ),
             )
         )
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
     if args.list_verticals:
@@ -680,6 +731,11 @@ def main(argv: list[str] | None = None) -> int:
         + (
             f"  evidence_profile={args.companion_evidence_profile}"
             if args.companion_evidence_profile is not None
+            else ""
+        )
+        + (
+            f"  companion_playbook_overlay={args.companion_playbook_overlay_mode}"
+            if overlay_shadow_requested
             else ""
         )
     )

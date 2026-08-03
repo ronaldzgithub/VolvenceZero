@@ -71,7 +71,7 @@ harness 能协调很长的工作链，但固定流程本身不是 RSI。Forge �
 
 ### 经历可观测性
 
-`sources.py` 读取四类公开产物：
+`sources.py` 读取五类公开产物：
 
 - Cursor transcript JSONL：只提取结构化 tool 序列、错误状态与有限错误摘录，不复制完整
   用户对话进 Forge 工件；
@@ -79,6 +79,8 @@ harness 能协调很长的工作链，但固定流程本身不是 RSI。Forge �
 - `.cursor/plans/*.plan.md`：提供战役叙事上下文，永远只读。
 - Companion Bench `*.bundle.json` / `arc_failure.jsonl`：提取逐轮 rubric、disqualifier、arc axis
   与显式 transport/runtime failure。bench provenance 与开发轨迹分 lane，不能映射到 rules/prompts。
+- 显式提供的 `lifeform-live-dialogue-outcome.v1`：复核 content hash 后只读取去标识化 typed outcome
+  和无文本 action context。Forge 不自动扫描 closed-alpha 隐私目录，也不把任意 outcome 硬编码为失败。
 
 `mine.py` 先形成三层记录：终端 verifier 原因、相关 agent 行为因果、暴露的抽象机制；再用
 语义嵌入聚类。原始轨迹、记录、pattern 分层保存，避免把所有历史塞回一个不断膨胀的 prompt。
@@ -119,9 +121,25 @@ Self-improving harness 不能只证明目标失败变好，还要证明未知行
 验证器从 `editable_surface.yaml` 读取冻结命令。提案不能修改命令、测试、judge prompt 或 schema。
 任一检查缺失、超时、不可执行或不通过都得到 `BLOCK`；没有“先应用再看看”的静默回退。
 
-第一阶段的局限也必须诚实：规则编辑尚没有大规模任务级 held-out benchmark，因此 PASS 只表示
-结构、相关性和边界检查通过，不等于已证明真实 pass rate 提升。ledger 的下一轮预测兑现才是
-最早的纵向证据；扩大写面前还需要独立 benchmark split。
+冻结 synthetic task-decision split 可以独立检查当前 asset，也可以比较候选：
+
+```bash
+forge benchmark .cursor/rules/cursor-convergence-workflow.mdc \
+  --backend openai
+
+forge benchmark .cursor/rules/cursor-convergence-workflow.mdc \
+  --candidate-asset /tmp/candidate.mdc \
+  --backend openai
+```
+
+suite、benchmark prompt 与 schema 都在 proposal 循环的只读面。模型输入不含 case 的 expected、
+critical 或置信阈值；报告按 exact decision、minimum confidence、critical failure、绝对 pass rate 与
+candidate delta 判定 `PASS/BLOCK`。报告始终标记 `diagnostic_only=true` 和
+`causal_claim_authorized=false`，不会自动接入 validate/apply gate。
+
+局限仍必须诚实：这组冻结 case 只覆盖结构化 task decision，不执行真实仓库任务，也没有独立
+verifier 形成 causal outcome。因而 PASS 不等于已证明真实 pass rate 提升；ledger 的下一轮预测兑现
+仍只是最早的纵向证据，扩大写面前还需要真实任务 split 与多次独立运行。
 
 ## 域特有风险
 
@@ -197,6 +215,14 @@ forge mine
 
 ```bash
 forge mine --bench-root artifacts --evidence-since-ledger
+```
+
+显式接入 opt-in closed-alpha typed outcome（目录不会被自动发现）：
+
+```bash
+forge mine \
+  --live-outcome-root /path/to/evidence/live_dialogue_outcomes \
+  --evidence-since-ledger
 ```
 
 生成候选（需要显式 OpenAI-compatible 环境配置，或测试/演练用 replay backend）：

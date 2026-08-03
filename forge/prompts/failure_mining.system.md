@@ -21,3 +21,15 @@ character scenario semantic asset; kernel, model, memory, controller, evaluator,
 judge, transport, or benchmark failures must remain out-of-surface. Preserve
 passing rubric criteria and non-triggered disqualifiers. Make this distinction
 from the structured evidence and semantic context, never from keyword rules.
+
+# Live product outcome evidence
+
+A `live_dialogue_outcome` is an explicit typed observation from an opted-in
+closed-alpha service, not an automatic failure label. It intentionally carries
+no conversation text. Return zero causal records when the typed metadata and
+action-turn context do not establish a failure or actionable mechanism. When
+they do, preserve the declared outcome source/confidence and distinguish a
+reviewed companion playbook gap from an underlying memory, controller, model,
+transport, or evidence limitation. Only the first may target the companion
+runtime overlay; all other mechanisms remain out-of-surface. Never reconstruct
+missing dialogue content or classify outcomes with keyword tables.

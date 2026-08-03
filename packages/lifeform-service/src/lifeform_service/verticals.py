@@ -31,12 +31,18 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from lifeform_core import Lifeform
+from volvence_zero.runtime import WiringLevel
 
 from lifeform_service.templates import VerticalTemplateAdapter
+
+
+_LOG = logging.getLogger("lifeform_service.verticals")
 
 if TYPE_CHECKING:
     from volvence_zero.memory import IdentityProvider
@@ -123,15 +129,49 @@ def _expression_synthesizer_for_runtime(
 def _try_companion(
     *,
     evidence_profile: str | None = None,
+    playbook_overlay_wiring: WiringLevel = WiringLevel.DISABLED,
+    playbook_overlay_path: Path | None = None,
 ) -> VerticalSpec | None:
     try:
         from lifeform_domain_emogpt import (
             bootstraps_dir,
             build_companion_lifeform,
+            resolve_companion_package_overlay,
             scenarios_dir,
         )
     except ImportError:
         return None
+    if playbook_overlay_wiring not in (
+        WiringLevel.DISABLED,
+        WiringLevel.SHADOW,
+    ):
+        raise ValueError(
+            "lifeform-service only admits companion playbook overlay wiring "
+            "disabled or shadow; ACTIVE requires a separate reviewed deployment gate"
+        )
+    if (
+        playbook_overlay_wiring is WiringLevel.DISABLED
+        and playbook_overlay_path is not None
+    ):
+        raise ValueError(
+            "companion playbook overlay path requires SHADOW wiring; "
+            "DISABLED does not read an overlay asset"
+        )
+    if playbook_overlay_wiring is WiringLevel.SHADOW:
+        resolution = resolve_companion_package_overlay(
+            wiring_level=playbook_overlay_wiring,
+            overlay_path=playbook_overlay_path,
+        )
+        if resolution.overlay is None:  # pragma: no cover - owner invariant
+            raise RuntimeError("SHADOW companion playbook overlay resolved without an asset")
+        _LOG.info(
+            "companion playbook overlay validated before service startup: "
+            "overlay_id=%s content_sha256=%s baseline_rules=%d candidate_rules=%d",
+            resolution.overlay.overlay_id,
+            resolution.overlay.content_sha256,
+            len(resolution.baseline_rules),
+            len(resolution.candidate_rules),
+        )
     bdir = bootstraps_dir()
     sdir = scenarios_dir()
 
@@ -164,6 +204,8 @@ def _try_companion(
                 temperature=0.0 if evidence_profile is not None else 0.7,
             ),
             semantic_proposal_runtime=_build_llm_semantic_runtime_from_runtime(runtime),
+            playbook_overlay_wiring=playbook_overlay_wiring,
+            playbook_overlay_path=playbook_overlay_path,
         )
         try:
             from lifeform_thinking import build_default_thinking_adapter
@@ -1718,12 +1760,18 @@ COMPANION_ABLATION_VERTICAL_NAMES: tuple[str, ...] = (
 def discover_verticals(
     *,
     companion_evidence_profile: str | None = None,
+    companion_playbook_overlay_wiring: WiringLevel = WiringLevel.DISABLED,
+    companion_playbook_overlay_path: Path | None = None,
 ) -> dict[str, VerticalSpec]:
     """Return every vertical that successfully imports in this environment."""
     out: dict[str, VerticalSpec] = {}
     for builder in _BUILDERS:
         spec = (
-            _try_companion(evidence_profile=companion_evidence_profile)
+            _try_companion(
+                evidence_profile=companion_evidence_profile,
+                playbook_overlay_wiring=companion_playbook_overlay_wiring,
+                playbook_overlay_path=companion_playbook_overlay_path,
+            )
             if builder is _try_companion
             else builder()
         )

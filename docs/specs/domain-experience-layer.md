@@ -239,6 +239,9 @@ owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早�
   candidate 对照但 live package 不变；`ACTIVE` 才把规则放入 live package；
 - `build_companion_lifeform()` 与 `build_companion_package()` 默认都是 `DISABLED`。因此 apply JSON
   与部署 ACTIVE 是两次独立人审动作，asset 不能自我晋升；
+- `lifeform-serve` 提供显式 `--companion-playbook-overlay-mode shadow` 与可选 candidate path，
+  在监听端口前调用 domain owner validator；服务边界只接受 `DISABLED/SHADOW`，拒绝 `ACTIVE`，
+  且 matched evidence profile、ablation bundle 与非 companion vertical 不得混入该 rollout；
 - frozen `test_suite.yaml`、owner validator 与 held-in/out 位于 Forge 提案循环外。删除 overlay
   rule 或把 wiring 切回 `DISABLED` 即回滚，不影响 domain knowledge、case memory、boundary owner
   或任何基础模型权重。
@@ -259,6 +262,8 @@ owner 自然发布同一 `discovered_family_0`；其 bank revision 分别为早�
 
 ## 变更日志
 
+- 2026-08-03: companion overlay 增加产品服务 SHADOW rollout seam：启动前 fail-loud 校验并记录
+  asset digest/候选规模，默认仍为 DISABLED，ACTIVE 继续等待独立部署准入。
 - 2026-08-01: 新增 companion additive playbook overlay：真实消费链编译到既有
   `strategy_playbook` owner，外部 `DISABLED/SHADOW/ACTIVE` wiring、严格 additive schema 与
   Forge 双门分离；未新增 DATA_CONTRACT slot。

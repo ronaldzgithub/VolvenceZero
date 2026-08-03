@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forge.task-benchmark-suite.v1",
+  "$defs": {
+    "expected_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "classification",
+        "next_action",
+        "target_lane",
+        "preserve_evidence"
+      ],
+      "properties": {
+        "case_id": {"type": "string", "pattern": "^tb_[a-z0-9_]+$"},
+        "classification": {
+          "enum": [
+            "execution_failure",
+            "negative_evidence",
+            "external_blocker",
+            "runtime_behavior_gap",
+            "non_failure"
+          ]
+        },
+        "next_action": {
+          "enum": [
+            "propose_bounded_fix",
+            "bounded_retry",
+            "handoff",
+            "preserve_and_stop",
+            "no_action"
+          ]
+        },
+        "target_lane": {
+          "enum": ["development", "runtime", "out_of_surface", "none"]
+        },
+        "preserve_evidence": {"type": "boolean"}
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "suite_id",
+    "description",
+    "applicable_components",
+    "thresholds",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {"const": "forge-task-benchmark-suite.v1"},
+    "suite_id": {"type": "string", "pattern": "^forge-task-held-out-[a-z0-9-]+$"},
+    "description": {"type": "string", "minLength": 80},
+    "applicable_components": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["repository_agent_rules", "forge_analysis_prompts"]}
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_pass_rate", "maximum_critical_failures", "minimum_candidate_delta"],
+      "properties": {
+        "minimum_pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "maximum_critical_failures": {"type": "integer", "minimum": 0},
+        "minimum_candidate_delta": {"type": "number", "minimum": -1, "maximum": 1}
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "task",
+          "structured_evidence",
+          "critical",
+          "minimum_confidence",
+          "expected"
+        ],
+        "properties": {
+          "case_id": {"type": "string", "pattern": "^tb_[a-z0-9_]+$"},
+          "task": {"type": "string", "minLength": 20, "maxLength": 1200},
+          "structured_evidence": {"type": "object", "minProperties": 1},
+          "critical": {"type": "boolean"},
+          "minimum_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "expected": {"$ref": "#/$defs/expected_decision"}
+        }
+      }
+    }
+  }
+}
