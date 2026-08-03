@@ -250,7 +250,7 @@ def main() -> None:
     label_plan_length: list[str] = []
     label_last_transition: list[str] = []
     for case in cases:
-        texts, targets = _rate_distortion_observation_texts(
+        texts, targets, _ = _rate_distortion_observation_texts(
             case,
             environment=corpus.environment,
             protocol_version=args.observation_protocol,

@@ -17,6 +17,7 @@ kills the LLM-transfer route here and no Stage-3 rerun is run.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import platform
 import subprocess
@@ -32,12 +33,36 @@ from volvence_zero.agent.eta_proof_benchmark import (
     eta_route_probe_rows,
     generate_eta_proof_corpus,
 )
+from volvence_zero.agent.eta_rate_distortion_evidence import (
+    OBSERVATION_PROTOCOL_V3,
+    OBSERVATION_PROTOCOL_V4,
+    eta_stage2_probe_rows,
+)
 from volvence_zero.substrate import (
     capture_prefix_diagnostics,
     fit_linear_classification_probe,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Legacy rows: single-step observations whose plan carrier is the corpus
+# hash-fingerprint (2026-08-03 instrument audit: heldout information ceiling
+# ~0.18 against the 0.25 gate bar, so the 2x-chance condition was unpassable
+# by construction). Kept for byte-identical reproduction of sealed runs.
+PROBE_PROTOCOL_LEGACY = "legacy-single-step.v1"
+_PROBE_PROTOCOLS = (
+    PROBE_PROTOCOL_LEGACY,
+    OBSERVATION_PROTOCOL_V3,
+    OBSERVATION_PROTOCOL_V4,
+)
+
+# Final-layer readout was the v1 preregistration; small-model final blocks are
+# output-head aligned (the v1 run's base arm peaked mid-stack at layer 10),
+# so v2 offers a train-split-selected fixed layer: the layer is chosen on a
+# deterministic case-id split of the *train* rows only, never on heldout.
+LAYER_SELECTION_FINAL = "final"
+LAYER_SELECTION_TRAIN_SPLIT = "train-split"
+_LAYER_SELECTIONS = (LAYER_SELECTION_FINAL, LAYER_SELECTION_TRAIN_SPLIT)
 
 
 def _git_value(*args: str) -> str:
@@ -53,14 +78,21 @@ def _cache_factory(pairs=None):
     return transformers.DynamicCache(ddp_cache_data=list(pairs))
 
 
-def _capture_layer_features(*, model, tokenizer, device, texts):
+def _capture_layer_features(*, model, tokenizer, device, texts, max_length):
     """Return per-layer stacked final-position hidden features for the texts."""
 
     per_layer_rows: list[list[list[float]]] = []
     for text in texts:
-        input_ids = tokenizer(
-            text, return_tensors="pt", truncation=True, max_length=256
-        )["input_ids"].to(device)
+        encoded = tokenizer(
+            text, return_tensors="pt", truncation=False
+        )["input_ids"]
+        if encoded.shape[1] > max_length:
+            raise ValueError(
+                f"probe text has {encoded.shape[1]} tokens > max_length "
+                f"{max_length}; truncating would cut the current step off the "
+                "final position. Raise --max-length."
+            )
+        input_ids = encoded.to(device)
         profile = capture_prefix_diagnostics(
             torch_module=torch,
             model=model,
@@ -76,7 +108,34 @@ def _capture_layer_features(*, model, tokenizer, device, texts):
     return [torch.tensor(rows, dtype=torch.float32) for rows in per_layer_rows]
 
 
-def _probe_arm(*, model_source, device, train_rows, eval_rows, class_count):
+def _train_split_masks(train_rows):
+    """Deterministic case-id split of the train rows into fit/val (~80/20).
+
+    Grouping by case id keeps every view of one route on one side, mirroring
+    the train/eval hygiene of the outer split. Never touches heldout rows.
+    """
+
+    fit_mask: list[bool] = []
+    for row in train_rows:
+        digest = hashlib.sha256(row.case_id.encode("utf-8")).digest()
+        fit_mask.append(digest[0] % 5 != 0)
+    if all(fit_mask) or not any(fit_mask):
+        raise RuntimeError(
+            "train-split layer selection produced an empty fit or val side."
+        )
+    return fit_mask
+
+
+def _probe_arm(
+    *,
+    model_source,
+    device,
+    train_rows,
+    eval_rows,
+    class_count,
+    layer_selection,
+    max_length,
+):
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token or "[PAD]"
@@ -95,10 +154,18 @@ def _probe_arm(*, model_source, device, train_rows, eval_rows, class_count):
         [row.subgoal_label for row in eval_rows], dtype=torch.long
     )
     train_feats = _capture_layer_features(
-        model=model, tokenizer=tokenizer, device=torch_device, texts=train_texts
+        model=model,
+        tokenizer=tokenizer,
+        device=torch_device,
+        texts=train_texts,
+        max_length=max_length,
     )
     eval_feats = _capture_layer_features(
-        model=model, tokenizer=tokenizer, device=torch_device, texts=eval_texts
+        model=model,
+        tokenizer=tokenizer,
+        device=torch_device,
+        texts=eval_texts,
+        max_length=max_length,
     )
     del model
 
@@ -120,11 +187,43 @@ def _probe_arm(*, model_source, device, train_rows, eval_rows, class_count):
         raise RuntimeError("probe captured no transformer layers.")
     # Layer selection is fixed before held-out scoring. Choosing the best
     # held-out layer would turn the Gate-2 readout into a validation-set
-    # search and inflate the causal contrast. The final transformer block is
-    # the pre-registered readout for both arms.
-    selected = per_layer[-1]
+    # search and inflate the causal contrast.
+    layer_validation_accuracies: list[float] | None = None
+    if layer_selection == LAYER_SELECTION_FINAL:
+        # v1 preregistration: the final transformer block for both arms.
+        selected = per_layer[-1]
+    else:
+        # v2: pick the layer on a deterministic fit/val split of the *train*
+        # rows only; heldout rows never inform the choice.
+        fit_mask = _train_split_masks(train_rows)
+        fit_idx = torch.tensor(
+            [i for i, keep in enumerate(fit_mask) if keep], dtype=torch.long
+        )
+        val_idx = torch.tensor(
+            [i for i, keep in enumerate(fit_mask) if not keep],
+            dtype=torch.long,
+        )
+        layer_validation_accuracies = []
+        for xtr in train_feats:
+            xtr_device = xtr.to(torch_device)
+            predictions = _predict_labels(
+                xtr_device[fit_idx],
+                train_labels.to(torch_device)[fit_idx],
+                xtr_device[val_idx],
+                class_count,
+            )
+            val_labels = train_labels.to(torch_device)[val_idx]
+            accuracy = float(
+                (predictions == val_labels).to(torch.float32).mean()
+            )
+            layer_validation_accuracies.append(round(accuracy, 6))
+        best_layer = max(
+            range(len(layer_validation_accuracies)),
+            key=lambda index: (layer_validation_accuracies[index], -index),
+        )
+        selected = per_layer[best_layer]
 
-    # Prefix monotonicity on the fixed final layer: early vs late step bucket.
+    # Prefix monotonicity on the fixed selected layer: early vs late bucket.
     step_indices = sorted({row.step_index for row in eval_rows})
     median_step = step_indices[len(step_indices) // 2] if step_indices else 0
     selected_layer = selected.layer_index
@@ -148,6 +247,7 @@ def _probe_arm(*, model_source, device, train_rows, eval_rows, class_count):
     late_acc = late_correct / late_total if late_total else 0.0
     return {
         "model_source": str(model_source),
+        "layer_selection": layer_selection,
         "selected_layer": selected_layer,
         "selected_accuracy": round(selected.accuracy, 6),
         "chance_accuracy": round(selected.chance_accuracy, 6),
@@ -155,6 +255,7 @@ def _probe_arm(*, model_source, device, train_rows, eval_rows, class_count):
         "support": selected.support,
         "early_prefix_accuracy": round(early_acc, 6),
         "late_prefix_accuracy": round(late_acc, 6),
+        "layer_validation_accuracies": layer_validation_accuracies,
         "per_layer": [fit.as_json_dict() for fit in per_layer],
     }
 
@@ -226,6 +327,37 @@ def main() -> None:
     parser.add_argument("--train-routes", type=int, default=120)
     parser.add_argument("--heldout-routes", type=int, default=60)
     parser.add_argument("--device", default="mps")
+    parser.add_argument(
+        "--probe-protocol",
+        choices=_PROBE_PROTOCOLS,
+        default=PROBE_PROTOCOL_LEGACY,
+        help=(
+            "Probe row construction. Legacy rows are single-step observations "
+            "with the unreadable fingerprint plan carrier; observation-"
+            "protocol rows are cumulative trajectory prefixes rendered by the "
+            "rate-distortion protocol (v4 = staged revelation), under which "
+            "the label is a deterministic function of the visible text."
+        ),
+    )
+    parser.add_argument(
+        "--layer-selection",
+        choices=_LAYER_SELECTIONS,
+        default=LAYER_SELECTION_FINAL,
+        help=(
+            "Readout layer rule: 'final' (v1 preregistration) or "
+            "'train-split' (fixed layer chosen on a deterministic fit/val "
+            "split of the train rows only)."
+        ),
+    )
+    parser.add_argument(
+        "--max-length",
+        type=int,
+        default=256,
+        help=(
+            "Fail-loud token budget per probe text; texts longer than this "
+            "raise instead of being truncated."
+        ),
+    )
     args = parser.parse_args()
 
     corpus = generate_eta_proof_corpus(
@@ -234,10 +366,24 @@ def main() -> None:
         train_route_count=args.train_routes,
         heldout_route_count=args.heldout_routes,
     )
-    train_rows, vocab = eta_route_probe_rows(corpus.environment, corpus.train_cases)
-    eval_rows, vocab_eval = eta_route_probe_rows(
-        corpus.environment, corpus.heldout_cases
-    )
+    if args.probe_protocol == PROBE_PROTOCOL_LEGACY:
+        train_rows, vocab = eta_route_probe_rows(
+            corpus.environment, corpus.train_cases
+        )
+        eval_rows, vocab_eval = eta_route_probe_rows(
+            corpus.environment, corpus.heldout_cases
+        )
+    else:
+        train_rows, vocab = eta_stage2_probe_rows(
+            corpus.train_cases,
+            environment=corpus.environment,
+            protocol_version=args.probe_protocol,
+        )
+        eval_rows, vocab_eval = eta_stage2_probe_rows(
+            corpus.heldout_cases,
+            environment=corpus.environment,
+            protocol_version=args.probe_protocol,
+        )
     if vocab != vocab_eval:
         raise RuntimeError("probe label vocabulary differs between splits.")
     class_count = len(vocab)
@@ -249,6 +395,8 @@ def main() -> None:
         train_rows=train_rows,
         eval_rows=eval_rows,
         class_count=class_count,
+        layer_selection=args.layer_selection,
+        max_length=args.max_length,
     )
     pretrained_arm = _probe_arm(
         model_source=args.pretrained_model_source,
@@ -256,6 +404,8 @@ def main() -> None:
         train_rows=train_rows,
         eval_rows=eval_rows,
         class_count=class_count,
+        layer_selection=args.layer_selection,
+        max_length=args.max_length,
     )
     elapsed = time.perf_counter() - started
     gate = assess_gate2(base_arm=base_arm, pretrained_arm=pretrained_arm)
@@ -263,11 +413,14 @@ def main() -> None:
     output_dir: Path = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "schema_version": "eta-stage2-probe.v1",
+        "schema_version": "eta-stage2-probe.v2",
         "experiment_id": "eta-stage2-linear-classification-probe",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "git_sha": _git_value("rev-parse", "HEAD"),
         "working_tree_dirty": bool(_git_value("status", "--short")),
+        "probe_protocol": args.probe_protocol,
+        "layer_selection": args.layer_selection,
+        "max_length": args.max_length,
         "corpus_seed": args.corpus_seed,
         "objective_count": args.objective_count,
         "class_count": class_count,

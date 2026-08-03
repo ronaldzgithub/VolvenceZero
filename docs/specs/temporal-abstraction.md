@@ -24,8 +24,12 @@
   **2026-08-03 更新**：预注册重跑后 **Gate 1 已 PASS**——修好尺子后（smooth
   posterior + v4 分段揭示协议 + switch-gated KL + hard-st 离散门 + 300 updates），
   冻结臂 rate 轴 spearman −1.000 / span 1.933，且 never-switch 崩塌解除
-  （heldout boundary F1 全 alpha 0.240–0.671）。仪器有效性已确立，但整体
-  `kill-eta` 仍须待 Gate 3（补课冻结基底上的双臂近垂直 gap）终审。见
+  （heldout boundary F1 全 alpha 0.240–0.671）。仪器有效性已确立。
+  **2026-08-03 再更新**：Stage 2 **Gate 2 = FAIL**——领域续训后 Qwen2.5-0.5B
+  残差流仍无线性可解码 active subgoal（最后一层 heldout acc 0.131 ≤ 2×chance
+  0.25，且低于裸基座 0.166；全层最优 base 0.214 / pretrained 0.202 仍双否）。
+  按预注册 kill 本 LLM 迁移路线、不进 Stage 3；**ETA 主张未永久摘除**（保留
+  Gate 3 / 独立处置包），整体 `kill-eta` 持续有效，规模敏感性须另立新预注册。见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)
 - 内部控制空间维度低于原始 token 动作空间
 
@@ -394,6 +398,22 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   switching 存活的权威扫）。frozen 臂另检出方向性近垂直 gap，但缺 joint 臂
   且 gap 区内 F1 未高于区外，属 Gate 3 范畴，不从此 artifact 主张。Stage 2
   解锁；整体 `kill-eta` 仍待 Gate 3。
+- 2026-08-03: **ETA-on-LLM Gate 2 = FAIL**（`gate-2-fail-kill-llm-transfer`）。
+  执行 Stage 2 全链：语料 `artifacts/eta_stage2_corpus_20260803/`（120 文档 /
+  content sha256 `a89b7015…`）→ `continued_pretrain_and_merge` 落 merged 冻结
+  基底 `artifacts/eta_stage2_merged_20260803/`（LoRA r16α32，2000 步，
+  initial_loss 2.610 → final_loss 0.119，权重指纹 `08472c6d…`）→ 双臂线性
+  分类 probe `artifacts/eta_stage2_probe_20260803/`。参数与定稿预注册
+  `artifacts/eta_stage2_gate2_prereg_20260803/`（sha256 `a2561f3b…`）逐字节
+  一致。8 类（chance 0.125 / majority 0.166）heldout 最后一层读出：续训臂
+  acc 0.131、裸 Qwen 0.166（= majority，probe 塌到多数类）；三条件
+  `2×chance≥0.25` 否、`续训>基线` 否（0.131<0.166）、`随前缀上升` 是。稳健性：
+  全 24 层最优（base 0.214 / pretrained 0.202，非合规读出）仍双否。判读：
+  Qwen2.5-0.5B 残差流领域续训后无线性可解码 active-subgoal 层级，next-token
+  近记忆化甚至略微恶化最后一层读出。按预注册 `decision_rules`：claim
+  `claim_llm_residual_carries_subgoal_hierarchy` 在 0.5B 被驳，整条 LLM 迁移
+  路线 kill、Stage 3 不跑；ETA 主张**未**永久摘除（保留 Gate 3 / 独立处置包），
+  规模敏感性须另立新预注册。
 - 2026-08-02: 启动 **ETA 迁移 LLM 四级阶梯**，把论文成立的前提逐级搬到冻结 LLM 上；
   `kill-eta` 判定在 Stage 3 通过前保持有效。**证据 SSOT**：
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)（已挂
@@ -427,8 +447,9 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   与线性分类 probe `fit_linear_classification_probe`（对齐论文附录 B，从各层
   final-position hidden 解码 active subgoal）；`eta_route_probe_rows` +
   `render_eta_route_documents` 提供 SSOT 观测/动作表面；Gate 2（补课后 heldout
-  probe ≥ 2× 随机、随前缀上升、优于原始 Qwen）预注册于
-  `artifacts/eta_stage2_gate2_prereg_20260802/`，不过则整体 kill。**Stage 3**：
+  probe ≥ 2× 随机、随前缀上升、优于原始 Qwen）定稿预注册于
+  `artifacts/eta_stage2_gate2_prereg_20260803/`（sha256 `a2561f3b…`，取代 08-02
+  草稿并用真实 SHA 锁 6 个 owner 源），不过则整体 kill。**Stage 3**：
   `run_eta_rate_distortion.py` 增 `--corpus-seed/--train-routes/--model-source`，
   可在补课基底上按 `eta-rate-distortion-evidence.v1` 已冻结规则重跑双臂判据；
   预注册于 `artifacts/eta_stage3_prereg_20260802/`（6 alpha × 3 seed × 2 臂）。

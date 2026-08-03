@@ -1,0 +1,82 @@
+{
+ "schema_version": "eta-stage2-gate2-prereg.v1",
+ "experiment_id": "eta-stage2-linear-classification-probe",
+ "created_at": "2026-08-03T04:16:46.580369+00:00",
+ "claim_scope": "does-the-llm-residual-carry-the-behaviour-hierarchy",
+ "precondition": "Only run after Gate 1 passes; otherwise the ladder is paused.",
+ "corpus": {
+  "corpus_origin": "generated-seeded",
+  "corpus_seed": 20260802,
+  "objective_count": 8,
+  "train_routes": 120,
+  "heldout_routes": 60,
+  "train_lengths": [
+   2,
+   3
+  ],
+  "heldout_lengths": [
+   3,
+   4
+  ],
+  "note": "Probe fits on train-split routes, scores on compositionally disjoint heldout routes; class space is the 8 objective ids."
+ },
+ "probe": {
+  "kind": "linear-least-squares-classification",
+  "feature": "final-prompt-position hidden state per layer (capture_prefix_diagnostics, prefix_pairs=None)",
+  "target": "active subgoal = next objective ahead on the route",
+  "layer_selection": "final transformer layer, fixed before held-out scoring",
+  "ridge_alpha": 1.0
+ },
+ "gate2_thresholds": {
+  "gate_id": "gate-2-residual-carries-subgoal",
+  "condition_2x_chance": "pretrained best-layer heldout accuracy >= 2 * (1/class_count)",
+  "condition_rises_with_prefix": "pretrained late-step-bucket accuracy >= early-step-bucket accuracy",
+  "condition_beats_base": "pretrained best-layer accuracy > original-Qwen best-layer accuracy (causal contrast)",
+  "decision": "all three must hold to pass"
+ },
+ "decision_rules": [
+  "Gate 2 passes only if all three conditions hold; then Stage 3 reruns the rate-distortion criterion on the merged base.",
+  "Gate 2 fails otherwise: the claim 'the LLM residual stream can host the behaviour hierarchy' is rejected and the entire LLM-transfer route is killed; no Stage-3 rerun is run.",
+  "The continued-pretrained base is an offline rare-heavy substrate refresh (merged, frozen, fingerprinted); the original Qwen path is untouched.",
+  "The pretraining corpus contains only train-split orderings; heldout orderings are excluded at generation time, so the base never sees a Stage-3 evaluation trajectory."
+ ],
+ "prohibited_after_execution": [
+  "changing any of the three Gate-2 conditions or the 2x-chance multiplier",
+  "selecting the probe layer against heldout after seeing accuracies for the purpose of passing",
+  "using the ridge/regression probe R^2 in place of the classification accuracy gate",
+  "reusing the pretraining corpus routes as probe/Stage-3 evaluation routes"
+ ],
+ "frozen_source_files": {
+  "packages/vz-substrate/src/volvence_zero/substrate/prefix_kv_diagnostics.py": {
+   "role": "fit_linear_classification_probe owner",
+   "sha256": "868d4f250fcce5e65484a7abf9fb8cb5d9250bd7fb37c582e5b9fe36dd795632"
+  },
+  "packages/vz-substrate/src/volvence_zero/substrate/rare_heavy_training.py": {
+   "role": "continued_pretrain_and_merge owner",
+   "sha256": "ebce72af444f702bba61faf0bedcc0c2f1d1c08b761742312c783ad61acd665c"
+  },
+  "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": {
+   "role": "eta_route_probe_rows + corpus owner",
+   "sha256": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85"
+  },
+  "scripts/run_eta_stage2_probe.py": {
+   "role": "Gate-2 runner + assess_gate2",
+   "sha256": "32c3405753c70b62a1f65a46895d97608fd406656d45921c4da602dca83ba213"
+  },
+  "scripts/run_eta_stage2_corpus.py": {
+   "role": "Stage-2 pretraining corpus generator (train-split only)",
+   "sha256": "d0aca87662139241d8fbaedffbc57686ea49b4d63cdd07cd4f1e7a47c191d6ea"
+  },
+  "scripts/run_eta_stage2_pretrain.py": {
+   "role": "continued-pretrain + merge runner",
+   "sha256": "9290fd5329f099b19f9cce92e25cb57ffcd0d4c69ea3a66906e6ea3dbcd2aaa4"
+  }
+ },
+ "supersedes": {
+  "artifact": "artifacts/eta_stage2_gate2_prereg_20260802/preregistration.json",
+  "reason": "The 20260802 file was an unfinalized draft: created_at was a midnight placeholder and frozen_source_files stored only role labels, not content hashes, so it never pinned the Stage-2 implementation. Gate 1 passed on 2026-08-03 (artifacts/eta_stage1_gate1_v4_hardst_auth_20260803), unlocking Stage 2; this finalized prereg pins the current clean, committed owner sources by real sha256 before any Stage-2 run executes. All scientific commitments (corpus, probe, gate2_thresholds, decision_rules, prohibited_after_execution) are byte-identical to the draft; only the freeze discipline is strengthened.",
+  "gate1_pass_artifact": "artifacts/eta_stage1_gate1_v4_hardst_auth_20260803",
+  "gate1_preregistration_sha256": "b0d18f601fd196498dadcce1e2787da608c3439908f4fd49c05f3b83c07c5a5a"
+ },
+ "git_head_at_freeze": "aafeb20f655983f099f4a0d6a857024a0db8d31f"
+}

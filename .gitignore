@@ -159,3 +159,4 @@ visualizations/volvence-three-act-remotion/public/voiceover/
 # 不入库；需要时走外部存储或对象存储分发。
 visualizations/volvence-three-act-remotion/public/**/*.wav
 visualizations/volvence-three-act-remotion/public/**/*.mp3
+*.safetensors

@@ -1209,11 +1209,11 @@ Gate 4 ecology source=`not-admitted`，P1/P2 不执行。该 kill 是冻结计�
 | Claim | Gate | 当前状态 |
 |---|---|---|
 | `claim_eta_rate_axis_instrument_valid` | Gate 1：spearman(α,rate)≤−0.8 且 rate_span≥0.30 + switching 存活 | **PASS**（2026-08-03，v4+smooth+switch-gated+hard-st 权威扫 `artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/`）：spearman −1.000 / span 1.933 / heldout boundary F1 全 alpha 0.240–0.671 |
-| `claim_llm_residual_carries_subgoal_hierarchy` | Gate 2：补课 probe ≥2× 随机 + 前缀单调 + 优于裸 Qwen | Gate 1 已过，Stage 2 解锁；开跑前须核对 Stage 2 预注册与源码 SHA 漂移并按协议重冻结 |
-| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap | 未开跑；通过前 `kill-eta` 保持有效（Gate 1 权威扫检出方向性 gap，但缺 joint 臂对照且 gap 区内 F1 未高于区外，不构成 Gate 3 证据） |
-| `claim_eta_dialogue_transfer` | Stage 4 contingent | 仅骨架，前三级全过才预注册执行 |
+| `claim_llm_residual_carries_subgoal_hierarchy` | Gate 2：补课 probe ≥2× 随机 + 前缀单调 + 优于裸 Qwen | **FAIL**（2026-08-03，`gate-2-fail-kill-llm-transfer`，`artifacts/eta_stage2_probe_20260803/`）：8 类 chance 0.125，续训臂最后一层 heldout acc 0.131、裸 Qwen 0.166；`2×chance≥0.25` 否、`续训>基线` 否、`随前缀上升` 是。全层最优（base 0.214 / pretrained 0.202）下仍双否。→ 0.5B 被驳，LLM 迁移路线 kill、Stage 3 不跑；ETA 主张未永久摘除（保留 Gate 3 / 独立处置包）；规模敏感性须另立新预注册 |
+| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap | **不跑**（Gate 2 FAIL 按预注册终止本路线）；`kill-eta` 对整体主张仍有效（Gate 1 权威扫检出方向性 gap，但缺 joint 臂对照且 gap 区内 F1 未高于区外，不构成 Gate 3 证据） |
+| `claim_eta_dialogue_transfer` | Stage 4 contingent | 仅骨架；前三级未全过，不预注册执行 |
 
-不变量：Gate 1 FAIL ≠ 杀主张（现已 PASS）；Gate 2 FAIL = 杀 LLM 迁移；Gate 3 FAIL = 永久摘除 ETA。产物归 evidence lane，不回灌学习。
+不变量：Gate 1 FAIL ≠ 杀主张（现已 PASS）；Gate 2 FAIL = 杀 LLM 迁移路线（现已 FAIL，但**不**永久摘除 ETA 主张）；Gate 3 FAIL = 永久摘除 ETA。产物归 evidence lane，不回灌学习。
 
 ### Semantic grounding claims（设计冻结；详见 [`semantic-grounding-evidence.md`](./semantic-grounding-evidence.md)）
 
@@ -1886,6 +1886,23 @@ substrate weights；删除隔离 evidence directory 即可回滚本 lane。
 
 ## 变更日志补充（longitudinal + human anchor）
 
+- 2026-08-03: ETA-on-LLM 阶梯 **Gate 2 = FAIL**（`gate-2-fail-kill-llm-transfer`，
+  详见 [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）。执行 Stage 2
+  全链：语料 `artifacts/eta_stage2_corpus_20260803/`（120 文档 / 9539 词 /
+  train-heldout 重叠 0 / content sha256 `a89b7015…`）→ 续训+merge
+  `artifacts/eta_stage2_merged_20260803/`（LoRA r16α32，2000 步，initial_loss
+  2.610 → final_loss 0.119，权重指纹 `08472c6d…`）→ 双臂线性 probe
+  `artifacts/eta_stage2_probe_20260803/`。参数与定稿预注册
+  `artifacts/eta_stage2_gate2_prereg_20260803/`（sha256 `a2561f3b…`）逐字节一致。
+  8 类（chance 0.125 / majority 0.166）heldout 最后一层读出：续训臂 acc 0.131、
+  裸 Qwen 0.166（= majority，probe 塌到多数类）；三条件 `2×chance≥0.25` 否、
+  `续训>基线` 否（0.131<0.166）、`随前缀上升` 是。稳健性：全 24 层最优
+  （base 0.214 / pretrained 0.202，非合规读出）仍双否。判读：Qwen2.5-0.5B 残差流
+  领域续训后无线性可解码 active-subgoal 层级，next-token 近记忆化甚至略微恶化
+  最后一层读出。按预注册 `decision_rules`：claim
+  `claim_llm_residual_carries_subgoal_hierarchy` 在 0.5B 被驳，整条 LLM 迁移路线
+  kill、Stage 3 不跑。ETA 主张**未**永久摘除（保留 Gate 3 / 独立处置包）；
+  规模敏感性为独立开放问题，须另立新预注册，不撤销本封存负结果。
 - 2026-08-03: ETA-on-LLM 阶梯 **Gate 1 = PASS**（详见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）。修尺子分四层根因：
   smooth posterior（rate 轴数值稳定）、v4 分段揭示协议（信息中途到达，切换才

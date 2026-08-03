@@ -1,6 +1,6 @@
 # ETA 迁移 LLM 四级阶梯证据 Spec
 
-> Status: active（Stage 1 Gate 1 = **PASS**（2026-08-03，v4+smooth+switch-gated+hard-st 权威扫）；Stage 2 解锁未开跑；Stage 3–4 未开跑）
+> Status: active（Stage 1 Gate 1 = **PASS**（2026-08-03，v4+smooth+switch-gated+hard-st 权威扫）；Stage 2 Gate 2 = **FAIL**（2026-08-03，`gate-2-fail-kill-llm-transfer`）：领域续训后 Qwen2.5-0.5B 残差流仍读不出 active subgoal（读出层 acc 0.131 ≤ 2×chance 0.25，且低于裸基座 0.166），按预注册 kill 本条 LLM 迁移路线、不进入 Stage 3；claim `claim_llm_residual_carries_subgoal_hierarchy` 在 0.5B 规模被驳。ETA 主张本身**未**永久摘除（保留给 Gate 3 或独立处置包）。Stage 3–4 不启）
 > Last updated: 2026-08-03
 > 对应需求: R2, R3, R4, R8, R10, R12, R15
 > Owner 能力域: `vz-temporal`（元控制器 / rate–distortion）、`vz-substrate`（续训 merge / 分类 probe）、evidence lane（本 spec）
@@ -47,8 +47,8 @@ rate–distortion（Gate 3），对话迁移仅在前三级全过后预注册（
 
 | Claim ID | 主张 | 所需门 |
 |---|---|---|
-| `claim_eta_rate_axis_instrument_valid` | 在 seeded 富语料上，frozen 臂 rate 轴对 alpha 做信息–精度交易 | Gate 1 |
-| `claim_llm_residual_carries_subgoal_hierarchy` | 领域续训后的冻结 LLM 残差流可线性解码 active subgoal，且优于裸基座 | Gate 2 |
+| `claim_eta_rate_axis_instrument_valid` | 在 seeded 富语料上，frozen 臂 rate 轴对 alpha 做信息–精度交易 | Gate 1 → **PASS**（2026-08-03） |
+| `claim_llm_residual_carries_subgoal_hierarchy` | 领域续训后的冻结 LLM 残差流可线性解码 active subgoal，且优于裸基座 | Gate 2 → **FAIL**（2026-08-03，0.5B 被驳；LLM 迁移路线 kill） |
 | `claim_eta_rate_distortion_on_domain_pretrained_llm` | 补课冻结 LLM + 元控制器出现论文式近垂直 gap | Gate 3 |
 | `claim_eta_dialogue_transfer` | （contingent）对话域同样可迁移 | Stage 4；仅 1–3 全过 |
 
@@ -238,9 +238,29 @@ n_input 16）验证信息时刻表：step-0 target-1 = `1.000`、target-2 =
 
 **FAIL 处置**：LLM 迁移路线整体 kill，出报告收官；不进入 Stage 3。
 
-**预注册**：`artifacts/eta_stage2_gate2_prereg_20260802/`  
-**当前状态**：Gate 1 已过（2026-08-03），Stage 2 解锁；开跑前须核对既有
-预注册与当前源码 SHA 是否漂移，漂移则按协议重新冻结后执行。
+**预注册**：`artifacts/eta_stage2_gate2_prereg_20260803/`（取代 08-02 草稿）
+**产物**：
+`artifacts/eta_stage2_corpus_20260803/`（语料 provenance，content sha256
+`a89b7015…`）、`artifacts/eta_stage2_pretrain_20260803/` 与
+`artifacts/eta_stage2_merged_20260803/`（续训 merged 冻结基底，权重指纹
+`08472c6d…`）、`artifacts/eta_stage2_probe_20260803/probe_manifest.json`
+（双臂 probe + gate2 判定）。
+
+**当前状态**：**Gate 2 = FAIL（2026-08-03，`gate-2-fail-kill-llm-transfer`）**。
+续训把语料 next-token loss 由 2.610 压到 0.119（2000 步 / 120 文档 /
+15737 token，near-memorization），但预注册最后一层线性 probe 在 8 类
+（chance 0.125 / majority 0.166）heldout 上：续训臂 acc `0.131`、裸 Qwen 臂
+`0.166`（后者恰等于 majority，probe 塌到多数类）。三条件里
+`2×chance（≥0.25）` **否**、`续训 > 基线` **否**（0.131 < 0.166）、
+`随前缀上升` 是——两否即 FAIL。结果对预注册措辞歧义稳健：即便用最宽容的
+"全 24 层挑最优"读法（base 0.214 / pretrained 0.202，均非合规读出），
+`2×chance` 与 `续训 > 基线` 仍双否。判读：Qwen2.5-0.5B 残差流在本领域续训后
+**没有**装出线性可解码的 active-subgoal 层级，反而把最后一层读出略微搞差
+（过拟合 next-token 使残差几何塌缩而非组织子目标结构）。按预注册
+`decision_rules`：claim `claim_llm_residual_carries_subgoal_hierarchy` 在
+0.5B 被驳，**整条 LLM 迁移路线 kill、不进入 Stage 3**。ETA 主张本身未永久
+摘除（保留给 Gate 3 或独立处置包）。**规模敏感性**（更大基座是否 host 该
+层级）是一个独立的开放问题，需另立新预注册，不撤销本封存负结果。
 
 ### Stage / Gate 3 — 补课基底上重审 rate–distortion
 
@@ -343,3 +363,21 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
   `gate1_assessment.{json,md}` 已随 artifact 封存；Stage 2 解锁。运行途中
   首实例因机器休眠中断，经 `--resume` 从 12/18 checkpoint 续跑完成，
   configuration fingerprint 校验一致。
+- 2026-08-03: 执行 Stage 2 全链（语料 → 续训+merge → probe），**Gate 2 = FAIL**
+  （`gate-2-fail-kill-llm-transfer`）。参数与定稿预注册
+  `artifacts/eta_stage2_gate2_prereg_20260803/`（sha256 `a2561f3b…`）逐字节一致：
+  corpus_seed 20260802 / objective_count 8 / train_routes 120 /
+  heldout_routes 60 / train_lengths [2,3] / heldout_lengths [3,4] /
+  ridge_alpha 1.0 / 最后一层读出。语料 content sha256 `a89b7015…`（120 文档、
+  9539 词、train/heldout 重叠 0）；续训 merged 权重指纹 `08472c6d…`
+  （initial_loss 2.610 → final_loss 0.119，2000 步 / 15737 token）。probe：
+  8 类（chance 0.125 / majority 0.166），续训臂最后一层 heldout acc `0.131`、
+  裸 Qwen 臂 `0.166`（= majority，probe 塌到多数类）；三条件
+  `2×chance≥0.25` 否 / `续训>基线` 否（0.131<0.166）/ `随前缀上升` 是。稳健性：
+  全 24 层最优（base 0.214 / pretrained 0.202，非合规读出）下 `2×chance` 与
+  `续训>基线` 仍双否。判读：0.5B 残差流领域续训后仍无线性可解码 subgoal 层级，
+  next-token 近记忆化甚至略微恶化最后一层读出。据预注册 `decision_rules`：
+  claim `claim_llm_residual_carries_subgoal_hierarchy` 在 0.5B 被驳，整条
+  LLM 迁移路线 kill、Stage 3 不跑；ETA 主张未永久摘除（保留 Gate 3 / 独立处置
+  包）。规模敏感性为独立开放问题，须另立新预注册，不撤销本封存结果。
+  `probe_manifest.json` 已随 `artifacts/eta_stage2_probe_20260803/` 封存。

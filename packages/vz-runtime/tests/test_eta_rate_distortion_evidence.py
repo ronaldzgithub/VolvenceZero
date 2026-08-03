@@ -538,6 +538,133 @@ def test_v4_protocol_staggers_revelation_at_objective_arrivals() -> None:
                 assert "objective" not in text.lower()
 
 
+def _stage2_v2_corpus():
+    from volvence_zero.agent.eta_proof_benchmark import (
+        generate_eta_proof_corpus,
+    )
+
+    return generate_eta_proof_corpus(
+        seed=7,
+        objective_count=4,
+        corridor_count=2,
+        extra_edge_probability=0.35,
+        train_route_count=6,
+        heldout_route_count=3,
+        train_lengths=(2, 3),
+        heldout_lengths=(3, 4),
+    )
+
+
+def test_stage2_v2_probe_label_is_a_function_of_the_visible_text() -> None:
+    """Instrument-v2 core invariant: under the v4 staged-plan protocol the
+    active subgoal is deterministically readable from the cumulative prefix,
+    on heldout routes -- the property whose absence made the v1 instrument
+    unpassable (heldout information ceiling ~0.18 vs the 0.25 gate bar)."""
+
+    from volvence_zero.agent.eta_rate_distortion_evidence import (
+        OBSERVATION_PROTOCOL_V4,
+        eta_stage2_probe_rows,
+    )
+
+    corpus = _stage2_v2_corpus()
+    rows, vocab = eta_stage2_probe_rows(
+        corpus.heldout_cases,
+        environment=corpus.environment,
+        protocol_version=OBSERVATION_PROTOCOL_V4,
+    )
+    assert rows
+
+    labels_by_text: dict[str, set[int]] = {}
+    for row in rows:
+        labels_by_text.setdefault(row.observation_text, set()).add(
+            row.subgoal_label
+        )
+    assert all(len(labels) == 1 for labels in labels_by_text.values())
+
+    # The active subgoal was explicitly revealed somewhere in the prefix.
+    for row in rows:
+        revealed = f"Next objective: {vocab[row.subgoal_label]}."
+        assert revealed in row.observation_text
+
+
+def test_stage2_v2_probe_prefix_never_reveals_a_future_objective() -> None:
+    """No leak: objectives after the active subgoal must not have been
+    announced anywhere in the prefix."""
+
+    from volvence_zero.agent.eta_rate_distortion_evidence import (
+        OBSERVATION_PROTOCOL_V4,
+        eta_stage2_probe_rows,
+    )
+
+    corpus = _stage2_v2_corpus()
+    for case in corpus.train_cases + corpus.heldout_cases:
+        rows, vocab = eta_stage2_probe_rows(
+            (case,),
+            environment=corpus.environment,
+            protocol_version=OBSERVATION_PROTOCOL_V4,
+        )
+        objectives = tuple(
+            waypoint
+            for waypoint in case.route_signature
+            if corpus.environment.location(waypoint).is_objective
+        )
+        for row in rows:
+            active = vocab[row.subgoal_label]
+            position = objectives.index(active)
+            for future in objectives[position + 1 :]:
+                assert (
+                    f"Next objective: {future}." not in row.observation_text
+                )
+
+
+def test_stage2_v2_documents_drop_the_fingerprint_for_the_protocol_surface() -> None:
+    """v2 documents must not carry the hash-fingerprint context line and must
+    share the surface (header + step lines + actions) with the probe rows."""
+
+    from volvence_zero.agent.eta_rate_distortion_evidence import (
+        ETA_STAGE2_DOCUMENT_HEADER,
+        OBSERVATION_PROTOCOL_V4,
+        eta_stage2_documents,
+        eta_stage2_probe_rows,
+    )
+
+    corpus = _stage2_v2_corpus()
+    documents = eta_stage2_documents(
+        corpus.train_cases,
+        environment=corpus.environment,
+        protocol_version=OBSERVATION_PROTOCOL_V4,
+    )
+    assert len(documents) == len(corpus.train_cases)
+    for case, document in zip(corpus.train_cases, documents, strict=True):
+        assert case.source_text not in document
+        assert document.startswith(ETA_STAGE2_DOCUMENT_HEADER)
+        assert document.endswith("Episode complete.")
+        assert " Action: go to " in document
+        first_objective = next(
+            waypoint
+            for waypoint in case.route_signature
+            if corpus.environment.location(waypoint).is_objective
+        )
+        assert f"Next objective: {first_objective}. " in document
+
+    # Every probe-row prefix is a literal prefix of its route's document
+    # (modulo the bare current-step line lacking the action suffix).
+    rows, _ = eta_stage2_probe_rows(
+        corpus.train_cases,
+        environment=corpus.environment,
+        protocol_version=OBSERVATION_PROTOCOL_V4,
+    )
+    document_by_case = {
+        case.case_id: document
+        for case, document in zip(corpus.train_cases, documents, strict=True)
+    }
+    for row in rows:
+        document = document_by_case[row.case_id]
+        *past_lines, current_line = row.observation_text.split("\n")
+        assert document.startswith("\n".join(past_lines))
+        assert current_line in document
+
+
 def test_rate_distortion_cli_holds_the_shared_mps_lock_during_the_sweep(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

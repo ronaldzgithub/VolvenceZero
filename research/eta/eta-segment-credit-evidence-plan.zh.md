@@ -527,6 +527,23 @@ rate_span 1.933、hard switch 0.12–0.96、heldout boundary F1 全 alpha 0.240�
 对照且 gap 区内 F1 未高于区外，属 Gate 3 范畴不予主张。Stage 2 解锁；整体
 `kill-eta` 仍待 Gate 3。判定以 SSOT `eta-llm-transfer-evidence.md` 为准。
 
+**2026-08-03 补记：Gate 2 = FAIL**（`gate-2-fail-kill-llm-transfer`）。执行 Stage 2
+全链：语料 `artifacts/eta_stage2_corpus_20260803/`（120 文档、9539 词、
+train/heldout 重叠 0、content sha256 `a89b7015…`）→ `continued_pretrain_and_merge`
+落 merged 冻结基底 `artifacts/eta_stage2_merged_20260803/`（LoRA r16α32、2000 步、
+initial_loss 2.610 → final_loss 0.119、权重指纹 `08472c6d…`）→ 双臂线性分类 probe
+`artifacts/eta_stage2_probe_20260803/`。参数与定稿预注册
+`artifacts/eta_stage2_gate2_prereg_20260803/`（sha256 `a2561f3b…`）逐字节一致。
+8 类（chance 0.125 / majority 0.166）heldout 最后一层读出：续训臂 acc 0.131、
+裸 Qwen 0.166（= majority，probe 塌到多数类）；三条件 `2×chance≥0.25` 否、
+`续训>基线` 否（0.131<0.166）、`随前缀上升` 是——两否即 FAIL。稳健性：全 24 层
+最优（base 0.214 / pretrained 0.202，非合规读出）仍双否。判读：Qwen2.5-0.5B
+残差流领域续训后无线性可解码 active-subgoal 层级，next-token 近记忆化甚至略微
+恶化最后一层读出。按预注册 `decision_rules`：claim
+`claim_llm_residual_carries_subgoal_hierarchy` 在 0.5B 被驳，整条 LLM 迁移路线
+kill、Stage 3 不跑；ETA 主张**未**永久摘除（保留 Gate 3 / 独立处置包），规模
+敏感性须另立新预注册。判定以 SSOT `eta-llm-transfer-evidence.md` 为准。
+
 **Stage 1（数据机制假设）**：环境 owner 新增 seeded 程序化生成器
 （`generate_hierarchical_environment` + hub relay 保证任意子目标序可达 +
 `stitch_waypoints` + `generate_hierarchical_routes` 按 ordering 哈希分区

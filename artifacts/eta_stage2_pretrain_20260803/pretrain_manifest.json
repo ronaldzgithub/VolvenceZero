@@ -1,0 +1,32 @@
+{
+  "schema_version": "eta-stage2-pretrain.v1",
+  "experiment_id": "eta-stage2-continued-pretrain",
+  "created_at": "2026-08-03T05:05:33.113496+00:00",
+  "git_sha": "aafeb20f655983f099f4a0d6a857024a0db8d31f",
+  "working_tree_dirty": true,
+  "training_mode": "peft-lora-continued-pretrain-merged-v1",
+  "base_model_source": "Qwen/Qwen2.5-0.5B-Instruct",
+  "merged_model_dir": "artifacts/eta_stage2_merged_20260803",
+  "weight_fingerprint": "08472c6d294835515dc1c3edf17525c7a8aa44258a348eef455f3f05871975c4",
+  "target_modules": [
+    "q_proj",
+    "v_proj",
+    "o_proj"
+  ],
+  "initial_loss": 2.610187,
+  "final_loss": 0.118735,
+  "steps_taken": 2000,
+  "document_count": 120,
+  "token_count": 15737,
+  "corpus_file": "artifacts/eta_stage2_corpus_20260803/corpus.jsonl",
+  "rank": 16,
+  "alpha": 32,
+  "learning_rate": 0.0002,
+  "max_steps": 2000,
+  "device": "mps",
+  "elapsed_seconds": 468.2,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+  "torch_version": "2.13.0",
+  "description": "Continued-pretrain merged base from Qwen/Qwen2.5-0.5B-Instruct: rank=16 targets=('q_proj', 'v_proj', 'o_proj') steps=2000 docs=120 tokens=15737 init_loss=2.6102 final_loss=0.1187."
+}

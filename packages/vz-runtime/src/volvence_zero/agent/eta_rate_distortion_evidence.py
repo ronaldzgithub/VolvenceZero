@@ -43,6 +43,7 @@ from typing import Any, Protocol
 
 from volvence_zero.agent.eta_proof_benchmark import (
     ETAOpenWeightRuntimeConfig,
+    ETAProbeRow,
     ETAProofCase,
     ETAProofCorpus,
     _build_eta_open_weight_runtime,
@@ -350,7 +351,7 @@ def _rate_distortion_observation_bundle(
     against the same graph it was built from, rather than the hardcoded default.
     """
 
-    observation_texts, expert_targets = _rate_distortion_observation_texts(
+    observation_texts, expert_targets, _ = _rate_distortion_observation_texts(
         case, environment=environment, protocol_version=protocol_version
     )
     snapshots = tuple(
@@ -386,12 +387,21 @@ def _rate_distortion_observation_texts(
     *,
     environment: MiniHierarchicalEnvironment,
     protocol_version: str = OBSERVATION_PROTOCOL_V1,
-) -> tuple[tuple[str, ...], tuple[ExpertActionTarget, ...]]:
+) -> tuple[
+    tuple[str, ...], tuple[ExpertActionTarget, ...], tuple[str | None, ...]
+]:
     """Render the per-phase observation texts and expert targets for a route.
 
     Single source of truth for the observation protocol rendering; the trace
     builder captures residuals for these texts, and diagnostics (e.g. the
     step-0 plan-identity probe) reuse the exact same rendering.
+
+    The third element is the per-phase *active subgoal*: the next objective
+    the route will reach from that step (``None`` once the last objective has
+    been reached). Under ``OBSERVATION_PROTOCOL_V4`` it is by construction a
+    deterministic function of the cumulative episode prefix, because the
+    staged-revelation text announces exactly this objective at step 0 / each
+    arrival; Stage-2 probe rows rely on that invariant.
     """
 
     if protocol_version not in _OBSERVATION_PROTOCOLS:
@@ -419,6 +429,7 @@ def _rate_distortion_observation_texts(
     state = environment.reset(route)
     observation_texts: list[str] = []
     expert_targets: list[ExpertActionTarget] = []
+    active_subgoals: list[str | None] = []
     ordered_objectives = tuple(
         waypoint
         for waypoint in route.waypoints
@@ -444,7 +455,26 @@ def _rate_distortion_observation_texts(
             else "none"
         )
         transitions = ", ".join(observation.available_targets)
+        # Arrival bookkeeping is protocol-independent so the active subgoal
+        # (used by Stage-2 probe rows) is defined for every protocol; only
+        # the v4 text branch renders it.
+        step_arrived = (
+            reached_objectives < len(ordered_objectives)
+            and observation.current_location_id
+            == ordered_objectives[reached_objectives]
+        )
+        arrived_objective = (
+            ordered_objectives[reached_objectives] if step_arrived else None
+        )
+        if step_arrived:
+            reached_objectives += 1
+        active_subgoal = (
+            ordered_objectives[reached_objectives]
+            if reached_objectives < len(ordered_objectives)
+            else None
+        )
         for phase_index in range(phase_count):
+            active_subgoals.append(active_subgoal)
             if protocol_version == OBSERVATION_PROTOCOL_V1:
                 observation_texts.append(
                     "Task context: "
@@ -468,27 +498,22 @@ def _rate_distortion_observation_texts(
                     # at step 0 (first objective) and on arrival at each
                     # objective (the following one). Corridor steps carry no
                     # plan text, so mid-leg steering must ride on the latent.
-                    just_arrived = (
-                        phase_index == 0
-                        and reached_objectives < len(ordered_objectives)
-                        and observation.current_location_id
-                        == ordered_objectives[reached_objectives]
-                    )
+                    just_arrived = step_arrived and phase_index == 0
                     if is_first_step:
                         plan_prefix = (
                             f"Next objective: {ordered_objectives[0]}. "
                         )
                     elif just_arrived:
-                        arrived = ordered_objectives[reached_objectives]
-                        reached_objectives += 1
                         if reached_objectives < len(ordered_objectives):
                             plan_prefix = (
-                                f"Reached {arrived}. Next objective: "
+                                f"Reached {arrived_objective}. "
+                                "Next objective: "
                                 f"{ordered_objectives[reached_objectives]}. "
                             )
                         else:
                             plan_prefix = (
-                                f"Reached {arrived}. Route complete. "
+                                f"Reached {arrived_objective}. "
+                                "Route complete. "
                             )
                     else:
                         plan_prefix = ""
@@ -524,7 +549,131 @@ def _rate_distortion_observation_texts(
             f"Rate-distortion route {case.case_id!r} must publish at least "
             "two phases."
         )
-    return (tuple(observation_texts), tuple(expert_targets))
+    return (
+        tuple(observation_texts),
+        tuple(expert_targets),
+        tuple(active_subgoals),
+    )
+
+
+def _stage2_episode_lines(
+    case: ETAProofCase,
+    *,
+    environment: MiniHierarchicalEnvironment,
+    protocol_version: str,
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str | None, ...]]:
+    """Per-step episode lines shared by Stage-2 documents and probe rows.
+
+    Returns ``(observation_lines, action_suffixes, active_subgoals)`` where
+    ``observation_lines[k] + action_suffixes[k]`` is the full step-k line of a
+    pretraining document, and the probe prefix at step k is all full lines
+    ``< k`` plus the bare observation line ``k``.
+    """
+
+    texts, targets, subgoals = _rate_distortion_observation_texts(
+        case, environment=environment, protocol_version=protocol_version
+    )
+    observation_lines = tuple(
+        f"Step {index + 1}: {text}" for index, text in enumerate(texts)
+    )
+    action_suffixes = tuple(
+        " Action: go to "
+        + target.action_id.removeprefix("move:")
+        + "."
+        for target in targets
+    )
+    return observation_lines, action_suffixes, subgoals
+
+
+ETA_STAGE2_DOCUMENT_HEADER = "Navigation episode."
+
+
+def eta_stage2_documents(
+    cases: tuple[ETAProofCase, ...],
+    *,
+    environment: MiniHierarchicalEnvironment,
+    protocol_version: str,
+) -> tuple[str, ...]:
+    """Render Stage-2 continued-pretraining documents (instrument v2).
+
+    Unlike the legacy ``render_eta_route_documents`` (whose ``Context:`` line
+    is the corpus generator's hash-fingerprint of the ordering -- unreadable
+    by construction, the exact v2-protocol defect the Gate-1 step-0 probe
+    convicted), these documents use the rate-distortion observation protocol
+    rendering itself as the single source of truth, so the base model is
+    pretrained on the same readable surface the probe and Stage 3 consume.
+    """
+
+    documents: list[str] = []
+    for case in cases:
+        observation_lines, action_suffixes, _ = _stage2_episode_lines(
+            case, environment=environment, protocol_version=protocol_version
+        )
+        lines = [ETA_STAGE2_DOCUMENT_HEADER]
+        lines.extend(
+            observation + action
+            for observation, action in zip(
+                observation_lines, action_suffixes, strict=True
+            )
+        )
+        lines.append("Episode complete.")
+        documents.append("\n".join(lines))
+    return tuple(documents)
+
+
+def eta_stage2_probe_rows(
+    cases: tuple[ETAProofCase, ...],
+    *,
+    environment: MiniHierarchicalEnvironment,
+    protocol_version: str,
+) -> tuple[tuple[ETAProbeRow, ...], tuple[str, ...]]:
+    """Build Stage-2 trajectory-prefix probe rows (instrument v2).
+
+    Each row's observation is the cumulative episode prefix through step k:
+    every earlier step line including its expert action, then the bare step-k
+    observation. This matches the ETA paper's appendix-B probe regime (decode
+    the active subgoal from the hidden state while the model processes the
+    trajectory) and, under ``OBSERVATION_PROTOCOL_V4``, makes the label a
+    deterministic function of the visible text (revealed at step 0 / the last
+    arrival), so heldout decodability is bounded by representation quality,
+    not by an unreadable plan carrier. The legacy single-step rows
+    (``eta_route_probe_rows``) had a heldout information ceiling of ~0.18
+    against the 0.25 gate bar -- see the 2026-08-03 instrument audit.
+    """
+
+    objective_ids = tuple(
+        location.location_id for location in environment.objective_locations()
+    )
+    label_index = {name: index for index, name in enumerate(objective_ids)}
+    rows: list[ETAProbeRow] = []
+    for case in cases:
+        observation_lines, action_suffixes, subgoals = _stage2_episode_lines(
+            case, environment=environment, protocol_version=protocol_version
+        )
+        full_lines = tuple(
+            observation + action
+            for observation, action in zip(
+                observation_lines, action_suffixes, strict=True
+            )
+        )
+        for step_index, subgoal in enumerate(subgoals):
+            if subgoal is None:
+                continue
+            prefix_lines = (
+                ETA_STAGE2_DOCUMENT_HEADER,
+                *full_lines[:step_index],
+                observation_lines[step_index],
+            )
+            rows.append(
+                ETAProbeRow(
+                    case_id=case.case_id,
+                    split=case.split,
+                    observation_text="\n".join(prefix_lines),
+                    subgoal_label=label_index[subgoal],
+                    step_index=step_index,
+                )
+            )
+    return tuple(rows), objective_ids
 
 
 def _build_traces(

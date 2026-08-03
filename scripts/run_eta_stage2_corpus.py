@@ -21,8 +21,25 @@ from volvence_zero.agent.eta_proof_benchmark import (
     generate_eta_proof_corpus,
     render_eta_route_documents,
 )
+from volvence_zero.agent.eta_rate_distortion_evidence import (
+    OBSERVATION_PROTOCOL_V3,
+    OBSERVATION_PROTOCOL_V4,
+    eta_stage2_documents,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Legacy renderer: the "Context:" line is the corpus generator's
+# hash-fingerprint of the ordering (unreadable by construction; the exact
+# defect the Gate-1 step-0 probe convicted in protocol v2). Kept as the
+# default for byte-identical reproduction of sealed runs; new preregistrations
+# should pin an observation protocol so the pretraining surface is readable.
+DOCUMENT_PROTOCOL_LEGACY = "legacy-fingerprint.v1"
+_DOCUMENT_PROTOCOLS = (
+    DOCUMENT_PROTOCOL_LEGACY,
+    OBSERVATION_PROTOCOL_V3,
+    OBSERVATION_PROTOCOL_V4,
+)
 
 
 def _sha256_text(text: str) -> str:
@@ -42,6 +59,17 @@ def main() -> None:
     parser.add_argument("--heldout-routes", type=int, default=2000)
     parser.add_argument("--train-lengths", type=int, nargs="+", default=(2, 3))
     parser.add_argument("--heldout-lengths", type=int, nargs="+", default=(3, 4))
+    parser.add_argument(
+        "--document-protocol",
+        choices=_DOCUMENT_PROTOCOLS,
+        default=DOCUMENT_PROTOCOL_LEGACY,
+        help=(
+            "Document rendering. The legacy renderer carries the plan only as "
+            "an unreadable hash-fingerprint context line; observation-protocol "
+            "renderers reuse the rate-distortion protocol surface (v4 = staged "
+            "revelation) so the plan is readable."
+        ),
+    )
     parser.add_argument(
         "--repeat",
         type=int,
@@ -71,15 +99,28 @@ def main() -> None:
         train_lengths=tuple(args.train_lengths),
         heldout_lengths=tuple(args.heldout_lengths),
     )
-    base_documents = render_eta_route_documents(
-        corpus.environment, corpus.train_cases
-    )
+    if args.document_protocol == DOCUMENT_PROTOCOL_LEGACY:
+        base_documents = render_eta_route_documents(
+            corpus.environment, corpus.train_cases
+        )
+        heldout_rendered = render_eta_route_documents(
+            corpus.environment, corpus.heldout_cases
+        )
+    else:
+        base_documents = eta_stage2_documents(
+            corpus.train_cases,
+            environment=corpus.environment,
+            protocol_version=args.document_protocol,
+        )
+        heldout_rendered = eta_stage2_documents(
+            corpus.heldout_cases,
+            environment=corpus.environment,
+            protocol_version=args.document_protocol,
+        )
     documents = tuple(base_documents) * args.repeat
 
     # Disjointness proof: no train-document text may describe a heldout route.
-    heldout_documents = set(
-        render_eta_route_documents(corpus.environment, corpus.heldout_cases)
-    )
+    heldout_documents = set(heldout_rendered)
     overlap = set(base_documents) & heldout_documents
     if overlap:
         raise RuntimeError(
@@ -100,9 +141,10 @@ def main() -> None:
     corpus_sha = _sha256_text("\n".join(documents))
 
     manifest = {
-        "schema_version": "eta-stage2-corpus.v1",
+        "schema_version": "eta-stage2-corpus.v2",
         "experiment_id": "eta-stage2-continued-pretrain-corpus",
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "document_protocol": args.document_protocol,
         "corpus_seed": args.corpus_seed,
         "objective_count": args.objective_count,
         "corridor_count": args.corridor_count,
