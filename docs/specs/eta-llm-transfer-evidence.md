@@ -1,6 +1,6 @@
 # ETA 迁移 LLM 四级阶梯证据 Spec
 
-> Status: active（Stage 1 Gate 1 = **PASS**（2026-08-03）。Stage 2：v1 仪器 FAIL 经审计**定罪仪器而非基底**（哈希指纹计划载体使 heldout 信息天花板 0.18 < 及格线 0.25）；v2 可读仪器重审（prereg `c0a54454…`）实测残差流**大幅承载** active subgoal（裸基座 0.901 / 续训 0.944，`2×chance` 与因果对照两条实质条件 PASS），但 `随前缀上升` 条件在分段揭示制度下 regime 错配（保持衰减 0.98→0.88，仍 7× chance），按预注册字面 v2 verdict = **FAIL** 封存。claim 实质读数支持"残差可承载"，正式判定待决策：是否注册修正第二条件的 v3 预注册。Stage 3–4 未解锁）
+> Status: active（Stage 1 Gate 1 = **PASS**（2026-08-03）。Stage 2 三轮判读全部封存：v1 FAIL 定罪仪器（哈希指纹计划载体，信息天花板 0.18 < 0.25）；v2 FAIL 定罪判据 regime 错配（实质两条件 PASS，0.944 / 因果 +4.3pp）；v3（新 seed 20260804 + retention 判据，prereg `2f3b3bf4…`）字面仍 **FAIL** 但败因**反转**——`2×chance`（0.967 = 7.7×）与 retention（late 0.918 / 衰减 0.077）双 PASS，败在因果对照：**未经任何续训的裸 Qwen 基底自己读出 0.977**，续训无超越余量。实质命题"0.5B 残差流可线性承载 active subgoal"被基底臂直接证实且跨 seed 复现（0.901 / 0.944 / 0.977 / 0.967）；败掉的是"续训必要性"这一对照设计前提。字面 verdict 按预注册封存。**2026-08-03 用户程序级裁定**：Gate-2 看门目的（进入 Stage 3 前确认残差可承载层级）已实质达成，Stage 3 解锁——在续训基底上重审 rate–distortion（预注册 `artifacts/eta_stage3_prereg_v2_20260803/`，权威扫已启动））
 > Last updated: 2026-08-03
 > 对应需求: R2, R3, R4, R8, R10, R12, R15
 > Owner 能力域: `vz-temporal`（元控制器 / rate–distortion）、`vz-substrate`（续训 merge / 分类 probe）、evidence lane（本 spec）
@@ -48,7 +48,7 @@ rate–distortion（Gate 3），对话迁移仅在前三级全过后预注册（
 | Claim ID | 主张 | 所需门 |
 |---|---|---|
 | `claim_eta_rate_axis_instrument_valid` | 在 seeded 富语料上，frozen 臂 rate 轴对 alpha 做信息–精度交易 | Gate 1 → **PASS**（2026-08-03） |
-| `claim_llm_residual_carries_subgoal_hierarchy` | 领域续训后的冻结 LLM 残差流可线性解码 active subgoal，且优于裸基座 | Gate 2：v1 FAIL（仪器定罪，见审计）；v2 实质两条件 PASS（0.944 / 因果 +4.3pp）但按字面 FAIL（第二条件 regime 错配），待 v3 决策 |
+| `claim_llm_residual_carries_subgoal_hierarchy` | 领域续训后的冻结 LLM 残差流可线性解码 active subgoal，且优于裸基座 | Gate 2：v1 FAIL（仪器定罪）；v2 FAIL（判据 regime 错配）；v3 FAIL（因果对照反向失效：裸基底 0.977 已在天花板，无超越余量）。**前半主张（残差可承载）被基底臂跨 seed 证实**；后半（续训必要）被证伪。阶梯处置待决策 |
 | `claim_eta_rate_distortion_on_domain_pretrained_llm` | 补课冻结 LLM + 元控制器出现论文式近垂直 gap | Gate 3 |
 | `claim_eta_dialogue_transfer` | （contingent）对话域同样可迁移 | Stage 4；仅 1–3 全过 |
 
@@ -247,7 +247,9 @@ n_input 16）验证信息时刻表：step-0 target-1 = `1.000`、target-2 =
 **通过门槛**：
 
 - 补课 heldout probe 准确率 ≥ 2× 随机水平
-- 准确率随观测前缀增长而上升
+- 第二条件按仪器版本分化：v1/v2 为"准确率随观测前缀增长而上升"
+  （推断累积 regime）；v3 起为 `retention.v3`（分段揭示 regime：late 桶
+  ≥ 2×chance 且 early−late ≤ 0.15）
 - 显著高于未补课原始 Qwen（因果对照）
 
 **FAIL 处置**：LLM 迁移路线整体 kill，出报告收官；不进入 Stage 3。
@@ -309,11 +311,62 @@ initial_loss 0.967 → final_loss 0.020，2000 步 / 35436 token）。
   选中层 4/6 而非 heldout 更强的后段层（0.976/1.00）；这是预注册规则的
   诚实代价，不回溯更改。
 
-**处置**：v2 verdict 按 `prohibited_after_execution`（执行后禁改条件）封存
+**v2 处置**：v2 verdict 按 `prohibited_after_execution`（执行后禁改条件）封存
 为 FAIL；实质读数（0.944 / 0.901 / 因果 +4.3pp）作为"残差可承载"的强方向性
-证据登记。是否注册 **v3 预注册**（把第二条件修为分段揭示制度下的保持类判据，
-如 late 桶 ≥ 2×chance 且 early−late ≤ 阈值，或按"距上次揭示的 token 距离"
-的保持曲线）由用户决策；Stage 3 在正式 Gate-2 PASS 前保持锁定。
+证据登记。经用户决策注册 v3 预注册，把第二条件修为分段揭示制度下的保持类判据。
+
+**v3 重审（2026-08-03，用户授权）**：预注册
+`artifacts/eta_stage2_gate2_prereg_v3_20260803/`（sha256 `2f3b3bf4…`，8 个
+owner 源文件 SHA 锁定）。仅改动第二条件：`rises-with-prefix.v1` →
+`retention.v3`（late 桶 ≥ 2×chance **且** early−late ≤ 0.15；由
+`assess_gate2 --gate-conditions` 承载，三分支单测覆盖）。**forking-paths
+防护**：因判据修订动机产生于观察 v2 读数之后，v3 终审使用**全新 corpus
+seed 20260804**（新环境图 + 新路线切分，判据在任何新 seed 模型读数存在前
+冻结）；v1/v2 封存 artifact 不做再判读。新 seed 天花板复验：heldout
+文本→标签 439/439 组全确定、664/664 行显式揭示、ceiling 1.0；probe 文本
+最长 507 token（< 640）、文档最长 444（< 512）。语料
+`artifacts/eta_stage2_corpus_v3_20260803/`（120 文档 / 重叠 0 / content
+sha256 `d78281b5…`）；续训 merged
+`artifacts/eta_stage2_merged_v3_20260803/`（权重指纹 `0e387aba…`，
+initial_loss 1.034 → final_loss 0.023，2000 步）。
+
+**v3 仪器读数（2026-08-03，`artifacts/eta_stage2_probe_v3_20260803/`，
+封存）**：verdict 按预注册字面 = **FAIL**，但败因与 v1/v2 完全不同且
+**方向反转**：
+
+- `2×chance（≥0.25）`：**PASS**——续训臂（train-split 选层 12）heldout acc
+  `0.967`（= 7.7× chance）。
+- `retention.v3`：**PASS**——early 0.995 / late 0.918，衰减 0.077 ≤ 0.15，
+  late 桶为 chance 的 7.3 倍。修正后的第二条件在新 seed 上一次通过。
+- `续训 > 基线`：**FAIL**——**未经任何领域续训的裸 Qwen 基底（选层 21）
+  自己读出 `0.977`**，高于续训臂 0.967。因果对照失效的方向不是"续训没
+  学到"，而是**基底已在天花板、无超越余量**（v2 seed 上 base 0.901 尚有
+  余量故该条通过；新 seed 图结构更利于基底）。
+- 诊断：`beats_base` 的设计前提是"裸基底弱、续训补齐领域前提"。v4 可读
+  协议下计划就在文本里，任何有能力的 LM 都会把它线性编码进残差——基底
+  臂 0.977 恰恰是**实质命题"残差可承载子目标层级"的最强证据**（无需任何
+  领域适配）。败掉的是"续训必要性"这一对照假设，不是基底命题。
+
+**Gate-2 三轮总结**：实质命题"0.5B 残差流可线性承载 active subgoal"在
+两个独立 seed、四个臂上复现（0.901 / 0.944 / 0.977 / 0.967，chance
+0.125）；三次字面 FAIL 分别定罪仪器（v1，计划不可读）、判据（v2，regime
+错配）、对照设计（v3，基底天花板）。v3 verdict 按
+`prohibited_after_execution` 封存，不注册 v4 重判。**阶梯层面处置待用户
+决策**：预注册决策规则的字面含义是 kill LLM 迁移路线；但该规则的论证
+前提（"可读仪器 + 匹配判据下的 FAIL 定罪基底"）被 v3 的失败方向证伪——
+基底不是装不下，是已经装着。可选处置：(a) 按字面收官出报告；(b) 在
+程序层面裁定 Gate-2 的看门目的（"进入 Stage 3 前确认残差可承载层级"）
+已实质达成，Stage 3 直接在裸 Qwen（或续训基底）上重审 rate–distortion
+——那才是 ETA 机制本身的终审。
+
+**2026-08-03 用户程序级裁定：取 (b)**。裁定依据：Gate-2 的看门功能是防止
+"在不满足论文前提（残差携带子目标信念，论文附录 B）的基底上跑 Stage 3
+然后把 FAIL 错误归因于 ETA 机制"；该前提已被两 seed 四臂 0.90+ 的读数
+确立，且裸基底与续训基底都满足。三个字面 FAIL verdict 全部原样封存、
+不改判；解锁的是阶梯推进权而非任何 claim 的 PASS 状态。Stage 3 基底取
+**Stage-2 v2 merged**（seed 20260802 语料续训，与 Stage-3 评估语料同
+seed，保持"补课基底"的原阶梯设计；裸基底对照留给 Stage-3 FAIL 时的
+敏感性分析）。
 
 ### Stage / Gate 3 — 补课基底上重审 rate–distortion
 
@@ -334,8 +387,16 @@ initial_loss 0.967 → final_loss 0.020，2000 步 / 35436 token）。
 **FAIL** → 永久摘除 ETA 主张；处置包：删主张、保留记忆/连续性、
 `vz-temporal` → legacy（独立收敛包，不在本程序内自动执行）。
 
-**预注册**：`artifacts/eta_stage3_prereg_20260802/`  
-**当前状态**：未开跑。
+**预注册**：`artifacts/eta_stage3_prereg_v2_20260803/`（取代 08-02 草稿：
+草稿早于 v4 协议 / switch-gated / hard-st / 300 updates 的 Gate-1 修尺，
+参数已过时）。v2 预注册镜像 Gate-1 权威扫全部参数（v4 + smooth +
+switch-gated + hard-st，6 alpha × 3 seed，corpus seed 20260802 / 64+24
+routes），仅两处不同：`--model-source` 指向 Stage-2 v2 merged 基底
+（权重指纹 `063077b7…`），`--arms frozen joint`（joint 为 gap 判据的
+强制有效性对照，36 cells）。
+
+**当前状态**：权威扫已启动（2026-08-03），产物
+`artifacts/eta_stage3_rate_distortion_20260803/`。
 
 ### Stage 4 — 对话迁移（contingent，仅设计）
 
@@ -468,3 +529,29 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
   读数登记为"残差可承载"的强方向性证据。待决策：是否注册修正第二条件为
   保持类判据的 v3 预注册；Stage 3 在正式 PASS 前保持锁定。另：train-split
   选层在 val 饱和时平局取低层（4/6），为预注册规则的诚实代价。
+- 2026-08-03: **v3 重审完成（用户授权）**。判据修订：`assess_gate2` 新增
+  `retention.v3` 第二条件（late ≥ 2×chance 且 early−late ≤ 0.15，CLI
+  `--gate-conditions`，三分支单测）。forking-paths 防护：v3 预注册
+  （`artifacts/eta_stage2_gate2_prereg_v3_20260803/`，sha256 `2f3b3bf4…`）
+  改用全新 corpus seed 20260804 并在任何新 seed 读数存在前冻结，透明登记
+  修订动机与时序；v1/v2 封存件不再判读。新 seed 天花板 1.0（439/439 组
+  确定、664/664 行揭示）。全链：语料 `d78281b5…` → 续训 merged
+  `0e387aba…`（1.034 → 0.023）→ probe
+  `artifacts/eta_stage2_probe_v3_20260803/`。读数：`2×chance` PASS
+  （0.967 = 7.7×，选层 12）、`retention.v3` PASS（0.995/0.918，衰减
+  0.077）、`续训>基线` **FAIL——裸 Qwen 基底（选层 21）0.977 反超续训臂
+  0.967**。verdict 按字面 = FAIL 封存，但败因方向反转：基底不是装不下
+  子目标层级，而是**无需任何领域续训就已在天花板携带**（v4 可读协议下
+  计划在文本中，能干的 LM 自然线性编码之）。实质命题跨两 seed 四臂复现
+  （0.901/0.944/0.977/0.967）；三轮字面 FAIL 分别定罪仪器、判据、对照
+  设计。不注册 v4 重判；阶梯处置（按字面 kill 迁移路线，或裁定 Gate-2
+  看门目的已实质达成、Stage 3 以裸/续训基底解锁）升级为程序级用户决策。
+- 2026-08-03: **用户程序级裁定 Stage 3 解锁**（取处置 (b)）：Gate-2 看门
+  前提（残差携带子目标信念）已被两 seed 四臂 0.90+ 确立；三个字面 FAIL
+  verdict 原样封存不改判，解锁的是阶梯推进权。冻结 Stage-3 v2 预注册
+  `artifacts/eta_stage3_prereg_v2_20260803/`（取代 08-02 过时草稿）：
+  Gate-1 权威扫同款参数（v4 + smooth + switch-gated + hard-st，300
+  updates，corpus seed 20260802），基底换 Stage-2 v2 merged
+  （`063077b7…`），双臂 frozen + joint 共 36 cells。权威扫
+  `artifacts/eta_stage3_rate_distortion_20260803/` 已启动；判读以其
+  verdict 为准（retain-eta-on-llm / kill 升级永久摘除）。

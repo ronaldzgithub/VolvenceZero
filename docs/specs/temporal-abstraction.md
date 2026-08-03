@@ -1,7 +1,7 @@
 # 时间抽象与内部控制 Spec
 
 > Status: draft
-> Last updated: 2026-08-02
+> Last updated: 2026-08-03
 > 对应需求: R3, R4
 
 ## 要解决的问题
@@ -30,8 +30,17 @@
   0.25，构造性不可过）；v2 可读仪器（v4 staged-plan 语料 + 轨迹前缀 probe，
   ceiling 1.0 验证）实测**残差流大幅承载 active subgoal**（裸 Qwen 0.901 /
   续训 0.944，`2×chance` 与因果对照 PASS），仅 `随前缀上升` 判据在显式揭示
-  制度下 regime 错配（保持衰减 0.979→0.879）→ 按字面 v2 FAIL 封存，待 v3
-  预注册决策。整体 `kill-eta` 持续有效，Stage 3 锁定。见
+  制度下 regime 错配（保持衰减 0.979→0.879）→ 按字面 v2 FAIL 封存。
+  **2026-08-03 三审**：v3（用户授权，retention 判据 + 全新 seed 20260804 挡
+  forking paths）修正后两条件双 PASS（0.967 = 7.7×；late 0.918 / 衰减
+  0.077），但因果对照**反向失效——裸 Qwen 基底 0.977 已在天花板反超续训臂
+  0.967**，字面仍 FAIL 封存。三轮合并判读：实质命题"0.5B 残差可线性承载
+  active subgoal"跨两 seed 四臂复现（0.901/0.944/0.977/0.967）；被证伪的
+  是"续训必要性"对照前提。**2026-08-03 裁定**：用户程序级裁定 Gate-2
+  看门目的已实质达成，Stage 3 解锁（三 FAIL 封存不改判）；权威扫
+  `artifacts/eta_stage3_rate_distortion_20260803/` 进行中（Stage-2 v2
+  merged 基底 + frozen/joint 双臂）。整体 `kill-eta` 在 Gate-3 verdict
+  前持续有效。见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)
 - 内部控制空间维度低于原始 token 动作空间
 
@@ -429,6 +438,27 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   承载 active subgoal**；`2×chance` 与因果对照 PASS，仅 `随前缀上升` 在显式
   揭示制度下 regime 错配（0.979→0.879 保持衰减）→ 按字面 v2 FAIL 封存，
   待 v3 预注册决策。`kill-eta` 持续有效，Stage 3 锁定。
+- 2026-08-03: **Stage-2 v3 重审（用户授权）**。`assess_gate2` 新增
+  `retention.v3` 第二条件（late ≥ 2×chance 且 early−late ≤ 0.15，CLI
+  `--gate-conditions`，三分支单测）；v3 预注册
+  `artifacts/eta_stage2_gate2_prereg_v3_20260803/`（sha256 `2f3b3bf4…`）用
+  **全新 corpus seed 20260804** 挡 forking paths（判据在任何新 seed 读数
+  存在前冻结，v1/v2 封存件不再判读），新 seed 天花板 1.0。全链重跑
+  （语料 `d78281b5…` → merged `0e387aba…`，1.034→0.023 → probe
+  `artifacts/eta_stage2_probe_v3_20260803/`）：`2×chance` PASS（0.967 =
+  7.7×，选层 12）、`retention.v3` PASS（0.995/0.918，衰减 0.077）、
+  `续训>基线` FAIL——裸 Qwen 基底（选层 21）`0.977` 反超续训臂 `0.967`，
+  **基底无需领域续训已在天花板携带子目标**（v4 可读协议下计划在文本中，
+  基底自然线性编码）。字面 verdict = FAIL 封存；三轮 FAIL 分别定罪仪器 /
+  判据 / 对照设计，实质命题跨两 seed 四臂证实。不注册 v4 重判；阶梯处置
+  升级为程序级用户决策，Stage 3 保持锁定。
+- 2026-08-03: **Stage 3 解锁并启动**（用户程序级裁定：Gate-2 看门前提已
+  实质确立，三个字面 FAIL 封存不改判，解锁的是阶梯推进权）。冻结 Stage-3
+  v2 预注册 `artifacts/eta_stage3_prereg_v2_20260803/`（Gate-1 权威扫
+  同款参数：v4 + smooth + switch-gated + hard-st + 300 updates，corpus
+  seed 20260802；基底 Stage-2 v2 merged `063077b7…`；frozen + joint
+  双臂 36 cells）；权威扫 `artifacts/eta_stage3_rate_distortion_20260803/`
+  启动。Gate 3 为 ETA 机制终审：retain-eta-on-llm 或 kill 升级永久摘除。
 - 2026-08-02: 启动 **ETA 迁移 LLM 四级阶梯**，把论文成立的前提逐级搬到冻结 LLM 上；
   `kill-eta` 判定在 Stage 3 通过前保持有效。**证据 SSOT**：
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)（已挂

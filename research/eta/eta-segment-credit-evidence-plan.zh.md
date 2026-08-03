@@ -566,6 +566,41 @@ verdict = **FAIL** 封存；实质读数登记为"残差可承载"的强方向�
 v3 预注册把第二条件修为保持类判据（如 late ≥ 2×chance 且 early−late ≤ 阈值）
 后终审 Gate 2；Stage 3 在正式 PASS 前锁定。
 
+**2026-08-03 补记：Stage-2 v3 重审（用户授权），败因反转**。第二条件修为
+`retention.v3`（late ≥ 2×chance 且 early−late ≤ 0.15；`assess_gate2
+--gate-conditions`，三分支单测）。因判据修订动机产生于观察 v2 读数之后，
+v3 预注册 `artifacts/eta_stage2_gate2_prereg_v3_20260803/`（sha256
+`2f3b3bf4…`）用**全新 corpus seed 20260804** 挡 forking paths：判据在任何
+新 seed 读数存在前冻结、修订时序透明入册、v1/v2 封存件不再判读。新 seed
+天花板复验 1.0（439/439 组确定、664/664 行揭示）。全链重跑：语料
+`artifacts/eta_stage2_corpus_v3_20260803/`（content sha `d78281b5…`）→
+merged `artifacts/eta_stage2_merged_v3_20260803/`（指纹 `0e387aba…`，
+1.034→0.023）→ probe `artifacts/eta_stage2_probe_v3_20260803/`。读数：
+`2×chance` **PASS**（0.967 = 7.7×，train-split 选层 12）、`retention.v3`
+**PASS**（early 0.995 / late 0.918，衰减 0.077 ≤ 0.15）、`续训>基线`
+**FAIL——裸 Qwen 基底（选层 21）`0.977` 反超续训臂 `0.967`**。字面
+verdict = FAIL 封存，但败因方向与 v1/v2 完全不同：基底不是装不下子目标
+层级，而是**无需任何领域续训已在天花板携带**（v4 可读协议下计划就在文本
+里，能干的 LM 自然线性编码）。三轮字面 FAIL 分别定罪仪器（v1）、判据
+（v2）、对照设计（v3，`beats_base` 预设基底弱）；实质命题"0.5B 残差可
+线性承载 active subgoal"跨两 seed 四臂复现（0.901/0.944/0.977/0.967）。
+不注册 v4 重判。阶梯处置升级为程序级用户决策：按字面收官 kill 迁移路线，
+或裁定 Gate-2 看门目的已实质达成、Stage 3 以裸/续训基底解锁 rate-
+distortion 终审；决策前 Stage 3 保持锁定。
+
+**2026-08-03 补记：用户程序级裁定 Stage 3 解锁并启动**。裁定取处置 (b)：
+Gate-2 看门前提（残差携带子目标信念，论文附录 B 的自检）已被两 seed 四臂
+0.90+ 读数确立；三个字面 FAIL verdict 原样封存不改判，解锁的是阶梯推进权
+而非任何 claim 的 PASS。冻结 Stage-3 v2 预注册
+`artifacts/eta_stage3_prereg_v2_20260803/`（取代 08-02 过时草稿）：Gate-1
+权威扫同款参数（v4 + smooth + switch-gated + hard-st + 300 updates，
+corpus seed 20260802 / 64+24 routes），基底换 Stage-2 v2 merged
+（`063077b7…`，与评估语料同 seed 续训），`--arms frozen joint` 双臂
+36 cells（joint 为 gap 判据强制有效性对照）。权威扫
+`artifacts/eta_stage3_rate_distortion_20260803/` 启动；Gate 3 是 ETA 机制
+终审——frozen 臂近垂直 gap + joint 无 gap + gap 内 boundary F1 更高 →
+撤销 `kill-eta` 改判 retain-eta-on-llm；frozen 无 gap → 主张永久摘除。
+
 **Stage 1（数据机制假设）**：环境 owner 新增 seeded 程序化生成器
 （`generate_hierarchical_environment` + hub relay 保证任意子目标序可达 +
 `stitch_waypoints` + `generate_hierarchical_routes` 按 ordering 哈希分区

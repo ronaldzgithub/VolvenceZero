@@ -445,8 +445,8 @@ Personal（晋升路径）**全链 pass**：P3 `retain-strict`（12/12 bge-m3）
 | Stage | Gate | 问题 | 关键脚本 | 过 → / 不过 → |
 |---|---|---|---|---|
 | 1 | Gate 1 | 种子语料上 rate 仪器有效吗？ | `run_eta_rate_distortion.py`(frozen)、`run_eta_rate_axis_pilot.py`、`screen_eta_rate_axis_surrogate.py` | **PASS**（2026-08-03）→ 进 Stage 2 |
-| 2 | Gate 2 | 域续训 LLM residual 是否载子目标？ | `run_eta_stage2_corpus.py → _pretrain.py → _probe.py`（v2 仪器：`--document-protocol` / `--probe-protocol` v4、`--layer-selection train-split`） | v1 FAIL＝仪器定罪；v2 实质两条件 PASS（0.944）但按字面 FAIL（第二条件 regime 错配）→ 待 v3 决策 |
-| 3 | Gate 3 | 补课冻结 LLM 上出现率失真 gap 吗？ | `run_eta_rate_distortion.py --model-source <merged>` | **锁定**（Gate 2 尚无正式 PASS） |
+| 2 | Gate 2 | 域续训 LLM residual 是否载子目标？ | `run_eta_stage2_corpus.py → _pretrain.py → _probe.py`（v2 仪器 + `--gate-conditions retention.v3`） | 三轮字面 FAIL 封存：v1 定罪仪器、v2 定罪判据、v3 定罪对照设计（裸基底 0.977 已在天花板）；**"残差可承载"跨两 seed 四臂证实**→ 阶梯处置待用户决策 |
+| 3 | Gate 3 | 补课冻结 LLM 上出现率失真 gap 吗？ | `run_eta_rate_distortion.py --model-source artifacts/eta_stage2_merged_v2_20260803 --arms frozen joint` | **权威扫进行中**（2026-08-03 用户裁定解锁；prereg `eta_stage3_prereg_v2_20260803`） |
 | 4 | 待定 | 对话迁移（MSC） | 仅骨架 `research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md` | — |
 
 ### 7.2 怎么运行（Stage 1）
@@ -484,15 +484,16 @@ Personal（晋升路径）**全链 pass**：P3 `retain-strict`（12/12 bge-m3）
 | **`artifacts/eta_stage1_gate1_v4_hardst_auth_20260803`** | **Gate 1 = PASS** | spearman −1.000、rate_span 1.933、hard switch 0.12–0.96、heldout boundary F1 全 alpha 0.240–0.671；`gate1_assessment.{json,md}` 已封存 |
 | `artifacts/eta_stage2_probe_20260803` | Gate 2 v1 仪器 FAIL（**经审计定罪仪器**） | 续训臂末层 0.131、裸 Qwen 0.166（=majority）；审计：计划载体为哈希指纹，heldout 信息天花板 0.1805 < 及格线 0.25，**构造性不可过**，实测值恰在天花板附近 |
 | **`artifacts/eta_stage2_probe_v2_20260803`** | Gate 2 v2 仪器：实质两条件 PASS，按字面 **FAIL** | 裸 Qwen `0.901`（全层 0.795–0.976）、续训 `0.944`（后段层 0.99–1.00）；`2×chance` PASS（7.5×）、`续训>基线` PASS（+4.3pp）、`随前缀上升` FAIL（early 0.979/late 0.879，保持衰减非推断累积，判据 regime 错配） |
+| **`artifacts/eta_stage2_probe_v3_20260803`** | Gate 2 v3（新 seed 20260804 + retention 判据）：字面 **FAIL**，败因反转 | `2×chance` PASS（0.967 = 7.7×）、`retention.v3` PASS（0.995/0.918，衰减 0.077 ≤ 0.15）、`续训>基线` FAIL——**裸 Qwen 基底 0.977 反超续训臂 0.967**（基底无需续训已在天花板携带子目标） |
 
 **Gate 1 = PASS（2026-08-03）**：修尺子四层根因——smooth posterior + v4 分段揭示协议（step-0 只给第一目标、各 arrival 揭示下一个）+ switch-gated KL（keep 免费/switch 付费）+ hard-st 离散门（堵住连续门每步微幅走私）+ 300 updates。frozen 臂另检出方向性近垂直 gap（drop share 0.744 / rate share 0.196），但缺 joint 臂且 gap 区内 F1（0.394）未高于区外（0.537），属 Gate 3 范畴不予主张。
 
-**Gate 2（2026-08-03，两代仪器）**：v1 全链 FAIL（0.131/0.166）后仪器审计发现计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的协议 v2 缺陷同类）：非指纹信息的 heldout 贝叶斯天花板仅 0.1805，**v1 的 2×chance 条件构造性不可过**，FAIL 定罪仪器而非基底。仪器 v2（v4 staged-plan 渲染语料 + 累积轨迹前缀 probe + train-split 选层，prereg `artifacts/eta_stage2_gate2_prereg_v2_20260803/` sha256 `c0a54454…` 含 ceiling 1.0 验证）重跑全链（语料 `1caeac3a…` → merged `063077b7…`，0.967→0.020 → probe）：**残差流大幅承载 active subgoal**（0.901/0.944），因果对照成立；仅 `随前缀上升` 败（显式揭示制度下无推断累积、只有保持衰减，late 桶仍 7× chance）。按预注册字面 v2 verdict = FAIL 封存（执行后禁改条件）。整体 `kill-eta`（2026-08-01）持续有效。
+**Gate 2（2026-08-03，三代仪器/判据）**：v1 全链 FAIL（0.131/0.166）后仪器审计发现计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的协议 v2 缺陷同类）：非指纹信息的 heldout 贝叶斯天花板仅 0.1805，**v1 的 2×chance 条件构造性不可过**，FAIL 定罪仪器而非基底。仪器 v2（v4 staged-plan 渲染语料 + 累积轨迹前缀 probe + train-split 选层，prereg `c0a54454…` 含 ceiling 1.0 验证）重跑全链：**残差流大幅承载 active subgoal**（0.901/0.944），因果对照成立；仅 `随前缀上升` 败（regime 错配），字面 FAIL 封存。v3（用户授权）修第二条件为 `retention.v3` 并**换全新 seed 20260804 挡 forking paths**（prereg `2f3b3bf4…` 在新读数前冻结）：修正后的两条件双 PASS（0.967 = 7.7×；late 0.918 / 衰减 0.077），但因果对照反向失效——**裸 Qwen 基底 0.977 已在天花板，续训无超越余量**，字面仍 FAIL 封存。三轮合并判读：实质命题"0.5B 残差可线性承载子目标层级"跨两 seed 四臂复现（0.901/0.944/0.977/0.967）；被证伪的是"续训必要性"。整体 `kill-eta`（2026-08-01）持续有效。
 
 ### 7.5 下一步
 
-1. **Gate 2 待决策**：是否注册 v3 预注册，把第二条件修为分段揭示制度下的保持类判据（如 late 桶 ≥ 2×chance 且 early−late ≤ 阈值）后终审；v2 实质读数（0.944/0.901/+4.3pp）已登记为"残差可承载"的强方向性证据。
-2. Stage 3 在 Gate 2 正式 PASS 前锁定；Stage 4 仅骨架。
+1. **Stage 3 权威扫进行中**（2026-08-03 用户程序级裁定取处置 (b) 解锁；三个 Gate-2 字面 FAIL 封存不改判）：prereg `artifacts/eta_stage3_prereg_v2_20260803/`，Gate-1 同款参数 + Stage-2 v2 merged 基底 + frozen/joint 双臂 36 cells，产物 `artifacts/eta_stage3_rate_distortion_20260803/`。判读规则见 7.3 Gate 3：`retain-eta` → 撤销 `kill-eta`；frozen 无 gap → 永久摘除。
+2. Stage 4 仅骨架，待 Gate 3 verdict。
 3. Gate 1 权威扫仍作机制回归基线：相关 owner / 算法变量 / 证据契约改变时按预注册重跑，普通重构不触发重复昂贵 evidence run。
 
 ---
