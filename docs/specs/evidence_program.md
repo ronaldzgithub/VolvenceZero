@@ -1208,12 +1208,12 @@ Gate 4 ecology source=`not-admitted`，P1/P2 不执行。该 kill 是冻结计�
 
 | Claim | Gate | 当前状态 |
 |---|---|---|
-| `claim_eta_rate_axis_instrument_valid` | Gate 1：spearman(α,rate)≤−0.8 且 rate_span≥0.30 | 缩减权威扫 **FAIL**（−0.657 / 0.585）；修方差参数化后重跑，不开 Stage 2 |
-| `claim_llm_residual_carries_subgoal_hierarchy` | Gate 2：补课 probe ≥2× 随机 + 前缀单调 + 优于裸 Qwen | 机器就绪；Gate 1 未过禁止开跑 |
-| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap | 未开跑；通过前 `kill-eta` 保持有效 |
+| `claim_eta_rate_axis_instrument_valid` | Gate 1：spearman(α,rate)≤−0.8 且 rate_span≥0.30 + switching 存活 | **PASS**（2026-08-03，v4+smooth+switch-gated+hard-st 权威扫 `artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/`）：spearman −1.000 / span 1.933 / heldout boundary F1 全 alpha 0.240–0.671 |
+| `claim_llm_residual_carries_subgoal_hierarchy` | Gate 2：补课 probe ≥2× 随机 + 前缀单调 + 优于裸 Qwen | Gate 1 已过，Stage 2 解锁；开跑前须核对 Stage 2 预注册与源码 SHA 漂移并按协议重冻结 |
+| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap | 未开跑；通过前 `kill-eta` 保持有效（Gate 1 权威扫检出方向性 gap，但缺 joint 臂对照且 gap 区内 F1 未高于区外，不构成 Gate 3 证据） |
 | `claim_eta_dialogue_transfer` | Stage 4 contingent | 仅骨架，前三级全过才预注册执行 |
 
-不变量：Gate 1 FAIL ≠ 杀主张；Gate 2 FAIL = 杀 LLM 迁移；Gate 3 FAIL = 永久摘除 ETA。产物归 evidence lane，不回灌学习。
+不变量：Gate 1 FAIL ≠ 杀主张（现已 PASS）；Gate 2 FAIL = 杀 LLM 迁移；Gate 3 FAIL = 永久摘除 ETA。产物归 evidence lane，不回灌学习。
 
 ### Semantic grounding claims（设计冻结；详见 [`semantic-grounding-evidence.md`](./semantic-grounding-evidence.md)）
 
@@ -1886,6 +1886,15 @@ substrate weights；删除隔离 evidence directory 即可回滚本 lane。
 
 ## 变更日志补充（longitudinal + human anchor）
 
+- 2026-08-03: ETA-on-LLM 阶梯 **Gate 1 = PASS**（详见
+  [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）。修尺子分四层根因：
+  smooth posterior（rate 轴数值稳定）、v4 分段揭示协议（信息中途到达，切换才
+  有 distortion 收益）、switch-gated KL（keep 免费 / switch 付费）、hard-st
+  离散门（堵住连续门每步微幅走私新信息的漏洞）+ 300 updates 预算。权威扫
+  `artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/`（18 cells，预注册
+  sha256 `b0d18f60…`）：spearman −1.000、rate_span 1.933（约 10× 基线）、
+  heldout boundary F1 全 alpha > 0（0.240–0.671，首个 switching 存活的权威扫）。
+  Stage 2 解锁；`kill-eta` 对整体主张仍有效，须待 Gate 3。
 - 2026-08-02: ETA 迁移 LLM 四级阶梯证据 SSOT 入册。新增
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)，把 Cursor 计划 /
   research 日志 / temporal changelog 中分散的 Gate 1–3 + contingent Stage 4

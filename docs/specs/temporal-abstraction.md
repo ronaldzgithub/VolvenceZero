@@ -20,7 +20,13 @@
   （`working_tree_dirty=true`）、与七日矩阵并行占用同一 MPS、无逐 cell checkpoint，
   也未 attest 算子级 CPU fallback 已禁用。因此其状态为 mechanism-grade
   `kill-eta (not preregistered)`：**足以阻止把该前提当作已确立的依据引用，
-  不足以据此摘除 ETA 主张或退役 `_step_impl_legacy`**；两者需等预注册重跑
+  不足以据此摘除 ETA 主张或退役 `_step_impl_legacy`**；两者需等预注册重跑。
+  **2026-08-03 更新**：预注册重跑后 **Gate 1 已 PASS**——修好尺子后（smooth
+  posterior + v4 分段揭示协议 + switch-gated KL + hard-st 离散门 + 300 updates），
+  冻结臂 rate 轴 spearman −1.000 / span 1.933，且 never-switch 崩塌解除
+  （heldout boundary F1 全 alpha 0.240–0.671）。仪器有效性已确立，但整体
+  `kill-eta` 仍须待 Gate 3（补课冻结基底上的双臂近垂直 gap）终审。见
+  [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)
 - 内部控制空间维度低于原始 token 动作空间
 
 ## 工程挑战
@@ -376,6 +382,18 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   (f) 补 31 项 rate-distortion 测试与 20 项 `TransformersSteeredActionScorer`
   测试（此前两者合计 1237 行零测试），覆盖梯度只到控制 delta 不到冻结基底、
   norm cap、joint 臂 pristine 恢复、gap 检测三条拒绝路径与全部 verdict 分支。
+- 2026-08-03: **ETA-on-LLM Gate 1 = PASS**。四层根因逐一修复后重跑权威扫
+  （`artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/`，预注册
+  sha256 `b0d18f60…`，18 cells）：(a) `smooth` posterior 稳定 rate 轴数值；
+  (b) 观测协议 `partially-observable-staged-plan.v4` 把计划信息分段揭示
+  （step-0 只给第一目标，各 arrival 揭示下一个），使切换获得真实 distortion
+  收益；(c) `rate_gating="switch-gated"` 让 KL 只在切换时计费；(d)
+  `StoreSSLTrainingSession.steered_gate_mode="hard-st"` 用离散 straight-through
+  门堵住连续门每步微幅走私新信息的漏洞。读数：spearman −1.000、span 1.933、
+  hard switch 0.12–0.96、heldout boundary F1 全 alpha 0.240–0.671（首个
+  switching 存活的权威扫）。frozen 臂另检出方向性近垂直 gap，但缺 joint 臂
+  且 gap 区内 F1 未高于区外，属 Gate 3 范畴，不从此 artifact 主张。Stage 2
+  解锁；整体 `kill-eta` 仍待 Gate 3。
 - 2026-08-02: 启动 **ETA 迁移 LLM 四级阶梯**，把论文成立的前提逐级搬到冻结 LLM 上；
   `kill-eta` 判定在 Stage 3 通过前保持有效。**证据 SSOT**：
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)（已挂

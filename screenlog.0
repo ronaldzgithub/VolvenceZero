@@ -1,0 +1,46 @@
+Loading weights:   0%|                                 | 0/338 [00:00<?, ?it/s]Loading weights: 100%|████████████████████| 338/338 [00:00<00:00, 26950.97it/s]
+[script] F1-seven-day-warmth-researcher:seed-1501
+[script-complete] F1-seven-day-warmth-researcher:seed-1501
+[script] F2-seven-day-repair-researcher:seed-1501
+[script-complete] F2-seven-day-repair-researcher:seed-1501
+[script] F1-seven-day-warmth-nurse:seed-1501
+[script-complete] F1-seven-day-warmth-nurse:seed-1501
+[script] F2-seven-day-repair-nurse:seed-1501
+[script-complete] F2-seven-day-repair-nurse:seed-1501
+[script] F1-seven-day-warmth-designer:seed-1501
+[script-complete] F1-seven-day-warmth-designer:seed-1501
+[script] F2-seven-day-repair-designer:seed-1501
+[script-complete] F2-seven-day-repair-designer:seed-1501
+[run] F1-seven-day-warmth-researcher:seed-1501 / correct-user-state
+[complete] F1-seven-day-warmth-researcher:seed-1501 / correct-user-state
+[run] F2-seven-day-repair-researcher:seed-1501 / correct-user-state
+[complete] F2-seven-day-repair-researcher:seed-1501 / correct-user-state
+[run] F1-seven-day-warmth-nurse:seed-1501 / correct-user-state
+[complete] F1-seven-day-warmth-nurse:seed-1501 / correct-user-state
+[run] F2-seven-day-repair-nurse:seed-1501 / correct-user-state
+[complete] F2-seven-day-repair-nurse:seed-1501 / correct-user-state
+[run] F1-seven-day-warmth-designer:seed-1501 / correct-user-state
+[complete] F1-seven-day-warmth-designer:seed-1501 / correct-user-state
+[run] F2-seven-day-repair-designer:seed-1501 / correct-user-state
+[complete] F2-seven-day-repair-designer:seed-1501 / correct-user-state
+[run] F1-seven-day-warmth-researcher:seed-1501 / stateless
+[complete] F1-seven-day-warmth-researcher:seed-1501 / stateless
+[run] F2-seven-day-repair-researcher:seed-1501 / stateless
+[complete] F2-seven-day-repair-researcher:seed-1501 / stateless
+[run] F1-seven-day-warmth-nurse:seed-1501 / stateless
+[complete] F1-seven-day-warmth-nurse:seed-1501 / stateless
+[run] F2-seven-day-repair-nurse:seed-1501 / stateless
+[complete] F2-seven-day-repair-nurse:seed-1501 / stateless
+[run] F1-seven-day-warmth-designer:seed-1501 / stateless
+[complete] F1-seven-day-warmth-designer:seed-1501 / stateless
+[run] F2-seven-day-repair-designer:seed-1501 / stateless
+[complete] F2-seven-day-repair-designer:seed-1501 / stateless
+[run] F1-seven-day-warmth-researcher:seed-1501 / swapped-user-state
+[complete] F1-seven-day-warmth-researcher:seed-1501 / swapped-user-state
+[run] F2-seven-day-repair-researcher:seed-1501 / swapped-user-state
+[complete] F2-seven-day-repair-researcher:seed-1501 / swapped-user-state
+[run] F1-seven-day-warmth-nurse:seed-1501 / swapped-user-state
+[complete] F1-seven-day-warmth-nurse:seed-1501 / swapped-user-state
+[run] F2-seven-day-repair-nurse:seed-1501 / swapped-user-state
+[complete] F2-seven-day-repair-nurse:seed-1501 / swapped-user-state
+[run] F1-seven-day-warmth-designer:seed-1501 / swapped-user-state

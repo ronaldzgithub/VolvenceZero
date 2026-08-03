@@ -16,7 +16,7 @@
 
 ## 0. 全景速览
 
-所有金标评测共享同一批纪律：**冻结基底 `Qwen/Qwen2.5-0.5B-Instruct`（或指定档位）、预注册在先、matched control、机器判词、可回滚、evaluation 只读不回灌**。任何「机制能跑」都不等于「有净增益」，任何单门通过都不等于整体 thesis。
+所有金标评测共享同一批纪律：**预注册在先、matched control、机器判词、可回滚、evaluation 只读不回灌**。语言侧默认冻结基底 `Qwen/Qwen2.5-0.5B-Instruct`（或指定档位）；蚂蚁 ecology 是非语言 2D 感觉运动测试床，走 CPU float64。任何「机制能跑」都不等于「有净增益」，任何单门通过都不等于整体 thesis。
 
 | # | 评测 | 目的一句话 | 主入口 | 当前状态 | 下一步 |
 |---|---|---|---|---|---|
@@ -26,8 +26,9 @@
 | 4 | Learned Active（torch 后端晋升） | 四个 SHADOW torch 后端能否晋升 ACTIVE | `scripts/run_learned_active_evidence.py` | `partial-promotion-blocked`（validation_delta 0.0138 < 0.02） | 续跑连续 soak 过门 + PE-off/ETA-off 对照 + 执行 capacity ladder |
 | 5 | Companion Bench（对外榜） | 系统无关的多 session 陪伴基准（A1–A6 六轴） | `packages/companion-bench` CLI + `scripts/companion_bench/*` | 站点数据**全是 demo/smoke**，无正式榜 | judge 稳健性(#48)→校准(#52)→统计功效(#54)→10 系统全量(#82) |
 | 6 | State-KV / Prefix-KV 辨识 | 同 prompt 空上下文，两用户产生可被盲判归属的差异 | `scripts/run_state_kv_identification.py` 等 | Personal 全链 **pass**；尽调 **partial(3/7)**；Relationship 停在 chance | 关闭 C5 credit 与 bank-gain；Relationship 记为负结果 |
-| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Stage1/Gate1 **v3 sweep 进行中**（9/18），历史尝试 FAIL；`kill-eta` 现行 | 跑完 Gate1 → 过则 Stage2 域预训练 → Stage3 补课 |
+| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Stage1/Gate1 **PASS**（2026-08-03，v4+hard-st 权威扫）；整体 `kill-eta` 待 Gate 3 | Stage2 域续训 → Stage3 补课终审 → Stage4 对话迁移 |
 | 8 | ETA 内部 RL / 段信用强证据 | 段级信用 vs turn 级、抽象动作复用等论文式命题 | `scripts/run_eta_segment_credit_evidence.py` / paper suite | 段信用 v13 **retain**（12 门全过） | 作为机制回归保留；不等于 rate-distortion retain |
+| 9 | Digital Ant ecology（same-physics） | 无 LLM 的 2D 感觉运动床上，typed-milestone ACTIVE vs DISABLED 是否有因果净增益 | `scripts/run_ant_ecology_same_physics_station1.py` | L1-C station1-v4 **BLOCK**（food alignment 3/4）；station2/P1/P2 **not-authorized** | 新 owner 机制 + 新 prereg 才可重开；禁止二审/换 seed/降阈值 |
 
 > 术语：`SHADOW` = 双跑只读、不主导行为；`ACTIVE` = 生产主链；`DISABLED` = 未启用。晋升一律「先 SHADOW/matched → 单组件 canary → 可回滚切换」。
 
@@ -479,15 +480,16 @@ Personal（晋升路径）**全链 pass**：P3 `retain-strict`（12/12 bge-m3）
 | `artifacts/eta_rate_distortion_20260801` | `kill-eta` | **未预注册** + 脏树 + MPS 争用，仅机制级 |
 | `artifacts/eta_stage1_gate1_reduced_20260802` | `incomplete-sweep`(frozen) | spearman −0.657（> −0.8，Gate1 **FAIL**）、rate_span 0.585 |
 | `artifacts/eta_stage1_gate1_smooth_v2_20260802` | `incomplete-sweep`(frozen) | spearman −1.0、rate_span 0.691，但 switch_freq 0.0、boundary F1 0.0（切换门 **FAIL**） |
-| `artifacts/eta_stage1_gate1_v3_gated_20260802` | **进行中** | 9/18 cell（α=0.01/0.03/0.1 × 3 seed），`run_state.json` status=running、analysis_allowed=false，无 report.json |
+| `artifacts/eta_stage1_gate1_v3_gated_20260802` | 7/18 后中止 | rate 轴单调但 distortion 平坦、零切换；定位根因=v3 全计划 step-0 一次到达 → never-switch 即 Eq.3 最优 |
+| **`artifacts/eta_stage1_gate1_v4_hardst_auth_20260803`** | **Gate 1 = PASS** | spearman −1.000、rate_span 1.933、hard switch 0.12–0.96、heldout boundary F1 全 alpha 0.240–0.671；`gate1_assessment.{json,md}` 已封存 |
 
-`kill-eta`（2026-08-01）在 Stage 3 撤销前**持续有效**。
+**Gate 1 = PASS（2026-08-03）**：修尺子四层根因——smooth posterior + v4 分段揭示协议（step-0 只给第一目标、各 arrival 揭示下一个）+ switch-gated KL（keep 免费/switch 付费）+ hard-st 离散门（堵住连续门每步微幅走私）+ 300 updates。frozen 臂另检出方向性近垂直 gap（drop share 0.744 / rate share 0.196），但缺 joint 臂且 gap 区内 F1（0.394）未高于区外（0.537），属 Gate 3 范畴不予主张。整体 `kill-eta`（2026-08-01）在 **Gate 3** 撤销前仍持续有效。
 
 ### 7.5 下一步
 
-1. **续跑 v3+gated sweep**（剩 α=0.3/1.0/3.0 × 3 seed；确认无其它 MPS 任务持锁）。
-2. 完成后读 `gate1_assessment` / rate 轴 + 切换；FAIL 则先 surrogate screen（`screen_eta_rate_axis_surrogate.py`）迭代 posterior/protocol，**仍不开 Stage 2**。
-3. Gate 1 PASS → 跑 Stage 2 域续训（prereg `artifacts/eta_stage2_gate2_prereg_20260802/`：heldout acc ≥ 2× chance、随 prefix 上升、pretrained > base）；Gate 2 pass 才 Stage 3；Stage 3 pass 才 Stage 4。
+1. **Stage 2 域续训**（prereg `artifacts/eta_stage2_gate2_prereg_20260802/`：heldout acc ≥ 2× chance、随 prefix 上升、pretrained > base）；开跑前须核对该 prereg 与当前源码 SHA 是否漂移，漂移则按协议重新冻结。
+2. Gate 2 pass 才 Stage 3（补课冻结基底 + 双臂 rate–distortion 终审，判 retain/kill）；Stage 3 pass 才 Stage 4 对话迁移。
+3. Gate 1 权威扫可作机制回归基线：相关 owner / 算法变量 / 证据契约改变时按预注册重跑，普通重构不触发重复昂贵 evidence run。
 
 ---
 
@@ -527,19 +529,126 @@ bash scripts/run_eta_open_weight_paper_suite.sh artifacts/eta_open_weight_paper_
 
 ---
 
-## 9. 跨评测纪律（务必遵守）
+## 9. Digital Ant ecology（same-physics 因果阶梯）
 
-- **MPS 独占**：七日 / MSC / ETA rate-distortion / gate suite 共享同一把锁 `artifacts/.companion-evidence-mps.lock`，`PYTORCH_ENABLE_MPS_FALLBACK=0`，**不得并发**；控制面外手工启动的旧进程不受锁保护，须另行确认结束。
-- **冻结在先**：长任务前冻结执行根/源码树 + 预注册 SHA；读到任何 outcome 之前不改阈值/seed/判据；封包后源码漂移一律拒绝（用隔离 commit 快照复核，只重做 validation/export）。
-- **停跑与 kill 是合格终态**：不换 seed、不降阈值、不挑 metric 把结论磨成通过；停跑目录禁止原样 resume，重开必须新 prereg。
+**Spec**：[`specs/digital-ant-embodiment.md`](./specs/digital-ant-embodiment.md)；包 README [`packages/vz-embodiment-ant/README.md`](../packages/vz-embodiment-ant/README.md)
+**Owner / evaluator**：`packages/vz-embodiment-ant/src/volvence_ant/experiments/`（`ecology_same_physics_*.py`、`ecology_p1.py`、`ecology_p2.py`、`ecology_mechanism_audit.py`）+ `evidence/`
+**终局叙述**：[`thesis prove.md`](./thesis%20prove.md) §4（历史 v2）与 §13（L1 追加）
+
+### 9.1 目的
+
+把 VolvenceZero 内核原样接到**完全不涉及语言**的 2D 感觉运动 substrate（无 LLM、无 token），独立检验 R2 / R3–R4 / R5–R6 / R-PE / SSOT 是否在非语言世界成立。ecology same-physics 是其中的 **typed-milestone 因果阶梯**：candidate（`environment_milestone_temporal_switch=ACTIVE`）vs matched control（`DISABLED`），物理/日程/优化器完全一致，只差这一条 wiring。
+
+条件链（冻结准入）：
+
+```text
+prereg → station1 → (v2 时代可选: alignment review) → station2 medium
+  → Gate-4 ecology corpus 准入 → P1 五臂 → P2 PE confirmatory
+```
+
+它**不是**产品线，也**不是**昆虫神经科学新发现；投入规模长期保持研究旁支量级。正式跑需要**隔离源码快照 + 新空 progress 目录**；旧 v31 journal 禁止续跑。设备：**CPU float64**（不占 MPS 锁）。
+
+### 9.2 怎么运行
+
+```bash
+# --- 当前代：same-physics station1-v4（L1-C；review 路径已关闭）---
+# 先决：L1-B precheck artifact 已存在（prereg 会校验）
+RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)
+.venv/bin/python scripts/preregister_ant_ecology_same_physics_baseline.py \
+  --seed 0 --run-id "$RUN_ID"
+# → research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_prereg.seed0.<RUN_ID>.json
+
+PREREG="research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_prereg.seed0.${RUN_ID}.json"
+PROGRESS="research/ant/results/.partials/ecology_same_physics_station1_v4/seed0-${RUN_ID}"
+.venv/bin/python scripts/run_ant_ecology_same_physics_station1.py \
+  --preregistration "$PREREG" --progress-dir "$PROGRESS" --run-id "$RUN_ID"
+
+# --- L1-A 归因 / L1-B 形成期保护预检（只读，无训练写）---
+.venv/bin/python scripts/analyze_ant_alignment_formation.py \
+  --station1-report research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_station1.seed0.20260731T052300Z.json \
+  --review-report research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_alignment_review.seed0.20260731T053814Z.json \
+  --station1-progress-dir <station1-progress> --review-progress-dir <review-progress> \
+  --json-out research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_attribution.v1.json
+
+.venv/bin/python scripts/precheck_ant_alignment_formation_protection.py \
+  --review-report research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_alignment_review.seed0.20260731T053814Z.json \
+  --review-progress-dir <review-progress> --probe-seed 700003 \
+  --json-out research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_protection_precheck.v1.json
+
+# --- 历史 v2 路径（station1 GO + 唯一 5 局 review；勿当作 reopen）---
+# scripts/preregister_ant_ecology_same_physics_alignment_review.py
+# scripts/run_ant_ecology_same_physics_alignment_review.py
+# （需要 station1-v2 prereg/report/progress；当前代 v4 已设 alignment_review_authorized=false）
+
+# --- 下游（station2 GO 前一律 NOT AUTHORIZED；仅留命令备查）---
+.venv/bin/python scripts/audit_ant_ecology_mechanisms.py
+.venv/bin/python scripts/run_ant_ecology_p1.py --diagnostics-only
+.venv/bin/python scripts/run_ant_ecology_p1.py --seed 0 \
+  --progress-dir research/ant/results/.partials/ecology_p1/seed0
+.venv/bin/python scripts/run_ant_ecology_p2.py preflight --p1-report <p1-pass.json>
+.venv/bin/python scripts/run_ant_ecology_p2.py shard --training-seed 0 --arm <arm> --p1-report <p1-pass.json>
+.venv/bin/python scripts/run_ant_ecology_p2.py aggregate
+.venv/bin/python scripts/run_ant_ecology_p2.py promote --confirmatory-report <p2-pass.json> \
+  --progress-dir <p2-progress> --training-seed 0
+
+# 可选 mastery trainer（不是 same-physics 因果链）
+.venv/bin/python scripts/train_ant_ecology.py --seed 0 --device cpu
+```
+
+P1/P2 细节另见 `research/ant/06_ecology_implementation_status.md`。
+
+### 9.3 怎么评价
+
+评估器：`ecology_same_physics_run.evaluate_same_physics_station1`；阈值冻结在 prereg（`ecology_same_physics_baseline.py`）。
+
+| 层 | 门 | 规则 |
+|---|---|---|
+| Station1 因果（4） | `control_signal` | control ≥1 pickup / physical block |
+| | `pickup_noninferiority` | candidate/control pickup 比 ≥ **0.8** |
+| | `no_candidate_zero_block` | control >0 的 block 上 candidate 不得零 |
+| | `typed_milestone_structure` | post-pickup switch + family persistence；**8 条** structural/persistence lane 全过 |
+| Alignment | food turn probe | `input_reachable ∧ action_sensitive ∧ target_aligned`；turn 阈值 **1e-4**；需 **4/4 bodies** |
+| Station1→2 | v2 时代 | 因果 GO 且 alignment <4/4 → 唯一 5 局 butter-near review；仍 <4/4 → BLOCK |
+| | v4（L1-C） | `food_alignment_review_authorized=false`；必须在 ep0–19 直接 **4/4**，否则 BLOCK |
+| Station2 | medium | pickup ≥0.8 非劣；deliveries **严格优于** control；携食回巢 alignment + U-turn 进步 |
+| P1 / P2 | station2 GO 后 | P1 多臂矩阵；P2 PE-on/off confirmatory（`preflight/shard/aggregate/promote`） |
+
+Station1 上的 delivery 只作**描述性**读数，不是硬门。PE-off 对照只关加性 PE prior，里程碑通道两臂保持一致（它是环境事实，不是 PE readout）。
+
+### 9.4 当前结果（两代勿混读）
+
+| 时代 | Artifact | 判词 |
+|---|---|---|
+| **§4 历史 v2** | `…/ecology_same_physics_station1.seed0.20260731T052300Z.json` | **GO** — 四因果门过；pickup 47/52（ratio 0.9038）；8/8 lane；alignment **3/4** → `REVIEW_REQUIRED` |
+| | `…/ecology_same_physics_alignment_review.seed0.20260731T053814Z.json` | **BLOCK** — 审前审后仍 **3/4**（需 4/4）；`next_episode_authorized=null` |
+| **L1-A** | [`alignment_formation_attribution.v1.json`](../research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_attribution.v1.json) | 失败者稳定为 body **2**；H1 支持、H2 不支持、H3 inconclusive；station2 仍未授权 |
+| **L1-B** | [`alignment_formation_protection_precheck.v1.json`](../research/ant/results/ecology_recovery/same_physics_baseline/alignment_formation_protection_precheck.v1.json) | `PRECHECK_PASS`（ACTIVE/DISABLED digest 相等）；只授权 L1-C prereg，**不**授权 station2/P1/P2 |
+| **§13 L1-C** | [`ecology_same_physics_station1.seed0.20260731T135415Z.json`](../research/ant/results/ecology_recovery/same_physics_baseline/ecology_same_physics_station1.seed0.20260731T135415Z.json) | **BLOCK** — control/pickup/zero-block/structure 全 true，`food_alignment_4_of_4` **false**（仍 3/4）；body2 turns `−3.85e-4 / +3.87e-4`；`alignment_review_authorized=false`、`next_episode_authorized=null` |
+
+下游终态（[`thesis prove.md`](./thesis%20prove.md) §4.2）：**station2 / Gate 4 ecology corpus / P1 / P2 = `not-authorized`**——不是「跑了然后失败」，而是按预注册 kill 纪律没有执行。可说：early station1 的局部机制、结构持久性与 early pickup 达标；不可说：medium 闭环、一般物理自主性、或形成期保护带来了要求的 learned uplift。
+
+### 9.5 下一步
+
+1. **本代已关闭**：禁止第二次 alignment review、换 seed、降 4/4 阈值、或在同一 packet 上加训练量（见 [`thesis prove.md`](./thesis%20prove.md) §13）。
+2. **合法重开**：必须先有**新的 owner 级机制**（若是测量语义 kill，还要新 schema）+ 新 prereg + 隔离源码快照 + 空 journal——不是对 station1-v4 再探针一次。
+3. **station2 GO 前禁止**：P1 全矩阵、P2 confirmatory、Gate 4 ecology corpus、以及拟用 Ecology 重开的 Gate 5/9/10/1。
+4. L1-B 形成期保护：机制可实现、可预检、可回滚，但未在冻结 station1 上产生要求的 uplift；记为终局负证据，medium 层写「未测且不授权」，不伪造 PASS/FAIL。
+
+---
+
+## 10. 跨评测纪律（务必遵守）
+
+- **MPS 独占**：七日 / MSC / ETA rate-distortion / gate suite 共享同一把锁 `artifacts/.companion-evidence-mps.lock`，`PYTORCH_ENABLE_MPS_FALLBACK=0`，**不得并发**；控制面外手工启动的旧进程不受锁保护，须另行确认结束。Digital Ant ecology 走 **CPU float64**，不占该锁，但仍勿与其它会改同一源码树/journal 的 formal 包并行污染。
+- **冻结在先**：长任务前冻结执行根/源码树 + 预注册 SHA；读到任何 outcome 之前不改阈值/seed/判据；封包后源码漂移一律拒绝（用隔离 commit 快照复核，只重做 validation/export）。Ecology 正式跑另要求**隔离源码快照 + 新空 progress 目录**。
+- **停跑与 kill 是合格终态**：不换 seed、不降阈值、不挑 metric 把结论磨成通过；停跑目录禁止原样 resume，重开必须新 prereg。Ecology 的 `not-authorized` 下游不得写成已执行的新负证据。
 - **证据等级不互相冒充**：`mechanism-supported`（能跑/可回滚/可审计）≠ `causal-supported`（冻结 matched control 下达门的因果差）≠ `longitudinal-supported`（跨 session 持续）≠ `thesis-retained`。可回滚是安全证据，不是收益证据。
 - **evaluation 只读**：所有金标评测不回灌 PE/credit，不反向训练 probe，不静默成为第二 owner。
 - **production 晋升**：#92 终局 `production_live_promotion_authorized=false`；本文任何门通过都不自动翻转 `WiringLevel`；晋升走 SHADOW→单组件 canary→可回滚切换，并先登记 `docs/DATA_CONTRACT.md`。
 
-## 10. 权威参考
+## 11. 权威参考
 
 - 框架口径：[`EVALUATION_SYSTEM.md`](./EVALUATION_SYSTEM.md)、[`specs/evaluation.md`](./specs/evaluation.md)、[`specs/evaluation-cascade.md`](./specs/evaluation-cascade.md)
 - 终局判词与 Gate 台账：[`thesis prove.md`](./thesis%20prove.md)、[`specs/evidence_program.md`](./specs/evidence_program.md)
 - 当前事实与剩余代码：[`currentstatus.md`](./currentstatus.md)
 - 七日 × MSC 静态缺陷/仪器清单：[`moving forward/七日msctodo.md`](./moving%20forward/七日msctodo.md)
-- 各评测 spec：[`specs/seven-day-companion-evidence.md`](./specs/seven-day-companion-evidence.md)、[`specs/companion-bench.md`](./specs/companion-bench.md)、[`specs/state-kv-identification-evidence.md`](./specs/state-kv-identification-evidence.md)、[`specs/character-prefix-package.md`](./specs/character-prefix-package.md)、[`specs/eta-llm-transfer-evidence.md`](./specs/eta-llm-transfer-evidence.md)、[`specs/learned-vs-heuristic-coverage.md`](./specs/learned-vs-heuristic-coverage.md)
+- 各评测 spec：[`specs/seven-day-companion-evidence.md`](./specs/seven-day-companion-evidence.md)、[`specs/companion-bench.md`](./specs/companion-bench.md)、[`specs/state-kv-identification-evidence.md`](./specs/state-kv-identification-evidence.md)、[`specs/character-prefix-package.md`](./specs/character-prefix-package.md)、[`specs/eta-llm-transfer-evidence.md`](./specs/eta-llm-transfer-evidence.md)、[`specs/learned-vs-heuristic-coverage.md`](./specs/learned-vs-heuristic-coverage.md)、[`specs/digital-ant-embodiment.md`](./specs/digital-ant-embodiment.md)

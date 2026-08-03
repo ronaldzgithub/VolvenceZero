@@ -1,0 +1,74 @@
+[
+  {
+    "arm": "frozen",
+    "alpha": 0.01,
+    "rate_mean": 2.0006811613820203,
+    "rate_std": 0.5893690660958626,
+    "distortion_mean": 1.004149532714079,
+    "distortion_std": 0.12038315852990737,
+    "heldout_distortion_mean": 1.1097426204812506,
+    "boundary_f1_mean": 0.6002270998224958,
+    "switch_frequency_mean": 0.7200547570157426,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 0.03,
+    "rate_mean": 1.9786869444884558,
+    "rate_std": 0.15178190380304946,
+    "distortion_mean": 0.7956929266341516,
+    "distortion_std": 0.01479391864031846,
+    "heldout_distortion_mean": 1.0095767749705313,
+    "boundary_f1_mean": 0.6651095293520757,
+    "switch_frequency_mean": 0.9589322381930185,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 0.1,
+    "rate_mean": 1.0057375105563306,
+    "rate_std": 0.5751830083158049,
+    "distortion_mean": 0.8715921579818006,
+    "distortion_std": 0.2015724299913341,
+    "heldout_distortion_mean": 1.0662690095428446,
+    "boundary_f1_mean": 0.5734242236138459,
+    "switch_frequency_mean": 0.6235455167693361,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 0.3,
+    "rate_mean": 0.4485915817253767,
+    "rate_std": 0.19987325128820982,
+    "distortion_mean": 0.8511208797055535,
+    "distortion_std": 0.06999016468189839,
+    "heldout_distortion_mean": 1.0331889463362527,
+    "boundary_f1_mean": 0.5054211781512697,
+    "switch_frequency_mean": 0.5701574264202601,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 1.0,
+    "rate_mean": 0.06959269304072847,
+    "rate_std": 0.04391660180340504,
+    "distortion_mean": 1.0118752229921406,
+    "distortion_std": 0.08426583054345185,
+    "heldout_distortion_mean": 1.165784639222912,
+    "boundary_f1_mean": 0.28275347431574405,
+    "switch_frequency_mean": 0.17180013689253934,
+    "seed_count": 3
+  },
+  {
+    "arm": "frozen",
+    "alpha": 3.0,
+    "rate_mean": 0.06784283167388015,
+    "rate_std": 0.025287220185803462,
+    "distortion_mean": 0.9477728645758404,
+    "distortion_std": 0.04553343394115573,
+    "heldout_distortion_mean": 1.1493514323814118,
+    "boundary_f1_mean": 0.3100290815153463,
+    "switch_frequency_mean": 0.1190965092402464,
+    "seed_count": 3
+  }
+]

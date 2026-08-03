@@ -257,7 +257,7 @@
 | Spec | 内容 |
 |------|------|
 | [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
-| [eta-llm-transfer-evidence.md](./eta-llm-transfer-evidence.md) | ETA 迁移 LLM 四级阶梯证据 SSOT：Gate 1 rate 轴校准 → Gate 2 领域续训+分类 probe → Gate 3 补课基底 rate–distortion 终审 → Stage 4 对话迁移（contingent）；`kill-eta` 在 Stage 3 通过前保持有效；当前缩减 Gate 1 = FAIL |
+| [eta-llm-transfer-evidence.md](./eta-llm-transfer-evidence.md) | ETA 迁移 LLM 四级阶梯证据 SSOT：Gate 1 rate 轴校准 → Gate 2 领域续训+分类 probe → Gate 3 补课基底 rate–distortion 终审 → Stage 4 对话迁移（contingent）；`kill-eta` 在 Stage 3 通过前保持有效；**Gate 1 = PASS（2026-08-03，v4+hard-st 权威扫），Stage 2 解锁** |
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 | [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：N+1-based v3 base-only / v4 character-stack、Gate 1/suite v2、强制 smoke、严格 resume、state/sleep 消融与独立审计；历史 v1 formal 已停机且不可原样续跑 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
@@ -807,7 +807,7 @@
 | `docs/CONTRACT_MIGRATION_LOG.md` | 契约迁移流水：planned / SHADOW slots、字段扩展、shared type slice changelog | 查实现阶段和 rollout notes，避免污染稳定契约 |
 | `docs/DEBUG_SYSTEM.md` | 调试与可观测性体系：5 层可观测性架构、契约守卫、检查点与回滚、跨 wheel 调试边界 | 理解如何调试和监控系统运行 |
 | `docs/EVALUATION_SYSTEM.md` | 评估体系：6 族评估框架、双轨评估隔离、信号回馈、lifeform-bench family report | 理解如何评估系统表现和驱动学习 |
-| `docs/evaluation.md` | 评测任务总账（Runbook）：七日 / 七日 Gate 套件 / MSC N+1 / Learned Active / Companion Bench / State-KV·Prefix-KV / ETA rate-distortion·LLM 阶梯 / ETA 内部 RL 每项的怎么跑、怎么评、当前结果、下一步 | 要实际运行/查证据 run 的状态与命令时 |
+| `docs/evaluation.md` | 评测任务总账（Runbook）：七日 / 七日 Gate 套件 / MSC N+1 / Learned Active / Companion Bench / State-KV·Prefix-KV / ETA rate-distortion·LLM 阶梯 / ETA 内部 RL / Digital Ant ecology 每项的怎么跑、怎么评、当前结果、下一步 | 要实际运行/查证据 run 的状态与命令时 |
 | `docs/package_usage.md` | 本机 package 安装、稳定 Brain API、HF/Qwen 可选 runtime、其他项目接入边界 | 其他项目需要调用 core package 时 |
 
 ### 文档依赖图

@@ -1,7 +1,7 @@
 # ETA 迁移 LLM 四级阶梯证据 Spec
 
-> Status: active（Stage 1 reduced Gate 1 = FAIL；Stage 2–3 未开跑；Stage 4 仅骨架）
-> Last updated: 2026-08-02
+> Status: active（Stage 1 Gate 1 = **PASS**（2026-08-03，v4+smooth+switch-gated+hard-st 权威扫）；Stage 2 解锁未开跑；Stage 3–4 未开跑）
+> Last updated: 2026-08-03
 > 对应需求: R2, R3, R4, R8, R10, R12, R15
 > Owner 能力域: `vz-temporal`（元控制器 / rate–distortion）、`vz-substrate`（续训 merge / 分类 probe）、evidence lane（本 spec）
 > 执行草稿: [`.cursor/plans/eta_迁移_llm_阶梯_59d33511.plan.md`](../../.cursor/plans/eta_迁移_llm_阶梯_59d33511.plan.md)
@@ -90,13 +90,26 @@ rate–distortion（Gate 3），对话迁移仅在前三级全过后预注册（
 | v4 缩减筛查（非权威，40 updates） | `artifacts/eta_stage1_gate1_v4_screen_20260802/` |
 | v4 预算诊断（非权威，300 updates，暴露连续门走私） | `artifacts/eta_stage1_gate1_v4_budget_20260803/` |
 | v4+hard-st 缩减筛查（非权威） | `artifacts/eta_stage1_gate1_v4_hardst_20260803/` |
+| v4+hard-st 权威预注册（冻结，门槛不变） | `artifacts/eta_stage1_gate1_v4_hardst_20260803_prereg.json` |
+| **v4+hard-st 权威扫（Gate 1 = PASS）** | `artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/` |
 
-**当前状态（2026-08-02）**：缩减权威扫 **Gate 1 = FAIL**。
+**当前状态（2026-08-03）**：v4+smooth+switch-gated+hard-st 权威扫
+**Gate 1 = PASS**（`artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/
+gate1_assessment.json`）。
 
-- spearman = −0.657（门槛 −0.8）
-- rate_span = 0.585（过 0.30，约 3× 基线）
-- 记忆化已消除（train ≈ heldout distortion）
-- 非单调点在 α=1.0 回弹；下一步按预注册修方差参数化后重跑，不开续训
+- spearman = −1.000（门槛 −0.8）、rate_span = 1.933（门槛 0.30，约 10× 基线）
+- never-switch 崩塌解除：hard switch 频率 0.12–0.96，heldout boundary F1
+  在每个 alpha 均 > 0（0.240–0.671），为首个 switching 存活的权威扫
+- 边界对比在高 rate 压力下涌现（alpha=3.0：边界门概率 0.199 vs 延续 0.050）
+- **方向性加分**：frozen 臂检出近垂直 gap（74.4% distortion 改善集中于
+  19.6% rate 区间，alpha 1.0→0.3，过预注册 drop/rate/noise 门槛）；但
+  gap 区内 boundary F1（0.394）未高于区外（0.537），且缺 joint 臂对照——
+  完整 gap 判据属于 Gate 3，不得从本 artifact 主张
+- 处置：Stage 2（领域续训 + probe）按阶梯解锁
+
+**历史（2026-08-02）**：缩减权威扫 Gate 1 = FAIL（spearman −0.657、span
+0.585、α=1.0 回弹、零切换）；该负结果保留封存，被上述 v4+hard-st 权威扫
+按"修尺子后重跑"的规定动作取代。
 
 **2026-08-02 smooth/v2 重跑结果**：smooth posterior 与 v2 观测协议修复了 rate
 轴（Spearman `-1.000`、rate span `0.691`），但 frozen 臂仍无 boundary F1 / hard
@@ -226,7 +239,8 @@ n_input 16）验证信息时刻表：step-0 target-1 = `1.000`、target-2 =
 **FAIL 处置**：LLM 迁移路线整体 kill，出报告收官；不进入 Stage 3。
 
 **预注册**：`artifacts/eta_stage2_gate2_prereg_20260802/`  
-**当前状态**：机器与预注册已就绪；**Gate 1 未过，禁止开跑**。
+**当前状态**：Gate 1 已过（2026-08-03），Stage 2 解锁；开跑前须核对既有
+预注册与当前源码 SHA 是否漂移，漂移则按协议重新冻结后执行。
 
 ### Stage / Gate 3 — 补课基底上重审 rate–distortion
 
@@ -321,3 +335,11 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
   rate_span ≥ 0.30、switching gate 同前），权威扫
   `artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/` 已启动。任何通过
   判定以该权威扫的 `gate1_assessment` 为准；筛查数字不得引用为证据。
+- 2026-08-03: 权威扫完成，**Gate 1 = PASS**：spearman −1.000、span 1.933、
+  heldout boundary F1 全 alpha > 0（0.240–0.671）、hard switch 0.12–0.96。
+  frozen 臂另检出近垂直 gap（drop share 0.744 / rate share 0.196，
+  alpha 1.0→0.3），但 gap 区内 F1 未高于区外且无 joint 臂，只作方向性
+  记录，不构成 Gate 3 证据。判定文件
+  `gate1_assessment.{json,md}` 已随 artifact 封存；Stage 2 解锁。运行途中
+  首实例因机器休眠中断，经 `--resume` 从 12/18 checkpoint 续跑完成，
+  configuration fingerprint 校验一致。

@@ -1,0 +1,59 @@
+{
+ "schema_version": "eta-stage1-gate1-assessment.v1",
+ "created_at": "2026-08-03T02:58:33.583835+00:00",
+ "preregistration": "artifacts/eta_stage1_gate1_v4_hardst_20260803_prereg.json",
+ "preregistration_sha256": "b0d18f601fd196498dadcce1e2787da608c3439908f4fd49c05f3b83c07c5a5a",
+ "sweep_artifact": "artifacts/eta_stage1_gate1_v4_hardst_auth_20260803",
+ "configuration": {
+  "observation_protocol": "partially-observable-staged-plan.v4",
+  "posterior_parameterization": "smooth",
+  "rate_gating": "switch-gated",
+  "gate_mode": "hard-st",
+  "updates_per_run": 300,
+  "cells": 18
+ },
+ "rate_distortion_verdict": "incomplete-sweep",
+ "rate_distortion_verdict_note": "Expected for Gate 1: only the frozen arm was pre-registered. incomplete-sweep means the dual-arm rate-distortion criterion cannot adjudicate retain/kill; Gate 1 uses the separate rate-axis gate plus the switching read.",
+ "gate_1": {
+  "gate_id": "gate-1-rate-axis-response",
+  "spearman_alpha_rate": -1.0,
+  "rate_span": 1.9328383297081402,
+  "rate_min": 0.06784283167388015,
+  "rate_max": 2.0006811613820203,
+  "thresholds": {
+   "spearman_alpha_rate_max": -0.8,
+   "rate_span_min": 0.3,
+   "baseline_rate_span_7_route": 0.2
+  },
+  "spearman_pass": true,
+  "rate_span_pass": true,
+  "materially_above_baseline": true,
+  "switching_alive": true,
+  "heldout_boundary_f1_by_alpha": {
+   "0.01": 0.5446186309281547,
+   "0.03": 0.6705417647461317,
+   "0.1": 0.5417459853706271,
+   "0.3": 0.49237846800938284,
+   "1.0": 0.23965752226369075,
+   "3.0": 0.2671964163988704
+  },
+  "hard_switch_frequency_by_alpha": {
+   "0.01": 0.7200547570157426,
+   "0.03": 0.9589322381930185,
+   "0.1": 0.6235455167693361,
+   "0.3": 0.5701574264202601,
+   "1.0": 0.17180013689253934,
+   "3.0": 0.1190965092402464
+  },
+  "verdict": "PASS",
+  "rule": "Gate 1 passes iff spearman(alpha, rate) <= -0.8 AND rate_span >= 0.3 AND rate_span materially larger than the 7-route baseline. This run additionally clears the switching read that failed every prior sweep: hard switches fire and heldout boundary F1 > 0 at every alpha."
+ },
+ "directional_reads": [
+  "Rate axis: spearman(alpha, rate) = -1.000 over 6 alphas, span 1.933 (~10x the 0.20 seven-route baseline).",
+  "Never-switch collapse resolved: hard switch frequency 0.12-0.96 across the grid; heldout boundary F1 0.240-0.671, first authoritative sweep with boundary_f1 > 0.",
+  "Boundary contrast emerges under rate pressure: boundary vs continuation gate probability 0.199 vs 0.050 at alpha=3.0.",
+  "Near-vertical gap detected on the frozen arm: 74.4% of the distortion span drops over 19.6% of the rate span (alpha 1.0 -> 0.3), clearing the preregistered drop/rate/noise thresholds.",
+  "Gap caveat: boundary F1 inside the gap region (0.394) is NOT higher than outside (0.537), so the paper's full Gate-3 criterion (gap + F1-in-gap + joint-arm control) remains open and requires the Stage-2 pretrained substrate.",
+  "Attribution: v4 staged revelation supplies mid-route information, switch-gated KL makes keeping free, hard-st closes the continuous-gate smuggling loophole, 300 updates give the steering path time to use z."
+ ]
+}

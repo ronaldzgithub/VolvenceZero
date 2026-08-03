@@ -516,6 +516,17 @@ lifeform_service 1.5B，后台 MPS 训练多次被 jetsam 杀）。
 −0.657 / rate_span 0.585；α=1.0 回弹。记忆化已消、跨度已过门，但未达 −0.8。
 按 SSOT：修 posterior 方差参数化后重跑 Gate 1，**不开 Stage 2**。
 
+**2026-08-03 补记：Gate 1 = PASS**（`artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/`，
+预注册 sha256 `b0d18f60…`）。修尺子共四层根因：smooth posterior（rate 轴数值
+稳定）→ v4 分段揭示协议（step-0 只给第一目标、各 arrival 揭示下一个，使切换获得
+真实 distortion 收益，堵住 v3"全计划一次到达 → never-switch 最优"缺陷）→
+switch-gated KL（keep 免费 / switch 付费）→ hard-st 离散门（堵住连续门每步微幅
+走私新信息、只付分数 KL 的漏洞）+ 300 updates 预算。读数：spearman −1.000、
+rate_span 1.933、hard switch 0.12–0.96、heldout boundary F1 全 alpha 0.240–0.671
+（首个 switching 存活的权威扫）。frozen 臂另检出方向性近垂直 gap，但缺 joint 臂
+对照且 gap 区内 F1 未高于区外，属 Gate 3 范畴不予主张。Stage 2 解锁；整体
+`kill-eta` 仍待 Gate 3。判定以 SSOT `eta-llm-transfer-evidence.md` 为准。
+
 **Stage 1（数据机制假设）**：环境 owner 新增 seeded 程序化生成器
 （`generate_hierarchical_environment` + hub relay 保证任意子目标序可达 +
 `stitch_waypoints` + `generate_hierarchical_routes` 按 ordering 哈希分区
