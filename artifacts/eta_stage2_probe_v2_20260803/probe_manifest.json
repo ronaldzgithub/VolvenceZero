@@ -1,0 +1,503 @@
+{
+  "schema_version": "eta-stage2-probe.v2",
+  "experiment_id": "eta-stage2-linear-classification-probe",
+  "created_at": "2026-08-03T07:05:04.800884+00:00",
+  "git_sha": "04c380018ae826db4a065792297a98d794b038b6",
+  "working_tree_dirty": true,
+  "probe_protocol": "partially-observable-staged-plan.v4",
+  "layer_selection": "train-split",
+  "max_length": 640,
+  "corpus_seed": 20260802,
+  "objective_count": 8,
+  "class_count": 8,
+  "subgoal_vocabulary": [
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "orange",
+    "purple",
+    "black",
+    "white"
+  ],
+  "train_probe_rows": 1018,
+  "eval_probe_rows": 745,
+  "base_arm": {
+    "model_source": "Qwen/Qwen2.5-0.5B-Instruct",
+    "layer_selection": "train-split",
+    "selected_layer": 6,
+    "selected_accuracy": 0.900671,
+    "chance_accuracy": 0.125,
+    "majority_accuracy": 0.187919,
+    "support": 745,
+    "early_prefix_accuracy": 0.985417,
+    "late_prefix_accuracy": 0.74717,
+    "layer_validation_accuracies": [
+      0.879433,
+      0.992908,
+      0.964539,
+      0.978723,
+      0.992908,
+      0.992908,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.992908,
+      1.0,
+      1.0,
+      0.992908,
+      0.978723,
+      0.985816,
+      0.985816,
+      0.971631,
+      0.985816,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "per_layer": [
+      {
+        "layer": 0,
+        "accuracy": 0.794631,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 1,
+        "accuracy": 0.950336,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 2,
+        "accuracy": 0.931544,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 3,
+        "accuracy": 0.914094,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 4,
+        "accuracy": 0.924832,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 5,
+        "accuracy": 0.916779,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 6,
+        "accuracy": 0.900671,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 7,
+        "accuracy": 0.927517,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 8,
+        "accuracy": 0.924832,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 9,
+        "accuracy": 0.920805,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 10,
+        "accuracy": 0.95302,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 11,
+        "accuracy": 0.934228,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 12,
+        "accuracy": 0.919463,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 13,
+        "accuracy": 0.932886,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 14,
+        "accuracy": 0.934228,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 15,
+        "accuracy": 0.932886,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 16,
+        "accuracy": 0.92349,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 17,
+        "accuracy": 0.931544,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 18,
+        "accuracy": 0.922148,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 19,
+        "accuracy": 0.903356,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 20,
+        "accuracy": 0.957047,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 21,
+        "accuracy": 0.961074,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 22,
+        "accuracy": 0.97047,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 23,
+        "accuracy": 0.975839,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      }
+    ]
+  },
+  "pretrained_arm": {
+    "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+    "layer_selection": "train-split",
+    "selected_layer": 4,
+    "selected_accuracy": 0.943624,
+    "chance_accuracy": 0.125,
+    "majority_accuracy": 0.187919,
+    "support": 745,
+    "early_prefix_accuracy": 0.979167,
+    "late_prefix_accuracy": 0.879245,
+    "layer_validation_accuracies": [
+      0.886525,
+      0.992908,
+      0.964539,
+      0.992908,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "per_layer": [
+      {
+        "layer": 0,
+        "accuracy": 0.787919,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 1,
+        "accuracy": 0.931544,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 2,
+        "accuracy": 0.922148,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 3,
+        "accuracy": 0.932886,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 4,
+        "accuracy": 0.943624,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 5,
+        "accuracy": 0.947651,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 6,
+        "accuracy": 0.94094,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 7,
+        "accuracy": 0.958389,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 8,
+        "accuracy": 0.971812,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 9,
+        "accuracy": 0.955705,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 10,
+        "accuracy": 0.989262,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 11,
+        "accuracy": 0.990604,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 12,
+        "accuracy": 0.989262,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 13,
+        "accuracy": 0.983893,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 14,
+        "accuracy": 0.987919,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 15,
+        "accuracy": 0.983893,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 16,
+        "accuracy": 0.993289,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 17,
+        "accuracy": 0.991946,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 18,
+        "accuracy": 0.991946,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 19,
+        "accuracy": 0.975839,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 20,
+        "accuracy": 0.993289,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 21,
+        "accuracy": 1.0,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 22,
+        "accuracy": 0.998658,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      },
+      {
+        "layer": 23,
+        "accuracy": 1.0,
+        "chance_accuracy": 0.125,
+        "majority_accuracy": 0.187919,
+        "class_count": 8,
+        "support": 745
+      }
+    ]
+  },
+  "gate2": {
+    "gate_id": "gate-2-residual-carries-subgoal",
+    "passed": false,
+    "condition_2x_chance": true,
+    "condition_rises_with_prefix": false,
+    "condition_beats_base": true,
+    "pretrained_accuracy": 0.943624,
+    "base_accuracy": 0.900671,
+    "chance_accuracy": 0.125,
+    "verdict": "gate-2-fail-kill-llm-transfer"
+  },
+  "device": "mps",
+  "elapsed_seconds": 735.1,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+  "torch_version": "2.13.0"
+}

@@ -544,6 +544,28 @@ initial_loss 2.610 → final_loss 0.119、权重指纹 `08472c6d…`）→ 双�
 kill、Stage 3 不跑；ETA 主张**未**永久摘除（保留 Gate 3 / 独立处置包），规模
 敏感性须另立新预注册。判定以 SSOT `eta-llm-transfer-evidence.md` 为准。
 
+**2026-08-03 补记：Stage-2 仪器审计 + v2 重审，上一条判读收窄**。代码审计发现
+v1 仪器的计划载体是 `_context_sentence` 哈希指纹（ordering 哈希采样 8 主题词，
+"non-leaking" by design——与 Gate-1 定罪的观测协议 v2 缺陷同类，该管线早于
+v3/v4 修复且被 v1 预注册连同缺陷 SHA 冻结）。离线复算：非指纹可见信息在
+train 上拟合到贝叶斯极限的查表，heldout 仅 `0.1805`（未见局部键 30.2%），
+**低于 2×chance = 0.25 及格线——v1 的第一条件构造性不可过**；实测两臂
+0.131–0.214 恰在天花板附近（可读信息已榨干）。判读修正：v1 FAIL 定罪仪器，
+"0.5B 残差不载子目标"措辞收回；封存 artifact 不改动。仪器 v2（复用
+rate-distortion v4 staged-plan 渲染 + 累积轨迹前缀 probe（对齐论文附录 B）+
+train-split 选层 + fail-loud 截断）经新预注册
+`artifacts/eta_stage2_gate2_prereg_v2_20260803/`（sha256 `c0a54454…`，冻结
+仪器审计数字 + v2 ceiling 1.0 验证）重跑全链（语料 `1caeac3a…` → merged
+`063077b7…`，0.967→0.020 → probe `artifacts/eta_stage2_probe_v2_20260803/`）：
+裸 Qwen heldout acc `0.901`（全层 0.795–0.976）、续训臂 `0.944`（后段层
+0.99–1.00）——**残差流大幅承载 active subgoal，v1 审计结论被实测证实**。
+三条件：`2×chance` PASS（7.5×）、`续训>基线` PASS（+4.3pp）、`随前缀上升`
+FAIL（early 0.979 / late 0.879——显式揭示制度下无推断累积、只有保持衰减，
+判据 regime 错配，late 桶仍 7× chance）。按预注册字面（执行后禁改条件）v2
+verdict = **FAIL** 封存；实质读数登记为"残差可承载"的强方向性证据。待决策：
+v3 预注册把第二条件修为保持类判据（如 late ≥ 2×chance 且 early−late ≤ 阈值）
+后终审 Gate 2；Stage 3 在正式 PASS 前锁定。
+
 **Stage 1（数据机制假设）**：环境 owner 新增 seeded 程序化生成器
 （`generate_hierarchical_environment` + hub relay 保证任意子目标序可达 +
 `stitch_waypoints` + `generate_hierarchical_routes` 按 ordering 哈希分区

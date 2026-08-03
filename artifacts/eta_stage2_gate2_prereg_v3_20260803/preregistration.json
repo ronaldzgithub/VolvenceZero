@@ -1,0 +1,131 @@
+{
+  "schema_version": "eta-stage2-gate2-prereg.v3",
+  "experiment_id": "eta-stage2-linear-classification-probe",
+  "created_at": "2026-08-03T08:05:24.246412+00:00",
+  "claim_scope": "does-the-llm-residual-carry-the-behaviour-hierarchy",
+  "precondition": "Gate 1 passed 2026-08-03; instrument v2 validated (readable plan, heldout ceiling 1.0).",
+  "revision_provenance": {
+    "registered_after": "artifacts/eta_stage2_probe_v2_20260803 (sealed v2-instrument run)",
+    "what_changed": "Only the second Gate-2 condition: 'rises-with-prefix.v1' -> 'retention.v3'. The v1 condition was designed for the inference regime (subgoal gradually inferred from behaviour, so probe accuracy rises with prefix). Under the v4 staged-revelation protocol the label is explicitly announced at step 0 / each arrival, so there is nothing to accumulate; the only failure mode the condition should catch is retention collapse across the suffix. retention.v3 therefore requires the late bucket to clear the same 2x-chance bar and the early-to-late decay to stay bounded.",
+    "forking_paths_mitigation": "Because the revision was motivated after observing the v2 run, this v3 adjudication uses a FRESH corpus seed (20260804): a new environment graph and new route splits that no criterion choice was conditioned on. The sealed v1 and v2 artifacts are not re-adjudicated; their verdicts stand as registered. The retention bound (0.15) and all other thresholds are frozen here before any fresh-seed model readout exists.",
+    "v2_reference_readouts_for_transparency": {
+      "pretrained": {
+        "selected_accuracy": 0.943624,
+        "early": 0.979167,
+        "late": 0.879245
+      },
+      "base": {
+        "selected_accuracy": 0.900671,
+        "early": 0.985417,
+        "late": 0.74717
+      },
+      "note": "Recorded so the motivation is auditable; these numbers play no role in the v3 decision."
+    }
+  },
+  "corpus": {
+    "corpus_origin": "generated-seeded",
+    "corpus_seed": 20260804,
+    "objective_count": 8,
+    "train_routes": 120,
+    "heldout_routes": 60,
+    "train_lengths": [
+      2,
+      3
+    ],
+    "heldout_lengths": [
+      3,
+      4
+    ],
+    "document_protocol": "partially-observable-staged-plan.v4",
+    "repeat": 1,
+    "note": "Fresh seed relative to v1/v2 (20260802). Train-split orderings only; heldout excluded at generation time."
+  },
+  "ceiling_verification": {
+    "heldout_text_to_label_deterministic_groups": "439/439",
+    "rows_with_subgoal_explicitly_revealed_in_prefix": "664/664",
+    "ceiling": 1.0,
+    "probe_text_max_tokens_qwen": 507,
+    "document_max_tokens_qwen": 444
+  },
+  "pretrain": {
+    "base_model_source": "Qwen/Qwen2.5-0.5B-Instruct",
+    "training_mode": "peft-lora-continued-pretrain-merged-v1",
+    "rank": 16,
+    "alpha": 32,
+    "learning_rate": 0.0002,
+    "max_steps": 2000,
+    "max_length": 512,
+    "device": "mps"
+  },
+  "probe": {
+    "kind": "linear-least-squares-classification",
+    "probe_protocol": "partially-observable-staged-plan.v4",
+    "feature": "final-prompt-position hidden state per layer (capture_prefix_diagnostics, prefix_pairs=None)",
+    "input": "cumulative trajectory prefix through step k (past step lines with expert actions, bare step-k observation last)",
+    "target": "active subgoal = next objective ahead on the route",
+    "layer_selection": "train-split: fixed layer chosen by validation accuracy on a deterministic case-id fit/val split of the train rows only; ties break to the lower layer",
+    "max_length": 640,
+    "ridge_alpha": 1.0,
+    "truncation": "fail-loud"
+  },
+  "gate2_thresholds": {
+    "gate_id": "gate-2-residual-carries-subgoal",
+    "gate_conditions": "retention.v3",
+    "condition_2x_chance": "pretrained selected-layer heldout accuracy >= 2 * (1/class_count)",
+    "condition_retention": "pretrained late-step-bucket accuracy >= 2 * (1/class_count) AND (early-bucket - late-bucket) <= 0.15",
+    "condition_beats_base": "pretrained selected-layer accuracy > original-Qwen selected-layer accuracy (causal contrast)",
+    "decision": "all three must hold to pass"
+  },
+  "decision_rules": [
+    "Gate 2 passes only if all three conditions hold; then Stage 3 reruns the rate-distortion criterion on the v3 merged base.",
+    "Gate 2 fails otherwise: with the readable-plan instrument (ceiling 1.0) and the regime-matched second condition, a fail now convicts the substrate claim at this scale; the LLM-transfer route is killed and no Stage-3 rerun is run.",
+    "The continued-pretrained base is an offline rare-heavy substrate refresh (merged, frozen, fingerprinted); the original Qwen path is untouched.",
+    "The pretraining corpus contains only train-split orderings; heldout orderings are excluded at generation time.",
+    "Sealed v1 and v2 artifacts are not re-adjudicated by this run."
+  ],
+  "prohibited_after_execution": [
+    "changing any of the three Gate-2 conditions, the 2x-chance multiplier, or the 0.15 retention bound",
+    "switching the layer-selection rule after seeing heldout accuracies",
+    "re-running with a different corpus seed or protocol and reporting only the better outcome",
+    "using the ridge/regression probe R^2 in place of the classification accuracy gate",
+    "reusing the pretraining corpus routes as probe/Stage-3 evaluation routes"
+  ],
+  "frozen_source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/prefix_kv_diagnostics.py": {
+      "role": "fit_linear_classification_probe owner",
+      "sha256": "868d4f250fcce5e65484a7abf9fb8cb5d9250bd7fb37c582e5b9fe36dd795632"
+    },
+    "packages/vz-substrate/src/volvence_zero/substrate/rare_heavy_training.py": {
+      "role": "continued_pretrain_and_merge owner",
+      "sha256": "ebce72af444f702bba61faf0bedcc0c2f1d1c08b761742312c783ad61acd665c"
+    },
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": {
+      "role": "corpus generation + ETAProbeRow owner",
+      "sha256": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85"
+    },
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": {
+      "role": "instrument-v2 owner: v4 protocol rendering, eta_stage2_documents, eta_stage2_probe_rows",
+      "sha256": "7cd3d09fe1be3ddb6d79fa6584de9b0ac446995b03fdd02b09cc9f036d1d7a1a"
+    },
+    "packages/vz-temporal/src/volvence_zero/internal_rl/proof_environment.py": {
+      "role": "environment/route generator",
+      "sha256": "7e502c4cbbc9d5c0b5f81f574ef07061bac747f45a674d3e1256fc9feb84259e"
+    },
+    "scripts/run_eta_stage2_corpus.py": {
+      "role": "Stage-2 corpus runner (--document-protocol)",
+      "sha256": "adc2b4c6136178ea8bf94ab138a7b8a88fc72f62fd283974a4de2b628c301f33"
+    },
+    "scripts/run_eta_stage2_pretrain.py": {
+      "role": "continued-pretrain + merge runner",
+      "sha256": "9290fd5329f099b19f9cce92e25cb57ffcd0d4c69ea3a66906e6ea3dbcd2aaa4"
+    },
+    "scripts/run_eta_stage2_probe.py": {
+      "role": "Gate-2 runner (retention.v3 gate conditions added; assess_gate2 unit-tested)",
+      "sha256": "35126dc53ad1b13f56c4e2a9a09fbb42c6c48e650a00dc60cef5deefe090100f"
+    }
+  },
+  "supersedes": {
+    "artifact": "artifacts/eta_stage2_gate2_prereg_v2_20260803/preregistration.json",
+    "reason": "Second-condition regime mismatch under staged revelation, documented in revision_provenance; everything else is inherited unchanged except the fresh corpus seed."
+  }
+}

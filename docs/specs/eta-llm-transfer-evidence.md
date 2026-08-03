@@ -1,6 +1,6 @@
 # ETA 迁移 LLM 四级阶梯证据 Spec
 
-> Status: active（Stage 1 Gate 1 = **PASS**（2026-08-03，v4+smooth+switch-gated+hard-st 权威扫）；Stage 2 Gate 2 = **FAIL**（2026-08-03，`gate-2-fail-kill-llm-transfer`）：领域续训后 Qwen2.5-0.5B 残差流仍读不出 active subgoal（读出层 acc 0.131 ≤ 2×chance 0.25，且低于裸基座 0.166），按预注册 kill 本条 LLM 迁移路线、不进入 Stage 3；claim `claim_llm_residual_carries_subgoal_hierarchy` 在 0.5B 规模被驳。ETA 主张本身**未**永久摘除（保留给 Gate 3 或独立处置包）。Stage 3–4 不启）
+> Status: active（Stage 1 Gate 1 = **PASS**（2026-08-03）。Stage 2：v1 仪器 FAIL 经审计**定罪仪器而非基底**（哈希指纹计划载体使 heldout 信息天花板 0.18 < 及格线 0.25）；v2 可读仪器重审（prereg `c0a54454…`）实测残差流**大幅承载** active subgoal（裸基座 0.901 / 续训 0.944，`2×chance` 与因果对照两条实质条件 PASS），但 `随前缀上升` 条件在分段揭示制度下 regime 错配（保持衰减 0.98→0.88，仍 7× chance），按预注册字面 v2 verdict = **FAIL** 封存。claim 实质读数支持"残差可承载"，正式判定待决策：是否注册修正第二条件的 v3 预注册。Stage 3–4 未解锁）
 > Last updated: 2026-08-03
 > 对应需求: R2, R3, R4, R8, R10, R12, R15
 > Owner 能力域: `vz-temporal`（元控制器 / rate–distortion）、`vz-substrate`（续训 merge / 分类 probe）、evidence lane（本 spec）
@@ -48,7 +48,7 @@ rate–distortion（Gate 3），对话迁移仅在前三级全过后预注册（
 | Claim ID | 主张 | 所需门 |
 |---|---|---|
 | `claim_eta_rate_axis_instrument_valid` | 在 seeded 富语料上，frozen 臂 rate 轴对 alpha 做信息–精度交易 | Gate 1 → **PASS**（2026-08-03） |
-| `claim_llm_residual_carries_subgoal_hierarchy` | 领域续训后的冻结 LLM 残差流可线性解码 active subgoal，且优于裸基座 | Gate 2 → **FAIL**（2026-08-03，0.5B 被驳；LLM 迁移路线 kill） |
+| `claim_llm_residual_carries_subgoal_hierarchy` | 领域续训后的冻结 LLM 残差流可线性解码 active subgoal，且优于裸基座 | Gate 2：v1 FAIL（仪器定罪，见审计）；v2 实质两条件 PASS（0.944 / 因果 +4.3pp）但按字面 FAIL（第二条件 regime 错配），待 v3 决策 |
 | `claim_eta_rate_distortion_on_domain_pretrained_llm` | 补课冻结 LLM + 元控制器出现论文式近垂直 gap | Gate 3 |
 | `claim_eta_dialogue_transfer` | （contingent）对话域同样可迁移 | Stage 4；仅 1–3 全过 |
 
@@ -230,6 +230,20 @@ n_input 16）验证信息时刻表：step-0 target-1 = `1.000`、target-2 =
 - 续训：`continued_pretrain_and_merge`（LoRA → merge → 冻结落盘 + 权重指纹）
 - probe：`fit_linear_classification_probe` + `scripts/run_eta_stage2_probe.py`
 
+**仪器版本**（2026-08-03 审计后分化，runner 以 `--document-protocol` /
+`--probe-protocol` / `--layer-selection` 显式选择，legacy 保留可回滚）：
+
+- **v1（legacy）**：文档 `render_eta_route_documents`、probe
+  `eta_route_probe_rows`（单步观测），计划载体是语料生成器的哈希指纹
+  `_context_sentence`（ordering 哈希采样 8 个主题词，构造性不可读——与
+  Gate-1 定罪的 v2 协议缺陷同类）；读出层固定最后一层。
+- **v2**：文档 `eta_stage2_documents`、probe `eta_stage2_probe_rows`
+  （owner：`eta_rate_distortion_evidence.py`，直接复用 rate-distortion v4
+  staged-plan 协议渲染作 SSOT 表面）。probe 输入为累积轨迹前缀
+  （过去步含专家动作 + 当前步裸观测，对齐论文附录 B 的轨迹处理 regime），
+  标签在 v4 下是可见文本的确定函数；读出层由 train rows 的确定性
+  case-id fit/val 切分预选（heldout 不参与）；超长文本 fail-loud 不截断。
+
 **通过门槛**：
 
 - 补课 heldout probe 准确率 ≥ 2× 随机水平
@@ -246,21 +260,60 @@ n_input 16）验证信息时刻表：step-0 target-1 = `1.000`、target-2 =
 `08472c6d…`）、`artifacts/eta_stage2_probe_20260803/probe_manifest.json`
 （双臂 probe + gate2 判定）。
 
-**当前状态**：**Gate 2 = FAIL（2026-08-03，`gate-2-fail-kill-llm-transfer`）**。
+**v1 仪器读数（封存）**：**FAIL（2026-08-03，`gate-2-fail-kill-llm-transfer`）**。
 续训把语料 next-token loss 由 2.610 压到 0.119（2000 步 / 120 文档 /
 15737 token，near-memorization），但预注册最后一层线性 probe 在 8 类
 （chance 0.125 / majority 0.166）heldout 上：续训臂 acc `0.131`、裸 Qwen 臂
 `0.166`（后者恰等于 majority，probe 塌到多数类）。三条件里
 `2×chance（≥0.25）` **否**、`续训 > 基线` **否**（0.131 < 0.166）、
-`随前缀上升` 是——两否即 FAIL。结果对预注册措辞歧义稳健：即便用最宽容的
-"全 24 层挑最优"读法（base 0.214 / pretrained 0.202，均非合规读出），
-`2×chance` 与 `续训 > 基线` 仍双否。判读：Qwen2.5-0.5B 残差流在本领域续训后
-**没有**装出线性可解码的 active-subgoal 层级，反而把最后一层读出略微搞差
-（过拟合 next-token 使残差几何塌缩而非组织子目标结构）。按预注册
-`decision_rules`：claim `claim_llm_residual_carries_subgoal_hierarchy` 在
-0.5B 被驳，**整条 LLM 迁移路线 kill、不进入 Stage 3**。ETA 主张本身未永久
-摘除（保留给 Gate 3 或独立处置包）。**规模敏感性**（更大基座是否 host 该
-层级）是一个独立的开放问题，需另立新预注册，不撤销本封存负结果。
+`随前缀上升` 是——两否即 FAIL。即便用"全 24 层挑最优"读法
+（base 0.214 / pretrained 0.202，非合规读出），前两条仍双否。
+
+**仪器审计（2026-08-03，收窄 v1 FAIL 的解释权）**：v1 仪器的 heldout 信息
+天花板经离线复算为**构造性低于及格线**——把非指纹可见信息（当前位置 /
+可走边 / 已完成目标）在 train 上拟合到贝叶斯极限的查表预测器，heldout 只有
+`0.1805`（30.2% 的 heldout 局部特征组合 train 中未出现；heldout 自身 oracle
+上界 0.558，多行组 0.367），**低于 2×chance = 0.25 的及格线**。实测两臂
+0.131–0.214 恰在该天花板附近：模型已把可读信息基本榨干，**是尺子没有把计划
+可读地呈现，不是残差流装不下**。因此 v1 FAIL **定罪仪器而非基底命题**；
+"0.5B 残差不载子目标"的早先措辞过强，据此收窄。v1 封存 artifact 不改动。
+
+**v2 仪器重审**：预注册
+`artifacts/eta_stage2_gate2_prereg_v2_20260803/`（sha256 `c0a54454…`，
+8 个 owner 源文件真实 sha256 锁定，含仪器审计数字与 v2 天花板验证：heldout
+文本→标签 499/499 组全确定、745/745 行 subgoal 在前缀显式揭示、ceiling
+1.0；probe 文本最长 583 token → `--max-length 640`，文档最长 442 token →
+续训 `--max-length 512`）。v2 下三门槛不变；**由于计划已可读（ceiling
+1.0），v2 的 FAIL 才真正定罪基底命题**。语料
+`artifacts/eta_stage2_corpus_v2_20260803/`（120 文档 / 20110 词 / 重叠 0 /
+content sha256 `1caeac3a…`）；续训 merged
+`artifacts/eta_stage2_merged_v2_20260803/`（权重指纹 `063077b7…`，
+initial_loss 0.967 → final_loss 0.020，2000 步 / 35436 token）。
+
+**v2 仪器读数（2026-08-03，`artifacts/eta_stage2_probe_v2_20260803/`，
+封存）**：verdict 按预注册字面 = **FAIL**，但结构与 v1 完全不同——两条
+**实质**条件决定性通过，仅第二条件败：
+
+- `2×chance（≥0.25）`：**PASS**——续训臂读出层（train-split 选层 4）heldout
+  acc `0.944`（= 7.5× chance；majority 0.188）；裸 Qwen 臂（选层 6）
+  `0.901`。全层扫描：base 0.795–0.976、pretrained 0.788–1.000（后段层
+  0.99–1.00）。**残差流大幅承载 active subgoal，v1 审计结论被实测证实**。
+- `续训 > 基线`：**PASS**——0.944 > 0.901，因果对照成立（+4.3pp，且后段层
+  续训臂达 1.00）。
+- `随前缀上升`：**FAIL**——early 0.979 / late 0.879（base：0.985/0.747）。
+  诊断：该条件为 v1/论文的**推断累积** regime 设计（子目标须从行为轨迹
+  逐步推断，前缀越长信念越准）；v2 分段揭示制度下标签是显式给出的，无可
+  累积推断，只有跨 token 的**保持衰减**（late 桶 0.879 仍为 chance 的
+  7 倍）。属仪器判据与制度的错配，非"残差装不下层级"的证据。
+- 附注：train-split 选层规则在 val 全饱和（多层 val=1.0）时平局取最低层，
+  选中层 4/6 而非 heldout 更强的后段层（0.976/1.00）；这是预注册规则的
+  诚实代价，不回溯更改。
+
+**处置**：v2 verdict 按 `prohibited_after_execution`（执行后禁改条件）封存
+为 FAIL；实质读数（0.944 / 0.901 / 因果 +4.3pp）作为"残差可承载"的强方向性
+证据登记。是否注册 **v3 预注册**（把第二条件修为分段揭示制度下的保持类判据，
+如 late 桶 ≥ 2×chance 且 early−late ≤ 阈值，或按"距上次揭示的 token 距离"
+的保持曲线）由用户决策；Stage 3 在正式 Gate-2 PASS 前保持锁定。
 
 ### Stage / Gate 3 — 补课基底上重审 rate–distortion
 
@@ -377,7 +430,41 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
   全 24 层最优（base 0.214 / pretrained 0.202，非合规读出）下 `2×chance` 与
   `续训>基线` 仍双否。判读：0.5B 残差流领域续训后仍无线性可解码 subgoal 层级，
   next-token 近记忆化甚至略微恶化最后一层读出。据预注册 `decision_rules`：
-  claim `claim_llm_residual_carries_subgoal_hierarchy` 在 0.5B 被驳，整条
+  claim   `claim_llm_residual_carries_subgoal_hierarchy` 在 0.5B 被驳，整条
   LLM 迁移路线 kill、Stage 3 不跑；ETA 主张未永久摘除（保留 Gate 3 / 独立处置
   包）。规模敏感性为独立开放问题，须另立新预注册，不撤销本封存结果。
   `probe_manifest.json` 已随 `artifacts/eta_stage2_probe_20260803/` 封存。
+- 2026-08-03: **Stage-2 仪器审计**，收窄同日 v1 FAIL 的解释权。代码审计发现
+  v1 语料/probe 的计划载体是 `_context_sentence` 哈希指纹（ordering 哈希采样
+  8 主题词，构造性不可读——与 Gate-1 定罪的观测协议 v2 缺陷同类，且该管线
+  早于 v3/v4 修复、被 v1 预注册连同缺陷一起 SHA 冻结）。离线复算 heldout
+  信息天花板：非指纹可见信息的 train-拟合贝叶斯查表在 heldout 仅 `0.1805`
+  （未见局部键 30.2%；oracle 上界 0.558 / 多行组 0.367），低于 2×chance =
+  0.25 及格线——**v1 的 2×chance 条件构造性不可过**，实测两臂 0.131–0.214
+  恰在天花板附近（可读信息已被榨干）。判读修正：v1 FAIL 定罪仪器而非基底
+  命题，"0.5B 残差不载子目标"措辞收窄；v1 封存 artifact 与其 verdict 字符串
+  不改动。修复（仪器 v2，owner `eta_rate_distortion_evidence.py`）：
+  `eta_stage2_documents` / `eta_stage2_probe_rows` 复用 rate-distortion v4
+  staged-plan 渲染作 SSOT 表面（`_rate_distortion_observation_texts` 扩展
+  返回 per-step active subgoal，v4 文本逐字节不变，全 42 项 runner 单测通过
+  + 新增 3 项 v2 不变量单测：文本→标签确定、无未来目标泄漏、文档-probe 表面
+  一致）；probe 输入改累积轨迹前缀（对齐论文附录 B）；读出层改 train-split
+  确定性预选（v1 固定末层输出头对齐，base 臂实测中层 0.214 > 末层 0.166）；
+  超长 fail-loud。runner 新增 `--document-protocol` / `--probe-protocol` /
+  `--layer-selection` / `--max-length`，legacy 默认保留可回滚。v2 预注册
+  `artifacts/eta_stage2_gate2_prereg_v2_20260803/`（sha256 `c0a54454…`）
+  冻结仪器审计数字与 v2 天花板验证（ceiling 1.0），明确 v2 FAIL 才定罪基底
+  命题；v2 全链已启动。
+- 2026-08-03: **v2 仪器重审完成**（语料 `1caeac3a…` → 续训 merged
+  `063077b7…`，initial 0.967 → final 0.020 → probe
+  `artifacts/eta_stage2_probe_v2_20260803/`，参数与 v2 预注册逐字节一致）。
+  实测：裸 Qwen heldout acc `0.901`（全层 0.795–0.976）、续训臂 `0.944`
+  （全层 0.788–1.000，后段层 0.99–1.00）——**残差流大幅承载 active
+  subgoal，仪器审计的"v1 定罪仪器"结论被实测证实**（v1 同一命题读数仅
+  0.131/0.166）。三条件：`2×chance` PASS（7.5×）、`续训>基线` PASS
+  （+4.3pp）、`随前缀上升` FAIL（early 0.979 / late 0.879，保持衰减而非
+  推断累积——该条件为 v1 推断 regime 设计，在 v2 显式揭示制度下 regime
+  错配）。按预注册字面 v2 verdict = **FAIL** 封存（执行后禁改条件）；实质
+  读数登记为"残差可承载"的强方向性证据。待决策：是否注册修正第二条件为
+  保持类判据的 v3 预注册；Stage 3 在正式 PASS 前保持锁定。另：train-split
+  选层在 val 饱和时平局取低层（4/6），为预注册规则的诚实代价。

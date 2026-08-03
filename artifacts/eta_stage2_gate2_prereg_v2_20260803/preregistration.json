@@ -1,0 +1,127 @@
+{
+  "schema_version": "eta-stage2-gate2-prereg.v2",
+  "experiment_id": "eta-stage2-linear-classification-probe",
+  "created_at": "2026-08-03T06:33:18.793557+00:00",
+  "claim_scope": "does-the-llm-residual-carry-the-behaviour-hierarchy",
+  "precondition": "Gate 1 passed 2026-08-03 (artifacts/eta_stage1_gate1_v4_hardst_auth_20260803).",
+  "instrument_audit": {
+    "date": "2026-08-03",
+    "finding": "The v1 instrument (legacy eta_route_probe_rows + render_eta_route_documents) carries the plan only as the corpus generator's hash-fingerprint context sentence (_context_sentence: 8 thematic words sampled by a hash of the ordering) -- the same defect class the Gate-1 step-0 probe convicted in observation protocol v2. On heldout routes the active subgoal is therefore mostly not a function of the readable input.",
+    "legacy_heldout_information_ceiling": {
+      "train_fit_local_feature_lookup": 0.1805,
+      "unseen_local_key_fraction": 0.302,
+      "heldout_oracle_local_feature_bound": 0.5582,
+      "heldout_oracle_multi_row_groups_only": 0.3673,
+      "gate_bar_2x_chance": 0.25,
+      "note": "A Bayes-optimal non-fingerprint predictor fit on train scores 0.1805 on heldout -- below the 0.25 bar; the v1 gate was unpassable by construction. Observed arms (base 0.166/0.214, pretrained 0.131/0.202) sit at this ceiling."
+    },
+    "v1_sealed_verdict": "artifacts/eta_stage2_probe_20260803 gate-2-fail-kill-llm-transfer remains sealed as the v1-instrument reading; it convicts the instrument, not the substrate claim. This v2 preregistration re-tests the substrate claim with a readable-plan instrument and does not overwrite the sealed artifact.",
+    "v2_ceiling_verification": {
+      "heldout_text_to_label_deterministic_groups": "499/499",
+      "rows_with_subgoal_explicitly_revealed_in_prefix": "745/745",
+      "ceiling": 1.0,
+      "probe_text_max_tokens_qwen": 583,
+      "document_max_tokens_qwen": 442
+    }
+  },
+  "corpus": {
+    "corpus_origin": "generated-seeded",
+    "corpus_seed": 20260802,
+    "objective_count": 8,
+    "train_routes": 120,
+    "heldout_routes": 60,
+    "train_lengths": [
+      2,
+      3
+    ],
+    "heldout_lengths": [
+      3,
+      4
+    ],
+    "document_protocol": "partially-observable-staged-plan.v4",
+    "repeat": 1,
+    "note": "Documents render the rate-distortion v4 staged-plan surface (step lines + expert actions); no fingerprint context line. Train-split orderings only; heldout excluded at generation time."
+  },
+  "pretrain": {
+    "base_model_source": "Qwen/Qwen2.5-0.5B-Instruct",
+    "training_mode": "peft-lora-continued-pretrain-merged-v1",
+    "rank": 16,
+    "alpha": 32,
+    "learning_rate": 0.0002,
+    "max_steps": 2000,
+    "max_length": 512,
+    "device": "mps",
+    "note": "max_length raised from 256 to 512 so no v4 document (max 442 tokens) is truncated mid-episode."
+  },
+  "probe": {
+    "kind": "linear-least-squares-classification",
+    "probe_protocol": "partially-observable-staged-plan.v4",
+    "feature": "final-prompt-position hidden state per layer (capture_prefix_diagnostics, prefix_pairs=None)",
+    "input": "cumulative trajectory prefix through step k: past step lines with expert actions, bare step-k observation last (paper appendix-B regime)",
+    "target": "active subgoal = next objective ahead on the route",
+    "layer_selection": "train-split: fixed layer chosen by validation accuracy on a deterministic case-id fit/val split of the train rows only (sha256(case_id)[0] % 5 == 0 -> val); heldout never informs the choice; ties break to the lower layer",
+    "max_length": 640,
+    "ridge_alpha": 1.0,
+    "truncation": "fail-loud: any probe text over max_length raises instead of truncating"
+  },
+  "gate2_thresholds": {
+    "gate_id": "gate-2-residual-carries-subgoal",
+    "condition_2x_chance": "pretrained selected-layer heldout accuracy >= 2 * (1/class_count)",
+    "condition_rises_with_prefix": "pretrained late-step-bucket accuracy >= early-step-bucket accuracy",
+    "condition_beats_base": "pretrained selected-layer accuracy > original-Qwen selected-layer accuracy (causal contrast)",
+    "decision": "all three must hold to pass"
+  },
+  "decision_rules": [
+    "Gate 2 passes only if all three conditions hold; then Stage 3 reruns the rate-distortion criterion on the merged base.",
+    "Gate 2 fails otherwise: with the readable-plan instrument (heldout ceiling 1.0 verified above), a fail now does convict the substrate claim at this scale, and the LLM-transfer route is killed; no Stage-3 rerun is run.",
+    "The continued-pretrained base is an offline rare-heavy substrate refresh (merged, frozen, fingerprinted); the original Qwen path is untouched.",
+    "The pretraining corpus contains only train-split orderings; heldout orderings are excluded at generation time, so the base never sees a Stage-3 evaluation trajectory.",
+    "The sealed v1 artifact (artifacts/eta_stage2_probe_20260803) is not modified or reinterpreted by this run beyond the instrument-audit scoping already recorded."
+  ],
+  "prohibited_after_execution": [
+    "changing any of the three Gate-2 conditions or the 2x-chance multiplier",
+    "switching the layer-selection rule after seeing heldout accuracies",
+    "selecting the probe layer against heldout for the purpose of passing",
+    "using the ridge/regression probe R^2 in place of the classification accuracy gate",
+    "reusing the pretraining corpus routes as probe/Stage-3 evaluation routes",
+    "re-running with a different corpus seed or protocol and reporting only the better outcome"
+  ],
+  "frozen_source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/prefix_kv_diagnostics.py": {
+      "role": "fit_linear_classification_probe owner",
+      "sha256": "868d4f250fcce5e65484a7abf9fb8cb5d9250bd7fb37c582e5b9fe36dd795632"
+    },
+    "packages/vz-substrate/src/volvence_zero/substrate/rare_heavy_training.py": {
+      "role": "continued_pretrain_and_merge owner",
+      "sha256": "ebce72af444f702bba61faf0bedcc0c2f1d1c08b761742312c783ad61acd665c"
+    },
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": {
+      "role": "corpus generation + ETAProbeRow owner",
+      "sha256": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85"
+    },
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": {
+      "role": "instrument-v2 owner: v4 protocol rendering, eta_stage2_documents, eta_stage2_probe_rows",
+      "sha256": "7cd3d09fe1be3ddb6d79fa6584de9b0ac446995b03fdd02b09cc9f036d1d7a1a"
+    },
+    "packages/vz-temporal/src/volvence_zero/internal_rl/proof_environment.py": {
+      "role": "environment/route generator (fingerprint _context_sentence audited)",
+      "sha256": "7e502c4cbbc9d5c0b5f81f574ef07061bac747f45a674d3e1256fc9feb84259e"
+    },
+    "scripts/run_eta_stage2_corpus.py": {
+      "role": "Stage-2 corpus runner (--document-protocol)",
+      "sha256": "adc2b4c6136178ea8bf94ab138a7b8a88fc72f62fd283974a4de2b628c301f33"
+    },
+    "scripts/run_eta_stage2_pretrain.py": {
+      "role": "continued-pretrain + merge runner",
+      "sha256": "9290fd5329f099b19f9cce92e25cb57ffcd0d4c69ea3a66906e6ea3dbcd2aaa4"
+    },
+    "scripts/run_eta_stage2_probe.py": {
+      "role": "Gate-2 runner (--probe-protocol, --layer-selection, fail-loud max-length)",
+      "sha256": "e3b4440961aae6805518bb9671380ee2f2b070b87e79f85e96bd6a99113d92c4"
+    }
+  },
+  "supersedes": {
+    "artifact": "artifacts/eta_stage2_gate2_prereg_20260803/preregistration.json",
+    "reason": "Instrument audit (2026-08-03) showed the v1 probe/corpus carried the plan only as an unreadable hash fingerprint, capping the heldout information ceiling at ~0.18 against the 0.25 bar. The v1 prereg and its sealed FAIL artifact remain the v1-instrument record; this v2 prereg registers the readable-plan instrument for a fair re-test of the same substrate claim."
+  }
+}

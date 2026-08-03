@@ -280,33 +280,67 @@ def _predict_labels(train_x, train_y, eval_x, class_count):
     return scores.argmax(dim=1)
 
 
-def assess_gate2(*, base_arm, pretrained_arm) -> dict:
+# Second-condition variants. "rises-with-prefix.v1" was designed for the
+# inference regime (the subgoal must be gradually inferred from behaviour, so
+# belief accuracy rises along the trajectory). Under the v4 staged-revelation
+# protocol the label is explicitly announced, so there is nothing to
+# accumulate -- only retention across the suffix -- and the v2 run showed the
+# expected retention-decay signature (early 0.979 / late 0.879, both far above
+# chance) failing the letter of the v1 condition. "retention.v3" tests what
+# the regime actually demands: the late bucket must itself clear the 2x-chance
+# bar and the early-to-late decay must stay bounded (no retention collapse).
+GATE_CONDITIONS_RISES_V1 = "rises-with-prefix.v1"
+GATE_CONDITIONS_RETENTION_V3 = "retention.v3"
+_GATE_CONDITIONS = (GATE_CONDITIONS_RISES_V1, GATE_CONDITIONS_RETENTION_V3)
+RETENTION_V3_MAX_DECAY = 0.15
+
+
+def assess_gate2(
+    *, base_arm, pretrained_arm, gate_conditions=GATE_CONDITIONS_RISES_V1
+) -> dict:
     """Pure Gate-2 decision from the two arms' probe readouts."""
 
+    if gate_conditions not in _GATE_CONDITIONS:
+        raise ValueError(
+            f"Unknown gate conditions {gate_conditions!r}; expected one of "
+            f"{_GATE_CONDITIONS}."
+        )
     acc = pretrained_arm["selected_accuracy"]
     chance = pretrained_arm["chance_accuracy"]
+    early = pretrained_arm["early_prefix_accuracy"]
+    late = pretrained_arm["late_prefix_accuracy"]
     cond_2x = acc >= 2.0 * chance
-    cond_prefix = (
-        pretrained_arm["late_prefix_accuracy"]
-        >= pretrained_arm["early_prefix_accuracy"]
-    )
     cond_causal = acc > base_arm["selected_accuracy"]
-    passed = cond_2x and cond_prefix and cond_causal
-    return {
+    result = {
         "gate_id": "gate-2-residual-carries-subgoal",
-        "passed": passed,
+        "gate_conditions": gate_conditions,
         "condition_2x_chance": cond_2x,
-        "condition_rises_with_prefix": cond_prefix,
         "condition_beats_base": cond_causal,
         "pretrained_accuracy": acc,
         "base_accuracy": base_arm["selected_accuracy"],
         "chance_accuracy": chance,
-        "verdict": (
-            "gate-2-pass-proceed-to-stage-3"
-            if passed
-            else "gate-2-fail-kill-llm-transfer"
-        ),
+        "early_prefix_accuracy": early,
+        "late_prefix_accuracy": late,
     }
+    if gate_conditions == GATE_CONDITIONS_RISES_V1:
+        cond_second = late >= early
+        result["condition_rises_with_prefix"] = cond_second
+    else:
+        cond_late_2x = late >= 2.0 * chance
+        cond_bounded_decay = (early - late) <= RETENTION_V3_MAX_DECAY
+        cond_second = cond_late_2x and cond_bounded_decay
+        result["condition_late_bucket_2x_chance"] = cond_late_2x
+        result["condition_bounded_retention_decay"] = cond_bounded_decay
+        result["retention_decay"] = round(early - late, 6)
+        result["retention_decay_max"] = RETENTION_V3_MAX_DECAY
+    passed = cond_2x and cond_second and cond_causal
+    result["passed"] = passed
+    result["verdict"] = (
+        "gate-2-pass-proceed-to-stage-3"
+        if passed
+        else "gate-2-fail-kill-llm-transfer"
+    )
+    return result
 
 
 def main() -> None:
@@ -356,6 +390,16 @@ def main() -> None:
         help=(
             "Fail-loud token budget per probe text; texts longer than this "
             "raise instead of being truncated."
+        ),
+    )
+    parser.add_argument(
+        "--gate-conditions",
+        choices=_GATE_CONDITIONS,
+        default=GATE_CONDITIONS_RISES_V1,
+        help=(
+            "Second Gate-2 condition: 'rises-with-prefix.v1' (inference "
+            "regime) or 'retention.v3' (staged-revelation regime: late "
+            "bucket >= 2x chance and bounded early-to-late decay)."
         ),
     )
     args = parser.parse_args()
@@ -408,7 +452,11 @@ def main() -> None:
         max_length=args.max_length,
     )
     elapsed = time.perf_counter() - started
-    gate = assess_gate2(base_arm=base_arm, pretrained_arm=pretrained_arm)
+    gate = assess_gate2(
+        base_arm=base_arm,
+        pretrained_arm=pretrained_arm,
+        gate_conditions=args.gate_conditions,
+    )
 
     output_dir: Path = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)

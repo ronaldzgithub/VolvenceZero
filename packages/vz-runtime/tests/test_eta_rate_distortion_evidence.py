@@ -665,6 +665,68 @@ def test_stage2_v2_documents_drop_the_fingerprint_for_the_protocol_surface() -> 
         assert current_line in document
 
 
+def test_stage2_gate2_retention_v3_conditions() -> None:
+    """retention.v3 replaces rises-with-prefix with 'late bucket clears
+    2x chance AND early-to-late decay stays bounded'; the two substantive
+    conditions are unchanged, and unknown condition sets are rejected."""
+
+    import run_eta_stage2_probe as probe_cli
+
+    def arms(*, acc, base, early, late):
+        pretrained = {
+            "selected_accuracy": acc,
+            "chance_accuracy": 0.125,
+            "early_prefix_accuracy": early,
+            "late_prefix_accuracy": late,
+        }
+        return {"selected_accuracy": base}, pretrained
+
+    # Retention regime pass: high accuracy, bounded decay, beats base.
+    base_arm, pretrained_arm = arms(acc=0.94, base=0.90, early=0.98, late=0.88)
+    verdict = probe_cli.assess_gate2(
+        base_arm=base_arm,
+        pretrained_arm=pretrained_arm,
+        gate_conditions=probe_cli.GATE_CONDITIONS_RETENTION_V3,
+    )
+    assert verdict["passed"] is True
+    assert verdict["condition_late_bucket_2x_chance"] is True
+    assert verdict["condition_bounded_retention_decay"] is True
+    # The same readouts fail the v1 letter (late < early).
+    v1 = probe_cli.assess_gate2(
+        base_arm=base_arm,
+        pretrained_arm=pretrained_arm,
+        gate_conditions=probe_cli.GATE_CONDITIONS_RISES_V1,
+    )
+    assert v1["passed"] is False
+
+    # Retention collapse: decay above the bound fails.
+    base_arm, pretrained_arm = arms(acc=0.80, base=0.60, early=0.98, late=0.60)
+    verdict = probe_cli.assess_gate2(
+        base_arm=base_arm,
+        pretrained_arm=pretrained_arm,
+        gate_conditions=probe_cli.GATE_CONDITIONS_RETENTION_V3,
+    )
+    assert verdict["passed"] is False
+    assert verdict["condition_bounded_retention_decay"] is False
+
+    # Late bucket below 2x chance fails even with a small decay.
+    base_arm, pretrained_arm = arms(acc=0.30, base=0.20, early=0.30, late=0.20)
+    verdict = probe_cli.assess_gate2(
+        base_arm=base_arm,
+        pretrained_arm=pretrained_arm,
+        gate_conditions=probe_cli.GATE_CONDITIONS_RETENTION_V3,
+    )
+    assert verdict["passed"] is False
+    assert verdict["condition_late_bucket_2x_chance"] is False
+
+    with pytest.raises(ValueError):
+        probe_cli.assess_gate2(
+            base_arm=base_arm,
+            pretrained_arm=pretrained_arm,
+            gate_conditions="best-of-both",
+        )
+
+
 def test_rate_distortion_cli_holds_the_shared_mps_lock_during_the_sweep(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

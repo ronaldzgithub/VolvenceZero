@@ -1,0 +1,29 @@
+{
+  "schema_version": "eta-stage2-corpus.v2",
+  "experiment_id": "eta-stage2-continued-pretrain-corpus",
+  "created_at": "2026-08-03T08:05:42.802654+00:00",
+  "document_protocol": "partially-observable-staged-plan.v4",
+  "corpus_seed": 20260804,
+  "objective_count": 8,
+  "corridor_count": 2,
+  "extra_edge_probability": 0.35,
+  "train_lengths": [
+    2,
+    3
+  ],
+  "heldout_lengths": [
+    3,
+    4
+  ],
+  "unique_train_routes": 120,
+  "heldout_routes_excluded": 60,
+  "repeat": 1,
+  "document_count": 120,
+  "unique_document_count": 120,
+  "whitespace_token_estimate": 18869,
+  "train_heldout_document_overlap": 0,
+  "corpus_content_sha256": "d78281b57ca2d9fc2c34cbd08fa8996a30c300ab43cf9fc9b7583bdf3c80dcda",
+  "corpus_file": "corpus.jsonl",
+  "environment_id": "eta-generated-hierarchy",
+  "note": "Only train-split orderings are emitted; heldout orderings (Stage-3 eval) are held out at generation time by the compositional split."
+}

@@ -25,11 +25,13 @@
   posterior + v4 分段揭示协议 + switch-gated KL + hard-st 离散门 + 300 updates），
   冻结臂 rate 轴 spearman −1.000 / span 1.933，且 never-switch 崩塌解除
   （heldout boundary F1 全 alpha 0.240–0.671）。仪器有效性已确立。
-  **2026-08-03 再更新**：Stage 2 **Gate 2 = FAIL**——领域续训后 Qwen2.5-0.5B
-  残差流仍无线性可解码 active subgoal（最后一层 heldout acc 0.131 ≤ 2×chance
-  0.25，且低于裸基座 0.166；全层最优 base 0.214 / pretrained 0.202 仍双否）。
-  按预注册 kill 本 LLM 迁移路线、不进 Stage 3；**ETA 主张未永久摘除**（保留
-  Gate 3 / 独立处置包），整体 `kill-eta` 持续有效，规模敏感性须另立新预注册。见
+  **2026-08-03 再更新**：Stage 2 两代仪器——v1 FAIL（0.131/0.166）经仪器审计
+  **定罪仪器**（计划载体为哈希指纹，heldout 信息天花板 0.1805 < 及格线
+  0.25，构造性不可过）；v2 可读仪器（v4 staged-plan 语料 + 轨迹前缀 probe，
+  ceiling 1.0 验证）实测**残差流大幅承载 active subgoal**（裸 Qwen 0.901 /
+  续训 0.944，`2×chance` 与因果对照 PASS），仅 `随前缀上升` 判据在显式揭示
+  制度下 regime 错配（保持衰减 0.979→0.879）→ 按字面 v2 FAIL 封存，待 v3
+  预注册决策。整体 `kill-eta` 持续有效，Stage 3 锁定。见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)
 - 内部控制空间维度低于原始 token 动作空间
 
@@ -414,6 +416,19 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   `claim_llm_residual_carries_subgoal_hierarchy` 在 0.5B 被驳，整条 LLM 迁移
   路线 kill、Stage 3 不跑；ETA 主张**未**永久摘除（保留 Gate 3 / 独立处置包），
   规模敏感性须另立新预注册。
+- 2026-08-03: **Stage-2 仪器审计 + v2 重审**，收窄上一条的判读。审计：v1
+  语料/probe 的计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的
+  协议 v2 缺陷同类），heldout 非指纹信息天花板离线复算 0.1805 < 及格线
+  0.25——v1 FAIL 定罪仪器而非基底命题。仪器 v2（owner
+  `eta_rate_distortion_evidence.py`：`eta_stage2_documents` /
+  `eta_stage2_probe_rows` 复用 v4 staged-plan 渲染、累积轨迹前缀 probe、
+  train-split 选层、fail-loud 截断；`_rate_distortion_observation_texts`
+  扩展返回 per-step active subgoal，v4 文本逐字节不变）以新预注册
+  `artifacts/eta_stage2_gate2_prereg_v2_20260803/`（ceiling 1.0 验证）重跑：
+  裸 Qwen heldout `0.901`、续训 `0.944`（后段层 0.99–1.00）——**残差流大幅
+  承载 active subgoal**；`2×chance` 与因果对照 PASS，仅 `随前缀上升` 在显式
+  揭示制度下 regime 错配（0.979→0.879 保持衰减）→ 按字面 v2 FAIL 封存，
+  待 v3 预注册决策。`kill-eta` 持续有效，Stage 3 锁定。
 - 2026-08-02: 启动 **ETA 迁移 LLM 四级阶梯**，把论文成立的前提逐级搬到冻结 LLM 上；
   `kill-eta` 判定在 Stage 3 通过前保持有效。**证据 SSOT**：
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)（已挂

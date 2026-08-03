@@ -1209,11 +1209,11 @@ Gate 4 ecology source=`not-admitted`，P1/P2 不执行。该 kill 是冻结计�
 | Claim | Gate | 当前状态 |
 |---|---|---|
 | `claim_eta_rate_axis_instrument_valid` | Gate 1：spearman(α,rate)≤−0.8 且 rate_span≥0.30 + switching 存活 | **PASS**（2026-08-03，v4+smooth+switch-gated+hard-st 权威扫 `artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/`）：spearman −1.000 / span 1.933 / heldout boundary F1 全 alpha 0.240–0.671 |
-| `claim_llm_residual_carries_subgoal_hierarchy` | Gate 2：补课 probe ≥2× 随机 + 前缀单调 + 优于裸 Qwen | **FAIL**（2026-08-03，`gate-2-fail-kill-llm-transfer`，`artifacts/eta_stage2_probe_20260803/`）：8 类 chance 0.125，续训臂最后一层 heldout acc 0.131、裸 Qwen 0.166；`2×chance≥0.25` 否、`续训>基线` 否、`随前缀上升` 是。全层最优（base 0.214 / pretrained 0.202）下仍双否。→ 0.5B 被驳，LLM 迁移路线 kill、Stage 3 不跑；ETA 主张未永久摘除（保留 Gate 3 / 独立处置包）；规模敏感性须另立新预注册 |
-| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap | **不跑**（Gate 2 FAIL 按预注册终止本路线）；`kill-eta` 对整体主张仍有效（Gate 1 权威扫检出方向性 gap，但缺 joint 臂对照且 gap 区内 F1 未高于区外，不构成 Gate 3 证据） |
+| `claim_llm_residual_carries_subgoal_hierarchy` | Gate 2：补课 probe ≥2× 随机 + 前缀单调 + 优于裸 Qwen | v1 仪器 FAIL（`artifacts/eta_stage2_probe_20260803/`，0.131/0.166）经**仪器审计定罪仪器**：哈希指纹计划载体使 heldout 信息天花板 0.1805 < 及格线 0.25，构造性不可过。v2 可读仪器重审（prereg `c0a54454…`，ceiling 1.0 验证，`artifacts/eta_stage2_probe_v2_20260803/`）：裸 Qwen `0.901`、续训 `0.944`，`2×chance` 与因果对照两条实质条件 PASS；`随前缀上升` FAIL（early 0.979/late 0.879，显式揭示制度下为保持衰减、regime 错配）→ 按字面 v2 verdict = FAIL 封存。实质读数支持"残差可承载"；待决策 v3 预注册（修第二条件为保持类判据） |
+| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap | **锁定**（Gate 2 尚无正式 PASS）；`kill-eta` 对整体主张仍有效（Gate 1 权威扫检出方向性 gap，但缺 joint 臂对照且 gap 区内 F1 未高于区外，不构成 Gate 3 证据） |
 | `claim_eta_dialogue_transfer` | Stage 4 contingent | 仅骨架；前三级未全过，不预注册执行 |
 
-不变量：Gate 1 FAIL ≠ 杀主张（现已 PASS）；Gate 2 FAIL = 杀 LLM 迁移路线（现已 FAIL，但**不**永久摘除 ETA 主张）；Gate 3 FAIL = 永久摘除 ETA。产物归 evidence lane，不回灌学习。
+不变量：Gate 1 FAIL ≠ 杀主张（现已 PASS）；Gate 2 正式 FAIL = 杀 LLM 迁移路线——但**只有可读仪器（ceiling 验证过）下的 FAIL 才定罪基底命题**，v1 FAIL 已被仪器审计收窄为仪器缺陷；Gate 3 FAIL = 永久摘除 ETA。产物归 evidence lane，不回灌学习。
 
 ### Semantic grounding claims（设计冻结；详见 [`semantic-grounding-evidence.md`](./semantic-grounding-evidence.md)）
 
@@ -1886,6 +1886,21 @@ substrate weights；删除隔离 evidence directory 即可回滚本 lane。
 
 ## 变更日志补充（longitudinal + human anchor）
 
+- 2026-08-03: ETA-on-LLM Stage-2 **仪器审计 + v2 重审**（详见
+  [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）。审计发现 v1
+  语料/probe 的计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的
+  观测协议 v2 缺陷同类），heldout 信息天花板离线复算为 0.1805 < 及格线
+  0.25——v1 FAIL 定罪仪器而非基底，同日早先"0.5B 被驳"措辞据此收窄（封存
+  artifact 不改动）。仪器 v2（复用 rate-distortion v4 staged-plan 渲染 +
+  累积轨迹前缀 probe + train-split 选层 + fail-loud 截断）以新预注册
+  `artifacts/eta_stage2_gate2_prereg_v2_20260803/`（sha256 `c0a54454…`，
+  含 ceiling 1.0 验证）重跑全链：裸 Qwen heldout acc `0.901`、续训臂
+  `0.944`（v1 同命题读数 0.131/0.166）——残差流大幅承载 active subgoal。
+  三条件：`2×chance` PASS、`续训>基线` PASS（+4.3pp）、`随前缀上升` FAIL
+  （early 0.979/late 0.879：显式揭示制度下只有保持衰减、无推断累积，判据
+  regime 错配）。按字面 v2 verdict = FAIL 封存（执行后禁改条件）；实质读数
+  登记为"残差可承载"的强方向性证据；待决策 v3 预注册修正第二条件；
+  Stage 3 保持锁定。
 - 2026-08-03: ETA-on-LLM 阶梯 **Gate 2 = FAIL**（`gate-2-fail-kill-llm-transfer`，
   详见 [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）。执行 Stage 2
   全链：语料 `artifacts/eta_stage2_corpus_20260803/`（120 文档 / 9539 词 /
