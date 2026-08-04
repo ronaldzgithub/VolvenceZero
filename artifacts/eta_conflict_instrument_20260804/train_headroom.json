@@ -1,0 +1,13 @@
+{
+  "split": "train",
+  "row_count": 307,
+  "unique_local_views": 10,
+  "conflict_view_count": 10,
+  "conflict_row_count": 307,
+  "conflict_row_fraction": 1.0,
+  "constant_operator_error_rate": 0.495114006514658,
+  "oracle_conditional_error_rate": 0.0,
+  "view_subgoal_residual_ambiguity": 0,
+  "subgoal_labelled_row_count": 307,
+  "mean_available_targets": 5.856677524429967
+}

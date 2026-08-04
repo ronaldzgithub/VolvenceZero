@@ -101,7 +101,34 @@ matched causal gate 上失败。现按忠实度包（可学习投影入口、低
 `A·diag(tanh(Cz_t))·Bᵀ·e_t`，无 additive bias 且 zero-z 严格 no-op；
 `active_subgoal` boundary 只作 no-grad readout。历史 folded/affine 路径仍是默认，
 `write_back=false`，没有新 public slot 或 production wiring。directional screen
-prereg sha256 `c247e82e…` 已固定 3 alpha × 2 seed × 40 updates 并运行中。
+prereg sha256 `c247e82e…` 已固定 3 alpha × 2 seed × 40 updates。
+
+**B screen 早停收官（2026-08-04，双重结论）**：3/6 cell 时点早停，封存
+`artifacts/eta_faithful_rewrite_screen_20260804/EARLY_STOP_SEAL.md`。
+① **ETA 判定 = FAIL（锁死，非擦线）**：primary α=0.30 seed-0 的
+`permuted_z_penalty=0.0` 使 `permuted-z-causality`（要求两 seed 全正）
+永不可满足；三 cell `hard_switch_frequency=0`（第三次 never-switch
+collapse）使 `oracle-boundary-alignment`（F1≥0.2 且 contrast≥0.02）事实死亡；
+剩余 3 cell 无法翻案。② **正面资产**：`zero_z_penalty≈0.175`（门槛 8.7 倍）、
+无 free bias、zero-code 严格 no-op 下，学习式 rank-8 乘性写入把 heldout
+distortion 0.178→0.003（约 98% 降幅）——S2 静态 probe-轴 steering 拿不到的
+因果作用被证实，与 `research/steering-2026-08` 的"学习式/优化式 > 静态"排序一致。
+③ **根因**：恒定低秩算子即打满任务（无余量），子目标已线性表征时 ETA 的
+z_t 切换是冗余通道。不改写已封存 `kill-eta` 与 S2 `causal-unsupported`。
+
+**后续（转向"条件化学习式 steering"）**：保留 B screen 验证过的 rank-8 执行器，
+弃用经 rate/KL 涌现的 z_t 切换机器；按 `research/steering-2026-08`（CAST 门控 +
+ReFT 执行器 + 余量仪器）另立新 claim / prereg，见
+`.cursor/plans/b_screen_收官与转向_e7d4664d.plan.md`。
+
+**转向诊断 P1/P2a/P2b 完成 + P2c 两包全过（2026-08-04）**：
+- P1 steerability 预检钉死"subgoal 可解码≠可静态 steer"（probe d′ 6.6 但因果方向 d′ 0.68、两轴近正交）。
+- P2a 余量审计：V4 rate-distortion 仪器对"条件/切换干预"无余量（恒定算子 98% + permuted=0），命中"重设计冲突映射仪器"分支。
+- **P2c · C1 = VALID**：目标剥离路口仪器上恒定算子错 0.461、(view,subgoal) 残余 0、基底 goal-stripped NLL 2.81 vs revealed 0.22（2.60 可 steer 余量，归属 subgoal）。见 `research/steering-2026-08/06_*`。
+- **P2c · C2 = PASS**：rank-8、no free bias、zero-code no-op 的学习式条件乘性写入把 heldout expert NLL 关到 **0.027**（3 seed），等预算 unconditional 只到 1.36（条件优势 1.33）、random-condition 7.38。**"读残差 + 有界学习式执行器 + 按 subgoal 条件出手"能 steer 且条件性有独立因果价值。** 见 `research/steering-2026-08/07_*`、`artifacts/eta_conditional_steering_screen_20260804/`。
+- 均不复活 `kill-eta`（subgoal 是基底已有线性结构，非涌现新时间抽象），不改写 S2/B screen verdict，不安装控制器、不改 production。
+- **S3 前置 = PASS（2026-08-05）**：condition 由 oracle 换成**在线非 oracle sensor**。cheap 审计发现现成 S1 v2 probe 不迁移到 C2 面（top-1 0.145≈chance），但在**携带目标的上下文残差**上 refit 冻结线性 reader 把 subgoal 读到 heldout **1.000**（剥离面 0.164≈chance）。用读出条件驱动 C2 执行器扳目标剥离动作：`conditional-online` NLL **0.023 = 完全等于 oracle**，比等预算 unconditional（1.39）优 **1.37**，route-level bootstrap 95%CI 下界（最差 seed）2.40 / 1.26 均 >0，5 seed 全过。见 `research/steering-2026-08/08_*`、`artifacts/eta_s3prereq_readloop_20260805/`。owner 模块 `eta_read_steer_prereq.py`。`production_promotion_authorized=false`。
+- **下一步（S3 本体，需另起预注册）**：读得到/扳得动/条件有价值三层已就绪；S3 用 PE/结局信用在线学"何时/多大力扳"（动作 {noop, steer(±d,s)}），先验证稀疏结局信用能否收敛 + 门控是否复现"该出手才出手"。
 
 ```mermaid
 flowchart LR

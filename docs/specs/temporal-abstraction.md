@@ -1038,6 +1038,20 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志补充
 
+- 2026-08-04: 忠实 ETA 重写 directional screen（B screen）早停收官，双重结论。
+  prereg `c247e82e…`，3/6 cell 早停，封存
+  `artifacts/eta_faithful_rewrite_screen_20260804/EARLY_STOP_SEAL.md`。① ETA
+  判定 = FAIL（锁死）：primary α=0.30 seed-0 `permuted_z_penalty=0.0` 使
+  `permuted-z-causality`（两 seed 全正）永不可满足，三 cell
+  `hard_switch_frequency=0`（第三次 never-switch collapse）使
+  `oracle-boundary-alignment` 事实死亡。② 正面资产：无 free bias、zero-code
+  严格 no-op 下，学习式 rank-8 乘性写入 `A·diag(tanh(Cz_t))·Bᵀ·e_t` 拿到
+  `zero_z_penalty≈0.175`（门槛 8.7 倍），heldout distortion 0.178→0.003——S2
+  静态 probe-轴 steering 拿不到的因果作用被证实。③ 根因：子目标已线性表征时
+  恒定低秩算子即打满任务（无余量），ETA 的 z_t 切换是冗余通道。不改写已封存
+  Stage-3 `kill-eta`；`vz-temporal` ETA 路径维持 SHADOW/legacy，默认 wiring 不变。
+  后续转向"条件化学习式 steering"（CAST 门控 + ReFT 执行器 + 余量仪器），见
+  `research/steering-2026-08` 与 `.cursor/plans/b_screen_收官与转向_e7d4664d.plan.md`。
 - 2026-07-29: learned backend 终态链 gate 补全。新增
   `LearnedPromotionChainVerdict` / `evaluate_learned_active_chain(...)`，
   要求 terminal evidence 对 runtime / SSL / Internal-RL / CMS 四组件各有且

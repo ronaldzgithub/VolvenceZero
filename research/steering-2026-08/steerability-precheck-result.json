@@ -1,0 +1,166 @@
+{
+  "schema_version": "steerability-precheck.v1",
+  "created_at": "2026-08-04T14:41:23.143605+00:00",
+  "read_only": true,
+  "claim_scope": "steerability-precheck-no-admission-no-writeback",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+  "model_weights_sha256": "6c5908bc3366fb5852ef4c7695ae8d29d04c0b7d00ee4bc6624c28f005af0aa2",
+  "s1_artifact_id": "frozen-residual-readout.v1:086a8f3dc3e6270c8181231e711fe538a0e25c128bfd72d5054c83bc9f977df8",
+  "observation_protocol": "partially-observable-staged-plan.v4",
+  "layer_index": 20,
+  "representation_dim": 896,
+  "heldout_prefix_count": 299,
+  "heldout_route_count": 24,
+  "class_ids": [
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "orange",
+    "purple",
+    "black",
+    "white"
+  ],
+  "wall_seconds": 62.66120254099951,
+  "aggregate": {
+    "evaluated_classes": 8,
+    "mean_dom_directional_cosine": 0.2800304425270611,
+    "mean_probe_directional_cosine": 0.025872938651091106,
+    "mean_dom_dprime": 0.6769575831075063,
+    "mean_probe_dprime": 6.576162797175381,
+    "mean_dom_probe_axis_cosine": 0.08660350486112157,
+    "braun_steerable_reference_cosine": 0.48,
+    "braun_unsteerable_reference_cosine": 0.19
+  },
+  "per_class": [
+    {
+      "class_id": "red",
+      "support": 38,
+      "skipped": false,
+      "dom_probe_axis_cosine": 0.07861530626747633,
+      "diff_of_means_axis": {
+        "mean_directional_cosine": 0.4445744860000233,
+        "discriminability_dprime": 0.8112221699828924,
+        "reversal_fraction": 0.18421052631578946
+      },
+      "s1_probe_axis": {
+        "mean_directional_cosine": 0.03138684069295334,
+        "discriminability_dprime": 7.257487701693698,
+        "reversal_fraction": 0.0
+      }
+    },
+    {
+      "class_id": "blue",
+      "support": 23,
+      "skipped": false,
+      "dom_probe_axis_cosine": 0.09140438981593443,
+      "diff_of_means_axis": {
+        "mean_directional_cosine": 0.018619608585051413,
+        "discriminability_dprime": 0.3440810846772207,
+        "reversal_fraction": 0.7391304347826086
+      },
+      "s1_probe_axis": {
+        "mean_directional_cosine": 0.02633273131155985,
+        "discriminability_dprime": 7.225341190961049,
+        "reversal_fraction": 0.0
+      }
+    },
+    {
+      "class_id": "green",
+      "support": 17,
+      "skipped": false,
+      "dom_probe_axis_cosine": 0.03557423522393319,
+      "diff_of_means_axis": {
+        "mean_directional_cosine": 0.3408185716694321,
+        "discriminability_dprime": 0.8727676114292657,
+        "reversal_fraction": 0.5294117647058824
+      },
+      "s1_probe_axis": {
+        "mean_directional_cosine": 0.02538711503459588,
+        "discriminability_dprime": 7.650166473195687,
+        "reversal_fraction": 0.0
+      }
+    },
+    {
+      "class_id": "yellow",
+      "support": 42,
+      "skipped": false,
+      "dom_probe_axis_cosine": 0.1225455881306637,
+      "diff_of_means_axis": {
+        "mean_directional_cosine": 0.2368374697837535,
+        "discriminability_dprime": 0.6246996179724212,
+        "reversal_fraction": 0.38095238095238093
+      },
+      "s1_probe_axis": {
+        "mean_directional_cosine": 0.02334636749360918,
+        "discriminability_dprime": 5.834970880617776,
+        "reversal_fraction": 0.0
+      }
+    },
+    {
+      "class_id": "orange",
+      "support": 24,
+      "skipped": false,
+      "dom_probe_axis_cosine": 0.0468932739406478,
+      "diff_of_means_axis": {
+        "mean_directional_cosine": 0.2948821255706129,
+        "discriminability_dprime": 0.7063502759298049,
+        "reversal_fraction": 0.375
+      },
+      "s1_probe_axis": {
+        "mean_directional_cosine": 0.022896359784811086,
+        "discriminability_dprime": 4.433429047936496,
+        "reversal_fraction": 0.08333333333333333
+      }
+    },
+    {
+      "class_id": "purple",
+      "support": 45,
+      "skipped": false,
+      "dom_probe_axis_cosine": 0.12274240838040495,
+      "diff_of_means_axis": {
+        "mean_directional_cosine": 0.1850232924295658,
+        "discriminability_dprime": 0.9013685407567181,
+        "reversal_fraction": 0.26666666666666666
+      },
+      "s1_probe_axis": {
+        "mean_directional_cosine": 0.02755573074421794,
+        "discriminability_dprime": 8.564499783916208,
+        "reversal_fraction": 0.0
+      }
+    },
+    {
+      "class_id": "black",
+      "support": 68,
+      "skipped": false,
+      "dom_probe_axis_cosine": 0.05053923664057987,
+      "diff_of_means_axis": {
+        "mean_directional_cosine": 0.47791673264689355,
+        "discriminability_dprime": 0.5292608734476186,
+        "reversal_fraction": 0.27941176470588236
+      },
+      "s1_probe_axis": {
+        "mean_directional_cosine": 0.021420043374684263,
+        "discriminability_dprime": 4.791441147593387,
+        "reversal_fraction": 0.014705882352941176
+      }
+    },
+    {
+      "class_id": "white",
+      "support": 42,
+      "skipped": false,
+      "dom_probe_axis_cosine": 0.14451360048933234,
+      "diff_of_means_axis": {
+        "mean_directional_cosine": 0.24157125353115616,
+        "discriminability_dprime": 0.6259104906641089,
+        "reversal_fraction": 0.30952380952380953
+      },
+      "s1_probe_axis": {
+        "mean_directional_cosine": 0.02865832077229732,
+        "discriminability_dprime": 6.851966151488749,
+        "reversal_fraction": 0.0
+      }
+    }
+  ]
+}

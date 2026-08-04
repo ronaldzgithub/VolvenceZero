@@ -1210,7 +1210,7 @@ Gate 4 ecology source=`not-admitted`，P1/P2 不执行。该 kill 是冻结计�
 |---|---|---|
 | `claim_eta_rate_axis_instrument_valid` | Gate 1：spearman(α,rate)≤−0.8 且 rate_span≥0.30 + switching 存活 | **PASS**（2026-08-03，v4+smooth+switch-gated+hard-st 权威扫 `artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/`）：spearman −1.000 / span 1.933 / heldout boundary F1 全 alpha 0.240–0.671 |
 | `claim_llm_residual_carries_subgoal_hierarchy` | Gate 2：补课 probe ≥2× 随机 + 第二条件（v1/v2 前缀单调；v3 retention）+ 优于裸 Qwen | 三轮字面 FAIL，全部封存，各定罪不同环节：**v1** FAIL 定罪仪器（哈希指纹计划载体，信息天花板 0.1805 < 0.25，构造性不可过）；**v2** 可读仪器（ceiling 1.0）实质两条件 PASS（0.944 / +4.3pp）、败于 `随前缀上升` regime 错配；**v3**（prereg `2f3b3bf4…`，新 seed 20260804，retention 判据在新读数前冻结，`artifacts/eta_stage2_probe_v3_20260803/`）`2×chance` PASS（0.967 = 7.7×）+ `retention.v3` PASS（late 0.918 / 衰减 0.077），败于因果对照**反向失效——裸 Qwen 基底 0.977 已在天花板，续训无超越余量**。实质命题"残差可承载"跨两 seed 四臂复现（0.901/0.944/0.977/0.967）；被证伪的是"续训必要性"对照前提。阶梯处置（字面 kill vs 裁定看门目的已实质达成）待用户程序级决策 |
-| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap + joint 臂无 gap + gap 内 F1 更高 | **REJECT / `kill-eta`（2026-08-04）**。预注册权威扫 36/36 cells；双臂可分、frozen rate 轴有效但无 gap，joint 反而检出 gap。P1 attribution（prereg `30b827b3…`）进一步定位：exact entry 0.3913 > 0.25、bias-only recovery 96.32%、permuted-z penalty −0.0068，主因是 free-bias incentive bypass，非入口信息死亡；P1 不改判。替代路线 S1 v1 因 heldout `7/299` 截断作废，fail-loud v2 admission PASS（prereg `35c92904…`，layer20/896，heldout 0.9833 / late 0.9720）；S2 no-bias causal steering prereg `b6a427d0…` 五门 FAIL，故 S3 不启动。B faithful rewrite 以 prereg `c247e82e…` 另立 directional screen，不改变本 claim verdict。 |
+| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap + joint 臂无 gap + gap 内 F1 更高 | **REJECT / `kill-eta`（2026-08-04）**。预注册权威扫 36/36 cells；双臂可分、frozen rate 轴有效但无 gap，joint 反而检出 gap。P1 attribution（prereg `30b827b3…`）进一步定位：exact entry 0.3913 > 0.25、bias-only recovery 96.32%、permuted-z penalty −0.0068，主因是 free-bias incentive bypass，非入口信息死亡；P1 不改判。替代路线 S1 v1 因 heldout `7/299` 截断作废，fail-loud v2 admission PASS（prereg `35c92904…`，layer20/896，heldout 0.9833 / late 0.9720）；S2 no-bias causal steering prereg `b6a427d0…` 五门 FAIL，故 S3 不启动。B faithful rewrite 以 prereg `c247e82e…` 另立 directional screen，2026-08-04 于 3/6 cell 早停收官（封存 `…/EARLY_STOP_SEAL.md`）：ETA 判定 FAIL（锁死，`permuted_z_penalty=0.0` + 三 cell `hard_switch_frequency=0`），但学习式 rank-8 乘性写入 `zero_z_penalty≈0.175`（distortion 0.178→0.003）证实 S2 静态 steering 拿不到的因果作用；不改变本 claim verdict，主线转向条件化学习式 steering。 |
 | `claim_eta_dialogue_transfer` | Stage 4 contingent | **NOT STARTED / CLOSED**；Gate 3 已 FAIL，仅保留骨架，不转正式预注册、不执行 |
 
 不变量：Gate 1 FAIL ≠ 杀主张（现已 PASS）；Gate 2 正式 FAIL = 杀 LLM 迁移路线——但**只有可读仪器（ceiling 验证过）下的 FAIL 才定罪基底命题**，v1 FAIL 已被仪器审计收窄为仪器缺陷；Gate 3 FAIL = 永久摘除 ETA。产物归 evidence lane，不回灌学习。
@@ -1935,6 +1935,86 @@ substrate weights；删除隔离 evidence directory 即可回滚本 lane。
   `c247e82e…` 固定 full-width learned entry、rank-8 no-bias `U_t·e_t`、
   zero-code strict no-op、active-subgoal boundary readout-only、frozen substrate
   与 no-production/no-feedback；screen 只决定是否准入另立权威 sweep。
+- 2026-08-04: **B faithful rewrite screen 早停收官**（封存
+  `artifacts/eta_faithful_rewrite_screen_20260804/EARLY_STOP_SEAL.md`）。3/6 cell
+  早停，**双重结论**：① ETA 判定 = FAIL（锁死）——primary α=0.30 seed-0
+  `permuted_z_penalty=0.0` 使 `permuted-z-causality`（两 seed 全正）永不可满足，
+  三 cell `hard_switch_frequency=0`（第三次 never-switch collapse）使
+  `oracle-boundary-alignment`（F1≥0.2 且 contrast≥0.02）事实死亡，剩余 3 cell
+  无法翻案；② 正面资产——无 free bias、zero-code strict no-op 下学习式 rank-8
+  乘性写入拿到 `zero_z_penalty≈0.175`（门槛 8.7 倍）、heldout distortion
+  0.178→0.003，证实 S2 静态 steering 拿不到的因果作用（与
+  `research/steering-2026-08` 的"学习式>静态"排序一致）；③ 根因——子目标已
+  线性表征时恒定低秩算子即打满任务（无余量），ETA z_t 切换是冗余通道。screen
+  不改写 `claim_eta_rate_distortion_on_domain_pretrained_llm` 的 `kill-eta`，
+  `vz-temporal` ETA 路径维持 SHADOW/legacy；主线转向"条件化学习式 steering"
+  （CAST 门控 + ReFT 执行器 + 余量仪器），见
+  `.cursor/plans/b_screen_收官与转向_e7d4664d.plan.md`。
+- 2026-08-04: **转向诊断 P1+P2a 完成（只读）**。P1 Braun steerability 预检
+  （`research/steering-2026-08/steerability-precheck-result.json` +
+  `03_STEERABILITY_PRECHECK.md`）：8 类 heldout 上 probe 轴 d′ 4.4–8.6（强解码），
+  但 diff-of-means 因果方向 d′ 仅 0.34–0.90 且与 probe 轴余弦 0.04–0.15（近正交），
+  钉死"subgoal 可解码≠可静态 steer"、解释 S2 null 的几何成因。P2a 余量审计
+  （`04_HEADROOM_AUDIT.md`）：B screen 恒定 rank-8 算子已捕获约 98% distortion
+  改善且 `permuted_z_penalty=0`，S2 静态 probe 轴 mean(plus−noop)=+2e-4，
+  当前 rate-distortion 仪器对"条件/切换干预"**无可测余量** ⇒ 命中"仪器需重设计
+  （子目标冲突映射）"分支。P2b 据此产出条件化学习式 steering 预注册骨架
+  （`05_CONDITIONAL_STEERING_PREREG_SKELETON.md`，含 instrument-validity 门 +
+  boundary-gated>always-on>random-gate>noop 的 matched-budget 判定门）。三者均只读、
+  不改写任何已封存 verdict。P2c（跑新 screen）被门在"冲突映射仪器重设计"实现之上，
+  属独立收敛包，尚未执行（不得在已判无余量的当前仪器上跑，会必然复现 null）。
+- 2026-08-04: **P2c · C1 冲突映射仪器有效性 = VALID（已执行，只读）**。新 owner 模块
+  `volvence_zero.agent.eta_conflict_instrument` + `scripts/run_eta_conflict_instrument_validity.py`
+  （零改动共享 frozen 文件，自包含 goal-ambiguous junction 渲染），产物
+  `artifacts/eta_conflict_instrument_20260804/`。把 V4 观测**目标剥离**后：恒定算子
+  错误率 0.461、(view,subgoal)→action 残余歧义 0、oracle 条件错误 0.000、冲突行占比
+  1.000；frozen merged 模型上 goal-stripped expert NLL 2.813 vs subgoal-revealed 0.218
+  ⇒ **可 steer 余量 2.595 NLL、因果归属 active_subgoal 这一比特**、基底不确定占比
+  0.806。证明 P2a 的"无余量"是 V4 仪器缺陷而非概念死路，达成 [05 骨架](../../research/steering-2026-08/05_CONDITIONAL_STEERING_PREREG_SKELETON.md)
+  的 instrument-validity 前置门。详见
+  `research/steering-2026-08/06_CONFLICT_INSTRUMENT_VALIDITY.md`；测试
+  `packages/vz-runtime/tests/test_eta_conflict_instrument.py`（5 passed）。只读诊断、
+  不训练/不加 bias/不改 production、不改写任何已封存 verdict。下一包 C2 = 条件化学习式
+  steering screen（冻结 S1 condition + rank-8 ReFT 执行器 + 显式门控 + matched-budget
+  判定门），主判即"能否关上这 2.595 NLL 的 gap 且条件性优于无条件"。
+- 2026-08-04: **P2c · C2 条件化学习式 steering screen = PASS（已执行）**。新 owner 模块
+  `volvence_zero.agent.eta_conditional_steering_screen` + `scripts/run_eta_conditional_steering_screen.py`
+  （self-contained，复用 substrate `scorer.action_nll`；rank-8、no free bias、zero-code
+  strict no-op、substrate 冻结），产物 `artifacts/eta_conditional_steering_screen_20260804/`。
+  frozen merged 模型、seeds (0,1,2)、updates 80、307 train / 165 heldout junction rows。
+  heldout（3 seed 平均）：noop 2.813、**conditional 0.027**、unconditional 1.357、
+  random-condition 7.377、revealed 天花板 0.218 ⇒ 四门全过（gap closed 2.786≥0.30、
+  **conditional advantage 1.330≥0.15**、condition specificity 7.350≥0.15、gap closed
+  fraction 1.074≥0.30）+ 结构门（free_bias=false、zero_code_strict_noop max|Δ|=0.0、
+  substrate_trainable=0、params changed），3 seed 全过、min 余量巨大。**证明"读残差(S1)
+  + 有界学习式执行器(ReFT) + 按 subgoal 条件出手(CAST)"能 steer，且条件性优于等预算
+  无条件——这是 P1"可读不可静态 steer"、B screen"学习式有因果但 ETA 切换冗余"、
+  P2a"V4 无余量"三条的正解。** 不复活 `kill-eta`（ETA z_t 时间抽象仍 FAIL；subgoal 是基底
+  已有线性结构，机制是识别+干预+学策略，非涌现新抽象），不改写 S2/B screen verdict，
+  不安装控制器/不改 production/不回灌 evaluation。详见
+  `research/steering-2026-08/07_CONDITIONAL_STEERING_SCREEN.md`；测试
+  `packages/vz-runtime/tests/test_eta_conditional_steering_screen.py`（5）+ C1（5）=10 passed。
+  权威化下一步：condition 由 oracle 换在线 S1 readout + route-level bootstrap CI + 更大
+  seed，形成可准入 S3 Internal RL（在线学"何时扳"）的正式证据。
+- 2026-08-05: **P2c · S3 前置：读→扳闭环（非 oracle sensor）= PASS（已执行）**。新 owner 模块
+  `volvence_zero.agent.eta_read_steer_prereq` + `scripts/run_eta_read_steer_prereq.py`
+  （复用 C2 执行器 `_ConditionalOperator`/`_train_operator`，新增 refit 冻结线性 condition
+  reader + route-level bootstrap），产物 `artifacts/eta_s3prereq_readloop_20260805/`。frozen merged
+  模型、seeds (0,1,2,3,4)、updates 80、reader ridge λ=10、bootstrap 5000/95%CI、307 train / 165
+  heldout。**cheap 只读审计**先钉死设计：现成 S1 v2 probe 不迁移到 C2 面（揭示/剥离 top-1 均
+  0.145≈chance 0.125），但在**携带目标的上下文残差**上 refit 的冻结线性 reader 把 subgoal 读到
+  heldout **1.000**（剥离面 0.164≈chance ⇒ 条件须来自上下文/记忆，非把答案塞进 prompt）。用**读出的
+  非 oracle 条件**驱动 C2 执行器扳目标剥离动作：heldout（5 seed 平均）noop 2.813、**conditional-online
+  0.023 = 完全等于 conditional-oracle 0.023**、unconditional 1.391、random 7.620、revealed 天花板
+  0.218 ⇒ 五门全过（reader acc 1.0≥0.80、online gap closed 2.790≥0.30、online conditional
+  advantage 1.368≥0.15、online−noop bootstrap CI 下界 min 2.398>0、online−uncond CI 下界 min
+  1.259>0）+ 结构门（free_bias=false、zero_code_strict_noop max|Δ|=0.0、substrate_trainable=0、
+  params changed），5 seed 全过。**"读得到(sensor) + 扳得动(executor) + 条件有价值"三层就绪，S3
+  Internal RL 可准入。** 不复活 `kill-eta`、不改写 S2/B screen verdict、不安装控制器/不改
+  production（`production_promotion_authorized=false`）/不回灌 evaluation。详见
+  `research/steering-2026-08/08_READ_STEER_S3_PREREQ.md`；测试
+  `packages/vz-runtime/tests/test_eta_read_steer_prereq.py`（9 passed）。S3 本体需另起预注册：用
+  PE/结局信用在线学"何时/多大力扳"，先验证稀疏结局信用收敛性 + 门控是否复现"该出手才出手"。
 - 2026-08-03: ETA-on-LLM Stage-2 **仪器审计 + v2 重审**（详见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）。审计发现 v1
   语料/probe 的计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的

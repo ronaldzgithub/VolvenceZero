@@ -1,0 +1,39 @@
+{
+  "schema_version": "eta-conflict-instrument-manifest.v1",
+  "experiment_id": "eta-conflict-junction-instrument-validity",
+  "created_at": "2026-08-04T15:34:10.855876+00:00",
+  "git_sha": "bfddb58090e1384ee6ccb154c023bd2d6aef4e8a",
+  "working_tree_dirty": true,
+  "claim_scope": "conflict-junction-instrument-validity",
+  "read_only_diagnostic": true,
+  "instrument_valid": true,
+  "base_uncertainty_evaluated": true,
+  "production_promotion_authorized": false,
+  "artifact_installed": false,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "elapsed_seconds": 8.851,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+  "torch_version": "2.13.0",
+  "transformers_version": "5.14.1",
+  "mps_available": true,
+  "mps_exclusive_lock": "artifacts/.companion-evidence-mps.lock",
+  "mps_attestation": {
+    "torch_version": "2.13.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "model_weights_sha256": "6c5908bc3366fb5852ef4c7695ae8d29d04c0b7d00ee4bc6624c28f005af0aa2",
+  "source_files": {
+    "packages/vz-runtime/src/volvence_zero/agent/eta_conflict_instrument.py": "650fb5399e949e017ffca88716059220dc0e0036216966a7d7f0314d4a3474c2",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85",
+    "scripts/run_eta_conflict_instrument_validity.py": "0f1fd21b147ab874f1215d707bc61270cc652fee6e590427c97577b159fe4f64"
+  },
+  "result_files": {
+    "report.json": "2f63570685d40f36d2f093b699b75ac6d780e395a6c6e9e0ca8a1e90d91b0977",
+    "report.md": "e5874592aa5dd9c0e4f966dfc21383e929ce94674302c49b5ffb614c6e4f2388",
+    "train_headroom.json": "cf192d15e026c3391c4ead4f47901ddf6a11817f3566b249234cf6b7e5025219"
+  }
+}

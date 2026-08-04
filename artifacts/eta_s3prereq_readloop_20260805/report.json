@@ -1,0 +1,212 @@
+{
+  "schema_version": "eta-read-steer-prereq.v1",
+  "claim_scope": "conditional-learned-steering-read-loop-s3-prereq",
+  "observation_protocol": "goal-ambiguous-junction.v5",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+  "device": "mps",
+  "corpus_seed": 20260802,
+  "injection_layer_index": 20,
+  "residual_width": 896,
+  "steering_rank": 8,
+  "subgoal_class_count": 8,
+  "reader_ridge_lambda": 10.0,
+  "train_row_count": 307,
+  "heldout_row_count": 165,
+  "control_norm_cap": 24.05563735961914,
+  "updates_per_run": 80,
+  "learning_rate": 0.01,
+  "batch_size": 32,
+  "seed_schedule": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "bootstrap_resamples": 5000,
+  "bootstrap_confidence": 0.95,
+  "thresholds": {
+    "min_reader_heldout_accuracy": 0.8,
+    "min_online_gap_closed_nll": 0.3,
+    "min_online_conditional_advantage_nll": 0.15,
+    "require_bootstrap_lower_positive": true
+  },
+  "seed_points": [
+    {
+      "seed": 0,
+      "reader_train_accuracy": 1.0,
+      "reader_heldout_accuracy": 1.0,
+      "heldout": {
+        "noop": 2.8128990895526647,
+        "conditional_oracle": 0.027073272312789026,
+        "conditional_online": 0.027073272312789026,
+        "unconditional": 1.3556133515907056,
+        "random_condition": 7.964506302732047,
+        "subgoal_revealed_ceiling": 0.21783484859806776
+      },
+      "online_gap_closed_nll": 2.7858258172398758,
+      "online_conditional_advantage_nll": 1.3285400792779165,
+      "online_vs_noop": {
+        "mean": 2.7798380922869352,
+        "ci_lower": 2.4131055538595527,
+        "ci_upper": 3.2461637087999073,
+        "route_count": 24
+      },
+      "online_vs_unconditional": {
+        "mean": 1.3452691595624346,
+        "ci_lower": 1.2777727271621626,
+        "ci_upper": 1.414655622452545,
+        "route_count": 24
+      },
+      "zero_code_strict_noop_max_abs": 0.0,
+      "conditional_parameters_changed": true
+    },
+    {
+      "seed": 1,
+      "reader_train_accuracy": 1.0,
+      "reader_heldout_accuracy": 1.0,
+      "heldout": {
+        "noop": 2.8128990895526647,
+        "conditional_oracle": 0.016794311841085523,
+        "conditional_online": 0.016794311841085523,
+        "unconditional": 1.3488407637133744,
+        "random_condition": 6.9493178901066734,
+        "subgoal_revealed_ceiling": 0.21783484859806776
+      },
+      "online_gap_closed_nll": 2.7961047777115793,
+      "online_conditional_advantage_nll": 1.3320464518722888,
+      "online_vs_noop": {
+        "mean": 2.790568197393164,
+        "ci_lower": 2.414969572632075,
+        "ci_upper": 3.258694664090735,
+        "route_count": 24
+      },
+      "online_vs_unconditional": {
+        "mean": 1.3400771892148136,
+        "ci_lower": 1.284781206974421,
+        "ci_upper": 1.3963285015424791,
+        "route_count": 24
+      },
+      "zero_code_strict_noop_max_abs": 0.0,
+      "conditional_parameters_changed": true
+    },
+    {
+      "seed": 2,
+      "reader_train_accuracy": 1.0,
+      "reader_heldout_accuracy": 1.0,
+      "heldout": {
+        "noop": 2.8128990895526647,
+        "conditional_oracle": 0.037213355811808,
+        "conditional_online": 0.037213355811808,
+        "unconditional": 1.3674677958994201,
+        "random_condition": 7.2176304033403405,
+        "subgoal_revealed_ceiling": 0.21783484859806776
+      },
+      "online_gap_closed_nll": 2.7756857337408567,
+      "online_conditional_advantage_nll": 1.3302544400876122,
+      "online_vs_noop": {
+        "mean": 2.772931793068354,
+        "ci_lower": 2.398272280382974,
+        "ci_upper": 3.215721431696546,
+        "route_count": 24
+      },
+      "online_vs_unconditional": {
+        "mean": 1.355497328236882,
+        "ci_lower": 1.2588810482886845,
+        "ci_upper": 1.4538004091018397,
+        "route_count": 24
+      },
+      "zero_code_strict_noop_max_abs": 0.0,
+      "conditional_parameters_changed": true
+    },
+    {
+      "seed": 3,
+      "reader_train_accuracy": 1.0,
+      "reader_heldout_accuracy": 1.0,
+      "heldout": {
+        "noop": 2.8128990895526647,
+        "conditional_oracle": 0.024283606847596027,
+        "conditional_online": 0.024283606847596027,
+        "unconditional": 1.3896226967826033,
+        "random_condition": 8.145787043268017,
+        "subgoal_revealed_ceiling": 0.21783484859806776
+      },
+      "online_gap_closed_nll": 2.7886154827050684,
+      "online_conditional_advantage_nll": 1.3653390899350073,
+      "online_vs_noop": {
+        "mean": 2.781185922264248,
+        "ci_lower": 2.400241198048099,
+        "ci_upper": 3.2364120750947727,
+        "route_count": 24
+      },
+      "online_vs_unconditional": {
+        "mean": 1.3736941458657563,
+        "ci_lower": 1.2986110845069245,
+        "ci_upper": 1.4572113009839776,
+        "route_count": 24
+      },
+      "zero_code_strict_noop_max_abs": 0.0,
+      "conditional_parameters_changed": true
+    },
+    {
+      "seed": 4,
+      "reader_train_accuracy": 1.0,
+      "reader_heldout_accuracy": 1.0,
+      "heldout": {
+        "noop": 2.8128990895526647,
+        "conditional_oracle": 0.009863377111239722,
+        "conditional_online": 0.009863377111239722,
+        "unconditional": 1.4927256045016375,
+        "random_condition": 7.824214119650225,
+        "subgoal_revealed_ceiling": 0.21783484859806776
+      },
+      "online_gap_closed_nll": 2.803035712441425,
+      "online_conditional_advantage_nll": 1.4828622273903977,
+      "online_vs_noop": {
+        "mean": 2.7974573498945348,
+        "ci_lower": 2.4160011822720513,
+        "ci_upper": 3.2722525765093198,
+        "route_count": 24
+      },
+      "online_vs_unconditional": {
+        "mean": 1.535172761531486,
+        "ci_lower": 1.3659309691837034,
+        "ci_upper": 1.7052959455850694,
+        "route_count": 24
+      },
+      "zero_code_strict_noop_max_abs": 0.0,
+      "conditional_parameters_changed": true
+    }
+  ],
+  "aggregate": {
+    "seed_count": 5,
+    "reader_heldout_accuracy_mean": 1.0,
+    "noop_nll_mean": 2.8128990895526647,
+    "conditional_oracle_nll_mean": 0.02304558478490366,
+    "conditional_online_nll_mean": 0.02304558478490366,
+    "unconditional_nll_mean": 1.3908540424975482,
+    "random_condition_nll_mean": 7.620291151819461,
+    "subgoal_revealed_ceiling_nll_mean": 0.21783484859806776,
+    "online_gap_closed_nll_mean": 2.7898535047677613,
+    "online_conditional_advantage_nll_mean": 1.3678084577126444,
+    "online_vs_noop_ci_lower_min": 2.398272280382974,
+    "online_vs_unconditional_ci_lower_min": 1.2588810482886845
+  },
+  "admission": {
+    "admitted": true,
+    "condition_reader_accuracy": true,
+    "condition_online_gap_closed": true,
+    "condition_online_conditional_advantage": true,
+    "condition_bootstrap": true,
+    "condition_structural": true,
+    "failed_conditions": [],
+    "description": "Read->steer loop closes: a frozen linear sensor supplies the condition online and conditional steering still beats noop and the equal-budget unconditional operator."
+  },
+  "free_bias_present": false,
+  "zero_code_strict_noop": true,
+  "substrate_trainable_parameter_count": 0,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "description": "Read->steer loop with a refit frozen linear condition reader; admitted=True."
+}

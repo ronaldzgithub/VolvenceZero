@@ -1,0 +1,119 @@
+{
+  "schema_version": "eta-conditional-steering-screen.v1",
+  "claim_scope": "conditional-learned-steering-directional-screen",
+  "observation_protocol": "goal-ambiguous-junction.v5",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+  "device": "mps",
+  "corpus_seed": 20260802,
+  "injection_layer_index": 20,
+  "residual_width": 896,
+  "steering_rank": 8,
+  "subgoal_class_count": 8,
+  "train_row_count": 307,
+  "heldout_row_count": 165,
+  "control_norm_cap": 24.05563735961914,
+  "updates_per_run": 80,
+  "learning_rate": 0.01,
+  "batch_size": 32,
+  "seed_schedule": [
+    0,
+    1,
+    2
+  ],
+  "thresholds": {
+    "min_gap_closed_nll": 0.3,
+    "min_conditional_advantage_nll": 0.15,
+    "min_condition_specificity_nll": 0.15,
+    "min_gap_closed_fraction": 0.3
+  },
+  "seed_points": [
+    {
+      "seed": 0,
+      "heldout": {
+        "noop": 2.8128990895526647,
+        "conditional": 0.027073272312789026,
+        "unconditional": 1.3556133515907056,
+        "random_condition": 7.964506302732047,
+        "subgoal_revealed_ceiling": 0.21783484859806776
+      },
+      "train_conditional_nll": 0.014344869042474784,
+      "gap_closed_nll": 2.7858258172398758,
+      "conditional_advantage_nll": 1.3285400792779165,
+      "condition_specificity_nll": 7.937433030419258,
+      "gap_closed_fraction": 1.073509384960392,
+      "conditional_low_rank_parameters_changed": true,
+      "unconditional_low_rank_parameters_changed": true,
+      "zero_code_strict_noop_max_abs": 0.0,
+      "final_train_loss": 0.014344869042474784
+    },
+    {
+      "seed": 1,
+      "heldout": {
+        "noop": 2.8128990895526647,
+        "conditional": 0.016794311841085523,
+        "unconditional": 1.3488407637133744,
+        "random_condition": 6.9493178901066734,
+        "subgoal_revealed_ceiling": 0.21783484859806776
+      },
+      "train_conditional_nll": 0.019820301982221622,
+      "gap_closed_nll": 2.7961047777115793,
+      "conditional_advantage_nll": 1.3320464518722888,
+      "condition_specificity_nll": 6.932523578265588,
+      "gap_closed_fraction": 1.0774703506696348,
+      "conditional_low_rank_parameters_changed": true,
+      "unconditional_low_rank_parameters_changed": true,
+      "zero_code_strict_noop_max_abs": 0.0,
+      "final_train_loss": 0.019820301982221622
+    },
+    {
+      "seed": 2,
+      "heldout": {
+        "noop": 2.8128990895526647,
+        "conditional": 0.037213355811808,
+        "unconditional": 1.3674677958994201,
+        "random_condition": 7.2176304033403405,
+        "subgoal_revealed_ceiling": 0.21783484859806776
+      },
+      "train_conditional_nll": 0.009974036998215752,
+      "gap_closed_nll": 2.7756857337408567,
+      "conditional_advantage_nll": 1.3302544400876122,
+      "condition_specificity_nll": 7.1804170475285325,
+      "gap_closed_fraction": 1.0696019350641655,
+      "conditional_low_rank_parameters_changed": true,
+      "unconditional_low_rank_parameters_changed": true,
+      "zero_code_strict_noop_max_abs": 0.0,
+      "final_train_loss": 0.009974036998215752
+    }
+  ],
+  "aggregate": {
+    "seed_count": 3,
+    "heldout_noop_nll_mean": 2.812899089552664,
+    "heldout_conditional_nll_mean": 0.02702697998856085,
+    "heldout_unconditional_nll_mean": 1.3573073037345,
+    "heldout_random_condition_nll_mean": 7.377151532059687,
+    "subgoal_revealed_ceiling_nll_mean": 0.21783484859806776,
+    "gap_closed_nll_mean": 2.7858721095641044,
+    "conditional_advantage_nll_mean": 1.3302803237459393,
+    "condition_specificity_nll_mean": 7.350124552071126,
+    "gap_closed_fraction_mean": 1.0735272235647308,
+    "gap_closed_nll_min": 2.7756857337408567,
+    "conditional_advantage_nll_min": 1.3285400792779165
+  },
+  "admission": {
+    "admitted": true,
+    "condition_gap_closed": true,
+    "condition_conditional_advantage": true,
+    "condition_specificity": true,
+    "condition_gap_closed_fraction": true,
+    "condition_structural": true,
+    "failed_conditions": [],
+    "description": "Conditional learned steering closes the goal-stripped gap and beats the equal-budget unconditional operator."
+  },
+  "free_bias_present": false,
+  "zero_code_strict_noop": true,
+  "substrate_trainable_parameter_count": 0,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "description": "Matched-budget conditional vs unconditional learned steering on the goal-ambiguous junction instrument; admitted=True."
+}

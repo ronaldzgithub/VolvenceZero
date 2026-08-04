@@ -1,0 +1,42 @@
+{
+  "schema_version": "eta-read-steer-prereq-manifest.v1",
+  "experiment_id": "eta-conditional-steering-read-loop-s3-prereq",
+  "created_at": "2026-08-04T16:37:46.384484+00:00",
+  "git_sha": "bfddb58090e1384ee6ccb154c023bd2d6aef4e8a",
+  "working_tree_dirty": true,
+  "claim_scope": "conditional-learned-steering-read-loop-s3-prereq",
+  "s3_prerequisite": true,
+  "prerequisite_met": true,
+  "production_promotion_authorized": false,
+  "artifact_installed": false,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "free_bias_present": false,
+  "zero_code_strict_noop": true,
+  "substrate_trainable_parameter_count": 0,
+  "elapsed_seconds": 484.376,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+  "torch_version": "2.13.0",
+  "transformers_version": "5.14.1",
+  "mps_available": true,
+  "mps_exclusive_lock": "artifacts/.companion-evidence-mps.lock",
+  "mps_attestation": {
+    "torch_version": "2.13.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "model_weights_sha256": "6c5908bc3366fb5852ef4c7695ae8d29d04c0b7d00ee4bc6624c28f005af0aa2",
+  "source_files": {
+    "packages/vz-runtime/src/volvence_zero/agent/eta_read_steer_prereq.py": "9579ddc34ca9b7e28b5cbd39eeb3d3583846f1bf169e30b48b2f58130fdfb4cf",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_conditional_steering_screen.py": "d3585eb0201e7311f2170a8a41a861dd87db9800e24654be6ccf7c24cbfa6bd4",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_conflict_instrument.py": "650fb5399e949e017ffca88716059220dc0e0036216966a7d7f0314d4a3474c2",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85",
+    "scripts/run_eta_read_steer_prereq.py": "abff3d86e0bbb9aa475cf2ec20110b325660d1c426a4fc0ea620d8b95b9ade35"
+  },
+  "result_files": {
+    "report.json": "004d66d64b1acb6d0ac83bf3527fab1d089b862aa6a73467a4431165e8a41fa9",
+    "report.md": "450c796229b4e2885c08c2834ffe30e21b4188c409077a917e942c6da076a1fc"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": "eta-conflict-junction-instrument.v1",
+  "claim_scope": "conflict-junction-instrument-validity",
+  "observation_protocol": "goal-ambiguous-junction.v5",
+  "corpus_seed": 20260802,
+  "objective_count": 8,
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+  "device": "mps",
+  "thresholds": {
+    "min_conflict_row_fraction": 0.5,
+    "min_constant_operator_error": 0.2,
+    "max_view_subgoal_residual_ambiguity": 0,
+    "min_steerable_headroom_nll": 0.05,
+    "min_fraction_base_uncertain": 0.3
+  },
+  "headroom": {
+    "split": "heldout",
+    "row_count": 165,
+    "unique_local_views": 10,
+    "conflict_view_count": 10,
+    "conflict_row_count": 165,
+    "conflict_row_fraction": 1.0,
+    "constant_operator_error_rate": 0.46060606060606063,
+    "oracle_conditional_error_rate": 0.0,
+    "view_subgoal_residual_ambiguity": 0,
+    "subgoal_labelled_row_count": 165,
+    "mean_available_targets": 5.872727272727273
+  },
+  "base_uncertainty": {
+    "split": "heldout",
+    "scored_row_count": 165,
+    "goal_stripped_mean_expert_nll": 2.8128990895526647,
+    "goal_stripped_median_expert_nll": 2.7871484756469727,
+    "subgoal_revealed_mean_expert_nll": 0.21783484859806776,
+    "steerable_headroom_nll": 2.595064240954597,
+    "fraction_base_uncertain": 0.806060606060606,
+    "uncertain_nll_threshold": 0.1
+  },
+  "admission": {
+    "valid": true,
+    "condition_conflict_fraction": true,
+    "condition_constant_operator_error": true,
+    "condition_view_subgoal_determinism": true,
+    "condition_base_headroom": true,
+    "condition_base_uncertain_fraction": true,
+    "base_uncertainty_evaluated": true,
+    "failed_conditions": [],
+    "description": "Goal-ambiguous junction instrument is valid: conflicting mapping leaves headroom no constant operator can saturate."
+  },
+  "trainable_parameter_count": 0,
+  "free_bias_present": false,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "description": "Read-only conflict-junction instrument validity: structural headroom + optional base uncertainty. valid=True."
+}

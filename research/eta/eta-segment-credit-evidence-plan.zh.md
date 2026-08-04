@@ -694,3 +694,33 @@ gap，故当前 ETA-on-LLM operationalization 维持 kill。该结果不外推�
 
 回滚：全部新代码为 evidence lane，不改任何 production WiringLevel；补课基底是
 独立 artifact，原始 Qwen 路径不受影响。
+
+**B screen（忠实 ETA 重写 directional screen）早停收官（2026-08-04）**：prereg
+`c247e82e…`，3/6 cell 早停，封存
+`artifacts/eta_faithful_rewrite_screen_20260804/EARLY_STOP_SEAL.md`。双重结论：
+
+- **ETA 判定 = FAIL（锁死，非擦线）**：判定器 `assess_faithful_eta_screen` 五
+  条件须全过。primary α=0.30 seed-0 的 `permuted_z_penalty=0.0`（精确零）使
+  `permuted-z-causality`（要求两 seed 全正）永不可满足；三 cell 的
+  `hard_switch_frequency=0`（第三次 never-switch collapse）使
+  `oracle-boundary-alignment`（F1≥0.2 且 contrast≥0.02）事实死亡。剩余 3 cell
+  的 4–5h 算力无法翻案，故早停。
+- **正面资产（转向依据）**：三 cell `zero_z_penalty≈0.175`（门槛 0.02 的约
+  8.7 倍），且 `free_bias_present=false` + `zero_code_strict_noop=true`。即在无
+  免费 bias、zero-code 严格 no-op 前提下，学习式 rank-8 乘性写入
+  `A·diag(tanh(Cz_t))·Bᵀ·e_t` 把 heldout distortion 从 zero-z 的 0.178 打到
+  0.002–0.004（约 98% 降幅）。这正是 S2 静态 probe-轴 steering 拿不到的因果作用
+  （S2 target-plus vs noop ≈ −0.00072，CI 跨 0），与 `research/steering-2026-08`
+  文献的"学习式/优化式 > DiffMean > 静态"排序一致。
+- **失败机制**：`hard_switch_frequency=0` ⇒ 恒定 z ⇒ cyclic-permute 是恒等
+  变换 ⇒ permuted penalty 精确为 0。控制器用一个恒定低秩算子即打满任务
+  （train_distortion ~2e-4）——补课基底残差流本就线性携带子目标（Gate-2/S1
+  heldout 0.977/0.983 可读），恒定算子只需路由已存在的表征，**时间抽象无剩余
+  误差可吃、无余量**。结论层级：子目标已线性表征时，ETA 要求的"切换 z_t 跨时
+  携带子目标"是冗余通道。
+
+**转向**：保留 B screen 验证过的 rank-8 学习式执行器，弃用经 rate/KL 涌现的
+z_t 切换机器；按 `research/steering-2026-08`（CAST 条件门控 + ReFT 执行器 +
+内建余量的仪器）另立新 claim / prereg，计划见
+`.cursor/plans/b_screen_收官与转向_e7d4664d.plan.md`。不改写已封存的
+`kill-eta` 与 S2 `causal-unsupported`；`vz-temporal` ETA 路径维持 SHADOW/legacy。
