@@ -2015,6 +2015,32 @@ substrate weights；删除隔离 evidence directory 即可回滚本 lane。
   `research/steering-2026-08/08_READ_STEER_S3_PREREQ.md`；测试
   `packages/vz-runtime/tests/test_eta_read_steer_prereq.py`（9 passed）。S3 本体需另起预注册：用
   PE/结局信用在线学"何时/多大力扳"，先验证稀疏结局信用收敛性 + 门控是否复现"该出手才出手"。
+- 2026-08-05: **S3-A 门控余量审计 = PASS（只读诊断）**。新脚本
+  `scripts/run_eta_gating_headroom_audit.py`（复用 08 reader/capture + C2 执行器），产物
+  `artifacts/eta_s3a_gating_headroom_20260805/`。诚实的**过期 belief**（记忆滞后 ⇒ 切换路口错条件）
+  制造余量：heldout（165 行、post-switch 占比 0.430）noop 2.813、always-on-belief 1.791、
+  **oracle-gate/pe-hard-gate 1.090**、fresh 天花板 0.027；post-switch 子集 always-on **4.160 >
+  noop 2.532**（错条件净损）。四门全过（post-switch 占比 0.43≥0.10、余量 vs always-on 0.70≥0.30、
+  增益 vs noop 1.72≥0.30、staleness 可检测性 1.0≥0.50，误报 0）。**复用边界修正**：`CausalZPolicy`
+  耦合 ETA z 空间不可复用，只复用 `sparse_proof_reward_taxonomy`/delayed credit 信用契约语义。
+  正式 prereg 冻结 `artifacts/eta_s3_internal_rl_prereg_20260805.json`（SHA `62454418…`）。
+- 2026-08-05: **S3 本体（学"何时扳" Internal RL）= 实质学习性已证；预注册 worst-seed 稳健门未过**。
+  新 owner 模块 `volvence_zero.agent.eta_when_to_steer_rl` + `scripts/run_eta_when_to_steer_rl.py`
+  （自写 minibatch REINFORCE + advantage 归一化 + 熵正则；**不复用 `CausalZPolicy`**）；测试
+  `packages/vz-runtime/tests/test_eta_when_to_steer_rl.py`（8 passed，含端到端 REINFORCE 可学性）。
+  产物 `artifacts/eta_s3_when_to_steer_rl_20260805/`（claim_scope
+  `conditional-steering-internal-rl-when-to-steer`）。冻结 sensor（08 reader）+ 冻结 executor（C2
+  rank-8），唯一在线更新门控策略只观测 PE 代理、只拿每-episode 终局稀疏信用 `R=-mean(route NLL)`、
+  从不给每步对错标签。seeds (0-4)、1200 episodes、bootstrap 5000/95%。heldout（5 seed 平均）noop
+  2.813、always-on-belief 1.791、random-gate 2.026、**pe-gated-online 0.951**、oracle 1.090、fresh
+  0.027；收敛改善 0.787≥0.20 ✅、门控选择性 0.382≥0.30 ✅。**4/5 seed 稳健学出 selective gate**
+  （pe_gated 0.61–0.92、selectivity 0.35–0.56、CI 强正、优于 oracle），**seed 1 探索塌缩到
+  always-steer**（selectivity 0）⇒ worst-seed gain CI 下界 vs noop −0.13 / vs always-on 0.0 / vs
+  random 0.0，literal admission **FAIL**。结构门全过（substrate_trainable=0、reader/executor 冻结未变、
+  free_bias=false、zero_code_strict_noop）。稳健化（多重启/熵退火）为唯一缺口；未 p-hack（未因结果改
+  阈值/聚合/seeds/预算）；`production_promotion_authorized=false`，不改写任何封存 verdict。详见
+  `research/steering-2026-08/11_S3_INTERNAL_RL_RESULT.md`。程序级决策（采纳 4/5 实质结论 vs 严格
+  literal FAIL 封存）交用户裁定。
 - 2026-08-03: ETA-on-LLM Stage-2 **仪器审计 + v2 重审**（详见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）。审计发现 v1
   语料/probe 的计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的

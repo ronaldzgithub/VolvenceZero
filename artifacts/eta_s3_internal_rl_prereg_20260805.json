@@ -1,0 +1,125 @@
+{
+  "schema_version": "eta-s3-internal-rl-prereg.v1",
+  "claim_scope": "conditional-steering-internal-rl-when-to-steer",
+  "frozen_at": "2026-08-05",
+  "design_doc": "research/steering-2026-08/09_S3_INTERNAL_RL_PREREG_SKELETON.md",
+  "backing_audit": "artifacts/eta_s3a_gating_headroom_20260805/report.json",
+  "one_line": "Learn WHEN to steer from sparse outcome credit only: a self-written REINFORCE gate observes PE proxies (never per-step correctness) and must approach the observable ceiling that S3-A proved exists.",
+  "problem_setup": {
+    "instrument": "goal-ambiguous-junction.v5 (C1 conflict mapping)",
+    "belief_source": "reader read of the previous in-route junction context (memory lag); stale at post-switch junctions",
+    "gate_observation_pe_proxies": [
+      "belief_margin",
+      "fresh_margin",
+      "belief_disagrees_fresh",
+      "base_action_entropy"
+    ],
+    "true_pe_used_only_for": "credit (outcome), never gate observation",
+    "action_space": [
+      "noop",
+      "steer(s in levels)"
+    ],
+    "steer_condition": "belief subgoal index (non-oracle)"
+  },
+  "frozen_components": {
+    "sensor_reader": "frozen linear reader (08 fit_condition_reader); no update",
+    "executor": "rank-8 multiplicative write (C2/08); no free bias; zero-code strict no-op; frozen",
+    "substrate": "frozen; substrate_trainable_parameter_count must be 0",
+    "only_online_updated": "gate policy parameters"
+  },
+  "credit": {
+    "reuse_contract": "volvence_zero.internal_rl.environment.sparse_proof_reward_taxonomy + InternalRLDelayedCreditAssignment (semantics only)",
+    "optimizer_visible": [
+      "terminal",
+      "delayed"
+    ],
+    "optimizer_invisible": [
+      "shaping",
+      "diagnostic"
+    ],
+    "rl_algorithm": "self-written REINFORCE + running baseline (advantage); no CausalZPolicy; no PPO/critic; no token-space RL; no end-to-end substrate update"
+  },
+  "arms": {
+    "primary": "pe-gated-online",
+    "matched_budget_baselines": [
+      "always-on-belief",
+      "random-gate",
+      "noop"
+    ],
+    "ceiling_diagnostics_not_scored": [
+      "oracle-gate",
+      "pe-hard-gate"
+    ]
+  },
+  "reference_ceilings_from_s3a": {
+    "noop_nll": 2.813,
+    "always_on_belief_nll": 1.791,
+    "oracle_gate_nll": 1.09,
+    "pe_hard_gate_nll": 1.09,
+    "fresh_ceiling_nll": 0.027,
+    "post_switch_fraction": 0.43,
+    "staleness_detectability": 1.0
+  },
+  "seed_schedule": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "max_online_episodes": 1200,
+  "bootstrap_resamples": 5000,
+  "bootstrap_confidence": 0.95,
+  "decision_rules": {
+    "convergence": {
+      "metric": "pe-gated-online heldout expert-NLL: final-window mean improves over early-window mean",
+      "min_improvement_nll": 0.2,
+      "on_fail": "slow-or-nonconvergent (report that sparse fast learning did not hold on the surrogate)"
+    },
+    "gain_vs_noop": {
+      "min_nll": 0.3,
+      "require_bootstrap_lower_positive": true
+    },
+    "gain_vs_always_on_belief": {
+      "min_nll": 0.2,
+      "require_bootstrap_lower_positive": true
+    },
+    "gain_vs_random_gate": {
+      "min_nll": 0.2,
+      "require_bootstrap_lower_positive": true
+    },
+    "gate_selectivity": {
+      "metric": "steer_rate(non-post-switch) - steer_rate(post-switch)",
+      "min": 0.3,
+      "note": "gate must concentrate steering where the belief is fresh"
+    },
+    "structural_integrity": {
+      "substrate_trainable_parameter_count": 0,
+      "reader_params_changed": false,
+      "executor_params_changed": false,
+      "free_bias_present": false,
+      "zero_code_strict_noop": true,
+      "only_policy_params_changed": true
+    }
+  },
+  "prohibited_after_execution": [
+    "change thresholds / primary arm / action space / seeds / episode budget after seeing results",
+    "train or fine-tune reader / executor / substrate",
+    "feed active_subgoal ground truth into the policy loss or gate observation",
+    "add additive/constant bias or make zero-code non-noop",
+    "token-space policy learning or end-to-end substrate update",
+    "feed evaluation readouts back into learning or change production WiringLevel",
+    "rewrite sealed verdicts: kill-eta / S2 / B screen / C2 / S3-prereq"
+  ],
+  "promotion": {
+    "on_all_pass": "admit an independent authoritative sweep; only then consider promoting the gate policy from SHADOW",
+    "production_promotion_authorized": false,
+    "controller_installed": false,
+    "feedback_to_learning": false
+  },
+  "rollback": "evidence lane; gate trained/evaluated in SHADOW; rollback = delete S3 artifact and new wiring code path",
+  "policy_optimizer": "minibatch REINFORCE (policy_batch_cases=8) + running baseline",
+  "pre_execution_revisions": [
+    "2026-08-05: raised max_online_episodes 300->1200 and switched to minibatch REINFORCE (batch 8) after a 1-seed probe showed 300 route-episodes over 64 routes (~4.7 visits/route) under-provisioned the sparse-credit gradient (converged toward always-on, selectivity ~0). Thresholds/arms/seeds unchanged. Still a bounded, honest sample budget (~19 visits/route)."
+  ]
+}

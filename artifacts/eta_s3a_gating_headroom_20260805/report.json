@@ -1,0 +1,68 @@
+{
+  "schema_version": "eta-gating-headroom-audit.v1",
+  "claim_scope": "s3-gating-headroom-audit",
+  "observation_protocol": "goal-ambiguous-junction.v5",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+  "device": "mps",
+  "corpus_seed": 20260802,
+  "injection_layer_index": 20,
+  "residual_width": 896,
+  "steering_rank": 8,
+  "operator_seed": 0,
+  "updates": 80,
+  "learning_rate": 0.01,
+  "batch_size": 32,
+  "reader_ridge_lambda": 10.0,
+  "train_row_count": 307,
+  "heldout_row_count": 165,
+  "control_norm_cap": 24.05563735961914,
+  "post_switch_row_count": 71,
+  "post_switch_fraction": 0.4303030303030303,
+  "arms_mean": {
+    "noop": 2.8128990895526647,
+    "always_on_belief": 1.7909464933183121,
+    "oracle_gate_belief": 1.0902692443405806,
+    "pe_gate_belief": 1.0902692443405806,
+    "fresh_ceiling": 0.027073272312789026
+  },
+  "post_switch_arms_mean": {
+    "noop": 2.5323781731446653,
+    "always_on_belief": 4.160712624994323,
+    "fresh_ceiling": 0.061570632516699156
+  },
+  "gating": {
+    "headroom_vs_alwayson": 0.7006772489777315,
+    "gain_vs_noop": 1.722629845212084,
+    "pe_gate_recovers": 0.7006772489777315
+  },
+  "observability": {
+    "staleness_detectability": 1.0,
+    "staleness_false_alarm": 0.0,
+    "belief_margin_mean": 0.9512069635023136,
+    "fresh_margin_mean": 0.9527424201527654,
+    "belief_correct_fraction": 0.5696969696969697
+  },
+  "admission": {
+    "admitted": true,
+    "conditions": {
+      "post-switch-fraction": true,
+      "gating-headroom-vs-alwayson": true,
+      "gating-gain-vs-noop": true,
+      "staleness-detectable": true
+    },
+    "failed_conditions": []
+  },
+  "thresholds": {
+    "min_post_switch_fraction": 0.1,
+    "min_gating_headroom_vs_alwayson": 0.3,
+    "min_gating_gain_vs_noop": 0.3,
+    "min_staleness_detectability": 0.5
+  },
+  "free_bias_present": false,
+  "zero_code_strict_noop": true,
+  "zero_code_max_abs": 0.0,
+  "substrate_trainable_parameter_count": 0,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false
+}

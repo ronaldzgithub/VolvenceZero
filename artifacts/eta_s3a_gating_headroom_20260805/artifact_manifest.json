@@ -1,0 +1,39 @@
+{
+  "schema_version": "eta-gating-headroom-audit-manifest.v1",
+  "experiment_id": "eta-s3a-gating-headroom-audit",
+  "created_at": "2026-08-04T17:10:43.556046+00:00",
+  "git_sha": "b77812a50122e1435a4e8e32e7ea35873200791f",
+  "working_tree_dirty": true,
+  "claim_scope": "s3-gating-headroom-audit",
+  "read_only_diagnostic": true,
+  "controller_installed": false,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "substrate_trainable_parameter_count": 0,
+  "gating_headroom_admitted": true,
+  "elapsed_seconds": 107.496,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+  "torch_version": "2.13.0",
+  "transformers_version": "5.14.1",
+  "mps_available": true,
+  "mps_exclusive_lock": "artifacts/.companion-evidence-mps.lock",
+  "mps_attestation": {
+    "torch_version": "2.13.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "model_weights_sha256": "6c5908bc3366fb5852ef4c7695ae8d29d04c0b7d00ee4bc6624c28f005af0aa2",
+  "source_files": {
+    "packages/vz-runtime/src/volvence_zero/agent/eta_read_steer_prereq.py": "9579ddc34ca9b7e28b5cbd39eeb3d3583846f1bf169e30b48b2f58130fdfb4cf",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_conditional_steering_screen.py": "d3585eb0201e7311f2170a8a41a861dd87db9800e24654be6ccf7c24cbfa6bd4",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_conflict_instrument.py": "650fb5399e949e017ffca88716059220dc0e0036216966a7d7f0314d4a3474c2",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85",
+    "scripts/run_eta_gating_headroom_audit.py": "e35ec3c32a412d4eb575895be0f46bbf90637320df7563e632667d4692dd69ff"
+  },
+  "result_files": {
+    "report.json": "d192e903ca17a8c6203d6b1e164a81761229389b725f5ce8a7e3c6ad4bcd84b2",
+    "report.md": "03794b6a9b2187314c81dc26a565ef7a4aac0d3d64f86cb8e204b1ea64d93236"
+  }
+}
