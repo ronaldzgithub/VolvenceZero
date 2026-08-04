@@ -276,6 +276,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         model: object | None = None,
         tokenizer: object | None = None,
         max_length: int = 64,
+        fail_on_truncation: bool = False,
         mps_generation_max_input_tokens: int = 1024,
         top_k_logits: int = 8,
         activation_width: int = 8,
@@ -327,6 +328,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self.supports_offline_substrate_training = allow_offline_substrate_training
         self._device = self._resolve_device(device=device)
         self._max_length = max(1, max_length)
+        self._fail_on_truncation = bool(fail_on_truncation)
         self._mps_generation_max_input_tokens = max(1, mps_generation_max_input_tokens)
         self._top_k_logits = max(1, top_k_logits)
         if (
@@ -619,6 +621,14 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         """Frozen hook surface available to projector artifacts."""
 
         return self._layer_indices
+
+    @property
+    def max_length(self) -> int:
+        return self._max_length
+
+    @property
+    def fail_on_truncation(self) -> bool:
+        return self._fail_on_truncation
 
     def build_steered_action_scorer(
         self,
@@ -3146,12 +3156,33 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         return (adapter_layers, final_loss)
 
     def _tokenize(self, *, source_text: str) -> dict[str, object]:
-        encoded = self._tokenizer(
-            source_text,
-            return_tensors="pt",
-            truncation=True,
-            max_length=self._max_length,
-        )
+        if self._fail_on_truncation:
+            encoded = self._tokenizer(
+                source_text,
+                return_tensors="pt",
+                truncation=False,
+                max_length=self._max_length,
+            )
+            raw_input_ids = encoded.get("input_ids")
+            if not isinstance(raw_input_ids, self._torch.Tensor):
+                raise ValueError(
+                    f"Transformers runtime '{self.model_id}' tokenizer did not "
+                    "return tensor input_ids."
+                )
+            token_count = int(raw_input_ids.shape[-1])
+            if token_count > self._max_length:
+                raise ValueError(
+                    f"Transformers runtime '{self.model_id}' source has "
+                    f"{token_count} tokens > max_length {self._max_length}; "
+                    "truncation is forbidden for this evidence surface."
+                )
+        else:
+            encoded = self._tokenizer(
+                source_text,
+                return_tensors="pt",
+                truncation=True,
+                max_length=self._max_length,
+            )
         model_inputs: dict[str, object] = {}
         for key, value in encoded.items():
             if isinstance(value, self._torch.Tensor):
@@ -4260,6 +4291,8 @@ def build_builtin_transformers_runtime(
     layer_indices: tuple[int, ...] | None = None,
     hook_layer_selection: str = "middle",
     activation_width: int = 8,
+    max_length: int = 64,
+    fail_on_truncation: bool = False,
     allow_live_substrate_mutation: bool = False,
     ) -> TransformersOpenWeightResidualRuntime:
     transformers = importlib.import_module("transformers")
@@ -4285,6 +4318,8 @@ def build_builtin_transformers_runtime(
         layer_indices=layer_indices,
         hook_layer_selection=hook_layer_selection,
         activation_width=activation_width,
+        max_length=max_length,
+        fail_on_truncation=fail_on_truncation,
         top_k_logits=8,
         runtime_origin="builtin-fallback",
         allow_live_substrate_mutation=allow_live_substrate_mutation,
@@ -4299,6 +4334,8 @@ def build_transformers_runtime_with_fallback(
     layer_indices: tuple[int, ...] | None = None,
     hook_layer_selection: str = "middle",
     activation_width: int = 8,
+    max_length: int = 64,
+    fail_on_truncation: bool = False,
     local_files_only: bool = False,
     fallback_to_builtin: bool | None = None,
     fallback_mode: SubstrateFallbackMode | str | None = None,
@@ -4334,6 +4371,8 @@ def build_transformers_runtime_with_fallback(
             layer_indices=_builtin_safe_layer_indices(layer_indices),
             hook_layer_selection=hook_layer_selection,
             activation_width=activation_width,
+            max_length=max_length,
+            fail_on_truncation=fail_on_truncation,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
     resolved_mode = resolve_substrate_fallback_mode(
@@ -4393,6 +4432,8 @@ def build_transformers_runtime_with_fallback(
             layer_indices=layer_indices,
             hook_layer_selection=hook_layer_selection,
             activation_width=activation_width,
+            max_length=max_length,
+            fail_on_truncation=fail_on_truncation,
             local_files_only=effective_local_files_only,
             runtime_origin=effective_runtime_origin,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
@@ -4425,6 +4466,8 @@ def build_transformers_runtime_with_fallback(
             layer_indices=_builtin_safe_layer_indices(layer_indices),
             hook_layer_selection=hook_layer_selection,
             activation_width=activation_width,
+            max_length=max_length,
+            fail_on_truncation=fail_on_truncation,
             allow_live_substrate_mutation=allow_live_substrate_mutation,
         )
 

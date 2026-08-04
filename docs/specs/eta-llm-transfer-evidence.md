@@ -417,8 +417,78 @@ hash 与预注册逐项相同，manifest 标记 `verdict_authoritative=true`。
 prefix hidden，Stage-3 输入是 layers 20/21/22 的窄读数经固定折叠到 16 维；
 Stage-3 boundary 标签来自相邻专家 action change，而不是 `active_subgoal`
 变化；steering 为 additive delta + 可训练免费 bias，而非论文式状态相关低秩
-`U_t·e`。下一包 P1 只做 exact-entry probe、bias-only、zero/permuted-z 与
-subgoal oracle readout，归因“入口 / 激励 / 优化”各占多少，不重跑 36-cell。
+`U_t·e`。
+
+**P1 等价性诊断结果（2026-08-04）**：预注册
+`artifacts/eta_stage3_equivalence_prereg_20260804/preregistration.json`
+（sha256 `30b827b3…`）绑定 Stage-3 report sha256 `48a589d4…`；3 seeds ×
+full / bias-only、每 cell 100 updates，MPS-only / no-fallback，artifact
+`artifacts/eta_stage3_equivalence_diagnostic_20260804/`。P1 只归因，不重判：
+
+- exact Stage-3 单步 16 维折叠入口 active-subgoal probe = `0.3913`
+  （chance `0.125`，通过 `2×chance=0.25`），但只保留 Gate-2 `0.944` 的
+  `41.45%`，说明入口显著损失信息、但并未信息死亡；
+- bias-only 回收 full heldout 改善的 `96.32%`（门槛 80%），正式定罪免费
+  steering bias 激励旁路；full session 的 zero-z 仍回收 `61.41%`；
+- cyclic-permuted-z 相对 full 的 distortion penalty = `−0.0068`（门槛
+  `+0.02`），未显示 learned z 的稳定时序因果对齐；
+- oracle subgoal F1 − action-change F1 = `−0.0685`，未越过预注册的
+  `|Δ|≥0.10` 语义差异门，因此边界标签仍是契约债，但不是本轮主因。
+
+主归因为 `incentive-bypass-via-free-bias`。方案 A 继续：S1 冻结 residual
+readout → S2 无 bias 的 ±axis / noop / shuffle 因果 steering。S2 已于同日
+正式 FAIL，因此方案 B 的两个必要条件均已满足；B 只以新 claim / 新预注册
+启动，不改写封存的 Stage-3 verdict。
+
+**S1 frozen residual readout（2026-08-04）**：预注册
+v1（sha256 `b09b68f8…`）虽给出字面 PASS，但事后 token audit 发现 heldout
+`7/299` 个 cumulative prefix 被 `max_length=512` 静默截断；该运行不具正式
+消费资格，S2 从未读取其结果。修正版 v2 预注册
+`artifacts/eta_s1_residual_readout_prereg_v2_20260804/preregistration.json`
+（sha256 `35c92904…`）在任何 v2 读数前把上限固定为 768，并要求超限
+fail loudly；其余 corpus、v4 cumulative-prefix surface、layer 20、full width
+896、ridge alpha 1.0 与四条 admission 门均不变。权威 artifact
+`artifacts/eta_s1_residual_readout_v2_20260804/`：
+
+- train / heldout rows = `551 / 299`；train accuracy `1.0000`，heldout
+  `0.9833`（chance `0.1250`，majority `0.2274`），通过 `≥0.80` 与
+  `≥2×chance`；
+- heldout early / late = `0.9896 / 0.9720`，late 通过 `≥0.50`；
+  train−heldout gap `0.0167`，通过 `≤0.20`；
+- 8 条 class-vs-rest 轴均在真实 injection layer 的 896 维空间中 L2
+  normalize，artifact id `frozen-residual-readout.v1:086a8f3d…`；轴不含
+  classifier bias，model/source snapshot lineage 全部内容寻址。v1/v2 artifact
+  id 相同是因为被截断的只有 heldout audit 行，551 条训练行及正式轴字节未变；
+- 自动 admission = **PASS**，因此只解锁另立预注册的 S2 因果 steering。
+  S1 只证明线性可读，不证明“扳了会拐”；manifest 明确
+  `formal_causal_claim_allowed=false`、`artifact_installation_authorized=false`、
+  production wiring / feedback-to-learning 均为 false。
+
+**S2 no-bias causal steering（2026-08-04）**：预注册
+`artifacts/eta_s2_causal_steering_prereg_20260804/preregistration.json`
+（sha256 `b6a427d0…`）只消费 S1 v2 artifact；24 条 heldout routes / 299 个
+prefix，最大 586 token（上限 768），截断 0、substrate trainable parameter 0、
+free bias false。权威 artifact `artifacts/eta_s2_causal_steering_20260804/`
+在 0.50× control cap 主判点五门全败：
+
+- target-plus vs noop mean = `−0.00072`，95% bootstrap CI
+  `[−0.01787, 0.01809]`；vs minus = `0.02829`，CI
+  `[−0.00703, 0.06705]`；vs shuffled = `0.00709`，CI
+  `[−0.01028, 0.02388]`；
+- 三个 route win rate 分别为 `0.4583 / 0.6667 / 0.6250`；主判点的
+  effect、route-win 与 bootstrap-lower-positive 条件全部为 false；
+- 0.25× 与 1.00× 也没有形成“正确轴优于 noop 且优于 shuffled”的稳健组合。
+
+因此 S1 证明的是 residual 上“可读”，不是该线性 probe 轴已经构成冻结模型的
+动作因果接口。方案 A 在 S2 生死门停止，S3 Internal RL 不启动；这也正式满足
+方案 B 的触发条件。
+
+**方案 B faithful rewrite（执行中）**：新证据面保持 controller owner 在
+`vz-temporal`，使用 layer20 的 896 维 causal-prefix residual，经可学习
+896→16 GRU 投影进入 `z_t`；steering 改为无 bias 的 rank-8
+`A·diag(tanh(Cz_t))·Bᵀ·e_t`，零码严格零控制；`active_subgoal` 边界只作
+no-grad readout。directional screen 预注册 sha256 `c247e82e…`，只决定是否
+准入另立的权威扫，不授权 production wiring、artifact 安装或 verdict 重判。
 
 ### Stage 4 — 对话迁移（contingent，仅设计）
 
@@ -585,3 +655,24 @@ subgoal oracle readout，归因“入口 / 激励 / 优化”各占多少，不�
   operationalization 被否定，Stage 4 不启动，production WiringLevel 不变。
   另登记入口折叠、action-change 边界标签、免费 steering bias 三项解释债，
   由 P1 等价性诊断归因；它不得改写本轮 verdict。
+- 2026-08-04: **P1 等价性诊断完成**（prereg `30b827b3…`，3 seeds ×
+  full/bias-only）：exact 16 维入口仍可读（0.3913 > 0.25）但仅保留 Gate-2
+  读数 41.45%；bias-only 回收 96.32% 改善，permuted-z penalty −0.0068，
+  主归因 `incentive-bypass-via-free-bias`，learned z 未显示时序因果性。
+  oracle/action boundary F1 差未过 0.10 门。当时转 S1/S2，B 等待 S2；
+  随后的 S2 FAIL 已满足其余触发条件。
+- 2026-08-04: **S1 frozen residual readout admission = PASS**。新增正式
+  `substrate_residual_readout` offline/SHADOW slot 与内容寻址 artifact。v1 因
+  heldout `7/299` 静默截断失去正式消费资格；fail-loud v2 prereg
+  `35c92904…` 的真实 MPS heldout accuracy 0.9833、late 0.9720、train−heldout
+  gap 0.0167，四门全过；8 个无 bias class-vs-rest 轴准入 S2。未安装
+  artifact、无 causal claim、无 production wiring / 学习回灌。
+- 2026-08-04: **S2 no-bias causal steering = FAIL**。prereg `b6a427d0…`；
+  24 routes / 299 prefix、0 截断、0 substrate trainable parameter、无 free
+  bias。0.50×cap 主判 target-plus vs noop `−0.00072`（95% CI
+  `[−0.01787,0.01809]`），五门全败。A 在 S2 停止，S3 不启动；B 的触发条件
+  已满足。
+- 2026-08-04: **方案 B faithful rewrite directional screen 已预注册并运行**。
+  prereg `c247e82e…` 固定全宽可学习入口、rank-8 无 bias `U_t·e_t`、零码
+  strict no-op、oracle boundary readout-only 与 3 alpha × 2 seed × 40 updates；
+  只准入后续独立权威扫，不改 Stage-3 `kill-eta` 或 production wiring。

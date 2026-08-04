@@ -8,6 +8,7 @@ that silently becomes another representation owner.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 import hashlib
 import json
@@ -176,6 +177,8 @@ class SubstrateForwardRepresentationPublisher:
     def publish(
         self,
         sample_sources: tuple[tuple[str, str], ...],
+        *,
+        progress: Callable[[str, int, int], None] | None = None,
     ) -> SubstrateForwardRepresentationSnapshot:
         if not sample_sources:
             raise ValueError("substrate representation publish requires samples")
@@ -187,7 +190,7 @@ class SubstrateForwardRepresentationPublisher:
 
         geometry: tuple[tuple[int, ...], tuple[int, ...]] | None = None
         rows: list[SubstrateForwardRepresentation] = []
-        for sample_id, source_text in sample_sources:
+        for sample_index, (sample_id, source_text) in enumerate(sample_sources):
             if not source_text.strip():
                 raise ValueError(
                     f"substrate representation source for {sample_id!r} is empty"
@@ -242,6 +245,8 @@ class SubstrateForwardRepresentationPublisher:
                     values_sha256=_sha256_vector(values),
                 )
             )
+            if progress is not None:
+                progress(sample_id, sample_index + 1, len(sample_sources))
 
         if geometry is None:
             raise RuntimeError("substrate representation geometry was not initialized")

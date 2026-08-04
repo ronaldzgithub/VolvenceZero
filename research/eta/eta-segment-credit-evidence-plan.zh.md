@@ -617,6 +617,41 @@ prereg / MPS-only / no-fallback / source-hash 守门均满足；双臂分离 `0.
 readout → causal steering → PE-gated segment credit / small-action Internal RL；
 忠实 ETA rewrite 仅在 P1 定罪入口或 bias、且 causal steering 失败时另立新 claim。
 
+**2026-08-04 P1 结果**：预注册
+`artifacts/eta_stage3_equivalence_prereg_20260804/preregistration.json`
+（sha256 `30b827b3…`）绑定 Stage-3 report `48a589d4…`；3 seed × full /
+bias-only 共 6 cell 完成。exact 16 维单步入口 probe `0.3913` > `0.25`，
+信息未死亡但只保留 Gate-2 41.45%；bias-only 回收 full 改善 `96.32%`，
+zero-z 回收 `61.41%`，cyclic-permuted-z penalty `−0.0068`，主归因
+`incentive-bypass-via-free-bias`，learned z 未显示稳定时序因果性。oracle
+subgoal F1 相对 action-change F1 的均值差 `−0.0685` 未过 `|Δ|≥0.10` 门。
+因此 A 继续到 S1/S2；S2 后续正式失败，B 的第二个必要条件也已满足。
+
+**2026-08-04 S1 结果**：v1 prereg `b09b68f8…` 固定 Stage-3 同款 corpus、
+v4 cumulative prefix、injection layer20/full width896、ridge alpha1.0 与四门，
+但事后 token audit 发现 heldout `7/299` 行被 max-length512 静默截断，因此
+v1 不具正式消费资格。任何 v2 读数前另冻 prereg `35c92904…`，改为
+max-length768 + fail loudly，其余口径不变。v2 真实 MPS train/heldout rows
+`551/299`；heldout accuracy `0.9833`（chance 0.125 / majority 0.2274），
+early/late `0.9896/0.9720`，train−heldout gap `0.0167`，全部通过。冻结
+artifact `086a8f3d…` 发布 8 条无 bias class-vs-rest 归一化轴；v1/v2 id 相同
+因为训练行未变。S1 admission PASS，只解锁预注册 S2，不授权安装、causal
+claim、production wiring 或 evaluation 回灌。
+
+**2026-08-04 S2 结果**：prereg sha256 `b6a427d0…` 只绑定 S1 v2 artifact；
+24 heldout routes / 299 prefix、max 586/768 token、truncated=0、substrate
+trainable=0、free bias=false。0.50×cap 主判 target-plus vs noop `−0.00072`
+（95% CI `[−0.01787,0.01809]`），vs minus `0.02829`（CI
+`[−0.00703,0.06705]`），vs shuffled `0.00709`（CI
+`[−0.01028,0.02388]`），route wins `0.4583/0.6667/0.6250`，五门全败。
+S1 的线性可读轴没有变成稳健动作因果接口，A 在 S2 生死门停止，S3 不启动。
+
+**2026-08-04 B faithful rewrite**：P1 与 S2 已同时满足触发条件。新 claim
+prereg sha256 `c247e82e…` 固定 layer20 full-width896 的可学习 896→16 入口、
+rank-8 no-bias `A·diag(tanh(Cz))·Bᵀ·e`、zero-code strict no-op、oracle
+boundary readout-only、3 alpha × 2 seed × 40 updates。directional screen 只可
+准入另立权威 sweep；不重判 Stage-3、不安装 artifact、不改 production wiring。
+
 **Stage 1（数据机制假设）**：环境 owner 新增 seeded 程序化生成器
 （`generate_hierarchical_environment` + hub relay 保证任意子目标序可达 +
 `stitch_waypoints` + `generate_hierarchical_routes` 按 ordering 哈希分区

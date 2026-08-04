@@ -1,0 +1,51 @@
+{
+  "schema_version": "eta-s1-residual-readout-manifest.v1",
+  "experiment_id": "eta-s1-full-width-frozen-residual-readout",
+  "created_at": "2026-08-04T08:24:40.638238+00:00",
+  "git_sha": "6623a50db4d81403140d213776055ffe8e56af8a",
+  "working_tree_dirty": true,
+  "claim_scope": "s1-readout-admission-no-causal-claim",
+  "source_p1_artifact": {
+    "path": "artifacts/eta_stage3_equivalence_diagnostic_20260804/report.json",
+    "sha256": "71636570bc5ba6566eb6ab19bcc73d8f4d0772f8e0387b59b9b998fc05132b09",
+    "dominant_attribution": "incentive-bypass-via-free-bias"
+  },
+  "preregistered": true,
+  "preregistration_path": "artifacts/eta_s1_residual_readout_prereg_v2_20260804/preregistration.json",
+  "preregistration_sha256": "35c92904ad2747a8e20b82ee031662fb6ac375826f05eb9c87ac36ce6dee406b",
+  "readout_admission_authoritative": true,
+  "s1_admitted_for_s2": true,
+  "formal_causal_claim_allowed": false,
+  "artifact_installation_authorized": false,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "elapsed_seconds": 144.652,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/miniconda3/bin/python",
+  "torch_version": "2.10.0",
+  "transformers_version": "5.2.0",
+  "mps_available": true,
+  "mps_exclusive_lock": "artifacts/.companion-evidence-mps.lock",
+  "mps_attestation": {
+    "torch_version": "2.10.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "model_weights_sha256": "6c5908bc3366fb5852ef4c7695ae8d29d04c0b7d00ee4bc6624c28f005af0aa2",
+  "source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_contracts.py": "1dea9f3debb41a76e738da974bd1e26ba95bb544b88c90a3b6e6891bf59eb3c6",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "6e20c2ab092ccad807196a7ddfe12fec5943fc4acdaf0a682131ca8acf50da13",
+    "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py": "fc667735ad6d9be820b773dc7f5d414b4d429b9eab199ac2df909ec443fae843",
+    "packages/vz-substrate/src/volvence_zero/substrate/frozen_residual_readout.py": "e3534ff606b84c921900894dc89caefcdcba8a82e5479dbac0207b3bcd859451",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "7cd3d09fe1be3ddb6d79fa6584de9b0ac446995b03fdd02b09cc9f036d1d7a1a",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_s1_residual_readout.py": "0bce54319c884a7e446575269ff339585293c4089380656b7d047f03fbf2a636",
+    "scripts/run_eta_s1_residual_readout.py": "495628a84364da48db3cad55dba208f81139bf986da1851781b02d73bb36c5ad"
+  },
+  "result_files": {
+    "readout_artifact.json": "91ba5893ef10bdc7df860507fde3fcf63bf8f5af9955ec5adfd4ad881366c68d",
+    "report.json": "f93b8b4ad86884797781c26c86296e5452cb5566cebb4cea58626042fa08e033",
+    "report.md": "eecefc75506953d28349edafbdf687a5af1f809a2381759b0c5561ae10e4c8f3"
+  }
+}

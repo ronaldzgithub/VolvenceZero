@@ -239,12 +239,21 @@ class HashingWhitespaceTokenizer:
     _token_to_id: dict[str, int] = field(default_factory=lambda: {"<empty>": 1}, init=False, repr=False)
     _id_to_token: dict[int, str] = field(default_factory=lambda: {1: "<empty>"}, init=False, repr=False)
 
-    def __call__(self, text: str, *, return_tensors: str, truncation: bool, max_length: int):
-        del truncation
+    def __call__(
+        self,
+        text: str,
+        *,
+        return_tensors: str,
+        truncation: bool,
+        max_length: int | None = None,
+    ):
         if return_tensors != "pt":
             raise ValueError("HashingWhitespaceTokenizer expects return_tensors='pt'.")
         torch = importlib.import_module("torch")
-        tokens = tuple(part for part in text.split() if part.strip())[:max_length] or ("<empty>",)
+        tokens = tuple(part for part in text.split() if part.strip())
+        if truncation and max_length is not None:
+            tokens = tokens[:max_length]
+        tokens = tokens or ("<empty>",)
         token_ids = [self._resolve_token_id(token) for token in tokens]
         input_ids = torch.tensor([token_ids], dtype=torch.long)
         attention_mask = torch.ones_like(input_ids)

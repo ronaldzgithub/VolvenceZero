@@ -1156,6 +1156,75 @@ class SubstrateForwardRepresentationSnapshot:
   停止发布/消费该 slot，旧外部 sentence-encoder pilot 只能保留
   `thesis_status=not-evaluated`，不得自动恢复 thesis 资格。
 
+**Offline frozen residual readout exchange（2026-08-04）**：
+
+S1 在上述正式 representation 之上增加唯一 owner
+`SubstrateResidualReadoutPublisher`；禁止 consumer 再次遍历 runtime capture 或自行
+拟合第二套 residual classifier。
+
+```python
+@dataclass(frozen=True)
+class FrozenResidualReadoutArtifact:
+    model_fingerprint: SubstrateFingerprint
+    runtime_origin: str
+    source_readout_kind: str
+    layer_indices: tuple[int, ...]
+    activation_widths: tuple[int, ...]
+    representation_dim: int
+    class_ids: tuple[str, ...]                 # 外部 typed owner 提供的不透明 id
+    ridge_alpha: float
+    feature_mean: tuple[float, ...]
+    feature_scale: tuple[float, ...]
+    class_weights: tuple[tuple[float, ...], ...]
+    class_biases: tuple[float, ...]
+    class_axes: tuple[tuple[float, ...], ...]  # class-vs-rest，逐轴 L2-normalized
+    training_snapshot_fingerprint: str
+    training_labels_sha256: str
+    training_support: int
+
+@dataclass(frozen=True)
+class SubstrateResidualReadout:
+    sample_id: str
+    source_sha256: str
+    class_scores: tuple[tuple[str, float], ...]
+    predicted_class_id: str
+    score_margin: float
+
+@dataclass(frozen=True)
+class SubstrateResidualReadoutLineage:
+    schema_version: str                    # substrate-residual-readout.v1
+    artifact_id: str                       # frozen-residual-readout.v1:<sha256>
+    model_fingerprint: SubstrateFingerprint
+    runtime_origin: str
+    source_snapshot_fingerprint: str
+    source_readout_kind: str
+    layer_indices: tuple[int, ...]
+    activation_widths: tuple[int, ...]
+    representation_dim: int
+
+@dataclass(frozen=True)
+class SubstrateResidualReadoutSnapshot:
+    lineage: SubstrateResidualReadoutLineage
+    readouts: tuple[SubstrateResidualReadout, ...]
+    description: str
+```
+
+- fit 只消费一个 immutable `SubstrateForwardRepresentationSnapshot` 与按
+  `sample_id` 精确对齐的 typed label；label 语义仍归调用方 owner，substrate 只把
+  class id 当不透明枚举，不解析文本、不建立业务语义 owner。
+- artifact 使用 closed-form standardized ridge one-hot fit；standardization 已折入
+  effective class weight / bias。每条 steering 候选轴固定为“本类 weight − 其他类
+  weight 均值”后 L2 normalize，轴本身**不含 bias**，不得恢复 Stage-3 已定罪的
+  free-bias 通道。
+- publisher 必须逐项核验 model weights fingerprint、runtime origin、readout kind、
+  layer/width/dimension；任何 lineage 漂移 fail loudly。公共快照只含 source SHA、
+  class score / prediction / margin 与 artifact/source lineage，不含原文。
+- 当前 slot 仅用于 S1/S2 offline evidence，默认 SHADOW，不进入 live
+  `propagate` DAG，不授权安装 artifact、动作选择或学习回灌。S1 evaluation
+  readout 只能决定是否准入另立预注册的 S2，不能成为训练信号。
+- 回滚为停止发布/消费 `substrate_residual_readout` 并保留既有
+  `substrate_forward_representation`；production wiring 与冻结基底均不变。
+
 **阶段化 contract**：
 
 - 当前稳定 contract：`surface_kind=FEATURE_SURFACE`，发布 `feature_surface` 与可选 `token_logits`
@@ -2074,6 +2143,7 @@ reflection ──────────────→ proposals; runtime invo
 |-----------|-----------|-----------|----------|----------|--------|
 | `substrate` | SubstrateModule | SubstrateSnapshot | SHADOW | 每 turn | temporal_abstraction, memory, dual_track, evaluation, prediction_error |
 | `substrate_forward_representation` | SubstrateForwardRepresentationPublisher (`vz-substrate`) | SubstrateForwardRepresentationSnapshot | SHADOW（offline research） | frozen corpus batch | prediction_error offline ForwardRepresentationBatch；不进入 live DAG |
+| `substrate_residual_readout` | SubstrateResidualReadoutPublisher (`vz-substrate`) | SubstrateResidualReadoutSnapshot（artifact lineage 指向 FrozenResidualReadoutArtifact） | SHADOW（offline evidence） | frozen corpus batch | ETA S2 causal-steering evidence；依赖 `substrate_forward_representation`，不进入 live DAG、不回灌 |
 | `substrate_self_mod` | SubstrateSelfModModule | SubstrateSelfModSnapshot | SHADOW | 每 turn / schedule | session / credit audit / rare-heavy review |
 | `world_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |
 | `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |

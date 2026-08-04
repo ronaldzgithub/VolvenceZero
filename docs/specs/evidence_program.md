@@ -1210,7 +1210,7 @@ Gate 4 ecology source=`not-admitted`，P1/P2 不执行。该 kill 是冻结计�
 |---|---|---|
 | `claim_eta_rate_axis_instrument_valid` | Gate 1：spearman(α,rate)≤−0.8 且 rate_span≥0.30 + switching 存活 | **PASS**（2026-08-03，v4+smooth+switch-gated+hard-st 权威扫 `artifacts/eta_stage1_gate1_v4_hardst_auth_20260803/`）：spearman −1.000 / span 1.933 / heldout boundary F1 全 alpha 0.240–0.671 |
 | `claim_llm_residual_carries_subgoal_hierarchy` | Gate 2：补课 probe ≥2× 随机 + 第二条件（v1/v2 前缀单调；v3 retention）+ 优于裸 Qwen | 三轮字面 FAIL，全部封存，各定罪不同环节：**v1** FAIL 定罪仪器（哈希指纹计划载体，信息天花板 0.1805 < 0.25，构造性不可过）；**v2** 可读仪器（ceiling 1.0）实质两条件 PASS（0.944 / +4.3pp）、败于 `随前缀上升` regime 错配；**v3**（prereg `2f3b3bf4…`，新 seed 20260804，retention 判据在新读数前冻结，`artifacts/eta_stage2_probe_v3_20260803/`）`2×chance` PASS（0.967 = 7.7×）+ `retention.v3` PASS（late 0.918 / 衰减 0.077），败于因果对照**反向失效——裸 Qwen 基底 0.977 已在天花板，续训无超越余量**。实质命题"残差可承载"跨两 seed 四臂复现（0.901/0.944/0.977/0.967）；被证伪的是"续训必要性"对照前提。阶梯处置（字面 kill vs 裁定看门目的已实质达成）待用户程序级决策 |
-| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap + joint 臂无 gap + gap 内 F1 更高 | **REJECT / `kill-eta`（2026-08-04）**。预注册权威扫 36/36 cells；双臂可分（0.1264 > 0.0673），frozen rate 轴有效（Spearman −0.9429 / span 2.0680），但 frozen `gap_detected=false`，且现有 boundary F1 区内 0.000 < 区外 0.2669；joint 反而检出 gap。拒绝范围是当前 ETA-on-LLM operationalization，不外推为理论普遍证伪；P1 等价性诊断只归因、不改判。 |
+| `claim_eta_rate_distortion_on_domain_pretrained_llm` | Gate 3：补课冻结基底近垂直 gap + joint 臂无 gap + gap 内 F1 更高 | **REJECT / `kill-eta`（2026-08-04）**。预注册权威扫 36/36 cells；双臂可分、frozen rate 轴有效但无 gap，joint 反而检出 gap。P1 attribution（prereg `30b827b3…`）进一步定位：exact entry 0.3913 > 0.25、bias-only recovery 96.32%、permuted-z penalty −0.0068，主因是 free-bias incentive bypass，非入口信息死亡；P1 不改判。替代路线 S1 v1 因 heldout `7/299` 截断作废，fail-loud v2 admission PASS（prereg `35c92904…`，layer20/896，heldout 0.9833 / late 0.9720）；S2 no-bias causal steering prereg `b6a427d0…` 五门 FAIL，故 S3 不启动。B faithful rewrite 以 prereg `c247e82e…` 另立 directional screen，不改变本 claim verdict。 |
 | `claim_eta_dialogue_transfer` | Stage 4 contingent | **NOT STARTED / CLOSED**；Gate 3 已 FAIL，仅保留骨架，不转正式预注册、不执行 |
 
 不变量：Gate 1 FAIL ≠ 杀主张（现已 PASS）；Gate 2 正式 FAIL = 杀 LLM 迁移路线——但**只有可读仪器（ceiling 验证过）下的 FAIL 才定罪基底命题**，v1 FAIL 已被仪器审计收窄为仪器缺陷；Gate 3 FAIL = 永久摘除 ETA。产物归 evidence lane，不回灌学习。
@@ -1913,6 +1913,28 @@ substrate weights；删除隔离 evidence directory 即可回滚本 lane。
   不支持 gap 语义；Stage 4 关闭。当前 claim 登记为 REJECT，production
   WiringLevel 不变。入口压缩、边界标签与免费 bias 三项解释债进入 P1 只读
   诊断，任何结果都不得回写或重判本轮 artifact。
+- 2026-08-04: ETA Stage-3 **P1 attribution 完成**。预注册 sha256
+  `30b827b3…`，绑定 Stage-3 report `48a589d4…`；6 个 matched cells 均完成。
+  exact-entry probe 0.3913（通过 2×chance 但较 Gate-2 保留 41.45%），
+  bias-only recovery 96.32%，zero-z recovery 61.41%，permuted-z penalty
+  −0.0068；主归因 `incentive-bypass-via-free-bias`，z 未显示时序因果性。
+  下一证据面为 S1 frozen readout / S2 no-bias causal steering。
+- 2026-08-04: ETA 替代路线 **S1 frozen residual readout admission PASS**。
+  v1 prereg `b09b68f8…` 事后发现 heldout `7/299` 静默截断，故未被 S2
+  消费；v2 prereg `35c92904…` 固定 layer20/width896、max-length768 与
+  fail-loud token policy。真实 MPS heldout accuracy 0.9833、late 0.9720、
+  train−heldout gap 0.0167。内容寻址 artifact `086a8f3d…` 的 8 条
+  class-vs-rest 轴全部归一化且不含 bias；仅准入 S2 evidence，未安装、无
+  causal claim、无 wiring 或学习回灌。
+- 2026-08-04: ETA 替代路线 **S2 no-bias causal steering FAIL**。prereg
+  `b6a427d0…` 只消费 S1 v2；24 routes / 299 prefix、max 586/768 token、
+  truncated=0、substrate trainable=0、free bias=false。0.50×cap 主判 plus vs
+  noop `−0.00072`（95% CI `[−0.01787,0.01809]`），五门全败。A 在 S2
+  停止，S3 不启动。
+- 2026-08-04: **B faithful rewrite directional screen 启动**。新 claim prereg
+  `c247e82e…` 固定 full-width learned entry、rank-8 no-bias `U_t·e_t`、
+  zero-code strict no-op、active-subgoal boundary readout-only、frozen substrate
+  与 no-production/no-feedback；screen 只决定是否准入另立权威 sweep。
 - 2026-08-03: ETA-on-LLM Stage-2 **仪器审计 + v2 重审**（详见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）。审计发现 v1
   语料/probe 的计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的

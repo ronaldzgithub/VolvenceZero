@@ -34,3 +34,16 @@ def test_transformers_capture_activation_width_fails_loudly() -> None:
             model_id="activation-width-invalid",
             activation_width=0,
         )
+
+
+def test_transformers_capture_can_fail_loudly_before_evidence_truncation() -> None:
+    runtime = build_builtin_transformers_runtime(
+        model_id="strict-token-budget",
+        max_length=4,
+        fail_on_truncation=True,
+    )
+
+    assert runtime.max_length == 4
+    assert runtime.fail_on_truncation is True
+    with pytest.raises(ValueError, match="truncation is forbidden"):
+        runtime.capture(source_text="one two three four five six")

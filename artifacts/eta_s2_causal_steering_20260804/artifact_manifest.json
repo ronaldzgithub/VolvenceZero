@@ -1,0 +1,60 @@
+{
+  "schema_version": "eta-s2-causal-steering-manifest.v1",
+  "experiment_id": "eta-s2-no-bias-causal-residual-steering",
+  "created_at": "2026-08-04T08:32:47.407989+00:00",
+  "git_sha": "6623a50db4d81403140d213776055ffe8e56af8a",
+  "working_tree_dirty": true,
+  "claim_scope": "s2-heldout-axis-causal-steering",
+  "source_s1": {
+    "report_path": "artifacts/eta_s1_residual_readout_v2_20260804/report.json",
+    "report_sha256": "f93b8b4ad86884797781c26c86296e5452cb5566cebb4cea58626042fa08e033",
+    "manifest_path": "artifacts/eta_s1_residual_readout_v2_20260804/artifact_manifest.json",
+    "manifest_sha256": "5bdb4ca2d0311e9adc03ddd07f91434c162eea6e6f651af784f1e763bb2921c0",
+    "artifact_path": "artifacts/eta_s1_residual_readout_v2_20260804/readout_artifact.json",
+    "artifact_file_sha256": "91ba5893ef10bdc7df860507fde3fcf63bf8f5af9955ec5adfd4ad881366c68d",
+    "artifact_id": "frozen-residual-readout.v1:086a8f3dc3e6270c8181231e711fe538a0e25c128bfd72d5054c83bc9f977df8",
+    "admitted": true
+  },
+  "preregistered": true,
+  "preregistration_path": "artifacts/eta_s2_causal_steering_prereg_20260804/preregistration.json",
+  "preregistration_sha256": "b6a427d0bfa47625b3dea41052d62d635fe3e4c6a8bdb32723bf0195c93c34ae",
+  "causal_admission_authoritative": true,
+  "s2_causal_supported": false,
+  "production_promotion_authorized": false,
+  "artifact_installed": false,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "max_observed_source_tokens": 586,
+  "truncated_row_count": 0,
+  "trainable_parameter_count": 0,
+  "free_bias_present": false,
+  "elapsed_seconds": 252.143,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/miniconda3/bin/python",
+  "torch_version": "2.10.0",
+  "transformers_version": "5.2.0",
+  "mps_available": true,
+  "mps_exclusive_lock": "artifacts/.companion-evidence-mps.lock",
+  "mps_attestation": {
+    "torch_version": "2.10.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "model_weights_sha256": "6c5908bc3366fb5852ef4c7695ae8d29d04c0b7d00ee4bc6624c28f005af0aa2",
+  "source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_contracts.py": "1dea9f3debb41a76e738da974bd1e26ba95bb544b88c90a3b6e6891bf59eb3c6",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "6e20c2ab092ccad807196a7ddfe12fec5943fc4acdaf0a682131ca8acf50da13",
+    "packages/vz-substrate/src/volvence_zero/substrate/steered_action_scoring.py": "e1d790c9a4cddd49ae8ff09f35d49c464752fa6bddd0b247cb7972c07a7c8914",
+    "packages/vz-substrate/src/volvence_zero/substrate/frozen_residual_readout.py": "e3534ff606b84c921900894dc89caefcdcba8a82e5479dbac0207b3bcd859451",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "7cd3d09fe1be3ddb6d79fa6584de9b0ac446995b03fdd02b09cc9f036d1d7a1a",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_s2_causal_steering.py": "d15740303c38b387f220a1bd3e29bae55d5470664836ab4fb7e7c0f1c473c13d",
+    "scripts/run_eta_s2_causal_steering.py": "c100c6bb718a0b6d56678501c44773d2ed20bbe3a31b8f8b19871eddb438c61d"
+  },
+  "result_files": {
+    "report.json": "a4e5269a8ee2f4442d9bd9f6c9b7530f736d8a5f0f575c36dd65aa5431d2496a",
+    "points.jsonl": "f477a594fa1e635ad3cb4fefaf6359c24b1e2ebf008e7752baed42b95808500e",
+    "report.md": "6135bc2cc1d1a9932109b97ccf67fa86ae05b140139b6760611d1f08a9811575"
+  }
+}

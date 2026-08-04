@@ -1,0 +1,78 @@
+{
+  "schema_version": "eta-s1-residual-readout-prereg.v1",
+  "experiment_id": "eta-s1-full-width-frozen-residual-readout",
+  "created_at": "2026-08-04T08:21:51.286138+00:00",
+  "claim_scope": "s1-readout-admission-no-causal-claim",
+  "source_p1_artifact": {
+    "path": "artifacts/eta_stage3_equivalence_diagnostic_20260804/report.json",
+    "sha256": "71636570bc5ba6566eb6ab19bcc73d8f4d0772f8e0387b59b9b998fc05132b09",
+    "dominant_attribution": "incentive-bypass-via-free-bias"
+  },
+  "configuration": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+    "model_version": "eta-stage2-merged-v2",
+    "model_weights_sha256": "6c5908bc3366fb5852ef4c7695ae8d29d04c0b7d00ee4bc6624c28f005af0aa2",
+    "device": "mps",
+    "model_dtype": "float32",
+    "max_length": 768,
+    "fail_on_truncation": true,
+    "layer_indices": [
+      20
+    ],
+    "activation_widths": [
+      896
+    ],
+    "ridge_alpha": 1.0,
+    "training_mode": "closed-form-standardized-ridge-one-hot.v1",
+    "class_axis": "class-weight-minus-other-class-mean-l2.v1",
+    "corpus": {
+      "corpus_seed": 20260802,
+      "objective_count": 8,
+      "corridor_count": 2,
+      "extra_edge_probability": 0.35,
+      "train_routes": 64,
+      "heldout_routes": 24,
+      "train_lengths": [
+        2,
+        3
+      ],
+      "heldout_lengths": [
+        3,
+        4
+      ]
+    },
+    "observation_protocol": "partially-observable-staged-plan.v4",
+    "probe_surface": "cumulative-trajectory-prefix"
+  },
+  "thresholds": {
+    "min_heldout_accuracy": 0.8,
+    "chance_multiple": 2.0,
+    "min_late_accuracy": 0.5,
+    "max_train_heldout_gap": 0.2
+  },
+  "decision_rules": [
+    "Admit S1 only if every preregistered threshold passes on heldout routes.",
+    "The layer is fixed at the later S2 injection layer (20) before readout.",
+    "Class axes exclude classifier bias and are not optimized against S2 outcomes.",
+    "S1 establishes decodability only; it cannot establish causal steering.",
+    "Any source above max_length fails loudly; silent truncation is forbidden."
+  ],
+  "prohibited_after_execution": [
+    "selecting another layer or ridge alpha after reading heldout scores",
+    "changing any threshold after reading S1 results",
+    "feeding heldout labels, scores, margins, or admission into learning",
+    "installing the artifact into production or changing a WiringLevel",
+    "claiming S2 steering success from S1 decodability"
+  ],
+  "frozen_source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_contracts.py": "1dea9f3debb41a76e738da974bd1e26ba95bb544b88c90a3b6e6891bf59eb3c6",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "6e20c2ab092ccad807196a7ddfe12fec5943fc4acdaf0a682131ca8acf50da13",
+    "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py": "fc667735ad6d9be820b773dc7f5d414b4d429b9eab199ac2df909ec443fae843",
+    "packages/vz-substrate/src/volvence_zero/substrate/frozen_residual_readout.py": "e3534ff606b84c921900894dc89caefcdcba8a82e5479dbac0207b3bcd859451",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "7cd3d09fe1be3ddb6d79fa6584de9b0ac446995b03fdd02b09cc9f036d1d7a1a",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_s1_residual_readout.py": "0bce54319c884a7e446575269ff339585293c4089380656b7d047f03fbf2a636",
+    "scripts/run_eta_s1_residual_readout.py": "495628a84364da48db3cad55dba208f81139bf986da1851781b02d73bb36c5ad"
+  }
+}

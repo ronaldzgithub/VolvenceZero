@@ -1,0 +1,85 @@
+{
+  "schema_version": "eta-stage3-equivalence-manifest.v1",
+  "experiment_id": "eta-stage3-equivalence-diagnostic-p1",
+  "created_at": "2026-08-04T07:35:59.205114+00:00",
+  "git_sha": "6623a50db4d81403140d213776055ffe8e56af8a",
+  "working_tree_dirty": true,
+  "claim_scope": "stage3-attribution-only-no-readjudication",
+  "source_stage3_verdict": "kill-eta",
+  "source_stage3_report": {
+    "path": "artifacts/eta_stage3_rate_distortion_20260803/report.json",
+    "sha256": "48a589d41f4a700fec40e95c41c2eed13ae573126cff6598c5d6df5dd58f6bbf",
+    "verdict": "kill-eta"
+  },
+  "preregistered": true,
+  "preregistration_path": "artifacts/eta_stage3_equivalence_prereg_20260804/preregistration.json",
+  "preregistration_sha256": "30b827b33cc76e615e5ef420311f78751f3d5c2144c438532f379f93996e7cdb",
+  "attribution_authoritative": true,
+  "formal_claim_allowed": false,
+  "production_wiring_changed": false,
+  "resumed": true,
+  "checkpoint_units": {
+    "checkpoints/points/bias-only/seed-0.json": {
+      "unit": "points/bias-only/seed-0",
+      "kind": "json",
+      "sha256": "eb3e9434bb36a00d5aa1eafe38f9ffc2b9f660cddf63397c93a50fb59509fefd",
+      "size_bytes": 947
+    },
+    "checkpoints/points/bias-only/seed-1.json": {
+      "unit": "points/bias-only/seed-1",
+      "kind": "json",
+      "sha256": "77634dbc1bf17d54f0750e500df1aa0e9da43481d6a32b9fc23858d86e04d806",
+      "size_bytes": 946
+    },
+    "checkpoints/points/bias-only/seed-2.json": {
+      "unit": "points/bias-only/seed-2",
+      "kind": "json",
+      "sha256": "8c2872005a51de1f0bf65591a331a32529ccaabf7b9727fa0c16e86ac309a733",
+      "size_bytes": 950
+    },
+    "checkpoints/points/full/seed-0.json": {
+      "unit": "points/full/seed-0",
+      "kind": "json",
+      "sha256": "1c71bc62a8d4e861a1376b3049822219b34eb03fdd7f6c8f1e075943a5a7e852",
+      "size_bytes": 1007
+    },
+    "checkpoints/points/full/seed-1.json": {
+      "unit": "points/full/seed-1",
+      "kind": "json",
+      "sha256": "cfff0e403ff6171e4629686ef25ab79648a37bbffc5f22b39f16ace5c747a8b4",
+      "size_bytes": 961
+    },
+    "checkpoints/points/full/seed-2.json": {
+      "unit": "points/full/seed-2",
+      "kind": "json",
+      "sha256": "05b140d985ab4da158132832d96a4a94d46196c2d6898d49c926d933ae117e8a",
+      "size_bytes": 1006
+    }
+  },
+  "elapsed_seconds": 3116.725,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+  "torch_version": "2.13.0",
+  "transformers_version": "5.14.1",
+  "mps_available": true,
+  "mps_exclusive_lock": "artifacts/.companion-evidence-mps.lock",
+  "mps_attestation": {
+    "torch_version": "2.13.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/steered_action_scoring.py": "f4bc43fd5af93feff6dd1f48ac9d4147212fda3b5a4f2cbfd072664d52171b0e",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "45874b7cc76f8ab872becd38efdd3b7f622abcf2cde59b622ef34170e1cd3bdb",
+    "packages/vz-temporal/src/volvence_zero/temporal/torch_store_ssl.py": "9dd01276d0fef512ed1d93fc4306f10dc7fa255625549c308b2baeed7df88a4c",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "7cd3d09fe1be3ddb6d79fa6584de9b0ac446995b03fdd02b09cc9f036d1d7a1a",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_stage3_equivalence_diagnostic.py": "fbab9a891384ffc0abb9c95398c98de51bf2b64175698c936e600d1137c981f2",
+    "scripts/run_eta_stage3_equivalence_diagnostic.py": "8f5f7769c5f44d97225649d2243f641d4c6728873fda348d1ed1a1bf4a0d750b"
+  },
+  "result_files": {
+    "report.json": "71636570bc5ba6566eb6ab19bcc73d8f4d0772f8e0387b59b9b998fc05132b09",
+    "points.jsonl": "62fc24623f90f06e8693d7700f06bf207a80d368d521c5c8b452f213d1900ce0",
+    "report.md": "6b2a179354d5a87c9923faafeccae8b16c67712ea15866c643b4f3516d91f672"
+  }
+}

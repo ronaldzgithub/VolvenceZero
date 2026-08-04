@@ -306,6 +306,32 @@ def test_prefix_cache_baseline_matches_full_forward() -> None:
         assert abs(got - expected) < 1e-6
 
 
+def test_controlled_readout_matches_autograd_path_and_cache_can_be_released() -> None:
+    model = _build_model()
+    tokenizer = _WordTokenizer()
+    scorer = _make_scorer(model=model, tokenizer=tokenizer, prefix_cache=True)
+    deltas = torch.full((2, HIDDEN_SIZE), 0.05)
+
+    differentiable = scorer.action_nll(
+        source_texts=_TEXTS,
+        control_deltas=deltas.clone().requires_grad_(True),
+        action_indices=(0, 2),
+    )
+    controlled = scorer.controlled_action_nll(
+        source_texts=_TEXTS,
+        control_deltas=deltas,
+        action_indices=(0, 2),
+    )
+
+    assert tuple(float(value) for value in differentiable.detach()) == pytest.approx(
+        controlled,
+        abs=1e-6,
+    )
+    assert len(scorer._prefix_cache) == 1
+    scorer.clear_prefix_cache()
+    assert scorer._prefix_cache == {}
+
+
 def test_frozen_arm_refuses_to_score_a_thawed_base_parameter() -> None:
     model = _build_model()
     scorer = _build_scorer(model=model)

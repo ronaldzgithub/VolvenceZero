@@ -1,0 +1,83 @@
+{
+  "schema_version": "eta-s1-residual-readout-evidence.v1",
+  "claim_scope": "s1-readout-admission-no-causal-claim",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+  "device": "mps",
+  "model_fingerprint": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "version": "eta-stage2-merged-v2",
+    "weights_sha256": "6c5908bc3366fb5852ef4c7695ae8d29d04c0b7d00ee4bc6624c28f005af0aa2"
+  },
+  "runtime_origin": "hf-local",
+  "observation_protocol": "partially-observable-staged-plan.v4",
+  "corpus_seed": 20260802,
+  "objective_count": 8,
+  "train_route_count": 64,
+  "heldout_route_count": 24,
+  "train_row_count": 551,
+  "heldout_row_count": 299,
+  "layer_indices": [
+    20
+  ],
+  "activation_widths": [
+    896
+  ],
+  "representation_dim": 896,
+  "ridge_alpha": 1.0,
+  "class_ids": [
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "orange",
+    "purple",
+    "black",
+    "white"
+  ],
+  "artifact_id": "frozen-residual-readout.v1:086a8f3dc3e6270c8181231e711fe538a0e25c128bfd72d5054c83bc9f977df8",
+  "training_snapshot_fingerprint": "20567ea0eb4060461f28aff5dbe7432f035db17fa849df12f9de0b09d5fad7fc",
+  "heldout_snapshot_fingerprint": "aa91fe9cb29fb8758fce19136d34bd91f4d6211d413392209fbc4b671c2dfb27",
+  "thresholds": {
+    "min_heldout_accuracy": 0.8,
+    "chance_multiple": 2.0,
+    "min_late_accuracy": 0.5,
+    "max_train_heldout_gap": 0.2
+  },
+  "train_metrics": {
+    "accuracy": 1.0,
+    "chance_accuracy": 0.125,
+    "majority_accuracy": 0.16696914700544466,
+    "early_accuracy": 1.0,
+    "late_accuracy": 1.0,
+    "mean_score_margin": 0.9592491779175565,
+    "min_score_margin": 0.6884580971631318,
+    "support": 551,
+    "early_support": 379,
+    "late_support": 172
+  },
+  "heldout_metrics": {
+    "accuracy": 0.9832775919732442,
+    "chance_accuracy": 0.125,
+    "majority_accuracy": 0.22742474916387959,
+    "early_accuracy": 0.9895833333333334,
+    "late_accuracy": 0.9719626168224299,
+    "mean_score_margin": 0.801320183111304,
+    "min_score_margin": 0.001195788643064799,
+    "support": 299,
+    "early_support": 192,
+    "late_support": 107
+  },
+  "admission": {
+    "admitted": true,
+    "condition_accuracy": true,
+    "condition_chance_multiple": true,
+    "condition_late_retention": true,
+    "condition_generalization_gap": true,
+    "failed_conditions": [],
+    "description": "S1 frozen readout admitted for S2 axis testing."
+  },
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "description": "S1 full-width layer-aligned frozen residual readout; admission for S2=True. No causal or production claim."
+}

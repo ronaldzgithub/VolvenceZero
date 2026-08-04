@@ -26,7 +26,7 @@
 | 4 | Learned Active（torch 后端晋升） | 四个 SHADOW torch 后端能否晋升 ACTIVE | `scripts/run_learned_active_evidence.py` | `partial-promotion-blocked`（validation_delta 0.0138 < 0.02） | 续跑连续 soak 过门 + PE-off/ETA-off 对照 + 执行 capacity ladder |
 | 5 | Companion Bench（对外榜） | 系统无关的多 session 陪伴基准（A1–A6 六轴） | `packages/companion-bench` CLI + `scripts/companion_bench/*` | 站点数据**全是 demo/smoke**，无正式榜 | judge 稳健性(#48)→校准(#52)→统计功效(#54)→10 系统全量(#82) |
 | 6 | State-KV / Prefix-KV 辨识 | 同 prompt 空上下文，两用户产生可被盲判归属的差异 | `scripts/run_state_kv_identification.py` 等 | Personal 全链 **pass**；尽调 **partial(3/7)**；Relationship 停在 chance | 关闭 C5 credit 与 bank-gain；Relationship 记为负结果 |
-| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Gate1 **PASS**；Gate2 残差可承载已证实；Stage3 **`kill-eta`**（36/36，2026-08-04） | P1 等价性诊断归因 → 主线转残差 readout / causal steering；Stage4 关闭 |
+| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Stage3 **`kill-eta`**；P1 定位 free-bias bypass（96.3% recovery）；S1 v2 readout PASS，S2 no-bias steering 五门 FAIL | A 在 S2 停止；B faithful rewrite screen 已预注册运行；Stage4 关闭 |
 | 8 | ETA 内部 RL / 段信用强证据 | 段级信用 vs turn 级、抽象动作复用等论文式命题 | `scripts/run_eta_segment_credit_evidence.py` / paper suite | 段信用 v13 **retain**（12 门全过） | 作为机制回归保留；不等于 rate-distortion retain |
 | 9 | Digital Ant ecology（same-physics） | 无 LLM 的 2D 感觉运动床上，typed-milestone ACTIVE vs DISABLED 是否有因果净增益 | `scripts/run_ant_ecology_same_physics_station1.py` | L1-C station1-v4 **BLOCK**（food alignment 3/4）；station2/P1/P2 **not-authorized** | 新 owner 机制 + 新 prereg 才可重开；禁止二审/换 seed/降阈值 |
 | 10 | RSI Forge（开发环自改进） | 从真实失败挖模式 → 有界提案 → 循环外验证/人审 → ledger 预测兑现 | `forge` CLI（`mine/propose/validate/select/apply`） | 战役一 e2e 已 apply 2 条；overlay 默认 DISABLED；无 live/GPU 晋升 | 下一轮 `mine --evidence-since-ledger` 兑现预测；扩 task-level held-out；rare-heavy 需冻结权重证据 |
@@ -544,17 +544,41 @@ gap；joint 臂反而检出 gap，现有 action-change boundary F1 也只在 joi
 P1 解释债：入口 surface、边界真值、steering 参数化。P1 只做只读归因，
 不得改变正式 verdict，也不把 evaluation 结果回灌训练。
 
+**P1 attribution（2026-08-04）**：`artifacts/eta_stage3_equivalence_diagnostic_20260804/`
+完成 6/6 matched cells，prereg sha256 `30b827b3…`，source Stage-3 report
+sha256 `48a589d4…`。exact-entry 16 维 probe `0.3913` > `0.25`，入口仍可读
+但只保留 Gate-2 的 41.45%；bias-only recovery `0.9632`、zero-z recovery
+`0.6141`，cyclic-permuted-z penalty `−0.0068`。自动主归因是
+`incentive-bypass-via-free-bias`，learned z 未显示稳定时序因果性。oracle
+subgoal 与 action-change F1 的均值差 `−0.0685` 未过 `|Δ|≥0.10` 门。
+
 ### 7.5 下一步
 
-1. **执行 P1 仪器等价性诊断**：exact Stage-3 entry probe、bias-only、
-   zero-z / permuted-z、`active_subgoal` oracle boundary；先冻结 prereg，再产出
-   “信息死在入口 / 激励 / 优化”的单页归因。P1 不重判 Stage 3。
-2. 主线转向 **S1 frozen residual readout → S2 causal steering → S3 PE-gated
-   segment credit + small-action Internal RL**。S2 是产品域生死门；任何 runtime
-   owner / snapshot / wiring 变更另开收敛包并先注册正式契约。
-3. Stage 4 不启动；Gate 1 / 2 / 3 封存件只在相关算法变量或证据契约改变时
-   按新预注册复验，普通重构不触发昂贵全扫。忠实 ETA rewrite 仅在 P1 定罪
-   入口 / bias 且 S2 失败时作为新 claim 条件启动。
+1. **S1 frozen residual readout（权威 v2 PASS）**：新增
+   `substrate_residual_readout` offline/SHADOW owner。v1 prereg `b09b68f8…`
+   事后发现 heldout `7/299` 个 prefix 被 512-token 静默截断，故未被 S2
+   消费；fail-loud v2 prereg `35c92904…` 固定 layer 20 / width 896 / max 768。
+   真实 MPS train/heldout `551/299`，heldout accuracy `0.9833`、late `0.9720`、
+   generalization gap `0.0167`，四条 admission 门全过。artifact
+   `frozen-residual-readout.v1:086a8f3d…` 发布无 bias 的 8 条 class-vs-rest 轴；
+   v1/v2 artifact id 相同是因为训练行未变。未安装、不回灌、不进 production DAG。
+2. **S2 causal steering（已 FAIL）**：prereg `b6a427d0…` 只消费 S1 v2 轴，
+   对 24 routes / 299 prefix 做有界 `+axis / −axis / noop / shuffled-axis`
+   matched control；0 截断、0 substrate trainable parameter、free bias=false。
+   0.50×cap 主判 plus vs noop `−0.00072`（95% CI
+   `[−0.01787,0.01809]`），plus vs minus `0.02829`，plus vs shuffled
+   `0.00709`，五项 admission 条件全败。线性可读轴未形成稳健动作因果接口。
+3. **S3 不启动**：S2 是产品域生死门，因此不以 PE-gated segment credit /
+   small-action Internal RL 掩盖 actuator 因果性缺失。任何 runtime owner、snapshot
+   或 wiring 变更仍需另开收敛包并先注册正式契约。
+4. **Branch B faithful rewrite screen（执行中）**：P1 入口/bias 定罪与 S2
+   FAIL 已同时满足触发条件。新 claim 的 prereg `c247e82e…` 固定 layer20
+   full-width896 → learned 16-d projection、rank-8 no-bias
+   `A·diag(tanh(Cz))·Bᵀ·e`、zero-z strict no-op、oracle boundary readout-only；
+   3 alpha × 2 seed × 40 updates。screen PASS 也只准入独立预注册的权威扫，
+   不改写 Stage-3 `kill-eta`、不安装 artifact、不改 production wiring。
+5. Stage 4 不启动；Gate 1 / 2 / 3 封存件只在相关算法变量或证据契约改变时
+   按新预注册复验，普通重构不触发昂贵全扫。
 
 ---
 

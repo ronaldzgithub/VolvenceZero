@@ -1,0 +1,158 @@
+{
+  "schema_version": "eta-s2-causal-steering-evidence.v1",
+  "claim_scope": "s2-heldout-axis-causal-steering",
+  "source_s1_artifact_id": "frozen-residual-readout.v1:086a8f3dc3e6270c8181231e711fe538a0e25c128bfd72d5054c83bc9f977df8",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+  "device": "mps",
+  "observation_protocol": "partially-observable-staged-plan.v4",
+  "corpus_seed": 20260802,
+  "heldout_route_count": 24,
+  "heldout_row_count": 299,
+  "injection_layer_index": 20,
+  "hidden_size": 896,
+  "control_norm_ratio": 0.25,
+  "control_norm_cap": 14.068294525146484,
+  "probe_hidden_norm": 56.27317810058594,
+  "probe_train_row_count": 16,
+  "max_observed_source_tokens": 586,
+  "scorer_max_length": 768,
+  "truncated_row_count": 0,
+  "scale_fractions": [
+    0.25,
+    0.5,
+    1.0
+  ],
+  "primary_scale_fraction": 0.5,
+  "shuffled_class_shifts": [
+    1,
+    3,
+    5
+  ],
+  "bootstrap_seed": 20260804,
+  "bootstrap_resamples": 5000,
+  "bootstrap_confidence": 0.95,
+  "thresholds": {
+    "min_plus_vs_noop_nll_gain": 0.02,
+    "min_plus_vs_minus_nll_contrast": 0.04,
+    "min_plus_vs_shuffled_nll_contrast": 0.02,
+    "min_route_win_rate": 0.65,
+    "require_bootstrap_lower_positive": true
+  },
+  "scale_metrics": [
+    {
+      "scale_fraction": 0.25,
+      "control_norm": 3.517073631286621,
+      "noop_mean_nll": 0.1711332043200273,
+      "plus_mean_nll": 0.16892247663335436,
+      "minus_mean_nll": 0.18029862410409211,
+      "shuffled_mean_nll": 0.17280188589840503,
+      "plus_vs_noop": {
+        "mean": 0.0022107276866729204,
+        "ci_lower": -0.006422791098385537,
+        "ci_upper": 0.011486606661360135,
+        "route_count": 24
+      },
+      "plus_vs_minus": {
+        "mean": 0.011376147470737756,
+        "ci_lower": -0.006688199614757538,
+        "ci_upper": 0.030088356356650286,
+        "route_count": 24
+      },
+      "plus_vs_shuffled": {
+        "mean": 0.003879409265050661,
+        "ci_lower": -0.0052711560994715785,
+        "ci_upper": 0.01250837404609263,
+        "route_count": 24
+      },
+      "plus_vs_noop_route_win_rate": 0.5416666666666666,
+      "plus_vs_minus_route_win_rate": 0.6666666666666666,
+      "plus_vs_shuffled_route_win_rate": 0.625,
+      "plus_vs_noop_row_win_rate": 0.4080267558528428,
+      "row_count": 299
+    },
+    {
+      "scale_fraction": 0.5,
+      "control_norm": 7.034147262573242,
+      "noop_mean_nll": 0.1711332043200273,
+      "plus_mean_nll": 0.17185210658909875,
+      "minus_mean_nll": 0.20014275735295872,
+      "shuffled_mean_nll": 0.17894613001097692,
+      "plus_vs_noop": {
+        "mean": -0.0007189022690714532,
+        "ci_lower": -0.017874144417159833,
+        "ci_upper": 0.01808833523114736,
+        "route_count": 24
+      },
+      "plus_vs_minus": {
+        "mean": 0.028290650763860007,
+        "ci_lower": -0.0070269084392370965,
+        "ci_upper": 0.06705306302162274,
+        "route_count": 24
+      },
+      "plus_vs_shuffled": {
+        "mean": 0.007094023421878186,
+        "ci_lower": -0.010279383913111648,
+        "ci_upper": 0.023884212334647378,
+        "route_count": 24
+      },
+      "plus_vs_noop_route_win_rate": 0.4583333333333333,
+      "plus_vs_minus_route_win_rate": 0.6666666666666666,
+      "plus_vs_shuffled_route_win_rate": 0.625,
+      "plus_vs_noop_row_win_rate": 0.38127090301003347,
+      "row_count": 299
+    },
+    {
+      "scale_fraction": 1.0,
+      "control_norm": 14.068294525146484,
+      "noop_mean_nll": 0.1711332043200273,
+      "plus_mean_nll": 0.19542907056349343,
+      "minus_mean_nll": 0.2868225609475802,
+      "shuffled_mean_nll": 0.21191879021324359,
+      "plus_vs_noop": {
+        "mean": -0.02429586624346614,
+        "ci_lower": -0.05734146040766921,
+        "ci_upper": 0.013501339980524095,
+        "route_count": 24
+      },
+      "plus_vs_minus": {
+        "mean": 0.09139349038408678,
+        "ci_lower": 0.017476599482146686,
+        "ci_upper": 0.17214449608709284,
+        "route_count": 24
+      },
+      "plus_vs_shuffled": {
+        "mean": 0.016489719649750188,
+        "ci_lower": -0.01615049942351879,
+        "ci_upper": 0.0480034019406142,
+        "route_count": 24
+      },
+      "plus_vs_noop_route_win_rate": 0.20833333333333334,
+      "plus_vs_minus_route_win_rate": 0.75,
+      "plus_vs_shuffled_route_win_rate": 0.6666666666666666,
+      "plus_vs_noop_row_win_rate": 0.30434782608695654,
+      "row_count": 299
+    }
+  ],
+  "primary_admission": {
+    "admitted": false,
+    "condition_plus_vs_noop": false,
+    "condition_plus_vs_minus": false,
+    "condition_plus_vs_shuffled": false,
+    "condition_route_win_rate": false,
+    "condition_bootstrap": false,
+    "failed_conditions": [
+      "plus-vs-noop-effect",
+      "plus-vs-minus-effect",
+      "plus-vs-shuffled-effect",
+      "route-win-rate",
+      "bootstrap-lower-positive"
+    ],
+    "description": "S2 causal steering blocked: plus-vs-noop-effect, plus-vs-minus-effect, plus-vs-shuffled-effect, route-win-rate, bootstrap-lower-positive"
+  },
+  "trainable_parameter_count": 0,
+  "free_bias_present": false,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "description": "Matched heldout no-bias steering with target/sign/noop/shuffled controls; S2 causal admission=False."
+}

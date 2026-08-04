@@ -315,6 +315,36 @@ class TransformersSteeredActionScorer:
             )
         return tuple(float(value) for value in values)
 
+    def controlled_action_nll(
+        self,
+        *,
+        source_texts: tuple[str, ...],
+        control_deltas: Any,
+        action_indices: tuple[int, ...],
+    ) -> tuple[float, ...]:
+        """Read-only controlled NLL for offline causal evidence.
+
+        Unlike :meth:`action_nll`, this surface does not construct an autograd
+        graph and cannot train the controller or substrate.  The same norm cap,
+        injection hook, restricted action vocabulary, and frozen-base checks
+        still apply.
+        """
+
+        torch = self._torch
+        with torch.no_grad():
+            values = self._score(
+                source_texts=source_texts,
+                control_deltas=control_deltas,
+                action_indices=action_indices,
+                enable_grad=False,
+            )
+        return tuple(float(value) for value in values)
+
+    def clear_prefix_cache(self) -> None:
+        """Release delta-independent evidence batches without changing weights."""
+
+        self._prefix_cache.clear()
+
     def _score(
         self,
         *,

@@ -1,0 +1,119 @@
+{
+  "schema_version": "eta-faithful-rewrite-screen-prereg.v1",
+  "experiment_id": "eta-faithful-rewrite-directional-screen",
+  "created_at": "2026-08-04T09:01:29.141230+00:00",
+  "claim_scope": "faithful-eta-rewrite-directional-screen",
+  "source_lineage": {
+    "stage3_report_path": "artifacts/eta_stage3_rate_distortion_20260803/report.json",
+    "stage3_report_sha256": "48a589d41f4a700fec40e95c41c2eed13ae573126cff6598c5d6df5dd58f6bbf",
+    "stage3_verdict": "kill-eta",
+    "p1_report_path": "artifacts/eta_stage3_equivalence_diagnostic_20260804/report.json",
+    "p1_report_sha256": "71636570bc5ba6566eb6ab19bcc73d8f4d0772f8e0387b59b9b998fc05132b09",
+    "p1_dominant_attribution": "incentive-bypass-via-free-bias",
+    "s2_report_path": "artifacts/eta_s2_causal_steering_20260804/report.json",
+    "s2_report_sha256": "a4e5269a8ee2f4442d9bd9f6c9b7530f736d8a5f0f575c36dd65aa5431d2496a",
+    "s2_manifest_path": "artifacts/eta_s2_causal_steering_20260804/artifact_manifest.json",
+    "s2_manifest_sha256": "1cf521c0e5c9408926efaa74b48bef4298486358f91b0d7f532b93203cd9e8cf",
+    "s2_causal_supported": false
+  },
+  "configuration": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+    "model_weights_sha256": "6c5908bc3366fb5852ef4c7695ae8d29d04c0b7d00ee4bc6624c28f005af0aa2",
+    "device": "mps",
+    "model_dtype": "float32",
+    "max_length": 768,
+    "token_budget_policy": "fail-loud-preflight.v1",
+    "observation_protocol": "partially-observable-staged-plan.v4",
+    "observation_surface": "stage2-v4-cumulative-causal-prefix",
+    "action_prompt_suffix": "\nNext move:",
+    "scorer_internal_prompt_suffix": "",
+    "capture_injection_alignment": "controller e_t and steering injection use the identical scored prefix ending at the action-prompt token",
+    "screen_selection": "first-generated-routes-before-screen-outcomes",
+    "screen_train_routes": 16,
+    "screen_heldout_routes": 8,
+    "alpha_grid": [
+      0.03,
+      0.3,
+      3.0
+    ],
+    "primary_alpha": 0.3,
+    "seed_schedule": [
+      0,
+      1
+    ],
+    "updates_per_run": 40,
+    "learning_rate": 0.005,
+    "switch_threshold": 0.55,
+    "n_z": 16,
+    "injection_layer_index": 20,
+    "residual_width": 896,
+    "steering_rank": 8,
+    "steering_parameterization": "low-rank-multiplicative",
+    "low_rank_equation": "A @ diag(tanh(C @ z_t)) @ B.T @ e_t",
+    "free_steering_bias": false,
+    "zero_code_strict_noop": true,
+    "current_observation_mode": "learned-projection",
+    "posterior_parameterization": "smooth",
+    "rate_gating": "switch-gated",
+    "gate_mode": "hard-st",
+    "control_norm_ratio": 0.25,
+    "substrate_training": false,
+    "corpus": {
+      "corpus_seed": 20260802,
+      "objective_count": 8,
+      "corridor_count": 2,
+      "extra_edge_probability": 0.35,
+      "train_routes": 64,
+      "heldout_routes": 24,
+      "train_lengths": [
+        2,
+        3
+      ],
+      "heldout_lengths": [
+        3,
+        4
+      ]
+    }
+  },
+  "thresholds": {
+    "max_alpha_rate_spearman": -0.5,
+    "min_rate_span": 0.05,
+    "min_primary_zero_z_penalty": 0.02,
+    "min_primary_permuted_z_penalty": 0.02,
+    "min_seed_positive_fraction": 1.0,
+    "min_primary_boundary_probability_contrast": 0.02,
+    "min_primary_oracle_boundary_f1": 0.2
+  },
+  "decision_rules": [
+    "Only alpha=0.30 adjudicates z causality and boundary alignment.",
+    "All cells must update the learned input projection and low-rank factors.",
+    "Every cell must attest no free bias and exact zero-code no-op.",
+    "Zero-z and cyclic-permuted-z penalties must clear 0.02 at alpha=0.30.",
+    "Both primary-alpha seeds must have positive zero/permuted penalties.",
+    "Oracle active-subgoal boundaries are readout-only and never train beta.",
+    "Passing admits only a separately preregistered authoritative sweep."
+  ],
+  "prohibited_after_execution": [
+    "changing alpha, primary alpha, seeds, updates, learning rate, or thresholds",
+    "selecting the best alpha after reading outcomes",
+    "adding an additive or constant steering bias",
+    "folding or truncating the 896-wide controller input to n_z",
+    "capturing e_t from a different token position than steering injection",
+    "using active_subgoal identity or boundary labels in the training loss",
+    "training the substrate or feeding evaluation admission into learning",
+    "relabeling the sealed Stage-3 verdict",
+    "installing the screen controller or changing production WiringLevel"
+  ],
+  "frozen_source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_contracts.py": "1dea9f3debb41a76e738da974bd1e26ba95bb544b88c90a3b6e6891bf59eb3c6",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "6e20c2ab092ccad807196a7ddfe12fec5943fc4acdaf0a682131ca8acf50da13",
+    "packages/vz-substrate/src/volvence_zero/substrate/steered_action_scoring.py": "e1d790c9a4cddd49ae8ff09f35d49c464752fa6bddd0b247cb7972c07a7c8914",
+    "packages/vz-temporal/src/volvence_zero/temporal/metacontroller_components.py": "e60613d2e34cd368ac8209e919a87694ea28aa020b72ae89a607964cb0002120",
+    "packages/vz-temporal/src/volvence_zero/temporal/torch_store_ssl.py": "2ec385d628b49b3b9b765b494dd578b2070e19102b1aa954931e965a88ec527f",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_proof_benchmark.py": "1b9c0383a19e53d3fe50dabc8acdd66e69b89d711b1d0beb3c473ed4ae48fb85",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "7cd3d09fe1be3ddb6d79fa6584de9b0ac446995b03fdd02b09cc9f036d1d7a1a",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_faithful_rewrite_screen.py": "737f3603c44d5d99c63c01ca625e973ac51b39ebfe248ff948e63c6db3dfb35a",
+    "scripts/run_eta_faithful_rewrite_screen.py": "234ee928a06bc8b8bb957919fa819bc09496412a000e2a1fd7f5f9d6dabd69eb"
+  }
+}

@@ -42,7 +42,9 @@
   双臂可分且 frozen rate 轴有效，但 frozen 无近垂直 gap，joint 反而检出
   gap。该判词否定当前 16 维折叠入口 + additive steering / free bias 的
   operationalization，不外推为理论普遍证伪。Stage 4 不启动，production
-  WiringLevel 不变；P1 等价性诊断只归因、不重判。见
+  WiringLevel 不变。P1 attribution 已定位 free-bias 激励旁路：exact-entry
+  0.3913 > 0.25，bias-only recovery 96.32%，permuted-z penalty −0.0068；
+  learned z 未显示稳定时序因果性。见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)
 - 内部控制空间维度低于原始 token 动作空间
 
@@ -364,6 +366,19 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - **Phase 2（offline Internal RL 真 autograd）**：`volvence_zero.internal_rl.torch_internal_rl` 把因果策略 `pi(z_t | e_{1:t})` 与 critic 实现为真 torch 模块，PPO（GAE + clipped surrogate + entropy + value regression）全程 autograd（替换 `math.sin` 伪随机与解析步）。环境是分层 sparse/delayed-reward proof episode（reward 只在 terminal 交付）。matched control（`no-optimize`）不更新、不提升；full 提升 terminal return 并击败 control。
 - **Phase 3（runtime metacontroller SHADOW -> ACTIVE）**：`volvence_zero.temporal.backend_metacontroller` 用 backend-agnostic 前向（同权重可在 pure/torch 上跑），`shadow_dual_run` 逐字段比对 z_t/beta/control 并量延迟；`promotable = within_tolerance and latency_ok`。`resolve_runtime_backend(WiringLevel)` 路由：DISABLED/SHADOW 走 pure（torch 并行只在 shadow 比对，不上 live 路径），ACTIVE 走 torch（显式 pure fallback）。pure↔torch parity 在 float64 下 ≤1e-7（n_z=16 ≤1e-6）——torch 路径是**同一函数**而非 look-alike，故回滚精确。
 - **backend evidence 的 coverage / parity 隔离**：session owner 为在线 SSL 保留最近两个不可变 substrate snapshot，构造最短两步 causal trace；单步 substrate 不再让 ACTIVE SSL 永久以 `trained_steps=0` 早退。ACTIVE torch SSL 的持久 optimizer session 只绑定当前 checkpoint preimage；正式 checkpoint hydrate 或 joint-cycle rollback 后必须失效并在下一批重建，不能把 owner 授权的 restore 误报为外部参数篡改。accelerated ndim runtime 对短 CMS context 必须复用 pure `_project_to_ndim` 的 tile 语义，禁止 zero-pad 形成第二套 forward。证据 probe 分两阶段：exercise session 只证明声明 backend 真实执行/write-back；随后从同一正式 checkpoint 新建 session 测 pure/runtime/torch forward parity，禁止拿三条已经学成不同参数的 lane 冒充同参数数值比较。
+- **Branch-B faithful ETA evidence mode（不接 production）**：`StoreSSLTrainingSession`
+  保留历史 `affine-additive + folded` 为默认回放路径；只有新 claim 的显式参数
+  才启用 `current_observation_mode="learned-projection"` 与
+  `steering_parameterization="low-rank-multiplicative"`。此模式令 layer20 的
+  full-width896 residual 只经 owner 内 GRU 的可学习 896→16 权重进入 posterior，
+  禁止固定 896→16 折叠；actuator 为
+  `delta_t=A·(tanh(Cz_t) ⊙ (Bᵀe_t))`，rank=8 且不存在 additive bias，故
+  `z_t=0` 时 delta 逐元素严格为零。attestation 必须证明 input projection 与
+  A/B/C 均实际更新、controller/scorer width 一致、substrate trainable=0。
+  `active_subgoal` boundary 只传给 no-grad evaluation，不进入 Eq.3 loss。
+  该模式只消费现有 `SubstrateSnapshot` / `TrainingTrace` 契约，不发布新公共 slot；
+  runner 明确 `write_back=false`、production wiring unchanged、evaluation feedback
+  false。screen PASS 也只能准入另立预注册的权威 sweep。
 - `learned-lite` / 旧 `full-learned`（纯 Python heuristic）仍保留为 fallback / rollback baseline；torch 路径默认 DISABLED，需显式 WiringLevel 提升。
 
 **快照 schema**：见 `docs/DATA_CONTRACT.md` 3.2 节
@@ -468,6 +483,29 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   不改变 memory、PE、relationship continuity 或 production WiringLevel。
   P1 登记 exact-entry / bias / z 因果性 / subgoal oracle 四组只读诊断；忠实
   rewrite 只可作为新 claim、新预注册的条件分支。
+- 2026-08-04: **P1 attribution 完成**（prereg `30b827b3…`，绑定 Stage-3
+  report `48a589d4…`）：exact 16 维入口 active-subgoal probe 0.3913（通过
+  2×chance，但仅保留 Gate-2 41.45%）；bias-only recovery 96.32%，zero-z
+  recovery 61.41%，cyclic-permuted-z penalty −0.0068。主因是 free-bias
+  incentive bypass，z 无时序因果证据。下一包 S1 只读 residual axis owner，
+  S2 使用无 bias ±axis/noop/shuffle controls；production wiring 不变。
+- 2026-08-04: **S1 frozen residual readout admission PASS**。substrate owner
+  复用正式 `substrate_forward_representation`，新增 offline/SHADOW
+  `substrate_residual_readout` artifact/snapshot。v1 heldout 有 `7/299` 行被
+  512-token 静默截断，因此未被 S2 消费；fail-loud v2 prereg `35c92904…`
+  的 layer20 full-width896 真实 MPS heldout accuracy 0.9833、late 0.9720、
+  train−heldout gap 0.0167。8 条 class-vs-rest 轴无 bias 且内容寻址，只准入
+  S2；temporal owner、live DAG、production WiringLevel 与学习状态均未改变。
+- 2026-08-04: **S2 no-bias causal steering FAIL**。prereg `b6a427d0…` 只消费
+  S1 v2 artifact；24 routes / 299 prefix、0 截断、0 substrate trainable、无
+  free bias。0.50×cap 主判 plus vs noop `−0.00072`（95% CI
+  `[−0.01787,0.01809]`），五门全败。可读轴未成为稳定 actuator，故 A 在 S2
+  停止、S3 不启动。
+- 2026-08-04: **Branch-B faithful rewrite screen 另立新 claim**。prereg
+  `c247e82e…` 固定 full-width learned entry、rank-8 no-bias `U_t·e_t`、
+  zero-code strict no-op、oracle boundary readout-only、frozen substrate 与
+  no-write-back。历史 affine/folded 默认路径、公共 snapshot、production
+  WiringLevel 均不改变。
 - 2026-08-02: 启动 **ETA 迁移 LLM 四级阶梯**，把论文成立的前提逐级搬到冻结 LLM 上；
   `kill-eta` 判定在 Stage 3 通过前保持有效。**证据 SSOT**：
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)（已挂

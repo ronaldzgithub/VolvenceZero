@@ -16,9 +16,11 @@ from volvence_zero.temporal.interface import (  # noqa: E402
     MetacontrollerParameterStore,
 )
 from volvence_zero.temporal.torch_store_ssl import (  # noqa: E402
+    CURRENT_OBSERVATION_LEARNED_PROJECTION,
     STEERED_CONTROL_CYCLIC_PERMUTED_Z,
     STEERED_CONTROL_ZERO_Z,
     STEERED_TRAINING_BIAS_ONLY,
+    STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE,
     StoreSSLTrainingSession,
     fold_trace_inputs_for_metacontroller,
 )
@@ -206,4 +208,78 @@ def test_unknown_diagnostic_modes_fail_loudly() -> None:
             traces=(trace,),
             batch_id="unknown-control",
             control_ablation="shuffle-ish",
+        )
+
+
+def test_faithful_low_rank_path_learns_projection_without_free_bias() -> None:
+    trace = _trace("faithful-low-rank")
+    store = MetacontrollerParameterStore(
+        n_z=_N_Z,
+        n_input=_TargetOffsetScorer.hidden_size,
+        initialization_seed=13,
+    )
+    session = StoreSSLTrainingSession(
+        n_z=_N_Z,
+        alpha=0.1,
+        learning_rate=0.05,
+        switch_rate_weight=0.0,
+        switch_binary_weight=0.0,
+        switch_group_weight=0.0,
+        proposal_prediction_weight=0.0,
+        gate_choice_weight=0.0,
+        action_scorer=_TargetOffsetScorer(),
+        steering_parameterization=(
+            STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE
+        ),
+        steering_rank=4,
+        current_observation_mode=CURRENT_OBSERVATION_LEARNED_PROJECTION,
+    )
+
+    session.train_batch(
+        store=store,
+        traces=(trace,),
+        batch_id="faithful:train",
+        write_back=False,
+    )
+    attestation = session.faithful_steering_attestation()
+    zero = session.evaluate_batch(
+        store=store,
+        traces=(trace,),
+        batch_id="faithful:zero-z",
+        control_ablation=STEERED_CONTROL_ZERO_Z,
+    )
+
+    assert attestation.controller_input_width == _TargetOffsetScorer.hidden_size
+    assert attestation.residual_width == _TargetOffsetScorer.hidden_size
+    assert attestation.steering_rank == 4
+    assert attestation.free_bias_present is False
+    assert attestation.zero_code_strict_noop is True
+    assert attestation.input_projection_parameters_changed > 0
+    assert attestation.low_rank_parameters_changed > 0
+    assert zero.distortion == pytest.approx(0.66)
+
+
+def test_faithful_low_rank_path_rejects_input_residual_width_mismatch() -> None:
+    trace = _trace("faithful-width-mismatch")
+    store = MetacontrollerParameterStore(
+        n_z=_N_Z,
+        n_input=_TargetOffsetScorer.hidden_size - 1,
+        initialization_seed=17,
+    )
+    session = StoreSSLTrainingSession(
+        n_z=_N_Z,
+        action_scorer=_TargetOffsetScorer(),
+        proposal_prediction_weight=0.0,
+        steering_parameterization=(
+            STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE
+        ),
+        steering_rank=4,
+        current_observation_mode=CURRENT_OBSERVATION_LEARNED_PROJECTION,
+    )
+
+    with pytest.raises(ValueError, match="controller input width"):
+        session.evaluate_batch(
+            store=store,
+            traces=(trace,),
+            batch_id="faithful:mismatch",
         )

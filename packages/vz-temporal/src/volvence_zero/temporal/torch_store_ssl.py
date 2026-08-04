@@ -163,6 +163,21 @@ class StoreSSLEvaluationReport:
     description: str = ""
 
 
+@dataclass(frozen=True)
+class FaithfulSteeringAttestation:
+    """Structural and optimizer evidence for the faithful ETA screen path."""
+
+    controller_input_width: int
+    residual_width: int
+    steering_rank: int
+    free_bias_present: bool
+    zero_code_strict_noop: bool
+    input_projection_parameter_count: int
+    input_projection_parameters_changed: int
+    low_rank_parameter_count: int
+    low_rank_parameters_changed: int
+
+
 STEERED_TRAINING_FULL = "full"
 STEERED_TRAINING_BIAS_ONLY = "bias-only"
 _STEERED_TRAINING_MODES = (
@@ -177,6 +192,22 @@ _STEERED_CONTROL_ABLATIONS = (
     STEERED_CONTROL_NONE,
     STEERED_CONTROL_ZERO_Z,
     STEERED_CONTROL_CYCLIC_PERMUTED_Z,
+)
+
+STEERING_PARAMETERIZATION_AFFINE_ADDITIVE = "affine-additive"
+STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE = (
+    "low-rank-multiplicative"
+)
+_STEERING_PARAMETERIZATIONS = (
+    STEERING_PARAMETERIZATION_AFFINE_ADDITIVE,
+    STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE,
+)
+
+CURRENT_OBSERVATION_FOLDED = "folded"
+CURRENT_OBSERVATION_LEARNED_PROJECTION = "learned-projection"
+_CURRENT_OBSERVATION_MODES = (
+    CURRENT_OBSERVATION_FOLDED,
+    CURRENT_OBSERVATION_LEARNED_PROJECTION,
 )
 
 
@@ -299,6 +330,7 @@ class _TorchNdimMetacontroller:
         generator: Any | None = None,
         gate_mode: str = "hard-st",
         posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
+        current_observation_mode: str = CURRENT_OBSERVATION_FOLDED,
     ):
         """Run the training forward with one segment gate per step.
 
@@ -348,6 +380,12 @@ class _TorchNdimMetacontroller:
                 f"{posterior_parameterization!r}; expected one of "
                 f"{_POSTERIOR_PARAMETERIZATIONS}."
             )
+        if current_observation_mode not in _CURRENT_OBSERVATION_MODES:
+            raise ValueError(
+                "Unsupported current_observation_mode "
+                f"{current_observation_mode!r}; expected one of "
+                f"{_CURRENT_OBSERVATION_MODES}."
+            )
         smooth_posterior = (
             posterior_parameterization == POSTERIOR_PARAMETERIZATION_SMOOTH
         )
@@ -367,11 +405,18 @@ class _TorchNdimMetacontroller:
         count = 0
         for raw in step_inputs:
             x = torch.tensor(list(raw), dtype=self._dtype)
-            current_signal = torch.tensor(
-                list(_current_observation_signal(raw, self.n_z)),
-                dtype=self._dtype,
-            )
             h = self._gru_step(x, h)
+            if current_observation_mode == CURRENT_OBSERVATION_FOLDED:
+                current_signal = torch.tensor(
+                    list(_current_observation_signal(raw, self.n_z)),
+                    dtype=self._dtype,
+                )
+            else:
+                # The full-width evidence path must not reintroduce the fixed
+                # positive/negative fold after the learnable 896->n_z GRU
+                # projection.  Reusing the newly encoded hidden state keeps
+                # every current-observation contribution on learned weights.
+                current_signal = h
             count += 1
             hidden_sum = hidden_sum + h
             avg_hidden = hidden_sum / count
@@ -539,6 +584,11 @@ class StoreSSLTrainingSession:
         rate_gating: str = RATE_GATING_PER_STEP,
         steered_gate_mode: str = "continuous",
         steered_training_mode: str = STEERED_TRAINING_FULL,
+        steering_parameterization: str = (
+            STEERING_PARAMETERIZATION_AFFINE_ADDITIVE
+        ),
+        steering_rank: int = 8,
+        current_observation_mode: str = CURRENT_OBSERVATION_FOLDED,
     ) -> None:
         if n_z <= 3:
             raise RuntimeError(
@@ -641,17 +691,55 @@ class StoreSSLTrainingSession:
                 "bias-only steering requires an action_scorer."
             )
         self._steered_training_mode = steered_training_mode
+        if steering_parameterization not in _STEERING_PARAMETERIZATIONS:
+            raise ValueError(
+                "steering_parameterization must be one of "
+                f"{_STEERING_PARAMETERIZATIONS}, got "
+                f"{steering_parameterization!r}."
+            )
+        if steering_rank < 1:
+            raise ValueError("steering_rank must be positive.")
+        if (
+            steering_parameterization
+            == STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE
+            and action_scorer is None
+        ):
+            raise ValueError(
+                "low-rank multiplicative steering requires an action_scorer."
+            )
+        if (
+            steering_parameterization
+            == STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE
+            and steered_training_mode != STEERED_TRAINING_FULL
+        ):
+            raise ValueError(
+                "low-rank multiplicative steering forbids bias-only mode."
+            )
+        if current_observation_mode not in _CURRENT_OBSERVATION_MODES:
+            raise ValueError(
+                "current_observation_mode must be one of "
+                f"{_CURRENT_OBSERVATION_MODES}, got "
+                f"{current_observation_mode!r}."
+            )
+        self._steering_parameterization = steering_parameterization
+        self._steering_rank = steering_rank
+        self._current_observation_mode = current_observation_mode
         if substrate_learning_rate <= 0.0:
             raise ValueError("substrate_learning_rate must be positive.")
         self._substrate_learning_rate = substrate_learning_rate
         self._generator: Any = None
         self._steer_W: Any = None
         self._steer_b: Any = None
+        self._steer_left: Any = None
+        self._steer_right: Any = None
+        self._steer_code: Any = None
         self._module: _TorchNdimMetacontroller | None = None
         self._optimizer_parameters: tuple[Any, ...] = ()
         self._optimizer: Any = None
         self._store_identity: int | None = None
         self._optimizer_step = 0
+        self._initial_input_projection_parameters: tuple[Any, ...] = ()
+        self._initial_low_rank_parameters: tuple[Any, ...] = ()
         self._last_written_parameters: tuple[
             NdimEncoderParameters,
             NdimSwitchParameters,
@@ -665,6 +753,97 @@ class StoreSSLTrainingSession:
     @property
     def steered_action_mode(self) -> bool:
         return self._action_scorer is not None
+
+    @property
+    def steering_parameterization(self) -> str:
+        return self._steering_parameterization
+
+    @property
+    def current_observation_mode(self) -> str:
+        return self._current_observation_mode
+
+    @staticmethod
+    def _changed_parameter_count(
+        current: tuple[Any, ...],
+        initial: tuple[Any, ...],
+    ) -> tuple[int, int]:
+        if len(current) != len(initial):
+            raise RuntimeError("parameter attestation lineage is incomplete.")
+        changed = 0
+        total = 0
+        for value, baseline in zip(current, initial, strict=True):
+            difference = (value.detach().to(baseline.device) - baseline).abs()
+            changed += int((difference > 1e-12).sum())
+            total += int(difference.numel())
+        return changed, total
+
+    def faithful_steering_attestation(self) -> FaithfulSteeringAttestation:
+        """Publish fail-loud evidence for the explicit Branch-B surface."""
+
+        if (
+            self._steering_parameterization
+            != STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE
+        ):
+            raise RuntimeError(
+                "faithful steering attestation requires low-rank "
+                "multiplicative steering."
+            )
+        if (
+            self._module is None
+            or self._steer_left is None
+            or self._steer_right is None
+            or self._steer_code is None
+            or self._action_scorer is None
+        ):
+            raise RuntimeError("faithful steering session is not initialized.")
+        input_parameters = (
+            self._module.W_z,
+            self._module.W_r,
+            self._module.W_h,
+        )
+        low_rank_parameters = (
+            self._steer_left,
+            self._steer_right,
+            self._steer_code,
+        )
+        input_changed, input_count = self._changed_parameter_count(
+            input_parameters,
+            self._initial_input_projection_parameters,
+        )
+        low_rank_changed, low_rank_count = self._changed_parameter_count(
+            low_rank_parameters,
+            self._initial_low_rank_parameters,
+        )
+        torch = _require_torch()
+        with torch.no_grad():
+            zero_code = torch.zeros(
+                (1, self._n_z), dtype=torch.float64
+            )
+            probe_residual = torch.ones(
+                (1, int(self._action_scorer.hidden_size)),
+                dtype=torch.float64,
+            )
+            coefficients = torch.tanh(
+                torch.matmul(zero_code, self._steer_code.transpose(0, 1))
+            )
+            zero_delta = torch.matmul(
+                coefficients
+                * torch.matmul(probe_residual, self._steer_right),
+                self._steer_left.transpose(0, 1),
+            )
+        return FaithfulSteeringAttestation(
+            controller_input_width=self._module.n_input,
+            residual_width=int(self._action_scorer.hidden_size),
+            steering_rank=self._steering_rank,
+            free_bias_present=self._steer_b is not None,
+            zero_code_strict_noop=bool(
+                float(zero_delta.abs().max()) == 0.0
+            ),
+            input_projection_parameter_count=input_count,
+            input_projection_parameters_changed=input_changed,
+            low_rank_parameter_count=low_rank_count,
+            low_rank_parameters_changed=low_rank_changed,
+        )
 
     def _ensure_initialized(self, *, store: Any) -> None:
         if (
@@ -695,28 +874,80 @@ class StoreSSLTrainingSession:
         optimizer_parameters = list(module_parameters)
         if self._action_scorer is not None:
             hidden_size = int(self._action_scorer.hidden_size)
-            # Steering expansion head (part of the controller phi): maps the
-            # bounded n_z control to a residual-stream-width delta. Small
-            # non-zero init so gradient reaches the controller from step one.
-            self._steer_W = (
-                0.05
-                * torch.randn(
-                    (hidden_size, self._n_z),
-                    generator=self._generator,
-                    dtype=torch.float64,
+            if (
+                self._steering_parameterization
+                == STEERING_PARAMETERIZATION_AFFINE_ADDITIVE
+            ):
+                # Legacy Stage-3 surface, retained unchanged for sealed-result
+                # replay and its explicit bias-only attribution control.
+                self._steer_W = (
+                    0.05
+                    * torch.randn(
+                        (hidden_size, self._n_z),
+                        generator=self._generator,
+                        dtype=torch.float64,
+                    )
+                ).requires_grad_(True)
+                self._steer_b = torch.zeros(
+                    hidden_size, dtype=torch.float64, requires_grad=True
                 )
-            ).requires_grad_(True)
-            self._steer_b = torch.zeros(
-                hidden_size, dtype=torch.float64, requires_grad=True
-            )
-            if self._steered_training_mode == STEERED_TRAINING_BIAS_ONLY:
-                for parameter in module_parameters:
-                    parameter.requires_grad_(False)
-                self._steer_W.requires_grad_(False)
-                optimizer_parameters = [self._steer_b]
+                if self._steered_training_mode == STEERED_TRAINING_BIAS_ONLY:
+                    for parameter in module_parameters:
+                        parameter.requires_grad_(False)
+                    self._steer_W.requires_grad_(False)
+                    optimizer_parameters = [self._steer_b]
+                else:
+                    optimizer_parameters.append(self._steer_W)
+                    optimizer_parameters.append(self._steer_b)
             else:
-                optimizer_parameters.append(self._steer_W)
-                optimizer_parameters.append(self._steer_b)
+                if self._module.n_input != hidden_size:
+                    raise ValueError(
+                        "low-rank U_t·e requires controller input width to "
+                        "equal the injected residual width; got "
+                        f"{self._module.n_input} and {hidden_size}."
+                    )
+                if self._steering_rank > min(hidden_size, self._n_z):
+                    raise ValueError(
+                        "steering_rank must not exceed residual width or n_z."
+                    )
+                # U_t = A diag(tanh(C z_t)) B^T; delta_t = U_t e_t.
+                # There is deliberately no additive bias parameter.  Both
+                # residual factors start approximately column-normalized while
+                # the code map starts small but non-zero so gradient reaches
+                # the controller on the first update.
+                residual_scale = hidden_size ** -0.5
+                code_scale = 0.05 * self._n_z ** -0.5
+                self._steer_left = (
+                    residual_scale
+                    * torch.randn(
+                        (hidden_size, self._steering_rank),
+                        generator=self._generator,
+                        dtype=torch.float64,
+                    )
+                ).requires_grad_(True)
+                self._steer_right = (
+                    residual_scale
+                    * torch.randn(
+                        (hidden_size, self._steering_rank),
+                        generator=self._generator,
+                        dtype=torch.float64,
+                    )
+                ).requires_grad_(True)
+                self._steer_code = (
+                    code_scale
+                    * torch.randn(
+                        (self._steering_rank, self._n_z),
+                        generator=self._generator,
+                        dtype=torch.float64,
+                    )
+                ).requires_grad_(True)
+                optimizer_parameters.extend(
+                    (
+                        self._steer_left,
+                        self._steer_right,
+                        self._steer_code,
+                    )
+                )
         substrate_parameters = (
             list(self._action_scorer.trainable_parameters())
             if self._action_scorer is not None
@@ -747,6 +978,26 @@ class StoreSSLTrainingSession:
         self._optimizer_parameters = tuple(
             optimizer_parameters + substrate_parameters
         )
+        self._initial_input_projection_parameters = tuple(
+            parameter.detach().clone()
+            for parameter in (
+                self._module.W_z,
+                self._module.W_r,
+                self._module.W_h,
+            )
+        )
+        if (
+            self._steering_parameterization
+            == STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE
+        ):
+            self._initial_low_rank_parameters = tuple(
+                parameter.detach().clone()
+                for parameter in (
+                    self._steer_left,
+                    self._steer_right,
+                    self._steer_code,
+                )
+            )
         self._store_identity = id(store)
 
     def _all_parameters(self) -> tuple[Any, ...]:
@@ -916,6 +1167,7 @@ class StoreSSLTrainingSession:
             generator=self._generator if use_sampling else None,
             gate_mode="hard-st",
             posterior_parameterization=self._posterior_parameterization,
+            current_observation_mode=self._current_observation_mode,
         )
 
         def distortion(control: Any, target: Any) -> Any:
@@ -1127,9 +1379,26 @@ class StoreSSLTrainingSession:
                 "Steered objective requires an action scorer and an "
                 "initialized module."
             )
-        if self._steer_W is None or self._steer_b is None:
+        if (
+            self._steering_parameterization
+            == STEERING_PARAMETERIZATION_AFFINE_ADDITIVE
+            and (self._steer_W is None or self._steer_b is None)
+        ):
             raise RuntimeError(
-                "Steered objective requires the initialized steering head."
+                "Affine steered objective requires its initialized head."
+            )
+        if (
+            self._steering_parameterization
+            == STEERING_PARAMETERIZATION_LOW_RANK_MULTIPLICATIVE
+            and (
+                self._steer_left is None
+                or self._steer_right is None
+                or self._steer_code is None
+            )
+        ):
+            raise RuntimeError(
+                "Low-rank steered objective requires initialized A/B/code "
+                "factors."
             )
         action_targets = tuple(
             step.expert_action_target for step in trace.steps
@@ -1154,6 +1423,7 @@ class StoreSSLTrainingSession:
             generator=self._generator if use_sampling else None,
             gate_mode=self._steered_gate_mode,
             posterior_parameterization=self._posterior_parameterization,
+            current_observation_mode=self._current_observation_mode,
         )
         control_stack = torch.stack(out["controls"])
         if self._steered_training_mode == STEERED_TRAINING_BIAS_ONLY:
@@ -1170,10 +1440,30 @@ class StoreSSLTrainingSession:
             raise ValueError(
                 f"Unknown steered control ablation {control_ablation!r}."
             )
-        deltas = (
-            torch.matmul(control_stack, self._steer_W.transpose(0, 1))
-            + self._steer_b
-        )
+        if (
+            self._steering_parameterization
+            == STEERING_PARAMETERIZATION_AFFINE_ADDITIVE
+        ):
+            deltas = (
+                torch.matmul(control_stack, self._steer_W.transpose(0, 1))
+                + self._steer_b
+            )
+        else:
+            residual_stack = torch.tensor(inputs, dtype=torch.float64)
+            code_coefficients = torch.tanh(
+                torch.matmul(
+                    control_stack,
+                    self._steer_code.transpose(0, 1),
+                )
+            )
+            residual_coordinates = torch.matmul(
+                residual_stack,
+                self._steer_right,
+            )
+            deltas = torch.matmul(
+                code_coefficients * residual_coordinates,
+                self._steer_left.transpose(0, 1),
+            )
         action_indices = tuple(
             scorer.action_index(target.action_id)
             for target in action_targets

@@ -7,19 +7,19 @@ todos:
     status: completed
   - id: p1-diag
     content: 仪器等价诊断包预注册与执行（入口 probe / bias-only / zero-z / permuted-z / oracle 边界）
-    status: pending
+    status: completed
   - id: s1-readout
     content: S1：Gate-2 类 probe 固化为冻结 readout owner（快照发布，不回灌）
-    status: pending
+    status: completed
   - id: s2-steer
     content: S2：因果 steering 预注册与实验（±轴 vs noop/shuffle，产品域生死门）
-    status: pending
+    status: completed
   - id: s3-rl
     content: S3：PE 门控 + 段信用 + 小动作空间 Internal RL 学干预策略
     status: pending
   - id: b-cond
     content: B（条件分支）：仅当 P1 定罪入口/bias 且 S2 失败时，ETA 忠实重实现 screen
-    status: pending
+    status: in_progress
 isProject: false
 ---
 
@@ -58,6 +58,11 @@ isProject: false
 - `zero-z` / `permuted-z`：z 通道因果性对照
 - 子目标边界 oracle 只读评价（`active_subgoal[t] != active_subgoal[t-1]`），修正 F1 语义，不进训练损失
 
+**结果**：prereg `30b827b3…`，6/6 cells 完成。exact-entry 0.3913 > 0.25
+但仅保留 Gate-2 41.45%；bias-only recovery 96.32%，zero-z recovery 61.41%，
+permuted-z penalty −0.0068。主归因 `incentive-bypass-via-free-bias`；oracle
+与 action-change F1 差未过 0.10 门。A 继续，B 等待 S2 失败条件。
+
 产出一页判定：信息死在入口 / 死在激励 / 死在优化。
 
 ## 3. A vs B：我的建议
@@ -70,11 +75,33 @@ isProject: false
 - A 复用现有资产（residual intervention、Prefix-KV、Internal RL/PPO 骨架），B 需要重写控制参数化 + 全链重跑
 
 **A 的三步阶梯（对应此前讨论的 S1→S3）**：
-1. S1 识别固化：把 Gate-2 类 probe 收成 runtime readout owner（冻结，发快照，不回灌）
-2. S2 因果 steering 一战：沿读出轴 ±有界干预 vs noop/shuffle 对照，预注册"扳了会拐"的门槛——这是最大缺口，也是 A 的生死门
-3. S3 策略学习：PE 门控 + 段信用 + 小动作空间 PPO/advantage，学"何时/往哪/多狠"
+1. S1 识别固化（已完成）：新增 `substrate_residual_readout` offline/SHADOW
+   owner。v1 虽读出 PASS，但审计发现 heldout 有 `7/299` 个 cumulative prefix
+   被 512-token 静默截断，因此未被 S2 消费；无截断 v2 prereg `35c92904…`
+   固定 `max_length=768` + fail-loud，layer20/896 heldout `0.9833`、late
+   `0.9720`、gap `0.0167`，四门全过。artifact `086a8f3d…` 的 8 条
+   class-vs-rest 轴无 bias；未安装、不回灌、不接 production。
+2. S2 因果 steering（已完成，FAIL）：prereg `b6a427d0…`，299 条
+   heldout prefix、24 routes、0 截断、0 trainable parameter、无 free bias。
+   0.50×cap 主判 target-plus vs noop=`-0.00072`（95% CI
+   `[-0.01787, 0.01809]`），vs minus=`0.02829`，vs shuffled=`0.00709`；
+   五项门槛全败。S1 的“可读”没有转化为沿 probe 轴的动作因果性，A 在 S2
+   生死门停止，S3 不启动。
+3. S3 策略学习（未启动）：只有 S2 因果门通过才允许 PE 门控 + 段信用 +
+   小动作空间 PPO/advantage 学“何时/往哪/多狠”。
 
-**B 的触发条件（不默认执行）**：仅当 P1 诊断显示"信息确实死在 16 维入口且 bias 移除后形状改变"，且 S2 steering 失败（说明还是需要学习型时间抽象）时，才按忠实度包（可学习投影入口、低秩 U_t·e、无免费 bias、统一 causal-prefix surface）另立预注册先跑 screen，再谈权威扫。
+**B 的触发条件（2026-08-04 已满足）**：P1 已证明 16 维固定折叠只保留
+Gate-2 的 41.45%，且 free bias 回收 full 改善的 96.32%；S2 又在无 bias
+matched causal gate 上失败。现按忠实度包（可学习投影入口、低秩
+`U_t·e`、无免费 bias、统一 causal-prefix surface）另立新 claim / prereg
+先跑 screen；screen 不改写已封存的 `kill-eta`，通过后才允许重开权威扫。
+
+实现已落在现有 temporal owner 的显式 evidence mode：layer20 full-width896
+只经可学习 GRU 输入权重进入 16 维 `z_t`，actuator 为 rank-8
+`A·diag(tanh(Cz_t))·Bᵀ·e_t`，无 additive bias 且 zero-z 严格 no-op；
+`active_subgoal` boundary 只作 no-grad readout。历史 folded/affine 路径仍是默认，
+`write_back=false`，没有新 public slot 或 production wiring。directional screen
+prereg sha256 `c247e82e…` 已固定 3 alpha × 2 seed × 40 updates 并运行中。
 
 ```mermaid
 flowchart LR
