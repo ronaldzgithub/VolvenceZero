@@ -171,6 +171,20 @@ def _report_markdown(report: WhenToSteerReport) -> str:
         f"| 门控选择性 steer(非切换)−steer(切换) | {agg.gate_selectivity_mean:.4f}"
         f" | ≥{report.thresholds.min_gate_selectivity} |",
         "",
+        f"## 稳健化（multi-restart，每 seed 取训练侧最优；restarts={report.policy_restarts}）",
+        "",
+        "| seed | 选中 restart | 训练侧选择 NLL | gain vs always-on |",
+        "|---:|---:|---:|---:|",
+        *[
+            f"| {point.seed} | {point.selected_restart} | "
+            f"{point.selection_train_nll:.4f} | "
+            f"{point.arms.always_on_belief - point.arms.pe_gated_online:.4f} |"
+            for point in report.seed_points
+        ],
+        "",
+        "> 选择只用训练行的 argmax-NLL，从不看 heldout 判据；等价于诚实的模型选择，"
+        "用于救回偶发塌缩到 always-steer 的初始化，不触碰任何判定阈值。",
+        "",
         "## 边界",
         "",
         "- 存在硬规则上界（belief==fresh 才出手）；本 claim = **RL 从稀疏终局信用学到逼近该上界**，"
@@ -305,6 +319,7 @@ def main(argv: tuple[str, ...] | None = None) -> int:
             policy_batch_cases=args.policy_batch_cases,
             entropy_coef=args.entropy_coef,
             init_noop_bias=args.init_noop_bias,
+            policy_restarts=args.policy_restarts,
             max_online_episodes=args.max_online_episodes,
             eval_every=args.eval_every,
             convergence_window=args.convergence_window,

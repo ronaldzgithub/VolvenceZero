@@ -13,6 +13,7 @@ from volvence_zero.agent.eta_when_to_steer_rl import (
     _feature_matrix,
     _RowRecord,
     _route_bootstrap,
+    _run_seed,
     _standardize_columns,
     _train_gate_policy,
     assess_when_to_steer,
@@ -156,6 +157,38 @@ def test_reinforce_gate_learns_to_steer_only_when_fresh() -> None:
         float((a - b.detach()).abs().max()) > 1e-8
         for a, b in zip(initial, policy.parameters(), strict=True)
     )
+
+
+def test_run_seed_multi_restart_selects_train_best_and_beats_always_on() -> None:
+    records = _separable_records()
+    features = _features(records)
+    point = _run_seed(
+        torch=torch,
+        seed=3,
+        train_records=records,
+        train_features=features,
+        heldout_records=records,
+        heldout_features=features,
+        heldout_fresh_ceiling=[0.02] * len(records),
+        max_online_episodes=200,
+        policy_learning_rate=0.1,
+        policy_batch_cases=4,
+        entropy_coef=0.1,
+        init_noop_bias=0.0,
+        policy_restarts=4,
+        eval_every=40,
+        convergence_window=3,
+        baseline_beta=0.9,
+        bootstrap_resamples=200,
+        bootstrap_confidence=0.95,
+        progress=None,
+    )
+    # A restart within range was selected and its train-side NLL recorded.
+    assert 0 <= point.selected_restart < 4
+    assert point.selection_train_nll < point.arms.always_on_belief
+    # Robustified selection yields a selective gate that beats always-on-belief.
+    assert point.arms.pe_gated_online < point.arms.always_on_belief
+    assert point.gate_selectivity > 0.5
 
 
 def _aggregate(**overrides: float) -> WhenToSteerAggregate:
