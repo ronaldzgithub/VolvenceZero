@@ -37,10 +37,12 @@
   0.967**，字面仍 FAIL 封存。三轮合并判读：实质命题"0.5B 残差可线性承载
   active subgoal"跨两 seed 四臂复现（0.901/0.944/0.977/0.967）；被证伪的
   是"续训必要性"对照前提。**2026-08-03 裁定**：用户程序级裁定 Gate-2
-  看门目的已实质达成，Stage 3 解锁（三 FAIL 封存不改判）；权威扫
-  `artifacts/eta_stage3_rate_distortion_20260803/` 进行中（Stage-2 v2
-  merged 基底 + frozen/joint 双臂）。整体 `kill-eta` 在 Gate-3 verdict
-  前持续有效。见
+  看门目的已实质达成，Stage 3 解锁（三 FAIL 封存不改判）。
+  **2026-08-04 终审**：36/36 cells 完成，正式 verdict = **`kill-eta`**；
+  双臂可分且 frozen rate 轴有效，但 frozen 无近垂直 gap，joint 反而检出
+  gap。该判词否定当前 16 维折叠入口 + additive steering / free bias 的
+  operationalization，不外推为理论普遍证伪。Stage 4 不启动，production
+  WiringLevel 不变；P1 等价性诊断只归因、不重判。见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)
 - 内部控制空间维度低于原始 token 动作空间
 
@@ -459,6 +461,13 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
   seed 20260802；基底 Stage-2 v2 merged `063077b7…`；frozen + joint
   双臂 36 cells）；权威扫 `artifacts/eta_stage3_rate_distortion_20260803/`
   启动。Gate 3 为 ETA 机制终审：retain-eta-on-llm 或 kill 升级永久摘除。
+- 2026-08-04: **Stage 3 完成并封存 `kill-eta`**。36/36 cells；双臂可分
+  （0.1264 > 0.0673），frozen rate 轴 Spearman −0.9429 / span 2.0680，
+  但 frozen 无近垂直 gap，现有 boundary F1 也未在候选区内抬升；joint
+  反而检出 gap。当前 ETA-on-LLM operationalization 维持 legacy / SHADOW，
+  不改变 memory、PE、relationship continuity 或 production WiringLevel。
+  P1 登记 exact-entry / bias / z 因果性 / subgoal oracle 四组只读诊断；忠实
+  rewrite 只可作为新 claim、新预注册的条件分支。
 - 2026-08-02: 启动 **ETA 迁移 LLM 四级阶梯**，把论文成立的前提逐级搬到冻结 LLM 上；
   `kill-eta` 判定在 Stage 3 通过前保持有效。**证据 SSOT**：
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)（已挂

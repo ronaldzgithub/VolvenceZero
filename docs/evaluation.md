@@ -26,7 +26,7 @@
 | 4 | Learned Active（torch 后端晋升） | 四个 SHADOW torch 后端能否晋升 ACTIVE | `scripts/run_learned_active_evidence.py` | `partial-promotion-blocked`（validation_delta 0.0138 < 0.02） | 续跑连续 soak 过门 + PE-off/ETA-off 对照 + 执行 capacity ladder |
 | 5 | Companion Bench（对外榜） | 系统无关的多 session 陪伴基准（A1–A6 六轴） | `packages/companion-bench` CLI + `scripts/companion_bench/*` | 站点数据**全是 demo/smoke**，无正式榜 | judge 稳健性(#48)→校准(#52)→统计功效(#54)→10 系统全量(#82) |
 | 6 | State-KV / Prefix-KV 辨识 | 同 prompt 空上下文，两用户产生可被盲判归属的差异 | `scripts/run_state_kv_identification.py` 等 | Personal 全链 **pass**；尽调 **partial(3/7)**；Relationship 停在 chance | 关闭 C5 credit 与 bank-gain；Relationship 记为负结果 |
-| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Gate1 **PASS**；Gate2 三轮字面 FAIL 封存但残差可承载已证实；**Stage3 权威扫进行中**（14/36） | 跑完 Stage3 → `retain-eta-on-llm` 或永久摘除；Stage4 仅骨架 |
+| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Gate1 **PASS**；Gate2 残差可承载已证实；Stage3 **`kill-eta`**（36/36，2026-08-04） | P1 等价性诊断归因 → 主线转残差 readout / causal steering；Stage4 关闭 |
 | 8 | ETA 内部 RL / 段信用强证据 | 段级信用 vs turn 级、抽象动作复用等论文式命题 | `scripts/run_eta_segment_credit_evidence.py` / paper suite | 段信用 v13 **retain**（12 门全过） | 作为机制回归保留；不等于 rate-distortion retain |
 | 9 | Digital Ant ecology（same-physics） | 无 LLM 的 2D 感觉运动床上，typed-milestone ACTIVE vs DISABLED 是否有因果净增益 | `scripts/run_ant_ecology_same_physics_station1.py` | L1-C station1-v4 **BLOCK**（food alignment 3/4）；station2/P1/P2 **not-authorized** | 新 owner 机制 + 新 prereg 才可重开；禁止二审/换 seed/降阈值 |
 | 10 | RSI Forge（开发环自改进） | 从真实失败挖模式 → 有界提案 → 循环外验证/人审 → ledger 预测兑现 | `forge` CLI（`mine/propose/validate/select/apply`） | 战役一 e2e 已 apply 2 条；overlay 默认 DISABLED；无 live/GPU 晋升 | 下一轮 `mine --evidence-since-ledger` 兑现预测；扩 task-level held-out；rare-heavy 需冻结权重证据 |
@@ -447,8 +447,8 @@ Personal（晋升路径）**全链 pass**：P3 `retain-strict`（12/12 bge-m3）
 |---|---|---|---|---|
 | 1 | Gate 1 | 种子语料上 rate 仪器有效吗？ | `run_eta_rate_distortion.py`(frozen)、`run_eta_rate_axis_pilot.py`、`screen_eta_rate_axis_surrogate.py` | **PASS**（2026-08-03，v4+hard-st 权威扫）→ 进 Stage 2 |
 | 2 | Gate 2 | 域续训 LLM residual 是否载子目标？ | `run_eta_stage2_corpus.py → _pretrain.py → _probe.py`（v1→v2→v3） | 三轮字面 FAIL 封存（仪器/判据/对照）；实质命题跨两 seed 四臂证实 → **用户裁定 (b) 解锁 Stage 3** |
-| 3 | Gate 3 | 补课冻结 LLM 上出现率失真 gap 吗？ | `run_eta_rate_distortion.py --model-source artifacts/eta_stage2_merged_v2_20260803 --arms frozen joint` | **权威扫进行中**（14/36 cells，prereg `eta_stage3_prereg_v2_20260803`）；PASS→`retain-eta-on-llm` / FAIL→永久摘除 |
-| 4 | 待定 | 对话迁移（MSC） | 仅骨架 `research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md` | 仅 Gate 3 PASS 后启用 |
+| 3 | Gate 3 | 补课冻结 LLM 上出现率失真 gap 吗？ | `run_eta_rate_distortion.py --model-source artifacts/eta_stage2_merged_v2_20260803 --arms frozen joint` | **`kill-eta`**（36/36；双臂可分、frozen rate 轴有效但无 gap）→ 当前 operationalization REJECT |
+| 4 | 待定 | 对话迁移（MSC） | 仅骨架 `research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md` | **不启动**；Gate 3 已 FAIL |
 
 ### 7.2 怎么运行
 
@@ -494,7 +494,7 @@ Personal（晋升路径）**全链 pass**：P3 `retain-strict`（12/12 bge-m3）
   --gate-conditions retention.v3
 ```
 
-**Gate 3 权威扫（当前主线，进行中）**：
+**Gate 3 权威扫（已完成封存；复现用，不建议立即重跑）**：
 
 ```bash
 # 预注册：artifacts/eta_stage3_prereg_v2_20260803/preregistration.json
@@ -510,7 +510,7 @@ Personal（晋升路径）**全链 pass**：P3 `retain-strict`（12/12 bge-m3）
   --updates 300 --n-z 16 --seeds 3 [--resume]
 ```
 
-> MPS 独占锁 `artifacts/.companion-evidence-mps.lock`（`plan_id=eta-rate-distortion-mps.v1`）+ `require_mps()`（`PYTORCH_ENABLE_MPS_FALLBACK` 必须 0）。runner fail-closed 校验 sweep 参数 / gap 阈值 / 冻结源 SHA。无 prereg → `mechanism-only-smoke`，非权威。Stage 3 未完成前禁止读任何部分 cell 做效应分析（`analysis_allowed=false`）。
+> MPS 独占锁 `artifacts/.companion-evidence-mps.lock`（`plan_id=eta-rate-distortion-mps.v1`）+ `require_mps()`（`PYTORCH_ENABLE_MPS_FALLBACK` 必须 0）。runner fail-closed 校验 sweep 参数 / gap 阈值 / 冻结源 SHA。无 prereg → `mechanism-only-smoke`，非权威。本轮运行期间保持 `analysis_allowed=false`，仅 36/36 完成后判读；manifest 中五个冻结 source hash 与预注册一致。
 
 ### 7.3 怎么评价
 
@@ -530,20 +530,31 @@ Personal（晋升路径）**全链 pass**：P3 `retain-strict`（12/12 bge-m3）
 | `artifacts/eta_stage2_probe_20260803` | Gate 2 v1 仪器 FAIL（**经审计定罪仪器**） | 续训臂末层 0.131、裸 Qwen 0.166（=majority）；审计：计划载体为哈希指纹，heldout 信息天花板 0.1805 < 及格线 0.25，**构造性不可过**，实测值恰在天花板附近 |
 | **`artifacts/eta_stage2_probe_v2_20260803`** | Gate 2 v2 仪器：实质两条件 PASS，按字面 **FAIL** | 裸 Qwen `0.901`（全层 0.795–0.976）、续训 `0.944`（后段层 0.99–1.00）；`2×chance` PASS（7.5×）、`续训>基线` PASS（+4.3pp）、`随前缀上升` FAIL（early 0.979/late 0.879，保持衰减非推断累积，判据 regime 错配） |
 | **`artifacts/eta_stage2_probe_v3_20260803`** | Gate 2 v3（新 seed 20260804 + retention 判据）：字面 **FAIL**，败因反转 | `2×chance` PASS（0.967 = 7.7×）、`retention.v3` PASS（0.995/0.918，衰减 0.077 ≤ 0.15）、`续训>基线` FAIL——**裸 Qwen 基底 0.977 反超续训臂 0.967**（基底无需续训已在天花板携带子目标） |
-| **`artifacts/eta_stage3_rate_distortion_20260803`** | **进行中**（14/36） | `run_state.json` status=`running`、`analysis_allowed=false`；frozen 臂已至 alpha=1.0 seed-1；尚无 `report.json`；基底=`eta_stage2_merged_v2_20260803` |
+| **`artifacts/eta_stage3_rate_distortion_20260803`** | **`kill-eta`**（36/36） | 双臂可分 0.1264 > 0.0673；frozen rate Spearman −0.9429 / span 2.0680，但 `gap_detected=false`（最大 drop 横跨 84.16% rate span），现有 boundary F1 区内 0.000 < 区外 0.2669；joint `gap_detected=true`；manifest authoritative |
 
 **Gate 1 = PASS（2026-08-03）**：修尺子四层根因——smooth posterior + v4 分段揭示协议（step-0 只给第一目标、各 arrival 揭示下一个）+ switch-gated KL（keep 免费/switch 付费）+ hard-st 离散门（堵住连续门每步微幅走私）+ 300 updates。frozen 臂另检出方向性近垂直 gap（drop share 0.744 / rate share 0.196），但缺 joint 臂且 gap 区内 F1（0.394）未高于区外（0.537），属 Gate 3 范畴不予主张。
 
 **Gate 2（2026-08-03，三代仪器/判据）**：v1 全链 FAIL（0.131/0.166）后仪器审计发现计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的协议 v2 缺陷同类）：非指纹信息的 heldout 贝叶斯天花板仅 0.1805，**v1 的 2×chance 条件构造性不可过**，FAIL 定罪仪器而非基底。仪器 v2（v4 staged-plan 渲染语料 + 累积轨迹前缀 probe + train-split 选层，prereg `c0a54454…` 含 ceiling 1.0 验证）重跑全链：**残差流大幅承载 active subgoal**（0.901/0.944），因果对照成立；仅 `随前缀上升` 败（regime 错配），字面 FAIL 封存。v3（用户授权）修第二条件为 `retention.v3` 并**换全新 seed 20260804 挡 forking paths**（prereg `2f3b3bf4…` 在新读数前冻结）：修正后的两条件双 PASS（0.967 = 7.7×；late 0.918 / 衰减 0.077），但因果对照反向失效——**裸 Qwen 基底 0.977 已在天花板，续训无超越余量**，字面仍 FAIL 封存。三轮合并判读：实质命题"0.5B 残差可线性承载子目标层级"跨两 seed 四臂复现（0.901/0.944/0.977/0.967）；被证伪的是"续训必要性"。三个字面 FAIL **原样封存不改判**；用户程序级裁定取处置 **(b)**——Gate-2 看门前提已实质达成，解锁 Stage 3 推进权（不是把任一 FAIL 改成 PASS）。机制级 `kill-eta`（2026-08-01）在 Stage 3 撤销前**持续有效**。
 
+**Gate 3（2026-08-04）**：预注册权威扫完成并封存 **`kill-eta`**。rate
+侧仪器和双臂可分性均通过，失败来自 frozen 臂没有近垂直 rate–distortion
+gap；joint 臂反而检出 gap，现有 action-change boundary F1 也只在 joint
+候选区内抬升。结论范围是当前 16 维折叠入口 + additive steering / free bias
+的 operationalization，不是 ETA 理论普遍证伪。三项结构性不等价登记为
+P1 解释债：入口 surface、边界真值、steering 参数化。P1 只做只读归因，
+不得改变正式 verdict，也不把 evaluation 结果回灌训练。
+
 ### 7.5 下一步
 
-1. **跑完 Stage 3 权威扫**（当前 14/36；产物 `artifacts/eta_stage3_rate_distortion_20260803/`）：勿并发其它 MPS 证据任务；中断用同 prereg + `--resume`。完成后读 `report.json` / `gap_assessments.json`：
-   - `retain-eta` / `retain-eta-on-llm` → 撤销机制 `kill-eta`；复活 `vz-temporal` 须**另开收敛包**；
-   - frozen 无 gap → 永久摘除 ETA 主张（处置包：删主张、保留记忆/连续性、`vz-temporal`→legacy）；
-   - Stage 3 FAIL 时可用裸 Qwen 做敏感性分析（设计已预留），不回溯改 Gate-2。
-2. Stage 4 仅骨架，**仅 Gate 3 PASS 后**才启用（对话无子目标真值，boundary F1 不可作门）。
-3. Gate 1 / Gate 2 封存件作机制回归基线：相关 owner / 算法变量 / 证据契约改变时按预注册重跑，普通重构不触发重复昂贵 evidence run。
+1. **执行 P1 仪器等价性诊断**：exact Stage-3 entry probe、bias-only、
+   zero-z / permuted-z、`active_subgoal` oracle boundary；先冻结 prereg，再产出
+   “信息死在入口 / 激励 / 优化”的单页归因。P1 不重判 Stage 3。
+2. 主线转向 **S1 frozen residual readout → S2 causal steering → S3 PE-gated
+   segment credit + small-action Internal RL**。S2 是产品域生死门；任何 runtime
+   owner / snapshot / wiring 变更另开收敛包并先注册正式契约。
+3. Stage 4 不启动；Gate 1 / 2 / 3 封存件只在相关算法变量或证据契约改变时
+   按新预注册复验，普通重构不触发昂贵全扫。忠实 ETA rewrite 仅在 P1 定罪
+   入口 / bias 且 S2 失败时作为新 claim 条件启动。
 
 ---
 

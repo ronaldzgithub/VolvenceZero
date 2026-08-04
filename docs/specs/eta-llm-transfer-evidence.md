@@ -1,7 +1,7 @@
 # ETA 迁移 LLM 四级阶梯证据 Spec
 
-> Status: active（Stage 1 Gate 1 = **PASS**（2026-08-03）。Stage 2 三轮判读全部封存：v1 FAIL 定罪仪器（哈希指纹计划载体，信息天花板 0.18 < 0.25）；v2 FAIL 定罪判据 regime 错配（实质两条件 PASS，0.944 / 因果 +4.3pp）；v3（新 seed 20260804 + retention 判据，prereg `2f3b3bf4…`）字面仍 **FAIL** 但败因**反转**——`2×chance`（0.967 = 7.7×）与 retention（late 0.918 / 衰减 0.077）双 PASS，败在因果对照：**未经任何续训的裸 Qwen 基底自己读出 0.977**，续训无超越余量。实质命题"0.5B 残差流可线性承载 active subgoal"被基底臂直接证实且跨 seed 复现（0.901 / 0.944 / 0.977 / 0.967）；败掉的是"续训必要性"这一对照设计前提。字面 verdict 按预注册封存。**2026-08-03 用户程序级裁定**：Gate-2 看门目的（进入 Stage 3 前确认残差可承载层级）已实质达成，Stage 3 解锁——在续训基底上重审 rate–distortion（预注册 `artifacts/eta_stage3_prereg_v2_20260803/`，权威扫已启动））
-> Last updated: 2026-08-03
+> Status: closed-negative（Stage 1 Gate 1 = **PASS**；Stage 2 三轮字面 FAIL 原样封存，但“0.5B 残差流可线性承载 active subgoal”跨 seed / arm 成立；Stage 3 预注册权威扫于 2026-08-04 完成 36/36 cells，正式 verdict = **`kill-eta`**。双臂可分性通过，frozen 臂 rate 轴有效但没有近垂直 gap；Stage 4 不启动。该判词否定本仓库当前 ETA operationalization 及其 LLM 迁移 claim，不外推为 ETA 理论的普遍证伪。）
+> Last updated: 2026-08-04
 > 对应需求: R2, R3, R4, R8, R10, R12, R15
 > Owner 能力域: `vz-temporal`（元控制器 / rate–distortion）、`vz-substrate`（续训 merge / 分类 probe）、evidence lane（本 spec）
 > 执行草稿: [`.cursor/plans/eta_迁移_llm_阶梯_59d33511.plan.md`](../../.cursor/plans/eta_迁移_llm_阶梯_59d33511.plan.md)
@@ -30,9 +30,11 @@ rate–distortion（Gate 3），对话迁移仅在前三级全过后预注册（
   仪器数值稳定后重跑，**不是**永久摘除 ETA。
 - **Gate 2 杀的是迁移路线**：补课后 heldout probe 仍读不出子目标 →
   “ETA-on-LLM”整体 kill，出报告收官；不等于否定论文在从零小模型上的结果。
-- **Gate 3 才是主张终审**：补课冻结基底上出现近垂直 gap（且 joint 臂无 gap、
-  gap 内 boundary F1 更高）→ 改判 `retain-eta-on-llm`；否则 kill 升级为
-  “跨原生小模型与领域内预训练 LLM 两种机制均不成立”，主张永久摘除。
+- **Gate 3 才是当前 operationalization 的终审**：补课冻结基底上出现近垂直
+  gap（且 joint 臂无 gap、gap 内 boundary F1 更高）→ 改判
+  `retain-eta-on-llm`；否则拒绝
+  `claim_eta_rate_distortion_on_domain_pretrained_llm`，当前 ETA 路径保持
+  legacy / SHADOW。新的忠实实现必须作为新 claim 另行预注册，不能改写本轮判词。
 - **readout-only**：本阶梯产物不回灌学习、不进 reward、不自动 ACTIVE
   晋升 `vz-temporal` torch 路径（R12 / R15）。
 - **稀有重路径唯一**：continued pretraining 必须走
@@ -384,8 +386,9 @@ seed，保持"补课基底"的原阶梯设计；裸基底对照留给 Stage-3 FA
 
 **PASS** → 撤销 mechanism `kill-eta`，改判 `retain-eta-on-llm`；复活
 `vz-temporal` 须另开收敛包。  
-**FAIL** → 永久摘除 ETA 主张；处置包：删主张、保留记忆/连续性、
-`vz-temporal` → legacy（独立收敛包，不在本程序内自动执行）。
+**FAIL** → 拒绝当前 ETA-on-LLM 主张；处置包：摘除当前 operationalization
+主张、保留记忆/连续性、`vz-temporal` ETA 路径保持 legacy / SHADOW
+（独立收敛包，不在本程序内自动执行）。
 
 **预注册**：`artifacts/eta_stage3_prereg_v2_20260803/`（取代 08-02 草稿：
 草稿早于 v4 协议 / switch-gated / hard-st / 300 updates 的 Gate-1 修尺，
@@ -395,13 +398,33 @@ routes），仅两处不同：`--model-source` 指向 Stage-2 v2 merged 基底
 （权重指纹 `063077b7…`），`--arms frozen joint`（joint 为 gap 判据的
 强制有效性对照，36 cells）。
 
-**当前状态**：权威扫已启动（2026-08-03），产物
-`artifacts/eta_stage3_rate_distortion_20260803/`。
+**正式结果（2026-08-04）**：权威扫完成 36/36 cells，产物
+`artifacts/eta_stage3_rate_distortion_20260803/`，verdict =
+**`kill-eta`**。预注册、MPS-only / no-fallback、冻结源码哈希与结果文件哈希
+均写入 manifest；运行期间工作树虽含本轮 artifact 改动，但五个冻结 source
+hash 与预注册逐项相同，manifest 标记 `verdict_authoritative=true`。
+
+- 双臂可分：separation `0.1264` > threshold `0.0673`，排除
+  `instrument-invalid`。
+- frozen rate 轴有效：Spearman `−0.9429`，span `2.0680`；但 distortion
+  span 仅 `0.1084`，最大下降横跨 `84.16%` 的 rate span，故
+  `gap_detected=false`。现有 boundary F1 在候选区内 `0.000`，区外
+  `0.2669`，也不满足 retain 门。
+- joint 臂反而被 gap detector 判为 `true`（下降横跨 `15.15%` rate span），
+  同样不满足预注册要求的“joint 无 gap”。因此负结论不是擦线。
+
+**登记的解释债（不改变封存 verdict）**：Gate-2 使用完整 896 维 cumulative-
+prefix hidden，Stage-3 输入是 layers 20/21/22 的窄读数经固定折叠到 16 维；
+Stage-3 boundary 标签来自相邻专家 action change，而不是 `active_subgoal`
+变化；steering 为 additive delta + 可训练免费 bias，而非论文式状态相关低秩
+`U_t·e`。下一包 P1 只做 exact-entry probe、bias-only、zero/permuted-z 与
+subgoal oracle readout，归因“入口 / 激励 / 优化”各占多少，不重跑 36-cell。
 
 ### Stage 4 — 对话迁移（contingent，仅设计）
 
-仅当前三级全过后启用。动作 = 对话行为，语料 = MSC 等；对话无子目标真值，
-boundary F1 不可作门，退回 gap + heldout 泛化。
+仅当前三级全过后启用。Gate 3 已 FAIL，因此本阶梯下 **Stage 4 不启动**。
+动作 = 对话行为，语料 = MSC 等；对话无子目标真值，boundary F1 不可作门，
+退回 gap + heldout 泛化。
 
 **本程序内只产出骨架，不跑实验**：
 [`research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md`](../../research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md)
@@ -420,7 +443,7 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
 
 - 全部为 evidence lane；production WiringLevel 不变
 - 补课基底为独立 artifact，原始 Qwen 路径不受影响
-- Gate 1/2 FAIL 不触发主张永久摘除；仅 Gate 3 FAIL 或后续独立处置包才摘除
+- Gate 3 封存结果不可回滚或换口径；代码 / wiring 处置另开可回滚收敛包
 - `switch-gated` 只是可回滚的 rate 定义候选；默认 `per-step` 保留历史路径，候选
   失败时恢复默认，不得修改已封存的 smooth/v2 负结果
 
@@ -555,3 +578,10 @@ boundary F1 不可作门，退回 gap + heldout 泛化。
   （`063077b7…`），双臂 frozen + joint 共 36 cells。权威扫
   `artifacts/eta_stage3_rate_distortion_20260803/` 已启动；判读以其
   verdict 为准（retain-eta-on-llm / kill 升级永久摘除）。
+- 2026-08-04: **Stage 3 权威扫完成并封存 `kill-eta`**。36/36 cells、双臂
+  可分（0.1264 > 0.0673）、frozen rate 轴有效（Spearman −0.9429 / span
+  2.0680），但 frozen 无近垂直 gap（最大下降横跨 84.16% rate span），
+  gap 区内现有 boundary F1 也未抬升；joint 反而检出 gap。当前 ETA-on-LLM
+  operationalization 被否定，Stage 4 不启动，production WiringLevel 不变。
+  另登记入口折叠、action-change 边界标签、免费 steering bias 三项解释债，
+  由 P1 等价性诊断归因；它不得改写本轮 verdict。

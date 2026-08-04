@@ -1,0 +1,90 @@
+{
+  "schema_version": "eta-stage3-equivalence-prereg.v1",
+  "experiment_id": "eta-stage3-equivalence-diagnostic-p1",
+  "created_at": "2026-08-04T06:41:32.722975+00:00",
+  "claim_scope": "stage3-attribution-only-no-readjudication",
+  "source_stage3_artifact": {
+    "path": "artifacts/eta_stage3_rate_distortion_20260803/report.json",
+    "sha256": "48a589d41f4a700fec40e95c41c2eed13ae573126cff6598c5d6df5dd58f6bbf",
+    "verdict": "kill-eta"
+  },
+  "configuration": {
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_source": "artifacts/eta_stage2_merged_v2_20260803",
+    "device": "mps",
+    "layer_indices": [
+      20,
+      21,
+      22
+    ],
+    "activation_width": 8,
+    "seed_schedule": [
+      0,
+      1,
+      2
+    ],
+    "n_z": 16,
+    "alpha": 0.1,
+    "updates_per_run": 100,
+    "learning_rate": 0.02,
+    "switch_threshold": 0.55,
+    "reference_gate2_accuracy": 0.944,
+    "corpus": {
+      "corpus_seed": 20260802,
+      "objective_count": 8,
+      "corridor_count": 2,
+      "extra_edge_probability": 0.35,
+      "train_routes": 64,
+      "heldout_routes": 24,
+      "train_lengths": [
+        2,
+        3
+      ],
+      "heldout_lengths": [
+        3,
+        4
+      ]
+    },
+    "observation_protocol": "partially-observable-staged-plan.v4",
+    "posterior_parameterization": "smooth",
+    "rate_gating": "switch-gated",
+    "gate_mode": "hard-st",
+    "training_modes": [
+      "full",
+      "bias-only"
+    ],
+    "control_ablations": [
+      "zero-z",
+      "cyclic-permuted-z"
+    ],
+    "oracle_boundary": "active_subgoal[t] != active_subgoal[t-1]; readout-only"
+  },
+  "thresholds": {
+    "entry_chance_multiple": 2.0,
+    "bias_recovery_min": 0.8,
+    "zero_z_recovery_min": 0.8,
+    "permuted_z_penalty_min": 0.02,
+    "boundary_f1_semantic_delta_min": 0.1
+  },
+  "decision_rules": [
+    "The exact Stage-3 entry is readable iff heldout active-subgoal accuracy is at least entry_chance_multiple times uniform chance.",
+    "The free-bias bypass is open iff matched bias-only recovery or zero-z recovery reaches its preregistered minimum.",
+    "Learned z is causal iff zero-z recovery stays below its bypass threshold and cyclic permutation worsens distortion by at least permuted_z_penalty_min.",
+    "Oracle active-subgoal boundaries are labels for readout only and must never enter the loss or threshold calibration."
+  ],
+  "prohibited_after_execution": [
+    "changing any attribution threshold after reading a diagnostic point",
+    "using P1 to change or relabel the sealed Stage-3 kill-eta verdict",
+    "feeding probe, boundary, or evaluation labels into training",
+    "changing any production WiringLevel",
+    "promoting a faithful ETA rewrite without a new claim and preregistration"
+  ],
+  "frozen_source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/steered_action_scoring.py": "f4bc43fd5af93feff6dd1f48ac9d4147212fda3b5a4f2cbfd072664d52171b0e",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "45874b7cc76f8ab872becd38efdd3b7f622abcf2cde59b622ef34170e1cd3bdb",
+    "packages/vz-temporal/src/volvence_zero/temporal/torch_store_ssl.py": "9dd01276d0fef512ed1d93fc4306f10dc7fa255625549c308b2baeed7df88a4c",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "7cd3d09fe1be3ddb6d79fa6584de9b0ac446995b03fdd02b09cc9f036d1d7a1a",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_stage3_equivalence_diagnostic.py": "fbab9a891384ffc0abb9c95398c98de51bf2b64175698c936e600d1137c981f2",
+    "scripts/run_eta_stage3_equivalence_diagnostic.py": "8f5f7769c5f44d97225649d2243f641d4c6728873fda348d1ed1a1bf4a0d750b"
+  }
+}

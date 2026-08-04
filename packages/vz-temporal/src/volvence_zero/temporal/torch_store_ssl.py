@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Protocol, Sequence
+from typing import Any, Mapping, Protocol, Sequence
 
 from volvence_zero.substrate import TrainingTrace
 from volvence_zero.temporal.metacontroller_components import (
@@ -158,7 +158,26 @@ class StoreSSLEvaluationReport:
     continuation_switch_probability: float
     switch_threshold: float
     supervision_target: str
+    control_ablation: str = "none"
+    boundary_label_source: str = "expert-action-change"
     description: str = ""
+
+
+STEERED_TRAINING_FULL = "full"
+STEERED_TRAINING_BIAS_ONLY = "bias-only"
+_STEERED_TRAINING_MODES = (
+    STEERED_TRAINING_FULL,
+    STEERED_TRAINING_BIAS_ONLY,
+)
+
+STEERED_CONTROL_NONE = "none"
+STEERED_CONTROL_ZERO_Z = "zero-z"
+STEERED_CONTROL_CYCLIC_PERMUTED_Z = "cyclic-permuted-z"
+_STEERED_CONTROL_ABLATIONS = (
+    STEERED_CONTROL_NONE,
+    STEERED_CONTROL_ZERO_Z,
+    STEERED_CONTROL_CYCLIC_PERMUTED_Z,
+)
 
 
 def _rate_calibrated_threshold(
@@ -194,6 +213,21 @@ def _step_input_vectors(trace: TrainingTrace, n_input: int) -> list[tuple[float,
             raw = [0.0]
         vectors.append(_fold_residual_to_ndim(tuple(raw), n_input))
     return vectors
+
+
+def fold_trace_inputs_for_metacontroller(
+    *, trace: TrainingTrace, n_input: int
+) -> tuple[tuple[float, ...], ...]:
+    """Publish the exact per-step input surface consumed by Store SSL.
+
+    This is an evidence-lane readout for equivalence diagnostics. It delegates
+    to the same fixed residual folding path used by training and never exposes
+    or mutates controller state.
+    """
+
+    if n_input < 1:
+        raise ValueError("n_input must be positive.")
+    return tuple(_step_input_vectors(trace, n_input))
 
 
 class _TorchNdimMetacontroller:
@@ -504,6 +538,7 @@ class StoreSSLTrainingSession:
         posterior_parameterization: str = POSTERIOR_PARAMETERIZATION_LEGACY,
         rate_gating: str = RATE_GATING_PER_STEP,
         steered_gate_mode: str = "continuous",
+        steered_training_mode: str = STEERED_TRAINING_FULL,
     ) -> None:
         if n_z <= 3:
             raise RuntimeError(
@@ -593,6 +628,19 @@ class StoreSSLTrainingSession:
         # straight-through gradient), making a boundary switch the only way
         # to transmit newly revealed information.
         self._steered_gate_mode = steered_gate_mode
+        if steered_training_mode not in _STEERED_TRAINING_MODES:
+            raise ValueError(
+                "steered_training_mode must be one of "
+                f"{_STEERED_TRAINING_MODES}, got {steered_training_mode!r}."
+            )
+        if (
+            steered_training_mode == STEERED_TRAINING_BIAS_ONLY
+            and action_scorer is None
+        ):
+            raise ValueError(
+                "bias-only steering requires an action_scorer."
+            )
+        self._steered_training_mode = steered_training_mode
         if substrate_learning_rate <= 0.0:
             raise ValueError("substrate_learning_rate must be positive.")
         self._substrate_learning_rate = substrate_learning_rate
@@ -643,7 +691,8 @@ class StoreSSLTrainingSession:
         )
         self._generator = torch.Generator()
         self._generator.manual_seed(self._reparam_seed)
-        optimizer_parameters = list(self._module.parameters())
+        module_parameters = list(self._module.parameters())
+        optimizer_parameters = list(module_parameters)
         if self._action_scorer is not None:
             hidden_size = int(self._action_scorer.hidden_size)
             # Steering expansion head (part of the controller phi): maps the
@@ -660,13 +709,27 @@ class StoreSSLTrainingSession:
             self._steer_b = torch.zeros(
                 hidden_size, dtype=torch.float64, requires_grad=True
             )
-            optimizer_parameters.append(self._steer_W)
-            optimizer_parameters.append(self._steer_b)
+            if self._steered_training_mode == STEERED_TRAINING_BIAS_ONLY:
+                for parameter in module_parameters:
+                    parameter.requires_grad_(False)
+                self._steer_W.requires_grad_(False)
+                optimizer_parameters = [self._steer_b]
+            else:
+                optimizer_parameters.append(self._steer_W)
+                optimizer_parameters.append(self._steer_b)
         substrate_parameters = (
             list(self._action_scorer.trainable_parameters())
             if self._action_scorer is not None
             else []
         )
+        if (
+            self._steered_training_mode == STEERED_TRAINING_BIAS_ONLY
+            and substrate_parameters
+        ):
+            raise ValueError(
+                "bias-only steering requires a frozen action scorer with no "
+                "trainable substrate parameters."
+            )
         parameter_groups = [
             {"params": optimizer_parameters, "lr": self._learning_rate}
         ]
@@ -721,6 +784,7 @@ class StoreSSLTrainingSession:
         trace: TrainingTrace,
         switch_threshold: float,
         use_sampling: bool = False,
+        control_ablation: str = STEERED_CONTROL_NONE,
     ) -> dict[str, Any]:
         if self._module is None:
             raise RuntimeError("Store SSL module is not initialized.")
@@ -733,6 +797,11 @@ class StoreSSLTrainingSession:
                 trace=trace,
                 switch_threshold=switch_threshold,
                 use_sampling=use_sampling,
+                control_ablation=control_ablation,
+            )
+        if control_ablation != STEERED_CONTROL_NONE:
+            raise ValueError(
+                "steered control ablations require an action_scorer."
             )
         torch = _require_torch()
         inputs = _step_input_vectors(trace, self._module.n_input)
@@ -1044,6 +1113,7 @@ class StoreSSLTrainingSession:
         trace: TrainingTrace,
         switch_threshold: float,
         use_sampling: bool,
+        control_ablation: str,
     ) -> dict[str, Any]:
         """ETA Eq.3 objective: distortion is the expert-action NLL through
         the steered frozen model, so the target dimension is the action
@@ -1086,6 +1156,20 @@ class StoreSSLTrainingSession:
             posterior_parameterization=self._posterior_parameterization,
         )
         control_stack = torch.stack(out["controls"])
+        if self._steered_training_mode == STEERED_TRAINING_BIAS_ONLY:
+            control_stack = torch.zeros_like(control_stack)
+        elif control_ablation == STEERED_CONTROL_ZERO_Z:
+            control_stack = torch.zeros_like(control_stack)
+        elif control_ablation == STEERED_CONTROL_CYCLIC_PERMUTED_Z:
+            if int(control_stack.shape[0]) < 2:
+                raise ValueError(
+                    "cyclic-permuted-z requires at least two trace steps."
+                )
+            control_stack = torch.roll(control_stack, shifts=1, dims=0)
+        elif control_ablation != STEERED_CONTROL_NONE:
+            raise ValueError(
+                f"Unknown steered control ablation {control_ablation!r}."
+            )
         deltas = (
             torch.matmul(control_stack, self._steer_W.transpose(0, 1))
             + self._steer_b
@@ -1184,6 +1268,8 @@ class StoreSSLTrainingSession:
         traces: tuple[TrainingTrace, ...],
         batch_id: str,
         switch_threshold: float = 0.55,
+        control_ablation: str = STEERED_CONTROL_NONE,
+        boundary_labels: Mapping[str, tuple[float, ...]] | None = None,
     ) -> StoreSSLEvaluationReport:
         """Deterministic no-grad readout of rate/distortion on given traces.
 
@@ -1194,6 +1280,27 @@ class StoreSSLTrainingSession:
 
         if not traces:
             raise ValueError("Store SSL evaluation requires at least one trace.")
+        if control_ablation not in _STEERED_CONTROL_ABLATIONS:
+            raise ValueError(
+                "control_ablation must be one of "
+                f"{_STEERED_CONTROL_ABLATIONS}, got {control_ablation!r}."
+            )
+        if (
+            self._steered_training_mode == STEERED_TRAINING_BIAS_ONLY
+            and control_ablation != STEERED_CONTROL_NONE
+        ):
+            raise ValueError(
+                "bias-only sessions already zero z and do not accept a "
+                "second control ablation."
+            )
+        trace_ids = tuple(trace.trace_id for trace in traces)
+        if len(set(trace_ids)) != len(trace_ids):
+            raise ValueError("Store SSL evaluation trace ids must be unique.")
+        if boundary_labels is not None and set(boundary_labels) != set(trace_ids):
+            raise ValueError(
+                "boundary_labels must provide exactly one sequence for every "
+                "evaluated trace id."
+            )
         self._ensure_initialized(store=store)
         torch = _require_torch()
         with torch.no_grad():
@@ -1202,6 +1309,7 @@ class StoreSSLTrainingSession:
                     trace=trace,
                     switch_threshold=switch_threshold,
                     use_sampling=False,
+                    control_ablation=control_ablation,
                 )
                 for trace in traces
             )
@@ -1241,21 +1349,34 @@ class StoreSSLTrainingSession:
             for objective in objectives
             for hard in objective["hard_switches"]
         )
-        rows = tuple(
-            (
-                float(probability),
-                float(hard),
-                expected,
+        rows_list: list[tuple[float, float, float]] = []
+        for trace, objective in zip(traces, objectives, strict=True):
+            expected_labels = (
+                boundary_labels[trace.trace_id]
+                if boundary_labels is not None
+                else objective["expert_action_switch_labels"]
             )
-            for objective in objectives
-            if objective["expert_action_switch_labels"]
-            for probability, hard, expected in zip(
-                objective["switch_probabilities"],
-                objective["hard_switches"],
-                objective["expert_action_switch_labels"],
-                strict=True,
+            if len(expected_labels) != len(objective["switch_probabilities"]):
+                raise ValueError(
+                    f"Boundary label count for trace {trace.trace_id!r} must "
+                    "equal its transition count."
+                )
+            if any(label not in (0.0, 1.0) for label in expected_labels):
+                raise ValueError("Boundary labels must be binary 0.0/1.0 values.")
+            rows_list.extend(
+                (
+                    float(probability),
+                    float(hard),
+                    float(expected),
+                )
+                for probability, hard, expected in zip(
+                    objective["switch_probabilities"],
+                    objective["hard_switches"],
+                    expected_labels,
+                    strict=True,
+                )
             )
-        )
+        rows = tuple(rows_list)
         true_positive = sum(
             1 for _p, predicted, expected in rows
             if predicted >= 0.5 and expected >= 0.5
@@ -1313,10 +1434,17 @@ class StoreSSLTrainingSession:
             ),
             switch_threshold=switch_threshold,
             supervision_target=next(iter(supervision_targets)),
+            control_ablation=control_ablation,
+            boundary_label_source=(
+                "external-oracle"
+                if boundary_labels is not None
+                else "expert-action-change"
+            ),
             description=(
                 f"store SSL evaluation batch={batch_id} "
                 f"traces={len(traces)} steps={total_steps} "
-                f"distortion={distortion:.4f} kl_rate={kl_rate:.4f}"
+                f"distortion={distortion:.4f} kl_rate={kl_rate:.4f} "
+                f"control={control_ablation}"
             ),
         )
 

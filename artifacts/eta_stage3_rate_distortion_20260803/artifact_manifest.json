@@ -1,0 +1,330 @@
+{
+  "schema_version": "eta-rate-distortion-manifest.v1",
+  "experiment_id": "eta-rate-distortion-criterion",
+  "created_at": "2026-08-04T06:12:48.138715+00:00",
+  "git_sha": "de7a0b622a5f1af4b80e7bd400a6ec1dd0e5b644",
+  "working_tree_dirty": true,
+  "verdict": "kill-eta",
+  "verdict_reason": "The instrument passed the joint-arm validity control but the frozen arm shows no rate-distortion gap across the alpha grid.",
+  "preregistered": true,
+  "preregistration_path": "artifacts/eta_stage3_prereg_v2_20260803/preregistration.json",
+  "preregistration_sha256": "e8f78a0de4c2af59d433b1677facfc5127bc156baf62fb840486b56e9d1fbd64",
+  "verdict_authoritative": true,
+  "claim_scope": "eta-temporal-abstraction-criterion-only",
+  "resumed": true,
+  "checkpoint_units": {
+    "checkpoints/points/frozen/alpha-0.01/seed-0.json": {
+      "unit": "points/frozen/alpha-0.01/seed-0",
+      "kind": "json",
+      "sha256": "65867ac19bc6af91c1c100f49c8c405e983423f87419b8f8167c722e17dd4d88",
+      "size_bytes": 927
+    },
+    "checkpoints/points/frozen/alpha-0.01/seed-1.json": {
+      "unit": "points/frozen/alpha-0.01/seed-1",
+      "kind": "json",
+      "sha256": "423bdd455a393c0613d7698e043f5e09558d991ae3d71f9accb0ee1f3c2d541c",
+      "size_bytes": 942
+    },
+    "checkpoints/points/frozen/alpha-0.01/seed-2.json": {
+      "unit": "points/frozen/alpha-0.01/seed-2",
+      "kind": "json",
+      "sha256": "447e7579927c9f1c6e09117e3edb31223637c9274645709f1186b061d07cab93",
+      "size_bytes": 960
+    },
+    "checkpoints/points/frozen/alpha-0.03/seed-0.json": {
+      "unit": "points/frozen/alpha-0.03/seed-0",
+      "kind": "json",
+      "sha256": "57fbb8124eb1ce5aeb63d73269a55eaa9b5ad6a184ec5547c587887c94dc54e6",
+      "size_bytes": 929
+    },
+    "checkpoints/points/frozen/alpha-0.03/seed-1.json": {
+      "unit": "points/frozen/alpha-0.03/seed-1",
+      "kind": "json",
+      "sha256": "5aa0dc39df76d18057ad273e50f306491a4551a42cd8ea75c626f44f93a85d88",
+      "size_bytes": 927
+    },
+    "checkpoints/points/frozen/alpha-0.03/seed-2.json": {
+      "unit": "points/frozen/alpha-0.03/seed-2",
+      "kind": "json",
+      "sha256": "1e4fefb448910644948c2f9962b0bd0a031eca7901822dc731e8d239e2813009",
+      "size_bytes": 964
+    },
+    "checkpoints/points/frozen/alpha-0.1/seed-0.json": {
+      "unit": "points/frozen/alpha-0.1/seed-0",
+      "kind": "json",
+      "sha256": "c1b19bfbe2607ced0690e6be6b2c1ffa4c6dbb38e79ae0a9641be73dbb4e56c8",
+      "size_bytes": 959
+    },
+    "checkpoints/points/frozen/alpha-0.1/seed-1.json": {
+      "unit": "points/frozen/alpha-0.1/seed-1",
+      "kind": "json",
+      "sha256": "f0d10c5636a900d69f5987dc4acccd98ec8bdd17e639fee00d947d2e32af2ff1",
+      "size_bytes": 966
+    },
+    "checkpoints/points/frozen/alpha-0.1/seed-2.json": {
+      "unit": "points/frozen/alpha-0.1/seed-2",
+      "kind": "json",
+      "sha256": "33712e081f2dfdfcfe74e632517558cb4ed9d7a8e485c87356dd43e71f0772fa",
+      "size_bytes": 957
+    },
+    "checkpoints/points/frozen/alpha-0.3/seed-0.json": {
+      "unit": "points/frozen/alpha-0.3/seed-0",
+      "kind": "json",
+      "sha256": "7556f5b8dfc52b1225df75391aaf5c77cbf0de23f83e8fe5678ea82a6233abf9",
+      "size_bytes": 927
+    },
+    "checkpoints/points/frozen/alpha-0.3/seed-1.json": {
+      "unit": "points/frozen/alpha-0.3/seed-1",
+      "kind": "json",
+      "sha256": "bc7fd4203c3bb21b1e16d2982f3e4c8f20820211ea80348a5c752a878108686a",
+      "size_bytes": 957
+    },
+    "checkpoints/points/frozen/alpha-0.3/seed-2.json": {
+      "unit": "points/frozen/alpha-0.3/seed-2",
+      "kind": "json",
+      "sha256": "a2f06b7837c2b3b161b1a3b9f8cf906639ad3ae4ac6a894999cdbee5d2aee618",
+      "size_bytes": 963
+    },
+    "checkpoints/points/frozen/alpha-1/seed-0.json": {
+      "unit": "points/frozen/alpha-1/seed-0",
+      "kind": "json",
+      "sha256": "7a0f25851887836f47fecbc8db7685d2c4e1b4ec47dd281b88b115fac7040b73",
+      "size_bytes": 926
+    },
+    "checkpoints/points/frozen/alpha-1/seed-1.json": {
+      "unit": "points/frozen/alpha-1/seed-1",
+      "kind": "json",
+      "sha256": "e06e81024da6bfe83d2c8fdeb121dc68c9f40ba0c9c386b9937c10239f2cbf09",
+      "size_bytes": 964
+    },
+    "checkpoints/points/frozen/alpha-1/seed-2.json": {
+      "unit": "points/frozen/alpha-1/seed-2",
+      "kind": "json",
+      "sha256": "55109e033f12a3048c74aa0aff4cba9941a94b05de6f533ae3fd8155150c28dd",
+      "size_bytes": 964
+    },
+    "checkpoints/points/frozen/alpha-3/seed-0.json": {
+      "unit": "points/frozen/alpha-3/seed-0",
+      "kind": "json",
+      "sha256": "27128f1976537e5c754c7893824fa7db9052c213e4f2f15bac725f3cb6d2ef78",
+      "size_bytes": 923
+    },
+    "checkpoints/points/frozen/alpha-3/seed-1.json": {
+      "unit": "points/frozen/alpha-3/seed-1",
+      "kind": "json",
+      "sha256": "c011cd444fed3f4e1a651c194f31d83ee49ed8f54acc889b5588fe0edb63f761",
+      "size_bytes": 964
+    },
+    "checkpoints/points/frozen/alpha-3/seed-2.json": {
+      "unit": "points/frozen/alpha-3/seed-2",
+      "kind": "json",
+      "sha256": "03903c8aca1197a6c1959042fe42f380e6436372cfae871bc5bccc952e9f5f96",
+      "size_bytes": 961
+    },
+    "checkpoints/points/joint/alpha-0.01/seed-0.json": {
+      "unit": "points/joint/alpha-0.01/seed-0",
+      "kind": "json",
+      "sha256": "f90eb8d2b0ab5172f5ccce3f722678b2a62ece12cb4523fd5faa5f6c09f5d4ef",
+      "size_bytes": 941
+    },
+    "checkpoints/points/joint/alpha-0.01/seed-1.json": {
+      "unit": "points/joint/alpha-0.01/seed-1",
+      "kind": "json",
+      "sha256": "14c9285dffae8602b801d5b94d40679340f90c0f87f26061ec793657babf4db1",
+      "size_bytes": 919
+    },
+    "checkpoints/points/joint/alpha-0.01/seed-2.json": {
+      "unit": "points/joint/alpha-0.01/seed-2",
+      "kind": "json",
+      "sha256": "e5fa0eb7641ef61b0bdf6d9142adc663a01a5e09bed1a385fde3e2c8782c8d03",
+      "size_bytes": 959
+    },
+    "checkpoints/points/joint/alpha-0.03/seed-0.json": {
+      "unit": "points/joint/alpha-0.03/seed-0",
+      "kind": "json",
+      "sha256": "74552bfe945c07284c806ed0baef12be957a3d730b4887db29589583587ae38e",
+      "size_bytes": 946
+    },
+    "checkpoints/points/joint/alpha-0.03/seed-1.json": {
+      "unit": "points/joint/alpha-0.03/seed-1",
+      "kind": "json",
+      "sha256": "43b4c98f0e13a79a9b742e2df769f5d0735d07bcee4c5eb90a8392ef2e57f6a2",
+      "size_bytes": 922
+    },
+    "checkpoints/points/joint/alpha-0.03/seed-2.json": {
+      "unit": "points/joint/alpha-0.03/seed-2",
+      "kind": "json",
+      "sha256": "b9c62022669592d62d6225c3b6fe9084cf44af3d6b2ea1013062b75316280fb4",
+      "size_bytes": 953
+    },
+    "checkpoints/points/joint/alpha-0.1/seed-0.json": {
+      "unit": "points/joint/alpha-0.1/seed-0",
+      "kind": "json",
+      "sha256": "40df5c7bea3b88a4a1fea5382bc07ee8a31a3eab500f36d3fede954fb28c0cae",
+      "size_bytes": 951
+    },
+    "checkpoints/points/joint/alpha-0.1/seed-1.json": {
+      "unit": "points/joint/alpha-0.1/seed-1",
+      "kind": "json",
+      "sha256": "fd97bbbade0cbf47a39c933d991b906a9d4e808a3734667ebc6fc5fc972bb447",
+      "size_bytes": 960
+    },
+    "checkpoints/points/joint/alpha-0.1/seed-2.json": {
+      "unit": "points/joint/alpha-0.1/seed-2",
+      "kind": "json",
+      "sha256": "1295857c458d414bc57debac68e4e2008cdac4177c8372047b5cba7a04560ece",
+      "size_bytes": 952
+    },
+    "checkpoints/points/joint/alpha-0.3/seed-0.json": {
+      "unit": "points/joint/alpha-0.3/seed-0",
+      "kind": "json",
+      "sha256": "8e9bd883af3dfbc0e456bb58807b28938ea460e7ac311b7029a974a68c52e7fe",
+      "size_bytes": 952
+    },
+    "checkpoints/points/joint/alpha-0.3/seed-1.json": {
+      "unit": "points/joint/alpha-0.3/seed-1",
+      "kind": "json",
+      "sha256": "09826dbb1b74d43cebdbf8e037b119bc787b6d1bd78cfa288a0454f7c4e0aebc",
+      "size_bytes": 952
+    },
+    "checkpoints/points/joint/alpha-0.3/seed-2.json": {
+      "unit": "points/joint/alpha-0.3/seed-2",
+      "kind": "json",
+      "sha256": "31c3ed2ea2144c6b690b6e965e5d2942d5fb4a1e6e8197f22e579b30334bcc50",
+      "size_bytes": 958
+    },
+    "checkpoints/points/joint/alpha-1/seed-0.json": {
+      "unit": "points/joint/alpha-1/seed-0",
+      "kind": "json",
+      "sha256": "646350eaab536eea1c17dfc0ea452fe85a5dbeee5cf7b6f89822ca6edc8588ec",
+      "size_bytes": 922
+    },
+    "checkpoints/points/joint/alpha-1/seed-1.json": {
+      "unit": "points/joint/alpha-1/seed-1",
+      "kind": "json",
+      "sha256": "325ccacc3822d7a3f6f2e176c78041cba1dd3a86d0b8704a544085032f153b97",
+      "size_bytes": 920
+    },
+    "checkpoints/points/joint/alpha-1/seed-2.json": {
+      "unit": "points/joint/alpha-1/seed-2",
+      "kind": "json",
+      "sha256": "e431cd48c2f71a4a3ed2721cb0317e35d151192f748f16c0d45ba3c3765ebef1",
+      "size_bytes": 961
+    },
+    "checkpoints/points/joint/alpha-3/seed-0.json": {
+      "unit": "points/joint/alpha-3/seed-0",
+      "kind": "json",
+      "sha256": "220722d36fe98189201cf243e0a30a11142e17ff8712c9bdcbceecd156503fb1",
+      "size_bytes": 920
+    },
+    "checkpoints/points/joint/alpha-3/seed-1.json": {
+      "unit": "points/joint/alpha-3/seed-1",
+      "kind": "json",
+      "sha256": "7e6b30197a05c1b4dbd3c01d194bfd4f32ec4605c3bfffed36550d2f9093a07f",
+      "size_bytes": 923
+    },
+    "checkpoints/points/joint/alpha-3/seed-2.json": {
+      "unit": "points/joint/alpha-3/seed-2",
+      "kind": "json",
+      "sha256": "e9deb1e060a9253c9d8feb941a765821938b1142e6cf823557c35bb2f1ed1a43",
+      "size_bytes": 961
+    }
+  },
+  "arms": [
+    "frozen",
+    "joint"
+  ],
+  "alpha_grid": [
+    0.01,
+    0.03,
+    0.1,
+    0.3,
+    1.0,
+    3.0
+  ],
+  "seed_schedule": [
+    0,
+    1,
+    2
+  ],
+  "n_z": 16,
+  "updates_per_run": 300,
+  "learning_rate": 0.02,
+  "substrate_learning_rate": 0.0001,
+  "switch_threshold": 0.55,
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "device": "mps",
+  "runtime_origin": "hf-local",
+  "fallback_active": false,
+  "injection_layer_index": 20,
+  "control_norm_cap": 23.653980255126953,
+  "observation_protocol": "partially-observable-staged-plan.v4",
+  "posterior_parameterization": "smooth",
+  "rate_gating": "switch-gated",
+  "gate_mode": "hard-st",
+  "prefix_cache": true,
+  "corpus": {
+    "corpus_origin": "generated-seeded",
+    "corpus_seed": 20260802,
+    "objective_count": 8,
+    "corridor_count": 2,
+    "extra_edge_probability": 0.35,
+    "train_routes": 64,
+    "heldout_routes": 24,
+    "train_lengths": [
+      2,
+      3
+    ],
+    "heldout_lengths": [
+      3,
+      4
+    ],
+    "environment_id": "eta-generated-hierarchy",
+    "report_corpus_origin": "generated-seeded",
+    "report_train_route_count": 64,
+    "report_heldout_route_count": 24
+  },
+  "rate_axis_responses": {
+    "frozen": {
+      "spearman_alpha_rate": -0.9429,
+      "rate_span": 2.068,
+      "rate_min": 0.0068,
+      "rate_max": 2.0748
+    },
+    "joint": {
+      "spearman_alpha_rate": -1.0,
+      "rate_span": 1.3277,
+      "rate_min": 0.0039,
+      "rate_max": 1.3316
+    }
+  },
+  "elapsed_seconds": 7846.663,
+  "python_version": "3.13.5",
+  "python_executable": "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+  "torch_version": "2.13.0",
+  "transformers_version": "5.14.1",
+  "mps_available": true,
+  "mps_exclusive_lock": "artifacts/.companion-evidence-mps.lock",
+  "mps_attestation": {
+    "torch_version": "2.13.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "matplotlib_plot": "rate_distortion_curves.png",
+  "result_files": {
+    "report.json": "48a589d41f4a700fec40e95c41c2eed13ae573126cff6598c5d6df5dd58f6bbf",
+    "points.jsonl": "f2e0aa24df3607671cb08e89110711d0c5b02081d715892393d07a20d07237e1",
+    "curves.json": "6cc8762495ba3564db68391158bc047bee7bd8286279996cf1d8fe213358a233",
+    "gap_assessments.json": "10d4d384c2b46f6fc4e3277dd83c694923ea094ac4d1f6a8e07ddabff37d778b",
+    "report.md": "e62655e548a9380508106744f1d3325cf64798b8901782820cf21042ec94a102",
+    "rate_distortion_curves.png": "59c64505e6753a4ea0ad6ab8afc9bd3729d8e8a08e0998208a9d65752c09fe55"
+  },
+  "source_files": {
+    "packages/vz-substrate/src/volvence_zero/substrate/steered_action_scoring.py": "f4bc43fd5af93feff6dd1f48ac9d4147212fda3b5a4f2cbfd072664d52171b0e",
+    "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "45874b7cc76f8ab872becd38efdd3b7f622abcf2cde59b622ef34170e1cd3bdb",
+    "packages/vz-temporal/src/volvence_zero/temporal/torch_store_ssl.py": "00cf5424b899699dd958031076108e642c70f7eb5b9bded886f508551d0d3cee",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_rate_distortion_evidence.py": "7cd3d09fe1be3ddb6d79fa6584de9b0ac446995b03fdd02b09cc9f036d1d7a1a",
+    "scripts/run_eta_rate_distortion.py": "ab683073570a70226870a8e82c7ce2fcfc12bf752353a0adc6b0e67bd2dce108"
+  }
+}

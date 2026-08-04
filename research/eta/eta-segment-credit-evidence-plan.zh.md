@@ -601,6 +601,22 @@ corpus seed 20260802 / 64+24 routes），基底换 Stage-2 v2 merged
 终审——frozen 臂近垂直 gap + joint 无 gap + gap 内 boundary F1 更高 →
 撤销 `kill-eta` 改判 retain-eta-on-llm；frozen 无 gap → 主张永久摘除。
 
+**2026-08-04 补记：Stage 3 权威扫完成并封存 `kill-eta`**。36/36 cells，
+prereg / MPS-only / no-fallback / source-hash 守门均满足；双臂分离 `0.1264`
+超过阈值 `0.0673`，所以不是 instrument-invalid。frozen rate 轴仍有效
+（Spearman `−0.9429` / span `2.0680`），但最大 distortion 下降横跨
+`84.16%` rate span，`gap_detected=false`；现有 action-change boundary F1
+在候选区内 `0.000`、区外 `0.2669`。joint 臂反而被判 gap=true。正式解释
+范围收窄为“本仓库当前 ETA operationalization 被否定”，不声称 ETA 理论普遍
+证伪；Stage 4 不启动，production WiringLevel 不变。
+
+后续先做 P1 等价性诊断，不立即重跑权威扫：同 layers 20/21/22、同逐步观测、
+同固定折叠 16 维的 exact-entry probe；bias-only；zero-z / permuted-z；以及
+`active_subgoal[t] != active_subgoal[t-1]` oracle boundary 只读评价。输出只归因
+入口 / 激励 / 优化，不改变封存 verdict，不回灌学习。主路线转为 frozen residual
+readout → causal steering → PE-gated segment credit / small-action Internal RL；
+忠实 ETA rewrite 仅在 P1 定罪入口或 bias、且 causal steering 失败时另立新 claim。
+
 **Stage 1（数据机制假设）**：环境 owner 新增 seeded 程序化生成器
 （`generate_hierarchical_environment` + hub relay 保证任意子目标序可达 +
 `stitch_waypoints` + `generate_hierarchical_routes` 按 ordering 哈希分区
@@ -628,17 +644,18 @@ subgoal）+ `run_eta_stage2_probe.py` 的 Gate 2（补课后 heldout ≥ 2× 随
 `artifacts/eta_stage2_gate2_prereg_20260802/`，不过则整体 kill。三条链路均已
 CPU smoke 打通（loss 2.42→2.08 merge+指纹；probe base/pretrained/gate2 逻辑）。
 
-**Stage 3（补课基底重审判据）**：`run_eta_rate_distortion.py` 增
+**Stage 3（补课基底重审判据；2026-08-04 已完成 `kill-eta`）**：`run_eta_rate_distortion.py` 增
 `--corpus-seed/--train-routes/--model-source`，在补课冻结 LLM 上按
 `eta-rate-distortion-evidence.v1` 已冻结规则重跑双臂判据，预注册
 `artifacts/eta_stage3_prereg_20260802/`（6 alpha × 3 seed × 2 臂）。出 gap 且
-段内 F1 更高 → 撤销 kill-eta 改判 retain-eta-on-llm；无 gap → kill 升级为
-跨原生小模型与领域内预训练 LLM 两种机制均不成立。
+段内 F1 更高 → 撤销 kill-eta 改判 retain-eta-on-llm；正式结果为 frozen 无
+gap，故当前 ETA-on-LLM operationalization 维持 kill。该结果不外推到论文的
+原生小模型或 ETA 理论整体；任何忠实重实现必须用新 claim / prereg 重开。
 
 **Stage 4（contingent，仅设计）**：
 `research/eta/eta-stage4-dialogue-transfer-prereg-skeleton.md`，对话无子目标
 真值故 boundary F1 不可作门，退回 rate-distortion gap + heldout 泛化，仅前
-三级全过后才转正式预注册并执行。
+三级全过后才转正式预注册并执行。Gate 3 已 FAIL，因此不启动。
 
 回滚：全部新代码为 evidence lane，不改任何 production WiringLevel；补课基底是
 独立 artifact，原始 Qwen 路径不受影响。
