@@ -190,7 +190,10 @@ rollback drill、latency/SLO 与 safety 门。缺任一 evidence 保持 SHADOW�
 
 `scripts/run_steering_promotion_test_plan.py` 必须在 C3 结果出现前冻结自己的 prereg；
 创建新 prereg 时只要 C3 output 已出现 bundle/trace/report/manifest 任一正式产物就 fail loudly，
-之后只读消费 C3 bundle/trace/report。`SteeringPromotionEvidence` 把证据分给唯一组件：
+之后只读消费 C3 bundle/trace/report。B3 prereg 的源码指纹独立覆盖 sensor、gate、executor、
+runtime kernel、session/brain、response/expression、transformers residual hook、service activation
+consumer 与最终 wiring；不能只依赖 C3 prereg 间接冻结 production ACTIVE 链。
+`SteeringPromotionEvidence` 把证据分给唯一组件：
 
 - sensor：conditional 相对 matched unconditional 的 sensor-off 优势；
 - executor：always-on conditional executor 相对 noop 的 N+1 优势；

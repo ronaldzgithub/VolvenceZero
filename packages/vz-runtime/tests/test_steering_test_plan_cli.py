@@ -285,6 +285,20 @@ def test_b3_preregistration_is_idempotent_and_binds_independent_controls(
         "steering_executor",
         "steering_gate",
     ]
+    assert {
+        "packages/lifeform-expression/src/lifeform_expression/llm_synthesizer.py",
+        "packages/lifeform-service/src/lifeform_service/app.py",
+        "packages/lifeform-service/src/lifeform_service/steering_activation.py",
+        "packages/vz-contracts/src/volvence_zero/runtime/kernel.py",
+        "packages/vz-cognition/src/volvence_zero/steering_sensor.py",
+        "packages/vz-runtime/src/volvence_zero/agent/response.py",
+        "packages/vz-runtime/src/volvence_zero/agent/session.py",
+        "packages/vz-runtime/src/volvence_zero/brain.py",
+        "packages/vz-runtime/src/volvence_zero/integration/final_wiring.py",
+        "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py",
+        "packages/vz-substrate/src/volvence_zero/steering_executor.py",
+        "packages/vz-temporal/src/volvence_zero/steering_gate.py",
+    } <= set(configuration["source_sha256"])
     assert "learned-active-eta-off-gate" in payload["forbidden_substitutions"]
 
 
