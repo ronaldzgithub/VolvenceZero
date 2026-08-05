@@ -43,6 +43,7 @@ from volvence_zero.conditioning_bank_contracts import (
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
+from volvence_zero.steering_contracts import SteeringIntervention
 from volvence_zero.substrate.peft_adapter_cache import adapter_name_for
 from volvence_zero.substrate.residual_contracts import GenerationResult
 from volvence_zero.substrate.residual_interfaces import (
@@ -184,6 +185,12 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             "runtime."
         )
 
+    def apply_direct_residual_delta(self, **kwargs):
+        raise NotImplementedError(
+            "VLLMOpenWeightResidualRuntime does not expose residual hooks; "
+            "direct steering is transformers-only."
+        )
+
     # -- LoRA activation contract --------------------------------------
 
     @property
@@ -250,7 +257,13 @@ class VLLMOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             ConditioningBankLatentCarrier, ...
         ] = (),
         sampling_seed: int | None = None,
+        steering_intervention: SteeringIntervention | None = None,
     ) -> GenerationResult:
+        if steering_intervention is not None:
+            raise NotImplementedError(
+                "VLLMOpenWeightResidualRuntime cannot apply ACTIVE steering; "
+                "the steering generation path is transformers-only."
+            )
         if personal_conditioning is not None:
             raise NotImplementedError(
                 "VLLMOpenWeightResidualRuntime cannot apply personal "

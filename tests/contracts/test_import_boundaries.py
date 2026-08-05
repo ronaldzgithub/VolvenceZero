@@ -64,6 +64,9 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-substrate": frozenset(
         {
             "runtime", "learned_update", "personal_conditioning_contracts",
+            # B1 steering convergence: all three runtime owners share the
+            # immutable artifact/snapshot shapes from vz-contracts.
+            "steering_contracts",
             # State KV P3: the prefix generator reads a bank's numeric readout
             # and shape only. The contract carries no bank semantics, so
             # substrate can consume it without becoming a semantic owner.
@@ -93,6 +96,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-cognition": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
+            "steering_contracts",
             "personal_conditioning_contracts",
             # State KV P1: the generic conditioning-bank value type that all
             # six banks publish. The per-bank adapters live here in cognition
@@ -191,6 +195,7 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-temporal": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory",
+            "steering_contracts",
             # Strict owner-authored checkpoint payload codec (vz-contracts).
             "canonical_json", "owner_hydration",
             # State KV P4-c: temporal owns the Top-K bank-selection policy.
@@ -213,6 +218,10 @@ ALLOWED_VZ_UPSTREAM: dict[str, frozenset[str]] = {
     "vz-runtime": frozenset(
         {
             "runtime", "learned_update", "temporal_types", "substrate", "memory", "dialogue_trace",
+            "steering_contracts",
+            # B2 orchestration imports the three owner modules from their
+            # declared business wheels; vz-runtime already depends on each.
+            "steering_sensor", "steering_gate", "steering_executor",
             "personal_conditioning_contracts",
             # State KV P1: runtime supplies the scope a bank is published
             # under and records the per-turn lineage, so it constructs the

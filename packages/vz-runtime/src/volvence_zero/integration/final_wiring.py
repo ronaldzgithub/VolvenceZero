@@ -186,6 +186,14 @@ from volvence_zero.substrate import (
     SubstrateSelfModSnapshot,
     SubstrateSnapshot,
 )
+from volvence_zero.steering_contracts import (
+    SteeringArtifactBundle,
+    SteeringGateAction,
+)
+from volvence_zero.steering_executor import SteeringExecutorModule
+from volvence_zero.steering_gate import SteeringGateModule
+from volvence_zero.steering_sensor import SteeringSensorModule
+from volvence_zero.substrate.residual_interfaces import OpenWeightResidualRuntime
 
 # Reward-eligibility contract owned by the runtime-replay settlement owner in
 # vz-temporal. Re-exported below so domain profiles can declare it through the
@@ -350,6 +358,20 @@ class FinalRolloutConfig:
     reflection: WiringLevel = WiringLevel.ACTIVE
     temporal: WiringLevel = WiringLevel.ACTIVE
     eta_open_weight_runtime: WiringLevel = WiringLevel.SHADOW
+    # Residual steering owner family. All three candidates start SHADOW and
+    # are only constructed when a model-bound SteeringArtifactBundle is
+    # injected. Rollback is owner-local through VZ_STEERING_* or these fields.
+    steering_sensor: WiringLevel = WiringLevel.SHADOW
+    steering_executor: WiringLevel = WiringLevel.SHADOW
+    steering_gate: WiringLevel = WiringLevel.SHADOW
+    # A SHADOW executor runs a second, non-user-visible transformers forward
+    # to prove the exact residual hook is live. False is the immediate
+    # compute-only rollback and guarantees zero steering hook registration.
+    steering_shadow_hook: bool = True
+    # Ordered promotion allows sensor -> executor before the learned gate.
+    # That intermediate ACTIVE executor must name its temporary gate-off arm
+    # explicitly; "blocked" fails construction instead of silently choosing.
+    steering_ungated_action: str = "blocked"
     # autograd-owner-integration: per-owner torch autograd backends. DISABLED by
     # default (pure-Python rollback baseline = unchanged behavior). Set to SHADOW
     # to dual-run for parity evidence, or ACTIVE to make the torch autograd path
@@ -671,6 +693,37 @@ class FinalRolloutConfig:
     def __post_init__(self) -> None:
         if not 0.0 <= self.temporal_ssl_m3_slow_gain <= 1.0:
             raise ValueError("temporal_ssl_m3_slow_gain must be within [0, 1]")
+        if self.steering_ungated_action not in (
+            "blocked",
+            "noop",
+            "always_on",
+        ):
+            raise ValueError(
+                "steering_ungated_action must be blocked, noop, or always_on"
+            )
+        if (
+            self.steering_executor is WiringLevel.ACTIVE
+            and self.steering_sensor is not WiringLevel.ACTIVE
+        ):
+            raise ValueError(
+                "ACTIVE steering_executor requires ACTIVE steering_sensor"
+            )
+        if (
+            self.steering_executor is WiringLevel.ACTIVE
+            and self.steering_gate is not WiringLevel.ACTIVE
+            and self.steering_ungated_action == "blocked"
+        ):
+            raise ValueError(
+                "ACTIVE steering_executor without ACTIVE gate requires an "
+                "explicit gate-off steering_ungated_action"
+            )
+        if (
+            self.steering_gate is WiringLevel.ACTIVE
+            and self.steering_executor is not WiringLevel.ACTIVE
+        ):
+            raise ValueError(
+                "ACTIVE steering_gate requires ACTIVE steering_executor"
+            )
         if not isinstance(
             self.internal_rl_runtime_reward_eligibility,
             RuntimeReplayRewardEligibility,
@@ -774,6 +827,9 @@ class FinalRolloutConfig:
             "reflection": self.reflection,
             "temporal": self.temporal,
             "eta_open_weight_runtime": self.eta_open_weight_runtime,
+            "steering_sensor": self.steering_sensor,
+            "steering_executor": self.steering_executor,
+            "steering_gate": self.steering_gate,
             "session_post_slow_loop": self.session_post_slow_loop,
             "experience_consolidation": self.experience_consolidation,
             "plan_intent": self.plan_intent,
@@ -825,6 +881,10 @@ def resolve_final_rollout_config(
     - ``VZ_TEMPORAL_RUNTIME_BACKEND``
     - ``VZ_INTERNAL_RL_BACKEND``
     - ``VZ_CMS_TORCH_BACKEND``
+    - ``VZ_STEERING_SENSOR`` / ``VZ_STEERING_EXECUTOR`` /
+      ``VZ_STEERING_GATE``
+    - ``VZ_STEERING_SHADOW_HOOK``
+    - ``VZ_STEERING_UNGATED_ACTION``
 
     The legacy ``VZ_TORCH_BACKENDS=active`` remains a compatibility shortcut
     that requests ACTIVE for all four owners. A per-owner value takes
@@ -844,20 +904,58 @@ def resolve_final_rollout_config(
         ("temporal_runtime_backend", "VZ_TEMPORAL_RUNTIME_BACKEND"),
         ("internal_rl_backend", "VZ_INTERNAL_RL_BACKEND"),
         ("cms_torch_backend", "VZ_CMS_TORCH_BACKEND"),
+        ("steering_sensor", "VZ_STEERING_SENSOR"),
+        ("steering_executor", "VZ_STEERING_EXECUTOR"),
+        ("steering_gate", "VZ_STEERING_GATE"),
+    )
+    torch_backend_fields = frozenset(
+        {
+            "temporal_ssl_backend",
+            "temporal_runtime_backend",
+            "internal_rl_backend",
+            "cms_torch_backend",
+        }
     )
     legacy_flag = os.environ.get("VZ_TORCH_BACKENDS", "").strip().lower()
     legacy_active = legacy_flag in ("1", "true", "active", "on", "yes")
-    overrides: dict[str, WiringLevel] = {}
+    overrides: dict[str, object] = {}
     for field_name, env_name in owner_env_vars:
         raw_value = os.environ.get(env_name, "").strip().lower()
         if raw_value:
             if raw_value not in level_by_protocol_value:
                 raise ValueError(f"{env_name} must be one of disabled, shadow, active; received {raw_value!r}.")
             overrides[field_name] = level_by_protocol_value[raw_value]
-        elif legacy_active:
+        elif legacy_active and field_name in torch_backend_fields:
             overrides[field_name] = WiringLevel.ACTIVE
-    if not overrides:
-        return config
+    shadow_hook_raw = os.environ.get(
+        "VZ_STEERING_SHADOW_HOOK", ""
+    ).strip().lower()
+    if shadow_hook_raw:
+        boolean_values = {
+            "0": False,
+            "false": False,
+            "off": False,
+            "no": False,
+            "1": True,
+            "true": True,
+            "on": True,
+            "yes": True,
+        }
+        if shadow_hook_raw not in boolean_values:
+            raise ValueError(
+                "VZ_STEERING_SHADOW_HOOK must be a boolean protocol value"
+            )
+        overrides["steering_shadow_hook"] = boolean_values[shadow_hook_raw]
+    ungated_action_raw = os.environ.get(
+        "VZ_STEERING_UNGATED_ACTION", ""
+    ).strip().lower()
+    if ungated_action_raw:
+        if ungated_action_raw not in ("blocked", "noop", "always_on"):
+            raise ValueError(
+                "VZ_STEERING_UNGATED_ACTION must be blocked, noop, or "
+                "always_on"
+            )
+        overrides["steering_ungated_action"] = ungated_action_raw
     # Platform stability guard: the four torch-autograd backends spawn CPU
     # parallel-for / MKL worker threads that intermittently trip a native
     # 0xC0000005 access violation on Windows + CUDA hosts under sustained
@@ -873,7 +971,14 @@ def resolve_final_rollout_config(
         "on",
         "yes",
     )
-    if not force and os.name == "nt" and os.environ.get("VZ_SUBSTRATE_DEVICE", "").startswith("cuda"):
+    if (
+        not force
+        and os.name == "nt"
+        and os.environ.get("VZ_SUBSTRATE_DEVICE", "").startswith("cuda")
+    ):
+        for field_name in torch_backend_fields:
+            overrides.pop(field_name, None)
+    if not overrides:
         return config
     return replace(config, **overrides)
 
@@ -1870,6 +1975,10 @@ def build_final_runtime_modules(
     # standalone callers), matching the other injected-state parameters.
     personal_conditioning_credit_state: BankCreditFeedbackState | None = None,
     relationship_conditioning_credit_state: BankCreditFeedbackState | None = None,
+    steering_bundle: SteeringArtifactBundle | None = None,
+    steering_sensor_module: SteeringSensorModule | None = None,
+    steering_gate_module: SteeringGateModule | None = None,
+    steering_runtime: OpenWeightResidualRuntime | None = None,
 ) -> list[Any]:
     if domain_experience_packages:
         application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
@@ -2107,6 +2216,51 @@ def build_final_runtime_modules(
         wiring_level=config.level_for("protocol_revision_queue", WiringLevel.SHADOW),
         registry_module=protocol_registry_owner,
     )
+    steering_sensor_owner: SteeringSensorModule | None = None
+    steering_gate_owner: SteeringGateModule | None = None
+    steering_executor_owner: SteeringExecutorModule | None = None
+    if steering_bundle is not None:
+        sensor_level = config.level_for("steering_sensor", WiringLevel.SHADOW)
+        gate_level = config.level_for("steering_gate", WiringLevel.SHADOW)
+        executor_level = config.level_for("steering_executor", WiringLevel.SHADOW)
+        steering_sensor_owner = steering_sensor_module or SteeringSensorModule(
+            artifact=steering_bundle.reader,
+            wiring_level=sensor_level,
+        )
+        steering_gate_owner = steering_gate_module or SteeringGateModule(
+            artifact=steering_bundle.gate,
+            wiring_level=gate_level,
+        )
+        if steering_sensor_owner.artifact != steering_bundle.reader:
+            raise ValueError("injected steering sensor artifact drift")
+        if steering_sensor_owner.wiring_level is not sensor_level:
+            raise ValueError("injected steering sensor wiring drift")
+        if steering_gate_owner.artifact != steering_bundle.gate:
+            raise ValueError("injected steering gate artifact drift")
+        if steering_gate_owner.wiring_level is not gate_level:
+            raise ValueError("injected steering gate wiring drift")
+        ungated_action = {
+            "blocked": None,
+            "noop": SteeringGateAction.NOOP,
+            "always_on": SteeringGateAction.STEER,
+        }[config.steering_ungated_action]
+        steering_executor_owner = SteeringExecutorModule(
+            artifact=steering_bundle.executor,
+            # The unconditional operator is an evidence-only B3 control. It
+            # must disappear when executor ownership becomes ACTIVE; passing
+            # it through would both violate the artifact contract and make an
+            # otherwise authorized one-field rollout impossible to construct.
+            sensor_off_artifact=(
+                steering_bundle.sensor_off_executor
+                if executor_level is WiringLevel.SHADOW
+                else None
+            ),
+            runtime=steering_runtime,
+            source_text=user_input or "",
+            apply_shadow_hook=config.steering_shadow_hook,
+            ungated_action=ungated_action,
+            wiring_level=executor_level,
+        )
     _runtime_modules = [
         # dialogue_external_outcome must be published before PE and
         # regime (both depend on it). The PE<->regime cycle forces
@@ -2115,6 +2269,11 @@ def build_final_runtime_modules(
         SubstrateModule(
             adapter=substrate_adapter,
             wiring_level=config.level_for("substrate", WiringLevel.ACTIVE),
+        ),
+        *(
+            (steering_sensor_owner,)
+            if steering_sensor_owner is not None
+            else ()
         ),
         SubstrateSelfModModule(
             session_id=session_id,
@@ -2267,6 +2426,12 @@ def build_final_runtime_modules(
             action_context=prediction_action_context,
             learning_enabled=learning_enabled,
         ),
+        *(
+            (steering_gate_owner, steering_executor_owner)
+            if steering_gate_owner is not None
+            and steering_executor_owner is not None
+            else ()
+        ),
         CaseMemoryModule(
             user_input=(
                 user_input
@@ -2417,6 +2582,10 @@ async def run_final_wiring_turn(
     prediction_error_temporal_learning_enabled: bool = True,
     personal_conditioning_credit_state: BankCreditFeedbackState | None = None,
     relationship_conditioning_credit_state: BankCreditFeedbackState | None = None,
+    steering_bundle: SteeringArtifactBundle | None = None,
+    steering_sensor_module: SteeringSensorModule | None = None,
+    steering_gate_module: SteeringGateModule | None = None,
+    steering_runtime: OpenWeightResidualRuntime | None = None,
     user_scope: str = "anonymous",
     session_id: str = "runtime-session",
     wave_id: str = "wave-0",
@@ -2518,6 +2687,10 @@ async def run_final_wiring_turn(
         prediction_error_temporal_learning_enabled=(prediction_error_temporal_learning_enabled),
         personal_conditioning_credit_state=personal_conditioning_credit_state,
         relationship_conditioning_credit_state=relationship_conditioning_credit_state,
+        steering_bundle=steering_bundle,
+        steering_sensor_module=steering_sensor_module,
+        steering_gate_module=steering_gate_module,
+        steering_runtime=steering_runtime,
     )
     if upstream_snapshots:
         for module in modules:

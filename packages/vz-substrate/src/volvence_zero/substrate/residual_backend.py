@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import importlib
 import logging
 import math
@@ -18,6 +19,10 @@ from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
 from volvence_zero.runtime import WiringLevel
+from volvence_zero.steering_contracts import (
+    SteeringGateAction,
+    SteeringIntervention,
+)
 
 from volvence_zero.substrate.adapter import (
     FeatureSignal,
@@ -386,6 +391,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._control_layer_gains = {
             layer_index: 1.0 for layer_index in self._layer_indices
         }
+
         self._personal_conditioning_basis = (
             self._build_personal_conditioning_basis(
                 hidden_size=self._hidden_size,
@@ -615,6 +621,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._common_adapter_bundle = common_adapter_bundle
         if common_adapter_bundle is not None:
             self._install_common_adapter_bundle(common_adapter_bundle)
+
+    @property
+    def loaded_base_model_weights_sha256(self) -> str:
+        return self._loaded_base_model_weights_sha256
+
+    @property
+    def model_version(self) -> str:
+        source = Path(self._pretrained_source)
+        return source.name if source.name else self.model_id
 
     @property
     def hook_layer_indices(self) -> tuple[int, ...]:
@@ -1298,6 +1313,76 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             ),
         )
 
+    def apply_direct_residual_delta(
+        self,
+        *,
+        source_text: str,
+        substrate_snapshot: SubstrateSnapshot,
+        layer_index: int,
+        residual_delta: tuple[float, ...],
+    ) -> ResidualControlApplication:
+        if layer_index not in self._layer_indices:
+            raise ValueError(
+                "direct residual steering layer is not hooked by this "
+                f"runtime: {layer_index!r} not in {self._layer_indices!r}"
+            )
+        if len(residual_delta) != self._hidden_size:
+            raise ValueError(
+                "direct residual steering width mismatch: "
+                f"{len(residual_delta)} != {self._hidden_size}"
+            )
+        if not all(math.isfinite(value) for value in residual_delta):
+            raise ValueError("direct residual steering delta must be finite")
+        after_capture = self._capture_direct_residual_summary(
+            source_text=source_text,
+            layer_index=layer_index,
+            residual_delta=residual_delta,
+        )
+        before_summary = _summarize_real_activations(
+            substrate_snapshot.residual_activations
+        )
+        after_summary = _summarize_real_activations(
+            after_capture.residual_activations
+        )
+        logit_before = max(substrate_snapshot.token_logits, default=0.0)
+        logit_after = max(after_capture.token_logits, default=0.0)
+        downstream_effect = (
+            _clamp_signed(after_summary[0] - before_summary[0]),
+            _clamp_signed(after_summary[1] - before_summary[1]),
+            _clamp_signed(
+                (logit_after - logit_before)
+                + after_summary[2]
+                - before_summary[2]
+            ),
+        )
+        control_energy = sum(abs(value) for value in residual_delta) / max(
+            len(residual_delta), 1
+        )
+        applied_snapshot = SubstrateSnapshot(
+            model_id=self.model_id,
+            is_frozen=self.is_frozen,
+            surface_kind=substrate_snapshot.surface_kind,
+            token_logits=after_capture.token_logits,
+            feature_surface=after_capture.feature_surface,
+            residual_activations=after_capture.residual_activations,
+            residual_sequence=after_capture.residual_sequence,
+            unavailable_fields=substrate_snapshot.unavailable_fields,
+            description=(
+                f"{after_capture.description} Applied direct residual steering "
+                f"at layer {layer_index}."
+            ),
+        )
+        return ResidualControlApplication(
+            applied_snapshot=applied_snapshot,
+            downstream_effect=downstream_effect,
+            control_energy=control_energy,
+            backend_name=f"transformers-direct-steering:{self.model_id}",
+            description=(
+                f"transformers-direct-steering:{self.model_id} "
+                f"device={self._device} layer={layer_index}"
+            ),
+        )
+
     def score_continuation(
         self,
         *,
@@ -1757,6 +1842,100 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             ),
         )
 
+    def _capture_direct_residual_summary(
+        self,
+        *,
+        source_text: str,
+        layer_index: int,
+        residual_delta: tuple[float, ...],
+    ) -> OpenWeightRuntimeCapture:
+        """Run one frozen forward with an exact layer-specific delta."""
+
+        effective_source = source_text.strip() or "<empty>"
+        model_inputs = self._tokenize(source_text=effective_source)
+        pooled_layers: dict[int, object] = {}
+        direct_delta = self._torch.tensor(
+            residual_delta,
+            dtype=self._torch.float32,
+            device=self._device,
+        )
+
+        def make_hook(hooked_layer_index: int):
+            def hook(module, args, output):
+                del module, args
+                hidden = self._extract_hidden_tensor(output=output)
+                adjusted = hidden
+                adapter_delta = self._adapter_delta_for_layer(
+                    layer_index=hooked_layer_index
+                )
+                if adapter_delta is not None:
+                    adjusted = adjusted + adapter_delta.view(1, 1, -1).to(
+                        dtype=hidden.dtype
+                    )
+                if hooked_layer_index == layer_index:
+                    adjusted = adjusted + direct_delta.view(1, 1, -1).to(
+                        dtype=hidden.dtype
+                    )
+                pooled_layers[hooked_layer_index] = (
+                    self._latest_token_control_activation(adjusted)
+                )
+                return self._replace_hidden_tensor(
+                    output=output,
+                    replacement=adjusted,
+                )
+
+            return hook
+
+        hooks = [
+            self._block_modules[index].register_forward_hook(make_hook(index))
+            for index in self._layer_indices
+        ]
+        try:
+            with self._torch.no_grad():
+                outputs = self._model(**model_inputs, use_cache=False)
+        finally:
+            for hook in hooks:
+                hook.remove()
+        if not pooled_layers:
+            raise RuntimeError("direct residual steering captured no activations")
+        logits = self._extract_logits(outputs=outputs)
+        probabilities = self._torch.softmax(logits[0, -1], dim=-1)
+        top_k = min(self._top_k_logits, int(probabilities.shape[-1]))
+        top_values, _ = self._torch.topk(probabilities, k=top_k)
+        token_logits = tuple(
+            float(value) for value in top_values.detach().cpu().tolist()
+        )
+        residual_activations = tuple(
+            ResidualActivation(
+                layer_index=index,
+                activation=self._tensor_to_activation_tuple(pooled_layers[index]),
+                step=0,
+            )
+            for index in self._layer_indices
+        )
+        summary = _summarize_real_activations(residual_activations)
+        return OpenWeightRuntimeCapture(
+            token_logits=token_logits,
+            feature_surface=(
+                FeatureSignal(
+                    name="direct_steering_residual_mean_abs",
+                    values=(summary[0],),
+                    source="transformers-direct-steering-summary",
+                ),
+                FeatureSignal(
+                    name="direct_steering_residual_peak_abs",
+                    values=(summary[1],),
+                    source="transformers-direct-steering-summary",
+                ),
+            ),
+            residual_activations=residual_activations,
+            residual_sequence=(),
+            description=(
+                f"Transformers direct-steering capture model={self.model_id} "
+                f"device={self._device} layer={layer_index}."
+            ),
+        )
+
     def _latest_token_control_activation(self, hidden):
         if hidden.dim() != 3 or hidden.shape[1] <= 0:
             raise ValueError(
@@ -1882,6 +2061,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         ] = (),
         sampling_seed: int | None = None,
         character_id: str = "",
+        steering_intervention: SteeringIntervention | None = None,
     ) -> GenerationResult:
         if sampling_seed is not None:
             if isinstance(sampling_seed, bool) or not isinstance(
@@ -1922,6 +2102,41 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 "conditioning_bank_carriers must name each bank type at most "
                 f"once, got {bank_types!r}."
             )
+        steering_delta = None
+        if steering_intervention is not None:
+            if steering_intervention.application_mode != "active-pending":
+                raise ValueError(
+                    "generation only accepts an ACTIVE pending steering "
+                    "intervention"
+                )
+            if steering_intervention.source_model_id != self.model_id:
+                raise ValueError("steering intervention model_id drift")
+            if (
+                not self._loaded_base_model_weights_sha256
+                or steering_intervention.source_model_weights_sha256
+                != self._loaded_base_model_weights_sha256
+            ):
+                raise ValueError(
+                    "steering intervention is not bound to the verified "
+                    "loaded base weights"
+                )
+            if steering_intervention.layer_index not in self._layer_indices:
+                raise ValueError(
+                    "steering intervention targets an unhooked layer"
+                )
+            if len(steering_intervention.residual_delta) != self._hidden_size:
+                raise ValueError("steering intervention residual width drift")
+            if steering_intervention.action is SteeringGateAction.STEER:
+                steering_delta = self._torch.tensor(
+                    steering_intervention.residual_delta,
+                    dtype=self._torch.float32,
+                    device=self._device,
+                )
+            elif any(
+                abs(value) > 1e-12
+                for value in steering_intervention.residual_delta
+            ):
+                raise ValueError("NOOP steering intervention must be zero")
         effective_max_new_tokens = max_new_tokens
         effective_temperature = temperature
         effective_repetition_penalty = 1.08
@@ -2079,6 +2294,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             or bool(bank_delta_by_layer)
             or has_runtime_deltas
             or has_character_residual
+            or steering_delta is not None
         )
         hooks = (
             [
@@ -2102,6 +2318,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                         ),
                         character_residual_delta=self._character_residual_deltas.get(
                             layer_index
+                        ),
+                        steering_delta=(
+                            steering_delta
+                            if steering_intervention is not None
+                            and layer_index == steering_intervention.layer_index
+                            else None
                         ),
                     )
                 )
@@ -2247,6 +2469,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 f"{'on' if personal_conditioning_applied else 'off'} "
                 f"conditioning_banks={bank_types!r}"
             ),
+            input_token_count=prompt_length,
+            source_sha256=hashlib.sha256(
+                effective_prompt.encode("utf-8")
+            ).hexdigest(),
             personal_conditioning_applied=personal_conditioning_applied,
             conditioning_bank_carriers_applied=(
                 conditioning_bank_carriers_applied
@@ -2258,6 +2484,24 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             character_prefix_shadow_id=character_prefix_shadow_id,
             character_residual_applied=bool(self._character_residual_deltas and hooks),
             character_residual_adapter_id=self._character_residual_adapter_id,
+            steering_intervention_applied=(
+                steering_delta is not None and bool(hooks)
+            ),
+            steering_action=(
+                steering_intervention.action.value
+                if steering_intervention is not None
+                else ""
+            ),
+            steering_executor_artifact_id=(
+                steering_intervention.executor_artifact_id
+                if steering_intervention is not None
+                else ""
+            ),
+            steering_gate_policy_version=(
+                steering_intervention.gate_policy_version
+                if steering_intervention is not None
+                else 0
+            ),
         )
         if str(self._device).startswith("mps"):
             # MPS uses unified memory and retains released generation buffers
@@ -3923,6 +4167,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         personal_delta=None,
         conditioning_bank_delta=None,
         character_residual_delta=None,
+        steering_delta=None,
     ):
         def hook(module, args, output):
             del module
@@ -3942,6 +4187,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 and not applies_personal_delta
                 and conditioning_bank_delta is None
                 and character_residual_delta is None
+                and steering_delta is None
             ):
                 if capture_residuals:
                     captured_layers[layer_index] = hidden.detach().cpu()
@@ -3963,6 +4209,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 adjusted = adjusted + conditioning_bank_delta.view(
                     1, 1, -1
                 ).to(dtype=hidden.dtype)
+            if steering_delta is not None:
+                adjusted = adjusted + steering_delta.view(1, 1, -1).to(
+                    dtype=hidden.dtype
+                )
             if capture_residuals:
                 captured_layers[layer_index] = adjusted.detach().cpu()
             if isinstance(output, tuple):
@@ -4347,6 +4597,7 @@ def build_transformers_runtime_with_fallback(
     common_adapter_bundle: CommonAdapterBundle | None = None,
     character_residual_package: CharacterResidualAdapterPackage | None = None,
     model_dtype: str | None = None,
+    expected_model_weights_sha256: str = "",
 ) -> TransformersOpenWeightResidualRuntime:
     resolved_runtime_mode = resolve_local_runtime_mode(
         runtime_mode=runtime_mode,
@@ -4355,6 +4606,11 @@ def build_transformers_runtime_with_fallback(
         fallback_to_builtin=fallback_to_builtin,
     )
     if resolved_runtime_mode is LocalSubstrateRuntimeMode.BUILTIN_ONLY:
+        if expected_model_weights_sha256:
+            raise ValueError(
+                "a model-bound steering artifact cannot use builtin-only "
+                "substrate mode"
+            )
         if (
             character_prefix_package is not None
             or character_prefix_registry is not None
@@ -4391,7 +4647,7 @@ def build_transformers_runtime_with_fallback(
         effective_runtime_origin = "hf-local"
     effective_model_source = model_source or model_id
     loaded_base_model_weights_sha256 = ""
-    if common_adapter_bundle is not None:
+    if common_adapter_bundle is not None or expected_model_weights_sha256:
         candidate = Path(effective_model_source).expanduser()
         if candidate.is_dir():
             weights_root = candidate.resolve()
@@ -4411,7 +4667,7 @@ def build_transformers_runtime_with_fallback(
                 )
             ).resolve()
         actual_weights_sha256 = fingerprint_model_weight_files(weights_root)
-        if (
+        if common_adapter_bundle is not None and (
             actual_weights_sha256
             != common_adapter_bundle.base_model_weights_sha256
         ):
@@ -4420,6 +4676,15 @@ def build_transformers_runtime_with_fallback(
                 f"runtime snapshot: declared="
                 f"{common_adapter_bundle.base_model_weights_sha256}, "
                 f"actual={actual_weights_sha256}."
+            )
+        if (
+            expected_model_weights_sha256
+            and actual_weights_sha256 != expected_model_weights_sha256
+        ):
+            raise ValueError(
+                "loaded substrate weight digest does not match the frozen "
+                "steering artifact: declared="
+                f"{expected_model_weights_sha256}, actual={actual_weights_sha256}."
             )
         effective_model_source = str(weights_root)
         effective_local_files_only = True
@@ -4454,6 +4719,7 @@ def build_transformers_runtime_with_fallback(
             or character_prefix_registry is not None
             or common_adapter_bundle is not None
             or character_residual_package is not None
+            or expected_model_weights_sha256
         ):
             raise RuntimeError(
                 "real HF runtime failed while a character model-side package was "

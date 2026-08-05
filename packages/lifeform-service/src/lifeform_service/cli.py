@@ -27,6 +27,7 @@ not need one because there is no parallelism in the inference path.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -40,12 +41,18 @@ from lifeform_service.app import create_app
 from lifeform_service.alpha import AlphaServiceConfig, load_alpha_users
 from lifeform_service.companion_evidence_profile import (
     COMPANION_EVIDENCE_PROFILE_NAMES,
+    MSC_RUNTIME_COLLECTOR,
+    MSC_RUNTIME_PROFILE_NAMES,
+    MSC_STEERING_SHADOW_COLLECTOR,
     resolve_companion_evidence_profile,
     write_companion_evidence_profile_attestation,
 )
 from lifeform_service.character_packages import (
     load_character_runtime_assets,
     write_character_runtime_stack_attestation,
+)
+from lifeform_service.steering_activation import (
+    load_steering_activation_authorization,
 )
 from lifeform_service.verticals import (
     default_vertical_name,
@@ -57,6 +64,7 @@ if TYPE_CHECKING:
     from lifeform_service.character_packages import CharacterRuntimeAssets
     from volvence_zero.runtime import WiringLevel
     from volvence_zero.substrate import CommonAdapterBundle, OpenWeightResidualRuntime
+    from volvence_zero.steering_contracts import SteeringArtifactBundle
 
 
 _LOG = logging.getLogger("lifeform-serve")
@@ -131,6 +139,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help=("HF model id to load when --substrate-mode=hf-shared (default Qwen/Qwen2.5-1.5B-Instruct)."),
     )
     parser.add_argument(
+        "--substrate-model-source",
+        default=None,
+        help=(
+            "Optional local HF snapshot path while preserving the declared "
+            "--substrate-model-id lineage. Evidence profiles use this to pin "
+            "the exact frozen weight directory."
+        ),
+    )
+    parser.add_argument(
         "--substrate-device",
         default="auto",
         help="Torch device for the shared HF runtime (auto / cpu / cuda / cuda:0 / ...).",
@@ -139,6 +156,78 @@ def _build_parser() -> argparse.ArgumentParser:
         "--substrate-local-files-only",
         action="store_true",
         help="Forbid HF Hub network fetches (use only the local cache).",
+    )
+    parser.add_argument(
+        "--substrate-layer-indices",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Explicit frozen residual hook layers for evidence capture.",
+    )
+    parser.add_argument(
+        "--substrate-activation-width",
+        type=int,
+        default=8,
+        help="Residual readout width per selected layer (default 8).",
+    )
+    parser.add_argument(
+        "--substrate-max-length",
+        type=int,
+        default=None,
+        help=(
+            "Explicit substrate input-token limit. The ordinary service keeps "
+            "the runtime default when omitted; MSC evidence requires this and "
+            "fails instead of truncating."
+        ),
+    )
+    parser.add_argument(
+        "--substrate-expected-weights-sha256",
+        default="",
+        help="Fail startup unless the local frozen weights match this SHA-256.",
+    )
+    parser.add_argument(
+        "--msc-temporal-n-z",
+        type=int,
+        choices=(3, 16, 64, 256),
+        default=None,
+        help=(
+            "Evidence-only temporal controller capacity for the MSC runtime "
+            "collector. Required with that profile; rejected elsewhere."
+        ),
+    )
+    parser.add_argument(
+        "--steering-artifact-bundle",
+        type=Path,
+        default=None,
+        help=(
+            "Model-bound SteeringArtifactBundle. Evidence use is limited to "
+            "the MSC SHADOW collector; production use additionally requires "
+            "the exact B3 manifest, activation plan, and rollout step."
+        ),
+    )
+    parser.add_argument(
+        "--steering-promotion-manifest",
+        type=Path,
+        default=None,
+        help=(
+            "B3 steering-promotion artifact_manifest.json that binds the "
+            "candidate bundle and activation plan."
+        ),
+    )
+    parser.add_argument(
+        "--steering-activation-plan",
+        type=Path,
+        default=None,
+        help="B3 steering-activation-plan.v2 artifact.",
+    )
+    parser.add_argument(
+        "--steering-activation-step",
+        type=int,
+        default=None,
+        help=(
+            "One-based authorized rollout step to apply. Each successive "
+            "service rollout advances by exactly one frozen plan step."
+        ),
     )
     parser.add_argument(
         "--common-adapter-bundle",
@@ -433,8 +522,30 @@ def _build_shared_substrate(
         )
         runtime = build_transformers_runtime_with_fallback(
             model_id=args.substrate_model_id,
+            model_source=args.substrate_model_source,
             device=args.substrate_device,
             local_files_only=args.substrate_local_files_only,
+            layer_indices=(
+                tuple(args.substrate_layer_indices)
+                if args.substrate_layer_indices is not None
+                else None
+            ),
+            activation_width=args.substrate_activation_width,
+            max_length=(
+                args.substrate_max_length
+                if args.substrate_max_length is not None
+                else 64
+            ),
+            fail_on_truncation=(
+                (
+                    profile is not None
+                    and profile.name in MSC_RUNTIME_PROFILE_NAMES
+                )
+                or args.steering_activation_step is not None
+            ),
+            expected_model_weights_sha256=(
+                args.substrate_expected_weights_sha256
+            ),
             # hf-shared means "serve THIS model". A silent builtin-fallback
             # substitute would violate the substrate contract (and poison
             # same-substrate benchmark runs), so load failures must raise.
@@ -458,6 +569,18 @@ def _build_shared_substrate(
     raise ValueError(f"Unknown --substrate-mode {args.substrate_mode!r}")
 
 
+def _load_steering_bundle(
+    path: Path | None,
+) -> tuple["SteeringArtifactBundle | None", str | None]:
+    if path is None:
+        return None, None
+    from volvence_zero.steering_contracts import SteeringArtifactBundle
+
+    payload = path.read_bytes()
+    bundle = SteeringArtifactBundle.from_json(payload.decode("utf-8"))
+    return bundle, hashlib.sha256(payload).hexdigest()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -468,6 +591,22 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.ablation_bundle and args.vertical:
         print("--ablation-bundle cannot be combined with --vertical", file=sys.stderr)
+        return 1
+    if args.substrate_activation_width < 1:
+        print("--substrate-activation-width must be positive", file=sys.stderr)
+        return 1
+    if args.substrate_max_length is not None and args.substrate_max_length < 1:
+        print("--substrate-max-length must be positive", file=sys.stderr)
+        return 1
+    expected_weights = args.substrate_expected_weights_sha256
+    if expected_weights and (
+        len(expected_weights) != 64
+        or any(character not in "0123456789abcdef" for character in expected_weights)
+    ):
+        print(
+            "--substrate-expected-weights-sha256 must be lowercase SHA-256",
+            file=sys.stderr,
+        )
         return 1
     overlay_shadow_requested = args.companion_playbook_overlay_mode == "shadow"
     if args.companion_playbook_overlay_path is not None and not overlay_shadow_requested:
@@ -492,6 +631,17 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
+    steering_activation_values = (
+        args.steering_promotion_manifest,
+        args.steering_activation_plan,
+        args.steering_activation_step,
+    )
+    steering_activation_requested = any(
+        value is not None for value in steering_activation_values
+    )
+    steering_activation_complete = all(
+        value is not None for value in steering_activation_values
+    )
     if args.companion_evidence_profile is not None:
         evidence_profile_errors = []
         if args.ablation_bundle:
@@ -511,9 +661,169 @@ def main(argv: list[str] | None = None) -> int:
         profile = resolve_companion_evidence_profile(args.companion_evidence_profile)
         if profile.allow_single_session_live_substrate_mutation and args.max_sessions != 1:
             evidence_profile_errors.append("mutable evidence profile requires --max-sessions 1")
+        if profile.name in MSC_RUNTIME_PROFILE_NAMES:
+            if args.msc_temporal_n_z is None:
+                evidence_profile_errors.append(
+                    "MSC runtime collector requires --msc-temporal-n-z"
+                )
+            if not args.substrate_expected_weights_sha256:
+                evidence_profile_errors.append(
+                    "MSC runtime collector requires --substrate-expected-weights-sha256"
+                )
+            if args.substrate_layer_indices is None:
+                evidence_profile_errors.append(
+                    "MSC runtime collector requires --substrate-layer-indices"
+                )
+            if args.substrate_max_length is None:
+                evidence_profile_errors.append(
+                    "MSC runtime collector requires --substrate-max-length"
+                )
+            if args.max_sessions != 1:
+                evidence_profile_errors.append(
+                    "MSC runtime collector requires --max-sessions 1"
+                )
+        if profile.name == MSC_STEERING_SHADOW_COLLECTOR:
+            if args.steering_artifact_bundle is None:
+                evidence_profile_errors.append(
+                    "MSC steering SHADOW collector requires "
+                    "--steering-artifact-bundle"
+                )
+        elif args.steering_artifact_bundle is not None:
+            evidence_profile_errors.append(
+                "--steering-artifact-bundle is only valid for the MSC "
+                "steering SHADOW collector"
+            )
+        if steering_activation_requested:
+            evidence_profile_errors.append(
+                "B3 ACTIVE rollout arguments are forbidden in evidence profiles"
+            )
         if evidence_profile_errors:
             print(
                 "--companion-evidence-profile rejected: " + "; ".join(evidence_profile_errors),
+                file=sys.stderr,
+            )
+            return 1
+    elif args.msc_temporal_n_z is not None:
+        print(
+            "--msc-temporal-n-z requires --companion-evidence-profile "
+            f"{MSC_RUNTIME_COLLECTOR}",
+            file=sys.stderr,
+        )
+        return 1
+    elif args.steering_artifact_bundle is not None:
+        activation_errors = []
+        if not steering_activation_complete:
+            activation_errors.append(
+                "--steering-promotion-manifest, --steering-activation-plan, "
+                "and --steering-activation-step are all required"
+            )
+        if args.ablation_bundle:
+            activation_errors.append("--ablation-bundle is not allowed")
+        if args.vertical not in (None, "companion"):
+            activation_errors.append("--vertical must be companion")
+        if args.substrate_mode != "hf-shared":
+            activation_errors.append("--substrate-mode must be hf-shared")
+        if not args.substrate_local_files_only:
+            activation_errors.append("--substrate-local-files-only is required")
+        if args.substrate_max_length is None:
+            activation_errors.append("--substrate-max-length is required")
+        steering_env_overrides = tuple(
+            name
+            for name in (
+                "VZ_STEERING_SENSOR",
+                "VZ_STEERING_EXECUTOR",
+                "VZ_STEERING_GATE",
+                "VZ_STEERING_SHADOW_HOOK",
+                "VZ_STEERING_UNGATED_ACTION",
+            )
+            if os.environ.get(name, "").strip()
+        )
+        if steering_env_overrides:
+            activation_errors.append(
+                "B3-authorized rollout forbids VZ_STEERING_* overrides: "
+                + ", ".join(steering_env_overrides)
+            )
+        if activation_errors:
+            print(
+                "B3 steering rollout rejected: " + "; ".join(activation_errors),
+                file=sys.stderr,
+            )
+            return 1
+    elif steering_activation_requested:
+        print(
+            "B3 steering rollout arguments require --steering-artifact-bundle",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        steering_bundle, steering_bundle_sha256 = _load_steering_bundle(
+            args.steering_artifact_bundle
+        )
+    except (OSError, UnicodeDecodeError, TypeError, ValueError) as exc:
+        print(f"Failed to load steering artifact bundle: {exc}", file=sys.stderr)
+        return 1
+    steering_authorization = None
+    if steering_bundle is not None and steering_activation_requested:
+        if steering_bundle_sha256 is None:  # pragma: no cover - loader invariant
+            raise RuntimeError("loaded steering bundle lacks its SHA-256")
+        try:
+            steering_authorization = load_steering_activation_authorization(
+                bundle=steering_bundle,
+                bundle_sha256=steering_bundle_sha256,
+                promotion_manifest=args.steering_promotion_manifest,
+                activation_plan=args.steering_activation_plan,
+                rollout_step=args.steering_activation_step,
+                substrate_model_id=args.substrate_model_id,
+                substrate_expected_weights_sha256=(
+                    args.substrate_expected_weights_sha256
+                ),
+                substrate_layer_indices=tuple(args.substrate_layer_indices or ()),
+                substrate_activation_width=args.substrate_activation_width,
+                substrate_max_length=args.substrate_max_length,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            print(f"Failed to authorize B3 steering rollout: {exc}", file=sys.stderr)
+            return 1
+        _LOG.info(
+            "B3 steering rollout authorized: bundle_id=%s step=%d prefix=%s "
+            "manifest_sha256=%s plan_sha256=%s",
+            steering_authorization.candidate_bundle_id,
+            steering_authorization.rollout_step,
+            ",".join(steering_authorization.eligible_prefix),
+            steering_authorization.manifest_sha256,
+            steering_authorization.activation_plan_sha256,
+        )
+    if steering_bundle is not None:
+        if steering_bundle.reader.model_id != args.substrate_model_id:
+            print(
+                "steering bundle model_id does not match --substrate-model-id",
+                file=sys.stderr,
+            )
+            return 1
+        if (
+            steering_bundle.reader.model_weights_sha256
+            != args.substrate_expected_weights_sha256
+        ):
+            print(
+                "steering bundle weights do not match "
+                "--substrate-expected-weights-sha256",
+                file=sys.stderr,
+            )
+            return 1
+        if (
+            args.substrate_layer_indices is None
+            or steering_bundle.reader.layer_index
+            not in args.substrate_layer_indices
+        ):
+            print(
+                "--substrate-layer-indices must include the steering layer",
+                file=sys.stderr,
+            )
+            return 1
+        if args.substrate_activation_width != steering_bundle.reader.residual_width:
+            print(
+                "--substrate-activation-width must match the steering bundle",
                 file=sys.stderr,
             )
             return 1
@@ -524,6 +834,23 @@ def main(argv: list[str] | None = None) -> int:
             if args.ablation_bundle
             else discover_verticals(
                 companion_evidence_profile=args.companion_evidence_profile,
+                companion_evidence_temporal_n_z=args.msc_temporal_n_z,
+                companion_steering_bundle=steering_bundle,
+                companion_steering_rollout_config=(
+                    steering_authorization.rollout_config
+                    if steering_authorization is not None
+                    else None
+                ),
+                companion_steering_rollout_max_new_tokens=(
+                    steering_authorization.generation_max_new_tokens
+                    if steering_authorization is not None
+                    else None
+                ),
+                companion_steering_rollout_temperature=(
+                    steering_authorization.generation_temperature
+                    if steering_authorization is not None
+                    else None
+                ),
                 companion_playbook_overlay_wiring=WiringLevel(
                     args.companion_playbook_overlay_mode
                 ),
@@ -624,6 +951,13 @@ def main(argv: list[str] | None = None) -> int:
                 profile=resolve_companion_evidence_profile(args.companion_evidence_profile),
                 substrate_model_id=args.substrate_model_id,
                 substrate_device=args.substrate_device,
+                temporal_n_z=args.msc_temporal_n_z,
+                steering_bundle_id=(
+                    steering_bundle.bundle_id
+                    if steering_bundle is not None
+                    else None
+                ),
+                steering_bundle_sha256=steering_bundle_sha256,
             )
         except (OSError, RuntimeError, ValueError) as exc:
             print(
@@ -736,6 +1070,13 @@ def main(argv: list[str] | None = None) -> int:
         + (
             f"  companion_playbook_overlay={args.companion_playbook_overlay_mode}"
             if overlay_shadow_requested
+            else ""
+        )
+        + (
+            "  steering_rollout="
+            f"step-{steering_authorization.rollout_step}:"
+            f"{','.join(steering_authorization.eligible_prefix)}"
+            if steering_authorization is not None
             else ""
         )
     )

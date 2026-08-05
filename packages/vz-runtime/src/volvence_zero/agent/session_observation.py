@@ -90,6 +90,10 @@ from volvence_zero.social_cognition import (
     SELF_INTERLOCUTOR_ID,
     MultiPartyIdentitySnapshot,
 )
+from volvence_zero.steering_contracts import (
+    STEERING_INTERVENTION_SLOT,
+    SteeringIntervention,
+)
 from volvence_zero.temporal.conditioning_router import select_conditioning_banks
 from volvence_zero.substrate import (
     OpenWeightResidualStreamSubstrateAdapter,
@@ -534,6 +538,18 @@ class SessionObservationMixin:
             and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
             else None
         )
+        steering_intervention_snapshot = integration_result.active_snapshots.get(
+            STEERING_INTERVENTION_SLOT
+        )
+        active_steering_intervention = (
+            steering_intervention_snapshot.value
+            if steering_intervention_snapshot is not None
+            and isinstance(
+                steering_intervention_snapshot.value,
+                SteeringIntervention,
+            )
+            else None
+        )
         personal_conditioning_snapshot = integration_result.active_snapshots.get("personal_conditioning")
         active_conditioning = (
             personal_conditioning_snapshot.value
@@ -738,6 +754,7 @@ class SessionObservationMixin:
                 ),
                 prompt_state_delivery=self._config.prompt_state_delivery,
                 dynamic_residual_wiring=(self._config.generation_dynamic_residual.value),
+                steering_intervention=active_steering_intervention,
             ),
             assembly=response_assembly,
         )

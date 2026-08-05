@@ -400,6 +400,37 @@ class HTTPSevenDayCompanionService:
             payload={"user_input": user_input},
         )
 
+    def submit_observed_turn(
+        self,
+        *,
+        session_id: str,
+        user_input: str,
+        active_speaker_id: str,
+        observation_kind: str,
+    ) -> Mapping[str, object]:
+        """Submit one typed corpus observation through the same service path.
+
+        This method is intentionally outside ``SevenDayCompanionService``:
+        ordinary seven-day product evidence remains a user/assistant dialogue,
+        while the MSC evidence profile observes both members of a dyad.
+        """
+
+        if active_speaker_id not in {"speaker_1", "speaker_2"}:
+            raise ValueError(
+                "active_speaker_id must be speaker_1 or speaker_2"
+            )
+        if observation_kind not in {"persona", "dialogue"}:
+            raise ValueError("observation_kind must be persona or dialogue")
+        return self._request(
+            "POST",
+            f"/v1/sessions/{urllib.parse.quote(session_id, safe='')}/turns",
+            payload={
+                "user_input": user_input,
+                "active_speaker_id": active_speaker_id,
+                "observation_kind": observation_kind,
+            },
+        )
+
     def end_scene(self, *, session_id: str, drain_slow_loop: bool) -> Mapping[str, object]:
         return self._request(
             "POST",
@@ -407,6 +438,20 @@ class HTTPSevenDayCompanionService:
             payload={
                 "drain_slow_loop": drain_slow_loop,
                 "reason": "seven-day-simulated-day-boundary",
+            },
+        )
+
+    def end_observed_scene(
+        self, *, session_id: str, drain_slow_loop: bool
+    ) -> Mapping[str, object]:
+        """Close an evidence-only observed corpus session."""
+
+        return self._request(
+            "POST",
+            f"/v1/sessions/{urllib.parse.quote(session_id, safe='')}/end-scene",
+            payload={
+                "drain_slow_loop": drain_slow_loop,
+                "reason": "msc-runtime-session-boundary",
             },
         )
 

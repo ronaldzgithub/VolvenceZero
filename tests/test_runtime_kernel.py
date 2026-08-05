@@ -10,6 +10,7 @@ from volvence_zero.runtime import (
     EventRecorder,
     OwnershipViolationError,
     RuntimeModule,
+    RuntimePlaceholderValue,
     SlotRegistry,
     Snapshot,
     WiringLevel,
@@ -65,6 +66,28 @@ class ShadowProducerModule(ProducerModule):
     default_wiring_level = WiringLevel.SHADOW
 
 
+class ShadowConsumerModule(ConsumerModule):
+    default_wiring_level = WiringLevel.SHADOW
+
+
+class ActiveVisibilityConsumerModule(RuntimeModule[ConsumerValue]):
+    slot_name = "active_visibility_consumer"
+    owner = "ActiveVisibilityConsumerModule"
+    value_type = ConsumerValue
+    dependencies = ("producer",)
+
+    async def process(self, upstream):
+        producer_snapshot = upstream["producer"]
+        return self.publish(
+            ConsumerValue(
+                description="active visibility snapshot",
+                seen_value=int(
+                    isinstance(producer_snapshot.value, RuntimePlaceholderValue)
+                ),
+            )
+        )
+
+
 class DisabledProducerModule(ProducerModule):
     default_wiring_level = WiringLevel.DISABLED
 
@@ -110,6 +133,36 @@ def test_shadow_modules_do_not_mutate_active_chain():
     assert "producer" not in result
     assert "producer" in shadow_snapshots
     assert shadow_snapshots["producer"].value.value == 7
+
+
+def test_shadow_chain_consumes_same_wave_shadow_dependencies_without_active_leak():
+    shadow_snapshots: dict[str, Snapshot[object]] = {}
+    result = asyncio.run(
+        propagate(
+            [ShadowProducerModule(), ShadowConsumerModule()],
+            shadow_snapshots=shadow_snapshots,
+            session_id="s1",
+            wave_id="w1",
+        )
+    )
+
+    assert result == {}
+    assert shadow_snapshots["consumer"].value.seen_value == 7
+
+
+def test_active_consumer_cannot_observe_same_wave_shadow_dependency():
+    shadow_snapshots: dict[str, Snapshot[object]] = {}
+    result = asyncio.run(
+        propagate(
+            [ShadowProducerModule(), ActiveVisibilityConsumerModule()],
+            shadow_snapshots=shadow_snapshots,
+            session_id="s1",
+            wave_id="w1",
+        )
+    )
+
+    assert result["active_visibility_consumer"].value.seen_value == 1
+    assert "producer" not in result
 
 
 def test_disabled_modules_publish_placeholder_into_active_chain():

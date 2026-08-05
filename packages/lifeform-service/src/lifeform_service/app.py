@@ -63,6 +63,10 @@ from lifeform_service.alpha import (
     alpha_config_to_json,
 )
 from lifeform_core import LlmJsonClient, TurnTriggerKind
+from lifeform_service.companion_evidence_profile import MSC_RUNTIME_PROFILE_NAMES
+from lifeform_service.msc_runtime_collector import (
+    build_msc_runtime_context_payload,
+)
 from lifeform_protocol_runtime import (
     MentorIntakeApplyMode,
     MentorIntakeKind,
@@ -143,6 +147,8 @@ from volvence_zero.relationship_continuity import (
 )
 from volvence_zero.semantic_state import CommitmentSnapshot, OpenLoopSnapshot
 from volvence_zero.temporal import TemporalConsolidationSnapshot
+from volvence_zero.environment import build_primary_environment_frame
+from volvence_zero.social_cognition import SELF_INTERLOCUTOR_ID
 
 
 _LOG = logging.getLogger("lifeform_service")
@@ -888,6 +894,10 @@ async def _handle_turn(request: web.Request) -> web.Response:
         raise _BadRequest("invalid_user_input", "user_input must be a non-empty string")
     session = await manager.get_session(session_id)
     trigger_kind = TurnTriggerKind.USER_INPUT
+    environment_frame = None
+    environment_provenance = None
+    environment_consent_context: tuple[str, ...] = ()
+    evidence_profile = None
     evidence_profile_name = request.app.get("companion_evidence_profile")
     if evidence_profile_name is not None:
         from lifeform_service.companion_evidence_profile import (
@@ -895,13 +905,49 @@ async def _handle_turn(request: web.Request) -> web.Response:
         )
 
         evidence_profile = resolve_companion_evidence_profile(str(evidence_profile_name))
-        if evidence_profile.turn_trigger_kind == "apprentice":
+        if evidence_profile.name in MSC_RUNTIME_PROFILE_NAMES:
+            if not evidence_profile.allow_typed_observation_frame:
+                raise RuntimeError("MSC evidence profile lacks observation authority")
+            active_speaker_id = payload.get("active_speaker_id")
+            if active_speaker_id not in {"speaker_1", "speaker_2"}:
+                raise _BadRequest(
+                    "invalid_active_speaker_id",
+                    "MSC active_speaker_id must be speaker_1 or speaker_2",
+                )
+            observation_kind = payload.get("observation_kind")
+            if observation_kind == "persona":
+                trigger_kind = TurnTriggerKind.INGESTION
+            elif observation_kind == "dialogue":
+                trigger_kind = TurnTriggerKind.USER_INPUT
+            else:
+                raise _BadRequest(
+                    "invalid_observation_kind",
+                    "MSC observation_kind must be persona or dialogue",
+                )
+            environment_frame = build_primary_environment_frame(
+                actor_id=active_speaker_id,
+                actor_kind="interlocutor",
+                active_speaker_id=active_speaker_id,
+                addressee_ids=(SELF_INTERLOCUTOR_ID,),
+                subject_ids=(active_speaker_id,),
+                audience_ids=(SELF_INTERLOCUTOR_ID,),
+            )
+            environment_provenance = "msc-runtime-collector-v1"
+            environment_consent_context = (
+                "noncommercial-research-only",
+                "typed-corpus-observation",
+            )
+        elif evidence_profile.turn_trigger_kind == "apprentice":
             trigger_kind = TurnTriggerKind.APPRENTICE
         elif evidence_profile.turn_trigger_kind != "user_input":
             raise RuntimeError(f"unsupported evidence turn trigger kind {evidence_profile.turn_trigger_kind!r}")
+    turn_started = time.perf_counter()
     result = await session.run_turn(
         user_input,
         trigger_kind=trigger_kind,
+        environment_frame=environment_frame,
+        environment_provenance=environment_provenance,
+        environment_consent_context=environment_consent_context,
     )
 
     summaries = session.turn_summaries
@@ -949,6 +995,14 @@ async def _handle_turn(request: web.Request) -> web.Response:
         "slow_to_fast_init_benefit": result.slow_to_fast_init_benefit,
         "slow_to_fast_target_alignment_gain": (result.slow_to_fast_target_alignment_gain),
     }
+    if evidence_profile is not None and evidence_profile.publish_runtime_context:
+        if assembly_value is None:
+            raise RuntimeError("MSC runtime collector lacks response assembly")
+        telemetry["msc_runtime_context"] = build_msc_runtime_context_payload(
+            result=result,
+            assembly=assembly_value,
+            turn_latency_ms=(time.perf_counter() - turn_started) * 1000.0,
+        )
     apprenticeship = result.active_snapshots.get("apprenticeship_alignment")
     if apprenticeship is not None and isinstance(apprenticeship.value, ApprenticeshipAlignmentSnapshot):
         telemetry.update(
@@ -1551,7 +1605,9 @@ async def _handle_end_scene(request: web.Request) -> web.Response:
                 raise _BadRequest("invalid_reason", "reason must be string")
             reason = payload["reason"]
     session = await manager.get_session(session_id)
+    scene_started = time.perf_counter()
     closed = await session.end_scene(reason=reason, drain_slow_loop=drain)
+    scene_latency_ms = (time.perf_counter() - scene_started) * 1000.0
     evidence_ref = _write_session_evidence(
         request=request,
         session_id=session_id,
@@ -1562,41 +1618,46 @@ async def _handle_end_scene(request: web.Request) -> web.Response:
         retrieved_entries=()
     )
     lifecycle_metrics = dict(memory_snapshot.lifecycle_metrics)
+    end_scene_telemetry: dict[str, Any] = {
+        "nested_context_reset_applied": (lifecycle_metrics.get("last_nested_reset_applied", 0.0) > 0.0),
+        "nested_context_reset_meta_init": (
+            lifecycle_metrics.get("last_nested_reset_meta_init", 0.0)
+            > 0.0
+        ),
+        "nested_context_reset_copy_init": (
+            lifecycle_metrics.get("last_nested_reset_copy_init", 0.0)
+            > 0.0
+        ),
+        "nested_context_reset_conditioned": (
+            lifecycle_metrics.get(
+                "last_nested_reset_context_conditioned", 0.0
+            )
+            > 0.0
+        ),
+        "nested_context_reset_prototype_count": int(
+            lifecycle_metrics.get(
+                "last_nested_reset_prototype_count", 0.0
+            )
+        ),
+        "nested_context_reset_context_match_score": (
+            lifecycle_metrics.get(
+                "last_nested_reset_context_match_score", 0.0
+            )
+        ),
+        "nested_context_reset_total_count": int(lifecycle_metrics.get("nested_context_reset_count", 0.0)),
+        "slow_to_fast_init_benefit": lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0),
+        "slow_to_fast_target_alignment_gain": lifecycle_metrics.get("slow_to_fast_target_alignment_gain", 0.0),
+    }
+    if request.app.get("companion_evidence_profile") in MSC_RUNTIME_PROFILE_NAMES:
+        end_scene_telemetry["msc_runtime_slow_loop_latency_ms"] = (
+            scene_latency_ms
+        )
     body = EndSceneResponse(
         session_id=session_id,
         closed_scene_id=closed.scene_id if closed is not None else None,
         slow_loop_drained=drain and closed is not None,
         evidence_artifact_ref=evidence_ref,
-        evidence_telemetry={
-            "nested_context_reset_applied": (lifecycle_metrics.get("last_nested_reset_applied", 0.0) > 0.0),
-            "nested_context_reset_meta_init": (
-                lifecycle_metrics.get("last_nested_reset_meta_init", 0.0)
-                > 0.0
-            ),
-            "nested_context_reset_copy_init": (
-                lifecycle_metrics.get("last_nested_reset_copy_init", 0.0)
-                > 0.0
-            ),
-            "nested_context_reset_conditioned": (
-                lifecycle_metrics.get(
-                    "last_nested_reset_context_conditioned", 0.0
-                )
-                > 0.0
-            ),
-            "nested_context_reset_prototype_count": int(
-                lifecycle_metrics.get(
-                    "last_nested_reset_prototype_count", 0.0
-                )
-            ),
-            "nested_context_reset_context_match_score": (
-                lifecycle_metrics.get(
-                    "last_nested_reset_context_match_score", 0.0
-                )
-            ),
-            "nested_context_reset_total_count": int(lifecycle_metrics.get("nested_context_reset_count", 0.0)),
-            "slow_to_fast_init_benefit": lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0),
-            "slow_to_fast_target_alignment_gain": lifecycle_metrics.get("slow_to_fast_target_alignment_gain", 0.0),
-        },
+        evidence_telemetry=end_scene_telemetry,
     )
     return _json_ok(body.to_json())
 

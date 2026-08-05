@@ -39,14 +39,20 @@ from typing import TYPE_CHECKING
 from lifeform_core import Lifeform
 from volvence_zero.runtime import WiringLevel
 
+from lifeform_service.companion_evidence_profile import (
+    MSC_RUNTIME_PROFILE_NAMES,
+    MSC_STEERING_SHADOW_COLLECTOR,
+)
 from lifeform_service.templates import VerticalTemplateAdapter
 
 
 _LOG = logging.getLogger("lifeform_service.verticals")
 
 if TYPE_CHECKING:
+    from volvence_zero.integration import FinalRolloutConfig
     from volvence_zero.memory import IdentityProvider
     from volvence_zero.substrate import OpenWeightResidualRuntime
+    from volvence_zero.steering_contracts import SteeringArtifactBundle
 
 
 VerticalFactory = Callable[["OpenWeightResidualRuntime | None"], Lifeform]
@@ -92,6 +98,8 @@ def _expression_synthesizer_for_runtime(
     character_grounding_ref: str = "",
     character_id: str = "",
     temperature: float = 0.7,
+    capture_runtime_context: bool = False,
+    max_new_tokens_override: int | None = None,
 ):
     """Use the LLM expression path only when a real/shared runtime exists."""
 
@@ -103,16 +111,52 @@ def _expression_synthesizer_for_runtime(
         )
     from lifeform_expression import LifeformLLMResponseSynthesizer, PromptPlanner
 
-    max_new_tokens_raw = os.environ.get("VZ_LIFEFORM_MAX_NEW_TOKENS", "").strip()
-    if max_new_tokens_raw:
+    runtime_model_fingerprint = None
+    if capture_runtime_context:
+        from volvence_zero.substrate import (
+            SubstrateFingerprint,
+            TransformersOpenWeightResidualRuntime,
+        )
+
+        if not isinstance(runtime, TransformersOpenWeightResidualRuntime):
+            raise TypeError(
+                "MSC runtime context capture requires the transformers backend"
+            )
+        weights_sha256 = runtime.loaded_base_model_weights_sha256
+        if len(weights_sha256) != 64 or any(
+            character not in "0123456789abcdef"
+            for character in weights_sha256
+        ):
+            raise ValueError(
+                "MSC runtime context capture requires verified frozen weights"
+            )
+        runtime_model_fingerprint = SubstrateFingerprint(
+            model_id=runtime.model_id,
+            version=runtime.model_version,
+            weights_sha256=weights_sha256,
+        )
+
+    if max_new_tokens_override is not None:
+        if max_new_tokens_override < 16:
+            raise ValueError("max_new_tokens_override must be at least 16")
+        max_new_tokens = max_new_tokens_override
+    else:
+        max_new_tokens_raw = os.environ.get(
+            "VZ_LIFEFORM_MAX_NEW_TOKENS", ""
+        ).strip()
+    if max_new_tokens_override is None and max_new_tokens_raw:
         max_new_tokens = max(16, int(max_new_tokens_raw))
-    elif os.name == "nt" and str(getattr(runtime, "_device", "")).startswith("cuda"):
+    elif (
+        max_new_tokens_override is None
+        and os.name == "nt"
+        and str(getattr(runtime, "_device", "")).startswith("cuda")
+    ):
         # The OpenAI-compatible benchmark sends many long-turn requests through
         # one Windows CUDA process. Keeping expression generations bounded
         # avoids native torch/CUDA access violations while preserving the same
         # frozen substrate and full lifeform pipeline.
         max_new_tokens = 128
-    else:
+    elif max_new_tokens_override is None:
         max_new_tokens = 512
 
     return LifeformLLMResponseSynthesizer(
@@ -123,12 +167,19 @@ def _expression_synthesizer_for_runtime(
         character_id=character_id,
         character_grounding_statement=character_grounding_statement,
         character_grounding_ref=character_grounding_ref,
+        capture_runtime_context=capture_runtime_context,
+        runtime_model_fingerprint=runtime_model_fingerprint,
     )
 
 
 def _try_companion(
     *,
     evidence_profile: str | None = None,
+    evidence_temporal_n_z: int | None = None,
+    steering_bundle: "SteeringArtifactBundle | None" = None,
+    steering_rollout_config: "FinalRolloutConfig | None" = None,
+    steering_rollout_max_new_tokens: int | None = None,
+    steering_rollout_temperature: float | None = None,
     playbook_overlay_wiring: WiringLevel = WiringLevel.DISABLED,
     playbook_overlay_path: Path | None = None,
 ) -> VerticalSpec | None:
@@ -141,6 +192,62 @@ def _try_companion(
         )
     except ImportError:
         return None
+    if evidence_profile in MSC_RUNTIME_PROFILE_NAMES:
+        if evidence_temporal_n_z not in {3, 16, 64, 256}:
+            raise ValueError(
+            "MSC runtime evidence profile requires temporal_n_z 3/16/64/256"
+            )
+    elif evidence_temporal_n_z is not None:
+        raise ValueError(
+            "evidence_temporal_n_z is only valid for the MSC runtime collector"
+        )
+    if evidence_profile == MSC_STEERING_SHADOW_COLLECTOR:
+        if steering_bundle is None:
+            raise ValueError(
+                "MSC steering SHADOW collector requires a steering artifact bundle"
+            )
+        if any(
+            value is not None
+            for value in (
+                steering_rollout_config,
+                steering_rollout_max_new_tokens,
+                steering_rollout_temperature,
+            )
+        ):
+            raise ValueError(
+                "MSC steering SHADOW collector rejects an ACTIVE rollout config"
+            )
+    elif evidence_profile is not None and steering_bundle is not None:
+        raise ValueError(
+            "a steering artifact bundle is only valid for the MSC steering "
+            "SHADOW collector or a B3-authorized production rollout"
+        )
+    elif evidence_profile is not None and any(
+        value is not None
+        for value in (
+            steering_rollout_config,
+            steering_rollout_max_new_tokens,
+            steering_rollout_temperature,
+        )
+    ):
+        raise ValueError("evidence profiles reject B3 ACTIVE rollout settings")
+    elif evidence_profile is None:
+        rollout_values = (
+            steering_rollout_config,
+            steering_rollout_max_new_tokens,
+            steering_rollout_temperature,
+        )
+        if (
+            steering_bundle is None
+            and not all(value is None for value in rollout_values)
+        ) or (
+            steering_bundle is not None
+            and not all(value is not None for value in rollout_values)
+        ):
+            raise ValueError(
+                "production steering requires a candidate bundle, rollout "
+                "config, generation budget, and temperature together"
+            )
     if playbook_overlay_wiring not in (
         WiringLevel.DISABLED,
         WiringLevel.SHADOW,
@@ -181,9 +288,16 @@ def _try_companion(
 
         brain_config = BrainConfig(
             memory_scope_root_dir=memory_scope_root_dir,
+            temporal_latent_dim=(
+                evidence_temporal_n_z
+                if evidence_temporal_n_z is not None
+                else 3
+            ),
             apprenticeship_constraint_extractor=(
                 _build_apprenticeship_extractor_from_runtime(runtime)
             ),
+            final_rollout_config=steering_rollout_config,
+            steering_bundle=steering_bundle,
         )
         if evidence_profile is not None:
             from lifeform_service.companion_evidence_profile import (
@@ -196,12 +310,23 @@ def _try_companion(
         config = LifeformConfig(brain_config=brain_config)
         lifeform = build_companion_lifeform(
             config=config,
+            use_temporal_bootstrap=(
+                evidence_profile not in MSC_RUNTIME_PROFILE_NAMES
+            ),
             substrate_runtime=runtime,
             identity_provider=identity_provider,
             response_synthesizer=_expression_synthesizer_for_runtime(
                 runtime,
                 repair_alpha_enabled=alpha,
-                temperature=0.0 if evidence_profile is not None else 0.7,
+                temperature=(
+                    steering_rollout_temperature
+                    if steering_rollout_temperature is not None
+                    else (0.0 if evidence_profile is not None else 0.7)
+                ),
+                capture_runtime_context=(
+                    evidence_profile in MSC_RUNTIME_PROFILE_NAMES
+                ),
+                max_new_tokens_override=steering_rollout_max_new_tokens,
             ),
             semantic_proposal_runtime=_build_llm_semantic_runtime_from_runtime(runtime),
             playbook_overlay_wiring=playbook_overlay_wiring,
@@ -1760,6 +1885,11 @@ COMPANION_ABLATION_VERTICAL_NAMES: tuple[str, ...] = (
 def discover_verticals(
     *,
     companion_evidence_profile: str | None = None,
+    companion_evidence_temporal_n_z: int | None = None,
+    companion_steering_bundle: "SteeringArtifactBundle | None" = None,
+    companion_steering_rollout_config: "FinalRolloutConfig | None" = None,
+    companion_steering_rollout_max_new_tokens: int | None = None,
+    companion_steering_rollout_temperature: float | None = None,
     companion_playbook_overlay_wiring: WiringLevel = WiringLevel.DISABLED,
     companion_playbook_overlay_path: Path | None = None,
 ) -> dict[str, VerticalSpec]:
@@ -1769,6 +1899,15 @@ def discover_verticals(
         spec = (
             _try_companion(
                 evidence_profile=companion_evidence_profile,
+                evidence_temporal_n_z=companion_evidence_temporal_n_z,
+                steering_bundle=companion_steering_bundle,
+                steering_rollout_config=companion_steering_rollout_config,
+                steering_rollout_max_new_tokens=(
+                    companion_steering_rollout_max_new_tokens
+                ),
+                steering_rollout_temperature=(
+                    companion_steering_rollout_temperature
+                ),
                 playbook_overlay_wiring=companion_playbook_overlay_wiring,
                 playbook_overlay_path=companion_playbook_overlay_path,
             )

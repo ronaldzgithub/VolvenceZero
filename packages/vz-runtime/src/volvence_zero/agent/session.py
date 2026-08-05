@@ -199,6 +199,9 @@ from volvence_zero.substrate import (
     TraceStep,
     build_training_trace,
 )
+from volvence_zero.steering_contracts import SteeringArtifactBundle
+from volvence_zero.steering_gate import SteeringGateModule
+from volvence_zero.steering_sensor import SteeringSensorModule
 from volvence_zero.dual_track import DualTrackGateLearner
 from volvence_zero.social import SocialRecordStore
 from volvence_zero.temporal import (
@@ -519,6 +522,7 @@ class AgentSessionRunner(
         semantic_proposal_runtime: SemanticProposalRuntime | None = None,
         substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
         default_residual_runtime: OpenWeightResidualRuntime | None = None,
+        steering_bundle: SteeringArtifactBundle | None = None,
         regime_bootstrap: RegimeBootstrap | None = None,
         identity_seed: IdentitySeed | None = None,
         substrate_model_id: str = "distilgpt2",
@@ -912,13 +916,51 @@ class AgentSessionRunner(
             model_id=substrate_model_id,
             model_source=substrate_model_source,
             device=substrate_device,
+            layer_indices=(
+                (steering_bundle.reader.layer_index,)
+                if steering_bundle is not None
+                else None
+            ),
+            activation_width=(
+                steering_bundle.reader.residual_width
+                if steering_bundle is not None
+                else 8
+            ),
             local_files_only=substrate_local_files_only,
             fallback_to_builtin=substrate_fallback_to_builtin,
             fallback_mode=substrate_fallback_mode,
             runtime_mode=self._substrate_runtime_mode,
             builtin_model_id="runner-transformers-runtime",
             allow_live_substrate_mutation=allow_live_substrate_mutation,
+            expected_model_weights_sha256=(
+                steering_bundle.reader.model_weights_sha256
+                if steering_bundle is not None
+                else ""
+            ),
         )
+        self._steering_bundle = steering_bundle
+        self._steering_sensor_module: SteeringSensorModule | None = None
+        self._steering_gate_module: SteeringGateModule | None = None
+        if steering_bundle is not None:
+            if self._default_residual_runtime.model_id != steering_bundle.reader.model_id:
+                raise ValueError(
+                    "steering bundle model_id does not match the loaded runtime"
+                )
+            loaded_digest = (
+                self._default_residual_runtime.loaded_base_model_weights_sha256
+            )
+            if loaded_digest != steering_bundle.reader.model_weights_sha256:
+                raise ValueError(
+                    "steering bundle requires a verified loaded-base digest"
+                )
+            self._steering_sensor_module = SteeringSensorModule(
+                artifact=steering_bundle.reader,
+                wiring_level=self._config.steering_sensor,
+            )
+            self._steering_gate_module = SteeringGateModule(
+                artifact=steering_bundle.gate,
+                wiring_level=self._config.steering_gate,
+            )
         bound_prefix_id = self._config.personal_conditioning_prefix_artifact_id
         if (
             bound_prefix_id is not None
@@ -1613,6 +1655,10 @@ class AgentSessionRunner(
         return self._prediction_module
 
     @property
+    def steering_gate_module(self) -> SteeringGateModule | None:
+        return self._steering_gate_module
+
+    @property
     def semantic_state_store(self) -> SemanticStateStore:
         """Session-held semantic owner store (W1.B learned-forecast readout)."""
         return self._semantic_state_store
@@ -1858,6 +1904,10 @@ class AgentSessionRunner(
                 prediction_error_temporal_learning_enabled=(self._external_prediction_error_drive),
                 personal_conditioning_credit_state=self._personal_conditioning_credit_state,
                 relationship_conditioning_credit_state=self._relationship_conditioning_credit_state,
+                steering_bundle=self._steering_bundle,
+                steering_sensor_module=self._steering_sensor_module,
+                steering_gate_module=self._steering_gate_module,
+                steering_runtime=self._default_residual_runtime,
             )
             self._pending_external_outcome_lineages.clear()
             self._last_session_post_writeback_request = integration_result.session_post_writeback_request

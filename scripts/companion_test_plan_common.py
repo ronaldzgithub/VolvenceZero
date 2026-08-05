@@ -276,6 +276,8 @@ def guarded_mps_runner_entrypoint(
 ) -> int:
     """Acquire the shared lock when a formal runner is invoked directly."""
 
+    if "--emit-run-configuration" in argv:
+        return int(main_callable())
     requested_device = None
     for index, value in enumerate(argv[:-1]):
         if value == "--device":

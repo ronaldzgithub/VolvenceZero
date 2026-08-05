@@ -27,6 +27,7 @@ class MSCUtterance:
     speaker: str
     text: str
     utterance_index: int
+    preceding_empty_utterance_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -115,6 +116,8 @@ def _utterances(
         raise ValueError(f"MSC session {session_index} dialog must be a non-empty list")
     utterances: list[MSCUtterance] = []
     dropped_empty = 0
+    pending_empty = 0
+    speaker_by_source_id: dict[str, str] = {}
     for index, raw_turn in enumerate(raw_dialog, start=1):
         turn = _require_mapping(raw_turn, field=f"session {session_index} turn {index}")
         text = turn.get("text")
@@ -122,16 +125,51 @@ def _utterances(
             raise ValueError(
                 f"MSC session {session_index} turn {index} requires string text"
             )
+        expected_speaker = "speaker_1" if index % 2 == 1 else "speaker_2"
+        raw_speaker = turn.get("id")
+        if raw_speaker is not None:
+            if not isinstance(raw_speaker, str) or not raw_speaker.strip():
+                raise ValueError(
+                    f"MSC session {session_index} turn {index} has invalid speaker id"
+                )
+            if raw_speaker in {"Speaker 1", "Speaker 2"}:
+                observed_speaker = (
+                    "speaker_1" if raw_speaker == "Speaker 1" else "speaker_2"
+                )
+            else:
+                observed_speaker = speaker_by_source_id.setdefault(
+                    raw_speaker,
+                    expected_speaker,
+                )
+                if len(speaker_by_source_id) > 2:
+                    raise ValueError(
+                        f"MSC session {session_index} has more than two speaker ids"
+                    )
+            if observed_speaker != expected_speaker:
+                raise ValueError(
+                    f"MSC session {session_index} turn {index} speaker position drift"
+                )
         if not text.strip():
             dropped_empty += 1
+            pending_empty += 1
             continue
+        if (
+            utterances
+            and utterances[-1].speaker == expected_speaker
+            and pending_empty == 0
+        ):
+            raise ValueError(
+                f"MSC session {session_index} retained speakers do not alternate"
+            )
         utterances.append(
             MSCUtterance(
-                speaker="speaker_1" if index % 2 == 1 else "speaker_2",
+                speaker=expected_speaker,
                 text=text.strip(),
                 utterance_index=index,
+                preceding_empty_utterance_count=pending_empty,
             )
         )
+        pending_empty = 0
     if not utterances:
         raise ValueError(
             f"MSC session {session_index} has no non-empty utterances after cleaning"

@@ -20,6 +20,7 @@ from volvence_zero.owner_hydration import (
 from volvence_zero.prediction.error import PredictionActionContext, PredictionError, PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
 from volvence_zero.social_cognition import SocialPredictionError, SocialPredictionOutcome
+from volvence_zero.steering_contracts import SteeringTerminalPredictionError
 from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
 if TYPE_CHECKING:
@@ -715,6 +716,55 @@ def derive_prediction_error_credit_records(
         ),
     )
     return records
+
+
+def derive_steering_terminal_credit_records(
+    *,
+    settlement: SteeringTerminalPredictionError,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    """Route PE-owned matched-noop terminal error to gate decisions.
+
+    The scalar is the bounded relative N+1 MSE improvement authored by the PE
+    owner. This helper accepts no evaluation snapshot or judge readout.
+    """
+
+    if timestamp_ms < 0:
+        raise ValueError("steering terminal credit timestamp must be non-negative")
+    records: list[CreditRecord] = []
+    for decision_id in settlement.decision_ids:
+        record_fingerprint = hashlib.sha256(
+            (
+                f"{settlement.episode_id}\0{decision_id}\0"
+                f"{settlement.prediction_head_fingerprint}"
+            ).encode("utf-8")
+        ).hexdigest()
+        records.append(
+            CreditRecord(
+                record_id=f"steering-terminal:{record_fingerprint}",
+                level="steering_terminal_prediction_error",
+                track=Track.SHARED,
+                source_event=(
+                    f"steering-terminal:{settlement.episode_id}:"
+                    f"{decision_id}"
+                ),
+                credit_value=settlement.relative_mse_improvement,
+                context=(
+                    "matched_noop_n_plus_one; "
+                    f"action_mse={settlement.action_mean_squared_error:.8f}; "
+                    f"noop_mse={settlement.noop_mean_squared_error:.8f}; "
+                    "cosine_improvement="
+                    f"{settlement.cosine_error_improvement:.8f}; "
+                    "target_lineage="
+                    f"{settlement.target_lineage_fingerprint}"
+                ),
+                timestamp_ms=timestamp_ms,
+                prediction_id=decision_id,
+                environment_outcome_id=settlement.episode_id,
+                abstract_action_id="steering_gate",
+            )
+        )
+    return tuple(records)
 
 
 def derive_segment_closure_credit_records(
@@ -2168,6 +2218,7 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
         )
         self._ledger.set_learning_enabled(learning_enabled)
         self._pending_proposals = pending_proposals
+        self._settled_steering_terminal_keys: set[tuple[str, str]] = set()
 
     @property
     def ledger(self) -> CreditLedger:
@@ -2189,6 +2240,45 @@ class CreditModule(RuntimeModule[CreditSnapshot]):
         """
 
         self._pending_proposals = proposals
+
+    def settle_steering_terminal_prediction_errors(
+        self,
+        settlements: tuple[SteeringTerminalPredictionError, ...],
+        *,
+        timestamp_ms: int,
+    ) -> CreditSnapshot:
+        """Credit-owner intake for out-of-turn C1 terminal settlements."""
+
+        if not settlements:
+            raise ValueError("steering terminal settlement batch must be non-empty")
+        keys = tuple(
+            (settlement.episode_id, settlement.prediction_head_fingerprint)
+            for settlement in settlements
+        )
+        if len(set(keys)) != len(keys):
+            raise ValueError("duplicate steering terminal settlement in batch")
+        duplicates = tuple(
+            key for key in keys if key in self._settled_steering_terminal_keys
+        )
+        if duplicates:
+            raise ValueError(
+                "steering terminal settlement was already credited: "
+                f"{duplicates!r}"
+            )
+        records = tuple(
+            record
+            for settlement in settlements
+            for record in derive_steering_terminal_credit_records(
+                settlement=settlement,
+                timestamp_ms=timestamp_ms,
+            )
+        )
+        record_ids = tuple(record.record_id for record in records)
+        if len(set(record_ids)) != len(record_ids):
+            raise ValueError("steering terminal credit record lineage collided")
+        self._ledger.record_credits(records)
+        self._settled_steering_terminal_keys.update(keys)
+        return self._ledger.snapshot()
 
     # ------------------------------------------------------------------
     # G1: cross-session continuity for the credit learned heads.

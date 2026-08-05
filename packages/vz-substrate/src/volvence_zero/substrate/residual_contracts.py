@@ -123,6 +123,8 @@ class GenerationResult:
     token_count: int
     capture: OpenWeightRuntimeCapture | None
     description: str
+    input_token_count: int = 0
+    source_sha256: str = ""
     personal_conditioning_applied: bool = False
     conditioning_bank_carriers_applied: tuple[tuple[str, str], ...] = ()
     character_prefix_applied: bool = False
@@ -132,6 +134,10 @@ class GenerationResult:
     character_prefix_shadow_id: str = ""
     character_residual_applied: bool = False
     character_residual_adapter_id: str = ""
+    steering_intervention_applied: bool = False
+    steering_action: str = ""
+    steering_executor_artifact_id: str = ""
+    steering_gate_policy_version: int = 0
 
 
 @dataclass(frozen=True)

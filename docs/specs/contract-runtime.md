@@ -68,7 +68,7 @@ class RuntimeModule(ABC, Generic[ValueT]):
 
 - Wave 级调度：协调一轮交互中各模块的执行顺序
 - 快照传播：`propagate(..., auto_sort=True)` 默认按 `dependencies` 拓扑排序，收集快照并构建 guarded upstream view
-- 接线级别：`ACTIVE` 写入正式 upstream；`SHADOW` 只执行和校验并写入 shadow snapshots；`DISABLED` 发布 runtime placeholder
+- 接线级别：`ACTIVE` 写入正式 upstream；`SHADOW` 只执行和校验并写入 shadow snapshots；同一 propagation wave 内，SHADOW consumer 可读取更早发布的 SHADOW dependency 以支持隔离候选链双跑，但 ACTIVE consumer 永远不可见这些候选，且 shadow dependency 不跨 wave 继承；`DISABLED` 发布 runtime placeholder
 - 事件分发：异步通知
 - 后台任务管理：慢反思等异步任务
 
@@ -97,6 +97,14 @@ Environment Interface 是运行时外侧的边界协议，不是新的 kernel ow
 - 环境 adapter 不直接调用 owner store，不绕过 `RuntimeModule.process()` / owner-side apply surface。
 - social cognition 的 speaker / audience / subject scope 来自 Environment Event conversational frame 或其 owner snapshot，不由 renderer / prompt planner 从 raw text 重建。
 - tool / affordance / expression outcome 必须能作为 typed evidence 关联到 prior prediction 或 prediction context，再进入 `prediction_error` 主链。
+- `msc-runtime-collector-v1` 可在隔离 evidence service 上接收
+  `active_speaker_id + observation_kind(persona/dialogue)` typed frame；权限只由启动 profile
+  决定，普通 chat endpoint 不得借请求字段开启。service 仍只调用 `BrainSession` facade，
+  不直接写 owner；每个 observation 必须经过完整 `propagate` 与 response generation。
+- MSC scene boundary 必须经 facade drain background slow loop 后发布精确 latency。返回的
+  `msc_runtime_context` 只包含 substrate owner 发布的向量/hash/lineage、runtime surface、
+  `temporal_n_z` 与实际成本；不包含原文，也不允许 evaluation writeback。该 surface 是
+  offline evidence DTO，不成为 live slot 或第二 owner。
 
 ### 当前实现补充
 

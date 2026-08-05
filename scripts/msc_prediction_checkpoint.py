@@ -110,10 +110,14 @@ class PredictionRunCheckpointStore:
         configuration: Mapping[str, object],
         resume: bool,
         schema_namespace: str = DEFAULT_CHECKPOINT_SCHEMA_NAMESPACE,
+        formal_claim_authorized: bool = False,
     ) -> None:
         if not schema_namespace.strip():
             raise ValueError("checkpoint schema_namespace must be non-empty")
+        if not isinstance(formal_claim_authorized, bool):
+            raise ValueError("formal_claim_authorized must be boolean")
         self.schema_namespace = schema_namespace
+        self._formal_claim_authorized = formal_claim_authorized
         self._run_state_schema = f"{schema_namespace}-run-state.v1"
         self._json_schema = f"{schema_namespace}-json-checkpoint.v1"
         self._array_schema = f"{schema_namespace}-array-checkpoint.v1"
@@ -185,8 +189,17 @@ class PredictionRunCheckpointStore:
             or analysis_allowed != (status == "complete")
         ):
             raise ValueError(f"{self.schema_namespace} run_state analysis gate is invalid")
-        if self._state.get("formal_claim_allowed") is not False:
-            raise ValueError(f"{self.schema_namespace} run_state cannot authorize a formal claim")
+        formal_claim_allowed = self._state.get("formal_claim_allowed")
+        if not isinstance(formal_claim_allowed, bool):
+            raise ValueError(
+                f"{self.schema_namespace} run_state formal claim gate is invalid"
+            )
+        if formal_claim_allowed and (
+            status != "complete" or not self._formal_claim_authorized
+        ):
+            raise ValueError(
+                f"{self.schema_namespace} run_state formal claim is unauthorized"
+            )
         if self._state.get("raw_corpus_text_retained") is not False:
             raise ValueError(f"{self.schema_namespace} checkpoint cannot retain raw corpus text")
         registered_paths: set[str] = set()
@@ -449,10 +462,14 @@ class PredictionRunCheckpointStore:
             }
         return manifest
 
-    def mark_complete(self) -> None:
+    def mark_complete(self, *, formal_claim_allowed: bool = False) -> None:
+        if formal_claim_allowed and not self._formal_claim_authorized:
+            raise ValueError(
+                f"{self.schema_namespace} formal claim requires preregistered authorization"
+            )
         self._state["status"] = "complete"
         self._state["analysis_allowed"] = True
-        self._state["formal_claim_allowed"] = False
+        self._state["formal_claim_allowed"] = formal_claim_allowed
         self._write_state()
 
 

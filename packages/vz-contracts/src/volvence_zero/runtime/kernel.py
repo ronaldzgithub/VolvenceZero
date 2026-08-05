@@ -687,6 +687,13 @@ async def propagate(
         modules = topo_sort_modules(modules)
 
     active_snapshots = dict(upstream or {})
+    # Keep multi-owner candidate chains executable without letting candidate
+    # values enter the authoritative mapping. SHADOW consumers may read an
+    # earlier SHADOW publication from this propagation wave; ACTIVE consumers
+    # continue to see active snapshots only. This mapping is intentionally
+    # wave-local so caller-supplied or prior-wave shadow output cannot become
+    # an implicit dependency.
+    wave_shadow_snapshots: UpstreamDict = {}
     registry = registry or SlotRegistry()
     ownership_guard = OwnershipGuard(registry)
     recorder = recorder or EventRecorder()
@@ -732,9 +739,15 @@ async def propagate(
             )
             continue
 
+        visible_snapshots = active_snapshots
+        if module.wiring_level is WiringLevel.SHADOW:
+            visible_snapshots = {
+                **active_snapshots,
+                **wave_shadow_snapshots,
+            }
         upstream_view = UpstreamView(
             module=module,
-            active_snapshots=active_snapshots,
+            active_snapshots=visible_snapshots,
             missing_snapshots=missing_snapshots,
             dependency_guard=dependency_guard,
             immutability_guard=immutability_guard,
@@ -781,6 +794,7 @@ async def propagate(
         )
 
         if module.wiring_level is WiringLevel.SHADOW:
+            wave_shadow_snapshots[snapshot.slot_name] = snapshot
             if shadow_snapshots is not None:
                 shadow_snapshots[snapshot.slot_name] = snapshot
             continue

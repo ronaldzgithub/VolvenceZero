@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
+import time
 
 from volvence_zero.application.runtime import ResponseAssemblySnapshot, ResponseMode
 from volvence_zero.conditioning_bank_contracts import (
@@ -11,6 +13,38 @@ from volvence_zero.personal_conditioning_contracts import (
 )
 from volvence_zero.regime.contracts import ExpressionBrief
 from volvence_zero.social_cognition import PRIMARY_INTERLOCUTOR_ID, SELF_INTERLOCUTOR_ID
+from volvence_zero.steering_contracts import (
+    SteeringGateAction,
+    SteeringIntervention,
+)
+from volvence_zero.substrate.forward_representation import (
+    SubstrateForwardRepresentationSnapshot,
+    publish_runtime_capture_representation,
+)
+from volvence_zero.substrate.residual_interfaces import OpenWeightResidualRuntime
+from volvence_zero.substrate.substrate_fingerprint import SubstrateFingerprint
+
+
+@dataclass(frozen=True)
+class RuntimeContextEvidence:
+    """Evidence-only full-runtime context in substrate-owned coordinates."""
+
+    representation: SubstrateForwardRepresentationSnapshot
+    input_token_count: int
+    output_token_count: int
+    generation_latency_ms: float
+    schema_version: str = "runtime-context-evidence.v1"
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "runtime-context-evidence.v1":
+            raise ValueError("runtime context evidence schema is unsupported")
+        if self.input_token_count < 1 or self.output_token_count < 0:
+            raise ValueError("runtime context evidence token counts are invalid")
+        if (
+            not math.isfinite(self.generation_latency_ms)
+            or self.generation_latency_ms < 0.0
+        ):
+            raise ValueError("runtime context evidence latency is invalid")
 
 
 @dataclass(frozen=True)
@@ -47,6 +81,7 @@ class AgentResponse:
     rationale: str
     rationale_tags: tuple[str, ...] = ()
     evidence_pointers: tuple[dict, ...] = ()
+    runtime_context_evidence: RuntimeContextEvidence | None = None
 
 
 @dataclass(frozen=True)
@@ -159,6 +194,10 @@ class ResponseContext:
     # This channel is independent from personal conditioning; without the
     # gate, ablations that close State KV still leak state through z_t.
     dynamic_residual_wiring: str = "active"
+    # B2 steering carrier: only an ACTIVE ``steering_intervention`` snapshot
+    # is admitted here. SHADOW previews remain in ``shadow_snapshots`` and
+    # can never reach user-visible generation through this field.
+    steering_intervention: SteeringIntervention | None = None
 
     def __post_init__(self) -> None:
         if self.sampling_seed is not None:
@@ -179,6 +218,14 @@ class ResponseContext:
                 "ResponseContext dynamic_residual_wiring must be 'active', "
                 "'shadow', or 'disabled', got "
                 f"{self.dynamic_residual_wiring!r}."
+            )
+        if (
+            self.steering_intervention is not None
+            and self.steering_intervention.application_mode != "active-pending"
+        ):
+            raise ValueError(
+                "ResponseContext only accepts an ACTIVE pending steering "
+                "intervention; SHADOW previews are evidence-only."
             )
         if self.personal_conditioning_carrier not in ("residual", "prefix_kv"):
             raise ValueError(
@@ -559,11 +606,26 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
         max_new_tokens: int = 512,
         temperature: float = 0.7,
         character_id: str = "",
+        capture_runtime_context: bool = False,
+        runtime_model_fingerprint: SubstrateFingerprint | None = None,
     ) -> None:
+        if capture_runtime_context:
+            if not isinstance(runtime, OpenWeightResidualRuntime):
+                raise TypeError(
+                    "runtime context capture requires OpenWeightResidualRuntime"
+                )
+            if runtime_model_fingerprint is None:
+                raise ValueError(
+                    "runtime context capture requires a frozen model fingerprint"
+                )
+            if runtime.model_id != runtime_model_fingerprint.model_id:
+                raise ValueError("runtime context model fingerprint drift")
         self._runtime = runtime
         self._max_new_tokens = max_new_tokens
         self._temperature = temperature
         self._character_id = character_id.strip()
+        self._capture_runtime_context = capture_runtime_context
+        self._runtime_model_fingerprint = runtime_model_fingerprint
 
     @staticmethod
     def _decoding_profile_for_assembly(assembly: ResponseAssemblySnapshot) -> str:
@@ -667,6 +729,11 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             )
         if self._character_id:
             carrier_kwargs["character_id"] = self._character_id
+        if context.steering_intervention is not None:
+            carrier_kwargs["steering_intervention"] = (
+                context.steering_intervention
+            )
+        generation_started = time.perf_counter()
         result = self._runtime.generate(
             prompt=user_input,
             system_context=system_prompt,
@@ -682,9 +749,47 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             # captures are owned by substrate/control paths; retaining every
             # hooked hidden state during long benchmark arcs can crash native
             # torch/CUDA on Windows.
-            capture_residuals=False,
+            capture_residuals=self._capture_runtime_context,
             **carrier_kwargs,
         )
+        generation_latency_ms = (
+            time.perf_counter() - generation_started
+        ) * 1000.0
+
+        runtime_context_evidence = None
+        if self._capture_runtime_context:
+            if result.capture is None:
+                raise RuntimeError(
+                    "runtime context evidence requested but substrate returned no capture"
+                )
+            if result.input_token_count < 1:
+                raise RuntimeError(
+                    "runtime context evidence requires measured input tokens"
+                )
+            if (
+                len(result.source_sha256) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in result.source_sha256
+                )
+            ):
+                raise RuntimeError(
+                    "runtime context evidence requires substrate source SHA-256"
+                )
+            assert self._runtime_model_fingerprint is not None
+            context_snapshot = publish_runtime_capture_representation(
+                sample_id=f"runtime-context:{result.source_sha256[:20]}",
+                source_sha256=result.source_sha256,
+                capture=result.capture,
+                model_fingerprint=self._runtime_model_fingerprint,
+                runtime_origin=self._runtime.runtime_origin,
+            )
+            runtime_context_evidence = RuntimeContextEvidence(
+                representation=context_snapshot,
+                input_token_count=result.input_token_count,
+                output_token_count=result.token_count,
+                generation_latency_ms=generation_latency_ms,
+            )
 
         generated_text = result.text.strip()
         if not generated_text:
@@ -742,6 +847,33 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             )
         else:
             rationale_parts.append("dynamic_residual=disabled")
+        if context.steering_intervention is not None:
+            intervention = context.steering_intervention
+            if (
+                result.steering_executor_artifact_id
+                != intervention.executor_artifact_id
+                or result.steering_gate_policy_version
+                != intervention.gate_policy_version
+                or result.steering_action != intervention.action.value
+            ):
+                raise RuntimeError(
+                    "substrate steering attestation does not match the "
+                    "ACTIVE intervention snapshot"
+                )
+            if (
+                intervention.action is SteeringGateAction.STEER
+                and not result.steering_intervention_applied
+            ):
+                raise RuntimeError(
+                    "substrate did not apply an ACTIVE STEER intervention"
+                )
+            rationale_parts.append(
+                "steering="
+                f"{result.steering_action}:"
+                f"{result.steering_executor_artifact_id}:"
+                f"policy-{result.steering_gate_policy_version}:"
+                f"applied-{str(result.steering_intervention_applied).lower()}"
+            )
         if context.personal_conditioning is not None:
             # Audit truth comes from the runtime result, not from having
             # passed a snapshot: a runtime may receive conditioning and
@@ -811,4 +943,5 @@ class LLMResponseSynthesizer(ResponseSynthesizer):
             abstract_action=assembly.abstract_action if assembly is not None else context.abstract_action,
             rationale=f"LLM generated; {', '.join(rationale_parts)}.",
             rationale_tags=tuple(rationale_parts),
+            runtime_context_evidence=runtime_context_evidence,
         )

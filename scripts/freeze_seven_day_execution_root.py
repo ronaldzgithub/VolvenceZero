@@ -134,6 +134,7 @@ def freeze_execution_root(
     repo_root: Path,
     preregistration_path: Path,
     output_root: Path,
+    manifest_schema_version: str = "seven-day-frozen-execution-root.v1",
 ) -> dict[str, object]:
     source = repo_root.resolve()
     prereg_path = preregistration_path.resolve()
@@ -178,9 +179,9 @@ def freeze_execution_root(
         if len(copied_files) != expected_count or copied_tree != expected_tree:
             raise RuntimeError("copied execution root differs from preregistration")
         manifest: dict[str, object] = {
-            "schema_version": "seven-day-frozen-execution-root.v1",
+            "schema_version": manifest_schema_version,
             "preregistration_sha256": hashlib.sha256(
-                _canonical_bytes(preregistration)
+                prereg_path.read_bytes()
             ).hexdigest(),
             "source_tree_sha256": expected_tree,
             "file_count": expected_count,

@@ -1156,6 +1156,30 @@ class SubstrateForwardRepresentationSnapshot:
   停止发布/消费该 slot，旧外部 sentence-encoder pilot 只能保留
   `thesis_status=not-evaluated`，不得自动恢复 thesis 资格。
 
+**MSC R4 conditioned runtime context（2026-08-05）**：
+
+`publish_runtime_capture_representation(...)` 仍由 `vz-substrate` 解释实际 generation
+capture 的 residual geometry，但与 target publisher 的语义严格分开：target 必须
+unconditioned；R4 context 允许包含正式 runtime 的 bounded conditioning。两者共享
+同一冻结 model/weights/readout/layers/widths 坐标，consumer 只能比较 owner 发布的
+向量和 lineage，不能遍历 capture。
+
+service 的 evidence-only `msc-runtime-collector-v1` 通过外层 DTO 发布：
+
+- `context_representation`（values/value SHA/source SHA）与 `context_lineage`；
+- 实际 `temporal_n_z`、`active_speaker_id`、完整 runtime slot-surface SHA；
+- input/output/total token、generation 与 end-to-end latency、propagate event count；
+- `acceptance_passed=true`、`substrate_fallback_active=false`、
+  `raw_text_retained=false`、`evaluation_writeback_allowed=false`。
+
+该 DTO 是 offline evidence exchange，不注册新的 live slot。只有明确 MSC profile、
+typed observation permission、精确 frozen weights SHA、显式 residual layers/width/context
+limit 与 `temporal_n_z ∈ {3,16,64,256}` 时才可发布；companion temporal bootstrap 在此
+profile 禁用，使 `BrainConfig.temporal_latent_dim` 成为唯一容量 owner。普通 service
+默认与产品 wiring 不变。每个 capacity/dyad checkpoint 绑定这些字段并仅保存向量、hash、
+sample id 与成本；任何 drift、fallback、截断、非有限/零范数或 raw-text retention 均
+fail loudly。
+
 **Offline frozen residual readout exchange（2026-08-04）**：
 
 S1 在上述正式 representation 之上增加唯一 owner
@@ -1677,7 +1701,7 @@ class CreditSnapshot:
     least_control_readout: LeastControlReadout | None = None
 ```
 
-**`CreditRecord.level` 取值**：`token` / `turn` / `session` / `long_term` / `abstract_action` / `prediction_error` / `evaluation_readout` / `social_prediction_error` / `abstract_action_segment` / `counterfactual_contribution`（Phase 1.A COCOA-lightweight，readout-only，不参与 acceptance gate）/ `counterfactual_contribution_learned`（Phase 2.A learned rewarding-state head readout，SHADOW 默认）。
+**`CreditRecord.level` 取值**：`token` / `turn` / `session` / `long_term` / `abstract_action` / `prediction_error` / `evaluation_readout` / `social_prediction_error` / `abstract_action_segment` / `steering_terminal_prediction_error`（C1：PE owner 的 matched-noop N+1 terminal mismatch，按 gate decision lineage 路由）/ `counterfactual_contribution`（Phase 1.A COCOA-lightweight，readout-only，不参与 acceptance gate）/ `counterfactual_contribution_learned`（Phase 2.A learned rewarding-state head readout，SHADOW 默认）。
 
 **当前实现口径**：
 
@@ -1687,6 +1711,7 @@ class CreditSnapshot:
 - 第二阶段允许在 owner 内部基于 temporal / rollout 结果扩展出 `abstract_action` 级 credit；共享 shape 变更必须按本文件协议登记
 - metacontroller credit 当前会消费 posterior drift、binary gate ratio、policy replacement score 等 ETA kernel evidence，并将其压入 `CreditRecord.context`
 - `derive_credit_records_from_prediction_error_first(...)` 是当前 PE-first credit 派生路径；evaluation 只提供 readout / gate context，不重新成为原始学习源
+- C1 的 `SteeringTerminalPredictionError` 是 PE owner 发布的 out-of-turn typed settlement，不新增 slot；Credit owner 以 `(episode_id, prediction_head_fingerprint)` 去重并按 `decision_id` 发布 `steering_terminal_prediction_error` records，gate owner 只消费 pending lineage。action/noop 必须同 predictor、同 substrate target lineage、同 target coordinate 且均为 frozen heldout forward；evaluation/judge 不得进入该链
 - 自修改 gate 当前采用 Two-Gate 风格的保守准入：候选必须提供 validation margin、capacity cap 内的容量成本和 rollback evidence；缺证据默认 block，并把原因写入 `SelfModificationRecord.justification`
 - Phase 2.A 的 `RewardingStateHeadState` 归属 `CreditLedger`，只用 owner 内部 context 向量预测 expected outcome；更新必须带 `validation_delta` / `capacity_cost` / `rollback_evidence`，并写入 `recent_modifications` 审计。`counterfactual_readouts` 是对比 readout，不授权下游重建 head 权重。
 - COG-1 最小切片新增 `least_control_readout`：由 credit owner 从近期 `counterfactual_readouts` 与 `recent_modifications` 派生 report-only 指标，表示“同等 outcome 需要多少控制努力”。evaluation / mid_layer 只能读取该 readout，不重新计算反事实归因。
@@ -2115,6 +2140,11 @@ prediction_error ────────┬────────→ memory /
                          ├────────→ case_memory / boundary_policy
                          └────────→ substrate_self_mod
 
+substrate ──────────────→ steering_condition_belief ──┬─→ steering_gate_decision
+                                                     └─→ steering_intervention
+prediction_error ──────────────────────────────────↗
+steering_gate_decision ─────────────────────────────→ steering_intervention
+
 session_post_slow_loop ──→ experience_consolidation ─────→ experience_fast_prior
 experience_fast_prior ───┬────────→ temporal owners
                          ├────────→ regime
@@ -2139,11 +2169,36 @@ reflection ──────────────→ proposals; runtime invo
 
 ## 6. 快照 Slot 注册表
 
+steering 族的跨 wheel 新行于 2026-08-05 按「owner / value type /
+dependencies / wiring level」四元组先行冻结；主表的「消费者」列仍只表示直接下游：
+
+| Slot | Owner | Value Type | Dependencies | Default Wiring |
+|------|-------|------------|--------------|----------------|
+| `steering_condition_belief` | `SteeringSensorModule` (`vz-cognition`) | `SteeringConditionBelief` | `substrate` | SHADOW |
+| `steering_gate_decision` | `SteeringGateModule` (`vz-temporal`) | `SteeringGateDecision` | `steering_condition_belief`, `prediction_error` | SHADOW |
+| `steering_intervention` | `SteeringExecutorModule` (`vz-substrate`) | `SteeringIntervention` | `substrate`, `steering_condition_belief`, `steering_gate_decision` | SHADOW |
+
+三项 value 与冻结 artifact 均由 `vz-contracts` 的
+`steering_contracts.py` 唯一定义；完整 shape、模型权重指纹绑定、
+SHADOW/ACTIVE 可见性与回滚见
+[`docs/specs/steering-runtime.md`](./specs/steering-runtime.md)。
+
+`steering_intervention` 在 SHADOW 证据 profile 中可附带 substrate owner 解释的
+`noop_context / action_context / sensor_off_action_context`：它们是固定 layer order、
+L2-normalized、只含数值与 SHA-256 的冻结 DTO，不新增 slot，也不把原文交给 consumer。
+sensor-off executor 是 `SteeringArtifactBundle` 内的 matched-budget unconditional artifact，
+只能作为 `steering_intervention` owner 的证据分支；consumer 禁止重建 residual 或第二次
+解释 condition code。C3 的 trace/report 与 B3 promotion evidence 都是 offline artifact，
+不进入 live DAG，因此不在 slot 注册表创建第二 owner。
+
 | Slot Name | Owner 模块 | Value 类型 | 默认接线 | 发布频率 | 消费者 |
 |-----------|-----------|-----------|----------|----------|--------|
 | `substrate` | SubstrateModule | SubstrateSnapshot | SHADOW | 每 turn | temporal_abstraction, memory, dual_track, evaluation, prediction_error |
 | `substrate_forward_representation` | SubstrateForwardRepresentationPublisher (`vz-substrate`) | SubstrateForwardRepresentationSnapshot | SHADOW（offline research） | frozen corpus batch | prediction_error offline ForwardRepresentationBatch；不进入 live DAG |
 | `substrate_residual_readout` | SubstrateResidualReadoutPublisher (`vz-substrate`) | SubstrateResidualReadoutSnapshot（artifact lineage 指向 FrozenResidualReadoutArtifact） | SHADOW（offline evidence） | frozen corpus batch | ETA S2 causal-steering evidence；依赖 `substrate_forward_representation`，不进入 live DAG、不回灌 |
+| `steering_condition_belief` | SteeringSensorModule (`vz-cognition`) | SteeringConditionBelief | SHADOW | 每 turn（仅注入 model-bound artifact 时构造） | `steering_gate_decision`, `steering_intervention` |
+| `steering_gate_decision` | SteeringGateModule (`vz-temporal`) | SteeringGateDecision | SHADOW | 每 turn（仅注入 model-bound artifact 时构造） | `steering_intervention`；只消费 belief + PE owner 快照，不消费 evaluation |
+| `steering_intervention` | SteeringExecutorModule (`vz-substrate`) | SteeringIntervention | SHADOW | 每 turn（仅注入 model-bound artifact 时构造） | session / transformers response generation；仅 ACTIVE 快照可进入用户可见生成，SHADOW 预览只留在 `shadow_snapshots` |
 | `substrate_self_mod` | SubstrateSelfModModule | SubstrateSelfModSnapshot | SHADOW | 每 turn / schedule | session / credit audit / rare-heavy review |
 | `world_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |
 | `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |

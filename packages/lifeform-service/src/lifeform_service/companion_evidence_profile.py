@@ -36,6 +36,11 @@ GATE9_M3_SLOW_ON = "gate9-m3-slow-on-v1"
 GATE9_M3_SLOW_OFF = "gate9-m3-slow-off-v1"
 GATE10_RARE_HEAVY_IMPORT = "gate10-rare-heavy-import-v1"
 GATE10_RARE_HEAVY_REVIEW = "gate10-rare-heavy-review-v1"
+MSC_RUNTIME_COLLECTOR = "msc-runtime-collector-v1"
+MSC_STEERING_SHADOW_COLLECTOR = "msc-steering-shadow-collector-v1"
+MSC_RUNTIME_PROFILE_NAMES = frozenset(
+    {MSC_RUNTIME_COLLECTOR, MSC_STEERING_SHADOW_COLLECTOR}
+)
 COMPANION_EVIDENCE_PROFILE_NAMES = (
     GATE1_PE_TEMPORAL_ON,
     GATE1_PE_TEMPORAL_OFF,
@@ -52,6 +57,8 @@ COMPANION_EVIDENCE_PROFILE_NAMES = (
     GATE9_M3_SLOW_OFF,
     GATE10_RARE_HEAVY_IMPORT,
     GATE10_RARE_HEAVY_REVIEW,
+    MSC_RUNTIME_COLLECTOR,
+    MSC_STEERING_SHADOW_COLLECTOR,
 )
 
 
@@ -66,6 +73,8 @@ class CompanionEvidenceProfile:
     rollout_overrides: tuple[tuple[str, object], ...] = ()
     turn_trigger_kind: str = "user_input"
     allow_single_session_live_substrate_mutation: bool = False
+    allow_typed_observation_frame: bool = False
+    publish_runtime_context: bool = False
 
     def apply(self, base: BrainConfig) -> BrainConfig:
         rollout = base.final_rollout_config or FinalRolloutConfig()
@@ -84,6 +93,8 @@ class CompanionEvidenceProfile:
             "rollout_overrides": {key: _jsonable(value) for key, value in self.rollout_overrides},
             "turn_trigger_kind": self.turn_trigger_kind,
             "allow_single_session_live_substrate_mutation": (self.allow_single_session_live_substrate_mutation),
+            "allow_typed_observation_frame": self.allow_typed_observation_frame,
+            "publish_runtime_context": self.publish_runtime_context,
             "prediction_error_publication": "active-in-both-arms",
             "sut_generation_temperature": 0.0,
             "production_default_changed": False,
@@ -316,6 +327,26 @@ _PROFILES = {
             ("joint_schedule", _RARE_HEAVY_SCHEDULE),
         ),
     ),
+    MSC_RUNTIME_COLLECTOR: CompanionEvidenceProfile(
+        name=MSC_RUNTIME_COLLECTOR,
+        gate_id=0,
+        arm_role="formal-volvence-runtime-collector",
+        allow_typed_observation_frame=True,
+        publish_runtime_context=True,
+    ),
+    MSC_STEERING_SHADOW_COLLECTOR: CompanionEvidenceProfile(
+        name=MSC_STEERING_SHADOW_COLLECTOR,
+        gate_id=0,
+        arm_role="formal-dialogue-steering-shadow-collector",
+        rollout_overrides=(
+            ("steering_sensor", WiringLevel.SHADOW),
+            ("steering_executor", WiringLevel.SHADOW),
+            ("steering_gate", WiringLevel.SHADOW),
+            ("steering_shadow_hook", True),
+        ),
+        allow_typed_observation_frame=True,
+        publish_runtime_context=True,
+    ),
 }
 
 
@@ -365,8 +396,35 @@ def write_companion_evidence_profile_attestation(
     profile: CompanionEvidenceProfile,
     substrate_model_id: str,
     substrate_device: str,
+    temporal_n_z: int | None = None,
+    steering_bundle_id: str | None = None,
+    steering_bundle_sha256: str | None = None,
 ) -> Path:
     """Write an immutable startup attestation under the isolated evidence root."""
+
+    if profile.name in MSC_RUNTIME_PROFILE_NAMES:
+        if temporal_n_z not in {3, 16, 64, 256}:
+            raise ValueError(
+                "MSC runtime profile attestation requires temporal_n_z 3/16/64/256"
+            )
+    elif temporal_n_z is not None:
+        raise ValueError(
+            "temporal_n_z attestation is only valid for an MSC runtime profile"
+        )
+    if profile.name == MSC_STEERING_SHADOW_COLLECTOR:
+        if not steering_bundle_id or steering_bundle_sha256 is None:
+            raise ValueError(
+                "MSC steering profile attestation requires bundle lineage"
+            )
+        if len(steering_bundle_sha256) != 64 or any(
+            character not in "0123456789abcdef"
+            for character in steering_bundle_sha256
+        ):
+            raise ValueError("MSC steering bundle SHA-256 is invalid")
+    elif steering_bundle_id is not None or steering_bundle_sha256 is not None:
+        raise ValueError(
+            "steering bundle attestation is only valid for the steering profile"
+        )
 
     payload: dict[str, Any] = {
         "schema_version": "companion-evidence-runtime-profile.v1",
@@ -381,6 +439,11 @@ def write_companion_evidence_profile_attestation(
         },
         "cuda": _cuda_attestation(substrate_device),
     }
+    if temporal_n_z is not None:
+        payload["temporal_n_z"] = temporal_n_z
+    if steering_bundle_id is not None:
+        payload["steering_bundle_id"] = steering_bundle_id
+        payload["steering_bundle_sha256"] = steering_bundle_sha256
     canonical_payload = json.dumps(
         payload,
         ensure_ascii=False,
@@ -424,6 +487,9 @@ __all__ = [
     "GATE9_M3_SLOW_ON",
     "GATE10_RARE_HEAVY_IMPORT",
     "GATE10_RARE_HEAVY_REVIEW",
+    "MSC_RUNTIME_COLLECTOR",
+    "MSC_RUNTIME_PROFILE_NAMES",
+    "MSC_STEERING_SHADOW_COLLECTOR",
     "CompanionEvidenceProfile",
     "resolve_companion_evidence_profile",
     "write_companion_evidence_profile_attestation",

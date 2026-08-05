@@ -15,6 +15,7 @@ import json
 import math
 import struct
 
+from volvence_zero.substrate.residual_contracts import OpenWeightRuntimeCapture
 from volvence_zero.substrate.residual_interfaces import OpenWeightResidualRuntime
 from volvence_zero.substrate.substrate_fingerprint import SubstrateFingerprint
 
@@ -147,6 +148,114 @@ def _snapshot_fingerprint(
     ).hexdigest()
 
 
+def _representation_from_capture(
+    *,
+    sample_id: str,
+    source_sha256: str,
+    capture: OpenWeightRuntimeCapture,
+    require_unconditioned: bool,
+) -> tuple[SubstrateForwardRepresentation, tuple[int, ...], tuple[int, ...]]:
+    if require_unconditioned and capture.personal_conditioning_applied:
+        raise ValueError(
+            "substrate N+1 target capture must be unconditioned; personal "
+            f"conditioning was applied for {sample_id!r}"
+        )
+    activations = tuple(
+        sorted(capture.residual_activations, key=lambda row: row.layer_index)
+    )
+    if not activations:
+        raise ValueError(
+            f"substrate representation capture for {sample_id!r} has no "
+            "residual activations"
+        )
+    layer_indices = tuple(row.layer_index for row in activations)
+    if len(set(layer_indices)) != len(layer_indices):
+        raise ValueError(
+            f"substrate representation capture for {sample_id!r} has duplicate layers"
+        )
+    activation_widths = tuple(len(row.activation) for row in activations)
+    if any(width < 1 for width in activation_widths):
+        raise ValueError(
+            f"substrate representation capture for {sample_id!r} has empty activations"
+        )
+    flat = tuple(value for row in activations for value in row.activation)
+    if not all(math.isfinite(value) for value in flat):
+        raise ValueError(
+            f"substrate representation capture for {sample_id!r} is non-finite"
+        )
+    norm = math.sqrt(sum(value * value for value in flat))
+    if norm <= 1e-12:
+        raise ValueError(
+            f"substrate representation capture for {sample_id!r} has zero residual norm"
+        )
+    values = tuple(value / norm for value in flat)
+    return (
+        SubstrateForwardRepresentation(
+            sample_id=sample_id,
+            source_sha256=source_sha256,
+            values=values,
+            values_sha256=_sha256_vector(values),
+        ),
+        layer_indices,
+        activation_widths,
+    )
+
+
+def publish_runtime_capture_representation(
+    *,
+    sample_id: str,
+    source_sha256: str,
+    capture: OpenWeightRuntimeCapture,
+    model_fingerprint: SubstrateFingerprint,
+    runtime_origin: str,
+) -> SubstrateForwardRepresentationSnapshot:
+    """Publish one full-runtime conditioned context in substrate coordinates.
+
+    Unlike N+1 targets, this evidence-only context may include bounded runtime
+    conditioning. The substrate remains the sole interpreter of residual
+    geometry and publishes the same L2 readout contract used by the target.
+    """
+
+    if not _is_sha256(source_sha256):
+        raise ValueError("runtime context source_sha256 is invalid")
+    if not _is_sha256(model_fingerprint.weights_sha256):
+        raise ValueError("runtime context requires a full model weights SHA-256")
+    if not runtime_origin.strip():
+        raise ValueError("runtime context runtime_origin must be non-empty")
+    row, layer_indices, activation_widths = _representation_from_capture(
+        sample_id=sample_id,
+        source_sha256=source_sha256,
+        capture=capture,
+        require_unconditioned=False,
+    )
+    representations = (row,)
+    fingerprint = _snapshot_fingerprint(
+        model_fingerprint=model_fingerprint,
+        runtime_origin=runtime_origin,
+        layer_indices=layer_indices,
+        activation_widths=activation_widths,
+        representations=representations,
+    )
+    lineage = SubstrateForwardRepresentationLineage(
+        schema_version=SUBSTRATE_FORWARD_REPRESENTATION_SCHEMA_VERSION,
+        snapshot_fingerprint=fingerprint,
+        model_fingerprint=model_fingerprint,
+        runtime_origin=runtime_origin,
+        readout_kind=SUBSTRATE_FORWARD_READOUT_KIND,
+        layer_indices=layer_indices,
+        activation_widths=activation_widths,
+        representation_dim=sum(activation_widths),
+    )
+    return SubstrateForwardRepresentationSnapshot(
+        lineage=lineage,
+        representations=representations,
+        description=(
+            "Frozen substrate full-runtime context from the latest token on "
+            "selected residual layers; source text is retained only as SHA-256."
+        ),
+    )
+
+
 class SubstrateForwardRepresentationPublisher:
     """Publish unconditioned frozen-LM residual targets with strict lineage."""
 
@@ -196,28 +305,12 @@ class SubstrateForwardRepresentationPublisher:
                     f"substrate representation source for {sample_id!r} is empty"
                 )
             capture = self._runtime.capture(source_text=source_text)
-            if capture.personal_conditioning_applied:
-                raise ValueError(
-                    "substrate N+1 target capture must be unconditioned; personal "
-                    f"conditioning was applied for {sample_id!r}"
-                )
-            activations = tuple(
-                sorted(capture.residual_activations, key=lambda row: row.layer_index)
+            row, layer_indices, activation_widths = _representation_from_capture(
+                sample_id=sample_id,
+                source_sha256=_sha256_text(source_text),
+                capture=capture,
+                require_unconditioned=True,
             )
-            if not activations:
-                raise ValueError(
-                    f"substrate target capture for {sample_id!r} has no residual activations"
-                )
-            layer_indices = tuple(row.layer_index for row in activations)
-            if len(set(layer_indices)) != len(layer_indices):
-                raise ValueError(
-                    f"substrate target capture for {sample_id!r} has duplicate layers"
-                )
-            activation_widths = tuple(len(row.activation) for row in activations)
-            if any(width < 1 for width in activation_widths):
-                raise ValueError(
-                    f"substrate target capture for {sample_id!r} has empty activations"
-                )
             current_geometry = (layer_indices, activation_widths)
             if geometry is None:
                 geometry = current_geometry
@@ -226,25 +319,7 @@ class SubstrateForwardRepresentationPublisher:
                     "substrate target residual geometry drifted across samples: "
                     f"expected {geometry}, got {current_geometry} for {sample_id!r}"
                 )
-            flat = tuple(value for row in activations for value in row.activation)
-            if not all(math.isfinite(value) for value in flat):
-                raise ValueError(
-                    f"substrate target capture for {sample_id!r} is non-finite"
-                )
-            norm = math.sqrt(sum(value * value for value in flat))
-            if norm <= 1e-12:
-                raise ValueError(
-                    f"substrate target capture for {sample_id!r} has zero residual norm"
-                )
-            values = tuple(value / norm for value in flat)
-            rows.append(
-                SubstrateForwardRepresentation(
-                    sample_id=sample_id,
-                    source_sha256=_sha256_text(source_text),
-                    values=values,
-                    values_sha256=_sha256_vector(values),
-                )
-            )
+            rows.append(row)
             if progress is not None:
                 progress(sample_id, sample_index + 1, len(sample_sources))
 
@@ -286,4 +361,5 @@ __all__ = [
     "SubstrateForwardRepresentationLineage",
     "SubstrateForwardRepresentationPublisher",
     "SubstrateForwardRepresentationSnapshot",
+    "publish_runtime_capture_representation",
 ]

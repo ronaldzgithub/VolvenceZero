@@ -57,6 +57,7 @@ from volvence_zero.relationship_continuity import (
     RelationshipContinuitySnapshot,
 )
 from volvence_zero.runtime import WiringLevel
+from volvence_zero.steering_contracts import SteeringArtifactBundle
 from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
     SemanticEventDelivery,
@@ -127,6 +128,10 @@ class BrainConfig:
     application_persistence_dir: str | None = None
     domain_experience_packages: tuple[DomainExperiencePackage, ...] = ()
     final_rollout_config: FinalRolloutConfig | None = None
+    # Model-bound steering artifacts are explicit construction-time inputs.
+    # None keeps the owner family absent; loading a bundle never changes its
+    # SHADOW defaults or authorizes promotion by itself.
+    steering_bundle: SteeringArtifactBundle | None = None
     rare_heavy_enabled: bool = True
     rare_heavy_trace_window: int = 5
     rare_heavy_min_traces: int = 4
@@ -1030,6 +1035,7 @@ class Brain:
             application_persistence_dir=self._config.application_persistence_dir,
             domain_experience_packages=self._config.domain_experience_packages,
             default_residual_runtime=runtime,
+            steering_bundle=self._config.steering_bundle,
             substrate_adapter_factory=self._substrate_adapter_factory,
             response_synthesizer=synthesizer,
             semantic_proposal_runtime=self._semantic_proposal_runtime,

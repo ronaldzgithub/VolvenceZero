@@ -58,6 +58,9 @@ _ALLOWLIST: frozenset[pathlib.Path] = frozenset(
         (
             REPO_ROOT / "scripts" / "companion_bench" / "publish_public_bench.sh"
         ).resolve(),
+        (
+            REPO_ROOT / "scripts" / "companion_bench" / "publish_public_bench.ps1"
+        ).resolve(),
     }
 )
 

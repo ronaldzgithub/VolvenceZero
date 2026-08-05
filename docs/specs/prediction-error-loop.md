@@ -93,24 +93,29 @@
 `PredictionErrorModule` 额外拥有一条显式配置的高吞吐 batch surface：turn N 的冻结上下文表示预测 turn N+1 的冻结观测表示，下一轮以同一 target 同时训练和结算。它不替换当前 live 四轴 head，也不新增第二个 mismatch owner。
 
 - 输入契约为 frozen `ForwardRepresentationBatch`：`sample_ids`、context、N+1 target、persistence baseline 与 `history_turns` 必须逐样本对齐、维度一致且全为有限值；`target_lineage` 必须是 substrate owner 发布的 `SubstrateForwardRepresentationLineage`，其维度必须与 target/persistence 一致。
-- owner-internal `TorchForwardRepresentationHead` 使用 `input -> tanh(n_z) -> target` 的有界瓶颈；结算发布逐样本 predicted / actual / signed error、MSE、cosine，以及同 target 上的 persistence baseline。
+- owner-internal `TorchForwardRepresentationHead` 使用 `input -> tanh(n_z) -> target` 的有界瓶颈；结算发布逐样本 predicted / actual / signed error、MSE、cosine、`prediction_zero_norm`，以及同 target 上的 persistence baseline。batch snapshot 汇总 `zero_norm_prediction_count`；cosine 对零范数仍定义为 0 仅用于数值结算，但正式 verdict 必须暴露计数且任一命中使完整性门失败，禁止静默把 head collapse 当普通低分。
 - `ForwardRepresentationBatchSnapshot` 是 PE owner 的离线 settlement artifact，不进入 live `propagate`；其 target 来自 DATA_CONTRACT §3.1 / §6 注册的 offline SHADOW slot `substrate_forward_representation`。调用方只能经 `PredictionErrorModule.process_forward_representation_batch(...)` 训练或评估，禁止直接实例化 head 形成第二 owner。
 - checkpoint 为 float-only、带 geometry/schema/parameter fingerprint 与完整 target lineage 校验；head 在第一批绑定 lineage，后续 batch、restore 或 model/readout/sample snapshot 漂移必须 loudly fail。
 - target 语义只由 `vz-substrate` 解释：冻结模型最后 token、选定 residual layers、稳定 layer order、L2-normalized readout。PE owner只拥有预测与 mismatch，不遍历 capture、不编码原文。MiniLM/其它外部 sentence encoder target 只允许作为历史 mechanism pilot，不能构造新的 `ForwardRepresentationBatch` 或取得 thesis 资格。
+- C1 steering terminal settlement 复用这一 owner surface：`settle_steering_terminal_prediction_error(...)` 只比较同 predictor fingerprint、同 substrate target lineage、同 sample/history/actual target 的冻结 action/noop heldout snapshot，并发布 `SteeringTerminalPredictionError`。主学习标量是相对 matched-noop MSE improvement；cosine 只作诊断。该 out-of-turn API 不接受 evaluation/judge、不新增 live slot，也不更新 forward head。
+- C3 multi-restart replay 不得复制或重算 mismatch。PE owner 的 `bind_steering_terminal_prediction_error_decisions(...)` 只允许把一份冻结 `SteeringTerminalPredictionError` 绑定到新的 episode/decision lineage；action/noop batch、sample、head、target、MSE 与 cosine 全部原样保留。每个 rebound 仍由 credit owner 入账，禁止 runner 直接把 scalar 写给 gate。
 - promotion 条件：真实人类 multi-session heldout 上，N+1 head 必须优于同 substrate target 的 persistence，并通过 temporal-owner 容量阶梯、同一冻结 substrate 的长上下文 matched baseline、完整 runtime attestation 和多 seed 门；此前保持 offline/report-only。PE forward-head `n_z` 只代表 predictor capacity，不是 temporal-controller `n_z`。旧 CP-11 四轴手工 head 的 output/target space 与 substrate 表示不同，不能伪造跨空间数值对照。
 - `scripts/run_msc_prediction_test_plan.py` 是该研究线的独立 MPS 命令行控制面。它固定禁止
-  CPU fallback，并与经新控制面启动的七日产品实验共享 MPS 互斥锁；控制面落地前手工
-  启动的旧进程必须另行确认退出。当前只授权 `preflight` 与
-  `mechanism-only-smoke`；`formal` 在 same-substrate context、完整 runtime collector、
-  temporal-controller capacity 三门未齐时固定返回退出码 3。CLI 状态不是 evidence，不能由
-  “命令存在”推导 thesis 已执行。
+  CPU fallback，并与七日产品实验共享 MPS 互斥锁；阶段顺序为
+  `preflight → smoke → preregister → formal`。R3/R4/R5 代码门已关闭不等于 formal 已跑：
+  smoke 必须先产出 `msc-r5-smoke-manifest.v1` 且保持
+  `formal_claim_permitted=false`；随后新 prereg 冻结 smoke hash、完整
+  1001/500/501 matrix、three seeds、模型/源码/config hash 与唯一 session-5 主检验，
+  formal 才可 dispatch。CLI status 不是 evidence，不能由“命令存在”推导 thesis 已执行。
 - mechanism runner 必须以精确 configuration fingerprint 管理可续跑 journal。语料
   provenance、模型/源码 SHA、device、split 限制、seed、层和超参必须全部进入
   fingerprint；`--resume` 遇任一漂移或已登记文件 SHA 变化都必须 fail loudly。
   语料索引、context/target 数值张量、arm/split 和 seed 结算为不可变单元；
   journal 不得保留 MSC 原文。`run_state.json` 只是可变控制面，不进 evidence
-  hash；最终 manifest 封口前 `analysis_allowed=false`，封口后仍保持
-  `formal_claim_allowed=false`。中间 checkpoint 禁止用于换 seed、选容量或产生
+  hash；runner 对 output sibling lock file 持有 non-blocking `flock`，同一输出根的并发
+  writer/resume 立即失败。最终 manifest 封口前 `analysis_allowed=false`；未绑定 prereg
+  或 formal requirement 不全时封口后仍保持 `formal_claim_allowed=false`，只有已预注册且
+  完整的 formal artifact 可置 true。中间 checkpoint 禁止用于换 seed、选容量或产生
   effect verdict。`status --output-dir` 只允许暴露进度和 gate，不暴露效应值。
 - 长上下文资格由实际语料 token exposure 决定：同一冻结 Qwen tokenizer 对每条 full history
   记录 raw token；若全体低于 32k 声明上限，则 32k 已是零截断 full-history steelman，128k
@@ -471,6 +476,21 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 | 被依赖 | 慢反思路径 | reflection 将 PE 作为 tensions、lessons 和 policy consolidation 的正式输入 |
 
 ## 变更日志
+
+- 2026-08-05: MSC R3→R5 formal control surface。R4 通过完整 service/runtime
+  typed observation collector 发布 conditioned substrate context 与对称增量成本；R5
+  独立扫描真实 `temporal_n_z=3/16/64/256`，固定 PE head=3、禁用 temporal
+  bootstrap，flat 回落 3。zero-norm、session 5、full split、passed smoke、新 prereg
+  与 output process lock 全部进入 fail-closed formal requirements。
+
+- 2026-08-05: C1 matched terminal steering credit。PE owner 新增冻结 action/noop
+  N+1 表示结算，强制 predictor、substrate target lineage 与 sample coordinate 一致；
+  发布 typed `SteeringTerminalPredictionError` 供 credit owner 路由，evaluation 不进入
+  结算，forward head 不在 heldout settlement 中更新。
+
+- 2026-08-05: C3 replay rebinding。PE owner 新增只改 episode/decision lineage 的
+  immutable rebound API，使昂贵 matched counterfactual 可用于预注册 multi-restart，
+  mismatch/head/target 不重算；每次 replay 仍必须经过 Credit owner。
 
 - 2026-08-01: 增加两实验隔离的 MPS CLI 控制面。MSC 线的 status/preflight/smoke/formal
   分级，MPS 算术探针、CPU fallback 禁止、跨实验互斥锁与 formal blocker 退出码均 fail

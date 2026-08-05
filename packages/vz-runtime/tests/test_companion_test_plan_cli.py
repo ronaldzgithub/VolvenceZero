@@ -19,6 +19,10 @@ from companion_bench.spec import load_scenario_yaml
 from volvence_zero.agent.seven_day_companion_evidence import (
     SevenDayExperimentCase,
 )
+from volvence_zero.substrate import (
+    SubstrateFingerprint,
+    SubstrateForwardRepresentationLineage,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -27,8 +31,10 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import companion_test_plan_common as common  # noqa: E402
+import freeze_msc_execution_root as msc_execution_freezer  # noqa: E402
 import freeze_seven_day_execution_root as execution_freezer  # noqa: E402
 import msc_prediction_checkpoint as prediction_checkpoint  # noqa: E402
+import run_msc_prediction_research as prediction_runner  # noqa: E402
 import run_seven_day_companion_formal as continuity_runner  # noqa: E402
 import run_seven_day_gate1_formal as gate1_runner  # noqa: E402
 import run_seven_day_gate_suite_formal as gate_suite_runner  # noqa: E402
@@ -70,6 +76,38 @@ def _write_canonical_json(path: Path, payload: object) -> None:
         ).encode("utf-8")
         + b"\n"
     )
+
+
+def _prediction_lineage(
+    root: Path,
+    *,
+    substrate_model: str = "frozen-model-v1",
+) -> dict[str, object]:
+    return {
+        "msc_root": str((root / "msc").resolve()),
+        "corpus_provenance_sha256": "a" * 64,
+        "encoder": "fixture-encoder",
+        "context_encoder_mode": "substrate",
+        "volvence_context_mode": "full-runtime",
+        "device": "mps",
+        "substrate_model": substrate_model,
+        "substrate_device": "mps",
+        "substrate_activation_width": 896,
+        "substrate_layer_indices": [11, 12, 13],
+        "substrate_context_limit": 32768,
+        "substrate_weights_sha256": "b" * 64,
+        "runtime_max_new_tokens": 16,
+        "runtime_startup_timeout": 600.0,
+        "temporal_capacity_n_z": [3, 16, 64, 256],
+        "temporal_capacity_fixed_forward_head_n_z": 3,
+        "max_seq_length": 512,
+        "encoder_batch_size": 32,
+        "head_batch_size": 64,
+        "learning_rate": 0.003,
+        "retrieval_count": 4,
+        "seeds": [0, 1, 2],
+        "source_sha256": {"scripts/runner.py": "c" * 64},
+    }
 
 
 def _resumable_run(
@@ -193,6 +231,79 @@ def test_execution_freezer_materializes_exact_read_only_snapshot(
                 path.chmod(0o755 if path.is_dir() else 0o644)
 
 
+def test_msc_execution_freezer_binds_formal_to_exact_read_only_tree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    source = repo / "scripts/run_msc_prediction_research.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("print('fixture')\n", encoding="utf-8")
+    roots = ("scripts/run_msc_prediction_research.py",)
+    monkeypatch.setattr(prediction_plan, "MSC_EXECUTION_SOURCE_ROOTS", roots)
+    files = execution_freezer._collect_files(repo, roots)
+    preregistration = tmp_path / "msc-preregistration.json"
+    _write_canonical_json(
+        preregistration,
+        {
+            "schema_version": "msc-n-plus-one-formal-prereg.v1",
+            "execution_source_snapshot": {
+                "roots": list(roots),
+                "excluded": list(execution_freezer.EXCLUDED_PATTERNS),
+                "file_count": len(files),
+                "tree_sha256": execution_freezer._tree_sha256(repo, files),
+            },
+        },
+    )
+    frozen = tmp_path / "frozen-msc"
+
+    try:
+        manifest = msc_execution_freezer.freeze_msc_execution_root(
+            repo_root=repo,
+            preregistration_path=preregistration,
+            output_root=frozen,
+        )
+
+        assert manifest["schema_version"] == "msc-frozen-execution-root.v1"
+        validated = prediction_plan._validate_frozen_execution_root(
+            execution_root=frozen,
+            preregistration=preregistration,
+        )
+        assert validated == manifest
+        assert (frozen.stat().st_mode & 0o222) == 0
+    finally:
+        if frozen.exists():
+            frozen.chmod(0o755)
+            for path in frozen.rglob("*"):
+                path.chmod(0o755 if path.is_dir() else 0o644)
+
+
+def test_prediction_formal_rejects_mutable_execution_root(tmp_path: Path) -> None:
+    root = tmp_path / "mutable"
+    source = root / "scripts/run_msc_prediction_research.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("print('fixture')\n", encoding="utf-8")
+    preregistration = tmp_path / "msc-preregistration.json"
+    _write_canonical_json(
+        preregistration,
+        {
+            "schema_version": "msc-n-plus-one-formal-prereg.v1",
+            "execution_source_snapshot": {
+                "roots": list(prediction_plan.MSC_EXECUTION_SOURCE_ROOTS),
+                "excluded": list(execution_freezer.EXCLUDED_PATTERNS),
+                "file_count": 1,
+                "tree_sha256": "a" * 64,
+            },
+        },
+    )
+
+    with pytest.raises(FileNotFoundError, match="frozen execution manifest"):
+        prediction_plan._validate_frozen_execution_root(
+            execution_root=root,
+            preregistration=preregistration,
+        )
+
+
 def test_require_mps_fails_loudly_when_backend_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -263,6 +374,61 @@ def test_direct_mps_runner_acquires_shared_lock(
 
     assert result == 7
     assert events == ["lock:direct-seven-day", "mps", "main", "unlock"]
+
+
+def test_mps_configuration_capture_skips_device_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    monkeypatch.setattr(
+        common,
+        "exclusive_mps_lock",
+        lambda *_args, **_kwargs: pytest.fail("configuration capture took MPS lock"),
+    )
+    monkeypatch.setattr(
+        common,
+        "require_mps",
+        lambda: pytest.fail("configuration capture probed MPS"),
+    )
+
+    result = common.guarded_mps_runner_entrypoint(
+        lambda: events.append("main") or 0,
+        plan_id="msc-configuration-capture",
+        argv=("--device", "mps", "--emit-run-configuration", "config.json"),
+    )
+
+    assert result == 0
+    assert events == ["main"]
+
+
+def test_prediction_runner_direct_entrypoint_uses_shared_mps_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def guard(main_callable, *, plan_id: str, argv: Sequence[str]) -> int:
+        captured["main_callable"] = main_callable
+        captured["plan_id"] = plan_id
+        captured["argv"] = tuple(argv)
+        return 7
+
+    monkeypatch.setattr(
+        prediction_runner,
+        "guarded_mps_runner_entrypoint",
+        guard,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["run_msc_prediction_research.py", "--device", "mps"],
+    )
+
+    assert prediction_runner._guarded_main() == 7
+    assert captured == {
+        "main_callable": prediction_runner.main,
+        "plan_id": "msc-n-plus-one-prediction-mps.v1",
+        "argv": ("--device", "mps"),
+    }
 
 
 def test_resume_validation_rejects_partial_and_v2_incomplete_runs(
@@ -866,14 +1032,295 @@ def test_prediction_smoke_uses_mps_for_encoder_head_and_substrate(
     assert "--resume" in command
 
 
-def test_prediction_formal_stage_is_fail_closed(capsys: pytest.CaptureFixture[str]) -> None:
-    exit_code = prediction_plan.main(("formal",))
+def test_prediction_plan_propagates_parent_mps_lock_to_runner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    execution_root = tmp_path / "execution"
+    (execution_root / "packages/example/src").mkdir(parents=True)
+    runner = execution_root / "scripts/run_msc_prediction_research.py"
+    runner.parent.mkdir(parents=True)
+    runner.write_text("", encoding="utf-8")
+    captured: dict[str, str] = {}
 
-    payload = json.loads(capsys.readouterr().out)
-    assert exit_code == prediction_plan.FORMAL_BLOCKED_EXIT
-    assert payload["formal_eligible"] is False
-    assert payload["formal_blockers"] == list(prediction_plan.FORMAL_BLOCKERS)
+    monkeypatch.setattr(
+        prediction_plan,
+        "exclusive_mps_lock",
+        lambda *_args, **_kwargs: nullcontext(),
+    )
+    monkeypatch.setattr(
+        prediction_plan,
+        "require_mps",
+        lambda: common.MPSAvailability(
+            torch_version="fixture",
+            built=True,
+            available=True,
+            fallback_disabled=True,
+        ),
+    )
+
+    def run_command(
+        _command: Sequence[str],
+        *,
+        execution_root: Path,
+        environment: dict[str, str],
+    ) -> int:
+        del execution_root
+        captured.update(environment)
+        return 0
+
+    monkeypatch.setattr(prediction_plan, "run_plan_command", run_command)
+    monkeypatch.setattr(
+        prediction_plan,
+        "_write_smoke_manifest",
+        lambda _output: {"passed": True},
+    )
+    lock = tmp_path / "shared.lock"
+
+    result = prediction_plan.main(
+        [
+            "smoke",
+            "--execution-root",
+            str(execution_root),
+            "--msc-root",
+            str(tmp_path / "msc"),
+            "--output-dir",
+            str(tmp_path / "output"),
+            "--mps-lock",
+            str(lock),
+        ]
+    )
+
+    assert result == 0
+    assert captured["VZ_COMPANION_MPS_LOCK_HELD"] == "1"
+    assert captured["VZ_COMPANION_MPS_LOCK_PATH"] == str(lock.resolve())
+
+
+def test_prediction_status_reports_r5_formal_infrastructure_unblocked() -> None:
+    payload = prediction_plan._prediction_status()
+
+    assert payload["formal_eligible"] is True
+    assert payload["formal_blockers"] == ()
+    assert "temporal-controller-capacity-ladder" in payload[
+        "completed_prerequisites"
+    ]
     assert payload["formal_claim_permitted_now"] is False
+
+
+def test_prediction_formal_command_freezes_full_matrix_and_preregistration(
+    tmp_path: Path,
+) -> None:
+    runner = tmp_path / "scripts/run_msc_prediction_research.py"
+    runner.parent.mkdir(parents=True)
+    runner.write_text("", encoding="utf-8")
+    command = prediction_plan._formal_command(
+        python=Path("/usr/bin/python3"),
+        execution_root=tmp_path,
+        msc_root=tmp_path / "msc",
+        output_dir=tmp_path / "formal",
+        substrate_model="Qwen/Qwen2.5-0.5B-Instruct",
+        preregistration=tmp_path / "prereg.json",
+        resume=False,
+    )
+
+    assert command[command.index("--train-dyads") + 1] == "1001"
+    assert command[command.index("--validation-dyads") + 1] == "500"
+    assert command[command.index("--heldout-dyads") + 1] == "501"
+    assert command[command.index("--preregistration") + 1].endswith(
+        "prereg.json"
+    )
+
+
+def test_prediction_preregistration_recaptures_and_freezes_run_configuration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = tmp_path / "scripts/run_msc_prediction_research.py"
+    runner.parent.mkdir(parents=True)
+    runner.write_text("", encoding="utf-8")
+    smoke_root = tmp_path / "smoke"
+    smoke_path = smoke_root / "smoke_manifest.json"
+    smoke_configuration = {
+        "schema_version": "msc-n-plus-one-resumable-run.v4",
+        **_prediction_lineage(tmp_path),
+    }
+    _write_canonical_json(
+        smoke_path,
+        {
+            "schema_version": "msc-r5-smoke-manifest.v1",
+            "passed": True,
+            "formal_claim_permitted": False,
+            "measurement": {"runtime_sample_count": 4},
+            "runner_run_configuration": smoke_configuration,
+        },
+    )
+
+    def capture_configuration(
+        command: Sequence[str],
+        *,
+        execution_root: Path,
+        environment: dict[str, str],
+    ) -> int:
+        del execution_root, environment
+        target = Path(command[command.index("--emit-run-configuration") + 1])
+        substrate_model = command[command.index("--substrate-model") + 1]
+        _write_canonical_json(
+            target,
+            {
+                **smoke_configuration,
+                **_prediction_lineage(
+                    tmp_path,
+                    substrate_model=substrate_model,
+                ),
+            },
+        )
+        return 0
+
+    monkeypatch.setattr(
+        prediction_plan,
+        "run_plan_command",
+        capture_configuration,
+    )
+    preregistration = tmp_path / "formal-prereg.json"
+    kwargs = {
+        "python": Path("/usr/bin/python3"),
+        "execution_root": tmp_path,
+        "environment": {},
+        "msc_root": tmp_path / "msc",
+        "formal_output_dir": tmp_path / "formal",
+        "smoke_output_dir": smoke_root,
+        "substrate_model": "frozen-model-v1",
+        "preregistration": preregistration,
+    }
+
+    first = prediction_plan._write_formal_preregistration(**kwargs)
+    second = prediction_plan._write_formal_preregistration(**kwargs)
+
+    assert second == first
+    assert first["run_configuration"]["substrate_model"] == "frozen-model-v1"
+    with pytest.raises(ValueError, match="lineage drift"):
+        prediction_plan._write_formal_preregistration(
+            **(kwargs | {"substrate_model": "drifted-model-v2"})
+        )
+
+
+def test_prediction_preregistration_rejects_smoke_source_lineage_drift(
+    tmp_path: Path,
+) -> None:
+    smoke_configuration = _prediction_lineage(tmp_path)
+    formal_configuration = deepcopy(smoke_configuration)
+    formal_configuration["source_sha256"] = {"scripts/runner.py": "d" * 64}
+
+    with pytest.raises(ValueError, match="source_sha256"):
+        prediction_plan._validate_smoke_formal_lineage(
+            smoke={"runner_run_configuration": smoke_configuration},
+            formal_configuration=formal_configuration,
+        )
+
+
+def test_prediction_smoke_manifest_requires_r3_r4_r5_execution_order(
+    tmp_path: Path,
+) -> None:
+    def write_smoke_inputs(root: Path, order: list[str]) -> None:
+        _write_canonical_json(
+            root / "artifact_manifest.json",
+            {
+                "evidence_level": "pilot",
+                "formal_experiment_executed": False,
+            },
+        )
+        runtime = {
+            str(n_z): {
+                "total_interval_latency_ms": 1.0,
+                "total_interval_token_count": 2,
+                "sample_count": 1,
+            }
+            for n_z in (3, 16, 64, 256)
+        }
+        _write_canonical_json(
+            root / "manifest.json",
+            {
+                "same_substrate_context_attestation": {
+                    "passed": True,
+                    "truncated_token_count": 0,
+                },
+                "full_runtime_context_attestation": {
+                    "volvence_full_stack": True,
+                    "raw_text_retained": False,
+                    "evaluation_writeback_allowed": False,
+                },
+                "temporal_capacity_runtime_attestations": runtime,
+                "convergence_stage_order": order,
+                "run_configuration": {"fixture": True},
+            },
+        )
+        _write_canonical_json(
+            root / "temporal_capacity_ladder.json",
+            {
+                "observations": [
+                    {
+                        "temporal_n_z": n_z,
+                        "forward_head_n_z": 3,
+                    }
+                    for n_z in (3, 16, 64, 256)
+                ],
+                "zero_norm_prediction_count": 0,
+            },
+        )
+        _write_canonical_json(
+            root / "prediction_verdict.json",
+            {"evidence_level": "pilot"},
+        )
+
+    passed = tmp_path / "passed"
+    write_smoke_inputs(passed, ["R3", "R4", "R5"])
+    assert prediction_plan._write_smoke_manifest(passed)["passed"] is True
+
+    reordered = tmp_path / "reordered"
+    write_smoke_inputs(reordered, ["R4", "R3", "R5"])
+    with pytest.raises(ValueError, match="smoke checks"):
+        prediction_plan._write_smoke_manifest(reordered)
+
+
+def test_prediction_r4_lineage_must_match_r3_target_surface() -> None:
+    lineage = SubstrateForwardRepresentationLineage(
+        schema_version="substrate-forward-representation.v1",
+        snapshot_fingerprint="b" * 64,
+        model_fingerprint=SubstrateFingerprint(
+            model_id="frozen-model",
+            version="snapshot-v1",
+            weights_sha256="a" * 64,
+        ),
+        runtime_origin="hf-local",
+        readout_kind="latest-token-selected-layer-residual-l2.v1",
+        layer_indices=(11, 12),
+        activation_widths=(2, 2),
+        representation_dim=4,
+    )
+    attestation = {
+        "volvence_full_stack": True,
+        "model_id": "frozen-model",
+        "weights_sha256": "a" * 64,
+        "runtime_origin": "hf-local",
+        "readout_kind": "latest-token-selected-layer-residual-l2.v1",
+        "layer_indices": [11, 12],
+        "activation_widths": [2, 2],
+        "temporal_n_z": 3,
+        "raw_text_retained": False,
+        "evaluation_writeback_allowed": False,
+    }
+
+    prediction_runner._validate_full_runtime_target_lineage(
+        attestation,
+        target_lineage=lineage,
+        expected_temporal_n_z=3,
+    )
+    with pytest.raises(ValueError, match="target substrate lineage differ"):
+        prediction_runner._validate_full_runtime_target_lineage(
+            attestation | {"temporal_n_z": 16},
+            target_lineage=lineage,
+            expected_temporal_n_z=3,
+        )
 
 
 def test_prediction_status_reports_progress_without_exposing_results(
@@ -975,6 +1422,115 @@ def test_prediction_checkpoint_store_resumes_exact_units(tmp_path: Path) -> None
     }
 
 
+def test_full_runtime_context_checkpoint_round_trips_without_raw_text(
+    tmp_path: Path,
+) -> None:
+    import struct
+
+    from companion_bench.msc_corpus import MSCDyad, MSCSession, MSCUtterance
+    from companion_bench.msc_runtime_collection import (
+        MSCFullRuntimeCollectedSample,
+    )
+    from companion_bench.prediction_research import (
+        MSCFullRuntimeContext,
+        build_msc_next_turn_examples,
+    )
+    from volvence_zero.substrate import SubstrateFingerprint
+
+    dyad = MSCDyad(
+        dyad_id="checkpoint-dyad",
+        split="heldout",
+        sessions=(
+            MSCSession(
+                session_index=1,
+                utterances=(
+                    MSCUtterance("speaker_1", "target zero", 1),
+                    MSCUtterance("speaker_2", "private partner text", 2),
+                    MSCUtterance("speaker_1", "target one", 3),
+                ),
+            ),
+        ),
+        initial_personas=(("private persona",), ()),
+    )
+    examples = build_msc_next_turn_examples((dyad,))
+    values = (0.6, 0.8)
+    values_sha = hashlib.sha256(struct.pack("!2d", *values)).hexdigest()
+    context = MSCFullRuntimeContext(
+        sample_id=examples[0].sample_id,
+        active_speaker_id="speaker_2",
+        values=values,
+        values_sha256=values_sha,
+        source_sha256="b" * 64,
+        model_id="frozen-model",
+        model_version="snapshot-v1",
+        weights_sha256="a" * 64,
+        runtime_origin="hf-local",
+        readout_kind="latest-token-selected-layer-residual-l2.v1",
+        layer_indices=(11, 12),
+        activation_widths=(1, 1),
+        temporal_n_z=3,
+        input_token_count=4,
+        output_token_count=1,
+        total_token_count=5,
+        generation_latency_ms=1.0,
+        latency_ms=2.0,
+        propagate_event_count=12,
+        runtime_slot_surface_sha256="c" * 64,
+    )
+    samples = (
+        MSCFullRuntimeCollectedSample(
+            context=context,
+            interval_input_token_count=8,
+            interval_output_token_count=2,
+            interval_total_token_count=10,
+            interval_latency_ms=4.0,
+            observation_turn_count=2,
+            scene_boundary_count=0,
+        ),
+    )
+    store = prediction_checkpoint.PredictionRunCheckpointStore(
+        output_dir=tmp_path / "run",
+        configuration={"context": "full-runtime"},
+        resume=False,
+    )
+    fingerprint = SubstrateFingerprint(
+        model_id="frozen-model",
+        version="snapshot-v1",
+        weights_sha256="a" * 64,
+    )
+
+    prediction_runner._save_full_runtime_dyad(
+        store=store,
+        dyad=dyad,
+        examples=examples,
+        samples=samples,
+        model_fingerprint=fingerprint,
+        layer_indices=(11, 12),
+        activation_width=1,
+        context_limit=1024,
+        max_new_tokens=16,
+        temporal_n_z=3,
+    )
+    loaded = prediction_runner._load_full_runtime_dyad(
+        store=store,
+        dyad=dyad,
+        examples=examples,
+        model_fingerprint=fingerprint,
+        layer_indices=(11, 12),
+        activation_width=1,
+        context_limit=1024,
+        max_new_tokens=16,
+        temporal_n_z=3,
+    )
+
+    assert loaded == samples
+    checkpoint = next(
+        (tmp_path / "run/checkpoints/contexts/volvence-runtime").rglob("*.npz")
+    )
+    assert b"private partner text" not in checkpoint.read_bytes()
+    assert b"private persona" not in checkpoint.read_bytes()
+
+
 def test_prediction_checkpoint_resume_rejects_configuration_drift(
     tmp_path: Path,
 ) -> None:
@@ -1017,3 +1573,40 @@ def test_prediction_checkpoint_resume_rejects_file_tampering(
             configuration={"epochs": 2},
             resume=True,
         )
+
+
+def test_prediction_output_lock_rejects_concurrent_writer(tmp_path: Path) -> None:
+    output = tmp_path / "formal"
+    first = prediction_runner._acquire_output_lock(output)
+    try:
+        with pytest.raises(RuntimeError, match="already locked"):
+            prediction_runner._acquire_output_lock(output)
+    finally:
+        first.close()
+
+    released = prediction_runner._acquire_output_lock(output)
+    released.close()
+
+
+def test_prediction_checkpoint_formal_claim_requires_authorization(
+    tmp_path: Path,
+) -> None:
+    unauthorized = prediction_checkpoint.PredictionRunCheckpointStore(
+        output_dir=tmp_path / "unauthorized",
+        configuration={"formal": False},
+        resume=False,
+    )
+    with pytest.raises(ValueError, match="requires preregistered authorization"):
+        unauthorized.mark_complete(formal_claim_allowed=True)
+
+    authorized = prediction_checkpoint.PredictionRunCheckpointStore(
+        output_dir=tmp_path / "authorized",
+        configuration={"formal": True},
+        resume=False,
+        formal_claim_authorized=True,
+    )
+    authorized.mark_complete(formal_claim_allowed=True)
+    state = json.loads(
+        (tmp_path / "authorized/run_state.json").read_text(encoding="utf-8")
+    )
+    assert state["formal_claim_allowed"] is True

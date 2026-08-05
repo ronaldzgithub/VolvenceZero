@@ -9,6 +9,7 @@ from volvence_zero.substrate import (
     SubstrateFingerprint,
     SubstrateForwardRepresentationPublisher,
     SyntheticOpenWeightResidualRuntime,
+    publish_runtime_capture_representation,
 )
 
 
@@ -107,6 +108,28 @@ def test_publisher_rejects_conditioned_target_capture() -> None:
     )
     with pytest.raises(ValueError, match="must be unconditioned"):
         publisher.publish((("a", "future utterance"),))
+
+
+def test_runtime_context_publisher_accepts_conditioned_capture_without_raw_text() -> None:
+    runtime = SyntheticOpenWeightResidualRuntime(model_id="synthetic-target")
+    capture = replace(
+        runtime.capture(source_text="private runtime prompt"),
+        personal_conditioning_applied=True,
+    )
+    snapshot = publish_runtime_capture_representation(
+        sample_id="runtime-context",
+        source_sha256="2" * 64,
+        capture=capture,
+        model_fingerprint=_fingerprint(),
+        runtime_origin="hf-local",
+    )
+
+    assert len(snapshot.representations) == 1
+    assert snapshot.lineage.runtime_origin == "hf-local"
+    assert "private runtime prompt" not in repr(snapshot)
+    assert math.sqrt(
+        sum(value * value for value in snapshot.representations[0].values)
+    ) == pytest.approx(1.0)
 
 
 def test_publisher_requires_full_weights_fingerprint() -> None:

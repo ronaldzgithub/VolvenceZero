@@ -10,6 +10,7 @@ from lifeform_evolution.relationship_assistant_pilot import (
     RelationshipAssistantPilotHarness,
 )
 from lifeform_evolution.seven_day_companion import (
+    HTTPSevenDayCompanionService,
     ProcessRestartEvidence,
     SevenDayCompanionOrchestrator,
     SevenDayScenarioSchedule,
@@ -310,6 +311,53 @@ def test_schedule_must_cover_all_three_l4_event_families() -> None:
 def test_same_simulator_and_sut_family_is_rejected() -> None:
     with pytest.raises(ValueError, match="model families must differ"):
         replace(_attestation(), simulator_model_family="qwen")
+
+
+def test_http_client_reuses_turn_path_for_typed_msc_observation() -> None:
+    class RecordingHTTPClient(HTTPSevenDayCompanionService):
+        def __init__(self) -> None:
+            super().__init__(
+                base_url="http://127.0.0.1:8765",
+                user_id="msc-user",
+                instance_id="msc-service",
+            )
+            self.request: tuple[str, str, Mapping[str, object] | None] | None = None
+
+        def _request(
+            self,
+            method: str,
+            path: str,
+            *,
+            payload: Mapping[str, object] | None = None,
+        ) -> Mapping[str, object]:
+            self.request = (method, path, payload)
+            return {"accepted": True}
+
+    client = RecordingHTTPClient()
+    result = client.submit_observed_turn(
+        session_id="dyad/1",
+        user_input="observed corpus turn",
+        active_speaker_id="speaker_2",
+        observation_kind="dialogue",
+    )
+
+    assert result == {"accepted": True}
+    assert client.request == (
+        "POST",
+        "/v1/sessions/dyad%2F1/turns",
+        {
+            "user_input": "observed corpus turn",
+            "active_speaker_id": "speaker_2",
+            "observation_kind": "dialogue",
+        },
+    )
+    with pytest.raises(ValueError, match="active_speaker_id"):
+        client.submit_observed_turn(
+            session_id="dyad/1",
+            user_input="turn",
+            active_speaker_id="speaker_3",
+            observation_kind="dialogue",
+        )
 
 
 def test_declared_day_event_must_be_emitted(tmp_path: Path) -> None:

@@ -8,7 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from companion_bench.msc_corpus import load_msc_manifest, load_msc_split
+from companion_bench.msc_corpus import (
+    _utterances,
+    load_msc_manifest,
+    load_msc_split,
+)
 
 
 def _write_fixture(root: Path) -> Path:
@@ -65,3 +69,24 @@ def test_loader_strict_mode_rejects_unfrozen_bytes(tmp_path: Path) -> None:
     root = _write_fixture(tmp_path)
     with pytest.raises(ValueError, match="file SHA-256 mismatch"):
         load_msc_split(root, split="train", strict=True)
+
+
+def test_empty_turn_gap_is_explicit_and_speaker_position_is_verified() -> None:
+    utterances, dropped = _utterances(
+        [
+            {"text": "first", "id": "Speaker 1"},
+            {"text": "second", "id": "Speaker 2"},
+            {"text": ""},
+            {"text": "fourth", "id": "Speaker 2"},
+        ],
+        session_index=1,
+    )
+    assert dropped == 1
+    assert utterances[-1].preceding_empty_utterance_count == 1
+    assert utterances[-2].speaker == utterances[-1].speaker == "speaker_2"
+
+    with pytest.raises(ValueError, match="speaker position drift"):
+        _utterances(
+            [{"text": "wrong", "id": "Speaker 2"}],
+            session_index=1,
+        )

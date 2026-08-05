@@ -282,10 +282,16 @@ CI 证明 gate 会以**精确的、可定位的理由**拒绝（对齐 teeth 纪
 - 当前 internal RL delayed credit 也已补充 batch-friendly bookkeeping：proof path 的 delayed assignment 现在会显式携带 `alignment_score`、`window_length` 与 `reward_mode`，便于同一套 credit 结构同时服务训练和 proof report
 - 当前 abstract-action RL 更新已不再只吃单 rollout credit；batch rollout 的 `return_estimate` / `advantage_estimate` 也成为可检查的 owner-side training evidence
 - 当前 PE-first credit 派生以 `derive_credit_records_from_prediction_error_first(...)` 为主路径；evaluation 只提供 gate context / readout，不重新成为原始学习源
+- C1 out-of-turn steering settlement 由 `CreditModule.settle_steering_terminal_prediction_errors(...)` 唯一入账：只接受 PE owner 发布的 matched-noop `SteeringTerminalPredictionError`，按 `decision_id` 生成 `level="steering_terminal_prediction_error"` 的确定性记录并保留 episode lineage；重复 episode/head settlement fail loudly。gate owner 只能消费这些匹配记录更新 online-fast policy，evaluation/judge 不是该 API 输入
+- gate 更新必须按记录的实际动作解释 counterfactual advantage：STEER 保留 PE improvement 符号，NOOP 取反；禁止先跨动作平均再更新，否则同一 episode 的混合动作会构造性抵消。`SteeringGateLearningReport` 同时发布原始与 directional terminal credit 均值。
 - 当前 ModificationGate 已加入 Two-Gate 风格的保守准入：候选必须携带 `validation_delta`、`capacity_cost` 和 `rollback_evidence`；缺少验证改进、超过容量上限、缺少回滚证据、contract/fallback/rollback evaluation context 不健康时默认 BLOCK。该约束只收紧自修改准入，不改变 PE / credit 的学习语义
 - 当前 ModificationGate 已加入 OA-3 typed `FramingAwarenessCheck`：高风险 frame（如 reward hacking normalized / alignment faking / sabotage）必须带显式 inoculation 声明，否则 fail-closed。该检查只消费 typed enum evidence，禁止从 proposal 文本做关键词匹配
 
 ## 变更日志
+
+- 2026-08-05: C1 terminal steering credit。Credit owner 新增 out-of-turn intake，
+  将 PE owner 的 matched-noop N+1 terminal mismatch 按 gate `decision_id` 展开为
+  typed credit records，并对 episode/head 结算去重；不读取 evaluation，不新增 ledger owner。
 
 - 2026-07-30: `CreditModule/CreditLedger` 增加 owner-side frozen learning gate。
   冻结模式保留 credit records、lineage 与规则门结果，但 COCOA rewarding-state head 和

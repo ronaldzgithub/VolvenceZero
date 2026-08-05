@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 from types import SimpleNamespace
 from typing import Any
 
@@ -16,6 +17,11 @@ from volvence_zero.personal_conditioning_contracts import (
     PERSONAL_CONDITIONING_SCHEMA_VERSION,
     PERSONAL_CONDITIONING_VECTOR_LABELS,
     PersonalConditioningSnapshot,
+)
+from volvence_zero.substrate import (
+    GenerationResult,
+    SubstrateFingerprint,
+    SyntheticOpenWeightResidualRuntime,
 )
 
 
@@ -102,6 +108,47 @@ def test_llm_synthesizer_disables_residual_capture_for_expression_generate() -> 
     assert response.text == "hello"
     assert runtime.calls
     assert runtime.calls[0]["capture_residuals"] is False
+
+
+def test_evidence_profile_captures_normalized_conditioned_runtime_context() -> None:
+    class EvidenceRuntime(SyntheticOpenWeightResidualRuntime):
+        def __init__(self) -> None:
+            super().__init__(model_id="evidence-model")
+            self.capture_requested = False
+
+        def generate(self, **kwargs: Any) -> GenerationResult:
+            self.capture_requested = kwargs["capture_residuals"] is True
+            source = str(kwargs["prompt"])
+            return GenerationResult(
+                text="captured response",
+                token_count=2,
+                capture=self.capture(source_text=source),
+                description="evidence fixture",
+                input_token_count=5,
+                source_sha256=hashlib.sha256(
+                    source.encode("utf-8")
+                ).hexdigest(),
+            )
+
+    runtime = EvidenceRuntime()
+    response = LLMResponseSynthesizer(
+        runtime=runtime,
+        capture_runtime_context=True,
+        runtime_model_fingerprint=SubstrateFingerprint(
+            model_id="evidence-model",
+            version="fixture-v1",
+            weights_sha256="a" * 64,
+        ),
+    ).synthesize(context=_context(), assembly=_assembly())
+
+    evidence = response.runtime_context_evidence
+    assert runtime.capture_requested
+    assert evidence is not None
+    assert evidence.input_token_count == 5
+    assert evidence.output_token_count == 2
+    assert evidence.generation_latency_ms >= 0.0
+    values = evidence.representation.representations[0].values
+    assert sum(value * value for value in values) == pytest.approx(1.0)
 
 
 def test_llm_synthesizer_forwards_immutable_character_id() -> None:

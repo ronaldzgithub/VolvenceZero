@@ -214,7 +214,12 @@ redistributed by this repository.
 
 Upstream rows containing blank utterance text are excluded from learning
 examples and counted in `MSCSplitAudit.dropped_empty_utterance_count`; a session
-that becomes empty after this cleaning fails loudly.
+that becomes empty after this cleaning fails loudly. Parser 优先验证 raw `id`
+（`Speaker 1/2` 或同 session 内最多两个稳定 source id）与位置奇偶一致；无 id 的
+历史 session 才使用冻结的原始位置奇偶。空 turn 造成的 gap 以
+`preceding_empty_utterance_count` 显式保留，不能静默重排 speaker。控制臂的
+`latest_text` 从历史中反向选择最近的 partner turn，不再假定跨 session 边界的最后
+一句必然来自对方。
 
 Admission is noncommercial research only pending explicit commercial
 clearance; see `docs/external/msc-corpus-license-review.md`. LoCoMo is excluded
@@ -232,23 +237,49 @@ representation; no owner or judge manufactures a label.
 
 The four required matched arms are `volvence / stateless / long_context /
 summary_retrieval`. Every arm/seed must contain the identical sample-id set.
-`long_context` renders all prior sessions; the frozen model's recency truncation,
-actual context tokens and truncated tokens remain evidence, not hidden cleanup.
+`long_context` renders all prior sessions. R3 的正式候选路径必须通过
+`SameSubstrateContextAttestation` 证明 context 与 N+1 target 使用同一冻结模型
+权重、同一 residual readout/layers/widths；tokenizer 按模型真实 context limit
+计数，超限直接失败，禁止截断。旧 MiniLM 左截断路径只保留为显式
+`legacy-sentence` mechanism pilot，不得关闭 R3 blocker。
 The PE-owned runner is `scripts/run_msc_prediction_research.py`: it calls
 `PredictionErrorModule`'s immutable batch surface and never implements a second
 mismatch owner inside companion-bench.
 
 Adjudication is fail-closed. A formal thesis verdict requires all of:
 
+- a pre-effect immutable `msc-n-plus-one-formal-prereg.v1` bound to one passed
+  R5 smoke artifact, the smoke runner's mechanism lineage, the exact normalized
+  source/model/run configuration, and one complete execution-source tree;
+- complete official train=1001, validation=500, heldout=501 dyad splits;
 - official heldout id hash and all 501 heldout dyads;
 - all four matched arms and at least three matched seeds;
 - one frozen encoder fingerprint;
-- positive attestation that the `volvence` arm used the complete runtime stack.
+- positive same-substrate, zero-truncation context attestation;
+- positive attestation that the `volvence` arm used the complete runtime stack;
+- a complete R5 temporal-controller capacity ladder and zero zero-norm
+  predictions;
+- longest heldout session exactly 5.
 
-The bundled runner's bounded recurrent-state arm explicitly sets that last
-attestation false, so it can produce only `pilot / INELIGIBLE_PILOT`, even if an
-effect estimate crosses a preregistered threshold. This prevents the high-
-throughput owner prototype from masquerading as the R4 full-stack result.
+R4 collector 经 `lifeform-service` 的 typed observation endpoint 复用完整
+service → Brain/session → `propagate` → expression 路径。每个 dyad 使用 hash-only
+user/session scope；target persona 与全部 dialogue turn 都作为显式 observation 输入，
+每个 scene boundary drain slow loop。Volvence context 由 substrate owner 从实际生成
+capture 发布 L2 residual readout，DTO 必须携带 exact model weights、runtime origin、
+layers/widths、`temporal_n_z`、完整 runtime slot surface、token 与端到端 latency。
+collector checkpoint 只保存向量、hash、lineage 与成本，不保存 corpus 原文；fallback、
+截断、acceptance failure、evaluation writeback 或 surface drift 均 fail loudly。
+
+成本按每个 prediction 之间真实新增的完整 turn + slow-loop interval 累计；long-context
+按同一冻结 substrate 的完整实际 token/latency 计量且不 clamp，因此 scaling 分子分母
+对称。one-time service startup 与最后 target 后 teardown 均不计入任一臂。
+
+R5 是与旧 forward-head ladder 分离的 owner-level intervention：只变
+`BrainConfig.temporal_latent_dim ∈ {3,16,64,256}`，同时禁用 companion temporal
+bootstrap，固定 PE `forward_head_n_z=3`、substrate、语料、seed 和所有其它因素。
+每个容量有独立 service attestation 与 dyad checkpoint namespace；train/validation
+用于选容量，只有选中容量补采 heldout。gain < 0.01 视为 flat 并选择 3，禁止 noisy
+argmax。任一 zero-norm prediction 计数进入 verdict 并使 capacity integrity 失败。
 
 The two preregistered formal exits are:
 
@@ -257,9 +288,37 @@ The two preregistered formal exits are:
 2. scaling: cosine gap ≥ -0.01 with token ratio ≤ 0.10 and latency ratio ≤ 0.50.
 
 If neither passes on eligible evidence, exit is `REJECT_AND_SIMPLIFY`. Capacity
-selection uses validation only and scans `n_z={3,16,64,256}` with matched seeds.
-That `n_z` belongs to the PE representation bottleneck; it does not by itself
-authorize changing the temporal controller default or deleting its legacy path.
+selection uses validation only. The diagnostic forward-head ladder still scans
+`forward_head_n_z={3,16,64,256}` with matched seeds and chooses 3 when flat; it
+does not authorize temporal changes. The distinct R5 ladder above is the only
+formal `temporal_n_z` evidence and also keeps the 3-dimensional controller as
+the flat/zero-norm rollback.
+
+The MPS control plane is
+`preflight → smoke → preregister → formal`. Runner 内部还必须按不可交换的
+`R3 → R4 → R5` 顺序落地 checkpoint：先完成同基底零截断 long-context 并封存
+R3 attestation，再采 `temporal_n_z=3` 的完整 runtime 基线并校验 R4 lineage，
+最后才允许采其余容量和裁决 R5；manifest 的 `convergence_stage_order` 必须精确
+为该三项。Smoke must cover all four temporal
+capacities but remains `formal_claim_allowed=false`; preregistration freezes its
+hash, measured cost and runner `run_configuration` before any full run. The
+smoke/formal lineage projection must match model weights, layers/widths, context
+and generation limits, temporal intervention, corpus provenance, seeds and every
+hashed mechanism source; smoke-size fields such as dyad limits and epochs are
+the only intentionally different fields.
+
+After preregistration, `scripts/freeze_msc_execution_root.py` must materialize a
+preregistration-bound `msc-frozen-execution-root.v1` outside the repository.
+Formal refuses the mutable worktree, a writable or extra-file root, source-tree
+drift, or preregistration/manifest hash drift, and the formal control/runner must
+be invoked from that frozen root while the MSC corpus, preregistration and output
+remain absolute external paths. Formal uses 1001/500/501 and three seeds under
+the shared evidence MPS lock; the parent plan explicitly delegates its held-lock
+attestation to the child runner, while pure `--emit-run-configuration` capture is
+lock-free and cannot consume the formal device budget. The checkpoint journal binds every unit to
+configuration/source SHA, holds a non-blocking process lock for the output root,
+and can set `formal_claim_allowed=true` only after a preregistered, complete
+formal artifact is sealed.
 
 ## 9. CLI contract
 

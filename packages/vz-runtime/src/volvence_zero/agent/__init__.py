@@ -210,7 +210,12 @@ from volvence_zero.agent.eta_gate2_residual_evidence import (
     export_eta_gate2_control_summary_diagnostic_bundle,
     export_eta_gate2_residual_bundle,
 )
-from volvence_zero.agent.response import AgentResponse, LLMResponseSynthesizer, ResponseSynthesizer
+from volvence_zero.agent.response import (
+    AgentResponse,
+    LLMResponseSynthesizer,
+    ResponseSynthesizer,
+    RuntimeContextEvidence,
+)
 from volvence_zero.agent.session import (
     AgentLearningCheckpoint,
     AgentSessionRunner,
@@ -336,6 +341,7 @@ __all__ = [
     "SubstrateBenchmarkReport",
     "SubstrateBenchmarkTurn",
     "ResponseSynthesizer",
+    "RuntimeContextEvidence",
     "ScriptedDialogueCase",
     "OpenDialogueBenchmarkReport",
     "OpenDialogueBenchmarkPathReport",

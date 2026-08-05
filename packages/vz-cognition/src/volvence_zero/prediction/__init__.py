@@ -29,6 +29,8 @@ from volvence_zero.prediction.forward_representation import (
     ForwardRepresentationBatchSnapshot,
     ForwardRepresentationCheckpoint,
     ForwardRepresentationSettlement,
+    bind_steering_terminal_prediction_error_decisions,
+    settle_steering_terminal_prediction_error,
 )
 
 __all__ = [
@@ -56,4 +58,6 @@ __all__ = [
     "ForwardRepresentationBatchSnapshot",
     "ForwardRepresentationCheckpoint",
     "ForwardRepresentationSettlement",
+    "bind_steering_terminal_prediction_error_decisions",
+    "settle_steering_terminal_prediction_error",
 ]

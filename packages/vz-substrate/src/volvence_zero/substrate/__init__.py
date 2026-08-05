@@ -207,6 +207,7 @@ from volvence_zero.substrate.forward_representation import (
     SubstrateForwardRepresentationLineage,
     SubstrateForwardRepresentationPublisher,
     SubstrateForwardRepresentationSnapshot,
+    publish_runtime_capture_representation,
 )
 from volvence_zero.substrate.frozen_residual_readout import (
     FROZEN_RESIDUAL_READOUT_SCHEMA_VERSION,
@@ -268,6 +269,7 @@ __all__ = [
     "SubstrateForwardRepresentationLineage",
     "SubstrateForwardRepresentationPublisher",
     "SubstrateForwardRepresentationSnapshot",
+    "publish_runtime_capture_representation",
     "SubstrateResidualReadout",
     "SubstrateResidualReadoutLineage",
     "SubstrateResidualReadoutPublisher",

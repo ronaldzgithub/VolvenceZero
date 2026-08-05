@@ -8,12 +8,13 @@ prediction settlements computed from the exact loss used for learning.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import math
 import time
 from typing import Any
 
+from volvence_zero.steering_contracts import SteeringTerminalPredictionError
 from volvence_zero.substrate import SubstrateForwardRepresentationLineage
 
 
@@ -110,6 +111,7 @@ class ForwardRepresentationSettlement:
     cosine_similarity: float
     persistence_mean_squared_error: float
     persistence_cosine_similarity: float
+    prediction_zero_norm: bool = False
 
 
 @dataclass(frozen=True)
@@ -128,6 +130,7 @@ class ForwardRepresentationBatchSnapshot:
     target_lineage: SubstrateForwardRepresentationLineage
     settlements: tuple[ForwardRepresentationSettlement, ...]
     description: str
+    zero_norm_prediction_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -141,6 +144,126 @@ class ForwardRepresentationCheckpoint:
     parameter_fingerprint: str
     target_lineage: SubstrateForwardRepresentationLineage
     schema_version: str = FORWARD_REPRESENTATION_CHECKPOINT_SCHEMA_VERSION
+
+
+def settle_steering_terminal_prediction_error(
+    *,
+    episode_id: str,
+    decision_ids: tuple[str, ...],
+    action_snapshot: ForwardRepresentationBatchSnapshot,
+    noop_snapshot: ForwardRepresentationBatchSnapshot,
+) -> SteeringTerminalPredictionError:
+    """Compare an episode outcome with its matched noop in the PE owner.
+
+    Both arms must use the same frozen target lineage, prediction head, target
+    rows, and sample coordinates. Evaluation/judge output is intentionally not
+    accepted by this API.
+    """
+
+    if action_snapshot.batch_id == noop_snapshot.batch_id:
+        raise ValueError("steering action/noop batches must be distinct")
+    if action_snapshot.update_applied or noop_snapshot.update_applied:
+        raise ValueError(
+            "terminal steering settlement requires frozen heldout forwards"
+        )
+    for field_name in ("n_z", "sample_count", "parameter_fingerprint"):
+        if getattr(action_snapshot, field_name) != getattr(
+            noop_snapshot, field_name
+        ):
+            raise ValueError(
+                f"steering terminal action/noop {field_name} drift"
+            )
+    if action_snapshot.target_lineage != noop_snapshot.target_lineage:
+        raise ValueError("steering terminal target lineage drift")
+    action_rows = action_snapshot.settlements
+    noop_rows = noop_snapshot.settlements
+    if len(action_rows) != len(noop_rows):
+        raise ValueError("steering terminal settlement row-count drift")
+    sample_ids: list[str] = []
+    for action_row, noop_row in zip(action_rows, noop_rows, strict=True):
+        if (
+            action_row.sample_id != noop_row.sample_id
+            or action_row.history_turns != noop_row.history_turns
+            or action_row.actual_representation != noop_row.actual_representation
+        ):
+            raise ValueError(
+                "steering terminal action/noop target coordinate drift"
+            )
+        sample_ids.append(action_row.sample_id)
+    action_mse = action_snapshot.mean_squared_error
+    noop_mse = noop_snapshot.mean_squared_error
+    denominator = max(action_mse, noop_mse, 1e-12)
+    relative_mse_improvement = max(
+        -1.0,
+        min(1.0, (noop_mse - action_mse) / denominator),
+    )
+    cosine_improvement = max(
+        -1.0,
+        min(
+            1.0,
+            action_snapshot.mean_cosine_similarity
+            - noop_snapshot.mean_cosine_similarity,
+        ),
+    )
+    lineage = action_snapshot.target_lineage
+    return SteeringTerminalPredictionError(
+        episode_id=episode_id,
+        decision_ids=decision_ids,
+        action_batch_id=action_snapshot.batch_id,
+        noop_batch_id=noop_snapshot.batch_id,
+        sample_ids=tuple(sample_ids),
+        prediction_head_fingerprint=action_snapshot.parameter_fingerprint,
+        target_lineage_fingerprint=lineage.snapshot_fingerprint,
+        target_model_id=lineage.model_fingerprint.model_id,
+        target_model_weights_sha256=(
+            lineage.model_fingerprint.weights_sha256
+        ),
+        action_mean_squared_error=action_mse,
+        noop_mean_squared_error=noop_mse,
+        relative_mse_improvement=relative_mse_improvement,
+        action_mean_cosine_similarity=(
+            action_snapshot.mean_cosine_similarity
+        ),
+        noop_mean_cosine_similarity=noop_snapshot.mean_cosine_similarity,
+        cosine_error_improvement=cosine_improvement,
+        terminal=True,
+        description=(
+            "PE-owned terminal N+1 representation mismatch improvement "
+            "against a matched noop counterfactual."
+        ),
+    )
+
+
+def bind_steering_terminal_prediction_error_decisions(
+    settlement: SteeringTerminalPredictionError,
+    *,
+    episode_id: str,
+    decision_ids: tuple[str, ...],
+) -> SteeringTerminalPredictionError:
+    """Bind one frozen PE counterfactual to a policy replay decision.
+
+    C3 computes each expensive matched steer/noop forward once. Multi-restart
+    gate replays consume that same PE-authored scalar and target lineage under
+    fresh pending decision ids; callers never reconstruct the mismatch value.
+    """
+
+    if not episode_id.strip():
+        raise ValueError("rebound steering episode_id must be non-empty")
+    if (
+        not decision_ids
+        or any(not value.strip() for value in decision_ids)
+        or len(set(decision_ids)) != len(decision_ids)
+    ):
+        raise ValueError("rebound steering decision_ids must be non-empty/unique")
+    return replace(
+        settlement,
+        episode_id=episode_id,
+        decision_ids=decision_ids,
+        description=(
+            "PE-owned terminal N+1 counterfactual rebound to an exact "
+            "preregistered policy replay; mismatch and lineage unchanged."
+        ),
+    )
 
 
 def _cosine(left: tuple[float, ...], right: tuple[float, ...]) -> float:
@@ -287,6 +410,10 @@ class TorchForwardRepresentationHead:
                     cosine_similarity=_cosine(prediction, target),
                     persistence_mean_squared_error=_mse(persistence, target),
                     persistence_cosine_similarity=_cosine(persistence, target),
+                    prediction_zero_norm=(
+                        math.sqrt(sum(value * value for value in prediction))
+                        <= 1e-12
+                    ),
                 )
             )
         count = len(settlements)
@@ -297,6 +424,9 @@ class TorchForwardRepresentationHead:
         mean_cosine = sum(item.cosine_similarity for item in settlements) / count
         persistence_cosine = (
             sum(item.persistence_cosine_similarity for item in settlements) / count
+        )
+        zero_norm_prediction_count = sum(
+            item.prediction_zero_norm for item in settlements
         )
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         fingerprint = self.parameter_fingerprint()
@@ -317,8 +447,10 @@ class TorchForwardRepresentationHead:
             description=(
                 f"N+1 representation batch {batch.batch_id}: n_z={self.n_z}, "
                 f"samples={count}, update={update}, mse={mean_mse:.6f}, "
-                f"persistence_mse={persistence_mse:.6f}."
+                f"persistence_mse={persistence_mse:.6f}, "
+                f"zero_norm_predictions={zero_norm_prediction_count}."
             ),
+            zero_norm_prediction_count=zero_norm_prediction_count,
         )
 
     def _parameter_rows(
@@ -412,4 +544,6 @@ __all__ = (
     "ForwardRepresentationBatchSnapshot",
     "ForwardRepresentationCheckpoint",
     "ForwardRepresentationSettlement",
+    "bind_steering_terminal_prediction_error_decisions",
+    "settle_steering_terminal_prediction_error",
 )

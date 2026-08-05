@@ -73,6 +73,9 @@ def test_pe_owner_trains_and_settles_exact_n_plus_one_targets() -> None:
     final = module.process_forward_representation_batch(_batch(), update=False)
     assert final.mean_squared_error < first.mean_squared_error
     assert final.sample_count == 4
+    assert final.zero_norm_prediction_count == sum(
+        row.prediction_zero_norm for row in final.settlements
+    )
     assert final.settlements[0].actual_representation == (0.9, 0.1)
     assert final.settlements[0].signed_error == pytest.approx(
         tuple(

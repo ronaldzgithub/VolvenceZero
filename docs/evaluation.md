@@ -1,7 +1,7 @@
 # Volvence 评测任务总账（Runbook）
 
 > Status: live runbook
-> Last updated: 2026-08-03
+> Last updated: 2026-08-05
 > 定位：本文件是**任务级操作手册**——列出我们要做的每一个 evaluation，写清「怎么运行 / 怎么评价 / 现在什么结果 / 下一步怎么做」。
 >
 > 与其它文档的分工：
@@ -22,7 +22,7 @@
 |---|---|---|---|---|---|
 | 1 | 七日陪伴（Gate 8/11） | 加载 per-user 状态 / sleep 巩固能否提升跨日连续性 | `scripts/run_seven_day_companion_test_plan.py` | formal **16/36 停跑**（`instrument-discrimination`） | S3 换 N+1 表示预测目标 → 新 prereg + 新执行根 |
 | 2 | 七日 Gate 套件（1/4/5/6/7/9/10） | 把六门 owner 干预接到真实七日路径做因果配对 | `scripts/run_seven_day_gate_suite_formal.py` / `run_seven_day_gate1_formal.py` | 代码 + 契约就绪，**无 formal artifact** | 同 S3 前置；Gate 9 遥测语义修复后再跑 |
-| 3 | MSC N+1 预测（正式 R4） | 用真人多 session 的 N+1 表示做免费标签，判 PE/ETA 是否 load-bearing | `scripts/run_msc_prediction_test_plan.py` | `formal` 固定退出码 **3**（三重阻断）；仅 pilot | 补齐同基底长上下文 / 完整 runtime 臂 / temporal capacity ladder |
+| 3 | MSC N+1 预测（R3→R5） | 用真人多 session 的 N+1 表示做免费标签，判 PE/ETA 是否 load-bearing | `scripts/run_msc_prediction_test_plan.py` | R3/R4/R5 代码门已关闭；尚无新 formal artifact | 先跑 R5 smoke → 冻结 prereg → 全量 1001/500/501 formal |
 | 4 | Learned Active（torch 后端晋升） | 四个 SHADOW torch 后端能否晋升 ACTIVE | `scripts/run_learned_active_evidence.py` | `partial-promotion-blocked`（validation_delta 0.0138 < 0.02） | 续跑连续 soak 过门 + PE-off/ETA-off 对照 + 执行 capacity ladder |
 | 5 | Companion Bench（对外榜） | 系统无关的多 session 陪伴基准（A1–A6 六轴） | `packages/companion-bench` CLI + `scripts/companion_bench/*` | 站点数据**全是 demo/smoke**，无正式榜 | judge 稳健性(#48)→校准(#52)→统计功效(#54)→10 系统全量(#82) |
 | 6 | State-KV / Prefix-KV 辨识 | 同 prompt 空上下文，两用户产生可被盲判归属的差异 | `scripts/run_state_kv_identification.py` 等 | Personal 全链 **pass**；尽调 **partial(3/7)**；Relationship 停在 chance | 关闭 C5 credit 与 bank-gain；Relationship 记为负结果 |
@@ -30,6 +30,7 @@
 | 8 | ETA 内部 RL / 段信用强证据 | 段级信用 vs turn 级、抽象动作复用等论文式命题 | `scripts/run_eta_segment_credit_evidence.py` / paper suite | 段信用 v13 **retain**（12 门全过） | 作为机制回归保留；不等于 rate-distortion retain |
 | 9 | Digital Ant ecology（same-physics） | 无 LLM 的 2D 感觉运动床上，typed-milestone ACTIVE vs DISABLED 是否有因果净增益 | `scripts/run_ant_ecology_same_physics_station1.py` | L1-C station1-v4 **BLOCK**（food alignment 3/4）；station2/P1/P2 **not-authorized** | 新 owner 机制 + 新 prereg 才可重开；禁止二审/换 seed/降阈值 |
 | 10 | RSI Forge（开发环自改进） | 从真实失败挖模式 → 有界提案 → 循环外验证/人审 → ledger 预测兑现 | `forge` CLI（`mine/propose/validate/select/apply`） | 战役一 e2e 已 apply 2 条；overlay 默认 DISABLED；无 live/GPU 晋升 | 下一轮 `mine --evidence-since-ledger` 兑现预测；扩 task-level held-out；rare-heavy 需冻结权重证据 |
+| 11 | Dialogue Steering C3/B3 | 在真实 MSC SHADOW turn 上以 N+1 PE 学择时，并用 gate-off/sensor-off 独立决定 sensor→executor→gate 晋升 | `scripts/run_dialogue_steering_test_plan.py` / `run_steering_promotion_test_plan.py` | owner/collector/credit/replay/promotion 控制面与定向测试就绪；**无 formal artifact、仍全 SHADOW** | 等 A1 终态；先冻结 C3 prereg，再冻结 B3 prereg，串行跑 C3 formal→B3 formal |
 
 > 术语：`SHADOW` = 双跑只读、不主导行为；`ACTIVE` = 生产主链；`DISABLED` = 未启用。晋升一律「先 SHADOW/matched → 单组件 canary → 可回滚切换」。
 
@@ -197,11 +198,34 @@ python scripts/run_msc_prediction_test_plan.py preflight \
   --preflight-report artifacts/msc_n_plus_one_preflight.json \
   --msc-root data/external/msc/v0.1/extracted --substrate-model Qwen/Qwen2.5-0.5B-Instruct
 python scripts/run_msc_prediction_test_plan.py smoke \
-  --output-dir artifacts/msc_n_plus_one_substrate_target_smoke_$(date +%Y%m%d) \
+  --output-dir artifacts/msc_r5_smoke_$(date +%Y%m%d) \
   --msc-root data/external/msc/v0.1/extracted --substrate-model Qwen/Qwen2.5-0.5B-Instruct [--resume]
 
-# 2) formal —— 当前固定阻断，打印退出码 3
-python scripts/run_msc_prediction_test_plan.py formal; echo $?   # -> 3
+# 2) smoke 通过后冻结新 prereg（此阶段不占 MPS）
+MSC_REPO_ROOT="$PWD"
+MSC_DATA_ROOT="$MSC_REPO_ROOT/data/external/msc/v0.1/extracted"
+MSC_PREREG="$MSC_REPO_ROOT/artifacts/msc_n_plus_one_formal_prereg_YYYYMMDD.json"
+MSC_FORMAL_OUTPUT="$MSC_REPO_ROOT/artifacts/msc_n_plus_one_formal_YYYYMMDD"
+MSC_FROZEN_ROOT="/private/tmp/volvence-msc-nplus1-YYYYMMDD"
+python scripts/run_msc_prediction_test_plan.py preregister \
+  --smoke-output-dir artifacts/msc_r5_smoke_YYYYMMDD \
+  --output-dir "$MSC_FORMAL_OUTPUT" \
+  --preregistration "$MSC_PREREG" \
+  --msc-root "$MSC_DATA_ROOT"
+
+# 3) 从 prereg 冻结只读执行根；formal 禁止直接使用可变工作树
+python scripts/freeze_msc_execution_root.py \
+  --repo-root "$MSC_REPO_ROOT" \
+  --preregistration "$MSC_PREREG" \
+  --output-root "$MSC_FROZEN_ROOT"
+
+# 4) 仅从冻结根 formal（全量 1001/500/501，三 seed；可用同配置 --resume）
+"$MSC_REPO_ROOT/.venv/bin/python" \
+  "$MSC_FROZEN_ROOT/scripts/run_msc_prediction_test_plan.py" formal \
+  --execution-root "$MSC_FROZEN_ROOT" \
+  --output-dir "$MSC_FORMAL_OUTPUT" \
+  --preregistration "$MSC_PREREG" \
+  --msc-root "$MSC_DATA_ROOT"
 ```
 
 直接机制 runner（CPU pilot 示例）：
@@ -212,19 +236,20 @@ python scripts/run_msc_prediction_research.py \
   --output artifacts/msc_n_plus_one_mechanism_pilot_$(date +%Y%m%d) \
   --accept-noncommercial-license --device cpu \
   --substrate-model Qwen/Qwen2.5-0.5B-Instruct --substrate-device cpu \
+  --context-encoder-mode legacy-sentence --volvence-context-mode bounded-prototype \
   --substrate-layer-indices 11 12 13 \
   --train-dyads 24 --validation-dyads 12 --heldout-dyads 12 --epochs 8 --seeds 0 1 2 --resume
 ```
 
-> `msc_prediction_checkpoint.py` 是库不是 CLI（crash-safe journal，不存原文）。MSC plan **无 audit 子命令**。MPS 锁与 §1.2 共享，`status` 不占锁。
+> `msc_prediction_checkpoint.py` 是库不是 CLI（crash-safe journal，不存原文）。MSC plan **无 audit 子命令**。MPS 锁与 §1.2 共享，`status` 不占锁。smoke manifest 会保留 runner run-configuration；preregister 必须验证 smoke/formal 的模型、语料、运行时参数和 source hash 同源，并冻结 execution-source snapshot。formal 只接受 `freeze_msc_execution_root.py` 生成、与 prereg raw SHA 完全绑定且全树只读的 `msc-frozen-execution-root.v1`。
 
 ### 3.3 怎么评价
 
-- 四臂：`stateless`（persona + 最新对方消息）/ `long_context`（全历史，近端截断且截断计入证据）/ `summary_retrieval`（persona summary + top-k 抽取）/ `volvence`（PE 拥有的有界递归 prototype，**不是完整 runtime stack**）。
-- formal 需全部满足：官方 heldout id hash + 全 501 dyad、四臂 + ≥3 seed、冻结 encoder 指纹、`volvence_full_stack=True`（bundled runner 现设 **false** → 最多 `pilot / INELIGIBLE_PILOT`）。
-- formal 出口：Quality（最长 session Volvence−long_context cosine ≥ 0.02、dyad-clustered 95% CI 下界 > 0、优势斜率 > 0）；Scaling（cosine gap ≥ −0.01、token ratio ≤ 0.10、latency ratio ≤ 0.50）；否则 `REJECT_AND_SIMPLIFY`。
-- capacity ladder 扫的是 **`forward_head_n_z ∈ {3,16,64,256}`**（PE 前向 head 瓶颈），**不授权 ETA/temporal controller 晋升**；真正的 temporal capacity 是单独变 `temporal_n_z` 的实验。
-- 状态字段：当前 harness 输出恒 `thesis_status=not-evaluated`、`formal_experiment_executed=false`、`thesis_exit=INELIGIBLE_PILOT`。
+- 四臂：`stateless`（persona + 最近对方消息）/ `long_context`（同一冻结 Qwen 的全历史、零截断 steelman）/ `summary_retrieval`（persona summary + top-k 抽取）/ `volvence`（完整 service/session/propagate/expression runtime collector）。胜负只比较 `volvence − long_context`；其余两臂只作 matched 资格。
+- formal 需全部满足：passed smoke + 新 immutable prereg、完整 train=1001/val=500/heldout=501、官方 heldout id hash、四臂 + ≥3 seed、冻结 encoder 指纹、同基底零截断、`volvence_full_stack=True`、R5 temporal capacity integrity、zero-norm count=0、最长 session=5。
+- formal 出口：Quality（session 5 Volvence−long_context cosine ≥ 0.02、dyad-clustered 95% CI 下界 > 0、优势斜率 > 0）；Scaling（cosine gap ≥ −0.01、token ratio ≤ 0.10、latency ratio ≤ 0.50）；否则 `REJECT_AND_SIMPLIFY`。
+- `forward_head_n_z` ladder 仍是 PE 诊断，flat 时选 3。R5 是独立实验：只变真实 `temporal_n_z ∈ {3,16,64,256}`，禁用 companion temporal bootstrap并固定 PE head=3；flat 时选 3，任一 zero-norm prediction 使容量完整性失败。
+- `run_state.formal_claim_allowed` 只有 preregistered full run 封口后可为 true；smoke/partial/bounded prototype 恒为 false。output sibling `flock` 禁止并发 writer/resume。
 
 ### 3.4 当前结果（均为 pilot，非正式）
 
@@ -233,17 +258,23 @@ python scripts/run_msc_prediction_research.py \
 | `artifacts/msc_n_plus_one_mechanism_pilot_20260801/` | CPU，MiniLM 256 tok，24/12/12 | `INELIGIBLE_PILOT`；选 n_z=64；最长 session cosine 优势 vs long_context **+0.027586**；token ratio 0.153；latency ratio 0.258 |
 | `artifacts/msc_n_plus_one_substrate_target_smoke_20260801/` | Qwen2.5-0.5B CPU substrate-owned N+1 目标，smoke 2/1/1 | 同 thesis 标记；forward_head_n_z 256；cosine 优势 **−0.002485**；token ratio 0.141；latency ratio 0.291 |
 
-> substrate-target blocker 已关闭：`SubstrateForwardRepresentationSnapshot` 冻结 lineage（weights SHA、layer/width/readout、sample/value hash），PE batch/head/checkpoint 绑定。**正式 R4 仍未执行。**
+> 上表是 2026-08-01 历史 pilot，不可用于当前 R3/R4/R5 主张；其 MiniLM、prototype 成本与 noisy argmax 口径均已被新契约取代。
 
-### 3.5 下一步（formal 前三重阻断，缺一不可绕）
+### 3.5 当前 formal 状态
 
-`FORMAL_BLOCKERS`：
+R3/R4/R5 的代码级 blocker 已于 2026-08-05 关闭：
 
-1. `same-substrate-long-context-steelman`：在**同一冻结 substrate** 上做零截断全历史长上下文（不再用另一套 MiniLM@256）。
-2. `complete-volvence-runtime-arm`：经完整 runtime collector 产出 Volvence 臂并置 `volvence_full_stack=True`（不是绕过 `propagate` 的 bounded-state prototype）。推荐复用七日装置的 service 通路做 collector。
-3. `temporal-controller-capacity-ladder`：只变 `temporal_n_z ∈ {3,16,64,256}` 的容量实验。
+1. R3：同一冻结 substrate 的零截断 long-context attestation；
+2. R4：完整 runtime collector、hash-only context、真实增量 turn/slow-loop 成本；
+3. R5：真实 temporal controller capacity ladder，PE head 固定、bootstrap 禁用、flat→3。
 
-三者完成前，`formal` 返回退出码 3；不得晋升 `temporal_n_z`、退役 legacy controller 或选择 thesis v3。此外静态检查（[`moving forward/七日msctodo.md`](./moving%20forward/七日msctodo.md) §二 M-2/M-3）指出：正式版必须把成本记账改对称、把 long_context 做成真 steelman，且这些只能写进**新 prereg**、不能事后调。
+runner 将三项按 `R3 → R4 → R5` 的不可交换顺序写入 checkpoint/manifest：R3 完成
+同基底长上下文后，R4 只先采 `temporal_n_z=3` 基线；该 runtime lineage 通过后才启动
+R5 的其余容量。smoke 与 formal prereg 均要求 `convergence_stage_order` 精确匹配，避免
+把三个 owner 级收敛包只在终态报告里笼统并包。
+
+这只表示控制面可执行，不表示 formal evidence 已产生。必须先跑新 smoke、冻结 prereg，
+再跑全量 formal；结果无论过门或 `REJECT_AND_SIMPLIFY` 都按同一 prereg 封存，不改阈值重试。
 
 ---
 
@@ -255,6 +286,8 @@ python scripts/run_msc_prediction_research.py \
 ### 4.1 目的
 
 量化并门控四个 torch SHADOW 后端晋升 ACTIVE：`temporal_runtime_backend` → `temporal_ssl_backend` → `internal_rl_backend` → `cms_torch_backend`（严格顺序）。#92 后此线降级为**机制回归用途**，产物一律 `thesis_status=not-evaluated`。
+
+> 适用范围（2026-08-05 注）：本节门与消融条款（含 `strict_eta_gate`、**ETA-off** 对照）只适用于上述 z_t 系四后端。§7.6 转向后的 **steering 系**（sensor/executor/gate 三 owner）晋升**不复用**本节条款，须另立 prereg，消融臂为 **gate-off**（门控退化 always-on/noop）与 **sensor-off**（条件退化无条件）；路线见 `docs/moving forward/主线提升方案_2026-08.md` 工作流 B。
 
 ### 4.2 怎么运行
 
@@ -612,6 +645,83 @@ S2 的 additive no-bias steering FAIL 是学界已充分刻画的"可读却不�
 小样本内学会择时"；作用范围是代理迷宫上的 operationalization，**不复活也不改写 Stage-3 `kill-eta`**
 （后者是 additive/free-bias 折叠入口那一族操作化的永久摘除），且尚未授权 production——到 companion 的
 迁移需先解决"该不该扳向关系轨"缺免费客观标签、须靠情感专家/长程关系结局提供稀而准信用的问题。
+
+### 7.7 Dialogue C3 + Steering B3（控制面就绪，formal 未执行）
+
+这一段是 §7.6 从代理迷宫迁移到真实 multi-session 对话的独立证据程序。主信用只来自
+PE owner 对 matched steer/noop 的 N+1 substrate 表示误差；companion judge、七日连续性
+readout 和 C2 专家锚都不进入训练。C2 仍只用于将来验证信用方向。
+
+正式顺序不可交换：A1 terminal artifact + independent audit → C3 prereg → B3 prereg →
+C3 formal → B3 preflight → B3 formal。
+B3 prereg 必须在看见 C3 report 前冻结，且明确禁止复用 Learned Active 的 ETA-off 条款。
+
+```bash
+# 0) A1 完成后，先检查真实 turn 数、模型/语料 lineage 与 A1 attestation
+.venv/bin/python scripts/run_dialogue_steering_test_plan.py preflight \
+  --accept-noncommercial-license \
+  --output artifacts/dialogue-steering-c3-<run-id> \
+  --preregistration artifacts/preregistrations/dialogue-steering-c3-<run-id>.json \
+  --seven-day-formal-report artifacts/seven_day_companion_formal_<run-id>/ablation_results.json
+
+# 1) 冻结 C3；随后立刻冻结只绑定 C3 prereg、尚不读取 C3 结果的 B3
+.venv/bin/python scripts/run_dialogue_steering_test_plan.py preregister \
+  --accept-noncommercial-license \
+  --output artifacts/dialogue-steering-c3-<run-id> \
+  --preregistration artifacts/preregistrations/dialogue-steering-c3-<run-id>.json \
+  --seven-day-formal-report artifacts/seven_day_companion_formal_<run-id>/ablation_results.json
+.venv/bin/python scripts/run_steering_promotion_test_plan.py preregister \
+  --c3-preregistration artifacts/preregistrations/dialogue-steering-c3-<run-id>.json \
+  --c3-output artifacts/dialogue-steering-c3-<run-id> \
+  --preregistration artifacts/preregistrations/steering-b3-<run-id>.json \
+  --output artifacts/steering-b3-<run-id>
+
+# 2) C3 独占 MPS、可按 dyad checkpoint 恢复；完成后 B3 只读 adjudication
+.venv/bin/python scripts/run_dialogue_steering_test_plan.py formal \
+  --accept-noncommercial-license \
+  --output artifacts/dialogue-steering-c3-<run-id> \
+  --preregistration artifacts/preregistrations/dialogue-steering-c3-<run-id>.json \
+  --seven-day-formal-report artifacts/seven_day_companion_formal_<run-id>/ablation_results.json
+.venv/bin/python scripts/run_steering_promotion_test_plan.py preflight \
+  --c3-preregistration artifacts/preregistrations/dialogue-steering-c3-<run-id>.json \
+  --c3-output artifacts/dialogue-steering-c3-<run-id> \
+  --preregistration artifacts/preregistrations/steering-b3-<run-id>.json \
+  --output artifacts/steering-b3-<run-id>
+.venv/bin/python scripts/run_steering_promotion_test_plan.py formal \
+  --c3-preregistration artifacts/preregistrations/dialogue-steering-c3-<run-id>.json \
+  --c3-output artifacts/dialogue-steering-c3-<run-id> \
+  --preregistration artifacts/preregistrations/steering-b3-<run-id>.json \
+  --output artifacts/steering-b3-<run-id>
+
+# 3) 仅当 B3 eligible_prefix 覆盖该 step 时，按 activation_plan 一次推进一个 canary
+#    （下面的 max-length/width/layer/model/digest 必须与 plan.deployment_contract 精确一致）
+.venv/bin/lifeform-serve --vertical companion \
+  --substrate-mode hf-shared --substrate-local-files-only \
+  --substrate-model-id Qwen/Qwen2.5-0.5B-Instruct \
+  --substrate-model-source artifacts/eta_stage2_merged_v2_20260803 \
+  --substrate-expected-weights-sha256 '<plan model_weights_sha256>' \
+  --substrate-layer-indices 11 12 13 20 --substrate-activation-width 896 \
+  --substrate-max-length 768 \
+  --steering-artifact-bundle \
+    artifacts/steering-b3-<run-id>/candidate_steering_artifact_bundle.json \
+  --steering-promotion-manifest artifacts/steering-b3-<run-id>/artifact_manifest.json \
+  --steering-activation-plan artifacts/steering-b3-<run-id>/activation_plan.json \
+  --steering-activation-step '<next one-based step>'
+```
+
+C3 主门：≥500 validation turn、action sensitivity、收敛、相对 noop/always-on/
+random-gate 的 dyad-clustered CI 与 worst-seed gain、选择性、结构完整性。B3 另验两条
+informative N+1 轴、conditional-vs-unconditional sensor-off、conditional always-on-vs-noop
+executor effect、learned-vs-fixed gate-off、checkpoint、延迟、安全和 R12。输出只能授权
+`sensor→executor→gate` 连续前缀；activation v2 会把 executor 前的 `always_on` 准备与
+gate 后的 `blocked` 清理拆成独立 rollout，每次只翻一个字段，并输出绑定 learned gate 的
+candidate bundle。formal runner 自身不改默认；B3 preflight 在 C3 四件套缺失或 hash/
+lineage 不合法时返回非零。production service 仍拒绝裸 bundle；它会复核 B3
+manifest/evidence/report/plan/candidate 五件套，并把 C3 的 context 上限、16-token generation、
+temperature 0 与 fail-on-truncation 当作首轮 ACTIVE deployment contract，禁止证据后分布漂移。
+
+**当前结果**：代码/契约级就绪，尚无 C3/B3 prereg 或 formal artifact；不得写成 dialogue
+transfer PASS，也不得写成 steering ACTIVE。
 
 ---
 

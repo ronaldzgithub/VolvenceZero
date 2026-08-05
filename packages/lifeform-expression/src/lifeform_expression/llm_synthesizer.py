@@ -101,12 +101,16 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
         character_lora_pool: object | None = None,
         character_grounding_statement: str = "",
         character_grounding_ref: str = "",
+        capture_runtime_context: bool = False,
+        runtime_model_fingerprint: Any | None = None,
     ) -> None:
         super().__init__(
             runtime=runtime,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
             character_id=character_id,
+            capture_runtime_context=capture_runtime_context,
+            runtime_model_fingerprint=runtime_model_fingerprint,
         )
         self._planner = planner or PromptPlanner()
         self._last_plan: PromptPlan | None = None
@@ -275,6 +279,8 @@ class LifeformLLMResponseSynthesizer(LLMResponseSynthesizer):
             character_lora_pool=self._character_lora_pool,
             character_grounding_statement=self._character_grounding_statement,
             character_grounding_ref=self._character_grounding_ref,
+            capture_runtime_context=self._capture_runtime_context,
+            runtime_model_fingerprint=self._runtime_model_fingerprint,
         )
         return clone
 

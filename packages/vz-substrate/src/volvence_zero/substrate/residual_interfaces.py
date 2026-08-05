@@ -23,6 +23,7 @@ from volvence_zero.conditioning_bank_contracts import (
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
+from volvence_zero.steering_contracts import SteeringIntervention
 from volvence_zero.substrate.adapter import (
     SubstrateSnapshot,
 )
@@ -50,6 +51,12 @@ class OpenWeightResidualRuntime(ABC):
     runtime_origin: str = "unknown"
     supports_live_substrate_mutation: bool = False
     supports_offline_substrate_training: bool = False
+
+    @property
+    def loaded_base_model_weights_sha256(self) -> str:
+        """Verified loaded-base digest, empty when no binding was requested."""
+
+        return ""
 
     @property
     def relationship_conditioning_projector_version(self) -> str:
@@ -197,6 +204,27 @@ class OpenWeightResidualRuntime(ABC):
     ) -> ResidualControlApplication:
         """Apply bounded residual intervention through the runtime."""
 
+    def apply_direct_residual_delta(
+        self,
+        *,
+        source_text: str,
+        substrate_snapshot: SubstrateSnapshot,
+        layer_index: int,
+        residual_delta: tuple[float, ...],
+    ) -> ResidualControlApplication:
+        """Apply one already-bounded, layer-specific residual delta.
+
+        This owner-side seam is reserved for frozen steering-executor
+        artifacts. It does not rotate the delta through the generic temporal
+        control basis and does not train or mutate substrate parameters.
+        Serving backends without residual hooks must fail loudly.
+        """
+
+        del source_text, substrate_snapshot, layer_index, residual_delta
+        raise NotImplementedError(
+            f"{type(self).__name__} does not expose direct residual steering"
+        )
+
     def install_control_basis(
         self,
         *,
@@ -274,6 +302,7 @@ class OpenWeightResidualRuntime(ABC):
         ] = (),
         sampling_seed: int | None = None,
         character_id: str = "",
+        steering_intervention: SteeringIntervention | None = None,
     ) -> GenerationResult:
         """Generate text using the underlying model.
 
@@ -293,6 +322,12 @@ class OpenWeightResidualRuntime(ABC):
         conditioning override ``generate``.
         """
         del generation_constraints, capture_residuals, sampling_seed, character_id
+        if steering_intervention is not None:
+            raise NotImplementedError(
+                f"{type(self).__name__} cannot apply ACTIVE residual "
+                "steering because it does not expose a compatible "
+                "generation hook."
+            )
         if personal_conditioning is not None or conditioning_bank_carriers:
             raise NotImplementedError(
                 f"{type(self).__name__} cannot apply latent conditioning "

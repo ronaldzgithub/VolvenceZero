@@ -22,6 +22,7 @@ from volvence_zero.conditioning_bank_contracts import (
 from volvence_zero.personal_conditioning_contracts import (
     PersonalConditioningSnapshot,
 )
+from volvence_zero.steering_contracts import SteeringIntervention
 from volvence_zero.substrate.adapter import (
     FeatureSignal,
     ResidualActivation,
@@ -239,6 +240,7 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             ConditioningBankLatentCarrier, ...
         ] = (),
         sampling_seed: int | None = None,
+        steering_intervention: SteeringIntervention | None = None,
     ) -> GenerationResult:
         """Placeholder generation with trace-only conditioning intake.
 
@@ -253,6 +255,11 @@ class SyntheticOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         documented, observable fallback for this
         ``fallback_active=True`` runtime.
         """
+        if steering_intervention is not None:
+            raise NotImplementedError(
+                "SyntheticOpenWeightResidualRuntime cannot apply ACTIVE "
+                "steering; use the transformers runtime."
+            )
         del (
             prompt,
             system_context,

@@ -305,9 +305,18 @@ it is not part of the scenario leaderboard. Turn N predicts a frozen
 representation of the observed human turn N+1. Four matched arms are required:
 complete Volvence runtime, stateless, full-history long context, and summary
 retrieval. Formal evidence requires the frozen official 501-dyad heldout split,
-at least three seeds, identical sample lineage across arms, one frozen model
-fingerprint, and token/latency/truncation curves. Partial-corpus or bounded-state
-prototype runs are pilots and cannot select a thesis claim.
+the complete 1001/500 train/validation splits, at least three seeds, identical
+sample lineage across arms, one frozen model fingerprint, a same-substrate
+zero-truncation long-context attestation, and symmetric token/latency curves.
+The complete-runtime arm must traverse the service/session/propagate path and
+publish hash-only frozen residual contexts; corpus text may not enter evidence
+checkpoints. A separate capacity ladder varies only the temporal controller
+dimension in {3,16,64,256} while fixing the prediction head at 3; flat ladders
+select 3 and any zero-norm prediction invalidates capacity integrity. The sole
+primary comparison is Volvence versus long context at session five. Formal
+dispatch additionally requires a passed smoke artifact and a pre-effect
+immutable preregistration. Partial-corpus or bounded-state prototype runs are
+pilots and cannot select a thesis claim.
 
 ### 7.2 Submission package
 

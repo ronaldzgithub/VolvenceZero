@@ -116,6 +116,25 @@
 - 文本臂与残差臂必须消费同一份 `PersonalConditioningSnapshot`，禁止为文本臂另做摘要
 - 16 维带宽只支持关系姿态级主张；情节事实记忆的模型层主张需 adapter/权重载体，gate 在 GPU bake
 
+### 4C. 有界残差 Steering Runtime
+
+**对应需求**：R2（冻结基底）、R4（token 之上的内部控制）、
+R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15（可回滚）
+
+| Spec | 内容 |
+|------|------|
+| [steering-runtime.md](./steering-runtime.md) | 冻结 reader、乘性低秩 executor 与 `{noop,steer}` gate 的三 owner 契约；model/digest 绑定、SHADOW transformers 预览、PE→credit→gate、C3 真实对话迁移、gate-off/sensor-off B3 独立晋升、部署 artifact 验证与有序回滚 |
+| [steering-human-anchor.md](./steering-human-anchor.md) | C2 validation-only 专家锚：双盲 steering/noop 标注 schema、知情同意、去标识化、撤回/留存、双标一致性门与 C1 方向对照；禁止回灌学习或晋升 |
+
+**核心不变量**：
+
+- sensor / executor / gate 各自只有一个 owner，模块间仅交换冻结快照
+- substrate、reader 与 executor 在 gate 学习期均冻结；无 free bias、noop 严格为零、delta 有界
+- SHADOW 不能进入用户可见响应；ACTIVE 只允许精确 model/weight/layer/width 绑定的 transformers hook
+- gate 只读 belief + PE 代理；evaluation 不得成为观测、reward 或晋升证据的学习回路
+- C3/B3 只可复用 PE owner 的冻结 N+1 counterfactual；reader/executor 固定、仅 gate policy 更新，formal 前先 prereg
+- 专家评分只作 C1 的验证锚；packet/analysis 在类型与 artifact 字段上固定禁止学习用途和 production promotion
+
 ---
 
 ### 5. 双轨学习
@@ -258,7 +277,7 @@
 |------|------|
 | [evidence_program.md](./evidence_program.md) | claim-to-evidence 映射、blind review、pairwise effect、evidence bundle |
 | [live-dialogue-outcome-evidence.md](./live-dialogue-outcome-evidence.md) | closed-alpha 显式 typed dialogue outcome 的去标识化、不可覆盖产品证据出口；为 Forge live failure source 预备，只读且不从文本推断失败 |
-| [eta-llm-transfer-evidence.md](./eta-llm-transfer-evidence.md) | ETA 迁移 LLM 四级阶梯证据 SSOT：Stage 3 于 2026-08-04 完成 36/36，正式 `kill-eta`；P1 定位 free-bias incentive bypass、learned z 无稳定时序因果性。替代路线 S1 v1 因 heldout `7/299` 截断作废，fail-loud v2 admission PASS（prereg `35c92904…`，layer20/896，heldout 0.9833、late 0.9720、gap 0.0167）；S2 no-bias causal steering prereg `b6a427d0…` 五门 FAIL，A 在 S2 停止、S3 不启动。B faithful rewrite screen prereg `c247e82e…` 已运行，只可准入独立权威扫。Stage 4 关闭，production WiringLevel 不变。 |
+| [eta-llm-transfer-evidence.md](./eta-llm-transfer-evidence.md) | ETA 迁移 LLM 四级阶梯证据 SSOT：Stage 3 于 2026-08-04 完成 36/36，正式 `kill-eta`（operationalization-scoped）；P1 定位 free-bias incentive bypass、learned z 无稳定时序因果性。S1 v2 readout admission PASS（layer20/896，heldout 0.9833）；S2 additive no-bias steering 五门 FAIL；B faithful rewrite screen ETA 专属门 FAIL 封存。此后转向"读残差+有界条件 steering+Internal RL 学何时扳"（`research/steering-2026-08/`）：C1 冲突仪器 VALID → C2 条件写入 PASS → S3-前置非 oracle sensor PASS → S3-A 余量 PASS → **S3-E 学"何时扳" admission PASS（5/5 seed）**，三层闭环（读得到+扳得动+学会何时扳）成立；全程 evidence-lane SHADOW，不改写封存 verdict。Stage 4 关闭，production WiringLevel 不变；晋升路线见 `docs/moving forward/主线提升方案_2026-08.md` 工作流 B。 |
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 | [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：N+1-based v3 base-only / v4 character-stack、Gate 1/suite v2、强制 smoke、严格 resume、state/sleep 消融与独立审计；历史 v1 formal 已停机且不可原样续跑 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |

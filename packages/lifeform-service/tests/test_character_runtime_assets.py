@@ -232,8 +232,14 @@ def test_cli_shared_runtime_receives_admitted_common_and_character_registry(
     args = SimpleNamespace(
         substrate_mode="hf-shared",
         substrate_model_id="Qwen/test",
+        substrate_model_source=None,
         substrate_device="cpu",
         substrate_local_files_only=True,
+        substrate_layer_indices=None,
+        substrate_activation_width=8,
+        substrate_max_length=None,
+        substrate_expected_weights_sha256="",
+        steering_activation_step=None,
         companion_evidence_profile=None,
     )
 
