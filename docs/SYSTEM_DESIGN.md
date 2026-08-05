@@ -1,8 +1,10 @@
 # Volvence 系统设计
 
 > Status: current architecture overview
-> Last updated: 2026-08-03
+> Last updated: 2026-08-05
 > 细粒度契约以 [DATA_CONTRACT.md](./DATA_CONTRACT.md) 和 [specs/00_INDEX.md](./specs/00_INDEX.md) 为准。
+> **能力轴总览**（Appendable / Readable / Learnable / Steerable）见
+> [appendable-readable-learnable-steerable.md](./appendable-readable-learnable-steerable.md)。
 
 ## 1. 系统是什么
 
@@ -13,6 +15,12 @@ Volvence 是一个融合 Nested Learning 与 Emergent Temporal Abstractions 的�
 
 产品目标是长期关系与主体性（EQ + trust）和任务能力共同演进。关系连续性不是任务
 成功的副作用，evaluation 也不是 reward 的代名词。
+
+用四条能力轴表述同一主张：系统必须同时是 **Appendable**（经历可分层追加与恢复）、
+**Readable**（内部状态可从残差与快照命名读出）、**Learnable**（只从 PE/信用学习，
+evaluation 不回灌）、**Steerable**（在冻结基底上做有界条件化择时干预）。四轴合起来才
+构成「在线持续主动学习」；缺任一轴只能声称机制局部成立。完整展开见
+[appendable-readable-learnable-steerable.md](./appendable-readable-learnable-steerable.md)。
 
 ## 2. 不可让步的设计法则
 
@@ -427,7 +435,10 @@ no free bias、zero-code strict no-op、evidence-lane SHADOW、`production_promo
 
 1. 从 [specs/00_INDEX.md](./specs/00_INDEX.md) 定位 owner；
 2. 查 [DATA_CONTRACT.md](./DATA_CONTRACT.md) 的 slot 与依赖；
-3. 跨 wheel/架构意图再读 [archetecture.md](../archetecture.md) 与
-   [next_gen_emogpt.md](./next_gen_emogpt.md)；
+3. 跨 wheel/架构意图再读 [archetecture.md](../archetecture.md)、
+   [next_gen_emogpt.md](./next_gen_emogpt.md) 与
+   [appendable-readable-learnable-steerable.md](./appendable-readable-learnable-steerable.md)；
 4. 修改 owner、consumer、spec 与直接相关测试；
 5. 新路径按 SHADOW→evidence→单组件 ACTIVE，并保留 rollback。
+6. 改动前用四能力轴检查清单自检：这次写入是否 Appendable、状态是否 Readable、
+   信号是否 Learnable、干预是否 Steerable。

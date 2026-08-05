@@ -7,12 +7,41 @@
 
 ## 使用方法
 
-1. **先查本索引** → 定位任务属于哪个能力域
+1. **先查本索引** → 核对任务落在哪条能力轴（Appendable / Readable / Learnable / Steerable），再定位能力域
 2. **读目标 spec** → 拿职责边界、contracts、关键不变量
-3. **只有涉及跨域边界/接口/架构意图变更时** → 再读 `docs/next_gen_emogpt.md` 对应需求和算法基础
+3. **只有涉及跨域边界/接口/架构意图变更时** → 再读 `docs/next_gen_emogpt.md` 与 `docs/appendable-readable-learnable-steerable.md`
 4. **只有要改实现细节时** → 再读具体代码文件
 
 > 文档与代码不一致时以代码为准，并同步更新对应 spec/文档。
+
+---
+
+## 系统主张：Appendable · Readable · Learnable · Steerable
+
+Volvence 不是「会聊天的模型」，而是把**持续适应**拆成四条可审计能力轴的有界系统。
+四轴合起来才构成「在线持续主动学习」；缺任一轴只能声称机制局部成立。
+完整展开见 [`docs/appendable-readable-learnable-steerable.md`](../appendable-readable-learnable-steerable.md)。
+
+| 能力轴 | 一句话主张 | 不能塌缩成 | 主写者 / 入口 |
+|---|---|---|---|
+| **Appendable** | 经历可写入、分层、跨 session 恢复，而不重写基底 | prompt 堆历史 / 单一 KV | `vz-memory` CMS、State/Prefix-KV、semantic owners；§5 记忆连续谱 |
+| **Readable** | 内部状态从残差与快照**命名读出**，不靠猜文本 | 关键词规则 / 黑盒隐状态 | `vz-substrate` residual / N+1 target、`prediction_error`、`steering_condition_belief`；§1 PE、§14 契约 |
+| **Learnable** | 只从 PE 及其下游信用学习；evaluation **永不**回灌 | 用 judge / 连续性分数当 reward | PE→credit→gate；`ModificationGate`；§1 / §9 / §12；steering C1 终局信用 |
+| **Steerable** | 冻结基底上做有界、条件化、可择时的残差干预 | 端到端微调 / token 空间 RL | sensor→executor→gate（`steering_*` slots，默认 SHADOW）；§3 temporal、[steering-runtime.md](./steering-runtime.md) |
+
+**闭环读法**：先能追加（A）→ 才能命名读出（R）→ 才有合法学习信号（L）→ 才知道何时干预（S）→ 干预改变下一拍可追加状态。
+
+**改代码前五问**（任一条答不上来 = 局部补丁，不是四能力系统）：
+
+1. **Appendable**：写入落在哪个时间尺度、哪个唯一 owner？跨 session 如何恢复？
+2. **Readable**：新状态是否以 frozen snapshot 发布？消费者是否只读快照？
+3. **Learnable**：信号是否来自 PE/credit？有无 evaluation/judge 泄漏？
+4. **Steerable**：干预是否有界（norm cap、no bias、strict noop）？lineage 与 WiringLevel 可否单字段回滚？
+5. **闭环**：干预是否改变下一拍可追加状态，从而让 PE 可结算？
+
+**诚实边界**：代理上「读得到 + 扳得动 + 学会何时扳」已有证据；runtime steering 三件套已 SHADOW 落地。
+完整 thesis / production ACTIVE 仍未授权——见 [evaluation.md](../evaluation.md) 与
+[主线提升方案](../moving%20forward/主线提升方案_2026-08.md)。
 
 ---
 
@@ -823,6 +852,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 | `archetecture.md` | 8 wheel 切分轴 + 替换映射 + 迁移路线 | 理解仓库与 wheel 切分思路 |
 | `SPLIT.md` | 仓库边界 charter：Phase 1 monorepo → Phase 2 触发条件 | 理解仓库分裂时机与机械流程 |
 | `docs/SYSTEM_DESIGN.md` | 系统架构设计：总体架构、模块职责、数据流、State KV 非 Prompt 向量通道、多时间尺度学习循环、wheel 边界、迁移策略 | 理解系统整体结构和模块关系 |
+| `docs/appendable-readable-learnable-steerable.md` | **四能力轴架构说明**：Appendable / Readable / Learnable / Steerable——把 R1–R15 落成可审计的系统主张，含 owner 映射、turn 闭环、证据边界与改代码检查清单 | 用能力轴理解「在线持续主动学习」是否成立 |
 | `docs/DATA_CONTRACT.md` | 数据契约：快照 schema、模块接口、Slot 注册表、依赖图、wheel 边界、变更协议 | 理解模块间数据交换格式和约束 |
 | `docs/CONTRACT_MIGRATION_LOG.md` | 契约迁移流水：planned / SHADOW slots、字段扩展、shared type slice changelog | 查实现阶段和 rollout notes，避免污染稳定契约 |
 | `docs/DEBUG_SYSTEM.md` | 调试与可观测性体系：5 层可观测性架构、契约守卫、检查点与回滚、跨 wheel 调试边界 | 理解如何调试和监控系统运行 |
@@ -846,6 +876,8 @@ docs/next_gen_emogpt.md  ← 唯一设计源头（R-PE + R1-R20 + NL/ETA 算法�
     │               └──→ docs/specs/*.md  ← 各能力域 Spec
     │
     ├──→ docs/SYSTEM_DESIGN.md  ← 系统架构（模块职责、数据流、wheel 边界）
+    │       │
+    │       ├──→ docs/appendable-readable-learnable-steerable.md  ← 四能力轴（A/R/L/S）
     │       │
     │       ├──→ docs/DATA_CONTRACT.md  ← 数据契约（快照 schema、接口、wheel 边界）
     │       │

@@ -6,13 +6,14 @@
 
 1. 先执行 `git status --short`，识别并保留用户已有改动。不要覆盖、回退或顺手整理无关文件。
 2. 按以下顺序由近及远获取上下文：
-   - `docs/specs/00_INDEX.md`：定位能力域、目标 wheel 和 owner。
+   - `docs/specs/00_INDEX.md`：定位能力域、目标 wheel 和 owner；并核对任务落在哪条能力轴（Appendable / Readable / Learnable / Steerable）。
    - 对应 `docs/specs/*.md`：确认职责边界、契约和不变量。
-   - 仅当涉及跨域边界、接口或架构意图时，再读 `archetecture.md` 和 `docs/next_gen_emogpt.md`。
+   - 仅当涉及跨域边界、接口或架构意图时，再读 `archetecture.md`、`docs/next_gen_emogpt.md` 与 `docs/appendable-readable-learnable-steerable.md`。
    - 最后读取具体实现和测试。
 3. 文档与代码冲突时，以当前代码行为为准，并在同一改动中修正对应 spec。
 4. 先定位根因所属能力域和唯一 owner。功能设计、行为逻辑、决策流程不得用表达层补丁掩盖上游问题。参数校验、日志格式、拼写等简单 bug 可直接局部修复。
 5. 跨模块或跨库新增行为，必须先在 `docs/DATA_CONTRACT.md` 的 slot 注册表明确 `owner / value_type / dependencies / wiring_level`。
+6. 改动前用四能力轴自检（见 §2.1）；任一条答不上来，不得用 prompt/关键词/evaluation 回灌冒充系统能力。
 
 ## 2. 系统设计的不可让步原则
 
@@ -27,6 +28,30 @@ Volvence 是融合 NL（Nested Learning）与 ETA（Emergent Temporal Abstractio
 - regime 是可记忆、可选择、可训练的运行时身份，不是 prompt 标签。
 - 在线控制器更新与 rare-heavy artifact 更新分层；后者必须经过 `ModificationGate`，不得 bypass。
 - 新自适应层必须有唯一 owner、可检查公共交换、明确退出条件、评估证据和可回滚部署。
+
+### 2.1 四能力轴主张（Appendable · Readable · Learnable · Steerable）
+
+系统主张必须同时满足四条能力轴；缺任一轴只能声称机制局部成立，不得对外说成「在线持续主动学习系统已成立」。完整说明见 `docs/appendable-readable-learnable-steerable.md`；索引入口见 `docs/specs/00_INDEX.md` 顶部「系统主张」节。
+
+| 能力轴 | 必须成立 | 禁止塌缩为 | 主写者 |
+|---|---|---|---|
+| **Appendable** | 经历按时间尺度写入 CMS / State-KV / semantic 快照，可跨 session 恢复，不重写基底 | prompt 堆历史；单一 KV 冒充记忆 | `vz-memory`、substrate carriers、semantic owners |
+| **Readable** | 内部状态从残差与不可变快照**命名读出**并发布 | 关键词/正则文本路由；consumer 重建 producer 隐状态 | `vz-substrate` residual / N+1 target、`prediction_error`、`steering_condition_belief` |
+| **Learnable** | 只从 PE 及其下游 credit 学习；终局信用可走 PE→credit→gate | 用 evaluation / judge / 七日 continuity 分数当 reward | `vz-cognition` PE/credit/ModificationGate；`vz-temporal` gate |
+| **Steerable** | 冻结基底上有界、条件化、可择时残差干预（norm cap、无 free bias、strict noop） | 端到端微调；token 空间 RL；ACTIVE 读 shadow fallback | sensor→executor→gate（`steering_*`，默认 SHADOW） |
+
+闭环：Appendable → Readable → Learnable → Steerable → 下一拍可追加状态。
+steering 三件套契约：`docs/specs/steering-runtime.md`。人类标注只作验证锚，不作学习源：`docs/specs/steering-human-anchor.md`。
+
+改代码前必须能回答：
+
+1. 写入落在哪个时间尺度、哪个唯一 owner？如何恢复？
+2. 新状态是否以 frozen snapshot 发布？消费者是否只读快照？
+3. 学习信号是否来自 PE/credit？有无 evaluation/judge 泄漏？
+4. 干预是否有界且 lineage / WiringLevel 可单字段回滚？
+5. 干预是否改变下一拍可追加状态，从而让 PE 可结算？
+
+诚实边界：代理上「读得到 + 扳得动 + 学会何时扳」与 SHADOW runtime 接线不等于 production ACTIVE 或 thesis 通过。晋升路线见 `docs/moving forward/主线提升方案_2026-08.md`。
 
 ## 3. Wheel 边界与唯一职责
 
@@ -189,10 +214,12 @@ Volvence 是融合 NL（Nested Learning）与 ETA（Emergent Temporal Abstractio
 
 ## 14. 权威参考
 
-- `docs/specs/00_INDEX.md`：默认知识入口
+- `docs/specs/00_INDEX.md`：默认知识入口（含四能力轴主张与能力域映射）
+- `docs/appendable-readable-learnable-steerable.md`：Appendable / Readable / Learnable / Steerable 完整架构说明
 - `docs/DATA_CONTRACT.md`：快照 schema、slot 注册表、依赖图、变更协议
 - `docs/next_gen_emogpt.md`：R1–R15、R-PE 与 NL / ETA 算法依据
 - `archetecture.md`：wheel 切分、边界和迁移路线
 - `docs/prd.md`：愿景、工程拆解和 M0–M6
 - `SPLIT.md`：仓库边界 charter
+- `docs/moving forward/主线提升方案_2026-08.md`：机制证据 → 系统主张的晋升路线
 - `.cursor/rules/*.mdc`：本文件的细化规则和任务模板
