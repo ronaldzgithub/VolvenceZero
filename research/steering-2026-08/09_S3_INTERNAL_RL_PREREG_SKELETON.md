@@ -85,6 +85,8 @@ S3 本体是 S3 前置（[08_READ_STEER_S3_PREREQ.md](08_READ_STEER_S3_PREREQ.md
 
 正式判定门已冻结为 `artifacts/eta_s3_internal_rl_prereg_20260805.json`（SHA256 `62454418…`）：claim_scope、问题设定（staleness 仪器 + PE 代理观测）、动作空间、arms、seeds `[0..4]`、episode 预算、bootstrap 5000/95%、全部 decision rules 与 prohibited 项。**pre-execution 修订**（已记入 prereg `pre_execution_revisions`）：1-seed 探针显示 300 route-episodes / 64 routes（~4.7 次/route）供给不足（收敛向 always-on、selectivity≈0），故改用 **minibatch REINFORCE（batch 8）** 并把预算提到 **1200**（~19 次/route，仍有界诚实）；阈值/arms/seeds 不变。S3-C owner 模块 threshold 默认值须与 prereg 一致（run 脚本 `_assert_prereg_consistency` 强校验）；S3-D run 脚本在 `artifact_manifest.json` 记录各 source SHA + 模型 weights SHA + prereg SHA。
 
+**S3-E 稳健化增补 prereg**：`artifacts/eta_s3e_internal_rl_restart_prereg_20260805.json`（SHA256 `e46b5890…`），在**看到 S3-D 结果后、跑 S3-E 前**冻结。仅新增一条训练侧稳健化机制——**multi-restart（每 seed 4 重启）+ 训练侧 argmax-gate NLL 选最优**（选择只读训练行，从不看 heldout 判据；塌缩的 always-steer 策略被 post-switch 7.0 惩罚拖累、训练 NLL 严格更差，故 best-train 选择可证拒绝塌缩重启，等价诚实验证集模型选择）。**判据 / arm / seeds / episode 预算 / bootstrap 全部继承 S3-D 不变**，S3-D 的 literal FAIL 记录原样保留。结果见 [11](11_S3_INTERNAL_RL_RESULT.md)：admission **PASS**（5/5 seed），worst-seed gain-vs-always-on CI 下界 +0.497。
+
 ## 退出 / 回滚
 
 全为 evidence lane。策略以 SHADOW 训练与评估，不安装、不写回、默认 wiring 不变；回滚即删除 S3 artifact 与新接线代码路径。按收敛包纪律：单 owner（策略/环境接线）、单契约（门控动作 + 结局信用语义），与 reader/executor 分包，任一时刻同一快照链只有一个写入者。

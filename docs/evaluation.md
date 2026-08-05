@@ -26,7 +26,7 @@
 | 4 | Learned Active（torch 后端晋升） | 四个 SHADOW torch 后端能否晋升 ACTIVE | `scripts/run_learned_active_evidence.py` | `partial-promotion-blocked`（validation_delta 0.0138 < 0.02） | 续跑连续 soak 过门 + PE-off/ETA-off 对照 + 执行 capacity ladder |
 | 5 | Companion Bench（对外榜） | 系统无关的多 session 陪伴基准（A1–A6 六轴） | `packages/companion-bench` CLI + `scripts/companion_bench/*` | 站点数据**全是 demo/smoke**，无正式榜 | judge 稳健性(#48)→校准(#52)→统计功效(#54)→10 系统全量(#82) |
 | 6 | State-KV / Prefix-KV 辨识 | 同 prompt 空上下文，两用户产生可被盲判归属的差异 | `scripts/run_state_kv_identification.py` 等 | Personal 全链 **pass**；尽调 **partial(3/7)**；Relationship 停在 chance | 关闭 C5 credit 与 bank-gain；Relationship 记为负结果 |
-| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Stage3 **`kill-eta`**；P1 定位 free-bias bypass（96.3% recovery）；S1 v2 readout PASS，S2 no-bias steering 五门 FAIL | A 在 S2 停止；B faithful rewrite screen 已预注册运行；Stage4 关闭 |
+| 7 | ETA rate-distortion + LLM 阶梯 | 冻结 LLM 上 ETA 率失真机制是否成立（四级阶梯） | `scripts/run_eta_rate_distortion.py` | Stage3 **`kill-eta`**（operationalization-scoped）；P1 定位 free-bias bypass（96.3% recovery）；S1 v2 readout PASS，S2 additive no-bias steering 五门 FAIL | **转向"读残差+有界条件 steering+Internal RL 学何时扳"**：C2 条件写入 PASS、S3-前置非 oracle sensor PASS、S3-A 余量 PASS、**S3-E 学"何时扳" admission PASS（5/5）** → 三层闭环（读得到+扳得动+学会何时扳）；仍 SHADOW/evidence-lane、production 未提升；Stage4 关闭（见 §7.6、`research/steering-2026-08/`） |
 | 8 | ETA 内部 RL / 段信用强证据 | 段级信用 vs turn 级、抽象动作复用等论文式命题 | `scripts/run_eta_segment_credit_evidence.py` / paper suite | 段信用 v13 **retain**（12 门全过） | 作为机制回归保留；不等于 rate-distortion retain |
 | 9 | Digital Ant ecology（same-physics） | 无 LLM 的 2D 感觉运动床上，typed-milestone ACTIVE vs DISABLED 是否有因果净增益 | `scripts/run_ant_ecology_same_physics_station1.py` | L1-C station1-v4 **BLOCK**（food alignment 3/4）；station2/P1/P2 **not-authorized** | 新 owner 机制 + 新 prereg 才可重开；禁止二审/换 seed/降阈值 |
 | 10 | RSI Forge（开发环自改进） | 从真实失败挖模式 → 有界提案 → 循环外验证/人审 → ledger 预测兑现 | `forge` CLI（`mine/propose/validate/select/apply`） | 战役一 e2e 已 apply 2 条；overlay 默认 DISABLED；无 live/GPU 晋升 | 下一轮 `mine --evidence-since-ledger` 兑现预测；扩 task-level held-out；rare-heavy 需冻结权重证据 |
@@ -568,9 +568,11 @@ subgoal 与 action-change F1 的均值差 `−0.0685` 未过 `|Δ|≥0.10` 门�
    0.50×cap 主判 plus vs noop `−0.00072`（95% CI
    `[−0.01787,0.01809]`），plus vs minus `0.02829`，plus vs shuffled
    `0.00709`，五项 admission 条件全败。线性可读轴未形成稳健动作因果接口。
-3. **S3 不启动**：S2 是产品域生死门，因此不以 PE-gated segment credit /
-   small-action Internal RL 掩盖 actuator 因果性缺失。任何 runtime owner、snapshot
-   或 wiring 变更仍需另开收敛包并先注册正式契约。
+3. **S3 不启动（当时结论，已被 §7.6 转向取代）**：S2 是产品域生死门，因此不以
+   PE-gated segment credit / small-action Internal RL 掩盖 actuator 因果性缺失。**后续 §7.6
+   的转向没有绕过这条**——它先用 C1/C2 直接补齐了 actuator 因果性（证明"可扳"且条件性有独立
+   因果价值），再在此基础上启动 S3。任何 runtime owner、snapshot 或 wiring 变更仍需另开收敛包
+   并先注册正式契约。
 4. **Branch B faithful rewrite screen（执行中）**：P1 入口/bias 定罪与 S2
    FAIL 已同时满足触发条件。新 claim 的 prereg `c247e82e…` 固定 layer20
    full-width896 → learned 16-d projection、rank-8 no-bias
@@ -579,6 +581,37 @@ subgoal 与 action-change F1 的均值差 `−0.0685` 未过 `|Δ|≥0.10` 门�
    不改写 Stage-3 `kill-eta`、不安装 artifact、不改 production wiring。
 5. Stage 4 不启动；Gate 1 / 2 / 3 封存件只在相关算法变量或证据契约改变时
    按新预注册复验，普通重构不触发昂贵全扫。
+
+### 7.6 转向：读残差 + 有界条件 steering + Internal RL 学"何时扳"（三层闭环，S3-E admission PASS）
+
+S2 的 additive no-bias steering FAIL 是学界已充分刻画的"可读却不可扳"失败模式（文献归因与修法见
+`research/steering-2026-08/`，9 篇 2024–2026 steering/表征干预主线深读）。据此把 operationalization 从
+"拿 probe 权重当方向、饱和位置单点静态加一把"换成**学习式条件干预**，逐级只读证据（全程
+`substrate_trainable=0`、reader/executor 冻结、no free bias、zero-code strict no-op、SHADOW、
+`production_promotion_authorized=false`，不改写任何封存 verdict）：
+
+1. **P2c·C1 冲突映射仪器 = VALID**：目标剥离路口仪器，(view,subgoal) 残余歧义 0、基底 goal-stripped
+   NLL 2.81 vs revealed 0.22 ⇒ 2.60 NLL 可 steer 余量、因果归属 subgoal（`06_*`）。
+2. **P2c·C2 条件学习式写入 = PASS**：rank-8 乘性写入按 subgoal 条件化把 heldout NLL 从 2.81 关到
+   **0.027**，等预算 unconditional 只到 1.36、random-condition 反伤 7.38 ⇒ **"扳得动"且条件性有独立
+   因果价值**（`07_*`，owner `eta_conditional_steering_screen.py`）。
+3. **P2c·S3 前置 = PASS**：把 condition 从 oracle 换成**在线非 oracle sensor**——在携带目标的上下文
+   残差上 refit 冻结线性 reader 把 subgoal 读到 heldout **1.000**，驱动 C2 执行器得 `conditional-online`
+   NLL 0.023 = 完全等于 oracle ⇒ **"读得到"**（`08_*`，owner `eta_read_steer_prereq.py`）。
+4. **S3-A 门控余量审计 = PASS**：用诚实的过期 belief（记忆滞后）制造余量，staleness 完全可检测
+   （`10_*`）。
+5. **S3 本体（学"何时扳" Internal RL）**：冻结 sensor+executor，唯一在线更新的门控策略只观测 PE 代理、
+   只拿每-episode 终局稀疏信用、从不给每步标签，自写 minibatch REINFORCE。**S3-D** 实质证明可学
+   （4/5 seed），1 seed 探索塌缩 ⇒ 预注册 worst-seed 门 literal FAIL（历史保留）。**S3-E**（不改判据的
+   multi-restart 训练侧选择稳健化，restart 数/选择规则跑前冻结进 prereg `e46b5890…`）救回塌缩 seed →
+   **5/5 全过、admission PASS**：seed 平均 pe-gated 0.709（< oracle 1.09），worst-seed gain-vs-always-on
+   CI 下界 +0.497，selectivity 0.494（`11_*`、`artifacts/eta_s3e_when_to_steer_rl_restart_20260805/`，
+   owner `eta_when_to_steer_rl.py`）。
+
+**结论**：三层闭环成立——**读得到 + 扳得动 + 学会何时扳**。这证明"给定稀而准的结局信用，门控策略能在
+小样本内学会择时"；作用范围是代理迷宫上的 operationalization，**不复活也不改写 Stage-3 `kill-eta`**
+（后者是 additive/free-bias 折叠入口那一族操作化的永久摘除），且尚未授权 production——到 companion 的
+迁移需先解决"该不该扳向关系轨"缺免费客观标签、须靠情感专家/长程关系结局提供稀而准信用的问题。
 
 ---
 

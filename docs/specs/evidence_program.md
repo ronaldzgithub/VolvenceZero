@@ -2041,6 +2041,21 @@ substrate weights；删除隔离 evidence directory 即可回滚本 lane。
   阈值/聚合/seeds/预算）；`production_promotion_authorized=false`，不改写任何封存 verdict。详见
   `research/steering-2026-08/11_S3_INTERNAL_RL_RESULT.md`。程序级决策（采纳 4/5 实质结论 vs 严格
   literal FAIL 封存）交用户裁定。
+- 2026-08-05: **S3-E 稳健化（用户选项 A，不改判据）= admission PASS**。同一 owner 模块
+  `eta_when_to_steer_rl` 增加**训练侧稳健化机制**：每 seed 跑 4 个随机重启，按**训练侧** argmax-gate
+  chosen-NLL 选最优（选择只读训练行，从不看 heldout arm/CI/selectivity 判据 ⇒ 无泄漏；塌缩的
+  always-steer 策略在 post-switch 行被 7.0 惩罚拖累、训练 NLL 严格更差，故 best-train 选择可证拒绝
+  塌缩重启，等价诚实的验证集模型选择）。测试升至 9 passed（新增 `_run_seed` 端到端 multi-restart
+  选择用例）。restart 数（4）+ 选择规则在**看到 S3-D 结果后、跑 S3-E 前**冻结于新 prereg
+  `artifacts/eta_s3e_internal_rl_restart_prereg_20260805.json`（SHA `e46b5890…`），**判据/arm/seeds/
+  episode 预算全部继承 S3-D 不变**，S3-D literal FAIL 记录原样保留。产物
+  `artifacts/eta_s3e_when_to_steer_rl_restart_20260805/`（report.json SHA `0a758977…`）。救回 S3-D
+  塌缩的 seed 1（选中 restart 2，gain-vs-always-on CI 下界 +0.497）→ **5/5 seed 全过**：heldout
+  seed 平均 pe-gated-online **0.709**（< oracle 1.090），worst-seed gain CI 下界 vs noop +1.497 / vs
+  always-on **+0.497** / vs random +0.923，selectivity 0.494≥0.30、收敛改善 1.185≥0.20、结构门全过，
+  admission **PASS**。**S3 三层闭环（读得到 + 扳得动 + 学会何时扳）成立**；仍为 evidence lane，
+  `production_promotion_authorized=false`，SHADOW 训练/评估，未改写任何封存 verdict（kill-eta / S2 /
+  B screen / C2 / 08 / S3-A / S3-D）。
 - 2026-08-03: ETA-on-LLM Stage-2 **仪器审计 + v2 重审**（详见
   [`eta-llm-transfer-evidence.md`](./eta-llm-transfer-evidence.md)）。审计发现 v1
   语料/probe 的计划载体是 `_context_sentence` 哈希指纹（与 Gate-1 定罪的

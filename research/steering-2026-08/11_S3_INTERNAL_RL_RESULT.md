@@ -1,10 +1,31 @@
-# 11 · S3 学「何时扳」Internal RL 权威结果 = **实质学习性已证；预注册 worst-seed 稳健门未过**
+# 11 · S3 学「何时扳」Internal RL 权威结果 = **实质学习性已证（S3-D）；worst-seed 稳健门经 multi-restart 稳健化后全过（S3-E · admission PASS）**
 
-- owner 模块：[`eta_when_to_steer_rl.py`](../../packages/vz-runtime/src/volvence_zero/agent/eta_when_to_steer_rl.py)（单 owner，自写 minibatch REINFORCE + advantage 归一化 + 熵正则）
-- run 脚本：[`scripts/run_eta_when_to_steer_rl.py`](../../scripts/run_eta_when_to_steer_rl.py)；单元测试 [`test_eta_when_to_steer_rl.py`](../../packages/vz-runtime/tests/test_eta_when_to_steer_rl.py)（8 passed，含端到端 REINFORCE 可学性）
-- 冻结 prereg：`artifacts/eta_s3_internal_rl_prereg_20260805.json`（SHA `62454418…`）
-- 产物：`artifacts/eta_s3_when_to_steer_rl_20260805/`（report.json/md + manifest；git `b77812a5`）
+- owner 模块：[`eta_when_to_steer_rl.py`](../../packages/vz-runtime/src/volvence_zero/agent/eta_when_to_steer_rl.py)（单 owner，自写 minibatch REINFORCE + advantage 归一化 + 熵正则 + multi-restart 训练侧选择）
+- run 脚本：[`scripts/run_eta_when_to_steer_rl.py`](../../scripts/run_eta_when_to_steer_rl.py)；单元测试 [`test_eta_when_to_steer_rl.py`](../../packages/vz-runtime/tests/test_eta_when_to_steer_rl.py)（9 passed，含端到端 REINFORCE 可学性 + multi-restart 训练侧选择）
+- 冻结 prereg：S3-D `artifacts/eta_s3_internal_rl_prereg_20260805.json`（SHA `62454418…`）；S3-E 稳健化增补 `artifacts/eta_s3e_internal_rl_restart_prereg_20260805.json`（SHA `e46b5890…`，判据继承不变）
+- 产物：S3-D `artifacts/eta_s3_when_to_steer_rl_20260805/`（git `b77812a5`）；**S3-E `artifacts/eta_s3e_when_to_steer_rl_restart_20260805/`（report.json SHA `0a758977…`，admission PASS）**
 - 基底：frozen merged S1 模型，layer 20/896，MPS；seeds `[0,1,2,3,4]`，1200 episodes，bootstrap 5000/95%
+
+## S3-E 稳健化结论（用户选项 A · 不改判据的标准 REINFORCE 稳健化）
+
+**worst-seed 稳健门已过，admission = `PASS`。** 每 seed 跑 4 个随机重启，按**训练侧** argmax-gate NLL 选最优（从不看 heldout 判据），再用选中策略评估。原理：塌缩的 always-steer 策略在 post-switch 行被 7.0 惩罚拖累，其**训练** NLL 严格更差，故 best-train 选择可证地拒绝塌缩重启，等价于诚实的验证集模型选择，无判据泄漏。
+
+| 门（5 seed 平均；CI 下界取 worst-seed） | S3-E 值 | 阈值 | 判定 |
+|---|---:|---:|---|
+| 收敛改善（初始→最终） | 1.185 | ≥0.20 | ✅ |
+| gain vs noop（worst-seed CI 下界） | 2.104（1.497） | ≥0.3, CI>0 | ✅ |
+| gain vs always-on（worst-seed CI 下界） | 1.082（**0.497**） | ≥0.2, CI>0 | ✅ |
+| gain vs random-gate（worst-seed CI 下界） | 1.338（0.923） | ≥0.2, CI>0 | ✅ |
+| 门控选择性 | 0.494 | ≥0.30 | ✅ |
+| 结构完整性（基底/reader/executor 冻结、无 free bias、zero-code no-op、仅策略更新） | — | — | ✅ |
+
+逐 seed：seed 1（S3-D 塌缩者）选中 restart 2，gain-vs-always-on CI 下界 **+0.497**（>0），selectivity 0.45；全部 5 seed 的 gain-vs-always-on CI 下界 ∈ [0.497, 0.667]，selectivity ∈ [0.436, 0.577]。pe_gated_online seed 平均 **0.709**（< oracle 1.090），稳健化后不仅救回 seed 1，整体也优于 S3-D 的 0.951。
+
+> 诚实性说明：restart 数（4）与选择规则（训练侧 argmax-NLL）在**看到结果前**写入 S3-E prereg；只跑一次、判据/arm/seeds/预算全部继承 S3-D 不变。这不是 p-hack——选择信号与 verdict 指标正交（训练行 vs heldout 行）。S3-D 的 literal FAIL 记录**原样保留**在下方作为稳健化前的历史证据。
+
+---
+
+## S3-D 原始权威结果（稳健化前 · 历史记录，literal FAIL 保留）
 
 ## 一句话结论
 
@@ -62,6 +83,6 @@
 |---|---|
 | 识别 sensor（08 冻结 reader） | ✅ heldout 1.0 |
 | 干预 executor（C2 rank-8） | ✅ 关掉 2.79、条件性优 1.37 |
-| 策略「何时扳」（S3 本文件） | ⚠️ **可学已证（4/5），worst-seed 稳健门未过（1/5 塌缩）** |
+| 策略「何时扳」（S3 本文件） | ✅ **可学已证 + worst-seed 稳健门经 S3-E multi-restart 全过（5/5）** |
 
-方向盘与读盘钉死；「学开车」在多数 seed 上成立，稳健化是唯一剩余缺口。
+方向盘与读盘钉死；「学开车」经 multi-restart 训练侧选择稳健化后在全部 5 seed 上成立，S3 三层闭环。

@@ -410,6 +410,19 @@ learned takeover。relationship-conditioned Gate 2 longitudinal seed1301 stop-lo
 Digital Ant ecology station1-v4 都已按冻结门终止。完整台账见
 [current.md](./current.md) 和 [thesis prove.md](./thesis%20prove.md)。
 
+**ETA-on-LLM operationalization（2026-08）**：冻结 LLM 上 ETA 率失真四级阶梯的
+Stage-3 权威扫封存 `kill-eta`，但范围是"additive/free-bias 折叠入口"那一族操作化，
+非 ETA 理论普遍证伪；S2 沿 probe 轴 additive steering 复现学界"可读却不可扳"的负结果。
+据此把操作化换成**读残差 + 有界条件 steering + Internal RL 学"何时扳"**并逐级取只读证据：
+C1 冲突仪器 VALID → C2 rank-8 条件学习式写入 PASS（把 heldout NLL 从 2.81 关到 0.027、
+条件性有独立因果价值，"扳得动"）→ S3-前置非 oracle sensor PASS（冻结线性 reader 把 subgoal
+读到 heldout 1.0、驱动执行器等于 oracle，"读得到"）→ **S3-E 学"何时扳" admission PASS（5/5 seed，
+门控策略仅凭每-episode 终局稀疏信用学到逼近 oracle 的择时，"学会何时扳"）**，构成
+**读得到 + 扳得动 + 学会何时扳**的三层闭环。全程 `substrate_trainable=0`、reader/executor 冻结、
+no free bias、zero-code strict no-op、evidence-lane SHADOW、`production_promotion_authorized=false`，
+不改写 `kill-eta`/S2 等封存件，未安装 artifact、未改 production wiring。证据台账见
+[evaluation.md](./evaluation.md) §7.6 与 `research/steering-2026-08/`。
+
 ## 12. 修改系统时的入口
 
 1. 从 [specs/00_INDEX.md](./specs/00_INDEX.md) 定位 owner；

@@ -1,0 +1,44 @@
+{
+  "schema_version": "eta-s3e-restart-robustification-prereg.v1",
+  "claim_scope": "conditional-steering-internal-rl-when-to-steer / worst-seed-robustification",
+  "frozen_at": "2026-08-05",
+  "parent_prereg": "artifacts/eta_s3_internal_rl_prereg_20260805.json",
+  "parent_prereg_note": "S3-D thresholds / arms / seeds / episode budget are inherited UNCHANGED and remain the single source of truth for the verdict; this doc only adds a training-side robustification mechanism.",
+  "motivation": "S3-D substantively proved learnability of when-to-steer from sparse outcome credit (4/5 seeds robustly passed), but 1/5 seed (seed 1) collapsed to always-steer under an unlucky init, tripping the worst-seed CI-lower gate to a literal FAIL. Program decision (user option A): accept substantive learnability and add a standard REINFORCE robustification (multi-restart with honest model selection), then rerun once under the identical decision rules.",
+  "robustification": {
+    "mechanism": "multi-restart per seed with train-side model selection",
+    "policy_restarts": 4,
+    "restart_seed_rule": "restart_seed = seed * 1000 + restart_index (distinct init + action + episode RNG per restart)",
+    "selection_metric": "mean argmax-gate chosen-NLL over TRAIN rows (lower is better)",
+    "selection_never_uses": "heldout rows, heldout arm NLLs, gate/CI/selectivity verdict metrics",
+    "why_honest": "Selection reads only training rows -- identical to standard validation-based model selection. The collapsed always-steer policy has strictly worse TRAIN NLL (dragged down by the post-switch 7.0 penalty), so best-train selection provably rejects the collapsed restart without peeking at any verdict metric.",
+    "evaluated_policy": "the single selected restart is evaluated on heldout for every reported arm / CI / selectivity"
+  },
+  "unchanged_from_parent": {
+    "decision_rules": "identical (convergence>=0.2, gain_vs_noop>=0.3 & CI>0, gain_vs_always_on>=0.2 & CI>0, gain_vs_random>=0.2 & CI>0, gate_selectivity>=0.3, structural integrity)",
+    "seed_schedule": [0, 1, 2, 3, 4],
+    "max_online_episodes": 1200,
+    "policy_optimizer": "minibatch REINFORCE (policy_batch_cases=8) + running baseline + advantage normalization + entropy regularization",
+    "bootstrap_resamples": 5000,
+    "bootstrap_confidence": 0.95,
+    "frozen_components": "sensor reader / executor / substrate all frozen; only gate policy params updated online"
+  },
+  "source_lineage": {
+    "git_head": "d688bd626a96f06e04f0b386a81dee03f6572def",
+    "owner_module": "packages/vz-runtime/src/volvence_zero/agent/eta_when_to_steer_rl.py",
+    "owner_module_sha256": "a3b7429f476403c3a9e8bd769e9f409dcd41c143f10837eb3d93f98511dd52a0",
+    "run_script": "scripts/run_eta_when_to_steer_rl.py",
+    "run_script_sha256": "c6c276a4bc7065c28cb86ed46342f8ecdc64567301735f63e5b2d0adf9416d1a"
+  },
+  "prohibited_after_execution": [
+    "change policy_restarts, selection metric, thresholds, arms, seeds or episode budget after seeing results",
+    "select restarts by any heldout / verdict metric",
+    "train or fine-tune reader / executor / substrate",
+    "feed active_subgoal ground truth into policy loss or gate observation",
+    "rewrite sealed verdicts: kill-eta / S2 / B screen / C2 / S3-prereq / S3-D"
+  ],
+  "on_result": {
+    "all_pass_including_worst_seed": "learnability + worst-seed robustness both substantiated under identical rules; admit independent authoritative sweep (still SHADOW, no production promotion)",
+    "still_worst_seed_fail": "report honestly that standard restart robustification is insufficient on the surrogate; do not weaken thresholds"
+  }
+}
