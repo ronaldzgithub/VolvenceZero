@@ -241,7 +241,7 @@ python scripts/run_msc_prediction_research.py \
   --train-dyads 24 --validation-dyads 12 --heldout-dyads 12 --epochs 8 --seeds 0 1 2 --resume
 ```
 
-> `msc_prediction_checkpoint.py` 是库不是 CLI（crash-safe journal，不存原文）。MSC plan **无 audit 子命令**。MPS 锁与 §1.2 共享，`status` 不占锁。smoke manifest 会保留 runner run-configuration；preregister 必须验证 smoke/formal 的模型、语料、运行时参数和 source hash 同源，并冻结 execution-source snapshot。formal 只接受 `freeze_msc_execution_root.py` 生成、与 prereg raw SHA 完全绑定且全树只读的 `msc-frozen-execution-root.v1`。
+> `msc_prediction_checkpoint.py` 是库不是 CLI（crash-safe journal，不存原文）。MSC plan **无 audit 子命令**。MPS 锁与 §1.2 共享，`status` 不占锁。smoke manifest 会保留 runner run-configuration，并封存 checkpoint file count、总 bytes 与 per-runtime-sample bytes；正式矩阵启动前必须据此复核本机可用磁盘，不能只用 latency/token 估预算。preregister 必须验证 smoke/formal 的模型、语料、运行时参数和 source hash 同源，并冻结 execution-source snapshot。formal 只接受 `freeze_msc_execution_root.py` 生成、与 prereg raw SHA 完全绑定且全树只读的 `msc-frozen-execution-root.v1`。
 
 ### 3.3 怎么评价
 
@@ -695,8 +695,7 @@ B3 prereg 必须在看见 C3 report 前冻结，且明确禁止复用 Learned Ac
 
 # 3) 仅当 B3 eligible_prefix 覆盖该 step 时，按 activation_plan 一次推进一个 canary
 #    （下面的 max-length/width/layer/model/digest 必须与 plan.deployment_contract 精确一致）
-.venv/bin/lifeform-serve --vertical companion \
-  --substrate-mode hf-shared --substrate-local-files-only \
+.venv/bin/python scripts/verify_steering_activation_canary.py \
   --substrate-model-id Qwen/Qwen2.5-0.5B-Instruct \
   --substrate-model-source artifacts/eta_stage2_merged_v2_20260803 \
   --substrate-expected-weights-sha256 '<plan model_weights_sha256>' \
@@ -706,19 +705,29 @@ B3 prereg 必须在看见 C3 report 前冻结，且明确禁止复用 Learned Ac
     artifacts/steering-b3-<run-id>/candidate_steering_artifact_bundle.json \
   --steering-promotion-manifest artifacts/steering-b3-<run-id>/artifact_manifest.json \
   --steering-activation-plan artifacts/steering-b3-<run-id>/activation_plan.json \
-  --steering-activation-step '<next one-based step>'
+  --steering-activation-step '<next one-based step>' \
+  --receipt-output artifacts/steering-b3-<run-id>/canary-step-<n>.json
+# step 2 及以后还必须追加：
+# --previous-activation-receipt artifacts/steering-b3-<run-id>/canary-step-<n-1>.json
 ```
 
 C3 主门：≥500 validation turn、action sensitivity、收敛、相对 noop/always-on/
 random-gate 的 dyad-clustered CI 与 worst-seed gain、选择性、结构完整性。B3 另验两条
 informative N+1 轴、conditional-vs-unconditional sensor-off、conditional always-on-vs-noop
-executor effect、learned-vs-fixed gate-off、checkpoint、延迟、安全和 R12。输出只能授权
-`sensor→executor→gate` 连续前缀；activation v2 会把 executor 前的 `always_on` 准备与
+executor effect、learned-vs-fixed gate-off、checkpoint、延迟、安全、R12，并让 content-addressed
+candidate bundle 经过正式 `ModificationGate.OFFLINE`。系统门 BLOCK 会清空全部 ACTIVE 前缀；
+当前 OA-4 业务 audit 未落地，prereg 明示阶段一 `audit_required=false`，不得伪称 audit 已完成。
+输出只能授权 `sensor→executor→gate` 连续前缀；activation v3 会把 executor 前的 `always_on` 准备与
 gate 后的 `blocked` 清理拆成独立 rollout，每次只翻一个字段，并输出绑定 learned gate 的
 candidate bundle。formal runner 自身不改默认；B3 preflight 在 C3 四件套缺失或 hash/
 lineage 不合法时返回非零。production service 仍拒绝裸 bundle；它会复核 B3
-manifest/evidence/report/plan/candidate 五件套，并把 C3 的 context 上限、16-token generation、
+manifest/evidence/ModificationGate review/report/plan/candidate 六件套，并把 C3 的 context 上限、16-token generation、
 temperature 0 与 fail-on-truncation 当作首轮 ACTIVE deployment contract，禁止证据后分布漂移。
+manifest 还携带 prereg 冻结的全量 `source_sha256`，启动时逐文件复算，拒绝 formal 后的 ACTIVE 链源码漂移。
+bounded canary runner 先拒绝已占用/非 loopback 端点，再在共享 MPS 锁内启动 exact service、等待
+`127.0.0.1` `/v1/health`、确认子进程仍存活后停止，并封存退出码与日志；
+receipt 同时保存 exact argv、日志路径及前序 receipt 路径，step 2+ 启动前会逐项重算内容 hash；
+故不能从 baseline 直接跳到累计状态，也不能用孤立 digest 冒充可复验证据。
 
 **当前结果**：代码/契约级就绪，尚无 C3/B3 prereg 或 formal artifact；不得写成 dialogue
 transfer PASS，也不得写成 steering ACTIVE。

@@ -19,13 +19,18 @@ import os
 from pathlib import Path
 import tempfile
 
+from lifeform_service.steering_activation import (
+    steering_activation_canary_receipt_policy,
+)
 from volvence_zero.agent.dialogue_steering_evidence import (
     DialogueSteeringReport,
     DialogueSteeringTraceDataset,
 )
 from volvence_zero.agent.steering_promotion_gate import (
+    STEERING_MODIFICATION_TARGET,
     STEERING_PROMOTION_ORDER,
     SteeringPromotionThresholds,
+    build_steering_modification_gate_review,
     build_steering_promotion_evidence,
     evaluate_steering_promotion,
 )
@@ -33,7 +38,7 @@ from volvence_zero.steering_contracts import SteeringArtifactBundle
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
-PREREG_SCHEMA = "steering-promotion-formal-prereg.v1"
+PREREG_SCHEMA = "steering-promotion-formal-prereg.v2"
 SOURCE_FILES = (
     "packages/lifeform-expression/src/lifeform_expression/llm_synthesizer.py",
     "packages/lifeform-service/src/lifeform_service/app.py",
@@ -42,6 +47,9 @@ SOURCE_FILES = (
     "packages/lifeform-service/src/lifeform_service/verticals.py",
     "packages/vz-contracts/src/volvence_zero/runtime/kernel.py",
     "packages/vz-contracts/src/volvence_zero/steering_contracts.py",
+    "packages/vz-cognition/src/volvence_zero/credit/gate.py",
+    "packages/vz-cognition/src/volvence_zero/evaluation/__init__.py",
+    "packages/vz-cognition/src/volvence_zero/evaluation/types.py",
     "packages/vz-cognition/src/volvence_zero/steering_sensor.py",
     "packages/vz-runtime/src/volvence_zero/agent/dialogue_steering_evidence.py",
     "packages/vz-runtime/src/volvence_zero/agent/response.py",
@@ -56,6 +64,7 @@ SOURCE_FILES = (
     "packages/vz-temporal/src/volvence_zero/steering_gate.py",
     "scripts/run_dialogue_steering_test_plan.py",
     "scripts/run_steering_promotion_test_plan.py",
+    "scripts/verify_steering_activation_canary.py",
 )
 
 
@@ -106,6 +115,10 @@ def _write_json(path: Path, payload: object) -> None:
 
 def _source_hashes() -> dict[str, str]:
     return {name: _sha256(REPOSITORY_ROOT / name) for name in SOURCE_FILES}
+
+
+def _canary_receipt_policy() -> dict[str, object]:
+    return steering_activation_canary_receipt_policy()
 
 
 def _c3_preregistration(path: Path) -> tuple[dict[str, object], str]:
@@ -160,7 +173,7 @@ def _configuration(args: argparse.Namespace) -> dict[str, object]:
     ):
         raise ValueError("B3 C3 deployment contract is incomplete")
     return {
-        "schema_version": "steering-promotion-run-configuration.v1",
+        "schema_version": "steering-promotion-run-configuration.v2",
         "c3_preregistration_path": str(args.c3_preregistration.resolve()),
         "c3_preregistration_sha256": c3_prereg_sha,
         "c3_output": str(args.c3_output.resolve()),
@@ -179,6 +192,22 @@ def _configuration(args: argparse.Namespace) -> dict[str, object]:
         "activation_policy": (
             "one-field-per-rollout including explicit gate-off control preparation"
         ),
+        "canary_receipt_policy": _canary_receipt_policy(),
+        "modification_gate": {
+            "proposal_target": STEERING_MODIFICATION_TARGET,
+            "desired_gate": "offline",
+            "validation_delta": (
+                "minimum relative improvement over informative held-out axes"
+            ),
+            "capacity_cost": 0.0,
+            "rollback_evidence": (
+                "candidate-bound steering gate checkpoint JSON round-trip"
+            ),
+            "audit_required": False,
+            "audit_phase": (
+                "OA-4 business audit content pending; phase-1 contract is explicit"
+            ),
+        },
         "deployment_contract": deployment_contract,
         "source_sha256": _source_hashes(),
     }
@@ -281,6 +310,7 @@ def _activation_plan(
     *,
     candidate_bundle_path: Path,
     candidate_bundle_sha256: str,
+    modification_gate_review_sha256: str,
     deployment_contract: dict[str, object],
 ) -> dict[str, object]:
     prefix = tuple(item.value for item in verdict.eligible_prefix)
@@ -361,7 +391,7 @@ def _activation_plan(
             }
         )
     return {
-        "schema_version": "steering-activation-plan.v2",
+        "schema_version": "steering-activation-plan.v3",
         "eligible_prefix": prefix,
         "steps": steps,
         "rollback_steps": rollback_steps,
@@ -370,6 +400,12 @@ def _activation_plan(
             "path": str(candidate_bundle_path.resolve()),
             "sha256": candidate_bundle_sha256,
         },
+        "modification_gate": {
+            "review_sha256": modification_gate_review_sha256,
+            "decision": verdict.modification_gate_decision.value,
+            "blocking_reasons": verdict.modification_gate_reasons,
+        },
+        "canary_receipt_policy": _canary_receipt_policy(),
         "deployment_contract": deployment_contract,
         "production_default_changed": False,
         "description": (
@@ -402,7 +438,7 @@ def _preregister(args: argparse.Namespace) -> int:
                 "claim": (
                     "Steering owners may leave SHADOW only through independent "
                     "real-trace, validation, gate-off, sensor-off, rollback, "
-                    "latency, safety, and R12 gates."
+                    "latency, safety, R12, and ModificationGate.OFFLINE gates."
                 ),
                 "run_configuration": configuration,
                 "forbidden_substitutions": (
@@ -410,6 +446,8 @@ def _preregister(args: argparse.Namespace) -> int:
                     "evaluation-or-judge-writeback",
                     "missing-ablation-treated-as-pass",
                     "multi-component-default-flip",
+                    "rare-heavy-artifact-without-modification-gate",
+                    "rollout-step-jump-without-healthy-receipt",
                     "post-result-threshold-change",
                 ),
             },
@@ -456,13 +494,14 @@ def _completed_result(args: argparse.Namespace, *, prereg_sha: str) -> dict[str,
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if (
         not isinstance(manifest, dict)
-        or manifest.get("schema_version") != "steering-promotion-formal-manifest.v1"
+        or manifest.get("schema_version") != "steering-promotion-formal-manifest.v2"
         or manifest.get("completed") is not True
         or manifest.get("preregistration_sha256") != prereg_sha
     ):
         raise ValueError("existing B3 manifest is invalid or belongs to another prereg")
     for name in (
         "promotion_evidence",
+        "modification_gate_review",
         "promotion_report",
         "activation_plan",
         "candidate_steering_artifact_bundle",
@@ -497,16 +536,12 @@ def _formal(args: argparse.Namespace) -> int:
         thresholds=SteeringPromotionThresholds(),
         bootstrap_resamples=args.bootstrap_resamples,
     )
-    verdict = evaluate_steering_promotion(
-        evidence, thresholds=SteeringPromotionThresholds()
-    )
     output = args.output.resolve()
     evidence_path = output / "promotion_evidence.json"
+    modification_gate_path = output / "modification_gate_review.json"
     report_path = output / "promotion_report.json"
     activation_path = output / "activation_plan.json"
     candidate_bundle_path = output / "candidate_steering_artifact_bundle.json"
-    _write_json(evidence_path, asdict(evidence))
-    _write_json(report_path, asdict(verdict))
     gate_digest = hashlib.sha256(
         _canonical_bytes(asdict(evidence.candidate_gate_artifact))
     ).hexdigest()
@@ -524,17 +559,31 @@ def _formal(args: argparse.Namespace) -> int:
         (candidate_bundle.to_json() + "\n").encode("utf-8"),
     )
     candidate_bundle_sha256 = _sha256(candidate_bundle_path)
+    modification_gate_review = build_steering_modification_gate_review(
+        evidence=evidence,
+        candidate_bundle_sha256=candidate_bundle_sha256,
+    )
+    verdict = evaluate_steering_promotion(
+        evidence,
+        modification_gate_review=modification_gate_review,
+        thresholds=SteeringPromotionThresholds(),
+    )
+    _write_json(evidence_path, asdict(evidence))
+    _write_json(modification_gate_path, asdict(modification_gate_review))
+    _write_json(report_path, asdict(verdict))
+    modification_gate_sha256 = _sha256(modification_gate_path)
     _write_json(
         activation_path,
         _activation_plan(
             verdict,
             candidate_bundle_path=candidate_bundle_path,
             candidate_bundle_sha256=candidate_bundle_sha256,
+            modification_gate_review_sha256=modification_gate_sha256,
             deployment_contract=dict(configuration["deployment_contract"]),
         ),
     )
     manifest = {
-        "schema_version": "steering-promotion-formal-manifest.v1",
+        "schema_version": "steering-promotion-formal-manifest.v2",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "completed": True,
         "preregistration_sha256": prereg_sha,
@@ -545,11 +594,21 @@ def _formal(args: argparse.Namespace) -> int:
             verdict.sensor_executor_active_authorized
         ),
         "gate_active_authorized": verdict.gate_active_authorized,
+        "modification_gate_decision": (
+            verdict.modification_gate_decision.value
+        ),
+        "modification_gate_reasons": verdict.modification_gate_reasons,
+        "modification_gate_audit_required": (
+            modification_gate_review.audit_required
+        ),
         "production_default_changed": False,
         "bundle_id": bundle.bundle_id,
         "candidate_bundle_id": candidate_bundle.bundle_id,
         "deployment_contract": configuration["deployment_contract"],
+        "canary_receipt_policy": configuration["canary_receipt_policy"],
+        "source_sha256": configuration["source_sha256"],
         "promotion_evidence_sha256": _sha256(evidence_path),
+        "modification_gate_review_sha256": modification_gate_sha256,
         "promotion_report_sha256": _sha256(report_path),
         "activation_plan_sha256": _sha256(activation_path),
         "candidate_steering_artifact_bundle_sha256": (
@@ -574,6 +633,9 @@ def _status(args: argparse.Namespace) -> int:
                 },
                 "promotion_evidence_exists": (
                     output / "promotion_evidence.json"
+                ).is_file(),
+                "modification_gate_review_exists": (
+                    output / "modification_gate_review.json"
                 ).is_file(),
                 "promotion_report_exists": (
                     output / "promotion_report.json"

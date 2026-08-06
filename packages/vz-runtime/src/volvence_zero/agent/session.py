@@ -1911,10 +1911,13 @@ class AgentSessionRunner(
             )
             self._pending_external_outcome_lineages.clear()
             self._last_session_post_writeback_request = integration_result.session_post_writeback_request
-            self._upstream_snapshots = {
-                **integration_result.active_snapshots,
-                **integration_result.shadow_snapshots,
-            }
+            # Cross-turn carryover is part of the ACTIVE data plane. SHADOW
+            # output is wave-local evidence: carrying it here would make the
+            # next propagate() call treat a prior SHADOW value as authoritative
+            # upstream before its owner runs again.
+            self._upstream_snapshots = dict(
+                integration_result.active_snapshots
+            )
             case_snapshot = integration_result.active_snapshots.get("case_memory")
             if (
                 self._config.is_active("case_memory")

@@ -466,7 +466,19 @@ def _running_msc_runtime_service(
                     timeout_s=max(120.0, startup_timeout_s),
                 )
 
-            yield factory, attestation
+            try:
+                yield factory, attestation
+            except Exception as exc:
+                logs = tuple((runtime_root / "logs").glob("service-*.log"))
+                detail = ""
+                if logs:
+                    detail = logs[-1].read_text(
+                        encoding="utf-8", errors="replace"
+                    )[-8000:]
+                raise RuntimeError(
+                    "MSC full-runtime service failed during collection"
+                    + (("\n" + detail) if detail else "")
+                ) from exc
         finally:
             host.close()
 

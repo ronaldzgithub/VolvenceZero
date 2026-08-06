@@ -270,6 +270,7 @@ CI 证明 gate 会以**精确的、可定位的理由**拒绝（对齐 teeth 纪
 - joint loop 现在也会把 metacontroller runtime state + policy objective 直接编码成 owner-side credit record，不再只靠 rollout 后处理 credit
 - 当前 final wiring / session runtime 也会把 `retrieval_quality`、`reflection_usefulness`、`joint_learning_progress` 这些 learning evidence 转成 shared credit records，进入正式 `credit` snapshot
 - 当前 session runtime 已新增 online-fast substrate self-mod audit：当 `substrate_self_mod` owner 提出 bounded delta proposal 时，session owner 会把 allow/block 结果写成 `SelfModificationRecord(target=\"substrate.online_fast.delta\")` 进入正式 `credit` snapshot。默认主路径下，这类 proposal 会在通过 schedule + ONLINE gate 后走 substrate runtime apply surface；显式 frozen runner 则保持 review-only
+- B3 steering rare-heavy 发布不再只依赖专用统计判词：candidate bundle 取得 content hash 后必须构造 `ModificationProposal(target="substrate.steering_artifact_bundle", desired_gate=OFFLINE)`，以 held-out 最小相对改善、零 capacity expansion、candidate-bound checkpoint round-trip 和 read-only safety metrics 调用正式 `evaluate_gate_reasons`。BLOCK 会清空全部 ACTIVE eligible prefix；部署 consumer 还必须复核不可变 `modification_gate_review` 的 hash 与 ALLOW 判词。当前 OA-4 业务 audit 仍未完成，因此该 prereg 明示阶段一 `audit_required=false`，不虚构 audit evidence；OA-4 ACTIVE 后再独立迁移为 required。
 - 七天 Gate 10 的 import 对照只在显式 evidence profile 下开放：service 必须是
   `max_sessions=1`、fixed/non-swappable substrate provider、独立 evidence/state root，且 profile
   自身声明 `allow_single_session_live_substrate_mutation=true`。app 与 provider 两层都 fail closed；

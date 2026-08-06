@@ -278,3 +278,38 @@ def test_synthesize_legacy_path_preserves_plan_rationale_tag(
     assert any(t.startswith("plan=") for t in tags), (
         f"plan tag must survive Wave F wiring; tags={tags!r}"
     )
+
+
+def test_synthesize_preserves_runtime_context_evidence_through_wrappers(
+    monkeypatch,
+) -> None:
+    """Plan/enforcement metadata must not discard substrate evidence."""
+
+    from volvence_zero.agent import response as response_mod
+
+    runtime_context_evidence = object()
+
+    def _stub_synthesize(self, *, context, assembly=None):
+        del self, context, assembly
+        return AgentResponse(
+            text="captured",
+            regime_id="test-regime",
+            abstract_action="answer",
+            rationale="stub super",
+            rationale_tags=("stub_super",),
+            runtime_context_evidence=runtime_context_evidence,
+        )
+
+    monkeypatch.setattr(
+        response_mod.LLMResponseSynthesizer,
+        "synthesize",
+        _stub_synthesize,
+        raising=True,
+    )
+    response = _StubSynthesizer(
+        figure_bundle=None,
+        fake_text="captured",
+    ).synthesize(context=_context("capture this turn"))
+
+    assert response.runtime_context_evidence is runtime_context_evidence
+    assert any(tag.startswith("plan=") for tag in response.rationale_tags)

@@ -301,7 +301,10 @@ R3 attestation，再采 `temporal_n_z=3` 的完整 runtime 基线并校验 R4 li
 最后才允许采其余容量和裁决 R5；manifest 的 `convergence_stage_order` 必须精确
 为该三项。Smoke must cover all four temporal
 capacities but remains `formal_claim_allowed=false`; preregistration freezes its
-hash, measured cost and runner `run_configuration` before any full run. The
+hash, measured cost and runner `run_configuration` before any full run. Measured
+cost includes token/latency/sample totals plus checkpoint file count, total bytes
+and bytes per runtime sample, so local disk sufficiency is checked before formal.
+The
 smoke/formal lineage projection must match model weights, layers/widths, context
 and generation limits, temporal intervention, corpus provenance, seeds and every
 hashed mechanism source; smoke-size fields such as dyad limits and epochs are

@@ -18,11 +18,22 @@ from volvence_zero.agent.dialogue_steering_evidence import (
     DialogueSteeringReport,
     DialogueSteeringTraceDataset,
 )
+from volvence_zero.credit.gate import (
+    GateDecision,
+    ModificationGate,
+    ModificationProposal,
+    evaluate_gate_reasons,
+)
+from volvence_zero.evaluation import EvaluationScore, EvaluationSnapshot
 from volvence_zero.steering_contracts import SteeringGateArtifact
 from volvence_zero.steering_gate import SteeringGateModule
 
 
 STEERING_PROMOTION_SCHEMA_VERSION = "steering-promotion-evidence.v1"
+STEERING_MODIFICATION_GATE_REVIEW_SCHEMA_VERSION = (
+    "steering-modification-gate-review.v1"
+)
+STEERING_MODIFICATION_TARGET = "substrate.steering_artifact_bundle"
 
 
 class SteeringComponent(str, Enum):
@@ -144,6 +155,75 @@ class SteeringComponentVerdict:
 
 
 @dataclass(frozen=True)
+class SteeringModificationGateReview:
+    """Immutable output of the system-level rare-heavy release gate."""
+
+    schema_version: str
+    preregistration_sha256: str
+    c3_preregistration_sha256: str
+    proposal_target: str
+    desired_gate: ModificationGate
+    old_value_hash: str
+    new_value_hash: str
+    validation_delta: float
+    capacity_cost: float
+    rollback_evidence: str
+    contract_integrity: float
+    rollback_resilience: float
+    fallback_reliance: float
+    audit_required: bool
+    audit_evidence_id: str | None
+    decision: GateDecision
+    blocking_reasons: tuple[str, ...]
+    description: str
+
+    def __post_init__(self) -> None:
+        if self.schema_version != STEERING_MODIFICATION_GATE_REVIEW_SCHEMA_VERSION:
+            raise ValueError("steering ModificationGate review schema is unsupported")
+        for field_name, value in (
+            ("preregistration_sha256", self.preregistration_sha256),
+            ("c3_preregistration_sha256", self.c3_preregistration_sha256),
+            ("old_value_hash", self.old_value_hash),
+            ("new_value_hash", self.new_value_hash),
+        ):
+            if len(value) != 64 or any(
+                character not in "0123456789abcdef" for character in value
+            ):
+                raise ValueError(
+                    f"steering ModificationGate {field_name} is invalid"
+                )
+        if self.proposal_target != STEERING_MODIFICATION_TARGET:
+            raise ValueError("steering ModificationGate target drift")
+        if self.desired_gate is not ModificationGate.OFFLINE:
+            raise ValueError("steering artifact promotion requires OFFLINE gate")
+        for field_name, value in (
+            ("validation_delta", self.validation_delta),
+            ("capacity_cost", self.capacity_cost),
+            ("contract_integrity", self.contract_integrity),
+            ("rollback_resilience", self.rollback_resilience),
+            ("fallback_reliance", self.fallback_reliance),
+        ):
+            if not math.isfinite(value):
+                raise ValueError(
+                    f"steering ModificationGate {field_name} is non-finite"
+                )
+        if self.audit_required or self.audit_evidence_id is not None:
+            raise ValueError(
+                "steering B3 cannot claim OA-4 audit evidence before that owner is ACTIVE"
+            )
+        if (
+            self.decision is GateDecision.ALLOW
+            and self.blocking_reasons
+        ) or (
+            self.decision is GateDecision.BLOCK
+            and not self.blocking_reasons
+        ):
+            raise ValueError("steering ModificationGate decision/reasons drift")
+        if not self.description.strip():
+            raise ValueError("steering ModificationGate description is empty")
+
+
+@dataclass(frozen=True)
 class SteeringPromotionVerdict:
     eligible_prefix: tuple[SteeringComponent, ...]
     component_verdicts: tuple[SteeringComponentVerdict, ...]
@@ -151,6 +231,8 @@ class SteeringPromotionVerdict:
     gate_active_authorized: bool
     activation_order: tuple[SteeringComponent, ...]
     rollback_order: tuple[SteeringComponent, ...]
+    modification_gate_decision: GateDecision
+    modification_gate_reasons: tuple[str, ...]
     blocking_reasons: tuple[str, ...]
     description: str
 
@@ -436,11 +518,138 @@ def build_steering_promotion_evidence(
     )
 
 
+def build_steering_modification_gate_review(
+    *,
+    evidence: SteeringPromotionEvidence,
+    candidate_bundle_sha256: str,
+) -> SteeringModificationGateReview:
+    """Run the cognition-owned OFFLINE gate over the B3 candidate bundle.
+
+    B3's statistical component gates determine *which* ordered owners are
+    eligible.  This review independently determines whether the offline-fit
+    artifact may be used by any ACTIVE owner at all.  Expert labels and other
+    evaluation-only anchors are intentionally absent from this input.
+    """
+
+    informative_deltas = tuple(
+        axis.relative_improvement
+        for axis in evidence.validation_axes
+        if axis.informative
+    )
+    validation_delta = min(informative_deltas, default=-1.0)
+    rollback_ready = (
+        evidence.checkpoint_round_trips_verified > 0
+        and evidence.checkpoint_json_round_trip_verified
+    )
+    contract_integrity = float(
+        evidence.safety_gate_ok
+        and evidence.runtime_acceptance_all_passed
+        and not evidence.free_bias_present
+        and evidence.zero_code_strict_noop
+        and not evidence.raw_text_retained
+        and not evidence.evaluation_writeback_allowed
+        and not evidence.production_default_changed
+    )
+    rollback_resilience = float(rollback_ready)
+    fallback_reliance = float(not evidence.runtime_acceptance_all_passed)
+    rollback_evidence = (
+        "b3:steering-gate-checkpoint-round-trip:"
+        f"{evidence.checkpoint_round_trips_verified}:"
+        f"{candidate_bundle_sha256}"
+        if rollback_ready
+        else ""
+    )
+    proposal = ModificationProposal(
+        target=STEERING_MODIFICATION_TARGET,
+        desired_gate=ModificationGate.OFFLINE,
+        old_value_hash=evidence.bundle_sha256,
+        new_value_hash=candidate_bundle_sha256,
+        justification=(
+            "Release the content-addressed B3 steering artifact bundle only "
+            "to the separately authorized ordered ACTIVE prefix."
+        ),
+        is_reversible=True,
+        validation_delta=validation_delta,
+        capacity_cost=0.0,
+        rollback_evidence=rollback_evidence,
+    )
+    evaluation_snapshot = EvaluationSnapshot(
+        turn_scores=(
+            EvaluationScore(
+                family="safety",
+                metric_name="contract_integrity",
+                value=contract_integrity,
+                confidence=1.0,
+                evidence=evidence.c3_report_sha256,
+            ),
+            EvaluationScore(
+                family="safety",
+                metric_name="rollback_resilience",
+                value=rollback_resilience,
+                confidence=1.0,
+                evidence=rollback_evidence or "b3:rollback-evidence-missing",
+            ),
+            EvaluationScore(
+                family="safety",
+                metric_name="fallback_reliance",
+                value=fallback_reliance,
+                confidence=1.0,
+                evidence=evidence.trace_sha256,
+            ),
+        ),
+        session_scores=(),
+        alerts=(),
+        structured_alerts=(),
+        description=(
+            "B3 read-only structural release evidence; not a PE, credit, or "
+            "learning input."
+        ),
+    )
+    reasons = evaluate_gate_reasons(
+        proposal=proposal,
+        evaluation_snapshot=evaluation_snapshot,
+        audit_required=False,
+    )
+    return SteeringModificationGateReview(
+        schema_version=STEERING_MODIFICATION_GATE_REVIEW_SCHEMA_VERSION,
+        preregistration_sha256=evidence.preregistration_sha256,
+        c3_preregistration_sha256=evidence.c3_preregistration_sha256,
+        proposal_target=proposal.target,
+        desired_gate=proposal.desired_gate,
+        old_value_hash=proposal.old_value_hash,
+        new_value_hash=proposal.new_value_hash,
+        validation_delta=proposal.validation_delta,
+        capacity_cost=proposal.capacity_cost,
+        rollback_evidence=proposal.rollback_evidence,
+        contract_integrity=contract_integrity,
+        rollback_resilience=rollback_resilience,
+        fallback_reliance=fallback_reliance,
+        audit_required=False,
+        audit_evidence_id=None,
+        decision=(GateDecision.BLOCK if reasons else GateDecision.ALLOW),
+        blocking_reasons=reasons,
+        description=(
+            "ModificationGate.OFFLINE review for the immutable B3 candidate "
+            "bundle. OA-4 audit content remains pending, so the preregistered "
+            "phase-1 audit_required=false contract is reported explicitly."
+        ),
+    )
+
+
 def evaluate_steering_promotion(
     evidence: SteeringPromotionEvidence,
     *,
+    modification_gate_review: SteeringModificationGateReview,
     thresholds: SteeringPromotionThresholds | None = None,
 ) -> SteeringPromotionVerdict:
+    if (
+        modification_gate_review.preregistration_sha256
+        != evidence.preregistration_sha256
+        or modification_gate_review.c3_preregistration_sha256
+        != evidence.c3_preregistration_sha256
+        or modification_gate_review.old_value_hash != evidence.bundle_sha256
+    ):
+        raise ValueError("steering ModificationGate review lineage drift")
     active = thresholds or SteeringPromotionThresholds()
     informative = tuple(axis for axis in evidence.validation_axes if axis.informative)
     shared_missing = []
@@ -467,6 +676,8 @@ def evaluate_steering_promotion(
         shared_missing.append("r12_privacy")
     if evidence.free_bias_present or not evidence.zero_code_strict_noop:
         shared_missing.append("executor_structure")
+    if modification_gate_review.decision is not GateDecision.ALLOW:
+        shared_missing.append("modification_gate_offline")
     sensor_missing = list(shared_missing)
     sensor_effect = evidence.sensor_off_conditional_advantage
     if (
@@ -542,6 +753,10 @@ def evaluate_steering_promotion(
         ),
         activation_order=STEERING_PROMOTION_ORDER,
         rollback_order=tuple(reversed(STEERING_PROMOTION_ORDER)),
+        modification_gate_decision=modification_gate_review.decision,
+        modification_gate_reasons=(
+            modification_gate_review.blocking_reasons
+        ),
         blocking_reasons=blocking,
         description=(
             "Steering ACTIVE prefix authorized in sensor->executor->gate order."
@@ -554,13 +769,17 @@ def evaluate_steering_promotion(
 __all__ = (
     "STEERING_PROMOTION_ORDER",
     "STEERING_PROMOTION_SCHEMA_VERSION",
+    "STEERING_MODIFICATION_GATE_REVIEW_SCHEMA_VERSION",
+    "STEERING_MODIFICATION_TARGET",
     "SteeringComponent",
     "SteeringComponentVerdict",
+    "SteeringModificationGateReview",
     "SteeringPromotionEvidence",
     "SteeringPromotionThresholds",
     "SteeringPromotionVerdict",
     "SteeringValidationAxis",
     "build_steering_promotion_evidence",
+    "build_steering_modification_gate_review",
     "evaluate_steering_promotion",
     "verify_gate_checkpoint_round_trip",
 )

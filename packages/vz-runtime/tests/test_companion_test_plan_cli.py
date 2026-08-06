@@ -1274,7 +1274,17 @@ def test_prediction_smoke_manifest_requires_r3_r4_r5_execution_order(
 
     passed = tmp_path / "passed"
     write_smoke_inputs(passed, ["R3", "R4", "R5"])
-    assert prediction_plan._write_smoke_manifest(passed)["passed"] is True
+    passed_manifest = prediction_plan._write_smoke_manifest(passed)
+    assert passed_manifest["passed"] is True
+    assert passed_manifest["measurement"]["checkpoint_file_count"] == 4
+    assert passed_manifest["measurement"]["checkpoint_size_bytes"] > 0
+    assert (
+        passed_manifest["measurement"][
+            "checkpoint_bytes_per_runtime_sample"
+        ]
+        > 0.0
+    )
+    assert prediction_plan._write_smoke_manifest(passed) == passed_manifest
 
     reordered = tmp_path / "reordered"
     write_smoke_inputs(reordered, ["R4", "R3", "R5"])

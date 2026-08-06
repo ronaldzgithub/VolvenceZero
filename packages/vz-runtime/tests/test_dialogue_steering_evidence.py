@@ -18,8 +18,10 @@ from volvence_zero.agent.steering_promotion_gate import (
     SteeringComponent,
     SteeringPromotionEvidence,
     SteeringValidationAxis,
+    build_steering_modification_gate_review,
     evaluate_steering_promotion,
 )
+from volvence_zero.credit.gate import GateDecision
 from volvence_zero.agent import steering_artifact_training
 from volvence_zero.steering_contracts import (
     STEERING_GATE_ARTIFACT_SCHEMA_VERSION,
@@ -310,8 +312,17 @@ def _promotion_evidence(
 
 
 def test_b3_allows_sensor_executor_prefix_while_gate_remains_shadow() -> None:
-    verdict = evaluate_steering_promotion(_promotion_evidence())
+    evidence = _promotion_evidence()
+    review = build_steering_modification_gate_review(
+        evidence=evidence,
+        candidate_bundle_sha256=_SHA_A,
+    )
+    verdict = evaluate_steering_promotion(
+        evidence,
+        modification_gate_review=review,
+    )
 
+    assert review.decision is GateDecision.ALLOW
     assert verdict.eligible_prefix == (
         SteeringComponent.SENSOR,
         SteeringComponent.EXECUTOR,
@@ -322,8 +333,18 @@ def test_b3_allows_sensor_executor_prefix_while_gate_remains_shadow() -> None:
 
 
 def test_b3_never_skips_a_failed_predecessor() -> None:
+    evidence = _promotion_evidence(
+        sensor_ok=False,
+        executor_ok=True,
+        gate_ok=True,
+    )
+    review = build_steering_modification_gate_review(
+        evidence=evidence,
+        candidate_bundle_sha256=_SHA_A,
+    )
     verdict = evaluate_steering_promotion(
-        _promotion_evidence(sensor_ok=False, executor_ok=True, gate_ok=True)
+        evidence,
+        modification_gate_review=review,
     )
 
     assert verdict.eligible_prefix == ()
@@ -331,6 +352,34 @@ def test_b3_never_skips_a_failed_predecessor() -> None:
     gate = verdict.component_verdicts[2]
     assert "prior_sensor_active" in executor.missing_gates
     assert "prior_executor_active" in gate.missing_gates
+
+
+def test_b3_modification_gate_blocks_every_active_prefix() -> None:
+    evidence = _promotion_evidence(gate_ok=True)
+    weak_axes = tuple(
+        replace(axis, relative_improvement=0.01)
+        for axis in evidence.validation_axes
+    )
+    evidence = replace(evidence, validation_axes=weak_axes)
+    review = build_steering_modification_gate_review(
+        evidence=evidence,
+        candidate_bundle_sha256=_SHA_A,
+    )
+
+    verdict = evaluate_steering_promotion(
+        evidence,
+        modification_gate_review=review,
+    )
+
+    assert review.decision is GateDecision.BLOCK
+    assert review.blocking_reasons == (
+        "validation_delta 0.010 below required margin 0.050",
+    )
+    assert verdict.eligible_prefix == ()
+    assert all(
+        "modification_gate_offline" in component.missing_gates
+        for component in verdict.component_verdicts
+    )
 
 
 def test_artifact_fit_places_sensor_off_control_on_bundle_not_gate(

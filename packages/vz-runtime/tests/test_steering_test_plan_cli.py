@@ -21,6 +21,7 @@ if str(SCRIPTS) not in sys.path:
 
 import run_steering_promotion_test_plan as promotion_plan  # noqa: E402
 import run_dialogue_steering_test_plan as dialogue_plan  # noqa: E402
+import verify_steering_activation_canary as canary_runner  # noqa: E402
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -285,11 +286,48 @@ def test_b3_preregistration_is_idempotent_and_binds_independent_controls(
         "steering_executor",
         "steering_gate",
     ]
+    assert configuration["modification_gate"] == {
+        "proposal_target": "substrate.steering_artifact_bundle",
+        "desired_gate": "offline",
+        "validation_delta": (
+            "minimum relative improvement over informative held-out axes"
+        ),
+        "capacity_cost": 0.0,
+        "rollback_evidence": (
+            "candidate-bound steering gate checkpoint JSON round-trip"
+        ),
+        "audit_required": False,
+        "audit_phase": (
+            "OA-4 business audit content pending; phase-1 contract is explicit"
+        ),
+    }
+    assert configuration["canary_receipt_policy"] == {
+        "schema_version": "steering-activation-canary-receipt.v1",
+        "step_1_previous_receipt": "forbidden",
+        "step_n_previous_receipt": (
+            "required exact healthy receipt for immediately preceding step"
+        ),
+        "health_endpoint": "/v1/health",
+        "health_host": "127.0.0.1",
+        "health_status": "ok",
+        "health_vertical": "companion",
+        "health_persistence_scope_sha256": None,
+        "endpoint_must_be_unoccupied": True,
+        "intentional_shutdown_exit_code_recorded": True,
+        "exact_service_argv_recorded": True,
+        "stdout_stderr_paths_and_hashes_recorded": True,
+        "previous_receipt_path_and_hash_recorded": True,
+        "exclusive_mps_lock": True,
+        "production_default_changed": False,
+    }
     assert {
         "packages/lifeform-expression/src/lifeform_expression/llm_synthesizer.py",
         "packages/lifeform-service/src/lifeform_service/app.py",
         "packages/lifeform-service/src/lifeform_service/steering_activation.py",
         "packages/vz-contracts/src/volvence_zero/runtime/kernel.py",
+        "packages/vz-cognition/src/volvence_zero/credit/gate.py",
+        "packages/vz-cognition/src/volvence_zero/evaluation/__init__.py",
+        "packages/vz-cognition/src/volvence_zero/evaluation/types.py",
         "packages/vz-cognition/src/volvence_zero/steering_sensor.py",
         "packages/vz-runtime/src/volvence_zero/agent/response.py",
         "packages/vz-runtime/src/volvence_zero/agent/session.py",
@@ -298,6 +336,7 @@ def test_b3_preregistration_is_idempotent_and_binds_independent_controls(
         "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py",
         "packages/vz-substrate/src/volvence_zero/steering_executor.py",
         "packages/vz-temporal/src/volvence_zero/steering_gate.py",
+        "scripts/verify_steering_activation_canary.py",
     } <= set(configuration["source_sha256"])
     assert "learned-active-eta-off-gate" in payload["forbidden_substitutions"]
 
@@ -344,11 +383,14 @@ def test_b3_activation_plan_changes_exactly_one_valid_field_per_rollout(
             SteeringComponent.EXECUTOR,
             SteeringComponent.SENSOR,
         ),
+        modification_gate_decision=SimpleNamespace(value="allow"),
+        modification_gate_reasons=(),
     )
     plan = promotion_plan._activation_plan(
         verdict,
         candidate_bundle_path=tmp_path / "candidate.json",
         candidate_bundle_sha256="a" * 64,
+        modification_gate_review_sha256="b" * 64,
         deployment_contract={
             "model_id": "frozen-model",
             "model_weights_sha256": "a" * 64,
@@ -397,9 +439,124 @@ def test_b3_activation_plan_changes_exactly_one_valid_field_per_rollout(
         "steering_ungated_action": "blocked",
     }
     assert plan["deployment_contract"]["substrate_max_length"] == 768
+    assert plan["modification_gate"] == {
+        "review_sha256": "b" * 64,
+        "decision": "allow",
+        "blocking_reasons": (),
+    }
+    assert plan["canary_receipt_policy"] == {
+        "schema_version": "steering-activation-canary-receipt.v1",
+        "step_1_previous_receipt": "forbidden",
+        "step_n_previous_receipt": (
+            "required exact healthy receipt for immediately preceding step"
+        ),
+        "health_endpoint": "/v1/health",
+        "health_host": "127.0.0.1",
+        "health_status": "ok",
+        "health_vertical": "companion",
+        "health_persistence_scope_sha256": None,
+        "endpoint_must_be_unoccupied": True,
+        "intentional_shutdown_exit_code_recorded": True,
+        "exact_service_argv_recorded": True,
+        "stdout_stderr_paths_and_hashes_recorded": True,
+        "previous_receipt_path_and_hash_recorded": True,
+        "exclusive_mps_lock": True,
+        "production_default_changed": False,
+    }
     all_steps = (*plan["steps"], *plan["rollback_steps"])
     assert all(
         step["rollout_values_after_flip"]["steering_ungated_action"]
         != "steer"
         for step in all_steps
     )
+
+
+def test_b3_canary_command_threads_the_previous_receipt(tmp_path: Path) -> None:
+    args = SimpleNamespace(
+        python=tmp_path / "python",
+        host="127.0.0.1",
+        port=8791,
+        substrate_model_id="frozen-model",
+        substrate_model_source=tmp_path / "model",
+        substrate_device="mps",
+        substrate_expected_weights_sha256="a" * 64,
+        substrate_layer_indices=(11, 12, 13, 20),
+        substrate_activation_width=896,
+        substrate_max_length=768,
+        steering_artifact_bundle=tmp_path / "candidate.json",
+        steering_promotion_manifest=tmp_path / "manifest.json",
+        steering_activation_plan=tmp_path / "plan.json",
+        steering_activation_step=3,
+        previous_activation_receipt=tmp_path / "step-2-receipt.json",
+    )
+
+    command = canary_runner._service_command(args)
+
+    assert command[-2:] == (
+        "--steering-previous-activation-receipt",
+        str((tmp_path / "step-2-receipt.json").resolve()),
+    )
+    assert command.count("--steering-activation-step") == 1
+
+
+def test_b3_canary_wait_requires_the_exact_companion_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = SimpleNamespace(poll=lambda: None)
+    monkeypatch.setattr(
+        canary_runner,
+        "_health_payload",
+        lambda _url: {
+            "status": "ok",
+            "session_count": 0,
+            "vertical": "companion",
+            "persistence_scope_sha256": None,
+        },
+    )
+
+    payload = canary_runner._wait_for_health(
+        process=process,
+        url="http://127.0.0.1:8791/v1/health",
+        timeout_seconds=1.0,
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["vertical"] == "companion"
+
+
+def test_b3_canary_rejects_a_non_loopback_or_occupied_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError, match="exactly 127.0.0.1"):
+        canary_runner._assert_canary_endpoint_available(
+            host="0.0.0.0",
+            port=8791,
+        )
+
+    class _OccupiedSocket:
+        def __enter__(self) -> _OccupiedSocket:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def bind(self, _address: tuple[str, int]) -> None:
+            raise OSError("occupied")
+
+    monkeypatch.setattr(
+        canary_runner.socket,
+        "socket",
+        lambda *_args: _OccupiedSocket(),
+    )
+    with pytest.raises(RuntimeError, match="already occupied"):
+        canary_runner._assert_canary_endpoint_available(
+            host="127.0.0.1",
+            port=8791,
+        )
+
+
+def test_b3_canary_refuses_to_attest_a_process_that_preexited() -> None:
+    process = SimpleNamespace(poll=lambda: 23)
+
+    with pytest.raises(RuntimeError, match="before the intentional"):
+        canary_runner._stop_canary(process, require_running=True)

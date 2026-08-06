@@ -27,7 +27,9 @@ gate 仅消费 owner-published belief 与 PE 代理观测。
 
 同一波内，SHADOW consumer 可读取该波上游 SHADOW 快照，以便三件套能做
 完整只读双跑；ACTIVE consumer 永远只看 active mapping，不能读取或继承
-SHADOW 值。该隔离由 runtime kernel 统一实现，不是 owner 私有 fallback。
+SHADOW 值。session 跨拍只携带上一拍 ACTIVE mapping；上一拍 SHADOW 输出不得
+进入下一拍 upstream。该隔离由 runtime kernel 与 session orchestrator 统一实现，
+不是 owner 私有 fallback。
 
 ## 3. 冻结 artifact 契约
 
@@ -157,7 +159,8 @@ executor。
 
 B2 落地不授权 ACTIVE。B3 必须用新 prereg 依次通过 real-trace、
 validation、gate-off（always-on/noop）、sensor-off（unconditional operator）、
-rollback drill、latency/SLO 与 safety 门。缺任一 evidence 保持 SHADOW。
+rollback drill、latency/SLO、safety 与 `ModificationGate.OFFLINE`。缺任一
+evidence 保持 SHADOW；专用统计门不得替代系统级 rare-heavy 修改门。
 
 ### C3 真实对话迁移证据
 
@@ -192,7 +195,7 @@ rollback drill、latency/SLO 与 safety 门。缺任一 evidence 保持 SHADOW�
 创建新 prereg 时只要 C3 output 已出现 bundle/trace/report/manifest 任一正式产物就 fail loudly，
 之后只读消费 C3 bundle/trace/report。B3 prereg 的源码指纹独立覆盖 sensor、gate、executor、
 runtime kernel、session/brain、response/expression、transformers residual hook、service activation
-consumer 与最终 wiring；不能只依赖 C3 prereg 间接冻结 production ACTIVE 链。
+consumer、bounded canary runner 与最终 wiring；不能只依赖 C3 prereg 间接冻结 production ACTIVE 链。
 `SteeringPromotionEvidence` 把证据分给唯一组件：
 
 - sensor：conditional 相对 matched unconditional 的 sensor-off 优势；
@@ -201,9 +204,19 @@ consumer 与最终 wiring；不能只依赖 C3 prereg 间接冻结 production AC
 - shared：≥500 real validation turn、两条 informative 轴、逐轴相对改善 ≥15% **或**
   绝对改善 ≥0.02、checkpoint round-trip、latency、安全、owner-chain 与 R12。
 
+B3 在候选 bundle 落盘并取得 content hash 后，必须另构造
+`ModificationProposal(target="substrate.steering_artifact_bundle", desired_gate=OFFLINE)`：
+`old_value_hash` 绑定 C3 bundle，`new_value_hash` 绑定 B3 candidate bundle；
+`validation_delta` 是 informative held-out 轴中最小相对改善，未增加可达模型族所以
+`capacity_cost=0`，rollback evidence 绑定 candidate hash 与 checkpoint JSON round-trip。
+`contract_integrity / rollback_resilience / fallback_reliance` 只作为 read-only 发布门证据，
+不写回 PE、credit 或 gate 学习。OA-4 业务 audit 尚未落地，故当前 prereg 必须显式记录
+阶段一 `audit_required=false / audit_evidence_id=null`，不得伪称独立 audit 已完成；OA-4
+ACTIVE 后另包迁移为 fail-closed required audit。
+
 判词只产生 `sensor → executor → gate` 的连续 eligible prefix 和单字段 activation plan；
 缺前件不能越级。B3 另存包含 C3 learned gate 的不可变 candidate bundle。executor 在
-gate 仍 SHADOW 的中间态需要显式 `always_on`，因此 activation v2 把它拆成独立、当时仍
+gate 仍 SHADOW 的中间态需要显式 `always_on`，因此 activation v3 把它拆成独立、当时仍
 无用户效果的 `steering_ungated_action: blocked→always_on` 准备 rollout，再单独翻转
 executor；gate ACTIVE 后再以独立 rollout 清回 `blocked`。正向和回滚每一步都只改变
 一个字段，并且每个中间 `FinalRolloutConfig` 都可构造。该控制面不读取、调用或映射旧
@@ -214,17 +227,32 @@ executor；gate ACTIVE 后再以独立 rollout 清回 `blocked`。正向和回�
 `--steering-promotion-manifest`、`--steering-activation-plan` 与一个一基的
 `--steering-activation-step`。reader 会逐字节验证 candidate bundle、activation plan 和
 B3 manifest 的 SHA-256/ID/C3 prereg lineage，并复核同目录 promotion evidence/report、
-candidate learned gate、安全/R12 字段；它重建正向及逆向单字段状态机，拒绝超出 eligible
+`modification_gate_review`、candidate learned gate、安全/R12 字段；只有 exact
+`ModificationGate.OFFLINE=allow` 且 reasons 为空才可继续。它重建正向及逆向单字段状态机，拒绝超出 eligible
 prefix 的 step。部署契约还冻结 C3 同款 model/digest/layer/width、context max length、
 generation token budget、temperature=0 与 fail-on-truncation，第一阶段 ACTIVE 不得悄然换成
-普通 service 的 512-token/temperature 0.7 配置。service 只把所选 step 的
+普通 service 的 512-token/temperature 0.7 配置。manifest 同时发布 B3 prereg 的完整
+`source_sha256`；deployment reader 会从仓库根逐文件复算，并至少要求 CLI、activation reader、
+final wiring 与 canary runner 在快照内，formal 后任一 ACTIVE 链源码漂移都会 fail closed。
+service 只把所选 step 的
 `FinalRolloutConfig` 与冻结生成预算交给 companion Brain/expression；bundle 单独出现、
 伪造顺序、跳步、hash 漂移、非 companion vertical、非冻结 hf-shared 基底或
 evidence/ACTIVE 混用都 fail loudly。授权启动还会拒绝进程环境中的任何
 `VZ_STEERING_*` override，避免 Brain 构造期在已验证 rollout config 之上再次抬高
 wiring 或替换 ungated action。candidate bundle 可以继续携带 sensor-off 证据件，
 但 executor 进入 ACTIVE 时 wiring 会剔除该 SHADOW-only 对照件。production 代码默认仍是
-全 SHADOW；每次部署只推进 plan 中一个 step。
+全 SHADOW。step 1 禁止 previous receipt；step 2 及以后必须提供
+`steering-activation-canary-receipt.v1`，且它须逐字节绑定相同 manifest/plan/
+ModificationGate review/candidate bundle、恰为 `step-1`、记录相邻前态与 companion
+`127.0.0.1` 上的 `/v1/health=status:ok`。loader 从该已验证前态只应用当前 `single_field_flip`，因此不能从
+baseline 直接请求累计 step 3。
+
+`scripts/verify_steering_activation_canary.py` 是唯一正式 receipt 生成面：它持有共享 MPS 锁，
+先拒绝已占用或非 loopback 的端点，再用同一 deployment contract 启动 bounded companion service；
+健康端点通过且子进程仍存活时主动停止，并把退出码、exact argv、stdout/stderr、前序 receipt 与
+rollout state 封入不可变 receipt。receipt 保存 exact argv 与日志/前序 receipt 的绝对路径，下一步
+会从这些路径重算 command、stdout、stderr 与前序文件 SHA-256；仅保存不可反查的 digest 不算完成。
+receipt 只证明启动健康与单字段 materialization，不是用户价值证据，也不改变 production 默认。
 
 回滚按最小面进行：先翻转 gate→executor→sensor 对应的单字段为
 SHADOW/DISABLED；若仅需停止额外 forward，关闭 `steering_shadow_hook`。未加载
@@ -237,8 +265,11 @@ norm cap、strict noop、SHADOW hook on/off、有序晋升防护、ACTIVE transf
 hook、active/shadow bus 隔离，以及 matched N+1 terminal PE→credit→gate、重复结算
 拒绝、NOOP action-direction、head/target lineage 漂移拒绝、sensor-off matched preview、
 text-free checkpoint、随机 gate 精确恢复、C3 pass/insensitive exit、A1 严格审计绑定、
-sensor-off artifact/预算 lineage、B3 不越级与 activation v2 单字段中间态。
-另覆盖 B3 manifest/plan/bundle 三方绑定、未授权 step 与 bundle hash 漂移拒绝、以及
+sensor-off artifact/预算 lineage、B3 不越级、`ModificationGate.OFFLINE` teeth 与
+activation v3 单字段中间态。
+另覆盖 B3 manifest/evidence/ModificationGate review/report/plan/bundle 六方绑定、formal 后 ACTIVE
+源码漂移、argv/日志/前序回执内容漂移拒绝、
+系统门 BLOCK、无前序 receipt 跳步、receipt lineage 漂移、未授权 step 与 bundle hash 漂移拒绝，以及
 service CLI 只向 companion 传递验证后的 ACTIVE rollout config。
 
 尚未完成的项目不得被文档措辞隐藏：C3/B3 的实现与测试不等于 formal evidence；

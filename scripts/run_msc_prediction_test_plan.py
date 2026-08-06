@@ -331,6 +331,16 @@ def _write_smoke_manifest(output_dir: Path) -> dict[str, object]:
         latency_values.append(float(raw["total_interval_latency_ms"]))
         token_values.append(int(raw["total_interval_token_count"]))
         sample_values.append(int(raw["sample_count"]))
+    smoke_manifest_path = output / "smoke_manifest.json"
+    measured_files = tuple(
+        path
+        for path in output.rglob("*")
+        if path.is_file() and path != smoke_manifest_path
+    )
+    measured_size_bytes = sum(path.stat().st_size for path in measured_files)
+    runtime_sample_count = sum(sample_values)
+    if runtime_sample_count < 1 or measured_size_bytes < 1:
+        raise ValueError("MSC smoke storage measurement is empty")
     payload: dict[str, object] = {
         "schema_version": "msc-r5-smoke-manifest.v1",
         "plan_id": PLAN_ID,
@@ -344,12 +354,17 @@ def _write_smoke_manifest(output_dir: Path) -> dict[str, object]:
         "runner_run_configuration": run_configuration,
         "measurement": {
             "temporal_capacity_count": len(runtime_attestations),
-            "runtime_sample_count": sum(sample_values),
+            "runtime_sample_count": runtime_sample_count,
             "total_interval_token_count": sum(token_values),
             "total_interval_latency_ms": sum(latency_values),
+            "checkpoint_file_count": len(measured_files),
+            "checkpoint_size_bytes": measured_size_bytes,
+            "checkpoint_bytes_per_runtime_sample": (
+                measured_size_bytes / runtime_sample_count
+            ),
         },
     }
-    _write_immutable_json(output / "smoke_manifest.json", payload)
+    _write_immutable_json(smoke_manifest_path, payload)
     if payload["passed"] is not True:
         raise ValueError("MSC R5 smoke checks did not all pass")
     return payload

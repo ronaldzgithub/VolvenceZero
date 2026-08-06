@@ -402,6 +402,10 @@ default_wiring_level` 声明安全默认。`FinalRolloutConfig` 是部署 rollou
 - `SHADOW`：模块执行且校验，输出只在 shadow surface；
 - `DISABLED`：逻辑不执行，发布 typed placeholder。
 
+SHADOW 可见性只在同一 propagation wave 内供 SHADOW consumer 双跑；session
+跨拍 carryover 只能保存 ACTIVE mapping，禁止把上一拍 SHADOW 输出合并进下一拍
+upstream，否则会形成未晋升的隐式 SHADOW→ACTIVE 通道。
+
 模块 class default 与 final rollout 可以有意不同，例如 `ProtocolPhaseModule` 类默认
 SHADOW，而 production final wiring 已是 ACTIVE。两层差异必须写入契约，不能混写成
 一个“默认”。

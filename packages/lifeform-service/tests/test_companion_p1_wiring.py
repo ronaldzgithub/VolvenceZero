@@ -48,7 +48,7 @@ def test_companion_and_cold_share_full_runtime_wiring(monkeypatch) -> None:
     assert cold_lifeform.affordance_registry_ready
     assert calls[0]["semantic_proposal_runtime"] is semantic_runtime
     assert calls[1]["semantic_proposal_runtime"] is semantic_runtime
-    assert "use_temporal_bootstrap" not in calls[0]
+    assert calls[0]["use_temporal_bootstrap"] is True
     assert "use_regime_bootstrap" not in calls[0]
     assert calls[1]["use_temporal_bootstrap"] is False
     assert calls[1]["use_regime_bootstrap"] is False

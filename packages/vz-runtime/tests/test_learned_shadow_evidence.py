@@ -121,6 +121,20 @@ async def test_collector_fails_loudly_on_default_disabled_profile() -> None:
         collect_learned_shadow_evidence(runner)
 
 
+async def test_shadow_snapshots_do_not_reenter_the_next_active_wave() -> None:
+    """A prior SHADOW publication must remain outside cross-turn upstream."""
+
+    runner = AgentSessionRunner(rare_heavy_enabled=False)
+    first = await runner.run_turn("Publish the first wave of shadow evidence.")
+    shadow_only = set(first.shadow_snapshots).difference(first.active_snapshots)
+
+    assert shadow_only
+    second = await runner.run_turn("Run a second wave without promotion.")
+
+    assert shadow_only.isdisjoint(second.active_snapshots)
+    assert shadow_only.issubset(second.shadow_snapshots)
+
+
 async def test_cp02_ndim_disabled_baseline_stays_pure_and_stable() -> None:
     """CP-02 exit: n_z=16 with all backends DISABLED shows no torch involvement."""
 

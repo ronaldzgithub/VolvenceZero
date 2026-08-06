@@ -698,11 +698,8 @@ def _attach_enforcement_tags(
         if tag and tag not in seen:
             merged.append(tag)
             seen.add(tag)
-    return AgentResponse(
-        text=response.text,
-        regime_id=response.regime_id,
-        abstract_action=response.abstract_action,
-        rationale=response.rationale,
+    return replace(
+        response,
         rationale_tags=tuple(merged),
         evidence_pointers=(
             evidence_pointers if evidence_pointers else response.evidence_pointers
@@ -733,14 +730,8 @@ def _attach_plan_rationale(response: AgentResponse, plan: PromptPlan) -> AgentRe
     )
     if plan_summary_tag not in seen:
         merged.append(plan_summary_tag)
-    return AgentResponse(
-        text=response.text,
-        regime_id=response.regime_id,
-        abstract_action=response.abstract_action,
+    return replace(
+        response,
         rationale=(rationale + plan_tag).strip(),
         rationale_tags=tuple(merged),
-        # U6: preserve structured evidence pointers across rationale
-        # merge so the OpenAI-compat bridge can write them to the
-        # ``event: evidence`` SSE frame downstream.
-        evidence_pointers=response.evidence_pointers,
     )

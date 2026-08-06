@@ -202,7 +202,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Model-bound SteeringArtifactBundle. Evidence use is limited to "
             "the MSC SHADOW collector; production use additionally requires "
-            "the exact B3 manifest, activation plan, and rollout step."
+            "the exact B3 manifest, activation plan, rollout step, and for "
+            "step >1 the immediately preceding canary receipt."
         ),
     )
     parser.add_argument(
@@ -218,7 +219,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--steering-activation-plan",
         type=Path,
         default=None,
-        help="B3 steering-activation-plan.v2 artifact.",
+        help="B3 steering-activation-plan.v3 artifact.",
     )
     parser.add_argument(
         "--steering-activation-step",
@@ -227,6 +228,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "One-based authorized rollout step to apply. Each successive "
             "service rollout advances by exactly one frozen plan step."
+        ),
+    )
+    parser.add_argument(
+        "--steering-previous-activation-receipt",
+        type=Path,
+        default=None,
+        help=(
+            "Required for B3 rollout step >1. Must be the immediately "
+            "preceding healthy canary receipt; forbidden for step 1."
         ),
     )
     parser.add_argument(
@@ -638,7 +648,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     steering_activation_requested = any(
         value is not None for value in steering_activation_values
-    )
+    ) or args.steering_previous_activation_receipt is not None
     steering_activation_complete = all(
         value is not None for value in steering_activation_values
     )
@@ -781,18 +791,22 @@ def main(argv: list[str] | None = None) -> int:
                 substrate_layer_indices=tuple(args.substrate_layer_indices or ()),
                 substrate_activation_width=args.substrate_activation_width,
                 substrate_max_length=args.substrate_max_length,
+                previous_activation_receipt=(
+                    args.steering_previous_activation_receipt
+                ),
             )
         except (OSError, TypeError, ValueError) as exc:
             print(f"Failed to authorize B3 steering rollout: {exc}", file=sys.stderr)
             return 1
         _LOG.info(
             "B3 steering rollout authorized: bundle_id=%s step=%d prefix=%s "
-            "manifest_sha256=%s plan_sha256=%s",
+            "manifest_sha256=%s plan_sha256=%s previous_receipt_sha256=%s",
             steering_authorization.candidate_bundle_id,
             steering_authorization.rollout_step,
             ",".join(steering_authorization.eligible_prefix),
             steering_authorization.manifest_sha256,
             steering_authorization.activation_plan_sha256,
+            steering_authorization.previous_receipt_sha256,
         )
     if steering_bundle is not None:
         if steering_bundle.reader.model_id != args.substrate_model_id:

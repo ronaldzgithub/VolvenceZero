@@ -22,7 +22,11 @@ def test_ablation_bundle_cli_uses_multi_vertical_app(monkeypatch) -> None:
     runtime = object()
 
     monkeypatch.setattr(cli, "discover_companion_ablation_verticals", lambda: verticals)
-    monkeypatch.setattr(cli, "_build_shared_substrate", lambda _args: runtime)
+    monkeypatch.setattr(
+        cli,
+        "_build_shared_substrate",
+        lambda _args, **_kwargs: runtime,
+    )
 
     def fake_create_app(**kwargs):
         captured.update(kwargs)
