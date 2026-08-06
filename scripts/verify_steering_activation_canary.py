@@ -71,6 +71,8 @@ def _service_command(args: argparse.Namespace) -> tuple[str, ...]:
         str(args.substrate_model_source.resolve()),
         "--substrate-device",
         args.substrate_device,
+        "--substrate-model-dtype",
+        args.substrate_model_dtype,
         "--substrate-expected-weights-sha256",
         args.substrate_expected_weights_sha256,
         "--substrate-layer-indices",
@@ -213,6 +215,7 @@ def run_canary(args: argparse.Namespace) -> dict[str, object]:
         ),
         substrate_layer_indices=tuple(args.substrate_layer_indices),
         substrate_activation_width=args.substrate_activation_width,
+        substrate_model_dtype=args.substrate_model_dtype,
         substrate_max_length=args.substrate_max_length,
         previous_activation_receipt=args.previous_activation_receipt,
     )
@@ -304,6 +307,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--substrate-activation-width", type=int, default=896)
     parser.add_argument("--substrate-max-length", type=int, default=768)
     parser.add_argument("--substrate-device", default="mps")
+    parser.add_argument(
+        "--substrate-model-dtype",
+        choices=("float16", "bfloat16", "float32"),
+        required=True,
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8791)
     parser.add_argument("--startup-timeout", type=float, default=180.0)

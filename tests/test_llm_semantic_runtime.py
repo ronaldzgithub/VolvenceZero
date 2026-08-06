@@ -131,6 +131,47 @@ def test_runtime_emits_structured_alignment_evidence() -> None:
     assert proposal.proposal_id == "commitment:llm-block:7"
 
 
+def test_runtime_accepts_one_complete_fenced_commitment_payload() -> None:
+    provider = _ScriptedProvider([
+        (
+            "```json\n"
+            '{"operation": "create", '
+            '"alignment_evidence": "I will call tomorrow.", '
+            '"confidence": 0.84}'
+            "\n```"
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(
+        runtime,
+        user_input="I will call tomorrow.",
+        turn_index=11,
+    )
+
+    assert len(batch.proposals) == 1
+    assert batch.proposals[0].operation is SemanticProposalOperation.CREATE
+    assert batch.proposals[0].confidence == 0.84
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "prefix\n```json\n{}\n```",
+        "```json\n{}",
+        "```json\n{}\n```\nsuffix",
+        "```json\n{}\n```\n```json\n{}\n```",
+    ],
+)
+def test_runtime_rejects_non_outer_or_incomplete_commitment_fences(payload: str) -> None:
+    provider = _ScriptedProvider([payload])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(runtime, user_input="I will call tomorrow.")
+
+    assert "fell back to base" in batch.description
+
+
 def test_runtime_low_confidence_structured_output_becomes_observe() -> None:
     provider = _ScriptedProvider([
         (
@@ -215,6 +256,32 @@ def test_runtime_emits_boundary_consent_typed_proposal_from_schema_payload() -> 
     assert proposal.requires_confirmation is True
     assert proposal.control_signal == 0.66
     assert "proposal.schema" in provider.prompts[0] or '"proposals"' in provider.prompts[0]
+
+
+def test_runtime_accepts_one_complete_fenced_generic_payload() -> None:
+    provider = _ScriptedProvider([
+        (
+            "```json\n"
+            '{"runtime_id":"test","schema_version":1,"description":"boundary",'
+            '"proposals":[{"proposal_id":"ignored",'
+            '"target_slot":"boundary_consent","operation":"block",'
+            '"summary":"external action denied",'
+            '"detail":"User denied external action.","confidence":0.77,'
+            '"evidence":"Do not act externally","control_signal":0.66}]}'
+            "\n```"
+        )
+    ])
+    runtime = LLMSemanticProposalRuntime(provider=provider)
+
+    batch = _propose(
+        runtime,
+        target_slot="boundary_consent",
+        user_input="Do not act externally.",
+        turn_index=12,
+    )
+
+    assert len(batch.proposals) == 1
+    assert batch.proposals[0].operation is SemanticProposalOperation.BLOCK
 
 
 def test_runtime_emits_goal_value_typed_proposal_from_schema_payload() -> None:

@@ -36,6 +36,25 @@ def test_noop_channel_applies_to_none_runtime(monkeypatch) -> None:
     assert isinstance(built, NoOpSemanticProposalRuntime)
 
 
+def test_explicit_evidence_channel_overrides_inherited_environment(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(verticals._SEMANTIC_PROPOSAL_CHANNEL_ENV, "llm")
+    built = verticals._build_llm_semantic_runtime_from_runtime(
+        None,
+        channel="noop",
+    )
+    assert isinstance(built, NoOpSemanticProposalRuntime)
+
+
+def test_invalid_explicit_evidence_channel_fails_loudly() -> None:
+    with pytest.raises(ValueError, match="explicit semantic proposal channel"):
+        verticals._build_llm_semantic_runtime_from_runtime(
+            None,
+            channel="off",
+        )
+
+
 def test_invalid_channel_value_fails_loudly(monkeypatch) -> None:
     monkeypatch.setenv(verticals._SEMANTIC_PROPOSAL_CHANNEL_ENV, "off")
     with pytest.raises(ValueError, match="VZ_SEMANTIC_PROPOSAL_CHANNEL"):

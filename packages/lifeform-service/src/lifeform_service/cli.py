@@ -153,6 +153,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Torch device for the shared HF runtime (auto / cpu / cuda / cuda:0 / ...).",
     )
     parser.add_argument(
+        "--substrate-model-dtype",
+        choices=("float16", "bfloat16", "float32"),
+        default=None,
+        help=(
+            "Optional explicit frozen model load dtype. Evidence runners use "
+            "this to bind numerical stability to their preregistered lineage."
+        ),
+    )
+    parser.add_argument(
         "--substrate-local-files-only",
         action="store_true",
         help="Forbid HF Hub network fetches (use only the local cache).",
@@ -534,6 +543,7 @@ def _build_shared_substrate(
             model_id=args.substrate_model_id,
             model_source=args.substrate_model_source,
             device=args.substrate_device,
+            model_dtype=args.substrate_model_dtype,
             local_files_only=args.substrate_local_files_only,
             layer_indices=(
                 tuple(args.substrate_layer_indices)
@@ -570,9 +580,10 @@ def _build_shared_substrate(
             ),
         )
         _LOG.info(
-            "shared substrate ready: model_id=%s runtime_origin=%s",
+            "shared substrate ready: model_id=%s runtime_origin=%s dtype=%s",
             getattr(runtime, "model_id", "?"),
             getattr(runtime, "runtime_origin", "?"),
+            getattr(runtime, "model_dtype", "unknown"),
         )
         return runtime
 
@@ -737,6 +748,8 @@ def main(argv: list[str] | None = None) -> int:
             activation_errors.append("--substrate-local-files-only is required")
         if args.substrate_max_length is None:
             activation_errors.append("--substrate-max-length is required")
+        if args.substrate_model_dtype is None:
+            activation_errors.append("--substrate-model-dtype is required")
         steering_env_overrides = tuple(
             name
             for name in (
@@ -745,12 +758,13 @@ def main(argv: list[str] | None = None) -> int:
                 "VZ_STEERING_GATE",
                 "VZ_STEERING_SHADOW_HOOK",
                 "VZ_STEERING_UNGATED_ACTION",
+                "VZ_SEMANTIC_PROPOSAL_CHANNEL",
             )
             if os.environ.get(name, "").strip()
         )
         if steering_env_overrides:
             activation_errors.append(
-                "B3-authorized rollout forbids VZ_STEERING_* overrides: "
+                "B3-authorized rollout forbids steering/semantic overrides: "
                 + ", ".join(steering_env_overrides)
             )
         if activation_errors:
@@ -790,6 +804,7 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 substrate_layer_indices=tuple(args.substrate_layer_indices or ()),
                 substrate_activation_width=args.substrate_activation_width,
+                substrate_model_dtype=args.substrate_model_dtype,
                 substrate_max_length=args.substrate_max_length,
                 previous_activation_receipt=(
                     args.steering_previous_activation_receipt
@@ -862,6 +877,11 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 companion_steering_rollout_temperature=(
                     steering_authorization.generation_temperature
+                    if steering_authorization is not None
+                    else None
+                ),
+                companion_steering_semantic_proposal_channel=(
+                    steering_authorization.semantic_proposal_channel
                     if steering_authorization is not None
                     else None
                 ),
@@ -965,6 +985,11 @@ def main(argv: list[str] | None = None) -> int:
                 profile=resolve_companion_evidence_profile(args.companion_evidence_profile),
                 substrate_model_id=args.substrate_model_id,
                 substrate_device=args.substrate_device,
+                substrate_model_dtype=getattr(
+                    substrate_runtime,
+                    "model_dtype",
+                    "",
+                ),
                 temporal_n_z=args.msc_temporal_n_z,
                 steering_bundle_id=(
                     steering_bundle.bundle_id

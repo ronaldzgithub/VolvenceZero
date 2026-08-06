@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 from typing import Sequence
 
 import pytest
@@ -92,12 +93,20 @@ def _prediction_lineage(
         "device": "mps",
         "substrate_model": substrate_model,
         "substrate_device": "mps",
+        "substrate_model_dtype": "float32",
         "substrate_activation_width": 896,
         "substrate_layer_indices": [11, 12, 13],
         "substrate_context_limit": 32768,
         "substrate_weights_sha256": "b" * 64,
         "runtime_max_new_tokens": 16,
         "runtime_startup_timeout": 600.0,
+        "runtime_resource_lifecycle": (
+            "release-context-encoder-before-full-runtime-and-rebuild-after.v1"
+        ),
+        "runtime_capture_transfer_policy": (
+            "post-forward-stacked-cpu-capture-first-step-logits-and-cpu-semantic-readout.v3"
+        ),
+        "runtime_semantic_proposal_channel": "noop",
         "temporal_capacity_n_z": [3, 16, 64, 256],
         "temporal_capacity_fixed_forward_head_n_z": 3,
         "max_seq_length": 512,
@@ -1024,6 +1033,7 @@ def test_prediction_smoke_uses_mps_for_encoder_head_and_substrate(
 
     assert command[command.index("--device") + 1] == "mps"
     assert command[command.index("--substrate-device") + 1] == "mps"
+    assert command[command.index("--substrate-model-dtype") + 1] == "float32"
     assert command[command.index("--substrate-layer-indices") + 1 :][0:3] == (
         "11",
         "12",
@@ -1126,6 +1136,7 @@ def test_prediction_formal_command_freezes_full_matrix_and_preregistration(
     assert command[command.index("--train-dyads") + 1] == "1001"
     assert command[command.index("--validation-dyads") + 1] == "500"
     assert command[command.index("--heldout-dyads") + 1] == "501"
+    assert command[command.index("--substrate-model-dtype") + 1] == "float32"
     assert command[command.index("--preregistration") + 1].endswith(
         "prereg.json"
     )
@@ -1316,6 +1327,8 @@ def test_prediction_r4_lineage_must_match_r3_target_surface() -> None:
         "layer_indices": [11, 12],
         "activation_widths": [2, 2],
         "temporal_n_z": 3,
+        "model_dtype": "bfloat16",
+        "semantic_proposal_channel": "noop",
         "raw_text_retained": False,
         "evaluation_writeback_allowed": False,
     }
@@ -1324,12 +1337,21 @@ def test_prediction_r4_lineage_must_match_r3_target_surface() -> None:
         attestation,
         target_lineage=lineage,
         expected_temporal_n_z=3,
+        expected_model_dtype="bfloat16",
     )
     with pytest.raises(ValueError, match="target substrate lineage differ"):
         prediction_runner._validate_full_runtime_target_lineage(
             attestation | {"temporal_n_z": 16},
             target_lineage=lineage,
             expected_temporal_n_z=3,
+            expected_model_dtype="bfloat16",
+        )
+    with pytest.raises(ValueError, match="target substrate lineage differ"):
+        prediction_runner._validate_full_runtime_target_lineage(
+            attestation | {"semantic_proposal_channel": "llm"},
+            target_lineage=lineage,
+            expected_temporal_n_z=3,
+            expected_model_dtype="bfloat16",
         )
 
 
@@ -1596,6 +1618,44 @@ def test_prediction_output_lock_rejects_concurrent_writer(tmp_path: Path) -> Non
 
     released = prediction_runner._acquire_output_lock(output)
     released.close()
+
+
+def test_prediction_runner_releases_context_encoder_and_mps_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class _Encoder:
+        def release(self) -> None:
+            events.append("encoder-release")
+
+    monkeypatch.setattr(
+        prediction_runner.gc,
+        "collect",
+        lambda: events.append("gc-collect"),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "torch",
+        SimpleNamespace(
+            mps=SimpleNamespace(
+                synchronize=lambda: events.append("mps-synchronize"),
+                empty_cache=lambda: events.append("mps-empty-cache"),
+            )
+        ),
+    )
+
+    prediction_runner._release_context_encoder_for_full_runtime(
+        _Encoder(),
+        device="mps",
+    )
+
+    assert events == [
+        "encoder-release",
+        "gc-collect",
+        "mps-synchronize",
+        "mps-empty-cache",
+    ]
 
 
 def test_prediction_checkpoint_formal_claim_requires_authorization(

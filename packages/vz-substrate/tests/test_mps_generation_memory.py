@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from volvence_zero.substrate.residual_backend import (
     TransformersOpenWeightResidualRuntime,
 )
@@ -45,6 +47,51 @@ class _FakeMPS:
 
     def empty_cache(self) -> None:
         self.empty_cache_calls += 1
+
+
+class _CaptureTensor:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.cpu_calls = 0
+
+    def detach(self) -> "_CaptureTensor":
+        return self
+
+    def cpu(self) -> "_CaptureTensor":
+        self.cpu_calls += 1
+        return self
+
+
+class _StackedCaptureTensor:
+    def __init__(self, values: tuple[_CaptureTensor, ...]) -> None:
+        self.values = values
+        self.cpu_calls = 0
+
+    def cpu(self) -> "_StackedCaptureTensor":
+        self.cpu_calls += 1
+        return self
+
+    def __getitem__(self, index: int) -> _CaptureTensor:
+        return self.values[index]
+
+
+class _CaptureTorch:
+    Tensor = _CaptureTensor
+
+    def __init__(self) -> None:
+        self.stack_calls = 0
+        self.last_stacked: _StackedCaptureTensor | None = None
+
+    def stack(
+        self,
+        values: tuple[_CaptureTensor, ...],
+        *,
+        dim: int,
+    ) -> _StackedCaptureTensor:
+        assert dim == 0
+        self.stack_calls += 1
+        self.last_stacked = _StackedCaptureTensor(values)
+        return self.last_stacked
 
 
 def _runtime(*, device: str, mps: _FakeMPS) -> TransformersOpenWeightResidualRuntime:
@@ -95,3 +142,103 @@ def test_release_generation_cache_is_mps_only() -> None:
 
     assert mps.synchronize_calls == 1
     assert mps.empty_cache_calls == 1
+
+
+def test_generation_hook_materializes_only_final_layer_capture() -> None:
+    runtime = object.__new__(TransformersOpenWeightResidualRuntime)
+    runtime.model_id = "test-runtime"
+    capture_torch = _CaptureTorch()
+    runtime._torch = capture_torch
+    runtime._personal_conditioning_layer_gains = {1: 0.0}
+    runtime._rare_heavy_adapter_deltas = {}
+    runtime._online_fast_adapter_deltas = {}
+    runtime._rare_heavy_adapter_scale = 0.0
+    runtime._online_fast_delta_scale = 0.0
+    captured: dict[int, object] = {}
+    hook = runtime._make_capture_hook(
+        layer_index=1,
+        captured_layers=captured,
+        control_delta=None,
+        capture_residuals=True,
+        defer_cpu_capture=True,
+    )
+    first = _CaptureTensor("first-token")
+    final = _CaptureTensor("final-token")
+
+    hook(None, (), first)
+    hook(None, (), final)
+
+    assert captured == {1: final}
+    assert first.cpu_calls == 0
+    assert final.cpu_calls == 0
+
+    materialized = runtime._materialize_captured_layers(captured)
+
+    assert materialized == {1: final}
+    assert first.cpu_calls == 0
+    assert final.cpu_calls == 0
+    assert capture_torch.stack_calls == 1
+    assert capture_torch.last_stacked is not None
+    assert capture_torch.last_stacked.cpu_calls == 1
+
+
+def test_generation_capture_extracts_only_first_raw_logit_step() -> None:
+    torch = pytest.importorskip("torch")
+    runtime = object.__new__(TransformersOpenWeightResidualRuntime)
+    runtime.model_id = "test-runtime"
+    runtime._torch = torch
+    first = torch.arange(8, dtype=torch.float32).reshape(2, 4)
+    second = torch.full((2, 4), 99.0)
+
+    extracted = runtime._extract_first_generation_logits(
+        SimpleNamespace(logits=(first, second))
+    )
+
+    assert extracted.shape == (2, 1, 4)
+    assert torch.equal(extracted[:, 0, :], first)
+
+
+def test_generation_capture_rejects_missing_raw_logits() -> None:
+    torch = pytest.importorskip("torch")
+    runtime = object.__new__(TransformersOpenWeightResidualRuntime)
+    runtime.model_id = "test-runtime"
+    runtime._torch = torch
+
+    with pytest.raises(TypeError, match="first-step raw logits"):
+        runtime._extract_first_generation_logits(SimpleNamespace(logits=()))
+
+
+def test_runtime_attests_actual_loaded_model_dtype() -> None:
+    torch = pytest.importorskip("torch")
+    runtime = object.__new__(TransformersOpenWeightResidualRuntime)
+    runtime.model_id = "test-runtime"
+    runtime._model = SimpleNamespace(dtype=torch.bfloat16)
+
+    assert runtime.model_dtype == "bfloat16"
+
+
+def test_residual_semantic_readout_stays_on_materialized_cpu_snapshot() -> None:
+    torch = pytest.importorskip("torch")
+    runtime = object.__new__(TransformersOpenWeightResidualRuntime)
+    runtime._torch = torch
+    runtime._device = "not-a-real-device"
+    runtime._layer_indices = (1, 2)
+    runtime._semantic_basis_cpu = torch.eye(4, dtype=torch.float32)
+    captured = {
+        1: torch.tensor(
+            [[[1.0, 2.0, 3.0, 4.0], [2.0, 3.0, 4.0, 5.0]]],
+            dtype=torch.bfloat16,
+        ),
+        2: torch.tensor(
+            [[[2.0, 1.0, 0.0, -1.0], [3.0, 2.0, 1.0, 0.0]]],
+            dtype=torch.bfloat16,
+        ),
+    }
+
+    profile = runtime._residual_semantic_profile(
+        captured_layers=captured,
+    )
+
+    assert len(profile) == 4
+    assert all(torch.isfinite(torch.tensor(profile)))
+    assert sum(value * value for value in profile) == pytest.approx(1.0)

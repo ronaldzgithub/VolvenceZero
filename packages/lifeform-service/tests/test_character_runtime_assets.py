@@ -234,6 +234,7 @@ def test_cli_shared_runtime_receives_admitted_common_and_character_registry(
         substrate_model_id="Qwen/test",
         substrate_model_source=None,
         substrate_device="cpu",
+        substrate_model_dtype=None,
         substrate_local_files_only=True,
         substrate_layer_indices=None,
         substrate_activation_width=8,
@@ -250,6 +251,7 @@ def test_cli_shared_runtime_receives_admitted_common_and_character_registry(
     )
 
     assert runtime.model_id == "Qwen/test"
+    assert captured["model_dtype"] is None
     assert captured["common_adapter_bundle"] is assets.common_adapter_bundle
     assert captured["character_prefix_registry"] is assets.prefix_registry
 

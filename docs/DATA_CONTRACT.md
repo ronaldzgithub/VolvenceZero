@@ -1172,6 +1172,17 @@ service 的 evidence-only `msc-runtime-collector-v1` 通过外层 DTO 发布：
 - `acceptance_passed=true`、`substrate_fallback_active=false`、
   `raw_text_retained=false`、`evaluation_writeback_allowed=false`。
 
+MSC evidence profile 还必须在 startup attestation 与 collection attestation 中绑定
+`semantic_proposal_channel`：A2 runtime collector 固定 `noop`，隔离不属于 PE/ETA
+intervention 的生成式 proposal collaborator；C3 steering collector 固定 `llm`，与未来
+production ACTIVE 的语义状态来源保持一致。两者都不移除语义 owner 或快照，也都禁止继承
+环境变量造成 smoke/formal 漂移。普通 companion 的 proposal channel 仍默认为 `llm`。
+
+B3 activation deployment contract 必须继续绑定 C3 的实际 model dtype 与
+`semantic_proposal_channel=llm`；authorization 同时核对 service CLI 参数，canary argv
+显式携带 dtype，并拒绝 steering/semantic 环境 override。否则 C3 的 SHADOW 运行面与
+ACTIVE service 不是同一 lineage，不得晋升。
+
 该 DTO 是 offline evidence exchange，不注册新的 live slot。只有明确 MSC profile、
 typed observation permission、精确 frozen weights SHA、显式 residual layers/width/context
 limit 与 `temporal_n_z ∈ {3,16,64,256}` 时才可发布；companion temporal bootstrap 在此

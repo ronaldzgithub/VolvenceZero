@@ -597,6 +597,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             hidden_size=self._hidden_size,
             projection_dim=self._semantic_projection_dim,
         )
+        self._semantic_basis_cpu = self._semantic_basis.detach().to(
+            device="cpu",
+            dtype=self._torch.float32,
+        )
         self._semantic_anchor_profiles = _anchor_profile_bank(dim=self._semantic_projection_dim)
         base_text_weight, base_residual_weight = self._base_semantic_weights()
         self._rare_heavy_control_scale = self._control_scale
@@ -630,6 +634,21 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     def model_version(self) -> str:
         source = Path(self._pretrained_source)
         return source.name if source.name else self.model_id
+
+    @property
+    def model_dtype(self) -> str:
+        """Actual frozen model dtype, normalized for runtime attestation."""
+
+        dtype = getattr(self._model, "dtype", None)
+        if dtype is None:
+            try:
+                dtype = next(self._model.parameters()).dtype
+            except (AttributeError, StopIteration) as exc:
+                raise RuntimeError(
+                    f"Transformers runtime '{self.model_id}' cannot attest "
+                    "its model dtype."
+                ) from exc
+        return str(dtype).removeprefix("torch.")
 
     @property
     def hook_layer_indices(self) -> tuple[int, ...]:
@@ -902,6 +921,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     layer_index=layer_index,
                     captured_layers=captured_layers,
                     control_delta=None,
+                    defer_cpu_capture=True,
                     personal_delta=personal_delta,
                     character_residual_delta=self._character_residual_deltas.get(
                         layer_index
@@ -951,6 +971,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         finally:
             for hook in hooks:
                 hook.remove()
+        if captured_layers:
+            captured_layers = self._materialize_captured_layers(
+                captured_layers
+            )
         logits = self._extract_logits(outputs=outputs)
         return self._build_runtime_capture(
             source_text=effective_source,
@@ -2274,14 +2298,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             > 0.0
         }
         captured_layers: dict[int, object] = {}
-        # ``capture_residuals=False`` (raw pass-through path) skips both the
-        # forward hooks and the post-generate full-prompt re-forward that
-        # builds the runtime capture. That re-forward (line ~622 below) runs
-        # a second full attention pass over the *entire* prompt with all
-        # target layers' hidden states materialised — a memory spike that
-        # scales with prompt length and OOM/native-crashes the process on
-        # long multi-turn contexts. The raw ablation track never reads the
-        # capture, so skipping it is both correct and the memory fix.
+        # ``capture_residuals=False`` (raw pass-through path) skips residual
+        # retention and first-step raw-logit retention. The raw ablation track
+        # never reads the capture, so it must not pay that memory cost.
         has_runtime_deltas = bool(
             getattr(self, "_online_fast_adapter_deltas", {})
             or getattr(self, "_rare_heavy_adapter_deltas", {})
@@ -2312,6 +2331,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                             else None
                         ),
                         capture_residuals=capture_residuals,
+                        defer_cpu_capture=True,
                         personal_delta=personal_delta,
                         conditioning_bank_delta=bank_delta_by_layer.get(
                             layer_index
@@ -2333,6 +2353,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             else []
         )
         prefix_carrier_active = prefix_pairs is not None
+        generation_capture_logits = None
         try:
             with self._torch.no_grad():
                 generate_kwargs: dict[str, object] = {
@@ -2342,6 +2363,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     "eos_token_id": self._generation_eos_token_id(),
                     "repetition_penalty": effective_repetition_penalty,
                 }
+                if capture_residuals:
+                    # ``generate`` already computes the raw next-token logits
+                    # for the prompt. Retaining that first step avoids a
+                    # second, uncached full-prompt forward solely for capture.
+                    generate_kwargs["return_dict_in_generate"] = True
+                    generate_kwargs["output_logits"] = True
                 if os.name == "nt":
                     # Transformers emits a deprecated tuple-KV-cache warning
                     # on this stack, and repeated Windows generations can
@@ -2355,6 +2382,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     if effective_top_p < 0.999:
                         generate_kwargs["top_p"] = effective_top_p
                 if prefix_carrier_active:
+                    prefix_capture_logits: list[Any] | None = (
+                        [] if capture_residuals else None
+                    )
                     output_ids = self._generate_with_prefix(
                         model_inputs=model_inputs,
                         prefix_pairs=prefix_pairs,
@@ -2367,15 +2397,40 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                             personal_conditioning_carrier == "prefix_kv"
                             or bool(bank_prefix_pairs)
                         ),
+                        first_step_logits_out=prefix_capture_logits,
                     )
+                    if prefix_capture_logits is not None:
+                        if not prefix_capture_logits:
+                            raise RuntimeError(
+                                "prefix generation did not publish first-step "
+                                "capture logits"
+                            )
+                        generation_capture_logits = prefix_capture_logits[0]
                 else:
                     with self._temporary_torch_seed(sampling_seed):
-                        output_ids = self._model.generate(
+                        generation_output = self._model.generate(
                             **model_inputs, **generate_kwargs
                         )
+                    if capture_residuals:
+                        output_ids = self._extract_generation_sequences(
+                            generation_output
+                        )
+                        generation_capture_logits = (
+                            self._extract_first_generation_logits(
+                                generation_output
+                            )
+                        )
+                        del generation_output
+                    else:
+                        output_ids = generation_output
         finally:
             for hook in hooks:
                 hook.remove()
+
+        if captured_layers:
+            captured_layers = self._materialize_captured_layers(
+                captured_layers
+            )
 
         new_token_ids = output_ids[0, prompt_length:]
         generated_text = self._decode_generated_text(token_ids=new_token_ids)
@@ -2389,15 +2444,14 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         capture = None
         if captured_layers:
             try:
-                logits_pass = self._model(
-                    output_ids[:, :prompt_length],
-                    use_cache=False,
-                )
-                logits = self._extract_logits(outputs=logits_pass)
+                if generation_capture_logits is None:
+                    raise RuntimeError(
+                        "generation capture requires first-step raw logits"
+                    )
                 capture = self._build_runtime_capture(
                     source_text=effective_prompt,
                     input_ids=input_ids,
-                    logits=logits,
+                    logits=generation_capture_logits,
                     captured_layers=captured_layers,
                     control_applied=(
                         control_active
@@ -3060,10 +3114,15 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         *,
         captured_layers: dict[int, object],
     ) -> tuple[float, ...]:
+        # Captures are immutable CPU snapshots by this point.  Moving the
+        # complete token history back to MPS solely for a small frozen readout
+        # creates a copy-cast graph and a synchronization barrier per layer.
+        # Keep the owner readout beside its snapshot and use the frozen CPU
+        # basis cached at runtime construction.
         stacked = self._torch.stack(
             [
                 captured_layers[layer_index][0].to(
-                    self._device,
+                    device="cpu",
                     dtype=self._torch.float32,
                 )
                 for layer_index in self._layer_indices
@@ -3078,9 +3137,9 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             else self._torch.zeros_like(mean_hidden)
         )
         composite = mean_hidden * 0.55 + tail_hidden * 0.30 + dispersion_hidden * 0.15
-        projected = self._semantic_basis.to(
+        projected = self._semantic_basis_cpu @ composite.to(
             dtype=self._torch.float32
-        ) @ composite.to(dtype=self._torch.float32)
+        )
         norm = projected.norm().clamp_min(1e-6)
         normalized = (projected / norm).detach().cpu().tolist()
         return tuple(float(value) for value in normalized)
@@ -3235,6 +3294,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                         if applied_control is not None
                         else None
                     ),
+                    defer_cpu_capture=True,
                 )
             )
             for layer_index in self._layer_indices
@@ -3245,6 +3305,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         finally:
             for hook in hooks:
                 hook.remove()
+        if captured_layers:
+            captured_layers = self._materialize_captured_layers(
+                captured_layers
+            )
         logits = self._extract_logits(outputs=outputs)
         return self._build_runtime_capture(
             source_text=effective_source,
@@ -3597,6 +3661,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         top_p: float,
         sampling_seed: int | None,
         require_sampling_seed: bool = True,
+        first_step_logits_out: list[Any] | None = None,
     ):
         """Decode over a state-derived key/value prefix.
 
@@ -3682,6 +3747,13 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 logits = self._extract_logits(outputs=outputs)[0, -1].to(
                     torch.float32
                 )
+                if (
+                    first_step_logits_out is not None
+                    and not first_step_logits_out
+                ):
+                    first_step_logits_out.append(
+                        logits.detach().clone().reshape(1, 1, -1)
+                    )
                 if penalty and penalty != 1.0:
                     # Same transform as transformers'
                     # RepetitionPenaltyLogitsProcessor, over prompt plus
@@ -4164,11 +4236,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         captured_layers: dict[int, object],
         control_delta,
         capture_residuals: bool = True,
+        defer_cpu_capture: bool = False,
         personal_delta=None,
         conditioning_bank_delta=None,
         character_residual_delta=None,
         steering_delta=None,
     ):
+        def captured(value):
+            detached = value.detach()
+            return detached if defer_cpu_capture else detached.cpu()
+
         def hook(module, args, output):
             del module
             del args
@@ -4190,17 +4267,21 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 and steering_delta is None
             ):
                 if capture_residuals:
-                    captured_layers[layer_index] = hidden.detach().cpu()
+                    captured_layers[layer_index] = captured(hidden)
                 return None
             adjusted = hidden
             if adapter_delta is not None:
-                adjusted = adjusted + adapter_delta.view(1, 1, -1).to(dtype=hidden.dtype)
+                adjusted = adjusted + adapter_delta.view(1, 1, -1).to(
+                    dtype=hidden.dtype
+                )
             if character_residual_delta is not None:
                 adjusted = adjusted + character_residual_delta.view(
                     1, 1, -1
                 ).to(dtype=hidden.dtype)
             if control_delta is not None:
-                adjusted = adjusted + control_delta.view(1, 1, -1).to(dtype=hidden.dtype)
+                adjusted = adjusted + control_delta.view(1, 1, -1).to(
+                    dtype=hidden.dtype
+                )
             if applies_personal_delta:
                 adjusted = adjusted + (
                     personal_delta * personal_gain
@@ -4214,12 +4295,61 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     dtype=hidden.dtype
                 )
             if capture_residuals:
-                captured_layers[layer_index] = adjusted.detach().cpu()
+                captured_layers[layer_index] = captured(adjusted)
             if isinstance(output, tuple):
                 return (adjusted, *output[1:])
             return adjusted
 
         return hook
+
+    def _materialize_captured_layers(
+        self,
+        captured_layers: dict[int, object],
+    ) -> dict[int, object]:
+        """Copy final layer captures through one post-forward CPU barrier."""
+
+        ordered = tuple(sorted(captured_layers.items()))
+        stacked = self._torch.stack(
+            tuple(value.detach() for _, value in ordered),
+            dim=0,
+        ).cpu()
+        return {
+            layer_index: stacked[position]
+            for position, (layer_index, _) in enumerate(ordered)
+        }
+
+    def _extract_generation_sequences(self, outputs):
+        sequences = getattr(outputs, "sequences", None)
+        if not isinstance(sequences, self._torch.Tensor):
+            raise TypeError(
+                f"Transformers runtime '{self.model_id}' generation output "
+                "did not expose tensor-shaped sequences."
+            )
+        return sequences
+
+    def _extract_first_generation_logits(self, outputs):
+        raw_logits = getattr(outputs, "logits", None)
+        if not isinstance(raw_logits, tuple) or not raw_logits:
+            raise TypeError(
+                f"Transformers runtime '{self.model_id}' generation output "
+                "did not expose first-step raw logits."
+            )
+        first = raw_logits[0]
+        if not isinstance(first, self._torch.Tensor):
+            raise TypeError(
+                f"Transformers runtime '{self.model_id}' first-step logits "
+                "were not tensor-shaped."
+            )
+        if first.ndim == 2:
+            first = first.unsqueeze(1)
+        elif first.ndim == 3:
+            first = first[:, -1:, :]
+        else:
+            raise ValueError(
+                f"Transformers runtime '{self.model_id}' first-step logits "
+                f"must be rank 2 or 3, got rank {first.ndim}."
+            )
+        return first.detach().cpu()
 
     def _extract_hidden_tensor(self, *, output):
         if isinstance(output, tuple):

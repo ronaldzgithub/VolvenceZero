@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 from dataclasses import asdict, is_dataclass
+import gc
 import hashlib
 import json
 import math
@@ -74,6 +75,22 @@ TEMPORAL_CAPACITY_N_Z = (3, 16, 64, 256)
 TEMPORAL_CAPACITY_FIXED_FORWARD_HEAD_N_Z = 3
 MSC_FORMAL_PREREGISTRATION_SCHEMA_VERSION = "msc-n-plus-one-formal-prereg.v1"
 MSC_PREDICTION_PLAN_ID = "msc-n-plus-one-prediction-mps.v1"
+RUNTIME_RESOURCE_LIFECYCLE = (
+    "release-context-encoder-before-full-runtime-and-rebuild-after.v1"
+)
+RUNTIME_CAPTURE_TRANSFER_POLICY = (
+    "post-forward-stacked-cpu-capture-first-step-logits-and-cpu-semantic-readout.v3"
+)
+MSC_RUNTIME_SEMANTIC_PROPOSAL_CHANNEL = "noop"
+MSC_STEERING_SEMANTIC_PROPOSAL_CHANNEL = "llm"
+
+
+def _semantic_proposal_channel_for_profile(evidence_profile: str) -> str:
+    if evidence_profile == "msc-runtime-collector-v1":
+        return MSC_RUNTIME_SEMANTIC_PROPOSAL_CHANNEL
+    if evidence_profile == "msc-steering-shadow-collector-v1":
+        return MSC_STEERING_SEMANTIC_PROPOSAL_CHANNEL
+    raise ValueError("MSC runtime service evidence profile is unsupported")
 
 
 def _jsonable(value: object) -> object:
@@ -305,6 +322,7 @@ def _running_msc_runtime_service(
     substrate_model: str,
     substrate_model_source: Path | None = None,
     substrate_device: str,
+    substrate_model_dtype: str,
     substrate_layer_indices: tuple[int, ...],
     substrate_activation_width: int,
     substrate_max_length: int,
@@ -328,11 +346,9 @@ def _running_msc_runtime_service(
         raise ValueError("MSC runtime service requires explicit residual layers")
     if temporal_n_z not in {3, 16, 64, 256}:
         raise ValueError("MSC runtime service temporal_n_z is not preregistered")
-    if evidence_profile not in {
-        "msc-runtime-collector-v1",
-        "msc-steering-shadow-collector-v1",
-    }:
-        raise ValueError("MSC runtime service evidence profile is unsupported")
+    expected_semantic_proposal_channel = (
+        _semantic_proposal_channel_for_profile(evidence_profile)
+    )
     if evidence_profile == "msc-steering-shadow-collector-v1":
         if steering_bundle_path is None or not steering_bundle_path.is_file():
             raise ValueError("MSC steering service requires an artifact bundle")
@@ -365,6 +381,8 @@ def _running_msc_runtime_service(
             substrate_model,
             "--substrate-device",
             substrate_device,
+            "--substrate-model-dtype",
+            substrate_model_dtype,
             "--substrate-local-files-only",
             "--substrate-layer-indices",
             *(str(index) for index in substrate_layer_indices),
@@ -447,11 +465,21 @@ def _running_msc_runtime_service(
             attestation = json.loads(
                 attestation_path.read_text(encoding="utf-8")
             )
+            intervention = (
+                attestation.get("intervention")
+                if isinstance(attestation, dict)
+                else None
+            )
             if (
                 not isinstance(attestation, dict)
+                or not isinstance(intervention, dict)
                 or attestation.get("profile") != evidence_profile
                 or attestation.get("substrate_model_id") != substrate_model
+                or attestation.get("substrate_model_dtype")
+                != substrate_model_dtype
                 or attestation.get("temporal_n_z") != temporal_n_z
+                or intervention.get("semantic_proposal_channel")
+                != expected_semantic_proposal_channel
             ):
                 raise ValueError("MSC runtime service profile attestation drift")
 
@@ -496,6 +524,8 @@ class FrozenContextEncoder(Protocol):
     ) -> tuple[tuple[tuple[float, ...], ...], tuple[float, ...]]: ...
 
     def token_cost(self, text: str) -> tuple[int, int]: ...
+
+    def release(self) -> None: ...
 
 
 class FrozenSentenceEncoder:
@@ -546,13 +576,16 @@ class FrozenSentenceEncoder:
     def encode(
         self, texts: tuple[str, ...]
     ) -> tuple[tuple[tuple[float, ...], ...], tuple[float, ...]]:
+        model = self._model
+        if model is None:
+            raise RuntimeError("sentence context encoder was released")
         if not texts:
             return (), ()
         rows: list[tuple[float, ...]] = []
         latency_ms: list[float] = []
         for text in texts:
             started = time.perf_counter()
-            values = self._model.encode(
+            values = model.encode(
                 [text],
                 batch_size=1,
                 show_progress_bar=False,
@@ -577,6 +610,11 @@ class FrozenSentenceEncoder:
             max(0, token_count - self.max_seq_length),
         )
 
+    def release(self) -> None:
+        """Release the model while retaining immutable tokenizer metadata."""
+
+        self._model = None
+
 
 class FrozenSubstrateContextEncoder:
     """Zero-truncation context encoder on the target-owning frozen substrate."""
@@ -589,6 +627,7 @@ class FrozenSubstrateContextEncoder:
         model_fingerprint: SubstrateFingerprint,
         target_lineage: SubstrateForwardRepresentationLineage,
         device: str,
+        model_dtype: str,
         activation_width: int,
         layer_indices: tuple[int, ...] | None,
     ) -> None:
@@ -611,6 +650,7 @@ class FrozenSubstrateContextEncoder:
             model_id=model_id,
             model_source=str(snapshot),
             device=device,
+            model_dtype=model_dtype,
             layer_indices=layer_indices,
             hook_layer_selection="middle",
             activation_width=activation_width,
@@ -640,6 +680,7 @@ class FrozenSubstrateContextEncoder:
             "activation_widths": target_lineage.activation_widths,
             "representation_dim": target_lineage.representation_dim,
             "context_limit": context_limit,
+            "model_dtype": model_dtype,
             "truncation_policy": "deny",
         }
         self.fingerprint = hashlib.sha256(
@@ -676,6 +717,9 @@ class FrozenSubstrateContextEncoder:
     def encode(
         self, texts: tuple[str, ...]
     ) -> tuple[tuple[tuple[float, ...], ...], tuple[float, ...]]:
+        publisher = self._publisher
+        if publisher is None:
+            raise RuntimeError("substrate context encoder was released")
         rows: list[tuple[float, ...]] = []
         latency_ms: list[float] = []
         for index, source_text in enumerate(texts):
@@ -685,7 +729,7 @@ class FrozenSubstrateContextEncoder:
                 f"{hashlib.sha256(source_text.encode('utf-8')).hexdigest()}"
             )
             started = time.perf_counter()
-            snapshot = self._publisher.publish(((sample_id, source_text),))
+            snapshot = publisher.publish(((sample_id, source_text),))
             latency_ms.append((time.perf_counter() - started) * 1000.0)
             self._assert_lineage(snapshot.lineage)
             rows.append(snapshot.representations[0].values)
@@ -706,6 +750,30 @@ class FrozenSubstrateContextEncoder:
                 f"{token_count} > {self.max_seq_length}"
             )
         return (max(1, token_count), 0)
+
+    def release(self) -> None:
+        """Drop the resident substrate runtime before the R4 service starts."""
+
+        self._publisher = None
+
+
+def _release_context_encoder_for_full_runtime(
+    encoder: FrozenContextEncoder,
+    *,
+    device: str,
+) -> None:
+    """Prevent the R3 encoder and R4 service from co-residing on one device."""
+
+    encoder.release()
+    gc.collect()
+    if device != "mps":
+        return
+    try:
+        import torch
+    except ImportError as exc:  # pragma: no cover - formal MPS lane requires torch
+        raise RuntimeError("MSC MPS resource release requires torch") from exc
+    torch.mps.synchronize()
+    torch.mps.empty_cache()
 
 
 def _unit(values: Iterable[float]) -> tuple[float, ...]:
@@ -807,6 +875,7 @@ def _build_substrate_target_publisher(
     snapshot: Path,
     model_fingerprint: SubstrateFingerprint,
     device: str,
+    model_dtype: str,
     activation_width: int,
     layer_indices: tuple[int, ...] | None,
 ) -> SubstrateForwardRepresentationPublisher:
@@ -814,6 +883,7 @@ def _build_substrate_target_publisher(
         model_id=model_id,
         model_source=str(snapshot),
         device=device,
+        model_dtype=model_dtype,
         layer_indices=layer_indices,
         hook_layer_selection="middle",
         activation_width=activation_width,
@@ -1275,6 +1345,7 @@ def _prepare_full_runtime_arm(
     context_limit: int,
     max_new_tokens: int,
     substrate_device: str,
+    substrate_model_dtype: str,
     startup_timeout_s: float,
     temporal_n_z: int,
     included_splits: tuple[str, ...],
@@ -1348,6 +1419,7 @@ def _prepare_full_runtime_arm(
             user_ids=user_ids,
             substrate_model=model_fingerprint.model_id,
             substrate_device=substrate_device,
+            substrate_model_dtype=substrate_model_dtype,
             substrate_layer_indices=layer_indices,
             substrate_activation_width=activation_width,
             substrate_max_length=context_limit,
@@ -1447,6 +1519,10 @@ def _prepare_full_runtime_arm(
         "model_version": surface[1],
         "weights_sha256": surface[2],
         "runtime_origin": surface[3],
+        "model_dtype": cached_profile["substrate_model_dtype"],
+        "semantic_proposal_channel": cached_profile["intervention"][
+            "semantic_proposal_channel"
+        ],
         "readout_kind": surface[4],
         "layer_indices": surface[5],
         "activation_widths": surface[6],
@@ -1485,6 +1561,7 @@ def _validate_full_runtime_target_lineage(
     *,
     target_lineage: SubstrateForwardRepresentationLineage,
     expected_temporal_n_z: int,
+    expected_model_dtype: str,
 ) -> None:
     expected = (
         target_lineage.model_fingerprint.model_id,
@@ -1509,6 +1586,13 @@ def _validate_full_runtime_target_lineage(
         tuple(observed_layers),
         tuple(observed_widths),
         attestation.get("temporal_n_z"),
+        attestation.get("model_dtype"),
+        attestation.get("semantic_proposal_channel"),
+    )
+    expected = (
+        *expected,
+        expected_model_dtype,
+        MSC_RUNTIME_SEMANTIC_PROPOSAL_CHANNEL,
     )
     if (
         observed != expected
@@ -1637,6 +1721,7 @@ def _load_or_build_substrate_targets(
     snapshot: Path,
     model_fingerprint: SubstrateFingerprint,
     device: str,
+    model_dtype: str,
     activation_width: int,
     layer_indices: tuple[int, ...] | None,
 ) -> tuple[
@@ -1650,6 +1735,7 @@ def _load_or_build_substrate_targets(
         "model_fingerprint": asdict(model_fingerprint),
         "requested_activation_width": activation_width,
         "requested_layer_indices": layer_indices,
+        "model_dtype": model_dtype,
         "source_sha256": source_hashes,
         "raw_text_retained": False,
     }
@@ -1665,6 +1751,7 @@ def _load_or_build_substrate_targets(
             snapshot=snapshot,
             model_fingerprint=model_fingerprint,
             device=device,
+            model_dtype=model_dtype,
             activation_width=activation_width,
             layer_indices=layer_indices,
         )
@@ -2138,6 +2225,11 @@ def parse_args() -> argparse.Namespace:
         "--substrate-model", default="Qwen/Qwen2.5-0.5B-Instruct"
     )
     parser.add_argument("--substrate-device", default="auto")
+    parser.add_argument(
+        "--substrate-model-dtype",
+        choices=("float16", "bfloat16", "float32"),
+        default="float32",
+    )
     parser.add_argument("--substrate-activation-width", type=int, default=896)
     parser.add_argument("--substrate-layer-indices", type=int, nargs="+")
     parser.add_argument("--runtime-max-new-tokens", type=int, default=16)
@@ -2296,6 +2388,7 @@ def main() -> int:
         "device": args.device,
         "substrate_model": args.substrate_model,
         "substrate_device": args.substrate_device,
+        "substrate_model_dtype": args.substrate_model_dtype,
         "substrate_activation_width": args.substrate_activation_width,
         "substrate_layer_indices": layer_indices,
         "substrate_context_limit": substrate_context_limit,
@@ -2304,6 +2397,11 @@ def main() -> int:
         ),
         "runtime_max_new_tokens": args.runtime_max_new_tokens,
         "runtime_startup_timeout": args.runtime_startup_timeout,
+        "runtime_resource_lifecycle": RUNTIME_RESOURCE_LIFECYCLE,
+        "runtime_capture_transfer_policy": RUNTIME_CAPTURE_TRANSFER_POLICY,
+        "runtime_semantic_proposal_channel": (
+            MSC_RUNTIME_SEMANTIC_PROPOSAL_CHANNEL
+        ),
         "temporal_capacity_n_z": TEMPORAL_CAPACITY_N_Z,
         "temporal_capacity_fixed_forward_head_n_z": (
             TEMPORAL_CAPACITY_FIXED_FORWARD_HEAD_N_Z
@@ -2418,6 +2516,7 @@ def main() -> int:
             snapshot=substrate_snapshot,
             model_fingerprint=frozen_substrate_fingerprint,
             device=args.substrate_device,
+            model_dtype=args.substrate_model_dtype,
             activation_width=args.substrate_activation_width,
             layer_indices=layer_indices,
         )
@@ -2429,6 +2528,7 @@ def main() -> int:
             model_fingerprint=target_model_fingerprint,
             target_lineage=target_lineage,
             device=args.substrate_device,
+            model_dtype=args.substrate_model_dtype,
             activation_width=args.substrate_activation_width,
             layer_indices=layer_indices,
         )
@@ -2532,6 +2632,14 @@ def main() -> int:
         if convergence_stage_order != ["R3"]:
             raise ValueError("MSC R4 requires a completed R3 attestation")
         assert layer_indices is not None
+        _release_context_encoder_for_full_runtime(
+            encoder,
+            device=args.substrate_device,
+        )
+        print(
+            "[msc-runtime] released R3 context encoder before R4 service",
+            flush=True,
+        )
         for temporal_n_z in TEMPORAL_CAPACITY_N_Z:
             if temporal_n_z != 3 and convergence_stage_order != ["R3", "R4"]:
                 raise RuntimeError("MSC R5 started before R4 completed")
@@ -2546,6 +2654,7 @@ def main() -> int:
                 context_limit=substrate_context_limit,
                 max_new_tokens=args.runtime_max_new_tokens,
                 substrate_device=args.substrate_device,
+                substrate_model_dtype=args.substrate_model_dtype,
                 startup_timeout_s=args.runtime_startup_timeout,
                 temporal_n_z=temporal_n_z,
                 included_splits=("train", "validation"),
@@ -2554,6 +2663,7 @@ def main() -> int:
                 attested_capacity,
                 target_lineage=target_lineage,
                 expected_temporal_n_z=temporal_n_z,
+                expected_model_dtype=args.substrate_model_dtype,
             )
             temporal_runtime_prepared[temporal_n_z] = prepared_capacity
             temporal_runtime_attestations[temporal_n_z] = attested_capacity
@@ -2670,6 +2780,7 @@ def main() -> int:
                 context_limit=substrate_context_limit,
                 max_new_tokens=args.runtime_max_new_tokens,
                 substrate_device=args.substrate_device,
+                substrate_model_dtype=args.substrate_model_dtype,
                 startup_timeout_s=args.runtime_startup_timeout,
                 temporal_n_z=selected_temporal_n_z,
                 included_splits=("train", "validation", "heldout"),
@@ -2679,6 +2790,31 @@ def main() -> int:
             full_runtime_attestation,
             target_lineage=target_lineage,
             expected_temporal_n_z=selected_temporal_n_z,
+            expected_model_dtype=args.substrate_model_dtype,
+        )
+
+    if args.volvence_context_mode == "full-runtime":
+        if args.context_encoder_mode == "substrate":
+            encoder = FrozenSubstrateContextEncoder(
+                model_id=args.substrate_model,
+                snapshot=substrate_snapshot,
+                model_fingerprint=target_model_fingerprint,
+                target_lineage=target_lineage,
+                device=args.substrate_device,
+                model_dtype=args.substrate_model_dtype,
+                activation_width=args.substrate_activation_width,
+                layer_indices=layer_indices,
+            )
+        else:
+            encoder = FrozenSentenceEncoder(
+                model_id=args.encoder,
+                device=args.device,
+                max_seq_length=args.max_seq_length,
+                batch_size=args.encoder_batch_size,
+            )
+        print(
+            "[msc-runtime] rebuilt context encoder after full-runtime collection",
+            flush=True,
         )
 
     for arm in PREDICTION_ARMS:

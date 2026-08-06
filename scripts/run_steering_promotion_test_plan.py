@@ -143,6 +143,12 @@ def _configuration(args: argparse.Namespace) -> dict[str, object]:
         "model_weights_sha256": c3_configuration.get(
             "model_weights_sha256"
         ),
+        "substrate_model_dtype": c3_configuration.get(
+            "substrate_model_dtype"
+        ),
+        "semantic_proposal_channel": c3_configuration.get(
+            "runtime_semantic_proposal_channel"
+        ),
         "steering_layer_index": c3_configuration.get(
             "steering_layer_index"
         ),
@@ -158,6 +164,9 @@ def _configuration(args: argparse.Namespace) -> dict[str, object]:
         not isinstance(deployment_contract["model_id"], str)
         or not deployment_contract["model_id"]
         or not _valid_sha256(deployment_contract["model_weights_sha256"])
+        or deployment_contract["substrate_model_dtype"]
+        not in {"float16", "bfloat16", "float32"}
+        or deployment_contract["semantic_proposal_channel"] != "llm"
         or not isinstance(deployment_contract["steering_layer_index"], int)
         or isinstance(deployment_contract["steering_layer_index"], bool)
         or deployment_contract["steering_layer_index"] < 0

@@ -186,6 +186,11 @@ invoker 侧按**载荷形状**（`claims` 键）而非工具名提取，所以�
 
 ## 变更日志
 
+- 2026-08-06: `LLMSemanticProposalRuntime` 的 commitment 与 generic
+  proposal 路径统一使用已有的严格结构化 payload 归一化：仅接受
+  完整包裹单个 JSON object 的外层 Markdown fence，仍拒绝前后散文、
+  未闭合 fence 和多个 payload。这只修正 open-weight instruct 模型的
+  序列化外壳，typed schema、owner 筛选、置信度门和单写者路径不变。
 - 2026-08-02: 补齐“用户事实记忆 → 核实 → 回复”闭环。`SemanticProposal` /
   `SemanticRecord` 新增 `semantic_key` / `canonical_value`，`UserModelSnapshot`
   发布去重后的 `profile_facts`、本轮 `requested_profile_fact_keys` 与 owner-authored

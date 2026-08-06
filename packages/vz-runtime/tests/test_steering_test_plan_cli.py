@@ -151,6 +151,8 @@ def _args(tmp_path: Path) -> argparse.Namespace:
             "run_configuration": {
                 "model_id": "frozen-model",
                 "model_weights_sha256": "a" * 64,
+                "substrate_model_dtype": "bfloat16",
+                "runtime_semantic_proposal_channel": "llm",
                 "steering_layer_index": 20,
                 "activation_width": 896,
                 "max_length": 768,
@@ -165,6 +167,53 @@ def _args(tmp_path: Path) -> argparse.Namespace:
         output=tmp_path / "b3-output",
         bootstrap_resamples=100,
     )
+
+
+def test_dialogue_plan_defaults_to_long_dyad_stable_float32_and_full_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_dialogue_steering_test_plan.py",
+            "status",
+            "--output",
+            str(tmp_path / "output"),
+            "--preregistration",
+            str(tmp_path / "prereg.json"),
+            "--seven-day-formal-report",
+            str(tmp_path / "a1"),
+            "--accept-noncommercial-license",
+        ],
+    )
+
+    args = dialogue_plan.parse_args()
+
+    assert args.substrate_model_dtype == "float32"
+    assert args.max_length == 32768
+
+
+def test_c3_rejects_subcontext_runtime_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dialogue_plan,
+        "_substrate_context_limit",
+        lambda _model_source: 32768,
+    )
+
+    assert dialogue_plan._validated_substrate_context_limit(
+        model_source=tmp_path,
+        configured_max_length=32768,
+    ) == 32768
+    with pytest.raises(ValueError, match="complete runtime prompts"):
+        dialogue_plan._validated_substrate_context_limit(
+            model_source=tmp_path,
+            configured_max_length=768,
+        )
 
 
 def test_c3_a1_attestation_requires_exact_audited_n_plus_one_formal(
@@ -394,6 +443,8 @@ def test_b3_activation_plan_changes_exactly_one_valid_field_per_rollout(
         deployment_contract={
             "model_id": "frozen-model",
             "model_weights_sha256": "a" * 64,
+            "substrate_model_dtype": "bfloat16",
+            "semantic_proposal_channel": "llm",
             "steering_layer_index": 20,
             "activation_width": 896,
             "substrate_max_length": 768,
@@ -439,6 +490,8 @@ def test_b3_activation_plan_changes_exactly_one_valid_field_per_rollout(
         "steering_ungated_action": "blocked",
     }
     assert plan["deployment_contract"]["substrate_max_length"] == 768
+    assert plan["deployment_contract"]["substrate_model_dtype"] == "bfloat16"
+    assert plan["deployment_contract"]["semantic_proposal_channel"] == "llm"
     assert plan["modification_gate"] == {
         "review_sha256": "b" * 64,
         "decision": "allow",
@@ -479,6 +532,7 @@ def test_b3_canary_command_threads_the_previous_receipt(tmp_path: Path) -> None:
         substrate_model_id="frozen-model",
         substrate_model_source=tmp_path / "model",
         substrate_device="mps",
+        substrate_model_dtype="bfloat16",
         substrate_expected_weights_sha256="a" * 64,
         substrate_layer_indices=(11, 12, 13, 20),
         substrate_activation_width=896,
@@ -497,6 +551,7 @@ def test_b3_canary_command_threads_the_previous_receipt(tmp_path: Path) -> None:
         str((tmp_path / "step-2-receipt.json").resolve()),
     )
     assert command.count("--steering-activation-step") == 1
+    assert command[command.index("--substrate-model-dtype") + 1] == "bfloat16"
 
 
 def test_b3_canary_wait_requires_the_exact_companion_health(

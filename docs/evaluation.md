@@ -246,6 +246,7 @@ python scripts/run_msc_prediction_research.py \
 ### 3.3 怎么评价
 
 - 四臂：`stateless`（persona + 最近对方消息）/ `long_context`（同一冻结 Qwen 的全历史、零截断 steelman）/ `summary_retrieval`（persona summary + top-k 抽取）/ `volvence`（完整 service/session/propagate/expression runtime collector）。胜负只比较 `volvence − long_context`；其余两臂只作 matched 资格。
+- R4/R5 profile 固定 `semantic_proposal_channel=noop` 并进入 attestation/lineage；语义、ToM 与 common-ground owner 仍在 DAG 中发布快照，仅关闭不属于 PE/ETA intervention 的额外生成式 proposal source。普通 companion 的 `llm` 默认不变。MPS 证据链统一冻结 `substrate_model_dtype=float32`：同一首个 MSC 训练 dyad 上 `float16`/`bfloat16` 均在相同长轨迹边界产生非有限 residual，只有 `float32` 完整跑完该 dyad；禁止运行中自动换 dtype。
 - formal 需全部满足：passed smoke + 新 immutable prereg、完整 train=1001/val=500/heldout=501、官方 heldout id hash、四臂 + ≥3 seed、冻结 encoder 指纹、同基底零截断、`volvence_full_stack=True`、R5 temporal capacity integrity、zero-norm count=0、最长 session=5。
 - formal 出口：Quality（session 5 Volvence−long_context cosine ≥ 0.02、dyad-clustered 95% CI 下界 > 0、优势斜率 > 0）；Scaling（cosine gap ≥ −0.01、token ratio ≤ 0.10、latency ratio ≤ 0.50）；否则 `REJECT_AND_SIMPLIFY`。
 - `forward_head_n_z` ladder 仍是 PE 诊断，flat 时选 3。R5 是独立实验：只变真实 `temporal_n_z ∈ {3,16,64,256}`，禁用 companion temporal bootstrap并固定 PE head=3；flat 时选 3，任一 zero-norm prediction 使容量完整性失败。
@@ -700,7 +701,7 @@ B3 prereg 必须在看见 C3 report 前冻结，且明确禁止复用 Learned Ac
   --substrate-model-source artifacts/eta_stage2_merged_v2_20260803 \
   --substrate-expected-weights-sha256 '<plan model_weights_sha256>' \
   --substrate-layer-indices 11 12 13 20 --substrate-activation-width 896 \
-  --substrate-max-length 768 \
+  --substrate-max-length 32768 \
   --steering-artifact-bundle \
     artifacts/steering-b3-<run-id>/candidate_steering_artifact_bundle.json \
   --steering-promotion-manifest artifacts/steering-b3-<run-id>/artifact_manifest.json \

@@ -42,6 +42,7 @@ from volvence_zero.runtime import WiringLevel
 from lifeform_service.companion_evidence_profile import (
     MSC_RUNTIME_PROFILE_NAMES,
     MSC_STEERING_SHADOW_COLLECTOR,
+    resolve_companion_evidence_profile,
 )
 from lifeform_service.templates import VerticalTemplateAdapter
 
@@ -180,6 +181,7 @@ def _try_companion(
     steering_rollout_config: "FinalRolloutConfig | None" = None,
     steering_rollout_max_new_tokens: int | None = None,
     steering_rollout_temperature: float | None = None,
+    steering_rollout_semantic_proposal_channel: str | None = None,
     playbook_overlay_wiring: WiringLevel = WiringLevel.DISABLED,
     playbook_overlay_path: Path | None = None,
 ) -> VerticalSpec | None:
@@ -192,6 +194,11 @@ def _try_companion(
         )
     except ImportError:
         return None
+    resolved_evidence_profile = (
+        resolve_companion_evidence_profile(evidence_profile)
+        if evidence_profile is not None
+        else None
+    )
     if evidence_profile in MSC_RUNTIME_PROFILE_NAMES:
         if evidence_temporal_n_z not in {3, 16, 64, 256}:
             raise ValueError(
@@ -212,6 +219,7 @@ def _try_companion(
                 steering_rollout_config,
                 steering_rollout_max_new_tokens,
                 steering_rollout_temperature,
+                steering_rollout_semantic_proposal_channel,
             )
         ):
             raise ValueError(
@@ -228,6 +236,7 @@ def _try_companion(
             steering_rollout_config,
             steering_rollout_max_new_tokens,
             steering_rollout_temperature,
+            steering_rollout_semantic_proposal_channel,
         )
     ):
         raise ValueError("evidence profiles reject B3 ACTIVE rollout settings")
@@ -299,14 +308,8 @@ def _try_companion(
             final_rollout_config=steering_rollout_config,
             steering_bundle=steering_bundle,
         )
-        if evidence_profile is not None:
-            from lifeform_service.companion_evidence_profile import (
-                resolve_companion_evidence_profile,
-            )
-
-            brain_config = resolve_companion_evidence_profile(
-                evidence_profile
-            ).apply(brain_config)
+        if resolved_evidence_profile is not None:
+            brain_config = resolved_evidence_profile.apply(brain_config)
         config = LifeformConfig(brain_config=brain_config)
         lifeform = build_companion_lifeform(
             config=config,
@@ -328,7 +331,14 @@ def _try_companion(
                 ),
                 max_new_tokens_override=steering_rollout_max_new_tokens,
             ),
-            semantic_proposal_runtime=_build_llm_semantic_runtime_from_runtime(runtime),
+            semantic_proposal_runtime=_build_llm_semantic_runtime_from_runtime(
+                runtime,
+                channel=(
+                    resolved_evidence_profile.semantic_proposal_channel
+                    if resolved_evidence_profile is not None
+                    else steering_rollout_semantic_proposal_channel
+                ),
+            ),
             playbook_overlay_wiring=playbook_overlay_wiring,
             playbook_overlay_path=playbook_overlay_path,
         )
@@ -927,7 +937,11 @@ def _semantic_proposal_channel() -> str:
     return raw
 
 
-def _build_llm_semantic_runtime_from_runtime(runtime):
+def _build_llm_semantic_runtime_from_runtime(
+    runtime,
+    *,
+    channel: str | None = None,
+):
     """Wrap a TransformersOpenWeightResidualRuntime's underlying HF
     model + tokenizer in an :class:`LLMSemanticProposalRuntime`.
 
@@ -948,10 +962,18 @@ def _build_llm_semantic_runtime_from_runtime(runtime):
 
     ``VZ_SEMANTIC_PROPOSAL_CHANNEL=noop`` forces the explicit NoOp
     runtime even when a real HF runtime is present: the matched off
-    arm of the semantic-proposal ablation.
+    arm of the semantic-proposal ablation. Evidence profiles pass an
+    explicit ``channel`` so an inherited process environment cannot
+    mutate a frozen experimental arm after preregistration.
     """
 
-    if _semantic_proposal_channel() == "noop":
+    resolved_channel = _semantic_proposal_channel() if channel is None else channel
+    if resolved_channel not in {"llm", "noop"}:
+        raise ValueError(
+            "explicit semantic proposal channel must be 'llm' or 'noop', "
+            f"got {resolved_channel!r}."
+        )
+    if resolved_channel == "noop":
         from volvence_zero.semantic_state import NoOpSemanticProposalRuntime
 
         return NoOpSemanticProposalRuntime()
@@ -1890,6 +1912,7 @@ def discover_verticals(
     companion_steering_rollout_config: "FinalRolloutConfig | None" = None,
     companion_steering_rollout_max_new_tokens: int | None = None,
     companion_steering_rollout_temperature: float | None = None,
+    companion_steering_semantic_proposal_channel: str | None = None,
     companion_playbook_overlay_wiring: WiringLevel = WiringLevel.DISABLED,
     companion_playbook_overlay_path: Path | None = None,
 ) -> dict[str, VerticalSpec]:
@@ -1907,6 +1930,9 @@ def discover_verticals(
                 ),
                 steering_rollout_temperature=(
                     companion_steering_rollout_temperature
+                ),
+                steering_rollout_semantic_proposal_channel=(
+                    companion_steering_semantic_proposal_channel
                 ),
                 playbook_overlay_wiring=companion_playbook_overlay_wiring,
                 playbook_overlay_path=companion_playbook_overlay_path,

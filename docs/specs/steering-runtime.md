@@ -177,7 +177,12 @@ evidence 保持 SHADOW；专用统计门不得替代系统级 rare-heavy 修改�
    reader/executor 随后冻结；
 3. `msc-steering-shadow-collector-v1` 经完整 service/session/`propagate` 路径收集
    ≥500 validation turn，只落盘 owner observation、残差表示、hash lineage 与 latency，
-   不保留原文；
+   不保留原文；profile 将普通 companion 的生成式
+   `semantic_proposal_channel=llm` 显式冻结进 attestation/config lineage，确保 C3
+   SHADOW 轨迹与未来 production ACTIVE 的语义状态来源一致，不允许继承环境变量切成
+   NoOp 后再把 gate 部署回 LLM 状态。C3 的 `max_length` 必须精确等于冻结模型声明的
+   `max_position_embeddings`（当前 Qwen2.5-0.5B 为 32768）；preflight 对更小预算直接
+   fail loudly，正式采集禁止截断完整 runtime prompt；
 4. 同一冻结 N+1 head 结算 steer/noop/sensor-off；text-free trace 同时保留
    conditional / unconditional executor artifact id、共享 norm cap 与两臂 control norm，
    防止把未绑定或超预算的 counterfactual 冒充 sensor-off。gate 只用 train 侧选择
@@ -229,8 +234,9 @@ executor；gate ACTIVE 后再以独立 rollout 清回 `blocked`。正向和回�
 B3 manifest 的 SHA-256/ID/C3 prereg lineage，并复核同目录 promotion evidence/report、
 `modification_gate_review`、candidate learned gate、安全/R12 字段；只有 exact
 `ModificationGate.OFFLINE=allow` 且 reasons 为空才可继续。它重建正向及逆向单字段状态机，拒绝超出 eligible
-prefix 的 step。部署契约还冻结 C3 同款 model/digest/layer/width、context max length、
-generation token budget、temperature=0 与 fail-on-truncation，第一阶段 ACTIVE 不得悄然换成
+prefix 的 step。部署契约还冻结 C3 同款 model/digest/dtype/layer/width、
+`semantic_proposal_channel=llm`、context max length、generation token budget、
+temperature=0 与 fail-on-truncation，第一阶段 ACTIVE 不得悄然换成
 普通 service 的 512-token/temperature 0.7 配置。manifest 同时发布 B3 prereg 的完整
 `source_sha256`；deployment reader 会从仓库根逐文件复算，并至少要求 CLI、activation reader、
 final wiring 与 canary runner 在快照内，formal 后任一 ACTIVE 链源码漂移都会 fail closed。
@@ -238,8 +244,12 @@ service 只把所选 step 的
 `FinalRolloutConfig` 与冻结生成预算交给 companion Brain/expression；bundle 单独出现、
 伪造顺序、跳步、hash 漂移、非 companion vertical、非冻结 hf-shared 基底或
 evidence/ACTIVE 混用都 fail loudly。授权启动还会拒绝进程环境中的任何
-`VZ_STEERING_*` override，避免 Brain 构造期在已验证 rollout config 之上再次抬高
-wiring 或替换 ungated action。candidate bundle 可以继续携带 sensor-off 证据件，
+`VZ_STEERING_*` 或 `VZ_SEMANTIC_PROPOSAL_CHANNEL` override，避免 Brain 构造期在已验证
+rollout config 之上再次抬高 wiring、替换 ungated action 或改变语义状态来源。canary
+argv 必须显式携带已冻结 dtype；新 C3 prereg 默认冻结为经 A2 长 dyad 稳定性复现的
+`float32`，禁止回落到 MPS 历史 `float16` 默认或已复现非有限 residual 的 `bfloat16`。
+candidate bundle
+可以继续携带 sensor-off 证据件，
 但 executor 进入 ACTIVE 时 wiring 会剔除该 SHADOW-only 对照件。production 代码默认仍是
 全 SHADOW。step 1 禁止 previous receipt；step 2 及以后必须提供
 `steering-activation-canary-receipt.v1`，且它须逐字节绑定相同 manifest/plan/

@@ -36,9 +36,11 @@ from companion_bench.prediction_research import (
 )
 from companion_test_plan_common import exclusive_mps_lock, require_mps
 from run_msc_prediction_research import (
+    MSC_STEERING_SEMANTIC_PROPOSAL_CHANNEL,
     _acquire_output_lock,
     _running_msc_runtime_service,
     _stable_subset,
+    _substrate_context_limit,
 )
 from volvence_zero.agent.dialogue_steering_evidence import (
     DialogueSteeringThresholds,
@@ -74,6 +76,7 @@ from volvence_zero.substrate import (
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 PREREG_SCHEMA = "dialogue-steering-formal-prereg.v1"
 PLAN_ID = "dialogue-steering-c3-formal.v1"
+C3_DEFAULT_SUBSTRATE_MAX_LENGTH = 32768
 A1_RESULT_SCHEMA = "seven-day-companion-ablation.v2"
 A1_AUDIT_SCHEMA = "seven-day-companion-independent-audit.v1"
 A1_ARM_SCHEDULE = (
@@ -385,6 +388,10 @@ def _a1_attestation(path: Path) -> dict[str, object]:
 
 def _formal_configuration(args: argparse.Namespace) -> dict[str, object]:
     model_source = args.model_source.resolve()
+    substrate_context_limit = _validated_substrate_context_limit(
+        model_source=model_source,
+        configured_max_length=args.max_length,
+    )
     weights_sha256 = fingerprint_model_weight_files(model_source)
     thresholds = asdict(DialogueSteeringThresholds())
     corpus_provenance = _msc_provenance_path(args.msc_root)
@@ -397,12 +404,17 @@ def _formal_configuration(args: argparse.Namespace) -> dict[str, object]:
         "model_source": str(model_source),
         "model_weights_sha256": weights_sha256,
         "substrate_device": args.substrate_device,
+        "substrate_model_dtype": args.substrate_model_dtype,
         "steering_layer_index": 20,
         "target_layer_indices": [11, 12, 13],
         "service_layer_indices": [11, 12, 13, 20],
         "activation_width": 896,
+        "substrate_context_limit": substrate_context_limit,
         "max_length": args.max_length,
         "runtime_max_new_tokens": args.runtime_max_new_tokens,
+        "runtime_semantic_proposal_channel": (
+            MSC_STEERING_SEMANTIC_PROPOSAL_CHANNEL
+        ),
         "temporal_n_z": 3,
         "train_dyads": args.train_dyads,
         "validation_dyads": args.validation_dyads,
@@ -436,6 +448,21 @@ def _formal_configuration(args: argparse.Namespace) -> dict[str, object]:
         },
         "source_sha256": _source_hashes(),
     }
+
+
+def _validated_substrate_context_limit(
+    *,
+    model_source: Path,
+    configured_max_length: int,
+) -> int:
+    context_limit = _substrate_context_limit(model_source)
+    if configured_max_length != context_limit:
+        raise ValueError(
+            "C3 formal requires --max-length to equal the frozen substrate "
+            "context limit so complete runtime prompts cannot be truncated: "
+            f"configured={configured_max_length}, declared={context_limit}"
+        )
+    return context_limit
 
 
 def _load_preregistration(
@@ -488,6 +515,7 @@ def _fit_bundle(
         model_id=args.model_id,
         model_source=str(model_source),
         device=args.substrate_device,
+        model_dtype=args.substrate_model_dtype,
         layer_indices=(20,),
         activation_width=896,
         max_length=args.max_length,
@@ -624,6 +652,7 @@ def _collect_contexts(
             substrate_model=args.model_id,
             substrate_model_source=args.model_source.resolve(),
             substrate_device=args.substrate_device,
+            substrate_model_dtype=args.substrate_model_dtype,
             substrate_layer_indices=(11, 12, 13, 20),
             substrate_activation_width=896,
             substrate_max_length=args.max_length,
@@ -719,6 +748,7 @@ def _build_trace_dataset(
         model_id=args.model_id,
         model_source=str(args.model_source.resolve()),
         device=args.substrate_device,
+        model_dtype=args.substrate_model_dtype,
         layer_indices=(11, 12, 13),
         activation_width=896,
         max_length=args.max_length,
@@ -1232,7 +1262,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--model-id", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--substrate-device", default="mps")
-    parser.add_argument("--max-length", type=int, default=768)
+    parser.add_argument(
+        "--substrate-model-dtype",
+        choices=("float16", "bfloat16", "float32"),
+        default="float32",
+    )
+    parser.add_argument(
+        "--max-length",
+        type=int,
+        default=C3_DEFAULT_SUBSTRATE_MAX_LENGTH,
+    )
     parser.add_argument("--runtime-max-new-tokens", type=int, default=16)
     parser.add_argument("--runtime-startup-timeout", type=float, default=600.0)
     parser.add_argument("--train-dyads", type=int, default=24)

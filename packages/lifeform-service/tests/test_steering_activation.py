@@ -82,6 +82,8 @@ def _canary_command(
         "lifeform_service.cli",
         "--vertical",
         "companion",
+        "--substrate-model-dtype",
+        "bfloat16",
         "--steering-artifact-bundle",
         str(bundle_path.resolve()),
         "--steering-promotion-manifest",
@@ -267,6 +269,8 @@ def _artifacts(
     deployment_contract = {
         "model_id": "frozen-model",
         "model_weights_sha256": _MODEL_WEIGHTS_SHA256,
+        "substrate_model_dtype": "bfloat16",
+        "semantic_proposal_channel": "llm",
         "steering_layer_index": 20,
         "activation_width": 2,
         "substrate_max_length": 768,
@@ -459,6 +463,8 @@ def _artifacts(
             ),
             "candidate_bundle_sha256": bundle_sha256,
             "candidate_bundle_id": bundle.bundle_id,
+            "substrate_model_dtype": "bfloat16",
+            "semantic_proposal_channel": "llm",
             "eligible_prefix": ["steering_sensor", "steering_executor"],
             "previous_receipt_path": str(step_1_receipt_path.resolve()),
             "previous_receipt_sha256": _sha256(step_1_receipt_path),
@@ -499,6 +505,7 @@ def test_b3_authorization_materializes_exact_sensor_executor_step(
         substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
         substrate_layer_indices=(20,),
         substrate_activation_width=2,
+        substrate_model_dtype="bfloat16",
         substrate_max_length=768,
         previous_activation_receipt=(
             tmp_path / "step-2-canary-receipt.json"
@@ -515,6 +522,8 @@ def test_b3_authorization_materializes_exact_sensor_executor_step(
     assert rollout.steering_gate is WiringLevel.SHADOW
     assert rollout.steering_ungated_action == "always_on"
     assert authorization.applied_field == "steering_executor"
+    assert authorization.substrate_model_dtype == "bfloat16"
+    assert authorization.semantic_proposal_channel == "llm"
     assert authorization.previous_receipt_sha256 == _sha256(
         tmp_path / "step-2-canary-receipt.json"
     )
@@ -536,6 +545,7 @@ def test_b3_authorization_rejects_rollout_jump_without_previous_receipt(
             substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
             substrate_layer_indices=(20,),
             substrate_activation_width=2,
+            substrate_model_dtype="bfloat16",
             substrate_max_length=768,
         )
 
@@ -560,6 +570,7 @@ def test_b3_authorization_rejects_a_malformed_previous_canary_receipt(
             substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
             substrate_layer_indices=(20,),
             substrate_activation_width=2,
+            substrate_model_dtype="bfloat16",
             substrate_max_length=768,
             previous_activation_receipt=receipt_path,
         )
@@ -584,6 +595,7 @@ def test_b3_authorization_rejects_previous_canary_log_drift(
             substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
             substrate_layer_indices=(20,),
             substrate_activation_width=2,
+            substrate_model_dtype="bfloat16",
             substrate_max_length=768,
             previous_activation_receipt=receipt_path,
         )
@@ -603,6 +615,7 @@ def test_b3_canary_receipt_is_immutable_and_chains_exact_authorization(
         substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
         substrate_layer_indices=(20,),
         substrate_activation_width=2,
+        substrate_model_dtype="bfloat16",
         substrate_max_length=768,
         previous_activation_receipt=(
             tmp_path / "step-2-canary-receipt.json"
@@ -677,6 +690,7 @@ def test_b3_authorization_rejects_unadmitted_step(tmp_path: Path) -> None:
             substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
             substrate_layer_indices=(20,),
             substrate_activation_width=2,
+            substrate_model_dtype="bfloat16",
             substrate_max_length=768,
         )
 
@@ -697,6 +711,7 @@ def test_b3_authorization_rejects_candidate_bundle_hash_drift(
             substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
             substrate_layer_indices=(20,),
             substrate_activation_width=2,
+            substrate_model_dtype="bfloat16",
             substrate_max_length=768,
         )
 
@@ -722,6 +737,7 @@ def test_b3_authorization_rejects_post_formal_active_source_drift(
             substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
             substrate_layer_indices=(20,),
             substrate_activation_width=2,
+            substrate_model_dtype="bfloat16",
             substrate_max_length=768,
         )
 
@@ -769,6 +785,7 @@ def test_b3_authorization_rejects_consistently_hashed_blocked_modification_gate(
             substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
             substrate_layer_indices=(20,),
             substrate_activation_width=2,
+            substrate_model_dtype="bfloat16",
             substrate_max_length=768,
         )
 
@@ -787,6 +804,7 @@ def test_b3_authorization_rejects_runtime_budget_drift(tmp_path: Path) -> None:
             substrate_expected_weights_sha256=_MODEL_WEIGHTS_SHA256,
             substrate_layer_indices=(20,),
             substrate_activation_width=2,
+            substrate_model_dtype="bfloat16",
             substrate_max_length=1024,
         )
 
@@ -818,6 +836,8 @@ def test_cli_threads_only_the_verified_b3_rollout_to_companion(
             "--substrate-local-files-only",
             "--substrate-model-id",
             "frozen-model",
+            "--substrate-model-dtype",
+            "bfloat16",
             "--substrate-expected-weights-sha256",
             _MODEL_WEIGHTS_SHA256,
             "--substrate-layer-indices",
@@ -846,15 +866,21 @@ def test_cli_threads_only_the_verified_b3_rollout_to_companion(
     assert rollout.steering_gate is WiringLevel.SHADOW
     assert captured["companion_steering_rollout_max_new_tokens"] == 16
     assert captured["companion_steering_rollout_temperature"] == 0.0
+    assert captured["companion_steering_semantic_proposal_channel"] == "llm"
 
 
+@pytest.mark.parametrize(
+    "override_name",
+    ("VZ_STEERING_GATE", "VZ_SEMANTIC_PROPOSAL_CHANNEL"),
+)
 def test_cli_rejects_env_override_of_authorized_b3_rollout(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    override_name: str,
 ) -> None:
     _, bundle_path, manifest_path, plan_path, _ = _artifacts(tmp_path)
-    monkeypatch.setenv("VZ_STEERING_GATE", "active")
+    monkeypatch.setenv(override_name, "active")
 
     exit_code = cli.main(
         [
@@ -884,7 +910,7 @@ def test_cli_rejects_env_override_of_authorized_b3_rollout(
     )
 
     assert exit_code == 1
-    assert "forbids VZ_STEERING_* overrides" in capsys.readouterr().err
+    assert "forbids steering/semantic overrides" in capsys.readouterr().err
 
 
 def test_active_steering_runtime_fails_instead_of_truncating(

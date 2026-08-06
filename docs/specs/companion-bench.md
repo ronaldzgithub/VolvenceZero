@@ -270,9 +270,46 @@ layers/widths、`temporal_n_z`、完整 runtime slot surface、token 与端到�
 collector checkpoint 只保存向量、hash、lineage 与成本，不保存 corpus 原文；fallback、
 截断、acceptance failure、evaluation writeback 或 surface drift 均 fail loudly。
 
+MSC 的 R4/R5 evidence profile 将 `semantic_proposal_channel` 显式冻结为 `noop`：
+九类语义 owner、ToM/common-ground owner 及其不可变快照仍在完整 DAG 中发布，只有额外的
+生成式 proposal source 关闭。该通道不属于 A2 的 PE/ETA intervention；若保持普通 companion
+的 `llm` 默认，每个 turn 会额外执行多次同基底结构化解码，同时改变语义状态与成本，因而既是
+质量混杂变量也是 scaling 混杂变量。profile attestation、run configuration 与
+smoke→formal lineage 必须同时绑定 `noop`，继承的
+`VZ_SEMANTIC_PROPOSAL_CHANNEL` 不得覆盖它。该隔离只作用于 MSC evidence profile，普通
+production companion 继续使用 `llm` 默认；A2 判词也不得外推为 LLM semantic grounding
+能力判词。
+
 成本按每个 prediction 之间真实新增的完整 turn + slow-loop interval 累计；long-context
 按同一冻结 substrate 的完整实际 token/latency 计量且不 clamp，因此 scaling 分子分母
 对称。one-time service startup 与最后 target 后 teardown 均不计入任一臂。
+
+R3 同基底 context checkpoint 与 attestation 落盘后，runner 必须在启动 R4 service 前
+释放父进程的 context encoder、完成设备同步并清空 MPS allocator cache；全部 R4/R5
+full-runtime 采集结束后才可按完全相同的冻结配置重建 encoder，继续其它 arm。该资源
+生命周期由 run configuration 的 `runtime_resource_lifecycle` 冻结并进入 smoke→formal
+lineage；它只消除父/子进程双模型共驻，不得改变权重、dtype、layers/widths、输入、输出
+或判定门。
+
+A2 的 MPS target、R3 context encoder 与 R4/R5 service 必须统一显式加载
+`substrate_model_dtype=float32`，不得使用服务的历史 MPS `float16` 默认，也不得回落到
+`bfloat16`。2026-08-06 的同一首个 MSC 训练 dyad 稳定性复现中，`float16` 与
+`bfloat16` 均在相同长轨迹边界发布非有限 residual 并 fail loudly；`float32` 完整越过该边界、
+跑完整个 dyad 并写入 checkpoint。A2 将实际 runtime dtype 同时写入 run configuration、target
+checkpoint metadata 与独立 service profile attestation，smoke→formal 不得漂移。该选择只在
+加载时转换冻结权重，不修改权重，也不允许失败 turn 自动重试或静默换 dtype。
+
+Autoregressive residual capture 只发布每层最终一次 hook 值；生成过程中同一 layer 的旧值
+本来就会被后续 token 覆盖。因此 MPS 路径必须把 CPU materialization 延迟到 generation
+结束，每层只复制最终 tensor 一次，禁止逐 token `detach().cpu()` 引入同步风暴。延迟传输前后
+的最终向量、L2 readout 与 value hash 必须完全一致；不得借性能优化改成 pooling、换层或跳过
+正式 capture。token logits 必须直接使用同一次受控 generation 已产生的首步 raw logits；
+禁止在 hooks 移除后仅为 capture 再执行一次无 cache 的整段 prompt forward。Prefix-KV
+自定义 decode 同样必须在任何 repetition penalty / n-gram / sampling 变换前冻结首步 raw
+logits。capture materialize 后的 residual semantic readout 必须在同一不可变 CPU 快照上
+使用冻结 CPU basis 完成，禁止把完整 token history 逐层搬回 MPS 仅为执行 mean/std/project；
+这不改变 readout 公式、权重、输入或 owner。该策略由 `runtime_capture_transfer_policy` 进入
+smoke→formal lineage。
 
 R5 是与旧 forward-head ladder 分离的 owner-level intervention：只变
 `BrainConfig.temporal_latent_dim ∈ {3,16,64,256}`，同时禁用 companion temporal

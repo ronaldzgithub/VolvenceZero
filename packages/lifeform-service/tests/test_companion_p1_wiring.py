@@ -32,7 +32,7 @@ def test_companion_and_cold_share_full_runtime_wiring(monkeypatch) -> None:
     monkeypatch.setattr(
         verticals,
         "_build_llm_semantic_runtime_from_runtime",
-        lambda runtime: semantic_runtime,
+        lambda runtime, *, channel=None: semantic_runtime,
     )
 
     runtime = SimpleNamespace()

@@ -90,6 +90,8 @@ class SteeringActivationAuthorization:
     previous_receipt_path: str | None
     previous_receipt_sha256: str | None
     rollout_config: FinalRolloutConfig
+    substrate_model_dtype: str
+    semantic_proposal_channel: str
     substrate_max_length: int
     generation_max_new_tokens: int
     generation_temperature: float
@@ -215,6 +217,7 @@ def _validate_previous_receipt(
     expected_manifest_path: Path,
     expected_plan_path: Path,
     expected_bundle_path: Path,
+    expected_substrate_model_dtype: str,
 ) -> tuple[str, dict[str, object]]:
     receipt_path = path.resolve()
     receipt = _load_object(
@@ -273,6 +276,8 @@ def _validate_previous_receipt(
         == str(expected_plan_path.resolve())
         and _command_option(command, "--steering-artifact-bundle")
         == str(expected_bundle_path.resolve())
+        and _command_option(command, "--substrate-model-dtype")
+        == expected_substrate_model_dtype
         and _command_option(
             command,
             "--steering-previous-activation-receipt",
@@ -301,6 +306,9 @@ def _validate_previous_receipt(
         or receipt.get("candidate_bundle_sha256")
         != expected_bundle_sha256
         or receipt.get("candidate_bundle_id") != expected_bundle_id
+        or receipt.get("substrate_model_dtype")
+        != expected_substrate_model_dtype
+        or receipt.get("semantic_proposal_channel") != "llm"
         or receipt.get("eligible_prefix") != list(expected_eligible_prefix)
         or receipt.get("production_default_changed") is not False
         or receipt.get("intentional_shutdown_after_health_check") is not True
@@ -420,6 +428,7 @@ def load_steering_activation_authorization(
     substrate_expected_weights_sha256: str,
     substrate_layer_indices: tuple[int, ...],
     substrate_activation_width: int,
+    substrate_model_dtype: str | None,
     substrate_max_length: int,
     previous_activation_receipt: Path | None = None,
     base_config: FinalRolloutConfig | None = None,
@@ -558,6 +567,8 @@ def load_steering_activation_authorization(
     expected_deployment_keys = {
         "model_id",
         "model_weights_sha256",
+        "substrate_model_dtype",
+        "semantic_proposal_channel",
         "steering_layer_index",
         "activation_width",
         "substrate_max_length",
@@ -570,6 +581,9 @@ def load_steering_activation_authorization(
         or deployment.get("model_id") != bundle.reader.model_id
         or deployment.get("model_weights_sha256")
         != bundle.reader.model_weights_sha256
+        or deployment.get("substrate_model_dtype")
+        not in {"float16", "bfloat16", "float32"}
+        or deployment.get("semantic_proposal_channel") != "llm"
         or deployment.get("steering_layer_index") != bundle.reader.layer_index
         or deployment.get("activation_width") != bundle.reader.residual_width
         or not isinstance(deployment.get("substrate_max_length"), int)
@@ -586,6 +600,7 @@ def load_steering_activation_authorization(
         substrate_model_id != deployment["model_id"]
         or substrate_expected_weights_sha256
         != deployment["model_weights_sha256"]
+        or substrate_model_dtype != deployment["substrate_model_dtype"]
         or deployment["steering_layer_index"] not in substrate_layer_indices
         or substrate_activation_width != deployment["activation_width"]
         or substrate_max_length != deployment["substrate_max_length"]
@@ -631,6 +646,9 @@ def load_steering_activation_authorization(
             expected_manifest_path=manifest_path,
             expected_plan_path=plan_path,
             expected_bundle_path=Path(str(candidate["path"])),
+            expected_substrate_model_dtype=str(
+                deployment["substrate_model_dtype"]
+            ),
         )
         previous_receipt_path = str(previous_activation_receipt.resolve())
 
@@ -676,6 +694,10 @@ def load_steering_activation_authorization(
         previous_receipt_path=previous_receipt_path,
         previous_receipt_sha256=previous_receipt_sha256,
         rollout_config=rollout_config,
+        substrate_model_dtype=str(deployment["substrate_model_dtype"]),
+        semantic_proposal_channel=str(
+            deployment["semantic_proposal_channel"]
+        ),
         substrate_max_length=int(deployment["substrate_max_length"]),
         generation_max_new_tokens=int(
             deployment["generation_max_new_tokens"]
@@ -728,6 +750,12 @@ def build_steering_activation_canary_receipt(
         isinstance(value, str) and value for value in service_command
     ):
         raise ValueError("B3 canary service command is invalid")
+    if (
+        _command_option(service_command, "--substrate-model-dtype")
+        != authorization.substrate_model_dtype
+        or authorization.semantic_proposal_channel != "llm"
+    ):
+        raise ValueError("B3 canary service command differs from deployment lineage")
     stdout_path = stdout_log_path.resolve()
     stderr_path = stderr_log_path.resolve()
     if not stdout_path.is_file() or not stderr_path.is_file():
@@ -750,6 +778,8 @@ def build_steering_activation_canary_receipt(
         ),
         "candidate_bundle_sha256": authorization.candidate_bundle_sha256,
         "candidate_bundle_id": authorization.candidate_bundle_id,
+        "substrate_model_dtype": authorization.substrate_model_dtype,
+        "semantic_proposal_channel": authorization.semantic_proposal_channel,
         "eligible_prefix": list(authorization.eligible_prefix),
         "previous_receipt_path": authorization.previous_receipt_path,
         "previous_receipt_sha256": authorization.previous_receipt_sha256,

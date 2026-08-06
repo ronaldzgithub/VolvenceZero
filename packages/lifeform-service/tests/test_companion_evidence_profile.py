@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from lifeform_service import cli
+from lifeform_service import cli, verticals
 from lifeform_service.alpha import AlphaServiceConfig
 from lifeform_service.app import create_app
 from lifeform_service.companion_evidence_profile import (
@@ -90,10 +90,24 @@ def test_profiled_companion_factory_threads_brain_configuration() -> None:
     assert config.final_rollout_config.prediction_error_runtime_modulation is WiringLevel.ACTIVE
 
 
-def test_msc_profile_requires_and_threads_explicit_temporal_capacity() -> None:
+def test_msc_profile_requires_and_threads_explicit_temporal_capacity(
+    monkeypatch,
+) -> None:
     with pytest.raises(ValueError, match="requires temporal_n_z"):
         _try_companion(evidence_profile=MSC_RUNTIME_COLLECTOR)
 
+    semantic_channels: list[str | None] = []
+
+    def build_semantic_runtime(runtime, *, channel=None):
+        del runtime
+        semantic_channels.append(channel)
+        return None
+
+    monkeypatch.setattr(
+        verticals,
+        "_build_llm_semantic_runtime_from_runtime",
+        build_semantic_runtime,
+    )
     spec = _try_companion(
         evidence_profile=MSC_RUNTIME_COLLECTOR,
         evidence_temporal_n_z=16,
@@ -101,6 +115,7 @@ def test_msc_profile_requires_and_threads_explicit_temporal_capacity() -> None:
     assert spec is not None
     lifeform = spec.factory(None)
     assert lifeform.brain.config.resolved_temporal_latent_dim() == 16
+    assert semantic_channels == ["noop"]
 
 
 def test_msc_steering_profile_requires_bundle_and_keeps_all_owners_shadow() -> None:
@@ -175,17 +190,21 @@ def test_profile_attestation_is_immutable_and_machine_readable(tmp_path) -> None
         profile=profile,
         substrate_model_id="local/frozen-qwen",
         substrate_device="mps",
+        substrate_model_dtype="bfloat16",
     )
     second = write_companion_evidence_profile_attestation(
         output_dir=tmp_path,
         profile=profile,
         substrate_model_id="local/frozen-qwen",
         substrate_device="mps",
+        substrate_model_dtype="bfloat16",
     )
 
     assert first == second
     payload = json.loads(first.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "companion-evidence-runtime-profile.v2"
     assert payload["profile"] == GATE1_PE_TEMPORAL_ON
+    assert payload["substrate_model_dtype"] == "bfloat16"
     assert payload["intervention"]["prediction_error_publication"] == ("active-in-both-arms")
     assert len(payload["attestation_sha256"]) == 64
 
@@ -197,10 +216,25 @@ def test_msc_profile_attestation_binds_temporal_capacity(tmp_path) -> None:
         profile=profile,
         substrate_model_id="local/frozen-qwen",
         substrate_device="mps",
+        substrate_model_dtype="bfloat16",
         temporal_n_z=64,
     )
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["temporal_n_z"] == 64
+    assert payload["intervention"]["semantic_proposal_channel"] == "noop"
+
+
+def test_profile_attestation_rejects_unattested_model_dtype(tmp_path) -> None:
+    profile = resolve_companion_evidence_profile(GATE1_PE_TEMPORAL_ON)
+
+    with pytest.raises(ValueError, match="substrate_model_dtype"):
+        write_companion_evidence_profile_attestation(
+            output_dir=tmp_path,
+            profile=profile,
+            substrate_model_id="local/frozen-qwen",
+            substrate_device="mps",
+            substrate_model_dtype="auto",
+        )
 
 
 def test_msc_steering_attestation_binds_exact_bundle_lineage(tmp_path) -> None:
@@ -213,6 +247,7 @@ def test_msc_steering_attestation_binds_exact_bundle_lineage(tmp_path) -> None:
             profile=profile,
             substrate_model_id="local/frozen-qwen",
             substrate_device="mps",
+            substrate_model_dtype="bfloat16",
             temporal_n_z=3,
         )
 
@@ -221,6 +256,7 @@ def test_msc_steering_attestation_binds_exact_bundle_lineage(tmp_path) -> None:
         profile=profile,
         substrate_model_id="local/frozen-qwen",
         substrate_device="mps",
+        substrate_model_dtype="bfloat16",
         temporal_n_z=3,
         steering_bundle_id="steering-bundle-v1",
         steering_bundle_sha256="f" * 64,
@@ -229,6 +265,7 @@ def test_msc_steering_attestation_binds_exact_bundle_lineage(tmp_path) -> None:
 
     assert payload["steering_bundle_id"] == "steering-bundle-v1"
     assert payload["steering_bundle_sha256"] == "f" * 64
+    assert payload["intervention"]["semantic_proposal_channel"] == "llm"
 
 
 def test_remaining_gate_profiles_select_owner_level_interventions() -> None:
@@ -280,6 +317,17 @@ def test_remaining_gate_profiles_select_owner_level_interventions() -> None:
     msc = resolve_companion_evidence_profile(MSC_RUNTIME_COLLECTOR)
     assert msc.allow_typed_observation_frame is True
     assert msc.publish_runtime_context is True
+    assert msc.semantic_proposal_channel == "noop"
+    assert (
+        resolve_companion_evidence_profile(MSC_STEERING_SHADOW_COLLECTOR)
+        .semantic_proposal_channel
+        == "llm"
+    )
+    assert (
+        resolve_companion_evidence_profile(GATE1_PE_TEMPORAL_ON)
+        .semantic_proposal_channel
+        == "llm"
+    )
 
 
 class _MutableEvidenceRuntime:

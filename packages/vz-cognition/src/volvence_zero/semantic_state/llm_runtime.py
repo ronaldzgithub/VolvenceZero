@@ -288,14 +288,8 @@ def _parse_commitment_decision(text: str) -> _CommitmentDecision | None:
 
 
 def _parse_structured_commitment_decision(text: str) -> _CommitmentDecision | None:
-    raw = text.strip()
-    if not raw.startswith("{"):
-        return None
-    try:
-        payload = json.loads(raw)
-    except JSONDecodeError:
-        return None
-    if not isinstance(payload, dict):
+    payload = _structured_json_payload(text)
+    if payload is None:
         return None
     operation_raw = payload.get("operation")
     evidence_raw = payload.get("alignment_evidence")
@@ -361,14 +355,8 @@ def _user_model_prompt(*, user_input: str) -> str:
 
 
 def _parse_generic_proposals(text: str, *, target_slot: str) -> tuple[_ParsedProposal, ...] | None:
-    raw = text.strip()
-    if not raw.startswith("{"):
-        return None
-    try:
-        payload = json.loads(raw)
-    except JSONDecodeError:
-        return None
-    if not isinstance(payload, dict):
+    payload = _structured_json_payload(text)
+    if payload is None:
         return None
     proposals_raw = payload.get("proposals")
     if not isinstance(proposals_raw, list):

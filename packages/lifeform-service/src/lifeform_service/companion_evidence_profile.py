@@ -75,6 +75,14 @@ class CompanionEvidenceProfile:
     allow_single_session_live_substrate_mutation: bool = False
     allow_typed_observation_frame: bool = False
     publish_runtime_context: bool = False
+    semantic_proposal_channel: str = "llm"
+
+    def __post_init__(self) -> None:
+        if self.semantic_proposal_channel not in {"llm", "noop"}:
+            raise ValueError(
+                "companion evidence semantic_proposal_channel must be "
+                "'llm' or 'noop'"
+            )
 
     def apply(self, base: BrainConfig) -> BrainConfig:
         rollout = base.final_rollout_config or FinalRolloutConfig()
@@ -95,6 +103,7 @@ class CompanionEvidenceProfile:
             "allow_single_session_live_substrate_mutation": (self.allow_single_session_live_substrate_mutation),
             "allow_typed_observation_frame": self.allow_typed_observation_frame,
             "publish_runtime_context": self.publish_runtime_context,
+            "semantic_proposal_channel": self.semantic_proposal_channel,
             "prediction_error_publication": "active-in-both-arms",
             "sut_generation_temperature": 0.0,
             "production_default_changed": False,
@@ -333,6 +342,7 @@ _PROFILES = {
         arm_role="formal-volvence-runtime-collector",
         allow_typed_observation_frame=True,
         publish_runtime_context=True,
+        semantic_proposal_channel="noop",
     ),
     MSC_STEERING_SHADOW_COLLECTOR: CompanionEvidenceProfile(
         name=MSC_STEERING_SHADOW_COLLECTOR,
@@ -396,6 +406,7 @@ def write_companion_evidence_profile_attestation(
     profile: CompanionEvidenceProfile,
     substrate_model_id: str,
     substrate_device: str,
+    substrate_model_dtype: str,
     temporal_n_z: int | None = None,
     steering_bundle_id: str | None = None,
     steering_bundle_sha256: str | None = None,
@@ -426,12 +437,19 @@ def write_companion_evidence_profile_attestation(
             "steering bundle attestation is only valid for the steering profile"
         )
 
+    if substrate_model_dtype not in {"float16", "bfloat16", "float32"}:
+        raise ValueError(
+            "companion evidence profile requires an explicit supported "
+            "substrate_model_dtype"
+        )
+
     payload: dict[str, Any] = {
-        "schema_version": "companion-evidence-runtime-profile.v1",
+        "schema_version": "companion-evidence-runtime-profile.v2",
         "profile": profile.name,
         "scope": "evidence-only",
         "substrate_model_id": substrate_model_id,
         "substrate_device": substrate_device,
+        "substrate_model_dtype": substrate_model_dtype,
         "intervention": profile.intervention_contract(),
         "rollback": {
             "method": "restart-without---companion-evidence-profile",
