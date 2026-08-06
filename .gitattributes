@@ -5,3 +5,10 @@ install.sh text eol=lf
 
 # PowerShell is CRLF-native.
 *.ps1 text eol=crlf
+
+# Keep the Volvence Codex raw chat snapshots pushable without bloating Git objects.
+chats/volvence_codex_export_20260806/raw/active/*.jsonl.gz filter=lfs diff=lfs merge=lfs -text
+chats/volvence_codex_export_20260806/raw/archived/*.jsonl.gz filter=lfs diff=lfs merge=lfs -text
+
+# Exported chat Markdown preserves source whitespace, including intentional hard breaks.
+chats/volvence_codex_export_20260806/transcripts/*.md -whitespace
