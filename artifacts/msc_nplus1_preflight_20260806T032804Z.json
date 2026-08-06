@@ -1,0 +1,75 @@
+{
+  "claim_boundary": "Preflight proves local data/model/device readiness and the R3 full-history fit condition only. Passed R5 smoke, a new preregistration, and the complete R4/R5 formal execution remain required for adjudication.",
+  "corpus": {
+    "license_policy": "noncommercial-research-only",
+    "provenance_schema_version": "msc-download-provenance.v1",
+    "root": "/Users/mengfu/Documents/GitHub/volvence/data/external/msc/v0.1/extracted",
+    "splits": {
+      "heldout": {
+        "dyad_count": 501,
+        "example_count": 14682,
+        "file_sha256": "8807776265cc3bde441d18b4864449753f874bb8a06aaea352a519925b054d46",
+        "max_full_history_tokens": 2782,
+        "mean_full_history_tokens": 885.9991826726604,
+        "over_model_context_limit": 0,
+        "sorted_id_sha256": "58a61e1b08a9d0ae384b413a677e161d2e809cacc1bd81ba79beb557588e5777"
+      },
+      "train": {
+        "dyad_count": 1001,
+        "example_count": 24246,
+        "file_sha256": "0094d6374541e3b8e690e1b5b2f56d6121d268db41257d81b7afae3d647d453c",
+        "max_full_history_tokens": 1991,
+        "mean_full_history_tokens": 677.0949022519178,
+        "over_model_context_limit": 0,
+        "sorted_id_sha256": "59f7abe7c2625a6d5629c1bbfa09557ae3559b8de3c1b6eed47bec2092975fca"
+      },
+      "validation": {
+        "dyad_count": 500,
+        "example_count": 15243,
+        "file_sha256": "8bb7a4bd621c9dcd0692a2ad4ec5171dc62a419e168767a80731fe00923faebb",
+        "max_full_history_tokens": 2773,
+        "mean_full_history_tokens": 876.7652693039428,
+        "over_model_context_limit": 0,
+        "sorted_id_sha256": "8976ab8e8859a2861b1f038469c317780beb4b5af2c7676362639b98dc2443a5"
+      }
+    }
+  },
+  "mps": {
+    "available": true,
+    "built": true,
+    "fallback_disabled": true,
+    "torch_version": "2.13.0"
+  },
+  "plan": {
+    "completed_prerequisites": [
+      "official-msc-v0.1-corpus",
+      "substrate-owned-n-plus-one-target",
+      "same-substrate-zero-truncation-context",
+      "complete-volvence-runtime-arm",
+      "forward-head-capacity-fields-separated-from-temporal-capacity",
+      "temporal-controller-capacity-ladder"
+    ],
+    "formal_blocked_exit": 3,
+    "formal_blockers": [],
+    "formal_claim_permitted_now": false,
+    "formal_eligible": true,
+    "formal_preregistered": false,
+    "permitted_now": [
+      "preflight",
+      "smoke",
+      "preregister",
+      "formal"
+    ],
+    "plan_id": "msc-n-plus-one-prediction-mps.v1"
+  },
+  "schema_version": "msc-n-plus-one-mps-preflight.v1",
+  "substrate": {
+    "128k_arm_adds_distinct_msc_exposure": false,
+    "declared_context_limit": 32768,
+    "full_history_fits_without_truncation": true,
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "observed_max_full_history_tokens": 2782,
+    "snapshot_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
+  }
+}

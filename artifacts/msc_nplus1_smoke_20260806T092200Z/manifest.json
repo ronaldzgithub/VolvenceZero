@@ -1,0 +1,630 @@
+{
+  "arms": {
+    "long_context": "complete rendered relationship history on the target-owning frozen substrate; over-limit input fails and truncation is zero",
+    "stateless": "persona plus latest partner message",
+    "summary_retrieval": "persona summary plus frozen-encoder top-k extractive memories",
+    "volvence": "complete service/runtime/propagate context with target-persona and all dialogue observations; incremental turn and slow-loop costs are measured"
+  },
+  "checkpointing": {
+    "immutable_unit_count": 65,
+    "intermediate_effect_analysis_allowed": false,
+    "mutable_control_state": "run_state.json",
+    "mutable_control_state_is_evidence": false,
+    "raw_corpus_text_retained": false,
+    "resume_requires_exact_configuration_and_source_sha": true,
+    "resume_supported": true,
+    "schema_version": "msc-prediction-run-state.v1"
+  },
+  "claim_boundary": "R3, R4, and a complete R5 temporal capacity ladder are all required before formal thesis adjudication.",
+  "convergence_stage_order": [
+    "R3",
+    "R4",
+    "R5"
+  ],
+  "corpus": {
+    "heldout": {
+      "example_fingerprint": "8c37834c82b590827a1450986cd1362bd2b2aef76c0062c91718d72acf7d16d5",
+      "official_audit": {
+        "conversation_count": 501,
+        "dropped_empty_utterance_count": 0,
+        "file_sha256": "8807776265cc3bde441d18b4864449753f874bb8a06aaea352a519925b054d46",
+        "maximum_session_count": 5,
+        "minimum_session_count": 5,
+        "path": "msc/msc_dialogue/session_5/test.txt",
+        "path_base": "msc_root",
+        "sorted_id_sha256": "58a61e1b08a9d0ae384b413a677e161d2e809cacc1bd81ba79beb557588e5777",
+        "split": "heldout",
+        "verified": true
+      },
+      "prediction_examples": 29,
+      "selected_dyads": 1
+    },
+    "train": {
+      "example_fingerprint": "fb01fca463dc1eac2741a6c4c687a9675486539af140e65d6be9384ef6ddd14f",
+      "official_audit": {
+        "conversation_count": 1001,
+        "dropped_empty_utterance_count": 1,
+        "file_sha256": "0094d6374541e3b8e690e1b5b2f56d6121d268db41257d81b7afae3d647d453c",
+        "maximum_session_count": 4,
+        "minimum_session_count": 4,
+        "path": "msc/msc_dialogue/session_4/train.txt",
+        "path_base": "msc_root",
+        "sorted_id_sha256": "59f7abe7c2625a6d5629c1bbfa09557ae3559b8de3c1b6eed47bec2092975fca",
+        "split": "train",
+        "verified": true
+      },
+      "prediction_examples": 49,
+      "selected_dyads": 2
+    },
+    "validation": {
+      "example_fingerprint": "0215c4c34cdf5c8666d2494f79b1d596b6aab561e018b2b779bf22a5b62c8013",
+      "official_audit": {
+        "conversation_count": 500,
+        "dropped_empty_utterance_count": 0,
+        "file_sha256": "8bb7a4bd621c9dcd0692a2ad4ec5171dc62a419e168767a80731fe00923faebb",
+        "maximum_session_count": 5,
+        "minimum_session_count": 5,
+        "path": "msc/msc_dialogue/session_5/valid.txt",
+        "path_base": "msc_root",
+        "sorted_id_sha256": "8976ab8e8859a2861b1f038469c317780beb4b5af2c7676362639b98dc2443a5",
+        "split": "validation",
+        "verified": true
+      },
+      "prediction_examples": 29,
+      "selected_dyads": 1
+    }
+  },
+  "encoder": {
+    "device": "mps",
+    "embedding_dim": 2688,
+    "fingerprint": "1357a8051f3ae106592fd2d7a39395b8c92d1c3bd5dcca6a10f624ea0b171789",
+    "max_seq_length": 32768,
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "role": "R3 same-substrate zero-truncation context readout",
+    "truncation_policy": "deny"
+  },
+  "execution_status": {
+    "completed_blockers": [
+      "official-msc-corpus",
+      "substrate-n-plus-one-target",
+      "same-substrate-long-context-steelman",
+      "complete-volvence-runtime-arm"
+    ],
+    "evidence_level": "pilot",
+    "formal_experiment_executed": false,
+    "formal_preregistration_source": null,
+    "remaining_blockers": [
+      "temporal-controller-capacity-ladder"
+    ],
+    "thesis_status": "INELIGIBLE_PILOT"
+  },
+  "formal_preregistration": null,
+  "full_runtime_context_attestation": {
+    "activation_widths": [
+      896,
+      896,
+      896
+    ],
+    "collector_profile_attestation": {
+      "attestation_sha256": "b15ddf4723ad45e61c12c4b239e17ff771844d1de6b9983d0af4ee15224112be",
+      "cuda": null,
+      "intervention": {
+        "allow_single_session_live_substrate_mutation": false,
+        "allow_typed_observation_frame": true,
+        "arm_role": "formal-volvence-runtime-collector",
+        "brain_overrides": {},
+        "gate_id": 0,
+        "prediction_error_publication": "active-in-both-arms",
+        "production_default_changed": false,
+        "publish_runtime_context": true,
+        "rollout_overrides": {},
+        "semantic_proposal_channel": "noop",
+        "sut_generation_temperature": 0.0,
+        "turn_trigger_kind": "user_input"
+      },
+      "profile": "msc-runtime-collector-v1",
+      "rollback": {
+        "method": "restart-without---companion-evidence-profile",
+        "production_default": "all-new-gates-disabled"
+      },
+      "schema_version": "companion-evidence-runtime-profile.v2",
+      "scope": "evidence-only",
+      "substrate_device": "mps",
+      "substrate_model_dtype": "float32",
+      "substrate_model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "temporal_n_z": 3
+    },
+    "cost_accounting": "incremental-full-turn-plus-slow-loop.v1",
+    "dyad_count": 4,
+    "evaluation_writeback_allowed": false,
+    "exposure_policy": "target-persona-plus-all-dialogue-turns.v1",
+    "final_post_target_teardown_cost_included": false,
+    "included_splits": [
+      "train",
+      "validation",
+      "heldout"
+    ],
+    "layer_indices": [
+      11,
+      12,
+      13
+    ],
+    "minimum_propagate_event_count": 299,
+    "model_dtype": "float32",
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "model_version": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "one_time_startup_cost_included": false,
+    "raw_text_retained": false,
+    "readout_kind": "latest-token-selected-layer-residual-l2.v1",
+    "runtime_origin": "hf-local",
+    "runtime_slot_surface_sha256": "b96c02e0a7e5a771735236a4088963b2171a384295ef620bc44d07d63930fc5c",
+    "sample_count": 107,
+    "schema_version": "msc-full-runtime-collection-attestation.v2",
+    "semantic_proposal_channel": "noop",
+    "temporal_n_z": 3,
+    "total_interval_latency_ms": 1523017.4061299912,
+    "total_interval_token_count": 205423,
+    "total_observation_turn_count": 233,
+    "total_scene_boundary_count": 14,
+    "volvence_full_stack": true,
+    "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
+  },
+  "license_policy": "noncommercial-research-only",
+  "run_configuration": {
+    "context_encoder_mode": "substrate",
+    "corpus_provenance_sha256": "887b81a78180caf99b07e546bc087eeb56f9f0a4da96011f9264c6ee2e6ebadb",
+    "device": "mps",
+    "encoder": "sentence-transformers/all-MiniLM-L6-v2",
+    "encoder_batch_size": 32,
+    "epochs": 2,
+    "formal_preregistration_sha256": null,
+    "head_batch_size": 64,
+    "heldout_dyads": 1,
+    "learning_rate": 0.003,
+    "max_seq_length": 512,
+    "msc_root": "/Users/mengfu/Documents/GitHub/volvence/data/external/msc/v0.1/extracted",
+    "retrieval_count": 4,
+    "runtime_capture_transfer_policy": "post-forward-stacked-cpu-capture-first-step-logits-and-cpu-semantic-readout.v3",
+    "runtime_max_new_tokens": 16,
+    "runtime_resource_lifecycle": "release-context-encoder-before-full-runtime-and-rebuild-after.v1",
+    "runtime_semantic_proposal_channel": "noop",
+    "runtime_startup_timeout": 600.0,
+    "schema_version": "msc-n-plus-one-resumable-run.v4",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "source_sha256": {
+      "packages/companion-bench/src/companion_bench/msc_corpus.py": "0c34095a8a66bcfd9fcd4d93efc33a04db871d76f4b51948752eb360a3a514b4",
+      "packages/companion-bench/src/companion_bench/msc_runtime_collection.py": "7a5a198943e40a762cbe4221d38bc8475a51db27428dee24fd40567be3cc1f5d",
+      "packages/companion-bench/src/companion_bench/prediction_research.py": "cda94cbc22952aba9062e8d0bb647565296859b6b6cf2a8e5c0ecaa4e856a5f7",
+      "packages/lifeform-core/src/lifeform_core/lifeform.py": "a289067d9133122005bb9c10f63c27331218a499b9ff0e353b61428a0ad16c73",
+      "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/__init__.py": "3ebc9079acf8bc61d3348a3fe20b5a7dd9f69d3dbcb6002269080c3114f718b2",
+      "packages/lifeform-evolution/src/lifeform_evolution/seven_day_companion.py": "eec0b2de0dedfac549f7c1bec59107f4c83ce650488f90661a9ecfe4f43e47d1",
+      "packages/lifeform-evolution/src/lifeform_evolution/seven_day_process_host.py": "9efb6d8c1e56e8051275787f8ea3ee64a7689c98a9d178bbc162840b1d7bb1b5",
+      "packages/lifeform-expression/src/lifeform_expression/llm_synthesizer.py": "c2945dda4dd8009331ff86cd2db6be074dbd2ecda13a9d057b9ba53beea82db7",
+      "packages/lifeform-service/src/lifeform_service/app.py": "eaa5e05545f323f80058d89c6eff3af06ead11301292a59e9fc1068694157b89",
+      "packages/lifeform-service/src/lifeform_service/cli.py": "f3d91a90eff0748f5150c5c4b36107d3e5ad461db0ccc6fd8e0ca67e2725531a",
+      "packages/lifeform-service/src/lifeform_service/companion_evidence_profile.py": "0af2406e1524b9ab82a845ea519b9a0f97b84ef8169d54bb0cf30c08fa06de5e",
+      "packages/lifeform-service/src/lifeform_service/msc_runtime_collector.py": "dcbaaf6636234a1bd4f9a93659c8aeb7e53f7d67880ab5247c8c8162198ec61f",
+      "packages/lifeform-service/src/lifeform_service/steering_activation.py": "4c0e0d7647cdaaf34ab7399bc80c42f3bd9b2c6f8dbda30662007ccb1e39869f",
+      "packages/lifeform-service/src/lifeform_service/verticals.py": "a78543509715f85996d0e3bf0a16c1f32d02a2792dcc71953d585779fcc8d10e",
+      "packages/vz-cognition/src/volvence_zero/prediction/error.py": "eee3cdf79a2542decf5f435ba666bdc4596bcc973853ea94fe19eaa8be29a383",
+      "packages/vz-cognition/src/volvence_zero/prediction/forward_representation.py": "9f79f84dbb1e2402f8b6b403a2d372e3f94da335655b9293264c38a4483cf91f",
+      "packages/vz-runtime/src/volvence_zero/agent/response.py": "f67093a0ae8020aa3c52d5e7c394e94c3c59c1ffd3ad8ed52bd6a28e445d49f6",
+      "packages/vz-runtime/src/volvence_zero/agent/session.py": "129b06ea3afc99cbda146fc6c86f8665011ad29972b92c9ab923c0b1a4cb6826",
+      "packages/vz-runtime/src/volvence_zero/brain.py": "bf1159a42fcb0152cfd03c4c2ebd0ca4d3d14a913b4e18cd1ad05039a60d5396",
+      "packages/vz-runtime/src/volvence_zero/integration/final_wiring.py": "9beb328d19593e7ca784d6463edb55686f43dab08cd62e0e5bab6787f3abe292",
+      "packages/vz-substrate/src/volvence_zero/substrate/forward_representation.py": "2d7c1de24951de54c61458948ced847f946b87f63bcf1e52c5e8967750cb62c3",
+      "packages/vz-substrate/src/volvence_zero/substrate/residual_backend.py": "de86b2e01341b4aa13559eb9b88fcc712431454b1e267f9bb9ad5d68c45076d5",
+      "packages/vz-substrate/src/volvence_zero/substrate/residual_contracts.py": "506f638dd080a1595c65198f7d95857827453aa85175d23d08e917f656083809",
+      "packages/vz-temporal/src/volvence_zero/temporal/interface.py": "0ef5344f32aad89ce1b716c37a6bf3ca6b31a7f1832557e31fa0f7262a1d0e7c",
+      "scripts/companion_test_plan_common.py": "05c8221e1b7619ad105df5f7475960c5b28087c1dd864780c1d2c01cfa22d15d",
+      "scripts/freeze_msc_execution_root.py": "4dce51c5d88ba82c0a1a71765131b7c09bfb853f6951578dacdd9c6e4656d319",
+      "scripts/freeze_seven_day_execution_root.py": "1eb8bc40e8e7d13870a9e70b4a03698f0601d7cb152dd6f7061fc6ab24f6b777",
+      "scripts/msc_prediction_checkpoint.py": "be245aca71371fadd405b517b2d7643c62f87cceab433b6fb023a00590aa8219",
+      "scripts/run_msc_prediction_research.py": "367b17d885779fe453aba97ed9fc625338457d03e62ba220309ce2b0cb6715f0",
+      "scripts/run_msc_prediction_test_plan.py": "0e841834a224f8cac7ad8a35a444f0ce39d47251959c3d8577ea7ba02a1b8881"
+    },
+    "substrate_activation_width": 896,
+    "substrate_context_limit": 32768,
+    "substrate_device": "mps",
+    "substrate_layer_indices": [
+      11,
+      12,
+      13
+    ],
+    "substrate_model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "substrate_model_dtype": "float32",
+    "substrate_weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+    "temporal_capacity_fixed_forward_head_n_z": 3,
+    "temporal_capacity_n_z": [
+      3,
+      16,
+      64,
+      256
+    ],
+    "train_dyads": 2,
+    "validation_dyads": 1,
+    "volvence_context_mode": "full-runtime"
+  },
+  "same_substrate_context_attestation": {
+    "context_activation_widths": [
+      896,
+      896,
+      896
+    ],
+    "context_layer_indices": [
+      11,
+      12,
+      13
+    ],
+    "context_limit": 32768,
+    "context_model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "context_readout_kind": "latest-token-selected-layer-residual-l2.v1",
+    "context_weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+    "maximum_observed_tokens": 1692,
+    "passed": true,
+    "schema_version": "msc-same-substrate-context-attestation.v1",
+    "target_activation_widths": [
+      896,
+      896,
+      896
+    ],
+    "target_layer_indices": [
+      11,
+      12,
+      13
+    ],
+    "target_model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "target_readout_kind": "latest-token-selected-layer-residual-l2.v1",
+    "target_weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc",
+    "truncated_token_count": 0
+  },
+  "schema_version": "msc-n-plus-one-research.v4",
+  "target_representation": {
+    "captured_text_count": 213,
+    "lineage": {
+      "activation_widths": [
+        896,
+        896,
+        896
+      ],
+      "layer_indices": [
+        11,
+        12,
+        13
+      ],
+      "model_fingerprint": {
+        "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+        "version": "7ae557604adf67be50417f59c2c2f167def9a775",
+        "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
+      },
+      "readout_kind": "latest-token-selected-layer-residual-l2.v1",
+      "representation_dim": 2688,
+      "runtime_origin": "hf-local",
+      "schema_version": "substrate-forward-representation.v1",
+      "snapshot_fingerprint": "2b4c9c1560363e8359f9d10143bf2823323bad57ef59ef72d909d0e7c528e2ae"
+    },
+    "owner": "vz-substrate",
+    "raw_text_retained": false
+  },
+  "temporal_capacity_runtime_attestations": {
+    "3": {
+      "activation_widths": [
+        896,
+        896,
+        896
+      ],
+      "collector_profile_attestation": {
+        "attestation_sha256": "b15ddf4723ad45e61c12c4b239e17ff771844d1de6b9983d0af4ee15224112be",
+        "cuda": null,
+        "intervention": {
+          "allow_single_session_live_substrate_mutation": false,
+          "allow_typed_observation_frame": true,
+          "arm_role": "formal-volvence-runtime-collector",
+          "brain_overrides": {},
+          "gate_id": 0,
+          "prediction_error_publication": "active-in-both-arms",
+          "production_default_changed": false,
+          "publish_runtime_context": true,
+          "rollout_overrides": {},
+          "semantic_proposal_channel": "noop",
+          "sut_generation_temperature": 0.0,
+          "turn_trigger_kind": "user_input"
+        },
+        "profile": "msc-runtime-collector-v1",
+        "rollback": {
+          "method": "restart-without---companion-evidence-profile",
+          "production_default": "all-new-gates-disabled"
+        },
+        "schema_version": "companion-evidence-runtime-profile.v2",
+        "scope": "evidence-only",
+        "substrate_device": "mps",
+        "substrate_model_dtype": "float32",
+        "substrate_model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+        "temporal_n_z": 3
+      },
+      "cost_accounting": "incremental-full-turn-plus-slow-loop.v1",
+      "dyad_count": 3,
+      "evaluation_writeback_allowed": false,
+      "exposure_policy": "target-persona-plus-all-dialogue-turns.v1",
+      "final_post_target_teardown_cost_included": false,
+      "included_splits": [
+        "train",
+        "validation"
+      ],
+      "layer_indices": [
+        11,
+        12,
+        13
+      ],
+      "minimum_propagate_event_count": 299,
+      "model_dtype": "float32",
+      "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "model_version": "7ae557604adf67be50417f59c2c2f167def9a775",
+      "one_time_startup_cost_included": false,
+      "raw_text_retained": false,
+      "readout_kind": "latest-token-selected-layer-residual-l2.v1",
+      "runtime_origin": "hf-local",
+      "runtime_slot_surface_sha256": "b96c02e0a7e5a771735236a4088963b2171a384295ef620bc44d07d63930fc5c",
+      "sample_count": 78,
+      "schema_version": "msc-full-runtime-collection-attestation.v2",
+      "semantic_proposal_channel": "noop",
+      "temporal_n_z": 3,
+      "total_interval_latency_ms": 1185679.0325049805,
+      "total_interval_token_count": 152628,
+      "total_observation_turn_count": 171,
+      "total_scene_boundary_count": 10,
+      "volvence_full_stack": true,
+      "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
+    },
+    "16": {
+      "activation_widths": [
+        896,
+        896,
+        896
+      ],
+      "collector_profile_attestation": {
+        "attestation_sha256": "60c79347b834b5b3ef952fa419dba3c4a454446c1c1d95339209ac709ff7175f",
+        "cuda": null,
+        "intervention": {
+          "allow_single_session_live_substrate_mutation": false,
+          "allow_typed_observation_frame": true,
+          "arm_role": "formal-volvence-runtime-collector",
+          "brain_overrides": {},
+          "gate_id": 0,
+          "prediction_error_publication": "active-in-both-arms",
+          "production_default_changed": false,
+          "publish_runtime_context": true,
+          "rollout_overrides": {},
+          "semantic_proposal_channel": "noop",
+          "sut_generation_temperature": 0.0,
+          "turn_trigger_kind": "user_input"
+        },
+        "profile": "msc-runtime-collector-v1",
+        "rollback": {
+          "method": "restart-without---companion-evidence-profile",
+          "production_default": "all-new-gates-disabled"
+        },
+        "schema_version": "companion-evidence-runtime-profile.v2",
+        "scope": "evidence-only",
+        "substrate_device": "mps",
+        "substrate_model_dtype": "float32",
+        "substrate_model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+        "temporal_n_z": 16
+      },
+      "cost_accounting": "incremental-full-turn-plus-slow-loop.v1",
+      "dyad_count": 3,
+      "evaluation_writeback_allowed": false,
+      "exposure_policy": "target-persona-plus-all-dialogue-turns.v1",
+      "final_post_target_teardown_cost_included": false,
+      "included_splits": [
+        "train",
+        "validation"
+      ],
+      "layer_indices": [
+        11,
+        12,
+        13
+      ],
+      "minimum_propagate_event_count": 299,
+      "model_dtype": "float32",
+      "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "model_version": "7ae557604adf67be50417f59c2c2f167def9a775",
+      "one_time_startup_cost_included": false,
+      "raw_text_retained": false,
+      "readout_kind": "latest-token-selected-layer-residual-l2.v1",
+      "runtime_origin": "hf-local",
+      "runtime_slot_surface_sha256": "b96c02e0a7e5a771735236a4088963b2171a384295ef620bc44d07d63930fc5c",
+      "sample_count": 78,
+      "schema_version": "msc-full-runtime-collection-attestation.v2",
+      "semantic_proposal_channel": "noop",
+      "temporal_n_z": 16,
+      "total_interval_latency_ms": 1090808.1496662053,
+      "total_interval_token_count": 147408,
+      "total_observation_turn_count": 171,
+      "total_scene_boundary_count": 10,
+      "volvence_full_stack": true,
+      "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
+    },
+    "64": {
+      "activation_widths": [
+        896,
+        896,
+        896
+      ],
+      "collector_profile_attestation": {
+        "attestation_sha256": "9fb1ccfbc216e658984d5aa3cfce46dcf45af8f537884b27ff2e042a61b78649",
+        "cuda": null,
+        "intervention": {
+          "allow_single_session_live_substrate_mutation": false,
+          "allow_typed_observation_frame": true,
+          "arm_role": "formal-volvence-runtime-collector",
+          "brain_overrides": {},
+          "gate_id": 0,
+          "prediction_error_publication": "active-in-both-arms",
+          "production_default_changed": false,
+          "publish_runtime_context": true,
+          "rollout_overrides": {},
+          "semantic_proposal_channel": "noop",
+          "sut_generation_temperature": 0.0,
+          "turn_trigger_kind": "user_input"
+        },
+        "profile": "msc-runtime-collector-v1",
+        "rollback": {
+          "method": "restart-without---companion-evidence-profile",
+          "production_default": "all-new-gates-disabled"
+        },
+        "schema_version": "companion-evidence-runtime-profile.v2",
+        "scope": "evidence-only",
+        "substrate_device": "mps",
+        "substrate_model_dtype": "float32",
+        "substrate_model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+        "temporal_n_z": 64
+      },
+      "cost_accounting": "incremental-full-turn-plus-slow-loop.v1",
+      "dyad_count": 3,
+      "evaluation_writeback_allowed": false,
+      "exposure_policy": "target-persona-plus-all-dialogue-turns.v1",
+      "final_post_target_teardown_cost_included": false,
+      "included_splits": [
+        "train",
+        "validation"
+      ],
+      "layer_indices": [
+        11,
+        12,
+        13
+      ],
+      "minimum_propagate_event_count": 299,
+      "model_dtype": "float32",
+      "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "model_version": "7ae557604adf67be50417f59c2c2f167def9a775",
+      "one_time_startup_cost_included": false,
+      "raw_text_retained": false,
+      "readout_kind": "latest-token-selected-layer-residual-l2.v1",
+      "runtime_origin": "hf-local",
+      "runtime_slot_surface_sha256": "b96c02e0a7e5a771735236a4088963b2171a384295ef620bc44d07d63930fc5c",
+      "sample_count": 78,
+      "schema_version": "msc-full-runtime-collection-attestation.v2",
+      "semantic_proposal_channel": "noop",
+      "temporal_n_z": 64,
+      "total_interval_latency_ms": 1349694.1137920949,
+      "total_interval_token_count": 149130,
+      "total_observation_turn_count": 171,
+      "total_scene_boundary_count": 10,
+      "volvence_full_stack": true,
+      "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
+    },
+    "256": {
+      "activation_widths": [
+        896,
+        896,
+        896
+      ],
+      "collector_profile_attestation": {
+        "attestation_sha256": "a5a97fb32cc3e5c38395db7aac895ecb07e570fc8e082e51214725ce82e69110",
+        "cuda": null,
+        "intervention": {
+          "allow_single_session_live_substrate_mutation": false,
+          "allow_typed_observation_frame": true,
+          "arm_role": "formal-volvence-runtime-collector",
+          "brain_overrides": {},
+          "gate_id": 0,
+          "prediction_error_publication": "active-in-both-arms",
+          "production_default_changed": false,
+          "publish_runtime_context": true,
+          "rollout_overrides": {},
+          "semantic_proposal_channel": "noop",
+          "sut_generation_temperature": 0.0,
+          "turn_trigger_kind": "user_input"
+        },
+        "profile": "msc-runtime-collector-v1",
+        "rollback": {
+          "method": "restart-without---companion-evidence-profile",
+          "production_default": "all-new-gates-disabled"
+        },
+        "schema_version": "companion-evidence-runtime-profile.v2",
+        "scope": "evidence-only",
+        "substrate_device": "mps",
+        "substrate_model_dtype": "float32",
+        "substrate_model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+        "temporal_n_z": 256
+      },
+      "cost_accounting": "incremental-full-turn-plus-slow-loop.v1",
+      "dyad_count": 3,
+      "evaluation_writeback_allowed": false,
+      "exposure_policy": "target-persona-plus-all-dialogue-turns.v1",
+      "final_post_target_teardown_cost_included": false,
+      "included_splits": [
+        "train",
+        "validation"
+      ],
+      "layer_indices": [
+        11,
+        12,
+        13
+      ],
+      "minimum_propagate_event_count": 299,
+      "model_dtype": "float32",
+      "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "model_version": "7ae557604adf67be50417f59c2c2f167def9a775",
+      "one_time_startup_cost_included": false,
+      "raw_text_retained": false,
+      "readout_kind": "latest-token-selected-layer-residual-l2.v1",
+      "runtime_origin": "hf-local",
+      "runtime_slot_surface_sha256": "b96c02e0a7e5a771735236a4088963b2171a384295ef620bc44d07d63930fc5c",
+      "sample_count": 78,
+      "schema_version": "msc-full-runtime-collection-attestation.v2",
+      "semantic_proposal_channel": "noop",
+      "temporal_n_z": 256,
+      "total_interval_latency_ms": 1751327.6320459698,
+      "total_interval_token_count": 149611,
+      "total_observation_turn_count": 171,
+      "total_scene_boundary_count": 10,
+      "volvence_full_stack": true,
+      "weights_sha256": "857fff1d6ea77f337a33305e4ad259b59a8a4dd039df027f8df902521432bbdc"
+    }
+  },
+  "training": {
+    "epochs": 2,
+    "forward_head_capacity_n_z": [
+      3,
+      16,
+      64,
+      256
+    ],
+    "head_batch_size": 64,
+    "head_fingerprints": {
+      "long_context:seed0": "e4c54075ea7a8416f50fed5ee0bf80f28c6f4d30fd62786e4a0648e19011c925",
+      "long_context:seed1": "49ace65b5610df1f7e6aa6c1e1a6d6ffebf2640ac2b4b7365303e35b0147cf09",
+      "long_context:seed2": "ee578a75c1de89d217e38116093cd8cceadc97f7f98a13db03e7b79cdea2ec0e",
+      "stateless:seed0": "f76cc9e923fc56e8ab8a3c9878eed27f6acba2082e7773e9ab134a9c7fdf89a6",
+      "stateless:seed1": "539c8718aa96733170f86931fdf8941c385d3bfbfe2bfb13a516bb4715068349",
+      "stateless:seed2": "60ef7b46d61a6ca7bdc968200e0b205e0eb7a036246369fb532f5149c211dc27",
+      "summary_retrieval:seed0": "b76a9176eef065d912d9010b041202f74892f7c1d63ee52024a7270b4e679910",
+      "summary_retrieval:seed1": "56d8c2cba289c8f4857abb6b24e19c4205e6a80e1f3162a1190bda63162c8688",
+      "summary_retrieval:seed2": "3548d296b9ff1147ff5514b1b8a228367d223803e414ac148ebd36dbf7a73128",
+      "volvence:seed0": "116809178f668434ffb1f0582d5da5593ee56125600bdcfcb4ebf04b0bcd2aa1",
+      "volvence:seed1": "e60c6ec8324a01d15f626413f74c8595d4360fe4301651f57c708e5b9fc0443c",
+      "volvence:seed2": "bf758a6520cc060170a5ca989a38b1563e87cc93e8dcdd671cb681a62f18abc3"
+    },
+    "learning_rate": 0.003,
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "selected_forward_head_n_z": 256,
+    "selected_temporal_n_z": 3,
+    "temporal_capacity_fixed_forward_head_n_z": 3,
+    "temporal_capacity_n_z": [
+      3,
+      16,
+      64,
+      256
+    ]
+  }
+}

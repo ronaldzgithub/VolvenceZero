@@ -1,0 +1,109 @@
+{
+  "best_forward_head_n_z": 256,
+  "best_mean_cosine": 0.2078728659775133,
+  "chosen_forward_head_n_z": 256,
+  "description": "Real-target forward-head capacity ladder is pilot; best forward_head_n_z=256, cosine gain over forward_head_n_z=3 is 0.205013, chosen=256, zero-norm predictions=0, exit=INELIGIBLE_PILOT. This does not test temporal-controller capacity.",
+  "evidence_level": "pilot",
+  "forward_head_capacity_is_flat": false,
+  "forward_head_claim_exit": "INELIGIBLE_PILOT",
+  "gain_over_forward_head_n_z_3": 0.20501298336011253,
+  "observations": [
+    {
+      "forward_head_n_z": 3,
+      "mean_cosine_similarity": 0.015879312247815684,
+      "mean_squared_error": 0.10686286376315603,
+      "seed": 0,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 3,
+      "mean_cosine_similarity": -0.00410965551074006,
+      "mean_squared_error": 0.10544689152710682,
+      "seed": 1,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 3,
+      "mean_cosine_similarity": -0.0031900088848732504,
+      "mean_squared_error": 0.10521663652753152,
+      "seed": 2,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 16,
+      "mean_cosine_similarity": 0.018957990577147633,
+      "mean_squared_error": 0.019092288099094773,
+      "seed": 0,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 16,
+      "mean_cosine_similarity": -0.014065554222049154,
+      "mean_squared_error": 0.019574806991189565,
+      "seed": 1,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 16,
+      "mean_cosine_similarity": -0.008245701488425343,
+      "mean_squared_error": 0.019631083691892235,
+      "seed": 2,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 64,
+      "mean_cosine_similarity": 0.039853453995232775,
+      "mean_squared_error": 0.004051081975323292,
+      "seed": 0,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 64,
+      "mean_cosine_similarity": 0.02978579570797004,
+      "mean_squared_error": 0.004181607299218551,
+      "seed": 1,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 64,
+      "mean_cosine_similarity": 0.04359978012560583,
+      "mean_squared_error": 0.004226058450111775,
+      "seed": 2,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 256,
+      "mean_cosine_similarity": 0.19847083590888873,
+      "mean_squared_error": 0.0008570645843178715,
+      "seed": 0,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 256,
+      "mean_cosine_similarity": 0.23004053012944004,
+      "mean_squared_error": 0.0008451282785809258,
+      "seed": 1,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "forward_head_n_z": 256,
+      "mean_cosine_similarity": 0.19510723189421114,
+      "mean_squared_error": 0.0008293782267669294,
+      "seed": 2,
+      "split": "validation",
+      "zero_norm_prediction_count": 0
+    }
+  ],
+  "zero_norm_prediction_count": 0
+}

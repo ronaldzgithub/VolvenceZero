@@ -1,0 +1,361 @@
+{
+  "advantage_slope": -0.000224485274611511,
+  "curves": [
+    {
+      "arm": "long_context",
+      "dyad_count": 1,
+      "mean_context_tokens": 178.33333333333334,
+      "mean_cosine_similarity": 0.22918594229790593,
+      "mean_latency_ms": 1348.2574579021934,
+      "mean_squared_error": 0.000881978456636382,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 1,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "long_context",
+      "dyad_count": 1,
+      "mean_context_tokens": 482.1666666666667,
+      "mean_cosine_similarity": 0.19505554809151918,
+      "mean_latency_ms": 612.3672217355966,
+      "mean_squared_error": 0.0009189745547818095,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 2,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "long_context",
+      "dyad_count": 1,
+      "mean_context_tokens": 823.2,
+      "mean_cosine_similarity": 0.19692712052758493,
+      "mean_latency_ms": 5603.498280137354,
+      "mean_squared_error": 0.0011848895749283807,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 15,
+      "session_index": 3,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "long_context",
+      "dyad_count": 1,
+      "mean_context_tokens": 1169.5,
+      "mean_cosine_similarity": 0.23856905068783055,
+      "mean_latency_ms": 2638.239978399578,
+      "mean_squared_error": 0.0010753794649332145,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 4,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "long_context",
+      "dyad_count": 1,
+      "mean_context_tokens": 1499.0,
+      "mean_cosine_similarity": 0.2201299043852457,
+      "mean_latency_ms": 3782.681284238763,
+      "mean_squared_error": 0.001311790373225806,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 5,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "stateless",
+      "dyad_count": 1,
+      "mean_context_tokens": 61.833333333333336,
+      "mean_cosine_similarity": 0.23086241725539866,
+      "mean_latency_ms": 98.49951222429223,
+      "mean_squared_error": 0.0010140944042846564,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 1,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "stateless",
+      "dyad_count": 1,
+      "mean_context_tokens": 68.5,
+      "mean_cosine_similarity": 0.2053267310606705,
+      "mean_latency_ms": 112.5717275616567,
+      "mean_squared_error": 0.000919871152271951,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 2,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "stateless",
+      "dyad_count": 1,
+      "mean_context_tokens": 80.2,
+      "mean_cosine_similarity": 0.19965835583902442,
+      "mean_latency_ms": 127.35479965929113,
+      "mean_squared_error": 0.0011477382069933523,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 15,
+      "session_index": 3,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "stateless",
+      "dyad_count": 1,
+      "mean_context_tokens": 73.16666666666667,
+      "mean_cosine_similarity": 0.2382926006766657,
+      "mean_latency_ms": 113.30686672791389,
+      "mean_squared_error": 0.0009639221369551548,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 4,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "stateless",
+      "dyad_count": 1,
+      "mean_context_tokens": 80.5,
+      "mean_cosine_similarity": 0.2214903533718644,
+      "mean_latency_ms": 145.41315105653382,
+      "mean_squared_error": 0.0012490822835445907,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 5,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "summary_retrieval",
+      "dyad_count": 1,
+      "mean_context_tokens": 250.5,
+      "mean_cosine_similarity": 0.2288090485532801,
+      "mean_latency_ms": 661.0039690861194,
+      "mean_squared_error": 0.0010161805702857537,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 1,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "summary_retrieval",
+      "dyad_count": 1,
+      "mean_context_tokens": 528.3333333333334,
+      "mean_cosine_similarity": 0.2028004449194704,
+      "mean_latency_ms": 1542.5134901042316,
+      "mean_squared_error": 0.0009167490786209374,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 2,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "summary_retrieval",
+      "dyad_count": 1,
+      "mean_context_tokens": 848.6,
+      "mean_cosine_similarity": 0.19829845355889128,
+      "mean_latency_ms": 2397.999085546819,
+      "mean_squared_error": 0.0011432669738224129,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 15,
+      "session_index": 3,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "summary_retrieval",
+      "dyad_count": 1,
+      "mean_context_tokens": 1152.6666666666667,
+      "mean_cosine_similarity": 0.23787459220001583,
+      "mean_latency_ms": 3205.7235104320557,
+      "mean_squared_error": 0.0009536593872886308,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 4,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "summary_retrieval",
+      "dyad_count": 1,
+      "mean_context_tokens": 1434.8333333333333,
+      "mean_cosine_similarity": 0.21907201393117795,
+      "mean_latency_ms": 4074.122994255603,
+      "mean_squared_error": 0.0012692549672271567,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 5,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "volvence",
+      "dyad_count": 1,
+      "mean_context_tokens": 2116.3333333333335,
+      "mean_cosine_similarity": 0.22219886979211456,
+      "mean_latency_ms": 13910.189278715075,
+      "mean_squared_error": 0.0007632037522221301,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 1,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "volvence",
+      "dyad_count": 1,
+      "mean_context_tokens": 1843.1666666666667,
+      "mean_cosine_similarity": 0.21278585587071763,
+      "mean_latency_ms": 11739.80661888855,
+      "mean_squared_error": 0.0008765016439811464,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 2,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "volvence",
+      "dyad_count": 1,
+      "mean_context_tokens": 1784.4,
+      "mean_cosine_similarity": 0.20570420119550578,
+      "mean_latency_ms": 11622.985480281211,
+      "mean_squared_error": 0.0008208631096098555,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 15,
+      "session_index": 3,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "volvence",
+      "dyad_count": 1,
+      "mean_context_tokens": 1576.6666666666667,
+      "mean_cosine_similarity": 0.23249308039268246,
+      "mean_latency_ms": 9616.53695172112,
+      "mean_squared_error": 0.0007021898025620096,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 4,
+      "zero_norm_prediction_count": 0
+    },
+    {
+      "arm": "volvence",
+      "dyad_count": 1,
+      "mean_context_tokens": 1776.0,
+      "mean_cosine_similarity": 0.22392354454357008,
+      "mean_latency_ms": 11275.537799054542,
+      "mean_squared_error": 0.0008059932182607156,
+      "mean_truncated_tokens": 0.0,
+      "observation_count": 18,
+      "session_index": 5,
+      "zero_norm_prediction_count": 0
+    }
+  ],
+  "description": "MSC N+1 four-arm adjudication is pilot; thesis_exit=INELIGIBLE_PILOT, longest-session cosine advantage=0.003794, token ratio=1.1848, latency ratio=2.9808, zero-norm predictions=0.",
+  "evidence_level": "pilot",
+  "formal_requirements": [
+    [
+      "official-heldout-hash",
+      true
+    ],
+    [
+      "observation-heldout-id-hash",
+      false
+    ],
+    [
+      "all-four-arms",
+      true
+    ],
+    [
+      "same-substrate-zero-truncation-context",
+      true
+    ],
+    [
+      "volvence-full-stack",
+      true
+    ],
+    [
+      "temporal-controller-capacity-ladder",
+      false
+    ],
+    [
+      "formal-preregistration",
+      false
+    ],
+    [
+      "minimum-three-seeds",
+      true
+    ],
+    [
+      "complete-heldout-dyads",
+      false
+    ],
+    [
+      "longest-session-is-preregistered-session-five",
+      true
+    ],
+    [
+      "zero-norm-prediction-count-zero",
+      true
+    ],
+    [
+      "frozen-encoder-fingerprint",
+      true
+    ]
+  ],
+  "longest_latency_ratio": 2.9808321007736347,
+  "longest_quality_advantage": 0.0037936401583243805,
+  "longest_quality_confidence_interval_95": [
+    0.0037936401583243805,
+    0.0037936401583243805
+  ],
+  "longest_session": 5,
+  "longest_token_ratio": 1.1847898599066045,
+  "paired_advantages": [
+    {
+      "confidence_interval_95": [
+        -0.006987072505791326,
+        -0.006987072505791326
+      ],
+      "dyad_count": 1,
+      "mean_cosine_advantage": -0.006987072505791326,
+      "pair_count": 18,
+      "session_index": 1
+    },
+    {
+      "confidence_interval_95": [
+        0.017730307779198436,
+        0.017730307779198436
+      ],
+      "dyad_count": 1,
+      "mean_cosine_advantage": 0.017730307779198436,
+      "pair_count": 18,
+      "session_index": 2
+    },
+    {
+      "confidence_interval_95": [
+        0.008777080667920848,
+        0.008777080667920848
+      ],
+      "dyad_count": 1,
+      "mean_cosine_advantage": 0.008777080667920848,
+      "pair_count": 15,
+      "session_index": 3
+    },
+    {
+      "confidence_interval_95": [
+        -0.0060759702951480865,
+        -0.0060759702951480865
+      ],
+      "dyad_count": 1,
+      "mean_cosine_advantage": -0.0060759702951480865,
+      "pair_count": 18,
+      "session_index": 4
+    },
+    {
+      "confidence_interval_95": [
+        0.0037936401583243805,
+        0.0037936401583243805
+      ],
+      "dyad_count": 1,
+      "mean_cosine_advantage": 0.0037936401583243805,
+      "pair_count": 18,
+      "session_index": 5
+    }
+  ],
+  "quality_condition_met": false,
+  "scaling_condition_met": false,
+  "thesis_exit": "INELIGIBLE_PILOT",
+  "zero_norm_prediction_count": 0
+}

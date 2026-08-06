@@ -1,0 +1,1 @@
+{"configuration_fingerprint":"95e37f0b081ed92b3b2993d63697c72a0224ee98792cecb2a28e46986059cc9e","payload":{"forward_head_n_z":64,"mean_cosine_similarity":0.039853453995232775,"mean_squared_error":0.004051081975323292,"seed":0,"split":"validation","zero_norm_prediction_count":0},"schema_version":"msc-prediction-json-checkpoint.v1","unit":"capacity/nz-64/seed-0"}
