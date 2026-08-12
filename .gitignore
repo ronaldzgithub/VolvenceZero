@@ -76,10 +76,6 @@ runs/encoder/
 # checksum.  Loaders/manifests are versioned; raw conversations are not.
 data/external/msc/
 
-# Downloaded third-party paper PDFs for the Liu Yang research project.
-# The idempotent download script and the paper index are versioned instead.
-research/yangliu-learning-theory-2026-08/papers/
-
 # Unified synthetic experience corpus: generated master shards, object store,
 # projections, live-through snapshots, journals, and audit reports.
 data/synthetic/unified_v1/
