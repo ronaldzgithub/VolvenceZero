@@ -1,0 +1,292 @@
+A vision chip with complementary pathways for open-world sensing | Nature
+
+- Article
+- Published: 29 May 2024
+
+# A vision chip with complementary pathways for open-world sensing
+
+- Zheyu Yang ORCID: orcid.org/0009-0004-0343-3108 1, 2 na1, 
+- Taoyi Wang ORCID: orcid.org/0000-0003-1878-5451 1 na1, 
+- Yihan Lin ORCID: orcid.org/0000-0002-0717-034X 1 na1, 
+- Yuguo Chen ORCID: orcid.org/0009-0007-0910-0752 1, 
+- Hui Zeng ORCID: orcid.org/0000-0002-0926-8092 1, 
+- Jing Pei 1, 
+- Jiazheng Wang 1, 
+- Xue Liu 1, 
+- Yichun Zhou 2, 
+- Jianqiang Zhang 2, 
+- Xin Wang 2, 
+- Xinhao Lv 2, 
+- Rong Zhao ORCID: orcid.org/0000-0002-2320-0326 1, 3 & 
+- …
+- Luping Shi ORCID: orcid.org/0000-0002-9829-2202 1, 3, 4
+
+ Nature volume 629, pages 1027–1033 (2024) Cite this article 
+
+ Matters Arising to this article was published on 04 June 2025
+
+## Abstract
+
+Image sensors face substantial challenges when dealing with dynamic, diverse and unpredictable scenes in open-world applications. However, the development of image sensors towards high speed, high resolution, large dynamic range and high precision is limited by power and bandwidth. Here we present a complementary sensing paradigm inspired by the human visual system that involves parsing visual information into primitive-based representations and assembling these primitives to form two complementary vision pathways: a cognition-oriented pathway for accurate cognition and an action-oriented pathway for rapid response. To realize this paradigm, a vision chip called Tianmouc is developed, incorporating a hybrid pixel array and a parallel-and-heterogeneous readout architecture. Leveraging the characteristics of the complementary vision pathway, Tianmouc achieves high-speed sensing of up to 10,000 fps, a dynamic range of 130 dB and an advanced figure of merit in terms of spatial resolution, speed and dynamic range. Furthermore, it adaptively reduces bandwidth by 90%. We demonstrate the integration of a Tianmouc chip into an autonomous driving system, showcasing its abilities to enable accurate, fast and robust perception, even in challenging corner cases on open roads. The primitive-based complementary sensing paradigm helps in overcoming fundamental limitations in developing vision systems for diverse open-world applications.
+
+## Access options
+
+Fig. 1: The challenges of open-world visual sensing and the solution with the complementary vision paradigm.
+
+Fig. 2: The architecture of the Tianmouc chip.
+
+Fig. 3: Summary of chip evaluation.
+
+Fig. 4: Open-world perception experiments.
+
+### Subjects
+
+## Data availability
+
+The data supporting the findings of this study are available in the main text, Extended Data, Supplementary Information, source data and Zenodo (https://doi.org/10.5281/zenodo.10602822) 61. Source data are provided with this paper.
+
+## Code availability
+
+The algorithms and codes supporting the findings of this study are available at Zenodo (https://doi.org/10.5281/zenodo.10775253) 62.
+
+## References
+
+1. Fossum, E. R. CMOS image sensors: Electronic camera-on-a-chip. IEEE Trans. Electron Devices 44, 1689–1698 (1997).
+2. Article ADS Google Scholar 
+3. Gove, R. J. in High Performance Silicon Imaging 2nd edn (ed. Durini, D.) 185–240 (Elsevier, 2019).
+4. Yun, S. H. & Kwok, S. J. Light in diagnosis, therapy and surgery. Nat. Biomed. Eng. 1, 0008 (2017).
+5. Article CAS PubMed PubMed Central Google Scholar 
+6. Liu, Z., Ukida, H., Ramuhalli, P. & Niel, K (eds). Integrated Imaging and Vision Techniques for Industrial Inspection (Springer, 2015).
+7. Nakamura, J. Image Sensors and Signal Processing for Digital Still Cameras (CRC Press, 2017).
+8. Bogdoll, D., Nitsche, M. & Zöllner, M. Anomaly detection in autonomous driving: a survey. In Proc. IEEE/CVF International Conference on Computer Vision and Pattern Recognition 4488–4499 (CVF, 2022).
+9. Hanheide, M. et al. Robot task planning and explanation in open and uncertain worlds. Artif. Intell. 247, 119–150 (2017).
+10. Article MathSciNet Google Scholar 
+11. Sarker, I. H. Machine learning: algorithms, real-world applications and research directions. SN Comp. Sci. 2, 160 (2021).
+12. Article Google Scholar 
+13. Joseph, K., Khan, S., Khan, F. S. & Balasubramanian, V. N. Towards open world object detection. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 5830–5840 (CVF, 2021).
+14. Breitenstein, J., Termöhlen, J.-A., Lipinski, D. & Fingscheidt, T. Breitenstein, J., Termöhlen, J.-A., Lipinski, D. & Fingscheidt, T. Systematization of corner cases for visual perception in automated driving. In 2020 IEEE Intelligent Vehicles Symposium (IV) 1257–1264 (IEEE, 2020).
+15. Yan, C., Xu, W. & Liu, J. Can you trust autonomous vehicles: contactless attacks against sensors of self-driving vehicle. In Proc. Def Con 24, 109 (ACM, 2016).
+16. Li, M., Wang, Y.-X. & Ramanan, D. Towards streaming perception. In European Conf. Computer Vision 473–488 (Springer, 2020).
+17. Quiñonero-Candela, J., Sugiyama, M., Schwaighofer, A. & Lawrence, N. D. Dataset Shift in Machine Learning (Mit Press, 2008).
+18. Khatab, E., Onsy, A., Varley, M. & Abouelfarag, A. Vulnerable objects detection for autonomous driving: a review. Integration 78, 36–48 (2021).
+19. Article Google Scholar 
+20. Shu, X. & Wu, X. Real-time high-fidelity compression for extremely high frame rate video cameras. IEEE Trans. Comput. Imaging 4, 172–180 (2017).
+21. Article MathSciNet Google Scholar 
+22. Feng, S. et al. Dense reinforcement learning for safety validation of autonomous vehicles. Nature 615, 620–627 (2023).
+23. Article ADS CAS PubMed Google Scholar 
+24. Goodale, M. A. & Milner, A. D. Separate visual pathways for perception and action. Trends Neurosci. 15, 20–25 (1992).
+25. Article CAS PubMed Google Scholar 
+26. Nassi, J. J. & Callaway, E. M. Parallel processing strategies of the primate visual system. Nat. Rev. Neurosci. 10, 360–372 (2009).
+27. Article CAS PubMed PubMed Central Google Scholar 
+28. Mahowald, M. & Mahowald, M. in An Analog VLSI System for Stereoscopic Vision (ed. Mahowald, M.) 4–65 (Kluwer, 1994).
+29. Zaghloul, K. A. & Boahen, K. Optic nerve signals in a neuromorphic chip I: Outer and inner retina models. IEEE Trans. Biomed. Eng. 51, 657–666 (2004).
+30. Article PubMed Google Scholar 
+31. Son, B. et al. 4.1 A 640 × 480 dynamic vision sensor with a 9 µm pixel and 300 Meps address-event representation. In 2017 IEEE International Solid-State Circuits Conference (ISSCC) 66–67 (IEEE, 2017).
+32. Kubendran, R., Paul, A. & Cauwenberghs, G. A 256 × 256 6.3 pJ/pixel-event query-driven dynamic vision sensor with energy-conserving row-parallel event scanning. In 2021 IEEE Custom Integrated Circuits Conference (CICC) 1–2 (IEEE, 2021).
+33. Posch, C., Matolin, D. & Wohlgenannt, R. A QVGA 143 dB dynamic range frame-free PWM image sensor with lossless pixel-level video compression and time-domain CDS. IEEE J. Solid-State Circuits 46, 259–275 (2010).
+34. Article ADS Google Scholar 
+35. Leñero-Bardallo, J. A., Serrano-Gotarredona, T. & Linares-Barranco, B. A 3.6 μs latency asynchronous frame-free event-driven dynamic-vision-sensor. IEEE J Solid-State Circuits 46, 1443–1455 (2011).
+36. Article ADS Google Scholar 
+37. Prophesee. IMX636ES (HD) https://www.prophesee.ai/event-camera-evk4/ (2021).
+38. Brandli, C., Berner, R., Yang, M., Liu, S.-C. & Delbruck, T. A 240 × 180 130 db 3 µs latency global shutter spatiotemporal vision sensor. IEEE J. Solid-State Circuits 49, 2333–2341 (2014).
+39. Article ADS Google Scholar 
+40. Guo, M. et al. A 3-wafer-stacked hybrid 15MPixel CIS + 1 MPixel EVS with 4.6GEvent/s readout, in-pixel TDC and on-chip ISP and ESP function. In 2023 IEEE International Solid-State Circuits Conference (ISSCC) 90–92 (IEEE, 2023).
+41. Kodama, K. et al. 1.22 μm 35.6Mpixel RGB hybrid event-based vision sensor with 4.88 μm-pitch event pixels and up to 10 K event frame rate by adaptive control on event sparsity. In 2023 IEEE International Solid-State Circuits Conference (ISSCC) 92–94 (IEEE, 2023).
+42. Frohmader, K. P. A novel MOS compatible light intensity-to-frequency converter suited for monolithic integration. IEEE J. Solid-State Circuits 17, 588–591 (1982).
+43. Article ADS Google Scholar 
+44. Huang, T. et al. 1000× faster camera and machine vision with ordinary devices. Engineering 25, 110–119 (2023).
+45. Article Google Scholar 
+46. Wang, X., Wong, W. & Hornsey, R. A high dynamic range CMOS image sensor with inpixel light-to-frequency conversion. IEEE Trans. Electron Devices 53, 2988–2992 (2006).
+47. Article ADS Google Scholar 
+48. Ng, D. C. et al. Pulse frequency modulation based CMOS image sensor for subretinal stimulation. IEEE Trans. Circuits Syst. II Express Briefs 53, 487–491 (2006).
+49. Article Google Scholar 
+50. Culurciello, E., Etienne-Cummings, R. & Boahen, K. A. A biomorphic digital image sensor. IEEE J. Solid-State Circuits 38, 281–294 (2003).
+51. Article ADS Google Scholar 
+52. Shoushun, C. & Bermak, A. Arbitrated time-to-first spike CMOS image sensor with on-chip histogram equalization. IEEE Trans. Very Large Scale Integr. VLSI Syst. 15, 346–357 (2007).
+53. Article Google Scholar 
+54. Guo, X., Qi, X. & Harris, J. G. A time-to-first-spike CMOS image sensor. IEEE Sens. J. 7, 1165–1175 (2007).
+55. Article ADS CAS Google Scholar 
+56. Shi, C. et al. A 1000 fps vision chip based on a dynamically reconfigurable hybrid architecture comprising a PE array processor and self-organizing map neural network. IEEE J. Solid-State Circuits 49, 2067–2082 (2014).
+57. Article ADS Google Scholar 
+58. Hsu, T.-H. et al. A 0.8 V intelligent vision sensor with tiny convolutional neural network and programmable weights using mixed-mode processing-in-sensor technique for image classification. In 2022 IEEE International Solid-State Circuits Conference (ISSCC) 1–3 (IEEE, 2022).
+59. Lefebvre, M., Moreau, L., Dekimpe, R. & Bol, D. 7.7 A 0.2-to-3.6TOPS/W programmable convolutional imager SoC with in-sensor current-domain ternary-weighted MAC operations for feature extraction and region-of-interest detection. In 2021 IEEE International Solid-State Circuits Conference (ISSCC) 118–120 (IEEE, 2021).
+60. Ishikawa, M., Ogawa, K., Komuro, T. & Ishii, I. A CMOS vision chip with SIMD processing element array for 1 ms image processing. In 1999 IEEE International Solid-State Circuits Conference 206–207 (IEEE, 1999).
+61. Shi, Y.-Q. & Sun, H. Image and Video Compression for Multimedia Engineering: Fundamentals, Algorithms, and Standards 3rd edn (CRC Press, 2019).
+62. Sakakibara, M. et al. A 6.9-μm pixel-pitch back-illuminated global shutter CMOS image sensor with pixel-parallel 14-bit subthreshold ADC. IEEE J. Solid-State Circuits 53, 3017–3025 (2018).
+63. Article ADS Google Scholar 
+64. Seo, M.-W. et al. 2.45 e-rms low-random-noise, 598.5 mW low-power, and 1.2 kfps high-speed 2-Mp global shutter CMOS image sensor with pixel-level ADC and memory. IEEE J. Solid-State Circuits 57, 1125–1137 (2022).
+65. Article ADS Google Scholar 
+66. Bogaerts, J. et al. 6.3 105 × 65 mm 2 391Mpixel CMOS image sensor with >78 dB dynamic range for airborne mapping applications. In 2016 IEEE International Solid-State Circuits Conference (ISSCC) 114–115 (IEEE, 2016).
+67. Park, I., Park, C., Cheon, J. & Chae, Y. 5.4 A 76 mW 500 fps VGA CMOS image sensor with time-stretched single-slope ADCs achieving 1.95e− random noise. In 2019 IEEE International Solid-State Circuits Conference (ISSCC) 100–102 (IEEE, 2019).
+68. Oike, Y. et al. 8.3 M-pixel 480-fps global-shutter CMOS image sensor with gain-adaptive column ADCs and chip-on-chip stacked integration. IEEE J. Solid-State Circuits 52, 985–993 (2017).
+69. Article ADS Google Scholar 
+70. Okada, C. et al. A 50.1-Mpixel 14-bit 250-frames/s back-illuminated stacked CMOS image sensor with column-parallel kT/ C-canceling S&H and ΔΣADC. IEEE J. Solid-State Circuits 56, 3228–3235 (2021).
+71. Article ADS Google Scholar 
+72. Solhusvik, J. et al. 1280 × 960 2.8 μm HDR CIS with DCG and split-pixel combined. In Proc. International Image Sensor Workshop 254–257 (2019).
+73. Murakami, H. et al. A 4.9 Mpixel programmable-resolution multi-purpose CMOS image sensor for computer vision. In 2022 IEEE International Solid-State Circuits Conference (ISSCC) 104–106 (IEEE, 2022).
+74. iniVation. DAVIS 346, https://inivation.com/wp-content/uploads/2019/08/DAVIS346.pdf (iniVation, 2019).
+75. Kandel, E. R., Koester, J. D., Mack, S. H. & Siegelbaum, S. A. Principles of Neural Science 4th edn (McGraw-Hill, 2000).
+76. Mishkin, M., Ungerleider, L. G. & Macko, K. A. Object vision and spatial vision: two cortical pathways. Trends Neurosci. 6, 414–417 (1983).
+77. Article Google Scholar 
+78. Jähne, B. EMVA 1288 Standard for machine vision: Objective specification of vital camera data. Optik Photonik 5, 53–54 (2010).
+79. Article Google Scholar 
+80. Reda, F. A. et al. FILM: Frame Interpolation for Large Motion. In Proc. IEEE/CVF International Conference on Computer Vision 250–266 (ACM, 2022).
+81. Woo, S., Park, J., Lee, J.-Y. & Kweon, I. S. CBAM: Convolutional Block Attention Module. In Proc. European Conference on Computer Vision (ECCV) 3–19 (2018).
+82. Ronneberger, O., Fischer, P. & Brox, T. U-Net: convolutional networks for biomedical image segmentation. In Medical Image Computing and Computer-Assisted Intervention–MICCAI 2015: 18th International Conference Proc. Part III Vol. 18 (eds Navab, N. et al.) 234–241 (Springer, 2015).
+83. Ranjan, A. & Black, M. J. CBAM: Convolutional Block Attention Module. In Proc. IEEE Conference on Computer Vision and Pattern Recognition 4161–4170 (CVF, 2018).
+84. Redmon, J., Divvala, S., Girshick, R. & Farhadi, A. You Only Look Once: unified, real-time object detection. In Proc. IEEE Conference on Computer Vision and Pattern Recognition 779–788 (IEEE, 2016).
+85. Wu, D. et al. YOLOP: You Only Look Once for Panoptic Driving Perception. Mach. Intell. Res. 19, 550–562 (2022).
+86. Article Google Scholar 
+87. Bochkovskiy, A., Wang, C.-Y. & Liao, H.-Y. M. YOLOv4: optimal speed and accuracy of object detection. Preprint at https://arxiv.org/abs/2004.10934 (2020).
+88. Horn, B. K. & Schunck, B. G. Determining optical flow. Artif. Intell. 17, 185–203 (1981).
+89. Article Google Scholar 
+90. Wang, T. Tianmouc dataset. Zenodo https://doi.org/10.5281/zenodo.10602822 (2024).
+91. Wang, T. Code of “A vision chip with complementary pathways for open-world sensing”. Zenodo https://doi.org/10.5281/zenodo.10775253 (2024).
+92. iniVation. Understanding the Performance of Neuromorphic Event-based Vision Sensors White Paper (iniVation, 2020).
+93. iniVation. DAVIS 346 AER https://inivation.com/wp-content/uploads/2023/07/DAVIS346-AER.pdf (iniVation, 2023).
+
+## Acknowledgements
+
+This work was supported by the STI 2030—Major Projects 2021ZD0200300 and National Natural Science Foundation of China (no. 62088102).
+
+## Author information
+
+Author notes
+
+1. These authors contributed equally: Zheyu Yang, Taoyi Wang, Yihan Lin
+
+### Authors and Affiliations
+
+1. Center for Brain-Inspired Computing Research (CBICR), Optical Memory National Engineering Research Center and Department of Precision Instrument, Tsinghua University, Beijing, China
+2. Zheyu Yang, Taoyi Wang, Yihan Lin, Yuguo Chen, Hui Zeng, Jing Pei, Jiazheng Wang, Xue Liu, Rong Zhao & Luping Shi
+3. Lynxi Technologies, Beijing, China
+4. Zheyu Yang, Yichun Zhou, Jianqiang Zhang, Xin Wang & Xinhao Lv
+5. IDG/McGovern Institute for Brain Research, Tsinghua University, Beijing, China
+6. Rong Zhao & Luping Shi
+7. THU-CET HIK Joint Research Center for Brain-Inspired Computing, Tsinghua University, Beijing, China
+8. Luping Shi
+
+1. Zheyu Yang
+2. View author publications
+3. Search author on: PubMed Google Scholar
+4. Taoyi Wang
+5. View author publications
+6. Search author on: PubMed Google Scholar
+7. Yihan Lin
+8. View author publications
+9. Search author on: PubMed Google Scholar
+10. Yuguo Chen
+11. View author publications
+12. Search author on: PubMed Google Scholar
+13. Hui Zeng
+14. View author publications
+15. Search author on: PubMed Google Scholar
+16. Jing Pei
+17. View author publications
+18. Search author on: PubMed Google Scholar
+19. Jiazheng Wang
+20. View author publications
+21. Search author on: PubMed Google Scholar
+22. Xue Liu
+23. View author publications
+24. Search author on: PubMed Google Scholar
+25. Yichun Zhou
+26. View author publications
+27. Search author on: PubMed Google Scholar
+28. Jianqiang Zhang
+29. View author publications
+30. Search author on: PubMed Google Scholar
+31. Xin Wang
+32. View author publications
+33. Search author on: PubMed Google Scholar
+34. Xinhao Lv
+35. View author publications
+36. Search author on: PubMed Google Scholar
+37. Rong Zhao
+38. View author publications
+39. Search author on: PubMed Google Scholar
+40. Luping Shi
+41. View author publications
+42. Search author on: PubMed Google Scholar
+
+### Contributions
+
+Z.Y., T.W. and Y.L. were in charge of the Tianmouc chip architecture and chip design, the Tianmouc chip test and system design, and algorithm and software design, respectively. L.S. and R.Z. proposed the concept of a complementary vision paradigm, and Z.Y., Y.L., T.W. and Y.C. conducted the related theoretical analysis. T.W., J.P., Y.Z., J.Z., X.W. and X.L. contributed to the chip design. Y.C., H.Z., J.W. and X.L. contributed to the chip test. Z.Y., Y.L., T.W. and Y.C. contributed to the autonomous driving system design. All authors contributed to the experimental analysis and interpretation of results. R.Z., L.S., Z.Y., T.W., Y.L. and Y.C. wrote the paper with input from all authors. L.S. and R.Z. designed the entire experiment and supervised the whole project.
+
+### Corresponding authors
+
+Correspondence to Rong Zhao or Luping Shi.
+
+## Ethics declarations
+
+### Competing interests
+
+The authors declare no competing interests.
+
+## Peer review
+
+### Peer review information
+
+Nature thanks Craig Vineyard and the other, anonymous, reviewer(s) for their contribution to the peer review of this work.
+
+## Additional information
+
+Publisher’s note Springer Nature remains neutral with regard to jurisdictional claims in published maps and institutional affiliations.
+
+## Extended data figures and tables
+
+### Extended Data Fig. 1 The complementarity of the Human Vision System (HVS).
+
+The retina is composed of rod and cone cells that operate in an oppositional manner to expand the sensitivity range. At the next level, in the lateral geniculate nucleus (LGN), the M-pathway and P-pathway encode information in a complementary manner. The output information from the LGN is then reorganized into a series of primitives, including colour, orientation, depth, and direction at the V1 region. Finally, these primitives are transmitted separately to the ventral and dorsal pathways to facilitate the recognition of objects and visual-guided behavior.
+
+### Extended Data Fig. 2 Tianmouc architecture.
+
+a, Schematic of the pixel structure in the back-side illuminated hybrid pixel array. b, Schematic of the cone-inspired and rod-inspired pixels. c, Schematic of readout circuits of the COP and AOP. d, Schematic of compressed packets generation process through the sparse spatiotemporal difference packetizer.
+
+### Extended Data Fig. 3 Tianmouc chip testing systems.
+
+a, Testing boards equipped with a Tianmouc chip. b, The full system to process the output data of Tianmouc chip. The data is first transmitted to the FPGA board, where it collects raw data before transferring it to the host computer through PCIe. Subsequently, the host takes the charge of data processing for test and other tasks.
+
+### Extended Data Fig. 4 Experimental setup for chip characterization.
+
+a, Schematic illustration of the experimental set-up for the chip evaluation based on EMVA1288. b, A photograph of the optical setup. c, Photograph of the chip evaluation system including chip test board, FPGA board, host computer and the high-speed ADC acquisition card. d, Schematic illustration of the optical set-up for dynamic range measurement. e, A photograph of the optical setup for dynamic range measurement.
+
+### Extended Data Fig. 5 Chip characterization.
+
+a, High-speed recording of an unpredictable and fast-moving ping-pong ball shot by a machine. b, Power consumption of Tianmouc. The left half depicts the distribution of different modules including pixel, analog, digital and interface circuits. The right illustrates the total power consumption under different modes. c, Anti-aliasing reconstruction of the rotation of a wheel. The alias in the wheel recorded by COP can be eliminated by the high-speed AOP. d, the AOP of Tianmouc is able to capture lightning that is missed by COP and record details of textures.
+
+### Extended Data Fig. 6 The reconstruction pipeline.
+
+a, The structure of the whole reconstruction network. b, The light-weight optical flow estimator modified from SpyNet, using multi-scale residual flow calculation. In this figure, d means down-sampling operation. c, A self-supervised training pipeline, where we use the two colour images and the difference data between these two images to provide two training samples. d, At the inference stage, we adjust the amount of input data to obtain high-speed colour images at any time point.
+
+### Extended Data Fig. 7 The streaming perception pipelines for the open-world automotive driving tasks.
+
+In Tianmouc, different primitive combinations are encoded to form the AOP and COP. These two pathways maintain separate buffers and support independent feedback control. The processed data of the AOP and the COP are then sent to different NN or an optical flow solver. Subsequently, the inference results are integrated in a multi-object tracker. This approach optimally leverages the CVP at a semantic level, preserving both low-latency response ability and high performance simultaneously.
+
+The sparse data in the AOP, coupled with the encoding method, enables Tianmouc to adaptively adjust its transmission bandwidth, typically maintaining it at a bandwidth below 80 MB/s in most scenarios. With the complementary perception paradigm, this bandwidth proves adequate for efficiently addressing diverse corner cases.
+
+Extended Data Table 1 The primitive-based representation and complementary sensing paradigm in Tianmouc
+
+Full size table
+
+Extended Data Table 2 Comparison of Tianmouc with existing vision sensors
+
+Full size table
+
+## Supplementary information
+
+### Supplementary Information (download DOCX )
+
+The Supplementary Information file contains Supplementary Notes 1–9 and Supplementary Tables 1–2.
+
+## Source data
+
+## Rights and permissions
+
+Springer Nature or its licensor (e.g. a society or other partner) holds exclusive rights to this article under a publishing agreement with the author(s) or other rightsholder(s); author self-archiving of the accepted manuscript version of this article is solely governed by the terms of such publishing agreement and applicable law.
+
+## About this article
+
+### Cite this article
+
+Yang, Z., Wang, T., Lin, Y. et al. A vision chip with complementary pathways for open-world sensing. Nature 629, 1027–1033 (2024). https://doi.org/10.1038/s41586-024-07358-4

@@ -1,0 +1,419 @@
+Brain-inspired visual sensing–perception for open-world environments | Nature Sensors
+
+## Abstract
+
+Robust visual perception in open-world environments remains a fundamental challenge, as data representations degrade under extreme imaging conditions. By contrast, the human visual system maintains resilience through compositional representations built from visual primitives. Here we introduce a brain-inspired two-stage learning framework for adaptive and robust perception in open-world settings. In the bottom-up stage, structured visual priors are embedded into intermediate representations, enabling self-supervised learning of an internal model that fuses complementary cues. In the top-down stage, distilled visual knowledge from this model adaptively modulates downstream perception algorithms to enhance robustness and generalization. We instantiate the framework using the brain-inspired vision sensor Tianmouc and evaluate it on datasets capturing real-world extreme scenarios. Experiments show that bottom-up learning yields consistent generalization across diverse degradations, while top-down modulation substantially improves monocular depth estimation and video instance segmentation under severe interference. These results establish a principled brain-inspired computational approach for advancing artificial visual intelligence and understanding human vision.
+
+## Access options
+
+Access through your institution
+
+Fig. 1: The HVS and brain-inspired visual system.
+
+Fig. 2: Tianmouc-R datasets and the evaluation of IGFNet.
+
+Fig. 3: Mono-depth estimation task.
+
+Fig. 4: VIS task.
+
+### A large-scale examination of inductive biases shaping high-level visual representation in brains and machines
+
+### Informative neural representations of unseen contents during higher-order processing in human brains and deep artificial networks
+
+### Neural tuning instantiates prior expectations in the human visual system
+
+### Subjects
+
+- Computer science
+- Imaging and sensing
+
+## Data availability
+
+The download links for the dataset are available via GitHub at https://github.com/Tianmouc/tianmoucv or https://huggingface.co/datasets/ordinarabbit/Tianmouc-R.
+
+## Code availability
+
+The code for algorithm training and validation, Tianmouc data simulation and dataset generation and processing described in this Article is available via GitHub at https://github.com/Tianmouc/TMC-SSL-Representation. In addition, we provide an algorithm library with a simulator for Tianmouc V1 via GitHub at https://github.com/Tianmouc/tianmoucv, which includes one-click demo scripts for all algorithms presented in this Article.
+
+## References
+
+Almalioglu, Y., Turan, M., Trigoni, N. & Markham, A. Deep learning-based robust positioning for all-weather autonomous driving. Nat. Mach. Intell. 4, 749–760 (2022).
+
+Gehrig, D. & Scaramuzza, D. Low-latency automotive vision with event cameras. Nature 629, 1034–1040 (2024).
+
+Schedl, D. C., Kurmi, I. & Bimber, O. An autonomous drone for search and rescue in forests using airborne optical sectioning. Sci. Robot. 6, eabg1188 (2021).
+
+Schoepe, T. et al. Finding the gap: neuromorphic motion-vision in dense environments. Nat. Commun. 15, 817 (2024).
+
+Zhu, L., Mangan, M. & Webb, B. Neuromorphic sequence learning with an event camera on routes through vegetation. Sci. Robot. 8, eadg3679 (2023).
+
+Yang, Z. et al. A vision chip with complementary pathways for open-world sensing. Nature 629, 1027–1033 (2024).
+
+Tachella, J., Chen, D. & Davies, M. Unsupervised learning from incomplete measurements for inverse problems. In 36th Conference on Neural Information Processing Systems (NeurIPS 2022) https://proceedings.neurips.cc/paper_files/paper/2022/file/203e651b448deba5de5f45430c45ea04-Paper-Conference.pdf(2022).
+
+Breitenstein, J., Termöhlen, J.-A., Lipinski, D. & Fingscheidt, T. Systematization of corner cases for visual perception in automated driving. In Proc. IEEE Intelligent Vehicles Symposium, 1257–1264 (2020).
+
+Feng, S. et al. Dense reinforcement learning for safety validation of autonomous vehicles. Nature 615, 620–627 (2023).
+
+Gao, C. et al. EmbodiedCity: a benchmark platform for embodied agent in real-world city environment. Preprint at https://arxiv.org/abs/2410.09604(2024).
+
+Yan, X. et al. Learning naturalistic driving environment with statistical realism. Nat. Commun. 14, 2037 (2023).
+
+Alibeigi, M. et al. Zenseact Open Dataset: a large-scale and diverse multimodal dataset for autonomous driving. In Proc. IEEE/CVF International Conference on Computer Vision 20178–20188 (2023).
+
+Chaney, K. et al. M3ed: multi-robot, multi-sensor, multi-environment event dataset. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 4016–4023 (2023).
+
+Pham, Q.-H. et al. A* 3d dataset: towards autonomous driving in challenging environments. In Proc. IEEE International Conference on Robotics and Automation 2267–2273 (2020).
+
+Wang, T.-H. et al. Drive anywhere: generalizable end-to-end autonomous driving with multi-modal foundation models. In Proc. IEEE International Conference on Robotics and Automation 6687–6694 (2024).
+
+Daza, I. G. A., Izquierdo, R., Martı́nez, L. M., Benderius, O. & Llorca, D. F. Sim-to-real transfer and reality gap modeling in model predictive cont rol for autonomous driving. Applied Intelligence 53, 12719–12735 (2023).
+
+Wang, X., Li, K. & Chehri, A. Multi-sensor fusion technology for 3D object detection in autonomous driving: a review. IEEE Trans. Intell. Transp. Syst. 25, 1148–1165 (2023).
+
+Xiang, C. et al. Multi-sensor fusion and cooperative perception for autonomous driving: a review. IEEE Intell. Transp. Syst. Mag. 15, 36–58 (2023).
+
+Zhu, X. et al. A survey on deep learning approaches for data integration in autonomou s driving system. Preprint at https://arxiv.org/abs/2306.11740(2023).
+
+Wang, Y. et al. Emulating human-like adaptive vision for efficient and flexible machine visual perception. Nat. Mach. Intell. 7, 1804–1822 (2025).
+
+Raugel, J. et al. Disentangling the factors of convergence between brains and computer vision models. Preprint at https://arxiv.org/abs/2508.18226(2025).
+
+Gallego, G. et al. Event-based vision: a survey. IEEE Trans. Pattern Anal. Mach. Intell. 44, 154–180 (2020).
+
+Finateu, T. et al. a 1280×720 back-illuminated stacked temporal contrast event-based vision sensor with 4.86 µm pixels, 1.066 geps readout, programmable event-rate controller and compressive data-formatting pipeline. In Proc. IEEE International Solid-State Circuits Conference 112–114 (2020).
+
+Brandli, C., Berner, R., Yang, M., Liu, S.-C. & Delbruck, T. A 240×180 130 db 3 μs latency global shutter spatiotemporal vision sensor. IEEE J. Solid-State Circuits 49, 2333–2341 (2014).
+
+Wang, T. et al. Quantitative evaluation of brain-inspired vision sensors in high-speed robotic perception. In Proc. International Conference on Neuromorphic Systems 149–157 (2025).
+
+Gehrig, D., Loquercio, A., Derpanis, K. G. & Scaramuzza, D. End-to-end learning of representations for asynchronous event-based data. In Proc. IEEE/CVF International Conference on Computer Vision 5633–5643 (2019).
+
+Mohammadi, M., Wu, Z. & Gilitschenski, I. TESPEC: Temporally-Enhanced Self-Supervised Pretraining for Event Cameras. In Proc. IEEE/CVF International Conference on Computer Vision 7782–7793 (2025).
+
+Yang, Y., Pan, L. & Liu, L. Event camera data pre-training. In Proc. IEEE/CVF International Conference on Computer Vision 10699–10709 (2023).
+
+Sabater, A., Montesano, L. & Murillo, A. C. Event transformer. a sparse-aware solution for efficient event data processing. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 2677–2686 (2022).
+
+Klenk, S., Bonello, D., Koestler, L., Araslanov, N. & Cremers, D. Masked event modeling: Self-supervised pretraining for event cameras. In Proc. IEEE/CVF Winter Conference on Applications of Computer Vision 2378–2388 (2024).
+
+Wang, L., Chae, Y., Yoon, S.-H., Kim, T.-K. & Yoon, K.-J. Evdistill: Asynchronous events to end-task learning via bidirectional reconstruction-guided cross-modal knowledge distillation. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 608–619 (2021).
+
+Wang, L., Chae, Y. & Yoon, K.-J. Dual transfer learning for event-based end-task prediction via pluggable event to image translation. In Proc. IEEE/CVF International Conference on Computer Vision 2135–2145 (2021).
+
+Kandel, E. R. et al. Principles of Neural Science Vol. 4 (McGraw-Hill, 2000).
+
+Thompson, P. in Fundamentals of Human–Computer Interaction (ed Monk, A.) 5–33 (Academic Press, 1985).
+
+Zhai, G., Min, X. & Liu, N. Free-energy principle inspired visual quality assessment: an overview. Digital Signal Process. 91, 11–20 (2019).
+
+Spelke, E. S., Phillips, A. & Woodward, A. L. in Causal Cognition: A Multidisciplinary Debate 44–78 (Clarendon Press/Oxford Univ. Press, 1995).
+
+Tovée, M. J. An Introduction to the Visual System (Cambridge Univ. Press, 2008).
+
+Heider, B., Spillmann, L. & Peterhans, E. Stereoscopic illusory contours—cortical neuron responses and human perception. J. Cog. Neurosci. 14, 1018–1029 (2002).
+
+Soska, K. C., Adolph, K. E. & Johnson, S. P. Systems in development: motor skill acquisition facilitates three-dimensional object completion. Dev. Psychol. 46, 129 (2010).
+
+Goodale, M. A. & Milner, A. D. Separate visual pathways for perception and action. Trends in Neurosci. 15, 20–25 (1992).
+
+McAlonan, K., Cavanaugh, J. & Wurtz, R. H. Guarding the gateway to cortex with attention in visual thalamus. Nature 456, 391–394 (2008).
+
+O’Connor, D. H., Fukui, M. M., Pinsk, M. A. & Kastner, S. Attention modulates responses in the human lateral geniculate nucleus. Nat. Neurosci. 5, 1203–1209 (2002).
+
+Motter, B. C. Focal attention produces spatially selective processing in visual cort ical areas V1, V2, and V4 in the presence of competing stimuli. J. Neurophysiol. 70, 909–919 (1993).
+
+Schlack, A. & Albright, T. D. Remembering visual motion: neural correlates of associative plasticity and motion recall in cortical area MT. Neuron 53, 881–890 (2007).
+
+Li, W., Piëch, V. & Gilbert, C. D. Perceptual learning and top-down influences in primary visual cortex. Nat. Neurosci. 7, 651–657 (2004).
+
+Spelke, E. S. The Origins of Physical Knowledge (Clarendon Press/Oxford Univ. Press, 1988).
+
+Spelke, E. S., Born, W. S. & Chu, F. Perception of moving, sounding objects by four-month-old infants. Perception 12, 719–732 (1983).
+
+Craton, L. G. & Yonas, A. in Advances in Psychology Vol. 69 (ed Enns, J. T.) 21–46 (Elsevier, 1990).
+
+Carvalho, J., Fernandes, F. F. & Shemesh, N. Extensive topographic remapping and functional sharpening in the adult rat visual pathway upon first visual experience. PLoS Biol. 21, e3002229 (2023).
+
+Diester, I. et al. Internal world models in humans, animals, and AI. Neuron 112, 2265–2268 (2024).
+
+Lee, T. S. The visual system’s internal model of the world. Proc. IEEE 103, 1359–1378 (2015).
+
+Yu, Z. et al. Training weakly supervised video frame interpolation with events. In Proc. IEEE/CVF International Conference on Computer Vision 14589–14598 (2021).
+
+Zhang, R., Isola, P., Efros, A. A., Shechtman, E. & Wang, O. The unreasonable effectiveness of deep features as a perceptual metric. In Proc. IEEE Conference on Computer Vision and Pattern Recognition 586–595 (2018).
+
+Wang, Z., Simoncelli, E. P. & Bovik, A. C. Multiscale structural similarity for image quality assessment. In Proc. Thirty-Seventh Asilomar Conference on Signals, Systems & Computers 1398–1402 (2003).
+
+Yang, S. et al. Maniqa: multi-dimension attention network for no-reference image quality assessment. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 1191–1200 (2022).
+
+Xydeas, C. S. et al. Objective image fusion performance measure. Electron. Lett. 36, 308–309 (2000).
+
+Kim, T., Chae, Y., Jang, H.-K. & Yoon, K.-J. Event-based video frame interpolation with cross-modal asymmetric bidirectional motion fields. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 18032–18042 (2023).
+
+Han, J. et al. Hybrid high dynamic range imaging fusing neuromorphic and conventional images. IEEE Trans. Pattern Anal. Mach. Intell. 45, 8553–8565 (2023).
+
+Liang, J. et al. Swinir: image restoration using swin transformer. In Proc. IEEE/CVF International Conference on Computer Vision 1833–1844 (2021).
+
+Wang, Z. et al. Uformer: a general u-shaped transformer for image restoration. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 17683–17693 (2022).
+
+Dong, X., Garratt, M. A., Anavatti, S. G. & Abbass, H. A. Towards real-time monocular depth estimation for robotics: a survey. IEEE Trans. Intell. Transp. Syst. 23, 16940–16961 (2022).
+
+Yang, L. et al. Depth Anything V2. Preprint at https://arxiv.org/abs/2406.09414(2024).
+
+Xue, F. et al. Boundary-induced and scene-aggregated network for monocular depth prediction. Pattern Recognit. 115, 107901 (2021).
+
+Li, M., Wang, Y.-X. & Ramanan, D. Towards streaming perception. In Proc. European Conference on Computer Vision 473–488 (2020).
+
+Jocher, G. Ultralytics YOLOv5. GitHub https://github.com/ultralytics/yolov5(2020).
+
+Cao, J. et al. Chasing day and night: towards robust and efficient all-day object detection guided by an event camera. In Proc. IEEE International Conference on Robotics and Automation 9026–9032 (2024).
+
+Lin, T.-Y. et al. In Computer Vision–ECCV 2014: 13th European Conference, Zurich, Switzerland, September 6–12, 2014, Proc. Part V 13 740–755 (Springer, 2014).
+
+Taverni, G. et al. Front and back illuminated dynamic and active pixel vision sensors comparison. IEEE Trans. Circuits Syst. Express Briefs 65, 677–681 (2018).
+
+Rebecq, H., Ranftl, R., Koltun, V. & Scaramuzza, D. Events-to-video: bringing modern computer vision to event cameras. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 3857–3866 (2019).
+
+Ercan, B., Eker, O., Saglam, C., Erdem, A. & Erdem, E. Hypere2vid: improving event-based video reconstruction via hypernetworks. IEEE Trans. Image Process. 33, 1826–1837 (2024).
+
+Tulyakov, S. et al. Time lens++: event-based frame interpolation with parametric non-linear flow and multi-scale fusion. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 16155–16164 (2022).
+
+Sun, J., Jia, J., Tang, C.-K. & Shum, H.-Y. Poisson matting. In Proc. ACM SIGGRAPH 315–321 (2024).
+
+Teed, Z. & Deng, J. Raft: recurrent all-pairs field transforms for optical flow. In Proc. European Conference on Computer Vision 402–419 (2020).
+
+Cho, K. et al. Learning phrase representations using RNN encoder–decoder for statistical machine translation. In Proc. Conference on Empirical Methods in Natural Language Processing 1724–1734 (2014).
+
+Margalit, E. et al. A unifying framework for functional organization in early and higher ventral visual cortex. Neuron 112, 2435–2451.e7 (2024).
+
+He, K. et al. Masked autoencoders are scalable vision learners. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 16000–16009 (2022).
+
+Assran, M. et al. Self-supervised learning from images with a joint-embedding predictive architecture. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 15619–15629 (2023).
+
+Kingma, D. P. & Ba, J. Adam: a method for stochastic optimization. Preprint at https://arxiv.org/abs/1412.6980(2014).
+
+Liao, X., Zheng, T., Zhong, J., Zhang, P. & Ren, C. Asymmetric mask scheme for self-supervised real image denoising. In Proc. European Conference on Computer Vision 199–215 (2025).
+
+Cheng, H. K. & Schwing, A. G. XMem: long-term video object segmentation with an Atkinson-Shiffrin Memory Model. In European Conference on Computer Vision 640–658 (Springer, 2022).
+
+Breitenstein, J., Termöhlen, J.-A., Lipinski, D. & Fingscheidt, T. Corner cases for visual perception in automated driving: some guidance on detection approaches. Preprint at https://arxiv.org/abs/2102.05897(2021).
+
+Heidecker, F. et al. An application-driven conceptualization of corner cases for perception in highly automated driving. In Proc. IEEE Intelligent Vehicles Symposium 644–651 (2021).
+
+Gondal, M. W., Schölkopf, B. & Hirsch, M. The unreasonable effectiveness of texture transfer for single image super-resolution. In Proc. European Conference on Computer Vision, 80–97 (2018).
+
+Zhao, H., Gallo, O., Frosio, I. & Kautz, J. Loss functions for image restoration with neural networks. IEEE Trans. Comput. Imaging 3, 47–57 (2016).
+
+Eigen, D., Puhrsch, C. & Fergus, R. Depth map prediction from a single image using a multi-scale deep network. In Proc. 28th International Conference on Neural Information Processing Systems 2366–2374 (MIT, 2014).
+
+Silberman, N., Hoiem, D., Kohli, P. & Fergus, R. Indoor segmentation and support inference from RGBD images. In Proc. 12th European Conference On Computer Vision 746–760 (Springer, 2012).
+
+Cheng, H. K., et al. Tracking anything with decoupled video segmentation In Proc. IEEE/CVF International Conference on Computer Vision 1316–1326. (2023).
+
+Cheng, B., Misra, I., Schwing, A. G., Kirillov, A. & Girdhar, R. Masked-attention mask transformer for universal image segmentation. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 1290–1299 (2022).
+
+Bochkovskiy, A., Wang, C.-Y. & Liao, H.-Y. M. YOLOv4: optimal speed and accuracy of object detection. Preprint at https://arxiv.org/abs/2004.10934(2020).
+
+Woo, S., Park, J., Lee, J.-Y. & Kweon, I. S. CBAM: convolutional block attention module. In Proc. European Conference on Computer Vision 3–19 (2018).
+
+Wang, A., Chen, H., Lin, Z., Han, J. & Ding, G. Repvit: revisiting mobile cnn from vit perspective. In Proc. IEEE/CVF Conference on Computer Vision and Pattern Recognition 15909–15920 (2024).
+
+Shen, J. et al. ICAFusion: iterative cross-attention guided feature fusion for multispectral object detection. Pattern Recognit. 145, 109913 (2024).
+
+Ge, Z., Liu, S., Wang, F., Li, Z. & Sun, J. YOLOx: exceeding YOLO series in 2021. Preprint at https://arxiv.org/abs/2107.08430(2021).
+
+## Funding
+
+This project is supported by Brain Science and Brain-like Intelligence Technology-National Science and Technology Major Project (no. 2021ZD0200300).
+
+## Author information
+
+Author notes
+
+These authors contributed equally: Yihan Lin, Yuguo Chen.
+
+### Authors and Affiliations
+
+Center for Brain-Inspired Computing Research, Optical Memory National Engineering Research Center, Department of Precision Instrument, Tsinghua University, Beijing, China
+
+Yihan Lin, Yuguo Chen, Yapeng Meng, Xiangru Chen, Taoyi Wang, Rong Zhao & Luping Shi
+
+Pen-Tung Sah Institute of Micro-Nano Science and Technology, Xiamen University, Xiamen, China
+
+Yihan Lin
+
+IDG/McGovern Institute for Brain Research, Tsinghua University, Beijing, China
+
+Rong Zhao & Luping Shi
+
+Authors
+
+Yihan Lin
+
+Search author on: PubMed Google Scholar
+
+Yuguo Chen
+
+Search author on: PubMed Google Scholar
+
+Yapeng Meng
+
+Search author on: PubMed Google Scholar
+
+Xiangru Chen
+
+Search author on: PubMed Google Scholar
+
+Taoyi Wang
+
+Search author on: PubMed Google Scholar
+
+Rong Zhao
+
+Search author on: PubMed Google Scholar
+
+Luping Shi
+
+Search author on: PubMed Google Scholar
+
+### Contributions
+
+Y.L. conceived the learning theory and experimental design, proposed and trained all algorithms and led the overall development of TianmouCV. Y.C. contributed to data collection, dataset quality analysis, hardware system construction and theoretical analysis. Y.L., Y.M., X.C. and T.W. contributed to Tianmouc simulator development and participated in data collection. R.Z. and L.S. proposed the concept of the visual theory in this work and led the development of Tianmouc. Y.L., Y.C., R.Z. and L.S. wrote the manuscript with input from all authors. L.S. and R.Z. supervised the whole project.
+
+### Corresponding authors
+
+Correspondence to Rong Zhao or Luping Shi.
+
+## Ethics declarations
+
+### Competing interests
+
+The authors declare no competing interests.
+
+## Peer review
+
+### Peer review information
+
+Nature Sensors thanks Giulia D’Angelo and Huajin Tang for their contribution to the peer review of this work.
+
+## Additional information
+
+Publisher’s note Springer Nature remains neutral with regard to jurisdictional claims in published maps and institutional affiliations.
+
+## Extended data
+
+### Extended Data Fig. 1 The sampling principle of Tianmouc and the comparison with event-based vision sensors (EVSs).
+
+a, through hybrid pixel array design and circuit design, Tianmouc enables complete simultaneous output of three-modal data. b, The raw data and the reconstruction results of different cameras. Green represents positive values and blue represents negative values. For both the TD and the SD, brightness indicates magnitude.
+
+### Extended Data Fig. 2 Construction process and algorithm of IR.
+
+a, three IR construction methods: HDR fusion based on the 2-D Poisson equation, optical-flow-based warping to encode motion, and direct accumulation of spatiotemporal variations with color frame. b, UNet network used for \({F}_{I}\), which directly receives RGB, TD, and SD data from 0 to \({t}_{f}\), and output the RGB at time \({t}_{f}\). c, SD-RAFT is proposed to estimate optical flow for \({F}_{O}\).
+
+### Extended Data Fig. 3 Fundamentals of the brain-inspired visual learning framework.
+
+a, taking the fusion of three IRs as an example, to obtain the optimal result, estimated VGT, requires the guarantee of multiple mechanisms. b, according to the framework, we develop a 2-step self-supervised training scheme. Different IRs are firstly built using Tianmouc data, then the internal models are trained with a symmetric self-supervised learning process. c, Details of the IGFNet structure, where IGFNet is a dedicated implementation of an internal model.
+
+### Extended Data Fig. 4 VGT estimation on different corner cases.
+
+For the e-VGT task, we compared the real-world inference performance of different baselines under various corner cases, and IGFNet demonstrates the best robustness.
+
+### Extended Data Fig. 5 Comparison results between the DAM-V2-L model on Tianmouc real-captured data and the depth provided by the RGB-D sensor.
+
+DAMv2 exhibits strong generalization ability. Without fine-tuning, it can produce high-precision, scale-aligned depth results from e-VGT that match real-world depth scales, making it suitable to serve as our depth SGT.
+
+### Extended Data Fig. 6 Video instance segmentation annotation process.
+
+a, Overall data annotation pipeline b, Annotation based on video object tracking methods and image instance segmentation. The video object segmentation uses the XMem model, and the instances and their masks are provided by mask2former. Key parts include the merging and repair of masks.
+
+### Extended Data Fig. 7 Class distribution and annotation quality of the Tianmouc-VIS dataset.
+
+a, Class distribution of the Tianmouc-VIS samples b, Annotation on e-VGT and RGB. The annotations based on original RGB images are also placed on the top of the e-VGT to highlight the errors, which is substantially mitigated by labeling on the e-VGT.
+
+### Extended Data Fig. 8 Neural network structural details of the VIS perception algorithms.
+
+By modifying the HDR branch as well as the fusion layer, we construct different perceptual algorithms to achieve a trade-off between accuracy and speed.
+
+Extended Data Table 1 More evaluation results of different Models on estimating VGT
+
+Extended Data Table 2 Evaluation Metrics for MDE tasks
+
+## Supplementary information
+
+### Supplementary Information (download PDF )
+
+Supplementary Text and Algorithms 1 and 2.
+
+### Reporting Summary (download PDF )
+
+### Supplementary Video 1 (download MP4 )
+
+VGT estimation example.
+
+## Source data
+
+### Source Data Fig. 2 (download XLSX )
+
+Dataset category distribution and clip length statistics for Fig. 2b.
+
+### Source Data Fig. 2 (download XLSX )
+
+Dataset category distribution and clip length statistics for Fig. 2b.
+
+### Source Data Fig. 4 (download XLSX )
+
+Source data for Fig. 4c.
+
+### Source Data Table 1 (download XLSX )
+
+Source data for Table 1.
+
+### Source Data Extended Data Table 1 (download XLSX )
+
+Source data for Extended Data Table 1.
+
+### Source Data Extended Data Table 2 (download XLSX )
+
+Source data for Extended Data Table 2.
+
+### Source Data Extended Data Fig. 7 (download XLSX )
+
+Source data for Extended Data Fig. 7a.
+
+## Rights and permissions
+
+Springer Nature or its licensor (e.g. a society or other partner) holds exclusive rights to this article under a publishing agreement with the author(s) or other rightsholder(s); author self-archiving of the accepted manuscript version of this article is solely governed by the terms of such publishing agreement and applicable law.
+
+## About this article
+
+### Cite this article
+
+Lin, Y., Chen, Y., Meng, Y. et al. Brain-inspired visual sensing–perception for open-world environments. Nat. Sens. 1, 701–717 (2026). https://doi.org/10.1038/s44460-026-00095-3
+
+Received: 04 July 2025
+
+Accepted: 28 May 2026
+
+Published: 15 July 2026
+
+Version of record: 15 July 2026
+
+Issue date: August 2026
+
+DOI: https://doi.org/10.1038/s44460-026-00095-3
+
+## Search
+
+Search articles by subject, keyword or author
+
+Show results from All journals This journal
+
+Search
+
+### Quick links
+
+- Explore articles by subject
+- Find a job
+- Guide to authors
+- Editorial policies

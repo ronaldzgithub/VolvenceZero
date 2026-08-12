@@ -1,3 +1,9 @@
+## 新增重要研究：Tianmouc 传感–感知专项 2026-08
+
+- [`tianmouc-sensing-perception-2026-08/`](tianmouc-sensing-perception-2026-08/) — 对清华类脑计算研究中心《Brain-inspired Visual Sensing–Perception for Open-World Environments》（*Nature Sensors* 1, 701–717, 2026 年 8 月刊**封面文章**，Tianmouc 芯片团队的算法续作）的深读。正文付费墙 link-only，但**官方代码库已完整克隆逐类核验**（`02_CODE_DEEP_DIVE.md`），方法部分证据链完备。论文在互补视觉芯片（COP 慢完整强度 / AOP 快稀疏差分）上用两阶段类脑学习取得开放世界极端条件鲁棒感知：bottom-up 以数据内禀物理一致性（Poisson 梯度–强度一致）为监督、零标注训练内部模型 IGFNet 产出标准表示 e-VGT；top-down 冻结该表示并用基础模型蒸馏伪标签调制下游任务。**核心裁决：同构证据而非可搬模块**——它在感知域独立重演了信号分层（R-PE：差分与状态分开采样）、SSOT（R8：所有下游消费 e-VGT 而非原始数据，且在标准表示上标注错误更少）、冻结基底（R2）与涌现门控（R3/R4：门控从退化免疫训练中被逼出来，替代 if/else 路由）。最可移植的三条：训练期随机屏蔽一条输入通路的退化免疫融合方案、记忆读出"残差注入 + 方差约束 + 一键关断"（与 steering norm cap 同一设计语汇）、"基础模型零微调可消费"作为快照标准性判据。**三条不可类比边界**：其记忆库训练后冻结（不支持 Appendable）、其 top-down 是训练期蒸馏（非运行时 steering）、全框架无 RL/credit（只覆盖 NL 的 SSL 半边）。伴随 PDF ×2 位于 [`papers/tianmouc-sensing-2608/`](papers/tianmouc-sensing-2608/)，脚本 [`download_tianmouc_sensing_2608.sh`](download_tianmouc_sensing_2608.sh)。建议从 [`tianmouc-sensing-perception-2026-08/README.md`](tianmouc-sensing-perception-2026-08/README.md) 开始读。
+
+---
+
 ## 新增重要研究：CogNosco Lab / NLP Psychometrics 专项 2026-08
 
 - [`cognosco-nlp-psychometrics-2026/`](cognosco-nlp-psychometrics-2026/) — 对用户提供文章所述研究《Natural Language Processing Psychometrics》的原论文复核，并向 CogNosco Lab 的方法谱系、PENSO 项目与公开数据资产扩展。研究包包含主论文逐项深读、Lab 44 项成果地图、对 Volvence 的四能力轴映射、来源与下载边界清单，以及 10 篇 PDF、2 个开源工具归档、4 个公开数据归档和 SHA-256 校验文件。核心裁决：语言网络扰动可作为有价值的命名 readout，但现有证据主要来自合成语料与小规模二分类迁移，不能被升级为心理状态本体、因果机制、临床诊断器或学习 reward；对 Volvence 最直接的参考是把这类指标放进 owner 发布的冻结快照，并让其服务于 Prediction Error、credit 与 SHADOW 评估，而不是绕过正式控制链。
