@@ -201,12 +201,17 @@ from volvence_zero.substrate.text_encoder import (
     SubstrateTextEncoderBackend,
 )
 from volvence_zero.substrate.forward_representation import (
+    SUBSTRATE_FORWARD_CENTERED_READOUT_KIND,
     SUBSTRATE_FORWARD_READOUT_KIND,
     SUBSTRATE_FORWARD_REPRESENTATION_SCHEMA_VERSION,
+    SUBSTRATE_READOUT_REFERENCE_STATISTICS_SCHEMA_VERSION,
     SubstrateForwardRepresentation,
     SubstrateForwardRepresentationLineage,
     SubstrateForwardRepresentationPublisher,
     SubstrateForwardRepresentationSnapshot,
+    SubstrateReadoutReferenceStatistics,
+    fit_forward_readout_reference_statistics,
+    layer_normalized_readout_vector,
     publish_runtime_capture_representation,
 )
 from volvence_zero.substrate.frozen_residual_readout import (
@@ -259,8 +264,10 @@ __all__ = [
     "GroundingVerdict",
     "HFTextGenerationProvider",
     "SubstrateTextEncoderBackend",
+    "SUBSTRATE_FORWARD_CENTERED_READOUT_KIND",
     "SUBSTRATE_FORWARD_READOUT_KIND",
     "SUBSTRATE_FORWARD_REPRESENTATION_SCHEMA_VERSION",
+    "SUBSTRATE_READOUT_REFERENCE_STATISTICS_SCHEMA_VERSION",
     "FROZEN_RESIDUAL_READOUT_SCHEMA_VERSION",
     "FROZEN_RESIDUAL_READOUT_TRAINING_MODE",
     "SUBSTRATE_RESIDUAL_READOUT_SCHEMA_VERSION",
@@ -269,6 +276,9 @@ __all__ = [
     "SubstrateForwardRepresentationLineage",
     "SubstrateForwardRepresentationPublisher",
     "SubstrateForwardRepresentationSnapshot",
+    "SubstrateReadoutReferenceStatistics",
+    "fit_forward_readout_reference_statistics",
+    "layer_normalized_readout_vector",
     "publish_runtime_capture_representation",
     "SubstrateResidualReadout",
     "SubstrateResidualReadoutLineage",

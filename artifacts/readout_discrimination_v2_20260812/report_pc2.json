@@ -1,0 +1,48 @@
+{
+  "schema_version": "readout-discrimination-diagnostic.v1",
+  "contexts_dir": "/Users/mengfu/Documents/GitHub/volvence/artifacts/dialogue_steering_c3_formal_fullcontext_20260806/contexts/train",
+  "corpus_id": "msc-train-split-24dyad-c3-contexts-20260806",
+  "layer_indices": [
+    11,
+    12,
+    13,
+    20
+  ],
+  "activation_widths": [
+    896,
+    896,
+    896,
+    896
+  ],
+  "reference_statistics_sha256": "4778e5324f1d19e19af152bb37c4913368ab61b87380450888cc82944e867f40",
+  "principal_components_removed": 2,
+  "readouts": {
+    "latest-token-selected-layer-residual-l2.v1": {
+      "sample_count": 583,
+      "cluster_count": 24,
+      "common_mode_energy_share": 0.5539595080367956,
+      "pairwise_cosine_mean": 0.5348456804882832,
+      "pairwise_cosine_std": 0.1645543649541942,
+      "same_cluster_cosine_mean": 0.5859376074497691,
+      "different_cluster_cosine_mean": 0.5327136214694493,
+      "same_vs_different_gap": 0.053223985980319743,
+      "cohens_d": 0.31508422709840006,
+      "nn_retrieval_accuracy": 0.2538593481989708,
+      "nn_retrieval_chance": 0.041666666666666664
+    },
+    "latest-token-selected-layer-centered-residual-l2.v2": {
+      "sample_count": 583,
+      "cluster_count": 24,
+      "common_mode_energy_share": 0.057247746724741054,
+      "pairwise_cosine_mean": -0.0014629012595534516,
+      "pairwise_cosine_std": 0.11125582562493233,
+      "same_cluster_cosine_mean": 0.025177918138003623,
+      "different_cluster_cosine_mean": -0.002574618954376504,
+      "same_vs_different_gap": 0.027752537092380125,
+      "cohens_d": 0.20836313089963188,
+      "nn_retrieval_accuracy": 0.18010291595197256,
+      "nn_retrieval_chance": 0.041666666666666664
+    }
+  },
+  "prereg_note": "train-split diagnostic only; heldout data must not feed the fit or the go/no-go reading, and thresholds are frozen at prereg time"
+}

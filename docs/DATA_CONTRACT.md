@@ -1131,9 +1131,12 @@ class SubstrateForwardRepresentationLineage:
     model_fingerprint: SubstrateFingerprint
     runtime_origin: str
     readout_kind: str                  # latest-token-selected-layer-residual-l2.v1
+                                       # 或 latest-token-selected-layer-centered-residual-l2.v2
     layer_indices: tuple[int, ...]
     activation_widths: tuple[int, ...]
     representation_dim: int
+    reference_corpus_id: str | None = None          # 仅 v2；v1 必须为 None
+    reference_statistics_sha256: str | None = None  # 仅 v2；v1 必须为 None
 
 @dataclass(frozen=True)
 class SubstrateForwardRepresentationSnapshot:
@@ -1155,6 +1158,50 @@ class SubstrateForwardRepresentationSnapshot:
 - 此 slot 当前为 offline/report-only SHADOW，不进入 live `propagate` DAG；回滚为
   停止发布/消费该 slot，旧外部 sentence-encoder pilot 只能保留
   `thesis_status=not-evaluated`，不得自动恢复 thesis 资格。
+
+**Centered readout v2（2026-08-12）**：
+
+同一 owner 追加 `latest-token-selected-layer-centered-residual-l2.v2` readout。
+背景：v1 原始 readout 有 55% 以上能量落在所有样本共享的均值方向上，且整体 L2
+归一使单层（layer 20）独占约 73% 能量，压制了臂间可分辨性（A1 formal 的
+`swapped-user-state` 主判据 gain 仅 5.9e-05 即此缺陷的直接后果）。v2 变换：
+逐层 L2 归一 → 拼接 → 减去冻结参考均值（可选再投影掉冻结主成分）→ 整体归一。
+
+```python
+@dataclass(frozen=True)
+class SubstrateReadoutReferenceStatistics:
+    schema_version: str                # substrate-readout-reference-statistics.v1
+    corpus_id: str                     # 冻结参考语料标识（train split，非 heldout）
+    layer_indices: tuple[int, ...]
+    activation_widths: tuple[int, ...]
+    sample_count: int
+    mean: tuple[float, ...]            # 在逐层归一空间拟合
+    principal_components: tuple[tuple[float, ...], ...]  # 可为空；单位正交
+    statistics_sha256: str             # 内容自校验，构造即验证
+```
+
+- **owner**：仍为 `SubstrateForwardRepresentationPublisher`（`vz-substrate`），
+  不新建 slot、不新建第二 owner；v2 通过构造参数 `reference_statistics` 启用。
+- **value_type**：`SubstrateForwardRepresentationSnapshot` 不变；v2 lineage 额外
+  携带 `reference_corpus_id` 与 `reference_statistics_sha256`，v1 lineage 两者
+  必须为 None，交叉校验 fail loudly。
+- **dependencies**：`fit_forward_readout_reference_statistics(...)` 只能在冻结
+  train-split 参考语料上拟合（在 evaluation/heldout 数据上拟合即判据面泄漏，
+  契约禁止）；statistics 作为 model-bound artifact 随 prereg 冻结发布。
+- **whitening 档位（2026-08-12 用 d 值定夺）**：在 583 个 MSC train 样本
+  （24 dyad）上，v1 的 same-vs-diff dyad Cohen's d = 0.315；v2 逐层归一 + 减均值
+  d = 0.432；再去 top-1 主成分 d = 0.592（+88% vs v1）；去 ≥2 个主成分反而塌到
+  0.21–0.27（第二主成分携带判别方差）。冻结推荐 `principal_component_count=1`。
+  证据：`artifacts/readout_discrimination_v2_20260812/`（report_pc0/1/2/4 +
+  reference_statistics + run.log）。诚实记录：v2 的 1-NN dyad 检索为 0.189，低于
+  v1 的 0.254（v1 的检索优势来自 L20 主导的局部 token 相似性）；判据对齐的是
+  paired 对比效应（d 类量），故 d 是冻结依据，检索数一并留档。
+- **wiring_level**：与 v1 相同，SHADOW（offline research），不进入 live DAG。
+- **兼容性**：v1 snapshot fingerprint 逐字节不变（fingerprint payload 仅在 v2
+  时追加 `reference_statistics_sha256` 键）；capture 与 statistics 的
+  layer/width geometry 不一致时 publish fail loudly。
+- **回滚**：停止传入 `reference_statistics` 即回到 v1 行为；既有 v1 artifact
+  与 fingerprint 不受影响。
 
 **MSC R4 conditioned runtime context（2026-08-05）**：
 

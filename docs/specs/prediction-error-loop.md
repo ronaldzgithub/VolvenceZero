@@ -96,7 +96,7 @@
 - owner-internal `TorchForwardRepresentationHead` 使用 `input -> tanh(n_z) -> target` 的有界瓶颈；结算发布逐样本 predicted / actual / signed error、MSE、cosine、`prediction_zero_norm`，以及同 target 上的 persistence baseline。batch snapshot 汇总 `zero_norm_prediction_count`；cosine 对零范数仍定义为 0 仅用于数值结算，但正式 verdict 必须暴露计数且任一命中使完整性门失败，禁止静默把 head collapse 当普通低分。
 - `ForwardRepresentationBatchSnapshot` 是 PE owner 的离线 settlement artifact，不进入 live `propagate`；其 target 来自 DATA_CONTRACT §3.1 / §6 注册的 offline SHADOW slot `substrate_forward_representation`。调用方只能经 `PredictionErrorModule.process_forward_representation_batch(...)` 训练或评估，禁止直接实例化 head 形成第二 owner。
 - checkpoint 为 float-only、带 geometry/schema/parameter fingerprint 与完整 target lineage 校验；head 在第一批绑定 lineage，后续 batch、restore 或 model/readout/sample snapshot 漂移必须 loudly fail。
-- target 语义只由 `vz-substrate` 解释：冻结模型最后 token、选定 residual layers、稳定 layer order、L2-normalized readout。PE owner只拥有预测与 mismatch，不遍历 capture、不编码原文。MiniLM/其它外部 sentence encoder target 只允许作为历史 mechanism pilot，不能构造新的 `ForwardRepresentationBatch` 或取得 thesis 资格。
+- target 语义只由 `vz-substrate` 解释：冻结模型最后 token、选定 residual layers、稳定 layer order、L2-normalized readout。readout 有两个契约版本：v1（`latest-token-selected-layer-residual-l2.v1`，整体 L2 归一）与 v2（`latest-token-selected-layer-centered-residual-l2.v2`，逐层归一 + 减冻结 train-split 参考均值再归一；lineage 绑定 `reference_corpus_id` / `reference_statistics_sha256`）。v2 的动机与分辨力证据见 `docs/DATA_CONTRACT.md` §Centered readout v2；参考统计禁止在 evaluation/heldout 数据上拟合。PE owner只拥有预测与 mismatch，不遍历 capture、不编码原文。MiniLM/其它外部 sentence encoder target 只允许作为历史 mechanism pilot，不能构造新的 `ForwardRepresentationBatch` 或取得 thesis 资格。
 - C1 steering terminal settlement 复用这一 owner surface：`settle_steering_terminal_prediction_error(...)` 只比较同 predictor fingerprint、同 substrate target lineage、同 sample/history/actual target 的冻结 action/noop heldout snapshot，并发布 `SteeringTerminalPredictionError`。主学习标量是相对 matched-noop MSE improvement；cosine 只作诊断。该 out-of-turn API 不接受 evaluation/judge、不新增 live slot，也不更新 forward head。
 - C3 multi-restart replay 不得复制或重算 mismatch。PE owner 的 `bind_steering_terminal_prediction_error_decisions(...)` 只允许把一份冻结 `SteeringTerminalPredictionError` 绑定到新的 episode/decision lineage；action/noop batch、sample、head、target、MSE 与 cosine 全部原样保留。每个 rebound 仍由 credit owner 入账，禁止 runner 直接把 scalar 写给 gate。
 - promotion 条件：真实人类 multi-session heldout 上，N+1 head 必须优于同 substrate target 的 persistence，并通过 temporal-owner 容量阶梯、同一冻结 substrate 的长上下文 matched baseline、完整 runtime attestation 和多 seed 门；此前保持 offline/report-only。PE forward-head `n_z` 只代表 predictor capacity，不是 temporal-controller `n_z`。旧 CP-11 四轴手工 head 的 output/target space 与 substrate 表示不同，不能伪造跨空间数值对照。
@@ -476,6 +476,20 @@ NL 把 Local Surprise Signal 定义为 loss 对模型输出的梯度 `∂L/∂ou
 | 被依赖 | 慢反思路径 | reflection 将 PE 作为 tensions、lessons 和 policy consolidation 的正式输入 |
 
 ## 变更日志
+
+- 2026-08-12: substrate centered readout v2。`vz-substrate` 在同一
+  `substrate_forward_representation` owner 内追加
+  `latest-token-selected-layer-centered-residual-l2.v2`：逐层 L2 归一消除单层
+  能量独占（v1 全局归一下 layer 20 占约 73% 能量），再减去冻结 train-split
+  参考均值（`SubstrateReadoutReferenceStatistics`，内容自校验、随 lineage 绑定）。
+  动机：583 个已收集 MSC train 样本上，v1 原始 cosine 把 same-vs-diff dyad 的
+  可分辨性压至 Cohen's d≈0.32；owner 实测 v2（逐层归一 + 减均值）d≈0.43，再去
+  top-1 主成分 d≈0.59（冻结档位，去 ≥2 个主成分反而塌回 0.21–0.27）；A1
+  formal `swapped-user-state` 主判据 gain 5.9e-05 是该标度缺陷的直接后果。
+  证据见 `artifacts/readout_discrimination_v2_20260812/` 与
+  `scripts/diagnose_readout_discrimination.py`（判据分辨力预检，不进任何 formal
+  runner 的 SOURCE_FILES）。v1 行为与 snapshot fingerprint 逐字节不变；参考统计
+  禁止在 evaluation/heldout 数据上拟合。
 
 - 2026-08-05: MSC R3→R5 formal control surface。R4 通过完整 service/runtime
   typed observation collector 发布 conditioned substrate context 与对称增量成本；R5
