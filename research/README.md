@@ -1,3 +1,9 @@
+## 新增重要研究：CogNosco Lab / NLP Psychometrics 专项 2026-08
+
+- [`cognosco-nlp-psychometrics-2026/`](cognosco-nlp-psychometrics-2026/) — 对用户提供文章所述研究《Natural Language Processing Psychometrics》的原论文复核，并向 CogNosco Lab 的方法谱系、PENSO 项目与公开数据资产扩展。研究包包含主论文逐项深读、Lab 44 项成果地图、对 Volvence 的四能力轴映射、来源与下载边界清单，以及 10 篇 PDF、2 个开源工具归档、4 个公开数据归档和 SHA-256 校验文件。核心裁决：语言网络扰动可作为有价值的命名 readout，但现有证据主要来自合成语料与小规模二分类迁移，不能被升级为心理状态本体、因果机制、临床诊断器或学习 reward；对 Volvence 最直接的参考是把这类指标放进 owner 发布的冻结快照，并让其服务于 Prediction Error、credit 与 SHADOW 评估，而不是绕过正式控制链。
+
+---
+
 ## 一、先说总判断
 
 你手上这 100 多篇论文共同完成了一件此前十年都没发生过的事：
