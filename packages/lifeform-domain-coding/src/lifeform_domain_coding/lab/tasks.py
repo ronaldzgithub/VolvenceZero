@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from random import Random
 
 from lifeform_domain_coding.lab.generation import (
+    CONVENTION_EXPORT_ALL,
     INVARIANT_CONFIG_CASE,
     INVARIANT_HIDDEN_CONSUMER,
     INVARIANT_REPORT_ORDER,
@@ -85,6 +86,45 @@ class FunctionReplace:
 
 
 PrestateEdit = FileEdit | FunctionReplace
+
+
+# ---------------------------------------------------------------------------
+# House conventions (memory-realisable difficulty knob)
+# ---------------------------------------------------------------------------
+#
+# When CONVENTION_EXPORT_ALL is active on the spec, every task that adds
+# a new public symbol gets (a) a hidden acceptance test asserting the
+# symbol is registered in its module's ``__all__`` and (b) a compliance
+# edit appended to the reference solution (and to invariant-sabotage
+# variants, which must still pass acceptance). Task DESCRIPTIONS never
+# mention the convention and the repository carries no ``__all__`` —
+# the convention is only learnable from settled episode outcomes.
+
+
+def _export_all_edit(path: str, symbol: str) -> FileEdit:
+    # ``globals().get`` because the module has no ``__all__`` until the
+    # first compliant episode lands; later episodes extend it. This is
+    # generated fixture code, not runtime system code.
+    return FileEdit(
+        path=path,
+        old="",
+        new=f'\n__all__ = [*globals().get("__all__", []), "{symbol}"]\n',
+    )
+
+
+def _export_all_acceptance(module: str, symbol: str) -> str:
+    # The custom assert message IS the post-submit CI evidence: junitxml
+    # carries it verbatim (module reprs with long tmp paths otherwise
+    # push the actionable part past the detail truncation).
+    return (
+        "\n\ndef test_house_convention_export_all():\n"
+        f"    import {module} as _mod\n"
+        f'    exported = getattr(_mod, "__all__", ())\n'
+        f'    assert "{symbol}" in exported, (\n'
+        f'        "house style: new public symbol {symbol!r} must be exported "\n'
+        f'        "via {module}.__all__"\n'
+        "    )\n"
+    )
 
 
 @dataclass(frozen=True)
@@ -225,13 +265,21 @@ def _helper_variants(spec: EnvSpec) -> tuple[dict[str, object], ...]:
 def _task_add_helper(spec: EnvSpec, index: int, variant: dict[str, object]) -> ChainTask:
     pkg = spec.package_name
     util_path = f"{pkg}/util.py"
+    symbol = str(variant["name"])
+    acceptance = str(variant["acceptance"])
+    reference_edits: tuple[FileEdit, ...] = (
+        FileEdit(path=util_path, old="", new=str(variant["reference"])),
+    )
+    if CONVENTION_EXPORT_ALL in spec.convention_ids:
+        acceptance += _export_all_acceptance(f"{pkg}.util", symbol)
+        reference_edits += (_export_all_edit(util_path, symbol),)
     return ChainTask(
         task_id=f"task-{index:03d}-{CATEGORY_ADD_HELPER}-{variant['name']}",
         category=CATEGORY_ADD_HELPER,
         description=str(variant["description"]),
         target_files=(util_path,),
-        acceptance_test_source=str(variant["acceptance"]),
-        reference_edits=(FileEdit(path=util_path, old="", new=str(variant["reference"])),),
+        acceptance_test_source=acceptance,
+        reference_edits=reference_edits,
         acceptance_sabotage_edits=(FileEdit(path=util_path, old="", new=str(variant["sabotage"])),),
         invariant_sabotage_edits=(),
         invariant_risk=(),
@@ -264,6 +312,18 @@ def _task_extend_report(spec: EnvSpec, index: int) -> ChainTask:
         f"    {add_calls}\n"
         f'    assert render_summary(store) == "TOTAL ITEMS: {expected_count}"\n'
     )
+    reference_edits: tuple[FileEdit, ...] = (FileEdit(path=report_path, old="", new=reference),)
+    invariant_sabotage_edits: tuple[FileEdit, ...] = (
+        FileEdit(path=report_path, old="", new=reference),
+        FileEdit(path=report_path, old=order_anchor, new=order_sabotage),
+    )
+    if CONVENTION_EXPORT_ALL in spec.convention_ids:
+        acceptance += _export_all_acceptance(f"{pkg}.report", "render_summary")
+        compliance = _export_all_edit(report_path, "render_summary")
+        reference_edits += (compliance,)
+        # Invariant sabotage must still PASS acceptance (that is its
+        # defining property), so it complies with the convention too.
+        invariant_sabotage_edits += (compliance,)
     return ChainTask(
         task_id=f"task-{index:03d}-{CATEGORY_EXTEND_REPORT}",
         category=CATEGORY_EXTEND_REPORT,
@@ -274,7 +334,7 @@ def _task_extend_report(spec: EnvSpec, index: int) -> ChainTask:
         ),
         target_files=(report_path,),
         acceptance_test_source=acceptance,
-        reference_edits=(FileEdit(path=report_path, old="", new=reference),),
+        reference_edits=reference_edits,
         acceptance_sabotage_edits=(
             FileEdit(
                 path=report_path,
@@ -286,10 +346,7 @@ def _task_extend_report(spec: EnvSpec, index: int) -> ChainTask:
                 ),
             ),
         ),
-        invariant_sabotage_edits=(
-            FileEdit(path=report_path, old="", new=reference),
-            FileEdit(path=report_path, old=order_anchor, new=order_sabotage),
-        ),
+        invariant_sabotage_edits=invariant_sabotage_edits,
         invariant_risk=(INVARIANT_REPORT_ORDER,),
     )
 
@@ -343,6 +400,16 @@ def _task_config_feature(spec: EnvSpec, index: int) -> ChainTask:
         "        return\n"
         '    raise AssertionError("expected ValueError")\n'
     )
+    reference_edits: tuple[FileEdit, ...] = (FileEdit(path=config_path, old="", new=get_bool),)
+    invariant_sabotage_edits: tuple[FileEdit, ...] = (
+        FileEdit(path=config_path, old="", new=get_bool),
+        FileEdit(path=config_path, old=case_anchor, new=case_sabotage),
+    )
+    if CONVENTION_EXPORT_ALL in spec.convention_ids:
+        acceptance += _export_all_acceptance(f"{pkg}.config", "get_bool")
+        compliance = _export_all_edit(config_path, "get_bool")
+        reference_edits += (compliance,)
+        invariant_sabotage_edits += (compliance,)
     return ChainTask(
         task_id=f"task-{index:03d}-{CATEGORY_CONFIG_FEATURE}",
         category=CATEGORY_CONFIG_FEATURE,
@@ -354,7 +421,7 @@ def _task_config_feature(spec: EnvSpec, index: int) -> ChainTask:
         ),
         target_files=(config_path,),
         acceptance_test_source=acceptance,
-        reference_edits=(FileEdit(path=config_path, old="", new=get_bool),),
+        reference_edits=reference_edits,
         acceptance_sabotage_edits=(
             FileEdit(
                 path=config_path,
@@ -366,10 +433,7 @@ def _task_config_feature(spec: EnvSpec, index: int) -> ChainTask:
                 ),
             ),
         ),
-        invariant_sabotage_edits=(
-            FileEdit(path=config_path, old="", new=get_bool),
-            FileEdit(path=config_path, old=case_anchor, new=case_sabotage),
-        ),
+        invariant_sabotage_edits=invariant_sabotage_edits,
         invariant_risk=(INVARIANT_CONFIG_CASE,),
     )
 

@@ -167,6 +167,10 @@ def render_episode_transcript(trajectory_path: pathlib.Path) -> str:
                 f"regression={payload['regression_passed']} "
                 f"invariant_violations={payload.get('invariant_violations', [])}"
             )
+            # Post-submit CI evidence (assertion heads); same granularity
+            # the brain arm's memory summaries carry — arms stay symmetric.
+            for detail in payload.get("failure_details", []):
+                lines.append(f"[oracle-failure] {detail}")
     return "\n".join(lines)
 
 
@@ -193,6 +197,9 @@ class ArmChainConfig:
     episodes: int
     brain_digest_char_budget: int
     budget: EpisodeBudget
+    #: House conventions (difficulty knob); must match the Packet 0
+    #: calibration that qualified the frozen hand for this band.
+    convention_ids: tuple[str, ...] = ()
 
 
 async def run_chain_arm(
@@ -211,7 +218,10 @@ async def run_chain_arm(
 
     if arm not in ALL_ARMS:
         raise ValueError(f"unknown arm {arm!r}")
-    spec = EnvSpec(env_seed=config.env_seed + config.chain_index * 13)
+    spec = EnvSpec(
+        env_seed=config.env_seed + config.chain_index * 13,
+        convention_ids=config.convention_ids,
+    )
     chain = generate_task_chain(
         spec, chain_seed=config.chain_index, length=config.episodes
     )

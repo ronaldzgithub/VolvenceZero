@@ -40,6 +40,8 @@ class SealedVariant:
     generator_version: str
     tree_sha256: str
     probe_chain_sha256: str
+    #: Default () keeps pre-2026-08-13 sealed manifests loadable.
+    convention_ids: tuple[str, ...] = ()
 
 
 def _variant_spec(base_spec: EnvSpec, index: int) -> EnvSpec:
@@ -53,6 +55,7 @@ def _variant_spec(base_spec: EnvSpec, index: int) -> EnvSpec:
         package_name=f"hv{index}_app",
         param_offset=1_000 + index * 17,
         invariant_ids=rotated,
+        convention_ids=base_spec.convention_ids,
     )
 
 
@@ -95,6 +98,7 @@ def seal_heldout_variants(
                 generator_version=GENERATOR_VERSION,
                 tree_sha256=tree_hash,
                 probe_chain_sha256=hashlib.sha256(chain_blob.encode("utf-8")).hexdigest(),
+                convention_ids=spec.convention_ids,
             )
         )
     manifest_path = pathlib.Path(manifest_path)
@@ -133,6 +137,7 @@ def verify_sealed_variant(variant: SealedVariant) -> bool:
         package_name=variant.package_name,
         param_offset=variant.param_offset,
         invariant_ids=tuple(variant.invariant_ids),
+        convention_ids=tuple(variant.convention_ids),
     )
     with tempfile.TemporaryDirectory(prefix="coding-lab-heldout-verify-") as scratch:
         environment = generate_environment(spec, pathlib.Path(scratch) / "tree")

@@ -1,0 +1,196 @@
+{
+  "pipeline_id": "smoke20260813",
+  "mechanism_complete": true,
+  "stages": [
+    {
+      "name": "p0-calibration",
+      "command": [
+        "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+        "scripts/run_coding_lab_calibration.py",
+        "--hand",
+        "scripted",
+        "--run-id",
+        "coding_lab_pipeline_smoke20260813_p0",
+        "--chains",
+        "2",
+        "--episodes-per-chain",
+        "4",
+        "--heldout-variants",
+        "1"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 29.4,
+      "log": "/Users/mengfu/Documents/GitHub/volvence/artifacts/coding_lab/coding_lab_pipeline_smoke20260813/p0-calibration.log"
+    },
+    {
+      "name": "p1-observer",
+      "command": [
+        "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+        "scripts/run_coding_lab_observer.py",
+        "--calibration-run-dir",
+        "/Users/mengfu/Documents/GitHub/volvence/artifacts/coding_lab/coding_lab_pipeline_smoke20260813_p0",
+        "--run-id",
+        "coding_lab_pipeline_smoke20260813_p1",
+        "--permutations",
+        "2000"
+      ],
+      "exit_code": 2,
+      "timed_out": false,
+      "seconds": 19.9,
+      "log": "/Users/mengfu/Documents/GitHub/volvence/artifacts/coding_lab/coding_lab_pipeline_smoke20260813/p1-observer.log"
+    },
+    {
+      "name": "p2-arms-smoke",
+      "command": [
+        "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+        "scripts/run_coding_lab_packet2.py",
+        "smoke",
+        "--run-id",
+        "coding_lab_pipeline_smoke20260813_p2",
+        "--chains",
+        "2",
+        "--episodes-per-chain",
+        "6"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 73.5,
+      "log": "/Users/mengfu/Documents/GitHub/volvence/artifacts/coding_lab/coding_lab_pipeline_smoke20260813/p2-arms-smoke.log"
+    },
+    {
+      "name": "p25-blackbox-gate",
+      "command": [
+        "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+        "scripts/run_coding_lab_packet25_blackbox_gate.py",
+        "--run-id",
+        "coding_lab_pipeline_smoke20260813_p25",
+        "--updates",
+        "150",
+        "--restarts",
+        "2"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "seconds": 5.2,
+      "log": "/Users/mengfu/Documents/GitHub/volvence/artifacts/coding_lab/coding_lab_pipeline_smoke20260813/p25-blackbox-gate.log"
+    },
+    {
+      "name": "p3a-margin",
+      "command": [
+        "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+        "scripts/run_coding_lab_packet3_margin.py",
+        "--run-id",
+        "coding_lab_pipeline_smoke20260813_p3margin",
+        "--device",
+        "mps",
+        "--min-junctions",
+        "4",
+        "--bootstrap-samples",
+        "500",
+        "--headroom-directions",
+        "4"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "seconds": 35.9,
+      "log": "/Users/mengfu/Documents/GitHub/volvence/artifacts/coding_lab/coding_lab_pipeline_smoke20260813/p3a-margin.log"
+    },
+    {
+      "name": "p3b-s3e-smoke",
+      "command": [
+        "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+        "scripts/run_coding_lab_packet3_s3e.py",
+        "run",
+        "--run-id",
+        "coding_lab_pipeline_smoke20260813_p3s3e",
+        "--device",
+        "mps",
+        "--smoke",
+        "--skip-margin-check",
+        "--smoke-train-cases",
+        "6",
+        "--smoke-heldout-cases",
+        "3",
+        "--smoke-episodes",
+        "160"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "seconds": 893.4,
+      "log": "/Users/mengfu/Documents/GitHub/volvence/artifacts/coding_lab/coding_lab_pipeline_smoke20260813/p3b-s3e-smoke.log"
+    },
+    {
+      "name": "p4-gate-probe",
+      "command": [
+        "/Users/mengfu/Documents/GitHub/volvence/.venv/bin/python",
+        "scripts/run_coding_lab_packet4_gate.py",
+        "--candidate-run-id",
+        "coding_lab_pipeline_smoke20260813_p3s3e",
+        "--out-run-id",
+        "coding_lab_pipeline_smoke20260813_p4",
+        "--mechanism-probe"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "seconds": 1.2,
+      "log": "/Users/mengfu/Documents/GitHub/volvence/artifacts/coding_lab/coding_lab_pipeline_smoke20260813/p4-gate-probe.log"
+    }
+  ],
+  "verdicts": {
+    "p0": {
+      "environment_deterministic": true,
+      "heldout_sealed": true,
+      "oracle_band": true
+    },
+    "p1": {
+      "cross_process_recovery": true,
+      "external_outcome_channel": true,
+      "forecast_skill": false,
+      "pe_discrimination": false
+    },
+    "p2": {
+      "expected_null_brain_vs_steelman": true,
+      "instrument_detects_known_effect": true,
+      "scaling_structure": true
+    },
+    "p25": {
+      "overall_pass": false,
+      "train_state_keys": 33,
+      "eval_state_keys": 18,
+      "policy_expected_pass": 0.8669,
+      "uniform_expected_pass": 0.8809,
+      "modal_expected_pass": 0.8759,
+      "uplift_vs_uniform": -0.0139,
+      "uplift_ci_lower_5pct": -0.0657,
+      "beats_uniform": false,
+      "restarts": 2,
+      "selected_restart": 0
+    },
+    "p3_margin": {
+      "corpus_sufficient": true,
+      "expert_margin": false,
+      "steer_headroom": true,
+      "overall_pass": false
+    },
+    "p3_s3e": {
+      "admitted": false,
+      "failed_conditions": [
+        "gain-vs-noop",
+        "gain-vs-random-gate",
+        "gate-selectivity"
+      ],
+      "train_rows": 43,
+      "heldout_rows": 50
+    },
+    "p4": {
+      "decision": "block",
+      "blocking_reasons": [
+        "validation_delta -3.326 below required margin 0.050",
+        "contract_integrity 0.000 below 0.950"
+      ],
+      "mechanism_probe": true
+    }
+  },
+  "note": "机制冒烟口径：每阶段跑完并产出 artifact 即通路成立；玩具规模下的判词 FAIL 如实记录，不作为管线失败。"
+}

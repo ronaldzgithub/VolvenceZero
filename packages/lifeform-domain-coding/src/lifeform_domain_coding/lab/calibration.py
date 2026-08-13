@@ -52,6 +52,9 @@ class CalibrationConfig:
     api_hand_config: APIHandConfig | None = None
     band_low: float = 0.2
     band_high: float = 0.8
+    #: Active house conventions (difficulty knob); threaded into every
+    #: chain EnvSpec and recorded in the report config.
+    convention_ids: tuple[str, ...] = ()
     heldout_variants: int = 2
     budget: EpisodeBudget = field(default_factory=EpisodeBudget)
     min_free_disk_bytes: int = 2 * 1024**3
@@ -72,7 +75,10 @@ class CalibrationConfig:
 
 
 def _chain_spec(config: CalibrationConfig, chain_index: int) -> EnvSpec:
-    return EnvSpec(env_seed=config.env_seed + chain_index * 13)
+    return EnvSpec(
+        env_seed=config.env_seed + chain_index * 13,
+        convention_ids=config.convention_ids,
+    )
 
 
 def _serialize_chain(chain: tuple[ChainTask, ...]) -> str:
@@ -304,6 +310,7 @@ async def run_calibration(config: CalibrationConfig) -> dict[str, Any]:
             "chains": config.chains,
             "episodes_per_chain": config.episodes_per_chain,
             "band": [config.band_low, config.band_high],
+            "convention_ids": list(config.convention_ids),
             "scripted_rates": {
                 "invariant_sabotage": config.scripted_invariant_sabotage_rate,
                 "acceptance_sabotage": config.scripted_acceptance_sabotage_rate,

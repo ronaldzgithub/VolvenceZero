@@ -1,0 +1,38 @@
+{
+  "discipline": "Trees were generated in a temporary directory, hashed and discarded. Do not regenerate these variants until the transfer packet opens them.",
+  "probe_chain_length": 6,
+  "probe_chain_seed": 1,
+  "sealed_at_unix": 1786593223,
+  "variants": [
+    {
+      "env_seed": 28038589,
+      "generator_version": "coding-lab-gen.v1",
+      "invariant_ids": [
+        "store_index_idempotent",
+        "order_total_half_up",
+        "report_insertion_order",
+        "pricing_hidden_consumer"
+      ],
+      "package_name": "hv0_app",
+      "param_offset": 1000,
+      "probe_chain_sha256": "9f38c03ea880fbcd149e3e1fa40edeb43c27261644da18c1d3dbaaf8767ba9fa",
+      "tree_sha256": "dd099b1c3f52de00ceedd7aeeba481711c6ea0fc02e562578947374bafb03e7e",
+      "variant_id": "heldout-0"
+    },
+    {
+      "env_seed": 35816366,
+      "generator_version": "coding-lab-gen.v1",
+      "invariant_ids": [
+        "config_case_sensitive",
+        "order_total_half_up",
+        "report_insertion_order",
+        "pricing_hidden_consumer"
+      ],
+      "package_name": "hv1_app",
+      "param_offset": 1017,
+      "probe_chain_sha256": "b8a4caa67511d34b88f4c55c28c05f5a949d410b13d39e45af2f330eeec045f3",
+      "tree_sha256": "821bbdcde0ccbb911d0fcc146975f5bd46d672e8bda9871e21fe6a6fa36109fa",
+      "variant_id": "heldout-1"
+    }
+  ]
+}

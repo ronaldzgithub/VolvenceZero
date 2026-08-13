@@ -1,0 +1,72 @@
+{
+  "schema_version": "coding-lab-when-to-steer-prereg.v1",
+  "claim_scope": "coding-junction-internal-rl-when-to-steer",
+  "decision_rules": {
+    "convergence": {
+      "min_improvement_nll": 0.2
+    },
+    "gain_vs_noop": {
+      "min_nll": 0.3,
+      "require_bootstrap_lower_positive": true
+    },
+    "gain_vs_always_on_belief": {
+      "min_nll": 0.2
+    },
+    "gain_vs_random_gate": {
+      "min_nll": 0.2
+    },
+    "gate_selectivity": {
+      "min": 0.3
+    },
+    "structural_integrity": {
+      "free_bias_present": false,
+      "zero_code_strict_noop": true,
+      "substrate_trainable_parameter_count": 0,
+      "reader_frozen_during_rl": true,
+      "executor_frozen_during_rl": true
+    }
+  },
+  "seed_schedule": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "policy": {
+    "restarts": 4,
+    "learning_rate": 0.1,
+    "batch_cases": 8,
+    "entropy_coef": 0.1,
+    "init_noop_bias": 0.0,
+    "max_online_episodes": 1200,
+    "eval_every": 80,
+    "baseline_beta": 0.9
+  },
+  "geometry": {
+    "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+    "injection_layer_index": 13,
+    "residual_width": 1536,
+    "steering_rank": 8,
+    "model_dtype": "float32"
+  },
+  "corpus": {
+    "trajectory_globs": [
+      "artifacts/coding_lab/*/chains/chain-*/trajectories/episode-*.jsonl",
+      "artifacts/coding_lab/*/brain/chain-*/trajectories/episode-*.jsonl",
+      "artifacts/coding_lab/*/steelman/chain-*/trajectories/episode-*.jsonl",
+      "artifacts/coding_lab/*/stateless/chain-*/trajectories/episode-*.jsonl"
+    ],
+    "heldout_fraction": 0.3,
+    "min_train_rows": 60,
+    "min_heldout_rows": 20,
+    "expert_source": "passing-episodes-only"
+  },
+  "credit_source": "route mean expert-action NLL (episode terminal)",
+  "prohibited": [
+    "evaluation/judge scores as reward",
+    "token-space RL",
+    "substrate weight updates",
+    "reader/executor updates during RL"
+  ]
+}

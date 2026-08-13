@@ -177,6 +177,7 @@ async def run_episode(
             "failed_test_ids": list(outcome.failed_test_ids),
             "error_test_ids": list(outcome.error_test_ids),
             "invariant_violations": list(outcome.invariant_violations),
+            "failure_details": list(outcome.failure_details),
             "submitted": submitted,
         },
     )

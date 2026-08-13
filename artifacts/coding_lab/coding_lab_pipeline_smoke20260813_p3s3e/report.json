@@ -1,0 +1,135 @@
+{
+  "schema_version": "coding-lab-when-to-steer-rl.v1",
+  "claim_scope": "coding-junction-internal-rl-when-to-steer",
+  "observation_protocol": "coding-goal-stripped-junction.v1",
+  "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+  "model_source": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+  "device": "mps",
+  "corpus_seed": 1406531321,
+  "injection_layer_index": 13,
+  "residual_width": 1536,
+  "steering_rank": 8,
+  "subgoal_class_count": 4,
+  "gate_feature_names": [
+    "belief_margin",
+    "fresh_margin",
+    "belief_disagrees_fresh",
+    "base_action_entropy"
+  ],
+  "train_row_count": 43,
+  "heldout_row_count": 50,
+  "post_switch_fraction": 0.3,
+  "control_norm_cap": 96.09169006347656,
+  "executor_updates": 80,
+  "executor_learning_rate": 0.01,
+  "policy_learning_rate": 0.1,
+  "policy_batch_cases": 8,
+  "entropy_coef": 0.1,
+  "init_noop_bias": 0.0,
+  "policy_restarts": 4,
+  "max_online_episodes": 160,
+  "eval_every": 80,
+  "convergence_window": 3,
+  "seed_schedule": [
+    0
+  ],
+  "bootstrap_resamples": 5000,
+  "bootstrap_confidence": 0.95,
+  "thresholds": {
+    "min_convergence_improvement_nll": 0.2,
+    "min_gain_vs_noop_nll": 0.3,
+    "min_gain_vs_always_on_nll": 0.2,
+    "min_gain_vs_random_gate_nll": 0.2,
+    "min_gate_selectivity": 0.3,
+    "require_bootstrap_lower_positive": true
+  },
+  "seed_points": [
+    {
+      "seed": 0,
+      "arms": {
+        "noop": 2.2215678838361055,
+        "pe_gated_online": 3.807429759502038,
+        "always_on_belief": 14.457284696099268,
+        "random_gate": 4.179282573798211,
+        "oracle_gate_ceiling": 1.7062293866713663,
+        "pe_hard_gate_ceiling": 13.649167016741739,
+        "fresh_ceiling": 13.53846476792888
+      },
+      "early_window_nll": 12.34701974545498,
+      "final_window_nll": 6.762204312597727,
+      "convergence_improvement_nll": 5.584815432857254,
+      "steer_rate_overall": 0.16,
+      "steer_rate_post_switch": 0.13333333333333333,
+      "steer_rate_non_switch": 0.17142857142857143,
+      "gate_selectivity": 0.0380952380952381,
+      "gain_vs_noop": {
+        "mean": -1.3225833027726328,
+        "ci_lower": -3.3259426227537916,
+        "ci_upper": -0.05864263905212081,
+        "route_count": 3
+      },
+      "gain_vs_always_on": {
+        "mean": 9.545663976019606,
+        "ci_lower": 4.960527095523553,
+        "ci_upper": 14.318706319444269,
+        "route_count": 3
+      },
+      "gain_vs_random_gate": {
+        "mean": 0.4163362618341253,
+        "ci_lower": -1.296550441018626,
+        "ci_upper": 1.8011347080410147,
+        "route_count": 3
+      },
+      "selected_restart": 0,
+      "selection_train_nll": 2.6261416867677707,
+      "policy_parameters_changed": true
+    }
+  ],
+  "aggregate": {
+    "seed_count": 1,
+    "noop_nll_mean": 2.2215678838361055,
+    "pe_gated_online_nll_mean": 3.807429759502038,
+    "always_on_belief_nll_mean": 14.457284696099268,
+    "random_gate_nll_mean": 4.179282573798211,
+    "oracle_gate_ceiling_nll_mean": 1.7062293866713663,
+    "pe_hard_gate_ceiling_nll_mean": 13.649167016741739,
+    "fresh_ceiling_nll_mean": 13.53846476792888,
+    "convergence_improvement_nll_mean": 5.584815432857254,
+    "gate_selectivity_mean": 0.0380952380952381,
+    "gain_vs_noop_ci_lower_min": -3.3259426227537916,
+    "gain_vs_always_on_ci_lower_min": 4.960527095523553,
+    "gain_vs_random_gate_ci_lower_min": -1.296550441018626
+  },
+  "admission": {
+    "admitted": false,
+    "condition_convergence": true,
+    "condition_gain_vs_noop": false,
+    "condition_gain_vs_always_on": true,
+    "condition_gain_vs_random_gate": false,
+    "condition_gate_selectivity": false,
+    "condition_structural": true,
+    "failed_conditions": [
+      "gain-vs-noop",
+      "gain-vs-random-gate",
+      "gate-selectivity"
+    ],
+    "description": "When-to-steer prerequisite blocked: gain-vs-noop, gain-vs-random-gate, gate-selectivity"
+  },
+  "free_bias_present": false,
+  "zero_code_strict_noop": true,
+  "substrate_trainable_parameter_count": 0,
+  "reader_parameters_changed": false,
+  "executor_parameters_changed": false,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "description": "Coding-domain internal RL gate over PE proxies; admitted=False.",
+  "corpus_manifest": {
+    "train_rows": 43,
+    "heldout_rows": 50,
+    "train_cases": 6,
+    "heldout_cases": 3,
+    "phase_switches": 37,
+    "source_trajectories": 322
+  },
+  "smoke": true
+}

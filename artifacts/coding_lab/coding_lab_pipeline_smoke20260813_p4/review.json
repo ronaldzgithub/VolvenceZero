@@ -1,0 +1,26 @@
+{
+  "review": {
+    "schema_version": "coding-lab-modification-gate-review.v1",
+    "proposal_target": "coding_lab.steering_artifact_bundle",
+    "desired_gate": "offline",
+    "old_value_hash": "genesis",
+    "new_value_hash": "a7297e5a9831433e27cbdf6ebe891687b100083bea05403a0118c5c9b8ab5368",
+    "validation_delta": -3.3259426227537916,
+    "rollback_evidence": "coding-lab:pointer-checkpoint-round-trip:a7297e5a9831433e27cbdf6ebe891687b100083bea05403a0118c5c9b8ab5368",
+    "contract_integrity": 0.0,
+    "rollback_resilience": 1.0,
+    "fallback_reliance": 1.0,
+    "decision": "block",
+    "blocking_reasons": [
+      "validation_delta -3.326 below required margin 0.050",
+      "contract_integrity 0.000 below 0.950"
+    ],
+    "description": "ModificationGate.OFFLINE review for the coding-lab artifact bundle pointer. Deployment is a single registry-file write; rollback restores the checkpointed pointer."
+  },
+  "mechanism_probe": true,
+  "candidate_run_id": "coding_lab_pipeline_smoke20260813_p3s3e",
+  "candidate_manifest_sha256": "a7297e5a9831433e27cbdf6ebe891687b100083bea05403a0118c5c9b8ab5368",
+  "candidate_report_sha256": "f59c7ee8258ce96386e6123d482ad54996c4eb481f9877a894c6a3b1b2243f70",
+  "registry": "artifacts/coding_lab/probe_active_artifact.json",
+  "rollback_demonstration": null
+}

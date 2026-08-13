@@ -297,12 +297,23 @@ class CodingLabChainObserver:
         # storage / retrieval / decay stay owner-decided). Failures write
         # stronger than passes — they are the experiences the next recall
         # must be able to surface.
+        # Post-submit CI evidence: assertion heads make the failure
+        # actionable (bare violation ids proved uninterpretable to the
+        # hand in the 2026-08-13 formal run). Same granularity as the
+        # steelman transcript's [oracle-failure] lines — arms symmetric.
+        failure_details = tuple(
+            str(item) for item in oracle_payload.get("failure_details", ())
+        )
+        detail_text = ""
+        if not passed and failure_details:
+            detail_text = " | ci evidence: " + " ; ".join(failure_details[:3])
         self._session.runner.memory_store.write(
             MemoryWriteRequest(
                 content=(
                     f"[coding-lab experience] task={task_id} category={category} "
                     f"outcome={'PASS' if passed else 'FAIL'}"
                     + (f" invariant_violations={','.join(violations)}" if violations else "")
+                    + detail_text
                     + f" | task was: {str(task_payload['description'])[:500]}"
                 ),
                 track=Track.WORLD,

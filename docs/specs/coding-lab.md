@@ -32,6 +32,24 @@
   手侧不可确定，轨迹全量落盘 + sha256 内容寻址。
 - **磁盘纪律**：runner preflight 检查剩余磁盘；逐 episode bytes 记账；worktree 用完即删。
 
+### 2.1 House 约定（记忆可兑现难度旋钮，2026-08-13）
+
+隐藏不变量由**仓库内可见**的回归测试强制——强手提交前跑全套测试即可全部
+自查（2026-08-12 qwen3-coder-next 标定 0.9375 饱和的根因）。House 约定
+关闭该回路：owner 偏好级契约，**只**由 oracle 注入的隐藏验收测试
+`test_house_<id>` 强制，仓库零信号、集内 `run_test` 不可发现、跨集稳定
+复现——跨集记忆是停止违反的唯一合法通道。
+
+- `EnvSpec.convention_ids`（默认空 = 旧行为逐比特不变）；穿线到
+  `CalibrationConfig` / `ArmChainConfig` / 标定 CLI `--conventions` /
+  Packet 2 prereg `convention_ids`（必须与过带标定一致）。
+- 首个约定 `convention_export_all`：新公共符号必须登记进模块 `__all__`
+  （覆盖 add_helper / extend_report / config_feature）。参考解携带合规
+  编辑（可解性保持）；invariant sabotage 同样合规（其"过验收、破回归"
+  定义性质不变）。
+- 违反经 oracle 归因进 `invariant_violations` 同一通道（observer/记忆
+  流水线零 schema 变更）。
+
 ## 3. Packet 0 判词（已产出）
 
 工件：`artifacts/coding_lab/coding_lab_calibration_scripted_20260812/report.json`。
@@ -40,6 +58,15 @@
 - `oracle_band = True`（脚本手 4 链 × 8 episode，pass rate 0.656 ∈ [0.2, 0.8]，
   跨链方差存在；**scope = machinery-only**，冻结 API 手必须在 Packet 2 prereg 前重跑本标定）
 - `heldout_sealed = True`（2 个结构变体哈希封存，树已销毁）
+
+API 手标定（qwen3-coder-next，2026-08-13）：
+
+- 无约定：pass rate 0.9375 超带上限——任务对强手饱和，`oracle_band = False`
+  （`coding_lab_calibration_api_qwen3codernext_20260812`）。
+- 加 `convention_export_all` 后：pass rate 0.4375 ∈ [0.2, 0.8]，三判词全过；
+  16 次违反全部归因 `convention_export_all`，覆盖类别（add_helper /
+  extend_report / config_feature）无记忆手 100% 失败——难度旋钮按设计咬合
+  （`coding_lab_calibration_api_qwen3codernext_hard_20260813`）。
 
 ## 4. Episode 终局进入内核的契约（Packet 1）
 
@@ -106,8 +133,16 @@ action_turn_index=...)`。PE 在自身 `process` 内经 `_apply_external_outcome
   （前导含针 → 正确；不含 → acceptance sabotage），非针类别保留随机抽签
   提供基线方差。smoke 判词 = 已知效应方向（brain>stateless）+ 预期空
   （brain≈steelman）+ 标度结构（brain 有界 / steelman 线性增长 / 比值递减）。
-- **formal 双门**（prereg 冻结后）：quality = brain vs steelman 斜率差
-  bootstrap CI 下界 > min_effect；scaling = token/latency 比值门。
+- **formal 三门**（2026-08-13 prereg 冻结，任何 formal 运行之前）：
+  `memory_gate` = brain vs stateless 斜率差 bootstrap 5% 下界 > 0
+  （记忆有效的正主张）；`quality_gate` = brain vs steelman 斜率差下界
+  > −0.05（非劣界，结构化记忆不劣于堆上下文）；`scaling_gate` =
+  token/latency 比值门。首个冻结 prereg：
+  `artifacts/coding_lab/prereg/coding_lab_packet2_prereg_20260813.json`
+  （8 链 × 10 集，conventions=convention_export_all，与过带标定一致）。
+- **formal 断点续跑**：按 (chain, arm) 格写 `rows.json` 检查点；
+  `--resume` 已完成格直接加载，中断格整格重跑。长跑配 `caffeinate`
+  防休眠（2026-08-12 夜跑被机器休眠杀掉的教训）。
 
 ## 6.5 断点续跑与瞬时故障纪律（API 手长跑）
 

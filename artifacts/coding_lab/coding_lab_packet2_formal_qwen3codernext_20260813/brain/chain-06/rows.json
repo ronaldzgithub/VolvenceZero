@@ -1,0 +1,152 @@
+[
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 0,
+  "task_id": "task-000-add_helper-wrap_index",
+  "category": "add_helper",
+  "passed": false,
+  "context_chars": 0,
+  "context_tokens_approx": 0,
+  "prompt_tokens": 66213,
+  "completion_tokens": 767,
+  "wall_seconds": 32.45753362501273,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 1,
+  "task_id": "task-001-extend_report",
+  "category": "extend_report",
+  "passed": false,
+  "context_chars": 3863,
+  "context_tokens_approx": 965,
+  "prompt_tokens": 32349,
+  "completion_tokens": 521,
+  "wall_seconds": 16.76047691697022,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 2,
+  "task_id": "task-002-add_helper-clamp",
+  "category": "add_helper",
+  "passed": false,
+  "context_chars": 4033,
+  "context_tokens_approx": 1008,
+  "prompt_tokens": 30409,
+  "completion_tokens": 506,
+  "wall_seconds": 49.484500458987895,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 3,
+  "task_id": "task-003-refactor_alias",
+  "category": "refactor_alias",
+  "passed": true,
+  "context_chars": 4033,
+  "context_tokens_approx": 1008,
+  "prompt_tokens": 21885,
+  "completion_tokens": 678,
+  "wall_seconds": 10.67649070796324,
+  "invariant_violations": []
+ },
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 4,
+  "task_id": "task-004-add_helper-ratio_or_zero",
+  "category": "add_helper",
+  "passed": false,
+  "context_chars": 4033,
+  "context_tokens_approx": 1008,
+  "prompt_tokens": 21640,
+  "completion_tokens": 460,
+  "wall_seconds": 8.17349329101853,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 5,
+  "task_id": "task-005-fix_bug",
+  "category": "fix_bug",
+  "passed": false,
+  "context_chars": 4033,
+  "context_tokens_approx": 1008,
+  "prompt_tokens": 126132,
+  "completion_tokens": 2033,
+  "wall_seconds": 73.94594624999445,
+  "invariant_violations": []
+ },
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 6,
+  "task_id": "task-006-add_helper-saturate_pct",
+  "category": "add_helper",
+  "passed": false,
+  "context_chars": 4033,
+  "context_tokens_approx": 1008,
+  "prompt_tokens": 95541,
+  "completion_tokens": 812,
+  "wall_seconds": 61.49514704197645,
+  "invariant_violations": [
+   "convention_export_all"
+  ]
+ },
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 7,
+  "task_id": "task-007-fix_bug",
+  "category": "fix_bug",
+  "passed": true,
+  "context_chars": 4033,
+  "context_tokens_approx": 1008,
+  "prompt_tokens": 93526,
+  "completion_tokens": 815,
+  "wall_seconds": 33.97167125000851,
+  "invariant_violations": []
+ },
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 8,
+  "task_id": "task-008-fix_bug",
+  "category": "fix_bug",
+  "passed": true,
+  "context_chars": 4033,
+  "context_tokens_approx": 1008,
+  "prompt_tokens": 26316,
+  "completion_tokens": 599,
+  "wall_seconds": 16.56837395799812,
+  "invariant_violations": []
+ },
+ {
+  "arm": "brain",
+  "chain_index": 6,
+  "episode_index": 9,
+  "task_id": "task-009-fix_bug",
+  "category": "fix_bug",
+  "passed": true,
+  "context_chars": 4033,
+  "context_tokens_approx": 1008,
+  "prompt_tokens": 9452,
+  "completion_tokens": 386,
+  "wall_seconds": 4.482528207998257,
+  "invariant_violations": []
+ }
+]

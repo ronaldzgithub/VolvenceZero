@@ -26,6 +26,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
 import pathlib
 import shutil
 import sys
@@ -77,7 +78,17 @@ async def _run_all_arms(
     digest_char_budget: int,
     hand_builder: Any,
     budget: EpisodeBudget,
+    convention_ids: tuple[str, ...] = (),
+    resume: bool = False,
 ) -> tuple[ArmEpisodeRow, ...]:
+    """Run every (chain, arm) cell, checkpointing per cell.
+
+    Same discipline as Packet 0 calibration resume: a cell with a
+    committed ``rows.json`` is loaded as-is; an interrupted cell is
+    wiped and rerun whole (arms are independent given the frozen hand,
+    so cell granularity keeps determinism).
+    """
+
     rows: list[ArmEpisodeRow] = []
     for chain_index in range(chains):
         config = ArmChainConfig(
@@ -86,17 +97,34 @@ async def _run_all_arms(
             episodes=episodes,
             brain_digest_char_budget=digest_char_budget,
             budget=budget,
+            convention_ids=convention_ids,
         )
         for arm in ALL_ARMS:
             arm_root = run_dir / arm / f"chain-{chain_index:02d}"
-            rows.extend(
-                await run_chain_arm(
-                    arm=arm,
-                    config=config,
-                    arm_root=arm_root,
-                    hand_factory=hand_builder,
-                )
+            checkpoint = arm_root / "rows.json"
+            if resume and checkpoint.is_file():
+                for item in json.loads(checkpoint.read_text(encoding="utf-8")):
+                    item["invariant_violations"] = tuple(item["invariant_violations"])
+                    rows.append(ArmEpisodeRow(**item))
+                continue
+            if arm_root.exists():
+                shutil.rmtree(arm_root)
+            cell_rows = await run_chain_arm(
+                arm=arm,
+                config=config,
+                arm_root=arm_root,
+                hand_factory=hand_builder,
             )
+            checkpoint.write_text(
+                json.dumps(
+                    [row.__dict__ for row in cell_rows],
+                    ensure_ascii=False,
+                    indent=1,
+                    default=list,
+                ),
+                encoding="utf-8",
+            )
+            rows.extend(cell_rows)
     return tuple(rows)
 
 
@@ -139,10 +167,24 @@ def cmd_freeze_prereg(args: argparse.Namespace) -> int:
         "episodes_per_chain": args.episodes_per_chain,
         "env_seed": args.env_seed,
         "digest_char_budget": args.digest_char_budget,
+        # Difficulty knob must match the Packet 0 calibration that put
+        # THIS hand inside the oracle band.
+        "convention_ids": [
+            item.strip() for item in args.conventions.split(",") if item.strip()
+        ],
+        # Three frozen gates, matching the actual claim: memory helps
+        # (brain > stateless), structured memory is not worse than
+        # context stuffing (non-inferiority vs steelman), and it scales
+        # (token/latency ratios).
+        "memory_gate": {
+            "statistic": "chain-paired OLS slope gap (brain - stateless) of pass indicator",
+            "min_effect": 0.0,
+            "rule": "chain-bootstrap 5% lower bound > min_effect",
+        },
         "quality_gate": {
             "statistic": "chain-paired OLS slope gap (brain - steelman) of pass indicator",
             "min_effect": args.quality_min_effect,
-            "rule": "chain-bootstrap 5% lower bound > min_effect",
+            "rule": "chain-bootstrap 5% lower bound > min_effect (non-inferiority margin)",
         },
         "scaling_gate": {"max_token_ratio": 0.10, "max_latency_ratio": 0.50},
         "hand": {
@@ -249,9 +291,24 @@ def cmd_formal(args: argparse.Namespace) -> int:
         extra_body=dict(prereg["hand"]["extra_body"]),
     )
     run_dir = pathlib.Path(args.output_root) / args.run_id
-    if run_dir.exists():
-        raise SystemExit(f"run dir already exists: {run_dir!s}")
-    run_dir.mkdir(parents=True)
+    if run_dir.exists() and not args.resume:
+        raise SystemExit(
+            f"run dir already exists: {run_dir!s} (use --resume to continue)"
+        )
+    run_dir.mkdir(parents=True, exist_ok=True)
+    # Single-writer lock: two racing instances under --resume wipe each
+    # other's in-flight cell directories (2026-08-13 v2 crash: worktree
+    # lost mv_app mid-episode).
+    lock_path = run_dir / ".formal.lock"
+    if lock_path.is_file():
+        holder = int(lock_path.read_text(encoding="utf-8").strip() or "0")
+        try:
+            os.kill(holder, 0)
+        except (ProcessLookupError, ValueError):
+            lock_path.unlink()
+        else:
+            raise SystemExit(f"another formal instance (pid {holder}) holds {lock_path!s}")
+    lock_path.write_text(str(os.getpid()), encoding="utf-8")
     _preflight_disk(run_dir)
 
     def hand_builder(chain, chain_index):
@@ -267,11 +324,17 @@ def cmd_formal(args: argparse.Namespace) -> int:
             digest_char_budget=int(prereg["digest_char_budget"]),
             hand_builder=hand_builder,
             budget=EpisodeBudget(max_steps=24, max_wall_seconds=900.0),
+            convention_ids=tuple(prereg["convention_ids"]),
+            resume=args.resume,
         )
     )
     common = _report_common(rows)
     quality = common["quality_brain_vs_steelman"]
+    memory = common["quality_brain_vs_stateless"]
     verdicts = {
+        "memory_gate": (
+            memory["bootstrap_ci_lower_5pct"] > float(prereg["memory_gate"]["min_effect"])
+        ),
         "quality_gate": (
             quality["bootstrap_ci_lower_5pct"] > float(prereg["quality_gate"]["min_effect"])
         ),
@@ -304,6 +367,11 @@ def main(argv: list[str]) -> int:
     freeze.add_argument("--api-model", required=True)
     freeze.add_argument("--api-key-env", default="DASHSCOPE_API_KEY")
     freeze.add_argument("--api-extra-body-json", default="")
+    freeze.add_argument(
+        "--conventions",
+        default="",
+        help="逗号分隔的 house 约定 id；必须与通过频带的 Packet 0 标定一致。",
+    )
     freeze.set_defaults(func=cmd_freeze_prereg)
 
     smoke = subparsers.add_parser("smoke")
@@ -321,6 +389,11 @@ def main(argv: list[str]) -> int:
     formal.add_argument("--prereg-path", required=True)
     formal.add_argument("--run-id", default=f"coding_lab_packet2_formal_{int(time.time())}")
     formal.add_argument("--output-root", default=str(_REPO_ROOT / "artifacts" / "coding_lab"))
+    formal.add_argument(
+        "--resume",
+        action="store_true",
+        help="按 (chain, arm) 格续跑：已提交 rows.json 的格直接加载，中断格整格重跑。",
+    )
     formal.set_defaults(func=cmd_formal)
 
     args = parser.parse_args(argv)

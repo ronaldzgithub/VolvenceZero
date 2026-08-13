@@ -1,0 +1,41 @@
+{
+  "run_id": "coding_lab_packet3_substrate_check_20260812",
+  "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+  "device": "cpu",
+  "model_dtype": "float32",
+  "fallback_model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "checks": {
+    "disk_free_gib": 29.73,
+    "load_seconds": 30.4,
+    "hidden_size": 1536,
+    "parameter_count": 1543714304,
+    "capture_seconds": 28.86,
+    "capture_steps": 30,
+    "capture_widths": [
+      1536
+    ],
+    "capture_layer_indices": [
+      13,
+      14,
+      15
+    ],
+    "scorer_seconds": 11.43,
+    "scorer_injection_layer": 13,
+    "baseline_action_nll": [
+      1.4393,
+      1.8343
+    ],
+    "peak_rss_gib": 5.99
+  },
+  "verdicts": {
+    "disk_ok": true,
+    "blocks_resolved": true,
+    "width_matches": true,
+    "capture_ok": true,
+    "scorer_ok": true,
+    "fp32_fits": true,
+    "overall_pass": true
+  },
+  "error": null,
+  "recommendation": "proceed with Qwen/Qwen2.5-Coder-1.5B-Instruct fp32 geometry (hidden=1536, injection_layer=13)"
+}

@@ -36,6 +36,32 @@ ALL_INVARIANT_IDS: tuple[str, ...] = (
     INVARIANT_HIDDEN_CONSUMER,
 )
 
+# --- House conventions (difficulty knob, 2026-08-13) -----------------------
+#
+# Latent invariants above are enforced by regression tests that live IN
+# the workspace: a careful hand can run the suite before submitting and
+# self-check them all — which is exactly how the 2026-08-12 API
+# calibration saturated at 0.94 pass rate. House conventions close that
+# loop: they are owner preferences enforced ONLY by hidden acceptance
+# tests injected at oracle time. The repository carries zero signal, the
+# in-episode `run_test` cannot reveal them, and they recur across
+# episodes — so cross-episode memory is the one legitimate channel to
+# stop violating them. That makes them the memory-realisable difficulty
+# knob: they lower a stateless hand's pass rate into the oracle band
+# while giving the remembering arms real headroom.
+
+CONVENTION_EXPORT_ALL = "convention_export_all"
+
+ALL_CONVENTION_IDS: tuple[str, ...] = (CONVENTION_EXPORT_ALL,)
+
+CONVENTION_DESCRIPTIONS: dict[str, str] = {
+    CONVENTION_EXPORT_ALL: (
+        "house style: every new public symbol must be registered in its "
+        "module's __all__ (unstated owner preference; enforced only by "
+        "hidden acceptance tests)"
+    ),
+}
+
 _ITEM_POOL: tuple[str, ...] = (
     "widget",
     "gadget",
@@ -65,6 +91,10 @@ class EnvSpec:
     package_name: str = "mv_app"
     param_offset: int = 0
     invariant_ids: tuple[str, ...] = ALL_INVARIANT_IDS
+    #: Active house conventions (see module docstring above). Default
+    #: empty keeps every pre-2026-08-13 spec, tree hash and sealed
+    #: manifest bit-identical.
+    convention_ids: tuple[str, ...] = ()
     generator_version: str = GENERATOR_VERSION
 
     def __post_init__(self) -> None:
@@ -73,6 +103,9 @@ class EnvSpec:
         unknown = set(self.invariant_ids) - set(ALL_INVARIANT_IDS)
         if unknown:
             raise ValueError(f"unknown invariant ids: {sorted(unknown)!r}")
+        unknown_conventions = set(self.convention_ids) - set(ALL_CONVENTION_IDS)
+        if unknown_conventions:
+            raise ValueError(f"unknown convention ids: {sorted(unknown_conventions)!r}")
         if self.generator_version != GENERATOR_VERSION:
             raise ValueError(
                 f"spec pinned generator {self.generator_version!r} but this module is {GENERATOR_VERSION!r}"
@@ -601,7 +634,10 @@ def write_pristine_tests(spec: EnvSpec, dest_dir: pathlib.Path) -> None:
 
 
 __all__ = [
+    "ALL_CONVENTION_IDS",
     "ALL_INVARIANT_IDS",
+    "CONVENTION_DESCRIPTIONS",
+    "CONVENTION_EXPORT_ALL",
     "GENERATOR_VERSION",
     "INVARIANT_CONFIG_CASE",
     "INVARIANT_HIDDEN_CONSUMER",

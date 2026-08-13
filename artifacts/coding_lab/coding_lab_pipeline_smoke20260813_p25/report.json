@@ -1,0 +1,19 @@
+{
+  "packet": "coding-lab-packet-2.5-blackbox-gate",
+  "run_id": "coding_lab_pipeline_smoke20260813_p25",
+  "source_trajectories": 320,
+  "junction_records": 1333,
+  "verdict": {
+    "train_state_keys": 33,
+    "eval_state_keys": 18,
+    "policy_expected_pass": 0.8669,
+    "uniform_expected_pass": 0.8809,
+    "modal_expected_pass": 0.8759,
+    "uplift_vs_uniform": -0.0139,
+    "uplift_ci_lower_5pct": -0.0657,
+    "beats_uniform": false,
+    "restarts": 2,
+    "selected_restart": 0
+  },
+  "overall_pass": false
+}

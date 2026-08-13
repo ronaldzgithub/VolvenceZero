@@ -26,6 +26,7 @@ from lifeform_domain_coding.lab.calibration import (
     run_calibration,
 )
 from lifeform_domain_coding.lab.generation import (
+    CONVENTION_EXPORT_ALL,
     EnvSpec,
     generate_environment,
 )
@@ -85,6 +86,80 @@ def test_reference_solutions_pass(tmp_path: pathlib.Path, task_index: int) -> No
         outcome.failed_test_ids,
         outcome.error_test_ids,
     )
+
+
+_CONVENTION_SPEC = EnvSpec(env_seed=424242, convention_ids=(CONVENTION_EXPORT_ALL,))
+
+
+@pytest.mark.parametrize("task_index", range(5))
+def test_convention_reference_solutions_pass(tmp_path: pathlib.Path, task_index: int) -> None:
+    """With the difficulty knob on, references stay solvable (compliance edits)."""
+
+    task = representative_tasks(_CONVENTION_SPEC)[task_index]
+    root = tmp_path / "env"
+    generate_environment(_CONVENTION_SPEC, root)
+    for edit in task.prestate_edits:
+        apply_edit(root, edit)
+    for edit in task.reference_edits:
+        apply_edit(root, edit)
+    outcome = evaluate_episode(spec=_CONVENTION_SPEC, task=task, workspace_root=root)
+    assert outcome.passed, (
+        task.task_id,
+        outcome.failed_test_ids,
+        outcome.error_test_ids,
+    )
+    assert outcome.invariant_violations == ()
+
+
+def test_convention_violation_fails_and_is_attributed(tmp_path: pathlib.Path) -> None:
+    """A behaviourally-correct solution that skips ``__all__`` fails the
+    hidden house test, and the violation is attributed by id — the
+    memory-realisable failure mode the difficulty knob exists for."""
+
+    task = representative_tasks(_CONVENTION_SPEC)[0]  # add_helper
+    root = tmp_path / "env"
+    generate_environment(_CONVENTION_SPEC, root)
+    non_compliant = [
+        edit
+        for edit in task.reference_edits
+        if "__all__" not in edit.new
+    ]
+    assert len(non_compliant) == len(task.reference_edits) - 1
+    for edit in non_compliant:
+        apply_edit(root, edit)
+    outcome = evaluate_episode(spec=_CONVENTION_SPEC, task=task, workspace_root=root)
+    assert not outcome.passed
+    assert not outcome.acceptance_passed
+    assert outcome.regression_passed
+    assert CONVENTION_EXPORT_ALL in outcome.invariant_violations
+    # Post-submit CI evidence must be actionable: the assertion head
+    # names __all__ so a remembering hand can fix the next episode.
+    convention_details = [
+        detail for detail in outcome.failure_details if "test_house_" in detail
+    ]
+    assert convention_details, outcome.failure_details
+    assert any("__all__" in detail for detail in convention_details)
+
+
+def test_convention_invariant_sabotage_still_passes_acceptance(tmp_path: pathlib.Path) -> None:
+    """Invariant sabotage must keep its defining property (passes
+    acceptance, fails regression) with the difficulty knob on."""
+
+    task = representative_tasks(_CONVENTION_SPEC)[1]  # extend_report
+    root = tmp_path / "env"
+    generate_environment(_CONVENTION_SPEC, root)
+    for edit in task.invariant_sabotage_edits:
+        apply_edit(root, edit)
+    outcome = evaluate_episode(spec=_CONVENTION_SPEC, task=task, workspace_root=root)
+    assert outcome.acceptance_passed, outcome.failed_test_ids
+    assert not outcome.regression_passed
+    assert CONVENTION_EXPORT_ALL not in outcome.invariant_violations
+
+
+def test_convention_off_by_default_keeps_legacy_tasks(tmp_path: pathlib.Path) -> None:
+    task_default = representative_tasks(_SPEC)[0]
+    assert "test_house_" not in task_default.acceptance_test_source
+    assert all("__all__" not in edit.new for edit in task_default.reference_edits)
 
 
 @pytest.mark.parametrize(

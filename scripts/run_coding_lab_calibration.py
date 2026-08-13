@@ -50,6 +50,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--episodes-per-chain", type=int, default=8)
     parser.add_argument("--band-low", type=float, default=0.2)
     parser.add_argument("--band-high", type=float, default=0.8)
+    parser.add_argument(
+        "--conventions",
+        default="",
+        help="逗号分隔的 house 约定 id（难度旋钮），如 convention_export_all。",
+    )
     parser.add_argument("--heldout-variants", type=int, default=2)
     parser.add_argument("--scripted-hand-seed", type=int, default=11)
     parser.add_argument("--scripted-invariant-rate", type=float, default=0.25)
@@ -105,6 +110,9 @@ def main(argv: list[str]) -> int:
         api_hand_config=api_config,
         band_low=args.band_low,
         band_high=args.band_high,
+        convention_ids=tuple(
+            item.strip() for item in args.conventions.split(",") if item.strip()
+        ),
         heldout_variants=args.heldout_variants,
         budget=EpisodeBudget(max_steps=args.max_steps, max_wall_seconds=args.max_wall_seconds),
         resume=args.resume,
