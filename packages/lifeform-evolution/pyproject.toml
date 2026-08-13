@@ -16,6 +16,7 @@ dependencies = [
     "lifeform-core==0.1.*",
     "lifeform-expression==0.1.*",
     "lifeform-domain-emogpt==0.1.*",
+    "lifeform-domain-coding==0.1.*",
 ]
 
 [project.scripts]

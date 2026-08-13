@@ -104,6 +104,12 @@ _EXTERNAL_OUTCOME_REGIME_SCORE: dict[DialogueExternalOutcomeKind, float] = {
     DialogueExternalOutcomeKind.PURCHASE_CONFIRMED: 0.92,
     DialogueExternalOutcomeKind.REPURCHASE: 0.95,
     DialogueExternalOutcomeKind.CHURNED: 0.05,
+    # Task-execution outcomes (coding-lab lane): a deterministic oracle
+    # settled the task, which is strong evidence of regime
+    # appropriateness for problem-solving work — comparable to
+    # HELPED / MISSED in magnitude but sourced from the environment.
+    DialogueExternalOutcomeKind.TASK_VERIFIED: 0.85,
+    DialogueExternalOutcomeKind.TASK_REGRESSED: 0.15,
 }
 
 # Bounded learning envelope for the per-kind calibration: each learned

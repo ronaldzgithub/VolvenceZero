@@ -222,6 +222,11 @@ _EXTERNAL_KIND_TO_STRUCTURAL_OUTCOME: dict[
     # CHURNED is structurally a long-horizon REJECTED — the relationship
     # ended without recovery despite repair attempts.
     DialogueExternalOutcomeKind.CHURNED: DialogueOutcomeKind.REJECTED,
+    # Task-execution outcomes (coding-lab lane): a verified task
+    # structurally resolves the turn (CLARIFIED); a regression is the
+    # environment pushing back on the action (CORRECTED).
+    DialogueExternalOutcomeKind.TASK_VERIFIED: DialogueOutcomeKind.CLARIFIED,
+    DialogueExternalOutcomeKind.TASK_REGRESSED: DialogueOutcomeKind.CORRECTED,
 }
 
 

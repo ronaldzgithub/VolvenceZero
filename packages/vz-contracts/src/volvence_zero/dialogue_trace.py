@@ -80,6 +80,17 @@ class DialogueExternalOutcomeKind(str, Enum):
     PURCHASE_CONFIRMED = "purchase_confirmed"
     REPURCHASE = "repurchase"
     CHURNED = "churned"
+    # ------------------------------------------------------------------
+    # Task-execution outcome vocabulary (coding-lab evidence lane).
+    # Sourced from a deterministic environment oracle (test suites /
+    # build gates) through the typed ENVIRONMENT evidence source; never
+    # inferred from chat text. Deliberately relationship-neutral: a
+    # settled task outcome is world-track evidence, so its PE bias rows
+    # touch only the task / action axes (see _EXTERNAL_OUTCOME_AXIS_BIAS)
+    # and neither value produces rupture evidence.
+    # ------------------------------------------------------------------
+    TASK_VERIFIED = "task_verified"
+    TASK_REGRESSED = "task_regressed"
 
 
 class DialogueExternalOutcomeEvidenceSource(str, Enum):

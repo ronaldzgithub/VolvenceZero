@@ -75,6 +75,11 @@ class RuptureEvidenceSource(str, Enum):
 #   forbids a second source mapping to the same RuptureKind. If a future
 #   packet wants a typed "long-horizon churn rupture", add a new
 #   ``RuptureKind`` value first.
+# The task-execution outcomes (TASK_VERIFIED / TASK_REGRESSED, coding-lab
+# lane) are also NOT in this table: they are world-track evidence settled
+# by a deterministic environment oracle. TASK_REGRESSED is negative but
+# not relational — there is no rupture to anchor; its damage is fully
+# captured by the task/action-axis PE bias and the low regime score.
 # COLD is not in this table because it requires a compositional trigger
 # (MISSED + relationship_pressure), handled inside the owner aggregator.
 EXTERNAL_OUTCOME_TO_RUPTURE_KIND: dict[DialogueExternalOutcomeKind, RuptureKind] = {

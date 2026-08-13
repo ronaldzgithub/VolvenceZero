@@ -1,7 +1,7 @@
 # Appendable · Readable · Learnable · Steerable
 
 > Status: architecture capability charter（能力轴架构说明）
-> Last updated: 2026-08-05
+> Last updated: 2026-08-12
 > 细粒度契约以 [DATA_CONTRACT.md](./DATA_CONTRACT.md)、[specs/00_INDEX.md](./specs/00_INDEX.md)、
 > [steering-runtime.md](./specs/steering-runtime.md) 为准。
 > 证据台账与晋升路线见 [evaluation.md](./evaluation.md)、
@@ -64,8 +64,10 @@ flowchart LR
 3. **先有稀疏信用**（Learnable），才知道何时干预；
 4. **干预改变下一拍状态**（Steerable），又写回可追加的记忆——形成闭环。
 
-历史教训（#92 `thesis-rejected`、Stage-3 `kill-eta`、S2「可读却不可扳」）说明：
-把其中两轴用 prompt/关键词/端到端微调偷换，短期看起来像系统，长期必然不可审计、不可回滚、不可证明。
+历史教训（#92 `thesis-rejected`、Stage-3 `kill-eta`、S2「可读却不可扳」、A1「仪器失准产出 null」）说明：
+把其中两轴用 prompt/关键词/端到端微调偷换，短期看起来像系统，长期必然不可审计、不可回滚、不可证明；
+而承载判词的仪器若未先证明分辨力与臂→目标传导性，产出的 null 也无法区分「无效应」与「仪器失准」
+（[主线提升方案](./moving%20forward/主线提升方案_2026-08.md) §0 不变量 7/8 的由来）。
 
 ---
 
@@ -108,7 +110,7 @@ flowchart LR
 
 | 读什么 | Owner | 读法 | 证据状态 |
 |---|---|---|---|
-| 下一句人类话语的冻结表示 | `substrate_forward_representation`（`vz-substrate`） | latest-token selected-layer residual，L2 归一，lineage 冻结 | A0 就位；SHADOW offline |
+| 下一句人类话语的冻结表示 | `substrate_forward_representation`（`vz-substrate`） | latest-token selected-layer residual，lineage 冻结；v1 全局 L2 归一（已实测标度失准），v2 逐层 L2 + 减冻结参考均值 + 去 top-1 PC（2026-08-12 登记） | A0 就位；SHADOW offline |
 | 子目标 / 条件信念 | `steering_condition_belief`（`SteeringSensorModule` / `vz-cognition`） | 冻结线性 reader 读 layer-bound 残差；发布 lagged belief + fresh read + staleness 代理 | 代理迷宫 S3-前置 PASS；runtime owner **SHADOW** |
 | Prediction Error | `prediction_error`（`vz-cognition`） | 消费 substrate 快照，拥有 predictor/mismatch；不重编码文本 | PE owner **ACTIVE**（计算与 lineage） |
 | 模块间一切正式状态 | 各 `RuntimeModule` → `Snapshot` | `propagate` 写入 active/shadow mapping | 契约式运行时 **ACTIVE** |
@@ -132,6 +134,12 @@ Sensor **只解释** substrate owner 发布的目标层残差；禁止从自然�
 - 残差捕获在 production 表达层默认 `capture_residuals=False`；SHADOW steering 走独立 transformers hook。
 - vLLM / synthetic 后端**无**可验证残差出口——请求 ACTIVE steering 必须 `NotImplementedError`。
 - 「读得到」≠「扳得动」：S1/S2 已证明线性可读轴可以没有因果干预力；Readable 单独成立不够。
+- readout 有版本与域绑定：v1 全局 L2 归一实测 55.4% 共模能量、same-vs-diff Cohen's d 仅 0.315
+  （A1 null 的仪器性死因）；v2（逐层 L2 + 减冻结参考均值 + 去 top-1 PC）d=0.592，参考统计只在
+  冻结 train-split 上拟合、随 lineage（`reference_corpus_id` / `reference_statistics_sha256`）发布，
+  **不跨域/跨几何迁移**（换域或换 layer 几何必须重 fit + 重过预检）。
+- 「读得到」还必须先「量得准」：任何拟承载 formal 判词的主判据 readout，prereg 冻结前必须过
+  分辨力预检与臂→目标传导预检（主线方案 §0 不变量 7/8，2026-08-12 追加）。
 
 ---
 
@@ -282,24 +290,32 @@ sequenceDiagram
 | Steerable | `vz-substrate`（executor）、`vz-temporal`（gate）、`vz-cognition`（sensor） | runtime 接线 / lifeform activation | vLLM 假 hook；ACTIVE 读 shadow |
 
 `vz-runtime` 是唯一跨业务编排层；`lifeform-*` 只经 Brain facade / contracts / ModificationGate 进入。
+证据 lane 同理：coding-lab（`lifeform-domain-coding.lab` 环境 + `lifeform-evolution` 采集器）只经
+Brain facade 与 typed submit API 进入脑核，episode 终局复用 `dialogue_external_outcome` 唯一合法通道，
+不新建 owner（[specs/coding-lab.md](./specs/coding-lab.md)）。
 
 ---
 
-## 8. 证据状态（诚实边界，2026-08-05）
+## 8. 证据状态（诚实边界，2026-08-12）
 
 | 能力轴 | 已证明（机制 / 局部） | 未证明（系统主张仍缺） |
 |---|---|---|
-| Appendable | CMS 可运行可回滚；Gate 8/11 causal+longitudinal；Personal State-KV pass | 多频净增益；七日 formal（旧仪器停跑，N+1 新 prereg 执行中） |
-| Readable | S1 residual readout；S3-前置 reader；N+1 substrate target lineage | MSC formal（三重阻断控制面已加固，判词未出） |
-| Learnable | S3-E 稀疏信用择时；段信用 v13 retain；C1 PE→credit→gate 契约 | 对话域 C3 formal；Gate 4 主动学习省标签 |
+| Appendable | CMS 可运行可回滚；Gate 8/11 causal+longitudinal；Personal State-KV pass；coding-lab Packet 1 跨进程恢复（4 链） | 多频净增益；七日 formal——A1 已封存 `passed=false`，判词**限定为「v1 raw-cosine readout 下无净增益」**（仪器标度失准 + 固定脚本源传导断链，两个独立死因），重开须先过分辨力 + 传导双预检 |
+| Readable | S1 residual readout；S3-前置 reader；N+1 substrate target lineage（v1 失准已实测，v2 仪器修复已登记契约） | MSC formal（判词未出；A2 scaling 门已封存为「门-语料错配」，501-dyad ≈880h 预算须先三选一裁决） |
+| Learnable | S3-E 稀疏信用择时；段信用 v13 retain；C1 PE→credit→gate 契约；coding-lab Packet 1 语义 PE 分辨力（p≈1e-4）+ 外部结局通道 | 对话域 C3 formal（首个 run 已废弃：磁盘打满 + v1 仪器失准，重开须先过双预检）；Gate 4 主动学习省标签；coding-lab `forecast_skill=False`（合成基底 × scripted 轨迹上如实封存） |
 | Steerable | C2 条件写入；S3-E 择时；B1/B2 owner+SHADOW 接线 | B3 formal 晋升；production ACTIVE；vLLM 残差出口 |
 
 总判词口径仍服从 [thesis prove.md](./thesis%20prove.md)：
 
-- **可以说**：有界、可审计、可回滚的持续适应机制族；残差流读-扳-择时在代理上闭环；runtime steering 三件套已 SHADOW 落地。
+- **可以说**：有界、可审计、可回滚的持续适应机制族；残差流读-扳-择时在代理上闭环；runtime steering 三件套已 SHADOW 落地；coding-lab 环境与 SHADOW 观察者已出首批机制判词。
 - **不能说**：完整 NL+ETA thesis 已被因果证明；系统已在生产中在线持续主动学习。
 
-晋升与 formal 的唯一路线图：[主线提升方案_2026-08.md](./moving%20forward/主线提升方案_2026-08.md)（A1→A2 / B1–B3 / C1–C3）。
+晋升与 formal 的唯一路线图：[主线提升方案_2026-08.md](./moving%20forward/主线提升方案_2026-08.md)
+（A1→A2 / B1–B3 / C1–C3；2026-08-12 起 A1→A2、A1→C3 依赖降级为预算互斥 + 仪器成熟度）。
+A1 判词收窄后，编程域 [coding-lab lane](./specs/coding-lab.md) 升格为当前主证据 lane
+（语义级 PE 被 pytest oracle 机械判决，不依赖残差 readout 标度）：Packet 0 标定 PASS
+（环境比特级确定、oracle pass rate 0.656 落带、held-out 变体封存），Packet 1 SHADOW 观察者
+3/4 PASS + `forecast_skill=False` 如实封存，Packet 2 记忆注入 vs steelman 进行中。
 
 ---
 
@@ -310,6 +326,8 @@ sequenceDiagram
 3. **Learnable**：学习信号是否来自 PE/credit？有没有 evaluation/judge 泄漏？
 4. **Steerable**：干预是否有界（norm cap、no bias、strict noop）？artifact lineage 是否绑定？WiringLevel 是否可单字段回滚？
 5. **闭环**：干预是否改变下一拍可追加状态，从而让 PE 可结算？还是一次性表演？
+6. **仪器**：拟承载 formal 判词的主判据 readout 是否先过分辨力预检（共模能量占比、same-vs-diff
+   Cohen's d、1-NN 检索），臂→目标传导性是否已在既有数据上量化（主线方案 §0 不变量 7/8）？
 
 任一条答不上来，就还不是四能力系统，只是局部补丁。
 
@@ -323,6 +341,7 @@ sequenceDiagram
 | 系统设计总览（分层 + 实现边界） | [SYSTEM_DESIGN.md](./SYSTEM_DESIGN.md) |
 | Slot / 快照 / wiring | [DATA_CONTRACT.md](./DATA_CONTRACT.md) |
 | Steering 三件套契约 | [specs/steering-runtime.md](./specs/steering-runtime.md) |
+| 编程域持续学习证据 lane | [specs/coding-lab.md](./specs/coding-lab.md) |
 | 人类验证锚（非学习源） | [specs/steering-human-anchor.md](./specs/steering-human-anchor.md) |
 | R1–R15 设计源头 | [next_gen_emogpt.md](./next_gen_emogpt.md) |
 | 证据与晋升路线 | [evaluation.md](./evaluation.md)、[主线提升方案](./moving%20forward/主线提升方案_2026-08.md) |

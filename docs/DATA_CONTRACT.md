@@ -2451,6 +2451,16 @@ carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
 
 `CHURNED` **不**进入 `EXTERNAL_OUTCOME_TO_RUPTURE_KIND`：它是长程脱落事件，损害已经由 PE bias + regime score 全额捕获，且当前 turn 已无法 anchor rupture 修复。如果未来需要 typed "long-horizon churn rupture"，必须先增 `RuptureKind` 值。
 
+- **Task-execution group（coding-lab lane）**：`TASK_VERIFIED` / `TASK_REGRESSED` —— 编程域证据 lane 的 episode 终局，**只能**由确定性环境 oracle（测试套件 / 构建门）经 `ENVIRONMENT` typed source 注入（不允许从 chat text 推断，不允许 LLM 提案）。设计要点是**关系轴零污染**：这两个值存在的全部理由是 vocabulary 里没有"任务轴负向、关系轴中性"的值（`MISSED` 的 task delta 为 0 且关系 delta 为 -0.60）。映射：
+  - `_EXTERNAL_OUTCOME_AXIS_BIAS`：`TASK_VERIFIED = (+0.50, 0, 0, +0.40)`，`TASK_REGRESSED = (-0.50, 0, 0, -0.40)`——只触 task / action 轴；
+  - `_EXTERNAL_OUTCOME_REGIME_SCORE`：`0.85` / `0.15`；
+  - `_EXTERNAL_KIND_TO_STRUCTURAL_OUTCOME`：`CLARIFIED` / `CORRECTED`；
+  - `EXTERNAL_OUTCOME_TO_RUPTURE_KIND`：**双双不进入**（world-track 证据无 rupture 可 anchor，损害由 PE bias + regime score 承载，与 `CHURNED` 同理）；
+  - `_REPAIR_POSITIVE_KINDS`：**双双不进入**（任务结局不是 repair 事件）；
+  - `FeedbackValence`（DLaaS 镜像）：**暂不扩展**——coding-lab 经 `BrainSession.submit_dialogue_outcome` 直接注入，不走 DLaaS feedback envelope；未来有平台集成需要时再扩展镜像。
+
+  详见 [`docs/specs/coding-lab.md`](./specs/coding-lab.md)。
+
 `FeedbackValence`（[`packages/dlaas-platform-contracts/src/dlaas_platform_contracts/dispatch_vocab.py`](../packages/dlaas-platform-contracts/src/dlaas_platform_contracts/dispatch_vocab.py)）镜像了这两组，让外部 CRM / payments 集成可以走 DLaaS feedback envelope（`interaction_type=feedback`，`feedback.valence="purchase_confirmed"` 等）报送；platform-api 在 edge 处典型化为 typed enum，kernel 永远不见 raw string。
 
 **`rupture_state` 契约语义**：`rupture_kind` 是 evidence-bucket label，不是情绪分类；只有至少一个非 PE 的 typed source 触发时才能写出；`internal_suspected_only=True` 意味着只有 `INTERNAL_PE` 触发。snapshot 还发布 `kind_label`（W3 SSOT），是 `RuptureKind` 的人类可读短语，由 owner 从 `RUPTURE_KIND_LABEL` 一处生成；下游表达层不维护重复字典。详见 [`docs/specs/rupture-and-repair.md`](./specs/rupture-and-repair.md)。

@@ -72,6 +72,12 @@ _POSITIVE_EXTERNAL_KINDS: frozenset[DialogueExternalOutcomeKind] = frozenset(
         DialogueExternalOutcomeKind.PURCHASE_CONFIRMED,
         DialogueExternalOutcomeKind.REPURCHASE,
         DialogueExternalOutcomeKind.CHURNED,
+        # Task-execution outcomes (coding-lab lane): world-track evidence
+        # settled by the environment oracle. TASK_REGRESSED is negative
+        # but non-relational — no rupture to anchor (same rationale as
+        # CHURNED); damage flows through PE bias + regime score only.
+        DialogueExternalOutcomeKind.TASK_VERIFIED,
+        DialogueExternalOutcomeKind.TASK_REGRESSED,
     }
 )
 
@@ -124,6 +130,12 @@ def test_dialogue_external_outcome_kind_enum_is_closed() -> None:
         DialogueExternalOutcomeKind.PURCHASE_CONFIRMED,
         DialogueExternalOutcomeKind.REPURCHASE,
         DialogueExternalOutcomeKind.CHURNED,
+        # Task-execution block (coding-lab lane): environment-oracle
+        # settled task outcomes with explicit rows in PE bias, regime
+        # score and structural projection, plus a documented rupture
+        # opt-out (world-track evidence has no rupture to anchor).
+        DialogueExternalOutcomeKind.TASK_VERIFIED,
+        DialogueExternalOutcomeKind.TASK_REGRESSED,
     }
 
 

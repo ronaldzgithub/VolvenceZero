@@ -2107,6 +2107,15 @@ _EXTERNAL_OUTCOME_AXIS_BIAS: dict[
     DialogueExternalOutcomeKind.PURCHASE_CONFIRMED: (+0.50, +0.40, 0.0, +0.50),
     DialogueExternalOutcomeKind.REPURCHASE: (+0.60, +0.50, 0.0, +0.60),
     DialogueExternalOutcomeKind.CHURNED: (-0.30, -0.60, -0.10, -0.40),
+    # ------------------------------------------------------------------
+    # Task-execution outcomes (coding-lab lane). Environment-settled
+    # task evidence is world-track only: strong task / action deltas,
+    # ZERO relationship and regime deltas by design — a failed test run
+    # says nothing about the relational channel, and polluting that axis
+    # was the reason these values exist instead of reusing MISSED.
+    # ------------------------------------------------------------------
+    DialogueExternalOutcomeKind.TASK_VERIFIED: (+0.50, 0.0, 0.0, +0.40),
+    DialogueExternalOutcomeKind.TASK_REGRESSED: (-0.50, 0.0, 0.0, -0.40),
 }
 
 
