@@ -142,7 +142,34 @@ action_turn_index=...)`。PE 在自身 `process` 内经 `_apply_external_outcome
   （8 链 × 10 集，conventions=convention_export_all，与过带标定一致）。
 - **formal 断点续跑**：按 (chain, arm) 格写 `rows.json` 检查点；
   `--resume` 已完成格直接加载，中断格整格重跑。长跑配 `caffeinate`
-  防休眠（2026-08-12 夜跑被机器休眠杀掉的教训）。
+  防休眠（2026-08-12 夜跑被机器休眠杀掉的教训）。单写者进程锁
+  `.formal.lock`（pid 活性检测）——两个 `--resume` 实例赛跑会互删
+  对方在跑的格目录（2026-08-13 v2 首启实测）。
+- **失败证据可行动化**（v2 仪器修正，对三臂对称）：v1 formal 实测
+  裸违反 id 不可行动——steelman 全文历史在手违反率 0.53→0.50，
+  brain 仅 0.45。oracle 现捕获 junit 断言消息为 `failure_details`
+  （隐藏测试自带明确断言文本），流进 steelman 转录 `[oracle-failure]`
+  行与 brain 记忆条目 `ci evidence` 段。
+
+### 6.6 Packet 2 正式判词（已产出，2026-08-13）
+
+工件：`coding_lab_packet2_formal_v2_qwen3codernext_20260813/report.json`；
+prereg v2 sha256 `f72dc17e…`（8 链 × 10 集 × 3 臂，qwen3-coder-next，
+conventions=convention_export_all，digest 预算 3500 字符）。
+
+- `memory_gate = True`：brain vs stateless 斜率差 bootstrap 5% 下界
+  +0.0061 > 0（均值 +0.0235，v1 的 2 倍）。
+- `quality_gate = True`：brain vs steelman 下界 −0.0045 > −0.05；
+  均值 +0.003 为正——结构化记忆在同等信息下不劣、甚至略优。
+- `scaling_gate = True`：上下文 token 比 0.0977 ≤ 0.10
+  （brain 882 vs steelman 9027 token）。
+- 机制曲线（约定违反率 前半→后半）：brain 0.50→**0.17**、
+  steelman 0.53→0.50、stateless 0.55→0.50。关键失败证据在 9000+
+  token 原始转录中段被淹没，而 brain 的结构化召回把相关经验置于
+  包首——**结构化记忆不只便宜 9 倍，同等信息下更有效**。
+- v1 运行（`coding_lab_packet2_formal_qwen3codernext_20260813`）保留
+  为仪器迭代证据：2/3 门过，scaling 0.1088 惜败，暴露裸 id 不可
+  行动问题。
 
 ## 6.5 断点续跑与瞬时故障纪律（API 手长跑）
 
