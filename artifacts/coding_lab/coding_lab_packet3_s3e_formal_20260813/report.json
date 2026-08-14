@@ -1,0 +1,295 @@
+{
+  "schema_version": "coding-lab-when-to-steer-rl.v1",
+  "claim_scope": "coding-junction-internal-rl-when-to-steer",
+  "observation_protocol": "coding-goal-stripped-junction.v1",
+  "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+  "model_source": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+  "device": "mps",
+  "corpus_seed": 3884171001,
+  "injection_layer_index": 13,
+  "residual_width": 1536,
+  "steering_rank": 8,
+  "subgoal_class_count": 4,
+  "gate_feature_names": [
+    "belief_margin",
+    "fresh_margin",
+    "belief_disagrees_fresh",
+    "base_action_entropy"
+  ],
+  "train_row_count": 885,
+  "heldout_row_count": 362,
+  "post_switch_fraction": 0.26243093922651933,
+  "control_norm_cap": 96.09169006347656,
+  "executor_updates": 80,
+  "executor_learning_rate": 0.01,
+  "policy_learning_rate": 0.1,
+  "policy_batch_cases": 8,
+  "entropy_coef": 0.1,
+  "init_noop_bias": 0.0,
+  "policy_restarts": 4,
+  "max_online_episodes": 1200,
+  "eval_every": 80,
+  "convergence_window": 3,
+  "seed_schedule": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "bootstrap_resamples": 5000,
+  "bootstrap_confidence": 0.95,
+  "thresholds": {
+    "min_convergence_improvement_nll": 0.2,
+    "min_gain_vs_noop_nll": 0.3,
+    "min_gain_vs_always_on_nll": 0.2,
+    "min_gain_vs_random_gate_nll": 0.2,
+    "min_gate_selectivity": 0.3,
+    "require_bootstrap_lower_positive": true
+  },
+  "seed_points": [
+    {
+      "seed": 0,
+      "arms": {
+        "noop": 2.4830954798168596,
+        "pe_gated_online": 1.1742692966811934,
+        "always_on_belief": 5.318332069815361,
+        "random_gate": 4.425467508324121,
+        "oracle_gate_ceiling": 1.0123337978152647,
+        "pe_hard_gate_ceiling": 1.0123337978152647,
+        "fresh_ceiling": 5.818855959527297e-07
+      },
+      "early_window_nll": 2.225090242256254,
+      "final_window_nll": 1.173117838182012,
+      "convergence_improvement_nll": 1.051972404074242,
+      "steer_rate_overall": 0.6850828729281768,
+      "steer_rate_post_switch": 0.031578947368421054,
+      "steer_rate_non_switch": 0.9176029962546817,
+      "gate_selectivity": 0.8860240488862606,
+      "gain_vs_noop": {
+        "mean": 1.194253634196552,
+        "ci_lower": 0.9260296626278601,
+        "ci_upper": 1.4792536488204804,
+        "route_count": 125
+      },
+      "gain_vs_always_on": {
+        "mean": 5.4070653205737065,
+        "ci_lower": 4.706665761524326,
+        "ci_upper": 6.110617077721284,
+        "route_count": 125
+      },
+      "gain_vs_random_gate": {
+        "mean": 4.08037876740521,
+        "ci_lower": 3.6472165032727513,
+        "ci_upper": 4.514452984138285,
+        "route_count": 125
+      },
+      "selected_restart": 2,
+      "selection_train_nll": 1.0463154265091577,
+      "policy_parameters_changed": true
+    },
+    {
+      "seed": 1,
+      "arms": {
+        "noop": 2.4830954798168596,
+        "pe_gated_online": 1.1543030773402945,
+        "always_on_belief": 5.318332069815361,
+        "random_gate": 4.488124670534032,
+        "oracle_gate_ceiling": 1.0123337978152647,
+        "pe_hard_gate_ceiling": 1.0123337978152647,
+        "fresh_ceiling": 5.818855959527297e-07
+      },
+      "early_window_nll": 5.706687903032572,
+      "final_window_nll": 1.161425191997772,
+      "convergence_improvement_nll": 4.5452627110348,
+      "steer_rate_overall": 0.7071823204419889,
+      "steer_rate_post_switch": 0.031578947368421054,
+      "steer_rate_non_switch": 0.947565543071161,
+      "gate_selectivity": 0.91598659570274,
+      "gain_vs_noop": {
+        "mean": 1.200320871703146,
+        "ci_lower": 0.9414795072769436,
+        "ci_upper": 1.4810881671014229,
+        "route_count": 125
+      },
+      "gain_vs_always_on": {
+        "mean": 5.4131325580803,
+        "ci_lower": 4.6818180951568475,
+        "ci_upper": 6.11929754131635,
+        "route_count": 125
+      },
+      "gain_vs_random_gate": {
+        "mean": 4.17954681566047,
+        "ci_lower": 3.71106509616137,
+        "ci_upper": 4.640332496461467,
+        "route_count": 125
+      },
+      "selected_restart": 1,
+      "selection_train_nll": 1.0267695972467203,
+      "policy_parameters_changed": true
+    },
+    {
+      "seed": 2,
+      "arms": {
+        "noop": 2.4830954798168596,
+        "pe_gated_online": 1.1927699935694793,
+        "always_on_belief": 5.318332069815361,
+        "random_gate": 4.4724603799815545,
+        "oracle_gate_ceiling": 1.0123337978152647,
+        "pe_hard_gate_ceiling": 1.0123337978152647,
+        "fresh_ceiling": 5.818855959527297e-07
+      },
+      "early_window_nll": 1.9165655319235146,
+      "final_window_nll": 1.2040583111793695,
+      "convergence_improvement_nll": 0.7125072207441452,
+      "steer_rate_overall": 0.7016574585635359,
+      "steer_rate_post_switch": 0.042105263157894736,
+      "steer_rate_non_switch": 0.9363295880149812,
+      "gate_selectivity": 0.8942243248570865,
+      "gain_vs_noop": {
+        "mean": 1.1883255569096487,
+        "ci_lower": 0.932163620752615,
+        "ci_upper": 1.471769313347147,
+        "route_count": 125
+      },
+      "gain_vs_always_on": {
+        "mean": 5.401137243286803,
+        "ci_lower": 4.685436102416402,
+        "ci_upper": 6.107626545716089,
+        "route_count": 125
+      },
+      "gain_vs_random_gate": {
+        "mean": 4.144276298179807,
+        "ci_lower": 3.665404692052843,
+        "ci_upper": 4.601747627929134,
+        "route_count": 125
+      },
+      "selected_restart": 0,
+      "selection_train_nll": 1.0339755481574826,
+      "policy_parameters_changed": true
+    },
+    {
+      "seed": 3,
+      "arms": {
+        "noop": 2.4830954798168596,
+        "pe_gated_online": 1.1671339077509937,
+        "always_on_belief": 5.318332069815361,
+        "random_gate": 4.550781832743944,
+        "oracle_gate_ceiling": 1.0123337978152647,
+        "pe_hard_gate_ceiling": 1.0123337978152647,
+        "fresh_ceiling": 5.818855959527297e-07
+      },
+      "early_window_nll": 1.942850928410324,
+      "final_window_nll": 1.1684742387152875,
+      "convergence_improvement_nll": 0.7743766896950364,
+      "steer_rate_overall": 0.7292817679558011,
+      "steer_rate_post_switch": 0.042105263157894736,
+      "steer_rate_non_switch": 0.9737827715355806,
+      "gate_selectivity": 0.9316775083776858,
+      "gain_vs_noop": {
+        "mean": 1.196542339436942,
+        "ci_lower": 0.9298367203486088,
+        "ci_upper": 1.476589591076327,
+        "route_count": 125
+      },
+      "gain_vs_always_on": {
+        "mean": 5.409354025814096,
+        "ci_lower": 4.67858412304967,
+        "ci_upper": 6.103619630822337,
+        "route_count": 125
+      },
+      "gain_vs_random_gate": {
+        "mean": 4.268869094142933,
+        "ci_lower": 3.7600417889684663,
+        "ci_upper": 4.757694772592839,
+        "route_count": 125
+      },
+      "selected_restart": 2,
+      "selection_train_nll": 1.0245837557779525,
+      "policy_parameters_changed": true
+    },
+    {
+      "seed": 4,
+      "arms": {
+        "noop": 2.4830954798168596,
+        "pe_gated_online": 1.19134722312462,
+        "always_on_belief": 5.318332069815361,
+        "random_gate": 4.480292525257793,
+        "oracle_gate_ceiling": 1.0123337978152647,
+        "pe_hard_gate_ceiling": 1.0123337978152647,
+        "fresh_ceiling": 5.818855959527297e-07
+      },
+      "early_window_nll": 5.837659525689832,
+      "final_window_nll": 1.19134722312462,
+      "convergence_improvement_nll": 4.646312302565212,
+      "steer_rate_overall": 0.7044198895027625,
+      "steer_rate_post_switch": 0.042105263157894736,
+      "steer_rate_non_switch": 0.9400749063670412,
+      "gate_selectivity": 0.8979696432091464,
+      "gain_vs_noop": {
+        "mean": 1.1886198671388137,
+        "ci_lower": 0.92388012191568,
+        "ci_upper": 1.4844770748918708,
+        "route_count": 125
+      },
+      "gain_vs_always_on": {
+        "mean": 5.401431553515969,
+        "ci_lower": 4.683961655470337,
+        "ci_upper": 6.124648452118465,
+        "route_count": 125
+      },
+      "gain_vs_random_gate": {
+        "mean": 4.156208209752555,
+        "ci_lower": 3.6881958861992232,
+        "ci_upper": 4.60683285984311,
+        "route_count": 125
+      },
+      "selected_restart": 1,
+      "selection_train_nll": 1.0273493808870593,
+      "policy_parameters_changed": true
+    }
+  ],
+  "aggregate": {
+    "seed_count": 5,
+    "noop_nll_mean": 2.4830954798168596,
+    "pe_gated_online_nll_mean": 1.1759646996933162,
+    "always_on_belief_nll_mean": 5.318332069815361,
+    "random_gate_nll_mean": 4.483425383368289,
+    "oracle_gate_ceiling_nll_mean": 1.0123337978152647,
+    "pe_hard_gate_ceiling_nll_mean": 1.0123337978152647,
+    "fresh_ceiling_nll_mean": 5.818855959527297e-07,
+    "convergence_improvement_nll_mean": 2.346086265622687,
+    "gate_selectivity_mean": 0.9051764242065838,
+    "gain_vs_noop_ci_lower_min": 0.92388012191568,
+    "gain_vs_always_on_ci_lower_min": 4.67858412304967,
+    "gain_vs_random_gate_ci_lower_min": 3.6472165032727513
+  },
+  "admission": {
+    "admitted": true,
+    "condition_convergence": true,
+    "condition_gain_vs_noop": true,
+    "condition_gain_vs_always_on": true,
+    "condition_gain_vs_random_gate": true,
+    "condition_gate_selectivity": true,
+    "condition_structural": true,
+    "failed_conditions": [],
+    "description": "Gate policy learned WHEN to steer from sparse outcome credit: beats noop / always-on / random-gate and concentrates steering where the belief is fresh."
+  },
+  "free_bias_present": false,
+  "zero_code_strict_noop": true,
+  "substrate_trainable_parameter_count": 0,
+  "reader_parameters_changed": false,
+  "executor_parameters_changed": false,
+  "production_wiring_changed": false,
+  "feedback_to_learning": false,
+  "description": "Coding-domain internal RL gate over PE proxies; admitted=True.",
+  "corpus_manifest": {
+    "train_rows": 885,
+    "heldout_rows": 362,
+    "train_cases": 288,
+    "heldout_cases": 125,
+    "phase_switches": 293,
+    "source_trajectories": 838
+  },
+  "smoke": false
+}

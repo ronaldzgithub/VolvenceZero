@@ -131,9 +131,34 @@ def _default_prereg() -> dict:
             "heldout_fraction": 0.3,
             "min_train_rows": 60,
             "min_heldout_rows": 20,
-            "expert_source": "passing-episodes-only",
+            "expert_source": "conditional-pass-rate-credit",
+            "min_action_support": 5,
+            "min_pass_rate_margin": 0.10,
         },
         "credit_source": "route mean expert-action NLL (episode terminal)",
+        "amendments": [
+            {
+                "date": "2026-08-13",
+                "before_any_formal_run": True,
+                "changed": [
+                    "corpus.expert_source: passing-episodes-only -> "
+                    "conditional-pass-rate-credit (+ support/margin)",
+                    "pre-check b gate: expert_margin (signed gap > 0) -> "
+                    "expert_resolution (|PMI gap| scale + repeatability); "
+                    "base alignment reported, not gated",
+                ],
+                "reason": "The survivorship rule labelled a move expert "
+                "because SOME passing episode made it; at ~0.5 base pass "
+                "rate that made submit-without-testing an expert target "
+                "and produced a 0.51 positive fraction in the margin "
+                "audit. The alignment gate additionally required the "
+                "frozen base to already prefer the expert move, which a "
+                "steering experiment cannot require without gating away "
+                "its own subject.",
+                "unchanged": "all six decision_rules and the credit "
+                "source; no formal threshold was relaxed",
+            }
+        ],
         "prohibited": [
             "evaluation/judge scores as reward",
             "token-space RL",

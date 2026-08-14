@@ -1,0 +1,246 @@
+{
+  "packet": "coding-lab-packet-3-margin",
+  "run_id": "coding_lab_packet3_margin_pmi_20260813",
+  "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+  "corpus": {
+    "junction_records": 8044,
+    "distinct_state_keys": 77,
+    "contrastive_junctions": 22,
+    "action_distribution": {
+      "investigate": 2956,
+      "edit": 828,
+      "test": 3513,
+      "submit": 680,
+      "invalid": 67
+    },
+    "expert_action_distribution": {
+      "edit": 8,
+      "test": 8,
+      "submit": 1,
+      "investigate": 5
+    },
+    "source_trajectories": 838,
+    "mean_expert_pass_rate": 0.5943,
+    "mean_non_expert_pass_rate": 0.2702,
+    "train_junctions": 14,
+    "eval_junctions": 8,
+    "label_policy": {
+      "expert_source": "conditional-pass-rate-credit",
+      "min_action_support": 5,
+      "min_pass_rate_margin": 0.1
+    },
+    "state_key_accounting": {
+      "labelled": 22,
+      "excluded_no_leverage": 22,
+      "excluded_under_supported": 33
+    }
+  },
+  "verdicts": {
+    "corpus_sufficient": true,
+    "expert_margin": false,
+    "steer_headroom": true,
+    "overall_pass": false
+  },
+  "expert_margin": {
+    "scoring": "domain-conditional-pmi",
+    "junctions_scored": 22,
+    "median_gap_nats": -2.1384,
+    "mean_gap_nats": -0.5954,
+    "bootstrap_ci_lower_5pct": -1.7138,
+    "positive_fraction": 0.3636,
+    "raw_median_gap_nats": -0.8046,
+    "raw_positive_fraction": 0.3636,
+    "neutral_action_nll": {
+      "investigate": 3.1429,
+      "edit": 3.002,
+      "test": 0.4388,
+      "submit": 1.338
+    }
+  },
+  "per_junction": [
+    {
+      "state_key": "add_helper|reads=1|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 3.9065,
+      "non_expert_mean_nll": 0.2137,
+      "raw_gap": -3.6927,
+      "calibrated_gap": -3.8336
+    },
+    {
+      "state_key": "add_helper|reads=1|edited=1|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 1.8779,
+      "non_expert_mean_nll": 0.4498,
+      "raw_gap": -1.4281,
+      "calibrated_gap": -4.1322
+    },
+    {
+      "state_key": "add_helper|reads=1|edited=1|tests=none",
+      "expert_action": "submit",
+      "expert_nll": 6.514,
+      "non_expert_mean_nll": 1.9372,
+      "raw_gap": -4.5767,
+      "calibrated_gap": -3.6776
+    },
+    {
+      "state_key": "add_helper|reads=1|edited=1|tests=passed",
+      "expert_action": "test",
+      "expert_nll": 1.9375,
+      "non_expert_mean_nll": 6.507,
+      "raw_gap": 4.5695,
+      "calibrated_gap": 3.6704
+    },
+    {
+      "state_key": "add_helper|reads=3|edited=1|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 1.2287,
+      "non_expert_mean_nll": 0.3871,
+      "raw_gap": -0.8416,
+      "calibrated_gap": -3.5457
+    },
+    {
+      "state_key": "add_helper|reads=3|edited=1|tests=passed",
+      "expert_action": "test",
+      "expert_nll": 0.3355,
+      "non_expert_mean_nll": 1.3797,
+      "raw_gap": 1.0443,
+      "calibrated_gap": -1.6598
+    },
+    {
+      "state_key": "config_feature|reads=1|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 3.5486,
+      "non_expert_mean_nll": 0.4679,
+      "raw_gap": -3.0807,
+      "calibrated_gap": -3.2215
+    },
+    {
+      "state_key": "config_feature|reads=3|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 3.5389,
+      "non_expert_mean_nll": 0.7579,
+      "raw_gap": -2.781,
+      "calibrated_gap": -1.5699
+    },
+    {
+      "state_key": "config_feature|reads=3|edited=1|tests=none",
+      "expert_action": "test",
+      "expert_nll": 1.5967,
+      "non_expert_mean_nll": 1.4325,
+      "raw_gap": -0.1641,
+      "calibrated_gap": -2.7273
+    },
+    {
+      "state_key": "config_feature|reads=3|edited=1|tests=passed",
+      "expert_action": "investigate",
+      "expert_nll": 0.4492,
+      "non_expert_mean_nll": 2.9969,
+      "raw_gap": 2.5476,
+      "calibrated_gap": 4.0975
+    },
+    {
+      "state_key": "extend_report|reads=1|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 2.883,
+      "non_expert_mean_nll": 0.4899,
+      "raw_gap": -2.3932,
+      "calibrated_gap": -2.534
+    },
+    {
+      "state_key": "extend_report|reads=3|edited=0|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 1.1917,
+      "non_expert_mean_nll": 0.4241,
+      "raw_gap": -0.7676,
+      "calibrated_gap": -3.4716
+    },
+    {
+      "state_key": "extend_report|reads=3|edited=0|tests=passed",
+      "expert_action": "investigate",
+      "expert_nll": 0.3926,
+      "non_expert_mean_nll": 2.1302,
+      "raw_gap": 1.7375,
+      "calibrated_gap": 3.16
+    },
+    {
+      "state_key": "extend_report|reads=3|edited=1|tests=passed",
+      "expert_action": "investigate",
+      "expert_nll": 0.5774,
+      "non_expert_mean_nll": 3.3377,
+      "raw_gap": 2.7603,
+      "calibrated_gap": 5.0147
+    },
+    {
+      "state_key": "fix_bug|reads=1|edited=0|tests=none",
+      "expert_action": "investigate",
+      "expert_nll": 0.1375,
+      "non_expert_mean_nll": 3.1853,
+      "raw_gap": 3.0478,
+      "calibrated_gap": 4.4702
+    },
+    {
+      "state_key": "fix_bug|reads=1|edited=1|tests=none",
+      "expert_action": "test",
+      "expert_nll": 2.3576,
+      "non_expert_mean_nll": 5.669,
+      "raw_gap": 3.3114,
+      "calibrated_gap": 2.4122
+    },
+    {
+      "state_key": "fix_bug|reads=3|edited=0|tests=failed",
+      "expert_action": "edit",
+      "expert_nll": 4.3375,
+      "non_expert_mean_nll": 1.852,
+      "raw_gap": -2.4855,
+      "calibrated_gap": 0.0777
+    },
+    {
+      "state_key": "fix_bug|reads=3|edited=0|tests=none",
+      "expert_action": "investigate",
+      "expert_nll": 0.1783,
+      "non_expert_mean_nll": 1.939,
+      "raw_gap": 1.7606,
+      "calibrated_gap": 4.4647
+    },
+    {
+      "state_key": "fix_bug|reads=3|edited=0|tests=passed",
+      "expert_action": "edit",
+      "expert_nll": 4.1806,
+      "non_expert_mean_nll": 1.0027,
+      "raw_gap": -3.1778,
+      "calibrated_gap": -1.9667
+    },
+    {
+      "state_key": "refactor_alias|reads=2|edited=0|tests=none",
+      "expert_action": "test",
+      "expert_nll": 1.1523,
+      "non_expert_mean_nll": 0.395,
+      "raw_gap": -0.7573,
+      "calibrated_gap": -3.4613
+    },
+    {
+      "state_key": "refactor_alias|reads=3|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 4.3007,
+      "non_expert_mean_nll": 0.7795,
+      "raw_gap": -3.5212,
+      "calibrated_gap": -2.3101
+    },
+    {
+      "state_key": "refactor_alias|reads=3|edited=0|tests=passed",
+      "expert_action": "edit",
+      "expert_nll": 4.3424,
+      "non_expert_mean_nll": 0.7753,
+      "raw_gap": -3.5671,
+      "calibrated_gap": -2.356
+    }
+  ],
+  "steer_headroom": {
+    "probe_junctions": 12,
+    "directions_per_junction": 8,
+    "control_norm_cap": 96.0917,
+    "mean_abs_nll_shift": 1.72992,
+    "max_abs_nll_shift": 7.43709,
+    "min_shift_required": 0.01
+  }
+}

@@ -42,6 +42,28 @@ JUNCTION_ACTIONS: tuple[str, ...] = (
     ACTION_SUBMIT,
 )
 
+#: Surface text scored against a frozen LM head per protocol action.
+#: Owned here (with the action vocabulary) so the margin audit and the
+#: RL replication score the SAME instrument: bare, equal-register
+#: identifiers that the restricted action softmax disambiguates on the
+#: first token. Natural-language phrases ("investigate the codebase
+#: first") do not work — the 2026-08-13 audit showed their intrinsic
+#: surface likelihood, not the state, dominated the comparison.
+ACTION_SURFACES: dict[str, str] = {
+    ACTION_INVESTIGATE: "investigate",
+    ACTION_EDIT: "edit",
+    ACTION_TEST: "test",
+    ACTION_SUBMIT: "submit",
+}
+
+#: Content-free context used to calibrate away the option surfaces'
+#: intrinsic likelihood (domain-conditional PMI): keep the template,
+#: blank every informative field.
+NEUTRAL_STATE_TEXT = (
+    "[coding junction] category=unknown moves_so_far=unknown "
+    "tests=unknown\ntask: unknown\nNext move:"
+)
+
 _TOOL_TO_ACTION: dict[str, str] = {
     "read_file": ACTION_INVESTIGATE,
     "list_dir": ACTION_INVESTIGATE,
@@ -83,12 +105,41 @@ class JunctionRecord:
 
 
 @dataclass(frozen=True)
-class ContrastiveJunction:
-    """A state key with an evidence-backed action difference.
+class ActionOutcomeStat:
+    """Conditional outcome record for one (state key, action) cell.
 
-    ``expert_action`` comes from the shortest passing branch at this
-    state; ``non_expert_actions`` are moves that failing branches chose
-    at the same state and the passing branch did not.
+    This is the credit-assignment unit of the corpus: how often the
+    episode ended up passing GIVEN this move was chosen at this state.
+    """
+
+    state_key: str
+    action: str
+    trials: int
+    passes: int
+
+    @property
+    def pass_rate(self) -> float:
+        return self.passes / self.trials
+
+
+#: Minimum episodes behind a (state, action) cell before its pass rate
+#: is allowed to label anything, and the pass-rate margin an expert must
+#: hold over a non-expert. Defaults are deliberately conservative: the
+#: 2026-08-13 margin audit failed at 0.51 positive fraction because the
+#: previous "expert = what a passing branch did" rule labelled
+#: submit-without-testing as expert (survivorship, not credit).
+DEFAULT_MIN_ACTION_SUPPORT = 5
+DEFAULT_MIN_PASS_RATE_MARGIN = 0.10
+
+
+@dataclass(frozen=True)
+class ContrastiveJunction:
+    """A state key with a credit-backed action difference.
+
+    ``expert_action`` is the move with the highest conditional pass rate
+    at this state (subject to support); ``non_expert_actions`` are moves
+    whose conditional pass rate is materially lower. Both sides carry
+    their statistics so consumers never recompute them.
     """
 
     state_key: str
@@ -99,6 +150,8 @@ class ContrastiveJunction:
     non_expert_provenances: tuple[str, ...]
     passing_records: int
     failing_records: int
+    expert_stat: ActionOutcomeStat
+    non_expert_stats: tuple[ActionOutcomeStat, ...]
 
 
 def _state_key(
@@ -273,57 +326,125 @@ def collect_junctions(
     return tuple(records)
 
 
+def build_action_outcome_table(
+    records: tuple[JunctionRecord, ...],
+) -> dict[str, tuple[ActionOutcomeStat, ...]]:
+    """Conditional pass statistics per (state key, protocol action).
+
+    The corpus owner publishes this surface so labeling, auditing and
+    gate features all read one definition of "did this move at this
+    state work out".
+    """
+
+    counts: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0])
+    for record in records:
+        if record.action_taken not in JUNCTION_ACTIONS:
+            continue
+        cell = counts[(record.state_key, record.action_taken)]
+        cell[0] += 1
+        cell[1] += int(record.episode_passed)
+    table: dict[str, list[ActionOutcomeStat]] = defaultdict(list)
+    for (state_key, action), (trials, passes) in counts.items():
+        table[state_key].append(
+            ActionOutcomeStat(
+                state_key=state_key, action=action, trials=trials, passes=passes
+            )
+        )
+    return {
+        state_key: tuple(sorted(stats, key=lambda s: s.action))
+        for state_key, stats in table.items()
+    }
+
+
 def build_contrastive_corpus(
     records: tuple[JunctionRecord, ...],
+    *,
+    min_action_support: int = DEFAULT_MIN_ACTION_SUPPORT,
+    min_pass_rate_margin: float = DEFAULT_MIN_PASS_RATE_MARGIN,
 ) -> tuple[ContrastiveJunction, ...]:
-    """Group by state key and keep only evidence-backed action differences."""
+    """Keep state keys where outcome credit separates two moves.
 
+    Expert = highest conditional pass rate among sufficiently supported
+    moves; non-expert = supported moves trailing it by at least
+    ``min_pass_rate_margin``. Labeling from conditional outcomes rather
+    than from "a passing episode did this" is what keeps survivorship
+    out of the labels (R-CL4).
+    """
+
+    if min_action_support < 1:
+        raise ValueError("min_action_support must be >= 1")
+    if not 0.0 < min_pass_rate_margin < 1.0:
+        raise ValueError("min_pass_rate_margin must be in (0, 1)")
+
+    table = build_action_outcome_table(records)
     by_key: dict[str, list[JunctionRecord]] = defaultdict(list)
     for record in records:
         by_key[record.state_key].append(record)
 
     corpus: list[ContrastiveJunction] = []
-    for key in sorted(by_key):
+    for key in sorted(table):
+        supported = [s for s in table[key] if s.trials >= min_action_support]
+        if len(supported) < 2:
+            continue
+        expert_stat = max(supported, key=lambda s: (s.pass_rate, s.trials, s.action))
+        non_expert_stats = tuple(
+            stat
+            for stat in supported
+            if stat.action != expert_stat.action
+            and expert_stat.pass_rate - stat.pass_rate >= min_pass_rate_margin
+        )
+        if not non_expert_stats:
+            continue
         group = by_key[key]
-        passing = [r for r in group if r.episode_passed]
-        failing = [r for r in group if not r.episode_passed]
-        if not passing or not failing:
-            continue
-        # Expert = the modal move among passing branches, ties broken by
-        # the shortest branch (fewest decisions to episode end). Invalid
-        # moves never become labels on either side.
-        passing = [r for r in passing if r.action_taken in JUNCTION_ACTIONS]
-        failing = [r for r in failing if r.action_taken in JUNCTION_ACTIONS]
-        if not passing or not failing:
-            continue
-        pass_counts = Counter(r.action_taken for r in passing)
-        top_count = max(pass_counts.values())
-        candidates = {a for a, c in pass_counts.items() if c == top_count}
-        best = min(
-            (r for r in passing if r.action_taken in candidates),
-            key=lambda r: (r.decisions_to_end, r.provenance),
+        # Representative text is drawn from a record that actually took
+        # the expert move, deterministically by provenance.
+        expert_records = sorted(
+            (r for r in group if r.action_taken == expert_stat.action),
+            key=lambda r: r.provenance,
         )
-        expert_action = best.action_taken
-        non_expert = sorted(
-            {r.action_taken for r in failing} - {expert_action}
-        )
-        if not non_expert:
-            continue
+        non_expert_actions = tuple(stat.action for stat in non_expert_stats)
         corpus.append(
             ContrastiveJunction(
                 state_key=key,
-                state_text=best.state_text,
-                expert_action=expert_action,
-                non_expert_actions=tuple(non_expert),
-                expert_provenance=best.provenance,
+                state_text=expert_records[0].state_text,
+                expert_action=expert_stat.action,
+                non_expert_actions=non_expert_actions,
+                expert_provenance=expert_records[0].provenance,
                 non_expert_provenances=tuple(
-                    r.provenance for r in failing if r.action_taken in non_expert
+                    r.provenance
+                    for r in sorted(group, key=lambda r: r.provenance)
+                    if r.action_taken in non_expert_actions
                 )[:8],
-                passing_records=len(passing),
-                failing_records=len(failing),
+                passing_records=sum(1 for r in group if r.episode_passed),
+                failing_records=sum(1 for r in group if not r.episode_passed),
+                expert_stat=expert_stat,
+                non_expert_stats=non_expert_stats,
             )
         )
     return tuple(corpus)
+
+
+def credit_expert_actions(
+    records: tuple[JunctionRecord, ...],
+    *,
+    min_action_support: int = DEFAULT_MIN_ACTION_SUPPORT,
+    min_pass_rate_margin: float = DEFAULT_MIN_PASS_RATE_MARGIN,
+) -> dict[str, str]:
+    """``state_key -> credit-backed expert move`` (keys without one omitted).
+
+    Single definition of the expert target, shared by the margin audit
+    and the S3-E replication: an expert label must be earned by outcome
+    credit, not by appearing in an episode that happened to pass.
+    """
+
+    return {
+        junction.state_key: junction.expert_action
+        for junction in build_contrastive_corpus(
+            records,
+            min_action_support=min_action_support,
+            min_pass_rate_margin=min_pass_rate_margin,
+        )
+    }
 
 
 def split_corpus(
@@ -360,22 +481,49 @@ def corpus_manifest(
             Counter(j.expert_action for j in corpus)
         ),
         "source_trajectories": len({r.trajectory_sha256 for r in records}),
+        "mean_expert_pass_rate": (
+            round(
+                sum(j.expert_stat.pass_rate for j in corpus) / len(corpus), 4
+            )
+            if corpus
+            else None
+        ),
+        "mean_non_expert_pass_rate": (
+            round(
+                sum(
+                    stat.pass_rate
+                    for j in corpus
+                    for stat in j.non_expert_stats
+                )
+                / sum(len(j.non_expert_stats) for j in corpus),
+                4,
+            )
+            if corpus
+            else None
+        ),
     }
 
 
 __all__ = [
     "ACTION_EDIT",
+    "ACTION_SURFACES",
     "ACTION_INVALID",
     "ACTION_INVESTIGATE",
     "ACTION_SUBMIT",
     "ACTION_TEST",
+    "DEFAULT_MIN_ACTION_SUPPORT",
+    "DEFAULT_MIN_PASS_RATE_MARGIN",
     "JUNCTION_ACTIONS",
+    "NEUTRAL_STATE_TEXT",
+    "ActionOutcomeStat",
     "ContrastiveJunction",
     "IncompleteTrajectoryError",
     "JunctionRecord",
+    "build_action_outcome_table",
     "build_contrastive_corpus",
     "collect_junctions",
     "corpus_manifest",
+    "credit_expert_actions",
     "extract_junctions",
     "split_corpus",
 ]

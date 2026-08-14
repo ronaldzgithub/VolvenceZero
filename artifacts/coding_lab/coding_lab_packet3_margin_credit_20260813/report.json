@@ -1,0 +1,35 @@
+{
+  "packet": "coding-lab-packet-3-margin",
+  "run_id": "coding_lab_packet3_margin_credit_20260813",
+  "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+  "corpus": {
+    "junction_records": 8044,
+    "distinct_state_keys": 77,
+    "contrastive_junctions": 22,
+    "action_distribution": {
+      "investigate": 2956,
+      "edit": 828,
+      "test": 3513,
+      "submit": 680,
+      "invalid": 67
+    },
+    "expert_action_distribution": {
+      "edit": 8,
+      "test": 8,
+      "submit": 1,
+      "investigate": 5
+    },
+    "source_trajectories": 838,
+    "mean_expert_pass_rate": 0.5943,
+    "mean_non_expert_pass_rate": 0.2702,
+    "train_junctions": 14,
+    "eval_junctions": 8
+  },
+  "verdicts": {
+    "corpus_sufficient": false,
+    "expert_margin": null,
+    "steer_headroom": null,
+    "overall_pass": false
+  },
+  "note": "contrastive corpus has 22 junctions < 24; collect more API-hand trajectories (scripted branches share identical move sequences and cannot contrast)."
+}

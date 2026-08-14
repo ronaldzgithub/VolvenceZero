@@ -1,0 +1,31 @@
+{
+  "review": {
+    "schema_version": "coding-lab-modification-gate-review.v1",
+    "proposal_target": "coding_lab.steering_artifact_bundle",
+    "desired_gate": "offline",
+    "old_value_hash": "genesis",
+    "new_value_hash": "3d901c984f79b3a34f92e85783dcad2b87bcd087199242e7523ad36a1cabc0f6",
+    "validation_delta": 0.92388012191568,
+    "rollback_evidence": "coding-lab:pointer-checkpoint-round-trip:3d901c984f79b3a34f92e85783dcad2b87bcd087199242e7523ad36a1cabc0f6",
+    "contract_integrity": 1.0,
+    "rollback_resilience": 1.0,
+    "fallback_reliance": 0.0,
+    "decision": "allow",
+    "blocking_reasons": [],
+    "description": "ModificationGate.OFFLINE review for the coding-lab artifact bundle pointer. Deployment is a single registry-file write; rollback restores the checkpointed pointer."
+  },
+  "mechanism_probe": false,
+  "candidate_run_id": "coding_lab_packet3_s3e_formal_20260813",
+  "candidate_manifest_sha256": "3d901c984f79b3a34f92e85783dcad2b87bcd087199242e7523ad36a1cabc0f6",
+  "candidate_report_sha256": "5dca98ab4e87eb18f8d7c7eab9451a6ee51c350bb168a4bf89bb9d8863033a03",
+  "registry": "artifacts/coding_lab/active_artifact.json",
+  "rollback_demonstration": {
+    "rollback_verified": true,
+    "incumbent": null,
+    "final_pointer": {
+      "run_id": "coding_lab_packet3_s3e_formal_20260813",
+      "manifest_sha256": "3d901c984f79b3a34f92e85783dcad2b87bcd087199242e7523ad36a1cabc0f6",
+      "report_sha256": "5dca98ab4e87eb18f8d7c7eab9451a6ee51c350bb168a4bf89bb9d8863033a03"
+    }
+  }
+}

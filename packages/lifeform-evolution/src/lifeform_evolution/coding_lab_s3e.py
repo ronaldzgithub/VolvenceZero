@@ -52,24 +52,20 @@ from volvence_zero.agent.eta_when_to_steer_rl import (
 )
 
 from lifeform_domain_coding.lab.junctions import (
+    ACTION_SURFACES,
     JUNCTION_ACTIONS,
     collect_junctions,
+    credit_expert_actions,
 )
 
 CODING_WHEN_TO_STEER_SCHEMA_VERSION = "coding-lab-when-to-steer-rl.v1"
 CODING_OBSERVATION_PROTOCOL = "coding-goal-stripped-junction.v1"
 
-#: Scorer option ids follow the ETA "move:{target}" convention so the
-#: reused `_base_action_entropy` (which builds ids from
-#: ``row.available_targets``) resolves without adaptation. Surfaces are
-#: bare identifiers (ETA precedent): the restricted action softmax
-#: disambiguates on the FIRST token, so no shared leading space.
-ACTION_SURFACES: dict[str, str] = {
-    "investigate": "investigate",
-    "edit": "edit",
-    "test": "test",
-    "submit": "submit",
-}
+# ``ACTION_SURFACES`` is imported from the corpus owner and re-exported
+# below: the margin audit and this replication must score the same
+# option surfaces, so there is one definition. Scorer option ids still
+# follow the ETA "move:{target}" convention, built from
+# ``row.available_targets``.
 
 
 @dataclass(frozen=True)
@@ -102,6 +98,11 @@ def build_coding_junction_rows(
     if not 0.0 < heldout_fraction < 1.0:
         raise ValueError("heldout_fraction must be in (0, 1)")
     records = collect_junctions(tuple(trajectory_paths))
+    # Expert targets come from the corpus owner's credit table, not from
+    # "this episode passed so every move in it was expert": at ~0.5 base
+    # pass rate that survivorship rule labelled submit-without-testing
+    # as expert (2026-08-13 margin audit, 0.51 positive fraction).
+    expert_by_state = credit_expert_actions(records)
     threshold = int(heldout_fraction * 2**32)
     train: list[CodingJunctionRow] = []
     heldout: list[CodingJunctionRow] = []
@@ -110,6 +111,9 @@ def build_coding_junction_rows(
         if not record.episode_passed:
             continue
         if record.action_taken not in JUNCTION_ACTIONS:
+            continue
+        expert_action = expert_by_state.get(record.state_key)
+        if expert_action is None:
             continue
         case_id = record.trajectory_sha256
         digest = hashlib.sha256(case_id.encode("utf-8")).digest()
@@ -124,8 +128,8 @@ def build_coding_junction_rows(
             available_targets=JUNCTION_ACTIONS,
             observation_text=record.observation_text,
             subgoal_revealed_text=record.revealed_text,
-            active_subgoal=record.action_taken,
-            expert_action_id=f"move:{record.action_taken}",
+            active_subgoal=expert_action,
+            expert_action_id=f"move:{expert_action}",
             local_view_id=record.state_key,
         )
         (heldout if split == "heldout" else train).append(row)

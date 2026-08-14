@@ -1,0 +1,308 @@
+{
+  "packet": "coding-lab-packet-3-margin",
+  "run_id": "coding_lab_packet3_margin_full_20260813",
+  "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+  "corpus": {
+    "junction_records": 8044,
+    "distinct_state_keys": 77,
+    "contrastive_junctions": 37,
+    "action_distribution": {
+      "investigate": 2956,
+      "edit": 828,
+      "test": 3513,
+      "submit": 680,
+      "invalid": 67
+    },
+    "expert_action_distribution": {
+      "edit": 9,
+      "test": 13,
+      "submit": 3,
+      "investigate": 12
+    },
+    "source_trajectories": 838,
+    "train_junctions": 22,
+    "eval_junctions": 15
+  },
+  "verdicts": {
+    "corpus_sufficient": true,
+    "expert_margin": false,
+    "steer_headroom": true,
+    "overall_pass": false
+  },
+  "expert_margin": {
+    "junctions_scored": 37,
+    "median_gap_nats": 0.3018,
+    "mean_gap_nats": 0.1748,
+    "bootstrap_ci_lower_5pct": -0.5404,
+    "positive_fraction": 0.5135
+  },
+  "per_junction": [
+    {
+      "state_key": "add_helper|reads=1|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 3.7262,
+      "non_expert_mean_nll": 0.0335,
+      "gap": -3.6927
+    },
+    {
+      "state_key": "add_helper|reads=1|edited=1|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 4.9788,
+      "non_expert_mean_nll": 0.2907,
+      "gap": -4.688
+    },
+    {
+      "state_key": "add_helper|reads=1|edited=1|tests=none",
+      "expert_action": "submit",
+      "expert_nll": 6.3656,
+      "non_expert_mean_nll": 4.9342,
+      "gap": -1.4314
+    },
+    {
+      "state_key": "add_helper|reads=1|edited=1|tests=passed",
+      "expert_action": "test",
+      "expert_nll": 1.138,
+      "non_expert_mean_nll": 2.9896,
+      "gap": 1.8516
+    },
+    {
+      "state_key": "add_helper|reads=2|edited=0|tests=none",
+      "expert_action": "investigate",
+      "expert_nll": 0.0291,
+      "non_expert_mean_nll": 3.8518,
+      "gap": 3.8227
+    },
+    {
+      "state_key": "add_helper|reads=2|edited=1|tests=failed",
+      "expert_action": "investigate",
+      "expert_nll": 1.5104,
+      "non_expert_mean_nll": 5.2607,
+      "gap": 3.7503
+    },
+    {
+      "state_key": "add_helper|reads=3|edited=0|tests=failed",
+      "expert_action": "investigate",
+      "expert_nll": 0.0437,
+      "non_expert_mean_nll": 4.0166,
+      "gap": 3.9729
+    },
+    {
+      "state_key": "add_helper|reads=3|edited=0|tests=none",
+      "expert_action": "investigate",
+      "expert_nll": 0.0446,
+      "non_expert_mean_nll": 4.1644,
+      "gap": 4.1199
+    },
+    {
+      "state_key": "add_helper|reads=3|edited=0|tests=passed",
+      "expert_action": "edit",
+      "expert_nll": 3.5539,
+      "non_expert_mean_nll": 2.465,
+      "gap": -1.089
+    },
+    {
+      "state_key": "add_helper|reads=3|edited=1|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 3.1366,
+      "non_expert_mean_nll": 0.1042,
+      "gap": -3.0324
+    },
+    {
+      "state_key": "add_helper|reads=3|edited=1|tests=passed",
+      "expert_action": "test",
+      "expert_nll": 1.138,
+      "non_expert_mean_nll": 3.3329,
+      "gap": 2.1949
+    },
+    {
+      "state_key": "config_feature|reads=1|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 3.1745,
+      "non_expert_mean_nll": 0.0938,
+      "gap": -3.0807
+    },
+    {
+      "state_key": "config_feature|reads=1|edited=1|tests=passed",
+      "expert_action": "submit",
+      "expert_nll": 5.3614,
+      "non_expert_mean_nll": 4.1348,
+      "gap": -1.2266
+    },
+    {
+      "state_key": "config_feature|reads=2|edited=0|tests=none",
+      "expert_action": "investigate",
+      "expert_nll": 0.0506,
+      "non_expert_mean_nll": 3.8169,
+      "gap": 3.7662
+    },
+    {
+      "state_key": "config_feature|reads=3|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 3.4737,
+      "non_expert_mean_nll": 1.7044,
+      "gap": -1.7693
+    },
+    {
+      "state_key": "config_feature|reads=3|edited=1|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 0.6863,
+      "non_expert_mean_nll": 1.5985,
+      "gap": 0.9122
+    },
+    {
+      "state_key": "config_feature|reads=3|edited=1|tests=none",
+      "expert_action": "test",
+      "expert_nll": 3.3854,
+      "non_expert_mean_nll": 1.2138,
+      "gap": -2.1716
+    },
+    {
+      "state_key": "config_feature|reads=3|edited=1|tests=passed",
+      "expert_action": "test",
+      "expert_nll": 3.4062,
+      "non_expert_mean_nll": 2.8697,
+      "gap": -0.5365
+    },
+    {
+      "state_key": "extend_report|reads=1|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 2.5599,
+      "non_expert_mean_nll": 0.1668,
+      "gap": -2.3932
+    },
+    {
+      "state_key": "extend_report|reads=1|edited=1|tests=none",
+      "expert_action": "submit",
+      "expert_nll": 5.735,
+      "non_expert_mean_nll": 2.9143,
+      "gap": -2.8207
+    },
+    {
+      "state_key": "extend_report|reads=2|edited=0|tests=none",
+      "expert_action": "investigate",
+      "expert_nll": 0.141,
+      "non_expert_mean_nll": 2.9614,
+      "gap": 2.8205
+    },
+    {
+      "state_key": "extend_report|reads=3|edited=0|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 0.5225,
+      "non_expert_mean_nll": 2.3577,
+      "gap": 1.8352
+    },
+    {
+      "state_key": "extend_report|reads=3|edited=0|tests=none",
+      "expert_action": "investigate",
+      "expert_nll": 0.2133,
+      "non_expert_mean_nll": 2.3698,
+      "gap": 2.1565
+    },
+    {
+      "state_key": "extend_report|reads=3|edited=0|tests=passed",
+      "expert_action": "investigate",
+      "expert_nll": 0.1588,
+      "non_expert_mean_nll": 2.6747,
+      "gap": 2.5159
+    },
+    {
+      "state_key": "extend_report|reads=3|edited=1|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 0.8574,
+      "non_expert_mean_nll": 2.2232,
+      "gap": 1.3658
+    },
+    {
+      "state_key": "extend_report|reads=3|edited=1|tests=passed",
+      "expert_action": "test",
+      "expert_nll": 2.5416,
+      "non_expert_mean_nll": 2.8434,
+      "gap": 0.3018
+    },
+    {
+      "state_key": "fix_bug|reads=1|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 4.0617,
+      "non_expert_mean_nll": 1.9219,
+      "gap": -2.1399
+    },
+    {
+      "state_key": "fix_bug|reads=1|edited=1|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 3.6367,
+      "non_expert_mean_nll": 0.1508,
+      "gap": -3.4859
+    },
+    {
+      "state_key": "fix_bug|reads=1|edited=1|tests=none",
+      "expert_action": "test",
+      "expert_nll": 3.9627,
+      "non_expert_mean_nll": 5.5887,
+      "gap": 1.626
+    },
+    {
+      "state_key": "fix_bug|reads=3|edited=0|tests=failed",
+      "expert_action": "edit",
+      "expert_nll": 4.3782,
+      "non_expert_mean_nll": 3.0239,
+      "gap": -1.3543
+    },
+    {
+      "state_key": "fix_bug|reads=3|edited=0|tests=none",
+      "expert_action": "investigate",
+      "expert_nll": 0.0608,
+      "non_expert_mean_nll": 3.2914,
+      "gap": 3.2306
+    },
+    {
+      "state_key": "fix_bug|reads=3|edited=0|tests=passed",
+      "expert_action": "edit",
+      "expert_nll": 4.0428,
+      "non_expert_mean_nll": 1.6173,
+      "gap": -2.4255
+    },
+    {
+      "state_key": "fix_bug|reads=3|edited=1|tests=failed",
+      "expert_action": "test",
+      "expert_nll": 1.1824,
+      "non_expert_mean_nll": 0.5426,
+      "gap": -0.6398
+    },
+    {
+      "state_key": "refactor_alias|reads=1|edited=0|tests=none",
+      "expert_action": "edit",
+      "expert_nll": 3.8328,
+      "non_expert_mean_nll": 0.0781,
+      "gap": -3.7547
+    },
+    {
+      "state_key": "refactor_alias|reads=3|edited=0|tests=failed",
+      "expert_action": "investigate",
+      "expert_nll": 0.167,
+      "non_expert_mean_nll": 2.1024,
+      "gap": 1.9354
+    },
+    {
+      "state_key": "refactor_alias|reads=3|edited=0|tests=none",
+      "expert_action": "investigate",
+      "expert_nll": 0.0602,
+      "non_expert_mean_nll": 3.1863,
+      "gap": 3.1261
+    },
+    {
+      "state_key": "refactor_alias|reads=3|edited=0|tests=passed",
+      "expert_action": "investigate",
+      "expert_nll": 0.0649,
+      "non_expert_mean_nll": 2.9586,
+      "gap": 2.8937
+    }
+  ],
+  "steer_headroom": {
+    "probe_junctions": 12,
+    "directions_per_junction": 8,
+    "control_norm_cap": 61.7532,
+    "mean_abs_nll_shift": 1.75307,
+    "max_abs_nll_shift": 6.92667,
+    "min_shift_required": 0.01
+  }
+}

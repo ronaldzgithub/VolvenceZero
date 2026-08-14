@@ -1,0 +1,30 @@
+{
+  "schema_version": "coding-lab-when-to-steer-manifest.v1",
+  "report_schema_version": "coding-lab-when-to-steer-rl.v1",
+  "run_id": "coding_lab_packet3_s3e_creditsmoke2_20260813",
+  "smoke": true,
+  "prereg_path": "artifacts/coding_lab/coding_lab_packet3_prereg_v2.json",
+  "prereg_sha256": "6c9819fedc808300d871e3bead3a025e3c3c3d82e0d7da27593dab34a9705001",
+  "margin_attestation": null,
+  "corpus_fingerprint": 691973176,
+  "source_files": {
+    "packages/lifeform-evolution/src/lifeform_evolution/coding_lab_s3e.py": "3aaab94d8cfbe650a62782a7c16975905b2495507468ca422472c88970c388cb",
+    "packages/lifeform-domain-coding/src/lifeform_domain_coding/lab/junctions.py": "bfb20a672ae46ed9ff212b6b3c93b84862dadb73400aa3f8e77e175c5c389dde",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_when_to_steer_rl.py": "a3b7429f476403c3a9e8bd769e9f409dcd41c143f10837eb3d93f98511dd52a0",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_read_steer_prereq.py": "9579ddc34ca9b7e28b5cbd39eeb3d3583846f1bf169e30b48b2f58130fdfb4cf",
+    "packages/vz-runtime/src/volvence_zero/agent/eta_conditional_steering_screen.py": "d3585eb0201e7311f2170a8a41a861dd87db9800e24654be6ccf7c24cbfa6bd4",
+    "scripts/run_coding_lab_packet3_s3e.py": "e1eabfb2b8d3a3608017ef1180feb719b3eca52bab484049990f8bf9aad01d25"
+  },
+  "result_files": {
+    "report.json": "810176c5b1e873f089c2a0bfdb5cdcba0e3f751281676f8dc3f006a7f33697a5",
+    "report.md": "f4e3334d1f1ee17d67541b050b1592ca0b82aa7c28567260fd4f136231536071"
+  },
+  "mps_attestation": {
+    "torch_version": "2.13.0",
+    "built": true,
+    "available": true,
+    "fallback_disabled": true
+  },
+  "admitted": false,
+  "production_promotion_authorized": false
+}

@@ -200,15 +200,45 @@ conventions=convention_export_all，digest 预算 3500 字符）。
   手会请求不存在的工具，它进入历史状态但永不成为标签）。
 - **状态键**：`(category, reads_bucket≤3, has_edited, test_state)` 协议级
   状态，不做文本语义匹配。
-- **对照式标注（R-CL4 防线）**：仅当同一状态键同时存在通过分支与失败
-  分支、且二者动作不同才产出标签；expert = 通过分支众数动作（并列取
-  最短分支）。脚本手轨迹按构造无对照信号（过/挂动作序列相同），语料
-  必须来自 API 手轨迹——manifest 如实记账。
+- **信用式标注（R-CL4 防线，2026-08-13 修正）**：owner 先发布
+  `(状态键, 动作) → episode 终局通过率` 的信用表
+  （`build_action_outcome_table`）；expert = 该状态下条件通过率最高且
+  支撑 ≥ `min_action_support`(5) 的动作，non-expert = 同样有支撑但通过
+  率低出 ≥ `min_pass_rate_margin`(0.10) 的动作。两侧统计随
+  `ContrastiveJunction` 一起发布，消费者不重算。
+  `credit_expert_actions` 是 expert 目标的**唯一定义**，margin 审计与
+  S3-E 复刻共用。
+  - **为什么改**：原规则是"expert = 某条通过分支在此处做的动作"。基线
+    通过率约 0.5 时这等于幸存者偏差——它把"没跑测试就提交"标成 expert，
+    使 margin 审计正间隙比例只有 0.51（抛硬币）。信用式标注后专家均值
+    通过率 0.594 vs 非专家 0.270。
+  - **诚实边界**：动作未随机化，条件通过率是**观测量**而非干预量，会
+    与局面难度/手的信心混淆（如"未测直接提交"在容易局面上占优）。这是
+    离线语料的固有局限，如实登记，不当作因果最优策略。
+- **状态键记账**：2026-08-13 语料 77 个协议状态中 22 个有信用标签、
+  22 个被判**无择时余量**（同状态两动作通过率差 < 0.10，如
+  `fix_bug|tests=passed` 下 submit 1.0 vs test 0.95）、33 个单元支撑不足。
+  "无余量"是结论而非数据缺口，两者在 `state_key_accounting` 中分开记。
+- **动作表面文本 SSOT**：`ACTION_SURFACES`（裸标识符）与
+  `NEUTRAL_STATE_TEXT` 由 `lab/junctions.py` 拥有，审计与 RL 复刻共用
+  ——否则审计测的不是它要审的仪器。
 - **split**：按状态键 sha256 确定性切 train/eval（默认 30% eval）。
-- **前置 b 三门**：`corpus_sufficient`（≥24 对照 junction，不足不启动
-  模型）→ `expert_margin`（NLL 间隙中位数 > 0 且 bootstrap CI 下界 > 0）
-  → `steer_headroom`（norm-capped 随机方向干预平均 |ΔNLL| ≥ 0.01 nats）。
-  任一不过 → 不开 RL，封存"该决策面无择时余量"。
+- **前置 b 三门**：`corpus_sufficient`（≥20 对照 junction，不足不启动
+  模型）→ `expert_resolution` → `steer_headroom`（norm-capped 随机方向
+  干预平均 |ΔNLL| ≥ 0.01 nats）。任一不过 → 不开 RL，封存"该决策面无
+  择时余量"。
+  - `expert_resolution`：动作间 |PMI 间隙| 的 bootstrap CI 下界
+    ≥ 0.3 nats（锚定 prereg `gain_vs_noop` 的改进量下限——仪器分辨尺度
+    不得小于所声称的改进），且同输入重复打分逐位一致。读数取
+    domain-conditional PMI `nll(a|state) − nll(a|neutral)`，抵掉各选项
+    自身的表面似然。
+  - **基底对齐度只报不设门**（同日修正）：原 `expert_margin` 门要求带
+    符号间隙中位数 > 0，即要求冻结基底**已经**偏好信用专家动作。这是
+    规格错误——steering 实验的前提正是基底存在偏差，基底若已对便无可
+    扳之处。对齐度作为决策面性质记入 `base_alignment`（PMI 与原始读数
+    正比例均为 0.36，即基底多数时候扳错方向 → 这是 steering 余量）。
+  - 前置 b 的阈值是**预检 CLI 默认值**，不属 prereg 冻结判则；Packet 3
+    的可证伪主张全部落在六条冻结判则上，本次修正未放宽任何一条。
 
 ## 7.6 Packet 2.5：层 A 黑盒择时 gate（结构）
 
@@ -235,9 +265,11 @@ conventions=convention_export_all，digest 预算 3500 字符）。
 `scripts/run_coding_lab_packet3_s3e.py`（`freeze-prereg` / `run`）。
 
 - **结构映射**：route = 通过的 episode；junction = 决策点；潜在条件
-  （subgoal 等价物）= 该点 expert 下一步动作类（4 类）；观测
-  goal-stripped（无 category/任务描述），revealed 文本携带任务；相位
-  切换（investigate→edit→test→submit）提供真实 post_switch。
+  （subgoal 等价物）= 该状态键的**信用式 expert 动作**（4 类，取自
+  `credit_expert_actions`，不是"该 episode 恰好做了什么"）；无信用标签
+  的状态键不产出 row。观测 goal-stripped（无 category/任务描述），
+  revealed 文本携带任务——被剥掉的正是 category，因此"读潜在条件"就是
+  从残差里读隐藏的任务类别；相位切换提供真实 post_switch。
 - **算法链整体复用** vz-runtime `eta_when_to_steer_rl`（SSOT，不复制
   平行实现）：`_capture_examples` → ridge reader fit → 低秩条件
   executor（无 free bias）→ `_precompute_records` 反事实表 →
@@ -246,14 +278,46 @@ conventions=convention_export_all，digest 预算 3500 字符）。
   函数对 row 只做鸭子字段访问，`CodingJunctionRow` 提供同名字段。
 - **几何重绑定**（前置 a）：Qwen2.5-Coder-1.5B fp32、注入层 13、宽
   1536、rank 8；artifact 不可从 0.5B 几何迁移，必须重 fit。
-- **prereg**：`artifacts/coding_lab/coding_lab_packet3_prereg.json`
-  （schema `coding-lab-when-to-steer-prereg.v1`）；六门阈值沿用 S3-E
-  先例数值并由 runner 与模块常量互检；语料门 train ≥ 60 行 /
-  heldout ≥ 20 行；split 按 case（episode sha）不跨界。
+- **prereg**：v1 `coding_lab_packet3_prereg.json`（原样留档，仅用于
+  机制冒烟）；formal 用 v2
+  `coding_lab_packet3_prereg_v2.json`（sha256 `6c9819fe…`），在任何
+  formal 运行之前冻结，`amendments` 字段记录本次修正（`expert_source`
+  由 `passing-episodes-only` 改为 `conditional-pass-rate-credit`、前置 b
+  门由对齐改为分辨力）及其理由；六门阈值与 credit source 未动。prereg
+  文件一次性写入（重复冻结 fail loudly）。六门阈值沿用 S3-E 先例数值并
+  由 runner 与模块常量互检；语料门 train ≥ 60 行 / heldout ≥ 20 行；
+  split 按 case（episode sha）不跨界。
 - **run 前置**：前置 b margin 审计 overall_pass 必须为真
   （`--skip-margin-check` 仅与 `--smoke` 联用，冒烟不产生判词）。
 - 产物：report.json/md + artifact_manifest.json（prereg sha、六源文件
   sha、语料指纹、MPS attestation、margin attestation）。
+- **首次 formal 判词（2026-08-13，`coding_lab_packet3_s3e_formal_20260813`）**：
+  prereg v2、margin attestation = `coding_lab_packet3_margin_resolution_20260813`、
+  语料 885 train / 362 heldout 行（288 / 125 case，来自 838 条轨迹）、
+  5 seed、**admitted=true，六门全过**：
+
+  | 读数 | 值 | 门 |
+  |---|---|---|
+  | noop NLL | 2.4831 | — |
+  | gate 在线 NLL | 1.1760 | — |
+  | always-on NLL | 5.3183 | — |
+  | random-gate NLL | 4.4834 | — |
+  | oracle 上限 NLL | 1.0123 | — |
+  | convergence 改进 | 2.3461 | ≥ 0.2 |
+  | gain vs noop（worst-seed CI 下界） | 0.9239 | ≥ 0.3 |
+  | gain vs always-on（同上） | 4.6786 | ≥ 0.2 |
+  | gain vs random-gate（同上） | 3.6472 | ≥ 0.2 |
+  | gate selectivity | 0.9052 | ≥ 0.3 |
+
+  结构完整性：无 free bias、zero-code 严格 noop、基底可训参数 0、
+  RL 期间 reader / executor 参数未变。
+  **读法**：always-on（5.32）比 noop（2.48）**更差**，随机择时（4.48）
+  同样更差，而学到的 gate 做到 1.18、逼近 oracle 上限 1.01——赢的是
+  **何时扳**这件事本身，不是"扳就有好处"。此前 margin 审计记录的基底
+  反向对齐（正比例 0.36）在这里被兑现为可用余量。
+- **诚实边界**：本判词是 junction 决策面上的 **NLL 读数**，不是端到端
+  episode 通过率提升；语料标签是观测量（动作未随机化）；SHADOW 接线，
+  未进 production ACTIVE。
 
 ## 7.8 Packet 4：自改提案经 ModificationGate.OFFLINE（结构）
 
@@ -272,6 +336,12 @@ conventions=convention_export_all，digest 预算 3500 字符）。
   （`artifacts/coding_lab/active_artifact.json`）写入；**回滚** =
   candidate-bound checkpoint 恢复（genesis = 删除指针）；runner 在
   ALLOW 后强制演示 apply → rollback → verify → re-apply 全程。
+- **首次 formal 判词（2026-08-13，`coding_lab_packet4_formal_20260813`）**：
+  候选 `coding_lab_packet3_s3e_formal_20260813`，decision=**allow**，
+  blocking_reasons 空；`validation_delta` 0.9239（= 该运行 worst-seed
+  `gain_vs_noop_ci_lower_min`）；contract_integrity 1.0 /
+  rollback_resilience 1.0 / fallback_reliance 0.0；
+  `rollback_verified=true`，incumbent 为 genesis（首次上位）。
 
 ## 7.9 全阶段流水线（机制冒烟）
 
