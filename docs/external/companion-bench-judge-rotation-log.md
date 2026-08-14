@@ -297,3 +297,7 @@
 | 2026Q4 | qwen | Q4 quota allocation. | 2026-08-05T09:06:33.980123+00:00 |
 | 2026Q3 | deepseek | Test run for contract. | 2026-08-05T09:41:32.210973+00:00 |
 | 2026Q4 | qwen | Q4 quota allocation. | 2026-08-05T09:41:32.221787+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-08-13T12:02:32.277599+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-08-13T12:02:32.290769+00:00 |
+| 2026Q3 | deepseek | Test run for contract. | 2026-08-13T12:28:40.116617+00:00 |
+| 2026Q4 | qwen | Q4 quota allocation. | 2026-08-13T12:28:40.215082+00:00 |

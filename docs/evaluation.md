@@ -1,7 +1,7 @@
 # Volvence 评测任务总账（Runbook）
 
 > Status: live runbook
-> Last updated: 2026-08-05
+> Last updated: 2026-08-14
 > 定位：本文件是**任务级操作手册**——列出我们要做的每一个 evaluation，写清「怎么运行 / 怎么评价 / 现在什么结果 / 下一步怎么做」。
 >
 > 与其它文档的分工：
@@ -31,6 +31,7 @@
 | 9 | Digital Ant ecology（same-physics） | 无 LLM 的 2D 感觉运动床上，typed-milestone ACTIVE vs DISABLED 是否有因果净增益 | `scripts/run_ant_ecology_same_physics_station1.py` | L1-C station1-v4 **BLOCK**（food alignment 3/4）；station2/P1/P2 **not-authorized** | 新 owner 机制 + 新 prereg 才可重开；禁止二审/换 seed/降阈值 |
 | 10 | RSI Forge（开发环自改进） | 从真实失败挖模式 → 有界提案 → 循环外验证/人审 → ledger 预测兑现 | `forge` CLI（`mine/propose/validate/select/apply`） | 战役一 e2e 已 apply 2 条；overlay 默认 DISABLED；无 live/GPU 晋升 | 下一轮 `mine --evidence-since-ledger` 兑现预测；扩 task-level held-out；rare-heavy 需冻结权重证据 |
 | 11 | Dialogue Steering C3/B3 | 在真实 MSC SHADOW turn 上以 N+1 PE 学择时，并用 gate-off/sensor-off 独立决定 sensor→executor→gate 晋升 | `scripts/run_dialogue_steering_test_plan.py` / `run_steering_promotion_test_plan.py` | owner/collector/credit/replay/promotion 控制面与定向测试就绪；**无 formal artifact、仍全 SHADOW** | 等 A1 终态；先冻结 C3 prereg，再冻结 B3 prereg，串行跑 C3 formal→B3 formal |
+| 12 | Coding-Lab 编程域持续学习 | 在受控演进式真代码仓库上检验可追加经历、语义 PE、结构化记忆与残差择时，并让候选 artifact 经 OFFLINE 门发布/回滚 | `scripts/run_coding_lab_*.py` | P0/P2/P3/P4 主机制判词成立；P1 `forecast_skill=False`；P2 原计划 latency 门未执行；P2.5 仅 smoke 且 FAIL；全 lane **未 retain** | 补齐/裁决 P1 forecast 与 P2 latency 口径；若主张端到端收益，新增 randomized action / episode-pass causal 包；production 保持未授权 |
 
 > 术语：`SHADOW` = 双跑只读、不主导行为；`ACTIVE` = 生产主链；`DISABLED` = 未启用。晋升一律「先 SHADOW/matched → 单组件 canary → 可回滚切换」。
 
@@ -994,6 +995,148 @@ pytest forge/tests tests/contracts/test_forge_boundaries.py
 5. **禁止**：让 Forge 改自己的 validator/权限/LLM 配置；把 STOP 磨成 SELECT；跨 lane 把 bench 失败映射到 rules/prompts；用 judge 分数回灌 PE/credit。
 
 回滚：删 `forge/` + 本 spec 入口即移除 Forge；已 apply 未提交用 manifesto 中的 `git apply --reverse`；已提交用独立 revert；overlay 优先 `wiring=DISABLED`。ledger **保留**负结果，不删。
+
+---
+
+## 10A. Coding-Lab 编程域持续学习证据
+
+**Spec**：[`specs/coding-lab.md`](./specs/coding-lab.md)
+
+**计划**：`.cursor/plans/编程域持续学习证据_bd518941.plan.md`
+
+**Owner / evaluator**：环境与 oracle 属于 `lifeform-domain-coding.lab`；跨包采集、对照与发布编排属于 `lifeform-evolution`；PE / credit / `ModificationGate` 继续由既有 cognition owner 持有。
+
+### 10A.1 目的与主张边界
+
+本 lane 在受控演进式 Python 仓库上分两层检验持续适应：黑盒层以真实 API coder 为冻结“手”，检验经历是否可跨 session 追加、语义 PE 是否有分辨力、结构化记忆是否优于无状态并能替代长历史堆叠；白盒层以冻结 `Qwen/Qwen2.5-Coder-1.5B-Instruct` 为基底，检验内部条件是否可读、低秩残差是否扳得动，以及稀疏终局信用能否学会**何时扳**。最后只允许 admitted artifact 经 `ModificationGate.OFFLINE` 改一个内容寻址注册表指针，并强制演示回滚。
+
+环境使用真包、真 pytest 与 oracle 注入的隐藏验收测试；API 手轨迹全量落盘，环境可确定重放而手侧不冒充可确定。evaluation / judge 不回灌 PE 或策略；Packet 3 标签来自环境终局信用聚合，但动作未随机化，因此属于观察性决策面证据，不是动作因果效应。
+
+### 10A.2 怎么运行与工件链
+
+主要入口按顺序为：
+
+```bash
+# P0 环境/API 手标定
+.venv/bin/python scripts/run_coding_lab_calibration.py ...
+
+# P1 SHADOW observer；P2 三臂；P2.5 黑盒 gate
+.venv/bin/python scripts/run_coding_lab_observer.py ...
+.venv/bin/python scripts/run_coding_lab_packet2.py formal ...
+.venv/bin/python scripts/run_coding_lab_packet25_blackbox_gate.py ...
+
+# P3 margin 预检与 S3-E formal；P4 OFFLINE gate
+.venv/bin/python scripts/run_coding_lab_packet3_margin.py ...
+.venv/bin/python scripts/run_coding_lab_packet3_s3e.py run ...
+.venv/bin/python scripts/run_coding_lab_packet4_gate.py \
+  --candidate-run-id coding_lab_packet3_s3e_formal_20260813 \
+  --out-run-id coding_lab_packet4_formal_20260813
+```
+
+机制流水线 `scripts/run_coding_lab_pipeline.py` 只验证各站能被正式 runner 串起；smoke 的数值 FAIL 如实保留，不替代 formal。P4 的 `--mechanism-probe` 只写 `probe_active_artifact.json`，禁止触碰正式指针。
+
+权威工件链：
+
+| Packet | 工件 | 证据角色 |
+|---|---|---|
+| P0 | `artifacts/coding_lab/coding_lab_calibration_api_qwen3codernext_hard_20260813/report.json` | API 手 lineage 下的环境刻度与 held-out 封存 |
+| P1 | `artifacts/coding_lab/coding_lab_observer_scripted_20260812/report.json` | SHADOW 语义 PE、外部结局通道、重启恢复与 forecast 负结果 |
+| P2 | `artifacts/coding_lab/coding_lab_packet2_formal_v2_qwen3codernext_20260813/report.json` | brain / steelman / stateless 三臂 formal |
+| P2.5 | `artifacts/coding_lab/coding_lab_pipeline_smoke20260813_p25/report.json` | 黑盒择时 gate 的机制 smoke；不是 formal |
+| P3 precheck | `artifacts/coding_lab/coding_lab_packet3_margin_resolution_20260813/report.json` | expert 分辨力与 steer headroom |
+| P3 formal | `artifacts/coding_lab/coding_lab_packet3_s3e_formal_20260813/{report.json,artifact_manifest.json}` | 5 seed 六门、结构完整性与内容寻址 bundle |
+| P4 | `artifacts/coding_lab/coding_lab_packet4_formal_20260813/review.json` | OFFLINE ALLOW、正式指针绑定与 rollback drill |
+
+### 10A.3 逐包判词
+
+#### Packet 0：环境与 oracle 刻度——PASS
+
+- 同 seed 的 repo / 任务链 / oracle 结果确定，held-out 两个结构变体已哈希封存并销毁树。
+- 原环境对 `qwen3-coder-next` 饱和，pass rate `0.9375`，如实判 `oracle_band=False`；加入仓库零信号、仅隐藏验收强制的 `convention_export_all` 后，API 手 pass rate `0.4375`，落在预注册 `[0.2, 0.8]`，四链分别为 `0.50 / 0.625 / 0.25 / 0.375`。
+- 最终 formal lineage 下 `environment_deterministic / oracle_band / heldout_sealed` 三判词全过。该结果证明环境有刻度，不证明学习。
+
+#### Packet 1：SHADOW observer——部分成立，forecast 负结果
+
+- `pe_discrimination=True`：signed reward 与 task-progress PE 均能区分成功/失败，置换检验约 `p≈1e-4`。
+- `cross_process_recovery=True`：4 链跨进程重载后 scoped memory 非空。
+- `external_outcome_channel=True`：每 episode 的 oracle 终局经 typed environment evidence 进入正式 `ActualOutcome` provenance。
+- `forecast_skill=False`：合成 substrate × scripted 轨迹上，owner 的行动前 `next_prediction` 未优于置换 null；诊断显示预测头未消费 execution-result 证据。
+
+因此 Packet 1 只支持 Appendable 与 PE readout 分辨力，**不支持“owner 已学会预报编程结局”**。原计划所写“owner 预报优于 null”未达成；todo 的 `completed` 不能覆盖这个负判词。
+
+#### Packet 2：结构化记忆三臂——质量与 token scaling PASS，原计划 latency 门未结算
+
+- 8 链 × 10 episode × 3 臂，冻结同一 API 手与任务序列。
+- pass rate：brain `0.5125`、steelman `0.4625`、stateless `0.4000`。
+- brain vs stateless 改善斜率：均值 `+0.02348`，bootstrap 5% 下界 `+0.00606 > 0`，`memory_gate=True`。
+- brain vs steelman：均值 `+0.00303`，5% 下界 `-0.00455 > -0.05`，`quality_gate=True`；这是非劣证据，不是严格优效门。
+- brain / steelman 平均 context token 为 `882 / 9027`，ratio `0.09774 ≤ 0.10`，token scaling PASS。约定违反率前半→后半：brain `0.50→0.17`，steelman `0.53→0.50`，stateless `0.55→0.50`。
+- 但是平均 wall time 为 brain `42.28s`、steelman `29.37s`，ratio 约 `1.44`。原计划写有 `latency ratio ≤ 0.50`，正式 report 的 `scaling_gate` 只执行 token ratio，没有执行 latency ratio。
+
+所以 P2 可以支持“结构化记忆相对无状态产生持续改善，且以约 1/10 token 对长上下文非劣”，不能写成“原计划 token + latency 双 scaling 门齐过”。如要改变 latency 判据，必须形成带理由的新 prereg/修订记录，不能追认当前 formal。
+
+#### Packet 2.5：黑盒择时 gate——只有 smoke，结果 FAIL
+
+现有工件不是 formal：policy expected pass `0.8669`，uniform `0.8809`，modal `0.8759`；uplift vs uniform `-0.0139`，bootstrap 5% 下界 `-0.0657`，`overall_pass=False`。P2.5 原本可选，不阻断白盒 P3，但当前证据**不支持“Learnable 轴已在纯黑盒层成立”**。
+
+#### Packet 3 前置：Readable / steer headroom——PASS
+
+- Coder-1.5B fp32 可解析 28 层、hidden width 1536、MPS 路径可运行，峰值 RSS 约 6.0 GiB。
+- 838 条轨迹产生 8044 个 junction record；77 个状态中 22 个有信用标签、22 个确认无择时余量、33 个支撑不足。
+- credit expert / non-expert 平均条件通过率 `0.5943 / 0.2702`；domain-conditional PMI 绝对间隙中位数 `3.3414 nats`，bootstrap 下界 `2.6747 > 0.3`，重复读数逐位一致。
+- 随机有界 steering 的平均绝对 NLL shift `1.72992 > 0.01`。冻结基底 signed alignment 正比例仅 `0.3636`，作为“有东西可扳”的决策面性质记录，不伪装成基底已经正确。
+
+#### Packet 3 S3-E：学会何时扳——PASS，但仅限 junction NLL
+
+prereg v2 SHA `6c9819fe…`，885 train / 362 held-out rows，5 seed，六门全部通过，`admitted=true`：
+
+| 读数 | 值 | 解释 |
+|---|---:|---|
+| noop NLL | 2.4831 | 不干预基线 |
+| learned gate NLL | 1.1760 | 学到的择时策略 |
+| always-on NLL | 5.3183 | 始终干预明显更差 |
+| random-gate NLL | 4.4834 | 随机择时明显更差 |
+| oracle ceiling NLL | 1.0123 | 冻结反事实表的上限 |
+| gain vs noop，worst-seed CI 下界 | 0.9239 | 门 ≥ 0.3 |
+| gain vs always-on，worst-seed CI 下界 | 4.6786 | 门 ≥ 0.2 |
+| gain vs random-gate，worst-seed CI 下界 | 3.6472 | 门 ≥ 0.2 |
+| gate selectivity | 0.9052 | 门 ≥ 0.3 |
+
+结构门同时确认：无 free bias、zero-code strict noop、substrate 可训参数为 0、RL 期间 reader/executor 未变、无 production wiring、无 evaluation feedback to learning。该结果支持“稀疏环境信用在冻结 reader/executor 上学会何时进行有界残差干预”；不支持端到端 episode pass-rate 提升，也不把观察性动作标签升级为因果最优策略。
+
+#### Packet 4：OFFLINE 发布与回滚——结构 PASS
+
+- 候选为 Packet 3 admitted bundle；manifest SHA `3d901c98…`、report SHA `5dca98ab…`，正式 `active_artifact.json` 与两者逐字节 hash 绑定。
+- `ModificationGate.OFFLINE`：`decision=allow`、`blocking_reasons=[]`、`validation_delta=0.9238801`、`contract_integrity=1.0`、`rollback_resilience=1.0`、`fallback_reliance=0.0`。
+- runner 完成 apply → genesis rollback → verify → re-apply，`rollback_verified=true`。
+- 独立复核（2026-08-14）：P3 manifest 中 prereg、margin attestation、六个 source file hash 全匹配；P4 定向测试 `5 passed`，相关 Ruff 全过。
+
+P4 证明的是**内容寻址 artifact 注册表指针的受门控切换与可恢复性**，不是基础模型在线改权重。P3 manifest 明示 `production_promotion_authorized=false`；该注册表也不自动翻转任何 production `WiringLevel`。
+
+### 10A.4 完整总判词（2026-08-14）
+
+**分项判词**：
+
+| 能力轴 / 机制 | 判词 | 证据边界 |
+|---|---|---|
+| Appendable | **supported** | P1 四链跨进程 memory 恢复；受控环境内成立 |
+| Readable | **mechanism-supported** | P3 条件 PMI 可分辨、重复一致；决策面代理，不是通用语义解码 |
+| Learnable | **partially supported** | P2 记忆改善、P3 稀疏信用择时成立；P1 forecast 与 P2.5 黑盒 gate 未成立 |
+| Steerable | **mechanism-supported** | 有界残差有 headroom，learned gate 胜 noop/always/random；仍 SHADOW，未证 episode 因果收益 |
+| OFFLINE self-mod gate | **structure-supported** | 正式 gate、hash binding、apply/rollback/re-apply 成立；只是 artifact pointer，不是权重级自改 |
+| 全 lane | **not retained as originally preregistered** | P1 forecast 未过；P2 latency 门未执行且实测 ratio 不达原阈值；P2.5 无 formal 正结果 |
+
+**可以说**：在受控编程域里，已有一组可审计、可恢复、可回滚的持续适应机制；结构化记忆相对无状态产生改善；冻结 1.5B 基底上的内部条件可被读出和有界干预；稀疏终局信用能学会何时干预；admitted artifact 可经正式 OFFLINE gate 安装与回滚。
+
+**禁止说**：所有 Packet 全过；完整在线持续主动学习 thesis 已成立；owner 已学会结局预测；黑盒 gate 已证明 Learnable；steering 已提升端到端 coding 成功率；系统已 production ACTIVE；系统在线重写了自身模型参数。
+
+### 10A.5 下一步与回滚
+
+1. 校正计划 todo：P3/P4 的实际 formal 已完成；P1 forecast 保留负结果；P2.5 标为 smoke FAIL 而不是正向 completed。
+2. 对 P2 latency 做不可变裁决：按原计划记门失败，或先形成独立、带理由的新 prereg 再开展新 formal；禁止用当前 token PASS 追认 latency PASS。
+3. 若要补 Learnable 黑盒证据，冻结 P2.5 formal 的 split、样本量、multi-restart 与 uplift 门后重跑，不能把已有 smoke 当 formal。
+4. 若要声称 coding 实际收益，新增 action-randomized / matched intervention 的 episode-pass 包，并在未参与选择的结构 held-out 变体上验证；当前 junction NLL 不足以承担该主张。
+5. production 晋升仍走独立 SHADOW→canary→ACTIVE 流程；精确回滚为恢复 candidate-bound incumbent 指针，首次 formal 的 incumbent 为 genesis（删除指针）。
 
 ---
 
