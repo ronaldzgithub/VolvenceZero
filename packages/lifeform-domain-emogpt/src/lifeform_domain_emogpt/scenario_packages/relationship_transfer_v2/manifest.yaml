@@ -1,0 +1,36 @@
+name: relationship_transfer_v2
+version: "2.0"
+description: "动作总体胜负完全平衡、必须跨表面识别抽象关系条件并应用个体策略的 Relationship Lab v2 场景包。"
+domain: SOCIAL
+author: "Volvence Zero Contributors"
+components:
+  ssot_fragment: ssot_fragment.json
+  scenes: scenes.yaml
+  test_suite: test_suite.yaml
+lab_artifacts:
+  rendered_observations: rendered_observations.json
+  sealed_generator_truth: generator_truth.json
+  prereg_template: prereg_template.json
+  p1_background_templates: p1_background_templates.json
+owner_contract:
+  owner: lifeform-domain-emogpt.lab
+  verdict_consumer: lifeform-evolution
+  runtime_owner_policy: no_new_runtime_owner_or_slot
+  wiring_level: OFFLINE_SHADOW_EVIDENCE_ONLY
+  product_import_allowed: false
+evidence_contract:
+  primary_visible_contrast: balanced_action_outcomes_require_conditioned_policy_transfer
+  action_surface:
+    - stay_present_without_probe
+    - respect_space_with_return_option
+    - neutral_noop
+  outcome_source: deterministic_reactive_environment
+  learning_source: future_typed_outcome_then_prediction_error_only
+  evaluation_feedback: forbidden
+  routing_method: semantic_trajectory_abstraction_plus_schema_bound_structured_output
+  v1_saturation_report_artifact_id: 599e7e94ac1a06a7b342f6024614c1489b6130e768c1d5db8fbd7b833bfba1d7
+explanation: |
+  本场景包承接 relationship_transfer_v1 被 Qwen2.5-3B 的 full-history、RAG 与 structured-state 三臂全部做满后的冻结分叉。路径不再让某个用户始终偏好同一个动作，而是给每位用户四次跨领域经历：两类未命名的抽象关系条件各出现两次，两个非空动作在每类条件下各试一次。对每位用户整体统计时，留下和给空间都恰好一次成功、一次失败，因此多数票、动作总分、固定人格标签和 surface-family 查表都没有信息；只有先从自然语言行动后果中归纳“这种关系压力下此人如何恢复”，再把该映射迁移到从未出现过的 probe 领域，才能确定动作。
+  弧线依次冻结公开经历、审计反捷径结构、行动前下注、反应式结果结算和镜像用户交换。每组镜像用户看到逐字节相同的新消息，也面对同一个抽象条件，但其历史形成互补策略，所以正确非空动作相反。公开文件不含 condition、policy、preferred action 或未来结果；这些只存在于 generator truth，由环境和只读 evaluator 使用。用户下一拍继续由实际 action×sealed dynamic 机械产生，不由 judge 或 LLM 编写。
+  场景检测使用轨迹级语义表示、跨 surface 的情境相似性与 schema-bound structured readout；证据不足时 no-route。禁止字符串包含、正则、关键词字典、事件位置、event id、scene id 或全局动作胜负路由。下一 consumer 包必须给 full-history 全部四条证据，并把 RAG top-k 提升到 4，不能靠截断证据削弱 baseline。
+  集成点仍只有 lifeform-domain-emogpt.lab 的离线数据/环境 owner 与 lifeform-evolution 的只读证据 consumer；本包不切换 v1 默认 consumer，不写 CMS、PE、credit、regime 或 steering。R14 体制身份是“先辨认关系风险类型，再依据此人的可修正经历选择靠近或退开”，它由跨时间行动—结果结构持续校准，不是 prompt 标签。停止消费 v2 package 即可回滚，v1 artifact 与判词保持不变。

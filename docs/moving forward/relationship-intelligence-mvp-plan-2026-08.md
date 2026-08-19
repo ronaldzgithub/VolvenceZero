@@ -542,7 +542,29 @@ structured-state 的 accuracy 与 mirrored pair flip 全部为 1.0。P1c report 
 `version_scenario_dataset_saturated`。首次 v1 attempt 暴露 lineage 契约缺陷并已原样标记
 ABORTED；v2 未改变 prompt、输入、parser、compiler、阈值或标签，而是从 Gate 0 独立重跑。
 
-所以当前唯一优先级不再是 P2/ToM/PE steering，而是收敛包
-`relationship_transfer_v2`：增加隐藏动力学辨识与跨表面迁移难度，同时保留已经做满的
-普通 full-history/RAG steelman。新版场景重新通过 Gate 0/P1c 资格后，才允许冻结 formal
-prereg 和生成 secret heldout；P2 与四能力主张继续关闭。
+P1d 场景 owner 收敛包已于 2026-08-20 落地 `relationship_transfer_v2`，development
+dataset fingerprint 为
+`d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b`。v2 不再让某个
+用户固定偏好一个动作：每位用户四条历史覆盖两种 sealed abstract condition，每种
+condition 都试过 stay/space；跨 condition 汇总后每个动作恰好一正一负，简单 tally 必然
+平局。probe family 对该用户未见；mirrored siblings 的 current bytes/condition 相同，
+但个体 policy 与正确动作互补。condition/policy/binding 只在 generator truth，SUT 零可见。
+
+version-aware dataset owner 保持 v1 为默认，只允许显式加载 v2；任何四历史缺失、动作胜负
+不平衡、surface copy、policy 不一致或 truth leakage 都 fail loudly。v2 Gate 0 五项 machinery
+已通过：6 mirrored pairs、6 surface families、analytic action effect 最小 0.75、256 次采样
+下 empirical effect 最小 0.714844、leakage 0；因没有 v2 真实 stateless attestation，Gate 0
+仍是 PENDING。这只证明场景与反捷径契约成立，不是模型或四能力结果。
+
+当前唯一优先级转为独立 P1e consumer steelman 包，而不是 P2/ToM/PE steering：
+
+1. 在看任何 v2 模型输出前冻结 condition-aware readout；旧 v3 tally 明令 current message
+   不参与，放到 v2 只会双零，不能冒充强 baseline；
+2. full-history 与 structured-state 必须获得全部四条有效历史，BGE-M3 RAG 固定 `top_k=4`，
+   不得靠截断一半证据制造失败；
+3. 冻结新的内容寻址 protocol 后，复用已 materialize Qwen2.5-3B，依次重跑 fresh Gate 0
+   与 same-substrate P1b qualification；
+4. 只有 baseline 落入资格带，才允许 formal prereg 与 secret heldout；若仍做满，继续承认
+   场景饱和，不能提前新增 latent carrier、学习或 steering。
+
+P2 与四能力主张继续关闭。

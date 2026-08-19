@@ -1,0 +1,144 @@
+{
+  "schema_version": "relationship-lab-prereg.v6",
+  "status": "development_scenario_candidate_not_formal",
+  "claim_scope": "synthetic_compositional_relationship_transfer_directional_evidence_only",
+  "package_name": "relationship_transfer_v2",
+  "development_lineage": {
+    "dataset_fingerprint": "d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b",
+    "dataset_schema_version": "relationship-transfer-dataset.v2",
+    "truth_schema_version": "relationship-transfer-truth.v2",
+    "default_v1_consumer_switched": false,
+    "formal_hidden_test_opened": false
+  },
+  "supersedes_after_frozen_saturation": {
+    "package_name": "relationship_transfer_v1",
+    "p1c_report_artifact_id": "599e7e94ac1a06a7b342f6024614c1489b6130e768c1d5db8fbd7b833bfba1d7",
+    "verdict": "version_scenario_dataset_saturated"
+  },
+  "formal_lock": {
+    "must_freeze_before_hidden_test": [
+      "dataset_fingerprint",
+      "dataset_schema_version",
+      "generator_truth_sha256",
+      "rendered_observations_sha256",
+      "sealed_condition_policy_contract_sha256",
+      "reactive_environment_version",
+      "substrate_model_id",
+      "substrate_weights_sha256",
+      "generation_config_sha256",
+      "stateless_prompt_sha256",
+      "conditioned_readout_prompt_sha256",
+      "conditioned_readout_request_template_sha256",
+      "evidence_readout_schema_sha256",
+      "typed_action_compiler_version",
+      "qualification_protocol_id",
+      "qualification_report_artifact_id",
+      "rag_index_sha256",
+      "rag_embedding_weights_sha256",
+      "rag_top_k",
+      "p1_background_templates_sha256",
+      "p1_context_depth_schedule_sha256",
+      "memory_store_contract_version",
+      "seed_schedule_sha256",
+      "baseline_decision_ledger_sha256",
+      "decision_trace_schema_version",
+      "thresholds"
+    ],
+    "forbidden_after_formal_start": [
+      "replace_prompt_after_viewing_heldout",
+      "change_condition_policy_bindings",
+      "change_environment_transition",
+      "change_candidate_action_surface",
+      "change_split_assignment",
+      "change_readout_schema_or_compiler",
+      "feed_judge_or_hidden_truth_to_sut"
+    ]
+  },
+  "scenario_admission_contract": {
+    "histories_per_user": 4,
+    "abstract_conditions": 2,
+    "examples_per_condition": 2,
+    "non_noop_action_count_per_user": {
+      "stay_present_without_probe": 2,
+      "respect_space_with_return_option": 2
+    },
+    "required_outcome_polarities_per_action": ["positive", "negative"],
+    "probe_surface_must_be_unseen_in_user_history": true,
+    "mirrored_probe_condition_must_match": true,
+    "mirrored_policy_and_preferred_action_must_be_complementary": true,
+    "sealed_condition_or_policy_visible_to_sut": false,
+    "global_action_tally_expected_result": "tie"
+  },
+  "matched_controls": {
+    "same_substrate_weights": true,
+    "same_generation_settings": true,
+    "same_candidate_action_surface": true,
+    "same_pre_action_observation": true,
+    "same_reactive_transition_function": true,
+    "all_four_public_histories_available_to_every_contextual_arm": true,
+    "post_action_user_turn_may_differ_by_action": true
+  },
+  "arms": [
+    {"arm_id": "stateless", "competitive": true, "context_surface": "current_turn_only", "learning_enabled": false},
+    {"arm_id": "prompt-steelman", "competitive": true, "context_surface": "full_raw_history_plus_all_four_typed_outcomes", "learning_enabled": false},
+    {"arm_id": "rag-steelman", "competitive": true, "context_surface": "semantic_retrieval_top4_all_signal_evidence", "learning_enabled": false},
+    {"arm_id": "structured-state", "competitive": false, "context_surface": "memory_store_owner_published_four_typed_outcome_records", "learning_enabled": false},
+    {"arm_id": "volvence-cold", "competitive": true, "context_surface": "owner_runtime_with_pe_updates_disabled", "learning_enabled": false},
+    {"arm_id": "volvence", "competitive": true, "context_surface": "appendable_readable_learnable_steerable_loop", "learning_enabled": true},
+    {"arm_id": "oracle-concept", "competitive": false, "context_surface": "sealed_condition_and_policy_directly_exposed", "learning_enabled": false}
+  ],
+  "gate_0_thresholds": {
+    "minimum_mirrored_pairs": 6,
+    "minimum_surface_families": 6,
+    "minimum_action_effect": 0.5,
+    "maximum_baseline_accuracy": 0.85,
+    "minimum_baseline_decisions": 24,
+    "required_valid_output_rate": 1.0,
+    "required_leakage_count": 0
+  },
+  "gate_1_thresholds": {
+    "minimum_decisions_per_arm": 8,
+    "required_valid_output_rate": 1.0,
+    "minimum_steelman_accuracy": 0.625,
+    "maximum_steelman_accuracy": 0.875,
+    "minimum_steelman_pair_flip_rate": 0.5,
+    "minimum_structured_state_pair_flip_rate": 0.5,
+    "maximum_rag_to_full_history_token_ratio": 0.75,
+    "maximum_structured_to_full_history_token_ratio": 0.55,
+    "required_cross_process_state_digest_match": true,
+    "required_console_rewrite_delete_persistence": true,
+    "required_sibling_scope_isolation": true
+  },
+  "next_consumer_packet_requirements": {
+    "packet_id": "relationship_p1e_v2_consumer_steelman",
+    "conditioned_readout_prompt_must_be_frozen_before_model_output": true,
+    "current_message_must_participate_in_condition_inference": true,
+    "all_four_histories_must_be_available": true,
+    "rag_top_k": 4,
+    "typed_action_compiler_version": "relationship-evidence-argmax.v1",
+    "expected_action_visible_before_readout": false,
+    "reuse_qwen25_3b_materialized_weights": true,
+    "fresh_gate0_and_same_substrate_p1b_required": true,
+    "formal_hidden_test_opened": false
+  },
+  "reporting_contract": {
+    "finite_prompt_impossibility_claim_allowed": false,
+    "p1d_allowed_claim": "v2 scenario owner and anti-shortcut contract are mechanically valid",
+    "p1d_forbidden_claims": [
+      "baseline_qualified",
+      "volvence_advantage",
+      "appendable_readable_learnable_steerable_pass",
+      "formal_heldout_superiority",
+      "product_value"
+    ]
+  },
+  "placeholders": {
+    "formal_dataset_fingerprint": "TO_BE_FROZEN_AFTER_P1E_QUALIFICATION",
+    "substrate_model_id": "TO_BE_FROZEN_IN_P1E",
+    "substrate_weights_sha256": "TO_BE_FROZEN_IN_P1E",
+    "generation_config_sha256": "TO_BE_FROZEN_IN_P1E",
+    "conditioned_readout_prompt_sha256": "TO_BE_FROZEN_BEFORE_P1E_MODEL_OUTPUT",
+    "qualification_protocol_id": "TO_BE_FROZEN_IN_P1E",
+    "qualification_report_artifact_id": "TO_BE_FROZEN_AFTER_P1E"
+  }
+}

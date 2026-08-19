@@ -1,3 +1,20 @@
+## 新增重要研究：Kardia-R1 / KardiaBench 专项 2026-08
+
+- [`kardia-r1-2026-08/`](kardia-r1-2026-08/) — 对 WWW 2026 Kardia-R1 论文、公开 GitHub、
+  Hugging Face 模型与 gated KardiaBench 数据集的专项审计。**核心裁决**：它最强的贡献是
+  `真实公开档案锚点 + GPT-4o 合成短多轮轨迹 + 四段式 SFT` 的数据路线，而不是
+  Rubric-as-Judge 已把共情变成客观可验证 reward。四个 backbone 上，SFT-only 相对 base
+  带来绝大多数提升；Rubric-ERL 相对 SFT 的平均边际增量较小，且部分模型/维度略有回退。
+  对 Volvence 可借的是 profile/situation/history/understanding/emotion/response 分面 schema、
+  profile-conditioned 强基线和多维只读 rubric；不可借的是 token-space GRPO、judge→reward、
+  visible CoT→内部状态、MBTI→用户本体。KardiaBench 有外部 benchmark 潜力，但当前为
+  gated `CC BY-NC-ND 4.0`、research-only，并含可重识别的 rich profiles；在书面授权、隐私、
+  split 与污染审计完成前，不得进入产品训练、CMS 或公开 artifact。建议从
+  [`README`](kardia-r1-2026-08/README.md)、[`数据审计`](kardia-r1-2026-08/02_KARDIABENCH_DATA_AUDIT.md)
+  与 [`采纳决策`](kardia-r1-2026-08/04_ADOPTION_DECISIONS.md) 开始。
+
+---
+
 ## 新增重要研究：BIGAI / 朱松纯团队思想谱系与前沿 2026-08
 
 - [`bigai-songchun-zhu-2026-08/`](bigai-songchun-zhu-2026-08/) — 对北京通用人工智能研究院（BIGAI）、朱松纯及其长期学术谱系的专项研究，明确与北京智源人工智能研究院（BAAI）消歧，并严格区分“朱松纯署名”“BIGAI 目录收录但无朱署名”“历史合作谱系”。研究把 1996–2026 的 38 篇代表作串成四代连续路线：Region Competition / Minimax Entropy / FRAME 的统计视觉，Image Parsing / Stochastic Grammar / AOG 的可组合世界结构，功能—物理—意图—因果—效用“暗物质”，以及 BIGAI 的“小数据、大任务”、沟通学习、Tong Test、具身机器人、社会世界模型与可验证自举。**核心裁决**：这不是“符号主义反对深度学习”，而是让基础模型承担感知/proposal/先验，同时用显式结构、交互后果与验证器约束；当前最强证据来自少样本概念归纳、软件侦察 agent 的任务内双向价值对齐、跨机器人意图对齐、TongGeometry 等领域闭环，不能外推为 AGI 已完成。对 Volvence 的直接价值集中在 Readable（AOG、FPICU、因果/意图/utility 的命名读出）和物理—社会双轨；Appendable、PE-only Learnable、bounded/rollback Steerable 仍明显不足，禁止把 Tong Test 当 reward、latent trait 当用户真值、AOG 当 CMS。包内含官网目录快照方法、作者网络、论文索引、五条前沿深读、四轴对账，以及一个可证伪的 12 周 `DEPSI-Continuity` 后续实验提案。建议从 [`bigai-songchun-zhu-2026-08/README.md`](bigai-songchun-zhu-2026-08/README.md) 开始。

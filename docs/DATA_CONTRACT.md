@@ -105,7 +105,8 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 
 | Type | owner / producer | dependencies | consumer | wiring_level |
 |---|---|---|---|---|
-| `RelationshipObservation` | type/白名单 builder owner：`lifeform-domain-emogpt.lab.dataset`；record producer：rendered package | 公开 action-outcome history、哈希 user scope、current input、closed action surface | 冻结实验 arms | `OFFLINE_SHADOW_EVIDENCE_ONLY`；产品路径 `DISABLED` |
+| `RelationshipObservation` / `RelationshipTransferDataset` v1/v2 | type/白名单 builder owner：`lifeform-domain-emogpt.lab.dataset`；record producer：versioned rendered package | 公开 action-outcome history、哈希 user scope、current input、closed action surface；v2 每用户四历史、全局动作胜负平衡、未见 probe surface | 冻结实验 arms | `OFFLINE_SHADOW_EVIDENCE_ONLY`；v1 保持默认，v2 只允许显式 package lineage；产品路径 `DISABLED` |
+| `AbstractRelationshipCondition` / `RelationshipPolicyProfile` / history-condition binding v2 | sealed truth owner：`lifeform-domain-emogpt.lab.dataset` + `relationship_transfer_v2/generator_truth.json` | 两个 abstract condition、两种互补 user policy、history/probe condition binding | loader structural audit、reactive environment、只读 evaluator | `OFFLINE_ENVIRONMENT_TRUTH_ONLY`；condition/policy/binding/preferred action 禁止进入 SUT、memory、PE、credit 或 steering |
 | `PreActionRelationshipDecision` | type owner：`lifeform-domain-emogpt.lab.contracts`；record producer：各实验 arm | candidate typed outcome distributions、chosen action、source snapshot hashes、model/prompt/weights/seed lineage | reactive environment、sidecar builder | `OFFLINE_SHADOW_EVIDENCE_ONLY` |
 | `ReactiveRelationshipOutcome` | `lifeform-domain-emogpt.lab.environment` | sealed latent dynamic、实际 selected action、dataset fingerprint、seed | sidecar builder；未来 typed `dialogue_external_outcome` adapter | `OFFLINE_SHADOW_EVIDENCE_ONLY`；P0 禁止提交 runtime |
 | `RelationshipDecisionTrace` | contract/sidecar owner：`lifeform-domain-emogpt.lab.contracts` | canonical public trajectory hash、pre-action decision、environment evidence、observed typed outcome、可选 PE/credit/next-state refs | `lifeform-evolution` read-only verdict / replay | `OFFLINE_SHADOW_EVIDENCE_ONLY` |
@@ -125,6 +126,11 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 
 - generator truth、`preferred_action`、future outcome 与 judge/evaluation 不得进入
   `RelationshipObservation.to_sut_payload()`；loader 必须 fail loudly on leakage；
+- v2 还必须隐藏 `condition_id / policy_id / probe_condition_id /
+  history_condition_bindings`；每位用户四条历史须覆盖两个 condition×两个 action，
+  每个非空 action 恰好一正一负，probe family 对该用户未见，mirrored siblings 共享
+  current bytes/condition 但 policy 与 preferred action 互补。任一不变量破坏都由 dataset
+  owner 拒绝加载，consumer 不得重建或放宽；
 - pre-action timestamp 必须严格早于 environment outcome；sidecar canonical hash
   mismatch 必须拒绝加载；
 - action outcome 由环境 typed transition 产生，不由 LLM、关键词或 evaluation
@@ -147,6 +153,10 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 - P1b evidence readout 只允许两个固定 score 字段和值域 `{-1,0,+1}`；typed compiler
   只能比较 score，平局映射 `neutral_noop`，禁止读取原始文本、outcome 字符串、用户
   scope、scene id 或 expected action；
+- v1 readout v3 只做动作级符号 tally，按构造在 v2 会双零，禁止把它作为 v2 steelman。
+  P1e 必须在任何 v2 模型输出前冻结 condition-aware readout，使 current message 参与
+  语义情境归纳，并给 prompt/structured-state 全部四条历史、给 RAG `top_k=4`；P1d
+  不切换 consumer、不运行模型、不发布 baseline verdict；
 - P1b 若让 prompt/RAG steelman 超过 prereg 上限，报告必须发布 `dataset_saturated`，
   后续只能版本化场景难度，禁止选择较弱 prompt、随机丢证据或加采样噪声压回阈值；
 - P1c 必须先用 stronger candidate fresh Gate 0，再用同一 model/weights/generation 跑

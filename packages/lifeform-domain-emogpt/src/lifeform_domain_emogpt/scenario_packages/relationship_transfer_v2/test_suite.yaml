@@ -1,0 +1,153 @@
+suite_name: relationship_transfer_v2_acceptance
+package_name: relationship_transfer_v2
+routing_policy:
+  method: semantic_trajectory_abstraction_plus_schema_bound_llm_output
+  required_evidence:
+    - four_balanced_action_outcome_histories
+    - user_scope_continuity
+    - unseen_surface_probe
+    - pre_action_prediction
+    - reactive_environment_evidence
+  forbidden_methods:
+    - substring_matching
+    - regex_content_matching
+    - keyword_to_route_dictionary
+    - event_position_to_condition
+    - event_id_to_policy
+    - scene_id_to_action_lookup
+    - global_action_outcome_majority
+    - judge_score_to_learning
+  insufficient_evidence: no_route
+routing_tests:
+  - test_id: route_v2_01_balanced_history_admission
+    case_type: positive
+    semantic_input:
+      summary: 同一用户有四次完整行动结果；两个非空动作都各成功一次、失败一次，不能直接累计动作分数。
+      structured_evidence_axes: [four histories, balanced actions, balanced outcome polarity, one user scope]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_conditioned_experience_evidence_v2
+      arc_spec_id: arc_relationship_compositional_transfer_v2
+    assertions:
+      - 必须保留全部四条证据，不能丢弃与 probe 表面不相似的对照经历。
+  - test_id: route_v2_02_abstract_condition_transfer
+    case_type: positive
+    semantic_input:
+      summary: 历史在家庭、医疗、工作和亲密关系中形成两种互补的情境—动作—结果结构，当前 probe 来自未见领域。
+      structured_evidence_axes: [semantic situation equivalence, conditioned outcome contrast, unseen surface family]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_abstract_condition_transfer_v2
+      arc_spec_id: arc_relationship_compositional_transfer_v2
+    assertions:
+      - 应比较关系动力学而不是共享词汇。
+      - SUT 不得读取 sealed condition id。
+  - test_id: route_v2_03_mirrored_policy_bet
+    case_type: positive
+    semantic_input:
+      summary: 两个 scope 收到逐字节相同消息且当前抽象条件相同，但公开经历支持互补的个体策略。
+      structured_evidence_axes: [same current bytes, distinct scope, complementary conditioned histories, pre-action timestamp]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_mirrored_preaction_decision_v2
+      arc_spec_id: arc_relationship_compositional_transfer_v2
+    assertions:
+      - 两个下注必须早于环境结果。
+      - 当前输入不得携带用户标签或正确动作。
+  - test_id: route_v2_04_reactive_settlement
+    case_type: positive
+    semantic_input:
+      summary: 已冻结 closed action，需要由当前 scene 的 sealed dynamic 和 deterministic draw 结算 typed outcome。
+      structured_evidence_axes: [selected action, environment version, sealed dynamic, deterministic draw]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_reactive_outcome_settlement_v2
+      arc_spec_id: arc_relationship_compositional_transfer_v2
+    assertions:
+      - 不同 action 必须改变 outcome 分布和 evidence ref。
+  - test_id: route_v2_05_counterfactual_policy_swap
+    case_type: positive
+    semantic_input:
+      summary: 保持当前消息、抽象条件、substrate 和 action surface 不变，只交换两个用户的四次公开经历。
+      structured_evidence_axes: [matched pair, balanced histories, same current bytes, distinct trajectory hash]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_counterfactual_policy_swap_v2
+      arc_spec_id: arc_relationship_compositional_transfer_v2
+    assertions:
+      - 正确动作应随经历翻转，不能交换答案标签。
+  - test_id: route_v2_06_appendable_prerequisite
+    case_type: positive
+    semantic_input:
+      summary: 四次经历跨 session 写入并恢复，scope、source hash 和顺序保持一致，准备构建 v2 context。
+      structured_evidence_axes: [cross-process recovery, four owner records, scope isolation]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_conditioned_experience_evidence_v2
+      arc_spec_id: arc_relationship_compositional_transfer_v2
+    assertions:
+      - 这只是下一 consumer 包的前置条件，不是四能力结论。
+  - test_id: route_v2_07_strong_rag_surface
+    case_type: positive
+    semantic_input:
+      summary: RAG baseline 使用同一 embedder/index，top-k 为四，向 readout 提供该用户全部四条有效结果证据。
+      structured_evidence_axes: [semantic retrieval, top-k 4, all signal record ids, frozen config]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_abstract_condition_transfer_v2
+      arc_spec_id: arc_relationship_compositional_transfer_v2
+    assertions:
+      - 不得通过 top-k 2 丢掉半数证据来制造 baseline 失败。
+  - test_id: no_route_v2_08_global_action_tally
+    case_type: negative
+    semantic_input:
+      summary: consumer 忽略当前情境，只把每个动作的正负 outcome 相加；两个动作都得到零分。
+      structured_evidence_axes: [global action tally only]
+      current_text_only_sufficient: false
+    expected:
+      route: no_route
+      reason: conditioned_structure_not_read
+    assertions:
+      - 平局不得被 event order 或固定默认动作打破。
+  - test_id: no_route_v2_09_keyword_condition_router
+    case_type: negative
+    semantic_input:
+      summary: consumer 用“忘了”“替我”等词表给当前消息贴条件标签，并直接映射动作。
+      structured_evidence_axes: [surface keywords only]
+      current_text_only_sufficient: false
+    expected:
+      route: no_route
+      reason: semantic_condition_evidence_missing
+    assertions:
+      - 条件检测不得使用关键词、正则或字典。
+  - test_id: no_route_v2_10_sealed_policy_access
+    case_type: negative
+    semantic_input:
+      summary: 被测系统请求 policy_id、probe_condition_id 或 history_condition_bindings 来选择动作。
+      structured_evidence_axes: [forbidden truth access request]
+      current_text_only_sufficient: false
+    expected:
+      route: no_route
+      reason: generator_truth_is_environment_only
+    assertions:
+      - sealed policy 只能供环境和只读 evaluator 使用。
+llm_evaluation:
+  judge_contract:
+    method: structured_semantic_review
+    learning_feedback: forbidden
+    forbidden_methods: [keyword_overlap_score, warmth_style_score_as_success]
+  semantic_coherence:
+    - case_id: coherence_v2_01_no_global_action_shortcut
+      assertion: 每位用户两个动作都恰好一正一负，忽略情境的动作累计无法区分答案。
+    - case_id: coherence_v2_02_two_examples_per_condition
+      assertion: 每个抽象条件都包含两个动作的受控对照，正确动作得到正 outcome，错误动作得到负 outcome。
+    - case_id: coherence_v2_03_unseen_surface_transfer
+      assertion: 每个 probe family 都不出现在该用户四次历史中，必须跨表面迁移。
+    - case_id: coherence_v2_04_same_sentence_complementary_policy
+      assertion: 每组镜像当前输入逐字节相同、probe condition 相同，但用户策略和正确动作互补。
+    - case_id: coherence_v2_05_truth_isolation
+      assertion: condition、policy、preferred action 和 future outcome 不进入 SUT payload。
+    - case_id: coherence_v2_06_bet_then_reactive_settle
+      assertion: pre-action prediction 早于 outcome，实际 action 改变反应式分布和 evidence ref。
+    - case_id: coherence_v2_07_claim_boundary
+      assertion: P1d 只冻结场景 owner；在强 baseline consumer 和真实模型重跑前不得晋升 Gate 1、P2 或四能力主张。

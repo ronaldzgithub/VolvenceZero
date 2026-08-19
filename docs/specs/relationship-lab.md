@@ -1,4 +1,4 @@
-# Relationship Lab v0：同句镜像用户、强基线与反应式关系后果
+# Relationship Lab：同句镜像用户、组合迁移与反应式关系后果
 
 > 状态：P0 Gate 0 开发期校准 PASS；P1/P1b 强基线与 Appendable 复刻已落地。
 > lineage-complete P1b 的跨进程恢复、用户隔离、token scaling、console 纠删与
@@ -7,6 +7,11 @@
 > gate1_passed=false`。P1c 随后以 Qwen2.5-3B 完整重跑 fresh Gate 0 与 same-substrate
 > P1b；prompt/RAG/structured-state 三臂均为 8/8 correct、pair flip 1.0，故权威判词是
 > `version_scenario_dataset_saturated`：现有 v1 场景不能区分强普通上下文基线与系统。
+> P1d 已冻结 `relationship_transfer_v2` 场景 owner：每位用户四次历史中两个动作都
+> 各一正一负，probe family 未在该用户历史出现，只能按抽象情境归纳个体策略；v2
+> dataset fingerprint 为 `d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b`，
+> Gate 0 五项 machinery PASS，真实 baseline 检查 PENDING。v1 仍是默认 consumer；
+> P1e 冻结强 condition-aware readout 并切换 consumer 前，不得写 v2 baseline 结论。
 > 正式 prereg 与 secret heldout 仍关闭，不得进入 P2 formal 或宣称四能力成立。
 >
 > 产品路线：`docs/moving forward/relationship-intelligence-mvp-plan-2026-08.md`
@@ -27,9 +32,9 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 
 | 部件 | 位置 | 唯一职责 |
 |---|---|---|
-| 公开经历与封存真值 | `lifeform-domain-emogpt/.../scenario_packages/relationship_transfer_v1/` | 分离保存 rendered observation、generator truth、split 与 prereg 模板 |
+| 公开经历与封存真值 | `lifeform-domain-emogpt/.../scenario_packages/relationship_transfer_{v1,v2}/` | 分离保存 rendered observation、generator truth、split 与 prereg 模板；v1/v2 artifact 不改写 |
 | 决策与 sidecar 契约 | `lifeform-domain-emogpt.lab.contracts` | closed action surface、行动前下注、模型 lineage、内容寻址 `RelationshipDecisionTrace` |
-| 数据 loader | `lifeform-domain-emogpt.lab.dataset` | 严格校验六组 mirrored users、四个 surface family、整组 split，并只构造白名单 SUT payload |
+| 数据 loader | `lifeform-domain-emogpt.lab.dataset` | 唯一 version-aware dataset owner；v1 默认兼容，v2 额外校验组合策略、反捷径平衡、未见 surface 与 sealed policy 隔离，只构造白名单 SUT payload |
 | 反应式环境 | `lifeform-domain-emogpt.lab.environment` | 由 sealed latent dynamic × 实际 action 机械产生 typed outcome；LLM 不决定标签 |
 | 冻结 stateless baseline | `lifeform-evolution.relationship_lab_baseline` | 用同一真实 substrate 生成 current-turn-only 决策账本、hash 与 attestation；不读取 history/truth |
 | Gate 0 编排与判词 | `lifeform-evolution.relationship_lab_gate0` | 只读校准、泄漏审计、baseline attestation 验证与报告 |
@@ -62,6 +67,12 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
   `respect_space_with_return_option` 为最优动作；
 - action→`HELPED / FELT_HEARD / MISSED / OVER_DIRECTIVE` 分布；
 - scene→latent binding 与 train/validation/heldout 整组划分。
+
+v2 额外拥有两种 sealed abstract condition、两种互补 user policy、48 条
+history→condition binding 与每个 probe 的 condition。它们只用于机械验证“先辨认情境、
+再应用个体映射”的可解性和环境结算；`condition_id / policy_id /
+probe_condition_id / history_condition_bindings` 全部禁止进入 SUT。公开历史只包含自然语言
+情境、实际 action、typed outcome 和用户反应，不把这些 sealed 概念翻译成答案句。
 
 该文件只允许 `ReactiveRelationshipEnvironment` 与只读 evaluation 访问。
 
@@ -124,7 +135,8 @@ outcome，再由 PE owner 解释；evaluation 不得反向提供 latent 或最�
 
 ## 5. Scenario package 契约
 
-包名 `relationship_transfer_v1`，符合 `^[a-z][a-z0-9_]*$`，并包含：
+包名 `relationship_transfer_v1` 与 `relationship_transfer_v2` 都符合
+`^[a-z][a-z0-9_]*$`，并分别包含：
 
 - `manifest.yaml`
 - `ssot_fragment.json`
@@ -139,6 +151,13 @@ outcome，再由 PE owner 解释；evaluation 不得反向提供 latent 或最�
 negative case；semantic coherence 不少于 3。路由只允许 trajectory embedding、
 schema-bound structured output 或后续 owner readout，禁止关键词、正则、scene id
 查表或 current-text-only 动作选择。
+
+v2 使用五条路径和五阶段 arc，在经历与下注之间新增 abstract-condition transfer。
+每位用户固定四条历史、两种 condition 各两条；每种 condition 同时出现两个动作，
+正确动作获正 outcome、相反动作获负 outcome。跨 condition 后，每个动作又恰好一正一负，
+所以全局 tally 必然平局。每个 probe family 均未出现在该用户历史中；同一 mirrored pair
+共享 current bytes 与 probe condition，但 policy 和 preferred action 互补。loader 对这些
+结构 fail loudly，不能靠人工说明冒充难度。
 
 ## 6. Gate 0 判决
 
@@ -290,6 +309,35 @@ RAG context collision，也暴露出 v1 错把随机 owner record UUID 纳入跨
 v2 没有改变模型输入、prompt、parser、compiler、模型输出、阈值或标签；修复证据契约后，
 从 fresh Gate 0 开始独立重跑，避免用已见结果做 post-hoc reassessment。
 
+### 7.3 P1d：`relationship_transfer_v2` 场景 owner 收敛包
+
+P1d 只版本化 domain-lab owner 和数据契约，不切换 P1/P1b/P1c consumer，也不运行模型。
+v1 的默认 loader、prompt、top-k、protocol 和全部 artifact 继续按原 hash 解释；v2 必须
+显式以 package name/root 加载。v2 的反捷径不变量是：
+
+1. 每位用户有四条跨 surface 历史，两种 sealed abstract condition 各两条；
+2. 每种 condition 都有 stay/space 两个动作的受控结果对照；
+3. 对单个用户整体看，stay 与 space 都正一次、负一次，忽略 condition 必然平局；
+4. probe family 不出现在该用户历史中，不能复制同领域实例；
+5. mirrored siblings 的 current bytes 与 probe condition 相同，但 sealed policy 与正确动作
+   互补；
+6. condition/policy/binding/preferred action 只在 generator truth，SUT 零可见。
+
+权威 development dataset fingerprint 为
+`d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b`。
+默认 256 samples/action 的 Gate 0 machinery 检查为：6 mirrored pairs、6 probe surface
+families、最小 analytic action effect 0.75、最小 empirical effect 0.714844、泄漏 0，
+五项 machinery PASS；因未运行 v2 真实 stateless baseline，baseline tooth 是 PENDING，
+所以 `gate0_passed=false`。
+
+P1d 没有把 v1 的机械 tally readout 搬到 v2：该 readout 明令 current message 不参与且
+只聚合每个动作的正负号，在 v2 上按构造只能输出双零，拿它跑模型会故意削弱 baseline。
+下一独立包 P1e 必须在看任何 v2 模型输出前冻结 condition-aware readout，让 current
+message 参与抽象情境推断；prompt/structured-state 获得全部四条历史，BGE-M3 RAG 固定
+`top_k=4`。然后以已 materialize 的 Qwen2.5-3B fresh Gate 0 → same-substrate P1b 重跑
+资格。P1d 只允许声称“场景与反捷径契约机械成立”，不允许声称 baseline qualified、
+Volvence advantage、Gate 1/P2 或四能力成立。
+
 ## 8. Baseline 与 formal 纪律
 
 `FrozenBaselineAttestation` 必须记录：dataset/model/weights/prompt/generation/seed
@@ -439,10 +487,11 @@ pair 全部 flip。P1c report artifact 为
 `version_scenario_dataset_saturated`。
 
 因此当前证明的是：既有 memory/reference owner 能追加、恢复、隔离、纠删并压缩上下文，
-而现有 v1 公开证据又简单到更强普通 full-history/RAG 基线可做满。它没有证明 Volvence
-相对基线优势，也没有证明 Readable、Learnable 或 Steerable。按冻结分叉，P2 继续关闭；
-下一包必须版本化 `relationship_transfer_v2`，提高隐藏动力学与跨表面迁移难度，同时
-保留这些满分基线、不降门槛、不再轮换 development prompt。
+而 v1 公开证据又简单到更强普通 full-history/RAG 基线可做满。P1d 已据此冻结 v2 的
+组合迁移场景与反捷径结构，但尚未产生 v2 模型证据。它没有证明 Volvence 相对基线优势，
+也没有证明 Readable、Learnable 或 Steerable。按冻结分叉，P2 继续关闭；下一包 P1e
+只能先冻结不削弱 baseline 的 condition-aware readout、四历史 context 与 RAG top-4，
+再重新运行 Qwen2.5-3B qualification，不能直接接 PE learning 或 steering。
 
 ## 10. 回滚与下一包
 
@@ -460,3 +509,7 @@ P1c 同样没有 runtime wiring。回滚只需停止 `run_relationship_lab_packe
 消费 candidate protocol/report；Gate 0、P1/P1b 与产品内核行为均不变。中断恢复不
 删除旧 attempt；要完全撤回 P1c，只移除其离线 protocol/runner/consumer，旧内容寻址
 artifact 继续按原 schema 可审计。
+
+P1d 同样没有 runtime wiring，且 v1 仍为默认 package。回滚只需停止显式加载
+`relationship_transfer_v2`；删除 v2 package 与 version-aware 分支即可撤回，不需要迁移
+产品或内核状态。P1e 切换前禁止让任何无 package lineage 的 consumer 自动漂移到 v2。

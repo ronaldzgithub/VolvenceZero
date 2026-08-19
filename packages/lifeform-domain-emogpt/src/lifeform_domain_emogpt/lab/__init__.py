@@ -20,9 +20,13 @@ from lifeform_domain_emogpt.lab.contracts import (
     sha256_json,
 )
 from lifeform_domain_emogpt.lab.dataset import (
+    AbstractRelationshipCondition,
     LatentRelationshipDynamic,
+    RELATIONSHIP_TRANSFER_V1_PACKAGE_NAME,
+    RELATIONSHIP_TRANSFER_V2_PACKAGE_NAME,
     RelationshipHistoryEvent,
     RelationshipObservation,
+    RelationshipPolicyProfile,
     RelationshipTransferDataset,
     load_relationship_transfer_dataset,
     relationship_transfer_package_dir,
@@ -35,6 +39,7 @@ from lifeform_domain_emogpt.lab.environment import (
 
 
 __all__ = [
+    "AbstractRelationshipCondition",
     "CandidateOutcomePrediction",
     "LatentRelationshipDynamic",
     "OutcomeProbability",
@@ -42,6 +47,8 @@ __all__ = [
     "REACTIVE_ENVIRONMENT_VERSION",
     "RELATIONSHIP_ACTIONS",
     "RELATIONSHIP_OUTCOMES",
+    "RELATIONSHIP_TRANSFER_V1_PACKAGE_NAME",
+    "RELATIONSHIP_TRANSFER_V2_PACKAGE_NAME",
     "ReactiveRelationshipEnvironment",
     "ReactiveRelationshipOutcome",
     "RelationshipAction",
@@ -50,6 +57,7 @@ __all__ = [
     "RelationshipHistoryEvent",
     "RelationshipModelLineage",
     "RelationshipObservation",
+    "RelationshipPolicyProfile",
     "RelationshipTransferDataset",
     "canonical_json",
     "load_relationship_transfer_dataset",

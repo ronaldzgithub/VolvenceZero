@@ -1,0 +1,255 @@
+{
+  "schema_version": "relationship-transfer-truth.v2",
+  "positive_outcomes": [
+    "helped",
+    "felt_heard"
+  ],
+  "abstract_conditions": [
+    {
+      "condition_id": "latent_condition_agency_pressure_v2",
+      "hidden_summary": "当前事件的主要关系风险是主体性被接管、被观察或被制造即时回应义务。"
+    },
+    {
+      "condition_id": "latent_condition_belonging_uncertainty_v2",
+      "hidden_summary": "当前事件的主要关系风险是被排除、被遗忘或关系位置不确定。"
+    }
+  ],
+  "policy_profiles": {
+    "latent_policy_alpha_v2": {
+      "latent_condition_agency_pressure_v2": "respect_space_with_return_option",
+      "latent_condition_belonging_uncertainty_v2": "stay_present_without_probe"
+    },
+    "latent_policy_beta_v2": {
+      "latent_condition_agency_pressure_v2": "stay_present_without_probe",
+      "latent_condition_belonging_uncertainty_v2": "respect_space_with_return_option"
+    }
+  },
+  "outcome_profiles": {
+    "presence_response_profile_v2": {
+      "stay_present_without_probe": {
+        "helped": 0.25,
+        "felt_heard": 0.65,
+        "missed": 0.08,
+        "over_directive": 0.02
+      },
+      "respect_space_with_return_option": {
+        "helped": 0.05,
+        "felt_heard": 0.1,
+        "missed": 0.8,
+        "over_directive": 0.05
+      },
+      "neutral_noop": {
+        "helped": 0.1,
+        "felt_heard": 0.2,
+        "missed": 0.55,
+        "over_directive": 0.15
+      }
+    },
+    "space_response_profile_v2": {
+      "stay_present_without_probe": {
+        "helped": 0.05,
+        "felt_heard": 0.05,
+        "missed": 0.15,
+        "over_directive": 0.75
+      },
+      "respect_space_with_return_option": {
+        "helped": 0.5,
+        "felt_heard": 0.4,
+        "missed": 0.05,
+        "over_directive": 0.05
+      },
+      "neutral_noop": {
+        "helped": 0.15,
+        "felt_heard": 0.15,
+        "missed": 0.25,
+        "over_directive": 0.45
+      }
+    }
+  },
+  "dynamics": [
+    {
+      "dynamic_id": "latent_v2_001a",
+      "mirror_pair_id": "pair_v2_01",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v2",
+      "hidden_summary": "在新的工作排除事件中按 alpha 策略处理归属不确定：需要不侵入地留下。",
+      "policy_id": "latent_policy_alpha_v2",
+      "probe_condition_id": "latent_condition_belonging_uncertainty_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_001b",
+      "mirror_pair_id": "pair_v2_01",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v2",
+      "hidden_summary": "在新的工作排除事件中按 beta 策略处理归属不确定：需要先退出所有目光。",
+      "policy_id": "latent_policy_beta_v2",
+      "probe_condition_id": "latent_condition_belonging_uncertainty_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_002a",
+      "mirror_pair_id": "pair_v2_02",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v2",
+      "hidden_summary": "在新的医疗代答事件中按 alpha 策略处理主体性压力：需要解除回应义务。",
+      "policy_id": "latent_policy_alpha_v2",
+      "probe_condition_id": "latent_condition_agency_pressure_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_002b",
+      "mirror_pair_id": "pair_v2_02",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v2",
+      "hidden_summary": "在新的医疗代答事件中按 beta 策略处理主体性压力：需要不接管的见证者留下。",
+      "policy_id": "latent_policy_beta_v2",
+      "probe_condition_id": "latent_condition_agency_pressure_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_003a",
+      "mirror_pair_id": "pair_v2_03",
+      "split": "validation",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v2",
+      "hidden_summary": "在新的家庭遗漏事件中按 alpha 策略处理归属不确定。",
+      "policy_id": "latent_policy_alpha_v2",
+      "probe_condition_id": "latent_condition_belonging_uncertainty_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_003b",
+      "mirror_pair_id": "pair_v2_03",
+      "split": "validation",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v2",
+      "hidden_summary": "在新的家庭遗漏事件中按 beta 策略处理归属不确定。",
+      "policy_id": "latent_policy_beta_v2",
+      "probe_condition_id": "latent_condition_belonging_uncertainty_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_004a",
+      "mirror_pair_id": "pair_v2_04",
+      "split": "validation",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v2",
+      "hidden_summary": "在新的社区代报名事件中按 alpha 策略处理主体性压力。",
+      "policy_id": "latent_policy_alpha_v2",
+      "probe_condition_id": "latent_condition_agency_pressure_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_004b",
+      "mirror_pair_id": "pair_v2_04",
+      "split": "validation",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v2",
+      "hidden_summary": "在新的社区代报名事件中按 beta 策略处理主体性压力。",
+      "policy_id": "latent_policy_beta_v2",
+      "probe_condition_id": "latent_condition_agency_pressure_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_005a",
+      "mirror_pair_id": "pair_v2_05",
+      "split": "train",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v2",
+      "hidden_summary": "在新的朋友排除事件中按 alpha 策略处理归属不确定。",
+      "policy_id": "latent_policy_alpha_v2",
+      "probe_condition_id": "latent_condition_belonging_uncertainty_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_005b",
+      "mirror_pair_id": "pair_v2_05",
+      "split": "train",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v2",
+      "hidden_summary": "在新的朋友排除事件中按 beta 策略处理归属不确定。",
+      "policy_id": "latent_policy_beta_v2",
+      "probe_condition_id": "latent_condition_belonging_uncertainty_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_006a",
+      "mirror_pair_id": "pair_v2_06",
+      "split": "train",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v2",
+      "hidden_summary": "在新的亲密关系代回复事件中按 alpha 策略处理主体性压力。",
+      "policy_id": "latent_policy_alpha_v2",
+      "probe_condition_id": "latent_condition_agency_pressure_v2"
+    },
+    {
+      "dynamic_id": "latent_v2_006b",
+      "mirror_pair_id": "pair_v2_06",
+      "split": "train",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v2",
+      "hidden_summary": "在新的亲密关系代回复事件中按 beta 策略处理主体性压力。",
+      "policy_id": "latent_policy_beta_v2",
+      "probe_condition_id": "latent_condition_agency_pressure_v2"
+    }
+  ],
+  "scene_bindings": [
+    {"scene_id": "rtv2_scene_001a", "latent_dynamic_id": "latent_v2_001a"},
+    {"scene_id": "rtv2_scene_001b", "latent_dynamic_id": "latent_v2_001b"},
+    {"scene_id": "rtv2_scene_002a", "latent_dynamic_id": "latent_v2_002a"},
+    {"scene_id": "rtv2_scene_002b", "latent_dynamic_id": "latent_v2_002b"},
+    {"scene_id": "rtv2_scene_003a", "latent_dynamic_id": "latent_v2_003a"},
+    {"scene_id": "rtv2_scene_003b", "latent_dynamic_id": "latent_v2_003b"},
+    {"scene_id": "rtv2_scene_004a", "latent_dynamic_id": "latent_v2_004a"},
+    {"scene_id": "rtv2_scene_004b", "latent_dynamic_id": "latent_v2_004b"},
+    {"scene_id": "rtv2_scene_005a", "latent_dynamic_id": "latent_v2_005a"},
+    {"scene_id": "rtv2_scene_005b", "latent_dynamic_id": "latent_v2_005b"},
+    {"scene_id": "rtv2_scene_006a", "latent_dynamic_id": "latent_v2_006a"},
+    {"scene_id": "rtv2_scene_006b", "latent_dynamic_id": "latent_v2_006b"}
+  ],
+  "history_condition_bindings": [
+    {"event_id": "rtv2_evt_001", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_002", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_003", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_004", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_005", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_006", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_007", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_008", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_009", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_010", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_011", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_012", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_013", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_014", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_015", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_016", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_017", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_018", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_019", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_020", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_021", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_022", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_023", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_024", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_025", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_026", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_027", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_028", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_029", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_030", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_031", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_032", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_033", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_034", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_035", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_036", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_037", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_038", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_039", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_040", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_041", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_042", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_043", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_044", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_045", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_046", "condition_id": "latent_condition_belonging_uncertainty_v2"},
+    {"event_id": "rtv2_evt_047", "condition_id": "latent_condition_agency_pressure_v2"},
+    {"event_id": "rtv2_evt_048", "condition_id": "latent_condition_belonging_uncertainty_v2"}
+  ]
+}

@@ -27,7 +27,7 @@ from lifeform_domain_emogpt import (
 ## Relationship Lab（offline only）
 
 `lifeform_domain_emogpt.lab` 与
-`scenario_packages/relationship_transfer_v1/` 承载“同句镜像用户、相反正确
+`scenario_packages/relationship_transfer_{v1,v2}/` 承载“同句镜像用户、相反正确
 动作”的离线证据环境。它拥有公开经历、封存动力学真值、反应式 action→outcome
 转移和内容寻址 decision sidecar；`lifeform-evolution` 只读这些工件发布 Gate 0
 与 Gate 1 判词。P1 的 structured-state 只经既有 `MemoryStore` 正式 API，RAG
@@ -122,8 +122,21 @@ Appendable / Readable / Learnable / Steerable PASS。
 2026-08-20 的完整 v2 run 中，fresh Gate 0 为 24/24 valid、10/24 correct，随后
 same-substrate P1b 的 prompt/RAG/structured-state 三臂均 8/8 correct、pair flip 1.0。
 报告 artifact `599e7e94ac1a06a7b342f6024614c1489b6130e768c1d5db8fbd7b833bfba1d7`
-据此判 `version_scenario_dataset_saturated`：下一包必须版本化 `relationship_transfer_v2`，
-不能进入 P2，也不能把这个满分结果解释成 Volvence 四能力或相对基线优势。
+据此判 `version_scenario_dataset_saturated`：该判词要求版本化
+`relationship_transfer_v2`，不能进入 P2，也不能把这个满分结果解释成 Volvence
+四能力或相对基线优势。
+
+P1d 已据此新增 `scenario_packages/relationship_transfer_v2/`，但没有切换 v1 默认
+consumer。v2 每位用户有四次历史：两种未公开命名的关系条件各对照两个动作；对用户
+整体统计时，stay 和 space 都恰好一正一负，且 probe family 从未出现在该用户历史中。
+因此旧 P1b v3 的动作 tally 在 v2 上只能双零，禁止把它当作强 baseline。v2 dataset
+fingerprint 为
+`d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b`，Gate 0 五项
+machinery PASS，但真实 stateless baseline 尚未运行，`gate0_passed=false`。
+
+下一包 P1e 必须先冻结 condition-aware readout，并给 full-history/structured-state
+全部四条历史、给 BGE-M3 RAG `top_k=4`，随后才能复用 Qwen2.5-3B 重跑资格。P1d
+不写 PE/credit/controller，不授权 P2 或四能力主张。
 
 ## "Vertical-shipped calibration" — what it is and why
 
