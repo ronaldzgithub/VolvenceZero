@@ -1,7 +1,7 @@
 # Specs 分层知识入口总索引
 
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
-> Last reconciled: 2026-08-12（90 份 spec 全量挂载）
+> Last reconciled: 2026-08-19（90 份 spec 全量挂载；新增关系智能 MVP 支撑文档入口）
 
 ---
 
@@ -860,6 +860,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 | `docs/DEBUG_SYSTEM.md` | 调试与可观测性体系：5 层可观测性架构、契约守卫、检查点与回滚、跨 wheel 调试边界 | 理解如何调试和监控系统运行 |
 | `docs/EVALUATION_SYSTEM.md` | 评估体系：6 族评估框架、双轨评估隔离、信号回馈、lifeform-bench family report | 理解如何评估系统表现和驱动学习 |
 | `docs/evaluation.md` | 评测任务总账（Runbook）：七日 / 七日 Gate 套件 / MSC N+1 / Learned Active / Companion Bench / State-KV·Prefix-KV / ETA rate-distortion·LLM 阶梯 / ETA 内部 RL / Digital Ant ecology / RSI Forge 每项的怎么跑、怎么评、当前结果、下一步 | 要实际运行/查证据 run 的状态与命令时 |
+| `docs/moving forward/relationship-intelligence-mvp-plan-2026-08.md` | **关系智能 MVP 产品与证据路线**：以 mirrored users 的相反正确动作为首个可见场景，复用现有 owner / PE / steering / console，按 Relationship Lab → closed alpha → 慢速共享基底推进 | 开始关系伙伴产品、关系动力学读出或对话域 PE-gated steering 收敛包前 |
 | `docs/package_usage.md` | 本机 package 安装、稳定 Brain API、HF/Qwen 可选 runtime、其他项目接入边界 | 其他项目需要调用 core package 时 |
 
 ### 文档依赖图
