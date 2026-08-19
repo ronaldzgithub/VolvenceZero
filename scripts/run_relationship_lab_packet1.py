@@ -42,6 +42,7 @@ from lifeform_evolution.relationship_lab_contexts import (  # noqa: E402
     RELATIONSHIP_P1_DEFAULT_DEPTHS,
     RELATIONSHIP_P1_RAG_TOP_K,
     RelationshipP1Arm,
+    RelationshipP1RagCandidateSurface,
     build_relationship_p1_context_bundle,
     probe_relationship_p1_persisted_state,
     run_relationship_p1_console_control_probe,
@@ -50,6 +51,8 @@ from lifeform_evolution.relationship_lab_gate0 import (  # noqa: E402
     load_frozen_baseline_attestation,
 )
 from lifeform_domain_emogpt.lab import (  # noqa: E402
+    RELATIONSHIP_TRANSFER_V1_PACKAGE_NAME,
+    RelationshipDatasetSplit,
     load_relationship_transfer_dataset,
 )
 from lifeform_evolution.relationship_lab_packet1 import (  # noqa: E402
@@ -63,6 +66,7 @@ from lifeform_evolution.relationship_lab_packet1 import (  # noqa: E402
 )
 from lifeform_evolution.relationship_lab_packet1b import (  # noqa: E402
     RELATIONSHIP_P1B_RAG_TOP_K,
+    RelationshipP1bReadoutProfile,
     assess_relationship_packet1b,
     parse_relationship_evidence_scores,
     render_relationship_p1b_readout_request,
@@ -182,7 +186,11 @@ def _release_embedding_runtime() -> None:
         torch.cuda.empty_cache()
 
 
-def _run_probe_subprocess(state_root: pathlib.Path) -> dict[str, Any]:
+def _run_probe_subprocess(
+    state_root: pathlib.Path,
+    *,
+    package_name: str,
+) -> dict[str, Any]:
     completed = subprocess.run(
         [
             sys.executable,
@@ -190,6 +198,8 @@ def _run_probe_subprocess(state_root: pathlib.Path) -> dict[str, Any]:
             "probe-state",
             "--state-root",
             str(state_root),
+            "--package-name",
+            package_name,
         ],
         cwd=str(_REPO_ROOT),
         check=True,
@@ -208,25 +218,36 @@ def _run_command(args: argparse.Namespace) -> int:
         raise FileExistsError(f"P1 output directory already exists: {output_dir}")
     output_dir.mkdir(parents=True)
     state_root = output_dir / "state"
+    dataset = load_relationship_transfer_dataset(package_name=args.package_name)
     rag_embedder = _build_rag_embedder(args)
     contexts = build_relationship_p1_context_bundle(
         state_root=state_root,
         rag_embedder=rag_embedder,
+        dataset=dataset,
         background_depths=_parse_int_tuple(
             args.background_depths,
             "background_depths",
         ),
         rag_top_k=args.rag_top_k,
+        rag_candidate_surface=RelationshipP1RagCandidateSurface(
+            args.rag_candidate_surface
+        ),
     )
     del rag_embedder
     _release_embedding_runtime()
-    recovered_payload = _run_probe_subprocess(state_root)
+    recovered_payload = _run_probe_subprocess(
+        state_root,
+        package_name=args.package_name,
+    )
     recovery = RelationshipP1RecoveryEvidence(
         expected_state_artifact_id=contexts.persisted_state.artifact_id,
         recovered_state_artifact_id=str(recovered_payload["artifact_id"]),
         fresh_process=True,
     )
-    console = run_relationship_p1_console_control_probe(root=output_dir / "console_probe_state")
+    console = run_relationship_p1_console_control_probe(
+        root=output_dir / "console_probe_state",
+        dataset=dataset,
+    )
     gate0_baseline = load_frozen_baseline_attestation(pathlib.Path(args.gate0_baseline_attestation))
     policy = HFStatelessRelationshipActionPolicy(
         model_source=args.model_source,
@@ -240,7 +261,14 @@ def _run_command(args: argparse.Namespace) -> int:
     )
     seed_schedule = _parse_int_tuple(args.seeds, "seeds")
     checkpoint_path = output_dir / "in_progress_decisions.jsonl"
-    expected_decisions = 32 * len(seed_schedule)
+    evaluated_observations = sum(
+        int(dataset.dynamic_for_scene(item.scene_id).split in {
+            RelationshipDatasetSplit.TRAIN,
+            RelationshipDatasetSplit.VALIDATION,
+        })
+        for item in dataset.observations
+    )
+    expected_decisions = evaluated_observations * 4 * len(seed_schedule)
     observed_decisions = 0
     with checkpoint_path.open("x", encoding="utf-8") as checkpoint:
 
@@ -269,6 +297,7 @@ def _run_command(args: argparse.Namespace) -> int:
         run = run_relationship_packet1_arms(
             policy,
             contexts=contexts,
+            dataset=dataset,
             seed_schedule=seed_schedule,
             decision_observer=observe_decision,
         )
@@ -278,6 +307,7 @@ def _run_command(args: argparse.Namespace) -> int:
         recovery=recovery,
         console=console,
         gate0_baseline=gate0_baseline,
+        dataset=dataset,
         config=RelationshipP1GateConfig(
             minimum_decisions_per_arm=args.minimum_decisions_per_arm,
             minimum_steelman_accuracy=args.minimum_steelman_accuracy,
@@ -319,25 +349,36 @@ def _run_p1b_command(args: argparse.Namespace) -> int:
         raise FileExistsError(f"P1b output directory already exists: {output_dir}")
     output_dir.mkdir(parents=True)
     state_root = output_dir / "state"
+    dataset = load_relationship_transfer_dataset(package_name=args.package_name)
     rag_embedder = _build_rag_embedder(args)
     contexts = build_relationship_p1_context_bundle(
         state_root=state_root,
         rag_embedder=rag_embedder,
+        dataset=dataset,
         background_depths=_parse_int_tuple(
             args.background_depths,
             "background_depths",
         ),
         rag_top_k=args.rag_top_k,
+        rag_candidate_surface=RelationshipP1RagCandidateSurface(
+            args.rag_candidate_surface
+        ),
     )
     del rag_embedder
     _release_embedding_runtime()
-    recovered_payload = _run_probe_subprocess(state_root)
+    recovered_payload = _run_probe_subprocess(
+        state_root,
+        package_name=args.package_name,
+    )
     recovery = RelationshipP1RecoveryEvidence(
         expected_state_artifact_id=contexts.persisted_state.artifact_id,
         recovered_state_artifact_id=str(recovered_payload["artifact_id"]),
         fresh_process=True,
     )
-    console = run_relationship_p1_console_control_probe(root=output_dir / "console_probe_state")
+    console = run_relationship_p1_console_control_probe(
+        root=output_dir / "console_probe_state",
+        dataset=dataset,
+    )
     gate0_baseline = load_frozen_baseline_attestation(pathlib.Path(args.gate0_baseline_attestation))
     policy = HFStatelessRelationshipActionPolicy(
         model_source=args.model_source,
@@ -352,8 +393,15 @@ def _run_p1b_command(args: argparse.Namespace) -> int:
     seed_schedule = _parse_int_tuple(args.seeds, "seeds")
     decision_checkpoint_path = output_dir / "in_progress_decisions.jsonl"
     readout_checkpoint_path = output_dir / "in_progress_readouts.jsonl"
-    expected_decisions = 32 * len(seed_schedule)
-    expected_readouts = 24 * len(seed_schedule)
+    evaluated_observations = sum(
+        int(dataset.dynamic_for_scene(item.scene_id).split in {
+            RelationshipDatasetSplit.TRAIN,
+            RelationshipDatasetSplit.VALIDATION,
+        })
+        for item in dataset.observations
+    )
+    expected_decisions = evaluated_observations * 4 * len(seed_schedule)
+    expected_readouts = evaluated_observations * 3 * len(seed_schedule)
     observed_decisions = 0
     observed_readouts = 0
     with (
@@ -410,7 +458,9 @@ def _run_p1b_command(args: argparse.Namespace) -> int:
         run = run_relationship_packet1b_arms(
             policy,
             contexts=contexts,
+            dataset=dataset,
             seed_schedule=seed_schedule,
+            readout_profile=RelationshipP1bReadoutProfile(args.readout_profile),
             readout_observer=observe_readout,
             decision_observer=observe_decision,
         )
@@ -420,6 +470,7 @@ def _run_p1b_command(args: argparse.Namespace) -> int:
         recovery=recovery,
         console=console,
         gate0_baseline=gate0_baseline,
+        dataset=dataset,
         config=RelationshipP1GateConfig(
             minimum_decisions_per_arm=args.minimum_decisions_per_arm,
             minimum_steelman_accuracy=args.minimum_steelman_accuracy,
@@ -434,6 +485,7 @@ def _run_p1b_command(args: argparse.Namespace) -> int:
         run=run,
         p1_report=p1_report,
         contexts=contexts,
+        dataset=dataset,
     )
     write_relationship_packet1_artifacts(
         run=run.action_run,
@@ -469,7 +521,11 @@ def _run_p1b_command(args: argparse.Namespace) -> int:
 
 
 def _probe_command(args: argparse.Namespace) -> int:
-    state = probe_relationship_p1_persisted_state(state_root=pathlib.Path(args.state_root))
+    dataset = load_relationship_transfer_dataset(package_name=args.package_name)
+    state = probe_relationship_p1_persisted_state(
+        state_root=pathlib.Path(args.state_root),
+        dataset=dataset,
+    )
     payload = state.to_payload()
     payload["artifact_id"] = state.artifact_id
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
@@ -478,12 +534,15 @@ def _probe_command(args: argparse.Namespace) -> int:
 
 def _protocol_probe_command(args: argparse.Namespace) -> int:
     with tempfile.TemporaryDirectory(prefix="relationship-p1-protocol-") as root:
-        dataset = load_relationship_transfer_dataset()
+        dataset = load_relationship_transfer_dataset(package_name=args.package_name)
         contexts = build_relationship_p1_context_bundle(
             state_root=pathlib.Path(root),
             rag_embedder=HashingEmbedder(),
             dataset=dataset,
             background_depths=(0, 8),
+            rag_candidate_surface=RelationshipP1RagCandidateSurface(
+                args.rag_candidate_surface
+            ),
         )
         observations = tuple(item for item in dataset.observations if item.scene_id == args.scene_id)
         if len(observations) != 1:
@@ -537,13 +596,16 @@ def _protocol_probe_command(args: argparse.Namespace) -> int:
 
 def _p1b_protocol_probe_command(args: argparse.Namespace) -> int:
     with tempfile.TemporaryDirectory(prefix="relationship-p1b-protocol-") as root:
-        dataset = load_relationship_transfer_dataset()
+        dataset = load_relationship_transfer_dataset(package_name=args.package_name)
         contexts = build_relationship_p1_context_bundle(
             state_root=pathlib.Path(root),
             rag_embedder=HashingEmbedder(),
             dataset=dataset,
             background_depths=(0, args.background_depth),
             rag_top_k=args.rag_top_k,
+            rag_candidate_surface=RelationshipP1RagCandidateSurface(
+                args.rag_candidate_surface
+            ),
         )
         observations = tuple(item for item in dataset.observations if item.scene_id == args.scene_id)
         if len(observations) != 1:
@@ -559,7 +621,10 @@ def _p1b_protocol_probe_command(args: argparse.Namespace) -> int:
             top_p=args.top_p,
             max_new_tokens=args.max_new_tokens,
         )
-        prompt = relationship_p1b_readout_prompt_path().read_text(encoding="utf-8").strip()
+        readout_profile = RelationshipP1bReadoutProfile(args.readout_profile)
+        prompt = relationship_p1b_readout_prompt_path(readout_profile).read_text(
+            encoding="utf-8"
+        ).strip()
         rows = []
         for arm in (
             RelationshipP1Arm.PROMPT_STEELMAN,
@@ -575,6 +640,7 @@ def _p1b_protocol_probe_command(args: argparse.Namespace) -> int:
                         "content": render_relationship_p1b_readout_request(
                             context_text=context.context_text,
                             current_input=observation.current_input,
+                            profile=readout_profile,
                         ),
                     },
                 ),
@@ -628,6 +694,10 @@ def _add_run_arguments(
     output_prefix: str,
     rag_top_k_default: int,
 ) -> None:
+    command.add_argument(
+        "--package-name",
+        default=RELATIONSHIP_TRANSFER_V1_PACKAGE_NAME,
+    )
     command.add_argument("--model-source", default=DEFAULT_STATELESS_MODEL_SOURCE)
     command.add_argument("--model-id", default=DEFAULT_STATELESS_MODEL_ID)
     command.add_argument("--device", default="auto")
@@ -648,6 +718,16 @@ def _add_run_arguments(
     command.add_argument("--rag-model-source", default="BAAI/bge-m3")
     command.add_argument("--rag-device", default="cpu")
     command.add_argument("--rag-top-k", type=int, default=rag_top_k_default)
+    command.add_argument(
+        "--rag-candidate-surface",
+        choices=tuple(item.value for item in RelationshipP1RagCandidateSurface),
+        default=RelationshipP1RagCandidateSurface.ALL_PUBLIC_RECORDS.value,
+    )
+    command.add_argument(
+        "--readout-profile",
+        choices=tuple(item.value for item in RelationshipP1bReadoutProfile),
+        default=RelationshipP1bReadoutProfile.V1_ACTION_TALLY.value,
+    )
     command.add_argument("--allow-download", action="store_true")
     command.add_argument(
         "--gate0-baseline-attestation",
@@ -683,6 +763,10 @@ def _add_run_arguments(
 
 
 def _add_protocol_probe_arguments(command: argparse.ArgumentParser) -> None:
+    command.add_argument(
+        "--package-name",
+        default=RELATIONSHIP_TRANSFER_V1_PACKAGE_NAME,
+    )
     command.add_argument("--model-source", default=DEFAULT_STATELESS_MODEL_SOURCE)
     command.add_argument("--model-id", default=DEFAULT_STATELESS_MODEL_ID)
     command.add_argument("--device", default="auto")
@@ -693,6 +777,16 @@ def _add_protocol_probe_arguments(command: argparse.ArgumentParser) -> None:
     command.add_argument("--seed", type=int, default=101)
     command.add_argument("--scene-id", default="rtv1_scene_003a")
     command.add_argument("--allow-download", action="store_true")
+    command.add_argument(
+        "--rag-candidate-surface",
+        choices=tuple(item.value for item in RelationshipP1RagCandidateSurface),
+        default=RelationshipP1RagCandidateSurface.ALL_PUBLIC_RECORDS.value,
+    )
+    command.add_argument(
+        "--readout-profile",
+        choices=tuple(item.value for item in RelationshipP1bReadoutProfile),
+        default=RelationshipP1bReadoutProfile.V1_ACTION_TALLY.value,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -712,6 +806,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     probe = subparsers.add_parser("probe-state")
     probe.add_argument("--state-root", required=True)
+    probe.add_argument(
+        "--package-name",
+        default=RELATIONSHIP_TRANSFER_V1_PACKAGE_NAME,
+    )
     protocol_probe = subparsers.add_parser("probe-protocol")
     _add_protocol_probe_arguments(protocol_probe)
     p1b_protocol_probe = subparsers.add_parser("probe-p1b")

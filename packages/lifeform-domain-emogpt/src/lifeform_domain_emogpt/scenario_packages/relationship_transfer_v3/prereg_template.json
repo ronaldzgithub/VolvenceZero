@@ -1,0 +1,167 @@
+{
+  "schema_version": "relationship-lab-prereg.v8",
+  "status": "development_public_evidence_qualified_not_formal",
+  "claim_scope": "synthetic_public_evidence_semantic_legibility_only",
+  "package_name": "relationship_transfer_v3",
+  "development_lineage": {
+    "dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f",
+    "dataset_schema_version": "relationship-transfer-dataset.v3",
+    "truth_schema_version": "relationship-transfer-truth.v3",
+    "p1f_public_evidence_audit_report_artifact_id": "a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd",
+    "default_v1_consumer_switched": false,
+    "formal_hidden_test_opened": false
+  },
+  "triggered_by_frozen_p1e_verdict": {
+    "package_name": "relationship_transfer_v2",
+    "p1e_report_artifact_id": "232afebb56afb5e457af3d7ca4ccfc560cc417447defcb6d265263085fad8693",
+    "verdict": "rewrite_public_evidence_contract"
+  },
+  "formal_lock": {
+    "must_freeze_before_hidden_test": [
+      "dataset_fingerprint",
+      "dataset_schema_version",
+      "generator_truth_sha256",
+      "rendered_observations_sha256",
+      "sealed_condition_policy_contract_sha256",
+      "public_evidence_contract_sha256",
+      "public_evidence_audit_report_artifact_id",
+      "public_evidence_embedder_weights_sha256",
+      "reactive_environment_version",
+      "substrate_model_id",
+      "substrate_weights_sha256",
+      "generation_config_sha256",
+      "stateless_prompt_sha256",
+      "conditioned_readout_prompt_sha256",
+      "conditioned_readout_request_template_sha256",
+      "evidence_readout_schema_sha256",
+      "typed_action_compiler_version",
+      "qualification_protocol_id",
+      "qualification_report_artifact_id",
+      "rag_index_sha256",
+      "rag_embedding_weights_sha256",
+      "rag_top_k",
+      "p1_background_templates_sha256",
+      "p1_context_depth_schedule_sha256",
+      "memory_store_contract_version",
+      "seed_schedule_sha256",
+      "baseline_decision_ledger_sha256",
+      "decision_trace_schema_version",
+      "thresholds"
+    ],
+    "forbidden_after_formal_start": [
+      "replace_prompt_after_viewing_heldout",
+      "change_condition_policy_bindings",
+      "change_environment_transition",
+      "change_candidate_action_surface",
+      "change_split_assignment",
+      "change_readout_schema_or_compiler",
+      "change_public_evidence_after_viewing_v3_qwen_output",
+      "feed_judge_or_hidden_truth_to_sut"
+    ]
+  },
+  "scenario_admission_contract": {
+    "histories_per_user": 4,
+    "abstract_conditions": 2,
+    "examples_per_condition": 2,
+    "non_noop_action_count_per_user": {
+      "stay_present_without_probe": 2,
+      "respect_space_with_return_option": 2
+    },
+    "required_outcome_polarities_per_action": ["positive", "negative"],
+    "probe_surface_must_be_unseen_in_user_history": true,
+    "mirrored_probe_condition_must_match": true,
+    "mirrored_policy_and_preferred_action_must_be_complementary": true,
+    "sealed_condition_or_policy_visible_to_sut": false,
+    "global_action_tally_expected_result": "tie"
+  },
+  "public_evidence_admission_contract": {
+    "contract_sha256": "8ba8a6788d35e959c4a6fa42d31f54baa7d5e1ba48f52603e4bec510232d3cbb",
+    "history_text_fields": ["user_utterance", "user_reaction"],
+    "history_text_joiner": "\n",
+    "probe_text_fields": ["current_input"],
+    "auditor_version": "relationship-public-evidence-auditor.v1",
+    "similarity": "cosine",
+    "required_evidence_units": 60,
+    "required_top1_accuracy": 1.0,
+    "minimum_correct_anchor_margin": 0.02,
+    "minimum_mean_correct_anchor_margin": 0.07,
+    "condition_or_action_label_visible_to_sut": false,
+    "evaluation_feedback_to_learning_or_steering": false,
+    "human_anchor_status": "pending_before_formal"
+  },
+  "matched_controls": {
+    "same_substrate_weights": true,
+    "same_generation_settings": true,
+    "same_candidate_action_surface": true,
+    "same_pre_action_observation": true,
+    "same_reactive_transition_function": true,
+    "all_four_public_histories_available_to_every_contextual_arm": true,
+    "post_action_user_turn_may_differ_by_action": true
+  },
+  "arms": [
+    {"arm_id": "stateless", "competitive": true, "context_surface": "current_turn_only", "learning_enabled": false},
+    {"arm_id": "prompt-steelman", "competitive": true, "context_surface": "full_raw_history_plus_all_four_typed_outcomes", "learning_enabled": false},
+    {"arm_id": "rag-steelman", "competitive": true, "context_surface": "semantic_retrieval_top4_all_signal_evidence", "learning_enabled": false},
+    {"arm_id": "structured-state", "competitive": false, "context_surface": "memory_store_owner_published_four_typed_outcome_records", "learning_enabled": false},
+    {"arm_id": "volvence-cold", "competitive": true, "context_surface": "owner_runtime_with_pe_updates_disabled", "learning_enabled": false},
+    {"arm_id": "volvence", "competitive": true, "context_surface": "appendable_readable_learnable_steerable_loop", "learning_enabled": true},
+    {"arm_id": "oracle-concept", "competitive": false, "context_surface": "sealed_condition_and_policy_directly_exposed", "learning_enabled": false}
+  ],
+  "gate_0_thresholds": {
+    "minimum_mirrored_pairs": 6,
+    "minimum_surface_families": 6,
+    "minimum_action_effect": 0.5,
+    "maximum_baseline_accuracy": 0.85,
+    "minimum_baseline_decisions": 24,
+    "required_valid_output_rate": 1.0,
+    "required_leakage_count": 0
+  },
+  "gate_1_thresholds": {
+    "minimum_decisions_per_arm": 8,
+    "required_valid_output_rate": 1.0,
+    "minimum_steelman_accuracy": 0.625,
+    "maximum_steelman_accuracy": 0.875,
+    "minimum_steelman_pair_flip_rate": 0.5,
+    "minimum_structured_state_pair_flip_rate": 0.5,
+    "maximum_rag_to_full_history_token_ratio": 0.75,
+    "maximum_structured_to_full_history_token_ratio": 0.55,
+    "required_cross_process_state_digest_match": true,
+    "required_console_rewrite_delete_persistence": true,
+    "required_sibling_scope_isolation": true
+  },
+  "next_consumer_packet_requirements": {
+    "packet_id": "relationship_p1g_v3_consumer_freeze_and_qualification",
+    "conditioned_readout_prompt_must_be_frozen_before_model_output": true,
+    "no_v3_qwen_output_exists_before_protocol_freeze": true,
+    "current_message_must_participate_in_condition_inference": true,
+    "all_four_histories_must_be_available": true,
+    "rag_top_k": 4,
+    "typed_action_compiler_version": "relationship-evidence-argmax.v1",
+    "expected_action_visible_before_readout": false,
+    "reuse_qwen25_3b_materialized_weights": true,
+    "fresh_gate0_and_same_substrate_p1b_required": true,
+    "formal_hidden_test_opened": false
+  },
+  "reporting_contract": {
+    "finite_prompt_impossibility_claim_allowed": false,
+    "p1f_allowed_claim": "all 60 v3 public evidence units are semantically separable under one frozen BGE-M3 development auditor",
+    "p1f_forbidden_claims": [
+      "human_readability_proven",
+      "qwen_transfer_proven",
+      "baseline_qualified",
+      "volvence_advantage",
+      "appendable_readable_learnable_steerable_pass",
+      "formal_heldout_superiority",
+      "product_value"
+    ]
+  },
+  "placeholders": {
+    "formal_dataset_fingerprint": "TO_BE_FROZEN_AFTER_P1G_QUALIFICATION",
+    "substrate_model_id": "TO_BE_FROZEN_IN_P1G",
+    "substrate_weights_sha256": "TO_BE_FROZEN_IN_P1G",
+    "generation_config_sha256": "TO_BE_FROZEN_IN_P1G",
+    "conditioned_readout_prompt_sha256": "TO_BE_FROZEN_BEFORE_P1G_MODEL_OUTPUT",
+    "qualification_protocol_id": "TO_BE_FROZEN_IN_P1G",
+    "qualification_report_artifact_id": "TO_BE_FROZEN_AFTER_P1G"
+  }
+}

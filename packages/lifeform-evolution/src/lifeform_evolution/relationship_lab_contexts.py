@@ -64,8 +64,22 @@ class RelationshipP1Arm(str, Enum):
 RELATIONSHIP_P1_ARMS: tuple[RelationshipP1Arm, ...] = tuple(RelationshipP1Arm)
 
 
-def relationship_p1_background_template_path() -> pathlib.Path:
-    return relationship_transfer_package_dir() / "p1_background_templates.json"
+class RelationshipP1RagCandidateSurface(str, Enum):
+    """Typed owner-record surface admitted to semantic top-k retrieval."""
+
+    ALL_PUBLIC_RECORDS = "all_public_records"
+    RELATIONSHIP_OUTCOMES_ONLY = "relationship_outcomes_only"
+
+
+def relationship_p1_background_template_path(
+    package_name: str | None = None,
+) -> pathlib.Path:
+    root = (
+        relationship_transfer_package_dir()
+        if package_name is None
+        else relationship_transfer_package_dir(package_name)
+    )
+    return root / "p1_background_templates.json"
 
 
 def _require_scope_hash(scope_hash: str) -> None:
@@ -81,8 +95,10 @@ def _sha256_file(path: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
-def _load_background_templates() -> tuple[tuple[str, str], ...]:
-    path = relationship_p1_background_template_path()
+def _load_background_templates(
+    package_name: str | None = None,
+) -> tuple[tuple[str, str], ...]:
+    path = relationship_p1_background_template_path(package_name)
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict) or set(raw) != {"schema_version", "templates"}:
         raise ValueError("P1 background template file has an invalid shape")
@@ -177,8 +193,6 @@ def _context_items(
                 background_index=index,
             )
         )
-    first_cut = background_depth // 3
-    second_cut = (background_depth * 2) // 3
     signal_items = tuple(
         PublicRelationshipContextItem(
             item_id=event.event_id,
@@ -194,15 +208,32 @@ def _context_items(
         )
         for signal_index, event in enumerate(observation.histories)
     )
-    if len(signal_items) != 2:
-        raise ValueError("P1 v1 requires exactly two typed relationship histories")
-    ordered = (
-        *background[:first_cut],
-        signal_items[0],
-        *background[first_cut:second_cut],
-        signal_items[1],
-        *background[second_cut:],
-    )
+    if len(signal_items) not in {2, 4}:
+        raise ValueError("P1 supports exactly two v1 or four v2 relationship histories")
+    if len(signal_items) == 2:
+        # Preserve the byte-for-byte v1 evaluated context surface.
+        first_cut = background_depth // 3
+        second_cut = (background_depth * 2) // 3
+        ordered = (
+            *background[:first_cut],
+            signal_items[0],
+            *background[first_cut:second_cut],
+            signal_items[1],
+            *background[second_cut:],
+        )
+    else:
+        cuts = tuple(
+            (background_depth * (index + 1)) // (len(signal_items) + 1)
+            for index in range(len(signal_items))
+        )
+        assembled: list[PublicRelationshipContextItem] = []
+        previous_cut = 0
+        for signal, cut in zip(signal_items, cuts, strict=True):
+            assembled.extend(background[previous_cut:cut])
+            assembled.append(signal)
+            previous_cut = cut
+        assembled.extend(background[previous_cut:])
+        ordered = tuple(assembled)
     return tuple(
         replace(
             item,
@@ -282,28 +313,42 @@ class StructuredRelationshipStateStore:
         )
         return sha256_json(payload)
 
-    def relationship_evidence(self) -> tuple[MemoryEntry, ...]:
+    def relationship_evidence(
+        self,
+        *,
+        expected_records: int = 2,
+    ) -> tuple[MemoryEntry, ...]:
+        if expected_records not in {2, 4}:
+            raise ValueError("structured relationship recall supports two or four records")
         result = self._store.retrieve(
             RetrievalQuery(
                 text="relationship outcome evidence",
                 track=Track.WORLD,
                 strata=(MemoryStratum.EPISODIC,),
                 facets=("relationship-outcome",),
-                limit=2,
+                limit=expected_records,
             ),
             timestamp_ms=1_800_000_100_000,
             active_subject_ids=(self._subject_id,),
             record_access=False,
         )
         entries = tuple(sorted(result.entries, key=lambda item: item.created_at_ms))
-        if len(entries) != 2 or any("relationship-outcome" not in entry.tags for entry in entries):
-            raise RuntimeError("MemoryStore did not recover exactly two typed relationship records")
+        if len(entries) != expected_records or any(
+            "relationship-outcome" not in entry.tags for entry in entries
+        ):
+            raise RuntimeError(
+                "MemoryStore did not recover the expected typed relationship records"
+            )
         if result.suppressed_cross_scope_entries:
             raise RuntimeError("structured relationship recall crossed user scope")
         return entries
 
-    def render_context(self) -> tuple[str, tuple[str, ...]]:
-        entries = self.relationship_evidence()
+    def render_context(
+        self,
+        *,
+        expected_records: int = 2,
+    ) -> tuple[str, tuple[str, ...]]:
+        entries = self.relationship_evidence(expected_records=expected_records)
         return (
             "\n\n".join(f"[memory-owner:{entry.stratum}] {entry.content}" for entry in entries),
             tuple(entry.entry_id for entry in entries),
@@ -535,12 +580,18 @@ def _audit_context_truth_leakage(
         {dynamic.dynamic_id for dynamic in dataset.dynamics}
         | {dynamic.mirror_pair_id for dynamic in dataset.dynamics}
         | {dynamic.outcome_profile_id for dynamic in dataset.dynamics}
+        | {condition.condition_id for condition in dataset.abstract_conditions}
+        | {policy.policy_id for policy in dataset.policy_profiles}
     )
     forbidden_keys = (
         "preferred_action",
         "sealed_latent_dynamic_id",
         "future_outcome",
         "generator_truth",
+        "condition_id",
+        "policy_id",
+        "probe_condition_id",
+        "history_condition_bindings",
     )
     for context in contexts:
         encoded = context.context_text
@@ -558,6 +609,9 @@ def build_relationship_p1_context_bundle(
     dataset: RelationshipTransferDataset | None = None,
     background_depths: tuple[int, ...] = RELATIONSHIP_P1_DEFAULT_DEPTHS,
     rag_top_k: int = RELATIONSHIP_P1_RAG_TOP_K,
+    rag_candidate_surface: RelationshipP1RagCandidateSurface = (
+        RelationshipP1RagCandidateSurface.ALL_PUBLIC_RECORDS
+    ),
 ) -> RelationshipP1ContextBundle:
     """Write public histories, recover them, and build four matched contexts."""
 
@@ -568,8 +622,21 @@ def build_relationship_p1_context_bundle(
         raise ValueError("P1 scaling requires a maximum background depth >= 8")
     if rag_top_k <= 0:
         raise ValueError("rag_top_k must be positive")
+    if not isinstance(rag_candidate_surface, RelationshipP1RagCandidateSurface):
+        raise ValueError("rag_candidate_surface must be typed")
+    history_counts = {len(item.histories) for item in effective_dataset.observations}
+    if len(history_counts) != 1:
+        raise ValueError("P1 dataset users must expose one fixed relationship-history count")
+    relationship_history_count = next(iter(history_counts))
+    if relationship_history_count not in {2, 4}:
+        raise ValueError("P1 dataset must expose two v1 or four v2 histories per user")
+    if (
+        rag_candidate_surface is RelationshipP1RagCandidateSurface.RELATIONSHIP_OUTCOMES_ONLY
+        and rag_top_k < relationship_history_count
+    ):
+        raise ValueError("relationship-outcome RAG must admit every signal record")
     _state_root_must_be_fresh(state_root)
-    templates = _load_background_templates()
+    templates = _load_background_templates(effective_dataset.package_name)
     max_depth = background_depths[-1]
     memory_root = pathlib.Path(state_root) / "memory_store"
     rag_root = pathlib.Path(state_root) / "ref_harness"
@@ -618,7 +685,9 @@ def build_relationship_p1_context_bundle(
             scope_hash=observation.user_scope_hash,
             load_existing=True,
         )
-        structured_text, structured_refs = structured.render_context()
+        structured_text, structured_refs = structured.render_context(
+            expected_records=len(observation.histories)
+        )
         all_rag_entries = rag_store.embed_index_list_for_scope(scope_key=observation.user_scope_hash)
         query_embedding = rag_embedder.embed(_RAG_QUERY_PREFIX + observation.current_input)
         for depth in background_depths:
@@ -629,6 +698,14 @@ def build_relationship_p1_context_bundle(
             )
             allowed_ids = {item.item_id for item in items_at_depth}
             rag_entries = tuple(entry for entry in all_rag_entries if entry.turn_id in allowed_ids)
+            if (
+                rag_candidate_surface
+                is RelationshipP1RagCandidateSurface.RELATIONSHIP_OUTCOMES_ONLY
+            ):
+                signal_ids = {item.event_id for item in observation.histories}
+                rag_entries = tuple(
+                    entry for entry in rag_entries if entry.turn_id in signal_ids
+                )
             full_text = "\n\n".join(item.content for item in items_at_depth)
             rag_text, rag_refs = _rag_context_from_entries(
                 policy=policy,
@@ -638,6 +715,12 @@ def build_relationship_p1_context_bundle(
                 query_embedding=query_embedding,
                 top_k_count=rag_top_k,
             )
+            if (
+                rag_candidate_surface
+                is RelationshipP1RagCandidateSurface.RELATIONSHIP_OUTCOMES_ONLY
+                and set(rag_refs) != {item.event_id for item in observation.histories}
+            ):
+                raise RuntimeError("strong RAG did not publish every relationship outcome")
             contexts.extend(
                 (
                     RelationshipP1Context(
@@ -676,21 +759,26 @@ def build_relationship_p1_context_bundle(
         dataset=effective_dataset,
         contexts=frozen_contexts,
     )
-    rag_config_sha256 = sha256_json(
-        {
-            "wrapper": "companion-ref-harness",
-            "components": [HarnessComponent.EMBED.value],
-            "embedder": rag_embedder.name,
-            "embedding_dim": rag_embedder.dim,
-            "top_k": rag_top_k,
-            "minimum_score": RELATIONSHIP_P1_RAG_MIN_SCORE,
-            "query_prefix_sha256": hashlib.sha256(_RAG_QUERY_PREFIX.encode("utf-8")).hexdigest(),
-        }
-    )
+    rag_config: dict[str, object] = {
+        "wrapper": "companion-ref-harness",
+        "components": [HarnessComponent.EMBED.value],
+        "embedder": rag_embedder.name,
+        "embedding_dim": rag_embedder.dim,
+        "top_k": rag_top_k,
+        "minimum_score": RELATIONSHIP_P1_RAG_MIN_SCORE,
+        "query_prefix_sha256": hashlib.sha256(
+            _RAG_QUERY_PREFIX.encode("utf-8")
+        ).hexdigest(),
+    }
+    if rag_candidate_surface is not RelationshipP1RagCandidateSurface.ALL_PUBLIC_RECORDS:
+        rag_config["candidate_surface"] = rag_candidate_surface.value
+    rag_config_sha256 = sha256_json(rag_config)
     return RelationshipP1ContextBundle(
         dataset_fingerprint=effective_dataset.dataset_fingerprint,
         background_depths=background_depths,
-        background_templates_sha256=_sha256_file(relationship_p1_background_template_path()),
+        background_templates_sha256=_sha256_file(
+            relationship_p1_background_template_path(effective_dataset.package_name)
+        ),
         rag_config_sha256=rag_config_sha256,
         contexts=frozen_contexts,
         persisted_state=persisted_state,
@@ -779,7 +867,7 @@ def run_relationship_p1_console_control_probe(
     pair = effective_dataset.mirrored_pairs()[0][1]
     target_observation = pair[0][0]
     sibling_observation = pair[1][0]
-    templates = _load_background_templates()
+    templates = _load_background_templates(effective_dataset.package_name)
     control_root = pathlib.Path(root)
     _state_root_must_be_fresh(control_root)
     for observation in (target_observation, sibling_observation):
@@ -973,6 +1061,7 @@ __all__ = [
     "RELATIONSHIP_P1_DEFAULT_DEPTHS",
     "PersistedRelationshipP1StateDigest",
     "RelationshipP1Arm",
+    "RelationshipP1RagCandidateSurface",
     "RelationshipP1ConsoleControlEvidence",
     "RelationshipP1Context",
     "RelationshipP1ContextBundle",

@@ -27,7 +27,7 @@ from lifeform_domain_emogpt import (
 ## Relationship Lab（offline only）
 
 `lifeform_domain_emogpt.lab` 与
-`scenario_packages/relationship_transfer_{v1,v2}/` 承载“同句镜像用户、相反正确
+`scenario_packages/relationship_transfer_{v1,v2,v3}/` 承载“同句镜像用户、相反正确
 动作”的离线证据环境。它拥有公开经历、封存动力学真值、反应式 action→outcome
 转移和内容寻址 decision sidecar；`lifeform-evolution` 只读这些工件发布 Gate 0
 与 Gate 1 判词。P1 的 structured-state 只经既有 `MemoryStore` 正式 API，RAG
@@ -132,11 +132,54 @@ consumer。v2 每位用户有四次历史：两种未公开命名的关系条件
 因此旧 P1b v3 的动作 tally 在 v2 上只能双零，禁止把它当作强 baseline。v2 dataset
 fingerprint 为
 `d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b`，Gate 0 五项
-machinery PASS，但真实 stateless baseline 尚未运行，`gate0_passed=false`。
+machinery PASS；当时真实 stateless baseline 尚未运行，`gate0_passed=false`。
 
-下一包 P1e 必须先冻结 condition-aware readout，并给 full-history/structured-state
-全部四条历史、给 BGE-M3 RAG `top_k=4`，随后才能复用 Qwen2.5-3B 重跑资格。P1d
-不写 PE/credit/controller，不授权 P2 或四能力主张。
+P1e 已把 v2 consumer 冻结为 condition-aware readout，并给 full-history/
+structured-state 全部四条历史、给 BGE-M3 RAG typed relationship-outcome `top_k=4`。
+protocol id 为
+`5221909debd8b0248c83332589c2681270118dc54b7014654db2d627ca2fbd1e`：
+
+```bash
+# 只验证冻结 lineage、本地 Qwen/BGE snapshot 与空间
+.venv/bin/python scripts/run_relationship_lab_packet1e.py --preflight-only
+
+# fresh v2 Gate 0 → same-substrate P1b → P1e qualification
+.venv/bin/python scripts/run_relationship_lab_packet1e.py \
+  --output-dir artifacts/relationship_lab/<packet1e-run-id>
+```
+
+2026-08-20 的真实运行中，fresh Gate 0 为 24/24 valid、12/24 correct，PASS；P1b
+24/24 readout strict-valid，prompt/RAG/structured-state accuracy 为
+0.625/0.25/0.625，mirrored pair flip 均为 0.25。P1e report artifact
+`232afebb56afb5e457af3d7ca4ccfc560cc417447defcb6d265263085fad8693` 判
+`rewrite_public_evidence_contract`。这证明 v2 四历史/RAG/structured-state 接线与严格
+readout machinery 可运行，但没有证明稳定抽象迁移、Volvence 优势、P2 或四能力成立。
+因此不能在已见 v2 split 上继续调 prompt，也不能提前接
+PE/credit/controller/steering。
+
+P1f 已把公开 evidence/label contract 修复为独立
+`scenario_packages/relationship_transfer_v3/`。v3 不改变四历史组合任务、全局动作胜负
+平衡、未见 probe surface 或镜像互补策略；每条公开历史和 probe 只增加自然语言形式的
+“当事人实际体验到何种关系损失”，condition/policy/action 标签仍不进入 SUT。dataset
+fingerprint 为
+`35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f`。
+
+在任何 v3 Qwen 输出前，可先复核冻结 lineage 或运行真实本地 BGE-M3 审计：
+
+```bash
+.venv/bin/python scripts/run_relationship_lab_packet1f.py --preflight-only
+
+.venv/bin/python scripts/run_relationship_lab_packet1f.py \
+  --output-dir artifacts/relationship_lab/<packet1f-run-id>
+```
+
+权威 P1f 结果为 48 histories + 12 probes 全部 top-1 正确，最小/平均 margin
+0.020403792213/0.080645917619；report artifact
+`a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd` 判
+`consumer_protocol_freeze_candidate`。这只是一个冻结 BGE-M3 下的 development
+public-evidence legibility gate；人工盲标、Qwen transfer、Readable、formal heldout、
+Volvence 优势与四能力仍未证明。下一包 P1g 必须先冻结 v3 consumer protocol，之后才能
+产生第一条 v3 Qwen 输出。
 
 ## "Vertical-shipped calibration" — what it is and why
 

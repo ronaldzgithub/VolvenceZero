@@ -1,0 +1,46 @@
+schema_version: "3.0"
+package_name: relationship_transfer_v3
+generation_policy:
+  truth_source: generator_truth.json
+  rendered_observation_source: rendered_observations.json
+  public_evidence_contract_source: public_evidence_contract.json
+  runtime_observation_builder: lifeform_domain_emogpt.lab.dataset.RelationshipObservation.to_sut_payload
+  user_reaction: typed_reactive_transition_then_bounded_renderer
+  real_person_data: false
+  routing: semantic_only
+split_policy:
+  unit: entire_latent_sibling_pair
+  assignments:
+    train: [rtv3_scene_005a, rtv3_scene_005b, rtv3_scene_006a, rtv3_scene_006b]
+    validation: [rtv3_scene_003a, rtv3_scene_003b, rtv3_scene_004a, rtv3_scene_004b]
+    heldout: [rtv3_scene_001a, rtv3_scene_001b, rtv3_scene_002a, rtv3_scene_002b]
+scenes:
+  - {scenario_id: rtv3_scene_001a, mirror_group: mirror_v3_001, split: heldout, probe_surface_family: work, path_id: path_counterfactual_policy_swap_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_001b, mirror_group: mirror_v3_001, split: heldout, probe_surface_family: work, path_id: path_counterfactual_policy_swap_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_002a, mirror_group: mirror_v3_002, split: heldout, probe_surface_family: health, path_id: path_counterfactual_policy_swap_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_002b, mirror_group: mirror_v3_002, split: heldout, probe_surface_family: health, path_id: path_counterfactual_policy_swap_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_003a, mirror_group: mirror_v3_003, split: validation, probe_surface_family: family, path_id: path_abstract_condition_transfer_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_003b, mirror_group: mirror_v3_003, split: validation, probe_surface_family: family, path_id: path_abstract_condition_transfer_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_004a, mirror_group: mirror_v3_004, split: validation, probe_surface_family: community, path_id: path_mirrored_preaction_decision_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_004b, mirror_group: mirror_v3_004, split: validation, probe_surface_family: community, path_id: path_mirrored_preaction_decision_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_005a, mirror_group: mirror_v3_005, split: train, probe_surface_family: friends, path_id: path_conditioned_experience_evidence_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_005b, mirror_group: mirror_v3_005, split: train, probe_surface_family: friends, path_id: path_conditioned_experience_evidence_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_006a, mirror_group: mirror_v3_006, split: train, probe_surface_family: intimacy, path_id: path_reactive_outcome_settlement_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+  - {scenario_id: rtv3_scene_006b, mirror_group: mirror_v3_006, split: train, probe_surface_family: intimacy, path_id: path_reactive_outcome_settlement_v3, arc_spec_id: arc_relationship_compositional_transfer_v3}
+semantic_routing:
+  method: trajectory_embedding_plus_conditioned_schema_bound_llm_output
+  input_axes:
+    - balanced_multi_experience_action_outcome_lineage
+    - user_scope_continuity
+    - semantic_situation_equivalence
+    - unseen_surface_family_transfer
+    - candidate_action_outcome_prediction
+  insufficient_evidence: no_route
+  forbidden:
+    - substring_matching
+    - regex_content_matching
+    - keyword_dictionary
+    - event_order_routing
+    - event_id_lookup
+    - scene_id_to_action_lookup
+    - global_action_outcome_majority

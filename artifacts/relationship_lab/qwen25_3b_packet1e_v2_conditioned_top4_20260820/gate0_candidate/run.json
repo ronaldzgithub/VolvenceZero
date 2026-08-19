@@ -1,0 +1,21 @@
+{
+  "accuracy": 0.5,
+  "attestation_id": "0badaafd4516894615e90b29321ce4830933220a825b5945c7d4155082a94c08",
+  "context_tokens_total": 4698,
+  "correct_decisions": 12,
+  "dataset_fingerprint": "d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b",
+  "decision_ledger_sha256": "f4c2c1e6b6a49f95fed1648d0d8c3e39c93c5bd758172d731539feab5fee7227",
+  "evaluated_decisions": 24,
+  "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+  "model_id": "qwen2.5-3b-instruct",
+  "prompt_sha256": "778fb1ef73254d943a1c48cc5818034386eb529777f4eec9f9bf395053ec988e",
+  "schema_version": "relationship-stateless-baseline-run.v1",
+  "seed_schedule": [
+    101,
+    211,
+    307
+  ],
+  "seed_schedule_sha256": "0574a855db7dd51851d45be0d6521c98983466b0364298136b59b6b5625885d7",
+  "valid_decisions": 24,
+  "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+}

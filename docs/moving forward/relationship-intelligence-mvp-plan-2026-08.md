@@ -556,7 +556,7 @@ version-aware dataset owner 保持 v1 为默认，只允许显式加载 v2；任
 下 empirical effect 最小 0.714844、leakage 0；因没有 v2 真实 stateless attestation，Gate 0
 仍是 PENDING。这只证明场景与反捷径契约成立，不是模型或四能力结果。
 
-当前唯一优先级转为独立 P1e consumer steelman 包，而不是 P2/ToM/PE steering：
+P1e consumer steelman 随后作为独立包落地，而不是提前进入 P2/ToM/PE steering：
 
 1. 在看任何 v2 模型输出前冻结 condition-aware readout；旧 v3 tally 明令 current message
    不参与，放到 v2 只会双零，不能冒充强 baseline；
@@ -567,4 +567,42 @@ version-aware dataset owner 保持 v1 为默认，只允许显式加载 v2；任
 4. 只有 baseline 落入资格带，才允许 formal prereg 与 secret heldout；若仍做满，继续承认
    场景饱和，不能提前新增 latent carrier、学习或 steering。
 
-P2 与四能力主张继续关闭。
+P1e protocol 已在任何 v2 模型输出前冻结，id 为
+`5221909debd8b0248c83332589c2681270118dc54b7014654db2d627ca2fbd1e`。它使用
+condition-aware readout、全部四条历史、typed relationship-outcome BGE-M3 top-4，且保持
+Qwen2.5-3B、generation config、Gate 0/P1 阈值和 typed compiler 不变。完整 runner 支持
+local-cache preflight、fresh Gate 0、same-substrate P1b、stage checkpoint 与严格 lineage
+恢复。
+
+2026-08-20 权威真实运行位于
+`artifacts/relationship_lab/qwen25_3b_packet1e_v2_conditioned_top4_20260820/`：fresh
+Gate 0 为 24/24 valid、12/24 correct，六项检查 PASS；P1b 为 24/24 readout
+strict-valid，prompt/RAG/structured-state accuracy 分别为 0.625/0.25/0.625，mirrored
+pair flip 均为 0.25。P1e report artifact
+`232afebb56afb5e457af3d7ca4ccfc560cc417447defcb6d265263085fad8693` 因此发布
+`rewrite_public_evidence_contract`，没有进入 formal prereg。
+
+P1f 公开证据契约修复已于 2026-08-20 落地为独立 `relationship_transfer_v3`，没有改写
+v2 或在已见 v2 split 上继续轮换 prompt。v3 保留每用户四历史、两 condition×两 action、
+每动作一正一负、未见 probe surface 与 mirrored complementary policy，只把公开语言改为
+“日常事件 + 当事人体验到的关系损失”；condition/policy/preferred action 继续 sealed。
+dataset fingerprint 为
+`35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f`，public-evidence
+contract id 为
+`8ba8a6788d35e959c4a6fa42d31f54baa7d5e1ba48f52603e4bec510232d3cbb`。
+
+在任何 v3 Qwen 输出前，冻结权重摘要的 BGE-M3 对 48 条历史和 12 条 probe 完成只读
+semantic-legibility audit：60/60 top-1，最小 margin 0.020403792213，平均 margin
+0.080645917619。P1f report artifact
+`a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd` 发布
+`consumer_protocol_freeze_candidate`。这只证明 v3 development public evidence 在一个
+冻结语义 evaluator 下可判别；标签没有进入 SUT，也没有成为 PE、credit、reward 或
+steering。人工盲标仍 pending，不能声称 human readability、Qwen transfer、Readable 或
+四能力成立。
+
+当前唯一优先级转为 P1g：在产生第一条 v3 Qwen 输出前冻结完整 consumer protocol，锁定
+Qwen weights/generation/seeds、condition-aware readout、四历史 surface、BGE-M3 RAG
+top-k、Gate 0/P1 thresholds 与报告分叉，再做 fresh Gate 0 → same-substrate qualification。
+不得看到 v3 输出后回改 dataset/public-evidence contract/prompt，也禁止提前加入 latent
+carrier、PE learning、controller 或 steering。P2、formal prereg、secret heldout 与四能力
+主张继续关闭。

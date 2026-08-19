@@ -1,0 +1,48 @@
+{
+  "schema_version": "relationship-public-evidence-contract.v1",
+  "package_name": "relationship_transfer_v3",
+  "trigger": {
+    "p1e_report_artifact_id": "232afebb56afb5e457af3d7ca4ccfc560cc417447defcb6d265263085fad8693",
+    "required_verdict": "rewrite_public_evidence_contract"
+  },
+  "public_language_contract": {
+    "history_text_fields": [
+      "user_utterance",
+      "user_reaction"
+    ],
+    "history_text_joiner": "\n",
+    "probe_text_fields": [
+      "current_input"
+    ],
+    "incident_and_experienced_relational_loss_both_present": true,
+    "direct_action_request_in_probe": false,
+    "condition_name_visible_to_sut": false,
+    "condition_id_visible_to_sut": false,
+    "preferred_action_visible_to_sut": false,
+    "global_action_outcome_balance_preserved": true
+  },
+  "semantic_legibility_audit": {
+    "auditor_version": "relationship-public-evidence-auditor.v1",
+    "method": "frozen_multilingual_embedding_contrast_against_sealed_condition_summaries",
+    "similarity": "cosine",
+    "embedder": "bge-m3",
+    "model_source": "BAAI/bge-m3",
+    "weights_sha256": "d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e",
+    "condition_anchor_source": "sealed_generator_truth_hidden_summary",
+    "score_precision_decimals": 12,
+    "top1_tie_policy": "fail_expected_anchor",
+    "required_evidence_units": 60,
+    "required_top1_accuracy": 1.0,
+    "minimum_correct_anchor_margin": 0.02,
+    "minimum_mean_correct_anchor_margin": 0.07,
+    "evaluation_feedback_to_sut": false
+  },
+  "human_anchor": {
+    "status": "pending_before_formal",
+    "minimum_independent_raters": 3,
+    "minimum_majority_agreement": 0.8,
+    "labels_available_to_raters": false,
+    "may_feed_learning_or_steering": false
+  },
+  "claim_boundary": "This development contract only establishes that every public history and probe has a frozen semantically separable relation-loss witness under one audited embedding model. It does not prove human readability, Qwen transfer, Volvence advantage, any of the four capability axes, formal held-out superiority, or product value."
+}

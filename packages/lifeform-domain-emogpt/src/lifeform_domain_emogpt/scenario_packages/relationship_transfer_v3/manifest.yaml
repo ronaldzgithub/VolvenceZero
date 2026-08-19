@@ -1,0 +1,38 @@
+name: relationship_transfer_v3
+version: "3.0"
+description: "修复公开关系损失证据并在任何 v3 Qwen 输出前完成语义可判别性审计的 Relationship Lab 场景包。"
+domain: SOCIAL
+author: "Volvence Zero Contributors"
+components:
+  ssot_fragment: ssot_fragment.json
+  scenes: scenes.yaml
+  test_suite: test_suite.yaml
+lab_artifacts:
+  rendered_observations: rendered_observations.json
+  sealed_generator_truth: generator_truth.json
+  prereg_template: prereg_template.json
+  p1_background_templates: p1_background_templates.json
+  public_evidence_contract: public_evidence_contract.json
+owner_contract:
+  owner: lifeform-domain-emogpt.lab
+  verdict_consumer: lifeform-evolution
+  runtime_owner_policy: no_new_runtime_owner_or_slot
+  wiring_level: OFFLINE_SHADOW_EVIDENCE_ONLY
+  product_import_allowed: false
+evidence_contract:
+  primary_visible_contrast: explicit_experienced_relation_loss_requires_conditioned_policy_transfer
+  action_surface:
+    - stay_present_without_probe
+    - respect_space_with_return_option
+    - neutral_noop
+  outcome_source: deterministic_reactive_environment
+  learning_source: future_typed_outcome_then_prediction_error_only
+  evaluation_feedback: forbidden
+  routing_method: semantic_trajectory_abstraction_plus_schema_bound_structured_output
+  p1e_trigger_report_artifact_id: 232afebb56afb5e457af3d7ca4ccfc560cc417447defcb6d265263085fad8693
+  p1e_trigger_verdict: rewrite_public_evidence_contract
+explanation: |
+  本场景包承接 P1e 的冻结结论：Qwen2.5-3B 的 Gate 0、四历史传递、结构化解析和三臂执行均正常，但 v2 的普通公开措辞不足以让强 context consumer 稳定辨认抽象关系结构，因此判词要求先修复 public evidence contract，不能直接进入学习或 steering。v3 保留原有组合难度与反捷径约束：每位用户四次经历覆盖两种未命名条件和两个动作，每个动作总体一胜一负；probe 来自未见 surface family；镜像用户收到逐字节相同的当前消息和相同条件，却因互补个体策略而需要相反动作。
+  路径依次冻结事件与体验并存的公开证据、使用封存锚点审计语义可判别性、归纳跨表面条件、完成行动前下注、结算反应式结果并检查镜像策略交换。公开历史和 probe 用不同日常说法表达两类关系损失：发言权与主体性被替代，或关系位置与归属感被遗漏；它们不暴露 condition 名称、id、policy、preferred action 或未来结果。sealed truth 只由离线环境和只读 evaluator 使用，标签不进入 SUT，也不成为 PE、credit、reward 或 steering 信号。
+  场景检测使用冻结多语嵌入对 sealed condition summary 的对比、轨迹级语义表示和 schema-bound structured readout；证据不足时 no-route。禁止字符串包含、正则、关键词字典、event/scene id、位置或全局动作胜负路由。P1f 在任何 v3 Qwen 输出前要求 48 条历史与 12 条 probe 全部 top-1 正确，并冻结最小与平均 margin；人工盲标仍为 formal 前置，不能被嵌入审计替代。
+  集成点只有 lifeform-domain-emogpt.lab 的版本化数据 owner 与 lifeform-evolution 的离线审计 consumer；不新增 runtime slot，不切换 product wiring，不写 CMS、PE、credit、regime 或 controller。R14 体制身份仍是“先辨认当下损失的是主体性还是关系位置，再依据这个人的经历选择靠近或退开”，这是可从行动—结果轨迹校准的运行身份，不是 prompt 标签。回滚只需停止消费 relationship_transfer_v3，v1/v2 指纹、P1e 产物和判词保持不变；下一包 P1g 必须先冻结 consumer protocol，再允许第一条 v3 Qwen 输出。

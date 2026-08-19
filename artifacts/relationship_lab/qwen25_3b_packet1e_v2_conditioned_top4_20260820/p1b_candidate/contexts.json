@@ -1,0 +1,2042 @@
+{
+  "artifact_id": "1ee3628e631a7aa5c0b456c971830d04b4260555839be7c366de9d44f9e32e9a",
+  "background_depths": [
+    0,
+    8,
+    32
+  ],
+  "background_templates_sha256": "d0e31a29307566c25249a1fa06b4981a70e41761a058acc177d5d9994af84611",
+  "contexts": [
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "d5a5afc23510212677bd1b9063b793b072e036f8ea08f435a9316e3b8538be18",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": [
+        "rtv2_evt_001",
+        "rtv2_evt_002",
+        "rtv2_evt_003",
+        "rtv2_evt_004"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "eb507860ee90895dfa2878ff2adb0d40765cc322753959c67d38ab49a706ed98",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": [
+        "rtv2_evt_003",
+        "rtv2_evt_004",
+        "rtv2_evt_001",
+        "rtv2_evt_002"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "9017c6e8631038a4743c5231fdb83a082ceda5349e2ace884eddb96b7c4b71e6",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": [
+        "66f2f560-aeb2-495f-9486-aa2199db9977",
+        "9292c9b2-f89d-47f3-aea0-1c0eac2d2262",
+        "88c93b42-7c4a-4a0c-a809-85a68da2b244",
+        "29f6ab4a-55ec-439e-8727-862d1524b9aa"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "a01b23c6b74346047f3ead58d5c161758a96df9338937e95d0fe2542cde1b678",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_001",
+        "background-001",
+        "background-002",
+        "rtv2_evt_002",
+        "background-003",
+        "rtv2_evt_003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_004",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "eb507860ee90895dfa2878ff2adb0d40765cc322753959c67d38ab49a706ed98",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": [
+        "rtv2_evt_003",
+        "rtv2_evt_004",
+        "rtv2_evt_001",
+        "rtv2_evt_002"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "9017c6e8631038a4743c5231fdb83a082ceda5349e2ace884eddb96b7c4b71e6",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": [
+        "66f2f560-aeb2-495f-9486-aa2199db9977",
+        "9292c9b2-f89d-47f3-aea0-1c0eac2d2262",
+        "88c93b42-7c4a-4a0c-a809-85a68da2b244",
+        "29f6ab4a-55ec-439e-8727-862d1524b9aa"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "5d77aea578e267660676a395c43b94cf6afb7a982d1fe09e520f8fa781ce0b3e",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_001",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_002",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_003",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_004",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "eb507860ee90895dfa2878ff2adb0d40765cc322753959c67d38ab49a706ed98",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": [
+        "rtv2_evt_003",
+        "rtv2_evt_004",
+        "rtv2_evt_001",
+        "rtv2_evt_002"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "9017c6e8631038a4743c5231fdb83a082ceda5349e2ace884eddb96b7c4b71e6",
+      "scene_id": "rtv2_scene_001a",
+      "source_evidence_refs": [
+        "66f2f560-aeb2-495f-9486-aa2199db9977",
+        "9292c9b2-f89d-47f3-aea0-1c0eac2d2262",
+        "88c93b42-7c4a-4a0c-a809-85a68da2b244",
+        "29f6ab4a-55ec-439e-8727-862d1524b9aa"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "a0692a3fd6c54a7533c804514f2084a403f015a4cfd75f48c865b26628606253",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": [
+        "rtv2_evt_005",
+        "rtv2_evt_006",
+        "rtv2_evt_007",
+        "rtv2_evt_008"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "fbc78da38a88201bad3269f1ef508357e9d6095b1dc39721cc6fc3e0ebec5c95",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": [
+        "rtv2_evt_006",
+        "rtv2_evt_008",
+        "rtv2_evt_005",
+        "rtv2_evt_007"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "68f0f1b03e13679f7cb4c511d1350b65dd9252cc2e7dfad356a596f7735273b0",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": [
+        "ff9f53ad-a1b6-4b2b-a110-10afd3067bb1",
+        "6c94e3f8-2d30-41fa-ac3f-945784d10317",
+        "a26fbb0a-94e9-4a20-b2a5-7e35e27c320a",
+        "06197bec-51eb-4e5e-b0c6-ae2ee85decf5"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "977b9315b8bfc4cf41a78729bfaca9d451e437fcb5db69933b5acbf6884ce30b",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_005",
+        "background-001",
+        "background-002",
+        "rtv2_evt_006",
+        "background-003",
+        "rtv2_evt_007",
+        "background-004",
+        "background-005",
+        "rtv2_evt_008",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "fbc78da38a88201bad3269f1ef508357e9d6095b1dc39721cc6fc3e0ebec5c95",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": [
+        "rtv2_evt_006",
+        "rtv2_evt_008",
+        "rtv2_evt_005",
+        "rtv2_evt_007"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "68f0f1b03e13679f7cb4c511d1350b65dd9252cc2e7dfad356a596f7735273b0",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": [
+        "ff9f53ad-a1b6-4b2b-a110-10afd3067bb1",
+        "6c94e3f8-2d30-41fa-ac3f-945784d10317",
+        "a26fbb0a-94e9-4a20-b2a5-7e35e27c320a",
+        "06197bec-51eb-4e5e-b0c6-ae2ee85decf5"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "0509a18cd79419467ffd85be698b571a2830aab1102d2c103625fac7ed2d0841",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_005",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_006",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_007",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_008",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "fbc78da38a88201bad3269f1ef508357e9d6095b1dc39721cc6fc3e0ebec5c95",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": [
+        "rtv2_evt_006",
+        "rtv2_evt_008",
+        "rtv2_evt_005",
+        "rtv2_evt_007"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "68f0f1b03e13679f7cb4c511d1350b65dd9252cc2e7dfad356a596f7735273b0",
+      "scene_id": "rtv2_scene_001b",
+      "source_evidence_refs": [
+        "ff9f53ad-a1b6-4b2b-a110-10afd3067bb1",
+        "6c94e3f8-2d30-41fa-ac3f-945784d10317",
+        "a26fbb0a-94e9-4a20-b2a5-7e35e27c320a",
+        "06197bec-51eb-4e5e-b0c6-ae2ee85decf5"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "15586e8eed1fd7aa4929d830f21fcf31fd81b3ec9ce0d86d4d51fc633583b2d7",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": [
+        "rtv2_evt_009",
+        "rtv2_evt_010",
+        "rtv2_evt_011",
+        "rtv2_evt_012"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "8c52a7b9244d44812555480247e4392bc1ac5e95bd44fa615b8763497e83cf7a",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": [
+        "rtv2_evt_012",
+        "rtv2_evt_009",
+        "rtv2_evt_011",
+        "rtv2_evt_010"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "c76ee19324afa6293a41e2d394dbafaf398c6954ecf3d8840fbce804015dccf2",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": [
+        "be2d232a-1481-4702-839a-a5cc9ee2c1f7",
+        "4fd407a4-8e75-4baa-8b6d-5a9654ce303a",
+        "2571c104-c0d4-46eb-bc88-34b710d0096a",
+        "e61b5bac-c59e-4b4d-95ca-3b13c2959d5b"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "39a44af7a9f6ca05c795058280eaf7d2649499920ec29376a6bae906fc805792",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_009",
+        "background-001",
+        "background-002",
+        "rtv2_evt_010",
+        "background-003",
+        "rtv2_evt_011",
+        "background-004",
+        "background-005",
+        "rtv2_evt_012",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "8c52a7b9244d44812555480247e4392bc1ac5e95bd44fa615b8763497e83cf7a",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": [
+        "rtv2_evt_012",
+        "rtv2_evt_009",
+        "rtv2_evt_011",
+        "rtv2_evt_010"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "c76ee19324afa6293a41e2d394dbafaf398c6954ecf3d8840fbce804015dccf2",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": [
+        "be2d232a-1481-4702-839a-a5cc9ee2c1f7",
+        "4fd407a4-8e75-4baa-8b6d-5a9654ce303a",
+        "2571c104-c0d4-46eb-bc88-34b710d0096a",
+        "e61b5bac-c59e-4b4d-95ca-3b13c2959d5b"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "6554a5cb565770d4024573267fb69bdee0f790ad7958b3c19cf8367440613d7d",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_009",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_010",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_011",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_012",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "8c52a7b9244d44812555480247e4392bc1ac5e95bd44fa615b8763497e83cf7a",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": [
+        "rtv2_evt_012",
+        "rtv2_evt_009",
+        "rtv2_evt_011",
+        "rtv2_evt_010"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "c76ee19324afa6293a41e2d394dbafaf398c6954ecf3d8840fbce804015dccf2",
+      "scene_id": "rtv2_scene_002a",
+      "source_evidence_refs": [
+        "be2d232a-1481-4702-839a-a5cc9ee2c1f7",
+        "4fd407a4-8e75-4baa-8b6d-5a9654ce303a",
+        "2571c104-c0d4-46eb-bc88-34b710d0096a",
+        "e61b5bac-c59e-4b4d-95ca-3b13c2959d5b"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "becee842fd50f345c7257d2110c5330874c490081e57853e469450d9e1d6f6f9",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": [
+        "rtv2_evt_013",
+        "rtv2_evt_014",
+        "rtv2_evt_015",
+        "rtv2_evt_016"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "62fa1c83872ebdded256a7914d55f043b0ec9e077327140c51b2be79a1fc1374",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": [
+        "rtv2_evt_013",
+        "rtv2_evt_015",
+        "rtv2_evt_016",
+        "rtv2_evt_014"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "0468a9c3683e34f77b1a64b54372dba3ad2dda048e24eae580e9cea2169549f4",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": [
+        "b6f93c64-0333-426e-af95-9a7bb9379593",
+        "c9e37e76-abf3-4935-9961-8a1288d97f7e",
+        "0274fa09-3efe-43d8-9250-8e838105cf4d",
+        "d2b237ca-2672-49b5-8402-c4e0d4ccbfe9"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "10ec05768b510852a5f79fc9ab55c68ba4a9e0577b296967119be278a8d3eac4",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_013",
+        "background-001",
+        "background-002",
+        "rtv2_evt_014",
+        "background-003",
+        "rtv2_evt_015",
+        "background-004",
+        "background-005",
+        "rtv2_evt_016",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "62fa1c83872ebdded256a7914d55f043b0ec9e077327140c51b2be79a1fc1374",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": [
+        "rtv2_evt_013",
+        "rtv2_evt_015",
+        "rtv2_evt_016",
+        "rtv2_evt_014"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "0468a9c3683e34f77b1a64b54372dba3ad2dda048e24eae580e9cea2169549f4",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": [
+        "b6f93c64-0333-426e-af95-9a7bb9379593",
+        "c9e37e76-abf3-4935-9961-8a1288d97f7e",
+        "0274fa09-3efe-43d8-9250-8e838105cf4d",
+        "d2b237ca-2672-49b5-8402-c4e0d4ccbfe9"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "84e702a4853921bdadd8a892668dfad4176492a0621c6de9524fd7f4d2d930ff",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_013",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_014",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_015",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_016",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "62fa1c83872ebdded256a7914d55f043b0ec9e077327140c51b2be79a1fc1374",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": [
+        "rtv2_evt_013",
+        "rtv2_evt_015",
+        "rtv2_evt_016",
+        "rtv2_evt_014"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "0468a9c3683e34f77b1a64b54372dba3ad2dda048e24eae580e9cea2169549f4",
+      "scene_id": "rtv2_scene_002b",
+      "source_evidence_refs": [
+        "b6f93c64-0333-426e-af95-9a7bb9379593",
+        "c9e37e76-abf3-4935-9961-8a1288d97f7e",
+        "0274fa09-3efe-43d8-9250-8e838105cf4d",
+        "d2b237ca-2672-49b5-8402-c4e0d4ccbfe9"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "f97d9936611c98e5bd8a05f7fab48e7ca670ce98fbdaa680064e5e307e531663",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": [
+        "rtv2_evt_017",
+        "rtv2_evt_018",
+        "rtv2_evt_019",
+        "rtv2_evt_020"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "2b836ddf9fc667991de1827e68c734e3dfa923ed90ea148b6667b85ba7f2a9ec",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": [
+        "rtv2_evt_019",
+        "rtv2_evt_017",
+        "rtv2_evt_018",
+        "rtv2_evt_020"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "aa722f6b2d3afb4a031f93935d80c41bedf975429f37d12dac4e8dd53418e0d7",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": [
+        "76fcb1c6-46f4-438a-847c-71b761da2937",
+        "15a38882-f805-4047-a764-5d9fbe4492b0",
+        "8917c92d-ef59-4be5-952c-557a49979b85",
+        "5156fab0-894a-4d8b-87ad-f61c5f1f290b"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "480f5340a53a126055aabd71f1d05e3ad37e43c8cb53e2b8139bd83bb0a8963b",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_017",
+        "background-001",
+        "background-002",
+        "rtv2_evt_018",
+        "background-003",
+        "rtv2_evt_019",
+        "background-004",
+        "background-005",
+        "rtv2_evt_020",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "2b836ddf9fc667991de1827e68c734e3dfa923ed90ea148b6667b85ba7f2a9ec",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": [
+        "rtv2_evt_019",
+        "rtv2_evt_017",
+        "rtv2_evt_018",
+        "rtv2_evt_020"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "aa722f6b2d3afb4a031f93935d80c41bedf975429f37d12dac4e8dd53418e0d7",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": [
+        "76fcb1c6-46f4-438a-847c-71b761da2937",
+        "15a38882-f805-4047-a764-5d9fbe4492b0",
+        "8917c92d-ef59-4be5-952c-557a49979b85",
+        "5156fab0-894a-4d8b-87ad-f61c5f1f290b"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "46e317571c33a70faa3ff022cb034691e2271e6eef18ada55c6204f1c79c46d9",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_017",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_018",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_019",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_020",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "2b836ddf9fc667991de1827e68c734e3dfa923ed90ea148b6667b85ba7f2a9ec",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": [
+        "rtv2_evt_019",
+        "rtv2_evt_017",
+        "rtv2_evt_018",
+        "rtv2_evt_020"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "aa722f6b2d3afb4a031f93935d80c41bedf975429f37d12dac4e8dd53418e0d7",
+      "scene_id": "rtv2_scene_003a",
+      "source_evidence_refs": [
+        "76fcb1c6-46f4-438a-847c-71b761da2937",
+        "15a38882-f805-4047-a764-5d9fbe4492b0",
+        "8917c92d-ef59-4be5-952c-557a49979b85",
+        "5156fab0-894a-4d8b-87ad-f61c5f1f290b"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "210e20eb9960693ff84c68dcb428cfecd906a1d828aa49e95fed99c841d82c02",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": [
+        "rtv2_evt_021",
+        "rtv2_evt_022",
+        "rtv2_evt_023",
+        "rtv2_evt_024"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "46406889f448c49b81b40828d3462dbbd9398ec847a3eb0f9eeaeeb8b5d6a616",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": [
+        "rtv2_evt_023",
+        "rtv2_evt_022",
+        "rtv2_evt_021",
+        "rtv2_evt_024"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "d50ba96e582a0bda67eaa4768e17eeaac394550a4f21a18c68a518896fe684d0",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": [
+        "655aeb34-d87f-43f8-b482-9c5de09a4f8e",
+        "07a96269-3b31-41af-8e01-325a5c66df11",
+        "03a648aa-641b-4b00-b247-a2c9c3fb191c",
+        "a23e8c47-6be2-4423-8c1a-e76f03aa15d9"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "c7bd69bf0cf6e06cc67e7f8133d5f167e41e4582565fc434b4b1e4633db1354c",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_021",
+        "background-001",
+        "background-002",
+        "rtv2_evt_022",
+        "background-003",
+        "rtv2_evt_023",
+        "background-004",
+        "background-005",
+        "rtv2_evt_024",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "46406889f448c49b81b40828d3462dbbd9398ec847a3eb0f9eeaeeb8b5d6a616",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": [
+        "rtv2_evt_023",
+        "rtv2_evt_022",
+        "rtv2_evt_021",
+        "rtv2_evt_024"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "d50ba96e582a0bda67eaa4768e17eeaac394550a4f21a18c68a518896fe684d0",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": [
+        "655aeb34-d87f-43f8-b482-9c5de09a4f8e",
+        "07a96269-3b31-41af-8e01-325a5c66df11",
+        "03a648aa-641b-4b00-b247-a2c9c3fb191c",
+        "a23e8c47-6be2-4423-8c1a-e76f03aa15d9"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "c64c268b48101da2c29b142665e22a87bbe5e8c0379ed23186987abbd8647712",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_021",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_022",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_023",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_024",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "46406889f448c49b81b40828d3462dbbd9398ec847a3eb0f9eeaeeb8b5d6a616",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": [
+        "rtv2_evt_023",
+        "rtv2_evt_022",
+        "rtv2_evt_021",
+        "rtv2_evt_024"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "d50ba96e582a0bda67eaa4768e17eeaac394550a4f21a18c68a518896fe684d0",
+      "scene_id": "rtv2_scene_003b",
+      "source_evidence_refs": [
+        "655aeb34-d87f-43f8-b482-9c5de09a4f8e",
+        "07a96269-3b31-41af-8e01-325a5c66df11",
+        "03a648aa-641b-4b00-b247-a2c9c3fb191c",
+        "a23e8c47-6be2-4423-8c1a-e76f03aa15d9"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "50cf672a7f174ae74a1ec22b24e39dd08c0e5c657960b50e879d9f45266fc0e5",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": [
+        "rtv2_evt_025",
+        "rtv2_evt_026",
+        "rtv2_evt_027",
+        "rtv2_evt_028"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "fbc0b16156c76bc1335b30f85a1627bc74ff1d0338f814cd2f60ee251a0baf09",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": [
+        "rtv2_evt_027",
+        "rtv2_evt_028",
+        "rtv2_evt_026",
+        "rtv2_evt_025"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "056ba7a9a0498dee5898ed990c0c341bc3fffdf1218bf878845b94a02693ac7b",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": [
+        "aeac8535-e243-44fe-aaef-f02e7e8e1ce8",
+        "24f1d6a0-986f-4ea9-aad4-acd304c8e13e",
+        "db560252-2b8f-48d0-a10c-71c12b32f690",
+        "d710b5e1-3a3c-47f8-9e1d-9cea034f61b9"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "92e58315cd18726352fda0c520fab0398cd48a8aec6f5ad8de3aeaf56da17444",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_025",
+        "background-001",
+        "background-002",
+        "rtv2_evt_026",
+        "background-003",
+        "rtv2_evt_027",
+        "background-004",
+        "background-005",
+        "rtv2_evt_028",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "fbc0b16156c76bc1335b30f85a1627bc74ff1d0338f814cd2f60ee251a0baf09",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": [
+        "rtv2_evt_027",
+        "rtv2_evt_028",
+        "rtv2_evt_026",
+        "rtv2_evt_025"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "056ba7a9a0498dee5898ed990c0c341bc3fffdf1218bf878845b94a02693ac7b",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": [
+        "aeac8535-e243-44fe-aaef-f02e7e8e1ce8",
+        "24f1d6a0-986f-4ea9-aad4-acd304c8e13e",
+        "db560252-2b8f-48d0-a10c-71c12b32f690",
+        "d710b5e1-3a3c-47f8-9e1d-9cea034f61b9"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "1db6427b5405a2df0adcc6e2f9fde68281717ee2b95785f9e2d293a087f85314",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_025",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_026",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_027",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_028",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "fbc0b16156c76bc1335b30f85a1627bc74ff1d0338f814cd2f60ee251a0baf09",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": [
+        "rtv2_evt_027",
+        "rtv2_evt_028",
+        "rtv2_evt_026",
+        "rtv2_evt_025"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "056ba7a9a0498dee5898ed990c0c341bc3fffdf1218bf878845b94a02693ac7b",
+      "scene_id": "rtv2_scene_004a",
+      "source_evidence_refs": [
+        "aeac8535-e243-44fe-aaef-f02e7e8e1ce8",
+        "24f1d6a0-986f-4ea9-aad4-acd304c8e13e",
+        "db560252-2b8f-48d0-a10c-71c12b32f690",
+        "d710b5e1-3a3c-47f8-9e1d-9cea034f61b9"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "4dcf73a8ab5f5a9c1b9efddd5a20394eea0f9cbb7251b6acdf6048e8b523dfca",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": [
+        "rtv2_evt_029",
+        "rtv2_evt_030",
+        "rtv2_evt_031",
+        "rtv2_evt_032"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "8cfeaeea1e4042506281c5136a5882545bbe343ebf75937a572090b9c9fdd490",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": [
+        "rtv2_evt_031",
+        "rtv2_evt_032",
+        "rtv2_evt_030",
+        "rtv2_evt_029"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "8d17a9eae670739cc93b14f17ab3e277bb7f9bff888ec3b11cc5bc42dc9bef4b",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": [
+        "cadde3a8-4b2d-43e4-801b-0a9ac9f784fa",
+        "c68707f2-04c7-45a5-b93b-0df6ffa280ca",
+        "d2f9dff2-f49e-4560-b07e-3c206ce1b627",
+        "16bb573c-65ec-4833-b984-1bc2fd39995a"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "dd578c2a8fafda888d320a4603ad667a9d5ce22e19230655acdf0755ce3be9b8",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_029",
+        "background-001",
+        "background-002",
+        "rtv2_evt_030",
+        "background-003",
+        "rtv2_evt_031",
+        "background-004",
+        "background-005",
+        "rtv2_evt_032",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "8cfeaeea1e4042506281c5136a5882545bbe343ebf75937a572090b9c9fdd490",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": [
+        "rtv2_evt_031",
+        "rtv2_evt_032",
+        "rtv2_evt_030",
+        "rtv2_evt_029"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "8d17a9eae670739cc93b14f17ab3e277bb7f9bff888ec3b11cc5bc42dc9bef4b",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": [
+        "cadde3a8-4b2d-43e4-801b-0a9ac9f784fa",
+        "c68707f2-04c7-45a5-b93b-0df6ffa280ca",
+        "d2f9dff2-f49e-4560-b07e-3c206ce1b627",
+        "16bb573c-65ec-4833-b984-1bc2fd39995a"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "36f8ce6a6621061e3eb44bb7800de70a0a4c1646a8be4995a00f9c8e41e594b9",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_029",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_030",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_031",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_032",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "8cfeaeea1e4042506281c5136a5882545bbe343ebf75937a572090b9c9fdd490",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": [
+        "rtv2_evt_031",
+        "rtv2_evt_032",
+        "rtv2_evt_030",
+        "rtv2_evt_029"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "8d17a9eae670739cc93b14f17ab3e277bb7f9bff888ec3b11cc5bc42dc9bef4b",
+      "scene_id": "rtv2_scene_004b",
+      "source_evidence_refs": [
+        "cadde3a8-4b2d-43e4-801b-0a9ac9f784fa",
+        "c68707f2-04c7-45a5-b93b-0df6ffa280ca",
+        "d2f9dff2-f49e-4560-b07e-3c206ce1b627",
+        "16bb573c-65ec-4833-b984-1bc2fd39995a"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "aff644470eb1df3989a2813965837175a8e86936a6015338e2ead7bfac51cc5d",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": [
+        "rtv2_evt_033",
+        "rtv2_evt_034",
+        "rtv2_evt_035",
+        "rtv2_evt_036"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "7e14fb3d609d0a92455a81a2da866733af0fad6ec0cc04aa829da4980cdf7def",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": [
+        "rtv2_evt_035",
+        "rtv2_evt_033",
+        "rtv2_evt_034",
+        "rtv2_evt_036"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "96c34163cff6cff298dad6c8a448ca188ab01640998981b01ed575abca8fa51b",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": [
+        "6b716128-480c-4479-9ed7-a3431d5bca09",
+        "72af624c-e5d1-47b1-ab2a-c8846607b701",
+        "343e6a8e-6346-4be7-af73-a5e7e7dc1746",
+        "08245406-fbcd-409d-8daa-67fb04db521a"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "ba7ccc7afb63ebda9ee511c7fa61f0503a4d3aeb08e4c0a840d6446d775a5ed2",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_033",
+        "background-001",
+        "background-002",
+        "rtv2_evt_034",
+        "background-003",
+        "rtv2_evt_035",
+        "background-004",
+        "background-005",
+        "rtv2_evt_036",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "7e14fb3d609d0a92455a81a2da866733af0fad6ec0cc04aa829da4980cdf7def",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": [
+        "rtv2_evt_035",
+        "rtv2_evt_033",
+        "rtv2_evt_034",
+        "rtv2_evt_036"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "96c34163cff6cff298dad6c8a448ca188ab01640998981b01ed575abca8fa51b",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": [
+        "6b716128-480c-4479-9ed7-a3431d5bca09",
+        "72af624c-e5d1-47b1-ab2a-c8846607b701",
+        "343e6a8e-6346-4be7-af73-a5e7e7dc1746",
+        "08245406-fbcd-409d-8daa-67fb04db521a"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "0cb28e4f3ec69f2792ca3cf49c3cb3872303717e2b91513abfc576a23cdfa485",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_033",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_034",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_035",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_036",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "7e14fb3d609d0a92455a81a2da866733af0fad6ec0cc04aa829da4980cdf7def",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": [
+        "rtv2_evt_035",
+        "rtv2_evt_033",
+        "rtv2_evt_034",
+        "rtv2_evt_036"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "96c34163cff6cff298dad6c8a448ca188ab01640998981b01ed575abca8fa51b",
+      "scene_id": "rtv2_scene_005a",
+      "source_evidence_refs": [
+        "6b716128-480c-4479-9ed7-a3431d5bca09",
+        "72af624c-e5d1-47b1-ab2a-c8846607b701",
+        "343e6a8e-6346-4be7-af73-a5e7e7dc1746",
+        "08245406-fbcd-409d-8daa-67fb04db521a"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "a239b39bc3db8ef01d9448333f3e15175e5832f36b1a03a140f3737a7a3f3f13",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": [
+        "rtv2_evt_037",
+        "rtv2_evt_038",
+        "rtv2_evt_039",
+        "rtv2_evt_040"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "7a181e12c2f48a42b1bf4e330c4dd46440a3d01854d5abd8e626a1fc805bef7f",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": [
+        "rtv2_evt_037",
+        "rtv2_evt_040",
+        "rtv2_evt_039",
+        "rtv2_evt_038"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "e4e63a79e2857bc6621daa8a14a9046df1b4edd5b76c16bb4c9b8da0767fc711",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": [
+        "33fc71d4-0d12-4537-a3ae-7cdcfa368d3e",
+        "795a6f0f-c79e-4576-a3ad-873fc9776bed",
+        "1c2d7628-98b1-4a59-bb96-f543eb692f78",
+        "4d094d5e-fa55-4d39-abe4-f35431a32861"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "6f5580287f2a42696cd47a7756d95b6f88cbee0accc52f47c57c82cc77523081",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_037",
+        "background-001",
+        "background-002",
+        "rtv2_evt_038",
+        "background-003",
+        "rtv2_evt_039",
+        "background-004",
+        "background-005",
+        "rtv2_evt_040",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "7a181e12c2f48a42b1bf4e330c4dd46440a3d01854d5abd8e626a1fc805bef7f",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": [
+        "rtv2_evt_037",
+        "rtv2_evt_040",
+        "rtv2_evt_039",
+        "rtv2_evt_038"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "e4e63a79e2857bc6621daa8a14a9046df1b4edd5b76c16bb4c9b8da0767fc711",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": [
+        "33fc71d4-0d12-4537-a3ae-7cdcfa368d3e",
+        "795a6f0f-c79e-4576-a3ad-873fc9776bed",
+        "1c2d7628-98b1-4a59-bb96-f543eb692f78",
+        "4d094d5e-fa55-4d39-abe4-f35431a32861"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "ae1b6df316c42b46966354c267167f27c58c026bb55920dd433f56bf1fe1eae8",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_037",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_038",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_039",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_040",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "7a181e12c2f48a42b1bf4e330c4dd46440a3d01854d5abd8e626a1fc805bef7f",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": [
+        "rtv2_evt_037",
+        "rtv2_evt_040",
+        "rtv2_evt_039",
+        "rtv2_evt_038"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "e4e63a79e2857bc6621daa8a14a9046df1b4edd5b76c16bb4c9b8da0767fc711",
+      "scene_id": "rtv2_scene_005b",
+      "source_evidence_refs": [
+        "33fc71d4-0d12-4537-a3ae-7cdcfa368d3e",
+        "795a6f0f-c79e-4576-a3ad-873fc9776bed",
+        "1c2d7628-98b1-4a59-bb96-f543eb692f78",
+        "4d094d5e-fa55-4d39-abe4-f35431a32861"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "24195414d49f137857ecbb640a51c7f15cccdf1364f725ac6164a435cf95cb5c",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": [
+        "rtv2_evt_041",
+        "rtv2_evt_042",
+        "rtv2_evt_043",
+        "rtv2_evt_044"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "84666e9eb5cfe58a88384f3df8c06ed012821aa8186bdcc0ee871077e94b424e",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": [
+        "rtv2_evt_041",
+        "rtv2_evt_043",
+        "rtv2_evt_042",
+        "rtv2_evt_044"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "2ba80b7aaf3318fef80fa41951a14b4c05bfd4b4e3debf406908fd9ad2d6544e",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": [
+        "d858b52c-e65d-4462-ac02-ab691a08cb54",
+        "28e98f94-be7a-482e-bb58-d1809dcc1def",
+        "dc7060ad-13c5-453c-84c0-45e24c878dd3",
+        "b86b7d23-c3b2-4de3-9e04-d6905efb7cfc"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "7edb6364e41e43b40b07cf95674cc28b5a044cf7a51110884d8b4b62d9aeb96c",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_041",
+        "background-001",
+        "background-002",
+        "rtv2_evt_042",
+        "background-003",
+        "rtv2_evt_043",
+        "background-004",
+        "background-005",
+        "rtv2_evt_044",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "84666e9eb5cfe58a88384f3df8c06ed012821aa8186bdcc0ee871077e94b424e",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": [
+        "rtv2_evt_041",
+        "rtv2_evt_043",
+        "rtv2_evt_042",
+        "rtv2_evt_044"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "2ba80b7aaf3318fef80fa41951a14b4c05bfd4b4e3debf406908fd9ad2d6544e",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": [
+        "d858b52c-e65d-4462-ac02-ab691a08cb54",
+        "28e98f94-be7a-482e-bb58-d1809dcc1def",
+        "dc7060ad-13c5-453c-84c0-45e24c878dd3",
+        "b86b7d23-c3b2-4de3-9e04-d6905efb7cfc"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "bcb6d2a82598539ac3be04681bc7dd51b002beea90819bb43ce68b2e9100482f",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_041",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_042",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_043",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_044",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "84666e9eb5cfe58a88384f3df8c06ed012821aa8186bdcc0ee871077e94b424e",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": [
+        "rtv2_evt_041",
+        "rtv2_evt_043",
+        "rtv2_evt_042",
+        "rtv2_evt_044"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "2ba80b7aaf3318fef80fa41951a14b4c05bfd4b4e3debf406908fd9ad2d6544e",
+      "scene_id": "rtv2_scene_006a",
+      "source_evidence_refs": [
+        "d858b52c-e65d-4462-ac02-ab691a08cb54",
+        "28e98f94-be7a-482e-bb58-d1809dcc1def",
+        "dc7060ad-13c5-453c-84c0-45e24c878dd3",
+        "b86b7d23-c3b2-4de3-9e04-d6905efb7cfc"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 0,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 0,
+      "context_sha256": "b0aec94fc8f4a25195dcfed0f3aaf32d6b9cf88dd8c5a84c93c529234c999bd3",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": [
+        "rtv2_evt_045",
+        "rtv2_evt_046",
+        "rtv2_evt_047",
+        "rtv2_evt_048"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 0,
+      "context_sha256": "466fec24a5db1a1a1db8133d2400eb6e841c1dc8b75e87ec1a2bd82740b83c25",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": [
+        "rtv2_evt_046",
+        "rtv2_evt_048",
+        "rtv2_evt_045",
+        "rtv2_evt_047"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 0,
+      "context_sha256": "76314d0bc34e00f4ab5cef4085525caa7701ff71b139bfcb6df1cd21423d7bed",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": [
+        "c177cd0d-372e-4a72-be9e-b924c373c9ac",
+        "dc4898e4-1b36-4f82-9960-0c103fbe7245",
+        "61642f25-badd-4b23-b421-d8f20ebd79c6",
+        "947531e2-69d4-4d52-bd0b-eb8c04bde5db"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 8,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 8,
+      "context_sha256": "725641e7d03fd385e5e9cdc027a5c7bc40f0ad27a4515ad1021634cde3a2116f",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": [
+        "background-000",
+        "rtv2_evt_045",
+        "background-001",
+        "background-002",
+        "rtv2_evt_046",
+        "background-003",
+        "rtv2_evt_047",
+        "background-004",
+        "background-005",
+        "rtv2_evt_048",
+        "background-006",
+        "background-007"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 8,
+      "context_sha256": "466fec24a5db1a1a1db8133d2400eb6e841c1dc8b75e87ec1a2bd82740b83c25",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": [
+        "rtv2_evt_046",
+        "rtv2_evt_048",
+        "rtv2_evt_045",
+        "rtv2_evt_047"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 8,
+      "context_sha256": "76314d0bc34e00f4ab5cef4085525caa7701ff71b139bfcb6df1cd21423d7bed",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": [
+        "c177cd0d-372e-4a72-be9e-b924c373c9ac",
+        "dc4898e4-1b36-4f82-9960-0c103fbe7245",
+        "61642f25-badd-4b23-b421-d8f20ebd79c6",
+        "947531e2-69d4-4d52-bd0b-eb8c04bde5db"
+      ]
+    },
+    {
+      "arm": "stateless",
+      "background_depth": 32,
+      "context_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": []
+    },
+    {
+      "arm": "prompt-steelman",
+      "background_depth": 32,
+      "context_sha256": "97527135f00e3aa51668c78ed27d211c98f4911a544c0f7ee05df06a65e15f05",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": [
+        "background-000",
+        "background-001",
+        "background-002",
+        "background-003",
+        "background-004",
+        "background-005",
+        "rtv2_evt_045",
+        "background-006",
+        "background-007",
+        "background-008",
+        "background-009",
+        "background-010",
+        "background-011",
+        "rtv2_evt_046",
+        "background-012",
+        "background-013",
+        "background-014",
+        "background-015",
+        "background-016",
+        "background-017",
+        "background-018",
+        "rtv2_evt_047",
+        "background-019",
+        "background-020",
+        "background-021",
+        "background-022",
+        "background-023",
+        "background-024",
+        "rtv2_evt_048",
+        "background-025",
+        "background-026",
+        "background-027",
+        "background-028",
+        "background-029",
+        "background-030",
+        "background-031"
+      ]
+    },
+    {
+      "arm": "rag-steelman",
+      "background_depth": 32,
+      "context_sha256": "466fec24a5db1a1a1db8133d2400eb6e841c1dc8b75e87ec1a2bd82740b83c25",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": [
+        "rtv2_evt_046",
+        "rtv2_evt_048",
+        "rtv2_evt_045",
+        "rtv2_evt_047"
+      ]
+    },
+    {
+      "arm": "structured-state",
+      "background_depth": 32,
+      "context_sha256": "76314d0bc34e00f4ab5cef4085525caa7701ff71b139bfcb6df1cd21423d7bed",
+      "scene_id": "rtv2_scene_006b",
+      "source_evidence_refs": [
+        "c177cd0d-372e-4a72-be9e-b924c373c9ac",
+        "dc4898e4-1b36-4f82-9960-0c103fbe7245",
+        "61642f25-badd-4b23-b421-d8f20ebd79c6",
+        "947531e2-69d4-4d52-bd0b-eb8c04bde5db"
+      ]
+    }
+  ],
+  "dataset_fingerprint": "d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b",
+  "persisted_state_artifact_id": "0d7c723547fcf602e1cfb77fe16c06e99c1ee5b9efb8def1532ce4e89f6592d3",
+  "rag_config_sha256": "2e1a510f324887a4d4a00055d4c9fbfc1b22ed312185eae34d0e927e61c369ff"
+}

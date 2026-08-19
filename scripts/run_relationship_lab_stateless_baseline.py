@@ -34,10 +34,19 @@ from lifeform_evolution.relationship_lab_gate0 import (  # noqa: E402
     run_relationship_gate0_calibration,
     write_relationship_gate0_report,
 )
+from lifeform_domain_emogpt.lab import (  # noqa: E402
+    RELATIONSHIP_TRANSFER_V1_PACKAGE_NAME,
+    load_relationship_transfer_dataset,
+    relationship_transfer_package_dir,
+)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--package-name",
+        default=RELATIONSHIP_TRANSFER_V1_PACKAGE_NAME,
+    )
     parser.add_argument("--model-source", default=DEFAULT_STATELESS_MODEL_SOURCE)
     parser.add_argument("--model-id", default=DEFAULT_STATELESS_MODEL_ID)
     parser.add_argument("--device", default="auto")
@@ -65,6 +74,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = _parse_args(argv)
     seeds = tuple(int(item.strip()) for item in args.seeds.split(",") if item.strip())
+    dataset = load_relationship_transfer_dataset(package_name=args.package_name)
     policy = HFStatelessRelationshipActionPolicy(
         model_source=args.model_source,
         model_id=args.model_id,
@@ -75,7 +85,11 @@ def main(argv: list[str]) -> int:
         top_p=args.top_p,
         max_new_tokens=args.max_new_tokens,
     )
-    run = run_stateless_baseline(policy, seed_schedule=seeds)
+    run = run_stateless_baseline(
+        policy,
+        dataset=dataset,
+        seed_schedule=seeds,
+    )
     frozen_at = datetime.now(timezone.utc).isoformat()
     output_dir = pathlib.Path(args.output_dir)
     _ledger, _summary, attestation_path = write_stateless_baseline_run(
@@ -90,6 +104,7 @@ def main(argv: list[str]) -> int:
     gate_report = run_relationship_gate0_calibration(
         config=Gate0CalibrationConfig(),
         baseline=attestation,
+        package_root=relationship_transfer_package_dir(args.package_name),
     )
     gate_json, _gate_markdown = write_relationship_gate0_report(
         gate_report,

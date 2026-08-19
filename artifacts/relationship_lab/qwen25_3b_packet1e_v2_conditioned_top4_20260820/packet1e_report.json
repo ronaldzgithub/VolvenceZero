@@ -1,0 +1,37 @@
+{
+  "all_readouts_valid": true,
+  "artifact_id": "232afebb56afb5e457af3d7ca4ccfc560cc417447defcb6d265263085fad8693",
+  "baseline_accuracy": 0.5,
+  "baseline_attestation_id": "0badaafd4516894615e90b29321ce4830933220a825b5945c7d4155082a94c08",
+  "claim_boundary": "P1e reports strong-baseline qualification or scenario saturation on the public synthetic v2 development split. It does not prove Volvence advantage, Appendable/Readable/Learnable/Steerable, formal held-out superiority, or product value.",
+  "consumer_protocol_id": "5221909debd8b0248c83332589c2681270118dc54b7014654db2d627ca2fbd1e",
+  "created_at_iso": "2026-08-19T18:14:33.093188+00:00",
+  "dataset_fingerprint": "d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b",
+  "gate0_machinery_ready": true,
+  "gate0_passed": true,
+  "gate0_report_artifact_id": "210f9d462d982a54354fffea56b81723ad03880d05bae84ea7176ce10a33ca7d",
+  "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+  "model_id": "qwen2.5-3b-instruct",
+  "next_action": "Repair public evidence/readout clarity before adding PE learning or steering.",
+  "p1_machinery_ready": true,
+  "p1b_report_artifact_id": "073501caf5513ef5ed75872a748eae8eba0f708a5cea6ed22ab3acbc90f671a8",
+  "p1b_verdict": "baseline_underqualified",
+  "package_name": "relationship_transfer_v2",
+  "qualification_metrics": {
+    "prompt-steelman": {
+      "accuracy": 0.625,
+      "pair_flip_rate": 0.25
+    },
+    "rag-steelman": {
+      "accuracy": 0.25,
+      "pair_flip_rate": 0.25
+    },
+    "structured-state": {
+      "accuracy": 0.625,
+      "pair_flip_rate": 0.25
+    }
+  },
+  "schema_version": "relationship-p1e-qualification-report.v1",
+  "verdict": "rewrite_public_evidence_contract",
+  "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+}

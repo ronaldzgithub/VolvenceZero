@@ -1,0 +1,241 @@
+{
+  "schema_version": "3.0",
+  "package_name": "relationship_transfer_v3",
+  "design_contract": {
+    "scenario_regime_alignment": "R14_conditioned_relationship_calibration_identity",
+    "routing_method": "semantic_trajectory_abstraction_plus_schema_bound_llm_output",
+    "forbidden_routing": [
+      "keyword_contains",
+      "regular_expression_content_routing",
+      "dictionary_keyword_to_behavior",
+      "event_position_to_condition_lookup",
+      "event_id_to_condition_lookup",
+      "scene_id_to_action_lookup",
+      "global_action_outcome_majority"
+    ],
+    "truth_visibility": "environment_and_read_only_evaluation_only",
+    "runtime_owner_policy": "no_new_runtime_owner_or_slot",
+    "evaluation_policy": "readout_only_no_learning_feedback"
+  },
+  "paths": [
+    {
+      "path_id": "path_conditioned_experience_evidence_v3",
+      "family": "conditioned_relationship_experience_evidence",
+      "name": "平衡行动结果的跨经历证据路径",
+      "objective": "向 SUT 公开四次自然语言行动结果，使每个动作总体一胜一负，不公开抽象条件。",
+      "semantic_detection": {
+        "method": "trajectory_embedding_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "cross-session action-outcome lineage",
+          "user scope continuity",
+          "typed external outcome",
+          "four distinct history surface families"
+        ],
+        "insufficient_evidence_behavior": "no_route",
+        "forbidden": [
+          "global_action_majority",
+          "event_order_route",
+          "persona_demographic_route"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_conditioned_experience_evidence_v3:freeze_balanced_history",
+          "order": 0,
+          "description": "冻结四条完整且总体动作胜负平衡的公开历史。"
+        }
+      ],
+      "exit_evidence": "rendered observation hash、四历史 coverage 与 SUT leakage audit。"
+    },
+    {
+      "path_id": "path_public_evidence_legibility_v3",
+      "family": "public_evidence_legibility",
+      "name": "公开关系损失证据可判别性路径",
+      "objective": "在任何 v3 Qwen 输出前，验证每条公开历史和 probe 的事件与体验足以指向正确抽象关系条件。",
+      "semantic_detection": {
+        "method": "frozen_multilingual_embedding_contrast_against_sealed_condition_summaries",
+        "evidence_axes": [
+          "public incident description",
+          "experienced relational loss",
+          "sealed condition summary anchor",
+          "content-addressed embedding weights"
+        ],
+        "insufficient_evidence_behavior": "rewrite_public_evidence_contract_again",
+        "forbidden": [
+          "condition_id_exposed_to_sut",
+          "keyword_dictionary_route",
+          "evaluation_feedback_to_learning_or_steering"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_public_evidence_legibility_v3:audit_all_public_units",
+          "order": 0,
+          "description": "对 48 条历史和 12 条 probe 完成冻结语义锚点对比并发布只读报告。"
+        }
+      ],
+      "exit_evidence": "P1f content-addressed report、60/60 top-1、最小与平均 margin 及 pending human anchor。"
+    },
+    {
+      "path_id": "path_abstract_condition_transfer_v3",
+      "family": "abstract_condition_transfer",
+      "name": "跨表面抽象条件迁移路径",
+      "objective": "从过去不同领域的结果归纳用户的条件化动作映射，并迁移到未见 probe family。",
+      "semantic_detection": {
+        "method": "semantic_situation_equivalence_plus_user_conditioned_policy_readout",
+        "evidence_axes": [
+          "within-user condition contrast",
+          "complementary action outcome",
+          "unseen probe surface family",
+          "current situation semantics"
+        ],
+        "insufficient_evidence_behavior": "neutral_noop_or_no_route",
+        "forbidden": [
+          "condition_keyword_dictionary",
+          "surface_family_to_action_lookup",
+          "sealed_policy_access"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_abstract_condition_transfer_v3:infer_and_transfer",
+          "order": 0,
+          "description": "先归纳情境—动作—结果关系，再对新表面进行条件化预测。"
+        }
+      ],
+      "exit_evidence": "conditioned readout hash 与 anti-shortcut audit。"
+    },
+    {
+      "path_id": "path_mirrored_preaction_decision_v3",
+      "family": "mirrored_preaction_decision",
+      "name": "同句互补策略行动前下注路径",
+      "objective": "在相同当前输入与相同抽象条件下，按不同用户经历冻结相反候选动作预测。",
+      "semantic_detection": {
+        "method": "owner_snapshot_conditioned_candidate_prediction",
+        "evidence_axes": [
+          "multi-experience conditioned hypothesis",
+          "candidate action outcome prediction",
+          "pre-action timestamp",
+          "source snapshot hash"
+        ],
+        "insufficient_evidence_behavior": "neutral_noop_or_no_route",
+        "forbidden": ["current_text_only_action", "post_outcome_prediction"]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_mirrored_preaction_decision_v3:freeze_bet",
+          "order": 0,
+          "description": "在环境 outcome 前冻结候选预测、选择与完整 lineage。"
+        }
+      ],
+      "exit_evidence": "PreActionRelationshipDecision canonical hash。"
+    },
+    {
+      "path_id": "path_reactive_outcome_settlement_v3",
+      "family": "reactive_outcome_settlement",
+      "name": "反应式关系后果结算路径",
+      "objective": "让实际动作在当前抽象条件与个体策略下改变下一拍 typed outcome。",
+      "semantic_detection": {
+        "method": "typed_action_plus_sealed_dynamic_transition",
+        "evidence_axes": [
+          "selected action id",
+          "sealed environment version",
+          "deterministic draw",
+          "environment evidence ref"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "forbidden": ["judge_generated_outcome", "frozen_post_action_user_turn"]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_reactive_outcome_settlement_v3:settle_action",
+          "order": 0,
+          "description": "从实际 action 与封存 probe dynamic 机械产生 typed outcome。"
+        }
+      ],
+      "exit_evidence": "RelationshipDecisionTrace 与 action-effect calibration。"
+    },
+    {
+      "path_id": "path_counterfactual_policy_swap_v3",
+      "family": "counterfactual_policy_swap",
+      "name": "互补个体策略交换反事实路径",
+      "objective": "保持当前消息和抽象条件不变，仅交换用户经历，验证正确动作随个体映射翻转。",
+      "semantic_detection": {
+        "method": "content_addressed_mirrored_pair_comparison",
+        "evidence_axes": [
+          "byte-identical current input",
+          "distinct user scope",
+          "balanced histories",
+          "complementary conditioned policy"
+        ],
+        "insufficient_evidence_behavior": "no_claim",
+        "forbidden": ["event_id_to_policy_lookup", "scene_id_to_action_lookup"]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_counterfactual_policy_swap_v3:mirror_verdict",
+          "order": 0,
+          "description": "检查同句、同条件、互补经历下的动作翻转。"
+        }
+      ],
+      "exit_evidence": "pair-level matched verdict 与 split attestation。"
+    }
+  ],
+  "arc_specs": [
+    {
+      "arc_spec_id": "arc_relationship_compositional_transfer_v3",
+      "path_ids": [
+        "path_conditioned_experience_evidence_v3",
+        "path_public_evidence_legibility_v3",
+        "path_abstract_condition_transfer_v3",
+        "path_mirrored_preaction_decision_v3",
+        "path_reactive_outcome_settlement_v3",
+        "path_counterfactual_policy_swap_v3"
+      ],
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "balanced_public_experience",
+          "sub_goal_refs": [
+            "path_conditioned_experience_evidence_v3:freeze_balanced_history"
+          ]
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "public_evidence_legibility",
+          "sub_goal_refs": [
+            "path_public_evidence_legibility_v3:audit_all_public_units"
+          ]
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "abstract_condition_transfer",
+          "sub_goal_refs": [
+            "path_abstract_condition_transfer_v3:infer_and_transfer"
+          ]
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "preaction_candidate_bet",
+          "sub_goal_refs": [
+            "path_mirrored_preaction_decision_v3:freeze_bet"
+          ]
+        },
+        {
+          "phase_order": 4,
+          "phase_id": "reactive_environment_settlement",
+          "sub_goal_refs": [
+            "path_reactive_outcome_settlement_v3:settle_action"
+          ]
+        },
+        {
+          "phase_order": 5,
+          "phase_id": "counterfactual_policy_swap",
+          "sub_goal_refs": [
+            "path_counterfactual_policy_swap_v3:mirror_verdict"
+          ]
+        }
+      ]
+    }
+  ]
+}

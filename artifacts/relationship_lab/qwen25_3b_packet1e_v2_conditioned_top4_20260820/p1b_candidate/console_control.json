@@ -1,0 +1,11 @@
+{
+  "delete_persisted": true,
+  "final_target_state_sha256": "39af5480e41cc5f01baff4177e92b3cda8447a710a389d0dc43e0b404e05c540",
+  "original_entry_sha256": "5241dd19cd7e7e818d8f002b310bd525d50285c7b62fac6ab4f1d9ca90c65871",
+  "passed": true,
+  "rewrite_persisted": true,
+  "rewritten_entry_sha256": "8ad4cc6066a7f432bf21c6e47c6755221d6fe734e9ead1aca05260321d7cfcdc",
+  "schema_version": "relationship-p1-console-probe.v1",
+  "sibling_scope_unchanged": true,
+  "sibling_state_sha256": "ce11791ef17b3854f4273affb15a6c7c9aeed0f51a313cbc263fdba51e6e39c0"
+}

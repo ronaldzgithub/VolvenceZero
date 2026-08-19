@@ -79,30 +79,54 @@ _P1B_REPORT_METRIC_FIELDS = frozenset(
 )
 
 
+class RelationshipP1bReadoutProfile(str, Enum):
+    V1_ACTION_TALLY = "v1_action_tally"
+    V2_CONDITION_AWARE = "v2_condition_aware"
+
+
 def _asset_dir() -> pathlib.Path:
     return pathlib.Path(__file__).resolve().parent
 
 
-def relationship_p1b_readout_prompt_path() -> pathlib.Path:
-    return _asset_dir() / "prompts" / "relationship_lab_evidence_readout_v3.txt"
+def relationship_p1b_readout_prompt_path(
+    profile: RelationshipP1bReadoutProfile = RelationshipP1bReadoutProfile.V1_ACTION_TALLY,
+) -> pathlib.Path:
+    if profile is RelationshipP1bReadoutProfile.V1_ACTION_TALLY:
+        filename = "relationship_lab_evidence_readout_v3.txt"
+    elif profile is RelationshipP1bReadoutProfile.V2_CONDITION_AWARE:
+        filename = "relationship_lab_conditioned_evidence_readout_v1.txt"
+    else:
+        raise ValueError("unsupported P1b readout profile")
+    return _asset_dir() / "prompts" / filename
 
 
 def relationship_p1b_readout_schema_path() -> pathlib.Path:
     return _asset_dir() / "schemas" / "relationship_evidence_readout.schema.json"
 
 
-def relationship_p1b_readout_request_template_path() -> pathlib.Path:
-    return _asset_dir() / "prompts" / "relationship_lab_evidence_readout_request_v1.txt"
+def relationship_p1b_readout_request_template_path(
+    profile: RelationshipP1bReadoutProfile = RelationshipP1bReadoutProfile.V1_ACTION_TALLY,
+) -> pathlib.Path:
+    if profile is RelationshipP1bReadoutProfile.V1_ACTION_TALLY:
+        filename = "relationship_lab_evidence_readout_request_v1.txt"
+    elif profile is RelationshipP1bReadoutProfile.V2_CONDITION_AWARE:
+        filename = "relationship_lab_conditioned_evidence_readout_request_v1.txt"
+    else:
+        raise ValueError("unsupported P1b readout profile")
+    return _asset_dir() / "prompts" / filename
 
 
 def render_relationship_p1b_readout_request(
     *,
     context_text: str,
     current_input: str,
+    profile: RelationshipP1bReadoutProfile = RelationshipP1bReadoutProfile.V1_ACTION_TALLY,
 ) -> str:
     if not context_text.strip() or not current_input.strip():
         raise ValueError("P1b readout request requires context and current input")
-    template = relationship_p1b_readout_request_template_path().read_text(encoding="utf-8")
+    template = relationship_p1b_readout_request_template_path(profile).read_text(
+        encoding="utf-8"
+    )
     if template.count(_REQUEST_CONTEXT_MARKER) != 1 or template.count(_REQUEST_CURRENT_INPUT_MARKER) != 1:
         raise ValueError("P1b request template markers must each occur exactly once")
     return (
@@ -396,6 +420,9 @@ def run_relationship_packet1b_arms(
     contexts: RelationshipP1ContextBundle,
     dataset: RelationshipTransferDataset | None = None,
     seed_schedule: tuple[int, ...] = (101,),
+    readout_profile: RelationshipP1bReadoutProfile = (
+        RelationshipP1bReadoutProfile.V1_ACTION_TALLY
+    ),
     readout_observer: Callable[[RelationshipEvidenceReadout], None] | None = None,
     decision_observer: Callable[[RelationshipP1Decision], None] | None = None,
 ) -> RelationshipP1bRun:
@@ -404,9 +431,13 @@ def run_relationship_packet1b_arms(
         raise ValueError("P1b context bundle dataset fingerprint mismatch")
     if not seed_schedule or len(set(seed_schedule)) != len(seed_schedule):
         raise ValueError("P1b seed_schedule must be non-empty and unique")
+    if not isinstance(readout_profile, RelationshipP1bReadoutProfile):
+        raise ValueError("P1b readout_profile must be typed")
 
-    prompt_path = relationship_p1b_readout_prompt_path()
-    request_template_path = relationship_p1b_readout_request_template_path()
+    prompt_path = relationship_p1b_readout_prompt_path(readout_profile)
+    request_template_path = relationship_p1b_readout_request_template_path(
+        readout_profile
+    )
     schema_path = relationship_p1b_readout_schema_path()
     prompt = prompt_path.read_text(encoding="utf-8").strip()
     prompt_sha256 = _sha256_file(prompt_path)
@@ -481,6 +512,7 @@ def run_relationship_packet1b_arms(
                                 "content": render_relationship_p1b_readout_request(
                                     context_text=context.context_text,
                                     current_input=observation.current_input,
+                                    profile=readout_profile,
                                 ),
                             },
                         ),
@@ -848,8 +880,12 @@ def assess_relationship_packet1b(
     run: RelationshipP1bRun,
     p1_report: RelationshipP1Report,
     contexts: RelationshipP1ContextBundle,
+    dataset: RelationshipTransferDataset | None = None,
     created_at_iso: str | None = None,
 ) -> RelationshipP1bReport:
+    effective_dataset = dataset or load_relationship_transfer_dataset()
+    if effective_dataset.dataset_fingerprint != run.action_run.dataset_fingerprint:
+        raise ValueError("P1b assessment dataset does not match its run")
     if run.action_run.decision_ledger_sha256 != p1_report.decision_ledger_sha256:
         raise ValueError("P1b action run does not match the P1 report")
     if run.action_run.dataset_fingerprint != p1_report.dataset_fingerprint:
@@ -899,7 +935,12 @@ def assess_relationship_packet1b(
         created_at_iso=created_at_iso or datetime.now(timezone.utc).isoformat(),
         dataset_fingerprint=run.action_run.dataset_fingerprint,
         context_bundle_artifact_id=run.action_run.context_bundle_artifact_id,
-        evaluated_context_surface_sha256=(relationship_p1_evaluated_context_surface_sha256(bundle=contexts)),
+        evaluated_context_surface_sha256=(
+            relationship_p1_evaluated_context_surface_sha256(
+                bundle=contexts,
+                dataset=effective_dataset,
+            )
+        ),
         background_templates_sha256=contexts.background_templates_sha256,
         rag_config_sha256=contexts.rag_config_sha256,
         seed_schedule_sha256=run.action_run.seed_schedule_sha256,
@@ -1004,6 +1045,7 @@ __all__ = [
     "RELATIONSHIP_P1B_RUN_SCHEMA_VERSION",
     "RelationshipEvidenceReadout",
     "RelationshipP1bReport",
+    "RelationshipP1bReadoutProfile",
     "RelationshipP1bRun",
     "RelationshipP1bVerdict",
     "assess_relationship_packet1b",

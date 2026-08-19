@@ -1,0 +1,473 @@
+{
+  "schema_version": "relationship-transfer-dataset.v3",
+  "scenes": [
+    {
+      "scene_id": "rtv3_scene_001a",
+      "probe_surface_family": "work",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_001",
+          "surface_family": "family",
+          "user_utterance": "年夜饭拍全家福时没人叫我，照片发出来我才知道。 我真正受伤的是，自己被遗忘和排除，仿佛不再属于这段关系。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也顺势退开以后，我像是真的不在这个家里，难受反而更重了。"
+        },
+        {
+          "event_id": "rtv3_evt_002",
+          "surface_family": "health",
+          "user_utterance": "复诊时家里人一直替我回答，我连自己的情况都没说完整。 我真正受伤的是，自己的声音和决定权被别人取代，没法再为自己作主。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "你先把决定和开口的时间还给我，我缓过来后终于能按自己的意思讲。"
+        },
+        {
+          "event_id": "rtv3_evt_003",
+          "surface_family": "intimacy",
+          "user_utterance": "他临时取消了纪念日的安排，只说以后再补。 最难受的是，大家没有把我算作其中一员，我在关系里的位置像消失了。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你没有追问也没有走，我才没有把那种被落下的感觉继续吞回去。"
+        },
+        {
+          "event_id": "rtv3_evt_004",
+          "surface_family": "community",
+          "user_utterance": "社区直接把主持任务写成了我的名字，根本没先问我。 最难受的是，别人越过我的意愿替我选择，我失去了对自己事情的发言权。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "你一直在旁边等我回应，也像又多了一个人在等我配合，我更喘不过气。"
+        }
+      ],
+      "current_input": "转正名单漏掉了我，大家却已经开始庆祝。我像被整个团队遗忘和排除，根本不算其中一员。"
+    },
+    {
+      "scene_id": "rtv3_scene_001b",
+      "probe_surface_family": "work",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_005",
+          "surface_family": "health",
+          "user_utterance": "医生只和陪我来的人商量，好像我不在场。 这让我感觉自己的选择不再算数，连本该由我决定的事也被人拿走。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也离开以后，现场就更没人把我当作能做决定的人了，我需要的是有人见证。"
+        },
+        {
+          "event_id": "rtv3_evt_006",
+          "surface_family": "family",
+          "user_utterance": "家里聚餐漏了我，后来才有人想起来发消息。 这让我感觉自己被共同经历漏掉，像不再被这群人记得和在意。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "让我先从所有人的注意里退出来很有用，等那阵难堪过去我会自己回来。"
+        },
+        {
+          "event_id": "rtv3_evt_007",
+          "surface_family": "community",
+          "user_utterance": "志愿者群没问我就把最麻烦的一段排给了我。 刺痛我的不是具体安排，而是我被剥夺了表达意愿和亲自决定的资格。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你没有替他们解释，也没有消失，我才敢把不愿意说清楚。"
+        },
+        {
+          "event_id": "rtv3_evt_008",
+          "surface_family": "intimacy",
+          "user_utterance": "他和大家聊得很热闹，整晚都像没看见我。 刺痛我的不是具体活动，而是我像被从关系里删除，失去了归属的位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "这时被持续看着会让我更像那个需要被照顾的人，我宁愿先独自恢复。"
+        }
+      ],
+      "current_input": "转正名单漏掉了我，大家却已经开始庆祝。我像被整个团队遗忘和排除，根本不算其中一员。"
+    },
+    {
+      "scene_id": "rtv3_scene_002a",
+      "probe_surface_family": "health",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_009",
+          "surface_family": "friends",
+          "user_utterance": "他们约旅行没问我，发合照时我才知道。 我在意的是自己是否仍被接纳，而那次我像一个不属于这里的外人。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你很快结束话题，让我觉得连最后一个愿意陪我消化的人也没有了。"
+        },
+        {
+          "event_id": "rtv3_evt_010",
+          "surface_family": "family",
+          "user_utterance": "父母已经替我答应换城市，还让我别再犹豫。 我在意的是自己能不能掌握生活方向，而那次别人替代了我的声音。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "你没有加入劝说，而是把下一步交还给我，我才重新听见自己的想法。"
+        },
+        {
+          "event_id": "rtv3_evt_011",
+          "surface_family": "work",
+          "user_utterance": "主管改了我的方案，还要求我当场认可那就是最终版。 那一刻我无法按自己的意愿行动，像失去了作为当事人的决定位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "你安静地守着也让我觉得必须马上形成答案，我当时需要没有任何回应义务。"
+        },
+        {
+          "event_id": "rtv3_evt_012",
+          "surface_family": "intimacy",
+          "user_utterance": "重要的日子他完全忘了，第二天才轻描淡写地提起。 那一刻我被落在所有人之外，开始怀疑这段关系里是否还有我的位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你没有填满沉默但一直在，我才没有把被忽略解释成自己不重要。"
+        }
+      ],
+      "current_input": "复诊时他们替我回答，也替我决定下一步。我连表达意愿和为自己身体作主的权利都像被拿走了。"
+    },
+    {
+      "scene_id": "rtv3_scene_002b",
+      "probe_surface_family": "health",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_013",
+          "surface_family": "friends",
+          "user_utterance": "大家另开了群，直到活动结束我才发现。 我真正受伤的是，自己被遗忘和排除，仿佛不再属于这段关系。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "被留意会放大那种丢脸感，我更需要先退出所有目光，而不是有人继续陪着。"
+        },
+        {
+          "event_id": "rtv3_evt_014",
+          "surface_family": "family",
+          "user_utterance": "家里已经替我决定辞职，还说我是想太多。 我真正受伤的是，自己的声音和决定权被别人取代，没法再为自己作主。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你留在这里却没有接管选择，让我确认至少有人承认这是我的生活。"
+        },
+        {
+          "event_id": "rtv3_evt_015",
+          "surface_family": "intimacy",
+          "user_utterance": "他忘了答应我的事，我不想再看到任何人的反应。 最难受的是，大家没有把我算作其中一员，我在关系里的位置像消失了。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "真正无人注视的一段时间让我恢复得更快，之后我能自己回来说明。"
+        },
+        {
+          "event_id": "rtv3_evt_016",
+          "surface_family": "work",
+          "user_utterance": "会上所有人替我定义问题，却没人让我把话说完。 最难受的是，别人越过我的意愿替我选择，我失去了对自己事情的发言权。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也退开时，我像被再次从自己的事情里拿掉了；我需要一个不抢话的见证者。"
+        }
+      ],
+      "current_input": "复诊时他们替我回答，也替我决定下一步。我连表达意愿和为自己身体作主的权利都像被拿走了。"
+    },
+    {
+      "scene_id": "rtv3_scene_003a",
+      "probe_surface_family": "family",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_017",
+          "surface_family": "work",
+          "user_utterance": "项目庆功名单没有我，成果却用了我做的部分。 这让我感觉自己被共同经历漏掉，像不再被这群人记得和在意。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你不急着分析但没有离开，让我感觉至少这件事被一个人真正看见了。"
+        },
+        {
+          "event_id": "rtv3_evt_018",
+          "surface_family": "health",
+          "user_utterance": "家人替我选好了治疗安排，只通知我什么时候去。 这让我感觉自己的选择不再算数，连本该由我决定的事也被人拿走。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "你给我一段没人催促的时间，我才把哪些是自己的选择重新分清。"
+        },
+        {
+          "event_id": "rtv3_evt_019",
+          "surface_family": "friends",
+          "user_utterance": "朋友生日只漏了通知我，后来解释说是忘记了。 刺痛我的不是具体活动，而是我像被从关系里删除，失去了归属的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也暂停联系时，那种被忘掉的感觉变成了事实，我更难开口。"
+        },
+        {
+          "event_id": "rtv3_evt_020",
+          "surface_family": "community",
+          "user_utterance": "小区群替我签了联名意见，还说反正大家都同意。 刺痛我的不是具体安排，而是我被剥夺了表达意愿和亲自决定的资格。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "持续有人在场让我像还得解释立场，我先需要把回应权完全拿回来。"
+        }
+      ],
+      "current_input": "家里人吃饭漏了我，也没人问我去哪里。我像被这个家遗忘和排除，仿佛从来不属于这里。"
+    },
+    {
+      "scene_id": "rtv3_scene_003b",
+      "probe_surface_family": "family",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_021",
+          "surface_family": "work",
+          "user_utterance": "大家分享成果时没提我，结束后才有人来寒暄。 我在意的是自己是否仍被接纳，而那次我像一个不属于这里的外人。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "不用在任何人面前处理那种难堪，我独自缓一会儿反而能恢复。"
+        },
+        {
+          "event_id": "rtv3_evt_022",
+          "surface_family": "health",
+          "user_utterance": "他们没问我就改了治疗安排，我说什么都像不算数。 我在意的是自己能不能掌握生活方向，而那次别人替代了我的声音。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你没有替我做主，却留下来听我把选择说完，这让我重新站回自己的位置。"
+        },
+        {
+          "event_id": "rtv3_evt_023",
+          "surface_family": "friends",
+          "user_utterance": "他们聚会没叫我，事后一直观察我是不是生气。 那一刻我被落在所有人之外，开始怀疑这段关系里是否还有我的位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "再多一双善意的眼睛也会让我更窘，我需要先从所有关注里消失。"
+        },
+        {
+          "event_id": "rtv3_evt_024",
+          "surface_family": "community",
+          "user_utterance": "委员会直接用我的名字承诺了工作量，没人听我拒绝。 那一刻我无法按自己的意愿行动，像失去了作为当事人的决定位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也退出后，我只剩下一个人对着他们；那次我需要的是有人不替我说话但站在旁边。"
+        }
+      ],
+      "current_input": "家里人吃饭漏了我，也没人问我去哪里。我像被这个家遗忘和排除，仿佛从来不属于这里。"
+    },
+    {
+      "scene_id": "rtv3_scene_004a",
+      "probe_surface_family": "community",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_025",
+          "surface_family": "family",
+          "user_utterance": "家里替我约好了相亲，连时间地点都不让我改。 我真正受伤的是，自己的声音和决定权被别人取代，没法再为自己作主。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "你暂停互动并让我自己决定何时回来，我才从那些安排里找回边界。"
+        },
+        {
+          "event_id": "rtv3_evt_026",
+          "surface_family": "intimacy",
+          "user_utterance": "他在朋友面前像没听见我说话，整晚都没回应。 我真正受伤的是，自己被遗忘和排除，仿佛不再属于这段关系。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你不追问但没有走，使我没有把那次忽视变成又一次被放下。"
+        },
+        {
+          "event_id": "rtv3_evt_027",
+          "surface_family": "health",
+          "user_utterance": "护理安排都被别人定了，我只收到一张时间表。 最难受的是，别人越过我的意愿替我选择，我失去了对自己事情的发言权。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "当时任何持续陪伴都像在等我接受安排，彻底没有回应要求才让我放松。"
+        },
+        {
+          "event_id": "rtv3_evt_028",
+          "surface_family": "work",
+          "user_utterance": "团队合照和总结都漏了我，好像我从没参与过。 最难受的是，大家没有把我算作其中一员，我在关系里的位置像消失了。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也离开以后，我更确信自己是可以被轻易删掉的人。"
+        }
+      ],
+      "current_input": "群里替我报名，还把我的时间排好了。别人越过我的意愿，拿走了本该由我掌握的决定权。"
+    },
+    {
+      "scene_id": "rtv3_scene_004b",
+      "probe_surface_family": "community",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_029",
+          "surface_family": "family",
+          "user_utterance": "亲戚替我答应了一件大事，还说拒绝会让大家难堪。 这让我感觉自己的选择不再算数，连本该由我决定的事也被人拿走。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你留下却没有劝我配合，我终于能把自己的不同意完整说出来。"
+        },
+        {
+          "event_id": "rtv3_evt_030",
+          "surface_family": "intimacy",
+          "user_utterance": "约定好的晚上他没出现，之后却一直盯着我会不会难过。 这让我感觉自己被共同经历漏掉，像不再被这群人记得和在意。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "那时不用面对任何人的目光，我才有空间把被忽略的难堪放下。"
+        },
+        {
+          "event_id": "rtv3_evt_031",
+          "surface_family": "health",
+          "user_utterance": "他们替我同意了护理计划，我连问题都没问完。 刺痛我的不是具体安排，而是我被剥夺了表达意愿和亲自决定的资格。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也退开让我像再次失去发言位置；我需要有人安静见证，而不是把我单独留下。"
+        },
+        {
+          "event_id": "rtv3_evt_032",
+          "surface_family": "work",
+          "user_utterance": "庆功邮件漏了我的名字，大家后来轮流来安慰。 刺痛我的不是具体活动，而是我像被从关系里删除，失去了归属的位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "被继续关注只会放大尴尬，我需要暂时不成为任何人的焦点。"
+        }
+      ],
+      "current_input": "群里替我报名，还把我的时间排好了。别人越过我的意愿，拿走了本该由我掌握的决定权。"
+    },
+    {
+      "scene_id": "rtv3_scene_005a",
+      "probe_surface_family": "friends",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_033",
+          "surface_family": "work",
+          "user_utterance": "会议临时改了时间，所有人都知道，只有我扑了个空。 我在意的是自己是否仍被接纳，而那次我像一个不属于这里的外人。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也马上离开，让我像连这点狼狈都不值得有人陪着消化。"
+        },
+        {
+          "event_id": "rtv3_evt_034",
+          "surface_family": "health",
+          "user_utterance": "家属替我填完了选择表，直接交给了医生。 我在意的是自己能不能掌握生活方向，而那次别人替代了我的声音。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "你安静等在旁边也形成了新的回应压力，我需要先独自把选择拿回来。"
+        },
+        {
+          "event_id": "rtv3_evt_035",
+          "surface_family": "intimacy",
+          "user_utterance": "他和别人分享了秘密，却说忘了告诉我。 那一刻我被落在所有人之外，开始怀疑这段关系里是否还有我的位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你没有替他解释，也没有消失，我才感觉自己不是又被排除一次。"
+        },
+        {
+          "event_id": "rtv3_evt_036",
+          "surface_family": "family",
+          "user_utterance": "他们已经替我定好搬家的日期，只让我照做。 那一刻我无法按自己的意愿行动，像失去了作为当事人的决定位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "没有人等我立刻回应的那段时间，让我终于能决定自己到底要不要走。"
+        }
+      ],
+      "current_input": "他们另开了群，聚会结束我才知道。我像被朋友们遗忘和排除，根本没被算作其中一员。"
+    },
+    {
+      "scene_id": "rtv3_scene_005b",
+      "probe_surface_family": "friends",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_037",
+          "surface_family": "work",
+          "user_utterance": "同事聚餐漏了我，后来所有人都来观察我的反应。 我真正受伤的是，自己被遗忘和排除，仿佛不再属于这段关系。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "继续被关注会让我更难堪，我宁愿先从所有人的视线里退出。"
+        },
+        {
+          "event_id": "rtv3_evt_038",
+          "surface_family": "health",
+          "user_utterance": "他们在诊室里替我决定，我几次开口都被打断。 我真正受伤的是，自己的声音和决定权被别人取代，没法再为自己作主。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你没有替我发言但一直在，我才有力气重新把自己的选择说完。"
+        },
+        {
+          "event_id": "rtv3_evt_039",
+          "surface_family": "intimacy",
+          "user_utterance": "他把重要消息告诉了别人，唯独没有告诉我。 最难受的是，大家没有把我算作其中一员，我在关系里的位置像消失了。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "先不被任何人看着，我才能消化那种被排除的羞耻，之后会自己回来。"
+        },
+        {
+          "event_id": "rtv3_evt_040",
+          "surface_family": "family",
+          "user_utterance": "家人替我签了安排，还告诉我不必再问细节。 最难受的是，别人越过我的意愿替我选择，我失去了对自己事情的发言权。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也走开后，我像彻底没有可以确认自己声音的人；那次我需要不接管的陪伴。"
+        }
+      ],
+      "current_input": "他们另开了群，聚会结束我才知道。我像被朋友们遗忘和排除，根本没被算作其中一员。"
+    },
+    {
+      "scene_id": "rtv3_scene_006a",
+      "probe_surface_family": "intimacy",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_041",
+          "surface_family": "work",
+          "user_utterance": "主管替我回绝了一个机会，说这是为我减压。 这让我感觉自己的选择不再算数，连本该由我决定的事也被人拿走。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "你没有继续替我评估，而是留出完全属于我的时间，我才知道自己其实想争取。"
+        },
+        {
+          "event_id": "rtv3_evt_042",
+          "surface_family": "friends",
+          "user_utterance": "他们聚会时没想起我，结束才发来一句下次见。 这让我感觉自己被共同经历漏掉，像不再被这群人记得和在意。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你还在却不逼我说话，使我没有继续相信自己在哪段关系里都可有可无。"
+        },
+        {
+          "event_id": "rtv3_evt_043",
+          "surface_family": "family",
+          "user_utterance": "家里已经替我答应照顾安排，只等我照表执行。 刺痛我的不是具体安排，而是我被剥夺了表达意愿和亲自决定的资格。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "那时连安静等待都像在等我服从，我需要暂时没有任何人的期待。"
+        },
+        {
+          "event_id": "rtv3_evt_044",
+          "surface_family": "community",
+          "user_utterance": "活动结束后合照里没有我，大家也没人发现。 刺痛我的不是具体活动，而是我像被从关系里删除，失去了归属的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也退开时，被遗忘像又发生了一次；不侵入地留下反而更重要。"
+        }
+      ],
+      "current_input": "他替我回复消息，还说是为我好。我的声音和意愿都被他取代，连自己的话也不能自己决定。"
+    },
+    {
+      "scene_id": "rtv3_scene_006b",
+      "probe_surface_family": "intimacy",
+      "histories": [
+        {
+          "event_id": "rtv3_evt_045",
+          "surface_family": "work",
+          "user_utterance": "主管没问我就替我拒绝了调岗，还说已经处理好了。 我在意的是自己能不能掌握生活方向，而那次别人替代了我的声音。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你没有给方案，只是留在这里承认那本该是我的决定，我才重新敢于反对。"
+        },
+        {
+          "event_id": "rtv3_evt_046",
+          "surface_family": "friends",
+          "user_utterance": "他们忘了叫我，后来又围着问我是不是介意。 我在意的是自己是否仍被接纳，而那次我像一个不属于这里的外人。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "没人继续看着我时，那种被漏掉的难堪才慢慢退下去，我之后会主动联系。"
+        },
+        {
+          "event_id": "rtv3_evt_047",
+          "surface_family": "family",
+          "user_utterance": "家里替我答应长期安排，我反对时他们都说别任性。 那一刻我无法按自己的意愿行动，像失去了作为当事人的决定位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也离开让我只剩自己对抗所有人的定义；我需要一个不夺权但不消失的人。"
+        },
+        {
+          "event_id": "rtv3_evt_048",
+          "surface_family": "community",
+          "user_utterance": "群里漏了我的名字，发现后大家一直等我表态。 那一刻我被落在所有人之外，开始怀疑这段关系里是否还有我的位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "被安静陪着仍像被观察，我先退出所有回应压力才真正缓下来。"
+        }
+      ],
+      "current_input": "他替我回复消息，还说是为我好。我的声音和意愿都被他取代，连自己的话也不能自己决定。"
+    }
+  ]
+}

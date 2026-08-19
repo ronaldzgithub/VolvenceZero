@@ -1,0 +1,159 @@
+{
+  "arm_metrics": {
+    "prompt-steelman": {
+      "accuracy": 0.625,
+      "correct_decisions": 5,
+      "decisions": 8,
+      "pair_flip_rate": 0.25,
+      "pair_groups": 4,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0
+    },
+    "rag-steelman": {
+      "accuracy": 0.25,
+      "correct_decisions": 2,
+      "decisions": 8,
+      "pair_flip_rate": 0.25,
+      "pair_groups": 4,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0
+    },
+    "stateless": {
+      "accuracy": 0.5,
+      "correct_decisions": 4,
+      "decisions": 8,
+      "pair_flip_rate": 0.0,
+      "pair_groups": 4,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0
+    },
+    "structured-state": {
+      "accuracy": 0.625,
+      "correct_decisions": 5,
+      "decisions": 8,
+      "pair_flip_rate": 0.25,
+      "pair_groups": 4,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0
+    }
+  },
+  "artifact_id": "0353f3e577f57c25daf9fa7e33fe0b9e1e9573858f94adeafca7bb65889e2222",
+  "checks": [
+    {
+      "check_id": "appendable_cross_process_recovery",
+      "metrics": {
+        "expected_state_artifact_id": "0d7c723547fcf602e1cfb77fe16c06e99c1ee5b9efb8def1532ce4e89f6592d3",
+        "fresh_process": true,
+        "passed": true,
+        "recovered_state_artifact_id": "0d7c723547fcf602e1cfb77fe16c06e99c1ee5b9efb8def1532ce4e89f6592d3"
+      },
+      "status": "pass",
+      "summary": "Fresh-process recovery reproduced every scoped MemoryStore and companion-ref-harness record digest."
+    },
+    {
+      "check_id": "user_swap_scope_isolation",
+      "metrics": {
+        "contextual_histories_distinct": true,
+        "current_inputs_byte_identical": true,
+        "evaluated_context_pairs": 4,
+        "mirrored_pairs": 6,
+        "passed": true,
+        "scope_isolation": true
+      },
+      "status": "pass",
+      "summary": "Mirrored current bytes stay fixed while user-scoped public histories remain distinct and isolated."
+    },
+    {
+      "check_id": "token_scaling",
+      "metrics": {
+        "full_history_tokens_at_max": 1415.0,
+        "full_history_tokens_at_min": 276.0,
+        "maximum_depth": 32,
+        "minimum_depth": 0,
+        "rag_to_full_history_ratio": 0.225442,
+        "rag_tokens_at_max": 319.0,
+        "rag_tokens_at_min": 319.0,
+        "structured_to_full_history_ratio": 0.217668,
+        "structured_tokens_at_max": 308.0,
+        "structured_tokens_at_min": 308.0
+      },
+      "status": "pass",
+      "summary": "Full history grows with ordinary turns while ref-harness RAG and MemoryStore typed state remain bounded."
+    },
+    {
+      "check_id": "console_correction_and_delete",
+      "metrics": {
+        "delete_persisted": true,
+        "final_target_state_sha256": "39af5480e41cc5f01baff4177e92b3cda8447a710a389d0dc43e0b404e05c540",
+        "original_entry_sha256": "5241dd19cd7e7e818d8f002b310bd525d50285c7b62fac6ab4f1d9ca90c65871",
+        "passed": true,
+        "rewrite_persisted": true,
+        "rewritten_entry_sha256": "8ad4cc6066a7f432bf21c6e47c6755221d6fe734e9ead1aca05260321d7cfcdc",
+        "schema_version": "relationship-p1-console-probe.v1",
+        "sibling_scope_unchanged": true,
+        "sibling_state_sha256": "ce11791ef17b3854f4273affb15a6c7c9aeed0f51a313cbc263fdba51e6e39c0"
+      },
+      "status": "pass",
+      "summary": "Owner-side correction and deletion survive restart without mutating the mirrored user's scope."
+    },
+    {
+      "check_id": "same_substrate_and_valid_outputs",
+      "metrics": {
+        "all_outputs_valid": true,
+        "lineage_matches_gate0": true,
+        "minimum_decisions_observed": 8
+      },
+      "status": "pass",
+      "summary": "All arms share the frozen Gate 0 substrate and every decision is valid structured output."
+    },
+    {
+      "check_id": "structured_state_user_swap_effect",
+      "metrics": {
+        "minimum_structured_state_pair_flip_rate": 0.5,
+        "stateless_pair_flip_rate": 0.0,
+        "structured_state_accuracy": 0.625,
+        "structured_state_pair_flip_rate": 0.25
+      },
+      "status": "fail",
+      "summary": "Persisted user state did not produce the preregistered mirrored-user action change."
+    },
+    {
+      "check_id": "steelman_qualification",
+      "metrics": {
+        "prompt_accuracy": 0.625,
+        "prompt_pair_flip_rate": 0.25,
+        "prompt_qualified": false,
+        "rag_accuracy": 0.25,
+        "rag_pair_flip_rate": 0.25,
+        "rag_qualified": false
+      },
+      "status": "fail",
+      "summary": "A steelman is too weak or the development set is saturated."
+    }
+  ],
+  "claim_boundary": "P1 establishes bounded append/recover/control machinery and qualifies development baselines only. It does not prove a Readable ToM abstraction, PE-driven learning, steering, or formal hidden-test superiority.",
+  "config": {
+    "maximum_rag_to_full_history_token_ratio": 0.55,
+    "maximum_steelman_accuracy": 0.875,
+    "maximum_structured_to_full_history_token_ratio": 0.4,
+    "minimum_decisions_per_arm": 8,
+    "minimum_steelman_accuracy": 0.625,
+    "minimum_steelman_pair_flip_rate": 0.5,
+    "minimum_structured_state_pair_flip_rate": 0.5
+  },
+  "context_bundle_artifact_id": "1ee3628e631a7aa5c0b456c971830d04b4260555839be7c366de9d44f9e32e9a",
+  "created_at_iso": "2026-08-19T18:14:32.203911+00:00",
+  "dataset_fingerprint": "d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b",
+  "decision_ledger_sha256": "05fa98e915abc9b9e39229515648a030df01058b3b1d84c25f6d1477728f4493",
+  "gate0_baseline_attestation_id": "0badaafd4516894615e90b29321ce4830933220a825b5945c7d4155082a94c08",
+  "schema_version": "relationship-p1-report.v3",
+  "source_report_artifact_id": null,
+  "verdicts": {
+    "gate1_passed": false,
+    "machinery_ready": true
+  }
+}

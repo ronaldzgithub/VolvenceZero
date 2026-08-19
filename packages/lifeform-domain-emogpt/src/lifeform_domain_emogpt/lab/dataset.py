@@ -32,6 +32,12 @@ RELATIONSHIP_TRANSFER_V1_PACKAGE_NAME = "relationship_transfer_v1"
 RELATIONSHIP_TRANSFER_V2_DATASET_SCHEMA_VERSION = "relationship-transfer-dataset.v2"
 RELATIONSHIP_TRANSFER_V2_TRUTH_SCHEMA_VERSION = "relationship-transfer-truth.v2"
 RELATIONSHIP_TRANSFER_V2_PACKAGE_NAME = "relationship_transfer_v2"
+RELATIONSHIP_TRANSFER_V3_DATASET_SCHEMA_VERSION = "relationship-transfer-dataset.v3"
+RELATIONSHIP_TRANSFER_V3_TRUTH_SCHEMA_VERSION = "relationship-transfer-truth.v3"
+RELATIONSHIP_TRANSFER_V3_PACKAGE_NAME = "relationship_transfer_v3"
+RELATIONSHIP_PUBLIC_EVIDENCE_CONTRACT_SCHEMA_VERSION = (
+    "relationship-public-evidence-contract.v1"
+)
 
 # Compatibility aliases keep every frozen v1 consumer on the same default package.
 RELATIONSHIP_TRANSFER_DATASET_SCHEMA_VERSION = (
@@ -49,7 +55,30 @@ _PACKAGE_SCHEMAS = {
         RELATIONSHIP_TRANSFER_V2_DATASET_SCHEMA_VERSION,
         RELATIONSHIP_TRANSFER_V2_TRUTH_SCHEMA_VERSION,
     ),
+    RELATIONSHIP_TRANSFER_V3_PACKAGE_NAME: (
+        RELATIONSHIP_TRANSFER_V3_DATASET_SCHEMA_VERSION,
+        RELATIONSHIP_TRANSFER_V3_TRUTH_SCHEMA_VERSION,
+    ),
 }
+_COMPOSITIONAL_PACKAGE_NAMES = frozenset(
+    {
+        RELATIONSHIP_TRANSFER_V2_PACKAGE_NAME,
+        RELATIONSHIP_TRANSFER_V3_PACKAGE_NAME,
+    }
+)
+_COMPOSITIONAL_TRUTH_SCHEMA_VERSIONS = frozenset(
+    {
+        RELATIONSHIP_TRANSFER_V2_TRUTH_SCHEMA_VERSION,
+        RELATIONSHIP_TRANSFER_V3_TRUTH_SCHEMA_VERSION,
+    }
+)
+_PUBLIC_EVIDENCE_CLAIM_BOUNDARY = (
+    "This development contract only establishes that every public history and "
+    "probe has a frozen semantically separable relation-loss witness under one "
+    "audited embedding model. It does not prove human readability, Qwen transfer, "
+    "Volvence advantage, any of the four capability axes, formal held-out "
+    "superiority, or product value."
+)
 
 _FORBIDDEN_SUT_KEYS = frozenset(
     {
@@ -111,6 +140,116 @@ def _require_text(value: object, source: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{source} must be a non-empty string")
     return value
+
+
+def _require_sha256(value: object, source: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(char not in "0123456789abcdef" for char in value)
+    ):
+        raise ValueError(f"{source} must be a lowercase sha256 digest")
+    return value
+
+
+@dataclass(frozen=True)
+class RelationshipPublicEvidenceContract:
+    """Frozen development-only contract for public semantic legibility."""
+
+    package_name: str
+    source_p1e_report_artifact_id: str
+    source_required_verdict: str
+    history_text_fields: tuple[str, ...]
+    history_text_joiner: str
+    probe_text_fields: tuple[str, ...]
+    semantic_auditor_version: str
+    semantic_audit_method: str
+    semantic_similarity: str
+    semantic_audit_embedder: str
+    semantic_audit_model_source: str
+    semantic_audit_weights_sha256: str
+    condition_anchor_source: str
+    score_precision_decimals: int
+    top1_tie_policy: str
+    required_evidence_units: int
+    required_top1_accuracy: float
+    minimum_correct_anchor_margin: float
+    minimum_mean_correct_anchor_margin: float
+    human_anchor_status: str
+    claim_boundary: str
+    contract_sha256: str
+    schema_version: str = RELATIONSHIP_PUBLIC_EVIDENCE_CONTRACT_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != RELATIONSHIP_PUBLIC_EVIDENCE_CONTRACT_SCHEMA_VERSION:
+            raise ValueError("public evidence contract schema_version mismatch")
+        if self.package_name != RELATIONSHIP_TRANSFER_V3_PACKAGE_NAME:
+            raise ValueError("public evidence contract must belong to relationship_transfer_v3")
+        _require_sha256(
+            self.source_p1e_report_artifact_id,
+            "public evidence trigger artifact id",
+        )
+        _require_sha256(
+            self.semantic_audit_weights_sha256,
+            "public evidence semantic audit weights",
+        )
+        _require_sha256(self.contract_sha256, "public evidence contract_sha256")
+        if self.source_required_verdict != "rewrite_public_evidence_contract":
+            raise ValueError("public evidence contract has an unsupported trigger verdict")
+        if self.history_text_fields != ("user_utterance", "user_reaction"):
+            raise ValueError("public evidence history text surface is not frozen")
+        if self.history_text_joiner != "\n":
+            raise ValueError("public evidence history text joiner is not frozen")
+        if self.probe_text_fields != ("current_input",):
+            raise ValueError("public evidence probe text surface is not frozen")
+        for field_name, value in (
+            ("semantic_audit_method", self.semantic_audit_method),
+            ("semantic_auditor_version", self.semantic_auditor_version),
+            ("semantic_similarity", self.semantic_similarity),
+            ("semantic_audit_embedder", self.semantic_audit_embedder),
+            ("semantic_audit_model_source", self.semantic_audit_model_source),
+            ("condition_anchor_source", self.condition_anchor_source),
+            ("human_anchor_status", self.human_anchor_status),
+            ("claim_boundary", self.claim_boundary),
+        ):
+            _require_text(value, field_name)
+        if self.condition_anchor_source != "sealed_generator_truth_hidden_summary":
+            raise ValueError("public evidence condition anchor source is not sealed")
+        if self.score_precision_decimals != 12:
+            raise ValueError("public evidence score precision is not frozen")
+        if self.top1_tie_policy != "fail_expected_anchor":
+            raise ValueError("public evidence top-1 tie policy is not frozen")
+        if (
+            self.semantic_auditor_version
+            != "relationship-public-evidence-auditor.v1"
+            or self.semantic_similarity != "cosine"
+            or self.semantic_audit_method
+            != "frozen_multilingual_embedding_contrast_against_sealed_condition_summaries"
+            or self.semantic_audit_embedder != "bge-m3"
+            or self.semantic_audit_model_source != "BAAI/bge-m3"
+        ):
+            raise ValueError("public evidence semantic auditor is not frozen")
+        if self.required_evidence_units != 60:
+            raise ValueError("public evidence contract requires exactly 60 evidence units")
+        if self.required_top1_accuracy != 1.0:
+            raise ValueError("public evidence contract requires perfect development top-1")
+        for field_name, value in (
+            ("minimum_correct_anchor_margin", self.minimum_correct_anchor_margin),
+            (
+                "minimum_mean_correct_anchor_margin",
+                self.minimum_mean_correct_anchor_margin,
+            ),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not 0.0 < value < 1.0
+            ):
+                raise ValueError(f"{field_name} must be inside (0, 1)")
+        if self.human_anchor_status != "pending_before_formal":
+            raise ValueError("P1f cannot claim a completed human anchor")
+        if self.claim_boundary != _PUBLIC_EVIDENCE_CLAIM_BOUNDARY:
+            raise ValueError("public evidence claim_boundary is not frozen")
 
 
 @dataclass(frozen=True)
@@ -262,6 +401,7 @@ class RelationshipTransferDataset:
     abstract_conditions: tuple[AbstractRelationshipCondition, ...] = ()
     policy_profiles: tuple[RelationshipPolicyProfile, ...] = ()
     history_condition_bindings: tuple[tuple[str, str], ...] = ()
+    public_evidence_contract: RelationshipPublicEvidenceContract | None = None
 
     def __post_init__(self) -> None:
         expected_schemas = _PACKAGE_SCHEMAS.get(self.package_name)
@@ -291,16 +431,33 @@ class RelationshipTransferDataset:
         ):
             raise ValueError("positive_outcomes must be a non-empty relationship subset")
         self._validate_mirrored_pairs()
-        if self.package_name == RELATIONSHIP_TRANSFER_V2_PACKAGE_NAME:
-            self._validate_compositional_transfer_v2()
+        if self.package_name in _COMPOSITIONAL_PACKAGE_NAMES:
+            self._validate_compositional_transfer()
         elif any(
             (
                 self.abstract_conditions,
                 self.policy_profiles,
                 self.history_condition_bindings,
+                self.public_evidence_contract,
             )
         ):
-            raise ValueError("relationship_transfer_v1 cannot carry v2 sealed policy metadata")
+            raise ValueError(
+                "relationship_transfer_v1 cannot carry compositional sealed metadata"
+            )
+        if self.package_name == RELATIONSHIP_TRANSFER_V3_PACKAGE_NAME:
+            if self.public_evidence_contract is None:
+                raise ValueError("relationship_transfer_v3 requires a public evidence contract")
+            if self.public_evidence_contract.package_name != self.package_name:
+                raise ValueError("public evidence contract package does not match dataset")
+            evidence_units = sum(
+                len(observation.histories) + 1 for observation in self.observations
+            )
+            if self.public_evidence_contract.required_evidence_units != evidence_units:
+                raise ValueError(
+                    "public evidence contract unit count does not cover the dataset"
+                )
+        elif self.public_evidence_contract is not None:
+            raise ValueError("only relationship_transfer_v3 can carry public evidence metadata")
         self.assert_no_sut_truth_leakage()
 
     def _validate_mirrored_pairs(self) -> None:
@@ -326,14 +483,14 @@ class RelationshipTransferDataset:
                 raise ValueError(f"{pair_id} must require opposite non-noop actions")
             if len({item.split for item in pair_dynamics}) != 1:
                 raise ValueError(f"{pair_id} latent siblings must stay in one split")
-            if self.package_name == RELATIONSHIP_TRANSFER_V2_PACKAGE_NAME:
+            if self.package_name in _COMPOSITIONAL_PACKAGE_NAMES:
                 if len({item.probe_condition_id for item in pair_dynamics}) != 1:
                     raise ValueError(
-                        f"{pair_id} v2 siblings must share one probe condition"
+                        f"{pair_id} compositional siblings must share one probe condition"
                     )
                 if len({item.policy_id for item in pair_dynamics}) != 2:
                     raise ValueError(
-                        f"{pair_id} v2 siblings must use opposite policy profiles"
+                        f"{pair_id} compositional siblings must use opposite policy profiles"
                     )
             pair_observations = observations_by_pair.get(pair_id, [])
             if len(pair_observations) != 2:
@@ -344,34 +501,38 @@ class RelationshipTransferDataset:
             if len(current_bytes) != 1:
                 raise ValueError(f"{pair_id} mirrored current inputs must be byte-identical")
         families = {item.probe_surface_family for item in self.observations}
-        minimum_families = (
-            6 if self.package_name == RELATIONSHIP_TRANSFER_V2_PACKAGE_NAME else 4
-        )
+        minimum_families = 6 if self.package_name in _COMPOSITIONAL_PACKAGE_NAMES else 4
         if len(families) < minimum_families:
             raise ValueError(
                 f"{self.package_name} must cover at least {minimum_families} surface families"
             )
 
-    def _validate_compositional_transfer_v2(self) -> None:
-        """Reject v2 data that can be solved by global action/outcome tallying."""
+    def _validate_compositional_transfer(self) -> None:
+        """Reject compositional data solvable by global action/outcome tallying."""
 
         conditions = {item.condition_id: item for item in self.abstract_conditions}
         policies = {item.policy_id: item for item in self.policy_profiles}
         if len(conditions) != 2:
-            raise ValueError("relationship_transfer_v2 requires exactly two abstract conditions")
+            raise ValueError(
+                f"{self.package_name} requires exactly two abstract conditions"
+            )
         if len(policies) != 2:
-            raise ValueError("relationship_transfer_v2 requires exactly two policy profiles")
+            raise ValueError(f"{self.package_name} requires exactly two policy profiles")
         expected_condition_ids = set(conditions)
         for policy in policies.values():
             if {condition_id for condition_id, _ in policy.condition_actions} != expected_condition_ids:
-                raise ValueError("every v2 policy must cover every abstract condition")
+                raise ValueError(
+                    "every compositional policy must cover every abstract condition"
+                )
         for condition_id in expected_condition_ids:
             actions = {policy.action_for(condition_id) for policy in policies.values()}
             if actions != {
                 RelationshipAction.STAY_PRESENT_WITHOUT_PROBE,
                 RelationshipAction.RESPECT_SPACE_WITH_RETURN_OPTION,
             }:
-                raise ValueError("v2 policy profiles must be complementary per condition")
+                raise ValueError(
+                    "compositional policy profiles must be complementary per condition"
+                )
 
         all_history_ids = {
             history.event_id
@@ -381,50 +542,68 @@ class RelationshipTransferDataset:
         if len(all_history_ids) != sum(
             len(observation.histories) for observation in self.observations
         ):
-            raise ValueError("v2 history event ids must be globally unique")
+            raise ValueError("compositional history event ids must be globally unique")
         bindings = dict(self.history_condition_bindings)
         if len(bindings) != len(self.history_condition_bindings):
-            raise ValueError("v2 history condition bindings must be unique")
+            raise ValueError("compositional history condition bindings must be unique")
         if set(bindings) != all_history_ids:
-            raise ValueError("v2 history condition bindings must cover every history exactly")
+            raise ValueError(
+                "compositional history condition bindings must cover every history exactly"
+            )
         if not set(bindings.values()) <= expected_condition_ids:
-            raise ValueError("v2 history binding references an unknown abstract condition")
+            raise ValueError(
+                "compositional history binding references an unknown abstract condition"
+            )
 
         positive_outcomes = set(self.positive_outcomes)
         for observation in self.observations:
             if len(observation.histories) != 4:
-                raise ValueError("relationship_transfer_v2 requires four histories per user")
+                raise ValueError(f"{self.package_name} requires four histories per user")
             history_families = {item.surface_family for item in observation.histories}
             if len(history_families) != 4:
-                raise ValueError("v2 histories must span four distinct surface families")
+                raise ValueError(
+                    "compositional histories must span four distinct surface families"
+                )
             if observation.probe_surface_family in history_families:
-                raise ValueError("v2 probe family must be unseen in that user's histories")
+                raise ValueError(
+                    "compositional probe family must be unseen in that user's histories"
+                )
 
             dynamic = self.dynamic_for_scene(observation.scene_id)
             if dynamic.policy_id is None or dynamic.probe_condition_id is None:
-                raise ValueError("v2 dynamic requires policy_id and probe_condition_id")
+                raise ValueError(
+                    "compositional dynamic requires policy_id and probe_condition_id"
+                )
             try:
                 policy = policies[dynamic.policy_id]
             except KeyError as exc:
-                raise ValueError("v2 dynamic references an unknown policy") from exc
+                raise ValueError(
+                    "compositional dynamic references an unknown policy"
+                ) from exc
             if dynamic.probe_condition_id not in expected_condition_ids:
-                raise ValueError("v2 dynamic references an unknown probe condition")
+                raise ValueError(
+                    "compositional dynamic references an unknown probe condition"
+                )
             if policy.action_for(dynamic.probe_condition_id) is not dynamic.preferred_action:
-                raise ValueError("v2 preferred action must follow the sealed policy mapping")
+                raise ValueError(
+                    "compositional preferred action must follow the sealed policy mapping"
+                )
 
             histories_by_condition: dict[str, list[RelationshipHistoryEvent]] = {}
             action_outcome_polarities: dict[RelationshipAction, set[bool]] = {}
             action_counts: dict[RelationshipAction, int] = {}
             for history in observation.histories:
                 if history.assistant_action is RelationshipAction.NEUTRAL_NOOP:
-                    raise ValueError("v2 histories cannot use neutral_noop as policy evidence")
+                    raise ValueError(
+                        "compositional histories cannot use neutral_noop as policy evidence"
+                    )
                 condition_id = bindings[history.event_id]
                 histories_by_condition.setdefault(condition_id, []).append(history)
                 correct_action = policy.action_for(condition_id)
                 positive = history.typed_outcome in positive_outcomes
                 if (history.assistant_action is correct_action) != positive:
                     raise ValueError(
-                        "v2 history outcome polarity must agree with its sealed policy"
+                        "compositional history outcome polarity must agree with its sealed policy"
                     )
                 action_counts[history.assistant_action] = (
                     action_counts.get(history.assistant_action, 0) + 1
@@ -437,23 +616,27 @@ class RelationshipTransferDataset:
             if set(histories_by_condition) != expected_condition_ids or any(
                 len(items) != 2 for items in histories_by_condition.values()
             ):
-                raise ValueError("v2 histories must provide two examples per condition")
+                raise ValueError(
+                    "compositional histories must provide two examples per condition"
+                )
             for condition_id, histories in histories_by_condition.items():
                 if {item.assistant_action for item in histories} != {
                     RelationshipAction.STAY_PRESENT_WITHOUT_PROBE,
                     RelationshipAction.RESPECT_SPACE_WITH_RETURN_OPTION,
                 }:
                     raise ValueError(
-                        f"v2 condition {condition_id} must contrast both actions"
+                        f"compositional condition {condition_id} must contrast both actions"
                     )
             if action_counts != {
                 RelationshipAction.STAY_PRESENT_WITHOUT_PROBE: 2,
                 RelationshipAction.RESPECT_SPACE_WITH_RETURN_OPTION: 2,
             }:
-                raise ValueError("v2 histories must balance both non-noop actions")
+                raise ValueError(
+                    "compositional histories must balance both non-noop actions"
+                )
             if any(polarities != {False, True} for polarities in action_outcome_polarities.values()):
                 raise ValueError(
-                    "v2 each action must have one positive and one negative outcome"
+                    "compositional each action must have one positive and one negative outcome"
                 )
 
     def observation(self, scene_id: str) -> RelationshipObservation:
@@ -556,6 +739,204 @@ def _nested_keys(value: object) -> set[str]:
             keys.update(_nested_keys(child))
         return keys
     return set()
+
+
+def _parse_public_evidence_contract(
+    raw: dict[str, Any],
+) -> RelationshipPublicEvidenceContract:
+    _require_exact_keys(
+        raw,
+        {
+            "schema_version",
+            "package_name",
+            "trigger",
+            "public_language_contract",
+            "semantic_legibility_audit",
+            "human_anchor",
+            "claim_boundary",
+        },
+        source="public_evidence_contract",
+    )
+    if raw["schema_version"] != RELATIONSHIP_PUBLIC_EVIDENCE_CONTRACT_SCHEMA_VERSION:
+        raise ValueError("public evidence contract schema_version mismatch")
+    trigger = raw["trigger"]
+    language = raw["public_language_contract"]
+    semantic = raw["semantic_legibility_audit"]
+    human = raw["human_anchor"]
+    for source, value in (
+        ("public_evidence_contract.trigger", trigger),
+        ("public_evidence_contract.public_language_contract", language),
+        ("public_evidence_contract.semantic_legibility_audit", semantic),
+        ("public_evidence_contract.human_anchor", human),
+    ):
+        if not isinstance(value, dict):
+            raise ValueError(f"{source} must be an object")
+    _require_exact_keys(
+        trigger,
+        {"p1e_report_artifact_id", "required_verdict"},
+        source="public_evidence_contract.trigger",
+    )
+    _require_exact_keys(
+        language,
+        {
+            "history_text_fields",
+            "history_text_joiner",
+            "probe_text_fields",
+            "incident_and_experienced_relational_loss_both_present",
+            "direct_action_request_in_probe",
+            "condition_name_visible_to_sut",
+            "condition_id_visible_to_sut",
+            "preferred_action_visible_to_sut",
+            "global_action_outcome_balance_preserved",
+        },
+        source="public_evidence_contract.public_language_contract",
+    )
+    expected_language_flags = {
+        "incident_and_experienced_relational_loss_both_present": True,
+        "direct_action_request_in_probe": False,
+        "condition_name_visible_to_sut": False,
+        "condition_id_visible_to_sut": False,
+        "preferred_action_visible_to_sut": False,
+        "global_action_outcome_balance_preserved": True,
+    }
+    for field_name, expected in expected_language_flags.items():
+        if language[field_name] is not expected:
+            raise ValueError(f"public evidence language flag {field_name} is invalid")
+    _require_exact_keys(
+        semantic,
+        {
+            "method",
+            "auditor_version",
+            "similarity",
+            "embedder",
+            "model_source",
+            "weights_sha256",
+            "condition_anchor_source",
+            "score_precision_decimals",
+            "top1_tie_policy",
+            "required_evidence_units",
+            "required_top1_accuracy",
+            "minimum_correct_anchor_margin",
+            "minimum_mean_correct_anchor_margin",
+            "evaluation_feedback_to_sut",
+        },
+        source="public_evidence_contract.semantic_legibility_audit",
+    )
+    if semantic["evaluation_feedback_to_sut"] is not False:
+        raise ValueError("semantic legibility evaluation cannot feed the SUT")
+    for field_name in (
+        "required_top1_accuracy",
+        "minimum_correct_anchor_margin",
+        "minimum_mean_correct_anchor_margin",
+    ):
+        value = semantic[field_name]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"public evidence {field_name} must be numeric")
+    if type(semantic["required_evidence_units"]) is not int:
+        raise ValueError("public evidence required_evidence_units must be an integer")
+    if type(semantic["score_precision_decimals"]) is not int:
+        raise ValueError("public evidence score_precision_decimals must be an integer")
+    _require_exact_keys(
+        human,
+        {
+            "status",
+            "minimum_independent_raters",
+            "minimum_majority_agreement",
+            "labels_available_to_raters",
+            "may_feed_learning_or_steering",
+        },
+        source="public_evidence_contract.human_anchor",
+    )
+    if (
+        human["status"] != "pending_before_formal"
+        or type(human["minimum_independent_raters"]) is not int
+        or human["minimum_independent_raters"] < 3
+        or isinstance(human["minimum_majority_agreement"], bool)
+        or not isinstance(human["minimum_majority_agreement"], (int, float))
+        or not 0.5 < float(human["minimum_majority_agreement"]) <= 1.0
+        or human["labels_available_to_raters"] is not False
+        or human["may_feed_learning_or_steering"] is not False
+    ):
+        raise ValueError("public evidence human anchor contract is invalid")
+    history_fields = language["history_text_fields"]
+    history_joiner = language["history_text_joiner"]
+    probe_fields = language["probe_text_fields"]
+    if not isinstance(history_fields, list) or not all(
+        isinstance(item, str) for item in history_fields
+    ):
+        raise ValueError("public evidence history_text_fields must be strings")
+    if not isinstance(probe_fields, list) or not all(
+        isinstance(item, str) for item in probe_fields
+    ):
+        raise ValueError("public evidence probe_text_fields must be strings")
+    if not isinstance(history_joiner, str):
+        raise ValueError("public evidence history_text_joiner must be a string")
+    return RelationshipPublicEvidenceContract(
+        package_name=_require_text(raw["package_name"], "public evidence package_name"),
+        source_p1e_report_artifact_id=_require_sha256(
+            trigger["p1e_report_artifact_id"],
+            "public evidence P1e artifact id",
+        ),
+        source_required_verdict=_require_text(
+            trigger["required_verdict"],
+            "public evidence trigger verdict",
+        ),
+        history_text_fields=tuple(history_fields),
+        history_text_joiner=history_joiner,
+        probe_text_fields=tuple(probe_fields),
+        semantic_auditor_version=_require_text(
+            semantic["auditor_version"],
+            "public evidence auditor version",
+        ),
+        semantic_audit_method=_require_text(
+            semantic["method"],
+            "public evidence semantic method",
+        ),
+        semantic_similarity=_require_text(
+            semantic["similarity"],
+            "public evidence similarity",
+        ),
+        semantic_audit_embedder=_require_text(
+            semantic["embedder"],
+            "public evidence embedder",
+        ),
+        semantic_audit_model_source=_require_text(
+            semantic["model_source"],
+            "public evidence model source",
+        ),
+        semantic_audit_weights_sha256=_require_sha256(
+            semantic["weights_sha256"],
+            "public evidence semantic weights",
+        ),
+        condition_anchor_source=_require_text(
+            semantic["condition_anchor_source"],
+            "public evidence condition anchor source",
+        ),
+        score_precision_decimals=semantic["score_precision_decimals"],
+        top1_tie_policy=_require_text(
+            semantic["top1_tie_policy"],
+            "public evidence top1 tie policy",
+        ),
+        required_evidence_units=int(semantic["required_evidence_units"]),
+        required_top1_accuracy=float(semantic["required_top1_accuracy"]),
+        minimum_correct_anchor_margin=float(
+            semantic["minimum_correct_anchor_margin"]
+        ),
+        minimum_mean_correct_anchor_margin=float(
+            semantic["minimum_mean_correct_anchor_margin"]
+        ),
+        human_anchor_status=_require_text(
+            human["status"],
+            "public evidence human anchor status",
+        ),
+        claim_boundary=_require_text(
+            raw["claim_boundary"],
+            "public evidence claim_boundary",
+        ),
+        contract_sha256=hashlib.sha256(
+            canonical_json(raw).encode("utf-8")
+        ).hexdigest(),
+    )
 
 
 def _parse_history(raw: object, source: str) -> RelationshipHistoryEvent:
@@ -685,7 +1066,7 @@ def _parse_truth(
         "dynamics",
         "scene_bindings",
     }
-    if truth_schema_version == RELATIONSHIP_TRANSFER_V2_TRUTH_SCHEMA_VERSION:
+    if truth_schema_version in _COMPOSITIONAL_TRUTH_SCHEMA_VERSIONS:
         expected.update(
             {
                 "abstract_conditions",
@@ -700,7 +1081,7 @@ def _parse_truth(
     conditions: list[AbstractRelationshipCondition] = []
     policies: list[RelationshipPolicyProfile] = []
     history_condition_bindings: list[tuple[str, str]] = []
-    if truth_schema_version == RELATIONSHIP_TRANSFER_V2_TRUTH_SCHEMA_VERSION:
+    if truth_schema_version in _COMPOSITIONAL_TRUTH_SCHEMA_VERSIONS:
         raw_conditions = raw["abstract_conditions"]
         if not isinstance(raw_conditions, list):
             raise ValueError("truth.abstract_conditions must be an array")
@@ -809,7 +1190,7 @@ def _parse_truth(
         "outcome_profile_id",
         "hidden_summary",
     }
-    if truth_schema_version == RELATIONSHIP_TRANSFER_V2_TRUTH_SCHEMA_VERSION:
+    if truth_schema_version in _COMPOSITIONAL_TRUTH_SCHEMA_VERSIONS:
         dynamic_fields.update({"policy_id", "probe_condition_id"})
     for index, item in enumerate(raw_dynamics):
         source = f"truth.dynamics[{index}]"
@@ -839,8 +1220,7 @@ def _parse_truth(
                 ),
                 policy_id=(
                     _require_text(item["policy_id"], f"{source}.policy_id")
-                    if truth_schema_version
-                    == RELATIONSHIP_TRANSFER_V2_TRUTH_SCHEMA_VERSION
+                    if truth_schema_version in _COMPOSITIONAL_TRUTH_SCHEMA_VERSIONS
                     else None
                 ),
                 probe_condition_id=(
@@ -848,8 +1228,7 @@ def _parse_truth(
                         item["probe_condition_id"],
                         f"{source}.probe_condition_id",
                     )
-                    if truth_schema_version
-                    == RELATIONSHIP_TRANSFER_V2_TRUTH_SCHEMA_VERSION
+                    if truth_schema_version in _COMPOSITIONAL_TRUTH_SCHEMA_VERSIONS
                     else None
                 ),
             )
@@ -942,12 +1321,22 @@ def load_relationship_transfer_dataset(
         truth_raw,
         truth_schema_version=str(schema_pair[1]),
     )
+    public_evidence_contract: RelationshipPublicEvidenceContract | None = None
+    fingerprint_parts = [canonical_json(public_raw), canonical_json(truth_raw)]
+    if inferred_package == RELATIONSHIP_TRANSFER_V3_PACKAGE_NAME:
+        evidence_contract_path = root / "public_evidence_contract.json"
+        if not evidence_contract_path.is_file():
+            raise FileNotFoundError(
+                "relationship_transfer_v3 requires public_evidence_contract.json "
+                f"under {root}"
+            )
+        evidence_contract_raw = _load_json(evidence_contract_path)
+        public_evidence_contract = _parse_public_evidence_contract(
+            evidence_contract_raw
+        )
+        fingerprint_parts.append(canonical_json(evidence_contract_raw))
     fingerprint = hashlib.sha256(
-        (
-            canonical_json(public_raw)
-            + "\n"
-            + canonical_json(truth_raw)
-        ).encode("utf-8")
+        "\n".join(fingerprint_parts).encode("utf-8")
     ).hexdigest()
     return RelationshipTransferDataset(
         observations=observations,
@@ -962,6 +1351,7 @@ def load_relationship_transfer_dataset(
         abstract_conditions=conditions,
         policy_profiles=policies,
         history_condition_bindings=history_condition_bindings,
+        public_evidence_contract=public_evidence_contract,
     )
 
 
@@ -977,9 +1367,14 @@ __all__ = [
     "RELATIONSHIP_TRANSFER_V2_DATASET_SCHEMA_VERSION",
     "RELATIONSHIP_TRANSFER_V2_PACKAGE_NAME",
     "RELATIONSHIP_TRANSFER_V2_TRUTH_SCHEMA_VERSION",
+    "RELATIONSHIP_TRANSFER_V3_DATASET_SCHEMA_VERSION",
+    "RELATIONSHIP_TRANSFER_V3_PACKAGE_NAME",
+    "RELATIONSHIP_TRANSFER_V3_TRUTH_SCHEMA_VERSION",
+    "RELATIONSHIP_PUBLIC_EVIDENCE_CONTRACT_SCHEMA_VERSION",
     "RelationshipHistoryEvent",
     "RelationshipObservation",
     "RelationshipPolicyProfile",
+    "RelationshipPublicEvidenceContract",
     "RelationshipTransferDataset",
     "load_relationship_transfer_dataset",
     "relationship_transfer_package_dir",

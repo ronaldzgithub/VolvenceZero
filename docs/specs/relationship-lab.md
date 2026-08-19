@@ -7,11 +7,18 @@
 > gate1_passed=false`。P1c 随后以 Qwen2.5-3B 完整重跑 fresh Gate 0 与 same-substrate
 > P1b；prompt/RAG/structured-state 三臂均为 8/8 correct、pair flip 1.0，故权威判词是
 > `version_scenario_dataset_saturated`：现有 v1 场景不能区分强普通上下文基线与系统。
-> P1d 已冻结 `relationship_transfer_v2` 场景 owner：每位用户四次历史中两个动作都
-> 各一正一负，probe family 未在该用户历史出现，只能按抽象情境归纳个体策略；v2
-> dataset fingerprint 为 `d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b`，
-> Gate 0 五项 machinery PASS，真实 baseline 检查 PENDING。v1 仍是默认 consumer；
-> P1e 冻结强 condition-aware readout 并切换 consumer 前，不得写 v2 baseline 结论。
+> P1d 已冻结 `relationship_transfer_v2` 场景 owner；P1e 又在任何 v2 模型输出前冻结
+> condition-aware consumer、四历史 context 与 typed relationship-outcome RAG top-4。
+> Qwen2.5-3B 的 fresh Gate 0 为 24/24 valid、accuracy 0.50，PASS；same-substrate
+> P1b 的 prompt/RAG/structured-state accuracy 为 0.625/0.25/0.625，pair flip 均为
+> 0.25，24/24 readout strict-valid。权威 P1e 判词为
+> `rewrite_public_evidence_contract`：接线成立，但现有公开语言证据尚不能支撑稳定的
+> 抽象条件迁移资格。不得继续在已见 v2 split 上轮换 prompt。
+> P1f 因而版本化 `relationship_transfer_v3`，把“事件”和“当事人体验到的关系损失”
+> 同时写入公开历史/probe，并在任何 v3 Qwen 输出前冻结 BGE-M3 只读审计。权威结果为
+> 60/60 top-1、最小 margin 0.020404、平均 margin 0.080646，判
+> `consumer_protocol_freeze_candidate`。这只关闭 development public-evidence
+> legibility 前置门；人工盲标仍 pending，尚未证明 Qwen transfer、Readable 或四能力。
 > 正式 prereg 与 secret heldout 仍关闭，不得进入 P2 formal 或宣称四能力成立。
 >
 > 产品路线：`docs/moving forward/relationship-intelligence-mvp-plan-2026-08.md`
@@ -32,9 +39,9 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 
 | 部件 | 位置 | 唯一职责 |
 |---|---|---|
-| 公开经历与封存真值 | `lifeform-domain-emogpt/.../scenario_packages/relationship_transfer_{v1,v2}/` | 分离保存 rendered observation、generator truth、split 与 prereg 模板；v1/v2 artifact 不改写 |
+| 公开经历与封存真值 | `lifeform-domain-emogpt/.../scenario_packages/relationship_transfer_{v1,v2,v3}/` | 分离保存 rendered observation、generator truth、split 与 prereg 模板；旧版本 artifact 不改写；v3 额外冻结 public-evidence contract |
 | 决策与 sidecar 契约 | `lifeform-domain-emogpt.lab.contracts` | closed action surface、行动前下注、模型 lineage、内容寻址 `RelationshipDecisionTrace` |
-| 数据 loader | `lifeform-domain-emogpt.lab.dataset` | 唯一 version-aware dataset owner；v1 默认兼容，v2 额外校验组合策略、反捷径平衡、未见 surface 与 sealed policy 隔离，只构造白名单 SUT payload |
+| 数据 loader | `lifeform-domain-emogpt.lab.dataset` | 唯一 version-aware dataset owner；v1 默认兼容，v2/v3 校验组合策略、反捷径平衡、未见 surface 与 sealed policy 隔离；v3 把 public-evidence contract 纳入指纹，只构造白名单 SUT payload |
 | 反应式环境 | `lifeform-domain-emogpt.lab.environment` | 由 sealed latent dynamic × 实际 action 机械产生 typed outcome；LLM 不决定标签 |
 | 冻结 stateless baseline | `lifeform-evolution.relationship_lab_baseline` | 用同一真实 substrate 生成 current-turn-only 决策账本、hash 与 attestation；不读取 history/truth |
 | Gate 0 编排与判词 | `lifeform-evolution.relationship_lab_gate0` | 只读校准、泄漏审计、baseline attestation 验证与报告 |
@@ -42,7 +49,9 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P1 四臂 runner 与判词 | `lifeform-evolution.relationship_lab_packet1` | 同一冻结 substrate 上运行 stateless/full-history/RAG/structured-state，发布逐决策账本、恢复/成本/行为门与 P1 报告 |
 | P1b readout owner | `lifeform-evolution.relationship_lab_packet1b` | 发布 schema-bound evidence readout、无文本 typed compiler、lineage-complete v4 报告与 saturation verdict |
 | P1c 资格分叉 owner | `lifeform-evolution.relationship_lab_packet1c` | 冻结 stronger-substrate candidate protocol，只消费 Gate 0/P1b 正式工件，发布 formal-prereg / scenario-version / evidence-contract 三路判词 |
-| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c}.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1/P1b，或串联 P1c 资格分叉 |
+| P1e v2 consumer 资格 owner | `lifeform-evolution.relationship_lab_packet1e` | 冻结 v2 condition-aware consumer protocol，只消费 Gate 0/P1b 正式工件，发布 v2 formal-prereg / still-saturated / evidence-contract 三路判词 |
+| P1f 公开证据审计 owner | `lifeform-evolution.relationship_lab_packet1f` | 只读 v3 公开文本、sealed condition summary、冻结 BGE-M3 与 P1e trigger，发布逐单元 hash/margin 和下一 consumer-freeze 判词 |
+| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f}.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1/P1b、串联 P1c/P1e 资格分叉，或执行 P1f 离线语义审计 |
 
 硬边界：
 
@@ -68,11 +77,13 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 - action→`HELPED / FELT_HEARD / MISSED / OVER_DIRECTIVE` 分布；
 - scene→latent binding 与 train/validation/heldout 整组划分。
 
-v2 额外拥有两种 sealed abstract condition、两种互补 user policy、48 条
+v2/v3 额外拥有两种 sealed abstract condition、两种互补 user policy、48 条
 history→condition binding 与每个 probe 的 condition。它们只用于机械验证“先辨认情境、
 再应用个体映射”的可解性和环境结算；`condition_id / policy_id /
 probe_condition_id / history_condition_bindings` 全部禁止进入 SUT。公开历史只包含自然语言
 情境、实际 action、typed outcome 和用户反应，不把这些 sealed 概念翻译成答案句。
+v3 的 sealed summaries 另作为 P1f evaluator 锚点，但只以 hash/score 出现在报告中；
+condition id、summary 文本和标签均不进入 SUT，也不回灌 learning/steering。
 
 该文件只允许 `ReactiveRelationshipEnvironment` 与只读 evaluation 访问。
 
@@ -86,7 +97,7 @@ probe_condition_id / history_condition_bindings` 全部禁止进入 SUT。公开
 `rendered_observations.json` 只含公开场景材料与 harness metadata：
 
 - opaque `scene_id` 与可哈希化 user scope；
-- 两次过去自然语言经历；
+- v1 两次、v2/v3 四次过去自然语言经历；
 - 当时实际选择的 typed relation action；
 - 用户明确给出的 typed outcome 与自然语言结果；
 - 新场景当前句和候选动作表面。
@@ -135,7 +146,8 @@ outcome，再由 PE owner 解释；evaluation 不得反向提供 latent 或最�
 
 ## 5. Scenario package 契约
 
-包名 `relationship_transfer_v1` 与 `relationship_transfer_v2` 都符合
+包名 `relationship_transfer_v1`、`relationship_transfer_v2` 与
+`relationship_transfer_v3` 都符合
 `^[a-z][a-z0-9_]*$`，并分别包含：
 
 - `manifest.yaml`
@@ -145,6 +157,9 @@ outcome，再由 PE owner 解释；evaluation 不得反向提供 latent 或最�
 - `rendered_observations.json`
 - `generator_truth.json`
 - `prereg_template.json`
+
+v3 还必须包含 `public_evidence_contract.json`，并由 dataset fingerprint 同时绑定公开
+观察、sealed truth 与该契约。
 
 四条路径（经历证据、行动前下注、反应式结算、counterfactual user swap）均被
 同一四阶段 arc 引用，`phase_order=0..3` 连续。routing tests 不少于 6，含
@@ -158,6 +173,14 @@ v2 使用五条路径和五阶段 arc，在经历与下注之间新增 abstract-
 所以全局 tally 必然平局。每个 probe family 均未出现在该用户历史中；同一 mirrored pair
 共享 current bytes 与 probe condition，但 policy 和 preferred action 互补。loader 对这些
 结构 fail loudly，不能靠人工说明冒充难度。
+
+v3 不改变这些组合与隔离不变量，只正交化两类 sealed condition summary，并让每条公开
+history/probe 同时包含事件和当事人体验到的关系损失。它使用六条路径和六阶段 arc，新增
+`public_evidence_legibility`：在任何 v3 Qwen 输出前，用内容寻址的 BGE-M3 snapshot 将
+48 条 `user_utterance + user_reaction` 和 12 条 `current_input` 分别与两个 sealed
+summary 对比。60 条必须全部 top-1 正确，正确锚点最小 margin ≥0.02、平均 margin ≥0.07；
+tie 按失败处理。该 auditor 是 development 编写/可解性门，不是 SUT、训练信号或人类
+可读性替代品。
 
 ## 6. Gate 0 判决
 
@@ -338,6 +361,96 @@ message 参与抽象情境推断；prompt/structured-state 获得全部四条历
 资格。P1d 只允许声称“场景与反捷径契约机械成立”，不允许声称 baseline qualified、
 Volvence advantage、Gate 1/P2 或四能力成立。
 
+### 7.4 P1e：v2 condition-aware consumer steelman
+
+P1e 在任何 `relationship_transfer_v2` 模型输出之前冻结内容寻址的
+`relationship-p1e-consumer-protocol.v1`，protocol id 为
+`5221909debd8b0248c83332589c2681270118dc54b7014654db2d627ca2fbd1e`。协议保持
+Qwen2.5-3B、CPU bfloat16、generation config、Gate 0/P1 阈值和无文本 typed compiler
+不变，只把 consumer 明确升级为 v2 所需的公平 steelman：
+
+1. readout profile 固定为 `v2_condition_aware`，current message 必须参与抽象关系压力
+   归纳；不得泄漏 sealed condition/policy 名称，也不得做全局动作多数票；
+2. prompt-steelman 与 structured-state 都获得同一用户全部四条公开历史；
+3. RAG 真实走 BGE-M3 semantic retrieval，固定 `top_k=4`，candidate surface 仅为 typed
+   relationship-outcome owner records，并覆盖四条信号记录；
+4. readout 仍只发布两个 `{-1,0,+1}` score，最终动作仍由
+   `relationship-evidence-argmax.v1` 机械编译；
+5. dataset/evaluated-context/background/RAG/prompt/request/schema/generation/gates/seeds/
+   weights 全部进入 frozen lineage；runner 支持 stage-level checkpoint、独立 attempt 与
+   local-cache preflight，不从日志或 raw output 重建 producer 状态。
+
+权威 lineage 中，dataset fingerprint 为
+`d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b`，evaluated
+context surface 为
+`3198a31996fa7234bf7cecdbefdfc2c9fd473e277ecddb4f6e3eaade755b4c3b`，readout
+prompt 为 `9687c5043029502b0787cd88758d06c1c0541338ed3c50068ad4824ce25fd4e5`，RAG
+config 为 `2e1a510f324887a4d4a00055d4c9fbfc1b22ed312185eae34d0e927e61c369ff`。
+
+2026-08-20 的真实运行先产生 24/24 valid、12/24 correct 的 stateless baseline，Gate 0
+六项检查全部 PASS；随后 P1b 的 24 个 readout 全部 strict-valid，恢复、scope、成本、
+console 与同基底检查成立。资格结果为：
+
+| Arm | valid | accuracy | mirrored pair flip |
+|---|---:|---:|---:|
+| prompt-steelman | 8/8 | 0.625 | 0.250 |
+| rag-steelman | 8/8 | 0.250 | 0.250 |
+| structured-state | 8/8 | 0.625 | 0.250 |
+
+P1b report artifact 为
+`073501caf5513ef5ed75872a748eae8eba0f708a5cea6ed22ab3acbc90f671a8`，判
+`baseline_underqualified / gate1_passed=false`；P1e report artifact 为
+`232afebb56afb5e457af3d7ca4ccfc560cc417447defcb6d265263085fad8693`，判
+`rewrite_public_evidence_contract`。该结果排除了“旧 tally、少给两条历史或 RAG top-k
+不足”作为失败解释，但只是一份 development routing evidence：它不证明模型绝对无法
+抽象，也不证明 Volvence 优势或四能力成立。
+
+该判词只允许 P1f 版本化并重写公开 evidence/label contract，使冻结 evaluator 能先从
+自然语言观察中核对抽象条件；禁止在已见 v2 split 上继续轮换 prompt。P1f 也不得新增
+latent carrier、PE learning、controller 或 steering 来掩盖输入契约问题。
+
+### 7.5 P1f：v3 public-evidence legibility gate
+
+P1f 新增独立 `relationship_transfer_v3`，不修改 v2 或重跑已见 v2 输出。它保留六组
+mirrored pair、每用户四历史、两 condition×两 action、每动作一正一负、未见 probe
+surface 与互补个体策略；仅修复 public language contract：公开文本必须同时描述日常
+事件和当事人体验到的关系损失，probe 不包含直接动作请求，sealed condition/action
+标签继续对 SUT 零可见。v3 dataset fingerprint 为
+`35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f`，public-evidence
+contract id 为
+`8ba8a6788d35e959c4a6fa42d31f54baa7d5e1ba48f52603e4bec510232d3cbb`；二者绑定 P1e
+artifact `232afebb56afb5e457af3d7ca4ccfc560cc417447defcb6d265263085fad8693` 的
+`rewrite_public_evidence_contract` 判词。
+
+审计方法在模型输出前冻结为：使用 snapshot digest
+`d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e` 的
+`BAAI/bge-m3`，由 `relationship-public-evidence-auditor.v1` 把 48 条 history 的
+`user_utterance + "\n" + user_reaction` 和 12 条 probe 的 `current_input` 与两个 sealed
+`hidden_summary` 做 cosine 对比；分数固定到 12 位小数，
+tie 失败。阈值为 60/60 top-1、最小正确锚点 margin ≥0.02、平均 margin ≥0.07。
+evaluator 只发布 source/text/anchor hash、score 与 margin，不发布原文或 condition id，
+其结果不得进入 memory、PE、credit、reward 或 steering。
+
+2026-08-20 的权威本地审计得到：
+
+| evidence | count | top-1 correct |
+|---|---:|---:|
+| histories | 48 | 48 |
+| probes | 12 | 12 |
+| total | 60 | 60 |
+
+top-1 accuracy 为 1.0，最小 margin 为 0.020403792213，平均 margin 为
+0.080645917619；report artifact 为
+`a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd`，判
+`consumer_protocol_freeze_candidate`。这只表示 v3 development public evidence 在一套
+冻结语义 auditor 下可判别。人工盲标仍为 `pending_before_formal`，至少需要 3 名独立
+rater、隐藏标签且多数一致率 ≥0.8；它不得被该嵌入结果替代。
+
+因此下一包 P1g 只能在任何 v3 Qwen 输出前冻结 consumer protocol、readout、完整四历史、
+RAG top-k、weights/generation/seeds/gates 与阈值，然后才允许 first v3 Qwen run。P1f
+没有证明 human readability、Qwen transfer、Volvence advantage、Readable、formal
+heldout、产品价值或任一完整四能力闭环，也不授权 P2。
+
 ## 8. Baseline 与 formal 纪律
 
 `FrozenBaselineAttestation` 必须记录：dataset/model/weights/prompt/generation/seed
@@ -478,6 +591,19 @@ P1c cache/disk 预检（不会运行模型）：
 weights sha256 锁定 same-substrate。退出码 0 只表示可冻结 formal prereg 候选；
 科学上的 saturation/underqualification 使用退出码 2，cache 未就绪使用退出码 3。
 
+P1e 的 v2 consumer lineage/cache 预检与完整运行分别为：
+
+```bash
+.venv/bin/python scripts/run_relationship_lab_packet1e.py --preflight-only
+
+.venv/bin/python scripts/run_relationship_lab_packet1e.py \
+  --output-dir artifacts/relationship_lab/<packet1e-run-id>
+```
+
+P1e 同样只在 preflight 阶段允许显式下载；本机已有 Qwen2.5-3B 与 BGE-M3 snapshot 时
+完整运行不需要网络。退出码 0 只代表 formal-prereg freeze candidate，科学上的
+still-saturated/underqualification 使用退出码 2。
+
 2026-08-20 的权威 v2 run 位于
 `artifacts/relationship_lab/qwen25_3b_packet1c_v2_readout_v3_top2_20260819/`。fresh Gate 0
 为 24/24 valid、10/24 correct（accuracy 0.4167），machinery 与 Gate 0 均 PASS；P1b
@@ -486,12 +612,34 @@ pair 全部 flip。P1c report artifact 为
 `599e7e94ac1a06a7b342f6024614c1489b6130e768c1d5db8fbd7b833bfba1d7`，判词
 `version_scenario_dataset_saturated`。
 
-因此当前证明的是：既有 memory/reference owner 能追加、恢复、隔离、纠删并压缩上下文，
-而 v1 公开证据又简单到更强普通 full-history/RAG 基线可做满。P1d 已据此冻结 v2 的
-组合迁移场景与反捷径结构，但尚未产生 v2 模型证据。它没有证明 Volvence 相对基线优势，
-也没有证明 Readable、Learnable 或 Steerable。按冻结分叉，P2 继续关闭；下一包 P1e
-只能先冻结不削弱 baseline 的 condition-aware readout、四历史 context 与 RAG top-4，
-再重新运行 Qwen2.5-3B qualification，不能直接接 PE learning 或 steering。
+P1e 权威运行位于
+`artifacts/relationship_lab/qwen25_3b_packet1e_v2_conditioned_top4_20260820/`。fresh Gate 0
+为 24/24 valid、accuracy 0.50；P1b 24/24 readout strict-valid，prompt/RAG/structured
+accuracy 为 0.625/0.25/0.625，pair flip 均为 0.25。报告因此发布
+`rewrite_public_evidence_contract`，没有进入 formal prereg。
+
+P1f 的本地 lineage 预检与完整 public-evidence 审计分别为：
+
+```bash
+.venv/bin/python scripts/run_relationship_lab_packet1f.py --preflight-only
+
+.venv/bin/python scripts/run_relationship_lab_packet1f.py \
+  --output-dir artifacts/relationship_lab/<packet1f-run-id>
+```
+
+默认只使用本地冻结 BGE-M3 snapshot；缺失时返回退出码 3，只有显式
+`--allow-download` 才能 materialize。退出码 0 只表示 public-evidence legibility 达到
+冻结阈值，退出码 2 表示必须再次改写契约。权威产物位于
+`artifacts/relationship_lab/bge_m3_packet1f_v3_public_evidence_20260820/`，60/60 top-1，
+最小/平均 margin 为 0.020403792213/0.080645917619，artifact
+`a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd`。
+
+因此当前证明的是：既有 memory/reference owner 能追加、恢复、隔离、纠删、压缩并把
+完整四历史交给冻结 consumer；v2/v3 消除了全局动作偏好捷径；v3 的 60 个公开单元在
+一套冻结 BGE-M3 development auditor 下都能读出预期抽象关系条件。但尚未检验冻结 Qwen
+consumer 是否能完成“当前条件→对应历史子集→个体动作”迁移，也没有人工盲标、Volvence
+相对基线优势、Readable、Learnable 或 Steerable 证据。按冻结分叉，P2 继续关闭；下一包
+P1g 先冻结 consumer protocol，不能直接接 PE learning 或 steering。
 
 ## 10. 回滚与下一包
 
@@ -512,4 +660,15 @@ artifact 继续按原 schema 可审计。
 
 P1d 同样没有 runtime wiring，且 v1 仍为默认 package。回滚只需停止显式加载
 `relationship_transfer_v2`；删除 v2 package 与 version-aware 分支即可撤回，不需要迁移
-产品或内核状态。P1e 切换前禁止让任何无 package lineage 的 consumer 自动漂移到 v2。
+产品或内核状态。任何 consumer 都禁止在没有 package lineage 的情况下自动漂移到 v2。
+
+P1e 同样没有 runtime wiring。回滚只需停止 `run_relationship_lab_packet1e.py`，不再消费
+其 v2 protocol/report，并让 P1/P1b 默认 profile 保持 v1；产品、PE、controller、steering
+与内核状态均不需要迁移。已经发布的 P1e artifact 必须按原 hash 保留，不能用后续 P1f
+证据契约覆盖或重写。
+
+P1f 同样没有 runtime wiring。回滚只需停止 `run_relationship_lab_packet1f.py` 并停止
+显式加载 `relationship_transfer_v3`；删除 v3 package、P1f audit consumer 与报告即可，
+v1 默认、v2/P1e lineage、产品、memory、PE、controller 和 steering 均不迁移。已经发布的
+v3 fingerprint、public-evidence contract 与 P1f artifact 必须按原 hash 保留；P1g 不得
+看到 v3 Qwen 输出后回改它们。
