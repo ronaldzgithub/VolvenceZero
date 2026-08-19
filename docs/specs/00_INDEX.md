@@ -1,7 +1,7 @@
 # Specs 分层知识入口总索引
 
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
-> Last reconciled: 2026-08-19（90 份 spec 全量挂载；新增关系智能 MVP 支撑文档入口）
+> Last reconciled: 2026-08-20（92 份 spec 全量挂载；Relationship Lab P0 Gate 0 development calibration PASS，P1/P1b Gate 1 BLOCK；P1c Qwen2.5-3B 三臂做满并判 v1 dataset saturated，下一步版本化 relationship_transfer_v2）
 
 ---
 
@@ -310,6 +310,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 | [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：N+1-based v3 base-only / v4 character-stack、Gate 1/suite v2、强制 smoke、严格 resume、state/sleep 消融与独立审计；历史 v1 formal 已停机且不可原样续跑；A1 formal（nplus1 prereg）已封存 `passed=false`，判词限定为「v1 raw-cosine readout 下无净增益」，重开须过分辨力 + 传导双预检（主线方案 §0 不变量 7/8） |
 | [coding-lab.md](./coding-lab.md) | 编程域持续学习证据 lane：受控演进式合成仓库（隐藏不变量 + pytest oracle 机械判决 + 内容寻址轨迹落盘）；A1 判词收窄后升格为主证据 lane，语义级 PE 不依赖残差 readout 标度。Packet 0 标定 PASS（环境比特级确定、oracle pass rate 0.656 落带、held-out 变体哈希封存）；Packet 1 SHADOW 观察者：语义 PE 分辨力 p≈1e-4、跨进程恢复、`dialogue_external_outcome` 外部结局通道三项 PASS，`forecast_skill=False` 如实封存（scope=合成基底×scripted 轨迹）；Packet 2 记忆注入 vs 长上下文 steelman 进行中 |
+| [relationship-lab.md](./relationship-lab.md) | 关系智能主证据 lane P0/P1/P1b/P1c：六组同句 mirrored users、反应式环境与内容寻址 sidecar；真实 Qwen Gate 0 PASS。P1 接同基底 full-history、BGE-M3 RAG、既有 `MemoryStore` structured-state、跨进程恢复、scope/token/console 与 user-swap 行为门。1.5B P1b schema-bound readout→typed compiler 为 24/24 strict-valid、machinery PASS，但三臂 accuracy 0.25/0.50/0.50、pair flip 全 0。P1c v2 用 Qwen2.5-3B 独立重跑 fresh Gate 0 + same-substrate P1b，三臂 accuracy/pair flip 全 1.0，权威判 `version_scenario_dataset_saturated`；下一包只能版本化 `relationship_transfer_v2`，prereg/secret heldout/P2/四能力主张继续关闭 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
 | [thesis-v2-proposal.md](../thesis-v2-proposal.md) | #93 有界产品连续性提案：继承 #92/L1/L3 负证据，把 Gate 8/11 真实人类 anchor 作为唯一新 EXIT，明确排除失败 learned uplift 与 production 自动晋升 |
 | Gate 2 conditioned longitudinal（[temporal](./temporal-abstraction.md) / [conditioning](./personal-conditioning.md) / [evidence](./evidence_program.md)） | 14 维 Relationship owner readout 条件化 8076→8090 residual selector；seed1301 stop-loss 终局 `not-supported`，不授权 live promotion |
@@ -324,6 +325,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 - 七日 simulated evidence 必须逐字节匹配 user turns、真实走 stop→persist/restart/hydrate、以冻结 substrate N+1 预测为主判据、缺失 owner metric 不插补且只作 secondary；自动结果只支持 simulated-longitudinal，不授权 real-user 或 production 主张
 - ETA-on-LLM 四级阶梯：Gate 1 失败只修仪器不杀主张；Gate 2 失败杀迁移路线；Gate 3 失败才永久摘除 ETA；不进 `vz-cognition.evaluation` runtime 包
 - coding-lab：episode 终局只走 `dialogue_external_outcome`（`TASK_VERIFIED` / `TASK_REGRESSED` 仅限确定性 oracle 经 `ENVIRONMENT` typed source 注入，禁止 chat text 推断）；行动前下注时间戳必须先于 oracle 结算落盘；环境模板 / 不变量变更须递增 `GENERATOR_VERSION` + 重新标定 + 重新封存 held-out；换手（模型 / provider）= 新 lineage 重跑 Packet 0
+- relationship-lab：公开经历、封存 generator truth 与 settled sidecar 物理分离；用户下一拍必须由实际 action×hidden dynamic 反应式产生；没有冻结真实 substrate stateless/raw baseline attestation 时只可称 machinery ready，禁止把 scripted fixture 或 oracle 上限写成 Gate 0 PASS。P1 还必须把“state digest 不同”和“同句 user swap 真正改变动作”分门判定；跨进程恢复/token 压缩不能单独升级为 Appendable Gate 1 PASS
 
 ---
 

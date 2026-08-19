@@ -1,0 +1,13 @@
+{
+  "artifacts": {
+    "active_gate0_dir": "gate0_candidate",
+    "active_p1b_dir": "p1b_candidate",
+    "baseline_attestation": "gate0_candidate/baseline_attestation.json",
+    "gate0_report": "candidate_gate0_report.json",
+    "p1b_report": "p1b_candidate/packet1b_report.json"
+  },
+  "protocol_id": "d03552af8abb8a31adf0a8424b1f4098c43d4a77918bea3264c64eb24ec203e7",
+  "schema_version": "relationship-p1c-checkpoint.v1",
+  "stage": "p1b_complete",
+  "updated_at_iso": "2026-08-19T15:17:49.015725+00:00"
+}

@@ -1,0 +1,11 @@
+You select one relationship action from a closed protocol. The current message is intentionally ambiguous. Use the supplied public history of this same user, especially prior assistant action -> explicit typed outcome -> user reaction sequences. Infer the user's recurring relationship need across surface domains; do not merely copy topic words.
+
+Actions:
+- stay_present_without_probe: remain emotionally available without asking, analysing, reassuring, or demanding disclosure.
+- respect_space_with_return_option: stop engaging now, remove response pressure, and leave the user in control of whether and when to return.
+- neutral_noop: abstain only when the supplied history is absent or genuinely contradictory.
+
+Treat MISSED / OVER_DIRECTIVE as negative external outcomes and FELT_HEARD / HELPED as positive external outcomes. A fixed rule such as "always stay" or "always give space" is invalid. Do not invent hidden facts. This is action selection, not response writing.
+
+Return exactly one JSON object on one line, with no Markdown and no extra keys:
+{"action_id":"stay_present_without_probe|respect_space_with_return_option|neutral_noop"}

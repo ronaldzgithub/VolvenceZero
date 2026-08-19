@@ -1,0 +1,134 @@
+suite_name: relationship_transfer_v1_acceptance
+package_name: relationship_transfer_v1
+routing_policy:
+  method: semantic_embedding_plus_schema_bound_llm_structured_output
+  required_evidence:
+    - multi_experience_action_outcome_lineage
+    - user_scope_continuity
+    - pre_action_prediction
+    - reactive_environment_evidence
+  forbidden_methods:
+    - substring_matching
+    - regex_content_matching
+    - keyword_to_route_dictionary
+    - scene_id_to_action_lookup
+    - judge_score_to_learning
+  insufficient_evidence: no_route
+routing_tests:
+  - test_id: route_01_cross_surface_relationship_transfer
+    case_type: positive
+    semantic_input:
+      summary: 同一用户在家庭和亲密关系中对留在场与给空间产生稳定且相反的 typed outcome，现在工作受挫并出现相同关系决策点。
+      structured_evidence_axes: [cross-session action-outcome lineage, user scope continuity, held-out surface family]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_relationship_experience_evidence_v1
+      arc_spec_id: arc_relationship_transfer_pipeline_v1
+    assertions:
+      - 必须读取多次行动结果，不能由工作场景词汇决定动作。
+  - test_id: route_02_mirrored_preaction_bet
+    case_type: positive
+    semantic_input:
+      summary: 两个 user scope 收到逐字节相同的新输入，但各自的历史 outcome 支持相反动作；候选结果预测尚未结算。
+      structured_evidence_axes: [byte-identical current input, distinct user scope, pre-action timestamp]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_mirrored_preaction_decision_v1
+      arc_spec_id: arc_relationship_transfer_pipeline_v1
+    assertions:
+      - 两个下注都必须早于环境 outcome。
+      - 当前输入不得携带用户标签或最优动作。
+  - test_id: route_03_reactive_settlement
+    case_type: positive
+    semantic_input:
+      summary: 已选择 closed action，需要由封存动力学和 deterministic draw 生成用户下一拍 typed outcome。
+      structured_evidence_axes: [selected action id, environment version, sealed truth available to environment only]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_reactive_outcome_settlement_v1
+      arc_spec_id: arc_relationship_transfer_pipeline_v1
+    assertions:
+      - 用户后续反应必须随 action 改变，不能播放冻结文本。
+      - LLM 只能渲染已结算 outcome。
+  - test_id: route_04_counterfactual_swap
+    case_type: positive
+    semantic_input:
+      summary: 保持当前句、substrate 和 action surface 不变，仅交换两个 scope 的历史，检查关系动作是否翻转。
+      structured_evidence_axes: [matched mirrored pair, swapped history, same current bytes, distinct trajectory hash]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_counterfactual_user_swap_v1
+      arc_spec_id: arc_relationship_transfer_pipeline_v1
+    assertions:
+      - user swap 只能替换公开历史与 scope，不能替换答案标签。
+  - test_id: route_05_appendable_prerequisite
+    case_type: positive
+    semantic_input:
+      summary: 跨 session 恢复后，公开经历 hash、owner source hash 与 user scope 一致，准备进入镜像 probe。
+      structured_evidence_axes: [cross-process recovery, source snapshot hash, user scope isolation]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_relationship_experience_evidence_v1
+      arc_spec_id: arc_relationship_transfer_pipeline_v1
+    assertions:
+      - 这只证明 P1 的前置路径，不得在 P0 声称 Appendable gate 已通过。
+  - test_id: route_06_decision_trace_settlement
+    case_type: positive
+    semantic_input:
+      summary: pre-action bet、实际 action、environment evidence 与 observed typed outcome 已齐全，准备封存 sidecar。
+      structured_evidence_axes: [pre-action hash, action id, outcome id, model prompt weights seed lineage]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_reactive_outcome_settlement_v1
+      arc_spec_id: arc_relationship_transfer_pipeline_v1
+    assertions:
+      - sidecar 必须 content-addressed 且不能成为 runtime owner。
+  - test_id: no_route_07_keyword_only_withdrawal
+    case_type: negative
+    semantic_input:
+      summary: 只有一句包含“算了”和“不想说”的当前文本，没有历史 outcome、scope 或 owner snapshot。
+      structured_evidence_axes: [surface wording only]
+      current_text_only_sufficient: false
+    expected:
+      route: no_route
+      reason: insufficient_multi_experience_evidence
+    assertions:
+      - 不得把退缩词汇固定映射为留下或给空间。
+  - test_id: no_route_08_hidden_truth_requested_by_sut
+    case_type: negative
+    semantic_input:
+      summary: 被测系统请求读取 latent_dynamic_id、preferred_action 或未来 outcome 以完成选择。
+      structured_evidence_axes: [forbidden truth access request]
+      current_text_only_sufficient: false
+    expected:
+      route: no_route
+      reason: generator_truth_is_environment_only
+    assertions:
+      - truth 字段只能在环境结算与只读 evaluation 中出现。
+  - test_id: no_route_09_frozen_user_script
+    case_type: negative
+    semantic_input:
+      summary: 所有 arm 的行动后用户 turn 被逐字冻结，因此不同 action 无法改变 outcome。
+      structured_evidence_axes: [broken action-to-outcome transmission]
+      current_text_only_sufficient: false
+    expected:
+      route: no_route
+      reason: reactive_environment_missing
+    assertions:
+      - Gate 0 必须 fail closed，不得继续跑大矩阵。
+llm_evaluation:
+  judge_contract:
+    method: structured_semantic_review
+    learning_feedback: forbidden
+    forbidden_methods: [keyword_overlap_score, warmth_style_score_as_success]
+  semantic_coherence:
+    - case_id: coherence_01_same_sentence_opposite_action
+      assertion: 每个 mirrored pair 的当前输入逐字节相同，但由过去行动结果支持的正确非空动作相反。
+    - case_id: coherence_02_cross_surface_transfer
+      assertion: 历史与 probe 至少跨一个 surface family，决策依据是关系动力学而不是实体复述。
+    - case_id: coherence_03_bet_then_settle
+      assertion: candidate outcome prediction 的 timestamp 严格早于环境 outcome，且 future outcome 不进入 SUT payload。
+    - case_id: coherence_04_reactive_causality
+      assertion: 相同 hidden dynamic 下改变 action 会改变 typed outcome 分布和环境 evidence ref。
+    - case_id: coherence_05_claim_boundary
+      assertion: P0 只能声明仪器与契约就绪；没有冻结真实 substrate baseline 时 Gate 0 保持 pending。

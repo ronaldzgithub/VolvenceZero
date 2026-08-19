@@ -1,0 +1,160 @@
+{
+  "schema_version": "1.0",
+  "package_name": "relationship_transfer_v1",
+  "design_contract": {
+    "scenario_regime_alignment": "R14_persistent_relationship_calibration_identity",
+    "routing_method": "semantic_embedding_plus_schema_bound_llm_structured_output",
+    "forbidden_routing": [
+      "keyword_contains",
+      "regular_expression_content_routing",
+      "dictionary_keyword_to_behavior",
+      "scene_id_to_action_lookup"
+    ],
+    "truth_visibility": "environment_and_read_only_evaluation_only",
+    "runtime_owner_policy": "no_new_runtime_owner_or_slot",
+    "evaluation_policy": "readout_only_no_learning_feedback"
+  },
+  "paths": [
+    {
+      "path_id": "path_relationship_experience_evidence_v1",
+      "family": "relationship_experience_evidence",
+      "name": "跨经历行动结果证据路径",
+      "objective": "向 SUT 只公开过去的自然语言经历、已选关系动作与 typed outcome，不公开抽象答案句。",
+      "semantic_detection": {
+        "method": "trajectory_embedding_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "cross_session action-outcome lineage",
+          "user scope continuity",
+          "typed external outcome",
+          "surface family variation"
+        ],
+        "insufficient_evidence_behavior": "no_route",
+        "forbidden": ["withdrawal_keyword_route", "persona_demographic_route"]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_relationship_experience_evidence_v1:public_history",
+          "order": 0,
+          "description": "冻结不含 latent label 的公开行动—结果历史。"
+        }
+      ],
+      "exit_evidence": "rendered observation hash 与 SUT payload leakage audit。"
+    },
+    {
+      "path_id": "path_mirrored_preaction_decision_v1",
+      "family": "mirrored_preaction_decision",
+      "name": "同句镜像行动前下注路径",
+      "objective": "对逐字节相同的新输入冻结所有候选动作的 outcome 分布与最终选择。",
+      "semantic_detection": {
+        "method": "owner_snapshot_conditioned_candidate_prediction",
+        "evidence_axes": [
+          "multi-experience relationship hypothesis",
+          "candidate action outcome prediction",
+          "pre-action timestamp",
+          "source snapshot hash"
+        ],
+        "insufficient_evidence_behavior": "neutral_noop_or_no_route",
+        "forbidden": ["current_text_only_action", "post_outcome_prediction"]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_mirrored_preaction_decision_v1:freeze_bet",
+          "order": 0,
+          "description": "在环境 outcome 发生前冻结候选预测、选择与 lineage。"
+        }
+      ],
+      "exit_evidence": "PreActionRelationshipDecision canonical hash。"
+    },
+    {
+      "path_id": "path_reactive_outcome_settlement_v1",
+      "family": "reactive_outcome_settlement",
+      "name": "反应式关系后果结算路径",
+      "objective": "让实际关系动作改变用户下一拍 typed outcome，而不是播放冻结用户脚本。",
+      "semantic_detection": {
+        "method": "typed_action_plus_sealed_dynamic_transition",
+        "evidence_axes": [
+          "selected action id",
+          "sealed environment version",
+          "deterministic draw",
+          "environment evidence ref"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "forbidden": ["judge_generated_outcome", "frozen_post_action_user_turn"]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_reactive_outcome_settlement_v1:settle_action",
+          "order": 0,
+          "description": "从实际 action 与封存动力学机械产生 typed outcome。"
+        }
+      ],
+      "exit_evidence": "RelationshipDecisionTrace 与 action-effect calibration。"
+    },
+    {
+      "path_id": "path_counterfactual_user_swap_v1",
+      "family": "counterfactual_user_swap",
+      "name": "用户历史交换反事实路径",
+      "objective": "保持当前输入不变，仅交换用户经历，验证动作应随个体动力学翻转。",
+      "semantic_detection": {
+        "method": "content_addressed_mirrored_pair_comparison",
+        "evidence_axes": [
+          "byte-identical current input",
+          "distinct user scope",
+          "opposite action-outcome histories",
+          "held-out surface family"
+        ],
+        "insufficient_evidence_behavior": "no_claim",
+        "forbidden": ["name_to_action_lookup", "scene_id_to_action_lookup"]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_counterfactual_user_swap_v1:mirror_verdict",
+          "order": 0,
+          "description": "检查镜像用户动作翻转、同用户改善与 swapped-user 恶化。"
+        }
+      ],
+      "exit_evidence": "pair-level matched verdict 与 split attestation。"
+    }
+  ],
+  "arc_specs": [
+    {
+      "arc_spec_id": "arc_relationship_transfer_pipeline_v1",
+      "path_ids": [
+        "path_relationship_experience_evidence_v1",
+        "path_mirrored_preaction_decision_v1",
+        "path_reactive_outcome_settlement_v1",
+        "path_counterfactual_user_swap_v1"
+      ],
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "public_experience_prefix",
+          "sub_goal_refs": [
+            "path_relationship_experience_evidence_v1:public_history"
+          ]
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "preaction_candidate_bet",
+          "sub_goal_refs": [
+            "path_mirrored_preaction_decision_v1:freeze_bet"
+          ]
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "reactive_environment_settlement",
+          "sub_goal_refs": [
+            "path_reactive_outcome_settlement_v1:settle_action"
+          ]
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "counterfactual_user_swap",
+          "sub_goal_refs": [
+            "path_counterfactual_user_swap_v1:mirror_verdict"
+          ]
+        }
+      ]
+    }
+  ]
+}

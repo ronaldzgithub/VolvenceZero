@@ -1,0 +1,60 @@
+{
+  "candidate": {
+    "candidate_id": "qwen25_3b_relationship_p1c_v1",
+    "capacity_tier": "3b",
+    "model_id": "qwen2.5-3b-instruct",
+    "model_revision": "main",
+    "model_source": "Qwen/Qwen2.5-3B-Instruct"
+  },
+  "claim_boundary": "This protocol freezes a stronger-substrate development qualification run. The materialized Gate 0 attestation, not the upstream model name or branch, freezes the actual weights. Formal hidden test remains unopened.",
+  "formal_hidden_test_opened": false,
+  "frozen_lineage": {
+    "action_choice_schema_sha256": "ebb029277fc33aa858689f9ab6b46d37ecb016d28261a5c3ce42a156f17e2475",
+    "compiler_version": "relationship-evidence-argmax.v1",
+    "context_bundle_artifact_id": "598d9105a635c6120329d0a4bef713870355ce8480e8e672b9b903665025dfa5",
+    "dataset_fingerprint": "953b0ee3483846e4aac876b0b1e93d58a4c8fb705e1a79db1df093be463e866a",
+    "expected_generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+    "gate0_config_sha256": "579dcaed530b02f0dac8ff664f7520420939e74541853e2b6716d5f66d960071",
+    "p1_gate_config_sha256": "bc4da88582c98594b155f1e14b62963ac7bcdf2524eb36a365543de9d4564f54",
+    "readout_prompt_sha256": "02b13cb111d9a329729c1e91737f8c60186d20fa7cce9c7e60fb49b87bd62c52",
+    "readout_request_template_sha256": "e0c5a4c10f941ee9b91e637c8129540f53d10f56a677e9022ab1c28305478dc9",
+    "readout_schema_sha256": "afa852a2ee43b55cd10e761d5bb5b6a56b546aaa626f9291edb550e3220c40ab",
+    "stateless_prompt_sha256": "778fb1ef73254d943a1c48cc5818034386eb529777f4eec9f9bf395053ec988e"
+  },
+  "materialization_guard": {
+    "materialized_weights_required": true,
+    "maximum_candidate_snapshot_bytes": 8000000000,
+    "minimum_free_bytes_before_download": 14000000000
+  },
+  "protocol_id": "d03552af8abb8a31adf0a8424b1f4098c43d4a77918bea3264c64eb24ec203e7",
+  "reference": {
+    "capacity_tier": "1.5b",
+    "model_id": "qwen2.5-1.5b-instruct",
+    "p1b_report_artifact_id": "9cd149b1e8c3f74d54d0cbaf72c216edfdaeba2979829925bc50c8ac3d60c4e8",
+    "weights_sha256": "04d7fb4ec80406436589d31ea38e8d45b9a11cf587ca4eb8a9c8f57415ea6010"
+  },
+  "run_config": {
+    "background_depths": [
+      0,
+      8,
+      32
+    ],
+    "baseline_seed_schedule": [
+      101,
+      211,
+      307
+    ],
+    "device": "cpu",
+    "max_new_tokens": 48,
+    "p1b_seed_schedule": [
+      101
+    ],
+    "rag_embedder": "bge-m3",
+    "rag_model_source": "BAAI/bge-m3",
+    "rag_top_k": 2,
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "torch_dtype": "bfloat16"
+  },
+  "schema_version": "relationship-p1c-candidate-protocol.v1"
+}

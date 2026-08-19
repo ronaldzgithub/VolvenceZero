@@ -1,0 +1,19 @@
+{
+  "arm_id": "stateless",
+  "artifact_id": "beac727ab18deb0c27d3965b2c15e107d1df058f4ee3415582d441ca52c811be",
+  "context_tokens_total": 4554,
+  "correct_decisions": 10,
+  "dataset_fingerprint": "953b0ee3483846e4aac876b0b1e93d58a4c8fb705e1a79db1df093be463e866a",
+  "decision_ledger_sha256": "4b831c71cb461b5757b8d0b3b355f2851ad5fc8876c381188926d5be5c802da2",
+  "evaluated_decisions": 24,
+  "evaluated_split": "calibration",
+  "frozen_at_iso": "2026-08-19T15:28:33.318586+00:00",
+  "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+  "hidden_test_opened": false,
+  "model_id": "qwen2.5-3b-instruct",
+  "prompt_sha256": "778fb1ef73254d943a1c48cc5818034386eb529777f4eec9f9bf395053ec988e",
+  "schema_version": "relationship-lab-baseline-attestation.v1",
+  "seed_schedule_sha256": "0574a855db7dd51851d45be0d6521c98983466b0364298136b59b6b5625885d7",
+  "valid_decisions": 24,
+  "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+}

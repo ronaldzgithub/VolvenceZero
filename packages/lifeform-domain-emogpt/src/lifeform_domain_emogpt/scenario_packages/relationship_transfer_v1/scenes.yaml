@@ -1,0 +1,41 @@
+schema_version: "1.0"
+package_name: relationship_transfer_v1
+generation_policy:
+  truth_source: generator_truth.json
+  rendered_observation_source: rendered_observations.json
+  runtime_observation_builder: lifeform_domain_emogpt.lab.dataset.RelationshipObservation.to_sut_payload
+  user_reaction: typed_reactive_transition_then_bounded_renderer
+  real_person_data: false
+  routing: semantic_only
+split_policy:
+  unit: entire_latent_sibling_pair
+  assignments:
+    train: [rtv1_scene_005a, rtv1_scene_005b, rtv1_scene_006a, rtv1_scene_006b]
+    validation: [rtv1_scene_003a, rtv1_scene_003b, rtv1_scene_004a, rtv1_scene_004b]
+    heldout: [rtv1_scene_001a, rtv1_scene_001b, rtv1_scene_002a, rtv1_scene_002b]
+scenes:
+  - {scenario_id: rtv1_scene_001a, mirror_group: mirror_001, split: heldout, probe_surface_family: work, path_id: path_counterfactual_user_swap_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_001b, mirror_group: mirror_001, split: heldout, probe_surface_family: work, path_id: path_counterfactual_user_swap_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_002a, mirror_group: mirror_002, split: heldout, probe_surface_family: friends, path_id: path_counterfactual_user_swap_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_002b, mirror_group: mirror_002, split: heldout, probe_surface_family: friends, path_id: path_counterfactual_user_swap_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_003a, mirror_group: mirror_003, split: validation, probe_surface_family: family, path_id: path_mirrored_preaction_decision_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_003b, mirror_group: mirror_003, split: validation, probe_surface_family: family, path_id: path_mirrored_preaction_decision_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_004a, mirror_group: mirror_004, split: validation, probe_surface_family: intimacy, path_id: path_reactive_outcome_settlement_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_004b, mirror_group: mirror_004, split: validation, probe_surface_family: intimacy, path_id: path_reactive_outcome_settlement_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_005a, mirror_group: mirror_005, split: train, probe_surface_family: work, path_id: path_relationship_experience_evidence_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_005b, mirror_group: mirror_005, split: train, probe_surface_family: work, path_id: path_relationship_experience_evidence_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_006a, mirror_group: mirror_006, split: train, probe_surface_family: friends, path_id: path_relationship_experience_evidence_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+  - {scenario_id: rtv1_scene_006b, mirror_group: mirror_006, split: train, probe_surface_family: friends, path_id: path_relationship_experience_evidence_v1, arc_spec_id: arc_relationship_transfer_pipeline_v1}
+semantic_routing:
+  method: trajectory_embedding_plus_schema_bound_llm_structured_output
+  input_axes:
+    - multi_experience_action_outcome_lineage
+    - user_scope_continuity
+    - candidate_action_outcome_prediction
+    - surface_family_transfer
+  insufficient_evidence: no_route
+  forbidden:
+    - substring_matching
+    - regex_content_matching
+    - keyword_dictionary
+    - scene_id_to_action_lookup

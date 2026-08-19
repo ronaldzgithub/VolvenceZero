@@ -1,0 +1,224 @@
+{
+  "schema_version": "relationship-lab-prereg.v5",
+  "status": "template_not_frozen",
+  "claim_scope": "synthetic_relationship_transfer_directional_evidence_only",
+  "package_name": "relationship_transfer_v1",
+  "formal_lock": {
+    "must_freeze_before_hidden_test": [
+      "dataset_fingerprint",
+      "generator_truth_sha256",
+      "rendered_observations_sha256",
+      "reactive_environment_version",
+      "substrate_model_id",
+      "substrate_weights_sha256",
+      "generation_config_sha256",
+      "arm_prompt_sha256",
+      "evidence_readout_prompt_sha256",
+      "evidence_readout_request_template_sha256",
+      "evidence_readout_schema_sha256",
+      "typed_action_compiler_version",
+      "p1c_candidate_protocol_id",
+      "p1c_qualification_report_artifact_id",
+      "rag_index_sha256",
+      "rag_embedding_weights_sha256",
+      "p1_background_templates_sha256",
+      "p1_context_depth_schedule_sha256",
+      "memory_store_contract_version",
+      "seed_schedule_sha256",
+      "baseline_decision_ledger_sha256",
+      "decision_trace_schema_version",
+      "thresholds"
+    ],
+    "forbidden_after_formal_start": [
+      "replace_prompt_after_viewing_heldout",
+      "change_environment_transition",
+      "change_candidate_action_surface",
+      "change_split_assignment",
+      "change_readout_schema_or_compiler",
+      "feed_judge_or_hidden_truth_to_sut"
+    ]
+  },
+  "matched_controls": {
+    "same_substrate_weights": true,
+    "same_generation_settings": true,
+    "same_candidate_action_surface": true,
+    "same_pre_action_observation": true,
+    "same_reactive_transition_function": true,
+    "post_action_user_turn_may_differ_by_action": true
+  },
+  "arms": [
+    {
+      "arm_id": "stateless",
+      "competitive": true,
+      "context_surface": "current_turn_only",
+      "learning_enabled": false,
+      "required_frozen_refs": ["base_system_prompt_sha256"]
+    },
+    {
+      "arm_id": "prompt-steelman",
+      "competitive": true,
+      "context_surface": "full_raw_history_plus_all_typed_outcomes",
+      "learning_enabled": false,
+      "required_frozen_refs": [
+        "evidence_readout_prompt_sha256",
+        "evidence_readout_request_template_sha256",
+        "evidence_readout_schema_sha256",
+        "typed_action_compiler_version",
+        "base_system_prompt_sha256"
+      ]
+    },
+    {
+      "arm_id": "rag-steelman",
+      "competitive": true,
+      "context_surface": "companion_ref_harness_semantic_embed_retrieval",
+      "learning_enabled": false,
+      "required_frozen_refs": [
+        "evidence_readout_prompt_sha256",
+        "evidence_readout_request_template_sha256",
+        "evidence_readout_schema_sha256",
+        "typed_action_compiler_version",
+        "rag_index_sha256",
+        "retrieval_config_sha256"
+      ]
+    },
+    {
+      "arm_id": "structured-state",
+      "competitive": false,
+      "context_surface": "memory_store_owner_published_typed_outcome_records",
+      "learning_enabled": false,
+      "required_frozen_refs": [
+        "evidence_readout_prompt_sha256",
+        "evidence_readout_request_template_sha256",
+        "evidence_readout_schema_sha256",
+        "typed_action_compiler_version",
+        "memory_store_contract_version",
+        "persistence_state_digest"
+      ]
+    },
+    {
+      "arm_id": "volvence-cold",
+      "competitive": true,
+      "context_surface": "owner_runtime_with_pe_updates_disabled",
+      "learning_enabled": false,
+      "required_frozen_refs": ["owner_wiring_manifest_sha256"]
+    },
+    {
+      "arm_id": "volvence",
+      "competitive": true,
+      "context_surface": "appendable_readable_learnable_steerable_loop",
+      "learning_enabled": true,
+      "required_frozen_refs": [
+        "owner_wiring_manifest_sha256",
+        "learning_policy_sha256"
+      ]
+    },
+    {
+      "arm_id": "oracle-concept",
+      "competitive": false,
+      "context_surface": "sealed_latent_dynamic_directly_exposed",
+      "learning_enabled": false,
+      "required_frozen_refs": ["generator_truth_sha256"]
+    }
+  ],
+  "gate_0_thresholds": {
+    "minimum_mirrored_pairs": 6,
+    "minimum_surface_families": 4,
+    "minimum_action_effect": 0.5,
+    "maximum_baseline_accuracy": 0.85,
+    "minimum_baseline_decisions": 24,
+    "required_valid_output_rate": 1.0,
+    "required_leakage_count": 0
+  },
+  "gate_1_thresholds": {
+    "minimum_decisions_per_arm": 8,
+    "required_valid_output_rate": 1.0,
+    "minimum_steelman_accuracy": 0.625,
+    "maximum_steelman_accuracy": 0.875,
+    "minimum_steelman_pair_flip_rate": 0.5,
+    "minimum_structured_state_pair_flip_rate": 0.5,
+    "maximum_rag_to_full_history_token_ratio": 0.55,
+    "maximum_structured_to_full_history_token_ratio": 0.4,
+    "required_cross_process_state_digest_match": true,
+    "required_console_rewrite_delete_persistence": true,
+    "required_sibling_scope_isolation": true
+  },
+  "p1b_development_protocol": {
+    "split": ["train", "validation"],
+    "shared_readout_across_contextual_arms": true,
+    "readout_fields": [
+      "stay_present_without_probe_score",
+      "respect_space_with_return_option_score"
+    ],
+    "readout_value_domain": [-1, 0, 1],
+    "typed_action_compiler_version": "relationship-evidence-argmax.v1",
+    "rag_top_k": 2,
+    "expected_action_visible_before_readout": false,
+    "saturation_verdict_above_accuracy": 0.875
+  },
+  "p1c_development_qualification": {
+    "candidate_protocol_schema_version": "relationship-p1c-candidate-protocol.v2",
+    "qualification_report_schema_version": "relationship-p1c-qualification-report.v1",
+    "required_same_substrate_lineage": true,
+    "required_fresh_candidate_gate0": true,
+    "prompt_parser_compiler_and_thresholds_frozen_from_p1b": true,
+    "formal_hidden_test_opened": false,
+    "allowed_verdicts": {
+      "formal_prereg_freeze_candidate": "freeze_materialized_weights_then_complete_formal_prereg_before_secret_heldout",
+      "version_scenario_dataset_saturated": "version_relationship_transfer_v2_without_weakening_baselines",
+      "rewrite_public_evidence_contract": "rewrite_public_evidence_and_labels_before_latent_pe_or_steering"
+    },
+    "precondition_failures_are_not_qualification_verdicts": [
+      "candidate_gate0_rejected",
+      "machinery_regression"
+    ]
+  },
+  "later_gate_metrics_reserved_after_p1": {
+    "gate_2": [
+      "heldout_candidate_action_nll",
+      "mirrored_pair_action_accuracy",
+      "oracle_concept_gap"
+    ],
+    "gate_3": [
+      "early_to_late_error_recurrence",
+      "volvence_vs_cold",
+      "shuffled_credit_control"
+    ],
+    "gate_4": [
+      "learned_gate_vs_noop_always_random",
+      "strict_noop",
+      "action_to_outcome_causal_gain"
+    ]
+  },
+  "reporting_contract": {
+    "finite_prompt_impossibility_claim_allowed": false,
+    "allowed_primary_claim": "beats preregistered frozen prompt/full-history/RAG steelmen on held-out relationship action selection with recorded context cost",
+    "p0_without_real_baseline_verdict": "machinery_ready_gate0_pending",
+    "p1_without_frozen_prereg_and_secret_heldout_verdict": "development_calibration_only"
+  },
+  "placeholders": {
+    "dataset_fingerprint": "TO_BE_FROZEN",
+    "substrate_model_id": "TO_BE_FROZEN",
+    "substrate_weights_sha256": "TO_BE_FROZEN",
+    "generation_config_sha256": "TO_BE_FROZEN",
+    "seed_schedule_sha256": "TO_BE_FROZEN",
+    "baseline_decision_ledger_sha256": "TO_BE_FROZEN",
+    "rag_embedding_weights_sha256": "TO_BE_FROZEN",
+    "p1_background_templates_sha256": "TO_BE_FROZEN",
+    "p1_context_depth_schedule_sha256": "TO_BE_FROZEN",
+    "memory_store_contract_version": "TO_BE_FROZEN",
+    "persistence_state_digest": "TO_BE_FROZEN",
+    "evidence_readout_prompt_sha256": "TO_BE_FROZEN",
+    "evidence_readout_request_template_sha256": "TO_BE_FROZEN",
+    "evidence_readout_schema_sha256": "TO_BE_FROZEN",
+    "arm_prompt_sha256": {
+      "stateless": "TO_BE_FROZEN",
+      "prompt-steelman": "TO_BE_FROZEN",
+      "rag-steelman": "TO_BE_FROZEN",
+      "structured-state": "TO_BE_FROZEN",
+      "volvence-cold": "TO_BE_FROZEN",
+      "volvence": "TO_BE_FROZEN"
+    },
+    "p1c_candidate_protocol_id": "TO_BE_FROZEN_AFTER_DEVELOPMENT_QUALIFICATION",
+    "p1c_qualification_report_artifact_id": "TO_BE_FROZEN_AFTER_DEVELOPMENT_QUALIFICATION"
+  }
+}

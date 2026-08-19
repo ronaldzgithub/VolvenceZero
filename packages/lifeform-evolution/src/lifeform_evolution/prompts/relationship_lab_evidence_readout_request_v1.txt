@@ -1,0 +1,12 @@
+<public_history_evidence>
+{{PUBLIC_HISTORY_EVIDENCE}}
+</public_history_evidence>
+
+<current_user_message>
+{{CURRENT_USER_MESSAGE}}
+</current_user_message>
+
+<output_contract>
+现在执行证据归纳。只返回 JSON。第一个完整字段名必须逐字为 stay_present_without_probe_score；第二个完整字段名必须逐字为 respect_space_with_return_option_score。两个值只能是整数 -1、0、1。不得省略 _score，不得使用 Markdown，不得添加其他字段。
+当前消息不参与分数计算；不得交换两个行动对应的字段。
+</output_contract>

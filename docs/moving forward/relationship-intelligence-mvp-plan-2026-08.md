@@ -348,17 +348,35 @@ prompt 候选可在 train/validation 上由人和强模型共同优化，但在 
 
 ### P0：实验与数据契约冻结
 
+> 实施状态（2026-08-19）：代码、场景包、sidecar、反应式环境、泄漏审计、
+> Gate 0 校准器、真实 substrate stateless runner 与 prereg 模板已落地。本机冻结
+> `Qwen/Qwen2.5-1.5B-Instruct` 在 current-turn-only 条件下产出 24/24 个有效
+> decision、4/24 正确；六项 Gate 0 检查全部 PASS，
+> `machinery_ready=true / gate0_passed=true`。这关闭的是 P0 仪器校准，不是 formal
+> hidden test：模板仍为 `template_not_frozen`，仓库内 `heldout` 只是开发期结构
+> 分割。进入 P1 formal 前仍须冻结完整 prereg，并另行封存 secret heldout。
+
 交付：
 
 - 新 Relationship Lab spec；
 - `relationship_transfer_v1` scenario package；
 - decision sidecar frozen dataclass / canonical JSON / hash；
 - mirrored-user 场景、三动作、反应式 outcome 真值；
-- Gate 0 校准器、泄漏检查与 prereg 模板。
+- Gate 0 校准器、真实 Qwen stateless 决策账本、泄漏检查与 prereg 模板。
 
 唯一职责固定为：scenario package、generator truth、action/outcome 转移与 decision sidecar 都由 `lifeform-domain-emogpt.lab` 拥有，照抄 Coding Lab 的 domain-lab 边界；orchestrator 和只读 verdict 在 `lifeform-evolution`。Gate 2 以后如需扩母语料，由 `lifeform-synthetic-data` 对已封存 lab artifact 做单向投影，不复制第二份真值。不得把实验环境放进 `vz-*`。
 
 ### P1：强基线与 Appendable 复刻
+
+> 实施状态（2026-08-19）：四臂 runner、`companion-ref-harness` BGE-M3 RAG、既有
+> `MemoryStore` structured-state、跨全新进程恢复、per-user isolation、0/8/32 token
+> scaling、console correction/delete、逐决策 checkpoint 与内容寻址 Gate 1 v2 报告均
+> 已落地。真实冻结 Qwen2.5-1.5B development run 中，恢复/隔离/成本/console 四项
+> PASS；但 1 条 RAG 违反 exact-one-key JSON，structured-state pair flip=0.25<0.5，
+> full-history/RAG steelman 也未达到资格，最终
+> `machinery_ready=false / gate1_passed=false`。这是一份 BLOCK 证据：只证明状态能存、
+> 恢复、纠删和压缩，尚未证明它稳定进入个体化决策。P2 formal 保持关闭；下一包
+> 只能改善 baseline/行为可判读性，禁止降阈值、放宽 parser 或提前接学习/steering。
 
 交付：
 
@@ -487,10 +505,44 @@ prompt 候选可在 train/validation 上由人和强模型共同优化，但在 
 
 ## 14. 当前唯一优先级
 
-下一步不是继续做泛陪伴页面，也不是立刻扩张 10 万条训练数据。唯一 P0 是：
+2026-08-19 已完成 Relationship Lab P0、P1 与 P1b development implementation：Gate 0
+真实 Qwen baseline PASS；P1 的跨进程恢复、scope、token scaling、console 纠删成立；
+P1b 也已把 contextual arm 拆成内容寻址的 evidence readout 与无文本 typed compiler。
+但 lineage-complete P1b v3 虽 24/24 strict-valid，prompt/RAG/structured-state 的
+accuracy 只有 0.25/0.50/0.50，pair flip 全为 0，故
+`machinery_ready=true / baseline_underqualified / gate1_passed=false`。这不是四能力
+PASS，也不授权 P2。
 
-> **完成“同一句算了、两个人正确动作相反”的 Relationship Lab v0，冻结反应式环境、decision sidecar、强 prompt/RAG 基线和 Gate 0/1 预注册。**
+下一步不是继续轮换 prompt、做泛陪伴页面或扩张 10 万条训练数据，而是一个明确的
+P1c 资格分叉：
 
-它通过后再做多经历 ToM readout；读出通过后再接 PE-gated steering；闭环通过后再做真实陪伴 alpha。
+1. 冻结当前 readout v3、request v1、strict parser 与 Gate 1 阈值，不再用同一公开
+   split 调 prompt；
+2. 在**新的内容寻址 development run** 上换用能力更强但仍可冻结的 open-weight
+   substrate，并为该 substrate 重跑同设置 Gate 0；所有 arm 继续 same-substrate；
+3. 若 prompt/RAG 超过 0.875，判 `dataset_saturated`，版本化 `relationship_transfer_v2`
+   的隐藏动力学与跨场景迁移难度；不得故意削弱 baseline；
+4. 若落在 0.625–0.875 且 pair flip ≥0.5，才冻结 formal prereg 并生成 secret heldout；
+5. 若 stronger substrate 仍低于 0.625，先重写任务的公开证据/标签定义，不能新增 latent
+   carrier、PE learning 或 steering 掩盖输入契约问题。
 
-这条路径最大化复用现有基础，同时把尚未证明的核心能力放在最前面接受证伪。
+P1c implementation 已冻结为内容寻址协议 v2
+`f209cf49957e3fa22aef20e977d42bd1f76c970c39c97f57a0e47794e0efff87`：candidate 为
+Qwen2.5-3B，P1b prompt/request/schema/compiler、BGE-M3 top-2、seeds、depths、
+generation config、Gate 0/Gate 1 thresholds 与 reference context bundle 全部进入 lineage。
+runner 串联 fresh candidate Gate 0 → same-substrate P1b → 三路资格报告，并用 stage
+checkpoint 保留失败 attempt、从完整 owner artifact 续跑。P1b report v4 以稳定的
+evaluated-context surface 绑定跨重建 lineage，使 P1c 无需解析 raw log 重建 producer 状态；
+随机 owner record UUID 只留作本次 bundle 完整性，不再冒充跨运行 identity。
+
+2026-08-20 已完成 Qwen2.5-3B 权威 v2 run：fresh Gate 0 为 24/24 valid、10/24 correct，
+machinery/Gate 0 PASS；same-substrate P1b 为 24/24 readout valid，prompt、RAG、
+structured-state 的 accuracy 与 mirrored pair flip 全部为 1.0。P1c report artifact
+`599e7e94ac1a06a7b342f6024614c1489b6130e768c1d5db8fbd7b833bfba1d7` 因而发布
+`version_scenario_dataset_saturated`。首次 v1 attempt 暴露 lineage 契约缺陷并已原样标记
+ABORTED；v2 未改变 prompt、输入、parser、compiler、阈值或标签，而是从 Gate 0 独立重跑。
+
+所以当前唯一优先级不再是 P2/ToM/PE steering，而是收敛包
+`relationship_transfer_v2`：增加隐藏动力学辨识与跨表面迁移难度，同时保留已经做满的
+普通 full-history/RAG steelman。新版场景重新通过 Gate 0/P1c 资格后，才允许冻结 formal
+prereg 和生成 secret heldout；P2 与四能力主张继续关闭。

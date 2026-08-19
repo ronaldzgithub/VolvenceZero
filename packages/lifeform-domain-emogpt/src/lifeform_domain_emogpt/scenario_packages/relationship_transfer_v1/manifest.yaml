@@ -1,0 +1,34 @@
+name: relationship_transfer_v1
+version: "1.0"
+description: "同句镜像用户、相反正确关系动作与跨表面场景迁移的 Relationship Lab v0 证据包。"
+domain: SOCIAL
+author: "Volvence Zero Contributors"
+components:
+  ssot_fragment: ssot_fragment.json
+  scenes: scenes.yaml
+  test_suite: test_suite.yaml
+lab_artifacts:
+  rendered_observations: rendered_observations.json
+  sealed_generator_truth: generator_truth.json
+  prereg_template: prereg_template.json
+owner_contract:
+  owner: lifeform-domain-emogpt.lab
+  verdict_consumer: lifeform-evolution
+  runtime_owner_policy: no_new_runtime_owner_or_slot
+  wiring_level: OFFLINE_SHADOW_EVIDENCE_ONLY
+  product_import_allowed: false
+evidence_contract:
+  primary_visible_contrast: byte_identical_current_input_opposite_optimal_action
+  action_surface:
+    - stay_present_without_probe
+    - respect_space_with_return_option
+    - neutral_noop
+  outcome_source: deterministic_reactive_environment
+  learning_source: typed_outcome_then_prediction_error_only
+  evaluation_feedback: forbidden
+  routing_method: semantic_embedding_plus_schema_bound_structured_output
+explanation: |
+  本场景包把“系统是否真的越来越懂具体的人”收敛为一个任何观察者都能看懂的镜像实验。路径先暴露同一用户过去的关系动作与真实结果，再在表面领域改变后给出一条与其镜像用户逐字节相同的新输入，最后要求系统在三个封闭动作中行动。六组 latent sibling 都要求相反的非空动作，覆盖家庭、亲密关系、工作和朋友四个表面场景；train、validation、heldout 按整组 sibling 划分，禁止把同一动力学的另一半泄漏到不同 split。
+  弧线由经历证据、行动前下注、反应式结算和 counterfactual swap 四个连续阶段组成。用户下一拍不是冻结脚本，而是由 sealed latent dynamic 与实际选择的 action 共同决定；LLM 后续只能渲染已结算结果，不能修改 outcome。公开经历与 generator truth 物理分文件，系统输入由 loader 白名单构造，隐藏动力学、最优动作、未来结果和 judge 分数不会进入 SUT。
+  场景检测只使用轨迹级行动—结果结构、owner snapshot lineage、surface-family transfer 与 schema-bound structured output，并可结合语义嵌入；禁止 substring、正则或关键词字典路由。证据不足时必须 no-route，不得根据“算了”“一个人”等词直接选择关系动作。
+  集成点仅包括 lifeform-domain-emogpt.lab 的离线环境与 decision sidecar，以及 lifeform-evolution 的只读 Gate 0 判决。P0 不新增 vz-* owner、slot、memory write 或 ACTIVE steering。R14 体制身份是“在不侵入与不抛下之间依据具体共同经历保持可修正姿态”，它由跨场景动作结果序列来识别，不是一次性 prompt 标签；关闭 lab runner 即可完整回滚。

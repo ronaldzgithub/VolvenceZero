@@ -1,0 +1,73 @@
+{
+  "all_readouts_valid": true,
+  "arm_metrics": {
+    "prompt-steelman": {
+      "accuracy": 1.0,
+      "completion_tokens_total": 208,
+      "correct_decisions": 8,
+      "decisions": 8,
+      "pair_flip_rate": 1.0,
+      "pair_groups": 4,
+      "prompt_tokens_total": 14230,
+      "readouts": 8,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0,
+      "valid_readouts": 8
+    },
+    "rag-steelman": {
+      "accuracy": 1.0,
+      "completion_tokens_total": 208,
+      "correct_decisions": 8,
+      "decisions": 8,
+      "pair_flip_rate": 1.0,
+      "pair_groups": 4,
+      "prompt_tokens_total": 5398,
+      "readouts": 8,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0,
+      "valid_readouts": 8
+    },
+    "structured-state": {
+      "accuracy": 1.0,
+      "completion_tokens_total": 208,
+      "correct_decisions": 8,
+      "decisions": 8,
+      "pair_flip_rate": 1.0,
+      "pair_groups": 4,
+      "prompt_tokens_total": 5246,
+      "readouts": 8,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0,
+      "valid_readouts": 8
+    }
+  },
+  "artifact_id": "647130c49c09a13ecf26db8cac5c1fcacde1a4b02574abe083c9ccac970f7aec",
+  "claim_boundary": "P1b qualifies a frozen schema-bound baseline or detects development-set saturation. It does not prove Readable, Learnable, Steerable, formal held-out superiority, or product value.",
+  "compiler_version": "relationship-evidence-argmax.v1",
+  "context_bundle_artifact_id": "eac28d53a8fbce8e93b640714103fcc24c63d18b6337e2b700d3f28561ba58a7",
+  "created_at_iso": "2026-08-19T15:17:48.213062+00:00",
+  "dataset_fingerprint": "953b0ee3483846e4aac876b0b1e93d58a4c8fb705e1a79db1df093be463e866a",
+  "gate0_baseline_attestation_id": "004cfd15696da8aab8c7934da151756d5a0b52c76268901bb59f5efedd498ab3",
+  "gate1_passed": false,
+  "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+  "model_id": "qwen2.5-3b-instruct",
+  "p1_gate_config_sha256": "bc4da88582c98594b155f1e14b62963ac7bcdf2524eb36a365543de9d4564f54",
+  "p1_machinery_ready": false,
+  "p1_report_artifact_id": "aedc381c26789a62fd22eeaade8d3eac070d58ea2602f3b79ebf387bd0cf9643",
+  "readout_ledger_sha256": "2e74ffb076d4e4ab2d7e214f5e31d3ed8772b4b39d9f07b8b42c9b372c054f3c",
+  "readout_prompt_sha256": "02b13cb111d9a329729c1e91737f8c60186d20fa7cce9c7e60fb49b87bd62c52",
+  "readout_request_template_sha256": "e0c5a4c10f941ee9b91e637c8129540f53d10f56a677e9022ab1c28305478dc9",
+  "readout_schema_sha256": "afa852a2ee43b55cd10e761d5bb5b6a56b546aaa626f9291edb550e3220c40ab",
+  "run_artifact_id": "9f160231a608b943c6f9110751901af803935dfa245f7912d67b62712ac6582b",
+  "saturated_arms": [
+    "prompt-steelman",
+    "rag-steelman"
+  ],
+  "schema_version": "relationship-p1b-report.v3",
+  "seed_schedule_sha256": "d45d39f3996478609d46956d9f1c197532d82e79bab71d743148427b01e13cee",
+  "verdict": "baseline_underqualified",
+  "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+}

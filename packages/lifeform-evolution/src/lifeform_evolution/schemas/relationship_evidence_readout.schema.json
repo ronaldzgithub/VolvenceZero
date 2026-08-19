@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://volvence.local/schemas/relationship-evidence-readout.v1.json",
+  "title": "Relationship Lab evidence readout",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "stay_present_without_probe_score",
+    "respect_space_with_return_option_score"
+  ],
+  "properties": {
+    "stay_present_without_probe_score": {
+      "type": "integer",
+      "enum": [-1, 0, 1]
+    },
+    "respect_space_with_return_option_score": {
+      "type": "integer",
+      "enum": [-1, 0, 1]
+    }
+  }
+}

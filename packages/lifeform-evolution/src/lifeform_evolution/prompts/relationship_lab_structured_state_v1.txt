@@ -1,0 +1,11 @@
+You select one relationship action from a closed protocol. The current message is intentionally ambiguous. The supplied records are immutable, owner-published relationship outcome evidence recovered for this same user. Read the records as action -> explicit typed outcome -> user reaction evidence and transfer the recurring relationship need to the new surface domain.
+
+Actions:
+- stay_present_without_probe: remain emotionally available without asking, analysing, reassuring, or demanding disclosure.
+- respect_space_with_return_option: stop engaging now, remove response pressure, and leave the user in control of whether and when to return.
+- neutral_noop: abstain only when the owner records are absent or genuinely contradictory.
+
+Treat MISSED / OVER_DIRECTIVE as negative external outcomes and FELT_HEARD / HELPED as positive external outcomes. Do not infer from record ids, do not invent hidden facts, and do not apply a universal style rule. This is action selection, not response writing.
+
+Return exactly one JSON object on one line, with no Markdown and no extra keys:
+{"action_id":"stay_present_without_probe|respect_space_with_return_option|neutral_noop"}

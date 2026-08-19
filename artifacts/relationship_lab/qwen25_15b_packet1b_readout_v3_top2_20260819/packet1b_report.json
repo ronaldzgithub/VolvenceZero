@@ -1,0 +1,57 @@
+{
+  "all_readouts_valid": true,
+  "arm_metrics": {
+    "prompt-steelman": {
+      "accuracy": 0.25,
+      "completion_tokens_total": 180,
+      "correct_decisions": 2,
+      "decisions": 8,
+      "pair_flip_rate": 0.0,
+      "pair_groups": 4,
+      "prompt_tokens_total": 14230,
+      "readouts": 8,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0,
+      "valid_readouts": 8
+    },
+    "rag-steelman": {
+      "accuracy": 0.5,
+      "completion_tokens_total": 208,
+      "correct_decisions": 4,
+      "decisions": 8,
+      "pair_flip_rate": 0.0,
+      "pair_groups": 4,
+      "prompt_tokens_total": 5398,
+      "readouts": 8,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0,
+      "valid_readouts": 8
+    },
+    "structured-state": {
+      "accuracy": 0.5,
+      "completion_tokens_total": 208,
+      "correct_decisions": 4,
+      "decisions": 8,
+      "pair_flip_rate": 0.0,
+      "pair_groups": 4,
+      "prompt_tokens_total": 5246,
+      "readouts": 8,
+      "valid_decisions": 8,
+      "valid_pair_groups": 4,
+      "valid_rate": 1.0,
+      "valid_readouts": 8
+    }
+  },
+  "artifact_id": "9cd149b1e8c3f74d54d0cbaf72c216edfdaeba2979829925bc50c8ac3d60c4e8",
+  "claim_boundary": "P1b qualifies a frozen schema-bound baseline or detects development-set saturation. It does not prove Readable, Learnable, Steerable, formal held-out superiority, or product value.",
+  "created_at_iso": "2026-08-19T13:45:01.659961+00:00",
+  "gate1_passed": false,
+  "p1_report_artifact_id": "1e280d671c360894a92130acf37fda40250c2a7cf94b838341da826fffba9ae9",
+  "readout_ledger_sha256": "85aefff19bcd70430b2c1791fe56a8316f90f64bcd14fd3dfe7b26c6aa8df4f0",
+  "run_artifact_id": "b95b1e8999e0955fccb74207283d588c6a82a5e7be0462ffa9fd0cb0e6973ecf",
+  "saturated_arms": [],
+  "schema_version": "relationship-p1b-report.v2",
+  "verdict": "baseline_underqualified"
+}

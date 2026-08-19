@@ -1,0 +1,91 @@
+{
+  "artifact_id": "557f67aca1d18461966dcfb2457909be308ce2fa6f49c6960247e5cded0c0d1e",
+  "baseline_attestation_id": "004cfd15696da8aab8c7934da151756d5a0b52c76268901bb59f5efedd498ab3",
+  "checks": [
+    {
+      "check_id": "mirrored_counterfactual",
+      "metrics": {
+        "byte_identical": true,
+        "mirrored_pairs": 6,
+        "opposite_actions": true,
+        "surface_families": 4
+      },
+      "status": "pass",
+      "summary": "Every mirrored pair has byte-identical current input and opposite non-noop optimal actions."
+    },
+    {
+      "check_id": "reactive_action_effect",
+      "metrics": {
+        "action_transmission": true,
+        "minimum_analytic_effect": 0.75,
+        "minimum_empirical_effect": 0.714844,
+        "unique_environment_evidence_refs": 6144
+      },
+      "status": "pass",
+      "summary": "Selected actions physically reach the environment and cause a configured minimum typed-outcome effect."
+    },
+    {
+      "check_id": "environment_determinism",
+      "metrics": {
+        "action_changes_evidence": true,
+        "repeat_equal": true
+      },
+      "status": "pass",
+      "summary": "Same inputs settle identically; changing the action changes the content-addressed environment evidence."
+    },
+    {
+      "check_id": "sut_truth_leakage",
+      "metrics": {
+        "leakage_count": 0
+      },
+      "status": "pass",
+      "summary": "SUT payloads contain public histories only; latent ids, preferred actions, profiles, pair ids, and future outcomes are absent."
+    },
+    {
+      "check_id": "decision_trace_contract",
+      "metrics": {
+        "round_trip_equal": true,
+        "trace_artifact_id": "d163c21522e53b410c54f66333027666a591e82bb224bb1b033dce9f9fd47b2a"
+      },
+      "status": "pass",
+      "summary": "Pre-action bet and post-action settlement round-trip through one content-addressed frozen sidecar."
+    },
+    {
+      "check_id": "frozen_baseline_non_saturation",
+      "metrics": {
+        "accuracy": 0.416667,
+        "all_outputs_valid": true,
+        "baseline_supplied": true,
+        "dataset_match": true,
+        "evaluated_decisions": 24,
+        "non_saturated": true,
+        "valid_decisions": 24
+      },
+      "status": "pass",
+      "summary": "Frozen real-substrate stateless/raw baseline is inside the configured non-saturation ceiling."
+    }
+  ],
+  "claim_boundary": "P0 proves instrument and evidence-contract readiness only. Gate 0 requires a frozen real-substrate stateless/raw baseline at or below the configured non-saturation ceiling, with every structured decision valid.",
+  "config": {
+    "maximum_baseline_accuracy": 0.85,
+    "minimum_action_effect": 0.5,
+    "minimum_baseline_decisions": 24,
+    "samples_per_action": 256
+  },
+  "created_at_iso": "2026-08-19T14:33:45.269967+00:00",
+  "dataset_fingerprint": "953b0ee3483846e4aac876b0b1e93d58a4c8fb705e1a79db1df093be463e866a",
+  "package_file_hashes": {
+    "generator_truth.json": "a557cf9fc1071aeb4fcf668292e4080cd6aba44804f06dd8e36c78f81626e5c1",
+    "manifest.yaml": "b2f2f44ee3b6cd98fbfe454a524ec9e324ad81a725c52ee2acaa4d4e7975398f",
+    "prereg_template.json": "ba14d7c0ba896d20d653a3838c7dc88d71d149cfd29e5469762568e158feb94b",
+    "rendered_observations.json": "173869b870e4fe92681c3a45ec9f7ea5f9d909a09022a09bc790a075be08d23c",
+    "scenes.yaml": "c245903b240e532eff3e080f41fc8093ad0e37c1e1c2f11d78adc6e02cbee90c",
+    "ssot_fragment.json": "efe2f54bce08a483e2c3f9b0a4a8083b49910214a3197f3c83a52084da89534f",
+    "test_suite.yaml": "098e0589eb2dee927ebac564f7349acdd5ceee35e170738203d1fa0aceddc646"
+  },
+  "schema_version": "relationship-lab-gate0-report.v1",
+  "verdicts": {
+    "gate0_passed": true,
+    "machinery_ready": true
+  }
+}

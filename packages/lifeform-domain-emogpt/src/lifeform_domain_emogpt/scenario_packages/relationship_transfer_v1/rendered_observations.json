@@ -1,0 +1,281 @@
+{
+  "schema_version": "relationship-transfer-dataset.v1",
+  "scenes": [
+    {
+      "scene_id": "rtv1_scene_001a",
+      "probe_surface_family": "work",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_001a_h1",
+          "surface_family": "family",
+          "user_utterance": "我爸又说我什么都做不好。算了，不聊了。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你真的退开以后，我反而觉得自己又被丢下了。"
+        },
+        {
+          "event_id": "rtv1_scene_001a_h2",
+          "surface_family": "intimacy",
+          "user_utterance": "他又忘了答应我的事。我现在不想解释。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你不用追问，像这样还在就够了，我等会儿会自己说。"
+        }
+      ],
+      "current_input": "汇报被打回来了。没什么，今天不想说了，算了。"
+    },
+    {
+      "scene_id": "rtv1_scene_001b",
+      "probe_surface_family": "work",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_001b_h1",
+          "surface_family": "family",
+          "user_utterance": "家里又替我做决定了。我不想再谈。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "我说停一下就是真的需要停，不需要你换一种方式继续靠近。"
+        },
+        {
+          "event_id": "rtv1_scene_001b_h2",
+          "surface_family": "intimacy",
+          "user_utterance": "我们刚吵完，我现在要自己理一理。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谢谢你没有逼我，我想清楚以后会主动回来。"
+        }
+      ],
+      "current_input": "汇报被打回来了。没什么，今天不想说了，算了。"
+    },
+    {
+      "scene_id": "rtv1_scene_002a",
+      "probe_surface_family": "friends",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_002a_h1",
+          "surface_family": "work",
+          "user_utterance": "会上被当众反驳了，我先不说了。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你马上结束话题让我觉得我的难堪根本没人愿意陪我承受。"
+        },
+        {
+          "event_id": "rtv1_scene_002a_h2",
+          "surface_family": "family",
+          "user_utterance": "亲戚又拿我和别人比较，我不想展开。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "这样安静地陪我一下很好，我缓过来就能继续说。"
+        }
+      ],
+      "current_input": "聚会上说错话了。没事，我先消失一会儿。"
+    },
+    {
+      "scene_id": "rtv1_scene_002b",
+      "probe_surface_family": "friends",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_002b_h1",
+          "surface_family": "work",
+          "user_utterance": "客户刚才让我很难堪，我要先离开一下。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "我现在连安静的陪伴都接不住，继续在场也会让我有压力。"
+        },
+        {
+          "event_id": "rtv1_scene_002b_h2",
+          "surface_family": "family",
+          "user_utterance": "刚跟姐姐闹得很僵，我想自己走走。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "给我一个可以回来但不用立刻回应的出口，这正是我需要的。"
+        }
+      ],
+      "current_input": "聚会上说错话了。没事，我先消失一会儿。"
+    },
+    {
+      "scene_id": "rtv1_scene_003a",
+      "probe_surface_family": "family",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_003a_h1",
+          "surface_family": "friends",
+          "user_utterance": "朋友误会我了。我懒得解释，先这样。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你顺着我的话离开时，我会把它理解成你也不想理解我。"
+        },
+        {
+          "event_id": "rtv1_scene_003a_h2",
+          "surface_family": "work",
+          "user_utterance": "方案又被否了，我现在说不出什么。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "不用解决，只要你没有消失，我就比较容易重新开口。"
+        }
+      ],
+      "current_input": "又跟我妈吵起来了。我不想说，先这样吧。"
+    },
+    {
+      "scene_id": "rtv1_scene_003b",
+      "probe_surface_family": "family",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_003b_h1",
+          "surface_family": "friends",
+          "user_utterance": "朋友一直追着问，我现在只想停下来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "哪怕不提问题，被持续陪着也像是在等我交代，我会更紧绷。"
+        },
+        {
+          "event_id": "rtv1_scene_003b_h2",
+          "surface_family": "work",
+          "user_utterance": "项目突然出问题了，我先自己捋一遍。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "你明确让我自己决定什么时候回来，我反而更快整理好了。"
+        }
+      ],
+      "current_input": "又跟我妈吵起来了。我不想说，先这样吧。"
+    },
+    {
+      "scene_id": "rtv1_scene_004a",
+      "probe_surface_family": "intimacy",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_004a_h1",
+          "surface_family": "family",
+          "user_utterance": "他们都觉得我太敏感。我不想争了。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "你也退开时，我会觉得连你都默认他们说得对。"
+        },
+        {
+          "event_id": "rtv1_scene_004a_h2",
+          "surface_family": "friends",
+          "user_utterance": "她已读不回，我现在不想猜。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你没有替我分析，也没有离开，这让我觉得自己不是一个人。"
+        }
+      ],
+      "current_input": "他到现在都没回。我不想分析了，睡了。"
+    },
+    {
+      "scene_id": "rtv1_scene_004b",
+      "probe_surface_family": "intimacy",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_004b_h1",
+          "surface_family": "family",
+          "user_utterance": "他们又要我当场表态，我现在不想回应任何人。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "我需要的是彻底没有人在等我反应，而不是换成安静地等。"
+        },
+        {
+          "event_id": "rtv1_scene_004b_h2",
+          "surface_family": "friends",
+          "user_utterance": "群里的事让我很烦，我先下线。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "你没有制造新的回应义务，我休息好以后愿意再回来。"
+        }
+      ],
+      "current_input": "他到现在都没回。我不想分析了，睡了。"
+    },
+    {
+      "scene_id": "rtv1_scene_005a",
+      "probe_surface_family": "work",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_005a_h1",
+          "surface_family": "intimacy",
+          "user_utterance": "我把事情搞砸了。你先别管我。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "我嘴上让你别管，其实你立刻走开会让我更确定自己不值得被留下。"
+        },
+        {
+          "event_id": "rtv1_scene_005a_h2",
+          "surface_family": "friends",
+          "user_utterance": "我今天表现得很差，不想听建议。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "不安慰也不追问，只是没有走开，这让我没那么羞耻。"
+        }
+      ],
+      "current_input": "面试搞砸了。别安慰我，我现在什么都不想听。"
+    },
+    {
+      "scene_id": "rtv1_scene_005b",
+      "probe_surface_family": "work",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_005b_h1",
+          "surface_family": "intimacy",
+          "user_utterance": "这次确实是我的错，我想一个人复盘。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "我需要先找回自己的判断，不想在任何人的注视下整理。"
+        },
+        {
+          "event_id": "rtv1_scene_005b_h2",
+          "surface_family": "friends",
+          "user_utterance": "刚才太丢脸了，我下线一会儿。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "你给我退路又没有催我，我恢复以后可以更坦然地回来。"
+        }
+      ],
+      "current_input": "面试搞砸了。别安慰我，我现在什么都不想听。"
+    },
+    {
+      "scene_id": "rtv1_scene_006a",
+      "probe_surface_family": "friends",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_006a_h1",
+          "surface_family": "work",
+          "user_utterance": "他们开会没叫我。算了，我忙自己的。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "这时候你也退出，会让我觉得被排除是理所当然的。"
+        },
+        {
+          "event_id": "rtv1_scene_006a_h2",
+          "surface_family": "intimacy",
+          "user_utterance": "他临时取消了约会。我现在不想说话。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "你不需要填满沉默，但还在这里让我没有继续往下掉。"
+        }
+      ],
+      "current_input": "他们出去没叫我。算了，我想一个人待着。"
+    },
+    {
+      "scene_id": "rtv1_scene_006b",
+      "probe_surface_family": "friends",
+      "histories": [
+        {
+          "event_id": "rtv1_scene_006b_h1",
+          "surface_family": "work",
+          "user_utterance": "大家都在看我出错，我想先离开一下。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "我需要从所有人的注意里退出，包括善意的注意。"
+        },
+        {
+          "event_id": "rtv1_scene_006b_h2",
+          "surface_family": "intimacy",
+          "user_utterance": "今天的消息太多了，我先关机。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "你把是否回来交给我决定，我才真正放松下来。"
+        }
+      ],
+      "current_input": "他们出去没叫我。算了，我想一个人待着。"
+    }
+  ]
+}

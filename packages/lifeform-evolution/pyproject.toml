@@ -17,6 +17,7 @@ dependencies = [
     "lifeform-expression==0.1.*",
     "lifeform-domain-emogpt==0.1.*",
     "lifeform-domain-coding==0.1.*",
+    "companion-ref-harness==0.1.*",
 ]
 
 [project.scripts]
@@ -33,3 +34,10 @@ lifeform-alpha-preflight = "lifeform_evolution.cli:main_alpha_preflight"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["lifeform_evolution*"]
+
+[tool.setuptools.package-data]
+"lifeform_evolution" = [
+    "prompts/*.txt",
+    "protocols/*.json",
+    "schemas/*.json",
+]

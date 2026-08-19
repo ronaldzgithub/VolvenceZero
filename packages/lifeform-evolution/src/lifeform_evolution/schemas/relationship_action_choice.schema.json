@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://volvence.local/schemas/relationship-action-choice.v1.json",
+  "title": "Relationship Lab stateless action choice",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action_id"],
+  "properties": {
+    "action_id": {
+      "type": "string",
+      "enum": [
+        "stay_present_without_probe",
+        "respect_space_with_return_option",
+        "neutral_noop"
+      ]
+    }
+  }
+}

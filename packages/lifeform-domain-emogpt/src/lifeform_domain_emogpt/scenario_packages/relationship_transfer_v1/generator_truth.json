@@ -1,0 +1,161 @@
+{
+  "schema_version": "relationship-transfer-truth.v1",
+  "positive_outcomes": [
+    "helped",
+    "felt_heard"
+  ],
+  "outcome_profiles": {
+    "presence_response_profile_v1": {
+      "stay_present_without_probe": {
+        "helped": 0.25,
+        "felt_heard": 0.65,
+        "missed": 0.08,
+        "over_directive": 0.02
+      },
+      "respect_space_with_return_option": {
+        "helped": 0.05,
+        "felt_heard": 0.1,
+        "missed": 0.8,
+        "over_directive": 0.05
+      },
+      "neutral_noop": {
+        "helped": 0.1,
+        "felt_heard": 0.2,
+        "missed": 0.55,
+        "over_directive": 0.15
+      }
+    },
+    "space_response_profile_v1": {
+      "stay_present_without_probe": {
+        "helped": 0.05,
+        "felt_heard": 0.05,
+        "missed": 0.15,
+        "over_directive": 0.75
+      },
+      "respect_space_with_return_option": {
+        "helped": 0.5,
+        "felt_heard": 0.4,
+        "missed": 0.05,
+        "over_directive": 0.05
+      },
+      "neutral_noop": {
+        "helped": 0.15,
+        "felt_heard": 0.15,
+        "missed": 0.25,
+        "over_directive": 0.45
+      }
+    }
+  },
+  "dynamics": [
+    {
+      "dynamic_id": "latent_001a",
+      "mirror_pair_id": "pair_01",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v1",
+      "hidden_summary": "退缩是在检验关系对象会不会不侵入地留下。"
+    },
+    {
+      "dynamic_id": "latent_001b",
+      "mirror_pair_id": "pair_01",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v1",
+      "hidden_summary": "退缩是在保护自主节奏并减少回应义务。"
+    },
+    {
+      "dynamic_id": "latent_002a",
+      "mirror_pair_id": "pair_02",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v1",
+      "hidden_summary": "羞耻后的消失倾向包含对非评判性见证的需要。"
+    },
+    {
+      "dynamic_id": "latent_002b",
+      "mirror_pair_id": "pair_02",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v1",
+      "hidden_summary": "羞耻后的消失是为了脱离他人注意并自行恢复。"
+    },
+    {
+      "dynamic_id": "latent_003a",
+      "mirror_pair_id": "pair_03",
+      "split": "validation",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v1",
+      "hidden_summary": "结束话题是低风险地确认对方是否仍愿意理解。"
+    },
+    {
+      "dynamic_id": "latent_003b",
+      "mirror_pair_id": "pair_03",
+      "split": "validation",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v1",
+      "hidden_summary": "结束话题是明确停止互动并恢复内部控制。"
+    },
+    {
+      "dynamic_id": "latent_004a",
+      "mirror_pair_id": "pair_04",
+      "split": "validation",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v1",
+      "hidden_summary": "关系不确定时的沉默需要稳定但不分析的共同在场。"
+    },
+    {
+      "dynamic_id": "latent_004b",
+      "mirror_pair_id": "pair_04",
+      "split": "validation",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v1",
+      "hidden_summary": "关系不确定时的沉默需要解除所有即时回应压力。"
+    },
+    {
+      "dynamic_id": "latent_005a",
+      "mirror_pair_id": "pair_05",
+      "split": "train",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v1",
+      "hidden_summary": "自我否定后的拒绝安慰仍包含对不离开的关系保证的需要。"
+    },
+    {
+      "dynamic_id": "latent_005b",
+      "mirror_pair_id": "pair_05",
+      "split": "train",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v1",
+      "hidden_summary": "自我否定后需要先独立复盘，任何持续在场都会形成注视压力。"
+    },
+    {
+      "dynamic_id": "latent_006a",
+      "mirror_pair_id": "pair_06",
+      "split": "train",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v1",
+      "hidden_summary": "被排除后的独处表述是在测试是否还有稳定的关系位置。"
+    },
+    {
+      "dynamic_id": "latent_006b",
+      "mirror_pair_id": "pair_06",
+      "split": "train",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v1",
+      "hidden_summary": "被排除后的独处表述是在主动退出所有社会注意以恢复自主。"
+    }
+  ],
+  "scene_bindings": [
+    {"scene_id": "rtv1_scene_001a", "latent_dynamic_id": "latent_001a"},
+    {"scene_id": "rtv1_scene_001b", "latent_dynamic_id": "latent_001b"},
+    {"scene_id": "rtv1_scene_002a", "latent_dynamic_id": "latent_002a"},
+    {"scene_id": "rtv1_scene_002b", "latent_dynamic_id": "latent_002b"},
+    {"scene_id": "rtv1_scene_003a", "latent_dynamic_id": "latent_003a"},
+    {"scene_id": "rtv1_scene_003b", "latent_dynamic_id": "latent_003b"},
+    {"scene_id": "rtv1_scene_004a", "latent_dynamic_id": "latent_004a"},
+    {"scene_id": "rtv1_scene_004b", "latent_dynamic_id": "latent_004b"},
+    {"scene_id": "rtv1_scene_005a", "latent_dynamic_id": "latent_005a"},
+    {"scene_id": "rtv1_scene_005b", "latent_dynamic_id": "latent_005b"},
+    {"scene_id": "rtv1_scene_006a", "latent_dynamic_id": "latent_006a"},
+    {"scene_id": "rtv1_scene_006b", "latent_dynamic_id": "latent_006b"}
+  ]
+}

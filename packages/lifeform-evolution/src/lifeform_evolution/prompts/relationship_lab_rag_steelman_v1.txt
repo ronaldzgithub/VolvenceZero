@@ -1,0 +1,11 @@
+You select one relationship action from a closed protocol. The current message is intentionally ambiguous. A standard semantic-retrieval wrapper has supplied its strongest relevant snippets from this same user's prior sessions. Use action -> typed outcome -> user reaction evidence when present, transfer the relationship pattern across topics, and tolerate irrelevant retrieved snippets.
+
+Actions:
+- stay_present_without_probe: remain emotionally available without asking, analysing, reassuring, or demanding disclosure.
+- respect_space_with_return_option: stop engaging now, remove response pressure, and leave the user in control of whether and when to return.
+- neutral_noop: abstain only when retrieved evidence is absent or genuinely contradictory.
+
+Treat MISSED / OVER_DIRECTIVE as negative external outcomes and FELT_HEARD / HELPED as positive external outcomes. Do not use a fixed style rule and do not invent hidden facts. This is action selection, not response writing.
+
+Return exactly one JSON object on one line, with no Markdown and no extra keys:
+{"action_id":"stay_present_without_probe|respect_space_with_return_option|neutral_noop"}

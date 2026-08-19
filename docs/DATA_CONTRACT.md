@@ -91,6 +91,83 @@ PE 数值目标；不得从 `family_id`、`beta_t`、边界标签或 evaluation 
 该 readout 仅属于 proof/evaluation artifact，不新增 runtime slot，也不回灌
 metacontroller、credit 或 evaluation owner。
 
+### 1.1.3 Relationship Lab decision evidence（non-runtime）
+
+`lifeform-domain-emogpt.lab` 拥有 Relationship Lab 的公开观察、封存环境真值、
+反应式 action→outcome 转移与 settled decision sidecar；
+`lifeform-evolution.relationship_lab_gate0` 只读这些 frozen records 并拥有 Gate 0
+报告；P1 由 `relationship_lab_contexts` 经正式 API 编排既有 `MemoryStore` 与
+`companion-ref-harness` owner，再由 `relationship_lab_packet1` 发布只读账本与 Gate 1
+报告；P1b 由 `relationship_lab_packet1b` 发布 typed readout 与 lineage-complete report，
+P1c 由 `relationship_lab_packet1c` 只读 Gate 0/P1b 正式工件并发布资格分叉。它们是跨
+wheel 离线证据契约，**不**进入 §6 runtime slot 注册表。
+spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
+
+| Type | owner / producer | dependencies | consumer | wiring_level |
+|---|---|---|---|---|
+| `RelationshipObservation` | type/白名单 builder owner：`lifeform-domain-emogpt.lab.dataset`；record producer：rendered package | 公开 action-outcome history、哈希 user scope、current input、closed action surface | 冻结实验 arms | `OFFLINE_SHADOW_EVIDENCE_ONLY`；产品路径 `DISABLED` |
+| `PreActionRelationshipDecision` | type owner：`lifeform-domain-emogpt.lab.contracts`；record producer：各实验 arm | candidate typed outcome distributions、chosen action、source snapshot hashes、model/prompt/weights/seed lineage | reactive environment、sidecar builder | `OFFLINE_SHADOW_EVIDENCE_ONLY` |
+| `ReactiveRelationshipOutcome` | `lifeform-domain-emogpt.lab.environment` | sealed latent dynamic、实际 selected action、dataset fingerprint、seed | sidecar builder；未来 typed `dialogue_external_outcome` adapter | `OFFLINE_SHADOW_EVIDENCE_ONLY`；P0 禁止提交 runtime |
+| `RelationshipDecisionTrace` | contract/sidecar owner：`lifeform-domain-emogpt.lab.contracts` | canonical public trajectory hash、pre-action decision、environment evidence、observed typed outcome、可选 PE/credit/next-state refs | `lifeform-evolution` read-only verdict / replay | `OFFLINE_SHADOW_EVIDENCE_ONLY` |
+| `FrozenBaselineAttestation` | `lifeform-evolution.relationship_lab_baseline` | dataset/model/weights/prompt/generation/seed/decision-ledger hashes、有效/正确/总决策数、token 成本 | `lifeform-evolution.relationship_lab_gate0` | `OFFLINE_READOUT_ONLY`；只准 train/validation/calibration |
+| `RelationshipGate0Report` | `lifeform-evolution.relationship_lab_gate0` | package hashes、machinery checks、可选 frozen stateless/raw baseline attestation | 研究/晋升 gate | `OFFLINE_READOUT_ONLY` |
+| `RelationshipP1ContextBundle` | 编排/发布：`lifeform-evolution.relationship_lab_contexts`；结构化状态 owner：既有 `vz-memory.MemoryStore`；reference RAG owner：`companion-ref-harness` | rendered public histories、0/8/32 ordinary sessions、user-scope hash、正式 MemoryStore retrieval、ref-harness semantic top-k | `lifeform-evolution.relationship_lab_packet1` | `OFFLINE_SHADOW_EVIDENCE_ONLY`；不注册 runtime slot，不成为第二 memory owner |
+| `PersistedRelationshipP1StateDigest` | `lifeform-evolution.relationship_lab_contexts` read-only digest publisher | 每用户 MemoryStore frozen entries 与 ref-harness SQLite/embed records 的 scope/count/content digest | fresh-process recovery probe、P1 report | `OFFLINE_READOUT_ONLY`；digest 不是可恢复状态 owner |
+| `RelationshipP1ConsoleControlEvidence` | mutation owner：既有 `MemoryStore` 正式 delete/write/persist API；证据 publisher：`relationship_lab_contexts` | 原记录 hash、replacement hash、delete/reload 与 sibling-scope digest | P1 Gate 1 | `OFFLINE_SHADOW_EVIDENCE_ONLY`；不得直接编辑 backend 文件 |
+| `RelationshipP1Decision` / `RelationshipP1Run` | `lifeform-evolution.relationship_lab_packet1` | 同一冻结 model/weights/generation lineage、arm prompt/context hashes、strict action enum、token counts、expected action（仅 evaluator 结算后附着） | P1 report / replay | `OFFLINE_READOUT_ONLY`；逐决策 checkpoint 只作崩溃证据，完整 ledger 为 SSOT |
+| `RelationshipP1Report` v2 | `lifeform-evolution.relationship_lab_packet1` | Gate 0 attestation、P1 run、state recovery、scope isolation、token scaling、console、structured-state user-swap effect、steelman qualification | 研究/晋升 gate | `OFFLINE_READOUT_ONLY`；v1 派生重放必须绑定 `source_report_artifact_id` |
+| `RelationshipEvidenceReadout` | `lifeform-evolution.relationship_lab_packet1b` | frozen public context + one frozen substrate call；两个 closed action 的 typed `-1/0/+1` evidence score、raw JSON、system-prompt/request-template/schema/model/context lineage 与 token 成本 | P1b typed action compiler、只读 evaluator | `OFFLINE_SHADOW_EVIDENCE_ONLY`；expected action / generator truth 在 readout 落盘前不可见 |
+| `RelationshipP1bRun` / `RelationshipP1bReport` v4 | `lifeform-evolution.relationship_lab_packet1b` | P1 context bundle、稳定 evaluated-context surface、background/RAG config、seed/P1 config、model/weights/generation、Gate 0 attestation、prompt/request/schema/compiler、content-addressed readout ledger、逐臂 metrics、P1 machinery | P1c qualification fork / replay | `OFFLINE_READOUT_ONLY`；strict loader 重算 artifact/派生判词；bundle 内 owner record UUID 只作本次完整性，不作跨重建 identity；不写 runtime slot、memory、PE、credit 或 steering |
+| `RelationshipP1cCandidateProtocol` | `lifeform-evolution.relationship_lab_packet1c` + packaged content-addressed JSON | stronger candidate/reference、P1b frozen lineage、Gate 0/P1b seeds、background/RAG/generation config、disk/snapshot guard、hidden-test unopened | P1c runner / qualification assessor | `OFFLINE_READOUT_ONLY`；上游 branch 不冒充 frozen weights，实际权重由 fresh Gate 0 attestation 锁定 |
+| `RelationshipP1cReport` | `lifeform-evolution.relationship_lab_packet1c` | candidate protocol、fresh Gate 0 attestation/report、同权重 P1b report、三臂 accuracy/pair-flip 与 machinery validity | formal-prereg / scenario-version / evidence-contract 路由 | `OFFLINE_READOUT_ONLY`；只发布 development next action，不注册 runtime slot，不授权 P2/四能力主张 |
+
+契约不变量：
+
+- generator truth、`preferred_action`、future outcome 与 judge/evaluation 不得进入
+  `RelationshipObservation.to_sut_payload()`；loader 必须 fail loudly on leakage；
+- pre-action timestamp 必须严格早于 environment outcome；sidecar canonical hash
+  mismatch 必须拒绝加载；
+- action outcome 由环境 typed transition 产生，不由 LLM、关键词或 evaluation
+  推断；LLM 后续只能渲染已结算 outcome；
+- `RelationshipDecisionTrace` 不是 owner snapshot，不得注册 runtime slot，也不得
+  被 consumer 当作 memory/PE/credit 的第二写者；
+- 后续把真实结局接入内核时只能经现有 `dialogue_external_outcome` owner；P0
+  不创建平行 outcome channel；
+- P1 的 `MemoryStore` 写入按 user scope 独立 backend + subject id，consumer 只能读
+  owner API 返回的 typed relationship-outcome records；不得遍历 backend JSON 或从
+  ordinary history 重建第二份结构化状态；
+- RAG steelman 必须真实走 `companion-ref-harness` embed/index/top-k/blend API，并记录
+  embedding weights/config digest；不得用关键词或 scene id 选择记录。P1 默认
+  `top_k=4`，P1b development 在公开 train/validation 上固定 `top_k=2`；该差异必须
+  进入 `rag_config_sha256`，旧 artifact 不得改写；
+- `stateless` mirrored pair 只允许 current-turn-only 的同一次 completion；P1
+  structured-state user-swap effect 必须另门检查，不能用不同 context hash 冒充行为差异；
+- P1 不写 PE/credit/regime/steering，evaluation 与 generator truth 只在决策完成后附着
+  expected action；任何新增学习行为必须进入后续独立收敛包；
+- P1b evidence readout 只允许两个固定 score 字段和值域 `{-1,0,+1}`；typed compiler
+  只能比较 score，平局映射 `neutral_noop`，禁止读取原始文本、outcome 字符串、用户
+  scope、scene id 或 expected action；
+- P1b 若让 prompt/RAG steelman 超过 prereg 上限，报告必须发布 `dataset_saturated`，
+  后续只能版本化场景难度，禁止选择较弱 prompt、随机丢证据或加采样噪声压回阈值；
+- P1c 必须先用 stronger candidate fresh Gate 0，再用同一 model/weights/generation 跑
+  frozen P1b；candidate manifest、Gate 0/P1b seed、evaluated context surface、background/
+  RAG config、prompt/request/schema/compiler、RAG top-k 与阈值任一不匹配都 fail loudly。
+  两次独立 owner 重建允许产生不同 record UUID，禁止据此否定字节相同的 evaluated surface。
+  P1c 禁止从 raw logs 重建 owner
+  状态，只能加载 content-addressed `FrozenBaselineAttestation` 与 `RelationshipP1bReport`；
+- P1c 三路输出固定为 `formal_prereg_freeze_candidate`、
+  `version_scenario_dataset_saturated`、`rewrite_public_evidence_contract`；Gate 0 rejection
+  与 machinery regression 是前置失败，不得升级为资格或能力结论。第一路也只授权冻结
+  formal prereg 候选，secret heldout 仍须在冻结完成后另行生成；
+- P1c v2 的 Qwen2.5-3B 权威 development report 判
+  `version_scenario_dataset_saturated`：prompt/RAG/structured 三臂 accuracy 与 pair flip
+  均为 1.0。该事实只触发 `relationship_transfer_v2` 场景版本化，不授权 P2、formal
+  heldout 或四能力主张；
+- 没有冻结真实 substrate baseline 时，只允许 `machinery_ready=true`，Gate 0 必须
+  保持 pending；提供后必须 dataset hash 匹配、所有结构化 decision 有效、样本量
+  达标且准确率不超过 prereg non-saturation ceiling。stateless 合理弃权不设准确率
+  下限，数据集可解性由 sealed oracle 与 action effect 单独验证。
+
 ### 1.2 Figure cleaning vertical schema (non-runtime)
 
 `packages/lifeform-domain-figure/src/lifeform_domain_figure/cleaning/` 提供的 schema 是 **figure vertical 内部跨子模块共享**的 typed records，**不**进入 §6 runtime slot 注册表（不是 runtime owner，没有 module / `RuntimeModule` 包装，跨 wheel 也不消费）。它们登记在此处仅为 SSOT 完整性。来源：`docs/known-debts.md` debt #28 L1 packet（2026-05-10）；spec：[`docs/specs/figure-corpus-cleaning.md`](specs/figure-corpus-cleaning.md)。

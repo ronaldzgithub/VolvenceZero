@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Volvence Zero Contributors" }]
 license = { text = "Proprietary" }
 dependencies = [
+    "vz-contracts==0.1.*",
     "vz-cognition==0.1.*",
     "vz-application==0.1.*",
     "vz-runtime==0.1.*",
@@ -26,6 +27,9 @@ include = ["lifeform_domain_emogpt*"]
     "runtime_assets/*.json",
     "runtime_assets/*.yaml",
     "schemas/*.json",
+    "scenario_packages/*/*.json",
+    "scenario_packages/*/*.md",
+    "scenario_packages/*/*.yaml",
     "regimes/*.json",
     "scenarios/*.json",
     "bootstraps/*.snap",

@@ -1,0 +1,35 @@
+{
+  "all_readouts_valid": true,
+  "artifact_id": "599e7e94ac1a06a7b342f6024614c1489b6130e768c1d5db8fbd7b833bfba1d7",
+  "baseline_accuracy": 0.4166666666666667,
+  "baseline_attestation_id": "beac727ab18deb0c27d3965b2c15e107d1df058f4ee3415582d441ca52c811be",
+  "candidate_model_id": "qwen2.5-3b-instruct",
+  "candidate_protocol_id": "f209cf49957e3fa22aef20e977d42bd1f76c970c39c97f57a0e47794e0efff87",
+  "claim_boundary": "P1c is development-only routing evidence. It can qualify a baseline for formal preregistration, detect scenario saturation, or reject the public evidence contract. It does not prove Appendable, Readable, Learnable, Steerable, formal held-out superiority, or product value.",
+  "created_at_iso": "2026-08-19T16:23:45.307811+00:00",
+  "gate0_machinery_ready": true,
+  "gate0_passed": true,
+  "gate0_report_artifact_id": "383bda7d237c4002e4cefe3365f7400319d140fa28541dd706cd27614aacbbfb",
+  "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+  "next_action": "Version relationship_transfer_v2; increase hidden-dynamics and cross-surface transfer difficulty without weakening baselines.",
+  "p1_machinery_ready": true,
+  "p1b_report_artifact_id": "7eb361d5ed8d6ac8c82d12382cdf7eb9bd2edfb9e920ceee7f14e41956c09b36",
+  "p1b_verdict": "dataset_saturated",
+  "qualification_metrics": {
+    "prompt-steelman": {
+      "accuracy": 1.0,
+      "pair_flip_rate": 1.0
+    },
+    "rag-steelman": {
+      "accuracy": 1.0,
+      "pair_flip_rate": 1.0
+    },
+    "structured-state": {
+      "accuracy": 1.0,
+      "pair_flip_rate": 1.0
+    }
+  },
+  "schema_version": "relationship-p1c-qualification-report.v1",
+  "verdict": "version_scenario_dataset_saturated",
+  "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+}
