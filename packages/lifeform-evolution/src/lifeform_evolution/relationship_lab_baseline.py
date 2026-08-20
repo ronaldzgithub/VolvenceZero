@@ -54,7 +54,9 @@ def _sha256_file(path: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
-def _hash_weight_files(snapshot_root: pathlib.Path) -> str:
+def frozen_model_weights_sha256(snapshot_root: pathlib.Path) -> str:
+    """Hash only model weight shards using the baseline attestation contract."""
+
     files = tuple(
         sorted(
             (
@@ -174,7 +176,7 @@ class HFStatelessRelationshipActionPolicy:
             raise FileNotFoundError("Relationship Lab prompt/schema assets are missing")
 
         self.model_id = model_id
-        self.weights_sha256 = _hash_weight_files(snapshot)
+        self.weights_sha256 = frozen_model_weights_sha256(snapshot)
         self.prompt_sha256 = _sha256_file(prompt_path)
         self._prompt = prompt_path.read_text(encoding="utf-8").strip()
         self._schema_sha256 = _sha256_file(schema_path)
@@ -525,6 +527,7 @@ __all__ = [
     "StatelessBaselineRun",
     "StatelessRelationshipActionPolicy",
     "action_choice_schema_path",
+    "frozen_model_weights_sha256",
     "freeze_stateless_baseline_attestation",
     "relationship_transfer_prereg_template_path",
     "run_stateless_baseline",

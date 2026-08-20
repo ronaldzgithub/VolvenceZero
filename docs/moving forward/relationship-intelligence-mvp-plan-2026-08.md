@@ -600,9 +600,28 @@ semantic-legibility audit：60/60 top-1，最小 margin 0.020403792213，平均 
 steering。人工盲标仍 pending，不能声称 human readability、Qwen transfer、Readable 或
 四能力成立。
 
-当前唯一优先级转为 P1g：在产生第一条 v3 Qwen 输出前冻结完整 consumer protocol，锁定
-Qwen weights/generation/seeds、condition-aware readout、四历史 surface、BGE-M3 RAG
-top-k、Gate 0/P1 thresholds 与报告分叉，再做 fresh Gate 0 → same-substrate qualification。
-不得看到 v3 输出后回改 dataset/public-evidence contract/prompt，也禁止提前加入 latent
-carrier、PE learning、controller 或 steering。P2、formal prereg、secret heldout 与四能力
-主张继续关闭。
+P1g 已于第一条 v3 Qwen 输出前冻结完整 consumer protocol，id 为
+`8e08d488382442f364aae102d80c268c8c23927d547f64c1e79cb0a87f0f52c6`。它绑定 P1f
+artifact、v3 dataset/public-evidence contract、Qwen/BGE exact weights、generation/seeds、
+condition-aware readout、四历史 surface、BGE-M3 typed-outcome top-4、Gate 0/P1 thresholds
+与五路报告分叉；preflight 在零 Qwen 输出状态下重算 weights、RAG config 和 evaluated
+context surface 后才允许首次运行。
+
+2026-08-20 权威真实运行位于
+`artifacts/relationship_lab/qwen25_3b_packet1g_v3_conditioned_top4_20260820/`：fresh Gate 0
+为 24/24 valid、accuracy 0.50，PASS；24/24 contextual readout strict-valid；prompt、RAG、
+structured-state accuracy 分别为 0.75/0.50/0.50，mirrored pair flip 分别为
+0.50/0.00/0.50。P1b artifact
+`10d120f49b442803cccec53c534e8f3c868ee644c0674439ede000d8dedd3a87` 判
+`baseline_underqualified`；P1g artifact
+`9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8` 判
+`consumer_still_underqualified`。
+
+这个结果把问题进一步定位清楚：v3 公开证据对冻结语义 auditor 可判别，且 Qwen 的
+full-history prompt 臂已经落入资格带并达到 pair-flip 门槛，所以“语言里完全读不出抽象
+结构”已不是唯一解释；但冻结 RAG consumer 没有产生任何 mirrored flip，完整 consumer
+资格仍失败。不能看到该结果后删除 RAG、改成 best-arm gate、降低阈值，或回调 v3
+dataset/public-evidence contract/prompt。下一收敛包如继续，应先版本化并冻结彼此隔离的
+consumer-training split 与 unseen qualification split，在 training split 上学习通用 readout
+后只运行一次新 qualification；evaluation 标签仍不得成为 PE、credit、reward 或 steering。
+P2、formal prereg、secret heldout 与四能力主张继续关闭。

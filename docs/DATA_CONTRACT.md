@@ -101,8 +101,9 @@ metacontroller、credit 或 evaluation owner。
 报告；P1b 由 `relationship_lab_packet1b` 发布 typed readout 与 lineage-complete report，
 P1c 由 `relationship_lab_packet1c` 只读 Gate 0/P1b 正式工件并发布资格分叉。它们是跨
 wheel 离线证据契约；P1e 冻结 v2 consumer qualification，P1f 只读 v3 公开文本、sealed
-condition anchors 与冻结 embedder 发布 semantic-legibility 报告。它们都**不**进入 §6
-runtime slot 注册表。
+condition anchors 与冻结 embedder 发布 semantic-legibility 报告；P1g 在首条 v3 Qwen
+输出前冻结完整 consumer lineage，并只读 fresh Gate 0/P1b 工件发布资格分叉。它们都
+**不**进入 §6 runtime slot 注册表。
 spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 
 | Type | owner / producer | dependencies | consumer | wiring_level |
@@ -121,12 +122,14 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 | `RelationshipP1Decision` / `RelationshipP1Run` | `lifeform-evolution.relationship_lab_packet1` | 同一冻结 model/weights/generation lineage、arm prompt/context hashes、strict action enum、token counts、expected action（仅 evaluator 结算后附着） | P1 report / replay | `OFFLINE_READOUT_ONLY`；逐决策 checkpoint 只作崩溃证据，完整 ledger 为 SSOT |
 | `RelationshipP1Report` v2 | `lifeform-evolution.relationship_lab_packet1` | Gate 0 attestation、P1 run、state recovery、scope isolation、token scaling、console、structured-state user-swap effect、steelman qualification | 研究/晋升 gate | `OFFLINE_READOUT_ONLY`；v1 派生重放必须绑定 `source_report_artifact_id` |
 | `RelationshipEvidenceReadout` | `lifeform-evolution.relationship_lab_packet1b` | frozen public context + one frozen substrate call；两个 closed action 的 typed `-1/0/+1` evidence score、raw JSON、profile-bound system-prompt/request-template/schema/model/context lineage 与 token 成本 | P1b typed action compiler、只读 evaluator | `OFFLINE_SHADOW_EVIDENCE_ONLY`；v1 action tally 与 v2 condition-aware 由不同 frozen prompt/request hash 区分；expected action / generator truth 在 readout 落盘前不可见 |
-| `RelationshipP1bRun` / `RelationshipP1bReport` v4 | `lifeform-evolution.relationship_lab_packet1b` | P1 context bundle、稳定 evaluated-context surface、background/RAG config、seed/P1 config、model/weights/generation、Gate 0 attestation、prompt/request/schema/compiler、content-addressed readout ledger、逐臂 metrics、P1 machinery | P1c/P1e qualification fork / replay | `OFFLINE_READOUT_ONLY`；strict loader 重算 artifact/派生判词；bundle 内 owner record UUID 只作本次完整性，不作跨重建 identity；不写 runtime slot、memory、PE、credit 或 steering |
+| `RelationshipP1bRun` / `RelationshipP1bReport` v4 | `lifeform-evolution.relationship_lab_packet1b` | P1 context bundle、稳定 evaluated-context surface、background/RAG config、seed/P1 config、model/weights/generation、Gate 0 attestation、prompt/request/schema/compiler、content-addressed readout ledger、逐臂 metrics、P1 machinery | P1c/P1e/P1g qualification fork / replay | `OFFLINE_READOUT_ONLY`；strict loader 重算 artifact/派生判词；bundle 内 owner record UUID 只作本次完整性，不作跨重建 identity；不写 runtime slot、memory、PE、credit 或 steering |
 | `RelationshipP1cCandidateProtocol` | `lifeform-evolution.relationship_lab_packet1c` + packaged content-addressed JSON | stronger candidate/reference、P1b frozen lineage、Gate 0/P1b seeds、background/RAG/generation config、disk/snapshot guard、hidden-test unopened | P1c runner / qualification assessor | `OFFLINE_READOUT_ONLY`；上游 branch 不冒充 frozen weights，实际权重由 fresh Gate 0 attestation 锁定 |
 | `RelationshipP1cReport` | `lifeform-evolution.relationship_lab_packet1c` | candidate protocol、fresh Gate 0 attestation/report、同权重 P1b report、三臂 accuracy/pair-flip 与 machinery validity | formal-prereg / scenario-version / evidence-contract 路由 | `OFFLINE_READOUT_ONLY`；只发布 development next action，不注册 runtime slot，不授权 P2/四能力主张 |
 | `RelationshipP1eConsumerProtocol` | `lifeform-evolution.relationship_lab_packet1e` + packaged content-addressed JSON | v2 dataset/context lineage、condition-aware readout、四历史可见性、typed-outcome RAG top-4、Qwen2.5-3B/generation/gates/seeds/materialization guard、hidden-test unopened | P1e runner / local-lineage validator | `OFFLINE_READOUT_ONLY`；protocol 必须在任何 v2 模型输出前冻结，禁止 consumer 漂移、少给历史或从 sealed condition/policy 取捷径 |
 | `RelationshipP1eReport` | `lifeform-evolution.relationship_lab_packet1e` | frozen P1e protocol、fresh Gate 0 report/attestation、同权重 P1b report、三臂 accuracy/pair-flip、machinery/readout validity 与三路 next action | formal-prereg / still-saturated / public-evidence-contract 路由 | `OFFLINE_READOUT_ONLY`；strict loader 重算 artifact 与派生判词；不注册 runtime slot，不授权 P2/四能力主张 |
 | `RelationshipP1fEvidenceUnit` / `RelationshipP1fReport` | `lifeform-evolution.relationship_lab_packet1f` | v3 dataset/contract、P1e trigger、冻结 BGE-M3 identity/weights、public text hash、sealed anchor hash、cosine score/margin、聚合阈值与 pending human anchor | P1g consumer-protocol freeze 路由 / replay | `OFFLINE_READOUT_ONLY`；60 个 unit 全覆盖，strict loader 重算 aggregate/verdict/artifact；报告不含原文/condition id，不注册 runtime slot，不是 PE/credit/reward 或 Readable 证明 |
+| `RelationshipP1gConsumerProtocol` | `lifeform-evolution.relationship_lab_packet1g` + packaged content-addressed JSON | P1f artifact/verdict、v3 dataset/contract/context surface、exact Qwen/BGE weights、generation/gates/seeds、condition-aware prompt/request/schema/compiler、四历史、typed-outcome RAG top-4、zero-prior-output/hidden/P2 guards | P1g runner / preflight / qualification assessor | `OFFLINE_READOUT_ONLY`；protocol id `8e08d488…52c6` 在第一条 v3 Qwen 输出前冻结；任一 source/weight/context/threshold 漂移 fail loudly |
+| `RelationshipP1gReport` | `lifeform-evolution.relationship_lab_packet1g` | frozen P1g protocol、P1f source、fresh Gate 0 attestation/report、same-substrate P1b report、三臂 accuracy/pair-flip 与 machinery/readout validity | formal-prereg / saturation / consumer-training-version 路由 | `OFFLINE_READOUT_ONLY`；strict loader 重算 artifact 与派生判词；权威 artifact `9d7f05b5…e3c8` 判 `consumer_still_underqualified`，不注册 runtime slot，不授权 P2/四能力主张 |
 
 契约不变量：
 
@@ -156,8 +159,8 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 - RAG steelman 必须真实走 `companion-ref-harness` embed/index/top-k/blend API，并记录
   embedding weights/config digest；不得用关键词或 scene id 选择记录。P1 默认
   `top_k=4`，v1 P1b development 固定 `top_k=2`，v2 P1e 固定 typed relationship-outcome
-  candidate surface 与 `top_k=4`；该差异必须进入 `rag_config_sha256`，旧 artifact 不得
-  改写；
+  candidate surface 与 `top_k=4`，v3 P1g 继承同一 top-4 surface 并额外绑定 BGE weights；
+  该差异必须进入 `rag_config_sha256`，旧 artifact 不得改写；
 - `stateless` mirrored pair 只允许 current-turn-only 的同一次 completion；P1
   structured-state user-swap effect 必须另门检查，不能用不同 context hash 冒充行为差异；
 - P1 不写 PE/credit/regime/steering，evaluation 与 generator truth 只在决策完成后附着
@@ -199,6 +202,16 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
   `a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd`，只授权 P1g
   在任何 v3 Qwen 输出前冻结 consumer protocol。human anchor 仍 pending；不得据此声称
   human readability、Qwen transfer、Readable、formal 或四能力成立；
+- P1g consumer protocol id 为
+  `8e08d488382442f364aae102d80c268c8c23927d547f64c1e79cb0a87f0f52c6`，明确记录冻结前
+  v3 Qwen 输出数为 0。权威 fresh Gate 0 为 24/24 valid、accuracy 0.50，PASS；24/24
+  contextual readout valid，prompt/RAG/structured accuracy 为 0.75/0.50/0.50、pair flip
+  为 0.50/0.00/0.50，P1g artifact
+  `9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8` 只能判
+  `consumer_still_underqualified`。prompt 单臂进入资格带不等于 aggregate qualification；
+  禁止事后删除 RAG、改成 best-arm gate、降低阈值，或在同一 v3 split 上继续调 prompt。
+  后续只能先冻结独立 consumer-training 与 unseen-qualification split，不得把 evaluator
+  答案作为 PE/credit/reward；
 - 没有冻结真实 substrate baseline 时，只允许 `machinery_ready=true`，Gate 0 必须
   保持 pending；提供后必须 dataset hash 匹配、所有结构化 decision 有效、样本量
   达标且准确率不超过 prereg non-saturation ceiling。stateless 合理弃权不设准确率

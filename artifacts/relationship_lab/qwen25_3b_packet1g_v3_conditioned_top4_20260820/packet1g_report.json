@@ -1,0 +1,39 @@
+{
+  "all_readouts_valid": true,
+  "artifact_id": "9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8",
+  "baseline_accuracy": 0.5,
+  "baseline_attestation_id": "0e191c2379a0a2132b698170606af841253888d47ad601504f32f9aa4dd499d3",
+  "claim_boundary": "P1g reports same-substrate strong-baseline qualification or saturation on the public synthetic v3 development split. It does not prove Volvence advantage, human readability, Appendable/Readable/Learnable/Steerable, formal held-out superiority, or product value.",
+  "consumer_protocol_id": "8e08d488382442f364aae102d80c268c8c23927d547f64c1e79cb0a87f0f52c6",
+  "created_at_iso": "2026-08-20T00:37:11.511934+00:00",
+  "dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f",
+  "gate0_machinery_ready": true,
+  "gate0_passed": true,
+  "gate0_report_artifact_id": "ef40b9edd5e2c5062828ae2174051c5052979bb583d52d13c8915d560981fd3a",
+  "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+  "model_id": "qwen2.5-3b-instruct",
+  "next_action": "Record that semantically legible public evidence did not qualify this frozen Qwen consumer. Do not tune on these outputs; design a new versioned consumer-training split before another attempt.",
+  "p1_machinery_ready": true,
+  "p1b_report_artifact_id": "10d120f49b442803cccec53c534e8f3c868ee644c0674439ede000d8dedd3a87",
+  "p1b_verdict": "baseline_underqualified",
+  "package_name": "relationship_transfer_v3",
+  "public_evidence_contract_sha256": "8ba8a6788d35e959c4a6fa42d31f54baa7d5e1ba48f52603e4bec510232d3cbb",
+  "qualification_metrics": {
+    "prompt-steelman": {
+      "accuracy": 0.75,
+      "pair_flip_rate": 0.5
+    },
+    "rag-steelman": {
+      "accuracy": 0.5,
+      "pair_flip_rate": 0.0
+    },
+    "structured-state": {
+      "accuracy": 0.5,
+      "pair_flip_rate": 0.5
+    }
+  },
+  "schema_version": "relationship-p1g-qualification-report.v1",
+  "source_p1f_report_artifact_id": "a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd",
+  "verdict": "consumer_still_underqualified",
+  "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+}

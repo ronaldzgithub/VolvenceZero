@@ -1,0 +1,15 @@
+{
+  "artifacts": {
+    "active_gate0_dir": "gate0_candidate",
+    "active_p1b_dir": "p1b_candidate",
+    "baseline_attestation": "gate0_candidate/baseline_attestation.json",
+    "gate0_report": "candidate_gate0_report.json",
+    "p1b_report": "p1b_candidate/packet1b_report.json",
+    "p1g_report": "packet1g_report.json"
+  },
+  "protocol_id": "8e08d488382442f364aae102d80c268c8c23927d547f64c1e79cb0a87f0f52c6",
+  "schema_version": "relationship-p1g-checkpoint.v1",
+  "source_p1f_report_artifact_id": "a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd",
+  "stage": "complete",
+  "updated_at_iso": "2026-08-20T00:37:11.512903+00:00"
+}

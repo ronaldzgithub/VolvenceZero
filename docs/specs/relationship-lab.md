@@ -19,6 +19,14 @@
 > 60/60 top-1、最小 margin 0.020404、平均 margin 0.080646，判
 > `consumer_protocol_freeze_candidate`。这只关闭 development public-evidence
 > legibility 前置门；人工盲标仍 pending，尚未证明 Qwen transfer、Readable 或四能力。
+> P1g 随后在第一条 v3 Qwen 输出前冻结 protocol
+> `8e08d488382442f364aae102d80c268c8c23927d547f64c1e79cb0a87f0f52c6`，并完成 fresh
+> Gate 0 → same-substrate qualification。Gate 0 为 24/24 valid、accuracy 0.50，PASS；
+> 24/24 contextual readout strict-valid。prompt/RAG/structured-state accuracy 为
+> 0.75/0.50/0.50，pair flip 为 0.50/0.00/0.50，因此冻结判词是
+> `consumer_still_underqualified`。prompt full-history 已进入资格带，但完整 consumer
+> qualification 尚未成立；不得在已见 v3 输出上回改 prompt、RAG、阈值或
+> public-evidence contract。
 > 正式 prereg 与 secret heldout 仍关闭，不得进入 P2 formal 或宣称四能力成立。
 >
 > 产品路线：`docs/moving forward/relationship-intelligence-mvp-plan-2026-08.md`
@@ -51,7 +59,8 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P1c 资格分叉 owner | `lifeform-evolution.relationship_lab_packet1c` | 冻结 stronger-substrate candidate protocol，只消费 Gate 0/P1b 正式工件，发布 formal-prereg / scenario-version / evidence-contract 三路判词 |
 | P1e v2 consumer 资格 owner | `lifeform-evolution.relationship_lab_packet1e` | 冻结 v2 condition-aware consumer protocol，只消费 Gate 0/P1b 正式工件，发布 v2 formal-prereg / still-saturated / evidence-contract 三路判词 |
 | P1f 公开证据审计 owner | `lifeform-evolution.relationship_lab_packet1f` | 只读 v3 公开文本、sealed condition summary、冻结 BGE-M3 与 P1e trigger，发布逐单元 hash/margin 和下一 consumer-freeze 判词 |
-| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f}.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1/P1b、串联 P1c/P1e 资格分叉，或执行 P1f 离线语义审计 |
+| P1g v3 consumer 资格 owner | `lifeform-evolution.relationship_lab_packet1g` | 在零 v3 Qwen 输出时冻结 P1f→consumer 全 lineage，只消费 fresh Gate 0/P1b 正式工件，发布 prereg / saturation / still-underqualified 判词 |
+| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g}.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1/P1b、串联 P1c/P1e/P1g 资格分叉，或执行 P1f 离线语义审计 |
 
 硬边界：
 
@@ -451,6 +460,44 @@ RAG top-k、weights/generation/seeds/gates 与阈值，然后才允许 first v3 
 没有证明 human readability、Qwen transfer、Volvence advantage、Readable、formal
 heldout、产品价值或任一完整四能力闭环，也不授权 P2。
 
+### 7.6 P1g：first v3 Qwen consumer qualification
+
+P1g 在第一条 v3 Qwen 输出之前把完整 consumer protocol 内容寻址为
+`8e08d488382442f364aae102d80c268c8c23927d547f64c1e79cb0a87f0f52c6`。协议绑定：P1f
+report `a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd`、v3 dataset
+与 public-evidence contract、Qwen weights
+`3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd`、BGE-M3 weights
+`d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e`、generation、
+三颗 Gate 0 seed、单颗 P1b seed、condition-aware prompt/request/schema/compiler、全部四条
+历史、typed relationship-outcome top-4、0/8/32 background、Gate 0/P1 thresholds，以及
+`v3_qwen_outputs_observed_before_freeze=0 / hidden=false / p2=false`。preflight 必须在不调用
+Qwen 的情况下重算 exact weight digests、RAG config 与 evaluated context surface；任一漂移
+都 fail loudly。
+
+2026-08-20 首次且唯一的冻结 v3 development run 得到：
+
+| stage / arm | valid | accuracy | mirrored pair flip |
+|---|---:|---:|---:|
+| fresh Gate 0 stateless | 24/24 | 0.500 | — |
+| prompt-steelman | 8/8 | 0.750 | 0.500 |
+| rag-steelman | 8/8 | 0.500 | 0.000 |
+| structured-state | 8/8 | 0.500 | 0.500 |
+
+P1b artifact 为
+`10d120f49b442803cccec53c534e8f3c868ee644c0674439ede000d8dedd3a87`，P1g report
+artifact 为 `9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8`，严格判
+`consumer_still_underqualified`。prompt full-history 已达到 0.625–0.875 且 pair flip
+≥0.5，说明冻结 Qwen 并非完全读不出 v3 抽象结构；但预注册要求 prompt 与 RAG steelman
+都资格，RAG 的 0.500/0.000 使 aggregate Gate 1 失败。不得事后把 gate 改成“取最好一臂”、
+删除 RAG、降低阈值或在本 split 上调 prompt。
+
+因此 P1g 只证明：同一冻结 substrate 上，v3 数据、四历史传递、恢复、typed readout 与
+报告分叉机械成立，并得到一条“prompt 有部分迁移、完整 consumer 未资格”的诚实证据。
+它没有证明 Volvence advantage、Readable owner、PE→credit learning、steering、formal
+heldout 或四能力闭环。下一包如继续，只能先版本化并冻结独立的 consumer-training split
+与未见 qualification split，再在 training split 上学习通用 readout；禁止消费本次
+evaluator 答案作为 reward，也禁止在同一 v3 qualification split 上继续人工 prompt search。
+
 ## 8. Baseline 与 formal 纪律
 
 `FrozenBaselineAttestation` 必须记录：dataset/model/weights/prompt/generation/seed
@@ -634,12 +681,29 @@ P1f 的本地 lineage 预检与完整 public-evidence 审计分别为：
 最小/平均 margin 为 0.020403792213/0.080645917619，artifact
 `a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd`。
 
+P1g 的零 Qwen lineage preflight 与完整首次 v3 qualification 分别为：
+
+```bash
+.venv/bin/python scripts/run_relationship_lab_packet1g.py --preflight-only
+
+.venv/bin/python scripts/run_relationship_lab_packet1g.py \
+  --output-dir artifacts/relationship_lab/<packet1g-run-id>
+```
+
+preflight 会重算 Qwen/BGE exact weights 与完整 v3 context surface，但不生成 Qwen 输出；
+缺 snapshot 返回 3。完整运行只有 `formal_prereg_freeze_candidate` 返回 0；saturation、
+underqualification 或前置失败返回 2。权威运行位于
+`artifacts/relationship_lab/qwen25_3b_packet1g_v3_conditioned_top4_20260820/`，P1g artifact
+为 `9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8`，判
+`consumer_still_underqualified`。
+
 因此当前证明的是：既有 memory/reference owner 能追加、恢复、隔离、纠删、压缩并把
 完整四历史交给冻结 consumer；v2/v3 消除了全局动作偏好捷径；v3 的 60 个公开单元在
-一套冻结 BGE-M3 development auditor 下都能读出预期抽象关系条件。但尚未检验冻结 Qwen
-consumer 是否能完成“当前条件→对应历史子集→个体动作”迁移，也没有人工盲标、Volvence
-相对基线优势、Readable、Learnable 或 Steerable 证据。按冻结分叉，P2 继续关闭；下一包
-P1g 先冻结 consumer protocol，不能直接接 PE learning 或 steering。
+一套冻结 BGE-M3 development auditor 下都能读出预期抽象关系条件；冻结 Qwen 的
+prompt full-history 臂已达到资格带。但 RAG steelman 未产生 mirrored flip，完整 consumer
+qualification 失败；仍没有人工盲标、Volvence 相对基线优势、Readable、Learnable 或
+Steerable 证据。按冻结分叉，P2 与 formal 继续关闭；后续必须使用独立 consumer-training /
+unseen-qualification split，不能回调本次 v3 prompt、RAG 或 gate。
 
 ## 10. 回滚与下一包
 
@@ -672,3 +736,9 @@ P1f 同样没有 runtime wiring。回滚只需停止 `run_relationship_lab_packe
 v1 默认、v2/P1e lineage、产品、memory、PE、controller 和 steering 均不迁移。已经发布的
 v3 fingerprint、public-evidence contract 与 P1f artifact 必须按原 hash 保留；P1g 不得
 看到 v3 Qwen 输出后回改它们。
+
+P1g 同样没有 runtime wiring。回滚只需停止 `run_relationship_lab_packet1g.py` 并不再
+消费 P1g protocol/report；产品、memory、PE、controller、steering 与 v1/v2/v3 数据 owner
+均不迁移。已经发布的 protocol `8e08d488…52c6`、P1b `10d120f…3a87` 与 P1g
+`9d7f05b5…e3c8` 必须按原 hash 保留。若继续下一版本，退出条件是先冻结独立训练/资格
+split 与新 protocol；回滚方式是停用该新离线 consumer，不得重写本次输出或阈值。

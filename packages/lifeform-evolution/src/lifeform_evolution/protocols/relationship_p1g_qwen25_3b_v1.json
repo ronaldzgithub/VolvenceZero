@@ -1,0 +1,76 @@
+{
+  "candidate": {
+    "expected_weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd",
+    "model_id": "qwen2.5-3b-instruct",
+    "model_revision": "main",
+    "model_source": "Qwen/Qwen2.5-3B-Instruct"
+  },
+  "claim_boundary": "P1g freezes one development-only relationship_transfer_v3 Qwen consumer before any v3 Qwen output. It binds the successful P1f audit, exact Qwen and BGE-M3 weight digests, generation/seeds/gates, condition-aware readout, all four histories, and typed relationship-outcome RAG top-4. Formal hidden test and P2 remain closed.",
+  "experiment_guard": {
+    "formal_hidden_test_opened": false,
+    "p2_enabled": false,
+    "v3_qwen_outputs_observed_before_freeze": 0
+  },
+  "frozen_at_iso": "2026-08-19T23:26:56+00:00",
+  "frozen_lineage": {
+    "action_choice_schema_sha256": "ebb029277fc33aa858689f9ab6b46d37ecb016d28261a5c3ce42a156f17e2475",
+    "background_templates_sha256": "d0e31a29307566c25249a1fa06b4981a70e41761a058acc177d5d9994af84611",
+    "compiler_version": "relationship-evidence-argmax.v1",
+    "dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f",
+    "evaluated_context_surface_sha256": "d386cd72ee4c075f85c2ff6349f726b9d5189d55b1cd7b72f1acaeb6e029acca",
+    "expected_generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+    "gate0_config_sha256": "579dcaed530b02f0dac8ff664f7520420939e74541853e2b6716d5f66d960071",
+    "p1_gate_config_sha256": "bc4da88582c98594b155f1e14b62963ac7bcdf2524eb36a365543de9d4564f54",
+    "rag_config_sha256": "2e1a510f324887a4d4a00055d4c9fbfc1b22ed312185eae34d0e927e61c369ff",
+    "rag_weights_sha256": "d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e",
+    "readout_profile": "v2_condition_aware",
+    "readout_prompt_sha256": "9687c5043029502b0787cd88758d06c1c0541338ed3c50068ad4824ce25fd4e5",
+    "readout_request_template_sha256": "55db60c37825da4999931345c1c973c2ea8fe54634a9508317284a02fd9bbde3",
+    "readout_schema_sha256": "afa852a2ee43b55cd10e761d5bb5b6a56b546aaa626f9291edb550e3220c40ab",
+    "stateless_prompt_sha256": "778fb1ef73254d943a1c48cc5818034386eb529777f4eec9f9bf395053ec988e"
+  },
+  "materialization_guard": {
+    "materialized_weights_required": true,
+    "maximum_candidate_snapshot_bytes": 8000000000,
+    "minimum_free_bytes_before_download": 14000000000
+  },
+  "protocol_id": "8e08d488382442f364aae102d80c268c8c23927d547f64c1e79cb0a87f0f52c6",
+  "run_config": {
+    "background_depths": [
+      0,
+      8,
+      32
+    ],
+    "baseline_seed_schedule": [
+      101,
+      211,
+      307
+    ],
+    "device": "cpu",
+    "max_new_tokens": 48,
+    "p1b_seed_schedule": [
+      101
+    ],
+    "rag_candidate_surface": "relationship_outcomes_only",
+    "rag_embedder": "bge-m3",
+    "rag_model_source": "BAAI/bge-m3",
+    "rag_top_k": 4,
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "torch_dtype": "bfloat16"
+  },
+  "scenario": {
+    "all_four_histories_available": true,
+    "current_message_participates": true,
+    "dataset_schema_version": "relationship-transfer-dataset.v3",
+    "histories_per_user": 4,
+    "package_name": "relationship_transfer_v3",
+    "truth_schema_version": "relationship-transfer-truth.v3"
+  },
+  "schema_version": "relationship-p1g-consumer-protocol.v1",
+  "source_lineage": {
+    "public_evidence_contract_sha256": "8ba8a6788d35e959c4a6fa42d31f54baa7d5e1ba48f52603e4bec510232d3cbb",
+    "source_p1f_report_artifact_id": "a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd",
+    "source_p1f_required_verdict": "consumer_protocol_freeze_candidate"
+  }
+}
