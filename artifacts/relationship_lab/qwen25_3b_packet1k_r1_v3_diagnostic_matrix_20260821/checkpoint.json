@@ -1,0 +1,298 @@
+{
+  "consumer_protocol_id": "938af6073c31346058a6df40877a48e68a449ce63acf941a7455049530a310bf",
+  "context_surface_sha256": "d2d7d07b4471dfe54f8011e17b9731c5189c84bf419be2c7568c56a1e389898e",
+  "planned_record_keys": [
+    {
+      "mirror_pair_id": "pair_v3_01",
+      "scene_id": "rtv3_scene_001a",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_01",
+      "scene_id": "rtv3_scene_001b",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_02",
+      "scene_id": "rtv3_scene_002a",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_02",
+      "scene_id": "rtv3_scene_002b",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_03",
+      "scene_id": "rtv3_scene_003a",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_03",
+      "scene_id": "rtv3_scene_003b",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_04",
+      "scene_id": "rtv3_scene_004a",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_04",
+      "scene_id": "rtv3_scene_004b",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_05",
+      "scene_id": "rtv3_scene_005a",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_05",
+      "scene_id": "rtv3_scene_005b",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_06",
+      "scene_id": "rtv3_scene_006a",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_06",
+      "scene_id": "rtv3_scene_006b",
+      "seed": 101,
+      "tier": "oracle_policy_apply_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_01",
+      "scene_id": "rtv3_scene_001a",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_01",
+      "scene_id": "rtv3_scene_001b",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_02",
+      "scene_id": "rtv3_scene_002a",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_02",
+      "scene_id": "rtv3_scene_002b",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_03",
+      "scene_id": "rtv3_scene_003a",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_03",
+      "scene_id": "rtv3_scene_003b",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_04",
+      "scene_id": "rtv3_scene_004a",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_04",
+      "scene_id": "rtv3_scene_004b",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_05",
+      "scene_id": "rtv3_scene_005a",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_05",
+      "scene_id": "rtv3_scene_005b",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_06",
+      "scene_id": "rtv3_scene_006a",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_06",
+      "scene_id": "rtv3_scene_006b",
+      "seed": 101,
+      "tier": "oracle_policy_induction_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_01",
+      "scene_id": "rtv3_scene_001a",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_01",
+      "scene_id": "rtv3_scene_001b",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_02",
+      "scene_id": "rtv3_scene_002a",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_02",
+      "scene_id": "rtv3_scene_002b",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_03",
+      "scene_id": "rtv3_scene_003a",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_03",
+      "scene_id": "rtv3_scene_003b",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_04",
+      "scene_id": "rtv3_scene_004a",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_04",
+      "scene_id": "rtv3_scene_004b",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_05",
+      "scene_id": "rtv3_scene_005a",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_05",
+      "scene_id": "rtv3_scene_005b",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_06",
+      "scene_id": "rtv3_scene_006a",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_06",
+      "scene_id": "rtv3_scene_006b",
+      "seed": 101,
+      "tier": "oracle_probe_recognition_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_01",
+      "scene_id": "rtv3_scene_001a",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_01",
+      "scene_id": "rtv3_scene_001b",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_02",
+      "scene_id": "rtv3_scene_002a",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_02",
+      "scene_id": "rtv3_scene_002b",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_03",
+      "scene_id": "rtv3_scene_003a",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_03",
+      "scene_id": "rtv3_scene_003b",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_04",
+      "scene_id": "rtv3_scene_004a",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_04",
+      "scene_id": "rtv3_scene_004b",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_05",
+      "scene_id": "rtv3_scene_005a",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_05",
+      "scene_id": "rtv3_scene_005b",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_06",
+      "scene_id": "rtv3_scene_006a",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    },
+    {
+      "mirror_pair_id": "pair_v3_06",
+      "scene_id": "rtv3_scene_006b",
+      "seed": 101,
+      "tier": "oracle_history_binding_v2"
+    }
+  ],
+  "protocol_id": "204e090472aa4fb4593957ea0c8465cf499da34e90b3dc3cb1929e8862b564bd",
+  "schema_version": "relationship-p1k-checkpoint.v2",
+  "source_p1j_report_artifact_id": "e9226ee8546b44384806fc475b0462422c38b50c26c04596fa12b1da2748fd78",
+  "training_dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f"
+}

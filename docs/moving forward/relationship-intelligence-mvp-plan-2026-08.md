@@ -327,9 +327,9 @@ ref-harness 记忆片段框）。P1j 已按原双主臂资格门完整跑完并�
 `top_k < n`、检索选择性被启用、且 RAG 重新作为主对照之后提出。
 
 `oracle-concept` 不是 formal 才出现的摆设。P1j 关闭且冻结 Qwen 空闲后，P1k 必须在
-已烧毁的 v3 training 包上跑披露阶梯，把失败定位到「读不出条件 / 归纳不出个体
-映射 / 已知规则投射不进分数图式」之一。oracle 臂消耗 sealed truth，非竞争，
-其正确率不得写成 consumer 资格或 Volvence 优势。
+已烧毁的 v3 training 包上跑四格正交诊断，把失败定位到「已知策略应用 / 已标证据的
+个体映射归纳 / 当前 probe 条件识别 / 未标历史条件绑定」。oracle 格消耗 sealed truth，
+使用专用诊断 prompt，非竞争；其正确率不得写成 P1i consumer 资格或 Volvence 优势。
 
 prompt 候选可在 train/validation 上由人和强模型共同优化，但在 hidden test 解封前冻结；不得看到 formal 结果后换 prompt。
 
@@ -613,13 +613,15 @@ evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 
 | 项 | 状态 |
 |---|---|
 | P1j | 2026-08-21 同一 attempt 完成 72/72：report `e9226ee8…fd78` 判 `consumer_failed_v4_qualification`。prompt/RAG/structured accuracy 为 0.542/0.500/0.542，pair flip 为 0.417/0.250/0.417；三臂 strict-valid=1.0。完成态 strict resume 未再调用 Qwen。 |
+| P1k-R1 | protocol `204e0904…64bd` 已绑定 P1j 失败终局，在 P1k Qwen output=0 时冻结四格/48 条最大计划与 staged gate；目录无 `records/`，重复 prepare-only 保持 protocol/checkpoint/preflight 文件 hash 不变。下一包只执行 A 格。 |
 | 已证明 | Gate 0 仪器；跨进程恢复 / 隔离 / 纠删 / 压缩；v2/v3 反捷径；v3 public-evidence BGE 60/60 可判别；P1g prompt 单臂入带；P1j one-shot/no-feedback/严格恢复机器按契约完成并诚实保存 unseen failure |
 | 未证明 | 完整 consumer qualification、human anchor、Volvence advantage、Readable / Learnable / Steerable、formal、四能力 |
 | 校准消耗 | 数据集 v1–v4 共 4 版；consumer freeze 2 次（P1g / P1i）。再版本化场景或再搜 prompt 受 §13.7 约束 |
 
-P1j 已释放同一冻结 Qwen。**下一份占用 Qwen 的动作**是 P1k oracle 披露阶梯，用已烧毁
-的 v3 定位失败层；不得返回 P1i 搜第四个 prompt，也不得开 v5。P1l 人工盲标不加载模型，
-可继续独立收集 rater 结果。
+P1j 已释放同一冻结 Qwen。先完成 P1k-R1 的 **zero-output protocol freeze**；随后下一份
+占用 Qwen 的动作只能是 P1k 首格 `oracle_policy_apply_v2`，用已烧毁 v3 定位失败层。
+不得返回 P1i 搜第四个 prompt，也不得开 v5。P1l 人工盲标不加载模型，可继续独立收集
+rater 结果。
 
 P1j 终局之后的顺序冻结为：
 
@@ -700,25 +702,31 @@ P1m 可以与 P1k 错开执行：P1k 只消费已烧毁的 v3，不需要新场�
 应在 P1k 判词出来后收窄「扩什么」（条件可判别性 vs 个体映射证据），但配方本身
 不得等 P1j 的资格分数再改难度。
 
-### 14.3 oracle-concept 诊断（P1k）
+### 14.3 oracle-concept 四格诊断（P1k-R1）
 
 P1k 的唯一 owner 是 `lifeform-evolution.relationship_lab_packet1k`。它是
-evaluator-only 披露阶梯，不是竞争臂，也不是资格门。
+evaluator-only 四格诊断，不是竞争臂，也不是资格门。其专用 prompt 只允许主张
+“冻结 substrate + 诊断仪器能否完成该格”，不得偷换成“冻结 P1i consumer 能完成”。
 
-- 输入：已烧毁的 `relationship_transfer_v3`（`consumer_training_only`）与冻结
-  P1i consumer 的 prompt-steelman 公开表面。不得物化 v4，不得修改 P1h gate。
-- 三档披露，**最披露的一档先跑**：`oracle_policy_v1`（条件 + 历史绑定 + 个体
-  映射）→ `oracle_binding_v1`（条件 + 历史绑定）→ `oracle_condition_v1`（只披露
-  两种抽象条件及当前句属于哪一种）。
+- 输入：已烧毁的 `relationship_transfer_v3`（`consumer_training_only`）、冻结 P1i
+  lineage 下的 prompt-steelman 公开表面，以及权威 P1j underqualification protocol /
+  report。不得物化 v4，不得修改 P1h gate。
+- 最大计划冻结四格：A `oracle_policy_apply_v2`（全披露）；B
+  `oracle_policy_induction_v2`（隐藏策略）；C `oracle_probe_recognition_v2`（隐藏当前
+  条件）；D `oracle_history_binding_v2`（隐藏历史绑定与策略）。A 先跑；A 失败停 12；
+  B invalid 停 24；B valid 后运行独立 C；B non-functional 时停 36 并跳过 D；只有 B
+  functional 才运行 D，最多 48。
 - 任一带 sealed truth 的正确率都是诊断天花板，不得写成 consumer qualified、
   Volvence advantage 或 Readable。
-- 派生判词只定位瓶颈：machinery 回归 / 基底无法应用已披露策略 / 无法从标注
-  证据归纳策略 / 无法识别 probe 条件 / 阶梯完整则缺口在无辅助归纳。
+- 派生判词只定位瓶颈：machinery 回归 / 基底无法应用已披露策略 / 无法从标注证据
+  归纳策略 / 无法识别 probe 条件 / 无法绑定未标历史 / 多重瓶颈 / 矩阵完整则缺口在
+  无辅助抽象或迁移。六组镜像对 × 单 seed 仅作 directional owner triage。
 - 执行时机：P1j 释放同一冻结 Qwen 之后。不得为了抢跑而中断 P1j。
-- 2026-08-21 代码已落地：`relationship_lab_packet1k.py` +
-  `scripts/run_relationship_lab_packet1k.py`。36 条 planned output，先
-  `--prepare-only` 再 `--resume`。机械测试覆盖 freeze / resume / 四路判词；真实
-  Qwen 阶梯尚未跑。
+- 2026-08-21 P1k-R1 代码已落地：`relationship_lab_packet1k.py` +
+  `scripts/run_relationship_lab_packet1k.py`。先 `--prepare-only` 在 P1k Qwen output=0
+  冻结 48 条最大计划与 staged gate；真实输出不得进入本收敛包。机械测试覆盖 P1j
+  前置、四格披露、12/24/36/48 早停、单/多瓶颈、resume 与 terminal tamper。权威
+  protocol `204e0904…64bd` 已按此边界完成 freeze，当前无 `records/`。
 
 P1f 遗留的人工盲标 packet 也已落地（`relationship_lab_packet1l.py`），**不是**
 §14.2 仪器升级。它不加载 Qwen，可与 P1j 并行 `--prepare-only` 分发 rater CSV。

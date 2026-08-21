@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare and execute the frozen Relationship Lab P1k oracle disclosure ladder.
+"""Prepare and execute the frozen Relationship Lab P1k diagnostic matrix.
 
 P1k is evaluator-only and non-competitive.  It must not run concurrently with
 the P1j Qwen process: both load the same frozen 3B substrate on CPU.
@@ -57,6 +57,13 @@ from lifeform_evolution.relationship_lab_packet1i import (  # noqa: E402
     validate_relationship_p1i_candidate_files,
     validate_relationship_p1i_frozen_consumer_lineage,
 )
+from lifeform_evolution.relationship_lab_packet1j import (  # noqa: E402
+    RelationshipP1jVerdict,
+    load_relationship_p1j_progress,
+    load_relationship_p1j_protocol,
+    load_relationship_p1j_report,
+    validate_relationship_p1j_terminal_files,
+)
 from lifeform_evolution.relationship_lab_packet1k import (  # noqa: E402
     RelationshipP1kVerdict,
     assess_relationship_p1k_diagnostic,
@@ -69,8 +76,11 @@ from lifeform_evolution.relationship_lab_packet1k import (  # noqa: E402
     load_relationship_p1k_report,
     persist_relationship_p1k_decision,
     persist_relationship_p1k_readout,
+    relationship_p1k_execution_gate,
     validate_relationship_p1k_progress,
     validate_relationship_p1k_protocol_lineage,
+    validate_relationship_p1k_report_lineage,
+    validate_relationship_p1k_terminal_files,
     write_relationship_p1k_checkpoint,
     write_relationship_p1k_protocol,
     write_relationship_p1k_report,
@@ -78,22 +88,14 @@ from lifeform_evolution.relationship_lab_packet1k import (  # noqa: E402
 
 
 _DEFAULT_P1I_ARTIFACT_DIR = (
-    _REPO_ROOT
-    / "artifacts"
-    / "relationship_lab"
-    / "qwen25_3b_packet1i_v3_training_replay_20260820"
+    _REPO_ROOT / "artifacts" / "relationship_lab" / "qwen25_3b_packet1i_v3_training_replay_20260820"
 )
 _DEFAULT_P1G_ARTIFACT_DIR = (
-    _REPO_ROOT
-    / "artifacts"
-    / "relationship_lab"
-    / "qwen25_3b_packet1g_v3_conditioned_top4_20260820"
+    _REPO_ROOT / "artifacts" / "relationship_lab" / "qwen25_3b_packet1g_v3_conditioned_top4_20260820"
 )
+_DEFAULT_P1J_ARTIFACT_DIR = _REPO_ROOT / "artifacts" / "relationship_lab" / "qwen25_3b_packet1j_v4_one_shot_20260821"
 _DEFAULT_OUTPUT_DIR = (
-    _REPO_ROOT
-    / "artifacts"
-    / "relationship_lab"
-    / "qwen25_3b_packet1k_v3_oracle_ladder_20260821"
+    _REPO_ROOT / "artifacts" / "relationship_lab" / "qwen25_3b_packet1k_r1_v3_diagnostic_matrix_20260821"
 )
 
 
@@ -108,6 +110,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=str(_DEFAULT_P1G_ARTIFACT_DIR),
         help="Frozen P1g artifact that owns the exact v3 public context order.",
     )
+    parser.add_argument(
+        "--source-p1j-artifact-dir",
+        default=str(_DEFAULT_P1J_ARTIFACT_DIR),
+        help="Closed P1j underqualification artifact that authorizes diagnosis.",
+    )
     parser.add_argument("--output-dir", default=str(_DEFAULT_OUTPUT_DIR))
     parser.add_argument(
         "--allow-download",
@@ -117,7 +124,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--prepare-only",
         action="store_true",
-        help="Freeze v3 public inputs, disclosures and protocol, then stop.",
+        help="Freeze P1j lineage, v3 inputs, matrix and protocol, then stop.",
     )
     parser.add_argument(
         "--resume",
@@ -128,7 +135,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--max-new-readouts",
         type=int,
         default=4,
-        help="Maximum new Qwen outputs this process; use 0 for all remaining.",
+        help="Maximum new Qwen outputs in the released cell; 0 finishes that cell.",
     )
     return parser.parse_args(argv)
 
@@ -219,9 +226,7 @@ def _release_runtime() -> None:
 def _load_frozen_consumer(source_dir: pathlib.Path):
     calibration_protocol = load_relationship_p1i_calibration_protocol()
     training_view = load_relationship_consumer_training_view()
-    report = load_relationship_p1i_calibration_report(
-        pathlib.Path(source_dir) / "packet1i_report.json"
-    )
+    report = load_relationship_p1i_calibration_report(pathlib.Path(source_dir) / "packet1i_report.json")
     consumer = load_relationship_p1i_frozen_consumer_protocol(
         pathlib.Path(source_dir) / "frozen_consumer_protocol.json"
     )
@@ -238,12 +243,34 @@ def _load_frozen_consumer(source_dir: pathlib.Path):
     return consumer, training_view
 
 
+def _load_terminal_p1j(source_dir: pathlib.Path, consumer):
+    protocol = load_relationship_p1j_protocol(source_dir / "packet1j_protocol.json")
+    report = load_relationship_p1j_report(source_dir / "packet1j_report.json")
+    progress = load_relationship_p1j_progress(source_dir)
+    if not progress.is_complete:
+        raise ValueError("P1k requires a complete terminal P1j attempt")
+    validate_relationship_p1j_terminal_files(
+        report=report,
+        progress=progress,
+        output_dir=source_dir,
+    )
+    if (
+        protocol.consumer_protocol_id != consumer.protocol_id
+        or report.consumer_protocol_id != consumer.protocol_id
+        or report.qualification_protocol_id != protocol.protocol_id
+        or report.verdict is not RelationshipP1jVerdict.UNDERQUALIFIED
+        or report.qualification_qwen_output_count != protocol.planned_qwen_output_count
+        or report.qualification_feedback_to_consumer
+        or report.consumer_revision_after_qualification
+    ):
+        raise ValueError("P1k source P1j artifact is not the closed failed qualification")
+    return protocol, report
+
+
 def _load_source_context_manifest(consumer, training_view, source_p1g_artifact_dir):
     source_dir = pathlib.Path(source_p1g_artifact_dir)
     p1g_report = load_relationship_packet1g_report(source_dir / "packet1g_report.json")
-    p1b_report = load_relationship_packet1b_report(
-        source_dir / "p1b_candidate" / "packet1b_report.json"
-    )
+    p1b_report = load_relationship_packet1b_report(source_dir / "p1b_candidate" / "packet1b_report.json")
     manifest = load_relationship_p1_context_replay_manifest(
         source_dir / "p1b_candidate" / "contexts.json",
         dataset=training_view.training_dataset,
@@ -253,8 +280,7 @@ def _load_source_context_manifest(consumer, training_view, source_p1g_artifact_d
         or manifest.dataset_fingerprint != consumer.training_dataset_fingerprint
         or manifest.background_templates_sha256 != consumer.background_templates_sha256
         or manifest.rag_config_sha256 != consumer.rag_config_sha256
-        or p1b_report.evaluated_context_surface_sha256
-        != consumer.training_context_surface_sha256
+        or p1b_report.artifact_id != p1g_report.p1b_report_artifact_id
     ):
         raise ValueError("P1k source v3 context lineage diverges from frozen consumer")
     return manifest
@@ -273,10 +299,7 @@ def _build_contexts(
     delegate = SentenceTransformerEmbedder(model_id=str(rag_snapshot), device="cpu")
     embedder = _FrozenCachedEmbedder(
         delegate=delegate,
-        canonical_name=(
-            "companion-ref-harness/sentence-transformer:"
-            f"{consumer.rag_model_source}:sha256:{rag_weights}"
-        ),
+        canonical_name=(f"companion-ref-harness/sentence-transformer:{consumer.rag_model_source}:sha256:{rag_weights}"),
     )
     state_root = tempfile.TemporaryDirectory(prefix="relationship-p1k-context-")
     try:
@@ -287,9 +310,7 @@ def _build_contexts(
             background_template_package_name=consumer.training_package_name,
             background_depths=consumer.background_depths,
             rag_top_k=consumer.rag_top_k,
-            rag_candidate_surface=RelationshipP1RagCandidateSurface(
-                consumer.rag_candidate_surface
-            ),
+            rag_candidate_surface=RelationshipP1RagCandidateSurface(consumer.rag_candidate_surface),
             rag_replay_orders=replay_manifest.rag_orders,
         )
         replay_manifest.validate_model_inputs(contexts)
@@ -305,6 +326,8 @@ def _prepare_attempt(
     *,
     output_dir: pathlib.Path,
     consumer,
+    source_p1j_protocol,
+    source_p1j_report,
     training_view,
     contexts,
     model_weights: str,
@@ -316,6 +339,8 @@ def _prepare_attempt(
         staging.mkdir()
         protocol = freeze_relationship_p1k_protocol(
             consumer=consumer,
+            source_p1j_protocol=source_p1j_protocol,
+            source_p1j_report=source_p1j_report,
             dataset=training_view.training_dataset,
             contexts=contexts,
             seed_schedule=consumer.seed_schedule,
@@ -330,13 +355,18 @@ def _prepare_attempt(
         write_relationship_p1k_checkpoint(checkpoint=checkpoint, output_dir=staging)
         preflight = {
             "consumer_protocol_id": consumer.protocol_id,
+            "source_p1j_protocol_id": source_p1j_protocol.protocol_id,
+            "source_p1j_report_artifact_id": source_p1j_report.artifact_id,
+            "source_p1j_verdict": source_p1j_report.verdict.value,
             "diagnostic_protocol_id": protocol.protocol_id,
             "training_dataset_fingerprint": protocol.training_dataset_fingerprint,
             "context_surface_sha256": protocol.context_surface_sha256,
             "model_weights_sha256": model_weights,
             "planned_qwen_outputs": protocol.planned_output_count,
             "observation_count": protocol.observation_count,
-            "tiers": list(protocol.tiers),
+            "diagnostic_cells": list(protocol.tiers),
+            "staged_release": True,
+            "qwen_outputs_observed_before_freeze": 0,
             "competitive": False,
             "ready": True,
         }
@@ -352,6 +382,8 @@ def _load_prepared_attempt(
     *,
     output_dir: pathlib.Path,
     consumer,
+    source_p1j_protocol,
+    source_p1j_report,
     training_view,
     rag_snapshot: pathlib.Path,
     source_p1g_artifact_dir: pathlib.Path,
@@ -371,6 +403,8 @@ def _load_prepared_attempt(
     validate_relationship_p1k_protocol_lineage(
         protocol,
         consumer=consumer,
+        source_p1j_protocol=source_p1j_protocol,
+        source_p1j_report=source_p1j_report,
         dataset=training_view.training_dataset,
         contexts=contexts,
     )
@@ -396,6 +430,10 @@ def main(argv: list[str] | None = None) -> int:
     output_dir = pathlib.Path(args.output_dir)
 
     consumer, training_view = _load_frozen_consumer(source_dir)
+    source_p1j_protocol, source_p1j_report = _load_terminal_p1j(
+        pathlib.Path(args.source_p1j_artifact_dir),
+        consumer,
+    )
     model_snapshot = _materialize_snapshot(
         repo_id=consumer.model_source,
         revision=consumer.model_revision,
@@ -426,12 +464,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if output_dir.exists():
         if not args.resume and not args.prepare_only:
-            raise FileExistsError(
-                "P1k diagnostic attempt already exists; only --resume is allowed"
-            )
+            raise FileExistsError("P1k diagnostic attempt already exists; only --resume is allowed")
         protocol, checkpoint, contexts = _load_prepared_attempt(
             output_dir=output_dir,
             consumer=consumer,
+            source_p1j_protocol=source_p1j_protocol,
+            source_p1j_report=source_p1j_report,
             training_view=training_view,
             rag_snapshot=rag_snapshot,
             source_p1g_artifact_dir=pathlib.Path(args.source_p1g_artifact_dir),
@@ -453,6 +491,8 @@ def main(argv: list[str] | None = None) -> int:
         protocol, checkpoint = _prepare_attempt(
             output_dir=output_dir,
             consumer=consumer,
+            source_p1j_protocol=source_p1j_protocol,
+            source_p1j_report=source_p1j_report,
             training_view=training_view,
             contexts=contexts,
             model_weights=model_weights,
@@ -463,8 +503,10 @@ def main(argv: list[str] | None = None) -> int:
                 "stage": "prepared",
                 "diagnostic_protocol_id": protocol.protocol_id,
                 "consumer_protocol_id": consumer.protocol_id,
+                "source_p1j_report_artifact_id": source_p1j_report.artifact_id,
                 "planned_qwen_outputs": protocol.planned_output_count,
-                "tiers": list(protocol.tiers),
+                "diagnostic_cells": list(protocol.tiers),
+                "qwen_outputs_observed_before_freeze": 0,
                 "competitive": False,
             },
             ensure_ascii=False,
@@ -484,6 +526,19 @@ def main(argv: list[str] | None = None) -> int:
             contexts=contexts,
         )
         report = load_relationship_p1k_report(report_path)
+        validate_relationship_p1k_report_lineage(report, protocol=protocol)
+        validate_relationship_p1k_terminal_files(
+            report=report,
+            progress=progress,
+            output_dir=output_dir,
+        )
+        replayed = assess_relationship_p1k_diagnostic(
+            protocol=protocol,
+            progress=progress,
+            created_at_iso=report.created_at_iso,
+        )
+        if replayed != report:
+            raise ValueError("P1k terminal report diverges from strict replay")
         print(
             json.dumps(
                 {
@@ -505,6 +560,37 @@ def main(argv: list[str] | None = None) -> int:
         dataset=training_view.training_dataset,
         contexts=contexts,
     )
+    gate = relationship_p1k_execution_gate(protocol=protocol, progress=progress)
+    if gate.terminal:
+        report = assess_relationship_p1k_diagnostic(
+            protocol=protocol,
+            progress=progress,
+        )
+        report_path, _markdown_path = write_relationship_p1k_report(
+            report=report,
+            progress=progress,
+            output_dir=output_dir,
+        )
+        loaded = load_relationship_p1k_report(report_path)
+        validate_relationship_p1k_report_lineage(loaded, protocol=protocol)
+        validate_relationship_p1k_terminal_files(
+            report=loaded,
+            progress=progress,
+            output_dir=output_dir,
+        )
+        print(
+            json.dumps(
+                {
+                    "stage": "complete",
+                    "report_artifact_id": loaded.artifact_id,
+                    "verdict": loaded.verdict.value,
+                    "next_action": loaded.next_action,
+                    "terminal_stop_reason": loaded.terminal_stop_reason,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return _terminal_exit_code(loaded.verdict)
     policy = HFStatelessRelationshipActionPolicy(
         model_source=consumer.model_source,
         model_id=consumer.model_id,
@@ -538,7 +624,7 @@ def main(argv: list[str] | None = None) -> int:
                     "record_index": index,
                     "durable_outputs": index + 1,
                     "planned_outputs": protocol.planned_output_count,
-                    "tier": decision.tier.value,
+                    "diagnostic_cell": decision.tier.value,
                 },
                 ensure_ascii=False,
             ),
@@ -551,9 +637,7 @@ def main(argv: list[str] | None = None) -> int:
         dataset=training_view.training_dataset,
         contexts=contexts,
         existing_progress=progress,
-        max_new_readouts=(
-            None if args.max_new_readouts == 0 else args.max_new_readouts
-        ),
+        max_new_readouts=(None if args.max_new_readouts == 0 else args.max_new_readouts),
         readout_observer=persist_readout,
         decision_observer=persist_decision,
     )
@@ -566,12 +650,13 @@ def main(argv: list[str] | None = None) -> int:
         dataset=training_view.training_dataset,
         contexts=contexts,
     )
-    if (
-        execution.readouts != durable.readouts
-        or execution.decisions != durable.decisions
-    ):
+    if execution.readouts != durable.readouts or execution.decisions != durable.decisions:
         raise RuntimeError("P1k in-memory execution diverges from durable records")
-    if not durable.is_complete:
+    durable_gate = relationship_p1k_execution_gate(
+        protocol=protocol,
+        progress=durable,
+    )
+    if not durable_gate.terminal:
         print(
             json.dumps(
                 {
@@ -579,6 +664,8 @@ def main(argv: list[str] | None = None) -> int:
                     "new_qwen_outputs": execution.new_outputs,
                     "durable_qwen_outputs": len(durable.readouts),
                     "planned_qwen_outputs": protocol.planned_output_count,
+                    "completed_cells": list(durable_gate.executed_tiers),
+                    "next_cell": (None if durable_gate.next_tier is None else durable_gate.next_tier.value),
                     "resume_required": True,
                 },
                 ensure_ascii=False,
@@ -592,11 +679,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     report_path, _markdown_path = write_relationship_p1k_report(
         report=report,
+        progress=durable,
         output_dir=output_dir,
     )
     loaded = load_relationship_p1k_report(report_path)
     if loaded != report:
         raise RuntimeError("P1k report round-trip changed artifact identity")
+    validate_relationship_p1k_report_lineage(loaded, protocol=protocol)
+    validate_relationship_p1k_terminal_files(
+        report=loaded,
+        progress=durable,
+        output_dir=output_dir,
+    )
     print(
         json.dumps(
             {

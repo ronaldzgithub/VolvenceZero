@@ -142,7 +142,7 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 | `RelationshipP1jQualificationProtocol` | `lifeform-evolution.relationship_lab_packet1j` + one-shot run artifact | frozen P1i consumer、P1h split、v4 context manifest/surface、72 条 record plan、零 Qwen output、原 gate 与 no-feedback guards | P1j executor / strict resume | `OFFLINE_READOUT_ONLY`；protocol `20b96957…2a2` 在首次 v4 Qwen output 前冻结；只能在同一 attempt 追加，不得 fresh rerank、换 consumer 或第二次 prepare |
 | `RelationshipP1jCheckpoint` / `RelationshipP1jProgress` | `lifeform-evolution.relationship_lab_packet1j` | protocol/consumer/context/model lineage、72 条连续 planned key、逐条 readout/decision 前缀 | P1j crash recovery / terminal assessor | `OFFLINE_READOUT_ONLY`；readout 必须先于 heldout decision 原子落盘，允许恢复一个 dangling readout；已有记录不可覆盖，qualification truth 不进入 model input |
 | `RelationshipP1jQualificationReport` | `lifeform-evolution.relationship_lab_packet1j` | 三臂 strict-valid/accuracy/pair-flip/token、readout/decision ledger hash、冻结 gate 派生 verdict、zero-feedback/zero-revision guards | terminal stop / P1k diagnostic 路由 | `OFFLINE_READOUT_ONLY`；权威 report `e9226ee8…fd78` 判 `consumer_failed_v4_qualification`；只发布一次且不得修改 P1i consumer，不开启 formal hidden test、P2 或四能力主张 |
-| `RelationshipP1kProtocol` / `RelationshipP1kReport` | `lifeform-evolution.relationship_lab_packet1k` | 冻结 P1i consumer、v3 training fingerprint、prompt-steelman public surface、三档 oracle disclosure、36 条 record plan、typed readout/compiler、non-competitive guards | 诊断定位 / 下一 owner 选择 | `OFFLINE_READOUT_ONLY`；consumes sealed truth；不得回流 consumer、资格门、PE/credit/reward/steering；不授权 P2 |
+| `RelationshipP1kProtocol` / `RelationshipP1kExecutionGate` / `RelationshipP1kReport` | `lifeform-evolution.relationship_lab_packet1k` | 绑定 P1j underqualification protocol/report、冻结 P1i/substrate 与 v3 prompt-steelman surface、四格正交 oracle disclosure、48 条最大计划、分段放行/早停、terminal ledger 与 executed/skipped path | 诊断定位 / 下一 owner 选择 | `OFFLINE_READOUT_ONLY`；权威 protocol `204e0904…64bd` 已在 P1k output=0 时冻结；dedicated diagnostic prompt，不冒充 P1i consumer；consumes sealed truth；六对单 seed 只作 directional triage；不得回流 consumer、资格门、PE/credit/reward/steering；不授权 P2 |
 | `RelationshipP1lProtocol` / `RelationshipP1lReport`（人工盲标） | `lifeform-evolution.relationship_lab_packet1l` | 60 条去真值 public unit、打乱后的两个 condition summary、sealed expected option、3-rater 多数一致/准确率 | 退休 pending human-anchor 的下一份契约修订 | `OFFLINE_READOUT_ONLY`；rater 看不到标签；评分不改 v3 contract 文件、不进学习路径。包号是 P1l，不是计划 §14.2 / P1m 仪器升级 |
 
 契约不变量：
@@ -256,7 +256,7 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
   hash 不变；consumer revision=0、evaluation→Volvence learning/control=false；
 - P1j 关闭后不得再开 v5 用点阈值追资格。下一份资格门是计划中的 P1m：≥24 组镜像对、
   Wilson 95% 单侧下限（accuracy ≥0.50、pair flip >0.35）、冻结生成配方；实施时新
-  模块名，不得覆盖 `relationship_lab_packet1l`。P1k oracle 披露阶梯与 P1l 人工盲标
+  模块名，不得覆盖 `relationship_lab_packet1l`。P1k oracle 四格诊断与 P1l 人工盲标
   分别是诊断上限和 human-anchor，都不是资格门，不得回流 PE/credit/reward/steering；
 - 没有冻结真实 substrate baseline 时，只允许 `machinery_ready=true`，Gate 0 必须
   保持 pending；提供后必须 dataset hash 匹配、所有结构化 decision 有效、样本量

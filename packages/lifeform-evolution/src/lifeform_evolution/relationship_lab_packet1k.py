@@ -1,4 +1,4 @@
-"""Relationship Lab P1k: evaluator-only oracle-concept disclosure ladder.
+"""Relationship Lab P1k: evaluator-only oracle diagnostic matrix.
 
 P1g/P1i/P1j established that the frozen ordinary-Qwen consumer does not reach
 the mirrored-flip qualification bar, but they cannot say *where* the failure
@@ -8,19 +8,19 @@ evidence, or merely projecting an already-known rule onto the typed score
 schema.
 
 P1k answers that by running the same frozen substrate over the same already
-burned ``relationship_transfer_v3`` consumer-training package three times,
-disclosing one additional layer of sealed generator truth each time:
+burned ``relationship_transfer_v3`` consumer-training package through four
+pre-registered diagnostic cells.  The cells independently remove policy
+application, policy induction, current-probe recognition, and unlabelled
+history binding from the problem.  A staged gate runs the fully disclosed
+application cell first, then the two independent middle cells, and only runs
+the composite history-binding cell when labelled policy induction worked.
 
-``oracle_condition_v1``   the two abstract conditions and which one the probe is
-``oracle_binding_v1``     additionally which condition each history instantiates
-``oracle_policy_v1``      additionally this user's condition-to-action policy
-
-The most-disclosed rung runs first, because a failure there is a machinery or
-substrate floor and makes the lower rungs uninterpretable.  All three rungs are
-non-competitive by construction: they consume sealed truth that the qualified
-arms may never see.  They exist to localize a failure, never to score the
-system.  P1k therefore revises no consumer, no gate, no dataset, and writes
-nothing into Volvence memory, PE, credit, reward, controller, or steering.
+All cells are non-competitive by construction: they consume sealed truth that
+qualified arms may never see.  They use a dedicated diagnostic prompt and
+therefore diagnose the frozen substrate plus diagnostic instrument, not the
+frozen P1i consumer prompt.  P1k revises no consumer, no gate, no dataset, and
+writes nothing into Volvence memory, PE, credit, reward, controller, or
+steering.
 """
 
 from __future__ import annotations
@@ -45,7 +45,6 @@ from lifeform_domain_emogpt.lab import (
 from lifeform_evolution.relationship_lab_contexts import (
     RelationshipP1Arm,
     RelationshipP1ContextBundle,
-    relationship_p1_evaluated_context_surface_sha256,
 )
 from lifeform_evolution.relationship_lab_packet1 import (
     ContextualRelationshipActionPolicy,
@@ -58,20 +57,24 @@ from lifeform_evolution.relationship_lab_packet1b import (
 )
 from lifeform_evolution.relationship_lab_packet1i import (
     RelationshipP1iFrozenConsumerProtocol,
+    relationship_p1i_training_context_surface_sha256,
+)
+from lifeform_evolution.relationship_lab_packet1j import (
+    RelationshipP1jQualificationProtocol,
+    RelationshipP1jQualificationReport,
+    RelationshipP1jVerdict,
 )
 
 
-RELATIONSHIP_P1K_PROTOCOL_SCHEMA_VERSION = "relationship-p1k-protocol.v1"
-RELATIONSHIP_P1K_CHECKPOINT_SCHEMA_VERSION = "relationship-p1k-checkpoint.v1"
-RELATIONSHIP_P1K_READOUT_SCHEMA_VERSION = "relationship-p1k-readout.v1"
-RELATIONSHIP_P1K_DECISION_SCHEMA_VERSION = "relationship-p1k-decision.v1"
-RELATIONSHIP_P1K_REPORT_SCHEMA_VERSION = "relationship-p1k-report.v1"
-RELATIONSHIP_P1K_PREPARED_NEXT_ACTION = "execute_frozen_oracle_disclosure_ladder"
+RELATIONSHIP_P1K_PROTOCOL_SCHEMA_VERSION = "relationship-p1k-protocol.v2"
+RELATIONSHIP_P1K_CHECKPOINT_SCHEMA_VERSION = "relationship-p1k-checkpoint.v2"
+RELATIONSHIP_P1K_READOUT_SCHEMA_VERSION = "relationship-p1k-readout.v2"
+RELATIONSHIP_P1K_DECISION_SCHEMA_VERSION = "relationship-p1k-decision.v2"
+RELATIONSHIP_P1K_REPORT_SCHEMA_VERSION = "relationship-p1k-report.v2"
+RELATIONSHIP_P1K_PREPARED_NEXT_ACTION = "execute_frozen_oracle_diagnostic_matrix"
 
 RELATIONSHIP_P1K_READOUT_PROMPT_ASSET = "relationship_lab_oracle_concept_readout_v1.txt"
-RELATIONSHIP_P1K_REQUEST_TEMPLATE_ASSET = (
-    "relationship_lab_oracle_concept_readout_request_v1.txt"
-)
+RELATIONSHIP_P1K_REQUEST_TEMPLATE_ASSET = "relationship_lab_oracle_concept_readout_request_v1.txt"
 
 # The disclosure ladder is evaluated on the prompt-steelman public surface so
 # that every rung differs from the P1i prompt arm by disclosure alone.
@@ -88,36 +91,41 @@ _REQUEST_CURRENT_INPUT_MARKER = "{{CURRENT_USER_MESSAGE}}"
 _CONDITION_LABELS = ("甲", "乙")
 
 _PROTOCOL_CLAIM_BOUNDARY = (
-    "P1k freezes an evaluator-only oracle disclosure ladder over the already "
-    "burned v3 consumer-training package before its first output. Every rung "
-    "consumes sealed generator truth and is therefore non-competitive. It does "
-    "not revise the P1i consumer, the P1h gate, or any dataset, does not open "
-    "formal hidden test or P2, and does not write Volvence learning or control "
-    "state."
+    "P1k freezes an evaluator-only four-cell oracle diagnostic matrix over the "
+    "already burned v3 consumer-training package after, and bound to, the "
+    "terminal P1j underqualification artifact. Every cell consumes sealed "
+    "generator truth and is non-competitive. The dedicated diagnostic prompt "
+    "means this tests the frozen substrate plus diagnostic instrument, not the "
+    "frozen P1i consumer prompt. It does not revise the consumer, gate, or any "
+    "dataset, does not open formal hidden test or P2, and does not write "
+    "Volvence learning or control state."
 )
 _REPORT_CLAIM_BOUNDARY = (
-    "P1k localizes where the frozen ordinary-Qwen consumer stops being able to "
-    "act on the sealed relational concept. Oracle rungs consume truth that "
-    "competitive arms may never see, so their accuracy is a diagnostic ceiling "
-    "and never evidence of consumer qualification, Volvence advantage, "
+    "P1k directionally localizes where the frozen Qwen substrate plus dedicated "
+    "diagnostic instrument stops acting on the sealed relational concept. Its "
+    "six mirrored pairs and one seed are owner-triage evidence, not proof. "
+    "Oracle cells consume truth that competitive arms may never see, so their "
+    "accuracy is never evidence of consumer qualification, Volvence advantage, "
     "Readable/Learnable/Steerable capability, or product value. The result "
-    "cannot revise the consumer, the qualification gate, or the scenario data."
+    "cannot revise the consumer, qualification gate, or scenario data."
 )
 
 
 class RelationshipP1kOracleTier(str, Enum):
-    """Increasing sealed disclosure over one fixed public evidence surface."""
+    """Orthogonal oracle cells over one fixed public evidence surface."""
 
-    CONDITION_ONLY = "oracle_condition_v1"
-    CONDITION_AND_BINDING = "oracle_binding_v1"
-    CONDITION_AND_POLICY = "oracle_policy_v1"
+    POLICY_APPLICATION = "oracle_policy_apply_v2"
+    POLICY_INDUCTION = "oracle_policy_induction_v2"
+    PROBE_RECOGNITION = "oracle_probe_recognition_v2"
+    HISTORY_BINDING = "oracle_history_binding_v2"
 
 
-# Ordered most-disclosed first: a failure at the ceiling invalidates the rest.
+# Ordered by the pre-registered staged gate, not by post-hoc results.
 RELATIONSHIP_P1K_TIERS: tuple[RelationshipP1kOracleTier, ...] = (
-    RelationshipP1kOracleTier.CONDITION_AND_POLICY,
-    RelationshipP1kOracleTier.CONDITION_AND_BINDING,
-    RelationshipP1kOracleTier.CONDITION_ONLY,
+    RelationshipP1kOracleTier.POLICY_APPLICATION,
+    RelationshipP1kOracleTier.POLICY_INDUCTION,
+    RelationshipP1kOracleTier.PROBE_RECOGNITION,
+    RelationshipP1kOracleTier.HISTORY_BINDING,
 )
 
 
@@ -128,11 +136,7 @@ def _require_text(value: object, field_name: str) -> str:
 
 
 def _require_sha256(value: object, field_name: str) -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) != 64
-        or any(char not in _HEX_DIGITS for char in value)
-    ):
+    if not isinstance(value, str) or len(value) != 64 or any(char not in _HEX_DIGITS for char in value):
         raise ValueError(f"{field_name} must be a lowercase sha256 digest")
     return value
 
@@ -261,7 +265,7 @@ def build_relationship_p1k_disclosure(
     scene_id: str,
     tier: RelationshipP1kOracleTier,
 ) -> str:
-    """Build the evaluator-only sealed disclosure block for one scene and rung.
+    """Build the evaluator-only sealed disclosure block for one matrix cell.
 
     Raw sealed identifiers are never emitted: conditions are relabelled by a
     dataset-wide canonical ordering so the model reads the concept rather than
@@ -275,9 +279,7 @@ def build_relationship_p1k_disclosure(
     if dynamic.probe_condition_id is None or dynamic.policy_id is None:
         raise ValueError("P1k disclosure requires a compositional sealed dynamic")
     labels = _condition_labels(dataset)
-    summaries = {
-        item.condition_id: item.hidden_summary for item in dataset.abstract_conditions
-    }
+    summaries = {item.condition_id: item.hidden_summary for item in dataset.abstract_conditions}
     policies = {item.policy_id: item for item in dataset.policy_profiles}
     policy = policies[dynamic.policy_id]
     if policy.action_for(dynamic.probe_condition_id) is not dynamic.preferred_action:
@@ -291,12 +293,14 @@ def build_relationship_p1k_disclosure(
     ]
     for condition_id in sorted(summaries):
         lines.append(f"- 条件{labels[condition_id]}：{summaries[condition_id]}")
-    lines.append("")
-    lines.append(f"当前消息所处的抽象关系条件：条件{labels[dynamic.probe_condition_id]}")
+    if tier is not RelationshipP1kOracleTier.PROBE_RECOGNITION:
+        lines.append("")
+        lines.append(f"当前消息所处的抽象关系条件：条件{labels[dynamic.probe_condition_id]}")
 
     if tier in (
-        RelationshipP1kOracleTier.CONDITION_AND_BINDING,
-        RelationshipP1kOracleTier.CONDITION_AND_POLICY,
+        RelationshipP1kOracleTier.POLICY_APPLICATION,
+        RelationshipP1kOracleTier.POLICY_INDUCTION,
+        RelationshipP1kOracleTier.PROBE_RECOGNITION,
     ):
         bindings = dict(dataset.history_condition_bindings)
         observation = _observation_for_scene(dataset, scene_id)
@@ -305,12 +309,13 @@ def build_relationship_p1k_disclosure(
         for history in observation.histories:
             condition_id = bindings.get(history.event_id)
             if condition_id is None:
-                raise ValueError(
-                    f"P1k disclosure is missing a condition binding for {history.event_id}"
-                )
+                raise ValueError(f"P1k disclosure is missing a condition binding for {history.event_id}")
             lines.append(f"- {history.event_id}：条件{labels[condition_id]}")
 
-    if tier is RelationshipP1kOracleTier.CONDITION_AND_POLICY:
+    if tier in (
+        RelationshipP1kOracleTier.POLICY_APPLICATION,
+        RelationshipP1kOracleTier.PROBE_RECOGNITION,
+    ):
         lines.append("")
         lines.append("该用户在每种抽象关系条件下需要的关系动作：")
         for condition_id, action in policy.condition_actions:
@@ -548,9 +553,7 @@ class RelationshipP1kReadout:
             stay_score=scores[0],
             space_score=scores[1],
             prompt_tokens=_require_int(raw["prompt_tokens"], "P1k prompt tokens"),
-            completion_tokens=_require_int(
-                raw["completion_tokens"], "P1k completion tokens"
-            ),
+            completion_tokens=_require_int(raw["completion_tokens"], "P1k completion tokens"),
         )
         if readout.artifact_id != artifact_id:
             raise ValueError("P1k readout artifact id mismatch")
@@ -613,9 +616,7 @@ class RelationshipP1kDecision:
             "split": self.split.value,
             "seed": self.seed,
             "readout_artifact_id": self.readout_artifact_id,
-            "chosen_action_id": (
-                None if self.chosen_action_id is None else self.chosen_action_id.value
-            ),
+            "chosen_action_id": (None if self.chosen_action_id is None else self.chosen_action_id.value),
             "expected_action_id": self.expected_action_id.value,
             "valid": self.valid,
             "correct": self.correct,
@@ -644,26 +645,16 @@ class RelationshipP1kDecision:
         chosen_raw = raw["chosen_action_id"]
         decision = cls(
             schema_version=_require_text(raw["schema_version"], "P1k decision schema"),
-            tier=RelationshipP1kOracleTier(
-                _require_text(raw["tier"], "P1k decision tier")
-            ),
+            tier=RelationshipP1kOracleTier(_require_text(raw["tier"], "P1k decision tier")),
             scene_id=_require_text(raw["scene_id"], "P1k decision scene"),
-            mirror_pair_id=_require_text(
-                raw["mirror_pair_id"], "P1k decision mirror pair"
-            ),
-            split=RelationshipDatasetSplit(
-                _require_text(raw["split"], "P1k decision split")
-            ),
+            mirror_pair_id=_require_text(raw["mirror_pair_id"], "P1k decision mirror pair"),
+            split=RelationshipDatasetSplit(_require_text(raw["split"], "P1k decision split")),
             seed=_require_int(raw["seed"], "P1k decision seed"),
             readout_artifact_id=raw["readout_artifact_id"],
             chosen_action_id=(
-                None
-                if chosen_raw is None
-                else RelationshipAction(_require_text(chosen_raw, "P1k chosen action"))
+                None if chosen_raw is None else RelationshipAction(_require_text(chosen_raw, "P1k chosen action"))
             ),
-            expected_action_id=RelationshipAction(
-                _require_text(raw["expected_action_id"], "P1k expected action")
-            ),
+            expected_action_id=RelationshipAction(_require_text(raw["expected_action_id"], "P1k expected action")),
         )
         if (
             raw["decision_id"] != decision.decision_id
@@ -678,6 +669,9 @@ class RelationshipP1kDecision:
 class RelationshipP1kProtocol:
     frozen_at_iso: str
     consumer_protocol_id: str
+    source_p1j_protocol_id: str
+    source_p1j_report_artifact_id: str
+    source_p1j_verdict: str
     training_dataset_fingerprint: str
     training_package_name: str
     context_arm: str
@@ -709,6 +703,8 @@ class RelationshipP1kProtocol:
         _require_timestamp(self.frozen_at_iso, "P1k protocol timestamp")
         for field_name, value in (
             ("consumer_protocol_id", self.consumer_protocol_id),
+            ("source_p1j_protocol_id", self.source_p1j_protocol_id),
+            ("source_p1j_report_artifact_id", self.source_p1j_report_artifact_id),
             ("training_dataset_fingerprint", self.training_dataset_fingerprint),
             ("context_surface_sha256", self.context_surface_sha256),
             ("background_templates_sha256", self.background_templates_sha256),
@@ -721,6 +717,8 @@ class RelationshipP1kProtocol:
             ("record_plan_sha256", self.record_plan_sha256),
         ):
             _require_sha256(value, field_name)
+        if self.source_p1j_verdict != RelationshipP1jVerdict.UNDERQUALIFIED.value:
+            raise ValueError("P1k requires the terminal P1j underqualification verdict")
         if self.training_package_name != RELATIONSHIP_TRANSFER_V3_PACKAGE_NAME:
             raise ValueError("P1k must run on the burned v3 consumer-training package")
         if self.context_arm != RELATIONSHIP_P1K_CONTEXT_ARM.value:
@@ -728,21 +726,16 @@ class RelationshipP1kProtocol:
         if self.compiler_version != RELATIONSHIP_P1B_COMPILER_VERSION:
             raise ValueError("P1k compiler version mismatch")
         if self.tiers != tuple(tier.value for tier in RELATIONSHIP_P1K_TIERS):
-            raise ValueError("P1k tiers are not the frozen ladder")
-        if not self.seed_schedule or len(set(self.seed_schedule)) != len(
-            self.seed_schedule
-        ):
+            raise ValueError("P1k tiers are not the frozen diagnostic matrix")
+        if not self.seed_schedule or len(set(self.seed_schedule)) != len(self.seed_schedule):
             raise ValueError("P1k seed schedule must be non-empty and unique")
         if self.observation_count <= 0 or self.planned_output_count != (
             self.observation_count * len(self.tiers) * len(self.seed_schedule)
         ):
-            raise ValueError("P1k planned output count diverges from the ladder")
+            raise ValueError("P1k planned output count diverges from the matrix")
         if self.rung_minimum_accuracy != RELATIONSHIP_P1K_RUNG_MINIMUM_ACCURACY:
             raise ValueError("P1k rung accuracy threshold is not frozen")
-        if (
-            self.rung_minimum_pair_flip_rate
-            != RELATIONSHIP_P1K_RUNG_MINIMUM_PAIR_FLIP_RATE
-        ):
+        if self.rung_minimum_pair_flip_rate != RELATIONSHIP_P1K_RUNG_MINIMUM_PAIR_FLIP_RATE:
             raise ValueError("P1k rung pair-flip threshold is not frozen")
         if self.required_valid_rate != RELATIONSHIP_P1K_REQUIRED_VALID_RATE:
             raise ValueError("P1k valid-rate threshold is not frozen")
@@ -757,6 +750,9 @@ class RelationshipP1kProtocol:
             "frozen_at_iso": self.frozen_at_iso,
             "source_lineage": {
                 "consumer_protocol_id": self.consumer_protocol_id,
+                "source_p1j_protocol_id": self.source_p1j_protocol_id,
+                "source_p1j_report_artifact_id": (self.source_p1j_report_artifact_id),
+                "source_p1j_verdict": self.source_p1j_verdict,
                 "training_dataset_fingerprint": self.training_dataset_fingerprint,
                 "training_package_name": self.training_package_name,
             },
@@ -777,10 +773,12 @@ class RelationshipP1kProtocol:
                 "seed_schedule": list(self.seed_schedule),
             },
             "execution_plan": {
-                "tiers": list(self.tiers),
+                "diagnostic_cells": list(self.tiers),
                 "record_plan_sha256": self.record_plan_sha256,
                 "planned_output_count": self.planned_output_count,
                 "observation_count": self.observation_count,
+                "staged_release": True,
+                "history_binding_requires_policy_induction": True,
             },
             "diagnostic_gate": {
                 "rung_minimum_accuracy": self.rung_minimum_accuracy,
@@ -809,12 +807,14 @@ class RelationshipP1kProtocol:
 def freeze_relationship_p1k_protocol(
     *,
     consumer: RelationshipP1iFrozenConsumerProtocol,
+    source_p1j_protocol: RelationshipP1jQualificationProtocol,
+    source_p1j_report: RelationshipP1jQualificationReport,
     dataset: RelationshipTransferDataset,
     contexts: RelationshipP1ContextBundle,
     seed_schedule: tuple[int, ...],
     frozen_at_iso: str | None = None,
 ) -> RelationshipP1kProtocol:
-    """Freeze the complete oracle ladder before its first model output."""
+    """Freeze the complete staged oracle matrix before its first model output."""
 
     if dataset.package_name != RELATIONSHIP_TRANSFER_V3_PACKAGE_NAME:
         raise ValueError("P1k diagnostic must consume the burned v3 package")
@@ -828,20 +828,39 @@ def freeze_relationship_p1k_protocol(
         raise ValueError("P1k RAG config diverges from frozen consumer")
     if tuple(seed_schedule) != consumer.seed_schedule:
         raise ValueError("P1k seed schedule diverges from frozen consumer")
+    if (
+        source_p1j_protocol.consumer_protocol_id != consumer.protocol_id
+        or source_p1j_report.consumer_protocol_id != consumer.protocol_id
+        or source_p1j_report.qualification_protocol_id != source_p1j_protocol.protocol_id
+    ):
+        raise ValueError("P1k P1j prerequisite diverges from the frozen consumer")
+    if source_p1j_report.verdict is not RelationshipP1jVerdict.UNDERQUALIFIED:
+        raise ValueError("P1k requires terminal P1j underqualification")
+    if (
+        source_p1j_report.qualification_qwen_output_count != source_p1j_protocol.planned_qwen_output_count
+        or source_p1j_report.qualification_feedback_to_consumer
+        or source_p1j_report.consumer_revision_after_qualification
+    ):
+        raise ValueError("P1k requires a closed no-feedback P1j terminal artifact")
+    frozen_at = frozen_at_iso or datetime.now(timezone.utc).isoformat()
+    if datetime.fromisoformat(frozen_at.replace("Z", "+00:00")) < datetime.fromisoformat(
+        source_p1j_report.created_at_iso.replace("Z", "+00:00")
+    ):
+        raise ValueError("P1k protocol cannot predate the terminal P1j report")
     record_plan = relationship_p1k_record_plan(
         dataset=dataset,
         seed_schedule=seed_schedule,
     )
     return RelationshipP1kProtocol(
-        frozen_at_iso=frozen_at_iso or datetime.now(timezone.utc).isoformat(),
+        frozen_at_iso=frozen_at,
         consumer_protocol_id=consumer.protocol_id,
+        source_p1j_protocol_id=source_p1j_protocol.protocol_id,
+        source_p1j_report_artifact_id=source_p1j_report.artifact_id,
+        source_p1j_verdict=source_p1j_report.verdict.value,
         training_dataset_fingerprint=dataset.dataset_fingerprint,
         training_package_name=dataset.package_name,
         context_arm=RELATIONSHIP_P1K_CONTEXT_ARM.value,
-        context_surface_sha256=relationship_p1_evaluated_context_surface_sha256(
-            bundle=contexts,
-            dataset=dataset,
-        ),
+        context_surface_sha256=relationship_p1i_training_context_surface_sha256(bundle=contexts),
         background_templates_sha256=contexts.background_templates_sha256,
         rag_config_sha256=contexts.rag_config_sha256,
         model_id=consumer.model_id,
@@ -853,9 +872,7 @@ def freeze_relationship_p1k_protocol(
         compiler_version=RELATIONSHIP_P1B_COMPILER_VERSION,
         tiers=tuple(tier.value for tier in RELATIONSHIP_P1K_TIERS),
         seed_schedule=tuple(seed_schedule),
-        record_plan_sha256=sha256_json(
-            [key.to_payload() for key in record_plan]
-        ),
+        record_plan_sha256=sha256_json([key.to_payload() for key in record_plan]),
         planned_output_count=len(record_plan),
         observation_count=len(dataset.observations),
         rung_minimum_accuracy=RELATIONSHIP_P1K_RUNG_MINIMUM_ACCURACY,
@@ -881,18 +898,124 @@ def load_relationship_p1k_protocol(path: pathlib.Path) -> RelationshipP1kProtoco
     file_path = pathlib.Path(path)
     if not file_path.is_file():
         raise FileNotFoundError(file_path)
-    raw = json.loads(file_path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        raise ValueError("P1k protocol must be a JSON object")
-    protocol_id = _require_sha256(raw.pop("protocol_id", None), "P1k protocol id")
-    lineage = raw["source_lineage"]
-    context = raw["frozen_context"]
-    runtime = raw["runtime"]
-    plan = raw["execution_plan"]
-    gate = raw["diagnostic_gate"]
+    raw = _require_object(
+        json.loads(file_path.read_text(encoding="utf-8")),
+        {
+            "schema_version",
+            "frozen_at_iso",
+            "source_lineage",
+            "frozen_context",
+            "runtime",
+            "execution_plan",
+            "diagnostic_gate",
+            "experiment_guards",
+            "claim_boundary",
+            "next_action",
+            "protocol_id",
+        },
+        field_name="P1k protocol",
+    )
+    protocol_id = _require_sha256(raw["protocol_id"], "P1k protocol id")
+    lineage = _require_object(
+        raw["source_lineage"],
+        {
+            "consumer_protocol_id",
+            "source_p1j_protocol_id",
+            "source_p1j_report_artifact_id",
+            "source_p1j_verdict",
+            "training_dataset_fingerprint",
+            "training_package_name",
+        },
+        field_name="P1k protocol source lineage",
+    )
+    context = _require_object(
+        raw["frozen_context"],
+        {
+            "context_arm",
+            "context_surface_sha256",
+            "background_templates_sha256",
+            "rag_config_sha256",
+        },
+        field_name="P1k protocol frozen context",
+    )
+    runtime = _require_object(
+        raw["runtime"],
+        {
+            "model_id",
+            "weights_sha256",
+            "generation_config_sha256",
+            "readout_prompt_sha256",
+            "request_template_sha256",
+            "readout_schema_sha256",
+            "compiler_version",
+            "seed_schedule",
+        },
+        field_name="P1k protocol runtime",
+    )
+    plan = _require_object(
+        raw["execution_plan"],
+        {
+            "diagnostic_cells",
+            "record_plan_sha256",
+            "planned_output_count",
+            "observation_count",
+            "staged_release",
+            "history_binding_requires_policy_induction",
+        },
+        field_name="P1k protocol execution plan",
+    )
+    if not _require_bool(plan["staged_release"], "P1k staged release") or not (
+        _require_bool(
+            plan["history_binding_requires_policy_induction"],
+            "P1k history-binding prerequisite",
+        )
+    ):
+        raise ValueError("P1k staged diagnostic gate must remain enabled")
+    gate = _require_object(
+        raw["diagnostic_gate"],
+        {
+            "rung_minimum_accuracy",
+            "rung_minimum_pair_flip_rate",
+            "required_valid_rate",
+        },
+        field_name="P1k protocol diagnostic gate",
+    )
+    guards = _require_object(
+        raw["experiment_guards"],
+        {
+            "competitive",
+            "consumes_sealed_generator_truth",
+            "diagnostic_feedback_to_consumer",
+            "diagnostic_feedback_to_dataset",
+            "diagnostic_feedback_to_qualification_gate",
+            "evaluation_feedback_to_pe_credit_reward_or_steering",
+            "formal_hidden_test_opened",
+            "p2_enabled",
+        },
+        field_name="P1k protocol guards",
+    )
+    expected_guards = {
+        "competitive": False,
+        "consumes_sealed_generator_truth": True,
+        "diagnostic_feedback_to_consumer": False,
+        "diagnostic_feedback_to_dataset": False,
+        "diagnostic_feedback_to_qualification_gate": False,
+        "evaluation_feedback_to_pe_credit_reward_or_steering": False,
+        "formal_hidden_test_opened": False,
+        "p2_enabled": False,
+    }
+    if {name: _require_bool(value, f"P1k protocol guard {name}") for name, value in guards.items()} != expected_guards:
+        raise ValueError("P1k protocol guards diverge from the frozen boundary")
+    cells_raw = plan["diagnostic_cells"]
+    seeds_raw = runtime["seed_schedule"]
+    if not isinstance(cells_raw, list) or not isinstance(seeds_raw, list):
+        raise ValueError("P1k protocol cells and seed schedule must be lists")
     protocol = RelationshipP1kProtocol(
         frozen_at_iso=raw["frozen_at_iso"],
         consumer_protocol_id=lineage["consumer_protocol_id"],
+        source_p1j_protocol_id=lineage["source_p1j_protocol_id"],
+        source_p1j_report_artifact_id=lineage["source_p1j_report_artifact_id"],
+        source_p1j_verdict=lineage["source_p1j_verdict"],
         training_dataset_fingerprint=lineage["training_dataset_fingerprint"],
         training_package_name=lineage["training_package_name"],
         context_arm=context["context_arm"],
@@ -906,24 +1029,14 @@ def load_relationship_p1k_protocol(path: pathlib.Path) -> RelationshipP1kProtoco
         request_template_sha256=runtime["request_template_sha256"],
         readout_schema_sha256=runtime["readout_schema_sha256"],
         compiler_version=runtime["compiler_version"],
-        tiers=tuple(plan["tiers"]),
-        seed_schedule=tuple(runtime["seed_schedule"]),
+        tiers=tuple(_require_text(item, "P1k diagnostic cell") for item in cells_raw),
+        seed_schedule=tuple(_require_int(item, "P1k seed") for item in seeds_raw),
         record_plan_sha256=plan["record_plan_sha256"],
-        planned_output_count=_require_int(
-            plan["planned_output_count"], "P1k planned outputs"
-        ),
-        observation_count=_require_int(
-            plan["observation_count"], "P1k observation count"
-        ),
-        rung_minimum_accuracy=_require_number(
-            gate["rung_minimum_accuracy"], "P1k rung accuracy"
-        ),
-        rung_minimum_pair_flip_rate=_require_number(
-            gate["rung_minimum_pair_flip_rate"], "P1k rung pair flip"
-        ),
-        required_valid_rate=_require_number(
-            gate["required_valid_rate"], "P1k valid rate"
-        ),
+        planned_output_count=_require_int(plan["planned_output_count"], "P1k planned outputs"),
+        observation_count=_require_int(plan["observation_count"], "P1k observation count"),
+        rung_minimum_accuracy=_require_number(gate["rung_minimum_accuracy"], "P1k rung accuracy"),
+        rung_minimum_pair_flip_rate=_require_number(gate["rung_minimum_pair_flip_rate"], "P1k rung pair flip"),
+        required_valid_rate=_require_number(gate["required_valid_rate"], "P1k valid rate"),
         claim_boundary=raw["claim_boundary"],
         next_action=raw["next_action"],
         schema_version=raw["schema_version"],
@@ -937,6 +1050,8 @@ def validate_relationship_p1k_protocol_lineage(
     protocol: RelationshipP1kProtocol,
     *,
     consumer: RelationshipP1iFrozenConsumerProtocol,
+    source_p1j_protocol: RelationshipP1jQualificationProtocol,
+    source_p1j_report: RelationshipP1jQualificationReport,
     dataset: RelationshipTransferDataset,
     contexts: RelationshipP1ContextBundle,
 ) -> None:
@@ -944,6 +1059,8 @@ def validate_relationship_p1k_protocol_lineage(
 
     expected = freeze_relationship_p1k_protocol(
         consumer=consumer,
+        source_p1j_protocol=source_p1j_protocol,
+        source_p1j_report=source_p1j_report,
         dataset=dataset,
         contexts=contexts,
         seed_schedule=protocol.seed_schedule,
@@ -953,6 +1070,12 @@ def validate_relationship_p1k_protocol_lineage(
         raise ValueError("P1k protocol lineage mismatch")
     if protocol.consumer_protocol_id != consumer.protocol_id:
         raise ValueError("P1k protocol consumer id mismatch")
+    if (
+        protocol.source_p1j_protocol_id != source_p1j_protocol.protocol_id
+        or protocol.source_p1j_report_artifact_id != source_p1j_report.artifact_id
+        or protocol.source_p1j_verdict != source_p1j_report.verdict.value
+    ):
+        raise ValueError("P1k protocol P1j terminal lineage mismatch")
     if protocol.model_id != consumer.model_id:
         raise ValueError("P1k protocol substrate identity mismatch")
     if protocol.weights_sha256 != consumer.expected_weights_sha256:
@@ -965,6 +1088,7 @@ def validate_relationship_p1k_protocol_lineage(
 class RelationshipP1kCheckpoint:
     protocol_id: str
     consumer_protocol_id: str
+    source_p1j_report_artifact_id: str
     training_dataset_fingerprint: str
     context_surface_sha256: str
     planned_record_keys: tuple[RelationshipP1kRecordKey, ...]
@@ -976,15 +1100,14 @@ class RelationshipP1kCheckpoint:
         for field_name, value in (
             ("protocol_id", self.protocol_id),
             ("consumer_protocol_id", self.consumer_protocol_id),
+            ("source_p1j_report_artifact_id", self.source_p1j_report_artifact_id),
             ("training_dataset_fingerprint", self.training_dataset_fingerprint),
             ("context_surface_sha256", self.context_surface_sha256),
         ):
             _require_sha256(value, field_name)
         if not self.planned_record_keys:
             raise ValueError("P1k checkpoint requires a record plan")
-        identities = tuple(
-            (item.tier, item.scene_id, item.seed) for item in self.planned_record_keys
-        )
+        identities = tuple((item.tier, item.scene_id, item.seed) for item in self.planned_record_keys)
         if len(set(identities)) != len(identities):
             raise ValueError("P1k checkpoint record keys must be unique")
 
@@ -993,11 +1116,10 @@ class RelationshipP1kCheckpoint:
             "schema_version": self.schema_version,
             "protocol_id": self.protocol_id,
             "consumer_protocol_id": self.consumer_protocol_id,
+            "source_p1j_report_artifact_id": self.source_p1j_report_artifact_id,
             "training_dataset_fingerprint": self.training_dataset_fingerprint,
             "context_surface_sha256": self.context_surface_sha256,
-            "planned_record_keys": [
-                item.to_payload() for item in self.planned_record_keys
-            ],
+            "planned_record_keys": [item.to_payload() for item in self.planned_record_keys],
         }
 
 
@@ -1010,13 +1132,12 @@ def build_relationship_p1k_checkpoint(
         dataset=dataset,
         seed_schedule=protocol.seed_schedule,
     )
-    if sha256_json([key.to_payload() for key in record_plan]) != (
-        protocol.record_plan_sha256
-    ):
+    if sha256_json([key.to_payload() for key in record_plan]) != (protocol.record_plan_sha256):
         raise ValueError("P1k record plan diverges from the frozen protocol")
     return RelationshipP1kCheckpoint(
         protocol_id=protocol.protocol_id,
         consumer_protocol_id=protocol.consumer_protocol_id,
+        source_p1j_report_artifact_id=protocol.source_p1j_report_artifact_id,
         training_dataset_fingerprint=protocol.training_dataset_fingerprint,
         context_surface_sha256=protocol.context_surface_sha256,
         planned_record_keys=record_plan,
@@ -1031,10 +1152,7 @@ def write_relationship_p1k_checkpoint(
     path = pathlib.Path(output_dir) / "checkpoint.json"
     _atomic_write_text(
         path,
-        json.dumps(
-            checkpoint.to_payload(), ensure_ascii=False, indent=2, sort_keys=True
-        )
-        + "\n",
+        json.dumps(checkpoint.to_payload(), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
     )
     return path
 
@@ -1051,6 +1169,7 @@ def load_relationship_p1k_checkpoint(
             "schema_version",
             "protocol_id",
             "consumer_protocol_id",
+            "source_p1j_report_artifact_id",
             "training_dataset_fingerprint",
             "context_surface_sha256",
             "planned_record_keys",
@@ -1064,11 +1183,10 @@ def load_relationship_p1k_checkpoint(
         schema_version=_require_text(raw["schema_version"], "P1k checkpoint schema"),
         protocol_id=raw["protocol_id"],
         consumer_protocol_id=raw["consumer_protocol_id"],
+        source_p1j_report_artifact_id=raw["source_p1j_report_artifact_id"],
         training_dataset_fingerprint=raw["training_dataset_fingerprint"],
         context_surface_sha256=raw["context_surface_sha256"],
-        planned_record_keys=tuple(
-            RelationshipP1kRecordKey.from_payload(item) for item in keys_raw
-        ),
+        planned_record_keys=tuple(RelationshipP1kRecordKey.from_payload(item) for item in keys_raw),
     )
 
 
@@ -1079,20 +1197,11 @@ class RelationshipP1kProgress:
     decisions: tuple[RelationshipP1kDecision, ...]
 
     def __post_init__(self) -> None:
-        if len(self.decisions) > len(self.readouts) or (
-            len(self.readouts) - len(self.decisions) > 1
-        ):
+        if len(self.decisions) > len(self.readouts) or (len(self.readouts) - len(self.decisions) > 1):
             raise ValueError("P1k progress readout/decision counts are invalid")
-        planned = tuple(
-            (item.tier, item.scene_id, item.seed)
-            for item in self.checkpoint.planned_record_keys
-        )
-        readout_keys = tuple(
-            (item.tier, item.scene_id, item.seed) for item in self.readouts
-        )
-        decision_keys = tuple(
-            (item.tier, item.scene_id, item.seed) for item in self.decisions
-        )
+        planned = tuple((item.tier, item.scene_id, item.seed) for item in self.checkpoint.planned_record_keys)
+        readout_keys = tuple((item.tier, item.scene_id, item.seed) for item in self.readouts)
+        decision_keys = tuple((item.tier, item.scene_id, item.seed) for item in self.decisions)
         if readout_keys != planned[: len(readout_keys)]:
             raise ValueError("P1k readouts are not a contiguous planned prefix")
         if decision_keys != planned[: len(decision_keys)]:
@@ -1100,12 +1209,36 @@ class RelationshipP1kProgress:
 
     @property
     def is_complete(self) -> bool:
+        """Return whether the maximum pre-registered matrix was exhausted."""
+
         expected = len(self.checkpoint.planned_record_keys)
         return len(self.readouts) == len(self.decisions) == expected
 
 
 def _record_path(output_dir: pathlib.Path, index: int, kind: str) -> pathlib.Path:
     return pathlib.Path(output_dir) / "records" / f"{index:04d}.{kind}.json"
+
+
+def _validate_record_directory_shape(
+    output_dir: pathlib.Path,
+    *,
+    planned_record_count: int,
+) -> None:
+    records_dir = pathlib.Path(output_dir) / "records"
+    if not records_dir.exists():
+        return
+    if not records_dir.is_dir():
+        raise ValueError("P1k records path must be a directory")
+    expected_names = {
+        f"{index:04d}.{kind}.json" for index in range(planned_record_count) for kind in ("readout", "decision")
+    }
+    unexpected = sorted(
+        entry.name
+        for entry in records_dir.iterdir()
+        if entry.name not in expected_names or not entry.is_file() or entry.is_symlink()
+    )
+    if unexpected:
+        raise ValueError("P1k records directory contains entries outside the frozen plan: " + ", ".join(unexpected))
 
 
 def persist_relationship_p1k_readout(
@@ -1143,6 +1276,8 @@ def persist_relationship_p1k_decision(
     index: int,
     decision: RelationshipP1kDecision,
 ) -> pathlib.Path:
+    if index < 0 or index >= len(checkpoint.planned_record_keys):
+        raise IndexError("P1k decision index is outside the record plan")
     readout_path = _record_path(output_dir, index, "readout")
     if not readout_path.is_file():
         raise FileNotFoundError("P1k decision cannot precede its durable readout")
@@ -1158,8 +1293,7 @@ def persist_relationship_p1k_decision(
         raise FileExistsError(f"P1k decision already exists: {path}")
     _atomic_write_text(
         path,
-        json.dumps(decision.to_payload(), ensure_ascii=False, indent=2, sort_keys=True)
-        + "\n",
+        json.dumps(decision.to_payload(), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
     )
     return path
 
@@ -1168,6 +1302,10 @@ def load_relationship_p1k_progress(
     output_dir: pathlib.Path,
 ) -> RelationshipP1kProgress:
     checkpoint = load_relationship_p1k_checkpoint(output_dir)
+    _validate_record_directory_shape(
+        output_dir,
+        planned_record_count=len(checkpoint.planned_record_keys),
+    )
     readouts: list[RelationshipP1kReadout] = []
     decisions: list[RelationshipP1kDecision] = []
     missing_seen = False
@@ -1177,20 +1315,14 @@ def load_relationship_p1k_progress(
         if readout_path.is_file():
             if missing_seen:
                 raise ValueError("P1k readout files contain a non-contiguous gap")
-            readouts.append(
-                RelationshipP1kReadout.from_payload(
-                    json.loads(readout_path.read_text(encoding="utf-8"))
-                )
-            )
+            readouts.append(RelationshipP1kReadout.from_payload(json.loads(readout_path.read_text(encoding="utf-8"))))
         else:
             missing_seen = True
         if decision_path.is_file():
             if not readout_path.is_file() or len(decisions) != index:
                 raise ValueError("P1k decision files contain a gap or orphan")
             decisions.append(
-                RelationshipP1kDecision.from_payload(
-                    json.loads(decision_path.read_text(encoding="utf-8"))
-                )
+                RelationshipP1kDecision.from_payload(json.loads(decision_path.read_text(encoding="utf-8")))
             )
     return RelationshipP1kProgress(
         checkpoint=checkpoint,
@@ -1212,8 +1344,8 @@ def validate_relationship_p1k_progress(
     if (
         checkpoint.protocol_id != protocol.protocol_id
         or checkpoint.consumer_protocol_id != protocol.consumer_protocol_id
-        or checkpoint.training_dataset_fingerprint
-        != protocol.training_dataset_fingerprint
+        or checkpoint.source_p1j_report_artifact_id != protocol.source_p1j_report_artifact_id
+        or checkpoint.training_dataset_fingerprint != protocol.training_dataset_fingerprint
         or checkpoint.context_surface_sha256 != protocol.context_surface_sha256
     ):
         raise ValueError("P1k checkpoint diverges from the frozen protocol")
@@ -1239,8 +1371,7 @@ def validate_relationship_p1k_progress(
             current_input=observation.current_input,
         )
         if (
-            readout.current_input_sha256
-            != _sha256_text(observation.current_input)
+            readout.current_input_sha256 != _sha256_text(observation.current_input)
             or readout.context_sha256 != context.context_sha256
             or readout.disclosure_sha256 != _sha256_text(disclosure)
             or readout.model_input_sha256 != _sha256_text(expected_input)
@@ -1303,7 +1434,7 @@ def execute_relationship_p1k_diagnostic(
     readout_observer: Callable[[int, RelationshipP1kReadout], None] | None = None,
     decision_observer: Callable[[int, RelationshipP1kDecision], None] | None = None,
 ) -> RelationshipP1kExecution:
-    """Advance the frozen ladder, persisting each readout before its truth."""
+    """Advance only the currently released cell, persisting readout before truth."""
 
     if max_new_readouts is not None and max_new_readouts < 0:
         raise ValueError("P1k max_new_readouts must be non-negative")
@@ -1313,6 +1444,12 @@ def execute_relationship_p1k_diagnostic(
         dataset=dataset,
         contexts=contexts,
     )
+    execution_gate = relationship_p1k_execution_gate(
+        protocol=protocol,
+        progress=existing_progress,
+    )
+    if execution_gate.terminal:
+        raise ValueError("P1k diagnostic attempt is already terminal")
     if (
         policy.model_id != protocol.model_id
         or policy.weights_sha256 != protocol.weights_sha256
@@ -1322,9 +1459,7 @@ def execute_relationship_p1k_diagnostic(
     prompt_path = relationship_p1k_readout_prompt_path()
     if _sha256_file(prompt_path) != protocol.readout_prompt_sha256:
         raise ValueError("P1k readout prompt asset drifted")
-    if _sha256_file(relationship_p1k_request_template_path()) != (
-        protocol.request_template_sha256
-    ):
+    if _sha256_file(relationship_p1k_request_template_path()) != (protocol.request_template_sha256):
         raise ValueError("P1k request template asset drifted")
     prompt = prompt_path.read_text(encoding="utf-8").strip()
 
@@ -1332,6 +1467,8 @@ def execute_relationship_p1k_diagnostic(
     decisions = list(existing_progress.decisions)
     new_outputs = 0
     for index, key in enumerate(existing_progress.checkpoint.planned_record_keys):
+        if index >= execution_gate.allowed_output_count:
+            break
         if index < len(readouts):
             readout = readouts[index]
         else:
@@ -1359,9 +1496,7 @@ def execute_relationship_p1k_diagnostic(
                 ),
                 seed=key.seed,
             )
-            stay_score, space_score = parse_relationship_evidence_scores(
-                completion.raw_output
-            )
+            stay_score, space_score = parse_relationship_evidence_scores(completion.raw_output)
             readout = RelationshipP1kReadout(
                 tier=key.tier,
                 scene_id=key.scene_id,
@@ -1418,6 +1553,12 @@ class RelationshipP1kTierMetric:
             raise ValueError("P1k metric tier is not part of the frozen ladder")
         if self.decisions <= 0:
             raise ValueError("P1k metric requires decisions")
+        if not (
+            0 <= self.valid_decisions <= self.decisions
+            and 0 <= self.correct_decisions <= self.decisions
+            and 0 <= self.valid_pair_groups <= self.pair_groups
+        ):
+            raise ValueError("P1k metric counts are inconsistent")
         for field_name in ("valid_rate", "accuracy", "pair_flip_rate"):
             value = getattr(self, field_name)
             if not 0.0 <= value <= 1.0:
@@ -1469,27 +1610,15 @@ class RelationshipP1kTierMetric:
         metric = cls(
             tier=_require_text(raw["tier"], "P1k metric tier"),
             decisions=_require_int(raw["decisions"], "P1k metric decisions"),
-            valid_decisions=_require_int(
-                raw["valid_decisions"], "P1k metric valid decisions"
-            ),
+            valid_decisions=_require_int(raw["valid_decisions"], "P1k metric valid decisions"),
             valid_rate=_require_number(raw["valid_rate"], "P1k metric valid rate"),
-            correct_decisions=_require_int(
-                raw["correct_decisions"], "P1k metric correct decisions"
-            ),
+            correct_decisions=_require_int(raw["correct_decisions"], "P1k metric correct decisions"),
             accuracy=_require_number(raw["accuracy"], "P1k metric accuracy"),
             pair_groups=_require_int(raw["pair_groups"], "P1k metric pair groups"),
-            valid_pair_groups=_require_int(
-                raw["valid_pair_groups"], "P1k metric valid pair groups"
-            ),
-            pair_flip_rate=_require_number(
-                raw["pair_flip_rate"], "P1k metric pair flip"
-            ),
-            prompt_tokens_total=_require_int(
-                raw["prompt_tokens_total"], "P1k metric prompt tokens"
-            ),
-            completion_tokens_total=_require_int(
-                raw["completion_tokens_total"], "P1k metric completion tokens"
-            ),
+            valid_pair_groups=_require_int(raw["valid_pair_groups"], "P1k metric valid pair groups"),
+            pair_flip_rate=_require_number(raw["pair_flip_rate"], "P1k metric pair flip"),
+            prompt_tokens_total=_require_int(raw["prompt_tokens_total"], "P1k metric prompt tokens"),
+            completion_tokens_total=_require_int(raw["completion_tokens_total"], "P1k metric completion tokens"),
         )
         if raw["functional"] != metric.functional:
             raise ValueError("P1k metric functional flag mismatch")
@@ -1506,9 +1635,7 @@ def _tier_metric(
     if not selected:
         raise ValueError(f"P1k has no decisions for {tier.value}")
     by_key = {(item.tier, item.scene_id, item.seed): item for item in readouts}
-    selected_readouts = tuple(
-        by_key[(item.tier, item.scene_id, item.seed)] for item in selected
-    )
+    selected_readouts = tuple(by_key[(item.tier, item.scene_id, item.seed)] for item in selected)
     groups: dict[tuple[str, int], list[RelationshipP1kDecision]] = {}
     for item in selected:
         groups.setdefault((item.mirror_pair_id, item.seed), []).append(item)
@@ -1539,10 +1666,114 @@ def _tier_metric(
         valid_pair_groups=valid_groups,
         pair_flip_rate=flip_groups / valid_groups if valid_groups else 0.0,
         prompt_tokens_total=sum(item.prompt_tokens for item in selected_readouts),
-        completion_tokens_total=sum(
-            item.completion_tokens for item in selected_readouts
-        ),
+        completion_tokens_total=sum(item.completion_tokens for item in selected_readouts),
     )
+
+
+@dataclass(frozen=True)
+class RelationshipP1kExecutionGate:
+    terminal: bool
+    next_tier: RelationshipP1kOracleTier | None
+    allowed_output_count: int
+    executed_tiers: tuple[str, ...]
+    skipped_tiers: tuple[str, ...]
+    stop_reason: str | None
+
+    def __post_init__(self) -> None:
+        frozen_tiers = tuple(item.value for item in RELATIONSHIP_P1K_TIERS)
+        if self.executed_tiers != frozen_tiers[: len(self.executed_tiers)]:
+            raise ValueError("P1k executed cells must be a frozen-plan prefix")
+        if self.terminal:
+            if self.next_tier is not None or self.stop_reason is None:
+                raise ValueError("P1k terminal gate requires a stop reason")
+            expected_skipped = frozen_tiers[len(self.executed_tiers) :]
+            if self.skipped_tiers != expected_skipped:
+                raise ValueError("P1k terminal skipped cells diverge from plan")
+        elif self.next_tier is None or self.skipped_tiers or self.stop_reason is not None:
+            raise ValueError("P1k open gate must identify exactly one next cell")
+
+
+def relationship_p1k_execution_gate(
+    *,
+    protocol: RelationshipP1kProtocol,
+    progress: RelationshipP1kProgress,
+) -> RelationshipP1kExecutionGate:
+    """Apply the pre-registered stage release and early-stop contract."""
+
+    if (
+        progress.checkpoint.protocol_id != protocol.protocol_id
+        or len(progress.checkpoint.planned_record_keys) != protocol.planned_output_count
+        or sha256_json([key.to_payload() for key in progress.checkpoint.planned_record_keys])
+        != protocol.record_plan_sha256
+    ):
+        raise ValueError("P1k progress plan diverges from the frozen protocol")
+    block_size = protocol.observation_count * len(protocol.seed_schedule)
+    if block_size <= 0 or protocol.planned_output_count != (block_size * len(RELATIONSHIP_P1K_TIERS)):
+        raise ValueError("P1k protocol has an invalid diagnostic block size")
+    decision_count = len(progress.decisions)
+    readout_count = len(progress.readouts)
+    if readout_count > protocol.planned_output_count:
+        raise ValueError("P1k progress exceeds the frozen matrix")
+    full_cells, partial = divmod(decision_count, block_size)
+    if full_cells > len(RELATIONSHIP_P1K_TIERS):
+        raise ValueError("P1k progress exceeds the frozen matrix")
+    completed = RELATIONSHIP_P1K_TIERS[:full_cells]
+    metrics = tuple(
+        _tier_metric(
+            tier=tier,
+            decisions=progress.decisions,
+            readouts=progress.readouts,
+        )
+        for tier in completed
+    )
+
+    def open_next(index: int) -> RelationshipP1kExecutionGate:
+        return RelationshipP1kExecutionGate(
+            terminal=False,
+            next_tier=RELATIONSHIP_P1K_TIERS[index],
+            allowed_output_count=(index + 1) * block_size,
+            executed_tiers=tuple(item.value for item in completed),
+            skipped_tiers=(),
+            stop_reason=None,
+        )
+
+    def stop(reason: str) -> RelationshipP1kExecutionGate:
+        if readout_count != decision_count:
+            raise ValueError("P1k terminal stage cannot contain an orphan readout")
+        return RelationshipP1kExecutionGate(
+            terminal=True,
+            next_tier=None,
+            allowed_output_count=decision_count,
+            executed_tiers=tuple(item.value for item in completed),
+            skipped_tiers=tuple(item.value for item in RELATIONSHIP_P1K_TIERS[full_cells:]),
+            stop_reason=reason,
+        )
+
+    if partial:
+        return open_next(full_cells)
+    invalid = next(
+        (item for item in metrics if item.valid_rate != RELATIONSHIP_P1K_REQUIRED_VALID_RATE),
+        None,
+    )
+    if invalid is not None:
+        return stop(f"invalid_output_in_{invalid.tier}")
+    if not metrics:
+        return open_next(0)
+    application = metrics[0]
+    if not application.functional:
+        return stop("fully_disclosed_policy_application_failed")
+    if full_cells == 1:
+        return open_next(1)
+    if full_cells == 2:
+        return open_next(2)
+    induction = metrics[1]
+    if full_cells == 3:
+        if not induction.functional:
+            return stop("policy_induction_failed_history_binding_not_interpretable")
+        return open_next(3)
+    if full_cells == len(RELATIONSHIP_P1K_TIERS):
+        return stop("diagnostic_matrix_exhausted")
+    raise ValueError("P1k stage gate reached an impossible state")
 
 
 class RelationshipP1kVerdict(str, Enum):
@@ -1550,24 +1781,20 @@ class RelationshipP1kVerdict(str, Enum):
     SUBSTRATE_APPLICATION_FLOOR = "substrate_cannot_apply_disclosed_policy"
     POLICY_INDUCTION_BOTTLENECK = "cannot_induce_policy_from_labelled_evidence"
     CONDITION_RECOGNITION_BOTTLENECK = "cannot_recognize_probe_condition"
-    UNAIDED_INDUCTION_BOTTLENECK = "oracle_ladder_intact_gap_is_unaided_induction"
+    HISTORY_BINDING_BOTTLENECK = "cannot_bind_unlabelled_history_to_condition"
+    MULTIPLE_DIAGNOSTIC_BOTTLENECKS = "multiple_diagnostic_bottlenecks"
+    UNAIDED_ABSTRACTION_OR_TRANSFER = "oracle_matrix_intact_gap_is_unaided_abstraction_or_transfer"
 
 
 _NEXT_ACTIONS = {
-    RelationshipP1kVerdict.MACHINERY_REGRESSION: (
-        "stop_diagnostic_lane_preserve_failed_attempt"
-    ),
-    RelationshipP1kVerdict.SUBSTRATE_APPLICATION_FLOOR: (
-        "stop_scenario_lane_change_substrate_or_readout_floor"
-    ),
-    RelationshipP1kVerdict.POLICY_INDUCTION_BOTTLENECK: (
-        "scope_next_packet_to_policy_induction_owner"
-    ),
-    RelationshipP1kVerdict.CONDITION_RECOGNITION_BOTTLENECK: (
-        "scope_next_packet_to_condition_recognition_owner"
-    ),
-    RelationshipP1kVerdict.UNAIDED_INDUCTION_BOTTLENECK: (
-        "scope_next_packet_to_unaided_induction_owner"
+    RelationshipP1kVerdict.MACHINERY_REGRESSION: ("stop_diagnostic_lane_preserve_failed_attempt"),
+    RelationshipP1kVerdict.SUBSTRATE_APPLICATION_FLOOR: ("stop_scenario_lane_change_substrate_or_readout_floor"),
+    RelationshipP1kVerdict.POLICY_INDUCTION_BOTTLENECK: ("scope_next_packet_to_policy_induction_owner"),
+    RelationshipP1kVerdict.CONDITION_RECOGNITION_BOTTLENECK: ("scope_next_packet_to_condition_recognition_owner"),
+    RelationshipP1kVerdict.HISTORY_BINDING_BOTTLENECK: ("scope_next_packet_to_history_binding_owner"),
+    RelationshipP1kVerdict.MULTIPLE_DIAGNOSTIC_BOTTLENECKS: ("stop_and_separate_multiple_diagnostic_owners"),
+    RelationshipP1kVerdict.UNAIDED_ABSTRACTION_OR_TRANSFER: (
+        "scope_next_packet_to_unaided_abstraction_or_transfer_owner"
     ),
 }
 
@@ -1576,19 +1803,31 @@ def _verdict_from_metrics(
     metrics: tuple[RelationshipP1kTierMetric, ...],
 ) -> RelationshipP1kVerdict:
     by_tier = {item.tier: item for item in metrics}
-    if tuple(by_tier) != tuple(tier.value for tier in RELATIONSHIP_P1K_TIERS):
-        raise ValueError("P1k metrics are incomplete or unordered")
-    if any(
-        item.valid_rate != RELATIONSHIP_P1K_REQUIRED_VALID_RATE for item in metrics
-    ):
+    frozen = tuple(tier.value for tier in RELATIONSHIP_P1K_TIERS)
+    if not metrics or tuple(by_tier) != frozen[: len(metrics)]:
+        raise ValueError("P1k metrics are not a terminal frozen-plan prefix")
+    if any(item.valid_rate != RELATIONSHIP_P1K_REQUIRED_VALID_RATE for item in metrics):
         return RelationshipP1kVerdict.MACHINERY_REGRESSION
-    if not by_tier[RelationshipP1kOracleTier.CONDITION_AND_POLICY.value].functional:
+    if not by_tier[RelationshipP1kOracleTier.POLICY_APPLICATION.value].functional:
         return RelationshipP1kVerdict.SUBSTRATE_APPLICATION_FLOOR
-    if not by_tier[RelationshipP1kOracleTier.CONDITION_AND_BINDING.value].functional:
+    if len(metrics) < 3:
+        raise ValueError("P1k nonterminal metric prefix cannot produce a report")
+    induction_failed = not by_tier[RelationshipP1kOracleTier.POLICY_INDUCTION.value].functional
+    recognition_failed = not by_tier[RelationshipP1kOracleTier.PROBE_RECOGNITION.value].functional
+    if induction_failed:
+        if recognition_failed:
+            return RelationshipP1kVerdict.MULTIPLE_DIAGNOSTIC_BOTTLENECKS
         return RelationshipP1kVerdict.POLICY_INDUCTION_BOTTLENECK
-    if not by_tier[RelationshipP1kOracleTier.CONDITION_ONLY.value].functional:
+    if len(metrics) < 4:
+        raise ValueError("P1k history-binding cell is required after induction passes")
+    binding_failed = not by_tier[RelationshipP1kOracleTier.HISTORY_BINDING.value].functional
+    if recognition_failed and binding_failed:
+        return RelationshipP1kVerdict.MULTIPLE_DIAGNOSTIC_BOTTLENECKS
+    if recognition_failed:
         return RelationshipP1kVerdict.CONDITION_RECOGNITION_BOTTLENECK
-    return RelationshipP1kVerdict.UNAIDED_INDUCTION_BOTTLENECK
+    if binding_failed:
+        return RelationshipP1kVerdict.HISTORY_BINDING_BOTTLENECK
+    return RelationshipP1kVerdict.UNAIDED_ABSTRACTION_OR_TRANSFER
 
 
 @dataclass(frozen=True)
@@ -1596,6 +1835,9 @@ class RelationshipP1kReport:
     created_at_iso: str
     protocol_id: str
     consumer_protocol_id: str
+    source_p1j_protocol_id: str
+    source_p1j_report_artifact_id: str
+    source_p1j_verdict: str
     training_dataset_fingerprint: str
     context_surface_sha256: str
     model_id: str
@@ -1603,7 +1845,11 @@ class RelationshipP1kReport:
     readout_ledger_sha256: str
     decision_ledger_sha256: str
     tier_metrics: tuple[RelationshipP1kTierMetric, ...]
+    executed_tiers: tuple[str, ...]
+    skipped_tiers: tuple[str, ...]
+    terminal_stop_reason: str
     output_count: int
+    planned_output_count: int
     verdict: RelationshipP1kVerdict
     claim_boundary: str = _REPORT_CLAIM_BOUNDARY
     schema_version: str = RELATIONSHIP_P1K_REPORT_SCHEMA_VERSION
@@ -1615,6 +1861,8 @@ class RelationshipP1kReport:
         for field_name, value in (
             ("protocol_id", self.protocol_id),
             ("consumer_protocol_id", self.consumer_protocol_id),
+            ("source_p1j_protocol_id", self.source_p1j_protocol_id),
+            ("source_p1j_report_artifact_id", self.source_p1j_report_artifact_id),
             ("training_dataset_fingerprint", self.training_dataset_fingerprint),
             ("context_surface_sha256", self.context_surface_sha256),
             ("weights_sha256", self.weights_sha256),
@@ -1622,12 +1870,25 @@ class RelationshipP1kReport:
             ("decision_ledger_sha256", self.decision_ledger_sha256),
         ):
             _require_sha256(value, field_name)
-        if tuple(item.tier for item in self.tier_metrics) != tuple(
-            tier.value for tier in RELATIONSHIP_P1K_TIERS
+        if self.source_p1j_verdict != RelationshipP1jVerdict.UNDERQUALIFIED.value:
+            raise ValueError("P1k report P1j verdict is not the frozen prerequisite")
+        frozen_tiers = tuple(tier.value for tier in RELATIONSHIP_P1K_TIERS)
+        if (
+            self.executed_tiers != frozen_tiers[: len(self.executed_tiers)]
+            or self.skipped_tiers != frozen_tiers[len(self.executed_tiers) :]
+            or tuple(item.tier for item in self.tier_metrics) != self.executed_tiers
         ):
-            raise ValueError("P1k report tier metrics are incomplete or unordered")
+            raise ValueError("P1k report execution path diverges from the staged plan")
+        _require_text(self.terminal_stop_reason, "P1k terminal stop reason")
         if self.output_count != sum(item.decisions for item in self.tier_metrics):
             raise ValueError("P1k report output count diverges from tier metrics")
+        metric_sizes = {item.decisions for item in self.tier_metrics}
+        if len(metric_sizes) != 1 or self.planned_output_count != (
+            next(iter(metric_sizes)) * len(RELATIONSHIP_P1K_TIERS)
+        ):
+            raise ValueError("P1k report cell sizes diverge from the frozen maximum")
+        if self.output_count <= 0 or self.output_count > self.planned_output_count:
+            raise ValueError("P1k report output count exceeds the frozen maximum")
         if self.verdict is not _verdict_from_metrics(self.tier_metrics):
             raise ValueError("P1k report verdict diverges from its own metrics")
         if self.claim_boundary != _REPORT_CLAIM_BOUNDARY:
@@ -1643,6 +1904,9 @@ class RelationshipP1kReport:
             "created_at_iso": self.created_at_iso,
             "protocol_id": self.protocol_id,
             "consumer_protocol_id": self.consumer_protocol_id,
+            "source_p1j_protocol_id": self.source_p1j_protocol_id,
+            "source_p1j_report_artifact_id": self.source_p1j_report_artifact_id,
+            "source_p1j_verdict": self.source_p1j_verdict,
             "training_dataset_fingerprint": self.training_dataset_fingerprint,
             "context_surface_sha256": self.context_surface_sha256,
             "model_id": self.model_id,
@@ -1650,7 +1914,11 @@ class RelationshipP1kReport:
             "readout_ledger_sha256": self.readout_ledger_sha256,
             "decision_ledger_sha256": self.decision_ledger_sha256,
             "tier_metrics": [item.to_payload() for item in self.tier_metrics],
+            "executed_tiers": list(self.executed_tiers),
+            "skipped_tiers": list(self.skipped_tiers),
+            "terminal_stop_reason": self.terminal_stop_reason,
             "output_count": self.output_count,
+            "planned_output_count": self.planned_output_count,
             "verdict": self.verdict.value,
             "next_action": self.next_action,
             "experiment_guards": {
@@ -1676,27 +1944,28 @@ def assess_relationship_p1k_diagnostic(
     progress: RelationshipP1kProgress,
     created_at_iso: str | None = None,
 ) -> RelationshipP1kReport:
-    if not progress.is_complete:
-        raise ValueError("P1k assessment requires a complete ladder")
+    gate = relationship_p1k_execution_gate(protocol=protocol, progress=progress)
+    if not gate.terminal:
+        raise ValueError("P1k assessment requires a terminal staged path")
     metrics = tuple(
         _tier_metric(
             tier=tier,
             decisions=progress.decisions,
             readouts=progress.readouts,
         )
-        for tier in RELATIONSHIP_P1K_TIERS
+        for tier in RELATIONSHIP_P1K_TIERS[: len(gate.executed_tiers)]
     )
     readout_ledger = "".join(
-        canonical_json({**item.to_payload(), "artifact_id": item.artifact_id}) + "\n"
-        for item in progress.readouts
+        canonical_json({**item.to_payload(), "artifact_id": item.artifact_id}) + "\n" for item in progress.readouts
     )
-    decision_ledger = "".join(
-        canonical_json(item.to_payload()) + "\n" for item in progress.decisions
-    )
-    return RelationshipP1kReport(
+    decision_ledger = "".join(canonical_json(item.to_payload()) + "\n" for item in progress.decisions)
+    report = RelationshipP1kReport(
         created_at_iso=created_at_iso or datetime.now(timezone.utc).isoformat(),
         protocol_id=protocol.protocol_id,
         consumer_protocol_id=protocol.consumer_protocol_id,
+        source_p1j_protocol_id=protocol.source_p1j_protocol_id,
+        source_p1j_report_artifact_id=protocol.source_p1j_report_artifact_id,
+        source_p1j_verdict=protocol.source_p1j_verdict,
         training_dataset_fingerprint=protocol.training_dataset_fingerprint,
         context_surface_sha256=protocol.context_surface_sha256,
         model_id=protocol.model_id,
@@ -1704,22 +1973,70 @@ def assess_relationship_p1k_diagnostic(
         readout_ledger_sha256=_sha256_text(readout_ledger),
         decision_ledger_sha256=_sha256_text(decision_ledger),
         tier_metrics=metrics,
+        executed_tiers=gate.executed_tiers,
+        skipped_tiers=gate.skipped_tiers,
+        terminal_stop_reason=gate.stop_reason or "",
         output_count=len(progress.decisions),
+        planned_output_count=protocol.planned_output_count,
         verdict=_verdict_from_metrics(metrics),
     )
+    validate_relationship_p1k_report_lineage(report, protocol=protocol)
+    return report
+
+
+def validate_relationship_p1k_report_lineage(
+    report: RelationshipP1kReport,
+    *,
+    protocol: RelationshipP1kProtocol,
+) -> None:
+    expected = {
+        "protocol_id": protocol.protocol_id,
+        "consumer_protocol_id": protocol.consumer_protocol_id,
+        "source_p1j_protocol_id": protocol.source_p1j_protocol_id,
+        "source_p1j_report_artifact_id": protocol.source_p1j_report_artifact_id,
+        "source_p1j_verdict": protocol.source_p1j_verdict,
+        "training_dataset_fingerprint": protocol.training_dataset_fingerprint,
+        "context_surface_sha256": protocol.context_surface_sha256,
+        "model_id": protocol.model_id,
+        "weights_sha256": protocol.weights_sha256,
+        "planned_output_count": protocol.planned_output_count,
+    }
+    actual = vars(report)
+    drift = sorted(name for name, value in expected.items() if actual[name] != value)
+    if drift:
+        raise ValueError(f"P1k report lineage mismatch: {drift}")
+    if datetime.fromisoformat(report.created_at_iso.replace("Z", "+00:00")) < datetime.fromisoformat(
+        protocol.frozen_at_iso.replace("Z", "+00:00")
+    ):
+        raise ValueError("P1k report cannot predate its protocol")
 
 
 def write_relationship_p1k_report(
     *,
     report: RelationshipP1kReport,
+    progress: RelationshipP1kProgress,
     output_dir: pathlib.Path,
 ) -> tuple[pathlib.Path, pathlib.Path]:
     target = pathlib.Path(output_dir)
+    readout_path = target / "readouts.jsonl"
+    decision_path = target / "decisions.jsonl"
     json_path = target / "packet1k_report.json"
     markdown_path = target / "packet1k_report.md"
-    existing = tuple(path for path in (json_path, markdown_path) if path.exists())
+    existing = tuple(path for path in (readout_path, decision_path, json_path, markdown_path) if path.exists())
     if existing:
         raise FileExistsError(f"P1k report already exists: {existing}")
+    readout_ledger = "".join(
+        canonical_json({**item.to_payload(), "artifact_id": item.artifact_id}) + "\n" for item in progress.readouts
+    )
+    decision_ledger = "".join(canonical_json(item.to_payload()) + "\n" for item in progress.decisions)
+    if (
+        _sha256_text(readout_ledger) != report.readout_ledger_sha256
+        or _sha256_text(decision_ledger) != report.decision_ledger_sha256
+        or len(progress.decisions) != report.output_count
+    ):
+        raise ValueError("P1k terminal ledgers diverge from the report")
+    _atomic_write_text(readout_path, readout_ledger)
+    _atomic_write_text(decision_path, decision_ledger)
     payload = report.to_payload()
     payload["artifact_id"] = report.artifact_id
     _atomic_write_text(
@@ -1727,15 +2044,20 @@ def write_relationship_p1k_report(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
     )
     lines = [
-        "# Relationship Lab P1k oracle disclosure ladder",
+        "# Relationship Lab P1k oracle diagnostic matrix",
         "",
         f"- artifact_id: `{report.artifact_id}`",
         f"- protocol_id: `{report.protocol_id}`",
         f"- consumer_protocol_id: `{report.consumer_protocol_id}`",
+        f"- source_p1j_report: `{report.source_p1j_report_artifact_id}`",
+        f"- executed_cells: `{', '.join(report.executed_tiers)}`",
+        f"- skipped_cells: `{', '.join(report.skipped_tiers) or 'none'}`",
+        f"- stop_reason: `{report.terminal_stop_reason}`",
+        f"- qwen_outputs: `{report.output_count}/{report.planned_output_count}`",
         f"- verdict: **{report.verdict.value}**",
         f"- next_action: `{report.next_action}`",
         "",
-        "| Tier | valid | accuracy | pair flip | functional |",
+        "| Diagnostic cell | valid | accuracy | pair flip | functional |",
         "|---|---:|---:|---:|---:|",
         *(
             f"| {item.tier} | {item.valid_decisions}/{item.decisions} | "
@@ -1755,13 +2077,40 @@ def load_relationship_p1k_report(path: pathlib.Path) -> RelationshipP1kReport:
     file_path = pathlib.Path(path)
     if not file_path.is_file():
         raise FileNotFoundError(file_path)
-    raw = json.loads(file_path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        raise ValueError("P1k report must be a JSON object")
-    artifact_id = _require_sha256(raw.pop("artifact_id", None), "P1k report artifact id")
-    next_action = _require_text(raw.pop("next_action"), "P1k report next action")
+    raw = _require_object(
+        json.loads(file_path.read_text(encoding="utf-8")),
+        {
+            "schema_version",
+            "created_at_iso",
+            "protocol_id",
+            "consumer_protocol_id",
+            "source_p1j_protocol_id",
+            "source_p1j_report_artifact_id",
+            "source_p1j_verdict",
+            "training_dataset_fingerprint",
+            "context_surface_sha256",
+            "model_id",
+            "weights_sha256",
+            "readout_ledger_sha256",
+            "decision_ledger_sha256",
+            "tier_metrics",
+            "executed_tiers",
+            "skipped_tiers",
+            "terminal_stop_reason",
+            "output_count",
+            "planned_output_count",
+            "verdict",
+            "next_action",
+            "experiment_guards",
+            "claim_boundary",
+            "artifact_id",
+        },
+        field_name="P1k report",
+    )
+    artifact_id = _require_sha256(raw["artifact_id"], "P1k report artifact id")
+    next_action = _require_text(raw["next_action"], "P1k report next action")
     guards = _require_object(
-        raw.pop("experiment_guards"),
+        raw["experiment_guards"],
         {
             "competitive",
             "diagnostic_feedback_to_consumer",
@@ -1776,31 +2125,61 @@ def load_relationship_p1k_report(path: pathlib.Path) -> RelationshipP1kReport:
     if any(_require_bool(value, f"P1k guard {name}") for name, value in guards.items()):
         raise ValueError("P1k report guards must all be false")
     metrics_raw = raw["tier_metrics"]
-    if not isinstance(metrics_raw, list):
-        raise ValueError("P1k report tier metrics must be a list")
+    executed_raw = raw["executed_tiers"]
+    skipped_raw = raw["skipped_tiers"]
+    if not all(isinstance(item, list) for item in (metrics_raw, executed_raw, skipped_raw)):
+        raise ValueError("P1k report metrics and cell paths must be lists")
     report = RelationshipP1kReport(
         schema_version=_require_text(raw["schema_version"], "P1k report schema"),
         created_at_iso=raw["created_at_iso"],
         protocol_id=raw["protocol_id"],
         consumer_protocol_id=raw["consumer_protocol_id"],
+        source_p1j_protocol_id=raw["source_p1j_protocol_id"],
+        source_p1j_report_artifact_id=raw["source_p1j_report_artifact_id"],
+        source_p1j_verdict=raw["source_p1j_verdict"],
         training_dataset_fingerprint=raw["training_dataset_fingerprint"],
         context_surface_sha256=raw["context_surface_sha256"],
         model_id=_require_text(raw["model_id"], "P1k report model"),
         weights_sha256=raw["weights_sha256"],
         readout_ledger_sha256=raw["readout_ledger_sha256"],
         decision_ledger_sha256=raw["decision_ledger_sha256"],
-        tier_metrics=tuple(
-            RelationshipP1kTierMetric.from_payload(item) for item in metrics_raw
-        ),
+        tier_metrics=tuple(RelationshipP1kTierMetric.from_payload(item) for item in metrics_raw),
+        executed_tiers=tuple(_require_text(item, "P1k executed cell") for item in executed_raw),
+        skipped_tiers=tuple(_require_text(item, "P1k skipped cell") for item in skipped_raw),
+        terminal_stop_reason=_require_text(raw["terminal_stop_reason"], "P1k terminal stop reason"),
         output_count=_require_int(raw["output_count"], "P1k report output count"),
-        verdict=RelationshipP1kVerdict(
-            _require_text(raw["verdict"], "P1k report verdict")
-        ),
+        planned_output_count=_require_int(raw["planned_output_count"], "P1k report planned output count"),
+        verdict=RelationshipP1kVerdict(_require_text(raw["verdict"], "P1k report verdict")),
         claim_boundary=raw["claim_boundary"],
     )
     if report.artifact_id != artifact_id or report.next_action != next_action:
         raise ValueError("P1k report derived values mismatch")
     return report
+
+
+def validate_relationship_p1k_terminal_files(
+    *,
+    report: RelationshipP1kReport,
+    progress: RelationshipP1kProgress,
+    output_dir: pathlib.Path,
+) -> None:
+    root = pathlib.Path(output_dir)
+    expected_readouts = "".join(
+        canonical_json({**item.to_payload(), "artifact_id": item.artifact_id}) + "\n" for item in progress.readouts
+    )
+    expected_decisions = "".join(canonical_json(item.to_payload()) + "\n" for item in progress.decisions)
+    if (root / "readouts.jsonl").read_text(encoding="utf-8") != expected_readouts:
+        raise ValueError("P1k terminal readout ledger bytes mismatch")
+    if (root / "decisions.jsonl").read_text(encoding="utf-8") != expected_decisions:
+        raise ValueError("P1k terminal decision ledger bytes mismatch")
+    if (
+        _sha256_text(expected_readouts) != report.readout_ledger_sha256
+        or _sha256_text(expected_decisions) != report.decision_ledger_sha256
+    ):
+        raise ValueError("P1k terminal ledger hash mismatch")
+    loaded = load_relationship_p1k_report(root / "packet1k_report.json")
+    if loaded != report:
+        raise ValueError("P1k terminal report round-trip mismatch")
 
 
 __all__ = [
@@ -1813,6 +2192,7 @@ __all__ = [
     "RelationshipP1kCheckpoint",
     "RelationshipP1kDecision",
     "RelationshipP1kExecution",
+    "RelationshipP1kExecutionGate",
     "RelationshipP1kOracleTier",
     "RelationshipP1kProgress",
     "RelationshipP1kProtocol",
@@ -1831,12 +2211,15 @@ __all__ = [
     "load_relationship_p1k_report",
     "persist_relationship_p1k_decision",
     "persist_relationship_p1k_readout",
+    "relationship_p1k_execution_gate",
     "relationship_p1k_readout_prompt_path",
     "relationship_p1k_record_plan",
     "relationship_p1k_request_template_path",
     "render_relationship_p1k_request",
     "validate_relationship_p1k_progress",
     "validate_relationship_p1k_protocol_lineage",
+    "validate_relationship_p1k_report_lineage",
+    "validate_relationship_p1k_terminal_files",
     "write_relationship_p1k_checkpoint",
     "write_relationship_p1k_protocol",
     "write_relationship_p1k_report",

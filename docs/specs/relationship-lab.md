@@ -41,8 +41,8 @@
 > strict-valid，但 prompt/RAG/structured 都未过门，report `e9226ee8…fd78` 已如实封存
 > `consumer_failed_v4_qualification`。正式 prereg 与 secret heldout 仍关闭，不得进入
 > P2 formal 或宣称四能力成立。
-> 计划 2026-08-21 修订：P1j 关闭后不得再开 v5 追点估计资格；下一刀是 P1k oracle
-> 披露阶梯（已烧毁 v3，非竞争）与 P1m 仪器协议
+> 计划 2026-08-21 修订：P1j 关闭后不得再开 v5 追点估计资格；下一刀是 P1k-R1
+> oracle 四格诊断（已烧毁 v3，非竞争、分段早停）与 P1m 仪器协议
 > （≥24 对、Wilson CI、冻结生成配方）。RAG 观察臂修约见 §7.10；统计形式与止损
 > 见计划 §8.1 / §13.7 / §14。人工盲标是 P1l（`packet1l`，不占 Qwen）。P2-SHADOW
 > 只允许在 v3 training view 上搭脚手架。
@@ -80,7 +80,7 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P1f 公开证据审计 owner | `lifeform-evolution.relationship_lab_packet1f` | 只读 v3 公开文本、sealed condition summary、冻结 BGE-M3 与 P1e trigger，发布逐单元 hash/margin 和下一 consumer-freeze 判词 |
 | P1g v3 consumer 资格 owner | `lifeform-evolution.relationship_lab_packet1g` | 在零 v3 Qwen 输出时冻结 P1f→consumer 全 lineage，只消费 fresh Gate 0/P1b 正式工件，发布 prereg / saturation / still-underqualified 判词 |
 | P1j v4 one-shot 资格 owner | `lifeform-evolution.relationship_lab_packet1j` | 消费冻结 P1i consumer 与 v4 qualification-only 观察，一次性执行 72 条 readout/decision，按 §7.9 双主臂点阈值发布终局报告 |
-| P1k oracle 披露阶梯 owner | `lifeform-evolution.relationship_lab_packet1k` | evaluator-only；在已烧毁 v3 上按 policy→binding→condition 三档披露 sealed truth，定位失败环节；非竞争，不改 consumer / gate / 数据集 |
+| P1k oracle 诊断矩阵 owner | `lifeform-evolution.relationship_lab_packet1k` | evaluator-only；绑定 P1j 失败终局，在已烧毁 v3 上正交拆分 policy application / induction、probe recognition、history binding，并按预注册条件分段放行；非竞争，不改 consumer / gate / 数据集 |
 | 人工盲标锚点 owner | `lifeform-evolution.relationship_lab_packet1l` | P1f 遗留：冻结去真值 60-unit rater packet 与 sealed key，收齐 3 份独立标注后评分。包号是 P1l，不是仪器升级 |
 | P1m 仪器协议 owner | 计划包；契约见计划 §8.1 / §14.2 | P1j 关闭后冻结下一份资格门：≥24 对、Wilson CI、生成配方 hash；不跑新的 prompt search；实施时新模块名，不得占用 `relationship_lab_packet1l` |
 | CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l}.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1k，或冻结/评分人工盲标 packet |
@@ -700,33 +700,53 @@ n=12 的点估计入带 **不** 冻结 formal prereg；正式资格改走 §7.13
 PASS。修约只记录未来主对照结构，不产生新的 consumer qualification。当前下一诊断 owner
 是 §7.11 P1k；随后才按 §7.13 冻结更大样本与 CI 仪器。
 
-### 7.11 P1k：evaluator-only oracle 披露阶梯
+### 7.11 P1k-R1：evaluator-only oracle 四格诊断
 
-P1k 的唯一 owner 是 `lifeform-evolution.relationship_lab_packet1k`。它回答 P1g/P1i
-无法回答的定位问题：失败发生在识别抽象条件、从受控结果归纳个体映射，还是把已知
-规则投射进 typed score schema。
+P1k 的唯一 owner 是 `lifeform-evolution.relationship_lab_packet1k`。它绑定权威 P1j
+underqualification 终局，回答 P1g/P1i/P1j 无法回答的定位问题：失败发生在应用已知
+策略、从已标条件的结果归纳个体映射、识别当前 probe 条件，还是把未标历史绑定到抽象
+条件。它使用专用诊断 prompt，所以诊断对象是冻结 substrate + 诊断仪器，**不是**原
+P1i consumer prompt。
 
 约束：
 
-- 只消费已烧毁的 v3 `consumer_training_only` 与 P1i consumer 的 prompt-steelman
-  公开表面；不得物化 v4，不得修改 P1i consumer / P1h gate / 任何 dataset。
-- 三档披露最披露者先跑：`oracle_policy_v1` → `oracle_binding_v1` →
-  `oracle_condition_v1`。任一带 sealed truth 的臂都是非竞争上限。
+- 只消费已烧毁的 v3 `consumer_training_only` 与 P1i consumer 冻结 lineage 下的
+  prompt-steelman 公开表面；必须绑定 P1j protocol `20b96957…2a2`、终局 report
+  `e9226ee8…fd78` 与 `consumer_failed_v4_qualification`。不得物化 v4，不得修改
+  P1i consumer / P1h gate / 任何 dataset。
+- 最大计划按顺序冻结四格：`oracle_policy_apply_v2`（条件定义 + 当前条件 + 历史绑定
+  + 个体策略）、`oracle_policy_induction_v2`（隐藏策略）、
+  `oracle_probe_recognition_v2`（隐藏当前 probe 条件）、
+  `oracle_history_binding_v2`（隐藏历史绑定与策略）。四格均消耗 sealed truth，都是
+  非竞争诊断上限。
 - 公开历史仍走冻结 prompt-steelman surface；披露块只含条件甲/乙自然语言与
   （按档）历史绑定、个体动作映射，禁止输出 `condition_id` / `policy_id` /
   `preferred_action` 字段名。
-- 12 个 v3 observation × 3 档 × seed 101 = 36 条 planned output。readout 先于
-  evaluator truth 落盘；同一 attempt 目录严格 resume。
-- 执行必须等 P1j 释放同一冻结 Qwen；不得中断 P1j。
-- 单档 functional：strict-valid=1.0、accuracy ≥0.75、pair flip ≥0.5。判词只定位
-  瓶颈：`oracle_machinery_regression` /
+- 最大计划是 12 个 v3 observation × 4 格 × seed 101 = 48 条，但禁止一次穿透全矩阵。
+  A 格先跑；A invalid 或 non-functional 停在 12。A 通过后跑 B；B invalid 停在 24；
+  B valid 后独立跑 C。B non-functional 时 D 不可解释，C 完成后停在 36；只有 B
+  functional 才放行 D，终局为 48。每格 readout 先于 evaluator truth 落盘；同一
+  attempt 严格 resume；terminal report 必须列出 executed / skipped cells 与 stop reason。
+- 执行必须等 P1j 释放同一冻结 Qwen；P1k-R1 收敛包的退出条件是 `--prepare-only`
+  在 0 条 P1k Qwen output 时冻结完整最大计划、分段门与 P1j lineage。真实输出另包执行。
+- 单格 directional functional：strict-valid=1.0、accuracy ≥0.75、pair flip ≥0.5。
+  六组镜像对 × 单 seed 只作 owner triage，不是证明。判词只定位瓶颈：
+  `oracle_machinery_regression` /
   `substrate_cannot_apply_disclosed_policy` /
   `cannot_induce_policy_from_labelled_evidence` /
   `cannot_recognize_probe_condition` /
-  `oracle_ladder_intact_gap_is_unaided_induction`。
+  `cannot_bind_unlabelled_history_to_condition` /
+  `multiple_diagnostic_bottlenecks` /
+  `oracle_matrix_intact_gap_is_unaided_abstraction_or_transfer`。
   不得写成 consumer qualified、Volvence advantage、Readable 或四能力证据。
 - training label 与 oracle 披露不得进入 Volvence memory、PE、credit、reward、
   controller 或 steering。
+
+权威 zero-output freeze 位于
+`artifacts/relationship_lab/qwen25_3b_packet1k_r1_v3_diagnostic_matrix_20260821/`：
+protocol `204e0904…64bd` 绑定 P1j report `e9226ee8…fd78`，checkpoint 冻结 48 个 key，
+目录只有 protocol/checkpoint/preflight 且无 `records/`。第二次 `--prepare-only` 严格重验
+同一 protocol，三个文件 hash 前后不变；下一包只允许执行 A 格。
 
 ### 7.12 人工盲标锚点（P1l；P1f 遗留）
 
@@ -1014,9 +1034,13 @@ P1k 必须等 P1j 释放同一冻结 Qwen 后再跑；权威 P1j 已完成并释
   --max-new-readouts 4
 ```
 
-`--prepare-only` 重放 P1g v3 context manifest 并冻结 36 条 oracle 披露计划，不调用
-Qwen。正式执行只接受 `--resume`。machinery regression 返回 2；其余诊断判词返回 0，
-因为它们是定位结果而不是资格失败。oracle 分数不得回流 consumer / gate / PE。
+`--prepare-only` 先验证 P1j 终局 ledger，再重放 P1g v3 context manifest，并在 0 条
+P1k Qwen output 时冻结 48 条最大矩阵计划与 staged-release gate。正式执行只接受
+`--resume`；即使 `--max-new-readouts 0` 也只完成当前获准的一格，必须重新 resume
+才能跨 stage。machinery regression 返回 2；其余诊断判词返回 0，因为它们是定位结果
+而不是资格失败。oracle 分数不得回流 consumer / gate / PE。
+
+权威 P1k-R1 protocol 为 `204e0904…64bd`，当前持久输出为 0/48，尚无 terminal report。
 
 人工盲标 packet 不需要 Qwen，可与 P1j 并行准备：
 
@@ -1108,8 +1132,9 @@ protocol `20b96957…2a2`、context manifest `4bb57f01…730b`、所有已落盘
 fresh rerank、换 consumer、重置 seed、改 gate，或将任何 v4 结果反馈到 P1i/Volvence。
 
 P1k 同样没有 runtime wiring。回滚只需停止 `relationship_lab_packet1k` runner，并不把
-其 oracle 分数交给资格门或 P2。已落盘 readout/decision/report 按原 hash 保留。P1k
-不得在 P1j 仍占用同一冻结 Qwen 时抢跑，也不得物化 v4。
+其 oracle 分数交给资格门或 P2。协议冻结后不得换 P1j report、四格定义、顺序、阈值或
+早停条件；已落盘 readout/decision/terminal ledger/report 按原 hash 保留。P1k 不得在
+P1j 仍占用同一冻结 Qwen 时抢跑，也不得物化 v4。
 
 人工盲标 packet 同样没有 runtime wiring。回滚只需停止
 `run_relationship_lab_packet1l.py` 并停止分发 rater packet；已冻结 protocol / sealed
