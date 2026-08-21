@@ -1,0 +1,15 @@
+{
+  "consumer_protocol_id": "938af6073c31346058a6df40877a48e68a449ce63acf941a7455049530a310bf",
+  "consumer_split_contract_id": "2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8",
+  "context_manifest_artifact_id": "4bb57f01e3bc41dd6fad8144068655036b0ba20646b8d4d9814712de3078730b",
+  "model_weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd",
+  "one_shot": true,
+  "planned_qwen_outputs": 72,
+  "qualification_context_surface_sha256": "78201bb72994a448714c38396544a765419434f50a0af147ec354dc72b27e8d1",
+  "qualification_dataset_fingerprint": "9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796",
+  "qualification_protocol_id": "20b96957f522e5ead7d02b8475c311fe79de18491a11cf75fd4f24120535d2a2",
+  "qualification_public_inputs_materialized": 24,
+  "qualification_qwen_outputs_observed": 0,
+  "rag_weights_sha256": "d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e",
+  "ready": true
+}

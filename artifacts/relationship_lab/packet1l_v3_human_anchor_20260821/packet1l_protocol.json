@@ -1,0 +1,22 @@
+{
+  "claim_boundary": "P1L freezes a blinded human-anchor packet over the already-audited v3 public evidence surface. Raters never see condition ids, preferred actions, or evaluator keys. The packet is not Qwen transfer evidence, Readable/Learnable/Steerable evidence, consumer qualification, or a four-capability claim, and it cannot feed PE, credit, reward, or steering.",
+  "experiment_guards": {
+    "evaluation_feedback_to_pe_credit_reward_or_steering": false,
+    "labels_available_to_raters": false,
+    "p2_enabled": false,
+    "rewrites_public_evidence_contract_in_place": false
+  },
+  "frozen_at_iso": "2026-08-21T10:16:51.538559+00:00",
+  "minimum_independent_raters": 3,
+  "minimum_majority_accuracy": 0.8,
+  "minimum_majority_agreement": 0.8,
+  "next_action": "collect_three_blinded_independent_ratings",
+  "protocol_id": "c0a0182383026d30a7ba4463ed047f8ba27ed4613bf00ebab2dfe0f0c3711a50",
+  "public_evidence_contract_sha256": "8ba8a6788d35e959c4a6fa42d31f54baa7d5e1ba48f52603e4bec510232d3cbb",
+  "rater_packet_sha256": "7f8584c263b178da8cfd9a079d21cd7f75b9d316edd8f7c73b2cad00cdc8fc4b",
+  "required_units": 60,
+  "schema_version": "relationship-p1l-human-anchor-protocol.v1",
+  "sealed_key_sha256": "fb095457f4ce5e3f677836dab6daaece925c6c5130c4f87e7e6580dd809a54b4",
+  "shuffle_seed": "relationship-p1l-option-shuffle.v1",
+  "training_dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f"
+}

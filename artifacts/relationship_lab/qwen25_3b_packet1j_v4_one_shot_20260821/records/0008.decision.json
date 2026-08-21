@@ -1,0 +1,20 @@
+{
+  "arm": "rag-steelman",
+  "arm_prompt_sha256": "24d68078f51fe510047e5c8d7e9fd9367a873c2c538d76f08f46601b754a1e58",
+  "candidate_id": "conditioned_match_v1",
+  "chosen_action_id": "stay_present_without_probe",
+  "completion_tokens": 26,
+  "context_sha256": "d2411faabf299cdf1f606e1118554989a7a1cf44500530e5eb3559196049e733",
+  "correct": false,
+  "current_input_sha256": "c1817aa1bec8031059ed3a9ec46570928b864a40d4b126429b5d527cdcd51d6f",
+  "decision_id": "11f3587e1f33d6d00dadc3377288458246466734c0c37775a4dfa4adbbd8a1ce",
+  "expected_action_id": "respect_space_with_return_option",
+  "mirror_pair_id": "pair_v4_02",
+  "prompt_tokens": 1079,
+  "raw_output": "{\"action_id\":\"stay_present_without_probe\"}",
+  "scene_id": "rtv4_scene_002a",
+  "schema_version": "relationship-p1-decision.v1",
+  "seed": 101,
+  "split": "heldout",
+  "valid": true
+}

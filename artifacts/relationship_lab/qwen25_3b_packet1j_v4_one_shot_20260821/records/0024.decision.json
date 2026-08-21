@@ -1,0 +1,20 @@
+{
+  "arm": "prompt-steelman",
+  "arm_prompt_sha256": "24d68078f51fe510047e5c8d7e9fd9367a873c2c538d76f08f46601b754a1e58",
+  "candidate_id": "conditioned_match_v1",
+  "chosen_action_id": "stay_present_without_probe",
+  "completion_tokens": 26,
+  "context_sha256": "e9a5534bfac91ad8fb341a58e1a325e81cd17a32d5debcd781c990eaa0ea117e",
+  "correct": true,
+  "current_input_sha256": "563c1442eae4aa3d31f1fb59e9ca5dec718e93df3e045a0e06579c7f0e168fe5",
+  "decision_id": "030765434c1e5a51e809755b75b6a72be95773d7c5d1f88eba80d890227fcf54",
+  "expected_action_id": "stay_present_without_probe",
+  "mirror_pair_id": "pair_v4_05",
+  "prompt_tokens": 2172,
+  "raw_output": "{\"action_id\":\"stay_present_without_probe\"}",
+  "scene_id": "rtv4_scene_005a",
+  "schema_version": "relationship-p1-decision.v1",
+  "seed": 101,
+  "split": "heldout",
+  "valid": true
+}

@@ -1,0 +1,20 @@
+{
+  "arm": "structured-state",
+  "arm_prompt_sha256": "24d68078f51fe510047e5c8d7e9fd9367a873c2c538d76f08f46601b754a1e58",
+  "candidate_id": "conditioned_match_v1",
+  "chosen_action_id": "stay_present_without_probe",
+  "completion_tokens": 26,
+  "context_sha256": "4d6f4cc6799b6d43838aef0f8dd112f09f550dbc0ce86698722e9d9738370b50",
+  "correct": true,
+  "current_input_sha256": "a3f05f19d1fd2219fbdcd2d37f745578b4819224ec6d5a8a54749d05656ae167",
+  "decision_id": "82806de19d1294667b0861b9eabbc126af5e82b65c5e99117f9fd05dcb6f42f0",
+  "expected_action_id": "stay_present_without_probe",
+  "mirror_pair_id": "pair_v4_06",
+  "prompt_tokens": 1075,
+  "raw_output": "{\"action_id\":\"stay_present_without_probe\"}",
+  "scene_id": "rtv4_scene_006b",
+  "schema_version": "relationship-p1-decision.v1",
+  "seed": 101,
+  "split": "heldout",
+  "valid": true
+}

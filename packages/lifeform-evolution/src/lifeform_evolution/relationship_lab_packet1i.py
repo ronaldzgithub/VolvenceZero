@@ -998,6 +998,35 @@ def _render_request(
     )
 
 
+def load_relationship_p1i_candidate_prompt(
+    candidate: RelationshipP1iCandidateSpec,
+) -> str:
+    """Load the exact frozen prompt asset owned by a P1i consumer."""
+
+    path = _prompt_path(candidate.prompt_asset)
+    if _sha256_file(path) != candidate.prompt_sha256:
+        raise ValueError("P1i selected prompt asset drifted")
+    return path.read_text(encoding="utf-8").strip()
+
+
+def render_relationship_p1i_candidate_request(
+    *,
+    candidate: RelationshipP1iCandidateSpec,
+    context_text: str,
+    current_input: str,
+) -> str:
+    """Render the exact frozen P1i request without exposing evaluator truth."""
+
+    path = _request_template_path(candidate.request_template_asset)
+    if _sha256_file(path) != candidate.request_template_sha256:
+        raise ValueError("P1i selected request template asset drifted")
+    return _render_request(
+        candidate=candidate,
+        context_text=context_text,
+        current_input=current_input,
+    )
+
+
 def _readout_completion(readout: RelationshipEvidenceReadout) -> StatelessActionCompletion:
     action = readout.compiled_action
     return StatelessActionCompletion(
@@ -1010,6 +1039,14 @@ def _readout_completion(readout: RelationshipEvidenceReadout) -> StatelessAction
         prompt_tokens=readout.prompt_tokens,
         completion_tokens=readout.completion_tokens,
     )
+
+
+def relationship_p1i_readout_completion(
+    readout: RelationshipEvidenceReadout,
+) -> StatelessActionCompletion:
+    """Reconstruct compiler input from a frozen evidence readout."""
+
+    return _readout_completion(readout)
 
 
 def _candidate_spec_from_payload(payload: object) -> RelationshipP1iCandidateSpec:
@@ -1599,6 +1636,52 @@ def _decision_from_record_payload(
     if decision.prompt_tokens < 0 or decision.completion_tokens < 0:
         raise ValueError("P1i checkpoint decision token counts must be non-negative")
     return decision
+
+
+def relationship_p1i_readout_record_payload(
+    *,
+    candidate_id: str,
+    readout: RelationshipEvidenceReadout,
+) -> dict[str, object]:
+    """Serialize one immutable P1i-compatible evidence readout record."""
+
+    return _readout_record_payload(candidate_id=candidate_id, readout=readout)
+
+
+def relationship_p1i_decision_record_payload(
+    *,
+    candidate_id: str,
+    decision: RelationshipP1Decision,
+) -> dict[str, object]:
+    """Serialize one immutable P1i-compatible evaluator decision record."""
+
+    return _decision_record_payload(candidate_id=candidate_id, decision=decision)
+
+
+def relationship_p1i_readout_from_record_payload(
+    payload: object,
+    *,
+    expected_candidate_id: str,
+) -> RelationshipEvidenceReadout:
+    """Strictly load one P1i-compatible evidence readout record."""
+
+    return _readout_from_record_payload(
+        payload,
+        expected_candidate_id=expected_candidate_id,
+    )
+
+
+def relationship_p1i_decision_from_record_payload(
+    payload: object,
+    *,
+    expected_candidate_id: str,
+) -> RelationshipP1Decision:
+    """Strictly load one P1i-compatible evaluator decision record."""
+
+    return _decision_from_record_payload(
+        payload,
+        expected_candidate_id=expected_candidate_id,
+    )
 
 
 @dataclass(frozen=True)
@@ -3709,13 +3792,20 @@ __all__ = [
     "freeze_relationship_p1i_consumer_protocol",
     "load_relationship_p1i_calibration_protocol",
     "load_relationship_p1i_calibration_report",
+    "load_relationship_p1i_candidate_prompt",
     "load_relationship_p1i_candidate_artifact",
     "load_relationship_p1i_candidate_checkpoint",
     "load_relationship_p1i_candidate_progress",
     "load_relationship_p1i_frozen_consumer_protocol",
     "relationship_p1i_calibration_protocol_path",
+    "relationship_p1i_decision_from_record_payload",
+    "relationship_p1i_decision_record_payload",
+    "relationship_p1i_readout_completion",
+    "relationship_p1i_readout_from_record_payload",
+    "relationship_p1i_readout_record_payload",
     "relationship_p1i_run_from_progress",
     "relationship_p1i_training_context_surface_sha256",
+    "render_relationship_p1i_candidate_request",
     "run_relationship_p1i_candidate",
     "summarize_relationship_p1i_candidate",
     "validate_relationship_p1i_candidate_files",

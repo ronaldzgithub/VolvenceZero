@@ -1,0 +1,50 @@
+{
+  "claim_boundary": "P1j freezes the complete development-only v4 model-input surface for one already-frozen P1i ordinary-Qwen consumer before the first v4 Qwen output. It does not revise the consumer, open formal hidden test or P2, write Volvence learning/control state, prove Volvence advantage, human readability, product value, or a complete four-capability claim.",
+  "execution_plan": {
+    "evaluated_arms": [
+      "prompt-steelman",
+      "rag-steelman",
+      "structured-state"
+    ],
+    "planned_qwen_output_count": 72,
+    "qualification_observation_count": 24,
+    "record_plan_sha256": "a657b0610196a758a9abfc646a23d075ecb4bae540f4ba7455b4560cc8af51ee",
+    "seed_schedule": [
+      101
+    ]
+  },
+  "experiment_guards": {
+    "consumer_frozen_before_qualification_inputs": true,
+    "consumer_revision_after_qualification": false,
+    "evaluation_feedback_to_pe_credit_reward_or_steering": false,
+    "formal_hidden_test_opened": false,
+    "one_shot": true,
+    "p2_enabled": false,
+    "qualification_feedback_to_consumer": false,
+    "qualification_public_inputs_materialized_before_freeze": 24,
+    "qualification_qwen_outputs_observed_before_freeze": 0
+  },
+  "frozen_at_iso": "2026-08-21T07:45:26+00:00",
+  "frozen_consumer": {
+    "selected_candidate_artifact_id": "1165f65c8e1164930285c6ac0484148842560e4647f904a7474586fdc152d5b2",
+    "selected_candidate_id": "conditioned_match_v1",
+    "selected_pipeline_sha256": "24d68078f51fe510047e5c8d7e9fd9367a873c2c538d76f08f46601b754a1e58"
+  },
+  "frozen_context": {
+    "background_template_package_name": "relationship_transfer_v3",
+    "background_templates_sha256": "d0e31a29307566c25249a1fa06b4981a70e41761a058acc177d5d9994af84611",
+    "context_manifest_artifact_id": "4bb57f01e3bc41dd6fad8144068655036b0ba20646b8d4d9814712de3078730b",
+    "qualification_context_surface_sha256": "78201bb72994a448714c38396544a765419434f50a0af147ec354dc72b27e8d1",
+    "rag_config_sha256": "2e1a510f324887a4d4a00055d4c9fbfc1b22ed312185eae34d0e927e61c369ff"
+  },
+  "next_action": "execute_frozen_one_shot_v4_qualification",
+  "protocol_id": "20b96957f522e5ead7d02b8475c311fe79de18491a11cf75fd4f24120535d2a2",
+  "schema_version": "relationship-p1j-protocol.v1",
+  "source_lineage": {
+    "calibration_report_artifact_id": "c9382c1817114ea3b01684375546cbab3618ed38b655c46630e61af9e9e8a79a",
+    "consumer_protocol_id": "938af6073c31346058a6df40877a48e68a449ce63acf941a7455049530a310bf",
+    "consumer_split_contract_id": "2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8",
+    "qualification_dataset_fingerprint": "9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796",
+    "qualification_package_name": "relationship_transfer_v4"
+  }
+}

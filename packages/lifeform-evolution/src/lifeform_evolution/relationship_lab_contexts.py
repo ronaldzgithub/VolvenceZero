@@ -826,6 +826,7 @@ def build_relationship_p1_context_bundle(
     state_root: pathlib.Path,
     rag_embedder: Embedder,
     dataset: RelationshipTransferDataset | None = None,
+    background_template_package_name: str | None = None,
     background_depths: tuple[int, ...] = RELATIONSHIP_P1_DEFAULT_DEPTHS,
     rag_top_k: int = RELATIONSHIP_P1_RAG_TOP_K,
     rag_candidate_surface: RelationshipP1RagCandidateSurface = (
@@ -870,7 +871,14 @@ def build_relationship_p1_context_bundle(
     ):
         raise ValueError("relationship-outcome RAG must admit every signal record")
     _state_root_must_be_fresh(state_root)
-    templates = _load_background_templates(effective_dataset.package_name)
+    template_package_name = (
+        effective_dataset.package_name
+        if background_template_package_name is None
+        else background_template_package_name
+    )
+    if not template_package_name.strip():
+        raise ValueError("background_template_package_name must be non-empty")
+    templates = _load_background_templates(template_package_name)
     max_depth = background_depths[-1]
     memory_root = pathlib.Path(state_root) / "memory_store"
     rag_root = pathlib.Path(state_root) / "ref_harness"
@@ -1014,7 +1022,7 @@ def build_relationship_p1_context_bundle(
         dataset_fingerprint=effective_dataset.dataset_fingerprint,
         background_depths=background_depths,
         background_templates_sha256=_sha256_file(
-            relationship_p1_background_template_path(effective_dataset.package_name)
+            relationship_p1_background_template_path(template_package_name)
         ),
         rag_config_sha256=rag_config_sha256,
         contexts=frozen_contexts,

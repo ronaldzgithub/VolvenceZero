@@ -1,0 +1,23 @@
+{
+  "arm": "structured-state",
+  "artifact_id": "a38302fb98834cb426f7d82e0d720a911bca845a80bd77ef0e2de125470bbc9d",
+  "candidate_id": "conditioned_match_v1",
+  "compiled_action_id": "respect_space_with_return_option",
+  "completion_tokens": 26,
+  "context_sha256": "6fe708ea77f93729147a85ce062b354f29b857331cd95a7e878a78aea12e69cb",
+  "current_input_sha256": "5de8457d718f2b6e87b7c5e53664d4ba44d4263711c173ceb268f7b17730f3cf",
+  "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+  "model_id": "qwen2.5-3b-instruct",
+  "prompt_sha256": "9687c5043029502b0787cd88758d06c1c0541338ed3c50068ad4824ce25fd4e5",
+  "prompt_tokens": 1071,
+  "raw_output": "{\n    \"stay_present_without_probe_score\": -1,\n    \"respect_space_with_return_option_score\": 1\n}",
+  "request_template_sha256": "55db60c37825da4999931345c1c973c2ea8fe54634a9508317284a02fd9bbde3",
+  "scene_id": "rtv4_scene_001a",
+  "schema_sha256": "afa852a2ee43b55cd10e761d5bb5b6a56b546aaa626f9291edb550e3220c40ab",
+  "schema_version": "relationship-p1b-readout.v2",
+  "seed": 101,
+  "space_score": 1,
+  "stay_score": -1,
+  "valid": true,
+  "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+}

@@ -1,7 +1,7 @@
 # Specs 分层知识入口总索引
 
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
-> Last reconciled: 2026-08-20（92 份 spec 全量挂载；Relationship Lab P1h 把 v3/v4 冻结为隔离的 training/qualification split 后，P1i 只用 v3 完成三轮 Qwen consumer calibration。108/108 readout strict-valid，选中 `conditioned_match_v1`；report `c9382c18…8a79a`、consumer protocol `938af6073…10bf` 在 v4 input/output=0/0 时冻结。选中项 RAG pair flip 仅 0.167、双主臂最坏 fold pair flip 为 0，因此 consumer qualification、human anchor、Volvence advantage、Readable、P2 与四能力仍未证明；下一动作仅为独立 P1j one-shot v4 qualification）
+> Last reconciled: 2026-08-21（92 份 spec 全量挂载；Relationship Lab P1j 已完成 72/72 one-shot v4 输出，report `e9226ee8…fd78` 判 `consumer_failed_v4_qualification`，consumer revision 与 learning/control feedback 均保持 0。P1k oracle 阶梯与 P1l 人工盲标 packet 已落地；下一 Qwen 包是 P1k 定位，再由 P1m 冻结 n + Wilson CI 仪器。consumer qualification、human-anchor 多数一致、Volvence advantage、Readable、P2 与四能力仍未证明）
 
 ---
 
@@ -310,7 +310,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 | [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：N+1-based v3 base-only / v4 character-stack、Gate 1/suite v2、强制 smoke、严格 resume、state/sleep 消融与独立审计；历史 v1 formal 已停机且不可原样续跑；A1 formal（nplus1 prereg）已封存 `passed=false`，判词限定为「v1 raw-cosine readout 下无净增益」，重开须过分辨力 + 传导双预检（主线方案 §0 不变量 7/8） |
 | [coding-lab.md](./coding-lab.md) | 编程域持续学习证据 lane：受控演进式合成仓库（隐藏不变量 + pytest oracle 机械判决 + 内容寻址轨迹落盘）；A1 判词收窄后升格为主证据 lane，语义级 PE 不依赖残差 readout 标度。Packet 0 标定 PASS（环境比特级确定、oracle pass rate 0.656 落带、held-out 变体哈希封存）；Packet 1 SHADOW 观察者：语义 PE 分辨力 p≈1e-4、跨进程恢复、`dialogue_external_outcome` 外部结局通道三项 PASS，`forecast_skill=False` 如实封存（scope=合成基底×scripted 轨迹）；Packet 2 记忆注入 vs 长上下文 steelman 进行中 |
-| [relationship-lab.md](./relationship-lab.md) | 关系智能主证据 lane P0–P1i：P1h 冻结 v3 training / v4 qualification 隔离后，P1i 在不读取 v4 的情况下完成 3×36 Qwen training readout、内容寻址 checkpoint/resume 和冻结 LOSO 排序，选中 `conditioned_match_v1`。report `c9382c18…8a79a`、consumer protocol `938af6073…10bf`，v4 input/output 仍为 0/0；其 RAG pair flip 0.167、双主臂最坏 fold pair flip 0，故只授权 P1j 一次性 development qualification，human anchor、Volvence advantage、prereg/secret heldout/P2/四能力继续关闭 |
+| [relationship-lab.md](./relationship-lab.md) | 关系智能主证据 lane P0–P1l：P1j 已按双主臂门完成 v4 one-shot，三臂 strict-valid 但终局未合格，真实 unseen failure 已封存。§7.10 的 RAG 观察臂修约不能挽救本 ledger（prompt 与 structured 自身也未过门）；§7.11 P1k oracle 阶梯已实现并成为下一诊断；§7.12 P1l 人工盲标 packet 已实现；§7.13 P1m 仪器升级（≥24 对 + Wilson CI）仍是计划。consumer qualification、human-anchor 多数一致、Volvence advantage、prereg/secret heldout/P2/四能力继续关闭 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
 | [thesis-v2-proposal.md](../thesis-v2-proposal.md) | #93 有界产品连续性提案：继承 #92/L1/L3 负证据，把 Gate 8/11 真实人类 anchor 作为唯一新 EXIT，明确排除失败 learned uplift 与 production 自动晋升 |
 | Gate 2 conditioned longitudinal（[temporal](./temporal-abstraction.md) / [conditioning](./personal-conditioning.md) / [evidence](./evidence_program.md)） | 14 维 Relationship owner readout 条件化 8076→8090 residual selector；seed1301 stop-loss 终局 `not-supported`，不授权 live promotion |

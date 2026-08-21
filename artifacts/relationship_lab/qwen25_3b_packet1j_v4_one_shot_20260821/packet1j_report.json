@@ -1,0 +1,79 @@
+{
+  "arm_metrics": [
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "prompt-steelman",
+      "completion_tokens_total": 624,
+      "correct_decisions": 13,
+      "decisions": 24,
+      "pair_flip_rate": 0.4166666666666667,
+      "pair_groups": 12,
+      "prompt_tokens_total": 52254,
+      "readouts": 24,
+      "valid_decisions": 24,
+      "valid_pair_groups": 12,
+      "valid_rate": 1.0,
+      "valid_readouts": 24
+    },
+    {
+      "accuracy": 0.5,
+      "arm": "rag-steelman",
+      "completion_tokens_total": 624,
+      "correct_decisions": 12,
+      "decisions": 24,
+      "pair_flip_rate": 0.25,
+      "pair_groups": 12,
+      "prompt_tokens_total": 25950,
+      "readouts": 24,
+      "valid_decisions": 24,
+      "valid_pair_groups": 12,
+      "valid_rate": 1.0,
+      "valid_readouts": 24
+    },
+    {
+      "accuracy": 0.5416666666666666,
+      "arm": "structured-state",
+      "completion_tokens_total": 624,
+      "correct_decisions": 13,
+      "decisions": 24,
+      "pair_flip_rate": 0.4166666666666667,
+      "pair_groups": 12,
+      "prompt_tokens_total": 25686,
+      "readouts": 24,
+      "valid_decisions": 24,
+      "valid_pair_groups": 12,
+      "valid_rate": 1.0,
+      "valid_readouts": 24
+    }
+  ],
+  "artifact_id": "e9226ee8546b44384806fc475b0462422c38b50c26c04596fa12b1da2748fd78",
+  "claim_boundary": "P1j reports one terminal development qualification result for the frozen ordinary-Qwen consumer on the process-isolated v4 split. The result cannot revise that consumer and is not formal held-out evidence, Volvence advantage, Readable/Learnable/Steerable evidence, product evidence, or a complete four-capability claim.",
+  "consumer_protocol_id": "938af6073c31346058a6df40877a48e68a449ce63acf941a7455049530a310bf",
+  "consumer_split_contract_id": "2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8",
+  "context_manifest_artifact_id": "4bb57f01e3bc41dd6fad8144068655036b0ba20646b8d4d9814712de3078730b",
+  "created_at_iso": "2026-08-21T12:09:18+00:00",
+  "decision_ledger_sha256": "f9dad18339a674f7ac2202ea1c7a64a174bdc79a8b247302ae7f71d74eab0de0",
+  "experiment_guards": {
+    "consumer_revision_after_qualification": false,
+    "evaluation_feedback_to_pe_credit_reward_or_steering": false,
+    "formal_hidden_test_opened": false,
+    "p2_enabled": false,
+    "qualification_feedback_to_consumer": false
+  },
+  "model_lineage": {
+    "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+    "model_id": "qwen2.5-3b-instruct",
+    "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+  },
+  "next_action": "stop_consumer_lane_preserve_unseen_failure",
+  "qualification_context_surface_sha256": "78201bb72994a448714c38396544a765419434f50a0af147ec354dc72b27e8d1",
+  "qualification_dataset_fingerprint": "9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796",
+  "qualification_input_count": 24,
+  "qualification_protocol_id": "20b96957f522e5ead7d02b8475c311fe79de18491a11cf75fd4f24120535d2a2",
+  "qualification_qwen_output_count": 72,
+  "readout_ledger_sha256": "25bd1c7986f760c4e66d377d375eb7825e79b0ccf5487ac9609f48ecc4206604",
+  "schema_version": "relationship-p1j-report.v1",
+  "selected_candidate_id": "conditioned_match_v1",
+  "selected_pipeline_sha256": "24d68078f51fe510047e5c8d7e9fd9367a873c2c538d76f08f46601b754a1e58",
+  "verdict": "consumer_failed_v4_qualification"
+}

@@ -1,11 +1,19 @@
 # 关系智能 MVP：从既有四能力内核到“越相处越懂你”
 
 > Status: executable product-and-evidence plan
-> Date: 2026-08-19
+> Date: 2026-08-21
 > Scope: 成人、非医疗、长期个人关系伙伴；Relationship Lab 先行，closed alpha 后置
 > 核心依赖：`docs/appendable-readable-learnable-steerable.md`、
-> `docs/specs/coding-lab.md`、`docs/specs/relationship-memory-console.md`、
-> `docs/specs/rupture-and-repair.md`、`docs/specs/social_cognition/02_theory_of_mind.md`
+> `docs/specs/coding-lab.md`、`docs/specs/relationship-lab.md`、
+> `docs/specs/relationship-memory-console.md`、
+> `docs/specs/rupture-and-repair.md`、`docs/specs/social_cognition/02_theory_of_mind.md`、
+> `docs/specs/steering-human-anchor.md`
+>
+> 2026-08-21 修订：资格门改置信区间、校准元循环止损、oracle-concept 诊断、
+> formal 功效预注册、P2 SHADOW 防火墙、真实 outcome typing 前置门；§14 不再
+> 承担包级编年史（SSOT 在 `docs/specs/relationship-lab.md`）。P1j 已按冻结
+> 双主臂门完成并判 `consumer_failed_v4_qualification`；本修订不回溯修改其
+> protocol / 阈值 / consumer。
 
 ---
 
@@ -241,12 +249,26 @@ RelationshipDecisionTrace
 
 ### 6.3 合成数据的最小矩阵
 
+仪器校准（v1–v4 已用）下限保持：
+
 - 至少 6 个隐藏关系动力学对，每对都存在同表面、相反最优动作；
 - 至少 4 个表面场景族：家庭、亲密关系、工作、朋友；
 - train / validation / held-out 按场景族与 latent sibling 整族隔离；
 - 每个事实轨迹有 counterfactual：只交换用户历史，测试句保持逐字节一致；
 - 每个动作都必须在校准集中被环境实际执行，证明 action→outcome 有足够效应；
 - hidden label 只作评估真值，在线学习只收到 typed outcome 与 PE。
+
+下一份资格/formal 数据集不得再靠手写静态 JSON 堆 n。必须冻结一份内容寻址的
+**生成配方**（FSM 真值 + LLM 只渲染文本 + loader 不变量验收），用
+`companion-trajgen` / `lifeform-synthetic-data` 对已封存 lab 契约做单向投影：
+
+| 用途 | 最小镜像对数 | 每臂决策数 | 说明 |
+|---|---:|---:|---|
+| 仪器校准（已完成 v1–v4） | 6 | 24 | 只证明机器可跑，判词功效不足 |
+| 下一份 development qualification | ≥24 | ≥48 | 翻转率改走 Wilson 单侧下限，见 §8.1 |
+| formal secret heldout | ≥48 对，配对 probe ≥100 | ≥100 | 生成配方在看到 P1j 结果前冻结；不得看完 v4 再手写 |
+
+v4 已物化，永远不能再当 unseen。扩 n 只能开新 package / 新 fingerprint。
 
 ### 6.4 真实用户数据
 
@@ -258,6 +280,21 @@ closed alpha 只接收明确同意的成年人数据，并按用途分开授权�
 - 是否允许进入训练候选集。
 
 未单独同意训练的数据永远不进入共享权重。真实轨迹通常没有隐藏真值标签；学习依赖行动前预测与用户/环境后续 outcome，人类标注只做 validation anchor。
+
+Lab 里 typed outcome 由反应式环境机械结算；真人的「后来怎么样」是自由文本。
+**在 P4 把真实 outcome 写入 PE 结算之前**，必须另过 typing 前置门：
+
+- 用 LLM 结构化输出（禁止关键词/正则）把用户后续话语映到既有
+  `HELPED / FELT_HEARD / MISSED / OVER_DIRECTIVE / unknown`；
+- 人类标注只作 validation anchor，模式对齐 `docs/specs/steering-human-anchor.md`：
+  `validation_anchor_only=true`，`learning_use_authorized=false`；
+- 至少 3 名独立 rater、隐藏标签、多数一致率 ≥0.80，typing 与锚点一致率达到
+  预注册阈值后，才允许该通道进入 `dialogue_external_outcome` → PE；
+- 未过门的样本保持 `unknown`，不脑补成功，不进入 credit。
+
+这与 P1l 人工盲标不是同一扇门：P1l 只给 v3 合成公开文本的 condition 可判别性提供
+human anchor；本条给的是真人自由文本 → typed outcome 的可靠性。两套标签都不得成为
+reward。
 
 ---
 
@@ -274,10 +311,25 @@ closed alpha 只接收明确同意的成年人数据，并按用途分开授权�
 | `volvence` | 完整 Appendable→Readable→Learnable→Steerable 闭环 | 被验证系统 |
 | `oracle-concept` | 直接给出 sealed hidden dynamic | 非竞争上限；衡量 Volvence 离“读对概念”还有多远 |
 
-“无论怎样写 prompt 都做不到”在科学上无法由有限实验证明。允许的严格口径是：
+当前 4 历史 / top-4 规模下，`rag-steelman` 的检索选择性尚未启用：候选面恰好等于全部
+typed outcome，强 RAG 契约还强制必须取回全部 4 条。因此它此时不是独立的“从海量记忆
+挑对东西”对照，而是 `prompt-steelman` 的重新包装（顺序由相似度而非时间决定，外加
+ref-harness 记忆片段框）。P1j 已按原双主臂资格门完整跑完并原样落账；该 lane
+关闭后，才允许把 RAG 版本化降级为观察臂。完整规则见 §14.1。长历史阶段检索真正有
+选择性时，RAG 必须回到主对照。
 
-> 在预注册、冻结且经过 train/validation 调优的 prompt/full-history/RAG steelman 集合上，
+“无论怎样写 prompt 都做不到”在科学上无法由有限实验证明。当前规模允许的严格口径是：
+
+> 在预注册、冻结且经过 train/validation 调优的 prompt/full-history steelman 上，
 > Volvence 在 held-out 场景族中以更少上下文获得显著更好的个体化动作选择与复发下降。
+
+当前规模不得据此宣称“已打败标准 agent-memory / RAG 栈”。该宣称只能在历史长到
+`top_k < n`、检索选择性被启用、且 RAG 重新作为主对照之后提出。
+
+`oracle-concept` 不是 formal 才出现的摆设。P1j 关闭且冻结 Qwen 空闲后，P1k 必须在
+已烧毁的 v3 training 包上跑披露阶梯，把失败定位到「读不出条件 / 归纳不出个体
+映射 / 已知规则投射不进分数图式」之一。oracle 臂消耗 sealed truth，非竞争，
+其正确率不得写成 consumer 资格或 Volvence 优势。
 
 prompt 候选可在 train/validation 上由人和强模型共同优化，但在 hidden test 解封前冻结；不得看到 formal 结果后换 prompt。
 
@@ -308,7 +360,10 @@ prompt 候选可在 train/validation 上由人和强模型共同优化，但在 
 
 - 在结果发生前正确排序 candidate action 的用户反应；
 - 在 held-out 表面场景中仍能区分两种隐藏动力学；
-- 优于 prompt-steelman 与 rag-steelman，且接近 oracle-concept 上限；
+- 当前 4 历史规模：必须优于 `prompt-steelman`，并接近 oracle-concept 上限；`rag-steelman`
+  继续报数，但是观察对照，不构成资格门槛；
+- 长历史阶段（`top_k < n`、检索选择性启用后）：必须重新把 `rag-steelman` 升回主对照，
+  并优于它，才能宣称打败标准 agent-memory 栈；
 - owner snapshot 中的命名假设与实际预测 lineage 可追溯；
 - 不能仅靠当前句、姓名、人口学或场景关键词完成。
 
@@ -339,6 +394,35 @@ prompt 候选可在 train/validation 上由人和强模型共同优化，但在 
 - boundary violation、wrong-user attribution、依赖诱导和危机处理是否守门。
 
 这些是产品验收与只读评估，不直接成为 PE/reward。
+
+### 8.1 统计形式：点阈值只留给已冻结的 P1j
+
+P1–P1j 的点阈值（prompt/RAG accuracy 0.625–0.875、pair flip ≥0.5、n=8 或 12 对）
+继续解释已经封存的 artifact，**不得回溯改写**。它们在 n=12 对时，即使真实参数
+正中靶心，一次联合通过率也大约只有一半；v1–v4 的饱和/契约/资格振荡，有相当
+比例可能是采样噪声。P1j 之后的新契约必须改成下面的形式，而不是再调一个点。
+
+**Development qualification（P1m 起，主对照按 §14.1）**
+
+- 最小规模：≥24 组镜像对，每臂 ≥48 个决策。
+- Accuracy：点估计仍落在 `[0.625, 0.875]`（>0.875 仍判饱和，<0.625 仍判不合格）；
+  另要求 Wilson 95% 单侧下限 ≥0.50，以避免「落带但 CI 盖住乱猜」。
+- Pair flip：不再要求点估计 ≥0.5 过门；改为 Wilson 95% 单侧下限 >0.35。
+  `structured-state` 继续用同一翻转区间，不跟 RAG 一起扔掉。
+- RAG 在 4 历史 / `top_k=4` 阶段只报数，不进联合资格（§14.1）；长历史
+  `top_k < n` 后升回主对照，并使用同一 CI 形式。
+- 区间公式、种子、n 必须写进新契约 id，看到输出后不得改。
+
+**Formal comparison**
+
+「显著更好」必须在 hidden test 解封前写成检验，而不是事后看 p 值：
+
+- 主检验：配对 McNemar，α=0.05，双侧；功效目标 80%，检测 15 个百分点的
+  动作选择提升（预注册备择：steelman 0.75 vs Volvence 0.90，预估不和谐率 0.30
+  → 约 100 个配对 probe）。
+- 同时报告上下文 token 与复发下降；token 优势不得替代动作选择检验。
+- Secret heldout 由冻结生成配方程序化产出，独立 evaluator 解封；设计者本人
+  不得在看到 P1j/P1k 后再手写测试项。
 
 ---
 
@@ -385,6 +469,9 @@ prompt 候选可在 train/validation 上由人和强模型共同优化，但在 
 - 证明跨进程恢复、user swap、token scaling 与 console correction；
 - 不新增学习行为。
 
+P1 之后的实验室仪器包（P1b–P1j）编年史以 `docs/specs/relationship-lab.md` §7 / §9
+为 SSOT。本方案 §14 只保留当前卡点与 P1j 关闭后的下一刀。
+
 ### P2：多经历 ToM 读出
 
 唯一 owner：`preference_about_other`，必要时配合 `intent_about_other`，但两者保持语义隔离。
@@ -395,6 +482,11 @@ prompt 候选可在 train/validation 上由人和强模型共同优化，但在 
 - owner 发布 candidate action 的 pre-action social prediction；
 - 与单 turn LLM proposal、full-history LLM 及 oracle-concept 做 held-out 对照；
 - 先 SHADOW，只产 prediction/evidence，不影响表达。
+
+P2 **formal** 仍关闭，直到 P1m 仪器资格过门。允许的唯一并行是 P2-SHADOW 防火墙
+（§14.4）：只在已定为 `consumer_training_only` 的 v3 上搭 owner，标签留在
+evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 报告应用来
+收窄 owner 范围（条件识别 vs 个体策略归纳），而不是给它一份新的资格分数。
 
 ### P3：PE 信用与择时控制
 
@@ -412,7 +504,9 @@ prompt 候选可在 train/validation 上由人和强模型共同优化，但在 
 - 三个核心入口：自然对话、次日 followup、关系记忆 console；
 - 用户可查看“我现在怎样理解你”、纠正、删除、标敏感、禁止主动提及；
 - 关键关系动作与安全边界采用 typed rationale/audit；
-- alpha evidence 与训练候选物理分离。
+- alpha evidence 与训练候选物理分离；
+- §6.4 的真实 outcome typing 前置门必须先 PASS，才允许把真人后续结果写入
+  `dialogue_external_outcome` → PE。未过门只采集、不计学习。
 
 ### P5：慢速共享关系基底
 
@@ -499,175 +593,148 @@ prompt 候选可在 train/validation 上由人和强模型共同优化，但在 
 3. 多经历 readout 不优于单 turn LLM proposal：停止新增 latent carrier，先修 owner 输入与标签定义；
 4. learned gate 不优于 noop/random：不授权 ACTIVE，保留 Appendable/Readable 局部价值；
 5. synthetic 正结果无法迁移到 consenting real-user directional pilot：不训练共享关系权重；
-6. 产品留存主要来自排他性依赖而非现实帮助：立即停止相应策略与增长实验。
+6. 产品留存主要来自排他性依赖而非现实帮助：立即停止相应策略与增长实验；
+7. **校准元循环止损**：数据集版本（当前 v1–v4 共 4 版）或 consumer freeze
+   （当前 P1g/P1i 共 2 次）再增加时，不得再用「换场景 / 换 prompt / 换点阈值」
+   追资格。允许的唯一下一步是 §8.1 的仪器协议升级（更大 n + CI 门 + 冻结生成
+   配方）。该升级后再失败一次 development qualification，即停止场景版本化：
+   按 P1k 定位升级 substrate / owner 输入，或把产品主张收缩为关系 memory
+   wrapper。禁止为过门再开 v5/v6。
 
 ---
 
 ## 14. 当前唯一优先级
 
-2026-08-19 已完成 Relationship Lab P0、P1 与 P1b development implementation：Gate 0
-真实 Qwen baseline PASS；P1 的跨进程恢复、scope、token scaling、console 纠删成立；
-P1b 也已把 contextual arm 拆成内容寻址的 evidence readout 与无文本 typed compiler。
-但 lineage-complete P1b v3 虽 24/24 strict-valid，prompt/RAG/structured-state 的
-accuracy 只有 0.25/0.50/0.50，pair flip 全为 0，故
-`machinery_ready=true / baseline_underqualified / gate1_passed=false`。这不是四能力
-PASS，也不授权 P2。
+包级编年史的 SSOT 是 `docs/specs/relationship-lab.md` §7 / §9，本方案不再逐包复述。
+本节只回答：现在卡在哪、P1j 关闭后允许改什么、下一刀对准谁。
 
-下一步不是继续轮换 prompt、做泛陪伴页面或扩张 10 万条训练数据，而是一个明确的
-P1c 资格分叉：
+### 14.0 当前状态
 
-1. 冻结当前 readout v3、request v1、strict parser 与 Gate 1 阈值，不再用同一公开
-   split 调 prompt；
-2. 在**新的内容寻址 development run** 上换用能力更强但仍可冻结的 open-weight
-   substrate，并为该 substrate 重跑同设置 Gate 0；所有 arm 继续 same-substrate；
-3. 若 prompt/RAG 超过 0.875，判 `dataset_saturated`，版本化 `relationship_transfer_v2`
-   的隐藏动力学与跨场景迁移难度；不得故意削弱 baseline；
-4. 若落在 0.625–0.875 且 pair flip ≥0.5，才冻结 formal prereg 并生成 secret heldout；
-5. 若 stronger substrate 仍低于 0.625，先重写任务的公开证据/标签定义，不能新增 latent
-   carrier、PE learning 或 steering 掩盖输入契约问题。
+| 项 | 状态 |
+|---|---|
+| P1j | 2026-08-21 同一 attempt 完成 72/72：report `e9226ee8…fd78` 判 `consumer_failed_v4_qualification`。prompt/RAG/structured accuracy 为 0.542/0.500/0.542，pair flip 为 0.417/0.250/0.417；三臂 strict-valid=1.0。完成态 strict resume 未再调用 Qwen。 |
+| 已证明 | Gate 0 仪器；跨进程恢复 / 隔离 / 纠删 / 压缩；v2/v3 反捷径；v3 public-evidence BGE 60/60 可判别；P1g prompt 单臂入带；P1j one-shot/no-feedback/严格恢复机器按契约完成并诚实保存 unseen failure |
+| 未证明 | 完整 consumer qualification、human anchor、Volvence advantage、Readable / Learnable / Steerable、formal、四能力 |
+| 校准消耗 | 数据集 v1–v4 共 4 版；consumer freeze 2 次（P1g / P1i）。再版本化场景或再搜 prompt 受 §13.7 约束 |
 
-P1c implementation 已冻结为内容寻址协议 v2
-`f209cf49957e3fa22aef20e977d42bd1f76c970c39c97f57a0e47794e0efff87`：candidate 为
-Qwen2.5-3B，P1b prompt/request/schema/compiler、BGE-M3 top-2、seeds、depths、
-generation config、Gate 0/Gate 1 thresholds 与 reference context bundle 全部进入 lineage。
-runner 串联 fresh candidate Gate 0 → same-substrate P1b → 三路资格报告，并用 stage
-checkpoint 保留失败 attempt、从完整 owner artifact 续跑。P1b report v4 以稳定的
-evaluated-context surface 绑定跨重建 lineage，使 P1c 无需解析 raw log 重建 producer 状态；
-随机 owner record UUID 只留作本次 bundle 完整性，不再冒充跨运行 identity。
+P1j 已释放同一冻结 Qwen。**下一份占用 Qwen 的动作**是 P1k oracle 披露阶梯，用已烧毁
+的 v3 定位失败层；不得返回 P1i 搜第四个 prompt，也不得开 v5。P1l 人工盲标不加载模型，
+可继续独立收集 rater 结果。
 
-2026-08-20 已完成 Qwen2.5-3B 权威 v2 run：fresh Gate 0 为 24/24 valid、10/24 correct，
-machinery/Gate 0 PASS；same-substrate P1b 为 24/24 readout valid，prompt、RAG、
-structured-state 的 accuracy 与 mirrored pair flip 全部为 1.0。P1c report artifact
-`599e7e94ac1a06a7b342f6024614c1489b6130e768c1d5db8fbd7b833bfba1d7` 因而发布
-`version_scenario_dataset_saturated`。首次 v1 attempt 暴露 lineage 契约缺陷并已原样标记
-ABORTED；v2 未改变 prompt、输入、parser、compiler、阈值或标签，而是从 Gate 0 独立重跑。
+P1j 终局之后的顺序冻结为：
 
-P1d 场景 owner 收敛包已于 2026-08-20 落地 `relationship_transfer_v2`，development
-dataset fingerprint 为
-`d8e002d6d529476bf29622d4872afb0b1d7fec9d9c2e5942ecb830c8428b660b`。v2 不再让某个
-用户固定偏好一个动作：每位用户四条历史覆盖两种 sealed abstract condition，每种
-condition 都试过 stay/space；跨 condition 汇总后每个动作恰好一正一负，简单 tally 必然
-平局。probe family 对该用户未见；mirrored siblings 的 current bytes/condition 相同，
-但个体 policy 与正确动作互补。condition/policy/binding 只在 generator truth，SUT 零可见。
+1. 原样封存报告。不得返回 P1i 改 consumer / prompt / RAG / gate。
+2. 若 `saturated` 或 `machinery regression`：§14.1 不适用，按原分叉停。
+3. 实际命中 `underqualified`：§14.1 的 RAG 观察臂修约不能挽救本 ledger，因为 prompt
+   accuracy 0.542 与 structured flip 0.417 自身也未过门。**下一步不是再造 v5**，而是
+   P1k 定位失败环节，再 P1m 升级仪器（n + CI + 生成配方）。
+4. 若旧双主臂门 `development qualified`：只授权另包冻结 formal comparison prereg **候选**；secret heldout 仍须走 §8.1 功效与生成配方，不直接开 P2 / formal。
 
-version-aware dataset owner 保持 v1 为默认，只允许显式加载 v2；任何四历史缺失、动作胜负
-不平衡、surface copy、policy 不一致或 truth leakage 都 fail loudly。v2 Gate 0 五项 machinery
-已通过：6 mirrored pairs、6 surface families、analytic action effect 最小 0.75、256 次采样
-下 empirical effect 最小 0.714844、leakage 0；因没有 v2 真实 stateless attestation，Gate 0
-仍是 PENDING。这只证明场景与反捷径契约成立，不是模型或四能力结果。
+### 14.1 P1j 之后：RAG 降级为观察臂的规则
 
-P1e consumer steelman 随后作为独立包落地，而不是提前进入 P2/ToM/PE steering：
+P1g 之后曾经禁止“看到坏结果就删除 RAG、改成 best-arm、降低阈值”。P1j 已用冻结的
+prompt/RAG 双主臂门跑完并原样封存；运行中没有改门、删臂或回头调 P1i。
 
-1. 在看任何 v2 模型输出前冻结 condition-aware readout；旧 v3 tally 明令 current message
-   不参与，放到 v2 只会双零，不能冒充强 baseline；
-2. full-history 与 structured-state 必须获得全部四条有效历史，BGE-M3 RAG 固定 `top_k=4`，
-   不得靠截断一半证据制造失败；
-3. 冻结新的内容寻址 protocol 后，复用已 materialize Qwen2.5-3B，依次重跑 fresh Gate 0
-   与 same-substrate P1b qualification；
-4. 只有 baseline 落入资格带，才允许 formal prereg 与 secret heldout；若仍做满，继续承认
-   场景饱和，不能提前新增 latent carrier、学习或 steering。
+P1j 关闭后，才允许一次**新契约 id 的版本化修约**。允许修约的结构性理由不是“RAG 难
+打”，而是当前考卷规模下 RAG 不再是独立对照：
 
-P1e protocol 已在任何 v2 模型输出前冻结，id 为
-`5221909debd8b0248c83332589c2681270118dc54b7014654db2d627ca2fbd1e`。它使用
-condition-aware readout、全部四条历史、typed relationship-outcome BGE-M3 top-4，且保持
-Qwen2.5-3B、generation config、Gate 0/P1 阈值和 typed compiler 不变。完整 runner 支持
-local-cache preflight、fresh Gate 0、same-substrate P1b、stage checkpoint 与严格 lineage
-恢复。
+- 每用户只有 4 条 typed outcome 历史，RAG 固定 `top_k=4`，强 RAG 契约还要求 4 条必须
+  全部取回；检索选择性 = 0。
+- 同一 3B 基底在时间顺序的 prompt-steelman 上已经入带（P1g：0.75 acc / 0.50 flip）；
+  公开文本也已被冻结语义审计读出（P1f：60/60）。因此失败不在考题无解，而在
+  “同样 4 条证据被打成记忆碎片后，3B 读不出镜像翻转”。
+- 继续把这个劣化包装版留在资格门里，只会无限卡在 consumer 调参，而正式对比真正要
+  打赢的上界对手是 `prompt-steelman`。
 
-2026-08-20 权威真实运行位于
-`artifacts/relationship_lab/qwen25_3b_packet1e_v2_conditioned_top4_20260820/`：fresh
-Gate 0 为 24/24 valid、12/24 correct，六项检查 PASS；P1b 为 24/24 readout
-strict-valid，prompt/RAG/structured-state accuracy 分别为 0.625/0.25/0.625，mirrored
-pair flip 均为 0.25。P1e report artifact
-`232afebb56afb5e457af3d7ca4ccfc560cc417447defcb6d265263085fad8693` 因此发布
-`rewrite_public_evidence_contract`，没有进入 formal prereg。
+修约必须同时满足下面全部条款，缺一条就不算合法降级：
 
-P1f 公开证据契约修复已于 2026-08-20 落地为独立 `relationship_transfer_v3`，没有改写
-v2 或在已见 v2 split 上继续轮换 prompt。v3 保留每用户四历史、两 condition×两 action、
-每动作一正一负、未见 probe surface 与 mirrored complementary policy，只把公开语言改为
-“日常事件 + 当事人体验到的关系损失”；condition/policy/preferred action 继续 sealed。
-dataset fingerprint 为
-`35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f`，public-evidence
-contract id 为
-`8ba8a6788d35e959c4a6fa42d31f54baa7d5e1ba48f52603e4bec510232d3cbb`。
+1. **时机**：只发生在 P1j 终局报告落盘之后。P1j 本身继续按双主臂门记账。
+2. **形式是降级，不是删除**：`rag-steelman` 继续跑、继续报 accuracy / pair flip / token，
+   只从 `primary_qualification_arms` 移到观察臂。禁止从对照矩阵里抹掉它，也禁止改成
+   “取最好一臂算过”。
+3. **新资格门**：主对照只认 `prompt-steelman`（accuracy 仍在 0.625–0.875，pair flip
+   ≥0.5，strict valid=1.0）。`structured-state` pair flip ≥0.5 **必须保留**——这是自家
+   类型化状态能否因人而异的存在证明，不是对手门槛，不能跟 RAG 一起扔掉。
+   这三项点阈值只用于一次性再读已经封存的 P1j n=12 ledger，不替代 §8.1 / P1m。
+4. **主张收缩**：此规模只能说“打败全历史 prompt steelman”。不能再说“打败标准
+   agent-memory / RAG 栈”，也不能把观察臂的低分写成 Volvence 优势。
+5. **RAG 必须回来的条件**：当历史长到全文塞不进 prompt、或 `top_k < n` 使检索真正有
+   选择性时，RAG 自动升回主对照；那时 Gate 2 恢复“优于 prompt 与 RAG”。不得把当前
+   规模的观察降级偷偷带进长历史 formal。
+6. **修约后的下一刀对准谁**：
+   - prompt 入带且 structured flip ≥0.5 → 只说明 n=12 的点估计不再被 RAG 卡住；
+     **仍须走 P1k 定位 + P1m 扩 n / CI 门**，不得把这份小样本直接冻成 formal
+     prereg。P2 / secret heldout 仍不自动打开。
+   - prompt 入带但 structured flip <0.5 → 停 consumer lane，去修 structured-state /
+     owner 输入表示，不新增 latent carrier、PE 或 steering。
+   - prompt 自身掉出资格带或饱和 → 不得靠降 RAG 掩盖；下一步是 P1k 定位，不是
+     再开 v5。版本化更难场景只允许发生在 P1m 生成配方里，且计入 §13.7。
+   - P1j 若判 saturated 或 machinery regression → 本条修约不适用，按原分叉停。
 
-在任何 v3 Qwen 输出前，冻结权重摘要的 BGE-M3 对 48 条历史和 12 条 probe 完成只读
-semantic-legibility audit：60/60 top-1，最小 margin 0.020403792213，平均 margin
-0.080645917619。P1f report artifact
-`a231e2096b2c4b5fcf3e8b36fd099d0955ce2e355e793d38f5ed8e87a047ecbd` 发布
-`consumer_protocol_freeze_candidate`。这只证明 v3 development public evidence 在一个
-冻结语义 evaluator 下可判别；标签没有进入 SUT，也没有成为 PE、credit、reward 或
-steering。人工盲标仍 pending，不能声称 human readability、Qwen transfer、Readable 或
-四能力成立。
+禁止项保持不变：回头改 P1i consumer、在已见 split 上再搜一轮 prompt、降低阈值、把
+evaluation / RAG 失败分数回灌 PE/credit/reward/steering。P1i 训练集上 structured flip
+只有 0.333，所以去掉 RAG 不等于资格自动过；修约只是把锁从“陪练包装”挪开，露出
+真正还没过的那扇门。
 
-P1g 已于第一条 v3 Qwen 输出前冻结完整 consumer protocol，id 为
-`8e08d488382442f364aae102d80c268c8c23927d547f64c1e79cb0a87f0f52c6`。它绑定 P1f
-artifact、v3 dataset/public-evidence contract、Qwen/BGE exact weights、generation/seeds、
-condition-aware readout、四历史 surface、BGE-M3 typed-outcome top-4、Gate 0/P1 thresholds
-与五路报告分叉；preflight 在零 Qwen 输出状态下重算 weights、RAG config 和 evaluated
-context surface 后才允许首次运行。
+权威 P1j 已给出这个边界：prompt accuracy 0.542 低于 0.625，structured pair flip 0.417
+低于 0.5。因此本 ledger 即使把 RAG 降为观察臂也仍然 FAIL；禁止发布一份“去掉 RAG 后
+通过”的派生资格报告。§14.1 只约束后续协议结构，当前执行分叉直接进入 §14.3 P1k。
 
-2026-08-20 权威真实运行位于
-`artifacts/relationship_lab/qwen25_3b_packet1g_v3_conditioned_top4_20260820/`：fresh Gate 0
-为 24/24 valid、accuracy 0.50，PASS；24/24 contextual readout strict-valid；prompt、RAG、
-structured-state accuracy 分别为 0.75/0.50/0.50，mirrored pair flip 分别为
-0.50/0.00/0.50。P1b artifact
-`10d120f49b442803cccec53c534e8f3c868ee644c0674439ede000d8dedd3a87` 判
-`baseline_underqualified`；P1g artifact
-`9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8` 判
-`consumer_still_underqualified`。
+### 14.2 仪器协议升级（P1m）
 
-这个结果把问题进一步定位清楚：v3 公开证据对冻结语义 auditor 可判别，且 Qwen 的
-full-history prompt 臂已经落入资格带并达到 pair-flip 门槛，所以“语言里完全读不出抽象
-结构”已不是唯一解释；但冻结 RAG consumer 没有产生任何 mirrored flip，完整 consumer
-资格仍失败。不能看到该结果后删除 RAG、改成 best-arm gate、降低阈值，或回调 v3
-dataset/public-evidence contract/prompt。下一收敛包如继续，应先版本化并冻结彼此隔离的
-consumer-training split 与 unseen qualification split，在 training split 上学习通用 readout
-后只运行一次新 qualification；evaluation 标签仍不得成为 PE、credit、reward 或 steering。
-P2、formal prereg、secret heldout 与四能力主张继续关闭。
+P1m 是 P1j 关闭后的契约包，不跑新的 consumer search，不改 P1i consumer，不把
+evaluation 回灌 PE。它只冻结下一份资格门的统计形式与数据生产协议：
 
-P1h 已于 2026-08-20 将该分割要求落为 domain-lab owner 契约。已见
-`relationship_transfer_v3`（fingerprint `35b8c46e…134f`）整包角色冻结为
-`consumer_training_only`；新 `relationship_transfer_v4` 在零 Qwen 输出时冻结为
-`unseen_qualification_only`，fingerprint 为
-`9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796`。v4 含 12 组
-mirrored pair、24 位合成用户和 96 条历史，全部 dynamic 为 development heldout；其
-scene/user scope/event/surface family/完整 public text 与 v3 精确不相交。P1h split contract id 为
-`2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8`。
+- 规模：development qualification ≥24 组镜像对、每臂 ≥48 决策；formal secret
+  heldout 配对 probe ≥100。用冻结生成配方扩 n，禁止手写静态 JSON 追分。
+- 资格：主对照 `prompt-steelman`；accuracy 点估计仍在 `[0.625, 0.875]`，且
+  Wilson 95% 单侧下限 ≥0.50；pair flip 改为 Wilson 95% 单侧下限 >0.35。
+  `structured-state` 用同一翻转区间。RAG 在 4 历史阶段按 §14.1 只报数。
+- 生成配方：内容寻址的 FSM 真值 + LLM 只渲染 + loader 不变量。结构不变量**现在**
+  就可以冻结（沿用 v3/v4 反捷径 + v3「事件 + 关系损失」公开语言，只把 n 扩到
+  ≥24），不得等 P1j 的 accuracy / flip 出来再拧难度旋钮。看完 v4 再手写测试项
+  视为污染，必须作废。
+- 若 P1m 协议冻结后的第一次 qualification 仍失败：触发 §13.7，停止场景版本化。
 
-P1h 同时冻结 P1i consumer calibration 边界：最多三轮候选、全部保留、只用 v3 training
-label、按 `leave_one_surface_family_out_training_only` 选最终 consumer；资格门保持 P1g
-的 prompt/RAG 双臂 0.625–0.875 accuracy、pair flip ≥0.5、strict valid=1.0 与
-structured-state pair flip ≥0.5。P1i-facing `RelationshipConsumerTrainingView` 类型不含
-v4 observation/truth；完整 bundle 仅供 owner/evaluator 做隔离审计。因为 v4 文件存在仓库
-中，这仍是 process-isolated development qualification，不是 formal secret heldout。
+P1m 可以与 P1k 错开执行：P1k 只消费已烧毁的 v3，不需要新场景；P1m 的生成配方
+应在 P1k 判词出来后收窄「扩什么」（条件可判别性 vs 个体映射证据），但配方本身
+不得等 P1j 的资格分数再改难度。
 
-P1i 已于 2026-08-20 完成。bounded search 先以 calibration protocol
-`080c908d7824b25081c501abbb6e76a2405a16508dbc0fb9d119b831447eef40` 冻结。三轮依次为原
-condition-aware readout、匿名 latent partition readout、counterfactual contrast readout；它们
-共用 Qwen2.5-3B、BGE-M3、generation、v3 完整 context、request/schema/compiler 与三臂，
-只改变普通 Qwen 的通用语义归纳 prompt。每轮覆盖 6 个 surface-family fold、12 位用户、
-prompt/RAG/structured 三臂并保留 36 条 readout 与 decision。最终 consumer 只按冻结的
-LOSO lexicographic rule 选择：先看 strict validity，再依次看双主臂最坏 fold accuracy、较低
-macro accuracy、最坏/宏平均 pair flip、structured pair flip、token 成本和较早 round；不取
-best arm，也不在候选输出后改 prompt。
+### 14.3 oracle-concept 诊断（P1k）
 
-运行中发现 fresh BGE-M3 对三个 scene 的四条同集合 evidence 给出不同排序，使重建 context
-surface 与 P1g 冻结值不一致。P1i 没有接受漂移，而是从 P1g content-addressed context
-manifest `aea311e2…9791` 重放 RAG 顺序并校验全部 144 个 model-input hash；冻结 surface
-保持 `d2d7d07b…898e`。每条 readout/decision 原子 checkpoint，严格 resume 只接受完整
-lineage 的连续前缀；中断续跑与完成态无 Qwen 重放均已验证。
+P1k 的唯一 owner 是 `lifeform-evolution.relationship_lab_packet1k`。它是
+evaluator-only 披露阶梯，不是竞争臂，也不是资格门。
 
-权威 run 位于
-`artifacts/relationship_lab/qwen25_3b_packet1i_v3_training_replay_20260820/`，108/108
-readout strict-valid。冻结 ranking 为 `conditioned_match_v1`、`latent_partition_v1`、
-`counterfactual_contrast_v1`。选中项 prompt/RAG/structured accuracy 为
-0.750/0.583/0.500，pair flip 为 0.500/0.167/0.333；双主臂最坏 fold accuracy 仍只有 0.5，
-最坏 fold pair flip 为 0。report artifact 是 `c9382c18…8a79a`；唯一 frozen consumer
-protocol 是 `938af6073…10bf`，继续携带 v4 input/output observed = 0/0 和 P1h 原资格门。
+- 输入：已烧毁的 `relationship_transfer_v3`（`consumer_training_only`）与冻结
+  P1i consumer 的 prompt-steelman 公开表面。不得物化 v4，不得修改 P1h gate。
+- 三档披露，**最披露的一档先跑**：`oracle_policy_v1`（条件 + 历史绑定 + 个体
+  映射）→ `oracle_binding_v1`（条件 + 历史绑定）→ `oracle_condition_v1`（只披露
+  两种抽象条件及当前句属于哪一种）。
+- 任一带 sealed truth 的正确率都是诊断天花板，不得写成 consumer qualified、
+  Volvence advantage 或 Readable。
+- 派生判词只定位瓶颈：machinery 回归 / 基底无法应用已披露策略 / 无法从标注
+  证据归纳策略 / 无法识别 probe 条件 / 阶梯完整则缺口在无辅助归纳。
+- 执行时机：P1j 释放同一冻结 Qwen 之后。不得为了抢跑而中断 P1j。
+- 2026-08-21 代码已落地：`relationship_lab_packet1k.py` +
+  `scripts/run_relationship_lab_packet1k.py`。36 条 planned output，先
+  `--prepare-only` 再 `--resume`。机械测试覆盖 freeze / resume / 四路判词；真实
+  Qwen 阶梯尚未跑。
 
-这只完成了 training-only bounded consumer selection，不是 consumer qualification，也不是
-Volvence Readable/Learnable/Steerable 或四能力证据。下一收敛包是独立 P1j：只允许消费冻结
-consumer 并一次性执行 v4 development qualification；结果不得返回 P1i 改 consumer，training
-label 也不得进入 Volvence memory、PE、credit、reward、controller 或 steering。P2、formal
-prereg 与 secret heldout 继续关闭。
+P1f 遗留的人工盲标 packet 也已落地（`relationship_lab_packet1l.py`），**不是**
+§14.2 仪器升级。它不加载 Qwen，可与 P1j 并行 `--prepare-only` 分发 rater CSV。
+仪器升级的包号是 **P1m**，实施时必须使用新模块名，不得覆盖盲标包。
+
+### 14.4 P2-SHADOW 防火墙
+
+P2 formal 继续关闭。允许的并行只覆盖 owner 脚手架，且必须同时成立：
+
+- 只读 v3 `RelationshipConsumerTrainingView`；v4 observation / truth 对 P2
+  开发者保持不可见。
+- 独立 `P2-development` split 契约；training label 只留在 evaluator。
+- `WiringLevel.SHADOW`：只发 prediction / hypothesis snapshot，不进 expression、
+  不写 PE / credit / steering。
+- P1k 报告应用来选择先做条件识别还是个体策略 owner，而不是给 SHADOW 打分过门。
+- 退出：删掉 SHADOW wiring 与离线 adapter 即回滚；已发布 snapshot schema 若已
+  注册必须保留 hash，不得把 SHADOW 输出写进正式资格报告。
+
+在 P1m 仪器资格过门之前，任何 P2-SHADOW 数字都不得对外称为 Readable 证据。

@@ -1,0 +1,23 @@
+{
+  "arm": "prompt-steelman",
+  "artifact_id": "53cddfa60de524178ac10cb5bbbb43fb49fe305feae66108e97eaa913a759817",
+  "candidate_id": "conditioned_match_v1",
+  "compiled_action_id": "stay_present_without_probe",
+  "completion_tokens": 26,
+  "context_sha256": "29f72cc2cdf4d857868b45139beda9fdeb760beb4ec1a12570642471e3605073",
+  "current_input_sha256": "a3f05f19d1fd2219fbdcd2d37f745578b4819224ec6d5a8a54749d05656ae167",
+  "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+  "model_id": "qwen2.5-3b-instruct",
+  "prompt_sha256": "9687c5043029502b0787cd88758d06c1c0541338ed3c50068ad4824ce25fd4e5",
+  "prompt_tokens": 2182,
+  "raw_output": "{\n    \"stay_present_without_probe_score\": 0,\n    \"respect_space_with_return_option_score\": -1\n}",
+  "request_template_sha256": "55db60c37825da4999931345c1c973c2ea8fe54634a9508317284a02fd9bbde3",
+  "scene_id": "rtv4_scene_006b",
+  "schema_sha256": "afa852a2ee43b55cd10e761d5bb5b6a56b546aaa626f9291edb550e3220c40ab",
+  "schema_version": "relationship-p1b-readout.v2",
+  "seed": 101,
+  "space_score": -1,
+  "stay_score": 0,
+  "valid": true,
+  "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+}

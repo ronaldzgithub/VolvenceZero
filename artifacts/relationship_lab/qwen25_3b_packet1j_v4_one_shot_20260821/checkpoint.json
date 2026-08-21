@@ -1,0 +1,522 @@
+{
+  "checkpoint_id": "e4667cc5cb4e23e8cb8aefbe1619ea103a46e0ef469ac431e4773c4983e21ceb",
+  "consumer_protocol_id": "938af6073c31346058a6df40877a48e68a449ce63acf941a7455049530a310bf",
+  "context_manifest_artifact_id": "4bb57f01e3bc41dd6fad8144068655036b0ba20646b8d4d9814712de3078730b",
+  "dataset_fingerprint": "9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796",
+  "model_lineage": {
+    "generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+    "model_id": "qwen2.5-3b-instruct",
+    "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+  },
+  "planned_records": [
+    {
+      "arm": "prompt-steelman",
+      "index": 0,
+      "mirror_pair_id": "pair_v4_01",
+      "scene_id": "rtv4_scene_001a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 1,
+      "mirror_pair_id": "pair_v4_01",
+      "scene_id": "rtv4_scene_001b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 2,
+      "mirror_pair_id": "pair_v4_01",
+      "scene_id": "rtv4_scene_001a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 3,
+      "mirror_pair_id": "pair_v4_01",
+      "scene_id": "rtv4_scene_001b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 4,
+      "mirror_pair_id": "pair_v4_01",
+      "scene_id": "rtv4_scene_001a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 5,
+      "mirror_pair_id": "pair_v4_01",
+      "scene_id": "rtv4_scene_001b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 6,
+      "mirror_pair_id": "pair_v4_02",
+      "scene_id": "rtv4_scene_002a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 7,
+      "mirror_pair_id": "pair_v4_02",
+      "scene_id": "rtv4_scene_002b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 8,
+      "mirror_pair_id": "pair_v4_02",
+      "scene_id": "rtv4_scene_002a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 9,
+      "mirror_pair_id": "pair_v4_02",
+      "scene_id": "rtv4_scene_002b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 10,
+      "mirror_pair_id": "pair_v4_02",
+      "scene_id": "rtv4_scene_002a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 11,
+      "mirror_pair_id": "pair_v4_02",
+      "scene_id": "rtv4_scene_002b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 12,
+      "mirror_pair_id": "pair_v4_03",
+      "scene_id": "rtv4_scene_003a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 13,
+      "mirror_pair_id": "pair_v4_03",
+      "scene_id": "rtv4_scene_003b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 14,
+      "mirror_pair_id": "pair_v4_03",
+      "scene_id": "rtv4_scene_003a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 15,
+      "mirror_pair_id": "pair_v4_03",
+      "scene_id": "rtv4_scene_003b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 16,
+      "mirror_pair_id": "pair_v4_03",
+      "scene_id": "rtv4_scene_003a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 17,
+      "mirror_pair_id": "pair_v4_03",
+      "scene_id": "rtv4_scene_003b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 18,
+      "mirror_pair_id": "pair_v4_04",
+      "scene_id": "rtv4_scene_004a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 19,
+      "mirror_pair_id": "pair_v4_04",
+      "scene_id": "rtv4_scene_004b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 20,
+      "mirror_pair_id": "pair_v4_04",
+      "scene_id": "rtv4_scene_004a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 21,
+      "mirror_pair_id": "pair_v4_04",
+      "scene_id": "rtv4_scene_004b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 22,
+      "mirror_pair_id": "pair_v4_04",
+      "scene_id": "rtv4_scene_004a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 23,
+      "mirror_pair_id": "pair_v4_04",
+      "scene_id": "rtv4_scene_004b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 24,
+      "mirror_pair_id": "pair_v4_05",
+      "scene_id": "rtv4_scene_005a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 25,
+      "mirror_pair_id": "pair_v4_05",
+      "scene_id": "rtv4_scene_005b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 26,
+      "mirror_pair_id": "pair_v4_05",
+      "scene_id": "rtv4_scene_005a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 27,
+      "mirror_pair_id": "pair_v4_05",
+      "scene_id": "rtv4_scene_005b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 28,
+      "mirror_pair_id": "pair_v4_05",
+      "scene_id": "rtv4_scene_005a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 29,
+      "mirror_pair_id": "pair_v4_05",
+      "scene_id": "rtv4_scene_005b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 30,
+      "mirror_pair_id": "pair_v4_06",
+      "scene_id": "rtv4_scene_006a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 31,
+      "mirror_pair_id": "pair_v4_06",
+      "scene_id": "rtv4_scene_006b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 32,
+      "mirror_pair_id": "pair_v4_06",
+      "scene_id": "rtv4_scene_006a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 33,
+      "mirror_pair_id": "pair_v4_06",
+      "scene_id": "rtv4_scene_006b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 34,
+      "mirror_pair_id": "pair_v4_06",
+      "scene_id": "rtv4_scene_006a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 35,
+      "mirror_pair_id": "pair_v4_06",
+      "scene_id": "rtv4_scene_006b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 36,
+      "mirror_pair_id": "pair_v4_07",
+      "scene_id": "rtv4_scene_007a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 37,
+      "mirror_pair_id": "pair_v4_07",
+      "scene_id": "rtv4_scene_007b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 38,
+      "mirror_pair_id": "pair_v4_07",
+      "scene_id": "rtv4_scene_007a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 39,
+      "mirror_pair_id": "pair_v4_07",
+      "scene_id": "rtv4_scene_007b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 40,
+      "mirror_pair_id": "pair_v4_07",
+      "scene_id": "rtv4_scene_007a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 41,
+      "mirror_pair_id": "pair_v4_07",
+      "scene_id": "rtv4_scene_007b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 42,
+      "mirror_pair_id": "pair_v4_08",
+      "scene_id": "rtv4_scene_008a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 43,
+      "mirror_pair_id": "pair_v4_08",
+      "scene_id": "rtv4_scene_008b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 44,
+      "mirror_pair_id": "pair_v4_08",
+      "scene_id": "rtv4_scene_008a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 45,
+      "mirror_pair_id": "pair_v4_08",
+      "scene_id": "rtv4_scene_008b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 46,
+      "mirror_pair_id": "pair_v4_08",
+      "scene_id": "rtv4_scene_008a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 47,
+      "mirror_pair_id": "pair_v4_08",
+      "scene_id": "rtv4_scene_008b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 48,
+      "mirror_pair_id": "pair_v4_09",
+      "scene_id": "rtv4_scene_009a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 49,
+      "mirror_pair_id": "pair_v4_09",
+      "scene_id": "rtv4_scene_009b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 50,
+      "mirror_pair_id": "pair_v4_09",
+      "scene_id": "rtv4_scene_009a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 51,
+      "mirror_pair_id": "pair_v4_09",
+      "scene_id": "rtv4_scene_009b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 52,
+      "mirror_pair_id": "pair_v4_09",
+      "scene_id": "rtv4_scene_009a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 53,
+      "mirror_pair_id": "pair_v4_09",
+      "scene_id": "rtv4_scene_009b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 54,
+      "mirror_pair_id": "pair_v4_10",
+      "scene_id": "rtv4_scene_010a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 55,
+      "mirror_pair_id": "pair_v4_10",
+      "scene_id": "rtv4_scene_010b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 56,
+      "mirror_pair_id": "pair_v4_10",
+      "scene_id": "rtv4_scene_010a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 57,
+      "mirror_pair_id": "pair_v4_10",
+      "scene_id": "rtv4_scene_010b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 58,
+      "mirror_pair_id": "pair_v4_10",
+      "scene_id": "rtv4_scene_010a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 59,
+      "mirror_pair_id": "pair_v4_10",
+      "scene_id": "rtv4_scene_010b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 60,
+      "mirror_pair_id": "pair_v4_11",
+      "scene_id": "rtv4_scene_011a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 61,
+      "mirror_pair_id": "pair_v4_11",
+      "scene_id": "rtv4_scene_011b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 62,
+      "mirror_pair_id": "pair_v4_11",
+      "scene_id": "rtv4_scene_011a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 63,
+      "mirror_pair_id": "pair_v4_11",
+      "scene_id": "rtv4_scene_011b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 64,
+      "mirror_pair_id": "pair_v4_11",
+      "scene_id": "rtv4_scene_011a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 65,
+      "mirror_pair_id": "pair_v4_11",
+      "scene_id": "rtv4_scene_011b",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 66,
+      "mirror_pair_id": "pair_v4_12",
+      "scene_id": "rtv4_scene_012a",
+      "seed": 101
+    },
+    {
+      "arm": "prompt-steelman",
+      "index": 67,
+      "mirror_pair_id": "pair_v4_12",
+      "scene_id": "rtv4_scene_012b",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 68,
+      "mirror_pair_id": "pair_v4_12",
+      "scene_id": "rtv4_scene_012a",
+      "seed": 101
+    },
+    {
+      "arm": "rag-steelman",
+      "index": 69,
+      "mirror_pair_id": "pair_v4_12",
+      "scene_id": "rtv4_scene_012b",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 70,
+      "mirror_pair_id": "pair_v4_12",
+      "scene_id": "rtv4_scene_012a",
+      "seed": 101
+    },
+    {
+      "arm": "structured-state",
+      "index": 71,
+      "mirror_pair_id": "pair_v4_12",
+      "scene_id": "rtv4_scene_012b",
+      "seed": 101
+    }
+  ],
+  "qualification_context_surface_sha256": "78201bb72994a448714c38396544a765419434f50a0af147ec354dc72b27e8d1",
+  "qualification_protocol_id": "20b96957f522e5ead7d02b8475c311fe79de18491a11cf75fd4f24120535d2a2",
+  "schema_version": "relationship-p1j-checkpoint.v1",
+  "selected_candidate_id": "conditioned_match_v1",
+  "selected_pipeline_sha256": "24d68078f51fe510047e5c8d7e9fd9367a873c2c538d76f08f46601b754a1e58"
+}

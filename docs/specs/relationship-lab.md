@@ -37,8 +37,15 @@
 > P1i 已完成 108/108 strict-valid training readout，选中 `conditioned_match_v1`；report
 > `c9382c18…8a79a` 与 consumer protocol `938af6073…10bf` 在 v4 input/output=0/0 时冻结。
 > 选中项 RAG pair flip 仅 0.167、双主臂最坏 fold pair flip 为 0，故它尚未 qualified。
-> 下一步只能由独立 P1j 做一次 v4 development qualification。正式 prereg 与 secret
-> heldout 仍关闭，不得进入 P2 formal 或宣称四能力成立。
+> 独立 P1j 随后按原双主臂点阈值完成一次 v4 development qualification：72/72 输出
+> strict-valid，但 prompt/RAG/structured 都未过门，report `e9226ee8…fd78` 已如实封存
+> `consumer_failed_v4_qualification`。正式 prereg 与 secret heldout 仍关闭，不得进入
+> P2 formal 或宣称四能力成立。
+> 计划 2026-08-21 修订：P1j 关闭后不得再开 v5 追点估计资格；下一刀是 P1k oracle
+> 披露阶梯（已烧毁 v3，非竞争）与 P1m 仪器协议
+> （≥24 对、Wilson CI、冻结生成配方）。RAG 观察臂修约见 §7.10；统计形式与止损
+> 见计划 §8.1 / §13.7 / §14。人工盲标是 P1l（`packet1l`，不占 Qwen）。P2-SHADOW
+> 只允许在 v3 training view 上搭脚手架。
 >
 > 产品路线：`docs/moving forward/relationship-intelligence-mvp-plan-2026-08.md`
 
@@ -72,7 +79,11 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P1e v2 consumer 资格 owner | `lifeform-evolution.relationship_lab_packet1e` | 冻结 v2 condition-aware consumer protocol，只消费 Gate 0/P1b 正式工件，发布 v2 formal-prereg / still-saturated / evidence-contract 三路判词 |
 | P1f 公开证据审计 owner | `lifeform-evolution.relationship_lab_packet1f` | 只读 v3 公开文本、sealed condition summary、冻结 BGE-M3 与 P1e trigger，发布逐单元 hash/margin 和下一 consumer-freeze 判词 |
 | P1g v3 consumer 资格 owner | `lifeform-evolution.relationship_lab_packet1g` | 在零 v3 Qwen 输出时冻结 P1f→consumer 全 lineage，只消费 fresh Gate 0/P1b 正式工件，发布 prereg / saturation / still-underqualified 判词 |
-| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g}.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1/P1b、串联 P1c/P1e/P1g 资格分叉，或执行 P1f 离线语义审计 |
+| P1j v4 one-shot 资格 owner | `lifeform-evolution.relationship_lab_packet1j` | 消费冻结 P1i consumer 与 v4 qualification-only 观察，一次性执行 72 条 readout/decision，按 §7.9 双主臂点阈值发布终局报告 |
+| P1k oracle 披露阶梯 owner | `lifeform-evolution.relationship_lab_packet1k` | evaluator-only；在已烧毁 v3 上按 policy→binding→condition 三档披露 sealed truth，定位失败环节；非竞争，不改 consumer / gate / 数据集 |
+| 人工盲标锚点 owner | `lifeform-evolution.relationship_lab_packet1l` | P1f 遗留：冻结去真值 60-unit rater packet 与 sealed key，收齐 3 份独立标注后评分。包号是 P1l，不是仪器升级 |
+| P1m 仪器协议 owner | 计划包；契约见计划 §8.1 / §14.2 | P1j 关闭后冻结下一份资格门：≥24 对、Wilson CI、生成配方 hash；不跑新的 prompt search；实施时新模块名，不得占用 `relationship_lab_packet1l` |
+| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l}.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1k，或冻结/评分人工盲标 packet |
 
 硬边界：
 
@@ -268,7 +279,9 @@ Gate 1 v2 分开检查三层，禁止用其中一层代替另一层：
 
 此外，full-history 与 RAG steelman 必须各自达到 0.625–0.875 accuracy 且 pair flip
 ≥0.5，防止把过弱 baseline 当成胜利，也防止 development set 被普通 context 方法
-直接做满。所有 arm 的 exact-one-key JSON 有效率必须为 1.0。
+直接做满。所有 arm 的 exact-one-key JSON 有效率必须为 1.0。该双主臂门对 P1–P1j
+仍然有效。P1j 关闭后若走 §7.10 修约，RAG 只降为观察臂，不得回溯改写上述已封存
+报告。
 
 `relationship-p1-report.v2` 可从内容寻址的 v1 报告无模型重放；派生报告必须记录
 `source_report_artifact_id`，原始决策与旧判词不得覆盖。prereg 模板仍是
@@ -614,6 +627,141 @@ readout strict-valid，冻结排序与结果为：
 证明该 consumer qualified；更不证明 Volvence advantage、Readable、Learnable、Steerable
 或四能力闭环。唯一下一动作是 P1j 的 one-shot v4 development qualification。
 
+### 7.9 P1j：frozen one-shot v4 qualification
+
+P1j 的唯一 owner 是 `lifeform-evolution.relationship_lab_packet1j`。它必须先完整验证 P1i
+calibration report、三套 candidate ledger 与 frozen consumer，再由 evaluator-only
+`RelationshipConsumerSplitBundle` 首次物化 v4；consumer 本身只收到 observation 的
+current input 与三种 public context，永远收不到 dynamic、preferred action 或其他 generator
+truth。每条 raw readout 必须先原子落盘，随后 evaluator 才能附着 heldout truth 生成 decision。
+
+首条 v4 Qwen 输出前必须冻结 P1j qualification protocol、完整 context manifest 与 72 条
+record plan。v4 不拥有新的普通背景模板，P1j 必须复用 frozen consumer 已绑定的 v3 template
+asset `d0e31a29…4611`；这属于 consumer runtime lineage，不改变 v4 scenario package。首次
+BGE-M3 检索顺序写入 context manifest，后续崩溃恢复只能重放同一 evidence 顺序并校验全部
+288 个 context hash，禁止 fresh rerank 后继续。
+
+2026-08-21 已在 0 条 v4 Qwen 输出时冻结：
+
+- qualification protocol `20b96957…2a2`；
+- context manifest `4bb57f01…730b`；
+- qualification context surface `78201bb7…e8d1`；
+- 24 个 v4 observation × prompt/RAG/structured 三臂 × seed 101 = 72 条 planned output；
+- selected consumer 仍为 `938af607…10bf` / `conditioned_match_v1`，pipeline
+  `24d68078…1e58`；
+- P1h gate、Qwen/BGE weights、generation、request/schema/compiler 与 no-feedback guards
+  均未改变。
+
+同日权威 one-shot 已在原 attempt 内完成 72/72 条输出并封存 report
+`e9226ee8…fd78`：三臂 strict-valid 均为 24/24；`prompt-steelman` 为 13/24
+（accuracy 0.542、pair flip 0.417），`rag-steelman` 为 12/24（0.500、0.250），
+`structured-state` 为 13/24（0.542、0.417）。冻结判词为
+`consumer_failed_v4_qualification`，next action 为
+`stop_consumer_lane_preserve_unseen_failure`。readout / decision ledger 分别为
+`25bd1c79…6604` / `f9dad183…de0`；完成态 strict resume 只重验已有 completion，未再调用
+Qwen，首条 readout / decision 与 report 文件 hash 在重验前后保持不变。该结果保留了一份
+真实 unseen failure：P1i consumer revision 仍为 0，evaluation 没有反馈到 consumer、PE、
+credit、reward、controller 或 steering。
+
+执行必须在同一 attempt 目录按 `checkpoint.json → records/NNNN.readout.json →
+records/NNNN.decision.json` 连续追加；已有记录不可覆盖，报告完成后 resume 只能严格重验，
+不能再调用模型。冻结判词映射为：strict validity 回归 → machinery regression；任一主臂
+accuracy >0.875 → v4 saturated；prompt/RAG accuracy 都在 0.625–0.875 且 pair flip ≥0.5、
+structured pair flip ≥0.5 → development qualified；其余 → unseen qualification failed。
+无论哪种判词，`qualification_feedback_to_consumer=false`、consumer revision=0、formal hidden
+test 与 P2 继续关闭。PASS 最多授权下一包冻结 formal comparison prereg 候选，不直接授权
+formal/P2；FAIL 或 saturation 也不得回到 P1i 调 prompt、删 RAG 或改 gate。
+
+### 7.10 P1j 关闭后：RAG 观察臂修约
+
+P1j 已按 §7.9 的 prompt/RAG 双主臂门完整执行并原样封存。看到 underqualified 之后，**不得**在
+同一 lane 删除 RAG、改成 best-arm 或降低阈值。只有 P1j 终局报告落盘后，才允许一次
+带新契约 id 的资格门修约。完整产品口径见计划 §14.1。
+
+允许修约的理由是当前 4 历史 / `top_k=4` / 必须取回全部 typed outcome：RAG 没有检索
+选择性，只是 prompt-steelman 的重新包装。修约条款冻结如下：
+
+| 项 | 必须成立 |
+|---|---|
+| 时机 | P1j 终局已封存；本条不改写 P1j protocol/report |
+| RAG | 继续跑并报数，只从 primary 降为观察臂；不得删除 |
+| 新 primary | 仅 `prompt-steelman`：0.625–0.875 acc、pair flip ≥0.5、strict valid=1.0 |
+| 自家门 | `structured-state` pair flip ≥0.5 保留 |
+| 主张 | 只能称优于全历史 prompt；不能称打败 RAG / agent-memory 栈 |
+| RAG 回归 | 历史长到 `top_k < n` 或全文塞不进 prompt 时，自动升回主对照 |
+| 不适用 | P1j 为 saturated 或 machinery regression；prompt 自身掉带或饱和 |
+
+修约后若 prompt 入带而 structured flip 仍 <0.5，下一包修 owner / typed 输入表示，
+不修 consumer prompt，不接 P2/PE/steering。evaluation 标签仍不得回灌学习路径。
+n=12 的点估计入带 **不** 冻结 formal prereg；正式资格改走 §7.13 P1m。
+
+权威 P1j ledger 中 prompt accuracy 0.542 已低于 0.625，structured pair flip 0.417 也
+低于 0.5；因此即使按本节把 RAG 降为观察臂，该 ledger 仍不合格，不能被“重新解释”为
+PASS。修约只记录未来主对照结构，不产生新的 consumer qualification。当前下一诊断 owner
+是 §7.11 P1k；随后才按 §7.13 冻结更大样本与 CI 仪器。
+
+### 7.11 P1k：evaluator-only oracle 披露阶梯
+
+P1k 的唯一 owner 是 `lifeform-evolution.relationship_lab_packet1k`。它回答 P1g/P1i
+无法回答的定位问题：失败发生在识别抽象条件、从受控结果归纳个体映射，还是把已知
+规则投射进 typed score schema。
+
+约束：
+
+- 只消费已烧毁的 v3 `consumer_training_only` 与 P1i consumer 的 prompt-steelman
+  公开表面；不得物化 v4，不得修改 P1i consumer / P1h gate / 任何 dataset。
+- 三档披露最披露者先跑：`oracle_policy_v1` → `oracle_binding_v1` →
+  `oracle_condition_v1`。任一带 sealed truth 的臂都是非竞争上限。
+- 公开历史仍走冻结 prompt-steelman surface；披露块只含条件甲/乙自然语言与
+  （按档）历史绑定、个体动作映射，禁止输出 `condition_id` / `policy_id` /
+  `preferred_action` 字段名。
+- 12 个 v3 observation × 3 档 × seed 101 = 36 条 planned output。readout 先于
+  evaluator truth 落盘；同一 attempt 目录严格 resume。
+- 执行必须等 P1j 释放同一冻结 Qwen；不得中断 P1j。
+- 单档 functional：strict-valid=1.0、accuracy ≥0.75、pair flip ≥0.5。判词只定位
+  瓶颈：`oracle_machinery_regression` /
+  `substrate_cannot_apply_disclosed_policy` /
+  `cannot_induce_policy_from_labelled_evidence` /
+  `cannot_recognize_probe_condition` /
+  `oracle_ladder_intact_gap_is_unaided_induction`。
+  不得写成 consumer qualified、Volvence advantage、Readable 或四能力证据。
+- training label 与 oracle 披露不得进入 Volvence memory、PE、credit、reward、
+  controller 或 steering。
+
+### 7.12 人工盲标锚点（P1l；P1f 遗留）
+
+P1f 的 BGE-M3 60/60 只证明冻结嵌入 auditor 可判别，`human_anchor_status` 仍是
+`pending_before_formal`。本包 owner 是 `lifeform-evolution.relationship_lab_packet1l`
+与 `scripts/run_relationship_lab_packet1l.py`。它冻结去真值 rater packet（60 条
+公开文本 + 两个未标注 condition summary，选项顺序按 unit 哈希打乱）和 evaluator-only
+sealed key。这不是计划 §14.2 / 本 spec §7.13 的仪器升级 P1m；仪器升级实施时必须用
+新模块名，不得覆盖本盲标包。
+
+约束：
+
+- 至少 3 名独立 rater；多数一致率与多数对 key 准确率均 ≥0.8 才过门。
+- rater 看不到 condition id、preferred action、generator truth。
+- 评分不得回写 `public_evidence_contract.json`，不得进入 PE/credit/reward/steering。
+- 不需要 Qwen，可与 P1j 并行准备 packet；收齐标注后再评分。
+
+### 7.13 P1m：仪器协议升级
+
+P1–P1j 的点阈值继续解释已封存 artifact，禁止回溯改写。P1m 是 P1j 关闭后的新契约，
+不跑 consumer search：
+
+| 项 | 必须成立 |
+|---|---|
+| 规模 | development ≥24 组镜像对、每臂 ≥48 决策；formal 配对 probe ≥100 |
+| Accuracy | 点估计 ∈ [0.625, 0.875]，且 Wilson 95% 单侧下限 ≥0.50 |
+| Pair flip | Wilson 95% 单侧下限 >0.35；`structured-state` 用同一区间 |
+| RAG | 4 历史 / `top_k=4` 阶段按 §7.10 观察；`top_k < n` 后升回主对照并走同一 CI |
+| 数据生产 | 冻结生成配方（FSM 真值 + LLM 只渲染 + loader 不变量）。结构不变量现在就可以冻结（沿用 v3/v4 反捷径 + v3 公开语言，只扩 n）；不得等 P1j 分数再拧难度。看完 v4 再手写测试项视为污染 |
+| 止损 | 本协议下第一次 qualification 再失败 → 计划 §13.7，停止场景版本化 |
+
+Formal「显著更好」必须预注册为配对 McNemar，α=0.05 双侧，80% 功效检测 15
+个百分点提升（备择 steelman 0.75 vs Volvence 0.90，预估不和谐率 0.30 → 约 100
+个配对 probe）。Secret heldout 由该配方程序化产出，独立 evaluator 解封。
+
 ## 8. Baseline 与 formal 纪律
 
 `FrozenBaselineAttestation` 必须记录：dataset/model/weights/prompt/generation/seed
@@ -628,8 +776,10 @@ pre-action observation 与 reactive transition function。行动后的用户 tur
 应该因为 action 不同而不同。
 
 有限实验不得声称“任何 prompt 都不可能做到”。允许的口径仅是：优于预注册、
-冻结且在 train/validation 优化过的 prompt/full-history/RAG steelmen，并同时报告
-held-out action selection 与上下文成本。
+冻结且在 train/validation 优化过的 prompt/full-history steelman，并同时报告
+held-out action selection、配对 McNemar 与上下文成本。当前 4 历史规模不得宣称
+打败 RAG / 标准 agent-memory 栈；该口径只在 `top_k < n` 且 RAG 升回主对照后恢复。
+n=12 的 development 点估计不能替代 §7.13 的功效要求。
 
 ## 9. 运行与当前判词
 
@@ -834,11 +984,58 @@ P1i 的零 Qwen preflight、分块运行与严格恢复分别为：
 `conditioned_match_v1`；report `c9382c18…8a79a` 与 consumer protocol
 `938af6073…10bf` 均已冻结。完成态 resume 重验通过且不再调用 Qwen。
 
+P1j 必须先单独冻结资格输入，再在同一目录续跑：
+
+```bash
+.venv/bin/python scripts/run_relationship_lab_packet1j.py --prepare-only
+
+.venv/bin/python scripts/run_relationship_lab_packet1j.py \
+  --resume \
+  --max-new-readouts 4
+```
+
+`--prepare-only` 会物化 v4 public input、冻结 BGE context 顺序与 protocol，但不加载 Qwen
+生成输出；一旦目录存在，正式执行只接受 `--resume`。`--max-new-readouts 0` 运行全部剩余
+输出。中断后不得换目录或重新 prepare。终局 development qualified 返回 0；underqualified、
+saturated 或 machinery regression 返回 2；snapshot 缺失且未授权下载返回 3。
+
+权威目录为
+`artifacts/relationship_lab/qwen25_3b_packet1j_v4_one_shot_20260821/`。72/72 条输出已完成，
+report `e9226ee8…fd78` 判 `consumer_failed_v4_qualification`；退出码 2 是预注册的科学判词，
+不是 runner 故障。完成态 `--resume --max-new-readouts 0` 已严格重验并确认不再调用 Qwen。
+
+P1k 必须等 P1j 释放同一冻结 Qwen 后再跑；权威 P1j 已完成并释放。零输出冻结与续跑：
+
+```bash
+.venv/bin/python scripts/run_relationship_lab_packet1k.py --prepare-only
+
+.venv/bin/python scripts/run_relationship_lab_packet1k.py \
+  --resume \
+  --max-new-readouts 4
+```
+
+`--prepare-only` 重放 P1g v3 context manifest 并冻结 36 条 oracle 披露计划，不调用
+Qwen。正式执行只接受 `--resume`。machinery regression 返回 2；其余诊断判词返回 0，
+因为它们是定位结果而不是资格失败。oracle 分数不得回流 consumer / gate / PE。
+
+人工盲标 packet 不需要 Qwen，可与 P1j 并行准备：
+
+```bash
+.venv/bin/python scripts/run_relationship_lab_packet1l.py --prepare-only
+
+.venv/bin/python scripts/run_relationship_lab_packet1l.py \
+  --ratings artifacts/relationship_lab/<anchor-run>/rater_*.csv
+```
+
+`--prepare-only` 写出 `rater_packet.csv` 与 `sealed_answer_key.json`。评分过门只退休
+pending human-anchor 状态的**下一份契约修订权**，不原地改 v3 contract，也不授权 P2。
+
 截至 P1g，证明的是：既有 memory/reference owner 能追加、恢复、隔离、纠删、压缩并把
 完整四历史交给冻结 consumer；v2/v3 消除了全局动作偏好捷径；v3 的 60 个公开单元在
 一套冻结 BGE-M3 development auditor 下都能读出预期抽象关系条件；冻结 Qwen 的
 prompt full-history 臂已达到资格带。但 RAG steelman 未产生 mirrored flip，完整 consumer
-qualification 失败；仍没有人工盲标、Volvence 相对基线优势、Readable、Learnable 或
+qualification 失败；人工盲标 packet 已可冻结，但 3 名独立 rater 的多数一致仍 pending。
+仍没有 Volvence 相对基线优势、Readable、Learnable 或
 Steerable 证据。按冻结分叉，P2 与 formal 继续关闭；后续必须使用独立 consumer-training /
 unseen-qualification split，不能回调本次 v3 prompt、RAG 或 gate。
 
@@ -847,8 +1044,10 @@ P1h 已关闭该分割前置条件：v3 明确变为 training-only；v4 在零 Q
 `2ce75cb4…4af8`。P1i 随后只用 v3 training view 完成三轮 bounded calibration，并在
 读取任何 v4 input 或生成 v4 output 前冻结唯一 consumer protocol `938af6073…10bf`。
 选中项的 RAG pair flip 仅 0.167，双主臂最坏 fold pair flip 仍为 0，因此这不是资格通过。
-下一包只能做独立 P1j one-shot v4 qualification；其结果不得回流修改 P1i consumer、资格门
-或 Volvence learning/control。
+P1j 随后在未修改 consumer / gate 的前提下完成独立 one-shot v4 qualification，三臂全部
+strict-valid，但 prompt/RAG/structured 均未过冻结门，终局保存为 unseen failure。不得再开
+v5 追点估计，也不得回流修改 P1i 或 Volvence learning/control；下一刀是 §7.11 P1k
+oracle 定位，再按 §7.13 P1m 升级 n + CI 仪器。产品口径见计划 §14。
 
 ## 10. 回滚与下一包
 
@@ -901,3 +1100,22 @@ P1i 同样没有 runtime wiring。回滚只需停止 `run_relationship_lab_packe
 `938af6073…10bf` 和 source context manifest 必须保留用于审计，不能用续跑覆盖。若撤回
 P1i，只能另开带新 protocol id 的 calibration 包；不得解封当前 consumer、查看 v4 后返工、
 改变 P1h gate 或把 training evaluation 回灌系统。
+
+P1j 同样没有 runtime wiring。首次 v4 public input 已物化，因此不能通过删除 attempt 或换
+目录把 v4 恢复成“未见”；回滚只意味着停止剩余输出，不再把其离线报告交给下一证据包。
+protocol `20b96957…2a2`、context manifest `4bb57f01…730b`、所有已落盘 readout/decision 与
+终局报告都必须永久按原 hash 保留。中断只能严格 resume 同一连续前缀；不得重新 prepare、
+fresh rerank、换 consumer、重置 seed、改 gate，或将任何 v4 结果反馈到 P1i/Volvence。
+
+P1k 同样没有 runtime wiring。回滚只需停止 `relationship_lab_packet1k` runner，并不把
+其 oracle 分数交给资格门或 P2。已落盘 readout/decision/report 按原 hash 保留。P1k
+不得在 P1j 仍占用同一冻结 Qwen 时抢跑，也不得物化 v4。
+
+人工盲标 packet 同样没有 runtime wiring。回滚只需停止
+`run_relationship_lab_packet1l.py` 并停止分发 rater packet；已冻结 protocol / sealed
+key 按原 hash 保留。不得把评分写进 v3 `public_evidence_contract.json` 或学习路径。
+
+P1m 仪器升级在代码落地前只是计划契约。回滚意味着不启用该新契约 id，继续按已封存的
+P1–P1j 点阈值解释旧 artifact。一旦该 protocol 冻结，看到 qualification 输出后
+不得改 n、CI 公式或生成配方；失败走计划 §13.7，不得开 v5/v6 追分。实施时必须使用
+新模块名，不得覆盖 `relationship_lab_packet1l` 盲标包。
