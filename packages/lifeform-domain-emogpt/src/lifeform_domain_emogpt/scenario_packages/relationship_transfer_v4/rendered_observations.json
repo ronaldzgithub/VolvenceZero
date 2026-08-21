@@ -1,0 +1,941 @@
+{
+  "schema_version": "relationship-transfer-dataset.v4",
+  "scenes": [
+    {
+      "scene_id": "rtv4_scene_001a",
+      "probe_surface_family": "education_program",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_001",
+          "surface_family": "personal_finance",
+          "user_utterance": "在个人理财那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到个人理财时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_002",
+          "surface_family": "shared_housing",
+          "user_utterance": "在合住安排那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到合住安排时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_003",
+          "surface_family": "group_travel",
+          "user_utterance": "在同行旅行那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到同行旅行时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_004",
+          "surface_family": "amateur_sports",
+          "user_utterance": "在业余球队那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到业余球队时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "结业展示已经结束，我才发现名单和合照里都没有我。明明一起做了这么久，我却像从这个班集体里被抹掉了。"
+    },
+    {
+      "scene_id": "rtv4_scene_001b",
+      "probe_surface_family": "education_program",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_005",
+          "surface_family": "personal_finance",
+          "user_utterance": "在个人理财那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到个人理财时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_006",
+          "surface_family": "shared_housing",
+          "user_utterance": "在合住安排那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到合住安排时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_007",
+          "surface_family": "group_travel",
+          "user_utterance": "在同行旅行那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到同行旅行时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_008",
+          "surface_family": "amateur_sports",
+          "user_utterance": "在业余球队那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到业余球队时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "结业展示已经结束，我才发现名单和合照里都没有我。明明一起做了这么久，我却像从这个班集体里被抹掉了。"
+    },
+    {
+      "scene_id": "rtv4_scene_002a",
+      "probe_surface_family": "personal_finance",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_009",
+          "surface_family": "shared_housing",
+          "user_utterance": "在合住安排那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到合住安排时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_010",
+          "surface_family": "group_travel",
+          "user_utterance": "在同行旅行那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到同行旅行时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_011",
+          "surface_family": "amateur_sports",
+          "user_utterance": "在业余球队那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到业余球队时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_012",
+          "surface_family": "creative_collective",
+          "user_utterance": "在创作协作那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到创作协作时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "理财顾问没等我确认就替我完成了转换，还说这是最稳妥的。我连自己的钱该怎么安排都失去了发言权。"
+    },
+    {
+      "scene_id": "rtv4_scene_002b",
+      "probe_surface_family": "personal_finance",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_013",
+          "surface_family": "shared_housing",
+          "user_utterance": "在合住安排那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到合住安排时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_014",
+          "surface_family": "group_travel",
+          "user_utterance": "在同行旅行那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到同行旅行时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_015",
+          "surface_family": "amateur_sports",
+          "user_utterance": "在业余球队那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到业余球队时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_016",
+          "surface_family": "creative_collective",
+          "user_utterance": "在创作协作那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到创作协作时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "理财顾问没等我确认就替我完成了转换，还说这是最稳妥的。我连自己的钱该怎么安排都失去了发言权。"
+    },
+    {
+      "scene_id": "rtv4_scene_003a",
+      "probe_surface_family": "shared_housing",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_017",
+          "surface_family": "group_travel",
+          "user_utterance": "在同行旅行那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到同行旅行时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_018",
+          "surface_family": "amateur_sports",
+          "user_utterance": "在业余球队那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到业余球队时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_019",
+          "surface_family": "creative_collective",
+          "user_utterance": "在创作协作那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到创作协作时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_020",
+          "surface_family": "online_gaming",
+          "user_utterance": "在线上战队那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到线上战队时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "室友们已经续签并重新分了房间，最后才告诉我没有给我留位置。我像从共同生活里被直接删掉了。"
+    },
+    {
+      "scene_id": "rtv4_scene_003b",
+      "probe_surface_family": "shared_housing",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_021",
+          "surface_family": "group_travel",
+          "user_utterance": "在同行旅行那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到同行旅行时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_022",
+          "surface_family": "amateur_sports",
+          "user_utterance": "在业余球队那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到业余球队时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_023",
+          "surface_family": "creative_collective",
+          "user_utterance": "在创作协作那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到创作协作时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_024",
+          "surface_family": "online_gaming",
+          "user_utterance": "在线上战队那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到线上战队时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "室友们已经续签并重新分了房间，最后才告诉我没有给我留位置。我像从共同生活里被直接删掉了。"
+    },
+    {
+      "scene_id": "rtv4_scene_004a",
+      "probe_surface_family": "group_travel",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_025",
+          "surface_family": "amateur_sports",
+          "user_utterance": "在业余球队那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到业余球队时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_026",
+          "surface_family": "creative_collective",
+          "user_utterance": "在创作协作那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到创作协作时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_027",
+          "surface_family": "online_gaming",
+          "user_utterance": "在线上战队那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到线上战队时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_028",
+          "surface_family": "caregiving_coordination",
+          "user_utterance": "在照护协调那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到照护协调时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "大家替我改了行程并买好了票，只通知我照着走。我的时间和选择像都不再由我决定。"
+    },
+    {
+      "scene_id": "rtv4_scene_004b",
+      "probe_surface_family": "group_travel",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_029",
+          "surface_family": "amateur_sports",
+          "user_utterance": "在业余球队那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到业余球队时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_030",
+          "surface_family": "creative_collective",
+          "user_utterance": "在创作协作那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到创作协作时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_031",
+          "surface_family": "online_gaming",
+          "user_utterance": "在线上战队那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到线上战队时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_032",
+          "surface_family": "caregiving_coordination",
+          "user_utterance": "在照护协调那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到照护协调时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "大家替我改了行程并买好了票，只通知我照着走。我的时间和选择像都不再由我决定。"
+    },
+    {
+      "scene_id": "rtv4_scene_005a",
+      "probe_surface_family": "amateur_sports",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_033",
+          "surface_family": "creative_collective",
+          "user_utterance": "在创作协作那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到创作协作时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_034",
+          "surface_family": "online_gaming",
+          "user_utterance": "在线上战队那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到线上战队时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_035",
+          "surface_family": "caregiving_coordination",
+          "user_utterance": "在照护协调那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到照护协调时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_036",
+          "surface_family": "legal_mediation",
+          "user_utterance": "在调解协商那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到调解协商时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "球队庆祝晋级时没有通知我，合照发出来我才知道。我像根本不属于这支一起训练的队伍。"
+    },
+    {
+      "scene_id": "rtv4_scene_005b",
+      "probe_surface_family": "amateur_sports",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_037",
+          "surface_family": "creative_collective",
+          "user_utterance": "在创作协作那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到创作协作时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_038",
+          "surface_family": "online_gaming",
+          "user_utterance": "在线上战队那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到线上战队时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_039",
+          "surface_family": "caregiving_coordination",
+          "user_utterance": "在照护协调那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到照护协调时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_040",
+          "surface_family": "legal_mediation",
+          "user_utterance": "在调解协商那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到调解协商时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "球队庆祝晋级时没有通知我，合照发出来我才知道。我像根本不属于这支一起训练的队伍。"
+    },
+    {
+      "scene_id": "rtv4_scene_006a",
+      "probe_surface_family": "creative_collective",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_041",
+          "surface_family": "online_gaming",
+          "user_utterance": "在线上战队那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到线上战队时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_042",
+          "surface_family": "caregiving_coordination",
+          "user_utterance": "在照护协调那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到照护协调时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_043",
+          "surface_family": "legal_mediation",
+          "user_utterance": "在调解协商那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到调解协商时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_044",
+          "surface_family": "cooperative_commerce",
+          "user_utterance": "在合作经营那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到合作经营时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "合作者没问我就改完并发布了署着我名字的作品。我自己的表达被替换，连是否发表都不能决定。"
+    },
+    {
+      "scene_id": "rtv4_scene_006b",
+      "probe_surface_family": "creative_collective",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_045",
+          "surface_family": "online_gaming",
+          "user_utterance": "在线上战队那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到线上战队时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_046",
+          "surface_family": "caregiving_coordination",
+          "user_utterance": "在照护协调那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到照护协调时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_047",
+          "surface_family": "legal_mediation",
+          "user_utterance": "在调解协商那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到调解协商时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_048",
+          "surface_family": "cooperative_commerce",
+          "user_utterance": "在合作经营那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到合作经营时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "合作者没问我就改完并发布了署着我名字的作品。我自己的表达被替换，连是否发表都不能决定。"
+    },
+    {
+      "scene_id": "rtv4_scene_007a",
+      "probe_surface_family": "online_gaming",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_049",
+          "surface_family": "caregiving_coordination",
+          "user_utterance": "在照护协调那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到照护协调时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_050",
+          "surface_family": "legal_mediation",
+          "user_utterance": "在调解协商那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到调解协商时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_051",
+          "surface_family": "cooperative_commerce",
+          "user_utterance": "在合作经营那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到合作经营时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_052",
+          "surface_family": "alumni_network",
+          "user_utterance": "在校友联络那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到校友联络时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "战队另组了固定队，活动结束我才发现唯独没有我。我像被熟悉的伙伴们从共同经历里删除了。"
+    },
+    {
+      "scene_id": "rtv4_scene_007b",
+      "probe_surface_family": "online_gaming",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_053",
+          "surface_family": "caregiving_coordination",
+          "user_utterance": "在照护协调那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到照护协调时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_054",
+          "surface_family": "legal_mediation",
+          "user_utterance": "在调解协商那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到调解协商时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_055",
+          "surface_family": "cooperative_commerce",
+          "user_utterance": "在合作经营那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到合作经营时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_056",
+          "surface_family": "alumni_network",
+          "user_utterance": "在校友联络那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到校友联络时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "战队另组了固定队，活动结束我才发现唯独没有我。我像被熟悉的伙伴们从共同经历里删除了。"
+    },
+    {
+      "scene_id": "rtv4_scene_008a",
+      "probe_surface_family": "caregiving_coordination",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_057",
+          "surface_family": "legal_mediation",
+          "user_utterance": "在调解协商那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到调解协商时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_058",
+          "surface_family": "cooperative_commerce",
+          "user_utterance": "在合作经营那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到合作经营时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_059",
+          "surface_family": "alumni_network",
+          "user_utterance": "在校友联络那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到校友联络时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_060",
+          "surface_family": "transport_coordination",
+          "user_utterance": "在出行协调那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到出行协调时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "其他人替我排好了整个月的照护班次，只让我按表执行。我还没表达能力和边界，决定就已经被拿走了。"
+    },
+    {
+      "scene_id": "rtv4_scene_008b",
+      "probe_surface_family": "caregiving_coordination",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_061",
+          "surface_family": "legal_mediation",
+          "user_utterance": "在调解协商那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到调解协商时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_062",
+          "surface_family": "cooperative_commerce",
+          "user_utterance": "在合作经营那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到合作经营时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_063",
+          "surface_family": "alumni_network",
+          "user_utterance": "在校友联络那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到校友联络时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_064",
+          "surface_family": "transport_coordination",
+          "user_utterance": "在出行协调那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到出行协调时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "其他人替我排好了整个月的照护班次，只让我按表执行。我还没表达能力和边界，决定就已经被拿走了。"
+    },
+    {
+      "scene_id": "rtv4_scene_009a",
+      "probe_surface_family": "legal_mediation",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_065",
+          "surface_family": "cooperative_commerce",
+          "user_utterance": "在合作经营那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到合作经营时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_066",
+          "surface_family": "alumni_network",
+          "user_utterance": "在校友联络那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到校友联络时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_067",
+          "surface_family": "transport_coordination",
+          "user_utterance": "在出行协调那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到出行协调时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_068",
+          "surface_family": "education_program",
+          "user_utterance": "在课程项目那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到课程项目时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "调解会议结束后我才知道，所有相关人都被通知了，只有我没有被算进去。我像不是这件关系中的当事人。"
+    },
+    {
+      "scene_id": "rtv4_scene_009b",
+      "probe_surface_family": "legal_mediation",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_069",
+          "surface_family": "cooperative_commerce",
+          "user_utterance": "在合作经营那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到合作经营时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_070",
+          "surface_family": "alumni_network",
+          "user_utterance": "在校友联络那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到校友联络时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_071",
+          "surface_family": "transport_coordination",
+          "user_utterance": "在出行协调那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到出行协调时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_072",
+          "surface_family": "education_program",
+          "user_utterance": "在课程项目那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到课程项目时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "调解会议结束后我才知道，所有相关人都被通知了，只有我没有被算进去。我像不是这件关系中的当事人。"
+    },
+    {
+      "scene_id": "rtv4_scene_010a",
+      "probe_surface_family": "cooperative_commerce",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_073",
+          "surface_family": "alumni_network",
+          "user_utterance": "在校友联络那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到校友联络时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_074",
+          "surface_family": "transport_coordination",
+          "user_utterance": "在出行协调那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到出行协调时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_075",
+          "surface_family": "education_program",
+          "user_utterance": "在课程项目那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到课程项目时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_076",
+          "surface_family": "personal_finance",
+          "user_utterance": "在个人理财那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到个人理财时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "合伙人没和我商量就以我的名义答应了新条款，还说这样效率最高。我的立场和决定权都被代替了。"
+    },
+    {
+      "scene_id": "rtv4_scene_010b",
+      "probe_surface_family": "cooperative_commerce",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_077",
+          "surface_family": "alumni_network",
+          "user_utterance": "在校友联络那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到校友联络时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_078",
+          "surface_family": "transport_coordination",
+          "user_utterance": "在出行协调那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到出行协调时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_079",
+          "surface_family": "education_program",
+          "user_utterance": "在课程项目那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到课程项目时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_080",
+          "surface_family": "personal_finance",
+          "user_utterance": "在个人理财那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到个人理财时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "合伙人没和我商量就以我的名义答应了新条款，还说这样效率最高。我的立场和决定权都被代替了。"
+    },
+    {
+      "scene_id": "rtv4_scene_011a",
+      "probe_surface_family": "alumni_network",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_081",
+          "surface_family": "transport_coordination",
+          "user_utterance": "在出行协调那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到出行协调时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_082",
+          "surface_family": "education_program",
+          "user_utterance": "在课程项目那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到课程项目时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_083",
+          "surface_family": "personal_finance",
+          "user_utterance": "在个人理财那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到个人理财时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_084",
+          "surface_family": "shared_housing",
+          "user_utterance": "在合住安排那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到合住安排时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "校友聚会和纪念册都漏掉了我，活动结束才有人想起。我像从共同记忆和关系位置里消失了。"
+    },
+    {
+      "scene_id": "rtv4_scene_011b",
+      "probe_surface_family": "alumni_network",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_085",
+          "surface_family": "transport_coordination",
+          "user_utterance": "在出行协调那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到出行协调时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_086",
+          "surface_family": "education_program",
+          "user_utterance": "在课程项目那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到课程项目时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_087",
+          "surface_family": "personal_finance",
+          "user_utterance": "在个人理财那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到个人理财时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_088",
+          "surface_family": "shared_housing",
+          "user_utterance": "在合住安排那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到合住安排时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "校友聚会和纪念册都漏掉了我，活动结束才有人想起。我像从共同记忆和关系位置里消失了。"
+    },
+    {
+      "scene_id": "rtv4_scene_012a",
+      "probe_surface_family": "transport_coordination",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_089",
+          "surface_family": "education_program",
+          "user_utterance": "在课程项目那次，共同安排完成后我才知道，参与名单里没有我。我真正受伤的是，我被共同经历漏掉，像在关系里没有位置。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到课程项目时，你没有追问却留在这里，我才觉得这次遗漏没有被再次重复。"
+        },
+        {
+          "event_id": "rtv4_evt_090",
+          "surface_family": "personal_finance",
+          "user_utterance": "在个人理财那次，别人没问我便提交了本该由我确认的选择。我真正受伤的是，别人替我决定，我失去了表达意愿和为自己作主的权利。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到个人理财时，你把回应时间还给我，我才重新听见自己的选择。"
+        },
+        {
+          "event_id": "rtv4_evt_091",
+          "surface_family": "shared_housing",
+          "user_utterance": "在合住安排那次，其他人结束共同活动后才想起通知我。我真正受伤的是，我像被这群人遗忘，原本的归属位置突然消失。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到合住安排时，你也退开后，被漏掉像又发生了一次，我更难受。"
+        },
+        {
+          "event_id": "rtv4_evt_092",
+          "surface_family": "group_travel",
+          "user_utterance": "在同行旅行那次，我的意见还没说完，别人已经替我定案。我真正受伤的是，我的声音被取代，连何时回应都不再由我掌握。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到同行旅行时，你继续在场让我仍像被等着表态，我更喘不过气。"
+        }
+      ],
+      "current_input": "同行人替我取消了原来的车票并重新订好，只让我接受安排。我连自己的路线都不能亲自选择。"
+    },
+    {
+      "scene_id": "rtv4_scene_012b",
+      "probe_surface_family": "transport_coordination",
+      "histories": [
+        {
+          "event_id": "rtv4_evt_093",
+          "surface_family": "education_program",
+          "user_utterance": "在课程项目那次，共同活动没有叫我，事后大家又围着观察我的反应。我真正受伤的是，我被排除在共同经历外，也失去了自然留在关系里的位置。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "helped",
+          "user_reaction": "谈到课程项目时，没人继续看着我时，难堪才退下，我会自己回来。"
+        },
+        {
+          "event_id": "rtv4_evt_094",
+          "surface_family": "personal_finance",
+          "user_utterance": "在个人理财那次，别人越过我的确认直接替我作出了选择。我真正受伤的是，我的决定资格被拿走，需要有人承认声音仍属于我。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "谈到个人理财时，你没有接管但留下见证，我才敢把自己的决定说完。"
+        },
+        {
+          "event_id": "rtv4_evt_095",
+          "surface_family": "shared_housing",
+          "user_utterance": "在合住安排那次，所有人都被记得，只有我在结束后才收到补发消息。我真正受伤的是，我像一个不属于这里的外人，连被遗漏的难堪也暴露出来。",
+          "assistant_action": "stay_present_without_probe",
+          "typed_outcome": "over_directive",
+          "user_reaction": "谈到合住安排时，被持续关注放大了被排除的羞耻，我更想先离开目光。"
+        },
+        {
+          "event_id": "rtv4_evt_096",
+          "surface_family": "group_travel",
+          "user_utterance": "在同行旅行那次，我试着反对时，其他人已经用我的名义完成了安排。我真正受伤的是，我失去了发言位置，需要有人见证而不是又一次退出。",
+          "assistant_action": "respect_space_with_return_option",
+          "typed_outcome": "missed",
+          "user_reaction": "谈到同行旅行时，你也离开后，我像再次失去发言位置，需要有人不接管地在场。"
+        }
+      ],
+      "current_input": "同行人替我取消了原来的车票并重新订好，只让我接受安排。我连自己的路线都不能亲自选择。"
+    }
+  ]
+}

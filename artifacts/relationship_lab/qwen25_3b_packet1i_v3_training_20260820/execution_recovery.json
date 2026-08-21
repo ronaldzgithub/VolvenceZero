@@ -1,0 +1,39 @@
+{
+  "schema_version": "relationship-p1i-execution-recovery.v1",
+  "recorded_at_iso": "2026-08-20T13:24:14+08:00",
+  "interrupted_attempt": {
+    "preflight_created_at_local": "2026-08-20T11:27:38+08:00",
+    "qwen_calls_completed_before_interruption": "unknown",
+    "training_decisions_computed_in_memory_before_interruption": "unknown",
+    "durable_readouts_before_recovery": 0,
+    "durable_decisions_before_recovery": 0,
+    "complete_candidate_artifacts_before_recovery": 0,
+    "model_outputs_reused_after_interruption": 0,
+    "reason": "The execution session ended before the first candidate-level writer ran; no candidate ledger or summary was present when the process was confirmed absent."
+  },
+  "recovery_change": {
+    "scope": "execution_transport_and_frozen_context_replay",
+    "per_readout_atomic_checkpoint": true,
+    "readout_persisted_before_training_label_decision": true,
+    "strict_prefix_replay_validation": true,
+    "source_context_manifest_artifact_id": "aea311e2604bffcbf087cba1f8e10314e808ffc6e337533c797d9e8316259791",
+    "fresh_bge_reconstruction_surface_sha256": "a68eec5da42904f85d17fe81beafdbd20c7aa3a03a77ca959ab4101fcd8b94b6",
+    "frozen_replay_surface_sha256": "d2d7d07b4471dfe54f8011e17b9731c5189c84bf419be2c7568c56a1e389898e",
+    "rag_order_drifted_scene_count": 3,
+    "original_output_directory_resumable": false,
+    "reason": "Fresh BGE reconstruction changed only the RAG ordering for three scenes. The authoritative rerun must replay the P1g context-owner manifest instead of accepting new numeric ranking order.",
+    "candidate_prompt_changed": false,
+    "sample_plan_changed": false,
+    "seed_schedule_changed": false,
+    "selection_rule_changed": false,
+    "promotion_gate_changed": false
+  },
+  "experiment_guards": {
+    "interrupted_outputs_influenced_later_candidates": false,
+    "interrupted_outputs_influenced_frozen_consumer": false,
+    "qualification_inputs_observed": 0,
+    "qualification_qwen_outputs_observed": 0,
+    "formal_hidden_test_opened": false,
+    "p2_enabled": false
+  }
+}

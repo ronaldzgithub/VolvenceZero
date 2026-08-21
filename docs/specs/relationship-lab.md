@@ -27,7 +27,18 @@
 > `consumer_still_underqualified`。prompt full-history 已进入资格带，但完整 consumer
 > qualification 尚未成立；不得在已见 v3 输出上回改 prompt、RAG、阈值或
 > public-evidence contract。
-> 正式 prereg 与 secret heldout 仍关闭，不得进入 P2 formal 或宣称四能力成立。
+> P1h 因而把已见 v3 整包冻结为 `consumer_training_only`，并在零 v4 Qwen 输出时
+> 内容寻址冻结 `relationship_transfer_v4` 为 `unseen_qualification_only`。v4 包含
+> 12 组/24 位镜像用户、96 条历史，dataset fingerprint 为
+> `9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796`；P1h split
+> contract id 为
+> `2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8`。P1i 只能消费
+> 不含 v4 observation/truth 的 training view，在 v3 上最多保留三轮候选后冻结 consumer。
+> P1i 已完成 108/108 strict-valid training readout，选中 `conditioned_match_v1`；report
+> `c9382c18…8a79a` 与 consumer protocol `938af6073…10bf` 在 v4 input/output=0/0 时冻结。
+> 选中项 RAG pair flip 仅 0.167、双主臂最坏 fold pair flip 为 0，故它尚未 qualified。
+> 下一步只能由独立 P1j 做一次 v4 development qualification。正式 prereg 与 secret
+> heldout 仍关闭，不得进入 P2 formal 或宣称四能力成立。
 >
 > 产品路线：`docs/moving forward/relationship-intelligence-mvp-plan-2026-08.md`
 
@@ -47,9 +58,10 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 
 | 部件 | 位置 | 唯一职责 |
 |---|---|---|
-| 公开经历与封存真值 | `lifeform-domain-emogpt/.../scenario_packages/relationship_transfer_{v1,v2,v3}/` | 分离保存 rendered observation、generator truth、split 与 prereg 模板；旧版本 artifact 不改写；v3 额外冻结 public-evidence contract |
+| 公开经历与封存真值 | `lifeform-domain-emogpt/.../scenario_packages/relationship_transfer_{v1,v2,v3,v4}/` | 分离保存 rendered observation、generator truth 与 split；旧版本 artifact 不改写；v3 额外冻结 public-evidence contract，v4 是 P1h qualification-only 数据 owner |
+| P1h consumer split owner | `lifeform-domain-emogpt.lab.consumer_split` + v4 `consumer_split_contract.json` | 把已见 v3 降级为 training-only，在零 v4 Qwen 输出时冻结 qualification-only 指纹、三轮 search budget、P1g gate 与跨包隔离；P1i-facing training view 不物化 v4 public/truth |
 | 决策与 sidecar 契约 | `lifeform-domain-emogpt.lab.contracts` | closed action surface、行动前下注、模型 lineage、内容寻址 `RelationshipDecisionTrace` |
-| 数据 loader | `lifeform-domain-emogpt.lab.dataset` | 唯一 version-aware dataset owner；v1 默认兼容，v2/v3 校验组合策略、反捷径平衡、未见 surface 与 sealed policy 隔离；v3 把 public-evidence contract 纳入指纹，只构造白名单 SUT payload |
+| 数据 loader | `lifeform-domain-emogpt.lab.dataset` | 唯一 version-aware dataset owner；v1 默认兼容，v2/v3/v4 校验组合策略、反捷径平衡、未见 surface 与 sealed policy 隔离；v3 把 public-evidence contract 纳入指纹，只构造白名单 SUT payload |
 | 反应式环境 | `lifeform-domain-emogpt.lab.environment` | 由 sealed latent dynamic × 实际 action 机械产生 typed outcome；LLM 不决定标签 |
 | 冻结 stateless baseline | `lifeform-evolution.relationship_lab_baseline` | 用同一真实 substrate 生成 current-turn-only 决策账本、hash 与 attestation；不读取 history/truth |
 | Gate 0 编排与判词 | `lifeform-evolution.relationship_lab_gate0` | 只读校准、泄漏审计、baseline attestation 验证与报告 |
@@ -66,7 +78,9 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 
 - companion 产品路径不得 import `lifeform_domain_emogpt.lab`；
 - `vz-*` 不得 import lab，P0/P1 不新增 runtime owner、slot 或 snapshot；
-- `lifeform-evolution` 只能消费 frozen lab records 并发布只读 verdict；
+- `lifeform-evolution` 只能消费 frozen lab records 并发布只读 verdict；P1i consumer
+  calibration 只能读取 `RelationshipConsumerTrainingView`，不得用 evaluator-only bundle
+  获取 v4 observation 或 truth；
 - generator truth、judge/evaluation 和 future outcome 不得进入 SUT、memory、PE、
   credit、regime 或 steering；
 - 后续真实 outcome 进入内核时仍只走既有 `dialogue_external_outcome` owner，本包
@@ -86,7 +100,8 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 - action→`HELPED / FELT_HEARD / MISSED / OVER_DIRECTIVE` 分布；
 - scene→latent binding 与 train/validation/heldout 整组划分。
 
-v2/v3 额外拥有两种 sealed abstract condition、两种互补 user policy、48 条
+v2/v3/v4 额外拥有两种 sealed abstract condition、两种互补 user policy；v2/v3 各 48 条、
+v4 有 96 条
 history→condition binding 与每个 probe 的 condition。它们只用于机械验证“先辨认情境、
 再应用个体映射”的可解性和环境结算；`condition_id / policy_id /
 probe_condition_id / history_condition_bindings` 全部禁止进入 SUT。公开历史只包含自然语言
@@ -106,7 +121,7 @@ condition id、summary 文本和标签均不进入 SUT，也不回灌 learning/s
 `rendered_observations.json` 只含公开场景材料与 harness metadata：
 
 - opaque `scene_id` 与可哈希化 user scope；
-- v1 两次、v2/v3 四次过去自然语言经历；
+- v1 两次、v2/v3/v4 四次过去自然语言经历；
 - 当时实际选择的 typed relation action；
 - 用户明确给出的 typed outcome 与自然语言结果；
 - 新场景当前句和候选动作表面。
@@ -155,8 +170,8 @@ outcome，再由 PE owner 解释；evaluation 不得反向提供 latent 或最�
 
 ## 5. Scenario package 契约
 
-包名 `relationship_transfer_v1`、`relationship_transfer_v2` 与
-`relationship_transfer_v3` 都符合
+包名 `relationship_transfer_v1`、`relationship_transfer_v2`、
+`relationship_transfer_v3` 与 `relationship_transfer_v4` 都符合
 `^[a-z][a-z0-9_]*$`，并分别包含：
 
 - `manifest.yaml`
@@ -165,10 +180,11 @@ outcome，再由 PE owner 解释；evaluation 不得反向提供 latent 或最�
 - `test_suite.yaml`
 - `rendered_observations.json`
 - `generator_truth.json`
-- `prereg_template.json`
 
-v3 还必须包含 `public_evidence_contract.json`，并由 dataset fingerprint 同时绑定公开
-观察、sealed truth 与该契约。
+v1/v2/v3 还包含各自历史阶段的 `prereg_template.json`；v3 另含
+`public_evidence_contract.json`，并由 dataset fingerprint 同时绑定公开观察、sealed truth
+与该契约。v4 不伪造后续 P1i prereg，而是包含本阶段唯一正式交换
+`consumer_split_contract.json`。
 
 四条路径（经历证据、行动前下注、反应式结算、counterfactual user swap）均被
 同一四阶段 arc 引用，`phase_order=0..3` 连续。routing tests 不少于 6，含
@@ -190,6 +206,16 @@ history/probe 同时包含事件和当事人体验到的关系损失。它使用
 summary 对比。60 条必须全部 top-1 正确，正确锚点最小 margin ≥0.02、平均 margin ≥0.07；
 tie 按失败处理。该 auditor 是 development 编写/可解性门，不是 SUT、训练信号或人类
 可读性替代品。
+
+v4 不替换 v3，也不携带 P1i consumer。它把整包 12 个 mirrored pairs 全标为
+`heldout`，使用 12 个不与 v3 相交的 surface family、24 个 scene、96 个 event 和全新
+公开文本；每位用户仍满足四历史、两条件×两动作、每动作一正一负、未见 probe surface
+与镜像互补策略。`consumer_split_contract.json` 绑定 P1g underqualification artifact、
+v3/v4 dataset fingerprint、零 v4 Qwen output、最多三轮 training-only consumer revision、
+leave-one-surface-family-out selection、prompt/RAG 双臂资格门和 P2/formal 关闭状态。
+`load_relationship_consumer_training_view()` 是 P1i 唯一允许的输入面，不发布 v4
+observation/truth；完整 bundle 只供 P1h owner/evaluator 做跨包隔离审计，且不冒充外部
+secret heldout。
 
 ## 6. Gate 0 判决
 
@@ -498,6 +524,96 @@ heldout 或四能力闭环。下一包如继续，只能先版本化并冻结独
 与未见 qualification split，再在 training split 上学习通用 readout；禁止消费本次
 evaluator 答案作为 reward，也禁止在同一 v3 qualification split 上继续人工 prompt search。
 
+### 7.7 P1h：consumer-training / unseen-qualification split freeze
+
+P1h 只新增 domain-lab split owner，不运行 Qwen、不修改 P1g prompt/RAG/gate、不创建
+Readable/PE/controller/steering owner。内容寻址 contract
+`2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8` 由 P1g artifact
+`9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8` 的
+`consumer_still_underqualified` 触发，并冻结以下边界：
+
+1. v3 dataset `35b8c46…134f` 已存在 Qwen 输出，整包角色固定为
+   `consumer_training_only`，不得再次当作未见迁移证据；
+2. v4 dataset `9bfe6ae0…5796` 在首条 v4 Qwen 输出前冻结为
+   `unseen_qualification_only`，包含 12 组镜像、24 位用户、96 条历史，所有 dynamics
+   均为 development `heldout`；
+3. v3/v4 的 scene id、user scope、event id、surface family 和完整公开文本集合必须精确不相交；
+   任一交集、fingerprint 漂移、非四历史或非 heldout qualification 都 fail loudly；
+4. P1i external baseline calibration 最多三轮，每轮候选必须保留，只能使用 v3 training
+   label，并以 `leave_one_surface_family_out_training_only` 选最终 consumer；
+5. P1i 唯一输入是 `RelationshipConsumerTrainingView`，该 frozen type 不含
+   `qualification_dataset`；完整 split bundle 只供 owner/evaluator 审计。因为 v4 文件仍在
+   仓库中，这只是 process-isolated development qualification，不是 formal secret heldout；
+6. 资格门继续要求 strict-valid=1.0、prompt/RAG accuracy 都在 0.625–0.875 且 pair flip
+   ≥0.5、structured-state pair flip ≥0.5。不得事后改成 best-arm、删除 RAG 或降低阈值；
+7. training label 只可校准外部 baseline，不得进入 Volvence memory、PE、credit、reward、
+   controller 或 steering；qualification feedback 在 consumer freeze 前后都不得用于返工。
+
+P1h 的唯一下一动作是 `consumer_training_freeze_candidate`：授权后续独立 P1i 在 training
+view 上校准并冻结 consumer，不等于 consumer qualified、human readable、Volvence
+advantage、formal prereg、P2 或四能力成立。
+
+### 7.8 P1i：training-only consumer calibration / freeze
+
+P1i 的唯一 owner 是 `lifeform-evolution.relationship_lab_packet1i`。它只消费
+`RelationshipConsumerTrainingView`，不调用 evaluator-only split bundle，也不物化 v4
+observation/truth。首条 P1i Qwen 输出前冻结的 calibration protocol id 为
+`080c908d7824b25081c501abbb6e76a2405a16508dbc0fb9d119b831447eef40`；protocol 绑定 P1h
+contract、P1g report/protocol、v3/v4 fingerprint（v4 仅有 identity）、Qwen/BGE 权重、
+generation、完整 v3 training context surface、三臂与 seed。候选预算一次性预注册为：
+
+1. round 1 `conditioned_match_v1`：原 P1g condition-aware steelman；
+2. round 2 `latent_partition_v1`：先按被威胁的关系结构匿名分组，再做组内行动结果对照；
+3. round 3 `counterfactual_contrast_v1`：用跨表面可替换性和反事实行动效果形成对照。
+
+三者共用同一 request template、strict schema、typed argmax compiler、模型、RAG、context 与
+资格门，只允许 prompt readout algorithm 不同；所有 prompt asset 都在首条输出前以 SHA-256
+冻结。每个候选必须覆盖 v3 的 6 个 surface-family fold、12 位用户与 prompt/RAG/structured
+三臂，共 36 条 readout；readout 在附加 training label 前先发布，随后 evaluation 才生成
+decision ledger。三轮 raw readout、decision、逐臂 metric 与逐 fold metric 必须全部保留。
+
+`leave_one_surface_family_out_training_only` 的确定性排序依次最大化：所有 readout strict
+valid、双主臂最坏 fold accuracy、双主臂较低 macro accuracy、双主臂最坏 fold pair flip、
+双主臂较低 macro pair flip、structured macro pair flip；再最小化 prompt token 与 round
+index。它不是 best-arm gate：prompt 与 RAG 始终共同决定顺序。该 selection rule 的标签只
+存在于 external baseline evaluator，不进入 Volvence memory、PE、credit、reward、controller
+或 steering。
+
+完成三轮后，P1i 必须先发布 content-addressed report，再把唯一 top-ranked candidate、全部
+runtime lineage、P1h 原资格门和 `qualification_inputs/outputs_observed_before_freeze=0` 写入
+独立 frozen consumer protocol。P1i 不运行 v4；只有后续独立 P1j 可一次性消费该协议和 v4，
+且无论 qualification 结果如何都不得反馈修改 consumer。P2 与 formal hidden test 继续关闭。
+
+P1i 的 context owner 还必须消费 P1g 已发布的 immutable context manifest（artifact
+`aea311e2…9791`），重放其中的 RAG evidence 顺序并逐条校验 144 个 model-input hash。原因是
+fresh BGE-M3 重建曾在 `rtv3_scene_002a/002b/004b` 上得到相同四条 history、不同近邻顺序，
+从而把冻结 surface `d2d7d07b…898e` 漂移为 `a68eec5d…94b6`。这种数值排序漂移必须在首条
+Qwen 调用前 fail loudly；replay manifest 只冻结已发布的输入顺序，不成为第二 RAG/semantic
+owner，也不允许增加、删除或改写 public evidence。
+
+候选执行按 `checkpoint.json → records/NNNN.readout.json → records/NNNN.decision.json`
+原子追加。恢复只接受
+与 protocol/candidate/training truth/context lineage 完全一致的连续前缀；已有记录不得覆盖，
+每条 readout 必须先于对应 decision 落盘，满 36 条后才可发布 candidate summary。完成态再次
+`--resume` 只重验三套 candidate、report 与 frozen consumer，不重新调用模型。
+
+2026-08-20 的权威 training-only run 位于
+`artifacts/relationship_lab/qwen25_3b_packet1i_v3_training_replay_20260820/`。108/108 条
+readout strict-valid，冻结排序与结果为：
+
+| rank | candidate | prompt acc/flip | RAG acc/flip | structured acc/flip | 较低主臂 macro acc |
+|---:|---|---:|---:|---:|---:|
+| 1 | `conditioned_match_v1` | 0.750/0.500 | 0.583/0.167 | 0.500/0.333 | 0.583 |
+| 2 | `latent_partition_v1` | 0.583/0.167 | 0.500/0.000 | 0.500/0.333 | 0.500 |
+| 3 | `counterfactual_contrast_v1` | 0.500/0.000 | 0.583/0.167 | 0.500/0.333 | 0.500 |
+
+三者的双主臂最坏 fold accuracy 都是 0.5、最坏 fold pair flip 都是 0；第一候选仅在后续
+冻结排序项“较低主臂 macro accuracy”胜出。calibration report artifact 为
+`c9382c18…8a79a`，frozen consumer protocol 为 `938af6073…10bf`，冻结前 v4 input/output
+仍是 0/0。因此它只证明 bounded training search 已按协议完成并选出一个 consumer，**不**
+证明该 consumer qualified；更不证明 Volvence advantage、Readable、Learnable、Steerable
+或四能力闭环。唯一下一动作是 P1j 的 one-shot v4 development qualification。
+
 ## 8. Baseline 与 formal 纪律
 
 `FrozenBaselineAttestation` 必须记录：dataset/model/weights/prompt/generation/seed
@@ -697,13 +813,42 @@ underqualification 或前置失败返回 2。权威运行位于
 为 `9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8`，判
 `consumer_still_underqualified`。
 
-因此当前证明的是：既有 memory/reference owner 能追加、恢复、隔离、纠删、压缩并把
+P1i 的零 Qwen preflight、分块运行与严格恢复分别为：
+
+```bash
+.venv/bin/python scripts/run_relationship_lab_packet1i.py --preflight-only
+
+.venv/bin/python scripts/run_relationship_lab_packet1i.py \
+  --output-dir artifacts/relationship_lab/<packet1i-run-id> \
+  --max-new-readouts 4
+
+.venv/bin/python scripts/run_relationship_lab_packet1i.py \
+  --output-dir artifacts/relationship_lab/<packet1i-run-id> \
+  --resume \
+  --max-new-readouts 4
+```
+
+`--max-new-readouts 0` 才会在一次进程内跑完所有剩余 readout。每次调用在一个 candidate
+中最多新增指定数量并安全退出；`--resume` 会先验证冻结 P1g context manifest、checkpoint
+连续前缀和已有内容寻址记录。权威 run 的 3×36 条 readout/decision 全部 strict-valid，选中
+`conditioned_match_v1`；report `c9382c18…8a79a` 与 consumer protocol
+`938af6073…10bf` 均已冻结。完成态 resume 重验通过且不再调用 Qwen。
+
+截至 P1g，证明的是：既有 memory/reference owner 能追加、恢复、隔离、纠删、压缩并把
 完整四历史交给冻结 consumer；v2/v3 消除了全局动作偏好捷径；v3 的 60 个公开单元在
 一套冻结 BGE-M3 development auditor 下都能读出预期抽象关系条件；冻结 Qwen 的
 prompt full-history 臂已达到资格带。但 RAG steelman 未产生 mirrored flip，完整 consumer
 qualification 失败；仍没有人工盲标、Volvence 相对基线优势、Readable、Learnable 或
 Steerable 证据。按冻结分叉，P2 与 formal 继续关闭；后续必须使用独立 consumer-training /
 unseen-qualification split，不能回调本次 v3 prompt、RAG 或 gate。
+
+P1h 已关闭该分割前置条件：v3 明确变为 training-only；v4 在零 Qwen 输出时以 12 组
+镜像资格数据、全新 surface/text 和冻结 P1g gate 内容寻址，contract 为
+`2ce75cb4…4af8`。P1i 随后只用 v3 training view 完成三轮 bounded calibration，并在
+读取任何 v4 input 或生成 v4 output 前冻结唯一 consumer protocol `938af6073…10bf`。
+选中项的 RAG pair flip 仅 0.167，双主臂最坏 fold pair flip 仍为 0，因此这不是资格通过。
+下一包只能做独立 P1j one-shot v4 qualification；其结果不得回流修改 P1i consumer、资格门
+或 Volvence learning/control。
 
 ## 10. 回滚与下一包
 
@@ -742,3 +887,17 @@ P1g 同样没有 runtime wiring。回滚只需停止 `run_relationship_lab_packe
 均不迁移。已经发布的 protocol `8e08d488…52c6`、P1b `10d120f…3a87` 与 P1g
 `9d7f05b5…e3c8` 必须按原 hash 保留。若继续下一版本，退出条件是先冻结独立训练/资格
 split 与新 protocol；回滚方式是停用该新离线 consumer，不得重写本次输出或阈值。
+
+P1h 同样没有 runtime wiring。回滚只需停止加载
+`RelationshipConsumerSplitContract`/`RelationshipConsumerTrainingView` 并移除显式 v4
+package 消费；v1–v3 dataset、P1g artifact、产品、memory、PE、controller 与 steering
+均不迁移。已经冻结的 v4 fingerprint 与 P1h contract id 必须保留用于审计，不能在看到
+后续 P1i/P1j 输出后覆盖。P1h 的退出条件是 P1i 仅在 training view 内完成不超过三轮的
+baseline consumer 校准并先冻结协议；回滚 P1i 时只丢弃其候选，不得解封 v4 或改资格门。
+
+P1i 同样没有 runtime wiring。回滚只需停止 `run_relationship_lab_packet1i.py` 并不让 P1j
+消费 frozen consumer；产品、memory、PE、credit、controller、steering 与 v1–v4 data owner
+都不迁移。已发布的三套 candidate ledger、report `c9382c18…8a79a`、consumer protocol
+`938af6073…10bf` 和 source context manifest 必须保留用于审计，不能用续跑覆盖。若撤回
+P1i，只能另开带新 protocol id 的 calibration 包；不得解封当前 consumer、查看 v4 后返工、
+改变 P1h gate 或把 training evaluation 回灌系统。

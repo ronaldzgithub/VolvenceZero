@@ -1,0 +1,251 @@
+{
+  "schema_version": "4.0",
+  "package_name": "relationship_transfer_v4",
+  "design_contract": {
+    "scenario_regime_alignment": "R14_conditioned_relationship_calibration_identity",
+    "routing_method": "semantic_trajectory_abstraction_plus_schema_bound_llm_output",
+    "forbidden_routing": [
+      "keyword_contains",
+      "regular_expression_content_routing",
+      "dictionary_keyword_to_behavior",
+      "event_position_to_condition_lookup",
+      "event_id_to_condition_lookup",
+      "scene_id_to_action_lookup",
+      "surface_family_to_action_lookup",
+      "global_action_outcome_majority"
+    ],
+    "truth_visibility": "qualification_evaluator_only_after_consumer_freeze",
+    "runtime_owner_policy": "no_new_runtime_owner_or_slot",
+    "evaluation_policy": "readout_only_no_learning_feedback"
+  },
+  "paths": [
+    {
+      "path_id": "path_consumer_split_freeze_v4",
+      "family": "consumer_split_freeze",
+      "name": "训练与未见资格封卷路径",
+      "objective": "把已见 v3 固定为 training-only，并在零 v4 Qwen 输出时冻结资格数据、门槛和 consumer 搜索预算。",
+      "semantic_detection": {
+        "method": "content_addressed_cross_package_lineage_validation",
+        "evidence_axes": [
+          "source P1g underqualification",
+          "training dataset fingerprint",
+          "qualification dataset fingerprint",
+          "zero prior v4 output"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "forbidden": [
+          "post_output_split_reassignment",
+          "qualification_feedback_to_consumer",
+          "best_arm_posthoc_gate"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_consumer_split_freeze_v4:freeze_boundary",
+          "order": 0,
+          "description": "冻结两侧 package role、fingerprint、隔离守门与三轮校准预算。"
+        }
+      ],
+      "exit_evidence": "RelationshipConsumerSplitContract canonical sha256 与 cross-split isolation audit。"
+    },
+    {
+      "path_id": "path_balanced_qualification_evidence_v4",
+      "family": "conditioned_relationship_experience_evidence",
+      "name": "资格集平衡经历证据路径",
+      "objective": "为每位资格用户公开四条两条件×两动作经历，并保持每个动作总体一胜一负。",
+      "semantic_detection": {
+        "method": "trajectory_embedding_plus_schema_bound_structured_output",
+        "evidence_axes": [
+          "four action-outcome histories",
+          "two latent condition contrasts",
+          "balanced action polarity",
+          "one user scope"
+        ],
+        "insufficient_evidence_behavior": "no_route",
+        "forbidden": [
+          "global_action_majority",
+          "event_order_route",
+          "persona_demographic_route"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_balanced_qualification_evidence_v4:freeze_histories",
+          "order": 0,
+          "description": "冻结 24 位用户各自四条完整且动作胜负平衡的公开历史。"
+        }
+      ],
+      "exit_evidence": "rendered observation hash、96-history coverage 与 SUT leakage audit。"
+    },
+    {
+      "path_id": "path_unseen_abstract_transfer_v4",
+      "family": "abstract_condition_transfer",
+      "name": "未见表面的抽象关系迁移路径",
+      "objective": "只凭未见领域的当前语义和个人历史结果，迁移主体性/归属位置下的个体动作映射。",
+      "semantic_detection": {
+        "method": "semantic_situation_equivalence_plus_user_conditioned_policy_readout",
+        "evidence_axes": [
+          "current relation-loss semantics",
+          "within-user condition contrast",
+          "complementary outcome pattern",
+          "unseen training surface"
+        ],
+        "insufficient_evidence_behavior": "neutral_noop_or_no_route",
+        "forbidden": [
+          "condition_keyword_dictionary",
+          "surface_family_to_action_lookup",
+          "sealed_policy_access"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_unseen_abstract_transfer_v4:infer_and_transfer",
+          "order": 0,
+          "description": "先归纳个人条件化策略，再应用于与 training 不同的新表面。"
+        }
+      ],
+      "exit_evidence": "qualification readout lineage 与 anti-shortcut audit。"
+    },
+    {
+      "path_id": "path_mirrored_preaction_v4",
+      "family": "mirrored_preaction_decision",
+      "name": "资格集同句行动前下注路径",
+      "objective": "在镜像同句下，根据两套互补经历冻结相反候选动作预测。",
+      "semantic_detection": {
+        "method": "owner_snapshot_conditioned_candidate_prediction",
+        "evidence_axes": [
+          "conditioned history hypothesis",
+          "candidate action prediction",
+          "pre-action timestamp",
+          "source snapshot hash"
+        ],
+        "insufficient_evidence_behavior": "neutral_noop_or_no_route",
+        "forbidden": [
+          "current_text_only_action",
+          "post_outcome_prediction"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_mirrored_preaction_v4:freeze_bet",
+          "order": 0,
+          "description": "在环境 outcome 和资格标签附着前冻结选择与完整 lineage。"
+        }
+      ],
+      "exit_evidence": "PreActionRelationshipDecision canonical hash。"
+    },
+    {
+      "path_id": "path_reactive_settlement_v4",
+      "family": "reactive_outcome_settlement",
+      "name": "资格集反应式后果路径",
+      "objective": "让实际动作按封存个体策略改变下一拍 typed relationship outcome。",
+      "semantic_detection": {
+        "method": "typed_action_plus_sealed_dynamic_transition",
+        "evidence_axes": [
+          "selected action id",
+          "sealed environment version",
+          "deterministic draw",
+          "environment evidence ref"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "forbidden": [
+          "judge_generated_outcome",
+          "frozen_post_action_user_turn"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_reactive_settlement_v4:settle_action",
+          "order": 0,
+          "description": "从实际 action 与 sealed dynamic 机械结算 outcome。"
+        }
+      ],
+      "exit_evidence": "RelationshipDecisionTrace 与 action-effect calibration。"
+    },
+    {
+      "path_id": "path_counterfactual_split_swap_v4",
+      "family": "counterfactual_policy_swap",
+      "name": "未见资格镜像策略交换路径",
+      "objective": "保持资格当前句与条件不变，只交换用户四条经历，检查正确动作随个体策略翻转。",
+      "semantic_detection": {
+        "method": "content_addressed_mirrored_pair_comparison",
+        "evidence_axes": [
+          "byte-identical current input",
+          "distinct user scope",
+          "balanced histories",
+          "complementary policy"
+        ],
+        "insufficient_evidence_behavior": "no_claim",
+        "forbidden": [
+          "event_id_to_policy_lookup",
+          "scene_id_to_action_lookup"
+        ]
+      },
+      "sub_goals": [
+        {
+          "sub_goal_id": "path_counterfactual_split_swap_v4:mirror_verdict",
+          "order": 0,
+          "description": "对十二组资格镜像逐组检查同句异策。"
+        }
+      ],
+      "exit_evidence": "12-pair matched verdict 与 qualification-only attestation。"
+    }
+  ],
+  "arc_specs": [
+    {
+      "arc_spec_id": "arc_relationship_consumer_qualification_v4",
+      "path_ids": [
+        "path_consumer_split_freeze_v4",
+        "path_balanced_qualification_evidence_v4",
+        "path_unseen_abstract_transfer_v4",
+        "path_mirrored_preaction_v4",
+        "path_reactive_settlement_v4",
+        "path_counterfactual_split_swap_v4"
+      ],
+      "phases": [
+        {
+          "phase_order": 0,
+          "phase_id": "split_boundary_freeze",
+          "sub_goal_refs": [
+            "path_consumer_split_freeze_v4:freeze_boundary"
+          ]
+        },
+        {
+          "phase_order": 1,
+          "phase_id": "balanced_qualification_evidence",
+          "sub_goal_refs": [
+            "path_balanced_qualification_evidence_v4:freeze_histories"
+          ]
+        },
+        {
+          "phase_order": 2,
+          "phase_id": "unseen_abstract_transfer",
+          "sub_goal_refs": [
+            "path_unseen_abstract_transfer_v4:infer_and_transfer"
+          ]
+        },
+        {
+          "phase_order": 3,
+          "phase_id": "preaction_bet",
+          "sub_goal_refs": [
+            "path_mirrored_preaction_v4:freeze_bet"
+          ]
+        },
+        {
+          "phase_order": 4,
+          "phase_id": "reactive_settlement",
+          "sub_goal_refs": [
+            "path_reactive_settlement_v4:settle_action"
+          ]
+        },
+        {
+          "phase_order": 5,
+          "phase_id": "counterfactual_swap",
+          "sub_goal_refs": [
+            "path_counterfactual_split_swap_v4:mirror_verdict"
+          ]
+        }
+      ]
+    }
+  ]
+}

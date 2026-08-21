@@ -625,3 +625,49 @@ dataset/public-evidence contract/prompt。下一收敛包如继续，应先版�
 consumer-training split 与 unseen qualification split，在 training split 上学习通用 readout
 后只运行一次新 qualification；evaluation 标签仍不得成为 PE、credit、reward 或 steering。
 P2、formal prereg、secret heldout 与四能力主张继续关闭。
+
+P1h 已于 2026-08-20 将该分割要求落为 domain-lab owner 契约。已见
+`relationship_transfer_v3`（fingerprint `35b8c46e…134f`）整包角色冻结为
+`consumer_training_only`；新 `relationship_transfer_v4` 在零 Qwen 输出时冻结为
+`unseen_qualification_only`，fingerprint 为
+`9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796`。v4 含 12 组
+mirrored pair、24 位合成用户和 96 条历史，全部 dynamic 为 development heldout；其
+scene/user scope/event/surface family/完整 public text 与 v3 精确不相交。P1h split contract id 为
+`2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8`。
+
+P1h 同时冻结 P1i consumer calibration 边界：最多三轮候选、全部保留、只用 v3 training
+label、按 `leave_one_surface_family_out_training_only` 选最终 consumer；资格门保持 P1g
+的 prompt/RAG 双臂 0.625–0.875 accuracy、pair flip ≥0.5、strict valid=1.0 与
+structured-state pair flip ≥0.5。P1i-facing `RelationshipConsumerTrainingView` 类型不含
+v4 observation/truth；完整 bundle 仅供 owner/evaluator 做隔离审计。因为 v4 文件存在仓库
+中，这仍是 process-isolated development qualification，不是 formal secret heldout。
+
+P1i 已于 2026-08-20 完成。bounded search 先以 calibration protocol
+`080c908d7824b25081c501abbb6e76a2405a16508dbc0fb9d119b831447eef40` 冻结。三轮依次为原
+condition-aware readout、匿名 latent partition readout、counterfactual contrast readout；它们
+共用 Qwen2.5-3B、BGE-M3、generation、v3 完整 context、request/schema/compiler 与三臂，
+只改变普通 Qwen 的通用语义归纳 prompt。每轮覆盖 6 个 surface-family fold、12 位用户、
+prompt/RAG/structured 三臂并保留 36 条 readout 与 decision。最终 consumer 只按冻结的
+LOSO lexicographic rule 选择：先看 strict validity，再依次看双主臂最坏 fold accuracy、较低
+macro accuracy、最坏/宏平均 pair flip、structured pair flip、token 成本和较早 round；不取
+best arm，也不在候选输出后改 prompt。
+
+运行中发现 fresh BGE-M3 对三个 scene 的四条同集合 evidence 给出不同排序，使重建 context
+surface 与 P1g 冻结值不一致。P1i 没有接受漂移，而是从 P1g content-addressed context
+manifest `aea311e2…9791` 重放 RAG 顺序并校验全部 144 个 model-input hash；冻结 surface
+保持 `d2d7d07b…898e`。每条 readout/decision 原子 checkpoint，严格 resume 只接受完整
+lineage 的连续前缀；中断续跑与完成态无 Qwen 重放均已验证。
+
+权威 run 位于
+`artifacts/relationship_lab/qwen25_3b_packet1i_v3_training_replay_20260820/`，108/108
+readout strict-valid。冻结 ranking 为 `conditioned_match_v1`、`latent_partition_v1`、
+`counterfactual_contrast_v1`。选中项 prompt/RAG/structured accuracy 为
+0.750/0.583/0.500，pair flip 为 0.500/0.167/0.333；双主臂最坏 fold accuracy 仍只有 0.5，
+最坏 fold pair flip 为 0。report artifact 是 `c9382c18…8a79a`；唯一 frozen consumer
+protocol 是 `938af6073…10bf`，继续携带 v4 input/output observed = 0/0 和 P1h 原资格门。
+
+这只完成了 training-only bounded consumer selection，不是 consumer qualification，也不是
+Volvence Readable/Learnable/Steerable 或四能力证据。下一收敛包是独立 P1j：只允许消费冻结
+consumer 并一次性执行 v4 development qualification；结果不得返回 P1i 改 consumer，training
+label 也不得进入 Volvence memory、PE、credit、reward、controller 或 steering。P2、formal
+prereg 与 secret heldout 继续关闭。

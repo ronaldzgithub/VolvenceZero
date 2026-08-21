@@ -102,14 +102,16 @@ metacontroller、credit 或 evaluation owner。
 P1c 由 `relationship_lab_packet1c` 只读 Gate 0/P1b 正式工件并发布资格分叉。它们是跨
 wheel 离线证据契约；P1e 冻结 v2 consumer qualification，P1f 只读 v3 公开文本、sealed
 condition anchors 与冻结 embedder 发布 semantic-legibility 报告；P1g 在首条 v3 Qwen
-输出前冻结完整 consumer lineage，并只读 fresh Gate 0/P1b 工件发布资格分叉。它们都
+输出前冻结完整 consumer lineage，并只读 fresh Gate 0/P1b 工件发布资格分叉；P1h 再由
+domain lab 把已见 v3 固定为 training-only，并在零 v4 Qwen 输出时冻结独立 qualification
+package、consumer 搜索预算与 P1g 资格门。它们都
 **不**进入 §6 runtime slot 注册表。
 spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 
 | Type | owner / producer | dependencies | consumer | wiring_level |
 |---|---|---|---|---|
-| `RelationshipObservation` / `RelationshipTransferDataset` v1/v2/v3 | type/白名单 builder owner：`lifeform-domain-emogpt.lab.dataset`；record producer：versioned rendered package | 公开 action-outcome history、哈希 user scope、current input、closed action surface；v2/v3 每用户四历史、全局动作胜负平衡、未见 probe surface；v3 指纹额外绑定 public-evidence contract | 冻结实验 arms / P1f auditor | `OFFLINE_SHADOW_EVIDENCE_ONLY`；v1 保持默认，v2/v3 只允许显式 package lineage；产品路径 `DISABLED` |
-| `AbstractRelationshipCondition` / `RelationshipPolicyProfile` / history-condition binding v2/v3 | sealed truth owner：`lifeform-domain-emogpt.lab.dataset` + versioned `generator_truth.json` | 两个 abstract condition、两种互补 user policy、history/probe condition binding | loader structural audit、reactive environment、只读 evaluator | `OFFLINE_ENVIRONMENT_TRUTH_ONLY`；condition/policy/binding/preferred action 禁止进入 SUT、memory、PE、credit 或 steering |
+| `RelationshipObservation` / `RelationshipTransferDataset` v1/v2/v3/v4 | type/白名单 builder owner：`lifeform-domain-emogpt.lab.dataset`；record producer：versioned rendered package | 公开 action-outcome history、哈希 user scope、current input、closed action surface；v2/v3/v4 每用户四历史、全局动作胜负平衡、未见 probe surface；v3 指纹额外绑定 public-evidence contract；v4 整包为 12-pair qualification-only | 冻结实验 arms / P1f auditor / P1h split owner | `OFFLINE_SHADOW_EVIDENCE_ONLY`；v1 保持默认，v2/v3/v4 只允许显式 package lineage；产品路径 `DISABLED` |
+| `AbstractRelationshipCondition` / `RelationshipPolicyProfile` / history-condition binding v2/v3/v4 | sealed truth owner：`lifeform-domain-emogpt.lab.dataset` + versioned `generator_truth.json` | 两个 abstract condition、两种互补 user policy、history/probe condition binding | loader structural audit、reactive environment、只读 evaluator | `OFFLINE_ENVIRONMENT_TRUTH_ONLY`；condition/policy/binding/preferred action 禁止进入 SUT、memory、PE、credit 或 steering |
 | `RelationshipPublicEvidenceContract` | `lifeform-domain-emogpt.lab.dataset` + `relationship_transfer_v3/public_evidence_contract.json` | P1e trigger artifact/verdict、公开 history/probe 文本面、BGE-M3 source/weights、sealed anchor source、60-unit top-1/margin 门、pending human anchor 与 claim boundary | P1f auditor / P1g prereg input | `OFFLINE_ENVIRONMENT_TRUTH_ONLY`；contract 纳入 v3 dataset fingerprint；标签不向 SUT/rater 暴露，evaluation 不回灌 learning/steering |
 | `PreActionRelationshipDecision` | type owner：`lifeform-domain-emogpt.lab.contracts`；record producer：各实验 arm | candidate typed outcome distributions、chosen action、source snapshot hashes、model/prompt/weights/seed lineage | reactive environment、sidecar builder | `OFFLINE_SHADOW_EVIDENCE_ONLY` |
 | `ReactiveRelationshipOutcome` | `lifeform-domain-emogpt.lab.environment` | sealed latent dynamic、实际 selected action、dataset fingerprint、seed | sidecar builder；未来 typed `dialogue_external_outcome` adapter | `OFFLINE_SHADOW_EVIDENCE_ONLY`；P0 禁止提交 runtime |
@@ -130,12 +132,19 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 | `RelationshipP1fEvidenceUnit` / `RelationshipP1fReport` | `lifeform-evolution.relationship_lab_packet1f` | v3 dataset/contract、P1e trigger、冻结 BGE-M3 identity/weights、public text hash、sealed anchor hash、cosine score/margin、聚合阈值与 pending human anchor | P1g consumer-protocol freeze 路由 / replay | `OFFLINE_READOUT_ONLY`；60 个 unit 全覆盖，strict loader 重算 aggregate/verdict/artifact；报告不含原文/condition id，不注册 runtime slot，不是 PE/credit/reward 或 Readable 证明 |
 | `RelationshipP1gConsumerProtocol` | `lifeform-evolution.relationship_lab_packet1g` + packaged content-addressed JSON | P1f artifact/verdict、v3 dataset/contract/context surface、exact Qwen/BGE weights、generation/gates/seeds、condition-aware prompt/request/schema/compiler、四历史、typed-outcome RAG top-4、zero-prior-output/hidden/P2 guards | P1g runner / preflight / qualification assessor | `OFFLINE_READOUT_ONLY`；protocol id `8e08d488…52c6` 在第一条 v3 Qwen 输出前冻结；任一 source/weight/context/threshold 漂移 fail loudly |
 | `RelationshipP1gReport` | `lifeform-evolution.relationship_lab_packet1g` | frozen P1g protocol、P1f source、fresh Gate 0 attestation/report、same-substrate P1b report、三臂 accuracy/pair-flip 与 machinery/readout validity | formal-prereg / saturation / consumer-training-version 路由 | `OFFLINE_READOUT_ONLY`；strict loader 重算 artifact 与派生判词；权威 artifact `9d7f05b5…e3c8` 判 `consumer_still_underqualified`，不注册 runtime slot，不授权 P2/四能力主张 |
+| `RelationshipP1ContextReplayManifest` | `lifeform-evolution.relationship_lab_contexts`（只读发布 P1g immutable `contexts.json`） | dataset/template/RAG lineage、144 个 context hash、36 个 scene×depth RAG evidence 顺序 | P1i preflight / context reconstruction | `OFFLINE_READOUT_ONLY`；artifact `aea311e2…9791` 只重放已发布的 P1g model-input surface；必须验证 evidence 集合与逐输入 hash，不成为第二 RAG/semantic owner |
+| `RelationshipConsumerSplitContract` | `lifeform-domain-emogpt.lab.consumer_split` + v4 content-addressed JSON | P1g underqualification artifact、v3/v4 dataset fingerprint、training/qualification role、零 v4 Qwen output、三轮 candidate budget、leave-one-surface-family-out selection、P1g qualification gate、隔离/feedback/formal/P2 guards | P1i training-view loader / P1h evaluator-only bundle audit | `OFFLINE_ENVIRONMENT_TRUTH_ONLY`；contract `2ce75cb4…4af8`，v3 只能 training、v4 只能 qualification；不注册 runtime slot，不运行模型 |
+| `RelationshipConsumerTrainingView` | `lifeform-domain-emogpt.lab.consumer_split` | frozen P1h contract + v3 training dataset only | P1i external-baseline calibration | `OFFLINE_READOUT_ONLY`；frozen type 不含 v4 observation/truth；training label 不得成为 Volvence PE/credit/reward/steering |
+| `RelationshipP1iCalibrationProtocol` | `lifeform-evolution.relationship_lab_packet1i` + packaged content-addressed JSON | P1h contract/training view、P1g report/protocol、v3/v4 identity、Qwen/BGE/generation/context lineage、三个预注册 prompt candidate、LOSO selection method、zero-v4/formal/P2 guards | P1i runner / local-lineage validator | `OFFLINE_READOUT_ONLY`；protocol `080c908d…ef40` 在首条 P1i Qwen 输出前冻结；候选只可读 v3 training view，v4 fingerprint 只作 identity，禁止 materialize qualification data |
+| `RelationshipP1iCandidateCheckpoint` / `RelationshipP1iCandidateProgress` | `lifeform-evolution.relationship_lab_packet1i` | protocol/candidate/training-context lineage、连续 indexed readout/decision 前缀、expected record count | P1i crash recovery / candidate finalization | `OFFLINE_READOUT_ONLY`；逐条原子追加且 readout 先于 decision，已有记录不可覆盖；只接受完整 lineage 的连续前缀，满 36 条才发布 candidate artifact |
+| `RelationshipP1iCandidateArtifact` / `RelationshipP1iCalibrationReport` | `lifeform-evolution.relationship_lab_packet1i` | 每候选 36 条先发布 readout、附 label 后 decision、三臂 aggregate 与六个 surface-family fold metric、确定性 LOSO selection key | frozen consumer protocol / replay audit | `OFFLINE_READOUT_ONLY`；三轮候选 ledger 全保留，strict loader 重算 metric/selection/artifact；training label 仅用于外部 baseline calibration，不进入 PE/credit/reward/steering |
+| `RelationshipP1iFrozenConsumerProtocol` | `lifeform-evolution.relationship_lab_packet1i` + run artifact | P1i report top-ranked candidate、selected prompt/request/schema/compiler、完整 substrate/context/RAG lineage、P1h qualification gate、zero-v4-input/output guard | P1j one-shot v4 qualification | `OFFLINE_READOUT_ONLY`；protocol `938af607…10bf` 已在 0/0 v4 input/output 时冻结；qualification feedback 永久禁止返工 consumer，不授权 P2/formal/四能力主张 |
 
 契约不变量：
 
 - generator truth、`preferred_action`、future outcome 与 judge/evaluation 不得进入
   `RelationshipObservation.to_sut_payload()`；loader 必须 fail loudly on leakage；
-- v2/v3 还必须隐藏 `condition_id / policy_id / probe_condition_id /
+- v2/v3/v4 还必须隐藏 `condition_id / policy_id / probe_condition_id /
   history_condition_bindings`；每位用户四条历史须覆盖两个 condition×两个 action，
   每个非空 action 恰好一正一负，probe family 对该用户未见，mirrored siblings 共享
   current bytes/condition 但 policy 与 preferred action 互补。任一不变量破坏都由 dataset
@@ -212,6 +221,25 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
   禁止事后删除 RAG、改成 best-arm gate、降低阈值，或在同一 v3 split 上继续调 prompt。
   后续只能先冻结独立 consumer-training 与 unseen-qualification split，不得把 evaluator
   答案作为 PE/credit/reward；
+- P1h consumer split contract id 为
+  `2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8`。它绑定已见 v3
+  fingerprint `35b8c46e…134f` 为 `consumer_training_only`，以及零 Qwen 输出的 v4
+  fingerprint `9bfe6ae0…5796` 为 `unseen_qualification_only`。v4 包含 12 组、24 位用户、
+  96 条历史且全部 dynamic split 为 development heldout；v3/v4 scene/user scope/event/surface family/
+  完整 public text 必须精确不相交。P1i 只能读取不含 qualification dataset 的 frozen
+  training view，在 v3 上最多保留三轮候选并用 leave-one-surface-family-out 选择；完整
+  bundle 只供 owner/evaluator 做隔离审计。qualification input/truth/feedback、formal hidden
+  与 P2 均关闭；因为 v4 文件存在仓库中，它不冒充外部 secret heldout；
+- P1i calibration protocol id 为
+  `080c908d7824b25081c501abbb6e76a2405a16508dbc0fb9d119b831447eef40`。三套普通 Qwen
+  prompt consumer、同一 request/schema/compiler/substrate/RAG/context、三臂×12 用户的
+  覆盖面与 LOSO 排序在首条输出前冻结。每个候选 readout ledger 必须先于 evaluator label
+  投影保存；逐 fold 与 aggregate metric、候选原始输出、最终 ranking 均不可删除。P1i 只能
+  产出一个供 P1j 使用的 frozen consumer protocol，不能运行 v4，也不能把 v3 label 或后续
+  v4 feedback 送入 Volvence learning/control。权威 report `c9382c18…8a79a` 的 108/108
+  readout strict-valid，排序为 conditioned-match / latent-partition / counterfactual-contrast；
+  选中项 RAG accuracy/pair-flip 为 0.583/0.167，双主臂最坏 fold pair-flip 为 0，故只代表
+  training-only consumer freeze，不代表 v4 qualified；
 - 没有冻结真实 substrate baseline 时，只允许 `machinery_ready=true`，Gate 0 必须
   保持 pending；提供后必须 dataset hash 匹配、所有结构化 decision 有效、样本量
   达标且准确率不超过 prereg non-saturation ceiling。stateless 合理弃权不设准确率

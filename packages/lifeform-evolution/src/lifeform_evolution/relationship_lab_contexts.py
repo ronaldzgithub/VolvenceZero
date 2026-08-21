@@ -87,6 +87,16 @@ def _require_scope_hash(scope_hash: str) -> None:
         raise ValueError("scope_hash must be a lowercase sha256 digest")
 
 
+def _require_sha256(value: object, field_name: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(char not in _HEX_DIGITS for char in value)
+    ):
+        raise ValueError(f"{field_name} must be a lowercase sha256 digest")
+    return value
+
+
 def _sha256_file(path: pathlib.Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -533,6 +543,206 @@ class RelationshipP1ContextBundle:
         return matches[0]
 
 
+@dataclass(frozen=True)
+class RelationshipP1RagReplayOrder:
+    scene_id: str
+    background_depth: int
+    turn_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.scene_id.strip() or self.background_depth < 0:
+            raise ValueError("P1 RAG replay scene/depth is invalid")
+        if not self.turn_ids or len(set(self.turn_ids)) != len(self.turn_ids):
+            raise ValueError("P1 RAG replay turn ids must be unique and non-empty")
+
+
+@dataclass(frozen=True)
+class RelationshipP1ContextReplayManifest:
+    artifact_id: str
+    dataset_fingerprint: str
+    background_depths: tuple[int, ...]
+    background_templates_sha256: str
+    rag_config_sha256: str
+    persisted_state_artifact_id: str
+    context_hashes: tuple[tuple[str, int, RelationshipP1Arm, str], ...]
+    rag_orders: tuple[RelationshipP1RagReplayOrder, ...]
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("artifact_id", self.artifact_id),
+            ("dataset_fingerprint", self.dataset_fingerprint),
+            ("background_templates_sha256", self.background_templates_sha256),
+            ("rag_config_sha256", self.rag_config_sha256),
+            ("persisted_state_artifact_id", self.persisted_state_artifact_id),
+        ):
+            _require_sha256(value, f"P1 replay manifest {field_name}")
+        if self.background_depths != tuple(sorted(set(self.background_depths))):
+            raise ValueError("P1 replay manifest depths must be sorted and unique")
+        context_keys = tuple(
+            (scene_id, depth, arm)
+            for scene_id, depth, arm, _digest in self.context_hashes
+        )
+        if not context_keys or len(set(context_keys)) != len(context_keys):
+            raise ValueError("P1 replay manifest context keys must be unique")
+        rag_keys = tuple(
+            (item.scene_id, item.background_depth) for item in self.rag_orders
+        )
+        if not rag_keys or len(set(rag_keys)) != len(rag_keys):
+            raise ValueError("P1 replay manifest RAG keys must be unique")
+
+    def validate_model_inputs(self, bundle: RelationshipP1ContextBundle) -> None:
+        if (
+            bundle.dataset_fingerprint != self.dataset_fingerprint
+            or bundle.background_depths != self.background_depths
+            or bundle.background_templates_sha256
+            != self.background_templates_sha256
+            or bundle.rag_config_sha256 != self.rag_config_sha256
+        ):
+            raise ValueError("P1 replayed bundle lineage diverges from manifest")
+        actual_hashes = tuple(
+            (
+                context.scene_id,
+                context.background_depth,
+                context.arm,
+                context.context_sha256,
+            )
+            for context in bundle.contexts
+        )
+        if actual_hashes != self.context_hashes:
+            raise ValueError("P1 replayed model-input hashes diverge from manifest")
+        actual_rag_orders = tuple(
+            RelationshipP1RagReplayOrder(
+                scene_id=context.scene_id,
+                background_depth=context.background_depth,
+                turn_ids=context.source_evidence_refs,
+            )
+            for context in bundle.contexts
+            if context.arm is RelationshipP1Arm.RAG_STEELMAN
+        )
+        if actual_rag_orders != self.rag_orders:
+            raise ValueError("P1 replayed RAG order diverges from manifest")
+
+
+def load_relationship_p1_context_replay_manifest(
+    path: pathlib.Path,
+    *,
+    dataset: RelationshipTransferDataset,
+) -> RelationshipP1ContextReplayManifest:
+    file_path = pathlib.Path(path)
+    if not file_path.is_file():
+        raise FileNotFoundError(f"P1 context replay manifest is missing: {file_path}")
+    try:
+        payload = json.loads(file_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError("P1 context replay manifest is not valid JSON") from exc
+    expected_top_level = {
+        "artifact_id",
+        "dataset_fingerprint",
+        "background_depths",
+        "background_templates_sha256",
+        "rag_config_sha256",
+        "contexts",
+        "persisted_state_artifact_id",
+    }
+    if not isinstance(payload, dict) or set(payload) != expected_top_level:
+        raise ValueError("P1 context replay manifest fields do not match schema")
+    artifact_id = _require_sha256(payload["artifact_id"], "P1 context artifact")
+    identity = {key: value for key, value in payload.items() if key != "artifact_id"}
+    if sha256_json(identity) != artifact_id:
+        raise ValueError("P1 context replay manifest artifact id mismatch")
+    depths_raw = payload["background_depths"]
+    if not isinstance(depths_raw, list) or any(
+        isinstance(item, bool) or not isinstance(item, int) for item in depths_raw
+    ):
+        raise ValueError("P1 context replay depths must be an integer array")
+    contexts_raw = payload["contexts"]
+    if not isinstance(contexts_raw, list) or not contexts_raw:
+        raise ValueError("P1 context replay records must be non-empty")
+    context_hashes: list[tuple[str, int, RelationshipP1Arm, str]] = []
+    rag_orders: list[RelationshipP1RagReplayOrder] = []
+    for index, item in enumerate(contexts_raw):
+        expected_fields = {
+            "scene_id",
+            "background_depth",
+            "arm",
+            "context_sha256",
+            "source_evidence_refs",
+        }
+        if not isinstance(item, dict) or set(item) != expected_fields:
+            raise ValueError(f"P1 context replay record {index} fields mismatch")
+        scene_id = item["scene_id"]
+        depth = item["background_depth"]
+        refs = item["source_evidence_refs"]
+        if not isinstance(scene_id, str) or not scene_id.strip():
+            raise ValueError("P1 context replay scene id must be non-empty")
+        if isinstance(depth, bool) or not isinstance(depth, int) or depth < 0:
+            raise ValueError("P1 context replay depth must be non-negative")
+        if not isinstance(refs, list) or any(
+            not isinstance(ref, str) or not ref.strip() for ref in refs
+        ):
+            raise ValueError("P1 context replay refs must be a string array")
+        arm = RelationshipP1Arm(item["arm"])
+        context_hashes.append(
+            (
+                scene_id,
+                depth,
+                arm,
+                _require_sha256(
+                    item["context_sha256"], "P1 replay context hash"
+                ),
+            )
+        )
+        if arm is RelationshipP1Arm.RAG_STEELMAN:
+            rag_orders.append(
+                RelationshipP1RagReplayOrder(
+                    scene_id=scene_id,
+                    background_depth=depth,
+                    turn_ids=tuple(refs),
+                )
+            )
+    expected_keys = {
+        (observation.scene_id, depth, arm)
+        for observation in dataset.observations
+        for depth in depths_raw
+        for arm in RELATIONSHIP_P1_ARMS
+    }
+    if {
+        (scene_id, depth, arm)
+        for scene_id, depth, arm, _digest in context_hashes
+    } != expected_keys:
+        raise ValueError("P1 context replay coverage diverges from dataset")
+    history_ids_by_scene = {
+        observation.scene_id: {event.event_id for event in observation.histories}
+        for observation in dataset.observations
+    }
+    for order in rag_orders:
+        if set(order.turn_ids) != history_ids_by_scene[order.scene_id]:
+            raise ValueError("P1 context replay RAG refs diverge from public histories")
+    dataset_fingerprint = _require_sha256(
+        payload["dataset_fingerprint"], "P1 replay dataset fingerprint"
+    )
+    if dataset_fingerprint != dataset.dataset_fingerprint:
+        raise ValueError("P1 context replay dataset fingerprint mismatch")
+    return RelationshipP1ContextReplayManifest(
+        artifact_id=artifact_id,
+        dataset_fingerprint=dataset_fingerprint,
+        background_depths=tuple(depths_raw),
+        background_templates_sha256=_require_sha256(
+            payload["background_templates_sha256"],
+            "P1 replay background templates",
+        ),
+        rag_config_sha256=_require_sha256(
+            payload["rag_config_sha256"], "P1 replay RAG config"
+        ),
+        persisted_state_artifact_id=_require_sha256(
+            payload["persisted_state_artifact_id"],
+            "P1 replay persisted state",
+        ),
+        context_hashes=tuple(context_hashes),
+        rag_orders=tuple(rag_orders),
+    )
+
+
 def _state_root_must_be_fresh(state_root: pathlib.Path) -> None:
     root = pathlib.Path(state_root)
     if root.exists() and any(root.iterdir()):
@@ -548,6 +758,7 @@ def _rag_context_from_entries(
     entries: tuple[EmbedEntry, ...],
     query_embedding: tuple[float, ...],
     top_k_count: int,
+    replay_turn_ids: tuple[str, ...] | None = None,
 ) -> tuple[str, tuple[str, ...]]:
     if top_k_count <= 0:
         raise ValueError("RAG top_k_count must be positive")
@@ -557,6 +768,14 @@ def _rag_context_from_entries(
         k=top_k_count,
         min_score=RELATIONSHIP_P1_RAG_MIN_SCORE,
     )
+    if replay_turn_ids is not None:
+        retrieved_by_id = {entry.turn_id: entry for entry in retrieved}
+        if (
+            len(retrieved_by_id) != len(retrieved)
+            or set(retrieved_by_id) != set(replay_turn_ids)
+        ):
+            raise ValueError("P1 frozen RAG order diverges from semantic retrieval set")
+        retrieved = tuple(retrieved_by_id[turn_id] for turn_id in replay_turn_ids)
     blended = policy.blend(
         scope_key=scope_hash,
         session_id="relationship-p1-probe",
@@ -612,6 +831,7 @@ def build_relationship_p1_context_bundle(
     rag_candidate_surface: RelationshipP1RagCandidateSurface = (
         RelationshipP1RagCandidateSurface.ALL_PUBLIC_RECORDS
     ),
+    rag_replay_orders: tuple[RelationshipP1RagReplayOrder, ...] = (),
 ) -> RelationshipP1ContextBundle:
     """Write public histories, recover them, and build four matched contexts."""
 
@@ -624,6 +844,20 @@ def build_relationship_p1_context_bundle(
         raise ValueError("rag_top_k must be positive")
     if not isinstance(rag_candidate_surface, RelationshipP1RagCandidateSurface):
         raise ValueError("rag_candidate_surface must be typed")
+    replay_order_map = {
+        (item.scene_id, item.background_depth): item.turn_ids
+        for item in rag_replay_orders
+    }
+    if len(replay_order_map) != len(rag_replay_orders):
+        raise ValueError("P1 RAG replay orders must have unique scene/depth keys")
+    if rag_replay_orders:
+        expected_replay_keys = {
+            (observation.scene_id, depth)
+            for observation in effective_dataset.observations
+            for depth in background_depths
+        }
+        if set(replay_order_map) != expected_replay_keys:
+            raise ValueError("P1 RAG replay orders must cover the complete context surface")
     history_counts = {len(item.histories) for item in effective_dataset.observations}
     if len(history_counts) != 1:
         raise ValueError("P1 dataset users must expose one fixed relationship-history count")
@@ -714,6 +948,9 @@ def build_relationship_p1_context_bundle(
                 entries=rag_entries,
                 query_embedding=query_embedding,
                 top_k_count=rag_top_k,
+                replay_turn_ids=replay_order_map.get(
+                    (observation.scene_id, depth)
+                ),
             )
             if (
                 rag_candidate_surface
@@ -1062,11 +1299,14 @@ __all__ = [
     "PersistedRelationshipP1StateDigest",
     "RelationshipP1Arm",
     "RelationshipP1RagCandidateSurface",
+    "RelationshipP1RagReplayOrder",
     "RelationshipP1ConsoleControlEvidence",
     "RelationshipP1Context",
     "RelationshipP1ContextBundle",
+    "RelationshipP1ContextReplayManifest",
     "StructuredRelationshipStateStore",
     "build_relationship_p1_context_bundle",
+    "load_relationship_p1_context_replay_manifest",
     "probe_relationship_p1_persisted_state",
     "relationship_p1_evaluated_context_surface_sha256",
     "relationship_p1_background_template_path",

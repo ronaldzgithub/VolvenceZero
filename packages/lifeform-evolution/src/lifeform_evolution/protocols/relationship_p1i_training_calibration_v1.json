@@ -1,0 +1,89 @@
+{
+  "schema_version": "relationship-p1i-calibration-protocol.v1",
+  "frozen_at_iso": "2026-08-20T02:00:00+00:00",
+  "source_lineage": {
+    "consumer_split_contract_id": "2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8",
+    "source_p1g_report_artifact_id": "9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8",
+    "source_p1g_consumer_protocol_id": "8e08d488382442f364aae102d80c268c8c23927d547f64c1e79cb0a87f0f52c6",
+    "training_package_name": "relationship_transfer_v3",
+    "training_dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f",
+    "qualification_package_name": "relationship_transfer_v4",
+    "qualification_dataset_fingerprint": "9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796"
+  },
+  "candidate_search": {
+    "maximum_revision_rounds": 3,
+    "selection_method": "leave_one_surface_family_out_training_only",
+    "preserve_every_candidate": true,
+    "allowed_feedback": "training_labels_only_external_baseline_calibration",
+    "seed_schedule": [101],
+    "evaluated_arms": [
+      "prompt-steelman",
+      "rag-steelman",
+      "structured-state"
+    ],
+    "candidates": [
+      {
+        "round_index": 1,
+        "candidate_id": "conditioned_match_v1",
+        "prompt_asset": "relationship_lab_conditioned_evidence_readout_v1.txt",
+        "prompt_sha256": "9687c5043029502b0787cd88758d06c1c0541338ed3c50068ad4824ce25fd4e5",
+        "request_template_asset": "relationship_lab_conditioned_evidence_readout_request_v1.txt",
+        "request_template_sha256": "55db60c37825da4999931345c1c973c2ea8fe54634a9508317284a02fd9bbde3",
+        "readout_schema_sha256": "afa852a2ee43b55cd10e761d5bb5b6a56b546aaa626f9291edb550e3220c40ab",
+        "compiler_version": "relationship-evidence-argmax.v1"
+      },
+      {
+        "round_index": 2,
+        "candidate_id": "latent_partition_v1",
+        "prompt_asset": "relationship_lab_latent_partition_readout_v1.txt",
+        "prompt_sha256": "0282c3abfc32fc10356e0c34213346bda8dc57ff688dd2c81e05f04fc2bede0a",
+        "request_template_asset": "relationship_lab_conditioned_evidence_readout_request_v1.txt",
+        "request_template_sha256": "55db60c37825da4999931345c1c973c2ea8fe54634a9508317284a02fd9bbde3",
+        "readout_schema_sha256": "afa852a2ee43b55cd10e761d5bb5b6a56b546aaa626f9291edb550e3220c40ab",
+        "compiler_version": "relationship-evidence-argmax.v1"
+      },
+      {
+        "round_index": 3,
+        "candidate_id": "counterfactual_contrast_v1",
+        "prompt_asset": "relationship_lab_counterfactual_contrast_readout_v1.txt",
+        "prompt_sha256": "f31f42cbfae95798d83a5b63d046f2d1353ca69a140941875404082d5bb51c30",
+        "request_template_asset": "relationship_lab_conditioned_evidence_readout_request_v1.txt",
+        "request_template_sha256": "55db60c37825da4999931345c1c973c2ea8fe54634a9508317284a02fd9bbde3",
+        "readout_schema_sha256": "afa852a2ee43b55cd10e761d5bb5b6a56b546aaa626f9291edb550e3220c40ab",
+        "compiler_version": "relationship-evidence-argmax.v1"
+      }
+    ]
+  },
+  "frozen_runtime": {
+    "model_source": "Qwen/Qwen2.5-3B-Instruct",
+    "model_revision": "main",
+    "model_id": "qwen2.5-3b-instruct",
+    "expected_weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd",
+    "expected_generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+    "device": "cpu",
+    "torch_dtype": "bfloat16",
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "max_new_tokens": 48,
+    "background_depths": [0, 8, 32],
+    "evaluated_context_surface_sha256": "d386cd72ee4c075f85c2ff6349f726b9d5189d55b1cd7b72f1acaeb6e029acca",
+    "training_context_surface_sha256": "d2d7d07b4471dfe54f8011e17b9731c5189c84bf419be2c7568c56a1e389898e",
+    "background_templates_sha256": "d0e31a29307566c25249a1fa06b4981a70e41761a058acc177d5d9994af84611",
+    "rag_embedder": "bge-m3",
+    "rag_model_source": "BAAI/bge-m3",
+    "rag_weights_sha256": "d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e",
+    "rag_top_k": 4,
+    "rag_candidate_surface": "relationship_outcomes_only",
+    "rag_config_sha256": "2e1a510f324887a4d4a00055d4c9fbfc1b22ed312185eae34d0e927e61c369ff"
+  },
+  "experiment_guards": {
+    "qualification_inputs_observed_before_freeze": 0,
+    "qualification_qwen_outputs_observed_before_freeze": 0,
+    "qualification_feedback_to_consumer": false,
+    "evaluation_feedback_to_pe_credit_reward_or_steering": false,
+    "formal_hidden_test_opened": false,
+    "p2_enabled": false
+  },
+  "claim_boundary": "P1i pre-registers at most three ordinary-Qwen consumer candidates and selects one only from the P1h training view. It does not load or run v4 qualification, modify Volvence memory, PE, credit, controller, or steering, open formal hidden test or P2, prove Volvence advantage, human readability, product value, or any complete Appendable/Readable/Learnable/Steerable claim.",
+  "protocol_id": "080c908d7824b25081c501abbb6e76a2405a16508dbc0fb9d119b831447eef40"
+}

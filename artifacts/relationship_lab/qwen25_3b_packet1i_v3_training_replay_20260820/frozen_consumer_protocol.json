@@ -1,0 +1,84 @@
+{
+  "claim_boundary": "This protocol freezes one ordinary-Qwen external baseline selected only from v3 training data before any P1i process reads or runs v4. P1j may use it once for development qualification; qualification feedback cannot revise it. Formal hidden test, P2, Volvence learning and steering remain closed.",
+  "experiment_guards": {
+    "evaluation_feedback_to_pe_credit_reward_or_steering": false,
+    "formal_hidden_test_opened": false,
+    "p2_enabled": false,
+    "qualification_feedback_to_consumer": false,
+    "qualification_inputs_observed_before_freeze": 0,
+    "qualification_qwen_outputs_observed_before_freeze": 0
+  },
+  "frozen_at_iso": "2026-08-20T10:29:04+00:00",
+  "next_action": "run_one_shot_v4_qualification",
+  "protocol_id": "938af6073c31346058a6df40877a48e68a449ce63acf941a7455049530a310bf",
+  "qualification_gate": {
+    "maximum_accuracy": 0.875,
+    "minimum_accuracy": 0.625,
+    "minimum_pair_flip_rate": 0.5,
+    "primary_qualification_arms": [
+      "prompt-steelman",
+      "rag-steelman"
+    ],
+    "required_valid_rate": 1.0,
+    "structured_state_minimum_pair_flip_rate": 0.5
+  },
+  "runtime": {
+    "background_depths": [
+      0,
+      8,
+      32
+    ],
+    "background_templates_sha256": "d0e31a29307566c25249a1fa06b4981a70e41761a058acc177d5d9994af84611",
+    "device": "cpu",
+    "expected_generation_config_sha256": "5d6fe903d16bf7695561414f4740cf02b34481fdfd256c8b5cbf71fe1eca5854",
+    "expected_weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd",
+    "max_new_tokens": 48,
+    "model_id": "qwen2.5-3b-instruct",
+    "model_revision": "main",
+    "model_source": "Qwen/Qwen2.5-3B-Instruct",
+    "rag_candidate_surface": "relationship_outcomes_only",
+    "rag_config_sha256": "2e1a510f324887a4d4a00055d4c9fbfc1b22ed312185eae34d0e927e61c369ff",
+    "rag_embedder": "bge-m3",
+    "rag_model_source": "BAAI/bge-m3",
+    "rag_top_k": 4,
+    "rag_weights_sha256": "d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e",
+    "seed_schedule": [
+      101
+    ],
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "torch_dtype": "bfloat16",
+    "training_context_surface_sha256": "d2d7d07b4471dfe54f8011e17b9731c5189c84bf419be2c7568c56a1e389898e"
+  },
+  "schema_version": "relationship-p1i-frozen-consumer-protocol.v1",
+  "selection": {
+    "candidate_ranking": [
+      "conditioned_match_v1",
+      "latent_partition_v1",
+      "counterfactual_contrast_v1"
+    ],
+    "selected_candidate": {
+      "candidate_id": "conditioned_match_v1",
+      "compiler_version": "relationship-evidence-argmax.v1",
+      "prompt_asset": "relationship_lab_conditioned_evidence_readout_v1.txt",
+      "prompt_sha256": "9687c5043029502b0787cd88758d06c1c0541338ed3c50068ad4824ce25fd4e5",
+      "readout_schema_sha256": "afa852a2ee43b55cd10e761d5bb5b6a56b546aaa626f9291edb550e3220c40ab",
+      "request_template_asset": "relationship_lab_conditioned_evidence_readout_request_v1.txt",
+      "request_template_sha256": "55db60c37825da4999931345c1c973c2ea8fe54634a9508317284a02fd9bbde3",
+      "round_index": 1
+    },
+    "selected_candidate_artifact_id": "1165f65c8e1164930285c6ac0484148842560e4647f904a7474586fdc152d5b2",
+    "selected_pipeline_sha256": "24d68078f51fe510047e5c8d7e9fd9367a873c2c538d76f08f46601b754a1e58",
+    "selection_method": "leave_one_surface_family_out_training_only"
+  },
+  "source_lineage": {
+    "calibration_protocol_id": "080c908d7824b25081c501abbb6e76a2405a16508dbc0fb9d119b831447eef40",
+    "calibration_report_artifact_id": "c9382c1817114ea3b01684375546cbab3618ed38b655c46630e61af9e9e8a79a",
+    "consumer_split_contract_id": "2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8",
+    "qualification_dataset_fingerprint": "9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796",
+    "qualification_package_name": "relationship_transfer_v4",
+    "source_p1g_report_artifact_id": "9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8",
+    "training_dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f",
+    "training_package_name": "relationship_transfer_v3"
+  }
+}

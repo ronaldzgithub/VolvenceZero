@@ -1,0 +1,795 @@
+{
+  "schema_version": "relationship-transfer-truth.v4",
+  "abstract_conditions": [
+    {
+      "condition_id": "latent_condition_agency_displacement_v4",
+      "hidden_summary": "这件事的抽象核心是别人越过当事人的确认，替其表达、选择、承诺或作决定，使当事人失去发言权、决定权与主体性。"
+    },
+    {
+      "condition_id": "latent_condition_belonging_erasure_v4",
+      "hidden_summary": "这件事的抽象核心是当事人被共同经历、名单或关系网络遗漏和排除，因而失去在关系中的位置、归属感与被记得感。"
+    }
+  ],
+  "policy_profiles": {
+    "latent_policy_alpha_v4": {
+      "latent_condition_agency_displacement_v4": "respect_space_with_return_option",
+      "latent_condition_belonging_erasure_v4": "stay_present_without_probe"
+    },
+    "latent_policy_beta_v4": {
+      "latent_condition_agency_displacement_v4": "stay_present_without_probe",
+      "latent_condition_belonging_erasure_v4": "respect_space_with_return_option"
+    }
+  },
+  "positive_outcomes": [
+    "helped",
+    "felt_heard"
+  ],
+  "outcome_profiles": {
+    "presence_response_profile_v4": {
+      "stay_present_without_probe": {
+        "helped": 0.25,
+        "felt_heard": 0.65,
+        "missed": 0.08,
+        "over_directive": 0.02
+      },
+      "respect_space_with_return_option": {
+        "helped": 0.05,
+        "felt_heard": 0.1,
+        "missed": 0.8,
+        "over_directive": 0.05
+      },
+      "neutral_noop": {
+        "helped": 0.1,
+        "felt_heard": 0.2,
+        "missed": 0.55,
+        "over_directive": 0.15
+      }
+    },
+    "space_response_profile_v4": {
+      "stay_present_without_probe": {
+        "helped": 0.05,
+        "felt_heard": 0.05,
+        "missed": 0.15,
+        "over_directive": 0.75
+      },
+      "respect_space_with_return_option": {
+        "helped": 0.5,
+        "felt_heard": 0.4,
+        "missed": 0.05,
+        "over_directive": 0.05
+      },
+      "neutral_noop": {
+        "helped": 0.15,
+        "felt_heard": 0.15,
+        "missed": 0.25,
+        "over_directive": 0.45
+      }
+    }
+  },
+  "dynamics": [
+    {
+      "dynamic_id": "latent_v4_001a",
+      "mirror_pair_id": "pair_v4_01",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的课程项目表面中，alpha 个体策略面对关系位置被抹除时需要不侵入地留下。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_001b",
+      "mirror_pair_id": "pair_v4_01",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的课程项目表面中，beta 个体策略面对关系位置被抹除时需要给出可返回的空间。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_002a",
+      "mirror_pair_id": "pair_v4_02",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的个人理财表面中，alpha 个体策略面对主体性被替代时需要给出可返回的空间。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_002b",
+      "mirror_pair_id": "pair_v4_02",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的个人理财表面中，beta 个体策略面对主体性被替代时需要不侵入地留下。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_003a",
+      "mirror_pair_id": "pair_v4_03",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的合住安排表面中，alpha 个体策略面对关系位置被抹除时需要不侵入地留下。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_003b",
+      "mirror_pair_id": "pair_v4_03",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的合住安排表面中，beta 个体策略面对关系位置被抹除时需要给出可返回的空间。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_004a",
+      "mirror_pair_id": "pair_v4_04",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的同行旅行表面中，alpha 个体策略面对主体性被替代时需要给出可返回的空间。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_004b",
+      "mirror_pair_id": "pair_v4_04",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的同行旅行表面中，beta 个体策略面对主体性被替代时需要不侵入地留下。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_005a",
+      "mirror_pair_id": "pair_v4_05",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的业余球队表面中，alpha 个体策略面对关系位置被抹除时需要不侵入地留下。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_005b",
+      "mirror_pair_id": "pair_v4_05",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的业余球队表面中，beta 个体策略面对关系位置被抹除时需要给出可返回的空间。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_006a",
+      "mirror_pair_id": "pair_v4_06",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的创作协作表面中，alpha 个体策略面对主体性被替代时需要给出可返回的空间。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_006b",
+      "mirror_pair_id": "pair_v4_06",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的创作协作表面中，beta 个体策略面对主体性被替代时需要不侵入地留下。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_007a",
+      "mirror_pair_id": "pair_v4_07",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的线上战队表面中，alpha 个体策略面对关系位置被抹除时需要不侵入地留下。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_007b",
+      "mirror_pair_id": "pair_v4_07",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的线上战队表面中，beta 个体策略面对关系位置被抹除时需要给出可返回的空间。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_008a",
+      "mirror_pair_id": "pair_v4_08",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的照护协调表面中，alpha 个体策略面对主体性被替代时需要给出可返回的空间。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_008b",
+      "mirror_pair_id": "pair_v4_08",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的照护协调表面中，beta 个体策略面对主体性被替代时需要不侵入地留下。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_009a",
+      "mirror_pair_id": "pair_v4_09",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的调解协商表面中，alpha 个体策略面对关系位置被抹除时需要不侵入地留下。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_009b",
+      "mirror_pair_id": "pair_v4_09",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的调解协商表面中，beta 个体策略面对关系位置被抹除时需要给出可返回的空间。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_010a",
+      "mirror_pair_id": "pair_v4_10",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的合作经营表面中，alpha 个体策略面对主体性被替代时需要给出可返回的空间。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_010b",
+      "mirror_pair_id": "pair_v4_10",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的合作经营表面中，beta 个体策略面对主体性被替代时需要不侵入地留下。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_011a",
+      "mirror_pair_id": "pair_v4_11",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的校友联络表面中，alpha 个体策略面对关系位置被抹除时需要不侵入地留下。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_011b",
+      "mirror_pair_id": "pair_v4_11",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的校友联络表面中，beta 个体策略面对关系位置被抹除时需要给出可返回的空间。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_012a",
+      "mirror_pair_id": "pair_v4_12",
+      "split": "heldout",
+      "preferred_action": "respect_space_with_return_option",
+      "outcome_profile_id": "space_response_profile_v4",
+      "hidden_summary": "在未见的出行协调表面中，alpha 个体策略面对主体性被替代时需要给出可返回的空间。",
+      "policy_id": "latent_policy_alpha_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "dynamic_id": "latent_v4_012b",
+      "mirror_pair_id": "pair_v4_12",
+      "split": "heldout",
+      "preferred_action": "stay_present_without_probe",
+      "outcome_profile_id": "presence_response_profile_v4",
+      "hidden_summary": "在未见的出行协调表面中，beta 个体策略面对主体性被替代时需要不侵入地留下。",
+      "policy_id": "latent_policy_beta_v4",
+      "probe_condition_id": "latent_condition_agency_displacement_v4"
+    }
+  ],
+  "scene_bindings": [
+    {
+      "scene_id": "rtv4_scene_001a",
+      "latent_dynamic_id": "latent_v4_001a"
+    },
+    {
+      "scene_id": "rtv4_scene_001b",
+      "latent_dynamic_id": "latent_v4_001b"
+    },
+    {
+      "scene_id": "rtv4_scene_002a",
+      "latent_dynamic_id": "latent_v4_002a"
+    },
+    {
+      "scene_id": "rtv4_scene_002b",
+      "latent_dynamic_id": "latent_v4_002b"
+    },
+    {
+      "scene_id": "rtv4_scene_003a",
+      "latent_dynamic_id": "latent_v4_003a"
+    },
+    {
+      "scene_id": "rtv4_scene_003b",
+      "latent_dynamic_id": "latent_v4_003b"
+    },
+    {
+      "scene_id": "rtv4_scene_004a",
+      "latent_dynamic_id": "latent_v4_004a"
+    },
+    {
+      "scene_id": "rtv4_scene_004b",
+      "latent_dynamic_id": "latent_v4_004b"
+    },
+    {
+      "scene_id": "rtv4_scene_005a",
+      "latent_dynamic_id": "latent_v4_005a"
+    },
+    {
+      "scene_id": "rtv4_scene_005b",
+      "latent_dynamic_id": "latent_v4_005b"
+    },
+    {
+      "scene_id": "rtv4_scene_006a",
+      "latent_dynamic_id": "latent_v4_006a"
+    },
+    {
+      "scene_id": "rtv4_scene_006b",
+      "latent_dynamic_id": "latent_v4_006b"
+    },
+    {
+      "scene_id": "rtv4_scene_007a",
+      "latent_dynamic_id": "latent_v4_007a"
+    },
+    {
+      "scene_id": "rtv4_scene_007b",
+      "latent_dynamic_id": "latent_v4_007b"
+    },
+    {
+      "scene_id": "rtv4_scene_008a",
+      "latent_dynamic_id": "latent_v4_008a"
+    },
+    {
+      "scene_id": "rtv4_scene_008b",
+      "latent_dynamic_id": "latent_v4_008b"
+    },
+    {
+      "scene_id": "rtv4_scene_009a",
+      "latent_dynamic_id": "latent_v4_009a"
+    },
+    {
+      "scene_id": "rtv4_scene_009b",
+      "latent_dynamic_id": "latent_v4_009b"
+    },
+    {
+      "scene_id": "rtv4_scene_010a",
+      "latent_dynamic_id": "latent_v4_010a"
+    },
+    {
+      "scene_id": "rtv4_scene_010b",
+      "latent_dynamic_id": "latent_v4_010b"
+    },
+    {
+      "scene_id": "rtv4_scene_011a",
+      "latent_dynamic_id": "latent_v4_011a"
+    },
+    {
+      "scene_id": "rtv4_scene_011b",
+      "latent_dynamic_id": "latent_v4_011b"
+    },
+    {
+      "scene_id": "rtv4_scene_012a",
+      "latent_dynamic_id": "latent_v4_012a"
+    },
+    {
+      "scene_id": "rtv4_scene_012b",
+      "latent_dynamic_id": "latent_v4_012b"
+    }
+  ],
+  "history_condition_bindings": [
+    {
+      "event_id": "rtv4_evt_001",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_002",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_003",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_004",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_005",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_006",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_007",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_008",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_009",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_010",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_011",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_012",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_013",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_014",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_015",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_016",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_017",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_018",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_019",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_020",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_021",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_022",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_023",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_024",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_025",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_026",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_027",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_028",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_029",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_030",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_031",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_032",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_033",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_034",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_035",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_036",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_037",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_038",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_039",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_040",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_041",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_042",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_043",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_044",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_045",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_046",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_047",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_048",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_049",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_050",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_051",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_052",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_053",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_054",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_055",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_056",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_057",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_058",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_059",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_060",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_061",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_062",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_063",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_064",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_065",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_066",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_067",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_068",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_069",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_070",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_071",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_072",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_073",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_074",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_075",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_076",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_077",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_078",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_079",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_080",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_081",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_082",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_083",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_084",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_085",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_086",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_087",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_088",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_089",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_090",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_091",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_092",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_093",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_094",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    },
+    {
+      "event_id": "rtv4_evt_095",
+      "condition_id": "latent_condition_belonging_erasure_v4"
+    },
+    {
+      "event_id": "rtv4_evt_096",
+      "condition_id": "latent_condition_agency_displacement_v4"
+    }
+  ]
+}

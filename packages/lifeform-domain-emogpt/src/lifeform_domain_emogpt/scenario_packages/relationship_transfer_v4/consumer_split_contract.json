@@ -1,0 +1,54 @@
+{
+  "schema_version": "relationship-consumer-split-contract.v1",
+  "trigger": {
+    "p1g_report_artifact_id": "9d7f05b574bafb21641d22c766fe31c4656c09bf6f5e04493474eee6c694e3c8",
+    "required_verdict": "consumer_still_underqualified"
+  },
+  "training_split": {
+    "package_name": "relationship_transfer_v3",
+    "dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f",
+    "role": "consumer_training_only",
+    "contains_seen_qwen_outputs": true
+  },
+  "qualification_split": {
+    "package_name": "relationship_transfer_v4",
+    "dataset_fingerprint": "9bfe6ae0b480ff9c549c4cde6756e47f4b7e25258b44a81e5c49955c8c495796",
+    "role": "unseen_qualification_only",
+    "mirrored_pairs": 12,
+    "histories_per_user": 4,
+    "qwen_outputs_observed_before_freeze": 0
+  },
+  "consumer_search_budget": {
+    "maximum_revision_rounds": 3,
+    "selection_method": "leave_one_surface_family_out_training_only",
+    "preserve_every_candidate": true,
+    "allowed_feedback": "training_labels_only_external_baseline_calibration"
+  },
+  "frozen_qualification_gate": {
+    "required_valid_rate": 1.0,
+    "minimum_accuracy": 0.625,
+    "maximum_accuracy": 0.875,
+    "minimum_pair_flip_rate": 0.5,
+    "primary_qualification_arms": [
+      "prompt-steelman",
+      "rag-steelman"
+    ],
+    "structured_state_minimum_pair_flip_rate": 0.5
+  },
+  "isolation_guards": {
+    "exact_surface_families_disjoint": true,
+    "exact_scene_ids_disjoint": true,
+    "exact_event_ids_disjoint": true,
+    "exact_public_text_disjoint": true
+  },
+  "experiment_guards": {
+    "qualification_public_inputs_visible_during_training": false,
+    "qualification_truth_visible_during_training": false,
+    "qualification_feedback_to_consumer": false,
+    "evaluation_feedback_to_pe_credit_reward_or_steering": false,
+    "formal_hidden_test_opened": false,
+    "p2_enabled": false
+  },
+  "next_action": "consumer_training_freeze_candidate",
+  "claim_boundary": "P1h freezes a development-only consumer-training/unseen-qualification split before any v4 Qwen output. It does not train or qualify a consumer, open formal hidden test or P2, prove Volvence advantage, human readability, product value, or any complete Appendable/Readable/Learnable/Steerable claim."
+}

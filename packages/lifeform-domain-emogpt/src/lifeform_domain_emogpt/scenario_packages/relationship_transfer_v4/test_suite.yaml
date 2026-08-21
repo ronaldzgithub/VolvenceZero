@@ -1,0 +1,156 @@
+suite_name: relationship_transfer_v4_p1h_acceptance
+package_name: relationship_transfer_v4
+routing_policy:
+  method: semantic_trajectory_abstraction_plus_schema_bound_llm_output
+  required_evidence:
+    - content_addressed_training_and_qualification_lineage
+    - zero_v4_qwen_output_before_freeze
+    - four_balanced_action_outcome_histories
+    - user_scope_continuity
+    - unseen_training_surface
+    - pre_action_prediction
+    - reactive_environment_evidence
+  forbidden_methods:
+    - substring_matching
+    - regex_content_matching
+    - keyword_to_route_dictionary
+    - event_position_to_condition
+    - event_id_to_policy
+    - scene_id_to_action_lookup
+    - surface_family_to_action_lookup
+    - global_action_outcome_majority
+    - qualification_label_to_consumer
+    - judge_score_to_learning
+  insufficient_evidence: no_route
+routing_tests:
+  - test_id: route_v4_01_split_freeze
+    case_type: positive
+    semantic_input:
+      summary: P1g 已判 consumer underqualified，v3 已有模型输出而只能用于训练；v4 尚无 Qwen 输出并已冻结独立指纹。
+      structured_evidence_axes: [P1g artifact, v3 fingerprint, v4 fingerprint, zero prior output]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_consumer_split_freeze_v4
+      arc_spec_id: arc_relationship_consumer_qualification_v4
+    assertions:
+      - 不得把 v3 重新命名为未见资格数据。
+      - 不得在 consumer 冻结前解封 v4 输入或真值。
+  - test_id: route_v4_02_balanced_histories
+    case_type: positive
+    semantic_input:
+      summary: 一位 qualification 用户有四次完整行动结果，两个动作都各成功一次、失败一次。
+      structured_evidence_axes: [four histories, two conditions, balanced actions, balanced outcome polarity]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_balanced_qualification_evidence_v4
+      arc_spec_id: arc_relationship_consumer_qualification_v4
+    assertions:
+      - 必须保留四条证据，不能通过全局动作累计选择答案。
+  - test_id: route_v4_03_unseen_surface_transfer
+    case_type: positive
+    semantic_input:
+      summary: 当前来自训练中未出现的生活领域，但关系损失结构与历史里的两类条件之一相同。
+      structured_evidence_axes: [semantic situation equivalence, personal outcome map, unseen training surface]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_unseen_abstract_transfer_v4
+      arc_spec_id: arc_relationship_consumer_qualification_v4
+    assertions:
+      - 应迁移抽象结构，不能按 surface family 查动作。
+  - test_id: route_v4_04_mirrored_bet
+    case_type: positive
+    semantic_input:
+      summary: 两个 qualification scope 收到逐字节相同消息，但各自四条经历支持互补动作。
+      structured_evidence_axes: [same current bytes, distinct user scope, complementary conditioned histories, pre-action timestamp]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_mirrored_preaction_v4
+      arc_spec_id: arc_relationship_consumer_qualification_v4
+    assertions:
+      - 两个下注都必须早于环境 outcome 和 expected action 附着。
+  - test_id: route_v4_05_reactive_settlement
+    case_type: positive
+    semantic_input:
+      summary: closed action 已冻结，需要由 sealed dynamic 和 deterministic draw 产生 typed outcome。
+      structured_evidence_axes: [selected action, environment version, sealed dynamic, deterministic draw]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_reactive_settlement_v4
+      arc_spec_id: arc_relationship_consumer_qualification_v4
+    assertions:
+      - 不同 action 必须改变 outcome 分布和 evidence ref。
+  - test_id: route_v4_06_counterfactual_swap
+    case_type: positive
+    semantic_input:
+      summary: 保持资格当前消息、条件和 substrate 不变，只交换镜像用户的四次经历。
+      structured_evidence_axes: [matched pair, balanced histories, same current bytes, distinct trajectory]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_counterfactual_split_swap_v4
+      arc_spec_id: arc_relationship_consumer_qualification_v4
+    assertions:
+      - 十二组正确动作都应随个人经历翻转。
+  - test_id: route_v4_07_consumer_budget
+    case_type: positive
+    semantic_input:
+      summary: baseline consumer 只在 v3 training 上保留最多三轮候选，并做 leave-one-surface-family-out 选择。
+      structured_evidence_axes: [training-only labels, three revision rounds, preserved candidates, frozen selection method]
+      current_text_only_sufficient: false
+    expected:
+      path_id: path_consumer_split_freeze_v4
+      arc_spec_id: arc_relationship_consumer_qualification_v4
+    assertions:
+      - 第四轮修改或删除失败候选必须 fail closed。
+  - test_id: no_route_v4_08_qualification_feedback
+    case_type: negative
+    semantic_input:
+      summary: consumer 搜索请求读取 v4 当前输入或资格标签后再修改 prompt、RAG 或 gate。
+      structured_evidence_axes: [qualification feedback request]
+      current_text_only_sufficient: false
+    expected:
+      route: no_route
+      reason: qualification_must_remain_unseen_until_consumer_freeze
+    assertions:
+      - 资格输出只能在后续冻结 consumer 上运行一次。
+  - test_id: no_route_v4_09_keyword_router
+    case_type: negative
+    semantic_input:
+      summary: consumer 用“漏掉”“替我”等词表判断条件并直接映射动作。
+      structured_evidence_axes: [surface keywords only]
+      current_text_only_sufficient: false
+    expected:
+      route: no_route
+      reason: semantic_condition_evidence_missing
+    assertions:
+      - 条件检测不得使用关键词、正则或字典。
+  - test_id: no_route_v4_10_best_arm_posthoc
+    case_type: negative
+    semantic_input:
+      summary: qualification 结束后只保留最高分 arm，并删除预先要求同时合格的 RAG。
+      structured_evidence_axes: [posthoc gate rewrite]
+      current_text_only_sufficient: false
+    expected:
+      route: no_route
+      reason: frozen_p1g_gate_must_be_preserved
+    assertions:
+      - prompt 和 RAG steelman 仍须同时通过冻结资格门。
+llm_evaluation:
+  judge_contract:
+    method: structured_semantic_review
+    learning_feedback: forbidden
+    forbidden_methods: [keyword_overlap_score, warmth_style_score_as_success]
+  semantic_coherence:
+    - case_id: coherence_v4_01_training_demoted
+      assertion: v3 全部是已见 development 材料，只能校准外部 baseline，不能再宣称未见迁移。
+    - case_id: coherence_v4_02_qualification_only
+      assertion: v4 的 12 组 dynamics 全为 heldout，consumer 冻结前 Qwen 输出数必须为零。
+    - case_id: coherence_v4_03_cross_package_isolation
+      assertion: v3/v4 的 scene、event、surface family 和公开文本集合必须完全不相交。
+    - case_id: coherence_v4_04_no_global_action_shortcut
+      assertion: 每位用户两个动作都恰好一正一负，忽略情境的动作累计无法区分答案。
+    - case_id: coherence_v4_05_same_sentence_opposite_policy
+      assertion: 每组镜像当前输入逐字节相同、probe condition 相同，但用户策略和正确动作互补。
+    - case_id: coherence_v4_06_truth_isolation
+      assertion: condition、policy、preferred action 和 future outcome 不进入 SUT payload。
+    - case_id: coherence_v4_07_claim_boundary
+      assertion: P1h 只冻结开发期 split，不训练或资格化 consumer，不证明 Volvence 优势、P2 或四能力。

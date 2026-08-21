@@ -1,0 +1,84 @@
+schema_version: "4.0"
+package_name: relationship_transfer_v4
+generation_policy:
+  truth_source: generator_truth.json
+  rendered_observation_source: rendered_observations.json
+  consumer_split_contract_source: consumer_split_contract.json
+  runtime_observation_builder: lifeform_domain_emogpt.lab.dataset.RelationshipObservation.to_sut_payload
+  user_reaction: typed_reactive_transition_then_bounded_renderer
+  real_person_data: false
+  routing: semantic_only
+split_policy:
+  unit: entire_latent_sibling_pair
+  package_role: unseen_qualification_only
+  training_source: relationship_transfer_v3
+  assignments:
+    heldout:
+      - rtv4_scene_001a
+      - rtv4_scene_001b
+      - rtv4_scene_002a
+      - rtv4_scene_002b
+      - rtv4_scene_003a
+      - rtv4_scene_003b
+      - rtv4_scene_004a
+      - rtv4_scene_004b
+      - rtv4_scene_005a
+      - rtv4_scene_005b
+      - rtv4_scene_006a
+      - rtv4_scene_006b
+      - rtv4_scene_007a
+      - rtv4_scene_007b
+      - rtv4_scene_008a
+      - rtv4_scene_008b
+      - rtv4_scene_009a
+      - rtv4_scene_009b
+      - rtv4_scene_010a
+      - rtv4_scene_010b
+      - rtv4_scene_011a
+      - rtv4_scene_011b
+      - rtv4_scene_012a
+      - rtv4_scene_012b
+scenes:
+  - {scenario_id: rtv4_scene_001a, mirror_group: mirror_v4_001, split: heldout, probe_surface_family: education_program, path_id: path_consumer_split_freeze_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_001b, mirror_group: mirror_v4_001, split: heldout, probe_surface_family: education_program, path_id: path_consumer_split_freeze_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_002a, mirror_group: mirror_v4_002, split: heldout, probe_surface_family: personal_finance, path_id: path_unseen_abstract_transfer_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_002b, mirror_group: mirror_v4_002, split: heldout, probe_surface_family: personal_finance, path_id: path_unseen_abstract_transfer_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_003a, mirror_group: mirror_v4_003, split: heldout, probe_surface_family: shared_housing, path_id: path_mirrored_preaction_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_003b, mirror_group: mirror_v4_003, split: heldout, probe_surface_family: shared_housing, path_id: path_mirrored_preaction_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_004a, mirror_group: mirror_v4_004, split: heldout, probe_surface_family: group_travel, path_id: path_reactive_settlement_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_004b, mirror_group: mirror_v4_004, split: heldout, probe_surface_family: group_travel, path_id: path_reactive_settlement_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_005a, mirror_group: mirror_v4_005, split: heldout, probe_surface_family: amateur_sports, path_id: path_balanced_qualification_evidence_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_005b, mirror_group: mirror_v4_005, split: heldout, probe_surface_family: amateur_sports, path_id: path_balanced_qualification_evidence_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_006a, mirror_group: mirror_v4_006, split: heldout, probe_surface_family: creative_collective, path_id: path_unseen_abstract_transfer_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_006b, mirror_group: mirror_v4_006, split: heldout, probe_surface_family: creative_collective, path_id: path_unseen_abstract_transfer_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_007a, mirror_group: mirror_v4_007, split: heldout, probe_surface_family: online_gaming, path_id: path_mirrored_preaction_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_007b, mirror_group: mirror_v4_007, split: heldout, probe_surface_family: online_gaming, path_id: path_mirrored_preaction_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_008a, mirror_group: mirror_v4_008, split: heldout, probe_surface_family: caregiving_coordination, path_id: path_reactive_settlement_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_008b, mirror_group: mirror_v4_008, split: heldout, probe_surface_family: caregiving_coordination, path_id: path_reactive_settlement_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_009a, mirror_group: mirror_v4_009, split: heldout, probe_surface_family: legal_mediation, path_id: path_balanced_qualification_evidence_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_009b, mirror_group: mirror_v4_009, split: heldout, probe_surface_family: legal_mediation, path_id: path_balanced_qualification_evidence_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_010a, mirror_group: mirror_v4_010, split: heldout, probe_surface_family: cooperative_commerce, path_id: path_unseen_abstract_transfer_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_010b, mirror_group: mirror_v4_010, split: heldout, probe_surface_family: cooperative_commerce, path_id: path_unseen_abstract_transfer_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_011a, mirror_group: mirror_v4_011, split: heldout, probe_surface_family: alumni_network, path_id: path_mirrored_preaction_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_011b, mirror_group: mirror_v4_011, split: heldout, probe_surface_family: alumni_network, path_id: path_mirrored_preaction_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_012a, mirror_group: mirror_v4_012, split: heldout, probe_surface_family: transport_coordination, path_id: path_reactive_settlement_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+  - {scenario_id: rtv4_scene_012b, mirror_group: mirror_v4_012, split: heldout, probe_surface_family: transport_coordination, path_id: path_reactive_settlement_v4, arc_spec_id: arc_relationship_consumer_qualification_v4}
+semantic_routing:
+  method: trajectory_embedding_plus_conditioned_schema_bound_llm_output
+  input_axes:
+    - content_addressed_split_lineage
+    - balanced_multi_experience_action_outcome_lineage
+    - user_scope_continuity
+    - semantic_situation_equivalence
+    - unseen_training_surface_transfer
+    - candidate_action_outcome_prediction
+  insufficient_evidence: no_route
+  forbidden:
+    - substring_matching
+    - regex_content_matching
+    - keyword_dictionary
+    - event_order_routing
+    - event_id_lookup
+    - scene_id_to_action_lookup
+    - surface_family_to_action_lookup
+    - global_action_outcome_majority

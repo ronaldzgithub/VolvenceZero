@@ -1,0 +1,33 @@
+name: relationship_transfer_v4
+version: "4.0"
+description: "将已见 v3 降级为 consumer-training，并在零 v4 Qwen 输出时冻结十二组全新表面的资格集。"
+domain: SOCIAL
+author: "Volvence Zero Contributors"
+components:
+  ssot_fragment: ssot_fragment.json
+  scenes: scenes.yaml
+  test_suite: test_suite.yaml
+lab_artifacts:
+  rendered_observations: rendered_observations.json
+  sealed_generator_truth: generator_truth.json
+  consumer_split_contract: consumer_split_contract.json
+owner_contract:
+  owner: lifeform-domain-emogpt.lab
+  verdict_consumer: lifeform-evolution
+  runtime_owner_policy: no_new_runtime_owner_or_slot
+  wiring_level: OFFLINE_SHADOW_EVIDENCE_ONLY
+  product_import_allowed: false
+split_contract:
+  training_package: relationship_transfer_v3
+  training_role: consumer_training_only
+  qualification_package: relationship_transfer_v4
+  qualification_role: unseen_qualification_only
+  qualification_mirrored_pairs: 12
+  qualification_qwen_outputs_observed_before_freeze: 0
+  consumer_revision_budget: 3
+  selection_method: leave_one_surface_family_out_training_only
+  evaluation_feedback: forbidden
+explanation: |
+  本包只解决 P1g 暴露出的实验分割问题：v3 已经产生过 Qwen 输出，因而整包诚实降级为 consumer-training，不再承担任何未见资格主张；v4 则在零 Qwen 输出状态下冻结为 qualification-only。十二组镜像用户覆盖十二个与 v3 完全不同的日常表面，每组当前消息逐字节相同、抽象条件相同，但两位用户过去四次行动—结果经历编码互补个体策略，所以正确关系动作必须相反。训练与资格的 scene、event、surface family 和全部公开文本都由 owner 进行跨包 fail-loud 隔离检查。
+  路径先冻结训练/资格边界，再验证四历史平衡证据、跨表面抽象迁移、行动前下注、反应式后果和镜像反事实；同一 arc 的 phase_order 从 0 连续到 5。场景检测依赖轨迹级语义表示、结构化 readout 和内容寻址 lineage，不允许关键词、正则、scene id、event id、表面领域或全局动作多数票路由。资格证据不足时只能 no-route，不能用默认动作补洞。
+  集成点仅为 lifeform-domain-emogpt.lab 的离线数据与 split owner，后续 lifeform-evolution P1i 只能读取 v3 training 校准外部 baseline，并须在解封任何 v4 输入前冻结最终 consumer。标签不进入 SUT，不写 memory、PE、credit、reward、controller 或 steering。R14 体制身份是“先辨认当下损失的是主体性还是关系位置，再从这个人的历史效果决定靠近或退开”；它是可由轨迹校准的持续关系策略，不是 prompt 标签。回滚只需停止加载 v4 和 split contract，v1–v3、P1g artifact 与产品 runtime 均保持不变。

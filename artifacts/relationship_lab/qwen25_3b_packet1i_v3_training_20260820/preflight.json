@@ -1,0 +1,13 @@
+{
+  "candidate_count": 3,
+  "consumer_split_contract_id": "2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8",
+  "model_weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd",
+  "protocol_id": "080c908d7824b25081c501abbb6e76a2405a16508dbc0fb9d119b831447eef40",
+  "qualification_inputs_observed": 0,
+  "qualification_qwen_outputs_observed": 0,
+  "rag_weights_sha256": "d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e",
+  "ready": true,
+  "selection_method": "leave_one_surface_family_out_training_only",
+  "training_context_surface_sha256": "d2d7d07b4471dfe54f8011e17b9731c5189c84bf419be2c7568c56a1e389898e",
+  "training_dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f"
+}
