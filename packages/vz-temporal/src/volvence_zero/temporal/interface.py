@@ -21,7 +21,13 @@ from volvence_zero.substrate import (
     SubstrateSnapshot,
     SurfaceKind,
 )
-from volvence_zero.temporal_types import ControllerState, TemporalAbstractionSnapshot, TemporalSegmentClosure
+from volvence_zero.temporal_types import (
+    ControllerState,
+    TemporalAbstractionSnapshot,
+    TemporalActionAdvisoryProposal,
+    TemporalActionAdvisoryStatus,
+    TemporalSegmentClosure,
+)
 from volvence_zero.temporal.metacontroller_components import (
     DEFAULT_FAMILY_MATCH_WEIGHTS,
     ActionFamilyObservation,
@@ -5751,6 +5757,8 @@ def build_temporal_aggregate_snapshot(
             world_snapshot.conditioning_lineage_refs,
             self_snapshot.conditioning_lineage_refs,
         ),
+        action_advisory=self_snapshot.action_advisory,
+        action_advisory_status=self_snapshot.action_advisory_status,
     )
 
 
@@ -6016,6 +6024,8 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         policy: TemporalPolicy | None = None,
         previous_snapshot: TemporalAbstractionSnapshot | None = None,
         wiring_level: WiringLevel | None = None,
+        action_advisory: TemporalActionAdvisoryProposal | None = None,
+        action_advisory_level: WiringLevel = WiringLevel.DISABLED,
     ) -> None:
         super().__init__(wiring_level=wiring_level)
         self._track = track
@@ -6024,6 +6034,18 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         self._policy = policy or FullLearnedTemporalPolicy()
         self._previous_snapshot = previous_snapshot
         self._pending_active_mixture: object | None = None
+        if action_advisory is not None and track is not Track.SELF:
+            raise ValueError("temporal action advisory may only target self_temporal")
+        if (
+            action_advisory is not None
+            and action_advisory_level is WiringLevel.ACTIVE
+            and not action_advisory.active_authorized
+        ):
+            raise ValueError(
+                "self_temporal cannot apply an advisory without ACTIVE authorization"
+            )
+        self._action_advisory = action_advisory
+        self._action_advisory_level = action_advisory_level
 
     def observe_active_mixture_carryover(self, active_mixture_value: object | None) -> None:
         """Stash the previous-turn ``active_mixture`` for the next step.
@@ -6045,6 +6067,27 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
 
     def export_runtime_state(self) -> MetacontrollerRuntimeState | None:
         return self._policy.export_runtime_state()
+
+    def _resolve_action_advisory(
+        self,
+        native_action: str,
+    ) -> tuple[
+        str,
+        TemporalActionAdvisoryProposal | None,
+        TemporalActionAdvisoryStatus,
+    ]:
+        advisory = self._action_advisory
+        if advisory is None or self._action_advisory_level is WiringLevel.DISABLED:
+            return native_action, None, TemporalActionAdvisoryStatus.NONE
+        if self._action_advisory_level is WiringLevel.SHADOW:
+            return (
+                native_action,
+                advisory,
+                TemporalActionAdvisoryStatus.SHADOW_RECORDED,
+            )
+        if advisory.evaluator_only:
+            raise ValueError("self_temporal cannot apply evaluator-only advisory")
+        return advisory.action_id, advisory, TemporalActionAdvisoryStatus.APPLIED
 
     async def process(
         self,
@@ -6100,13 +6143,22 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             if isinstance(substrate_value, SubstrateSnapshot)
             else ()
         )
+        active_action, action_advisory, action_advisory_status = (
+            self._resolve_action_advisory(step.active_abstract_action)
+        )
+        effective_step = (
+            replace(step, active_abstract_action=active_action)
+            if active_action != step.active_abstract_action
+            else step
+        )
         snapshot_value = TemporalAbstractionSnapshot(
             controller_state=step.controller_state,
-            active_abstract_action=step.active_abstract_action,
+            active_abstract_action=active_action,
             controller_params_hash=step.controller_params_hash,
             description=(
                 f"{self._track.value}-track {step.description} "
-                f"Semantic owner advisories consumed with pressure={semantic_pressure:.2f}."
+                f"Semantic owner advisories consumed with pressure={semantic_pressure:.2f}; "
+                f"action_advisory={action_advisory_status.value}."
             ),
             action_family_version=step.action_family_version,
             memory_feedback_signal=(
@@ -6114,10 +6166,12 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             ) + ((semantic_pressure,) if semantic_pressure > 0.0 else ()),
             closed_segments=_closed_segment_from_switch(
                 previous_snapshot=self._previous_snapshot,
-                current_step=step,
+                current_step=effective_step,
                 close_turn_index=self._version + 1,
             ),
             conditioning_lineage_refs=conditioning_lineage_refs,
+            action_advisory=action_advisory,
+            action_advisory_status=action_advisory_status,
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)
@@ -6142,21 +6196,34 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             memory_snapshot=memory_snapshot if isinstance(memory_snapshot, MemorySnapshot) else None,
             reflection_snapshot=reflection_value,
         )
+        active_action, action_advisory, action_advisory_status = (
+            self._resolve_action_advisory(step.active_abstract_action)
+        )
+        effective_step = (
+            replace(step, active_abstract_action=active_action)
+            if active_action != step.active_abstract_action
+            else step
+        )
         snapshot_value = TemporalAbstractionSnapshot(
             controller_state=step.controller_state,
-            active_abstract_action=step.active_abstract_action,
+            active_abstract_action=active_action,
             controller_params_hash=step.controller_params_hash,
-            description=f"{self._track.value}-track {step.description}",
+            description=(
+                f"{self._track.value}-track {step.description}; "
+                f"action_advisory={action_advisory_status.value}."
+            ),
             action_family_version=step.action_family_version,
             memory_feedback_signal=self._policy.latest_encoder_output_for_cms or (),
             closed_segments=_closed_segment_from_switch(
                 previous_snapshot=self._previous_snapshot,
-                current_step=step,
+                current_step=effective_step,
                 close_turn_index=self._version + 1,
             ),
             conditioning_lineage_refs=_conditioning_lineage_refs_from_substrate(
                 substrate_snapshot
             ),
+            action_advisory=action_advisory,
+            action_advisory_status=action_advisory_status,
         )
         self._previous_snapshot = snapshot_value
         return self.publish(snapshot_value)

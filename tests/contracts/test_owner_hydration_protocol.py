@@ -145,6 +145,7 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
         OtherMindRecord,
         OtherMindRecordKind,
         OtherMindRecordStatus,
+        PreferenceActionOutcomeEvidence,
         SocialPrediction,
         SocialPredictionKind,
         SocialPredictionOutcome,
@@ -169,6 +170,37 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
                 evidence="turn-3",
             ),
         ),
+    )
+    source.set_tom_records(
+        "preference_about_other",
+        (
+            OtherMindRecord(
+                record_id="preference-1",
+                interlocutor_id="bob",
+                kind=OtherMindRecordKind.PREFERENCE,
+                summary="Bob prefers a low-pressure return option",
+                detail="A prior typed outcome supported this preference.",
+                confidence=0.76,
+                status=OtherMindRecordStatus.ACTIVE,
+                source_turn=2,
+                prediction_error_refs=(),
+                evidence="turn-2",
+            ),
+        ),
+    )
+    source.set_preference_action_outcomes(
+        (
+            PreferenceActionOutcomeEvidence(
+                evidence_id="preference-1",
+                interlocutor_id="bob",
+                observation_summary="Bob was under relationship pressure.",
+                action_id="respect_space",
+                observed_outcome_id="helped",
+                reaction_summary="Bob said having a return option helped.",
+                source_turn=2,
+                evidence_refs=("dialogue:turn:2",),
+            ),
+        )
     )
     source.set_pending_tom_predictions(
         "belief_about_other",
@@ -213,7 +245,7 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
 
     exported = source.export_persistence_snapshot()
     assert exported.owner_name == "social_record_store"
-    assert exported.schema_version == 1
+    assert exported.schema_version == 2
 
     target = SocialRecordStore()
     target.hydrate_from_persistence(exported)
@@ -221,6 +253,7 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
 
     assert exported.payload == re_exported.payload
     assert target.tom_records("belief_about_other") == source.tom_records("belief_about_other")
+    assert target.preference_action_outcomes == source.preference_action_outcomes
     assert target.common_ground_dyad_atoms == source.common_ground_dyad_atoms
     assert (
         target.group_regime_for("frame-group:alice+bob+cara")

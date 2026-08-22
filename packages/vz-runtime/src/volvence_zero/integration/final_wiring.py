@@ -142,6 +142,7 @@ from volvence_zero.runtime import (
 from volvence_zero.social_cognition import (
     CommonGroundAtom,
     GroupIdentity,
+    PreferenceActionOutcomeEvidence,
     SocialPredictionError,
     SocialPredictionErrorSnapshot,
 )
@@ -174,6 +175,8 @@ from volvence_zero.social import (
     LLMCommonGroundProposalRuntime,
     LLMToMProposalRuntime,
     MultiPartyIdentityModule,
+    PreferenceActionForecastRequest,
+    PreferenceActionForecastRuntime,
     PreferenceAboutOtherModule,
     SocialPredictionAggregateModule,
     SocialPredictionErrorModule,
@@ -203,6 +206,7 @@ from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
+    TemporalActionAdvisoryProposal,
     TemporalConsolidationSnapshot,
     TemporalPolicy,
     TemporalAggregateModule,
@@ -357,6 +361,11 @@ class FinalRolloutConfig:
     credit: WiringLevel = WiringLevel.ACTIVE
     reflection: WiringLevel = WiringLevel.ACTIVE
     temporal: WiringLevel = WiringLevel.ACTIVE
+    # P3/P4 relationship action collaborator. SHADOW records the typed
+    # recommendation on self_temporal without changing z_t/action or
+    # expression. ACTIVE requires an explicitly promoted advisory artifact;
+    # DISABLED drops the collaborator input entirely.
+    relationship_action_advisory: WiringLevel = WiringLevel.SHADOW
     eta_open_weight_runtime: WiringLevel = WiringLevel.SHADOW
     # Residual steering owner family. All three candidates start SHADOW and
     # are only constructed when a model-bound SteeringArtifactBundle is
@@ -826,6 +835,7 @@ class FinalRolloutConfig:
             "credit": self.credit,
             "reflection": self.reflection,
             "temporal": self.temporal,
+            "relationship_action_advisory": self.relationship_action_advisory,
             "eta_open_weight_runtime": self.eta_open_weight_runtime,
             "steering_sensor": self.steering_sensor,
             "steering_executor": self.steering_executor,
@@ -1922,6 +1932,9 @@ def build_final_runtime_modules(
     semantic_state_store: SemanticStateStore | None = None,
     semantic_proposal_runtime: SemanticProposalRuntime | None = None,
     tom_proposal_runtime: SemanticProposalRuntime | None = None,
+    preference_action_forecast_runtime: PreferenceActionForecastRuntime | None = None,
+    preference_action_forecast_request: PreferenceActionForecastRequest | None = None,
+    preference_action_outcome_evidence: PreferenceActionOutcomeEvidence | None = None,
     common_ground_proposal_runtime: LLMCommonGroundProposalRuntime | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     credit_proposals: tuple[ModificationProposal, ...] = (),
@@ -1931,6 +1944,7 @@ def build_final_runtime_modules(
     self_temporal_policy: TemporalPolicy | None = None,
     previous_world_temporal_snapshot: TemporalAbstractionSnapshot | None = None,
     previous_self_temporal_snapshot: TemporalAbstractionSnapshot | None = None,
+    self_temporal_action_advisory: TemporalActionAdvisoryProposal | None = None,
     prediction_module: PredictionErrorModule | None = None,
     regime_module: RegimeModule | None = None,
     credit_module: CreditModule | None = None,
@@ -2324,6 +2338,9 @@ def build_final_runtime_modules(
             user_input=user_input,
             turn_index=turn_index,
             record_store=social_record_store,
+            action_forecast_runtime=preference_action_forecast_runtime,
+            action_forecast_request=preference_action_forecast_request,
+            action_outcome_evidence=preference_action_outcome_evidence,
         ),
         CommonGroundModule(
             wiring_level=config.level_for("common_ground", WiringLevel.ACTIVE),
@@ -2379,6 +2396,11 @@ def build_final_runtime_modules(
             policy=resolved_self_temporal_policy,
             previous_snapshot=previous_self_temporal_snapshot,
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
+            action_advisory=self_temporal_action_advisory,
+            action_advisory_level=config.level_for(
+                "relationship_action_advisory",
+                WiringLevel.SHADOW,
+            ),
         ),
         TemporalAggregateModule(
             wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
@@ -2558,6 +2580,9 @@ async def run_final_wiring_turn(
     semantic_state_store: SemanticStateStore | None = None,
     semantic_proposal_runtime: SemanticProposalRuntime | None = None,
     tom_proposal_runtime: SemanticProposalRuntime | None = None,
+    preference_action_forecast_runtime: PreferenceActionForecastRuntime | None = None,
+    preference_action_forecast_request: PreferenceActionForecastRequest | None = None,
+    preference_action_outcome_evidence: PreferenceActionOutcomeEvidence | None = None,
     common_ground_proposal_runtime: LLMCommonGroundProposalRuntime | None = None,
     evaluation_backbone: EvaluationBackbone | None = None,
     prior_session_reports: tuple[EvaluationReport, ...] = (),
@@ -2568,6 +2593,7 @@ async def run_final_wiring_turn(
     temporal_policy: TemporalPolicy | None = None,
     world_temporal_policy: TemporalPolicy | None = None,
     self_temporal_policy: TemporalPolicy | None = None,
+    self_temporal_action_advisory: TemporalActionAdvisoryProposal | None = None,
     prediction_module: PredictionErrorModule | None = None,
     regime_module: RegimeModule | None = None,
     credit_module: CreditModule | None = None,
@@ -2643,6 +2669,9 @@ async def run_final_wiring_turn(
         semantic_state_store=semantic_state_store,
         semantic_proposal_runtime=semantic_proposal_runtime,
         tom_proposal_runtime=tom_proposal_runtime,
+        preference_action_forecast_runtime=preference_action_forecast_runtime,
+        preference_action_forecast_request=preference_action_forecast_request,
+        preference_action_outcome_evidence=preference_action_outcome_evidence,
         common_ground_proposal_runtime=common_ground_proposal_runtime,
         evaluation_backbone=evaluation_backbone,
         credit_proposals=credit_proposals,
@@ -2652,6 +2681,7 @@ async def run_final_wiring_turn(
         self_temporal_policy=self_temporal_policy,
         previous_world_temporal_snapshot=previous_track_temporal.get("world_temporal"),
         previous_self_temporal_snapshot=previous_track_temporal.get("self_temporal"),
+        self_temporal_action_advisory=self_temporal_action_advisory,
         prediction_module=prediction_module,
         regime_module=regime_module,
         credit_module=credit_module,

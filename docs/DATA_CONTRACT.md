@@ -2431,7 +2431,7 @@ sensor-off executor 是 `SteeringArtifactBundle` 内的 matched-budget unconditi
 | `steering_intervention` | SteeringExecutorModule (`vz-substrate`) | SteeringIntervention | SHADOW | 每 turn（仅注入 model-bound artifact 时构造） | session / transformers response generation；仅 ACTIVE 快照可进入用户可见生成，SHADOW 预览只留在 `shadow_snapshots` |
 | `substrate_self_mod` | SubstrateSelfModModule | SubstrateSelfModSnapshot | SHADOW | 每 turn / schedule | session / credit audit / rare-heavy review |
 | `world_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |
-| `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | temporal_abstraction, dual_track |
+| `self_temporal` | TrackTemporalModule | TemporalAbstractionSnapshot（P3：可携带 `TemporalActionAdvisoryProposal` + `action_advisory_status`） | SHADOW | 每 turn | temporal_abstraction, dual_track；relationship advisory 默认只记录、不改 native action |
 | `world_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | SHADOW | 每 turn | final wiring / audit only |
 | `self_temporal_consolidation` | TrackTemporalConsolidationModule | TemporalConsolidationSnapshot | SHADOW | 每 turn | final wiring / audit only |
 | `temporal_abstraction` | TemporalAggregateModule / TemporalModule | TemporalAbstractionSnapshot | SHADOW | 每 turn | memory, dual_track |
@@ -2457,7 +2457,7 @@ sensor-off executor 是 `SteeringArtifactBundle` 内的 matched-budget unconditi
 | `decision_workspace` | DecisionWorkspaceModule | DecisionWorkspaceSnapshot | SHADOW | 每 turn | 只读消费 `regime`、`plan_intent`、`goal_value`、`open_loop`、`belief_assumption`、`boundary_policy`；当前无 authoritative consumer |
 | `regime` | RegimeModule | RegimeSnapshot | SHADOW | 每 turn | prediction_error, reflection, retrieval_policy |
 | `prediction_error` | PredictionErrorModule | PredictionErrorSnapshot | ACTIVE | 每 turn | memory, temporal_abstraction, regime, credit, reflection；另在 final wiring 中被 evaluation enrichment 读取 |
-| `credit` | CreditModule | CreditSnapshot | SHADOW | 每 turn ~ 每会话 | reflection; consumes `prediction_error` + `temporal_abstraction.closed_segments` for PE-derived segment credit |
+| `credit` | CreditModule | CreditSnapshot | SHADOW | 每 turn ~ 每会话 | reflection; consumes `prediction_error` + `temporal_abstraction.closed_segments` for PE-derived segment credit；P3 dedicated relationship action credit 只从 exact social PE settlement 派生，经 Brain facade 提供给 vertical gate |
 | `reflection` | ReflectionModule | ReflectionSnapshot（含 `relationship_update_proposals`） | SHADOW / session-post | 每会话后（异步） | temporal_abstraction、lifeform-service 关系记忆 console；另外通过 owner-side writeback 影响 memory / credit / regime |
 | `relationship_continuity` | RelationshipContinuityEvaluationModule | RelationshipContinuitySnapshot | SHADOW | metrics 查询 / 每日 pilot 汇总 | Brain facade、lifeform-service continuity metrics、pilot evidence；只读消费 `prediction_error` CP-12 settlements、`open_loop` / `boundary_consent` / `relationship_state` 快照与 `RelationshipContinuityConsoleOutcome`，不进入 PE / credit / ModificationGate；持久化 key `evaluation/relationship_continuity`，回滚为 DISABLED / 隐藏 endpoint |
 | `session_post_slow_loop` | SessionPostSlowLoopModule | SessionPostSlowLoopSnapshot | ACTIVE | context / session boundary | reports / experience_consolidation |
@@ -2469,7 +2469,7 @@ sensor-off executor 是 `SteeringArtifactBundle` 内的 matched-budget unconditi
 | `response_assembly` | ResponseAssemblyModule | ResponseAssemblySnapshot | ACTIVE | 每 turn | session / response generation；`action_realization` 只绑定同拍 `CaseMemorySnapshot.action_grounding` 与 `TemporalAbstractionSnapshot.active_abstract_action`，不重建案例语义；expression 只渲染 owner-published statement。State KV P5-a 起，assembly 携带的 `control_code / control_scale` 是否真正到达 `runtime.generate(control_parameters, control_scale)` 由 `FinalRolloutConfig.generation_dynamic_residual` 门控（默认 `ACTIVE`=字节级现状；`SHADOW` 计算不注入；`DISABLED` 表达层丢弃，substrate kwargs 与 temporal 未产码的 run 一致）。每 turn 无条件发布 `dynamic_residual=<wiring>[:scale]` rationale tag 自证通道状态；该开关与 `personal_conditioning` 解耦，profile `dynamic-residual-off` 为显式消融臂，详见 [`docs/specs/temporal-abstraction.md`](./specs/temporal-abstraction.md) 与 [`docs/specs/state-kv-identification-evidence.md`](./specs/state-kv-identification-evidence.md) 载体清单 C4 |
 | `experience_consolidation` | ExperienceConsolidationModule | ExperienceConsolidationSnapshot | ACTIVE | session-post | experience_fast_prior, reports |
 | `experience_fast_prior` | ExperienceFastPriorModule | ExperienceFastPriorSnapshot | SHADOW | 每 turn / session-post carryover | temporal, retrieval_policy, regime |
-| `dialogue_external_outcome` | DialogueExternalOutcomeModule | DialogueExternalOutcomeSnapshot | ACTIVE | 每 turn | prediction_error, regime, rupture_state, reflection |
+| `dialogue_external_outcome` | DialogueExternalOutcomeModule | DialogueExternalOutcomeSnapshot；P3 exact join 为 `session_scope + action_turn_index + forecast_id + decision_id + action_id`；P4 `QUALIFIED_USER_REPORT` 还必须携带 typing qualification/runtime/schema lineage | ACTIVE | 每 turn | prediction_error, regime, rupture_state, reflection, preference_about_other forecast settlement |
 | `protocol_phase` | ProtocolPhaseModule | ProtocolPhaseSnapshot | SHADOW（模块）/ ACTIVE（`FinalRolloutConfig`） | 每 turn | `active_mixture`；依赖 prediction_error、interlocutor_state、regime、rupture_state、boundary_policy |
 | `protocol_registry` | ProtocolRegistryIntrospectionModule | ProtocolRegistrySnapshot | SHADOW（模块）/ ACTIVE（`FinalRolloutConfig`） | 每 turn / registry 变更后 | protocol_reflection、CLI / monitoring；无 upstream 依赖 |
 | `protocol_revision_log` | ProtocolRevisionLogModule | ProtocolRevisionLogSnapshot | SHADOW（模块）/ ACTIVE（`FinalRolloutConfig`） | 每 turn / registry 变更后 | CLI / monitoring；无 upstream 依赖 |
@@ -2694,7 +2694,7 @@ carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
 | `belief_about_other` | BeliefAboutOtherModule | BeliefAboutOtherSnapshot | semantic proposals, memory, multi_party_identity, prediction_error | ACTIVE | online-fast / session-medium / background-slow | interpretation / belief update outcome | social_prediction_error → prediction_error |
 | `intent_about_other` | IntentAboutOtherModule | IntentAboutOtherSnapshot | semantic proposals, execution_result, commitment, multi_party_identity | ACTIVE | online-fast / session-medium | follow-through / next-action outcome | social_prediction_error → prediction_error |
 | `feeling_about_other` | FeelingAboutOtherModule | FeelingAboutOtherSnapshot | evaluation, relationship_states, multi_party_identity | ACTIVE | online-fast / session-medium | affect / rapport movement | social_prediction_error → prediction_error |
-| `preference_about_other` | PreferenceAboutOtherModule | PreferenceAboutOtherSnapshot | semantic proposals, memory, multi_party_identity | ACTIVE | session-medium / background-slow | durable style / boundary stability | social_prediction_error → prediction_error |
+| `preference_about_other` | PreferenceAboutOtherModule | PreferenceAboutOtherSnapshot（P2/P3：`action_forecasts`、`action_outcome_evidence`、`forecast_settlements`，均默认空） | semantic proposals, memory, multi_party_identity, `dialogue_external_outcome`；可选 typed forecast collaborator；P2/P3 forecast lane 显式 SHADOW | ACTIVE | session-medium / background-slow；forecast 为 pre-action per decision，pending/settlement 经 `SocialRecordStore` v2 恢复 | durable style / boundary stability；owner-authored candidate action → typed outcome distribution → exact settlement | social_prediction_error → prediction_error；P3 action credit 只从 matching social PE 派生 |
 | `conversational_role` | ConversationalRoleModule | ConversationalRoleSnapshot | multi_party_identity, host role envelope, common_ground, ToM summaries | ACTIVE | online-fast / session-medium | addressee / subject / witness assignment | social_prediction_error → prediction_error / credit |
 | `common_ground` | CommonGroundModule | CommonGroundSnapshot | multi_party_identity, conversational_role, belief_about_other, memory | ACTIVE | online-fast / session-medium / background-slow | reference resolution / mutual-knowledge sufficiency | social_prediction_error → prediction_error / credit |
 | `groups` | GroupModule | GroupSnapshot（G1：+`settled_errors` + learned `group_durability_score`，settlement state 停放在 SocialRecordStore，单写者 GroupModule） | multi_party_identity, conversational_role, common_ground, commitment, open_loop | SHADOW | online-fast / session-medium / background-slow | joint commitment durability / group regime fit（durability PE 结算驱动 learned score → 未来预测 confidence） | social_prediction_error → prediction_error / credit |
@@ -2714,6 +2714,53 @@ carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
 - LLM output can only produce typed proposals; no LLM classifier owns social state.
 - Renderer never reconstructs social state from text. It may only express plan / snapshot outputs.
 - Social PE is a typed downstream readout into the existing `prediction_error` / `credit` path; evaluation remains readout / gate, not learning source.
+
+**P2a action forecast enriched value 注册（2026-08-21）**：
+
+| Existing slot | Unique owner | Enriched value | Dependencies | Wiring / consumers |
+|---|---|---|---|---|
+| `preference_about_other` | `PreferenceAboutOtherModule` | `PreferenceAboutOtherSnapshot.action_forecasts`；元素为 frozen `PreferenceActionForecast`，内含同一 typed outcome vocabulary 上的至少两个 `SocialActionCandidatePrediction` | P2b producer 只接收 typed `PreferenceActionForecastRequest`、同一 owner 的 ACTIVE records 与非 owning forecast proposal runtime；不得读 evaluator label | 字段默认空；P2-development 只能显式 `WiringLevel.SHADOW` 发布，expression / planner / steering / PE / credit 均不得消费 |
+
+P2a 没有新增 slot、owner 或持久化写者。`PreferenceActionForecast` 是 owner 在行动前发布的
+派生 readout，不是可由 reflection 直接写入的 durable state；其 `source_record_ids` 必须在同一
+`PreferenceAboutOtherSnapshot.records` 中存在、属于同一 interlocutor 且不来自未来 turn。
+contract 不含 observed outcome、expected action、reward 或 credit。P2b 已提供可选 producer：
+collaborator 只能返回 `PreferenceActionForecastProposal`，正式 forecast id / decision / scope /
+turn / record lineage 仍由 `PreferenceAboutOtherModule` 绑定；只要配置不是 SHADOW 就 fail loudly。
+默认没有 runtime/request，因此所有现有正式 runtime snapshot 仍保持空 tuple，既有 ACTIVE
+records 路径与用户可见行为不变。回滚只需移除两个可选注入；已序列化旧构造保持兼容。
+
+**P2c / P3 owner persistence、settlement 与 advisory enriched value 注册（2026-08-22）**：
+
+| Existing slot | Unique owner | Enriched value / input | Dependencies | Wiring / rollback |
+|---|---|---|---|---|
+| `preference_about_other` | `PreferenceAboutOtherModule` | `PreferenceActionOutcomeEvidence`、pending `PreferenceActionForecast`、`PreferenceActionForecastSettlement`；由 `SocialRecordStore` persistence v2 保存 | owner records；结算时只读 `dialogue_external_outcome` exact join | forecast lane SHADOW；v1 persistence 可读且新增集合为空，export 写 v2 |
+| `social_prediction_error` | `SocialPredictionErrorModule` + preference owner settlement readout | `social-pe:<settlement_id>`，prediction/outcome/magnitude 必须与 settlement 一致 | exact owner settlement | 只进入既有 PE→credit 方向，不读取 evaluation |
+| `self_temporal` | `TrackTemporalModule(track=SELF)` | `TemporalActionAdvisoryProposal`、`TemporalActionAdvisoryStatus` | owner forecast + vertical gate decision，经 runtime facade 单次 staging | `FinalRolloutConfig.relationship_action_advisory=SHADOW` 默认；DISABLED 丢弃；ACTIVE 要求 artifact 明确授权 |
+| `dialogue_external_outcome` | `DialogueExternalOutcomeModule` | `QUALIFIED_USER_REPORT` source 的 qualification id/hash、typing runtime/schema；relationship exact join 五元组 | service typing qualification + 已暴露 action audit | 无 qualification 时不构造该 source；移除 path 回到 collection-only |
+
+P3 exact settlement 要求 `session_scope / action_turn_index / forecast_id / decision_id /
+action_id` 全部匹配 owner pending forecast。每条 forecast 至多结算一次；未知 forecast、不同
+evidence 的重复结算或 surface drift 均 fail loudly。settlement 的 signed utility PE 使用冻结
+四类 outcome 的 utility（`helped/felt_heard=+1`，`missed/over_directive=-1`），credit 必须再
+匹配 owner-authored social PE，值为 `signed_utility_prediction_error × evidence_confidence`，
+`level=relationship_action_prediction_error`、`track=SELF`。human anchor、evaluation 与 judge
+都不进入该公式。
+
+`TemporalActionAdvisoryProposal` 只携带 typed action/lineage/rationale，不含表达文本。SHADOW
+时 `active_abstract_action` 保持 native 值并发布 `SHADOW_RECORDED`；只有
+`active_authorized=true` 且非 evaluator artifact 的 ACTIVE advisory 才能发布 `APPLIED`。
+P3/P4 vertical artifact 固定未授权，因此当前用户可见表达不变。P4 service 另以
+`baseline_noop_exposed | shadow_counterfactual` 记录 causal exposure；后者禁止写 runtime
+outcome 或 training candidate，避免把未执行建议的结果错误归因给该 action。
+
+P4 product artifacts 是 lifeform-side create-only evidence，不新增 kernel slot：action audit、
+outcome receipt 与 opt-in offline training candidate 使用不同 schema 和物理 root，只保存 typed /
+hashed metadata，对外返回 content-addressed opaque ref。真人自由文本的 structured LLM typing
+必须由 content-hashed qualification artifact 绑定三名独立 rater、隐藏标签、多数一致率
+`>=0.80`、预注册 human-anchor 阈值、validation-only / no-learning、无关键词/正则与 unknown
+支持；没有布尔 PASS 开关。完整 contract 见
+[`docs/specs/relationship-intelligence-closed-alpha.md`](./specs/relationship-intelligence-closed-alpha.md)。
 
 ### 6.1 Lifeform-side Slots（不进入 kernel slot 注册表）
 

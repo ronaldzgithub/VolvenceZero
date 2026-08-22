@@ -24,6 +24,10 @@ from volvence_zero.dialogue_trace import (
     DialogueOutcomeEvidence,
     DialogueOutcomeResolution,
 )
+from volvence_zero.credit import (
+    CreditRecord,
+    derive_preference_action_forecast_credit_records,
+)
 from volvence_zero.environment import (
     EnvironmentEvent,
     EnvironmentEventKind,
@@ -67,6 +71,15 @@ from volvence_zero.semantic_state import (
     semantic_events_from_task_event,
     semantic_events_from_tool_result,
 )
+from volvence_zero.social import (
+    PreferenceActionForecastRequest,
+    PreferenceActionForecastRuntime,
+)
+from volvence_zero.social_cognition import (
+    PreferenceAboutOtherSnapshot,
+    PreferenceActionForecast,
+    SocialPredictionErrorSnapshot,
+)
 from volvence_zero.semantic_embedding import (
     reset_semantic_embedding_backend,
     set_semantic_embedding_backend,
@@ -84,6 +97,7 @@ from volvence_zero.regime import RegimeBootstrap
 from volvence_zero.temporal import (
     FullLearnedTemporalPolicy,
     MetacontrollerParameterSnapshot,
+    TemporalActionAdvisoryProposal,
 )
 
 
@@ -675,6 +689,52 @@ class BrainSession:
             apprenticeship_turn=apprenticeship_turn,
         )
 
+    async def preview_preference_action_forecast(
+        self,
+        *,
+        request: PreferenceActionForecastRequest,
+        runtime: PreferenceActionForecastRuntime,
+    ) -> PreferenceActionForecast | None:
+        """Public Brain facade for the owner-authored pre-action SHADOW readout."""
+
+        return await self._runner.preview_preference_action_forecast(
+            request=request,
+            runtime=runtime,
+        )
+
+    def stage_self_temporal_action_advisory(
+        self,
+        advisory: TemporalActionAdvisoryProposal,
+    ) -> None:
+        """Public Brain facade for one upcoming self-temporal advisory."""
+
+        self._runner.stage_self_temporal_action_advisory(advisory)
+
+    def relationship_action_credits(
+        self,
+        *,
+        preference_snapshot: object,
+        social_pe_snapshot: object,
+        settled_at_turn: int,
+        timestamp_ms: int,
+    ) -> tuple[CreditRecord, ...]:
+        """Derive action credit through the cognition owner boundary."""
+
+        if not isinstance(preference_snapshot, PreferenceAboutOtherSnapshot):
+            raise TypeError(
+                "preference_about_other must publish PreferenceAboutOtherSnapshot"
+            )
+        if not isinstance(social_pe_snapshot, SocialPredictionErrorSnapshot):
+            raise TypeError(
+                "social_prediction_error must publish SocialPredictionErrorSnapshot"
+            )
+        return derive_preference_action_forecast_credit_records(
+            settlements=preference_snapshot.forecast_settlements,
+            social_errors=social_pe_snapshot.errors,
+            settled_at_turn=settled_at_turn,
+            timestamp_ms=timestamp_ms,
+        )
+
     async def drain_session_post_slow_loop(self) -> tuple[Any, ...]:
         """Drain the runner's background session-post slow loop to idle.
 
@@ -733,6 +793,13 @@ class BrainSession:
         evidence_ref: str | None = None,
         description: str = "",
         action_turn_index: int | None = None,
+        forecast_id: str = "",
+        decision_id: str = "",
+        action_id: str = "",
+        typing_qualification_id: str = "",
+        typing_qualification_sha256: str = "",
+        typing_runtime_id: str = "",
+        typing_schema_version: str = "",
     ) -> DialogueExternalOutcomeEvidence:
         """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
 
@@ -751,6 +818,13 @@ class BrainSession:
             evidence_ref=evidence_ref,
             description=description,
             action_turn_index=action_turn_index,
+            forecast_id=forecast_id,
+            decision_id=decision_id,
+            action_id=action_id,
+            typing_qualification_id=typing_qualification_id,
+            typing_qualification_sha256=typing_qualification_sha256,
+            typing_runtime_id=typing_runtime_id,
+            typing_schema_version=typing_schema_version,
         )
 
     def export_snapshot_replay_artifact(self) -> dict[str, object]:

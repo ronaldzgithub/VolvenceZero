@@ -311,6 +311,32 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--relationship-intelligence",
+        action="store_true",
+        help=(
+            "Enable the P4 closed-alpha relationship turn/outcome/followup "
+            "routes. Action advisories remain SHADOW."
+        ),
+    )
+    parser.add_argument(
+        "--relationship-outcome-typing-qualification",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Frozen content-hashed qualification artifact for real-user "
+            "relationship outcome typing. Without a passing artifact, "
+            "outcomes are collection-only."
+        ),
+    )
+    parser.add_argument(
+        "--relationship-training-candidate-root-dir",
+        default=None,
+        help=(
+            "Separate offline root for per-outcome opt-in relationship "
+            "training candidates; must differ from --evidence-root-dir."
+        ),
+    )
+    parser.add_argument(
         "--allow-evidence-time-override",
         action="store_true",
         help=(
@@ -930,20 +956,37 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         print(f"Failed to load --alpha-users-file: {exc}", file=sys.stderr)
         return 1
-    alpha_config = AlphaServiceConfig(
-        enabled=args.alpha_enabled,
-        memory_scope_root_dir=args.memory_scope_root_dir,
-        evidence_root_dir=args.evidence_root_dir,
-        service_version=args.service_version,
-        policy_version=args.policy_version,
-        alpha_users=alpha_users,
-        # D6 (#alpha-reload): remember the source file so the running
-        # service can hot-reload the allow-list (endpoint / SIGHUP).
-        alpha_users_path=args.alpha_users_file,
-        allow_evidence_time_override=args.allow_evidence_time_override,
-    )
+    try:
+        alpha_config = AlphaServiceConfig(
+            enabled=args.alpha_enabled,
+            memory_scope_root_dir=args.memory_scope_root_dir,
+            evidence_root_dir=args.evidence_root_dir,
+            service_version=args.service_version,
+            policy_version=args.policy_version,
+            alpha_users=alpha_users,
+            # D6 (#alpha-reload): remember the source file so the running
+            # service can hot-reload the allow-list (endpoint / SIGHUP).
+            alpha_users_path=args.alpha_users_file,
+            allow_evidence_time_override=args.allow_evidence_time_override,
+            relationship_intelligence_enabled=args.relationship_intelligence,
+            relationship_outcome_typing_qualification_path=(
+                args.relationship_outcome_typing_qualification
+            ),
+            relationship_training_candidate_root_dir=(
+                args.relationship_training_candidate_root_dir
+            ),
+        )
+    except ValueError as exc:
+        print(f"Invalid closed-alpha relationship configuration: {exc}", file=sys.stderr)
+        return 1
     if args.alpha_enabled and args.memory_scope_root_dir is None:
         print("--alpha-enabled requires --memory-scope-root-dir", file=sys.stderr)
+        return 1
+    if args.relationship_intelligence and not args.alpha_enabled:
+        print("--relationship-intelligence requires --alpha-enabled", file=sys.stderr)
+        return 1
+    if args.relationship_intelligence and args.evidence_root_dir is None:
+        print("--relationship-intelligence requires --evidence-root-dir", file=sys.stderr)
         return 1
     if args.require_alpha_preflight:
         from lifeform_evolution.closed_alpha_preflight import (

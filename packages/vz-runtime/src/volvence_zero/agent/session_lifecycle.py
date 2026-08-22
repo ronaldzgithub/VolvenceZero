@@ -66,7 +66,17 @@ from volvence_zero.semantic_state import (
     ExternalSemanticEvent,
     ExternalSemanticEventBatch,
 )
-from volvence_zero.temporal import TemporalAbstractionSnapshot
+from volvence_zero.social import (
+    PreferenceAboutOtherModule,
+    PreferenceActionForecastRequest,
+    PreferenceActionForecastRuntime,
+)
+from volvence_zero.social_cognition import PreferenceActionForecast
+from volvence_zero.temporal import (
+    TemporalAbstractionSnapshot,
+    TemporalActionAdvisoryProposal,
+)
+from volvence_zero.runtime import WiringLevel
 
 
 class SessionLifecycleMixin:
@@ -197,6 +207,80 @@ class SessionLifecycleMixin:
     ) -> DialogueOutcomeResolution | None:
         return self._dialogue_trace_store.attach_outcome_evidence_to_last_trace(evidence)
 
+    async def preview_preference_action_forecast(
+        self,
+        *,
+        request: PreferenceActionForecastRequest,
+        runtime: PreferenceActionForecastRuntime,
+    ) -> PreferenceActionForecast | None:
+        """Run the preference owner pre-action SHADOW phase.
+
+        This facade exists for the closed-alpha relationship controller.  It
+        invokes the actual owner against the session-held ``SocialRecordStore``;
+        the caller receives only the frozen forecast and cannot construct or
+        mutate owner state.  The upcoming canonical turn publishes the same
+        pending forecast through normal propagation.  No expression, PE,
+        credit, or evaluator surface is touched here.
+        """
+
+        expected_turn = self._turn_index + 1
+        if request.turn_index != expected_turn:
+            raise ValueError(
+                "preference forecast preview must target the upcoming turn "
+                f"{expected_turn}, got {request.turn_index}"
+            )
+        if request.session_scope != self._session_id:
+            raise ValueError(
+                "preference forecast preview session_scope must match runner session"
+            )
+        owner = PreferenceAboutOtherModule(
+            wiring_level=WiringLevel.SHADOW,
+            record_store=self._social_record_store,
+            turn_index=request.turn_index,
+            action_forecast_runtime=runtime,
+            action_forecast_request=request,
+        )
+        snapshot = (await owner.process({})).value
+        matches = tuple(
+            forecast
+            for forecast in snapshot.action_forecasts
+            if forecast.decision_id == request.decision_id
+        )
+        if len(matches) > 1:
+            raise RuntimeError(
+                "preference owner published multiple forecasts for one decision"
+            )
+        return matches[0] if matches else None
+
+    def stage_self_temporal_action_advisory(
+        self,
+        advisory: TemporalActionAdvisoryProposal,
+    ) -> None:
+        """Stage one owner-validated advisory for the upcoming turn."""
+
+        if self._pending_self_temporal_action_advisory is not None:
+            raise RuntimeError(
+                "a self-temporal action advisory is already pending consumption"
+            )
+        forecasts = {
+            item.forecast_id: item
+            for item in self._social_record_store.preference_action_forecasts
+        }
+        try:
+            forecast = forecasts[advisory.prediction_id]
+        except KeyError as exc:
+            raise ValueError(
+                "self-temporal advisory must reference a pending owner forecast"
+            ) from exc
+        if advisory.decision_id != forecast.decision_id:
+            raise ValueError("self-temporal advisory decision lineage mismatch")
+        action_ids = {
+            candidate.action_id for candidate in forecast.candidate_predictions
+        }
+        if advisory.action_id not in action_ids:
+            raise ValueError("self-temporal advisory action is outside forecast surface")
+        self._pending_self_temporal_action_advisory = advisory
+
     def submit_dialogue_outcome(
         self,
         *,
@@ -207,6 +291,13 @@ class SessionLifecycleMixin:
         evidence_ref: str | None = None,
         description: str = "",
         action_turn_index: int | None = None,
+        forecast_id: str = "",
+        decision_id: str = "",
+        action_id: str = "",
+        typing_qualification_id: str = "",
+        typing_qualification_sha256: str = "",
+        typing_runtime_id: str = "",
+        typing_schema_version: str = "",
     ) -> DialogueExternalOutcomeEvidence:
         """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
 
@@ -263,6 +354,13 @@ class SessionLifecycleMixin:
             # and an outcome often arrives after such a reset.
             session_scope=self._session_id,
             action_turn_index=resolved_action_turn,
+            forecast_id=forecast_id,
+            decision_id=decision_id,
+            action_id=action_id,
+            typing_qualification_id=typing_qualification_id,
+            typing_qualification_sha256=typing_qualification_sha256,
+            typing_runtime_id=typing_runtime_id,
+            typing_schema_version=typing_schema_version,
         )
         self._dialogue_external_outcome_module.append_evidence(evidence)
         structural = structural_outcome_evidence_from_external(evidence)

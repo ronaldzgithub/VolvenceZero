@@ -488,6 +488,29 @@ P2 **formal** 仍关闭，直到 P1m 仪器资格过门。允许的唯一并行�
 evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 报告应用来
 收窄 owner 范围（条件识别 vs 个体策略归纳），而不是给它一份新的资格分数。
 
+> 实施状态（2026-08-21，P2a）：现有 `SocialPrediction.predicted_outcome: str` 无法表达
+> 候选动作之间可比较的结果分布，因此先在唯一 owner
+> `PreferenceAboutOtherModule` 的 `PreferenceAboutOtherSnapshot` 中冻结默认空
+> `action_forecasts`。每条 forecast 覆盖至少两个 candidate action、共享 typed outcome
+> vocabulary、归一化概率、pre-action decision lineage 与 owner record refs；契约不含
+> observed outcome / expected action / evaluation / reward / PE / credit。P2a 没有 producer、
+> 没有新 slot、没有 runtime 行为变化。下一收敛包 P2b 才在显式 SHADOW lane 中由该 owner
+> 发布 forecast；禁止 evaluator / runner sidecar 重建。
+
+> 实施状态（2026-08-21，P2b）：`PreferenceAboutOtherModule` 已获得显式 SHADOW-only
+> forecast producer。非 owning collaborator 只提交 `PreferenceActionForecastProposal`；
+> owner 校验 exact candidate action/outcome surface、同一 interlocutor 的 ACTIVE records，
+> 并绑定 decision / turn / forecast id 后发布。缺 runtime/request、错误 lineage、surface drift
+> 或 ACTIVE 接线均 fail loudly。`social_prediction` ACTIVE consumer 对这份 SHADOW forecast
+> 不可见；仍未接 evaluator、PE、credit、steering，也没有模型或资格结果。下一包 P2c 建立
+> 独立 v3-only `P2-development` 多 session 轨迹与具体 bounded runtime。
+
+> 实施状态（2026-08-22，P2c）：`relationship_p2_development_v1.json` 已形成独立
+> v3-only runtime view；四段 typed history 各自经过 `SocialRecordStore` v2 export/hydrate，
+> probe 不重放 raw history，只读 owner records/outcomes。bounded forecast runtime 只用 semantic
+> similarity，不读 evaluator truth、v4、PE、credit、steering 或 expression。该包证明 owner
+> persistence/readout 机械闭合，不是 P2 formal、Readable 或模型效果资格。
+
 ### P3：PE 信用与择时控制
 
 交付：
@@ -496,6 +519,14 @@ evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 
 - PE→credit→gate 复用 Coding Lab Packet 3 的 no-op/always/random/oracle 结构；
 - owner/reader/executor 冻结，只有 gate 按预注册更新；
 - 先证明动作 NLL/选择正确性，再证明端到端 outcome 增益；两种判词不得混称。
+
+> 实施状态（2026-08-22，P3 mechanism）：`dialogue_external_outcome` 可用 session / action turn /
+> forecast / decision / action exact join 结算 pending owner forecast，发布 probability、NLL、
+> expected/observed utility 与 signed utility PE；dedicated credit 还必须匹配 owner-authored
+> `SocialPredictionError`，不读 evaluation。companion vertical 已有 bounded `{noop,steer}` gate、
+> no-op/always/random/oracle 对照、session-medium checkpoint 与 Brain facade；self-temporal advisory
+> 默认 SHADOW，P3/P4 artifact 固定 `active_authorized=false`。这只是机制实现，没有运行 formal
+> 动作 NLL / outcome-gain 判定，也不授权 production ACTIVE。
 
 ### P4：closed-alpha 产品壳
 
@@ -507,6 +538,17 @@ evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 
 - alpha evidence 与训练候选物理分离；
 - §6.4 的真实 outcome typing 前置门必须先 PASS，才允许把真人后续结果写入
   `dialogue_external_outcome` → PE。未过门只采集、不计学习。
+
+> 实施状态（2026-08-22，P4 engineering complete / evidence open）：closed-alpha 已增加自然
+> relationship turn、单 session due-followup 与自由文本 relationship outcome 三个入口，并复用
+> 已有关系记忆 console。outcome API 不接受客户端直接传 kind；只有 content-hashed qualification
+> artifact 绑定的 structured LLM typer 可产出四类 outcome，未过门固定 unknown。qualification
+> 校验三名独立 rater、隐藏标签、多数一致率 `>=0.80`、预注册 validation-only anchor、
+> no-learning、no-keyword/regex 与 unknown。operational evidence / opt-in offline candidate 分 root、
+> create-only、去原文、幂等。另加 causal exposure firewall：SHADOW steer suggestion 不是已执行
+> action，不进 runtime 或 training；当前只有实际 baseline/noop 可在 typing PASS 后结算。仓库未
+> 伪造 passing qualification，也未运行真实长 horizon / 多 session pilot，所以 P4 产品壳工程
+> 完成不等于 P4 效果验收完成。
 
 ### P5：慢速共享关系基底
 
@@ -614,14 +656,19 @@ evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 
 |---|---|
 | P1j | 2026-08-21 同一 attempt 完成 72/72：report `e9226ee8…fd78` 判 `consumer_failed_v4_qualification`。prompt/RAG/structured accuracy 为 0.542/0.500/0.542，pair flip 为 0.417/0.250/0.417；三臂 strict-valid=1.0。完成态 strict resume 未再调用 Qwen。 |
 | P1k-R1 | protocol `204e0904…64bd` 已绑定 P1j 失败终局，在 P1k Qwen output=0 时冻结四格/48 条最大计划与 staged gate；目录无 `records/`，重复 prepare-only 保持 protocol/checkpoint/preflight 文件 hash 不变。下一包只执行 A 格。 |
+| P2–P4 工程 | 2026-08-22：P2 v3-only multi-session owner probe、P3 exact PE-credit gate / temporal SHADOW advisory、P4 relationship routes / qualification loader / causal exposure / evidence isolation 已落地。没有消费 v4 truth 或新的 Qwen evidence output；formal 与真实 pilot 仍关闭。 |
 | 已证明 | Gate 0 仪器；跨进程恢复 / 隔离 / 纠删 / 压缩；v2/v3 反捷径；v3 public-evidence BGE 60/60 可判别；P1g prompt 单臂入带；P1j one-shot/no-feedback/严格恢复机器按契约完成并诚实保存 unseen failure |
-| 未证明 | 完整 consumer qualification、human anchor、Volvence advantage、Readable / Learnable / Steerable、formal、四能力 |
+| 未证明 | 完整 consumer qualification、human anchor、P2 formal、真人 typing qualification、真实 steer exposure、长 horizon / 多 session pilot、Volvence advantage、Readable / Learnable / Steerable、四能力 |
 | 校准消耗 | 数据集 v1–v4 共 4 版；consumer freeze 2 次（P1g / P1i）。再版本化场景或再搜 prompt 受 §13.7 约束 |
 
 P1j 已释放同一冻结 Qwen。先完成 P1k-R1 的 **zero-output protocol freeze**；随后下一份
 占用 Qwen 的动作只能是 P1k 首格 `oracle_policy_apply_v2`，用已烧毁 v3 定位失败层。
 不得返回 P1i 搜第四个 prompt，也不得开 v5。P1l 人工盲标不加载模型，可继续独立收集
 rater 结果。
+
+2026-08-22 的明确产品决策允许先完成 P2–P4 **工程机制**，等待完整系统后再做长 horizon / 长
+context / 多 session 测验。该决策没有改写上述 Qwen evidence 顺序：任何新模型运行仍先受
+P1k/P1m 约束；已经落地的 P2–P4 代码与单元/契约测试不能被写成 formal 正证据。
 
 P1j 终局之后的顺序冻结为：
 

@@ -19,17 +19,15 @@ from typing import Any
 
 from volvence_zero.dialogue_trace import DialogueExternalOutcomeKind
 
+from lifeform_domain_emogpt.relationship_action_contracts import (
+    RELATIONSHIP_ACTIONS,
+    RELATIONSHIP_OUTCOMES,
+    RelationshipAction,
+)
+
 
 RELATIONSHIP_DECISION_TRACE_SCHEMA_VERSION = "relationship-decision-trace.v1"
 RELATIONSHIP_PREACTION_SCHEMA_VERSION = "relationship-preaction-decision.v1"
-
-
-class RelationshipAction(str, Enum):
-    """Closed action surface for Relationship Lab v0."""
-
-    STAY_PRESENT_WITHOUT_PROBE = "stay_present_without_probe"
-    RESPECT_SPACE_WITH_RETURN_OPTION = "respect_space_with_return_option"
-    NEUTRAL_NOOP = "neutral_noop"
 
 
 class RelationshipDatasetSplit(str, Enum):
@@ -39,14 +37,6 @@ class RelationshipDatasetSplit(str, Enum):
     VALIDATION = "validation"
     HELDOUT = "heldout"
 
-
-RELATIONSHIP_ACTIONS: tuple[RelationshipAction, ...] = tuple(RelationshipAction)
-RELATIONSHIP_OUTCOMES: tuple[DialogueExternalOutcomeKind, ...] = (
-    DialogueExternalOutcomeKind.HELPED,
-    DialogueExternalOutcomeKind.FELT_HEARD,
-    DialogueExternalOutcomeKind.MISSED,
-    DialogueExternalOutcomeKind.OVER_DIRECTIVE,
-)
 
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 

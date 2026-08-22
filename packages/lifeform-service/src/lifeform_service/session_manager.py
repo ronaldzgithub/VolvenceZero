@@ -589,6 +589,7 @@ class SessionManager:
         per_session_max: int = 1,
         cooldown_seconds: float = 600.0,
         tenant_allowlist: frozenset[str] | None = None,
+        session_ids: frozenset[str] | None = None,
     ) -> tuple[FollowupExecutionReport, ...]:
         """Run due followups as canonical ``FOLLOWUP_DUE`` turns (CP-20 / GAP-07).
 
@@ -628,6 +629,12 @@ class SessionManager:
         async with self._lock:
             evicted = self._evict_idle_locked()
             entries = tuple(self._sessions.items())
+            if session_ids is not None:
+                entries = tuple(
+                    (session_id, entry)
+                    for session_id, entry in entries
+                    if session_id in session_ids
+                )
         await self._shutdown_entries(evicted)
 
         reports: list[FollowupExecutionReport] = []

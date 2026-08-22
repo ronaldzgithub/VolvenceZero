@@ -65,10 +65,20 @@ Companion AI 不是封闭优化问题。关系不是通过完美响应建立，�
 ### `DialogueExternalOutcomeEvidence.source`
 
 - `USER_EXPLICIT`：user 通过 `submit_dialogue_outcome(...)` 直接提交；最高权威。
+- `QUALIFIED_USER_REPORT`：user 提交自由文本，service 只在 content-hashed typing
+  qualification PASS 后用 schema-bound structured LLM 归一化；evidence 必须携带
+  qualification id/hash、runtime 与 schema lineage。它不是直接 user label，也不是未资格
+  LLM proposal。
 - `HUMAN_REVIEW`：blind review entry。
 - `ENVIRONMENT`：运行环境安全 / 工具 outcome（不从文本推断）。
 - `LLM_PROPOSAL`：**默认禁用**；启用需 `BrainConfig.allow_llm_outcome_proposals=True`；
   即使启用也只作为低置信度 proposal，写入 `confidence ≤ 0.4`。
+
+P4 的 `QUALIFIED_USER_REPORT` 是独立 source：资格 artifact 至少要求三名独立 rater、隐藏
+标签、多数一致率 `>=0.80`、达到预注册 validation-only human-anchor threshold、禁止
+keyword/regex 并支持 `unknown`。未过门、单样本为 unknown / 需 review、或 relationship
+action 只是 SHADOW counterfactual 时，service 不构造 runtime evidence。完整合同见
+[`relationship-intelligence-closed-alpha.md`](./relationship-intelligence-closed-alpha.md)。
 
 ## 结构化映射 `ExternalOutcomeKind → RuptureKind`
 

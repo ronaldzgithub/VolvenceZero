@@ -525,3 +525,21 @@ Lifeform-side slots do not enter kernel propagation and must not be imported by
 
 Side effects enter the kernel only through public `BrainSession.submit_*` /
 `LifeformSession.run_turn` paths.
+
+## Slice Relationship P2–P4 (2026-08-22): forecast settlement、action advisory 与 qualified outcome
+
+本 slice enrich 既有 owner value，不新增 kernel slot：
+
+- `PreferenceAboutOtherSnapshot` 增加默认空的 action history / forecast / settlement；
+  `SocialRecordStore` persistence v1 可读、v2 写出；
+- `DialogueExternalOutcomeEvidence` 增加 all-or-none relationship exact join，并增加独立
+  `QUALIFIED_USER_REPORT` source；该 source 必须携带 typing qualification/runtime/schema；
+- `TemporalAbstractionSnapshot` 增加可选 `TemporalActionAdvisoryProposal` 与 status；默认
+  relationship advisory 为 SHADOW，P3/P4 artifact 未授权 ACTIVE；
+- P4 lifeform-side action audit、outcome receipt、typing qualification 与 training candidate
+  不进入 propagate slot 注册表；operational/training roots 分离。
+
+回滚：移除 P4 qualification path 回到 collection-only；把
+`relationship_action_advisory` 降为 DISABLED；v1 owner persistence 继续兼容。退出 SHADOW
+必须另有真实 action exposure 与 promotion evidence，当前未满足。权威 spec：
+`docs/specs/relationship-intelligence-closed-alpha.md`。

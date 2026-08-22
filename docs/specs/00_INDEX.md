@@ -1,7 +1,7 @@
 # Specs 分层知识入口总索引
 
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
-> Last reconciled: 2026-08-21（92 份 spec 全量挂载；Relationship Lab P1j 已完成 72/72 one-shot v4 输出，report `e9226ee8…fd78` 判 `consumer_failed_v4_qualification`，consumer revision 与 learning/control feedback 均保持 0。P1k-R1 已把有歧义的三档阶梯改为 P1j-bound 四格正交诊断与分段早停，并以 protocol `204e0904…64bd` 在 P1k Qwen output=0 时完成 freeze；下一 Qwen 动作是首格 policy application。P1l 人工盲标 packet 已落地，P1m 仍负责 n + Wilson CI 仪器。consumer qualification、human-anchor 多数一致、Volvence advantage、Readable、P2 与四能力仍未证明）
+> Last reconciled: 2026-08-22（93 份 spec 全量挂载；Relationship Lab P1j 终局仍为 `consumer_failed_v4_qualification`，P1m 仪器与 P2 formal 未过门。P2-development SHADOW owner/persistence、P3 exact PE-credit gate 与 P4 collection-only closed-alpha 壳已经工程落地，但真人 outcome typing qualification、真实 steer exposure、长 horizon / 多 session pilot、Volvence advantage、Readable 与四能力总主张仍未证明）
 
 ---
 
@@ -261,6 +261,25 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
   接收 immutable console outcome 并发布七日窗口；缺少样本时指标为 `null`
 - 七日 pilot harness 仅接收邀请用户、去标识化 transcript 与 metrics snapshot；
   真人 pilot 是否完成必须由实际 evidence artifact 证明
+
+---
+
+### 6E. Relationship Intelligence P2–P4 Closed Alpha
+
+**对应需求**：R-PE、R1、R3/R4、R5、R7、R8、R9、R11、R12、R15、R17
+
+| Spec | 内容 |
+|------|------|
+| [relationship-intelligence-closed-alpha.md](./relationship-intelligence-closed-alpha.md) | 多经历 preference-action forecast、exact outcome→social PE→credit、bounded action gate、self-temporal SHADOW advisory、真实 outcome typing qualification 与三个 P4 产品入口 |
+
+**核心不变量**：
+
+- `preference_about_other` 仍是 forecast / settlement 唯一 owner；collaborator 只能提 proposal
+- action credit 必须由 exact owner settlement 的 social PE 派生，evaluation / judge / human anchor 不回灌
+- P3/P4 advisory 固定未授权 ACTIVE；SHADOW counterfactual 不得冒充已执行动作结算
+- 真人自由文本只能经 content-hashed qualification 绑定的 structured LLM typer；没有布尔 PASS 开关
+- operational evidence 与 opt-in offline training candidate 物理分离，默认不保存 raw dialogue
+- 当前只证明机制与 collection-only 产品壳，不证明 P2 formal、真实效果或 production ACTIVE
 
 ---
 

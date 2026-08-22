@@ -101,6 +101,14 @@ from lifeform_service.relationship_memory_console import (
     proposal_to_json,
     semantic_event_for_action,
 )
+from lifeform_service.relationship_intelligence import (
+    RelationshipAlphaArtifactStore,
+    RelationshipIntelligenceController,
+    load_relationship_outcome_typing_qualification,
+)
+from lifeform_service.relationship_outcome_typing import (
+    LlmStructuredRelationshipOutcomeTyper,
+)
 from lifeform_service.session_manager import (
     CharacterSelectionError,
     SessionAlreadyExistsError,
@@ -309,6 +317,52 @@ def create_app(
     app["relationship_memory_action_ledger"] = RelationshipMemoryActionLedger(
         persistence_root=alpha.memory_scope_root_dir
     )
+    relationship_controller: RelationshipIntelligenceController | None = None
+    if alpha.relationship_intelligence_enabled:
+        if not alpha.enabled:
+            raise ValueError(
+                "relationship intelligence requires closed alpha to be enabled"
+            )
+        if alpha.evidence_root_dir is None:
+            raise ValueError(
+                "relationship intelligence requires an operational evidence root"
+            )
+        typing_qualification = (
+            load_relationship_outcome_typing_qualification(
+                Path(alpha.relationship_outcome_typing_qualification_path)
+            )
+            if alpha.relationship_outcome_typing_qualification_path is not None
+            else None
+        )
+        outcome_typer = None
+        if typing_qualification is not None and typing_qualification.passed:
+            if external_llm_client is None:
+                raise ValueError(
+                    "passing relationship outcome typing qualification requires "
+                    "the shared structured-JSON LLM client"
+                )
+            outcome_typer = LlmStructuredRelationshipOutcomeTyper(
+                client=external_llm_client,
+                runtime_id=typing_qualification.structured_runtime_id,
+            )
+        relationship_controller = RelationshipIntelligenceController(
+            artifact_store=RelationshipAlphaArtifactStore(
+                evidence_root=Path(alpha.evidence_root_dir),
+                training_candidate_root=(
+                    Path(alpha.relationship_training_candidate_root_dir)
+                    if alpha.relationship_training_candidate_root_dir is not None
+                    else None
+                ),
+            ),
+            state_root=(
+                Path(alpha.memory_scope_root_dir)
+                if alpha.memory_scope_root_dir is not None
+                else None
+            ),
+            typing_qualification=typing_qualification,
+            outcome_typer=outcome_typer,
+        )
+    app["relationship_intelligence_controller"] = relationship_controller
     app.router.add_get("/", _handle_chat_ui)
     app.router.add_get("/chat", _handle_chat_ui)
     app.router.add_get("/v1/health", _handle_health)
@@ -321,6 +375,18 @@ def create_app(
     app.router.add_delete("/v1/sessions/{session_id}", _handle_close_session)
     app.router.add_get("/v1/sessions/{session_id}/state", _handle_session_state)
     app.router.add_post("/v1/sessions/{session_id}/turns", _handle_turn)
+    app.router.add_post(
+        "/v1/sessions/{session_id}/relationship-turns",
+        _handle_relationship_turn,
+    )
+    app.router.add_post(
+        "/v1/sessions/{session_id}/relationship-outcomes",
+        _handle_relationship_outcome,
+    )
+    app.router.add_post(
+        "/v1/sessions/{session_id}/relationship-followups/execute-due",
+        _handle_relationship_followup,
+    )
     app.router.add_post(
         "/v1/sessions/{session_id}/dialogue-outcomes",
         _handle_dialogue_outcome,
@@ -1086,6 +1152,179 @@ async def _handle_turn(request: web.Request) -> web.Response:
         evidence_telemetry=telemetry,
     )
     return _json_ok(body.to_json())
+
+
+async def _handle_relationship_turn(request: web.Request) -> web.Response:
+    """P4 natural-dialogue entry with a non-user-visible action audit."""
+
+    _require_alpha(request)
+    controller = _require_relationship_intelligence_controller(request)
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _require_json(request)
+    user_input = payload.get("user_input")
+    if not isinstance(user_input, str) or not user_input.strip():
+        raise _BadRequest(
+            "invalid_user_input",
+            "user_input must be a non-empty string",
+        )
+    user_id = _alpha_user_id(request, payload)
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    provider: AlphaIdentityProvider | None = request.app["alpha_provider"]
+    if provider is None:
+        raise RuntimeError("relationship intelligence requires alpha identity")
+    identity = provider.resolve(session_id)
+    if identity is None:
+        raise RuntimeError("relationship intelligence session lacks identity binding")
+    result = await controller.run_turn(
+        session=session,
+        user_input=user_input,
+        subject_scope=identity.scope_key,
+        session_scope=session.session_id,
+    )
+    kernel = result.kernel_result
+    return _json_ok(
+        {
+            "session_id": session_id,
+            "response_text": kernel.response.text,
+            "response_rationale_tags": list(kernel.response.rationale_tags),
+            "relationship_action_status": result.status,
+            "relationship_action_audit": (
+                result.audit.to_json() if result.audit is not None else None
+            ),
+            "gate_credit_update_count": len(result.gate_credit_updates),
+            "user_visible_action_changed": False,
+        }
+    )
+
+
+async def _handle_relationship_outcome(request: web.Request) -> web.Response:
+    """P4 explicit-result entry with the real-user typing prerequisite."""
+
+    _require_alpha(request)
+    controller = _require_relationship_intelligence_controller(request)
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _require_json(request)
+    user_id = _alpha_user_id(request, payload)
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    provider: AlphaIdentityProvider | None = request.app["alpha_provider"]
+    if provider is None:
+        raise RuntimeError("relationship intelligence requires alpha identity")
+    identity = provider.resolve(session_id)
+    if identity is None:
+        raise RuntimeError("relationship intelligence session lacks identity binding")
+    forecast_id = payload.get("forecast_id")
+    decision_id = payload.get("decision_id")
+    action_id = payload.get("action_id")
+    for field_name, value in (
+        ("forecast_id", forecast_id),
+        ("decision_id", decision_id),
+        ("action_id", action_id),
+    ):
+        if not isinstance(value, str) or not value.strip():
+            raise _BadRequest(
+                f"invalid_{field_name}",
+                f"{field_name} must be a non-empty string",
+            )
+    outcome_text = payload.get("outcome_text")
+    if not isinstance(outcome_text, str) or not outcome_text.strip():
+        raise _BadRequest(
+            "invalid_outcome_text",
+            "outcome_text must be a non-empty string",
+        )
+    training_use_authorized = payload.get("training_use_authorized", False)
+    if not isinstance(training_use_authorized, bool):
+        raise _BadRequest(
+            "invalid_training_use_authorized",
+            "training_use_authorized must be a boolean",
+        )
+    try:
+        receipt = await controller.submit_outcome_text(
+            session=session,
+            subject_scope=identity.scope_key,
+            session_scope=session.session_id,
+            forecast_id=forecast_id,
+            decision_id=decision_id,
+            action_id=action_id,
+            outcome_text=outcome_text,
+            training_use_authorized=training_use_authorized,
+        )
+    except (ValueError, PermissionError) as exc:
+        raise _BadRequest("invalid_relationship_outcome", str(exc)) from exc
+    return _json_ok(
+        {
+            "outcome_id": receipt.outcome_id,
+            "forecast_id": receipt.forecast_id,
+            "decision_id": receipt.decision_id,
+            "action_id": receipt.action_id,
+            "kind": receipt.outcome_kind,
+            "confidence": receipt.confidence,
+            "outcome_observation_sha256": receipt.outcome_observation_sha256,
+            "typing_gate_status": receipt.typing_gate_status,
+            "typing_qualification_id": receipt.typing_qualification_id,
+            "typing_qualification_sha256": receipt.typing_qualification_sha256,
+            "typing_runtime_id": receipt.typing_runtime_id,
+            "typing_schema_version": receipt.typing_schema_version,
+            "typing_evidence_basis": receipt.typing_evidence_basis,
+            "needs_human_review": receipt.needs_human_review,
+            "action_exposure_status": receipt.action_exposure_status,
+            "runtime_submission_status": receipt.runtime_submission_status,
+            "submitted_to_runtime": receipt.submitted_to_runtime,
+            "runtime_evidence_id": receipt.runtime_evidence_id,
+            "operational_evidence_ref": receipt.operational_evidence_ref,
+            "training_candidate_ref": receipt.training_candidate_ref,
+        },
+        status=201,
+    )
+
+
+async def _handle_relationship_followup(request: web.Request) -> web.Response:
+    """P4 due-followup entry; all existing consent/cooldown/budget gates apply."""
+
+    _require_alpha(request)
+    _require_relationship_intelligence_controller(request)
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _maybe_json(request)
+    user_id = _alpha_user_id(request, payload)
+    await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    reports = await manager.execute_due_followups(
+        max_turns=1,
+        per_session_max=1,
+        cooldown_seconds=600.0,
+        tenant_allowlist=frozenset({user_id}),
+        session_ids=frozenset({session_id}),
+    )
+    return _json_ok(
+        {
+            "session_id": session_id,
+            "reports": [
+                {
+                    "followup_id": report.followup_id,
+                    "executed": report.executed,
+                    "reason": report.reason,
+                }
+                for report in reports
+            ],
+            "consent_cooldown_budget_gates_applied": True,
+        }
+    )
 
 
 async def _handle_mentor_intake(request: web.Request) -> web.Response:
@@ -2295,6 +2534,18 @@ def _require_alpha(request: web.Request) -> AlphaServiceConfig:
             "memory_scope_root_dir is required for this alpha route",
         )
     return alpha
+
+
+def _require_relationship_intelligence_controller(
+    request: web.Request,
+) -> RelationshipIntelligenceController:
+    controller = request.app.get("relationship_intelligence_controller")
+    if not isinstance(controller, RelationshipIntelligenceController):
+        raise _BadRequest(
+            "relationship_intelligence_disabled",
+            "relationship intelligence closed-alpha shell is disabled",
+        )
+    return controller
 
 
 def _required_relationship_memory_session_id(raw: object) -> str:

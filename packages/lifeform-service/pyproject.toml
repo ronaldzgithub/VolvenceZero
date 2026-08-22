@@ -57,3 +57,6 @@ lifeform-serve = "lifeform_service.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["lifeform_service*"]
+
+[tool.setuptools.package-data]
+lifeform_service = ["prompts/*.txt", "schemas/*.json"]

@@ -50,6 +50,9 @@ from volvence_zero.social.tom import (
     FeelingAboutOtherModule,
     IntentAboutOtherModule,
     LLMToMProposalRuntime,
+    PreferenceActionForecastProposal,
+    PreferenceActionForecastRequest,
+    PreferenceActionForecastRuntime,
     PreferenceAboutOtherModule,
 )
 
@@ -67,6 +70,9 @@ __all__ = [
     "LLMToMProposalRuntime",
     "MultiPartyIdentityModule",
     "PendingSocialPrediction",
+    "PreferenceActionForecastProposal",
+    "PreferenceActionForecastRequest",
+    "PreferenceActionForecastRuntime",
     "PreferenceAboutOtherModule",
     "SocialPredictionAggregateModule",
     "SocialPredictionErrorModule",

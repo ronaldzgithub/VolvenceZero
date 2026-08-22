@@ -27,6 +27,7 @@ include = ["lifeform_domain_emogpt*"]
     "runtime_assets/*.json",
     "runtime_assets/*.yaml",
     "schemas/*.json",
+    "lab_protocols/*.json",
     "scenario_packages/*/*.json",
     "scenario_packages/*/*.md",
     "scenario_packages/*/*.yaml",

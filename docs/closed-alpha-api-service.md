@@ -13,7 +13,8 @@
    `lifeform-service` 只负责 HTTP、身份、权限、证据落盘和产品边界。认知状态仍由 `LifeformSession -> BrainSession -> Runtime owners` 管理。
 
 2. **不从 raw text 推断 rupture / safety**  
-   服务 API 不做关键词匹配。用户反馈必须通过 typed endpoint 进入，例如 `OVER_DIRECTIVE`、`FELT_HEARD`、`UNSAFE`。
+   服务 API 不做关键词匹配。通用 feedback 仍通过 typed endpoint 进入；P4 关系 outcome
+   的自由文本只能经独立 qualification 绑定的 structured LLM typer，并允许返回 `unknown`。
 
 3. **跨用户隔离走 scoped memory**  
    closed alpha 要求 `user_id == scope_key`，避免磁盘路径和 memory tag scope 分裂。
@@ -70,6 +71,9 @@ lifeform-serve `
 | `service_version` | 返回给客户端和 evidence 的服务版本 |
 | `policy_version` | 返回给客户端和 evidence 的策略版本 |
 | `alpha_users` | 允许访问的用户 allowlist |
+| `relationship_intelligence_enabled` | 是否注册 P4 relationship turn/outcome/followup 产品壳；默认 false |
+| `relationship_outcome_typing_qualification_path` | content-hashed typing qualification artifact；不是布尔 PASS 开关 |
+| `relationship_training_candidate_root_dir` | 每次用户授权的 offline candidate 根目录；必须与 evidence root 物理不同 |
 
 alpha 模式下，所有用户级接口都要求 `X-Alpha-User` header 或 create-session body 中的 `user_id`。
 
@@ -342,6 +346,70 @@ body：
 ```
 
 当前删除范围是 closed-alpha 最小范围：tagged durable rupture-repair memory。完整用户数据擦除需要后续覆盖 application stores、case memory、logs 和 evidence artifacts。
+
+## P4 Relationship Intelligence Surface
+
+启动 collection-only 产品壳：
+
+```powershell
+lifeform-serve `
+  --vertical companion `
+  --alpha-enabled `
+  --memory-scope-root-dir artifacts/alpha/memory `
+  --evidence-root-dir artifacts/alpha/evidence `
+  --relationship-intelligence
+```
+
+未提供 qualification 时，关系 outcome 只落 operational evidence，固定为 `unknown`，不调用
+LLM、不进入 `dialogue_external_outcome` / PE / credit。若要启用 qualified typing，必须另传：
+
+```powershell
+  --relationship-outcome-typing-qualification artifacts/alpha/typing_qualification.json `
+  --relationship-training-candidate-root-dir artifacts/alpha/training_candidates
+```
+
+passing artifact 还要求 shared structured-JSON LLM client 已配置；runtime/schema 与 artifact
+不一致或 artifact hash/tamper 校验失败时服务拒绝启动。
+
+### `POST /v1/sessions/{session_id}/relationship-turns`
+
+body 只含自然输入：`{"user_input": "..."}`。服务先通过 Brain facade 请求
+`preference_about_other` 的 frozen pre-action forecast，再由 bounded gate 生成 self-temporal
+advisory，最后运行普通 canonical turn。返回 `relationship_action_audit`、typed rationale、
+policy/boundary lineage 与 `user_visible_action_changed=false`。当前 advisory 固定 SHADOW，
+不能修改 response。
+
+### `POST /v1/sessions/{session_id}/relationship-outcomes`
+
+body：
+
+```json
+{
+  "forecast_id": "preference_about_other:...",
+  "decision_id": "relationship-decision:...",
+  "action_id": "neutral_noop",
+  "outcome_text": "刚才那样让我觉得被听见了。",
+  "training_use_authorized": false
+}
+```
+
+客户端不能提交 `kind` 或 confidence 绕过 typing owner。响应包含 typed/unknown kind、typing
+qualification/runtime/schema、`action_exposure_status`、`runtime_submission_status`、是否进入
+runtime，以及 content-addressed evidence ref；不返回服务器绝对路径。exact retry 幂等，换文本
+或改变训练授权视为冲突。
+
+即使 qualification PASS，`shadow_counterfactual` 也不进入 runtime 或训练候选；当前只有实际
+暴露的 `baseline_noop_exposed` 可在 known 且无需 review 时生成
+`QUALIFIED_USER_REPORT` evidence。
+
+### `POST /v1/sessions/{session_id}/relationship-followups/execute-due`
+
+只尝试目标 session 的一条 due followup，并继续执行既有 consent、cooldown、budget、tenant
+与 session ownership gate；不会顺带执行其他 session。关系记忆查看/纠正仍使用
+`/v1/users/me/relationship-memory` 两个既有入口。
+
+权威 owner、typing gate、evidence separation 与回滚合同见
+[`specs/relationship-intelligence-closed-alpha.md`](./specs/relationship-intelligence-closed-alpha.md)。
 
 ## Admin / Review API
 

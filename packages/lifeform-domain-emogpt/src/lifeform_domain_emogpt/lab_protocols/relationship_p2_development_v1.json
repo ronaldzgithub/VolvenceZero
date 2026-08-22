@@ -1,0 +1,52 @@
+{
+  "schema_version": "relationship-p2-development-contract.v1",
+  "source": {
+    "consumer_split_contract_id": "2ce75cb44515b4c727ad065995501d063a8f3727923e8a322b4378b53e394af8",
+    "training_package_name": "relationship_transfer_v3",
+    "training_dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f",
+    "training_role": "consumer_training_only",
+    "p1k_diagnostic_status": "zero_output_not_used_for_owner_selection"
+  },
+  "development_split": {
+    "split_id": "P2-development",
+    "episode_derivation": "four_incremental_history_sessions_then_unseen_surface_probe",
+    "expected_episode_count": 12,
+    "evidence_sessions_per_episode": 4,
+    "probe_sessions_per_episode": 1,
+    "process_restart_between_sessions": true,
+    "incremental_context_only": true,
+    "raw_history_replayed_at_probe": false
+  },
+  "owner_boundary": {
+    "slot": "preference_about_other",
+    "owner": "PreferenceAboutOtherModule",
+    "wiring_level": "SHADOW",
+    "intent_about_other_enabled": false,
+    "forecast_runtime_role": "non_owning_bounded_adapter",
+    "candidate_actions": [
+      "stay_present_without_probe",
+      "respect_space_with_return_option",
+      "neutral_noop"
+    ],
+    "typed_outcomes": [
+      "helped",
+      "felt_heard",
+      "missed",
+      "over_directive"
+    ]
+  },
+  "firewall": {
+    "qualification_package_name": "relationship_transfer_v4",
+    "qualification_observations_loaded": false,
+    "qualification_truth_loaded": false,
+    "future_probe_label_visible_to_sut": false,
+    "training_label_visible_to_sut": false,
+    "evaluation_feedback_to_owner": false,
+    "writes_prediction_error": false,
+    "writes_credit": false,
+    "writes_steering": false,
+    "affects_expression": false,
+    "formal_hidden_test_opened": false
+  },
+  "claim_boundary": "P2-development v1 only freezes a v3-derived incremental multi-session SHADOW lane and a bounded owner proposal adapter. It does not load v4 observations or truth, run a formal or held-out comparison, write prediction error, credit or steering, affect expression, prove Readable or any complete four-capability claim, or establish product value."
+}

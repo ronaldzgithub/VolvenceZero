@@ -211,6 +211,7 @@ from volvence_zero.temporal import (
     MetacontrollerParameterStore,
     MetacontrollerRuntimeState,
     TemporalAbstractionSnapshot,
+    TemporalActionAdvisoryProposal,
     TemporalPolicy,
     clone_full_learned_temporal_policy,
     clone_temporal_policy,
@@ -890,6 +891,9 @@ class AgentSessionRunner(
         # so those owners keep cross-turn records, settle prior-turn
         # predictions, and drive PE-weighted promote/retire.
         self._social_record_store = SocialRecordStore()
+        self._pending_self_temporal_action_advisory: (
+            TemporalActionAdvisoryProposal | None
+        ) = None
         if self._owner_hydration_store is not None:
             self._owner_hydration_store.hydrate_owner_if_present(self._social_record_store, "social_record_store")
         self._prediction_module = PredictionErrorModule(
@@ -1833,6 +1837,10 @@ class AgentSessionRunner(
                 learning_enabled=self._joint_learning_enabled,
             )
             pending_semantic_events = self._drain_pending_semantic_events()
+            self_temporal_action_advisory = (
+                self._pending_self_temporal_action_advisory
+            )
+            self._pending_self_temporal_action_advisory = None
             settled_environment_action = self._consume_pending_environment_outcome()
             environment_outcome = settled_environment_action.outcome if settled_environment_action is not None else None
             if settled_environment_action is not None:
@@ -1884,6 +1892,7 @@ class AgentSessionRunner(
                 reflection_mode=self._reflection_mode,
                 world_temporal_policy=self._world_temporal_policy,
                 self_temporal_policy=self._self_temporal_policy,
+                self_temporal_action_advisory=self_temporal_action_advisory,
                 prediction_module=self._prediction_module,
                 regime_module=self._regime_module,
                 dialogue_external_outcome_module=self._dialogue_external_outcome_module,

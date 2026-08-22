@@ -56,6 +56,40 @@ class AlphaServiceConfig:
     # Evidence-only virtual calendar hook. Disabled by default so product
     # clients cannot forge relationship-continuity observation time.
     allow_evidence_time_override: bool = False
+    # P4 relationship-intelligence shell is opt-in. Its action controller
+    # stays SHADOW even when enabled; this flag only registers the product
+    # orchestration and typed audit routes.
+    relationship_intelligence_enabled: bool = False
+    # Real-user relationship outcomes are collection-only by default. A
+    # configured path is loaded as a frozen, content-hashed qualification
+    # artifact by the service; there is deliberately no boolean PASS switch.
+    relationship_outcome_typing_qualification_path: str | None = None
+    # Offline candidates require an explicit root physically distinct from
+    # operational alpha evidence. Consent is still per-outcome.
+    relationship_training_candidate_root_dir: str | None = None
+
+    def __post_init__(self) -> None:
+        if (
+            self.relationship_outcome_typing_qualification_path is not None
+            and not self.relationship_intelligence_enabled
+        ):
+            raise ValueError(
+                "relationship outcome typing qualification cannot be configured "
+                "while the relationship intelligence shell is disabled"
+            )
+        if self.relationship_training_candidate_root_dir is not None:
+            if self.evidence_root_dir is None:
+                raise ValueError(
+                    "relationship training candidate root requires evidence_root_dir"
+                )
+            evidence_root = Path(self.evidence_root_dir).expanduser().resolve()
+            training_root = Path(
+                self.relationship_training_candidate_root_dir
+            ).expanduser().resolve()
+            if evidence_root == training_root:
+                raise ValueError(
+                    "relationship evidence and training candidate roots must differ"
+                )
 
     def is_allowed(self, user_id: str) -> bool:
         return not self.alpha_users or user_id in self.alpha_users
@@ -264,6 +298,15 @@ def alpha_config_to_json(config: AlphaServiceConfig) -> Mapping[str, object]:
         "allowed_user_count": len(config.alpha_users),
         "allow_evidence_time_override": (
             config.allow_evidence_time_override
+        ),
+        "relationship_intelligence_enabled": (
+            config.relationship_intelligence_enabled
+        ),
+        "relationship_outcome_typing_qualification_configured": (
+            config.relationship_outcome_typing_qualification_path is not None
+        ),
+        "relationship_training_candidate_root_configured": (
+            config.relationship_training_candidate_root_dir is not None
         ),
         "disclaimer": ALPHA_DISCLAIMER,
     }

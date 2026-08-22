@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from volvence_zero.agent import default_active_runner
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
@@ -105,14 +107,41 @@ def test_gate_b_decision_clearer_produces_delayed_attribution() -> None:
 def test_llm_source_rejected_by_default() -> None:
     runner = default_active_runner()
     asyncio.run(runner.run_turn("hi"))
-    import pytest
-
     with pytest.raises(ValueError, match="allow_llm_outcome_proposals"):
         runner.submit_dialogue_outcome(
             kind=DialogueExternalOutcomeKind.MISSED,
             source=DialogueExternalOutcomeEvidenceSource.LLM_PROPOSAL,
             confidence=0.9,
         )
+
+
+def test_qualified_user_report_requires_lineage_but_not_llm_proposal_flag() -> None:
+    runner = default_active_runner()
+    asyncio.run(runner.run_turn("hi"))
+
+    with pytest.raises(ValueError, match="complete typing"):
+        runner.submit_dialogue_outcome(
+            kind=DialogueExternalOutcomeKind.MISSED,
+            source=(
+                DialogueExternalOutcomeEvidenceSource.QUALIFIED_USER_REPORT
+            ),
+            confidence=0.9,
+        )
+
+    evidence = runner.submit_dialogue_outcome(
+        kind=DialogueExternalOutcomeKind.MISSED,
+        source=DialogueExternalOutcomeEvidenceSource.QUALIFIED_USER_REPORT,
+        confidence=0.9,
+        typing_qualification_id="typing-qualification:alpha-1",
+        typing_qualification_sha256="a" * 64,
+        typing_runtime_id="relationship-outcome-typer:alpha-1",
+        typing_schema_version="relationship-outcome-typing-result.v1",
+    )
+    assert (
+        evidence.source
+        is DialogueExternalOutcomeEvidenceSource.QUALIFIED_USER_REPORT
+    )
+    assert evidence.typing_qualification_sha256 == "a" * 64
 
 
 def test_submit_dialogue_outcome_attaches_structural_evidence_to_trace() -> None:

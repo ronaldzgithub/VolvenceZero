@@ -22,8 +22,12 @@ from volvence_zero.social_cognition import (
     OtherMindRecord,
     OtherMindRecordKind,
     OtherMindRecordStatus,
+    PreferenceActionOutcomeEvidence,
+    PreferenceActionForecast,
     PreferenceAboutOtherSnapshot,
     MAX_COMMON_GROUND_RECURSION_DEPTH,
+    SocialActionCandidatePrediction,
+    SocialActionOutcomeProbability,
     SocialPrediction,
     SocialPredictionError,
     SocialPredictionErrorSnapshot,
@@ -415,6 +419,114 @@ def test_social_prediction_requires_scope_and_confidence() -> None:
         )
 
 
+def _candidate_prediction(
+    action_id: str,
+    *,
+    helped: float,
+    missed: float,
+) -> SocialActionCandidatePrediction:
+    return SocialActionCandidatePrediction(
+        action_id=action_id,
+        outcomes=(
+            SocialActionOutcomeProbability("helped", helped),
+            SocialActionOutcomeProbability("missed", missed),
+        ),
+    )
+
+
+def _preference_action_forecast(
+    *,
+    source_record_ids: tuple[str, ...] = ("tom:preference:1",),
+) -> PreferenceActionForecast:
+    return PreferenceActionForecast(
+        forecast_id="preference-forecast:decision-4",
+        decision_id="decision-4",
+        interlocutor_id="alice",
+        candidate_predictions=(
+            _candidate_prediction("stay_present", helped=0.8, missed=0.2),
+            _candidate_prediction("respect_space", helped=0.3, missed=0.7),
+        ),
+        recommended_action_id="stay_present",
+        confidence=0.76,
+        source_record_ids=source_record_ids,
+        issued_turn=4,
+        evidence=("owner_record:tom:preference:1",),
+    )
+
+
+def test_preference_action_forecast_is_frozen_pre_action_distribution() -> None:
+    forecast = _preference_action_forecast()
+
+    assert dataclasses.is_dataclass(forecast)
+    assert forecast.__dataclass_params__.frozen
+    assert forecast.recommended_action_id == "stay_present"
+    assert tuple(prediction.action_id for prediction in forecast.candidate_predictions) == (
+        "stay_present",
+        "respect_space",
+    )
+    assert not {
+        "observed_outcome",
+        "expected_action",
+        "reward",
+        "credit",
+    } & {field.name for field in dataclasses.fields(forecast)}
+
+
+def test_preference_action_outcome_evidence_is_typed_past_owner_state() -> None:
+    evidence = PreferenceActionOutcomeEvidence(
+        evidence_id="tom:preference:1",
+        interlocutor_id="alice",
+        observation_summary="A prior relationship situation.",
+        action_id="stay_present",
+        observed_outcome_id="felt_heard",
+        reaction_summary="The user said the presence helped.",
+        source_turn=3,
+        evidence_refs=("dialogue:turn:3",),
+    )
+
+    assert dataclasses.is_dataclass(evidence)
+    assert evidence.__dataclass_params__.frozen
+    assert evidence.observed_outcome_id == "felt_heard"
+    assert not {"reward", "credit", "prediction_error"} & {
+        field.name for field in dataclasses.fields(evidence)
+    }
+
+    with pytest.raises(ValueError, match="source_turn"):
+        dataclasses.replace(evidence, source_turn=-1)
+
+
+def test_candidate_action_predictions_require_normalized_shared_outcomes() -> None:
+    with pytest.raises(ValueError, match="sum to 1.0"):
+        _candidate_prediction("stay_present", helped=0.8, missed=0.3)
+
+    stay = _candidate_prediction("stay_present", helped=0.8, missed=0.2)
+    mismatched = SocialActionCandidatePrediction(
+        action_id="respect_space",
+        outcomes=(
+            SocialActionOutcomeProbability("felt_heard", 0.3),
+            SocialActionOutcomeProbability("missed", 0.7),
+        ),
+    )
+    with pytest.raises(ValueError, match="ordered outcome vocabulary"):
+        dataclasses.replace(
+            _preference_action_forecast(),
+            candidate_predictions=(stay, mismatched),
+        )
+
+
+def test_preference_action_forecast_requires_closed_candidate_choice() -> None:
+    with pytest.raises(ValueError, match="recommended_action_id"):
+        dataclasses.replace(
+            _preference_action_forecast(),
+            recommended_action_id="give_advice",
+        )
+    with pytest.raises(ValueError, match="finite number"):
+        dataclasses.replace(
+            _preference_action_forecast(),
+            confidence=float("nan"),
+        )
+
+
 def test_social_prediction_error_is_typed_and_bounded() -> None:
     error = SocialPredictionError(
         error_id="e1",
@@ -504,7 +616,40 @@ def test_other_mind_snapshots_accept_empty_shadow_scaffolds() -> None:
     assert BeliefAboutOtherSnapshot((), (), 0.0, "empty belief scaffold").records == ()
     assert IntentAboutOtherSnapshot((), (), 0.0, "empty intent scaffold").records == ()
     assert FeelingAboutOtherSnapshot((), (), 0.0, "empty feeling scaffold").records == ()
-    assert PreferenceAboutOtherSnapshot((), (), 0.0, "empty preference scaffold").records == ()
+    preference = PreferenceAboutOtherSnapshot((), (), 0.0, "empty preference scaffold")
+    assert preference.records == ()
+    assert preference.action_forecasts == ()
+
+
+def test_preference_snapshot_carries_owner_forecast_and_validates_lineage() -> None:
+    record = dataclasses.replace(
+        _other_mind_record(
+            record_id="tom:preference:1",
+            kind=OtherMindRecordKind.PREFERENCE,
+        ),
+        interlocutor_id="alice",
+        source_turn=3,
+    )
+    forecast = _preference_action_forecast()
+    snapshot = PreferenceAboutOtherSnapshot(
+        records=(record,),
+        active_predictions=(),
+        control_signal=0.2,
+        description="P2 SHADOW candidate-action forecast",
+        action_forecasts=(forecast,),
+    )
+
+    assert snapshot.action_forecasts == (forecast,)
+    with pytest.raises(ValueError, match="unknown record"):
+        dataclasses.replace(
+            snapshot,
+            action_forecasts=(_preference_action_forecast(source_record_ids=("tom:preference:missing",)),),
+        )
+    with pytest.raises(ValueError, match="future turn"):
+        dataclasses.replace(
+            snapshot,
+            records=(dataclasses.replace(record, source_turn=5),),
+        )
 
 
 def test_other_mind_snapshots_reject_wrong_record_kind() -> None:

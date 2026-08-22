@@ -335,6 +335,7 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 internal RL sandbox 已支持 `baseline / causal / causal-binary` 三条 rollout 路径；`causal-binary` 会在 replacement 路径上对 `beta_t` 做 Heaviside-like 二值化，更接近 ETA B.5
 - 当前 `TemporalModule` 已直接消费 `prediction_error` slot；高 PE 不再只经 evaluation 旁路感知，而是直接进入 owner-side update / scheduling surface
 - 当前默认主链已拆成 staged temporal surfaces：`TrackTemporalModule` 先以 `substrate + memory` 产出 same-wave early control；`TrackTemporalConsolidationModule` 再以 `reflection + prediction_error` 做 owner-side late consolidation；公共 `temporal_abstraction` 由 `TemporalAggregateModule` 聚合 `world_temporal` / `self_temporal` 后发布，避免靠共享可变状态偷渡 same-wave 顺序
+- **P3 relationship action advisory（2026-08-22）**：`TemporalAbstractionSnapshot` 可选携带 frozen `TemporalActionAdvisoryProposal` 与 `TemporalActionAdvisoryStatus`，只由 `self_temporal` 消费。proposal 绑定 decision / prediction / action、policy artifact、confidence、typed rationale 与 evidence refs，不含表达文本。`FinalRolloutConfig.relationship_action_advisory` 默认 `SHADOW`：记录 `SHADOW_RECORDED`，native `active_abstract_action` 严格不变；`DISABLED` 不发布；`ACTIVE` 只有 `active_authorized=true` 且非 evaluator artifact 才发布 `APPLIED`，否则 fail loudly。aggregate 只转发 self owner 的 advisory。P3/P4 vertical 输出固定 `active_authorized=false`，所以当前 closed alpha 不改变用户可见表达；回滚只需把该单字段降为 DISABLED。完整 causal-exposure 防火墙见 [`relationship-intelligence-closed-alpha.md`](./relationship-intelligence-closed-alpha.md)。
 - 当前 `TrackTemporalConsolidationModule` 已开始直接消费 `credit` 快照中的 abstract-action / session-level evidence，把 delayed credit 写回 action-family 的 `outcome_driven_score`、`long_term_payoff`、`delayed_credit_sum`；这条路径不引入新的 owner，而是在 temporal owner 内完成 family competition 的结果驱动更新
 - 当前 live dual-track path 已进一步收敛：track policy 会缓存 consolidation 阶段观察到的 `reflection` 证据，并在后续 early-control `step()` 中作为 owner-side context 参与切换/编码；这让 public dual-track path 不再系统性丢失 reflection
 - 当前 heuristic / learned-lite fallback 的公开 action label 已降级为更中性的 latent-family 风格标签，避免 benchmark 仅靠手工语义名就显得“像 ETA”
@@ -397,6 +398,9 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-08-22: 新增 self-temporal typed relationship action advisory。snapshot、track
+  owner、aggregate、final wiring 与 session single-consumption staging 已贯通；默认 SHADOW，
+  ACTIVE 要求独立 artifact authorization，P3/P4 artifact 未授权，因此无表达变化。
 - 2026-08-02: 为 rate-distortion 判据补齐执行纪律，判据逻辑本身不变。
   (a) `scripts/preregister_eta_rate_distortion.py` 冻结 alpha 网格、seed
   schedule、优化预算、gap 阈值、arm-separation 规则、封闭 verdict 集与 5 个源码

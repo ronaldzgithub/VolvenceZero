@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import math
 from typing import TYPE_CHECKING
 
 from companion_standard.social_cognition import (  # noqa: F401
@@ -106,6 +107,216 @@ class SocialPrediction:
         _require_non_empty("predicted_outcome", self.predicted_outcome)
         _require_confidence("confidence", self.confidence)
         _require_non_empty_items("evidence", self.evidence)
+
+
+@dataclass(frozen=True)
+class SocialActionOutcomeProbability:
+    """One typed outcome probability under a candidate social action.
+
+    The kernel contract deliberately keeps ``outcome_id`` domain-neutral.
+    A relationship vertical may freeze a closed vocabulary such as
+    ``helped`` / ``felt_heard`` / ``missed`` / ``over_directive`` without
+    making that product vocabulary a dependency of ``vz-contracts``.
+    """
+
+    outcome_id: str
+    probability: float
+
+    def __post_init__(self) -> None:
+        _require_non_empty("outcome_id", self.outcome_id)
+        if (
+            isinstance(self.probability, bool)
+            or not isinstance(self.probability, (int, float))
+            or not math.isfinite(self.probability)
+            or not 0.0 <= self.probability <= 1.0
+        ):
+            raise ValueError("probability must be finite and in [0, 1]")
+
+
+@dataclass(frozen=True)
+class SocialActionCandidatePrediction:
+    """Pre-action outcome distribution for one candidate social action."""
+
+    action_id: str
+    outcomes: tuple[SocialActionOutcomeProbability, ...]
+
+    def __post_init__(self) -> None:
+        _require_non_empty("action_id", self.action_id)
+        outcome_ids = tuple(outcome.outcome_id for outcome in self.outcomes)
+        _require_non_empty_unique_tuple("outcomes.outcome_id", outcome_ids)
+        total = math.fsum(outcome.probability for outcome in self.outcomes)
+        if not math.isclose(total, 1.0, abs_tol=1e-9):
+            raise ValueError(f"candidate action outcome probabilities must sum to 1.0, got {total}")
+
+
+@dataclass(frozen=True)
+class PreferenceActionOutcomeEvidence:
+    """Typed, already-observed action outcome owned by preference-about-other.
+
+    This is past evidence, not a forecast settlement and not a learning signal.
+    Keeping the action and outcome typed prevents a forecast collaborator from
+    reparsing owner prose or receiving the raw transcript again after hydration.
+    """
+
+    evidence_id: str
+    interlocutor_id: str
+    observation_summary: str
+    action_id: str
+    observed_outcome_id: str
+    reaction_summary: str
+    source_turn: int
+    evidence_refs: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("evidence_id", self.evidence_id),
+            ("interlocutor_id", self.interlocutor_id),
+            ("observation_summary", self.observation_summary),
+            ("action_id", self.action_id),
+            ("observed_outcome_id", self.observed_outcome_id),
+            ("reaction_summary", self.reaction_summary),
+        ):
+            _require_non_empty(field_name, value)
+        if isinstance(self.source_turn, bool) or not isinstance(self.source_turn, int):
+            raise ValueError("source_turn must be an integer")
+        if self.source_turn < 0:
+            raise ValueError("source_turn must be >= 0")
+        _require_non_empty_unique_tuple("evidence_refs", self.evidence_refs)
+
+
+@dataclass(frozen=True)
+class PreferenceActionForecast:
+    """Owner-authored candidate-action forecast frozen before acting.
+
+    This is a readout carried by :class:`PreferenceAboutOtherSnapshot`, not a
+    second relationship-state owner.  It contains no observed outcome,
+    evaluator label, reward, or credit.  Those may only be attached by a
+    later post-action evidence record that references ``forecast_id``.
+    """
+
+    forecast_id: str
+    decision_id: str
+    interlocutor_id: str
+    candidate_predictions: tuple[SocialActionCandidatePrediction, ...]
+    recommended_action_id: str
+    confidence: float
+    source_record_ids: tuple[str, ...]
+    issued_turn: int
+    evidence: tuple[str, ...]
+    # Empty is the backwards-compatible standalone/probe shape. P3 exact
+    # settlement requires a non-empty session scope and rejects unscoped joins.
+    session_scope: str = ""
+
+    def __post_init__(self) -> None:
+        _require_non_empty("forecast_id", self.forecast_id)
+        _require_non_empty("decision_id", self.decision_id)
+        _require_non_empty("interlocutor_id", self.interlocutor_id)
+        action_ids = tuple(prediction.action_id for prediction in self.candidate_predictions)
+        if len(action_ids) < 2:
+            raise ValueError("candidate_predictions must contain at least two social actions")
+        _require_unique_non_empty(
+            "candidate_predictions.action_id",
+            action_ids,
+        )
+        outcome_vocabularies = {
+            tuple(outcome.outcome_id for outcome in prediction.outcomes) for prediction in self.candidate_predictions
+        }
+        if len(outcome_vocabularies) != 1:
+            raise ValueError("candidate predictions must share one ordered outcome vocabulary")
+        if self.recommended_action_id not in action_ids:
+            raise ValueError("recommended_action_id must name one of the candidate actions")
+        if (
+            isinstance(self.confidence, bool)
+            or not isinstance(self.confidence, (int, float))
+            or not math.isfinite(self.confidence)
+        ):
+            raise ValueError("confidence must be a finite number")
+        _require_confidence("confidence", self.confidence)
+        _require_unique_non_empty("source_record_ids", self.source_record_ids)
+        if isinstance(self.issued_turn, bool) or not isinstance(self.issued_turn, int):
+            raise ValueError("issued_turn must be an integer")
+        if self.issued_turn < 0:
+            raise ValueError("issued_turn must be >= 0")
+        _require_non_empty_unique_tuple("evidence", self.evidence)
+
+
+@dataclass(frozen=True)
+class PreferenceActionForecastSettlement:
+    """Owner-authored exact settlement of one pre-action forecast."""
+
+    settlement_id: str
+    forecast_id: str
+    decision_id: str
+    session_scope: str
+    interlocutor_id: str
+    action_id: str
+    observed_outcome_id: str
+    predicted_probability: float
+    negative_log_likelihood: float
+    outcome: SocialPredictionOutcome
+    magnitude: float
+    source_evidence_id: str
+    forecast_issued_turn: int
+    observed_turn: int
+    evidence_confidence: float = 1.0
+    expected_utility: float = 0.0
+    observed_utility: float = 0.0
+    signed_utility_prediction_error: float = 0.0
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("settlement_id", self.settlement_id),
+            ("forecast_id", self.forecast_id),
+            ("decision_id", self.decision_id),
+            ("session_scope", self.session_scope),
+            ("interlocutor_id", self.interlocutor_id),
+            ("action_id", self.action_id),
+            ("observed_outcome_id", self.observed_outcome_id),
+            ("source_evidence_id", self.source_evidence_id),
+        ):
+            _require_non_empty(field_name, value)
+        for field_name, value in (
+            ("predicted_probability", self.predicted_probability),
+            ("magnitude", self.magnitude),
+            ("evidence_confidence", self.evidence_confidence),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or not 0.0 <= value <= 1.0
+            ):
+                raise ValueError(f"{field_name} must be finite and in [0, 1]")
+        for field_name, value in (
+            ("expected_utility", self.expected_utility),
+            ("observed_utility", self.observed_utility),
+            (
+                "signed_utility_prediction_error",
+                self.signed_utility_prediction_error,
+            ),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or not -1.0 <= value <= 1.0
+            ):
+                raise ValueError(f"{field_name} must be finite and in [-1, 1]")
+        if (
+            isinstance(self.negative_log_likelihood, bool)
+            or not isinstance(self.negative_log_likelihood, (int, float))
+            or not math.isfinite(self.negative_log_likelihood)
+            or self.negative_log_likelihood < 0.0
+        ):
+            raise ValueError("negative_log_likelihood must be finite and >= 0")
+        for field_name, value in (
+            ("forecast_issued_turn", self.forecast_issued_turn),
+            ("observed_turn", self.observed_turn),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{field_name} must be a non-negative integer")
+        if self.observed_turn < self.forecast_issued_turn:
+            raise ValueError("observed_turn cannot precede forecast_issued_turn")
 
 
 @dataclass(frozen=True)
@@ -397,6 +608,16 @@ class PreferenceAboutOtherSnapshot:
     description: str
     proposal_diagnostics: "LLMProposalAttemptCounters | None" = None
     settled_errors: tuple[SocialPredictionError, ...] = ()
+    # P2a contract-only surface. The existing owner publishes an empty tuple
+    # until the P2 SHADOW producer is wired; expression/planner consumers do
+    # not read this field.
+    action_forecasts: tuple[PreferenceActionForecast, ...] = ()
+    # P2c: past typed action/outcome evidence retained by this owner. This is
+    # distinct from a future observed outcome and contains no PE/credit.
+    action_outcome_evidence: tuple[PreferenceActionOutcomeEvidence, ...] = ()
+    # P3: exact post-action joins authored by this owner. Kept separate from
+    # action_forecasts so a consumer never splices labels into a pre-action row.
+    forecast_settlements: tuple[PreferenceActionForecastSettlement, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -408,6 +629,15 @@ class PreferenceAboutOtherSnapshot:
             description=self.description,
             settled_errors=self.settled_errors,
         )
+        _validate_preference_action_forecasts(
+            records=self.records,
+            forecasts=self.action_forecasts,
+        )
+        _validate_preference_action_outcome_evidence(
+            records=self.records,
+            action_outcomes=self.action_outcome_evidence,
+        )
+        _validate_preference_forecast_settlements(self.forecast_settlements)
 
 
 @dataclass(frozen=True)
@@ -776,6 +1006,89 @@ def _validate_other_mind_snapshot(
     _require_non_empty("description", description)
 
 
+def _validate_preference_action_forecasts(
+    *,
+    records: tuple[OtherMindRecord, ...],
+    forecasts: tuple[PreferenceActionForecast, ...],
+) -> None:
+    forecast_ids = tuple(forecast.forecast_id for forecast in forecasts)
+    _require_unique_non_empty(
+        "PreferenceAboutOtherSnapshot.action_forecasts.forecast_id",
+        forecast_ids,
+    )
+    decision_scopes = tuple((forecast.decision_id, forecast.interlocutor_id) for forecast in forecasts)
+    if len(set(decision_scopes)) != len(decision_scopes):
+        raise ValueError(
+            "PreferenceAboutOtherSnapshot.action_forecasts must contain at most "
+            "one forecast per decision and interlocutor"
+        )
+    records_by_id = {record.record_id: record for record in records}
+    for forecast in forecasts:
+        for record_id in forecast.source_record_ids:
+            try:
+                record = records_by_id[record_id]
+            except KeyError as exc:
+                raise ValueError(
+                    "PreferenceAboutOtherSnapshot.action_forecasts source_record_ids "
+                    f"references unknown record {record_id!r}"
+                ) from exc
+            if record.interlocutor_id != forecast.interlocutor_id:
+                raise ValueError(
+                    "PreferenceAboutOtherSnapshot.action_forecasts cannot source a record from another interlocutor"
+                )
+            if record.source_turn > forecast.issued_turn:
+                raise ValueError(
+                    "PreferenceAboutOtherSnapshot.action_forecasts cannot source a record from a future turn"
+                )
+
+
+def _validate_preference_action_outcome_evidence(
+    *,
+    records: tuple[OtherMindRecord, ...],
+    action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...],
+) -> None:
+    evidence_ids = tuple(item.evidence_id for item in action_outcomes)
+    _require_unique_non_empty(
+        "PreferenceAboutOtherSnapshot.action_outcome_evidence.evidence_id",
+        evidence_ids,
+    )
+    records_by_id = {record.record_id: record for record in records}
+    for item in action_outcomes:
+        try:
+            record = records_by_id[item.evidence_id]
+        except KeyError as exc:
+            raise ValueError(
+                "PreferenceAboutOtherSnapshot.action_outcome_evidence must "
+                f"reference an owner record; missing {item.evidence_id!r}"
+            ) from exc
+        if record.interlocutor_id != item.interlocutor_id:
+            raise ValueError(
+                "PreferenceAboutOtherSnapshot.action_outcome_evidence cannot "
+                "reference a record from another interlocutor"
+            )
+        if record.source_turn != item.source_turn:
+            raise ValueError(
+                "PreferenceAboutOtherSnapshot.action_outcome_evidence source_turn "
+                "must match its owner record"
+            )
+
+
+def _validate_preference_forecast_settlements(
+    settlements: tuple[PreferenceActionForecastSettlement, ...],
+) -> None:
+    settlement_ids = tuple(item.settlement_id for item in settlements)
+    _require_unique_non_empty(
+        "PreferenceAboutOtherSnapshot.forecast_settlements.settlement_id",
+        settlement_ids,
+    )
+    forecast_ids = tuple(item.forecast_id for item in settlements)
+    if len(set(forecast_ids)) != len(forecast_ids):
+        raise ValueError(
+            "PreferenceAboutOtherSnapshot.forecast_settlements may settle a "
+            "forecast at most once"
+        )
+
+
 def _validate_common_ground_atoms(
     field_name: str,
     atoms: tuple[CommonGroundAtom, ...],
@@ -809,7 +1122,12 @@ __all__ = [
     "OtherMindRecord",
     "OtherMindRecordKind",
     "OtherMindRecordStatus",
+    "PreferenceActionOutcomeEvidence",
+    "PreferenceActionForecast",
+    "PreferenceActionForecastSettlement",
     "PreferenceAboutOtherSnapshot",
+    "SocialActionCandidatePrediction",
+    "SocialActionOutcomeProbability",
     "SocialPrediction",
     "SocialPredictionError",
     "SocialPredictionErrorSnapshot",

@@ -221,6 +221,23 @@ async def test_tenant_allowlist_gate() -> None:
     assert session.turns == []
 
 
+async def test_session_filter_cannot_execute_another_sessions_followup() -> None:
+    clock = _FakeClock()
+    manager = _manager(clock)
+    selected = await _session(manager, "selected")
+    untouched = await _session(manager, "untouched")
+    await manager.advance_autonomous_ticks(system_ticks=1)
+
+    reports = await manager.execute_due_followups(
+        session_ids=frozenset({"selected"}),
+    )
+
+    assert {report.session_id for report in reports} == {"selected"}
+    assert len(selected.turns) == 1
+    assert untouched.turns == []
+    assert len(untouched.due_followups()) == 1
+
+
 async def test_invalid_parameters_fail_loudly() -> None:
     manager = _manager(_FakeClock())
     with pytest.raises(ValueError, match="max_turns"):

@@ -98,9 +98,16 @@ class DialogueExternalOutcomeEvidenceSource(str, Enum):
 
     LLM proposal is present in the enum so the contract is stable, but
     runtime intake is gated behind an explicit ``BrainConfig`` flag in v0.
+    A qualified user report is a different channel: its external
+    qualification/runtime/schema lineage is mandatory on every evidence item.
     """
 
     USER_EXPLICIT = "user_explicit"
+    # Explicit free-text user report normalized by a separately qualified,
+    # schema-bound LLM typing channel. Qualification lineage is mandatory on
+    # the evidence object; this is neither a direct user label nor an
+    # unqualified LLM proposal.
+    QUALIFIED_USER_REPORT = "qualified_user_report"
     HUMAN_REVIEW = "human_review"
     ENVIRONMENT = "environment"
     LLM_PROPOSAL = "llm_proposal"
@@ -174,6 +181,20 @@ class DialogueExternalOutcomeEvidence:
     # attributed, because guessing which turn produced it would silently
     # assign credit to the wrong bank set.
     action_turn_index: int = -1
+    # P3 relationship forecast join. These three fields are all-or-none and
+    # remain empty for external outcomes unrelated to a preference forecast.
+    # Together with ``session_scope`` + ``action_turn_index`` they identify
+    # exactly one owner-issued pre-action forecast and the action taken under it.
+    forecast_id: str = ""
+    decision_id: str = ""
+    action_id: str = ""
+    # Required only for QUALIFIED_USER_REPORT. The content-hashed external
+    # qualification freezes hidden-label/rater/anchor evidence and the exact
+    # structured runtime/schema admitted by the product boundary.
+    typing_qualification_id: str = ""
+    typing_qualification_sha256: str = ""
+    typing_runtime_id: str = ""
+    typing_schema_version: str = ""
 
     def __post_init__(self) -> None:
         _require_non_empty("evidence_id", self.evidence_id)
@@ -184,6 +205,50 @@ class DialogueExternalOutcomeEvidence:
             raise ValueError(
                 "DialogueExternalOutcomeEvidence action_turn_index must be a "
                 "non-negative turn or -1 for 'not declared'."
+            )
+        preference_join_fields = (
+            self.forecast_id,
+            self.decision_id,
+            self.action_id,
+        )
+        if any(preference_join_fields) and not all(
+            value.strip() for value in preference_join_fields
+        ):
+            raise ValueError(
+                "DialogueExternalOutcomeEvidence preference forecast join "
+                "requires forecast_id, decision_id, and action_id together."
+            )
+        if all(preference_join_fields) and not self.is_attributable:
+            raise ValueError(
+                "DialogueExternalOutcomeEvidence preference forecast join also "
+                "requires session_scope and action_turn_index."
+            )
+        typing_lineage = (
+            self.typing_qualification_id,
+            self.typing_qualification_sha256,
+            self.typing_runtime_id,
+            self.typing_schema_version,
+        )
+        if (
+            self.source
+            is DialogueExternalOutcomeEvidenceSource.QUALIFIED_USER_REPORT
+        ):
+            if not all(value.strip() for value in typing_lineage):
+                raise ValueError(
+                    "qualified user outcome evidence requires complete typing "
+                    "qualification/runtime/schema lineage"
+                )
+            if len(self.typing_qualification_sha256) != 64 or any(
+                character not in "0123456789abcdef"
+                for character in self.typing_qualification_sha256
+            ):
+                raise ValueError(
+                    "typing_qualification_sha256 must be lowercase SHA-256"
+                )
+        elif any(typing_lineage):
+            raise ValueError(
+                "typing qualification lineage is only valid for "
+                "QUALIFIED_USER_REPORT evidence"
             )
 
     @property
@@ -196,6 +261,12 @@ class DialogueExternalOutcomeEvidence:
         """
 
         return bool(self.session_scope) and self.action_turn_index >= 0
+
+    @property
+    def has_preference_forecast_join(self) -> bool:
+        """Whether the evidence carries the complete P3 exact-join surface."""
+
+        return bool(self.forecast_id and self.decision_id and self.action_id)
 
 
 @dataclass(frozen=True)

@@ -22,6 +22,9 @@ Routes (all under ``/v1``):
 * ``DELETE /v1/sessions/{id}`` \u2014 close a session
 * ``GET  /v1/sessions/{id}/state`` \u2014 read-only state summary
 * ``POST /v1/sessions/{id}/turns`` \u2014 run a turn
+* ``POST /v1/sessions/{id}/relationship-turns`` \u2014 run a P4 SHADOW-audited turn
+* ``POST /v1/sessions/{id}/relationship-outcomes`` \u2014 submit a qualified free-text outcome
+* ``POST /v1/sessions/{id}/relationship-followups/execute-due`` \u2014 run one gated due followup
 * ``POST /v1/sessions/{id}/end-scene`` \u2014 close the open scene + drain slow loop
 """
 

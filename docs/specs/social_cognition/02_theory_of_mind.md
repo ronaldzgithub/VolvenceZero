@@ -91,9 +91,79 @@ class BeliefAboutOtherSnapshot:
     active_predictions: tuple[SocialPrediction, ...]
     control_signal: float
     description: str
+
+@dataclass(frozen=True)
+class PreferenceAboutOtherSnapshot:
+    records: tuple[OtherMindRecord, ...]
+    active_predictions: tuple[SocialPrediction, ...]
+    control_signal: float
+    description: str
+    action_forecasts: tuple[PreferenceActionForecast, ...] = ()
+    action_outcome_evidence: tuple[PreferenceActionOutcomeEvidence, ...] = ()
+    forecast_settlements: tuple[PreferenceActionForecastSettlement, ...] = ()
 ```
 
-`IntentAboutOtherSnapshot`、`FeelingAboutOtherSnapshot`、`PreferenceAboutOtherSnapshot` mirror the same frozen contract but define owner-specific prediction / outcome vocabularies.
+`IntentAboutOtherSnapshot`、`FeelingAboutOtherSnapshot` mirror the common frozen record
+contract。`PreferenceAboutOtherSnapshot` 额外拥有 P2 的行动前候选动作预测 readout；这不是
+新的 owner，也不能由 evaluator 或 renderer 从 records 重新拼装。
+
+### P2a：候选动作预测公共契约
+
+P2a 只冻结公共交换，不新增行为。`PreferenceActionForecast` 必须同时携带：
+
+- `decision_id` / `interlocutor_id` / `issued_turn`；
+- 至少两个候选 `SocialActionCandidatePrediction`；
+- 每个候选动作在**同一有序 typed outcome vocabulary** 上的归一化概率分布；
+- owner 选出的 `recommended_action_id`、置信度、证据与 `source_record_ids`。
+
+`PreferenceAboutOtherSnapshot` 校验所有 source record 都由自己发布、属于同一 interlocutor，
+且 `source_turn <= issued_turn`。forecast 本身严格停在行动前，不得包含 observed outcome、
+expected action、evaluation、reward、PE 或 credit。关系 vertical 负责冻结具体 action/outcome
+枚举；`vz-contracts` 只拥有 domain-neutral 的公共分布形状，避免反向依赖。
+
+兼容与接线边界：字段默认 `()`，所以旧 snapshot 构造和当前产品行为不变。P2b 允许
+`PreferenceAboutOtherModule` 在独立 development lane 中填充它，但必须同时注入 frozen
+`PreferenceActionForecastRequest` 与 `PreferenceActionForecastRuntime`，且 owner 必须是
+`WiringLevel.SHADOW`；缺一项或尝试 ACTIVE 都 fail loudly。collaborator 只返回非 owning
+`PreferenceActionForecastProposal`，owner 校验 exact action/outcome surface、ACTIVE
+source records 与 interlocutor 后，亲自绑定 forecast id / decision / scope / turn lineage。
+P2b 阶段 expression、planner、`social_prediction_error`、credit 与 steering 不消费；不存在
+consumer sidecar fallback，owner 未发布就视为没有 forecast。
+
+### P2c：v3-only 多 session owner probe
+
+`relationship_p2_development_v1.json` 只投影已冻结 v3 public evidence；truth 位于独立 evaluator
+bundle，runtime view 不含 v4、preferred action 或 hidden dynamics。每个 development episode
+依次执行四段 history，每段都由 `PreferenceAboutOtherModule` 写 typed record +
+`PreferenceActionOutcomeEvidence`，随后 export `SocialRecordStore` 并在新进程语义下 hydrate；
+probe session 只读取恢复后的 owner state，不重放 raw history。
+
+`SocialRecordStore` schema v2 增加 `preference_action_outcomes /
+preference_action_forecasts / preference_forecast_settlements`；v1 仍可 hydrate，新增集合为空，
+export 一律写 v2。bounded forecast runtime 使用共享 semantic embedding 比较当前 observation 与
+owner-published typed past observations，不使用关键词/正则。该 probe 证明 persistence 与 owner
+readout 机械闭合，不是 P2 formal 或 Readable 资格结论。
+
+### P3：exact settlement 与 PE-derived action credit
+
+`dialogue_external_outcome` 只有同时携带 `session_scope / action_turn_index / forecast_id /
+decision_id / action_id` 时才具有 relationship forecast join。preference owner 只结算同 session、
+同 decision、同 action 的 pending forecast；每个 forecast 至多一次，未知或冲突 join fail loudly。
+`PreferenceActionForecastSettlement` 发布 predicted probability、NLL、evidence confidence、
+expected / observed utility 与 signed utility PE，并产生 matching `SocialPredictionError`。
+
+dedicated action credit 还必须精确找到 `social-pe:<settlement_id>`，然后才计算：
+
+```text
+credit_value = signed_utility_prediction_error × evidence_confidence
+level = relationship_action_prediction_error
+track = SELF
+```
+
+evaluation、oracle、human anchor 与七日 continuity 均不能成为此 credit 的来源。Brain facade
+只把 frozen preference/social-PE snapshots 交给 cognition derivation；lifeform/service 不重建
+owner 隐状态。gate 与 temporal SHADOW contract 见
+[`relationship-intelligence-closed-alpha.md`](../relationship-intelligence-closed-alpha.md)。
 
 Implemented Phase 2 scaffold:
 
@@ -136,6 +206,20 @@ Implemented Phase 2 scaffold:
 
 ## 变更日志
 
+- 2026-08-22: P2c/P3 closure。`SocialRecordStore` v2 持久化 typed action history、pending
+  forecasts 与 settlements；v3-only development probe 跨四次恢复后发布独立 forecast。P3
+  通过 `dialogue_external_outcome` exact join 结算 probability/NLL/utility PE，action credit
+  必须匹配 owner-authored social PE，禁止 evaluation 回灌。P2 formal 仍关闭。
+- 2026-08-21: P2b owner-producer slice。`PreferenceAboutOtherModule` 新增成对的
+  `PreferenceActionForecastRequest` / `PreferenceActionForecastRuntime` 可选注入，只在
+  SHADOW 运行；runtime 仅提 proposal，owner 校验闭合 action/outcome surface 与自身 ACTIVE
+  record lineage 后发布正式 forecast。`build_final_runtime_modules` /
+  `run_final_wiring_turn` 提供显式注入入口；ACTIVE aggregate 看不到 SHADOW forecast。
+- 2026-08-21: P2a contract-only slice。`PreferenceAboutOtherSnapshot` 新增默认空的
+  `action_forecasts`，并冻结 `SocialActionOutcomeProbability`、
+  `SocialActionCandidatePrediction`、`PreferenceActionForecast` 三个不可变公共 value。
+  只允许 `PreferenceAboutOtherModule` 发布；当前无 producer、无新 slot、无 evaluator
+  label、无 PE/credit/steering 回灌，产品行为保持不变。
 - 2026-07-28: 修正 `feeling_about_other` matched-control 的依赖证据：
   `social_prediction` 是 ACTIVE ToM prediction 的正式 aggregate consumer；
   contract test 同时断言 SHADOW 无转发、ACTIVE 精确转发一条 owner-authored

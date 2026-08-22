@@ -1,0 +1,44 @@
+{
+  "$id": "relationship-outcome-typing-result.v1",
+  "additionalProperties": false,
+  "properties": {
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
+    "evidence_basis": {
+      "enum": [
+        "explicit_report",
+        "behavioral_consequence",
+        "mixed_or_ambiguous"
+      ],
+      "type": "string"
+    },
+    "needs_human_review": {
+      "type": "boolean"
+    },
+    "outcome_kind": {
+      "enum": [
+        "helped",
+        "felt_heard",
+        "missed",
+        "over_directive",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "relationship-outcome-typing-result.v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "outcome_kind",
+    "confidence",
+    "evidence_basis",
+    "needs_human_review"
+  ],
+  "type": "object"
+}

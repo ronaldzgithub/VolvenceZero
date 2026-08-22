@@ -70,10 +70,18 @@ from volvence_zero.semantic_state import (
     ExternalSemanticEventBatch,
     SemanticProposalRuntime,
 )
+from volvence_zero.social import (
+    PreferenceActionForecastRequest,
+    PreferenceActionForecastRuntime,
+)
+from volvence_zero.social_cognition import PreferenceActionForecast
 from volvence_zero.regime import RegimeBootstrap
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import OpenWeightResidualRuntime, SubstrateAdapter
-from volvence_zero.temporal import MetacontrollerParameterSnapshot
+from volvence_zero.temporal import (
+    MetacontrollerParameterSnapshot,
+    TemporalActionAdvisoryProposal,
+)
 from volvence_zero.protocol_runtime import LoadContext
 
 
@@ -1865,6 +1873,13 @@ class LifeformSession:
         evidence_ref: str | None = None,
         description: str = "",
         action_turn_index: int | None = None,
+        forecast_id: str = "",
+        decision_id: str = "",
+        action_id: str = "",
+        typing_qualification_id: str = "",
+        typing_qualification_sha256: str = "",
+        typing_runtime_id: str = "",
+        typing_schema_version: str = "",
     ) -> DialogueExternalOutcomeEvidence:
         """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
 
@@ -1882,6 +1897,63 @@ class LifeformSession:
             evidence_ref=evidence_ref,
             description=description,
             action_turn_index=action_turn_index,
+            forecast_id=forecast_id,
+            decision_id=decision_id,
+            action_id=action_id,
+            typing_qualification_id=typing_qualification_id,
+            typing_qualification_sha256=typing_qualification_sha256,
+            typing_runtime_id=typing_runtime_id,
+            typing_schema_version=typing_schema_version,
+        )
+
+    async def preview_preference_action_forecast(
+        self,
+        *,
+        request: PreferenceActionForecastRequest,
+        runtime: PreferenceActionForecastRuntime,
+    ) -> PreferenceActionForecast | None:
+        """Request the Brain-owned pre-action SHADOW forecast."""
+
+        return await self._brain_session.preview_preference_action_forecast(
+            request=request,
+            runtime=runtime,
+        )
+
+    def stage_self_temporal_action_advisory(
+        self,
+        advisory: TemporalActionAdvisoryProposal,
+    ) -> None:
+        """Stage one typed advisory for the next canonical turn."""
+
+        self._brain_session.stage_self_temporal_action_advisory(advisory)
+
+    def relationship_action_credits(
+        self,
+        *,
+        settled_at_turn: int,
+        timestamp_ms: int,
+    ) -> tuple[Any, ...]:
+        """Read PE-derived relationship action credit from latest snapshots.
+
+        The helper is deliberately on the Lifeform facade: product code does
+        not import or reconstruct cognition-owner internals.  It is read-only
+        and returns no records unless the preference forecast was exactly
+        settled on ``settled_at_turn``.
+        """
+
+        preference = self._latest_active_snapshots.get(
+            "preference_about_other"
+        ) or self._latest_shadow_snapshots.get("preference_about_other")
+        social_pe = self._latest_active_snapshots.get(
+            "social_prediction_error"
+        ) or self._latest_shadow_snapshots.get("social_prediction_error")
+        if preference is None or social_pe is None:
+            return ()
+        return self._brain_session.relationship_action_credits(
+            preference_snapshot=preference.value,
+            social_pe_snapshot=social_pe.value,
+            settled_at_turn=settled_at_turn,
+            timestamp_ms=timestamp_ms,
         )
 
     # ------------------------------------------------------------------

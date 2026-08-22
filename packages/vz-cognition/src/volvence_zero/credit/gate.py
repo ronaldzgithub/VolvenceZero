@@ -19,7 +19,11 @@ from volvence_zero.owner_hydration import (
 )
 from volvence_zero.prediction.error import PredictionActionContext, PredictionError, PredictionErrorSnapshot
 from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
-from volvence_zero.social_cognition import SocialPredictionError, SocialPredictionOutcome
+from volvence_zero.social_cognition import (
+    PreferenceActionForecastSettlement,
+    SocialPredictionError,
+    SocialPredictionOutcome,
+)
 from volvence_zero.steering_contracts import SteeringTerminalPredictionError
 from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 
@@ -843,6 +847,81 @@ def derive_social_prediction_error_credit_records(
                     f"outcome={error.outcome.value}; evidence={' | '.join(error.evidence)}"
                 ),
                 timestamp_ms=timestamp_ms,
+            )
+        )
+    return tuple(records)
+
+
+def derive_preference_action_forecast_credit_records(
+    *,
+    settlements: tuple[PreferenceActionForecastSettlement, ...],
+    social_errors: tuple[SocialPredictionError, ...],
+    settled_at_turn: int,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    """Derive relationship-action credit from an exact owner PE settlement.
+
+    The numerical signal is the settlement's signed utility prediction error,
+    attenuated only by typed external-evidence confidence.  A matching
+    owner-authored :class:`SocialPredictionError` is mandatory, so an external
+    outcome or evaluator label cannot bypass the PE owner and become reward.
+    Historical settlements are ignored: callers may safely pass the owner's
+    retained snapshot on every turn without replaying old credit.
+    """
+
+    if isinstance(settled_at_turn, bool) or not isinstance(settled_at_turn, int):
+        raise ValueError("settled_at_turn must be an integer")
+    if settled_at_turn < 0:
+        raise ValueError("settled_at_turn must be >= 0")
+    errors_by_id = {error.error_id: error for error in social_errors}
+    if len(errors_by_id) != len(social_errors):
+        raise ValueError("social_errors must have unique error_id values")
+    records: list[CreditRecord] = []
+    for settlement in settlements:
+        if settlement.observed_turn != settled_at_turn:
+            continue
+        error_id = f"social-pe:{settlement.settlement_id}"
+        try:
+            error = errors_by_id[error_id]
+        except KeyError as exc:
+            raise ValueError(
+                "relationship action credit requires the matching owner-authored "
+                f"prediction error {error_id!r}"
+            ) from exc
+        if error.prediction_id != settlement.forecast_id:
+            raise ValueError("relationship action credit prediction lineage mismatch")
+        if error.outcome is not settlement.outcome or not math.isclose(
+            error.magnitude,
+            settlement.magnitude,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("relationship action credit PE settlement mismatch")
+        credit_value = _clamp(
+            settlement.signed_utility_prediction_error
+            * settlement.evidence_confidence
+        )
+        records.append(
+            CreditRecord(
+                record_id=(
+                    "relationship-action-pe-credit:"
+                    f"{settlement.settlement_id}"
+                ),
+                level="relationship_action_prediction_error",
+                track=Track.SELF,
+                source_event=f"social_pe:{error.error_id}",
+                credit_value=credit_value,
+                context=(
+                    f"decision_id={settlement.decision_id}; "
+                    f"session_scope={settlement.session_scope}; "
+                    f"observed_outcome={settlement.observed_outcome_id}; "
+                    f"expected_utility={settlement.expected_utility:.12f}; "
+                    f"observed_utility={settlement.observed_utility:.12f}; "
+                    f"evidence_confidence={settlement.evidence_confidence:.12f}"
+                ),
+                timestamp_ms=timestamp_ms,
+                prediction_id=settlement.forecast_id,
+                environment_outcome_id=settlement.source_evidence_id,
+                abstract_action_id=settlement.action_id,
             )
         )
     return tuple(records)

@@ -17,11 +17,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from json import JSONDecodeError
+import math
 from typing import Any, Mapping, Protocol
 
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeKind,
+    DialogueExternalOutcomeSnapshot,
+)
 from volvence_zero.llm_proposal_diagnostics import LLMProposalAttemptCounters
 from volvence_zero.memory import MemorySnapshot
-from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.runtime import (
+    RuntimeModule,
+    RuntimePlaceholderValue,
+    Snapshot,
+    WiringLevel,
+)
 from volvence_zero.semantic_state import (
     NoOpSemanticProposalRuntime,
     SemanticProposal,
@@ -36,11 +47,16 @@ from volvence_zero.social_cognition import (
     OtherMindRecord,
     OtherMindRecordKind,
     OtherMindRecordStatus,
+    PreferenceActionOutcomeEvidence,
+    PreferenceActionForecast,
+    PreferenceActionForecastSettlement,
     PreferenceAboutOtherSnapshot,
     SELF_INTERLOCUTOR_ID,
+    SocialActionCandidatePrediction,
     SocialPrediction,
     SocialPredictionError,
     SocialPredictionKind,
+    SocialPredictionOutcome,
     SocialScopeKind,
 )
 from volvence_zero.substrate import SubstrateSnapshot
@@ -324,6 +340,477 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
     prediction_kind = SocialPredictionKind.PREFERENCE_ABOUT_OTHER
     snapshot_type = PreferenceAboutOtherSnapshot
     empty_description = "R17 SHADOW scaffold: no preference-about-other records yet."
+    dependencies = (*_OtherMindOwnerModule.dependencies, "dialogue_external_outcome")
+
+    def __init__(
+        self,
+        *,
+        proposal_runtime: SemanticProposalRuntime | None = None,
+        user_input: str | None = None,
+        turn_index: int = 0,
+        wiring_level: WiringLevel | None = None,
+        record_store: SocialRecordStore | None = None,
+        action_forecast_runtime: "PreferenceActionForecastRuntime | None" = None,
+        action_forecast_request: "PreferenceActionForecastRequest | None" = None,
+        action_outcome_evidence: PreferenceActionOutcomeEvidence | None = None,
+    ) -> None:
+        super().__init__(
+            proposal_runtime=proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+            wiring_level=wiring_level,
+            record_store=record_store,
+        )
+        if (action_forecast_runtime is None) != (action_forecast_request is None):
+            raise ValueError(
+                "preference action forecast runtime and request must be provided together"
+            )
+        if (
+            action_forecast_runtime is not None
+            and self.wiring_level is not WiringLevel.SHADOW
+        ):
+            raise ValueError(
+                "preference action forecasts are P2-development SHADOW-only"
+            )
+        self._action_forecast_runtime = action_forecast_runtime
+        self._action_forecast_request = action_forecast_request
+        if (
+            action_outcome_evidence is not None
+            and action_outcome_evidence.source_turn != turn_index
+        ):
+            raise ValueError(
+                "preference action outcome evidence source_turn must match turn_index"
+            )
+        self._action_outcome_evidence = action_outcome_evidence
+        self._external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None = None
+
+    async def process(
+        self,
+        upstream: Mapping[str, Snapshot[Any]],
+    ) -> Snapshot[PreferenceAboutOtherSnapshot]:
+        external = upstream.get("dialogue_external_outcome")
+        if external is not None and not isinstance(
+            external.value,
+            RuntimePlaceholderValue,
+        ):
+            if not isinstance(external.value, DialogueExternalOutcomeSnapshot):
+                raise TypeError(
+                    "preference_about_other expected DialogueExternalOutcomeSnapshot"
+                )
+            self._external_outcome_snapshot = external.value
+        return await super().process(upstream)
+
+    def _snapshot(
+        self,
+        *,
+        records: tuple[OtherMindRecord, ...],
+        control_signal: float,
+        proposal_diagnostics: LLMProposalAttemptCounters | None,
+        settled_errors: tuple[SocialPredictionError, ...] = (),
+    ) -> PreferenceAboutOtherSnapshot:
+        action_outcomes = self._merge_action_outcome_evidence(records)
+        settlement_errors = self._settle_pending_action_forecasts()
+        new_forecasts = self._action_forecasts(records, action_outcomes)
+        pending_forecasts = self._merge_pending_action_forecasts(new_forecasts)
+        settlements = (
+            self._record_store.preference_forecast_settlements
+            if self._record_store is not None
+            else ()
+        )
+        return PreferenceAboutOtherSnapshot(
+            records=records,
+            active_predictions=self._active_predictions(records),
+            control_signal=control_signal,
+            description=(
+                self.empty_description
+                if not records
+                else (
+                    f"{self.owner} published explicit records={len(records)} "
+                    f"settled={len(settled_errors)}."
+                )
+            ),
+            proposal_diagnostics=proposal_diagnostics,
+            settled_errors=(*settled_errors, *settlement_errors),
+            action_forecasts=pending_forecasts,
+            action_outcome_evidence=action_outcomes,
+            forecast_settlements=settlements,
+        )
+
+    def _merge_action_outcome_evidence(
+        self,
+        records: tuple[OtherMindRecord, ...],
+    ) -> tuple[PreferenceActionOutcomeEvidence, ...]:
+        store = self._record_store
+        prior = store.preference_action_outcomes if store is not None else ()
+        incoming = self._action_outcome_evidence
+        merged_by_id = {item.evidence_id: item for item in prior}
+        if incoming is not None:
+            merged_by_id[incoming.evidence_id] = incoming
+        record_ids = {record.record_id for record in records}
+        merged = tuple(
+            item
+            for item in merged_by_id.values()
+            if item.evidence_id in record_ids
+        )
+        if incoming is not None and incoming.evidence_id not in record_ids:
+            raise ValueError(
+                "preference action outcome evidence must reference a record "
+                "published by this owner turn"
+            )
+        if store is not None:
+            store.set_preference_action_outcomes(merged)
+            return store.preference_action_outcomes
+        return merged
+
+    def _settle_pending_action_forecasts(
+        self,
+    ) -> tuple[SocialPredictionError, ...]:
+        store = self._record_store
+        external = self._external_outcome_snapshot
+        if store is None or external is None or not external.entries:
+            return ()
+        pending_by_id = {
+            forecast.forecast_id: forecast
+            for forecast in store.preference_action_forecasts
+        }
+        settlements_by_forecast = {
+            settlement.forecast_id: settlement
+            for settlement in store.preference_forecast_settlements
+        }
+        errors: list[SocialPredictionError] = []
+        for entry in external.entries:
+            if not entry.has_preference_forecast_join:
+                continue
+            if entry.forecast_id in settlements_by_forecast:
+                prior = settlements_by_forecast[entry.forecast_id]
+                if prior.source_evidence_id != entry.evidence_id:
+                    raise ValueError(
+                        "preference forecast already settled by different evidence"
+                    )
+                continue
+            try:
+                forecast = pending_by_id[entry.forecast_id]
+            except KeyError as exc:
+                raise ValueError(
+                    "external outcome references an unknown pending preference "
+                    f"forecast {entry.forecast_id!r}"
+                ) from exc
+            settlement = _settle_preference_action_forecast(
+                forecast=forecast,
+                evidence=entry,
+            )
+            settlements_by_forecast[forecast.forecast_id] = settlement
+            del pending_by_id[forecast.forecast_id]
+            errors.append(_social_error_from_forecast_settlement(settlement))
+        store.set_preference_action_forecasts(tuple(pending_by_id.values()))
+        store.set_preference_forecast_settlements(
+            tuple(settlements_by_forecast.values())
+        )
+        return tuple(errors)
+
+    def _merge_pending_action_forecasts(
+        self,
+        new_forecasts: tuple[PreferenceActionForecast, ...],
+    ) -> tuple[PreferenceActionForecast, ...]:
+        store = self._record_store
+        prior = store.preference_action_forecasts if store is not None else ()
+        by_id = {forecast.forecast_id: forecast for forecast in prior}
+        for forecast in new_forecasts:
+            existing = by_id.get(forecast.forecast_id)
+            if existing is not None and existing != forecast:
+                raise ValueError("preference action forecast id collision")
+            by_id[forecast.forecast_id] = forecast
+        merged = tuple(by_id.values())
+        if store is not None:
+            store.set_preference_action_forecasts(merged)
+            return store.preference_action_forecasts
+        return merged
+
+    def _action_forecasts(
+        self,
+        records: tuple[OtherMindRecord, ...],
+        action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...],
+    ) -> tuple[PreferenceActionForecast, ...]:
+        runtime = self._action_forecast_runtime
+        request = self._action_forecast_request
+        if runtime is None or request is None:
+            return ()
+        eligible_records = tuple(
+            record
+            for record in records
+            if record.interlocutor_id == request.interlocutor_id
+            and record.status is OtherMindRecordStatus.ACTIVE
+        )
+        eligible_action_outcomes = tuple(
+            item
+            for item in action_outcomes
+            if item.interlocutor_id == request.interlocutor_id
+        )
+        proposal = runtime.propose(
+            request=request,
+            records=eligible_records,
+            action_outcomes=eligible_action_outcomes,
+        )
+        if proposal is None:
+            return ()
+        action_ids = tuple(
+            prediction.action_id for prediction in proposal.candidate_predictions
+        )
+        if action_ids != request.candidate_action_ids:
+            raise ValueError(
+                "preference forecast proposal action surface does not match request"
+            )
+        for prediction in proposal.candidate_predictions:
+            outcome_ids = tuple(item.outcome_id for item in prediction.outcomes)
+            if outcome_ids != request.outcome_ids:
+                raise ValueError(
+                    "preference forecast proposal outcome surface does not match request"
+                )
+        eligible_ids = {record.record_id for record in eligible_records}
+        unknown_source_ids = set(proposal.source_record_ids).difference(eligible_ids)
+        if unknown_source_ids:
+            raise ValueError(
+                "preference forecast proposal references ineligible owner records: "
+                f"{sorted(unknown_source_ids)!r}"
+            )
+        evidence = tuple(
+            dict.fromkeys(
+                (
+                    f"typed_observation:{request.observation_ref}",
+                    *proposal.evidence,
+                )
+            )
+        )
+        return (
+            PreferenceActionForecast(
+                forecast_id=(
+                    f"{self.slot_name}:{request.decision_id}:"
+                    f"forecast:{request.turn_index}"
+                ),
+                decision_id=request.decision_id,
+                interlocutor_id=request.interlocutor_id,
+                candidate_predictions=proposal.candidate_predictions,
+                recommended_action_id=proposal.recommended_action_id,
+                confidence=proposal.confidence,
+                source_record_ids=proposal.source_record_ids,
+                issued_turn=request.turn_index,
+                evidence=evidence,
+                session_scope=request.session_scope,
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class PreferenceActionForecastRequest:
+    """Typed pre-action surface visible to the preference owner collaborator."""
+
+    decision_id: str
+    interlocutor_id: str
+    current_observation: str
+    observation_ref: str
+    candidate_action_ids: tuple[str, ...]
+    outcome_ids: tuple[str, ...]
+    turn_index: int
+    session_scope: str = ""
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("decision_id", self.decision_id),
+            ("interlocutor_id", self.interlocutor_id),
+            ("current_observation", self.current_observation),
+            ("observation_ref", self.observation_ref),
+        ):
+            if not value.strip():
+                raise ValueError(f"{field_name} must be non-empty")
+        _require_unique_texts(
+            "candidate_action_ids",
+            self.candidate_action_ids,
+            minimum=2,
+        )
+        _require_unique_texts("outcome_ids", self.outcome_ids, minimum=1)
+        if isinstance(self.turn_index, bool) or not isinstance(self.turn_index, int):
+            raise ValueError("turn_index must be an integer")
+        if self.turn_index < 0:
+            raise ValueError("turn_index must be >= 0")
+        if self.session_scope and not self.session_scope.strip():
+            raise ValueError("session_scope cannot be whitespace")
+
+
+@dataclass(frozen=True)
+class PreferenceActionForecastProposal:
+    """Non-owning proposal; the preference owner stamps public lineage."""
+
+    candidate_predictions: tuple[SocialActionCandidatePrediction, ...]
+    recommended_action_id: str
+    confidence: float
+    source_record_ids: tuple[str, ...]
+    evidence: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        action_ids = tuple(item.action_id for item in self.candidate_predictions)
+        _require_unique_texts(
+            "candidate_predictions.action_id",
+            action_ids,
+            minimum=2,
+        )
+        if self.recommended_action_id not in action_ids:
+            raise ValueError(
+                "recommended_action_id must name one of candidate_predictions"
+            )
+        if (
+            isinstance(self.confidence, bool)
+            or not isinstance(self.confidence, (int, float))
+            or not math.isfinite(self.confidence)
+            or not 0.0 <= self.confidence <= 1.0
+        ):
+            raise ValueError("confidence must be finite and in [0, 1]")
+        _require_unique_texts(
+            "source_record_ids",
+            self.source_record_ids,
+            minimum=0,
+        )
+        _require_unique_texts("evidence", self.evidence, minimum=1)
+
+
+class PreferenceActionForecastRuntime(Protocol):
+    """Proposal collaborator for the single preference owner."""
+
+    runtime_id: str
+
+    def propose(
+        self,
+        *,
+        request: PreferenceActionForecastRequest,
+        records: tuple[OtherMindRecord, ...],
+        action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...],
+    ) -> PreferenceActionForecastProposal | None: ...
+
+
+def _settle_preference_action_forecast(
+    *,
+    forecast: PreferenceActionForecast,
+    evidence: DialogueExternalOutcomeEvidence,
+) -> PreferenceActionForecastSettlement:
+    if not forecast.session_scope:
+        raise ValueError("preference forecast is unscoped and cannot be settled")
+    if evidence.session_scope != forecast.session_scope:
+        raise ValueError("preference forecast settlement session_scope mismatch")
+    if evidence.decision_id != forecast.decision_id:
+        raise ValueError("preference forecast settlement decision_id mismatch")
+    if evidence.action_turn_index != forecast.issued_turn:
+        raise ValueError("preference forecast settlement action turn mismatch")
+    candidates_by_action = {
+        candidate.action_id: candidate
+        for candidate in forecast.candidate_predictions
+    }
+    try:
+        candidate = candidates_by_action[evidence.action_id]
+    except KeyError as exc:
+        raise ValueError(
+            "preference forecast settlement action is outside forecast surface"
+        ) from exc
+    probabilities_by_outcome = {
+        item.outcome_id: item.probability for item in candidate.outcomes
+    }
+    try:
+        probability = probabilities_by_outcome[evidence.kind.value]
+    except KeyError as exc:
+        raise ValueError(
+            "preference forecast settlement outcome is outside forecast surface"
+        ) from exc
+    epsilon = 1e-12
+    negative_log_likelihood = -math.log(max(epsilon, probability))
+    relationship_outcome_utility = {
+        DialogueExternalOutcomeKind.HELPED.value: 1.0,
+        DialogueExternalOutcomeKind.FELT_HEARD.value: 1.0,
+        DialogueExternalOutcomeKind.MISSED.value: -1.0,
+        DialogueExternalOutcomeKind.OVER_DIRECTIVE.value: -1.0,
+    }
+    try:
+        observed_utility = relationship_outcome_utility[evidence.kind.value]
+        expected_utility = math.fsum(
+            relationship_outcome_utility[item.outcome_id] * item.probability
+            for item in candidate.outcomes
+        )
+    except KeyError as exc:
+        raise ValueError(
+            "preference forecast settlement requires the frozen relationship "
+            "outcome utility surface"
+        ) from exc
+    signed_utility_prediction_error = max(
+        -1.0,
+        min(1.0, (observed_utility - expected_utility) / 2.0),
+    )
+    uniform_probability = 1.0 / len(candidate.outcomes)
+    log_score = math.log(max(epsilon, probability) / uniform_probability)
+    normalized_score = max(
+        -1.0,
+        min(1.0, log_score / math.log(len(candidate.outcomes))),
+    )
+    if normalized_score > 1e-12:
+        outcome = SocialPredictionOutcome.CONFIRMED
+    elif normalized_score < -1e-12:
+        outcome = SocialPredictionOutcome.DISCONFIRMED
+    else:
+        outcome = SocialPredictionOutcome.UNKNOWN
+    return PreferenceActionForecastSettlement(
+        settlement_id=f"{forecast.forecast_id}:settled:{evidence.evidence_id}",
+        forecast_id=forecast.forecast_id,
+        decision_id=forecast.decision_id,
+        session_scope=forecast.session_scope,
+        interlocutor_id=forecast.interlocutor_id,
+        action_id=evidence.action_id,
+        observed_outcome_id=evidence.kind.value,
+        predicted_probability=probability,
+        negative_log_likelihood=negative_log_likelihood,
+        outcome=outcome,
+        magnitude=abs(normalized_score),
+        source_evidence_id=evidence.evidence_id,
+        forecast_issued_turn=forecast.issued_turn,
+        observed_turn=evidence.turn_index,
+        evidence_confidence=evidence.confidence,
+        expected_utility=expected_utility,
+        observed_utility=observed_utility,
+        signed_utility_prediction_error=signed_utility_prediction_error,
+    )
+
+
+def _social_error_from_forecast_settlement(
+    settlement: PreferenceActionForecastSettlement,
+) -> SocialPredictionError:
+    return SocialPredictionError(
+        error_id=f"social-pe:{settlement.settlement_id}",
+        prediction_id=settlement.forecast_id,
+        kind=SocialPredictionKind.PREFERENCE_ABOUT_OTHER,
+        outcome=settlement.outcome,
+        magnitude=settlement.magnitude,
+        owner=PreferenceAboutOtherModule.owner,
+        scope_kind=SocialScopeKind.INTERLOCUTOR,
+        scope_id=settlement.interlocutor_id,
+        evidence=(
+            f"forecast_settlement:{settlement.settlement_id}",
+            f"external_outcome:{settlement.source_evidence_id}",
+            f"action:{settlement.action_id}",
+            f"observed_outcome:{settlement.observed_outcome_id}",
+            f"predicted_probability={settlement.predicted_probability:.12f}",
+            f"negative_log_likelihood={settlement.negative_log_likelihood:.12f}",
+            f"signed_utility_prediction_error={settlement.signed_utility_prediction_error:.12f}",
+        ),
+    )
+
+
+def _require_unique_texts(
+    field_name: str,
+    values: tuple[str, ...],
+    *,
+    minimum: int,
+) -> None:
+    if len(values) < minimum:
+        raise ValueError(f"{field_name} must contain at least {minimum} entries")
+    if any(not value.strip() for value in values):
+        raise ValueError(f"{field_name} entries must be non-empty")
+    if len(set(values)) != len(values):
+        raise ValueError(f"{field_name} entries must be unique")
 
 
 def _record_from_proposal(
@@ -612,5 +1099,8 @@ __all__ = [
     "FeelingAboutOtherModule",
     "IntentAboutOtherModule",
     "LLMToMProposalRuntime",
+    "PreferenceActionForecastProposal",
+    "PreferenceActionForecastRequest",
+    "PreferenceActionForecastRuntime",
     "PreferenceAboutOtherModule",
 ]
