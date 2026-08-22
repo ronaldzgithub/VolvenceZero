@@ -23,6 +23,9 @@ from volvence_zero.social_cognition import (
     OtherMindRecordKind,
     OtherMindRecordStatus,
     PreferenceActionOutcomeEvidence,
+    PreferenceActionOutcomeMutation,
+    PreferenceActionOutcomeMutationOperation,
+    PreferenceActionOutcomeMutationReceipt,
     PreferenceActionForecast,
     PreferenceAboutOtherSnapshot,
     MAX_COMMON_GROUND_RECURSION_DEPTH,
@@ -38,6 +41,8 @@ from volvence_zero.social_cognition import (
     ToMInterlocutorRecordCount,
     build_primary_conversational_role_snapshot,
     build_primary_multi_party_identity_snapshot,
+    preference_action_outcome_evidence_sha256,
+    preference_action_outcome_mutation_sha256,
     tom_record_counts_by_interlocutor,
 )
 
@@ -487,12 +492,92 @@ def test_preference_action_outcome_evidence_is_typed_past_owner_state() -> None:
     assert dataclasses.is_dataclass(evidence)
     assert evidence.__dataclass_params__.frozen
     assert evidence.observed_outcome_id == "felt_heard"
-    assert not {"reward", "credit", "prediction_error"} & {
-        field.name for field in dataclasses.fields(evidence)
-    }
+    assert not {"reward", "credit", "prediction_error"} & {field.name for field in dataclasses.fields(evidence)}
 
     with pytest.raises(ValueError, match="source_turn"):
         dataclasses.replace(evidence, source_turn=-1)
+
+
+def test_preference_action_outcome_mutation_contract_is_hashed_and_non_learning() -> None:
+    prior = PreferenceActionOutcomeEvidence(
+        evidence_id="tom:preference:1",
+        interlocutor_id="alice",
+        observation_summary="A prior relationship situation.",
+        action_id="stay_present",
+        observed_outcome_id="missed",
+        reaction_summary="The user corrected the earlier interpretation.",
+        source_turn=3,
+        evidence_refs=("dialogue:turn:3",),
+    )
+    replacement = dataclasses.replace(
+        prior,
+        observed_outcome_id="felt_heard",
+        evidence_refs=("console-correction:5",),
+    )
+    mutation = PreferenceActionOutcomeMutation(
+        mutation_id="preference-mutation:5",
+        target_evidence_id=prior.evidence_id,
+        expected_evidence_sha256=preference_action_outcome_evidence_sha256(prior),
+        operation=PreferenceActionOutcomeMutationOperation.CORRECT,
+        requested_turn=5,
+        evidence_refs=("console-command:5",),
+        replacement=replacement,
+    )
+
+    assert dataclasses.is_dataclass(mutation)
+    assert mutation.__dataclass_params__.frozen
+    assert len(preference_action_outcome_mutation_sha256(mutation)) == 64
+    assert not {"reward", "credit", "evaluation", "prediction_error"} & {
+        field.name for field in dataclasses.fields(mutation)
+    }
+    with pytest.raises(ValueError, match="requires replacement"):
+        dataclasses.replace(mutation, replacement=None)
+    with pytest.raises(ValueError, match="opaque references"):
+        dataclasses.replace(mutation, evidence_refs=("raw command text",))
+
+
+def test_preference_action_outcome_redaction_receipt_has_no_deleted_content() -> None:
+    receipt = PreferenceActionOutcomeMutationReceipt(
+        mutation_id="preference-redaction:6",
+        command_sha256="1" * 64,
+        target_evidence_id="tom:preference:1",
+        operation=PreferenceActionOutcomeMutationOperation.REDACT,
+        before_evidence_sha256="2" * 64,
+        after_evidence_sha256=None,
+        applied_turn=6,
+        invalidated_forecast_ids=("forecast:5",),
+        evidence_refs=("console-command:6",),
+    )
+
+    assert receipt.__dataclass_params__.frozen
+    assert not {
+        "replacement",
+        "observation_summary",
+        "reaction_summary",
+        "deleted_content",
+    } & {field.name for field in dataclasses.fields(receipt)}
+    with pytest.raises(ValueError, match="cannot carry after"):
+        dataclasses.replace(receipt, after_evidence_sha256="3" * 64)
+    redacted_record = OtherMindRecord(
+        record_id=receipt.target_evidence_id,
+        interlocutor_id="alice",
+        kind=OtherMindRecordKind.PREFERENCE,
+        summary="content that should have been removed",
+        detail="redacted detail",
+        confidence=0.8,
+        status=OtherMindRecordStatus.ACTIVE,
+        source_turn=3,
+        prediction_error_refs=(),
+        evidence="dialogue:turn:3",
+    )
+    with pytest.raises(ValueError, match="record cannot remain"):
+        PreferenceAboutOtherSnapshot(
+            records=(redacted_record,),
+            active_predictions=(),
+            control_signal=0.0,
+            description="invalid redaction snapshot",
+            action_outcome_mutation_receipts=(receipt,),
+        )
 
 
 def test_candidate_action_predictions_require_normalized_shared_outcomes() -> None:

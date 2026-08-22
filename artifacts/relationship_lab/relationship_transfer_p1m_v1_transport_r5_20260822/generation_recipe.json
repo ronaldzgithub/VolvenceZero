@@ -1,0 +1,89 @@
+{
+  "schema_version": "relationship-p1m-generation-recipe.v1",
+  "package_name": "relationship_transfer_p1m_v1",
+  "pair_count": 24,
+  "dataset_split": "validation",
+  "fsm": {
+    "condition_order": [
+      "condition_belonging_erasure_p1m",
+      "condition_agency_displacement_p1m",
+      "condition_belonging_erasure_p1m",
+      "condition_agency_displacement_p1m"
+    ],
+    "action_order": [
+      "stay_present_without_probe",
+      "respect_space_with_return_option",
+      "respect_space_with_return_option",
+      "stay_present_without_probe"
+    ],
+    "probe_condition_schedule": "alternate_by_pair_index",
+    "surface_nonce_namespace": "relationship-p1m-generated-surface-v1",
+    "pair_seed_namespace": "relationship-p1m-render-seed-v1"
+  },
+  "abstract_conditions": [
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "hidden_summary": "别人越过当事人的确认，替其表达、选择、承诺或作决定，使当事人失去发言权、决定权以及按自己节奏回应的空间。",
+      "renderer_brief": "写一个常见生活事件：别人没有先征得当事人同意，就替其发言、选择、承诺或决定；叙述自然表达当事人难受的是自己的声音和决定被取代。"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "hidden_summary": "当事人被共同经历、邀请、名单、记忆或关系网络遗漏和排除，因而感觉自己在关系中的位置消失、没有被算在其中。",
+      "renderer_brief": "写一个常见生活事件：当事人被共同活动、邀请、名单、纪念或关系网络漏掉；叙述自然表达当事人难受的是自己没有被算在其中、像失去了关系位置。"
+    }
+  ],
+  "policy_profiles": {
+    "policy_alpha_p1m": {
+      "condition_agency_displacement_p1m": "respect_space_with_return_option",
+      "condition_belonging_erasure_p1m": "stay_present_without_probe"
+    },
+    "policy_beta_p1m": {
+      "condition_agency_displacement_p1m": "stay_present_without_probe",
+      "condition_belonging_erasure_p1m": "respect_space_with_return_option"
+    }
+  },
+  "renderer": {
+    "model_source": "Qwen/Qwen2.5-1.5B-Instruct",
+    "model_id": "qwen2.5-1.5b-instruct-p1m-surface-renderer",
+    "prompt_asset": "relationship_p1m_surface_renderer_v1.txt",
+    "schema_asset": "relationship_p1m_surface_render.schema.json",
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "max_new_tokens": 1400,
+    "retry_seed_offsets": [0],
+    "base_seed": 731003,
+    "max_attempts_per_pair": 1
+  },
+  "qualification_contract": {
+    "minimum_mirrored_pairs": 24,
+    "minimum_decisions_per_arm": 48,
+    "accuracy_interval": [0.625, 0.875],
+    "accuracy_wilson_one_sided_confidence": 0.95,
+    "minimum_accuracy_wilson_lower": 0.5,
+    "pair_flip_wilson_one_sided_confidence": 0.95,
+    "minimum_pair_flip_wilson_lower_exclusive": 0.35,
+    "primary_arm": "prompt-steelman-forced-choice",
+    "structured_state_pair_flip_required": true,
+    "rag_role": "observational_at_four_histories",
+    "first_qualification_attempt_only": true
+  },
+  "formal_contract": {
+    "minimum_paired_probes": 100,
+    "primary_test": "paired_mcnemar_two_sided",
+    "alpha": 0.05,
+    "power": 0.8,
+    "target_absolute_improvement": 0.15,
+    "assumed_discordant_rate": 0.3,
+    "secret_heldout_generated_later_from_same_frozen_recipe": true
+  },
+  "firewall": {
+    "renderer_never_acts_as_consumer": true,
+    "renderer_outputs_never_enter_pe_credit_reward_or_steering": true,
+    "consumer_outputs_before_protocol_freeze": 0,
+    "qualification_truth_hidden_from_consumer": true,
+    "no_keyword_or_regex_semantic_routing": true,
+    "no_post_result_difficulty_revision": true,
+    "no_new_scenario_version_after_first_failed_qualification": true
+  },
+  "claim_boundary": "P1m v1 freezes a deterministic two-condition/two-policy FSM, a local-LLM surface-only renderer, at least 24 mirrored pairs, one-sided Wilson qualification gates, and a first-attempt stop rule. A generated package or qualified baseline is only an instrument admission result. It does not prove Volvence advantage, Appendable, Readable, Learnable, Steerable, production ACTIVE, or product value."
+}

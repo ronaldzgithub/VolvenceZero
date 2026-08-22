@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://volvence.local/schemas/relationship-p1m-surface-field.v2.json",
+  "title": "Relationship P1m surface field",
+  "type": "string",
+  "minLength": 8,
+  "maxLength": 220
+}

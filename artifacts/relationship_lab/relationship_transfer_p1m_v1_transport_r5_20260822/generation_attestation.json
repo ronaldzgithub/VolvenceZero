@@ -1,0 +1,48 @@
+{
+  "artifact_id": "533573539ca218c1c0684ea0618704a372f8e7ca101f13b60077ded4e8e9cf80",
+  "claim_boundary": "This attestation proves that exactly 24 frozen pair plans were rendered by the bound local model and materialized into a validated 48-scene mirrored development package without consumer answers. It says nothing about answer quality, Volvence advantage, Readable/Learnable/Steerable capability, production ACTIVE, or product value.",
+  "consumer_outputs": 0,
+  "created_at_iso": "2026-08-22T05:14:41.372821+00:00",
+  "dataset_fingerprint": "4ecde42ff861fede68f7e86a5f66ffa5ef062f87e75937b7beb54655871205af",
+  "first_attempt_sealed": true,
+  "next_action": "freeze_forced_choice_and_named_reader_before_first_qualification_answer",
+  "package_file_sha256": [
+    {
+      "path": "generation_recipe.json",
+      "sha256": "6f36f74ac4a563aa2c31d7145f8886eae6ad24335c5688290dba774fe3faf507"
+    },
+    {
+      "path": "generator_truth.json",
+      "sha256": "d8de9ca9a5d2d6c62415e7fc645768b150da5abe3a9b69bd0872ae301147eb28"
+    },
+    {
+      "path": "manifest.yaml",
+      "sha256": "a6fbe7de6c0f342cd59ab95ff277db4b8ca8b802a4ee1dd36c80ff4f3cfd054d"
+    },
+    {
+      "path": "rendered_observations.json",
+      "sha256": "a3dc6a6a32e2cee8ba90e0989cc80b5f0985ecd6ae58076a38fcfcde61cc10d7"
+    },
+    {
+      "path": "scenes.yaml",
+      "sha256": "51d3974a494e06f36042cff4b7869601877f20be63eb6092e35e78a7900052ee"
+    },
+    {
+      "path": "ssot_fragment.json",
+      "sha256": "a7b53d05c0799998783f16afdab30cb1ef92c25877ecafcff21a54d8115e7ad3"
+    },
+    {
+      "path": "test_suite.yaml",
+      "sha256": "b88afb9b68b3dab200964bf8c4baa401e35f1cf58e8039d6836826d116ec4846"
+    }
+  ],
+  "package_name": "relationship_transfer_p1m_v1",
+  "pair_count": 24,
+  "protocol_id": "568e05f390408f6b95ce92a12fd762e60d208ebcf092355f7066a65ee9f36ea6",
+  "recipe_id": "6f36f74ac4a563aa2c31d7145f8886eae6ad24335c5688290dba774fe3faf507",
+  "renderer_outputs": 24,
+  "rendering_ledger_sha256": "8662ca0953dcbffe09658c51848aa9a2b831c6d8a4cdd7d87b859c23edf5fe34",
+  "scene_count": 48,
+  "schema_version": "relationship-p1m-generation-attestation.v1",
+  "strict_loader_passed": true
+}

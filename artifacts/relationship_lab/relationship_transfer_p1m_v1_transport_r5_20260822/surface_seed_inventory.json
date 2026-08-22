@@ -1,0 +1,45 @@
+{
+  "schema_version": "relationship-p1m-surface-seed-inventory.v1",
+  "contexts": [
+    "家庭聚餐",
+    "工作项目",
+    "朋友旅行",
+    "同学活动",
+    "亲友婚礼",
+    "社区志愿活动",
+    "兴趣小组",
+    "合租生活",
+    "业余运动队",
+    "学校家长群",
+    "部门会议",
+    "复诊沟通",
+    "节日团聚",
+    "生日聚会",
+    "邻里活动",
+    "线上游戏公会",
+    "校园社团",
+    "职业培训班",
+    "创作团队",
+    "亲密关系约会",
+    "家庭照护安排",
+    "校友会",
+    "小区议事会",
+    "朋友合伙项目"
+  ],
+  "belonging_manifestations": [
+    "活动结束后才发现正式名单里没有自己",
+    "大家建群和发邀请时唯独漏掉了自己",
+    "拍合照和做纪念记录时没人叫自己",
+    "共同安排已经完成，自己最后才被通知",
+    "总结大家贡献时自己的参与被完全略过"
+  ],
+  "agency_manifestations": [
+    "别人没先问就替自己答应了安排",
+    "别人以自己的名义直接表达了意见",
+    "自己还没回答，别人已经替自己选好方案",
+    "别人擅自改了自己的安排并要求照做",
+    "别人没有确认就替自己公开作了承诺"
+  ],
+  "selection": "row_major_24_contexts_x_5_manifestations_by_pair_and_slot",
+  "claim_boundary": "The inventory supplies familiar surface settings only. It does not own or change condition, policy, action, outcome, preferred answer, qualification gate, or any learning signal."
+}

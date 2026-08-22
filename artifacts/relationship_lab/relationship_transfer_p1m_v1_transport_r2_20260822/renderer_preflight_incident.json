@@ -1,0 +1,14 @@
+{
+  "schema_version": "relationship-p1m-renderer-preflight-incident.v1",
+  "transport_id": "2dc98701f33f939af860b0e8be90b631f091c0fb9e72f2375e699687e4f9ee8d",
+  "renderer_preflight_raw_sha256": "11b47e7d3663005757044a83afc15e5f03df24b79344e24c1a3a0aa9b36fb4dc",
+  "dummy_field_count": 4,
+  "scenario_outputs": 0,
+  "consumer_outputs": 0,
+  "failure_kind": "non_scenario_field_preflight_failed",
+  "failure_detail": "One reaction exceeded the frozen field bound and one current-input dummy did not preserve the supplied semantic brief.",
+  "passed": false,
+  "generation_protocol_frozen": false,
+  "allowed_recovery_scope": "A new transport may change only renderer model/prompt/decoding and must pass a new non-scenario preflight before any protocol or scenario output. FSM recipe, pair plans, truth, qualification gates, and stop rule remain unchanged.",
+  "claim_boundary": "This failed dummy preflight is renderer instrumentation evidence only. It is not scenario generation, qualification, or four-able evidence."
+}

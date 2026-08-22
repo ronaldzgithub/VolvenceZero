@@ -1,0 +1,11 @@
+[同一用户的公开关系历史]
+{{PUBLIC_HISTORY_EVIDENCE}}
+
+[当前新事件]
+{{CURRENT_USER_MESSAGE}}
+
+[本题候选映射]
+A = {{CANDIDATE_A}}
+B = {{CANDIDATE_B}}
+
+只输出 A 或 B。

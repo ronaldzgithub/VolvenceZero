@@ -1,0 +1,237 @@
+{
+  "arc_specs": [
+    {
+      "arc_spec_id": "arc_relationship_p1m_first_qualification",
+      "path_ids": [
+        "path_p1m_protocol_freeze",
+        "path_p1m_surface_rendering",
+        "path_p1m_appendable_history",
+        "path_p1m_named_condition_readout",
+        "path_p1m_mirrored_preaction",
+        "path_p1m_wilson_qualification"
+      ],
+      "phases": [
+        {
+          "phase_id": "protocol_freeze",
+          "phase_order": 0,
+          "sub_goal_refs": [
+            "path_p1m_protocol_freeze:complete"
+          ]
+        },
+        {
+          "phase_id": "surface_rendering",
+          "phase_order": 1,
+          "sub_goal_refs": [
+            "path_p1m_surface_rendering:complete"
+          ]
+        },
+        {
+          "phase_id": "appendable_history",
+          "phase_order": 2,
+          "sub_goal_refs": [
+            "path_p1m_appendable_history:complete"
+          ]
+        },
+        {
+          "phase_id": "named_condition_readout",
+          "phase_order": 3,
+          "sub_goal_refs": [
+            "path_p1m_named_condition_readout:complete"
+          ]
+        },
+        {
+          "phase_id": "mirrored_preaction",
+          "phase_order": 4,
+          "sub_goal_refs": [
+            "path_p1m_mirrored_preaction:complete"
+          ]
+        },
+        {
+          "phase_id": "wilson_qualification",
+          "phase_order": 5,
+          "sub_goal_refs": [
+            "path_p1m_wilson_qualification:complete"
+          ]
+        }
+      ]
+    }
+  ],
+  "design_contract": {
+    "routing_method": "semantic_trajectory_readout_plus_owner_snapshot",
+    "runtime_owner_policy": "existing_preference_owner_only",
+    "scenario_regime_alignment": "R14_conditioned_relationship_learning_identity",
+    "truth_visibility": "evaluator_only_after_preaction_record"
+  },
+  "package_name": "relationship_transfer_p1m_v1",
+  "paths": [
+    {
+      "exit_evidence": "content-addressed P1m artifact and strict replay",
+      "family": "protocol_freeze",
+      "name": "冻结生成、模型、统计门和零输出 lineage。",
+      "objective": "冻结生成、模型、统计门和零输出 lineage。",
+      "path_id": "path_p1m_protocol_freeze",
+      "semantic_detection": {
+        "evidence_axes": [
+          "frozen artifact lineage",
+          "trajectory-level semantic evidence",
+          "user scope continuity"
+        ],
+        "forbidden": [
+          "keyword_route",
+          "regex_route",
+          "scene_or_surface_lookup"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "method": "content_addressed_lineage_validation"
+      },
+      "sub_goals": [
+        {
+          "description": "冻结生成、模型、统计门和零输出 lineage。",
+          "order": 0,
+          "sub_goal_id": "path_p1m_protocol_freeze:complete"
+        }
+      ]
+    },
+    {
+      "exit_evidence": "content-addressed P1m artifact and strict replay",
+      "family": "surface_rendering",
+      "name": "让本地 LLM 只渲染题面而不接触答题或学习链。",
+      "objective": "让本地 LLM 只渲染题面而不接触答题或学习链。",
+      "path_id": "path_p1m_surface_rendering",
+      "semantic_detection": {
+        "evidence_axes": [
+          "frozen artifact lineage",
+          "trajectory-level semantic evidence",
+          "user scope continuity"
+        ],
+        "forbidden": [
+          "keyword_route",
+          "regex_route",
+          "scene_or_surface_lookup"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "method": "schema_bound_surface_renderer"
+      },
+      "sub_goals": [
+        {
+          "description": "让本地 LLM 只渲染题面而不接触答题或学习链。",
+          "order": 0,
+          "sub_goal_id": "path_p1m_surface_rendering:complete"
+        }
+      ]
+    },
+    {
+      "exit_evidence": "content-addressed P1m artifact and strict replay",
+      "family": "appendable_history",
+      "name": "四段行动结果按 owner 时序写入并可跨 session 恢复。",
+      "objective": "四段行动结果按 owner 时序写入并可跨 session 恢复。",
+      "path_id": "path_p1m_appendable_history",
+      "semantic_detection": {
+        "evidence_axes": [
+          "frozen artifact lineage",
+          "trajectory-level semantic evidence",
+          "user scope continuity"
+        ],
+        "forbidden": [
+          "keyword_route",
+          "regex_route",
+          "scene_or_surface_lookup"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "method": "owner_snapshot_lineage_validation"
+      },
+      "sub_goals": [
+        {
+          "description": "四段行动结果按 owner 时序写入并可跨 session 恢复。",
+          "order": 0,
+          "sub_goal_id": "path_p1m_appendable_history:complete"
+        }
+      ]
+    },
+    {
+      "exit_evidence": "content-addressed P1m artifact and strict replay",
+      "family": "named_condition_readout",
+      "name": "从新表面命名抽象条件并发布 artifact-bound readout。",
+      "objective": "从新表面命名抽象条件并发布 artifact-bound readout。",
+      "path_id": "path_p1m_named_condition_readout",
+      "semantic_detection": {
+        "evidence_axes": [
+          "frozen artifact lineage",
+          "trajectory-level semantic evidence",
+          "user scope continuity"
+        ],
+        "forbidden": [
+          "keyword_route",
+          "regex_route",
+          "scene_or_surface_lookup"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "method": "frozen_embedding_prototype_readout"
+      },
+      "sub_goals": [
+        {
+          "description": "从新表面命名抽象条件并发布 artifact-bound readout。",
+          "order": 0,
+          "sub_goal_id": "path_p1m_named_condition_readout:complete"
+        }
+      ]
+    },
+    {
+      "exit_evidence": "content-addressed P1m artifact and strict replay",
+      "family": "mirrored_preaction",
+      "name": "相同当前消息配互补经历时在 outcome 前作相反下注。",
+      "objective": "相同当前消息配互补经历时在 outcome 前作相反下注。",
+      "path_id": "path_p1m_mirrored_preaction",
+      "semantic_detection": {
+        "evidence_axes": [
+          "frozen artifact lineage",
+          "trajectory-level semantic evidence",
+          "user scope continuity"
+        ],
+        "forbidden": [
+          "keyword_route",
+          "regex_route",
+          "scene_or_surface_lookup"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "method": "trajectory_conditioned_preaction_comparison"
+      },
+      "sub_goals": [
+        {
+          "description": "相同当前消息配互补经历时在 outcome 前作相反下注。",
+          "order": 0,
+          "sub_goal_id": "path_p1m_mirrored_preaction:complete"
+        }
+      ]
+    },
+    {
+      "exit_evidence": "content-addressed P1m artifact and strict replay",
+      "family": "wilson_qualification",
+      "name": "以预注册单侧 Wilson 区间而非小样本点阈值结算。",
+      "objective": "以预注册单侧 Wilson 区间而非小样本点阈值结算。",
+      "path_id": "path_p1m_wilson_qualification",
+      "semantic_detection": {
+        "evidence_axes": [
+          "frozen artifact lineage",
+          "trajectory-level semantic evidence",
+          "user scope continuity"
+        ],
+        "forbidden": [
+          "keyword_route",
+          "regex_route",
+          "scene_or_surface_lookup"
+        ],
+        "insufficient_evidence_behavior": "fail_closed",
+        "method": "content_addressed_metric_replay"
+      },
+      "sub_goals": [
+        {
+          "description": "以预注册单侧 Wilson 区间而非小样本点阈值结算。",
+          "order": 0,
+          "sub_goal_id": "path_p1m_wilson_qualification:complete"
+        }
+      ]
+    }
+  ],
+  "schema_version": "1.0"
+}

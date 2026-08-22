@@ -1,0 +1,39 @@
+{
+  "claim_boundary": "P1m final generation recovery is limited to renderer transport after four preserved attempts ended before any accepted scenario or consumer output. It binds the same semantic recipe, pair plan, truth, pair count, statistical gates, and stop rule; a deterministic typed surface realizer now replaces stochastic paraphrasing and every raw field must match its expected hash. Generation success remains instrument preparation, not evidence of any four-able axis.",
+  "freeze_guards": {
+    "accepted_scenario_renderings_before_freeze": 0,
+    "consumer_outputs_before_freeze": 0,
+    "evaluation_feedback_allowed": false
+  },
+  "frozen_at_iso": "2026-08-22T05:14:02.298206+00:00",
+  "next_action": "materialize_same_fsm_package_then_freeze_first_qualification_consumer",
+  "protocol_id": "568e05f390408f6b95ce92a12fd762e60d208ebcf092355f7066a65ee9f36ea6",
+  "schema_version": "relationship-p1m-generation-recovery-protocol.v5",
+  "semantic_freeze": {
+    "package_name": "relationship_transfer_p1m_v1",
+    "pair_count": 24,
+    "pair_plan_sha256": "b3d6130df547e37d0ca912d977b35b250778fbebacdb1b85065f6779f3258300",
+    "qualification_gate_changed": false,
+    "recipe_id": "6f36f74ac4a563aa2c31d7145f8886eae6ad24335c5688290dba774fe3faf507",
+    "semantic_recipe_changed": false
+  },
+  "source": {
+    "failed_generation_protocol_id": "d1cfcc528c8607aed85e9c7f66fc0cddcf373d2405973e1c7fb145e0af7c6695",
+    "generation_incident_sha256": "9df015370d49fb04d0f7f1bb4f7d9e3224c8201c2b5e52dbfd570f314ac16729",
+    "p1k_report_artifact_id": "ba6c5cf71c528b1daa270a8fd097d27cd4438af69c91f15237e20fa1ccaa7138",
+    "p1k_verdict": "substrate_cannot_apply_disclosed_policy"
+  },
+  "transport": {
+    "generation_config_sha256": "a2c30c9ea411d24fbd136beaf971544f0ed04bdb31f5c442884764bf6cf8d9a8",
+    "model_id": "volvence-p1m-deterministic-surface-realizer-v5",
+    "model_source": "volvence://builtin/deterministic-surface-realizer",
+    "output_schema_sha256": "986ef1e02946624da3f8ff6466ed3ccc4ab0855b327a21e8493428f525a74f0d",
+    "preflight_artifact_id": "2d1aaf203b5669af04fb9ea16a428899bc3f43809d9874bb9db0c75e8b9133a7",
+    "prompt_sha256": "60578e02fd105875681ac929068055176eeb4bc8075059689fff9bedc7177e89",
+    "runtime_device": "cpu",
+    "surface_seed_inventory_sha256": "04716ce1c209755fd67be94c014a87411efb3a52d1e007d38f864224f0f72eb4",
+    "torch_dtype": "not_applicable",
+    "transport_id": "94013af611cfb7094ba563e672761b7354d6a5884064f5688371f34df4f2bfff",
+    "weights_sha256": "60578e02fd105875681ac929068055176eeb4bc8075059689fff9bedc7177e89"
+  }
+}

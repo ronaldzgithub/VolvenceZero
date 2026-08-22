@@ -511,6 +511,15 @@ evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 
 > similarity，不读 evaluator truth、v4、PE、credit、steering 或 expression。该包证明 owner
 > persistence/readout 机械闭合，不是 P2 formal、Readable 或模型效果资格。
 
+> 实施状态（2026-08-22，P2d named condition reader）：新增内容寻址
+> `RelationshipConditionReaderArtifact`，绑定 BGE-M3 model/weights、cosine、condition prototypes
+> 与 temperature；collaborator 从当前 observation 发布命名 condition proposal，preference owner
+> 校验 source hash 后才将 `RelationshipConditionReadout` 写入正式 forecast，`SocialRecordStore`
+> export 升为 v4 并继续 hydrate v1-v3。已见 v3 的同 owner 对照为默认字符哈希 `4/12`、冻结
+> BGE-M3 `12/12` 且 6/6 mirror pair 双边正确；把 v3 prototype 搬到已打开 v4 为 `118/120`。
+> 两者都只是污染/已见数据上的根因诊断，不能称 P2 formal、Readable 或泛化证据；P1m 必须
+> 用从未打开的 generated surface、首轮冻结 artifact 与 Wilson 门重新资格化。
+
 ### P3：PE 信用与择时控制
 
 交付：
@@ -549,6 +558,17 @@ evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 
 > action，不进 runtime 或 training；当前只有实际 baseline/noop 可在 typing PASS 后结算。仓库未
 > 伪造 passing qualification，也未运行真实长 horizon / 多 session pilot，所以 P4 产品壳工程
 > 完成不等于 P4 效果验收完成。
+
+> 实施状态（2026-08-22，P4.2 preference-action correction/redaction）：
+> `PreferenceAboutOtherModule` 现以 expected evidence SHA-256 接收 typed 用户纠正/删除命令；
+> 纠正原子更新 paired record/outcome 并失效引用旧 record 的 pending forecast，删除同时清除
+> record/outcome/pending prediction/forecast。`SocialRecordStore` v4 持久化 content-safe receipt，
+> redaction receipt 作为 tombstone 跨恢复阻止旧 evidence id 复活；v1/v2/v3 继续可读。独立 seen-v3
+> engineering drill 完成七次恢复、correction→forecast reader hash 一致、删除内容缺席与主动复活
+> 拒绝，且 `model_output_count=0 / evaluator_truth_used=false / formal_evidence_authorized=false`。
+> 这补齐的是 owner 纠删机械契约，不是 formal `recovery_after_correction` 或产品效果通过；已经
+> 结算的 PE/credit、gate checkpoint 与 lifeform operational evidence 也不会被本 owner 猜测性
+> 回滚，完整产品撤回仍需后续 exact-lineage consumer 包。
 
 ### P5：慢速共享关系基底
 
@@ -655,20 +675,31 @@ evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 
 | 项 | 状态 |
 |---|---|
 | P1j | 2026-08-21 同一 attempt 完成 72/72：report `e9226ee8…fd78` 判 `consumer_failed_v4_qualification`。prompt/RAG/structured accuracy 为 0.542/0.500/0.542，pair flip 为 0.417/0.250/0.417；三臂 strict-valid=1.0。完成态 strict resume 未再调用 Qwen。 |
-| P1k-R1 | protocol `204e0904…64bd` 已绑定 P1j 失败终局，在 P1k Qwen output=0 时冻结四格/48 条最大计划与 staged gate；目录无 `records/`，重复 prepare-only 保持 protocol/checkpoint/preflight 文件 hash 不变。下一包只执行 A 格。 |
-| P2–P4 工程 | 2026-08-22：P2 v3-only multi-session owner probe、P3 exact PE-credit gate / temporal SHADOW advisory、P4 relationship routes / qualification loader / causal exposure / evidence isolation 已落地。没有消费 v4 truth 或新的 Qwen evidence output；formal 与真实 pilot 仍关闭。 |
+| P1k-R1 | 2026-08-22 同一冻结 attempt 完成 A 格 12/12，report `ba6c5cf7…7138`：strict-valid=1.0、accuracy=0.50、pair flip=0；模型对 12 条全部选择同一动作。按预注册 staged gate 以 `fully_disclosed_policy_application_failed` 早停，B/C/D 36 条明确 skipped，判 `substrate_cannot_apply_disclosed_policy`。 |
+| P1m | 2026-08-22 以冻结生成配方和 deterministic typed surface realizer 生成 24 组/48 scene；第一次且唯一 qualification 的 96 条 Qwen、48 条 structured 全部落账。prompt/RAG 均 24/48 correct、0/24 flip；structured 为 46/48、24/24 flip。report `9580ddff…fc56` 判 `prompt_steelman_baseline_too_weak`，`qualification_passed=false / scenario_versioning_closed=true`；禁止继续场景版本化或 prompt search。 |
+| P2–P4 工程 | 2026-08-22：P2 v3-only multi-session owner probe、P2d 命名条件 readout + `SocialRecordStore` v4、P3 exact PE-credit gate / temporal SHADOW advisory、P4 relationship routes / qualification loader / causal exposure / evidence isolation 已落地。P2d 在已见 v3 的 `4/12 → 12/12` 只定位 semantic backend；formal 与真实 pilot 仍关闭。 |
+| P4.1 longitudinal canary | 2026-08-22：冻结“被排除时别走 / 被越权时还回空间”的 4+8 session 熟悉故事、full-history / selective-RAG 两个 Qwen steelman、Volvence closed-loop / typed-noop control、20 independent subjects 与 final 32K context 正式门槛；seen v3 两条 fixture 已以内容寻址 Lab-only ACTIVE 跑通 owner→forecast→gate→self_temporal→reactive outcome→PE→credit。默认 reader 的工程读数仅 3/16 action match、3/14 reversal match，Qwen output=0，故只能判 `engineering_mechanism_ready_formal_effect_not_run`。 |
+| P4.3 named-reader transmission | 2026-08-22：固定 seen P4.1 fixture、ALWAYS gate、零 gate update 和同一环境，只替换 legacy/named reader。legacy 为 6/16 action match、9/16 positive；P1m named reader 为 16/16、16/16，并在 14/14 reversal 跟随；10 个 matched action 和 9 个 outcome 改变。报告 `e7bbc914…70bd` 已重跑终检。它是 post-selected development Readable-transmission 证据，不修复 P1m 或授权 formal。 |
 | 已证明 | Gate 0 仪器；跨进程恢复 / 隔离 / 纠删 / 压缩；v2/v3 反捷径；v3 public-evidence BGE 60/60 可判别；P1g prompt 单臂入带；P1j one-shot/no-feedback/严格恢复机器按契约完成并诚实保存 unseen failure |
-| 未证明 | 完整 consumer qualification、human anchor、P2 formal、真人 typing qualification、真实 steer exposure、长 horizon / 多 session pilot、Volvence advantage、Readable / Learnable / Steerable、四能力 |
-| 校准消耗 | 数据集 v1–v4 共 4 版；consumer freeze 2 次（P1g / P1i）。再版本化场景或再搜 prompt 受 §13.7 约束 |
+| 未证明 | 完整 consumer qualification、human anchor、P2 formal、真人 typing qualification、真实 residual steer exposure、长 horizon / 多 session pilot、Volvence advantage、完整 Readable / Learnable / Steerable、四能力；P4.3 尚未隔离 PE-credit learning |
+| 校准消耗 | 静态数据集 v1–v4 加 P1m frozen generated recipe；consumer freeze 2 次（P1g / P1i）。P1m 止损已触发，继续版本化场景或搜索 prompt 已禁止 |
 
-P1j 已释放同一冻结 Qwen。先完成 P1k-R1 的 **zero-output protocol freeze**；随后下一份
-占用 Qwen 的动作只能是 P1k 首格 `oracle_policy_apply_v2`，用已烧毁 v3 定位失败层。
-不得返回 P1i 搜第四个 prompt，也不得开 v5。P1l 人工盲标不加载模型，可继续独立收集
-rater 结果。
+P1k-R1 与 P1m 都已沿唯一合法路径终局。P1m 再次显示冻结 3B exact-choice consumer 对 A/B
+位置映射不敏感，同时 fresh named reader 能稳定翻转；这不等于“语言抽象不可读”，也不授权
+把 evaluator truth 回灌系统。§13.7 止损已经触发：停止场景/prompt lane，不得返回 P1i 搜第四个
+prompt，也不得开 P1m-v2/v6 追分。下一步只能把产品主张收敛到独立 runtime 因果实验：复用
+fresh reader 作为候选组件，分别消融 hydration、readout、PE-credit 与真实 residual steering，
+且在 P1m 失灵基线之上不得宣称 formal Volvence advantage。P1l 可继续独立收集 rater 结果。
 
-2026-08-22 的明确产品决策允许先完成 P2–P4 **工程机制**，等待完整系统后再做长 horizon / 长
-context / 多 session 测验。该决策没有改写上述 Qwen evidence 顺序：任何新模型运行仍先受
-P1k/P1m 约束；已经落地的 P2–P4 代码与单元/契约测试不能被写成 formal 正证据。
+第一刀 P4.3 已完成 readout transmission：named state 在不学习 gate 的 matched arms 中真实改变
+action 与 outcome。下一刀固定该 reader 和 fixture，不再调场景/prompt/embedding；只比较 learned
+gate 的 PE-credit 回写与 cold/no-update 对照，并审计每次 checkpoint 参数变化、动作选择和后续
+outcome，回答 Learnable 是否来自 PE 而非 evaluator。
+
+2026-08-22 的明确产品决策允许先完成 P2–P4 **工程机制**，并由 P4.1 先冻结长 horizon / 长
+context / 多 session 测验及运行不占模型的 typed-action canary。该决策没有改写上述 Qwen
+evidence 顺序：任何新模型运行仍先受 P1k/P1m 约束；已经落地的 P2–P4 / P4.1 代码、seen
+fixture 与单元/契约测试不能被写成 formal 正证据。
 
 P1j 终局之后的顺序冻结为：
 
@@ -769,11 +800,11 @@ evaluator-only 四格诊断，不是竞争臂，也不是资格门。其专用 p
   归纳策略 / 无法识别 probe 条件 / 无法绑定未标历史 / 多重瓶颈 / 矩阵完整则缺口在
   无辅助抽象或迁移。六组镜像对 × 单 seed 仅作 directional owner triage。
 - 执行时机：P1j 释放同一冻结 Qwen 之后。不得为了抢跑而中断 P1j。
-- 2026-08-21 P1k-R1 代码已落地：`relationship_lab_packet1k.py` +
-  `scripts/run_relationship_lab_packet1k.py`。先 `--prepare-only` 在 P1k Qwen output=0
-  冻结 48 条最大计划与 staged gate；真实输出不得进入本收敛包。机械测试覆盖 P1j
-  前置、四格披露、12/24/36/48 早停、单/多瓶颈、resume 与 terminal tamper。权威
-  protocol `204e0904…64bd` 已按此边界完成 freeze，当前无 `records/`。
+- 2026-08-22 P1k-R1 已完成：先在 output=0 冻结 48 条最大矩阵计划与 staged gate，再
+  严格 resume 同一 attempt。A 格 12 条全部 valid，但输出始终偏向
+  `respect_space_with_return_option`，accuracy=0.50、pair flip=0；权威 report
+  `ba6c5cf7…7138` 按冻结规则跳过其余三格并判 substrate/readout floor。机械测试继续覆盖
+  P1j 前置、四格披露、12/24/36/48 早停、单/多瓶颈、resume 与 terminal tamper。
 
 P1f 遗留的人工盲标 packet 也已落地（`relationship_lab_packet1l.py`），**不是**
 §14.2 仪器升级。它不加载 Qwen，可与 P1j 并行 `--prepare-only` 分发 rater CSV。

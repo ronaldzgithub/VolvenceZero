@@ -1,0 +1,18 @@
+{
+  "schema_version": "relationship-p1m-generation-incident.v1",
+  "generation_protocol_id": "d1cfcc528c8607aed85e9c7f66fc0cddcf373d2405973e1c7fb145e0af7c6695",
+  "recipe_id": "6f36f74ac4a563aa2c31d7145f8886eae6ad24335c5688290dba774fe3faf507",
+  "pair_id": "p1m_pair_001",
+  "attempt_index": 0,
+  "seed": 1847109798,
+  "accepted_renderings": 0,
+  "consumer_outputs": 0,
+  "failure_kind": "renderer_output_protocol_invalid_json",
+  "failure_detail": "P1m renderer output was not valid JSON at line 1 column 1.",
+  "raw_output_retained": false,
+  "instrument_defect": "The v1 runner parsed before durably recording the raw attempt and had no real-model non-evidence preflight.",
+  "terminal": true,
+  "qualification_started": false,
+  "allowed_recovery_scope": "A new protocol may revise only renderer transport and durable-attempt logging after a real-model dummy preflight. The frozen FSM, pair count, condition/policy/action/outcome truth, statistical gates, and first-qualification stop rule must remain unchanged.",
+  "claim_boundary": "This is a failed generation-machinery attempt, not a qualification result. It provides no evidence for a baseline, Volvence advantage, or any of the four capability axes."
+}

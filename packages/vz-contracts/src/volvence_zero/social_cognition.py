@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import hashlib
+import json
 import math
 from typing import TYPE_CHECKING
 
@@ -184,6 +186,209 @@ class PreferenceActionOutcomeEvidence:
         _require_non_empty_unique_tuple("evidence_refs", self.evidence_refs)
 
 
+class PreferenceActionOutcomeMutationOperation(str, Enum):
+    """User-directed changes to one persisted preference-action outcome."""
+
+    CORRECT = "correct"
+    REDACT = "redact"
+
+
+@dataclass(frozen=True)
+class PreferenceActionOutcomeMutation:
+    """Optimistic-concurrency command consumed by the preference owner.
+
+    A correction replaces the typed interpretation of an already-observed
+    outcome. A redaction removes both that outcome and its paired owner record.
+    Neither operation is PE, reward, evaluation, or a learning signal.
+    """
+
+    mutation_id: str
+    target_evidence_id: str
+    expected_evidence_sha256: str
+    operation: PreferenceActionOutcomeMutationOperation
+    requested_turn: int
+    evidence_refs: tuple[str, ...]
+    replacement: PreferenceActionOutcomeEvidence | None = None
+
+    def __post_init__(self) -> None:
+        _require_non_empty("mutation_id", self.mutation_id)
+        _require_non_empty("target_evidence_id", self.target_evidence_id)
+        if not isinstance(
+            self.operation,
+            PreferenceActionOutcomeMutationOperation,
+        ):
+            raise ValueError("operation must be a mutation operation enum")
+        _require_sha256(
+            "expected_evidence_sha256",
+            self.expected_evidence_sha256,
+        )
+        if isinstance(self.requested_turn, bool) or not isinstance(
+            self.requested_turn,
+            int,
+        ):
+            raise ValueError("requested_turn must be an integer")
+        if self.requested_turn < 0:
+            raise ValueError("requested_turn must be >= 0")
+        _require_opaque_refs("evidence_refs", self.evidence_refs)
+        if self.operation is PreferenceActionOutcomeMutationOperation.CORRECT:
+            if self.replacement is None:
+                raise ValueError("correct mutation requires replacement evidence")
+            if self.replacement.evidence_id != self.target_evidence_id:
+                raise ValueError("correction replacement evidence_id must match target_evidence_id")
+            if self.replacement.source_turn > self.requested_turn:
+                raise ValueError("correction replacement cannot originate after requested_turn")
+        elif self.replacement is not None:
+            raise ValueError("redact mutation cannot carry replacement evidence")
+
+
+@dataclass(frozen=True)
+class PreferenceActionOutcomeMutationReceipt:
+    """Content-safe audit/tombstone published after an owner mutation."""
+
+    mutation_id: str
+    command_sha256: str
+    target_evidence_id: str
+    operation: PreferenceActionOutcomeMutationOperation
+    before_evidence_sha256: str
+    after_evidence_sha256: str | None
+    applied_turn: int
+    invalidated_forecast_ids: tuple[str, ...]
+    evidence_refs: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _require_non_empty("mutation_id", self.mutation_id)
+        _require_sha256("command_sha256", self.command_sha256)
+        _require_non_empty("target_evidence_id", self.target_evidence_id)
+        if not isinstance(
+            self.operation,
+            PreferenceActionOutcomeMutationOperation,
+        ):
+            raise ValueError("operation must be a mutation operation enum")
+        _require_sha256(
+            "before_evidence_sha256",
+            self.before_evidence_sha256,
+        )
+        if self.operation is PreferenceActionOutcomeMutationOperation.CORRECT:
+            if self.after_evidence_sha256 is None:
+                raise ValueError("correct receipt requires after_evidence_sha256")
+            _require_sha256(
+                "after_evidence_sha256",
+                self.after_evidence_sha256,
+            )
+        elif self.after_evidence_sha256 is not None:
+            raise ValueError("redact receipt cannot carry after_evidence_sha256")
+        if isinstance(self.applied_turn, bool) or not isinstance(
+            self.applied_turn,
+            int,
+        ):
+            raise ValueError("applied_turn must be an integer")
+        if self.applied_turn < 0:
+            raise ValueError("applied_turn must be >= 0")
+        _require_unique_non_empty(
+            "invalidated_forecast_ids",
+            self.invalidated_forecast_ids,
+        )
+        _require_opaque_refs("evidence_refs", self.evidence_refs)
+
+
+def preference_action_outcome_evidence_sha256(
+    evidence: PreferenceActionOutcomeEvidence,
+) -> str:
+    """Return the canonical content hash used for optimistic mutation checks."""
+
+    return _sha256_json(_preference_action_outcome_evidence_payload(evidence))
+
+
+def preference_action_outcome_mutation_sha256(
+    mutation: PreferenceActionOutcomeMutation,
+) -> str:
+    """Return a canonical command hash without retaining raw command text."""
+
+    return _sha256_json(
+        {
+            "mutation_id": mutation.mutation_id,
+            "target_evidence_id": mutation.target_evidence_id,
+            "expected_evidence_sha256": mutation.expected_evidence_sha256,
+            "operation": mutation.operation.value,
+            "requested_turn": mutation.requested_turn,
+            "evidence_refs": list(mutation.evidence_refs),
+            "replacement": (
+                _preference_action_outcome_evidence_payload(mutation.replacement)
+                if mutation.replacement is not None
+                else None
+            ),
+        }
+    )
+
+
+@dataclass(frozen=True)
+class RelationshipConditionReadout:
+    """Named pre-action relationship condition emitted by a frozen reader.
+
+    The readout is owner-visible state, not evaluator truth.  It binds a
+    human-readable abstract condition to the exact reader artifact and hashed
+    public observation that produced it, so downstream policy code never has
+    to recover the condition by parsing evidence prose.
+    """
+
+    condition_label: str
+    confidence: float
+    normalized_margin: float
+    candidate_scores: tuple[tuple[str, float], ...]
+    reader_artifact_id: str
+    source_observation_sha256: str
+
+    def __post_init__(self) -> None:
+        _require_non_empty("condition_label", self.condition_label)
+        _require_sha256("reader_artifact_id", self.reader_artifact_id)
+        _require_sha256(
+            "source_observation_sha256",
+            self.source_observation_sha256,
+        )
+        for field_name, value in (
+            ("confidence", self.confidence),
+            ("normalized_margin", self.normalized_margin),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or not 0.0 <= value <= 1.0
+            ):
+                raise ValueError(f"{field_name} must be finite and in [0, 1]")
+        labels = tuple(label for label, _ in self.candidate_scores)
+        _require_non_empty_unique_tuple("candidate_scores.label", labels)
+        if len(labels) < 2:
+            raise ValueError("candidate_scores requires at least two conditions")
+        if self.condition_label not in labels:
+            raise ValueError("condition_label must name one candidate score")
+        if any(
+            isinstance(score, bool)
+            or not isinstance(score, (int, float))
+            or not math.isfinite(score)
+            or not -1.0 <= score <= 1.0
+            for _, score in self.candidate_scores
+        ):
+            raise ValueError("candidate scores must be finite cosine values in [-1, 1]")
+        ordered = sorted(
+            self.candidate_scores,
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        if ordered[0][0] != self.condition_label:
+            raise ValueError("condition_label must be the top-scoring candidate")
+        expected_margin = min(
+            1.0,
+            max(0.0, (ordered[0][1] - ordered[1][1]) / 2.0),
+        )
+        if not math.isclose(
+            self.normalized_margin,
+            expected_margin,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("normalized_margin does not match candidate scores")
+
+
 @dataclass(frozen=True)
 class PreferenceActionForecast:
     """Owner-authored candidate-action forecast frozen before acting.
@@ -206,6 +411,10 @@ class PreferenceActionForecast:
     # Empty is the backwards-compatible standalone/probe shape. P3 exact
     # settlement requires a non-empty session scope and rejects unscoped joins.
     session_scope: str = ""
+    # P2d: optional named semantic readout.  ``None`` preserves every older
+    # forecast; when present it is authored by this owner from a frozen reader
+    # proposal and persists with the pending forecast.
+    condition_readout: RelationshipConditionReadout | None = None
 
     def __post_init__(self) -> None:
         _require_non_empty("forecast_id", self.forecast_id)
@@ -407,13 +616,9 @@ class MemorySocialPESignal:
         _require_unit_interval("magnitude", self.magnitude)
         _require_unique_non_empty("evidence", self.evidence)
         if self.outcome is None and self.evidence:
-            raise ValueError(
-                "MemorySocialPESignal.evidence must be empty when outcome is None"
-            )
+            raise ValueError("MemorySocialPESignal.evidence must be empty when outcome is None")
         if self.outcome is not None and not self.evidence:
-            raise ValueError(
-                "MemorySocialPESignal.evidence must be non-empty when outcome is set"
-            )
+            raise ValueError("MemorySocialPESignal.evidence must be non-empty when outcome is set")
 
 
 def build_memory_visibility_signals(
@@ -452,9 +657,7 @@ def build_memory_visibility_signals(
     suppressed_count = len(suppressed_evidence)
     if suppressed_count > 0:
         evaluated_total = retrieved_count + suppressed_count
-        magnitude = (
-            suppressed_count / evaluated_total if evaluated_total > 0 else 1.0
-        )
+        magnitude = suppressed_count / evaluated_total if evaluated_total > 0 else 1.0
         magnitude = min(1.0, max(0.0, magnitude))
         outcome: SocialPredictionOutcome | None = SocialPredictionOutcome.DISCONFIRMED
         evidence = suppressed_evidence
@@ -618,6 +821,10 @@ class PreferenceAboutOtherSnapshot:
     # P3: exact post-action joins authored by this owner. Kept separate from
     # action_forecasts so a consumer never splices labels into a pre-action row.
     forecast_settlements: tuple[PreferenceActionForecastSettlement, ...] = ()
+    # P4.2: user-directed correction/redaction audit. Redaction receipts are
+    # durable tombstones and deliberately contain hashes/refs rather than the
+    # removed observation or reaction text.
+    action_outcome_mutation_receipts: tuple[PreferenceActionOutcomeMutationReceipt, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_other_mind_snapshot(
@@ -638,6 +845,11 @@ class PreferenceAboutOtherSnapshot:
             action_outcomes=self.action_outcome_evidence,
         )
         _validate_preference_forecast_settlements(self.forecast_settlements)
+        _validate_preference_action_outcome_mutation_receipts(
+            records=self.records,
+            action_outcomes=self.action_outcome_evidence,
+            receipts=self.action_outcome_mutation_receipts,
+        )
 
 
 @dataclass(frozen=True)
@@ -657,12 +869,7 @@ class ToMInterlocutorRecordCount:
 
     @property
     def total_count(self) -> int:
-        return (
-            self.belief_count
-            + self.intent_count
-            + self.feeling_count
-            + self.preference_count
-        )
+        return self.belief_count + self.intent_count + self.feeling_count + self.preference_count
 
     def __post_init__(self) -> None:
         _require_non_empty("interlocutor_id", self.interlocutor_id)
@@ -748,9 +955,7 @@ class ConversationalRoleSnapshot:
         _require_unique_non_empty("overhearer_ids", self.overhearer_ids)
         _require_unique_non_empty("group_audience_ids", self.group_audience_ids)
         _require_confidence("role_confidence", self.role_confidence)
-        prediction_ids = tuple(
-            prediction.prediction_id for prediction in self.active_predictions
-        )
+        prediction_ids = tuple(prediction.prediction_id for prediction in self.active_predictions)
         _require_unique_non_empty("active_predictions.prediction_id", prediction_ids)
         _require_non_empty("description", self.description)
 
@@ -770,15 +975,9 @@ class CommonGroundAtom:
         _require_non_empty("atom_id", self.atom_id)
         _require_non_empty("scope_id", self.scope_id)
         if self.scope_kind not in {SocialScopeKind.DYAD, SocialScopeKind.GROUP}:
-            raise ValueError(
-                "CommonGroundAtom.scope_kind must be dyad or group; "
-                f"got {self.scope_kind.value}"
-            )
+            raise ValueError(f"CommonGroundAtom.scope_kind must be dyad or group; got {self.scope_kind.value}")
         _require_non_empty("summary", self.summary)
-        if (
-            self.recursion_depth < 0
-            or self.recursion_depth > MAX_COMMON_GROUND_RECURSION_DEPTH
-        ):
+        if self.recursion_depth < 0 or self.recursion_depth > MAX_COMMON_GROUND_RECURSION_DEPTH:
             raise ValueError(
                 "recursion_depth must be between 0 and "
                 f"{MAX_COMMON_GROUND_RECURSION_DEPTH}, got {self.recursion_depth!r}"
@@ -803,9 +1002,7 @@ class CommonGroundSnapshot:
     def __post_init__(self) -> None:
         _validate_common_ground_atoms("dyad_atoms", self.dyad_atoms, SocialScopeKind.DYAD)
         _validate_common_ground_atoms("group_atoms", self.group_atoms, SocialScopeKind.GROUP)
-        prediction_ids = tuple(
-            prediction.prediction_id for prediction in self.active_predictions
-        )
+        prediction_ids = tuple(prediction.prediction_id for prediction in self.active_predictions)
         _require_unique_non_empty("active_predictions.prediction_id", prediction_ids)
         settled_ids = tuple(error.error_id for error in self.settled_errors)
         _require_unique_non_empty("settled_errors.error_id", settled_ids)
@@ -856,17 +1053,12 @@ class GroupSnapshot:
         if self.active_group_id is not None:
             _require_non_empty("active_group_id", self.active_group_id)
             if self.active_group_id not in group_ids:
-                raise ValueError(
-                    "active_group_id must refer to one of groups.group_id; "
-                    f"got {self.active_group_id!r}"
-                )
+                raise ValueError(f"active_group_id must refer to one of groups.group_id; got {self.active_group_id!r}")
         _require_unique_non_empty("joint_attention", self.joint_attention)
         _require_unique_non_empty("joint_commitments", self.joint_commitments)
         if self.group_regime_id is not None:
             _require_non_empty("group_regime_id", self.group_regime_id)
-        prediction_ids = tuple(
-            prediction.prediction_id for prediction in self.active_predictions
-        )
+        prediction_ids = tuple(prediction.prediction_id for prediction in self.active_predictions)
         _require_unique_non_empty("active_predictions.prediction_id", prediction_ids)
         settled_ids = tuple(error.error_id for error in self.settled_errors)
         _require_unique_non_empty("settled_errors.error_id", settled_ids)
@@ -893,10 +1085,7 @@ class MultiPartyIdentitySnapshot:
         identity_ids = tuple(identity.interlocutor_id for identity in self.interlocutors)
         _require_unique_non_empty("interlocutors.interlocutor_id", identity_ids)
         if self.active_speaker_id not in identity_ids:
-            raise ValueError(
-                "MultiPartyIdentitySnapshot.active_speaker_id must be present "
-                "in interlocutors"
-            )
+            raise ValueError("MultiPartyIdentitySnapshot.active_speaker_id must be present in interlocutors")
 
 
 def build_primary_multi_party_identity_snapshot(
@@ -967,6 +1156,42 @@ def _require_non_empty_unique_tuple(field_name: str, values: tuple[str, ...]) ->
     _require_unique_non_empty(field_name, values)
 
 
+def _require_opaque_refs(field_name: str, values: tuple[str, ...]) -> None:
+    _require_non_empty_unique_tuple(field_name, values)
+    if any(any(character.isspace() for character in value) for value in values):
+        raise ValueError(f"{field_name} entries must be opaque references")
+
+
+def _require_sha256(field_name: str, value: str) -> None:
+    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+        raise ValueError(f"{field_name} must be a lowercase sha256 hex digest")
+
+
+def _preference_action_outcome_evidence_payload(
+    evidence: PreferenceActionOutcomeEvidence,
+) -> dict[str, object]:
+    return {
+        "evidence_id": evidence.evidence_id,
+        "interlocutor_id": evidence.interlocutor_id,
+        "observation_summary": evidence.observation_summary,
+        "action_id": evidence.action_id,
+        "observed_outcome_id": evidence.observed_outcome_id,
+        "reaction_summary": evidence.reaction_summary,
+        "source_turn": evidence.source_turn,
+        "evidence_refs": list(evidence.evidence_refs),
+    }
+
+
+def _sha256_json(payload: dict[str, object]) -> str:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _require_confidence(field_name: str, value: float) -> None:
     _require_unit_interval(field_name, value)
 
@@ -994,12 +1219,8 @@ def _validate_other_mind_snapshot(
                 f"{snapshot_name} records must have kind={expected_kind.value}; "
                 f"got {record.kind.value} for {record.record_id!r}"
             )
-    prediction_ids = tuple(
-        prediction.prediction_id for prediction in active_predictions
-    )
-    _require_unique_non_empty(
-        f"{snapshot_name}.active_predictions.prediction_id", prediction_ids
-    )
+    prediction_ids = tuple(prediction.prediction_id for prediction in active_predictions)
+    _require_unique_non_empty(f"{snapshot_name}.active_predictions.prediction_id", prediction_ids)
     settled_ids = tuple(error.error_id for error in settled_errors)
     _require_unique_non_empty(f"{snapshot_name}.settled_errors.error_id", settled_ids)
     _require_unit_interval("control_signal", control_signal)
@@ -1068,8 +1289,7 @@ def _validate_preference_action_outcome_evidence(
             )
         if record.source_turn != item.source_turn:
             raise ValueError(
-                "PreferenceAboutOtherSnapshot.action_outcome_evidence source_turn "
-                "must match its owner record"
+                "PreferenceAboutOtherSnapshot.action_outcome_evidence source_turn must match its owner record"
             )
 
 
@@ -1083,10 +1303,35 @@ def _validate_preference_forecast_settlements(
     )
     forecast_ids = tuple(item.forecast_id for item in settlements)
     if len(set(forecast_ids)) != len(forecast_ids):
-        raise ValueError(
-            "PreferenceAboutOtherSnapshot.forecast_settlements may settle a "
-            "forecast at most once"
-        )
+        raise ValueError("PreferenceAboutOtherSnapshot.forecast_settlements may settle a forecast at most once")
+
+
+def _validate_preference_action_outcome_mutation_receipts(
+    *,
+    records: tuple[OtherMindRecord, ...],
+    action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...],
+    receipts: tuple[PreferenceActionOutcomeMutationReceipt, ...],
+) -> None:
+    mutation_ids = tuple(receipt.mutation_id for receipt in receipts)
+    _require_unique_non_empty(
+        "PreferenceAboutOtherSnapshot.action_outcome_mutation_receipts.mutation_id",
+        mutation_ids,
+    )
+    latest_by_target: dict[str, PreferenceActionOutcomeMutationReceipt] = {}
+    for receipt in receipts:
+        latest_by_target[receipt.target_evidence_id] = receipt
+    record_ids = {record.record_id for record in records}
+    action_outcomes_by_id = {item.evidence_id: item for item in action_outcomes}
+    for target_evidence_id, receipt in latest_by_target.items():
+        current = action_outcomes_by_id.get(target_evidence_id)
+        if receipt.operation is PreferenceActionOutcomeMutationOperation.REDACT:
+            if current is not None or target_evidence_id in record_ids:
+                raise ValueError("redacted preference action outcome or record cannot remain in snapshot")
+            continue
+        if current is not None and (
+            preference_action_outcome_evidence_sha256(current) != receipt.after_evidence_sha256
+        ):
+            raise ValueError("corrected preference action outcome hash does not match latest receipt")
 
 
 def _validate_common_ground_atoms(
@@ -1123,9 +1368,13 @@ __all__ = [
     "OtherMindRecordKind",
     "OtherMindRecordStatus",
     "PreferenceActionOutcomeEvidence",
+    "PreferenceActionOutcomeMutation",
+    "PreferenceActionOutcomeMutationOperation",
+    "PreferenceActionOutcomeMutationReceipt",
     "PreferenceActionForecast",
     "PreferenceActionForecastSettlement",
     "PreferenceAboutOtherSnapshot",
+    "RelationshipConditionReadout",
     "SocialActionCandidatePrediction",
     "SocialActionOutcomeProbability",
     "SocialPrediction",
@@ -1141,5 +1390,7 @@ __all__ = [
     "build_primary_multi_party_identity_snapshot",
     "social_prediction_error_from_memory_signal",
     "social_prediction_from_memory_signal",
+    "preference_action_outcome_evidence_sha256",
+    "preference_action_outcome_mutation_sha256",
     "tom_record_counts_by_interlocutor",
 ]

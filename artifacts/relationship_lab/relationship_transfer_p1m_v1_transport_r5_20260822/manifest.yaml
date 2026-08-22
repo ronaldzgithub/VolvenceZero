@@ -1,0 +1,22 @@
+name: relationship_transfer_p1m_v1
+version: '1.0'
+description: 用冻结 FSM 与本地 LLM 纯渲染器程序化生成二十四组镜像关系迁移题，用于 P1m 首次大样本仪器资格。
+domain: SOCIAL
+author: Volvence Zero Contributors
+components:
+  ssot_fragment: ssot_fragment.json
+  scenes: scenes.yaml
+  test_suite: test_suite.yaml
+lab_artifacts:
+  generation_recipe: generation_recipe.json
+  generation_protocol: generation_protocol.json
+  generation_attestation: generation_attestation.json
+  rendered_observations: rendered_observations.json
+  sealed_generator_truth: generator_truth.json
+explanation: 本包的路径先冻结生成协议和零 consumer-output 证明，再由确定性 FSM 产生两类抽象关系损失、两套互补个体策略、四段平衡行动结果历史与镜像
+  probe 真值；本地LLM 只能把语义 brief 渲染成普通中文生活叙述，不能决定 condition、policy、action或 outcome。弧线从封卷、自然语言渲染、跨
+  session 可追加历史、命名条件读出、镜像行动前下注一直到 Wilson 资格结算，phase_order 连续且每条路径均被引用。场景检测使用冻结 embedding
+  prototype、owner-published structured readout 与完整轨迹证据，不允许关键词、正则、scene id、surface
+  id 或全局动作多数票。集成点只位于 lifeform-domain-emogpt 的离线数据 owner 与 lifeform-evolution 的只读证据consumer；标签永不进入
+  memory、PE、credit、reward 或 steering。R14 体制身份是持续的‘先辨认关系位置或决定权受损，再依据这个人跨场景经历选择靠近或退开’，它随
+  owner 状态跨 session 保持，而不是一句 prompt 标签。首次资格失败即停止场景版本化；成功也只表示仪器可用，不证明 Volvence 四能力或产品效果。

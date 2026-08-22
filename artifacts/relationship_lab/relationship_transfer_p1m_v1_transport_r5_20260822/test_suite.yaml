@@ -1,0 +1,112 @@
+suite_name: relationship_transfer_p1m_v1_acceptance
+package_name: relationship_transfer_p1m_v1
+routing_policy:
+  method: semantic_trajectory_abstraction_plus_owner_snapshot
+  required_evidence:
+  - frozen_generation_lineage
+  - balanced_action_outcome_histories
+  - named_condition_readout
+  - preaction_decision
+  forbidden_methods:
+  - substring_matching
+  - regex_content_matching
+  - keyword_to_route_dictionary
+  - event_id_to_policy
+  - scene_id_to_action_lookup
+  - surface_family_to_action_lookup
+  - post_result_scenario_revision
+  insufficient_evidence: no_route
+routing_tests:
+- test_id: route_p1m_01_protocol_freeze
+  case_type: positive
+  semantic_input:
+    summary: 生成配方、renderer 权重、全部 pair plan、统计门和零答题输出均已内容寻址封卷。
+    current_text_only_sufficient: false
+  expected:
+    path_id: path_p1m_protocol_freeze
+    arc_spec_id: arc_relationship_p1m_first_qualification
+  assertions:
+  - 必须使用完整 semantic trajectory 与内容寻址 lineage。
+- test_id: route_p1m_02_surface_only_renderer
+  case_type: positive
+  semantic_input:
+    summary: FSM 真值先存在，模型只返回自然语言题面，不能改动作结果或正确答案。
+    current_text_only_sufficient: false
+  expected:
+    path_id: path_p1m_surface_rendering
+    arc_spec_id: arc_relationship_p1m_first_qualification
+  assertions:
+  - 必须使用完整 semantic trajectory 与内容寻址 lineage。
+- test_id: route_p1m_03_restart_hydration
+  case_type: positive
+  semantic_input:
+    summary: 四段历史分别写入 owner 并跨恢复，probe 不重放 raw history。
+    current_text_only_sufficient: false
+  expected:
+    path_id: path_p1m_appendable_history
+    arc_spec_id: arc_relationship_p1m_first_qualification
+  assertions:
+  - 必须使用完整 semantic trajectory 与内容寻址 lineage。
+- test_id: route_p1m_04_named_readout
+  case_type: positive
+  semantic_input:
+    summary: 当前新表面被 artifact-bound semantic reader 命名并绑定 observation hash。
+    current_text_only_sufficient: false
+  expected:
+    path_id: path_p1m_named_condition_readout
+    arc_spec_id: arc_relationship_p1m_first_qualification
+  assertions:
+  - 必须使用完整 semantic trajectory 与内容寻址 lineage。
+- test_id: route_p1m_05_mirror
+  case_type: positive
+  semantic_input:
+    summary: 同一句当前消息配两套互补经历，两个行动前决策应按个人策略翻转。
+    current_text_only_sufficient: false
+  expected:
+    path_id: path_p1m_mirrored_preaction
+    arc_spec_id: arc_relationship_p1m_first_qualification
+  assertions:
+  - 必须使用完整 semantic trajectory 与内容寻址 lineage。
+- test_id: route_p1m_06_wilson
+  case_type: positive
+  semantic_input:
+    summary: 48 个决策和 24 对翻转已完成，只按冻结单侧 Wilson 门结算。
+    current_text_only_sufficient: false
+  expected:
+    path_id: path_p1m_wilson_qualification
+    arc_spec_id: arc_relationship_p1m_first_qualification
+  assertions:
+  - 必须使用完整 semantic trajectory 与内容寻址 lineage。
+- test_id: no_route_p1m_07_keyword
+  case_type: negative
+  semantic_input:
+    summary: 请求根据几个字词直接把当前句映射成动作。
+    current_text_only_sufficient: false
+  expected:
+    route: no_route
+    reason: semantic_or_frozen_lineage_requirement_missing
+  assertions:
+  - 必须使用完整 semantic trajectory 与内容寻址 lineage。
+- test_id: no_route_p1m_08_posthoc_revision
+  case_type: negative
+  semantic_input:
+    summary: 看到首次资格分数后请求改题、换 seed 或另开场景版本。
+    current_text_only_sufficient: false
+  expected:
+    route: no_route
+    reason: semantic_or_frozen_lineage_requirement_missing
+  assertions:
+  - 必须使用完整 semantic trajectory 与内容寻址 lineage。
+llm_evaluation:
+  judge_contract:
+    method: structured_semantic_review
+    learning_feedback: forbidden
+  semantic_coherence:
+  - case_id: coherence_p1m_01_fsm_before_text
+    assertion: condition、policy、action 和 outcome 真值在任何题面渲染前冻结。
+  - case_id: coherence_p1m_02_mirror
+    assertion: 每组当前消息逐字节相同，但两位用户的互补经历要求相反动作。
+  - case_id: coherence_p1m_03_balance
+    assertion: 每位用户每个 condition 都见过两个动作，且每个动作总体一胜一负。
+  - case_id: coherence_p1m_04_claim_boundary
+    assertion: P1m 资格只承认仪器可用，不承认四能力或 Volvence advantage。

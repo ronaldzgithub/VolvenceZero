@@ -41,11 +41,23 @@
 > strict-valid，但 prompt/RAG/structured 都未过门，report `e9226ee8…fd78` 已如实封存
 > `consumer_failed_v4_qualification`。正式 prereg 与 secret heldout 仍关闭，不得进入
 > P2 formal 或宣称四能力成立。
-> 计划 2026-08-21 修订：P1j 关闭后不得再开 v5 追点估计资格；下一刀是 P1k-R1
-> oracle 四格诊断（已烧毁 v3，非竞争、分段早停）与 P1m 仪器协议
-> （≥24 对、Wilson CI、冻结生成配方）。RAG 观察臂修约见 §7.10；统计形式与止损
-> 见计划 §8.1 / §13.7 / §14。人工盲标是 P1l（`packet1l`，不占 Qwen）。P2-SHADOW
-> 只允许在 v3 training view 上搭脚手架。
+> 2026-08-22：P1k-R1 oracle 四格诊断已在 A 格按冻结门早停；P1m 随后以 v5
+> deterministic typed surface realizer 生成并封存 24 组镜像对、48 个未见 surface，第一次且
+> 唯一 qualification 已完成。Qwen prompt/RAG 两臂均为 48/48 valid、accuracy=0.50、
+> 24 对 0 flip；命名 structured reader 为 46/48 correct、24/24 flip。report
+> `9580ddff…fc56` 按冻结门判 `prompt_steelman_baseline_too_weak`，整体未合格并永久关闭
+> 本配方的场景版本化。该结果支持“命名 reader 有强方向性 fresh 读出”，但失灵的 prompt
+> 基线使 Volvence advantage、P2 formal、Readable 与四能力主张继续关闭；禁止返回调 prompt、
+> 改 gate 或再开 v6 场景。RAG 修约见 §7.10；人工盲标仍是 P1l（`packet1l`）。
+> P4.1 已另行冻结 long-horizon canary，并在 seen v3 两条工程 fixture 上以隔离的
+> environment-only Lab ACTIVE 跑通 typed causal loop；P4.1 两个 Qwen arm output 仍为 0，默认 reader
+> 仅有 3/16 action match，因此判词只能是
+> `engineering_mechanism_ready_formal_effect_not_run`。
+> P4.3 随后固定同一 fixture、ALWAYS gate 与零 gate update，只将 legacy reader 换成 P1m
+> named reader：preferred-action match `6/16 → 16/16`、positive outcome `9/16 → 16/16`、
+> reversal match `6/14 → 14/14`，并产生 10 个 matched action change 与 9 个 outcome change。
+> artifact `e7bbc914…70bd` 已用 frozen BGE 重跑终检；由于 seen/post-selected 且 P1m 基线失灵，
+> 只能称 Readable transmission 的 development evidence，不能称 formal、优势或四能力通过。
 >
 > 产品路线：`docs/moving forward/relationship-intelligence-mvp-plan-2026-08.md`
 
@@ -82,8 +94,9 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P1j v4 one-shot 资格 owner | `lifeform-evolution.relationship_lab_packet1j` | 消费冻结 P1i consumer 与 v4 qualification-only 观察，一次性执行 72 条 readout/decision，按 §7.9 双主臂点阈值发布终局报告 |
 | P1k oracle 诊断矩阵 owner | `lifeform-evolution.relationship_lab_packet1k` | evaluator-only；绑定 P1j 失败终局，在已烧毁 v3 上正交拆分 policy application / induction、probe recognition、history binding，并按预注册条件分段放行；非竞争，不改 consumer / gate / 数据集 |
 | 人工盲标锚点 owner | `lifeform-evolution.relationship_lab_packet1l` | P1f 遗留：冻结去真值 60-unit rater packet 与 sealed key，收齐 3 份独立标注后评分。包号是 P1l，不是仪器升级 |
-| P1m 仪器协议 owner | 计划包；契约见计划 §8.1 / §14.2 | P1j 关闭后冻结下一份资格门：≥24 对、Wilson CI、生成配方 hash；不跑新的 prompt search；实施时新模块名，不得占用 `relationship_lab_packet1l` |
-| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l}.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1k，或冻结/评分人工盲标 packet |
+| P1m 仪器协议 owner | `lifeform-evolution.relationship_lab_packet1m{,_recovery,_qualification}` + `lifeform-domain-emogpt.lab.p1m_{generation,renderer_transport}` | 内容寻址冻结生成配方、renderer transport、24 对 dataset、96 条 Qwen 与 48 条 structured 资格计划、Wilson 门、账本和终局报告；v1–v4 失败 transport 与 v5 recovery 均保留，不占用 P1l |
+| P4.3 readout 传导报告 owner | `lifeform-evolution.relationship_lab_p4_named_reader` | 只读 P1m terminal lineage 与 P4.1 fixture；在 ALWAYS/零学习 matched arms 中发布 named-readout→action→outcome 的 development-only 内容寻址报告 |
+| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l,packet1m_qualification,p4_named_reader}.py` + `scripts/generate_relationship_lab_packet1m_dataset*.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1m/P4.3，或冻结/评分人工盲标 packet |
 
 硬边界：
 
@@ -782,6 +795,17 @@ Formal「显著更好」必须预注册为配对 McNemar，α=0.05 双侧，80% 
 个百分点提升（备择 steelman 0.75 vs Volvence 0.90，预估不和谐率 0.30 → 约 100
 个配对 probe）。Secret heldout 由该配方程序化产出，独立 evaluator 解封。
 
+2026-08-22 第一次且唯一 P1m qualification 已终局：生成包
+`relationship_transfer_p1m_v1_transport_r5_20260822` 的 dataset fingerprint 为
+`4ecde42f…05af`；资格 protocol `b850ff2e…f1c`、plan `923fd59d…c26`、report
+`9580ddff…fc56`。prompt 与观察性 RAG 都是 24/48 correct、0/24 pair flip；structured-state
+是 46/48 correct、24/24 pair flip，flip Wilson 单侧下限 0.8987。冻结判词为
+`prompt_steelman_baseline_too_weak`，`qualification_passed=false /
+scenario_versioning_closed=true`。终局 resume 会复核 report artifact、protocol/plan lineage、
+四本账 SHA/行数与 batch execution manifest。该负结果关闭继续调场景/prompt 的路径；structured
+reader 的 fresh directional evidence 可作为独立长闭环机制实验候选，但不得被写成已通过 P2
+formal、Volvence advantage 或完整 Readable。
+
 ## 8. Baseline 与 formal 纪律
 
 `FrozenBaselineAttestation` 必须记录：dataset/model/weights/prompt/generation/seed
@@ -1040,7 +1064,12 @@ P1k Qwen output 时冻结 48 条最大矩阵计划与 staged-release gate。正�
 才能跨 stage。machinery regression 返回 2；其余诊断判词返回 0，因为它们是定位结果
 而不是资格失败。oracle 分数不得回流 consumer / gate / PE。
 
-权威 P1k-R1 protocol 为 `204e0904…64bd`，当前持久输出为 0/48，尚无 terminal report。
+权威 P1k-R1 protocol 为 `204e0904…64bd`。同一 attempt 已持久化 A 格 12/12，terminal
+report `ba6c5cf7…7138`：valid=12/12、accuracy=6/12、pair flip=0/6，12 条均选择
+`respect_space_with_return_option`。staged gate 以
+`fully_disclosed_policy_application_failed` 早停，B/C/D 36 条记录为 skipped；判词
+`substrate_cannot_apply_disclosed_policy`，下一 owner 是 substrate/readout floor，不是新 prompt
+或新场景。完成态 resume 必须只做 strict replay，不得产生第 13 条输出。
 
 人工盲标 packet 不需要 Qwen，可与 P1j 并行准备：
 
@@ -1072,6 +1101,38 @@ P1j 随后在未修改 consumer / gate 的前提下完成独立 one-shot v4 qual
 strict-valid，但 prompt/RAG/structured 均未过冻结门，终局保存为 unseen failure。不得再开
 v5 追点估计，也不得回流修改 P1i 或 Volvence learning/control；下一刀是 §7.11 P1k
 oracle 定位，再按 §7.13 P1m 升级 n + CI 仪器。产品口径见计划 §14。
+
+### P4.1 long-horizon typed-action canary
+
+P4.1 不再增加 scenario package，也不打开 v4。它把同一 v3 policy profile 的公开经历重新
+组织成“4 次 onboarding + 8 次决策”的增量轨迹：被排除时需要不侵入地留下，被越权替做主
+时需要归还空间；八次决策跨 work / health / family / community / friends / intimacy，并以
+return-after-gap 与 reversal-after-gap 收尾。公开 view 不含 scene、condition、policy、
+preferred action 或 environment seed；这些只存在于独立 evaluator bundle。
+
+正式比较预注册候选固定四臂：Qwen full-history steelman、Qwen selective-RAG steelman、
+Volvence closed-loop、Volvence typed-noop control；至少 20 名独立 subject、每人 8 次决策，
+最后一次公开 context 至少 32768 tokens。当前 P1k/P1m 未关闭，所以两个 Qwen 臂只冻结
+合同，禁止生成 output。development runner 只比较后两个 typed-action 机械臂。
+
+Lab ACTIVE authorization 由 protocol hash + v3 fingerprint + gate artifact/version 内容寻址，
+只允许非 oracle action 通过 `self_temporal` 进入 `ReactiveRelationshipEnvironment`。
+expression、production、evaluator feedback 与 oracle 均被硬拒绝。运行与当前读数见
+[`relationship-intelligence-closed-alpha.md`](./relationship-intelligence-closed-alpha.md) §11。
+
+### P4.2 preference-action correction/redaction drill
+
+P4.2 不增加新数据集、模型输出或 evaluator label，而是在 `preference_about_other` 唯一 owner
+内闭合用户纠错路径。typed mutation command 必须携带 target evidence canonical hash；纠正同步
+改变 owner record/outcome 并使引用旧 record 的 pending forecast 失效，删除同时清除 record、
+outcome、pending prediction/forecast。persistence v3 只保留 content-safe receipt；redaction
+receipt 是不可过期的 tombstone，跨恢复阻止相同 evidence id 被旧轨迹重新写回。
+
+`./start_relationship_p4_canary.sh --run-mutation-drill` 使用 seen v3 public state 完成七次恢复、
+correction→reader hash 一致、redaction content absence 与 anti-resurrection 检查。它不读取
+evaluator bundle、不调用 Qwen、不进入 expression/production，也不产生 PE/credit。因此 PASS
+仅表示纠删 owner 契约机械闭合；formal `recovery_after_correction` 仍未运行。已结算 PE/credit、
+gate checkpoint 与 lifeform operational evidence 归其他 owner，本包不做近似反向回滚。
 
 ## 10. 回滚与下一包
 
@@ -1144,3 +1205,13 @@ P1m 仪器升级在代码落地前只是计划契约。回滚意味着不启用�
 P1–P1j 点阈值解释旧 artifact。一旦该 protocol 冻结，看到 qualification 输出后
 不得改 n、CI 公式或生成配方；失败走计划 §13.7，不得开 v5/v6 追分。实施时必须使用
 新模块名，不得覆盖 `relationship_lab_packet1l` 盲标包。
+
+P4.1 不改变产品 wiring。回滚只需停止 `start_relationship_p4_canary.*`，不再消费其
+create-only preparation/report；P3/P4 advisory 仍是未授权 ACTIVE，产品默认仍为 SHADOW。
+如果未来启动正式四臂 pilot，必须使用新的 prereg / run artifact，并在 P1k/P1m 放行后才
+物化第一条 Qwen output；不得把当前 seen v3 结果升级成 formal evidence。
+
+P4.2 同样不新增产品 wiring。回滚可停止 mutation drill 和上游 console consumer，但已经写入
+`SocialRecordStore` v3 的 redaction receipt/tombstone 必须保留；不能降级为 v2 后让已删除证据
+复活。完全退出条件是所有 consumer 不再发送 mutation command，旧 v1/v2 snapshot 仍可读取，
+且迁移工具显式保留 v3 tombstone；不得通过手工改 schema 或删除 receipt 回滚。

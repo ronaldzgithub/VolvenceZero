@@ -395,9 +395,13 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 | 被依赖 | 认知 Regime（5.8）| 控制器切换与 regime 切换对齐 |
 | 被依赖 | 信用分配（5.6）| 提供抽象动作级信用分配的基础 |
 | 协作 | 评估体系（5.7）| F5 抽象质量评估 |
+| 细化 | [Subgoal Abstraction Working Set](./subgoal-abstraction-working-set.md) | 区分瞬时 readout、owner-private pattern 聚合、物化 family 与 operational working set；定义有界准入、Gate、termination/retirement 和分阶段实施，不新增第二 temporal owner |
 
 ## 变更日志
 
+- 2026-08-22: 增加 subgoal abstraction working-set 专门 spec 入口。该设计不改变当前
+  runtime：raw readout 不自动物化，WORLD/SELF temporal owner 仍是各自 bank 单写者，
+  `beta_t` segment termination 与 artifact retirement 明确分离，production ACTIVE 未授权。
 - 2026-08-22: 新增 self-temporal typed relationship action advisory。snapshot、track
   owner、aggregate、final wiring 与 session single-consumption staging 已贯通；默认 SHADOW，
   ACTIVE 要求独立 artifact authorization，P3/P4 artifact 未授权，因此无表达变化。

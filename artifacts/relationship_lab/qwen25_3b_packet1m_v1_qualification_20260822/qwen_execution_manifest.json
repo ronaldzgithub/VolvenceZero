@@ -1,0 +1,17 @@
+{
+  "artifact_id": "f79a5dd8cc5497ddd8f692e9d6a635bdf2e35858539d10743bbd9d436fa37d56",
+  "batch_size": 4,
+  "candidate_tokens_changed": false,
+  "claim_boundary": "Batch grouping is execution-only. Every rendered input hash and token count remains frozen; all readouts in a batch are durably written before evaluator truth is attached.",
+  "completed_readouts_before_optimization": 4,
+  "execution_method": "left_padded_batch_forward_then_atomic_readout_batch",
+  "model_lineage_changed": false,
+  "prompt_or_request_changed": false,
+  "protocol_id": "b850ff2aea7c24dca95a0aaa14325ababa7a534dc4b33e408652191069371f1c",
+  "qualification_gate_changed": false,
+  "reason": "Reduce CPU wall time while computing the same frozen per-input first-token logits.",
+  "schema_version": "relationship-p1m-qwen-execution-manifest.v1",
+  "scoring_method": "exact_first_assistant_token_logits_A_vs_B",
+  "semantic_consumer_changed": false,
+  "truth_attached_before_batch_readouts_durable": false
+}

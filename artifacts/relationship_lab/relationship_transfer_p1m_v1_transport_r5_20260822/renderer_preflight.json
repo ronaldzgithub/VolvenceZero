@@ -1,0 +1,49 @@
+{
+  "artifact_id": "2d1aaf203b5669af04fb9ea16a428899bc3f43809d9874bb9db0c75e8b9133a7",
+  "consumer_outputs": 0,
+  "created_at_iso": "2026-08-22T05:13:54.159400+00:00",
+  "evidence_role": "non_scenario_transport_only",
+  "field_plan_sha256": "2ce19539d52870a102995ac85184dc544074a21a4559fbb65ff3a04ba73ab0c3",
+  "generation_config_sha256": "a2c30c9ea411d24fbd136beaf971544f0ed04bdb31f5c442884764bf6cf8d9a8",
+  "model_id": "volvence-p1m-deterministic-surface-realizer-v5",
+  "outputs": [
+    {
+      "field_key": "p1m_preflight:dummy_history_belonging",
+      "normalized_text": "家庭聚餐中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "raw_output": "家庭聚餐中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "renderer_input_sha256": "443e947958a955e489ab77fcbf3b0b6840938a3ec44bbe01c1372c8b0ee83278",
+      "seed": 184729332
+    },
+    {
+      "field_key": "p1m_preflight:dummy_current_agency",
+      "normalized_text": "工作项目中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "raw_output": "工作项目中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "renderer_input_sha256": "1cd489b092771beb0d226defd8b068d5367dba11463bc89a673c377ca9674112",
+      "seed": 2836095710
+    },
+    {
+      "field_key": "p1m_preflight:dummy_reaction_positive",
+      "normalized_text": "朋友旅行中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+      "raw_output": "朋友旅行中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+      "renderer_input_sha256": "0ac4691f040d2e131e8717e11f80631c6ed0f0c3ff6214a3960693a7989ac2aa",
+      "seed": 3663948776
+    },
+    {
+      "field_key": "p1m_preflight:dummy_reaction_negative",
+      "normalized_text": "同学活动中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+      "raw_output": "同学活动中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+      "renderer_input_sha256": "0dbcd9c5e029fa5792d98bbb53f54a2b87c0309b63000a21d1a3a75f504dd3d0",
+      "seed": 1536000227
+    }
+  ],
+  "passed": true,
+  "required_valid_rate": 1.0,
+  "runtime_device": "cpu",
+  "scenario_outputs": 0,
+  "schema_version": "relationship-p1m-renderer-preflight.v5",
+  "surface_seed_inventory_sha256": "04716ce1c209755fd67be94c014a87411efb3a52d1e007d38f864224f0f72eb4",
+  "torch_dtype": "not_applicable",
+  "transport_id": "94013af611cfb7094ba563e672761b7354d6a5884064f5688371f34df4f2bfff",
+  "valid_rate": 1.0,
+  "weights_sha256": "60578e02fd105875681ac929068055176eeb4bc8075059689fff9bedc7177e89"
+}

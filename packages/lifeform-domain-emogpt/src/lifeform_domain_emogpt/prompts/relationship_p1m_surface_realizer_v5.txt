@@ -1,0 +1,19 @@
+P1m deterministic surface realizer v5
+
+This executable contract is not an LLM prompt. The renderer receives frozen
+typed generator inputs and performs exact enum-to-sentence realization only.
+
+history_utterance and current_input:
+- Preserve setting_hint byte-for-byte.
+- For condition_belonging_erasure_p1m append: 我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。
+- For condition_agency_displacement_p1m append: 我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。
+
+user_reaction:
+- Preserve setting_hint byte-for-byte.
+- Realize selected_action from the frozen action sentence table in code.
+- Realize typed_outcome from the frozen outcome sentence table in code.
+- Never infer an action or outcome from natural language.
+
+Every raw output must equal the deterministic expected output exactly before it
+may be persisted as a validated field. The realizer cannot retry, sample,
+choose truth, read consumer output, or create PE, credit, reward, or steering.

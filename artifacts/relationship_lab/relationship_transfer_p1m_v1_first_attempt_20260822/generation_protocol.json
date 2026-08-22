@@ -1,0 +1,59 @@
+{
+  "claim_boundary": "P1m generation freezes the deterministic FSM recipe, local surface-only renderer lineage, 24 mirrored pair inputs, retry seeds, and zero consumer outputs before any rendering. The renderer cannot choose an action or change truth. A sealed generated package is only an instrument input; it does not qualify a consumer or prove Volvence advantage or any of the four capability axes.",
+  "freeze_guards": {
+    "consumer_outputs_before_freeze": 0,
+    "evaluation_feedback_allowed": false,
+    "first_attempt_only": true,
+    "renderer_outputs_before_freeze": 0
+  },
+  "frozen_at_iso": "2026-08-22T04:42:19.274581+00:00",
+  "next_action": "freeze_forced_choice_and_named_reader_before_first_qualification_answer",
+  "protocol_id": "d1cfcc528c8607aed85e9c7f66fc0cddcf373d2405973e1c7fb145e0af7c6695",
+  "recipe": {
+    "package_name": "relationship_transfer_p1m_v1",
+    "pair_count": 24,
+    "pair_input_sha256": [
+      "2c93569af830e703ed15d9f4d1f1008d061b350494f1bb53dc5efc1c9ae1c047",
+      "3838458d22bb3115486f30682bed7ec39399b2139a34cfa43e19df1618483aa9",
+      "28a5892f0b2054f0f06115dba005bb3f36535295af76cc29c01d078a90c6ab82",
+      "542c4d8b5e57fbb74f4e905f79f0a2ca7e7fcff690689cd86816d27595d165b9",
+      "291868dd841ea0a7308010d4475ce089bfc5c1bf15b76e650de54ce2a43d166d",
+      "20ae3cd0abe51a4ceb7f7b21a453e293834eb049099a3495671fb238651ed67d",
+      "f0c622b07bcedaeb7d0cc60b575b231c1794e9d7ca12291791ba6a15f1330bce",
+      "7dd7d592bf93cdad74023e328fcf59e746fe02b7212ab0dc52b5841ff62ef225",
+      "ed8c97d0877705194f3b9acde2ec0d32d4f46920e39bb07953984540c0497bef",
+      "33df952151074fcd980b2b4b11583ec3df2e64a87777d3bc6fe24213ff6dfbe8",
+      "314721b63ec3003d4a52d98688eca2a49383d015925838f40d4964de90c04ca5",
+      "b40800340f85c482151f877ae72c2936343efc02d8aaeb8d2c6cc02bbb6caf52",
+      "0213f9ac8cc6ce609541ebc1565008b48d1a6eb385d348091ef90f340f45db91",
+      "c92cb9d4ef93ad3234335ad0d56b398c46962e381cd19426d0d832f3d4cdb851",
+      "2bd7d2f8ed69acaf5c0f9e13b28a8150c00d543afed5baa6f46144a5e5aa1bba",
+      "9991e9e36ed2f6213c9b667aca97893c0775bc819abe77fab38eaa67de6d18b9",
+      "952825ae2ddc73ee632e1d627daf2ef42c41f9e494709c099adfbabe71663860",
+      "204578ae0842e4cab8d63a6a56d7e8586c7d1d0d99793f6ca7096e198f0b88d3",
+      "18c0d0ee735b9317e6ba88e8eedb0b829558fea24d8520b6be9fdbea1ca6d2ad",
+      "78a06efdaea2356465c3ba96b1a43b78536ae26a50b78e8b4a54115088cd9253",
+      "7a9833ebb459c694db4a814ac533b42a24a0b53269f81d3a1dc5f43df138c750",
+      "d2a8be06ac43fdfa9ce4149aca993440697bcd5f645b177ec2875eb83c9543c0",
+      "1c314c9339da89b084e3b599eb83cdcd62040fee4be324a554780c7d51ebcb7f",
+      "bbbf678b37040ddaad40d39f4fbaa7d93aadf7cff04a54ca21f5b611233d877f"
+    ],
+    "pair_plan_sha256": "b3d6130df547e37d0ca912d977b35b250778fbebacdb1b85065f6779f3258300",
+    "recipe_id": "6f36f74ac4a563aa2c31d7145f8886eae6ad24335c5688290dba774fe3faf507"
+  },
+  "renderer": {
+    "generation_config_sha256": "caf7d55c295abaa14dd6cb55fae3f6bace589d3143444679ff2e36c3cf38b849",
+    "model_id": "qwen2.5-1.5b-instruct-p1m-surface-renderer",
+    "model_source": "Qwen/Qwen2.5-1.5B-Instruct",
+    "output_schema_sha256": "9d27b453c21266470b107141ed83fd93973320fa8586c65a737a8b56645939bd",
+    "prompt_sha256": "3b15dae6a0d63fae9daf00875f00d26b5c4e4fda3d1f7578d692ad3e24ba1f2a",
+    "runtime_device": "cpu",
+    "torch_dtype": "bfloat16",
+    "weights_sha256": "04d7fb4ec80406436589d31ea38e8d45b9a11cf587ca4eb8a9c8f57415ea6010"
+  },
+  "schema_version": "relationship-p1m-generation-protocol.v1",
+  "source": {
+    "p1k_report_artifact_id": "ba6c5cf71c528b1daa270a8fd097d27cd4438af69c91f15237e20fa1ccaa7138",
+    "p1k_verdict": "substrate_cannot_apply_disclosed_policy"
+  }
+}

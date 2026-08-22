@@ -1,7 +1,7 @@
 # Specs 分层知识入口总索引
 
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
-> Last reconciled: 2026-08-22（93 份 spec 全量挂载；Relationship Lab P1j 终局仍为 `consumer_failed_v4_qualification`，P1m 仪器与 P2 formal 未过门。P2-development SHADOW owner/persistence、P3 exact PE-credit gate 与 P4 collection-only closed-alpha 壳已经工程落地，但真人 outcome typing qualification、真实 steer exposure、长 horizon / 多 session pilot、Volvence advantage、Readable 与四能力总主张仍未证明）
+> Last reconciled: 2026-08-22（94 份 spec 全量挂载；Relationship Lab P1j 终局为 `consumer_failed_v4_qualification`；P1k-R1 A 格 report `ba6c5cf7…7138` 判 `substrate_cannot_apply_disclosed_policy`。P1m 首次且唯一 qualification 已在 24 组 generated mirror pair 上终局：prompt/RAG 均 24/48 correct、0/24 flip，fresh structured named reader 46/48、24/24 flip；report `9580ddff…fc56` 判 `prompt_steelman_baseline_too_weak` 并关闭场景版本化，故 P2 formal 与 Volvence advantage 仍未过门。P2-development SHADOW owner/persistence、P2d 命名条件 readout、P3 exact PE-credit gate、P4 collection-only closed-alpha 壳、P4.1 Lab longitudinal canary、P4.2 preference-action 纠删 owner/drill 与 P4.3 named-reader transmission 已工程落地；P4.3 在 seen/post-selected matched arms 得到 action match 6/16→16/16、positive outcome 9/16→16/16，只是 Readable 传导的开发证据。真人 outcome typing qualification、用户可见 residual steer、20 人 / 32K context 四臂 pilot、完整 Readable/Learnable/Steerable 与四能力总主张仍未证明）
 
 ---
 
@@ -85,11 +85,14 @@ Volvence 不是「会聊天的模型」，而是把**持续适应**拆成四条�
 | Spec | 内容 |
 |------|------|
 | [temporal-abstraction.md](./temporal-abstraction.md) | Metacontroller 架构、切换单元、控制器代码空间、Internal RL |
+| [subgoal-abstraction-working-set.md](./subgoal-abstraction-working-set.md) | 把瞬时 subgoal readout、pattern 聚合、物化 abstraction 与可控 working set 分层；保留连续 `z_t` 路径，定义 owner-local 准入、验证、休眠、退休、Gate 与实施计划 |
 
 **核心不变量**：
 - 实时行为可通过内部状态转换引导，而非仅通过表面文本损失
 - 抽象动作可组合、可训练、无需详尽手动标签
 - 冻结基础模型是发现时间抽象的前提
+- raw subgoal readout 不自动成为 artifact；只有经 PE/credit 证据物化的少量 abstraction 进入有界工作集
+- 生命周期状态由 WORLD/SELF temporal owner 分别拥有；不新增全局 `LifecycleManager`，`beta_t` termination 不等于 artifact retirement
 
 ---
 
@@ -270,16 +273,21 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 
 | Spec | 内容 |
 |------|------|
-| [relationship-intelligence-closed-alpha.md](./relationship-intelligence-closed-alpha.md) | 多经历 preference-action forecast、exact outcome→social PE→credit、bounded action gate、self-temporal SHADOW advisory、真实 outcome typing qualification 与三个 P4 产品入口 |
+| [relationship-intelligence-closed-alpha.md](./relationship-intelligence-closed-alpha.md) | 多经历 preference-action forecast、P2d 命名条件 readout、exact outcome→social PE→credit、bounded action gate、self-temporal SHADOW advisory、真实 outcome typing qualification、三个 P4 产品入口、P4.1 Lab longitudinal canary、P4.2 owner correction/redaction drill 与 P4.3 named-reader transmission |
 
 **核心不变量**：
 
 - `preference_about_other` 仍是 forecast / settlement 唯一 owner；collaborator 只能提 proposal
 - action credit 必须由 exact owner settlement 的 social PE 派生，evaluation / judge / human anchor 不回灌
 - P3/P4 advisory 固定未授权 ACTIVE；SHADOW counterfactual 不得冒充已执行动作结算
+- P4.1 只允许内容寻址、environment-only 的 Lab ACTIVE；expression / production / oracle / evaluator learning 均保持禁止
+- P2d condition collaborator 只能提带 current-observation hash 与 reader-artifact lineage 的 proposal；owner 校验后发布，seen 数据诊断不得冒充 Readable
+- P4.2 纠删只由 `preference_about_other` 解释；expected hash 防 stale overwrite，redaction receipt/tombstone 必须跨 v4 hydration 保留，且绝不成为 PE/credit
 - 真人自由文本只能经 content-hashed qualification 绑定的 structured LLM typer；没有布尔 PASS 开关
 - operational evidence 与 opt-in offline training candidate 物理分离，默认不保存 raw dialogue
-- 当前只证明机制与 collection-only 产品壳，不证明 P2 formal、真实效果或 production ACTIVE
+- P4.1 seen fixture 当前仅有 3/16 preferred-action match；只证明闭环可真实分叉，不证明 P2 formal、真实效果或 production ACTIVE
+- P4.2 drill PASS 只证明 correction 可到达下一 forecast reader、redaction 可跨恢复防复活，不是 formal `recovery_after_correction` 效果分数
+- P4.3 固定 ALWAYS/零学习后，named reader 把 action match 从 6/16 提到 16/16；因 fixture 已见、组件 post-selected 且 P1m baseline 失灵，只能称 readout→action→outcome development transmission，不能称完整 Readable 或优势
 
 ---
 
@@ -329,7 +337,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 | [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：N+1-based v3 base-only / v4 character-stack、Gate 1/suite v2、强制 smoke、严格 resume、state/sleep 消融与独立审计；历史 v1 formal 已停机且不可原样续跑；A1 formal（nplus1 prereg）已封存 `passed=false`，判词限定为「v1 raw-cosine readout 下无净增益」，重开须过分辨力 + 传导双预检（主线方案 §0 不变量 7/8） |
 | [coding-lab.md](./coding-lab.md) | 编程域持续学习证据 lane：受控演进式合成仓库（隐藏不变量 + pytest oracle 机械判决 + 内容寻址轨迹落盘）；A1 判词收窄后升格为主证据 lane，语义级 PE 不依赖残差 readout 标度。Packet 0 标定 PASS（环境比特级确定、oracle pass rate 0.656 落带、held-out 变体哈希封存）；Packet 1 SHADOW 观察者：语义 PE 分辨力 p≈1e-4、跨进程恢复、`dialogue_external_outcome` 外部结局通道三项 PASS，`forecast_skill=False` 如实封存（scope=合成基底×scripted 轨迹）；Packet 2 记忆注入 vs 长上下文 steelman 进行中 |
-| [relationship-lab.md](./relationship-lab.md) | 关系智能主证据 lane P0–P1l：P1j 已按双主臂门完成 v4 one-shot，三臂 strict-valid 但终局未合格，真实 unseen failure 已封存。§7.10 的 RAG 观察臂修约不能挽救本 ledger（prompt 与 structured 自身也未过门）；§7.11 P1k-R1 四格 oracle 诊断已修正为 P1j-bound、分段放行与可审计早停，先 zero-output freeze 再执行首格；§7.12 P1l 人工盲标 packet 已实现；§7.13 P1m 仪器升级（≥24 对 + Wilson CI）仍是计划。consumer qualification、human-anchor 多数一致、Volvence advantage、prereg/secret heldout/P2/四能力继续关闭 |
+| [relationship-lab.md](./relationship-lab.md) | 关系智能主证据 lane P0–P1m：P1j v4 one-shot unseen failure 与 P1k-R1 已披露策略应用失败均已封存；P1m 用冻结 recipe/v5 typed realizer 生成 24 对，并完成首轮唯一 Wilson qualification。Qwen prompt/RAG 仍固定选 A（各 24/48、0 flip），fresh structured named reader 为 46/48、24/24 flip；report `9580ddff…fc56` 判 baseline too weak、整体失败并关闭场景版本化。P1l human anchor 仍待 3 rater；fresh reader 只作方向性机制证据，consumer qualification、Volvence advantage、formal/P2/四能力继续关闭 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
 | [thesis-v2-proposal.md](../thesis-v2-proposal.md) | #93 有界产品连续性提案：继承 #92/L1/L3 负证据，把 Gate 8/11 真实人类 anchor 作为唯一新 EXIT，明确排除失败 learned uplift 与 production 自动晋升 |
 | Gate 2 conditioned longitudinal（[temporal](./temporal-abstraction.md) / [conditioning](./personal-conditioning.md) / [evidence](./evidence_program.md)） | 14 维 Relationship owner readout 条件化 8076→8090 residual selector；seed1301 stop-loss 终局 `not-supported`，不授权 live promotion |

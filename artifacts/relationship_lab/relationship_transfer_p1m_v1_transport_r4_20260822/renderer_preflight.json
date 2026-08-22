@@ -1,0 +1,49 @@
+{
+  "artifact_id": "b6f15c095ed974cc29bf0c5a701deb27e399f725b1716249017d2a922e61cce0",
+  "consumer_outputs": 0,
+  "created_at_iso": "2026-08-22T05:07:18.735112+00:00",
+  "evidence_role": "non_scenario_transport_only",
+  "field_plan_sha256": "ccca33aeebb5ab74a8a71bdc7595b498eb6fcdb50bb6f667b2a5b35baf31521a",
+  "generation_config_sha256": "aaa62918537275fb25ac520e4f125c751bf6ba9652f34e91f01917f9692bde03",
+  "model_id": "qwen2.5-3b-instruct-p1m-field-renderer-v4",
+  "outputs": [
+    {
+      "field_key": "p1m_preflight:dummy_history_belonging",
+      "normalized_text": "哎，聚餐的时候大家都聊得挺开心的，结果一收拾东西准备回家，才发现正式名单里没有我呢，心里那个失落啊。",
+      "raw_output": "哎，聚餐的时候大家都聊得挺开心的，结果一收拾东西准备回家，才发现正式名单里没有我呢，心里那个失落啊。",
+      "renderer_input_sha256": "9f520896e6d60b9a65ba0b59b65cd4be8b7cc98041922f91e50c914ceb0ba544",
+      "seed": 3815876597
+    },
+    {
+      "field_key": "p1m_preflight:dummy_current_agency",
+      "normalized_text": "哎，这事儿真是把我气坏了。本来我打算自己去跟领导提这个安排的，结果人家直接就答应了，连问我都不问我愿不愿意。我的声音和决定都被别人给拿走了，感觉特别难受。",
+      "raw_output": "哎，这事儿真是把我气坏了。本来我打算自己去跟领导提这个安排的，结果人家直接就答应了，连问我都不问我愿不愿意。我的声音和决定都被别人给拿走了，感觉特别难受。",
+      "renderer_input_sha256": "47d80c76be212c54d8757f8dd016e8642eb451766aafcb1a4513f68ddedcece1",
+      "seed": 4198495345
+    },
+    {
+      "field_key": "p1m_preflight:dummy_reaction_positive",
+      "normalized_text": "哎，朋友去旅行的时候，大家都建了群，还发了邀请，就是忘了我了。结果对方没有追问也没有离开，只是安静地告诉我他会陪着我一起去的。这让我感觉没有再次被落下，挺好的。",
+      "raw_output": "哎，朋友去旅行的时候，大家都建了群，还发了邀请，就是忘了我了。结果对方没有追问也没有离开，只是安静地告诉我他会陪着我一起去的。这让我感觉没有再次被落下，挺好的。",
+      "renderer_input_sha256": "6ce7c00439b9ed46e8de924dc0e6efb166d1d19efb0da04858dc3496e46729b6",
+      "seed": 1296344104
+    },
+    {
+      "field_key": "p1m_preflight:dummy_reaction_negative",
+      "normalized_text": "哎，结果对方还是坚持要自己发言，这让我感觉自己的声音都被压下去了，压力好大。",
+      "raw_output": "哎，结果对方还是坚持要自己发言，这让我感觉自己的声音都被压下去了，压力好大。",
+      "renderer_input_sha256": "a2cbe33010d732233044a69f8cf14318ab7d9cb1f58fab0334d188bd175787f5",
+      "seed": 2628221995
+    }
+  ],
+  "passed": true,
+  "required_valid_rate": 1.0,
+  "runtime_device": "cpu",
+  "scenario_outputs": 0,
+  "schema_version": "relationship-p1m-renderer-preflight.v4",
+  "surface_seed_inventory_sha256": "04716ce1c209755fd67be94c014a87411efb3a52d1e007d38f864224f0f72eb4",
+  "torch_dtype": "bfloat16",
+  "transport_id": "5dbd3d2a3a6afc0b1840abf25d34c6aca213bfce070ace97902f69518c3bef78",
+  "valid_rate": 1.0,
+  "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+}

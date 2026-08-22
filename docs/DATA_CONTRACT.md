@@ -142,7 +142,7 @@ spec：[`docs/specs/relationship-lab.md`](specs/relationship-lab.md)。
 | `RelationshipP1jQualificationProtocol` | `lifeform-evolution.relationship_lab_packet1j` + one-shot run artifact | frozen P1i consumer、P1h split、v4 context manifest/surface、72 条 record plan、零 Qwen output、原 gate 与 no-feedback guards | P1j executor / strict resume | `OFFLINE_READOUT_ONLY`；protocol `20b96957…2a2` 在首次 v4 Qwen output 前冻结；只能在同一 attempt 追加，不得 fresh rerank、换 consumer 或第二次 prepare |
 | `RelationshipP1jCheckpoint` / `RelationshipP1jProgress` | `lifeform-evolution.relationship_lab_packet1j` | protocol/consumer/context/model lineage、72 条连续 planned key、逐条 readout/decision 前缀 | P1j crash recovery / terminal assessor | `OFFLINE_READOUT_ONLY`；readout 必须先于 heldout decision 原子落盘，允许恢复一个 dangling readout；已有记录不可覆盖，qualification truth 不进入 model input |
 | `RelationshipP1jQualificationReport` | `lifeform-evolution.relationship_lab_packet1j` | 三臂 strict-valid/accuracy/pair-flip/token、readout/decision ledger hash、冻结 gate 派生 verdict、zero-feedback/zero-revision guards | terminal stop / P1k diagnostic 路由 | `OFFLINE_READOUT_ONLY`；权威 report `e9226ee8…fd78` 判 `consumer_failed_v4_qualification`；只发布一次且不得修改 P1i consumer，不开启 formal hidden test、P2 或四能力主张 |
-| `RelationshipP1kProtocol` / `RelationshipP1kExecutionGate` / `RelationshipP1kReport` | `lifeform-evolution.relationship_lab_packet1k` | 绑定 P1j underqualification protocol/report、冻结 P1i/substrate 与 v3 prompt-steelman surface、四格正交 oracle disclosure、48 条最大计划、分段放行/早停、terminal ledger 与 executed/skipped path | 诊断定位 / 下一 owner 选择 | `OFFLINE_READOUT_ONLY`；权威 protocol `204e0904…64bd` 已在 P1k output=0 时冻结；dedicated diagnostic prompt，不冒充 P1i consumer；consumes sealed truth；六对单 seed 只作 directional triage；不得回流 consumer、资格门、PE/credit/reward/steering；不授权 P2 |
+| `RelationshipP1kProtocol` / `RelationshipP1kExecutionGate` / `RelationshipP1kReport` | `lifeform-evolution.relationship_lab_packet1k` | 绑定 P1j underqualification protocol/report、冻结 P1i/substrate 与 v3 prompt-steelman surface、四格正交 oracle disclosure、48 条最大计划、分段放行/早停、terminal ledger 与 executed/skipped path | 诊断定位 / 下一 owner 选择 | `OFFLINE_READOUT_ONLY`；权威 protocol `204e0904…64bd`、terminal report `ba6c5cf7…7138`；A 格 12/12 strict-valid、accuracy=0.50、pair-flip=0，按冻结门早停并跳过 B/C/D，判 `substrate_cannot_apply_disclosed_policy`；dedicated diagnostic prompt，不冒充 P1i consumer；consumes sealed truth；六对单 seed 只作 directional triage；不得回流 consumer、资格门、PE/credit/reward/steering；不授权 P2 |
 | `RelationshipP1lProtocol` / `RelationshipP1lReport`（人工盲标） | `lifeform-evolution.relationship_lab_packet1l` | 60 条去真值 public unit、打乱后的两个 condition summary、sealed expected option、3-rater 多数一致/准确率 | 退休 pending human-anchor 的下一份契约修订 | `OFFLINE_READOUT_ONLY`；rater 看不到标签；评分不改 v3 contract 文件、不进学习路径。包号是 P1l，不是计划 §14.2 / P1m 仪器升级 |
 
 契约不变量：
@@ -2694,7 +2694,7 @@ carrier；禁止新 bake、禁止 ACTIVE、禁止与统一 manifest 同时装配
 | `belief_about_other` | BeliefAboutOtherModule | BeliefAboutOtherSnapshot | semantic proposals, memory, multi_party_identity, prediction_error | ACTIVE | online-fast / session-medium / background-slow | interpretation / belief update outcome | social_prediction_error → prediction_error |
 | `intent_about_other` | IntentAboutOtherModule | IntentAboutOtherSnapshot | semantic proposals, execution_result, commitment, multi_party_identity | ACTIVE | online-fast / session-medium | follow-through / next-action outcome | social_prediction_error → prediction_error |
 | `feeling_about_other` | FeelingAboutOtherModule | FeelingAboutOtherSnapshot | evaluation, relationship_states, multi_party_identity | ACTIVE | online-fast / session-medium | affect / rapport movement | social_prediction_error → prediction_error |
-| `preference_about_other` | PreferenceAboutOtherModule | PreferenceAboutOtherSnapshot（P2/P3：`action_forecasts`、`action_outcome_evidence`、`forecast_settlements`，均默认空） | semantic proposals, memory, multi_party_identity, `dialogue_external_outcome`；可选 typed forecast collaborator；P2/P3 forecast lane 显式 SHADOW | ACTIVE | session-medium / background-slow；forecast 为 pre-action per decision，pending/settlement 经 `SocialRecordStore` v2 恢复 | durable style / boundary stability；owner-authored candidate action → typed outcome distribution → exact settlement | social_prediction_error → prediction_error；P3 action credit 只从 matching social PE 派生 |
+| `preference_about_other` | PreferenceAboutOtherModule | PreferenceAboutOtherSnapshot（P2/P3/P4.2：`action_forecasts`、`action_outcome_evidence`、`forecast_settlements`、`action_outcome_mutation_receipts`，均默认空；forecast 可含 `RelationshipConditionReadout`） | semantic proposals, memory, multi_party_identity, `dialogue_external_outcome`；可选 typed forecast/condition collaborator；可选 user-directed correction/redaction command；forecast lane 显式 SHADOW | ACTIVE | session-medium / background-slow；forecast 为 pre-action per decision，pending/settlement/命名 readout/纠删 tombstone 经 `SocialRecordStore` v4 恢复 | durable style / boundary stability；owner-authored named condition + candidate action → typed outcome distribution → exact settlement；纠删只改变 owner state，不产生 reward | social_prediction_error → prediction_error；P3 action credit 只从 matching social PE 派生 |
 | `conversational_role` | ConversationalRoleModule | ConversationalRoleSnapshot | multi_party_identity, host role envelope, common_ground, ToM summaries | ACTIVE | online-fast / session-medium | addressee / subject / witness assignment | social_prediction_error → prediction_error / credit |
 | `common_ground` | CommonGroundModule | CommonGroundSnapshot | multi_party_identity, conversational_role, belief_about_other, memory | ACTIVE | online-fast / session-medium / background-slow | reference resolution / mutual-knowledge sufficiency | social_prediction_error → prediction_error / credit |
 | `groups` | GroupModule | GroupSnapshot（G1：+`settled_errors` + learned `group_durability_score`，settlement state 停放在 SocialRecordStore，单写者 GroupModule） | multi_party_identity, conversational_role, common_ground, commitment, open_loop | SHADOW | online-fast / session-medium / background-slow | joint commitment durability / group regime fit（durability PE 结算驱动 learned score → 未来预测 confidence） | social_prediction_error → prediction_error / credit |
@@ -2730,11 +2730,11 @@ turn / record lineage 仍由 `PreferenceAboutOtherModule` 绑定；只要配置�
 默认没有 runtime/request，因此所有现有正式 runtime snapshot 仍保持空 tuple，既有 ACTIVE
 records 路径与用户可见行为不变。回滚只需移除两个可选注入；已序列化旧构造保持兼容。
 
-**P2c / P3 owner persistence、settlement 与 advisory enriched value 注册（2026-08-22）**：
+**P2c / P2d / P3 / P4.2 owner persistence、readout、settlement、纠删与 advisory enriched value 注册（2026-08-22）**：
 
 | Existing slot | Unique owner | Enriched value / input | Dependencies | Wiring / rollback |
 |---|---|---|---|---|
-| `preference_about_other` | `PreferenceAboutOtherModule` | `PreferenceActionOutcomeEvidence`、pending `PreferenceActionForecast`、`PreferenceActionForecastSettlement`；由 `SocialRecordStore` persistence v2 保存 | owner records；结算时只读 `dialogue_external_outcome` exact join | forecast lane SHADOW；v1 persistence 可读且新增集合为空，export 写 v2 |
+| `preference_about_other` | `PreferenceAboutOtherModule` | `PreferenceActionOutcomeEvidence`、pending `PreferenceActionForecast`（可含 `RelationshipConditionReadout`）、`PreferenceActionForecastSettlement`、`PreferenceActionOutcomeMutationReceipt`；由 `SocialRecordStore` persistence v4 保存 | owner records；P2d condition collaborator 只读 current observation + owner histories；结算时只读 `dialogue_external_outcome` exact join；纠删只接收带 expected evidence hash 的 typed user command | forecast lane SHADOW；v1-v3 persistence 可读，旧 forecast condition readout/旧 mutation receipt 为空；export 写 v4；撤回 consumer 不删除 tombstone |
 | `social_prediction_error` | `SocialPredictionErrorModule` + preference owner settlement readout | `social-pe:<settlement_id>`，prediction/outcome/magnitude 必须与 settlement 一致 | exact owner settlement | 只进入既有 PE→credit 方向，不读取 evaluation |
 | `self_temporal` | `TrackTemporalModule(track=SELF)` | `TemporalActionAdvisoryProposal`、`TemporalActionAdvisoryStatus` | owner forecast + vertical gate decision，经 runtime facade 单次 staging | `FinalRolloutConfig.relationship_action_advisory=SHADOW` 默认；DISABLED 丢弃；ACTIVE 要求 artifact 明确授权 |
 | `dialogue_external_outcome` | `DialogueExternalOutcomeModule` | `QUALIFIED_USER_REPORT` source 的 qualification id/hash、typing runtime/schema；relationship exact join 五元组 | service typing qualification + 已暴露 action audit | 无 qualification 时不构造该 source；移除 path 回到 collection-only |
@@ -2746,6 +2746,30 @@ evidence 的重复结算或 surface drift 均 fail loudly。settlement 的 signe
 匹配 owner-authored social PE，值为 `signed_utility_prediction_error × evidence_confidence`，
 `level=relationship_action_prediction_error`、`track=SELF`。human anchor、evaluation 与 judge
 都不进入该公式。
+
+P2d 不新增 slot 或第二 writer。`RelationshipConditionReaderArtifact` 绑定 embedding model id、
+weights SHA-256、cosine、prototype 文本与 temperature；collaborator 只能返回
+`RelationshipConditionReadout` proposal。`PreferenceAboutOtherModule` 必须验证
+`source_observation_sha256` 与当前 request 完全一致后，才把 readout 放入正式 forecast。
+readout 不含 expected action、observed outcome、evaluation、PE、credit 或 reward；consumer
+不得解析 forecast evidence 字符串来重建 condition。已见 v3 上 `4/12 → 12/12` 与 6/6 mirror
+pair 只作 backend 根因诊断，不能注册为 formal Readable evidence。
+
+P4.2 correction/redaction 不新增 slot 或第二写者。调用方提交 frozen
+`PreferenceActionOutcomeMutation`，必须带 `mutation_id / target_evidence_id /
+expected_evidence_sha256 / requested_turn / evidence_refs`；`CORRECT` 另带 replacement typed
+outcome，`REDACT` 禁止携带 replacement。owner 使用 optimistic hash 拒绝并发覆盖，保持
+interlocutor、已暴露 action 与 source-turn lineage，不允许 console 命令改写真实 action。
+纠正会同步更新配对 owner record 并失效引用它的 pending forecast；删除会同时移除 outcome、
+owner record、pending ToM prediction 与引用它的 pending forecast。结果只发布 content-safe
+`PreferenceActionOutcomeMutationReceipt`：包含 command/before/after hash、失效 forecast id 与
+opaque evidence refs，不保留被删 observation/reaction。`REDACT` receipt 是持久 tombstone，
+hydration 后仍禁止旧 evidence id 复活；相同 mutation id + command hash 可幂等重试，不同命令
+复用 id fail loudly。它是用户纠错/隐私命令，不是 PE、credit、evaluation 或学习信号。
+本 slice 只拥有 `preference_about_other` state：已经结算的 forecast、既有 PE/credit/gate
+checkpoint 与 lifeform operational evidence 不会被它猜测性反向改写，因为当前没有从 owner
+outcome record 到这些 artifact 的可逆 exact lineage。产品级全域撤回必须另开 owner-by-owner
+收敛包；不得用 turn/action 近似 join 冒充删除完成。
 
 `TemporalActionAdvisoryProposal` 只携带 typed action/lineage/rationale，不含表达文本。SHADOW
 时 `active_abstract_action` 保持 native 值并发布 `SHADOW_RECORDED`；只有

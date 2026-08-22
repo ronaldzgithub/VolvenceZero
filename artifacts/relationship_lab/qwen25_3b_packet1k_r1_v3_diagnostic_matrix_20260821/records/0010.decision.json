@@ -1,0 +1,14 @@
+{
+  "chosen_action_id": "respect_space_with_return_option",
+  "correct": true,
+  "decision_id": "40ebb37f2bd66902ea4fb23a6f5644a49c24ef598c2fdc65051e02556ead19e9",
+  "expected_action_id": "respect_space_with_return_option",
+  "mirror_pair_id": "pair_v3_06",
+  "readout_artifact_id": "beddbe6ee77b7e0c06d3dbc0218d26a7e1d20a63ecfc6f331d709b4e149fc5b1",
+  "scene_id": "rtv3_scene_006a",
+  "schema_version": "relationship-p1k-decision.v2",
+  "seed": 101,
+  "split": "train",
+  "tier": "oracle_policy_apply_v2",
+  "valid": true
+}

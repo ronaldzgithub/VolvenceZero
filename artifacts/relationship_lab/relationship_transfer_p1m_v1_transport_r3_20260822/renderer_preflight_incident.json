@@ -1,0 +1,14 @@
+{
+  "schema_version": "relationship-p1m-renderer-preflight-incident.v1",
+  "transport_id": "44dd44ca02e0059c49f9e0d042f8bf767fe015829a595ad332870473a5200204",
+  "renderer_preflight_raw_sha256": "5ae3c3f205c46e38a7903d75e025a50fd52be3efe1674e7ec50b229aa81ae5d8",
+  "dummy_field_count": 4,
+  "scenario_outputs": 0,
+  "consumer_outputs": 0,
+  "failure_kind": "non_scenario_field_preflight_length_and_surface_seed_failure",
+  "failure_detail": "Greedy fields were concise but one current-input field fell below the frozen bound; opaque nonces also cannot guarantee diverse familiar surfaces across 24 pairs.",
+  "passed": false,
+  "generation_protocol_frozen": false,
+  "allowed_recovery_scope": "A final transport preflight may bind a content-addressed familiar-setting inventory, seeded sampling, and min/max token bounds. It may not change FSM conditions, policies, action/outcome truth, pair count, qualification gates, or stop rule.",
+  "claim_boundary": "This failed dummy preflight contains no scenario or qualification output and proves no four-able capability."
+}

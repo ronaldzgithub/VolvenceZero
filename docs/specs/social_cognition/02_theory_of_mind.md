@@ -1,7 +1,7 @@
 # Theory of Mind Spec
 
 > Status: draft
-> Last updated: 2026-07-28
+> Last updated: 2026-08-22
 > 对应需求: R17, R16, R11, R-PE, R1, R8, R15
 
 ## 要解决的问题
@@ -101,6 +101,7 @@ class PreferenceAboutOtherSnapshot:
     action_forecasts: tuple[PreferenceActionForecast, ...] = ()
     action_outcome_evidence: tuple[PreferenceActionOutcomeEvidence, ...] = ()
     forecast_settlements: tuple[PreferenceActionForecastSettlement, ...] = ()
+    action_outcome_mutation_receipts: tuple[PreferenceActionOutcomeMutationReceipt, ...] = ()
 ```
 
 `IntentAboutOtherSnapshot`、`FeelingAboutOtherSnapshot` mirror the common frozen record
@@ -115,6 +116,8 @@ P2a 只冻结公共交换，不新增行为。`PreferenceActionForecast` 必须�
 - 至少两个候选 `SocialActionCandidatePrediction`；
 - 每个候选动作在**同一有序 typed outcome vocabulary** 上的归一化概率分布；
 - owner 选出的 `recommended_action_id`、置信度、证据与 `source_record_ids`。
+- 可选 `RelationshipConditionReadout`；它必须绑定当前 observation SHA-256 与冻结 reader artifact，
+  由 owner 校验后随 forecast 发布，consumer 不得从 evidence 文本重建。
 
 `PreferenceAboutOtherSnapshot` 校验所有 source record 都由自己发布、属于同一 interlocutor，
 且 `source_turn <= issued_turn`。forecast 本身严格停在行动前，不得包含 observed outcome、
@@ -138,11 +141,26 @@ bundle，runtime view 不含 v4、preferred action 或 hidden dynamics。每个 
 `PreferenceActionOutcomeEvidence`，随后 export `SocialRecordStore` 并在新进程语义下 hydrate；
 probe session 只读取恢复后的 owner state，不重放 raw history。
 
-`SocialRecordStore` schema v2 增加 `preference_action_outcomes /
-preference_action_forecasts / preference_forecast_settlements`；v1 仍可 hydrate，新增集合为空，
-export 一律写 v2。bounded forecast runtime 使用共享 semantic embedding 比较当前 observation 与
+`SocialRecordStore` schema v2 曾增加 `preference_action_outcomes /
+preference_action_forecasts / preference_forecast_settlements`，schema v3 增加 P4.2 mutation
+receipt/tombstone；当前 schema v4 继续读取 v1/v2/v3，并持久化 forecast 的可选命名条件 readout，
+export 一律写 v4。bounded forecast runtime 使用共享 semantic embedding 比较当前 observation 与
 owner-published typed past observations，不使用关键词/正则。该 probe 证明 persistence 与 owner
 readout 机械闭合，不是 P2 formal 或 Readable 资格结论。
+
+### P2d：命名抽象条件 readout
+
+`PrototypeRelationshipPreferenceForecastRuntime` 通过注入的冻结 text embedder，将当前
+observation 与内容寻址的 condition prototypes 做 cosine 比较。它只提交
+`RelationshipConditionReadout` proposal：命名 condition、置信度、归一化 margin、全部候选
+分数、reader artifact id 与当前 observation hash；`PreferenceAboutOtherModule` 仍是唯一 writer，
+并拒绝 source hash 不等于本次 forecast request 的 proposal。artifact 同时绑定 embedding model
+id、weights SHA-256、prototype 文本、temperature 与 similarity，禁止无 lineage 的 backend 漂移。
+
+reader 看不到 evaluator、expected action、未来 outcome、PE、credit 或 judge。已见 v3 根因诊断
+中，默认字符哈希 seam 为 `4/12`，冻结 BGE-M3 backend 为 `12/12`、六对 mirror 全部双边正确；
+这只证明正式 owner 链可以发布/恢复命名 readout，并定位旧失败为 semantic backend，不是 fresh
+held-out、P2 formal 或 Readable 通过。下一证据仍须由 P1m 在首次打开前冻结生成配方与 artifact。
 
 ### P3：exact settlement 与 PE-derived action credit
 
@@ -164,6 +182,24 @@ evaluation、oracle、human anchor 与七日 continuity 均不能成为此 credi
 只把 frozen preference/social-PE snapshots 交给 cognition derivation；lifeform/service 不重建
 owner 隐状态。gate 与 temporal SHADOW contract 见
 [`relationship-intelligence-closed-alpha.md`](../relationship-intelligence-closed-alpha.md)。
+
+### P4.2：preference-action correction/redaction
+
+用户纠正与删除只由 `PreferenceAboutOtherModule` 解释。输入
+`PreferenceActionOutcomeMutation` 使用 target evidence 的 canonical SHA-256 做 optimistic
+concurrency；纠正只能替换 typed observation/outcome/reaction，不能改 interlocutor、真实暴露
+action 或 source turn。删除同时移除 paired `OtherMindRecord`、typed outcome、pending ToM
+prediction 和引用该 record 的 pending action forecast。owner 发布 frozen
+`PreferenceActionOutcomeMutationReceipt`，只含 command/before/after hash、失效 forecast id 与
+opaque refs；redaction receipt 同时是跨进程 tombstone，禁止旧证据复活。完全相同命令可幂等
+重试，hash drift、未知 target、冲突 mutation id 或 action-lineage drift 都 fail loudly。
+
+该命令不是 outcome settlement、PE、credit、reward 或 evaluation。它改变下一次 owner readout
+可见的事实面，但不经过 ModificationGate，也不授权任何 product/expression ACTIVE。P4.2 drill
+只证明“纠正/删除 → persistence v4 → 新 forecast reader / anti-resurrection”机械闭合，不是
+`recovery_after_correction` formal 效果分数。已经结算的 forecast、PE/credit/gate checkpoint 与
+lifeform operational evidence 不在本 owner 的删除权限内；当前又没有可逆 exact lineage，故本
+slice 明确不做 turn/action 近似回滚。产品级全域撤回需要后续跨 owner 契约。
 
 Implemented Phase 2 scaffold:
 
@@ -206,6 +242,14 @@ Implemented Phase 2 scaffold:
 
 ## 变更日志
 
+- 2026-08-22: P2d named condition reader。新增 frozen `RelationshipConditionReadout` 与绑定
+  embedding weights/prototypes 的内容寻址 artifact；非 owning semantic collaborator 提 proposal，
+  preference owner 校验 current-observation hash 后发布。`SocialRecordStore` export 升为 v4，继续
+  hydrate v1-v3。seen-v3 结果仅作根因诊断，P2 formal/Readable 保持关闭。
+- 2026-08-22: P4.2 preference-action mutation owner。新增 optimistic-hash correction/redaction
+  command、不可变 receipt 与（现由 `SocialRecordStore` v4 保存的）tombstone；owner 原子更新 record/outcome/
+  pending prediction/forecast，跨恢复阻止旧证据复活。独立 P4.2 drill 不读 evaluator、不调用模型，
+  不改变 production wiring 或 P4.1 效果口径。
 - 2026-08-22: P2c/P3 closure。`SocialRecordStore` v2 持久化 typed action history、pending
   forecasts 与 settlements；v3-only development probe 跨四次恢复后发布独立 forecast。P3
   通过 `dialogue_external_outcome` exact join 结算 probability/NLL/utility PE，action credit

@@ -157,6 +157,23 @@ def test_social_record_store_invalid_atom_blob_fails_loud() -> None:
         )
 
 
+def test_social_record_store_v3_requires_mutation_receipt_collection() -> None:
+    from volvence_zero.social import SocialRecordStore
+
+    store = SocialRecordStore()
+    with pytest.raises(
+        HydrationPayloadInvalidError,
+        match="preference_action_outcome_mutation_receipts",
+    ):
+        store.hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="social_record_store",
+                schema_version=3,
+                payload={},
+            )
+        )
+
+
 def test_regime_owner_name_mismatch_fails_loud() -> None:
     from volvence_zero.regime import RegimeModule
 

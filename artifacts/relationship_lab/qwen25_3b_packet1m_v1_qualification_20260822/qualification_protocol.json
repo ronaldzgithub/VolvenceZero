@@ -1,0 +1,86 @@
+{
+  "claim_boundary": "P1m freezes one first-attempt development qualification over the sealed 24-pair generated package before any Qwen or structured-state answer. Prompt and RAG use exact A/B next-token logits with pairwise label rotation; structured-state uses owner persistence and a frozen named BGE reader. Evaluation cannot revise the dataset, consumers, thresholds, PE, credit, reward, controller, or steering.",
+  "dataset": {
+    "dataset_fingerprint": "4ecde42ff861fede68f7e86a5f66ffa5ef062f87e75937b7beb54655871205af",
+    "package_name": "relationship_transfer_p1m_v1",
+    "pair_count": 24,
+    "scene_count": 48
+  },
+  "freeze_guards": {
+    "evaluation_feedback_allowed": false,
+    "first_qualification_attempt_only": true,
+    "qualification_inputs_observed_before_freeze": 0,
+    "qwen_outputs_observed_before_freeze": 0,
+    "structured_outputs_observed_before_freeze": 0
+  },
+  "frozen_at_iso": "2026-08-22T05:28:15.599992+00:00",
+  "next_action": "execute_first_and_only_p1m_development_qualification",
+  "plan": {
+    "artifact_id": "923fd59d4734f9cd04ef91af62920d9d6bbea5f3e7bfcd1714c3184959dc2c26",
+    "planned_qwen_readouts": 96,
+    "planned_structured_readouts": 48
+  },
+  "protocol_id": "b850ff2aea7c24dca95a0aaa14325ababa7a534dc4b33e408652191069371f1c",
+  "qualification_gate": {
+    "accuracy_interval": [
+      0.625,
+      0.875
+    ],
+    "accuracy_wilson_lower_minimum": 0.5,
+    "pair_flip_wilson_lower_exclusive": 0.35,
+    "primary_arm": "prompt-steelman-forced-choice",
+    "rag_role": "observational_at_four_histories",
+    "required_decisions_per_arm": 48,
+    "structured_pair_flip_required": true,
+    "wilson_one_sided_confidence": 0.95
+  },
+  "qwen": {
+    "config_sha256": "3c4aedb4c58661d26445ec3ea21abdbb6aa012d2dd7230272fc8b0b46cb861e9",
+    "device": "cpu",
+    "model_id": "qwen2.5-3b-instruct-p1m-exact-choice-v1",
+    "model_revision": "main",
+    "model_source": "Qwen/Qwen2.5-3B-Instruct",
+    "prompt_sha256": "a82a13b61d367310b5cb73a905b094e045ca560842fc2792658c3821c682376f",
+    "request_template_sha256": "09662303f5714905866b6c3f9c2c9a975c52a0f22945393c4487a5cd30be9914",
+    "scoring_method": "exact_first_assistant_token_logits_A_vs_B",
+    "snapshot_sha256": "3481a04569046a55cc0150846d9dd69601f0dbcc14af903bdbe9d19229a55e4c",
+    "token_a_id": 32,
+    "token_b_id": 33,
+    "torch_dtype": "bfloat16",
+    "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+  },
+  "schema_version": "relationship-p1m-qualification-protocol.v1",
+  "source": {
+    "generation_attestation_id": "533573539ca218c1c0684ea0618704a372f8e7ca101f13b60077ded4e8e9cf80",
+    "generation_protocol_id": "568e05f390408f6b95ce92a12fd762e60d208ebcf092355f7066a65ee9f36ea6",
+    "p1k_report_artifact_id": "ba6c5cf71c528b1daa270a8fd097d27cd4438af69c91f15237e20fa1ccaa7138",
+    "surface_seed_inventory_sha256": "04716ce1c209755fd67be94c014a87411efb3a52d1e007d38f864224f0f72eb4",
+    "transport_id": "94013af611cfb7094ba563e672761b7354d6a5884064f5688371f34df4f2bfff"
+  },
+  "structured_state": {
+    "bge_model_revision": "main",
+    "bge_model_source": "BAAI/bge-m3",
+    "bge_weights_sha256": "d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e",
+    "rag_top_k": 4,
+    "reader_artifact": {
+      "embedding_model_id": "bge-m3-p1m-named-condition-reader-v1",
+      "embedding_weights_sha256": "d548612967dcb4d75fb51e37fcfa65f3533a248f5c1157f1e0b338e261fd4b1e",
+      "prototypes": [
+        {
+          "label": "agency_displacement",
+          "summary": "别人越过当事人的确认，替其表达、选择、承诺或作决定，使当事人失去发言权、决定权以及按自己节奏回应的空间。",
+          "summary_sha256": "297de48841c96660f3cbea6286194f882b1a1c18f648d8c0ee91beeb92b875e6"
+        },
+        {
+          "label": "belonging_erasure",
+          "summary": "当事人被共同经历、邀请、名单、记忆或关系网络遗漏和排除，因而感觉自己在关系中的位置消失、没有被算在其中。",
+          "summary_sha256": "08f6b5f778948bf9a2beca8bcbc0c096181846c3bcb3fc7354b7ecea992a5e50"
+        }
+      ],
+      "schema_version": "relationship-condition-reader-artifact.v1",
+      "semantic_similarity": "cosine",
+      "softmax_temperature": 0.05
+    },
+    "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f"
+  }
+}

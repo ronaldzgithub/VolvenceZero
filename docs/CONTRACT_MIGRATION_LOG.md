@@ -543,3 +543,85 @@ Side effects enter the kernel only through public `BrainSession.submit_*` /
 `relationship_action_advisory` 降为 DISABLED；v1 owner persistence 继续兼容。退出 SHADOW
 必须另有真实 action exposure 与 promotion evidence，当前未满足。权威 spec：
 `docs/specs/relationship-intelligence-closed-alpha.md`。
+
+## Slice Relationship P1m（2026-08-22）：生成式仪器、fresh reader 资格与止损终局
+
+本 slice 不新增 kernel slot、runtime writer 或 product wiring；它冻结并只读评估 Relationship Lab
+instrument：
+
+- `lifeform-domain-emogpt` 以内容寻址 recipe、surface seed inventory 与 renderer transport
+  生成 24 组镜像对；v1–v4 transport/preflight 失败保留，v5 deterministic typed surface
+  realizer 通过逐字段 expected-output hash 后生成 48 个 scene；
+- `lifeform-evolution.relationship_lab_packet1m_qualification` 在 output=0 时冻结 96 条 Qwen
+  prompt/RAG 读出与 48 条 owner/reader 读出、模型/reader lineage、A/B 轮换和 Wilson 单侧门；
+- 最终 prompt/RAG 都是 24/48 correct、0/24 pair flip；structured named reader 为 46/48、
+  24/24 flip。report `9580ddff…fc56` 判 `prompt_steelman_baseline_too_weak`，场景版本化关闭；
+- terminal loader 复算 report artifact id、derived metrics、protocol/plan lineage、四本账 SHA/行数
+  与 batch execution manifest；evaluation 不回写 PE/credit/gate。
+
+回滚：停止消费 P1m artifacts；产品和 P2–P4 wiring 不变。旧 artifact 不删除、不改判词。fresh
+structured 结果只允许作为后续独立 runtime 因果包的候选组件证据，不得写成 P2 formal、
+Volvence advantage、Readable 或四能力已通过。权威 spec：`docs/specs/relationship-lab.md`。
+
+## Slice Relationship P4.3（2026-08-22）：named readout 到动作与 outcome 的隔离传导
+
+本 slice 不新增 kernel slot、runtime writer 或产品 ACTIVE；它把 P1m 候选 reader 接入已存在的
+P4.1 Lab owner loop，并只发布 development report：
+
+- `run_relationship_p4_subject_mechanism(...)` 公开 arm-neutral runner；原 P4.1 wrapper 继续复用
+  同一实现，避免第二条 owner/settlement 链；
+- legacy 与 P1m named 两臂都固定 `RelationshipActionGateMode.ALWAYS`，都派生 PE/credit 但不向
+  gate 回写，因此唯一改变的 collaborator 是 frozen condition reader；
+- seen-v3 两条 subject 上 legacy/named 分别得到 6/16 与 16/16 preferred-action match、9/16 与
+  16/16 positive outcome；matched action/outcome change 为 10/16 与 9/16；
+- report `e7bbc914…70bd` 绑定 P1m report/protocol/reader、P4 protocol/public-plan hash；create-only
+  JSON/Markdown 已用同一 frozen BGE 重跑并验证派生指标、artifact id 与字节内容；
+- `component_selected_after_p1m_observation=true / seen_fixture_only=true /
+  formal_evidence_authorized=false` 是不可关闭的 claim firewall。
+
+回滚：停止运行/消费 `relationship_lab_p4_named_reader` 即可；P2d reader、P3 gate、P4 product 与
+P4.1 protocol 均未改 wiring。该包只证明 development readout transmission，不能修复 P1m、授权
+P2 formal、证明 Volvence advantage、完整 Readable 或四能力。下一包固定 reader，只隔离
+PE-derived credit 是否更新 learned gate。权威 spec：
+`docs/specs/relationship-intelligence-closed-alpha.md`。
+
+## Slice Relationship P4.2（2026-08-22）：preference-action 纠删 receipt/tombstone
+
+本 slice 继续 enrich `preference_about_other`，不新增 slot 或 writer：
+
+- `PreferenceAboutOtherSnapshot` 增加默认空的
+  `action_outcome_mutation_receipts`；旧构造保持兼容；
+- 新 frozen `PreferenceActionOutcomeMutation` 以 expected evidence SHA-256 做 optimistic
+  concurrency；新 `PreferenceActionOutcomeMutationReceipt` 只保存 hash、opaque refs 与失效
+  forecast ids；
+- `SocialRecordStore` export 升为 v3，继续 hydrate v1/v2；旧 snapshot 的 receipt 集合为空；
+- `REDACT` receipt 是持久 tombstone。纠正/删除由 `PreferenceAboutOtherModule` 原子更新
+  record、outcome、pending ToM prediction 与 pending forecast，旧 evidence id 不得跨恢复复活；
+- mutation 是 user-directed state correction/privacy command，不进入 PE、credit、evaluation、
+  ModificationGate 或 product ACTIVE。
+
+回滚：可停止 mutation consumer/drill；不得删除已落盘 redaction tombstone，也不得把 v3 手工
+降成 v2 后重新导入旧证据。P4.2 engineering drill 的 PASS 仅代表跨恢复机械闭合，不代表
+formal `recovery_after_correction` 效果通过。权威 spec：
+`docs/specs/social_cognition/02_theory_of_mind.md` 与
+`docs/specs/relationship-intelligence-closed-alpha.md`。
+
+## Slice Relationship P2d（2026-08-22）：命名条件 readout 与 persistence v4
+
+本 slice 继续 enrich `preference_about_other`，不新增 slot 或 writer：
+
+- 新 frozen `RelationshipConditionReadout` 保存命名 condition、置信度、归一化 margin、全部候选
+  分数、reader artifact id 与 current-observation SHA-256；
+- `RelationshipConditionReaderArtifact` 内容寻址地绑定 embedding model id、weights SHA-256、
+  cosine、prototype 文本与 temperature；embedding backend 由 composition root 注入；
+- 非 owning collaborator 只提 proposal；`PreferenceAboutOtherModule` 校验 source hash 与当前
+  request 后才随正式 `PreferenceActionForecast` 发布，consumer 不解析 evidence 重建状态；
+- `SocialRecordStore` export 升为 v4，继续 hydrate v1/v2/v3；旧 forecast 的 condition readout
+  显式为空，P4.2 tombstone/receipt 原样保留；
+- reader 不接 evaluator、expected action、未来 outcome、PE、credit、reward 或 judge。
+
+回滚：移除 P2d collaborator 即恢复 condition-readout 为空的 SHADOW forecast；v4 payload 继续
+由 owner 读取，禁止降版覆盖或丢弃 redaction tombstone。已见 v3 的 `4/12 → 12/12` 与 6/6
+mirror-pair 结果只定位旧字符哈希 backend，不是 P2 formal、Readable 或四能力证据；P1m fresh
+qualification 仍是退出条件。权威 spec：`docs/specs/social_cognition/02_theory_of_mind.md` 与
+`docs/specs/relationship-intelligence-closed-alpha.md`。

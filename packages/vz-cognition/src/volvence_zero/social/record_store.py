@@ -49,20 +49,24 @@ from volvence_zero.social_cognition import (
     OtherMindRecordKind,
     OtherMindRecordStatus,
     PreferenceActionOutcomeEvidence,
+    PreferenceActionOutcomeMutationOperation,
+    PreferenceActionOutcomeMutationReceipt,
     PreferenceActionForecast,
     PreferenceActionForecastSettlement,
+    RelationshipConditionReadout,
     SocialActionCandidatePrediction,
     SocialActionOutcomeProbability,
     SocialPrediction,
     SocialPredictionError,
     SocialPredictionOutcome,
     SocialScopeKind,
+    preference_action_outcome_evidence_sha256,
 )
 
 SimilarityFn = Callable[[str, str], float]
 _SOCIAL_RECORD_OWNER_NAME = "social_record_store"
-_SOCIAL_RECORD_SCHEMA_VERSION = 2
-_SOCIAL_RECORD_COMPATIBLE_SCHEMA_VERSIONS = frozenset({1, 2})
+_SOCIAL_RECORD_SCHEMA_VERSION = 4
+_SOCIAL_RECORD_COMPATIBLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4})
 
 TOM_SLOTS: tuple[str, ...] = (
     "belief_about_other",
@@ -86,9 +90,7 @@ GROUP_DURABILITY_PRIOR = 0.5
 def default_summary_similarity(left: str, right: str) -> float:
     """Unit-scaled semantic similarity via the shared embedding seam."""
 
-    cosine = _cosine_similarity(
-        _semantic_embedding(left), _semantic_embedding(right)
-    )
+    cosine = _cosine_similarity(_semantic_embedding(left), _semantic_embedding(right))
     return max(0.0, min(1.0, (cosine + 1.0) / 2.0))
 
 
@@ -163,10 +165,7 @@ def settle_pending_predictions(
                 still_pending.append(entry)
             continue
         best_evidence_id, best_similarity = max(
-            (
-                (evidence_id, similarity(prediction.predicted_outcome, summary))
-                for evidence_id, summary in candidates
-            ),
+            ((evidence_id, similarity(prediction.predicted_outcome, summary)) for evidence_id, summary in candidates),
             key=lambda item: item[1],
         )
         best_similarity = max(0.0, min(1.0, best_similarity))
@@ -263,19 +262,12 @@ class SocialRecordStore:
 
     def __init__(self, *, similarity: SimilarityFn | None = None) -> None:
         self._similarity = similarity or default_summary_similarity
-        self._tom_records: dict[str, tuple[OtherMindRecord, ...]] = {
-            slot: () for slot in TOM_SLOTS
-        }
-        self._tom_pending: dict[str, tuple[PendingSocialPrediction, ...]] = {
-            slot: () for slot in TOM_SLOTS
-        }
-        self._preference_action_outcomes: tuple[
-            PreferenceActionOutcomeEvidence, ...
-        ] = ()
+        self._tom_records: dict[str, tuple[OtherMindRecord, ...]] = {slot: () for slot in TOM_SLOTS}
+        self._tom_pending: dict[str, tuple[PendingSocialPrediction, ...]] = {slot: () for slot in TOM_SLOTS}
+        self._preference_action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...] = ()
         self._preference_action_forecasts: tuple[PreferenceActionForecast, ...] = ()
-        self._preference_forecast_settlements: tuple[
-            PreferenceActionForecastSettlement, ...
-        ] = ()
+        self._preference_forecast_settlements: tuple[PreferenceActionForecastSettlement, ...] = ()
+        self._preference_action_outcome_mutation_receipts: tuple[PreferenceActionOutcomeMutationReceipt, ...] = ()
         self._cg_dyad_atoms: tuple[CommonGroundAtom, ...] = ()
         self._cg_group_atoms: tuple[CommonGroundAtom, ...] = ()
         self._cg_pending: tuple[PendingSocialPrediction, ...] = ()
@@ -304,26 +296,21 @@ class SocialRecordStore:
                     for slot, records in self._tom_records.items()
                 },
                 "preference_action_outcomes": [
-                    _serialize_preference_action_outcome(item)
-                    for item in self._preference_action_outcomes
+                    _serialize_preference_action_outcome(item) for item in self._preference_action_outcomes
                 ],
                 "preference_action_forecasts": [
-                    _serialize_preference_action_forecast(item)
-                    for item in self._preference_action_forecasts
+                    _serialize_preference_action_forecast(item) for item in self._preference_action_forecasts
                 ],
                 "preference_forecast_settlements": [
-                    _serialize_preference_forecast_settlement(item)
-                    for item in self._preference_forecast_settlements
+                    _serialize_preference_forecast_settlement(item) for item in self._preference_forecast_settlements
+                ],
+                "preference_action_outcome_mutation_receipts": [
+                    _serialize_preference_action_outcome_mutation_receipt(item)
+                    for item in self._preference_action_outcome_mutation_receipts
                 ],
                 "common_ground": {
-                    "dyad_atoms": [
-                        _serialize_common_ground_atom(atom)
-                        for atom in self._cg_dyad_atoms
-                    ],
-                    "group_atoms": [
-                        _serialize_common_ground_atom(atom)
-                        for atom in self._cg_group_atoms
-                    ],
+                    "dyad_atoms": [_serialize_common_ground_atom(atom) for atom in self._cg_dyad_atoms],
+                    "group_atoms": [_serialize_common_ground_atom(atom) for atom in self._cg_group_atoms],
                 },
                 "group_regimes": dict(self._group_regimes),
                 "group_durability": dict(self._group_durability),
@@ -335,13 +322,10 @@ class SocialRecordStore:
             ),
         )
 
-    def hydrate_from_persistence(
-        self, snapshot: OwnerPersistenceSnapshot
-    ) -> None:
+    def hydrate_from_persistence(self, snapshot: OwnerPersistenceSnapshot) -> None:
         if snapshot.owner_name != _SOCIAL_RECORD_OWNER_NAME:
             raise HydrationOwnerMismatchError(
-                "SocialRecordStore expected owner_name="
-                f"{_SOCIAL_RECORD_OWNER_NAME!r}, got {snapshot.owner_name!r}"
+                f"SocialRecordStore expected owner_name={_SOCIAL_RECORD_OWNER_NAME!r}, got {snapshot.owner_name!r}"
             )
         if snapshot.schema_version not in _SOCIAL_RECORD_COMPATIBLE_SCHEMA_VERSIONS:
             raise HydrationVersionMismatchError(
@@ -370,76 +354,89 @@ class SocialRecordStore:
             entries = tom_records_blob.get(slot, ())
             if not isinstance(entries, list | tuple):
                 raise HydrationPayloadInvalidError(
-                    "SocialRecordStore payload['tom_records']"
-                    f"[{slot!r}] must be a list; got {type(entries).__name__}"
+                    f"SocialRecordStore payload['tom_records'][{slot!r}] must be a list; got {type(entries).__name__}"
                 )
-            new_tom_records[slot] = tuple(
-                _deserialize_other_mind_record(entry) for entry in entries
-            )[-_RECORD_WINDOW:]
+            new_tom_records[slot] = tuple(_deserialize_other_mind_record(entry) for entry in entries)[-_RECORD_WINDOW:]
 
-        preference_action_outcomes_blob = payload.get(
-            "preference_action_outcomes", ()
-        )
+        preference_action_outcomes_blob = payload.get("preference_action_outcomes", ())
         if not isinstance(preference_action_outcomes_blob, list | tuple):
             raise HydrationPayloadInvalidError(
                 "SocialRecordStore preference_action_outcomes must be a list; "
                 f"got {type(preference_action_outcomes_blob).__name__}"
             )
         new_preference_action_outcomes = tuple(
-            _deserialize_preference_action_outcome(item)
-            for item in preference_action_outcomes_blob
+            _deserialize_preference_action_outcome(item) for item in preference_action_outcomes_blob
         )[-_RECORD_WINDOW:]
-        preference_action_forecasts_blob = payload.get(
-            "preference_action_forecasts", ()
-        )
+        preference_action_forecasts_blob = payload.get("preference_action_forecasts", ())
         if not isinstance(preference_action_forecasts_blob, list | tuple):
             raise HydrationPayloadInvalidError(
                 "SocialRecordStore preference_action_forecasts must be a list; "
                 f"got {type(preference_action_forecasts_blob).__name__}"
             )
         new_preference_action_forecasts = tuple(
-            _deserialize_preference_action_forecast(item)
+            _deserialize_preference_action_forecast(
+                item,
+                schema_version=snapshot.schema_version,
+            )
             for item in preference_action_forecasts_blob
         )[-_RECORD_WINDOW:]
-        preference_forecast_settlements_blob = payload.get(
-            "preference_forecast_settlements", ()
-        )
+        preference_forecast_settlements_blob = payload.get("preference_forecast_settlements", ())
         if not isinstance(preference_forecast_settlements_blob, list | tuple):
             raise HydrationPayloadInvalidError(
                 "SocialRecordStore preference_forecast_settlements must be a list; "
                 f"got {type(preference_forecast_settlements_blob).__name__}"
             )
         new_preference_forecast_settlements = tuple(
-            _deserialize_preference_forecast_settlement(item)
-            for item in preference_forecast_settlements_blob
+            _deserialize_preference_forecast_settlement(item) for item in preference_forecast_settlements_blob
         )[-_RECORD_WINDOW:]
+        if snapshot.schema_version >= 3:
+            try:
+                mutation_receipts_blob = payload["preference_action_outcome_mutation_receipts"]
+            except KeyError as exc:
+                raise HydrationPayloadInvalidError(
+                    "SocialRecordStore v3 payload is missing preference_action_outcome_mutation_receipts"
+                ) from exc
+        else:
+            mutation_receipts_blob = ()
+        if not isinstance(mutation_receipts_blob, list | tuple):
+            raise HydrationPayloadInvalidError(
+                "SocialRecordStore preference_action_outcome_mutation_receipts "
+                f"must be a list; got {type(mutation_receipts_blob).__name__}"
+            )
+        new_mutation_receipts = tuple(
+            _deserialize_preference_action_outcome_mutation_receipt(item) for item in mutation_receipts_blob
+        )
+
+        try:
+            _validate_preference_action_outcome_mutation_state(
+                records=new_tom_records["preference_about_other"],
+                action_outcomes=new_preference_action_outcomes,
+                receipts=new_mutation_receipts,
+            )
+        except ValueError as exc:
+            raise HydrationPayloadInvalidError(
+                f"SocialRecordStore preference action mutation state is invalid: {exc}"
+            ) from exc
 
         dyad_blob = common_ground_blob.get("dyad_atoms", ())
         group_blob = common_ground_blob.get("group_atoms", ())
         if not isinstance(dyad_blob, list | tuple):
             raise HydrationPayloadInvalidError(
-                "SocialRecordStore common_ground.dyad_atoms must be a list; "
-                f"got {type(dyad_blob).__name__}"
+                f"SocialRecordStore common_ground.dyad_atoms must be a list; got {type(dyad_blob).__name__}"
             )
         if not isinstance(group_blob, list | tuple):
             raise HydrationPayloadInvalidError(
-                "SocialRecordStore common_ground.group_atoms must be a list; "
-                f"got {type(group_blob).__name__}"
+                f"SocialRecordStore common_ground.group_atoms must be a list; got {type(group_blob).__name__}"
             )
 
         self._tom_records = new_tom_records
         self._tom_pending = {slot: () for slot in TOM_SLOTS}
         self._preference_action_outcomes = new_preference_action_outcomes
         self._preference_action_forecasts = new_preference_action_forecasts
-        self._preference_forecast_settlements = (
-            new_preference_forecast_settlements
-        )
-        self._cg_dyad_atoms = tuple(
-            _deserialize_common_ground_atom(entry) for entry in dyad_blob
-        )[-_ATOM_WINDOW:]
-        self._cg_group_atoms = tuple(
-            _deserialize_common_ground_atom(entry) for entry in group_blob
-        )[-_ATOM_WINDOW:]
+        self._preference_forecast_settlements = new_preference_forecast_settlements
+        self._preference_action_outcome_mutation_receipts = new_mutation_receipts
+        self._cg_dyad_atoms = tuple(_deserialize_common_ground_atom(entry) for entry in dyad_blob)[-_ATOM_WINDOW:]
+        self._cg_group_atoms = tuple(_deserialize_common_ground_atom(entry) for entry in group_blob)[-_ATOM_WINDOW:]
         self._cg_pending = ()
         self._group_regimes = {
             str(group_id): str(regime_id)
@@ -463,21 +460,22 @@ class SocialRecordStore:
         self._require_tom_slot(slot)
         return self._tom_records[slot]
 
-    def set_tom_records(
-        self, slot: str, records: tuple[OtherMindRecord, ...]
-    ) -> None:
+    def set_tom_records(self, slot: str, records: tuple[OtherMindRecord, ...]) -> None:
         self._require_tom_slot(slot)
-        self._tom_records[slot] = records[-_RECORD_WINDOW:]
+        bounded_records = records[-_RECORD_WINDOW:]
+        if slot == "preference_about_other":
+            _validate_receipt_managed_preference_records(
+                records=bounded_records,
+                action_outcomes=self._preference_action_outcomes,
+                receipts=self._preference_action_outcome_mutation_receipts,
+            )
+        self._tom_records[slot] = bounded_records
 
-    def pending_tom_predictions(
-        self, slot: str
-    ) -> tuple[PendingSocialPrediction, ...]:
+    def pending_tom_predictions(self, slot: str) -> tuple[PendingSocialPrediction, ...]:
         self._require_tom_slot(slot)
         return self._tom_pending[slot]
 
-    def set_pending_tom_predictions(
-        self, slot: str, pending: tuple[PendingSocialPrediction, ...]
-    ) -> None:
+    def set_pending_tom_predictions(self, slot: str, pending: tuple[PendingSocialPrediction, ...]) -> None:
         self._require_tom_slot(slot)
         self._tom_pending[slot] = pending[-_RECORD_WINDOW:]
 
@@ -497,20 +495,16 @@ class SocialRecordStore:
         self,
         action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...],
     ) -> None:
+        bounded_outcomes = action_outcomes[-_RECORD_WINDOW:]
         evidence_ids = tuple(item.evidence_id for item in action_outcomes)
         if len(set(evidence_ids)) != len(evidence_ids):
             raise ValueError("preference action outcome evidence ids must be unique")
-        record_ids = {
-            record.record_id
-            for record in self._tom_records["preference_about_other"]
-        }
-        unknown_ids = set(evidence_ids).difference(record_ids)
-        if unknown_ids:
-            raise ValueError(
-                "preference action outcome evidence must reference owner records; "
-                f"unknown={sorted(unknown_ids)!r}"
-            )
-        self._preference_action_outcomes = action_outcomes[-_RECORD_WINDOW:]
+        _validate_preference_action_outcome_mutation_state(
+            records=self._tom_records["preference_about_other"],
+            action_outcomes=bounded_outcomes,
+            receipts=self._preference_action_outcome_mutation_receipts,
+        )
+        self._preference_action_outcomes = bounded_outcomes
 
     @property
     def preference_action_forecasts(self) -> tuple[PreferenceActionForecast, ...]:
@@ -543,6 +537,63 @@ class SocialRecordStore:
             raise ValueError("a preference action forecast may settle at most once")
         self._preference_forecast_settlements = settlements[-_RECORD_WINDOW:]
 
+    @property
+    def preference_action_outcome_mutation_receipts(
+        self,
+    ) -> tuple[PreferenceActionOutcomeMutationReceipt, ...]:
+        return self._preference_action_outcome_mutation_receipts
+
+    def replace_preference_action_mutation_state(
+        self,
+        *,
+        records: tuple[OtherMindRecord, ...],
+        pending_predictions: tuple[PendingSocialPrediction, ...],
+        action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...],
+        action_forecasts: tuple[PreferenceActionForecast, ...],
+        receipts: tuple[PreferenceActionOutcomeMutationReceipt, ...],
+    ) -> None:
+        """Atomically install owner-validated correction/redaction state.
+
+        This method does not interpret a mutation command. It only gives the
+        single preference owner one consistency boundary across the five store
+        collections that a correction or redaction must change together.
+        """
+
+        bounded_records = records[-_RECORD_WINDOW:]
+        bounded_pending = pending_predictions[-_RECORD_WINDOW:]
+        bounded_outcomes = action_outcomes[-_RECORD_WINDOW:]
+        bounded_forecasts = action_forecasts[-_RECORD_WINDOW:]
+        current_receipts = self._preference_action_outcome_mutation_receipts
+        if receipts[: len(current_receipts)] != current_receipts:
+            raise ValueError("preference action outcome mutation receipts are append-only")
+        _validate_preference_action_outcome_mutation_state(
+            records=bounded_records,
+            action_outcomes=bounded_outcomes,
+            receipts=receipts,
+        )
+        record_ids = {record.record_id for record in bounded_records}
+        unknown_pending_ids = {item.source_record_id for item in bounded_pending}.difference(record_ids)
+        if unknown_pending_ids:
+            raise ValueError(
+                f"preference pending predictions must reference owner records; unknown={sorted(unknown_pending_ids)!r}"
+            )
+        forecast_ids = tuple(item.forecast_id for item in bounded_forecasts)
+        if len(set(forecast_ids)) != len(forecast_ids):
+            raise ValueError("preference action forecast ids must be unique")
+        unknown_forecast_record_ids = {
+            source_record_id for forecast in bounded_forecasts for source_record_id in forecast.source_record_ids
+        }.difference(record_ids)
+        if unknown_forecast_record_ids:
+            raise ValueError(
+                "preference action forecasts must reference owner records; "
+                f"unknown={sorted(unknown_forecast_record_ids)!r}"
+            )
+        self._tom_records["preference_about_other"] = bounded_records
+        self._tom_pending["preference_about_other"] = bounded_pending
+        self._preference_action_outcomes = bounded_outcomes
+        self._preference_action_forecasts = bounded_forecasts
+        self._preference_action_outcome_mutation_receipts = receipts
+
     # ----- common ground -----
 
     @property
@@ -568,9 +619,7 @@ class SocialRecordStore:
     ) -> tuple[PendingSocialPrediction, ...]:
         return self._cg_pending
 
-    def set_pending_common_ground_predictions(
-        self, pending: tuple[PendingSocialPrediction, ...]
-    ) -> None:
+    def set_pending_common_ground_predictions(self, pending: tuple[PendingSocialPrediction, ...]) -> None:
         self._cg_pending = pending[-_ATOM_WINDOW:]
 
     # ----- group regime persistence (R14 / CP-18) -----
@@ -608,9 +657,7 @@ class SocialRecordStore:
     def pending_group_predictions(self) -> tuple[PendingSocialPrediction, ...]:
         return self._group_pending
 
-    def set_pending_group_predictions(
-        self, pending: tuple[PendingSocialPrediction, ...]
-    ) -> None:
+    def set_pending_group_predictions(self, pending: tuple[PendingSocialPrediction, ...]) -> None:
         self._group_pending = pending[-_RECORD_WINDOW:]
 
     def group_durability_for(self, group_id: str) -> float:
@@ -620,9 +667,7 @@ class SocialRecordStore:
             raise ValueError("group_id must be non-empty")
         return self._group_durability.get(group_id, GROUP_DURABILITY_PRIOR)
 
-    def apply_group_settlement(
-        self, group_id: str, outcome: SocialPredictionOutcome
-    ) -> float:
+    def apply_group_settlement(self, group_id: str, outcome: SocialPredictionOutcome) -> float:
         """Bounded online update of the learned durability score.
 
         CONFIRMED: score += gain. DISCONFIRMED: score -= loss (the
@@ -651,10 +696,93 @@ def _mapping_value(
     value = payload.get(key, default)
     if not isinstance(value, Mapping):
         raise HydrationPayloadInvalidError(
-            f"SocialRecordStore payload[{key!r}] must be a mapping; "
-            f"got {type(value).__name__}"
+            f"SocialRecordStore payload[{key!r}] must be a mapping; got {type(value).__name__}"
         )
     return value
+
+
+def _validate_preference_action_outcome_mutation_state(
+    *,
+    records: tuple[OtherMindRecord, ...],
+    action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...],
+    receipts: tuple[PreferenceActionOutcomeMutationReceipt, ...],
+) -> None:
+    record_ids = tuple(record.record_id for record in records)
+    if len(set(record_ids)) != len(record_ids):
+        raise ValueError("preference owner record ids must be unique")
+    for record in records:
+        if record.kind is not OtherMindRecordKind.PREFERENCE:
+            raise ValueError("preference owner store cannot contain another ToM kind")
+
+    records_by_id = {record.record_id: record for record in records}
+    evidence_ids = tuple(item.evidence_id for item in action_outcomes)
+    if len(set(evidence_ids)) != len(evidence_ids):
+        raise ValueError("preference action outcome evidence ids must be unique")
+    for item in action_outcomes:
+        record = records_by_id.get(item.evidence_id)
+        if record is None:
+            raise ValueError(
+                f"preference action outcome evidence must reference owner records; unknown={item.evidence_id!r}"
+            )
+        if record.interlocutor_id != item.interlocutor_id:
+            raise ValueError("preference action outcome evidence interlocutor lineage mismatch")
+        if record.source_turn != item.source_turn:
+            raise ValueError("preference action outcome evidence turn lineage mismatch")
+
+    mutation_ids = tuple(receipt.mutation_id for receipt in receipts)
+    if len(set(mutation_ids)) != len(mutation_ids):
+        raise ValueError("preference action outcome mutation ids must be unique")
+    latest_by_target: dict[str, PreferenceActionOutcomeMutationReceipt] = {}
+    for receipt in receipts:
+        previous = latest_by_target.get(receipt.target_evidence_id)
+        if previous is not None:
+            if previous.operation is PreferenceActionOutcomeMutationOperation.REDACT:
+                raise ValueError("redacted preference evidence cannot be mutated again")
+            if receipt.applied_turn < previous.applied_turn:
+                raise ValueError("preference mutation receipt turns must be monotonic")
+            if receipt.before_evidence_sha256 != previous.after_evidence_sha256:
+                raise ValueError("preference mutation receipt hash chain is broken")
+        latest_by_target[receipt.target_evidence_id] = receipt
+
+    _validate_receipt_managed_preference_records(
+        records=records,
+        action_outcomes=action_outcomes,
+        receipts=receipts,
+    )
+
+
+def _validate_receipt_managed_preference_records(
+    *,
+    records: tuple[OtherMindRecord, ...],
+    action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...],
+    receipts: tuple[PreferenceActionOutcomeMutationReceipt, ...],
+) -> None:
+    records_by_id = {record.record_id: record for record in records}
+    outcomes_by_id = {item.evidence_id: item for item in action_outcomes}
+    latest_by_target: dict[str, PreferenceActionOutcomeMutationReceipt] = {}
+    for receipt in receipts:
+        latest_by_target[receipt.target_evidence_id] = receipt
+    for target_evidence_id, latest in latest_by_target.items():
+        current_outcome = outcomes_by_id.get(target_evidence_id)
+        current_record = records_by_id.get(target_evidence_id)
+        if latest.operation is PreferenceActionOutcomeMutationOperation.REDACT:
+            if current_outcome is not None or current_record is not None:
+                raise ValueError("redacted preference evidence or owner record was resurrected")
+            continue
+        if current_outcome is not None and (
+            preference_action_outcome_evidence_sha256(current_outcome) != latest.after_evidence_sha256
+        ):
+            raise ValueError("corrected preference evidence does not match latest receipt hash")
+        if (
+            current_outcome is not None
+            and current_record is not None
+            and (
+                current_record.summary != current_outcome.observation_summary
+                or current_record.detail != current_outcome.reaction_summary
+                or current_record.evidence != current_outcome.evidence_refs[0]
+            )
+        ):
+            raise ValueError("corrected preference owner record does not match corrected evidence")
 
 
 def _serialize_other_mind_record(record: OtherMindRecord) -> dict[str, Any]:
@@ -677,8 +805,7 @@ def _deserialize_other_mind_record(blob: Mapping[str, Any]) -> OtherMindRecord:
         refs = blob.get("prediction_error_refs", ())
         if not isinstance(refs, list | tuple):
             raise HydrationPayloadInvalidError(
-                "OtherMindRecord.prediction_error_refs must be a list; "
-                f"got {type(refs).__name__}"
+                f"OtherMindRecord.prediction_error_refs must be a list; got {type(refs).__name__}"
             )
         return OtherMindRecord(
             record_id=str(blob["record_id"]),
@@ -694,13 +821,11 @@ def _deserialize_other_mind_record(blob: Mapping[str, Any]) -> OtherMindRecord:
         )
     except KeyError as exc:
         raise HydrationPayloadInvalidError(
-            f"SocialRecordStore OtherMindRecord missing key {exc.args[0]!r}; "
-            f"blob={blob!r}"
+            f"SocialRecordStore OtherMindRecord missing key {exc.args[0]!r}; blob={blob!r}"
         ) from exc
     except ValueError as exc:
         raise HydrationPayloadInvalidError(
-            f"SocialRecordStore OtherMindRecord invalid enum/value: {exc}; "
-            f"blob={blob!r}"
+            f"SocialRecordStore OtherMindRecord invalid enum/value: {exc}; blob={blob!r}"
         ) from exc
 
 
@@ -726,8 +851,7 @@ def _deserialize_preference_action_outcome(
         evidence_refs = blob["evidence_refs"]
         if not isinstance(evidence_refs, list | tuple):
             raise HydrationPayloadInvalidError(
-                "PreferenceActionOutcomeEvidence.evidence_refs must be a list; "
-                f"got {type(evidence_refs).__name__}"
+                f"PreferenceActionOutcomeEvidence.evidence_refs must be a list; got {type(evidence_refs).__name__}"
             )
         return PreferenceActionOutcomeEvidence(
             evidence_id=str(blob["evidence_id"]),
@@ -741,13 +865,63 @@ def _deserialize_preference_action_outcome(
         )
     except KeyError as exc:
         raise HydrationPayloadInvalidError(
-            "SocialRecordStore PreferenceActionOutcomeEvidence missing key "
-            f"{exc.args[0]!r}; blob={blob!r}"
+            f"SocialRecordStore PreferenceActionOutcomeEvidence missing key {exc.args[0]!r}; blob={blob!r}"
         ) from exc
     except ValueError as exc:
         raise HydrationPayloadInvalidError(
-            "SocialRecordStore PreferenceActionOutcomeEvidence invalid value: "
-            f"{exc}; blob={blob!r}"
+            f"SocialRecordStore PreferenceActionOutcomeEvidence invalid value: {exc}; blob={blob!r}"
+        ) from exc
+
+
+def _serialize_preference_action_outcome_mutation_receipt(
+    receipt: PreferenceActionOutcomeMutationReceipt,
+) -> dict[str, Any]:
+    return {
+        "mutation_id": receipt.mutation_id,
+        "command_sha256": receipt.command_sha256,
+        "target_evidence_id": receipt.target_evidence_id,
+        "operation": receipt.operation.value,
+        "before_evidence_sha256": receipt.before_evidence_sha256,
+        "after_evidence_sha256": receipt.after_evidence_sha256,
+        "applied_turn": receipt.applied_turn,
+        "invalidated_forecast_ids": list(receipt.invalidated_forecast_ids),
+        "evidence_refs": list(receipt.evidence_refs),
+    }
+
+
+def _deserialize_preference_action_outcome_mutation_receipt(
+    blob: Mapping[str, Any],
+) -> PreferenceActionOutcomeMutationReceipt:
+    if not isinstance(blob, Mapping):
+        raise HydrationPayloadInvalidError("PreferenceActionOutcomeMutationReceipt must be an object")
+    try:
+        invalidated_forecast_ids = blob["invalidated_forecast_ids"]
+        evidence_refs = blob["evidence_refs"]
+        if not isinstance(invalidated_forecast_ids, list | tuple):
+            raise HydrationPayloadInvalidError(
+                "PreferenceActionOutcomeMutationReceipt.invalidated_forecast_ids must be a list"
+            )
+        if not isinstance(evidence_refs, list | tuple):
+            raise HydrationPayloadInvalidError("PreferenceActionOutcomeMutationReceipt.evidence_refs must be a list")
+        after_evidence_sha256 = blob["after_evidence_sha256"]
+        return PreferenceActionOutcomeMutationReceipt(
+            mutation_id=str(blob["mutation_id"]),
+            command_sha256=str(blob["command_sha256"]),
+            target_evidence_id=str(blob["target_evidence_id"]),
+            operation=PreferenceActionOutcomeMutationOperation(str(blob["operation"])),
+            before_evidence_sha256=str(blob["before_evidence_sha256"]),
+            after_evidence_sha256=(None if after_evidence_sha256 is None else str(after_evidence_sha256)),
+            applied_turn=int(blob["applied_turn"]),
+            invalidated_forecast_ids=tuple(str(item) for item in invalidated_forecast_ids),
+            evidence_refs=tuple(str(item) for item in evidence_refs),
+        )
+    except KeyError as exc:
+        raise HydrationPayloadInvalidError(
+            f"SocialRecordStore PreferenceActionOutcomeMutationReceipt missing key {exc.args[0]!r}; blob={blob!r}"
+        ) from exc
+    except (TypeError, ValueError) as exc:
+        raise HydrationPayloadInvalidError(
+            f"SocialRecordStore PreferenceActionOutcomeMutationReceipt invalid value: {exc}; blob={blob!r}"
         ) from exc
 
 
@@ -777,39 +951,98 @@ def _serialize_preference_action_forecast(
         "issued_turn": forecast.issued_turn,
         "evidence": list(forecast.evidence),
         "session_scope": forecast.session_scope,
+        "condition_readout": (
+            None
+            if forecast.condition_readout is None
+            else {
+                "condition_label": forecast.condition_readout.condition_label,
+                "confidence": forecast.condition_readout.confidence,
+                "normalized_margin": (
+                    forecast.condition_readout.normalized_margin
+                ),
+                "candidate_scores": [
+                    {"label": label, "score": score}
+                    for label, score in forecast.condition_readout.candidate_scores
+                ],
+                "reader_artifact_id": (
+                    forecast.condition_readout.reader_artifact_id
+                ),
+                "source_observation_sha256": (
+                    forecast.condition_readout.source_observation_sha256
+                ),
+            }
+        ),
     }
 
 
 def _deserialize_preference_action_forecast(
     blob: Mapping[str, Any],
+    *,
+    schema_version: int,
 ) -> PreferenceActionForecast:
     try:
         candidates_blob = blob["candidate_predictions"]
         source_record_ids = blob["source_record_ids"]
         evidence = blob["evidence"]
         if not isinstance(candidates_blob, list | tuple):
-            raise HydrationPayloadInvalidError(
-                "PreferenceActionForecast.candidate_predictions must be a list"
-            )
+            raise HydrationPayloadInvalidError("PreferenceActionForecast.candidate_predictions must be a list")
         if not isinstance(source_record_ids, list | tuple):
-            raise HydrationPayloadInvalidError(
-                "PreferenceActionForecast.source_record_ids must be a list"
-            )
+            raise HydrationPayloadInvalidError("PreferenceActionForecast.source_record_ids must be a list")
         if not isinstance(evidence, list | tuple):
-            raise HydrationPayloadInvalidError(
-                "PreferenceActionForecast.evidence must be a list"
+            raise HydrationPayloadInvalidError("PreferenceActionForecast.evidence must be a list")
+        if schema_version >= 4:
+            condition_blob = blob["condition_readout"]
+        else:
+            condition_blob = None
+        condition_readout = None
+        if condition_blob is not None:
+            if not isinstance(condition_blob, Mapping):
+                raise HydrationPayloadInvalidError(
+                    "PreferenceActionForecast.condition_readout must be an object or null"
+                )
+            expected_condition_fields = {
+                "condition_label",
+                "confidence",
+                "normalized_margin",
+                "candidate_scores",
+                "reader_artifact_id",
+                "source_observation_sha256",
+            }
+            if set(condition_blob) != expected_condition_fields:
+                raise HydrationPayloadInvalidError(
+                    "PreferenceActionForecast.condition_readout fields do not match schema v4"
+                )
+            score_blob = condition_blob["candidate_scores"]
+            if not isinstance(score_blob, list | tuple):
+                raise HydrationPayloadInvalidError(
+                    "PreferenceActionForecast.condition_readout candidate_scores must be a list"
+                )
+            candidate_scores: list[tuple[str, float]] = []
+            for item in score_blob:
+                if not isinstance(item, Mapping) or set(item) != {"label", "score"}:
+                    raise HydrationPayloadInvalidError(
+                        "PreferenceActionForecast condition score must contain label/score"
+                    )
+                candidate_scores.append(
+                    (str(item["label"]), float(item["score"]))
+                )
+            condition_readout = RelationshipConditionReadout(
+                condition_label=str(condition_blob["condition_label"]),
+                confidence=float(condition_blob["confidence"]),
+                normalized_margin=float(condition_blob["normalized_margin"]),
+                candidate_scores=tuple(candidate_scores),
+                reader_artifact_id=str(condition_blob["reader_artifact_id"]),
+                source_observation_sha256=str(
+                    condition_blob["source_observation_sha256"]
+                ),
             )
         candidates: list[SocialActionCandidatePrediction] = []
         for candidate_blob in candidates_blob:
             if not isinstance(candidate_blob, Mapping):
-                raise HydrationPayloadInvalidError(
-                    "PreferenceActionForecast candidate must be an object"
-                )
+                raise HydrationPayloadInvalidError("PreferenceActionForecast candidate must be an object")
             outcomes_blob = candidate_blob["outcomes"]
             if not isinstance(outcomes_blob, list | tuple):
-                raise HydrationPayloadInvalidError(
-                    "PreferenceActionForecast candidate outcomes must be a list"
-                )
+                raise HydrationPayloadInvalidError("PreferenceActionForecast candidate outcomes must be a list")
             candidates.append(
                 SocialActionCandidatePrediction(
                     action_id=str(candidate_blob["action_id"]),
@@ -833,16 +1066,15 @@ def _deserialize_preference_action_forecast(
             issued_turn=int(blob["issued_turn"]),
             evidence=tuple(str(item) for item in evidence),
             session_scope=str(blob.get("session_scope", "")),
+            condition_readout=condition_readout,
         )
     except KeyError as exc:
         raise HydrationPayloadInvalidError(
-            "SocialRecordStore PreferenceActionForecast missing key "
-            f"{exc.args[0]!r}; blob={blob!r}"
+            f"SocialRecordStore PreferenceActionForecast missing key {exc.args[0]!r}; blob={blob!r}"
         ) from exc
     except (TypeError, ValueError) as exc:
         raise HydrationPayloadInvalidError(
-            "SocialRecordStore PreferenceActionForecast invalid value: "
-            f"{exc}; blob={blob!r}"
+            f"SocialRecordStore PreferenceActionForecast invalid value: {exc}; blob={blob!r}"
         ) from exc
 
 
@@ -867,9 +1099,7 @@ def _serialize_preference_forecast_settlement(
         "evidence_confidence": settlement.evidence_confidence,
         "expected_utility": settlement.expected_utility,
         "observed_utility": settlement.observed_utility,
-        "signed_utility_prediction_error": (
-            settlement.signed_utility_prediction_error
-        ),
+        "signed_utility_prediction_error": (settlement.signed_utility_prediction_error),
     }
 
 
@@ -895,19 +1125,15 @@ def _deserialize_preference_forecast_settlement(
             evidence_confidence=float(blob.get("evidence_confidence", 1.0)),
             expected_utility=float(blob.get("expected_utility", 0.0)),
             observed_utility=float(blob.get("observed_utility", 0.0)),
-            signed_utility_prediction_error=float(
-                blob.get("signed_utility_prediction_error", 0.0)
-            ),
+            signed_utility_prediction_error=float(blob.get("signed_utility_prediction_error", 0.0)),
         )
     except KeyError as exc:
         raise HydrationPayloadInvalidError(
-            "SocialRecordStore PreferenceActionForecastSettlement missing key "
-            f"{exc.args[0]!r}; blob={blob!r}"
+            f"SocialRecordStore PreferenceActionForecastSettlement missing key {exc.args[0]!r}; blob={blob!r}"
         ) from exc
     except (TypeError, ValueError) as exc:
         raise HydrationPayloadInvalidError(
-            "SocialRecordStore PreferenceActionForecastSettlement invalid value: "
-            f"{exc}; blob={blob!r}"
+            f"SocialRecordStore PreferenceActionForecastSettlement invalid value: {exc}; blob={blob!r}"
         ) from exc
 
 
@@ -930,13 +1156,11 @@ def _deserialize_common_ground_atom(blob: Mapping[str, Any]) -> CommonGroundAtom
         evidence = blob["evidence"]
         if not isinstance(accepted, list | tuple):
             raise HydrationPayloadInvalidError(
-                "CommonGroundAtom.accepted_by_ids must be a list; "
-                f"got {type(accepted).__name__}"
+                f"CommonGroundAtom.accepted_by_ids must be a list; got {type(accepted).__name__}"
             )
         if not isinstance(evidence, list | tuple):
             raise HydrationPayloadInvalidError(
-                "CommonGroundAtom.evidence must be a list; "
-                f"got {type(evidence).__name__}"
+                f"CommonGroundAtom.evidence must be a list; got {type(evidence).__name__}"
             )
         return CommonGroundAtom(
             atom_id=str(blob["atom_id"]),
@@ -950,13 +1174,11 @@ def _deserialize_common_ground_atom(blob: Mapping[str, Any]) -> CommonGroundAtom
         )
     except KeyError as exc:
         raise HydrationPayloadInvalidError(
-            f"SocialRecordStore CommonGroundAtom missing key {exc.args[0]!r}; "
-            f"blob={blob!r}"
+            f"SocialRecordStore CommonGroundAtom missing key {exc.args[0]!r}; blob={blob!r}"
         ) from exc
     except ValueError as exc:
         raise HydrationPayloadInvalidError(
-            f"SocialRecordStore CommonGroundAtom invalid enum/value: {exc}; "
-            f"blob={blob!r}"
+            f"SocialRecordStore CommonGroundAtom invalid enum/value: {exc}; blob={blob!r}"
         ) from exc
 
 

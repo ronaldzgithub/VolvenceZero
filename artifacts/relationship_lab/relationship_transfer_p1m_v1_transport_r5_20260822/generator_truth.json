@@ -1,0 +1,1515 @@
+{
+  "abstract_conditions": [
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "hidden_summary": "别人越过当事人的确认，替其表达、选择、承诺或作决定，使当事人失去发言权、决定权以及按自己节奏回应的空间。"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "hidden_summary": "当事人被共同经历、邀请、名单、记忆或关系网络遗漏和排除，因而感觉自己在关系中的位置消失、没有被算在其中。"
+    }
+  ],
+  "dynamics": [
+    {
+      "dynamic_id": "p1m_dynamic_001a",
+      "hidden_summary": "Generated P1m pair 1 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_001",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_001b",
+      "hidden_summary": "Generated P1m pair 1 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_001",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_002a",
+      "hidden_summary": "Generated P1m pair 2 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_002",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_002b",
+      "hidden_summary": "Generated P1m pair 2 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_002",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_003a",
+      "hidden_summary": "Generated P1m pair 3 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_003",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_003b",
+      "hidden_summary": "Generated P1m pair 3 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_003",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_004a",
+      "hidden_summary": "Generated P1m pair 4 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_004",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_004b",
+      "hidden_summary": "Generated P1m pair 4 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_004",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_005a",
+      "hidden_summary": "Generated P1m pair 5 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_005",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_005b",
+      "hidden_summary": "Generated P1m pair 5 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_005",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_006a",
+      "hidden_summary": "Generated P1m pair 6 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_006",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_006b",
+      "hidden_summary": "Generated P1m pair 6 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_006",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_007a",
+      "hidden_summary": "Generated P1m pair 7 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_007",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_007b",
+      "hidden_summary": "Generated P1m pair 7 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_007",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_008a",
+      "hidden_summary": "Generated P1m pair 8 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_008",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_008b",
+      "hidden_summary": "Generated P1m pair 8 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_008",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_009a",
+      "hidden_summary": "Generated P1m pair 9 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_009",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_009b",
+      "hidden_summary": "Generated P1m pair 9 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_009",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_010a",
+      "hidden_summary": "Generated P1m pair 10 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_010",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_010b",
+      "hidden_summary": "Generated P1m pair 10 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_010",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_011a",
+      "hidden_summary": "Generated P1m pair 11 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_011",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_011b",
+      "hidden_summary": "Generated P1m pair 11 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_011",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_012a",
+      "hidden_summary": "Generated P1m pair 12 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_012",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_012b",
+      "hidden_summary": "Generated P1m pair 12 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_012",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_013a",
+      "hidden_summary": "Generated P1m pair 13 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_013",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_013b",
+      "hidden_summary": "Generated P1m pair 13 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_013",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_014a",
+      "hidden_summary": "Generated P1m pair 14 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_014",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_014b",
+      "hidden_summary": "Generated P1m pair 14 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_014",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_015a",
+      "hidden_summary": "Generated P1m pair 15 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_015",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_015b",
+      "hidden_summary": "Generated P1m pair 15 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_015",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_016a",
+      "hidden_summary": "Generated P1m pair 16 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_016",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_016b",
+      "hidden_summary": "Generated P1m pair 16 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_016",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_017a",
+      "hidden_summary": "Generated P1m pair 17 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_017",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_017b",
+      "hidden_summary": "Generated P1m pair 17 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_017",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_018a",
+      "hidden_summary": "Generated P1m pair 18 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_018",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_018b",
+      "hidden_summary": "Generated P1m pair 18 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_018",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_019a",
+      "hidden_summary": "Generated P1m pair 19 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_019",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_019b",
+      "hidden_summary": "Generated P1m pair 19 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_019",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_020a",
+      "hidden_summary": "Generated P1m pair 20 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_020",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_020b",
+      "hidden_summary": "Generated P1m pair 20 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_020",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_021a",
+      "hidden_summary": "Generated P1m pair 21 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_021",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_021b",
+      "hidden_summary": "Generated P1m pair 21 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_021",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_022a",
+      "hidden_summary": "Generated P1m pair 22 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_022",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_022b",
+      "hidden_summary": "Generated P1m pair 22 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_022",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_023a",
+      "hidden_summary": "Generated P1m pair 23 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_023",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_023b",
+      "hidden_summary": "Generated P1m pair 23 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_023",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_agency_displacement_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_024a",
+      "hidden_summary": "Generated P1m pair 24 sibling a: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_024",
+      "outcome_profile_id": "presence_response_profile_p1m",
+      "policy_id": "policy_alpha_p1m",
+      "preferred_action": "stay_present_without_probe",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    },
+    {
+      "dynamic_id": "p1m_dynamic_024b",
+      "hidden_summary": "Generated P1m pair 24 sibling b: the preferred relationship action follows the sealed conditioned policy and not the surface topic.",
+      "mirror_pair_id": "p1m_pair_024",
+      "outcome_profile_id": "space_response_profile_p1m",
+      "policy_id": "policy_beta_p1m",
+      "preferred_action": "respect_space_with_return_option",
+      "probe_condition_id": "condition_belonging_erasure_p1m",
+      "split": "validation"
+    }
+  ],
+  "history_condition_bindings": [
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_001a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_001a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_001a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_001a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_001b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_001b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_001b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_001b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_002a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_002a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_002a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_002a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_002b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_002b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_002b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_002b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_003a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_003a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_003a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_003a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_003b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_003b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_003b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_003b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_004a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_004a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_004a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_004a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_004b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_004b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_004b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_004b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_005a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_005a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_005a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_005a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_005b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_005b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_005b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_005b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_006a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_006a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_006a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_006a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_006b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_006b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_006b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_006b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_007a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_007a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_007a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_007a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_007b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_007b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_007b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_007b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_008a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_008a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_008a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_008a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_008b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_008b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_008b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_008b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_009a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_009a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_009a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_009a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_009b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_009b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_009b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_009b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_010a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_010a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_010a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_010a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_010b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_010b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_010b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_010b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_011a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_011a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_011a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_011a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_011b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_011b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_011b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_011b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_012a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_012a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_012a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_012a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_012b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_012b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_012b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_012b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_013a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_013a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_013a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_013a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_013b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_013b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_013b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_013b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_014a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_014a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_014a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_014a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_014b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_014b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_014b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_014b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_015a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_015a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_015a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_015a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_015b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_015b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_015b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_015b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_016a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_016a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_016a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_016a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_016b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_016b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_016b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_016b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_017a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_017a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_017a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_017a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_017b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_017b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_017b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_017b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_018a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_018a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_018a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_018a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_018b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_018b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_018b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_018b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_019a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_019a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_019a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_019a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_019b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_019b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_019b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_019b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_020a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_020a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_020a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_020a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_020b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_020b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_020b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_020b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_021a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_021a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_021a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_021a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_021b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_021b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_021b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_021b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_022a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_022a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_022a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_022a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_022b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_022b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_022b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_022b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_023a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_023a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_023a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_023a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_023b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_023b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_023b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_023b_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_024a_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_024a_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_024a_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_024a_04"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_024b_01"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_024b_02"
+    },
+    {
+      "condition_id": "condition_belonging_erasure_p1m",
+      "event_id": "p1m_evt_024b_03"
+    },
+    {
+      "condition_id": "condition_agency_displacement_p1m",
+      "event_id": "p1m_evt_024b_04"
+    }
+  ],
+  "outcome_profiles": {
+    "presence_response_profile_p1m": {
+      "neutral_noop": {
+        "felt_heard": 0.2,
+        "helped": 0.1,
+        "missed": 0.55,
+        "over_directive": 0.15
+      },
+      "respect_space_with_return_option": {
+        "felt_heard": 0.1,
+        "helped": 0.05,
+        "missed": 0.8,
+        "over_directive": 0.05
+      },
+      "stay_present_without_probe": {
+        "felt_heard": 0.65,
+        "helped": 0.25,
+        "missed": 0.08,
+        "over_directive": 0.02
+      }
+    },
+    "space_response_profile_p1m": {
+      "neutral_noop": {
+        "felt_heard": 0.15,
+        "helped": 0.15,
+        "missed": 0.25,
+        "over_directive": 0.45
+      },
+      "respect_space_with_return_option": {
+        "felt_heard": 0.4,
+        "helped": 0.5,
+        "missed": 0.05,
+        "over_directive": 0.05
+      },
+      "stay_present_without_probe": {
+        "felt_heard": 0.05,
+        "helped": 0.05,
+        "missed": 0.15,
+        "over_directive": 0.75
+      }
+    }
+  },
+  "policy_profiles": {
+    "policy_alpha_p1m": {
+      "condition_agency_displacement_p1m": "respect_space_with_return_option",
+      "condition_belonging_erasure_p1m": "stay_present_without_probe"
+    },
+    "policy_beta_p1m": {
+      "condition_agency_displacement_p1m": "stay_present_without_probe",
+      "condition_belonging_erasure_p1m": "respect_space_with_return_option"
+    }
+  },
+  "positive_outcomes": [
+    "helped",
+    "felt_heard"
+  ],
+  "scene_bindings": [
+    {
+      "latent_dynamic_id": "p1m_dynamic_001a",
+      "scene_id": "p1m_scene_001a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_001b",
+      "scene_id": "p1m_scene_001b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_002a",
+      "scene_id": "p1m_scene_002a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_002b",
+      "scene_id": "p1m_scene_002b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_003a",
+      "scene_id": "p1m_scene_003a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_003b",
+      "scene_id": "p1m_scene_003b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_004a",
+      "scene_id": "p1m_scene_004a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_004b",
+      "scene_id": "p1m_scene_004b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_005a",
+      "scene_id": "p1m_scene_005a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_005b",
+      "scene_id": "p1m_scene_005b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_006a",
+      "scene_id": "p1m_scene_006a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_006b",
+      "scene_id": "p1m_scene_006b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_007a",
+      "scene_id": "p1m_scene_007a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_007b",
+      "scene_id": "p1m_scene_007b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_008a",
+      "scene_id": "p1m_scene_008a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_008b",
+      "scene_id": "p1m_scene_008b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_009a",
+      "scene_id": "p1m_scene_009a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_009b",
+      "scene_id": "p1m_scene_009b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_010a",
+      "scene_id": "p1m_scene_010a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_010b",
+      "scene_id": "p1m_scene_010b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_011a",
+      "scene_id": "p1m_scene_011a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_011b",
+      "scene_id": "p1m_scene_011b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_012a",
+      "scene_id": "p1m_scene_012a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_012b",
+      "scene_id": "p1m_scene_012b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_013a",
+      "scene_id": "p1m_scene_013a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_013b",
+      "scene_id": "p1m_scene_013b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_014a",
+      "scene_id": "p1m_scene_014a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_014b",
+      "scene_id": "p1m_scene_014b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_015a",
+      "scene_id": "p1m_scene_015a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_015b",
+      "scene_id": "p1m_scene_015b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_016a",
+      "scene_id": "p1m_scene_016a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_016b",
+      "scene_id": "p1m_scene_016b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_017a",
+      "scene_id": "p1m_scene_017a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_017b",
+      "scene_id": "p1m_scene_017b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_018a",
+      "scene_id": "p1m_scene_018a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_018b",
+      "scene_id": "p1m_scene_018b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_019a",
+      "scene_id": "p1m_scene_019a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_019b",
+      "scene_id": "p1m_scene_019b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_020a",
+      "scene_id": "p1m_scene_020a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_020b",
+      "scene_id": "p1m_scene_020b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_021a",
+      "scene_id": "p1m_scene_021a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_021b",
+      "scene_id": "p1m_scene_021b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_022a",
+      "scene_id": "p1m_scene_022a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_022b",
+      "scene_id": "p1m_scene_022b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_023a",
+      "scene_id": "p1m_scene_023a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_023b",
+      "scene_id": "p1m_scene_023b"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_024a",
+      "scene_id": "p1m_scene_024a"
+    },
+    {
+      "latent_dynamic_id": "p1m_dynamic_024b",
+      "scene_id": "p1m_scene_024b"
+    }
+  ],
+  "schema_version": "relationship-transfer-p1m-truth.v1"
+}

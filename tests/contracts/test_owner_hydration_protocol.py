@@ -128,9 +128,7 @@ def test_semantic_state_store_round_trip() -> None:
     target.hydrate_from_persistence(exported)
     re_exported = target.export_persistence_snapshot()
 
-    assert exported.payload == re_exported.payload, (
-        "SemanticStateStore round-trip lost or mutated state."
-    )
+    assert exported.payload == re_exported.payload, "SemanticStateStore round-trip lost or mutated state."
     # Spot-check that meaningful read accessors return identical results.
     assert target.records_for("commitment") == source.records_for("commitment")
     assert target.lifecycle_for("commitment") == source.lifecycle_for("commitment")
@@ -245,7 +243,7 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
 
     exported = source.export_persistence_snapshot()
     assert exported.owner_name == "social_record_store"
-    assert exported.schema_version == 2
+    assert exported.schema_version == 4
 
     target = SocialRecordStore()
     target.hydrate_from_persistence(exported)
@@ -255,10 +253,7 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
     assert target.tom_records("belief_about_other") == source.tom_records("belief_about_other")
     assert target.preference_action_outcomes == source.preference_action_outcomes
     assert target.common_ground_dyad_atoms == source.common_ground_dyad_atoms
-    assert (
-        target.group_regime_for("frame-group:alice+bob+cara")
-        == "problem_solving"
-    )
+    assert target.group_regime_for("frame-group:alice+bob+cara") == "problem_solving"
     assert target.group_durability_for("frame-group:alice+bob+cara") > 0.5
     assert target.pending_tom_predictions("belief_about_other") == ()
 
@@ -463,9 +458,7 @@ def test_followup_manager_round_trip() -> None:
     target.hydrate_from_persistence(exported)
     re_exported = target.export_persistence_snapshot()
 
-    assert exported.payload == re_exported.payload, (
-        "FollowupManager round-trip lost or mutated state."
-    )
+    assert exported.payload == re_exported.payload, "FollowupManager round-trip lost or mutated state."
     assert target.pending == source.pending
 
 
@@ -525,9 +518,7 @@ def test_vitals_module_round_trip() -> None:
     target.hydrate_from_persistence(exported)
     re_exported = target.export_persistence_snapshot()
 
-    assert exported.payload == re_exported.payload, (
-        "VitalsModule round-trip lost or mutated state."
-    )
+    assert exported.payload == re_exported.payload, "VitalsModule round-trip lost or mutated state."
     # Snapshot equality on observable fields.
     s = source.current_snapshot()
     t = target.current_snapshot()
@@ -571,9 +562,7 @@ def test_round_trip_is_idempotent_on_double_hydrate() -> None:
     target.hydrate_from_persistence(snap)
     after_second = target.export_persistence_snapshot()
 
-    assert after_first.payload == after_second.payload, (
-        "Re-hydrating with the same snapshot must be idempotent."
-    )
+    assert after_first.payload == after_second.payload, "Re-hydrating with the same snapshot must be idempotent."
 
 
 def test_owner_persistence_snapshot_validates_required_fields() -> None:
@@ -583,14 +572,12 @@ def test_owner_persistence_snapshot_validates_required_fields() -> None:
     import pytest
 
     with pytest.raises(ValueError, match="owner_name"):
-        OwnerPersistenceSnapshot(
-            owner_name="", schema_version=1, payload={}
-        )
+        OwnerPersistenceSnapshot(owner_name="", schema_version=1, payload={})
     with pytest.raises(ValueError, match="schema_version"):
-        OwnerPersistenceSnapshot(
-            owner_name="x", schema_version=0, payload={}
-        )
+        OwnerPersistenceSnapshot(owner_name="x", schema_version=0, payload={})
     with pytest.raises(TypeError, match="Mapping"):
         OwnerPersistenceSnapshot(
-            owner_name="x", schema_version=1, payload="not a mapping"  # type: ignore[arg-type]
+            owner_name="x",
+            schema_version=1,
+            payload="not a mapping",  # type: ignore[arg-type]
         )

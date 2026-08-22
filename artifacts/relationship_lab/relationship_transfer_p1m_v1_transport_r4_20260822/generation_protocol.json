@@ -1,0 +1,39 @@
+{
+  "claim_boundary": "P1m final generation recovery is limited to renderer transport after the preserved v1 JSON, v2 semantic, and v3 length preflights all ended before any accepted scenario or consumer output. It binds the same recipe, pair plan, truth, pair count, statistical gates, and stop rule; only a familiar-setting inventory, seeded 3B single-field paraphrasing, bounded generation, and raw-before-compose durability differ. Generation success remains instrument preparation, not evidence of any four-able axis.",
+  "freeze_guards": {
+    "accepted_scenario_renderings_before_freeze": 0,
+    "consumer_outputs_before_freeze": 0,
+    "evaluation_feedback_allowed": false
+  },
+  "frozen_at_iso": "2026-08-22T05:07:31.507143+00:00",
+  "next_action": "materialize_same_fsm_package_then_freeze_first_qualification_consumer",
+  "protocol_id": "342b1587ff4dd86360e0d0fcdaeaa575b6a50e917f2f55c21afc3673b4f9db3a",
+  "schema_version": "relationship-p1m-generation-recovery-protocol.v4",
+  "semantic_freeze": {
+    "package_name": "relationship_transfer_p1m_v1",
+    "pair_count": 24,
+    "pair_plan_sha256": "b3d6130df547e37d0ca912d977b35b250778fbebacdb1b85065f6779f3258300",
+    "qualification_gate_changed": false,
+    "recipe_id": "6f36f74ac4a563aa2c31d7145f8886eae6ad24335c5688290dba774fe3faf507",
+    "semantic_recipe_changed": false
+  },
+  "source": {
+    "failed_generation_protocol_id": "d1cfcc528c8607aed85e9c7f66fc0cddcf373d2405973e1c7fb145e0af7c6695",
+    "generation_incident_sha256": "c66fc81211604d455a9998b6aecd67b43cb7b74aa0982f7a1ac69ea33ec329af",
+    "p1k_report_artifact_id": "ba6c5cf71c528b1daa270a8fd097d27cd4438af69c91f15237e20fa1ccaa7138",
+    "p1k_verdict": "substrate_cannot_apply_disclosed_policy"
+  },
+  "transport": {
+    "generation_config_sha256": "aaa62918537275fb25ac520e4f125c751bf6ba9652f34e91f01917f9692bde03",
+    "model_id": "qwen2.5-3b-instruct-p1m-field-renderer-v4",
+    "model_source": "Qwen/Qwen2.5-3B-Instruct",
+    "output_schema_sha256": "986ef1e02946624da3f8ff6466ed3ccc4ab0855b327a21e8493428f525a74f0d",
+    "preflight_artifact_id": "b6f15c095ed974cc29bf0c5a701deb27e399f725b1716249017d2a922e61cce0",
+    "prompt_sha256": "cf7141b1b393e0b0329d8b14a24971b5b84b89b6634c29fed4562cacd38337ea",
+    "runtime_device": "cpu",
+    "surface_seed_inventory_sha256": "04716ce1c209755fd67be94c014a87411efb3a52d1e007d38f864224f0f72eb4",
+    "torch_dtype": "bfloat16",
+    "transport_id": "5dbd3d2a3a6afc0b1840abf25d34c6aca213bfce070ace97902f69518c3bef78",
+    "weights_sha256": "3ccf77de3297aba6772fcb743af28b806d7b7c3e348cc7e8ad729fa98a4146cd"
+  }
+}

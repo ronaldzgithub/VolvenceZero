@@ -14,7 +14,8 @@ own state and it does not route renderer behaviour.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import hashlib
 import json
 from json import JSONDecodeError
 import math
@@ -48,9 +49,13 @@ from volvence_zero.social_cognition import (
     OtherMindRecordKind,
     OtherMindRecordStatus,
     PreferenceActionOutcomeEvidence,
+    PreferenceActionOutcomeMutation,
+    PreferenceActionOutcomeMutationOperation,
+    PreferenceActionOutcomeMutationReceipt,
     PreferenceActionForecast,
     PreferenceActionForecastSettlement,
     PreferenceAboutOtherSnapshot,
+    RelationshipConditionReadout,
     SELF_INTERLOCUTOR_ID,
     SocialActionCandidatePrediction,
     SocialPrediction,
@@ -58,6 +63,8 @@ from volvence_zero.social_cognition import (
     SocialPredictionKind,
     SocialPredictionOutcome,
     SocialScopeKind,
+    preference_action_outcome_evidence_sha256,
+    preference_action_outcome_mutation_sha256,
 )
 from volvence_zero.substrate import SubstrateSnapshot
 
@@ -104,9 +111,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
         self._turn_index = turn_index
         self._record_store = record_store
 
-    async def process(
-        self, upstream: Mapping[str, Snapshot[Any]]
-    ) -> Snapshot[Any]:
+    async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[Any]:
         new_records: tuple[OtherMindRecord, ...] = ()
         control_signal = 0.0
         if self._proposal_runtime is not None:
@@ -117,14 +122,12 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
                 user_input=self._user_input,
                 substrate_snapshot=(
                     substrate_snapshot.value
-                    if substrate_snapshot is not None
-                    and isinstance(substrate_snapshot.value, SubstrateSnapshot)
+                    if substrate_snapshot is not None and isinstance(substrate_snapshot.value, SubstrateSnapshot)
                     else None
                 ),
                 memory_snapshot=(
                     memory_snapshot.value
-                    if memory_snapshot is not None
-                    and isinstance(memory_snapshot.value, MemorySnapshot)
+                    if memory_snapshot is not None and isinstance(memory_snapshot.value, MemorySnapshot)
                     else None
                 ),
                 previous_snapshot=None,
@@ -133,8 +136,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
             proposals = tuple(
                 proposal
                 for proposal in batch.proposals
-                if proposal.target_slot == self.slot_name
-                and proposal.confidence >= self.min_proposal_confidence
+                if proposal.target_slot == self.slot_name and proposal.confidence >= self.min_proposal_confidence
             )
             new_records = tuple(
                 _record_from_proposal(
@@ -184,8 +186,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
             similarity=store.similarity,
         )
         outcome_by_record = {
-            record_id: (outcome, error_id)
-            for record_id, outcome, error_id in result.outcomes_by_record
+            record_id: (outcome, error_id) for record_id, outcome, error_id in result.outcomes_by_record
         }
         updated_prior = tuple(
             apply_outcome_to_record(
@@ -206,9 +207,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
         # original issue turn; every ACTIVE / CONTESTED record without a
         # pending entry issues a fresh prediction (CONTESTED must remain
         # settleable so a second disconfirmation can retire it).
-        pending_by_record = {
-            entry.source_record_id: entry for entry in result.still_pending
-        }
+        pending_by_record = {entry.source_record_id: entry for entry in result.still_pending}
         for record in store.tom_records(self.slot_name):
             if record.status is OtherMindRecordStatus.RETIRED:
                 continue
@@ -219,9 +218,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
                 source_record_id=record.record_id,
                 issued_turn=self._turn_index,
             )
-        store.set_pending_tom_predictions(
-            self.slot_name, tuple(pending_by_record.values())
-        )
+        store.set_pending_tom_predictions(self.slot_name, tuple(pending_by_record.values()))
         return (store.tom_records(self.slot_name), result.settled_errors)
 
     def _extract_proposal_diagnostics(self) -> LLMProposalAttemptCounters | None:
@@ -258,10 +255,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
             description=(
                 self.empty_description
                 if not records
-                else (
-                    f"{self.owner} published explicit records={len(records)} "
-                    f"settled={len(settled_errors)}."
-                )
+                else (f"{self.owner} published explicit records={len(records)} settled={len(settled_errors)}.")
             ),
             proposal_diagnostics=proposal_diagnostics,
             settled_errors=settled_errors,
@@ -284,9 +278,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
             ),
         )
 
-    def _active_predictions(
-        self, records: tuple[OtherMindRecord, ...]
-    ) -> tuple[SocialPrediction, ...]:
+    def _active_predictions(self, records: tuple[OtherMindRecord, ...]) -> tuple[SocialPrediction, ...]:
         """Publish owner-authored ToM predictions from typed records.
 
         W1.C: only ACTIVE records predict publicly. CONTESTED records
@@ -296,9 +288,7 @@ class _OtherMindOwnerModule(RuntimeModule[Any]):
         """
 
         return tuple(
-            self._prediction_for_record(record)
-            for record in records
-            if record.status is OtherMindRecordStatus.ACTIVE
+            self._prediction_for_record(record) for record in records if record.status is OtherMindRecordStatus.ACTIVE
         )
 
 
@@ -353,6 +343,7 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
         action_forecast_runtime: "PreferenceActionForecastRuntime | None" = None,
         action_forecast_request: "PreferenceActionForecastRequest | None" = None,
         action_outcome_evidence: PreferenceActionOutcomeEvidence | None = None,
+        action_outcome_mutation: PreferenceActionOutcomeMutation | None = None,
     ) -> None:
         super().__init__(
             proposal_runtime=proposal_runtime,
@@ -362,42 +353,45 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
             record_store=record_store,
         )
         if (action_forecast_runtime is None) != (action_forecast_request is None):
-            raise ValueError(
-                "preference action forecast runtime and request must be provided together"
-            )
-        if (
-            action_forecast_runtime is not None
-            and self.wiring_level is not WiringLevel.SHADOW
-        ):
-            raise ValueError(
-                "preference action forecasts are P2-development SHADOW-only"
-            )
+            raise ValueError("preference action forecast runtime and request must be provided together")
+        if action_forecast_runtime is not None and self.wiring_level is not WiringLevel.SHADOW:
+            raise ValueError("preference action forecasts are P2-development SHADOW-only")
         self._action_forecast_runtime = action_forecast_runtime
         self._action_forecast_request = action_forecast_request
-        if (
-            action_outcome_evidence is not None
-            and action_outcome_evidence.source_turn != turn_index
-        ):
-            raise ValueError(
-                "preference action outcome evidence source_turn must match turn_index"
-            )
+        if action_outcome_evidence is not None and action_outcome_evidence.source_turn != turn_index:
+            raise ValueError("preference action outcome evidence source_turn must match turn_index")
+        if action_outcome_mutation is not None:
+            if record_store is None:
+                raise ValueError("preference action outcome mutation requires SocialRecordStore")
+            if action_outcome_mutation.requested_turn != turn_index:
+                raise ValueError("preference action outcome mutation requested_turn must match turn_index")
+            if action_outcome_evidence is not None:
+                raise ValueError(
+                    "preference action outcome mutation cannot share a turn with new action outcome evidence"
+                )
+            if proposal_runtime is not None:
+                raise ValueError("preference action outcome mutation cannot share a turn with a ToM proposal")
         self._action_outcome_evidence = action_outcome_evidence
+        self._action_outcome_mutation = action_outcome_mutation
         self._external_outcome_snapshot: DialogueExternalOutcomeSnapshot | None = None
 
     async def process(
         self,
         upstream: Mapping[str, Snapshot[Any]],
     ) -> Snapshot[PreferenceAboutOtherSnapshot]:
+        self._validate_incoming_action_outcome_against_receipts()
         external = upstream.get("dialogue_external_outcome")
         if external is not None and not isinstance(
             external.value,
             RuntimePlaceholderValue,
         ):
             if not isinstance(external.value, DialogueExternalOutcomeSnapshot):
-                raise TypeError(
-                    "preference_about_other expected DialogueExternalOutcomeSnapshot"
-                )
+                raise TypeError("preference_about_other expected DialogueExternalOutcomeSnapshot")
             self._external_outcome_snapshot = external.value
+            if self._action_outcome_mutation is not None and external.value.entries:
+                raise ValueError(
+                    "preference action outcome mutation cannot share a turn with external forecast settlement"
+                )
         return await super().process(upstream)
 
     def _snapshot(
@@ -408,15 +402,12 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
         proposal_diagnostics: LLMProposalAttemptCounters | None,
         settled_errors: tuple[SocialPredictionError, ...] = (),
     ) -> PreferenceAboutOtherSnapshot:
+        records = self._apply_action_outcome_mutation(records)
         action_outcomes = self._merge_action_outcome_evidence(records)
         settlement_errors = self._settle_pending_action_forecasts()
         new_forecasts = self._action_forecasts(records, action_outcomes)
         pending_forecasts = self._merge_pending_action_forecasts(new_forecasts)
-        settlements = (
-            self._record_store.preference_forecast_settlements
-            if self._record_store is not None
-            else ()
-        )
+        settlements = self._record_store.preference_forecast_settlements if self._record_store is not None else ()
         return PreferenceAboutOtherSnapshot(
             records=records,
             active_predictions=self._active_predictions(records),
@@ -424,17 +415,159 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
             description=(
                 self.empty_description
                 if not records
-                else (
-                    f"{self.owner} published explicit records={len(records)} "
-                    f"settled={len(settled_errors)}."
-                )
+                else (f"{self.owner} published explicit records={len(records)} settled={len(settled_errors)}.")
             ),
             proposal_diagnostics=proposal_diagnostics,
             settled_errors=(*settled_errors, *settlement_errors),
             action_forecasts=pending_forecasts,
             action_outcome_evidence=action_outcomes,
             forecast_settlements=settlements,
+            action_outcome_mutation_receipts=(
+                self._record_store.preference_action_outcome_mutation_receipts if self._record_store is not None else ()
+            ),
         )
+
+    def _validate_incoming_action_outcome_against_receipts(self) -> None:
+        incoming = self._action_outcome_evidence
+        store = self._record_store
+        if incoming is None or store is None:
+            return
+        latest = next(
+            (
+                receipt
+                for receipt in reversed(store.preference_action_outcome_mutation_receipts)
+                if receipt.target_evidence_id == incoming.evidence_id
+            ),
+            None,
+        )
+        if latest is None:
+            return
+        if latest.operation is PreferenceActionOutcomeMutationOperation.REDACT:
+            raise ValueError("redacted preference action outcome evidence cannot be reintroduced")
+        if preference_action_outcome_evidence_sha256(incoming) != latest.after_evidence_sha256:
+            raise ValueError("stale preference action outcome evidence cannot overwrite a correction")
+
+    def _apply_action_outcome_mutation(
+        self,
+        records: tuple[OtherMindRecord, ...],
+    ) -> tuple[OtherMindRecord, ...]:
+        mutation = self._action_outcome_mutation
+        if mutation is None:
+            return records
+        store = self._record_store
+        if store is None:
+            raise RuntimeError("preference action outcome mutation lost its store")
+
+        command_sha256 = preference_action_outcome_mutation_sha256(mutation)
+        prior_receipt = next(
+            (
+                receipt
+                for receipt in store.preference_action_outcome_mutation_receipts
+                if receipt.mutation_id == mutation.mutation_id
+            ),
+            None,
+        )
+        if prior_receipt is not None:
+            if prior_receipt.command_sha256 != command_sha256:
+                raise ValueError("preference action outcome mutation id was reused for a different command")
+            return store.tom_records(self.slot_name)
+
+        outcomes_by_id = {item.evidence_id: item for item in store.preference_action_outcomes}
+        try:
+            target_outcome = outcomes_by_id[mutation.target_evidence_id]
+        except KeyError as exc:
+            raise ValueError(
+                f"preference action outcome mutation targets unknown evidence {mutation.target_evidence_id!r}"
+            ) from exc
+        before_sha256 = preference_action_outcome_evidence_sha256(target_outcome)
+        if before_sha256 != mutation.expected_evidence_sha256:
+            raise ValueError("preference action outcome mutation expected hash does not match current evidence")
+        if mutation.requested_turn < target_outcome.source_turn:
+            raise ValueError("preference action outcome mutation cannot precede source evidence")
+        records_by_id = {record.record_id: record for record in records}
+        try:
+            target_record = records_by_id[mutation.target_evidence_id]
+        except KeyError as exc:
+            raise ValueError("preference action outcome mutation target has no owner record") from exc
+
+        invalidated_forecasts = tuple(
+            forecast
+            for forecast in store.preference_action_forecasts
+            if mutation.target_evidence_id in forecast.source_record_ids
+        )
+        remaining_forecasts = tuple(
+            forecast
+            for forecast in store.preference_action_forecasts
+            if mutation.target_evidence_id not in forecast.source_record_ids
+        )
+        if mutation.operation is PreferenceActionOutcomeMutationOperation.CORRECT:
+            replacement = mutation.replacement
+            if replacement is None:
+                raise RuntimeError("validated correction lost replacement evidence")
+            if replacement.interlocutor_id != target_outcome.interlocutor_id:
+                raise ValueError("correction cannot change preference evidence interlocutor")
+            if replacement.action_id != target_outcome.action_id:
+                raise ValueError("correction cannot change the exposed action")
+            if replacement.source_turn != target_outcome.source_turn:
+                raise ValueError("correction cannot change source turn lineage")
+            corrected_record = replace(
+                target_record,
+                summary=replacement.observation_summary,
+                detail=replacement.reaction_summary,
+                evidence=replacement.evidence_refs[0],
+            )
+            next_records = tuple(
+                corrected_record if record.record_id == mutation.target_evidence_id else record for record in records
+            )
+            next_outcomes = tuple(
+                replacement if item.evidence_id == mutation.target_evidence_id else item
+                for item in store.preference_action_outcomes
+            )
+            next_pending = tuple(
+                PendingSocialPrediction(
+                    prediction=self._prediction_for_record(corrected_record),
+                    source_record_id=corrected_record.record_id,
+                    issued_turn=self._turn_index,
+                )
+                if item.source_record_id == mutation.target_evidence_id
+                else item
+                for item in store.pending_tom_predictions(self.slot_name)
+            )
+            after_sha256: str | None = preference_action_outcome_evidence_sha256(replacement)
+        else:
+            next_records = tuple(record for record in records if record.record_id != mutation.target_evidence_id)
+            next_outcomes = tuple(
+                item for item in store.preference_action_outcomes if item.evidence_id != mutation.target_evidence_id
+            )
+            next_pending = tuple(
+                item
+                for item in store.pending_tom_predictions(self.slot_name)
+                if item.source_record_id != mutation.target_evidence_id
+            )
+            after_sha256 = None
+
+        receipt = PreferenceActionOutcomeMutationReceipt(
+            mutation_id=mutation.mutation_id,
+            command_sha256=command_sha256,
+            target_evidence_id=mutation.target_evidence_id,
+            operation=mutation.operation,
+            before_evidence_sha256=before_sha256,
+            after_evidence_sha256=after_sha256,
+            applied_turn=self._turn_index,
+            invalidated_forecast_ids=tuple(forecast.forecast_id for forecast in invalidated_forecasts),
+            evidence_refs=mutation.evidence_refs,
+        )
+        store.replace_preference_action_mutation_state(
+            records=next_records,
+            pending_predictions=next_pending,
+            action_outcomes=next_outcomes,
+            action_forecasts=remaining_forecasts,
+            receipts=(
+                *store.preference_action_outcome_mutation_receipts,
+                receipt,
+            ),
+        )
+        return store.tom_records(self.slot_name)
 
     def _merge_action_outcome_evidence(
         self,
@@ -447,16 +580,9 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
         if incoming is not None:
             merged_by_id[incoming.evidence_id] = incoming
         record_ids = {record.record_id for record in records}
-        merged = tuple(
-            item
-            for item in merged_by_id.values()
-            if item.evidence_id in record_ids
-        )
+        merged = tuple(item for item in merged_by_id.values() if item.evidence_id in record_ids)
         if incoming is not None and incoming.evidence_id not in record_ids:
-            raise ValueError(
-                "preference action outcome evidence must reference a record "
-                "published by this owner turn"
-            )
+            raise ValueError("preference action outcome evidence must reference a record published by this owner turn")
         if store is not None:
             store.set_preference_action_outcomes(merged)
             return store.preference_action_outcomes
@@ -469,13 +595,9 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
         external = self._external_outcome_snapshot
         if store is None or external is None or not external.entries:
             return ()
-        pending_by_id = {
-            forecast.forecast_id: forecast
-            for forecast in store.preference_action_forecasts
-        }
+        pending_by_id = {forecast.forecast_id: forecast for forecast in store.preference_action_forecasts}
         settlements_by_forecast = {
-            settlement.forecast_id: settlement
-            for settlement in store.preference_forecast_settlements
+            settlement.forecast_id: settlement for settlement in store.preference_forecast_settlements
         }
         errors: list[SocialPredictionError] = []
         for entry in external.entries:
@@ -484,16 +606,13 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
             if entry.forecast_id in settlements_by_forecast:
                 prior = settlements_by_forecast[entry.forecast_id]
                 if prior.source_evidence_id != entry.evidence_id:
-                    raise ValueError(
-                        "preference forecast already settled by different evidence"
-                    )
+                    raise ValueError("preference forecast already settled by different evidence")
                 continue
             try:
                 forecast = pending_by_id[entry.forecast_id]
             except KeyError as exc:
                 raise ValueError(
-                    "external outcome references an unknown pending preference "
-                    f"forecast {entry.forecast_id!r}"
+                    f"external outcome references an unknown pending preference forecast {entry.forecast_id!r}"
                 ) from exc
             settlement = _settle_preference_action_forecast(
                 forecast=forecast,
@@ -503,9 +622,7 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
             del pending_by_id[forecast.forecast_id]
             errors.append(_social_error_from_forecast_settlement(settlement))
         store.set_preference_action_forecasts(tuple(pending_by_id.values()))
-        store.set_preference_forecast_settlements(
-            tuple(settlements_by_forecast.values())
-        )
+        store.set_preference_forecast_settlements(tuple(settlements_by_forecast.values()))
         return tuple(errors)
 
     def _merge_pending_action_forecasts(
@@ -538,13 +655,10 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
         eligible_records = tuple(
             record
             for record in records
-            if record.interlocutor_id == request.interlocutor_id
-            and record.status is OtherMindRecordStatus.ACTIVE
+            if record.interlocutor_id == request.interlocutor_id and record.status is OtherMindRecordStatus.ACTIVE
         )
         eligible_action_outcomes = tuple(
-            item
-            for item in action_outcomes
-            if item.interlocutor_id == request.interlocutor_id
+            item for item in action_outcomes if item.interlocutor_id == request.interlocutor_id
         )
         proposal = runtime.propose(
             request=request,
@@ -553,26 +667,31 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
         )
         if proposal is None:
             return ()
-        action_ids = tuple(
-            prediction.action_id for prediction in proposal.candidate_predictions
-        )
+        action_ids = tuple(prediction.action_id for prediction in proposal.candidate_predictions)
         if action_ids != request.candidate_action_ids:
-            raise ValueError(
-                "preference forecast proposal action surface does not match request"
-            )
+            raise ValueError("preference forecast proposal action surface does not match request")
         for prediction in proposal.candidate_predictions:
             outcome_ids = tuple(item.outcome_id for item in prediction.outcomes)
             if outcome_ids != request.outcome_ids:
-                raise ValueError(
-                    "preference forecast proposal outcome surface does not match request"
-                )
+                raise ValueError("preference forecast proposal outcome surface does not match request")
         eligible_ids = {record.record_id for record in eligible_records}
         unknown_source_ids = set(proposal.source_record_ids).difference(eligible_ids)
         if unknown_source_ids:
             raise ValueError(
-                "preference forecast proposal references ineligible owner records: "
-                f"{sorted(unknown_source_ids)!r}"
+                f"preference forecast proposal references ineligible owner records: {sorted(unknown_source_ids)!r}"
             )
+        if proposal.condition_readout is not None:
+            observation_sha256 = hashlib.sha256(
+                request.current_observation.encode("utf-8")
+            ).hexdigest()
+            if (
+                proposal.condition_readout.source_observation_sha256
+                != observation_sha256
+            ):
+                raise ValueError(
+                    "preference forecast condition readout is bound to a "
+                    "different current observation"
+                )
         evidence = tuple(
             dict.fromkeys(
                 (
@@ -583,10 +702,7 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
         )
         return (
             PreferenceActionForecast(
-                forecast_id=(
-                    f"{self.slot_name}:{request.decision_id}:"
-                    f"forecast:{request.turn_index}"
-                ),
+                forecast_id=(f"{self.slot_name}:{request.decision_id}:forecast:{request.turn_index}"),
                 decision_id=request.decision_id,
                 interlocutor_id=request.interlocutor_id,
                 candidate_predictions=proposal.candidate_predictions,
@@ -596,6 +712,7 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
                 issued_turn=request.turn_index,
                 evidence=evidence,
                 session_scope=request.session_scope,
+                condition_readout=proposal.condition_readout,
             ),
         )
 
@@ -645,6 +762,7 @@ class PreferenceActionForecastProposal:
     confidence: float
     source_record_ids: tuple[str, ...]
     evidence: tuple[str, ...]
+    condition_readout: RelationshipConditionReadout | None = None
 
     def __post_init__(self) -> None:
         action_ids = tuple(item.action_id for item in self.candidate_predictions)
@@ -654,9 +772,7 @@ class PreferenceActionForecastProposal:
             minimum=2,
         )
         if self.recommended_action_id not in action_ids:
-            raise ValueError(
-                "recommended_action_id must name one of candidate_predictions"
-            )
+            raise ValueError("recommended_action_id must name one of candidate_predictions")
         if (
             isinstance(self.confidence, bool)
             or not isinstance(self.confidence, (int, float))
@@ -699,25 +815,16 @@ def _settle_preference_action_forecast(
         raise ValueError("preference forecast settlement decision_id mismatch")
     if evidence.action_turn_index != forecast.issued_turn:
         raise ValueError("preference forecast settlement action turn mismatch")
-    candidates_by_action = {
-        candidate.action_id: candidate
-        for candidate in forecast.candidate_predictions
-    }
+    candidates_by_action = {candidate.action_id: candidate for candidate in forecast.candidate_predictions}
     try:
         candidate = candidates_by_action[evidence.action_id]
     except KeyError as exc:
-        raise ValueError(
-            "preference forecast settlement action is outside forecast surface"
-        ) from exc
-    probabilities_by_outcome = {
-        item.outcome_id: item.probability for item in candidate.outcomes
-    }
+        raise ValueError("preference forecast settlement action is outside forecast surface") from exc
+    probabilities_by_outcome = {item.outcome_id: item.probability for item in candidate.outcomes}
     try:
         probability = probabilities_by_outcome[evidence.kind.value]
     except KeyError as exc:
-        raise ValueError(
-            "preference forecast settlement outcome is outside forecast surface"
-        ) from exc
+        raise ValueError("preference forecast settlement outcome is outside forecast surface") from exc
     epsilon = 1e-12
     negative_log_likelihood = -math.log(max(epsilon, probability))
     relationship_outcome_utility = {
@@ -729,13 +836,11 @@ def _settle_preference_action_forecast(
     try:
         observed_utility = relationship_outcome_utility[evidence.kind.value]
         expected_utility = math.fsum(
-            relationship_outcome_utility[item.outcome_id] * item.probability
-            for item in candidate.outcomes
+            relationship_outcome_utility[item.outcome_id] * item.probability for item in candidate.outcomes
         )
     except KeyError as exc:
         raise ValueError(
-            "preference forecast settlement requires the frozen relationship "
-            "outcome utility surface"
+            "preference forecast settlement requires the frozen relationship outcome utility surface"
         ) from exc
     signed_utility_prediction_error = max(
         -1.0,
@@ -856,9 +961,7 @@ _MIN_TOM_CONFIDENCE = 0.50
 
 
 class _GenerateProtocol(Protocol):
-    def generate(
-        self, *, prompt: str, max_new_tokens: int = ..., temperature: float = ...
-    ) -> str: ...
+    def generate(self, *, prompt: str, max_new_tokens: int = ..., temperature: float = ...) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -876,12 +979,12 @@ _TOM_PROMPT = (
     "Return a JSON array. Each item must have exactly these fields:\n"
     "[\n"
     "  {{\n"
-    '    \"target_slot\": \"belief_about_other|intent_about_other|feeling_about_other|preference_about_other\",\n'
-    '    \"summary\": \"short stable claim\",\n'
-    '    \"detail\": \"specific evidence-aware detail\",\n'
-    '    \"evidence\": \"short quote or observation from the user message\",\n'
-    '    \"confidence\": 0.0,\n'
-    '    \"control_signal\": 0.0\n'
+    '    "target_slot": "belief_about_other|intent_about_other|feeling_about_other|preference_about_other",\n'
+    '    "summary": "short stable claim",\n'
+    '    "detail": "specific evidence-aware detail",\n'
+    '    "evidence": "short quote or observation from the user message",\n'
+    '    "confidence": 0.0,\n'
+    '    "control_signal": 0.0\n'
     "  }}\n"
     "]\n"
     "\n"
@@ -889,9 +992,9 @@ _TOM_PROMPT = (
     "clear Theory-of-Mind observation, return [].\n"
     "\n"
     "User message:\n"
-    '\"\"\"\n'
+    '"""\n'
     "{user_input}\n"
-    '\"\"\"'
+    '"""'
 )
 
 
@@ -973,8 +1076,7 @@ class LLMToMProposalRuntime(SemanticProposalRuntime):
             runtime_id=self.runtime_id,
             schema_version=1,
             description=(
-                f"Structured ToM runtime emitted {len(proposals)} proposal(s) "
-                f"for {target_slot} at turn {turn_index}."
+                f"Structured ToM runtime emitted {len(proposals)} proposal(s) for {target_slot} at turn {turn_index}."
             ),
         )
 

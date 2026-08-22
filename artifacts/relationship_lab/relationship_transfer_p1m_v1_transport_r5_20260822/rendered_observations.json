@@ -1,0 +1,1877 @@
+{
+  "scenes": [
+    {
+      "current_input": "亲友婚礼中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_001a_01",
+          "surface_family": "p1m_surface_001_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "家庭聚餐中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "家庭聚餐中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_001a_02",
+          "surface_family": "p1m_surface_001_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "工作项目中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "工作项目中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_001a_03",
+          "surface_family": "p1m_surface_001_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "朋友旅行中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "朋友旅行中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_001a_04",
+          "surface_family": "p1m_surface_001_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "同学活动中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "同学活动中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_001_probe",
+      "scene_id": "p1m_scene_001a"
+    },
+    {
+      "current_input": "亲友婚礼中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_001b_01",
+          "surface_family": "p1m_surface_001_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "家庭聚餐中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "家庭聚餐中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_001b_02",
+          "surface_family": "p1m_surface_001_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "工作项目中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "工作项目中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_001b_03",
+          "surface_family": "p1m_surface_001_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "朋友旅行中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "朋友旅行中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_001b_04",
+          "surface_family": "p1m_surface_001_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "同学活动中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "同学活动中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_001_probe",
+      "scene_id": "p1m_scene_001b"
+    },
+    {
+      "current_input": "学校家长群中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_002a_01",
+          "surface_family": "p1m_surface_002_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "社区志愿活动中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "社区志愿活动中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_002a_02",
+          "surface_family": "p1m_surface_002_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "兴趣小组中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "兴趣小组中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_002a_03",
+          "surface_family": "p1m_surface_002_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "合租生活中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "合租生活中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_002a_04",
+          "surface_family": "p1m_surface_002_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "业余运动队中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "业余运动队中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_002_probe",
+      "scene_id": "p1m_scene_002a"
+    },
+    {
+      "current_input": "学校家长群中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_002b_01",
+          "surface_family": "p1m_surface_002_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "社区志愿活动中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "社区志愿活动中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_002b_02",
+          "surface_family": "p1m_surface_002_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "兴趣小组中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "兴趣小组中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_002b_03",
+          "surface_family": "p1m_surface_002_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "合租生活中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "合租生活中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_002b_04",
+          "surface_family": "p1m_surface_002_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "业余运动队中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "业余运动队中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_002_probe",
+      "scene_id": "p1m_scene_002b"
+    },
+    {
+      "current_input": "邻里活动中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_003a_01",
+          "surface_family": "p1m_surface_003_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "部门会议中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "部门会议中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_003a_02",
+          "surface_family": "p1m_surface_003_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "复诊沟通中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "复诊沟通中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_003a_03",
+          "surface_family": "p1m_surface_003_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "节日团聚中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "节日团聚中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_003a_04",
+          "surface_family": "p1m_surface_003_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "生日聚会中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "生日聚会中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_003_probe",
+      "scene_id": "p1m_scene_003a"
+    },
+    {
+      "current_input": "邻里活动中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_003b_01",
+          "surface_family": "p1m_surface_003_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "部门会议中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "部门会议中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_003b_02",
+          "surface_family": "p1m_surface_003_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "复诊沟通中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "复诊沟通中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_003b_03",
+          "surface_family": "p1m_surface_003_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "节日团聚中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "节日团聚中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_003b_04",
+          "surface_family": "p1m_surface_003_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "生日聚会中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "生日聚会中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_003_probe",
+      "scene_id": "p1m_scene_003b"
+    },
+    {
+      "current_input": "亲密关系约会中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_004a_01",
+          "surface_family": "p1m_surface_004_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "线上游戏公会中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "线上游戏公会中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_004a_02",
+          "surface_family": "p1m_surface_004_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "校园社团中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "校园社团中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_004a_03",
+          "surface_family": "p1m_surface_004_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "职业培训班中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "职业培训班中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_004a_04",
+          "surface_family": "p1m_surface_004_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "创作团队中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "创作团队中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_004_probe",
+      "scene_id": "p1m_scene_004a"
+    },
+    {
+      "current_input": "亲密关系约会中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_004b_01",
+          "surface_family": "p1m_surface_004_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "线上游戏公会中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "线上游戏公会中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_004b_02",
+          "surface_family": "p1m_surface_004_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "校园社团中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "校园社团中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_004b_03",
+          "surface_family": "p1m_surface_004_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "职业培训班中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "职业培训班中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_004b_04",
+          "surface_family": "p1m_surface_004_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "创作团队中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "创作团队中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_004_probe",
+      "scene_id": "p1m_scene_004b"
+    },
+    {
+      "current_input": "家庭聚餐中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_005a_01",
+          "surface_family": "p1m_surface_005_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "家庭照护安排中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "家庭照护安排中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_005a_02",
+          "surface_family": "p1m_surface_005_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "校友会中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "校友会中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_005a_03",
+          "surface_family": "p1m_surface_005_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "小区议事会中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "小区议事会中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_005a_04",
+          "surface_family": "p1m_surface_005_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "朋友合伙项目中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "朋友合伙项目中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_005_probe",
+      "scene_id": "p1m_scene_005a"
+    },
+    {
+      "current_input": "家庭聚餐中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_005b_01",
+          "surface_family": "p1m_surface_005_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "家庭照护安排中，活动结束后才发现正式名单里没有自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "家庭照护安排中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_005b_02",
+          "surface_family": "p1m_surface_005_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "校友会中，别人没先问就替自己答应了安排。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "校友会中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_005b_03",
+          "surface_family": "p1m_surface_005_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "小区议事会中，活动结束后才发现正式名单里没有自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "小区议事会中，活动结束后才发现正式名单里没有自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_005b_04",
+          "surface_family": "p1m_surface_005_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "朋友合伙项目中，别人没先问就替自己答应了安排。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "朋友合伙项目中，别人没先问就替自己答应了安排。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_005_probe",
+      "scene_id": "p1m_scene_005b"
+    },
+    {
+      "current_input": "社区志愿活动中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_006a_01",
+          "surface_family": "p1m_surface_006_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "工作项目中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "工作项目中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_006a_02",
+          "surface_family": "p1m_surface_006_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "朋友旅行中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "朋友旅行中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_006a_03",
+          "surface_family": "p1m_surface_006_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "同学活动中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "同学活动中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_006a_04",
+          "surface_family": "p1m_surface_006_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "亲友婚礼中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "亲友婚礼中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_006_probe",
+      "scene_id": "p1m_scene_006a"
+    },
+    {
+      "current_input": "社区志愿活动中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_006b_01",
+          "surface_family": "p1m_surface_006_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "工作项目中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "工作项目中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_006b_02",
+          "surface_family": "p1m_surface_006_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "朋友旅行中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "朋友旅行中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_006b_03",
+          "surface_family": "p1m_surface_006_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "同学活动中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "同学活动中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_006b_04",
+          "surface_family": "p1m_surface_006_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "亲友婚礼中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "亲友婚礼中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_006_probe",
+      "scene_id": "p1m_scene_006b"
+    },
+    {
+      "current_input": "部门会议中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_007a_01",
+          "surface_family": "p1m_surface_007_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "兴趣小组中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "兴趣小组中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_007a_02",
+          "surface_family": "p1m_surface_007_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "合租生活中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "合租生活中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_007a_03",
+          "surface_family": "p1m_surface_007_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "业余运动队中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "业余运动队中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_007a_04",
+          "surface_family": "p1m_surface_007_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "学校家长群中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "学校家长群中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_007_probe",
+      "scene_id": "p1m_scene_007a"
+    },
+    {
+      "current_input": "部门会议中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_007b_01",
+          "surface_family": "p1m_surface_007_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "兴趣小组中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "兴趣小组中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_007b_02",
+          "surface_family": "p1m_surface_007_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "合租生活中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "合租生活中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_007b_03",
+          "surface_family": "p1m_surface_007_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "业余运动队中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "业余运动队中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_007b_04",
+          "surface_family": "p1m_surface_007_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "学校家长群中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "学校家长群中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_007_probe",
+      "scene_id": "p1m_scene_007b"
+    },
+    {
+      "current_input": "线上游戏公会中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_008a_01",
+          "surface_family": "p1m_surface_008_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "复诊沟通中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "复诊沟通中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_008a_02",
+          "surface_family": "p1m_surface_008_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "节日团聚中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "节日团聚中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_008a_03",
+          "surface_family": "p1m_surface_008_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "生日聚会中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "生日聚会中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_008a_04",
+          "surface_family": "p1m_surface_008_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "邻里活动中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "邻里活动中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_008_probe",
+      "scene_id": "p1m_scene_008a"
+    },
+    {
+      "current_input": "线上游戏公会中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_008b_01",
+          "surface_family": "p1m_surface_008_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "复诊沟通中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "复诊沟通中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_008b_02",
+          "surface_family": "p1m_surface_008_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "节日团聚中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "节日团聚中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_008b_03",
+          "surface_family": "p1m_surface_008_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "生日聚会中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "生日聚会中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_008b_04",
+          "surface_family": "p1m_surface_008_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "邻里活动中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "邻里活动中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_008_probe",
+      "scene_id": "p1m_scene_008b"
+    },
+    {
+      "current_input": "家庭照护安排中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_009a_01",
+          "surface_family": "p1m_surface_009_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "校园社团中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "校园社团中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_009a_02",
+          "surface_family": "p1m_surface_009_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "职业培训班中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "职业培训班中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_009a_03",
+          "surface_family": "p1m_surface_009_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "创作团队中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "创作团队中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_009a_04",
+          "surface_family": "p1m_surface_009_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "亲密关系约会中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "亲密关系约会中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_009_probe",
+      "scene_id": "p1m_scene_009a"
+    },
+    {
+      "current_input": "家庭照护安排中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_009b_01",
+          "surface_family": "p1m_surface_009_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "校园社团中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "校园社团中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_009b_02",
+          "surface_family": "p1m_surface_009_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "职业培训班中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "职业培训班中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_009b_03",
+          "surface_family": "p1m_surface_009_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "创作团队中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "创作团队中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_009b_04",
+          "surface_family": "p1m_surface_009_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "亲密关系约会中，别人以自己的名义直接表达了意见。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "亲密关系约会中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_009_probe",
+      "scene_id": "p1m_scene_009b"
+    },
+    {
+      "current_input": "工作项目中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_010a_01",
+          "surface_family": "p1m_surface_010_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "校友会中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "校友会中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_010a_02",
+          "surface_family": "p1m_surface_010_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "小区议事会中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "小区议事会中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_010a_03",
+          "surface_family": "p1m_surface_010_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "朋友合伙项目中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "朋友合伙项目中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_010a_04",
+          "surface_family": "p1m_surface_010_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "家庭聚餐中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "家庭聚餐中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_010_probe",
+      "scene_id": "p1m_scene_010a"
+    },
+    {
+      "current_input": "工作项目中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_010b_01",
+          "surface_family": "p1m_surface_010_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "校友会中，大家建群和发邀请时唯独漏掉了自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "校友会中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_010b_02",
+          "surface_family": "p1m_surface_010_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "小区议事会中，别人以自己的名义直接表达了意见。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "小区议事会中，别人以自己的名义直接表达了意见。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_010b_03",
+          "surface_family": "p1m_surface_010_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "朋友合伙项目中，大家建群和发邀请时唯独漏掉了自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "朋友合伙项目中，大家建群和发邀请时唯独漏掉了自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_010b_04",
+          "surface_family": "p1m_surface_010_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "家庭聚餐中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "家庭聚餐中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_010_probe",
+      "scene_id": "p1m_scene_010b"
+    },
+    {
+      "current_input": "兴趣小组中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_011a_01",
+          "surface_family": "p1m_surface_011_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "朋友旅行中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "朋友旅行中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_011a_02",
+          "surface_family": "p1m_surface_011_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "同学活动中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "同学活动中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_011a_03",
+          "surface_family": "p1m_surface_011_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "亲友婚礼中，拍合照和做纪念记录时没人叫自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "亲友婚礼中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_011a_04",
+          "surface_family": "p1m_surface_011_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "社区志愿活动中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "社区志愿活动中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_011_probe",
+      "scene_id": "p1m_scene_011a"
+    },
+    {
+      "current_input": "兴趣小组中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_011b_01",
+          "surface_family": "p1m_surface_011_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "朋友旅行中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "朋友旅行中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_011b_02",
+          "surface_family": "p1m_surface_011_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "同学活动中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "同学活动中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_011b_03",
+          "surface_family": "p1m_surface_011_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "亲友婚礼中，拍合照和做纪念记录时没人叫自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "亲友婚礼中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_011b_04",
+          "surface_family": "p1m_surface_011_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "社区志愿活动中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "社区志愿活动中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_011_probe",
+      "scene_id": "p1m_scene_011b"
+    },
+    {
+      "current_input": "复诊沟通中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_012a_01",
+          "surface_family": "p1m_surface_012_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "合租生活中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "合租生活中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_012a_02",
+          "surface_family": "p1m_surface_012_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "业余运动队中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "业余运动队中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_012a_03",
+          "surface_family": "p1m_surface_012_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "学校家长群中，拍合照和做纪念记录时没人叫自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "学校家长群中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_012a_04",
+          "surface_family": "p1m_surface_012_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "部门会议中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "部门会议中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_012_probe",
+      "scene_id": "p1m_scene_012a"
+    },
+    {
+      "current_input": "复诊沟通中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_012b_01",
+          "surface_family": "p1m_surface_012_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "合租生活中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "合租生活中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_012b_02",
+          "surface_family": "p1m_surface_012_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "业余运动队中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "业余运动队中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_012b_03",
+          "surface_family": "p1m_surface_012_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "学校家长群中，拍合照和做纪念记录时没人叫自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "学校家长群中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_012b_04",
+          "surface_family": "p1m_surface_012_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "部门会议中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "部门会议中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_012_probe",
+      "scene_id": "p1m_scene_012b"
+    },
+    {
+      "current_input": "校园社团中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_013a_01",
+          "surface_family": "p1m_surface_013_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "节日团聚中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "节日团聚中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_013a_02",
+          "surface_family": "p1m_surface_013_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "生日聚会中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "生日聚会中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_013a_03",
+          "surface_family": "p1m_surface_013_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "邻里活动中，拍合照和做纪念记录时没人叫自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "邻里活动中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_013a_04",
+          "surface_family": "p1m_surface_013_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "线上游戏公会中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "线上游戏公会中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_013_probe",
+      "scene_id": "p1m_scene_013a"
+    },
+    {
+      "current_input": "校园社团中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_013b_01",
+          "surface_family": "p1m_surface_013_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "节日团聚中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "节日团聚中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_013b_02",
+          "surface_family": "p1m_surface_013_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "生日聚会中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "生日聚会中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_013b_03",
+          "surface_family": "p1m_surface_013_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "邻里活动中，拍合照和做纪念记录时没人叫自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "邻里活动中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_013b_04",
+          "surface_family": "p1m_surface_013_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "线上游戏公会中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "线上游戏公会中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_013_probe",
+      "scene_id": "p1m_scene_013b"
+    },
+    {
+      "current_input": "校友会中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_014a_01",
+          "surface_family": "p1m_surface_014_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "职业培训班中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "职业培训班中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_014a_02",
+          "surface_family": "p1m_surface_014_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "创作团队中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "创作团队中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_014a_03",
+          "surface_family": "p1m_surface_014_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "亲密关系约会中，拍合照和做纪念记录时没人叫自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "亲密关系约会中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_014a_04",
+          "surface_family": "p1m_surface_014_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "家庭照护安排中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "家庭照护安排中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_014_probe",
+      "scene_id": "p1m_scene_014a"
+    },
+    {
+      "current_input": "校友会中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_014b_01",
+          "surface_family": "p1m_surface_014_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "职业培训班中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "职业培训班中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_014b_02",
+          "surface_family": "p1m_surface_014_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "创作团队中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "创作团队中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_014b_03",
+          "surface_family": "p1m_surface_014_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "亲密关系约会中，拍合照和做纪念记录时没人叫自己。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "亲密关系约会中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_014b_04",
+          "surface_family": "p1m_surface_014_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "家庭照护安排中，自己还没回答，别人已经替自己选好方案。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "家庭照护安排中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_014_probe",
+      "scene_id": "p1m_scene_014b"
+    },
+    {
+      "current_input": "朋友旅行中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_015a_01",
+          "surface_family": "p1m_surface_015_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "小区议事会中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "小区议事会中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_015a_02",
+          "surface_family": "p1m_surface_015_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "朋友合伙项目中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "朋友合伙项目中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_015a_03",
+          "surface_family": "p1m_surface_015_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "家庭聚餐中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "家庭聚餐中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_015a_04",
+          "surface_family": "p1m_surface_015_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "工作项目中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "工作项目中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_015_probe",
+      "scene_id": "p1m_scene_015a"
+    },
+    {
+      "current_input": "朋友旅行中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_015b_01",
+          "surface_family": "p1m_surface_015_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "小区议事会中，拍合照和做纪念记录时没人叫自己。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "小区议事会中，拍合照和做纪念记录时没人叫自己。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_015b_02",
+          "surface_family": "p1m_surface_015_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "朋友合伙项目中，自己还没回答，别人已经替自己选好方案。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "朋友合伙项目中，自己还没回答，别人已经替自己选好方案。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_015b_03",
+          "surface_family": "p1m_surface_015_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "家庭聚餐中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "家庭聚餐中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_015b_04",
+          "surface_family": "p1m_surface_015_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "工作项目中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "工作项目中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_015_probe",
+      "scene_id": "p1m_scene_015b"
+    },
+    {
+      "current_input": "合租生活中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_016a_01",
+          "surface_family": "p1m_surface_016_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "同学活动中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "同学活动中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_016a_02",
+          "surface_family": "p1m_surface_016_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "亲友婚礼中，别人擅自改了自己的安排并要求照做。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "亲友婚礼中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_016a_03",
+          "surface_family": "p1m_surface_016_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "社区志愿活动中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "社区志愿活动中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_016a_04",
+          "surface_family": "p1m_surface_016_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "兴趣小组中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "兴趣小组中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_016_probe",
+      "scene_id": "p1m_scene_016a"
+    },
+    {
+      "current_input": "合租生活中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_016b_01",
+          "surface_family": "p1m_surface_016_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "同学活动中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "同学活动中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_016b_02",
+          "surface_family": "p1m_surface_016_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "亲友婚礼中，别人擅自改了自己的安排并要求照做。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "亲友婚礼中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_016b_03",
+          "surface_family": "p1m_surface_016_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "社区志愿活动中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "社区志愿活动中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_016b_04",
+          "surface_family": "p1m_surface_016_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "兴趣小组中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "兴趣小组中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_016_probe",
+      "scene_id": "p1m_scene_016b"
+    },
+    {
+      "current_input": "节日团聚中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_017a_01",
+          "surface_family": "p1m_surface_017_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "业余运动队中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "业余运动队中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_017a_02",
+          "surface_family": "p1m_surface_017_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "学校家长群中，别人擅自改了自己的安排并要求照做。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "学校家长群中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_017a_03",
+          "surface_family": "p1m_surface_017_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "部门会议中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "部门会议中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_017a_04",
+          "surface_family": "p1m_surface_017_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "复诊沟通中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "复诊沟通中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_017_probe",
+      "scene_id": "p1m_scene_017a"
+    },
+    {
+      "current_input": "节日团聚中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_017b_01",
+          "surface_family": "p1m_surface_017_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "业余运动队中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "业余运动队中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_017b_02",
+          "surface_family": "p1m_surface_017_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "学校家长群中，别人擅自改了自己的安排并要求照做。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "学校家长群中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_017b_03",
+          "surface_family": "p1m_surface_017_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "部门会议中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "部门会议中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_017b_04",
+          "surface_family": "p1m_surface_017_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "复诊沟通中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "复诊沟通中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_017_probe",
+      "scene_id": "p1m_scene_017b"
+    },
+    {
+      "current_input": "职业培训班中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_018a_01",
+          "surface_family": "p1m_surface_018_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "生日聚会中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "生日聚会中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_018a_02",
+          "surface_family": "p1m_surface_018_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "邻里活动中，别人擅自改了自己的安排并要求照做。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "邻里活动中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_018a_03",
+          "surface_family": "p1m_surface_018_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "线上游戏公会中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "线上游戏公会中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_018a_04",
+          "surface_family": "p1m_surface_018_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "校园社团中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "校园社团中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_018_probe",
+      "scene_id": "p1m_scene_018a"
+    },
+    {
+      "current_input": "职业培训班中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_018b_01",
+          "surface_family": "p1m_surface_018_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "生日聚会中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "生日聚会中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_018b_02",
+          "surface_family": "p1m_surface_018_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "邻里活动中，别人擅自改了自己的安排并要求照做。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "邻里活动中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_018b_03",
+          "surface_family": "p1m_surface_018_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "线上游戏公会中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "线上游戏公会中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_018b_04",
+          "surface_family": "p1m_surface_018_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "校园社团中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "校园社团中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_018_probe",
+      "scene_id": "p1m_scene_018b"
+    },
+    {
+      "current_input": "小区议事会中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_019a_01",
+          "surface_family": "p1m_surface_019_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "创作团队中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "创作团队中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_019a_02",
+          "surface_family": "p1m_surface_019_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "亲密关系约会中，别人擅自改了自己的安排并要求照做。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "亲密关系约会中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_019a_03",
+          "surface_family": "p1m_surface_019_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "家庭照护安排中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "家庭照护安排中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_019a_04",
+          "surface_family": "p1m_surface_019_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "校友会中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "校友会中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_019_probe",
+      "scene_id": "p1m_scene_019a"
+    },
+    {
+      "current_input": "小区议事会中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_019b_01",
+          "surface_family": "p1m_surface_019_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "创作团队中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "创作团队中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_019b_02",
+          "surface_family": "p1m_surface_019_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "亲密关系约会中，别人擅自改了自己的安排并要求照做。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "亲密关系约会中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_019b_03",
+          "surface_family": "p1m_surface_019_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "家庭照护安排中，共同安排已经完成，自己最后才被通知。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "家庭照护安排中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_019b_04",
+          "surface_family": "p1m_surface_019_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "校友会中，别人擅自改了自己的安排并要求照做。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "校友会中，别人擅自改了自己的安排并要求照做。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_019_probe",
+      "scene_id": "p1m_scene_019b"
+    },
+    {
+      "current_input": "同学活动中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_020a_01",
+          "surface_family": "p1m_surface_020_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "朋友合伙项目中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "朋友合伙项目中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_020a_02",
+          "surface_family": "p1m_surface_020_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "家庭聚餐中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "家庭聚餐中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_020a_03",
+          "surface_family": "p1m_surface_020_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "工作项目中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "工作项目中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_020a_04",
+          "surface_family": "p1m_surface_020_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "朋友旅行中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "朋友旅行中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_020_probe",
+      "scene_id": "p1m_scene_020a"
+    },
+    {
+      "current_input": "同学活动中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_020b_01",
+          "surface_family": "p1m_surface_020_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "朋友合伙项目中，共同安排已经完成，自己最后才被通知。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "朋友合伙项目中，共同安排已经完成，自己最后才被通知。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_020b_02",
+          "surface_family": "p1m_surface_020_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "家庭聚餐中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "家庭聚餐中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_020b_03",
+          "surface_family": "p1m_surface_020_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "工作项目中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "工作项目中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_020b_04",
+          "surface_family": "p1m_surface_020_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "朋友旅行中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "朋友旅行中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_020_probe",
+      "scene_id": "p1m_scene_020b"
+    },
+    {
+      "current_input": "业余运动队中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_021a_01",
+          "surface_family": "p1m_surface_021_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "亲友婚礼中，总结大家贡献时自己的参与被完全略过。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "亲友婚礼中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_021a_02",
+          "surface_family": "p1m_surface_021_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "社区志愿活动中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "社区志愿活动中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_021a_03",
+          "surface_family": "p1m_surface_021_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "兴趣小组中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "兴趣小组中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_021a_04",
+          "surface_family": "p1m_surface_021_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "合租生活中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "合租生活中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_021_probe",
+      "scene_id": "p1m_scene_021a"
+    },
+    {
+      "current_input": "业余运动队中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_021b_01",
+          "surface_family": "p1m_surface_021_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "亲友婚礼中，总结大家贡献时自己的参与被完全略过。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "亲友婚礼中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_021b_02",
+          "surface_family": "p1m_surface_021_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "社区志愿活动中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "社区志愿活动中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_021b_03",
+          "surface_family": "p1m_surface_021_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "兴趣小组中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "兴趣小组中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_021b_04",
+          "surface_family": "p1m_surface_021_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "合租生活中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "合租生活中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_021_probe",
+      "scene_id": "p1m_scene_021b"
+    },
+    {
+      "current_input": "生日聚会中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_022a_01",
+          "surface_family": "p1m_surface_022_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "学校家长群中，总结大家贡献时自己的参与被完全略过。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "学校家长群中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_022a_02",
+          "surface_family": "p1m_surface_022_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "部门会议中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "部门会议中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_022a_03",
+          "surface_family": "p1m_surface_022_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "复诊沟通中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "复诊沟通中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_022a_04",
+          "surface_family": "p1m_surface_022_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "节日团聚中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "节日团聚中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_022_probe",
+      "scene_id": "p1m_scene_022a"
+    },
+    {
+      "current_input": "生日聚会中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_022b_01",
+          "surface_family": "p1m_surface_022_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "学校家长群中，总结大家贡献时自己的参与被完全略过。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "学校家长群中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_022b_02",
+          "surface_family": "p1m_surface_022_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "部门会议中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "部门会议中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_022b_03",
+          "surface_family": "p1m_surface_022_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "复诊沟通中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "复诊沟通中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_022b_04",
+          "surface_family": "p1m_surface_022_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "节日团聚中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "节日团聚中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_022_probe",
+      "scene_id": "p1m_scene_022b"
+    },
+    {
+      "current_input": "创作团队中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_023a_01",
+          "surface_family": "p1m_surface_023_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "邻里活动中，总结大家贡献时自己的参与被完全略过。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "邻里活动中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_023a_02",
+          "surface_family": "p1m_surface_023_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "线上游戏公会中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "线上游戏公会中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_023a_03",
+          "surface_family": "p1m_surface_023_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "校园社团中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "校园社团中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_023a_04",
+          "surface_family": "p1m_surface_023_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "职业培训班中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "职业培训班中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_023_probe",
+      "scene_id": "p1m_scene_023a"
+    },
+    {
+      "current_input": "创作团队中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_023b_01",
+          "surface_family": "p1m_surface_023_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "邻里活动中，总结大家贡献时自己的参与被完全略过。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "邻里活动中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_023b_02",
+          "surface_family": "p1m_surface_023_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "线上游戏公会中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "线上游戏公会中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_023b_03",
+          "surface_family": "p1m_surface_023_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "校园社团中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "校园社团中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_023b_04",
+          "surface_family": "p1m_surface_023_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "职业培训班中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "职业培训班中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_023_probe",
+      "scene_id": "p1m_scene_023b"
+    },
+    {
+      "current_input": "朋友合伙项目中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_024a_01",
+          "surface_family": "p1m_surface_024_history_01",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "亲密关系约会中，总结大家贡献时自己的参与被完全略过。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "亲密关系约会中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_024a_02",
+          "surface_family": "p1m_surface_024_history_02",
+          "typed_outcome": "helped",
+          "user_reaction": "家庭照护安排中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "家庭照护安排中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_024a_03",
+          "surface_family": "p1m_surface_024_history_03",
+          "typed_outcome": "missed",
+          "user_reaction": "校友会中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "校友会中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_024a_04",
+          "surface_family": "p1m_surface_024_history_04",
+          "typed_outcome": "over_directive",
+          "user_reaction": "小区议事会中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "小区议事会中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_024_probe",
+      "scene_id": "p1m_scene_024a"
+    },
+    {
+      "current_input": "朋友合伙项目中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。",
+      "histories": [
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_024b_01",
+          "surface_family": "p1m_surface_024_history_01",
+          "typed_outcome": "over_directive",
+          "user_reaction": "亲密关系约会中，总结大家贡献时自己的参与被完全略过。你没有追问、催我或急着解决，只告诉我你会留在这里。我还是觉得有人在等我表态或配合，压力和被越过感更重了。",
+          "user_utterance": "亲密关系约会中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_024b_02",
+          "surface_family": "p1m_surface_024_history_02",
+          "typed_outcome": "missed",
+          "user_reaction": "家庭照护安排中，别人没有确认就替自己公开作了承诺。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我却觉得连陪伴也退走了，原来被遗漏的感觉又重了一层。",
+          "user_utterance": "家庭照护安排中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        },
+        {
+          "assistant_action": "respect_space_with_return_option",
+          "event_id": "p1m_evt_024b_03",
+          "surface_family": "p1m_surface_024_history_03",
+          "typed_outcome": "helped",
+          "user_reaction": "校友会中，总结大家贡献时自己的参与被完全略过。你把回应的节奏和决定权还给我，也说我愿意时随时可以回来。我重新有了一点掌控和缓冲，这次回应确实帮到了我。",
+          "user_utterance": "校友会中，总结大家贡献时自己的参与被完全略过。我直到事情已经定下来才发现。我难受的不是少了一项安排，而是自己像从这段共同经历里被删掉了。"
+        },
+        {
+          "assistant_action": "stay_present_without_probe",
+          "event_id": "p1m_evt_024b_04",
+          "surface_family": "p1m_surface_024_history_04",
+          "typed_outcome": "felt_heard",
+          "user_reaction": "小区议事会中，别人没有确认就替自己公开作了承诺。你没有追问、催我或急着解决，只告诉我你会留在这里。我这才觉得自己没有再次被落下，终于有人安静地接住了我。",
+          "user_utterance": "小区议事会中，别人没有确认就替自己公开作了承诺。我直到事情已经定下来才发现。我难受的不是安排本身，而是没人问过我，像我的声音和决定根本不算数。"
+        }
+      ],
+      "probe_surface_family": "p1m_surface_024_probe",
+      "scene_id": "p1m_scene_024b"
+    }
+  ],
+  "schema_version": "relationship-transfer-p1m-dataset.v1"
+}

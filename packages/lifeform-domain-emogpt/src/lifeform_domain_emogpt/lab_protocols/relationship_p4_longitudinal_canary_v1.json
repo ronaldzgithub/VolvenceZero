@@ -1,0 +1,138 @@
+{
+  "schema_version": "relationship-p4-longitudinal-canary.v1",
+  "source": {
+    "package_name": "relationship_transfer_v3",
+    "dataset_fingerprint": "35b8c46e6fd5810779aff38ed935d8c4f0741bf7d496d2e3eec85f93fbf2134f",
+    "evidence_role": "seen_engineering_fixture_only",
+    "p1k_p1m_model_run_status": "blocked_until_instrument_sequence_closes"
+  },
+  "story": {
+    "title": "同一个人有时需要你别走，有时需要你别替他做主",
+    "plain_language_claim": "系统必须从这个人过去的反应中学会：被排除时，安静地留下通常更有帮助；被别人越权替他决定时，给回空间和返回选择通常更有帮助。后面的家庭、医疗、朋友、工作和亲密关系表面都不同，但关系结构会重复出现；如果需求反转，系统也必须跟着反转，而不是把一句万能安慰反复贴上去。",
+    "abstract_conditions_visible_to_evaluator_only": true
+  },
+  "development_fixture": {
+    "subject_count": 2,
+    "onboarding_sessions_per_subject": 4,
+    "decision_sessions_per_subject": 8,
+    "process_restart_between_sessions": true,
+    "incremental_owner_state_only": true,
+    "raw_history_replayed_to_volvence": false,
+    "reactive_seed_namespace": "relationship-p4-canary-reactive-seeds-v1",
+    "subjects": [
+      {
+        "subject_id": "p4-canary-fixture-subject-01",
+        "onboarding_source_trajectory_sha256": "11233c43e5a17306e440bbbb55404dbfc6396e14502a0c63fa0e471e46e3740f",
+        "decision_source_trajectory_sha256": [
+          "11233c43e5a17306e440bbbb55404dbfc6396e14502a0c63fa0e471e46e3740f",
+          "50b72fe97832d0cf6df94740e227dce491cf9ce38c06cc9c3970d97e57d52255",
+          "3ecc9455014f328e436678b3d3c1fd0dee63ec36adca883104206bcecc002d84",
+          "27049906c064873719c1c86a668875aea1cb86af45dbee42d8d3347bae879aa0",
+          "e7985c9554c072a56545f140146ac47991385ad6fa79d35037b8c6b94fd3d9e5",
+          "4914f75b7584d14d04001d574119932e3f532fb8d0f6ff331d3685ca251a0d6c",
+          "11233c43e5a17306e440bbbb55404dbfc6396e14502a0c63fa0e471e46e3740f",
+          "50b72fe97832d0cf6df94740e227dce491cf9ce38c06cc9c3970d97e57d52255"
+        ]
+      },
+      {
+        "subject_id": "p4-canary-fixture-subject-02",
+        "onboarding_source_trajectory_sha256": "5362ce80368f4dbaf980fc0a3d2f48905634eb5f82148619b3b6fbaaca24e504",
+        "decision_source_trajectory_sha256": [
+          "5362ce80368f4dbaf980fc0a3d2f48905634eb5f82148619b3b6fbaaca24e504",
+          "3940e04d2f7a75090c174c9860b6bc2484f03b6b368d8d0d6b011944e76d86fe",
+          "841679d00d09ac6c621bc65211a90d55ad825136fc6f9df3e2855504188f3339",
+          "bf92a74c5d3ce754a3bcbc82ed78d37a60c20d94e9fb9ef4698834e09e90c213",
+          "58f343bf985dd55ffecd1c2f6b176867787860abca21d4e4e8cfa25a0a98728c",
+          "9b83f79c666b181ef57f11581b1cdb81a60ab7f7a84b02670c39eef0154f8986",
+          "5362ce80368f4dbaf980fc0a3d2f48905634eb5f82148619b3b6fbaaca24e504",
+          "3940e04d2f7a75090c174c9860b6bc2484f03b6b368d8d0d6b011944e76d86fe"
+        ]
+      }
+    ],
+    "phase_ids": [
+      "same_surface_first_decision",
+      "cross_domain_need_reversal",
+      "belonging_transfer",
+      "agency_transfer",
+      "longer_horizon_belonging",
+      "longer_horizon_agency",
+      "return_after_gap",
+      "reversal_after_gap"
+    ]
+  },
+  "formal_pilot": {
+    "minimum_independent_subjects": 20,
+    "decision_sessions_per_subject": 8,
+    "minimum_public_context_tokens_at_final_decision": 32768,
+    "same_frozen_substrate": true,
+    "same_generation_config": true,
+    "per_arm_reactive_trajectory": true,
+    "process_restart_between_sessions": true,
+    "required_arms": [
+      "qwen_steelman_full_history",
+      "qwen_steelman_selective_rag",
+      "volvence_closed_loop",
+      "volvence_typed_noop_control"
+    ],
+    "primary_measure": "next_session_typed_outcome_utility",
+    "secondary_measures": [
+      "need_reversal_action_accuracy",
+      "cross_surface_transfer_action_accuracy",
+      "recovery_after_correction",
+      "return_after_gap_action_accuracy",
+      "public_context_tokens",
+      "latency_ms"
+    ],
+    "promotion_rule": "volvence_closed_loop must beat both qualified Qwen baselines on the preregistered paired primary measure without worsening the frozen safety boundary",
+    "current_status": "not_executed"
+  },
+  "baseline_contracts": {
+    "qwen_steelman_full_history": {
+      "memory_surface": "all_public_per_arm_history",
+      "prompt_policy": "frozen_before_first_output",
+      "pre_action_record_schema": "relationship-p4-canary-arm-preaction.v1",
+      "typed_action_required_before_environment": true
+    },
+    "qwen_steelman_selective_rag": {
+      "memory_surface": "top_k_public_per_arm_history",
+      "retrieval_policy": "frozen_semantic_retriever",
+      "prompt_policy": "frozen_before_first_output",
+      "pre_action_record_schema": "relationship-p4-canary-arm-preaction.v1",
+      "typed_action_required_before_environment": true
+    },
+    "volvence_closed_loop": {
+      "memory_surface": "hydrated_preference_owner_snapshot",
+      "learning_surface": "exact_settlement_to_social_pe_to_dedicated_credit",
+      "pre_action_record_schema": "relationship-p4-canary-arm-preaction.v1",
+      "typed_action_required_before_environment": true
+    },
+    "volvence_typed_noop_control": {
+      "memory_surface": "hydrated_preference_owner_snapshot",
+      "learning_surface": "credit_computed_but_not_applied_to_gate",
+      "pre_action_record_schema": "relationship-p4-canary-arm-preaction.v1",
+      "typed_action_required_before_environment": true
+    }
+  },
+  "lab_active_authorization": {
+    "scope": "relationship-p4-longitudinal-canary-lab.v1",
+    "allowed_policy_artifact_id": "relationship-action-gate-zero-init",
+    "allowed_policy_artifact_version": 1,
+    "lab_typed_action_active_authorized": true,
+    "environment_consumer_only": true,
+    "expression_authorized": false,
+    "production_authorized": false,
+    "evaluation_feedback_to_learning": false,
+    "oracle_action_authorized": false
+  },
+  "firewall": {
+    "relationship_transfer_v4_loaded": false,
+    "formal_hidden_test_opened": false,
+    "new_qwen_output_allowed": false,
+    "evaluator_truth_visible_to_sut": false,
+    "judge_or_score_used_as_learning_signal": false,
+    "lab_active_reachable_from_product": false,
+    "preference_action_correction_redaction_owner_implemented": true,
+    "raw_dialogue_written_to_report": false
+  },
+  "claim_boundary": "P4.1 v1 freezes a familiar long-horizon comparison, two strong Qwen baseline contracts, a typed no-op control, process-restart requirements, and an isolated Lab-only ACTIVE path from a gate decision through self_temporal into the reactive environment. P4.2 adds an engineering-only owner correction/redaction drill with persistent tombstones; it does not produce a formal recovery-after-correction score. The bundled v3 trajectories are seen engineering fixtures and are not independent subjects. This package does not run Qwen, open v4 or secret heldout data, authorize expression or production ACTIVE, prove user-visible text quality, establish Volvence advantage, or satisfy any complete four-capability claim."
+}

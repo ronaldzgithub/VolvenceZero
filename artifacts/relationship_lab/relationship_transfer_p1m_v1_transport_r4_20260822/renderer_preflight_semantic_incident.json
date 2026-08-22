@@ -1,0 +1,46 @@
+{
+  "schema_version": "relationship-p1m-renderer-preflight-semantic-incident.v1",
+  "created_at_iso": "2026-08-22T13:09:00+08:00",
+  "recovery_protocol_id": "342b1587ff4dd86360e0d0fcdaeaa575b6a50e917f2f55c21afc3673b4f9db3a",
+  "recovery_protocol_file_sha256": "5da97573105a092b5b933351f59af43e7fbf93a2df1954f132518d22a8fedf96",
+  "preflight_artifact_id": "b6f15c095ed974cc29bf0c5a701deb27e399f725b1716249017d2a922e61cce0",
+  "preflight_file_sha256": "a0190b0c3bfe8d3524a20c649ca5e7fdf2c6f86445b56123b2886d73fe11e27b",
+  "preflight_raw_file_sha256": "fee85f6ebd561ffd51feefbce5d60799dec1eca1bd5b1077609269ce9942b67e",
+  "incident_kind": "preflight_contract_omitted_semantic_fidelity_gate",
+  "automated_structural_validation_passed": true,
+  "manual_semantic_validation_passed": false,
+  "semantically_faithful_fields": 2,
+  "planned_preflight_fields": 4,
+  "field_findings": [
+    {
+      "field_key": "p1m_preflight:dummy_history_belonging",
+      "passed": true,
+      "finding": "Preserved the familiar setting, omission event, and belonging loss."
+    },
+    {
+      "field_key": "p1m_preflight:dummy_current_agency",
+      "passed": true,
+      "finding": "Preserved the work setting, unauthorized commitment, and agency loss."
+    },
+    {
+      "field_key": "p1m_preflight:dummy_reaction_positive",
+      "passed": false,
+      "finding": "Changed quiet emotional presence into accompanying the user on the trip, so the frozen received response was not preserved."
+    },
+    {
+      "field_key": "p1m_preflight:dummy_reaction_negative",
+      "passed": false,
+      "finding": "Dropped the familiar setting and changed waiting for the user to respond into the other party insisting on speaking, so both event and response lineage drifted."
+    }
+  ],
+  "root_cause": "The v4 gate validated transport shape, length, and protocol-token leakage but did not validate that setting_hint, received_response, and result_direction remained jointly faithful.",
+  "accepted_scenario_renderings": 0,
+  "scenario_raw_field_attempts": 0,
+  "consumer_outputs": 0,
+  "qualification_started": false,
+  "semantic_recipe_changed": false,
+  "qualification_gate_changed": false,
+  "terminal_verdict": "transport_v4_frozen_but_disqualified_before_scenario_generation",
+  "next_action": "replace stochastic paraphrasing with deterministic auditable surface realization while preserving the original recipe, pair plans, truth, qualification gates, and stop rule",
+  "claim_boundary": "This incident invalidates the v4 renderer transport despite its structural 4/4 result. It creates no permission to revise semantic truth or use later consumer answers to tune the instrument."
+}

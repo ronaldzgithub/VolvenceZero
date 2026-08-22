@@ -1,0 +1,57 @@
+{
+  "arm_metrics": [
+    {
+      "accuracy": 0.5,
+      "accuracy_wilson_lower": 0.3845033094134201,
+      "arm": "prompt-steelman-forced-choice",
+      "correct_decisions": 24,
+      "decisions": 48,
+      "mirrored_pairs": 24,
+      "pair_flip_rate": 0.0,
+      "pair_flip_wilson_lower": 0.0,
+      "pair_flips": 0,
+      "valid_decisions": 48
+    },
+    {
+      "accuracy": 0.5,
+      "accuracy_wilson_lower": 0.3845033094134201,
+      "arm": "rag-steelman-observational",
+      "correct_decisions": 24,
+      "decisions": 48,
+      "mirrored_pairs": 24,
+      "pair_flip_rate": 0.0,
+      "pair_flip_wilson_lower": 0.0,
+      "pair_flips": 0,
+      "valid_decisions": 48
+    },
+    {
+      "accuracy": 0.9583333333333334,
+      "accuracy_wilson_lower": 0.8816407006353317,
+      "arm": "structured-state-named-reader",
+      "correct_decisions": 46,
+      "decisions": 48,
+      "mirrored_pairs": 24,
+      "pair_flip_rate": 1.0,
+      "pair_flip_wilson_lower": 0.8986898185110513,
+      "pair_flips": 24,
+      "valid_decisions": 48
+    }
+  ],
+  "artifact_id": "9580ddffb7113d386f01137837be0335e0b82ff8d7cfc9e333e86f73d249fc56",
+  "claim_boundary": "This report only decides whether the generated P1m development instrument has an informative strong-baseline range and a functioning structured-state path. Passing is not formal held-out evidence, Volvence advantage, or proof of Appendable, Readable, Learnable, Steerable, production ACTIVE, safety, or product value. Failure permanently closes scenario versioning for this frozen P1m recipe.",
+  "created_at_iso": "2026-08-22T08:37:49.390647+00:00",
+  "dataset_fingerprint": "4ecde42ff861fede68f7e86a5f66ffa5ef062f87e75937b7beb54655871205af",
+  "evaluation_feedback_to_system": false,
+  "ledger_sha256": {
+    "qwen_decisions": "05a119bed533c1fcd41d0bcf1eb226ef46eadc4246734c684ebd3127b99f2cf0",
+    "qwen_readouts": "b9a308e794a483a80edc7c27130c0e6c9e3e9efa0aed93cf7bbc61746d33abc9",
+    "structured_decisions": "05dd175f0b50c99d7c691eab6b9109bc8feb51ccd8f0debc70d6c70fee48fd09",
+    "structured_readouts": "d6c8e8ff6c57332cfbdbe1af4dc8f4d4f4b19e726b47b8d677ac905bed2b583e"
+  },
+  "plan_artifact_id": "923fd59d4734f9cd04ef91af62920d9d6bbea5f3e7bfcd1714c3184959dc2c26",
+  "protocol_id": "b850ff2aea7c24dca95a0aaa14325ababa7a534dc4b33e408652191069371f1c",
+  "qualification_passed": false,
+  "scenario_versioning_closed": true,
+  "schema_version": "relationship-p1m-qualification-report.v1",
+  "verdict": "prompt_steelman_baseline_too_weak"
+}

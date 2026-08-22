@@ -1,0 +1,58 @@
+{
+  "schema_version": "relationship-p1m-renderer-transport.v5",
+  "source_recipe_id": "6f36f74ac4a563aa2c31d7145f8886eae6ad24335c5688290dba774fe3faf507",
+  "source_failed_generation_protocol_id": "d1cfcc528c8607aed85e9c7f66fc0cddcf373d2405973e1c7fb145e0af7c6695",
+  "source_failure_kind": "renderer_v1_json_v2_semantic_v3_length_v4_fidelity_failures",
+  "semantic_recipe_changes_allowed": false,
+  "renderer": {
+    "renderer_kind": "deterministic_typed_surface_realizer",
+    "model_source": "volvence://builtin/deterministic-surface-realizer",
+    "model_id": "volvence-p1m-deterministic-surface-realizer-v5",
+    "prompt_asset": "relationship_p1m_surface_realizer_v5.txt",
+    "schema_asset": "relationship_p1m_surface_field.schema.json",
+    "surface_seed_inventory_asset": "relationship_p1m_surface_seed_inventory_v1.json",
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "min_new_tokens": 0,
+    "max_new_tokens": 0,
+    "calls_per_pair": 13,
+    "field_order": [
+      "history_utterance_1",
+      "history_utterance_2",
+      "history_utterance_3",
+      "history_utterance_4",
+      "current_input",
+      "reaction_a_1",
+      "reaction_a_2",
+      "reaction_a_3",
+      "reaction_a_4",
+      "reaction_b_1",
+      "reaction_b_2",
+      "reaction_b_3",
+      "reaction_b_4"
+    ],
+    "batch_fields_per_pair": false,
+    "raw_fields_persisted_before_composition": true,
+    "deterministic_exact_output_validation": true,
+    "base_seed_namespace": "relationship-p1m-field-renderer-v5"
+  },
+  "preflight": {
+    "required": true,
+    "evidence_role": "non_scenario_transport_only",
+    "dummy_field_count": 4,
+    "required_valid_rate": 1.0,
+    "must_complete_before_protocol_freeze": true,
+    "may_not_change_fsm_or_qualification_gates": true
+  },
+  "firewall": {
+    "same_source_recipe_and_pair_plan": true,
+    "same_condition_policy_action_outcome_truth": true,
+    "same_pair_count_and_statistical_gates": true,
+    "surface_inventory_changes_only_familiar_setting": true,
+    "no_scenario_or_consumer_output_before_recovery_freeze": true,
+    "renderer_never_acts_as_consumer": true,
+    "no_stochastic_surface_generation": true,
+    "no_evaluation_feedback_to_learning": true
+  },
+  "claim_boundary": "This final renderer transport follows four preserved pre-scenario instrumentation failures. It replaces stochastic paraphrasing with a deterministic typed surface realizer whose raw output must exactly match its frozen expected hash. The original semantic FSM, 24 pair plans, condition/policy/action/outcome truth, qualification gates, and stop rule remain unchanged. Passing preflight or generation is only instrument preparation and proves none of the four capability axes."
+}

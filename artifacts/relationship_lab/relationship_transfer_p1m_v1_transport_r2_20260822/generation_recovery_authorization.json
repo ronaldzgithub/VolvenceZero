@@ -1,0 +1,16 @@
+{
+  "schema_version": "relationship-p1m-generation-recovery-authorization.v1",
+  "generation_protocol_id": "d1cfcc528c8607aed85e9c7f66fc0cddcf373d2405973e1c7fb145e0af7c6695",
+  "generation_v1_incident_sha256": "7c7a500bab5dea366617f9330e67087a312a1cb3ac47efc548f28cb200fd28cb",
+  "renderer_v2_preflight_incident_sha256": "04248a4c748db0189bfd88baeaac96841668bfaa6f053d2295f8e4e19d7a04dd",
+  "renderer_v3_preflight_raw_sha256": "5ae3c3f205c46e38a7903d75e025a50fd52be3efe1674e7ec50b229aa81ae5d8",
+  "renderer_v4_semantic_incident_sha256": "6e5cb765c69bdc9412518d7fc677a17508fd33d4e042d70639a1aef570331eb3",
+  "accepted_renderings": 0,
+  "consumer_outputs": 0,
+  "qualification_started": false,
+  "semantic_recipe_changed": false,
+  "qualification_gate_changed": false,
+  "authorized_transport": "relationship-p1m-renderer-transport.v5",
+  "allowed_recovery_scope": "Replace stochastic surface paraphrasing with a deterministic typed surface realizer, bind every expected field by hash, retain the familiar-setting inventory and raw-before-parse durability, and run a non-scenario exact-output preflight. Do not change the frozen semantic recipe, 24 pair plans, condition/policy/action/outcome truth, qualification gates, or first-qualification stop rule.",
+  "claim_boundary": "This authorization connects four preserved pre-scenario instrumentation failures to one deterministic renderer-only recovery. It is not permission to revise scenarios after qualification feedback."
+}
