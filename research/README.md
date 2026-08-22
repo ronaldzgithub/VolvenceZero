@@ -1,3 +1,23 @@
+## 新增重要研究：LLM 内部控制与持续深度学习四轴缺口 2026-08
+
+- [`continual-deep-learning-2026-08/`](continual-deep-learning-2026-08/) — 以
+  [`continual-deep-learning.md`](continual-deep-learning.md) 为种子，对 2024–2026 年 LLM 内部工作空间、
+  representation steering、条件/逐实例/反馈控制、测试时神经记忆、Internal RL 与 production hook
+  做系统级合成。**核心裁决**：业界已强力证明 LLM 内部存在可读、可写、可被模型自己调入并因果影响
+  推理的控制表征，J-space、ReFT、CAST、TACT、per-instance steering 等已把 IC-1→IC-3 推向工程化；
+  但公开材料中尚无系统闭合“跨 session 追加 → 命名读出 → PE-only 信用学习 → 有界逐实例干预 →
+  真实下一拍结算 → 删除/回滚”。包内重点不是罗列论文，而是把 Volvence 未解问题按 substrate authority、
+  readout invariance、behavioral N+1、gate headroom、memory write eligibility、side-effect 与 vLLM path 排序，
+  并为每项指定 owner、决定性实验与 kill condition。可直接使用的最高价值资产是跨视图 Concept Vector、
+  steerability precheck、CAST 强基线、ReFT challenger、逐实例选层、cross-effect matrix 和 CL-Bench gain；
+  vllm-lens 只建议隔离 spike，因为其 eager-mode 性能税与 cloudpickle 任意代码边界不满足直接主链接入。
+  建议从 [`README`](continual-deep-learning-2026-08/README.md)、
+  [`未解问题`](continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md)、
+  [`可复用机制`](continual-deep-learning-2026-08/04_REUSABLE_MECHANISMS.md) 与
+  [`实验路线`](continual-deep-learning-2026-08/05_EVIDENCE_ROADMAP.md) 开始。
+
+---
+
 ## 新增重要研究：Kardia-R1 / KardiaBench 专项 2026-08
 
 - [`kardia-r1-2026-08/`](kardia-r1-2026-08/) — 对 WWW 2026 Kardia-R1 论文、公开 GitHub、
