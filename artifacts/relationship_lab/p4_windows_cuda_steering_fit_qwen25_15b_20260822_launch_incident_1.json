@@ -1,0 +1,43 @@
+{
+  "schema_version": "volvence.relationship_lab.p4_steering_fit_launch_incident.v1",
+  "recorded_at_local_approximate": "2026-08-22T22:05:00+08:00",
+  "protocol_id": "b6e1d79a5087945c4be6bf8d4f1e2f6535cdbedeca56ae0bd1af53a56f3def8d",
+  "execution_profile_id": "3be84d866afbda07cf80dee277d89cdc0e366ce545bf7e97f015cf8afcbfe21a",
+  "intended_output_dir": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822",
+  "attempt_label": "attempt_000_operational_abort_before_adjudicable_result",
+  "adjudicable": false,
+  "launch_started_at_local_from_process_start_time": "2026-08-22T22:04:18+08:00",
+  "launch_started_at_utc_from_process_start_time": "2026-08-22T14:04:18Z",
+  "observer_timeout_at_utc_approximate": "2026-08-22T14:04:23Z",
+  "process_exit_observed_at_utc_approximate": "2026-08-22T14:04:34Z",
+  "timestamp_precision_note": "Only process start time was recovered from Windows with one-second precision. Timeout, polls, and exit-observed times are approximate because the observer handle was lost.",
+  "observed_process_id": 34412,
+  "child_argv": [
+    "D:\\volvence\\.conda-volvence-gpu311\\python.exe",
+    "D:\\volvence\\scripts\\run_relationship_lab_p4_steering_artifact_fit.py",
+    "run",
+    "--output-dir",
+    "D:\\volvence\\artifacts\\relationship_lab\\p4_windows_cuda_steering_fit_qwen25_15b_20260822"
+  ],
+  "incident_class": "observer_command_timeout_before_evidence_publication",
+  "observations": {
+    "command_observer_timed_out_after_seconds_approximately": 5,
+    "child_process_survived_first_observer_timeout": true,
+    "formal_output_dir_ever_observed": false,
+    "atomic_staging_dir_observed_while_process_alive": true,
+    "atomic_staging_dir_present_after_process_exit": false,
+    "gpu_memory_mib_at_first_poll": 615,
+    "gpu_pstate_at_first_poll": "P8",
+    "gpu_memory_mib_after_process_exit": 615,
+    "gpu_pstate_after_process_exit": "P8",
+    "stdout_or_stderr_recovered": false,
+    "process_exit_code_recovered": false,
+    "strict_runtime_construction_started": null,
+    "preliminary_scorer_probe_started": null,
+    "owner_training_started": null,
+    "fit_metrics_observed": false,
+    "artifact_id_observed": false
+  },
+  "epistemic_boundary": "The observer lost its command handle. Whether strict runtime construction, a preliminary scorer probe, or owner training began is unknown. No owner training progress, fit metric, verdict, artifact ID, or published output root was observed. This record must not be interpreted as a fit PASS or threshold FAIL and must remain disclosed alongside any later adjudicable execution.",
+  "retry_constraint": "Any restart requires an independent gate decision, must use the identical frozen protocol and source hashes, must not change data, seed, hyperparameters, thresholds, model, or execution profile, and must disclose this incident alongside the resulting artifact."
+}

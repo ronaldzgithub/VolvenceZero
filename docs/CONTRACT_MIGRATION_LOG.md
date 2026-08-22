@@ -1,7 +1,7 @@
 # Contract Migration Log
 
 > Status: migration / implementation log
-> Last updated: 2026-07-13
+> Last updated: 2026-08-22
 
 ## W2 intent-alignment remediation (2026-07-13): CP-04 consent gate + CP-14 delayed attribution e2e
 
@@ -581,9 +581,38 @@ P4.1 Lab owner loop，并只发布 development report：
 
 回滚：停止运行/消费 `relationship_lab_p4_named_reader` 即可；P2d reader、P3 gate、P4 product 与
 P4.1 protocol 均未改 wiring。该包只证明 development readout transmission，不能修复 P1m、授权
-P2 formal、证明 Volvence advantage、完整 Readable 或四能力。下一包固定 reader，只隔离
-PE-derived credit 是否更新 learned gate。权威 spec：
+P2 formal、证明 Volvence advantage、完整 Readable 或四能力。原定后继 P4.4 已固定 reader，只
+隔离 PE-derived credit 是否应用于 learned gate；结果记录如下。权威 spec：
 `docs/specs/relationship-intelligence-closed-alpha.md`。
+
+## Slice Relationship P4.4（2026-08-22）：exact PE-credit 到 learned gate 的隔离传导
+
+本 slice 不新增 kernel slot、runtime writer、prompt、场景或产品 ACTIVE；它复用 P4.1/P4.3 的
+既有 owner loop 与 frozen named reader，并只发布 development report：
+
+- fixture 固定为两个已见、post-selected 的合成 subject，每个 8 decisions，合计 16 decisions；
+  owner/hydration、Lab ACTIVE、reactive environment、动作 surface、cold learned gate 初始化与
+  logical store reconstruction 节奏在 matched arms 间一致；该历史计数字段不代表 OS child process；
+- 唯一 toggle 是 exact owner settlement→`SocialPredictionError`→dedicated credit 是否应用于
+  learned gate；evaluation、judge、human anchor 与 generator truth 均不进入 update；
+- no-credit 臂为 0/16 steer、0/16 preferred-action match、0/16 credit apply 与 parameter change，
+  positive outcome 7/16、reversal match 0/14；PE-credit 臂为 7/16 steer/action match、16/16
+  credit apply 与 parameter change，positive outcome 13/16、reversal match 7/14；
+- matched arms 产生 14/16 probability change、7/16 action change、6/16 outcome change；16 次
+  exact credit apply 全部对应 checkpoint parameter change；
+- report `5c955fb1…810c` 判
+  `pe_credit_learning_transmission_observed_development_only`，并固定
+  `component_selected_after_p1m_observation=true / seen_fixture_only=true /
+  formal_evidence_authorized=false`。
+
+回滚：停止运行/消费 `relationship_lab_p4_pe_learning`；create-only report 与 checkpoint lineage
+按原 hash 保留，P2d reader、P3/P4 product gate、expression 与 production SHADOW wiring 均不变。
+该包只能说明 seen fixture 上 PE-credit 应用改变 learned checkpoint 与后续 typed action/outcome，
+不能证明 independent subject / 32K context、真实 residual actuation、用户可见 steer、formal
+Learnable、production ACTIVE 或四能力。下一单一因果包应固定 P4.4 gate 隔离真实 residual
+actuation；Windows/CUDA 迁移前的 cross-process Appendable preflight 已由 P4.5 完成且只形成平台
+development evidence，不能反向升级本包判词。
+权威 spec：`docs/specs/relationship-intelligence-closed-alpha.md`。
 
 ## Slice Relationship P4.2（2026-08-22）：preference-action 纠删 receipt/tombstone
 
@@ -606,6 +635,34 @@ formal `recovery_after_correction` 效果通过。权威 spec：
 `docs/specs/social_cognition/02_theory_of_mind.md` 与
 `docs/specs/relationship-intelligence-closed-alpha.md`。
 
+## Slice Relationship P4.5（2026-08-22）：Windows real-child owner hydration preflight
+
+本 slice 不新增 kernel slot、runtime owner 或产品 wiring；唯一数据 owner 仍是
+`social_record_store`，preflight 只发布离线 create-only evidence：
+
+- `append_relationship_p4_onboarding_session(...)` 把 P4 onboarding 的正式 owner 写入路径集中为
+  一个公共 Lab helper；既有 P4.1 runner 与 P4.5 worker 复用同一实现，不建立第二条 writer；
+- `relationship_lab_p4_cross_process_appendable` 冻结 correct / empty / same-stage swapped 三种 prior
+  state intervention。每个 4+8 pulse 都由新的 `sys.executable` child 执行；parent request exact-key
+  契约禁止携带 history、records、owner snapshot/payload、forecast score 或 evaluator truth；
+- child 只通过 `FileSystemPersistenceBackend`→`OwnerHydrationStore(ACTIVE)` hydrate
+  `SocialRecordStore`，先 load 继承 backend version，再 append/probe、export/save；request、receipt、
+  raw checkpoint、owner payload 与 immutable boundary 都有独立 SHA lineage；
+- Windows artifact 共 72 次真实 child invocation；correct/swapped 每 subject 的版本为 `1..12`，
+  empty 每拍保持 fresh v1。correct/empty forecast presence 改变 16/16，correct/swapped 推荐动作
+  改变 14/16；report `675815b9…2052` 判
+  `cross_process_owner_hydration_forecast_effect_observed_development_only`；
+- firewall 固定 `seen_fixture_only=true / independent_subject_count=0 /
+  formal_evidence_authorized=false`，evaluator/environment、PE/credit/learning、gate、model/Qwen、
+  residual、expression 与 production ACTIVE 均未进入本包。当前 filesystem backend 未冻结
+  mid-write crash/power-loss 原子性，因此不得声称 crash recovery。
+
+回滚：停止运行/消费 `run_relationship_lab_p4_cross_process_appendable.py` 即可；产品、P2d reader、
+P3/P4 gate、SHADOW wiring 与 owner schema 均不迁移。已发布的 create-only state/request/receipt/report
+按原 hash 保留，不得删除后用新 PID/nonce 覆盖。下一包固定 P4.4 gate 与本包 hydration，单独隔离
+Windows/CUDA residual actuation。权威 spec：`docs/specs/relationship-lab.md` 与
+`docs/specs/relationship-intelligence-closed-alpha.md`。
+
 ## Slice Relationship P2d（2026-08-22）：命名条件 readout 与 persistence v4
 
 本 slice 继续 enrich `preference_about_other`，不新增 slot 或 writer：
@@ -625,3 +682,172 @@ formal `recovery_after_correction` 效果通过。权威 spec：
 mirror-pair 结果只定位旧字符哈希 backend，不是 P2 formal、Readable 或四能力证据；P1m fresh
 qualification 仍是退出条件。权威 spec：`docs/specs/social_cognition/02_theory_of_mind.md` 与
 `docs/specs/relationship-intelligence-closed-alpha.md`。
+
+## Slice P4.6 preflight（2026-08-22）：Windows/CUDA strict 32767+1 诊断契约
+
+本 slice 只冻结尚未执行的 substrate 工程诊断，不新增 live slot、策略 owner 或产品 wiring：
+
+- `windows-cuda-strict-32k-smoke.v1` 固定 Qwen2.5-1.5B revision/weights/assets、Windows/CUDA
+  exclusive cuDNN SDPA cached profile、layer 20 / width 1536、唯一一次 32767 input + 1 generated
+  token 调用及十个 `utf8_lf_canonical_v1` 源码指纹；runner 后续固定三项 namespace root 与
+  implementation import origin；后续审计确认十项 pin 不是完整 local import closure，协议因此更新为
+  `4934a344…e2c1a`、raw SHA `ec7b7bce…5eb4`，并固定
+  `transitive_local_source_closure_pinned=false`，闭包关闭前不得称 exact-source physical evidence；
+- token-level residual 与 feature-surface 解释新增 additive substrate owner
+  `audit_strict_capture(...)`，只发布 frozen `StrictCaptureAuditSummary`；runtime evidence
+  orchestrator 禁止遍历原 capture。framed hash 绑定实际 step/layer/cardinality/width/value，
+  顶层 latest residual 与 sequence 末步不一致即失败。该交换在 live DAG 为 `DISABLED`，仅供离线诊断；
+- runner 在构造模型前写入并 fsync 绑定 outer lease/protocol/source 的 launch receipt；完整根恰有
+  launch/attestation/report/manifest/completion 五件，运行时异常留下且不删除不可重用的残根；
+- 本地 no-retry 只覆盖一个冻结输出根。outer host-campaign scaffold 已在下一 slice 落地但
+  production 明确禁用；standalone 根固定 `external_append_only_anchor_present=false`，不得证明
+  物理执行；
+- `validate-existing` 不加载 substrate/torch/CUDA，重算所有 receipt/hash/lineage；完整但失败的诊断
+  返回进程码 2，不能被 CI/campaign 当成 PASS。
+
+静态验证仅运行 Ruff、协议 JSON 解析、十个源码指纹复算与 `git diff --check`；因当前 Windows
+宿主仍有 WHEA19 internal parity / CPU access-violation 阻断，未运行 Python、pytest、CUDA 或模型，
+也没有生成 PASS artifact。回滚为停止调用新 CLI 并删除尚未被外层 campaign 消费的 additive
+诊断代码；既有 strict runtime、`substrate` slot、P4.6 source pins 与 steering 三件套不变。
+
+## Slice P4.6 outer scaffold（2026-08-22）：Windows/CUDA 一次性 host campaign
+
+本 slice 新增的是离线 evidence control owner，不新增 live slot、策略、PE/credit、产品 wiring 或
+production ACTIVE：
+
+- `windows-cuda-strict-32k-host-campaign.v1` protocol 为 `cf62484f…3194`，raw SHA 为
+  `5f174024…8f43`；三项 source pin 覆盖 Node owner、Windows PowerShell 5.1 collector 与固定 CLI。
+  public API/CLI 不允许注入 collector/executor/validator 或替代 protocol；实现限定 repository
+  source checkout，installed wheel 不构成独立可执行发行物；
+- deterministic scope 绑定 outer/child protocol、qualification artifact、host identity 与 backend。
+  000 scope claim 在 FindAnchors/Baseline 之前 create-only 落盘；002 raw SHA 是 lease；004 在 child
+  creation 前 fsync 消费。完整链为 000–012 + 两条 stream + child exact-five；launch 后中断永久
+  `incomplete_consumed`，完整失败 seal 后 `retry_permitted=false`；
+- prelaunch 在 004 前复核 same-machine/same-boot、baseline boundary、Circular channel config 与
+  RecordID 预算。PowerShell 按冻结 end cursor 用 XPath 读取区间；Node 独立重算 truncated、连续
+  RecordID、boundary/end XML hash、config stability 与 fault classification，并把 prereg/launch
+  anchor 的 RecordID/provider/event/payload/XML 与 delta 交叉绑定；
+- test-only backend 使用独立 scope，固定
+  `real_execution_observation_authorized=false`，强制
+  `synthetic_test_backend_not_evidence`，永远 non-PASS；public validator 拒绝 synthetic chain。
+  Node 回归 13/13 覆盖 synthetic firewall、duplicate scope、WHEA、合法 exit-2、float/int 类型漂移、
+  prelaunch boot drift、collector failure、launch 后中断、no-retry 与 tamper；
+- production 仍固定 `production_preregistration_enabled=false`。host qualification 的 protocol、
+  synthetic publisher/full-root validator 已在后续 slice 落地，但 production probe/raw-Audit adapter/
+  full validator 及 terminal→outer baseline cursor continuity 尚未实现；同时
+  PowerShell/Python/Node runtime identity、realized child environment、完整 local import/source
+  closure、process-tree containment、producer PASS-return 前整根重验、terminal/delayed-fault 区间覆盖
+  与受限 Event Log source provisioning 仍是独立启用 blocker。Windows Application Event Log 只是
+  本地第二通道，管理员和有写权限的普通本地主体都可能伪造，非 external/WORM authority。
+
+本 slice 只运行 Node syntax/test、PowerShell AST parse、JSON/source-pin/lineage 复算；没有执行
+Python、pytest、CUDA、模型或真实 Event Log 写入，也没有创建 production lease/PASS。四能力轴均为
+`not_proven`。`.mjs` 回归不会被 pytest 自动发现；本 scaffold 的显式静态门为
+`node --test packages/vz-runtime/tests/test_windows_cuda_strict_32k_host_campaign.mjs`，并由独立
+Windows path-scoped workflow `.github/workflows/windows-cuda-host-campaign-contract.yml` 在 push/PR
+运行。普通 pytest 通过仍不得解释成该 Node 门已通过。回滚为停止调用 outer CLI；由于 production
+已禁用，无 live wiring 需要切换。已形成的 synthetic create-only chain 只用于测试，不得迁移为
+正式证据。
+
+## Slice P4.6 host qualification publisher scaffold（2026-08-22）
+
+本 slice 只新增 `vz-runtime` offline qualification owner 的 synthetic publisher 与 synthetic
+full-root integrity validator，不新增 live slot、真实 probe、Event Log consumer、CUDA execution 或
+outer wiring：
+
+- 冻结 `windows-cuda-host-stability-qualification-protocol.v1`：protocol ID
+  `6d8a551775aa52f52ffa18c6e69ec6399e0f48f13abc122c9559851d5cc92a3a`、raw SHA-256
+  `fc5e786274e963162a3ace72ab61d84271b9463f715df2c665e2cdbbb33d9e0b`；Node owner LF source pin
+  `878bc348eb119df8601d643af326b6ec0e142be3a8ec11fe84dc7a45488a47d7`，provisioner pin
+  `be0c02f136761f83412f31cdbf1f3249ad7ed15de1aff28e27fe1a8597888406`；
+- synthetic root 恰有 000–009 receipts、010 manifest、011 terminal 与两条 stream。validator 要求
+  exact 文件/目录、regular single-link/path containment、strict canonical JSON、raw receipt chain、
+  manifest inventory/artifact ID、terminal ID/raw identity，并从 owner receipts 重算 report 与 terminal，
+  不信任 terminal 自报 eligibility；
+- microcode 从四个 little-endian bytes 解码后按整数比较 `>=303 (0x12F)`；Event Log projection 校验
+  Application/System cursor join、record-count/boundary hash、event timestamp、每 window/channel 4096
+  预算、300 秒 cooldown、120 秒 terminal tail 与 normalized provider/event-ID fault rules；没有保存或
+  独立解析 raw Event XML；
+- public `preregisterHostQualification / runHostQualification / validateHostQualification` 在读取任何
+  option/path/Proxy getter 前静态 throw。只有 `__testing.createSyntheticQualificationArtifact` 与
+  `validateSyntheticQualificationArtifact` 可用；完整 synthetic 根仍固定
+  `synthetic_test_backend_not_evidence / criteria_passed=false / real_host_observation=false /
+  validated_eligible=false`，terminal exact schema 禁止 `passed` 与
+  `real_cuda_evidence_authorized`；
+- 002/008 明确改名为 qualification-owned
+  `windows-cuda-host-stability-source-audit-projection.v2`。它不是 PowerShell raw Audit v2，固定
+  `full_raw_audit_bound=false / raw_audit_content_id_basis_revalidated=false`。provisioner hardening 把 Audit
+  不合规变为完整 receipt 后 exit 2、process failure 变为结构化 failure receipt 后 exit 3；缺失 source 的
+  Provision 必须显式携带 `-AllowSourceCreation`，且既有 drift 不自动修复。mutation 非事务性，source 注册后
+  的 value/ACL/flush failure 会保守发布 refresh required；未创建路径发布
+  `requires_cold_or_service_refresh=null`，绝不冒充已完成 refresh。Audit 比较含 provider membership 的完整
+  channel endpoints；创建 source 的 Provision 除稳定投影外，还只接受 provider 列表不变或精确新增
+  `VolvenceEvidence`，任意其他 provider membership 变化都不合规；列表不变表示等待 refresh，fresh Audit
+  before/after 都必须确认 exact source membership 才能 exit 0。二者都明确
+  `continuous_stability_proven=false`。module-qualified cmdlet 与 module/assembly hash 仍是非权威自观测。
+  因此 exit code、config content ID、endpoint equality 或 refresh 字段均不能单独授权 qualification；
+  production raw-Audit adapter、完整 raw/basis 复验与 refresh chronology 尚未实现；
+- current outer protocol `cf62484f…3194` 未改动，继续 exact-schema 接受 terminal v1 并拒绝 v2。
+  future consumer 必须同时绑定 qualification artifact ID、terminal ID、terminal raw SHA，并验证
+  `(handoff cursor, outer baseline cursor]` 双 channel bridge；本包没有关闭该空窗。
+
+实际验证：`node --check` 覆盖 owner/test；
+`node --test packages/vz-runtime/tests/test_windows_cuda_host_stability_qualification.mjs` 为 15/15，覆盖
+public zero-read gate、synthetic non-evidence、tamper、missing/extra/empty-directory、source-verification
+禁用、4097-record overflow、Audit nonconformance exit 2、operator schema、window identity、little-endian
+microcode、WHEA、source drift、duplicate key 与 noncanonical number；
+`node --test packages/vz-runtime/tests/test_provision_volvence_evidence_event_log.mjs` 为 12/12，覆盖 v2 exit、
+显式 source-creation intent、partial failure、refresh 三态、endpoint equality、MultiString、cmdlet provenance
+与 source pin；protocol/source pins 已独立复算。provisioner 只做 PowerShell 7 与 Windows PowerShell 5.1
+AST 解析，未执行 `Provision`/`Audit` 或查询 Event Log records。
+因现有 host-block，未运行 Python、pytest、CUDA 或模型；未生成真实 qualification、PASS、production
+lease，也未解除 BIOS/microcode block。Appendable / Readable / Learnable / Steerable 均为
+`not_proven`。回滚为停止调用 synthetic helper/validator 并移除 workflow 中该 Node 静态门；production
+和 live wiring 本来就是 `DISABLED`，已生成的 synthetic 根不得转作正式证据。
+
+## Slice P4.6 raw Event Log Audit artifact adapter core（2026-08-22）
+
+本 slice 仍由 `windows_cuda_host_stability_qualification` 这一 `vz-runtime` offline evidence owner
+发布，只新增 raw artifact→non-authorizing adapter snapshot，不修改 PowerShell infrastructure owner、
+002/008 synthetic projection v2、terminal/root shape、outer consumer 或 live wiring：
+
+- 当前 `windows-cuda-host-stability-qualification-protocol.v1` 更新为 protocol ID
+  `32f35e4f7027e9519522e099efb696fb352a48faf3ba69be861929304fae1d5f`、raw SHA-256
+  `30a881838b41fa5b7e6de5aba6bc94131245796126be5b49c4ebab539f8c4132`；Node owner LF pin
+  `7efff6c353d147f994a1e431903bb1ccb8772e89b7a99753fede5fd3434172e7`，provisioner pin 继续为
+  `be0c02f136761f83412f31cdbf1f3249ad7ed15de1aff28e27fe1a8597888406`。上一 slice 的
+  `6d8a5517…92a3a / fc5e7862…d9e0b` 只保留为历史身份，不再是当前 bundled protocol；
+- `adaptProvisionerAuditV2Artifact` 从显式 artifact root 内的 regular single-link 文件以同一 descriptor
+  读取 raw stdout；在 read 前用 `fstat` 同时核对 caller byte count 与 1 MiB 上限，再复算 raw SHA。
+  `windows-event-log-source-audit-capture-envelope.v1` 绑定 pre/post role、0|2 exit、empty-stderr claim、
+  machine/boot claim 与 100ns chronology，但 envelope 固定 `capture_authoritative=false`；adapter 不把它
+  改写为 OS outcome、可信进程或 boot observation；
+- raw stdout 与 machine-config basis 都要求 fatal UTF-8、无 BOM、唯一末尾 LF/compact ordered JSON、
+  duplicate-key/float/unsafe-number 拒绝；basis 做 canonical base64 round-trip、exact ordered core
+  reconstruction 与 SHA/content-ID cross-bind。Audit v2/exit 0|2 和 failure v1/exit 3 严格分流；Provision、
+  source-creation/mutation、failure v1、capture/receipt exit 交叉或任何 schema/claim 漂移均 fail loudly；
+- adapter 从完整 observations 重算 source values/ACL/owner、Application channel base state、provider
+  membership/transition、full/stable endpoint、Application/source registry equality、overall/result/exit、
+  provisioning、refresh 与 safety boundary。内部一致的 exit 2 只产生 diagnostic snapshot；
+- 唯一新交换是深冻结
+  `windows-event-log-source-audit-artifact-adapter-snapshot.v1`。它发布 protocol/raw/source/config lineage、
+  caller envelope content ID、raw identity、recomputed conformance 与 canonical `snapshot_id`，同时固定
+  `projection_emitted=false / real_provisioner_observation=false / eligible=false`，以及 CUDA、formal、
+  production ACTIVE、四能力与 tamper-resistance 授权全部为 false。after-role 只称
+  `caller_expected_content_id_matched`，不声称 scope proof；现有 synthetic predicate 完全未改；
+- production direct PowerShell acquisition、failure-v1 quarantine、independent registry/channel reobserver、
+  release/WORM trust anchor、新 production projection schema/predicate、pre/post replay exclusion 与 outer
+  bridge 仍是后续独立包。真实 WinPS 5.1 `ConvertTo-Json` bytes 与 Node `JSON.stringify` 的逐字节兼容性
+  也必须在 BIOS 修复后用 fresh Audit fixture 验证；本 slice 只证明静态 artifact self-consistency。
+
+实际验证：qualification Node regression 为 40/40，覆盖既有 synthetic firewall 以及 raw SHA/size/exit、
+failure-v1/Provision 分流、invalid UTF-8/BOM/duplicate/float/trailing JSON、compact/order、basis 重签、
+provider order/duplicate、100ns 逆序、source lineage/value、registry/safety/refresh、caller config-ID 与
+external protocol pin；provisioner 静态合同仍为 12/12，outer Node regression 为 13/13，三组组合为
+65/65。owner/test 均通过 `node --check`，protocol/source identities 独立复算；PowerShell 脚本未改，仍只做
+PowerShell 7 与 Windows PowerShell 5.1 AST parse，未执行 `Provision`/`Audit` 或 Event Log 查询。
+
+因 host-block 仍未解除，本 slice 没有运行 Python、pytest、CUDA、模型或真实 Event Log，也没有生产
+acquisition、qualification/PASS/lease。Appendable / Readable / Learnable / Steerable 继续全部
+`not_proven`。回滚为停止调用 `adaptProvisionerAuditV2Artifact`；production 和 live wiring 原本就是
+`DISABLED`，任何 adapter snapshot 都不得迁移成 qualification projection 或正式证据。

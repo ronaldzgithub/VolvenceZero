@@ -1,0 +1,23 @@
+{
+  "action_turn_index": 16,
+  "candidate_action_ids": [
+    "stay_present_without_probe",
+    "respect_space_with_return_option",
+    "neutral_noop"
+  ],
+  "current_observation": "转正名单漏掉了我，大家却已经开始庆祝。我像被整个团队遗忘和排除，根本不算其中一员。",
+  "decision_id": "p4-canary-fixture-subject-02:decision:6:pre-action",
+  "decision_index": 6,
+  "observation_ref": "p4-canary-public:040d4dc456f609e51673ffe526b310908905831917814a36fc4d29a9385a6e98:decision:4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e:6",
+  "phase_id": "return_after_gap",
+  "probe_surface_family": "work",
+  "pulse_kind": "decision_probe",
+  "schema_version": "relationship-p4-canary-decision-session.v1",
+  "session_id": "p4-canary-fixture-subject-02:decision:6",
+  "typed_outcome_ids": [
+    "helped",
+    "felt_heard",
+    "missed",
+    "over_directive"
+  ]
+}

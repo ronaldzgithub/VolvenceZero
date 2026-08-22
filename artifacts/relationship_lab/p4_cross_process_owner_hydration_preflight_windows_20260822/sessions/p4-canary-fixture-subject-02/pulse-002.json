@@ -1,0 +1,12 @@
+{
+  "action_id": "stay_present_without_probe",
+  "event_id": "p4-canary:4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e:onboarding:2",
+  "observation_ref": "p4-canary-public:040d4dc456f609e51673ffe526b310908905831917814a36fc4d29a9385a6e98:onboarding:4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e:2",
+  "observation_summary": "志愿者群没问我就把最麻烦的一段排给了我。 刺痛我的不是具体安排，而是我被剥夺了表达意愿和亲自决定的资格。",
+  "observed_outcome_id": "felt_heard",
+  "pulse_kind": "onboarding",
+  "reaction_summary": "你没有替他们解释，也没有消失，我才敢把不愿意说清楚。",
+  "schema_version": "relationship-p4-canary-onboarding-session.v1",
+  "session_id": "p4-canary-fixture-subject-02:onboarding:2",
+  "session_index": 2
+}

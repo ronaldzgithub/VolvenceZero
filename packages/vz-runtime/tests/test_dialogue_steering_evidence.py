@@ -476,7 +476,11 @@ def test_artifact_fit_places_sensor_off_control_on_bundle_not_gate(
     result = steering_artifact_training.fit_steering_artifact_bundle(
         corpus=object(),
         runtime=SimpleNamespace(model_id="frozen-dialogue-model"),
-        scorer=SimpleNamespace(trainable_parameters=lambda: ()),
+        scorer=SimpleNamespace(
+            trainable_parameters=lambda: (),
+            probe_hidden_norm=4.0,
+            control_norm_cap=1.0,
+        ),
         model_weights_sha256=_SHA_A,
         source_preregistration_sha256=_SHA_D,
         injection_layer_index=0,
@@ -487,6 +491,9 @@ def test_artifact_fit_places_sensor_off_control_on_bundle_not_gate(
     )
 
     assert result.report.prerequisite_passed is True
+    assert result.report.seed == 0
+    assert result.report.control_norm_cap_ratio == 0.25
+    assert "rank-2" in result.bundle.executor.description
     assert result.bundle.sensor_off_executor is not None
     assert len(set(result.bundle.sensor_off_executor.condition_codes)) == 1
     assert not hasattr(result.bundle.gate, "sensor_off_executor")

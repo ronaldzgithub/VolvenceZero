@@ -1,0 +1,17 @@
+{
+    "schema_version":  "volvence.relationship_lab.p4_steering_fit_attempt_completion.v1",
+    "attempt_label":  "attempt_001_adjudicable_identical_protocol_restart",
+    "child_pid":  33624,
+    "ended_at_local":  "2026-08-22T22:12:30.7910839+08:00",
+    "ended_at_utc":  "2026-08-22T14:12:30.7910839Z",
+    "duration_seconds":  81.0120878,
+    "exit_code":  null,
+    "output_dir_exists":  true,
+    "remaining_staging_dirs":  [
+
+                               ],
+    "stdout_sha256":  "84b011cc0af64d61933ffeee11184c5990247a9bb02df076804e45a212831bed",
+    "stderr_sha256":  "013d0eb8f93efaf1e609de8c5953dca05780584ec1b3276a0b676d491eccdfee",
+    "stdout_byte_count":  2755,
+    "stderr_byte_count":  139
+}

@@ -1,7 +1,7 @@
 # Specs 分层知识入口总索引
 
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
-> Last reconciled: 2026-08-22（94 份 spec 全量挂载；Relationship Lab P1j 终局为 `consumer_failed_v4_qualification`；P1k-R1 A 格 report `ba6c5cf7…7138` 判 `substrate_cannot_apply_disclosed_policy`。P1m 首次且唯一 qualification 已在 24 组 generated mirror pair 上终局：prompt/RAG 均 24/48 correct、0/24 flip，fresh structured named reader 46/48、24/24 flip；report `9580ddff…fc56` 判 `prompt_steelman_baseline_too_weak` 并关闭场景版本化，故 P2 formal 与 Volvence advantage 仍未过门。P2-development SHADOW owner/persistence、P2d 命名条件 readout、P3 exact PE-credit gate、P4 collection-only closed-alpha 壳、P4.1 Lab longitudinal canary、P4.2 preference-action 纠删 owner/drill 与 P4.3 named-reader transmission 已工程落地；P4.3 在 seen/post-selected matched arms 得到 action match 6/16→16/16、positive outcome 9/16→16/16，只是 Readable 传导的开发证据。真人 outcome typing qualification、用户可见 residual steer、20 人 / 32K context 四臂 pilot、完整 Readable/Learnable/Steerable 与四能力总主张仍未证明）
+> Last reconciled: 2026-08-22（94 份 spec 全量挂载；Relationship Lab P1j 终局为 `consumer_failed_v4_qualification`；P1k-R1 A 格 report `ba6c5cf7…7138` 判 `substrate_cannot_apply_disclosed_policy`。P1m 首次且唯一 qualification 已在 24 组 generated mirror pair 上终局：prompt/RAG 均 24/48 correct、0/24 flip，fresh structured named reader 46/48、24/24 flip；report `9580ddff…fc56` 判 `prompt_steelman_baseline_too_weak` 并关闭场景版本化，故 P2 formal 与 Volvence advantage 仍未过门。P2-development SHADOW owner/persistence、P2d 命名条件 readout、P3 exact PE-credit gate、P4 collection-only closed-alpha 壳、P4.1 Lab longitudinal canary、P4.2 preference-action 纠删 owner/drill、P4.3 named-reader transmission、P4.4 PE-credit learned-gate transmission 与 P4.5 Windows cross-process owner-hydration preflight 已工程落地。P4.3 在 seen/post-selected matched arms 得到 action match 6/16→16/16、positive outcome 9/16→16/16，只是 Readable 传导的开发证据；P4.4 固定同一 named reader、fixture 与 environment，在两个已见、post-selected 的合成 subject 共 16 decisions 上只切 exact PE→credit 是否应用于 cold learned gate：no-credit 为 0 steer/action/credit apply/parameter update，PE-credit 为 7/16 action change、16/16 credit apply/parameter update，positive 7/16→13/16、reversal 0/14→7/14。P4.5 在每个 pulse 都启动新 `sys.executable` child，并只通过磁盘 `OwnerHydrationStore` 读取本人前缀、空前缀或 paired donor 同阶段前缀；72 次 child 全部可审计，correct/empty forecast presence 改变 16/16，correct/swapped 推荐动作改变 14/16，artifact `675815b9…2052`。P4.4/P4.5 均固定 `formal_evidence_authorized=false`；真人 outcome typing qualification、独立 subject / 32K context 正式四臂 pilot、真实 residual 与用户可见 steer、完整 Readable/Learnable/Steerable 与四能力总主张仍未证明）
 
 ---
 
@@ -166,6 +166,61 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 - gate 只读 belief + PE 代理；evaluation 不得成为观测、reward 或晋升证据的学习回路
 - C3/B3 只可复用 PE owner 的冻结 N+1 counterfactual；reader/executor 固定、仅 gate policy 更新，formal 前先 prereg
 - 专家评分只作 C1 的验证锚；packet/analysis 在类型与 artifact 字段上固定禁止学习用途和 production promotion
+- Windows/CUDA 长 context 模型执行仍由 `vz-substrate` 唯一拥有；opt-in
+  `WINDOWS_CUDA_CUDNN_SDPA_CACHED_STRICT_V1` 固定 strict-local/fallback DENY、Qwen
+  32768-token 原生 context、exclusive cuDNN SDPA cached generation 与
+  first-full-prompt set-once capture。完整 frozen runtime attestation 保留在 owner/evidence
+  artifact，`GenerationResult` 只绑定 attestation ID 与实际 context-budget attestation
+- combined context 由 chat template 实际 input token、全部 Prefix-KV slot 与 effective
+  max-new token 相加，并在 hook/model forward 前 fail loudly；tokenized chat-template 不得
+  绕过预算。`execution_profile=None` 的 eager/no-cache/pooled/fallback 默认保持不变
+- 该 Windows/CUDA profile 不新增 slot、不修改 substrate 或 steering 三件套 shape，也不授权
+  production ACTIVE；它只是 substrate 执行可信度 development evidence，不证明任一完整能力
+  或 Appendable→Readable→Learnable→Steerable 闭环
+- `windows-cuda-strict-32k-smoke.v1` 将唯一一次 32767 chat-template input + 1 cached
+  generation、layer-20/width-1536 first-full-prompt capture 固定为 create-only 内容寻址工程诊断；
+  protocol `4934a344…e2c1a` / raw SHA `ec7b7bce…5eb4` 冻结十个已审入口源码指纹，但明确
+  `transitive_local_source_closure_pinned=false`，尚未覆盖 substrate facade/lazy import 与
+  `vz-contracts` 完整传递闭包；
+  `vz-substrate` 仍是执行 owner，`vz-runtime` 仅做 evidence 编排。预算、attestation、prompt hash、
+  hook/token coverage、context-budget schema 或 source pin 任一漂移即 fail closed，禁止搜索、缩
+  prompt 或 fallback。运行前必须绑定外层 host campaign 预注册的 attempt lease；本地 launch receipt
+  在 runtime 构造前写入并 fsync，完成根由 launch/attestation/report/manifest/completion 五件组成，运行时
+  异常留下不可重用的不完整根；runner 显式固定三项 namespace root 与 implementation import origin。
+  缺外层锚点时该根只证明文件/hash/lineage 自洽
+- outer `windows-cuda-strict-32k-host-campaign.v1` protocol `cf62484f…3194` / raw
+  `5f174024…8f43` 已冻结 Node/PowerShell/CLI source pins、backend-separated deterministic scope、
+  000–012 create-only receipt chain、prelaunch same-machine/same-boot/boundary/budget 门、固定 argv、
+  Node 独立 Event Log range 重算和 delta-anchor cross-binding。它是 source-checkout-only scaffold；
+  `production_preregistration_enabled=false`，因为 production qualification producer/probe、direct raw-Audit
+  acquisition/live reobserver、full validator 与 qualification→baseline cursor continuity 尚未成立。现有
+  artifact-adapter core 只做 non-authorizing self-consistency snapshot；synthetic backend 永远 non-PASS 且 public
+  validator 拒绝。no-retry 只覆盖 exact scope，新 qualification/protocol/backend 是新 scope；本地
+  Application Event Log 非 external/WORM，管理员和有写权限的普通本地主体均可能伪造，hidden run
+  未排除。PowerShell/Python/Node runtime identity、realized environment、完整 local import/source
+  closure、process-tree containment、producer PASS-return 前整根重验、terminal/delayed-fault 区间覆盖
+  与受限 source provisioning 仍是另一个 audited revision 的启用 blocker
+- qualification publisher scaffold 已冻结 protocol `32f35e4f…e1d5f` / raw `30a88183…c4132`、
+  terminal v2、000–009 receipts + 010 manifest + 011 terminal + 两条 stream，以及 synthetic-only
+  full-root validator。它重算 raw chain、manifest/terminal IDs、little-endian `>=0x12F`、双 channel
+  cursor/time/budget/fault projection，但 public production preregister/run/validate 静态禁用；synthetic
+  永远 `real_host_observation=false / validated_eligible=false`。002/008 仍只是 qualification-owned
+  source-audit projection v2，未绑定 provisioner raw Audit v2 或 raw Event XML；当前 outer v1
+  exact-schema 拒绝 terminal v2。provisioner Audit v2 已把不合规固定为 exit 2、process failure 固定为
+  exit 3，并要求缺失 source 的 Provision 显式携带 `-AllowSourceCreation`。新增 pure artifact adapter 从单一
+  descriptor 绑定 raw stdout/caller envelope，严格分流 Audit v2/failure v1，并重算 compact ordered bytes、
+  source pin、basis、endpoint/provider/registry/conformance/safety/refresh；但 snapshot 固定不发 projection、
+  不声称 real/eligible/authorization。另有 standalone direct-Audit acquisition/quarantine owner 冻结了
+  Audit-only fixed argv、process-before claim fsync、bounded raw stdout/stderr、attempt=1/retry=0、exit/schema
+  判别式 outcome 与 create-only full-root validator；但 production gate 静态禁用，当前只允许 synthetic
+  lifecycle 验证，capture envelope 仍不权威，且未接 002/008。independent live reobserver 必须由不同 owner、
+  进程与 native API 路径另包实现；endpoint equality 不证明连续稳定，module-qualified provenance 也不构成
+  可信执行证明。config
+  content ID、refresh requirement 字段或 exit code 单独均不能授权资格，因此本包没有产生真实
+  qualification、没有解除 host block，也不授权 CUDA 或四能力
+- child 或未来 authorized outer PASS 也只构成一次 exact-boundary/fixed-argv engineering observation，
+  不证明 host stability、长 context 利用、独立 subject、长陪伴、多 session 或四能力；当前
+  host-block 解除前仍禁止真实运行
 
 ---
 
@@ -273,7 +328,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 
 | Spec | 内容 |
 |------|------|
-| [relationship-intelligence-closed-alpha.md](./relationship-intelligence-closed-alpha.md) | 多经历 preference-action forecast、P2d 命名条件 readout、exact outcome→social PE→credit、bounded action gate、self-temporal SHADOW advisory、真实 outcome typing qualification、三个 P4 产品入口、P4.1 Lab longitudinal canary、P4.2 owner correction/redaction drill 与 P4.3 named-reader transmission |
+| [relationship-intelligence-closed-alpha.md](./relationship-intelligence-closed-alpha.md) | 多经历 preference-action forecast、P2d 命名条件 readout、exact outcome→social PE→credit、bounded action gate、self-temporal SHADOW advisory、真实 outcome typing qualification、三个 P4 产品入口、P4.1 Lab longitudinal canary、P4.2 owner correction/redaction drill、P4.3 named-reader transmission、P4.4 PE-credit learned-gate transmission、P4.5 real child-process owner hydration、P4.6-fit model-bound steering artifact prerequisite 与 host-blocked P4.6 physical residual actuation preflight |
 
 **核心不变量**：
 
@@ -288,6 +343,11 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 - P4.1 seen fixture 当前仅有 3/16 preferred-action match；只证明闭环可真实分叉，不证明 P2 formal、真实效果或 production ACTIVE
 - P4.2 drill PASS 只证明 correction 可到达下一 forecast reader、redaction 可跨恢复防复活，不是 formal `recovery_after_correction` 效果分数
 - P4.3 固定 ALWAYS/零学习后，named reader 把 action match 从 6/16 提到 16/16；因 fixture 已见、组件 post-selected 且 P1m baseline 失灵，只能称 readout→action→outcome development transmission，不能称完整 Readable 或优势
+- P4.4 固定 named reader、fixture 与 environment，唯一 toggle 是 exact PE→credit 是否应用于 learned gate；两个已见、post-selected 合成 subject 的 16 decisions 中，no-credit 为 0 steer/action/update，PE-credit 产生 7/16 action change、16/16 credit/parameter update，并使 positive `7/16→13/16`、reversal `0/14→7/14`。历史字段 `process_restart_count` 仅是同进程内 store 对象重建，不是 OS child process。该包只证明 development-only 的 PE-credit→gate→后续 typed action/outcome 传导，`formal=false`，不证明独立 subject / 32K、真实 cross-process hydration、真实 residual、用户可见 steer、完整 Learnable 或四能力
+- P4.5 Windows preflight 对每个 4+8 pulse 启动真实新 child；parent 只传当前 public session、磁盘 root 与 frozen protocol lineage。correct/empty/swapped 三臂使用同一 ACTIVE worker，唯一改变是本拍之前的磁盘前缀；72 次调用的 PID/PPID/nonce、版本、raw bytes 与 owner payload hash 均冻结，correct/empty forecast presence 改变 16/16，correct/swapped 推荐动作改变 14/16。artifact `675815b9…2052` 只证明 seen synthetic fixture 上的 cross-process owner-state→forecast development transmission；`independent_subject_count=0 / formal=false / model=Qwen=residual=learning=0`
+- P4.6-fit 以 protocol `b6e1d79a…def8d` 在 RTX 4090 上新拟合 Qwen2.5-1.5B width-1536 reader / conditional executor / matched sensor-off；artifact `57b59b26…cbe04` 的 reader accuracy 为 1.0，gain-vs-noop NLL 为 1.9666092619739228，conditional advantage 为 1.295555595555674，substrate trainable count 为 0，八项门全部通过。campaign `67760e78…4ef31` 永久披露“一次无可判定 observer-timeout abort + 一次相同协议可判定执行”及 attempt-001 OS exit status 未取得；GPU-free validator exit 0。它只关闭 model-bound fit 前置，不证明真实 residual actuation、用户可见 steer、Learnable、长 context 或四能力
+- P4.6-actuation protocol `c6cb84f0…13244` 已实现 68 prompts × 2 repeats 的 raw / strict-noop / conditional / matched sensor-off 四臂，并以 owner-recomputed belief/delta 与 136 capture + 408 direct-apply invocation ledger 关闭离线重封缺口；独立 fake-runtime 为 10 passed、import-boundary 2901 passed。真实 CUDA run 尚未启动：主 agent 的 CPU-only 复测以 Python `0xC0000005` 退出，且同刻出现两条 WHEA corrected machine-check internal parity error。近 120 天已有 96 条 WHEA 19、5 条 WHEA 1、66 个 Python crash archive、16 次 bugcheck；block receipt `5e02aec7…4a34f`。因此本机在 BIOS `A.B0` / microcode `0x120` 下不具备可信物理或多日证据资格
+- 下一动作不是重试：先更新 MSI BIOS 到含 Intel microcode `0x12F` 或更高版本、加载 Intel Default Settings、冷启动核验，再冻结并通过零新增 WHEA/access-violation/bugcheck 的 host-stability qualification。通过后才可用 P4.6-fit 完整根及其原 artifact/bundle/campaign pin 执行一次 P4.6-actuation；strict profile/fit/physical preflight 都不替代真实 Qwen 32K、独立 subject、长陪伴多 session 因果实验或 formal 判词
 
 ---
 

@@ -323,5 +323,6 @@ def test_canary_artifacts_are_create_only_and_byte_hashed(tmp_path) -> None:
     digest = write_relationship_p4_canary_artifact(path, payload)
 
     assert digest == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert b"\r\n" not in path.read_bytes()
     with pytest.raises(FileExistsError):
         write_relationship_p4_canary_artifact(path, payload)

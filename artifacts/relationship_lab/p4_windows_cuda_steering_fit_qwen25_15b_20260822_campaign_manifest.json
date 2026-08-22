@@ -1,0 +1,82 @@
+{
+  "schema_version": "volvence.relationship_lab.p4_steering_fit_campaign.v1",
+  "campaign_label": "p4_windows_cuda_steering_fit_qwen25_15b_20260822",
+  "campaign_id_method": "sha256_utf8_of_python_json_dumps_sort_keys_true_ensure_ascii_false_separators_comma_colon_with_campaign_id_omitted",
+  "campaign_id": "67760e78bce6c11df862b3cfdca1a20c5e7f2a0114ce9c312af4bc9d8414ef31",
+  "protocol_id": "b6e1d79a5087945c4be6bf8d4f1e2f6535cdbedeca56ae0bd1af53a56f3def8d",
+  "execution_profile_id": "3be84d866afbda07cf80dee277d89cdc0e366ce545bf7e97f015cf8afcbfe21a",
+  "fit_process_launch_count": 2,
+  "adjudicable_fit_execution_count": 1,
+  "retuning_performed": false,
+  "attempts": [
+    {
+      "attempt_label": "attempt_000_operational_abort_before_adjudicable_result",
+      "adjudicable": false,
+      "classification": "observer_timeout_abort",
+      "fit_result_observed": false,
+      "receipt_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_launch_incident_1.json",
+      "receipt_sha256": "91f61f45dda2ccde1b3d6fa5571abb7e52154acf5e4795a3d3d79baf2ab5ded1",
+      "boundary": "Runtime construction, preliminary probe, and owner-training start are unknown. No metrics, verdict, artifact ID, or published output root were observed."
+    },
+    {
+      "attempt_label": "attempt_001_adjudicable_identical_protocol_restart",
+      "adjudicable": true,
+      "classification": "application_terminal_success_and_offline_validated",
+      "os_exit_status": null,
+      "os_exit_status_boundary": "The PowerShell Start-Process wrapper did not recover the child OS exit status. This field must not be backfilled or inferred as zero.",
+      "application_terminal_result_observed": true,
+      "application_terminal_verdict": "fresh_qwen25_15b_steering_artifact_fit_passed_development_only",
+      "preflight_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_attempt_001_preflight.json",
+      "preflight_sha256": "fd91d8919cdc2f2bb182343e4d6ada038ec057ea9a6fe5339264fe49eb5a5d8e",
+      "launch_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_attempt_001.launch.json",
+      "launch_sha256": "2668b6633e47151a354a16654c367e38f203dbc94d41818abfbc5e18939fe4cf",
+      "completion_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_attempt_001.completion.json",
+      "completion_sha256": "ed777c9d8abc2359f77c6bb52a9fca5762d1ba6c55f27671830efb428e5e560f",
+      "stdout_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_attempt_001.stdout.log",
+      "stdout_sha256": "84b011cc0af64d61933ffeee11184c5990247a9bb02df076804e45a212831bed",
+      "stderr_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_attempt_001.stderr.log",
+      "stderr_sha256": "013d0eb8f93efaf1e609de8c5953dca05780584ec1b3276a0b676d491eccdfee",
+      "fit_artifact_root": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822",
+      "fit_artifact_id": "57b59b269ecc5cf3f15abf3e16c3a8a03a9e9c74dd8025647203bdd16edcbe04",
+      "fit_manifest_sha256": "bd40a8103fcfd36a8b3fc78f04409c240b132775bbaf0c7a63c9389688d61415",
+      "bundle_sha256": "6d6047bdd1e3996df906f5606fb9bf4e9caa9a2f57b6b3f4f288e96df1573249",
+      "execution_attestation_id": "9a33a698b95d923d6a4e82b64471213d529b0cbbf6a30ca24644860211e6dde1"
+    }
+  ],
+  "offline_validation": {
+    "receipt_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_validate_existing_001.receipt.json",
+    "receipt_sha256": "c7979d2a63c80fcc3ac00e3fb173a9eb9f8af1348d10d6f1db70a928f34fd5b9",
+    "stdout_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_validate_existing_001.stdout.log",
+    "stdout_sha256": "276ad4ed0ba77be804b653b71bf50cf251b086eb8dd24b14a356cf4734c5a667",
+    "stderr_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_validate_existing_001.stderr.log",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exit_code": 0,
+    "validated_artifact_id": "57b59b269ecc5cf3f15abf3e16c3a8a03a9e9c74dd8025647203bdd16edcbe04",
+    "gpu_runtime_constructed": false
+  },
+  "auxiliary_validation_receipt_write_incident": {
+    "classification": "wrapper_receipt_serialization_error_after_validator_completed",
+    "fit_was_not_rerun": true,
+    "stdout_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_validate_existing.stdout.log",
+    "stdout_sha256": "276ad4ed0ba77be804b653b71bf50cf251b086eb8dd24b14a356cf4734c5a667",
+    "stderr_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_validate_existing.stderr.log",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "boundary": "The first durable validation wrapper used an invalid PowerShell boolean while constructing its receipt. The validator had already emitted the same terminal JSON, but no exit-code receipt was produced; a new read-only validation was then recorded correctly."
+  },
+  "key_metrics": {
+    "train_row_count": 307,
+    "heldout_row_count": 165,
+    "reader_heldout_accuracy": 1.0,
+    "heldout_noop_nll": 1.973369854327404,
+    "heldout_online_steer_nll": 0.006760592353481171,
+    "heldout_gain_vs_noop_nll": 1.9666092619739228,
+    "heldout_sensor_off_nll": 1.3023161879091552,
+    "heldout_conditional_advantage_nll": 1.295555595555674,
+    "conditional_executor_updates": 80,
+    "sensor_off_executor_updates": 80,
+    "substrate_trainable_parameter_count": 0,
+    "all_frozen_checks_passed": true
+  },
+  "adjudication": "One non-adjudicable observer-timeout abort was followed by one identical-protocol adjudicable execution. Attempt 001 OS exit status is unavailable, but application-level terminal PASS was observed and an independent GPU-free validator returned exit code 0 for the identical content-addressed artifact. No fit retry after attempt 001 and no retuning occurred.",
+  "claim_boundary": "Development-only model-bound steering-fit prerequisite. This artifact does not establish user-visible physical residual actuation, production ACTIVE wiring, independent long-companionship subjects, multi-session or long-context causal effects, PE-credit learning, Appendable, Readable, Learnable, Steerable, or the four-axis closed loop."
+}

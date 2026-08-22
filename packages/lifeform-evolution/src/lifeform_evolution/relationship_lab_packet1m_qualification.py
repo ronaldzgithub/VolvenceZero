@@ -157,6 +157,26 @@ def _sha256_file(path: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
+def frozen_snapshot_manifest_sha256(snapshot: pathlib.Path) -> str:
+    """Hash one frozen model snapshot with platform-neutral relative paths."""
+
+    root = pathlib.Path(snapshot)
+    manifest = tuple(
+        (
+            path.relative_to(root).as_posix(),
+            path.stat().st_size,
+            _sha256_file(path),
+        )
+        for path in sorted(
+            (item for item in root.rglob("*") if item.is_file()),
+            key=lambda item: item.relative_to(root).as_posix(),
+        )
+    )
+    if not manifest:
+        raise FileNotFoundError(f"empty frozen snapshot: {root}")
+    return sha256_json(manifest)
+
+
 def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 

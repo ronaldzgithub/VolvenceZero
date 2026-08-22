@@ -16,6 +16,12 @@ from lifeform_evolution.relationship_lab_p4_named_reader import (
     write_relationship_p4_named_reader_markdown,
     write_relationship_p4_named_reader_report,
 )
+from lifeform_evolution.relationship_lab_p4_pe_learning import (
+    P4PeLearningArm,
+    run_relationship_p4_pe_credit_learning,
+    validate_relationship_p4_pe_learning_report_files,
+    write_relationship_p4_pe_learning_report,
+)
 from lifeform_evolution.relationship_lab_packet1m_qualification import (
     RelationshipP1mArmMetrics,
     RelationshipP1mQualificationArm,
@@ -188,6 +194,8 @@ async def test_named_reader_transmission_isolates_readout_and_freezes_artifacts(
         report_path=report_path,
         markdown_path=markdown_path,
     )
+    assert b"\r\n" not in report_path.read_bytes()
+    assert b"\r\n" not in markdown_path.read_bytes()
     with pytest.raises(FileExistsError):
         write_relationship_p4_named_reader_report(report, output_dir=tmp_path)
     with pytest.raises(FileExistsError):
@@ -200,6 +208,69 @@ async def test_named_reader_transmission_isolates_readout_and_freezes_artifacts(
         validate_relationship_p4_named_reader_report_files(
             report,
             report_path=report_path,
+            markdown_path=markdown_path,
+        )
+
+
+async def test_pe_credit_learning_isolates_updates_and_freezes_artifacts(
+    tmp_path,
+) -> None:
+    protocol = _protocol()
+    embedder = _DeterministicFixtureEmbedder()
+    source_report = await run_relationship_p4_named_reader_transmission(
+        p1m_protocol=protocol,
+        p1m_report=_failed_p1m_report(protocol),
+        embedder=embedder,
+        embedding_model_id=protocol.reader_artifact.embedding_model_id,
+        embedding_weights_sha256=protocol.bge_weights_sha256,
+    )
+
+    report = await run_relationship_p4_pe_credit_learning(
+        p1m_protocol=protocol,
+        source_report=source_report,
+        embedder=embedder,
+    )
+
+    no_credit, pe_credit = report.summaries
+    assert no_credit.arm is P4PeLearningArm.NAMED_LEARNED_NO_CREDIT
+    assert no_credit.steer_count == 0
+    assert no_credit.credit_applied_count == 0
+    assert no_credit.parameter_change_count == 0
+    assert no_credit.final_update_count == 0
+    assert pe_credit.arm is P4PeLearningArm.NAMED_LEARNED_PE_CREDIT
+    assert pe_credit.credit_applied_count == 16
+    assert pe_credit.parameter_change_count == 16
+    assert pe_credit.final_update_count == 16
+    assert report.causal_next_pulse_probability_change_count > 0
+    assert report.evaluation_feedback_to_learning is False
+    assert report.seen_fixture_only is True
+    assert report.formal_evidence_authorized is False
+    assert all(
+        run.mechanism.gate_audits[0].pre_update_count == 0
+        for run in report.runs
+    )
+
+    json_path, markdown_path = write_relationship_p4_pe_learning_report(
+        report,
+        output_dir=tmp_path,
+    )
+    validate_relationship_p4_pe_learning_report_files(
+        report,
+        json_path=json_path,
+        markdown_path=markdown_path,
+    )
+    assert b"\r\n" not in json_path.read_bytes()
+    assert b"\r\n" not in markdown_path.read_bytes()
+    with pytest.raises(FileExistsError):
+        write_relationship_p4_pe_learning_report(report, output_dir=tmp_path)
+
+    raw = json.loads(json_path.read_text(encoding="utf-8"))
+    raw["positive_outcome_gain"] += 1
+    json_path.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(ValueError, match="artifact drift"):
+        validate_relationship_p4_pe_learning_report_files(
+            report,
+            json_path=json_path,
             markdown_path=markdown_path,
         )
 

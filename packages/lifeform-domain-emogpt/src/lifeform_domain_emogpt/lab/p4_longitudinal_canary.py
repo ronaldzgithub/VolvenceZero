@@ -1196,6 +1196,37 @@ class _P4CanaryEvidenceProposalRuntime(SemanticProposalRuntime):
         )
 
 
+async def append_relationship_p4_onboarding_session(
+    *,
+    store: SocialRecordStore,
+    session: P4CanaryOnboardingSession,
+) -> PreferenceAboutOtherSnapshot:
+    """Append one public P4 onboarding pulse through the preference owner."""
+
+    evidence = _P4CanaryOwnerEvidence(
+        subject_id=session.subject_id,
+        event_id=session.event_id,
+        source_turn=session.session_index,
+        observation_summary=session.observation_summary,
+        action_id=session.action_id,
+        observed_outcome_id=session.observed_outcome_id,
+        reaction_summary=session.reaction_summary,
+        observation_ref=session.observation_ref,
+    )
+    owner = PreferenceAboutOtherModule(
+        proposal_runtime=_P4CanaryEvidenceProposalRuntime(evidence),
+        user_input=evidence.observation_summary,
+        turn_index=evidence.source_turn,
+        wiring_level=WiringLevel.SHADOW,
+        record_store=store,
+        action_outcome_evidence=evidence.to_owner_evidence(),
+    )
+    snapshot = (await owner.process({})).value
+    if not isinstance(snapshot, PreferenceAboutOtherSnapshot):
+        raise TypeError("P4.1 preference owner published unexpected snapshot")
+    return snapshot
+
+
 class _P4MutationDrillForecastRuntime:
     """Capture the exact corrected evidence seen by the bounded reader."""
 
@@ -1772,27 +1803,10 @@ async def run_relationship_p4_subject_mechanism(
         if persistence_snapshot is not None:
             store.hydrate_from_persistence(persistence_snapshot)
             restart_count += 1
-        evidence = _P4CanaryOwnerEvidence(
-            subject_id=subject.subject_id,
-            event_id=onboarding.event_id,
-            source_turn=onboarding.session_index,
-            observation_summary=onboarding.observation_summary,
-            action_id=onboarding.action_id,
-            observed_outcome_id=onboarding.observed_outcome_id,
-            reaction_summary=onboarding.reaction_summary,
-            observation_ref=onboarding.observation_ref,
+        await append_relationship_p4_onboarding_session(
+            store=store,
+            session=onboarding,
         )
-        owner = PreferenceAboutOtherModule(
-            proposal_runtime=_P4CanaryEvidenceProposalRuntime(evidence),
-            user_input=evidence.observation_summary,
-            turn_index=evidence.source_turn,
-            wiring_level=WiringLevel.SHADOW,
-            record_store=store,
-            action_outcome_evidence=evidence.to_owner_evidence(),
-        )
-        snapshot = (await owner.process({})).value
-        if not isinstance(snapshot, PreferenceAboutOtherSnapshot):
-            raise TypeError("P4.1 preference owner published unexpected snapshot")
         persistence_snapshot = store.export_persistence_snapshot()
     if persistence_snapshot is None:
         raise RuntimeError("P4.1 subject has no onboarding state")
@@ -2034,10 +2048,10 @@ def write_relationship_p4_canary_artifact(
         sort_keys=True,
         indent=2,
     )
-    file_text = f"{serialized}\n"
-    with path.open("x", encoding="utf-8") as handle:
-        handle.write(file_text)
-    return hashlib.sha256(file_text.encode("utf-8")).hexdigest()
+    file_bytes = f"{serialized}\n".encode("utf-8")
+    with path.open("xb") as handle:
+        handle.write(file_bytes)
+    return hashlib.sha256(file_bytes).hexdigest()
 
 
 def render_relationship_p4_canary_markdown(
@@ -2540,6 +2554,7 @@ __all__ = [
     "RelationshipP4LongitudinalCanaryReport",
     "RelationshipP4LongitudinalCanaryView",
     "authorize_relationship_p4_lab_action_advisory",
+    "append_relationship_p4_onboarding_session",
     "load_relationship_p4_longitudinal_canary_contract",
     "load_relationship_p4_longitudinal_canary_evaluator_bundle",
     "load_relationship_p4_longitudinal_canary_view",

@@ -1,0 +1,274 @@
+{
+  "schema_version": "windows-cuda-strict-32k-host-campaign.v1",
+  "owner": {
+    "campaign_owner_wheel": "vz-runtime",
+    "campaign_owner": "volvence_zero.offline_evidence.windows_cuda_strict_32k_host_campaign",
+    "child_execution_owner_wheel": "vz-substrate",
+    "mode": "offline_host_campaign_control",
+    "distribution_scope": "repository-source-checkout-only"
+  },
+  "child": {
+    "protocol_id": "4934a344550aab5c98f33892dd6d1ec2e5fe51c00694d2cc5b0a45fbc31e2c1a",
+    "protocol_raw_sha256": "ec7b7bcec82668ac89b549b8769997897d07720a507ded6a316d4cee3b785eb4",
+    "protocol_relative_path": "packages/vz-runtime/src/volvence_zero/offline_evidence/protocols/windows_cuda_strict_32k_smoke_v1.json",
+    "runner_relative_path": "scripts/run_windows_cuda_strict_32k_smoke.py",
+    "output_relative_path": "child/strict_32k_smoke",
+    "expected_complete_files": [
+      "launch_receipt.json",
+      "execution_attestation.json",
+      "strict_32k_smoke_report.json",
+      "manifest.json",
+      "completion_receipt.json"
+    ],
+    "success_exit_code": 0,
+    "diagnostic_failure_exit_code": 2
+  },
+  "scope": {
+    "scope_id_method": "sha256_domain_separated_length_framed_v1",
+    "scope_id_domain_separator": "volvence.windows-cuda-strict-32k-host-scope.v1",
+    "scope_id_components": [
+      "outer_protocol_id",
+      "child_protocol_id",
+      "host_qualification_artifact_id",
+      "host_identity_sha256",
+      "execution_backend_id"
+    ],
+    "campaign_root_relative_template": "artifacts/relationship_lab/windows_cuda_strict_32k_host_campaigns/{scope_id}",
+    "attempt_budget": 1,
+    "retry_budget": 0,
+    "retry_scope": "outer_protocol+child_protocol+host_qualification_artifact+host_identity+execution_backend",
+    "lease_id_method": "raw_sha256_of_002_preregistration_json",
+    "preregistration_requires_host_qualification_pass": true
+  },
+  "host_qualification": {
+    "terminal_schema_version": "windows-cuda-host-stability-qualification-terminal.v1",
+    "passed_required": true,
+    "real_cuda_evidence_authorized_required": true,
+    "same_machine_required": true,
+    "same_boot_required": true,
+    "full_artifact_revalidated_by_campaign": false,
+    "production_preregistration_enabled": false,
+    "pinned_qualification_protocol_id": null,
+    "qualification_validator_relative_path": null
+  },
+  "execution_authorization": {
+    "production_backend_id": "windows-powershell-eventlog-and-node-spawn.v1",
+    "synthetic_test_backend_id": "synthetic-node-test-double.v1",
+    "production_requires_bundled_event_log_collector": true,
+    "production_requires_bundled_child_executor": true,
+    "production_requires_bundled_child_validator": true,
+    "production_requires_source_verification": true,
+    "synthetic_artifacts_real_execution_authorized": false,
+    "synthetic_artifacts_can_pass": false,
+    "public_validator_accepts_synthetic_artifacts": false
+  },
+  "event_log": {
+    "collector_relative_path": "packages/vz-runtime/src/volvence_zero/offline_evidence/collect_windows_host_event_log.ps1",
+    "platform_system": "Windows",
+    "powershell_mode": "WindowsPowerShell-5.1-no-profile-noninteractive",
+    "collector_timeout_seconds": 120,
+    "application_anchor_source": "VolvenceEvidence",
+    "anchor_event_ids": {
+      "preregistration": 8201,
+      "launch": 8202,
+      "terminal": 8203
+    },
+    "channels": [
+      "Application",
+      "System"
+    ],
+    "max_new_records_per_channel": 4096,
+    "baseline_boundary_xml_hash_required": true,
+    "prelaunch_same_machine_boot_and_boundary_required": true,
+    "same_boot_required": true,
+    "fault_classification": [
+      {
+        "failure_code": "new_whea_event",
+        "log_name": "System",
+        "provider_name": "Microsoft-Windows-WHEA-Logger",
+        "event_ids": null
+      },
+      {
+        "failure_code": "new_bugcheck_or_unexpected_shutdown",
+        "log_name": "System",
+        "provider_name": "Microsoft-Windows-Kernel-Power",
+        "event_ids": [
+          41
+        ]
+      },
+      {
+        "failure_code": "new_bugcheck_or_unexpected_shutdown",
+        "log_name": "System",
+        "provider_name": "EventLog",
+        "event_ids": [
+          6008
+        ]
+      },
+      {
+        "failure_code": "new_bugcheck_or_unexpected_shutdown",
+        "log_name": "System",
+        "provider_name": "Microsoft-Windows-WER-SystemErrorReporting",
+        "event_ids": [
+          1001
+        ]
+      },
+      {
+        "failure_code": "event_log_cleared_or_rolled_over",
+        "log_name": "System",
+        "provider_name": "Microsoft-Windows-Eventlog",
+        "event_ids": [
+          104
+        ]
+      },
+      {
+        "failure_code": "new_gpu_driver_fault",
+        "log_name": "System",
+        "provider_name": "Display",
+        "event_ids": [
+          4101
+        ]
+      },
+      {
+        "failure_code": "new_gpu_driver_fault",
+        "log_name": "System",
+        "provider_name": "nvlddmkm",
+        "event_ids": null
+      },
+      {
+        "failure_code": "child_process_crash_event",
+        "log_name": "Application",
+        "provider_name": "Application Error",
+        "event_ids": [
+          1000
+        ]
+      },
+      {
+        "failure_code": "child_process_crash_event",
+        "log_name": "Application",
+        "provider_name": "Windows Error Reporting",
+        "event_ids": [
+          1001
+        ]
+      }
+    ]
+  },
+  "child_process": {
+    "timeout_seconds": 3600,
+    "shell": false,
+    "argv_template": [
+      "{python_executable}",
+      "-I",
+      "scripts/run_windows_cuda_strict_32k_smoke.py",
+      "run",
+      "--output-dir",
+      "{child_output}",
+      "--outer-attempt-lease-id",
+      "{lease_id}",
+      "--protocol",
+      "packages/vz-runtime/src/volvence_zero/offline_evidence/protocols/windows_cuda_strict_32k_smoke_v1.json"
+    ],
+    "environment_overrides": {
+      "CUDA_VISIBLE_DEVICES": "0",
+      "HF_HUB_OFFLINE": "1",
+      "PYTHONNOUSERSITE": "1",
+      "TOKENIZERS_PARALLELISM": "false",
+      "TRANSFORMERS_OFFLINE": "1"
+    },
+    "environment_removed": [
+      "PYTHONINSPECT",
+      "PYTHONPATH",
+      "PYTHONSTARTUP",
+      "PYTHONUSERBASE",
+      "PYTHONHOME"
+    ],
+    "stdout_relative_path": "streams/child.stdout.log",
+    "stderr_relative_path": "streams/child.stderr.log"
+  },
+  "source_hash_mode": "utf8_lf_canonical_v1",
+  "source_sha256": {
+    "packages/vz-runtime/src/volvence_zero/offline_evidence/windows_cuda_strict_32k_host_campaign.mjs": "803e8c10900930710f699dd6cabeeaca8905b0425101287b40b02e8a36d55b07",
+    "packages/vz-runtime/src/volvence_zero/offline_evidence/collect_windows_host_event_log.ps1": "2ecc8525c811bdc8c68f52f8675a989f186511f9c1b7c669bf31e23c621b8a60",
+    "scripts/run_windows_cuda_strict_32k_host_campaign.mjs": "bbf3bdc34dfe8de75fdb5cae25c9ba124c1d6db04ca78d64a787779e02d2953f"
+  },
+  "output_contract": {
+    "create_only": true,
+    "immutable_by_wrapper_policy": true,
+    "single_file_fsync": true,
+    "directory_entry_durability_guaranteed": false,
+    "launch_fsync_before_process_creation": true,
+    "receipt_chain_sequences": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "preregistered_files": [
+      "000_scope_claim.json",
+      "001_event_log_baseline.json",
+      "002_preregistration.json",
+      "003_preregistration_event_anchor.json"
+    ],
+    "complete_outer_files": [
+      "000_scope_claim.json",
+      "001_event_log_baseline.json",
+      "002_preregistration.json",
+      "003_preregistration_event_anchor.json",
+      "004_launch.json",
+      "005_launch_event_anchor.json",
+      "006_process_exit.json",
+      "007_event_log_delta.json",
+      "008_campaign_report.json",
+      "009_manifest.json",
+      "010_terminal_receipt.json",
+      "011_terminal_event_anchor.json",
+      "012_campaign_seal.json",
+      "streams/child.stdout.log",
+      "streams/child.stderr.log"
+    ],
+    "child_output_relative_path": "child/strict_32k_smoke",
+    "validate_existing_starts_python": false,
+    "validate_existing_imports_torch_or_cuda": false,
+    "validate_existing_queries_live_event_log": false,
+    "incomplete_consumed_is_pass": false,
+    "failed_terminal_retry_permitted": false,
+    "privileged_local_tamper_resistance": false
+  },
+  "evidence_firewall": {
+    "outer_local_append_only_policy_present": true,
+    "local_event_log_cross_anchor_required": true,
+    "external_append_only_anchor_present": false,
+    "third_party_or_remote_anchor_present": false,
+    "local_admin_tamper_resistance_proven": false,
+    "unprivileged_local_event_forgery_excluded": false,
+    "hidden_unregistered_execution_excluded": false,
+    "powershell_executable_trust_proven": false,
+    "node_control_plane_runtime_attested": false,
+    "realized_child_environment_fully_frozen": false,
+    "child_process_tree_containment_proven": false,
+    "child_transitive_local_source_closure_pinned": false,
+    "producer_full_artifact_revalidated_before_pass_return": false,
+    "terminal_anchor_and_delayed_faults_covered_by_delta": false,
+    "child_standalone_artifact_proves_physical_execution": false,
+    "general_host_stability_proven": false,
+    "long_context_information_utilization_proven": false,
+    "appendable_proven": false,
+    "readable_proven": false,
+    "learnable_proven": false,
+    "steerable_proven": false,
+    "four_capability_claim_authorized": false,
+    "independent_subject_evidence": false,
+    "long_companion_multi_session_evidence": false,
+    "production_active_authorized": false,
+    "formal_evidence_authorized": false
+  },
+  "claim_boundary": "Production preregistration is disabled in this v1 protocol. Known activation blockers include a pinned host-qualification protocol with full artifact and qualification-to-baseline continuity validation, provisioned Event Log infrastructure, attested PowerShell/Python/Node runtime identity, a frozen realized child environment, a complete transitive local source/import closure, producer-side full-artifact revalidation before any PASS return, post-terminal/delayed-fault Event Log coverage, Event Log cross-binding, and child process-tree containment. Enabling production requires a separately audited protocol revision; closing only the qualification gate is insufficient. Synthetic dependency tests are explicitly marked, can never PASS, and are rejected by the public validator. A future authorized complete PASS campaign would record one deterministic, preregistered local attempt scope, one lease consumption before child creation, one fixed-argv child process observation, the child artifact, and a bounded Windows Event Log interval under a create-only receipt chain. It supports only a cooperative local-machine observation that the reviewed-entrypoint strict 32767+1 engineering diagnostic completed without a newly observed classified host fault in that interval. Windows Event Log is a second local channel, not an independent or WORM authority; an administrator or an unprivileged local principal with Application-log write access can delete, clear, copy, or forge local state, and unregistered hidden executions cannot be excluded. The campaign does not prove general host stability, long-context information utilization, independent subjects, long companionship, multiple sessions, production ACTIVE, Appendable, Readable, Learnable, Steerable, or the four-capability system claim. A consumed chain without the final seal is permanently incomplete and never authorizes retry or PASS."
+}

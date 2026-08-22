@@ -1,7 +1,7 @@
 # Owner Hydration Spec
 
 > Status: draft
-> Last updated: 2026-05-12
+> Last updated: 2026-08-22
 > 对应需求: R5（连续记忆）, R6（反思与沉淀）, R8（快照优先 / 单一所有者）, R11（内部状态可发布）, R15（迁移可解释性 + 可回滚）
 > 来源: long-horizon-closure Packet D。
 
@@ -192,7 +192,8 @@ def create_session(self, *, session_id, ...):
 - `tests/contracts/test_owner_hydration_protocol.py`：`SemanticStateStore` / `FollowupManager` / `VitalsModule` 实例都满足 round-trip `hydrate(export()) == export()`。
 - `tests/contracts/test_owner_hydration_failures_loud.py`：损坏的 payload 抛 typed exception；不静默吞。
 - `tests/test_semantic_state_hydration.py` / `tests/test_vitals_hydration.py` / `tests/test_followup_manager_hydration.py`：单 owner round-trip 测试。
-- `tests/longitudinal/test_cross_session_owner_hydration.py`（Packet E）：同 user_id + 同 memory_scope_root_dir → 销毁 BrainSession → 新 BrainSession → 上次的 commitment / rupture / vitals 仍然可见。
+- `tests/longitudinal/test_cross_session_owner_hydration.py`（Packet E）：同 user_id + 同 memory_scope_root_dir → 销毁 BrainSession → 新 BrainSession → 上次的 commitment / rupture / vitals 仍然可见。该测试仍在同一 Python 进程内，不能单独称为 OS restart evidence。
+- `packages/lifeform-evolution/tests/test_relationship_lab_p4_cross_process_appendable.py` 与 Windows artifact `675815b9…2052`（P4.5）：2 个 seen synthetic subject × 12 pulse × correct/empty/same-stage-swapped prior state，共 72 次真实 `sys.executable` child。correct/swapped owner backend version 均为 `1..12`，empty 每拍为 fresh v1；correct/empty next-forecast presence 改变 16/16，correct/swapped 推荐动作改变 14/16。parent request 禁止 history/snapshot/payload 旁路，raw disk bytes 与 owner payload 分别哈希。该证据 `formal=false / independent_subject_count=0`，不证明 crash consistency、held-out 泛化或完整 Appendable。
 
 ## 与其他能力域的关系
 
@@ -233,3 +234,4 @@ def create_session(self, *, session_id, ...):
 - 2026-05-12: long-horizon-closure follow-up：默认 wiring 从 DISABLED 翻 ACTIVE；`LifeformSession.end_scene` 自动 `persist_owners()`，让 ACTIVE 默认对外有现实意义。Anonymous / 无 backend 的 session 仍是 no-op。
 - 2026-07-13: 登记 `LifeformTemplate` v2 bridge。模板可搬运 owner 自己发布的 `OwnerPersistenceSnapshot`，加载时仍经 `OwnerHydrationStore` 恢复，不新增第二 owner。
 - 2026-07-13: v2 bridge alpha path 补充 seed-once 语义：`owner_hydration_seed_snapshots` 只在 scoped backend 缺 key 时写入，既有 per-user owner state 优先。
+- 2026-08-22: P4.5 Windows preflight 首次把 `social_record_store` hydration 放进 72 个真实 one-shot child，并以 correct/empty/same-stage donor 三臂冻结磁盘版本与 next-forecast 因果差异；不新增 owner/key/wiring，也不授权 formal 或 crash-recovery 主张。

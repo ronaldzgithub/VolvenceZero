@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -20,6 +21,7 @@ from lifeform_evolution.relationship_lab_packet1m_qualification import (
     RelationshipP1mQualificationVerdict,
     RelationshipP1mQwenReadout,
     RelationshipP1mArmMetrics,
+    frozen_snapshot_manifest_sha256,
     load_relationship_p1m_qualification_report,
     load_relationship_p1m_qualification_protocol,
     relationship_p1m_arm_metrics,
@@ -33,6 +35,33 @@ from lifeform_evolution.relationship_lab_packet1m_qualification import (
 _SHA = "a" * 64
 _PRESENCE = RelationshipAction.STAY_PRESENT_WITHOUT_PROBE
 _SPACE = RelationshipAction.RESPECT_SPACE_WITH_RETURN_OPTION
+
+
+def test_frozen_snapshot_manifest_digest_is_platform_neutral(tmp_path: Path) -> None:
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (tmp_path / "config.json").write_bytes(b"{}\n")
+    (nested / "weights.bin").write_bytes(b"weights")
+    expected_manifest = (
+        (
+            "config.json",
+            3,
+            "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+        ),
+        (
+            "nested/weights.bin",
+            7,
+            "9a129038d9a00aed0cf6a7ea059ca50a813449061ab87848cf1a13eafdf33b2c",
+        ),
+    )
+    encoded = json.dumps(
+        expected_manifest,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    assert frozen_snapshot_manifest_sha256(tmp_path) == hashlib.sha256(encoded).hexdigest()
 
 
 def _reader_artifact() -> RelationshipConditionReaderArtifact:

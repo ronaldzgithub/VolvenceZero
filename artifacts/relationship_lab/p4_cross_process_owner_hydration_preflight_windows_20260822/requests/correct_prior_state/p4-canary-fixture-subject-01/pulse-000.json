@@ -1,0 +1,17 @@
+{
+  "arm": "correct_prior_state",
+  "invocation_nonce": "923873c8427648c0888887eb089c6b6f",
+  "max_versions": 16,
+  "output_boundary": 1,
+  "parent_pid": 6692,
+  "protocol_id": "b4f5ce2e41527682b8a96e2f69ad1065f9828c17fb7b30bc9f78c48c1cb14459",
+  "pulse_index": 0,
+  "schema_version": "relationship-p4-cross-process-owner-hydration-request.v1",
+  "session_path": "sessions/p4-canary-fixture-subject-01/pulse-000.json",
+  "source_boundary": 0,
+  "source_state_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "source_subject_id": "p4-canary-fixture-subject-01",
+  "state_root": "state/correct_prior_state/p4-canary-fixture-subject-01/boundary-001",
+  "subject_id": "p4-canary-fixture-subject-01",
+  "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040"
+}

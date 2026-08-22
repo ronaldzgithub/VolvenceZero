@@ -1,0 +1,385 @@
+{
+  "schema_version": "windows-cuda-host-stability-qualification-protocol.v1",
+  "owner": {
+    "qualification_owner_wheel": "vz-runtime",
+    "qualification_owner": "volvence_zero.offline_evidence.windows_cuda_host_stability_qualification",
+    "mode": "offline_host_stability_qualification_publisher",
+    "distribution_scope": "repository-source-checkout-only"
+  },
+  "host_block": {
+    "receipt_relative_path": "artifacts/relationship_lab/p4_windows_cuda_physical_residual_actuation_host_block_windows_20260822.json",
+    "receipt_raw_sha256": "5e02aec731db429fa699176edd8cd6cf44c52e68193c6a0d22c32112c8c4a34f",
+    "receipt_lacks_machine_guid_and_boot_identity": true,
+    "same_physical_chassis_machine_verifiable_from_receipt": false,
+    "same_physical_chassis_requires_operator_declaration": true,
+    "qualification_replaces_host_block_automatically": false
+  },
+  "consumer_compatibility": {
+    "current_outer_protocol_id": "cf62484fccdcaf71e6db1f2f0b6d9034443ded15891a8f41fa73b638e7bd3194",
+    "current_outer_terminal_schema_version": "windows-cuda-host-stability-qualification-terminal.v1",
+    "published_terminal_schema_version": "windows-cuda-host-stability-qualification-terminal.v2",
+    "current_outer_accepts_published_terminal": false,
+    "current_outer_full_artifact_consumer_present": false,
+    "terminal_eligibility_self_report_authoritative": false,
+    "only_full_validator_return_can_be_consumed": true,
+    "future_outer_must_bind_artifact_id_terminal_id_and_terminal_raw_sha256": true,
+    "future_outer_must_validate_both_channel_handoff_bridges": true
+  },
+  "scope": {
+    "scope_id_method": "sha256_domain_separated_length_framed_v1",
+    "scope_id_domain_separator": "volvence.windows-cuda-host-stability-qualification-scope.v1",
+    "scope_id_components": [
+      "qualification_protocol_id",
+      "host_block_receipt_raw_sha256",
+      "machine_identity_sha256",
+      "boot_identity_sha256",
+      "source_machine_config_content_id",
+      "operator_declaration_id",
+      "execution_backend_id"
+    ],
+    "qualification_root_relative_template": "artifacts/relationship_lab/windows_cuda_host_stability_qualifications/{scope_id}",
+    "attempt_number": 1,
+    "attempt_budget": 1,
+    "retry_budget": 0,
+    "failed_terminal_retry_permitted": false,
+    "incomplete_consumed_retry_permitted": false,
+    "scope_excludes_refreshable_audit_timestamp_and_raw_sha256": true,
+    "cross_scope_selection_excluded": false
+  },
+  "firmware_gate": {
+    "microcode_registry_encoding": "little_endian_unsigned_32_bit_hex",
+    "minimum_microcode_revision_integer": 303,
+    "minimum_microcode_revision_hex": "0x12f",
+    "comparison": "decoded_integer_greater_than_or_equal",
+    "operator_declaration_schema_version": "windows-cuda-host-stability-operator-declaration.v1",
+    "required_operator_declarations": [
+      "bios_updated_with_microcode_at_least_0x12f",
+      "intel_defaults_loaded",
+      "cold_boot_completed_after_firmware_change",
+      "xmp_disabled",
+      "cpu_overclock_disabled",
+      "undervolt_disabled",
+      "memory_tuning_disabled",
+      "same_physical_chassis_as_host_block_receipt"
+    ],
+    "operator_declaration_is_cryptographic_signature": false,
+    "intel_defaults_machine_verified": false,
+    "cold_boot_machine_verified": false,
+    "absence_of_xmp_overclock_undervolt_or_memory_tuning_machine_verified": false,
+    "same_physical_chassis_machine_verified": false
+  },
+  "event_log_source": {
+    "provisioner_relative_path": "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1",
+    "provisioning_audit_schema_version": "volvence-evidence-event-log-provisioning-audit.v2",
+    "qualification_projection_schema_version": "windows-cuda-host-stability-source-audit-projection.v2",
+    "source_config_schema_version": "volvence-evidence-event-log-source-config.v1",
+    "raw_audit_capture_schema_version": "windows-event-log-source-audit-capture-envelope.v1",
+    "raw_audit_adapter_snapshot_schema_version": "windows-event-log-source-audit-artifact-adapter-snapshot.v1",
+    "raw_audit_capture_roles": [
+      "qualification_source_audit_before",
+      "qualification_source_audit_after"
+    ],
+    "maximum_raw_audit_bytes": 1048576,
+    "log_name": "Application",
+    "source_name": "VolvenceEvidence",
+    "required_mode": "Audit",
+    "source_created_this_invocation_required": false,
+    "requires_cold_or_service_refresh_required": null,
+    "refresh_disposition_required": "not_observed_or_proven_by_this_invocation",
+    "audit_overall_conformant_required": true,
+    "audit_nonconformance_exit_code": 2,
+    "process_failure_exit_code": 3,
+    "qualification_not_authorized_required": true,
+    "fresh_post_refresh_audit_required": true,
+    "required_conformance_booleans": [
+      "source_before.source_configuration_exact",
+      "source_after.source_configuration_exact",
+      "application_channel_before.log_name_exact",
+      "application_channel_before.enabled",
+      "application_channel_before.classic_log",
+      "application_channel_before.circular_log_mode",
+      "application_channel_before.positive_maximum_size",
+      "application_channel_before.source_provider_membership_present",
+      "application_channel_after.log_name_exact",
+      "application_channel_after.enabled",
+      "application_channel_after.classic_log",
+      "application_channel_after.circular_log_mode",
+      "application_channel_after.positive_maximum_size",
+      "application_channel_after.source_provider_membership_present",
+      "application_channel_full_endpoint_equal",
+      "application_channel_stable_projection_endpoint_equal",
+      "application_channel_provider_membership_transition.allowed_for_source_creation",
+      "application_registry_endpoint_equal",
+      "source_registry_endpoint_equal"
+    ],
+    "required_provider_membership_transition_disposition": "unchanged",
+    "required_fixed_contract": {
+      "config_schema_version": "volvence-evidence-event-log-source-config.v1",
+      "provisioning_owner": "manual_local_administrator_control_plane",
+      "downstream_authorization": "none; this audit cannot qualify a host or authorize a campaign",
+      "powershell": "Windows PowerShell Desktop 5.1 x64",
+      "registry_view": "Registry64",
+      "log_name": "Application",
+      "source_name": "VolvenceEvidence",
+      "write_semantics": "classic direct-string entries; no resource-identifier contract",
+      "application_registry_subkey": "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application",
+      "source_registry_subkey": "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\VolvenceEvidence",
+      "source_values": [
+        {
+          "name": "EventMessageFile",
+          "kind": "ExpandString",
+          "data": "%SystemRoot%\\Microsoft.NET\\Framework64\\v4.0.30319\\EventLogMessages.dll"
+        },
+        {
+          "name": "TypesSupported",
+          "kind": "DWord",
+          "data": 7
+        }
+      ],
+      "source_acl_sddl": "O:BAG:SYD:P(A;CI;KA;;;SY)(A;CI;KA;;;BA)(A;CI;KR;;;BU)(A;CI;KR;;;LS)",
+      "source_acl_sha256": "113ee040433fa17ceeaa6915181115760e72598ad9b30d70c10d3adcd61135ae",
+      "source_owner_sid": "S-1-5-32-544",
+      "audit_nonconformance_exit_code": 2,
+      "process_failure_exit_code": 3,
+      "allow_source_creation_is_operator_intent_not_history_proof": true,
+      "module_qualified_cmdlets_required": true
+    },
+    "continuous_stability_proven_required": false,
+    "audit_exit_code_alone_proves_conformance": false,
+    "refresh_requirement_field_alone_proves_service_refresh_or_cold_boot": false,
+    "machine_config_content_id_alone_proves_conformance": false,
+    "allow_source_creation_required_for_absent_provision": true,
+    "allow_source_creation_proves_first_bootstrap": false,
+    "provisioning_mutation_transactional": false,
+    "partial_failure_may_leave_source_registered": true,
+    "cmdlet_provenance_authoritative": false,
+    "module_qualification_proves_trusted_execution": false,
+    "synthetic_projection_matches_provisioner_raw_schema": false,
+    "raw_audit_artifact_adapter_core_implemented": true,
+    "raw_audit_capture_metadata_authoritative": false,
+    "raw_audit_artifact_self_consistency_proves_real_observation": false,
+    "production_qualification_receipt_raw_audit_binding_implemented": false,
+    "production_raw_audit_acquisition_implemented": false,
+    "independent_control_plane_reobservation_implemented": false,
+    "production_requires_full_raw_audit_binding_and_independent_revalidation": true,
+    "pre_and_post_machine_config_content_id_equal_required": true,
+    "qualification_may_invoke_provision_mode": false,
+    "provision_output_can_authorize_qualification": false
+  },
+  "event_log": {
+    "channels": [
+      "Application",
+      "System"
+    ],
+    "required_log_mode": "Circular",
+    "max_new_records_per_channel_per_window": 4096,
+    "baseline_boundary_xml_hash_required": true,
+    "contiguous_record_ids_required": true,
+    "same_machine_required": true,
+    "same_boot_required": true,
+    "handoff_cursor_required_fields": [
+      "log_name",
+      "enabled",
+      "record_count",
+      "oldest_record_id",
+      "newest_record_id",
+      "newest_record_xml_sha256",
+      "maximum_size_bytes",
+      "log_mode",
+      "configuration_sha256"
+    ],
+    "fault_classification": [
+      {
+        "failure_code": "new_whea_event",
+        "log_name": "System",
+        "provider_name": "Microsoft-Windows-WHEA-Logger",
+        "event_ids": null
+      },
+      {
+        "failure_code": "new_bugcheck_or_unexpected_shutdown",
+        "log_name": "System",
+        "provider_name": "Microsoft-Windows-Kernel-Power",
+        "event_ids": [
+          41
+        ]
+      },
+      {
+        "failure_code": "new_bugcheck_or_unexpected_shutdown",
+        "log_name": "System",
+        "provider_name": "EventLog",
+        "event_ids": [
+          6008
+        ]
+      },
+      {
+        "failure_code": "new_bugcheck_or_unexpected_shutdown",
+        "log_name": "System",
+        "provider_name": "Microsoft-Windows-WER-SystemErrorReporting",
+        "event_ids": [
+          1001
+        ]
+      },
+      {
+        "failure_code": "event_log_cleared_or_rolled_over",
+        "log_name": "System",
+        "provider_name": "Microsoft-Windows-Eventlog",
+        "event_ids": [
+          104
+        ]
+      },
+      {
+        "failure_code": "new_gpu_driver_fault",
+        "log_name": "System",
+        "provider_name": "Display",
+        "event_ids": [
+          4101
+        ]
+      },
+      {
+        "failure_code": "new_gpu_driver_fault",
+        "log_name": "System",
+        "provider_name": "nvlddmkm",
+        "event_ids": null
+      },
+      {
+        "failure_code": "probe_process_crash_event",
+        "log_name": "Application",
+        "provider_name": "Application Error",
+        "event_ids": [
+          1000
+        ]
+      },
+      {
+        "failure_code": "probe_process_crash_event",
+        "log_name": "Application",
+        "provider_name": "Windows Error Reporting",
+        "event_ids": [
+          1001
+        ]
+      }
+    ]
+  },
+  "probe": {
+    "production_backend_id": "windows-powershell-eventlog-and-fixed-host-probe.v1",
+    "synthetic_test_backend_id": "synthetic-node-host-qualification-test-double.v1",
+    "production_entrypoints_enabled": false,
+    "production_probe_implemented": false,
+    "launch_receipt_fsync_before_process_creation_required": true,
+    "fixed_executable_and_argv_required": true,
+    "process_tree_containment_required_for_future_activation": true,
+    "stdout_relative_path": "streams/probe.stdout.log",
+    "stderr_relative_path": "streams/probe.stderr.log",
+    "success_exit_code": 0,
+    "synthetic_artifacts_are_real_host_observations": false,
+    "synthetic_artifacts_can_be_eligible": false
+  },
+  "timing": {
+    "minimum_cooldown_seconds": 300,
+    "minimum_terminal_tail_seconds": 120,
+    "probe_descendants_must_exit_before_cooldown": true,
+    "qualification_fault_interval": "(baseline_cursor,handoff_cursor]",
+    "future_outer_bridge_interval": "(handoff_cursor,outer_baseline_cursor]"
+  },
+  "source_hash_mode": "utf8_lf_canonical_v1",
+  "source_sha256": {
+    "packages/vz-runtime/src/volvence_zero/offline_evidence/windows_cuda_host_stability_qualification.mjs": "7efff6c353d147f994a1e431903bb1ccb8772e89b7a99753fede5fd3434172e7",
+    "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1": "be0c02f136761f83412f31cdbf1f3249ad7ed15de1aff28e27fe1a8597888406"
+  },
+  "output_contract": {
+    "create_only": true,
+    "immutable_by_publisher_policy": true,
+    "single_file_fsync": true,
+    "directory_entry_durability_guaranteed": false,
+    "receipt_chain_sequences": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "manifest_sequence": 10,
+    "terminal_sequence": 11,
+    "manifest_inventory_files": [
+      "000_scope_claim.json",
+      "001_preregistration.json",
+      "002_source_audit_before.json",
+      "003_event_log_baseline.json",
+      "004_probe_launch.json",
+      "005_probe_exit.json",
+      "006_process_window_delta.json",
+      "007_cooldown_delta.json",
+      "008_handoff_and_source_audit_after.json",
+      "009_qualification_report.json",
+      "streams/probe.stdout.log",
+      "streams/probe.stderr.log"
+    ],
+    "complete_files": [
+      "000_scope_claim.json",
+      "001_preregistration.json",
+      "002_source_audit_before.json",
+      "003_event_log_baseline.json",
+      "004_probe_launch.json",
+      "005_probe_exit.json",
+      "006_process_window_delta.json",
+      "007_cooldown_delta.json",
+      "008_handoff_and_source_audit_after.json",
+      "009_qualification_report.json",
+      "010_manifest.json",
+      "011_terminal.json",
+      "streams/probe.stdout.log",
+      "streams/probe.stderr.log"
+    ],
+    "manifest_artifact_id_method": "sha256_of_canonical_manifest_core_without_artifact_id",
+    "terminal_id_method": "sha256_of_canonical_terminal_core_without_terminal_id",
+    "terminal_previous_receipt_sha256_is_manifest_raw_sha256": true,
+    "terminal_raw_sha256_is_root_identity": true,
+    "full_validator_recomputes_all_derived_criteria": true,
+    "criteria_observation_and_eligibility_are_separate": true,
+    "exact_entry_set_required": true,
+    "regular_files_only": true,
+    "symlinks_and_reparse_points_forbidden": true,
+    "offline_validation_queries_live_event_log": false,
+    "offline_validation_starts_python_cuda_or_model": false
+  },
+  "evidence_firewall": {
+    "production_publisher_enabled": false,
+    "current_outer_consumer_enabled": false,
+    "synthetic_test_backend_non_evidence": true,
+    "synthetic_validated_eligibility_always_false": true,
+    "content_hashes_are_identity_signatures": false,
+    "operator_declaration_cryptographically_authenticated": false,
+    "provisioner_script_provenance_attested": false,
+    "powershell_command_resolution_shadowing_excluded": false,
+    "provisioning_transactionality_proven": false,
+    "provisioning_audit_exit_code_proves_conformance": false,
+    "provisioning_refresh_boolean_proves_refresh": false,
+    "provisioning_content_id_proves_conformance": false,
+    "provisioning_endpoint_equality_proves_continuous_stability": false,
+    "provisioner_module_qualification_proves_trusted_execution": false,
+    "raw_audit_artifact_adapter_core_present": true,
+    "raw_audit_artifact_self_consistency_proves_real_observation": false,
+    "production_raw_audit_adapter_present": false,
+    "raw_event_xml_independently_parsed": false,
+    "normalized_event_fields_independently_authenticated": false,
+    "local_admin_tamper_resistance_proven": false,
+    "unprivileged_local_event_forgery_excluded": false,
+    "cross_scope_hidden_retry_excluded": false,
+    "general_host_stability_proven": false,
+    "cuda_execution_authorized": false,
+    "appendable_proven": false,
+    "readable_proven": false,
+    "learnable_proven": false,
+    "steerable_proven": false,
+    "four_capability_claim_authorized": false,
+    "independent_subject_evidence": false,
+    "long_companion_multi_session_evidence": false,
+    "production_active_authorized": false,
+    "formal_evidence_authorized": false
+  },
+  "claim_boundary": "This v1 publisher scaffold is production-disabled. It can create and fully revalidate only explicitly synthetic qualification-chain artifacts, which are always marked synthetic_test_backend_not_evidence, real_host_observation=false, eligible_as_host_qualification_input=false, and validated_eligible_as_host_qualification_input=false. Synthetic source receipts retain their qualification-owned projection v2 and are never accepted as production input. A pure raw-Audit adapter core now performs single-descriptor artifact reading, strict Audit v2 versus failure-v1 separation, caller capture-envelope binding, source-pin checks, content-ID basis reconstruction, and independent observed-to-conformance recomputation; it emits only windows-event-log-source-audit-artifact-adapter-snapshot.v1 with projection_emitted=false, real_provisioner_observation=false, and every authorization false. The caller capture envelope is explicitly non-authoritative, hashes are not identity signatures, no production PowerShell acquisition or independent live control-plane reobservation exists, and the adapter cannot prove a real process origin, refresh, continuous stability, trusted execution, boot identity observation, replay exclusion, or tamper resistance. Raw Audit v2 makes nonconformance exit 2, requires explicit AllowSourceCreation intent for an absent-source Provision, exposes nontransactional partial failure and refresh uncertainty, and compares both endpoints; none of those same-process observations proves source history. The protocol separates human declarations from machine observations: hashes content-address the declaration but do not authenticate the operator, prove Intel Defaults, prove a cold boot, prove tuning is absent, or prove that the old host-block receipt came from the same physical chassis. A future production revision must freeze and audit a real fixed probe, direct PowerShell capture, failure-v1 quarantine, independent post-refresh source reobservation, process containment, same-machine/same-boot Application and System cursor continuity, cooldown and terminal-tail fault coverage, raw Event XML classification, and a separately reviewed outer consumer bridge with a new production projection schema and predicate. The current outer protocol exact-schema rejects terminal v2 and remains production-disabled. Even a future fully validated eligible host qualification would only support a bounded local host observation; it would not authorize CUDA by itself and would not prove general host stability, long-context information utilization, independent subjects, long companionship, multiple sessions, production ACTIVE, Appendable, Readable, Learnable, Steerable, or the four-capability system claim."
+}

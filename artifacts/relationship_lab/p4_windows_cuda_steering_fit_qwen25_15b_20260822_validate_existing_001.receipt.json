@@ -1,0 +1,23 @@
+{
+    "schema_version":  "volvence.relationship_lab.p4_steering_fit_offline_validation.v1",
+    "started_at_utc":  "2026-08-22T14:15:40.8218751Z",
+    "ended_at_utc":  "2026-08-22T14:15:41.8003266Z",
+    "duration_seconds":  0.97845149999999992,
+    "argv":  [
+                 "D:\\volvence\\.conda-volvence-gpu311\\python.exe",
+                 "D:\\volvence\\scripts\\run_relationship_lab_p4_steering_artifact_fit.py",
+                 "validate-existing",
+                 "--output-dir",
+                 "D:\\volvence\\artifacts\\relationship_lab\\p4_windows_cuda_steering_fit_qwen25_15b_20260822"
+             ],
+    "python_no_user_site":  "1",
+    "exit_code":  0,
+    "stdout_path":  "D:\\volvence\\artifacts\\relationship_lab\\p4_windows_cuda_steering_fit_qwen25_15b_20260822_validate_existing_001.stdout.log",
+    "stdout_sha256":  "276ad4ed0ba77be804b653b71bf50cf251b086eb8dd24b14a356cf4734c5a667",
+    "stdout_byte_count":  437,
+    "stderr_path":  "D:\\volvence\\artifacts\\relationship_lab\\p4_windows_cuda_steering_fit_qwen25_15b_20260822_validate_existing_001.stderr.log",
+    "stderr_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_byte_count":  0,
+    "gpu_runtime_constructed":  false,
+    "expected_artifact_id":  "57b59b269ecc5cf3f15abf3e16c3a8a03a9e9c74dd8025647203bdd16edcbe04"
+}

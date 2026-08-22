@@ -9,7 +9,9 @@ joint-training validity control leaves the shared model pristine.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from types import SimpleNamespace
+from typing import Any, Callable
 
 import pytest
 
@@ -191,6 +193,10 @@ def _make_scorer(
     tokenizer: _WordTokenizer,
     prefix_cache: bool,
     joint_training: bool = False,
+    forward_context_factory: Callable[[], Any] | None = None,
+    fail_on_truncation: bool = False,
+    max_length: int = 96,
+    probe_texts: tuple[str, ...] = (),
 ) -> TransformersSteeredActionScorer:
     return TransformersSteeredActionScorer(
         torch_module=torch,
@@ -206,6 +212,10 @@ def _make_scorer(
         control_norm_ratio=0.25,
         joint_training=joint_training,
         prefix_cache=prefix_cache,
+        forward_context_factory=forward_context_factory,
+        fail_on_truncation=fail_on_truncation,
+        max_length=max_length,
+        probe_texts=probe_texts,
     )
 
 
@@ -330,6 +340,148 @@ def test_controlled_readout_matches_autograd_path_and_cache_can_be_released() ->
     assert len(scorer._prefix_cache) == 1
     scorer.clear_prefix_cache()
     assert scorer._prefix_cache == {}
+
+
+def test_forward_context_covers_probe_score_and_cached_training_forwards() -> None:
+    model = _build_model()
+    tokenizer = _WordTokenizer()
+    depth = 0
+    context_entries = 0
+    inactive_forwards: list[str] = []
+
+    @contextmanager
+    def exclusive_context():
+        nonlocal depth, context_entries
+        context_entries += 1
+        depth += 1
+        try:
+            yield
+        finally:
+            depth -= 1
+
+    def require_active(label: str):
+        def pre_hook(module, args):
+            del module, args
+            if depth != 1:
+                inactive_forwards.append(label)
+
+        return pre_hook
+
+    handles = [model.register_forward_pre_hook(require_active("model"))]
+    handles.extend(
+        block.register_forward_pre_hook(require_active(f"block-{index}"))
+        for index, block in enumerate(model.blocks)
+    )
+    handles.append(
+        model.final_norm.register_forward_pre_hook(require_active("final-norm"))
+    )
+    try:
+        scorer = _make_scorer(
+            model=model,
+            tokenizer=tokenizer,
+            prefix_cache=True,
+            forward_context_factory=exclusive_context,
+        )
+        scorer.controlled_action_nll(
+            source_texts=_TEXTS,
+            control_deltas=torch.zeros((2, HIDDEN_SIZE)),
+            action_indices=(0, 1),
+        )
+        train_deltas = torch.full(
+            (2, HIDDEN_SIZE), 0.05, requires_grad=True
+        )
+        scorer.action_nll(
+            source_texts=_TEXTS,
+            control_deltas=train_deltas,
+            action_indices=(0, 2),
+        ).sum().backward()
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    assert inactive_forwards == []
+    assert context_entries == 4
+    assert depth == 0
+    assert train_deltas.grad is not None
+
+
+def test_strict_probe_rejects_overflow_before_any_model_forward() -> None:
+    model = _build_model()
+    forward_count = 0
+
+    def count_forward(module, args):
+        nonlocal forward_count
+        del module, args
+        forward_count += 1
+
+    handle = model.register_forward_pre_hook(count_forward)
+    try:
+        with pytest.raises(ValueError, match="exceeds max_length before forward"):
+            _make_scorer(
+                model=model,
+                tokenizer=_WordTokenizer(),
+                prefix_cache=False,
+                fail_on_truncation=True,
+                max_length=8,
+                probe_texts=("one two three four five six seven eight nine",),
+            )
+    finally:
+        handle.remove()
+
+    assert forward_count == 0
+
+
+def test_strict_score_rejects_overflow_before_model_or_block_forward() -> None:
+    model = _build_model()
+    scorer = _make_scorer(
+        model=model,
+        tokenizer=_WordTokenizer(),
+        prefix_cache=True,
+        fail_on_truncation=True,
+        max_length=8,
+        probe_texts=("short probe",),
+    )
+    forward_count = 0
+
+    def count_forward(module, args):
+        nonlocal forward_count
+        del module, args
+        forward_count += 1
+
+    handles = [model.register_forward_pre_hook(count_forward)]
+    handles.extend(block.register_forward_pre_hook(count_forward) for block in model.blocks)
+    try:
+        with pytest.raises(ValueError, match="exceeds max_length before forward"):
+            scorer.action_nll(
+                source_texts=(
+                    "one two three four five six seven eight nine",
+                ),
+                control_deltas=torch.zeros((1, HIDDEN_SIZE), requires_grad=True),
+                action_indices=(0,),
+            )
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    assert forward_count == 0
+
+
+def test_legacy_scorer_keeps_truncating_overlong_inputs() -> None:
+    scorer = _make_scorer(
+        model=_build_model(),
+        tokenizer=_WordTokenizer(),
+        prefix_cache=False,
+        max_length=8,
+        probe_texts=("one two three four five six seven eight nine",),
+    )
+
+    values = scorer.controlled_action_nll(
+        source_texts=("one two three four five six seven eight nine",),
+        control_deltas=torch.zeros((1, HIDDEN_SIZE)),
+        action_indices=(0,),
+    )
+
+    assert len(values) == 1
 
 
 def test_frozen_arm_refuses_to_score_a_thawed_base_parameter() -> None:

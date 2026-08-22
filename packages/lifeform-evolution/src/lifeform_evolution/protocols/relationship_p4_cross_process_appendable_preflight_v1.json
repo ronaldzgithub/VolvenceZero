@@ -1,0 +1,60 @@
+{
+  "schema_version": "relationship-p4-cross-process-owner-hydration-preflight.v1",
+  "source": {
+    "p4_protocol_sha256": "040d4dc456f609e51673ffe526b310908905831917814a36fc4d29a9385a6e98",
+    "p4_public_plan_sha256": "e928bb3abfee9e6556734bbe9235af6e1ab912d6336da3033fda038c1acc7469",
+    "fixture_role": "seen_postselected_synthetic_development_only",
+    "subject_ids": [
+      "p4-canary-fixture-subject-01",
+      "p4-canary-fixture-subject-02"
+    ],
+    "independent_subject_count": 0
+  },
+  "experiment": {
+    "onboarding_pulses_per_subject": 4,
+    "decision_probes_per_subject": 8,
+    "fresh_os_child_per_pulse": true,
+    "arms": [
+      "correct_prior_state",
+      "empty_prior_state",
+      "swapped_subject_prior_state"
+    ],
+    "paired_donor": {
+      "p4-canary-fixture-subject-01": "p4-canary-fixture-subject-02",
+      "p4-canary-fixture-subject-02": "p4-canary-fixture-subject-01"
+    },
+    "state_intervention": {
+      "correct_prior_state": "copy the target subject's immutable exact prior boundary into a fresh invocation root",
+      "empty_prior_state": "start every pulse from a fresh empty invocation root",
+      "swapped_subject_prior_state": "copy the paired donor's immutable exact same-stage prior boundary into a fresh invocation root"
+    }
+  },
+  "owner_contract": {
+    "owner_name": "social_record_store",
+    "storage_key": "owner_hydration/social_record_store",
+    "backend": "FileSystemPersistenceBackend",
+    "hydration_store": "OwnerHydrationStore",
+    "wiring_level": "active",
+    "max_versions": 16,
+    "reader_runtime": "relationship-p2-bounded-forecast.v1",
+    "reader_role": "frozen_existing_bounded_semantic_reader",
+    "decision_probe_gate_invoked": false
+  },
+  "firewall": {
+    "parent_passes_owner_payload": false,
+    "parent_passes_history": false,
+    "raw_history_replayed": false,
+    "evaluator_loaded": false,
+    "environment_settled": false,
+    "prediction_error_computed": false,
+    "credit_computed": false,
+    "learning_applied": false,
+    "qwen_output_count": 0,
+    "model_output_count": 0,
+    "residual_intervention_count": 0,
+    "expression_authorized": false,
+    "production_active_authorized": false,
+    "formal_evidence_authorized": false
+  },
+  "claim_boundary": "This preflight isolates whether the social_record_store owner survives a real sys.executable process boundary through OwnerHydrationStore and FileSystemPersistenceBackend, and whether correct, empty, or paired-donor prior state changes the next owner-authored forecast. It uses two already-seen post-selected synthetic fixtures, no independent subjects, no 32K public context, no model generation, no prediction-error learning, no residual intervention, no expression, and no production ACTIVE. A non-zero forecast effect is development-only causal transmission; a zero effect must be reported unchanged. It does not prove complete Appendable, Readable, Learnable, Steerable, or the four-capability system claim."
+}

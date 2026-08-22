@@ -9,6 +9,18 @@ install.sh text eol=lf
 # Research papers and other PDF evidence must remain byte-exact and diff as binary.
 *.pdf binary
 
+# Relationship Lab evidence is content-addressed and validated from raw bytes.
+# Keep its textual ledgers byte-identical across macOS/Linux and Windows checkouts.
+artifacts/relationship_lab/**/*.json text eol=lf
+artifacts/relationship_lab/**/*.jsonl text eol=lf
+artifacts/relationship_lab/**/*.md text eol=lf
+artifacts/relationship_lab/**/*.yaml text eol=lf
+artifacts/relationship_lab/**/*.csv text eol=lf
+
+# Offline evidence protocols are content-addressed from their raw UTF-8 bytes.
+# Keep protocol IDs reproducible across Windows and macOS/Linux checkouts.
+packages/*/src/volvence_zero/offline_evidence/protocols/*.json text eol=lf
+
 # Keep the Volvence Codex raw chat snapshots pushable without bloating Git objects.
 chats/volvence_codex_export_20260806/raw/active/*.jsonl.gz filter=lfs diff=lfs merge=lfs -text
 chats/volvence_codex_export_20260806/raw/archived/*.jsonl.gz filter=lfs diff=lfs merge=lfs -text

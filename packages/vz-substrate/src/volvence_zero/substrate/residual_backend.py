@@ -3,9 +3,11 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import importlib
+import json
 import logging
 import math
 import os
+import platform
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Sequence
@@ -44,7 +46,9 @@ _LOG = logging.getLogger("volvence_zero.substrate.residual_backend")
 # ``volvence_zero.substrate`` package facade unchanged.
 from volvence_zero.substrate.residual_contracts import (  # noqa: E402,F401
     ContinuationScore,
+    GENERATION_CONTEXT_BUDGET_ATTESTATION_SCHEMA_VERSION,
     GenerationResult,
+    GenerationContextBudgetAttestation,
     HashingWhitespaceTokenizer,
     HookLayerCalibrationCase,
     HookLayerCalibrationReport,
@@ -56,8 +60,11 @@ from volvence_zero.substrate.residual_contracts import (  # noqa: E402,F401
     SubstrateFallbackMode,
     SubstrateOnlineFastCheckpoint,
     SubstrateRareHeavyCheckpoint,
+    TransformersExecutionAttestation,
+    TransformersExecutionProfile,
     TraceStep,
     TrainingTrace,
+    WINDOWS_CUDA_CUDNN_SDPA_CACHED_STRICT_V1,
 )
 from volvence_zero.substrate.control_basis import (  # noqa: E402,F401
     FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE,
@@ -122,6 +129,7 @@ from volvence_zero.substrate.prefix_kv_artifact import (  # noqa: E402
 )
 from volvence_zero.substrate.common_adapter_bundle import (  # noqa: E402
     CommonAdapterBundle,
+    MODEL_WEIGHT_SUFFIXES,
     fingerprint_model_weight_files,
 )
 from volvence_zero.substrate.character_residual_artifact import (  # noqa: E402
@@ -143,6 +151,107 @@ from volvence_zero.substrate.residual_training import (  # noqa: E402,F401
 
 
 PERSONAL_CONDITIONING_SCALE_CAP = 0.12
+
+_TRANSFORMERS_EXECUTION_ASSET_MANIFEST_VERSION = (
+    "transformers-execution-assets.v1"
+)
+
+
+def fingerprint_transformers_execution_assets(snapshot_root: Path) -> str:
+    """Fingerprint the config, tokenizer, vocabulary, and chat-template assets.
+
+    Relative paths and per-file content digests are bound into a canonical
+    manifest. Model weights are deliberately excluded because they have their
+    own independently pre-bound digest.
+    """
+
+    root = Path(snapshot_root).expanduser().resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(
+            f"transformers execution asset root is not a directory: {root}"
+        )
+    files = tuple(
+        sorted(
+            path
+            for path in root.rglob("*")
+            if path.is_file()
+            and path.suffix.casefold() not in MODEL_WEIGHT_SUFFIXES
+        )
+    )
+    relative_names = tuple(path.relative_to(root).as_posix() for path in files)
+    if "config.json" not in relative_names:
+        raise ValueError(
+            f"strict transformers snapshot has no root config.json: {root}"
+        )
+    if not any(
+        Path(relative).name.casefold().startswith(("tokenizer", "vocab"))
+        or Path(relative).name.casefold()
+        in {
+            "merges.txt",
+            "sentencepiece.bpe.model",
+            "spiece.model",
+            "special_tokens_map.json",
+        }
+        for relative in relative_names
+    ):
+        raise ValueError(
+            f"strict transformers snapshot has no tokenizer assets: {root}"
+        )
+    manifest_files: list[dict[str, object]] = []
+    for path, relative in zip(files, relative_names, strict=True):
+        file_digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            while chunk := handle.read(8 * 1024 * 1024):
+                file_digest.update(chunk)
+        manifest_files.append(
+            {
+                "path": relative,
+                "size": path.stat().st_size,
+                "sha256": file_digest.hexdigest(),
+            }
+        )
+    payload = {
+        "schema_version": _TRANSFORMERS_EXECUTION_ASSET_MANIFEST_VERSION,
+        "files": manifest_files,
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _is_verified_model_revision(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) in (40, 64)
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _verified_hf_snapshot_revision(
+    *, snapshot_root: Path, logical_model_source: str
+) -> str:
+    """Bind a trusted ``snapshot_download`` result to its logical repo id."""
+
+    source = logical_model_source.strip()
+    if not source or "\\" in source:
+        raise ValueError("strict transformers logical model source is invalid")
+    expected_cache_repo = f"models--{source.replace('/', '--')}"
+    root = snapshot_root.expanduser().resolve()
+    revision = root.name
+    if (
+        root.parent.name != "snapshots"
+        or root.parent.parent.name != expected_cache_repo
+        or not _is_verified_model_revision(revision)
+    ):
+        raise ValueError(
+            "snapshot_download result cannot be bound to the logical model "
+            f"source {source!r}"
+        )
+    return revision
 
 
 def _concat_prefix_pairs(
@@ -309,9 +418,68 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         allow_live_substrate_mutation: bool = False,
         allow_offline_substrate_training: bool = False,
         model_dtype: str | None = None,
+        execution_profile: TransformersExecutionProfile | None = None,
+        verified_model_revision: str = "",
+        expected_execution_assets_sha256: str = "",
     ) -> None:
         self._torch = importlib.import_module("torch")
         self._transformers = importlib.import_module("transformers")
+        self._execution_profile = execution_profile
+        self._execution_attestation: TransformersExecutionAttestation | None = None
+        self._verified_model_revision = verified_model_revision
+        self._execution_assets_sha256 = ""
+        if execution_profile is not None:
+            if execution_profile != WINDOWS_CUDA_CUDNN_SDPA_CACHED_STRICT_V1:
+                raise ValueError("unsupported transformers execution profile")
+            if model is not None or tokenizer is not None:
+                raise ValueError(
+                    "strict transformers execution forbids injected model or "
+                    "tokenizer objects"
+                )
+            if not _is_verified_model_revision(verified_model_revision):
+                raise ValueError(
+                    "strict transformers execution requires an explicit verified "
+                    "40- or 64-character model revision"
+                )
+            if (
+                type(expected_execution_assets_sha256) is not str
+                or len(expected_execution_assets_sha256) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in expected_execution_assets_sha256
+                )
+            ):
+                raise ValueError(
+                    "strict transformers execution requires a pre-bound "
+                    "execution-assets SHA-256"
+                )
+            if platform.system() != execution_profile.platform_system:
+                raise RuntimeError(
+                    "strict transformers execution profile requires Windows"
+                )
+            if not local_files_only or runtime_origin != "hf-local":
+                raise ValueError(
+                    "strict transformers execution profile requires local-only "
+                    "hf-local loading"
+                )
+            if model_dtype != execution_profile.model_dtype:
+                raise ValueError(
+                    "strict transformers execution profile requires bfloat16"
+                )
+            if max_length != execution_profile.context_window_tokens:
+                raise ValueError(
+                    "strict transformers execution profile requires max_length=32768"
+                )
+            if fail_on_truncation is not execution_profile.fail_on_truncation:
+                raise ValueError(
+                    "strict transformers execution profile requires "
+                    "fail_on_truncation=True"
+                )
+        elif verified_model_revision or expected_execution_assets_sha256:
+            raise ValueError(
+                "verified revision and execution-assets digest require a strict "
+                "transformers execution profile"
+            )
         if model_dtype is not None and model_dtype not in (
             "float16",
             "float32",
@@ -332,6 +500,22 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self.supports_live_substrate_mutation = allow_live_substrate_mutation
         self.supports_offline_substrate_training = allow_offline_substrate_training
         self._device = self._resolve_device(device=device)
+        if execution_profile is not None and not str(self._device).startswith(
+            execution_profile.device_type
+        ):
+            raise RuntimeError(
+                "strict transformers execution profile requires a CUDA device"
+            )
+        if execution_profile is not None:
+            snapshot_revision = _verified_hf_snapshot_revision(
+                snapshot_root=Path(self._pretrained_source),
+                logical_model_source=self.model_id,
+            )
+            if snapshot_revision != verified_model_revision:
+                raise ValueError(
+                    "strict transformers local snapshot revision does not match "
+                    "the declared verified model revision"
+                )
         self._max_length = max(1, max_length)
         self._fail_on_truncation = bool(fail_on_truncation)
         self._mps_generation_max_input_tokens = max(1, mps_generation_max_input_tokens)
@@ -355,6 +539,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._loaded_base_model_weights_sha256 = (
             loaded_base_model_weights_sha256.strip()
         )
+        if execution_profile is not None:
+            self._require_strict_model_snapshot(
+                expected_execution_assets_sha256=(
+                    expected_execution_assets_sha256
+                )
+            )
         if common_adapter_bundle is not None:
             if not self._loaded_base_model_weights_sha256:
                 raise ValueError(
@@ -386,6 +576,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         )
         self._hidden_size = self._resolve_hidden_size()
         self._model_family = self._resolve_model_family()
+        if execution_profile is not None:
+            self._execution_attestation = self._build_execution_attestation()
         self._control_basis = self._build_control_basis(hidden_size=self._hidden_size)
         self._control_basis_provenance = FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE
         self._control_layer_gains = {
@@ -631,6 +823,129 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         return self._loaded_base_model_weights_sha256
 
     @property
+    def execution_attestation(self) -> TransformersExecutionAttestation | None:
+        """Immutable strict execution facts, absent on the legacy profile."""
+
+        return self._execution_attestation
+
+    def _require_strict_model_snapshot(
+        self, *, expected_execution_assets_sha256: str
+    ) -> None:
+        digest = self._loaded_base_model_weights_sha256
+        if len(digest) != 64 or any(
+            character not in "0123456789abcdef" for character in digest
+        ):
+            raise ValueError(
+                "strict transformers execution profile requires a verified "
+                "lowercase model weights SHA-256"
+            )
+        snapshot_root = Path(self._pretrained_source).expanduser()
+        if not snapshot_root.is_dir():
+            raise ValueError(
+                "strict transformers execution requires a resolved local "
+                "model snapshot directory"
+            )
+        actual_digest = fingerprint_model_weight_files(snapshot_root.resolve())
+        if actual_digest != digest:
+            raise ValueError(
+                "strict transformers execution model weights SHA-256 mismatch: "
+                f"declared={digest}, actual={actual_digest}"
+            )
+        actual_assets_sha256 = fingerprint_transformers_execution_assets(
+            snapshot_root.resolve()
+        )
+        if actual_assets_sha256 != expected_execution_assets_sha256:
+            raise ValueError(
+                "strict transformers execution assets SHA-256 mismatch: "
+                f"declared={expected_execution_assets_sha256}, "
+                f"actual={actual_assets_sha256}"
+            )
+        self._execution_assets_sha256 = actual_assets_sha256
+
+    def _build_execution_attestation(self) -> TransformersExecutionAttestation:
+        profile = self._execution_profile
+        if profile is None:
+            raise RuntimeError("cannot attest a legacy transformers execution")
+        cuda = self._torch.cuda
+        if not cuda.is_available():
+            raise RuntimeError("strict transformers execution requires CUDA")
+        cudnn_version = self._torch.backends.cudnn.version()
+        cuda_version = self._torch.version.cuda
+        if not isinstance(cudnn_version, int) or cudnn_version <= 0:
+            raise RuntimeError("strict transformers execution requires cuDNN")
+        if not isinstance(cuda_version, str) or not cuda_version:
+            raise RuntimeError("strict transformers execution cannot attest CUDA")
+        config = self._model.config
+        try:
+            attention_implementation = config._attn_implementation
+            native_context_window = config.max_position_embeddings
+        except AttributeError as exc:
+            raise RuntimeError(
+                "strict transformers execution cannot attest model attention/context"
+            ) from exc
+        if attention_implementation != profile.attention_implementation:
+            raise RuntimeError(
+                "strict transformers execution did not load SDPA attention"
+            )
+        if (
+            self._max_length != native_context_window
+            or native_context_window != profile.context_window_tokens
+        ):
+            raise RuntimeError(
+                "strict transformers execution native context window drift"
+            )
+        if self.model_dtype != profile.model_dtype:
+            raise RuntimeError("strict transformers execution model dtype drift")
+        config_revision = getattr(config, "_commit_hash", None)
+        if config_revision is not None and (
+            not _is_verified_model_revision(config_revision)
+            or config_revision != self._verified_model_revision
+        ):
+            raise RuntimeError(
+                "strict transformers model config revision does not match the "
+                "factory-verified snapshot revision"
+            )
+        return TransformersExecutionAttestation(
+            profile_id=profile.profile_id,
+            preset_name=profile.preset_name,
+            model_id=self.model_id,
+            model_revision=self._verified_model_revision,
+            model_weights_sha256=self._loaded_base_model_weights_sha256,
+            execution_assets_sha256=self._execution_assets_sha256,
+            runtime_origin=self.runtime_origin,
+            platform_system=platform.system(),
+            platform_release=platform.release(),
+            device=str(self._device),
+            device_name=str(cuda.get_device_name(self._device)),
+            python_version=platform.python_version(),
+            torch_version=str(self._torch.__version__),
+            transformers_version=str(self._transformers.__version__),
+            cuda_version=cuda_version,
+            cudnn_version=cudnn_version,
+            device_compute_capability=tuple(
+                int(value) for value in cuda.get_device_capability(self._device)
+            ),
+            attention_implementation=profile.attention_implementation,
+            sdpa_backend=profile.sdpa_backend,
+            sdpa_backend_policy=profile.sdpa_backend_policy,
+            sdpa_backend_exclusive=profile.sdpa_backend_exclusive,
+            generation_use_cache=profile.generation_use_cache,
+            require_generation_chat_template=(
+                profile.require_generation_chat_template
+            ),
+            generation_capture_strategy=profile.generation_capture_strategy,
+            capture_failure_mode=profile.capture_failure_mode,
+            context_window_tokens=profile.context_window_tokens,
+            local_files_only=profile.local_files_only,
+            fallback_mode=profile.fallback_mode,
+            fail_on_truncation=profile.fail_on_truncation,
+            model_dtype=self.model_dtype,
+            hidden_size=self._hidden_size,
+            model_max_position_embeddings=native_context_window,
+            hook_layer_indices=self._layer_indices,
+        )
+
+    @property
     def model_version(self) -> str:
         source = Path(self._pretrained_source)
         return source.name if source.name else self.model_id
@@ -711,6 +1026,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             probe_texts=probe_texts,
             joint_training=joint_training,
             prefix_cache=prefix_cache,
+            forward_context_factory=self._strict_sdpa_context,
+            fail_on_truncation=self._fail_on_truncation,
         )
 
     def _resolve_final_norm_module(self):
@@ -860,6 +1177,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         self._rare_heavy_training_backend = backend
 
     def capture(self, *, source_text: str) -> OpenWeightRuntimeCapture:
+        if self._execution_profile is not None:
+            return self._capture_with_hooks(source_text=source_text)
         # Windows CUDA hosts with the Raptor Lake Vmin Shift defect (pre-fix
         # microcode) intermittently corrupt the token-level hook capture path.
         # Default to the pooled summary there; bypass with
@@ -931,7 +1250,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for layer_index in self._layer_indices
         ]
         try:
-            with self._torch.no_grad():
+            with self._strict_sdpa_context(), self._torch.no_grad():
                 if personal_conditioning_carrier == "prefix_kv":
                     attention_mask = model_inputs.get("attention_mask")
                     if attention_mask is None:
@@ -1558,7 +1877,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for layer_index in self._layer_indices
         ]
         try:
-            with self._torch.no_grad():
+            with self._strict_sdpa_context(), self._torch.no_grad():
                 if cache is None:
                     outputs = self._model(
                         input_ids=combined_ids,
@@ -1700,7 +2019,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for layer_index in self._layer_indices
         ]
         try:
-            with self._torch.no_grad():
+            with self._strict_sdpa_context(), self._torch.no_grad():
                 outputs = self._model(
                     **combined_inputs,
                     use_cache=False,
@@ -1812,7 +2131,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for layer_index in self._layer_indices
         ]
         try:
-            with self._torch.no_grad():
+            with self._strict_sdpa_context(), self._torch.no_grad():
                 outputs = self._model(**model_inputs, use_cache=False)
         finally:
             for hook in hooks:
@@ -1915,7 +2234,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for index in self._layer_indices
         ]
         try:
-            with self._torch.no_grad():
+            with self._strict_sdpa_context(), self._torch.no_grad():
                 outputs = self._model(**model_inputs, use_cache=False)
         finally:
             for hook in hooks:
@@ -2007,7 +2326,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for layer_index in self._layer_indices
         ]
         try:
-            with self._torch.no_grad():
+            with self._strict_sdpa_context(), self._torch.no_grad():
                 outputs = self._model(**model_inputs, use_cache=False)
         finally:
             for hook in hooks:
@@ -2297,7 +2616,16 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             )
             > 0.0
         }
+        context_budget = None
+        if self._execution_profile is not None:
+            context_budget = self._build_generation_context_budget(
+                input_token_count=prompt_length,
+                prefix_pairs=prefix_pairs,
+                effective_max_new_tokens=effective_max_new_tokens,
+                input_mode="chat-template",
+            )
         captured_layers: dict[int, object] = {}
+        hook_fire_counts: dict[int, int] = {}
         # ``capture_residuals=False`` (raw pass-through path) skips residual
         # retention and first-step raw-logit retention. The raw ablation track
         # never reads the capture, so it must not pay that memory cost.
@@ -2345,6 +2673,14 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                             and layer_index == steering_intervention.layer_index
                             else None
                         ),
+                        capture_first_full_prompt=(
+                            self._execution_profile is not None
+                        ),
+                        hook_fire_counts=(
+                            hook_fire_counts
+                            if self._execution_profile is not None
+                            else None
+                        ),
                     )
                 )
                 for layer_index in self._layer_indices
@@ -2355,7 +2691,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         prefix_carrier_active = prefix_pairs is not None
         generation_capture_logits = None
         try:
-            with self._torch.no_grad():
+            with self._strict_sdpa_context(), self._torch.no_grad():
                 generate_kwargs: dict[str, object] = {
                     "max_new_tokens": effective_max_new_tokens,
                     "do_sample": effective_temperature > 0,
@@ -2369,7 +2705,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     # second, uncached full-prompt forward solely for capture.
                     generate_kwargs["return_dict_in_generate"] = True
                     generate_kwargs["output_logits"] = True
-                if os.name == "nt":
+                if self._execution_profile is not None:
+                    generate_kwargs["use_cache"] = (
+                        self._execution_profile.generation_use_cache
+                    )
+                elif os.name == "nt":
                     # Transformers emits a deprecated tuple-KV-cache warning
                     # on this stack, and repeated Windows generations can
                     # terminate the process with 0xC0000005 on both CUDA and
@@ -2427,6 +2767,31 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for hook in hooks:
                 hook.remove()
 
+        if self._execution_profile is not None and hook_required:
+            missing_hook_layers = tuple(
+                layer_index
+                for layer_index in self._layer_indices
+                if hook_fire_counts.get(layer_index, 0) <= 0
+            )
+            if missing_hook_layers:
+                raise RuntimeError(
+                    "strict transformers generation hook did not fire for "
+                    f"layers={missing_hook_layers!r}"
+                )
+        if self._execution_profile is not None and capture_residuals:
+            if set(captured_layers) != set(self._layer_indices):
+                raise RuntimeError(
+                    "strict transformers generation capture coverage drift"
+                )
+            if any(
+                int(value.shape[-2]) != prompt_length
+                for value in captured_layers.values()
+            ):
+                raise RuntimeError(
+                    "strict transformers generation did not retain the "
+                    "first full-prompt capture"
+                )
+
         if captured_layers:
             captured_layers = self._materialize_captured_layers(
                 captured_layers
@@ -2443,29 +2808,17 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
 
         capture = None
         if captured_layers:
-            try:
-                if generation_capture_logits is None:
-                    raise RuntimeError(
-                        "generation capture requires first-step raw logits"
-                    )
-                capture = self._build_runtime_capture(
-                    source_text=effective_prompt,
-                    input_ids=input_ids,
-                    logits=generation_capture_logits,
-                    captured_layers=captured_layers,
-                    control_applied=(
-                        control_active
-                        or personal_delta is not None
-                        or bool(bank_delta_by_layer)
-                    ),
-                )
-            except (RuntimeError, ValueError, AttributeError, IndexError) as exc:
-                _LOG.warning(
-                    "residual capture failed (model=%s device=%s): %r",
-                    self.model_id,
-                    self._device,
-                    exc,
-                )
+            capture = self._finalize_generation_capture(
+                source_text=effective_prompt,
+                input_ids=input_ids,
+                logits=generation_capture_logits,
+                captured_layers=captured_layers,
+                control_applied=(
+                    control_active
+                    or personal_delta is not None
+                    or bool(bank_delta_by_layer)
+                ),
+            )
 
         if str(self._device).startswith("cuda"):
             cuda = getattr(self._torch, "cuda", None)
@@ -2556,6 +2909,12 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 if steering_intervention is not None
                 else 0
             ),
+            execution_attestation_id=(
+                self._execution_attestation.attestation_id
+                if self._execution_attestation is not None
+                else ""
+            ),
+            context_budget=context_budget,
         )
         if str(self._device).startswith("mps"):
             # MPS uses unified memory and retains released generation buffers
@@ -2567,6 +2926,102 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             del model_inputs
             self._release_mps_generation_cache()
         return result
+
+    def _finalize_generation_capture(
+        self,
+        *,
+        source_text: str,
+        input_ids: Any,
+        logits: Any | None,
+        captured_layers: dict[int, object],
+        control_applied: bool,
+    ) -> OpenWeightRuntimeCapture | None:
+        try:
+            if logits is None:
+                raise RuntimeError(
+                    "generation capture requires first-step raw logits"
+                )
+            return self._build_runtime_capture(
+                source_text=source_text,
+                input_ids=input_ids,
+                logits=logits,
+                captured_layers=captured_layers,
+                control_applied=control_applied,
+            )
+        except (RuntimeError, ValueError, AttributeError, IndexError) as exc:
+            if self._execution_profile is not None:
+                raise RuntimeError(
+                    "strict transformers residual capture failed"
+                ) from exc
+            _LOG.warning(
+                "residual capture failed (model=%s device=%s): %r",
+                self.model_id,
+                self._device,
+                exc,
+            )
+            return None
+
+    def _build_generation_context_budget(
+        self,
+        *,
+        input_token_count: int,
+        prefix_pairs: list[tuple[Any, Any]] | None,
+        effective_max_new_tokens: int,
+        input_mode: str,
+    ) -> GenerationContextBudgetAttestation:
+        profile = self._execution_profile
+        execution_attestation = self._execution_attestation
+        if profile is None or execution_attestation is None:
+            raise RuntimeError("strict generation context requires execution attestation")
+        if input_token_count <= 0 or effective_max_new_tokens <= 0:
+            raise ValueError("strict generation token counts must be positive")
+        prefix_slot_count = 0
+        if prefix_pairs:
+            prefix_slot_counts = {
+                int(tensor.shape[-2])
+                for pair in prefix_pairs
+                for tensor in pair
+            }
+            if len(prefix_slot_counts) != 1:
+                raise ValueError("strict generation prefix slot geometry drift")
+            prefix_slot_count = next(iter(prefix_slot_counts))
+        combined = (
+            input_token_count
+            + prefix_slot_count
+            + effective_max_new_tokens
+        )
+        if combined > profile.context_window_tokens:
+            raise ValueError(
+                "strict generation context budget exceeded: "
+                f"input={input_token_count}, prefix={prefix_slot_count}, "
+                f"max_new={effective_max_new_tokens}, "
+                f"limit={profile.context_window_tokens}"
+            )
+        return GenerationContextBudgetAttestation(
+            schema_version=(
+                GENERATION_CONTEXT_BUDGET_ATTESTATION_SCHEMA_VERSION
+            ),
+            execution_attestation_id=execution_attestation.attestation_id,
+            input_mode=input_mode,
+            input_token_count=input_token_count,
+            prefix_slot_count=prefix_slot_count,
+            effective_max_new_tokens=effective_max_new_tokens,
+            combined_token_count=combined,
+            context_window_tokens=profile.context_window_tokens,
+            remaining_token_count=profile.context_window_tokens - combined,
+        )
+
+    def _strict_sdpa_context(self):
+        if self._execution_profile is None:
+            return contextlib.nullcontext()
+        try:
+            attention = self._torch.nn.attention
+            backend = attention.SDPBackend.CUDNN_ATTENTION
+            return attention.sdpa_kernel(backend, set_priority=True)
+        except AttributeError as exc:
+            raise RuntimeError(
+                "strict transformers execution cannot select exclusive cuDNN SDPA"
+            ) from exc
 
     def _apply_generation_constraints(
         self,
@@ -2698,6 +3153,17 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             system_context=system_context,
             chat_messages=chat_messages,
         )
+        if self._execution_profile is not None:
+            strict_messages = chat_messages
+            if not strict_messages:
+                normalized: list[tuple[str, str]] = []
+                if system_context.strip():
+                    normalized.append(("system", system_context.strip()))
+                normalized.append(("user", prompt.strip() or "<empty>"))
+                strict_messages = tuple(normalized)
+            return self._build_strict_chat_template_inputs(
+                chat_messages=strict_messages
+            )
         if chat_messages:
             apply_chat_template = getattr(self._tokenizer, "apply_chat_template", None)
             if callable(apply_chat_template):
@@ -2747,6 +3213,48 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             if rendered_fallback:
                 return rendered_fallback, self._tokenize(source_text=rendered_fallback)
         return source_text, self._tokenize(source_text=source_text)
+
+    def _build_strict_chat_template_inputs(
+        self,
+        *,
+        chat_messages: tuple[tuple[str, str], ...],
+    ) -> tuple[str, dict[str, object]]:
+        try:
+            apply_chat_template = self._tokenizer.apply_chat_template
+        except AttributeError as exc:
+            raise RuntimeError(
+                "strict transformers execution requires tokenizer chat_template"
+            ) from exc
+        if not callable(apply_chat_template):
+            raise RuntimeError(
+                "strict transformers execution requires callable chat_template"
+            )
+        chat_payload = [
+            {"role": role, "content": content}
+            for role, content in chat_messages
+        ]
+        try:
+            rendered = apply_chat_template(
+                chat_payload,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            encoded = apply_chat_template(
+                chat_payload,
+                tokenize=True,
+                add_generation_prompt=True,
+                return_tensors="pt",
+                return_dict=True,
+            )
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(
+                "strict transformers chat-template tokenization failed"
+            ) from exc
+        if not isinstance(rendered, str) or not rendered:
+            raise RuntimeError(
+                "strict transformers chat_template omitted rendered prompt"
+            )
+        return rendered, self._prepare_model_inputs(encoded=encoded)
 
     def _chat_messages_to_source_text(
         self,
@@ -2836,12 +3344,22 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
     def _load_model(self, *, model_id: str, local_files_only: bool):
         load_kwargs: dict[str, object] = {"local_files_only": local_files_only}
         if self._requested_model_dtype is not None:
-            load_kwargs["torch_dtype"] = getattr(
-                self._torch, self._requested_model_dtype
-            )
+            dtype_value = getattr(self._torch, self._requested_model_dtype)
+            if self._execution_profile is not None:
+                # Transformers 5.x renamed the public load argument. Keep the
+                # legacy lane byte-for-byte compatible while the opt-in
+                # attested lane uses the current API without a deprecation
+                # warning in its evidence transcript.
+                load_kwargs["dtype"] = dtype_value
+            else:
+                load_kwargs["torch_dtype"] = dtype_value
         elif self._device == "mps":
             load_kwargs["torch_dtype"] = self._torch.float16
-        if os.name == "nt" and str(self._device).startswith("cuda"):
+        if self._execution_profile is not None:
+            load_kwargs["attn_implementation"] = (
+                self._execution_profile.attention_implementation
+            )
+        elif os.name == "nt" and str(self._device).startswith("cuda"):
             # Windows CUDA has been observed to terminate the interpreter with
             # 0xC0000005 under repeated SDPA-backed generation on long
             # OpenAI-compat arcs. Eager attention is slower but stays on the
@@ -3300,7 +3818,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for layer_index in self._layer_indices
         ]
         try:
-            with self._torch.no_grad():
+            with self._strict_sdpa_context(), self._torch.no_grad():
                 outputs = self._model(**model_inputs, use_cache=False)
         finally:
             for hook in hooks:
@@ -3341,7 +3859,7 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
             for layer_index in self._layer_indices
         ]
         try:
-            with self._torch.no_grad():
+            with self._strict_sdpa_context(), self._torch.no_grad():
                 self._model(**model_inputs, use_cache=False)
         finally:
             for hook in hooks:
@@ -4241,6 +4759,8 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         conditioning_bank_delta=None,
         character_residual_delta=None,
         steering_delta=None,
+        capture_first_full_prompt: bool = False,
+        hook_fire_counts: dict[int, int] | None = None,
     ):
         def captured(value):
             detached = value.detach()
@@ -4249,6 +4769,10 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
         def hook(module, args, output):
             del module
             del args
+            if hook_fire_counts is not None:
+                hook_fire_counts[layer_index] = (
+                    hook_fire_counts.get(layer_index, 0) + 1
+                )
             hidden = self._extract_hidden_tensor(output=output)
             adapter_delta = self._adapter_delta_for_layer(layer_index=layer_index)
             personal_gain = self._personal_conditioning_layer_gains.get(
@@ -4267,7 +4791,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                 and steering_delta is None
             ):
                 if capture_residuals:
-                    captured_layers[layer_index] = captured(hidden)
+                    if (
+                        not capture_first_full_prompt
+                        or layer_index not in captured_layers
+                    ):
+                        captured_layers[layer_index] = captured(hidden)
                 return None
             adjusted = hidden
             if adapter_delta is not None:
@@ -4295,7 +4823,11 @@ class TransformersOpenWeightResidualRuntime(OpenWeightResidualRuntime):
                     dtype=hidden.dtype
                 )
             if capture_residuals:
-                captured_layers[layer_index] = captured(adjusted)
+                if (
+                    not capture_first_full_prompt
+                    or layer_index not in captured_layers
+                ):
+                    captured_layers[layer_index] = captured(adjusted)
             if isinstance(output, tuple):
                 return (adjusted, *output[1:])
             return adjusted
@@ -4728,6 +5260,9 @@ def build_transformers_runtime_with_fallback(
     character_residual_package: CharacterResidualAdapterPackage | None = None,
     model_dtype: str | None = None,
     expected_model_weights_sha256: str = "",
+    execution_profile: TransformersExecutionProfile | None = None,
+    verified_model_revision: str = "",
+    expected_execution_assets_sha256: str = "",
 ) -> TransformersOpenWeightResidualRuntime:
     resolved_runtime_mode = resolve_local_runtime_mode(
         runtime_mode=runtime_mode,
@@ -4735,6 +5270,68 @@ def build_transformers_runtime_with_fallback(
         fallback_mode=fallback_mode,
         fallback_to_builtin=fallback_to_builtin,
     )
+    if execution_profile is not None:
+        if execution_profile != WINDOWS_CUDA_CUDNN_SDPA_CACHED_STRICT_V1:
+            raise ValueError("unsupported transformers execution profile")
+        requested_fallback_mode = resolve_substrate_fallback_mode(
+            fallback_mode=fallback_mode,
+            fallback_to_builtin=fallback_to_builtin,
+        )
+        if (
+            resolved_runtime_mode is not LocalSubstrateRuntimeMode.STRICT_LOCAL
+            or not local_files_only
+        ):
+            raise ValueError(
+                "strict transformers execution factory requires STRICT_LOCAL"
+            )
+        if requested_fallback_mode is not SubstrateFallbackMode.DENY:
+            raise ValueError(
+                "strict transformers execution factory requires fallback DENY"
+            )
+        if (
+            max_length != execution_profile.context_window_tokens
+            or fail_on_truncation is not True
+            or model_dtype != execution_profile.model_dtype
+        ):
+            raise ValueError(
+                "strict transformers execution factory arguments drifted"
+            )
+        if (
+            type(expected_model_weights_sha256) is not str
+            or len(expected_model_weights_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in expected_model_weights_sha256
+            )
+        ):
+            raise ValueError(
+                "strict transformers execution factory requires matching "
+                "weights SHA-256"
+            )
+        if type(verified_model_revision) is not str or (
+            verified_model_revision
+            and not _is_verified_model_revision(verified_model_revision)
+        ):
+            raise ValueError(
+                "strict transformers execution factory model revision is invalid"
+            )
+        if (
+            type(expected_execution_assets_sha256) is not str
+            or len(expected_execution_assets_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in expected_execution_assets_sha256
+            )
+        ):
+            raise ValueError(
+                "strict transformers execution factory requires an "
+                "execution-assets SHA-256"
+            )
+    elif verified_model_revision or expected_execution_assets_sha256:
+        raise ValueError(
+            "verified revision and execution-assets digest require a strict "
+            "transformers execution profile"
+        )
     if resolved_runtime_mode is LocalSubstrateRuntimeMode.BUILTIN_ONLY:
         if expected_model_weights_sha256:
             raise ValueError(
@@ -4777,11 +5374,37 @@ def build_transformers_runtime_with_fallback(
         effective_runtime_origin = "hf-local"
     effective_model_source = model_source or model_id
     loaded_base_model_weights_sha256 = ""
+    resolved_verified_model_revision = verified_model_revision
     if common_adapter_bundle is not None or expected_model_weights_sha256:
         candidate = Path(effective_model_source).expanduser()
         if candidate.is_dir():
             weights_root = candidate.resolve()
+            if execution_profile is not None and not _is_verified_model_revision(
+                resolved_verified_model_revision
+            ):
+                raise ValueError(
+                    "strict transformers execution requires an explicit verified "
+                    "revision for a copied local snapshot"
+                )
+            if execution_profile is not None:
+                local_snapshot_revision = _verified_hf_snapshot_revision(
+                    snapshot_root=weights_root,
+                    logical_model_source=model_id,
+                )
+                if local_snapshot_revision != resolved_verified_model_revision:
+                    raise ValueError(
+                        "strict transformers local snapshot revision does not "
+                        "match the declared verified model revision"
+                    )
         else:
+            if (
+                execution_profile is not None
+                and effective_model_source != model_id
+            ):
+                raise ValueError(
+                    "strict transformers execution forbids a logical model_source "
+                    "different from model_id"
+                )
             try:
                 from huggingface_hub import snapshot_download
             except ImportError as exc:
@@ -4790,12 +5413,27 @@ def build_transformers_runtime_with_fallback(
                     "huggingface_hub so the frozen weight digest can be "
                     "verified."
                 ) from exc
-            weights_root = Path(
-                snapshot_download(
-                    repo_id=effective_model_source,
-                    local_files_only=effective_local_files_only,
+            snapshot_kwargs: dict[str, object] = {
+                "repo_id": effective_model_source,
+                "local_files_only": effective_local_files_only,
+            }
+            if execution_profile is not None and verified_model_revision:
+                snapshot_kwargs["revision"] = verified_model_revision
+            weights_root = Path(snapshot_download(**snapshot_kwargs)).resolve()
+            if execution_profile is not None:
+                downloaded_revision = _verified_hf_snapshot_revision(
+                    snapshot_root=weights_root,
+                    logical_model_source=effective_model_source,
                 )
-            ).resolve()
+                if (
+                    verified_model_revision
+                    and downloaded_revision != verified_model_revision
+                ):
+                    raise ValueError(
+                        "snapshot_download returned a revision different from "
+                        "the requested verified model revision"
+                    )
+                resolved_verified_model_revision = downloaded_revision
         actual_weights_sha256 = fingerprint_model_weight_files(weights_root)
         if common_adapter_bundle is not None and (
             actual_weights_sha256
@@ -4816,6 +5454,20 @@ def build_transformers_runtime_with_fallback(
                 "steering artifact: declared="
                 f"{expected_model_weights_sha256}, actual={actual_weights_sha256}."
             )
+        if execution_profile is not None:
+            actual_execution_assets_sha256 = (
+                fingerprint_transformers_execution_assets(weights_root)
+            )
+            if (
+                actual_execution_assets_sha256
+                != expected_execution_assets_sha256
+            ):
+                raise ValueError(
+                    "loaded transformers execution-assets digest does not match "
+                    "the frozen evidence protocol: declared="
+                    f"{expected_execution_assets_sha256}, "
+                    f"actual={actual_execution_assets_sha256}."
+                )
         effective_model_source = str(weights_root)
         effective_local_files_only = True
         loaded_base_model_weights_sha256 = actual_weights_sha256
@@ -4840,6 +5492,11 @@ def build_transformers_runtime_with_fallback(
             ),
             character_residual_package=character_residual_package,
             model_dtype=model_dtype,
+            execution_profile=execution_profile,
+            verified_model_revision=resolved_verified_model_revision,
+            expected_execution_assets_sha256=(
+                expected_execution_assets_sha256
+            ),
         )
     except Exception as exc:
         if resolved_mode is not SubstrateFallbackMode.ALLOW_BUILTIN or not _is_transformers_runtime_fallback_error(exc):

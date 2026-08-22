@@ -1,0 +1,23 @@
+{
+  "action_turn_index": 14,
+  "candidate_action_ids": [
+    "stay_present_without_probe",
+    "respect_space_with_return_option",
+    "neutral_noop"
+  ],
+  "current_observation": "他替我回复消息，还说是为我好。我的声音和意愿都被他取代，连自己的话也不能自己决定。",
+  "decision_id": "p4-canary-fixture-subject-01:decision:5:pre-action",
+  "decision_index": 5,
+  "observation_ref": "p4-canary-public:040d4dc456f609e51673ffe526b310908905831917814a36fc4d29a9385a6e98:decision:47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040:5",
+  "phase_id": "longer_horizon_agency",
+  "probe_surface_family": "intimacy",
+  "pulse_kind": "decision_probe",
+  "schema_version": "relationship-p4-canary-decision-session.v1",
+  "session_id": "p4-canary-fixture-subject-01:decision:5",
+  "typed_outcome_ids": [
+    "helped",
+    "felt_heard",
+    "missed",
+    "over_directive"
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": "volvence.relationship_lab.p4_steering_fit_attempt_preflight.v1",
+  "recorded_at_utc": "2026-08-22T14:10:04.6070536Z",
+  "attempt_label": "attempt_001_adjudicable_identical_protocol_restart",
+  "restart_gate": "conditionally_accepted_after_attempt_000_operational_abort_before_adjudicable_result",
+  "attempt_000_incident_path": "artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822_launch_incident_1.json",
+  "attempt_000_incident_sha256": "91f61f45dda2ccde1b3d6fa5571abb7e52154acf5e4795a3d3d79baf2ab5ded1",
+  "process_preflight": {
+    "attempt_000_pid": 34412,
+    "attempt_000_pid_alive": false,
+    "attempt_000_descendants_observed": [],
+    "target_output_exists": false,
+    "staging_dirs": []
+  },
+  "gpu_preflight": {
+    "device": "NVIDIA GeForce RTX 4090",
+    "driver_version": "560.94",
+    "total_memory_mib": 24564,
+    "observed_memory_mib": 621,
+    "observed_utilization_percent": 2,
+    "observed_temperature_c": 54,
+    "observed_pstate": "P8",
+    "compute_capability": [8, 9],
+    "torch_cuda_version": "12.6",
+    "cudnn_version": 91002
+  },
+  "frozen_lineage": {
+    "protocol_id": "b6e1d79a5087945c4be6bf8d4f1e2f6535cdbedeca56ae0bd1af53a56f3def8d",
+    "critical_source_count": 12,
+    "critical_sources_verified": true,
+    "execution_profile_id": "3be84d866afbda07cf80dee277d89cdc0e366ce545bf7e97f015cf8afcbfe21a",
+    "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "verified_revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+    "expected_model_weights_sha256": "fb8c44c48b8359fdd306cdc5f473d7c04d88955013f0dd8549f266e248194da4",
+    "actual_model_weights_sha256": "fb8c44c48b8359fdd306cdc5f473d7c04d88955013f0dd8549f266e248194da4",
+    "expected_execution_assets_sha256": "bbb5446f8d802b437c2fc7e2cefcdabb996bbd4bc657fe155ea015d30a841bb0",
+    "actual_execution_assets_sha256": "bbb5446f8d802b437c2fc7e2cefcdabb996bbd4bc657fe155ea015d30a841bb0"
+  },
+  "environment": {
+    "platform": "Windows-10-10.0.26200-SP0",
+    "python_executable": "D:\\volvence\\.conda-volvence-gpu311\\python.exe",
+    "python_version": "3.11.15",
+    "python_no_user_site": "1",
+    "packages": {
+      "accelerate": "1.13.0",
+      "huggingface-hub": "1.16.0",
+      "numpy": "2.4.6",
+      "peft": "0.19.1",
+      "pytest": "9.0.2",
+      "ruff": "0.16.4",
+      "scikit-learn": "1.9.0",
+      "scipy": "1.17.1",
+      "sentence-transformers": "5.6.0",
+      "torch": "2.12.0+cu126",
+      "transformers": "5.9.0"
+    }
+  },
+  "child_argv": [
+    "D:\\volvence\\.conda-volvence-gpu311\\python.exe",
+    "D:\\volvence\\scripts\\run_relationship_lab_p4_steering_artifact_fit.py",
+    "run",
+    "--output-dir",
+    "D:\\volvence\\artifacts\\relationship_lab\\p4_windows_cuda_steering_fit_qwen25_15b_20260822"
+  ],
+  "immutability_statement": "Attempt 001 uses the identical protocol, critical sources, model revision, model weights, execution assets, environment, argv, output path, corpus seed, fit seed, thresholds, and hyperparameters as attempt 000. No attempt-000 fit metric or adjudicable result was observed.",
+  "stop_rule": "If attempt 001 is interrupted by infrastructure before an adjudicable artifact is published, stop without another restart and preregister infrastructure recovery separately."
+}

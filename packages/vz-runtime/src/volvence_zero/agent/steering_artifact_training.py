@@ -69,6 +69,8 @@ class SteeringArtifactFitReport:
     executor_updates: int
     executor_learning_rate: float
     steering_rank: int
+    seed: int
+    control_norm_cap_ratio: float
     free_bias_present: bool
     zero_code_strict_noop: bool
     substrate_trainable_parameter_count: int
@@ -122,14 +124,42 @@ def fit_steering_artifact_bundle(
     executor_learning_rate: float = 0.01,
     reader_ridge_lambda: float = 10.0,
     batch_size: int = 32,
+    seed: int = 0,
+    control_norm_cap_ratio: float = 0.25,
     progress: Any | None = None,
 ) -> SteeringArtifactFitResult:
     """Fit once on the sealed proxy corpus and freeze runtime artifacts."""
 
     import torch
 
+    if type(seed) is not int or seed < 0:
+        raise ValueError("steering artifact fit seed must be a non-negative int")
+    if (
+        type(control_norm_cap_ratio) is not float
+        or not math.isfinite(control_norm_cap_ratio)
+        or not 0.0 < control_norm_cap_ratio <= 2.0
+    ):
+        raise ValueError(
+            "steering artifact fit control_norm_cap_ratio must be a finite "
+            "float within (0, 2]"
+        )
     if scorer.trainable_parameters():
         raise RuntimeError("steering artifact fit requires a frozen substrate")
+    if (
+        not math.isfinite(float(scorer.probe_hidden_norm))
+        or float(scorer.probe_hidden_norm) <= 0.0
+        or not math.isfinite(float(scorer.control_norm_cap))
+        or not math.isclose(
+            float(scorer.control_norm_cap) / float(scorer.probe_hidden_norm),
+            control_norm_cap_ratio,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+    ):
+        raise ValueError(
+            "steering artifact fit scorer control-norm ratio differs from "
+            "the frozen owner configuration"
+        )
     if steering_rank < 1 or steering_rank > residual_width:
         raise ValueError("steering_rank must be within residual width")
     vocabulary = _subgoal_vocabulary(corpus)
@@ -175,7 +205,7 @@ def fit_steering_artifact_bundle(
         rank=steering_rank,
         class_count=len(vocabulary),
         conditional=True,
-        seed=0,
+        seed=seed,
     )
     _train_operator(
         torch=torch,
@@ -188,7 +218,7 @@ def fit_steering_artifact_bundle(
         updates=executor_updates,
         learning_rate=executor_learning_rate,
         batch_size=batch_size,
-        seed=0,
+        seed=seed,
         progress=progress,
         label="artifact-executor",
     )
@@ -198,7 +228,7 @@ def fit_steering_artifact_bundle(
         rank=steering_rank,
         class_count=len(vocabulary),
         conditional=False,
-        seed=0,
+        seed=seed,
     )
     _train_operator(
         torch=torch,
@@ -211,7 +241,7 @@ def fit_steering_artifact_bundle(
         updates=executor_updates,
         learning_rate=executor_learning_rate,
         batch_size=batch_size,
-        seed=0,
+        seed=seed,
         progress=progress,
         label="artifact-sensor-off-executor",
     )
@@ -299,12 +329,13 @@ def fit_steering_artifact_bundle(
         u_factors=_matrix(u_factors),
         v_factors=_matrix(v_factors),
         condition_codes=_matrix(condition_codes),
-        control_norm_cap_ratio=0.25,
+        control_norm_cap_ratio=control_norm_cap_ratio,
         free_bias_present=False,
         zero_code_strict_noop=zero_code_max_abs == 0.0,
         description=(
-            "Frozen rank-8 multiplicative executor trained once on the sealed "
-            "S3 proxy instrument; no dialogue-domain executor update."
+            f"Frozen rank-{steering_rank} multiplicative executor trained "
+            "once on the sealed S3 proxy instrument; no dialogue-domain "
+            "executor update."
         ),
     )
     sensor_u, sensor_v, sensor_z = sensor_off_operator.parameters()
@@ -323,7 +354,7 @@ def fit_steering_artifact_bundle(
         u_factors=_matrix(sensor_u),
         v_factors=_matrix(sensor_v),
         condition_codes=tuple(unconditional_code for _ in vocabulary),
-        control_norm_cap_ratio=0.25,
+        control_norm_cap_ratio=control_norm_cap_ratio,
         free_bias_present=False,
         zero_code_strict_noop=True,
         description=(
@@ -369,6 +400,8 @@ def fit_steering_artifact_bundle(
         executor_updates=executor_updates,
         executor_learning_rate=executor_learning_rate,
         steering_rank=steering_rank,
+        seed=seed,
+        control_norm_cap_ratio=control_norm_cap_ratio,
         free_bias_present=False,
         zero_code_strict_noop=zero_code_max_abs == 0.0,
         substrate_trainable_parameter_count=0,

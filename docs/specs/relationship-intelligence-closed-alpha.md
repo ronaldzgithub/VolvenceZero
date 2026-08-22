@@ -1,6 +1,6 @@
 # Relationship Intelligence P2–P4 Closed-Alpha Contract
 
-> Status: P2-SHADOW（含 P2d 命名条件 reader）、P3 mechanism、P4 product shell、P4.1 longitudinal canary、P4.2 preference-action 纠删 owner 与 P4.3 named-reader transmission 工程包已落地；P2 formal、真人 typing qualification、长 horizon / 多 session 真人 pilot 与 production ACTIVE 均未通过
+> Status: P2-SHADOW（含 P2d 命名条件 reader）、P3 mechanism、P4 product shell、P4.1 longitudinal canary、P4.2 preference-action 纠删 owner、P4.3 named-reader transmission、P4.4 PE-credit learned-gate transmission 与 P4.5 Windows real-child hydration preflight 工程包已落地；P4.3–P4.5 均为 seen/post-selected development-only 且 `formal=false`，P2 formal、真人 typing qualification、长 horizon / 多 session 真人 pilot、真实 residual / 用户可见 steer 与 production ACTIVE 均未通过
 > Last updated: 2026-08-22
 > Owner boundary: `preference_about_other` / `social_prediction_error` / `self_temporal` / `dialogue_external_outcome` 保持各自唯一 owner；`lifeform-service` 只编排产品入口与证据
 
@@ -18,15 +18,19 @@ typed 关系经历，在行动前发布候选动作结果分布；以 PE 派生 
   以 `unknown` 收集，不能进入 PE；
 - relationship action advisory 默认且当前只能 SHADOW，不能改变用户可见表达；
 - SHADOW 建议没有真实暴露时，后续用户结果不能被冒充为该建议的 causal outcome；
+- P4.4 只在两个已见、post-selected 的合成 subject 共 16 decisions 上隔离 exact PE-credit
+  是否应用于 learned gate，不能冒充 independent-subject 或 32K formal evidence；
+- P4.5 虽然已有 72 次真实 Windows child-process invocation，但仍只使用上述两个 seen synthetic
+  subject；它没有 model output、PE learning、residual 或真人 outcome，不能冒充 formal Appendable；
 - production ACTIVE、长 context、多 session 真人效果和四能力总主张均未成立。
 
 ## 2. 四能力轴与唯一 owner
 
 | 能力轴 | 本 slice 的机制 | 唯一 owner / 时间尺度 | 当前边界 |
 |---|---|---|---|
-| Appendable | owner records、typed action outcome、pending forecast、settlement、命名条件 readout 与纠删 tombstone 进入 `SocialRecordStore` v4，可跨进程 hydration | `preference_about_other` / session-medium | P2-development/P4.2 drill 已证明机械恢复，不等于 held-out 效果成立 |
+| Appendable | owner records、typed action outcome、pending forecast、settlement、命名条件 readout 与纠删 tombstone 进入 `SocialRecordStore` v4，可序列化 hydration | `preference_about_other` / session-medium | P4.5 已在 Windows 以 72 个真实 child、磁盘 backend 和 correct/empty/swapped state intervention 证明 seen-fixture 的 owner-state→next-forecast 传导；独立 subject、长 context、crash consistency 与 formal 效果仍未成立 |
 | Readable | 行动前由 owner 发布 `PreferenceActionForecast`；可附带绑定当前 observation hash 与 reader artifact 的 `RelationshipConditionReadout`，命名抽象条件并给出候选分数 | `PreferenceAboutOtherModule` / online-fast readout | P4.3 在 seen-v3 上证明 readout 可因果传到动作/outcome；因 post-selection 与失灵基线，formal 仍关闭 |
-| Learnable | exact outcome join → owner settlement → `SocialPredictionError` → dedicated action credit | `social_prediction_error` 与 credit owner / online-fast→session-medium | evaluation、judge 与 human anchor 都不能进入更新 |
+| Learnable | exact outcome join → owner settlement → `SocialPredictionError` → dedicated action credit | `social_prediction_error` 与 credit owner / online-fast→session-medium | P4.4 在 seen/post-selected 两 subject 上隔离了 credit apply→learned checkpoint→后续 typed action/outcome；只属 development，evaluation、judge 与 human anchor 均未进入更新 |
 | Steerable | gate 只选 `{noop, steer}`，输出 typed `TemporalActionAdvisoryProposal` 给 `self_temporal` | vertical gate + `self_temporal` / online-fast | 默认 SHADOW；未授权建议绝不改变表达 |
 
 闭环只有在真实动作暴露后才完整：
@@ -45,6 +49,7 @@ owner history
 
 P4 当前只有 `baseline_noop_exposed` 满足“actually exposed”。`steer` 建议仍是
 `shadow_counterfactual`，因此即使 typing qualification 通过也不得结算或进入训练候选。
+P4.4 的 steer 只在 environment-consumer-only Lab ACTIVE 中暴露，不进入自然语言表达或产品 runtime。
 
 ## 3. P2：多经历关系动力学 readout
 
@@ -230,6 +235,8 @@ sentiment fallback。额外字段、schema drift、非法 enum 或 `unknown` 未
 - action：`relationship_action_advisory=DISABLED` 丢弃 advisory；SHADOW 是默认回滚点。
 - persistence：v1/v2 `SocialRecordStore` 继续 hydrate；回滚旧代码前必须先确认其不会覆盖 v3
   owner snapshot。不得把 v3 文件手工降成旧 schema；redaction tombstone 不能因停用 consumer 而删除。
+- P4.4 Lab evidence：停止运行/消费 `relationship_lab_p4_pe_learning`；create-only report 与
+  checkpoint lineage 按原 hash 保留，产品 gate、SHADOW wiring 与 expression 均不变。
 - production ACTIVE 退出条件：独立 promotion artifact 授权、实际 action exposure 可证明、
   长 horizon / 多 session safety 与 outcome evidence 通过；当前均未满足。
 
@@ -239,10 +246,12 @@ sentiment fallback。额外字段、schema drift、非法 enum 或 `unknown` 未
 same-turn SHADOW advisory、qualification/tamper、unknown/review、causal exposure、evidence
 separation/idempotency、followup session isolation。它们不构成真实用户效果实验。
 
-允许声称：P2–P4 工程链和 collection-only closed-alpha 壳已落地，默认不改变表达。
+允许声称：P2–P4 工程链和 collection-only closed-alpha 壳已落地，默认不改变表达；P4.4 在
+seen/post-selected fixture 上观察到 PE-credit→learned gate→后续 typed action/outcome 的开发级传导。
 
-禁止声称：P2 formal PASS、Readable 已证明、Volvence 优于 full-history prompt/RAG、真人
-typing 已 qualified、steer action 已在线学习、production ACTIVE 或超级关系智能已经成立。
+禁止声称：P2 formal PASS、完整 Readable/Learnable 已证明、Volvence 优于 full-history prompt/RAG、
+真人 typing 已 qualified、独立 subject / 32K 泛化、真实 residual 或用户可见 steer 已成立、
+production ACTIVE 或超级关系智能已经成立。
 
 ## 11. P4.1 longitudinal canary（Lab-only）
 
@@ -330,9 +339,62 @@ artifact 为 `e7bbc914…70bd`，判
 
 这条证据比“readout 字段存在”更强：它证明 owner 发布的命名状态沿正式动作链产生了可观察
 差异。但组件是在看到 P1m 方向性结果后选择，fixture 已见且只有两条，P1m prompt 基线失灵，
-所以它不能修复 P1m、授权 P2 formal、证明 Volvence advantage 或完整 Readable。下一包必须
-固定 named reader，只切 PE-derived credit 是否回写 learned gate，隔离 Learnable；不得再调整
-reader、场景或 prompt。
+所以它不能修复 P1m、授权 P2 formal、证明 Volvence advantage 或完整 Readable。P4.4 已按原
+冻结计划固定 named reader、场景和 prompt，只切 PE-derived credit 是否应用于 learned gate；
+其结果见 §11.5，不能反向升级 P4.3 判词。
+
+### 11.5 P4.4 PE-credit learned-gate transmission（development-only）
+
+P4.4 继续复用同一 seen-v3 两条 4+8 session fixture，即两个已见、post-selected 的合成 subject
+与合计 16 decisions。named reader、owner/hydration、Lab ACTIVE authorization、reactive environment、
+动作 surface、gate 参数初始化和 logical store reconstruction 节奏全部固定；两臂唯一 toggle 是 exact owner settlement
+产生的 `SocialPredictionError` 所派生 dedicated credit 是否应用于 cold learned gate。evaluation、
+judge、human anchor 与 generator truth 均不进入 update。
+
+no-credit 臂得到 `0/16` steer、`0/16` preferred-action match、`0/16` credit apply 与 `0/16`
+parameter change，positive outcome 为 `7/16`、reversal match 为 `0/14`。PE-credit 臂得到 `7/16`
+steer/action match、`16/16` credit apply 与 `16/16` parameter change，positive outcome 为 `13/16`、
+reversal match 为 `7/14`。matched arms 有 `14/16` probability change、`7/16` action change 与
+`6/16` outcome change；next-pulse 审计同样记录 14 次 probability change 与 7 次 action change。
+report `5c955fb1…810c` 判
+`pe_credit_learning_transmission_observed_development_only`。
+
+这证明的是：在该已见 fixture 上，exact PE→credit 的**应用**会改变 bounded learned gate
+checkpoint，并在重复 owner snapshot 对象重建后改变后续 typed action/outcome。artifact 中历史字段
+`process_restart_count` 只统计新建 `SocialRecordStore` 并直接 hydrate 内存 snapshot，不代表 OS child
+process、磁盘 backend 或 crash recovery。它不证明 independent-subject
+conditional generalization、32K long context、真实 model residual actuation、用户可见 steer、
+production ACTIVE、formal Learnable 或完整四能力；report 固定
+`formal_evidence_authorized=false`。下一单一因果包不得再调 prompt、场景、reader 或 credit
+toggle。Windows/CUDA 迁移前的 cross-process Appendable preflight 已按 §11.6 完成，但只能报告
+platform development replication；下一包应固定 P4.4 gate 与 P4.5 hydration，隔离真实 residual
+actuation，仍不能发明 formal 或四能力完成态。
+
+### 11.6 P4.5 Windows real-child owner hydration preflight（development-only）
+
+P4.5 将 P4.1/P4.4 历史字段 `process_restart_count` 与真实 OS process boundary 明确分开。冻结的
+preflight 对两个 seen synthetic subject 的每个 4+8 pulse 都启动全新 `sys.executable` child，
+总计 72 次 invocation。三个 matched arms 使用同一 `PreferenceAboutOtherModule`、existing bounded
+forecast reader、`FileSystemPersistenceBackend`、`OwnerHydrationStore(ACTIVE)` 与 worker code；
+唯一 intervention 是 child 启动前磁盘 root 包含 target exact prior boundary、全空 prior，或 paired
+donor 的 exact same-stage prior boundary。donor source 强制小于 output boundary；parent 不向 child
+传 history、records、owner snapshot/payload、forecast score、preferred action 或 evaluator seed。
+
+每个 child receipt 绑定 Popen PID、child PID、PPID、唯一 nonce、request/current-session SHA、pre/post
+backend version、backend-returned bytes SHA、raw checkpoint SHA、owner payload SHA 与 state-directory
+SHA。correct 与 swapped 的每个 subject 都形成严格 `1..12` version chain；首拍之后均从磁盘 ACTIVE
+hydrate。empty 每拍从新目录开始，均未 hydrate 且只写 v1。16 个 decision probes 中，correct/empty
+forecast presence 改变 `16/16`，correct/swapped 推荐动作改变 `14/16`。Windows artifact
+`675815b9…2052` 判
+`cross_process_owner_hydration_forecast_effect_observed_development_only`。
+
+这条结果比进程内 snapshot reconstruction 更强：在当前 seen fixture 上，历史没有通过 parent payload
+旁路，owner state 确实跨磁盘与真实 OS process boundary 恢复，并因 correct/empty/wrong-subject prior
+state 产生下一 forecast 差异。但它没有执行 evaluator/environment、gate action、PE/credit/learning、
+Qwen/model generation、residual 或 expression；`independent_subject_count=0` 且
+`formal_evidence_authorized=false`。当前 filesystem backend 也未冻结 mid-write kill/power-loss 原子性，
+所以不能声称 crash recovery。下一包应固定这一 hydration 结果与 P4.4 learned gate，隔离
+Windows/CUDA 真实 residual actuation；不得再调 prompt、reader、credit 或 state intervention。
 
 运行当前源码（避免命中外部 editable checkout）：
 
@@ -342,6 +404,19 @@ reader、场景或 prompt。
 ./start_relationship_p4_canary.sh --run-development --format markdown
 ./start_relationship_p4_canary.sh --run-development --output /tmp/relationship-p4-canary-report.json
 python scripts/run_relationship_lab_p4_named_reader.py --validate-existing
+python scripts/run_relationship_lab_p4_pe_learning.py --validate-existing
+PYTHONNOUSERSITE=1 python scripts/run_relationship_lab_p4_cross_process_appendable.py \
+  validate-existing --output-dir \
+  artifacts/relationship_lab/p4_cross_process_owner_hydration_preflight_windows_20260822
 ```
 
-PowerShell 使用同名 `.ps1`。输出采用 create-only canonical JSON；路径已存在时 fail loudly。
+PowerShell 中，P4.5 使用隔离环境直接运行 Python runner：
+
+```powershell
+$env:PYTHONNOUSERSITE='1'
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_cross_process_appendable.py `
+  validate-existing --output-dir `
+  artifacts\relationship_lab\p4_cross_process_owner_hydration_preflight_windows_20260822
+```
+
+其余入口使用同名 `.ps1`。输出采用 create-only canonical JSON；路径已存在时 fail loudly。

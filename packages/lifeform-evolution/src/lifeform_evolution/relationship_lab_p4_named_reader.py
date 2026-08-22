@@ -620,15 +620,15 @@ def _condition_payload(
 def _atomic_create_text(path: pathlib.Path, content: str) -> None:
     target = pathlib.Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    payload = content.encode("utf-8")
     with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
+        mode="wb",
         dir=target.parent,
         prefix=f".{target.name}.",
         suffix=".tmp",
         delete=False,
     ) as handle:
-        handle.write(content)
+        handle.write(payload)
         handle.flush()
         os.fsync(handle.fileno())
         temporary = pathlib.Path(handle.name)

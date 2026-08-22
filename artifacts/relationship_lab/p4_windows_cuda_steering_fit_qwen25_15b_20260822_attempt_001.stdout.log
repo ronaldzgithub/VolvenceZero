@@ -1,0 +1,33 @@
+[p4-steering-fit] S3-prereq capture artifact-train: 32/307
+[p4-steering-fit] S3-prereq capture artifact-train: 64/307
+[p4-steering-fit] S3-prereq capture artifact-train: 96/307
+[p4-steering-fit] S3-prereq capture artifact-train: 128/307
+[p4-steering-fit] S3-prereq capture artifact-train: 160/307
+[p4-steering-fit] S3-prereq capture artifact-train: 192/307
+[p4-steering-fit] S3-prereq capture artifact-train: 224/307
+[p4-steering-fit] S3-prereq capture artifact-train: 256/307
+[p4-steering-fit] S3-prereq capture artifact-train: 288/307
+[p4-steering-fit] S3-prereq capture artifact-train: 307/307
+[p4-steering-fit] S3-prereq capture artifact-heldout: 32/165
+[p4-steering-fit] S3-prereq capture artifact-heldout: 64/165
+[p4-steering-fit] S3-prereq capture artifact-heldout: 96/165
+[p4-steering-fit] S3-prereq capture artifact-heldout: 128/165
+[p4-steering-fit] S3-prereq capture artifact-heldout: 160/165
+[p4-steering-fit] S3-prereq capture artifact-heldout: 165/165
+[p4-steering-fit] C2 train artifact-executor seed=0 update=10/80 loss=0.2940
+[p4-steering-fit] C2 train artifact-executor seed=0 update=20/80 loss=0.6996
+[p4-steering-fit] C2 train artifact-executor seed=0 update=30/80 loss=0.0503
+[p4-steering-fit] C2 train artifact-executor seed=0 update=40/80 loss=0.0169
+[p4-steering-fit] C2 train artifact-executor seed=0 update=50/80 loss=0.0106
+[p4-steering-fit] C2 train artifact-executor seed=0 update=60/80 loss=0.0014
+[p4-steering-fit] C2 train artifact-executor seed=0 update=70/80 loss=0.0038
+[p4-steering-fit] C2 train artifact-executor seed=0 update=80/80 loss=0.0034
+[p4-steering-fit] C2 train artifact-sensor-off-executor seed=0 update=10/80 loss=1.2631
+[p4-steering-fit] C2 train artifact-sensor-off-executor seed=0 update=20/80 loss=1.3147
+[p4-steering-fit] C2 train artifact-sensor-off-executor seed=0 update=30/80 loss=1.2727
+[p4-steering-fit] C2 train artifact-sensor-off-executor seed=0 update=40/80 loss=1.5280
+[p4-steering-fit] C2 train artifact-sensor-off-executor seed=0 update=50/80 loss=1.3471
+[p4-steering-fit] C2 train artifact-sensor-off-executor seed=0 update=60/80 loss=1.1516
+[p4-steering-fit] C2 train artifact-sensor-off-executor seed=0 update=70/80 loss=1.1691
+[p4-steering-fit] C2 train artifact-sensor-off-executor seed=0 update=80/80 loss=1.1848
+{"artifact_id": "57b59b269ecc5cf3f15abf3e16c3a8a03a9e9c74dd8025647203bdd16edcbe04", "bundle_id": "steering-dialogue-shadow:b6e1d79a5087:fb8c44c48b83", "execution_attestation_id": "9a33a698b95d923d6a4e82b64471213d529b0cbbf6a30ca24644860211e6dde1", "prerequisite_passed": true, "protocol_id": "b6e1d79a5087945c4be6bf8d4f1e2f6535cdbedeca56ae0bd1af53a56f3def8d", "verdict": "fresh_qwen25_15b_steering_artifact_fit_passed_development_only"}

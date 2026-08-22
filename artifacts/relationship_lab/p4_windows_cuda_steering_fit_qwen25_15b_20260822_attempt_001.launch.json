@@ -1,0 +1,20 @@
+{
+    "schema_version":  "volvence.relationship_lab.p4_steering_fit_attempt_launch.v1",
+    "attempt_label":  "attempt_001_adjudicable_identical_protocol_restart",
+    "started_at_local":  "2026-08-22T22:11:09.7789961+08:00",
+    "started_at_utc":  "2026-08-22T14:11:09.7789961Z",
+    "child_pid":  33624,
+    "observer_pid":  31232,
+    "child_argv":  [
+                       "D:\\volvence\\.conda-volvence-gpu311\\python.exe",
+                       "D:\\volvence\\scripts\\run_relationship_lab_p4_steering_artifact_fit.py",
+                       "run",
+                       "--output-dir",
+                       "D:\\volvence\\artifacts\\relationship_lab\\p4_windows_cuda_steering_fit_qwen25_15b_20260822"
+                   ],
+    "protocol_id":  "b6e1d79a5087945c4be6bf8d4f1e2f6535cdbedeca56ae0bd1af53a56f3def8d",
+    "execution_profile_id":  "3be84d866afbda07cf80dee277d89cdc0e366ce545bf7e97f015cf8afcbfe21a",
+    "stdout_path":  "D:\\volvence\\artifacts\\relationship_lab\\p4_windows_cuda_steering_fit_qwen25_15b_20260822_attempt_001.stdout.log",
+    "stderr_path":  "D:\\volvence\\artifacts\\relationship_lab\\p4_windows_cuda_steering_fit_qwen25_15b_20260822_attempt_001.stderr.log",
+    "output_dir":  "D:\\volvence\\artifacts\\relationship_lab\\p4_windows_cuda_steering_fit_qwen25_15b_20260822"
+}

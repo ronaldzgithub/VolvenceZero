@@ -1,0 +1,71 @@
+name: Windows CUDA Host Campaign Contract
+
+# Static/synthetic contract gate only. It never starts Python, CUDA, a model,
+# or the live Windows Event Log collector.
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - ".gitattributes"
+      - "packages/vz-contracts/**"
+      - "packages/vz-runtime/**"
+      - "packages/vz-substrate/**"
+      - "artifacts/relationship_lab/p4_windows_cuda_physical_residual_actuation_host_block_windows_20260822.json"
+      - "scripts/run_windows_cuda_strict_32k_host_campaign.mjs"
+      - "scripts/run_windows_cuda_strict_32k_smoke.py"
+      - ".github/workflows/windows-cuda-host-campaign-contract.yml"
+  pull_request:
+    paths:
+      - ".gitattributes"
+      - "packages/vz-contracts/**"
+      - "packages/vz-runtime/**"
+      - "packages/vz-substrate/**"
+      - "artifacts/relationship_lab/p4_windows_cuda_physical_residual_actuation_host_block_windows_20260822.json"
+      - "scripts/run_windows_cuda_strict_32k_host_campaign.mjs"
+      - "scripts/run_windows_cuda_strict_32k_smoke.py"
+      - ".github/workflows/windows-cuda-host-campaign-contract.yml"
+  workflow_dispatch:
+
+jobs:
+  host-campaign-contract:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run host-campaign contract tests
+        run: node --test packages/vz-runtime/tests/test_windows_cuda_strict_32k_host_campaign.mjs
+
+      - name: Run host-qualification publisher contract tests
+        run: node --test packages/vz-runtime/tests/test_windows_cuda_host_stability_qualification.mjs
+
+      - name: Run Event Log provisioner source-contract tests
+        run: node --test packages/vz-runtime/tests/test_provision_volvence_evidence_event_log.mjs
+
+      - name: Run Event Log source Audit acquisition contract tests
+        run: node --test packages/vz-runtime/tests/test_windows_event_log_source_audit_acquisition.mjs
+
+      - name: Parse Event Log provisioner with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          $scriptPath = Resolve-Path -LiteralPath "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1"
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            $scriptPath,
+            [ref]$tokens,
+            [ref]$errors
+          ) > $null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error ($_.ToString()) }
+            exit 1
+          }

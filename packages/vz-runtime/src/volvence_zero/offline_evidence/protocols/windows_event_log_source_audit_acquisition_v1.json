@@ -1,0 +1,216 @@
+{
+  "schema_version": "windows-event-log-source-audit-acquisition-protocol.v1",
+  "owner": {
+    "wheel": "vz-runtime",
+    "owner": "volvence_zero.offline_evidence.windows_event_log_source_audit_acquisition",
+    "mode": "standalone_explicit_operator_invoked_audit_acquisition",
+    "distribution_scope": "repository-source-checkout-only",
+    "qualification_or_campaign_auto_invocation": false
+  },
+  "qualification_compatibility": {
+    "qualification_protocol_relative_path": "packages/vz-runtime/src/volvence_zero/offline_evidence/protocols/windows_cuda_host_stability_qualification_v1.json",
+    "qualification_protocol_id": "32f35e4f7027e9519522e099efb696fb352a48faf3ba69be861929304fae1d5f",
+    "qualification_protocol_raw_sha256": "30a881838b41fa5b7e6de5aba6bc94131245796126be5b49c4ebab539f8c4132",
+    "adapter_imported_or_called": false,
+    "qualification_projection_emitted": false
+  },
+  "scope": {
+    "method": "sha256_domain_separated_length_framed_v1",
+    "domain_separator": "volvence.windows-event-log-source-audit-acquisition-scope.v1",
+    "components": [
+      "acquisition_protocol_id",
+      "qualification_protocol_id",
+      "operator_scope_binding_id",
+      "machine_identity_sha256",
+      "boot_identity_sha256",
+      "capture_role",
+      "execution_backend_id"
+    ],
+    "attempt_number": 1,
+    "attempt_budget": 1,
+    "retry_budget": 0,
+    "attempt_budget_applies_to": "single_artifact_root_only",
+    "same_root_overwrite_or_retry_permitted": false,
+    "cross_root_duplicate_scope_excluded": false,
+    "scope_global_no_retry_proven": false,
+    "cross_scope_selection_excluded": false
+  },
+  "identity_binding": {
+    "machine_identity_field": "machine_identity_sha256",
+    "boot_identity_field": "boot_identity_sha256",
+    "input_owner": "explicit_caller",
+    "live_machine_queried": false,
+    "authoritative": false
+  },
+  "capture_roles": [
+    "qualification_source_audit_before",
+    "qualification_source_audit_after"
+  ],
+  "execution": {
+    "production_entrypoint_enabled": false,
+    "production_backend_id": "windows-powershell-direct-audit-capture.v1",
+    "synthetic_backend_id": "synthetic-node-audit-acquisition-declaration.v1",
+    "platform_system": "Windows",
+    "executable_template": "{SystemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "argv_template": [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-File",
+      "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1",
+      "-Mode",
+      "Audit"
+    ],
+    "invocation_fields": [
+      "backend_id",
+      "executable_template",
+      "requested_executable",
+      "argv_template",
+      "requested_argv",
+      "cwd",
+      "shell",
+      "windows_hide",
+      "mode",
+      "invocation_realization",
+      "environment_inherited",
+      "realized_environment_attested",
+      "provision_or_allow_source_creation_present"
+    ],
+    "requested_argv_file_argument_resolution": "repository_relative_template_to_absolute_native_path",
+    "requested_executable_endpoint_binding_required": true,
+    "synthetic_invocation_realized": false,
+    "shell": false,
+    "windows_hide": true,
+    "working_directory": "repository_root",
+    "environment_inherited": true,
+    "realized_environment_attested": false,
+    "inherited_environment_fully_frozen": false,
+    "process_started_at_utc_semantics": "lower_bound_immediately_before_spawn_call_not_os_creation_attestation",
+    "job_object_used": false,
+    "descendants_contained": false,
+    "prohibited_tokens": [
+      "-Command",
+      "-EncodedCommand",
+      "-ExecutionPolicy",
+      "Provision",
+      "-AllowSourceCreation"
+    ],
+    "timeout_kill_once": true,
+    "source_and_executable_pre_post_endpoint_equality_required": true,
+    "endpoint_equality_proves_continuous_stability": false
+  },
+  "budgets": {
+    "stdout_max_bytes": 1048576,
+    "stderr_max_bytes": 262144,
+    "timeout_milliseconds": 120000
+  },
+  "exit_matrix": [
+    {
+      "exit_code": 0,
+      "stdout_schema_version": "volvence-evidence-event-log-provisioning-audit.v2",
+      "stderr_must_be_empty": true,
+      "disposition": "audit_v2_conformant_capture_candidate"
+    },
+    {
+      "exit_code": 2,
+      "stdout_schema_version": "volvence-evidence-event-log-provisioning-audit.v2",
+      "stderr_must_be_empty": true,
+      "disposition": "audit_v2_nonconformant_capture_candidate"
+    },
+    {
+      "exit_code": 3,
+      "stdout_schema_version": "volvence-evidence-event-log-provisioning-failure.v1",
+      "stderr_must_be_empty": false,
+      "disposition": "failure_v1_quarantined"
+    },
+    {
+      "exit_code": null,
+      "stdout_schema_version": null,
+      "stderr_must_be_empty": false,
+      "disposition": "unclassified_process_or_output_quarantined"
+    }
+  ],
+  "capture_envelope_contract": {
+    "schema_version": "windows-event-log-source-audit-capture-envelope.v1",
+    "ordered_fields": [
+      "schema_version",
+      "capture_role",
+      "stdout_raw_sha256",
+      "stdout_byte_count",
+      "stderr_raw_sha256",
+      "stderr_byte_count",
+      "process_exit_code",
+      "process_started_at_utc",
+      "process_exited_at_utc",
+      "stdout_captured_at_utc",
+      "machine_identity_sha256",
+      "boot_identity_sha256",
+      "capture_authoritative"
+    ],
+    "candidate_dispositions": [
+      "audit_v2_conformant_capture_candidate",
+      "audit_v2_nonconformant_capture_candidate"
+    ],
+    "quarantined_value": null,
+    "capture_authoritative": false
+  },
+  "source_hash_mode": "utf8_lf_canonical_v1",
+  "source_sha256": {
+    "packages/vz-runtime/src/volvence_zero/offline_evidence/windows_event_log_source_audit_acquisition.mjs": "e59b386cd26a1befc863e3a68d3a19d967283e3bb7bf7711ad351503071e29f5",
+    "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1": "be0c02f136761f83412f31cdbf1f3249ad7ed15de1aff28e27fe1a8597888406",
+    "scripts/run_windows_event_log_source_audit_acquisition.mjs": "9cacd8e178d6528b7b7bfa319ba18037a9e32e19b2aa3921434016299740491d"
+  },
+  "output_contract": {
+    "create_only": true,
+    "claim_file": "000_scope_claim.json",
+    "terminal_file": "001_terminal.json",
+    "stdout_file": "streams/audit.stdout.bin",
+    "stderr_file": "streams/audit.stderr.bin",
+    "exact_files": [
+      "000_scope_claim.json",
+      "001_terminal.json",
+      "streams/audit.stdout.bin",
+      "streams/audit.stderr.bin"
+    ],
+    "stream_capture_schema_version": "windows-event-log-source-audit-stream-capture.v1",
+    "stream_capture_fields": [
+      "schema_version",
+      "stdout_relative_path",
+      "stdout_raw_sha256",
+      "stdout_byte_count",
+      "stderr_relative_path",
+      "stderr_raw_sha256",
+      "stderr_byte_count"
+    ],
+    "artifact_parent_must_preexist_as_non_symlink_directory": true,
+    "artifact_parent_chain_reparse_points_excluded": false,
+    "claim_file_descriptor_content_fsync_before_process_creation": true,
+    "directory_entry_durability_guaranteed": false,
+    "child_close_then_stream_fsync_and_same_descriptor_bounded_read_before_descriptor_close": true,
+    "capture_envelope_null_for_quarantine": true,
+    "terminal_id_method": "sha256_of_canonical_terminal_core_without_terminal_id",
+    "terminal_raw_sha256_is_full_root_identity": true,
+    "offline_validator_queries_live_state": false
+  },
+  "evidence_firewall": {
+    "capture_envelope_authoritative": false,
+    "real_process_observation": false,
+    "real_provisioner_observation": false,
+    "source_config_projection_emitted": false,
+    "eligible_as_host_qualification_input": false,
+    "qualification_authorized": false,
+    "cuda_execution_authorized": false,
+    "formal_evidence_authorized": false,
+    "production_active_authorized": false,
+    "appendable_proven": false,
+    "readable_proven": false,
+    "learnable_proven": false,
+    "steerable_proven": false,
+    "four_capability_claim_authorized": false,
+    "tamper_resistance_proven": false,
+    "path_parent_reparse_trust_proven": false,
+    "directory_entry_durability_guaranteed": false,
+    "continuous_endpoint_stability_proven": false
+  },
+  "claim_boundary": "This standalone source-checkout acquisition owner is production-disabled. Its public acquisition gate throws before reading options, paths, environment, or filesystem state, and the fixed CLI can only reach that gate. A private reviewed backend retains the frozen Windows PowerShell Desktop 5.1 template and records the exact absolute requested executable, exact requested Audit-only argv, and repository-root cwd passed to spawn(); it is not exported and has no injectable executor. Synthetic artifacts declare the same absolute requested argv but a synthetic executable URI and synthetic_not_realized invocation. The real backend inherits the caller environment, does not attest the realized environment, uses no Job Object, and never claims descendant containment. process_started_at_utc is only a caller-clock lower bound taken immediately before spawn(), not an OS process-creation-time attestation. After child close, bounded stdout and stderr are fsynced, read and hashed from their same still-open wx+ descriptors before descriptor close; the offline validator later reopens and revalidates the exact paths. File-descriptor content fsync before process creation is not a guarantee that Windows directory entries survive power loss: directory_entry_durability_guaranteed remains false. The create-only artifact root must have an existing non-symlink direct parent, but ancestor path components and Windows reparse-point trust are not established. The single-attempt/no-overwrite contract applies only to one caller-selected artifact root. Because artifactRoot is not a scope component, the same deterministic scope can be created at multiple distinct roots; cross_root_duplicate_scope_excluded and scope_global_no_retry_proven remain false. The caller-supplied machine and boot identity hashes are non-authoritative inputs bound into the claim and deterministic scope; this owner does not query or attest live machine identity. The terminal always records an independent stream_capture. Exit 0 or 2 with strict compact Audit v2 stdout and empty stderr is only a capture candidate and alone receives an exact windows-event-log-source-audit-capture-envelope.v1 with capture_authoritative=false; every quarantined outcome has capture_envelope=null. Exit 3 with strict failure v1 stdout and every other process/output combination is quarantined. Timeout, overflow, spawn/kill error, or endpoint drift remains quarantined even when a single kill request is accepted; child.kill() is not descendant containment. Failure output never becomes a source-config projection or qualification input. Pre/post source and executable endpoint equality does not prove continuous stability, trusted execution, replay exclusion, or process origin. The public offline validator and declarative synthetic writer establish only artifact self-consistency. All real observation, qualification eligibility or authorization, CUDA, formal evidence, production ACTIVE, Appendable, Readable, Learnable, Steerable, four-capability, tamper-resistance, path-parent trust, and directory-entry durability claims remain false. The bound host-qualification protocol remains unchanged and does not automatically consume this artifact."
+}

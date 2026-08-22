@@ -14,6 +14,10 @@
 > 承担包级编年史（SSOT 在 `docs/specs/relationship-lab.md`）。P1j 已按冻结
 > 双主臂门完成并判 `consumer_failed_v4_qualification`；本修订不回溯修改其
 > protocol / 阈值 / consumer。
+>
+> 2026-08-22 对齐：P4.4 已在 seen/post-selected 两个合成 subject、16 decisions 上完成
+> exact PE-credit apply/no-apply 隔离；它只授权 development-only Learnable transmission 判词，
+> `formal=false`，不改变 P1m、真实 residual、用户可见 steer 或四能力边界。
 
 ---
 
@@ -137,9 +141,9 @@ Relationship Lab 证明闭环
 | 关系 readout | `companion-encoder` | 双头模型、训练/eval、LLM zero-shot baseline、embedding 接缝 | 90 条 filler dry-run 的 phase acc 0.45，低于 majority 0.75；G2 未过，不能称已读懂语言关系结构 |
 | 长程基准 | `companion-bench` | 多 session runner、full-history policy、FSM、裁判、成本遥测 | A1-A6 是 evaluation，不能成为学习信号；现有 benchmark 不是个体动力学迁移 oracle |
 | 强基线 | `companion-ref-harness`、`companion-camel-baseline` | summary/RAG/user-model/episodic 与标准 agent 对照 | 首次真同基底九轨 run 尚未完成 |
-| Appendable | CMS、MemoryStore、owner hydration、`SocialRecordStore`、relationship-memory console | 分层写入、跨 session/进程恢复、per-user 隔离、用户纠正与删除 | 关系域尚未证明写入的抽象结构能稳定改善新场景决策 |
+| Appendable | CMS、MemoryStore、owner hydration、`SocialRecordStore`、relationship-memory console | 分层写入、跨 session/进程恢复、per-user 隔离、用户纠正与删除 | P4.5 已在 Windows seen fixture 上证明 real-child disk hydration 会改变下一 forecast；独立 subject、32K、crash consistency 与 formal 决策效果仍未证明 |
 | Readable | semantic/ToM owners、interlocutor 12-axis、PE、residual reader | 可命名 snapshot、`belief/intent/feeling/preference_about_other` 四 owner | ToM 目前主要依赖单 turn LLM proposal；还没有从多次行动结果读出个体关系动力学的正式 gate |
-| Learnable | PE→credit→gate、reflection、ModificationGate | 编程域已证明语义 PE、结构化记忆、择时学习与离线门控 | 对话域稀而准的动作结果信用尚未完成 formal |
+| Learnable | PE→credit→gate、reflection、ModificationGate | 编程域已证明语义 PE、结构化记忆、择时学习与离线门控；关系 P4.4 已有 seen/post-selected development transmission | 对话域稀而准的动作结果信用尚未完成 independent-subject / 32K formal |
 | Steerable | sensor→executor→gate、relationship conditioning、expression advisory | 有界 SHADOW 接线、strict noop、可回滚 | 关系 conditioning 的 text/residual/Prefix-KV 增益未成立；production ACTIVE 未授权 |
 | 产品壳 | `lifeform-domain-emogpt`、`lifeform-service`、followup、pilot harness | 对话、session、回访、关系记忆 console、七日材料采集 | 真人七日 pilot 未运行；旧模拟七日 formal 因仪器无分辨力停跑 |
 
@@ -536,6 +540,20 @@ evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 
 > no-op/always/random/oracle 对照、session-medium checkpoint 与 Brain facade；self-temporal advisory
 > 默认 SHADOW，P3/P4 artifact 固定 `active_authorized=false`。这只是机制实现，没有运行 formal
 > 动作 NLL / outcome-gain 判定，也不授权 production ACTIVE。
+>
+> 实施状态（2026-08-22，P4.4 development-only）：固定 P1m named reader、P4.1 seen fixture、
+> environment、cold learned gate 与 logical store reconstruction 节奏，唯一 toggle 是 exact
+> settlement→social PE→dedicated credit 是否应用于 gate。两个合成 subject 共 16 decisions 中，
+> no-credit 为 0 steer/action/credit apply/parameter update；PE-credit 产生 7/16 action change、
+> 16/16 credit apply/parameter update，positive `7/16→13/16`、reversal `0/14→7/14`。evaluation
+> 未进入更新。report `5c955fb1…810c` 固定 `formal_evidence_authorized=false`，故这不是 formal
+> Learnable、真实 residual / 用户可见 Steerable 或四能力通过。
+>
+> 实施状态（2026-08-22，P4.5 Windows development-only）：72 个真实 one-shot child 只经磁盘
+> `OwnerHydrationStore` 接收 prior owner state；correct/empty forecast presence 改变 16/16，
+> correct/same-stage-swapped 推荐动作改变 14/16。report `675815b9…2052` 固定
+> `independent_subject_count=0 / formal_evidence_authorized=false / model=Qwen=residual=learning=0`。
+> 它只证明 seen fixture 上的 real-child Appendable transmission，不补足 formal 或四能力。
 
 ### P4：closed-alpha 产品壳
 
@@ -680,21 +698,37 @@ evaluator，不读 v4，不写 PE/credit/steering，不对外称 Readable。P1k 
 | P2–P4 工程 | 2026-08-22：P2 v3-only multi-session owner probe、P2d 命名条件 readout + `SocialRecordStore` v4、P3 exact PE-credit gate / temporal SHADOW advisory、P4 relationship routes / qualification loader / causal exposure / evidence isolation 已落地。P2d 在已见 v3 的 `4/12 → 12/12` 只定位 semantic backend；formal 与真实 pilot 仍关闭。 |
 | P4.1 longitudinal canary | 2026-08-22：冻结“被排除时别走 / 被越权时还回空间”的 4+8 session 熟悉故事、full-history / selective-RAG 两个 Qwen steelman、Volvence closed-loop / typed-noop control、20 independent subjects 与 final 32K context 正式门槛；seen v3 两条 fixture 已以内容寻址 Lab-only ACTIVE 跑通 owner→forecast→gate→self_temporal→reactive outcome→PE→credit。默认 reader 的工程读数仅 3/16 action match、3/14 reversal match，Qwen output=0，故只能判 `engineering_mechanism_ready_formal_effect_not_run`。 |
 | P4.3 named-reader transmission | 2026-08-22：固定 seen P4.1 fixture、ALWAYS gate、零 gate update 和同一环境，只替换 legacy/named reader。legacy 为 6/16 action match、9/16 positive；P1m named reader 为 16/16、16/16，并在 14/14 reversal 跟随；10 个 matched action 和 9 个 outcome 改变。报告 `e7bbc914…70bd` 已重跑终检。它是 post-selected development Readable-transmission 证据，不修复 P1m 或授权 formal。 |
-| 已证明 | Gate 0 仪器；跨进程恢复 / 隔离 / 纠删 / 压缩；v2/v3 反捷径；v3 public-evidence BGE 60/60 可判别；P1g prompt 单臂入带；P1j one-shot/no-feedback/严格恢复机器按契约完成并诚实保存 unseen failure |
-| 未证明 | 完整 consumer qualification、human anchor、P2 formal、真人 typing qualification、真实 residual steer exposure、长 horizon / 多 session pilot、Volvence advantage、完整 Readable / Learnable / Steerable、四能力；P4.3 尚未隔离 PE-credit learning |
+| P4.4 PE-credit learned-gate transmission | 2026-08-22：固定 named reader、同一两个 seen/post-selected 合成 subject（16 decisions）、environment 与 cold learned gate，唯一 toggle 为 exact PE-derived credit 是否应用。no-credit 为 0 steer/action/update；PE-credit 产生 7/16 action change、16/16 credit/parameter update，positive 7/16→13/16、reversal 0/14→7/14。报告 `5c955fb1…810c` 判 `pe_credit_learning_transmission_observed_development_only / formal=false`；evaluation 未回灌。 |
+| P4.5 Windows cross-process owner hydration | 2026-08-22：2 个 seen synthetic subject × 12 pulse × correct/empty/swapped prior-state 三臂，共 72 次真实 `sys.executable` child。parent 不传 history/owner payload；correct/swapped version 严格 1..12，empty 每拍 v1。correct/empty forecast presence 改变 16/16，correct/swapped 推荐动作改变 14/16。报告 `675815b9…2052` 判 `cross_process_owner_hydration_forecast_effect_observed_development_only / formal=false`；model/Qwen/residual/learning 均为 0。 |
+| 已证明 | Gate 0 仪器；关系 P4.5 real-child disk hydration / empty control / same-stage donor isolation；纠删 / 压缩；v2/v3 反捷径；v3 public-evidence BGE 60/60 可判别；P1g prompt 单臂入带；P1j one-shot/no-feedback/严格恢复机器按契约完成并诚实保存 unseen failure |
+| 未证明 | 完整 consumer qualification、human anchor、P2 formal、真人 typing qualification、independent-subject / 32K formal、crash consistency、真实 residual steer exposure、用户可见 steer、长 horizon / 多 session pilot、Volvence advantage、完整 Appendable / Readable / Learnable / Steerable 与四能力；P4.3–P4.5 development 结果不得升级为其中任一结论 |
 | 校准消耗 | 静态数据集 v1–v4 加 P1m frozen generated recipe；consumer freeze 2 次（P1g / P1i）。P1m 止损已触发，继续版本化场景或搜索 prompt 已禁止 |
 
 P1k-R1 与 P1m 都已沿唯一合法路径终局。P1m 再次显示冻结 3B exact-choice consumer 对 A/B
 位置映射不敏感，同时 fresh named reader 能稳定翻转；这不等于“语言抽象不可读”，也不授权
 把 evaluator truth 回灌系统。§13.7 止损已经触发：停止场景/prompt lane，不得返回 P1i 搜第四个
 prompt，也不得开 P1m-v2/v6 追分。下一步只能把产品主张收敛到独立 runtime 因果实验：复用
-fresh reader 作为候选组件，分别消融 hydration、readout、PE-credit 与真实 residual steering，
-且在 P1m 失灵基线之上不得宣称 formal Volvence advantage。P1l 可继续独立收集 rater 结果。
+fresh reader 作为候选组件；P4.3/P4.4 已分别隔离 readout 与 PE-credit，剩余主缺口是真实
+residual steering；Windows cross-process hydration 已由 P4.5 独立复刻。所有结果仍位于 P1m
+失灵基线之上，不得宣称 formal Volvence advantage。P1l 可继续独立收集 rater 结果。
 
 第一刀 P4.3 已完成 readout transmission：named state 在不学习 gate 的 matched arms 中真实改变
-action 与 outcome。下一刀固定该 reader 和 fixture，不再调场景/prompt/embedding；只比较 learned
-gate 的 PE-credit 回写与 cold/no-update 对照，并审计每次 checkpoint 参数变化、动作选择和后续
-outcome，回答 Learnable 是否来自 PE 而非 evaluator。
+action 与 outcome。第二刀 P4.4 也已完成：在 reader、fixture、environment 与 cold learned gate
+固定时，只切 exact PE-derived credit 是否应用；它观察到 checkpoint、后续 action 与 outcome
+随该 toggle 改变，且 evaluator 没有进入学习路径。两刀都使用已见、post-selected 的两个合成
+subject，因此只能是 development evidence。
+
+第三刀 P4.5 已完成 Windows real-child hydration preflight：每拍是新的 Python 进程，历史只经
+磁盘 `OwnerHydrationStore` 进入 `SocialRecordStore`；correct、empty 与 paired-donor same-stage
+prior state 会产生可审计的 next-forecast 差异。它没有复用 P4.4 的 gate/environment/learning，
+因此只缩小 Appendable 的平台恢复缺口，不增加 Learnable 或 Steerable 证据。
+
+下一单一因果包不得重跑 prompt/scenario search、换 reader、再次比较 PE-credit toggle 或 hydration
+state intervention。应固定 P4.4 learned gate 与 P4.5 hydration，隔离 Windows/CUDA 真实 model
+residual actuation，并保留 strict noop、norm cap、lineage 与 SHADOW 回滚。实现前必须修复 Windows
+cached generation 的 residual capture 语义、发布 attention/KV-cache/context-budget attestation，
+并在 cuDNN-SDPA 不可用或 native context 超限时 fail loudly。仍不得提前声称 independent-subject /
+32K formal、用户可见 steer、完整 Appendable/Learnable/Steerable 或四能力。
 
 2026-08-22 的明确产品决策允许先完成 P2–P4 **工程机制**，并由 P4.1 先冻结长 horizon / 长
 context / 多 session 测验及运行不占模型的 typed-action canary。该决策没有改写上述 Qwen

@@ -47,7 +47,15 @@ include = ["volvence_zero*"]
 namespaces = true
 
 [tool.setuptools.package-data]
-# The blind-match prompt is part of the published evidence method, so the
-# installed wheel must ship it (AGENTS §7: prompts live in prompts/, not
-# inlined in runtime code).
-"volvence_zero" = ["prompts/*.md"]
+# Evidence prompts and frozen protocol inputs are part of their published
+# methods, so the installed wheel must ship them (AGENTS §7). Shipping the
+# outer host-campaign and host-qualification assets does not make either
+# repository-root control plane an installed-wheel entry point; both scaffolds
+# remain source-checkout-only.
+"volvence_zero" = [
+    "prompts/*.md",
+    "agent/protocols/*.json",
+    "offline_evidence/*.mjs",
+    "offline_evidence/*.ps1",
+    "offline_evidence/protocols/*.json",
+]

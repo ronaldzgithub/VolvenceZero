@@ -119,6 +119,7 @@ artifacts/seven_day_companion_simulated_prereg_frozen_*.json
 /.local
 /.venv
 /.venv.conda.bak
+/.venv-hostqual
 /tests
 # Root tests are generally closed to accidental additions. Explicit
 # cross-package contract artifacts below must remain versioned.
@@ -160,3 +161,7 @@ visualizations/volvence-three-act-remotion/public/voiceover/
 visualizations/volvence-three-act-remotion/public/**/*.wav
 visualizations/volvence-three-act-remotion/public/**/*.mp3
 *.safetensors
+/.conda-volvence-gpu311
+
+# P4.6 model-bound fit campaign receipts content-address these exact logs.
+!artifacts/relationship_lab/p4_windows_cuda_steering_fit_qwen25_15b_20260822*.log

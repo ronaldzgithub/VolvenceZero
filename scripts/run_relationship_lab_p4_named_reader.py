@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import json
 import pathlib
 import sys
@@ -26,7 +25,7 @@ for _relative in (
 
 from companion_ref_harness.embed import SentenceTransformerEmbedder  # noqa: E402
 from huggingface_hub import snapshot_download  # noqa: E402
-from huggingface_hub.errors import LocalEntryNotFoundError  # noqa: E402
+from huggingface_hub.utils import LocalEntryNotFoundError  # noqa: E402
 from lifeform_evolution.relationship_lab_p4_named_reader import (  # noqa: E402
     run_relationship_p4_named_reader_transmission,
     validate_relationship_p4_named_reader_report_files,
@@ -34,6 +33,7 @@ from lifeform_evolution.relationship_lab_p4_named_reader import (  # noqa: E402
     write_relationship_p4_named_reader_report,
 )
 from lifeform_evolution.relationship_lab_packet1m_qualification import (  # noqa: E402
+    frozen_snapshot_manifest_sha256,
     load_relationship_p1m_qualification_plan,
     load_relationship_p1m_qualification_protocol,
     load_relationship_p1m_qualification_report,
@@ -84,35 +84,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _sha256_file(path: pathlib.Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while chunk := handle.read(1024 * 1024):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def snapshot_manifest_digest(snapshot: pathlib.Path) -> str:
-    manifest = tuple(
-        (
-            str(path.relative_to(snapshot)),
-            path.stat().st_size,
-            _sha256_file(path),
-        )
-        for path in sorted(
-            (item for item in snapshot.rglob("*") if item.is_file()),
-            key=lambda item: str(item.relative_to(snapshot)),
-        )
-    )
-    if not manifest:
-        raise FileNotFoundError(f"empty embedding snapshot: {snapshot}")
-    encoded = json.dumps(
-        manifest,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return frozen_snapshot_manifest_sha256(snapshot)
 
 
 def materialize_snapshot(

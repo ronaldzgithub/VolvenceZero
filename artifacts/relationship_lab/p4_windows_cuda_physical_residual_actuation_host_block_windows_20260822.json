@@ -1,0 +1,109 @@
+{
+  "schema_version": "volvence.relationship_lab.windows_host_stability_block.v1",
+  "recorded_at_utc": "2026-08-22T15:16:01.8609592Z",
+  "blocked_protocol_id": "c6cb84f0ba174d575f901c25e70f20421ebb232d6b9a7c18892f31ee33413244",
+  "blocked_action": "first_real_cuda_execution_of_p4_physical_residual_actuation_preflight",
+  "physical_output_published": false,
+  "gpu_execution_started": false,
+  "trigger": {
+    "classification": "cpu_only_pre_run_test_process_access_violation_with_concurrent_corrected_machine_checks",
+    "argv": [
+      "D:\\volvence\\.conda-volvence-gpu311\\python.exe",
+      "-m",
+      "pytest",
+      "packages/vz-runtime/tests/test_relationship_p4_physical_residual_actuation.py",
+      "-q"
+    ],
+    "environment": {
+      "PYTHONNOUSERSITE": "1",
+      "CUDA_VISIBLE_DEVICES": "-1"
+    },
+    "process_exit_code_signed": -1073741819,
+    "process_exit_code_hex": "0xC0000005",
+    "completed_test_progress_before_crash": "8 dots were emitted before the fatal process termination",
+    "active_test_at_crash": "test_safe_threshold_failure_publishes_stop_without_retuning",
+    "python_stack_leaf": "SteeringExecutorModule._compute_delta pure-Python generator expression",
+    "epistemic_boundary": "This was not a pytest assertion failure, CUDA OOM, fit threshold result, or physical-actuation result. The process terminated before the targeted suite completed."
+  },
+  "correlated_windows_events": [
+    {
+      "log": "System",
+      "provider": "Microsoft-Windows-WHEA-Logger",
+      "event_id": 19,
+      "record_id": 18391,
+      "time_local": "2026-08-22T23:15:24+08:00",
+      "component": "Processor Core",
+      "error_source": "Corrected Machine Check",
+      "error_type": "Internal parity error",
+      "processor_apic_id": 32
+    },
+    {
+      "log": "System",
+      "provider": "Microsoft-Windows-WHEA-Logger",
+      "event_id": 19,
+      "record_id": 18392,
+      "time_local": "2026-08-22T23:15:24+08:00",
+      "component": "Processor Core",
+      "error_source": "Corrected Machine Check",
+      "error_type": "Internal parity error",
+      "processor_apic_id": 32
+    },
+    {
+      "log": "Application",
+      "provider": "Application Error",
+      "event_id": 1000,
+      "record_id": 17652,
+      "time_local": "2026-08-22T23:15:37+08:00",
+      "faulting_application": "D:\\volvence\\.conda-volvence-gpu311\\python.exe",
+      "faulting_module": "python311.dll",
+      "exception_code": "0xc0000005",
+      "fault_offset": "0x000000000061c960",
+      "report_id": "a85cbb1f-7c59-4eab-a8d9-bc343c5199db"
+    },
+    {
+      "log": "Application",
+      "provider": "Windows Error Reporting",
+      "event_id": 1001,
+      "record_id": 17653,
+      "time_local": "2026-08-22T23:15:41+08:00",
+      "event_name": "BEX64",
+      "exception_code": "c0000005",
+      "hashed_bucket": "0d31c6884afef3d9faa732c27b379059"
+    }
+  ],
+  "host_facts": {
+    "cpu": "Intel(R) Core(TM) i9-14900KF",
+    "physical_cores": 24,
+    "logical_processors": 32,
+    "motherboard": "Micro-Star International Co., Ltd. PRO Z790-P WIFI (MS-7E06) version 2.0",
+    "bios_version": "A.B0",
+    "bios_release_date": "2024-01-10",
+    "microcode_registry_bytes": "20-01-00-00",
+    "microcode_revision_little_endian": "0x120",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "gpu_driver": "560.94"
+  },
+  "historical_local_evidence_last_120_days": {
+    "whea_event_19_corrected_machine_check_count": 96,
+    "whea_event_1_error_count": 5,
+    "python_appcrash_archive_count": 66,
+    "system_bugcheck_count": 16,
+    "python_crashes_span_multiple_interpreters": true,
+    "observed_interpreters": [
+      "D:\\volvence\\.conda-volvence-gpu311\\python.exe 3.11",
+      "C:\\ProgramData\\miniconda3\\python.exe 3.12"
+    ]
+  },
+  "decision": {
+    "real_physical_cuda_run_authorized": false,
+    "multi_day_formal_soak_authorized": false,
+    "same_host_result_claim_authorized": false,
+    "required_manual_remediation": [
+      "Update the MSI PRO Z790-P WIFI BIOS to a current vendor release carrying Intel microcode 0x12F or later.",
+      "Load the Intel Default Settings profile after the update and avoid restoring prior overclock, undervolt, or memory-tuning settings during requalification.",
+      "Cold boot, verify the effective BIOS and microcode, then run a separately preregistered host-stability qualification with zero new WHEA machine checks, access violations, or bugchecks before any Volvence CUDA evidence run."
+    ],
+    "retry_rule": "Do not run the physical CUDA protocol on this host again until the manual firmware/settings change and a new content-addressed host-stability qualification both pass. Do not treat process affinity, retries, or a passing short sample as a substitute for remediation."
+  },
+  "claim_boundary": "This receipt blocks execution because the host cannot currently support trustworthy causal evidence. It does not diagnose the final physical cause, prove permanent CPU degradation, invalidate already content-addressed artifacts that independently validate, or establish any Volvence capability result."
+}

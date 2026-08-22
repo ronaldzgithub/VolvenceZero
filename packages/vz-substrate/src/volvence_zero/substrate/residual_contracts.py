@@ -12,6 +12,8 @@ Slice S.3 (2026-05-04): extracted from the previous monolithic
 from __future__ import annotations
 
 import importlib
+import hashlib
+import json
 import math
 
 from dataclasses import dataclass, field
@@ -23,6 +25,437 @@ from volvence_zero.substrate.adapter import (
     ResidualSequenceStep,
     SubstrateSnapshot,
 )
+
+
+TRANSFORMERS_EXECUTION_ATTESTATION_SCHEMA_VERSION = (
+    "transformers-execution-attestation.v1"
+)
+GENERATION_CONTEXT_BUDGET_ATTESTATION_SCHEMA_VERSION = (
+    "generation-context-budget-attestation.v1"
+)
+
+
+@dataclass(frozen=True)
+class TransformersExecutionProfile:
+    """Frozen, content-addressed execution requirements for one HF lane."""
+
+    preset_name: str
+    platform_system: str
+    device_type: str
+    attention_implementation: str
+    sdpa_backend: str
+    sdpa_backend_policy: str
+    sdpa_backend_exclusive: bool
+    generation_use_cache: bool
+    generation_capture_strategy: str
+    capture_failure_mode: str
+    context_window_tokens: int
+    local_files_only: bool
+    fallback_mode: str
+    fail_on_truncation: bool
+    model_dtype: str
+    require_verified_model_revision: bool
+    require_model_weights_sha256: bool
+    require_execution_assets_sha256: bool
+    require_generation_chat_template: bool
+
+    def __post_init__(self) -> None:
+        for name in (
+            "preset_name",
+            "platform_system",
+            "device_type",
+            "attention_implementation",
+            "sdpa_backend",
+            "sdpa_backend_policy",
+            "generation_capture_strategy",
+            "capture_failure_mode",
+            "fallback_mode",
+            "model_dtype",
+        ):
+            value = getattr(self, name)
+            if type(value) is not str or not value.strip():
+                raise ValueError(f"TransformersExecutionProfile.{name} must be nonempty")
+        for name in (
+            "sdpa_backend_exclusive",
+            "generation_use_cache",
+            "local_files_only",
+            "fail_on_truncation",
+            "require_verified_model_revision",
+            "require_model_weights_sha256",
+            "require_execution_assets_sha256",
+            "require_generation_chat_template",
+        ):
+            if type(getattr(self, name)) is not bool:
+                raise TypeError(
+                    f"TransformersExecutionProfile.{name} must be an exact bool"
+                )
+        if (
+            type(self.context_window_tokens) is not int
+            or self.context_window_tokens <= 0
+        ):
+            raise ValueError(
+                "TransformersExecutionProfile.context_window_tokens must be positive"
+            )
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "preset_name": self.preset_name,
+            "platform_system": self.platform_system,
+            "device_type": self.device_type,
+            "attention_implementation": self.attention_implementation,
+            "sdpa_backend": self.sdpa_backend,
+            "sdpa_backend_policy": self.sdpa_backend_policy,
+            "sdpa_backend_exclusive": self.sdpa_backend_exclusive,
+            "generation_use_cache": self.generation_use_cache,
+            "generation_capture_strategy": self.generation_capture_strategy,
+            "capture_failure_mode": self.capture_failure_mode,
+            "context_window_tokens": self.context_window_tokens,
+            "local_files_only": self.local_files_only,
+            "fallback_mode": self.fallback_mode,
+            "fail_on_truncation": self.fail_on_truncation,
+            "model_dtype": self.model_dtype,
+            "require_verified_model_revision": self.require_verified_model_revision,
+            "require_model_weights_sha256": self.require_model_weights_sha256,
+            "require_execution_assets_sha256": (
+                self.require_execution_assets_sha256
+            ),
+            "require_generation_chat_template": (
+                self.require_generation_chat_template
+            ),
+        }
+
+    @property
+    def profile_id(self) -> str:
+        return _content_sha256(self.to_payload())
+
+
+WINDOWS_CUDA_CUDNN_SDPA_CACHED_STRICT_V1 = TransformersExecutionProfile(
+    preset_name="windows-cuda-cudnn-sdpa-cached-strict.v1",
+    platform_system="Windows",
+    device_type="cuda",
+    attention_implementation="sdpa",
+    sdpa_backend="cudnn",
+    sdpa_backend_policy="exclusive-cudnn",
+    sdpa_backend_exclusive=True,
+    generation_use_cache=True,
+    generation_capture_strategy="first-full-prompt-set-once",
+    capture_failure_mode="raise",
+    context_window_tokens=32768,
+    local_files_only=True,
+    fallback_mode="deny",
+    fail_on_truncation=True,
+    model_dtype="bfloat16",
+    require_verified_model_revision=True,
+    require_model_weights_sha256=True,
+    require_execution_assets_sha256=True,
+    require_generation_chat_template=True,
+)
+
+
+@dataclass(frozen=True)
+class TransformersExecutionAttestation:
+    """Content-addressed facts for one loaded strict transformers runtime."""
+
+    profile_id: str
+    preset_name: str
+    model_id: str
+    model_revision: str
+    model_weights_sha256: str
+    execution_assets_sha256: str
+    runtime_origin: str
+    platform_system: str
+    platform_release: str
+    device: str
+    device_name: str
+    python_version: str
+    torch_version: str
+    transformers_version: str
+    cuda_version: str
+    cudnn_version: int
+    device_compute_capability: tuple[int, int]
+    attention_implementation: str
+    sdpa_backend: str
+    sdpa_backend_policy: str
+    sdpa_backend_exclusive: bool
+    generation_use_cache: bool
+    require_generation_chat_template: bool
+    generation_capture_strategy: str
+    capture_failure_mode: str
+    context_window_tokens: int
+    local_files_only: bool
+    fallback_mode: str
+    fail_on_truncation: bool
+    model_dtype: str
+    hidden_size: int
+    model_max_position_embeddings: int
+    hook_layer_indices: tuple[int, ...]
+    schema_version: str = TRANSFORMERS_EXECUTION_ATTESTATION_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.schema_version) is not str
+            or self.schema_version
+            != TRANSFORMERS_EXECUTION_ATTESTATION_SCHEMA_VERSION
+        ):
+            raise ValueError("TransformersExecutionAttestation schema drift")
+        _require_sha256_text(self.profile_id, "profile_id")
+        _require_sha256_text(self.model_weights_sha256, "model_weights_sha256")
+        _require_sha256_text(
+            self.execution_assets_sha256, "execution_assets_sha256"
+        )
+        for name in (
+            "preset_name",
+            "model_id",
+            "model_revision",
+            "runtime_origin",
+            "platform_system",
+            "platform_release",
+            "device",
+            "device_name",
+            "python_version",
+            "torch_version",
+            "transformers_version",
+            "cuda_version",
+            "attention_implementation",
+            "sdpa_backend",
+            "sdpa_backend_policy",
+            "generation_capture_strategy",
+            "capture_failure_mode",
+            "fallback_mode",
+            "model_dtype",
+        ):
+            value = getattr(self, name)
+            if type(value) is not str or not value.strip():
+                raise ValueError(
+                    f"TransformersExecutionAttestation.{name} must be nonempty"
+                )
+        if not _is_model_revision(self.model_revision):
+            raise ValueError(
+                "TransformersExecutionAttestation.model_revision must be a "
+                "40- or 64-character lowercase hexadecimal revision"
+            )
+        for name in (
+            "sdpa_backend_exclusive",
+            "generation_use_cache",
+            "require_generation_chat_template",
+            "local_files_only",
+            "fail_on_truncation",
+        ):
+            if type(getattr(self, name)) is not bool:
+                raise TypeError(
+                    f"TransformersExecutionAttestation.{name} must be an exact bool"
+                )
+        for name in (
+            "cudnn_version",
+            "context_window_tokens",
+            "hidden_size",
+            "model_max_position_embeddings",
+        ):
+            value = getattr(self, name)
+            if type(value) is not int or value <= 0:
+                raise ValueError(
+                    f"TransformersExecutionAttestation.{name} must be a positive int"
+                )
+        if type(self.device_compute_capability) is not tuple or (
+            len(self.device_compute_capability) != 2
+        ):
+            raise TypeError(
+                "Transformers execution compute capability must be an exact pair"
+            )
+        if any(
+            type(value) is not int or value < 0
+            for value in self.device_compute_capability
+        ):
+            raise ValueError("Transformers execution compute capability is invalid")
+        if type(self.hook_layer_indices) is not tuple:
+            raise TypeError("Transformers execution hook layers must be an exact tuple")
+        if not self.hook_layer_indices or any(
+            type(index) is not int or index < 0 for index in self.hook_layer_indices
+        ):
+            raise ValueError("Transformers execution hook layers are invalid")
+        if (
+            tuple(sorted(self.hook_layer_indices)) != self.hook_layer_indices
+            or len(set(self.hook_layer_indices)) != len(self.hook_layer_indices)
+        ):
+            raise ValueError(
+                "Transformers execution hook layers must be sorted and unique"
+            )
+        profile = WINDOWS_CUDA_CUDNN_SDPA_CACHED_STRICT_V1
+        if self.profile_id != profile.profile_id:
+            raise ValueError("Transformers execution profile_id is not canonical")
+        repeated_profile_facts = {
+            "preset_name": profile.preset_name,
+            "platform_system": profile.platform_system,
+            "attention_implementation": profile.attention_implementation,
+            "sdpa_backend": profile.sdpa_backend,
+            "sdpa_backend_policy": profile.sdpa_backend_policy,
+            "sdpa_backend_exclusive": profile.sdpa_backend_exclusive,
+            "generation_use_cache": profile.generation_use_cache,
+            "require_generation_chat_template": (
+                profile.require_generation_chat_template
+            ),
+            "generation_capture_strategy": profile.generation_capture_strategy,
+            "capture_failure_mode": profile.capture_failure_mode,
+            "context_window_tokens": profile.context_window_tokens,
+            "local_files_only": profile.local_files_only,
+            "fallback_mode": profile.fallback_mode,
+            "fail_on_truncation": profile.fail_on_truncation,
+            "model_dtype": profile.model_dtype,
+        }
+        drifted = tuple(
+            name
+            for name, expected in repeated_profile_facts.items()
+            if getattr(self, name) != expected
+        )
+        if drifted:
+            raise ValueError(
+                "Transformers execution attestation profile facts drifted: "
+                + ", ".join(drifted)
+            )
+        if self.runtime_origin != "hf-local":
+            raise ValueError("Transformers execution runtime_origin must be hf-local")
+        valid_device = self.device == profile.device_type or (
+            self.device.startswith(f"{profile.device_type}:")
+            and self.device.removeprefix(f"{profile.device_type}:").isdigit()
+        )
+        if not valid_device:
+            raise ValueError("Transformers execution device must name a CUDA index")
+        if (
+            self.model_max_position_embeddings
+            != self.context_window_tokens
+        ):
+            raise ValueError("Transformers execution CUDA/context facts are invalid")
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "profile_id": self.profile_id,
+            "preset_name": self.preset_name,
+            "model_id": self.model_id,
+            "model_revision": self.model_revision,
+            "model_weights_sha256": self.model_weights_sha256,
+            "execution_assets_sha256": self.execution_assets_sha256,
+            "runtime_origin": self.runtime_origin,
+            "platform_system": self.platform_system,
+            "platform_release": self.platform_release,
+            "device": self.device,
+            "device_name": self.device_name,
+            "python_version": self.python_version,
+            "torch_version": self.torch_version,
+            "transformers_version": self.transformers_version,
+            "cuda_version": self.cuda_version,
+            "cudnn_version": self.cudnn_version,
+            "device_compute_capability": list(self.device_compute_capability),
+            "attention_implementation": self.attention_implementation,
+            "sdpa_backend": self.sdpa_backend,
+            "sdpa_backend_policy": self.sdpa_backend_policy,
+            "sdpa_backend_exclusive": self.sdpa_backend_exclusive,
+            "generation_use_cache": self.generation_use_cache,
+            "require_generation_chat_template": (
+                self.require_generation_chat_template
+            ),
+            "generation_capture_strategy": self.generation_capture_strategy,
+            "capture_failure_mode": self.capture_failure_mode,
+            "context_window_tokens": self.context_window_tokens,
+            "local_files_only": self.local_files_only,
+            "fallback_mode": self.fallback_mode,
+            "fail_on_truncation": self.fail_on_truncation,
+            "model_dtype": self.model_dtype,
+            "hidden_size": self.hidden_size,
+            "model_max_position_embeddings": self.model_max_position_embeddings,
+            "hook_layer_indices": list(self.hook_layer_indices),
+        }
+
+    @property
+    def attestation_id(self) -> str:
+        return _content_sha256(self.to_payload())
+
+
+@dataclass(frozen=True)
+class GenerationContextBudgetAttestation:
+    """Exact post-template, post-prefix context budget for one generation."""
+
+    execution_attestation_id: str
+    input_mode: str
+    input_token_count: int
+    prefix_slot_count: int
+    effective_max_new_tokens: int
+    combined_token_count: int
+    context_window_tokens: int
+    remaining_token_count: int
+    schema_version: str = GENERATION_CONTEXT_BUDGET_ATTESTATION_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.schema_version) is not str
+            or self.schema_version
+            != GENERATION_CONTEXT_BUDGET_ATTESTATION_SCHEMA_VERSION
+        ):
+            raise ValueError("GenerationContextBudgetAttestation schema drift")
+        _require_sha256_text(
+            self.execution_attestation_id, "execution_attestation_id"
+        )
+        if type(self.input_mode) is not str or self.input_mode != "chat-template":
+            raise ValueError("generation context input_mode is invalid")
+        counts = (
+            self.input_token_count,
+            self.prefix_slot_count,
+            self.effective_max_new_tokens,
+            self.combined_token_count,
+            self.context_window_tokens,
+            self.remaining_token_count,
+        )
+        if any(type(value) is not int or value < 0 for value in counts):
+            raise ValueError("generation context token counts must be non-negative")
+        if self.input_token_count <= 0 or self.effective_max_new_tokens <= 0:
+            raise ValueError(
+                "generation context input and max-new token counts must be positive"
+            )
+        if (
+            self.context_window_tokens
+            != WINDOWS_CUDA_CUDNN_SDPA_CACHED_STRICT_V1.context_window_tokens
+        ):
+            raise ValueError(
+                "generation context window must equal the canonical 32768 tokens"
+            )
+        expected = (
+            self.input_token_count
+            + self.prefix_slot_count
+            + self.effective_max_new_tokens
+        )
+        if self.combined_token_count != expected:
+            raise ValueError("generation context combined count drift")
+        if self.remaining_token_count != self.context_window_tokens - expected:
+            raise ValueError("generation context remaining count drift")
+        if self.remaining_token_count < 0:
+            raise ValueError("generation context exceeds the native window")
+
+
+def _content_sha256(payload: object) -> str:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _require_sha256_text(value: str, name: str) -> None:
+    if (
+        type(value) is not str
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(f"{name} must be a lowercase SHA-256")
+
+
+def _is_model_revision(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) in (40, 64)
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 @dataclass(frozen=True)
@@ -138,6 +571,36 @@ class GenerationResult:
     steering_action: str = ""
     steering_executor_artifact_id: str = ""
     steering_gate_policy_version: int = 0
+    execution_attestation_id: str = ""
+    context_budget: GenerationContextBudgetAttestation | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.execution_attestation_id) is not str:
+            raise TypeError("GenerationResult.execution_attestation_id must be str")
+        has_execution_id = bool(self.execution_attestation_id)
+        has_context_budget = self.context_budget is not None
+        if has_execution_id != has_context_budget:
+            raise ValueError(
+                "GenerationResult execution attestation and context budget "
+                "must be present or absent together"
+            )
+        if not has_execution_id:
+            return
+        _require_sha256_text(
+            self.execution_attestation_id, "execution_attestation_id"
+        )
+        if type(self.context_budget) is not GenerationContextBudgetAttestation:
+            raise TypeError(
+                "GenerationResult.context_budget must be an exact "
+                "GenerationContextBudgetAttestation"
+            )
+        if (
+            self.context_budget.execution_attestation_id
+            != self.execution_attestation_id
+        ):
+            raise ValueError(
+                "GenerationResult execution attestation lineage mismatch"
+            )
 
 
 @dataclass(frozen=True)

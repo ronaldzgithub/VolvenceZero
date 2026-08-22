@@ -32,8 +32,9 @@ adds no snapshot slot.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,8 @@ class TransformersSteeredActionScorer:
         probe_texts: tuple[str, ...] = (),
         joint_training: bool = False,
         prefix_cache: bool = False,
+        forward_context_factory: Callable[[], Any] | None = None,
+        fail_on_truncation: bool = False,
     ) -> None:
         if len(action_options) < 2:
             raise ValueError(
@@ -99,6 +102,8 @@ class TransformersSteeredActionScorer:
                 "control_norm_ratio must be in (0, 2]; got "
                 f"{control_norm_ratio!r}."
             )
+        if type(fail_on_truncation) is not bool:
+            raise TypeError("fail_on_truncation must be an exact bool.")
         self._torch = torch_module
         self._model = model
         self._tokenizer = tokenizer
@@ -115,6 +120,12 @@ class TransformersSteeredActionScorer:
         self._model_dtype = next(iter(model.parameters())).dtype
         self._prefix_cache_enabled = prefix_cache
         self._prefix_cache: dict[tuple[str, ...], _PrefixCacheEntry] = {}
+        self._fail_on_truncation = fail_on_truncation
+        self._forward_context_factory = (
+            forward_context_factory
+            if forward_context_factory is not None
+            else contextlib.nullcontext
+        )
 
         if self._tokenizer.pad_token_id is None:
             if self._tokenizer.eos_token_id is None:
@@ -379,12 +390,8 @@ class TransformersSteeredActionScorer:
             self._assert_fully_frozen()
 
         batch = len(source_texts)
-        encoded = self._tokenizer(
+        encoded = self._tokenize_batch(
             [text + self._prompt_suffix for text in source_texts],
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=self._max_length,
         )
         input_ids = encoded["input_ids"].to(self._device)
         attention_mask = encoded["attention_mask"].to(self._device)
@@ -491,7 +498,7 @@ class TransformersSteeredActionScorer:
         ].register_forward_hook(hook)
         norm_handle = self._final_norm.register_forward_hook(final_norm_hook)
         try:
-            with grad_context:
+            with self._forward_context_factory(), grad_context:
                 # logits_to_keep=1 stops the frozen LM head from projecting the
                 # full sequence over the ~151k vocab; we never read
                 # outputs.logits, so the padded last-position slice it computes
@@ -549,7 +556,7 @@ class TransformersSteeredActionScorer:
         steered = entry.prefix_hidden + deltas.view(
             batch, 1, self._hidden_size
         ).to(dtype=entry.prefix_hidden.dtype)
-        with grad_context:
+        with self._forward_context_factory(), grad_context:
             hidden = steered
             upper_indices = range(
                 self._injection_layer_index + 1, len(self._blocks)
@@ -636,7 +643,7 @@ class TransformersSteeredActionScorer:
             )
         )
         try:
-            with torch.no_grad():
+            with self._forward_context_factory(), torch.no_grad():
                 self._model(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
@@ -679,18 +686,12 @@ class TransformersSteeredActionScorer:
             norms.append(float(hidden.norm(dim=-1).mean()))
             return None
 
-        encoded = self._tokenizer(
-            list(probe_texts),
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=self._max_length,
-        )
+        encoded = self._tokenize_batch(list(probe_texts))
         handle = self._blocks[
             self._injection_layer_index
         ].register_forward_hook(norm_hook)
         try:
-            with torch.no_grad():
+            with self._forward_context_factory(), torch.no_grad():
                 self._model(
                     input_ids=encoded["input_ids"].to(self._device),
                     attention_mask=encoded["attention_mask"].to(self._device),
@@ -704,6 +705,64 @@ class TransformersSteeredActionScorer:
                 "hidden norm at the injection layer."
             )
         return norms[0]
+
+    def _tokenize_batch(self, texts: list[str]) -> dict[str, Any]:
+        tokenize_kwargs: dict[str, Any] = {
+            "return_tensors": "pt",
+            "padding": True,
+            "truncation": not self._fail_on_truncation,
+        }
+        if not self._fail_on_truncation:
+            tokenize_kwargs["max_length"] = self._max_length
+        encoded = self._tokenizer(texts, **tokenize_kwargs)
+        if not self._fail_on_truncation:
+            return encoded
+        try:
+            input_ids = encoded["input_ids"]
+            attention_mask = encoded["attention_mask"]
+        except KeyError as exc:
+            raise ValueError(
+                "strict steered scoring tokenizer must publish input_ids and "
+                "attention_mask"
+            ) from exc
+        torch = self._torch
+        if not isinstance(input_ids, torch.Tensor) or not isinstance(
+            attention_mask, torch.Tensor
+        ):
+            raise TypeError(
+                "strict steered scoring tokenizer outputs must be tensors"
+            )
+        if (
+            input_ids.ndim != 2
+            or attention_mask.ndim != 2
+            or tuple(input_ids.shape) != tuple(attention_mask.shape)
+            or int(input_ids.shape[0]) != len(texts)
+        ):
+            raise ValueError(
+                "strict steered scoring tokenizer batch geometry is invalid"
+            )
+        if not bool(
+            ((attention_mask == 0) | (attention_mask == 1)).all()
+        ):
+            raise ValueError(
+                "strict steered scoring attention_mask must be binary"
+            )
+        token_counts = tuple(
+            int(value)
+            for value in attention_mask.sum(dim=-1).detach().cpu().tolist()
+        )
+        overflow_rows = tuple(
+            index
+            for index, token_count in enumerate(token_counts)
+            if token_count > self._max_length
+        )
+        if int(input_ids.shape[-1]) > self._max_length or overflow_rows:
+            raise ValueError(
+                "strict steered scoring input exceeds max_length before "
+                f"forward: max_length={self._max_length}, "
+                f"token_counts={token_counts}, overflow_rows={overflow_rows}"
+            )
+        return encoded
 
     def _assert_fully_frozen(self) -> None:
         for parameter in self._model.parameters():

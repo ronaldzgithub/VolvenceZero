@@ -58,6 +58,20 @@
 > reversal match `6/14 → 14/14`，并产生 10 个 matched action change 与 9 个 outcome change。
 > artifact `e7bbc914…70bd` 已用 frozen BGE 重跑终检；由于 seen/post-selected 且 P1m 基线失灵，
 > 只能称 Readable transmission 的 development evidence，不能称 formal、优势或四能力通过。
+> P4.4 在同一两个已见、post-selected 的合成 subject（共 16 decisions）上继续固定 named reader、
+> fixture、owner/hydration、reactive environment 与 cold learned gate，唯一 toggle 是 exact
+> settlement→social PE→dedicated credit 是否应用于 gate。no-credit 臂为 0 steer/action/credit
+> apply/parameter update；PE-credit 臂产生 7/16 action change、16/16 credit apply/parameter update，
+> positive outcome `7/16 → 13/16`、reversal match `0/14 → 7/14`。artifact
+> `5c955fb1…810c` 明确 `formal_evidence_authorized=false`；这只是 Learnable transmission 的
+> development-only 因果证据，不证明独立 subject / 32K、真实 residual、用户可见 steer 或四能力。
+> P4.5 Windows preflight 随后不再沿用历史 `process_restart_count`，而是对 2 个 seen synthetic
+> subject 的每个 4+8 pulse 都启动全新 `sys.executable` child。correct / empty / swapped 三臂
+> 使用同一 ACTIVE worker，parent 不传 history 或 owner payload，只把本人 exact prior boundary、
+> 空 root 或 paired donor 同阶段 prior boundary 复制进新的磁盘 root。72 次 child 均有 PID/PPID/
+> nonce、版本、raw file 与 owner payload hash；correct/empty forecast presence 改变 `16/16`，
+> correct/swapped 推荐动作改变 `14/16`。artifact `675815b9…2052` 仍是 seen/post-selected、
+> `independent_subject_count=0 / formal=false` 的 Appendable development preflight。
 >
 > 产品路线：`docs/moving forward/relationship-intelligence-mvp-plan-2026-08.md`
 
@@ -96,7 +110,11 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | 人工盲标锚点 owner | `lifeform-evolution.relationship_lab_packet1l` | P1f 遗留：冻结去真值 60-unit rater packet 与 sealed key，收齐 3 份独立标注后评分。包号是 P1l，不是仪器升级 |
 | P1m 仪器协议 owner | `lifeform-evolution.relationship_lab_packet1m{,_recovery,_qualification}` + `lifeform-domain-emogpt.lab.p1m_{generation,renderer_transport}` | 内容寻址冻结生成配方、renderer transport、24 对 dataset、96 条 Qwen 与 48 条 structured 资格计划、Wilson 门、账本和终局报告；v1–v4 失败 transport 与 v5 recovery 均保留，不占用 P1l |
 | P4.3 readout 传导报告 owner | `lifeform-evolution.relationship_lab_p4_named_reader` | 只读 P1m terminal lineage 与 P4.1 fixture；在 ALWAYS/零学习 matched arms 中发布 named-readout→action→outcome 的 development-only 内容寻址报告 |
-| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l,packet1m_qualification,p4_named_reader}.py` + `scripts/generate_relationship_lab_packet1m_dataset*.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1m/P4.3，或冻结/评分人工盲标 packet |
+| P4.4 PE-credit 学习传导报告 owner | `lifeform-evolution.relationship_lab_p4_pe_learning` | 只读 P1m terminal/named-reader lineage 与 P4.1 fixture；固定其余 collaborator，只以 exact PE→credit 是否应用为 toggle，发布 learned-gate→后续 action/outcome 的 development-only 内容寻址报告 |
+| P4.5 cross-process hydration preflight owner | `lifeform-evolution.relationship_lab_p4_cross_process_appendable` | 以 create-only request/receipt/state/report 冻结真实 child-process 的 `OwnerHydrationStore` 链；只比较 correct / empty / same-stage swapped prior state，不新增 owner 或 runtime slot |
+| P4.6-fit model-bound artifact prerequisite owner | `volvence_zero.agent.relationship_p4_steering_artifact_fit` / `vz-runtime` | 只用 canonical strict substrate factory 构造精确 Qwen2.5-1.5B runtime，并把一次 reader/conditional executor/matched sensor-off fit 委托给既有 `fit_steering_artifact_bundle` owner；不复制数学、不接产品 wiring |
+| P4.6-actuation physical residual preflight owner | `volvence_zero.agent.relationship_p4_physical_residual_actuation` / `vz-runtime` | 认证精确 P4.6-fit 根后，以既有 sensor / executor / strict substrate direct hook 跑四臂 synthetic physical-effect preflight；只编排与发布证据，不复制 reader/executor 数学、不生成回复、不接产品 wiring |
+| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l,packet1m_qualification,p4_named_reader,p4_pe_learning,p4_cross_process_appendable,p4_steering_artifact_fit,p4_physical_residual_actuation}.py` + `scripts/generate_relationship_lab_packet1m_dataset*.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1m/P4.3–P4.6，或冻结/评分人工盲标 packet |
 
 硬边界：
 
@@ -1134,6 +1152,241 @@ evaluator bundle、不调用 Qwen、不进入 expression/production，也不产�
 仅表示纠删 owner 契约机械闭合；formal `recovery_after_correction` 仍未运行。已结算 PE/credit、
 gate checkpoint 与 lifeform operational evidence 归其他 owner，本包不做近似反向回滚。
 
+### P4.4 PE-credit learned-gate transmission（development-only）
+
+P4.4 不新增 slot、runtime writer、prompt、场景或产品 wiring。它复用 P4.1 的同一 seen-v3
+两条 4+8 session fixture（两个合成 subject、合计 16 decisions）和 P4.3 选中的 named reader，
+并固定 owner/hydration、Lab ACTIVE、reactive environment、gate 初始化与全部动作 surface。两臂
+唯一 toggle 是 exact owner settlement→`SocialPredictionError`→dedicated credit 是否应用于
+cold learned gate；两臂都不读取 evaluation、judge 或 generator truth 作为学习信号。
+
+no-credit 臂为 `0/16` steer、`0/16` action match、`0/16` credit apply、`0/16` parameter change、
+`7/16` positive outcome 与 `0/14` reversal match。PE-credit 臂为 `7/16` steer/action match、
+`16/16` credit apply/parameter change、`13/16` positive outcome 与 `7/14` reversal match；matched
+arms 因而产生 `7/16` action change、`6/16` outcome change，且 14 次 causal next-pulse probability
+change 中有 7 次进一步改变下一动作。内容寻址 report `5c955fb1…810c` 的判词是
+`pe_credit_learning_transmission_observed_development_only`。
+
+report 中沿用的 `process_restart_count` 是历史字段名；当前 runner 实际只在同一 coroutine 内新建
+`SocialRecordStore` 并直接传递内存中的 owner snapshot，不包含 OS child process、磁盘 backend、
+serialization boundary 或 crash recovery。真实 cross-process Appendable 仍须独立实验。
+
+该结果隔离了 exact PE-credit 应用对 learned checkpoint 与后续 typed action/outcome 的开发级
+传导，但 reader 在 P1m 后选择、fixture 已见且只有两个合成 subject，故
+`formal_evidence_authorized=false`。它不能修复 P1m、证明独立 subject / 32K context 泛化、真实
+model residual actuation、用户可见 steer、production ACTIVE、完整 Learnable 或四能力。验证已有
+artifact 可运行：
+
+```bash
+python scripts/run_relationship_lab_p4_pe_learning.py --validate-existing
+```
+
+### P4.5 real child-process owner hydration preflight（Windows development-only）
+
+P4.5 是 Windows/CUDA 迁移前的 Appendable 单变量 preflight，不是正式 P4 四臂 pilot，也不把
+P4.4 历史字段重命名后冒充新证据。冻结协议
+`relationship_p4_cross_process_appendable_preflight_v1.json` 仍只使用 P4.1 两个已见、
+post-selected synthetic subject；每个 subject 有 4 个 onboarding append pulse 与 8 个只读 decision
+probe，共 12 个 pulse。三个 arm 的 worker、owner、reader、输入 session schema 与 ACTIVE wiring
+完全相同，唯一 state intervention 是：
+
+- `correct_prior_state`：复制本 subject 的 immutable exact prior boundary；
+- `empty_prior_state`：每拍使用全新空 root；
+- `swapped_subject_prior_state`：复制 paired donor 的 immutable exact same-stage prior boundary，
+  强制 `source_boundary < output_boundary`，禁止使用 donor 最终状态或未来 pulse。
+
+parent 只写当前一个 public session、state-root 路径、subject/session id、protocol id 与随机 nonce；
+request/session exact-key 校验禁止 `history / records / action_outcomes / owner_payload / snapshot /
+forecast_scores / preferred_action / environment_seed`。child 必须通过
+`FileSystemPersistenceBackend`→`OwnerHydrationStore(ACTIVE)`→`SocialRecordStore` load/hydrate，
+再走 `PreferenceAboutOtherModule` append 或 frozen existing bounded forecast reader，最后 export/save。
+每次 launch 使用 exact argv、`shell=false` 与新的 `sys.executable`；receipt 分开冻结 host/child PID、
+PPID、nonce、pre/post backend version、backend-returned bytes SHA、raw disk file SHA、owner payload SHA
+与 state-directory SHA。PID 可复用，因此 freshness 由 host PID match + PPID + nonce 联合证明。
+离线 validator 还会把 24 个 session 逐项重建并绑定 canonical P4 public plan，逐字段闭合
+request→receipt→report，并从 raw checkpoint 重新计算 backend-equivalent bytes、owner payload、
+forecast/action 与 owner counts；即使同时重签 receipt SHA 和 report artifact id，删除 firewall 字段、
+修改版本/forecast、替换 public session、使用 future donor boundary 或引入 CRLF 都必须 fail loudly。
+
+Windows create-only artifact
+`artifacts/relationship_lab/p4_cross_process_owner_hydration_preflight_windows_20260822/`
+包含 72 次真实 child invocation。correct 与 swapped 每个 subject 的 post version 均严格为
+`1..12`，除首拍外都从磁盘 hydrate；empty 每拍都没有 prior snapshot，post version 恒为 1。
+16 个 decision probes 中，correct/empty forecast presence 改变 `16/16`，correct/swapped
+推荐动作改变 `14/16`。report `675815b9…2052` 判
+`cross_process_owner_hydration_forecast_effect_observed_development_only`。
+
+该结果允许声称：在这两个已见 synthetic fixture 上，`social_record_store` 的 owner state 确实能
+跨真实 Windows OS child 与磁盘 serialization boundary 追加/恢复，并因 correct、empty、wrong-subject
+prior state 而改变下一 owner forecast。它不证明 crash/power-loss consistency；当前 filesystem
+backend 没有为 mid-write kill 冻结原子性契约。它也没有 evaluator/environment、PE/credit/learning、
+gate、Qwen/model output、residual、expression 或 product ACTIVE；固定
+`independent_subject_count=0 / formal_evidence_authorized=false`，不能升级为完整 Appendable、Readable、
+Learnable、Steerable 或四能力结论。运行与复验：
+
+```bash
+PYTHONNOUSERSITE=1 python scripts/run_relationship_lab_p4_cross_process_appendable.py run \
+  --output-dir <create-only-output>
+PYTHONNOUSERSITE=1 python scripts/run_relationship_lab_p4_cross_process_appendable.py \
+  validate-existing --output-dir \
+  artifacts/relationship_lab/p4_cross_process_owner_hydration_preflight_windows_20260822
+```
+
+Windows PowerShell 原生复验使用隔离的 Python 3.11 / CUDA 环境：
+
+```powershell
+$env:PYTHONNOUSERSITE='1'
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_cross_process_appendable.py run `
+  --output-dir <create-only-output>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_cross_process_appendable.py `
+  validate-existing --output-dir `
+  artifacts\relationship_lab\p4_cross_process_owner_hydration_preflight_windows_20260822
+```
+
+### P4.6-fit fresh Qwen2.5-1.5B model-bound steering artifact prerequisite
+
+历史 C3 bundle 绑定的 Qwen2.5-0.5B merged weights 在当前 checkout、Git refs 与本机缓存中均
+不存在，且当时 fit/merge lineage 没有冻结足以逐字节重建同一权重的随机种子。因此本包禁止把
+旧 C3 的 width-896 reader/executor 复制、重标或迁移到 width 1536；它为 Windows/CUDA 单独冻结
+全新协议 `relationship_p4_windows_cuda_steering_fit_qwen25_15b_v1.json`。该协议精确绑定：
+
+- `Qwen/Qwen2.5-1.5B-Instruct` revision
+  `989aa7980e4cf806f80c7fef2b1adb7bc71aa306`；
+- canonical weight-files SHA-256 `fb8c44c4…94da4` 与通过 substrate public helper 现场复算的
+  execution-assets SHA-256 `bbb5446f…1bb0`；绝对 snapshot path 不进入协议或 artifact；
+- layer 20、width 1536、rank 8，conditional / sensor-off 各 80 updates、learning rate 0.01、
+  batch 32、ridge 10、norm cap 0.25、seed 0；
+- ETA corpus seed 20260802、8 objectives / 2 corridors / extra-edge 0.35、64 条 train route
+  lengths `{2,3}` 与 24 条 heldout route lengths `{3,4}`；canonical junction rows 必须精确为
+  train 307 / heldout 165；
+- 12 个 critical source 的相对 POSIX path 与 `utf8_lf_canonical_v1` SHA-256，覆盖 thin runner、
+  唯一 fit owner、ETA corpus/readout/operator 路径、steering contracts 与 strict substrate/scorer；
+  source 必须是无 BOM 的 strict UTF-8，哈希前把 CRLF / bare CR 规范化为 LF，以免 Git checkout
+  换行策略造成 Windows/macOS 假漂移；runner 在加载 GPU 前逐文件复核，任一真实实现漂移都拒绝执行。
+
+模型只由 `WINDOWS_CUDA_CUDNN_SDPA_CACHED_STRICT_V1` canonical factory 构造：logical model id
+经 verified Hugging Face cache revision 解析，strict-local、fallback DENY、Windows/CUDA、BF16、
+SDPA exclusive cuDNN、32768 native context 与 fail-on-truncation 均逐项进入 execution attestation。
+fit 数学仍只有 `vz-runtime.agent.steering_artifact_training.fit_steering_artifact_bundle` 一个 owner；
+新模块只是同 wheel 的薄 evidence orchestrator。它显式区分 generation profile 与 instrumental
+scorer：fit 输入走 raw tokenizer 并显式 `truncation=false / fail_on_truncation=true`，先完整 tokenize
+再逐行检查 32768 token 上限；模型 forward 固定 `use_cache=false`，scorer 的 prefix cache 是 lower-stack
+hidden replay 而非 generation KV cache；全部 scorer forward 仍必须处于 exclusive cuDNN context。
+不得用 generation 的 cached attestation 冒充 fit forward 使用了 KV cache 或 chat template。
+
+一次 run 原子发布且永不覆盖四个文件：`steering_artifact_bundle.json`、
+`steering_artifact_fit_report.json`、`execution_attestation.json` 与 `manifest.json`。manifest 对前三个
+payload 逐文件冻结 byte count/SHA-256，并以自身 canonical core 生成 artifact id；offline
+`validate-existing` 不构造 runtime、不 import `torch`、不探测 CUDA、不调用 fit owner，仍会逐文件
+重算 payload/source hash，并重建 bundle lineage、attestation、指标与判词；report 另记录实际
+`numpy_version`，而 torch/transformers 版本继续只由 substrate execution attestation 发布。validator
+还必须用 `rel_tol=0 / abs_tol=1e-12` 从三个原始 heldout NLL 重算
+`gain = noop - online_steer` 与 `conditional_advantage = sensor_off - online_steer`；即使攻击者同时
+重封 report 和 manifest，派生指标不一致也必须拒绝。reader heldout accuracy 必须 ≥0.80，gain-vs-noop
+与 conditional advantage 必须严格 >0，且 substrate trainable count=0、no free bias、strict zero-code
+noop、sensor-off condition-code rows 完全相同。
+
+sensor-off rows identical 是 stopping threshold，不是 publisher 前置异常。production owner candidate 与
+offline published bundle 必须分层验证：candidate 的 sensor-off executor 先独立通过 executor 契约、
+model/reader/geometry lineage 与安全不变量；若只是 condition-code rows 不同，则 report 保存 exact rows、
+row/rank、artifact id 与 canonical digest 作为不可执行 quarantine evidence，发布 bundle 将 optional
+`sensor_off_executor` 置空，manifest 再绑定 quarantine flag/evidence digest。offline validator 从保存的
+rows 独立重算该门为 false，并确认被拒 executor 不在可执行 bundle 中；不能仅凭缺字段或 report flag
+推断失败。成功 artifact 的 report/manifest shape 不增加 quarantine 字段。该门或其他门失败都发布
+`failed_stop_no_retuning` artifact；指标原样保留、无 retuning，而 invalid sensor-off executor 不得逸出。
+
+bundle contract 自身只携带 model id/weights/layer/width，不携带 revision、execution-assets 或 strict
+profile；因此 firewall 固定 `standalone_bundle_consumption_allowed=false /
+complete_artifact_root_required=true`。后续 P4.6 consumer 必须先验证完整 artifact root，并同时绑定
+manifest、fit report 与 execution attestation；只传 bundle path 必须 fail loudly。
+离线 validator 证明根内部自洽，不充当来源认证器；后续 consumer 还必须 pin 本次原始 artifact id
+`57b59b26…cbe04`、bundle SHA-256 `6d6047bd…73249` 与 campaign id `67760e78…4ef31`。任何整体
+重封后产生不同 artifact id 的根，即使使用同一 protocol 且内部验证通过，也不得替换本次输入。
+
+本收敛包已于 2026-08-22 在上述精确 Windows/CUDA 环境完成预注册主审与真实 GPU fit。首次进程启动
+`attempt_000_operational_abort_before_adjudicable_result` 因命令观察器约 5 秒超时而失去句柄；没有发布
+output root、指标、判词或 artifact id，runtime construction / preliminary probe / owner training 是否开始
+均保持 unknown。incident receipt SHA-256 为 `91f61f45…5ded1`。独立门审只允许一次协议、源码、模型、
+环境、argv、seed、阈值和超参数完全相同的恢复启动，不允许根据 attempt-000 结果调参或择优。
+
+`attempt_001_adjudicable_identical_protocol_restart` 完成 307 / 165 条 train / heldout capture 与
+conditional / sensor-off 各 80 次更新，应用层终局发布
+`fresh_qwen25_15b_steering_artifact_fit_passed_development_only`：
+
+- artifact id `57b59b269ecc5cf3f15abf3e16c3a8a03a9e9c74dd8025647203bdd16edcbe04`，
+  execution attestation id `9a33a698…e6dde1`；
+- reader heldout accuracy `1.0`；noop / online-steer / sensor-off NLL 分别为
+  `1.973369854327404 / 0.006760592353481171 / 1.3023161879091552`；由原始 NLL 重算的
+  gain-vs-noop 为 `1.9666092619739228`，conditional advantage 为 `1.295555595555674`；
+- substrate trainable parameter count 为 0，八项冻结结构/阈值检查全部为 true；
+- PowerShell `Start-Process` wrapper 没有回收到 child OS exit status，completion receipt 永久保留
+  `exit_code=null`，不得回填或推断为 0。stdout 已到 runner terminal PASS JSON；另一次 GPU-free
+  `validate-existing` 以 exit code 0 重建同一 artifact id、lineage、指标与判词；
+- campaign manifest id `67760e78bce6c11df862b3cfdca1a20c5e7f2a0114ce9c312af4bc9d8414ef31`
+  同时绑定 attempt-000 incident、attempt-001 preflight / launch / completion / stdout / stderr、fit
+  manifest 与离线验证 receipt。诚实表述固定为“一次不可判定 operational abort，随后一次相同协议的
+  可判定执行”；attempt-001 后没有再次 fit，也没有 retuning。
+
+该 PASS 仍只是后续 Windows/CUDA 真实 residual actuation 因果包的 model-bound 前置件：没有独立
+subject、长陪伴/多 session、32K 用户可见生成、PE-credit gate 学习或 product ACTIVE，因此不证明
+完整 Readable、Steerable、Learnable、Appendable 或四能力闭环。当前 recipe 不得再次执行；现有根只
+允许 GPU-free 离线复验，任何新 fit 都必须先冻结新的 protocol id 并重新独立主审：
+
+```powershell
+$env:PYTHONNOUSERSITE='1'
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_steering_artifact_fit.py `
+  validate-existing --output-dir `
+  artifacts\relationship_lab\p4_windows_cuda_steering_fit_qwen25_15b_20260822
+```
+
+### P4.6-actuation canonical physical residual preflight（已实现，host-blocked）
+
+下一单一因果包由 `vz-runtime.agent.relationship_p4_physical_residual_actuation` 唯一编排，冻结 protocol
+`c6cb84f0ba174d575f901c25e70f20421ebb232d6b9a7c18892f31ee33413244`。它在构造 GPU runtime 前先调用
+P4.6-fit 的 GPU-free validator，并硬 pin 原 fit artifact id `57b59b26…cbe04`、bundle SHA
+`6d6047bd…73249`、fit manifest SHA `bd40a810…61415`、campaign id `67760e78…4ef31`、campaign
+manifest SHA `41ed7a2d…40007b`，以及 model / revision / weights / execution assets / profile /
+attestation / layer 20 / width 1536 / rank 8 / cap 0.25。只给 standalone bundle、同 protocol 的整体重封
+替代根或任一 lineage 漂移都 fail loudly。
+
+冻结数据是 seed 20260822 的 synthetic ETA heldout surface：68 个唯一 prompt，八类配额为
+`9/9/9/9/8/8/8/8`，prompt-set SHA `866318c5…0207`，每条精确重复两次。每个 sample-repeat 共享一次
+base capture 和一次 reset 后的正式 `SteeringSensorModule` belief，然后执行四臂：
+
+1. `raw_no_intervention`：只保留 base capture，不调用 executor/direct hook；
+2. `strict_noop`：正式 conditional executor 在 SHADOW / explicit ungated NOOP 下产出全零 delta，随后仍
+   调用一次 `apply_direct_residual_delta` 的 zero-delta forward；
+3. `conditional_always_on`：同一 base snapshot/belief 经正式 conditional executor 计算有界 delta，再
+   显式调用一次 direct hook；
+4. `sensor_off_always_on`：同一 base snapshot/belief 经 matched sensor-off executor 计算有界 delta，再
+   显式调用一次 direct hook。该 executor 的 U/V/condition code 是独立拟合的 matched-capacity
+   unconditional control，不是共享 operator 的纯 sensor ablation。
+
+owner 只在一次 `runtime.capture` 或 `apply_direct_residual_delta` 成功返回后写 invocation ledger；offline
+从 136 份 receipt 重建 `136 capture + 408 direct apply = 544`。这是真实 forward-bearing runtime API
+return 计数，不是硬件计数器；一调用一 forward 由冻结 adapter/backend source contract 支撑。receipt
+保留 raw residual 与 token logits，GPU/torch-free validator 重建 frozen `SubstrateSnapshot`，reset 并调用
+正式 sensor / executor owner，逐字段重算 belief、NOOP/conditional/sensor-off delta、norm/cap、code row
+与 control energy。GPU applied output 只能称内容寻址 run receipt 的观测，不能声称可由 bundle 离线推导。
+停止门要求 raw/noop exact、zero delta/effect、两个非零 arm 有限/有界且 applied residual 改变、两 operator
+hash 不同、两次 repeat exact、conditional 至少两个 code row、sensor-off rows identical 和 invocation
+ledger exact。安全阈值失败发布 `failed_stop_no_retuning`；契约错误不发布并 fail loudly。
+
+实现经两次独立 CPU-only fake-runtime 路径复核为 `10 passed`，import-boundary 为 `2901 passed`，Ruff /
+format、14/14 physical source hash、原 12/12 fit source hash与 no-torch protocol load 均通过。但主 agent 在
+第三次 CPU-only 专测复跑中，于八个测试完成后收到 Python `0xC0000005`；崩溃前 13 秒 Windows 同时记录
+两条 `WHEA-Logger 19 / Processor Core / Corrected Machine Check / Internal parity error / APIC 32`。近
+120 天本机另有 96 条 WHEA 19、5 条 WHEA 1、66 个 Python AppCrash archive 与 16 次 bugcheck；主板仍为
+MSI PRO Z790-P WIFI BIOS `A.B0`（2024-01-10），microcode registry revision `0x120`。因此 physical GPU
+run 没有启动、没有发布 output，当前协议被 host-stability gate 阻断。block receipt SHA-256 为
+`5e02aec731db429fa699176edd8cd6cf44c52e68193c6a0d22c32112c8c4a34f`。
+
+恢复资格必须先由人类更新到 MSI 当前 BIOS（含 Intel microcode `0x12F` 或以后版本）、加载 Intel Default
+Settings，冷启动并核对有效版本；随后另开内容寻址 host-stability qualification，要求不新增 WHEA machine
+check、access violation 或 bugcheck。不得用 process affinity、反复重试或一次短 PASS 替代固件/设置修复。
+该包即使未来 PASS 也只证明 synthetic proxy 上 exact frozen Qwen 的物理 residual effect；不证明关系语义、
+用户可见生成、PE learning、32K、独立 subject、长陪伴、多 session、production ACTIVE 或四能力闭环。
+
 ## 10. 回滚与下一包
 
 P0 无 runtime wiring。回滚只需停止 lab runner/consumer 并移除 scenario package；
@@ -1215,3 +1468,29 @@ P4.2 同样不新增产品 wiring。回滚可停止 mutation drill 和上游 con
 `SocialRecordStore` v3 的 redaction receipt/tombstone 必须保留；不能降级为 v2 后让已删除证据
 复活。完全退出条件是所有 consumer 不再发送 mutation command，旧 v1/v2 snapshot 仍可读取，
 且迁移工具显式保留 v3 tombstone；不得通过手工改 schema 或删除 receipt 回滚。
+
+P4.4 同样不新增产品 wiring。回滚只需停止运行/消费 `relationship_lab_p4_pe_learning`；已发布的
+create-only report 与 checkpoint lineage 按原 hash 保留，P2d reader、P3/P4 产品 gate 和 production
+SHADOW 边界不变。
+
+P4.5 也没有产品 wiring、slot 或新 owner。回滚只需停止
+`run_relationship_lab_p4_cross_process_appendable.py` 并停止消费该离线 report；create-only state、
+request、receipt 与 report 按原 hash 保留，不能删除后用新 PID/nonce 覆盖。P4.5 的退出条件是 Windows
+real-child hydration、empty control 与 same-stage donor lineage 均可离线复验；当前已满足。下一单一
+因果包不得重复调 prompt、场景、reader、PE-credit 或 hydration intervention，应固定既有组件，
+隔离 Windows/CUDA 真实 model residual actuation，并为 attention backend、KV cache、完整 prompt
+residual capture、context budget、strict noop 与 fallback-deny 发布可检查 attestation。
+
+P4.6-fit 不新增 runtime slot、产品 wiring 或新的 reader/executor 数学 owner。回滚只需停止
+`run_relationship_lab_p4_steering_artifact_fit.py` 并不再消费其 create-only artifact；已发布 bundle、
+fit report、execution attestation、manifest、campaign receipt 与 attempt-000 incident 必须继续按原
+hash 保留。预注册主审、精确 Windows/CUDA fit 与离线重建均已完成，P4.6-fit 退出条件已满足；下一个
+真实 residual actuation 包只允许先验证完整 artifact root，再只读消费该 bundle。当前 PASS 不授权
+独立长期实验、production ACTIVE 或四能力结论，也不允许再次运行同一 recipe；回滚 consumer 时不删除
+任何已发布证据。
+
+P4.6-actuation 同样不新增 slot、产品 wiring 或数学 owner。代码回滚只需停止新 CLI 并不再消费其未来
+create-only output；当前没有 physical run artifact 可删除。host block receipt 必须按原 hash 保留。
+退出条件不是“某次测试碰巧通过”，而是 BIOS / microcode / Intel Default Settings 完成人工修复、新的
+host-stability qualification 通过、protocol 14 个 source hash 仍匹配，再经独立 run gate 放行。任何
+source 漂移都先产生新 protocol id；不得在当前不稳定主机上重试以挑选 PASS。
