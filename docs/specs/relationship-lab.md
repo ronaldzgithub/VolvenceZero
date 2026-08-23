@@ -72,6 +72,44 @@
 > nonce、版本、raw file 与 owner payload hash；correct/empty forecast presence 改变 `16/16`，
 > correct/swapped 推荐动作改变 `14/16`。artifact `675815b9…2052` 仍是 seen/post-selected、
 > `independent_subject_count=0 / formal=false` 的 Appendable development preflight。
+> P4.7 v1 zero-output design `5387516a…6d2e` 在首条 subject/model/CUDA-formal/outcome output 前被
+> v2 `666d2e85…3baf` 取代；v2 随后也在同一零实证输出边界内被权威 v3
+> `9f352778…a282d` 取代。v1/v2 preparation `899b7b0a…6901` / `795dea07…a8bd` 原样保留且禁止执行；
+> v3 继续冻结 `32/64/192` 个独立 analysis root、九臂、8 个唯一 confirmatory contrast、one-shot
+> qualification、保守 192-root ITT、实际效应门、Holm FWER 与因果相关 32K input receipt，并补齐独立
+> nonreused donor bank、typed utility/逐 decision ITT、baseline 精确 bootstrap/确定性 candidate selection、
+> counterfactual-twin proxy audit、全九臂 generated-action lineage、host-time counterbalance 与完整 power DGP。
+> v3 preparation `c5a708ae…f42e` 仍只是 zero-output design freeze。历史 power-bound v1
+> `735b20a1…f3fa` / artifact `fad6c105…9518` / certificate `682efba8…e70e` 的精确算术正确，但其
+> `0.62046904104455107035` 只在“+1 correlation 最大方差 witness 是 Cartesian filter 前 mandatory sentinel”
+> 的后发条件下成立；v3 没有冻结该顺序，witness 的 ICC/cross-correlation `+1` 也不在 v3 显式 labels 中，
+> 故 v1 的 unconditional scientific admission 已被红队否决。power-admission v2
+> `67d294fa…6bc9`（artifact `9883e107…4ee9` / certificate `cd6ceca0…36b3`）随后在零输出下判
+> `power_contract_under_specified_no_development_authorization`；它与 v3 一并保留为历史 lineage。
+> 当前权威是 v4a zero-output planning protocol `63e007b7…08753`（raw `d06b0710…00e0a`）、artifact
+> `08245400…e56c1` / certificate `b7e95f14…6c764`，状态
+> `v4_planning_contract_frozen_full_joint_planner_pending`。它已使 planning contract
+> `determinate=true`，冻结 sentinel/grid-membership、skip-witness、planning-mean/missingness、generated-action
+> 分类与六 candidate-cell/640-block abstract schedule；但 576 个 source-conditioned tuple 尚未判 feasibility，
+> `full_joint_grid_completed=false / selected_formal_root_count=null / v4_power_passed=null /
+> v4_power_failed=null`。126 个 N 均有独立 exact-hex screen，且实际 `1088=PASS → 1152=FAIL`；N=1856 也仅是
+> Hoeffding gate 能力候选，三者均不构成选定 N。source/subject/donor/twin/baseline/model/CUDA/power
+> simulation/empirical output 仍为 0，全部执行
+> 授权为 false；下一顺序固定为 source preflight→feasibility→search→one-shot confirmation→v4b，
+> 当前不新增任何四轴证据。
+> source-opportunity 的 zero-output contract freeze 随后已发布：protocol
+> `47bcf656…6494a`（raw `9d4d3ab5…c40b0`、helper raw `72efc093…46f8`），artifact
+> `8a36d2de…0a99` / certificate `64d879c4…c95a` / projection `b8b7823a…e6f1b`，状态为
+> `source_opportunity_preflight_contract_frozen_zero_output_inventory_materializer_not_run`。它只冻结 typed
+> blueprint、root/prefix、hidden fact orientation、Latin stratum rotation、typed utility、final-32K twin transform 与
+> generic-decision 512-atom planning marginal；当前没有 external publication anchor，故 structural inventory
+> materialization、tuple feasibility、model/CUDA 与全部执行授权仍为 false，四轴证据没有增加。
+> A0 external-publication request 经红队收紧后已重新在本地冻结：protocol `dedfc7ff…4bee`（raw
+> `38ce85d4…a8c6`、`16006` bytes），request `7897e328…89d1`（raw `0d5147cd…3057`、`12115`
+> bytes），artifact `5496fa80…2900`。它只承诺未来 public GitHub Gist 第一 revision 应发布的精确 request
+> bytes；当前 private origin 不算 publication，request 尚未 dispatch，publication/observation/A0 admission 均未发生，
+> 所有 materialization/source/model/CUDA/四轴 authority 仍为 false。即使未来 A0 receipt 有效，也必须在
+> materializer 实现后另过 A1，A0 receipt 本身不能授权 materialization。
 >
 > 产品路线：`docs/moving forward/relationship-intelligence-mvp-plan-2026-08.md`
 
@@ -114,7 +152,18 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P4.5 cross-process hydration preflight owner | `lifeform-evolution.relationship_lab_p4_cross_process_appendable` | 以 create-only request/receipt/state/report 冻结真实 child-process 的 `OwnerHydrationStore` 链；只比较 correct / empty / same-stage swapped prior state，不新增 owner 或 runtime slot |
 | P4.6-fit model-bound artifact prerequisite owner | `volvence_zero.agent.relationship_p4_steering_artifact_fit` / `vz-runtime` | 只用 canonical strict substrate factory 构造精确 Qwen2.5-1.5B runtime，并把一次 reader/conditional executor/matched sensor-off fit 委托给既有 `fit_steering_artifact_bundle` owner；不复制数学、不接产品 wiring |
 | P4.6-actuation physical residual preflight owner | `volvence_zero.agent.relationship_p4_physical_residual_actuation` / `vz-runtime` | 认证精确 P4.6-fit 根后，以既有 sensor / executor / strict substrate direct hook 跑四臂 synthetic physical-effect preflight；只编排与发布证据，不复制 reader/executor 数学、不生成回复、不接产品 wiring |
-| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l,packet1m_qualification,p4_named_reader,p4_pe_learning,p4_cross_process_appendable,p4_steering_artifact_fit,p4_physical_residual_actuation}.py` + `scripts/generate_relationship_lab_packet1m_dataset*.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1m/P4.3–P4.6，或冻结/评分人工盲标 packet |
+| Product Horizon source owner | `lifeform-domain-emogpt.lab.relationship_product_pilot_source` | 冻结 8 个 matched world clone 的 4 onboarding + 24 decision 公开源，并在不同 frozen value 中持有 environment seed、scene/policy/preferred action 等 sealed evaluator truth；SUT payload 永不含 sealed 字段 |
+| Product Horizon pulse owner | `lifeform-domain-emogpt.lab.relationship_product_pulse` | 只编排正式 `preference_about_other` owner、named condition reader、`dialogue_external_outcome`→PE→credit 与 `RelationshipActionGate`；发布 onboarding / pre-action / settlement frozen snapshot，不复制 memory、PE、credit 或 gate 数学 |
+| Product Horizon strong-baseline owner | `lifeform-evolution.relationship_lab_product_{baselines,model_adapters,baseline_dispatcher}` | 在逐 decision 公开账本边界内运行 revision-pinned Qwen chronological full-history 与 BGE selective-RAG；一个 resident 模型进程执行 stateless calls，逐请求冻结 token、truncation、retrieval、generation 与 ledger lineage |
+| Product Horizon campaign owner | `lifeform-evolution.relationship_lab_product_horizon` | 执行 5 条 typed Volvence targeted-intervention arm 和 2 条强基线；每个 Volvence logical session 使用 fresh child，父进程在 pre-action receipt fsync 后才提供 typed outcome，全部 action 结束后才发布 sealed sidecar；离线 validator 重算环境、链、指标与报告 |
+| Relationship named-action residual fit owner | corpus adapter：`lifeform-domain-emogpt.lab.relationship_residual_fit_corpus`；数学 owner：`volvence_zero.agent.named_action_steering_artifact_training` | 只把 pre-action owner forecast + 非 oracle、PE-trained typed gate 投影为 disjoint named-action corpus；在冻结 substrate 上拟合 reader / bounded multiplicative executor / matched sensor-off，strict-noop 为零 code；v1 仅为 typed enum residual prerequisite |
+| P4.7 independent long-context design-prereg owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 以 v1/v2/v3 registry 保留两代被执行前红队取代的 zero-output design；当前 v3 在零 subject/model/CUDA-formal/outcome output 与零 subject/donor/twin/power-DGP materialization 时冻结独立 cohort/donor bank、exogenous/endogenous 边界、九臂 realized intervention、因果相关 32K、typed endpoint、逐 decision ITT、精确统计/power/停止门与未来 execution-envelope admission；只允许 create-only preparation/离线复验，不实现或授权执行 |
+| P4.7 power-admission owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 原样保留算术正确但 scientific-admission 失败的 historical v1 与 v3 欠规定终局 v2；不生成 full joint DGP/source/subject/donor/twin/model/CUDA/simulation output，也不授权任何执行阶段 |
+| P4.7 v4a planning owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 以 frozen `RelationshipP4LongContextV4PlanningProtocol` 发布 `RelationshipP4LongContextV4PlanningFreeze`：只冻结确定的 planning primitives、576-tuple membership/witness contract 与六 candidate-cell/640-block abstract schedule；不选 N、不完成 source grid/full planner、不新增 runtime slot 或执行授权 |
+| P4.7 source-opportunity zero-output preflight owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 以 frozen `RelationshipP4LongContextSourceOpportunityPreflightProtocol` 发布 `RelationshipP4LongContextSourceOpportunityPreflightCertificate`：只投影 source structural contract、精确有限 inventory/digest 与后续 create-only materializer envelope；external anchor 前不授权 materialization，不发布 source row/tape/twin pack/planning atom，也不进入 tuple feasibility |
+| P4.7 A0 external-publication request owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 以 frozen `RelationshipP4LongContextExternalAnchorRequestProtocol` 发布本地 create-only `RelationshipP4LongContextExternalAnchorRequest`；只绑定 public Gist A0 request 的精确 bytes、五个 publication subject 与未来 receipt/admission 要求，不执行网络请求，不把 private origin 当 publication，不授权 materializer 或任何下游阶段 |
+| P4.7-E0 最低行业基线 admission owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 在首条 P4.7 model development output 前，冻结 strong naive ICL/full-history、selective-RAG、CAST-like static gate、oracle-condition executor、direct-patch upper bound 与 strict-noop/reliability 审计；只发布可诊断性 admission，不新增 confirmatory arm，不把外部标签或 judge 回灌学习 |
+| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l,packet1m_qualification,p4_named_reader,p4_pe_learning,p4_cross_process_appendable,p4_steering_artifact_fit,p4_physical_residual_actuation,p4_long_context_causal_campaign,p4_long_context_power_bound,p4_long_context_v4_planning,p4_long_context_source_opportunity_preflight,p4_long_context_external_publication_anchor,product_baseline_dispatcher,product_horizon,relationship_residual_fit}.py` + `scripts/generate_relationship_lab_packet1m_dataset*.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1m/P4.3–P4.6，执行/离线复验 development-only Product Horizon 与 relationship typed-residual prerequisite，冻结/复验 P4.7 design prereg、历史 power-admission、preserved v1 history、v4a zero-output plan、source-opportunity zero-output contract 或本地 A0 publication request，或冻结/评分人工盲标 packet |
 
 硬边界：
 
@@ -1132,6 +1181,10 @@ preferred action 或 environment seed；这些只存在于独立 evaluator bundl
 Volvence closed-loop、Volvence typed-noop control；至少 20 名独立 subject、每人 8 次决策，
 最后一次公开 context 至少 32768 tokens。当前 P1k/P1m 未关闭，所以两个 Qwen 臂只冻结
 合同，禁止生成 output。development runner 只比较后两个 typed-action 机械臂。
+P4.7 的零输出 feasibility audit 进一步确认：原 P4.6 strict profile 的 native window 本身只有
+32768，无法同时容纳 32768 个 public-history token、system/request overhead 与至少一个生成 token；
+因此后续 full-history formal 不得复用该 profile 或静默截断，必须先冻结并验证 native window
+至少 65536 的新 relationship-domain artifact。该修正提高执行前置门，不回写或美化 P4.1 旧结果。
 
 Lab ACTIVE authorization 由 protocol hash + v3 fingerprint + gate artifact/version 内容寻址，
 只允许非 oracle action 通过 `self_temporal` 进入 `ReactiveRelationshipEnvironment`。
@@ -1387,6 +1440,572 @@ check、access violation 或 bugcheck。不得用 process affinity、反复重�
 该包即使未来 PASS 也只证明 synthetic proxy 上 exact frozen Qwen 的物理 residual effect；不证明关系语义、
 用户可见生成、PE learning、32K、独立 subject、长陪伴、多 session、production ACTIVE 或四能力闭环。
 
+### Product Horizon v1（development product-level long-horizon pilot）
+
+Product Horizon v1 是为了尽快得到可用于产品决策的长视野结果而新增的 development lane；它不修改、
+不取消，也不冒充下节 P4.7 的 formal independent campaign。source owner 冻结 8 个 matched
+`world_clone_id`，每个 subject 有 4 个 onboarding session 和 24 个 chronological decision session。
+`RelationshipProductPilotPublicView` 只含公开 context、current input、correction target 与闭合 action surface；
+environment seed、scene、condition、policy、preferred action 和 outcome truth 只存在于分离的
+`RelationshipProductPilotEvaluatorBundle`。campaign protocol 同时 pin source protocol raw bytes、source
+implementation、public plan 与 sealed bundle，任一漂移都 fail loudly。
+
+一次完整 run 固定七臂：
+
+1. `volvence_full`：恢复本人上一 session 的 owner boundary 与 learned-gate checkpoint；
+2. `appendable_frozen_onboarding`：每次 decision 都从同一个 post-onboarding owner boundary 开始，但保留
+   gate checkpoint；这是状态追加的 targeted intervention，不是纯单变量 memory contrast；
+3. `readable_permuted`：在正式 owner proposal 边界施加确定性的 stay/space 读出路径置换；
+4. `credit_withheld`：仍从真实 settlement 派生 PE/credit，但不把 credit 应用到 gate；
+5. `strict_noop`：保留 owner/readout/PE derivation，typed executor 强制 `neutral_noop`，且禁止捏造未执行
+   action 的 counterfactual gate update；
+6. `native_full_history`：revision-pinned Qwen2.5-1.5B chronological public-history baseline；
+7. `selective_rag`：同一 Qwen 与 generation config、revision-pinned BGE-M3 public-history top-k baseline。
+
+前五臂的每个 logical session 都启动 fresh child。decision child 只能先读取本 session 的公开 request 与
+本人 frozen state，必须把 pre-action receipt 写入并 fsync；父进程核验 receipt 后才在 sealed reactive
+environment 中结算实际 selected action，并仅把 typed external outcome / owner outcome evidence 发回同一
+child。child settlement fsync 后退出。sealed evaluator bundle、preferred-action sidecar 与 aggregate report
+只能在所有 Volvence child 和 resident baseline action 都结束后发布。该顺序是经过审计的 request/phase
+firewall，不是 OS sandbox 或恶意代码安全边界；report 必须固定 `os_security_boundary=false`。
+
+两条强基线只消费逐 decision `ProductBaselinePublicLedger`。请求显式绑定 public-plan artifact、subject scope、
+decision boundary、ordered source session/block、每个 history/current ledger entry 与完整 public input；resident
+dispatcher 在 generation 前逐层重算 canonical artifact。Qwen revision 固定为
+`989aa7980e4cf806f80c7fef2b1adb7bc71aa306`，native context window 为 32768，generation reserve / max-new
+均为 64，temperature 0、top-p 1、sampling disabled。超窗只允许按完整公开 block 从最旧端截断；不得截断
+单个 block。BGE-M3 revision 固定为 `5617a9f61b028005a4858fdac845db406aefb181`，正式路径禁止 stub；
+precomputed table 与 live exact-text cache 都必须绑定 source + revision。
+
+primary window 是 decision index 12–23，主要终点为 positive typed-outcome rate；安全终点是
+`missed / over_directive` rate。development admission 要求 full 相对四个 targeted comparator 和两条强基线
+的 matched-subject mean 至少高 0.05、至少 6/8 subject 为正，并且 full 的安全负面率相对任一 comparator
+增量不超过 0.02。这里没有 confirmatory CI、Holm family、真人 outcome 或独立外部 source；所有差异都只能
+称 targeted-intervention directional effect，protocol 固定
+`single_axis_contrast_claim_authorized=false`。
+
+run 先在 sibling temporary root 写 create-only canonical evidence，完成后 atomic rename，最后才发布 manifest。
+GPU/model-free `validate-existing` 必须从 pinned source 和每条 chain 重算 environment outcome、public ledger、
+primary/safety metric、targeted comparisons、report 与整棵文件树；只验证表面 hash 不足以通过。即使七臂全部
+过门，本包仍固定 `residual_steerable=false / user_visible_generation=false / four_able_complete=false /
+human_product_validation=false / production_active=false / formal_evidence_authorized=false`。回滚只需停止新的
+campaign/dispatcher CLI 并不消费其 immutable artifact；既有 runtime wiring 与 P4.7 formal design 均不变。
+
+关系域 residual 是并行而分离的 prerequisite：domain adapter 只能把 pre-action owner forecast 与
+非 oracle、已有 PE update 的 typed gate decision 投影为 train/heldout subject-disjoint corpus；`vz-runtime`
+数学 owner 在冻结模型上拟合 named-action reader、bounded multiplicative executor 和 matched sensor-off。
+v1 scorer 只衡量 restricted enum first-token NLL，实际消费端必须把 residual-selected enum 再 canonical
+serialize 为严格 action JSON。因此该 lane PASS 仍不等于 raw strict-JSON generation、用户可见回复改变、
+Product Horizon 长期效果或完整 Steerable；这些主张必须等后续 physical consumer 分臂实验。
+
+### P4.7 independent long-context four-axis causal campaign（zero-output design freeze）
+
+P4.7 的唯一 owner 是
+`lifeform-evolution.relationship_lab_p4_long_context_causal_campaign`。v1 protocol
+`5387516a803940a738e13bb47acc8a40b837c3f033797e09dbfaa23c6cda6d2e` 与 preparation artifact
+`899b7b0adc395186e108dc0a90c28c0d25ce67cd5445f61636cc2775d09b6901` 均为零输出；独立科学、
+validator 与文档红队在执行前发现 practical gate、统计 estimand/missingness、reactive exposure、realized
+single-variable receipt、32K 因果相关性和 nested validator 的 P1 缺口，故 v1 原样保留为
+`preserved_zero_output_design_only`，禁止重新 prepare 或被 execution envelope 消费。
+
+v2 protocol
+`666d2e8546cd4b4cf55ece06354310e10b4dc07298241b94ef9593e4b5f63baf` 与 create-only preparation
+`artifacts/relationship_lab/p4_independent_long_context_causal_campaign_design_prereg_v2_20260823/`
+（artifact `795dea07eabda98c964ca50ee84694fd93bb6ee27fdd0370db7e6cb3ef01a8bd`）也在任何新 subject pack、
+baseline answer、model generation、CUDA formal run 或 formal outcome 之前冻结。后续红队发现 v2 的 swapped
+donor 会让 analysis roots 共享被试状态，typed utility 与逐 decision missingness 未闭合，baseline bootstrap/
+candidate selection、counterfactual proxy、全九臂 generated-action scope、host-time counterbalance 与 power DGP
+仍不能唯一重算，因此 v2 也原样降为 `preserved_zero_output_design_only`，不得被 execution envelope 消费。
+
+在 v4a supersession 前，最后一个 design authority v3 protocol 是
+`9f352778e128a9573790762222a05225740bdaeb732800dec0eec124116a282d`，bundled raw SHA-256 为
+`ea8a17a14a68802d3b60586bf520c9137e6920be4112c951ec8c69f5e6ea359e`。它同样在全部三代均为零
+subject/model/CUDA-formal/outcome output 时冻结；create-only preparation 发布于
+`artifacts/relationship_lab/p4_independent_long_context_causal_campaign_design_prereg_v3_20260823/`，artifact id
+`c5a708ae5e68261fddbade165b45579e66e4bbe7db1be1f4a83056561a17f42e`。owner 的不可变 v1/v2/v3 registry
+使 `validate-existing` 从 artifact 内冗余 protocol id 自动分派；v1/v2 artifact 仍可无参数复验但均显示
+superseded，默认 `show-protocol / prepare` 只指向 v3。
+
+当前模块只有 `show-protocol / prepare / validate-existing`，没有 session worker、resume、finalize、`--force`、
+环境变量 override 或 formal-run API；v3 preparation 固定 `execution_enabled=false /
+formal_run_authorized=false / model_output_count=0 / subject_pack_materialization_count=0 /
+donor_bank_materialization_count=0 / counterfactual_twin_materialization_count=0 /
+power_dgp_artifact_count=0`。未来 execution envelope 只能增加模型、artifact、host、subject/donor/twin pack、
+power/source preflight 与审计 lineage，禁止修改本 design 的 arms、cohort、endpoint、阈值或停止门。
+
+#### P4.7-E0 最低行业基线 admission（先完成关系实验，再按失败 owner 回流）
+
+P4.7 不要求在执行前吸收全部外部持续学习或 activation-steering 系统，也不得为了“理论上更完整”继续扩写
+controller、memory owner 或场景版本。正式 long-horizon development 的前置目标只是证明实验具有最低限度的
+**可诊断性**：当纵向结果失败时，能够区分上下文基线、状态追加、静态条件控制、执行器 authority 与在线
+PE-credit 学习，而不是再次得到无法归因的混合失败。该前置包记为 `P4.7-E0`，唯一 owner 仍是
+`lifeform-evolution.relationship_lab_p4_long_context_causal_campaign`；它只消费正式 owner 发布的冻结快照和
+P4.6 工件，不新增 runtime slot、第二语义 owner 或产品 wiring。
+
+P4.7-E0 必须在任何 P4.7 subject/model development output 前发布一份 create-only、内容寻址的 admission report，
+至少冻结并验证下列行业基线/诊断：
+
+| 最低基线或诊断 | Volvence 中的精确定义 | 回答的问题 | 失败路由 |
+|---|---|---|---|
+| stateless / strict noop | current-turn-only、零 owner hydration、residual delta 精确为零；模型、prompt、generation budget 与其他臂一致 | 系统开销或接线是否已改变基线行为 | runtime / strict-noop owner |
+| full recent-context / naive ICL | 在 native window 和同一 public-token budget 内，按时间顺序提供允许的最近原始公开经历；不得读取 sealed truth、owner snapshot 或 evaluator 字段 | Appendable 是否有超过强普通上下文的必要 headroom | baseline/context owner |
+| selective-RAG steelman | 使用冻结 retrieval/index/config，只检索公开经历并发布完整 retrieval receipt | 增益是否只是普通检索 | baseline/RAG owner |
+| CAST-like static conditional gate | 固定 reader、executor、condition threshold、layer/dose 与 strict noop；不消费 PE/credit，不做在线 update | learned gate 是否相对静态条件控制存在独立 headroom | temporal gate owner |
+| oracle-condition bounded executor | evaluator 只提供冻结 typed condition，仍经正式 bounded executor；不得把目标 action 直接注入 consumer | 执行器在条件正确时是否能改变目标 action | executor owner |
+| direct residual/state patch upper bound | 只在独立 diagnostic split 上做有界 direct patch/swap，报告 signed effect、dose-response 与 already-correct damage；不进入纵向 endpoint | 当前 substrate/layer/action surface 是否具有因果 control authority | substrate / model / action-decoder owner |
+
+`full recent-context / naive ICL` 与既有 Qwen full-history steelman 必须在 admission report 中显式声明是否为同一实现；
+若不是，二者都要冻结和报告，禁止用弱 full-history prompt 冒充 naive ICL。CAST-like static gate 不是
+`learnable_credit_withheld` 的同义词：后者是 exact PE-credit 单变量对照；前者必须是执行前冻结、全程不更新的
+条件策略。oracle-condition 与 direct patch 只作诊断上限，不进入 memory、PE、credit、gate 训练，也不参与
+P4.7 confirmatory utility estimand 或 Holm family。
+
+所有候选在看到 P4.7 development output 前冻结。P4.7-E0 不允许以“选最好结果”建立基线：naive ICL、RAG 与
+static gate 的 prompt/config/threshold 最多只在独立 calibration split 上按预注册有限候选机械选择，发布全部候选、
+选择顺序和失败记录；qualification 只运行一次。readout/executor 还必须通过跨表面 heldout、direction coherence、
+per-sample signed effect、reverse-effect、dose-response、already-correct damage、无关 utility tax 与 strict-noop identity
+只读审计。human/evaluation/judge 只作验证锚，不得回写 PE、credit 或策略。
+
+P4.7-E0 的执行门为：
+
+1. direct patch 上限没有稳定同向非零效果，或 oracle-condition bounded executor 也不能改变目标 action：发布
+   `substrate_control_floor_stop`，停止 P4.7 model/longitudinal execution；下一包只能处理 substrate、layer、executor
+   或 action decoder，不得用更长轨迹、更多 gate 或新 prompt 掩盖；
+2. strict noop 非恒等、跨 subject hydration 隔离失败、baseline invalid，或 PE/outcome lineage 不可重放：发布
+   `instrument_or_baseline_invalid_stop`，修复对应 owner 后用**新的** admission artifact 资格，不运行 P4.7；
+3. static gate 与 oracle gate/executor 之间没有预注册的 per-instance headroom：允许保留 Appendable/Readable/
+   Steerable 局部研究，但完整 Learnable/integrated long-horizon claim 发布 `no_learned_gate_headroom_stop`，不为追求
+   四轴结论扩大 formal；
+4. 上述门全部通过：只发布 `minimum_industry_baselines_admitted_for_first_long_horizon_attempt`。该判词只授权进入
+   当前冻结顺序的首次 long-horizon development，不证明任一 able、系统优势或 production ACTIVE。
+
+既有 v1/v2/v3 九臂与 v4a 六 candidate-cell abstract schedule 均保持原 hash，不因本节追溯性增加、删除或重命名
+confirmatory arm。P4.7-E0 中未映射为现有 confirmatory arm 的 static/oracle/direct-patch lane 是执行前 admission /
+diagnostic lane；未来 execution envelope 只能引用其内容寻址报告。若要把任何新 lane 升为 confirmatory comparator，
+必须在零 P4.7 model output 时另立新 design protocol，并显式终止而不是改写 v4a；一旦已有任何 P4.7 development
+output，则禁止扩 arm 或换 estimand。
+
+通过 P4.7-E0 后，研究顺序固定为“完成首次冻结的 Relationship long-horizon attempt → 发布诚实终局 → 按失败
+owner 主动寻找对应业界机制”。首次终局无论 PASS、FAIL、INCONCLUSIVE 或 INVALID 都不得回流同一 split 调 prompt、
+阈值、reader、executor、gate、memory policy、场景或样本量。后续只能：
+
+1. 保留原 protocol、ledger、report 与 output bytes；
+2. 从失败报告选择一个唯一 owner 和一个可证伪未知量；
+3. 将外部成果归类为 `Adopt / Adapt / Baseline / Watch / Reject`，只建立一个单变量收敛包；
+4. 在独立 calibration/diagnostic 数据开发并冻结新 artifact；
+5. 使用新的未见 qualification split 验证，禁止覆盖或美化首次终局。
+
+因此，小环境此后只承担 strict noop、恢复/隔离、direct actuation、PE/outcome lineage 与 baseline validity 的
+admission，不再承担四轴产品效果证明；P4.7 long-horizon 才回答四轴组合在足够长、需要持续状态的环境中是否产生
+超过强 ICL/RAG/static-gate 基线的系统增益。
+
+#### 首次终局后的问题 → 确定性研究领域路由
+
+外部研究只在首次冻结终局发布后用于**解释一个已观测问题并提出 challenger**，不能替代本仓未见数据、真实
+substrate、typed outcome 或 PE-credit 证据。这里的“确定性研究”指已有重复实验、成熟消融方法、公开工具或稳定
+工程范式可供复现，不表示其结论自动迁移到当前 Qwen、关系域或 Volvence owner。权威机制与采纳等级清单见
+[`research/continual-deep-learning-2026-08/04_REUSABLE_MECHANISMS.md`](../../research/continual-deep-learning-2026-08/04_REUSABLE_MECHANISMS.md)，
+未解决问题和 kill condition 见
+[`03_UNSOLVED_PROBLEMS.md`](../../research/continual-deep-learning-2026-08/03_UNSOLVED_PROBLEMS.md)。
+
+| 首次终局观察 | 先确认的诊断证据 | 唯一问题 owner | 可参考的确定性研究领域/资产 | 只允许借什么 | 禁止误用 |
+|---|---|---|---|---|---|
+| 同格式 readout 强、paraphrase/语言/角色变化后接近 chance | cross-view heldout、random subspace、calibration、causal patch | substrate residual publisher + cognition sensor | mechanistic interpretability；J-space/J-lens；Concept Vectors/RSA；causal representation analysis | future-token lens、跨视图 head selection、swap/ablation、domain-local 标注 | 把 top token 当完整关系状态；让 consumer 建第二 reader owner |
+| reader 能分辨，但 oracle-condition executor 不能改变目标 action | oracle condition、target margin、direct patch、dose-response | executor；direct patch 也失败时转 substrate/model/action decoder | representation intervention；ReFT/pyReFT；activation patching；causal tracing | learned low-rank subspace、layer/position selection、direct causal upper bound | 把 probe weight 直接当 steering vector；用 prompt 修饰掩盖 actuator 无 authority |
+| 平均 steering 有效，但逐样本反向、already-correct damage 或能力税高 | per-sample signed effect、reverse-effect、utility matrix、collapse point | steering executor + ModificationGate | steering reliability；per-instance multi-layer control；side-effect forecasting；FaithSteer 类 robustness evaluation | input-conditioned layer/dose、cross-effect matrix、utility/robustness promotion 门 | 用平均增益覆盖反向样本；把 hook 可用等同 production ACTIVE |
+| CAST-like static gate 已接近 oracle，PE-learned gate 无额外 headroom | static/oracle/applied/withheld 四路 matched audit | `vz-temporal` gate | conditional activation steering；contextual policy ablation；ETA latent-controller 研究 | condition/behavior 分离、oracle headroom、只在 `z_t` 的 bounded policy challenger | 为证明 Learnable 强行扩大样本；引入 token-space RL 或外部 judge reward |
+| oracle 存在 headroom，但 PE-learned gate 学不到或方向漂移 | frozen reader/executor、credit batch replay、checkpoint delta、delayed outcome | PE/credit owner → temporal gate | delayed credit assignment；temporal-difference/system identification；offline policy evaluation；ETA Internal RL | eligibility/credit 时序诊断、counterfactual replay、bounded gate update | 让 evaluation/human score 反向成为 reward；同时更新 reader/executor |
+| action 明显改变，但 N+1 PE/credit 不变或与真实 outcome 反向 | pre-action prediction、typed settlement、frozen N+1 target、counterfactual outcome | `vz-cognition` PredictionError / environment outcome owner | predictive processing；causal outcome modeling；system identification；control-theoretic residual analysis | outcome-sensitive target、mechanical counterfactual、时延/尺度校准 | 用表达质量或 judge 分数代替真实 settlement；由 consumer 重建 PE |
+| Appendable 不胜 full-history/naive ICL，或历史越长越差 | exact-vs-compressed 分层、write/retrieval ablation、stale-belief audit | `vz-memory` CMS owner | continual learning benchmark；CL-Bench；Titans/HOPE；TTT-E2E；Spurious Forgetting | strong ICL baseline、surprise salience、分频写入、exact/compressed 边界、route-vs-forgetting 诊断 | 默认 memory 有益；用 neural compression 取代 exact memory；整套搬入第二 memory owner |
+| 关系反转后仍沿用旧状态，或一次局部情绪被固化成长期人格 | reversal timeline、source timestamp、owner update/retire receipt、delete replay | relationship semantic owner + CMS owner | belief revision；concept drift/change-point detection；temporal knowledge representation；continual Bayesian filtering | 版本化 belief、变化点、衰减/退休、可撤销 provenance | 把 emotion/persona projection 当用户真值；用关键词规则决定关系身份 |
+| correct/empty/swapped 或不同用户之间出现状态串扰 | root/path/hash、fresh-process hydration、donor assignment、delete/restore drill | owner hydration / persistence boundary | event sourcing；database isolation；distributed-state consistency；property-based state-machine testing | append-only ledger、scope key、snapshot isolation、replay/idempotency | 用 deepcopy 或进程内缓存假装隔离；失败时静默回退空状态 |
+| long context 中 decisive fact 消失、被截断或 RAG 拉近后才有效 | tokenizer/input receipt、fact distance、attention/truncation、counterfactual twin | context carrier / retrieval owner | long-context evaluation；retrieval-augmented generation；exact associative memory；needle/counterfactual retrieval audit | native-window 事实距离、retrieval receipt、exact fact carrier、proxy audit | 把 RAG 拉近后的成功称为 32K internal readability；用重复事实制造捷径 |
+| 四轴各局部有效，但组合臂不胜强基线 | 八 contrast 分解、interaction effect、capability tax、rollback/delete | 由首个失败 contrast 指定唯一 owner；不得新建 integrated owner | factorial/mediation experiment design；multi-objective optimization；safe adaptive systems | 单变量 interaction/mediation 分解、Pareto 门、回滚演练 | 同时替换多个模块；只看 integrated 平均分而跳过局部归因 |
+| 结果方向有利但区间宽、root 间异质或欠功效 | root-cluster estimand、missingness、ICC、power replay | evaluation/power admission owner（只读） | cluster-randomized trial；sequential design；randomization inference；robust power analysis | 独立 root、cluster bootstrap/randomization、预注册停止门、异质性报告 | 把 decisions 当独立样本；看到结果后改 N、阈值或排除 root |
+
+路由决策必须由 terminal report 的冻结字段机械生成：`observed_failure → required_diagnostic → owner →
+research_domain → candidate_asset → next_unseen_qualification`。若同一终局同时命中多行，先处理数据流中最上游、
+能阻断下游解释的失败；一次只允许一个 active convergence packet。外部方案进入仓库前必须说明采用等级、唯一 owner、
+保持冻结的 collaborator、预期消除的未知量、kill condition 与回滚方式；未能形成这些字段时只能记为 `Watch`，不得
+修改 Relationship 主链。
+
+独立实验单位是 `subject_root`，不把同一 subject 的 session/decision 当作独立样本。development / one-shot
+qualification / sealed formal 分别预分配 `32 / 64 / 192` 个 disjoint analysis root；formal 少于 160 个全局
+complete paired root 时只能判 `inconclusive_underpowered`。Appendable swapped-prior 不再从这些 analysis root
+互相借状态：每个 split 另有同规模 `32 / 64 / 192` 的 nonanalysis donor bank，每个 analysis root 一对一分配
+唯一 donor；donor 不得复用、不得跨 split、不得与任何 analysis root 重合，也不进入 estimand 或 bootstrap。
+assignment/seed 在该 split 首条 output 前冻结，donor closed-loop trajectory 由同一冻结系统生成并在 target
+hydration 前封存；donor 失败不得 replacement，只把对应 target 的 swapped-arm decisions 标为缺失。
+
+primary 始终纳入全部 192 个预分配 analysis root。每个 root×arm 预分配恰好 8 个 evaluation utility slot；
+普通 crash/缺 outcome 在求 root mean **之前逐 decision** 以每个 contrast 对 Volvence 最不利的
+`reference=-1 / comparator=+1 / both-missing difference=-2` 结算，不得整 root/整 arm 提前替代、按 outcome
+排除或换 subject。truncation、cross-subject leakage、错误 intervention、evaluation→learning 泄漏或伪造
+receipt 不作缺失插补，而是整次 `invalid_attempt_no_claim`。每个 analysis root 使用唯一 surface family、seed、
+trajectory 与 arm-local adaptive root；source recipe、seed commitment、inventory/split hash 必须在首条
+development output 前冻结，避免把同一模板的 decisions 当成独立样本。
+
+每个 analysis root 在每个 arm 都有隔离的磁盘 owner root、gate checkpoint 与 adaptive state；只有
+`qwen_steelman_selective_rag` arm 使用隔离的 selective-RAG index，其他 full-history arms 不靠 RAG index。
+全程 4 次 onboarding、8 次 matched learning exposure、8 次冻结 gate 后的 policy evaluation，每个 session
+必须由真实 fresh OS process 从磁盘 hydration。跨臂 exact-match 只覆盖预冻结的 exogenous tape entry、
+hidden-step commitment 与 counter-based RNG slice；实际 action 驱动的 user reaction、settlement、
+environment/owner state 是 frozen transition function 的内生后代，允许自然分叉且逐臂发布 receipt。任何
+action/outcome 都不能改变未来 tape cursor、session 数或 reroute 到更容易事件；Learnable collection pair 因
+forced action、初态和 tape 相同，八次 reaction/outcome 必须逐字节相同。
+
+九臂共用 `volvence_closed_loop` 参照，另外固定 empty prior、same-stage swapped prior、同一 reader 输出的
+label permutation、`learnable_credit_withheld`、strict residual noop、matched sensor-off、Qwen full-history
+steelman 与 Qwen selective-RAG steelman。Appendable 的 correct/typed-empty/same-stage deranged donor 绑定 frozen
+assignment、独立 donor-bank split/root、owner schema/shape、source/copy/hydration bytes 与 fresh-process receipt；
+donor root 只供一个 target 的该 swapped boundary 使用，除此以外仍禁止 cross-subject retrieval。Readable
+保持同一 reader weights/code/calibration，只允许
+`/components/condition_label_map/artifact_id` 在 identity bijection 与无 fixed-point derangement 间变化；首个
+干预边界的 reader input 与 raw logits bytes 必须相同，consumer 只见 mapped frozen snapshot，不能旁路 raw
+index。Steerable primary pair 只允许 `/steering/executor_action`，sensor-off 只允许
+`/steering/sensor_condition_delivery` 且是必须通过 Holm 的 non-pure conditionality/capacity gate，不能单独支持
+Steerable 主张。删除允许路径后的 config hash、resolved artifact 与 realized input receipt 都必须相同。
+
+Learnable 主对照进一步去除逐拍更新导致的第二拍 checkpoint 混杂：8 个 learning session 只收集同一 forced
+action、actual outcome、prediction-error 与 exact credit batch，collection 期间 gate 不变；两臂都计算并发布
+同一 PE-derived credit。八次暴露后用同一 cold checkpoint、update operator/hyperparameters/RNG 发出一次 atomic
+batch command，唯一差异是 `/intervention/apply_exact_pe_credit`。withheld 臂 `post==pre / delta=0 /
+update_count unchanged`，applied 臂恰消费一次 batch；随即冻结 gate，后续 8 个 evaluation session 的 action
+必须由生成 policy 自主选择。evaluation、judge、human anchor 均只读，不能进入 memory、PE、credit、gate 或
+steering。v3 的 global action contract 覆盖全九臂、全部 frozen-policy evaluation decision：actual action 必须
+只来自 user-visible generated tokens，经冻结 deterministic closed-world parser 恰解析一个 candidate；禁止
+repair/reprompt/second parse 或 hidden direct-action bypass，delivered assistant bytes 必须等于 generated bytes，
+environment 只接收带 generation parent 的 actual-action receipt。唯一例外是 matched-learning collection 的
+预分配 forced action；它明确不进入 Steerable 或 evaluation endpoint。
+
+Steerable 的 residual exact-match 只发生在第一次 frozen-policy evaluation decision 的同拍 manipulation
+diagnostic：active/noop 共用 model input、preintervention residual、gate、generation config 与 RNG，active token
+必须直接来自 hook return，noop delta/effect 精确为零。该 diagnostic 不是 longitudinal endpoint；第一次实际
+action 后，generated tokens、reaction、owner state 与未来 residual 作为合法 treatment descendants 可以分叉，
+正式主效果仍是 8 个未来 evaluation session 的 typed outcome utility。
+
+typed endpoint 也在 v3 收口为每个 evaluation decision 一份冻结 utility vector，唯一 owner 是 reactive
+environment oracle，闭域固定为整数 `{-1, 0, 1}` 并覆盖所有 closed-world action：唯一最优 action 为 `+1`，
+非最优但安全 action 至多 `0`，有害或 malformed/missing/out-of-domain observed action 为 `-1`；actual utility
+只能查 committed vector，禁止事后 scale/shift/rescore。vector commitment 必须早于 model input、在 environment
+transition 前对 SUT 隐藏，并由 independent reobserver 从 typed settlement 重算。
+
+为避免 GPU 温度、host ageing 或固定臂顺序与效果混杂，v3 另冻结 `subject_root × session_index` block 的
+counterbalanced schedule：每 block 九臂各执行一次，顺序由 committed counter-based RNG 的
+SHA-256 Fisher–Yates/rejection sampling 决定；每个 split 中各臂 ordinal-position 次数最多差 1，root blocks
+交错，不能按 arm/output/outcome/failure 改序。同一 block 必须绑定同一 host boot identity，并记录 wall、
+monotonic time 与 boot receipt；donor stage snapshot 在 target block 前先封存。
+
+长 context 门计数 actual frozen tokenizer 在 chat template 后的 public-history segment，排除 system、schema、
+tool/evaluator、padding、filler、boilerplate 与重复 history；至少 32768 token、96 个不同 public turn、16 个
+typed settlement，每个计数 chunk 都绑定 session id/hash。每个 root 至少有 8 个 typed decisive long-range
+fact，每个 evaluation decision 至少依赖一个；反事实替换 fact value 必须机械改变唯一最优 typed action，fact
+origin 后不得复述，最终 decision 的 fact-to-request public-token distance 至少 32768。fact value 使用冻结的
+counter-based RNG，在每个 split×distance bin 内平衡且计数最多差 1，并独立于 root surface、tape、arm 与
+outcome。每个 analysis root 还必须有一个**不执行模型、也不进入 arm/estimand**的 counterfactual source twin：
+twin 只改变 fact-origin typed value 及 utility-oracle descendants；遮住 fact origin 后，后续 exogenous tape bytes、
+forced-learning action 与 pre-evaluation endogenous receipt 必须完全相同，且任何后续 public event/reaction 都
+不得编码该 value。冻结 dependency graph、semantic-proxy scan artifact 与 independent reobserver 任一不过，
+整次判 `invalid_attempt_no_claim`，不能用近程 proxy 冒充 32K 因果读取。每个 arm/decision 都要
+发布 actual tokenizer/chat-template、ordered/omitted chunks、attention mask、rendered input ids、segment counts、
+native window、headroom、truncation 与 decisive-fact occurrence receipt；full-history/Volvence family 必须列完整
+ordered public chunks，RAG 的省略必须绑定冻结 retrieval receipt，source distance 与 RAG 拉近后的 rendered
+distance 分开报告。`total_input + headroom <= native window`、`truncation=false`，runtime RoPE/context extension
+禁止；strict verified native window 至少 65536，另留至少 1024 generation token。
+当前 32768-window P4.6 fit 明确不能授权该门，必须在 qualification 前冻结新的 relationship-domain
+reader/executor artifact 与 context-feasibility receipt。
+
+五个逻辑 claim（四轴 + integrated）由 8 个不重复的 confirmatory contrast 组成：Appendable correct-empty、
+correct-swapped；Readable identity-permuted；Learnable PE-credit-credit-withheld；Steerable active-strict-noop 与
+active-sensor-off；integrated closed-loop-full-history 与 closed-loop-RAG。Learnable contrast 可被 integrated 合取
+引用但只检验一次，不另造 typed-noop 重复检验。每个 root 先对 8 个 evaluation utility 等权平均，再求 paired
+arm difference；192 个 root 等权，所有 arm/session 作为一个 root cluster 联合重采样，禁止 decision-level
+伪重复或 post-hoc weighting。每个 contrast 必须同时满足 lineage eligible、observed delta `>=0.15`、100000 次
+one-sided joint paired-root percentile bootstrap（seed 20260823）下界 `>0`，以及 8 项唯一 family 内 Holm
+拒绝（FWER 0.05）；“delta 很小但显著”不能 PASS。8 项任一失败即 integrated=false；欠功效与 invalid 另有
+三值/四值终局，不偷算成有效失败。v3 进一步冻结 bootstrap index 为
+`sha256_counter_u64_big_endian_rejection_then_modulo_192`，在首条 development output 前发布 index-plan artifact；
+0.05 lower quantile 使用 inverted-CDF 的 zero-based order statistic 4999，primary utility/mean/count/p-value 以
+exact integer/rational arithmetic 计算，Holm 用 rational cross multiplication，展示值才按 half-even 12 位舍入。
+
+两个 Qwen baseline 的 qualification 是一次性 64-root、8 decisions/root、4 reversal pairs/root；missing/malformed
+action 进入全部预分配机会分母并算错，valid 必须 1，root-mean accuracy point estimate 位于 `[0.55,0.85]`，
+one-sided root-cluster bootstrap accuracy lower `>0.50`、pair-flip lower `>0.35`。不再用 512 decisions 的普通
+Wilson 区间伪装独立样本。development 的三个 candidate 都是 full-history/RAG 成对 configuration，并在同一
+32 roots、tape 与 opportunities 上运行；按“两 baseline 最小 exact-one rate、最小 root accuracy、最小 root
+pair-flip、平均 root accuracy、冻结 inventory index”依次降/升序唯一选择，禁止人工挑选、tie-break 或针对
+qualification informative band 选型，全部 candidate output 与 selection receipt 都发布。qualification bootstrap
+固定 100000 次、seed 20260825，以 `sha256_seed_replicate_draw_u64_mod_64` 联合重采样每个 root 的全部 decisions/
+pairs；accuracy 与 pair-flip 的统计式、0.05 inverted-CDF/order-statistic 4999 及 exact integer/rational arithmetic
+均冻结。qualification 失败立即停止，不得 retry、换 candidate 或返回 development。
+
+完整 8-contrast decision rule 的 prior power artifact 必须在首条 development output 前达到 0.80。v3 要求的
+joint DGP 不是单一低方差代理：必须生成全 `9 arms × 8 evaluation decisions` 离散 utility、8 contrasts 的
+marginal/covariance、within-root temporal/challenge 结构、source mechanical opportunity mix、technical
+missingness 与 worst-case ITT，并实际运行完整 practical+bootstrap+Holm+claim-conjunction rule。预注册场景覆盖
+structural/max-feasible/0.25/0.50/1.00 variance、ICC `0/0.25/0.50`、structural/independent/-0.10/+0.50
+cross-contrast dependence、missing rate `0/0.01/0.02` 与四种 missingness pattern；所有可行 Cartesian 组合的
+每个 contrast、轴合取与 integrated joint power 都须 `>=0.80`，零 missing/任意低 variance 单景不得授权。
+qualification 只用 arm-blinded、zero-centered residual/covariance 做一次只读 power recheck；任一门失败就在
+formal 前停止，禁止改 N、阈值、family 或 source。
+
+在任何 development output 前，historical power-bound v1 protocol
+`735b20a137b03176cf889c0cbe116e29f973c18d4cef4bf38cd42df288dff3fa`（raw SHA-256
+`1bb8d21ce3a0dca332324d2e35e3bc2c63ec77fc9bd3917b35d018ebd85559f6`）与 create-only artifact
+`fad6c105b7c64a6b4ab89bf6e933ecdf4c8f1b1170679d918c2dd77c27809518` / certificate
+`682efba886b002db849a83ff086963921a173391a4d5e3c050b3d472d17ee70e` 曾计算 N=192 最大方差 witness 的 point-gate
+精确二项尾概率 `0.62046904104455107035 < 0.80`。这份算术仍正确，但只能是 conditional diagnostic：它要求
+把该 witness 当作 Cartesian filtering 前的 mandatory global sentinel；这个 precedence/survival rule 并未冻结在
+v3 中，且 witness 派生的 within-root temporal correlation 与 cross-contrast correlation 均为 `+1`，不属于 v3
+显式 ICC `0/0.25/0.50` 或 cross-dependence `structural/independent/-0.10/+0.50` labels。witness 又明确不声明尚未
+物化的 source-structural membership，所以不能把它追溯性地当成 v3 frozen grid 的无条件必要场景。
+
+作为历史终局保留的 power-admission v2 protocol 为
+`67d294faf9209c9d05334f4c0e87371676c9821b7c12e603f3e289f33f566bc9`（raw SHA-256
+`130f766787ec0b02bd5857344e58b371d996aa51fabe421cbfbde05347fd0e04`）。create-only artifact 位于
+`artifacts/relationship_lab/p4_independent_long_context_power_admission_v2_under_specified_20260823/`，artifact id
+`9883e10784a06260a220a6fdbf72141b1300c21e97faee6e84a401c40a144ee9`，certificate id
+`cd6ceca086a1d8a311c75bdacd70c976e05b90dff2cde55b3ad41c00d29936b3`。它机械展示两种都保留 v3 literal lists
+却给出相反 witness membership 的解释，因此终局是
+`power_contract_under_specified_no_development_authorization`，不是 numeric FAIL：
+`power_contract_determinate=false / v3_power_failed_under_frozen_grid=null / v3_power_passed=false`。这里的
+`passed=false` 只表示 prior power admission 未满足，禁止解释成 power 已被完整估计或已无条件失败。
+
+v2 没有完成 full joint DGP grid、actual contrast power estimate、source preflight、simulation、empirical result 或
+四轴证据；subject/source/donor/twin/model/CUDA/simulation/full-joint-DGP 计数均为 0，所有 execution/development/
+qualification/formal 授权均为 false，v3 在零 model output 时退休。v4 必须在任何 source/model output 前冻结：
+明确 pre-filter sentinel 或完整 grid-membership rule、每个 skipped tuple 的机械 infeasibility witness、planning mean
+相对 missingness 的定义顺序、malformed generated action 与 integrity failure 分类、六个 development candidate-cell
+的 counterbalance/state isolation，以及由完整 joint planner 确定后再冻结的新 sample size。
+
+这些 planning 语义现已由 v4a zero-output protocol
+`63e007b7d43bb152e5891162d6567c4edd4396af99cf1c5525c28d0be4c08753`（raw SHA-256
+`d06b07101624b3996bd712c98d3c633b7b00af7a878912817b5149a199c00e0a`，derivation helper raw SHA-256
+`bf38e7ab89c56bdae8844f533cac077443d157a793c698adbb11a9591e32a0ef`）冻结。create-only artifact 位于
+`artifacts/relationship_lab/p4_independent_long_context_v4a_zero_output_planning_20260823/`，artifact id
+`082454002260db90b7236a1104311a5d92cc3959171bb3190e7a30f8387e56c1`，certificate id
+`b7e95f149afe77b283bf135f7cb5d76eb4f4edee4594c8649a778acb4186c764`；plan/screen/schedule/manifest raw
+SHA-256 分别为 `9e17383f416eea555799d7e603996a34d526c7c20e9e65e53af25196a700064f`、
+`d8f0f6b4fa1927138007bac77b687f3507b09ca0f000c6549b584ba2d33b01ba`、
+`df426477209d0e99c74cf62938fcf3700554c6242f9439c2e51ebdd20edf1d6f`、
+`26b46683260dc01f632ff9c1874839760f4b075c53eb5cd0298c7fc025633e3e`。当前状态是
+`v4_planning_contract_frozen_full_joint_planner_pending`，不是 final scientific v4 prereg 或 power PASS。
+
+v4a 把最大方差 shared-reference witness 显式放在 source-conditioned Cartesian enumeration/filter 之前，禁止
+source/grid labels 过滤；随后固定 5 个 source-conditioned axes 的 `576` 个 candidate tuple，每个 tuple 最终只能是
+带 9-arm×8-decision constructive witness 的 admitted，或带 exact constraint/proof payload 的 skipped，timeout、
+nonconvergence 与“没搜到”都不能当 infeasibility。planning alternative mean 明确定义在 substantive malformed
+映射之后、technical missingness/ITT imputation 之前；authenticated zero/multiple/out-of-domain generated action 是
+`-1` 的 substantive invalid action，真实未完成 generation 才走 technical missingness/worst-case ITT，receipt、bytes、
+parser 或 parent lineage 破坏则是 `invalid_attempt_no_claim`，不得计成 `-1` 或 missing。
+
+development baseline 现在是两种 family × 三个 candidate index 的六个独立 cell。同一 32 个 development roots/
+exogenous tape/opportunity 只作不可变共同输入；working directory、CMS、State-KV、gate checkpoint、RNG、generation
+cache、log 与 selective-RAG index 均按 cell 隔离，full-history cell 没有 RAG index。内容寻址 schedule 有 `640`
+个 `root × session` block，每 block 六 cell 各一次，并以冻结 Williams-balanced order 平衡 ordinal/carryover。
+block 必须按 session-major、再按 root ordinal 枚举：所有 root 完成 session `s` 后，任何 root 才能开始 `s+1`；
+必须六 cell 全部完成后才按 paired candidate index 选择，任何 cell integrity failure 都使 selection attempt 无效。
+
+v4a 为未来 planner 冻结 `192..8192`、步长 `64` 的 126 个 candidate N，并以 paired-root Hoeffding upper bound +
+八 contrast Bonferroni 替代 v3 nested bootstrap/Holm power loop。N=`1088` 只是 global sentinel exact necessary point
+screen 首个通过候选，不能证明 full decision-rule power；公开 screen table 对全部 126 个 N 各自发布 reduced exact
+fraction，numerator/denominator 均用无前缀、无前导零的 lowercase hex，禁止 monotonicity shortcut。实际 witness
+明确 `1088=PASS → 1152=FAIL`，所以 first PASS 不能成为后续 N 的下界。N=`1856` 只是 planning mean 位于
+practical boundary 时首个满足 Hoeffding positive-mean gate 的候选，也不是 selected N。当前 576 tuple 全部 unresolved，
+`source_grid_resolved=false / full_joint_grid_completed=false / feasible_tuple_count=null / skipped_tuple_count=null /
+grid_digest=null / sample_size_selected=false / selected_formal_root_count=null / v4_power_passed=null /
+v4_power_failed=null / v4_prior_power_admission_satisfied=false`。
+
+未来 search/confirmation 的 categorical RNG 也已冻结为可覆盖任意 exact rational denominator `Q` 的
+`sha256_multiblock_counter_exact_rational_categorical_v1`：概率先化成共同整数质量，`Q=1` 的单 atom 不 hash；
+`Q>1` 时用 `b=bit_length(Q-1)`、`h=ceil(b/256)` 个按 block ordinal 递增的 SHA-256 raw digest 拼成大整数，取最低
+`b` bits 得 ticket，`u>=Q` 就递增 rejection ordinal 重算，直到按冻结 atom-id ASCII 顺序命中累计质量。counter
+不含 candidate N，因此升序 candidate 复用同一 replicate/root prefix；每个 counter tuple 必须唯一，CPU/CUDA
+backend 必须给出 per-draw 或 aggregate digest equivalence receipt。
+
+search 只以整数门 `50*X_search >= 41*8192` 提议最小 N。one-shot confirmation 对 feasibility index 冻结的
+`M=1+A` 个场景各跑 100000 replicate，并以 exact integer rule
+`100*M*sum(k=X..100000, C(100000,k)*4^k) <= 5^100000` 判 PASS（等号通过）；所有 M 个 scenario 都必须通过，
+point estimate、float tail 或少数场景 PASS 均不能授权。
+
+artifact 顺序不可跳跃：`v4a_zero_output_planning_freeze → source_opportunity_preflight →
+tuple_feasibility_index → power_search_artifact → one_shot_independent_power_confirmation_artifact →
+v4b_scientific_projection`。feasibility index 必须早于任何 power result；search/confirmation 不得改变 tuple membership
+或 generator，one-shot confirmation 失败也不得在同一 protocol 下回到 search。v4b 只能投影完整 lineage、selected
+N 与由 N 机械派生的字段，其余科学字段必须 pointer-match v4a。
+
+#### Source-opportunity zero-output preflight
+
+上述顺序中的 source-opportunity **合同冻结**已经完成，但 source-opportunity stage 本身没有完成。权威 protocol id
+为 `47bcf6561be1ace0698cc0f96e2e7e35701f46d15baac9eb87ad1d662576494a`，protocol raw SHA-256
+`9d4d3ab5cb683d8ff5827e5047e5b176800fe5c4e86ad6a07217b7a2040c40b0`、`34883` bytes；纯推导 helper raw
+SHA-256 `72efc093b815c2ca07872f6cb6a78f53a4d4d5ada5975222b36cf90c640746f8`、`59810` bytes。create-only
+目录为 `artifacts/relationship_lab/p4_independent_long_context_source_opportunity_preflight_v1_20260823/`，artifact id
+`8a36d2de9077bb5550db8018338eded27b6ce30d77eea17739ffe35b73e00a99`，certificate id
+`64d879c4f41ca873f8e40f0344234771343f6efee229b668914b61d31c96c95a`，contract projection id
+`b8b7823a6fd2c7ad706c4ffa143438b730da667c26a925f0be87df14212e6f1b`。zero-output section digest 为
+`912e45f629b7fe4c0807144c694bf6d631111118925144e8e13e477b11dfee01`；精确三文件为：
+
+- `source_opportunity_contract_projection.json`：`72969` bytes，raw SHA-256
+  `ee33fa32a3829cbaaa1c92022016c184197b4cd97e08818af19b98024b4866b2`；
+- `source_opportunity_preflight_certificate.json`：`8036` bytes，raw SHA-256
+  `f9089ce08e6868d402a753ccd3247024a0170a96e8cad9f411f659e913300736`；
+- `manifest.json`：`2036` bytes，raw SHA-256
+  `2829b16d674ae9efe971eaa668610f80a20799e45ac47e208ec4e7a3261760a6`。
+
+projection 还冻结 root inventory `baafdcd3…97346`、analysis/donor one-to-one inventory
+`10b3d5fe…3a326`、fact-orientation assignment `cba5e614…15985`、formal-prefix position balance
+`220c9718…e22f`、counterfactual-twin inventory `689b9102…bf29` 与 generic-decision atom inventory
+`82c97e44…00ca` 的 digest。它们只承诺有限结构与精确算术，没有发布逐 root source row 或实现 statistical
+independence。
+
+所有 `*_count=0` 只计 persisted/published artifact rows：validator 为复算上述 digest 而在进程内构造的 frozen、
+确定性 root/orientation/twin/atom derivation object，不是 source content，也不是持久化 materialization；进程退出后
+没有逐 root row 被 artifact 发布。预检导入/输入边界也已收紧：package API 改为 lazy export，CLI 只注入仓库内
+exact package source roots，不再用环境发现扩张 import surface；strict loader 在消费输入 lineage 前拒绝 reparse 与
+hardlink。该闭环只证明本 preflight 的 ordinary-file input closure，不证明管理员/WORM/NTFS ADS 或 machine-global
+tamper resistance。
+
+本次红队的五个科学 P0 按如下边界关闭：
+
+1. typed truth、utility optimum 与 oracle metadata 继续对未来 SUT 隐藏，但 decisive fact 的**语义内容**必须且只在
+   注册 fact-origin 公开一次；这避免任务因“真值全隐藏”而不可解，同时不把 evaluator truth 泄漏进 SUT；
+2. 固定 `[0,1]` decision order 的 parity shortcut 被 seed `20260831`、domain-separated SHA-256 block rank 取代；
+   每 split×pair×连续 32 analysis roots 精确 `16/16` orientation，全部 126 个 formal candidate prefix 在两个
+   decision position 都精确平衡，candidate N、arm/cell、model/output/outcome、power、host 与 CUDA 不进 ranking；
+3. affine surface code 不再只是编号：15 个二值 causal axis 按 LSB 顺序解码成 exact typed blueprint value，并绑定
+   root/session/opportunity/fact-origin/target-decision/oracle-descendant node mapping；所有 16576 analysis/donor slots
+   injective，8288 analysis 与 8288 donor 同 ordinal 一一对应；
+4. twin 不再只指向 root：每个 analysis root 唯一 unexecuted twin 只翻转 pair `3`、decision `7`、32K opportunity 的
+   decisive fact `0↔1` 并重算 registered utility-oracle descendant，其他 exogenous node 不变；Prediction Error 仍由
+   cognition 在未来 realized settlement 后拥有，source 不预造 PE node；
+5. 512 atoms 被收窄为单个 generic evaluation decision 的 9-arm scalar utility / 8-contrast marginal。其精确
+   mean `1/5`、variance `99/50`、cross-covariance `99/100`、correlation `1/2` 与 PSD eigenvalues 只是 planning
+   assumption；不派生 8-decision temporal ICC、root-mean `Dbar` covariance 或 576-tuple witness。v4a 的 `Dbar`
+   off-diagonal `1/2` 只是 future source-structural target，必须由后续 exact joint witness 独立构造或拒绝。
+
+另一个高优先级泄漏面也已关闭，但不替代上述 P0：semantic stratum 使用
+`(analysis_root_ordinal + reversal_pair_index) mod 4` 做 Latin rotation，每个连续四-root block 让四个 stratum 对四个
+distance bin 各出现一次，避免 distance 直接识别语义 stratum。
+
+当前状态精确为
+`source_opportunity_preflight_contract_frozen_zero_output_inventory_materializer_not_run`：
+`external_publication_anchor_present=false / source_structural_inventory_materialized=false /
+source_opportunity_stage_completed=false / source_preflight_completed=false / tuple_feasibility_authorized=false /
+model_output_authorized=false / CUDA_planner_authorized=false`。external anchor 是下一次单一 create-only structural
+inventory attempt 的先决条件；缺 anchor 时 materialization envelope 只有 scope、没有 authority。source row/text/tape、
+subject/donor/twin pack、planning atom、576-tuple membership、power replicate、baseline/model output、CUDA run 与
+empirical outcome 全为 0；Appendable / Readable / Learnable / Steerable 及 integrated claim 继续为 false。
+
+实际完成的验证仅包括 lazy package API / exact CLI source-root smoke、strict protocol load、纯推导 smoke、
+create-only `prepare`、独立 `validate-existing` replay、reparse/hardlink rejection、Ruff check 与 Python compile；
+没有运行 source、model、CUDA、tuple feasibility 或 power replicate。该包没有
+runtime/live/product wiring；回滚只需停止 preflight CLI/consumer，同时保留 protocol、projection、certificate 与
+manifest 的内容寻址字节，不能删除后以不同 seed、surface registry 或 generator 覆盖。
+
+#### A0 external-publication request freeze
+
+source-opportunity contract 之后的 A0 **本地 request freeze** 已完成，但 external publication anchor 仍不存在。
+权威 request protocol id 为
+`dedfc7ff42f1be0030cdfbe64fd6b1d6dc868adf9db6a9f1150883a9a96a4bee`，protocol raw SHA-256
+`38ce85d479c4359c252de8e5293ca1c15d886c5e1757610435aad136feeca8c6`、`16006` bytes。
+create-only 目录为
+`artifacts/relationship_lab/p4_independent_long_context_external_anchor_request_v1_20260823/`；其中
+`external_publication_anchor_request.json` 的 request id 为
+`7897e3285299eac33385f69fb560a7d68e9f3316fdaf200f27cfa9bbfda489d1`，default-stream raw SHA-256
+`0d5147cdf11db9fcaaa793bd9bf9bf8bfb6d07511f2307f5e77cdc0dfd263057`、`12115` bytes；整个 artifact id 为
+`5496fa80bba07c6b2234e0e2ca9293111d7ed6edf0a676ee4f561a7893c22900`，manifest raw SHA-256
+`17496a50035d5b1dd3849455940ef2bcf4c6c4089dc2093bb194acb14a514125`、`1307` bytes。
+
+A0 request 精确绑定 source protocol、纯推导 helper、contract projection、certificate 与 manifest 五个 publication
+subject，并要求未来把 request payload 作为一个**新的 public GitHub Gist 第一 revision 的唯一文件**公开；public
+payload 必须逐字节等于本地 request。当前 access-controlled/private origin 明确不接受为 publication anchor，mutable
+latest URL 也不构成 authority。这个本地 artifact 没有发起 network request、Git commit/push 或 Gist 创建，也没有
+填入未来 Gist id、revision OID、raw permalink 或 receipt id。
+
+红队收紧了本地字节与路径边界。derivation helper 必须先校验 raw pin，再从**同一已校验 byte buffer**执行，禁止
+hash 一个文件后从另一条路径或第二次读取执行。四个 raw-pinned text 输入都有 checkout EOL contract：v4a/source
+两个 derivation helper 为 LF，relationship action owner module/action schema 为 CRLF。`prepare-request` 只允许 canonical
+request root、五个 canonical subject path，以及 source-preflight/v4a/v3/v2 四个冻结 canonical upstream roots；
+`validate-request` 可复验 byte-identical 的本地 relocation
+replica，但 relocation 不能重绑定 canonical publication subject 或 prepare path。所有本地路径都只允许 local NTFS
+default stream，UNC、Windows device namespace 与 ADS/非默认流在读取前拒绝；原有 reparse、symlink、hardlink、LFS
+pointer 与歧义 repo-relative path 拒绝继续生效。
+
+因此 terminal status 仍是
+`external_publication_anchor_request_frozen_publication_not_observed_no_authority`：
+`external_request_dispatched=false / publication_performed=false / external_publication_observed=false /
+external_publication_anchor_present=false / external_anchor_admitted=false`。materializer implementation、structural
+inventory materialization、source execution、tuple feasibility、power search、model output、CUDA planner、development、
+qualification 与 formal authority 全部为 false；source/model/CUDA/empirical output count 也仍为 0。strict replay
+临时构造的 exact derivation objects 不是 persisted/published source row 或 materialization，四轴证据没有增加。
+
+未来即使 public Gist publication 与独立进程 receipt/fresh unauthenticated reobservation 通过，也只能进入 A0 admission；
+A0 observer 必须不发送 `Authorization` header 或 `Cookie`；publisher 创建 Gist 所需认证是另一个、必须得到用户明确
+授权的外部动作，credential/header/cookie/token 永不序列化进 request 或 receipt。所有 observed URL 必须是 HTTPS、
+无 userinfo、无 nondefault port，且 Gist description 必须精确为空。receipt 必须把同一 Gist owner/id、
+first-revision OID、zero-parent commit、exact-one-entry tree、`100644`/blob、tree blob OID、revision-pinned raw URL、
+required filename 与 observed request exact bytes 关闭为同一 object graph；任一 identity join 缺失都不能 admission。
+A0 receipt 单独不得授权 structural inventory materialization。顺序必须是 A0 request freeze → public Gist first revision →
+独立 receipt/reobservation 与 A0 admission → materializer implementation → **A1 materializer + single-attempt envelope anchor/
+admission** → 唯一 materialization attempt。A1 仍是 materialization 前的强制门，不能被 A0 receipt、private repository
+origin 或本地 hash 自洽替代。
+
+当前只完成 `validate-request` 的本地独立复验；没有网络访问，没有运行 source materializer、model 或 CUDA。回滚只需
+停止 A0 request CLI/consumer并保留 protocol、request 与 manifest 的内容寻址字节；由于没有外部 dispatch、runtime
+wiring 或执行 authority，不存在需要撤回的外部 publication 或在线状态。
+
+当前用户允许 CUDA 只体现在 `development_cuda_diagnostics_allowed=true`；同一 protocol 同时写死该许可
+不是 formal authorization，short PASS 不替换历史 host block，manual/env/ignore-microcode/force override
+全部禁止。当前 acquisition v2 仍 `may_authorize_execution=false`。未来 execution envelope 还必须绑定
+production host full root、native reobserver/projection、Application/System cursor bridge、Job Object、realized
+executable/argv/env/source、same machine/boot、outcome-typing qualification、独立 reobserver 与 power-script
+hash。缺任何一项只能保持 closed。
+
+本包只证明 v1/v2/v3 历史 lineage、v4a planning primitives 与 abstract schedule 可在零实证输出下复验；
+`power_contract_determinate=true` 不等于 grid、source、power 或 execution 已通过。当前 source structural artifact、
+full joint DGP、power simulation、subject/donor/twin materialization、baseline/model output、CUDA planner/formal run 与
+empirical outcome 均为 0；source structural stage、576-tuple feasibility、power search/confirmation、N selection、tape/context/
+artifact inventory 与 host/execution admission 均未完成。`source_materialization_authorized / model_output_authorized /
+development_authorized / qualification_authorized / formal_authorized=false`，model output 继续 NO-GO。因此
+Appendable / Readable / Learnable / Steerable 与 integrated claim 全为 false。即使未来 v4b 全部通过，口径也只限
+sealed reactive synthetic companion domain，不自动证明真人效果、跨模型/域泛化、产品价值或 production ACTIVE。
+这里的 source preflight 未完成特指 `source_opportunity_stage_completed=false` 与 structural inventory 尚未物化；
+不否认上文 zero-output preflight **contract** 已冻结。准备、power-admission、v4a/source-contract 发布与离线复验：
+
+```powershell
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_causal_campaign.py `
+  prepare --output-dir <create-only-output>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_causal_campaign.py `
+  validate-existing --output-dir <create-only-output>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_power_bound.py `
+  prepare --output-dir <create-only-admission-output> --preparation-dir <v3-preparation>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_power_bound.py `
+  validate-existing --output-dir <create-only-admission-output> --preparation-dir <v3-preparation>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_power_bound.py `
+  validate-v1-existing --output-dir <preserved-v1-output> --preparation-dir <v3-preparation>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_v4_planning.py `
+  prepare --output-dir <create-only-v4a-output> --v3-preparation-dir <v3-preparation> `
+  --v2-admission-dir <v2-admission>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_v4_planning.py `
+  validate-existing --output-dir <create-only-v4a-output> --v3-preparation-dir <v3-preparation> `
+  --v2-admission-dir <v2-admission>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_source_opportunity_preflight.py `
+  prepare --output-dir <create-only-source-contract-output> --v4a-planning-dir <v4a-output> `
+  --v3-preparation-dir <v3-preparation> --v2-admission-dir <v2-admission>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_source_opportunity_preflight.py `
+  validate-existing --output-dir <create-only-source-contract-output> --v4a-planning-dir <v4a-output> `
+  --v3-preparation-dir <v3-preparation> --v2-admission-dir <v2-admission>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_external_publication_anchor.py `
+  prepare-request --output-dir <create-only-a0-request-output> --source-preflight-dir <source-contract-output> `
+  --v4a-planning-dir <v4a-output> --v3-preparation-dir <v3-preparation> `
+  --v2-admission-dir <v2-admission>
+.\.conda-volvence-gpu311\python.exe scripts\run_relationship_lab_p4_long_context_external_publication_anchor.py `
+  validate-request --output-dir <create-only-a0-request-output> --source-preflight-dir <source-contract-output> `
+  --v4a-planning-dir <v4a-output> --v3-preparation-dir <v3-preparation> `
+  --v2-admission-dir <v2-admission>
+```
+
 ## 10. 回滚与下一包
 
 P0 无 runtime wiring。回滚只需停止 lab runner/consumer 并移除 scenario package；
@@ -1494,3 +2113,32 @@ create-only output；当前没有 physical run artifact 可删除。host block r
 退出条件不是“某次测试碰巧通过”，而是 BIOS / microcode / Intel Default Settings 完成人工修复、新的
 host-stability qualification 通过、protocol 14 个 source hash 仍匹配，再经独立 run gate 放行。任何
 source 漂移都先产生新 protocol id；不得在当前不稳定主机上重试以挑选 PASS。
+
+P4.7 同样没有 runtime/live/product wiring。回滚只需停止
+`run_relationship_lab_p4_long_context_causal_campaign.py` / `run_relationship_lab_p4_long_context_power_bound.py` /
+`run_relationship_lab_p4_long_context_v4_planning.py` /
+`run_relationship_lab_p4_long_context_source_opportunity_preflight.py`，并不让后续 execution envelope 消费任何 P4.7 planning
+artifact。v1/v2/v3 protocol、三份已发布 create-only preparation
+`899b7b0a…6901 / 795dea07…a8bd / c5a708ae…f42e` 都必须按原 hash 保留；design v1/v2 已由 registry 标为
+superseded 且禁止重新 prepare。historical power-bound v1 `735b20a1…f3fa`、artifact/certificate
+`fad6c105…9518 / 682efba8…e70e` 及 power-admission v2 `67d294fa…6bc9`、artifact/certificate
+`9883e107…4ee9 / cd6ceca0…36b3` 也都必须原样保留；v1 条件算术不得再升级为 unconditional scientific
+admission。v3 因 power contract 欠规定而在零 model output 时退休，既没有 PASS，也没有 numeric FAIL。
+v4a protocol/artifact/certificate `63e007b7…08753 / 08245400…e56c1 / b7e95f14…6c764` 同样必须原样保留；它只
+冻结 planning contract 与六 cell schedule，不能被改写为 final v4 或 N selection。后续只能按已冻结顺序另发
+source-opportunity protocol/artifact/certificate/projection `47bcf656…6494a / 8a36d2de…0a99 / 64d879c4…c95a /
+b8b7823a…e6f1b` 也必须原样保留；它只冻结 zero-output contract，不等于 structural inventory 或 source stage PASS。
+A0 request protocol/request/artifact `dedfc7ff…4bee / 7897e328…89d1 / 5496fa80…2900` 也必须原样保留；
+它只冻结未来 public Gist 的 publication payload，不是 external publication、receipt、A0 admission 或 materialization
+authority。external anchor 缺失时不得实现或启动 materializer；未来必须先完成 public Gist first revision、独立 receipt/
+fresh unauthenticated reobservation 与 A0 admission，再实现 materializer，并在 materialization 前另过 A1 materializer +
+single-attempt envelope anchor/admission。A0 receipt 不能替代 A1。之后才可另发 create-only structural inventory，再进入
+576-tuple feasibility、power search、one-shot confirmation 与 v4b；任何阶段失败都按自己的
+内容寻址状态停止，不得回写 v4a、换 tuple membership 或把 N=1088/1856 当 selected N。其余 tape/context/artifact
+inventory 与 host/execution admission 仍须独立通过，未通过前 model output NO-GO。
+
+P4.7-E0 也不新增 runtime/live/product wiring。当前只冻结 spec 要求，尚无 E0 protocol、runner、admission report 或
+执行授权；实施必须作为新的单一收敛包，不能混入 source materializer、power planner 或 P4.7 model execution。
+回滚实现时只停止 E0 runner/consumer 并不让 execution envelope 消费其 report；已经发布的 candidate ledger、
+qualification verdict 与失败终局必须按原 hash 保留。E0 失败只能路由到报告指定的唯一 owner，不能删除报告后重跑
+同一 qualification，也不能借回滚解封 long-horizon model output。

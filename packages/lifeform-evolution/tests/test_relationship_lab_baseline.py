@@ -3,10 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 
-from lifeform_domain_emogpt.lab import RelationshipAction, sha256_json
+import pytest
+
+from lifeform_domain_emogpt.lab import RelationshipAction, canonical_json, sha256_json
 from lifeform_evolution.relationship_lab_baseline import (
+    SCHEMA_CONSTRAINED_DECODING_MODE,
+    HFStatelessRelationshipActionPolicy,
     StatelessActionCompletion,
     action_choice_schema_path,
+    build_canonical_action_json_token_constraint,
     freeze_stateless_baseline_attestation,
     run_stateless_baseline,
     stateless_prompt_path,
@@ -45,6 +50,168 @@ class _InvalidOutputPolicy(_AlwaysStayPolicy):
             prompt_tokens=40,
             completion_tokens=4,
         )
+
+
+def test_hf_policy_requires_cached_positive_chunked_prefill() -> None:
+    with pytest.raises(ValueError, match="positive integer"):
+        HFStatelessRelationshipActionPolicy(
+            prefill_chunk_size=True,
+            generation_use_cache=True,
+        )
+    with pytest.raises(ValueError, match="generation_use_cache=True"):
+        HFStatelessRelationshipActionPolicy(
+            prefill_chunk_size=2048,
+            generation_use_cache=False,
+        )
+
+
+def test_hf_policy_forwards_frozen_chunked_prefill_to_generate() -> None:
+    import torch
+
+    class RecordingModel:
+        def __init__(self) -> None:
+            self.kwargs: dict[str, object] | None = None
+
+        def generate(self, **kwargs: object):
+            self.kwargs = kwargs
+            return torch.tensor([[11, 12, 13]])
+
+    class FakeTokenizer:
+        eos_token_id = 0
+
+        @staticmethod
+        def decode(_token_ids, *, skip_special_tokens: bool) -> str:
+            assert skip_special_tokens
+            return '{"action_id":"stay_present_without_probe"}'
+
+    policy = object.__new__(HFStatelessRelationshipActionPolicy)
+    policy._device = "cpu"
+    policy._temperature = 0.0
+    policy._top_p = 1.0
+    policy._max_new_tokens = 64
+    policy._prefill_chunk_size = 2048
+    policy._generation_use_cache = True
+    policy._schema_constraint = None
+    policy._torch = torch
+    policy._tokenizer = FakeTokenizer()
+    model = RecordingModel()
+    policy._model = model
+    policy._encode_contextual_messages = lambda *, messages: {
+        "input_ids": torch.tensor([[11, 12]])
+    }
+
+    completion = policy.choose_from_messages(
+        messages=({"role": "user", "content": "public input"},),
+        seed=17,
+    )
+
+    assert model.kwargs is not None
+    assert model.kwargs["use_cache"] is True
+    assert model.kwargs["prefill_chunk_size"] == 2048
+    assert model.kwargs["max_new_tokens"] == 64
+    assert "prefix_allowed_tokens_fn" not in model.kwargs
+    assert completion.chosen_action_id is RelationshipAction.STAY_PRESENT_WITHOUT_PROBE
+
+
+class _CharacterActionTokenizer:
+    eos_token_id = 0
+
+    def __call__(self, text: str, *, add_special_tokens: bool):
+        assert add_special_tokens is False
+        return {"input_ids": [ord(character) + 1 for character in text]}
+
+    @staticmethod
+    def decode(token_ids, *, skip_special_tokens: bool) -> str:
+        assert skip_special_tokens
+        ids = token_ids.tolist() if hasattr(token_ids, "tolist") else list(token_ids)
+        return "".join(chr(token - 1) for token in ids if token != 0)
+
+
+@pytest.mark.parametrize(
+    ("candidate_index", "expected_action"),
+    tuple(
+        enumerate(
+            (
+                RelationshipAction.STAY_PRESENT_WITHOUT_PROBE,
+                RelationshipAction.RESPECT_SPACE_WITH_RETURN_OPTION,
+                RelationshipAction.NEUTRAL_NOOP,
+            )
+        )
+    ),
+)
+def test_schema_constrained_generation_is_strict_valid_for_all_actions(
+    candidate_index: int,
+    expected_action: RelationshipAction,
+) -> None:
+    import torch
+
+    tokenizer = _CharacterActionTokenizer()
+    constraint = build_canonical_action_json_token_constraint(tokenizer)
+    candidate_tokens = constraint.candidate_token_ids[candidate_index]
+
+    class TrieFollowingModel:
+        def __init__(self) -> None:
+            self.kwargs: dict[str, object] | None = None
+
+        def generate(self, **kwargs: object):
+            self.kwargs = kwargs
+            input_ids = kwargs["input_ids"]
+            prefix_fn = kwargs["prefix_allowed_tokens_fn"]
+            prompt = [int(token) for token in input_ids[0].tolist()]
+            generated: list[int] = []
+            for token in (*candidate_tokens, constraint.eos_token_id):
+                allowed = prefix_fn(0, torch.tensor([*prompt, *generated]))
+                assert token in allowed
+                generated.append(token)
+            return torch.tensor([[*prompt, *generated]])
+
+    policy = object.__new__(HFStatelessRelationshipActionPolicy)
+    policy._device = "cpu"
+    policy._temperature = 0.0
+    policy._top_p = 1.0
+    policy._max_new_tokens = constraint.maximum_completion_tokens
+    policy._prefill_chunk_size = None
+    policy._generation_use_cache = None
+    policy._schema_constraint = constraint
+    policy._torch = torch
+    policy._tokenizer = tokenizer
+    model = TrieFollowingModel()
+    policy._model = model
+    policy._encode_contextual_messages = lambda *, messages: {
+        "input_ids": torch.tensor([[901, 902]])
+    }
+
+    completion = policy.choose_from_messages(
+        messages=({"role": "user", "content": "public input"},),
+        seed=19,
+    )
+
+    assert completion.raw_output == canonical_json({"action_id": expected_action.value})
+    assert completion.chosen_action_id is expected_action
+    assert model.kwargs is not None
+    assert model.kwargs["eos_token_id"] == tokenizer.eos_token_id
+    assert callable(model.kwargs["prefix_allowed_tokens_fn"])
+
+
+def test_schema_constraint_payload_binds_mode_candidates_and_token_sequences() -> None:
+    constraint = build_canonical_action_json_token_constraint(_CharacterActionTokenizer())
+    payload = constraint.generation_config_payload()
+
+    assert payload["mode"] == SCHEMA_CONSTRAINED_DECODING_MODE
+    assert payload["canonical_candidates"] == [
+        canonical_json({"action_id": RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value}),
+        canonical_json(
+            {"action_id": RelationshipAction.RESPECT_SPACE_WITH_RETURN_OPTION.value}
+        ),
+        canonical_json({"action_id": RelationshipAction.NEUTRAL_NOOP.value}),
+    ]
+    assert payload["candidate_token_ids"] == [
+        list(sequence) for sequence in constraint.candidate_token_ids
+    ]
+    assert payload["terminal_eos_token_id"] == _CharacterActionTokenizer.eos_token_id
+    assert sha256_json({"legacy": True}) != sha256_json(
+        {"legacy": True, "schema_constrained_decoding": payload}
+    )
 
 
 def test_stateless_runner_is_matched_and_excludes_heldout() -> None:

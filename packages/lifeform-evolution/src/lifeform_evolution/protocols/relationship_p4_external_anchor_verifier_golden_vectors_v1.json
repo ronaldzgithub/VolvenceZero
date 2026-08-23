@@ -1,0 +1,203 @@
+{
+  "schema_version": "relationship-p4-external-anchor-verifier-golden-vectors.v2",
+  "git_object_vectors": [
+    {
+      "case_id": "blob_frame_positive",
+      "object_type": "blob",
+      "payload_hex": "7b7d0a",
+      "expected_oid_sha1": "0967ef424bce6791893e9a57bb952f80fd536e93",
+      "expected_framed_sha256": "d31a3bcab1e8ff3781c5035c6c06b1df01708614b4b5b102e8a1a2429d092ac7",
+      "should_pass": true
+    },
+    {
+      "case_id": "unsupported_object_type_negative",
+      "object_type": "tagg",
+      "payload_hex": "7b7d0a",
+      "expected_oid_sha1": null,
+      "expected_framed_sha256": null,
+      "should_pass": false
+    },
+    {
+      "case_id": "wrong_framed_digest_negative",
+      "object_type": "blob",
+      "payload_hex": "7b7d0a",
+      "expected_oid_sha1": "0967ef424bce6791893e9a57bb952f80fd536e93",
+      "expected_framed_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "should_pass": false
+    }
+  ],
+  "strict_json_vectors": [
+    {
+      "case_id": "strict_json_positive",
+      "payload_hex": "7b2261223a317d",
+      "should_pass": true
+    },
+    {
+      "case_id": "duplicate_json_key_negative",
+      "payload_hex": "7b2261223a312c2261223a327d",
+      "should_pass": false
+    },
+    {
+      "case_id": "utf8_bom_negative",
+      "payload_hex": "efbbbf7b7d",
+      "should_pass": false
+    },
+    {
+      "case_id": "escaped_nul_string_negative",
+      "payload_hex": "7b2261223a225c7530303030227d",
+      "should_pass": false
+    }
+  ],
+  "url_vectors": [
+    {
+      "case_id": "raw_https_role_url_positive",
+      "url": "https://gist.githubusercontent.com/example/anchor/raw",
+      "role": "raw",
+      "should_pass": true
+    },
+    {
+      "case_id": "uppercase_scheme_negative",
+      "url": "HTTPS://gist.githubusercontent.com/example/anchor/raw",
+      "role": "raw",
+      "should_pass": false
+    },
+    {
+      "case_id": "space_in_url_negative",
+      "url": "https://gist.githubusercontent.com/example/a b",
+      "role": "raw",
+      "should_pass": false
+    },
+    {
+      "case_id": "empty_path_negative",
+      "url": "https://gist.githubusercontent.com",
+      "role": "raw",
+      "should_pass": false
+    },
+    {
+      "case_id": "network_path_negative",
+      "url": "//gist.githubusercontent.com/example/anchor/raw",
+      "role": "raw",
+      "should_pass": false
+    }
+  ],
+  "header_vectors": [
+    {
+      "case_id": "api_json_content_length_positive",
+      "role": "api",
+      "body_length": 2,
+      "pairs": [
+        ["Content-Length", "2"],
+        ["Content-Type", "application/json; charset=utf-8"]
+      ],
+      "redaction_facts": [],
+      "expected_wire_bytes": 66,
+      "should_pass": true
+    },
+    {
+      "case_id": "raw_without_content_type_positive",
+      "role": "raw",
+      "body_length": 2,
+      "pairs": [["Content-Length", "2"]],
+      "redaction_facts": [],
+      "expected_wire_bytes": 19,
+      "should_pass": true
+    },
+    {
+      "case_id": "content_length_transfer_encoding_negative",
+      "role": "raw",
+      "body_length": 2,
+      "pairs": [
+        ["Content-Length", "2"],
+        ["Transfer-Encoding", "chunked"]
+      ],
+      "redaction_facts": [],
+      "expected_wire_bytes": 47,
+      "should_pass": false
+    },
+    {
+      "case_id": "compressed_response_negative",
+      "role": "html_git",
+      "body_length": 2,
+      "pairs": [
+        ["Content-Length", "2"],
+        ["Content-Type", "text/html"],
+        ["Content-Encoding", "gzip"]
+      ],
+      "redaction_facts": [],
+      "expected_wire_bytes": 68,
+      "should_pass": false
+    },
+    {
+      "case_id": "set_cookie_redaction_wire_count_positive",
+      "role": "raw",
+      "body_length": 2,
+      "pairs": [
+        ["Content-Length", "2"],
+        ["Set-Cookie", "<redacted-set-cookie-value>"]
+      ],
+      "redaction_facts": [
+        {
+          "pair_index": 1,
+          "value_byte_count": 6,
+          "value_sha256": "2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf527a25b"
+        }
+      ],
+      "expected_wire_bytes": 39,
+      "should_pass": true
+    },
+    {
+      "case_id": "set_cookie_missing_redaction_fact_negative",
+      "role": "raw",
+      "body_length": 2,
+      "pairs": [
+        ["Content-Length", "2"],
+        ["Set-Cookie", "<redacted-set-cookie-value>"]
+      ],
+      "redaction_facts": [],
+      "expected_wire_bytes": 39,
+      "should_pass": false
+    }
+  ],
+  "redirect_vectors": [
+    {
+      "case_id": "same_role_absolute_redirect_positive",
+      "role": "raw",
+      "requested_url": "https://gist.githubusercontent.com/example/a",
+      "final_url": "https://gist.githubusercontent.com/example/b",
+      "locations": ["https://gist.githubusercontent.com/example/b"],
+      "should_pass": true
+    },
+    {
+      "case_id": "api_no_redirect_positive",
+      "role": "api",
+      "requested_url": "https://api.github.com/gists/example/revision",
+      "final_url": "https://api.github.com/gists/example/revision",
+      "locations": [],
+      "should_pass": true
+    },
+    {
+      "case_id": "relative_location_negative",
+      "role": "raw",
+      "requested_url": "https://gist.githubusercontent.com/example/a",
+      "final_url": "https://gist.githubusercontent.com/example/b",
+      "locations": ["/example/b"],
+      "should_pass": false
+    },
+    {
+      "case_id": "cross_role_location_negative",
+      "role": "raw",
+      "requested_url": "https://gist.githubusercontent.com/example/a",
+      "final_url": "https://gist.github.com/example/b",
+      "locations": ["https://gist.github.com/example/b"],
+      "should_pass": false
+    },
+    {
+      "case_id": "redirect_loop_negative",
+      "role": "html_git",
+      "requested_url": "https://gist.github.com/example/a",
+      "final_url": "https://gist.github.com/example/a",
+      "locations": ["https://gist.github.com/example/b", "https://gist.github.com/example/a"],
+      "should_pass": false
+    }
+  ]
+}

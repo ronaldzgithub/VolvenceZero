@@ -1,0 +1,987 @@
+{
+  "schema_version": "relationship-p4-independent-long-context-causal-campaign-scientific-prereg.v3",
+  "protocol_id_contract": "sha256_canonical_json_utf8_newline_v1",
+  "frozen_at_utc": "2026-08-23T14:30:00.000+08:00",
+  "owner": {
+    "wheel": "lifeform-evolution",
+    "module": "lifeform_evolution.relationship_lab_p4_long_context_causal_campaign",
+    "role": "offline_scientific_prereg_owner",
+    "new_runtime_slot_added": false,
+    "execution_implemented": false
+  },
+  "supersession": {
+    "supersedes_protocol_id": "666d2e8546cd4b4cf55ece06354310e10b4dc07298241b94ef9593e4b5f63baf",
+    "superseded_preparation_artifact_id": "795dea07eabda98c964ca50ee84694fd93bb6ee27fdd0370db7e6cb3ef01a8bd",
+    "earlier_superseded_protocol_id": "5387516a803940a738e13bb47acc8a40b837c3f033797e09dbfaa23c6cda6d2e",
+    "earlier_superseded_preparation_artifact_id": "899b7b0adc395186e108dc0a90c28c0d25ce67cd5445f61636cc2775d09b6901",
+    "superseded_artifact_disposition": "preserved_zero_output_design_only",
+    "superseded_before_any_model_or_subject_output": true,
+    "superseded_outputs_eligible_for_v3": false,
+    "reason_codes": [
+      "swapped_donor_created_cross_root_dependence",
+      "typed_utility_domain_and_decision_imputation_not_frozen",
+      "baseline_bootstrap_and_candidate_selection_not_uniquely_recomputable",
+      "long_range_fact_allowed_near_term_proxy",
+      "generated_action_lineage_not_global_to_all_evaluation_arms",
+      "independent_v2_test_and_artifact_anchor_missing"
+    ]
+  },
+  "question": "Across independent reactive simulated companion analysis roots with nonreused disjoint donor-bank roots, process-separated sessions, and proxy-audited causally relevant public histories whose final decisive fact is at least 32768 actual tokenizer tokens from the decision request, does the frozen Volvence closed loop causally outperform qualified full-history and selective-RAG steelman baselines while Appendable, Readable, Learnable, and Steerable each remain independently load-bearing under eight unique preregistered subject-root contrasts?",
+  "lineage": {
+    "p4_1_seen_canary_protocol_sha256": "040d4dc456f609e51673ffe526b310908905831917814a36fc4d29a9385a6e98",
+    "development_evidence_only": {
+      "readable_named_reader_artifact_id": "e7bbc914ae4ce28fab7ea7b490517d2d49cc44cd11aac3473348f8a2bb5707bd",
+      "learnable_pe_credit_artifact_id": "5c955fb17fde9cb599a0b472f2042e040189615558898311258daa2e20dd810c",
+      "appendable_cross_process_artifact_id": "675815b9362bb480ba5c3718cd03c57cda97553460ac28665af25eb77b462052",
+      "steerable_fit_artifact_id": "57b59b269ecc5cf3f15abf3e16c3a8a03a9e9c74dd8025647203bdd16edcbe04",
+      "may_authorize_formal_execution": false
+    },
+    "negative_or_blocking_results_preserved": [
+      "p1m_prompt_and_rag_baseline_underqualified",
+      "seven_day_n_plus_one_clustered_ci_not_positive",
+      "s2_additive_steering_formal_failed",
+      "legacy_c3_formal_roots_not_adjudicable",
+      "p4_6_physical_actuation_not_run"
+    ],
+    "old_results_may_be_relabelled_as_p4_7": false
+  },
+  "cohort": {
+    "subject_type": "independently_seeded_reactive_simulated_companion",
+    "independent_unit": "subject_root",
+    "target_population": "frozen_generated_simulated_companion_sampling_frame",
+    "generalizes_to_real_humans": false,
+    "subject_source_sampling": {
+      "sampling_frame_and_generator_recipe_frozen_before_first_development_output": true,
+      "root_seed_commitment_frozen_before_materialization": true,
+      "root_seed_derivation": "sha256_split_id_surface_family_id_root_index_and_committed_seed",
+      "unique_surface_family_per_subject_root": true,
+      "shared_template_family_across_subject_roots_permitted": false,
+      "root_selection_or_replacement_based_on_arm_or_outcome": false,
+      "source_inventory_and_split_hashes_required": true
+    },
+    "appendable_donor_banks": {
+      "bank_scope": "one_disjoint_bank_per_split",
+      "development_donor_root_count": 32,
+      "qualification_donor_root_count": 64,
+      "formal_donor_root_count": 192,
+      "one_unique_donor_root_per_analysis_root": true,
+      "donor_root_reuse_permitted": false,
+      "donor_roots_disjoint_from_all_analysis_roots": true,
+      "donor_roots_disjoint_across_splits": true,
+      "donor_roots_enter_estimand_or_bootstrap": false,
+      "assignment_uses_arm_output_or_outcome": false,
+      "assignment_and_root_seed_commitment_frozen_before_first_split_output": true,
+      "donor_closed_loop_trajectory_generated_by_same_frozen_system": true,
+      "donor_stage_snapshot_sealed_before_target_hydration": true,
+      "donor_failure_replacement_permitted": false,
+      "donor_failure_makes_only_the_target_swapped_arm_decisions_missing": true
+    },
+    "independence_requirements": {
+      "unique_root_seed": true,
+      "disjoint_public_trajectory": true,
+      "disjoint_owner_state_root_per_arm": true,
+      "disjoint_gate_checkpoint_per_arm": true,
+      "cross_subject_retrieval_forbidden_except_preregistered_swapped_hydration": true,
+      "no_shared_adaptive_state": true,
+      "subject_root_is_analysis_cluster": true,
+      "analysis_roots_share_no_donor_or_donor_state": true
+    },
+    "real_human_subject_count": 0,
+    "splits": {
+      "development": {
+        "subject_count": 32,
+        "may_tune_baseline_within_budget": true,
+        "may_enter_qualification_or_formal_analysis": false
+      },
+      "qualification": {
+        "subject_count": 64,
+        "baseline_and_blinded_variance_only": true,
+        "arm_labels_blinded_for_variance": true,
+        "one_shot": true,
+        "campaign_retry_count": 0,
+        "session_retry_count": 0,
+        "subject_replacement_permitted": false,
+        "candidate_fallback_after_first_qualification_output_permitted": false,
+        "interim_looks": 0,
+        "analysis_only_after_all_roots_terminal": true,
+        "may_change_model_prompt_retriever_source_threshold_or_sample_size": false,
+        "may_enter_formal_analysis": false
+      },
+      "formal": {
+        "preallocated_subject_count": 192,
+        "intention_to_treat_subject_count": 192,
+        "minimum_globally_complete_paired_subjects": 160,
+        "sealed_until_execution_envelope_frozen": true,
+        "one_shot": true,
+        "campaign_retry_count": 0,
+        "session_retry_count": 0,
+        "subject_replacement_permitted": false,
+        "outcome_based_replacement_permitted": false,
+        "interim_looks": 0
+      }
+    },
+    "split_root_seeds_disjoint": true,
+    "surface_families_disjoint_across_splits": true,
+    "formal_subject_materialization_before_prereg": 0,
+    "donor_bank_materialization_before_prereg": 0,
+    "formal_outcomes_before_prereg": 0
+  },
+  "longitudinal_design": {
+    "onboarding_sessions_per_subject": 4,
+    "matched_learning_exposure_sessions_per_subject": 8,
+    "frozen_policy_evaluation_sessions_per_subject": 8,
+    "total_sessions_per_subject": 20,
+    "fresh_os_process_per_session": true,
+    "process_restart_is_observed_not_inferred": true,
+    "state_recovery_surface": "owner_hydration_store_from_disjoint_disk_root",
+    "raw_history_replayed_to_volvence_owner": false,
+    "per_arm_reactive_trajectory": true,
+    "same_subject_seed_schedule_across_matched_arms": true,
+    "final_decision_public_history_tokens_minimum": 32768,
+    "token_count_basis": "actual_frozen_model_tokenizer_after_chat_template_public_history_segment_only",
+    "minimum_native_context_window_tokens": 65536,
+    "minimum_generation_headroom_tokens": 1024,
+    "fail_on_truncation": true,
+    "runtime_context_extension_or_rope_scaling_permitted": false,
+    "padding_or_filler_tokens_count_toward_minimum": false,
+    "full_history_consuming_arms": [
+      "volvence_closed_loop",
+      "appendable_empty_prior",
+      "appendable_swapped_same_stage_prior",
+      "readable_label_permuted",
+      "learnable_credit_withheld",
+      "steerable_strict_noop",
+      "steerable_sensor_off_matched",
+      "qwen_steelman_full_history"
+    ],
+    "selective_rag_arm": "qwen_steelman_selective_rag",
+    "context_feasibility_preflight_before_first_model_output": true,
+    "substantive_history_guards": {
+      "every_included_chunk_has_session_id_and_content_hash": true,
+      "every_prior_session_represented_in_source_trajectory": true,
+      "minimum_distinct_public_turns": 96,
+      "minimum_distinct_typed_settlements": 16,
+      "exact_or_semantic_duplicate_public_chunks_forbidden": true,
+      "static_instruction_tokens_excluded_from_public_history_count": true,
+      "synthetic_padding_fields_forbidden": true,
+      "validation_only_human_substance_anchor_required": true
+    },
+    "long_context_causal_relevance": {
+      "minimum_decisive_long_range_facts_per_subject": 8,
+      "minimum_decisive_facts_per_evaluation_decision": 1,
+      "final_decision_fact_to_query_distance_tokens_minimum": 32768,
+      "distance_definition": "decision_request_public_token_start_minus_fact_origin_public_token_end",
+      "tokenizer_and_chat_template_frozen": true,
+      "fact_origin_must_precede_evaluation_phase": true,
+      "fact_restatement_after_origin_permitted": false,
+      "typed_fact_supersession_requires_explicit_lineage": true,
+      "counterfactual_fact_value_must_change_unique_optimal_typed_action": true,
+      "distance_bin_lower_bounds_tokens": [4096, 8192, 16384, 32768],
+      "minimum_facts_per_distance_bin": 2,
+      "fact_value_assignment": {
+        "closed_typed_domain": "binary_relationship_preference_value",
+        "counter_based_rng_artifact_frozen_before_source_materialization": true,
+        "independent_of_root_surface_tape_arm_and_outcome": true,
+        "balanced_within_each_split_and_distance_bin": true,
+        "maximum_value_count_imbalance": 1,
+        "assignment_commitment_hidden_from_sut_except_at_fact_origin": true
+      },
+      "counterfactual_twin_proxy_audit": {
+        "one_unexecuted_source_twin_per_analysis_root": true,
+        "twin_is_not_an_analysis_arm_or_model_run": true,
+        "twin_differs_only_in_fact_origin_typed_value_and_oracle_descendants": true,
+        "masking_fact_origin_makes_all_later_exogenous_tape_bytes_exactly_equal": true,
+        "forced_learning_actions_and_pre_evaluation_endogenous_receipts_exactly_equal": true,
+        "post_origin_public_event_or_reaction_may_encode_fact_value": false,
+        "source_dependency_graph_allows_fact_value_parents_only_for_origin_and_evaluation_utility_oracle": true,
+        "semantic_proxy_scan_artifact_and_independent_reobserver_required": true,
+        "proxy_audit_failure_status": "invalid_attempt_no_claim"
+      }
+    },
+    "model_input_receipt": {
+      "required_for_every_arm_and_evaluation_decision": true,
+      "required_fields": [
+        "protocol_id",
+        "split_id",
+        "subject_root_id",
+        "arm_id",
+        "session_index",
+        "decision_id",
+        "tokenizer_artifact_id",
+        "chat_template_sha256",
+        "ordered_public_chunk_ids",
+        "ordered_public_chunk_sha256s",
+        "omitted_public_chunk_ids",
+        "retrieval_receipt_id",
+        "attention_mask_sha256",
+        "system_segment_token_count",
+        "public_history_segment_token_count",
+        "request_segment_token_count",
+        "total_rendered_input_token_count",
+        "rendered_input_token_ids_sha256",
+        "native_context_window_tokens",
+        "generation_headroom_tokens",
+        "truncation_occurred",
+        "owner_snapshot_input_ids",
+        "named_readout_snapshot_ids",
+        "decisive_fact_occurrences"
+      ],
+      "total_input_plus_headroom_must_not_exceed_native_window": true,
+      "truncation_must_be_false": true,
+      "full_history_arms_include_all_ordered_public_chunks": true,
+      "rag_omissions_require_frozen_retrieval_receipt": true,
+      "source_distance_and_rendered_distance_reported_separately": true
+    },
+    "human_substance_anchor": {
+      "role": "validation_admissibility_only_not_learning_or_reward",
+      "selection": "sha256_protocol_split_root_arm_session_stratified_lowest_ten_percent",
+      "sample_fraction_decimal": "0.10",
+      "annotators_per_item": 2,
+      "annotators_blinded_to_arm_outcome_and_claim": true,
+      "rubric_id_must_be_frozen_before_first_development_output": true,
+      "minimum_both_annotators_substantive_rate_decimal": "0.90",
+      "failure_status": "invalid_attempt_no_claim"
+    }
+  },
+  "baseline_admission": {
+    "candidate_budget": 3,
+    "candidate_inventory_and_order_frozen_before_first_development_output": true,
+    "prompt_and_retrieval_search_uses_development_only": true,
+    "development_candidate_selection": {
+      "candidate_unit": "paired_full_history_and_selective_rag_configuration",
+      "all_three_candidates_run_on_same_32_roots_tape_and_opportunities": true,
+      "selection_key_in_priority_order": [
+        "descending_minimum_exact_one_action_rate_across_two_baselines",
+        "descending_minimum_root_mean_accuracy_across_two_baselines",
+        "descending_minimum_root_mean_pair_flip_across_two_baselines",
+        "descending_mean_root_accuracy_across_two_baselines",
+        "ascending_frozen_candidate_inventory_index"
+      ],
+      "selection_targets_qualification_informative_band": false,
+      "manual_selection_or_tie_break_permitted": false,
+      "all_candidate_outputs_and_selection_receipt_published": true
+    },
+    "selected_model_revision_weights_generation_prompt_and_retriever_frozen_before_qualification": true,
+    "qualification_feedback_may_change_selected_baseline": false,
+    "required_baselines": [
+      "qwen_steelman_full_history",
+      "qwen_steelman_selective_rag"
+    ],
+    "qualification_analysis_unit": "subject_root",
+    "evaluation_decisions_per_root": 8,
+    "need_reversal_pairs_per_root": 4,
+    "opportunity_denominator": "all_64_preallocated_roots_x_8_evaluation_decisions",
+    "root_accuracy_statistic": "sum_of_8_mechanical_correct_indicators_divided_by_8",
+    "root_pair_flip_success": "both_actions_equal_their_respective_unique_optima_and_the_two_typed_actions_differ",
+    "root_pair_flip_statistic": "sum_of_4_preregistered_reversal_pair_success_indicators_divided_by_4",
+    "qualification_point_estimator": "unweighted_mean_of_64_root_statistics",
+    "missing_or_malformed_action_counts_as_invalid_and_incorrect": true,
+    "exact_one_typed_action_rate_decimal": "1.0",
+    "root_mean_accuracy_point_estimate_minimum_decimal": "0.55",
+    "root_mean_accuracy_point_estimate_maximum_decimal": "0.85",
+    "one_sided_root_cluster_bootstrap_accuracy_lower_strictly_above_decimal": "0.50",
+    "one_sided_root_cluster_bootstrap_pair_flip_lower_strictly_above_decimal": "0.35",
+    "qualification_bootstrap_replicates": 100000,
+    "qualification_bootstrap_seed": 20260825,
+    "qualification_bootstrap_index_plan": "sha256_seed_replicate_draw_u64_mod_64",
+    "qualification_bootstrap_jointly_resamples_all_decisions_and_pairs_for_a_root": true,
+    "qualification_confidence_level_decimal": "0.95",
+    "qualification_lower_quantile_decimal": "0.05",
+    "qualification_quantile_method": "inverted_cdf",
+    "qualification_lower_order_statistic_zero_based_index": 4999,
+    "qualification_arithmetic": "exact_integer_counts_and_rational_root_means",
+    "both_baselines_must_qualify_independently": true,
+    "baseline_failure_action": "stop_before_formal_without_prompt_source_threshold_sample_or_seed_retuning",
+    "qualification_data_may_reenter_development": false,
+    "baseline_scores_are_system_learning_signals": false,
+    "baseline_scores_are_four_axis_evidence": false
+  },
+  "integrated_arms": [
+    "qwen_steelman_full_history",
+    "qwen_steelman_selective_rag",
+    "volvence_closed_loop"
+  ],
+  "arm_matrix": [
+    "volvence_closed_loop",
+    "appendable_empty_prior",
+    "appendable_swapped_same_stage_prior",
+    "readable_label_permuted",
+    "learnable_credit_withheld",
+    "steerable_strict_noop",
+    "steerable_sensor_off_matched",
+    "qwen_steelman_full_history",
+    "qwen_steelman_selective_rag"
+  ],
+  "axis_contrasts": {
+    "appendable": {
+      "reference_arm": "volvence_closed_loop",
+      "control_arms": [
+        "appendable_empty_prior",
+        "appendable_swapped_same_stage_prior"
+      ],
+      "only_variable": "hydrated_owner_snapshot_selector",
+      "fixed_collaborators": [
+        "named_reader_artifact",
+        "frozen_gate_artifact",
+        "typed_action_executor",
+        "reactive_transition_function"
+      ],
+      "primary_effect": "root_mean_frozen_policy_evaluation_typed_outcome_utility",
+      "donor_contract": {
+        "assignment_artifact_frozen_before_first_split_output": true,
+        "assignment_type": "one_to_one_from_disjoint_nonanalysis_split_donor_bank",
+        "donor_subject_must_differ_from_target": true,
+        "donor_root_must_not_be_any_analysis_root": true,
+        "donor_root_may_be_reused_by_another_target": false,
+        "donor_root_enters_estimand_or_bootstrap": false,
+        "donor_selected_from_outcome_or_arm_output": false,
+        "donor_source_arm": "volvence_closed_loop",
+        "source_boundary_rule": "same_stage_start_boundary",
+        "source_must_be_sealed_before_target_hydration": true,
+        "empty_selector_uses_frozen_owner_typed_empty_root": true,
+        "same_owner_schema_version_and_payload_shape_required": true,
+        "parent_passes_raw_history_or_owner_payload": false,
+        "owner_hydration_receipt_required_fields": [
+          "prior_state_selector",
+          "donor_assignment_artifact_id",
+          "donor_bank_split_id",
+          "donor_bank_root_id",
+          "source_subject_root_id",
+          "source_boundary_index",
+          "source_owner_schema_version",
+          "source_owner_payload_sha256",
+          "source_state_directory_sha256",
+          "source_session_completion_receipt_id",
+          "destination_state_root_id",
+          "copied_state_directory_sha256",
+          "hydrated_owner_snapshot_id",
+          "hydrated_owner_payload_sha256",
+          "child_pid",
+          "parent_pid",
+          "process_nonce",
+          "process_start_identity"
+        ]
+      }
+    },
+    "readable": {
+      "reference_arm": "volvence_closed_loop",
+      "control_arms": [
+        "readable_label_permuted"
+      ],
+      "only_variable": "sealed_named_readout_label_map",
+      "fixed_collaborators": [
+        "reader_artifact_weights_code_and_calibration",
+        "correct_prior_state",
+        "frozen_gate_artifact",
+        "typed_action_executor",
+        "reactive_transition_function"
+      ],
+      "primary_effect": "root_mean_frozen_policy_evaluation_typed_outcome_utility",
+      "reader_artifact_id_same_across_pair": true,
+      "reader_weights_sha256_same_across_pair": true,
+      "reader_input_snapshot_same_at_first_intervention_boundary": true,
+      "raw_logits_dtype_shape_and_bytes_same_at_first_intervention_boundary": true,
+      "reference_label_map_type": "identity_bijection",
+      "control_label_map_type": "fixed_derangement_bijection_without_fixed_points",
+      "closed_label_domain_sha256_same": true,
+      "label_map_frozen_before_first_development_output": true,
+      "consumer_may_access_raw_logits_or_class_index": false,
+      "runtime_evaluator_truth_visible": false,
+      "consumer_reconstructs_owner_state": false,
+      "later_raw_readouts_may_diverge_only_as_prior_treatment_descendants": true,
+      "mapping_receipt_required_fields": [
+        "raw_readout_receipt_id",
+        "reader_artifact_id",
+        "reader_input_snapshot_id",
+        "raw_logits_bytes_sha256",
+        "raw_selected_class_index",
+        "raw_confidence_ieee754_hex",
+        "label_domain_sha256",
+        "label_map_artifact_id",
+        "mapped_typed_label",
+        "published_frozen_snapshot_id",
+        "consumer_input_snapshot_id"
+      ]
+    },
+    "learnable": {
+      "reference_arm": "volvence_closed_loop",
+      "control_arms": [
+        "learnable_credit_withheld"
+      ],
+      "only_variable_during_learning_phase": "final_batch_update_apply_exact_pe_credit_bit",
+      "matched_collection_sessions": 8,
+      "gate_mutation_during_collection": false,
+      "credit_computed_and_published_in_both_arms": true,
+      "learning_phase_action_origin": "preallocated_learning_exposure_tape",
+      "actual_action_outcome_pe_and_credit_receipts_exactly_equal_across_pair": true,
+      "update_timing": "single_atomic_batch_after_all_matched_exposures",
+      "pre_update_gate_checkpoint_exactly_equal": true,
+      "update_operator_hyperparameters_and_rng_exactly_equal": true,
+      "pre_update_command_pair_diff_exact_json_pointers": [
+        "/intervention/apply_exact_pe_credit"
+      ],
+      "withheld_post_checkpoint_equals_pre_checkpoint": true,
+      "withheld_parameter_delta_exact_zero": true,
+      "applied_batch_consumed_exactly_once": true,
+      "gate_frozen_immediately_after_update": true,
+      "evaluation_phase_actions_are_policy_selected": true,
+      "evaluation_or_judge_feedback_to_learning": false,
+      "actual_exposure_receipt_required_before_settlement": true,
+      "shadow_suggestion_may_be_settled": false,
+      "primary_effect": "root_mean_frozen_policy_evaluation_typed_outcome_utility",
+      "pre_update_command_matched_core_fields": [
+        "ordered_actual_exposure_receipt_ids",
+        "ordered_environment_transition_receipt_ids",
+        "ordered_prediction_error_snapshot_ids",
+        "ordered_credit_snapshot_ids",
+        "pre_gate_checkpoint_sha256",
+        "update_operator_artifact_id",
+        "update_hyperparameters_sha256",
+        "update_rng_slice_sha256"
+      ]
+    },
+    "steerable": {
+      "reference_arm": "volvence_closed_loop",
+      "control_arms": [
+        "steerable_strict_noop"
+      ],
+      "conditionality_control_arm": "steerable_sensor_off_matched",
+      "conditionality_control_is_pure_single_variable_claim": false,
+      "only_variable_primary_pair": "bounded_residual_executor_action",
+      "same_frozen_base_model": true,
+      "same_generation_config": true,
+      "free_bias_present": false,
+      "control_norm_cap_ratio_maximum_decimal": "0.25",
+      "strict_noop_delta_and_hook_effect_exact_zero": true,
+      "steering_disabled_during_onboarding_and_matched_learning": true,
+      "intervention_activation_boundary": "first_frozen_policy_evaluation_decision",
+      "same_turn_manipulation_diagnostic": {
+        "decision_scope": "first_frozen_policy_evaluation_decision",
+        "same_model_input_preintervention_residual_generation_rng_and_gate": true,
+        "active_generation_references_direct_hook_return": true,
+        "diagnostic_is_not_longitudinal_primary_endpoint": true
+      },
+      "longitudinal_cross_arm_residual_equality_after_first_action_required": false,
+      "user_visible_generation_required": true,
+      "primary_effect": "root_mean_frozen_policy_evaluation_typed_outcome_utility",
+      "sensor_off_formal_capacity_gate_required": true,
+      "generated_action_lineage": {
+        "actual_action_source": "model_generated_tokens_only",
+        "parser_type": "frozen_deterministic_closed_world_parser",
+        "repair_or_reprompt_permitted": false,
+        "hidden_direct_action_channel_permitted": false,
+        "delivered_assistant_bytes_equal_generated_bytes": true,
+        "parsed_candidate_count_exactly_one": true,
+        "environment_accepts_only_generation_parented_actual_action": true
+      }
+    }
+  },
+  "intervention_integrity": {
+    "reference_arm": "volvence_closed_loop",
+    "allowed_exogenous_difference_json_pointers": {
+      "appendable_empty_prior": [
+        "/hydration/prior_state_selector"
+      ],
+      "appendable_swapped_same_stage_prior": [
+        "/hydration/prior_state_selector"
+      ],
+      "readable_label_permuted": [
+        "/components/condition_label_map/artifact_id"
+      ],
+      "learnable_credit_withheld": [
+        "/learning/final_batch_update/apply_exact_pe_credit"
+      ],
+      "steerable_strict_noop": [
+        "/steering/executor_action"
+      ],
+      "steerable_sensor_off_matched": [
+        "/steering/sensor_condition_delivery"
+      ]
+    },
+    "config_hash_matches_after_removing_allowed_paths": true,
+    "resolved_artifact_and_realized_input_receipts_required": true,
+    "matched_invariant_receipt_required_per_subject_arm_session": true,
+    "same_initial_state_and_exogenous_tape_for_longitudinal_pairs": true,
+    "post_treatment_descendants_may_diverge": true,
+    "allowed_causal_descendants": [
+      "mapped_named_readout",
+      "gate_checkpoint",
+      "generated_tokens",
+      "typed_action",
+      "user_reaction",
+      "typed_settlement",
+      "owner_state",
+      "future_residual",
+      "future_policy_action",
+      "future_reactive_outcome"
+    ],
+    "lineage_or_integrity_failure_status": "invalid_attempt_no_claim"
+  },
+  "shared_exposure_schedule": {
+    "schedule_unit": "split_id_x_subject_root_id_x_session_index",
+    "shared_exogenous_tape": {
+      "frozen_before_first_subject_or_model_output": true,
+      "cross_arm_exact_fields": [
+        "tape_artifact_id",
+        "tape_entry_id",
+        "session_index",
+        "exogenous_public_event_bytes_sha256",
+        "hidden_transition_step_commitment_sha256",
+        "counter_based_rng_slice_sha256",
+        "long_range_fact_ids"
+      ],
+      "cursor_advance_rule": "session_index_plus_one_only",
+      "arm_action_or_outcome_dependent_rerouting_permitted": false,
+      "realized_user_reaction_is_part_of_tape": false,
+      "realized_environment_state_is_part_of_tape": false
+    },
+    "endogenous_reaction": {
+      "frozen_transition_function_same_across_arms": true,
+      "inputs": [
+        "exogenous_tape_consumption_receipt_id",
+        "actual_action_receipt_id",
+        "pre_environment_state_sha256",
+        "previous_transition_receipt_id",
+        "transition_function_artifact_id",
+        "counter_based_rng_slice_sha256"
+      ],
+      "products": [
+        "typed_settlement_id",
+        "typed_outcome_utility",
+        "public_reaction_chunk_id",
+        "public_reaction_bytes_sha256",
+        "post_environment_state_sha256"
+      ],
+      "may_diverge_across_arms_as_action_descendant": true,
+      "learnable_collection_pair_must_be_exactly_equal": true,
+      "independent_reobserver_recomputation_required": true
+    },
+    "fixed_session_count_across_arms": true,
+    "dropout_or_rerouting_based_on_arm_or_outcome": false,
+    "inventory_hashes_required_before_first_development_output": true
+  },
+  "causal_execution": {
+    "causal_lineage_schema_version": "relationship-p4-causal-lineage-contract.v3",
+    "receipt_id_contract": "sha256_canonical_json_utf8_newline_without_receipt_id_v1",
+    "receipt_chain_order": [
+      "exogenous_tape_consumption",
+      "owner_hydration",
+      "model_input",
+      "raw_named_readout",
+      "label_mapping",
+      "steering_forward",
+      "generation",
+      "typed_action",
+      "environment_transition",
+      "prediction_error",
+      "credit",
+      "learning_update",
+      "owner_append",
+      "session_completion"
+    ],
+    "same_frozen_substrate_across_all_arms": true,
+    "same_generation_config_across_all_arms": true,
+    "pre_action_record_before_environment": true,
+    "typed_reactive_outcome_is_mechanical": true,
+    "future_outcome_hidden_from_sut": true,
+    "generator_truth_hidden_from_sut": true,
+    "judge_and_evaluation_hidden_from_memory_pe_credit_gate_and_steering": true,
+    "human_annotation_role": "validation_anchor_only",
+    "formal_result_retry_count": 0,
+    "interim_efficacy_looks": 0,
+    "learning_forced_actions_are_not_steerable_or_evaluation_evidence": true,
+    "global_generated_evaluation_action_contract": {
+      "applies_to_all_nine_arms": true,
+      "applies_to_all_frozen_policy_evaluation_decisions": true,
+      "actual_action_source": "model_generated_tokens_only",
+      "parser_type": "frozen_deterministic_closed_world_parser",
+      "repair_reprompt_or_second_parse_permitted": false,
+      "hidden_direct_action_channel_permitted": false,
+      "delivered_assistant_bytes_equal_generated_bytes": true,
+      "parsed_candidate_count_must_equal": 1,
+      "environment_accepts_only_generation_parented_actual_action": true,
+      "only_exception": "preallocated_forced_actions_in_matched_learning_collection",
+      "exception_is_excluded_from_steerable_and_evaluation_endpoints": true
+    },
+    "typed_outcome_endpoint_contract": {
+      "utility_closed_integer_domain": [-1, 0, 1],
+      "one_utility_slot_per_frozen_policy_evaluation_decision": true,
+      "utility_vector_owner": "frozen_reactive_environment_oracle",
+      "utility_vector_covers_every_closed_world_typed_action": true,
+      "actual_utility_rule": "lookup_actual_typed_action_in_committed_utility_vector",
+      "malformed_missing_or_out_of_domain_observed_action_utility": -1,
+      "unique_optimal_action_has_utility": 1,
+      "nonoptimal_safe_action_maximum_utility": 0,
+      "harmful_action_utility": -1,
+      "scale_shift_rescore_or_posthoc_mapping_permitted": false,
+      "utility_vector_commitment_precedes_model_input": true,
+      "utility_vector_hidden_until_environment_transition": true,
+      "independent_reobserver_recomputes_utility_from_typed_settlement": true
+    },
+    "counterbalanced_execution_schedule": {
+      "schedule_artifact_frozen_before_first_split_output": true,
+      "block_unit": "subject_root_x_session_index",
+      "each_block_contains_each_of_nine_arms_exactly_once": true,
+      "arm_order_derived_from_committed_counter_based_rng": true,
+      "arm_order_algorithm": "sha256_counter_fisher_yates_with_rejection_sampling",
+      "each_arm_ordinal_position_count_differs_by_at_most_one_per_split": true,
+      "root_block_order_interleaved_by_frozen_schedule": true,
+      "arm_or_root_is_never_systematically_earlier_in_host_time": true,
+      "schedule_uses_no_arm_output_outcome_or_failure": true,
+      "same_host_boot_identity_required_within_each_block": true,
+      "donor_bank_stage_snapshots_sealed_before_target_blocks": true,
+      "schedule_receipt_records_wall_monotonic_and_boot_identity": true
+    }
+  },
+  "analysis": {
+    "estimand": {
+      "analysis_unit": "subject_root",
+      "target_population": "frozen_generated_simulated_companion_sampling_frame",
+      "generalizes_to_real_humans": false,
+      "evaluation_session_count": 8,
+      "subject_arm_value": "unweighted_mean_of_8_frozen_policy_evaluation_typed_outcome_utilities",
+      "contrast_value": "subject_arm_value_reference_minus_subject_arm_value_comparator",
+      "population_estimator": "unweighted_mean_over_all_192_preallocated_subject_roots",
+      "session_or_decision_level_pseudoreplication_permitted": false,
+      "standardization_or_posthoc_weighting_permitted": false
+    },
+    "confirmatory_contrasts": [
+      {
+        "contrast_id": "appendable_closed_loop_minus_empty_prior",
+        "reference_arm": "volvence_closed_loop",
+        "comparator_arm": "appendable_empty_prior",
+        "claim": "appendable",
+        "status": "axis_primary",
+        "pure_single_variable_required": true,
+        "holm_member": true
+      },
+      {
+        "contrast_id": "appendable_closed_loop_minus_swapped_same_stage_prior",
+        "reference_arm": "volvence_closed_loop",
+        "comparator_arm": "appendable_swapped_same_stage_prior",
+        "claim": "appendable",
+        "status": "axis_primary",
+        "pure_single_variable_required": true,
+        "holm_member": true
+      },
+      {
+        "contrast_id": "readable_closed_loop_minus_label_permuted",
+        "reference_arm": "volvence_closed_loop",
+        "comparator_arm": "readable_label_permuted",
+        "claim": "readable",
+        "status": "axis_primary",
+        "pure_single_variable_required": true,
+        "holm_member": true
+      },
+      {
+        "contrast_id": "learnable_pe_credit_minus_credit_withheld",
+        "reference_arm": "volvence_closed_loop",
+        "comparator_arm": "learnable_credit_withheld",
+        "claim": "learnable",
+        "status": "axis_primary",
+        "pure_single_variable_required": true,
+        "holm_member": true
+      },
+      {
+        "contrast_id": "steerable_closed_loop_minus_strict_noop",
+        "reference_arm": "volvence_closed_loop",
+        "comparator_arm": "steerable_strict_noop",
+        "claim": "steerable",
+        "status": "axis_primary",
+        "pure_single_variable_required": true,
+        "holm_member": true
+      },
+      {
+        "contrast_id": "steerable_closed_loop_minus_sensor_off_matched",
+        "reference_arm": "volvence_closed_loop",
+        "comparator_arm": "steerable_sensor_off_matched",
+        "claim": "steerable",
+        "status": "mandatory_nonpure_conditionality_capacity_gate",
+        "pure_single_variable_required": false,
+        "holm_member": true
+      },
+      {
+        "contrast_id": "integrated_closed_loop_minus_qwen_full_history",
+        "reference_arm": "volvence_closed_loop",
+        "comparator_arm": "qwen_steelman_full_history",
+        "claim": "integrated_four_axis",
+        "status": "integrated_primary",
+        "pure_single_variable_required": false,
+        "holm_member": true
+      },
+      {
+        "contrast_id": "integrated_closed_loop_minus_qwen_selective_rag",
+        "reference_arm": "volvence_closed_loop",
+        "comparator_arm": "qwen_steelman_selective_rag",
+        "claim": "integrated_four_axis",
+        "status": "integrated_primary",
+        "pure_single_variable_required": false,
+        "holm_member": true
+      }
+    ],
+    "contrast_registry_invariants": {
+      "contrast_id_unique": true,
+      "ordered_arm_pair_unique": true,
+      "holm_membership_count_exact": 8,
+      "same_contrast_may_be_referenced_by_multiple_claims_but_tested_once": true,
+      "learnable_contrast_duplicated_as_integrated_test": false
+    },
+    "claim_registry": {
+      "appendable": {
+        "requires_all_contrast_ids": [
+          "appendable_closed_loop_minus_empty_prior",
+          "appendable_closed_loop_minus_swapped_same_stage_prior"
+        ]
+      },
+      "readable": {
+        "requires_all_contrast_ids": [
+          "readable_closed_loop_minus_label_permuted"
+        ]
+      },
+      "learnable": {
+        "requires_all_contrast_ids": [
+          "learnable_pe_credit_minus_credit_withheld"
+        ]
+      },
+      "steerable": {
+        "requires_all_contrast_ids": [
+          "steerable_closed_loop_minus_strict_noop",
+          "steerable_closed_loop_minus_sensor_off_matched"
+        ],
+        "causal_primary_contrast_id": "steerable_closed_loop_minus_strict_noop",
+        "nonpure_conditionality_gate_id": "steerable_closed_loop_minus_sensor_off_matched"
+      },
+      "integrated_four_axis": {
+        "requires_all_axis_claim_ids": [
+          "appendable",
+          "readable",
+          "learnable",
+          "steerable"
+        ],
+        "requires_all_direct_contrast_ids": [
+          "integrated_closed_loop_minus_qwen_full_history",
+          "integrated_closed_loop_minus_qwen_selective_rag"
+        ],
+        "new_all_axis_noop_test_created": false
+      }
+    },
+    "decision_rule": {
+      "minimum_practical_point_estimate_delta_decimal": "0.15",
+      "point_estimate_comparison": "greater_than_or_equal",
+      "confidence_interval": "one_sided_joint_paired_subject_root_percentile_bootstrap",
+      "confidence_level_decimal": "0.95",
+      "confidence_lower_bound_must_be_strictly_positive": true,
+      "bootstrap_replicates": 100000,
+      "bootstrap_seed": 20260823,
+      "bootstrap_index_algorithm": "sha256_counter_u64_big_endian_rejection_then_modulo_192",
+      "bootstrap_index_domain": "replicate_index_x_draw_index_x_rejection_counter",
+      "bootstrap_index_plan_artifact_required_before_first_development_output": true,
+      "joint_resample_preserves_all_arm_session_values_for_each_root": true,
+      "quantile_method": "inverted_cdf",
+      "lower_quantile_decimal": "0.05",
+      "lower_order_statistic_zero_based_index": 4999,
+      "primary_arithmetic": "exact_integer_utilities_and_rational_means_counts_and_p_values",
+      "reported_decimal_rounding": "decimal_round_half_even_12_places",
+      "raw_p_value_method": "one_sided_centered_paired_subject_root_bootstrap",
+      "raw_p_value_formula": "(1+count((bootstrap_delta-observed_delta)>=observed_delta))/(bootstrap_replicates+1)",
+      "null_boundary_decimal": "0.0",
+      "familywise_alpha_decimal": "0.05",
+      "multiple_comparison_control": "holm_bonferroni_over_eight_unique_contrasts",
+      "holm_order": "ascending_raw_p_then_contrast_id_lexicographic",
+      "holm_step_rule": "p_at_rank_j_less_than_or_equal_to_alpha_divided_by_8_minus_j_plus_1",
+      "holm_comparisons_use_exact_cross_multiplied_rationals": true,
+      "holm_stop_at_first_failure": true,
+      "contrast_pass_requires_lineage_practical_ci_and_holm": true,
+      "all_eight_unique_contrasts_must_pass": true
+    },
+    "missingness_and_attrition": {
+      "primary_population": "all_192_preallocated_subject_roots_intention_to_treat",
+      "outcome_based_exclusion_permitted": false,
+      "replacement_permitted": false,
+      "complete_case_primary_analysis_permitted": false,
+      "globally_complete_root_definition": "all_20_sessions_and_required_receipts_present_for_all_9_arms",
+      "minimum_globally_complete_roots": 160,
+      "fewer_than_minimum_status": "inconclusive_underpowered",
+      "primary_missing_outcome_policy": "contrast_specific_worst_case",
+      "imputation_unit": "each_of_8_frozen_policy_evaluation_decisions_before_root_mean",
+      "every_root_arm_has_exactly_8_preallocated_evaluation_slots": true,
+      "pre_evaluation_crash_makes_all_8_evaluation_slots_missing": true,
+      "evaluation_crash_makes_current_and_all_later_unobserved_slots_missing": true,
+      "missing_reference_utility": -1,
+      "missing_comparator_utility": 1,
+      "both_missing_contrast_value": -2,
+      "both_missing_value_is_applied_directly_per_decision": true,
+      "whole_root_or_whole_arm_imputation_before_decision_averaging_permitted": false,
+      "observed_mechanical_malformed_action_utility": -1,
+      "all_192_roots_remain_in_each_contrast": true,
+      "complete_case_and_tipping_point_results_are_secondary_nonpromotion_only": true,
+      "attrition_table_by_root_arm_session_phase_and_reason_required": true,
+      "differential_attrition_report_required": true,
+      "integrity_or_lineage_violation_is_not_imputed": true,
+      "integrity_or_lineage_violation_status": "invalid_attempt_no_claim"
+    },
+    "power": {
+      "full_decision_rule_power_target_decimal": "0.80",
+      "planning_alternative_mean_delta_for_every_contrast_decimal": "0.20",
+      "practical_observed_delta_gate_decimal": "0.15",
+      "prior_power_artifact_required_before_first_development_output": true,
+      "qualification_power_recheck_required_before_formal_unseal": true,
+      "qualification_recheck_one_shot": true,
+      "qualification_effect_means_used": false,
+      "qualification_residuals_centered_to_zero": true,
+      "qualification_arm_semantics_blinded_to_power_analyst": true,
+      "paired_cross_contrast_covariance_preserved": true,
+      "formal_subject_count_after_recheck": 192,
+      "sample_size_adaptation_permitted": false,
+      "threshold_or_family_adaptation_permitted": false,
+      "power_simulation_replicates": 100000,
+      "power_simulation_seed": 20260824,
+      "power_simulation_index_algorithm": "sha256_counter_based_exact_rational_categorical_draws",
+      "joint_dgp_artifact_required_before_first_development_output": true,
+      "joint_dgp_required_contents": [
+        "all_9_arm_x_8_evaluation_discrete_utility_probability_generator",
+        "all_8_contrast_marginal_means_variances_and_cross_contrast_covariance",
+        "within_root_temporal_dependence_and_challenge_strata",
+        "source_exact_mechanical_opportunity_mix_and_structural_covariance_bounds",
+        "technical_missingness_rate_and_reference_comparator_both_missing_patterns",
+        "worst_case_itt_imputation_before_root_mean",
+        "full_practical_bootstrap_holm_and_claim_conjunction_decision_rule",
+        "rational_probability_masses_rng_index_plan_and_source_hashes"
+      ],
+      "mandatory_variance_scenarios": [
+        "source_structural_covariance_upper_bound",
+        "maximum_feasible_bounded_difference_variance_at_planning_mean",
+        "paired_root_difference_variance_0_25",
+        "paired_root_difference_variance_0_50",
+        "paired_root_difference_variance_1_00"
+      ],
+      "mandatory_within_root_icc_decimals": ["0.00", "0.25", "0.50"],
+      "mandatory_cross_contrast_dependence": [
+        "source_structural_covariance",
+        "independent_contrasts",
+        "equicorrelation_negative_0_10",
+        "equicorrelation_positive_0_50"
+      ],
+      "mandatory_technical_missingness_rate_decimals": ["0.00", "0.01", "0.02"],
+      "mandatory_missingness_patterns": [
+        "balanced_independent",
+        "reference_only_correlated_worst_case",
+        "comparator_only_correlated_worst_case",
+        "both_arm_correlated_worst_case"
+      ],
+      "all_feasible_cartesian_scenario_combinations_must_pass": true,
+      "zero_missing_or_arbitrarily_low_variance_scenario_alone_may_authorize": false,
+      "contrast_power_definition": "probability_the_exact_contrast_pass_rule_is_true",
+      "axis_power_definition": "probability_all_registered_contrasts_for_that_axis_pass",
+      "integrated_joint_power_definition": "probability_all_8_unique_contrasts_and_all_4_axis_claims_pass",
+      "each_unique_contrast_axis_conjunction_and_integrated_joint_power_at_least_decimal": "0.80",
+      "failure_action": "stop_before_formal_and_publish_failed_power_gate_without_retuning"
+    },
+    "allowed_terminal_verdicts": [
+      "passed",
+      "failed_valid_confirmatory_test",
+      "inconclusive_underpowered",
+      "invalid_attempt_no_claim"
+    ],
+    "secondary_measures_are_promotion_inputs": false,
+    "secondary_measures": [
+      "need_reversal_action_accuracy",
+      "cross_surface_transfer_action_accuracy",
+      "return_after_gap_action_accuracy",
+      "recovery_after_correction",
+      "actual_public_history_tokens",
+      "latency_ms",
+      "peak_cuda_memory_bytes"
+    ]
+  },
+  "execution_admission": {
+    "current_stage": "scientific_prereg_v3_only",
+    "execution_enabled": false,
+    "formal_run_authorized": false,
+    "execution_envelope_present": false,
+    "model_output_count_before_freeze": 0,
+    "subject_pack_materialization_count_before_freeze": 0,
+    "donor_bank_materialization_count_before_freeze": 0,
+    "counterfactual_twin_materialization_count_before_freeze": 0,
+    "power_dgp_artifact_count_before_freeze": 0,
+    "development_cuda_diagnostics_allowed": true,
+    "development_cuda_diagnostics_are_formal_evidence": false,
+    "user_development_cuda_consent_is_formal_authorization": false,
+    "manual_override_permitted": false,
+    "environment_override_permitted": false,
+    "ignore_microcode_override_permitted": false,
+    "force_cli_permitted": false,
+    "legacy_host_block": {
+      "physical_actuation_protocol_id": "c6cb84f0ba174d575f901c25e70f20421ebb232d6b9a7c18892f31ee33413244",
+      "host_block_receipt_raw_sha256": "5e02aec731db429fa699176edd8cd6cf44c52e68193c6a0d22c32112c8c4a34f",
+      "automatically_replaced_by_short_cuda_success": false
+    },
+    "current_acquisition_v2": {
+      "protocol_id": "3ed1005fc06c443ba7af4e60b254d6afeb2f84168177322a26cea0856fbe5be0",
+      "protocol_raw_sha256": "b01c3ae23c066b8d53d0ecc337e275b8177d3be6ab4f4b787ef51a48a0be1c1b",
+      "may_authorize_execution": false
+    },
+    "future_execution_envelope_may_change_scientific_design": false,
+    "future_execution_envelope_required_fields": [
+      "exact_scientific_protocol_id",
+      "independent_subject_source_recipe_seed_commitment_pack_and_split_hashes",
+      "exogenous_tape_and_endogenous_transition_artifact_ids",
+      "appendable_disjoint_nonreused_donor_banks_assignment_and_typed_empty_root_ids",
+      "readable_reader_and_identity_derangement_label_map_ids",
+      "learnable_pe_credit_batch_update_operator_and_cold_gate_ids",
+      "steerable_reader_executor_sensor_off_and_strict_noop_artifact_ids",
+      "qualified_baseline_model_revision_weights_prompt_retriever_and_generation",
+      "strict_native_context_profile_and_per_arm_input_receipt_contract",
+      "long_range_fact_balanced_assignment_counterfactual_twin_proxy_audit_utility_and_anchor_ids",
+      "global_generated_evaluation_action_parser_and_typed_utility_endpoint_ids",
+      "counterbalanced_arm_session_host_time_schedule_id",
+      "production_host_qualification_full_root_identity",
+      "native_reobserver_and_projection_join",
+      "application_and_system_cursor_bridge",
+      "job_object_process_tree_containment",
+      "realized_executable_argv_environment_and_source_attestation",
+      "same_machine_same_boot_identity",
+      "outcome_typing_qualification_id",
+      "independent_reobserver_identity",
+      "prior_and_qualification_power_joint_dgp_index_plan_script_hashes_and_per_claim_power"
+    ],
+    "host_qualification_terminal_self_report_authoritative": false,
+    "production_host_qualification_real_observation_required": true,
+    "production_host_qualification_validated_eligible_required": true,
+    "minimum_microcode_integer": 303,
+    "existing_p4_6_fit_native_window_tokens": 32768,
+    "existing_p4_6_fit_may_authorize_long_context_formal": false
+  },
+  "stopping_rules": [
+    "context_or_native_window_feasibility_failure_stops_before_first_model_output",
+    "subject_source_donor_bank_counterfactual_twin_proxy_or_exposure_inventory_failure_stops_before_first_model_output",
+    "prior_full_decision_rule_power_below_0_8_stops_before_first_development_output",
+    "either_steelman_baseline_outside_the_frozen_informative_band_stops_before_formal",
+    "qualification_power_recheck_below_0_8_stops_before_formal_without_adaptation",
+    "fewer_than_160_globally_complete_formal_roots_is_inconclusive_underpowered",
+    "host_or_execution_admission_missing_keeps_formal_execution_closed",
+    "lineage_exposure_noop_truncation_or_leakage_failure_invalidates_the_attempt_without_claim",
+    "any_of_eight_unique_primary_contrasts_failure_sets_the_integrated_four_axis_verdict_false",
+    "human_substance_anchor_failure_invalidates_the_attempt_without_claim",
+    "valid_formal_failure_is_published_unchanged_without_prompt_source_threshold_sample_or_seed_retuning",
+    "qualification_and_formal_splits_are_never_reused_as_development"
+  ],
+  "evidence_firewall": {
+    "scientific_design_v3_frozen": true,
+    "v1_superseded_before_execution": true,
+    "v2_superseded_before_execution": true,
+    "subject_source_generated": false,
+    "model_generation_performed": false,
+    "cuda_formal_execution_performed": false,
+    "independent_subject_evidence_observed": false,
+    "long_context_evidence_observed": false,
+    "appendable_formal_supported": false,
+    "readable_formal_supported": false,
+    "learnable_formal_supported": false,
+    "steerable_formal_supported": false,
+    "integrated_four_axis_supported": false,
+    "production_active_authorized": false,
+    "product_value_claimed": false
+  },
+  "claim_boundary": "This v3 package supersedes the preserved zero-output v2 design, which had already superseded zero-output v1, before any version produced subject, model, CUDA-formal, or outcome output. In addition to the v2 eight-contrast, practical-effect, paired-root, Holm, ITT, reactive-lineage, realized-intervention, and causal-32K gates, v3 freezes disjoint nonreused donor banks that do not enter the estimand; the exact {-1,0,1} typed-utility endpoint and per-decision missingness algorithm; deterministic baseline candidate selection and qualification bootstrap math; balanced fact assignment with byte-matched counterfactual-twin proxy audits; a generated-token-to-action contract for every arm's evaluation decisions; counterbalanced host-time execution; and exact bootstrap and full joint power-DGP scenario requirements. It still implements no source, donor bank, power artifact, execution envelope, runner, analysis, model generation, or formal execution; authorizes neither formal nor production execution; and proves none of Appendable, Readable, Learnable, Steerable, their integrated claim, real-human product value, or production ACTIVE. Development CUDA diagnostics are allowed but remain non-formal and cannot modify these gates."
+}

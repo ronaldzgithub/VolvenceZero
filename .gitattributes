@@ -6,6 +6,10 @@ install.sh text eol=lf
 # PowerShell is CRLF-native.
 *.ps1 text eol=crlf
 
+# This reviewed evidence source is raw-byte pinned and must materialize identically
+# on Windows and POSIX checkouts before the same-buffer launcher hashes it.
+packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1 text eol=lf
+
 # Research papers and other PDF evidence must remain byte-exact and diff as binary.
 *.pdf binary
 
@@ -20,6 +24,24 @@ artifacts/relationship_lab/**/*.csv text eol=lf
 # Offline evidence protocols are content-addressed from their raw UTF-8 bytes.
 # Keep protocol IDs reproducible across Windows and macOS/Linux checkouts.
 packages/*/src/volvence_zero/offline_evidence/protocols/*.json text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/protocols/*.json text eol=lf
+
+# P4.7 derivation helpers are raw-byte pinned and execute on macOS/Linux too.
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_p4_long_context_v4_planning_derivation.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_p4_long_context_source_opportunity_derivation.py text eol=lf
+
+# P4.7 external-anchor preregistration, observer, verifier, schemas, and launcher
+# are raw-byte pinned before publication and must remain identical on every host.
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_p4_external_anchor_preregistration.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_p4_external_anchor_verifier.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_p4_external_anchor_observer.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/schemas/relationship_p4_external_anchor_*.schema.json text eol=lf
+scripts/run_relationship_lab_p4_external_anchor_observer.py text eol=lf
+
+# These two already-frozen source-preflight inputs are pinned from CRLF bytes.
+# Explicit CRLF makes their raw identities reproducible on every Git checkout.
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/relationship_action_contracts.py text eol=crlf
+packages/lifeform-evolution/src/lifeform_evolution/schemas/relationship_action_choice.schema.json text eol=crlf
 
 # Keep the Volvence Codex raw chat snapshots pushable without bloating Git objects.
 chats/volvence_codex_export_20260806/raw/active/*.jsonl.gz filter=lfs diff=lfs merge=lfs -text

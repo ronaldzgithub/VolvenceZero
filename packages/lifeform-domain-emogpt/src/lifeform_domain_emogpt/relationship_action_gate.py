@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 
@@ -132,6 +133,72 @@ class RelationshipActionGateDecision:
         ):
             raise ValueError("noop gate action must select neutral_noop")
 
+    def to_payload(self) -> dict[str, object]:
+        """Return the canonical JSON-compatible pending-decision payload."""
+
+        return {
+            "decision_id": self.decision_id,
+            "forecast_id": self.forecast_id,
+            "gate_action": self.gate_action.value,
+            "selected_action_id": self.selected_action_id,
+            "recommended_action_id": self.recommended_action_id,
+            "steer_probability": self.steer_probability,
+            "features": list(self.features),
+            "mode": self.mode.value,
+            "artifact_id": self.artifact_id,
+            "artifact_version": self.artifact_version,
+            "update_count": self.update_count,
+            "evidence_refs": list(self.evidence_refs),
+            "rationale_codes": list(self.rationale_codes),
+            "evaluator_only": self.evaluator_only,
+        }
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipActionGateDecision":
+        """Restore one pending decision from its exact canonical shape."""
+
+        raw = _require_exact_mapping(
+            payload,
+            expected={
+                "decision_id",
+                "forecast_id",
+                "gate_action",
+                "selected_action_id",
+                "recommended_action_id",
+                "steer_probability",
+                "features",
+                "mode",
+                "artifact_id",
+                "artifact_version",
+                "update_count",
+                "evidence_refs",
+                "rationale_codes",
+                "evaluator_only",
+            },
+            source="relationship action gate decision",
+        )
+        return cls(
+            decision_id=_payload_text(raw, "decision_id"),
+            forecast_id=_payload_text(raw, "forecast_id"),
+            gate_action=RelationshipGateAction(
+                _payload_text(raw, "gate_action")
+            ),
+            selected_action_id=_payload_text(raw, "selected_action_id"),
+            recommended_action_id=_payload_text(
+                raw,
+                "recommended_action_id",
+            ),
+            steer_probability=_payload_float(raw, "steer_probability"),
+            features=_payload_float_tuple(raw, "features"),
+            mode=RelationshipActionGateMode(_payload_text(raw, "mode")),
+            artifact_id=_payload_text(raw, "artifact_id"),
+            artifact_version=_payload_int(raw, "artifact_version"),
+            update_count=_payload_int(raw, "update_count"),
+            evidence_refs=_payload_text_tuple(raw, "evidence_refs"),
+            rationale_codes=_payload_text_tuple(raw, "rationale_codes"),
+            evaluator_only=_payload_bool(raw, "evaluator_only"),
+        )
+
 
 @dataclass(frozen=True)
 class RelationshipActionGateUpdate:
@@ -190,6 +257,66 @@ class RelationshipActionGateCheckpoint:
     @property
     def checkpoint_sha256(self) -> str:
         return _state_digest(self.weights, self.bias, self.update_count)
+
+    def to_payload(self) -> dict[str, object]:
+        """Return the canonical JSON-compatible full checkpoint payload.
+
+        ``checkpoint_sha256`` intentionally remains the historical bounded
+        parameter-state digest.  Callers that persist this full payload bind
+        its canonical bytes in their containing artifact manifest.
+        """
+
+        return {
+            "schema_version": self.schema_version,
+            "artifact_id": self.artifact_id,
+            "artifact_version": self.artifact_version,
+            "weights": list(self.weights),
+            "bias": self.bias,
+            "update_count": self.update_count,
+            "processed_credit_ids": list(self.processed_credit_ids),
+            "pending_decisions": [
+                decision.to_payload() for decision in self.pending_decisions
+            ],
+        }
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipActionGateCheckpoint":
+        """Restore a checkpoint from canonical or legacy service payload.
+
+        The closed-alpha service historically added ``content_sha256`` around
+        this exact body.  That one legacy envelope is accepted and verified;
+        every other missing or extra field fails loudly.
+        """
+
+        raw = _checkpoint_payload_body(payload)
+        pending_raw = raw["pending_decisions"]
+        if not isinstance(pending_raw, list):
+            raise ValueError("pending_decisions must be an array of objects")
+        pending = tuple(
+            RelationshipActionGateDecision.from_payload(item)
+            for item in pending_raw
+        )
+        processed = _payload_text_tuple(
+            raw,
+            "processed_credit_ids",
+            allow_empty=True,
+        )
+        if processed != tuple(sorted(processed)):
+            raise ValueError("processed_credit_ids must use canonical order")
+        if tuple(item.forecast_id for item in pending) != tuple(
+            sorted(item.forecast_id for item in pending)
+        ):
+            raise ValueError("pending_decisions must use canonical forecast order")
+        return cls(
+            artifact_id=_payload_text(raw, "artifact_id"),
+            artifact_version=_payload_int(raw, "artifact_version"),
+            weights=_payload_float_tuple(raw, "weights"),
+            bias=_payload_float(raw, "bias"),
+            update_count=_payload_int(raw, "update_count"),
+            processed_credit_ids=processed,
+            pending_decisions=pending,
+            schema_version=_payload_text(raw, "schema_version"),
+        )
 
 
 class RelationshipActionGate:
@@ -518,6 +645,128 @@ def _require_non_empty_unique(values: tuple[str, ...], field_name: str) -> None:
         raise ValueError(f"{field_name} must contain non-empty strings")
     if len(set(values)) != len(values):
         raise ValueError(f"{field_name} must be unique")
+
+
+def _require_exact_mapping(
+    payload: object,
+    *,
+    expected: set[str],
+    source: str,
+) -> Mapping[str, object]:
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{source} must be an object")
+    if any(not isinstance(key, str) for key in payload):
+        raise ValueError(f"{source} keys must be strings")
+    observed = set(payload)
+    missing = sorted(expected - observed)
+    extra = sorted(observed - expected)
+    if missing or extra:
+        raise ValueError(
+            f"{source} fields do not match schema; "
+            f"missing={missing}, extra={extra}"
+        )
+    return payload
+
+
+def _checkpoint_payload_body(payload: object) -> Mapping[str, object]:
+    expected = {
+        "schema_version",
+        "artifact_id",
+        "artifact_version",
+        "weights",
+        "bias",
+        "update_count",
+        "processed_credit_ids",
+        "pending_decisions",
+    }
+    if not isinstance(payload, Mapping):
+        raise ValueError("relationship action gate checkpoint must be an object")
+    if any(not isinstance(key, str) for key in payload):
+        raise ValueError(
+            "relationship action gate checkpoint keys must be strings"
+        )
+    observed = set(payload)
+    if observed == expected:
+        return payload
+    legacy_expected = {*expected, "content_sha256"}
+    if observed != legacy_expected:
+        missing = sorted(expected - observed)
+        extra = sorted(observed - legacy_expected)
+        raise ValueError(
+            "relationship action gate checkpoint fields do not match schema; "
+            f"missing={missing}, extra={extra}"
+        )
+    stored = _payload_text(payload, "content_sha256")
+    body = {key: payload[key] for key in expected}
+    encoded = json.dumps(
+        body,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    computed = hashlib.sha256(encoded).hexdigest()
+    if stored != computed:
+        raise ValueError(
+            "relationship action gate checkpoint content hash mismatch"
+        )
+    return body
+
+
+def _payload_text(payload: Mapping[str, object], key: str) -> str:
+    value = payload[key]
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{key} must be a non-empty string")
+    return value
+
+
+def _payload_int(payload: Mapping[str, object], key: str) -> int:
+    value = payload[key]
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{key} must be an integer")
+    return value
+
+
+def _payload_float(payload: Mapping[str, object], key: str) -> float:
+    value = payload[key]
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"{key} must be numeric")
+    return float(value)
+
+
+def _payload_bool(payload: Mapping[str, object], key: str) -> bool:
+    value = payload[key]
+    if not isinstance(value, bool):
+        raise ValueError(f"{key} must be a boolean")
+    return value
+
+
+def _payload_text_tuple(
+    payload: Mapping[str, object],
+    key: str,
+    *,
+    allow_empty: bool = False,
+) -> tuple[str, ...]:
+    value = payload[key]
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item.strip() for item in value
+    ):
+        raise ValueError(f"{key} must be an array of non-empty strings")
+    if not allow_empty and not value:
+        raise ValueError(f"{key} must be non-empty")
+    return tuple(value)
+
+
+def _payload_float_tuple(
+    payload: Mapping[str, object],
+    key: str,
+) -> tuple[float, ...]:
+    value = payload[key]
+    if not isinstance(value, list) or any(
+        isinstance(item, bool) or not isinstance(item, int | float)
+        for item in value
+    ):
+        raise ValueError(f"{key} must be an array of numbers")
+    return tuple(float(item) for item in value)
 
 
 __all__ = [

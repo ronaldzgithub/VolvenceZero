@@ -1,0 +1,458 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://volvence.local/schemas/relationship-p4-external-anchor-receipt.v2.json",
+  "title": "Relationship P4 A0 raw-bundle replay receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id_contract",
+    "observation_role",
+    "predecessor_receipt_id",
+    "predecessor_receipt_bundle_manifest_raw_sha256",
+    "normative_binding",
+    "request_binding",
+    "capture_binding",
+    "anchor_projection",
+    "http_projection",
+    "git_projection",
+    "derived_checks",
+    "verdict",
+    "receipt_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "relationship-p4-long-context-github-public-gist-anchor-receipt.v2"
+    },
+    "receipt_id_contract": {
+      "const": "sha256_canonical_json_utf8_newline_without_receipt_id_v1"
+    },
+    "observation_role": {
+      "enum": ["R0", "R1"]
+    },
+    "predecessor_receipt_id": {
+      "anyOf": [
+        {"$ref": "#/$defs/sha256"},
+        {"type": "null"}
+      ]
+    },
+    "predecessor_receipt_bundle_manifest_raw_sha256": {
+      "anyOf": [
+        {"$ref": "#/$defs/sha256"},
+        {"type": "null"}
+      ]
+    },
+    "normative_binding": {
+      "$ref": "#/$defs/normative_binding"
+    },
+    "request_binding": {
+      "$ref": "#/$defs/request_binding"
+    },
+    "capture_binding": {
+      "$ref": "#/$defs/capture_binding"
+    },
+    "anchor_projection": {
+      "$ref": "#/$defs/anchor_projection"
+    },
+    "http_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["api_start", "returned_raw", "returned_html", "api_end"],
+      "properties": {
+        "api_start": {"$ref": "#/$defs/http_projection"},
+        "returned_raw": {"$ref": "#/$defs/http_projection"},
+        "returned_html": {"$ref": "#/$defs/http_projection"},
+        "api_end": {"$ref": "#/$defs/http_projection"}
+      }
+    },
+    "git_projection": {
+      "$ref": "#/$defs/git_projection"
+    },
+    "derived_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["L", "H", "T", "J", "G", "B", "E"],
+      "properties": {
+        "L": {"type": "boolean"},
+        "H": {"type": "boolean"},
+        "T": {"type": "boolean"},
+        "J": {"type": "boolean"},
+        "G": {"type": "boolean"},
+        "B": {"type": "boolean"},
+        "E": {"type": "boolean"}
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integrity_valid",
+        "observation_complete",
+        "external_request_dispatched",
+        "publication_object_exists_observed",
+        "publisher_action_or_identity_proven",
+        "external_publication_observed",
+        "external_publication_anchor_present",
+        "external_anchor_admitted",
+        "A1_contract_and_materializer_implementation_authorized",
+        "structural_inventory_materialization_authorized",
+        "source_execution_authorized",
+        "tuple_feasibility_authorized",
+        "power_search_authorized",
+        "model_output_authorized",
+        "CUDA_planner_authorized",
+        "development_authorized",
+        "qualification_authorized",
+        "formal_authorized",
+        "appendable_formal_supported",
+        "readable_formal_supported",
+        "learnable_formal_supported",
+        "steerable_formal_supported",
+        "integrated_four_axis_supported"
+      ],
+      "properties": {
+        "integrity_valid": {"type": "boolean"},
+        "observation_complete": {"type": "boolean"},
+        "external_request_dispatched": {"const": false},
+        "publication_object_exists_observed": {"const": false},
+        "publisher_action_or_identity_proven": {"const": false},
+        "external_publication_observed": {"const": false},
+        "external_publication_anchor_present": {"const": false},
+        "external_anchor_admitted": {"const": false},
+        "A1_contract_and_materializer_implementation_authorized": {"const": false},
+        "structural_inventory_materialization_authorized": {"const": false},
+        "source_execution_authorized": {"const": false},
+        "tuple_feasibility_authorized": {"const": false},
+        "power_search_authorized": {"const": false},
+        "model_output_authorized": {"const": false},
+        "CUDA_planner_authorized": {"const": false},
+        "development_authorized": {"const": false},
+        "qualification_authorized": {"const": false},
+        "formal_authorized": {"const": false},
+        "appendable_formal_supported": {"const": false},
+        "readable_formal_supported": {"const": false},
+        "learnable_formal_supported": {"const": false},
+        "steerable_formal_supported": {"const": false},
+        "integrated_four_axis_supported": {"const": false}
+      }
+    },
+    "receipt_id": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "file_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "byte_count", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "byte_count": {"type": "integer", "minimum": 0},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "capture_file_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "path", "byte_count", "sha256"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "byte_count": {"type": "integer", "minimum": 0},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "normative_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repo_relative_posix_path",
+        "byte_count",
+        "raw_sha256",
+        "git_blob_oid_sha1",
+        "media_type",
+        "expected_eol",
+        "same_buffer_operation"
+      ],
+      "properties": {
+        "repo_relative_posix_path": {"type": "string", "minLength": 1},
+        "byte_count": {"type": "integer", "minimum": 0},
+        "raw_sha256": {"$ref": "#/$defs/sha256"},
+        "git_blob_oid_sha1": {"$ref": "#/$defs/sha1"},
+        "media_type": {"type": "string", "minLength": 1},
+        "expected_eol": {"type": "string", "minLength": 1},
+        "same_buffer_operation": {"type": "string", "minLength": 1}
+      }
+    },
+    "normative_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_id", "protocol_raw_sha256", "protocol_byte_count", "normative_files"],
+      "properties": {
+        "protocol_id": {"$ref": "#/$defs/sha256"},
+        "protocol_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "protocol_byte_count": {"type": "integer", "minimum": 0},
+        "normative_files": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "receipt_schema",
+            "admission_schema",
+            "pure_verifier_and_admission_judge",
+            "fixed_production_observer",
+            "observer_CLI",
+            "golden_vectors"
+          ],
+          "properties": {
+            "receipt_schema": {"$ref": "#/$defs/normative_file"},
+            "admission_schema": {"$ref": "#/$defs/normative_file"},
+            "pure_verifier_and_admission_judge": {"$ref": "#/$defs/normative_file"},
+            "fixed_production_observer": {"$ref": "#/$defs/normative_file"},
+            "observer_CLI": {"$ref": "#/$defs/normative_file"},
+            "golden_vectors": {"$ref": "#/$defs/normative_file"}
+          }
+        }
+      }
+    },
+    "request_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "request_artifact_id",
+        "request_payload_raw_sha256",
+        "request_payload_byte_count",
+        "request_manifest_raw_sha256",
+        "request_manifest_byte_count"
+      ],
+      "properties": {
+        "request_id": {"$ref": "#/$defs/sha256"},
+        "request_artifact_id": {"$ref": "#/$defs/sha256"},
+        "request_payload_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "request_payload_byte_count": {"type": "integer", "minimum": 0},
+        "request_manifest_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "request_manifest_byte_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "capture_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id",
+        "claim_raw_sha256",
+        "process_id",
+        "process_instance_nonce",
+        "capture_map_id",
+        "capture_map_raw_sha256",
+        "terminal_id",
+        "terminal_raw_sha256",
+        "ordered_file_refs"
+      ],
+      "properties": {
+        "claim_id": {"$ref": "#/$defs/sha256"},
+        "claim_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "process_id": {"type": "integer", "minimum": 1},
+        "process_instance_nonce": {"$ref": "#/$defs/sha256"},
+        "capture_map_id": {"$ref": "#/$defs/sha256"},
+        "capture_map_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "terminal_id": {"$ref": "#/$defs/sha256"},
+        "terminal_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "ordered_file_refs": {
+          "type": "array",
+          "minItems": 16,
+          "maxItems": 16,
+          "items": {"$ref": "#/$defs/capture_file_ref"}
+        }
+      }
+    },
+    "anchor_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gist_id",
+        "gist_node_id",
+        "owner_login",
+        "owner_id",
+        "owner_node_id",
+        "public",
+        "description",
+        "revision_oid",
+        "filename",
+        "raw_revision_token",
+        "api_revision_url",
+        "raw_revision_url",
+        "html_presentation_url",
+        "git_pull_url"
+      ],
+      "properties": {
+        "gist_id": {"type": "string", "pattern": "^[0-9a-f]{20,64}$"},
+        "gist_node_id": {"type": "string", "minLength": 1},
+        "owner_login": {"type": "string", "minLength": 1},
+        "owner_id": {"type": "integer", "minimum": 1},
+        "owner_node_id": {"type": "string", "minLength": 1},
+        "public": {"type": "boolean"},
+        "description": {"type": "string"},
+        "revision_oid": {"$ref": "#/$defs/sha1"},
+        "filename": {"type": "string", "minLength": 1},
+        "raw_revision_token": {"$ref": "#/$defs/sha1"},
+        "api_revision_url": {"type": "string", "format": "uri"},
+        "raw_revision_url": {"type": "string", "format": "uri"},
+        "html_presentation_url": {"type": "string", "format": "uri"},
+        "git_pull_url": {"type": "string", "format": "uri"}
+      }
+    },
+    "http_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "requested_url",
+        "final_url",
+        "status",
+        "response_header_count",
+        "response_header_wire_bytes",
+        "response_header_ledger_bytes",
+        "response_header_ledger_sha256",
+        "redirect_count",
+        "body"
+      ],
+      "properties": {
+        "role": {"enum": ["api", "raw", "html_git"]},
+        "requested_url": {"type": "string", "format": "uri"},
+        "final_url": {"type": "string", "format": "uri"},
+        "status": {"type": "integer", "minimum": 100},
+        "response_header_count": {"type": "integer", "minimum": 0},
+        "response_header_wire_bytes": {"type": "integer", "minimum": 0, "maximum": 65536},
+        "response_header_ledger_bytes": {"type": "integer", "minimum": 0},
+        "response_header_ledger_sha256": {"$ref": "#/$defs/sha256"},
+        "redirect_count": {"type": "integer", "minimum": 0},
+        "body": {"$ref": "#/$defs/file_ref"}
+      }
+    },
+    "git_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remote_url",
+        "advertised_heads",
+        "fetched_heads",
+        "object_inventory",
+        "object_inventory_payload",
+        "commit_oid_sha1",
+        "commit_framed_sha256",
+        "commit_payload",
+        "commit_parent_count",
+        "tree_oid_sha1",
+        "tree_framed_sha256",
+        "tree_payload",
+        "tree_entry_count",
+        "tree_entry_mode",
+        "tree_entry_filename",
+        "blob_oid_sha1",
+        "blob_framed_sha256",
+        "blob_payload",
+        "fsck_stdout_sha256",
+        "fsck_stderr_sha256",
+        "production_git_toolchain"
+      ],
+      "properties": {
+        "remote_url": {"type": "string", "format": "uri"},
+        "advertised_heads": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {"$ref": "#/$defs/git_ref"}
+        },
+        "fetched_heads": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {"$ref": "#/$defs/git_ref"}
+        },
+        "object_inventory": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {"$ref": "#/$defs/git_inventory_row"}
+        },
+        "object_inventory_payload": {"$ref": "#/$defs/file_ref"},
+        "commit_oid_sha1": {"$ref": "#/$defs/sha1"},
+        "commit_framed_sha256": {"$ref": "#/$defs/sha256"},
+        "commit_payload": {"$ref": "#/$defs/file_ref"},
+        "commit_parent_count": {"type": ["integer", "null"], "minimum": 0},
+        "tree_oid_sha1": {"$ref": "#/$defs/sha1"},
+        "tree_framed_sha256": {"$ref": "#/$defs/sha256"},
+        "tree_payload": {"$ref": "#/$defs/file_ref"},
+        "tree_entry_count": {"type": ["integer", "null"], "minimum": 0},
+        "tree_entry_mode": {"type": "string"},
+        "tree_entry_filename": {"type": "string"},
+        "blob_oid_sha1": {"$ref": "#/$defs/sha1"},
+        "blob_framed_sha256": {"$ref": "#/$defs/sha256"},
+        "blob_payload": {"$ref": "#/$defs/file_ref"},
+        "fsck_stdout_sha256": {"$ref": "#/$defs/sha256"},
+        "fsck_stderr_sha256": {"$ref": "#/$defs/sha256"},
+        "production_git_toolchain": {"$ref": "#/$defs/production_git_toolchain"}
+      }
+    },
+    "git_ref": {
+      "type": "array",
+      "prefixItems": [{"type": "string", "minLength": 1}, {"$ref": "#/$defs/sha1"}],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "git_inventory_row": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/sha1"},
+        {"enum": ["blob", "commit", "tree"]},
+        {"type": "integer", "minimum": 0, "maximum": 4194304}
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "production_git_toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executable_path",
+        "executable_byte_count",
+        "executable_raw_sha256",
+        "version_stdout",
+        "helper_identities",
+        "preflight_completed_before_HTTP"
+      ],
+      "properties": {
+        "executable_path": {"type": "string", "minLength": 1},
+        "executable_byte_count": {"type": "integer", "minimum": 0},
+        "executable_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "version_stdout": {"type": "string", "minLength": 1},
+        "helper_identities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {"type": "string", "minLength": 1},
+              {"type": "integer", "minimum": 0},
+              {"$ref": "#/$defs/sha256"}
+            ],
+            "items": false,
+            "minItems": 3,
+            "maxItems": 3
+          }
+        },
+        "preflight_completed_before_HTTP": {"type": "boolean"}
+      }
+    }
+  }
+}

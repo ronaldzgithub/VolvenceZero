@@ -1,0 +1,70 @@
+{
+  "schema_version": "relationship-residual-named-action-fit-protocol.v1",
+  "protocol_name": "relationship_residual_named_action_fit_v1",
+  "source_contract": {
+    "forecast_type": "volvence_zero.social_cognition.PreferenceActionForecast",
+    "gate_decision_type": "lifeform_domain_emogpt.relationship_action_gate.RelationshipActionGateDecision",
+    "required_named_readout": "forecast.condition_readout",
+    "required_gate_action": "steer",
+    "required_gate_mode": "learned",
+    "forbidden_gate_modes": [
+      "oracle"
+    ],
+    "evaluator_only_required": false,
+    "target_derivation": "forecast.recommended_action_id",
+    "condition_projection": "relationship-owner-forecast-gate-condition.v1",
+    "learning_source": "pre_action_owner_forecast_and_pe_trained_gate_only",
+    "forbidden_input_fields": [
+      "preferred_action_id",
+      "expected_action_id",
+      "environment_seed",
+      "sealed_latent_dynamic_id",
+      "evaluator",
+      "judge",
+      "observed_outcome",
+      "future_outcome",
+      "reward",
+      "credit"
+    ]
+  },
+  "action_surface": {
+    "ordered_action_ids": [
+      "stay_present_without_probe",
+      "respect_space_with_return_option"
+    ],
+    "strict_noop_action_id": "neutral_noop",
+    "required_action_id_occurrences_in_public_action_text": 1,
+    "fit_scoring_surface": "restricted_first_token_enum_nll",
+    "strict_json_consumer_schema": "relationship_action_choice.schema.json",
+    "strict_json_serialization": "canonical_object_with_only_action_id",
+    "raw_model_strict_json_generation_proven": false,
+    "typed_action_effect_only_until_physical_consumer": true
+  },
+  "split_contract": {
+    "subject_scope_disjoint": true,
+    "minimum_train_rows_per_action": 2,
+    "minimum_heldout_rows_per_action": 2,
+    "selection_order": "lexicographic_row_id_no_metric_selection"
+  },
+  "fit_recipe": {
+    "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "model_revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+    "model_weights_sha256": "fb8c44c48b8359fdd306cdc5f473d7c04d88955013f0dd8549f266e248194da4",
+    "execution_assets_sha256": "bbb5446f8d802b437c2fc7e2cefcdabb996bbd4bc657fe155ea015d30a841bb0",
+    "injection_layer_index": 20,
+    "residual_width": 1536,
+    "steering_rank": 8,
+    "conditional_executor_updates": 80,
+    "sensor_off_executor_updates": 80,
+    "executor_learning_rate": 0.01,
+    "reader_ridge_lambda": 10.0,
+    "batch_size": 32,
+    "seed": 0,
+    "control_norm_cap_ratio": 0.25,
+    "substrate_frozen": true,
+    "free_bias_allowed": false,
+    "zero_code_strict_noop_required": true,
+    "matched_sensor_off_required": true
+  },
+  "claim_boundary": "This development-only protocol may fit a fresh relationship-domain reader and bounded multiplicative residual executor from physically pre-action owner forecast and non-oracle gate snapshots. The target is the frozen relationship action contract value already recommended by that owner; evaluator truth, judge scores, observed or future outcomes, rewards, and credit records are forbidden inputs. The fit scorer measures restricted first-token enum NLL, so a passing fit would establish only a relationship typed-action residual prerequisite. It would not by itself prove raw strict-JSON generation, a user-visible reply change, PE learning, long-horizon product benefit, production ACTIVE, complete Steerable, or the four-capability system claim. A later physical consumer must compare raw/noop, strict-noop, conditional, and matched sensor-off arms under one frozen model and canonically serialize only the actually residual-selected enum."
+}

@@ -1,292 +1,253 @@
-"""Lifeform evolution layer — scripted benchmarks + evidence dashboards.
+"""Lifeform evolution public API with side-effect-free lazy exports.
 
-Public API:
-
-* ``ScriptedScenario``, ``ScriptedTurn``, ``BenchmarkReport``, ``TurnReport`` —
-  benchmark types.
-* ``low_mood_disclosure_scenario`` — built-in scenario for sanity testing.
-* ``run_benchmark`` / ``run_benchmark_async`` — runner entry points.
-* ``format_report`` — pretty-print a report for CLI output.
-
-The CLI entry point is ``lifeform-bench`` (see ``lifeform_evolution.cli``).
+Importing :mod:`lifeform_evolution` must not import model-capable runtime
+modules. Public attributes keep their historical locations, but each owner
+module is imported only when that attribute is requested.
 """
 
 from __future__ import annotations
 
-from lifeform_evolution.benchmark import (
-    BenchmarkReport,
-    ScriptedScenario,
-    ScriptedTurn,
-    TurnReport,
-    all_built_in_scenarios,
-    casual_social_checkin_scenario,
-    emotional_decision_support_scenario,
-    format_report,
-    low_mood_disclosure_scenario,
-    run_benchmark,
-    run_benchmark_async,
-    trust_rupture_repair_scenario,
-)
-from lifeform_evolution.companion_evidence import (
-    CompanionEvidenceGate,
-    CompanionEvidenceReport,
-    companion_evidence_report_to_dict,
-    format_companion_evidence_report,
-    run_companion_evidence,
-    run_companion_evidence_async,
-)
-from lifeform_evolution.closed_alpha_preflight import (
-    ClosedAlphaPreflightReport,
-    format_closed_alpha_preflight_report,
-    run_closed_alpha_preflight,
-)
-from lifeform_evolution.family_report import (
-    FamilyEvaluation,
-    FamilyId,
-    FamilyMetric,
-    FamilyReport,
-    compute_family_report,
-    family_report_to_dict,
-    format_family_report,
-)
-from lifeform_evolution.dataset_adapter import (
-    trace_record_to_training_trace,
-    trace_records_from_ndjson,
-    trace_records_to_training_dataset,
-)
-from lifeform_evolution.learning_loop import (
-    DistributionSnapshot,
-    LearningLoopReport,
-    format_learning_loop_report,
-    run_learning_loop,
-    run_learning_loop_async,
-)
-from lifeform_evolution.multi_round_loop import (
-    MultiRoundLearningLoopReport,
-    RoundDeltaVsBaseline,
-    RoundQualityMetrics,
-    RoundReport,
-    format_multi_round_report,
-    run_multi_round_loop,
-    run_multi_round_loop_async,
-)
-from lifeform_evolution.regime_calibrator import (
-    RegimeCalibrationReport,
-    RegimeCalibrationRoundReport,
-    format_regime_calibration_report,
-    run_regime_calibrator,
-    run_regime_calibrator_async,
-)
-from lifeform_evolution.regime_io import (
-    RegimeBootstrapArtifact,
-    load_regime_bootstrap,
-    load_regime_bootstrap_only,
-    save_regime_bootstrap,
-)
-from lifeform_evolution.relationship_repair_alpha_gate import (
-    RepairAlphaArmReport,
-    RepairAlphaGateReport,
-    format_relationship_repair_alpha_report,
-    run_relationship_repair_alpha_gate,
-    run_relationship_repair_alpha_gate_async,
-)
-from lifeform_evolution.relationship_assistant_pilot import (
-    PilotDayEvidence,
-    PilotTranscriptTurn,
-    RelationshipAssistantPilotHarness,
-)
-from lifeform_evolution.seven_day_companion import (
-    HTTPSevenDayCompanionService,
-    ProcessRestartEvidence,
-    SevenDayCompanionOrchestrator,
-    SevenDayCompanionRun,
-    SevenDayDayEvidence,
-    SevenDayScenarioSchedule,
-    SevenDayScheduleDay,
-    SevenDayTurnEvidence,
-    SimulatedSourceAttestation,
-    SimulatedUserTurn,
-    StateInterventionEvidence,
-)
-from lifeform_evolution.seven_day_state_control import (
-    SEVEN_DAY_SHUFFLED_SOURCE_DAYS,
-    SevenDayFilesystemStateController,
-)
-from lifeform_evolution.seven_day_process_host import (
-    ServiceProcessStart,
-    ServiceProcessStop,
-    StateControlledSubprocessLifecycle,
-    SubprocessSevenDayServiceHost,
-)
-from lifeform_evolution.social_cognition_evidence import (
-    SocialCognitionEvidenceGate,
-    SocialCognitionEvidenceReport,
-    format_social_cognition_evidence_report,
-    run_social_cognition_evidence,
-    run_social_cognition_evidence_async,
-    social_cognition_evidence_report_to_dict,
-)
-from lifeform_evolution.super_loop import (
-    SuperLoopReport,
-    SuperLoopRoundReport,
-    format_super_loop_report,
-    run_super_loop,
-    run_super_loop_async,
-)
-from lifeform_evolution.scenario_pack import (
-    ScenarioPackError,
-    dump_scenario_pack,
-    dump_scenario_packs,
-    load_scenario_pack,
-    load_scenario_pack_dir,
-    load_scenarios,
-)
-from lifeform_evolution.semantic_proposal_ablation import (
-    DEFAULT_ABLATION_PROBE_CASES,
-    AblationArmResult,
-    AblationProbeCase,
-    AblationProbeTurn,
-    ScriptedProposalSpec,
-    ScriptedSemanticProposalRuntime,
-    SemanticProposalAblationError,
-    SemanticProposalAblationReport,
-    SemanticProposalAblationRunResult,
-    SlotExpectation,
-    run_semantic_proposal_ablation_async,
-)
-from lifeform_evolution.snapshot_io import (
-    SnapshotArtifact,
-    load_snapshot,
-    load_snapshot_only,
-    save_snapshot,
-)
-from lifeform_evolution.ssl_demo import (
-    SSLDemoReport,
-    format_ssl_demo_report,
-    run_ssl_demo,
-    run_ssl_demo_from_ndjson,
-)
-from lifeform_evolution.trace_collector import (
-    TraceCollector,
-    TraceScenarioReport,
-    TraceTurnRecord,
+from importlib import import_module
+
+
+_LAZY_EXPORT_GROUPS = (
+    (
+        "lifeform_evolution.benchmark",
+        (
+            "BenchmarkReport",
+            "ScriptedScenario",
+            "ScriptedTurn",
+            "TurnReport",
+            "all_built_in_scenarios",
+            "casual_social_checkin_scenario",
+            "emotional_decision_support_scenario",
+            "format_report",
+            "low_mood_disclosure_scenario",
+            "run_benchmark",
+            "run_benchmark_async",
+            "trust_rupture_repair_scenario",
+        ),
+    ),
+    (
+        "lifeform_evolution.companion_evidence",
+        (
+            "CompanionEvidenceGate",
+            "CompanionEvidenceReport",
+            "companion_evidence_report_to_dict",
+            "format_companion_evidence_report",
+            "run_companion_evidence",
+            "run_companion_evidence_async",
+        ),
+    ),
+    (
+        "lifeform_evolution.closed_alpha_preflight",
+        (
+            "ClosedAlphaPreflightReport",
+            "format_closed_alpha_preflight_report",
+            "run_closed_alpha_preflight",
+        ),
+    ),
+    (
+        "lifeform_evolution.family_report",
+        (
+            "FamilyEvaluation",
+            "FamilyId",
+            "FamilyMetric",
+            "FamilyReport",
+            "compute_family_report",
+            "family_report_to_dict",
+            "format_family_report",
+        ),
+    ),
+    (
+        "lifeform_evolution.dataset_adapter",
+        (
+            "trace_record_to_training_trace",
+            "trace_records_from_ndjson",
+            "trace_records_to_training_dataset",
+        ),
+    ),
+    (
+        "lifeform_evolution.learning_loop",
+        (
+            "DistributionSnapshot",
+            "LearningLoopReport",
+            "format_learning_loop_report",
+            "run_learning_loop",
+            "run_learning_loop_async",
+        ),
+    ),
+    (
+        "lifeform_evolution.multi_round_loop",
+        (
+            "MultiRoundLearningLoopReport",
+            "RoundDeltaVsBaseline",
+            "RoundQualityMetrics",
+            "RoundReport",
+            "format_multi_round_report",
+            "run_multi_round_loop",
+            "run_multi_round_loop_async",
+        ),
+    ),
+    (
+        "lifeform_evolution.regime_calibrator",
+        (
+            "RegimeCalibrationReport",
+            "RegimeCalibrationRoundReport",
+            "format_regime_calibration_report",
+            "run_regime_calibrator",
+            "run_regime_calibrator_async",
+        ),
+    ),
+    (
+        "lifeform_evolution.regime_io",
+        (
+            "RegimeBootstrapArtifact",
+            "load_regime_bootstrap",
+            "load_regime_bootstrap_only",
+            "save_regime_bootstrap",
+        ),
+    ),
+    (
+        "lifeform_evolution.relationship_repair_alpha_gate",
+        (
+            "RepairAlphaArmReport",
+            "RepairAlphaGateReport",
+            "format_relationship_repair_alpha_report",
+            "run_relationship_repair_alpha_gate",
+            "run_relationship_repair_alpha_gate_async",
+        ),
+    ),
+    (
+        "lifeform_evolution.relationship_assistant_pilot",
+        (
+            "PilotDayEvidence",
+            "PilotTranscriptTurn",
+            "RelationshipAssistantPilotHarness",
+        ),
+    ),
+    (
+        "lifeform_evolution.seven_day_companion",
+        (
+            "HTTPSevenDayCompanionService",
+            "ProcessRestartEvidence",
+            "SevenDayCompanionOrchestrator",
+            "SevenDayCompanionRun",
+            "SevenDayDayEvidence",
+            "SevenDayScenarioSchedule",
+            "SevenDayScheduleDay",
+            "SevenDayTurnEvidence",
+            "SimulatedSourceAttestation",
+            "SimulatedUserTurn",
+            "StateInterventionEvidence",
+        ),
+    ),
+    (
+        "lifeform_evolution.seven_day_state_control",
+        (
+            "SEVEN_DAY_SHUFFLED_SOURCE_DAYS",
+            "SevenDayFilesystemStateController",
+        ),
+    ),
+    (
+        "lifeform_evolution.seven_day_process_host",
+        (
+            "ServiceProcessStart",
+            "ServiceProcessStop",
+            "StateControlledSubprocessLifecycle",
+            "SubprocessSevenDayServiceHost",
+        ),
+    ),
+    (
+        "lifeform_evolution.social_cognition_evidence",
+        (
+            "SocialCognitionEvidenceGate",
+            "SocialCognitionEvidenceReport",
+            "format_social_cognition_evidence_report",
+            "run_social_cognition_evidence",
+            "run_social_cognition_evidence_async",
+            "social_cognition_evidence_report_to_dict",
+        ),
+    ),
+    (
+        "lifeform_evolution.super_loop",
+        (
+            "SuperLoopReport",
+            "SuperLoopRoundReport",
+            "format_super_loop_report",
+            "run_super_loop",
+            "run_super_loop_async",
+        ),
+    ),
+    (
+        "lifeform_evolution.scenario_pack",
+        (
+            "ScenarioPackError",
+            "dump_scenario_pack",
+            "dump_scenario_packs",
+            "load_scenario_pack",
+            "load_scenario_pack_dir",
+            "load_scenarios",
+        ),
+    ),
+    (
+        "lifeform_evolution.semantic_proposal_ablation",
+        (
+            "DEFAULT_ABLATION_PROBE_CASES",
+            "AblationArmResult",
+            "AblationProbeCase",
+            "AblationProbeTurn",
+            "ScriptedProposalSpec",
+            "ScriptedSemanticProposalRuntime",
+            "SemanticProposalAblationError",
+            "SemanticProposalAblationReport",
+            "SemanticProposalAblationRunResult",
+            "SlotExpectation",
+            "run_semantic_proposal_ablation_async",
+        ),
+    ),
+    (
+        "lifeform_evolution.snapshot_io",
+        (
+            "SnapshotArtifact",
+            "load_snapshot",
+            "load_snapshot_only",
+            "save_snapshot",
+        ),
+    ),
+    (
+        "lifeform_evolution.ssl_demo",
+        (
+            "SSLDemoReport",
+            "format_ssl_demo_report",
+            "run_ssl_demo",
+            "run_ssl_demo_from_ndjson",
+        ),
+    ),
+    (
+        "lifeform_evolution.trace_collector",
+        (
+            "TraceCollector",
+            "TraceScenarioReport",
+            "TraceTurnRecord",
+        ),
+    ),
 )
 
-__all__ = (
-    "DEFAULT_ABLATION_PROBE_CASES",
-    "AblationArmResult",
-    "AblationProbeCase",
-    "AblationProbeTurn",
-    "BenchmarkReport",
-    "CompanionEvidenceGate",
-    "CompanionEvidenceReport",
-    "ClosedAlphaPreflightReport",
-    "DistributionSnapshot",
-    "FamilyEvaluation",
-    "FamilyId",
-    "FamilyMetric",
-    "FamilyReport",
-    "LearningLoopReport",
-    "MultiRoundLearningLoopReport",
-    "PilotDayEvidence",
-    "PilotTranscriptTurn",
-    "ProcessRestartEvidence",
-    "RegimeBootstrapArtifact",
-    "RegimeCalibrationReport",
-    "RegimeCalibrationRoundReport",
-    "RepairAlphaArmReport",
-    "RepairAlphaGateReport",
-    "RelationshipAssistantPilotHarness",
-    "RoundDeltaVsBaseline",
-    "RoundQualityMetrics",
-    "RoundReport",
-    "SevenDayCompanionOrchestrator",
-    "SevenDayCompanionRun",
-    "SevenDayDayEvidence",
-    "SevenDayFilesystemStateController",
-    "SevenDayScenarioSchedule",
-    "SevenDayScheduleDay",
-    "SevenDayTurnEvidence",
-    "ServiceProcessStart",
-    "ServiceProcessStop",
-    "SimulatedSourceAttestation",
-    "SimulatedUserTurn",
-    "StateInterventionEvidence",
-    "StateControlledSubprocessLifecycle",
-    "SubprocessSevenDayServiceHost",
-    "SEVEN_DAY_SHUFFLED_SOURCE_DAYS",
-    "ScenarioPackError",
-    "ScriptedProposalSpec",
-    "ScriptedScenario",
-    "ScriptedSemanticProposalRuntime",
-    "ScriptedTurn",
-    "SemanticProposalAblationError",
-    "SemanticProposalAblationReport",
-    "SemanticProposalAblationRunResult",
-    "SlotExpectation",
-    "SnapshotArtifact",
-    "SSLDemoReport",
-    "SocialCognitionEvidenceGate",
-    "SocialCognitionEvidenceReport",
-    "SuperLoopReport",
-    "SuperLoopRoundReport",
-    "TraceCollector",
-    "TraceScenarioReport",
-    "TraceTurnRecord",
-    "TurnReport",
-    "HTTPSevenDayCompanionService",
-    "all_built_in_scenarios",
-    "casual_social_checkin_scenario",
-    "emotional_decision_support_scenario",
-    "compute_family_report",
-    "companion_evidence_report_to_dict",
-    "dump_scenario_pack",
-    "dump_scenario_packs",
-    "family_report_to_dict",
-    "format_family_report",
-    "format_companion_evidence_report",
-    "format_closed_alpha_preflight_report",
-    "format_learning_loop_report",
-    "format_multi_round_report",
-    "format_regime_calibration_report",
-    "format_relationship_repair_alpha_report",
-    "format_report",
-    "format_social_cognition_evidence_report",
-    "format_ssl_demo_report",
-    "format_super_loop_report",
-    "load_regime_bootstrap",
-    "load_regime_bootstrap_only",
-    "load_scenario_pack",
-    "load_scenario_pack_dir",
-    "load_scenarios",
-    "load_snapshot",
-    "load_snapshot_only",
-    "low_mood_disclosure_scenario",
-    "run_benchmark",
-    "run_benchmark_async",
-    "run_companion_evidence",
-    "run_companion_evidence_async",
-    "run_closed_alpha_preflight",
-    "run_learning_loop",
-    "run_learning_loop_async",
-    "run_multi_round_loop",
-    "run_multi_round_loop_async",
-    "run_regime_calibrator",
-    "run_regime_calibrator_async",
-    "run_relationship_repair_alpha_gate",
-    "run_relationship_repair_alpha_gate_async",
-    "run_semantic_proposal_ablation_async",
-    "run_social_cognition_evidence",
-    "run_social_cognition_evidence_async",
-    "run_ssl_demo",
-    "run_ssl_demo_from_ndjson",
-    "run_super_loop",
-    "run_super_loop_async",
-    "save_regime_bootstrap",
-    "save_snapshot",
-    "social_cognition_evidence_report_to_dict",
-    "trace_record_to_training_trace",
-    "trace_records_from_ndjson",
-    "trace_records_to_training_dataset",
-    "trust_rupture_repair_scenario",
-)
+_LAZY_EXPORTS = {
+    export_name: module_name for module_name, export_names in _LAZY_EXPORT_GROUPS for export_name in export_names
+}
+__all__ = tuple(_LAZY_EXPORTS)
+
+
+def __getattr__(name: str) -> object:
+    module_name = _LAZY_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(module_name), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted((*globals(), *__all__))

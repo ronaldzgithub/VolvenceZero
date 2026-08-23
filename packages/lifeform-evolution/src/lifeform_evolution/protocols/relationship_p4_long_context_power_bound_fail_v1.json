@@ -1,0 +1,107 @@
+{
+  "schema_version": "relationship-p4-independent-long-context-power-bound-fail-protocol.v1",
+  "protocol_id_contract": "sha256_canonical_json_utf8_newline_v1",
+  "frozen_at_utc": "2026-08-23T16:30:00.000+08:00",
+  "owner": {
+    "wheel": "lifeform-evolution",
+    "module": "lifeform_evolution.relationship_lab_p4_long_context_causal_campaign",
+    "role": "offline_exact_necessary_power_failure_owner",
+    "new_runtime_slot_added": false,
+    "execution_implemented": false
+  },
+  "input_lineage": {
+    "scientific_protocol_id": "9f352778e128a9573790762222a05225740bdaeb732800dec0eec124116a282d",
+    "scientific_protocol_raw_sha256": "ea8a17a14a68802d3b60586bf520c9137e6920be4112c951ec8c69f5e6ea359e",
+    "scientific_preparation_artifact_id": "c5a708ae5e68261fddbade165b45579e66e4bbe7db1be1f4a83056561a17f42e",
+    "scientific_preparation_raw_sha256": "a4b2f3ee920e398ae0f7eab5757b7988dc3fa4f7db7b4769599c837bc656bcd6",
+    "scientific_preparation_manifest_raw_sha256": "4aaf10d76b80a780e62a17b62803906cc34dd34d64bb4d0f8b96d60dff1e2663"
+  },
+  "question": "Does the mandatory maximum-feasible bounded paired-root difference scenario make the P4.7 v3 full contrast power target mathematically unreachable at N=192 before any model, subject, source, donor, twin, power simulation, or CUDA-formal output?",
+  "mandatory_scenario": {
+    "scenario_id": "maximum_feasible_bounded_difference_variance_at_planning_mean",
+    "application_order": "mandatory_marginal_joint_sentinel_before_cartesian_filtering",
+    "formal_root_count": 192,
+    "evaluation_decisions_per_root_arm": 8,
+    "typed_utility_domain": [-1, 0, 1],
+    "paired_root_difference_support": [-2, 2],
+    "planning_mean": {"numerator": "1", "denominator": "5"},
+    "practical_point_threshold": {"numerator": "3", "denominator": "20"},
+    "required_power": {"numerator": "4", "denominator": "5"},
+    "technical_missingness": {"numerator": "0", "denominator": "1"}
+  },
+  "feasibility_witness": {
+    "root_latent_distribution": {
+      "plus_state_probability": {"numerator": "11", "denominator": "20"},
+      "minus_state_probability": {"numerator": "9", "denominator": "20"},
+      "iid_across_analysis_roots": true
+    },
+    "plus_state": {
+      "volvence_closed_loop_utility_each_decision": 1,
+      "all_eight_comparator_arm_utilities_each_decision": -1,
+      "all_eight_paired_root_differences": 2
+    },
+    "minus_state": {
+      "volvence_closed_loop_utility_each_decision": -1,
+      "all_eight_comparator_arm_utilities_each_decision": 1,
+      "all_eight_paired_root_differences": -2
+    },
+    "nine_arm_x_eight_decision_joint_witness": true,
+    "all_utilities_in_frozen_domain": true,
+    "all_eight_contrast_means_equal_planning_mean": true,
+    "all_eight_contrast_variances_equal_maximum": true,
+    "derived_within_root_temporal_correlation": "1.0",
+    "derived_cross_contrast_correlation": "1.0",
+    "cartesian_filter_may_remove_sentinel": false,
+    "rejection_requires_new_protocol": true,
+    "source_structural_claim": false
+  },
+  "exact_calculation": {
+    "arithmetic": "arbitrary_precision_integer_and_reduced_rational_only",
+    "variance_method": "bhatia_davis_bounded_mean_variance_equality",
+    "maximum_variance": {"numerator": "99", "denominator": "25"},
+    "success_count_distribution": "binomial_192_11_over_20",
+    "point_gate_equivalence": "sample_mean_delta_ge_3_over_20_iff_K_ge_104",
+    "minimum_success_count": 104,
+    "tail_expression": "sum_k_104_to_192_comb_192_k_times_11_pow_k_times_9_pow_192_minus_k_over_20_pow_192",
+    "authoritative_result_type": "reduced_fraction",
+    "reported_decimal_rounding": "decimal_round_half_even_20_places",
+    "target_comparison": "5_times_tail_numerator_lt_4_times_tail_denominator",
+    "full_contrast_pass_is_subset_of_point_gate_pass": true,
+    "full_rule_power_cannot_exceed_point_gate_power": true,
+    "bootstrap_holm_lineage_or_missingness_may_increase_upper_bound": false
+  },
+  "certificate_contract": {
+    "certificate_file": "necessary_power_failure_certificate.json",
+    "manifest_file": "manifest.json",
+    "certificate_id_contract": "sha256_canonical_json_utf8_newline_without_certificate_id_v1",
+    "artifact_id_contract": "sha256_canonical_manifest_core_utf8_newline_v1",
+    "canonical_json_required": true,
+    "create_only_publication": true,
+    "exact_two_file_inventory": true,
+    "full_joint_grid_completed": false,
+    "actual_contrast_power_estimated": false,
+    "power_dgp_artifact_count": 0,
+    "simulation_replicate_count": 0
+  },
+  "zero_output_firewall": {
+    "model_output_count": 0,
+    "subject_materialization_count": 0,
+    "source_materialization_count": 0,
+    "donor_bank_materialization_count": 0,
+    "counterfactual_twin_materialization_count": 0,
+    "cuda_formal_run_count": 0,
+    "execution_enabled": false,
+    "development_authorized": false,
+    "qualification_authorized": false,
+    "formal_authorized": false
+  },
+  "terminal": {
+    "failure_verdict": "prior_power_gate_failed_exact_necessary_condition_before_development_output",
+    "failure_is_decisive_if_exact_tail_below_required_power": true,
+    "full_joint_dgp_required_to_publish_this_failure": false,
+    "full_joint_dgp_required_to_publish_pass": true,
+    "v3_sample_size_adaptation_permitted": false,
+    "next_action": "freeze_new_zero_output_protocol_before_any_source_or_model_output"
+  },
+  "claim_boundary": "This protocol can publish only an exact necessary-condition power FAIL for the preserved P4.7 v3 design. It cannot publish a PASS, complete the joint DGP or source preflight, estimate actual claim power, authorize model or CUDA execution, or provide Appendable, Readable, Learnable, Steerable, integrated, human, product, or production ACTIVE evidence."
+}

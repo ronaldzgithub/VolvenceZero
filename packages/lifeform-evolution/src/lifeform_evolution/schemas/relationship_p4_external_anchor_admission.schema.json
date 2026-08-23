@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://volvence.local/schemas/relationship-p4-external-anchor-admission.v2.json",
+  "title": "Relationship P4 A0 two-pass raw-replay admission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "admission_id_contract",
+    "r0_binding",
+    "r1_binding",
+    "shared_normative_binding",
+    "shared_request_binding",
+    "shared_anchor_projection",
+    "shared_git_object_graph",
+    "derived_checks",
+    "verdict",
+    "admission_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "relationship-p4-long-context-github-public-gist-anchor-admission.v2"
+    },
+    "admission_id_contract": {
+      "const": "sha256_canonical_json_utf8_newline_without_admission_id_v1"
+    },
+    "r0_binding": {"$ref": "#/$defs/receipt_binding"},
+    "r1_binding": {"$ref": "#/$defs/receipt_binding"},
+    "shared_normative_binding": {
+      "$ref": "relationship_p4_external_anchor_receipt.schema.json#/$defs/normative_binding"
+    },
+    "shared_request_binding": {
+      "$ref": "relationship_p4_external_anchor_receipt.schema.json#/$defs/request_binding"
+    },
+    "shared_anchor_projection": {
+      "$ref": "relationship_p4_external_anchor_receipt.schema.json#/$defs/anchor_projection"
+    },
+    "shared_git_object_graph": {"$ref": "#/$defs/git_object_graph"},
+    "derived_checks": {"$ref": "#/$defs/derived_checks"},
+    "verdict": {"$ref": "#/$defs/verdict"},
+    "admission_id": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "file_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "byte_count", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "byte_count": {"type": "integer", "minimum": 0},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "receipt_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "claim_id",
+        "capture_map_id",
+        "capture_map_raw_sha256",
+        "terminal_id",
+        "receipt_bundle_manifest_artifact_id",
+        "receipt_bundle_manifest_raw_sha256",
+        "receipt_bundle_manifest_byte_count"
+      ],
+      "properties": {
+        "receipt_id": {"$ref": "#/$defs/sha256"},
+        "claim_id": {"$ref": "#/$defs/sha256"},
+        "capture_map_id": {"$ref": "#/$defs/sha256"},
+        "capture_map_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "terminal_id": {"$ref": "#/$defs/sha256"},
+        "receipt_bundle_manifest_artifact_id": {"$ref": "#/$defs/sha256"},
+        "receipt_bundle_manifest_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "receipt_bundle_manifest_byte_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "git_ref": {
+      "type": "array",
+      "prefixItems": [{"type": "string", "minLength": 1}, {"$ref": "#/$defs/sha1"}],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "git_inventory_row": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/sha1"},
+        {"enum": ["blob", "commit", "tree"]},
+        {"type": "integer", "minimum": 0, "maximum": 4194304}
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "git_object_graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remote_url",
+        "advertised_heads",
+        "fetched_heads",
+        "object_inventory",
+        "object_inventory_payload",
+        "commit_oid_sha1",
+        "commit_framed_sha256",
+        "commit_parent_count",
+        "tree_oid_sha1",
+        "tree_framed_sha256",
+        "tree_entry_count",
+        "tree_entry_mode",
+        "tree_entry_filename",
+        "blob_oid_sha1",
+        "blob_framed_sha256"
+      ],
+      "properties": {
+        "remote_url": {"type": "string", "format": "uri"},
+        "advertised_heads": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {"$ref": "#/$defs/git_ref"}
+        },
+        "fetched_heads": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {"$ref": "#/$defs/git_ref"}
+        },
+        "object_inventory": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {"$ref": "#/$defs/git_inventory_row"}
+        },
+        "object_inventory_payload": {"$ref": "#/$defs/file_ref"},
+        "commit_oid_sha1": {"$ref": "#/$defs/sha1"},
+        "commit_framed_sha256": {"$ref": "#/$defs/sha256"},
+        "commit_parent_count": {"const": 0},
+        "tree_oid_sha1": {"$ref": "#/$defs/sha1"},
+        "tree_framed_sha256": {"$ref": "#/$defs/sha256"},
+        "tree_entry_count": {"const": 1},
+        "tree_entry_mode": {"const": "100644"},
+        "tree_entry_filename": {"type": "string", "minLength": 1},
+        "blob_oid_sha1": {"$ref": "#/$defs/sha1"},
+        "blob_framed_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "derived_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "r0_full_replay_observed",
+        "r1_full_replay_observed",
+        "ordered_roles_valid",
+        "distinct_process_metadata_claims_and_sealed_lineage_valid",
+        "same_local_buffers",
+        "same_normative_binding",
+        "same_request_binding",
+        "same_anchor_projection",
+        "same_git_object_graph"
+      ],
+      "properties": {
+        "r0_full_replay_observed": {"type": "boolean"},
+        "r1_full_replay_observed": {"type": "boolean"},
+        "ordered_roles_valid": {"type": "boolean"},
+        "distinct_process_metadata_claims_and_sealed_lineage_valid": {"type": "boolean"},
+        "same_local_buffers": {"type": "boolean"},
+        "same_normative_binding": {"type": "boolean"},
+        "same_request_binding": {"type": "boolean"},
+        "same_anchor_projection": {"type": "boolean"},
+        "same_git_object_graph": {"type": "boolean"}
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "external_request_dispatched",
+        "publication_object_exists_observed",
+        "publisher_action_or_identity_proven",
+        "external_publication_observed",
+        "external_publication_anchor_present",
+        "external_anchor_admitted",
+        "A1_contract_and_materializer_implementation_authorized",
+        "structural_inventory_materialization_authorized",
+        "source_execution_authorized",
+        "tuple_feasibility_authorized",
+        "power_search_authorized",
+        "model_output_authorized",
+        "CUDA_planner_authorized",
+        "development_authorized",
+        "qualification_authorized",
+        "formal_authorized",
+        "appendable_formal_supported",
+        "readable_formal_supported",
+        "learnable_formal_supported",
+        "steerable_formal_supported",
+        "integrated_four_axis_supported",
+        "A1_admission_required_before_materialization"
+      ],
+      "properties": {
+        "external_request_dispatched": {"const": false},
+        "publication_object_exists_observed": {"type": "boolean"},
+        "publisher_action_or_identity_proven": {"const": false},
+        "external_publication_observed": {"type": "boolean"},
+        "external_publication_anchor_present": {"type": "boolean"},
+        "external_anchor_admitted": {"type": "boolean"},
+        "A1_contract_and_materializer_implementation_authorized": {"type": "boolean"},
+        "structural_inventory_materialization_authorized": {"const": false},
+        "source_execution_authorized": {"const": false},
+        "tuple_feasibility_authorized": {"const": false},
+        "power_search_authorized": {"const": false},
+        "model_output_authorized": {"const": false},
+        "CUDA_planner_authorized": {"const": false},
+        "development_authorized": {"const": false},
+        "qualification_authorized": {"const": false},
+        "formal_authorized": {"const": false},
+        "appendable_formal_supported": {"const": false},
+        "readable_formal_supported": {"const": false},
+        "learnable_formal_supported": {"const": false},
+        "steerable_formal_supported": {"const": false},
+        "integrated_four_axis_supported": {"const": false},
+        "A1_admission_required_before_materialization": {"const": true}
+      }
+    }
+  }
+}

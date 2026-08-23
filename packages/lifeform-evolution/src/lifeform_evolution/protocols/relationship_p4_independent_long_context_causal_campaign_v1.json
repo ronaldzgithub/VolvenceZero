@@ -1,0 +1,379 @@
+{
+  "schema_version": "relationship-p4-independent-long-context-causal-campaign-scientific-prereg.v1",
+  "protocol_id_contract": "sha256_canonical_json_utf8_newline_v1",
+  "frozen_at_utc": "2026-08-23T00:11:02.677Z",
+  "owner": {
+    "wheel": "lifeform-evolution",
+    "module": "lifeform_evolution.relationship_lab_p4_long_context_causal_campaign",
+    "role": "offline_scientific_prereg_owner",
+    "new_runtime_slot_added": false,
+    "execution_implemented": false
+  },
+  "question": "Across independent reactive companion subjects, process-separated sessions, and a final prompt containing at least 32768 actual public-history tokens, does the frozen Volvence closed loop causally outperform qualified full-history, selective-RAG, and typed-noop controls while each Appendable, Readable, Learnable, and Steerable intervention remains independently load-bearing?",
+  "lineage": {
+    "p4_1_seen_canary_protocol_sha256": "040d4dc456f609e51673ffe526b310908905831917814a36fc4d29a9385a6e98",
+    "development_evidence_only": {
+      "readable_named_reader_artifact_id": "e7bbc914ae4ce28fab7ea7b490517d2d49cc44cd11aac3473348f8a2bb5707bd",
+      "learnable_pe_credit_artifact_id": "5c955fb17fde9cb599a0b472f2042e040189615558898311258daa2e20dd810c",
+      "appendable_cross_process_artifact_id": "675815b9362bb480ba5c3718cd03c57cda97553460ac28665af25eb77b462052",
+      "steerable_fit_artifact_id": "57b59b269ecc5cf3f15abf3e16c3a8a03a9e9c74dd8025647203bdd16edcbe04",
+      "may_authorize_formal_execution": false
+    },
+    "negative_or_blocking_results_preserved": [
+      "p1m_prompt_and_rag_baseline_underqualified",
+      "seven_day_n_plus_one_clustered_ci_not_positive",
+      "s2_additive_steering_formal_failed",
+      "legacy_c3_formal_roots_not_adjudicable",
+      "p4_6_physical_actuation_not_run"
+    ],
+    "old_results_may_be_relabelled_as_p4_7": false
+  },
+  "cohort": {
+    "subject_type": "independently_seeded_reactive_simulated_companion",
+    "independent_unit": "subject_root",
+    "independence_requirements": {
+      "unique_root_seed": true,
+      "disjoint_public_trajectory": true,
+      "disjoint_owner_state_root_per_arm": true,
+      "disjoint_gate_checkpoint_per_arm": true,
+      "no_cross_subject_retrieval": true,
+      "no_shared_adaptive_state": true,
+      "subject_cluster_is_analysis_unit": true
+    },
+    "real_human_subject_count": 0,
+    "splits": {
+      "development": {
+        "subject_count": 32,
+        "may_tune_baseline_within_budget": true,
+        "may_enter_formal_analysis": false
+      },
+      "qualification": {
+        "subject_count": 64,
+        "baseline_and_variance_only": true,
+        "arm_labels_blinded_for_variance": true,
+        "may_enter_formal_analysis": false
+      },
+      "formal": {
+        "preallocated_subject_count": 192,
+        "minimum_complete_paired_subjects": 160,
+        "outcome_based_replacement_permitted": false,
+        "sealed_until_execution_envelope_frozen": true,
+        "one_shot": true
+      }
+    },
+    "split_root_seeds_disjoint": true,
+    "surface_families_disjoint_across_splits": true,
+    "formal_subject_materialization_before_prereg": 0,
+    "formal_outcomes_before_prereg": 0
+  },
+  "longitudinal_design": {
+    "onboarding_sessions_per_subject": 4,
+    "matched_learning_exposure_sessions_per_subject": 8,
+    "frozen_policy_evaluation_sessions_per_subject": 8,
+    "total_sessions_per_subject": 20,
+    "fresh_os_process_per_session": true,
+    "process_restart_is_observed_not_inferred": true,
+    "state_recovery_surface": "owner_hydration_store_from_disjoint_disk_root",
+    "raw_history_replayed_to_volvence_owner": false,
+    "per_arm_reactive_trajectory": true,
+    "same_subject_seed_schedule_across_matched_arms": true,
+    "final_decision_public_history_tokens_minimum": 32768,
+    "token_count_basis": "actual_frozen_model_tokenizer_after_chat_template_public_history_segment_only",
+    "minimum_native_context_window_tokens": 65536,
+    "minimum_generation_headroom_tokens": 1024,
+    "fail_on_truncation": true,
+    "padding_or_filler_tokens_count_toward_minimum": false,
+    "full_history_baseline_receives_all_public_history": true,
+    "context_feasibility_preflight_before_first_model_output": true,
+    "substantive_history_guards": {
+      "every_included_chunk_has_session_id_and_content_hash": true,
+      "every_prior_session_represented": true,
+      "minimum_distinct_public_turns": 96,
+      "minimum_distinct_typed_settlements": 16,
+      "exact_duplicate_public_chunks_forbidden": true,
+      "static_instruction_tokens_excluded_from_public_history_count": true,
+      "synthetic_padding_fields_forbidden": true,
+      "validation_only_human_substance_anchor_required": true
+    }
+  },
+  "baseline_admission": {
+    "candidate_budget": 3,
+    "candidate_inventory_and_order_frozen_before_first_development_output": true,
+    "prompt_and_retrieval_search_uses_development_only": true,
+    "selected_model_revision_weights_generation_and_prompt_frozen_before_qualification": true,
+    "qualification_feedback_may_change_selected_baseline": false,
+    "required_baselines": [
+      "qwen_steelman_full_history",
+      "qwen_steelman_selective_rag"
+    ],
+    "exact_one_typed_action_rate": 1.0,
+    "accuracy_point_estimate_minimum": 0.55,
+    "accuracy_point_estimate_maximum": 0.85,
+    "one_sided_wilson_accuracy_lower_strictly_above": 0.5,
+    "one_sided_wilson_pair_flip_lower_strictly_above": 0.35,
+    "both_baselines_must_qualify_independently": true,
+    "baseline_failure_action": "stop_before_formal_without_prompt_or_source_retuning",
+    "baseline_scores_are_system_learning_signals": false,
+    "baseline_scores_are_four_axis_evidence": false
+  },
+  "integrated_arms": [
+    "qwen_steelman_full_history",
+    "qwen_steelman_selective_rag",
+    "volvence_closed_loop",
+    "volvence_typed_noop_control"
+  ],
+  "arm_matrix": [
+    "volvence_closed_loop",
+    "appendable_empty_prior",
+    "appendable_swapped_same_stage_prior",
+    "readable_label_permuted",
+    "volvence_typed_noop_control",
+    "steerable_strict_noop",
+    "steerable_sensor_off_matched",
+    "qwen_steelman_full_history",
+    "qwen_steelman_selective_rag"
+  ],
+  "axis_contrasts": {
+    "appendable": {
+      "reference_arm": "volvence_closed_loop",
+      "control_arms": [
+        "appendable_empty_prior",
+        "appendable_swapped_same_stage_prior"
+      ],
+      "only_variable": "hydrated_owner_boundary",
+      "fixed_collaborators": [
+        "named_reader",
+        "frozen_gate",
+        "typed_action_executor",
+        "reactive_environment"
+      ],
+      "lineage_gates": [
+        "fresh_child_pid_ppid_nonce",
+        "disk_bytes_and_owner_payload_hash",
+        "source_boundary_strictly_precedes_output_boundary",
+        "no_parent_history_or_owner_payload"
+      ],
+      "primary_effect": "future_session_typed_outcome_utility"
+    },
+    "readable": {
+      "reference_arm": "volvence_closed_loop",
+      "control_arms": [
+        "readable_label_permuted"
+      ],
+      "only_variable": "named_readout_mapping_or_presence",
+      "fixed_collaborators": [
+        "correct_prior_state",
+        "frozen_gate",
+        "typed_action_executor",
+        "reactive_environment"
+      ],
+      "runtime_evaluator_truth_visible": false,
+      "consumer_reconstructs_owner_state": false,
+      "primary_effect": "future_session_typed_outcome_utility"
+    },
+    "learnable": {
+      "reference_arm": "volvence_closed_loop",
+      "control_arms": [
+        "volvence_typed_noop_control"
+      ],
+      "only_variable_during_learning_phase": "pe_derived_credit_delivery_to_gate",
+      "learning_phase_action_exposure": "arm_independent_preregistered_schedule",
+      "learning_phase_outcome_history_identical_for_primary_pair": true,
+      "gate_updates_frozen_before_evaluation_phase": true,
+      "evaluation_phase_actions_are_policy_selected": true,
+      "evaluation_or_judge_feedback_to_learning": false,
+      "actual_exposure_receipt_required_before_settlement": true,
+      "shadow_suggestion_may_be_settled": false,
+      "primary_effect": "frozen_policy_future_session_typed_outcome_utility"
+    },
+    "steerable": {
+      "reference_arm": "volvence_closed_loop",
+      "control_arms": [
+        "steerable_strict_noop"
+      ],
+      "conditionality_control_arm": "steerable_sensor_off_matched",
+      "conditionality_control_is_pure_single_variable_claim": false,
+      "only_variable": "bounded_residual_intervention_or_sensor_condition",
+      "same_frozen_base_model": true,
+      "same_generation_config": true,
+      "same_preintervention_residual_snapshot": true,
+      "direct_hook_return_receipt_required": true,
+      "free_bias_present": false,
+      "control_norm_cap_ratio_maximum": 0.25,
+      "strict_noop_delta_and_effect_exact_zero": true,
+      "user_visible_generation_required": true,
+      "primary_effect": "future_session_typed_outcome_utility"
+    }
+  },
+  "intervention_integrity": {
+    "reference_arm": "volvence_closed_loop",
+    "allowed_exogenous_difference_json_pointers": {
+      "appendable_empty_prior": [
+        "/hydration/prior_state_selector"
+      ],
+      "appendable_swapped_same_stage_prior": [
+        "/hydration/prior_state_selector"
+      ],
+      "readable_label_permuted": [
+        "/components/condition_reader/artifact_id"
+      ],
+      "volvence_typed_noop_control": [
+        "/learning/apply_exact_pe_credit"
+      ],
+      "steerable_strict_noop": [
+        "/steering/executor_action"
+      ],
+      "steerable_sensor_off_matched": [
+        "/steering/executor_artifact_id"
+      ]
+    },
+    "config_hash_matches_after_removing_allowed_paths": true,
+    "allowed_causal_descendants": [
+      "user_reaction",
+      "typed_settlement",
+      "owner_state",
+      "gate_checkpoint",
+      "future_policy_action",
+      "future_reactive_outcome"
+    ],
+    "matched_invariant_receipt_required_per_subject_arm": true
+  },
+  "shared_exposure_schedule": {
+    "schedule_unit": "subject_root_x_session_index",
+    "same_exposure_id_payload_hidden_step_and_random_tape_across_arms": true,
+    "exogenous_future_exposure_is_action_independent": true,
+    "arm_or_prior_action_may_change_future_exposure_id": false,
+    "fixed_session_count_across_arms": true,
+    "dropout_or_rerouting_based_on_arm_or_outcome": false,
+    "allowed_action_effect_channels": [
+      "reaction_to_prior_action",
+      "typed_settlement",
+      "owner_state_and_policy_causal_descendants"
+    ],
+    "inventory_hashes_required_before_first_development_output": true
+  },
+  "causal_execution": {
+    "same_frozen_substrate_across_all_arms": true,
+    "same_generation_config_across_all_arms": true,
+    "pre_action_record_before_environment": true,
+    "typed_reactive_outcome_is_mechanical": true,
+    "future_outcome_hidden_from_sut": true,
+    "generator_truth_hidden_from_sut": true,
+    "judge_and_evaluation_hidden_from_memory_pe_credit_gate_and_steering": true,
+    "human_annotation_role": "validation_anchor_only",
+    "formal_result_retry_count": 0,
+    "interim_efficacy_looks": 0
+  },
+  "analysis": {
+    "primary_analysis_unit": "subject_root",
+    "primary_measure": "mean_frozen_policy_evaluation_typed_outcome_utility",
+    "utility_scale": [
+      -1,
+      0,
+      1
+    ],
+    "required_integrated_contrasts": [
+      "volvence_closed_loop_minus_qwen_steelman_full_history",
+      "volvence_closed_loop_minus_qwen_steelman_selective_rag",
+      "volvence_closed_loop_minus_volvence_typed_noop_control"
+    ],
+    "all_axis_primary_contrasts_must_pass": true,
+    "minimum_practical_mean_delta": 0.15,
+    "confidence_interval": "subject_clustered_percentile_bootstrap",
+    "bootstrap_replicates": 100000,
+    "bootstrap_seed": 20260823,
+    "familywise_alpha": 0.05,
+    "multiple_comparison_control": "holm_bonferroni_over_all_primary_contrasts",
+    "confidence_lower_bound_must_be_strictly_positive": true,
+    "power_target": 0.8,
+    "power_alpha_one_sided": 0.05,
+    "formal_preallocated_subject_count": 192,
+    "minimum_complete_paired_subjects": 160,
+    "power_simulation_artifact_required_before_first_development_output": true,
+    "secondary_measures_are_promotion_inputs": false,
+    "secondary_measures": [
+      "need_reversal_action_accuracy",
+      "cross_surface_transfer_action_accuracy",
+      "return_after_gap_action_accuracy",
+      "recovery_after_correction",
+      "actual_public_history_tokens",
+      "latency_ms",
+      "peak_cuda_memory_bytes"
+    ]
+  },
+  "execution_admission": {
+    "current_stage": "scientific_prereg_only",
+    "execution_enabled": false,
+    "formal_run_authorized": false,
+    "execution_envelope_present": false,
+    "model_output_count_before_freeze": 0,
+    "subject_pack_materialization_count_before_freeze": 0,
+    "development_cuda_diagnostics_allowed": true,
+    "development_cuda_diagnostics_are_formal_evidence": false,
+    "user_development_cuda_consent_is_formal_authorization": false,
+    "manual_override_permitted": false,
+    "environment_override_permitted": false,
+    "ignore_microcode_override_permitted": false,
+    "force_cli_permitted": false,
+    "legacy_host_block": {
+      "physical_actuation_protocol_id": "c6cb84f0ba174d575f901c25e70f20421ebb232d6b9a7c18892f31ee33413244",
+      "host_block_receipt_raw_sha256": "5e02aec731db429fa699176edd8cd6cf44c52e68193c6a0d22c32112c8c4a34f",
+      "automatically_replaced_by_short_cuda_success": false
+    },
+    "current_acquisition_v2": {
+      "protocol_id": "3ed1005fc06c443ba7af4e60b254d6afeb2f84168177322a26cea0856fbe5be0",
+      "protocol_raw_sha256": "b01c3ae23c066b8d53d0ecc337e275b8177d3be6ab4f4b787ef51a48a0be1c1b",
+      "may_authorize_execution": false
+    },
+    "future_execution_envelope_may_change_scientific_design": false,
+    "future_execution_envelope_required_fields": [
+      "exact_scientific_protocol_id",
+      "independent_subject_pack_id_and_split_hashes",
+      "qualified_baseline_model_revision_weights_prompt_retriever_and_generation",
+      "strict_context_profile_with_native_window_at_least_65536",
+      "relationship_domain_reader_executor_artifact_root",
+      "production_host_qualification_full_root_identity",
+      "native_reobserver_and_projection_join",
+      "application_and_system_cursor_bridge",
+      "job_object_process_tree_containment",
+      "realized_executable_argv_environment_and_source_attestation",
+      "same_machine_same_boot_identity",
+      "outcome_typing_qualification_id",
+      "independent_reobserver_identity",
+      "power_simulation_script_hash_and_per_claim_power"
+    ],
+    "host_qualification_terminal_self_report_authoritative": false,
+    "production_host_qualification_real_observation_required": true,
+    "production_host_qualification_validated_eligible_required": true,
+    "minimum_microcode_integer": 303,
+    "existing_p4_6_fit_native_window_tokens": 32768,
+    "existing_p4_6_fit_may_authorize_long_context_formal": false
+  },
+  "stopping_rules": [
+    "context_feasibility_failure_stops_before_first_model_output",
+    "either_steelman_baseline_outside_the_frozen_informative_band_stops_before_formal",
+    "power_simulation_below_0_8_for_any_primary_claim_stops_before_first_model_output",
+    "fewer_than_160_complete_paired_formal_subjects_is_inconclusive_underpowered",
+    "host_or_execution_admission_missing_keeps_formal_execution_closed",
+    "lineage_exposure_noop_or_leakage_failure_invalidates_the_attempt_without_result_publication",
+    "any_axis_primary_contrast_failure_sets_the_integrated_four_axis_verdict_false",
+    "formal_failure_is_published_unchanged_without_prompt_source_threshold_or_seed_retuning",
+    "formal_split_is_never_reused_as_development_or_qualification"
+  ],
+  "evidence_firewall": {
+    "scientific_design_frozen": true,
+    "subject_source_generated": false,
+    "model_generation_performed": false,
+    "cuda_formal_execution_performed": false,
+    "independent_subject_evidence_observed": false,
+    "long_context_evidence_observed": false,
+    "appendable_formal_supported": false,
+    "readable_formal_supported": false,
+    "learnable_formal_supported": false,
+    "steerable_formal_supported": false,
+    "integrated_four_axis_supported": false,
+    "production_active_authorized": false,
+    "product_value_claimed": false
+  },
+  "claim_boundary": "This package freezes a zero-output scientific design and its fail-closed execution requirements before any new subject, baseline answer, model generation, CUDA evidence run, or formal outcome exists. It corrects the old 32768-public-token versus 32768-native-window impossibility by requiring a strict native window of at least 65536 tokens, no truncation, and generation headroom. It does not implement the subject source, execution envelope, host admission, relationship-domain residual artifact, runner, or analysis; does not authorize formal or production execution; and proves none of Appendable, Readable, Learnable, Steerable, the integrated four-axis claim, real-human product value, or production ACTIVE. Development CUDA diagnostics remain allowed but cannot change these frozen gates or become formal evidence."
+}

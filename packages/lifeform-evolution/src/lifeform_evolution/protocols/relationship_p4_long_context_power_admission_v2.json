@@ -1,0 +1,206 @@
+{
+  "schema_version": "relationship-p4-independent-long-context-power-admission-protocol.v2",
+  "protocol_id_contract": "sha256_canonical_json_utf8_newline_v1",
+  "frozen_at_utc": "2026-08-23T17:15:00.000+08:00",
+  "owner": {
+    "wheel": "lifeform-evolution",
+    "module": "lifeform_evolution.relationship_lab_p4_long_context_causal_campaign",
+    "role": "offline_power_contract_admission_owner",
+    "new_runtime_slot_added": false,
+    "execution_implemented": false
+  },
+  "supersession": {
+    "supersedes_power_bound_protocol_id": "735b20a137b03176cf889c0cbe116e29f973c18d4cef4bf38cd42df288dff3fa",
+    "supersedes_power_failure_artifact_id": "fad6c105b7c64a6b4ab89bf6e933ecdf4c8f1b1170679d918c2dd77c27809518",
+    "preserve_previous_protocol_and_artifact": true,
+    "previous_exact_arithmetic_is_correct": true,
+    "previous_unconditional_v3_applicability_is_accepted": false,
+    "supersession_before_any_model_subject_source_or_cuda_formal_output": true,
+    "reason_codes": [
+      "sentinel_before_cartesian_filtering_not_frozen_in_v3",
+      "witness_temporal_correlation_1_not_in_v3_explicit_icc_labels",
+      "witness_cross_contrast_correlation_1_not_in_v3_explicit_dependence_labels",
+      "witness_disclaims_unmaterialized_source_structural_membership"
+    ]
+  },
+  "input_lineage": {
+    "scientific_protocol_id": "9f352778e128a9573790762222a05225740bdaeb732800dec0eec124116a282d",
+    "scientific_protocol_raw_sha256": "ea8a17a14a68802d3b60586bf520c9137e6920be4112c951ec8c69f5e6ea359e",
+    "scientific_preparation_artifact_id": "c5a708ae5e68261fddbade165b45579e66e4bbe7db1be1f4a83056561a17f42e",
+    "scientific_preparation_raw_sha256": "a4b2f3ee920e398ae0f7eab5757b7988dc3fa4f7db7b4769599c837bc656bcd6",
+    "scientific_preparation_manifest_raw_sha256": "4aaf10d76b80a780e62a17b62803906cc34dd34d64bb4d0f8b96d60dff1e2663"
+  },
+  "question": "Can the preserved P4.7 v3 literals mechanically determine whether the exact maximum-variance witness belongs to at least one mandatory feasible Cartesian power-grid tuple, without adding a post-freeze scenario-order or source-membership rule?",
+  "frozen_v3_grid_facts": {
+    "source_json_pointers": [
+      "/analysis/power/mandatory_variance_scenarios",
+      "/analysis/power/mandatory_within_root_icc_decimals",
+      "/analysis/power/mandatory_cross_contrast_dependence",
+      "/analysis/power/all_feasible_cartesian_scenario_combinations_must_pass"
+    ],
+    "mandatory_variance_scenario": "maximum_feasible_bounded_difference_variance_at_planning_mean",
+    "mandatory_within_root_icc_labels": ["0.00", "0.25", "0.50"],
+    "mandatory_cross_contrast_dependence_labels": [
+      "source_structural_covariance",
+      "independent_contrasts",
+      "equicorrelation_negative_0_10",
+      "equicorrelation_positive_0_50"
+    ],
+    "all_feasible_cartesian_combinations_must_pass": true,
+    "sentinel_before_cartesian_filtering_literal_present": false,
+    "mechanical_feasibility_witness_required_for_skipped_tuple_literal_present": false,
+    "source_structural_covariance_defined_without_source_preflight": false,
+    "within_root_icc_random_variable_and_aggregation_defined": false,
+    "cross_contrast_dependence_matrix_mapping_fully_defined": false
+  },
+  "historical_v1_witness_facts": {
+    "nine_arm_x_eight_decision_shared_reference_witness_is_valid": true,
+    "typed_utilities_are_in_domain": true,
+    "all_eight_contrast_means_equal_one_fifth": true,
+    "all_eight_contrast_variances_equal_ninety_nine_twenty_fifths": true,
+    "derived_within_root_temporal_correlation": "1.0",
+    "derived_cross_contrast_correlation": "1.0",
+    "source_structural_claim_made": false,
+    "within_root_label_is_in_v3_explicit_set": false,
+    "cross_contrast_label_is_in_v3_explicit_set": false
+  },
+  "primitive_joint_witness": {
+    "root_latent_plus_probability": {"numerator": "11", "denominator": "20"},
+    "root_latent_minus_probability": {"numerator": "9", "denominator": "20"},
+    "root_latents_iid": true,
+    "evaluation_decisions_per_arm": 8,
+    "reference_arm": "volvence_closed_loop",
+    "comparator_arm_count": 8,
+    "plus_state_reference_utility_each_decision": 1,
+    "plus_state_every_comparator_utility_each_decision": -1,
+    "minus_state_reference_utility_each_decision": -1,
+    "minus_state_every_comparator_utility_each_decision": 1,
+    "paired_difference_definition": "reference_root_mean_utility_minus_comparator_root_mean_utility"
+  },
+  "derived_witness_properties": {
+    "typed_nine_arm_eight_decision_joint_feasible": true,
+    "every_contrast_plus_state_difference": 2,
+    "every_contrast_minus_state_difference": -2,
+    "every_contrast_mean": {"numerator": "1", "denominator": "5"},
+    "every_contrast_variance": {"numerator": "99", "denominator": "25"},
+    "within_root_temporal_correlation": {"numerator": "1", "denominator": "1"},
+    "cross_contrast_correlation": {"numerator": "1", "denominator": "1"},
+    "source_joint_feasibility": "not_evaluated"
+  },
+  "grid_membership": {
+    "fixed_icc_label_match": false,
+    "fixed_cross_dependence_label_match": false,
+    "source_structural_mapping_established": false,
+    "membership_under_cartesian_first": false,
+    "membership_under_sentinel_first": true,
+    "membership_identified_by_v3": false
+  },
+  "ambiguity_witness": {
+    "interpretation_a": {
+      "name": "cartesian_product_then_feasibility_filter",
+      "rule": "variance_x_icc_x_cross_dependence_x_missingness_x_pattern_labels_define_all_candidate_tuples_before_feasibility",
+      "plus_one_temporal_and_cross_correlation_witness_admitted": false,
+      "conditional_numeric_bound_applies": false
+    },
+    "interpretation_b": {
+      "name": "mandatory_variance_sentinel_before_cartesian_product",
+      "rule": "maximum_feasible_bounded_variance_is_a_global_sentinel_evaluated_before_labeled_cartesian_tuples",
+      "plus_one_temporal_and_cross_correlation_witness_admitted": true,
+      "conditional_numeric_bound_applies": true
+    },
+    "both_interpretations_preserve_all_v3_literal_lists": true,
+    "v3_contains_precedence_or_survival_rule_selecting_one_interpretation": false,
+    "interpretations_produce_opposite_numeric_bound_applicability": true,
+    "mechanical_resolution_from_v3_alone_possible": false
+  },
+  "posthoc_semantics": {
+    "v1_sentinel_order_rule_present": true,
+    "same_rule_frozen_in_target_v3": false,
+    "retroactive_application_to_v3_permitted": false,
+    "v1_numeric_bound_valid": true,
+    "v1_numeric_bound_conditional_only": true,
+    "v1_scientific_admission": false,
+    "scientific_admission_false_means": "not_proven_admitted_not_proven_infeasible",
+    "decisive_v3_power_failure": false
+  },
+  "admission_logic": {
+    "post_freeze_rule_may_expand_v3_scenario_membership": false,
+    "absence_of_membership_rule_may_be_treated_as_feasible": false,
+    "absence_of_membership_rule_may_be_treated_as_infeasible": false,
+    "numeric_bound_unconditionally_applies_to_v3_frozen_grid": false,
+    "v3_power_contract_is_mechanically_determinate": false,
+    "under_specification_may_authorize_development": false,
+    "required_prior_full_power_artifact_exists": false,
+    "required_source_preflight_exists": false,
+    "admission_result": "power_contract_under_specified_no_development_authorization"
+  },
+  "conditional_numeric_bound": {
+    "authority": "conditional_diagnostic_only",
+    "condition": "a_future_protocol_explicitly_registers_the_maximum_variance_witness_as_a_mandatory_pre_filter_sentinel",
+    "formal_root_count": 192,
+    "root_difference_support": [-2, 2],
+    "planning_mean": {"numerator": "1", "denominator": "5"},
+    "maximum_variance": {"numerator": "99", "denominator": "25"},
+    "mass_at_plus_two": {"numerator": "11", "denominator": "20"},
+    "mass_at_minus_two": {"numerator": "9", "denominator": "20"},
+    "practical_threshold": {"numerator": "3", "denominator": "20"},
+    "minimum_success_count": 104,
+    "exact_tail_numerator": "77894945885889223574844738031202173882027506058297833451221739792439867434007895264815784794622549025287467987991768692782297066461465596143231461866208846499350715829794151289445220412600922707927209627064220570521391366669147754170951541079882737",
+    "exact_tail_denominator": "125542034707733615276715788464153328322047108889280690257920000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "display_decimal_half_even_20_places": "0.62046904104455107035",
+    "required_power": {"numerator": "4", "denominator": "5"},
+    "conditional_bound_is_below_required": true,
+    "actual_v3_grid_power_estimated": false,
+    "may_be_used_as_v3_decisive_failure": false
+  },
+  "certificate_contract": {
+    "certificate_file": "power_admission_certificate.json",
+    "manifest_file": "manifest.json",
+    "certificate_id_contract": "sha256_canonical_json_utf8_newline_without_certificate_id_v1",
+    "artifact_id_contract": "sha256_canonical_manifest_core_utf8_newline_v1",
+    "canonical_json_required": true,
+    "create_only_publication": true,
+    "exact_two_file_inventory": true,
+    "historical_v1_artifact_mutated": false
+  },
+  "zero_output_firewall": {
+    "model_output_count": 0,
+    "subject_materialization_count": 0,
+    "source_materialization_count": 0,
+    "donor_bank_materialization_count": 0,
+    "counterfactual_twin_materialization_count": 0,
+    "cuda_formal_run_count": 0,
+    "simulation_replicate_count": 0,
+    "full_joint_dgp_artifact_count": 0,
+    "execution_enabled": false,
+    "development_authorized": false,
+    "qualification_authorized": false,
+    "formal_authorized": false
+  },
+  "v4_requirements": {
+    "explicit_pre_filter_sentinel_or_complete_grid_membership_rule": true,
+    "mechanical_infeasibility_witness_for_every_skipped_tuple": true,
+    "planning_mean_defined_before_or_after_missingness": true,
+    "sample_size_frozen_after_full_joint_planner": true,
+    "malformed_generated_action_vs_integrity_failure_classification": true,
+    "six_development_candidate_cell_counterbalance_and_state_isolation": true,
+    "all_before_any_source_or_model_output": true
+  },
+  "terminal": {
+    "status": "power_contract_under_specified_no_development_authorization",
+    "certificate_valid": true,
+    "v1_numeric_calculation_valid_conditionally": true,
+    "v1_unconditional_scientific_admission_valid": false,
+    "v3_power_passed": false,
+    "v3_power_failed_under_frozen_grid": null,
+    "v3_power_contract_resolved": false,
+    "v3_prior_power_admission_satisfied": false,
+    "v3_development_authorized": false,
+    "v3_retired_without_model_output": true,
+    "stopping_basis": "unresolved_prior_power_contract_not_numeric_fail",
+    "v4_zero_output_planning_authorized": true,
+    "model_output_authorized": false,
+    "next_action": "publish_v4_zero_output_protocol_and_full_power_planner_before_any_source_or_model_output"
+  },
+  "claim_boundary": "This v2 admission protocol supersedes the preserved v1 power-bound interpretation before any empirical output. It proves that P4.7 v3 does not uniquely define membership of the +1-correlation maximum-variance witness in its frozen Cartesian grid, so v3 cannot authorize development. The v1 exact fraction remains a conditional diagnostic only. This protocol does not complete a joint DGP or source preflight, establish an unconditional v3 power failure, estimate any actual claim power, run a model or CUDA formal workload, or provide Appendable, Readable, Learnable, Steerable, integrated, human, product, or production ACTIVE evidence."
+}

@@ -1,7 +1,25 @@
 # Specs 分层知识入口总索引
 
+> P4.7 最新收口：historical power-bound v1 `735b20a1…f3fa` 的 `0.62046904104455107035` 仍只作
+> conditional diagnostic；power-admission v2 `67d294fa…6bc9` 的 under-specified 终局与 v3 原样保留。当前权威
+> v4a protocol `63e007b7…08753`（raw `d06b0710…00e0a`）、artifact `08245400…e56c1` / certificate
+> `b7e95f14…6c764` 判 `v4_planning_contract_frozen_full_joint_planner_pending`：planning contract 已 determinate，
+> 六 candidate-cell/640-block schedule 已冻结；但 576 tuple 尚待 source/feasibility，full grid=false、N=null、
+> v4 power PASS/FAIL=null。全 126 N 有独立 exact-hex screen 且 `1088=PASS→1152=FAIL`，1856 也只是 Hoeffding
+> boundary 候选，均非 selected N。source-opportunity zero-output protocol `47bcf656…6494a`（raw
+> `9d4d3ab5…c40b0`、helper `72efc093…46f8`）与 artifact/certificate/projection
+> `8a36d2de…0a99 / 64d879c4…c95a / b8b7823a…e6f1b` 已冻结 structural contract，但 external anchor=false，
+> inventory materializer 未运行，source stage/tuple feasibility 仍未完成。经红队收紧的 A0 public-Gist request
+> protocol `dedfc7ff…4bee`（raw `38ce85d4…a8c6`、`16006` bytes）已在本地冻结 request `7897e328…89d1`
+>（raw `0d5147cd…3057`、`12115` bytes）与 artifact `5496fa80…2900`，但 private origin 不算 publication，
+> dispatch/publication/observation/A0 admission 全为 false。顺序固定 v4a→source contract→A0 request→public Gist
+> first revision→独立 receipt/reobservation→A0 admission→materializer implementation→A1 anchor/admission→structural
+> inventory→feasibility→search→one-shot confirm→v4b；A0 receipt 不能授权 materialization。全部 source row/subject/donor/twin pack/
+> baseline/model/CUDA/simulation/outcome count=0，全部执行授权=false，四能力仍为 false。
+>
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
-> Last reconciled: 2026-08-22（94 份 spec 全量挂载；Relationship Lab P1j 终局为 `consumer_failed_v4_qualification`；P1k-R1 A 格 report `ba6c5cf7…7138` 判 `substrate_cannot_apply_disclosed_policy`。P1m 首次且唯一 qualification 已在 24 组 generated mirror pair 上终局：prompt/RAG 均 24/48 correct、0/24 flip，fresh structured named reader 46/48、24/24 flip；report `9580ddff…fc56` 判 `prompt_steelman_baseline_too_weak` 并关闭场景版本化，故 P2 formal 与 Volvence advantage 仍未过门。P2-development SHADOW owner/persistence、P2d 命名条件 readout、P3 exact PE-credit gate、P4 collection-only closed-alpha 壳、P4.1 Lab longitudinal canary、P4.2 preference-action 纠删 owner/drill、P4.3 named-reader transmission、P4.4 PE-credit learned-gate transmission 与 P4.5 Windows cross-process owner-hydration preflight 已工程落地。P4.3 在 seen/post-selected matched arms 得到 action match 6/16→16/16、positive outcome 9/16→16/16，只是 Readable 传导的开发证据；P4.4 固定同一 named reader、fixture 与 environment，在两个已见、post-selected 的合成 subject 共 16 decisions 上只切 exact PE→credit 是否应用于 cold learned gate：no-credit 为 0 steer/action/credit apply/parameter update，PE-credit 为 7/16 action change、16/16 credit apply/parameter update，positive 7/16→13/16、reversal 0/14→7/14。P4.5 在每个 pulse 都启动新 `sys.executable` child，并只通过磁盘 `OwnerHydrationStore` 读取本人前缀、空前缀或 paired donor 同阶段前缀；72 次 child 全部可审计，correct/empty forecast presence 改变 16/16，correct/swapped 推荐动作改变 14/16，artifact `675815b9…2052`。P4.4/P4.5 均固定 `formal_evidence_authorized=false`；真人 outcome typing qualification、独立 subject / 32K context 正式四臂 pilot、真实 residual 与用户可见 steer、完整 Readable/Learnable/Steerable 与四能力总主张仍未证明）
+> 下方 `Last reconciled` 长段中的 P4.7 v3 只作历史 design freeze 记录；当前 planning authority 以上述 v4a 为准。
+> Last reconciled: 2026-08-23（94 份 spec 全量挂载；Relationship Lab P1j 终局为 `consumer_failed_v4_qualification`；P1k-R1 A 格 report `ba6c5cf7…7138` 判 `substrate_cannot_apply_disclosed_policy`。P1m 首次且唯一 qualification 已在 24 组 generated mirror pair 上终局：prompt/RAG 均 24/48 correct、0/24 flip，fresh structured named reader 46/48、24/24 flip；report `9580ddff…fc56` 判 `prompt_steelman_baseline_too_weak` 并关闭场景版本化，故 P2 formal 与 Volvence advantage 仍未过门。P2-development SHADOW owner/persistence、P2d 命名条件 readout、P3 exact PE-credit gate、P4 collection-only closed-alpha 壳、P4.1 Lab longitudinal canary、P4.2 preference-action 纠删 owner/drill、P4.3 named-reader transmission、P4.4 PE-credit learned-gate transmission 与 P4.5 Windows cross-process owner-hydration preflight 已工程落地。P4.3 在 seen/post-selected matched arms 得到 action match 6/16→16/16、positive outcome 9/16→16/16，只是 Readable 传导的开发证据；P4.4 固定同一 named reader、fixture 与 environment，在两个已见、post-selected 的合成 subject 共 16 decisions 上只切 exact PE→credit 是否应用于 cold learned gate：no-credit 为 0 steer/action/credit apply/parameter update，PE-credit 为 7/16 action change、16/16 credit apply/parameter update，positive 7/16→13/16、reversal 0/14→7/14。P4.5 在每个 pulse 都启动新 `sys.executable` child，并只通过磁盘 `OwnerHydrationStore` 读取本人前缀、空前缀或 paired donor 同阶段前缀；72 次 child 全部可审计，correct/empty forecast presence 改变 16/16，correct/swapped 推荐动作改变 14/16，artifact `675815b9…2052`。P4.7 v1/v2 zero-output designs `5387516a…6d2e` / `666d2e85…3baf` 在任何 subject/model/CUDA-formal/outcome output 前依次被取代；随后曾作为 design authority 的 v3 `9f352778…a282d`（raw `ea8a17a1…359e`，preparation `c5a708ae…f42e`）保留 32/64/192 analysis roots、4+8+8 session、九臂与 8 个唯一 contrast，并补齐 disjoint nonreused donor banks、typed utility/逐 decision 192-root ITT、baseline exact bootstrap/确定性 selection、counterfactual-twin proxy audit、全九臂 generated-action lineage、host-time counterbalance 与完整 joint power DGP；execution/formal 仍为 false，power/source zero-output preflight 前 model output NO-GO。P4.4/P4.5 均固定 `formal_evidence_authorized=false`；真人 outcome typing qualification、独立 subject / 32K context 正式执行、真实 residual 与用户可见 steer、完整 Readable/Learnable/Steerable 与四能力总主张仍未证明）
 
 ---
 
@@ -210,17 +228,24 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
   exit 3，并要求缺失 source 的 Provision 显式携带 `-AllowSourceCreation`。新增 pure artifact adapter 从单一
   descriptor 绑定 raw stdout/caller envelope，严格分流 Audit v2/failure v1，并重算 compact ordered bytes、
   source pin、basis、endpoint/provider/registry/conformance/safety/refresh；但 snapshot 固定不发 projection、
-  不声称 real/eligible/authorization。另有 standalone direct-Audit acquisition/quarantine owner 冻结了
-  Audit-only fixed argv、process-before claim fsync、bounded raw stdout/stderr、attempt=1/retry=0、exit/schema
-  判别式 outcome 与 create-only full-root validator；但 production gate 静态禁用，当前只允许 synthetic
-  lifecycle 验证，capture envelope 仍不权威，且未接 002/008。independent live reobserver 必须由不同 owner、
-  进程与 native API 路径另包实现；endpoint equality 不证明连续稳定，module-qualified provenance 也不构成
-  可信执行证明。config
+  不声称 real/eligible/authorization。standalone direct-Audit acquisition/quarantine v2 owner 进一步冻结了
+  protocol-derived same-buffer `-EncodedCommand`、provisioner raw/LF 双 pin、process-before claim fsync、
+  referenced soft-timeout + post-kill grace + overall hard cutoff、per-stream capture/persistence outcome、
+  attempt=1/retry=0、exit/schema 判别式 outcome 与 create-only full-root validator。真实 Windows fixture 已覆盖
+  kill 拒绝/抛错、parent exit 后 descendant 持 pipe、close-without-end、cutoff 后 late error guardian、
+  stream/write/fsync/readback failure，以及 WinPS5.1 Parser/fileName、FileShare.Read rename lock 与 release；
+  reviewed provisioner 以 `eol=lf` materialization rule 保持 Windows fresh checkout raw pin 可复现，critical source
+  LF hash 保留 BOM 而不能靠 decoder stripping 绕过；但 production gate 仍静态禁用，capture envelope
+  仍不权威，且未接 002/008。异步监督 deadline 不包含不可中断的同步 fsync/readback/terminal write；这些失败
+  可能只留下永久 incomplete root。independent live reobserver 必须由不同 owner、进程与 native API 路径另包
+  实现；requested same-buffer binding 不证明 realized PowerShell image/IFEO/environment、continuous endpoint
+  stability 或管理员/内核威胁下的可信执行。config
   content ID、refresh requirement 字段或 exit code 单独均不能授权资格，因此本包没有产生真实
   qualification、没有解除 host block，也不授权 CUDA 或四能力
 - child 或未来 authorized outer PASS 也只构成一次 exact-boundary/fixed-argv engineering observation，
   不证明 host stability、长 context 利用、独立 subject、长陪伴、多 session 或四能力；当前
-  host-block 解除前仍禁止真实运行
+  host-block 未满足冻结 microcode/qualification 条件时不得纳入正式 CUDA/P4.6 证据；另行预注册、事件游标
+  夹持且 fail-stop 的诊断运行也只能报告“故障是否复现”，不得解除该资格边界
 
 ---
 
@@ -328,7 +353,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 
 | Spec | 内容 |
 |------|------|
-| [relationship-intelligence-closed-alpha.md](./relationship-intelligence-closed-alpha.md) | 多经历 preference-action forecast、P2d 命名条件 readout、exact outcome→social PE→credit、bounded action gate、self-temporal SHADOW advisory、真实 outcome typing qualification、三个 P4 产品入口、P4.1 Lab longitudinal canary、P4.2 owner correction/redaction drill、P4.3 named-reader transmission、P4.4 PE-credit learned-gate transmission、P4.5 real child-process owner hydration、P4.6-fit model-bound steering artifact prerequisite 与 host-blocked P4.6 physical residual actuation preflight |
+| [relationship-intelligence-closed-alpha.md](./relationship-intelligence-closed-alpha.md) | 多经历 preference-action forecast、P2d 命名条件 readout、exact outcome→social PE→credit、bounded action gate、self-temporal SHADOW advisory、真实 outcome typing qualification、三个 P4 产品入口、P4.1 Lab longitudinal canary、P4.2 owner correction/redaction drill、P4.3 named-reader transmission、P4.4 PE-credit learned-gate transmission、P4.5 real child-process owner hydration、P4.6-fit model-bound steering artifact prerequisite、host-blocked P4.6 physical residual actuation preflight，以及 P4.7 independent long-context zero-output design prereg、power-contract admission、v4a planning freeze、source-opportunity zero-output contract freeze 与本地 A0 external-publication request freeze |
 
 **核心不变量**：
 
@@ -348,6 +373,52 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 - P4.6-fit 以 protocol `b6e1d79a…def8d` 在 RTX 4090 上新拟合 Qwen2.5-1.5B width-1536 reader / conditional executor / matched sensor-off；artifact `57b59b26…cbe04` 的 reader accuracy 为 1.0，gain-vs-noop NLL 为 1.9666092619739228，conditional advantage 为 1.295555595555674，substrate trainable count 为 0，八项门全部通过。campaign `67760e78…4ef31` 永久披露“一次无可判定 observer-timeout abort + 一次相同协议可判定执行”及 attempt-001 OS exit status 未取得；GPU-free validator exit 0。它只关闭 model-bound fit 前置，不证明真实 residual actuation、用户可见 steer、Learnable、长 context 或四能力
 - P4.6-actuation protocol `c6cb84f0…13244` 已实现 68 prompts × 2 repeats 的 raw / strict-noop / conditional / matched sensor-off 四臂，并以 owner-recomputed belief/delta 与 136 capture + 408 direct-apply invocation ledger 关闭离线重封缺口；独立 fake-runtime 为 10 passed、import-boundary 2901 passed。真实 CUDA run 尚未启动：主 agent 的 CPU-only 复测以 Python `0xC0000005` 退出，且同刻出现两条 WHEA corrected machine-check internal parity error。近 120 天已有 96 条 WHEA 19、5 条 WHEA 1、66 个 Python crash archive、16 次 bugcheck；block receipt `5e02aec7…4a34f`。因此本机在 BIOS `A.B0` / microcode `0x120` 下不具备可信物理或多日证据资格
 - 下一动作不是重试：先更新 MSI BIOS 到含 Intel microcode `0x12F` 或更高版本、加载 Intel Default Settings、冷启动核验，再冻结并通过零新增 WHEA/access-violation/bugcheck 的 host-stability qualification。通过后才可用 P4.6-fit 完整根及其原 artifact/bundle/campaign pin 执行一次 P4.6-actuation；strict profile/fit/physical preflight 都不替代真实 Qwen 32K、独立 subject、长陪伴多 session 因果实验或 formal 判词
+- P4.7 v1/v2 protocol/artifact `5387516a…6d2e` / `899b7b0a…6901`、`666d2e85…3baf` / `795dea07…a8bd` 在任何 subject/model/CUDA-formal/outcome output 前被红队依次取代并原样保留；随后曾作为 design authority、现已退休的 v3 protocol `9f352778…a282d`（raw `ea8a17a1…359e`）及 zero-output preparation `c5a708ae…f42e` 冻结 32/64/192 个 disjoint analysis root、每 root 4 onboarding + 8 matched credit collection + 8 frozen-policy evaluation、九臂与 8 个唯一 paired-root contrast，并新增同规模、独立、不复用且不进 estimand/bootstrap 的 donor banks；`{-1,0,1}` typed utility 与逐 decision 192-root conservative ITT；baseline 三候选确定性 selection 与 exact root bootstrap；平衡 long-range fact、unexecuted counterfactual twin/proxy audit；全九臂 evaluation generated-action lineage；block counterbalance；完整 9×8 joint power DGP。正式 long-context 仍要求 actual per-arm input receipt、public-history ≥32768、native window ≥65536、无 truncation/RoPE extension；当前 P4.6 32768-window fit 不可授权。owner 只有 `show-protocol / prepare / validate-existing`，全部 execution/formal/四轴 flag=false；power/source/tape/context/artifact zero-output preflight 未通过前 model output NO-GO
+- P4.7 power-bound v1 protocol/artifact/certificate `735b20a1…f3fa / fad6c105…9518 / 682efba8…e70e`
+  原样保留：其 N=192 条件尾概率 `0.62046904104455107035` 算术正确，但 mandatory sentinel-before-filter
+  是后发语义，且 `+1` temporal/cross-correlation witness 不属于 v3 冻结 labels，故 unconditional scientific
+  admission=false。已转为历史的 power-admission v2 protocol `67d294fa…6bc9`（raw `130f7667…e04`）、artifact
+  `9883e107…4ee9`、certificate `cd6ceca0…36b3` 判 `power_contract_under_specified_no_development_authorization`：
+  `v3_power_failed_under_frozen_grid=null / v3_power_passed=false / model_output_authorized=false`。这不是 full joint
+  DGP/source/empirical 结果；全部物化、CUDA/model/simulation count=0，全部 execution/development/qualification/
+  formal authorization=false。v3 已零输出退休，v1/v2/v3 均按原 hash 保留且不得追溯改写
+- P4.7 当前权威 v4a protocol/artifact/certificate `63e007b7…08753 / 08245400…e56c1 / b7e95f14…6c764`
+  在零 source/subject/model/CUDA/outcome 下冻结：sentinel-first membership、逐 skipped-tuple exact witness、
+  planning-mean/missingness 顺序、generated-action/integrity 分类、六 candidate-cell state isolation 与 640-block
+  schedule 均已确定，故 `power_contract_determinate=true`。但 576 tuple 仍 unresolved，source grid/full joint
+  planner 未完成，`selected_formal_root_count=null / v4_power_passed=null / v4_power_failed=null`。126 个 candidate
+  screen 都发布 exact lowercase-hex fraction，禁止 monotonic shortcut；`1088=PASS→1152=FAIL`，1856 也只是
+  Hoeffding-boundary 候选。640-block schedule 是 session-major；future categorical RNG 用 multiblock SHA-256 +
+  rejection 支持任意 rational denominator Q，search 与 100000-replicate familywise MC 都只按冻结整数门判定。
+  后续必须严格按 v4a→source preflight→
+  feasibility→search→one-shot confirmation→v4b，当前所有 execution/development/model/CUDA/formal 与
+  Appendable/Readable/Learnable/Steerable/integrated claim 仍为 false
+- P4.7 source-opportunity zero-output protocol/artifact/certificate/projection
+  `47bcf656…6494a / 8a36d2de…0a99 / 64d879c4…c95a / b8b7823a…e6f1b` 已绑定 v4a 与三动作 owner，
+  zero-output section digest 为 `912e45f6…ee01`；
+  冻结 15-axis typed LSB blueprint、16576-slot injective root frame、8288 analysis/donor pair、32-root SHA
+  fact orientation 16/16、semantic-stratum Latin rotation、typed utility、final pair3/decision7/32K twin flip，以及
+  单 generic-decision 512-atom marginal。五个 P0 分别关闭“fact 全隐藏导致不可解”、fixed-order parity、opaque
+  surface code、root-only twin 与 temporal/tuple witness 混淆；Latin rotation 是额外高优先收口。projection/certificate/
+  manifest raw/bytes 为 `ee33fa32…66b2 / 72969`、`f9089ce0…0736 / 8036`、`2829b16d…60a6 / 2036`。
+  但 `external_publication_anchor_present=false`，所以 structural inventory materialization、source stage、576-tuple
+  feasibility、model/CUDA 与 execution 均保持 false；count 只计 persisted/published rows，进程内 deterministic
+  derivation object 不算 source content/materialization。lazy package API、exact CLI source roots 与 reparse/hardlink
+  rejection 已关闭 preflight import/input boundary，但 zero-output contract 不是 source PASS，也没有新增四轴证据
+- P4.7 A0 external-publication request protocol `dedfc7ff…4bee`（raw `38ce85d4…a8c6 / 16006`）在本地
+  create-only 冻结 request `7897e328…89d1`（raw `0d5147cd…3057 / 12115`）与 artifact
+  `5496fa80…2900`（manifest raw `17496a50…4125 / 1307`）。它绑定未来 public GitHub Gist 第一 revision 的
+  唯一 payload 与五个 source-contract publication subject，但没有 dispatch、network、Git commit/push、Gist
+  publication、independent observation 或 A0 admission；当前 private/access-controlled origin 明确不算 publication。
+  `external_publication_anchor_present=false`，materializer implementation/materialization、source、tuple feasibility、
+  model、CUDA、development/qualification/formal 与四轴 authority 全为 false。未来 A0 receipt 只可供独立 A0
+  admission；仍须 materializer implementation 后另过 A1 materializer + single-attempt envelope anchor/admission，
+  A0 receipt 本身绝不授权 structural inventory materialization。红队 closure 要求 helper raw pin 后同 buffer 执行、
+  prepare 只读 canonical request/五 subject/四 upstream roots、relocated validation 不重绑定 canonical path、local
+  default-stream-only 且预读拒绝 UNC/device/ADS；四个 raw-pinned text 的 EOL 固定为 helpers=LF、action/schema=CRLF。
+  future observer 无 auth/cookie，publisher auth 需用户另行明确授权且 credential 永不序列化；HTTPS URL 无 userinfo/
+  nondefault port、description 为空，并以 same gist owner/id/revision、zero-parent、exact-one `100644` blob tree、raw URL/
+  bytes 的完整 object-graph join 才能形成 receipt
 
 ---
 

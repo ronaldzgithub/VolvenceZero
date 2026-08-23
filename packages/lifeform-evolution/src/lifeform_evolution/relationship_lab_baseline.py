@@ -14,7 +14,7 @@ import json
 import pathlib
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Protocol
 
 from lifeform_domain_emogpt.lab import (
     RelationshipAction,
@@ -28,10 +28,20 @@ from lifeform_domain_emogpt.lab import (
 from lifeform_evolution.relationship_lab_gate0 import FrozenBaselineAttestation
 
 
+if TYPE_CHECKING:
+    from lifeform_evolution.relationship_lab_product_baselines import FrozenProductChatMessage
+
+
 STATELESS_BASELINE_RUN_SCHEMA_VERSION = "relationship-stateless-baseline-run.v1"
 STATELESS_BASELINE_DECISION_SCHEMA_VERSION = "relationship-stateless-baseline-decision.v1"
 DEFAULT_STATELESS_MODEL_SOURCE = "Qwen/Qwen2.5-1.5B-Instruct"
 DEFAULT_STATELESS_MODEL_ID = "qwen2.5-1.5b-instruct"
+SCHEMA_CONSTRAINED_DECODING_MODE = "canonical_action_json_token_trie_v1"
+_CONSTRAINED_ACTION_ORDER = (
+    RelationshipAction.STAY_PRESENT_WITHOUT_PROBE,
+    RelationshipAction.RESPECT_SPACE_WITH_RETURN_OPTION,
+    RelationshipAction.NEUTRAL_NOOP,
+)
 
 
 def _asset_dir() -> pathlib.Path:
@@ -72,6 +82,35 @@ def frozen_model_weights_sha256(snapshot_root: pathlib.Path) -> str:
     return sha256_json(manifest)
 
 
+def _frozen_tokenizer_assets_sha256(snapshot_root: pathlib.Path) -> str:
+    """Bind the public tokenizer id to every tokenizer/chat-template asset."""
+
+    fixed_names = {
+        "added_tokens.json",
+        "chat_template.jinja",
+        "merges.txt",
+        "sentencepiece.bpe.model",
+        "special_tokens_map.json",
+        "spiece.model",
+        "vocab.json",
+        "vocab.txt",
+    }
+    files = tuple(
+        sorted(
+            (
+                path
+                for path in snapshot_root.iterdir()
+                if path.is_file() and (path.name.startswith("tokenizer") or path.name in fixed_names)
+            ),
+            key=lambda path: path.name,
+        )
+    )
+    if not files:
+        raise FileNotFoundError(f"no tokenizer assets found under frozen snapshot {snapshot_root}")
+    manifest = tuple((path.name, path.stat().st_size, _sha256_file(path)) for path in files)
+    return sha256_json(manifest)
+
+
 def _parse_action_choice(raw_output: str) -> RelationshipAction | None:
     """Parse an exact protocol enum; malformed output remains visibly invalid."""
 
@@ -88,6 +127,117 @@ def _parse_action_choice(raw_output: str) -> RelationshipAction | None:
         return RelationshipAction(action_id)
     except ValueError:
         return None
+
+
+@dataclass(frozen=True)
+class CanonicalActionJsonTokenConstraint:
+    """Exact three-candidate JSON token trie for Hugging Face generation."""
+
+    candidates: tuple[str, ...]
+    candidate_token_ids: tuple[tuple[int, ...], ...]
+    eos_token_id: int
+    mode: str = SCHEMA_CONSTRAINED_DECODING_MODE
+
+    def __post_init__(self) -> None:
+        expected = tuple(canonical_json({"action_id": action.value}) for action in _CONSTRAINED_ACTION_ORDER)
+        if self.mode != SCHEMA_CONSTRAINED_DECODING_MODE:
+            raise ValueError("schema constraint mode mismatch")
+        if self.candidates != expected:
+            raise ValueError("schema constraint candidates must be the three canonical action JSON values")
+        if len(self.candidate_token_ids) != len(self.candidates):
+            raise ValueError("schema constraint must bind one token sequence per candidate")
+        if isinstance(self.eos_token_id, bool) or not isinstance(self.eos_token_id, int) or self.eos_token_id < 0:
+            raise ValueError("schema constraint eos_token_id must be a non-negative integer")
+        for sequence in self.candidate_token_ids:
+            if not isinstance(sequence, tuple) or not sequence:
+                raise ValueError("schema constraint token sequences must be non-empty tuples")
+            if any(isinstance(token, bool) or not isinstance(token, int) or token < 0 for token in sequence):
+                raise ValueError("schema constraint token ids must be non-negative integers")
+            if self.eos_token_id in sequence:
+                raise ValueError("schema constraint candidate tokens must not contain EOS")
+        if len(set(self.candidate_token_ids)) != len(self.candidate_token_ids):
+            raise ValueError("schema constraint candidate token sequences must be unique")
+        for left_index, left in enumerate(self.candidate_token_ids):
+            for right_index, right in enumerate(self.candidate_token_ids):
+                if left_index != right_index and len(left) <= len(right) and right[: len(left)] == left:
+                    raise ValueError("schema constraint candidate token sequences must be prefix-free")
+
+    @property
+    def maximum_completion_tokens(self) -> int:
+        """Maximum candidate tokens including the required terminal EOS."""
+
+        return max(len(sequence) for sequence in self.candidate_token_ids) + 1
+
+    def generation_config_payload(self) -> dict[str, object]:
+        """Hashable payload binding the mode, strings, token ids, and terminal."""
+
+        return {
+            "mode": self.mode,
+            "canonical_candidates": list(self.candidates),
+            "candidate_token_ids": [list(sequence) for sequence in self.candidate_token_ids],
+            "terminal_eos_token_id": self.eos_token_id,
+        }
+
+    def prefix_allowed_tokens_fn(
+        self,
+        *,
+        prompt_token_count: int,
+    ) -> Callable[[int, Any], list[int]]:
+        """Return a fail-loudly callback over the exact generated-token prefix."""
+
+        if isinstance(prompt_token_count, bool) or not isinstance(prompt_token_count, int) or prompt_token_count <= 0:
+            raise ValueError("prompt_token_count must be a positive integer")
+        transitions: dict[tuple[int, ...], set[int]] = {}
+        for sequence in self.candidate_token_ids:
+            for index, token in enumerate(sequence):
+                transitions.setdefault(sequence[:index], set()).add(token)
+            transitions.setdefault(sequence, set()).add(self.eos_token_id)
+        frozen_transitions = {
+            prefix: tuple(sorted(allowed)) for prefix, allowed in transitions.items()
+        }
+
+        def _allowed_tokens(batch_id: int, input_ids: Any) -> list[int]:
+            if isinstance(batch_id, bool) or not isinstance(batch_id, int) or batch_id < 0:
+                raise ValueError("schema constraint batch_id must be a non-negative integer")
+            raw_ids = input_ids.tolist()
+            if not isinstance(raw_ids, list) or any(
+                isinstance(token, bool) or not isinstance(token, int) for token in raw_ids
+            ):
+                raise TypeError("schema constraint input_ids must be a one-dimensional integer tensor")
+            if len(raw_ids) < prompt_token_count:
+                raise ValueError("schema constraint input_ids are shorter than the frozen prompt")
+            generated_prefix = tuple(raw_ids[prompt_token_count:])
+            allowed = frozen_transitions.get(generated_prefix)
+            if allowed is None:
+                raise ValueError("generation escaped the canonical action JSON token trie")
+            return list(allowed)
+
+        return _allowed_tokens
+
+
+def build_canonical_action_json_token_constraint(tokenizer: Any) -> CanonicalActionJsonTokenConstraint:
+    """Tokenize and verify the exact canonical action JSON candidates."""
+
+    eos_token_id = tokenizer.eos_token_id
+    if isinstance(eos_token_id, bool) or not isinstance(eos_token_id, int) or eos_token_id < 0:
+        raise ValueError("tokenizer.eos_token_id must be a non-negative integer")
+    candidates = tuple(canonical_json({"action_id": action.value}) for action in _CONSTRAINED_ACTION_ORDER)
+    token_sequences: list[tuple[int, ...]] = []
+    for candidate in candidates:
+        encoded = tokenizer(candidate, add_special_tokens=False)
+        input_ids = encoded.get("input_ids")
+        if not isinstance(input_ids, list) or not input_ids:
+            raise TypeError("canonical action tokenizer output must contain a non-empty input_ids list")
+        sequence = tuple(input_ids)
+        decoded = tokenizer.decode(input_ids, skip_special_tokens=True).strip()
+        if decoded != candidate:
+            raise ValueError("canonical action token sequence does not decode exactly")
+        token_sequences.append(sequence)
+    return CanonicalActionJsonTokenConstraint(
+        candidates=candidates,
+        candidate_token_ids=tuple(token_sequences),
+        eos_token_id=eos_token_id,
+    )
 
 
 @dataclass(frozen=True)
@@ -126,23 +276,45 @@ class HFStatelessRelationshipActionPolicy:
         *,
         model_source: str = DEFAULT_STATELESS_MODEL_SOURCE,
         model_id: str = DEFAULT_STATELESS_MODEL_ID,
+        model_revision: str | None = None,
         device: str = "auto",
         torch_dtype: str = "auto",
         local_files_only: bool = True,
         temperature: float = 0.2,
         top_p: float = 0.9,
         max_new_tokens: int = 48,
+        prefill_chunk_size: int | None = None,
+        generation_use_cache: bool | None = None,
+        schema_constrained_decoding: bool = False,
     ) -> None:
         if not model_source.strip() or not model_id.strip():
             raise ValueError("model_source and model_id must be non-empty")
+        if model_revision is not None and not model_revision.strip():
+            raise ValueError("model_revision must be non-empty when provided")
         if temperature < 0.0:
             raise ValueError("temperature must be non-negative")
         if not 0.0 < top_p <= 1.0:
             raise ValueError("top_p must be in (0, 1]")
         if max_new_tokens < 4:
             raise ValueError("max_new_tokens must be >= 4")
+        if prefill_chunk_size is not None and (
+            isinstance(prefill_chunk_size, bool)
+            or not isinstance(prefill_chunk_size, int)
+            or prefill_chunk_size <= 0
+        ):
+            raise ValueError("prefill_chunk_size must be a positive integer when provided")
+        if generation_use_cache is not None and not isinstance(
+            generation_use_cache,
+            bool,
+        ):
+            raise TypeError("generation_use_cache must be bool or None")
+        if prefill_chunk_size is not None and generation_use_cache is not True:
+            raise ValueError("chunked prefill requires generation_use_cache=True")
+        if not isinstance(schema_constrained_decoding, bool):
+            raise TypeError("schema_constrained_decoding must be bool")
 
         import torch
+        import transformers
         from huggingface_hub import snapshot_download
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -167,6 +339,7 @@ class HFStatelessRelationshipActionPolicy:
         snapshot = pathlib.Path(
             snapshot_download(
                 repo_id=model_source,
+                revision=model_revision,
                 local_files_only=local_files_only,
             )
         )
@@ -176,7 +349,9 @@ class HFStatelessRelationshipActionPolicy:
             raise FileNotFoundError("Relationship Lab prompt/schema assets are missing")
 
         self.model_id = model_id
+        self.model_revision = model_revision
         self.weights_sha256 = frozen_model_weights_sha256(snapshot)
+        self.tokenizer_id = f"hf-chat-template:{model_id}@sha256:{_frozen_tokenizer_assets_sha256(snapshot)}"
         self.prompt_sha256 = _sha256_file(prompt_path)
         self._prompt = prompt_path.read_text(encoding="utf-8").strip()
         self._schema_sha256 = _sha256_file(schema_path)
@@ -184,22 +359,50 @@ class HFStatelessRelationshipActionPolicy:
         self._temperature = temperature
         self._top_p = top_p
         self._max_new_tokens = max_new_tokens
+        self._prefill_chunk_size = prefill_chunk_size
+        self._generation_use_cache = generation_use_cache
+        self.schema_constrained_decoding = schema_constrained_decoding
+        self.max_new_tokens = max_new_tokens
         self._torch = torch
-        self.generation_config_sha256 = sha256_json(
-            {
-                "device": resolved_device,
-                "torch_dtype": dtype_name,
-                "temperature": temperature,
-                "top_p": top_p,
-                "max_new_tokens": max_new_tokens,
-                "schema_sha256": self._schema_sha256,
-                "do_sample": temperature > 0.0,
-            }
-        )
         self._tokenizer = AutoTokenizer.from_pretrained(
             snapshot,
             local_files_only=True,
         )
+        self._schema_constraint = (
+            build_canonical_action_json_token_constraint(self._tokenizer)
+            if schema_constrained_decoding
+            else None
+        )
+        if (
+            self._schema_constraint is not None
+            and max_new_tokens < self._schema_constraint.maximum_completion_tokens
+        ):
+            raise ValueError(
+                "max_new_tokens cannot fit the longest canonical action JSON candidate plus EOS"
+            )
+        generation_config: dict[str, object] = {
+            "device": resolved_device,
+            "model_revision": model_revision,
+            "torch_dtype": dtype_name,
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_new_tokens": max_new_tokens,
+            "schema_sha256": self._schema_sha256,
+            "do_sample": temperature > 0.0,
+        }
+        if generation_use_cache is not None:
+            generation_config["generation_use_cache"] = generation_use_cache
+        if prefill_chunk_size is not None:
+            generation_config.update(
+                prefill_chunk_size=prefill_chunk_size,
+                torch_version=str(torch.__version__),
+                transformers_version=str(transformers.__version__),
+            )
+        if self._schema_constraint is not None:
+            generation_config["schema_constrained_decoding"] = (
+                self._schema_constraint.generation_config_payload()
+            )
+        self.generation_config_sha256 = sha256_json(generation_config)
         self._model = AutoModelForCausalLM.from_pretrained(
             snapshot,
             local_files_only=True,
@@ -230,14 +433,34 @@ class HFStatelessRelationshipActionPolicy:
             raise TypeError("tokenizer input_ids must be a list")
         return len(input_ids)
 
-    def choose_from_messages(
+    def count_message_tokens(
         self,
         *,
-        messages: tuple[dict[str, str], ...],
-        seed: int,
-    ) -> StatelessActionCompletion:
-        """Run a frozen contextual arm through the same model instance."""
+        messages: tuple[FrozenProductChatMessage, ...],
+    ) -> int:
+        """Count the exact chat-template ids consumed by ``choose_from_messages``.
 
+        The public product-baseline message type is projected to the policy's
+        existing strict payload and then sent through the same rendering and
+        tensor-tokenization path used immediately before generation.  No
+        external adapter needs access to the tokenizer or other private policy
+        state.
+        """
+
+        if not isinstance(messages, tuple):
+            raise TypeError("messages must be a tuple of FrozenProductChatMessage values")
+        from lifeform_evolution.relationship_lab_product_baselines import (
+            FrozenProductChatMessage as RuntimeFrozenProductChatMessage,
+        )
+
+        if not all(isinstance(message, RuntimeFrozenProductChatMessage) for message in messages):
+            raise TypeError("messages must contain only FrozenProductChatMessage values")
+        payload = tuple({"role": message.role, "content": message.content} for message in messages)
+        encoded = self._encode_contextual_messages(messages=payload)
+        return self._encoded_prompt_token_count(encoded)
+
+    @staticmethod
+    def _validate_contextual_messages(messages: tuple[dict[str, str], ...]) -> None:
         if not messages:
             raise ValueError("messages must be non-empty")
         allowed_roles = {"system", "user", "assistant"}
@@ -250,21 +473,60 @@ class HFStatelessRelationshipActionPolicy:
                 raise ValueError(f"messages[{index}].content must be non-empty")
         if messages[-1]["role"] != "user":
             raise ValueError("the final contextual message must have role=user")
-        if not isinstance(seed, int) or seed < 0:
-            raise ValueError("seed must be a non-negative integer")
+
+    def _encode_contextual_messages(
+        self,
+        *,
+        messages: tuple[dict[str, str], ...],
+    ) -> dict[str, Any]:
+        self._validate_contextual_messages(messages)
         rendered = self._tokenizer.apply_chat_template(
             list(messages),
             tokenize=False,
             add_generation_prompt=True,
         )
-        encoded = self._tokenizer(rendered, return_tensors="pt")
+        return self._tokenizer(rendered, return_tensors="pt")
+
+    @staticmethod
+    def _encoded_prompt_token_count(encoded: dict[str, Any]) -> int:
+        if "input_ids" not in encoded:
+            raise ValueError("tokenizer output must contain input_ids")
+        input_ids = encoded["input_ids"]
+        shape = input_ids.shape
+        if len(shape) != 2 or int(shape[0]) != 1 or int(shape[-1]) <= 0:
+            raise ValueError("tokenizer input_ids must have shape [1, positive_tokens]")
+        return int(shape[-1])
+
+    def choose_from_messages(
+        self,
+        *,
+        messages: tuple[dict[str, str], ...],
+        seed: int,
+    ) -> StatelessActionCompletion:
+        """Run a frozen contextual arm through the same model instance."""
+
+        if not isinstance(seed, int) or seed < 0:
+            raise ValueError("seed must be a non-negative integer")
+        encoded = self._encode_contextual_messages(messages=messages)
         encoded = {key: value.to(self._device) for key, value in encoded.items()}
+        prompt_tokens = self._encoded_prompt_token_count(encoded)
         self._torch.manual_seed(seed)
         generation_kwargs: dict[str, Any] = {
             "max_new_tokens": self._max_new_tokens,
             "do_sample": self._temperature > 0.0,
             "pad_token_id": self._tokenizer.eos_token_id,
         }
+        if self._generation_use_cache is not None:
+            generation_kwargs["use_cache"] = self._generation_use_cache
+        if self._prefill_chunk_size is not None:
+            generation_kwargs["prefill_chunk_size"] = self._prefill_chunk_size
+        if self._schema_constraint is not None:
+            generation_kwargs.update(
+                eos_token_id=self._schema_constraint.eos_token_id,
+                prefix_allowed_tokens_fn=self._schema_constraint.prefix_allowed_tokens_fn(
+                    prompt_token_count=prompt_tokens
+                ),
+            )
         if self._temperature > 0.0:
             generation_kwargs.update(
                 temperature=self._temperature,
@@ -272,15 +534,17 @@ class HFStatelessRelationshipActionPolicy:
             )
         with self._torch.inference_mode():
             generated = self._model.generate(**encoded, **generation_kwargs)
-        prompt_tokens = int(encoded["input_ids"].shape[-1])
         completion_ids = generated[0, prompt_tokens:]
         raw_output = self._tokenizer.decode(
             completion_ids,
             skip_special_tokens=True,
         ).strip()
+        chosen_action = _parse_action_choice(raw_output)
+        if self._schema_constraint is not None and raw_output not in self._schema_constraint.candidates:
+            raise RuntimeError("schema-constrained generation did not return a canonical candidate")
         return StatelessActionCompletion(
             raw_output=raw_output[:2000],
-            chosen_action_id=_parse_action_choice(raw_output),
+            chosen_action_id=chosen_action,
             prompt_tokens=prompt_tokens,
             completion_tokens=int(completion_ids.shape[-1]),
         )
@@ -499,16 +763,16 @@ def write_stateless_baseline_run(
         run,
         frozen_at_iso=frozen_at_iso,
     )
-    ledger_path.write_text(run.decision_ledger_jsonl(), encoding="utf-8")
+    with ledger_path.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(run.decision_ledger_jsonl())
     if _sha256_file(ledger_path) != attestation.decision_ledger_sha256:
         raise RuntimeError("written baseline ledger hash does not match attestation")
     summary_payload = run.to_summary_payload()
     summary_payload["attestation_id"] = attestation.artifact_id
-    summary_path.write_text(
-        json.dumps(summary_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    attestation_path.write_text(attestation.to_json(), encoding="utf-8")
+    with summary_path.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(summary_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    with attestation_path.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(attestation.to_json())
     return ledger_path, summary_path, attestation_path
 
 

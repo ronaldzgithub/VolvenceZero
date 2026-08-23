@@ -1,0 +1,948 @@
+{
+  "artifact_id": "1c0dd530059287eb0dc45511fc66cd0566a2909f5639da65135081300c5ba7f1",
+  "claim_boundary": "This post-P1m development report uses the already-seen P4.1 v3 fixture and selects the sole P1m named reader after observing its terminal directional result. It can show owner/readout-to-action-to-environment transmission under repeated hydration. It cannot repair the failed P1m baseline, authorize P2 formal, establish Volvence advantage or complete Readable, Learnable, residual Steerable, production ACTIVE, or four-able claims.",
+  "component_selected_after_p1m_observation": true,
+  "evaluation_feedback_to_learning": false,
+  "formal_evidence_authorized": false,
+  "matched_action_change_count": 10,
+  "matched_outcome_change_count": 9,
+  "p2_formal_authorized": false,
+  "positive_outcome_gain": 7,
+  "preferred_action_match_gain": 10,
+  "runs": [
+    {
+      "arm": "legacy_reader_always",
+      "condition_readouts": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "credit_applied_to_gate": false,
+      "gate_mode": "always",
+      "gate_update_count": 0,
+      "positive_outcome_count": 4,
+      "preferred_action_match_count": 3,
+      "process_restart_count": 11,
+      "reader_artifact_id": null,
+      "reversal_match_count": 3,
+      "reversal_opportunity_count": 7,
+      "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+      "traces": [
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": -0.5,
+          "decision_id": "p4-canary-fixture-subject-01:decision:0:pre-action",
+          "exposed_action_id": "neutral_noop",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:0:pre-action:forecast:4",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "missed",
+          "owner_persistence_sha256": "61637ef1be68e267a02790e1f8cd5170765858ef7933db38f01d765487658aa5",
+          "phase_id": "same_surface_first_decision",
+          "preferred_action_match": false,
+          "recommended_action_id": "neutral_noop",
+          "session_id": "p4-canary-fixture-subject-01:decision:0",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": -0.4999997116358121,
+          "decision_id": "p4-canary-fixture-subject-01:decision:1:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:1:pre-action:forecast:6",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "over_directive",
+          "owner_persistence_sha256": "113cef21c985ecd1d0ee60f1606e9552bd7c151d78022bbece93c7dd9aa2c340",
+          "phase_id": "cross_domain_need_reversal",
+          "preferred_action_match": false,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-01:decision:1",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.5000003702665906,
+          "decision_id": "p4-canary-fixture-subject-01:decision:2:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:2:pre-action:forecast:8",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "cf9f4cbbc7ac5c886e434c3af966a6ac9b81cc8e1c85171ef5d1fa226ed35c44",
+          "phase_id": "belonging_transfer",
+          "preferred_action_match": false,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:2",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.3750002608488201,
+          "decision_id": "p4-canary-fixture-subject-01:decision:3:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:3:pre-action:forecast:10",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "1408acc5b37523b854e61ad52586e91071e2ad9ea143b9497946751bf03a0e06",
+          "phase_id": "agency_transfer",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:3",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": -0.6999995349835157,
+          "decision_id": "p4-canary-fixture-subject-01:decision:4:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:4:pre-action:forecast:12",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "missed",
+          "owner_persistence_sha256": "2863738b865ed0f79ef3c58e7d699c538074d06197d7a8386a514565d3975515",
+          "phase_id": "longer_horizon_belonging",
+          "preferred_action_match": false,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:4",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.4166673590274578,
+          "decision_id": "p4-canary-fixture-subject-01:decision:5:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:5:pre-action:forecast:14",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "3983a7bb2e2cec45182082312e2cbdbcd4bcf68c3e579c3b8aa87e50c9659e31",
+          "phase_id": "longer_horizon_agency",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:5",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": -0.6428574138210408,
+          "decision_id": "p4-canary-fixture-subject-01:decision:6:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:6:pre-action:forecast:16",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "missed",
+          "owner_persistence_sha256": "de9311e2977928fc63ef8606fb80b95324f8d2c9b0ef6f7c1299f2f23f7ce8ef",
+          "phase_id": "return_after_gap",
+          "preferred_action_match": false,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:6",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.4374995457684495,
+          "decision_id": "p4-canary-fixture-subject-01:decision:7:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:7:pre-action:forecast:18",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "0201c1797a060aff2e64b0378d745d20142f2b28ecbf3950cd696eddd7a20a87",
+          "phase_id": "reversal_after_gap",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:7",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        }
+      ]
+    },
+    {
+      "arm": "p1m_named_reader_always",
+      "condition_readouts": [
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.5072486719119677
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.6761811415031816
+            }
+          ],
+          "condition_label": "belonging_erasure",
+          "confidence": 0.967030571661841,
+          "normalized_margin": 0.084466234795607,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "33a7cac89fa4dc0fa197afd5ddf5a36fe6b37fb3f0026b32d36aaa41604de7e3"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.6931781612496021
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.6087175342772736
+            }
+          ],
+          "condition_label": "agency_displacement",
+          "confidence": 0.8441205730800617,
+          "normalized_margin": 0.04223031348616424,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "3cad85e938cf00f509b42d600045c8693edaa7f59dbec111bedda56a91401c2e"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.5193699983335636
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.75354306074534
+            }
+          ],
+          "condition_label": "belonging_erasure",
+          "confidence": 0.9908377702675821,
+          "normalized_margin": 0.11708653120588824,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "82f6022116ae15372022b27f99a4f26a25563de0632edb39204984111f8213e1"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.7286918058171508
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.599283684570941
+            }
+          ],
+          "condition_label": "agency_displacement",
+          "confidence": 0.9300958368390325,
+          "normalized_margin": 0.06470406062310485,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "a88e9fab02456909857ebfa4ee6cc304afe4cb761e73b2a73d05710624b58e2d"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.5419823046902226
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.7358171677607338
+            }
+          ],
+          "condition_label": "belonging_erasure",
+          "confidence": 0.9797014268111324,
+          "normalized_margin": 0.09691743153525562,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "a4246987ae25a0d6b0936f9551483aceb875688641aac25d7564123bca541559"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.7097908190877887
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.5901756128148399
+            }
+          ],
+          "condition_label": "agency_displacement",
+          "confidence": 0.9162385689333974,
+          "normalized_margin": 0.05980760313647443,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "6b7bb810c677cd36ce28adcacb6a88406d7e82939644b131081f48d895b211da"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.5072486719119677
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.6761811415031816
+            }
+          ],
+          "condition_label": "belonging_erasure",
+          "confidence": 0.967030571661841,
+          "normalized_margin": 0.084466234795607,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "33a7cac89fa4dc0fa197afd5ddf5a36fe6b37fb3f0026b32d36aaa41604de7e3"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.6931781612496021
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.6087175342772736
+            }
+          ],
+          "condition_label": "agency_displacement",
+          "confidence": 0.8441205730800617,
+          "normalized_margin": 0.04223031348616424,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "3cad85e938cf00f509b42d600045c8693edaa7f59dbec111bedda56a91401c2e"
+        }
+      ],
+      "credit_applied_to_gate": false,
+      "gate_mode": "always",
+      "gate_update_count": 0,
+      "positive_outcome_count": 8,
+      "preferred_action_match_count": 8,
+      "process_restart_count": 11,
+      "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+      "reversal_match_count": 7,
+      "reversal_opportunity_count": 7,
+      "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+      "traces": [
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.2610317823501583,
+          "decision_id": "p4-canary-fixture-subject-01:decision:0:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:0:pre-action:forecast:4",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "026f082eade497b1cfef608c6aff4f7a476876de6b66ab937689a63fb3142230",
+          "phase_id": "same_surface_first_decision",
+          "preferred_action_match": true,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-01:decision:0",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.3187396862984151,
+          "decision_id": "p4-canary-fixture-subject-01:decision:1:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:1:pre-action:forecast:6",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "03b670ce494a4b3bbe5cbf07a328cbe1b4448e3df61caf7234e17c43b45c9544",
+          "phase_id": "cross_domain_need_reversal",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:1",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.17540021224481023,
+          "decision_id": "p4-canary-fixture-subject-01:decision:2:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:2:pre-action:forecast:8",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "353f70a38d3594051d4e445d96c329835c3c35525ca37f502b85a611ca20bd5c",
+          "phase_id": "belonging_transfer",
+          "preferred_action_match": true,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-01:decision:2",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.21918118073923615,
+          "decision_id": "p4-canary-fixture-subject-01:decision:3:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:3:pre-action:forecast:10",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "023bf704b81b8ec7bfdb6507b68b4ccc029de6a4fc56da7e3f719eb1fd434cef",
+          "phase_id": "agency_transfer",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:3",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.13121849106313993,
+          "decision_id": "p4-canary-fixture-subject-01:decision:4:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:4:pre-action:forecast:12",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "1ff5c81b6e611de7de43fb2a8a2937dac01aec91ea2d65e09320a45f10bc8d1e",
+          "phase_id": "longer_horizon_belonging",
+          "preferred_action_match": true,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-01:decision:4",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.16021990551970178,
+          "decision_id": "p4-canary-fixture-subject-01:decision:5:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:5:pre-action:forecast:14",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "60472843718e4186c4b1974a90b6f4db4c882a2f2a459870c993585ca6228d95",
+          "phase_id": "longer_horizon_agency",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:5",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.10591156092149956,
+          "decision_id": "p4-canary-fixture-subject-01:decision:6:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:6:pre-action:forecast:16",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "18a883d628b670caa455c57a238c4cb694aa0b7218263ac7adabeced68107959",
+          "phase_id": "return_after_gap",
+          "preferred_action_match": true,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-01:decision:6",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.13490554653407405,
+          "decision_id": "p4-canary-fixture-subject-01:decision:7:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-01:decision:7:pre-action:forecast:18",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "d81cfdcdd53c84be5c71464574b4d7cb67e39de278e7b35e258985b297a7f30d",
+          "phase_id": "reversal_after_gap",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-01:decision:7",
+          "subject_scope": "47b855833cee34ad87f3a0a3cca88d65ff976f26bdd3b742177fab5c10d56040",
+          "temporal_status": "applied"
+        }
+      ]
+    },
+    {
+      "arm": "legacy_reader_always",
+      "condition_readouts": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "credit_applied_to_gate": false,
+      "gate_mode": "always",
+      "gate_update_count": 0,
+      "positive_outcome_count": 5,
+      "preferred_action_match_count": 3,
+      "process_restart_count": 11,
+      "reader_artifact_id": null,
+      "reversal_match_count": 3,
+      "reversal_opportunity_count": 7,
+      "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+      "traces": [
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": -0.5000014419225076,
+          "decision_id": "p4-canary-fixture-subject-02:decision:0:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:0:pre-action:forecast:4",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "over_directive",
+          "owner_persistence_sha256": "9e5700810b1210e506090c275baa3196103a0597e79f01ca770cdec8d28b3d55",
+          "phase_id": "same_surface_first_decision",
+          "preferred_action_match": false,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-02:decision:0",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.49999985808788705,
+          "decision_id": "p4-canary-fixture-subject-02:decision:1:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:1:pre-action:forecast:6",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "1f7947abe6b39192d5348f58628ad7e95d8ada2f433a0d85abbcd57a2bbdcf0e",
+          "phase_id": "cross_domain_need_reversal",
+          "preferred_action_match": false,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:1",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.37499977002433293,
+          "decision_id": "p4-canary-fixture-subject-02:decision:2:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:2:pre-action:forecast:8",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "c9e30043f5bc248b3d9027c67902fa3c9ec1bdfcd55998e51e16d30ad43fd226",
+          "phase_id": "belonging_transfer",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:2",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": -0.7000005572804449,
+          "decision_id": "p4-canary-fixture-subject-02:decision:3:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:3:pre-action:forecast:10",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "missed",
+          "owner_persistence_sha256": "aee609d1b7373fa2aa95fc51a7bd9867b677c627a7dc5a51193924bc7bafba90",
+          "phase_id": "agency_transfer",
+          "preferred_action_match": false,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:3",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.4166659699386054,
+          "decision_id": "p4-canary-fixture-subject-02:decision:4:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:4:pre-action:forecast:12",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "0d63846062dff7bfaa803ec9a89766dc0f1c9b02d0bdba12485524dcc17a93ae",
+          "phase_id": "longer_horizon_belonging",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:4",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.3571421171769242,
+          "decision_id": "p4-canary-fixture-subject-02:decision:5:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:5:pre-action:forecast:14",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "a8f298511a0cf401844076818ce6d8397520fe3717274f7fe097fb1fc1162cf1",
+          "phase_id": "longer_horizon_agency",
+          "preferred_action_match": false,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:5",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.31250081925897377,
+          "decision_id": "p4-canary-fixture-subject-02:decision:6:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:6:pre-action:forecast:16",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "f932463698326c8ee664405f82135575cac7352bbb2780188c8c2c32343cbf73",
+          "phase_id": "return_after_gap",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:6",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": -0.7222223435458445,
+          "decision_id": "p4-canary-fixture-subject-02:decision:7:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:7:pre-action:forecast:18",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "missed",
+          "owner_persistence_sha256": "c1d7fa2cccdd96543d63f18229b745d39050399e2d06817625e86a2555dbddfa",
+          "phase_id": "reversal_after_gap",
+          "preferred_action_match": false,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:7",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        }
+      ]
+    },
+    {
+      "arm": "p1m_named_reader_always",
+      "condition_readouts": [
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.5072486719119677
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.6761811415031816
+            }
+          ],
+          "condition_label": "belonging_erasure",
+          "confidence": 0.967030571661841,
+          "normalized_margin": 0.084466234795607,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "33a7cac89fa4dc0fa197afd5ddf5a36fe6b37fb3f0026b32d36aaa41604de7e3"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.6931781612496021
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.6087175342772736
+            }
+          ],
+          "condition_label": "agency_displacement",
+          "confidence": 0.8441205730800617,
+          "normalized_margin": 0.04223031348616424,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "3cad85e938cf00f509b42d600045c8693edaa7f59dbec111bedda56a91401c2e"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.5193699983335636
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.75354306074534
+            }
+          ],
+          "condition_label": "belonging_erasure",
+          "confidence": 0.9908377702675821,
+          "normalized_margin": 0.11708653120588824,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "82f6022116ae15372022b27f99a4f26a25563de0632edb39204984111f8213e1"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.7286918058171508
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.599283684570941
+            }
+          ],
+          "condition_label": "agency_displacement",
+          "confidence": 0.9300958368390325,
+          "normalized_margin": 0.06470406062310485,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "a88e9fab02456909857ebfa4ee6cc304afe4cb761e73b2a73d05710624b58e2d"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.5419823046902226
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.7358171677607338
+            }
+          ],
+          "condition_label": "belonging_erasure",
+          "confidence": 0.9797014268111324,
+          "normalized_margin": 0.09691743153525562,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "a4246987ae25a0d6b0936f9551483aceb875688641aac25d7564123bca541559"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.7097908190877887
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.5901756128148399
+            }
+          ],
+          "condition_label": "agency_displacement",
+          "confidence": 0.9162385689333974,
+          "normalized_margin": 0.05980760313647443,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "6b7bb810c677cd36ce28adcacb6a88406d7e82939644b131081f48d895b211da"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.5072486719119677
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.6761811415031816
+            }
+          ],
+          "condition_label": "belonging_erasure",
+          "confidence": 0.967030571661841,
+          "normalized_margin": 0.084466234795607,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "33a7cac89fa4dc0fa197afd5ddf5a36fe6b37fb3f0026b32d36aaa41604de7e3"
+        },
+        {
+          "candidate_scores": [
+            {
+              "label": "agency_displacement",
+              "score": 0.6931781612496021
+            },
+            {
+              "label": "belonging_erasure",
+              "score": 0.6087175342772736
+            }
+          ],
+          "condition_label": "agency_displacement",
+          "confidence": 0.8441205730800617,
+          "normalized_margin": 0.04223031348616424,
+          "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+          "source_observation_sha256": "3cad85e938cf00f509b42d600045c8693edaa7f59dbec111bedda56a91401c2e"
+        }
+      ],
+      "credit_applied_to_gate": false,
+      "gate_mode": "always",
+      "gate_update_count": 0,
+      "positive_outcome_count": 8,
+      "preferred_action_match_count": 8,
+      "process_restart_count": 11,
+      "reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+      "reversal_match_count": 7,
+      "reversal_opportunity_count": 7,
+      "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+      "traces": [
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.36635506020412034,
+          "decision_id": "p4-canary-fixture-subject-02:decision:0:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:0:pre-action:forecast:4",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "e7d15fe48af9df704cf61a6681b4e4f36312cdf29c69aa84fd720c8910ca8a09",
+          "phase_id": "same_surface_first_decision",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:0",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.3580086662360168,
+          "decision_id": "p4-canary-fixture-subject-02:decision:1:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:1:pre-action:forecast:6",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "39f7ca10915bfef651dd98ea8ec5abbe0b14159e970ef487d622922d04069c3b",
+          "phase_id": "cross_domain_need_reversal",
+          "preferred_action_match": true,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-02:decision:1",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.2580819147907363,
+          "decision_id": "p4-canary-fixture-subject-02:decision:2:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:2:pre-action:forecast:8",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "95ff97a7a14e9cb3deba0663eefd9a0f736cda5902855fd0be6ff33f0d36114c",
+          "phase_id": "belonging_transfer",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:2",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.23706189902228114,
+          "decision_id": "p4-canary-fixture-subject-02:decision:3:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:3:pre-action:forecast:10",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "da101c8524a7f1ca61f3499e69bef630a863ec8ba4d080c3b5e2cdaffb8185c5",
+          "phase_id": "agency_transfer",
+          "preferred_action_match": true,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-02:decision:3",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.19874885590747127,
+          "decision_id": "p4-canary-fixture-subject-02:decision:4:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:4:pre-action:forecast:12",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "dac2e693fbd7d8684589113fd0825ab56cabdb1a7a7fb85659ab369f3b02504c",
+          "phase_id": "longer_horizon_belonging",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:4",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.1695693035038865,
+          "decision_id": "p4-canary-fixture-subject-02:decision:5:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:5:pre-action:forecast:14",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "2baf78c22f315e8449dcb9ce50fb962ab59b6e7fc14f0f5e145c5b3953bc57fc",
+          "phase_id": "longer_horizon_agency",
+          "preferred_action_match": true,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-02:decision:5",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.16364951528988275,
+          "decision_id": "p4-canary-fixture-subject-02:decision:6:pre-action",
+          "exposed_action_id": "respect_space_with_return_option",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:6:pre-action:forecast:16",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "felt_heard",
+          "owner_persistence_sha256": "cd80790884799297d1d1cff449fa1c648cdd2419612d555ff71f687a2387dc90",
+          "phase_id": "return_after_gap",
+          "preferred_action_match": true,
+          "recommended_action_id": "respect_space_with_return_option",
+          "session_id": "p4-canary-fixture-subject-02:decision:6",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        },
+        {
+          "credit_applied_to_gate": false,
+          "credit_value": 0.14147341715112605,
+          "decision_id": "p4-canary-fixture-subject-02:decision:7:pre-action",
+          "exposed_action_id": "stay_present_without_probe",
+          "forecast_id": "preference_about_other:p4-canary-fixture-subject-02:decision:7:pre-action:forecast:18",
+          "gate_action": "steer",
+          "gate_checkpoint_sha256": "e60691d6702063e639e4581785f22cd784989123a5b41f0b787cd9fb82794e05",
+          "observed_outcome_id": "helped",
+          "owner_persistence_sha256": "c4c6e6615dc77c7a0811b13166f9d76dd68a9669ad0fb82e58ef1830f8bcbe6b",
+          "phase_id": "reversal_after_gap",
+          "preferred_action_match": true,
+          "recommended_action_id": "stay_present_without_probe",
+          "session_id": "p4-canary-fixture-subject-02:decision:7",
+          "subject_scope": "4cfe22dc3c1181441feddea58bb0131d6cac9c3421568486606f2f76e0b08a1e",
+          "temporal_status": "applied"
+        }
+      ]
+    }
+  ],
+  "schema_version": "relationship-p4-named-reader-transmission-report.v1",
+  "seen_fixture_only": true,
+  "source": {
+    "p1m_protocol_id": "b850ff2aea7c24dca95a0aaa14325ababa7a534dc4b33e408652191069371f1c",
+    "p1m_reader_artifact_id": "bc3d85f2269d66159ddaed02b98b81e2a98dec377693fd4578f6306ded778d1f",
+    "p1m_report_artifact_id": "9580ddffb7113d386f01137837be0335e0b82ff8d7cfc9e333e86f73d249fc56",
+    "p4_protocol_sha256": "040d4dc456f609e51673ffe526b310908905831917814a36fc4d29a9385a6e98",
+    "p4_public_plan_sha256": "e928bb3abfee9e6556734bbe9235af6e1ab912d6336da3033fda038c1acc7469"
+  },
+  "summaries": [
+    {
+      "arm": "legacy_reader_always",
+      "decision_count": 16,
+      "named_readout_count": 0,
+      "positive_outcome_count": 9,
+      "preferred_action_match_count": 6,
+      "process_restart_count": 22,
+      "reversal_match_count": 6,
+      "reversal_opportunity_count": 14,
+      "subject_count": 2
+    },
+    {
+      "arm": "p1m_named_reader_always",
+      "decision_count": 16,
+      "named_readout_count": 16,
+      "positive_outcome_count": 16,
+      "preferred_action_match_count": 16,
+      "process_restart_count": 22,
+      "reversal_match_count": 14,
+      "reversal_opportunity_count": 14,
+      "subject_count": 2
+    }
+  ],
+  "verdict": "named_reader_transmission_observed_development_only"
+}

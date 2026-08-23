@@ -31,8 +31,6 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
-from volvence_zero.credit import derive_preference_action_forecast_credit_records
-from volvence_zero.dialogue_external_outcome import DialogueExternalOutcomeModule
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidence,
     DialogueExternalOutcomeEvidenceSource,
@@ -51,7 +49,6 @@ from volvence_zero.social import (
     PreferenceActionForecastProposal,
     PreferenceActionForecastRequest,
     PreferenceActionForecastRuntime,
-    SocialPredictionErrorModule,
     SocialRecordStore,
 )
 from volvence_zero.social_cognition import (
@@ -65,7 +62,6 @@ from volvence_zero.social_cognition import (
     preference_action_outcome_mutation_sha256,
 )
 from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind
-from volvence_zero.temporal import PlaceholderTemporalPolicy, TrackTemporalModule
 from volvence_zero.temporal_types import (
     TemporalActionAdvisoryProposal,
     TemporalActionAdvisoryStatus,
@@ -85,13 +81,19 @@ from lifeform_domain_emogpt.lab.dataset import (
     load_relationship_transfer_dataset,
 )
 from lifeform_domain_emogpt.lab.environment import ReactiveRelationshipEnvironment
+from lifeform_domain_emogpt.lab.relationship_product_pulse import (
+    RelationshipProductPreActionRequest,
+    RelationshipProductPulseAuthorization,
+    RelationshipProductSettlementInput,
+    authorize_relationship_product_pulse_advisory,
+    prepare_relationship_product_preaction,
+    settle_relationship_product_pulse,
+)
 from lifeform_domain_emogpt.relationship_action_gate import (
     RELATIONSHIP_ACTION_CREDIT_LEVEL,
-    RelationshipActionGate,
     RelationshipActionGateCheckpoint,
     RelationshipActionGateDecision,
     RelationshipActionGateMode,
-    temporal_action_advisory_from_gate_decision,
 )
 from lifeform_domain_emogpt.relationship_forecast import (
     BoundedRelationshipPreferenceForecastRuntime,
@@ -1431,20 +1433,25 @@ def authorize_relationship_p4_lab_action_advisory(
         raise ValueError("P4.1 gate artifact version is outside Lab authorization")
     if authorization.production_authorized or authorization.expression_authorized:
         raise ValueError("P4.1 Lab authorization cannot reach product expression")
-    advisory = temporal_action_advisory_from_gate_decision(decision)
-    return replace(
-        advisory,
-        active_authorized=True,
-        evidence_refs=(
-            *advisory.evidence_refs,
-            f"lab-authorization:{authorization.authorization_id}",
+    return authorize_relationship_product_pulse_advisory(
+        decision,
+        authorization=_product_pulse_authorization(authorization),
+    )
+
+
+def _product_pulse_authorization(
+    authorization: RelationshipP4LabActiveAuthorization,
+) -> RelationshipProductPulseAuthorization:
+    return RelationshipProductPulseAuthorization(
+        authorization_id=authorization.authorization_id,
+        allowed_policy_artifact_id=authorization.allowed_policy_artifact_id,
+        allowed_policy_artifact_version=(
+            authorization.allowed_policy_artifact_version
         ),
-        rationale_codes=(
-            *advisory.rationale_codes,
-            "scope:offline-reactive-environment-only",
-            "expression:forbidden",
-            "production:forbidden",
-        ),
+        environment_consumer_only=authorization.environment_consumer_only,
+        expression_authorized=authorization.expression_authorized,
+        production_authorized=authorization.production_authorized,
+        oracle_action_authorized=authorization.oracle_action_authorized,
     )
 
 
@@ -1811,47 +1818,39 @@ async def run_relationship_p4_subject_mechanism(
     if persistence_snapshot is None:
         raise RuntimeError("P4.1 subject has no onboarding state")
 
+    pulse_authorization = _product_pulse_authorization(authorization)
     gate_checkpoint: RelationshipActionGateCheckpoint | None = None
     traces: list[P4CanarySessionTrace] = []
     condition_readouts: list[RelationshipConditionReadout | None] = []
     gate_audits: list[P4CanaryGateAudit] = []
     expected_actions: list[str] = []
     for public_session in subject.decision_sessions:
-        store = SocialRecordStore()
-        store.hydrate_from_persistence(persistence_snapshot)
-        gate = RelationshipActionGate(checkpoint=gate_checkpoint)
         restart_count += 1
-        pre_update_checkpoint = gate.export_checkpoint()
-        pre_update_weights, pre_update_bias = gate.parameter_state
-
-        forecast_owner = PreferenceAboutOtherModule(
-            turn_index=public_session.action_turn_index,
-            wiring_level=WiringLevel.SHADOW,
-            record_store=store,
-            action_forecast_runtime=forecast_runtime,
-            action_forecast_request=public_session.to_forecast_request(
-                subject_scope=subject.subject_scope,
+        preaction = await prepare_relationship_product_preaction(
+            request=RelationshipProductPreActionRequest(
+                session_id=public_session.session_id,
+                forecast_request=public_session.to_forecast_request(
+                    subject_scope=subject.subject_scope,
+                ),
+                outcome_turn_index=public_session.outcome_turn_index,
             ),
+            owner_persistence_snapshot=persistence_snapshot,
+            gate_checkpoint=gate_checkpoint,
+            forecast_runtime=forecast_runtime,
+            gate_mode=gate_mode,
+            authorization=pulse_authorization,
+            substrate_snapshot=_p4_placeholder_substrate(),
         )
-        forecast_snapshot = (await forecast_owner.process({})).value
-        if not isinstance(forecast_snapshot, PreferenceAboutOtherSnapshot):
-            raise TypeError("P4.1 forecast owner published unexpected snapshot")
-        forecasts = tuple(
-            item for item in forecast_snapshot.action_forecasts if item.decision_id == public_session.decision_id
-        )
-        if len(forecasts) != 1:
-            raise RuntimeError("P4.1 owner must publish exactly one current forecast")
-        forecast = forecasts[0]
-        decision = gate.decide(forecast, mode=gate_mode)
-        advisory = authorize_relationship_p4_lab_action_advisory(
-            decision,
-            authorization=authorization,
-        )
-        temporal_snapshot = await _apply_lab_advisory(advisory)
+        pre_update_checkpoint = preaction.gate_checkpoint_before
+        pre_update_weights = pre_update_checkpoint.weights
+        pre_update_bias = pre_update_checkpoint.bias
+        forecast = preaction.forecast
+        decision = preaction.gate_decision
+        temporal_snapshot = preaction.temporal_snapshot
         exposed_action_id = temporal_snapshot.value.active_abstract_action
-        if exposed_action_id != decision.selected_action_id:
-            raise RuntimeError("P4.1 temporal owner did not expose the gate action")
 
+        # Evaluator-private truth is resolved only after the outcome-free
+        # preaction snapshot has been frozen.
         evaluator_session = evaluator.session(public_session.session_id)
         expected_actions.append(evaluator_session.preferred_action_id)
         reactive_outcome = environment.settle(
@@ -1862,7 +1861,8 @@ async def run_relationship_p4_subject_mechanism(
         )
         external_evidence = DialogueExternalOutcomeEvidence(
             evidence_id=(
-                f"p4-canary-environment:{public_session.decision_id}:{reactive_outcome.environment_evidence_ref}"
+                f"p4-canary-environment:{public_session.decision_id}:"
+                f"{reactive_outcome.environment_evidence_ref}"
             ),
             turn_index=public_session.outcome_turn_index,
             kind=reactive_outcome.typed_outcome,
@@ -1876,12 +1876,10 @@ async def run_relationship_p4_subject_mechanism(
             decision_id=forecast.decision_id,
             action_id=exposed_action_id,
         )
-        external_owner = DialogueExternalOutcomeModule(wiring_level=WiringLevel.ACTIVE)
-        external_owner.set_turn_index(public_session.outcome_turn_index)
-        external_owner.append_evidence(external_evidence)
-        external_snapshot = await external_owner.process({})
-
-        outcome_record_id = f"p4-canary-owner-outcome:{subject.subject_scope}:{public_session.decision_index}"
+        outcome_record_id = (
+            "p4-canary-owner-outcome:"
+            f"{subject.subject_scope}:{public_session.decision_index}"
+        )
         owner_evidence = _P4CanaryOwnerEvidence(
             subject_id=subject.subject_id,
             event_id=outcome_record_id,
@@ -1892,33 +1890,21 @@ async def run_relationship_p4_subject_mechanism(
             reaction_summary=reactive_outcome.rendered_user_reaction,
             observation_ref=reactive_outcome.environment_evidence_ref,
         )
-        settlement_owner = PreferenceAboutOtherModule(
-            proposal_runtime=_P4CanaryEvidenceProposalRuntime(owner_evidence),
-            user_input=owner_evidence.observation_summary,
-            turn_index=owner_evidence.source_turn,
-            wiring_level=WiringLevel.SHADOW,
-            record_store=store,
-            action_outcome_evidence=owner_evidence.to_owner_evidence(),
+        pulse_settlement = await settle_relationship_product_pulse(
+            preaction=preaction,
+            settlement_input=RelationshipProductSettlementInput(
+                external_outcome=external_evidence,
+                owner_outcome_evidence=owner_evidence.to_owner_evidence(),
+                credit_timestamp_ms=public_session.outcome_turn_index * 1000,
+                apply_credit_to_gate=apply_credit_to_gate,
+            ),
         )
-        settled_snapshot = await settlement_owner.process({"dialogue_external_outcome": external_snapshot})
-        social_pe_snapshot = await SocialPredictionErrorModule(wiring_level=WiringLevel.ACTIVE).process(
-            {"preference_about_other": settled_snapshot}
-        )
-        credits = derive_preference_action_forecast_credit_records(
-            settlements=settled_snapshot.value.forecast_settlements,
-            social_errors=social_pe_snapshot.value.errors,
-            settled_at_turn=public_session.outcome_turn_index,
-            timestamp_ms=public_session.outcome_turn_index * 1000,
-        )
-        if len(credits) != 1:
-            raise RuntimeError("P4.1 settlement must derive exactly one PE credit")
-        credit_applied = apply_credit_to_gate
-        if credit_applied:
-            gate.observe_credit(credits[0])
-
-        persistence_snapshot = store.export_persistence_snapshot()
-        gate_checkpoint = gate.export_checkpoint()
-        post_update_weights, post_update_bias = gate.parameter_state
+        persistence_snapshot = pulse_settlement.owner_persistence_snapshot
+        gate_checkpoint = pulse_settlement.gate_checkpoint
+        post_update_weights = gate_checkpoint.weights
+        post_update_bias = gate_checkpoint.bias
+        credit = pulse_settlement.credit
+        credit_applied = pulse_settlement.credit_applied_to_gate
         condition_readouts.append(forecast.condition_readout)
         gate_audits.append(
             P4CanaryGateAudit(
@@ -1936,14 +1922,14 @@ async def run_relationship_p4_subject_mechanism(
                 pre_update_state_sha256=(
                     pre_update_checkpoint.checkpoint_sha256
                 ),
-                credit_record_id=credits[0].record_id,
-                credit_level=credits[0].level,
-                credit_track=credits[0].track.value,
-                credit_source_event=credits[0].source_event,
+                credit_record_id=credit.record_id,
+                credit_level=credit.level,
+                credit_track=credit.track.value,
+                credit_source_event=credit.source_event,
                 credit_environment_outcome_id=(
-                    credits[0].environment_outcome_id
+                    credit.environment_outcome_id
                 ),
-                credit_value=credits[0].credit_value,
+                credit_value=credit.credit_value,
                 credit_applied_to_gate=credit_applied,
                 post_update_weights=post_update_weights,
                 post_update_bias=post_update_bias,
@@ -1964,7 +1950,7 @@ async def run_relationship_p4_subject_mechanism(
                 temporal_status=temporal_snapshot.value.action_advisory_status.value,
                 observed_outcome_id=reactive_outcome.typed_outcome.value,
                 preferred_action_match=(exposed_action_id == evaluator_session.preferred_action_id),
-                credit_value=credits[0].credit_value,
+                credit_value=credit.credit_value,
                 credit_applied_to_gate=credit_applied,
                 owner_persistence_sha256=sha256_json(persistence_snapshot.payload),
                 gate_checkpoint_sha256=gate_checkpoint.checkpoint_sha256,
@@ -2008,30 +1994,18 @@ def _summarize_arm_runs(
     )
 
 
-async def _apply_lab_advisory(advisory: TemporalActionAdvisoryProposal):
-    module = TrackTemporalModule(
-        track=Track.SELF,
-        policy=PlaceholderTemporalPolicy(),
-        wiring_level=WiringLevel.ACTIVE,
-        action_advisory=advisory,
-        action_advisory_level=WiringLevel.ACTIVE,
+def _p4_placeholder_substrate() -> SubstrateSnapshot:
+    return SubstrateSnapshot(
+        model_id="p4-longitudinal-canary-frozen-placeholder",
+        is_frozen=True,
+        surface_kind=SurfaceKind.PLACEHOLDER,
+        token_logits=(),
+        feature_surface=(),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="Offline P4.1 typed-action exposure substrate.",
     )
-    snapshot = await module.process_standalone(
-        substrate_snapshot=SubstrateSnapshot(
-            model_id="p4-longitudinal-canary-frozen-placeholder",
-            is_frozen=True,
-            surface_kind=SurfaceKind.PLACEHOLDER,
-            token_logits=(),
-            feature_surface=(),
-            residual_activations=(),
-            residual_sequence=(),
-            unavailable_fields=(),
-            description="Offline P4.1 typed-action exposure substrate.",
-        )
-    )
-    if snapshot.value.action_advisory_status is not TemporalActionAdvisoryStatus.APPLIED:
-        raise RuntimeError("P4.1 Lab advisory was not applied")
-    return snapshot
 
 
 def write_relationship_p4_canary_artifact(
