@@ -1,0 +1,267 @@
+{
+  "schema_version": "windows-event-log-source-audit-acquisition-protocol.v2",
+  "owner": {
+    "wheel": "vz-runtime",
+    "owner": "volvence_zero.offline_evidence.windows_event_log_source_audit_acquisition",
+    "mode": "standalone_explicit_operator_invoked_audit_acquisition",
+    "distribution_scope": "repository-source-checkout-only",
+    "qualification_or_campaign_auto_invocation": false
+  },
+  "qualification_compatibility": {
+    "qualification_protocol_relative_path": "packages/vz-runtime/src/volvence_zero/offline_evidence/protocols/windows_cuda_host_stability_qualification_v1.json",
+    "qualification_protocol_id": "32f35e4f7027e9519522e099efb696fb352a48faf3ba69be861929304fae1d5f",
+    "qualification_protocol_raw_sha256": "30a881838b41fa5b7e6de5aba6bc94131245796126be5b49c4ebab539f8c4132",
+    "adapter_imported_or_called": false,
+    "qualification_projection_emitted": false
+  },
+  "scope": {
+    "method": "sha256_domain_separated_length_framed_v1",
+    "domain_separator": "volvence.windows-event-log-source-audit-acquisition-scope.v1",
+    "components": [
+      "acquisition_protocol_id",
+      "qualification_protocol_id",
+      "operator_scope_binding_id",
+      "machine_identity_sha256",
+      "boot_identity_sha256",
+      "capture_role",
+      "execution_backend_id"
+    ],
+    "attempt_number": 1,
+    "attempt_budget": 1,
+    "retry_budget": 0,
+    "attempt_budget_applies_to": "single_artifact_root_only",
+    "same_root_overwrite_or_retry_permitted": false,
+    "cross_root_duplicate_scope_excluded": false,
+    "scope_global_no_retry_proven": false,
+    "cross_scope_selection_excluded": false
+  },
+  "identity_binding": {
+    "machine_identity_field": "machine_identity_sha256",
+    "boot_identity_field": "boot_identity_sha256",
+    "input_owner": "explicit_caller",
+    "live_machine_queried": false,
+    "authoritative": false
+  },
+  "capture_roles": [
+    "qualification_source_audit_before",
+    "qualification_source_audit_after"
+  ],
+  "execution": {
+    "production_entrypoint_enabled": false,
+    "production_backend_id": "windows-powershell-same-buffer-audit-capture.v2",
+    "synthetic_backend_id": "synthetic-node-audit-acquisition-declaration.v1",
+    "platform_system": "Windows",
+    "executable_template": "{SystemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "argv_template": [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-EncodedCommand",
+      "{frozen_same_buffer_launcher_utf16le_base64}"
+    ],
+    "invocation_fields": [
+      "backend_id",
+      "executable_template",
+      "requested_executable",
+      "argv_template",
+      "requested_argv",
+      "cwd",
+      "shell",
+      "windows_hide",
+      "mode",
+      "invocation_realization",
+      "environment_inherited",
+      "realized_environment_attested",
+      "provision_or_allow_source_creation_present",
+      "source_execution_binding"
+    ],
+    "requested_argv_launcher_resolution": "frozen_protocol_binding_to_utf16le_base64",
+    "requested_executable_endpoint_binding_required": true,
+    "synthetic_invocation_realized": false,
+    "shell": false,
+    "windows_hide": true,
+    "working_directory": "repository_root",
+    "environment_inherited": true,
+    "realized_environment_attested": false,
+    "inherited_environment_fully_frozen": false,
+    "process_started_at_utc_semantics": "lower_bound_immediately_before_spawn_call_not_os_creation_attestation",
+    "job_object_used": false,
+    "descendants_contained": false,
+    "prohibited_tokens": [
+      "-Command",
+      "-ExecutionPolicy",
+      "Provision",
+      "-AllowSourceCreation"
+    ],
+    "timeout_kill_once": true,
+    "post_kill_hard_cutoff_required": true,
+    "overall_supervision_deadline_required": true,
+    "source_and_executable_pre_post_endpoint_equality_required": true,
+    "endpoint_equality_proves_continuous_stability": false,
+    "source_execution_binding": {
+      "schema_version": "windows-event-log-source-audit-execution-binding.v2",
+      "method": "windows-powershell-parser-same-buffer.v1",
+      "provisioner_relative_path": "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1",
+      "provisioner_raw_sha256": "be0c02f136761f83412f31cdbf1f3249ad7ed15de1aff28e27fe1a8597888406",
+      "provisioner_lf_canonical_sha256": "be0c02f136761f83412f31cdbf1f3249ad7ed15de1aff28e27fe1a8597888406",
+      "strict_utf8_decoding": true,
+      "utf8_bom_permitted": false,
+      "maximum_source_bytes": 2097152,
+      "file_mode": "Open",
+      "file_access": "Read",
+      "file_share": "Read",
+      "same_handle_read_hash_execute": true,
+      "handle_held_through_script_execution_and_exit_unwind": true,
+      "handle_held_until_os_process_exit_attested": false,
+      "path_reopened_for_execution": false,
+      "parser_filename_sets_pscommandpath_fixture_verified": true,
+      "launcher_source_utf8_sha256": "2997b0ec8f0e0431fa6732d8a412172028e24bfe358773d47bf7c53cad7cf842",
+      "launcher_utf16le_sha256": "d48be714db15d1c2b2e69408a731676a0789089890f60069dee9fad62f78f290",
+      "fixed_mode": "Audit",
+      "requested_binding_frozen": true,
+      "realized_source_execution_attested": false,
+      "executable_image_identity_attested": false,
+      "ifeo_excluded": false,
+      "administrator_or_kernel_adversary_excluded": false,
+      "source_content_toctou_excluded_under_declared_threat_model": false
+    }
+  },
+  "budgets": {
+    "stdout_max_bytes": 1048576,
+    "stderr_max_bytes": 262144,
+    "timeout_milliseconds": 120000,
+    "post_kill_pipe_drain_grace_milliseconds": 5000,
+    "overall_supervision_deadline_milliseconds": 125000
+  },
+  "exit_matrix": [
+    {
+      "exit_code": 0,
+      "stdout_schema_version": "volvence-evidence-event-log-provisioning-audit.v2",
+      "stderr_must_be_empty": true,
+      "disposition": "audit_v2_conformant_capture_candidate"
+    },
+    {
+      "exit_code": 2,
+      "stdout_schema_version": "volvence-evidence-event-log-provisioning-audit.v2",
+      "stderr_must_be_empty": true,
+      "disposition": "audit_v2_nonconformant_capture_candidate"
+    },
+    {
+      "exit_code": 3,
+      "stdout_schema_version": "volvence-evidence-event-log-provisioning-failure.v1",
+      "stderr_must_be_empty": false,
+      "disposition": "failure_v1_quarantined"
+    },
+    {
+      "exit_code": null,
+      "stdout_schema_version": null,
+      "stderr_must_be_empty": false,
+      "disposition": "unclassified_process_or_output_quarantined"
+    }
+  ],
+  "capture_envelope_contract": {
+    "schema_version": "windows-event-log-source-audit-capture-envelope.v1",
+    "ordered_fields": [
+      "schema_version",
+      "capture_role",
+      "stdout_raw_sha256",
+      "stdout_byte_count",
+      "stderr_raw_sha256",
+      "stderr_byte_count",
+      "process_exit_code",
+      "process_started_at_utc",
+      "process_exited_at_utc",
+      "stdout_captured_at_utc",
+      "machine_identity_sha256",
+      "boot_identity_sha256",
+      "capture_authoritative"
+    ],
+    "candidate_dispositions": [
+      "audit_v2_conformant_capture_candidate",
+      "audit_v2_nonconformant_capture_candidate"
+    ],
+    "quarantined_value": null,
+    "capture_authoritative": false
+  },
+  "source_hash_mode": "utf8_lf_canonical_v1",
+  "source_sha256": {
+    ".gitattributes": "4659362bf4b8804f37fb96f7987f6643bc9eed78769f6c6bab61530fabc3ec61",
+    "packages/vz-runtime/src/volvence_zero/offline_evidence/windows_event_log_source_audit_acquisition.mjs": "b5dfaa8245a8193cf506ce6cf111c95e89b46ceb214ac47eeeff7cd90b22f965",
+    "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1": "be0c02f136761f83412f31cdbf1f3249ad7ed15de1aff28e27fe1a8597888406",
+    "scripts/run_windows_event_log_source_audit_acquisition.mjs": "9cacd8e178d6528b7b7bfa319ba18037a9e32e19b2aa3921434016299740491d"
+  },
+  "output_contract": {
+    "create_only": true,
+    "claim_file": "000_scope_claim.json",
+    "terminal_file": "001_terminal.json",
+    "stdout_file": "streams/audit.stdout.bin",
+    "stderr_file": "streams/audit.stderr.bin",
+    "exact_files": [
+      "000_scope_claim.json",
+      "001_terminal.json",
+      "streams/audit.stdout.bin",
+      "streams/audit.stderr.bin"
+    ],
+    "stream_capture_schema_version": "windows-event-log-source-audit-stream-capture.v1",
+    "stream_capture_fields": [
+      "schema_version",
+      "stdout_relative_path",
+      "stdout_raw_sha256",
+      "stdout_byte_count",
+      "stderr_relative_path",
+      "stderr_raw_sha256",
+      "stderr_byte_count"
+    ],
+    "process_observation_schema_version": "windows-event-log-source-audit-process-observation.v2",
+    "stream_outcome_schema_version": "windows-event-log-source-audit-stream-outcome.v1",
+    "stream_outcome_fields": [
+      "schema_version",
+      "pipe_end_observed",
+      "pipe_close_observed",
+      "forcibly_detached",
+      "observed_byte_count",
+      "persisted_byte_count",
+      "persistence_complete",
+      "capture_error_stage",
+      "capture_error_name",
+      "capture_error_message_sha256",
+      "persistence_error_stage",
+      "persistence_error_name",
+      "persistence_error_message_sha256"
+    ],
+    "artifact_parent_must_preexist_as_non_symlink_directory": true,
+    "artifact_parent_chain_reparse_points_excluded": false,
+    "claim_file_descriptor_content_fsync_before_process_creation": true,
+    "directory_entry_durability_guaranteed": false,
+    "lifecycle_finalization_then_stream_fsync_and_same_descriptor_bounded_read_before_descriptor_close": true,
+    "normal_candidate_requires_child_exit_and_close": true,
+    "hard_cutoff_persists_bounded_prefix_for_quarantine": true,
+    "async_process_supervision_deadline_excludes_synchronous_persistence": true,
+    "stream_readback_or_terminal_write_failure_can_leave_incomplete_root": true,
+    "capture_envelope_null_for_quarantine": true,
+    "terminal_id_method": "sha256_of_canonical_terminal_core_without_terminal_id",
+    "terminal_raw_sha256_is_full_root_identity": true,
+    "offline_validator_queries_live_state": false
+  },
+  "evidence_firewall": {
+    "capture_envelope_authoritative": false,
+    "real_process_observation": false,
+    "real_provisioner_observation": false,
+    "source_config_projection_emitted": false,
+    "eligible_as_host_qualification_input": false,
+    "qualification_authorized": false,
+    "cuda_execution_authorized": false,
+    "formal_evidence_authorized": false,
+    "production_active_authorized": false,
+    "appendable_proven": false,
+    "readable_proven": false,
+    "learnable_proven": false,
+    "steerable_proven": false,
+    "four_capability_claim_authorized": false,
+    "tamper_resistance_proven": false,
+    "path_parent_reparse_trust_proven": false,
+    "directory_entry_durability_guaranteed": false,
+    "continuous_endpoint_stability_proven": false
+  },
+  "claim_boundary": "This standalone source-checkout acquisition owner is production-disabled. Its public acquisition gate throws before reading options, paths, environment, or filesystem state, and the fixed CLI can only reach that gate. The private backend has no exported or injectable executor. Its exact requested Windows PowerShell Desktop 5.1 argv uses one protocol-derived UTF-16LE EncodedCommand launcher: the launcher opens the reviewed provisioner with FileMode.Open, FileAccess.Read and FileShare.Read, reads a bounded byte buffer from that same handle, rejects BOM or invalid UTF-8, verifies independent raw and LF-canonical pins, parses that exact text with Parser.ParseInput(text, fileName), invokes only Mode Audit, and holds the handle through bound-script execution and exit unwind; holding it until the OS process exit event is not attested. The claim records the expanded launcher argv and frozen binding. This closes ordinary path reopen for the requested provisioner bytes, but realized_source_execution_attested, executable_image_identity_attested, IFEO exclusion, inherited-environment attestation, administrator/kernel adversary exclusion, continuous endpoint stability and tamper resistance all remain false; SystemRoot and the executable image still require a later native reobserver. process_started_at_utc is only a caller-clock lower bound before spawn, not OS creation-time attestation. The referenced soft timeout, post-kill drain grace and overall supervision deadline bound only asynchronous child/pipe supervision. A hard cutoff finalizes even when kill is rejected, throws, the child never exits, or a descendant holds a pipe; kill acceptance never proves termination or descendant containment. A cutoff detaches local capture, persists only the bounded prefix when same-descriptor write, fsync and readback remain possible, and always quarantines it. Late child or pipe errors remain guarded and are reported without mutating the frozen observation until child close. Synchronous persistence/readback and terminal creation are outside the asynchronous timer guarantee; readback or terminal-write failure can leave a permanent incomplete_consumed root and must not be represented as a complete terminal. Normal capture candidates require a real child exit event, child close, both pipe end and pipe close for two clean persisted streams, no signal, timeout, overflow, kill, spawn/stream/persistence error, or cutoff. Exit 0 or 2 plus strict compact Audit v2 stdout and empty stderr remains only a non-authoritative capture candidate; every other outcome has capture_envelope=null. File fsync does not guarantee Windows directory-entry durability. The create-only root checks only its direct parent, not ancestor reparse trust; no-overwrite applies only to one root and does not exclude cross-root duplicate scope. Caller machine/boot hashes remain non-authoritative. Pre/post endpoints remain diagnostics and do not prove process origin or continuous stability. Synthetic artifacts and the offline validator prove only contract self-consistency. No source-config projection or qualification handoff is emitted. All real observation, qualification eligibility or authorization, CUDA, formal evidence, production ACTIVE, Appendable, Readable, Learnable, Steerable and four-capability claims remain false. The bound host-qualification protocol is unchanged and does not automatically consume this artifact."
+}

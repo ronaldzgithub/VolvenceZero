@@ -236,8 +236,9 @@ collector、executor 或 validator。
 
 当前 v1 **明确设置 `production_preregistration_enabled=false`**：host-stability qualification
 已有冻结的唯一 owner/protocol、synthetic full-root validator 与 non-authorizing raw-Audit artifact adapter
-core；standalone direct-Audit acquisition/quarantine 也只建立了 production-disabled contract core，尚无
-production probe、真实 PowerShell capture、独立 live reobservation、production full validator，
+core；standalone direct-Audit acquisition/quarantine v2 已验证 same-buffer requested binding 与 bounded
+process/pipe supervision，但仍是 production-disabled contract core，尚无 realized executable attestation、
+真实 Event Log capture、独立 live reobservation、production full validator，
 也没有 qualification 终点 cursor 到 outer baseline 的端到端
 连续性证明。因此 public preregistration 必须 fail closed；synthetic
 dependency backend 使用独立 scope，写入 `real_execution_observation_authorized=false`，外层结果
@@ -344,17 +345,17 @@ nonconformant；列表不变的 Provision 成功仍不是 audit-ready，fresh Au
 `VolvenceEvidence` membership。`cmdlet_provenance.authoritative=false` 且
 `continuous_stability_proven=false`；不能排除中途
 改回、同机高级篡改或普通本地主体伪造。当前 artifact adapter 已绑定完整 raw Audit 并复算 content-ID
-basis；standalone acquisition/quarantine 只冻结了进程边界与 synthetic lifecycle，production execution、
-独立重观测与 Provision→refresh→fresh Audit 时序仍未实现。
+basis；standalone acquisition/quarantine v2 已冻结 same-buffer requested source binding、hard-cutoff 状态机与
+真实 Windows pipe/launcher fixture，但 production gate、realized executable attestation、独立重观测与
+Provision→refresh→fresh Audit 时序仍未实现。
 
 当前 outer protocol `cf62484f…3194` 只接受 terminal v1，并以 exact schema 拒绝 v2；它没有消费本包，
 qualification handoff→outer baseline 的 Application/System 无缝 cursor bridge 仍属下一独立 consumer 包。
 production state machine、004-before-process fsync、真实中断后的永久 `incomplete_consumed`、raw Audit/XML、
 fixed real probe、Job Object containment、runtime identity 与独立/WORM anchor 均只是未来启用条件，不是本
-synthetic writer 或 raw artifact adapter 已证明的物理行为。当前 40 项 qualification regression 与 12 项
-provisioner 静态合同只证明上述 synthetic schema/integrity firewall、raw artifact 自洽复算与源码约束；
-没有运行 Python、CUDA、模型、Provision/Audit 或
-live Event Log，也没有宿主 PASS 或 BIOS block
+synthetic writer 或 raw artifact adapter 已证明的物理行为。当前 qualification/provisioner 门与 59 项
+acquisition v2 regression 证明 schema/integrity firewall、raw artifact 自洽复算、hard-cutoff/stream fixture 与
+same-buffer launcher 的局部机制；没有运行 Provision/Audit 或 live Event Log，也没有宿主 PASS 或 BIOS block
 解除。该交换保持 live `DISABLED`，Appendable / Readable / Learnable / Steerable 四轴均为
 `not_proven`。回滚只需停止调用 synthetic helper/validator 与 raw-Audit adapter；没有 live wiring 需要切换，
 已生成的 synthetic 根或 adapter snapshot 不得迁移成正式证据。
@@ -370,27 +371,52 @@ options、path、environment 或 Proxy getter 前静态 fail closed。
 
 该 owner 的 create-only 根只包含 000 claim、raw stdout/stderr streams 与 001 terminal。attempt 固定为 1，
 retry 固定为 0；000 必须在 process creation 前写入并 `fsync`，两条 raw stream 在 spawn 前以 exclusive-create
-方式打开，child close 后才可 `fsync`、hash 并封存 terminal。wrapper 在 terminal 前中断会留下永久
-`incomplete_consumed` 根；禁止删除、覆盖或在同一 root 重试。不同 parent 下复制同一 deterministic scope 的
-cross-root duplicate 尚未由全局 lease/WORM registry 排除，因此 v1 不能声称 scope-global no-retry。真实 backend
-保持 module-private，
-固定 absolute Windows PowerShell 5.1 x64 路径、`shell=false` 与
-`-NoLogo -NoProfile -NonInteractive -File <reviewed-script> -Mode Audit`；禁止 `-Command`、encoded command、
-`-ExecutionPolicy Bypass`、`Provision` 与 `-AllowSourceCreation`。production gate 禁用期间只有声明式 synthetic
-lifecycle writer 可被测试，且不能注入任意 executor callback。
+方式打开。v2 process observation 明确区分 `child_exit_event / child_close_fallback / not_observed` 与
+`child_close_event / not_observed`，未观察到的 exit/close 时间必须为 null；`child.kill()=true` 只表示请求被
+接受，绝不推出 child 或 descendants 已终止。事件 callback 只做有界内存采集，任何 data/pipe error 都被冻结为
+stream outcome，不允许异常逃出 EventEmitter。lifecycle finalize 后才把有界 prefix 写入、`fsync` 并从同一
+`wx+` descriptor readback/hash；write/fsync 失败若仍能 readback 可封 quarantined terminal，readback 或 terminal
+写入自身失败只能留下永久 `incomplete_consumed` 根。禁止删除、覆盖或在同一 root 重试。不同 parent 下的
+cross-root duplicate 尚未由全局 lease/WORM registry 排除，仍不能声称 scope-global no-retry。
 
-terminal 是单一 discriminated outcome。exit 0 + compact ordered Audit v2 + empty stderr 只产生 conformant
-capture candidate；exit 2 的完整 Audit v2 只产生 nonconformant diagnostic candidate；exit 3 + failure v1
-必须进入 quarantine。empty/invalid/oversized stdout、非空异常 stderr、timeout、overflow、signal、spawn error、
-schema/exit mismatch、source/executable endpoint drift 等均在调用 raw adapter 前隔离为 process/acquisition
-quarantine。failure arm 不得生成 source config snapshot、002/008 projection、capture success envelope 或
-eligibility；success arm 也只发布 `capture_authoritative=false` 的 envelope，仍须由现有 pure adapter 重算完整
-Audit v2。
+real backend 保持 module-private。异步监督冻结 120 秒 soft timeout、5 秒 post-kill pipe-drain grace 与
+125 秒 overall hard cutoff；timer 保持 referenced，hard cutoff 无需等待 child `close`，会冻结 late-event
+升级路径、destroy 本端 pipes、`unref` child 并封存 bounded prefix quarantine。child/pipe 的 `error` guardian
+会保留到真实 child close，只发布 hash 化 warning，不能修改已冻结 observation，也不能升级 candidate。该上界只覆盖异步 child/pipe
+监督；同步 write/fsync/readback/terminal create 不能被 Node timer 中断，因此不是整个 acquisition 的绝对 wall
+deadline。没有 Job Object，`descendants_contained=false`。
 
-source 与 requested executable 都做 pre/post endpoint equality 和 content binding，但该相等只排除端点漂移，
-不能排除中途替换后改回、IFEO、realized image/argv/environment drift、管理员改写、hard-link/reparse 攻击或
-process descendants；没有 Job Object 时 `descendants_contained=false`。artifact hash 也不是 producer/operator
-身份签名或 release/WORM anchor。因此 acquisition outcome 固定
+固定 requested argv 已改为 nominal System32 Windows PowerShell 路径、`shell=false` 与
+`-NoLogo -NoProfile -NonInteractive -EncodedCommand <protocol-derived-launcher>`。launcher 不接受 caller source、
+mode 或 payload：它从 repository cwd 推导 reviewed provisioner，使用 `FileMode.Open / FileAccess.Read /
+FileShare.Read` 同一 handle 做 2 MiB bounded read，分别核对 raw 与 strict-UTF8 LF-canonical SHA-256，拒绝 BOM，
+再以 `Parser.ParseInput(exact_text, fileName).GetScriptBlock()` 执行固定 `-Mode Audit`。handle 贯穿绑定脚本执行
+与 `exit` unwind，但 outer `finally` 会在 OS process exit event 前释放，因此不得声称持柄到进程退出。
+Windows PowerShell 5.1 fixture 已机械验证 `$PSCommandPath/$PSScriptRoot`、exit 2、执行期间 rename 被拒与
+退出后 release；正常 return 即使遗留 `LASTEXITCODE=0`、raw 漂移但 LF 相等、raw 相等但 LF pin 漂移、BOM 或
+非法 UTF-8 均固定 exit 3。reviewed provisioner 由更具体的 `.gitattributes eol=lf` 规则保证 Windows fresh
+checkout 仍产生协议冻结的 raw bytes；`.gitattributes` 自身也纳入 critical source pin。
+provisioner 自身仍会在运行时拒绝非 Windows PowerShell 5.1 x64，但这只冻结 requested same-buffer binding；
+PowerShell realized PE/version/image、IFEO/DLL/module、继承环境与管理员/内核
+对手仍未 attested。production gate 禁用期间只有固定、白名单 synthetic/process fixture 可测试，不能注入任意
+executor callback。
+
+terminal 是单一 discriminated outcome。真实 candidate 额外要求 child exit event、child close、双 pipe end + close、
+双流完整 persistence、无 timeout/overflow/signal/kill/spawn/capture/persistence error 与 hard cutoff；synthetic
+candidate 只是一条显式 declaration。满足该 lifecycle 后，exit 0 + compact ordered Audit v2 + empty stderr 只产生
+conformant capture candidate；exit 2 的完整 Audit v2 只产生 nonconformant diagnostic candidate；exit 3 +
+failure v1 必须 quarantine。empty/invalid/oversized stdout、非空异常 stderr、schema/exit mismatch、source/
+executable endpoint drift 以及任何 supervision/stream failure 均在 raw adapter 前隔离。failure arm 不得生成
+source config snapshot、002/008 projection、capture success envelope 或 eligibility；success arm 也只发布
+`capture_authoritative=false` envelope，仍须由 pure adapter 重算完整 Audit v2。
+
+source pre-endpoint 必须 exact join protocol 的 provisioner raw/LF 双 pin，requested launcher 直接执行已校验
+same-handle buffer；pre/post source 与 executable endpoint 仍只作 diagnostic equality。该设计关闭普通
+provisioner path reopen 的内容窗口，却不能证明 launcher 被预期 PowerShell image 实际执行，也不能排除 IFEO、
+realized image/argv/environment drift、伪造 `SystemRoot` 形状路径、管理员改写、ancestor reparse、hard-link 预存写柄
+或 process descendants。production endpoint 必须是直接观察的 regular non-symlink file，但这一结构检查不等于
+微软 image 身份或可信 `SystemRoot` 证明。
+artifact hash 也不是 producer/operator 身份签名或 release/WORM anchor。因此 acquisition outcome 固定
 `real_provisioner_observation=false / eligible_as_host_qualification_input=false / projection_emitted=false`，
 CUDA、formal、production ACTIVE、tamper resistance 与 Appendable / Readable / Learnable / Steerable 授权
 全部为 false；`acquisition_to_qualification` wiring 保持 `DISABLED`。

@@ -1,7 +1,8 @@
 name: Windows CUDA Host Campaign Contract
 
-# Static/synthetic contract gate only. It never starts Python, CUDA, a model,
-# or the live Windows Event Log collector.
+# Contract gate only. It runs bounded harmless Windows process/pipe and
+# same-buffer launcher fixtures, but never starts Python, CUDA, a model, or the
+# live Windows Event Log collector.
 on:
   push:
     branches:
@@ -15,6 +16,7 @@ on:
       - "artifacts/relationship_lab/p4_windows_cuda_physical_residual_actuation_host_block_windows_20260822.json"
       - "scripts/run_windows_cuda_strict_32k_host_campaign.mjs"
       - "scripts/run_windows_cuda_strict_32k_smoke.py"
+      - "scripts/run_windows_event_log_source_audit_acquisition.mjs"
       - ".github/workflows/windows-cuda-host-campaign-contract.yml"
   pull_request:
     paths:
@@ -25,6 +27,7 @@ on:
       - "artifacts/relationship_lab/p4_windows_cuda_physical_residual_actuation_host_block_windows_20260822.json"
       - "scripts/run_windows_cuda_strict_32k_host_campaign.mjs"
       - "scripts/run_windows_cuda_strict_32k_smoke.py"
+      - "scripts/run_windows_event_log_source_audit_acquisition.mjs"
       - ".github/workflows/windows-cuda-host-campaign-contract.yml"
   workflow_dispatch:
 
@@ -53,6 +56,9 @@ jobs:
 
       - name: Run Event Log source Audit acquisition contract tests
         run: node --test packages/vz-runtime/tests/test_windows_event_log_source_audit_acquisition.mjs
+
+      - name: Parse fixed Event Log source Audit CLI
+        run: node --check scripts/run_windows_event_log_source_audit_acquisition.mjs
 
       - name: Parse Event Log provisioner with Windows PowerShell 5.1
         shell: powershell

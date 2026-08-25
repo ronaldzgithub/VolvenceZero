@@ -10,16 +10,19 @@
 
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 export const EVENT_LOG_SOURCE_AUDIT_ACQUISITION_PROTOCOL_SCHEMA_VERSION =
-  "windows-event-log-source-audit-acquisition-protocol.v1";
+  "windows-event-log-source-audit-acquisition-protocol.v2";
 export const EVENT_LOG_SOURCE_AUDIT_ACQUISITION_CLAIM_SCHEMA_VERSION =
-  "windows-event-log-source-audit-acquisition-claim.v1";
+  "windows-event-log-source-audit-acquisition-claim.v2";
 export const EVENT_LOG_SOURCE_AUDIT_ACQUISITION_TERMINAL_SCHEMA_VERSION =
-  "windows-event-log-source-audit-acquisition-terminal.v1";
+  "windows-event-log-source-audit-acquisition-terminal.v2";
 
 const AUDIT_SCHEMA_VERSION = "volvence-evidence-event-log-provisioning-audit.v2";
 const FAILURE_SCHEMA_VERSION = "volvence-evidence-event-log-provisioning-failure.v1";
@@ -51,10 +54,11 @@ const STREAM_CAPTURE_FIELDS = Object.freeze([
   "stderr_raw_sha256",
   "stderr_byte_count",
 ]);
-const PRODUCTION_BACKEND_ID = "windows-powershell-direct-audit-capture.v1";
+const PRODUCTION_BACKEND_ID =
+  "windows-powershell-same-buffer-audit-capture.v2";
 const SYNTHETIC_BACKEND_ID = "synthetic-node-audit-acquisition-declaration.v1";
 const PRODUCTION_DISABLED_MESSAGE =
-  "Windows Event Log source Audit acquisition is production-disabled in protocol v1";
+  "Windows Event Log source Audit acquisition is production-disabled in protocol v2";
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const MODULE_DIR = path.dirname(MODULE_PATH);
@@ -62,18 +66,107 @@ const REPOSITORY_ROOT = path.resolve(MODULE_DIR, "../../../../../");
 const PROTOCOL_PATH = path.join(
   MODULE_DIR,
   "protocols",
-  "windows_event_log_source_audit_acquisition_v1.json",
+  "windows_event_log_source_audit_acquisition_v2.json",
 );
 const CLAIM_FILE = "000_scope_claim.json";
 const TERMINAL_FILE = "001_terminal.json";
 const STDOUT_FILE = "streams/audit.stdout.bin";
 const STDERR_FILE = "streams/audit.stderr.bin";
+const PROVISIONER_RELATIVE_PATH =
+  "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1";
+const SOURCE_BINDING_SCHEMA_VERSION =
+  "windows-event-log-source-audit-execution-binding.v2";
+const STREAM_OUTCOME_SCHEMA_VERSION =
+  "windows-event-log-source-audit-stream-outcome.v1";
+const PROCESS_OBSERVATION_SCHEMA_VERSION =
+  "windows-event-log-source-audit-process-observation.v2";
 const COMPLETE_FILES = Object.freeze([
   CLAIM_FILE,
   TERMINAL_FILE,
   STDOUT_FILE,
   STDERR_FILE,
 ]);
+
+function powerShellSingleQuoted(value, label) {
+  if (!/^[A-Za-z0-9_./-]+$/u.test(value)) {
+    throw new Error(`${label} is not safe for the frozen PowerShell launcher`);
+  }
+  return `'${value}'`;
+}
+
+function buildSourceBindingLauncherSource(sourceBinding) {
+  const relativePath = powerShellSingleQuoted(
+    sourceBinding.provisioner_relative_path,
+    "provisioner relative path",
+  );
+  const expectedRaw = powerShellSingleQuoted(
+    sourceBinding.provisioner_raw_sha256,
+    "provisioner raw SHA-256",
+  );
+  const expectedLf = powerShellSingleQuoted(
+    sourceBinding.provisioner_lf_canonical_sha256,
+    "provisioner LF SHA-256",
+  );
+  return `${[
+    "[CmdletBinding()]",
+    "param()",
+    "Set-StrictMode -Version Latest",
+    '$ErrorActionPreference = "Stop"',
+    '$ProgressPreference = "SilentlyContinue"',
+    `$sourceRelativePath = ${relativePath}`,
+    `$expectedRawSha256 = ${expectedRaw}`,
+    `$expectedLfSha256 = ${expectedLf}`,
+    "$sourcePath = [IO.Path]::GetFullPath([IO.Path]::Combine([Environment]::CurrentDirectory, $sourceRelativePath.Replace('/', [IO.Path]::DirectorySeparatorChar)))",
+    "$stream = $null",
+    "try {",
+    "    $stream = [IO.FileStream]::new($sourcePath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)",
+    "    if ($stream.Length -lt 1 -or $stream.Length -gt 2097152) { throw \"reviewed provisioner size is outside the frozen launcher budget\" }",
+    "    $rawBytes = New-Object byte[] ([int]$stream.Length)",
+    "    $offset = 0",
+    "    while ($offset -lt $rawBytes.Length) {",
+    "        $read = $stream.Read($rawBytes, $offset, $rawBytes.Length - $offset)",
+    "        if ($read -le 0) { throw \"reviewed provisioner same-handle read ended early\" }",
+    "        $offset += $read",
+    "    }",
+    "    if ($stream.ReadByte() -ne -1) { throw \"reviewed provisioner grew during same-handle read\" }",
+    "    $sha256 = [Security.Cryptography.SHA256]::Create()",
+    "    try { $rawSha256 = ([BitConverter]::ToString($sha256.ComputeHash($rawBytes))).Replace('-', '').ToLowerInvariant() } finally { $sha256.Dispose() }",
+    "    if ($rawSha256 -cne $expectedRawSha256) { throw \"reviewed provisioner raw SHA-256 drift\" }",
+    "    if ($rawBytes.Length -ge 3 -and $rawBytes[0] -eq 0xef -and $rawBytes[1] -eq 0xbb -and $rawBytes[2] -eq 0xbf) { throw \"reviewed provisioner UTF-8 BOM is prohibited\" }",
+    "    $strictUtf8 = [Text.UTF8Encoding]::new($false, $true)",
+    "    $sourceText = $strictUtf8.GetString($rawBytes)",
+    '    $lfText = $sourceText.Replace("`r`n", "`n").Replace("`r", "`n")',
+    "    $lfBytes = [Text.Encoding]::UTF8.GetBytes($lfText)",
+    "    $sha256 = [Security.Cryptography.SHA256]::Create()",
+    "    try { $lfSha256 = ([BitConverter]::ToString($sha256.ComputeHash($lfBytes))).Replace('-', '').ToLowerInvariant() } finally { $sha256.Dispose() }",
+    "    if ($lfSha256 -cne $expectedLfSha256) { throw \"reviewed provisioner LF SHA-256 drift\" }",
+    "    $tokens = $null",
+    "    $parseErrors = $null",
+    "    $ast = [Management.Automation.Language.Parser]::ParseInput($sourceText, $sourcePath, [ref]$tokens, [ref]$parseErrors)",
+    "    if ($parseErrors.Count -ne 0) { throw \"reviewed provisioner parse failure\" }",
+    "    $scriptBlock = $ast.GetScriptBlock()",
+    "    & $scriptBlock -Mode Audit",
+    "    throw \"reviewed provisioner returned without explicit process exit\"",
+    "} catch {",
+    '    [Console]::Error.WriteLine("Volvence fixed source-binding launcher failed: {0}", $_.Exception.GetType().FullName)',
+    "    exit 3",
+    "} finally {",
+    "    if ($null -ne $stream) { $stream.Dispose() }",
+    "}",
+  ].join("\n")}\n`;
+}
+
+function buildSourceBindingLauncher(sourceBinding) {
+  const source = buildSourceBindingLauncherSource(sourceBinding);
+  const sourceBytes = Buffer.from(source, "utf8");
+  const utf16leBytes = Buffer.from(source, "utf16le");
+  return Object.freeze({
+    source,
+    sourceUtf8Sha256: sha256Bytes(sourceBytes),
+    utf16leSha256: sha256Bytes(utf16leBytes),
+    encodedCommand: utf16leBytes.toString("base64"),
+  });
+}
 
 class JsonInteger {
   constructor(raw) {
@@ -269,6 +362,15 @@ function sha256Bytes(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function decodeStrictUtf8PreservingBom(raw) {
+  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(raw);
+}
+
+function lfCanonicalSha256Bytes(raw) {
+  const text = decodeStrictUtf8PreservingBom(raw);
+  return sha256Bytes(Buffer.from(text.replace(/\r\n?/gu, "\n"), "utf8"));
+}
+
 function contentId(value) {
   return sha256Bytes(canonicalBytes(value, false));
 }
@@ -404,11 +506,6 @@ function nowUtc() {
   return new Date().toISOString().replace("Z", "0000Z");
 }
 
-function sourceTextSha256(filePath) {
-  const text = fs.readFileSync(filePath, "utf8").replace(/\r\n?/gu, "\n");
-  return sha256Bytes(Buffer.from(text, "utf8"));
-}
-
 function resolveRepositoryPath(relativePath) {
   const relative = requireText(relativePath, "repository-relative path");
   if (
@@ -432,7 +529,7 @@ function loadStrictJsonFile(filePath, label, canonicalRequired = false) {
     throw new Error(`${label} must be one regular single-link file`);
   }
   const raw = fs.readFileSync(filePath);
-  const text = new TextDecoder("utf-8", { fatal: true }).decode(raw);
+  const text = decodeStrictUtf8PreservingBom(raw);
   const parsed = parseJsonStrict(text, label);
   const value = materializeJsonIntegers(parsed);
   if (canonicalRequired && !raw.equals(canonicalBytes(value))) {
@@ -532,6 +629,95 @@ function validateProtocol(protocol) {
     ["qualification_source_audit_before", "qualification_source_audit_after"],
     "protocol.capture_roles",
   );
+  const sourceBinding = exactKeys(
+    requireObject(
+      protocol.execution.source_execution_binding,
+      "protocol.execution.source_execution_binding",
+    ),
+    [
+      "schema_version",
+      "method",
+      "provisioner_relative_path",
+      "provisioner_raw_sha256",
+      "provisioner_lf_canonical_sha256",
+      "strict_utf8_decoding",
+      "utf8_bom_permitted",
+      "maximum_source_bytes",
+      "file_mode",
+      "file_access",
+      "file_share",
+      "same_handle_read_hash_execute",
+      "handle_held_through_script_execution_and_exit_unwind",
+      "handle_held_until_os_process_exit_attested",
+      "path_reopened_for_execution",
+      "parser_filename_sets_pscommandpath_fixture_verified",
+      "launcher_source_utf8_sha256",
+      "launcher_utf16le_sha256",
+      "fixed_mode",
+      "requested_binding_frozen",
+      "realized_source_execution_attested",
+      "executable_image_identity_attested",
+      "ifeo_excluded",
+      "administrator_or_kernel_adversary_excluded",
+      "source_content_toctou_excluded_under_declared_threat_model",
+    ],
+    "protocol.execution.source_execution_binding",
+  );
+  requireSha256(
+    sourceBinding.provisioner_raw_sha256,
+    "protocol source-binding provisioner raw SHA-256",
+  );
+  requireSha256(
+    sourceBinding.provisioner_lf_canonical_sha256,
+    "protocol source-binding provisioner LF SHA-256",
+  );
+  requireSha256(
+    sourceBinding.launcher_source_utf8_sha256,
+    "protocol source-binding launcher source SHA-256",
+  );
+  requireSha256(
+    sourceBinding.launcher_utf16le_sha256,
+    "protocol source-binding launcher UTF-16LE SHA-256",
+  );
+  const launcher = buildSourceBindingLauncher(sourceBinding);
+  if (
+    launcher.sourceUtf8Sha256 !== sourceBinding.launcher_source_utf8_sha256 ||
+    launcher.utf16leSha256 !== sourceBinding.launcher_utf16le_sha256
+  ) {
+    throw new Error("frozen same-buffer PowerShell launcher identity drift");
+  }
+  deepExact(
+    sourceBinding,
+    {
+      schema_version: SOURCE_BINDING_SCHEMA_VERSION,
+      method: "windows-powershell-parser-same-buffer.v1",
+      provisioner_relative_path: PROVISIONER_RELATIVE_PATH,
+      provisioner_raw_sha256: sourceBinding.provisioner_raw_sha256,
+      provisioner_lf_canonical_sha256:
+        sourceBinding.provisioner_lf_canonical_sha256,
+      strict_utf8_decoding: true,
+      utf8_bom_permitted: false,
+      maximum_source_bytes: 2_097_152,
+      file_mode: "Open",
+      file_access: "Read",
+      file_share: "Read",
+      same_handle_read_hash_execute: true,
+      handle_held_through_script_execution_and_exit_unwind: true,
+      handle_held_until_os_process_exit_attested: false,
+      path_reopened_for_execution: false,
+      parser_filename_sets_pscommandpath_fixture_verified: true,
+      launcher_source_utf8_sha256: sourceBinding.launcher_source_utf8_sha256,
+      launcher_utf16le_sha256: sourceBinding.launcher_utf16le_sha256,
+      fixed_mode: "Audit",
+      requested_binding_frozen: true,
+      realized_source_execution_attested: false,
+      executable_image_identity_attested: false,
+      ifeo_excluded: false,
+      administrator_or_kernel_adversary_excluded: false,
+      source_content_toctou_excluded_under_declared_threat_model: false,
+    },
+    "protocol.execution.source_execution_binding",
+  );
   deepExact(
     protocol.execution,
     {
@@ -545,10 +731,8 @@ function validateProtocol(protocol) {
         "-NoLogo",
         "-NoProfile",
         "-NonInteractive",
-        "-File",
-        "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1",
-        "-Mode",
-        "Audit",
+        "-EncodedCommand",
+        "{frozen_same_buffer_launcher_utf16le_base64}",
       ],
       invocation_fields: [
         "backend_id",
@@ -564,9 +748,10 @@ function validateProtocol(protocol) {
         "environment_inherited",
         "realized_environment_attested",
         "provision_or_allow_source_creation_present",
+        "source_execution_binding",
       ],
-      requested_argv_file_argument_resolution:
-        "repository_relative_template_to_absolute_native_path",
+      requested_argv_launcher_resolution:
+        "frozen_protocol_binding_to_utf16le_base64",
       requested_executable_endpoint_binding_required: true,
       synthetic_invocation_realized: false,
       shell: false,
@@ -581,25 +766,45 @@ function validateProtocol(protocol) {
       descendants_contained: false,
       prohibited_tokens: [
         "-Command",
-        "-EncodedCommand",
         "-ExecutionPolicy",
         "Provision",
         "-AllowSourceCreation",
       ],
       timeout_kill_once: true,
+      post_kill_hard_cutoff_required: true,
+      overall_supervision_deadline_required: true,
       source_and_executable_pre_post_endpoint_equality_required: true,
       endpoint_equality_proves_continuous_stability: false,
+      source_execution_binding: sourceBinding,
     },
     "protocol.execution",
   );
   const budgets = exactKeys(
     protocol.budgets,
-    ["stdout_max_bytes", "stderr_max_bytes", "timeout_milliseconds"],
+    [
+      "stdout_max_bytes",
+      "stderr_max_bytes",
+      "timeout_milliseconds",
+      "post_kill_pipe_drain_grace_milliseconds",
+      "overall_supervision_deadline_milliseconds",
+    ],
     "protocol.budgets",
   );
-  for (const key of ["stdout_max_bytes", "stderr_max_bytes", "timeout_milliseconds"]) {
+  for (const key of [
+    "stdout_max_bytes",
+    "stderr_max_bytes",
+    "timeout_milliseconds",
+    "post_kill_pipe_drain_grace_milliseconds",
+    "overall_supervision_deadline_milliseconds",
+  ]) {
     const value = requireInteger(budgets[key], `protocol.budgets.${key}`);
     if (value < 1 || value > 3_600_000) throw new Error(`protocol budget drift: ${key}`);
+  }
+  if (
+    budgets.overall_supervision_deadline_milliseconds !==
+    budgets.timeout_milliseconds + budgets.post_kill_pipe_drain_grace_milliseconds
+  ) {
+    throw new Error("overall supervision deadline must equal timeout plus drain grace");
   }
   deepExact(
     protocol.exit_matrix,
@@ -650,6 +855,7 @@ function validateProtocol(protocol) {
   }
   const sourcePins = requireObject(protocol.source_sha256, "protocol.source_sha256");
   const requiredSources = [
+    ".gitattributes",
     "packages/vz-runtime/src/volvence_zero/offline_evidence/windows_event_log_source_audit_acquisition.mjs",
     "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1",
     "scripts/run_windows_event_log_source_audit_acquisition.mjs",
@@ -669,12 +875,33 @@ function validateProtocol(protocol) {
       exact_files: COMPLETE_FILES,
       stream_capture_schema_version: STREAM_CAPTURE_SCHEMA_VERSION,
       stream_capture_fields: STREAM_CAPTURE_FIELDS,
+      process_observation_schema_version: PROCESS_OBSERVATION_SCHEMA_VERSION,
+      stream_outcome_schema_version: STREAM_OUTCOME_SCHEMA_VERSION,
+      stream_outcome_fields: [
+        "schema_version",
+        "pipe_end_observed",
+        "pipe_close_observed",
+        "forcibly_detached",
+        "observed_byte_count",
+        "persisted_byte_count",
+        "persistence_complete",
+        "capture_error_stage",
+        "capture_error_name",
+        "capture_error_message_sha256",
+        "persistence_error_stage",
+        "persistence_error_name",
+        "persistence_error_message_sha256",
+      ],
       artifact_parent_must_preexist_as_non_symlink_directory: true,
       artifact_parent_chain_reparse_points_excluded: false,
       claim_file_descriptor_content_fsync_before_process_creation: true,
       directory_entry_durability_guaranteed: false,
-      child_close_then_stream_fsync_and_same_descriptor_bounded_read_before_descriptor_close:
+      lifecycle_finalization_then_stream_fsync_and_same_descriptor_bounded_read_before_descriptor_close:
         true,
+      normal_candidate_requires_child_exit_and_close: true,
+      hard_cutoff_persists_bounded_prefix_for_quarantine: true,
+      async_process_supervision_deadline_excludes_synchronous_persistence: true,
+      stream_readback_or_terminal_write_failure_can_leave_incomplete_root: true,
       capture_envelope_null_for_quarantine: true,
       terminal_id_method: "sha256_of_canonical_terminal_core_without_terminal_id",
       terminal_raw_sha256_is_full_root_identity: true,
@@ -732,12 +959,19 @@ function loadProtocol({ verifySources = true } = {}) {
   if (verifySources) {
     for (const [relative, expected] of Object.entries(loaded.value.source_sha256)) {
       const sourcePath = resolveRepositoryPath(relative);
-      const stat = fs.lstatSync(sourcePath);
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
-        throw new Error(`critical acquisition source is not one regular file: ${relative}`);
-      }
-      if (sourceTextSha256(sourcePath) !== expected) {
+      const endpoint = observeLocalFileEndpoint(sourcePath, true);
+      if (endpoint.lf_canonical_sha256 !== expected) {
         throw new Error(`critical acquisition source SHA-256 drift: ${relative}`);
+      }
+      if (
+        relative === PROVISIONER_RELATIVE_PATH &&
+        (endpoint.raw_sha256 !==
+          loaded.value.execution.source_execution_binding.provisioner_raw_sha256 ||
+          endpoint.lf_canonical_sha256 !==
+            loaded.value.execution.source_execution_binding
+              .provisioner_lf_canonical_sha256)
+      ) {
+        throw new Error("reviewed provisioner source-binding pin drift");
       }
     }
   }
@@ -877,8 +1111,7 @@ function observeLocalFileEndpoint(filePath, includeLfHash) {
     }
     let lfHash = null;
     if (includeLfHash) {
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(raw);
-      lfHash = sha256Bytes(Buffer.from(text.replace(/\r\n?/gu, "\n"), "utf8"));
+      lfHash = lfCanonicalSha256Bytes(raw);
     }
     return {
       schema_version: "windows-event-log-source-audit-file-endpoint.v1",
@@ -928,7 +1161,7 @@ function parseCompactReceiptDiscriminator(raw) {
     ) {
       throw new SyntaxError("stdout must not begin with a UTF-8 BOM");
     }
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(raw);
+    const text = decodeStrictUtf8PreservingBom(raw);
     if (
       !text.endsWith("\n") ||
       text.slice(0, -1).includes("\n") ||
@@ -967,9 +1200,24 @@ function parseCompactReceiptDiscriminator(raw) {
 
 function classifyOutcome(processObservation, stdout, stderr) {
   const discriminator = parseCompactReceiptDiscriminator(stdout);
+  const realLifecycleComplete =
+    processObservation.process_started_at_semantics ===
+      "lower_bound_immediately_before_spawn_call" &&
+    processObservation.process_exit_observation === "child_exit_event" &&
+    processObservation.streams_close_observation === "child_close_event" &&
+    processObservation.finalization_reason === "child_close";
+  const syntheticLifecycleDeclared =
+    processObservation.process_started_at_semantics === "synthetic_declaration" &&
+    processObservation.process_exit_observation === "synthetic_declaration" &&
+    processObservation.streams_close_observation === "synthetic_declaration" &&
+    processObservation.finalization_reason === "synthetic_declaration";
   const cleanProcess =
+    (realLifecycleComplete || syntheticLifecycleDeclared) &&
+    processObservation.capture_complete === true &&
     processObservation.signal === null &&
     processObservation.timed_out === false &&
+    processObservation.hard_cutoff_at_utc === null &&
+    processObservation.capture_detached_at_hard_cutoff === false &&
     processObservation.overflow_stream === null &&
     processObservation.kill_attempted === false &&
     processObservation.kill_attempt_count === 0 &&
@@ -1032,21 +1280,110 @@ function classifyOutcome(processObservation, stdout, stderr) {
   };
 }
 
+function validateStreamOutcome(value, label) {
+  exactKeys(
+    value,
+    [
+      "schema_version",
+      "pipe_end_observed",
+      "pipe_close_observed",
+      "forcibly_detached",
+      "observed_byte_count",
+      "persisted_byte_count",
+      "persistence_complete",
+      "capture_error_stage",
+      "capture_error_name",
+      "capture_error_message_sha256",
+      "persistence_error_stage",
+      "persistence_error_name",
+      "persistence_error_message_sha256",
+    ],
+    label,
+  );
+  if (value.schema_version !== STREAM_OUTCOME_SCHEMA_VERSION) {
+    throw new Error(`${label} schema drift`);
+  }
+  requireBoolean(value.pipe_end_observed, `${label}.pipe_end_observed`);
+  requireBoolean(value.pipe_close_observed, `${label}.pipe_close_observed`);
+  requireBoolean(value.forcibly_detached, `${label}.forcibly_detached`);
+  const observed = requireInteger(
+    value.observed_byte_count,
+    `${label}.observed_byte_count`,
+  );
+  const persisted = requireInteger(
+    value.persisted_byte_count,
+    `${label}.persisted_byte_count`,
+  );
+  if (observed < 0 || persisted < 0 || persisted > observed) {
+    throw new Error(`${label} byte-count chronology drift`);
+  }
+  requireBoolean(value.persistence_complete, `${label}.persistence_complete`);
+  const captureErrorNull =
+    value.capture_error_stage === null &&
+    value.capture_error_name === null &&
+    value.capture_error_message_sha256 === null;
+  const captureErrorPresent =
+    ["pipe", "buffer"].includes(value.capture_error_stage) &&
+    typeof value.capture_error_name === "string" &&
+    typeof value.capture_error_message_sha256 === "string";
+  if (!captureErrorNull && !captureErrorPresent) {
+    throw new Error(`${label} capture error fields must be all-null or frozen`);
+  }
+  if (captureErrorPresent) {
+    requireText(value.capture_error_name, `${label}.capture_error_name`);
+    requireSha256(
+      value.capture_error_message_sha256,
+      `${label}.capture_error_message_sha256`,
+    );
+  }
+  const persistenceErrorNull =
+    value.persistence_error_stage === null &&
+    value.persistence_error_name === null &&
+    value.persistence_error_message_sha256 === null;
+  const persistenceErrorPresent =
+    ["write", "fsync"].includes(value.persistence_error_stage) &&
+    typeof value.persistence_error_name === "string" &&
+    typeof value.persistence_error_message_sha256 === "string";
+  if (!persistenceErrorNull && !persistenceErrorPresent) {
+    throw new Error(`${label} persistence error fields must be all-null or frozen`);
+  }
+  if (persistenceErrorPresent) {
+    requireText(value.persistence_error_name, `${label}.persistence_error_name`);
+    requireSha256(
+      value.persistence_error_message_sha256,
+      `${label}.persistence_error_message_sha256`,
+    );
+  }
+  if (value.persistence_complete !== (persisted === observed && persistenceErrorNull)) {
+    throw new Error(`${label} persistence status drift`);
+  }
+  return value;
+}
+
 function validateProcessObservation(value, label) {
   exactKeys(
     value,
     [
+      "schema_version",
       "spawn_attempted",
       "process_id",
       "process_started_at_utc",
       "process_started_at_semantics",
       "os_process_creation_time_attested",
+      "process_exit_observation",
+      "streams_close_observation",
       "process_exited_at_utc",
       "streams_closed_at_utc",
       "stdout_captured_at_utc",
       "exit_code",
       "signal",
       "timed_out",
+      "hard_cutoff_at_utc",
+      "overall_deadline_exceeded",
+      "finalization_reason",
+      "capture_detached_at_hard_cutoff",
+      "termination_confirmed",
+      "process_may_remain_running",
       "overflow_stream",
       "kill_attempted",
       "kill_attempt_count",
@@ -1056,9 +1393,14 @@ function validateProcessObservation(value, label) {
       "descendants_contained",
       "spawn_error_name",
       "spawn_error_message_sha256",
+      "capture_complete",
+      "stream_outcomes",
     ],
     label,
   );
+  if (value.schema_version !== PROCESS_OBSERVATION_SCHEMA_VERSION) {
+    throw new Error(`${label} schema drift`);
+  }
   requireBoolean(value.spawn_attempted, `${label}.spawn_attempted`);
   if (value.process_id !== null) {
     const processId = requireInteger(value.process_id, `${label}.process_id`);
@@ -1078,18 +1420,122 @@ function validateProcessObservation(value, label) {
   if (value.os_process_creation_time_attested !== false) {
     throw new Error(`${label} must not attest an OS process-creation timestamp`);
   }
-  const exited = requireUtcTimestamp(value.process_exited_at_utc, `${label}.process_exited_at_utc`);
-  const closed = requireUtcTimestamp(value.streams_closed_at_utc, `${label}.streams_closed_at_utc`);
+  const synthetic = value.process_started_at_semantics === "synthetic_declaration";
+  const allowedExitObservations = synthetic
+    ? ["synthetic_declaration"]
+    : ["child_exit_event", "child_close_fallback", "not_observed"];
+  const allowedCloseObservations = synthetic
+    ? ["synthetic_declaration"]
+    : ["child_close_event", "not_observed"];
+  if (!allowedExitObservations.includes(value.process_exit_observation)) {
+    throw new Error(`${label}.process_exit_observation drift`);
+  }
+  if (!allowedCloseObservations.includes(value.streams_close_observation)) {
+    throw new Error(`${label}.streams_close_observation drift`);
+  }
+  let exited = null;
+  if (value.process_exited_at_utc !== null) {
+    exited = requireUtcTimestamp(
+      value.process_exited_at_utc,
+      `${label}.process_exited_at_utc`,
+    );
+  }
+  let closed = null;
+  if (value.streams_closed_at_utc !== null) {
+    closed = requireUtcTimestamp(
+      value.streams_closed_at_utc,
+      `${label}.streams_closed_at_utc`,
+    );
+  }
+  if (
+    (value.process_exit_observation === "not_observed") !== (exited === null) ||
+    (value.streams_close_observation === "not_observed") !== (closed === null)
+  ) {
+    throw new Error(`${label} observed child events/timestamps drift`);
+  }
+  if (closed !== null && exited === null) {
+    throw new Error(`${label} child close requires an exit upper bound`);
+  }
   const captured = requireUtcTimestamp(
     value.stdout_captured_at_utc,
     `${label}.stdout_captured_at_utc`,
   );
-  if (started > exited || exited > closed || closed > captured) {
+  if (
+    (exited !== null && (started > exited || exited > captured)) ||
+    (closed !== null && (started > closed || closed > captured)) ||
+    (exited !== null && closed !== null && exited > closed)
+  ) {
     throw new Error(`${label} chronology drift`);
   }
   if (value.exit_code !== null) requireInteger(value.exit_code, `${label}.exit_code`);
   if (value.signal !== null) requireText(value.signal, `${label}.signal`);
+  if (
+    value.process_exit_observation === "not_observed" &&
+    (value.exit_code !== null || value.signal !== null)
+  ) {
+    throw new Error(`${label} unobserved exit cannot publish code or signal`);
+  }
   requireBoolean(value.timed_out, `${label}.timed_out`);
+  let hardCutoffAt = null;
+  if (value.hard_cutoff_at_utc !== null) {
+    hardCutoffAt = requireUtcTimestamp(
+      value.hard_cutoff_at_utc,
+      `${label}.hard_cutoff_at_utc`,
+    );
+  }
+  if (hardCutoffAt !== null && (hardCutoffAt < started || hardCutoffAt > captured)) {
+    throw new Error(`${label} hard-cutoff chronology drift`);
+  }
+  const hardCutoffFinalization = [
+    "post_kill_grace_cutoff",
+    "overall_hard_cutoff",
+  ].includes(value.finalization_reason);
+  if (
+    ![
+      "synthetic_declaration",
+      "spawn_throw",
+      "child_close",
+      "post_kill_grace_cutoff",
+      "overall_hard_cutoff",
+    ].includes(value.finalization_reason) ||
+    hardCutoffFinalization !== (hardCutoffAt !== null)
+  ) {
+    throw new Error(`${label}.finalization_reason drift`);
+  }
+  requireBoolean(
+    value.overall_deadline_exceeded,
+    `${label}.overall_deadline_exceeded`,
+  );
+  if (
+    value.overall_deadline_exceeded !==
+    (value.finalization_reason === "overall_hard_cutoff")
+  ) {
+    throw new Error(`${label} overall deadline status drift`);
+  }
+  requireBoolean(
+    value.capture_detached_at_hard_cutoff,
+    `${label}.capture_detached_at_hard_cutoff`,
+  );
+  if (value.capture_detached_at_hard_cutoff !== hardCutoffFinalization) {
+    throw new Error(`${label} hard-cutoff detach status drift`);
+  }
+  if (hardCutoffFinalization && value.streams_close_observation !== "not_observed") {
+    throw new Error(`${label} hard cutoff cannot claim child close`);
+  }
+  requireBoolean(value.termination_confirmed, `${label}.termination_confirmed`);
+  requireBoolean(
+    value.process_may_remain_running,
+    `${label}.process_may_remain_running`,
+  );
+  if (
+    value.termination_confirmed !==
+      (value.spawn_attempted &&
+        value.process_exit_observation !== "not_observed") ||
+    value.process_may_remain_running !==
+      (value.spawn_attempted && value.process_exit_observation === "not_observed")
+  ) {
+    throw new Error(`${label} process termination status drift`);
+  }
   if (value.overflow_stream !== null && !["stdout", "stderr"].includes(value.overflow_stream)) {
     throw new Error(`${label}.overflow_stream drift`);
   }
@@ -1098,8 +1544,16 @@ function validateProcessObservation(value, label) {
   if (killCount < 0 || killCount > 1 || value.kill_attempted !== (killCount === 1)) {
     throw new Error(`${label} kill-once contract drift`);
   }
-  if ((value.timed_out || value.overflow_stream !== null) && killCount !== 1) {
-    throw new Error(`${label} timeout/overflow must attempt exactly one kill`);
+  if (
+    (value.timed_out ||
+      value.overflow_stream !== null ||
+      hardCutoffFinalization ||
+      (value.spawn_attempted &&
+        value.spawn_error_name !== null &&
+        value.finalization_reason !== "spawn_throw")) &&
+    killCount !== 1
+  ) {
+    throw new Error(`${label} failed process supervision must attempt exactly one kill`);
   }
   if (
     (killCount === 0 && value.kill_request_accepted !== null) ||
@@ -1129,12 +1583,69 @@ function validateProcessObservation(value, label) {
     requireText(value.spawn_error_name, `${label}.spawn_error_name`);
     requireSha256(value.spawn_error_message_sha256, `${label}.spawn_error_message_sha256`);
   }
+  requireBoolean(value.capture_complete, `${label}.capture_complete`);
+  const streamOutcomes = exactKeys(
+    requireObject(value.stream_outcomes, `${label}.stream_outcomes`),
+    ["stdout", "stderr"],
+    `${label}.stream_outcomes`,
+  );
+  const stdoutOutcome = validateStreamOutcome(
+    streamOutcomes.stdout,
+    `${label}.stream_outcomes.stdout`,
+  );
+  const stderrOutcome = validateStreamOutcome(
+    streamOutcomes.stderr,
+    `${label}.stream_outcomes.stderr`,
+  );
+  if (stdoutOutcome.forcibly_detached !== stderrOutcome.forcibly_detached) {
+    throw new Error(`${label} detached-pipe outcomes must agree`);
+  }
+  if (
+    value.capture_detached_at_hard_cutoff !==
+    (stdoutOutcome.forcibly_detached && stderrOutcome.forcibly_detached)
+  ) {
+    throw new Error(`${label} detached-pipe summary drift`);
+  }
+  const streamsClean = [stdoutOutcome, stderrOutcome].every(
+    (outcome) =>
+      outcome.persistence_complete &&
+      outcome.capture_error_stage === null &&
+      outcome.persistence_error_stage === null &&
+      outcome.forcibly_detached === false,
+  );
+  const streamTerminalsComplete =
+    synthetic ||
+    [stdoutOutcome, stderrOutcome].every(
+      (outcome) => outcome.pipe_end_observed && outcome.pipe_close_observed,
+    );
+  const lifecycleComplete = synthetic
+    ? value.finalization_reason === "synthetic_declaration" &&
+      value.process_exit_observation === "synthetic_declaration" &&
+      value.streams_close_observation === "synthetic_declaration"
+    : value.process_exit_observation === "child_exit_event" &&
+      value.streams_close_observation === "child_close_event" &&
+      value.finalization_reason === "child_close";
+  const expectedCaptureComplete =
+    lifecycleComplete &&
+    streamsClean &&
+    streamTerminalsComplete &&
+    value.timed_out === false &&
+    hardCutoffAt === null &&
+    value.overflow_stream === null &&
+    value.spawn_error_name === null &&
+    value.signal === null &&
+    value.kill_attempt_count === 0;
+  if (value.capture_complete !== expectedCaptureComplete) {
+    throw new Error(`${label} complete-capture derivation drift`);
+  }
   return value;
 }
 
 function fixedRequestedArgv(protocol) {
   const requestedArgv = [...protocol.execution.argv_template];
-  requestedArgv[4] = resolveRepositoryPath(protocol.execution.argv_template[4]);
+  requestedArgv[4] = buildSourceBindingLauncher(
+    protocol.execution.source_execution_binding,
+  ).encodedCommand;
   return requestedArgv;
 }
 
@@ -1164,6 +1675,7 @@ function invocationContract(protocol, backendId, requestedExecutable, requestedA
       environment_inherited: true,
       realized_environment_attested: false,
       provision_or_allow_source_creation_present: false,
+      source_execution_binding: protocol.execution.source_execution_binding,
     };
   }
   if (backendId === SYNTHETIC_BACKEND_ID) {
@@ -1184,22 +1696,40 @@ function invocationContract(protocol, backendId, requestedExecutable, requestedA
       environment_inherited: false,
       realized_environment_attested: false,
       provision_or_allow_source_creation_present: false,
+      source_execution_binding: protocol.execution.source_execution_binding,
     };
   }
   throw new Error("unsupported acquisition backend");
 }
 
 function validateRequestedInvocationEndpoints(
+  protocol,
   invocation,
   backendId,
   sourceEndpointBefore,
   executableEndpointBefore,
 ) {
   if (backendId !== PRODUCTION_BACKEND_ID) return;
+  for (const [label, endpoint] of [
+    ["requested source", sourceEndpointBefore],
+    ["requested executable", executableEndpointBefore],
+  ]) {
+    if (
+      endpoint.observation_kind !== "local_file_observation" ||
+      endpoint.regular_file !== true ||
+      endpoint.symbolic_link !== false
+    ) {
+      throw new Error(`${label} must be a directly observed regular non-symlink file`);
+    }
+  }
   const requestedExecutableNormalized = normalizedAbsolutePath(
     invocation.requested_executable,
   );
-  const requestedSourceNormalized = normalizedAbsolutePath(invocation.requested_argv[4]);
+  const requestedSourceNormalized = normalizedAbsolutePath(
+    resolveRepositoryPath(
+      protocol.execution.source_execution_binding.provisioner_relative_path,
+    ),
+  );
   if (
     requestedExecutableNormalized.toLowerCase() !==
       executableEndpointBefore.absolute_path.toLowerCase() ||
@@ -1207,9 +1737,15 @@ function validateRequestedInvocationEndpoints(
       executableEndpointBefore.real_path.toLowerCase() ||
     requestedSourceNormalized.toLowerCase() !==
       sourceEndpointBefore.absolute_path.toLowerCase() ||
-    requestedSourceNormalized.toLowerCase() !== sourceEndpointBefore.real_path.toLowerCase()
+    requestedSourceNormalized.toLowerCase() !== sourceEndpointBefore.real_path.toLowerCase() ||
+    sourceEndpointBefore.raw_sha256 !==
+      protocol.execution.source_execution_binding.provisioner_raw_sha256 ||
+    sourceEndpointBefore.lf_canonical_sha256 !==
+      protocol.execution.source_execution_binding.provisioner_lf_canonical_sha256
   ) {
-    throw new Error("requested invocation does not match its pre-spawn file endpoints");
+    throw new Error(
+      "requested invocation/source binding does not match its pre-spawn file endpoints",
+    );
   }
 }
 
@@ -1262,6 +1798,7 @@ function makeClaim({
     requestedArgv,
   );
   validateRequestedInvocationEndpoints(
+    protocolState.protocol,
     invocation,
     backendId,
     sourceEndpointBefore,
@@ -1568,6 +2105,7 @@ function validateClaim(claim, protocolState, artifactRoot) {
   validateEndpoint(claim.source_endpoint_before, "claim.source_endpoint_before");
   validateEndpoint(claim.executable_endpoint_before, "claim.executable_endpoint_before");
   validateRequestedInvocationEndpoints(
+    protocolState.protocol,
     claimedInvocation,
     claim.execution_backend_id,
     claim.source_endpoint_before,
@@ -1634,6 +2172,14 @@ function validateTerminal(
     throw new Error("acquisition terminal lineage drift");
   }
   validateProcessObservation(terminal.process_observation, "terminal.process_observation");
+  if (
+    terminal.process_observation.stream_outcomes.stdout.persisted_byte_count !==
+      stdout.length ||
+    terminal.process_observation.stream_outcomes.stderr.persisted_byte_count !==
+      stderr.length
+  ) {
+    throw new Error("terminal stream outcome/file byte-count drift");
+  }
   const syntheticBackend = terminal.execution_backend_id === SYNTHETIC_BACKEND_ID;
   if (
     terminal.process_observation.spawn_attempted !== !syntheticBackend ||
@@ -1775,10 +2321,10 @@ export function validateEventLogSourceAuditAcquisitionArtifact(options) {
     true,
   );
   const claimParsed = materializeJsonIntegers(
-    parseJsonStrict(new TextDecoder("utf-8", { fatal: true }).decode(claimRaw), "claim"),
+    parseJsonStrict(decodeStrictUtf8PreservingBom(claimRaw), "claim"),
   );
   const terminalParsed = materializeJsonIntegers(
-    parseJsonStrict(new TextDecoder("utf-8", { fatal: true }).decode(terminalRaw), "terminal"),
+    parseJsonStrict(decodeStrictUtf8PreservingBom(terminalRaw), "terminal"),
   );
   if (!claimRaw.equals(canonicalBytes(claimParsed))) {
     throw new Error("claim must be canonical compact JSON plus one LF");
@@ -1873,17 +2419,26 @@ function normalizeSyntheticProcessOutcome(value, protocol) {
     requireString(spawnErrorMessage, "processOutcome.spawnErrorMessage");
   }
   const processObservation = {
+    schema_version: PROCESS_OBSERVATION_SCHEMA_VERSION,
     spawn_attempted: false,
     process_id: null,
     process_started_at_utc: input.processStartedAtUtc,
     process_started_at_semantics: "synthetic_declaration",
     os_process_creation_time_attested: false,
+    process_exit_observation: "synthetic_declaration",
+    streams_close_observation: "synthetic_declaration",
     process_exited_at_utc: input.processExitedAtUtc,
     streams_closed_at_utc: input.streamsClosedAtUtc,
     stdout_captured_at_utc: input.streamsClosedAtUtc,
     exit_code: input.exitCode,
     signal: input.signal,
     timed_out: input.timedOut,
+    hard_cutoff_at_utc: null,
+    overall_deadline_exceeded: false,
+    finalization_reason: "synthetic_declaration",
+    capture_detached_at_hard_cutoff: false,
+    termination_confirmed: false,
+    process_may_remain_running: false,
     overflow_stream: input.overflowStream,
     kill_attempted: input.killAttempted,
     kill_attempt_count: input.killAttemptCount,
@@ -1896,6 +2451,44 @@ function normalizeSyntheticProcessOutcome(value, protocol) {
       spawnErrorMessage === null
         ? null
         : sha256Bytes(Buffer.from(spawnErrorMessage, "utf8")),
+    capture_complete:
+      input.signal === null &&
+      input.timedOut === false &&
+      input.overflowStream === null &&
+      input.killAttemptCount === 0 &&
+      spawnErrorName === null,
+    stream_outcomes: {
+      stdout: {
+        schema_version: STREAM_OUTCOME_SCHEMA_VERSION,
+        pipe_end_observed: false,
+        pipe_close_observed: false,
+        forcibly_detached: false,
+        observed_byte_count: stdout.length,
+        persisted_byte_count: stdout.length,
+        persistence_complete: true,
+        capture_error_stage: null,
+        capture_error_name: null,
+        capture_error_message_sha256: null,
+        persistence_error_stage: null,
+        persistence_error_name: null,
+        persistence_error_message_sha256: null,
+      },
+      stderr: {
+        schema_version: STREAM_OUTCOME_SCHEMA_VERSION,
+        pipe_end_observed: false,
+        pipe_close_observed: false,
+        forcibly_detached: false,
+        observed_byte_count: stderr.length,
+        persisted_byte_count: stderr.length,
+        persistence_complete: true,
+        capture_error_stage: null,
+        capture_error_name: null,
+        capture_error_message_sha256: null,
+        persistence_error_stage: null,
+        persistence_error_name: null,
+        persistence_error_message_sha256: null,
+      },
+    },
   };
   validateProcessObservation(processObservation, "synthetic process observation");
   return { processObservation, stdout, stderr };
@@ -1993,27 +2586,66 @@ function fixedPowerShellExecutablePath() {
   return executable;
 }
 
-function writeBoundedChunk(state, chunk, streamName, killOnce) {
-  const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-  const remaining = state.maximumBytes - state.byteCount;
-  if (remaining > 0) {
-    const accepted = bytes.subarray(0, remaining);
-    let offset = 0;
-    while (offset < accepted.length) {
-      const written = fs.writeSync(
-        state.descriptor,
-        accepted,
-        offset,
-        accepted.length - offset,
-      );
-      if (written <= 0) throw new Error(`${streamName} descriptor made no write progress`);
-      offset += written;
-      state.byteCount += written;
+function normalizeThrownError(error) {
+  return error instanceof Error ? error : new Error(`non-Error thrown: ${String(error)}`);
+}
+
+function frozenErrorIdentity(error) {
+  const normalized = normalizeThrownError(error);
+  return Object.freeze({
+    name: normalized.name || "Error",
+    messageSha256: sha256Bytes(Buffer.from(normalized.message, "utf8")),
+  });
+}
+
+function reportLateErrorWarning(origin, error) {
+  const identity = frozenErrorIdentity(error);
+  process.emitWarning(
+    `late ${origin} error after Audit acquisition finalization: ${identity.name}:${identity.messageSha256}`,
+    {
+      code: "VOLVENCE_AUDIT_ACQUISITION_LATE_ERROR",
+      type: "VolvenceAuditAcquisitionWarning",
+    },
+  );
+}
+
+function createBoundedStreamState(maximumBytes) {
+  return {
+    maximumBytes,
+    chunks: [],
+    observedByteCount: 0,
+    overflowed: false,
+    pipeEndObserved: false,
+    pipeCloseObserved: false,
+    forciblyDetached: false,
+    captureError: null,
+  };
+}
+
+function recordCaptureError(state, stage, error) {
+  if (state.captureError !== null) return;
+  state.captureError = Object.freeze({ stage, ...frozenErrorIdentity(error) });
+}
+
+function appendBoundedChunk(state, chunk, streamName, onDisqualifyingFailure) {
+  try {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    const remaining = state.maximumBytes - state.observedByteCount;
+    if (remaining > 0) {
+      const accepted = bytes.subarray(0, remaining);
+      if (accepted.length > 0) {
+        const stableCopy = Buffer.from(accepted);
+        state.chunks.push(stableCopy);
+        state.observedByteCount += stableCopy.length;
+      }
     }
-  }
-  if (bytes.length > remaining && state.overflowStream === null) {
-    state.overflowStream = streamName;
-    killOnce();
+    if (bytes.length > remaining && !state.overflowed) {
+      state.overflowed = true;
+      onDisqualifyingFailure({ overflowStream: streamName });
+    }
+  } catch (error) {
+    recordCaptureError(state, "buffer", error);
+    onDisqualifyingFailure({ overflowStream: null });
   }
 }
 
@@ -2057,20 +2689,14 @@ async function runFixedAuditProcess({
   stdoutDescriptor,
   stderrDescriptor,
   protocol,
+  spawnProcess = spawn,
+  persistenceHooks = null,
+  lateErrorReporter = reportLateErrorWarning,
 }) {
-  const stdoutState = {
-    descriptor: stdoutDescriptor,
-    maximumBytes: protocol.budgets.stdout_max_bytes,
-    byteCount: 0,
-    overflowStream: null,
-  };
-  const stderrState = {
-    descriptor: stderrDescriptor,
-    maximumBytes: protocol.budgets.stderr_max_bytes,
-    byteCount: 0,
-    overflowStream: null,
-  };
+  const stdoutState = createBoundedStreamState(protocol.budgets.stdout_max_bytes);
+  const stderrState = createBoundedStreamState(protocol.budgets.stderr_max_bytes);
   let child = null;
+  let spawnAttempted = false;
   let timedOut = false;
   let killAttemptCount = 0;
   let killRequestAccepted = null;
@@ -2082,6 +2708,18 @@ async function runFixedAuditProcess({
   let streamsClosedAtUtc = null;
   let exitCode = null;
   let signal = null;
+  let processExitObservation = "not_observed";
+  let streamsCloseObservation = "not_observed";
+  let finalizationReason = null;
+  let hardCutoffAtUtc = null;
+  let overflowStream = null;
+  let lifecycleSettled = false;
+  let captureActive = true;
+  let timeoutTimer = null;
+  let postKillTimer = null;
+  let overallTimer = null;
+  const streamRegistrations = [];
+  const childRegistrations = [];
   const killOnce = () => {
     if (killAttemptCount !== 0) return;
     killAttemptCount = 1;
@@ -2093,21 +2731,118 @@ async function runFixedAuditProcess({
       killRequestAccepted = child.kill();
     } catch (error) {
       killRequestAccepted = false;
-      killError = error;
+      killError = normalizeThrownError(error);
     }
   };
-  await new Promise((resolve) => {
-    let settled = false;
-    const settle = () => {
-      if (settled) return;
-      settled = true;
-      resolve();
+  const clearSupervisionTimers = () => {
+    if (timeoutTimer !== null) clearTimeout(timeoutTimer);
+    if (postKillTimer !== null) clearTimeout(postKillTimer);
+    if (overallTimer !== null) clearTimeout(overallTimer);
+  };
+  let settleLifecycle;
+  const lifecyclePromise = new Promise((resolve) => {
+    settleLifecycle = resolve;
+  });
+  const detachCaptureAtHardCutoff = () => {
+    captureActive = false;
+    stdoutState.forciblyDetached = true;
+    stderrState.forciblyDetached = true;
+    for (const registration of streamRegistrations) {
+      try {
+        registration.stream.destroy();
+      } catch (error) {
+        recordCaptureError(registration.state, "pipe", error);
+      }
+    }
+    if (child !== null && typeof child.unref === "function") {
+      try {
+        child.unref();
+      } catch (error) {
+        if (spawnError === null) spawnError = normalizeThrownError(error);
+      }
+    }
+  };
+  const finalizeOnce = (reason) => {
+    if (lifecycleSettled) return;
+    lifecycleSettled = true;
+    finalizationReason = reason;
+    if (["post_kill_grace_cutoff", "overall_hard_cutoff"].includes(reason)) {
+      hardCutoffAtUtc = nowUtc();
+      detachCaptureAtHardCutoff();
+    } else {
+      captureActive = false;
+    }
+    clearSupervisionTimers();
+    settleLifecycle();
+  };
+  const schedulePostKillCutoff = () => {
+    if (postKillTimer !== null || lifecycleSettled) return;
+    postKillTimer = setTimeout(
+      () => finalizeOnce("post_kill_grace_cutoff"),
+      protocol.budgets.post_kill_pipe_drain_grace_milliseconds,
+    );
+  };
+  const requestStop = ({ requestedOverflowStream = null } = {}) => {
+    if (requestedOverflowStream !== null && overflowStream === null) {
+      overflowStream = requestedOverflowStream;
+    }
+    killOnce();
+    schedulePostKillCutoff();
+  };
+  const registerStream = (stream, state, streamName) => {
+    const onData = (chunk) => {
+      if (!captureActive) return;
+      appendBoundedChunk(state, chunk, streamName, ({ overflowStream: observed }) =>
+        requestStop({ requestedOverflowStream: observed }),
+      );
     };
+    const onError = (error) => {
+      if (!captureActive) {
+        lateErrorReporter(`${streamName} pipe`, error);
+        return;
+      }
+      recordCaptureError(state, "pipe", error);
+      requestStop();
+    };
+    const onEnd = () => {
+      if (captureActive) state.pipeEndObserved = true;
+    };
+    const onClose = () => {
+      if (captureActive) state.pipeCloseObserved = true;
+    };
+    stream.on("data", onData);
+    stream.on("error", onError);
+    stream.on("end", onEnd);
+    stream.on("close", onClose);
+    streamRegistrations.push({
+      stream,
+      state,
+      handlers: { data: onData, error: onError, end: onEnd, close: onClose },
+    });
+  };
+  const registerChild = (eventName, handler) => {
+    child.on(eventName, handler);
+    childRegistrations.push({ eventName, handler });
+  };
+  const removeLateErrorGuardians = () => {
+    for (const registration of streamRegistrations) {
+      registration.stream.removeListener("error", registration.handlers.error);
+    }
+    if (child !== null) {
+      for (const registration of childRegistrations) {
+        if (["error", "close"].includes(registration.eventName)) {
+          child.removeListener(registration.eventName, registration.handler);
+        }
+      }
+    }
+  };
+  try {
     try {
       // This timestamp is only a caller-side lower bound immediately before
       // spawn(). It is not an OS process-creation-time attestation.
       startedAtUtc = nowUtc();
-      child = spawn(executable, argv, {
+      spawnAttempted = true;
+      child = spawnProcess(executable, argv, {
         cwd,
         shell: false,
         windowsHide: true,
@@ -2115,76 +2850,210 @@ async function runFixedAuditProcess({
       });
       processId = Number.isSafeInteger(child.pid) && child.pid > 0 ? child.pid : null;
     } catch (error) {
-      spawnError = error;
-      exitedAtUtc = nowUtc();
-      streamsClosedAtUtc = exitedAtUtc;
-      settle();
-      return;
+      spawnError = normalizeThrownError(error);
+      finalizeOnce("spawn_throw");
     }
-    if (child.stdout === null || child.stderr === null) {
-      spawnError = new Error("fixed spawn did not expose both captured stream pipes");
-      killOnce();
-    } else {
-      child.stdout.on("data", (chunk) =>
-        writeBoundedChunk(stdoutState, chunk, "stdout", killOnce),
-      );
-      child.stderr.on("data", (chunk) =>
-        writeBoundedChunk(stderrState, chunk, "stderr", killOnce),
-      );
-    }
-    child.on("error", (error) => {
-      spawnError = error;
-    });
-    child.on("exit", (code, exitSignal) => {
-      exitCode = code;
-      signal = exitSignal;
-      exitedAtUtc = nowUtc();
-    });
-    child.on("close", (code, closeSignal) => {
-      if (exitedAtUtc === null) {
-        exitCode = code;
-        signal = closeSignal;
-        exitedAtUtc = nowUtc();
+    if (!lifecycleSettled) {
+      if (child.stdout === null || child.stderr === null) {
+        spawnError = new Error("fixed spawn did not expose both captured stream pipes");
+        if (child.stdout === null) {
+          recordCaptureError(stdoutState, "pipe", spawnError);
+        }
+        if (child.stderr === null) {
+          recordCaptureError(stderrState, "pipe", spawnError);
+        }
+        requestStop();
+      } else {
+        registerStream(child.stdout, stdoutState, "stdout");
+        registerStream(child.stderr, stderrState, "stderr");
       }
-      streamsClosedAtUtc = nowUtc();
-      settle();
-    });
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killOnce();
-    }, protocol.budgets.timeout_milliseconds);
-    timer.unref();
-    child.on("close", () => clearTimeout(timer));
-  });
-  fs.fsyncSync(stdoutDescriptor);
-  fs.fsyncSync(stderrDescriptor);
-  const stdout = readBoundedCaptureDescriptor(
-    stdoutDescriptor,
-    stdoutState.byteCount,
-    protocol.budgets.stdout_max_bytes,
-    "stdout",
-  );
-  const stderr = readBoundedCaptureDescriptor(
-    stderrDescriptor,
-    stderrState.byteCount,
-    protocol.budgets.stderr_max_bytes,
-    "stderr",
-  );
+      registerChild("error", (error) => {
+        if (lifecycleSettled) {
+          lateErrorReporter("child process", error);
+          return;
+        }
+        if (spawnError === null) spawnError = normalizeThrownError(error);
+        requestStop();
+      });
+      registerChild("exit", (code, exitSignal) => {
+        if (lifecycleSettled) return;
+        processExitObservation = "child_exit_event";
+        exitCode = code;
+        signal = exitSignal;
+        exitedAtUtc = nowUtc();
+      });
+      registerChild("close", (code, closeSignal) => {
+        if (lifecycleSettled) {
+          removeLateErrorGuardians();
+          return;
+        }
+        streamsCloseObservation = "child_close_event";
+        streamsClosedAtUtc = nowUtc();
+        if (processExitObservation === "not_observed") {
+          processExitObservation = "child_close_fallback";
+          exitedAtUtc = streamsClosedAtUtc;
+          exitCode = code;
+          signal = closeSignal;
+        }
+        finalizeOnce("child_close");
+      });
+      timeoutTimer = setTimeout(() => {
+        if (lifecycleSettled) return;
+        timedOut = true;
+        requestStop();
+      }, protocol.budgets.timeout_milliseconds);
+      overallTimer = setTimeout(
+        () => finalizeOnce("overall_hard_cutoff"),
+        protocol.budgets.overall_supervision_deadline_milliseconds,
+      );
+    }
+    await lifecyclePromise;
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally {
+    clearSupervisionTimers();
+    for (const registration of streamRegistrations) {
+      for (const [eventName, handler] of Object.entries(registration.handlers)) {
+        if (hardCutoffAtUtc !== null && eventName === "error") continue;
+        registration.stream.removeListener(eventName, handler);
+      }
+    }
+    if (child !== null) {
+      for (const registration of childRegistrations) {
+        if (
+          hardCutoffAtUtc !== null &&
+          ["error", "close"].includes(registration.eventName)
+        ) {
+          continue;
+        }
+        child.removeListener(registration.eventName, registration.handler);
+      }
+    }
+  }
+  const persistStream = (descriptor, state, label) => {
+    const writeSync = persistenceHooks?.writeSync ?? fs.writeSync;
+    const fsyncSync = persistenceHooks?.fsyncSync ?? fs.fsyncSync;
+    let persistedByteCount = 0;
+    let persistenceError = null;
+    writeChunks: for (const chunk of state.chunks) {
+      let offset = 0;
+      while (offset < chunk.length) {
+        let written;
+        try {
+          written = writeSync(descriptor, chunk, offset, chunk.length - offset);
+          if (written <= 0) {
+            throw new Error(`${label} descriptor made no write progress`);
+          }
+        } catch (error) {
+          persistenceError = Object.freeze({
+            stage: "write",
+            ...frozenErrorIdentity(error),
+          });
+          break writeChunks;
+        }
+        offset += written;
+        persistedByteCount += written;
+      }
+    }
+    try {
+      fsyncSync(descriptor);
+    } catch (error) {
+      if (persistenceError === null) {
+        persistenceError = Object.freeze({
+          stage: "fsync",
+          ...frozenErrorIdentity(error),
+        });
+      }
+    }
+    const readCapture =
+      persistenceHooks?.readBoundedCaptureDescriptor ??
+      readBoundedCaptureDescriptor;
+    const raw = readCapture(
+      descriptor,
+      persistedByteCount,
+      state.maximumBytes,
+      label,
+    );
+    return {
+      raw,
+      outcome: {
+        schema_version: STREAM_OUTCOME_SCHEMA_VERSION,
+        pipe_end_observed: state.pipeEndObserved,
+        pipe_close_observed: state.pipeCloseObserved,
+        forcibly_detached: state.forciblyDetached,
+        observed_byte_count: state.observedByteCount,
+        persisted_byte_count: persistedByteCount,
+        persistence_complete:
+          persistenceError === null &&
+          persistedByteCount === state.observedByteCount,
+        capture_error_stage:
+          state.captureError === null ? null : state.captureError.stage,
+        capture_error_name:
+          state.captureError === null ? null : state.captureError.name,
+        capture_error_message_sha256:
+          state.captureError === null ? null : state.captureError.messageSha256,
+        persistence_error_stage:
+          persistenceError === null ? null : persistenceError.stage,
+        persistence_error_name:
+          persistenceError === null ? null : persistenceError.name,
+        persistence_error_message_sha256:
+          persistenceError === null ? null : persistenceError.messageSha256,
+      },
+    };
+  };
+  const stdoutPersisted = persistStream(stdoutDescriptor, stdoutState, "stdout");
+  const stderrPersisted = persistStream(stderrDescriptor, stderrState, "stderr");
+  const stdout = stdoutPersisted.raw;
+  const stderr = stderrPersisted.raw;
   const stdoutCapturedAtUtc = nowUtc();
+  const streamOutcomes = {
+    stdout: stdoutPersisted.outcome,
+    stderr: stderrPersisted.outcome,
+  };
+  const streamsClean = Object.values(streamOutcomes).every(
+    (outcome) =>
+      outcome.pipe_end_observed &&
+      outcome.pipe_close_observed &&
+      outcome.persistence_complete &&
+      outcome.capture_error_stage === null &&
+      outcome.persistence_error_stage === null &&
+      outcome.forcibly_detached === false,
+  );
+  const captureComplete =
+    finalizationReason === "child_close" &&
+    processExitObservation === "child_exit_event" &&
+    streamsCloseObservation === "child_close_event" &&
+    streamsClean &&
+    timedOut === false &&
+    hardCutoffAtUtc === null &&
+    overflowStream === null &&
+    spawnError === null &&
+    signal === null &&
+    killAttemptCount === 0;
   return {
     processObservation: {
-      spawn_attempted: true,
+      schema_version: PROCESS_OBSERVATION_SCHEMA_VERSION,
+      spawn_attempted: spawnAttempted,
       process_id: processId,
       process_started_at_utc: startedAtUtc,
       process_started_at_semantics: "lower_bound_immediately_before_spawn_call",
       os_process_creation_time_attested: false,
+      process_exit_observation: processExitObservation,
+      streams_close_observation: streamsCloseObservation,
       process_exited_at_utc: exitedAtUtc,
       streams_closed_at_utc: streamsClosedAtUtc,
       stdout_captured_at_utc: stdoutCapturedAtUtc,
       exit_code: exitCode,
       signal,
       timed_out: timedOut,
-      overflow_stream: stdoutState.overflowStream ?? stderrState.overflowStream,
+      hard_cutoff_at_utc: hardCutoffAtUtc,
+      overall_deadline_exceeded: finalizationReason === "overall_hard_cutoff",
+      finalization_reason: finalizationReason,
+      capture_detached_at_hard_cutoff: hardCutoffAtUtc !== null,
+      termination_confirmed:
+        spawnAttempted && processExitObservation !== "not_observed",
+      process_may_remain_running:
+        spawnAttempted && processExitObservation === "not_observed",
+      overflow_stream: overflowStream,
       kill_attempted: killAttemptCount === 1,
       kill_attempt_count: killAttemptCount,
       kill_request_accepted: killRequestAccepted,
@@ -2199,6 +3068,8 @@ async function runFixedAuditProcess({
         spawnError === null
           ? null
           : sha256Bytes(Buffer.from(spawnError.message, "utf8")),
+      capture_complete: captureComplete,
+      stream_outcomes: streamOutcomes,
     },
     stdout,
     stderr,
@@ -2222,16 +3093,22 @@ async function acquireRealEventLogSourceAudit({
   const root = path.resolve(requireText(artifactRoot, "artifactRoot"));
   const executable = fixedPowerShellExecutablePath();
   const requestedArgv = fixedRequestedArgv(protocolState.protocol);
-  const sourcePath = requestedArgv[4];
-  if (
-    requestedArgv.some((token) =>
-      ["-Command", "-EncodedCommand", "-ExecutionPolicy", "Provision", "-AllowSourceCreation"].includes(
-        token,
-      ),
-    )
-  ) {
-    throw new Error("fixed Audit argv contains a prohibited token");
-  }
+  deepExact(
+    requestedArgv,
+    [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-EncodedCommand",
+      buildSourceBindingLauncher(
+        protocolState.protocol.execution.source_execution_binding,
+      ).encodedCommand,
+    ],
+    "private fixed Audit argv",
+  );
+  const sourcePath = resolveRepositoryPath(
+    protocolState.protocol.execution.source_execution_binding.provisioner_relative_path,
+  );
   const sourceEndpointBefore = observeLocalFileEndpoint(sourcePath, true);
   const executableEndpointBefore = observeLocalFileEndpoint(executable, false);
   ensureCreateOnlyRoot(root);
@@ -2297,6 +3174,549 @@ export function acquireEventLogSourceAudit() {
   throw new Error(PRODUCTION_DISABLED_MESSAGE);
 }
 
+function frozenSourceBindingLauncherObservationForTesting() {
+  const loaded = loadStrictJsonFile(PROTOCOL_PATH, "acquisition protocol", false);
+  const binding = requireObject(
+    requireObject(loaded.value.execution, "protocol.execution")
+      .source_execution_binding,
+    "protocol.execution.source_execution_binding",
+  );
+  const launcher = buildSourceBindingLauncher(binding);
+  return deepFreeze({
+    sourceUtf8Sha256: launcher.sourceUtf8Sha256,
+    utf16leSha256: launcher.utf16leSha256,
+    encodedCommandSha256: sha256Bytes(Buffer.from(launcher.encodedCommand, "ascii")),
+    encodedCommand: launcher.encodedCommand,
+  });
+}
+
+function frozenUtf8BomCanonicalizationObservationForTesting() {
+  const withoutBom = Buffer.from("fixture\r\n", "utf8");
+  const withBom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), withoutBom]);
+  return deepFreeze({
+    withBomLfCanonicalSha256: lfCanonicalSha256Bytes(withBom),
+    withoutBomLfCanonicalSha256: lfCanonicalSha256Bytes(withoutBom),
+    expectedPreservedBomLfCanonicalSha256: sha256Bytes(
+      Buffer.from("\ufefffixture\n", "utf8"),
+    ),
+  });
+}
+
+function buildWindowsDescendantPipeFixtureEncodedCommand() {
+  const source = `Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class VolvencePipeFixture {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct STARTUPINFO {
+        public int cb; public string lpReserved; public string lpDesktop; public string lpTitle;
+        public int dwX; public int dwY; public int dwXSize; public int dwYSize;
+        public int dwXCountChars; public int dwYCountChars; public int dwFillAttribute;
+        public int dwFlags; public short wShowWindow; public short cbReserved2;
+        public IntPtr lpReserved2; public IntPtr hStdInput; public IntPtr hStdOutput; public IntPtr hStdError;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PROCESS_INFORMATION {
+        public IntPtr hProcess; public IntPtr hThread; public int dwProcessId; public int dwThreadId;
+    }
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr GetStdHandle(int kind);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetHandleInformation(IntPtr handle, int mask, int flags);
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern bool CreateProcess(string application, StringBuilder commandLine, IntPtr processAttributes,
+        IntPtr threadAttributes, bool inheritHandles, int creationFlags, IntPtr environment,
+        string currentDirectory, ref STARTUPINFO startupInfo, out PROCESS_INFORMATION processInformation);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+    public static int Spawn(string executable) {
+        IntPtr stdoutHandle = GetStdHandle(-11);
+        IntPtr stderrHandle = GetStdHandle(-12);
+        if (!SetHandleInformation(stdoutHandle, 1, 1) || !SetHandleInformation(stderrHandle, 1, 1)) {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        STARTUPINFO startup = new STARTUPINFO();
+        startup.cb = Marshal.SizeOf(typeof(STARTUPINFO));
+        startup.dwFlags = 0x00000100;
+        startup.hStdInput = GetStdHandle(-10);
+        startup.hStdOutput = stdoutHandle;
+        startup.hStdError = stderrHandle;
+        PROCESS_INFORMATION process;
+        StringBuilder command = new StringBuilder("\\\"" + executable + "\\\" -n 30 127.0.0.1");
+        if (!CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, true, 0x08000000,
+            IntPtr.Zero, null, ref startup, out process)) {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        return process.dwProcessId;
+    }
+}
+"@
+$executable = "$env:SystemRoot\\System32\\PING.EXE"
+$descendantProcessId = [VolvencePipeFixture]::Spawn($executable)
+[Console]::Out.WriteLine("descendant_pid={0}", $descendantProcessId)
+exit 0
+`;
+  return Buffer.from(source, "utf16le").toString("base64");
+}
+
+async function exerciseFixedAuditLifecycleScenarioForTesting(scenario) {
+  const allowed = [
+    "clean_close",
+    "kill_false_never_close",
+    "kill_throw_never_close",
+    "kill_true_never_close",
+    "exit_without_close",
+    "stdout_pipe_error",
+    "close_without_end",
+    "late_error_after_cutoff",
+    "write_failure",
+    "fsync_failure",
+    "readback_failure",
+    "descendant_holds_pipe",
+  ];
+  if (!allowed.includes(scenario)) throw new Error("unsupported fixed lifecycle scenario");
+  if (scenario === "descendant_holds_pipe" && process.platform !== "win32") {
+    throw new Error("descendant_holds_pipe fixture requires Windows");
+  }
+  const loaded = loadStrictJsonFile(PROTOCOL_PATH, "acquisition protocol", false);
+  const descendantFixture = scenario === "descendant_holds_pipe";
+  const protocol = {
+    ...loaded.value,
+    budgets: {
+      stdout_max_bytes: 4096,
+      stderr_max_bytes: 4096,
+      timeout_milliseconds: descendantFixture ? 6000 : 30,
+      post_kill_pipe_drain_grace_milliseconds: descendantFixture ? 2000 : 30,
+      overall_supervision_deadline_milliseconds: descendantFixture ? 8000 : 60,
+    },
+  };
+  const nonce = `${process.pid}-${crypto.randomUUID()}`;
+  const stdoutPath = path.join(os.tmpdir(), `volvence-audit-stdout-${nonce}.bin`);
+  const stderrPath = path.join(os.tmpdir(), `volvence-audit-stderr-${nonce}.bin`);
+  let stdoutDescriptor = null;
+  let stderrDescriptor = null;
+  const scheduled = [];
+  let fakeChild = null;
+  let killCallCount = 0;
+  const lateErrors = [];
+  const schedule = (callback, milliseconds) => {
+    const timer = setTimeout(callback, milliseconds);
+    scheduled.push(timer);
+  };
+  const makeFakeChild = () => {
+    const child = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.pid = 4242;
+    child.unref = () => undefined;
+    child.kill = () => {
+      killCallCount += 1;
+      if (scenario === "kill_throw_never_close") {
+        throw new Error("fixture kill failure");
+      }
+      return scenario !== "kill_false_never_close" && scenario !== "exit_without_close";
+    };
+    if (
+      ["clean_close", "write_failure", "fsync_failure", "readback_failure"].includes(
+        scenario,
+      )
+    ) {
+      schedule(() => {
+        child.stdout.end(Buffer.from("ok", "utf8"));
+        child.stderr.end();
+      }, 1);
+      schedule(() => child.emit("exit", 0, null), 8);
+      schedule(() => child.emit("close", 0, null), 12);
+    } else if (scenario === "close_without_end") {
+      schedule(() => {
+        child.stdout.emit("close");
+        child.stderr.emit("close");
+      }, 1);
+      schedule(() => child.emit("exit", 0, null), 8);
+      schedule(() => child.emit("close", 0, null), 12);
+    } else if (scenario === "exit_without_close") {
+      schedule(() => child.emit("exit", 0, null), 5);
+    } else if (scenario === "stdout_pipe_error") {
+      schedule(() => child.stdout.emit("error", new Error("fixture stdout error")), 5);
+    }
+    return child;
+  };
+  const spawnProcess =
+    scenario === "descendant_holds_pipe"
+      ? spawn
+      : () => {
+          fakeChild = makeFakeChild();
+          return fakeChild;
+        };
+  const persistenceHooks =
+    scenario === "write_failure"
+      ? {
+          writeSync(descriptor, buffer, offset, length) {
+            if (descriptor === stdoutDescriptor && offset > 0) {
+              throw new Error("fixture write failure");
+            }
+            const boundedLength =
+              descriptor === stdoutDescriptor ? Math.min(1, length) : length;
+            return fs.writeSync(descriptor, buffer, offset, boundedLength);
+          },
+        }
+      : scenario === "fsync_failure"
+        ? {
+            fsyncSync(descriptor) {
+              if (descriptor === stdoutDescriptor) {
+                throw new Error("fixture fsync failure");
+              }
+              return fs.fsyncSync(descriptor);
+            },
+          }
+        : scenario === "readback_failure"
+          ? {
+              readBoundedCaptureDescriptor() {
+                throw new Error("fixture same-descriptor readback failure");
+              },
+            }
+        : null;
+  const startedMilliseconds = Date.now();
+  let descendantPid = null;
+  let descendantCleanup = null;
+  const ensureDescendantStopped = async () => {
+    if (descendantPid === null || descendantCleanup?.terminationConfirmed === true) return;
+    let killAccepted = false;
+    try {
+      killAccepted = process.kill(descendantPid);
+    } catch (error) {
+      if (error?.code !== "ESRCH") throw error;
+    }
+    let terminationConfirmed = false;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      try {
+        process.kill(descendantPid, 0);
+      } catch (error) {
+        if (error?.code === "ESRCH") {
+          terminationConfirmed = true;
+          break;
+        }
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    descendantCleanup = { descendantPid, killAccepted, terminationConfirmed };
+    if (!terminationConfirmed) {
+      throw new Error("descendant fixture cleanup was not confirmed");
+    }
+  };
+  try {
+    stdoutDescriptor = fs.openSync(stdoutPath, "wx+");
+    stderrDescriptor = fs.openSync(stderrPath, "wx+");
+    let result;
+    try {
+      result = await runFixedAuditProcess({
+        executable: descendantFixture
+          ? fixedPowerShellExecutablePath()
+          : process.execPath,
+        argv:
+          descendantFixture
+            ? [
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-EncodedCommand",
+                buildWindowsDescendantPipeFixtureEncodedCommand(),
+              ]
+            : ["synthetic-fixed-lifecycle-fixture"],
+        cwd: REPOSITORY_ROOT,
+        stdoutDescriptor,
+        stderrDescriptor,
+        protocol,
+        spawnProcess,
+        persistenceHooks,
+        lateErrorReporter(origin, error) {
+          lateErrors.push({ origin, ...frozenErrorIdentity(error) });
+        },
+      });
+    } catch (error) {
+      if (scenario !== "readback_failure") throw error;
+      return deepFreeze({
+        scenario,
+        elapsedMilliseconds: Date.now() - startedMilliseconds,
+        killCallCount,
+        boundedFailure: frozenErrorIdentity(error),
+      });
+    }
+    if (descendantFixture) {
+      const stdoutText = result.stdout.toString("utf8");
+      const match = /(?:^|\r?\n)descendant_pid=([1-9][0-9]*)(?:\r?\n|$)/u.exec(
+        stdoutText,
+      );
+      if (match === null) throw new Error("descendant fixture did not publish its PID");
+      descendantPid = Number(match[1]);
+    }
+    validateProcessObservation(result.processObservation, "fixed lifecycle fixture");
+    let lateErrorGuardianCountsBeforeClose = null;
+    let lateErrorGuardianCountsAfterClose = null;
+    if (scenario === "late_error_after_cutoff") {
+      fakeChild.emit("error", new Error("fixture late child error"));
+      fakeChild.stdout.emit("error", new Error("fixture late stdout error"));
+      fakeChild.stderr.emit("error", new Error("fixture late stderr error"));
+      lateErrorGuardianCountsBeforeClose = {
+        child: fakeChild.listenerCount("error"),
+        stdout: fakeChild.stdout.listenerCount("error"),
+        stderr: fakeChild.stderr.listenerCount("error"),
+      };
+      fakeChild.emit("close", null, null);
+      lateErrorGuardianCountsAfterClose = {
+        child: fakeChild.listenerCount("error"),
+        stdout: fakeChild.stdout.listenerCount("error"),
+        stderr: fakeChild.stderr.listenerCount("error"),
+      };
+    }
+    if (descendantFixture) {
+      await ensureDescendantStopped();
+    }
+    return deepFreeze({
+      scenario,
+      elapsedMilliseconds: Date.now() - startedMilliseconds,
+      killCallCount,
+      processObservation: result.processObservation,
+      stdoutBase64: result.stdout.toString("base64"),
+      stderrBase64: result.stderr.toString("base64"),
+      descendantCleanup,
+      lateErrors,
+      lateErrorGuardianCountsBeforeClose,
+      lateErrorGuardianCountsAfterClose,
+      fakeChildListenerCounts:
+        fakeChild === null
+          ? null
+          : {
+              error: fakeChild.listenerCount("error"),
+              exit: fakeChild.listenerCount("exit"),
+              close: fakeChild.listenerCount("close"),
+            },
+      fakeStreamListenerCounts:
+        fakeChild === null
+          ? null
+          : {
+              stdoutError: fakeChild.stdout.listenerCount("error"),
+              stderrError: fakeChild.stderr.listenerCount("error"),
+            },
+    });
+  } finally {
+    const cleanupFailures = [];
+    for (const timer of scheduled) clearTimeout(timer);
+    try {
+      await ensureDescendantStopped();
+    } catch (error) {
+      cleanupFailures.push(normalizeThrownError(error));
+    }
+    for (const descriptor of [stdoutDescriptor, stderrDescriptor]) {
+      if (descriptor === null) continue;
+      try {
+        fs.closeSync(descriptor);
+      } catch (error) {
+        cleanupFailures.push(normalizeThrownError(error));
+      }
+    }
+    for (const candidate of [stdoutPath, stderrPath]) {
+      try {
+        if (fs.existsSync(candidate)) fs.unlinkSync(candidate);
+      } catch (error) {
+        cleanupFailures.push(normalizeThrownError(error));
+      }
+    }
+    if (cleanupFailures.length > 0) {
+      throw new AggregateError(cleanupFailures, "fixed lifecycle fixture cleanup failed");
+    }
+  }
+}
+
+async function exerciseSourceBindingLauncherFixtureForTesting(scenario) {
+  const allowed = [
+    "valid_exit_2_and_lock",
+    "normal_return_with_stale_last_exit_code",
+    "raw_mismatch_lf_equal",
+    "lf_mismatch_raw_equal",
+    "utf8_bom",
+    "invalid_utf8",
+  ];
+  if (!allowed.includes(scenario)) throw new Error("unsupported source-binding fixture");
+  if (process.platform !== "win32") {
+    throw new Error("source-binding launcher fixture requires Windows");
+  }
+  const nonce = `${process.pid}-${crypto.randomUUID()}`;
+  const sourceLeaf = `volvence-source-binding-${nonce}.ps1`;
+  const sourcePath = path.join(REPOSITORY_ROOT, sourceLeaf);
+  const movedPath = `${sourcePath}.moved`;
+  const markerPath = `${sourcePath}.opened`;
+  const stdoutPath = path.join(os.tmpdir(), `volvence-binding-stdout-${nonce}.bin`);
+  const stderrPath = path.join(os.tmpdir(), `volvence-binding-stderr-${nonce}.bin`);
+  let sourceBytes;
+  if (scenario === "invalid_utf8") {
+    sourceBytes = Buffer.from([0xc3, 0x28]);
+  } else if (scenario === "utf8_bom") {
+    sourceBytes = Buffer.concat([
+      Buffer.from([0xef, 0xbb, 0xbf]),
+      Buffer.from("param([ValidateSet('Audit')][string]$Mode)\nexit 0\n", "utf8"),
+    ]);
+  } else if (scenario === "normal_return_with_stale_last_exit_code") {
+    sourceBytes = Buffer.from(
+      [
+        "param([ValidateSet('Audit')][string]$Mode)",
+        "$global:LASTEXITCODE = 0",
+        "return",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+  } else {
+    const lines = [
+      "param([ValidateSet('Audit')][string]$Mode)",
+      "[IO.File]::WriteAllText(($PSCommandPath + '.opened'), 'opened')",
+      "Start-Sleep -Milliseconds 500",
+      "[pscustomobject]@{Mode=$Mode;Path=$PSCommandPath;Root=$PSScriptRoot}|ConvertTo-Json -Compress",
+      "exit 2",
+      "",
+    ];
+    sourceBytes = Buffer.from(
+      scenario === "raw_mismatch_lf_equal"
+        ? lines.join("\r\n")
+        : lines.join("\n"),
+      "utf8",
+    );
+  }
+  const decodedForLf =
+    scenario === "invalid_utf8"
+      ? null
+      : decodeStrictUtf8PreservingBom(sourceBytes);
+  const lfBytes =
+    decodedForLf === null
+      ? sourceBytes
+      : Buffer.from(decodedForLf.replace(/\r\n?/gu, "\n"), "utf8");
+  const expectedRawSha256 =
+    scenario === "raw_mismatch_lf_equal"
+      ? sha256Bytes(lfBytes)
+      : sha256Bytes(sourceBytes);
+  const expectedLfCanonicalSha256 =
+    scenario === "lf_mismatch_raw_equal"
+      ? sha256Bytes(Buffer.from("fixture mismatched LF pin\n", "utf8"))
+      : sha256Bytes(lfBytes);
+  const binding = {
+    provisioner_relative_path: sourceLeaf,
+    provisioner_raw_sha256: expectedRawSha256,
+    provisioner_lf_canonical_sha256: expectedLfCanonicalSha256,
+  };
+  const encodedCommand = buildSourceBindingLauncher(binding).encodedCommand;
+  let stdoutDescriptor = null;
+  let stderrDescriptor = null;
+  const protocol = {
+    budgets: {
+      stdout_max_bytes: 65_536,
+      stderr_max_bytes: 65_536,
+      timeout_milliseconds: 10_000,
+      post_kill_pipe_drain_grace_milliseconds: 2_000,
+      overall_supervision_deadline_milliseconds: 12_000,
+    },
+  };
+  let renameBlockedWhileHandleHeld = null;
+  let renameBlockErrorCode = null;
+  let handleReleasedAfterExit = false;
+  try {
+    writeCreateFile(sourcePath, sourceBytes);
+    stdoutDescriptor = fs.openSync(stdoutPath, "wx+");
+    stderrDescriptor = fs.openSync(stderrPath, "wx+");
+    const processPromise = runFixedAuditProcess({
+      executable: fixedPowerShellExecutablePath(),
+      argv: [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-EncodedCommand",
+        encodedCommand,
+      ],
+      cwd: REPOSITORY_ROOT,
+      stdoutDescriptor,
+      stderrDescriptor,
+      protocol,
+    });
+    const lockProbePromise =
+      scenario === "valid_exit_2_and_lock"
+        ? (async () => {
+            for (let attempt = 0; attempt < 160; attempt += 1) {
+              if (fs.existsSync(markerPath)) break;
+              await new Promise((resolve) => setTimeout(resolve, 25));
+            }
+            if (!fs.existsSync(markerPath)) {
+              renameBlockErrorCode = "marker_missing";
+              return;
+            }
+            try {
+              fs.renameSync(sourcePath, movedPath);
+              renameBlockedWhileHandleHeld = false;
+              fs.renameSync(movedPath, sourcePath);
+            } catch (error) {
+              renameBlockedWhileHandleHeld = true;
+              renameBlockErrorCode = error?.code ?? error?.name ?? "unknown";
+            }
+          })()
+        : Promise.resolve();
+    const [processSettled, lockProbeSettled] = await Promise.allSettled([
+      processPromise,
+      lockProbePromise,
+    ]);
+    if (processSettled.status === "rejected") throw processSettled.reason;
+    if (lockProbeSettled.status === "rejected") throw lockProbeSettled.reason;
+    const result = processSettled.value;
+    validateProcessObservation(result.processObservation, "source-binding fixture");
+    fs.renameSync(sourcePath, movedPath);
+    fs.renameSync(movedPath, sourcePath);
+    handleReleasedAfterExit = true;
+    return deepFreeze({
+      scenario,
+      processObservation: result.processObservation,
+      stdoutUtf8: result.stdout.toString("utf8"),
+      stderrUtf8: result.stderr.toString("utf8"),
+      renameBlockedWhileHandleHeld,
+      renameBlockErrorCode,
+      handleReleasedAfterExit,
+      sourceRawSha256: sha256Bytes(sourceBytes),
+      expectedRawSha256,
+      sourceLfCanonicalSha256: sha256Bytes(lfBytes),
+      expectedLfCanonicalSha256: binding.provisioner_lf_canonical_sha256,
+    });
+  } finally {
+    const cleanupFailures = [];
+    for (const descriptor of [stdoutDescriptor, stderrDescriptor]) {
+      if (descriptor === null) continue;
+      try {
+        fs.closeSync(descriptor);
+      } catch (error) {
+        cleanupFailures.push(normalizeThrownError(error));
+      }
+    }
+    for (const candidate of [
+      sourcePath,
+      movedPath,
+      markerPath,
+      stdoutPath,
+      stderrPath,
+    ]) {
+      try {
+        if (fs.existsSync(candidate)) fs.unlinkSync(candidate);
+      } catch (error) {
+        cleanupFailures.push(normalizeThrownError(error));
+      }
+    }
+    if (cleanupFailures.length > 0) {
+      throw new AggregateError(cleanupFailures, "source-binding fixture cleanup failed");
+    }
+  }
+}
+
 export const __testing = Object.freeze({
   createSyntheticEventLogSourceAuditAcquisitionArtifact,
+  exerciseFixedAuditLifecycleScenarioForTesting,
+  exerciseSourceBindingLauncherFixtureForTesting,
+  frozenSourceBindingLauncherObservationForTesting,
+  frozenUtf8BomCanonicalizationObservationForTesting,
 });

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -21,21 +22,24 @@ const MODULE_RELATIVE_PATH =
 const PROVISIONER_RELATIVE_PATH =
   "packages/vz-runtime/src/volvence_zero/offline_evidence/provision_volvence_evidence_event_log.ps1";
 const CLI_RELATIVE_PATH = "scripts/run_windows_event_log_source_audit_acquisition.mjs";
+const GIT_ATTRIBUTES_RELATIVE_PATH = ".gitattributes";
 const PROTOCOL_PATH = path.join(
   REPOSITORY_ROOT,
-  "packages/vz-runtime/src/volvence_zero/offline_evidence/protocols/windows_event_log_source_audit_acquisition_v1.json",
+  "packages/vz-runtime/src/volvence_zero/offline_evidence/protocols/windows_event_log_source_audit_acquisition_v2.json",
 );
 const QUALIFICATION_PROTOCOL_PATH = path.join(
   REPOSITORY_ROOT,
   "packages/vz-runtime/src/volvence_zero/offline_evidence/protocols/windows_cuda_host_stability_qualification_v1.json",
 );
 const EXPECTED_PROTOCOL_ID =
-  "1d9625011e23f1b26ecf4a1f4a9d95342031aa4fafd395b2f81170997257f700";
+  "4b1b5f5dbf28cf3a51a2c6604cf8f3f061aa241941eecbf6296b890df62e6287";
 const EXPECTED_PROTOCOL_RAW_SHA256 =
-  "7f4d19c0333e111215f83f1caad00e4ed2d3efec0518f267ed8d8e9f5d26e98d";
+  "02c8d605766eca3064ad0038432b20354be780d7b8f065fad2325faa166582fb";
 const EXPECTED_SOURCE_PINS = Object.freeze({
+  [GIT_ATTRIBUTES_RELATIVE_PATH]:
+    "4659362bf4b8804f37fb96f7987f6643bc9eed78769f6c6bab61530fabc3ec61",
   [MODULE_RELATIVE_PATH]:
-    "e59b386cd26a1befc863e3a68d3a19d967283e3bb7bf7711ad351503071e29f5",
+    "b5dfaa8245a8193cf506ce6cf111c95e89b46ceb214ac47eeeff7cd90b22f965",
   [PROVISIONER_RELATIVE_PATH]:
     "be0c02f136761f83412f31cdbf1f3249ad7ed15de1aff28e27fe1a8597888406",
   [CLI_RELATIVE_PATH]:
@@ -481,15 +485,47 @@ test("acquisition protocol identity, critical source pins, and fixed Audit-only 
     "-NoLogo",
     "-NoProfile",
     "-NonInteractive",
-    "-File",
-    PROVISIONER_RELATIVE_PATH,
-    "-Mode",
-    "Audit",
+    "-EncodedCommand",
+    "{frozen_same_buffer_launcher_utf16le_base64}",
   ]);
+  const launcher = __testing.frozenSourceBindingLauncherObservationForTesting();
+  assert.equal(
+    launcher.sourceUtf8Sha256,
+    PROTOCOL.execution.source_execution_binding.launcher_source_utf8_sha256,
+  );
+  assert.equal(
+    launcher.utf16leSha256,
+    PROTOCOL.execution.source_execution_binding.launcher_utf16le_sha256,
+  );
+  assert.equal(
+    PROTOCOL.execution.source_execution_binding.provisioner_relative_path,
+    PROVISIONER_RELATIVE_PATH,
+  );
+  assert.equal(PROTOCOL.execution.source_execution_binding.same_handle_read_hash_execute, true);
+  assert.equal(
+    PROTOCOL.execution.source_execution_binding
+      .handle_held_through_script_execution_and_exit_unwind,
+    true,
+  );
+  assert.equal(
+    PROTOCOL.execution.source_execution_binding
+      .handle_held_until_os_process_exit_attested,
+    false,
+  );
+  assert.equal(PROTOCOL.execution.source_execution_binding.path_reopened_for_execution, false);
+  assert.equal(PROTOCOL.execution.source_execution_binding.realized_source_execution_attested, false);
+  assert.equal(PROTOCOL.execution.source_execution_binding.executable_image_identity_attested, false);
   assert.equal(PROTOCOL.execution.shell, false);
   assert.equal(PROTOCOL.execution.windows_hide, true);
   assert.equal(PROTOCOL.execution.source_and_executable_pre_post_endpoint_equality_required, true);
   assert.equal(PROTOCOL.execution.endpoint_equality_proves_continuous_stability, false);
+  assert.equal(PROTOCOL.execution.post_kill_hard_cutoff_required, true);
+  assert.equal(PROTOCOL.execution.overall_supervision_deadline_required, true);
+  assert.equal(
+    PROTOCOL.budgets.overall_supervision_deadline_milliseconds,
+    PROTOCOL.budgets.timeout_milliseconds +
+      PROTOCOL.budgets.post_kill_pipe_drain_grace_milliseconds,
+  );
   assert.equal(PROTOCOL.scope.attempt_budget_applies_to, "single_artifact_root_only");
   assert.equal(PROTOCOL.scope.same_root_overwrite_or_retry_permitted, false);
   assert.equal(PROTOCOL.scope.cross_root_duplicate_scope_excluded, false);
@@ -501,6 +537,12 @@ test("acquisition protocol identity, critical source pins, and fixed Audit-only 
     true,
   );
   assert.equal(PROTOCOL.output_contract.directory_entry_durability_guaranteed, false);
+  assert.equal(PROTOCOL.output_contract.normal_candidate_requires_child_exit_and_close, true);
+  assert.equal(PROTOCOL.output_contract.hard_cutoff_persists_bounded_prefix_for_quarantine, true);
+  assert.equal(
+    PROTOCOL.output_contract.async_process_supervision_deadline_excludes_synchronous_persistence,
+    true,
+  );
   for (const prohibited of PROTOCOL.execution.prohibited_tokens) {
     assert.equal(PROTOCOL.execution.argv_template.includes(prohibited), false);
   }
@@ -510,6 +552,39 @@ test("acquisition protocol identity, critical source pins, and fixed Audit-only 
     "streams/audit.stdout.bin",
     "streams/audit.stderr.bin",
   ]);
+});
+
+test("critical source LF hashing preserves a leading UTF-8 BOM", () => {
+  const observation =
+    __testing.frozenUtf8BomCanonicalizationObservationForTesting();
+  assert.equal(
+    observation.withBomLfCanonicalSha256,
+    observation.expectedPreservedBomLfCanonicalSha256,
+  );
+  assert.notEqual(
+    observation.withBomLfCanonicalSha256,
+    observation.withoutBomLfCanonicalSha256,
+  );
+});
+
+test("repository attributes materialize the reviewed provisioner as LF", () => {
+  const safeRoot = REPOSITORY_ROOT.replace(/\\/gu, "/");
+  const attributes = execFileSync(
+    "git",
+    [
+      "-c",
+      `safe.directory=${safeRoot}`,
+      "check-attr",
+      "text",
+      "eol",
+      "--",
+      PROVISIONER_RELATIVE_PATH,
+    ],
+    { cwd: REPOSITORY_ROOT, encoding: "utf8" },
+  );
+  assert.match(attributes, /: text: set\r?\n/u);
+  assert.match(attributes, /: eol: lf\r?\n/u);
+  assert.ok(EXPECTED_SOURCE_PINS[GIT_ATTRIBUTES_RELATIVE_PATH]);
 });
 
 test("public acquisition gate throws before a poison Proxy can be observed", () => {
@@ -533,11 +608,15 @@ test("public acquisition gate throws before a poison Proxy can be observed", () 
   );
   assert.throws(
     () => acquireEventLogSourceAudit(poison),
-    /production-disabled in protocol v1/i,
+    /production-disabled in protocol v2/i,
   );
   assert.equal(observations, 0);
   assert.deepEqual(Object.keys(__testing), [
     "createSyntheticEventLogSourceAuditAcquisitionArtifact",
+    "exerciseFixedAuditLifecycleScenarioForTesting",
+    "exerciseSourceBindingLauncherFixtureForTesting",
+    "frozenSourceBindingLauncherObservationForTesting",
+    "frozenUtf8BomCanonicalizationObservationForTesting",
   ]);
   assert.match(
     acquireEventLogSourceAudit.toString(),
@@ -566,6 +645,209 @@ test("public CLI is a fixed no-override route to the static gate", () => {
   );
   assert.doesNotMatch(MODULE_SOURCE, /adaptProvisionerAuditV2Artifact\s*\(/u);
 });
+
+test("fixed lifecycle supervision terminalizes kill, pipe, and persistence failures", async (t) => {
+  const cutoffScenarios = [
+    "kill_false_never_close",
+    "kill_throw_never_close",
+    "kill_true_never_close",
+    "exit_without_close",
+    "stdout_pipe_error",
+  ];
+  for (const scenario of cutoffScenarios) {
+    await t.test(scenario, async () => {
+      const result =
+        await __testing.exerciseFixedAuditLifecycleScenarioForTesting(scenario);
+      const observation = result.processObservation;
+      assert.ok(result.elapsedMilliseconds < 2000);
+      assert.equal(observation.capture_complete, false);
+      assert.equal(observation.kill_attempt_count, 1);
+      assert.equal(result.killCallCount, 1);
+      assert.equal(observation.streams_close_observation, "not_observed");
+      assert.equal(observation.streams_closed_at_utc, null);
+      assert.equal(observation.capture_detached_at_hard_cutoff, true);
+      assert.ok(
+        ["post_kill_grace_cutoff", "overall_hard_cutoff"].includes(
+          observation.finalization_reason,
+        ),
+      );
+      assert.deepEqual(result.fakeChildListenerCounts, {
+        error: 1,
+        exit: 0,
+        close: 1,
+      });
+      assert.deepEqual(result.fakeStreamListenerCounts, {
+        stdoutError: 1,
+        stderrError: 1,
+      });
+    });
+  }
+
+  const exitedWithoutClose =
+    await __testing.exerciseFixedAuditLifecycleScenarioForTesting(
+      "exit_without_close",
+    );
+  assert.equal(
+    exitedWithoutClose.processObservation.process_exit_observation,
+    "child_exit_event",
+  );
+  assert.equal(exitedWithoutClose.processObservation.termination_confirmed, true);
+  assert.equal(exitedWithoutClose.processObservation.process_may_remain_running, false);
+
+  const pipeError =
+    await __testing.exerciseFixedAuditLifecycleScenarioForTesting(
+      "stdout_pipe_error",
+    );
+  assert.equal(
+    pipeError.processObservation.stream_outcomes.stdout.capture_error_stage,
+    "pipe",
+  );
+
+  const closeWithoutEnd =
+    await __testing.exerciseFixedAuditLifecycleScenarioForTesting(
+      "close_without_end",
+    );
+  assert.equal(closeWithoutEnd.processObservation.finalization_reason, "child_close");
+  assert.equal(closeWithoutEnd.processObservation.capture_complete, false);
+  for (const outcome of Object.values(
+    closeWithoutEnd.processObservation.stream_outcomes,
+  )) {
+    assert.equal(outcome.pipe_end_observed, false);
+    assert.equal(outcome.pipe_close_observed, true);
+  }
+
+  const lateError =
+    await __testing.exerciseFixedAuditLifecycleScenarioForTesting(
+      "late_error_after_cutoff",
+    );
+  assert.equal(lateError.processObservation.capture_complete, false);
+  assert.equal(lateError.processObservation.capture_detached_at_hard_cutoff, true);
+  assert.deepEqual(
+    lateError.lateErrors.map(({ origin }) => origin),
+    ["child process", "stdout pipe", "stderr pipe"],
+  );
+  for (const observed of lateError.lateErrors) {
+    assert.match(observed.messageSha256, /^[0-9a-f]{64}$/u);
+  }
+  assert.deepEqual(lateError.lateErrorGuardianCountsBeforeClose, {
+    child: 1,
+    stdout: 1,
+    stderr: 1,
+  });
+  assert.deepEqual(lateError.lateErrorGuardianCountsAfterClose, {
+    child: 0,
+    stdout: 0,
+    stderr: 0,
+  });
+
+  for (const [scenario, stage] of [
+    ["write_failure", "write"],
+    ["fsync_failure", "fsync"],
+  ]) {
+    const result =
+      await __testing.exerciseFixedAuditLifecycleScenarioForTesting(scenario);
+    assert.equal(result.processObservation.finalization_reason, "child_close");
+    assert.equal(result.processObservation.capture_complete, false);
+    assert.equal(
+      result.processObservation.stream_outcomes.stdout.persistence_error_stage,
+      stage,
+    );
+    assert.equal(result.processObservation.kill_attempt_count, 0);
+  }
+
+  const readbackFailure =
+    await __testing.exerciseFixedAuditLifecycleScenarioForTesting(
+      "readback_failure",
+    );
+  assert.ok(readbackFailure.elapsedMilliseconds < 2000);
+  assert.equal(readbackFailure.killCallCount, 0);
+  assert.equal(readbackFailure.boundedFailure.name, "Error");
+  assert.match(readbackFailure.boundedFailure.messageSha256, /^[0-9a-f]{64}$/u);
+  assert.equal("processObservation" in readbackFailure, false);
+
+  const clean =
+    await __testing.exerciseFixedAuditLifecycleScenarioForTesting("clean_close");
+  assert.equal(clean.processObservation.finalization_reason, "child_close");
+  assert.equal(clean.processObservation.process_exit_observation, "child_exit_event");
+  assert.equal(clean.processObservation.streams_close_observation, "child_close_event");
+  assert.equal(clean.processObservation.capture_complete, true);
+  assert.equal(Buffer.from(clean.stdoutBase64, "base64").toString("utf8"), "ok");
+});
+
+test(
+  "Windows descendant-held pipes reach the hard cutoff and the fixture is cleaned",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const result =
+      await __testing.exerciseFixedAuditLifecycleScenarioForTesting(
+        "descendant_holds_pipe",
+      );
+    const observation = result.processObservation;
+    assert.ok(result.elapsedMilliseconds < 15_000);
+    assert.equal(observation.finalization_reason, "overall_hard_cutoff");
+    assert.equal(observation.process_exit_observation, "child_exit_event");
+    assert.equal(observation.streams_close_observation, "not_observed");
+    assert.equal(observation.streams_closed_at_utc, null);
+    assert.equal(observation.capture_detached_at_hard_cutoff, true);
+    assert.equal(observation.capture_complete, false);
+    assert.equal(observation.kill_attempt_count, 1);
+    assert.equal(observation.descendants_contained, false);
+    assert.equal(result.descendantCleanup.killAccepted, true);
+    assert.equal(result.descendantCleanup.terminationConfirmed, true);
+  },
+);
+
+test(
+  "Windows same-buffer launcher preserves Audit semantics and rejects source drift",
+  { skip: process.platform !== "win32" },
+  async (t) => {
+    const valid =
+      await __testing.exerciseSourceBindingLauncherFixtureForTesting(
+        "valid_exit_2_and_lock",
+      );
+    assert.equal(valid.processObservation.exit_code, 2);
+    assert.equal(valid.processObservation.capture_complete, true);
+    assert.equal(valid.stderrUtf8, "");
+    const receipt = JSON.parse(valid.stdoutUtf8.trim());
+    assert.equal(receipt.Mode, "Audit");
+    assert.equal(receipt.Root.replace(/\\/gu, "/"), REPOSITORY_ROOT.replace(/\\/gu, "/"));
+    assert.match(receipt.Path, /volvence-source-binding-.+\.ps1$/u);
+    assert.equal(valid.renameBlockedWhileHandleHeld, true);
+    assert.match(valid.renameBlockErrorCode, /EBUSY|EPERM|EACCES/u);
+    assert.equal(valid.handleReleasedAfterExit, true);
+
+    for (const scenario of [
+      "normal_return_with_stale_last_exit_code",
+      "raw_mismatch_lf_equal",
+      "lf_mismatch_raw_equal",
+      "utf8_bom",
+      "invalid_utf8",
+    ]) {
+      await t.test(scenario, async () => {
+        const rejected =
+          await __testing.exerciseSourceBindingLauncherFixtureForTesting(scenario);
+        assert.equal(rejected.processObservation.exit_code, 3);
+        assert.equal(rejected.processObservation.capture_complete, true);
+        assert.equal(rejected.stdoutUtf8, "");
+        assert.match(rejected.stderrUtf8, /fixed source-binding launcher failed/u);
+        assert.equal(rejected.handleReleasedAfterExit, true);
+        if (scenario === "raw_mismatch_lf_equal") {
+          assert.notEqual(rejected.sourceRawSha256, rejected.expectedRawSha256);
+          assert.equal(
+            rejected.sourceLfCanonicalSha256,
+            rejected.expectedLfCanonicalSha256,
+          );
+        } else if (scenario === "lf_mismatch_raw_equal") {
+          assert.equal(rejected.sourceRawSha256, rejected.expectedRawSha256);
+          assert.notEqual(
+            rejected.sourceLfCanonicalSha256,
+            rejected.expectedLfCanonicalSha256,
+          );
+        }
+      });
+    }
+  },
+);
 
 test("exit 0 and exit 2 Audit v2 declarations produce non-authoritative adapter envelopes", async (t) => {
   const cases = [
@@ -675,15 +957,18 @@ test("exact root, 000 claim, raw streams, and 001 terminal lineage fully revalid
     "synthetic://windows-powershell-5.1",
   );
   assert.deepEqual(artifact.claim.invocation.argv_template, PROTOCOL.execution.argv_template);
+  const launcher = __testing.frozenSourceBindingLauncherObservationForTesting();
   assert.deepEqual(artifact.claim.invocation.requested_argv, [
     "-NoLogo",
     "-NoProfile",
     "-NonInteractive",
-    "-File",
-    path.join(REPOSITORY_ROOT, ...PROVISIONER_RELATIVE_PATH.split("/")),
-    "-Mode",
-    "Audit",
+    "-EncodedCommand",
+    launcher.encodedCommand,
   ]);
+  assert.deepEqual(
+    artifact.claim.invocation.source_execution_binding,
+    PROTOCOL.execution.source_execution_binding,
+  );
   assert.equal(artifact.claim.invocation.cwd, REPOSITORY_ROOT);
   assert.equal(artifact.claim.invocation.invocation_realization, "synthetic_not_realized");
   assert.equal(artifact.claim.invocation.environment_inherited, false);
@@ -707,6 +992,19 @@ test("exact root, 000 claim, raw streams, and 001 terminal lineage fully revalid
   assert.equal(artifact.terminal.stream_capture.stdout_byte_count, artifact.stdout.length);
   assert.equal(artifact.terminal.stream_capture.stderr_raw_sha256, sha256(artifact.stderr));
   assert.equal(artifact.terminal.stream_capture.stderr_byte_count, artifact.stderr.length);
+  assert.equal(
+    artifact.terminal.process_observation.schema_version,
+    PROTOCOL.output_contract.process_observation_schema_version,
+  );
+  assert.equal(
+    artifact.terminal.process_observation.process_exit_observation,
+    "synthetic_declaration",
+  );
+  assert.equal(
+    artifact.terminal.process_observation.streams_close_observation,
+    "synthetic_declaration",
+  );
+  assert.equal(artifact.terminal.process_observation.capture_complete, true);
   assert.equal(created.validation.terminalId, artifact.terminal.terminal_id);
   assert.equal(created.validation.terminalRawSha256, sha256(artifact.terminalRaw));
   assert.equal(created.validation.fullRootIdentity, sha256(artifact.terminalRaw));
