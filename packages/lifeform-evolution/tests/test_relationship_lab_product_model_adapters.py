@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from dataclasses import FrozenInstanceError
 
 import pytest
 
+from lifeform_domain_emogpt.lab import RelationshipAction, canonical_json
 from lifeform_evolution.relationship_lab_baseline import HFStatelessRelationshipActionPolicy
 from lifeform_evolution.relationship_lab_product_baselines import (
     FrozenProductChatMessage,
@@ -16,11 +18,14 @@ from lifeform_evolution.relationship_lab_product_baselines import (
 from lifeform_evolution.relationship_lab_product_model_adapters import (
     BGE_M3_MODEL_ID,
     BGE_M3_MODEL_REVISION,
+    BGE_M3_SENTENCE_TRANSFORMERS_VERSION,
+    BGE_M3_WEIGHT_BYTES_SHA256,
     MissingPublicSemanticEmbeddingError,
     PrecomputedPublicEmbeddingTable,
     PrecomputedPublicSemanticEmbedder,
     RevisionPinnedBgeM3PublicSemanticEmbedder,
     bge_m3_public_semantic_embedder,
+    bge_m3_weight_pinned_embedder_identity,
     build_precomputed_public_embedding_table,
     load_precomputed_public_embedding_table,
     write_precomputed_public_embedding_table,
@@ -56,9 +61,13 @@ class _RecordingChatTokenizer:
 class _RecordingEmbedder:
     model_source = BGE_M3_MODEL_ID
     model_revision = BGE_M3_MODEL_REVISION
-    name = (
-        f"sentence-transformer:{BGE_M3_MODEL_ID}"
-        f"@revision:{BGE_M3_MODEL_REVISION}/model-adapter-v1"
+    weights_sha256 = BGE_M3_WEIGHT_BYTES_SHA256
+    sentence_transformers_version = BGE_M3_SENTENCE_TRANSFORMERS_VERSION
+    name = bge_m3_weight_pinned_embedder_identity(
+        model_revision=model_revision,
+        weights_sha256=weights_sha256,
+        sentence_transformers_version=sentence_transformers_version,
+        identity_kind="model-adapter-v2",
     )
 
     def __init__(self, vectors: dict[str, tuple[float, ...]]) -> None:
@@ -77,7 +86,13 @@ def _public_input(*contents: str, current: str = "current public observation") -
                 ordinal=index,
                 exchange_id=f"public-exchange-{index}",
                 user_messages=(content,),
-                assistant_outcome=f"paired public assistant outcome {index}",
+                assistant_outcome=canonical_json(
+                    {
+                        "action_id": RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+                        "observed_outcome_id": "felt_heard",
+                        "rendered_user_reaction": f"public reaction {index}",
+                    }
+                ),
             )
             for index, content in enumerate(contents)
         ),
@@ -134,33 +149,53 @@ class _FakeSentenceTransformer:
         return _FakeEmbeddingVector([1.0, -0.25])
 
 
-def test_bge_m3_adapter_lazy_load_passes_exact_revision_to_model_factory() -> None:
+def _fake_bge_snapshot(tmp_path, *, weight_bytes: bytes = b"frozen fake bge weights"):
+    snapshot = tmp_path / "bge-snapshot"
+    snapshot.mkdir()
+    (snapshot / "pytorch_model.bin").write_bytes(weight_bytes)
+    return snapshot, hashlib.sha256(weight_bytes).hexdigest()
+
+
+def test_bge_m3_adapter_verifies_offline_snapshot_before_model_factory(tmp_path) -> None:
+    snapshot, weights_sha256 = _fake_bge_snapshot(tmp_path)
     model = _FakeSentenceTransformer()
     factory_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    runtime_calls: list[str] = []
 
     def factory(*args: object, **kwargs: object) -> _FakeSentenceTransformer:
         factory_calls.append((args, kwargs))
         return model
 
+    def runtime_version(distribution_name: str) -> str:
+        runtime_calls.append(distribution_name)
+        return BGE_M3_SENTENCE_TRANSFORMERS_VERSION
+
     embedder = bge_m3_public_semantic_embedder(
         device="cpu",
+        weights_sha256=weights_sha256,
         model_factory=factory,
+        snapshot_path=snapshot,
+        runtime_version_resolver=runtime_version,
     )
 
     assert isinstance(embedder, RevisionPinnedBgeM3PublicSemanticEmbedder)
     assert factory_calls == []
     assert embedder.model_source == BGE_M3_MODEL_ID
     assert embedder.model_revision == BGE_M3_MODEL_REVISION
-    assert embedder.name == (
-        f"sentence-transformer:{BGE_M3_MODEL_ID}"
-        f"@revision:{BGE_M3_MODEL_REVISION}/model-adapter-v1"
+    assert embedder.weights_sha256 == weights_sha256
+    assert embedder.sentence_transformers_version == BGE_M3_SENTENCE_TRANSFORMERS_VERSION
+    assert embedder.name == bge_m3_weight_pinned_embedder_identity(
+        model_revision=BGE_M3_MODEL_REVISION,
+        weights_sha256=weights_sha256,
+        sentence_transformers_version=BGE_M3_SENTENCE_TRANSFORMERS_VERSION,
+        identity_kind="model-adapter-v2",
     )
     assert embedder.embed("public evidence only") == (1.0, -0.25)
+    assert runtime_calls == ["sentence-transformers"]
     assert factory_calls == [
         (
-            (BGE_M3_MODEL_ID,),
+            (str(snapshot.resolve()),),
             {
-                "revision": BGE_M3_MODEL_REVISION,
                 "device": "cpu",
                 "local_files_only": True,
             },
@@ -170,6 +205,66 @@ def test_bge_m3_adapter_lazy_load_passes_exact_revision_to_model_factory() -> No
 
     with pytest.raises(ValueError, match="40-hex revision"):
         bge_m3_public_semantic_embedder(model_revision="main")
+
+
+def test_bge_m3_adapter_rejects_wrong_weight_or_runtime_before_fake_factory(
+    tmp_path,
+) -> None:
+    snapshot, weights_sha256 = _fake_bge_snapshot(tmp_path)
+    factory_calls: list[object] = []
+
+    def factory(*args: object, **kwargs: object) -> _FakeSentenceTransformer:
+        factory_calls.append((args, kwargs))
+        return _FakeSentenceTransformer()
+
+    wrong_weight = bge_m3_public_semantic_embedder(
+        device="cpu",
+        weights_sha256="0" * 64,
+        model_factory=factory,
+        snapshot_path=snapshot,
+        runtime_version_resolver=lambda _name: BGE_M3_SENTENCE_TRANSFORMERS_VERSION,
+    )
+    with pytest.raises(ValueError, match="raw weight bytes sha256 mismatch"):
+        wrong_weight.embed("public evidence")
+    assert factory_calls == []
+
+    wrong_runtime = bge_m3_public_semantic_embedder(
+        device="cpu",
+        weights_sha256=weights_sha256,
+        model_factory=factory,
+        snapshot_path=snapshot,
+        runtime_version_resolver=lambda _name: "0.0.0",
+    )
+    with pytest.raises(ValueError, match="runtime version mismatch"):
+        wrong_runtime.embed("public evidence")
+    assert factory_calls == []
+
+
+def test_bge_m3_adapter_snapshot_resolver_is_local_only_and_revision_pinned(
+    tmp_path,
+) -> None:
+    snapshot, weights_sha256 = _fake_bge_snapshot(tmp_path)
+    resolver_calls: list[dict[str, object]] = []
+
+    def snapshot_resolver(**kwargs: object) -> str:
+        resolver_calls.append(kwargs)
+        return str(snapshot)
+
+    embedder = bge_m3_public_semantic_embedder(
+        device="cpu",
+        weights_sha256=weights_sha256,
+        model_factory=lambda *_args, **_kwargs: _FakeSentenceTransformer(),
+        snapshot_resolver=snapshot_resolver,
+        runtime_version_resolver=lambda _name: BGE_M3_SENTENCE_TRANSFORMERS_VERSION,
+    )
+    assert embedder.embed("public evidence") == (1.0, -0.25)
+    assert resolver_calls == [
+        {
+            "repo_id": BGE_M3_MODEL_ID,
+            "revision": BGE_M3_MODEL_REVISION,
+            "local_files_only": True,
+        }
+    ]
 
 
 def test_precomputed_table_build_load_and_strict_query_are_content_addressed(
@@ -213,7 +308,17 @@ def test_precomputed_table_build_load_and_strict_query_are_content_addressed(
     assert loaded.to_json() == table.to_json()
     assert loaded.source_model_id == BGE_M3_MODEL_ID
     assert loaded.source_model_revision == BGE_M3_MODEL_REVISION
+    assert loaded.source_weights_sha256 == BGE_M3_WEIGHT_BYTES_SHA256
+    assert (
+        loaded.source_sentence_transformers_version
+        == BGE_M3_SENTENCE_TRANSFORMERS_VERSION
+    )
     assert loaded.to_payload()["source_model_revision"] == BGE_M3_MODEL_REVISION
+    assert adapter.weights_sha256 == BGE_M3_WEIGHT_BYTES_SHA256
+    assert (
+        adapter.sentence_transformers_version
+        == BGE_M3_SENTENCE_TRANSFORMERS_VERSION
+    )
     assert len(fsync_calls) == 1
     assert adapter.name.endswith(f"sha256:{table.artifact_id}")
     for text in all_texts:
@@ -275,6 +380,15 @@ def test_table_builder_rejects_unpinned_or_inconsistent_bge_provenance_before_em
             public_inputs=(public_input,),
         )
     assert inconsistent.seen == []
+
+    inconsistent_weights = _RecordingEmbedder(vectors)
+    inconsistent_weights.weights_sha256 = "0" * 64
+    with pytest.raises(ValueError, match="weights_sha256 disagrees"):
+        build_precomputed_public_embedding_table(
+            embedder=inconsistent_weights,
+            public_inputs=(public_input,),
+        )
+    assert inconsistent_weights.seen == []
 
 
 def test_table_loader_rejects_duplicate_keys_and_noncanonical_raw_bytes(tmp_path) -> None:
@@ -348,6 +462,8 @@ def test_test_only_table_identity_is_explicitly_non_bge_and_stays_content_addres
 
     assert loaded.source_model_id == "fake-test-only/product-horizon"
     assert loaded.source_model_revision is None
+    assert loaded.source_weights_sha256 is None
+    assert loaded.source_sentence_transformers_version is None
     assert loaded.artifact_id == test_only.artifact_id
     with pytest.raises(ValueError, match="canonical slug"):
         PrecomputedPublicEmbeddingTable(
@@ -355,3 +471,30 @@ def test_test_only_table_identity_is_explicitly_non_bge_and_stays_content_addres
             embedding_width=formal.embedding_width,
             records=formal.records,
         )
+
+
+def test_legacy_unweighted_v2_table_identity_remains_strictly_loadable() -> None:
+    public_input = _public_input("public source")
+    vectors = {
+        public_input.history[0].semantic_text: (1.0, 0.0),
+        public_input.current_observation.content: (0.0, 1.0),
+    }
+    current = build_precomputed_public_embedding_table(
+        embedder=_RecordingEmbedder(vectors),
+        public_inputs=(public_input,),
+    )
+    legacy = PrecomputedPublicEmbeddingTable(
+        source_embedder_name=(
+            f"sentence-transformer:{BGE_M3_MODEL_ID}"
+            f"@revision:{BGE_M3_MODEL_REVISION}/model-adapter-v1"
+        ),
+        embedding_width=current.embedding_width,
+        records=current.records,
+    )
+
+    loaded = PrecomputedPublicEmbeddingTable.from_json(legacy.to_json())
+
+    assert loaded.source_model_revision == BGE_M3_MODEL_REVISION
+    assert loaded.source_weights_sha256 is None
+    assert loaded.source_sentence_transformers_version is None
+    assert loaded.to_json() == legacy.to_json()

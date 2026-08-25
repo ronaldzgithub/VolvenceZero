@@ -1,0 +1,2564 @@
+from __future__ import annotations
+
+import hashlib
+import math
+from dataclasses import dataclass
+from enum import Enum
+from typing import TYPE_CHECKING, Mapping
+from uuid import uuid4
+
+from volvence_zero.audit.types import AuditSnapshot
+from volvence_zero.dual_track import DualTrackSnapshot
+from volvence_zero.evaluation.types import EvaluationSnapshot
+from volvence_zero.memory import Track
+from volvence_zero.owner_hydration import (
+    HydrationOwnerMismatchError,
+    HydrationPayloadInvalidError,
+    HydrationVersionMismatchError,
+    OwnerPersistenceSnapshot,
+)
+from volvence_zero.prediction.error import PredictionActionContext, PredictionError, PredictionErrorSnapshot
+from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.social_cognition import (
+    PreferenceActionForecastSettlement,
+    SocialPredictionError,
+    SocialPredictionOutcome,
+)
+from volvence_zero.steering_contracts import SteeringTerminalPredictionError
+from volvence_zero.temporal_types import TemporalAbstractionSnapshot
+
+if TYPE_CHECKING:
+    from volvence_zero.temporal.interface import MetacontrollerRuntimeState
+
+
+class ModificationGate(str, Enum):
+    ONLINE = "online"
+    BACKGROUND = "background"
+    OFFLINE = "offline"
+    HUMAN_REVIEW = "human-review"
+
+
+class FramingRiskKind(str, Enum):
+    """Typed framing risk bucket for self-modification proposals.
+
+    The gate consumes this enum only when an upstream audit / review path
+    supplies it explicitly. It must not be inferred from proposal text by
+    keyword matching.
+    """
+
+    REWARD_HACKING_NORMALIZED = "reward_hacking_normalized"
+    ALIGNMENT_FAKING = "alignment_faking"
+    SABOTAGE = "sabotage"
+    MALICIOUS_COOPERATION = "malicious_cooperation"
+    MONITOR_DISRUPTION = "monitor_disruption"
+    COLLEAGUE_FRAMING = "colleague_framing"
+
+
+@dataclass(frozen=True)
+class FramingAwarenessCheck:
+    """Typed OA-3 framing evidence attached to a proposal.
+
+    ``risk_score`` is in [0, 1]. ``inoculation_statement_present`` means the
+    proposer explicitly documented that the risky frame is allowed in this
+    bounded evaluation context; otherwise high-risk frames block.
+    """
+
+    risk_kind: FramingRiskKind
+    risk_score: float
+    inoculation_statement_present: bool
+    evidence_id: str
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.risk_score <= 1.0:
+            raise ValueError(
+                f"FramingAwarenessCheck.risk_score must be within [0.0, 1.0], "
+                f"got {self.risk_score!r}"
+            )
+
+
+@dataclass(frozen=True)
+class CreditRecord:
+    record_id: str
+    level: str
+    track: Track
+    source_event: str
+    credit_value: float
+    context: str
+    timestamp_ms: int
+    prediction_id: str = ""
+    environment_event_id: str = ""
+    environment_outcome_id: str = ""
+    segment_id: str = ""
+    abstract_action_id: str = ""
+    # State KV P5-b: which conditioning banks were live for the action this
+    # credit rates, copied from ``PredictionActionContext`` (which read the
+    # temporal snapshot's published lineage refs). Typed rather than folded
+    # into the free-text ``context`` so the P5-c bank-confidence readout can
+    # consume attribution without parsing prose. Empty = no bank influenced
+    # the action, a meaningful negative for per-bank credit.
+    conditioning_bank_set: tuple[str, ...] = ()
+    conditioning_bank_fingerprints: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class SelfModificationRecord:
+    target: str
+    gate: ModificationGate
+    decision: GateDecision
+    old_value_hash: str
+    new_value_hash: str
+    justification: str
+    timestamp_ms: int
+    is_reversible: bool
+    checkpoint_id: str = ""
+    lineage_hash: str = ""
+    proposal_hash: str = ""
+
+
+@dataclass(frozen=True)
+class NStepAttributionEntry:
+    action_id: str
+    family_id: str
+    regime_id: str
+    timestamp_ms: int
+    outcome_history: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class RewardingStateHeadState:
+    rule_id: str
+    feature_dim: int
+    update_count: int
+    weights: tuple[float, ...]
+    bias: float
+    last_prediction: float
+    last_target: float
+    last_validation_delta: float
+    last_capacity_cost: float
+    last_rollback_evidence: str
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class CounterfactualContributionReadout:
+    source_event: str
+    historical_baseline: float
+    learned_baseline: float
+    actual_outcome: float
+    learned_contribution: float
+    validation_delta: float
+    update_count: int
+    checkpoint_id: str
+    gate_decision: GateDecision
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class GateRiskShadowReadout:
+    """C3 report-only learned risk score for the modification gate.
+
+    The rule cascade in ``evaluate_gate_reasons`` stays the safety floor
+    (R9/R10 boundary — never bypassed). This readout publishes a bounded
+    learned risk estimate alongside each gate decision so promotion
+    evidence can compare "what the learned head would have said" against
+    the realized rule decisions. It never feeds back into the decision.
+    """
+
+    predicted_risk: float
+    realized_block: bool
+    update_count: int
+    running_abs_error: float
+    agreement_rate: float
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class LeastControlReadout:
+    """COG-1 report-only least-control evidence.
+
+    Higher score means comparable outcomes were achieved with less recent
+    self-modification/control effort. It is a readout, not a gate input.
+    """
+
+    control_effort: float
+    outcome_quality: float
+    least_control_score: float
+    evidence_count: int
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class CreditSnapshot:
+    recent_credits: tuple[CreditRecord, ...]
+    recent_modifications: tuple[SelfModificationRecord, ...]
+    cumulative_credit_by_level: tuple[tuple[str, float], ...]
+    session_level_credits: tuple[tuple[str, float], ...] = ()
+    discount_factor: float = 0.95
+    delayed_ledger_size: int = 0
+    horizon_depth: int = 1
+    description: str = ""
+    rewarding_state_head: RewardingStateHeadState | None = None
+    counterfactual_readouts: tuple[CounterfactualContributionReadout, ...] = ()
+    least_control_readout: LeastControlReadout | None = None
+    # C3: latest report-only learned gate-risk readout (None until the
+    # first proposal passes through the gate this session).
+    gate_risk_readout: GateRiskShadowReadout | None = None
+    # Owner-published structured action/bank lineage survives the generic
+    # recent window. Bank-attributed dialogue outcomes do not necessarily
+    # carry environment prediction/outcome ids, so typed bank lineage is
+    # independently sufficient for retention.
+    recent_action_lineage_credits: tuple[CreditRecord, ...] = ()
+
+
+@dataclass(frozen=True)
+class _CounterfactualContext:
+    chosen_regime_id: str
+    chosen_abstract_action: str
+    chosen_segment_id: str
+    source_event: str
+    historical_baseline: float
+    actual_outcome: float
+    contribution: float
+    weight_total: float
+    contributors: int
+    context: str
+    features: tuple[float, ...]
+
+
+PROTECTED_WRITE_SURFACES: tuple[str, ...] = (
+    "audit",
+    "credit.gate",
+    "evaluation",
+    "gate",
+    "modification_gate",
+)
+
+# HyperAgents adversarial class C ("扩大可达模型族", spec
+# docs/specs/credit-and-self-modification.md §ModificationGate 对抗模型):
+# capacity-expanding changes (new learnable parameter surfaces, new
+# backends, raised capacity limits such as n_z / adapter rank / drift
+# envelopes) must live under these declared namespaces and can only be
+# expressed with ``ModificationGate.HUMAN_REVIEW`` — which the runtime
+# gate never auto-allows. This is exact namespace matching (protocol
+# convention), not keyword inference over free text.
+CAPACITY_EXPANSION_WRITE_SURFACES: tuple[str, ...] = (
+    "temporal.capacity",
+    "substrate.capacity",
+    "memory.capacity",
+    "internal_rl.capacity",
+    "envelope",
+)
+
+
+def _is_protected_write_target(target: str) -> bool:
+    return any(
+        target == protected or target.startswith(f"{protected}.")
+        for protected in PROTECTED_WRITE_SURFACES
+    )
+
+
+def _is_capacity_expansion_target(target: str) -> bool:
+    return any(
+        target == surface or target.startswith(f"{surface}.")
+        for surface in CAPACITY_EXPANSION_WRITE_SURFACES
+    )
+
+
+@dataclass(frozen=True)
+class ModificationProposal:
+    target: str
+    desired_gate: ModificationGate
+    old_value_hash: str
+    new_value_hash: str
+    justification: str
+    is_reversible: bool = True
+    validation_delta: float = 0.0
+    capacity_cost: float = 0.0
+    rollback_evidence: str = ""
+    framing_check: FramingAwarenessCheck | None = None
+
+    def __post_init__(self) -> None:
+        if _is_protected_write_target(self.target):
+            raise ValueError(
+                "ModificationProposal.target cannot address a protected "
+                f"judgment surface: {self.target!r}"
+            )
+
+
+@dataclass(frozen=True)
+class RuntimeAdaptationAudit:
+    target: str
+    gate: ModificationGate
+    decision: GateDecision
+    old_value_hash: str
+    new_value_hash: str
+    justification: str
+    timestamp_ms: int
+    is_reversible: bool = True
+
+
+def _clamp(value: float) -> float:
+    return max(-1.0, min(1.0, value))
+
+
+class GateDecision(str, Enum):
+    ALLOW = "allow"
+    BLOCK = "block"
+
+
+def _unit_digest(value: str, *, width: int = 2) -> tuple[float, ...]:
+    if not value:
+        return tuple(0.0 for _ in range(width))
+    digest = hashlib.sha256(value.encode("utf-8")).digest()
+    return tuple((digest[index] / 127.5) - 1.0 for index in range(width))
+
+
+def _state_hash(state: object) -> str:
+    return hashlib.sha256(repr(state).encode("utf-8")).hexdigest()
+
+
+def _clamp_unit(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _mean_abs(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    return sum(abs(value) for value in values) / len(values)
+
+
+def _align_counterfactual_features(features: tuple[float, ...], *, dim: int) -> tuple[float, ...]:
+    if not features:
+        return tuple(0.0 for _ in range(dim))
+    if len(features) >= dim:
+        return tuple(_clamp(features[index]) for index in range(dim))
+    return tuple(_clamp(features[index % len(features)]) for index in range(dim))
+
+
+def _counterfactual_features(
+    *,
+    action_context: PredictionActionContext,
+    historical_baseline: float,
+    weight_total: float,
+    contributors: int,
+    temporal_snapshot: TemporalAbstractionSnapshot | None,
+) -> tuple[float, ...]:
+    z_digest = tuple(action_context.z_t_digest[:4])
+    if len(z_digest) < 4:
+        z_digest = z_digest + tuple(0.0 for _ in range(4 - len(z_digest)))
+    regime_digest = _unit_digest(action_context.regime_id, width=2)
+    action_digest = _unit_digest(action_context.abstract_action_id, width=2)
+    segment_digest = _unit_digest(action_context.segment_id, width=2)
+    closed_count = 0.0
+    active_match = 0.0
+    if temporal_snapshot is not None:
+        closed_count = _clamp_unit(len(temporal_snapshot.closed_segments) / 8.0)
+        active_match = 1.0 if temporal_snapshot.active_abstract_action == action_context.abstract_action_id else 0.0
+    return (
+        z_digest
+        + regime_digest
+        + action_digest
+        + segment_digest
+        + (
+            _clamp(historical_baseline),
+            _clamp_unit(weight_total / max(weight_total, 1.0)),
+            _clamp_unit(contributors / 8.0),
+            closed_count,
+            active_match,
+        )
+    )
+
+
+class _RewardingStateHead:
+    """Small owner-internal contextual baseline for Phase 2.A COCOA."""
+
+    _FEATURE_DIM = 15
+
+    def __init__(self, *, learning_rate: float = 0.08) -> None:
+        self._learning_rate = max(0.01, min(learning_rate, 0.20))
+        self._weights = tuple(0.0 for _ in range(self._FEATURE_DIM))
+        self._bias = 0.0
+        self._update_count = 0
+        self._last_prediction = 0.0
+        self._last_target = 0.0
+        self._last_validation_delta = 0.0
+        self._last_capacity_cost = 0.0
+        self._last_rollback_evidence = ""
+
+    @property
+    def update_count(self) -> int:
+        return self._update_count
+
+    def predict(self, *, features: tuple[float, ...], fallback: float) -> float:
+        if self._update_count == 0:
+            return _clamp(fallback)
+        aligned = _align_counterfactual_features(features, dim=self._FEATURE_DIM)
+        prediction = self._bias + sum(
+            weight * value for weight, value in zip(self._weights, aligned, strict=True)
+        )
+        return _clamp(prediction)
+
+    def export_state(self) -> RewardingStateHeadState:
+        return RewardingStateHeadState(
+            rule_id="credit.rewarding_state_head.v1",
+            feature_dim=self._FEATURE_DIM,
+            update_count=self._update_count,
+            weights=self._weights,
+            bias=self._bias,
+            last_prediction=self._last_prediction,
+            last_target=self._last_target,
+            last_validation_delta=self._last_validation_delta,
+            last_capacity_cost=self._last_capacity_cost,
+            last_rollback_evidence=self._last_rollback_evidence,
+            description=(
+                f"COCOA rewarding-state head updates={self._update_count} "
+                f"last_prediction={self._last_prediction:.3f} target={self._last_target:.3f} "
+                f"validation_delta={self._last_validation_delta:.3f} "
+                f"capacity_cost={self._last_capacity_cost:.3f}."
+            ),
+        )
+
+    def restore_state(self, state: RewardingStateHeadState) -> None:
+        if state.feature_dim <= 0:
+            raise ValueError("rewarding state head feature_dim must be positive")
+        aligned_weights = _align_counterfactual_features(state.weights, dim=self._FEATURE_DIM)
+        self._weights = aligned_weights
+        self._bias = _clamp(state.bias)
+        self._update_count = max(0, state.update_count)
+        self._last_prediction = _clamp(state.last_prediction)
+        self._last_target = _clamp(state.last_target)
+        self._last_validation_delta = float(state.last_validation_delta)
+        self._last_capacity_cost = _clamp_unit(state.last_capacity_cost)
+        self._last_rollback_evidence = state.last_rollback_evidence
+
+    def propose_update(
+        self,
+        *,
+        features: tuple[float, ...],
+        target: float,
+        evaluation_snapshot: EvaluationSnapshot,
+        timestamp_ms: int,
+    ) -> SelfModificationRecord:
+        aligned = _align_counterfactual_features(features, dim=self._FEATURE_DIM)
+        target = _clamp(target)
+        old_state = self.export_state()
+        old_prediction = _clamp(
+            self._bias
+            + sum(weight * value for weight, value in zip(self._weights, aligned, strict=True))
+        )
+        error = _clamp(target - old_prediction)
+        step = self._learning_rate * max(0.25, min(1.0, _mean_abs(aligned) + 0.25))
+        proposed_weights = tuple(
+            _clamp(weight + step * error * value)
+            for weight, value in zip(self._weights, aligned, strict=True)
+        )
+        proposed_bias = _clamp(self._bias + step * error)
+        proposed_prediction = _clamp(
+            proposed_bias
+            + sum(weight * value for weight, value in zip(proposed_weights, aligned, strict=True))
+        )
+        validation_delta = abs(target - old_prediction) - abs(target - proposed_prediction)
+        capacity_cost = _mean_abs(
+            tuple(
+                proposed - current
+                for proposed, current in zip(proposed_weights, self._weights, strict=True)
+            )
+            + (proposed_bias - self._bias,)
+        )
+        checkpoint_id = f"credit-rewarding-state:{timestamp_ms}:{self._update_count + 1}"
+        proposal = ModificationProposal(
+            target="credit.rewarding_state_head",
+            desired_gate=ModificationGate.ONLINE,
+            old_value_hash=_state_hash(old_state),
+            new_value_hash=_state_hash((proposed_weights, proposed_bias, self._update_count + 1)),
+            justification=(
+                "Update COCOA rewarding-state head from closed action outcome; "
+                f"old_prediction={old_prediction:.3f}; proposed_prediction={proposed_prediction:.3f}; "
+                f"target={target:.3f}."
+            ),
+            is_reversible=True,
+            validation_delta=validation_delta,
+            capacity_cost=capacity_cost,
+            rollback_evidence=checkpoint_id,
+        )
+        gate_reasons = evaluate_gate_reasons(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
+        decision = GateDecision.BLOCK if gate_reasons else GateDecision.ALLOW
+        if decision is GateDecision.ALLOW:
+            self._weights = proposed_weights
+            self._bias = proposed_bias
+            self._update_count += 1
+            justification = f"ALLOWED: {proposal.justification}"
+        else:
+            justification = f"BLOCKED: {proposal.justification}; reasons={'; '.join(gate_reasons)}"
+        self._last_prediction = old_prediction
+        self._last_target = target
+        self._last_validation_delta = validation_delta
+        self._last_capacity_cost = capacity_cost
+        self._last_rollback_evidence = checkpoint_id
+        return SelfModificationRecord(
+            target=proposal.target,
+            gate=proposal.desired_gate,
+            decision=decision,
+            old_value_hash=proposal.old_value_hash,
+            new_value_hash=proposal.new_value_hash,
+            justification=justification,
+            timestamp_ms=timestamp_ms,
+            is_reversible=True,
+            checkpoint_id=checkpoint_id,
+        )
+
+
+def derive_credit_records(
+    *,
+    dual_track_snapshot: DualTrackSnapshot,
+    evaluation_snapshot: EvaluationSnapshot,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    records: list[CreditRecord] = []
+    for score in evaluation_snapshot.turn_scores:
+        if score.family == "task":
+            records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="turn",
+                    track=Track.WORLD,
+                    source_event=score.metric_name,
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+        elif score.family in {"interaction", "relationship"}:
+            records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="turn",
+                    track=Track.SELF,
+                    source_event=score.metric_name,
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+        elif score.family == "safety":
+            records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="turn",
+                    track=Track.SHARED,
+                    source_event=score.metric_name,
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+
+    records.append(
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="session",
+            track=Track.SHARED,
+            source_event="cross_track_tension",
+            credit_value=_clamp(1.0 - dual_track_snapshot.cross_track_tension),
+            context=dual_track_snapshot.description,
+            timestamp_ms=timestamp_ms,
+        )
+    )
+    return tuple(records)
+
+
+def derive_credit_records_from_prediction_error_first(
+    *,
+    dual_track_snapshot: DualTrackSnapshot,
+    evaluation_snapshot: EvaluationSnapshot,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    timestamp_ms: int,
+    temporal_snapshot: TemporalAbstractionSnapshot | None = None,
+) -> tuple[CreditRecord, ...]:
+    """Primary credit derivation path.
+
+    When prediction error is available, PE-derived records are the primary
+    signal and evaluation-derived records are reduced to lightweight
+    readout/evidence credits. Without PE, fall back to the legacy path.
+    """
+    if prediction_error_snapshot is None:
+        return derive_credit_records(
+            dual_track_snapshot=dual_track_snapshot,
+            evaluation_snapshot=evaluation_snapshot,
+            timestamp_ms=timestamp_ms,
+        )
+    records = list(
+        derive_prediction_error_credit_records(
+            prediction_error=prediction_error_snapshot.error,
+            timestamp_ms=timestamp_ms,
+            action_context=prediction_error_snapshot.action_context,
+        )
+    )
+    if evaluation_snapshot.turn_scores:
+        for score in evaluation_snapshot.turn_scores:
+            if score.family in {"task", "relationship", "learning", "abstraction", "safety"}:
+                records.append(
+                    CreditRecord(
+                        record_id=str(uuid4()),
+                        level="evaluation_readout",
+                        track=(
+                            Track.WORLD
+                            if score.family == "task"
+                            else Track.SELF
+                            if score.family == "relationship"
+                            else Track.SHARED
+                        ),
+                        source_event=f"evaluation_readout:{score.metric_name}",
+                        credit_value=_clamp(score.value * 0.25),
+                        context=score.evidence,
+                        timestamp_ms=timestamp_ms,
+                    )
+                )
+    records.append(
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.SHARED,
+            source_event="pe:cross_track_tension",
+            credit_value=_clamp(0.5 - dual_track_snapshot.cross_track_tension),
+            context=dual_track_snapshot.description,
+            timestamp_ms=timestamp_ms,
+        )
+    )
+    if temporal_snapshot is not None:
+        records.extend(
+            derive_segment_closure_credit_records(
+                prediction_error_snapshot=prediction_error_snapshot,
+                temporal_snapshot=temporal_snapshot,
+                timestamp_ms=timestamp_ms,
+            )
+        )
+    return tuple(records)
+
+
+def derive_prediction_error_credit_records(
+    *,
+    prediction_error: PredictionError,
+    timestamp_ms: int,
+    action_context: PredictionActionContext | None = None,
+) -> tuple[CreditRecord, ...]:
+    context_suffix = _action_context_suffix(action_context)
+    lineage_fields = {
+        "prediction_id": (
+            action_context.prediction_id if action_context is not None else ""
+        ),
+        "environment_event_id": (
+            action_context.environment_event_id
+            if action_context is not None
+            else ""
+        ),
+        "environment_outcome_id": (
+            action_context.environment_outcome_id
+            if action_context is not None
+            else ""
+        ),
+        "segment_id": (
+            action_context.segment_id if action_context is not None else ""
+        ),
+        "abstract_action_id": (
+            action_context.abstract_action_id
+            if action_context is not None
+            else ""
+        ),
+        "conditioning_bank_set": (
+            action_context.conditioning_bank_set
+            if action_context is not None
+            else ()
+        ),
+        "conditioning_bank_fingerprints": (
+            action_context.conditioning_bank_fingerprints
+            if action_context is not None
+            else ()
+        ),
+    }
+    records = (
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.WORLD,
+            source_event="pe:task",
+            credit_value=_clamp(prediction_error.task_error),
+            context=f"{prediction_error.description}{context_suffix}",
+            timestamp_ms=timestamp_ms,
+            **lineage_fields,
+        ),
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.SELF,
+            source_event="pe:relationship",
+            credit_value=_clamp(prediction_error.relationship_error),
+            context=f"{prediction_error.description}{context_suffix}",
+            timestamp_ms=timestamp_ms,
+            **lineage_fields,
+        ),
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.SHARED,
+            source_event="pe:regime",
+            credit_value=_clamp(prediction_error.regime_error),
+            context=f"{prediction_error.description}{context_suffix}",
+            timestamp_ms=timestamp_ms,
+            **lineage_fields,
+        ),
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="prediction_error",
+            track=Track.SHARED,
+            source_event="pe:action",
+            credit_value=_clamp(prediction_error.action_error),
+            context=f"{prediction_error.description}{context_suffix}",
+            timestamp_ms=timestamp_ms,
+            **lineage_fields,
+        ),
+    )
+    return records
+
+
+def derive_steering_terminal_credit_records(
+    *,
+    settlement: SteeringTerminalPredictionError,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    """Route PE-owned matched-noop terminal error to gate decisions.
+
+    The scalar is the bounded relative N+1 MSE improvement authored by the PE
+    owner. This helper accepts no evaluation snapshot or judge readout.
+    """
+
+    if timestamp_ms < 0:
+        raise ValueError("steering terminal credit timestamp must be non-negative")
+    records: list[CreditRecord] = []
+    for decision_id in settlement.decision_ids:
+        record_fingerprint = hashlib.sha256(
+            (
+                f"{settlement.episode_id}\0{decision_id}\0"
+                f"{settlement.prediction_head_fingerprint}"
+            ).encode("utf-8")
+        ).hexdigest()
+        records.append(
+            CreditRecord(
+                record_id=f"steering-terminal:{record_fingerprint}",
+                level="steering_terminal_prediction_error",
+                track=Track.SHARED,
+                source_event=(
+                    f"steering-terminal:{settlement.episode_id}:"
+                    f"{decision_id}"
+                ),
+                credit_value=settlement.relative_mse_improvement,
+                context=(
+                    "matched_noop_n_plus_one; "
+                    f"action_mse={settlement.action_mean_squared_error:.8f}; "
+                    f"noop_mse={settlement.noop_mean_squared_error:.8f}; "
+                    "cosine_improvement="
+                    f"{settlement.cosine_error_improvement:.8f}; "
+                    "target_lineage="
+                    f"{settlement.target_lineage_fingerprint}"
+                ),
+                timestamp_ms=timestamp_ms,
+                prediction_id=decision_id,
+                environment_outcome_id=settlement.episode_id,
+                abstract_action_id="steering_gate",
+            )
+        )
+    return tuple(records)
+
+
+def derive_segment_closure_credit_records(
+    *,
+    prediction_error_snapshot: PredictionErrorSnapshot,
+    temporal_snapshot: TemporalAbstractionSnapshot,
+    timestamp_ms: int = 0,
+) -> tuple[CreditRecord, ...]:
+    context = prediction_error_snapshot.action_context
+    if not context.segment_id or not temporal_snapshot.closed_segments:
+        return ()
+    if not any(
+        segment.segment_id == context.segment_id
+        for segment in temporal_snapshot.closed_segments
+    ):
+        # Packet B (long-horizon-closure): fix prior bug where this
+        # branch returned ``None`` despite the signature declaring
+        # ``tuple[CreditRecord, ...]``. Consumers ``extend(...)`` the
+        # result, so returning ``None`` would crash. The "no matching
+        # closed segment" case must be an empty tuple, mirroring the
+        # earlier no-segment-id branch.
+        return ()
+    return (
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="abstract_action_segment",
+            track=Track.SHARED,
+            source_event=f"segment:{context.segment_id}",
+            credit_value=_clamp(prediction_error_snapshot.error.action_error),
+            # Packet B (long-horizon-closure): explicitly carry
+            # ``affordance_name`` and ``prediction_id`` in the
+            # human-readable context so reflection / replay /
+            # downstream credit consumers can grep "this credit was
+            # for which tool / which prior prediction" without
+            # re-deriving from PE snapshots.
+            context=(
+                f"abstract_action={context.abstract_action_id}; "
+                f"affordance_name={context.affordance_name}; "
+                f"prediction_id={context.prediction_id}; "
+                f"z_t_digest={context.z_t_digest}; "
+                f"environment_event_id={context.environment_event_id}; "
+                f"environment_outcome_id={context.environment_outcome_id}; "
+                f"pe={prediction_error_snapshot.error.description}"
+            ),
+            timestamp_ms=timestamp_ms,
+            prediction_id=context.prediction_id,
+            environment_event_id=context.environment_event_id,
+            environment_outcome_id=context.environment_outcome_id,
+            segment_id=context.segment_id,
+            abstract_action_id=context.abstract_action_id,
+            conditioning_bank_set=context.conditioning_bank_set,
+            conditioning_bank_fingerprints=(
+                context.conditioning_bank_fingerprints
+            ),
+        ),
+    )
+
+
+def derive_social_prediction_error_credit_records(
+    *,
+    social_errors: tuple[SocialPredictionError, ...],
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    records: list[CreditRecord] = []
+    for error in social_errors:
+        sign = -1.0 if error.outcome is SocialPredictionOutcome.DISCONFIRMED else 1.0
+        records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="social_prediction_error",
+                track=Track.SHARED,
+                source_event=f"social_pe:{error.kind.value}",
+                credit_value=_clamp(sign * error.magnitude),
+                context=(
+                    f"owner={error.owner}; scope={error.scope_kind.value}:{error.scope_id}; "
+                    f"outcome={error.outcome.value}; evidence={' | '.join(error.evidence)}"
+                ),
+                timestamp_ms=timestamp_ms,
+            )
+        )
+    return tuple(records)
+
+
+def derive_preference_action_forecast_credit_records(
+    *,
+    settlements: tuple[PreferenceActionForecastSettlement, ...],
+    social_errors: tuple[SocialPredictionError, ...],
+    settled_at_turn: int,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    """Derive relationship-action credit from an exact owner PE settlement.
+
+    The numerical signal is the settlement's signed utility prediction error,
+    attenuated only by typed external-evidence confidence.  A matching
+    owner-authored :class:`SocialPredictionError` is mandatory, so an external
+    outcome or evaluator label cannot bypass the PE owner and become reward.
+    Historical settlements are ignored: callers may safely pass the owner's
+    retained snapshot on every turn without replaying old credit.
+    """
+
+    if isinstance(settled_at_turn, bool) or not isinstance(settled_at_turn, int):
+        raise ValueError("settled_at_turn must be an integer")
+    if settled_at_turn < 0:
+        raise ValueError("settled_at_turn must be >= 0")
+    errors_by_id = {error.error_id: error for error in social_errors}
+    if len(errors_by_id) != len(social_errors):
+        raise ValueError("social_errors must have unique error_id values")
+    records: list[CreditRecord] = []
+    for settlement in settlements:
+        if settlement.observed_turn != settled_at_turn:
+            continue
+        error_id = f"social-pe:{settlement.settlement_id}"
+        try:
+            error = errors_by_id[error_id]
+        except KeyError as exc:
+            raise ValueError(
+                "relationship action credit requires the matching owner-authored "
+                f"prediction error {error_id!r}"
+            ) from exc
+        if error.prediction_id != settlement.forecast_id:
+            raise ValueError("relationship action credit prediction lineage mismatch")
+        if error.outcome is not settlement.outcome or not math.isclose(
+            error.magnitude,
+            settlement.magnitude,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("relationship action credit PE settlement mismatch")
+        credit_value = _clamp(
+            settlement.signed_utility_prediction_error
+            * settlement.evidence_confidence
+        )
+        records.append(
+            CreditRecord(
+                record_id=(
+                    "relationship-action-pe-credit:"
+                    f"{settlement.settlement_id}"
+                ),
+                level="relationship_action_prediction_error",
+                track=Track.SELF,
+                source_event=f"social_pe:{error.error_id}",
+                credit_value=credit_value,
+                context=(
+                    f"decision_id={settlement.decision_id}; "
+                    f"session_scope={settlement.session_scope}; "
+                    f"observed_outcome={settlement.observed_outcome_id}; "
+                    f"expected_utility={settlement.expected_utility:.12f}; "
+                    f"observed_utility={settlement.observed_utility:.12f}; "
+                    f"evidence_confidence={settlement.evidence_confidence:.12f}"
+                ),
+                timestamp_ms=timestamp_ms,
+                prediction_id=settlement.forecast_id,
+                environment_outcome_id=settlement.source_evidence_id,
+                abstract_action_id=settlement.action_id,
+            )
+        )
+    return tuple(records)
+
+
+def _action_context_suffix(action_context: PredictionActionContext | None) -> str:
+    if action_context is None:
+        return ""
+    segment_id = action_context.segment_id
+    abstract_action_id = action_context.abstract_action_id
+    environment_event_id = action_context.environment_event_id
+    environment_outcome_id = action_context.environment_outcome_id
+    if not any((segment_id, abstract_action_id, environment_event_id, environment_outcome_id)):
+        return ""
+    # P5-b: surface the live bank set in the greppable prose too; the
+    # typed fields on CreditRecord remain the machine-readable channel.
+    bank_clause = (
+        f"; conditioning_banks={'+'.join(action_context.conditioning_bank_set)}"
+        if action_context.conditioning_bank_set
+        else ""
+    )
+    return (
+        f" action_context[segment_id={segment_id}; "
+        f"abstract_action={abstract_action_id}; "
+        f"environment_event_id={environment_event_id}; "
+        f"environment_outcome_id={environment_outcome_id}"
+        f"{bank_clause}]"
+    )
+
+
+def derive_abstract_action_credit_records(
+    *,
+    temporal_snapshot: TemporalAbstractionSnapshot,
+    dual_track_snapshot: DualTrackSnapshot,
+    timestamp_ms: int,
+    prediction_error_snapshot: PredictionErrorSnapshot | None = None,
+    evaluation_snapshot: EvaluationSnapshot | None = None,
+) -> tuple[CreditRecord, ...]:
+    """Derive abstract-action credit records from PE / dual-track only.
+
+    R-PE invariant: ``credit_value`` is a PE-derived reward signal.
+    Priority: ``prediction_error_snapshot.error.signed_reward`` (clamped
+    to ``[0, 1]`` via ``0.5 + signed_reward``); when PE is missing or
+    bootstrap, fall back to ``1.0 - dual_track.cross_track_tension``
+    (dual_track is itself PE-derived upstream, still inside the PE main
+    chain). ``evaluation_snapshot`` is accepted for backwards-compatible
+    call-site signatures but only ever read by gate-style callers
+    (``evaluate_gate`` / ``evaluate_gate_reasons``); it never feeds the
+    reward signal here.
+    """
+
+    del evaluation_snapshot  # R-PE: evaluation is gate / readout, not learning source.
+    dominant_track = Track.SHARED
+    if dual_track_snapshot.world_track.tension_level > dual_track_snapshot.self_track.tension_level:
+        dominant_track = Track.WORLD
+    elif dual_track_snapshot.self_track.tension_level > dual_track_snapshot.world_track.tension_level:
+        dominant_track = Track.SELF
+    if prediction_error_snapshot is not None and not prediction_error_snapshot.bootstrap:
+        reward_signal = _clamp(0.5 + prediction_error_snapshot.error.signed_reward)
+    else:
+        reward_signal = 1.0 - dual_track_snapshot.cross_track_tension
+    reward_signal = _clamp(reward_signal + temporal_snapshot.controller_state.switch_gate * 0.1)
+    return (
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="abstract_action",
+            track=dominant_track,
+            source_event=temporal_snapshot.active_abstract_action,
+            credit_value=reward_signal,
+            context=temporal_snapshot.description,
+            timestamp_ms=timestamp_ms,
+        ),
+    )
+
+
+_GATE_RISK_FEATURE_DIM = 10
+
+
+def gate_risk_features(
+    *,
+    proposal: ModificationProposal,
+    evaluation_snapshot: EvaluationSnapshot,
+) -> tuple[float, ...]:
+    """Featurize a proposal + evaluation context for the risk learner.
+
+    Only typed proposal fields and published evaluation readouts are
+    consumed — no proposal-text keyword matching.
+    """
+
+    metric_values = {
+        score.metric_name: score.value
+        for score in evaluation_snapshot.turn_scores + evaluation_snapshot.session_scores
+    }
+    alert_pressure = 0.0
+    if any(alert.severity == "CRITICAL" for alert in evaluation_snapshot.structured_alerts):
+        alert_pressure = 1.0
+    elif any(alert.severity == "HIGH" for alert in evaluation_snapshot.structured_alerts):
+        alert_pressure = 0.6
+    elif evaluation_snapshot.structured_alerts:
+        alert_pressure = 0.3
+    framing_risk = (
+        proposal.framing_check.risk_score if proposal.framing_check is not None else 0.0
+    )
+    return (
+        _clamp(proposal.validation_delta),
+        _clamp_unit(proposal.capacity_cost),
+        1.0 if proposal.is_reversible else 0.0,
+        1.0 if proposal.rollback_evidence else 0.0,
+        1.0 if proposal.desired_gate is ModificationGate.ONLINE else 0.0,
+        1.0 if proposal.desired_gate is ModificationGate.BACKGROUND else 0.0,
+        alert_pressure,
+        _clamp_unit(metric_values.get("contract_integrity", 1.0)),
+        _clamp_unit(framing_risk),
+        1.0,  # bias
+    )
+
+
+@dataclass(frozen=True)
+class GateRiskLearnerState:
+    """Checkpointable state for the SHADOW gate-risk head (float-only)."""
+
+    weights: tuple[float, ...]
+    update_count: int
+    abs_error_sum: float
+    agreement_count: int
+
+
+class GateRiskLearner:
+    """C3 bounded online logistic head predicting gate-block risk.
+
+    SHADOW bypass input only: the learner observes each realized rule
+    decision as its supervision target and publishes a report-only
+    ``GateRiskShadowReadout``. It has no path into
+    ``evaluate_gate_reasons`` — the rule cascade remains the R9/R10
+    safety floor, and removing it is out of scope by design.
+    """
+
+    _LEARNING_RATE = 0.10
+    _WEIGHT_BOUND = 3.0
+
+    def __init__(self) -> None:
+        self._weights = [0.0] * _GATE_RISK_FEATURE_DIM
+        self._update_count = 0
+        self._abs_error_sum = 0.0
+        self._agreement_count = 0
+
+    @property
+    def update_count(self) -> int:
+        return self._update_count
+
+    def export_state(self) -> GateRiskLearnerState:
+        return GateRiskLearnerState(
+            weights=tuple(self._weights),
+            update_count=self._update_count,
+            abs_error_sum=self._abs_error_sum,
+            agreement_count=self._agreement_count,
+        )
+
+    def restore_state(self, state: GateRiskLearnerState) -> None:
+        if len(state.weights) != _GATE_RISK_FEATURE_DIM:
+            raise ValueError(
+                f"gate risk learner state has {len(state.weights)} weights, "
+                f"expected {_GATE_RISK_FEATURE_DIM}"
+            )
+        self._weights = [
+            max(-self._WEIGHT_BOUND, min(self._WEIGHT_BOUND, float(value)))
+            for value in state.weights
+        ]
+        self._update_count = max(0, state.update_count)
+        self._abs_error_sum = max(0.0, state.abs_error_sum)
+        self._agreement_count = max(0, min(state.agreement_count, self._update_count))
+
+    def predict_risk(self, features: tuple[float, ...]) -> float:
+        if len(features) != _GATE_RISK_FEATURE_DIM:
+            raise ValueError(
+                f"gate risk features have dim {len(features)}, "
+                f"expected {_GATE_RISK_FEATURE_DIM}"
+            )
+        raw = sum(w * f for w, f in zip(self._weights, features, strict=True))
+        return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, raw))))
+
+    def observe_decision(
+        self,
+        *,
+        features: tuple[float, ...],
+        decision: GateDecision,
+        learning_enabled: bool = True,
+    ) -> GateRiskShadowReadout:
+        """Read and optionally settle one gate decision."""
+
+        prediction = self.predict_risk(features)
+        target = 1.0 if decision is GateDecision.BLOCK else 0.0
+        error = target - prediction
+        if learning_enabled:
+            self._weights = [
+                max(
+                    -self._WEIGHT_BOUND,
+                    min(
+                        self._WEIGHT_BOUND,
+                        weight
+                        + self._LEARNING_RATE * error * feature,
+                    ),
+                )
+                for weight, feature in zip(
+                    self._weights,
+                    features,
+                    strict=True,
+                )
+            ]
+            self._update_count += 1
+            self._abs_error_sum += abs(error)
+            if (prediction >= 0.5) == (target >= 0.5):
+                self._agreement_count += 1
+        running_abs_error = (
+            self._abs_error_sum / self._update_count
+            if self._update_count
+            else 0.0
+        )
+        agreement_rate = (
+            self._agreement_count / self._update_count
+            if self._update_count
+            else 0.0
+        )
+        return GateRiskShadowReadout(
+            predicted_risk=round(prediction, 6),
+            realized_block=decision is GateDecision.BLOCK,
+            update_count=self._update_count,
+            running_abs_error=round(running_abs_error, 6),
+            agreement_rate=round(agreement_rate, 6),
+            description=(
+                "C3 SHADOW gate-risk readout (report-only, rules remain the "
+                f"safety floor): predicted={prediction:.3f} "
+                f"realized={'BLOCK' if decision is GateDecision.BLOCK else 'ALLOW'} "
+                f"agreement={agreement_rate:.3f} over {self._update_count} decisions."
+            ),
+        )
+
+
+def evaluate_gate(
+    *,
+    proposal: ModificationProposal,
+    evaluation_snapshot: EvaluationSnapshot,
+) -> GateDecision:
+    if evaluate_gate_reasons(proposal=proposal, evaluation_snapshot=evaluation_snapshot):
+        return GateDecision.BLOCK
+    return GateDecision.ALLOW
+
+
+def _evaluation_and_structural_gate_reasons(
+    *,
+    proposal: ModificationProposal,
+    evaluation_snapshot: EvaluationSnapshot,
+) -> list[str]:
+    """Existing two-gate evaluation + structural checks (extracted helper).
+
+    Architecture-uplift A5 (T11): factored out so the public
+    ``evaluate_gate_reasons`` can layer audit-evidence checks on top
+    without touching the existing two-gate logic. Behaviour is
+    byte-equivalent to pre-A5 implementation when called alone.
+    """
+    critical_alert = any(alert.severity == "CRITICAL" for alert in evaluation_snapshot.structured_alerts)
+    high_alert = any(alert.severity == "HIGH" for alert in evaluation_snapshot.structured_alerts)
+    metric_values = {
+        score.metric_name: score.value
+        for score in evaluation_snapshot.turn_scores + evaluation_snapshot.session_scores
+    }
+    reasons: list[str] = []
+
+    if proposal.desired_gate is ModificationGate.ONLINE and (critical_alert or high_alert):
+        reasons.append("online gate blocked by high-or-critical evaluation alert")
+    if proposal.desired_gate is ModificationGate.BACKGROUND and critical_alert:
+        reasons.append("background gate blocked by critical evaluation alert")
+    if proposal.desired_gate is ModificationGate.HUMAN_REVIEW:
+        reasons.append("human-review proposal cannot be auto-allowed by runtime gate")
+    if (
+        _is_capacity_expansion_target(proposal.target)
+        and proposal.desired_gate is not ModificationGate.HUMAN_REVIEW
+    ):
+        reasons.append(
+            f"capacity-expansion target {proposal.target!r} requires the "
+            "human-review gate (reachable-model-family changes cannot be "
+            "auto-allowed)"
+        )
+    margin = _validation_margin_for_gate(proposal.desired_gate)
+    if proposal.validation_delta < margin:
+        reasons.append(
+            f"validation_delta {proposal.validation_delta:.3f} below required margin {margin:.3f}"
+        )
+    capacity_cap = _capacity_cap_for_gate(proposal.desired_gate)
+    if proposal.capacity_cost > capacity_cap:
+        reasons.append(
+            f"capacity_cost {proposal.capacity_cost:.3f} exceeds cap {capacity_cap:.3f}"
+        )
+    if not proposal.rollback_evidence:
+        reasons.append("missing rollback evidence")
+    if proposal.desired_gate in {ModificationGate.ONLINE, ModificationGate.BACKGROUND} and not proposal.is_reversible:
+        reasons.append("online/background proposal is not reversible")
+    contract_integrity = metric_values.get("contract_integrity", 1.0)
+    if contract_integrity < 0.95:
+        reasons.append(f"contract_integrity {contract_integrity:.3f} below 0.950")
+    fallback_reliance = metric_values.get("fallback_reliance", 0.0)
+    if proposal.desired_gate is ModificationGate.ONLINE and fallback_reliance > 0.5:
+        reasons.append(f"fallback_reliance {fallback_reliance:.3f} above 0.500")
+    rollback_resilience = metric_values.get("rollback_resilience", 1.0)
+    if rollback_resilience < 0.6:
+        reasons.append(f"rollback_resilience {rollback_resilience:.3f} below 0.600")
+    if proposal.framing_check is not None:
+        framing = proposal.framing_check
+        if framing.risk_score >= 0.7 and not framing.inoculation_statement_present:
+            reasons.append(
+                f"framing risk {framing.risk_kind.value} score "
+                f"{framing.risk_score:.3f} requires explicit inoculation statement"
+            )
+    return reasons
+
+
+def evaluate_gate_reasons(
+    *,
+    proposal: ModificationProposal,
+    evaluation_snapshot: EvaluationSnapshot,
+    audit_snapshot: AuditSnapshot | None = None,
+    audit_required: bool = False,
+) -> tuple[str, ...]:
+    """Return fail-closed blocking reasons for a self-modification proposal.
+
+    Three categories of evidence (spec §A5.3):
+
+    1. calibrated evaluation readout — from ``evaluation_snapshot``
+    2. structural evidence — from ``proposal.validation_delta`` /
+       ``proposal.capacity_cost`` / ``proposal.rollback_evidence`` /
+       ``proposal.is_reversible``
+    3. audit transcript — from ``audit_snapshot`` (A5 / T11 channel)
+
+    ``audit_required`` behaviour:
+
+    - ``False`` (default in A5 阶段 1): existing 4 callers are unaffected;
+      audit_snapshot is ignored even if present
+    - ``True`` (rare-heavy artifact promotion path after OA-4 lands):
+      missing ``audit_snapshot`` or ``threshold_decision != "pass"`` → BLOCK
+
+    See docs/specs/audit-owner.md §A5.3 for migration protocol.
+    """
+    reasons: list[str] = _evaluation_and_structural_gate_reasons(
+        proposal=proposal,
+        evaluation_snapshot=evaluation_snapshot,
+    )
+
+    if audit_required:
+        if audit_snapshot is None:
+            reasons.append("audit_snapshot required but missing")
+        else:
+            if audit_snapshot.threshold_decision == "hard-block":
+                reasons.append(
+                    f"audit hard-block: risk_score={audit_snapshot.risk_score:.3f}"
+                )
+            elif (
+                audit_snapshot.threshold_decision == "soft-warn"
+                and proposal.desired_gate is ModificationGate.ONLINE
+            ):
+                reasons.append(
+                    f"audit soft-warn blocks ONLINE gate: "
+                    f"risk_score={audit_snapshot.risk_score:.3f}"
+                )
+            blocked_attacks = [
+                a
+                for a in audit_snapshot.detected_attack_classes
+                if a.detected and a.confidence >= 0.7
+            ]
+            if blocked_attacks:
+                attack_names = ", ".join(a.attack_class for a in blocked_attacks)
+                reasons.append(f"audit detected attack(s): {attack_names}")
+
+    return tuple(reasons)
+
+
+def _validation_margin_for_gate(gate: ModificationGate) -> float:
+    if gate is ModificationGate.ONLINE:
+        return 0.0
+    if gate is ModificationGate.BACKGROUND:
+        return 0.02
+    if gate is ModificationGate.OFFLINE:
+        return 0.05
+    return 0.0
+
+
+def _capacity_cap_for_gate(gate: ModificationGate) -> float:
+    if gate is ModificationGate.ONLINE:
+        return 0.20
+    if gate is ModificationGate.BACKGROUND:
+        return 0.45
+    if gate is ModificationGate.OFFLINE:
+        return 0.75
+    return 1.0
+
+
+def has_blocking_writeback(credit_snapshot: CreditSnapshot, *, target_prefix: str | None = None) -> bool:
+    relevant_records = credit_snapshot.recent_modifications
+    if target_prefix is not None:
+        relevant_records = tuple(
+            record for record in relevant_records if record.target.startswith(target_prefix)
+        )
+    return any(record.decision is GateDecision.BLOCK for record in relevant_records)
+
+
+def extend_credit_snapshot(
+    *,
+    credit_snapshot: CreditSnapshot,
+    extra_records: tuple[CreditRecord, ...] = (),
+    extra_modifications: tuple[SelfModificationRecord, ...] = (),
+) -> CreditSnapshot:
+    cumulative: dict[str, float] = dict(credit_snapshot.cumulative_credit_by_level)
+    for record in extra_records:
+        cumulative[record.level] = cumulative.get(record.level, 0.0) + record.credit_value
+    recent_credits = tuple((credit_snapshot.recent_credits + extra_records)[-20:])
+    recent_action_lineage_credits = tuple(
+        (
+            credit_snapshot.recent_action_lineage_credits
+            + tuple(
+                record
+                for record in extra_records
+                if (
+                    (record.prediction_id and record.environment_outcome_id)
+                    or record.conditioning_bank_set
+                )
+            )
+        )[-20:]
+    )
+    recent_modifications = tuple((credit_snapshot.recent_modifications + extra_modifications)[-20:])
+    return CreditSnapshot(
+        recent_credits=recent_credits,
+        recent_modifications=recent_modifications,
+        cumulative_credit_by_level=tuple(sorted(cumulative.items())),
+        session_level_credits=credit_snapshot.session_level_credits,
+        discount_factor=credit_snapshot.discount_factor,
+        delayed_ledger_size=credit_snapshot.delayed_ledger_size,
+        horizon_depth=credit_snapshot.horizon_depth,
+        description=(
+            f"{credit_snapshot.description} Extended with {len(extra_records)} extra credits "
+            f"and {len(extra_modifications)} extra modification audits."
+        ),
+        rewarding_state_head=credit_snapshot.rewarding_state_head,
+        counterfactual_readouts=credit_snapshot.counterfactual_readouts,
+        least_control_readout=credit_snapshot.least_control_readout,
+        gate_risk_readout=credit_snapshot.gate_risk_readout,
+        recent_action_lineage_credits=recent_action_lineage_credits,
+    )
+
+
+_DIALOGUE_OUTCOME_KIND_SIGN: dict[str, float] = {
+    "continued": 1.0,
+    "clarified": 1.0,
+    "corrected": -1.0,
+    "rejected": -1.0,
+    "deferred": 0.25,
+    "scene_closed": 0.0,
+    "unknown": 0.0,
+}
+
+
+def derive_dialogue_outcome_credit_records(
+    *,
+    outcome_evidence: tuple[object, ...],
+    timestamp_ms: int,
+    track: Track = Track.SHARED,
+) -> tuple[CreditRecord, ...]:
+    """Derive turn-level credit records from typed dialogue outcome evidence.
+
+    Each entry in ``outcome_evidence`` must be a frozen
+    ``DialogueOutcomeEvidence`` produced by an owner or evaluation
+    readout. The credit value is the signed product of evidence
+    confidence and a fixed structural sign per outcome kind. The trace
+    layer stays evidence-only; this helper turns owner-published
+    evidence into ledger entries without inventing semantics.
+    """
+
+    records: list[CreditRecord] = []
+    for evidence in outcome_evidence:
+        outcome_kind = getattr(evidence, "outcome_kind", None)
+        kind_value = getattr(outcome_kind, "value", None)
+        sign = _DIALOGUE_OUTCOME_KIND_SIGN.get(kind_value or "", 0.0)
+        if sign == 0.0:
+            continue
+        confidence = float(getattr(evidence, "confidence", 0.0))
+        if confidence <= 0.0:
+            continue
+        evidence_id = getattr(evidence, "evidence_id", "")
+        source_owner = getattr(evidence, "source_owner", "")
+        records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="turn",
+                track=track,
+                source_event=f"dialogue_outcome:{kind_value}:{source_owner}",
+                credit_value=_clamp(sign * confidence),
+                context=evidence_id,
+                timestamp_ms=timestamp_ms,
+            )
+        )
+    return tuple(records)
+
+
+def derive_learning_evidence_credit_records(
+    *,
+    evaluation_snapshot: EvaluationSnapshot,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    turn_learning_metrics = {
+        "retrieval_quality",
+        "reflection_usefulness",
+        "joint_learning_progress",
+        "regime_sequence_payoff",
+        "delayed_retrieval_mix_alignment",
+        "delayed_regime_alignment",
+    }
+    metacontroller_metrics = {
+        "adaptive_stability",
+        "posterior_stability",
+        "switch_sparsity",
+        "binary_gate_ratio",
+        "decoder_usefulness",
+        "policy_replacement_quality",
+        "abstract_action_usefulness",
+        "temporal_action_commitment",
+        "action_family_reuse",
+        "action_family_stability",
+        "action_family_diversity",
+        "delayed_action_alignment",
+        "delayed_abstract_action_alignment",
+    }
+    session_learning_metrics = {
+        "regime_sequence_payoff",
+        "delayed_retrieval_mix_alignment",
+        "delayed_regime_alignment",
+    }
+    credit_records: list[CreditRecord] = []
+    for score in evaluation_snapshot.turn_scores:
+        if score.family == "learning" and score.metric_name in turn_learning_metrics:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="turn",
+                    track=Track.SHARED,
+                    source_event=score.metric_name,
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+            continue
+        if score.metric_name in metacontroller_metrics:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="abstract_action",
+                    track=Track.SHARED,
+                    source_event=f"evaluation:{score.metric_name}",
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+    for score in evaluation_snapshot.session_scores:
+        if score.family == "learning" and score.metric_name in session_learning_metrics:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="session",
+                    track=Track.SHARED,
+                    source_event=f"session:{score.metric_name}",
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+            continue
+        if score.metric_name in metacontroller_metrics:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="abstract_action",
+                    track=Track.SHARED,
+                    source_event=f"session-evaluation:{score.metric_name}",
+                    credit_value=_clamp(score.value),
+                    context=score.evidence,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+    return tuple(credit_records)
+
+
+def derive_delayed_attribution_credit_records(
+    *,
+    regime_snapshot: object | None,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    from volvence_zero.regime import RegimeSnapshot
+
+    if regime_snapshot is None or not isinstance(regime_snapshot, RegimeSnapshot):
+        return ()
+    credit_records: list[CreditRecord] = []
+    for payoff in regime_snapshot.delayed_payoffs:
+        payoff_context = (
+            f"last_source_wave_id={payoff.last_source_wave_id} "
+            f"abstract_action={payoff.abstract_action or 'none'} "
+            f"action_family_version={payoff.action_family_version} "
+            f"sample_count={payoff.sample_count} "
+            f"rolling_payoff={payoff.rolling_payoff:.3f}"
+        )
+        credit_records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="session",
+                track=Track.SHARED,
+                source_event=f"delayed_payoff:{payoff.regime_id}",
+                credit_value=_clamp(payoff.rolling_payoff),
+                context=payoff_context,
+                timestamp_ms=timestamp_ms,
+            )
+        )
+        if payoff.abstract_action is not None:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="abstract_action",
+                    track=Track.SHARED,
+                    source_event=f"delayed_payoff_action:{payoff.abstract_action}",
+                    credit_value=_clamp(payoff.rolling_payoff),
+                    context=payoff_context,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+    for attribution in regime_snapshot.delayed_attributions:
+        context = (
+            f"source_wave_id={attribution.source_wave_id} "
+            f"source_turn_index={attribution.source_turn_index} "
+            f"abstract_action={attribution.abstract_action or 'none'} "
+            f"action_family_version={attribution.action_family_version} "
+            f"outcome_score={attribution.outcome_score:.3f}"
+        )
+        credit_records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="session",
+                track=Track.SHARED,
+                source_event=f"delayed_regime:{attribution.regime_id}",
+                credit_value=_clamp(attribution.outcome_score),
+                context=context,
+                timestamp_ms=timestamp_ms,
+            )
+        )
+        if attribution.abstract_action is not None:
+            credit_records.append(
+                CreditRecord(
+                    record_id=str(uuid4()),
+                    level="abstract_action",
+                    track=Track.SHARED,
+                    source_event=f"delayed_action:{attribution.abstract_action}",
+                    credit_value=_clamp(attribution.outcome_score),
+                    context=context,
+                    timestamp_ms=timestamp_ms,
+                )
+            )
+    return tuple(credit_records)
+
+
+def _counterfactual_context(
+    *,
+    regime_snapshot: object | None,
+    temporal_snapshot: TemporalAbstractionSnapshot | None,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+) -> _CounterfactualContext | None:
+    from volvence_zero.regime import RegimeSnapshot
+
+    if (
+        prediction_error_snapshot is None
+        or prediction_error_snapshot.bootstrap
+        or regime_snapshot is None
+        or not isinstance(regime_snapshot, RegimeSnapshot)
+    ):
+        return None
+
+    action_context = prediction_error_snapshot.action_context
+    chosen_regime_id = action_context.regime_id
+    chosen_abstract_action = action_context.abstract_action_id
+    chosen_segment_id = action_context.segment_id
+
+    # Backfill regime_id from the active regime when the PE owner did
+    # not stamp one on the action context. This is read-only and uses
+    # already-published regime state.
+    if not chosen_regime_id and regime_snapshot.active_regime is not None:
+        chosen_regime_id = regime_snapshot.active_regime.regime_id
+
+    if not chosen_regime_id:
+        return None
+
+    weights_payload: tuple[tuple[str, float], ...] = ()
+    if regime_snapshot.selection_weights is not None:
+        weights_payload = regime_snapshot.selection_weights.weights
+    if not weights_payload:
+        weights_payload = regime_snapshot.candidate_regimes
+
+    # Build a payoff lookup keyed by regime_id; if the abstract action
+    # matches in the chosen regime, prefer the (regime, action) entry,
+    # otherwise fall back to the regime-level rolling payoff.
+    regime_payoffs: dict[str, float] = {}
+    regime_action_payoffs: dict[tuple[str, str], float] = {}
+    for payoff in regime_snapshot.delayed_payoffs:
+        regime_payoffs.setdefault(payoff.regime_id, payoff.rolling_payoff)
+        if payoff.abstract_action is not None:
+            regime_action_payoffs[(payoff.regime_id, payoff.abstract_action)] = (
+                payoff.rolling_payoff
+            )
+
+    # Skip when we have no historical payoff signal for any regime.
+    # Without it the baseline collapses to zero and the contribution
+    # equals the raw actual, which would double-count PE credit.
+    if not regime_payoffs and not regime_action_payoffs:
+        return None
+
+    weight_total = 0.0
+    weight_pairs: list[tuple[str, float]] = []
+    for regime_id, weight in weights_payload:
+        clean_weight = max(0.0, float(weight))
+        if clean_weight <= 0.0:
+            continue
+        weight_total += clean_weight
+        weight_pairs.append((regime_id, clean_weight))
+    if weight_total <= 0.0 or not weight_pairs:
+        return None
+
+    baseline = 0.0
+    contributors = 0
+    for regime_id, weight in weight_pairs:
+        normalized = weight / weight_total
+        action_key = (regime_id, chosen_abstract_action) if chosen_abstract_action else None
+        if action_key is not None and action_key in regime_action_payoffs:
+            baseline += normalized * regime_action_payoffs[action_key]
+            contributors += 1
+            continue
+        if regime_id in regime_payoffs:
+            baseline += normalized * regime_payoffs[regime_id]
+            contributors += 1
+    if contributors == 0:
+        return None
+
+    actual = float(prediction_error_snapshot.error.signed_reward)
+    contribution = _clamp(actual - baseline)
+
+    source_event = f"cocoa:{chosen_regime_id}"
+    if chosen_segment_id:
+        source_event = f"{source_event}:{chosen_segment_id}"
+    if chosen_abstract_action:
+        source_event = f"{source_event}:{chosen_abstract_action}"
+
+    context_parts = [
+        f"baseline={baseline:.3f}",
+        f"actual={actual:.3f}",
+        f"weight_total={weight_total:.3f}",
+        f"contributors={contributors}",
+    ]
+    if temporal_snapshot is not None:
+        context_parts.append(
+            f"temporal_active={temporal_snapshot.active_abstract_action}"
+        )
+        if chosen_segment_id and any(
+            segment.segment_id == chosen_segment_id
+            for segment in temporal_snapshot.closed_segments
+        ):
+            context_parts.append(f"segment_closed={chosen_segment_id}")
+    context = "; ".join(context_parts)
+
+    return _CounterfactualContext(
+        chosen_regime_id=chosen_regime_id,
+        chosen_abstract_action=chosen_abstract_action,
+        chosen_segment_id=chosen_segment_id,
+        source_event=source_event,
+        historical_baseline=baseline,
+        actual_outcome=actual,
+        contribution=contribution,
+        weight_total=weight_total,
+        contributors=contributors,
+        context=context,
+        features=_counterfactual_features(
+            action_context=PredictionActionContext(
+                segment_id=chosen_segment_id,
+                abstract_action_id=chosen_abstract_action,
+                z_t_digest=action_context.z_t_digest,
+                regime_id=chosen_regime_id,
+                affordance_name=action_context.affordance_name,
+                environment_event_id=action_context.environment_event_id,
+                environment_outcome_id=action_context.environment_outcome_id,
+                environment_task_progress=action_context.environment_task_progress,
+                environment_action_payoff=action_context.environment_action_payoff,
+                environment_outcome_terminal=action_context.environment_outcome_terminal,
+                prediction_id=action_context.prediction_id,
+            ),
+            historical_baseline=baseline,
+            weight_total=weight_total,
+            contributors=contributors,
+            temporal_snapshot=temporal_snapshot,
+        ),
+    )
+
+
+def _counterfactual_record_from_context(
+    *,
+    context: _CounterfactualContext,
+    timestamp_ms: int,
+) -> CreditRecord:
+    return (
+        CreditRecord(
+            record_id=str(uuid4()),
+            level="counterfactual_contribution",
+            track=Track.SHARED,
+            source_event=context.source_event,
+            credit_value=context.contribution,
+            context=context.context,
+            timestamp_ms=timestamp_ms,
+        )
+    )
+
+
+def derive_counterfactual_contribution_records(
+    *,
+    regime_snapshot: object | None,
+    temporal_snapshot: TemporalAbstractionSnapshot | None,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    """Lightweight COCOA-style contribution credit (Phase 1.A).
+
+    Inspired by COCOA (Meulemans et al., NeurIPS 2023): credit for an
+    action is the difference between its observed outcome and the
+    counterfactual baseline the policy would have produced under the
+    same context. Phase 2.A adds an owner-internal learned baseline in
+    ``CreditLedger``; this function remains the stable historical
+    baseline helper for compatibility and fallback.
+    """
+
+    context = _counterfactual_context(
+        regime_snapshot=regime_snapshot,
+        temporal_snapshot=temporal_snapshot,
+        prediction_error_snapshot=prediction_error_snapshot,
+    )
+    if context is None:
+        return ()
+    return (
+        _counterfactual_record_from_context(
+            context=context,
+            timestamp_ms=timestamp_ms,
+        ),
+    )
+
+
+def record_nstep_outcomes_from_segment_closure(
+    *,
+    ledger: "CreditLedger",
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    temporal_snapshot: TemporalAbstractionSnapshot | None,
+    regime_snapshot: object | None,
+    timestamp_ms: int,
+) -> int:
+    """Append the chosen action's outcome to the N-step ledger.
+
+    The COCOA path needs a per-action outcome trajectory so future
+    Phase 2 uplift can compute multi-step counterfactuals. We resurrect
+    the dormant ``CreditLedger.record_nstep_outcome`` API by calling it
+    when ``temporal_snapshot.closed_segments`` reports that the chosen
+    segment just closed. Returns the number of N-step entries that were
+    created or extended (0 when no segment closed or when the snapshot
+    chain is incomplete).
+    """
+
+    from volvence_zero.regime import RegimeSnapshot
+
+    if (
+        prediction_error_snapshot is None
+        or prediction_error_snapshot.bootstrap
+        or temporal_snapshot is None
+        or not temporal_snapshot.closed_segments
+    ):
+        return 0
+
+    action_context = prediction_error_snapshot.action_context
+    chosen_segment_id = action_context.segment_id
+    chosen_abstract_action = action_context.abstract_action_id
+    chosen_regime_id = action_context.regime_id
+    if not chosen_regime_id and isinstance(regime_snapshot, RegimeSnapshot):
+        if regime_snapshot.active_regime is not None:
+            chosen_regime_id = regime_snapshot.active_regime.regime_id
+    if not chosen_segment_id and not chosen_abstract_action:
+        return 0
+    matched_segment = next(
+        (
+            segment
+            for segment in temporal_snapshot.closed_segments
+            if (chosen_segment_id and segment.segment_id == chosen_segment_id)
+            or (
+                chosen_abstract_action
+                and segment.abstract_action_id == chosen_abstract_action
+            )
+        ),
+        None,
+    )
+    if matched_segment is None:
+        return 0
+    action_id = matched_segment.segment_id or chosen_segment_id or chosen_abstract_action
+    family_id = matched_segment.abstract_action_id or chosen_abstract_action or "unknown"
+    regime_id = chosen_regime_id or "unknown"
+    outcome = float(prediction_error_snapshot.error.signed_reward)
+    ledger.record_nstep_outcome(
+        action_id=action_id,
+        family_id=family_id,
+        regime_id=regime_id,
+        outcome=outcome,
+        timestamp_ms=timestamp_ms,
+    )
+    return 1
+
+
+def derive_runtime_adaptation_audit_records(
+    *,
+    rollback_reasons: tuple[str, ...],
+    metacontroller_state_description: str | None,
+    timestamp_ms: int,
+    rollback_applied: bool,
+) -> tuple[SelfModificationRecord, ...]:
+    if not rollback_reasons and not rollback_applied:
+        return ()
+    joined_reasons = ", ".join(rollback_reasons) if rollback_reasons else "none"
+    state_description = metacontroller_state_description or "metacontroller state unavailable"
+    decision = GateDecision.BLOCK if rollback_applied else GateDecision.ALLOW
+    return (
+        SelfModificationRecord(
+            target="metacontroller.runtime_adaptation",
+            gate=ModificationGate.BACKGROUND,
+            decision=decision,
+            old_value_hash=f"reasons:{joined_reasons}",
+            new_value_hash=f"state:{state_description}",
+            justification=(
+                f"{'BLOCKED' if rollback_applied else 'ALLOWED'} runtime metacontroller adaptation; "
+                f"rollback_reasons={joined_reasons}; {state_description}"
+            ),
+            timestamp_ms=timestamp_ms,
+            is_reversible=True,
+        ),
+    )
+
+
+def derive_metacontroller_credit_records(
+    *,
+    metacontroller_state: "MetacontrollerRuntimeState | None",
+    policy_objective: float,
+    rollback_reasons: tuple[str, ...],
+    timestamp_ms: int,
+) -> tuple[CreditRecord, ...]:
+    if metacontroller_state is None:
+        return ()
+    credit_value = _clamp(
+        0.55
+        + policy_objective * 0.35
+        - min(metacontroller_state.latest_ssl_loss * 0.1, 0.25)
+        + metacontroller_state.policy_replacement_score * 0.15
+        + metacontroller_state.switch_sparsity * 0.05
+        - len(rollback_reasons) * 0.15
+    )
+    active_family = metacontroller_state.active_family_summary
+    return (
+        CreditRecord(
+            record_id=f"metacontroller:{timestamp_ms}",
+            level="abstract_action",
+            track=Track.SHARED,
+            source_event=metacontroller_state.active_label,
+            credit_value=credit_value,
+            context=(
+                f"{metacontroller_state.description} "
+                f"policy_objective={policy_objective:.3f} "
+                f"posterior_drift={metacontroller_state.posterior_drift:.3f} "
+                f"binary_ratio={metacontroller_state.binary_switch_rate:.3f} "
+                f"replacement={metacontroller_state.policy_replacement_score:.3f} "
+                f"family_version={metacontroller_state.action_family_version} "
+                f"family_support={active_family.support if active_family is not None else 0} "
+                f"family_stability={active_family.stability if active_family is not None else 0.0:.3f} "
+                f"rollback={','.join(rollback_reasons) or 'none'}"
+            ),
+            timestamp_ms=timestamp_ms,
+        ),
+    )
+
+
+def extract_abstract_action_credit_bonus(
+    credit_snapshot: CreditSnapshot,
+    *,
+    bonus_weight: float = 0.1,
+    pe_magnitude: float = 0.0,
+) -> dict[str, float]:
+    """Aggregate abstract-action credit into owner-described bonus signals.
+
+    Returns a dict mapping source_event (family/action name) to a
+    weighted credit bonus suitable for injecting into the RL environment
+    via ``set_evaluation_signals``.  ``abstract_action_credit_bonus`` is the
+    signed aggregate consumed by Internal-RL; per-source entries remain for
+    audit/backward compatibility.
+    """
+    family_credits: dict[str, list[float]] = {}
+    for record in credit_snapshot.recent_credits:
+        if record.level not in {"abstract_action", "abstract_action_segment"}:
+            continue
+        family_credits.setdefault(record.source_event, []).append(record.credit_value)
+    result: dict[str, float] = {}
+    all_values: list[float] = []
+    for family, values in family_credits.items():
+        mean_credit = sum(values) / len(values) if values else 0.0
+        magnitude_boost = 1.0 + max(0.0, pe_magnitude)
+        result[family] = _clamp(mean_credit * bonus_weight * magnitude_boost)
+        all_values.extend(values)
+    if all_values:
+        result["abstract_action_credit_bonus"] = _clamp(
+            (sum(all_values) / len(all_values))
+            * bonus_weight
+            * (1.0 + max(0.0, pe_magnitude))
+        )
+    return result
+
+
+class CreditLedger:
+    """Stores recent credit records and gate outcomes with session-level aggregation."""
+
+    def __init__(
+        self,
+        *,
+        discount_factor: float = 0.95,
+        horizon_depth: int = 5,
+        learning_enabled: bool = True,
+    ) -> None:
+        self._recent_credits: list[CreditRecord] = []
+        self._recent_modifications: list[SelfModificationRecord] = []
+        self._recent_counterfactual_readouts: list[CounterfactualContributionReadout] = []
+        self._discount_factor = discount_factor
+        self._session_credits: dict[str, list[CreditRecord]] = {}
+        self._turn_count = 0
+        self._horizon_depth = max(horizon_depth, 1)
+        self._nstep_ledger: list[NStepAttributionEntry] = []
+        self._max_ledger_entries = 1000
+        self._rewarding_state_head = _RewardingStateHead()
+        # C3: report-only learned gate-risk head; settled on every gate
+        # decision this ledger observes. Never consulted by the rules.
+        self._gate_risk_learner = GateRiskLearner()
+        self._latest_gate_risk_readout: GateRiskShadowReadout | None = None
+        self._learning_enabled = learning_enabled
+
+    def set_learning_enabled(self, enabled: bool) -> None:
+        """Gate learned-head writes without suppressing credit bookkeeping."""
+
+        self._learning_enabled = enabled
+
+    @property
+    def recent_credits(self) -> tuple[CreditRecord, ...]:
+        return tuple(self._recent_credits)
+
+    @property
+    def recent_modifications(self) -> tuple[SelfModificationRecord, ...]:
+        return tuple(self._recent_modifications)
+
+    @property
+    def discount_factor(self) -> float:
+        return self._discount_factor
+
+    @property
+    def horizon_depth(self) -> int:
+        return self._horizon_depth
+
+    def record_credits(self, credits: tuple[CreditRecord, ...]) -> None:
+        self._recent_credits.extend(credits)
+        for credit in credits:
+            key = f"{credit.level}:{credit.track.value}"
+            self._session_credits.setdefault(key, []).append(credit)
+        self._turn_count += 1
+
+    def record_modification(self, record: SelfModificationRecord) -> None:
+        self._recent_modifications.append(record)
+
+    def observe_gate_decision(
+        self,
+        *,
+        proposal: ModificationProposal,
+        evaluation_snapshot: EvaluationSnapshot,
+        decision: GateDecision,
+    ) -> GateRiskShadowReadout:
+        """C3 SHADOW bypass: settle the learned risk head on a realized
+        rule decision and keep the latest readout for the snapshot."""
+
+        readout = self._gate_risk_learner.observe_decision(
+            features=gate_risk_features(
+                proposal=proposal,
+                evaluation_snapshot=evaluation_snapshot,
+            ),
+            decision=decision,
+            learning_enabled=self._learning_enabled,
+        )
+        self._latest_gate_risk_readout = readout
+        return readout
+
+    def restore_rewarding_state_head(self, state: RewardingStateHeadState) -> None:
+        self._rewarding_state_head.restore_state(state)
+
+    def export_rewarding_state_head(self) -> RewardingStateHeadState:
+        return self._rewarding_state_head.export_state()
+
+    def export_gate_risk_learner(self) -> GateRiskLearnerState:
+        return self._gate_risk_learner.export_state()
+
+    def restore_gate_risk_learner(self, state: GateRiskLearnerState) -> None:
+        self._gate_risk_learner.restore_state(state)
+
+    def derive_learned_counterfactual_contribution_records(
+        self,
+        *,
+        regime_snapshot: object | None,
+        temporal_snapshot: TemporalAbstractionSnapshot | None,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+        evaluation_snapshot: EvaluationSnapshot | None,
+        timestamp_ms: int,
+        include_historical: bool = True,
+    ) -> tuple[CreditRecord, ...]:
+        context = _counterfactual_context(
+            regime_snapshot=regime_snapshot,
+            temporal_snapshot=temporal_snapshot,
+            prediction_error_snapshot=prediction_error_snapshot,
+        )
+        if isinstance(context, tuple):
+            if len(context) == 1 and isinstance(context[0], _CounterfactualContext):
+                context = context[0]
+            else:
+                return ()
+        if context is None:
+            return ()
+
+        learned_baseline = self._rewarding_state_head.predict(
+            features=context.features,
+            fallback=context.historical_baseline,
+        )
+        learned_contribution = _clamp(context.actual_outcome - learned_baseline)
+        checkpoint_id = ""
+        gate_decision = GateDecision.BLOCK
+        validation_delta = 0.0
+        if evaluation_snapshot is not None and self._learning_enabled:
+            modification_record = self._rewarding_state_head.propose_update(
+                features=context.features,
+                target=context.actual_outcome,
+                evaluation_snapshot=evaluation_snapshot,
+                timestamp_ms=timestamp_ms,
+            )
+            self.record_modification(modification_record)
+            checkpoint_id = modification_record.checkpoint_id
+            gate_decision = modification_record.decision
+            validation_delta = self._rewarding_state_head.export_state().last_validation_delta
+
+        readout = CounterfactualContributionReadout(
+            source_event=context.source_event,
+            historical_baseline=_clamp(context.historical_baseline),
+            learned_baseline=learned_baseline,
+            actual_outcome=_clamp(context.actual_outcome),
+            learned_contribution=learned_contribution,
+            validation_delta=validation_delta,
+            update_count=self._rewarding_state_head.update_count,
+            checkpoint_id=checkpoint_id,
+            gate_decision=gate_decision,
+            description=(
+                f"learned_cocoa historical={context.historical_baseline:.3f} "
+                f"learned={learned_baseline:.3f} actual={context.actual_outcome:.3f} "
+                f"contribution={learned_contribution:.3f} gate={gate_decision.value}."
+            ),
+        )
+        self._recent_counterfactual_readouts.append(readout)
+        self._recent_counterfactual_readouts = self._recent_counterfactual_readouts[-10:]
+
+        records: list[CreditRecord] = []
+        if include_historical:
+            records.append(_counterfactual_record_from_context(context=context, timestamp_ms=timestamp_ms))
+        records.append(
+            CreditRecord(
+                record_id=str(uuid4()),
+                level="counterfactual_contribution_learned",
+                track=Track.SHARED,
+                source_event=f"cocoa_learned:{context.source_event.removeprefix('cocoa:')}",
+                credit_value=learned_contribution,
+                context=(
+                    f"{context.context}; learned_baseline={learned_baseline:.3f}; "
+                    f"learned_updates={self._rewarding_state_head.update_count}; "
+                    f"gate={gate_decision.value}; checkpoint={checkpoint_id or 'none'}"
+                ),
+                timestamp_ms=timestamp_ms,
+            )
+        )
+        return tuple(records)
+
+    def record_nstep_outcome(
+        self,
+        *,
+        action_id: str,
+        family_id: str,
+        regime_id: str,
+        outcome: float,
+        timestamp_ms: int,
+    ) -> None:
+        """Append an outcome to the matching N-step entry, or create a new one."""
+        for i, entry in enumerate(self._nstep_ledger):
+            if entry.action_id == action_id:
+                new_history = (entry.outcome_history + (outcome,))[-self._horizon_depth:]
+                self._nstep_ledger[i] = NStepAttributionEntry(
+                    action_id=entry.action_id,
+                    family_id=entry.family_id,
+                    regime_id=entry.regime_id,
+                    timestamp_ms=entry.timestamp_ms,
+                    outcome_history=new_history,
+                )
+                return
+        self._nstep_ledger.append(NStepAttributionEntry(
+            action_id=action_id,
+            family_id=family_id,
+            regime_id=regime_id,
+            timestamp_ms=timestamp_ms,
+            outcome_history=(outcome,),
+        ))
+        if len(self._nstep_ledger) > self._max_ledger_entries:
+            self._nstep_ledger = self._nstep_ledger[-self._max_ledger_entries:]
+
+    def compute_nstep_return(self, *, action_id: str) -> float:
+        """Compute discounted N-step return for a given action."""
+        for entry in self._nstep_ledger:
+            if entry.action_id == action_id:
+                total = 0.0
+                for k, outcome in enumerate(entry.outcome_history):
+                    total += (self._discount_factor ** k) * outcome
+                return total
+        return 0.0
+
+    def rolling_payoff_by_family(self) -> dict[str, float]:
+        """EMA of N-step returns grouped by family_id."""
+        family_returns: dict[str, list[float]] = {}
+        for entry in self._nstep_ledger:
+            if not entry.outcome_history:
+                continue
+            nstep = sum(
+                (self._discount_factor ** k) * v
+                for k, v in enumerate(entry.outcome_history)
+            )
+            family_returns.setdefault(entry.family_id, []).append(nstep)
+        result: dict[str, float] = {}
+        for family_id, returns in family_returns.items():
+            ema = returns[0]
+            for r in returns[1:]:
+                ema = 0.8 * ema + 0.2 * r
+            result[family_id] = round(ema, 4)
+        return result
+
+    def rolling_payoff_by_regime(self) -> dict[str, float]:
+        """EMA of N-step returns grouped by regime_id."""
+        regime_returns: dict[str, list[float]] = {}
+        for entry in self._nstep_ledger:
+            if not entry.outcome_history:
+                continue
+            nstep = sum(
+                (self._discount_factor ** k) * v
+                for k, v in enumerate(entry.outcome_history)
+            )
+            regime_returns.setdefault(entry.regime_id, []).append(nstep)
+        result: dict[str, float] = {}
+        for regime_id, returns in regime_returns.items():
+            ema = returns[0]
+            for r in returns[1:]:
+                ema = 0.8 * ema + 0.2 * r
+            result[regime_id] = round(ema, 4)
+        return result
+
+    def aggregate_session_credits(self) -> tuple[tuple[str, float], ...]:
+        """Compute discounted sum of credit records per session key."""
+        result: dict[str, float] = {}
+        for key, records in self._session_credits.items():
+            discounted_sum = 0.0
+            for i, record in enumerate(reversed(records)):
+                discounted_sum += record.credit_value * (self._discount_factor ** i)
+            result[key] = round(discounted_sum, 4)
+        return tuple(sorted(result.items()))
+
+    def least_control_readout(self) -> LeastControlReadout | None:
+        """Build report-only least-control evidence from owner-owned records."""
+        readouts = tuple(self._recent_counterfactual_readouts[-5:])
+        if not readouts:
+            return None
+        modification_window = tuple(self._recent_modifications[-10:])
+        modification_pressure = _clamp_unit(len(modification_window) / 10.0)
+        blocked_pressure = (
+            sum(1.0 for record in modification_window if record.decision is GateDecision.BLOCK)
+            / len(modification_window)
+            if modification_window
+            else 0.0
+        )
+        control_effort = _clamp_unit(modification_pressure * 0.40 + blocked_pressure * 0.60)
+        outcome_quality = _clamp_unit(
+            sum(_clamp_unit((readout.learned_contribution + 1.0) / 2.0) for readout in readouts)
+            / len(readouts)
+        )
+        least_control_score = _clamp_unit(outcome_quality * (1.0 - control_effort))
+        return LeastControlReadout(
+            control_effort=control_effort,
+            outcome_quality=outcome_quality,
+            least_control_score=least_control_score,
+            evidence_count=len(readouts),
+            description=(
+                f"least_control readout from {len(readouts)} counterfactual readouts "
+                f"and {len(modification_window)} recent modification records; "
+                f"control_effort={control_effort:.3f} outcome_quality={outcome_quality:.3f}."
+            ),
+        )
+
+    def snapshot(self) -> CreditSnapshot:
+        cumulative: dict[str, float] = {}
+        for record in self._recent_credits:
+            cumulative[record.level] = cumulative.get(record.level, 0.0) + record.credit_value
+        return CreditSnapshot(
+            recent_credits=tuple(self._recent_credits[-10:]),
+            recent_modifications=tuple(self._recent_modifications[-10:]),
+            cumulative_credit_by_level=tuple(sorted(cumulative.items())),
+            session_level_credits=self.aggregate_session_credits(),
+            discount_factor=self._discount_factor,
+            delayed_ledger_size=len(self._nstep_ledger),
+            horizon_depth=self._horizon_depth,
+            description=(
+                f"Credit ledger with {len(self._recent_credits)} credit records and "
+                f"{len(self._recent_modifications)} modification records, "
+                f"gamma={self._discount_factor}, turns={self._turn_count}, "
+                f"nstep_entries={len(self._nstep_ledger)}, horizon={self._horizon_depth}."
+            ),
+            rewarding_state_head=self._rewarding_state_head.export_state(),
+            counterfactual_readouts=tuple(self._recent_counterfactual_readouts[-5:]),
+            least_control_readout=self.least_control_readout(),
+            gate_risk_readout=self._latest_gate_risk_readout,
+            recent_action_lineage_credits=tuple(
+                record
+                for record in self._recent_credits
+                if (
+                    (record.prediction_id and record.environment_outcome_id)
+                    or record.conditioning_bank_set
+                )
+            )[-20:],
+        )
+
+
+_CREDIT_HEADS_OWNER_NAME = "credit_heads"
+_CREDIT_HEADS_SCHEMA_VERSION = 1
+
+
+class CreditModule(RuntimeModule[CreditSnapshot]):
+    slot_name = "credit"
+    owner = "CreditModule"
+    value_type = CreditSnapshot
+    dependencies = ("dual_track", "evaluation", "prediction_error", "temporal_abstraction")
+    default_wiring_level = WiringLevel.SHADOW
+
+    def __init__(
+        self,
+        *,
+        ledger: CreditLedger | None = None,
+        pending_proposals: tuple[ModificationProposal, ...] = (),
+        wiring_level: WiringLevel | None = None,
+        learning_enabled: bool = True,
+    ) -> None:
+        super().__init__(wiring_level=wiring_level)
+        self._ledger = ledger or CreditLedger(
+            learning_enabled=learning_enabled
+        )
+        self._ledger.set_learning_enabled(learning_enabled)
+        self._pending_proposals = pending_proposals
+        self._settled_steering_terminal_keys: set[tuple[str, str]] = set()
+
+    @property
+    def ledger(self) -> CreditLedger:
+        return self._ledger
+
+    def set_learning_enabled(self, enabled: bool) -> None:
+        """Gate persistent credit-head writes while retaining credit records."""
+
+        self._ledger.set_learning_enabled(enabled)
+
+    def set_pending_proposals(
+        self, proposals: tuple[ModificationProposal, ...]
+    ) -> None:
+        """Per-turn input for a session-held module instance.
+
+        The learned heads inside the ledger must accumulate across turns,
+        so the runtime injects ONE stable ``CreditModule`` and refreshes
+        only this per-turn proposal buffer.
+        """
+
+        self._pending_proposals = proposals
+
+    def settle_steering_terminal_prediction_errors(
+        self,
+        settlements: tuple[SteeringTerminalPredictionError, ...],
+        *,
+        timestamp_ms: int,
+    ) -> CreditSnapshot:
+        """Credit-owner intake for out-of-turn C1 terminal settlements."""
+
+        if not settlements:
+            raise ValueError("steering terminal settlement batch must be non-empty")
+        keys = tuple(
+            (settlement.episode_id, settlement.prediction_head_fingerprint)
+            for settlement in settlements
+        )
+        if len(set(keys)) != len(keys):
+            raise ValueError("duplicate steering terminal settlement in batch")
+        duplicates = tuple(
+            key for key in keys if key in self._settled_steering_terminal_keys
+        )
+        if duplicates:
+            raise ValueError(
+                "steering terminal settlement was already credited: "
+                f"{duplicates!r}"
+            )
+        records = tuple(
+            record
+            for settlement in settlements
+            for record in derive_steering_terminal_credit_records(
+                settlement=settlement,
+                timestamp_ms=timestamp_ms,
+            )
+        )
+        record_ids = tuple(record.record_id for record in records)
+        if len(set(record_ids)) != len(record_ids):
+            raise ValueError("steering terminal credit record lineage collided")
+        self._ledger.record_credits(records)
+        self._settled_steering_terminal_keys.update(keys)
+        return self._ledger.snapshot()
+
+    # ------------------------------------------------------------------
+    # G1: cross-session continuity for the credit learned heads.
+    # ------------------------------------------------------------------
+
+    def export_persistence_snapshot(self) -> OwnerPersistenceSnapshot:
+        head_state = self._ledger.export_rewarding_state_head()
+        risk_state = self._ledger.export_gate_risk_learner()
+        return OwnerPersistenceSnapshot(
+            owner_name=_CREDIT_HEADS_OWNER_NAME,
+            schema_version=_CREDIT_HEADS_SCHEMA_VERSION,
+            payload={
+                "rewarding_state_head": {
+                    "rule_id": head_state.rule_id,
+                    "feature_dim": head_state.feature_dim,
+                    "update_count": head_state.update_count,
+                    "weights": list(head_state.weights),
+                    "bias": head_state.bias,
+                    "last_prediction": head_state.last_prediction,
+                    "last_target": head_state.last_target,
+                    "last_validation_delta": head_state.last_validation_delta,
+                    "last_capacity_cost": head_state.last_capacity_cost,
+                    "last_rollback_evidence": head_state.last_rollback_evidence,
+                },
+                "gate_risk_learner": {
+                    "weights": list(risk_state.weights),
+                    "update_count": risk_state.update_count,
+                    "abs_error_sum": risk_state.abs_error_sum,
+                    "agreement_count": risk_state.agreement_count,
+                },
+            },
+            description=(
+                "CreditModule learned-head snapshot "
+                f"cocoa_updates={head_state.update_count} "
+                f"gate_risk_updates={risk_state.update_count}"
+            ),
+        )
+
+    def hydrate_from_persistence(
+        self, snapshot: OwnerPersistenceSnapshot
+    ) -> None:
+        if snapshot.owner_name != _CREDIT_HEADS_OWNER_NAME:
+            raise HydrationOwnerMismatchError(
+                "CreditModule expected owner_name="
+                f"{_CREDIT_HEADS_OWNER_NAME!r}, got {snapshot.owner_name!r}"
+            )
+        if snapshot.schema_version != _CREDIT_HEADS_SCHEMA_VERSION:
+            raise HydrationVersionMismatchError(
+                "CreditModule unsupported schema_version="
+                f"{snapshot.schema_version!r}; expected "
+                f"{_CREDIT_HEADS_SCHEMA_VERSION}"
+            )
+        try:
+            head_blob = snapshot.payload["rewarding_state_head"]
+            risk_blob = snapshot.payload["gate_risk_learner"]
+            head_weights = head_blob["weights"]
+            risk_weights = risk_blob["weights"]
+            if not isinstance(head_weights, list | tuple):
+                raise HydrationPayloadInvalidError(
+                    "CreditModule rewarding_state_head.weights must be a list; "
+                    f"got {type(head_weights).__name__}"
+                )
+            if not isinstance(risk_weights, list | tuple):
+                raise HydrationPayloadInvalidError(
+                    "CreditModule gate_risk_learner.weights must be a list; "
+                    f"got {type(risk_weights).__name__}"
+                )
+            self._ledger.restore_rewarding_state_head(
+                RewardingStateHeadState(
+                    rule_id=str(head_blob["rule_id"]),
+                    feature_dim=int(head_blob["feature_dim"]),
+                    update_count=int(head_blob["update_count"]),
+                    weights=tuple(float(value) for value in head_weights),
+                    bias=float(head_blob["bias"]),
+                    last_prediction=float(head_blob["last_prediction"]),
+                    last_target=float(head_blob["last_target"]),
+                    last_validation_delta=float(head_blob["last_validation_delta"]),
+                    last_capacity_cost=float(head_blob["last_capacity_cost"]),
+                    last_rollback_evidence=str(head_blob["last_rollback_evidence"]),
+                )
+            )
+            self._ledger.restore_gate_risk_learner(
+                GateRiskLearnerState(
+                    weights=tuple(float(value) for value in risk_weights),
+                    update_count=int(risk_blob["update_count"]),
+                    abs_error_sum=float(risk_blob["abs_error_sum"]),
+                    agreement_count=int(risk_blob["agreement_count"]),
+                )
+            )
+        except KeyError as exc:
+            raise HydrationPayloadInvalidError(
+                f"CreditModule learned-head payload missing key {exc.args[0]!r}"
+            ) from exc
+        except (TypeError, ValueError) as exc:
+            raise HydrationPayloadInvalidError(
+                f"CreditModule learned-head payload is structurally invalid: {exc}"
+            ) from exc
+
+    async def process(self, upstream: Mapping[str, Snapshot[object]]) -> Snapshot[CreditSnapshot]:
+        dual_track_snapshot = upstream["dual_track"]
+        evaluation_snapshot = upstream["evaluation"]
+        prediction_error_snapshot = upstream["prediction_error"]
+        temporal_snapshot = upstream.get("temporal_abstraction")
+        dual_track_value = (
+            dual_track_snapshot.value if isinstance(dual_track_snapshot.value, DualTrackSnapshot) else None
+        )
+        evaluation_value = (
+            evaluation_snapshot.value if isinstance(evaluation_snapshot.value, EvaluationSnapshot) else None
+        )
+        prediction_error_value = (
+            prediction_error_snapshot.value
+            if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
+            else None
+        )
+        temporal_value = (
+            temporal_snapshot.value
+            if temporal_snapshot is not None
+            and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
+            else None
+        )
+        if dual_track_value is None or evaluation_value is None:
+            return self.publish(self._ledger.snapshot())
+
+        credits = derive_credit_records_from_prediction_error_first(
+            dual_track_snapshot=dual_track_value,
+            evaluation_snapshot=evaluation_value,
+            prediction_error_snapshot=prediction_error_value,
+            timestamp_ms=max(dual_track_snapshot.timestamp_ms, evaluation_snapshot.timestamp_ms),
+            temporal_snapshot=temporal_value,
+        )
+        self._ledger.record_credits(credits)
+        self._record_proposals(
+            proposals=self._pending_proposals,
+            evaluation_snapshot=evaluation_value,
+            timestamp_ms=max(dual_track_snapshot.timestamp_ms, evaluation_snapshot.timestamp_ms),
+        )
+        return self.publish(self._ledger.snapshot())
+
+    async def process_standalone(self, **kwargs: object) -> Snapshot[CreditSnapshot]:
+        dual_track_snapshot = kwargs.get("dual_track_snapshot")
+        evaluation_snapshot = kwargs.get("evaluation_snapshot")
+        prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
+        temporal_snapshot = kwargs.get("temporal_snapshot")
+        proposals = kwargs.get("proposals", self._pending_proposals)
+        if not isinstance(proposals, tuple):
+            raise TypeError("proposals must be a tuple when provided.")
+
+        if isinstance(dual_track_snapshot, DualTrackSnapshot) and isinstance(
+            evaluation_snapshot, EvaluationSnapshot
+        ):
+            credits = derive_credit_records_from_prediction_error_first(
+                dual_track_snapshot=dual_track_snapshot,
+                evaluation_snapshot=evaluation_snapshot,
+                prediction_error_snapshot=(
+                    prediction_error_snapshot
+                    if isinstance(prediction_error_snapshot, PredictionErrorSnapshot)
+                    else None
+                ),
+                timestamp_ms=int(kwargs.get("timestamp_ms", 1)),
+                temporal_snapshot=(
+                    temporal_snapshot
+                    if isinstance(temporal_snapshot, TemporalAbstractionSnapshot)
+                    else None
+                ),
+            )
+            self._ledger.record_credits(credits)
+            self._record_proposals(
+                proposals=proposals,
+                evaluation_snapshot=evaluation_snapshot,
+                timestamp_ms=int(kwargs.get("timestamp_ms", 1)),
+            )
+        return self.publish(self._ledger.snapshot())
+
+    def _record_proposals(
+        self,
+        *,
+        proposals: tuple[ModificationProposal, ...],
+        evaluation_snapshot: EvaluationSnapshot,
+        timestamp_ms: int,
+    ) -> None:
+        for proposal in proposals:
+            gate_reasons = evaluate_gate_reasons(proposal=proposal, evaluation_snapshot=evaluation_snapshot)
+            decision = GateDecision.BLOCK if gate_reasons else GateDecision.ALLOW
+            self._ledger.observe_gate_decision(
+                proposal=proposal,
+                evaluation_snapshot=evaluation_snapshot,
+                decision=decision,
+            )
+            if decision is GateDecision.ALLOW:
+                justification = f"ALLOWED: {proposal.justification}"
+            else:
+                justification = f"BLOCKED: {proposal.justification}; reasons={'; '.join(gate_reasons)}"
+            self._ledger.record_modification(
+                SelfModificationRecord(
+                    target=proposal.target,
+                    gate=proposal.desired_gate,
+                    decision=decision,
+                    old_value_hash=proposal.old_value_hash,
+                    new_value_hash=proposal.new_value_hash,
+                    justification=justification,
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=proposal.is_reversible,
+                )
+            )

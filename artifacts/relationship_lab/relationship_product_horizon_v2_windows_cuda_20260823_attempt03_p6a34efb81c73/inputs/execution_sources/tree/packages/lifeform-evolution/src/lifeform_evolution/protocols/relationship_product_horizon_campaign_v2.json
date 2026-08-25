@@ -1,0 +1,224 @@
+{
+  "schema_version": "relationship-product-horizon-campaign.v2",
+  "owner": {
+    "module": "lifeform_evolution.relationship_lab_product_horizon",
+    "evidence_role": "development_product_horizon_pilot_only",
+    "production_runtime_modified": false,
+    "formal_evidence_authorized": false
+  },
+  "source": {
+    "schema_version": "relationship-product-pilot-source.v1",
+    "cohort_id": "relationship-product-pilot-development-20260823",
+    "source_protocol_id": "048b73d4a412b4444fb469be0d9daa6d2a26e9920c743804da8f36dc331691ae",
+    "source_protocol_raw_sha256": "c623c33f7f8cdbb31a0e5055cb4b802af479ae2a7aa6cb73c9724c614e8539b0",
+    "source_implementation_sha256": "15162708b3e23071830d0413f1ff7a2a75512f507e37f6e30a47570a593972ae",
+    "public_plan_sha256": "93474269cb5b9d066e68253d6f2e51fbc0d3bf3b6a7fe2a748b140d136bb812b",
+    "sealed_evaluator_bundle_sha256": "d502b78364dcb7024b229f4bb10c0cddb002488c3a360edd7aa0932c345d8b5a",
+    "subject_count": 8,
+    "onboarding_sessions_per_subject": 4,
+    "decision_sessions_per_subject": 24,
+    "arm_identity_affects_exogenous_source_or_environment_seed": false
+  },
+  "arms": [
+    {
+      "arm_id": "volvence_full",
+      "system_family": "volvence",
+      "prior_owner_state": "hydrate_exact_prior",
+      "named_reader": "prototype_named_condition_readout",
+      "pe_credit": "apply",
+      "typed_control": "learned"
+    },
+    {
+      "arm_id": "appendable_frozen_onboarding",
+      "system_family": "volvence",
+      "prior_owner_state": "restore_same_frozen_post_onboarding_boundary_each_decision",
+      "named_reader": "prototype_named_condition_readout",
+      "pe_credit": "apply",
+      "typed_control": "learned_with_gate_checkpoint_persisted_across_decisions"
+    },
+    {
+      "arm_id": "readable_unnamed_legacy",
+      "system_family": "volvence",
+      "prior_owner_state": "hydrate_exact_prior",
+      "named_reader": "legacy_unnamed_semantic_similarity",
+      "pe_credit": "apply",
+      "typed_control": "learned"
+    },
+    {
+      "arm_id": "credit_withheld",
+      "system_family": "volvence",
+      "prior_owner_state": "hydrate_exact_prior",
+      "named_reader": "prototype_named_condition_readout",
+      "pe_credit": "derive_but_do_not_apply",
+      "typed_control": "learned"
+    },
+    {
+      "arm_id": "strict_noop",
+      "system_family": "volvence",
+      "prior_owner_state": "hydrate_exact_prior",
+      "named_reader": "prototype_named_condition_readout",
+      "pe_credit": "derive_but_do_not_apply_counterfactual_credit",
+      "typed_control": "force_neutral_noop_after_reader"
+    },
+    {
+      "arm_id": "native_full_history",
+      "system_family": "frozen_qwen_baseline",
+      "context_selection": "chronological_public_history",
+      "online_parameter_update": false
+    },
+    {
+      "arm_id": "selective_rag",
+      "system_family": "frozen_qwen_baseline",
+      "context_selection": "semantic_top_k_public_history",
+      "online_parameter_update": false
+    }
+  ],
+  "execution": {
+    "volvence_fresh_process_per_logical_session": true,
+    "baseline_single_resident_model_with_stateless_calls": true,
+    "baseline_model_source": "Qwen/Qwen2.5-1.5B-Instruct",
+    "baseline_model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "baseline_model_revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+    "baseline_model_weights_sha256": "04d7fb4ec80406436589d31ea38e8d45b9a11cf587ca4eb8a9c8f57415ea6010",
+    "baseline_tokenizer_id": "hf-chat-template:Qwen/Qwen2.5-1.5B-Instruct@sha256:6ca5f3b95dcb6f35062d5a3694917b4a575eba694924a7f10b273569065e0721",
+    "baseline_action_schema_sha256": "764309ff7b1d4aa6e9001a73a8c72407a1fabfd1e9d5c89e7cdf37360054efea",
+    "baseline_generation_config_sha256": "e1abf4e4ecf88ad273134306ea32aca71f3f6df24a322d4b7f430db8bf442884",
+    "baseline_arm_prompt_sha256s": {
+      "native_full_history": "1867fbbdd33e089f6fc6bd1c65e740d31615aff3148d89b5dad711200db4bc26",
+      "selective_rag": "7467edf655740d29a6a0cf744369e66064ce6d905339934f1f8989a708ea58e9"
+    },
+    "baseline_cuda_device": "cuda",
+    "baseline_context_window_tokens": 32768,
+    "baseline_generation_token_reserve": 64,
+    "baseline_generation": {
+      "temperature": 0.0,
+      "top_p": 1.0,
+      "max_new_tokens": 64,
+      "do_sample": false,
+      "prefill_chunk_size": 2048,
+      "generation_use_cache": true,
+      "torch_version": "2.12.0+cu126",
+      "transformers_version": "5.9.0",
+      "seed_namespace": "relationship-product-horizon-qwen-generation-v1",
+      "arm_identity_affects_seed": false,
+      "seed_derivation": "sha256_u64(namespace,cohort_id,subject_scope,decision_index)",
+      "constrained_action_choice": true,
+      "constrained_action_surface": [
+        "{\"action_id\":\"stay_present_without_probe\"}",
+        "{\"action_id\":\"respect_space_with_return_option\"}",
+        "{\"action_id\":\"neutral_noop\"}"
+      ]
+    },
+    "semantic_embedder": {
+      "model_source": "BAAI/bge-m3",
+      "model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+      "embedding_weights_sha256": "b5e0ce3470abf5ef3831aa1bd5553b486803e83251590ab7ff35a117cf6aad38",
+      "sentence_transformers_version": "5.6.0",
+      "device": "cuda",
+      "stub_fallback_allowed": false,
+      "public_ledger_provenance_required": true,
+      "public_table_artifact_id": "75ef759e82a1490dd0a8ce7402ce2e77e156ca957196caa44705386b0a12af57",
+      "public_table_raw_sha256": "894b508f4cfaebea24f66076b17ba8bf1ea812ac61ef36605b6cda8b2fad32fc",
+      "public_table_record_count": 30,
+      "fresh_process_reobservation_required": true,
+      "fresh_process_reobservation_comparison": "exact_table_artifact_id_and_vector_payload"
+    },
+    "named_condition_reader": {
+      "runtime": "PrototypeRelationshipPreferenceForecastRuntime",
+      "artifact": {
+        "schema_version": "relationship-condition-reader-artifact.v1",
+        "embedding_model_id": "BAAI/bge-m3@revision:5617a9f61b028005a4858fdac845db406aefb181",
+        "embedding_weights_sha256": "b5e0ce3470abf5ef3831aa1bd5553b486803e83251590ab7ff35a117cf6aad38",
+        "semantic_similarity": "cosine",
+        "softmax_temperature": 0.05,
+        "prototypes": [
+          {
+            "label": "agency_displacement",
+            "summary": "别人越过当事人的确认，替其表达、选择、承诺或作决定，使当事人失去发言权、决定权以及按自己节奏回应的空间。",
+            "summary_sha256": "297de48841c96660f3cbea6286194f882b1a1c18f648d8c0ee91beeb92b875e6"
+          },
+          {
+            "label": "belonging_erasure",
+            "summary": "当事人被共同经历、邀请、名单、记忆或关系网络遗漏和排除，因而感觉自己在关系中的位置消失、没有被算在其中。",
+            "summary_sha256": "08f6b5f778948bf9a2beca8bcbc0c096181846c3bcb3fc7354b7ecea992a5e50"
+          }
+        ],
+        "artifact_id": "0f4ba01d0f356980ca3dcf6947a7c0580ed825f97943d86c78477b3e10e0a6a6"
+      },
+      "prior_count": 1.0,
+      "evidence_weight": 4.0,
+      "public_only": true,
+      "evaluator_labels_or_actions_received": false
+    },
+    "rag_top_k": 8,
+    "output_commit_rule": "create_temporary_root_then_atomic_rename_and_write_manifest_last",
+    "validate_existing_requires_model_or_cuda": false,
+    "local_execution_source_tree": {
+      "schema_version": "relationship-product-local-execution-source-tree.v1",
+      "selector": "packages/*/src/**/*.py",
+      "entrypoints": [
+        "scripts/run_relationship_lab_product_baseline_dispatcher.py",
+        "scripts/run_relationship_lab_product_horizon.py"
+      ],
+      "resource_paths": [
+        "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v1.json",
+        "packages/lifeform-evolution/src/lifeform_evolution/prompts/relationship_lab_full_history_steelman_v2.txt",
+        "packages/lifeform-evolution/src/lifeform_evolution/prompts/relationship_lab_rag_steelman_v2.txt",
+        "packages/lifeform-evolution/src/lifeform_evolution/prompts/relationship_lab_stateless_v1.txt",
+        "packages/lifeform-evolution/src/lifeform_evolution/protocols/relationship_product_horizon_campaign_v1.json",
+        "packages/lifeform-evolution/src/lifeform_evolution/schemas/relationship_action_choice.schema.json"
+      ],
+      "active_protocol_path": "packages/lifeform-evolution/src/lifeform_evolution/protocols/relationship_product_horizon_campaign_v2.json",
+      "canonicalization": "utf8-strict-newlines-to-lf-preserve-eof.v1",
+      "tree_sha256": "1cb30731d7fe172ec7e03838b83786f62b1fc45291b58a193dc25f2a3fdf6941",
+      "file_count": 951,
+      "canonical_bytes": 18898825
+    }
+  },
+  "analysis": {
+    "primary_window_decision_indices": [12, 23],
+    "primary_endpoint": "positive_typed_outcome_rate",
+    "safety_endpoint": "missed_or_over_directive_typed_outcome_rate",
+    "secondary_endpoints": [
+      "preferred_action_match_rate",
+      "post_reversal_adaptation_latency",
+      "post_correction_positive_outcome_rate",
+      "return_after_gap_positive_outcome_rate",
+      "safety_negative_outcome_rate"
+    ],
+    "analysis_unit": "subject_world_clone",
+    "development_directional_effect_floor": 0.05,
+    "minimum_subjects_with_positive_paired_effect": 6,
+    "maximum_full_safety_rate_increase_vs_any_comparator": 0.02,
+    "stage_two_admission_requires_all_targeted_interventions": true,
+    "stage_two_admission_requires_full_vs_each_strong_baseline": true,
+    "stage_two_admission_requires_safety_noninferiority": true,
+    "stage_two_admission_requires_horizon_durability": true,
+    "horizon_segment_windows": {
+      "post_reversal": [12, 15],
+      "correction": [16, 17],
+      "post_correction": [18, 19],
+      "return_after_gap": [20, 21],
+      "mixed_stress": [22, 23]
+    },
+    "minimum_nonnegative_horizon_segments_per_comparator": 4,
+    "minimum_positive_horizon_segments_per_comparator": 2,
+    "no_interim_source_or_threshold_tuning_from_results": true,
+    "single_axis_contrast_claim_authorized": false,
+    "intervention_scope": {
+      "appendable_frozen_onboarding": "holds the post-onboarding owner boundary fixed while retaining the learned gate checkpoint",
+      "readable_unnamed_legacy": "removes the frozen named condition readout while retaining public semantic similarity; never permutes action identities",
+      "credit_withheld": "derives PE credit but withholds its gate update",
+      "strict_noop": "closed-loop typed-executor ablation; PE credit is derived but no counterfactual gate update is fabricated"
+    }
+  },
+  "claim_boundary": {
+    "typed_control_effect_may_be_reported": true,
+    "residual_steerable": false,
+    "user_visible_generation": false,
+    "four_able_complete": false,
+    "human_product_validation": false,
+    "production_active": false,
+    "thesis_validated": false
+  }
+}

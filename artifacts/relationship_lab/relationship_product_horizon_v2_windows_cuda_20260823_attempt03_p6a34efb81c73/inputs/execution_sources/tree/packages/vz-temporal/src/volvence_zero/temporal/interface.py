@@ -1,0 +1,6642 @@
+from __future__ import annotations
+
+import json
+import math
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, fields, is_dataclass, replace
+from enum import Enum
+from hashlib import sha256
+from typing import Any, Mapping
+
+from volvence_zero.credit.gate import CreditSnapshot
+from volvence_zero.learned_update import LearnedUpdateRule, LearnedUpdateRuleState
+from volvence_zero.memory import MemorySnapshot, Track
+from volvence_zero.prediction.error import PredictionErrorSnapshot
+from volvence_zero.reflection import ReflectionSnapshot, TemporalPriorUpdate, TemporalStructureProposal
+from volvence_zero.runtime import RuntimeModule, Snapshot, WiringLevel
+from volvence_zero.semantic_state import SEMANTIC_OWNER_SLOTS, semantic_control_signal
+from volvence_zero.substrate import (
+    FeatureSignal,
+    ResidualSequenceStep,
+    SubstrateSnapshot,
+    SurfaceKind,
+)
+from volvence_zero.temporal_types import (
+    ControllerState,
+    TemporalAbstractionSnapshot,
+    TemporalActionAdvisoryProposal,
+    TemporalActionAdvisoryStatus,
+    TemporalSegmentClosure,
+)
+from volvence_zero.temporal.metacontroller_components import (
+    DEFAULT_FAMILY_MATCH_WEIGHTS,
+    ActionFamilyObservation,
+    DecoderControl,
+    DiscoveredActionFamily,
+    EncodedSequence,
+    FamilyCompetitionState,
+    FamilyMatchWeights,
+    NdimDecoderParameters,
+    NdimResidualDecoder,
+    NdimEncoderParameters,
+    NdimSequenceEncoder,
+    NdimSwitchParameters,
+    NdimSwitchUnit,
+    PosteriorState,
+    ResidualDecoder,
+    SequenceEncoder,
+    SwitchGateDecision,
+    SwitchGateStats,
+    SwitchUnit,
+    build_ndim_decoder_parameters,
+    build_ndim_encoder_parameters,
+    build_ndim_switch_parameters,
+    build_family_competition_state,
+    discover_latent_action_family,
+    family_match_features,
+    residual_sequence_from_snapshot,
+    summarize_feature_surface,
+    summarize_residual_activations,
+    update_family_match_weights,
+    update_family_outcome_history,
+)
+from volvence_zero.temporal.causal_action_projection import (
+    mirror_causal_action_head_input,
+    normalize_causal_action_head_input_mirror,
+    normalize_causal_action_head_contrast_pairs,
+    project_base_code_off_contrast,
+    project_causal_action_head_mirror_equivariant,
+    project_causal_action_head_vector,
+)
+from volvence_zero.temporal.m3_optimizer import M3OptimizerState
+
+_RUNTIME_EXPLORATION_OPTION_STEPS = 8
+
+
+def _switch_conditioned_family_continuation_bias(
+    *,
+    action_bias: float,
+    family_bias: float,
+    sequence_bias: float,
+    is_switching: bool,
+) -> float:
+    prior = _clamp(
+        action_bias * 0.40
+        + family_bias * 0.40
+        + sequence_bias * 0.20
+    )
+    return 0.0 if is_switching else prior
+
+
+class TemporalImplementationMode(str, Enum):
+    PLACEHOLDER = "placeholder"
+    HEURISTIC = "heuristic"
+    LEARNED_LITE = "learned-lite"
+    FULL_LEARNED = "full-learned"
+
+
+@dataclass(frozen=True)
+class TemporalStep:
+    controller_state: ControllerState
+    active_abstract_action: str
+    controller_params_hash: str
+    description: str
+    action_family_version: int = 0
+
+
+def _conditioning_lineage_refs_from_substrate(
+    substrate_snapshot: SubstrateSnapshot,
+) -> tuple[Any, ...]:
+    if substrate_snapshot.conditioning_lineage is None:
+        return ()
+    return (substrate_snapshot.conditioning_lineage,)
+
+
+def _merge_conditioning_lineage_refs(
+    *groups: tuple[Any, ...],
+) -> tuple[Any, ...]:
+    merged: list[Any] = []
+    seen: set[tuple[object, ...]] = set()
+    for group in groups:
+        for lineage in group:
+            key = (
+                lineage.session_scope,
+                lineage.selected_bank_set,
+                lineage.bank_fingerprints,
+                lineage.state_encoder_version,
+                lineage.prefix_generator_version,
+                lineage.router_version,
+                lineage.carrier,
+                lineage.delivery_phase,
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(lineage)
+    return tuple(merged)
+
+
+@dataclass(frozen=True)
+class CPDSwitchReadout:
+    """Read-only SYS-1 change-point evidence for beta_t switching.
+
+    This is temporal-owner telemetry, not a second beta owner. Future SHADOW
+    profiles may use it to alter switch pressure, but the minimal slice only
+    publishes the evidence.
+    """
+
+    pe_spike_score: float
+    reward_shift_score: float
+    switch_recommended: bool
+    threshold: float
+    evidence_id: str
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class TemporalConsolidationSnapshot:
+    track: str
+    prediction_error_applied: bool
+    reflection_observed: bool
+    family_outcome_applied: bool
+    active_abstract_action: str
+    controller_params_hash: str
+    learning_phase: str
+    structure_frozen: bool
+    active_family_long_term_payoff: float = 0.0
+    active_family_delayed_credit_sum: float = 0.0
+    active_family_outcome_score: float = 0.0
+    cpd_switch_readout: CPDSwitchReadout | None = None
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class TemporalControllerParameters:
+    residual_weight: float
+    memory_weight: float
+    reflection_weight: float
+    switch_bias: float
+
+
+@dataclass(frozen=True)
+class AffordanceSelectionState:
+    """Packet C (long-horizon-closure) — metacontroller-published
+    affordance selection state.
+
+    Per the affordance spec, affordance selection is a metacontroller
+    decision in z_t space, not a hand-coded routing layer. This
+    dataclass is the contract surface for the metacontroller / temporal
+    owner to publish its selection scoring; consumers (the lifeform-side
+    ``AffordanceModule``) read it instead of reconstructing scoring
+    locally.
+
+    Default value on ``MetacontrollerRuntimeState.affordance_selection``
+    is ``None`` (additive, back-compat). Current temporal owner does
+    not populate it; the lifeform-side ``AffordanceModule`` runs its
+    own deterministic ``score_affordance_candidates`` projection from
+    the public ``temporal_abstraction.controller_state.code`` (= z_t)
+    and exposes its own selection in the published ``affordance``
+    snapshot. Future temporal owner work can populate this field
+    inside the metacontroller and the AffordanceModule will then
+    prefer the metacontroller-side selection.
+
+    Invariants:
+
+    - ``candidate_scores`` is a tuple of ``(descriptor_name, score)``
+      pairs; scores in ``[0, 1]``. Order is the registry's iteration
+      order at the time of publication.
+    - ``selected_name`` is non-None only when the top score is the
+      strict argmax with margin >= 0.0 (no ties).
+    - ``selection_entropy`` in ``[0, 1]``: 1.0 means uniform
+      distribution (no preference), 0.0 means a single candidate
+      dominates. Used by the boundary policy as an "uncertainty"
+      signal.
+    """
+
+    candidate_scores: tuple[tuple[str, float], ...]
+    selected_name: str | None
+    selection_entropy: float
+
+
+@dataclass(frozen=True)
+class MetacontrollerRuntimeState:
+    mode: str
+    temporal_parameters: TemporalControllerParameters
+    track_parameters: tuple[tuple[str, tuple[float, ...]], ...]
+    encoder_weights: tuple[tuple[float, ...], ...]
+    switch_weights: tuple[float, ...]
+    decoder_matrix: tuple[tuple[float, ...], ...]
+    persistence: float
+    learning_rate: float
+    clip_epsilon: float
+    update_steps: tuple[tuple[str, int], ...]
+    latent_mean: tuple[float, ...]
+    latent_scale: tuple[float, ...]
+    decoder_control: tuple[float, ...]
+    latest_switch_gate: float
+    sequence_length: int
+    latest_ssl_loss: float
+    latest_ssl_kl_loss: float
+    active_label: str
+    encoder_recurrence: tuple[tuple[float, ...], ...] = ()
+    beta_threshold: float = 0.55
+    decoder_hidden: tuple[tuple[float, ...], ...] = ()
+    ndim_encoder_parameters: NdimEncoderParameters | None = None
+    ndim_switch_parameters: NdimSwitchParameters | None = None
+    ndim_decoder_parameters: NdimDecoderParameters | None = None
+    prior_mean: tuple[float, ...] = ()
+    prior_std: tuple[float, ...] = ()
+    posterior_mean: tuple[float, ...] = ()
+    posterior_std: tuple[float, ...] = ()
+    posterior_sample_noise: tuple[float, ...] = ()
+    z_tilde: tuple[float, ...] = ()
+    posterior_hidden_state: tuple[float, ...] = ()
+    posterior_drift: float = 0.0
+    beta_binary: int = 0
+    switch_sparsity: float = 0.0
+    binary_switch_rate: float = 0.0
+    mean_persistence_window: float = 0.0
+    decoder_applied_control: tuple[float, ...] = ()
+    policy_replacement_score: float = 0.0
+    structure_frozen: bool = False
+    learning_phase: str = "runtime"
+    action_family_version: int = 0
+    action_family_summaries: tuple["ActionFamilyPublicSummary", ...] = ()
+    active_family_summary: "ActionFamilyPublicSummary | None" = None
+    active_family_competition_score: float = 0.0
+    action_family_monopoly_pressure: float = 0.0
+    action_family_turnover_health: float = 0.0
+    track_active_labels: tuple[tuple[str, str], ...] = ()
+    track_switch_gates: tuple[tuple[str, float], ...] = ()
+    encoder_optimizer_state: M3OptimizerState | None = None
+    decoder_optimizer_state: M3OptimizerState | None = None
+    fast_prior_strength: float = 0.0
+    fast_prior_action_bias: float = 0.0
+    fast_prior_family_bias: float = 0.0
+    fast_prior_sequence_bias: float = 0.0
+    fast_prior_switch_pressure_delta: float = 0.0
+    prediction_error_switch_pressure_delta: float = 0.0
+    # protocol-temporal-prior bridge (observable SHADOW evidence). The prior
+    # is recorded every turn the bridge is not DISABLED; ``applied`` reflects
+    # whether it actually reached beta_t (ACTIVE) vs recorded-only (SHADOW).
+    # This lets a SHADOW run be compared against the ACTIVE / baseline
+    # trajectories through the normal runtime-state export channel.
+    protocol_prior_switch_pressure_delta: float = 0.0
+    protocol_prior_strength: float = 0.0
+    protocol_prior_applied: bool = False
+    learned_update_rule_state: LearnedUpdateRuleState | None = None
+    causal_action_head_state: tuple[float, ...] = ()
+    causal_action_head_mirror_state: tuple[float, ...] = ()
+    causal_action_head_residual: tuple[float, ...] = ()
+    causal_action_head_wiring: str = "disabled"
+    causal_action_head_update_step: int = 0
+    # Packet C (long-horizon-closure): optional affordance selection
+    # published by the metacontroller. None when the metacontroller
+    # has no opinion on affordance selection (current default — the
+    # AffordanceModule runs its own z_t projection). Non-None only
+    # after a future temporal-owner change populates it.
+    affordance_selection: AffordanceSelectionState | None = None
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class ActionFamilyPublicSummary:
+    family_id: str
+    dominant_axis: str
+    support: int
+    stability: float
+    switch_bias: float
+    mean_posterior_drift: float
+    mean_persistence_window: float
+    reuse_streak: int
+    stagnation_pressure: float
+    monopoly_pressure: float
+    competition_score: float
+    outcome_history: tuple[float, ...] = ()
+    outcome_driven_score: float = 0.0
+    long_term_payoff: float = 0.5
+    delayed_credit_sum: float = 0.0
+    summary: str = ""
+
+
+@dataclass(frozen=True)
+class FamilyOutcomeFeedback:
+    family_id: str
+    outcome_value: float
+    delayed_credit_delta: float = 0.0
+    session_payoff_delta: float = 0.0
+    credit_record_count: int = 0
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class CausalZActionHeadParameters:
+    track: Track
+    rank: int
+    input_factors: tuple[tuple[float, ...], ...]
+    output_factors: tuple[tuple[float, ...], ...]
+    bias: tuple[float, ...]
+    update_step: int = 0
+
+
+# 冻结 latent code 值域。live ndim forward（``_clamp``）、pure replay 重建与
+# torch autograd lane 必须共享同一个 owner 常数，禁止在第二个文件里写死边界。
+LATENT_CODE_BOUNDS: tuple[float, float] = (0.0, 1.0)
+
+
+@dataclass(frozen=True)
+class CausalActionHeadUpdateEnvelope:
+    """causal action head 单次 owner 更新的冻结包络。
+
+    唯一 owner 是本模块：pure 更新路径（``update_causal_action_head``）与
+    torch autograd lane 都必须消费同一组常数。任何在第二个文件里复制这些
+    数字的实现都是错误设计——无约束截距会安装跨状态固定转向。
+    """
+
+    factor_absolute_limit: float
+    input_factor_step_limit: float
+    output_factor_step_limit: float
+    bias_absolute_limit: float
+    bias_step_limit: float
+    bias_learning_rate_ratio: float
+    bias_state_path_scale: float
+
+
+CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE = CausalActionHeadUpdateEnvelope(
+    factor_absolute_limit=1.5,
+    input_factor_step_limit=0.02,
+    output_factor_step_limit=0.05,
+    bias_absolute_limit=0.1,
+    bias_step_limit=0.01,
+    bias_learning_rate_ratio=0.12,
+    bias_state_path_scale=0.05,
+)
+
+@dataclass(frozen=True)
+class CausalActionHeadUpdateScales:
+    """一次 owner 更新的**比例**步长尺度（clamp 之前）。
+
+    包络是护栏，不是步长。步长必须与梯度成正比，否则更新只携带梯度的符号，
+    退化成 bang-bang 控制器：每次都恰好走满单步上界，10 次就把 bias 钉在绝对
+    上界上——那正是包络要阻止的跨状态固定转向截距。
+
+    - ``factor_learning_rate``：input/output factor 的梯度尺度，
+      ``learning_rate / batch_size``。
+    - ``bias_learning_rate``：``factor_learning_rate * bias_learning_rate_ratio``。
+    - ``bias_signal_learning_rate``：再乘 ``bias_state_path_scale``，即 bias 相对
+      state path 的阻尼后尺度。pure 路径在 delta 处按历史乘法顺序折入同一个
+      ``bias_state_path_scale``（保持逐字节不变），因此只消费前两项。
+    """
+
+    factor_learning_rate: float
+    bias_learning_rate: float
+    bias_signal_learning_rate: float
+
+
+def causal_action_head_update_scales(
+    *,
+    learning_rate: float,
+    batch_size: int,
+    envelope: CausalActionHeadUpdateEnvelope = (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+    ),
+) -> CausalActionHeadUpdateScales:
+    """action-head 更新步长尺度的唯一 owner。
+
+    pure 更新路径与 torch autograd lane 必须消费同一组尺度，禁止在第二个文件
+    里复制 ``/ batch_size``、``0.12`` 或 ``0.05``。
+    """
+
+    if batch_size < 1:
+        raise ValueError(
+            "causal action head update requires a non-empty batch, "
+            f"got batch_size={batch_size!r}"
+        )
+    if not math.isfinite(learning_rate) or learning_rate < 0.0:
+        raise ValueError(
+            "causal action head update learning rate must be finite and "
+            f"non-negative, got {learning_rate!r}"
+        )
+    factor_learning_rate = learning_rate / batch_size
+    bias_learning_rate = (
+        factor_learning_rate * envelope.bias_learning_rate_ratio
+    )
+    return CausalActionHeadUpdateScales(
+        factor_learning_rate=factor_learning_rate,
+        bias_learning_rate=bias_learning_rate,
+        bias_signal_learning_rate=(
+            bias_learning_rate * envelope.bias_state_path_scale
+        ),
+    )
+
+
+def validate_causal_action_head_magnitudes(
+    parameters: CausalZActionHeadParameters,
+    *,
+    envelope: CausalActionHeadUpdateEnvelope = (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+    ),
+) -> None:
+    """校验 action-head 参数幅度落在冻结包络内。
+
+    越界时 fail loudly，并在消息里点名被违反的具体上界，使损坏 / 越权
+    archive 无法静默安装一个 owner 更新路径永远产生不出来的映射。
+
+    **不加任何容差**：包络是冻结上界，加 slack 就是悄悄放宽它。owner 写入路径
+    产出的边界值天然合法——``max(-0.1, min(0.1, x))`` 精确返回 ``0.1``，而
+    ``abs(0.1) > 0.1`` 为 ``False``，无需 epsilon 兜底。
+    """
+
+    for name, matrix in (
+        ("input_factors", parameters.input_factors),
+        ("output_factors", parameters.output_factors),
+    ):
+        for row_index, row in enumerate(matrix):
+            for column_index, value in enumerate(row):
+                if (
+                    not math.isfinite(value)
+                    or abs(value) > envelope.factor_absolute_limit
+                ):
+                    raise ValueError(
+                        "causal action head violates frozen bound "
+                        "factor_absolute_limit="
+                        f"{envelope.factor_absolute_limit}: "
+                        f"track={parameters.track.value}, "
+                        f"{name}[{row_index}][{column_index}]={value!r}"
+                    )
+    for index, value in enumerate(parameters.bias):
+        if (
+            not math.isfinite(value)
+            or abs(value) > envelope.bias_absolute_limit
+        ):
+            raise ValueError(
+                "causal action head violates frozen bound "
+                f"bias_absolute_limit={envelope.bias_absolute_limit}: "
+                f"track={parameters.track.value}, bias[{index}]={value!r}"
+            )
+
+
+def _envelope_bounded_value(
+    *,
+    baseline: float,
+    candidate: float,
+    step_limit: float,
+    absolute_limit: float,
+    label: str,
+) -> float:
+    """单个参数的“先限步长、再限绝对幅度”投影。
+
+    与 ``update_causal_action_head`` 中的 clamp 顺序逐字对应。
+
+    baseline 与 candidate 都必须有限。非有限 baseline 同样 fail loudly：
+    ``max(nan - step, min(nan + step, candidate))`` 得到 ``nan``，再 clamp 会被
+    静默压成 ``+absolute_limit``——一个损坏的基线因此会悄悄变成钉在绝对上界上
+    的合法参数，正是包络要阻止的固定截距。
+    """
+
+    if not math.isfinite(baseline):
+        raise ValueError(
+            "causal action head baseline must be finite, "
+            f"got {label}={baseline!r}"
+        )
+    if not math.isfinite(candidate):
+        raise ValueError(
+            "causal action head candidate must be finite, "
+            f"got {label}={candidate!r}"
+        )
+    bounded_step = max(
+        baseline - step_limit,
+        min(baseline + step_limit, candidate),
+    )
+    return max(-absolute_limit, min(absolute_limit, bounded_step))
+
+
+def project_causal_action_head_update(
+    *,
+    baseline: CausalZActionHeadParameters,
+    candidate: CausalZActionHeadParameters,
+    envelope: CausalActionHeadUpdateEnvelope = (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+    ),
+) -> CausalZActionHeadParameters:
+    """把一次候选更新投影回 ``baseline`` 周围的冻结包络。
+
+    ``baseline`` 是本次 owner 更新开始时的参数，``candidate`` 是任意优化器
+    （例如 torch Adam）提出的新参数。语义与 pure owner 路径完全一致（同一组
+    常数、同样的 clamp 顺序），因此 torch lane 无需复制任何阈值。
+
+    投影是 ``clamp_absolute(clamp_step(candidate))``，两条上界的成立条件**不
+    对称**，不要把逐步位移当成无条件不变量：
+
+    1. ``|result| <= absolute_limit`` —— **无条件成立**。
+    2. baseline 已在包络内（``|baseline| <= absolute_limit``）时
+       ``result`` 落在 ``[baseline - step_limit, baseline + step_limit]``
+       —— 这是每步位移上界的成立域，也是 owner 自身写入路径的稳态。区间按
+       binary64 求值，不是精确算术：``0.05 + 0.01`` 的可表示值是
+       ``0.060000000000000005``，因此 ``|result - baseline| <= step_limit``
+       会以 1 ulp 之差为假；不变量属于区间，不属于差的绝对值。
+    3. baseline 已在包络**外**且距离超过 ``step_limit`` 时，step 区间与绝对区
+       间不相交，绝对 clamp 获胜：``result == sign(baseline) * absolute_limit``，
+       单次调用的位移是 ``|baseline| - absolute_limit``，**可以远大于**
+       ``step_limit``。实测：permissive 路径装入的 ``bias=0.35`` 在
+       ``bias_step_limit=0.01`` 下一次更新即被拉回 ``0.1``（25 倍单步上界）。
+       方向恒为**朝冻结区收敛**：``|result| = absolute_limit < |baseline|``；在
+       冻结包络下（三个 step 上界均严格小于对应 absolute 上界）符号也不会翻转
+       到对侧上界。因此这是安全方向；pure owner 路径历来如此，属于按设计行为，
+       文档记述必须与之一致而不是反过来改行为。
+
+    合并起来即：``result`` 落在 ``[baseline - step, baseline + step]`` 与
+    ``[-absolute, absolute]`` 的交集里；交集为空时取 ``[-absolute, absolute]``
+    中离 ``baseline`` 最近的端点。
+    """
+
+    if baseline.track is not candidate.track:
+        raise ValueError(
+            "causal action head projection track mismatch: "
+            f"baseline={baseline.track.value}, "
+            f"candidate={candidate.track.value}"
+        )
+    if baseline.rank != candidate.rank:
+        raise ValueError(
+            "causal action head projection rank mismatch: "
+            f"baseline={baseline.rank}, candidate={candidate.rank}"
+        )
+    if (
+        len(baseline.input_factors) != len(candidate.input_factors)
+        or len(baseline.output_factors) != len(candidate.output_factors)
+        or len(baseline.bias) != len(candidate.bias)
+        or any(
+            len(baseline_row) != len(candidate_row)
+            for baseline_row, candidate_row in zip(
+                baseline.input_factors,
+                candidate.input_factors,
+                strict=True,
+            )
+        )
+        or any(
+            len(baseline_row) != len(candidate_row)
+            for baseline_row, candidate_row in zip(
+                baseline.output_factors,
+                candidate.output_factors,
+                strict=True,
+            )
+        )
+    ):
+        raise ValueError(
+            "causal action head projection shape mismatch for "
+            f"track={baseline.track.value}"
+        )
+    projected_input = tuple(
+        tuple(
+            _envelope_bounded_value(
+                baseline=baseline_value,
+                candidate=candidate_value,
+                step_limit=envelope.input_factor_step_limit,
+                absolute_limit=envelope.factor_absolute_limit,
+                label=f"input_factors[{row_index}][{column_index}]",
+            )
+            for column_index, (baseline_value, candidate_value) in enumerate(
+                zip(baseline_row, candidate_row, strict=True)
+            )
+        )
+        for row_index, (baseline_row, candidate_row) in enumerate(
+            zip(baseline.input_factors, candidate.input_factors, strict=True)
+        )
+    )
+    projected_output = tuple(
+        tuple(
+            _envelope_bounded_value(
+                baseline=baseline_value,
+                candidate=candidate_value,
+                step_limit=envelope.output_factor_step_limit,
+                absolute_limit=envelope.factor_absolute_limit,
+                label=f"output_factors[{row_index}][{column_index}]",
+            )
+            for column_index, (baseline_value, candidate_value) in enumerate(
+                zip(baseline_row, candidate_row, strict=True)
+            )
+        )
+        for row_index, (baseline_row, candidate_row) in enumerate(
+            zip(baseline.output_factors, candidate.output_factors, strict=True)
+        )
+    )
+    projected_bias = tuple(
+        _envelope_bounded_value(
+            baseline=baseline_value,
+            candidate=candidate_value,
+            step_limit=envelope.bias_step_limit,
+            absolute_limit=envelope.bias_absolute_limit,
+            label=f"bias[{index}]",
+        )
+        for index, (baseline_value, candidate_value) in enumerate(
+            zip(baseline.bias, candidate.bias, strict=True)
+        )
+    )
+    return replace(
+        candidate,
+        input_factors=projected_input,
+        output_factors=projected_output,
+        bias=projected_bias,
+    )
+
+
+@dataclass(frozen=True)
+class MetacontrollerParameterSnapshot:
+    temporal_parameters: TemporalControllerParameters
+    track_parameters: tuple[tuple[str, tuple[float, ...]], ...]
+    encoder_weights: tuple[tuple[float, ...], ...]
+    encoder_recurrence: tuple[tuple[float, ...], ...]
+    switch_weights: tuple[float, ...]
+    beta_threshold: float
+    decoder_matrix: tuple[tuple[float, ...], ...]
+    decoder_hidden: tuple[tuple[float, ...], ...]
+    ndim_encoder_parameters: NdimEncoderParameters | None
+    ndim_switch_parameters: NdimSwitchParameters | None
+    ndim_decoder_parameters: NdimDecoderParameters | None
+    persistence: float
+    learning_rate: float
+    clip_epsilon: float
+    update_steps: tuple[tuple[str, int], ...]
+    latent_mean: tuple[float, ...]
+    latent_scale: tuple[float, ...]
+    decoder_control: tuple[float, ...]
+    latest_switch_gate: float
+    sequence_length: int
+    latest_ssl_loss: float
+    latest_ssl_kl_loss: float
+    active_label: str
+    prior_mean: tuple[float, ...]
+    prior_std: tuple[float, ...]
+    posterior_mean: tuple[float, ...]
+    posterior_std: tuple[float, ...]
+    posterior_sample_noise: tuple[float, ...]
+    z_tilde: tuple[float, ...]
+    posterior_hidden_state: tuple[float, ...]
+    posterior_drift: float
+    beta_binary: int
+    switch_sparsity: float
+    binary_switch_rate: float
+    mean_persistence_window: float
+    decoder_applied_control: tuple[float, ...]
+    policy_replacement_score: float
+    action_families: tuple[DiscoveredActionFamily, ...] = ()
+    encoder_optimizer_state: M3OptimizerState | None = None
+    decoder_optimizer_state: M3OptimizerState | None = None
+    structure_frozen: bool = False
+    learning_phase: str = "runtime"
+    action_family_version: int = 0
+    learned_update_rule_state: LearnedUpdateRuleState | None = None
+    causal_action_heads: tuple[CausalZActionHeadParameters, ...] = ()
+    family_match_weights: FamilyMatchWeights = (
+        DEFAULT_FAMILY_MATCH_WEIGHTS
+    )
+
+
+@dataclass(frozen=True)
+class DualTrackRareHeavySnapshot:
+    world_snapshot: MetacontrollerParameterSnapshot
+    self_snapshot: MetacontrollerParameterSnapshot
+    description: str
+
+
+def _bootstrap_snapshot_n_z(snapshot: MetacontrollerParameterSnapshot) -> int:
+    candidate_lengths = (
+        len(snapshot.latent_mean),
+        len(snapshot.latent_scale),
+        len(snapshot.encoder_weights),
+        len(snapshot.decoder_matrix),
+    )
+    return max((length for length in candidate_lengths if length > 0), default=3)
+
+
+def resolve_temporal_bootstrap_snapshot(
+    bootstrap_source: MetacontrollerParameterSnapshot | DualTrackRareHeavySnapshot | None,
+    *,
+    track: Track,
+) -> MetacontrollerParameterSnapshot | None:
+    if isinstance(bootstrap_source, MetacontrollerParameterSnapshot):
+        return bootstrap_source
+    if isinstance(bootstrap_source, DualTrackRareHeavySnapshot):
+        if track is Track.SELF:
+            return bootstrap_source.self_snapshot
+        return bootstrap_source.world_snapshot
+    return None
+
+
+def build_bootstrapped_parameter_store(
+    snapshot: MetacontrollerParameterSnapshot,
+) -> MetacontrollerParameterStore:
+    store = MetacontrollerParameterStore(n_z=_bootstrap_snapshot_n_z(snapshot))
+    store.restore_parameter_snapshot(snapshot)
+    return store
+
+
+
+@dataclass(frozen=True)
+class LatestMetacontrollerTelemetry:
+    """Frozen snapshot of metacontroller per-step telemetry (R8 + R11).
+
+    Grouped semantically (latent / switch / decoder / SSL loss /
+    optimizer / learned-update / fast-prior) but kept in a single
+    dataclass so :func:`dataclasses.replace` can update several
+    related fields in one batched step. The producing
+    :class:`MetacontrollerParameterStore` publishes a fresh instance
+    on every runtime observation, optimizer update, SSL metric cycle,
+    and fast-prior update. External consumers access individual fields
+    transparently via ``store.latest_X`` (routed through ``__getattr__``
+    to ``store._latest.X``) so the pre-existing read API is unchanged.
+    """
+
+    # Latent / encoder state
+    latent_mean: tuple[float, ...]
+    latent_scale: tuple[float, ...]
+    prior_mean: tuple[float, ...]
+    prior_std: tuple[float, ...]
+    posterior_mean: tuple[float, ...]
+    posterior_std: tuple[float, ...]
+    posterior_sample_noise: tuple[float, ...]
+    z_tilde: tuple[float, ...]
+    posterior_hidden_state: tuple[float, ...]
+
+    # Decoder output
+    decoder_control: tuple[float, ...]
+    decoder_applied_control: tuple[float, ...]
+
+    # Switch / beta gating
+    switch_gate: float = 0.0
+    beta_binary: int = 0
+    switch_sparsity: float = 0.0
+    binary_switch_rate: float = 0.0
+    mean_persistence_window: float = 0.0
+    posterior_drift: float = 0.0
+
+    # Active action + replacement score
+    active_label: str = "unassigned_action"
+    policy_replacement_score: float = 0.0
+
+    # SSL loss telemetry
+    ssl_loss: float = 0.0
+    ssl_kl_loss: float = 0.0
+    sequence_length: int = 0
+
+    # Optimizer + learned-update state
+    encoder_optimizer_state: "M3OptimizerState | None" = None
+    decoder_optimizer_state: "M3OptimizerState | None" = None
+    learned_update_rule_state: "LearnedUpdateRuleState | None" = None
+
+    # Fast prior readouts
+    fast_prior_strength: float = 0.0
+    fast_prior_action_bias: float = 0.0
+    fast_prior_family_bias: float = 0.0
+    fast_prior_sequence_bias: float = 0.0
+    fast_prior_switch_pressure_delta: float = 0.0
+    prediction_error_switch_pressure_delta: float = 0.0
+
+
+class MetacontrollerParameterStore:
+    """Shared parameter store for runtime temporal control and internal RL."""
+
+    _VALID_LEARNING_PHASES = (
+        "runtime",
+        "ssl",
+        "ssl-online",
+        "rl",
+        "rl-online",
+        "rare-heavy",
+        "rare-heavy-import",
+    )
+
+    def __init__(
+        self,
+        *,
+        n_z: int = 3,
+        n_input: int | None = None,
+        causal_action_head_envelope_enforced: bool = False,
+        initialization_seed: int = 42,
+    ) -> None:
+        # 显式契约字段：默认 False 精确保留历史 restore 行为（只校验 shape），
+        # True 时 archive / checkpoint 恢复也必须满足冻结幅度包络。
+        # owner 自己的受纪律写入路径始终按 True 校验，与本开关无关。
+        self.causal_action_head_envelope_enforced = bool(
+            causal_action_head_envelope_enforced
+        )
+        resolved_input_dim = n_z if n_input is None else n_input
+        if resolved_input_dim < 1:
+            raise ValueError(
+                "metacontroller input dimension must be >= 1, "
+                f"got {resolved_input_dim!r}"
+            )
+        if n_z == 3 and resolved_input_dim != 3:
+            raise ValueError(
+                "legacy 3-d temporal policy requires n_input=3; "
+                f"got {resolved_input_dim!r}"
+            )
+        self._n_z = n_z
+        self.temporal_weights: dict[str, float] = {
+            "residual": 0.65,
+            "memory": 0.2,
+            "reflection": 0.15,
+        }
+        self.switch_bias = 0.1
+        if n_z == 3:
+            self.encoder_weights: tuple[tuple[float, ...], ...] = (
+                (0.70, 0.20, 0.10),
+                (0.25, 0.55, 0.20),
+                (0.15, 0.25, 0.60),
+            )
+            self.encoder_recurrence: tuple[tuple[float, ...], ...] = (
+                (0.60, 0.20, 0.20),
+                (0.20, 0.60, 0.20),
+                (0.20, 0.20, 0.60),
+            )
+            self.switch_weights: tuple[float, ...] = (0.45, 0.35, 0.20)
+            self.decoder_matrix: tuple[tuple[float, ...], ...] = (
+                (0.80, 0.15, 0.05),
+                (0.20, 0.65, 0.15),
+                (0.25, 0.25, 0.50),
+            )
+            self.decoder_hidden: tuple[tuple[float, ...], ...] = (
+                (0.60, 0.25, 0.15),
+                (0.20, 0.60, 0.20),
+                (0.15, 0.25, 0.60),
+            )
+            self.action_families: tuple[DiscoveredActionFamily, ...] = _init_action_families(n_z, seed=105)
+            self.track_weights: dict[Track, tuple[float, float, float]] = {
+                Track.WORLD: (0.70, 0.20, 0.10),
+                Track.SELF: (0.20, 0.70, 0.10),
+                Track.SHARED: (0.40, 0.40, 0.20),
+            }
+        else:
+            self.encoder_weights = _random_mat(n_z, n_z, seed=100)
+            self.encoder_recurrence = _random_mat(n_z, n_z, seed=101)
+            self.switch_weights = _random_vec(n_z, seed=102)
+            self.decoder_matrix = _random_mat(n_z, n_z, seed=103)
+            self.decoder_hidden = _random_mat(n_z, n_z, seed=104)
+            self.action_families = _init_action_families(n_z, seed=105)
+            self.track_weights = _init_track_weights(n_z, seed=106)
+        self.causal_action_heads = _init_causal_action_heads(n_z=n_z)
+        self.ndim_encoder_parameters: NdimEncoderParameters | None = (
+            None
+            if n_z == 3
+            else build_ndim_encoder_parameters(
+                n_z=n_z,
+                n_input=resolved_input_dim,
+                seed=initialization_seed,
+            )
+        )
+        self.ndim_switch_parameters: NdimSwitchParameters | None = (
+            None
+            if n_z == 3
+            else build_ndim_switch_parameters(
+                n_z=n_z,
+                seed=initialization_seed,
+            )
+        )
+        self.ndim_decoder_parameters: NdimDecoderParameters | None = (
+            None
+            if n_z == 3
+            else build_ndim_decoder_parameters(
+                n_z=n_z,
+                seed=initialization_seed,
+            )
+        )
+        self.beta_threshold = 0.55
+        self.persistence = 0.65
+        self.learning_rate = 0.08
+        self.clip_epsilon = 0.2
+        # Learned action-family match head (#86/#88): the historical fixed
+        # cosine-mix coefficients are the initialisation; settled family
+        # outcomes drive bounded online updates (rollback = reset to
+        # DEFAULT_FAMILY_MATCH_WEIGHTS, never further than the envelope).
+        self.family_match_weights: FamilyMatchWeights = DEFAULT_FAMILY_MATCH_WEIGHTS
+        self._latest_family_match_features: dict[str, tuple[float, ...]] = {}
+        self.update_steps: dict[Track, int] = {
+            Track.WORLD: 0,
+            Track.SELF: 0,
+            Track.SHARED: 0,
+        }
+        self.learned_update_rule = LearnedUpdateRule(
+            rule_id="metacontroller-update",
+            feature_dim=max(12, n_z * 5),
+            hidden_dim=max(8, n_z * 2),
+        )
+        # R8 + R11: all per-step telemetry lives in a single frozen
+        # snapshot. External reads of ``store.latest_X`` resolve via
+        # ``__getattr__`` below; every write goes through ``replace``.
+        self._latest: LatestMetacontrollerTelemetry = LatestMetacontrollerTelemetry(
+            latent_mean=_nz_zeros(n_z),
+            latent_scale=_nz_zeros(n_z),
+            prior_mean=_nz_zeros(n_z),
+            prior_std=_nz_ones(n_z),
+            posterior_mean=_nz_zeros(n_z),
+            posterior_std=_nz_zeros(n_z),
+            posterior_sample_noise=_nz_zeros(n_z),
+            z_tilde=_nz_zeros(n_z),
+            posterior_hidden_state=_nz_zeros(n_z),
+            decoder_control=_nz_zeros(n_z),
+            decoder_applied_control=_nz_zeros(n_z),
+            learned_update_rule_state=self.learned_update_rule.export_state(),
+        )
+        self.structure_frozen = True
+        self.learning_phase = "runtime"
+        self._learning_writes_enabled = True
+        self._action_family_version = 0
+        # protocol-temporal-prior bridge: the BehaviorProtocol active
+        # mixture (owned by vz-application, downstream of temporal in the
+        # propagate DAG) is fed back one turn later as a bounded switch-
+        # pressure prior. Kept as plain owner-side scalars (NOT part of
+        # the frozen ``LatestMetacontrollerTelemetry`` schema) so the
+        # bridge adds no snapshot-schema ripple and rolls back cleanly.
+        self._protocol_prior_switch_pressure_delta: float = 0.0
+        self._protocol_prior_strength: float = 0.0
+        self._protocol_prior_applied: bool = False
+        self._prediction_error_switch_pressure_delta: float = 0.0
+        self._external_boundary_requested: bool = False
+
+    @property
+    def n_z(self) -> int:
+        return self._n_z
+
+    @property
+    def n_input(self) -> int:
+        if self.ndim_encoder_parameters is None:
+            return self._n_z
+        return self.ndim_encoder_parameters.n_input
+
+    @property
+    def learning_writes_enabled(self) -> bool:
+        return self._learning_writes_enabled
+
+    def set_learning_writes_enabled(self, enabled: bool) -> None:
+        """Enable or freeze owner-held online learning writes.
+
+        This runtime gate is intentionally not checkpointed: a held-out
+        runner must be able to restore a trained artifact and then consume it
+        read-only, regardless of the mode in which the artifact was created.
+        """
+
+        self._learning_writes_enabled = bool(enabled)
+
+    def reset_episode_runtime_telemetry(self) -> None:
+        """Clear trajectory-local readouts without touching learned state."""
+
+        n_z = self._n_z
+        self._latest = replace(
+            self._latest,
+            latent_mean=_nz_zeros(n_z),
+            latent_scale=_nz_zeros(n_z),
+            prior_mean=_nz_zeros(n_z),
+            prior_std=_nz_ones(n_z),
+            posterior_mean=_nz_zeros(n_z),
+            posterior_std=_nz_zeros(n_z),
+            posterior_sample_noise=_nz_zeros(n_z),
+            z_tilde=_nz_zeros(n_z),
+            posterior_hidden_state=_nz_zeros(n_z),
+            decoder_control=_nz_zeros(n_z),
+            decoder_applied_control=_nz_zeros(n_z),
+            switch_gate=0.0,
+            beta_binary=0,
+            switch_sparsity=0.0,
+            binary_switch_rate=0.0,
+            mean_persistence_window=0.0,
+            posterior_drift=0.0,
+            active_label="unassigned_action",
+            policy_replacement_score=0.0,
+            sequence_length=0,
+            fast_prior_strength=0.0,
+            fast_prior_action_bias=0.0,
+            fast_prior_family_bias=0.0,
+            fast_prior_sequence_bias=0.0,
+            fast_prior_switch_pressure_delta=0.0,
+            prediction_error_switch_pressure_delta=0.0,
+        )
+        self._protocol_prior_switch_pressure_delta = 0.0
+        self._protocol_prior_strength = 0.0
+        self._protocol_prior_applied = False
+        self._prediction_error_switch_pressure_delta = 0.0
+        # ``_external_boundary_requested`` is deliberately NOT cleared here.
+        # SSL's expert-action family discovery calls this reset mid-turn (on
+        # full-cycle turns, BEFORE the live decision), and clearing the
+        # typed boundary request there would silently drop an owner-confirmed
+        # milestone exactly on learning turns -- the same failure mode the
+        # request exists to fix. The request is turn-scoped by construction:
+        # its only writer is the orchestrating loop's per-turn
+        # ``record_external_boundary_request`` refresh, which always runs
+        # before the decision that consumes it.
+
+    def learning_parameter_fingerprint(self) -> str:
+        """Hash owned learning parameters while excluding turn-local adaptation.
+
+        PE consolidation may retune the residual/memory/reflection mixture every
+        turn via ``fit_from_signals``; that online-fast mixing is not part of the
+        checkpointed SSL / Internal-RL / causal-head learning surface, so it is
+        omitted here. Frozen held-out arms use this hash to prove encoder,
+        decoder, track, optimizer, and causal-head ownership did not write.
+        """
+
+        return _hash_payload(
+            {
+                "track_parameters": tuple(
+                    (
+                        track.value,
+                        self.track_weights[track],
+                        self.update_steps[track],
+                    )
+                    for track in (
+                        Track.WORLD,
+                        Track.SELF,
+                        Track.SHARED,
+                    )
+                ),
+                "legacy_encoder": (
+                    self.encoder_weights,
+                    self.encoder_recurrence,
+                ),
+                "legacy_switch": (
+                    self.switch_weights,
+                    self.beta_threshold,
+                ),
+                "legacy_decoder": (
+                    self.decoder_matrix,
+                    self.decoder_hidden,
+                ),
+                "ndim_encoder": self.ndim_encoder_parameters,
+                "ndim_switch": self.ndim_switch_parameters,
+                "ndim_decoder": self.ndim_decoder_parameters,
+                "persistence": self.persistence,
+                "family_match_weights": self.family_match_weights,
+                "learned_update_rule_state": (
+                    self.latest_learned_update_rule_state
+                ),
+                "encoder_optimizer_state": (
+                    self.latest_encoder_optimizer_state
+                ),
+                "decoder_optimizer_state": (
+                    self.latest_decoder_optimizer_state
+                ),
+                "causal_action_heads": tuple(
+                    self.causal_action_heads[track]
+                    for track in (
+                        Track.WORLD,
+                        Track.SELF,
+                        Track.SHARED,
+                    )
+                ),
+            }
+        )
+
+    def causal_action_head_parameters(
+        self,
+        *,
+        track: Track,
+    ) -> CausalZActionHeadParameters:
+        return self.causal_action_heads[track]
+
+    def restore_causal_action_head_parameters(
+        self,
+        parameters: CausalZActionHeadParameters,
+        *,
+        enforce_envelope: bool | None = None,
+    ) -> None:
+        """安装一组 action-head 参数。
+
+        ``enforce_envelope`` 为 ``None`` 时回落到 store 的
+        ``causal_action_head_envelope_enforced`` 契约字段（默认 ``False``，
+        即历史行为：只校验 shape）。owner 自己的受纪律写入路径（pure 更新与
+        torch 投影后写回）显式传 ``True``，因此越权 archive 无法借它们落地。
+        """
+
+        if len(parameters.input_factors) != parameters.rank:
+            raise ValueError(
+                "causal action head input rank mismatch: "
+                f"expected={parameters.rank}, "
+                f"actual={len(parameters.input_factors)}"
+            )
+        input_widths = {
+            len(row) for row in parameters.input_factors
+        }
+        if len(input_widths) != 1 or next(iter(input_widths), 0) < 1:
+            raise ValueError(
+                "causal action head input width must be positive and "
+                f"consistent, got={tuple(sorted(input_widths))}"
+            )
+        if len(parameters.output_factors) != self._n_z:
+            raise ValueError(
+                "causal action head output width mismatch: "
+                f"expected={self._n_z}, "
+                f"actual={len(parameters.output_factors)}"
+            )
+        if any(
+            len(row) != parameters.rank
+            for row in parameters.output_factors
+        ):
+            raise ValueError(
+                "causal action head output rank mismatch: "
+                f"expected={parameters.rank}"
+            )
+        if len(parameters.bias) != self._n_z:
+            raise ValueError(
+                "causal action head bias width mismatch: "
+                f"expected={self._n_z}, "
+                f"actual={len(parameters.bias)}"
+            )
+        # NaN/Inf 从来不是任何 owner 更新路径的合法产物，也不受 opt-in 包络开关
+        # 支配：``restore_parameter_snapshot`` 早就在 checkpoint 侧拒绝它们，这条
+        # 直接安装路径必须同样 fail loudly，否则一次发散的 torch 更新会把 NaN
+        # 静默写进 live head，直到下游某处才炸开。
+        if not all(
+            math.isfinite(value)
+            for matrix in (parameters.input_factors, parameters.output_factors)
+            for row in matrix
+            for value in row
+        ) or not all(math.isfinite(value) for value in parameters.bias):
+            raise ValueError(
+                "causal action head parameters contain non-finite values for "
+                f"track={parameters.track.value}"
+            )
+        enforce = (
+            self.causal_action_head_envelope_enforced
+            if enforce_envelope is None
+            else bool(enforce_envelope)
+        )
+        if enforce:
+            validate_causal_action_head_magnitudes(parameters)
+        self.causal_action_heads[parameters.track] = parameters
+
+    def set_causal_action_head_envelope_enforced(self, enabled: bool) -> None:
+        """打开/关闭 archive 侧的冻结幅度校验（默认 ``False``）。
+
+        构造后的显式契约切换点：持有 store 的调用方（joint-loop pipeline、
+        session 装配）据此把 domain 的声明落到 owner 边界上。``False`` 精确恢复
+        历史 restore 行为，因此该开关是可逆的 opt-in，而不是新默认值。
+        """
+
+        self.causal_action_head_envelope_enforced = bool(enabled)
+
+    def configure_causal_action_head_rank(
+        self,
+        *,
+        track: Track,
+        rank: int,
+    ) -> None:
+        """Select a neutral factor width before owner learning starts."""
+
+        if rank < 1:
+            raise ValueError(
+                "causal action head rank must be positive, "
+                f"got {rank!r}"
+            )
+        rank = min(rank, self._n_z)
+        parameters = self.causal_action_heads[track]
+        if parameters.rank == rank:
+            return
+        if (
+            parameters.update_step != 0
+            or any(
+                abs(value) > 1e-12
+                for row in parameters.output_factors
+                for value in row
+            )
+            or any(abs(value) > 1e-12 for value in parameters.bias)
+        ):
+            raise RuntimeError(
+                "cannot change causal action head rank after the owner "
+                "has learned a live mapping"
+            )
+        self.causal_action_heads[track] = (
+            _initial_causal_action_head_parameters(
+                n_z=self._n_z,
+                state_dim=self.causal_action_head_state_dim(track=track),
+                track=track,
+                rank=rank,
+            )
+        )
+
+    def causal_action_head_state_dim(self, *, track: Track) -> int:
+        parameters = self.causal_action_heads[track]
+        if not parameters.input_factors:
+            raise RuntimeError(
+                "causal action head has no input-factor rows"
+            )
+        return len(parameters.input_factors[0])
+
+    def configure_causal_action_head_state_dim(
+        self,
+        *,
+        track: Track,
+        state_dim: int,
+    ) -> None:
+        """Select a wider observation state before owner learning starts."""
+
+        if isinstance(state_dim, bool) or not isinstance(state_dim, int):
+            raise TypeError(
+                "causal action head state_dim must be an integer"
+            )
+        if state_dim < 1:
+            raise ValueError(
+                "causal action head state_dim must be positive, "
+                f"got {state_dim!r}"
+            )
+        parameters = self.causal_action_heads[track]
+        current_dim = self.causal_action_head_state_dim(track=track)
+        if current_dim == state_dim:
+            return
+        if (
+            parameters.update_step != 0
+            or any(
+                abs(value) > 1e-12
+                for row in parameters.output_factors
+                for value in row
+            )
+            or any(abs(value) > 1e-12 for value in parameters.bias)
+        ):
+            raise RuntimeError(
+                "cannot change causal action head state_dim after the owner "
+                "has learned a live mapping"
+            )
+        self.causal_action_heads[track] = (
+            _initial_causal_action_head_parameters(
+                n_z=self._n_z,
+                state_dim=state_dim,
+                track=track,
+                rank=parameters.rank,
+            )
+        )
+
+    def causal_action_head_basis(
+        self,
+        *,
+        track: Track,
+        state_features: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        state_dim = self.causal_action_head_state_dim(track=track)
+        if len(state_features) != state_dim:
+            raise ValueError(
+                "causal action head state dimension mismatch: "
+                f"expected={state_dim}, actual={len(state_features)}"
+            )
+        if any(not -1.0 <= value <= 1.0 for value in state_features):
+            raise ValueError(
+                "causal action head requires signed encoder state "
+                "within [-1, 1]"
+            )
+        parameters = self.causal_action_heads[track]
+        scale = math.sqrt(max(state_dim, 1))
+        return tuple(
+            math.tanh(
+                sum(
+                    row[index] * state_features[index]
+                    for index in range(state_dim)
+                )
+                / scale
+            )
+            for row in parameters.input_factors
+        )
+
+    def causal_action_head_residual(
+        self,
+        *,
+        track: Track,
+        state_features: tuple[float, ...],
+        strength: float,
+    ) -> tuple[float, ...]:
+        if not 0.0 <= strength <= 1.0:
+            raise ValueError(
+                "causal action head strength must be within [0, 1], "
+                f"got {strength!r}"
+            )
+        parameters = self.causal_action_heads[track]
+        basis = self.causal_action_head_basis(
+            track=track,
+            state_features=state_features,
+        )
+        return tuple(
+            strength
+            * math.tanh(
+                parameters.bias[index]
+                + sum(
+                    parameters.output_factors[index][rank_index]
+                    * basis[rank_index]
+                    for rank_index in range(parameters.rank)
+                )
+            )
+            for index in range(self._n_z)
+        )
+
+    def update_causal_action_head(
+        self,
+        *,
+        track: Track,
+        state_feature_batch: tuple[tuple[float, ...], ...],
+        action_gradients: tuple[tuple[float, ...], ...],
+        advantages: tuple[float, ...],
+    ) -> float:
+        if not (
+            len(state_feature_batch)
+            == len(action_gradients)
+            == len(advantages)
+        ):
+            raise ValueError(
+                "causal action head update requires aligned batches: "
+                f"states={len(state_feature_batch)}, "
+                f"action_gradients={len(action_gradients)}, "
+                f"advantages={len(advantages)}"
+            )
+        if not state_feature_batch:
+            return 0.0
+        parameters = self.causal_action_heads[track]
+        state_dim = self.causal_action_head_state_dim(track=track)
+        input_factors = [
+            list(row) for row in parameters.input_factors
+        ]
+        output_factors = [
+            list(row) for row in parameters.output_factors
+        ]
+        bias = list(parameters.bias)
+        input_delta = [
+            [0.0 for _ in range(state_dim)]
+            for _ in range(parameters.rank)
+        ]
+        output_delta = [
+            [0.0 for _ in range(parameters.rank)]
+            for _ in range(self._n_z)
+        ]
+        bias_delta = [0.0 for _ in range(self._n_z)]
+        scale = math.sqrt(max(state_dim, 1))
+        samples: list[
+            tuple[
+                tuple[float, ...],
+                tuple[float, ...],
+                tuple[float, ...],
+            ]
+        ] = []
+        for state_features, action_gradient, advantage in zip(
+            state_feature_batch,
+            action_gradients,
+            advantages,
+            strict=True,
+        ):
+            if len(action_gradient) != self._n_z:
+                raise ValueError(
+                    "causal action head action-gradient dimension mismatch: "
+                    f"expected={self._n_z}, actual={len(action_gradient)}"
+                )
+            basis = self.causal_action_head_basis(
+                track=track,
+                state_features=state_features,
+            )
+            signal = tuple(
+                advantage * action_gradient[output_index]
+                for output_index in range(self._n_z)
+            )
+            samples.append((state_features, basis, signal))
+        # Decompose the batch gradient into an intercept and a
+        # state-conditioned covariance term.  Otherwise the low-rank factors
+        # can use a common hidden-state mean to recreate an unbounded
+        # intercept behind the explicitly bounded bias.
+        mean_signal = tuple(
+            sum(
+                signal[output_index]
+                for _, _, signal in samples
+            )
+            / len(samples)
+            for output_index in range(self._n_z)
+        )
+        for _, basis, signal in samples:
+            for output_index in range(self._n_z):
+                bias_delta[output_index] += signal[output_index]
+                state_signal = (
+                    signal[output_index] - mean_signal[output_index]
+                )
+                for rank_index in range(parameters.rank):
+                    output_delta[output_index][rank_index] += (
+                        state_signal * basis[rank_index]
+                    )
+        envelope = CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+        # 步长尺度与包络同 owner。本路径保留历史乘法顺序（``bias_learning_rate *
+        # bias_delta * bias_state_path_scale``），因此只消费前两个字段，逐字节
+        # 与 Wave 3 之前一致。
+        scales = causal_action_head_update_scales(
+            learning_rate=self.learning_rate,
+            batch_size=len(state_feature_batch),
+            envelope=envelope,
+        )
+        factor_learning_rate = scales.factor_learning_rate
+        bias_learning_rate = scales.bias_learning_rate
+        # A zero output factor keeps the live prior neutral, but a simultaneous
+        # bilinear gradient would also give the input factor zero feedback on
+        # the first informative batch. Use one bounded block-coordinate step:
+        # establish the output path from this batch's centered covariance,
+        # then backpropagate through that candidate path before committing
+        # either factor. This introduces no random state->action prior.
+        candidate_output_factors = [
+            list(row) for row in output_factors
+        ]
+        for output_index in range(self._n_z):
+            for rank_index in range(parameters.rank):
+                step = max(
+                    -envelope.output_factor_step_limit,
+                    min(
+                        envelope.output_factor_step_limit,
+                        factor_learning_rate
+                        * output_delta[output_index][rank_index],
+                    ),
+                )
+                candidate_output_factors[output_index][rank_index] = max(
+                    -envelope.factor_absolute_limit,
+                    min(
+                        envelope.factor_absolute_limit,
+                        output_factors[output_index][rank_index] + step,
+                    ),
+                )
+        for state_features, basis, signal in samples:
+            for rank_index in range(parameters.rank):
+                candidate_column_norm = max(
+                    math.sqrt(
+                        sum(
+                            candidate_output_factors[
+                                output_index
+                            ][rank_index]
+                            ** 2
+                            for output_index in range(self._n_z)
+                        )
+                    ),
+                    1e-8,
+                )
+                upstream = sum(
+                    (
+                        signal[output_index]
+                        - mean_signal[output_index]
+                    )
+                    * (
+                        candidate_output_factors[
+                            output_index
+                        ][rank_index]
+                        / candidate_column_norm
+                    )
+                    for output_index in range(self._n_z)
+                )
+                derivative = 1.0 - basis[rank_index] ** 2
+                for input_index in range(state_dim):
+                    input_delta[rank_index][input_index] += (
+                        upstream
+                        * derivative
+                        * state_features[input_index]
+                        / scale
+                    )
+        total_change = 0.0
+        for output_index in range(self._n_z):
+            bias_step = max(
+                -envelope.bias_step_limit,
+                min(
+                    envelope.bias_step_limit,
+                    bias_learning_rate
+                    * bias_delta[output_index]
+                    * envelope.bias_state_path_scale,
+                ),
+            )
+            bias[output_index] = max(
+                -envelope.bias_absolute_limit,
+                min(
+                    envelope.bias_absolute_limit,
+                    bias[output_index] + bias_step,
+                ),
+            )
+            total_change += abs(bias_step)
+            for rank_index in range(parameters.rank):
+                candidate = candidate_output_factors[
+                    output_index
+                ][rank_index]
+                total_change += abs(
+                    candidate
+                    - output_factors[output_index][rank_index]
+                )
+                output_factors[output_index][rank_index] = candidate
+        for rank_index in range(parameters.rank):
+            for input_index in range(state_dim):
+                step = max(
+                    -envelope.input_factor_step_limit,
+                    min(
+                        envelope.input_factor_step_limit,
+                        factor_learning_rate
+                        * input_delta[rank_index][input_index],
+                    ),
+                )
+                input_factors[rank_index][input_index] = max(
+                    -envelope.factor_absolute_limit,
+                    min(
+                        envelope.factor_absolute_limit,
+                        input_factors[rank_index][input_index] + step,
+                    ),
+                )
+                total_change += abs(step)
+        self.restore_causal_action_head_parameters(
+            CausalZActionHeadParameters(
+                track=track,
+                rank=parameters.rank,
+                input_factors=tuple(
+                    tuple(row) for row in input_factors
+                ),
+                output_factors=tuple(
+                    tuple(row) for row in output_factors
+                ),
+                bias=tuple(bias),
+                update_step=parameters.update_step + 1,
+            ),
+            # 本路径逐参数按同一包络 clamp，校验必然通过；显式打开是为了让
+            # 任何未来对 clamp 的改动立刻在 owner 内部炸开，而不是悄悄放宽。
+            enforce_envelope=True,
+        )
+        parameter_count = (
+            parameters.rank * self._n_z
+            + self._n_z * parameters.rank
+            + self._n_z
+        )
+        return total_change / max(parameter_count, 1)
+
+    @property
+    def action_family_version(self) -> int:
+        return self._action_family_version
+
+    @property
+    def latest_telemetry(self) -> LatestMetacontrollerTelemetry:
+        """Return the current frozen telemetry snapshot (R11 readout)."""
+        return self._latest
+
+    def calibrate_beta_threshold(
+        self,
+        probabilities: tuple[float, ...],
+        *,
+        target_rate: float,
+        max_update: float = 0.08,
+    ) -> float:
+        """Align beta with an unlabeled rate without a one-batch threshold jump."""
+
+        if not probabilities:
+            return self.beta_threshold
+        if not 0.0 < target_rate < 1.0:
+            raise ValueError("target_rate must be strictly between 0 and 1")
+        if not math.isfinite(max_update) or not 0.0 < max_update <= 1.0:
+            raise ValueError("max_update must be finite and in (0, 1]")
+        if any(not math.isfinite(value) for value in probabilities):
+            raise ValueError("beta calibration probabilities must be finite")
+        ordered = tuple(
+            sorted(max(0.0, min(1.0, value)) for value in probabilities)
+        )
+        positive_count = max(
+            1,
+            min(len(ordered) - 1, round(target_rate * len(ordered))),
+        )
+        split = len(ordered) - positive_count
+        batch_threshold = max(
+            0.05,
+            min(
+                0.95,
+                (ordered[split - 1] + ordered[split]) / 2.0,
+            ),
+        )
+        threshold_delta = max(
+            -max_update,
+            min(max_update, batch_threshold - self.beta_threshold),
+        )
+        self.beta_threshold = max(
+            0.05,
+            min(0.95, self.beta_threshold + threshold_delta),
+        )
+        return self.beta_threshold
+
+    def project_causal_latent_to_action_family(
+        self,
+        *,
+        encoded_candidate: tuple[float, ...],
+        policy_candidate: tuple[float, ...],
+        encoded_control: tuple[float, ...],
+        policy_control: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        """Constrain causal takeover to the action manifold learned during SSL."""
+
+        if not self.action_families:
+            return policy_candidate
+        candidates = (
+            encoded_candidate,
+            policy_candidate,
+            encoded_control,
+            policy_control,
+        )
+        if any(len(candidate) != self._n_z for candidate in candidates):
+            raise ValueError(
+                "causal family projection candidates must match the store latent dimension"
+            )
+        if any(
+            not math.isfinite(value)
+            for candidate in candidates
+            for value in candidate
+        ):
+            raise ValueError("causal family projection candidates must be finite")
+
+        def cosine(
+            left: tuple[float, ...],
+            right: tuple[float, ...],
+        ) -> float:
+            left_norm = math.sqrt(sum(value * value for value in left))
+            right_norm = math.sqrt(sum(value * value for value in right))
+            if left_norm <= 1e-12 or right_norm <= 1e-12:
+                return 0.0
+            return sum(
+                left_value * right_value
+                for left_value, right_value in zip(left, right, strict=True)
+            ) / (left_norm * right_norm)
+
+        selected = max(
+            self.action_families,
+            key=lambda family: (
+                0.6
+                * (
+                    cosine(encoded_candidate, family.latent_centroid)
+                    + cosine(policy_candidate, family.latent_centroid)
+                )
+                + 0.4
+                * (
+                    cosine(encoded_control, family.decoder_centroid)
+                    + cosine(policy_control, family.decoder_centroid)
+                ),
+                family.support,
+                family.family_id,
+            ),
+        )
+        return selected.latent_centroid
+
+    def __getattr__(self, name: str):
+        """Proxy ``latest_X`` attribute reads to ``self._latest.X``.
+
+        Preserves the pre-Slice-F external API: dozens of sites read
+        ``store.latest_latent_mean`` / ``store.latest_switch_gate`` etc.
+        Those now transparently resolve to fields on the frozen
+        :class:`LatestMetacontrollerTelemetry` snapshot without touching
+        the callers.
+        """
+        if name.startswith("latest_"):
+            # ``_latest`` may not be set during early ``__init__`` steps;
+            # use ``__dict__`` lookup to avoid recursing back into this
+            # method via normal attribute access.
+            latest = self.__dict__.get("_latest")
+            if latest is not None:
+                field_name = name[len("latest_"):]
+                try:
+                    return getattr(latest, field_name)
+                except AttributeError:
+                    pass
+        raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+
+    def export_temporal_parameters(self) -> TemporalControllerParameters:
+        return TemporalControllerParameters(
+            residual_weight=self.temporal_weights["residual"],
+            memory_weight=self.temporal_weights["memory"],
+            reflection_weight=self.temporal_weights["reflection"],
+            switch_bias=self.switch_bias,
+        )
+
+    def export_runtime_state(self, *, mode: str) -> MetacontrollerRuntimeState:
+        action_family_summaries = self._public_action_family_summaries()
+        active_family_summary = next(
+            (summary for summary in action_family_summaries if summary.family_id == self.latest_active_label),
+            None,
+        )
+        active_family_competition_score = (
+            active_family_summary.competition_score
+            if active_family_summary is not None
+            else 0.0
+        )
+        action_family_monopoly_pressure = (
+            active_family_summary.monopoly_pressure
+            if active_family_summary is not None
+            else 0.0
+        )
+        action_family_turnover_health = self._action_family_turnover_health(action_family_summaries)
+        return MetacontrollerRuntimeState(
+            mode=mode,
+            temporal_parameters=self.export_temporal_parameters(),
+            track_parameters=tuple(
+                (track.value, self.track_weights[track])
+                for track in (Track.WORLD, Track.SELF, Track.SHARED)
+            ),
+            encoder_weights=self.encoder_weights,
+            encoder_recurrence=self.encoder_recurrence,
+            switch_weights=self.switch_weights,
+            beta_threshold=self.beta_threshold,
+            decoder_matrix=self.decoder_matrix,
+            decoder_hidden=self.decoder_hidden,
+            ndim_encoder_parameters=self.ndim_encoder_parameters,
+            ndim_switch_parameters=self.ndim_switch_parameters,
+            ndim_decoder_parameters=self.ndim_decoder_parameters,
+            persistence=self.persistence,
+            learning_rate=self.learning_rate,
+            clip_epsilon=self.clip_epsilon,
+            update_steps=tuple(
+                (track.value, self.update_steps[track])
+                for track in (Track.WORLD, Track.SELF, Track.SHARED)
+            ),
+            latent_mean=self.latest_latent_mean,
+            latent_scale=self.latest_latent_scale,
+            decoder_control=self.latest_decoder_control,
+            latest_switch_gate=self.latest_switch_gate,
+            sequence_length=self.latest_sequence_length,
+            latest_ssl_loss=self.latest_ssl_loss,
+            latest_ssl_kl_loss=self.latest_ssl_kl_loss,
+            active_label=self.latest_active_label,
+            prior_mean=self.latest_prior_mean,
+            prior_std=self.latest_prior_std,
+            posterior_mean=self.latest_posterior_mean,
+            posterior_std=self.latest_posterior_std,
+            posterior_sample_noise=self.latest_posterior_sample_noise,
+            z_tilde=self.latest_z_tilde,
+            posterior_hidden_state=self.latest_posterior_hidden_state,
+            posterior_drift=self.latest_posterior_drift,
+            beta_binary=self.latest_beta_binary,
+            switch_sparsity=self.latest_switch_sparsity,
+            binary_switch_rate=self.latest_binary_switch_rate,
+            mean_persistence_window=self.latest_mean_persistence_window,
+            decoder_applied_control=self.latest_decoder_applied_control,
+            policy_replacement_score=self.latest_policy_replacement_score,
+            encoder_optimizer_state=self.latest_encoder_optimizer_state,
+            decoder_optimizer_state=self.latest_decoder_optimizer_state,
+            fast_prior_strength=self.latest_fast_prior_strength,
+            fast_prior_action_bias=self.latest_fast_prior_action_bias,
+            fast_prior_family_bias=self.latest_fast_prior_family_bias,
+            fast_prior_sequence_bias=self.latest_fast_prior_sequence_bias,
+            fast_prior_switch_pressure_delta=(
+                self.latest_fast_prior_switch_pressure_delta
+            ),
+            prediction_error_switch_pressure_delta=(
+                self._prediction_error_switch_pressure_delta
+            ),
+            protocol_prior_switch_pressure_delta=self._protocol_prior_switch_pressure_delta,
+            protocol_prior_strength=self._protocol_prior_strength,
+            protocol_prior_applied=self._protocol_prior_applied,
+            learned_update_rule_state=self.latest_learned_update_rule_state,
+            structure_frozen=self.structure_frozen,
+            learning_phase=self.learning_phase,
+            action_family_version=self._action_family_version,
+            action_family_summaries=action_family_summaries,
+            active_family_summary=active_family_summary,
+            active_family_competition_score=active_family_competition_score,
+            action_family_monopoly_pressure=action_family_monopoly_pressure,
+            action_family_turnover_health=action_family_turnover_health,
+            description=(
+                f"Metacontroller runtime state mode={mode}, active_label={self.latest_active_label}, "
+                f"switch_bias={self.switch_bias:.2f}, persistence={self.persistence:.2f}, "
+                f"beta_binary={self.latest_beta_binary}, seq_len={self.latest_sequence_length}, "
+                f"family_version={self._action_family_version}, family_count={len(action_family_summaries)}, "
+                f"competition={active_family_competition_score:.2f}, monopoly={action_family_monopoly_pressure:.2f}, "
+                f"fast_prior_strength={self.latest_fast_prior_strength:.2f}, "
+                f"fast_prior_switch_delta={self.latest_fast_prior_switch_pressure_delta:.2f}, "
+                f"phase={self.learning_phase}, structure_frozen={self.structure_frozen}, "
+                f"ssl_loss={self.latest_ssl_loss:.3f}."
+            ),
+        )
+
+    def export_parameter_snapshot(self) -> MetacontrollerParameterSnapshot:
+        return MetacontrollerParameterSnapshot(
+            temporal_parameters=self.export_temporal_parameters(),
+            track_parameters=tuple(
+                (track.value, self.track_weights[track])
+                for track in (Track.WORLD, Track.SELF, Track.SHARED)
+            ),
+            encoder_weights=self.encoder_weights,
+            encoder_recurrence=self.encoder_recurrence,
+            switch_weights=self.switch_weights,
+            beta_threshold=self.beta_threshold,
+            decoder_matrix=self.decoder_matrix,
+            decoder_hidden=self.decoder_hidden,
+            ndim_encoder_parameters=self.ndim_encoder_parameters,
+            ndim_switch_parameters=self.ndim_switch_parameters,
+            ndim_decoder_parameters=self.ndim_decoder_parameters,
+            persistence=self.persistence,
+            learning_rate=self.learning_rate,
+            clip_epsilon=self.clip_epsilon,
+            update_steps=tuple(
+                (track.value, self.update_steps[track])
+                for track in (Track.WORLD, Track.SELF, Track.SHARED)
+            ),
+            latent_mean=self.latest_latent_mean,
+            latent_scale=self.latest_latent_scale,
+            decoder_control=self.latest_decoder_control,
+            latest_switch_gate=self.latest_switch_gate,
+            sequence_length=self.latest_sequence_length,
+            latest_ssl_loss=self.latest_ssl_loss,
+            latest_ssl_kl_loss=self.latest_ssl_kl_loss,
+            active_label=self.latest_active_label,
+            prior_mean=self.latest_prior_mean,
+            prior_std=self.latest_prior_std,
+            posterior_mean=self.latest_posterior_mean,
+            posterior_std=self.latest_posterior_std,
+            posterior_sample_noise=self.latest_posterior_sample_noise,
+            z_tilde=self.latest_z_tilde,
+            posterior_hidden_state=self.latest_posterior_hidden_state,
+            posterior_drift=self.latest_posterior_drift,
+            beta_binary=self.latest_beta_binary,
+            switch_sparsity=self.latest_switch_sparsity,
+            binary_switch_rate=self.latest_binary_switch_rate,
+            mean_persistence_window=self.latest_mean_persistence_window,
+            decoder_applied_control=self.latest_decoder_applied_control,
+            policy_replacement_score=self.latest_policy_replacement_score,
+            action_families=self.action_families,
+            encoder_optimizer_state=self.latest_encoder_optimizer_state,
+            decoder_optimizer_state=self.latest_decoder_optimizer_state,
+            structure_frozen=self.structure_frozen,
+            learning_phase=self.learning_phase,
+            action_family_version=self._action_family_version,
+            learned_update_rule_state=self.latest_learned_update_rule_state,
+            causal_action_heads=tuple(
+                self.causal_action_heads[track]
+                for track in (Track.WORLD, Track.SELF, Track.SHARED)
+            ),
+            family_match_weights=self.family_match_weights,
+        )
+
+    def restore_parameter_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> None:
+        self.temporal_weights = {
+            "residual": snapshot.temporal_parameters.residual_weight,
+            "memory": snapshot.temporal_parameters.memory_weight,
+            "reflection": snapshot.temporal_parameters.reflection_weight,
+        }
+        self.switch_bias = snapshot.temporal_parameters.switch_bias
+        self.track_weights = {
+            Track(track_name): weights for track_name, weights in snapshot.track_parameters
+        }
+        self.encoder_weights = snapshot.encoder_weights
+        self.encoder_recurrence = snapshot.encoder_recurrence
+        self.switch_weights = snapshot.switch_weights
+        self.beta_threshold = snapshot.beta_threshold
+        self.decoder_matrix = snapshot.decoder_matrix
+        self.decoder_hidden = snapshot.decoder_hidden
+        self.ndim_encoder_parameters = snapshot.ndim_encoder_parameters
+        self.ndim_switch_parameters = snapshot.ndim_switch_parameters
+        self.ndim_decoder_parameters = snapshot.ndim_decoder_parameters
+        self.persistence = snapshot.persistence
+        self.learning_rate = snapshot.learning_rate
+        self.clip_epsilon = snapshot.clip_epsilon
+        self.update_steps = {
+            Track(track_name): step_count for track_name, step_count in snapshot.update_steps
+        }
+        if snapshot.causal_action_heads:
+            expected_tracks = {
+                Track.WORLD,
+                Track.SELF,
+                Track.SHARED,
+            }
+            actual_tracks = {
+                parameters.track
+                for parameters in snapshot.causal_action_heads
+            }
+            if actual_tracks != expected_tracks:
+                raise ValueError(
+                    "causal action head checkpoint track mismatch: "
+                    f"expected={tuple(sorted(track.value for track in expected_tracks))}, "
+                    f"actual={tuple(sorted(track.value for track in actual_tracks))}"
+                )
+            for parameters in snapshot.causal_action_heads:
+                if (
+                    parameters.rank < 1
+                    or len(parameters.input_factors) != parameters.rank
+                    or any(
+                        len(row) < 1
+                        for row in parameters.input_factors
+                    )
+                    or len(
+                        {
+                            len(row)
+                            for row in parameters.input_factors
+                        }
+                    )
+                    != 1
+                    or len(parameters.output_factors) != self._n_z
+                    or any(
+                        len(row) != parameters.rank
+                        for row in parameters.output_factors
+                    )
+                    or len(parameters.bias) != self._n_z
+                    or parameters.update_step < 0
+                ):
+                    raise ValueError(
+                        "causal action head checkpoint shape mismatch for "
+                        f"track={parameters.track.value}, n_z={self._n_z}"
+                    )
+                values = (
+                    value
+                    for matrix in (
+                        parameters.input_factors,
+                        parameters.output_factors,
+                    )
+                    for row in matrix
+                    for value in row
+                )
+                if not all(math.isfinite(value) for value in values) or not all(
+                    math.isfinite(value) for value in parameters.bias
+                ):
+                    raise ValueError(
+                        "causal action head checkpoint contains non-finite "
+                        f"values for track={parameters.track.value}"
+                    )
+                if self.causal_action_head_envelope_enforced:
+                    validate_causal_action_head_magnitudes(parameters)
+            self.causal_action_heads = {
+                parameters.track: parameters
+                for parameters in snapshot.causal_action_heads
+            }
+        self.action_families = snapshot.action_families
+        self._latest = replace(
+            self._latest,
+            latent_mean=snapshot.latent_mean,
+            latent_scale=snapshot.latent_scale,
+            decoder_control=snapshot.decoder_control,
+            switch_gate=snapshot.latest_switch_gate,
+            sequence_length=snapshot.sequence_length,
+            ssl_loss=snapshot.latest_ssl_loss,
+            ssl_kl_loss=snapshot.latest_ssl_kl_loss,
+            active_label=snapshot.active_label,
+            prior_mean=snapshot.prior_mean,
+            prior_std=snapshot.prior_std,
+            posterior_mean=snapshot.posterior_mean,
+            posterior_std=snapshot.posterior_std,
+            posterior_sample_noise=snapshot.posterior_sample_noise,
+            z_tilde=snapshot.z_tilde,
+            posterior_hidden_state=snapshot.posterior_hidden_state,
+            posterior_drift=snapshot.posterior_drift,
+            beta_binary=snapshot.beta_binary,
+            switch_sparsity=snapshot.switch_sparsity,
+            binary_switch_rate=snapshot.binary_switch_rate,
+            mean_persistence_window=snapshot.mean_persistence_window,
+            decoder_applied_control=snapshot.decoder_applied_control,
+            policy_replacement_score=snapshot.policy_replacement_score,
+            encoder_optimizer_state=snapshot.encoder_optimizer_state,
+            decoder_optimizer_state=snapshot.decoder_optimizer_state,
+        )
+        self.structure_frozen = snapshot.structure_frozen
+        self.learning_phase = snapshot.learning_phase
+        self._action_family_version = snapshot.action_family_version
+        if snapshot.learned_update_rule_state is not None:
+            self.learned_update_rule.restore_state(snapshot.learned_update_rule_state)
+            self._latest = replace(
+                self._latest, learned_update_rule_state=snapshot.learned_update_rule_state
+            )
+        self.family_match_weights = snapshot.family_match_weights
+
+    def record_runtime_observation(
+        self,
+        *,
+        latent_mean: tuple[float, ...],
+        latent_scale: tuple[float, ...],
+        decoder_control: tuple[float, ...],
+        switch_gate: float,
+        sequence_length: int,
+        active_label: str,
+        prior_mean: tuple[float, ...] | None = None,
+        prior_std: tuple[float, ...] | None = None,
+        posterior_mean: tuple[float, ...] | None = None,
+        posterior_std: tuple[float, ...] | None = None,
+        posterior_sample_noise: tuple[float, ...] | None = None,
+        z_tilde: tuple[float, ...] | None = None,
+        posterior_hidden_state: tuple[float, ...] | None = None,
+        posterior_drift: float | None = None,
+        beta_binary: int | None = None,
+        switch_sparsity: float | None = None,
+        binary_switch_rate: float | None = None,
+        mean_persistence_window: float | None = None,
+        decoder_applied_control: tuple[float, ...] | None = None,
+        policy_replacement_score: float | None = None,
+    ) -> None:
+        resolved_beta_binary = (
+            beta_binary if beta_binary is not None else int(switch_gate >= self.beta_threshold)
+        )
+        self._latest = replace(
+            self._latest,
+            latent_mean=latent_mean,
+            latent_scale=latent_scale,
+            decoder_control=decoder_control,
+            switch_gate=switch_gate,
+            sequence_length=sequence_length,
+            active_label=active_label,
+            prior_mean=prior_mean or self._latest.prior_mean,
+            prior_std=prior_std or self._latest.prior_std,
+            posterior_mean=posterior_mean or latent_mean,
+            posterior_std=posterior_std or latent_scale,
+            posterior_sample_noise=posterior_sample_noise or self._latest.posterior_sample_noise,
+            z_tilde=z_tilde or latent_mean,
+            posterior_hidden_state=posterior_hidden_state or self._latest.posterior_hidden_state,
+            posterior_drift=posterior_drift or 0.0,
+            beta_binary=resolved_beta_binary,
+            switch_sparsity=switch_sparsity if switch_sparsity is not None else 1.0 - switch_gate,
+            binary_switch_rate=(
+                binary_switch_rate if binary_switch_rate is not None else float(resolved_beta_binary)
+            ),
+            mean_persistence_window=(
+                mean_persistence_window
+                if mean_persistence_window is not None
+                else self._latest.mean_persistence_window
+            ),
+            decoder_applied_control=decoder_applied_control or decoder_control,
+            policy_replacement_score=(
+                policy_replacement_score
+                if policy_replacement_score is not None
+                else self._latest.policy_replacement_score
+            ),
+        )
+
+    def record_optimizer_memory_states(
+        self,
+        *,
+        encoder_state: M3OptimizerState | None,
+        decoder_state: M3OptimizerState | None,
+    ) -> None:
+        self._latest = replace(
+            self._latest,
+            encoder_optimizer_state=encoder_state,
+            decoder_optimizer_state=decoder_state,
+        )
+
+    def record_learned_update_rule_state(self, *, state: LearnedUpdateRuleState) -> None:
+        self._latest = replace(self._latest, learned_update_rule_state=state)
+
+    def record_ssl_metrics(self, *, total_loss: float, kl_loss: float) -> None:
+        self._latest = replace(self._latest, ssl_loss=total_loss, ssl_kl_loss=kl_loss)
+
+    def in_ssl_discovery_phase(self) -> bool:
+        return self.learning_phase.startswith("ssl") and not self.structure_frozen
+
+    def in_causal_takeover_phase(self) -> bool:
+        return (
+            self.structure_frozen
+            and (
+                self.learning_phase == "runtime"
+                or self.learning_phase.startswith("rl")
+                or self.learning_phase.startswith("rare-heavy")
+            )
+        )
+
+    def require_ssl_discovery_phase(self, *, operation: str) -> None:
+        if self.in_ssl_discovery_phase():
+            return
+        raise RuntimeError(
+            f"{operation} requires SSL discovery phase, got phase={self.learning_phase!r} "
+            f"structure_frozen={self.structure_frozen}."
+        )
+
+    def require_causal_takeover_phase(self, *, operation: str) -> None:
+        if self.in_causal_takeover_phase():
+            return
+        raise RuntimeError(
+            f"{operation} requires causal takeover phase, got phase={self.learning_phase!r} "
+            f"structure_frozen={self.structure_frozen}."
+        )
+
+    def set_learning_phase(self, phase: str, *, structure_frozen: bool | None = None) -> None:
+        if phase not in self._VALID_LEARNING_PHASES:
+            raise ValueError(f"Unsupported learning phase {phase!r}.")
+        default_structure_frozen = (
+            False if phase.startswith("ssl") else True
+        )
+        effective_structure_frozen = (
+            default_structure_frozen if structure_frozen is None else structure_frozen
+        )
+        if phase.startswith("ssl") and effective_structure_frozen:
+            raise ValueError(f"SSL phase {phase!r} cannot run with structure_frozen=True.")
+        if (
+            phase in {"runtime", "rl", "rl-online", "rare-heavy", "rare-heavy-import"}
+            and not effective_structure_frozen
+        ):
+            raise ValueError(f"Causal phase {phase!r} must run with structure_frozen=True.")
+        self.learning_phase = phase
+        self.structure_frozen = effective_structure_frozen
+
+    def _public_action_family_summaries(self) -> tuple[ActionFamilyPublicSummary, ...]:
+        return tuple(
+            ActionFamilyPublicSummary(
+                family_id=family.family_id,
+                dominant_axis=_family_dominant_axis(family.decoder_centroid),
+                support=family.support,
+                stability=family.stability,
+                switch_bias=family.switch_bias,
+                mean_posterior_drift=family.mean_posterior_drift,
+                mean_persistence_window=family.mean_persistence_window,
+                reuse_streak=family.reuse_streak,
+                stagnation_pressure=family.stagnation_pressure,
+                monopoly_pressure=family.monopoly_pressure,
+                competition_score=family.competition_score,
+                outcome_history=family.outcome_history,
+                outcome_driven_score=family.outcome_driven_score,
+                long_term_payoff=family.long_term_payoff,
+                delayed_credit_sum=family.delayed_credit_sum,
+                summary=family.summary,
+            )
+            for family in self.action_families
+        )
+
+    def _action_family_turnover_health(
+        self,
+        action_family_summaries: tuple[ActionFamilyPublicSummary, ...],
+    ) -> float:
+        if not action_family_summaries:
+            return 0.0
+        average_competition = sum(summary.competition_score for summary in action_family_summaries) / len(
+            action_family_summaries
+        )
+        average_stagnation = sum(summary.stagnation_pressure for summary in action_family_summaries) / len(
+            action_family_summaries
+        )
+        average_monopoly = sum(summary.monopoly_pressure for summary in action_family_summaries) / len(
+            action_family_summaries
+        )
+        diversity = _clamp(len(action_family_summaries) / 4.0)
+        return _clamp(
+            average_competition * 0.35
+            + diversity * 0.30
+            + (1.0 - average_stagnation) * 0.20
+            + (1.0 - average_monopoly) * 0.15
+        )
+
+    def observe_family_outcome_feedback(self, *, feedback: FamilyOutcomeFeedback) -> bool:
+        if not self._learning_writes_enabled:
+            return False
+        updated_families = update_family_outcome_history(
+            self.action_families,
+            family_id=feedback.family_id,
+            outcome_value=feedback.outcome_value,
+            delayed_credit_delta=feedback.delayed_credit_delta,
+            session_payoff_delta=feedback.session_payoff_delta,
+        )
+        if updated_families == self.action_families:
+            return False
+        self.action_families = updated_families
+        # Settle the learned match head: the features cached at selection
+        # time carry the credit for this settled outcome (bounded update,
+        # weights never leave the envelope around the initial values).
+        cached_features = self._latest_family_match_features.get(feedback.family_id)
+        if cached_features is not None:
+            outcome_signal = (
+                feedback.outcome_value * 0.7 + feedback.delayed_credit_delta * 0.3
+            )
+            self.family_match_weights = update_family_match_weights(
+                self.family_match_weights,
+                features=cached_features,
+                outcome_signal=outcome_signal,
+            )
+        return True
+
+    def record_fast_prior_signals(
+        self,
+        *,
+        strength: float,
+        action_bias: float,
+        family_bias: float,
+        sequence_bias: float,
+        switch_pressure_delta: float,
+    ) -> None:
+        self._latest = replace(
+            self._latest,
+            fast_prior_strength=_clamp(strength),
+            fast_prior_action_bias=max(-1.0, min(1.0, action_bias)),
+            fast_prior_family_bias=max(-1.0, min(1.0, family_bias)),
+            fast_prior_sequence_bias=max(-1.0, min(1.0, sequence_bias)),
+            fast_prior_switch_pressure_delta=max(-0.25, min(0.25, switch_pressure_delta)),
+        )
+
+    def fast_prior_switch_pressure_delta(self) -> float:
+        return self.latest_fast_prior_switch_pressure_delta
+
+    def record_prediction_error_switch_pressure(
+        self,
+        switch_pressure_delta: float,
+    ) -> None:
+        """Record a direction-free, additive-only PE switch prior.
+
+        This VALUE never decides a boundary. The v30 replay measurement
+        (research/ant/06_ecology_implementation_status.md, v31 margin
+        verdict) showed routine prediction error overlaps event prediction
+        error, so no magnitude threshold can act as an event detector.
+        Boundary events arrive typed via ``record_external_boundary_request``.
+        """
+
+        self._prediction_error_switch_pressure_delta = max(
+            0.0,
+            min(0.18, float(switch_pressure_delta)),
+        )
+
+    def prediction_error_switch_pressure_delta(self) -> float:
+        return self._prediction_error_switch_pressure_delta
+
+    def record_external_boundary_request(self, requested: bool) -> None:
+        """Record a typed, turn-scoped boundary request from an upstream owner.
+
+        The request originates from an owner-published discrete event (e.g.
+        the environment declaring a pickup/delivery milestone), never from a
+        raw prediction-error magnitude crossing a threshold. It is refreshed
+        every turn by the orchestrating loop before the switch decision.
+        """
+
+        self._external_boundary_requested = bool(requested)
+
+    def external_boundary_requested(self) -> bool:
+        """Return whether an upstream owner requested a temporal boundary.
+
+        A typed boundary event is a boundary request, not merely another
+        fixed logit bias. The learned beta threshold may move during SSL or
+        reflection, so the temporal owner resolves this request relative to
+        its current threshold when it makes the switch decision.
+        """
+
+        return self._external_boundary_requested
+
+    def record_protocol_prior_signals(
+        self,
+        *,
+        strength: float,
+        switch_pressure_delta: float,
+        applied: bool = False,
+    ) -> None:
+        """Record the BehaviorProtocol active-mixture switch-pressure prior.
+
+        Stored as owner-side scalars (not the frozen telemetry snapshot).
+        Consumed via :meth:`protocol_prior_switch_pressure_delta` and only
+        reaches ``beta_t`` when the policy has the bridge enabled (ACTIVE).
+        ``applied`` mirrors that enable state so a SHADOW (recorded-only)
+        run is observable via :meth:`export_runtime_state` and can be
+        compared against ACTIVE / baseline trajectories.
+        """
+        self._protocol_prior_strength = max(0.0, min(1.0, strength))
+        self._protocol_prior_switch_pressure_delta = max(
+            -0.25, min(0.25, switch_pressure_delta)
+        )
+        self._protocol_prior_applied = bool(applied)
+
+    def protocol_prior_switch_pressure_delta(self) -> float:
+        return self._protocol_prior_switch_pressure_delta
+
+    def protocol_prior_strength(self) -> float:
+        return self._protocol_prior_strength
+
+    def protocol_prior_applied(self) -> bool:
+        return self._protocol_prior_applied
+
+    def active_family_continuation_signals(
+        self,
+        *,
+        previous_steps_since_switch: int,
+    ) -> tuple[float, float, float]:
+        active_family = next(
+            (family for family in self.action_families if family.family_id == self.latest_active_label),
+            None,
+        )
+        if active_family is None:
+            return (0.0, 0.0, 0.0)
+        outcome_strength = _clamp(
+            active_family.outcome_driven_score * 0.25
+            + active_family.long_term_payoff * 0.35
+            + min(active_family.delayed_credit_sum / 3.0, 1.0) * 0.15
+            + self.latest_policy_replacement_score * 0.25
+            + self.latest_fast_prior_strength * 0.06
+            + self.latest_fast_prior_action_bias * 0.10
+            + self.latest_fast_prior_sequence_bias * 0.06
+        )
+        reuse_strength = _clamp(
+            min(active_family.reuse_streak / 4.0, 1.0) * 0.35
+            + min(active_family.support / 6.0, 1.0) * 0.25
+            + active_family.competition_score * 0.25
+            + (1.0 - active_family.monopoly_pressure) * 0.15
+            + self.latest_fast_prior_strength * 0.05
+            + self.latest_fast_prior_action_bias * 0.08
+            + self.latest_fast_prior_family_bias * 0.10
+        )
+        persistence_strength = _clamp(
+            min(active_family.mean_persistence_window / 2.0, 1.0) * 0.40
+            + min(self.latest_mean_persistence_window / 2.0, 1.0) * 0.25
+            + min(previous_steps_since_switch / 3.0, 1.0) * 0.20
+            + active_family.stability * 0.15
+            + self.latest_fast_prior_strength * 0.04
+            + self.latest_fast_prior_family_bias * 0.16
+            + self.latest_fast_prior_sequence_bias * 0.05
+        )
+        return (outcome_strength, reuse_strength, persistence_strength)
+
+    def discover_action_family(
+        self,
+        *,
+        latent_code: tuple[float, ...],
+        decoder_control: tuple[float, ...],
+        switch_gate: float,
+        posterior_drift: float = 0.0,
+        persistence_window: float = 0.0,
+    ) -> tuple[str, str]:
+        observation = ActionFamilyObservation(
+            latent_code=latent_code,
+            decoder_control=decoder_control,
+            switch_gate=switch_gate,
+            posterior_drift=posterior_drift,
+            persistence_window=persistence_window,
+        )
+        previous_families = self.action_families
+        current_family_continuation_bias = (
+            _switch_conditioned_family_continuation_bias(
+                action_bias=self.latest_fast_prior_action_bias,
+                family_bias=self.latest_fast_prior_family_bias,
+                sequence_bias=self.latest_fast_prior_sequence_bias,
+                is_switching=switch_gate >= self.beta_threshold,
+            )
+        )
+        active_family_competition_bias = _clamp(
+            self.latest_fast_prior_strength * 0.25
+            + self.latest_fast_prior_family_bias * 0.45
+            + self.latest_fast_prior_sequence_bias * 0.30
+        )
+        discovered_families, active_label, family_summary = discover_latent_action_family(
+            observation=observation,
+            action_families=self.action_families,
+            structure_frozen=self.structure_frozen,
+            current_active_family_id=self.latest_active_label if self.latest_active_label != "unassigned_action" else None,
+            current_family_continuation_bias=current_family_continuation_bias,
+            active_family_competition_bias=active_family_competition_bias,
+            allow_topology_maintenance=self.learning_phase.startswith("ssl") or not self.action_families,
+            match_weights=self.family_match_weights,
+        )
+        if self._learning_writes_enabled:
+            self.action_families = discovered_families
+            if self.action_families != previous_families:
+                self._action_family_version += 1
+        # Cache the winning family's match features so a later settled
+        # outcome for this family can credit the match head (bounded SGD).
+        selected_family = next(
+            (
+                family
+                for family in discovered_families
+                if family.family_id == active_label
+            ),
+            None,
+        )
+        if selected_family is not None and self._learning_writes_enabled:
+            self._latest_family_match_features[active_label] = family_match_features(
+                selected_family, observation
+            )
+        self._latest = replace(self._latest, active_label=active_label)
+        return (active_label, family_summary)
+
+    def fit_temporal_from_signals(
+        self,
+        *,
+        residual_strength: float,
+        memory_strength: float,
+        reflection_strength: float,
+    ) -> None:
+        if not self._learning_writes_enabled:
+            return
+        total = max(residual_strength + memory_strength + reflection_strength, 1e-6)
+        self.temporal_weights = {
+            "residual": residual_strength / total,
+            "memory": memory_strength / total,
+            "reflection": reflection_strength / total,
+        }
+
+    def apply_reflection_prior_update(
+        self,
+        *,
+        update: TemporalPriorUpdate,
+        allowed_target_groups: tuple[str, ...] | None = None,
+    ) -> tuple[str, ...]:
+        active_groups = set(allowed_target_groups or update.target_groups or ("base-weights",))
+        operations: list[str] = []
+        if "base-weights" in active_groups:
+            current = dict(self.temporal_weights)
+            blended_residual = _clamp(current["residual"] * 0.75 + update.residual_strength * 0.25)
+            blended_memory = _clamp(current["memory"] * 0.75 + update.memory_strength * 0.25)
+            blended_reflection = _clamp(current["reflection"] * 0.75 + update.reflection_strength * 0.25)
+            self.fit_temporal_from_signals(
+                residual_strength=blended_residual,
+                memory_strength=blended_memory,
+                reflection_strength=blended_reflection,
+            )
+            operations.extend(
+                (
+                    f"temporal-prior:residual={self.temporal_weights['residual']:.3f}",
+                    f"temporal-prior:memory={self.temporal_weights['memory']:.3f}",
+                    f"temporal-prior:reflection={self.temporal_weights['reflection']:.3f}",
+                )
+            )
+        if "switch" in active_groups:
+            self.switch_bias = _clamp(self.switch_bias + update.switch_bias_delta)
+            if self.ndim_switch_parameters is not None:
+                self.ndim_switch_parameters = _scale_ndim_switch_parameters(
+                    self.ndim_switch_parameters,
+                    update.switch_bias_delta,
+                )
+            operations.append(f"temporal-prior:switch-bias={self.switch_bias:.3f}")
+        if "persistence" in active_groups:
+            self.persistence = _clamp(self.persistence + update.persistence_delta)
+            operations.append(f"temporal-prior:persistence={self.persistence:.3f}")
+        if "learning-rate" in active_groups:
+            self.learning_rate = _clamp(self.learning_rate + update.learning_rate_delta)
+            operations.append(f"temporal-prior:learning-rate={self.learning_rate:.3f}")
+        if "beta-threshold" in active_groups:
+            self.beta_threshold = _clamp(self.beta_threshold + update.beta_threshold_delta)
+            operations.append(f"temporal-prior:beta-threshold={self.beta_threshold:.3f}")
+        if "encoder" in active_groups:
+            self.encoder_weights = _scale_matrix(self.encoder_weights, update.encoder_strength_delta)
+            self.encoder_recurrence = _scale_matrix(self.encoder_recurrence, update.encoder_strength_delta * 0.75)
+            if self.ndim_encoder_parameters is not None:
+                self.ndim_encoder_parameters = _scale_ndim_encoder_parameters(
+                    self.ndim_encoder_parameters,
+                    update.encoder_strength_delta,
+                )
+            operations.append(f"temporal-prior:encoder={update.encoder_strength_delta:.3f}")
+        if "decoder" in active_groups:
+            self.decoder_matrix = _scale_matrix(self.decoder_matrix, update.decoder_strength_delta)
+            self.decoder_hidden = _scale_matrix(self.decoder_hidden, update.decoder_strength_delta * 0.75)
+            if self.ndim_decoder_parameters is not None:
+                self.ndim_decoder_parameters = _scale_ndim_decoder_parameters(
+                    self.ndim_decoder_parameters,
+                    update.decoder_strength_delta,
+                )
+            operations.append(f"temporal-prior:decoder={update.decoder_strength_delta:.3f}")
+        if "track-world" in active_groups:
+            self.track_weights[Track.WORLD] = _blend_track_weights(
+                self.track_weights[Track.WORLD],
+                self.latest_decoder_applied_control or self.latest_latent_mean,
+                delta=update.world_track_delta,
+            )
+            operations.append(f"temporal-prior:track-world={update.world_track_delta:.3f}")
+        if "track-self" in active_groups:
+            self.track_weights[Track.SELF] = _blend_track_weights(
+                self.track_weights[Track.SELF],
+                self.latest_posterior_mean or self.latest_latent_mean,
+                delta=update.self_track_delta,
+            )
+            operations.append(f"temporal-prior:track-self={update.self_track_delta:.3f}")
+        if "track-shared" in active_groups:
+            shared_anchor = tuple(
+                (
+                    (self.latest_decoder_applied_control[i] if i < len(self.latest_decoder_applied_control) else 0.0)
+                    + (self.latest_posterior_mean[i] if i < len(self.latest_posterior_mean) else 0.0)
+                )
+                / 2.0
+                for i in range(self._n_z)
+            )
+            self.track_weights[Track.SHARED] = _blend_track_weights(
+                self.track_weights[Track.SHARED],
+                shared_anchor,
+                delta=update.shared_track_delta,
+            )
+            operations.append(f"temporal-prior:track-shared={update.shared_track_delta:.3f}")
+        if "action-families" in active_groups:
+            self.action_families = tuple(
+                DiscoveredActionFamily(
+                    family_id=family.family_id,
+                    latent_centroid=family.latent_centroid,
+                    decoder_centroid=family.decoder_centroid,
+                    support=family.support,
+                    stability=_clamp(family.stability + update.family_stability_delta),
+                    switch_bias=_clamp(family.switch_bias + update.beta_threshold_delta),
+                    summary=family.summary,
+                )
+                for family in self.action_families
+            )
+            self._action_family_version += 1
+            operations.append(f"temporal-prior:action-families={update.family_stability_delta:.3f}")
+        if "action-family-structure" in active_groups and update.structure_proposals:
+            before_families = self.action_families
+            self.action_families, structure_ops = _apply_action_family_structure_proposals(
+                action_families=self.action_families,
+                proposals=update.structure_proposals,
+            )
+            if self.action_families != before_families:
+                self._action_family_version += 1
+            operations.extend(structure_ops)
+        return tuple(operations)
+
+    def align_temporal_from_tracks(self) -> None:
+        if self._n_z > 3:
+            # The ndim runtime consumes track_weights through
+            # runtime_track_modulated_code and its own Ndim switch parameters.
+            # Rewriting the legacy three-axis temporal weights/switch bias here
+            # has no serving effect, but the joint-loop drift gate observes
+            # those exported compatibility fields and can roll back the real
+            # ndim actor update as a false metacontroller drift.
+            return
+        world_weights = self.track_weights[Track.WORLD]
+        self_weights = self.track_weights[Track.SELF]
+        shared_weights = self.track_weights[Track.SHARED]
+        residual_strength = _clamp((world_weights[0] + shared_weights[0]) / 2.0)
+        memory_strength = _clamp((self_weights[1] + shared_weights[1]) / 2.0)
+        reflection_strength = _clamp((world_weights[2] + self_weights[2] + shared_weights[2]) / 3.0)
+        self.fit_temporal_from_signals(
+            residual_strength=residual_strength,
+            memory_strength=memory_strength,
+            reflection_strength=reflection_strength,
+        )
+        self.switch_bias = _clamp(1.0 - self.persistence)
+
+    def runtime_track_modulated_code(
+        self,
+        code: tuple[float, ...],
+        *,
+        strength: float,
+        track_override: tuple[Track, tuple[float, ...]] | None = None,
+    ) -> tuple[float, ...]:
+        """Modulate a candidate latent by the learned per-dim track mixture.
+
+        This is the runtime bridge that lets Internal-RL (which writes
+        ``track_weights``) actually influence ``code``. Each track's weights sum
+        to 1, so their per-dim mean is ~``1/n_z``; scaling that by ``n_z`` gives a
+        gain centred on 1.0. ``gain_i = 1 + strength * (mean_i * n_z - 1)``, then
+        bounded to ``[0.5, 1.5]`` so no single dim can dominate. ``strength == 0``
+        returns the input unchanged (exact rollback); a uniform mixture is also a
+        no-op regardless of strength. The learning signal is the *deviation from
+        uniform* that RL discovers.
+        """
+
+        if strength <= 0.0 or not code:
+            return code
+        weights_by_track = dict(self.track_weights)
+        if track_override is not None:
+            override_track, override_weights = track_override
+            weights_by_track[override_track] = override_weights
+        world = weights_by_track[Track.WORLD]
+        self_track = weights_by_track[Track.SELF]
+        shared = weights_by_track[Track.SHARED]
+        n = len(code)
+        modulated: list[float] = []
+        for i in range(n):
+            mean_i = (
+                (world[i] if i < len(world) else 0.0)
+                + (self_track[i] if i < len(self_track) else 0.0)
+                + (shared[i] if i < len(shared) else 0.0)
+            ) / 3.0
+            gain = 1.0 + strength * (mean_i * self._n_z - 1.0)
+            gain = max(0.5, min(1.5, gain))
+            modulated.append(_clamp(code[i] * gain))
+        return tuple(modulated)
+
+    def runtime_prediction_error_modulated_code(
+        self,
+        code: tuple[float, ...],
+        *,
+        strength: float,
+    ) -> tuple[float, ...]:
+        """Let PE-updated temporal weights reach the runtime latent.
+
+        The three formal temporal axes repeat across the opaque latent width.
+        Their normalized mean is one third, so ``3 * weight`` is an identity-
+        centred gain. The PE strength and final gain are both bounded; zero
+        strength returns the original tuple object for exact rollback.
+        """
+
+        if strength <= 0.0 or not code:
+            return code
+        bounded_strength = min(float(strength), 1.0)
+        axes = (
+            self.temporal_weights["residual"],
+            self.temporal_weights["memory"],
+            self.temporal_weights["reflection"],
+        )
+        return tuple(
+            _clamp(
+                value
+                * max(
+                    0.5,
+                    min(
+                        1.5,
+                        1.0
+                        + bounded_strength
+                        * (axes[index % len(axes)] * len(axes) - 1.0),
+                    ),
+                )
+            )
+            for index, value in enumerate(code)
+        )
+
+
+def _clamp(value: float) -> float:
+    lower, upper = LATENT_CODE_BOUNDS
+    return max(lower, min(upper, value))
+
+
+def _mirror_action_head_substrate_snapshot(
+    substrate_snapshot: SubstrateSnapshot,
+    *,
+    permutation: tuple[int, ...],
+    signs: tuple[int, ...],
+) -> SubstrateSnapshot:
+    """Reflect encoder inputs using the embodiment-authored signed permutation."""
+
+    def mirror_step(step: ResidualSequenceStep) -> ResidualSequenceStep:
+        if step.residual_activations:
+            lengths = tuple(
+                len(activation.activation)
+                for activation in step.residual_activations
+            )
+            flattened = tuple(
+                value
+                for activation in step.residual_activations
+                for value in activation.activation
+            )
+            mirrored = mirror_causal_action_head_input(
+                flattened,
+                permutation=permutation,
+                signs=signs,
+            )
+            cursor = 0
+            mirrored_activations = []
+            for activation, length in zip(
+                step.residual_activations,
+                lengths,
+                strict=True,
+            ):
+                mirrored_activations.append(
+                    replace(
+                        activation,
+                        activation=mirrored[cursor : cursor + length],
+                    )
+                )
+                cursor += length
+            return replace(
+                step,
+                residual_activations=tuple(mirrored_activations),
+            )
+        if step.feature_surface:
+            lengths = tuple(
+                len(feature.values) for feature in step.feature_surface
+            )
+            flattened = tuple(
+                value
+                for feature in step.feature_surface
+                for value in feature.values
+            )
+            mirrored = mirror_causal_action_head_input(
+                flattened,
+                permutation=permutation,
+                signs=signs,
+            )
+            cursor = 0
+            mirrored_features = []
+            for feature, length in zip(
+                step.feature_surface,
+                lengths,
+                strict=True,
+            ):
+                mirrored_features.append(
+                    replace(
+                        feature,
+                        values=mirrored[cursor : cursor + length],
+                    )
+                )
+                cursor += length
+            return replace(
+                step,
+                feature_surface=tuple(mirrored_features),
+            )
+        raise ValueError(
+            "causal action head input mirror requires residual activations "
+            "or feature-surface values"
+        )
+
+    mirrored_sequence = tuple(
+        mirror_step(step)
+        for step in residual_sequence_from_snapshot(substrate_snapshot)
+    )
+    latest = mirrored_sequence[-1]
+    return replace(
+        substrate_snapshot,
+        feature_surface=latest.feature_surface,
+        residual_activations=latest.residual_activations,
+        residual_sequence=mirrored_sequence,
+    )
+
+
+def _scale_matrix(
+    matrix: tuple[tuple[float, ...], ...],
+    delta: float,
+) -> tuple[tuple[float, ...], ...]:
+    factor = 1.0 + delta * 0.18
+    return tuple(
+        tuple(max(-1.0, min(1.0, value * factor)) for value in row)
+        for row in matrix
+    )
+
+
+def _scale_vector(
+    values: tuple[float, ...],
+    delta: float,
+) -> tuple[float, ...]:
+    factor = 1.0 + delta * 0.18
+    return tuple(max(-1.0, min(1.0, value * factor)) for value in values)
+
+
+def _scale_ndim_encoder_parameters(
+    params: NdimEncoderParameters,
+    delta: float,
+) -> NdimEncoderParameters:
+    return NdimEncoderParameters(
+        n_input=params.n_input,
+        gru=type(params.gru)(
+            W_z=_scale_matrix(params.gru.W_z, delta),
+            U_z=_scale_matrix(params.gru.U_z, delta * 0.75),
+            b_z=_scale_vector(params.gru.b_z, delta * 0.25),
+            W_r=_scale_matrix(params.gru.W_r, delta),
+            U_r=_scale_matrix(params.gru.U_r, delta * 0.75),
+            b_r=_scale_vector(params.gru.b_r, delta * 0.25),
+            W_h=_scale_matrix(params.gru.W_h, delta),
+            U_h=_scale_matrix(params.gru.U_h, delta * 0.75),
+            b_h=_scale_vector(params.gru.b_h, delta * 0.25),
+        ),
+        posterior_proj=_scale_matrix(params.posterior_proj, delta),
+        current_proj=_scale_matrix(params.current_proj, delta),
+        posterior_std_proj=_scale_matrix(params.posterior_std_proj, delta * 0.75),
+    )
+
+
+def _scale_ndim_switch_parameters(
+    params: NdimSwitchParameters,
+    delta: float,
+) -> NdimSwitchParameters:
+    return NdimSwitchParameters(
+        gate_ffn=type(params.gate_ffn)(
+            W1=_scale_matrix(params.gate_ffn.W1, delta),
+            b1=_scale_vector(params.gate_ffn.b1, delta * 0.25),
+            W2=_scale_matrix(params.gate_ffn.W2, delta),
+            b2=_scale_vector(params.gate_ffn.b2, delta * 0.25),
+        )
+    )
+
+
+def _scale_ndim_decoder_parameters(
+    params: NdimDecoderParameters,
+    delta: float,
+) -> NdimDecoderParameters:
+    return NdimDecoderParameters(
+        decoder_ffn=type(params.decoder_ffn)(
+            W1=_scale_matrix(params.decoder_ffn.W1, delta),
+            b1=_scale_vector(params.decoder_ffn.b1, delta * 0.25),
+            W2=_scale_matrix(params.decoder_ffn.W2, delta),
+            b2=_scale_vector(params.decoder_ffn.b2, delta * 0.25),
+        )
+    )
+
+
+def _normalize_vector(values: tuple[float, ...]) -> tuple[float, ...]:
+    total = sum(max(value, 0.0) for value in values)
+    if total <= 1e-9:
+        return tuple(1.0 / len(values) for _ in values) if values else ()
+    return tuple(max(value, 0.0) / total for value in values)
+
+
+def _blend_track_weights(
+    current: tuple[float, ...],
+    anchor: tuple[float, ...],
+    *,
+    delta: float,
+) -> tuple[float, ...]:
+    if not current:
+        return current
+    normalized_anchor = _normalize_vector(
+        tuple(anchor[index] if index < len(anchor) else 0.0 for index in range(len(current)))
+    )
+    blend = min(max(abs(delta), 0.0), 0.25)
+    if delta < 0.0:
+        normalized_anchor = tuple(1.0 / len(current) for _ in current)
+    return _normalize_vector(
+        tuple(
+            current[index] * (1.0 - blend) + normalized_anchor[index] * blend
+            for index in range(len(current))
+        )
+    )
+
+
+def _family_dominant_axis(values: tuple[float, ...]) -> str:
+    if not values:
+        return "unknown"
+    index = max(range(len(values)), key=lambda i: values[i])
+    if index == 0:
+        return "world"
+    if index == 1:
+        return "self"
+    return "shared"
+
+
+def _blend_family_centroid(
+    left: tuple[float, ...],
+    right: tuple[float, ...],
+    *,
+    left_weight: float,
+    right_weight: float,
+) -> tuple[float, ...]:
+    total = max(left_weight + right_weight, 1e-6)
+    return tuple(
+        _clamp((l_value * left_weight + r_value * right_weight) / total)
+        for l_value, r_value in zip(left, right, strict=True)
+    )
+
+
+def _refresh_family_summary(family: DiscoveredActionFamily, *, prefix: str) -> DiscoveredActionFamily:
+    return DiscoveredActionFamily(
+        family_id=family.family_id,
+        latent_centroid=family.latent_centroid,
+        decoder_centroid=family.decoder_centroid,
+        support=family.support,
+        stability=family.stability,
+        switch_bias=family.switch_bias,
+        mean_posterior_drift=family.mean_posterior_drift,
+        mean_persistence_window=family.mean_persistence_window,
+        summary=(
+            f"{prefix} dominant_axis={_family_dominant_axis(family.decoder_centroid)} "
+            f"support={family.support} stability={family.stability:.3f}"
+        ),
+    )
+
+
+def _tilt_family_centroid(
+    centroid: tuple[float, ...],
+    *,
+    axis: str,
+    amount: float = 0.12,
+) -> tuple[float, ...]:
+    if not centroid:
+        return centroid
+    axis_index = 0 if axis == "world" else 1 if axis == "self" else 2
+    updated = list(centroid)
+    updated[axis_index] = _clamp(updated[axis_index] + amount)
+    for index in range(len(updated)):
+        if index != axis_index:
+            updated[index] = _clamp(updated[index] - amount * 0.5)
+    return tuple(updated)
+
+
+def _next_family_id(action_families: tuple[DiscoveredActionFamily, ...]) -> str:
+    next_index = max(
+        (
+            int(family.family_id.rsplit("_", 1)[-1])
+            for family in action_families
+            if family.family_id.rsplit("_", 1)[-1].isdigit()
+        ),
+        default=-1,
+    ) + 1
+    return f"discovered_family_{next_index}"
+
+
+def _apply_action_family_structure_proposals(
+    *,
+    action_families: tuple[DiscoveredActionFamily, ...],
+    proposals: tuple[TemporalStructureProposal, ...],
+) -> tuple[tuple[DiscoveredActionFamily, ...], tuple[str, ...]]:
+    families = list(action_families)
+    operations: list[str] = []
+    for proposal in proposals:
+        index_by_id = {family.family_id: index for index, family in enumerate(families)}
+        if proposal.proposal_type == "prune":
+            index = index_by_id.get(proposal.family_id)
+            if index is None or len(families) <= 1:
+                continue
+            families.pop(index)
+            operations.append(f"temporal-prior:action-family-prune={proposal.family_id}")
+            continue
+        if proposal.proposal_type == "merge":
+            left_index = index_by_id.get(proposal.family_id)
+            right_index = index_by_id.get(proposal.related_family_id or "")
+            if left_index is None or right_index is None or left_index == right_index:
+                continue
+            left = families[left_index]
+            right = families[right_index]
+            merged = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=left.family_id,
+                    latent_centroid=_blend_family_centroid(
+                        left.latent_centroid,
+                        right.latent_centroid,
+                        left_weight=float(left.support),
+                        right_weight=float(right.support),
+                    ),
+                    decoder_centroid=_blend_family_centroid(
+                        left.decoder_centroid,
+                        right.decoder_centroid,
+                        left_weight=float(left.support),
+                        right_weight=float(right.support),
+                    ),
+                    support=left.support + right.support,
+                    stability=_clamp((left.stability + right.stability) / 2.0),
+                    switch_bias=_clamp((left.switch_bias + right.switch_bias) / 2.0),
+                    mean_posterior_drift=_clamp(
+                        (left.mean_posterior_drift + right.mean_posterior_drift) / 2.0
+                    ),
+                    mean_persistence_window=_clamp(
+                        (left.mean_persistence_window + right.mean_persistence_window) / 2.0
+                    ),
+                ),
+                prefix=f"reflect-merge:{left.family_id}+{right.family_id}",
+            )
+            primary_index = min(left_index, right_index)
+            secondary_index = max(left_index, right_index)
+            families[primary_index] = merged
+            families.pop(secondary_index)
+            operations.append(
+                f"temporal-prior:action-family-merge={proposal.family_id}+{proposal.related_family_id}"
+            )
+            continue
+        if proposal.proposal_type == "split":
+            index = index_by_id.get(proposal.family_id)
+            if index is None:
+                continue
+            family = families[index]
+            child_id = _next_family_id(tuple(families))
+            child = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=child_id,
+                    latent_centroid=_tilt_family_centroid(
+                        family.latent_centroid,
+                        axis=_family_dominant_axis(family.decoder_centroid),
+                    ),
+                    decoder_centroid=_tilt_family_centroid(
+                        family.decoder_centroid,
+                        axis=_family_dominant_axis(family.decoder_centroid),
+                    ),
+                    support=max(1, family.support // 2),
+                    stability=_clamp(family.stability * 0.85),
+                    switch_bias=family.switch_bias,
+                    mean_posterior_drift=_clamp(family.mean_posterior_drift + 0.08),
+                    mean_persistence_window=_clamp(max(family.mean_persistence_window - 0.1, 0.0)),
+                ),
+                prefix=f"reflect-split:{proposal.family_id}",
+            )
+            families[index] = _refresh_family_summary(
+                DiscoveredActionFamily(
+                    family_id=family.family_id,
+                    latent_centroid=family.latent_centroid,
+                    decoder_centroid=family.decoder_centroid,
+                    support=max(1, family.support - child.support),
+                    stability=_clamp(family.stability * 0.92),
+                    switch_bias=family.switch_bias,
+                    mean_posterior_drift=family.mean_posterior_drift,
+                    mean_persistence_window=family.mean_persistence_window,
+                ),
+                prefix=f"reflect-split-parent:{proposal.family_id}",
+            )
+            families.append(child)
+            operations.append(f"temporal-prior:action-family-split={proposal.family_id}->{child_id}")
+    return (tuple(families), tuple(operations))
+
+
+def _random_mat(rows: int, cols: int, *, seed: int) -> tuple[tuple[float, ...], ...]:
+    """Deterministic random matrix for n_z > 3 initialization."""
+    import random as _rng
+    r = _rng.Random(seed)
+    scale = 1.0 / max(rows, 1) ** 0.5
+    return tuple(
+        tuple(r.gauss(0.0, scale) for _ in range(cols))
+        for _ in range(rows)
+    )
+
+
+def _random_vec(n: int, *, seed: int) -> tuple[float, ...]:
+    import random as _rng
+    r = _rng.Random(seed)
+    return tuple(r.gauss(0.0, 0.1) for _ in range(n))
+
+
+def _init_action_families(n_z: int, *, seed: int) -> tuple[DiscoveredActionFamily, ...]:
+    del n_z
+    del seed
+    return ()
+
+
+def _init_track_weights(n_z: int, *, seed: int) -> dict:
+    import random as _rng
+    r = _rng.Random(seed)
+    result = {}
+    for track in (Track.WORLD, Track.SELF, Track.SHARED):
+        raw = tuple(abs(r.gauss(0.4, 0.2)) for _ in range(n_z))
+        total = max(sum(raw), 1e-6)
+        result[track] = tuple(v / total for v in raw)
+    return result
+
+
+def _init_causal_action_heads(
+    *,
+    n_z: int,
+) -> dict[Track, CausalZActionHeadParameters]:
+    rank = min(4, max(1, n_z // 2))
+    return {
+        track: _initial_causal_action_head_parameters(
+            n_z=n_z,
+            track=track,
+            rank=rank,
+        )
+        for track in (Track.WORLD, Track.SELF, Track.SHARED)
+    }
+
+
+def _bounded_initial_input_factors(
+    *,
+    rank: int,
+    n_z: int,
+    seed: int,
+    absolute_limit: float,
+) -> tuple[tuple[float, ...], ...]:
+    """低秩初始 basis 的随机抽样，按包络重标定回冻结区间。
+
+    ``_random_mat`` 是通用默认（encoder/decoder 权重也在用它，见 seed
+    100/101/103/104），本函数**不动它**：重标定只发生在 action-head 这一条
+    初始化路径上，因此其它消费者逐字节不变。
+
+    为什么是"把初始先验拉回包络"而不是"给包络开一个初始先验豁免"：
+    ``factor_absolute_limit`` 被 owner 写入路径**无条件**施加——
+    ``update_causal_action_head`` 的内联 clamp 与
+    ``project_causal_action_head_update`` 的 ``clamp_absolute``（该函数不变量 1）
+    都不看 ``update_step``。也就是说 owner 写入路径的像**恒**落在包络内，第一步
+    也不例外。若给 ``update_step == 0`` 放宽上界，validator 接受的集合就严格大于
+    owner 自己的像，而 ``update_step`` 是 restore 快照里的一个普通字段——损坏 /
+    越权 archive 只要声明 ``update_step=0`` 就能装入任意 input factor，正是包络
+    存在的理由（跨状态固定转向）被绕开的那条路。所以豁免在任何写法下都是被削弱
+    的门，构造器才是要修的一侧。
+
+    重标定用**全局正标量**，不是逐元素 clip：随机抽样的方向结构（相对幅度、
+    符号、行列几何、秩）原样保留，只有整体尺度被压进包络。已经在包络内的抽样
+    直接原样返回（不做任何浮点运算），因此那些配置逐字节不变。
+    """
+
+    draw = _random_mat(rank, n_z, seed=seed)
+    peak = max((abs(value) for row in draw for value in row), default=0.0)
+    if peak <= absolute_limit:
+        return draw
+    scale = absolute_limit / peak
+    # 末尾 clamp 不是新的松弛，而是与 owner 写入路径同一个 ``clamp_absolute``：
+    # ``peak * (absolute_limit / peak)`` 按 binary64 求值可以落在上界之上 1 ulp，
+    # 那会让重标定后的矩阵仍被 validator 拒绝。实测：在当前冻结包络与固定 seed
+    # 下，n_z<=64 的全部 (rank, n_z, track) 网格上这个 clamp 一次都没有生效；保留
+    # 它是因为该性质依赖于具体的 limit 与 seed，不是可以被继承的不变量。
+    return tuple(
+        tuple(
+            max(-absolute_limit, min(absolute_limit, value * scale))
+            for value in row
+        )
+        for row in draw
+    )
+
+
+def _initial_causal_action_head_parameters(
+    *,
+    n_z: int,
+    state_dim: int | None = None,
+    track: Track,
+    rank: int,
+    envelope: CausalActionHeadUpdateEnvelope = (
+        CAUSAL_ACTION_HEAD_UPDATE_ENVELOPE
+    ),
+) -> CausalZActionHeadParameters:
+    resolved_state_dim = n_z if state_dim is None else state_dim
+    if resolved_state_dim < 1:
+        raise ValueError(
+            "causal action head state_dim must be positive, "
+            f"got {resolved_state_dim!r}"
+        )
+    track_index = (Track.WORLD, Track.SELF, Track.SHARED).index(track)
+    input_factors = (
+        tuple(
+            tuple(
+                1.0 if row_index == column_index else 0.0
+                for column_index in range(resolved_state_dim)
+            )
+            for row_index in range(rank)
+        )
+        if rank == n_z and resolved_state_dim == n_z
+        else _bounded_initial_input_factors(
+            rank=rank,
+            n_z=resolved_state_dim,
+            seed=211 + track_index,
+            absolute_limit=envelope.factor_absolute_limit,
+        )
+    )
+    return CausalZActionHeadParameters(
+        track=track,
+        rank=rank,
+        input_factors=input_factors,
+        output_factors=tuple(
+            tuple(0.0 for _ in range(rank))
+            for _ in range(n_z)
+        ),
+        bias=tuple(0.0 for _ in range(n_z)),
+    )
+
+
+def _nz_zeros(n: int) -> tuple[float, ...]:
+    return tuple(0.0 for _ in range(n))
+
+
+def _nz_ones(n: int) -> tuple[float, ...]:
+    return tuple(1.0 for _ in range(n))
+
+
+def _hash_payload(payload: object) -> str:
+    serializable_payload = _to_serializable(payload)
+    serialized = json.dumps(serializable_payload, sort_keys=True, separators=(",", ":"))
+    return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _sum_tuple(values: tuple[float, ...]) -> float:
+    total = 0.0
+    for value in values:
+        total += float(value)
+    return total
+
+
+def _sum_matrix(values: tuple[tuple[float, ...], ...]) -> float:
+    total = 0.0
+    for row in values:
+        total += _sum_tuple(row)
+    return total
+
+
+def _compact_ndim_params_hash(store: MetacontrollerParameterStore) -> str:
+    """Cheap per-step parameter fingerprint for ndim runtime telemetry.
+
+    Full recursive JSON hashing of all ndim parameter matrices is too expensive
+    for internal-RL rollout hot paths. This compact digest is sufficient for
+    detecting parameter-version movement in snapshots while keeping the runtime
+    step side-effect free and deterministic.
+    """
+
+    encoder = store.ndim_encoder_parameters
+    switch = store.ndim_switch_parameters
+    decoder = store.ndim_decoder_parameters
+    parts: list[str] = [
+        "mode=ndim",
+        f"n_z={store.n_z}",
+        f"n_input={store.n_input}",
+    ]
+    if encoder is not None:
+        parts.append(f"enc_wz={_sum_matrix(encoder.gru.W_z):.12f}")
+        parts.append(f"enc_wr={_sum_matrix(encoder.gru.W_r):.12f}")
+        parts.append(f"enc_wh={_sum_matrix(encoder.gru.W_h):.12f}")
+        parts.append(f"enc_bz={_sum_tuple(encoder.gru.b_z):.12f}")
+        parts.append(f"enc_br={_sum_tuple(encoder.gru.b_r):.12f}")
+        parts.append(f"enc_bh={_sum_tuple(encoder.gru.b_h):.12f}")
+        identity_current_projection = tuple(
+            tuple(
+                1.0 if row == column else 0.0
+                for column in range(store.n_z)
+            )
+            for row in range(store.n_z)
+        )
+        if encoder.current_proj != identity_current_projection:
+            parts.append(
+                f"enc_current={_sum_matrix(encoder.current_proj):.12f}"
+            )
+    if switch is not None:
+        parts.append(f"sw_b1={_sum_tuple(switch.gate_ffn.b1):.12f}")
+        parts.append(f"sw_b2={_sum_tuple(switch.gate_ffn.b2):.12f}")
+    if decoder is not None:
+        parts.append(f"dec_b1={_sum_tuple(decoder.decoder_ffn.b1):.12f}")
+        parts.append(f"dec_b2={_sum_tuple(decoder.decoder_ffn.b2):.12f}")
+    for track in (Track.WORLD, Track.SELF, Track.SHARED):
+        action_head = store.causal_action_heads[track]
+        parts.append(
+            f"head_{track.value}_in="
+            f"{_sum_matrix(action_head.input_factors):.12f}"
+        )
+        parts.append(
+            f"head_{track.value}_out="
+            f"{_sum_matrix(action_head.output_factors):.12f}"
+        )
+        parts.append(
+            f"head_{track.value}_bias="
+            f"{_sum_tuple(action_head.bias):.12f}"
+        )
+        parts.append(
+            f"head_{track.value}_step={action_head.update_step}"
+        )
+    parts.append(f"beta={store.beta_threshold:.12f}")
+    return sha256("|".join(parts).encode("utf-8")).hexdigest()
+
+
+def _to_serializable(payload: object) -> object:
+    if is_dataclass(payload):
+        result: dict[str, object] = {}
+        for dataclass_field in fields(payload):
+            result[dataclass_field.name] = _to_serializable(
+                getattr(payload, dataclass_field.name)
+            )
+        return result
+    if isinstance(payload, dict):
+        result: dict[str, object] = {}
+        for key, value in payload.items():
+            result[str(key)] = _to_serializable(value)
+        return result
+    if isinstance(payload, tuple):
+        values: list[object] = []
+        for value in payload:
+            values.append(_to_serializable(value))
+        return tuple(values)
+    if isinstance(payload, list):
+        values: list[object] = []
+        for value in payload:
+            values.append(_to_serializable(value))
+        return values
+    return payload
+
+
+def _feature_signature(feature_surface: tuple[FeatureSignal, ...]) -> tuple[str, ...]:
+    return tuple(feature.name for feature in feature_surface[:4])
+
+
+def _residual_signature(substrate_snapshot: SubstrateSnapshot) -> tuple[float, ...]:
+    sequence = residual_sequence_from_snapshot(substrate_snapshot)
+    summaries = tuple(
+        summarize_residual_activations(step.residual_activations, step.feature_surface) for step in sequence
+    )
+    if not summaries:
+        return _code_from_feature_surface(substrate_snapshot.feature_surface)
+    return tuple(
+        _clamp(sum(summary[index] for summary in summaries) / len(summaries)) for index in range(3)
+    )
+
+
+def _code_from_feature_surface(feature_surface: tuple[FeatureSignal, ...]) -> tuple[float, ...]:
+    return summarize_feature_surface(feature_surface)
+
+
+def _abstract_action_from_code(code: tuple[float, ...], switch_gate: float) -> str:
+    average, maximum, spread = code
+    if switch_gate > 0.7:
+        return "latent-family-switch"
+    if spread > 0.35:
+        return "latent-family-diffuse"
+    if average < 0.2 and maximum < 0.25:
+        return "latent-family-low-signal"
+    return "latent-family-stable"
+
+
+def _memory_signal(memory_snapshot: MemorySnapshot | None) -> float:
+    if memory_snapshot is None:
+        return 0.0
+    lifecycle_metrics = dict(memory_snapshot.lifecycle_metrics)
+    retrieval_pressure = min(len(memory_snapshot.retrieved_entries) / 5.0, 1.0)
+    promotion_pressure = min(memory_snapshot.pending_promotions / 5.0, 1.0)
+    cms_energy = 0.0
+    cms_bands = (
+        _cms_band(memory_snapshot, "online_fast"),
+        _cms_band(memory_snapshot, "session_medium"),
+        _cms_band(memory_snapshot, "background_slow"),
+    )
+    present_bands = tuple(band for band in cms_bands if band is not None)
+    if present_bands:
+        cms_energy = _clamp(
+            sum(sum(abs(value) for value in band) / max(len(band), 1) for band in present_bands)
+            / len(present_bands)
+        )
+    lifecycle_signal = _clamp(
+        lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0) * 0.45
+        + lifecycle_metrics.get("learned_recall_confidence", 0.0) * 0.55
+    )
+    return _clamp(
+        retrieval_pressure * 0.20
+        + promotion_pressure * 0.15
+        + cms_energy * 0.45
+        + lifecycle_signal * 0.20
+    )
+
+
+def _reflection_signal(reflection_snapshot: ReflectionSnapshot | None) -> float:
+    if reflection_snapshot is None:
+        return 0.0
+    lesson_pressure = min(len(reflection_snapshot.lessons_extracted) / 4.0, 1.0)
+    tension_pressure = min(len(reflection_snapshot.tensions_identified) / 4.0, 1.0)
+    confidence_signal = _clamp(reflection_snapshot.consolidation_score.confidence)
+    proposal_signal = _clamp(reflection_snapshot.proposal_success_rate)
+    error_signal = _clamp(min(reflection_snapshot.error_driven_lesson_count / 3.0, 1.0))
+    return _clamp(
+        lesson_pressure * 0.22
+        + tension_pressure * 0.18
+        + confidence_signal * 0.30
+        + proposal_signal * 0.15
+        + error_signal * 0.15
+    )
+
+
+def _cms_band(memory_snapshot: MemorySnapshot | None, band_name: str) -> tuple[float, ...] | None:
+    if memory_snapshot is None:
+        return None
+    for published_name, vector in memory_snapshot.cms_band_vectors:
+        if published_name == band_name:
+            return vector
+    return None
+
+
+def _should_take_binary_override(
+    *,
+    previous_code: tuple[float, ...],
+    latent_override: tuple[float, ...] | None,
+    policy_replacement_score: float,
+    learned_binary_switch: bool,
+) -> bool:
+    if learned_binary_switch:
+        return True
+    if latent_override is None:
+        return False
+    override_delta = sum(
+        abs(current - previous)
+        for current, previous in zip(latent_override, previous_code, strict=True)
+    ) / max(len(latent_override), 1)
+    return override_delta >= 0.08 and policy_replacement_score >= 0.55
+
+
+class TemporalPolicy(ABC):
+    """Common interface for placeholder, heuristic, and future learned policies."""
+
+    mode: TemporalImplementationMode
+
+    @abstractmethod
+    def step(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None = None,
+        reflection_snapshot: ReflectionSnapshot | None = None,
+    ) -> TemporalStep:
+        """Produce the next temporal abstraction state."""
+
+    def export_runtime_state(self) -> MetacontrollerRuntimeState | None:
+        return None
+
+    def observe_reflection_snapshot(
+        self,
+        *,
+        reflection_snapshot: ReflectionSnapshot | None,
+    ) -> None:
+        del reflection_snapshot
+
+    def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
+        return None
+
+    def observe_experience_fast_prior(
+        self,
+        *,
+        experience_fast_prior_snapshot: object | None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
+        track: Track | None = None,
+    ) -> None:
+        del experience_fast_prior_snapshot
+        del previous_snapshot
+        del track
+
+    def observe_active_mixture(
+        self,
+        *,
+        active_mixture_snapshot: object | None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
+        track: Track | None = None,
+    ) -> None:
+        """Observe the previous-turn BehaviorProtocol active mixture.
+
+        Default no-op. ``FullLearnedTemporalPolicy`` overrides this to
+        turn the active-mixture weight distribution into a bounded
+        switch-pressure prior on ``beta_t`` (protocol-temporal-prior
+        bridge). Fed out-of-band by the orchestrator as a one-turn
+        carryover because ``active_mixture`` is downstream of temporal in
+        the propagate DAG (declaring it as a same-turn dependency would
+        cycle via ``retrieval_policy``).
+        """
+        del active_mixture_snapshot
+        del previous_snapshot
+        del track
+
+    def set_protocol_prior_enabled(self, enabled: bool) -> None:
+        """Toggle whether the protocol active-mixture prior reaches beta_t.
+
+        Default no-op; ``FullLearnedTemporalPolicy`` implements it. Kept on
+        the base so orchestrators can call it on any policy without an
+        isinstance check.
+        """
+        del enabled
+
+    def observe_family_outcome_feedback(
+        self,
+        *,
+        track: Track,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+        credit_snapshot: CreditSnapshot | None,
+    ) -> bool:
+        del track
+        del prediction_error_snapshot
+        del credit_snapshot
+        return False
+
+    @property
+    def latest_encoder_output_for_cms(self) -> tuple[float, ...] | None:
+        return None
+
+    def fit_from_signals(
+        self,
+        *,
+        residual_strength: float,
+        memory_strength: float,
+        reflection_strength: float,
+    ) -> None:
+        del residual_strength
+        del memory_strength
+        del reflection_strength
+
+    def apply_reflection_prior_update(
+        self,
+        *,
+        update: TemporalPriorUpdate,
+        allowed_target_groups: tuple[str, ...] | None = None,
+    ) -> tuple[str, ...]:
+        del update
+        del allowed_target_groups
+        return ()
+
+
+class PlaceholderTemporalPolicy(TemporalPolicy):
+    mode = TemporalImplementationMode.PLACEHOLDER
+
+    def step(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None = None,
+        reflection_snapshot: ReflectionSnapshot | None = None,
+    ) -> TemporalStep:
+        steps_since_switch = (
+            previous_snapshot.controller_state.steps_since_switch + 1
+            if previous_snapshot is not None
+            else 0
+        )
+        controller_state = ControllerState(
+            code=(0.0, 0.0, 0.0),
+            code_dim=3,
+            switch_gate=0.0,
+            is_switching=False,
+            steps_since_switch=steps_since_switch,
+        )
+        params_hash = _hash_payload(
+            {
+                "mode": self.mode.value,
+                "model_id": substrate_snapshot.model_id,
+            }
+        )
+        return TemporalStep(
+            controller_state=controller_state,
+            active_abstract_action="placeholder-controller",
+            controller_params_hash=params_hash,
+            description="Placeholder temporal controller with no active switching.",
+            action_family_version=0,
+        )
+
+
+class HeuristicTemporalPolicy(TemporalPolicy):
+    mode = TemporalImplementationMode.HEURISTIC
+
+    def __init__(self) -> None:
+        self._previous_feature_signature: tuple[str, ...] = ()
+        self._cached_reflection_snapshot: ReflectionSnapshot | None = None
+
+    def observe_reflection_snapshot(
+        self,
+        *,
+        reflection_snapshot: ReflectionSnapshot | None,
+    ) -> None:
+        if reflection_snapshot is not None:
+            self._cached_reflection_snapshot = reflection_snapshot
+
+    def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
+        return self._cached_reflection_snapshot
+
+    def step(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None = None,
+        reflection_snapshot: ReflectionSnapshot | None = None,
+    ) -> TemporalStep:
+        effective_reflection_snapshot = reflection_snapshot or self._cached_reflection_snapshot
+        feature_signature = _feature_signature(substrate_snapshot.feature_surface)
+        residual_code = _residual_signature(substrate_snapshot)
+        memory_signal = _memory_signal(memory_snapshot)
+        reflection_signal = _reflection_signal(effective_reflection_snapshot)
+        code = (
+            _clamp(residual_code[0]),
+            _clamp((residual_code[1] + memory_signal) / 2.0),
+            _clamp((residual_code[2] + reflection_signal) / 2.0),
+        )
+        previous_steps = 0
+        if previous_snapshot is not None:
+            previous_steps = previous_snapshot.controller_state.steps_since_switch
+
+        signature_changed = feature_signature != self._previous_feature_signature
+        switch_gate = 0.15
+        if signature_changed and feature_signature:
+            switch_gate = 0.75 + memory_signal * 0.1 + reflection_signal * 0.1
+        is_switching = switch_gate > 0.7
+        steps_since_switch = 0 if is_switching else previous_steps + 1
+        active_action = _abstract_action_from_code(code, switch_gate)
+        signature_suffix = "|".join(feature_signature) if feature_signature else "no-feature-signal"
+        controller_state = ControllerState(
+            code=code,
+            code_dim=len(code),
+            switch_gate=switch_gate,
+            is_switching=is_switching,
+            steps_since_switch=steps_since_switch,
+        )
+        params_hash = _hash_payload(
+            {
+                "mode": self.mode.value,
+                "feature_signature": feature_signature,
+                "code": code,
+            }
+        )
+        step = TemporalStep(
+            controller_state=controller_state,
+            active_abstract_action=f"{active_action}:{signature_suffix}",
+            controller_params_hash=params_hash,
+            description=(
+                f"Heuristic temporal controller mode={self.mode.value}, "
+                f"switch_gate={switch_gate:.2f}, feature_signature={signature_suffix}."
+            ),
+            action_family_version=0,
+        )
+        self._previous_feature_signature = feature_signature
+        return step
+
+
+class LearnedLiteTemporalPolicy(TemporalPolicy):
+    mode = TemporalImplementationMode.LEARNED_LITE
+
+    def __init__(self, *, parameter_store: MetacontrollerParameterStore | None = None) -> None:
+        self._parameter_store = parameter_store or MetacontrollerParameterStore()
+        self._previous_code = _nz_zeros(self._parameter_store.n_z)
+        self._cached_reflection_snapshot: ReflectionSnapshot | None = None
+
+    def reset_recurrent_state_for_episode_transfer(self) -> None:
+        """Clear trajectory-local recurrence while retaining learned parameters."""
+
+        self._previous_code = _nz_zeros(self._parameter_store.n_z)
+        self._parameter_store.reset_episode_runtime_telemetry()
+
+    @property
+    def weights(self) -> Mapping[str, float]:
+        return dict(self._parameter_store.temporal_weights)
+
+    @property
+    def parameter_store(self) -> MetacontrollerParameterStore:
+        return self._parameter_store
+
+    def export_runtime_state(self) -> MetacontrollerRuntimeState:
+        n_z = self._parameter_store.n_z
+        return replace(
+            self._parameter_store.export_runtime_state(
+                mode=self.mode.value
+            ),
+            causal_action_head_state=_nz_zeros(n_z),
+            causal_action_head_residual=_nz_zeros(n_z),
+            causal_action_head_wiring=WiringLevel.DISABLED.value,
+        )
+
+    def export_parameters(self) -> TemporalControllerParameters:
+        return self._parameter_store.export_temporal_parameters()
+
+    def export_rare_heavy_snapshot(self) -> MetacontrollerParameterSnapshot:
+        return self._parameter_store.export_parameter_snapshot()
+
+    def fit_from_signals(
+        self,
+        *,
+        residual_strength: float,
+        memory_strength: float,
+        reflection_strength: float,
+    ) -> None:
+        self._parameter_store.fit_temporal_from_signals(
+            residual_strength=residual_strength,
+            memory_strength=memory_strength,
+            reflection_strength=reflection_strength,
+        )
+
+    def apply_reflection_prior_update(
+        self,
+        *,
+        update: TemporalPriorUpdate,
+        allowed_target_groups: tuple[str, ...] | None = None,
+    ) -> tuple[str, ...]:
+        return self._parameter_store.apply_reflection_prior_update(
+            update=update,
+            allowed_target_groups=allowed_target_groups,
+        )
+
+    def apply_rare_heavy_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> tuple[str, ...]:
+        self._parameter_store.restore_parameter_snapshot(snapshot)
+        return ("rare-heavy:temporal-import",)
+
+    def align_with_internal_rl(
+        self,
+        *,
+        world_weights: tuple[float, ...],
+        self_weights: tuple[float, ...],
+        shared_weights: tuple[float, ...],
+        persistence: float,
+    ) -> None:
+        self._parameter_store.track_weights[Track.WORLD] = world_weights
+        self._parameter_store.track_weights[Track.SELF] = self_weights
+        self._parameter_store.track_weights[Track.SHARED] = shared_weights
+        self._parameter_store.persistence = persistence
+        self._parameter_store.align_temporal_from_tracks()
+
+    def observe_reflection_snapshot(
+        self,
+        *,
+        reflection_snapshot: ReflectionSnapshot | None,
+    ) -> None:
+        if reflection_snapshot is not None:
+            self._cached_reflection_snapshot = reflection_snapshot
+
+    def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
+        return self._cached_reflection_snapshot
+
+    def step(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None = None,
+        reflection_snapshot: ReflectionSnapshot | None = None,
+    ) -> TemporalStep:
+        effective_reflection_snapshot = reflection_snapshot or self._cached_reflection_snapshot
+        residual_code = _residual_signature(substrate_snapshot)
+        memory_signal = _memory_signal(memory_snapshot)
+        reflection_signal = _reflection_signal(effective_reflection_snapshot)
+        base_code = (
+            _clamp(
+                residual_code[0] * self._parameter_store.temporal_weights["residual"]
+                + memory_signal * self._parameter_store.temporal_weights["memory"]
+            ),
+            _clamp(
+                residual_code[1] * self._parameter_store.temporal_weights["residual"]
+                + reflection_signal * self._parameter_store.temporal_weights["reflection"]
+            ),
+            _clamp(
+                residual_code[2] * self._parameter_store.temporal_weights["residual"]
+                + (memory_signal + reflection_signal) / 2.0
+            ),
+        )
+        from volvence_zero.temporal.metacontroller_components import (
+            _project_to_ndim,
+        )
+
+        code = _project_to_ndim(base_code, self._parameter_store.n_z)
+        delta = sum(
+            abs(current - previous)
+            for current, previous in zip(
+                code, self._previous_code, strict=True
+            )
+        )
+        switch_gate = _clamp(
+            self._parameter_store.switch_bias
+            + delta / 2.0
+            + reflection_signal * 0.2
+        )
+        is_switching = switch_gate >= 0.55
+        previous_steps = (
+            previous_snapshot.controller_state.steps_since_switch if previous_snapshot is not None else 0
+        )
+        steps_since_switch = 0 if is_switching else previous_steps + 1
+        active_action = _abstract_action_from_code(base_code, switch_gate)
+        params_hash = _hash_payload(
+            {
+                "mode": self.mode.value,
+                "weights": self._parameter_store.temporal_weights,
+                "switch_bias": self._parameter_store.switch_bias,
+            }
+        )
+        description = (
+            f"Learned-lite temporal controller residual={self._parameter_store.temporal_weights['residual']:.2f}, "
+            f"memory={self._parameter_store.temporal_weights['memory']:.2f}, "
+            f"reflection={self._parameter_store.temporal_weights['reflection']:.2f}, "
+            f"switch_gate={switch_gate:.2f}."
+        )
+        self._parameter_store.record_runtime_observation(
+            latent_mean=code,
+            latent_scale=tuple(
+                abs(current - previous)
+                for current, previous in zip(
+                    code, self._previous_code, strict=True
+                )
+            ),
+            decoder_control=code,
+            switch_gate=switch_gate,
+            sequence_length=len(residual_sequence_from_snapshot(substrate_snapshot)),
+            active_label=f"{active_action}:learned-lite",
+        )
+        self._previous_code = code
+        return TemporalStep(
+            controller_state=ControllerState(
+                code=code,
+                code_dim=len(code),
+                switch_gate=switch_gate,
+                is_switching=is_switching,
+                steps_since_switch=steps_since_switch,
+            ),
+            active_abstract_action=f"{active_action}:learned-lite",
+            controller_params_hash=params_hash,
+            description=description,
+            action_family_version=0,
+        )
+
+
+class FullLearnedTemporalPolicy(TemporalPolicy):
+    mode = TemporalImplementationMode.FULL_LEARNED
+
+    def __init__(
+        self,
+        *,
+        parameter_store: MetacontrollerParameterStore | None = None,
+        bootstrap_snapshot: MetacontrollerParameterSnapshot | None = None,
+        runtime_backend: WiringLevel = WiringLevel.DISABLED,
+    ) -> None:
+        if parameter_store is not None and bootstrap_snapshot is not None:
+            raise ValueError("Pass either parameter_store or bootstrap_snapshot, not both.")
+        if bootstrap_snapshot is not None:
+            self._parameter_store = build_bootstrapped_parameter_store(bootstrap_snapshot)
+        else:
+            self._parameter_store = parameter_store or MetacontrollerParameterStore()
+        n_z = self._parameter_store.n_z
+        self._encoder = SequenceEncoder()
+        self._switch_unit = SwitchUnit()
+        self._decoder = ResidualDecoder()
+        self._ndim_encoder: NdimSequenceEncoder | None = None
+        self._ndim_switch: NdimSwitchUnit | None = None
+        self._ndim_decoder: NdimResidualDecoder | None = None
+        if n_z > 3:
+            self._ndim_encoder = NdimSequenceEncoder(
+                n_z=n_z,
+                n_input=self._parameter_store.ndim_encoder_parameters.n_input
+                if self._parameter_store.ndim_encoder_parameters is not None
+                else n_z,
+            )
+            self._ndim_switch = NdimSwitchUnit(n_z=n_z)
+            self._ndim_decoder = NdimResidualDecoder(n_z=n_z)
+        # autograd-owner-integration Phase B: runtime backend routing. DISABLED
+        # keeps the pure ndim components as the live writer / rollback baseline;
+        # ACTIVE computes the ndim runtime forward through a torch TensorBackend
+        # (parity-gated). Built lazily on first ndim step to avoid importing the
+        # backend module when n_z == 3 or the feature is unused.
+        self._runtime_backend = runtime_backend
+        self._backend_ndim_mc: Any = None
+        self._latest_runtime_shadow_report: Any = None
+        self._previous_code = _nz_zeros(n_z)
+        self._previous_hidden_state = _nz_zeros(n_z)
+        self._previous_beta_binary = 0
+        self._has_recurrent_state = False
+        self._latest_encoder_output_for_cms: tuple[float, ...] | None = None
+        self._cached_reflection_snapshot: ReflectionSnapshot | None = None
+        # protocol-temporal-prior bridge: default OFF (byte-equivalent
+        # baseline). SHADOW callers still record the prior into the
+        # parameter store for dual-run evidence; only ACTIVE lets it reach
+        # beta_t. Flip back to False = instant rollback.
+        self._protocol_prior_enabled = False
+        self._thinking_advisory_switch_pressure_delta = 0.0
+        self._thinking_advisory_applied = False
+        self._thinking_advisory_evidence: tuple[str, ...] = ()
+        # autograd-owner-integration: strength of the runtime track-weight
+        # modulation that lets Internal-RL reach ``code``. 0.0 == byte-stable
+        # rollback baseline (RL disconnected, historical behaviour).
+        self._runtime_track_modulation = 0.0
+        # Generic posterior exploration, opt-in and owner-local.  The default
+        # is byte-equivalent to the historical deterministic posterior.
+        self._runtime_exploration_strength = 0.0
+        self._runtime_exploration_context_digest = ""
+        self._post_switch_min_dwell_wiring = WiringLevel.DISABLED
+        self._post_switch_min_dwell_actions = 0
+        self._latest_post_switch_dwell_would_suppress = False
+        self._latest_post_switch_dwell_applied = False
+        self._latest_post_switch_dwell_remaining = 0
+        # Evidence-only PE -> runtime-code consumer bridge. Production remains
+        # frozen after the preregistered Gate 1 v3 retest returned a negative
+        # effect. Both legacy-three-axis and ndim forwards consume this same
+        # owner-local switch; the default remains an exact no-op.
+        self._prediction_error_runtime_modulation_enabled = False
+        self._learning_writes_enabled = True
+        self._causal_action_head_wiring = WiringLevel.DISABLED
+        self._causal_action_head_track = Track.WORLD
+        self._causal_action_head_strength = 0.0
+        self._causal_action_head_effective_dims: tuple[int, ...] | None = None
+        self._causal_action_head_contrast_pairs: tuple[
+            tuple[int, int], ...
+        ] = ()
+        self._causal_action_head_exclusive_steering = False
+        self._causal_action_head_input_mirror_permutation: tuple[int, ...] = ()
+        self._causal_action_head_input_mirror_signs: tuple[int, ...] = ()
+        self._causal_action_head_formation_protection = WiringLevel.DISABLED
+        self._causal_action_head_formation_max_update_steps = 0
+        self._causal_action_head_formation_conflict_scale = 1.0
+        self._latest_causal_action_head_state = _nz_zeros(n_z)
+        self._latest_causal_action_head_mirror_state = _nz_zeros(n_z)
+        self._latest_causal_action_head_residual = _nz_zeros(n_z)
+
+    def reset_recurrent_state_for_episode_transfer(self) -> None:
+        """Clear trajectory-local recurrence while retaining learned parameters."""
+
+        n_z = self._parameter_store.n_z
+        self._previous_code = _nz_zeros(n_z)
+        self._previous_hidden_state = _nz_zeros(n_z)
+        self._previous_beta_binary = 0
+        self._has_recurrent_state = False
+        self._latest_post_switch_dwell_would_suppress = False
+        self._latest_post_switch_dwell_applied = False
+        self._latest_post_switch_dwell_remaining = 0
+        self._parameter_store.reset_episode_runtime_telemetry()
+
+    @property
+    def runtime_backend(self) -> WiringLevel:
+        return self._runtime_backend
+
+    def set_runtime_backend(self, wiring_level: WiringLevel) -> None:
+        """Switch the runtime metacontroller backend (DISABLED <-> ACTIVE).
+
+        Resets the cached backend so the next ndim step rebuilds it. Rollback to
+        the pure baseline is just ``set_runtime_backend(WiringLevel.DISABLED)``.
+        """
+
+        self._runtime_backend = wiring_level
+        self._backend_ndim_mc = None
+        self._latest_runtime_shadow_report = None
+
+    @property
+    def runtime_track_modulation(self) -> float:
+        return self._runtime_track_modulation
+
+    def set_runtime_track_modulation(self, strength: float) -> None:
+        """Set how strongly learned track weights modulate the runtime latent.
+
+        ``0.0`` (default) is the exact byte-stable rollback baseline where
+        Internal-RL's ``track_weights`` never reach ``code``; a positive value
+        lets reward-driven learning shape the runtime controller output. The
+        per-dim gain is centred on 1.0 (identity) so a freshly-initialised,
+        near-uniform track mixture stays close to the baseline.
+        """
+
+        if strength < 0.0:
+            raise ValueError(f"runtime_track_modulation must be >= 0, got {strength!r}")
+        self._runtime_track_modulation = float(strength)
+
+    @property
+    def runtime_exploration_strength(self) -> float:
+        return self._runtime_exploration_strength
+
+    @property
+    def runtime_exploration_context_digest(self) -> str:
+        return self._runtime_exploration_context_digest
+
+    def set_runtime_exploration(self, strength: float) -> None:
+        """Blend reproducible low-discrepancy posterior exploration.
+
+        This is generic action-space exploration, not an environment-specific
+        rule: it uses only the owner posterior and substrate step. The sample
+        remains bounded by posterior std and is published in runtime state so
+        Internal-RL replay can reconstruct its likelihood.
+        """
+
+        if not 0.0 <= strength <= 1.0:
+            raise ValueError(
+                "runtime_exploration_strength must be within [0, 1], "
+                f"got {strength!r}"
+            )
+        self._runtime_exploration_strength = float(strength)
+
+    def set_runtime_exploration_context(self, context: str | None) -> None:
+        """Set an opaque identity salt for reproducible temporal options.
+
+        Callers may use an experiment seed or another non-semantic identity.
+        The raw value is never retained: temporal owns only its digest.  An
+        absent context preserves the historical global option sequence.
+        """
+
+        if context is not None and not isinstance(context, str):
+            raise TypeError(
+                "runtime exploration context must be a string or None"
+            )
+        self._runtime_exploration_context_digest = (
+            sha256(context.encode("utf-8")).hexdigest()
+            if context
+            else ""
+        )
+
+    def set_post_switch_min_dwell(
+        self,
+        *,
+        wiring_level: WiringLevel,
+        min_actions: int,
+    ) -> None:
+        """Configure bounded option commitment after a beta switch.
+
+        The switch action counts as action one. A typed external boundary
+        always remains able to interrupt the dwell. DISABLED with zero actions
+        is the exact historical rollback.
+        """
+
+        if isinstance(min_actions, bool) or not isinstance(min_actions, int):
+            raise TypeError(
+                "post-switch min dwell actions must be an integer, got "
+                f"{min_actions!r}"
+            )
+        if min_actions < 0:
+            raise ValueError(
+                "post-switch min dwell actions must be >= 0, got "
+                f"{min_actions!r}"
+            )
+        if wiring_level is not WiringLevel.DISABLED and min_actions < 2:
+            raise ValueError(
+                "post-switch min dwell requires at least 2 actions when "
+                f"{wiring_level.value}, got {min_actions!r}"
+            )
+        self._post_switch_min_dwell_wiring = wiring_level
+        self._post_switch_min_dwell_actions = min_actions
+        self._latest_post_switch_dwell_would_suppress = False
+        self._latest_post_switch_dwell_applied = False
+        self._latest_post_switch_dwell_remaining = 0
+
+    @property
+    def post_switch_min_dwell_wiring(self) -> WiringLevel:
+        return self._post_switch_min_dwell_wiring
+
+    @property
+    def post_switch_min_dwell_actions(self) -> int:
+        return self._post_switch_min_dwell_actions
+
+    @property
+    def latest_post_switch_dwell_evidence(
+        self,
+    ) -> tuple[bool, bool, int]:
+        """Return ``(would_suppress, applied, remaining_actions)``."""
+
+        return (
+            self._latest_post_switch_dwell_would_suppress,
+            self._latest_post_switch_dwell_applied,
+            self._latest_post_switch_dwell_remaining,
+        )
+
+    def set_prediction_error_runtime_modulation_enabled(
+        self,
+        enabled: bool,
+    ) -> None:
+        """Enable the bounded Gate 1 PE -> runtime-code evidence bridge."""
+
+        self._prediction_error_runtime_modulation_enabled = bool(enabled)
+
+    @property
+    def prediction_error_runtime_modulation_enabled(self) -> bool:
+        """Whether the evidence-only PE -> runtime-code bridge is live."""
+
+        return self._prediction_error_runtime_modulation_enabled
+
+    @property
+    def learning_writes_enabled(self) -> bool:
+        return self._learning_writes_enabled
+
+    def set_learning_writes_enabled(self, enabled: bool) -> None:
+        self._learning_writes_enabled = bool(enabled)
+        self._parameter_store.set_learning_writes_enabled(enabled)
+
+    @property
+    def causal_action_head_wiring(self) -> WiringLevel:
+        return self._causal_action_head_wiring
+
+    @property
+    def causal_action_head_strength(self) -> float:
+        return self._causal_action_head_strength
+
+    @property
+    def causal_action_head_track(self) -> Track:
+        return self._causal_action_head_track
+
+    @property
+    def causal_action_head_effective_dims(self) -> tuple[int, ...] | None:
+        return self._causal_action_head_effective_dims
+
+    @property
+    def causal_action_head_contrast_pairs(
+        self,
+    ) -> tuple[tuple[int, int], ...]:
+        return self._causal_action_head_contrast_pairs
+
+    @property
+    def causal_action_head_exclusive_steering(self) -> bool:
+        return self._causal_action_head_exclusive_steering
+
+    @property
+    def causal_action_head_mirror_equivariance(self) -> bool:
+        return bool(self._causal_action_head_input_mirror_permutation)
+
+    @property
+    def causal_action_head_formation_protection(self) -> WiringLevel:
+        return self._causal_action_head_formation_protection
+
+    @property
+    def causal_action_head_formation_max_update_steps(self) -> int:
+        return self._causal_action_head_formation_max_update_steps
+
+    @property
+    def causal_action_head_formation_conflict_scale(self) -> float:
+        return self._causal_action_head_formation_conflict_scale
+
+    def set_causal_action_head_formation_protection(
+        self,
+        *,
+        wiring_level: WiringLevel,
+        max_update_steps: int,
+        conflict_scale: float,
+    ) -> None:
+        """Bound early action-head updates by within-batch consensus.
+
+        The owner interprets no domain state here. During the first
+        ``max_update_steps`` head updates, the Internal-RL optimizer may
+        attenuate a transition whose advantage-weighted projected score
+        gradient points against the batch's net contribution. SHADOW records
+        the same decision without changing the update; DISABLED with
+        ``0 / 1.0`` is the exact historical rollback.
+        """
+
+        if isinstance(max_update_steps, bool) or not isinstance(
+            max_update_steps,
+            int,
+        ):
+            raise TypeError(
+                "causal action head formation max_update_steps must be an "
+                f"integer, got {max_update_steps!r}"
+            )
+        if max_update_steps < 0:
+            raise ValueError(
+                "causal action head formation max_update_steps must be >= 0, "
+                f"got {max_update_steps!r}"
+            )
+        if not 0.0 < conflict_scale <= 1.0:
+            raise ValueError(
+                "causal action head formation conflict_scale must be within "
+                f"(0, 1], got {conflict_scale!r}"
+            )
+        if wiring_level is WiringLevel.DISABLED:
+            if max_update_steps != 0 or conflict_scale != 1.0:
+                raise ValueError(
+                    "DISABLED causal action head formation protection "
+                    "requires max_update_steps=0 and conflict_scale=1.0"
+                )
+        else:
+            if self._causal_action_head_wiring is not WiringLevel.ACTIVE:
+                raise ValueError(
+                    "causal action head formation protection requires an "
+                    "ACTIVE causal action head"
+                )
+            if max_update_steps < 1:
+                raise ValueError(
+                    "causal action head formation protection requires at "
+                    "least one update step"
+                )
+            if conflict_scale >= 1.0:
+                raise ValueError(
+                    "causal action head formation protection requires "
+                    "conflict_scale < 1.0"
+                )
+        self._causal_action_head_formation_protection = wiring_level
+        self._causal_action_head_formation_max_update_steps = max_update_steps
+        self._causal_action_head_formation_conflict_scale = float(
+            conflict_scale
+        )
+
+    def set_causal_action_head(
+        self,
+        *,
+        wiring_level: WiringLevel,
+        track: Track,
+        strength: float,
+        rank: int | None = None,
+        effective_dims: tuple[int, ...] | None = None,
+        contrast_pairs: tuple[tuple[int, int], ...] | None = None,
+        exclusive_steering: bool = False,
+        input_mirror_permutation: tuple[int, ...] | None = None,
+        input_mirror_signs: tuple[int, ...] | None = None,
+        envelope_enforced: bool | None = None,
+    ) -> None:
+        if not 0.0 <= strength <= 1.0:
+            raise ValueError(
+                "causal action head strength must be within [0, 1], "
+                f"got {strength!r}"
+            )
+        # domain 声明的 archive 侧幅度校验，是 domain 契约落到 owner 边界的那一跳。
+        # ``None``（默认）表示**本次调用不声明**，保留 store 已有的契约字段——
+        # 否则一个用 ``MetacontrollerParameterStore(
+        # causal_action_head_envelope_enforced=True)`` 构造出来的 store，会被任何
+        # 一个根本没提到该开关的后续 head 配置调用静默关掉强制校验（AGENTS.md §6
+        # 明令禁止的静默降级）。显式 ``True`` / ``False`` 才写入 store，其中
+        # ``False`` 精确保留历史 restore 行为（例如 runtime-replay 夹具刻意从
+        # permissive 路径装入 bias 0.35/0.4），因此该契约必须保持 opt-in。
+        if envelope_enforced is not None:
+            self._parameter_store.set_causal_action_head_envelope_enforced(
+                envelope_enforced
+            )
+        if rank is not None:
+            self._parameter_store.configure_causal_action_head_rank(
+                track=track,
+                rank=rank,
+            )
+        if effective_dims is not None:
+            if not effective_dims:
+                raise ValueError(
+                    "causal action head effective_dims must not be empty"
+                )
+            if len(set(effective_dims)) != len(effective_dims):
+                raise ValueError(
+                    "causal action head effective_dims must be unique, "
+                    f"got {effective_dims!r}"
+                )
+            if any(
+                isinstance(index, bool)
+                or not isinstance(index, int)
+                or not 0 <= index < self._parameter_store.n_z
+                for index in effective_dims
+            ):
+                raise ValueError(
+                    "causal action head effective_dims must be integer z "
+                    f"indices within [0, {self._parameter_store.n_z}), "
+                    f"got {effective_dims!r}"
+                )
+        self._causal_action_head_wiring = wiring_level
+        self._causal_action_head_track = track
+        self._causal_action_head_strength = float(strength)
+        self._causal_action_head_effective_dims = effective_dims
+        self._causal_action_head_contrast_pairs = (
+            normalize_causal_action_head_contrast_pairs(
+                contrast_pairs,
+                n_z=self._parameter_store.n_z,
+                effective_dims=effective_dims,
+            )
+        )
+        (
+            self._causal_action_head_input_mirror_permutation,
+            self._causal_action_head_input_mirror_signs,
+        ) = normalize_causal_action_head_input_mirror(
+            input_mirror_permutation,
+            input_mirror_signs,
+            n_input=self._parameter_store.n_input,
+        )
+        if exclusive_steering:
+            # Exclusive steering transfers ownership of the opponent-coded
+            # actuator axes to the head. Without contrast pairs there is no
+            # axis to transfer; without an ACTIVE head nothing can steer the
+            # plant at all -- both are contract violations, not fallbacks.
+            if not self._causal_action_head_contrast_pairs:
+                raise ValueError(
+                    "exclusive steering requires non-empty contrast_pairs"
+                )
+            if wiring_level is not WiringLevel.ACTIVE:
+                raise ValueError(
+                    "exclusive steering requires an ACTIVE causal action "
+                    f"head, got wiring_level={wiring_level!r}"
+                )
+        if self._causal_action_head_input_mirror_permutation:
+            if not exclusive_steering:
+                raise ValueError(
+                    "causal action head mirror equivariance requires "
+                    "exclusive_steering=True"
+                )
+            if not self._causal_action_head_contrast_pairs:
+                raise ValueError(
+                    "causal action head mirror equivariance requires "
+                    "non-empty contrast_pairs"
+                )
+        self._causal_action_head_exclusive_steering = bool(exclusive_steering)
+        self._latest_causal_action_head_state = _nz_zeros(
+            self._parameter_store.n_z
+        )
+        self._latest_causal_action_head_mirror_state = _nz_zeros(
+            self._parameter_store.n_z
+        )
+        self._latest_causal_action_head_residual = _nz_zeros(
+            self._parameter_store.n_z
+        )
+
+    def _runtime_exploration_noise(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        posterior_mean: tuple[float, ...],
+        base_noise: tuple[float, ...],
+    ) -> tuple[float, ...]:
+        strength = self._runtime_exploration_strength
+        if strength == 0.0:
+            return base_noise
+        step = (
+            substrate_snapshot.residual_sequence[-1].step
+            if substrate_snapshot.residual_sequence
+            else 0
+        )
+        segment = step // _RUNTIME_EXPLORATION_OPTION_STEPS
+        sampled: list[float] = []
+        for index, (_mean, original) in enumerate(
+            zip(posterior_mean, base_noise, strict=True)
+        ):
+            # A temporal option must retain one coherent latent direction for
+            # its full horizon.  Keying the proposal by the continuously
+            # changing posterior mean made the residual jump every step, while
+            # replacing it with a common-mode coast erased opponent-coded
+            # steering after two turns.  The posterior mean remains
+            # state-conditioned; only its sampled residual is fixed by the
+            # owner-local option identity.
+            option_identity = f"{segment}:option:{index}"
+            if self._runtime_exploration_context_digest:
+                option_identity = (
+                    f"{self._runtime_exploration_context_digest}:"
+                    f"{option_identity}"
+                )
+            digest = sha256(option_identity.encode("utf-8")).digest()
+            unit = int.from_bytes(digest[:8], "big") / float(
+                2**64 - 1
+            )
+            proposal = unit * 2.0 - 1.0
+            sampled.append(
+                max(
+                    -1.0,
+                    min(
+                        1.0,
+                        original * (1.0 - strength)
+                        + proposal * strength,
+                    ),
+                )
+            )
+        return tuple(sampled)
+
+    def _resolve_backend_ndim_mc(self):
+        """Return the ACTIVE torch ndim metacontroller, or None for pure path."""
+
+        if self._runtime_backend is not WiringLevel.ACTIVE:
+            return None
+        if self._backend_ndim_mc is not None:
+            return self._backend_ndim_mc
+        from volvence_zero.temporal.backend_ndim_runtime import (
+            BackendNdimMetacontroller,
+            resolve_runtime_ndim_backend,
+        )
+
+        backend = resolve_runtime_ndim_backend(self._runtime_backend)
+        self._backend_ndim_mc = BackendNdimMetacontroller(backend, n_z=self._parameter_store.n_z)
+        return self._backend_ndim_mc
+
+    @classmethod
+    def from_bootstrap_snapshot(
+        cls,
+        snapshot: MetacontrollerParameterSnapshot,
+    ) -> "FullLearnedTemporalPolicy":
+        return cls(bootstrap_snapshot=snapshot)
+
+    @property
+    def parameter_store(self) -> MetacontrollerParameterStore:
+        return self._parameter_store
+
+    @property
+    def latest_encoder_output_for_cms(self) -> tuple[float, ...] | None:
+        return self._latest_encoder_output_for_cms
+
+    @property
+    def latest_runtime_shadow_report(self) -> Any:
+        """Return owner-local pure/torch parity evidence from the latest SHADOW step."""
+
+        return self._latest_runtime_shadow_report
+
+    def export_runtime_state(self) -> MetacontrollerRuntimeState:
+        action_head = self._parameter_store.causal_action_head_parameters(
+            track=self._causal_action_head_track
+        )
+        return replace(
+            self._parameter_store.export_runtime_state(mode=self.mode.value),
+            causal_action_head_state=(
+                self._latest_causal_action_head_state
+            ),
+            causal_action_head_mirror_state=(
+                self._latest_causal_action_head_mirror_state
+            ),
+            causal_action_head_residual=(
+                self._latest_causal_action_head_residual
+            ),
+            causal_action_head_wiring=(
+                self._causal_action_head_wiring.value
+            ),
+            causal_action_head_update_step=action_head.update_step,
+        )
+
+    def export_parameters(self) -> TemporalControllerParameters:
+        return self._parameter_store.export_temporal_parameters()
+
+    def export_rare_heavy_snapshot(self) -> MetacontrollerParameterSnapshot:
+        return self._parameter_store.export_parameter_snapshot()
+
+    def fit_from_signals(
+        self,
+        *,
+        residual_strength: float,
+        memory_strength: float,
+        reflection_strength: float,
+    ) -> None:
+        self._parameter_store.fit_temporal_from_signals(
+            residual_strength=residual_strength,
+            memory_strength=memory_strength,
+            reflection_strength=reflection_strength,
+        )
+
+    def observe_reflection_snapshot(
+        self,
+        *,
+        reflection_snapshot: ReflectionSnapshot | None,
+    ) -> None:
+        if reflection_snapshot is not None:
+            self._cached_reflection_snapshot = reflection_snapshot
+
+    def cached_reflection_snapshot(self) -> ReflectionSnapshot | None:
+        return self._cached_reflection_snapshot
+
+    def observe_experience_fast_prior(
+        self,
+        *,
+        experience_fast_prior_snapshot: object | None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
+        track: Track | None = None,
+    ) -> None:
+        from volvence_zero.application.runtime import ExperienceFastPriorSnapshot
+
+        if not isinstance(experience_fast_prior_snapshot, ExperienceFastPriorSnapshot):
+            self._parameter_store.record_fast_prior_signals(
+                strength=0.0,
+                action_bias=0.0,
+                family_bias=0.0,
+                sequence_bias=0.0,
+                switch_pressure_delta=0.0,
+            )
+            return
+        active_abstract_action = (
+            previous_snapshot.active_abstract_action
+            if previous_snapshot is not None
+            else self._parameter_store.latest_active_label
+        )
+        action_family_version = (
+            previous_snapshot.action_family_version
+            if previous_snapshot is not None
+            else self._parameter_store.action_family_version
+        )
+        action_bias = next(
+            (
+                item.bias
+                for item in experience_fast_prior_snapshot.action_biases
+                if item.abstract_action == active_abstract_action
+            ),
+            0.0,
+        )
+        family_bias = next(
+            (
+                item.continuation_bias
+                for item in experience_fast_prior_snapshot.family_biases
+                if item.action_family_version == action_family_version
+            ),
+            0.0,
+        )
+        matching_sequence_biases = tuple(
+            item.payoff_bias
+            for item in experience_fast_prior_snapshot.sequence_biases
+            if item.action_family_version == action_family_version
+        )
+        sequence_bias = (
+            sum(matching_sequence_biases) / len(matching_sequence_biases)
+            if matching_sequence_biases
+            else 0.0
+        )
+        track_scale = 0.85 if track is Track.SHARED else 1.0
+        prior_strength = experience_fast_prior_snapshot.prior_strength
+        continuation_pressure = max(action_bias, 0.0) * 0.34 + max(family_bias, 0.0) * 0.42 + max(sequence_bias, 0.0) * 0.24
+        exploration_pressure = max(-action_bias, 0.0) * 0.26 + max(-family_bias, 0.0) * 0.44 + max(-sequence_bias, 0.0) * 0.30
+        switch_pressure_delta = max(
+            -0.18,
+            min(
+                0.18,
+                (exploration_pressure - continuation_pressure) * (0.22 + prior_strength * 0.16) * track_scale,
+            ),
+        )
+        self._parameter_store.record_fast_prior_signals(
+            strength=prior_strength,
+            action_bias=action_bias * (1.0 + prior_strength * 0.10),
+            family_bias=family_bias * (1.0 + prior_strength * 0.14),
+            sequence_bias=sequence_bias * (1.0 + prior_strength * 0.12),
+            switch_pressure_delta=switch_pressure_delta,
+        )
+
+    def set_protocol_prior_enabled(self, enabled: bool) -> None:
+        self._protocol_prior_enabled = bool(enabled)
+
+    def observe_thinking_artifact(
+        self,
+        *,
+        artifact: object,
+        expected_snapshot_fingerprint: str,
+        consumer_owner: str = "world_temporal",
+        apply_enabled: bool = False,
+    ) -> str:
+        """Consume a read-only thinking artifact as bounded controller pressure.
+
+        CP-21 owner-side guard: only COMPLETED artifacts for this temporal
+        owner, carrying a ``ControllerPressureAdvisory`` payload and matching
+        the caller-supplied fingerprint, are accepted. SHADOW callers pass
+        ``apply_enabled=False`` so the advisory is recorded for evidence but
+        does not reach beta_t; ACTIVE callers may pass True after evidence gate.
+        """
+
+        from volvence_zero.thinking import (
+            ControllerPressureAdvisory,
+            ThinkingArtifact,
+            ThinkingTaskStatus,
+        )
+
+        if not isinstance(artifact, ThinkingArtifact):
+            raise TypeError("observe_thinking_artifact requires ThinkingArtifact.")
+        if artifact.consumer_owner != consumer_owner:
+            return f"thinking-advisory:ignored-owner:{artifact.consumer_owner}"
+        if artifact.status is not ThinkingTaskStatus.COMPLETED:
+            self._thinking_advisory_switch_pressure_delta = 0.0
+            self._thinking_advisory_applied = False
+            self._thinking_advisory_evidence = (f"status:{artifact.status.value}",)
+            return f"thinking-advisory:ignored-status:{artifact.status.value}"
+        payload = artifact.payload
+        if not isinstance(payload, ControllerPressureAdvisory):
+            raise TypeError(
+                "COMPLETED thinking artifact for temporal owner must carry "
+                "ControllerPressureAdvisory payload."
+            )
+        expected_track = "self" if consumer_owner == "self_temporal" else "world"
+        if payload.track != expected_track:
+            return f"thinking-advisory:ignored-track:{payload.track}"
+        if not expected_snapshot_fingerprint.strip():
+            raise ValueError("expected_snapshot_fingerprint must be non-empty")
+        if artifact.task_id != expected_snapshot_fingerprint:
+            self._thinking_advisory_switch_pressure_delta = 0.0
+            self._thinking_advisory_applied = False
+            self._thinking_advisory_evidence = ("fingerprint-mismatch",)
+            return "thinking-advisory:stale-fingerprint"
+        delta = max(-0.20, min(0.20, payload.pressure_delta * payload.confidence * 0.20))
+        self._thinking_advisory_switch_pressure_delta = delta
+        self._thinking_advisory_applied = bool(apply_enabled)
+        self._thinking_advisory_evidence = payload.evidence
+        return "thinking-advisory:applied" if apply_enabled else "thinking-advisory:shadow-recorded"
+
+    def observe_active_mixture(
+        self,
+        *,
+        active_mixture_snapshot: object | None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
+        track: Track | None = None,
+    ) -> None:
+        """Compress the BehaviorProtocol active mixture into a switch prior.
+
+        Design (R3/R4 aligned): the protocol layer is a *prior* on beta_t,
+        never a command. A confident, dominant mixture (one protocol near
+        weight 1.0) biases *continuation* (stay in the current controller);
+        an ambiguous mixture (several comparably-weighted protocols) biases
+        *switching* (the metacontroller should be freer to re-select z_t).
+        The signal is bounded and only reaches beta_t when the bridge is
+        ACTIVE (``_protocol_prior_enabled``); otherwise it is recorded for
+        SHADOW dual-run evidence only. A single-protocol mixture yields a
+        zero differential (keeps single-protocol fixtures byte-equivalent).
+        """
+        del previous_snapshot
+        from volvence_zero.behavior_protocol import ActiveMixtureSnapshot
+
+        if not isinstance(active_mixture_snapshot, ActiveMixtureSnapshot):
+            self._parameter_store.record_protocol_prior_signals(
+                strength=0.0,
+                switch_pressure_delta=0.0,
+                applied=self._protocol_prior_enabled,
+            )
+            return
+        weights = tuple(
+            max(0.0, min(1.0, entry.activation_weight))
+            for entry in active_mixture_snapshot.active_protocols
+        )
+        if len(weights) < 2:
+            # Single (or empty) mixture: no differential prior.
+            self._parameter_store.record_protocol_prior_signals(
+                strength=0.0,
+                switch_pressure_delta=0.0,
+                applied=self._protocol_prior_enabled,
+            )
+            return
+        total = sum(weights)
+        if total <= 0.0:
+            self._parameter_store.record_protocol_prior_signals(
+                strength=0.0,
+                switch_pressure_delta=0.0,
+                applied=self._protocol_prior_enabled,
+            )
+            return
+        normalized = tuple(w / total for w in weights)
+        dominance = max(normalized)
+        # ambiguity in [0, 1]: 0 when one protocol fully dominates,
+        # approaching 1 as weight spreads evenly across the mixture.
+        n = len(normalized)
+        ambiguity = max(0.0, min(1.0, (1.0 - dominance) * n / (n - 1)))
+        # Continuation when dominant, switch when ambiguous. Centered so a
+        # perfectly even 2-way split (dominance=0.5, ambiguity=1) pushes
+        # toward switching and a near-1.0 dominant protocol pushes toward
+        # continuation.
+        track_scale = 0.85 if track is Track.SHARED else 1.0
+        strength = ambiguity
+        switch_pressure_delta = max(
+            -0.18,
+            min(0.18, (ambiguity - 0.5) * 0.24 * track_scale),
+        )
+        self._parameter_store.record_protocol_prior_signals(
+            strength=strength,
+            switch_pressure_delta=switch_pressure_delta,
+            applied=self._protocol_prior_enabled,
+        )
+
+    def _protocol_prior_switch_delta(self) -> float:
+        """Owner-side protocol switch prior, gated by the ACTIVE flag."""
+        if not self._protocol_prior_enabled:
+            return 0.0
+        return self._parameter_store.protocol_prior_switch_pressure_delta()
+
+    def _thinking_advisory_switch_delta(self) -> float:
+        if not self._thinking_advisory_applied:
+            return 0.0
+        return self._thinking_advisory_switch_pressure_delta
+
+    @property
+    def latest_thinking_advisory_readout(self) -> tuple[float, bool, tuple[str, ...]]:
+        """Owner-published readout of the last consumed thinking advisory.
+
+        Returns ``(bounded_switch_pressure_delta, applied, evidence)``.
+        SHADOW consumers record the delta without applying it; evidence
+        strings come from the advisory payload (or the typed rejection
+        reason). Read-only observability surface for CP-21 evidence.
+        """
+
+        return (
+            self._thinking_advisory_switch_pressure_delta,
+            self._thinking_advisory_applied,
+            self._thinking_advisory_evidence,
+        )
+
+    def observe_family_outcome_feedback(
+        self,
+        *,
+        track: Track,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+        credit_snapshot: CreditSnapshot | None,
+    ) -> bool:
+        feedback = _build_family_outcome_feedback(
+            track=track,
+            active_family_id=self._parameter_store.latest_active_label,
+            prediction_error_snapshot=prediction_error_snapshot,
+            credit_snapshot=credit_snapshot,
+        )
+        if feedback is None:
+            return False
+        return self._parameter_store.observe_family_outcome_feedback(feedback=feedback)
+
+    def apply_reflection_prior_update(
+        self,
+        *,
+        update: TemporalPriorUpdate,
+        allowed_target_groups: tuple[str, ...] | None = None,
+    ) -> tuple[str, ...]:
+        return self._parameter_store.apply_reflection_prior_update(
+            update=update,
+            allowed_target_groups=allowed_target_groups,
+        )
+
+    def apply_rare_heavy_snapshot(self, snapshot: MetacontrollerParameterSnapshot) -> tuple[str, ...]:
+        self._parameter_store.restore_parameter_snapshot(snapshot)
+        return ("rare-heavy:temporal-import",)
+
+    def step_with_causal_override(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        latent_override: tuple[float, ...],
+        policy_replacement_score: float,
+        binary_gate_override: bool = False,
+        memory_snapshot: MemorySnapshot | None = None,
+        reflection_snapshot: ReflectionSnapshot | None = None,
+    ) -> TemporalStep:
+        self._parameter_store.require_causal_takeover_phase(
+            operation="FullLearnedTemporalPolicy.step_with_causal_override"
+        )
+        return self._step_impl(
+            substrate_snapshot=substrate_snapshot,
+            previous_snapshot=previous_snapshot,
+            memory_snapshot=memory_snapshot,
+            reflection_snapshot=reflection_snapshot,
+            latent_override=latent_override,
+            policy_replacement_score=policy_replacement_score,
+            binary_gate_override=binary_gate_override,
+        )
+
+    def step(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None = None,
+        reflection_snapshot: ReflectionSnapshot | None = None,
+    ) -> TemporalStep:
+        effective_reflection_snapshot = reflection_snapshot or self._cached_reflection_snapshot
+        return self._step_impl(
+            substrate_snapshot=substrate_snapshot,
+            previous_snapshot=previous_snapshot,
+            memory_snapshot=memory_snapshot,
+            reflection_snapshot=effective_reflection_snapshot,
+            latent_override=None,
+            policy_replacement_score=0.0,
+            binary_gate_override=False,
+        )
+
+    def _compute_track_codes(
+        self,
+        latent_code: tuple[float, ...],
+    ) -> tuple[tuple[str, tuple[float, ...]], ...]:
+        result: list[tuple[str, tuple[float, ...]]] = []
+        for track in (Track.WORLD, Track.SELF, Track.SHARED):
+            weights = self._parameter_store.track_weights[track]
+            projected = tuple(
+                _clamp(latent_code[i] * weights[i])
+                for i in range(min(len(latent_code), len(weights)))
+            )
+            result.append((track.value, projected))
+        return tuple(result)
+
+    def _resolve_post_switch_min_dwell(
+        self,
+        *,
+        natural_switch_requested: bool,
+        previous_steps_since_switch: int,
+        external_boundary_requested: bool,
+        has_previous_state: bool,
+    ) -> bool:
+        """Return whether ACTIVE dwell suppresses this natural beta switch."""
+
+        completed_actions = previous_steps_since_switch + 1
+        would_suppress = bool(
+            self._post_switch_min_dwell_wiring
+            is not WiringLevel.DISABLED
+            and has_previous_state
+            and natural_switch_requested
+            and not external_boundary_requested
+            and completed_actions
+            < self._post_switch_min_dwell_actions
+        )
+        self._latest_post_switch_dwell_would_suppress = would_suppress
+        self._latest_post_switch_dwell_applied = bool(
+            would_suppress
+            and self._post_switch_min_dwell_wiring is WiringLevel.ACTIVE
+        )
+        self._latest_post_switch_dwell_remaining = (
+            self._post_switch_min_dwell_actions - completed_actions
+            if would_suppress
+            else 0
+        )
+        return self._latest_post_switch_dwell_applied
+
+    def _step_impl(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        reflection_snapshot: ReflectionSnapshot | None,
+        latent_override: tuple[float, ...] | None,
+        policy_replacement_score: float,
+        binary_gate_override: bool,
+    ) -> TemporalStep:
+        if self._ndim_encoder is not None:
+            return self._step_impl_ndim(
+                substrate_snapshot=substrate_snapshot,
+                previous_snapshot=previous_snapshot,
+                memory_snapshot=memory_snapshot,
+                reflection_snapshot=reflection_snapshot,
+                latent_override=latent_override,
+                policy_replacement_score=policy_replacement_score,
+                binary_gate_override=binary_gate_override,
+            )
+        return self._step_impl_legacy(
+            substrate_snapshot=substrate_snapshot,
+            previous_snapshot=previous_snapshot,
+            memory_snapshot=memory_snapshot,
+            reflection_snapshot=reflection_snapshot,
+            latent_override=latent_override,
+            policy_replacement_score=policy_replacement_score,
+            binary_gate_override=binary_gate_override,
+        )
+
+    def _step_impl_ndim(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        reflection_snapshot: ReflectionSnapshot | None,
+        latent_override: tuple[float, ...] | None,
+        policy_replacement_score: float,
+        binary_gate_override: bool,
+    ) -> TemporalStep:
+        assert self._ndim_encoder is not None
+        assert self._ndim_switch is not None
+        assert self._ndim_decoder is not None
+        if self._parameter_store.ndim_encoder_parameters is None:
+            raise RuntimeError("n_z > 3 requires ndim encoder parameters in the metacontroller store.")
+        if self._parameter_store.ndim_switch_parameters is None:
+            raise RuntimeError("n_z > 3 requires ndim switch parameters in the metacontroller store.")
+        if self._parameter_store.ndim_decoder_parameters is None:
+            raise RuntimeError("n_z > 3 requires ndim decoder parameters in the metacontroller store.")
+        n_z = self._parameter_store.n_z
+        previous_code = previous_snapshot.controller_state.code if previous_snapshot is not None else self._previous_code
+        previous_steps = (
+            previous_snapshot.controller_state.steps_since_switch if previous_snapshot is not None else 0
+        )
+        cms_fast = _cms_band(memory_snapshot, "online_fast")
+        cms_medium = _cms_band(memory_snapshot, "session_medium")
+        cms_slow = _cms_band(memory_snapshot, "background_slow")
+        from volvence_zero.temporal.metacontroller_components import _project_to_ndim
+        cms_ctx: tuple[float, ...] | None = None
+        if cms_fast or cms_medium or cms_slow:
+            z = _nz_zeros(n_z)
+            fast = _project_to_ndim(cms_fast, n_z) if cms_fast else z
+            med = _project_to_ndim(cms_medium, n_z) if cms_medium else z
+            slow = _project_to_ndim(cms_slow, n_z) if cms_slow else z
+            from volvence_zero.temporal.tensor_ops import vec_add as _va, vec_scale as _vs, vec_clamp as _vc
+            cms_ctx = _vc(_va(_va(_vs(fast, 0.5), _vs(med, 0.3)), _vs(slow, 0.2)), 0.0, 1.0)
+        backend_mc = self._resolve_backend_ndim_mc()
+        encoder_obj = backend_mc if backend_mc is not None else self._ndim_encoder
+        switch_obj = backend_mc if backend_mc is not None else self._ndim_switch
+        decoder_obj = backend_mc if backend_mc is not None else self._ndim_decoder
+        encoded = encoder_obj.encode(
+            substrate_snapshot=substrate_snapshot,
+            previous_hidden_state=self._previous_hidden_state,
+            cms_context=cms_ctx,
+            params=self._parameter_store.ndim_encoder_parameters,
+        )
+        self._latest_causal_action_head_state = _nz_zeros(n_z)
+        self._latest_causal_action_head_mirror_state = _nz_zeros(n_z)
+        if self._causal_action_head_wiring is not WiringLevel.DISABLED:
+            # The action head needs a current-observation representation, not
+            # the recurrent serving state whose coordinates drift with the
+            # preceding turn sequence. Reusing the same owner encoder with a
+            # zero recurrent preimage preserves every configured input channel
+            # and produces a signed, checkpoint-stable feature in the existing
+            # latent width. DISABLED remains the historical single-encode path.
+            action_head_encoded = encoder_obj.encode(
+                substrate_snapshot=substrate_snapshot,
+                previous_hidden_state=_nz_zeros(n_z),
+                cms_context=None,
+                params=self._parameter_store.ndim_encoder_parameters,
+            )
+            self._latest_causal_action_head_state = (
+                action_head_encoded.posterior.hidden_state
+            )
+            if self._causal_action_head_input_mirror_permutation:
+                mirrored_snapshot = _mirror_action_head_substrate_snapshot(
+                    substrate_snapshot,
+                    permutation=(
+                        self._causal_action_head_input_mirror_permutation
+                    ),
+                    signs=self._causal_action_head_input_mirror_signs,
+                )
+                mirrored_action_head_encoded = encoder_obj.encode(
+                    substrate_snapshot=mirrored_snapshot,
+                    previous_hidden_state=_nz_zeros(n_z),
+                    cms_context=None,
+                    params=self._parameter_store.ndim_encoder_parameters,
+                )
+                self._latest_causal_action_head_mirror_state = (
+                    mirrored_action_head_encoded.posterior.hidden_state
+                )
+        self._latest_encoder_output_for_cms = tuple(
+            _clamp(encoded.posterior.posterior_mean[i] * 0.6 + encoded.posterior.z_tilde[i] * 0.4)
+            for i in range(n_z)
+        )
+        memory_signal = _memory_signal(memory_snapshot)
+        reflection_signal = _reflection_signal(reflection_snapshot)
+        (
+            active_family_outcome,
+            active_family_reuse,
+            active_family_persistence,
+        ) = self._parameter_store.active_family_continuation_signals(
+            previous_steps_since_switch=previous_steps,
+        )
+        fast_prior_switch_pressure_delta = (
+            self._parameter_store.fast_prior_switch_pressure_delta()
+            + self._parameter_store.prediction_error_switch_pressure_delta()
+            + self._protocol_prior_switch_delta()
+            + self._thinking_advisory_switch_delta()
+        )
+        external_boundary_requested = (
+            self._parameter_store.external_boundary_requested()
+        )
+        if self._runtime_backend is WiringLevel.SHADOW:
+            from volvence_zero.temporal.backend_ndim_runtime import (
+                runtime_ndim_shadow_compare,
+            )
+
+            self._latest_runtime_shadow_report = runtime_ndim_shadow_compare(
+                store=self._parameter_store,
+                substrate_snapshot=substrate_snapshot,
+                previous_code=previous_code,
+                previous_hidden_state=self._previous_hidden_state,
+                cms_context=cms_ctx,
+                memory_signal=memory_signal,
+                reflection_signal=reflection_signal,
+                active_family_outcome=active_family_outcome,
+                active_family_reuse=active_family_reuse,
+                active_family_persistence=active_family_persistence,
+                external_switch_pressure_delta=fast_prior_switch_pressure_delta,
+                external_boundary_request=(
+                    external_boundary_requested
+                ),
+                # CP-06 (GAP-09): behaviour-level comparison — segment-closure
+                # decision and nearest action family per backend.
+                beta_threshold=self._parameter_store.beta_threshold,
+                action_families=self._parameter_store.action_families,
+            )
+        beta_cont, beta_bin, scalar_beta = switch_obj.compute(
+            z_tilde=encoded.z_tilde,
+            previous_code=previous_code,
+            memory_signal=memory_signal,
+            reflection_signal=reflection_signal,
+            active_family_outcome=active_family_outcome,
+            active_family_reuse=active_family_reuse,
+            active_family_persistence=active_family_persistence,
+            external_switch_pressure_delta=fast_prior_switch_pressure_delta,
+            params=self._parameter_store.ndim_switch_parameters,
+            beta_threshold=self._parameter_store.beta_threshold,
+        )
+        exploration_noise = encoded.posterior.sample_noise
+        runtime_posterior_mean = encoded.posterior.posterior_mean
+        runtime_posterior_std = encoded.posterior.posterior_std
+        if latent_override is None and self._runtime_exploration_strength > 0.0:
+            exploration_noise = self._runtime_exploration_noise(
+                substrate_snapshot=substrate_snapshot,
+                posterior_mean=encoded.posterior.posterior_mean,
+                base_noise=encoded.posterior.sample_noise,
+            )
+            # Sparse-reward policies need an explicit entropy floor; the
+            # learned posterior often collapses near 0.05 before any milestone
+            # is observed. The floor is generic latent uncertainty (no task
+            # direction) and is published as the effective posterior std so
+            # runtime replay reconstructs the exact action likelihood.
+            entropy_floor = 0.4 * self._runtime_exploration_strength
+            runtime_posterior_std = tuple(
+                max(value, entropy_floor)
+                for value in encoded.posterior.posterior_std
+            )
+            # Exploration owns the sampled residual only.  It must never
+            # flatten the learned posterior mean: doing so erases the
+            # state-conditioned steering signal during sparse-search coast
+            # steps and makes training actions independent of the policy that
+            # replay is supposed to improve.  The coast proposal is
+            # intentionally common-mode, so it preserves opponent-coded
+            # steering while the short burst supplies bounded coverage.
+            z_candidate = tuple(
+                _clamp(
+                    runtime_posterior_mean[index]
+                    + runtime_posterior_std[index]
+                    * exploration_noise[index]
+                )
+                for index in range(n_z)
+            )
+        else:
+            z_candidate = latent_override or encoded.z_tilde
+        if latent_override is not None:
+            encoded_control = decoder_obj.decode(
+                latent_code=encoded.z_tilde,
+                params=self._parameter_store.ndim_decoder_parameters,
+            )
+            policy_control = decoder_obj.decode(
+                latent_code=latent_override,
+                params=self._parameter_store.ndim_decoder_parameters,
+            )
+            z_candidate = (
+                self._parameter_store.project_causal_latent_to_action_family(
+                    encoded_candidate=encoded.z_tilde,
+                    policy_candidate=latent_override,
+                    encoded_control=encoded_control.applied_control,
+                    policy_control=policy_control.applied_control,
+                )
+            )
+        # autograd-owner-integration: let reward-driven track weights actually
+        # reach the runtime latent. Previously Internal-RL only wrote
+        # ``track_weights`` (+ ``align_temporal_from_tracks`` into the legacy 3-d
+        # ``temporal_weights``), none of which this ndim forward consumed, so RL
+        # was structurally disconnected from ``code`` (only SSL, which trains the
+        # ndim encoder, moved z_t). This applies a bounded, per-dim modulation of
+        # the candidate latent by the learned track weights. Causal overrides
+        # are already produced with this same modulation inside the sandbox and
+        # therefore bypass a second application here. Strength 0 is an exact
+        # byte-stable no-op (instant rollback); >0 lets RL shape ``code``.
+        if latent_override is None and self._runtime_track_modulation > 0.0:
+            z_candidate = self._parameter_store.runtime_track_modulated_code(
+                z_candidate, strength=self._runtime_track_modulation
+            )
+        pe_modulation_strength = min(
+            self._parameter_store.prediction_error_switch_pressure_delta()
+            / 0.18,
+            1.0,
+        )
+        if (
+            latent_override is None
+            and self._prediction_error_runtime_modulation_enabled
+            and pe_modulation_strength > 0.0
+        ):
+            z_candidate = (
+                self._parameter_store.runtime_prediction_error_modulated_code(
+                    z_candidate,
+                    strength=pe_modulation_strength,
+                )
+            )
+        if (
+            latent_override is None
+            and self._causal_action_head_exclusive_steering
+        ):
+            # Exclusive steering: remove the deterministic base contrast so
+            # the state-conditioned head is the only learned writer of the
+            # opponent-coded actuator axes (the base keeps the common mode /
+            # speed). The correction is computed from the modulated
+            # deterministic policy mean, NOT from the sampled candidate:
+            # exploration noise must keep proposing turns on the contrast
+            # axes, otherwise replay sees zero (action - mean) signal there
+            # and the head can never earn steering credit. Causal overrides
+            # skip this block -- the sandbox already builds them from the
+            # projected policy mean.
+            if self._runtime_exploration_strength > 0.0:
+                deterministic_candidate = tuple(
+                    _clamp(value) for value in runtime_posterior_mean
+                )
+                if self._runtime_track_modulation > 0.0:
+                    deterministic_candidate = (
+                        self._parameter_store.runtime_track_modulated_code(
+                            deterministic_candidate,
+                            strength=self._runtime_track_modulation,
+                        )
+                    )
+            else:
+                deterministic_candidate = z_candidate
+            projected_candidate = project_base_code_off_contrast(
+                deterministic_candidate,
+                contrast_pairs=self._causal_action_head_contrast_pairs,
+            )
+            z_candidate = tuple(
+                _clamp(
+                    value
+                    + projected_candidate[index]
+                    - deterministic_candidate[index]
+                )
+                for index, value in enumerate(z_candidate)
+            )
+        self._latest_causal_action_head_residual = _nz_zeros(n_z)
+        if (
+            latent_override is None
+            and self._causal_action_head_wiring
+            is not WiringLevel.DISABLED
+        ):
+            action_head_residual = (
+                self._parameter_store.causal_action_head_residual(
+                    track=self._causal_action_head_track,
+                    state_features=self._latest_causal_action_head_state,
+                    strength=self._causal_action_head_strength,
+                )
+            )
+            if self._causal_action_head_input_mirror_permutation:
+                mirrored_action_head_residual = (
+                    self._parameter_store.causal_action_head_residual(
+                        track=self._causal_action_head_track,
+                        state_features=(
+                            self._latest_causal_action_head_mirror_state
+                        ),
+                        strength=self._causal_action_head_strength,
+                    )
+                )
+                action_head_residual = (
+                    project_causal_action_head_mirror_equivariant(
+                        action_head_residual,
+                        mirrored_action_head_residual,
+                        contrast_pairs=(
+                            self._causal_action_head_contrast_pairs
+                        ),
+                    )
+                )
+            if self._causal_action_head_effective_dims is not None:
+                action_head_residual = tuple(
+                    value
+                    if index in self._causal_action_head_effective_dims
+                    else 0.0
+                    for index, value in enumerate(action_head_residual)
+                )
+            action_head_residual = project_causal_action_head_vector(
+                action_head_residual,
+                contrast_pairs=self._causal_action_head_contrast_pairs,
+            )
+            self._latest_causal_action_head_residual = (
+                action_head_residual
+            )
+            if self._causal_action_head_wiring is WiringLevel.ACTIVE:
+                z_candidate = tuple(
+                    _clamp(value + residual)
+                    for value, residual in zip(
+                        z_candidate,
+                        action_head_residual,
+                        strict=True,
+                    )
+                )
+        if binary_gate_override:
+            self._resolve_post_switch_min_dwell(
+                natural_switch_requested=False,
+                previous_steps_since_switch=previous_steps,
+                external_boundary_requested=True,
+                has_previous_state=self._has_recurrent_state,
+            )
+            is_switching_scalar = (
+                not self._has_recurrent_state
+                or _should_take_binary_override(
+                    previous_code=previous_code,
+                    latent_override=z_candidate,
+                    policy_replacement_score=policy_replacement_score,
+                    learned_binary_switch=any(
+                        value >= 0.5 for value in beta_bin
+                    ),
+                )
+            )
+            effective_scalar_beta = 1.0 if is_switching_scalar else 0.0
+            effective_gate = tuple(effective_scalar_beta for _ in range(n_z))
+            persistence_window = 0.0 if is_switching_scalar else float(previous_steps + 1)
+        else:
+            effective_scalar_beta = (
+                max(
+                    scalar_beta,
+                    self._parameter_store.beta_threshold,
+                )
+                if external_boundary_requested
+                else scalar_beta
+            )
+            is_switching_scalar = (
+                not self._has_recurrent_state
+                or effective_scalar_beta
+                >= self._parameter_store.beta_threshold
+            )
+            if self._resolve_post_switch_min_dwell(
+                natural_switch_requested=is_switching_scalar,
+                previous_steps_since_switch=previous_steps,
+                external_boundary_requested=external_boundary_requested,
+                has_previous_state=self._has_recurrent_state,
+            ):
+                is_switching_scalar = False
+                effective_scalar_beta = min(
+                    effective_scalar_beta,
+                    math.nextafter(
+                        self._parameter_store.beta_threshold,
+                        0.0,
+                    ),
+                )
+            effective_gate = tuple(
+                1.0 if is_switching_scalar else 0.0
+                for _ in range(n_z)
+            )
+            persistence_window = 0.0 if is_switching_scalar else float(previous_steps + 1)
+        if self._causal_action_head_exclusive_steering:
+            # An opponent-coded pair is ONE actuator axis and must switch as a
+            # unit. A per-dimension gate re-creates contrast out of nothing:
+            # with a fully projected candidate and a symmetric previous code,
+            # the blend still yields (gate_i - gate_j) * (candidate - previous)
+            # on the pair. Measured on a zero-parameter head, that leak was
+            # +-0.005 rad -- the same magnitude as the learned food response it
+            # was masking. Sharing the pair mean keeps the head the only writer
+            # of the contrast axis through the gate as well.
+            effective_gate = project_base_code_off_contrast(
+                effective_gate,
+                contrast_pairs=self._causal_action_head_contrast_pairs,
+            )
+        latent_code = tuple(
+            _clamp(effective_gate[i] * z_candidate[i] + (1.0 - effective_gate[i]) * previous_code[i])
+            for i in range(n_z)
+        )
+        decoder_control = decoder_obj.decode(
+            latent_code=latent_code,
+            params=self._parameter_store.ndim_decoder_parameters,
+        )
+        active_label, decoder_summary = self._parameter_store.discover_action_family(
+            latent_code=latent_code,
+            decoder_control=decoder_control.applied_control,
+            switch_gate=effective_scalar_beta,
+            posterior_drift=encoded.posterior.posterior_drift,
+            persistence_window=persistence_window,
+        )
+        beta_binary_int = 1 if is_switching_scalar else 0
+        steps_since_switch = 0 if is_switching_scalar else previous_steps + 1
+        self._parameter_store.record_runtime_observation(
+            latent_mean=encoded.latent_mean,
+            latent_scale=encoded.latent_scale,
+            decoder_control=decoder_control.decoder_output,
+            switch_gate=effective_scalar_beta,
+            sequence_length=encoded.sequence_length,
+            active_label=active_label,
+            prior_mean=encoded.posterior.prior_mean,
+            prior_std=encoded.posterior.prior_std,
+            posterior_mean=runtime_posterior_mean,
+            posterior_std=runtime_posterior_std,
+            posterior_sample_noise=exploration_noise,
+            z_tilde=z_candidate,
+            posterior_hidden_state=encoded.posterior.hidden_state,
+            posterior_drift=encoded.posterior.posterior_drift,
+            beta_binary=beta_binary_int,
+            switch_sparsity=1.0 - effective_scalar_beta,
+            binary_switch_rate=float(beta_binary_int),
+            mean_persistence_window=persistence_window,
+            decoder_applied_control=decoder_control.applied_control,
+            policy_replacement_score=policy_replacement_score,
+        )
+        params_hash = _compact_ndim_params_hash(self._parameter_store)
+        description = (
+            f"Full-learned ndim metacontroller n_z={n_z}, "
+            f"effective_beta={effective_scalar_beta:.3f}, seq_len={encoded.sequence_length}, "
+            f"{encoded.summary}, {decoder_control.summary}, "
+            f"replacement_score={policy_replacement_score:.3f}, "
+            f"fast_prior_switch_delta={fast_prior_switch_pressure_delta:.3f}, "
+            "post_switch_dwell="
+            f"{self._post_switch_min_dwell_wiring.value}:"
+            f"{self._latest_post_switch_dwell_applied}:"
+            f"{self._latest_post_switch_dwell_remaining}, "
+            f"{decoder_summary}."
+        )
+        self._previous_code = latent_code
+        self._previous_hidden_state = encoded.posterior.hidden_state
+        self._previous_beta_binary = beta_binary_int
+        self._has_recurrent_state = True
+        track_codes = self._compute_track_codes(latent_code)
+        return TemporalStep(
+            controller_state=ControllerState(
+                code=latent_code,
+                code_dim=len(latent_code),
+                switch_gate=effective_scalar_beta,
+                is_switching=is_switching_scalar,
+                steps_since_switch=steps_since_switch,
+                track_codes=track_codes,
+            ),
+            active_abstract_action=active_label,
+            controller_params_hash=params_hash,
+            description=description,
+            action_family_version=self._parameter_store.action_family_version,
+        )
+
+    def _step_impl_legacy(
+        self,
+        *,
+        substrate_snapshot: SubstrateSnapshot,
+        previous_snapshot: TemporalAbstractionSnapshot | None,
+        memory_snapshot: MemorySnapshot | None,
+        reflection_snapshot: ReflectionSnapshot | None,
+        latent_override: tuple[float, ...] | None,
+        policy_replacement_score: float,
+        binary_gate_override: bool,
+    ) -> TemporalStep:
+        """LEGACY rollback baseline (n_z == 3): hand-tuned 3-dim recurrence.
+
+        This path is NOT the learned metacontroller — it is the frozen
+        pure-Python fallback kept for rollback and byte-stable baselines.
+        The learned controller path is ``_step_impl_ndim`` (n_z > 3),
+        selected via ``temporal_latent_dim`` / ``TEMPORAL_PROFILE_LATENT_DIMS``
+        profiles. Promotion of the ndim path to the shipped default is
+        gated on evidence (#86/#88), not on code readiness.
+        """
+        previous_code = previous_snapshot.controller_state.code if previous_snapshot is not None else self._previous_code
+        previous_steps = (
+            previous_snapshot.controller_state.steps_since_switch if previous_snapshot is not None else 0
+        )
+        encoded = self._encoder.encode(
+            substrate_snapshot=substrate_snapshot,
+            encoder_weights=self._parameter_store.encoder_weights,
+            recurrence_weights=self._parameter_store.encoder_recurrence,
+            previous_hidden_state=self._previous_hidden_state,
+            cms_online_fast=_cms_band(memory_snapshot, "online_fast"),
+            cms_session_medium=_cms_band(memory_snapshot, "session_medium"),
+            cms_background_slow=_cms_band(memory_snapshot, "background_slow"),
+        )
+        self._latest_encoder_output_for_cms = self._encoder.encoder_output_for_cms(encoded)
+        memory_signal = _memory_signal(memory_snapshot)
+        reflection_signal = _reflection_signal(reflection_snapshot)
+        (
+            active_family_outcome,
+            active_family_reuse,
+            active_family_persistence,
+        ) = self._parameter_store.active_family_continuation_signals(
+            previous_steps_since_switch=previous_steps,
+        )
+        fast_prior_switch_pressure_delta = (
+            self._parameter_store.fast_prior_switch_pressure_delta()
+            + self._parameter_store.prediction_error_switch_pressure_delta()
+            + self._protocol_prior_switch_delta()
+            + self._thinking_advisory_switch_delta()
+        )
+        external_boundary_requested = (
+            self._parameter_store.external_boundary_requested()
+        )
+        switch_decision = self._switch_unit.compute_decision(
+            previous_code=previous_code,
+            z_tilde=encoded.z_tilde,
+            posterior_std=encoded.latent_scale,
+            switch_weights=self._parameter_store.switch_weights,
+            switch_bias=self._parameter_store.switch_bias,
+            memory_signal=memory_signal,
+            reflection_signal=reflection_signal,
+            active_family_outcome=active_family_outcome,
+            active_family_reuse=active_family_reuse,
+            active_family_persistence=active_family_persistence,
+            external_switch_pressure_delta=fast_prior_switch_pressure_delta,
+            previous_binary=self._previous_beta_binary,
+            previous_steps_since_switch=previous_steps,
+            beta_threshold=self._parameter_store.beta_threshold,
+        )
+        z_candidate = latent_override or encoded.z_tilde
+        pe_modulation_strength = min(
+            self._parameter_store.prediction_error_switch_pressure_delta()
+            / 0.18,
+            1.0,
+        )
+        if (
+            latent_override is None
+            and self._prediction_error_runtime_modulation_enabled
+            and pe_modulation_strength > 0.0
+        ):
+            z_candidate = (
+                self._parameter_store.runtime_prediction_error_modulated_code(
+                    z_candidate,
+                    strength=pe_modulation_strength,
+                )
+            )
+        if binary_gate_override:
+            self._resolve_post_switch_min_dwell(
+                natural_switch_requested=False,
+                previous_steps_since_switch=previous_steps,
+                external_boundary_requested=True,
+                has_previous_state=previous_snapshot is not None,
+            )
+            is_switching = (
+                not self._has_recurrent_state
+                or _should_take_binary_override(
+                    previous_code=previous_code,
+                    latent_override=z_candidate,
+                    policy_replacement_score=policy_replacement_score,
+                    learned_binary_switch=bool(
+                        switch_decision.beta_binary
+                    ),
+                )
+            )
+            effective_switch_gate = 1.0 if is_switching else 0.0
+            mean_persistence_window = 0.0 if is_switching else float(previous_steps + 1)
+            binary_switch_rate = float(int(is_switching))
+            switch_sparsity = 1.0 - effective_switch_gate
+        else:
+            effective_switch_gate = (
+                max(
+                    switch_decision.beta_continuous,
+                    self._parameter_store.beta_threshold,
+                )
+                if external_boundary_requested
+                else switch_decision.beta_continuous
+            )
+            is_switching = (
+                external_boundary_requested
+                or bool(switch_decision.beta_binary)
+            )
+            dwell_applied = self._resolve_post_switch_min_dwell(
+                natural_switch_requested=is_switching,
+                previous_steps_since_switch=previous_steps,
+                external_boundary_requested=external_boundary_requested,
+                has_previous_state=previous_snapshot is not None,
+            )
+            if dwell_applied:
+                is_switching = False
+                effective_switch_gate = 0.0
+                mean_persistence_window = float(previous_steps + 1)
+                binary_switch_rate = 0.0
+                switch_sparsity = 1.0
+            else:
+                mean_persistence_window = (
+                    switch_decision.mean_persistence_window
+                )
+                binary_switch_rate = switch_decision.binary_switch_rate
+                switch_sparsity = switch_decision.sparsity
+        latent_code = tuple(
+            _clamp(effective_switch_gate * current + (1.0 - effective_switch_gate) * previous)
+            for current, previous in zip(z_candidate, previous_code, strict=True)
+        )
+        decoder_control = self._decoder.decode(
+            latent_code=latent_code,
+            decoder_matrix=self._parameter_store.decoder_matrix,
+            hidden_matrix=self._parameter_store.decoder_hidden,
+        )
+        active_label, decoder_summary = self._parameter_store.discover_action_family(
+            latent_code=latent_code,
+            decoder_control=decoder_control.applied_control,
+            switch_gate=effective_switch_gate,
+            posterior_drift=encoded.posterior.posterior_drift,
+            persistence_window=mean_persistence_window,
+        )
+        steps_since_switch = 0 if is_switching else previous_steps + 1
+        self._parameter_store.record_runtime_observation(
+            latent_mean=encoded.latent_mean,
+            latent_scale=encoded.latent_scale,
+            decoder_control=decoder_control.decoder_output,
+            switch_gate=effective_switch_gate,
+            sequence_length=encoded.sequence_length,
+            active_label=active_label,
+            prior_mean=encoded.posterior.prior_mean,
+            prior_std=encoded.posterior.prior_std,
+            posterior_mean=encoded.posterior.posterior_mean,
+            posterior_std=encoded.posterior.posterior_std,
+            posterior_sample_noise=encoded.posterior.sample_noise,
+            z_tilde=z_candidate,
+            posterior_hidden_state=encoded.posterior.hidden_state,
+            posterior_drift=encoded.posterior.posterior_drift,
+            beta_binary=int(is_switching),
+            switch_sparsity=switch_sparsity,
+            binary_switch_rate=binary_switch_rate,
+            mean_persistence_window=mean_persistence_window,
+            decoder_applied_control=decoder_control.applied_control,
+            policy_replacement_score=policy_replacement_score,
+        )
+        params_hash = _hash_payload(
+            {
+                "mode": self.mode.value,
+                "encoder_weights": self._parameter_store.encoder_weights,
+                "encoder_recurrence": self._parameter_store.encoder_recurrence,
+                "switch_weights": self._parameter_store.switch_weights,
+                "decoder_hidden": self._parameter_store.decoder_hidden,
+                "decoder_matrix": self._parameter_store.decoder_matrix,
+                "track_weights": self._parameter_store.track_weights,
+                "beta_threshold": self._parameter_store.beta_threshold,
+            }
+        )
+        description = (
+            f"Full-learned metacontroller {switch_decision.summary}, "
+            f"effective_beta={effective_switch_gate:.3f}, seq_len={encoded.sequence_length}, "
+            f"{encoded.summary}, {decoder_control.summary}, replacement_score={policy_replacement_score:.3f}, "
+            f"fast_prior_switch_delta={fast_prior_switch_pressure_delta:.3f}, "
+            "post_switch_dwell="
+            f"{self._post_switch_min_dwell_wiring.value}:"
+            f"{self._latest_post_switch_dwell_applied}:"
+            f"{self._latest_post_switch_dwell_remaining}, "
+            f"{decoder_summary}."
+        )
+        self._previous_code = latent_code
+        self._previous_hidden_state = encoded.posterior.hidden_state
+        self._previous_beta_binary = int(is_switching)
+        track_codes = self._compute_track_codes(latent_code)
+        return TemporalStep(
+            controller_state=ControllerState(
+                code=latent_code,
+                code_dim=len(latent_code),
+                switch_gate=effective_switch_gate,
+                is_switching=is_switching,
+                steps_since_switch=steps_since_switch,
+                track_codes=track_codes,
+            ),
+            active_abstract_action=active_label,
+            controller_params_hash=params_hash,
+            description=description,
+            action_family_version=self._parameter_store.action_family_version,
+        )
+
+
+def _code_digest(code: tuple[float, ...]) -> tuple[float, ...]:
+    return tuple(round(value, 6) for value in code[:8])
+
+
+def _closed_segment_from_switch(
+    *,
+    previous_snapshot: TemporalAbstractionSnapshot | None,
+    current_step: TemporalStep,
+    close_turn_index: int,
+) -> tuple[TemporalSegmentClosure, ...]:
+    if previous_snapshot is None or not current_step.controller_state.is_switching:
+        return ()
+    # ``steps_since_switch`` is zero on the turn that opened the segment.
+    # The closing switch happens one publication later than the last step
+    # represented by ``previous_snapshot``, so the segment length is
+    # ``steps_since_switch + 1``.
+    open_turn_index = max(
+        0,
+        close_turn_index
+        - previous_snapshot.controller_state.steps_since_switch
+        - 1,
+    )
+    segment_id = (
+        f"{previous_snapshot.active_abstract_action}:"
+        f"{open_turn_index}->{close_turn_index}:"
+        f"{previous_snapshot.action_family_version}"
+    )
+    return (
+        TemporalSegmentClosure(
+            segment_id=segment_id,
+            open_turn_index=open_turn_index,
+            close_turn_index=close_turn_index,
+            abstract_action_id=previous_snapshot.active_abstract_action,
+            z_t_digest=_code_digest(previous_snapshot.controller_state.code),
+            beta_open_digest=previous_snapshot.controller_state.switch_gate,
+            beta_close_digest=current_step.controller_state.switch_gate,
+            description=(
+                "Temporal segment closed by beta_t switch from "
+                f"{previous_snapshot.active_abstract_action} to "
+                f"{current_step.active_abstract_action}."
+            ),
+        ),
+    )
+
+
+class TemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
+    slot_name = "temporal_abstraction"
+    owner = "TemporalModule"
+    value_type = TemporalAbstractionSnapshot
+    dependencies = ("substrate", "memory", "reflection", "prediction_error", "experience_fast_prior")
+    default_wiring_level = WiringLevel.SHADOW
+
+    def __init__(
+        self,
+        *,
+        policy: TemporalPolicy | None = None,
+        wiring_level: WiringLevel | None = None,
+    ) -> None:
+        super().__init__(wiring_level=wiring_level)
+        self._policy = policy or FullLearnedTemporalPolicy()
+        self._previous_snapshot: TemporalAbstractionSnapshot | None = None
+        self._pending_active_mixture: object | None = None
+
+    def observe_active_mixture_carryover(self, active_mixture_value: object | None) -> None:
+        """Stash the previous-turn ``active_mixture`` for the next step.
+
+        Orchestrator-mediated carryover; see
+        :meth:`TrackTemporalModule.observe_active_mixture_carryover`.
+        """
+        self._pending_active_mixture = active_mixture_value
+
+    @property
+    def policy(self) -> TemporalPolicy:
+        return self._policy
+
+    def export_runtime_state(self) -> MetacontrollerRuntimeState | None:
+        return self._policy.export_runtime_state()
+
+    async def process(
+        self,
+        upstream: Mapping[str, Snapshot[Any]],
+    ) -> Snapshot[TemporalAbstractionSnapshot]:
+        substrate_snapshot = upstream["substrate"]
+        memory_snapshot = upstream["memory"]
+        reflection_snapshot = upstream["reflection"]
+        prediction_error_snapshot = upstream["prediction_error"]
+        experience_fast_prior_snapshot = upstream["experience_fast_prior"]
+        substrate_value = substrate_snapshot.value
+        memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
+        reflection_value = (
+            reflection_snapshot.value if isinstance(reflection_snapshot.value, ReflectionSnapshot) else None
+        )
+        prediction_error_value = (
+            prediction_error_snapshot.value
+            if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
+            else None
+        )
+        self._apply_prediction_error_signal(prediction_error_value)
+        self._policy.observe_experience_fast_prior(
+            experience_fast_prior_snapshot=experience_fast_prior_snapshot.value,
+            previous_snapshot=self._previous_snapshot,
+            track=Track.SHARED,
+        )
+        self._policy.observe_active_mixture(
+            active_mixture_snapshot=self._pending_active_mixture,
+            previous_snapshot=self._previous_snapshot,
+            track=Track.SHARED,
+        )
+        if not isinstance(substrate_value, SubstrateSnapshot):
+            step = PlaceholderTemporalPolicy().step(
+                substrate_snapshot=SubstrateSnapshot(
+                    model_id="runtime-placeholder",
+                    is_frozen=True,
+                    surface_kind=SurfaceKind.PLACEHOLDER,
+                    token_logits=(),
+                    feature_surface=(),
+                    residual_activations=(),
+                    residual_sequence=(),
+                    unavailable_fields=(),
+                    description="Runtime placeholder substrate value.",
+                ),
+                previous_snapshot=self._previous_snapshot,
+                memory_snapshot=memory_value,
+                reflection_snapshot=reflection_value,
+            )
+        else:
+            step = self._policy.step(
+                substrate_snapshot=substrate_value,
+                previous_snapshot=self._previous_snapshot,
+                memory_snapshot=memory_value,
+                reflection_snapshot=reflection_value,
+            )
+        conditioning_lineage_refs = (
+            _conditioning_lineage_refs_from_substrate(substrate_value)
+            if isinstance(substrate_value, SubstrateSnapshot)
+            else ()
+        )
+
+        snapshot_value = TemporalAbstractionSnapshot(
+            controller_state=step.controller_state,
+            active_abstract_action=step.active_abstract_action,
+            controller_params_hash=step.controller_params_hash,
+            description=step.description,
+            action_family_version=step.action_family_version,
+            memory_feedback_signal=self._policy.latest_encoder_output_for_cms or (),
+            closed_segments=_closed_segment_from_switch(
+                previous_snapshot=self._previous_snapshot,
+                current_step=step,
+                close_turn_index=self._version + 1,
+            ),
+            conditioning_lineage_refs=conditioning_lineage_refs,
+        )
+        self._previous_snapshot = snapshot_value
+        return self.publish(snapshot_value)
+
+    async def process_standalone(self, **kwargs: Any) -> Snapshot[TemporalAbstractionSnapshot]:
+        substrate_snapshot = kwargs.get("substrate_snapshot")
+        if not isinstance(substrate_snapshot, SubstrateSnapshot):
+            raise TypeError("substrate_snapshot must be a SubstrateSnapshot.")
+        memory_snapshot = kwargs.get("memory_snapshot")
+        reflection_snapshot = kwargs.get("reflection_snapshot")
+        prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
+        experience_fast_prior_snapshot = kwargs.get("experience_fast_prior_snapshot")
+        self._apply_prediction_error_signal(
+            prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None
+        )
+        self._policy.observe_experience_fast_prior(
+            experience_fast_prior_snapshot=experience_fast_prior_snapshot,
+            previous_snapshot=self._previous_snapshot,
+            track=Track.SHARED,
+        )
+        step = self._policy.step(
+            substrate_snapshot=substrate_snapshot,
+            previous_snapshot=self._previous_snapshot,
+            memory_snapshot=memory_snapshot if isinstance(memory_snapshot, MemorySnapshot) else None,
+            reflection_snapshot=reflection_snapshot
+            if isinstance(reflection_snapshot, ReflectionSnapshot)
+            else None,
+        )
+        snapshot_value = TemporalAbstractionSnapshot(
+            controller_state=step.controller_state,
+            active_abstract_action=step.active_abstract_action,
+            controller_params_hash=step.controller_params_hash,
+            description=step.description,
+            action_family_version=step.action_family_version,
+            memory_feedback_signal=self._policy.latest_encoder_output_for_cms or (),
+            conditioning_lineage_refs=_conditioning_lineage_refs_from_substrate(
+                substrate_snapshot
+            ),
+        )
+        self._previous_snapshot = snapshot_value
+        return self.publish(snapshot_value)
+
+    def _apply_prediction_error_signal(
+        self,
+        prediction_error_snapshot: PredictionErrorSnapshot | None,
+    ) -> None:
+        if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
+            return
+        pe = prediction_error_snapshot.error
+        if isinstance(self._policy, FullLearnedTemporalPolicy):
+            self._policy.parameter_store.record_prediction_error_switch_pressure(
+                _clamp(pe.magnitude) * 0.18
+            )
+        if pe.magnitude <= 0.0:
+            return
+        signed_reward = pe.signed_reward
+        target_residual = _clamp(0.45 + abs(pe.task_error) * 0.30 + max(signed_reward, 0.0) * 0.10)
+        target_memory = _clamp(0.25 + abs(pe.regime_error) * 0.25 + abs(pe.action_error) * 0.10)
+        target_reflection = _clamp(0.25 + abs(pe.relationship_error) * 0.30 + abs(pe.action_error) * 0.15)
+        self._policy.fit_from_signals(
+            residual_strength=target_residual,
+            memory_strength=target_memory,
+            reflection_strength=target_reflection,
+        )
+
+
+def clone_full_learned_temporal_policy(source_policy: FullLearnedTemporalPolicy) -> FullLearnedTemporalPolicy:
+    return FullLearnedTemporalPolicy.from_bootstrap_snapshot(
+        source_policy.export_rare_heavy_snapshot()
+    )
+
+
+def clone_temporal_policy(source_policy: TemporalPolicy) -> TemporalPolicy:
+    """Clone a store-owning temporal policy, preserving its implementation mode.
+
+    ``ETANLJointLoop`` owns world and self as two *independent* tracks and
+    publishes them as two separate lanes of every learning checkpoint
+    (``world_temporal_snapshot`` / ``self_temporal_snapshot`` and the two
+    sandbox ``metacontroller_snapshot`` lanes). The two tracks must therefore
+    own distinct :class:`MetacontrollerParameterStore` instances: a shared
+    store makes the checkpoint round trip asymmetric, because restoring the
+    world lane and then the self lane collapses both onto the self lane.
+
+    Callers that only hold a single configured policy use this to build the
+    second track. Unlike :func:`clone_full_learned_temporal_policy` it does not
+    promote a ``LEARNED_LITE`` source to ``FULL_LEARNED``; a matched-control
+    ETA-off arm must stay ETA-off on both tracks.
+    """
+
+    if isinstance(source_policy, FullLearnedTemporalPolicy):
+        return clone_full_learned_temporal_policy(source_policy)
+    if isinstance(source_policy, LearnedLiteTemporalPolicy):
+        return LearnedLiteTemporalPolicy(
+            parameter_store=build_bootstrapped_parameter_store(
+                source_policy.export_rare_heavy_snapshot()
+            )
+        )
+    raise TypeError(
+        "clone_temporal_policy requires a parameter-store owning temporal "
+        "policy (FULL_LEARNED or LEARNED_LITE), got "
+        f"{type(source_policy).__name__}"
+    )
+
+
+def _merge_track_codes(
+    world_code: tuple[float, ...],
+    self_code: tuple[float, ...],
+) -> tuple[float, ...]:
+    length = max(len(world_code), len(self_code))
+    if length == 0:
+        return ()
+    return tuple(
+        _clamp(
+            (
+                (world_code[index] if index < len(world_code) else 0.0)
+                + (self_code[index] if index < len(self_code) else 0.0)
+            )
+            / 2.0
+        )
+        for index in range(length)
+    )
+
+
+def build_temporal_aggregate_snapshot(
+    *,
+    world_snapshot: TemporalAbstractionSnapshot,
+    self_snapshot: TemporalAbstractionSnapshot,
+) -> TemporalAbstractionSnapshot:
+    shared_code = _merge_track_codes(
+        world_snapshot.controller_state.code,
+        self_snapshot.controller_state.code,
+    )
+    aggregate_controller_state = ControllerState(
+        code=shared_code,
+        code_dim=len(shared_code),
+        switch_gate=_clamp(
+            (world_snapshot.controller_state.switch_gate + self_snapshot.controller_state.switch_gate) / 2.0
+        ),
+        is_switching=(
+            world_snapshot.controller_state.is_switching or self_snapshot.controller_state.is_switching
+        ),
+        steps_since_switch=min(
+            world_snapshot.controller_state.steps_since_switch,
+            self_snapshot.controller_state.steps_since_switch,
+        ),
+        track_codes=(
+            ("world", world_snapshot.controller_state.code),
+            ("self", self_snapshot.controller_state.code),
+            ("shared", shared_code),
+        ),
+    )
+    if world_snapshot.active_abstract_action == self_snapshot.active_abstract_action:
+        active_action = world_snapshot.active_abstract_action
+    else:
+        active_action = (
+            f"world:{world_snapshot.active_abstract_action}|self:{self_snapshot.active_abstract_action}"
+        )
+    return TemporalAbstractionSnapshot(
+        controller_state=aggregate_controller_state,
+        active_abstract_action=active_action,
+        controller_params_hash=_hash_payload(
+            {
+                "world": world_snapshot.controller_params_hash,
+                "self": self_snapshot.controller_params_hash,
+            }
+        ),
+        description=(
+            f"Temporal aggregate world={world_snapshot.active_abstract_action} "
+            f"self={self_snapshot.active_abstract_action}."
+        ),
+        action_family_version=max(
+            world_snapshot.action_family_version,
+            self_snapshot.action_family_version,
+        ),
+        memory_feedback_signal=_merge_track_codes(
+            world_snapshot.memory_feedback_signal,
+            self_snapshot.memory_feedback_signal,
+        ),
+        closed_segments=(
+            world_snapshot.closed_segments
+            + tuple(
+                segment
+                for segment in self_snapshot.closed_segments
+                if segment.segment_id
+                not in {item.segment_id for item in world_snapshot.closed_segments}
+            )
+        ),
+        conditioning_lineage_refs=_merge_conditioning_lineage_refs(
+            world_snapshot.conditioning_lineage_refs,
+            self_snapshot.conditioning_lineage_refs,
+        ),
+        action_advisory=self_snapshot.action_advisory,
+        action_advisory_status=self_snapshot.action_advisory_status,
+    )
+
+
+def build_temporal_runtime_state_aggregate(
+    *,
+    world_state: MetacontrollerRuntimeState,
+    self_state: MetacontrollerRuntimeState,
+) -> MetacontrollerRuntimeState:
+    shared_latent = _merge_track_codes(world_state.latent_mean, self_state.latent_mean)
+    shared_scale = _merge_track_codes(world_state.latent_scale, self_state.latent_scale)
+    shared_decoder = _merge_track_codes(world_state.decoder_control, self_state.decoder_control)
+    shared_prior_mean = _merge_track_codes(world_state.prior_mean, self_state.prior_mean)
+    shared_prior_std = _merge_track_codes(world_state.prior_std, self_state.prior_std)
+    shared_posterior_mean = _merge_track_codes(world_state.posterior_mean, self_state.posterior_mean)
+    shared_posterior_std = _merge_track_codes(world_state.posterior_std, self_state.posterior_std)
+    shared_noise = _merge_track_codes(
+        world_state.posterior_sample_noise,
+        self_state.posterior_sample_noise,
+    )
+    shared_z_tilde = _merge_track_codes(world_state.z_tilde, self_state.z_tilde)
+    shared_hidden = _merge_track_codes(
+        world_state.posterior_hidden_state,
+        self_state.posterior_hidden_state,
+    )
+    shared_applied_control = _merge_track_codes(
+        world_state.decoder_applied_control,
+        self_state.decoder_applied_control,
+    )
+    active_label = (
+        world_state.active_label
+        if world_state.active_label == self_state.active_label
+        else f"world:{world_state.active_label}|self:{self_state.active_label}"
+    )
+    world_track_parameters = dict(world_state.track_parameters)
+    self_track_parameters = dict(self_state.track_parameters)
+    required_tracks = {track.value for track in Track}
+    if (
+        set(world_track_parameters) != required_tracks
+        or set(self_track_parameters) != required_tracks
+    ):
+        raise ValueError(
+            "dual-track runtime aggregate requires world/self/shared "
+            "track parameters from both owners"
+        )
+    aggregate_track_parameters = (
+        ("world", world_track_parameters[Track.WORLD.value]),
+        ("self", self_track_parameters[Track.SELF.value]),
+        (
+            "shared",
+            _merge_track_codes(
+                world_track_parameters[Track.SHARED.value],
+                self_track_parameters[Track.SHARED.value],
+            ),
+        ),
+    )
+    aggregate_update_steps = (
+        ("world", next((step for track, step in world_state.update_steps if track == "world"), 0)),
+        ("self", next((step for track, step in self_state.update_steps if track == "self"), 0)),
+        (
+            "shared",
+            int(
+                (
+                    next((step for track, step in world_state.update_steps if track == "world"), 0)
+                    + next((step for track, step in self_state.update_steps if track == "self"), 0)
+                )
+                / 2
+            ),
+        ),
+    )
+    return MetacontrollerRuntimeState(
+        mode=world_state.mode,
+        temporal_parameters=TemporalControllerParameters(
+            residual_weight=(world_state.temporal_parameters.residual_weight + self_state.temporal_parameters.residual_weight) / 2.0,
+            memory_weight=(world_state.temporal_parameters.memory_weight + self_state.temporal_parameters.memory_weight) / 2.0,
+            reflection_weight=(world_state.temporal_parameters.reflection_weight + self_state.temporal_parameters.reflection_weight) / 2.0,
+            switch_bias=(world_state.temporal_parameters.switch_bias + self_state.temporal_parameters.switch_bias) / 2.0,
+        ),
+        track_parameters=aggregate_track_parameters,
+        encoder_weights=world_state.encoder_weights,
+        switch_weights=world_state.switch_weights,
+        decoder_matrix=world_state.decoder_matrix,
+        persistence=(world_state.persistence + self_state.persistence) / 2.0,
+        learning_rate=(world_state.learning_rate + self_state.learning_rate) / 2.0,
+        clip_epsilon=max(world_state.clip_epsilon, self_state.clip_epsilon),
+        update_steps=aggregate_update_steps,
+        latent_mean=shared_latent,
+        latent_scale=shared_scale,
+        decoder_control=shared_decoder,
+        latest_switch_gate=(world_state.latest_switch_gate + self_state.latest_switch_gate) / 2.0,
+        sequence_length=max(world_state.sequence_length, self_state.sequence_length),
+        latest_ssl_loss=(world_state.latest_ssl_loss + self_state.latest_ssl_loss) / 2.0,
+        latest_ssl_kl_loss=(world_state.latest_ssl_kl_loss + self_state.latest_ssl_kl_loss) / 2.0,
+        active_label=active_label,
+        encoder_recurrence=world_state.encoder_recurrence,
+        beta_threshold=(world_state.beta_threshold + self_state.beta_threshold) / 2.0,
+        decoder_hidden=world_state.decoder_hidden,
+        prior_mean=shared_prior_mean,
+        prior_std=shared_prior_std,
+        posterior_mean=shared_posterior_mean,
+        posterior_std=shared_posterior_std,
+        posterior_sample_noise=shared_noise,
+        z_tilde=shared_z_tilde,
+        posterior_hidden_state=shared_hidden,
+        posterior_drift=(world_state.posterior_drift + self_state.posterior_drift) / 2.0,
+        beta_binary=max(world_state.beta_binary, self_state.beta_binary),
+        switch_sparsity=(world_state.switch_sparsity + self_state.switch_sparsity) / 2.0,
+        binary_switch_rate=(world_state.binary_switch_rate + self_state.binary_switch_rate) / 2.0,
+        mean_persistence_window=(
+            world_state.mean_persistence_window + self_state.mean_persistence_window
+        )
+        / 2.0,
+        decoder_applied_control=shared_applied_control,
+        policy_replacement_score=(
+            world_state.policy_replacement_score + self_state.policy_replacement_score
+        )
+        / 2.0,
+        encoder_optimizer_state=world_state.encoder_optimizer_state or self_state.encoder_optimizer_state,
+        decoder_optimizer_state=world_state.decoder_optimizer_state or self_state.decoder_optimizer_state,
+        fast_prior_strength=max(world_state.fast_prior_strength, self_state.fast_prior_strength),
+        fast_prior_action_bias=(
+            world_state.fast_prior_action_bias + self_state.fast_prior_action_bias
+        )
+        / 2.0,
+        fast_prior_family_bias=(
+            world_state.fast_prior_family_bias + self_state.fast_prior_family_bias
+        )
+        / 2.0,
+        fast_prior_sequence_bias=(
+            world_state.fast_prior_sequence_bias + self_state.fast_prior_sequence_bias
+        )
+        / 2.0,
+        fast_prior_switch_pressure_delta=(
+            world_state.fast_prior_switch_pressure_delta + self_state.fast_prior_switch_pressure_delta
+        )
+        / 2.0,
+        prediction_error_switch_pressure_delta=(
+            world_state.prediction_error_switch_pressure_delta
+            + self_state.prediction_error_switch_pressure_delta
+        )
+        / 2.0,
+        protocol_prior_switch_pressure_delta=(
+            world_state.protocol_prior_switch_pressure_delta
+            + self_state.protocol_prior_switch_pressure_delta
+        )
+        / 2.0,
+        protocol_prior_strength=(
+            world_state.protocol_prior_strength + self_state.protocol_prior_strength
+        )
+        / 2.0,
+        protocol_prior_applied=(
+            world_state.protocol_prior_applied or self_state.protocol_prior_applied
+        ),
+        learned_update_rule_state=(
+            world_state.learned_update_rule_state or self_state.learned_update_rule_state
+        ),
+        causal_action_head_state=tuple(
+            (world_value + self_value) / 2.0
+            for world_value, self_value in zip(
+                world_state.causal_action_head_state,
+                self_state.causal_action_head_state,
+                strict=True,
+            )
+        )
+        if (
+            world_state.causal_action_head_state
+            and self_state.causal_action_head_state
+        )
+        else (
+            world_state.causal_action_head_state
+            or self_state.causal_action_head_state
+        ),
+        causal_action_head_mirror_state=tuple(
+            (world_value + self_value) / 2.0
+            for world_value, self_value in zip(
+                world_state.causal_action_head_mirror_state,
+                self_state.causal_action_head_mirror_state,
+                strict=True,
+            )
+        )
+        if (
+            world_state.causal_action_head_mirror_state
+            and self_state.causal_action_head_mirror_state
+        )
+        else (
+            world_state.causal_action_head_mirror_state
+            or self_state.causal_action_head_mirror_state
+        ),
+        causal_action_head_residual=tuple(
+            (world_value + self_value) / 2.0
+            for world_value, self_value in zip(
+                world_state.causal_action_head_residual,
+                self_state.causal_action_head_residual,
+                strict=True,
+            )
+        )
+        if (
+            world_state.causal_action_head_residual
+            and self_state.causal_action_head_residual
+        )
+        else (
+            world_state.causal_action_head_residual
+            or self_state.causal_action_head_residual
+        ),
+        causal_action_head_wiring=(
+            world_state.causal_action_head_wiring
+            if world_state.causal_action_head_wiring
+            == self_state.causal_action_head_wiring
+            else (
+                f"world:{world_state.causal_action_head_wiring}|"
+                f"self:{self_state.causal_action_head_wiring}"
+            )
+        ),
+        causal_action_head_update_step=max(
+            world_state.causal_action_head_update_step,
+            self_state.causal_action_head_update_step,
+        ),
+        structure_frozen=world_state.structure_frozen and self_state.structure_frozen,
+        learning_phase=(
+            world_state.learning_phase
+            if world_state.learning_phase == self_state.learning_phase
+            else f"world:{world_state.learning_phase}|self:{self_state.learning_phase}"
+        ),
+        action_family_version=max(world_state.action_family_version, self_state.action_family_version),
+        action_family_summaries=world_state.action_family_summaries + tuple(
+            summary
+            for summary in self_state.action_family_summaries
+            if summary.family_id not in {item.family_id for item in world_state.action_family_summaries}
+        ),
+        active_family_summary=world_state.active_family_summary,
+        active_family_competition_score=max(
+            world_state.active_family_competition_score,
+            self_state.active_family_competition_score,
+        ),
+        action_family_monopoly_pressure=max(
+            world_state.action_family_monopoly_pressure,
+            self_state.action_family_monopoly_pressure,
+        ),
+        action_family_turnover_health=(
+            world_state.action_family_turnover_health + self_state.action_family_turnover_health
+        )
+        / 2.0,
+        track_active_labels=(("world", world_state.active_label), ("self", self_state.active_label)),
+        track_switch_gates=(
+            ("world", world_state.latest_switch_gate),
+            ("self", self_state.latest_switch_gate),
+        ),
+        description=(
+            f"Dual-track metacontroller aggregate world={world_state.active_label} "
+            f"self={self_state.active_label} fast_prior={max(world_state.fast_prior_strength, self_state.fast_prior_strength):.2f}."
+        ),
+    )
+
+
+class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
+    value_type = TemporalAbstractionSnapshot
+    dependencies = ("substrate", "memory", "experience_fast_prior", *SEMANTIC_OWNER_SLOTS)
+    default_wiring_level = WiringLevel.SHADOW
+
+    def __init__(
+        self,
+        *,
+        track: Track,
+        policy: TemporalPolicy | None = None,
+        previous_snapshot: TemporalAbstractionSnapshot | None = None,
+        wiring_level: WiringLevel | None = None,
+        action_advisory: TemporalActionAdvisoryProposal | None = None,
+        action_advisory_level: WiringLevel = WiringLevel.DISABLED,
+    ) -> None:
+        super().__init__(wiring_level=wiring_level)
+        self._track = track
+        self.slot_name = f"{track.value}_temporal"
+        self.owner = f"{track.value.title()}TemporalModule"
+        self._policy = policy or FullLearnedTemporalPolicy()
+        self._previous_snapshot = previous_snapshot
+        self._pending_active_mixture: object | None = None
+        if action_advisory is not None and track is not Track.SELF:
+            raise ValueError("temporal action advisory may only target self_temporal")
+        if (
+            action_advisory is not None
+            and action_advisory_level is WiringLevel.ACTIVE
+            and not action_advisory.active_authorized
+        ):
+            raise ValueError(
+                "self_temporal cannot apply an advisory without ACTIVE authorization"
+            )
+        self._action_advisory = action_advisory
+        self._action_advisory_level = action_advisory_level
+
+    def observe_active_mixture_carryover(self, active_mixture_value: object | None) -> None:
+        """Stash the previous-turn ``active_mixture`` for the next step.
+
+        Orchestrator-mediated carryover: ``active_mixture`` is downstream
+        of temporal in the propagate DAG, so the runtime feeds the prior
+        turn's value out-of-band here instead of via a same-turn snapshot
+        dependency (which would cycle through ``retrieval_policy``).
+        """
+        self._pending_active_mixture = active_mixture_value
+
+    @property
+    def track(self) -> Track:
+        return self._track
+
+    @property
+    def policy(self) -> TemporalPolicy:
+        return self._policy
+
+    def export_runtime_state(self) -> MetacontrollerRuntimeState | None:
+        return self._policy.export_runtime_state()
+
+    def _resolve_action_advisory(
+        self,
+        native_action: str,
+    ) -> tuple[
+        str,
+        TemporalActionAdvisoryProposal | None,
+        TemporalActionAdvisoryStatus,
+    ]:
+        advisory = self._action_advisory
+        if advisory is None or self._action_advisory_level is WiringLevel.DISABLED:
+            return native_action, None, TemporalActionAdvisoryStatus.NONE
+        if self._action_advisory_level is WiringLevel.SHADOW:
+            return (
+                native_action,
+                advisory,
+                TemporalActionAdvisoryStatus.SHADOW_RECORDED,
+            )
+        if advisory.evaluator_only:
+            raise ValueError("self_temporal cannot apply evaluator-only advisory")
+        return advisory.action_id, advisory, TemporalActionAdvisoryStatus.APPLIED
+
+    async def process(
+        self,
+        upstream: Mapping[str, Snapshot[Any]],
+    ) -> Snapshot[TemporalAbstractionSnapshot]:
+        substrate_snapshot = upstream["substrate"]
+        memory_snapshot = upstream["memory"]
+        experience_fast_prior_snapshot = upstream["experience_fast_prior"]
+        semantic_snapshots = tuple(upstream[slot] for slot in SEMANTIC_OWNER_SLOTS)
+        semantic_pressure = _clamp(
+            sum(semantic_control_signal(snapshot.value) for snapshot in semantic_snapshots)
+            / max(len(semantic_snapshots), 1)
+        )
+        substrate_value = substrate_snapshot.value
+        memory_value = memory_snapshot.value if isinstance(memory_snapshot.value, MemorySnapshot) else None
+        reflection_value = self._policy.cached_reflection_snapshot()
+        self._policy.observe_experience_fast_prior(
+            experience_fast_prior_snapshot=experience_fast_prior_snapshot.value,
+            previous_snapshot=self._previous_snapshot,
+            track=self._track,
+        )
+        self._policy.observe_active_mixture(
+            active_mixture_snapshot=self._pending_active_mixture,
+            previous_snapshot=self._previous_snapshot,
+            track=self._track,
+        )
+        if not isinstance(substrate_value, SubstrateSnapshot):
+            step = PlaceholderTemporalPolicy().step(
+                substrate_snapshot=SubstrateSnapshot(
+                    model_id="runtime-placeholder",
+                    is_frozen=True,
+                    surface_kind=SurfaceKind.PLACEHOLDER,
+                    token_logits=(),
+                    feature_surface=(),
+                    residual_activations=(),
+                    residual_sequence=(),
+                    unavailable_fields=(),
+                    description="Runtime placeholder substrate value.",
+                ),
+                previous_snapshot=self._previous_snapshot,
+                memory_snapshot=memory_value,
+                reflection_snapshot=reflection_value,
+            )
+        else:
+            step = self._policy.step(
+                substrate_snapshot=substrate_value,
+                previous_snapshot=self._previous_snapshot,
+                memory_snapshot=memory_value,
+                reflection_snapshot=reflection_value,
+            )
+        conditioning_lineage_refs = (
+            _conditioning_lineage_refs_from_substrate(substrate_value)
+            if isinstance(substrate_value, SubstrateSnapshot)
+            else ()
+        )
+        active_action, action_advisory, action_advisory_status = (
+            self._resolve_action_advisory(step.active_abstract_action)
+        )
+        effective_step = (
+            replace(step, active_abstract_action=active_action)
+            if active_action != step.active_abstract_action
+            else step
+        )
+        snapshot_value = TemporalAbstractionSnapshot(
+            controller_state=step.controller_state,
+            active_abstract_action=active_action,
+            controller_params_hash=step.controller_params_hash,
+            description=(
+                f"{self._track.value}-track {step.description} "
+                f"Semantic owner advisories consumed with pressure={semantic_pressure:.2f}; "
+                f"action_advisory={action_advisory_status.value}."
+            ),
+            action_family_version=step.action_family_version,
+            memory_feedback_signal=(
+                self._policy.latest_encoder_output_for_cms or ()
+            ) + ((semantic_pressure,) if semantic_pressure > 0.0 else ()),
+            closed_segments=_closed_segment_from_switch(
+                previous_snapshot=self._previous_snapshot,
+                current_step=effective_step,
+                close_turn_index=self._version + 1,
+            ),
+            conditioning_lineage_refs=conditioning_lineage_refs,
+            action_advisory=action_advisory,
+            action_advisory_status=action_advisory_status,
+        )
+        self._previous_snapshot = snapshot_value
+        return self.publish(snapshot_value)
+
+    async def process_standalone(self, **kwargs: Any) -> Snapshot[TemporalAbstractionSnapshot]:
+        substrate_snapshot = kwargs.get("substrate_snapshot")
+        if not isinstance(substrate_snapshot, SubstrateSnapshot):
+            raise TypeError("substrate_snapshot must be a SubstrateSnapshot.")
+        memory_snapshot = kwargs.get("memory_snapshot")
+        reflection_snapshot = kwargs.get("reflection_snapshot")
+        experience_fast_prior_snapshot = kwargs.get("experience_fast_prior_snapshot")
+        reflection_value = reflection_snapshot if isinstance(reflection_snapshot, ReflectionSnapshot) else self._policy.cached_reflection_snapshot()
+        self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
+        self._policy.observe_experience_fast_prior(
+            experience_fast_prior_snapshot=experience_fast_prior_snapshot,
+            previous_snapshot=self._previous_snapshot,
+            track=self._track,
+        )
+        step = self._policy.step(
+            substrate_snapshot=substrate_snapshot,
+            previous_snapshot=self._previous_snapshot,
+            memory_snapshot=memory_snapshot if isinstance(memory_snapshot, MemorySnapshot) else None,
+            reflection_snapshot=reflection_value,
+        )
+        active_action, action_advisory, action_advisory_status = (
+            self._resolve_action_advisory(step.active_abstract_action)
+        )
+        effective_step = (
+            replace(step, active_abstract_action=active_action)
+            if active_action != step.active_abstract_action
+            else step
+        )
+        snapshot_value = TemporalAbstractionSnapshot(
+            controller_state=step.controller_state,
+            active_abstract_action=active_action,
+            controller_params_hash=step.controller_params_hash,
+            description=(
+                f"{self._track.value}-track {step.description}; "
+                f"action_advisory={action_advisory_status.value}."
+            ),
+            action_family_version=step.action_family_version,
+            memory_feedback_signal=self._policy.latest_encoder_output_for_cms or (),
+            closed_segments=_closed_segment_from_switch(
+                previous_snapshot=self._previous_snapshot,
+                current_step=effective_step,
+                close_turn_index=self._version + 1,
+            ),
+            conditioning_lineage_refs=_conditioning_lineage_refs_from_substrate(
+                substrate_snapshot
+            ),
+            action_advisory=action_advisory,
+            action_advisory_status=action_advisory_status,
+        )
+        self._previous_snapshot = snapshot_value
+        return self.publish(snapshot_value)
+
+
+def _apply_track_prediction_error_signal(
+    *,
+    track: Track,
+    policy: TemporalPolicy,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+) -> bool:
+    if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
+        return False
+    pe = prediction_error_snapshot.error
+    if track is Track.WORLD:
+        target_residual = _clamp(0.40 + abs(pe.task_error) * 0.40 + abs(pe.action_error) * 0.10)
+        target_memory = _clamp(0.20 + abs(pe.regime_error) * 0.20 + abs(pe.task_error) * 0.10)
+        target_reflection = _clamp(0.10 + abs(pe.relationship_error) * 0.10)
+    else:
+        target_residual = _clamp(0.25 + abs(pe.relationship_error) * 0.35 + abs(pe.regime_error) * 0.10)
+        target_memory = _clamp(0.20 + abs(pe.regime_error) * 0.15 + abs(pe.action_error) * 0.10)
+        target_reflection = _clamp(0.30 + abs(pe.relationship_error) * 0.35 + abs(pe.action_error) * 0.10)
+    policy.fit_from_signals(
+        residual_strength=target_residual,
+        memory_strength=target_memory,
+        reflection_strength=target_reflection,
+    )
+    return True
+
+
+def _track_credit_matches(track: Track, record_track: Track) -> bool:
+    if track is Track.SHARED:
+        return record_track is Track.SHARED
+    return record_track in {track, Track.SHARED}
+
+
+def _track_session_credit_delta(
+    *,
+    track: Track,
+    credit_snapshot: CreditSnapshot | None,
+) -> float:
+    if credit_snapshot is None:
+        return 0.0
+    weighted = 0.0
+    for session_key, value in credit_snapshot.session_level_credits:
+        level, separator, track_name = session_key.partition(":")
+        if separator != ":" or level not in {"abstract_action", "prediction_error", "session"}:
+            continue
+        if track is Track.SHARED:
+            if track_name != Track.SHARED.value:
+                continue
+        elif track_name not in {track.value, Track.SHARED.value}:
+            continue
+        weight = {
+            "abstract_action": 0.45,
+            "prediction_error": 0.35,
+            "session": 0.20,
+        }[level]
+        weighted += _clamp(value) * weight
+    return _clamp(weighted)
+
+
+def _prediction_error_outcome_value(
+    *,
+    track: Track,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+) -> float:
+    if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
+        return 0.0
+    pe = prediction_error_snapshot.error
+    if track is Track.WORLD:
+        penalty = abs(pe.task_error) * 0.30 + abs(pe.action_error) * 0.12 + abs(pe.regime_error) * 0.08
+    elif track is Track.SELF:
+        penalty = abs(pe.relationship_error) * 0.30 + abs(pe.regime_error) * 0.12 + abs(pe.action_error) * 0.08
+    else:
+        penalty = (
+            abs(pe.task_error) + abs(pe.relationship_error) + abs(pe.regime_error) + abs(pe.action_error)
+        ) * 0.11
+    return _clamp(pe.signed_reward - penalty)
+
+
+def _build_cpd_switch_readout(
+    *,
+    track: Track,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    threshold: float = 0.62,
+) -> CPDSwitchReadout | None:
+    if prediction_error_snapshot is None or prediction_error_snapshot.bootstrap:
+        return None
+    pe = prediction_error_snapshot.error
+    if track is Track.WORLD:
+        pe_spike_score = _clamp(
+            abs(pe.task_error) * 0.45
+            + abs(pe.action_error) * 0.35
+            + abs(pe.regime_error) * 0.20
+        )
+    elif track is Track.SELF:
+        pe_spike_score = _clamp(
+            abs(pe.relationship_error) * 0.45
+            + abs(pe.regime_error) * 0.35
+            + abs(pe.action_error) * 0.20
+        )
+    else:
+        pe_spike_score = _clamp(pe.magnitude)
+    reward_shift_score = _clamp(abs(pe.signed_reward))
+    combined = _clamp(pe_spike_score * 0.70 + reward_shift_score * 0.30)
+    switch_recommended = combined >= threshold
+    return CPDSwitchReadout(
+        pe_spike_score=pe_spike_score,
+        reward_shift_score=reward_shift_score,
+        switch_recommended=switch_recommended,
+        threshold=threshold,
+        evidence_id=(
+            f"cpd:{track.value}:turn:{prediction_error_snapshot.turn_index}:"
+            f"{int(switch_recommended)}"
+        ),
+        description=(
+            f"CPD beta switch readout track={track.value} "
+            f"pe_spike={pe_spike_score:.3f} reward_shift={reward_shift_score:.3f} "
+            f"threshold={threshold:.3f} recommended={switch_recommended}."
+        ),
+    )
+
+
+def _build_family_outcome_feedback(
+    *,
+    track: Track,
+    active_family_id: str,
+    prediction_error_snapshot: PredictionErrorSnapshot | None,
+    credit_snapshot: CreditSnapshot | None,
+) -> FamilyOutcomeFeedback | None:
+    if not active_family_id or active_family_id == "unassigned_action":
+        return None
+    matching_credits = tuple(
+        record
+        for record in (() if credit_snapshot is None else credit_snapshot.recent_credits)
+        if record.level == "abstract_action"
+        and record.source_event == active_family_id
+        and _track_credit_matches(track, record.track)
+    )
+    delayed_credit_delta = (
+        _clamp(sum(record.credit_value for record in matching_credits) / len(matching_credits))
+        if matching_credits
+        else 0.0
+    )
+    outcome_value = _prediction_error_outcome_value(
+        track=track,
+        prediction_error_snapshot=prediction_error_snapshot,
+    )
+    session_payoff_delta = _track_session_credit_delta(
+        track=track,
+        credit_snapshot=credit_snapshot,
+    )
+    if (
+        abs(outcome_value) <= 1e-8
+        and abs(delayed_credit_delta) <= 1e-8
+        and abs(session_payoff_delta) <= 1e-8
+    ):
+        return None
+    return FamilyOutcomeFeedback(
+        family_id=active_family_id,
+        outcome_value=outcome_value,
+        delayed_credit_delta=delayed_credit_delta,
+        session_payoff_delta=session_payoff_delta,
+        credit_record_count=len(matching_credits),
+        description=(
+            f"track={track.value} family={active_family_id} "
+            f"pe={outcome_value:.3f} credit={delayed_credit_delta:.3f} "
+            f"session={session_payoff_delta:.3f} matches={len(matching_credits)}"
+        ),
+    )
+
+
+class TrackTemporalConsolidationModule(RuntimeModule[TemporalConsolidationSnapshot]):
+    value_type = TemporalConsolidationSnapshot
+    dependencies = ("reflection", "prediction_error", "credit")
+    default_wiring_level = WiringLevel.SHADOW
+
+    def __init__(
+        self,
+        *,
+        track: Track,
+        policy: TemporalPolicy | None = None,
+        prediction_error_learning_enabled: bool = True,
+        wiring_level: WiringLevel | None = None,
+    ) -> None:
+        super().__init__(wiring_level=wiring_level)
+        self._track = track
+        self.slot_name = f"{track.value}_temporal_consolidation"
+        self.owner = f"{track.value.title()}TemporalConsolidationModule"
+        self._policy = policy or FullLearnedTemporalPolicy()
+        self._prediction_error_learning_enabled = bool(
+            prediction_error_learning_enabled
+        )
+
+    @property
+    def prediction_error_learning_enabled(self) -> bool:
+        return self._prediction_error_learning_enabled
+
+    async def process(
+        self,
+        upstream: Mapping[str, Snapshot[Any]],
+    ) -> Snapshot[TemporalConsolidationSnapshot]:
+        reflection_snapshot = upstream["reflection"]
+        prediction_error_snapshot = upstream["prediction_error"]
+        credit_snapshot = upstream["credit"]
+        reflection_value = (
+            reflection_snapshot.value if isinstance(reflection_snapshot.value, ReflectionSnapshot) else None
+        )
+        prediction_error_value = (
+            prediction_error_snapshot.value
+            if isinstance(prediction_error_snapshot.value, PredictionErrorSnapshot)
+            else None
+        )
+        credit_value = credit_snapshot.value if isinstance(credit_snapshot.value, CreditSnapshot) else None
+        prediction_error_applied = (
+            _apply_track_prediction_error_signal(
+                track=self._track,
+                policy=self._policy,
+                prediction_error_snapshot=prediction_error_value,
+            )
+            if self._prediction_error_learning_enabled
+            else False
+        )
+        cpd_switch_readout = _build_cpd_switch_readout(
+            track=self._track,
+            prediction_error_snapshot=prediction_error_value,
+        )
+        self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
+        family_outcome_applied = self._policy.observe_family_outcome_feedback(
+            track=self._track,
+            prediction_error_snapshot=(
+                prediction_error_value
+                if self._prediction_error_learning_enabled
+                else None
+            ),
+            credit_snapshot=credit_value,
+        )
+        runtime_state = self._policy.export_runtime_state()
+        active_label = runtime_state.active_label if runtime_state is not None else f"{self._track.value}-temporal-unavailable"
+        learning_phase = runtime_state.learning_phase if runtime_state is not None else self._policy.mode.value
+        structure_frozen = runtime_state.structure_frozen if runtime_state is not None else False
+        active_family_summary = runtime_state.active_family_summary if runtime_state is not None else None
+        temporal_parameters = (
+            runtime_state.temporal_parameters
+            if runtime_state is not None
+            else TemporalControllerParameters(
+                residual_weight=0.0,
+                memory_weight=0.0,
+                reflection_weight=0.0,
+                switch_bias=0.0,
+            )
+        )
+        return self.publish(
+            TemporalConsolidationSnapshot(
+                track=self._track.value,
+                prediction_error_applied=prediction_error_applied,
+                reflection_observed=reflection_value is not None,
+                family_outcome_applied=family_outcome_applied,
+                active_abstract_action=active_label,
+                controller_params_hash=_hash_payload(
+                    {
+                        "track": self._track.value,
+                        "phase": learning_phase,
+                        "structure_frozen": structure_frozen,
+                        "active_label": active_label,
+                        "temporal_parameters": temporal_parameters,
+                    }
+                ),
+                learning_phase=learning_phase,
+                structure_frozen=structure_frozen,
+                active_family_long_term_payoff=(
+                    active_family_summary.long_term_payoff if active_family_summary is not None else 0.0
+                ),
+                active_family_delayed_credit_sum=(
+                    active_family_summary.delayed_credit_sum if active_family_summary is not None else 0.0
+                ),
+                active_family_outcome_score=(
+                    active_family_summary.outcome_driven_score if active_family_summary is not None else 0.0
+                ),
+                cpd_switch_readout=cpd_switch_readout,
+                description=(
+                    f"{self._track.value}-track temporal consolidation observed "
+                    f"prediction_error={'yes' if prediction_error_applied else 'no'} "
+                    f"reflection={'yes' if reflection_value is not None else 'no'} "
+                    f"family_outcome={'yes' if family_outcome_applied else 'no'} "
+                    f"phase={learning_phase} frozen={structure_frozen}."
+                ),
+            )
+        )
+
+    async def process_standalone(self, **kwargs: Any) -> Snapshot[TemporalConsolidationSnapshot]:
+        prediction_error_snapshot = kwargs.get("prediction_error_snapshot")
+        reflection_snapshot = kwargs.get("reflection_snapshot")
+        credit_snapshot = kwargs.get("credit_snapshot")
+        prediction_error_value = (
+            prediction_error_snapshot if isinstance(prediction_error_snapshot, PredictionErrorSnapshot) else None
+        )
+        reflection_value = reflection_snapshot if isinstance(reflection_snapshot, ReflectionSnapshot) else None
+        credit_value = credit_snapshot if isinstance(credit_snapshot, CreditSnapshot) else None
+        self._policy.observe_reflection_snapshot(reflection_snapshot=reflection_value)
+        prediction_error_applied = (
+            _apply_track_prediction_error_signal(
+                track=self._track,
+                policy=self._policy,
+                prediction_error_snapshot=prediction_error_value,
+            )
+            if self._prediction_error_learning_enabled
+            else False
+        )
+        cpd_switch_readout = _build_cpd_switch_readout(
+            track=self._track,
+            prediction_error_snapshot=prediction_error_value,
+        )
+        family_outcome_applied = self._policy.observe_family_outcome_feedback(
+            track=self._track,
+            prediction_error_snapshot=(
+                prediction_error_value
+                if self._prediction_error_learning_enabled
+                else None
+            ),
+            credit_snapshot=credit_value,
+        )
+        runtime_state = self._policy.export_runtime_state()
+        active_label = runtime_state.active_label if runtime_state is not None else f"{self._track.value}-temporal-unavailable"
+        learning_phase = runtime_state.learning_phase if runtime_state is not None else self._policy.mode.value
+        structure_frozen = runtime_state.structure_frozen if runtime_state is not None else False
+        active_family_summary = runtime_state.active_family_summary if runtime_state is not None else None
+        temporal_parameters = (
+            runtime_state.temporal_parameters
+            if runtime_state is not None
+            else TemporalControllerParameters(
+                residual_weight=0.0,
+                memory_weight=0.0,
+                reflection_weight=0.0,
+                switch_bias=0.0,
+            )
+        )
+        return self.publish(
+            TemporalConsolidationSnapshot(
+                track=self._track.value,
+                prediction_error_applied=prediction_error_applied,
+                reflection_observed=reflection_value is not None,
+                family_outcome_applied=family_outcome_applied,
+                active_abstract_action=active_label,
+                controller_params_hash=_hash_payload(
+                    {
+                        "track": self._track.value,
+                        "phase": learning_phase,
+                        "structure_frozen": structure_frozen,
+                        "active_label": active_label,
+                        "temporal_parameters": temporal_parameters,
+                    }
+                ),
+                learning_phase=learning_phase,
+                structure_frozen=structure_frozen,
+                active_family_long_term_payoff=(
+                    active_family_summary.long_term_payoff if active_family_summary is not None else 0.0
+                ),
+                active_family_delayed_credit_sum=(
+                    active_family_summary.delayed_credit_sum if active_family_summary is not None else 0.0
+                ),
+                active_family_outcome_score=(
+                    active_family_summary.outcome_driven_score if active_family_summary is not None else 0.0
+                ),
+                cpd_switch_readout=cpd_switch_readout,
+                description=(
+                    f"{self._track.value}-track temporal consolidation observed "
+                    f"prediction_error={'yes' if prediction_error_applied else 'no'} "
+                    f"reflection={'yes' if reflection_value is not None else 'no'} "
+                    f"family_outcome={'yes' if family_outcome_applied else 'no'} "
+                    f"phase={learning_phase} frozen={structure_frozen}."
+                ),
+            )
+        )
+
+
+class TemporalAggregateModule(RuntimeModule[TemporalAbstractionSnapshot]):
+    slot_name = "temporal_abstraction"
+    owner = "TemporalAggregateModule"
+    value_type = TemporalAbstractionSnapshot
+    dependencies = ("world_temporal", "self_temporal")
+    default_wiring_level = WiringLevel.SHADOW
+
+    async def process(
+        self,
+        upstream: Mapping[str, Snapshot[Any]],
+    ) -> Snapshot[TemporalAbstractionSnapshot]:
+        world_snapshot = upstream["world_temporal"]
+        self_snapshot = upstream["self_temporal"]
+        world_value = world_snapshot.value
+        self_value = self_snapshot.value
+        if not isinstance(world_value, TemporalAbstractionSnapshot):
+            raise TypeError("world_temporal must publish TemporalAbstractionSnapshot.")
+        if not isinstance(self_value, TemporalAbstractionSnapshot):
+            raise TypeError("self_temporal must publish TemporalAbstractionSnapshot.")
+        return self.publish(
+            build_temporal_aggregate_snapshot(
+                world_snapshot=world_value,
+                self_snapshot=self_value,
+            )
+        )
+
+    async def process_standalone(self, **kwargs: Any) -> Snapshot[TemporalAbstractionSnapshot]:
+        world_snapshot = kwargs.get("world_snapshot")
+        self_snapshot = kwargs.get("self_snapshot")
+        if not isinstance(world_snapshot, TemporalAbstractionSnapshot):
+            raise TypeError("world_snapshot must be TemporalAbstractionSnapshot.")
+        if not isinstance(self_snapshot, TemporalAbstractionSnapshot):
+            raise TypeError("self_snapshot must be TemporalAbstractionSnapshot.")
+        return self.publish(
+            build_temporal_aggregate_snapshot(
+                world_snapshot=world_snapshot,
+                self_snapshot=self_snapshot,
+            )
+        )

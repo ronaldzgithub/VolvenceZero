@@ -24,6 +24,7 @@ import pathlib
 import platform
 import queue
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -48,7 +49,12 @@ from volvence_zero.social import (
     PreferenceActionForecastRuntime,
     SocialRecordStore,
 )
-from volvence_zero.social_cognition import PreferenceActionOutcomeEvidence
+from volvence_zero.social_cognition import (
+    PreferenceActionForecast,
+    PreferenceActionOutcomeEvidence,
+    preference_action_forecast_from_payload,
+    preference_action_forecast_to_payload,
+)
 from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind
 
 from lifeform_domain_emogpt.lab.contracts import canonical_json, sha256_json
@@ -88,6 +94,7 @@ from lifeform_domain_emogpt.relationship_forecast import (
     BoundedRelationshipPreferenceForecastRuntime,
 )
 from lifeform_domain_emogpt.relationship_condition_reader import (
+    PrototypeRelationshipPreferenceForecastRuntime,
     RelationshipConditionPrototype,
     RelationshipConditionReaderArtifact,
 )
@@ -120,9 +127,12 @@ from lifeform_evolution.relationship_lab_product_baseline_dispatcher import (
 )
 from lifeform_evolution.relationship_lab_product_model_adapters import (
     BGE_M3_MODEL_ID,
+    BGE_M3_SENTENCE_TRANSFORMERS_VERSION,
+    BGE_M3_WEIGHT_BYTES_SHA256,
     PrecomputedPublicEmbeddingTable,
     PrecomputedPublicSemanticEmbedder,
     bge_m3_public_semantic_embedder,
+    bge_m3_weight_pinned_embedder_identity,
     build_precomputed_public_embedding_table,
     load_precomputed_public_embedding_table,
 )
@@ -136,8 +146,19 @@ RELATIONSHIP_PRODUCT_HORIZON_SCHEMA_VERSION_V2 = "relationship-product-horizon-c
 RELATIONSHIP_PRODUCT_HORIZON_SCHEMA_VERSION = RELATIONSHIP_PRODUCT_HORIZON_SCHEMA_VERSION_V2
 RELATIONSHIP_PRODUCT_WORKER_REQUEST_SCHEMA_VERSION = "relationship-product-worker-request.v1"
 RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION = "relationship-product-preaction-receipt.v1"
+RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION_V2 = "relationship-product-preaction-receipt.v2"
+PREFERENCE_ACTION_FORECAST_SNAPSHOT_SCHEMA_VERSION = "preference-action-forecast-snapshot.v1"
 RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION = "relationship-product-postaction-receipt.v1"
+RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION_V2 = (
+    "relationship-product-postaction-receipt.v2"
+)
 RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION = "relationship-product-onboarding-receipt.v1"
+RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION_V2 = (
+    "relationship-product-onboarding-receipt.v2"
+)
+RELATIONSHIP_PRODUCT_WORKER_SOURCE_LINEAGE_SCHEMA_VERSION = (
+    "relationship-product-worker-source-lineage.v1"
+)
 RELATIONSHIP_PRODUCT_REPORT_SCHEMA_VERSION = "relationship-product-horizon-report.v1"
 RELATIONSHIP_PRODUCT_MANIFEST_SCHEMA_VERSION = "relationship-product-horizon-manifest.v1"
 _BGE_M3_REVISION = "5617a9f61b028005a4858fdac845db406aefb181"
@@ -189,7 +210,7 @@ _PRODUCT_CONDITION_PROTOTYPES = (
         ),
     ),
 )
-_BGE_M3_WEIGHTS_SHA256 = "b5e0ce3470abf5ef3831aa1bd5553b486803e83251590ab7ff35a117cf6aad38"
+_BGE_M3_WEIGHTS_SHA256 = BGE_M3_WEIGHT_BYTES_SHA256
 _SUBPROCESS_ENVIRONMENT_CONTRACT = {
     "HF_HUB_OFFLINE": "1",
     "PYTHONIOENCODING": "utf-8:strict",
@@ -197,6 +218,24 @@ _SUBPROCESS_ENVIRONMENT_CONTRACT = {
     "PYTHONUTF8": "1",
     "TRANSFORMERS_OFFLINE": "1",
 }
+_SUBPROCESS_ENVIRONMENT_CONTRACT_V2 = {
+    **_SUBPROCESS_ENVIRONMENT_CONTRACT,
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONHOME": None,
+    "PYTHONPATH": None,
+    "PYTHONSAFEPATH": "1",
+}
+_CRITICAL_LOCAL_MODULE_NAMES = (
+    "lifeform_domain_emogpt.lab.relationship_product_pilot_source",
+    "lifeform_domain_emogpt.lab.relationship_product_pulse",
+    "lifeform_domain_emogpt.relationship_action_gate",
+    "lifeform_domain_emogpt.relationship_condition_reader",
+    "lifeform_domain_emogpt.relationship_forecast",
+    "lifeform_evolution.relationship_lab_product_horizon",
+    "volvence_zero.owner_hydration_store",
+    "volvence_zero.social.record_store",
+    "volvence_zero.social_cognition",
+)
 _EXECUTION_SOURCE_KEYS = (
     "baseline_dispatcher_cli",
     "baseline_dispatcher_implementation",
@@ -206,6 +245,62 @@ _EXECUTION_SOURCE_KEYS = (
     "campaign_implementation",
     "model_adapters_implementation",
 )
+_LOCAL_EXECUTION_SOURCE_TREE_SCHEMA_VERSION = (
+    "relationship-product-local-execution-source-tree.v1"
+)
+_LOCAL_EXECUTION_SOURCE_TREE_SELECTOR = "packages/*/src/**/*.py"
+_NON_AUTHORIZING_TEST_PROTOCOL_ENV = (
+    "VOLVENCE_RELATIONSHIP_PRODUCT_HORIZON_NON_AUTHORIZING_TEST_PROTOCOL"
+)
+_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS = (
+    "scripts/run_relationship_lab_product_baseline_dispatcher.py",
+    "scripts/run_relationship_lab_product_horizon.py",
+)
+_LOCAL_EXECUTION_RESOURCE_PATHS = (
+    (
+        "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/"
+        "lab_protocols/relationship_product_pilot_source_v1.json"
+    ),
+    (
+        "packages/lifeform-evolution/src/lifeform_evolution/"
+        "prompts/relationship_lab_full_history_steelman_v2.txt"
+    ),
+    (
+        "packages/lifeform-evolution/src/lifeform_evolution/"
+        "prompts/relationship_lab_rag_steelman_v2.txt"
+    ),
+    (
+        "packages/lifeform-evolution/src/lifeform_evolution/"
+        "prompts/relationship_lab_stateless_v1.txt"
+    ),
+    (
+        "packages/lifeform-evolution/src/lifeform_evolution/"
+        "protocols/relationship_product_horizon_campaign_v1.json"
+    ),
+    (
+        "packages/lifeform-evolution/src/lifeform_evolution/"
+        "schemas/relationship_action_choice.schema.json"
+    ),
+)
+_LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH = (
+    "packages/lifeform-evolution/src/lifeform_evolution/"
+    "protocols/relationship_product_horizon_campaign_v2.json"
+)
+_LOCAL_EXECUTION_SOURCE_CANONICALIZATION = (
+    "utf8-strict-newlines-to-lf-preserve-eof.v1"
+)
+_ACTIVE_PROTOCOL_RESOURCE_SCHEMA_VERSION = (
+    "relationship-product-active-protocol-resource.v1"
+)
+_HORIZON_SEGMENT_WINDOWS = (
+    ("post_reversal", (12, 15)),
+    ("correction", (16, 17)),
+    ("post_correction", (18, 19)),
+    ("return_after_gap", (20, 21)),
+    ("mixed_stress", (22, 23)),
+)
+_MINIMUM_NONNEGATIVE_HORIZON_SEGMENTS_PER_COMPARATOR = 4
+_MINIMUM_POSITIVE_HORIZON_SEGMENTS_PER_COMPARATOR = 2
 _SEALED_KEYS = frozenset(
     {
         "active_policy_mode",
@@ -276,6 +371,11 @@ class RelationshipProductHorizonProtocol:
     minimum_subjects_with_positive_paired_effect: int
     maximum_full_safety_rate_increase_vs_any_comparator: float
     execution_source_sha256s: tuple[tuple[str, str], ...]
+    local_execution_source_tree_sha256: str | None = None
+    local_execution_source_file_count: int = 0
+    local_execution_source_canonical_bytes: int = 0
+    semantic_model_weights_sha256: str | None = None
+    semantic_sentence_transformers_version: str | None = None
     condition_reader_artifact_id: str | None = None
     baseline_constrained_action_choice: bool = False
     schema_version: str = RELATIONSHIP_PRODUCT_HORIZON_SCHEMA_VERSION_V1
@@ -360,12 +460,56 @@ class RelationshipProductHorizonProtocol:
                 self.condition_reader_artifact_id,
                 "condition_reader_artifact_id",
             )
+            frozen_v2_digests = (
+                self.baseline_generation_config_sha256,
+                self.baseline_native_prompt_sha256,
+                self.baseline_rag_prompt_sha256,
+                self.semantic_table_artifact_id,
+                self.semantic_table_raw_sha256,
+                self.semantic_model_weights_sha256,
+                self.condition_reader_artifact_id,
+            )
+            if self.execution_source_sha256s:
+                raise ValueError(
+                    "v2 product campaign uses the canonical source tree, not legacy raw pins"
+                )
+            if any(digest == "0" * 64 for digest in frozen_v2_digests):
+                raise ValueError("v2 product campaign contains an unfrozen digest pin")
+            _require_sha256(
+                self.local_execution_source_tree_sha256,
+                "local_execution_source_tree_sha256",
+            )
+            _require_sha256(
+                self.semantic_model_weights_sha256,
+                "semantic_model_weights_sha256",
+            )
+            if self.semantic_model_weights_sha256 != _BGE_M3_WEIGHTS_SHA256:
+                raise ValueError("v2 semantic model weight pin drifted")
+            if (
+                self.semantic_sentence_transformers_version
+                != BGE_M3_SENTENCE_TRANSFORMERS_VERSION
+            ):
+                raise ValueError("v2 sentence-transformers runtime pin drifted")
+            if self.local_execution_source_tree_sha256 == "0" * 64:
+                raise ValueError("v2 product campaign source-tree pin is unfrozen")
+            if self.local_execution_source_file_count < 1:
+                raise ValueError("v2 product campaign source-tree file count must be positive")
+            if self.local_execution_source_canonical_bytes < 1:
+                raise ValueError("v2 product campaign source-tree byte count must be positive")
             expected_reader = relationship_product_condition_reader_artifact()
             if self.condition_reader_artifact_id != expected_reader.artifact_id:
                 raise ValueError("product condition-reader artifact pin drifted")
             if self.baseline_constrained_action_choice is not True:
                 raise ValueError("v2 product campaign requires constrained baseline action choice")
-        elif self.condition_reader_artifact_id is not None or self.baseline_constrained_action_choice:
+        elif (
+            self.condition_reader_artifact_id is not None
+            or self.baseline_constrained_action_choice
+            or self.local_execution_source_tree_sha256 is not None
+            or self.local_execution_source_file_count != 0
+            or self.local_execution_source_canonical_bytes != 0
+            or self.semantic_model_weights_sha256 is not None
+            or self.semantic_sentence_transformers_version is not None
+        ):
             raise ValueError("v1 product campaign cannot claim v2 reader/decoder controls")
         if not 0.0 <= self.maximum_full_safety_rate_increase_vs_any_comparator <= 1.0:
             raise ValueError("product campaign safety noninferiority margin must be in [0, 1]")
@@ -424,6 +568,72 @@ def relationship_product_horizon_protocol_paths() -> tuple[pathlib.Path, ...]:
         relationship_product_horizon_protocol_path("v2"),
         relationship_product_horizon_protocol_path("v1"),
     )
+
+
+def _non_authorizing_test_protocol_path() -> pathlib.Path | None:
+    """Return the explicit pytest-only protocol override, never a production fallback."""
+
+    raw_path = os.environ.get(_NON_AUTHORIZING_TEST_PROTOCOL_ENV)
+    if raw_path is None:
+        return None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        raise RuntimeError("non-authorizing product protocol override is pytest-only")
+    path = pathlib.Path(raw_path).resolve()
+    if not path.name.endswith(".non_authorizing_test.json") or not path.is_file():
+        raise ValueError("non-authorizing product test protocol path is invalid")
+    protocol = load_relationship_product_horizon_protocol(path)
+    if not protocol.is_v2:
+        raise ValueError("non-authorizing product test protocol must use the v2 contract")
+    registered = {item.resolve() for item in relationship_product_horizon_protocol_paths()}
+    if path in registered:
+        raise ValueError("non-authorizing product test protocol must have a distinct identity")
+    return path
+
+
+def _admitted_product_protocol_paths() -> tuple[pathlib.Path, ...]:
+    test_path = _non_authorizing_test_protocol_path()
+    registered_paths = relationship_product_horizon_protocol_paths()
+    if test_path is None:
+        return registered_paths
+    test_bytes = test_path.read_bytes()
+    if any(
+        path.is_file() and path.read_bytes() == test_bytes
+        for path in registered_paths
+    ):
+        return registered_paths
+    return (*registered_paths, test_path)
+
+
+def _registered_product_protocol_path_for_bytes(raw_bytes: bytes) -> pathlib.Path:
+    matches = tuple(
+        path
+        for path in _admitted_product_protocol_paths()
+        if path.is_file() and path.read_bytes() == raw_bytes
+    )
+    if len(matches) != 1:
+        raise ValueError(
+            "campaign protocol differs from every packaged preregistration SSOT"
+        )
+    return matches[0]
+
+
+def _registered_product_protocol_for_id(
+    protocol_id: object,
+) -> RelationshipProductHorizonProtocol:
+    expected = _digest(protocol_id, "protocol_id")
+    identified_paths: list[pathlib.Path] = []
+    for path in _admitted_product_protocol_paths():
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"registered product protocol is invalid JSON: {path}") from exc
+        if isinstance(payload, Mapping) and sha256_json(payload) == expected:
+            identified_paths.append(path)
+    if len(identified_paths) != 1:
+        raise ValueError("worker protocol_id is not one registered product preregistration")
+    return load_relationship_product_horizon_protocol(identified_paths[0])
 
 
 def load_relationship_product_horizon_protocol(
@@ -959,7 +1169,7 @@ def _load_relationship_product_horizon_protocol_v2(
         "rag_top_k",
         "output_commit_rule",
         "validate_existing_requires_model_or_cuda",
-        "execution_source_sha256s",
+        "local_execution_source_tree",
     }
     _require_exact_keys(execution, expected_execution_keys, "execution")
     if (
@@ -1007,6 +1217,8 @@ def _load_relationship_product_horizon_protocol_v2(
         {
             "model_source",
             "model_revision",
+            "embedding_weights_sha256",
+            "sentence_transformers_version",
             "device",
             "stub_fallback_allowed",
             "public_ledger_provenance_required",
@@ -1021,6 +1233,10 @@ def _load_relationship_product_horizon_protocol_v2(
     if {
         "model_source": semantic.get("model_source"),
         "model_revision": semantic.get("model_revision"),
+        "embedding_weights_sha256": semantic.get("embedding_weights_sha256"),
+        "sentence_transformers_version": semantic.get(
+            "sentence_transformers_version"
+        ),
         "device": semantic.get("device"),
         "stub_fallback_allowed": semantic.get("stub_fallback_allowed"),
         "public_ledger_provenance_required": semantic.get("public_ledger_provenance_required"),
@@ -1032,6 +1248,8 @@ def _load_relationship_product_horizon_protocol_v2(
     } != {
         "model_source": BGE_M3_MODEL_ID,
         "model_revision": _BGE_M3_REVISION,
+        "embedding_weights_sha256": _BGE_M3_WEIGHTS_SHA256,
+        "sentence_transformers_version": BGE_M3_SENTENCE_TRANSFORMERS_VERSION,
         "device": "cuda",
         "stub_fallback_allowed": False,
         "public_ledger_provenance_required": True,
@@ -1061,24 +1279,52 @@ def _load_relationship_product_horizon_protocol_v2(
     if _mapping(execution["named_condition_reader"], "execution.named_condition_reader") != expected_reader:
         raise ValueError("campaign v2 named condition reader contract drifted")
 
-    raw_execution_sources = _mapping(
-        execution.get("execution_source_sha256s"),
-        "execution.execution_source_sha256s",
+    execution_source_sha256s: tuple[tuple[str, str], ...] = ()
+    local_source_tree = _mapping(
+        execution.get("local_execution_source_tree"),
+        "execution.local_execution_source_tree",
     )
     _require_exact_keys(
-        raw_execution_sources,
-        set(_EXECUTION_SOURCE_KEYS),
-        "execution.execution_source_sha256s",
+        local_source_tree,
+        {
+            "schema_version",
+            "selector",
+            "entrypoints",
+            "resource_paths",
+            "active_protocol_path",
+            "canonicalization",
+            "tree_sha256",
+            "file_count",
+            "canonical_bytes",
+        },
+        "execution.local_execution_source_tree",
     )
-    execution_source_sha256s = tuple(
-        (
-            key,
-            _digest(
-                raw_execution_sources.get(key),
-                f"execution.execution_source_sha256s.{key}",
-            ),
-        )
-        for key in _EXECUTION_SOURCE_KEYS
+    if (
+        local_source_tree.get("schema_version")
+        != _LOCAL_EXECUTION_SOURCE_TREE_SCHEMA_VERSION
+        or local_source_tree.get("selector")
+        != _LOCAL_EXECUTION_SOURCE_TREE_SELECTOR
+        or local_source_tree.get("entrypoints")
+        != list(_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS)
+        or local_source_tree.get("resource_paths")
+        != list(_LOCAL_EXECUTION_RESOURCE_PATHS)
+        or local_source_tree.get("active_protocol_path")
+        != _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH
+        or local_source_tree.get("canonicalization")
+        != _LOCAL_EXECUTION_SOURCE_CANONICALIZATION
+    ):
+        raise ValueError("campaign v2 local Python source-tree contract drifted")
+    local_source_tree_sha256 = _digest(
+        local_source_tree.get("tree_sha256"),
+        "execution.local_execution_source_tree.tree_sha256",
+    )
+    local_source_file_count = _integer(
+        local_source_tree.get("file_count"),
+        "execution.local_execution_source_tree.file_count",
+    )
+    local_source_canonical_bytes = _integer(
+        local_source_tree.get("canonical_bytes"),
+        "execution.local_execution_source_tree.canonical_bytes",
     )
 
     _require_exact_keys(
@@ -1092,9 +1338,13 @@ def _load_relationship_product_horizon_protocol_v2(
             "development_directional_effect_floor",
             "minimum_subjects_with_positive_paired_effect",
             "maximum_full_safety_rate_increase_vs_any_comparator",
-            "stage_two_admission_requires_all_four_targeted_axis_interventions",
+            "stage_two_admission_requires_all_targeted_interventions",
             "stage_two_admission_requires_full_vs_each_strong_baseline",
             "stage_two_admission_requires_safety_noninferiority",
+            "stage_two_admission_requires_horizon_durability",
+            "horizon_segment_windows",
+            "minimum_nonnegative_horizon_segments_per_comparator",
+            "minimum_positive_horizon_segments_per_comparator",
             "no_interim_source_or_threshold_tuning_from_results",
             "single_axis_contrast_claim_authorized",
             "intervention_scope",
@@ -1102,14 +1352,29 @@ def _load_relationship_product_horizon_protocol_v2(
         "analysis",
     )
     if (
-        analysis.get("stage_two_admission_requires_all_four_targeted_axis_interventions") is not True
+        analysis.get("stage_two_admission_requires_all_targeted_interventions")
+        is not True
         or analysis.get("stage_two_admission_requires_full_vs_each_strong_baseline") is not True
         or analysis.get("stage_two_admission_requires_safety_noninferiority") is not True
+        or analysis.get("stage_two_admission_requires_horizon_durability")
+        is not True
         or analysis.get("no_interim_source_or_threshold_tuning_from_results") is not True
         or analysis.get("single_axis_contrast_claim_authorized") is not False
         or analysis.get("safety_endpoint") != "missed_or_over_directive_typed_outcome_rate"
     ):
         raise ValueError("campaign v2 analysis admission contract drifted")
+    expected_horizon_windows = {
+        name: [bounds[0], bounds[1]]
+        for name, bounds in _HORIZON_SEGMENT_WINDOWS
+    }
+    if (
+        analysis.get("horizon_segment_windows") != expected_horizon_windows
+        or analysis.get("minimum_nonnegative_horizon_segments_per_comparator")
+        != _MINIMUM_NONNEGATIVE_HORIZON_SEGMENTS_PER_COMPARATOR
+        or analysis.get("minimum_positive_horizon_segments_per_comparator")
+        != _MINIMUM_POSITIVE_HORIZON_SEGMENTS_PER_COMPARATOR
+    ):
+        raise ValueError("campaign v2 horizon durability contract drifted")
     expected_interventions = {
         "appendable_frozen_onboarding": (
             "holds the post-onboarding owner boundary fixed while retaining the learned gate checkpoint"
@@ -1239,6 +1504,17 @@ def _load_relationship_product_horizon_protocol_v2(
             "analysis.maximum_full_safety_rate_increase_vs_any_comparator",
         ),
         execution_source_sha256s=execution_source_sha256s,
+        local_execution_source_tree_sha256=local_source_tree_sha256,
+        local_execution_source_file_count=local_source_file_count,
+        local_execution_source_canonical_bytes=local_source_canonical_bytes,
+        semantic_model_weights_sha256=_digest(
+            semantic.get("embedding_weights_sha256"),
+            "semantic.embedding_weights_sha256",
+        ),
+        semantic_sentence_transformers_version=_text(
+            semantic.get("sentence_transformers_version"),
+            "semantic.sentence_transformers_version",
+        ),
         condition_reader_artifact_id=reader_artifact.artifact_id,
         baseline_constrained_action_choice=True,
         schema_version=RELATIONSHIP_PRODUCT_HORIZON_SCHEMA_VERSION_V2,
@@ -1296,15 +1572,37 @@ def verify_relationship_product_public_embedding_table(
     *,
     table_path: pathlib.Path,
     output_attestation_path: pathlib.Path,
+    protocol_path: pathlib.Path | None = None,
 ) -> Mapping[str, object]:
     """Fresh-process exact reobservation of the protocol-pinned public table."""
 
+    protocol = load_relationship_product_horizon_protocol(protocol_path)
+    environment_contract = _subprocess_environment_contract(protocol)
     if (
         sys.flags.no_user_site != 1
-        or {key: os.environ.get(key) for key in _SUBPROCESS_ENVIRONMENT_CONTRACT} != _SUBPROCESS_ENVIRONMENT_CONTRACT
+        or {key: os.environ.get(key) for key in environment_contract}
+        != environment_contract
     ):
         raise RuntimeError("embedding reobservation requires python -s and the offline environment")
-    protocol = load_relationship_product_horizon_protocol()
+    if protocol.is_v2:
+        observed_source_tree, _source_files = _local_execution_source_tree(
+            repository_root=pathlib.Path(__file__).resolve().parents[4],
+        )
+        expected_source_tree = {
+            "schema_version": _LOCAL_EXECUTION_SOURCE_TREE_SCHEMA_VERSION,
+            "selector": _LOCAL_EXECUTION_SOURCE_TREE_SELECTOR,
+            "entrypoints": list(_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS),
+            "resource_paths": list(_LOCAL_EXECUTION_RESOURCE_PATHS),
+            "active_protocol_path": _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH,
+            "canonicalization": _LOCAL_EXECUTION_SOURCE_CANONICALIZATION,
+            "tree_sha256": protocol.local_execution_source_tree_sha256,
+            "file_count": protocol.local_execution_source_file_count,
+            "canonical_bytes": protocol.local_execution_source_canonical_bytes,
+        }
+        if observed_source_tree != expected_source_tree:
+            raise ValueError(
+                "embedding reobservation local source tree differs from protocol"
+            )
     source = load_relationship_product_pilot_source_protocol()
     public = build_relationship_product_pilot_public_view(source)
     table_source = pathlib.Path(table_path).resolve()
@@ -1314,13 +1612,28 @@ def verify_relationship_product_public_embedding_table(
         table=table,
         table_path=table_source,
     )
+    if not protocol.is_v2:
+        raise ValueError(
+            "legacy v1 embedding reobservation is immutable; validate its stored attestation"
+        )
     embedder = bge_m3_public_semantic_embedder(
         device=protocol.semantic_device,
         model_revision=protocol.semantic_model_revision,
+        weights_sha256=_digest(
+            protocol.semantic_model_weights_sha256,
+            "semantic model weights_sha256",
+        ),
+        sentence_transformers_version=_text(
+            protocol.semantic_sentence_transformers_version,
+            "semantic sentence-transformers version",
+        ),
     )
     recomputed = build_precomputed_public_embedding_table(
         embedder=embedder,
-        public_inputs=relationship_product_public_embedding_inputs(public),
+        public_inputs=relationship_product_public_embedding_inputs(
+            public,
+            protocol=protocol,
+        ),
     )
     exact_match = recomputed.to_payload() == table.to_payload()
     if not exact_match:
@@ -1342,8 +1655,16 @@ def verify_relationship_product_public_embedding_table(
         "parent_pid": os.getppid(),
         "python_executable": sys.executable,
         "python_no_user_site": sys.flags.no_user_site == 1,
-        "subprocess_environment_contract": dict(_SUBPROCESS_ENVIRONMENT_CONTRACT),
+        "subprocess_environment_contract": dict(environment_contract),
     }
+    if protocol.is_v2:
+        core["model_weights_sha256"] = protocol.semantic_model_weights_sha256
+        core["sentence_transformers_version"] = (
+            protocol.semantic_sentence_transformers_version
+        )
+        core["local_execution_source_tree_sha256"] = (
+            protocol.local_execution_source_tree_sha256
+        )
     attestation = _with_artifact_id(core)
     _write_json_create_only(
         pathlib.Path(output_attestation_path),
@@ -1404,6 +1725,8 @@ class _ResidentBaselineDispatcher:
         command: Sequence[str],
         timeout_seconds: float,
         execution_source_bundle_artifact_id: str,
+        protocol: RelationshipProductHorizonProtocol,
+        working_directory: pathlib.Path | None,
     ) -> _ResidentBaselineDispatcher:
         if (
             not isinstance(command, Sequence)
@@ -1428,6 +1751,7 @@ class _ResidentBaselineDispatcher:
             text=True,
             encoding="utf-8",
             env=_child_environment(),
+            cwd=working_directory,
         )
         assert process.stderr is not None
         stderr_lines: list[str] = []
@@ -1439,19 +1763,50 @@ class _ResidentBaselineDispatcher:
                     del stderr_lines[:100]
 
         threading.Thread(target=drain_stderr, daemon=True).start()
-        startup_attestation = _with_artifact_id(
-            {
-                "schema_version": ("relationship-product-baseline-dispatcher-startup.v1"),
-                "command": list(command),
-                "process_pid": process.pid,
-                "python_executable_resolved": str(pathlib.Path(command[0]).resolve()),
-                "python_executable_sha256": _sha256_file(pathlib.Path(command[0]).resolve()),
-                "dispatcher_script_resolved": str(pathlib.Path(command[2]).resolve()),
-                "dispatcher_script_sha256": _sha256_file(pathlib.Path(command[2]).resolve()),
-                "execution_source_bundle_artifact_id": (execution_source_bundle_artifact_id),
-                "subprocess_environment_contract": dict(_SUBPROCESS_ENVIRONMENT_CONTRACT),
-            }
+        python_path = pathlib.Path(command[0]).resolve()
+        raw_dispatcher_path = pathlib.Path(command[2])
+        dispatcher_path = (
+            (pathlib.Path(working_directory) / raw_dispatcher_path).resolve()
+            if not raw_dispatcher_path.is_absolute()
+            and working_directory is not None
+            else raw_dispatcher_path.resolve()
         )
+        startup_core: dict[str, object] = {
+            "schema_version": (
+                "relationship-product-baseline-dispatcher-startup.v2"
+                if protocol.is_v2
+                else "relationship-product-baseline-dispatcher-startup.v1"
+            ),
+            "command": list(command),
+            "process_pid": process.pid,
+            "python_executable_resolved": str(python_path),
+            "python_executable_sha256": _sha256_file(python_path),
+            "execution_source_bundle_artifact_id": (
+                execution_source_bundle_artifact_id
+            ),
+            "subprocess_environment_contract": dict(
+                _subprocess_environment_contract(protocol)
+            ),
+        }
+        if protocol.is_v2:
+            startup_core.update(
+                {
+                    "dispatcher_script_repository_path": (
+                        _LOCAL_EXECUTION_SOURCE_ENTRYPOINTS[0]
+                    ),
+                    "dispatcher_script_raw_sha256": _sha256_file(
+                        dispatcher_path
+                    ),
+                }
+            )
+        else:
+            startup_core.update(
+                {
+                    "dispatcher_script_resolved": str(dispatcher_path),
+                    "dispatcher_script_sha256": _sha256_file(dispatcher_path),
+                }
+            )
+        startup_attestation = _with_artifact_id(startup_core)
         return cls(
             process=process,
             timeout_seconds=timeout_seconds,
@@ -1533,17 +1888,30 @@ def run_relationship_product_horizon_campaign(
     chosen = selection or RelationshipProductCampaignSelection()
     if not chosen.is_full and not allow_test_semantic_backend:
         raise ValueError("a reduced cohort is test-only and must be explicitly authorized")
-    if protocol_path is not None:
+    protocol_source = pathlib.Path(
+        protocol_path or relationship_product_horizon_protocol_path()
+    ).resolve()
+    registered_sources = {
+        path.resolve()
+        for path in _admitted_product_protocol_paths()
+        if path.is_file()
+    }
+    if protocol_source not in registered_sources:
         raise ValueError(
-            "product-horizon campaign protocol overrides are not admitted; "
-            "the packaged preregistration is the external SSOT"
+            "product-horizon campaign only admits a packaged registered preregistration"
         )
     if chosen.is_full and sys.flags.no_user_site != 1:
         raise RuntimeError("formal product-horizon campaign must launch the parent with python -s")
     if max_workers < 1:
         raise ValueError("max_workers must be >= 1")
-    protocol = load_relationship_product_horizon_protocol()
-    if chosen.is_full and not protocol.execution_source_sha256s:
+    protocol = load_relationship_product_horizon_protocol(protocol_source)
+    test_protocol_path = _non_authorizing_test_protocol_path()
+    if test_protocol_path is not None and protocol_source == test_protocol_path:
+        if chosen.is_full or not allow_test_semantic_backend:
+            raise ValueError(
+                "non-authorizing product test protocol requires a reduced fake-backend run"
+            )
+    if chosen.is_full and not protocol.is_v2 and not protocol.execution_source_sha256s:
         raise ValueError("formal campaign protocol lacks execution source pins")
     expected_campaign_cli = (
         pathlib.Path(__file__).resolve().parents[4] / "scripts" / "run_relationship_lab_product_horizon.py"
@@ -1595,7 +1963,11 @@ def run_relationship_product_horizon_campaign(
     elif public_embedding_attestation_path is not None:
         raise ValueError("fake semantic backend cannot carry formal reobservation")
     embedder = PrecomputedPublicSemanticEmbedder(table)
-    for text_value in relationship_product_required_semantic_texts(public_view, selection=chosen):
+    for text_value in relationship_product_required_semantic_texts(
+        public_view,
+        selection=chosen,
+        protocol=protocol,
+    ):
         embedder.embed(text_value)
 
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -1605,7 +1977,7 @@ def run_relationship_product_horizon_campaign(
         (temp_root / "inputs").mkdir(parents=True)
         _write_bytes_create_only(
             temp_root / "protocol.json",
-            relationship_product_horizon_protocol_path().read_bytes(),
+            protocol_source.read_bytes(),
         )
         public_payload = public_view.to_sut_payload()
         _write_json_create_only(temp_root / "source" / "public" / "public_plan.json", public_payload)
@@ -1620,21 +1992,61 @@ def run_relationship_product_horizon_campaign(
             root=temp_root,
             protocol=protocol,
             campaign_cli=pathlib.Path(worker_script).resolve(),
+            protocol_source=protocol_source,
         )
+        if (
+            _validate_execution_source_bundle(
+                root=temp_root,
+                protocol=protocol,
+            )
+            != execution_source_bundle
+        ):
+            raise RuntimeError("published execution source bundle changed during preflight")
+        bundled_worker_script = pathlib.Path(worker_script).resolve()
+        bundled_baseline_dispatcher_command = baseline_dispatcher_command
+        if protocol.is_v2:
+            bundled_worker_script = _resolve_relative(
+                temp_root,
+                (
+                    "inputs/execution_sources/tree/scripts/"
+                    "run_relationship_lab_product_horizon.py"
+                ),
+            )
+            if baseline_dispatcher_command is not None:
+                _resolve_relative(
+                    temp_root,
+                    (
+                        "inputs/execution_sources/tree/scripts/"
+                        "run_relationship_lab_product_baseline_dispatcher.py"
+                    ),
+                )
+                bundled_baseline_dispatcher_command = (
+                    *baseline_dispatcher_command[:2],
+                    _LOCAL_EXECUTION_SOURCE_ENTRYPOINTS[0],
+                    *baseline_dispatcher_command[3:],
+                )
 
         subjects = public_view.subjects[: chosen.subject_count]
-        typed_tasks = tuple((subject, RelationshipProductArm(arm)) for subject in subjects for arm in _VOLVENCE_ARMS)
+        typed_tasks = tuple(
+            (subject, RelationshipProductArm(arm))
+            for subject in subjects
+            for arm in protocol.volvence_arms
+        )
         chain_args = {
             "root": temp_root,
             "protocol": protocol,
             "evaluator": evaluator,
             "selection": chosen,
-            "worker_script": pathlib.Path(worker_script).resolve(),
+            "worker_script": bundled_worker_script,
             "python_executable": python_executable,
             "semantic_table_relpath": _relative_posix(temp_root, table_target),
             "semantic_table_artifact_id": table.artifact_id,
             "semantic_backend": semantic_backend,
             "worker_timeout_seconds": worker_timeout_seconds,
+            "execution_source_bundle_artifact_id": _digest(
+                execution_source_bundle.get("artifact_id"),
+                "execution source bundle artifact_id",
+            ),
         }
         with ThreadPoolExecutor(max_workers=min(max_workers, len(typed_tasks))) as executor:
             futures = [
@@ -1646,13 +2058,19 @@ def run_relationship_product_horizon_campaign(
         baseline_chains: tuple[Mapping[str, object], ...] = ()
         dispatcher: _ResidentBaselineDispatcher | None = None
         try:
-            if baseline_dispatcher_command is not None:
+            if bundled_baseline_dispatcher_command is not None:
                 dispatcher = _ResidentBaselineDispatcher.start(
-                    command=baseline_dispatcher_command,
+                    command=bundled_baseline_dispatcher_command,
                     timeout_seconds=baseline_timeout_seconds,
                     execution_source_bundle_artifact_id=_digest(
                         execution_source_bundle.get("artifact_id"),
                         "execution source bundle artifact_id",
+                    ),
+                    protocol=protocol,
+                    working_directory=(
+                        temp_root / "inputs" / "execution_sources" / "tree"
+                        if protocol.is_v2
+                        else None
                     ),
                 )
             if baseline_suite is not None or dispatcher is not None:
@@ -1675,6 +2093,24 @@ def run_relationship_product_horizon_campaign(
             if dispatcher is not None:
                 dispatcher.close()
 
+        if protocol.is_v2:
+            final_source_tree, _source_files = _local_execution_source_tree(
+                repository_root=pathlib.Path(__file__).resolve().parents[4],
+            )
+            expected_source_tree = {
+                "schema_version": _LOCAL_EXECUTION_SOURCE_TREE_SCHEMA_VERSION,
+                "selector": _LOCAL_EXECUTION_SOURCE_TREE_SELECTOR,
+                "entrypoints": list(_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS),
+                "resource_paths": list(_LOCAL_EXECUTION_RESOURCE_PATHS),
+                "active_protocol_path": _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH,
+                "canonicalization": _LOCAL_EXECUTION_SOURCE_CANONICALIZATION,
+                "tree_sha256": protocol.local_execution_source_tree_sha256,
+                "file_count": protocol.local_execution_source_file_count,
+                "canonical_bytes": protocol.local_execution_source_canonical_bytes,
+            }
+            if final_source_tree != expected_source_tree:
+                raise RuntimeError("local execution source tree changed during campaign")
+
         # No child/model action remains live beyond this point.  Sealed source
         # and evaluator-derived sidecars are published only after every action
         # has been frozen in parent memory.
@@ -1691,6 +2127,7 @@ def run_relationship_product_horizon_campaign(
         )
 
         report = _build_report(
+            root=temp_root,
             protocol=protocol,
             source_protocol_id=source_protocol.protocol_sha256,
             public_plan_sha256=public_view.public_plan_sha256,
@@ -1719,7 +2156,10 @@ def run_relationship_product_horizon_campaign(
         manifest = _with_artifact_id(manifest_core)
         os.replace(temp_root, target)
         _write_json_create_only(target / "manifest.json", manifest)
-        validate_relationship_product_horizon_campaign(output_dir=target)
+        validate_relationship_product_horizon_campaign(
+            output_dir=target,
+            expected_protocol_id=protocol.protocol_id,
+        )
         return report
     except BaseException:
         if temp_root.exists():
@@ -1741,6 +2181,7 @@ def _run_typed_chain(
     semantic_table_artifact_id: str,
     semantic_backend: str,
     worker_timeout_seconds: float,
+    execution_source_bundle_artifact_id: str,
 ) -> Mapping[str, object]:
     chain_root = root / "chains" / subject.subject_scope / arm.value
     chain_root.mkdir(parents=True)
@@ -1763,6 +2204,9 @@ def _run_typed_chain(
             worker_script=worker_script,
             python_executable=python_executable,
             timeout_seconds=worker_timeout_seconds,
+            execution_source_bundle_artifact_id=(
+                execution_source_bundle_artifact_id
+            ),
         )
         onboarding_receipts.append(receipt)
     onboarding_boundary = _state_directory_sha256(persistent_owner_state)
@@ -1790,6 +2234,9 @@ def _run_typed_chain(
             semantic_table_artifact_id=semantic_table_artifact_id,
             semantic_backend=semantic_backend,
             timeout_seconds=worker_timeout_seconds,
+            execution_source_bundle_artifact_id=(
+                execution_source_bundle_artifact_id
+            ),
         )
         decision_records.append(record)
     core = {
@@ -1821,6 +2268,7 @@ def _launch_onboarding_worker(
     worker_script: pathlib.Path,
     python_executable: str,
     timeout_seconds: float,
+    execution_source_bundle_artifact_id: str,
 ) -> Mapping[str, object]:
     request_dir = chain_root / "requests"
     receipt_dir = chain_root / "receipts"
@@ -1838,10 +2286,21 @@ def _launch_onboarding_worker(
         "world_clone_id": subject.world_clone_id,
         "state_root": _relative_posix(root, state_root),
         "session": session.to_sut_payload(),
-        "subprocess_environment_contract": dict(_SUBPROCESS_ENVIRONMENT_CONTRACT),
+        "subprocess_environment_contract": dict(
+            _subprocess_environment_contract(protocol)
+        ),
         "invocation_nonce": nonce,
         "parent_pid": os.getpid(),
     }
+    if protocol.is_v2:
+        core["execution_source_bundle_artifact_id"] = _digest(
+            execution_source_bundle_artifact_id,
+            "execution_source_bundle_artifact_id",
+        )
+        core["local_execution_source_tree_sha256"] = _digest(
+            protocol.local_execution_source_tree_sha256,
+            "local_execution_source_tree_sha256",
+        )
     request = _with_artifact_id(core)
     _assert_truth_firewall(request)
     _write_json_create_only(request_path, request)
@@ -1865,6 +2324,11 @@ def _launch_onboarding_worker(
         timeout=timeout_seconds,
         check=False,
         env=_child_environment(),
+        cwd=(
+            root / "inputs" / "execution_sources" / "tree"
+            if protocol.is_v2
+            else None
+        ),
     )
     if completed.returncode != 0:
         raise RuntimeError(f"onboarding child failed ({completed.returncode}): {completed.stderr[-2000:]}")
@@ -1907,6 +2371,7 @@ def _launch_decision_worker(
     semantic_table_artifact_id: str,
     semantic_backend: str,
     timeout_seconds: float,
+    execution_source_bundle_artifact_id: str,
 ) -> Mapping[str, object]:
     request_dir = chain_root / "requests"
     receipt_dir = chain_root / "receipts"
@@ -1921,11 +2386,21 @@ def _launch_decision_worker(
         if arm is RelationshipProductArm.STRICT_NOOP
         else RelationshipActionGateMode.LEARNED
     )
-    named_reader = "permuted_stay_space" if arm is RelationshipProductArm.READABLE_PERMUTED else "identity"
+    if protocol.is_v2:
+        named_reader = (
+            "legacy_unnamed_semantic_similarity"
+            if arm is RelationshipProductArm.READABLE_UNNAMED_LEGACY
+            else "prototype_named_condition_readout"
+        )
+    else:
+        named_reader = (
+            "permuted_stay_space"
+            if arm is RelationshipProductArm.READABLE_PERMUTED
+            else "identity"
+        )
     apply_credit = arm not in {RelationshipProductArm.CREDIT_WITHHELD, RelationshipProductArm.STRICT_NOOP}
     nonce = uuid4().hex
-    request = _with_artifact_id(
-        {
+    request_core: dict[str, object] = {
             "schema_version": RELATIONSHIP_PRODUCT_WORKER_REQUEST_SCHEMA_VERSION,
             "operation": "decision_handshake",
             "protocol_id": protocol.protocol_id,
@@ -1935,7 +2410,9 @@ def _launch_decision_worker(
             "state_root": _relative_posix(root, state_root),
             "gate_state_root": _relative_posix(root, gate_state_root),
             "session": session.to_sut_payload(),
-            "subprocess_environment_contract": dict(_SUBPROCESS_ENVIRONMENT_CONTRACT),
+            "subprocess_environment_contract": dict(
+                _subprocess_environment_contract(protocol)
+            ),
             "semantic_table_path": semantic_table_relpath,
             "semantic_table_artifact_id": semantic_table_artifact_id,
             "semantic_backend": semantic_backend,
@@ -1945,8 +2422,17 @@ def _launch_decision_worker(
             "authorization_id": f"relationship-product-horizon:{protocol.protocol_id}",
             "invocation_nonce": nonce,
             "parent_pid": os.getpid(),
-        }
-    )
+    }
+    if protocol.is_v2:
+        request_core["execution_source_bundle_artifact_id"] = _digest(
+            execution_source_bundle_artifact_id,
+            "execution_source_bundle_artifact_id",
+        )
+        request_core["local_execution_source_tree_sha256"] = _digest(
+            protocol.local_execution_source_tree_sha256,
+            "local_execution_source_tree_sha256",
+        )
+    request = _with_artifact_id(request_core)
     _assert_truth_firewall(request)
     _write_json_create_only(request_path, request)
     command = [
@@ -1971,6 +2457,11 @@ def _launch_decision_worker(
         text=True,
         encoding="utf-8",
         env=_child_environment(),
+        cwd=(
+            root / "inputs" / "execution_sources" / "tree"
+            if protocol.is_v2
+            else None
+        ),
     )
     assert process.stdout is not None and process.stdin is not None and process.stderr is not None
     try:
@@ -2062,6 +2553,16 @@ def _launch_decision_worker(
         raise
     post_receipt = _load_json(post_path)
     _validate_postaction_receipt(post_receipt)
+    if protocol.is_v2:
+        _validate_v2_worker_source_lineage(
+            _mapping(
+                post_receipt.get("execution_source_lineage"),
+                "postaction execution source lineage",
+            ),
+            root=root,
+            protocol=protocol,
+            execution_source_bundle_artifact_id=execution_source_bundle_artifact_id,
+        )
     if post_receipt["preaction_artifact_id"] != pre_receipt["artifact_id"]:
         raise ValueError("postaction receipt is not bound to the flushed preaction")
     if (
@@ -2361,6 +2862,16 @@ def run_relationship_product_onboarding_worker(
     request = _load_json(pathlib.Path(request_path))
     _validate_worker_request(request, operation="onboarding", expected_parent_pid=os.getppid())
     root = pathlib.Path(run_root).resolve()
+    protocol = _registered_product_protocol_for_id(request.get("protocol_id"))
+    source_lineage = (
+        _v2_worker_source_lineage(
+            root=root,
+            protocol=protocol,
+            request=request,
+        )
+        if protocol.is_v2
+        else None
+    )
     state_root = _resolve_relative(root, _text(request.get("state_root"), "state_root"))
     session = _mapping(request["session"], "session")
     store, hydration, loaded, pre_hash = _load_owner_state(state_root)
@@ -2388,8 +2899,18 @@ def run_relationship_product_onboarding_worker(
         onboarding_snapshot.owner_persistence_snapshot,
     )
     snapshot = hydration.export_and_save_owner(next_store, _OWNER_NAME)
+    if protocol.is_v2:
+        source_lineage = _v2_worker_source_lineage(
+            root=root,
+            protocol=protocol,
+            request=request,
+        )
     core = {
-        "schema_version": RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION,
+        "schema_version": (
+            RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION_V2
+            if protocol.is_v2
+            else RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION
+        ),
         "request_artifact_id": request["artifact_id"],
         "invocation_nonce": request["invocation_nonce"],
         "child_pid": os.getpid(),
@@ -2402,10 +2923,17 @@ def run_relationship_product_onboarding_worker(
         "launch_identity_sha256": sha256_json(
             {"child_pid": os.getpid(), "nonce": request["invocation_nonce"], "request": request["artifact_id"]}
         ),
-        "subprocess_environment_contract_sha256": sha256_json(_SUBPROCESS_ENVIRONMENT_CONTRACT),
+        "subprocess_environment_contract_sha256": sha256_json(
+            _subprocess_environment_contract(protocol)
+        ),
         "model_output_count": 0,
         "sealed_truth_received": False,
     }
+    if protocol.is_v2:
+        core["execution_source_lineage"] = _mapping(
+            source_lineage,
+            "onboarding worker source lineage",
+        )
     _write_json_create_only(pathlib.Path(receipt_path), _with_artifact_id(core))
 
 
@@ -2420,6 +2948,16 @@ def run_relationship_product_decision_worker(
     _validate_worker_request(request, operation="decision_handshake", expected_parent_pid=os.getppid())
     _assert_truth_firewall(request)
     root = pathlib.Path(run_root).resolve()
+    protocol = _registered_product_protocol_for_id(request.get("protocol_id"))
+    source_lineage = (
+        _v2_worker_source_lineage(
+            root=root,
+            protocol=protocol,
+            request=request,
+        )
+        if protocol.is_v2
+        else None
+    )
     state_root = _resolve_relative(root, _text(request.get("state_root"), "state_root"))
     gate_state_root = _resolve_relative(
         root,
@@ -2433,12 +2971,12 @@ def run_relationship_product_decision_worker(
     if backend_label != request["semantic_backend"]:
         raise ValueError("worker semantic backend label drifted")
     semantic = PrecomputedPublicSemanticEmbedder(table)
-    similarity = _semantic_similarity(semantic)
-    runtime: PreferenceActionForecastRuntime = BoundedRelationshipPreferenceForecastRuntime(similarity=similarity)
-    if request["named_reader"] == "permuted_stay_space":
-        runtime = _PermutedForecastRuntime(runtime)
-    elif request["named_reader"] != "identity":
-        raise ValueError("worker named-reader intervention is unknown")
+    arm = RelationshipProductArm(_text(request.get("arm_id"), "arm_id"))
+    runtime = _relationship_forecast_runtime(
+        protocol=protocol,
+        arm=arm,
+        semantic=semantic,
+    )
     store, hydration, loaded, pre_owner_hash = _load_owner_state(state_root)
     owner_snapshot = store.export_persistence_snapshot()
     gate_path = gate_state_root / _GATE_CHECKPOINT_FILENAME
@@ -2477,8 +3015,22 @@ def run_relationship_product_decision_worker(
             substrate_snapshot=_placeholder_substrate(),
         )
     )
+    forecast_payload = _forecast_payload_for_protocol(
+        protocol=protocol,
+        forecast=preaction.forecast,
+    )
+    if protocol.is_v2:
+        source_lineage = _v2_worker_source_lineage(
+            root=root,
+            protocol=protocol,
+            request=request,
+        )
     pre_core = {
-        "schema_version": RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION,
+        "schema_version": (
+            RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION_V2
+            if protocol.is_v2
+            else RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION
+        ),
         "request_artifact_id": request["artifact_id"],
         "invocation_nonce": request["invocation_nonce"],
         "child_pid": os.getpid(),
@@ -2486,22 +3038,35 @@ def run_relationship_product_decision_worker(
         "launch_identity_sha256": sha256_json(
             {"child_pid": os.getpid(), "nonce": request["invocation_nonce"], "request": request["artifact_id"]}
         ),
-        "subprocess_environment_contract_sha256": sha256_json(_SUBPROCESS_ENVIRONMENT_CONTRACT),
+        "subprocess_environment_contract_sha256": sha256_json(
+            _subprocess_environment_contract(protocol)
+        ),
         "owner_loaded": loaded,
         "pre_owner_snapshot_sha256": pre_owner_hash,
         "forecast_id": preaction.forecast.forecast_id,
-        "forecast_sha256": sha256_json(_forecast_payload(preaction.forecast)),
+        "forecast_sha256": sha256_json(forecast_payload),
         "recommended_action_id": preaction.forecast.recommended_action_id,
         "selected_action_id": preaction.gate_decision.selected_action_id,
         "gate_decision": preaction.gate_decision.to_payload(),
         "gate_update_count_before": preaction.gate_checkpoint_before.update_count,
         "semantic_backend": backend_label,
         "semantic_table_artifact_id": table.artifact_id,
-        "semantic_similarity_formula": "clamp_0_1((cosine+1)/2)",
+        "semantic_similarity_formula": _semantic_similarity_formula(
+            protocol=protocol,
+            arm=arm,
+        ),
         "sealed_truth_received_before_preaction": False,
         "preaction_fsynced_before_settlement_read": True,
         "model_output_count": 0,
     }
+    if protocol.persists_full_forecast:
+        pre_core["frozen_forecast"] = _frozen_forecast_envelope(
+            preaction.forecast
+        )
+        pre_core["execution_source_lineage"] = _mapping(
+            source_lineage,
+            "decision worker source lineage",
+        )
     pre_receipt = _with_artifact_id(pre_core)
     _write_json_create_only(pathlib.Path(preaction_receipt_path), pre_receipt)
     print(
@@ -2541,8 +3106,21 @@ def run_relationship_product_decision_worker(
     next_store.hydrate_from_persistence(settled.owner_persistence_snapshot)
     saved = hydration.export_and_save_owner(next_store, _OWNER_NAME)
     _write_gate_checkpoint(gate_path, settled.gate_checkpoint)
+    post_source_lineage = (
+        _v2_worker_source_lineage(
+            root=root,
+            protocol=protocol,
+            request=request,
+        )
+        if protocol.is_v2
+        else None
+    )
     post_core = {
-        "schema_version": RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION,
+        "schema_version": (
+            RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION_V2
+            if protocol.is_v2
+            else RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION
+        ),
         "request_artifact_id": request["artifact_id"],
         "preaction_artifact_id": pre_receipt["artifact_id"],
         "settlement_payload_sha256": sha256_json(settlement_payload),
@@ -2558,11 +3136,18 @@ def run_relationship_product_decision_worker(
         "credit_applied_to_gate": settled.credit_applied_to_gate,
         "gate_update_count_after": settled.gate_checkpoint.update_count,
         "post_owner_snapshot_sha256": sha256_json(saved.payload),
-        "subprocess_environment_contract_sha256": sha256_json(_SUBPROCESS_ENVIRONMENT_CONTRACT),
+        "subprocess_environment_contract_sha256": sha256_json(
+            _subprocess_environment_contract(protocol)
+        ),
         "settlement_read_after_preaction_fsync": True,
         "evaluator_or_judge_feedback_received": False,
         "model_output_count": 0,
     }
+    if protocol.is_v2:
+        post_core["execution_source_lineage"] = _mapping(
+            post_source_lineage,
+            "postaction worker source lineage",
+        )
     post_receipt = _with_artifact_id(post_core)
     _write_json_create_only(pathlib.Path(postaction_receipt_path), post_receipt)
     print(
@@ -2578,7 +3163,11 @@ def run_relationship_product_decision_worker(
     )
 
 
-def validate_relationship_product_horizon_campaign(*, output_dir: pathlib.Path) -> Mapping[str, object]:
+def validate_relationship_product_horizon_campaign(
+    *,
+    output_dir: pathlib.Path,
+    expected_protocol_id: str | None = None,
+) -> Mapping[str, object]:
     """Model/CUDA-free recomputation of source, chain, metric, and tree claims."""
 
     root = pathlib.Path(output_dir).resolve()
@@ -2592,10 +3181,20 @@ def validate_relationship_product_horizon_campaign(*, output_dir: pathlib.Path) 
     if manifest.get("file_count") != len(observed_files):
         raise ValueError("campaign manifest file count mismatch")
     stored_protocol_path = root / "protocol.json"
-    packaged_protocol_path = relationship_product_horizon_protocol_path()
-    if stored_protocol_path.read_bytes() != packaged_protocol_path.read_bytes():
-        raise ValueError("campaign protocol differs from the packaged preregistration SSOT")
+    packaged_protocol_path = _registered_product_protocol_path_for_bytes(
+        stored_protocol_path.read_bytes()
+    )
     protocol = load_relationship_product_horizon_protocol(packaged_protocol_path)
+    if protocol.is_v2 and expected_protocol_id is None:
+        raise ValueError(
+            "v2 campaign validation requires an external expected protocol id"
+        )
+    if (
+        expected_protocol_id is not None
+        and _digest(expected_protocol_id, "expected_protocol_id")
+        != protocol.protocol_id
+    ):
+        raise ValueError("campaign protocol differs from the external expected protocol id")
     if manifest.get("protocol_id") != protocol.protocol_id:
         raise ValueError("campaign protocol/manifest mismatch")
     execution_source_bundle = _validate_execution_source_bundle(
@@ -2671,6 +3270,7 @@ def validate_relationship_product_horizon_campaign(*, output_dir: pathlib.Path) 
         ),
     )
     recomputed = _build_report(
+        root=root,
         protocol=protocol,
         source_protocol_id=source_protocol.protocol_sha256,
         public_plan_sha256=public_view.public_plan_sha256,
@@ -2707,6 +3307,84 @@ def validate_relationship_product_horizon_campaign(*, output_dir: pathlib.Path) 
     return report
 
 
+def _baseline_dispatcher_identity_summary(
+    baseline_chains: Sequence[Mapping[str, object]],
+) -> Mapping[str, object]:
+    """Aggregate the process identity shared by every strong-baseline chain."""
+
+    observed_backends: set[str] = set()
+    startup_artifact_ids: set[str] = set()
+    process_pids: set[int] = set()
+    for chain in baseline_chains:
+        decisions = tuple(
+            _mapping(item, "baseline dispatcher identity decision")
+            for item in _list(
+                chain.get("decisions"),
+                "baseline dispatcher identity decisions",
+            )
+        )
+        chain_backends = {
+            _text(
+                item.get("baseline_execution_backend"),
+                "baseline dispatcher identity backend",
+            )
+            for item in decisions
+        }
+        if len(chain_backends) != 1:
+            raise ValueError("baseline chain mixed execution backends")
+        backend = next(iter(chain_backends))
+        observed_backends.add(backend)
+        startup_raw = chain.get("dispatcher_startup_attestation")
+        if backend == "resident_jsonl_dispatcher":
+            startup = _mapping(
+                startup_raw,
+                "resident baseline dispatcher startup attestation",
+            )
+            _validate_content_addressed(
+                startup,
+                "resident baseline dispatcher startup attestation",
+            )
+            startup_artifact_ids.add(
+                _digest(
+                    startup.get("artifact_id"),
+                    "resident baseline dispatcher startup artifact_id",
+                )
+            )
+            process_pid = _integer(
+                startup.get("process_pid"),
+                "resident baseline dispatcher process_pid",
+            )
+            if process_pid <= 0:
+                raise ValueError(
+                    "resident baseline dispatcher process_pid must be positive"
+                )
+            process_pids.add(process_pid)
+        elif backend == "injected_resident_suite":
+            if startup_raw is not None:
+                raise ValueError("injected baseline fabricated startup attestation")
+        else:
+            raise ValueError("baseline execution backend is not an admitted interface")
+
+    if not baseline_chains:
+        single_resident_verified = False
+    elif observed_backends == {"resident_jsonl_dispatcher"}:
+        if len(startup_artifact_ids) != 1 or len(process_pids) != 1:
+            raise ValueError(
+                "strong baseline chains do not share one resident dispatcher process"
+            )
+        single_resident_verified = True
+    elif observed_backends == {"injected_resident_suite"}:
+        single_resident_verified = False
+    else:
+        raise ValueError("campaign baseline chains mixed execution backends")
+
+    return {
+        "startup_artifact_ids": sorted(startup_artifact_ids),
+        "process_pids": sorted(process_pids),
+        "single_resident_dispatcher_verified": single_resident_verified,
+    }
+
+
 def _load_and_validate_campaign_chains(
     *,
     root: pathlib.Path,
@@ -2718,7 +3396,11 @@ def _load_and_validate_campaign_chains(
     baselines_executed: bool,
 ) -> tuple[tuple[Mapping[str, object], ...], tuple[Mapping[str, object], ...]]:
     subjects = public_view.subjects[: selection.subject_count]
-    expected_arms = (*_VOLVENCE_ARMS, *_BASELINE_ARMS) if baselines_executed else _VOLVENCE_ARMS
+    expected_arms = (
+        (*protocol.volvence_arms, *_BASELINE_ARMS)
+        if baselines_executed
+        else protocol.volvence_arms
+    )
     observed: dict[tuple[str, str], Mapping[str, object]] = {}
     for path in sorted((root / "chains").glob("*/*/chain.json")):
         chain = _load_json(path)
@@ -2741,7 +3423,7 @@ def _load_and_validate_campaign_chains(
     typed: list[Mapping[str, object]] = []
     baselines: list[Mapping[str, object]] = []
     for subject in subjects:
-        for arm_id in _VOLVENCE_ARMS:
+        for arm_id in protocol.volvence_arms:
             chain = observed[(subject.subject_scope, arm_id)]
             _validate_typed_chain(
                 root=root,
@@ -2768,6 +3450,8 @@ def _load_and_validate_campaign_chains(
                     public_plan_artifact_id=public_view.public_plan_sha256,
                 )
                 baselines.append(chain)
+    if protocol.is_v2:
+        _baseline_dispatcher_identity_summary(baselines)
     return tuple(typed), tuple(baselines)
 
 
@@ -2786,6 +3470,16 @@ def _validate_typed_chain(
         raise ValueError("typed chain schema mismatch")
     if chain.get("world_clone_id") != subject.world_clone_id:
         raise ValueError("typed chain world-clone mismatch")
+    execution_source_bundle_artifact_id = (
+        _digest(
+            _load_json(
+                root / "inputs" / "execution_sources" / "bundle.json"
+            ).get("artifact_id"),
+            "execution source bundle artifact_id",
+        )
+        if protocol.is_v2
+        else None
+    )
     expected_reset_basis = (
         "same_frozen_post_onboarding_boundary_each_decision"
         if arm is RelationshipProductArm.APPENDABLE_FROZEN_ONBOARDING
@@ -2843,8 +3537,13 @@ def _validate_typed_chain(
             source="typed onboarding receipt",
         )
         _validate_onboarding_receipt(receipt)
+        expected_onboarding_schema = (
+            RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION_V2
+            if protocol.is_v2
+            else RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION
+        )
         if (
-            receipt.get("schema_version") != RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION
+            receipt.get("schema_version") != expected_onboarding_schema
             or receipt.get("request_artifact_id") != request.get("artifact_id")
             or receipt.get("invocation_nonce") != request.get("invocation_nonce")
             or receipt.get("parent_pid") != request.get("parent_pid")
@@ -2853,6 +3552,19 @@ def _validate_typed_chain(
             or receipt.get("owner_snapshot_sha256") != record.get("owner_snapshot_sha256")
         ):
             raise ValueError("typed onboarding receipt/chain lineage mismatch")
+        if protocol.is_v2:
+            _validate_v2_worker_source_lineage(
+                _mapping(
+                    receipt.get("execution_source_lineage"),
+                    "onboarding execution source lineage",
+                ),
+                root=root,
+                protocol=protocol,
+                execution_source_bundle_artifact_id=_digest(
+                    execution_source_bundle_artifact_id,
+                    "execution source bundle artifact_id",
+                ),
+            )
         if bool(receipt.get("owner_loaded")) is not (index > 0):
             raise ValueError("typed onboarding hydration restart evidence drifted")
         if receipt.get("pre_owner_snapshot_sha256") != sha256_json(replay_owner_snapshot.payload):
@@ -2951,9 +3663,19 @@ def _validate_typed_chain(
         )
         _validate_preaction_receipt(pre)
         _validate_postaction_receipt(post)
+        expected_preaction_schema = (
+            RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION_V2
+            if protocol.is_v2
+            else RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION
+        )
+        expected_postaction_schema = (
+            RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION_V2
+            if protocol.is_v2
+            else RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION
+        )
         if (
-            pre.get("schema_version") != RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION
-            or post.get("schema_version") != RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION
+            pre.get("schema_version") != expected_preaction_schema
+            or post.get("schema_version") != expected_postaction_schema
             or pre.get("request_artifact_id") != request.get("artifact_id")
             or pre.get("invocation_nonce") != request.get("invocation_nonce")
             or pre.get("parent_pid") != request.get("parent_pid")
@@ -2964,6 +3686,31 @@ def _validate_typed_chain(
             or pre.get("launch_identity_sha256") != record.get("launch_identity_sha256")
         ):
             raise ValueError("typed decision handshake lineage mismatch")
+        if protocol.is_v2:
+            _validate_v2_worker_source_lineage(
+                _mapping(
+                    pre.get("execution_source_lineage"),
+                    "preaction execution source lineage",
+                ),
+                root=root,
+                protocol=protocol,
+                execution_source_bundle_artifact_id=_digest(
+                    execution_source_bundle_artifact_id,
+                    "execution source bundle artifact_id",
+                ),
+            )
+            _validate_v2_worker_source_lineage(
+                _mapping(
+                    post.get("execution_source_lineage"),
+                    "postaction execution source lineage",
+                ),
+                root=root,
+                protocol=protocol,
+                execution_source_bundle_artifact_id=_digest(
+                    execution_source_bundle_artifact_id,
+                    "execution source bundle artifact_id",
+                ),
+            )
         expected_pre_owner = (
             last_owner_hash if arm is RelationshipProductArm.APPENDABLE_FROZEN_ONBOARDING else previous_post_owner_hash
         )
@@ -2996,17 +3743,40 @@ def _validate_typed_chain(
             gate_checkpoint=replay_gate_checkpoint,
             embedding_table=embedding_table,
         )
+        replayed_forecast_payload = _forecast_payload_for_protocol(
+            protocol=protocol,
+            forecast=replay_preaction.forecast,
+        )
         expected_preaction_projection = {
             "pre_owner_snapshot_sha256": sha256_json(replay_owner_input.payload),
             "forecast_id": replay_preaction.forecast.forecast_id,
-            "forecast_sha256": sha256_json(_forecast_payload(replay_preaction.forecast)),
+            "forecast_sha256": sha256_json(replayed_forecast_payload),
             "recommended_action_id": replay_preaction.forecast.recommended_action_id,
             "selected_action_id": replay_preaction.gate_decision.selected_action_id,
             "gate_decision": replay_preaction.gate_decision.to_payload(),
             "gate_update_count_before": replay_preaction.gate_checkpoint_before.update_count,
+            "semantic_similarity_formula": _semantic_similarity_formula(
+                protocol=protocol,
+                arm=arm,
+            ),
         }
+        if protocol.persists_full_forecast:
+            expected_preaction_projection["frozen_forecast"] = _frozen_forecast_envelope(
+                replay_preaction.forecast
+            )
         if {key: pre.get(key) for key in expected_preaction_projection} != expected_preaction_projection:
             raise ValueError("typed preaction forecast/gate cannot be replayed")
+        if protocol.is_v2:
+            readout = replay_preaction.forecast.condition_readout
+            if arm is RelationshipProductArm.READABLE_UNNAMED_LEGACY:
+                if readout is not None:
+                    raise ValueError("v2 Readable comparator published a named readout")
+            elif (
+                readout is None
+                or readout.reader_artifact_id
+                != protocol.condition_reader_artifact_id
+            ):
+                raise ValueError("v2 named-reader arm did not publish the pinned readout")
         action = RelationshipAction(_text(record.get("selected_action_id"), "selected_action_id"))
         if pre.get("selected_action_id") != action.value:
             raise ValueError("typed preaction selected action drifted")
@@ -3131,6 +3901,7 @@ def _validate_baseline_chain(
         )
         _validate_dispatcher_startup_attestation(
             startup_attestation,
+            root=root,
             protocol=protocol,
             execution_source_bundle_artifact_id=_digest(
                 execution_source_bundle.get("artifact_id"),
@@ -3491,6 +4262,22 @@ def _validate_baseline_result_instrument(
             retrieval.get("embedder_id"),
             "baseline RAG embedder_id",
         )
+        expected_v2_embedder_id = (
+            bge_m3_weight_pinned_embedder_identity(
+                model_revision=protocol.semantic_model_revision,
+                weights_sha256=_text(
+                    protocol.semantic_model_weights_sha256,
+                    "semantic model weights sha256",
+                ),
+                sentence_transformers_version=_text(
+                    protocol.semantic_sentence_transformers_version,
+                    "semantic sentence-transformers version",
+                ),
+                identity_kind="live-public-exact-text-cache-v2",
+            )
+            if protocol.is_v2
+            else None
+        )
         if (
             retrieval.get("requested_top_k") != protocol.rag_top_k
             or retrieval.get("effective_top_k") != expected_effective_k
@@ -3499,8 +4286,18 @@ def _validate_baseline_result_instrument(
             or (
                 require_protocol_pins
                 and (
-                    protocol.semantic_model_source not in embedder_id
-                    or f"@revision:{protocol.semantic_model_revision}" not in embedder_id
+                    (
+                        protocol.is_v2
+                        and embedder_id != expected_v2_embedder_id
+                    )
+                    or (
+                        not protocol.is_v2
+                        and (
+                            protocol.semantic_model_source not in embedder_id
+                            or f"@revision:{protocol.semantic_model_revision}"
+                            not in embedder_id
+                        )
+                    )
                 )
             )
             or (not require_protocol_pins and not embedder_id.startswith("fake-test-only"))
@@ -3531,31 +4328,49 @@ def _validate_baseline_result_instrument(
 def _validate_dispatcher_startup_attestation(
     payload: Mapping[str, object],
     *,
+    root: pathlib.Path,
     protocol: RelationshipProductHorizonProtocol,
     execution_source_bundle_artifact_id: str,
 ) -> None:
     _validate_content_addressed(payload, "baseline dispatcher startup attestation")
+    expected_keys = {
+        "schema_version",
+        "command",
+        "process_pid",
+        "python_executable_resolved",
+        "python_executable_sha256",
+        "execution_source_bundle_artifact_id",
+        "subprocess_environment_contract",
+        "artifact_id",
+    }
+    if protocol.is_v2:
+        expected_keys.update(
+            {
+                "dispatcher_script_repository_path",
+                "dispatcher_script_raw_sha256",
+            }
+        )
+    else:
+        expected_keys.update(
+            {"dispatcher_script_resolved", "dispatcher_script_sha256"}
+        )
     _require_exact_keys(
         payload,
-        {
-            "schema_version",
-            "command",
-            "process_pid",
-            "python_executable_resolved",
-            "python_executable_sha256",
-            "dispatcher_script_resolved",
-            "dispatcher_script_sha256",
-            "execution_source_bundle_artifact_id",
-            "subprocess_environment_contract",
-            "artifact_id",
-        },
+        expected_keys,
         "baseline dispatcher startup attestation",
     )
-    if payload.get("schema_version") != ("relationship-product-baseline-dispatcher-startup.v1"):
+    expected_schema = (
+        "relationship-product-baseline-dispatcher-startup.v2"
+        if protocol.is_v2
+        else "relationship-product-baseline-dispatcher-startup.v1"
+    )
+    if payload.get("schema_version") != expected_schema:
         raise ValueError("baseline dispatcher startup schema drifted")
     if _integer(payload.get("process_pid"), "baseline dispatcher process_pid") <= 0:
         raise ValueError("baseline dispatcher process_pid must be positive")
-    if payload.get("subprocess_environment_contract") != (_SUBPROCESS_ENVIRONMENT_CONTRACT):
+    if payload.get("subprocess_environment_contract") != dict(
+        _subprocess_environment_contract(protocol)
+    ):
         raise ValueError("baseline dispatcher offline process environment drifted")
     command = tuple(
         _text(item, "baseline dispatcher command argument")
@@ -3563,22 +4378,74 @@ def _validate_dispatcher_startup_attestation(
     )
     if len(command) < 3:
         raise ValueError("baseline dispatcher startup command is incomplete")
+    expected_dispatcher_script = (
+        _resolve_relative(
+            root,
+            (
+                "inputs/execution_sources/tree/scripts/"
+                "run_relationship_lab_product_baseline_dispatcher.py"
+            ),
+        )
+        if protocol.is_v2
+        else None
+    )
     expected_command = _expected_baseline_dispatcher_command(
         protocol=protocol,
         python_executable=command[0],
+        dispatcher_script=expected_dispatcher_script,
     )
+    if protocol.is_v2:
+        expected_command = (
+            *expected_command[:2],
+            _LOCAL_EXECUTION_SOURCE_ENTRYPOINTS[0],
+            *expected_command[3:],
+        )
     if command != expected_command:
         raise ValueError("baseline dispatcher startup argv is not exact")
     python_path = pathlib.Path(command[0]).resolve()
-    dispatcher_path = pathlib.Path(command[2]).resolve()
-    source_pins = dict(protocol.execution_source_sha256s)
+    _require_sha256(
+        payload.get("python_executable_sha256"),
+        "baseline dispatcher python_executable_sha256",
+    )
     if (
         payload.get("python_executable_resolved") != str(python_path)
-        or payload.get("dispatcher_script_resolved") != str(dispatcher_path)
+        or payload.get("execution_source_bundle_artifact_id")
+        != execution_source_bundle_artifact_id
+    ):
+        raise ValueError("baseline dispatcher executable/source lineage drifted")
+    if protocol.is_v2:
+        bundle = _load_json(root / "inputs" / "execution_sources" / "bundle.json")
+        source_entries = _source_tree_entry_by_repository_path(
+            _mapping(
+                bundle.get("local_execution_source_tree"),
+                "baseline dispatcher local source tree",
+            )
+        )
+        repository_path = _LOCAL_EXECUTION_SOURCE_ENTRYPOINTS[0]
+        entry = source_entries[repository_path]
+        expected_dispatcher_sha256 = _digest(
+            entry.get("raw_sha256"),
+            "baseline dispatcher source-tree raw sha256",
+        )
+        assert expected_dispatcher_script is not None
+        if (
+            payload.get("dispatcher_script_repository_path")
+            != repository_path
+            or payload.get("dispatcher_script_raw_sha256")
+            != expected_dispatcher_sha256
+            or _sha256_file(expected_dispatcher_script)
+            != expected_dispatcher_sha256
+        ):
+            raise ValueError("baseline dispatcher mirrored source lineage drifted")
+        return
+    dispatcher_path = pathlib.Path(command[2]).resolve()
+    expected_dispatcher_sha256 = dict(protocol.execution_source_sha256s).get(
+        "baseline_dispatcher_cli"
+    )
+    if (
+        payload.get("dispatcher_script_resolved") != str(dispatcher_path)
         or payload.get("python_executable_sha256") != _sha256_file(python_path)
-        or payload.get("dispatcher_script_sha256") != source_pins.get("baseline_dispatcher_cli")
-        or _sha256_file(dispatcher_path) != source_pins.get("baseline_dispatcher_cli")
-        or payload.get("execution_source_bundle_artifact_id") != execution_source_bundle_artifact_id
+        or payload.get("dispatcher_script_sha256") != expected_dispatcher_sha256
     ):
         raise ValueError("baseline dispatcher executable/source lineage drifted")
 
@@ -3587,14 +4454,20 @@ def _expected_baseline_dispatcher_command(
     *,
     protocol: RelationshipProductHorizonProtocol,
     python_executable: str,
+    dispatcher_script: pathlib.Path | None = None,
 ) -> tuple[str, ...]:
-    dispatcher_script = (
-        pathlib.Path(__file__).resolve().parents[4] / "scripts" / "run_relationship_lab_product_baseline_dispatcher.py"
+    resolved_dispatcher_script = pathlib.Path(
+        dispatcher_script
+        or (
+            pathlib.Path(__file__).resolve().parents[4]
+            / "scripts"
+            / "run_relationship_lab_product_baseline_dispatcher.py"
+        )
     ).resolve()
-    return (
+    generation_arguments = (
         python_executable,
         "-s",
-        str(dispatcher_script),
+        str(resolved_dispatcher_script),
         "--model-source",
         protocol.baseline_model_source,
         "--model-id",
@@ -3612,6 +4485,13 @@ def _expected_baseline_dispatcher_command(
         "--prefill-chunk-size",
         str(protocol.generation_prefill_chunk_size),
         "--generation-use-cache",
+    )
+    if protocol.baseline_constrained_action_choice:
+        generation_arguments = (
+            *generation_arguments,
+            "--schema-constrained-decoding",
+        )
+    semantic_arguments = (
         "--semantic-mode",
         "live_bge_m3_cached",
         "--bge-model-source",
@@ -3621,6 +4501,21 @@ def _expected_baseline_dispatcher_command(
         "--bge-device",
         protocol.semantic_device,
     )
+    if protocol.is_v2:
+        semantic_arguments = (
+            *semantic_arguments,
+            "--bge-weights-sha256",
+            _digest(
+                protocol.semantic_model_weights_sha256,
+                "semantic model weights_sha256",
+            ),
+            "--bge-sentence-transformers-version",
+            _text(
+                protocol.semantic_sentence_transformers_version,
+                "semantic sentence-transformers version",
+            ),
+        )
+    return (*generation_arguments, *semantic_arguments)
 
 
 def _parse_baseline_raw_action(raw_output: object) -> RelationshipAction | None:
@@ -3746,8 +4641,263 @@ def _validate_nested_artifact_payloads(payload: object, source: str) -> None:
             _validate_nested_artifact_payloads(value, f"{source}[{index}]")
 
 
+def _v2_mechanism_evidence_summary(
+    *,
+    root: pathlib.Path,
+    protocol: RelationshipProductHorizonProtocol,
+    selection: RelationshipProductCampaignSelection,
+    typed_chains: Sequence[Mapping[str, object]],
+) -> Mapping[str, object]:
+    if not protocol.is_v2:
+        raise ValueError("v2 mechanism evidence summary requires a v2 protocol")
+    applied_arms = {
+        RelationshipProductArm.VOLVENCE_FULL.value,
+        RelationshipProductArm.APPENDABLE_FROZEN_ONBOARDING.value,
+        RelationshipProductArm.READABLE_UNNAMED_LEGACY.value,
+    }
+    by_arm: dict[str, dict[str, object]] = {
+        arm: {
+            "decision_count": 0,
+            "owner_loaded_count": 0,
+            "owner_continuity_transition_count": 0,
+            "owner_continuity_transition_expected_count": 0,
+            "frozen_owner_reset_count": 0,
+            "frozen_owner_reset_expected_count": 0,
+            "named_readout_count": 0,
+            "unnamed_readout_count": 0,
+            "pe_receipt_count": 0,
+            "credit_applied_count": 0,
+            "credit_withheld_count": 0,
+            "gate_update_increment_count": 0,
+        }
+        for arm in protocol.volvence_arms
+    }
+    reader_artifact_ids: set[str] = set()
+    credit_record_ids: set[str] = set()
+    action_by_arm_unit: dict[str, dict[tuple[str, int], str]] = {
+        arm: {} for arm in protocol.volvence_arms
+    }
+    for chain in typed_chains:
+        arm = _text(chain.get("arm_id"), "typed mechanism arm_id")
+        if arm not in by_arm:
+            raise ValueError("typed mechanism summary received a non-Volvence arm")
+        subject_scope = _text(
+            chain.get("subject_scope"),
+            "typed mechanism subject_scope",
+        )
+        decisions = tuple(
+            _mapping(item, "typed mechanism decision")
+            for item in _list(chain.get("decisions"), "typed mechanism decisions")
+        )
+        first_pre_owner_hash: str | None = None
+        previous_post_owner_hash: str | None = None
+        stats = by_arm[arm]
+        for decision in decisions:
+            index = _integer(
+                decision.get("decision_index"),
+                "typed mechanism decision_index",
+            )
+            pre = _referenced_json(
+                root,
+                decision,
+                path_key="preaction_receipt_path",
+                sha_key="preaction_receipt_sha256",
+                artifact_key="preaction_artifact_id",
+                source="typed mechanism preaction receipt",
+            )
+            post = _referenced_json(
+                root,
+                decision,
+                path_key="postaction_receipt_path",
+                sha_key="postaction_receipt_sha256",
+                artifact_key="postaction_artifact_id",
+                source="typed mechanism postaction receipt",
+            )
+            forecast = _validated_frozen_forecast_envelope(
+                _mapping(
+                    pre.get("frozen_forecast"),
+                    "typed mechanism frozen_forecast",
+                )
+            )
+            readout = forecast.condition_readout
+            stats["decision_count"] = _integer(
+                stats["decision_count"],
+                "mechanism decision_count",
+            ) + 1
+            stats["owner_loaded_count"] = _integer(
+                stats["owner_loaded_count"],
+                "mechanism owner_loaded_count",
+            ) + int(_boolean(pre.get("owner_loaded"), "mechanism owner_loaded"))
+            pre_owner_hash = _digest(
+                pre.get("pre_owner_snapshot_sha256"),
+                "mechanism pre owner snapshot",
+            )
+            post_owner_hash = _digest(
+                post.get("post_owner_snapshot_sha256"),
+                "mechanism post owner snapshot",
+            )
+            if first_pre_owner_hash is None:
+                first_pre_owner_hash = pre_owner_hash
+            if arm == RelationshipProductArm.APPENDABLE_FROZEN_ONBOARDING.value:
+                stats["frozen_owner_reset_expected_count"] = _integer(
+                    stats["frozen_owner_reset_expected_count"],
+                    "mechanism frozen reset expected",
+                ) + 1
+                if pre_owner_hash == first_pre_owner_hash:
+                    stats["frozen_owner_reset_count"] = _integer(
+                        stats["frozen_owner_reset_count"],
+                        "mechanism frozen reset count",
+                    ) + 1
+            elif previous_post_owner_hash is not None:
+                stats["owner_continuity_transition_expected_count"] = _integer(
+                    stats["owner_continuity_transition_expected_count"],
+                    "mechanism continuity expected",
+                ) + 1
+                if pre_owner_hash == previous_post_owner_hash:
+                    stats["owner_continuity_transition_count"] = _integer(
+                        stats["owner_continuity_transition_count"],
+                        "mechanism continuity count",
+                    ) + 1
+            previous_post_owner_hash = post_owner_hash
+            if readout is None:
+                stats["unnamed_readout_count"] = _integer(
+                    stats["unnamed_readout_count"],
+                    "mechanism unnamed readout count",
+                ) + 1
+            else:
+                stats["named_readout_count"] = _integer(
+                    stats["named_readout_count"],
+                    "mechanism named readout count",
+                ) + 1
+                reader_artifact_ids.add(readout.reader_artifact_id)
+            _digest(
+                post.get("social_prediction_error_snapshot_sha256"),
+                "mechanism PE snapshot",
+            )
+            stats["pe_receipt_count"] = _integer(
+                stats["pe_receipt_count"],
+                "mechanism PE receipt count",
+            ) + 1
+            credit_record_ids.add(
+                _text(post.get("credit_record_id"), "mechanism credit_record_id")
+            )
+            credit_applied = _boolean(
+                post.get("credit_applied_to_gate"),
+                "mechanism credit_applied_to_gate",
+            )
+            credit_count_key = (
+                "credit_applied_count" if credit_applied else "credit_withheld_count"
+            )
+            stats[credit_count_key] = _integer(
+                stats[credit_count_key],
+                f"mechanism {credit_count_key}",
+            ) + 1
+            gate_before = _integer(
+                pre.get("gate_update_count_before"),
+                "mechanism gate update before",
+            )
+            gate_after = _integer(
+                post.get("gate_update_count_after"),
+                "mechanism gate update after",
+            )
+            if gate_after < gate_before:
+                raise ValueError("mechanism gate update count moved backwards")
+            stats["gate_update_increment_count"] = _integer(
+                stats["gate_update_increment_count"],
+                "mechanism gate update increment count",
+            ) + (gate_after - gate_before)
+            action_by_arm_unit[arm][(subject_scope, index)] = _text(
+                decision.get("selected_action_id"),
+                "mechanism selected_action_id",
+            )
+
+    per_arm = [
+        {"arm_id": arm, **by_arm[arm]}
+        for arm in protocol.volvence_arms
+    ]
+    expected_decisions_per_arm = (
+        selection.subject_count * selection.decision_session_count
+    )
+    expected_named = expected_decisions_per_arm * (
+        len(protocol.volvence_arms) - 1
+    )
+    expected_unnamed = expected_decisions_per_arm
+    total_decisions = sum(
+        _integer(item["decision_count"], "mechanism arm decision_count")
+        for item in per_arm
+    )
+    named_count = sum(
+        _integer(item["named_readout_count"], "mechanism arm named count")
+        for item in per_arm
+    )
+    unnamed_count = sum(
+        _integer(item["unnamed_readout_count"], "mechanism arm unnamed count")
+        for item in per_arm
+    )
+    action_divergence: list[Mapping[str, object]] = []
+    full_actions = action_by_arm_unit[RelationshipProductArm.VOLVENCE_FULL.value]
+    for comparator in protocol.volvence_arms[1:]:
+        comparator_actions = action_by_arm_unit[comparator]
+        shared = tuple(sorted(set(full_actions) & set(comparator_actions)))
+        if len(shared) != expected_decisions_per_arm:
+            raise ValueError("mechanism action divergence units are incomplete")
+        action_divergence.append(
+            {
+                "comparator": comparator,
+                "matched_decision_count": len(shared),
+                "action_divergence_count": sum(
+                    full_actions[unit] != comparator_actions[unit]
+                    for unit in shared
+                ),
+            }
+        )
+    all_arm_counts_complete = all(
+        item["decision_count"] == expected_decisions_per_arm
+        and item["owner_loaded_count"] == expected_decisions_per_arm
+        and item["pe_receipt_count"] == expected_decisions_per_arm
+        and item["gate_update_increment_count"]
+        == (expected_decisions_per_arm if item["arm_id"] in applied_arms else 0)
+        and item["credit_applied_count"]
+        == (expected_decisions_per_arm if item["arm_id"] in applied_arms else 0)
+        for item in per_arm
+    )
+    continuity_complete = all(
+        item["owner_continuity_transition_count"]
+        == item["owner_continuity_transition_expected_count"]
+        and item["frozen_owner_reset_count"]
+        == item["frozen_owner_reset_expected_count"]
+        for item in per_arm
+    )
+    direct_mechanism_evidence_complete = (
+        total_decisions
+        == expected_decisions_per_arm * len(protocol.volvence_arms)
+        and named_count == expected_named
+        and unnamed_count == expected_unnamed
+        and reader_artifact_ids == {protocol.condition_reader_artifact_id}
+        and len(credit_record_ids) == total_decisions
+        and all_arm_counts_complete
+        and continuity_complete
+        and all(item["action_divergence_count"] > 0 for item in action_divergence)
+    )
+    return {
+        "schema_version": "relationship-product-mechanism-evidence-summary.v1",
+        "per_arm": per_arm,
+        "named_readout_count": named_count,
+        "unnamed_readout_count": unnamed_count,
+        "reader_artifact_ids": sorted(reader_artifact_ids),
+        "pe_receipt_count": sum(
+            _integer(item["pe_receipt_count"], "mechanism arm PE count")
+            for item in per_arm
+        ),
+        "unique_credit_record_count": len(credit_record_ids),
+        "action_divergence_vs_full": action_divergence,
+        "direct_mechanism_evidence_complete": direct_mechanism_evidence_complete,
+    }
+
+
 def _build_report(
     *,
+    root: pathlib.Path,
     protocol: RelationshipProductHorizonProtocol,
     source_protocol_id: str,
     public_plan_sha256: str,
@@ -3761,9 +4911,20 @@ def _build_report(
     baseline_chains: Sequence[Mapping[str, object]],
 ) -> Mapping[str, object]:
     chains = tuple((*typed_chains, *baseline_chains))
+    mechanism_evidence = (
+        _v2_mechanism_evidence_summary(
+            root=root,
+            protocol=protocol,
+            selection=selection,
+            typed_chains=typed_chains,
+        )
+        if protocol.is_v2
+        else None
+    )
     summaries: list[Mapping[str, object]] = []
     by_arm_subject: dict[str, dict[str, float]] = {}
     safety_by_arm_subject: dict[str, dict[str, float]] = {}
+    segment_by_arm_subject: dict[str, dict[str, dict[str, float]]] = {}
     launch_ids: list[str] = []
     request_ids: list[str] = []
     child_pids: list[int] = []
@@ -3796,22 +4957,71 @@ def _build_report(
         )
         by_arm_subject.setdefault(arm, {})[subject_scope] = positives / denominator
         safety_by_arm_subject.setdefault(arm, {})[subject_scope] = safety_negatives / denominator
-        summaries.append(
-            {
-                "arm_id": arm,
-                "subject_scope": subject_scope,
-                "world_clone_id": chain["world_clone_id"],
-                "decision_count": len(decisions),
-                "primary_decision_count": denominator,
-                "primary_positive_outcome_count": positives,
-                "primary_positive_outcome_rate": positives / denominator,
-                "primary_preferred_action_match_count": matches,
-                "primary_preferred_action_match_rate": matches / denominator,
-                "primary_safety_negative_outcome_count": safety_negatives,
-                "primary_safety_negative_outcome_rate": safety_negatives / denominator,
-            }
-        )
-        if arm in _VOLVENCE_ARMS:
+        summary: dict[str, object] = {
+            "arm_id": arm,
+            "subject_scope": subject_scope,
+            "world_clone_id": chain["world_clone_id"],
+            "decision_count": len(decisions),
+            "primary_decision_count": denominator,
+            "primary_positive_outcome_count": positives,
+            "primary_positive_outcome_rate": positives / denominator,
+            "primary_preferred_action_match_count": matches,
+            "primary_preferred_action_match_rate": matches / denominator,
+            "primary_safety_negative_outcome_count": safety_negatives,
+            "primary_safety_negative_outcome_rate": safety_negatives / denominator,
+        }
+        if protocol.is_v2:
+            horizon_segments: dict[str, Mapping[str, object]] = {}
+            for segment_name, (start, end) in _HORIZON_SEGMENT_WINDOWS:
+                segment_items = tuple(
+                    item
+                    for item in decisions
+                    if start
+                    <= _integer(item.get("decision_index"), "decision_index")
+                    <= end
+                )
+                segment_positive_count = sum(
+                    bool(item["positive_outcome"])
+                    for item in segment_items
+                )
+                segment_match_count = sum(
+                    bool(item["preferred_action_match"])
+                    for item in segment_items
+                )
+                segment_rate = (
+                    segment_positive_count / len(segment_items)
+                    if segment_items
+                    else None
+                )
+                horizon_segments[segment_name] = {
+                    "decision_indices": [start, end],
+                    "decision_count": len(segment_items),
+                    "positive_outcome_count": segment_positive_count,
+                    "positive_outcome_rate": segment_rate,
+                    "preferred_action_match_count": segment_match_count,
+                    "preferred_action_match_rate": (
+                        segment_match_count / len(segment_items)
+                        if segment_items
+                        else None
+                    ),
+                }
+                if segment_rate is not None:
+                    segment_by_arm_subject.setdefault(arm, {}).setdefault(
+                        segment_name,
+                        {},
+                    )[subject_scope] = segment_rate
+            reversal_matches = tuple(
+                _integer(item.get("decision_index"), "decision_index")
+                for item in decisions
+                if _integer(item.get("decision_index"), "decision_index") >= 12
+                and bool(item["preferred_action_match"])
+            )
+            summary["horizon_segments"] = horizon_segments
+            summary["post_reversal_adaptation_latency_decisions"] = (
+                min(reversal_matches) - 12 if reversal_matches else None
+            )
+        summaries.append(summary)
+        if arm in protocol.volvence_arms:
             onboarding = tuple(_mapping(item, "onboarding receipt") for item in chain["onboarding_receipts"])
             logical_session_count += len(onboarding) + len(decisions)
             launch_ids.extend(
@@ -3867,11 +5077,30 @@ def _build_report(
                         "baseline arm_prompt_sha256",
                     )
                 )
+    baseline_dispatcher_identity = (
+        _baseline_dispatcher_identity_summary(baseline_chains)
+        if protocol.is_v2
+        else {
+            "startup_artifact_ids": [],
+            "process_pids": [],
+            "single_resident_dispatcher_verified": False,
+        }
+    )
+    baseline_single_resident_dispatcher_verified = _boolean(
+        baseline_dispatcher_identity.get("single_resident_dispatcher_verified"),
+        "single resident baseline dispatcher verification",
+    )
+    baseline_executed = bool(baseline_chains)
+    baseline_all_completions_valid = (
+        baseline_executed
+        and baseline_completion_count > 0
+        and baseline_valid_completion_count == baseline_completion_count
+    )
     comparisons: list[Mapping[str, object]] = []
     safety_comparisons: list[Mapping[str, object]] = []
     reference = by_arm_subject.get("volvence_full", {})
     safety_reference = safety_by_arm_subject.get("volvence_full", {})
-    for comparator in (*_VOLVENCE_ARMS[1:], *_BASELINE_ARMS):
+    for comparator in (*protocol.volvence_arms[1:], *_BASELINE_ARMS):
         values = by_arm_subject.get(comparator)
         if values is None:
             comparisons.append(
@@ -3887,6 +5116,29 @@ def _build_report(
                 {
                     "comparator": comparator,
                     "status": "not_run",
+                    "mean_full_safety_rate_increase": None,
+                    "noninferiority_pass": False,
+                }
+            )
+            continue
+        if (
+            protocol.is_v2
+            and comparator in _BASELINE_ARMS
+            and not baseline_all_completions_valid
+        ):
+            comparisons.append(
+                {
+                    "comparator": comparator,
+                    "status": "invalid_output",
+                    "mean_paired_effect": None,
+                    "subjects_with_positive_effect": None,
+                    "directional_pass": False,
+                }
+            )
+            safety_comparisons.append(
+                {
+                    "comparator": comparator,
+                    "status": "invalid_output",
                     "mean_full_safety_rate_increase": None,
                     "noninferiority_pass": False,
                 }
@@ -3924,13 +5176,106 @@ def _build_report(
                 <= protocol.maximum_full_safety_rate_increase_vs_any_comparator,
             }
         )
+    horizon_segment_comparisons: list[Mapping[str, object]] = []
+    horizon_durability_pass = not protocol.is_v2
+    if protocol.is_v2:
+        full_segments = segment_by_arm_subject.get(
+            RelationshipProductArm.VOLVENCE_FULL.value,
+            {},
+        )
+        for comparator in (*protocol.volvence_arms[1:], *_BASELINE_ARMS):
+            comparator_segments = segment_by_arm_subject.get(comparator)
+            invalid_baseline = (
+                comparator in _BASELINE_ARMS
+                and not baseline_all_completions_valid
+            )
+            if comparator_segments is None or invalid_baseline:
+                horizon_segment_comparisons.append(
+                    {
+                        "comparator": comparator,
+                        "status": (
+                            "invalid_output" if invalid_baseline else "not_run"
+                        ),
+                        "segments": [],
+                        "nonnegative_segment_count": 0,
+                        "positive_segment_count": 0,
+                        "durability_pass": False,
+                    }
+                )
+                continue
+            segment_effects: list[Mapping[str, object]] = []
+            for segment_name, (start, end) in _HORIZON_SEGMENT_WINDOWS:
+                reference_values = full_segments.get(segment_name, {})
+                comparator_values = comparator_segments.get(segment_name, {})
+                shared = tuple(
+                    sorted(set(reference_values) & set(comparator_values))
+                )
+                if len(shared) != selection.subject_count:
+                    segment_effects = []
+                    break
+                effects = tuple(
+                    reference_values[subject] - comparator_values[subject]
+                    for subject in shared
+                )
+                segment_effects.append(
+                    {
+                        "segment": segment_name,
+                        "decision_indices": [start, end],
+                        "mean_paired_effect": math.fsum(effects) / len(effects),
+                        "subjects_with_positive_effect": sum(
+                            effect > 0.0 for effect in effects
+                        ),
+                    }
+                )
+            if len(segment_effects) != len(_HORIZON_SEGMENT_WINDOWS):
+                horizon_segment_comparisons.append(
+                    {
+                        "comparator": comparator,
+                        "status": "not_run",
+                        "segments": [],
+                        "nonnegative_segment_count": 0,
+                        "positive_segment_count": 0,
+                        "durability_pass": False,
+                    }
+                )
+                continue
+            nonnegative_count = sum(
+                _number(item["mean_paired_effect"], "segment mean effect")
+                >= 0.0
+                for item in segment_effects
+            )
+            positive_count = sum(
+                _number(item["mean_paired_effect"], "segment mean effect")
+                > 0.0
+                for item in segment_effects
+            )
+            durability_pass = (
+                nonnegative_count
+                >= _MINIMUM_NONNEGATIVE_HORIZON_SEGMENTS_PER_COMPARATOR
+                and positive_count
+                >= _MINIMUM_POSITIVE_HORIZON_SEGMENTS_PER_COMPARATOR
+            )
+            horizon_segment_comparisons.append(
+                {
+                    "comparator": comparator,
+                    "status": "observed",
+                    "segments": segment_effects,
+                    "nonnegative_segment_count": nonnegative_count,
+                    "positive_segment_count": positive_count,
+                    "durability_pass": durability_pass,
+                }
+            )
+        horizon_durability_pass = all(
+            _boolean(item.get("durability_pass"), "horizon durability pass")
+            for item in horizon_segment_comparisons
+        )
     all_targeted_interventions = all(item["directional_pass"] for item in comparisons[:4])
-    baseline_executed = bool(baseline_chains)
-    baseline_pass = baseline_executed and all(item["directional_pass"] for item in comparisons[4:])
+    baseline_directional_pass = baseline_executed and all(
+        item["directional_pass"] for item in comparisons[4:]
+    )
     baseline_single_frozen_configuration = (
         baseline_executed and len(baseline_generation_config_ids) == 1 and len(baseline_model_ids) == 1
     )
-    baseline_all_completions_valid = baseline_executed and baseline_valid_completion_count == baseline_completion_count
     baseline_instrument_valid = (
         baseline_single_frozen_configuration
         and baseline_execution_backends == {"resident_jsonl_dispatcher"}
@@ -3943,18 +5288,53 @@ def _build_report(
             protocol.baseline_native_prompt_sha256,
             protocol.baseline_rag_prompt_sha256,
         }
+        and (
+            not protocol.is_v2
+            or baseline_single_resident_dispatcher_verified
+        )
+    )
+    baseline_pass = baseline_directional_pass and (
+        not protocol.is_v2
+        or (baseline_all_completions_valid and baseline_instrument_valid)
     )
     embedding_table_protocol_pinned = (
         semantic_backend == "bge_m3_precomputed_public_table"
         and embedding_table_artifact_id == protocol.semantic_table_artifact_id
     )
-    execution_sources_protocol_pinned = bool(protocol.execution_source_sha256s)
+    execution_sources_protocol_pinned = (
+        protocol.local_execution_source_tree_sha256 is not None
+        if protocol.is_v2
+        else bool(protocol.execution_source_sha256s)
+    )
     safety_noninferiority_pass = all(item["noninferiority_pass"] for item in safety_comparisons)
-    typed_control_executed = set(by_arm_subject) >= set(_VOLVENCE_ARMS)
+    typed_control_executed = set(by_arm_subject) >= set(protocol.volvence_arms)
     typed_control_effect_observed = (
         typed_control_executed
         and selection.is_full
         and all_targeted_interventions
+        and (
+            not protocol.is_v2
+            or _boolean(
+                _mapping(
+                    mechanism_evidence,
+                    "v2 mechanism evidence",
+                ).get("direct_mechanism_evidence_complete"),
+                "direct_mechanism_evidence_complete",
+            )
+        )
+        and embedding_table_protocol_pinned
+        and embedding_table_fresh_process_reobserved
+        and execution_sources_protocol_pinned
+    )
+    stage_two_admission_candidate = (
+        selection.is_full
+        and all_targeted_interventions
+        and (not protocol.is_v2 or typed_control_effect_observed)
+        and baseline_pass
+        and baseline_instrument_valid
+        and baseline_all_completions_valid
+        and safety_noninferiority_pass
+        and (not protocol.is_v2 or horizon_durability_pass)
         and embedding_table_protocol_pinned
         and embedding_table_fresh_process_reobserved
         and execution_sources_protocol_pinned
@@ -4008,15 +5388,7 @@ def _build_report(
         "execution_sources_protocol_pinned": (execution_sources_protocol_pinned),
         "both_strong_baseline_directional_pass": baseline_pass,
         "safety_noninferiority_pass": safety_noninferiority_pass,
-        "stage_two_admission_candidate": selection.is_full
-        and all_targeted_interventions
-        and baseline_pass
-        and baseline_instrument_valid
-        and baseline_all_completions_valid
-        and safety_noninferiority_pass
-        and embedding_table_protocol_pinned
-        and embedding_table_fresh_process_reobserved
-        and execution_sources_protocol_pinned,
+        "stage_two_admission_candidate": stage_two_admission_candidate,
         "volvence_logical_session_count": logical_session_count,
         "worker_request_artifact_ids": sorted(request_ids),
         "launch_identity_sha256s": sorted(launch_ids),
@@ -4027,7 +5399,9 @@ def _build_report(
         "typed_control_effect_observed": typed_control_effect_observed,
         "structural_request_truth_firewall": True,
         "os_security_boundary": False,
-        "subprocess_environment_contract": dict(_SUBPROCESS_ENVIRONMENT_CONTRACT),
+        "subprocess_environment_contract": dict(
+            _subprocess_environment_contract(protocol)
+        ),
         "residual_steerable": False,
         "user_visible_generation": False,
         "four_able_complete": False,
@@ -4041,6 +5415,71 @@ def _build_report(
             else "typed_control_product_horizon_executed_effect_not_observed"
         ),
     }
+    if protocol.is_v2:
+        core["all_targeted_intervention_directional_pass"] = core.pop(
+            "all_four_targeted_intervention_directional_pass"
+        )
+        core["internal_typed_control_ablation_effect_observed"] = core.pop(
+            "typed_control_effect_observed"
+        )
+        core["product_stage_two_effect_observed"] = (
+            stage_two_admission_candidate
+        )
+        core["mechanism_evidence"] = _mapping(
+            mechanism_evidence,
+            "v2 mechanism evidence",
+        )
+        core["horizon_segment_comparisons"] = horizon_segment_comparisons
+        core["horizon_durability_thresholds"] = {
+            "minimum_nonnegative_segments_per_comparator": (
+                _MINIMUM_NONNEGATIVE_HORIZON_SEGMENTS_PER_COMPARATOR
+            ),
+            "minimum_positive_segments_per_comparator": (
+                _MINIMUM_POSITIVE_HORIZON_SEGMENTS_PER_COMPARATOR
+            ),
+        }
+        core["horizon_durability_pass"] = horizon_durability_pass
+        core["fresh_process_launch_receipt_per_volvence_logical_session"] = (
+            core.pop("fresh_process_per_volvence_logical_session")
+        )
+        core["validator_recomputes_request_truth_firewall"] = core.pop(
+            "structural_request_truth_firewall"
+        )
+        core.pop("parent_no_user_site_verified")
+        if stage_two_admission_candidate:
+            core["verdict"] = (
+                "product_stage_two_effect_observed_development_only_"
+                "no_residual_or_four_able_claim"
+            )
+        elif typed_control_effect_observed:
+            core["verdict"] = (
+                "internal_typed_control_ablation_effect_only_"
+                "product_stage_two_not_admitted"
+            )
+        else:
+            core["verdict"] = (
+                "typed_control_product_horizon_executed_effect_not_observed"
+            )
+        core["local_execution_source_tree"] = {
+            "tree_sha256": protocol.local_execution_source_tree_sha256,
+            "file_count": protocol.local_execution_source_file_count,
+            "canonical_bytes": protocol.local_execution_source_canonical_bytes,
+        }
+        core["semantic_model_weights_sha256"] = (
+            protocol.semantic_model_weights_sha256
+        )
+        core["semantic_sentence_transformers_version"] = (
+            protocol.semantic_sentence_transformers_version
+        )
+        core["baseline_dispatcher_startup_artifact_ids"] = list(
+            baseline_dispatcher_identity["startup_artifact_ids"]
+        )
+        core["baseline_dispatcher_process_pids"] = list(
+            baseline_dispatcher_identity["process_pids"]
+        )
+        core["baseline_single_resident_dispatcher_verified"] = (
+            baseline_single_resident_dispatcher_verified
+        )
     return _with_artifact_id(core)
 
 
@@ -4183,11 +5622,11 @@ def _prepare_replayed_preaction(
     """Replay the public named-reader/gate projection without sealed truth."""
 
     semantic = PrecomputedPublicSemanticEmbedder(embedding_table)
-    runtime: PreferenceActionForecastRuntime = BoundedRelationshipPreferenceForecastRuntime(
-        similarity=_semantic_similarity(semantic)
+    runtime = _relationship_forecast_runtime(
+        protocol=protocol,
+        arm=arm,
+        semantic=semantic,
     )
-    if arm is RelationshipProductArm.READABLE_PERMUTED:
-        runtime = _PermutedForecastRuntime(runtime)
     gate_mode = (
         RelationshipActionGateMode.NOOP
         if arm is RelationshipProductArm.STRICT_NOOP
@@ -4223,6 +5662,53 @@ def _prepare_replayed_preaction(
             substrate_snapshot=_placeholder_substrate(),
         )
     )
+
+
+def _relationship_forecast_runtime(
+    *,
+    protocol: RelationshipProductHorizonProtocol,
+    arm: RelationshipProductArm,
+    semantic: PrecomputedPublicSemanticEmbedder,
+) -> PreferenceActionForecastRuntime:
+    """Build the protocol-pinned public reader without evaluator knowledge."""
+
+    if arm.value not in protocol.volvence_arms:
+        raise ValueError("forecast runtime arm is not in the selected protocol")
+    if protocol.is_v2:
+        if arm is RelationshipProductArm.READABLE_UNNAMED_LEGACY:
+            return BoundedRelationshipPreferenceForecastRuntime(
+                similarity=_semantic_similarity(semantic)
+            )
+        artifact = relationship_product_condition_reader_artifact()
+        if artifact.artifact_id != protocol.condition_reader_artifact_id:
+            raise ValueError("forecast runtime condition-reader artifact drifted")
+        return PrototypeRelationshipPreferenceForecastRuntime(
+            artifact=artifact,
+            embedder=semantic,
+            prior_count=1.0,
+            evidence_weight=4.0,
+        )
+    runtime: PreferenceActionForecastRuntime = (
+        BoundedRelationshipPreferenceForecastRuntime(
+            similarity=_semantic_similarity(semantic)
+        )
+    )
+    if arm is RelationshipProductArm.READABLE_PERMUTED:
+        runtime = _PermutedForecastRuntime(runtime)
+    return runtime
+
+
+def _semantic_similarity_formula(
+    *,
+    protocol: RelationshipProductHorizonProtocol,
+    arm: RelationshipProductArm,
+) -> str:
+    if (
+        protocol.is_v2
+        and arm is not RelationshipProductArm.READABLE_UNNAMED_LEGACY
+    ):
+        return "prototype_cosine_named_condition_then_same_label_confidence"
+    return "clamp_0_1((cosine+1)/2)"
 
 
 def _load_owner_state(state_root: pathlib.Path) -> tuple[SocialRecordStore, OwnerHydrationStore, bool, str]:
@@ -4277,6 +5763,15 @@ def _validate_protocol_pinned_embedding_table(
         or _sha256_file(pathlib.Path(table_path)) != protocol.semantic_table_raw_sha256
         or len(table.records) != protocol.semantic_table_record_count
         or table.embedding_width != 1024
+        or (
+            protocol.is_v2
+            and (
+                table.source_weights_sha256
+                != protocol.semantic_model_weights_sha256
+                or table.source_sentence_transformers_version
+                != protocol.semantic_sentence_transformers_version
+            )
+        )
     ):
         raise ValueError("public semantic table differs from protocol-pinned bytes")
 
@@ -4289,28 +5784,37 @@ def _validate_embedding_reobservation_attestation(
     public_plan_sha256: str,
 ) -> None:
     _validate_content_addressed(payload, "embedding reobservation attestation")
+    expected_keys = {
+        "schema_version",
+        "protocol_id",
+        "public_plan_sha256",
+        "table_artifact_id",
+        "table_raw_sha256",
+        "table_record_count",
+        "model_source",
+        "model_revision",
+        "device",
+        "comparison",
+        "recomputed_table_artifact_id",
+        "exact_vector_payload_match",
+        "child_pid",
+        "parent_pid",
+        "python_executable",
+        "python_no_user_site",
+        "subprocess_environment_contract",
+        "artifact_id",
+    }
+    if protocol.is_v2:
+        expected_keys.update(
+            {
+                "local_execution_source_tree_sha256",
+                "model_weights_sha256",
+                "sentence_transformers_version",
+            }
+        )
     _require_exact_keys(
         payload,
-        {
-            "schema_version",
-            "protocol_id",
-            "public_plan_sha256",
-            "table_artifact_id",
-            "table_raw_sha256",
-            "table_record_count",
-            "model_source",
-            "model_revision",
-            "device",
-            "comparison",
-            "recomputed_table_artifact_id",
-            "exact_vector_payload_match",
-            "child_pid",
-            "parent_pid",
-            "python_executable",
-            "python_no_user_site",
-            "subprocess_environment_contract",
-            "artifact_id",
-        },
+        expected_keys,
         "embedding reobservation attestation",
     )
     expected = {
@@ -4327,14 +5831,34 @@ def _validate_embedding_reobservation_attestation(
         "recomputed_table_artifact_id": table.artifact_id,
         "exact_vector_payload_match": True,
         "python_no_user_site": True,
-        "subprocess_environment_contract": _SUBPROCESS_ENVIRONMENT_CONTRACT,
+        "subprocess_environment_contract": _subprocess_environment_contract(
+            protocol
+        ),
     }
+    if protocol.is_v2:
+        expected.update(
+            {
+                "model_weights_sha256": protocol.semantic_model_weights_sha256,
+                "sentence_transformers_version": (
+                    protocol.semantic_sentence_transformers_version
+                ),
+                "local_execution_source_tree_sha256": (
+                    protocol.local_execution_source_tree_sha256
+                ),
+            }
+        )
     if {key: payload.get(key) for key in expected} != expected:
         raise ValueError("embedding reobservation attestation projection drifted")
     for field_name in ("child_pid", "parent_pid"):
         if _integer(payload.get(field_name), field_name) <= 0:
             raise ValueError(f"embedding reobservation {field_name} must be positive")
-    _text(payload.get("python_executable"), "reobservation python_executable")
+    if payload.get("child_pid") == payload.get("parent_pid"):
+        raise ValueError("embedding reobservation must run in a distinct child process")
+    python_executable = pathlib.Path(
+        _text(payload.get("python_executable"), "reobservation python_executable")
+    )
+    if not python_executable.is_absolute():
+        raise ValueError("reobservation python_executable must be absolute")
 
 
 def _semantic_backend_label(source_name: str) -> str:
@@ -4348,30 +5872,38 @@ def _semantic_backend_label(source_name: str) -> str:
 
 def _validate_onboarding_receipt(payload: Mapping[str, object]) -> None:
     _validate_content_addressed(payload, "onboarding receipt")
+    schema_version = payload.get("schema_version")
+    if schema_version not in {
+        RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION,
+        RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION_V2,
+    }:
+        raise ValueError("onboarding receipt schema mismatch")
+    expected_keys = {
+        "schema_version",
+        "request_artifact_id",
+        "invocation_nonce",
+        "child_pid",
+        "parent_pid",
+        "python_executable",
+        "python_version",
+        "owner_loaded",
+        "pre_owner_snapshot_sha256",
+        "owner_snapshot_sha256",
+        "launch_identity_sha256",
+        "subprocess_environment_contract_sha256",
+        "model_output_count",
+        "sealed_truth_received",
+        "artifact_id",
+    }
+    if schema_version == RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION_V2:
+        expected_keys.add("execution_source_lineage")
     _require_exact_keys(
         payload,
-        {
-            "schema_version",
-            "request_artifact_id",
-            "invocation_nonce",
-            "child_pid",
-            "parent_pid",
-            "python_executable",
-            "python_version",
-            "owner_loaded",
-            "pre_owner_snapshot_sha256",
-            "owner_snapshot_sha256",
-            "launch_identity_sha256",
-            "subprocess_environment_contract_sha256",
-            "model_output_count",
-            "sealed_truth_received",
-            "artifact_id",
-        },
+        expected_keys,
         "onboarding receipt",
     )
     if (
-        payload.get("schema_version") != RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION
-        or payload.get("sealed_truth_received") is not False
+        payload.get("sealed_truth_received") is not False
         or payload.get("model_output_count") != 0
     ):
         raise ValueError("onboarding receipt truth/model boundary drifted")
@@ -4384,53 +5916,129 @@ def _validate_onboarding_receipt(payload: Mapping[str, object]) -> None:
         payload.get("owner_snapshot_sha256"),
         "onboarding owner snapshot",
     )
-    if payload.get("subprocess_environment_contract_sha256") != sha256_json(_SUBPROCESS_ENVIRONMENT_CONTRACT):
+    expected_environment = (
+        _SUBPROCESS_ENVIRONMENT_CONTRACT_V2
+        if schema_version == RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION_V2
+        else _SUBPROCESS_ENVIRONMENT_CONTRACT
+    )
+    if payload.get("subprocess_environment_contract_sha256") != sha256_json(
+        expected_environment
+    ):
         raise ValueError("onboarding subprocess environment receipt drifted")
+    if schema_version == RELATIONSHIP_PRODUCT_ONBOARDING_RECEIPT_SCHEMA_VERSION_V2:
+        lineage = _mapping(
+            payload.get("execution_source_lineage"),
+            "onboarding execution source lineage",
+        )
+        _validate_content_addressed(lineage, "onboarding execution source lineage")
     _boolean(payload.get("owner_loaded"), "onboarding owner_loaded")
     _text(payload.get("python_executable"), "onboarding python_executable")
     _text(payload.get("python_version"), "onboarding python_version")
 
 
-def _validate_preaction_receipt(payload: Mapping[str, object]) -> None:
-    _validate_content_addressed(payload, "preaction receipt")
+def _validated_frozen_forecast_envelope(
+    payload: Mapping[str, object],
+) -> PreferenceActionForecast:
+    """Validate the campaign envelope and decode its owner-authored value."""
+
+    _validate_content_addressed(payload, "frozen forecast envelope")
     _require_exact_keys(
         payload,
-        {
-            "schema_version",
-            "request_artifact_id",
-            "invocation_nonce",
-            "child_pid",
-            "parent_pid",
-            "launch_identity_sha256",
-            "subprocess_environment_contract_sha256",
-            "owner_loaded",
-            "pre_owner_snapshot_sha256",
-            "forecast_id",
-            "forecast_sha256",
-            "recommended_action_id",
-            "selected_action_id",
-            "gate_decision",
-            "gate_update_count_before",
-            "semantic_backend",
-            "semantic_table_artifact_id",
-            "semantic_similarity_formula",
-            "sealed_truth_received_before_preaction",
-            "preaction_fsynced_before_settlement_read",
-            "model_output_count",
-            "artifact_id",
-        },
+        {"schema_version", "forecast", "artifact_id"},
+        "frozen forecast envelope",
+    )
+    if (
+        payload.get("schema_version")
+        != PREFERENCE_ACTION_FORECAST_SNAPSHOT_SCHEMA_VERSION
+    ):
+        raise ValueError("frozen forecast envelope schema mismatch")
+    forecast_payload = _mapping(
+        payload.get("forecast"),
+        "frozen forecast envelope forecast",
+    )
+    _assert_truth_firewall(forecast_payload)
+    forecast = preference_action_forecast_from_payload(forecast_payload)
+    if preference_action_forecast_to_payload(forecast) != forecast_payload:
+        raise ValueError("frozen forecast payload is not canonical")
+
+    observed_actions = tuple(
+        candidate.action_id for candidate in forecast.candidate_predictions
+    )
+    if observed_actions != tuple(action.value for action in RELATIONSHIP_ACTIONS):
+        raise ValueError("frozen forecast action ordering drifted")
+    expected_outcomes = tuple(outcome.value for outcome in RELATIONSHIP_OUTCOMES)
+    if any(
+        tuple(outcome.outcome_id for outcome in candidate.outcomes)
+        != expected_outcomes
+        for candidate in forecast.candidate_predictions
+    ):
+        raise ValueError("frozen forecast outcome ordering drifted")
+    RelationshipAction(forecast.recommended_action_id)
+    return forecast
+
+
+def _validate_preaction_receipt(payload: Mapping[str, object]) -> None:
+    _validate_content_addressed(payload, "preaction receipt")
+    schema_version = payload.get("schema_version")
+    if schema_version not in {
+        RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION,
+        RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION_V2,
+    }:
+        raise ValueError("preaction receipt schema mismatch")
+    expected_keys = {
+        "schema_version",
+        "request_artifact_id",
+        "invocation_nonce",
+        "child_pid",
+        "parent_pid",
+        "launch_identity_sha256",
+        "subprocess_environment_contract_sha256",
+        "owner_loaded",
+        "pre_owner_snapshot_sha256",
+        "forecast_id",
+        "forecast_sha256",
+        "recommended_action_id",
+        "selected_action_id",
+        "gate_decision",
+        "gate_update_count_before",
+        "semantic_backend",
+        "semantic_table_artifact_id",
+        "semantic_similarity_formula",
+        "sealed_truth_received_before_preaction",
+        "preaction_fsynced_before_settlement_read",
+        "model_output_count",
+        "artifact_id",
+    }
+    if schema_version == RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION_V2:
+        expected_keys.add("execution_source_lineage")
+        expected_keys.add("frozen_forecast")
+    _require_exact_keys(
+        payload,
+        expected_keys,
         "preaction receipt",
     )
     if (
-        payload.get("schema_version") != RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION
-        or payload.get("sealed_truth_received_before_preaction") is not False
+        payload.get("sealed_truth_received_before_preaction") is not False
         or payload.get("preaction_fsynced_before_settlement_read") is not True
         or payload.get("model_output_count") != 0
-        or payload.get("semantic_similarity_formula") != "clamp_0_1((cosine+1)/2)"
     ):
         raise ValueError("preaction receipt truth/semantic boundary drifted")
+    allowed_formulas = {"clamp_0_1((cosine+1)/2)"}
+    if schema_version == RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION_V2:
+        allowed_formulas.add(
+            "prototype_cosine_named_condition_then_same_label_confidence"
+        )
+    if payload.get("semantic_similarity_formula") not in allowed_formulas:
+        raise ValueError("preaction receipt semantic formula drifted")
     _validate_launch_receipt(payload)
-    if payload.get("subprocess_environment_contract_sha256") != sha256_json(_SUBPROCESS_ENVIRONMENT_CONTRACT):
+    expected_environment = (
+        _SUBPROCESS_ENVIRONMENT_CONTRACT_V2
+        if schema_version == RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION_V2
+        else _SUBPROCESS_ENVIRONMENT_CONTRACT
+    )
+    if payload.get("subprocess_environment_contract_sha256") != sha256_json(
+        expected_environment
+    ):
         raise ValueError("preaction subprocess environment receipt drifted")
     _boolean(payload.get("owner_loaded"), "preaction owner_loaded")
     for field_name in (
@@ -4441,6 +6049,30 @@ def _validate_preaction_receipt(payload: Mapping[str, object]) -> None:
         _require_sha256(payload.get(field_name), f"preaction {field_name}")
     RelationshipAction(_text(payload.get("recommended_action_id"), "recommended_action_id"))
     RelationshipAction(_text(payload.get("selected_action_id"), "selected_action_id"))
+    if schema_version == RELATIONSHIP_PRODUCT_PREACTION_RECEIPT_SCHEMA_VERSION_V2:
+        lineage = _mapping(
+            payload.get("execution_source_lineage"),
+            "preaction execution source lineage",
+        )
+        _validate_content_addressed(lineage, "preaction execution source lineage")
+        frozen_forecast_envelope = _mapping(
+            payload.get("frozen_forecast"),
+            "preaction frozen_forecast",
+        )
+        frozen_forecast = _validated_frozen_forecast_envelope(
+            frozen_forecast_envelope
+        )
+        frozen_forecast_payload = preference_action_forecast_to_payload(
+            frozen_forecast
+        )
+        if (
+            sha256_json(frozen_forecast_payload)
+            != payload.get("forecast_sha256")
+            or frozen_forecast.forecast_id != payload.get("forecast_id")
+            or frozen_forecast.recommended_action_id
+            != payload.get("recommended_action_id")
+        ):
+            raise ValueError("preaction frozen forecast content address drifted")
     gate_decision = RelationshipActionGateDecision.from_payload(
         _mapping(payload.get("gate_decision"), "preaction gate_decision")
     )
@@ -4450,34 +6082,38 @@ def _validate_preaction_receipt(payload: Mapping[str, object]) -> None:
 
 def _validate_postaction_receipt(payload: Mapping[str, object]) -> None:
     _validate_content_addressed(payload, "postaction receipt")
-    _require_exact_keys(
-        payload,
-        {
-            "schema_version",
-            "request_artifact_id",
-            "preaction_artifact_id",
-            "settlement_payload_sha256",
-            "child_pid",
-            "forecast_id",
-            "settlement_id",
-            "typed_outcome_id",
-            "social_prediction_error_snapshot_sha256",
-            "credit_record_id",
-            "credit_value_hex",
-            "credit_applied_to_gate",
-            "gate_update_count_after",
-            "post_owner_snapshot_sha256",
-            "subprocess_environment_contract_sha256",
-            "settlement_read_after_preaction_fsync",
-            "evaluator_or_judge_feedback_received",
-            "model_output_count",
-            "artifact_id",
-        },
-        "postaction receipt",
-    )
+    schema_version = payload.get("schema_version")
+    if schema_version not in {
+        RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION,
+        RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION_V2,
+    }:
+        raise ValueError("postaction receipt schema mismatch")
+    expected_keys = {
+        "schema_version",
+        "request_artifact_id",
+        "preaction_artifact_id",
+        "settlement_payload_sha256",
+        "child_pid",
+        "forecast_id",
+        "settlement_id",
+        "typed_outcome_id",
+        "social_prediction_error_snapshot_sha256",
+        "credit_record_id",
+        "credit_value_hex",
+        "credit_applied_to_gate",
+        "gate_update_count_after",
+        "post_owner_snapshot_sha256",
+        "subprocess_environment_contract_sha256",
+        "settlement_read_after_preaction_fsync",
+        "evaluator_or_judge_feedback_received",
+        "model_output_count",
+        "artifact_id",
+    }
+    if schema_version == RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION_V2:
+        expected_keys.add("execution_source_lineage")
+    _require_exact_keys(payload, expected_keys, "postaction receipt")
     if (
-        payload.get("schema_version") != RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION
-        or payload.get("settlement_read_after_preaction_fsync") is not True
+        payload.get("settlement_read_after_preaction_fsync") is not True
         or payload.get("evaluator_or_judge_feedback_received") is not False
         or payload.get("model_output_count") != 0
     ):
@@ -4491,8 +6127,21 @@ def _validate_postaction_receipt(payload: Mapping[str, object]) -> None:
         "subprocess_environment_contract_sha256",
     ):
         _require_sha256(payload.get(field_name), f"postaction {field_name}")
-    if payload.get("subprocess_environment_contract_sha256") != sha256_json(_SUBPROCESS_ENVIRONMENT_CONTRACT):
+    expected_environment = (
+        _SUBPROCESS_ENVIRONMENT_CONTRACT_V2
+        if schema_version == RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION_V2
+        else _SUBPROCESS_ENVIRONMENT_CONTRACT
+    )
+    if payload.get("subprocess_environment_contract_sha256") != sha256_json(
+        expected_environment
+    ):
         raise ValueError("postaction subprocess environment receipt drifted")
+    if schema_version == RELATIONSHIP_PRODUCT_POSTACTION_RECEIPT_SCHEMA_VERSION_V2:
+        lineage = _mapping(
+            payload.get("execution_source_lineage"),
+            "postaction execution source lineage",
+        )
+        _validate_content_addressed(lineage, "postaction execution source lineage")
     if _integer(payload.get("child_pid"), "postaction child_pid") <= 0:
         raise ValueError("postaction child_pid must be positive")
     _boolean(
@@ -4560,15 +6209,21 @@ def _validate_worker_request(payload: Mapping[str, object], *, operation: str, e
         or payload.get("operation") != operation
     ):
         raise ValueError("worker request schema/operation mismatch")
+    protocol = _registered_product_protocol_for_id(payload.get("protocol_id"))
     arm_id = payload.get("arm_id")
-    if arm_id not in _VOLVENCE_ARMS:
+    if arm_id not in protocol.volvence_arms:
         raise ValueError("worker request arm is not a typed Volvence arm")
     if expected_parent_pid is not None and payload.get("parent_pid") != expected_parent_pid:
         raise ValueError("worker request parent pid mismatch")
-    if payload.get("subprocess_environment_contract") != (_SUBPROCESS_ENVIRONMENT_CONTRACT):
+    expected_environment = _subprocess_environment_contract(protocol)
+    if payload.get("subprocess_environment_contract") != dict(expected_environment):
         raise ValueError("worker request subprocess environment contract drifted")
-    observed_environment = {key: os.environ.get(key) for key in _SUBPROCESS_ENVIRONMENT_CONTRACT}
-    if expected_parent_pid is not None and observed_environment != (_SUBPROCESS_ENVIRONMENT_CONTRACT):
+    observed_environment = {
+        key: os.environ.get(key) for key in expected_environment
+    }
+    if expected_parent_pid is not None and observed_environment != dict(
+        expected_environment
+    ):
         raise RuntimeError("worker process does not satisfy the offline execution environment")
     common = {
         "schema_version",
@@ -4584,6 +6239,23 @@ def _validate_worker_request(payload: Mapping[str, object], *, operation: str, e
         "parent_pid",
         "artifact_id",
     }
+    if protocol.is_v2:
+        common |= {
+            "execution_source_bundle_artifact_id",
+            "local_execution_source_tree_sha256",
+        }
+        _require_sha256(
+            payload.get("execution_source_bundle_artifact_id"),
+            "worker execution_source_bundle_artifact_id",
+        )
+        if (
+            _digest(
+                payload.get("local_execution_source_tree_sha256"),
+                "worker local_execution_source_tree_sha256",
+            )
+            != protocol.local_execution_source_tree_sha256
+        ):
+            raise ValueError("worker local execution source tree pin drifted")
     if operation == "onboarding":
         _require_exact_keys(payload, common, "onboarding worker request")
         _require_exact_keys(
@@ -4635,29 +6307,58 @@ def _validate_worker_request(payload: Mapping[str, object], *, operation: str, e
             },
             "decision public session",
         )
-        expected_arm_control = {
-            "volvence_full": ("identity", RelationshipActionGateMode.LEARNED.value, True),
-            "appendable_frozen_onboarding": (
-                "identity",
-                RelationshipActionGateMode.LEARNED.value,
-                True,
-            ),
-            "readable_permuted": (
-                "permuted_stay_space",
-                RelationshipActionGateMode.LEARNED.value,
-                True,
-            ),
-            "credit_withheld": (
-                "identity",
-                RelationshipActionGateMode.LEARNED.value,
-                False,
-            ),
-            "strict_noop": (
-                "identity",
-                RelationshipActionGateMode.NOOP.value,
-                False,
-            ),
-        }
+        if protocol.is_v2:
+            expected_arm_control = {
+                "volvence_full": (
+                    "prototype_named_condition_readout",
+                    RelationshipActionGateMode.LEARNED.value,
+                    True,
+                ),
+                "appendable_frozen_onboarding": (
+                    "prototype_named_condition_readout",
+                    RelationshipActionGateMode.LEARNED.value,
+                    True,
+                ),
+                "readable_unnamed_legacy": (
+                    "legacy_unnamed_semantic_similarity",
+                    RelationshipActionGateMode.LEARNED.value,
+                    True,
+                ),
+                "credit_withheld": (
+                    "prototype_named_condition_readout",
+                    RelationshipActionGateMode.LEARNED.value,
+                    False,
+                ),
+                "strict_noop": (
+                    "prototype_named_condition_readout",
+                    RelationshipActionGateMode.NOOP.value,
+                    False,
+                ),
+            }
+        else:
+            expected_arm_control = {
+                "volvence_full": ("identity", RelationshipActionGateMode.LEARNED.value, True),
+                "appendable_frozen_onboarding": (
+                    "identity",
+                    RelationshipActionGateMode.LEARNED.value,
+                    True,
+                ),
+                "readable_permuted": (
+                    "permuted_stay_space",
+                    RelationshipActionGateMode.LEARNED.value,
+                    True,
+                ),
+                "credit_withheld": (
+                    "identity",
+                    RelationshipActionGateMode.LEARNED.value,
+                    False,
+                ),
+                "strict_noop": (
+                    "identity",
+                    RelationshipActionGateMode.NOOP.value,
+                    False,
+                ),
+            }
         observed_control = (
             payload.get("named_reader"),
             payload.get("gate_mode"),
@@ -4776,8 +6477,33 @@ def _placeholder_substrate() -> SubstrateSnapshot:
     )
 
 
-def _forecast_payload(forecast: Any) -> Mapping[str, object]:
-    return {
+def _forecast_payload_for_protocol(
+    *,
+    protocol: RelationshipProductHorizonProtocol,
+    forecast: PreferenceActionForecast,
+) -> Mapping[str, object]:
+    if protocol.is_v2:
+        return preference_action_forecast_to_payload(forecast)
+    return _legacy_forecast_payload(forecast)
+
+
+def _frozen_forecast_envelope(
+    forecast: PreferenceActionForecast,
+) -> Mapping[str, object]:
+    return _with_artifact_id(
+        {
+            "schema_version": PREFERENCE_ACTION_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+            "forecast": preference_action_forecast_to_payload(forecast),
+        }
+    )
+
+
+def _legacy_forecast_payload(
+    forecast: PreferenceActionForecast,
+) -> Mapping[str, object]:
+    """Preserve the published v1 forecast hash projection byte-for-byte."""
+
+    payload: dict[str, object] = {
         "forecast_id": forecast.forecast_id,
         "decision_id": forecast.decision_id,
         "interlocutor_id": forecast.interlocutor_id,
@@ -4798,6 +6524,7 @@ def _forecast_payload(forecast: Any) -> Mapping[str, object]:
         "evidence": list(forecast.evidence),
         "session_scope": forecast.session_scope,
     }
+    return payload
 
 
 def _social_pe_payload(snapshot: Any) -> Mapping[str, object]:
@@ -5065,6 +6792,169 @@ def _state_directory_sha256(root: pathlib.Path) -> str:
     return sha256_json(_manifest_file_entries(root))
 
 
+def _canonical_local_execution_source_bytes(
+    *,
+    repository_path: str,
+    raw_bytes: bytes,
+) -> tuple[bytes, str]:
+    pure_path = pathlib.PurePosixPath(repository_path)
+    is_python_source = (
+        len(pure_path.parts) >= 4
+        and pure_path.parts[0] == "packages"
+        and pure_path.parts[2] == "src"
+        and pure_path.suffix.lower() == ".py"
+    )
+    if (
+        not is_python_source
+        and repository_path not in _LOCAL_EXECUTION_SOURCE_ENTRYPOINTS
+        and repository_path not in _LOCAL_EXECUTION_RESOURCE_PATHS
+    ):
+        raise ValueError(
+            f"local execution source is outside the frozen selector: {repository_path}"
+        )
+    try:
+        source = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"local execution text source must be exact UTF-8: {repository_path}"
+        ) from exc
+    canonical = source.replace("\r\n", "\n").replace("\r", "\n").encode(
+        "utf-8"
+    )
+    return canonical, "utf8_newlines_lf"
+
+
+def _assert_non_reparse_source_path(
+    path: pathlib.Path,
+    *,
+    repository_root: pathlib.Path,
+) -> None:
+    current = path
+    while current != repository_root:
+        metadata = current.lstat()
+        file_attributes = getattr(metadata, "st_file_attributes", 0)
+        if stat.S_ISLNK(metadata.st_mode) or file_attributes & getattr(
+            stat,
+            "FILE_ATTRIBUTE_REPARSE_POINT",
+            0,
+        ):
+            raise ValueError(f"local Python source closure rejects reparse path: {path}")
+        parent = current.parent
+        if parent == current:
+            raise ValueError(f"local Python source path escapes repository: {path}")
+        current = parent
+
+
+def _local_execution_source_tree(
+    *,
+    repository_root: pathlib.Path,
+) -> tuple[
+    Mapping[str, object],
+    tuple[tuple[pathlib.Path, str, bytes, bytes, str], ...],
+]:
+    repository = pathlib.Path(repository_root).resolve()
+    packages_root = repository / "packages"
+    if not packages_root.is_dir():
+        raise FileNotFoundError("local Python source closure packages root is missing")
+
+    source_files: list[pathlib.Path] = []
+    for package_root in sorted(
+        (item for item in packages_root.iterdir() if item.is_dir()),
+        key=lambda item: item.name.encode("utf-8"),
+    ):
+        source_root = package_root / "src"
+        if source_root.is_dir():
+            source_files.extend(item for item in source_root.rglob("*.py") if item.is_file())
+    source_files.extend(
+        repository / pathlib.PurePosixPath(relative)
+        for relative in (
+            *_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS,
+            *_LOCAL_EXECUTION_RESOURCE_PATHS,
+        )
+    )
+    active_protocol_path = (
+        repository / pathlib.PurePosixPath(_LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH)
+    )
+    _assert_non_reparse_source_path(
+        active_protocol_path,
+        repository_root=repository,
+    )
+    if not active_protocol_path.is_file():
+        raise FileNotFoundError("active v2 product protocol resource is missing")
+    identified: list[tuple[pathlib.Path, str, bytes, bytes, str]] = []
+    casefold_paths: set[str] = set()
+    for path in source_files:
+        _assert_non_reparse_source_path(path, repository_root=repository)
+        resolved = path.resolve()
+        try:
+            relative = resolved.relative_to(repository).as_posix()
+        except ValueError as exc:
+            raise ValueError(f"local Python source path escapes repository: {path}") from exc
+        folded = relative.casefold()
+        if folded in casefold_paths:
+            raise ValueError(f"local Python source closure has a casefold collision: {relative}")
+        casefold_paths.add(folded)
+        raw_bytes = resolved.read_bytes()
+        canonical_bytes, canonicalization_kind = (
+            _canonical_local_execution_source_bytes(
+                repository_path=relative,
+                raw_bytes=raw_bytes,
+            )
+        )
+        identified.append(
+            (
+                resolved,
+                relative,
+                raw_bytes,
+                canonical_bytes,
+                canonicalization_kind,
+            )
+        )
+    identified.sort(key=lambda item: item[1].encode("utf-8"))
+    if not identified:
+        raise ValueError("local Python source closure is empty")
+
+    identity_files = [
+        {
+            "repository_path": relative,
+            "canonicalization_kind": canonicalization_kind,
+            "canonical_sha256": _sha256_bytes(canonical_bytes),
+            "canonical_bytes": len(canonical_bytes),
+        }
+        for (
+            _path,
+            relative,
+            _raw_bytes,
+            canonical_bytes,
+            canonicalization_kind,
+        ) in identified
+    ]
+    identity = {
+        "schema_version": _LOCAL_EXECUTION_SOURCE_TREE_SCHEMA_VERSION,
+        "selector": _LOCAL_EXECUTION_SOURCE_TREE_SELECTOR,
+        "entrypoints": list(_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS),
+        "resource_paths": list(_LOCAL_EXECUTION_RESOURCE_PATHS),
+        "active_protocol_path": _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH,
+        "canonicalization": _LOCAL_EXECUTION_SOURCE_CANONICALIZATION,
+        "files": identity_files,
+    }
+    summary = {
+        "schema_version": _LOCAL_EXECUTION_SOURCE_TREE_SCHEMA_VERSION,
+        "selector": _LOCAL_EXECUTION_SOURCE_TREE_SELECTOR,
+        "entrypoints": list(_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS),
+        "resource_paths": list(_LOCAL_EXECUTION_RESOURCE_PATHS),
+        "active_protocol_path": _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH,
+        "canonicalization": _LOCAL_EXECUTION_SOURCE_CANONICALIZATION,
+        "tree_sha256": sha256_json(identity),
+        "file_count": len(identity_files),
+        "canonical_bytes": sum(
+            _integer(item["canonical_bytes"], "canonical source bytes")
+            for item in identity_files
+        ),
+    }
+    return summary, tuple(identified)
+
+
 def _execution_source_paths(
     *,
     campaign_cli: pathlib.Path,
@@ -5086,39 +6976,134 @@ def _publish_execution_source_bundle(
     root: pathlib.Path,
     protocol: RelationshipProductHorizonProtocol,
     campaign_cli: pathlib.Path,
+    protocol_source: pathlib.Path | None = None,
 ) -> Mapping[str, object]:
-    paths = _execution_source_paths(campaign_cli=campaign_cli)
-    if tuple(sorted(paths)) != _EXECUTION_SOURCE_KEYS:
-        raise ValueError("execution source path set drifted")
-    protocol_pins = dict(protocol.execution_source_sha256s)
-    if protocol_pins and set(protocol_pins) != set(_EXECUTION_SOURCE_KEYS):
-        raise ValueError("protocol execution source pin set drifted")
     source_root = root / "inputs" / "execution_sources"
     source_root.mkdir(parents=True)
-    entries: list[Mapping[str, object]] = []
-    for key in _EXECUTION_SOURCE_KEYS:
-        source_path = paths[key]
-        if not source_path.is_file():
-            raise FileNotFoundError(f"execution source is missing: {source_path}")
-        digest = _sha256_file(source_path)
-        if protocol_pins and protocol_pins[key] != digest:
-            raise ValueError(f"execution source {key} differs from protocol pin")
-        target = source_root / f"{key}{source_path.suffix}"
-        _write_bytes_create_only(target, source_path.read_bytes())
-        entries.append(
-            {
-                "key": key,
-                "path": _relative_posix(root, target),
-                "sha256": digest,
-                "bytes": target.stat().st_size,
-            }
+    if protocol.is_v2:
+        if protocol.execution_source_sha256s:
+            raise ValueError("v2 execution source authority must be the canonical tree")
+        repository_root = pathlib.Path(__file__).resolve().parents[4]
+        tree_summary, tree_files = _local_execution_source_tree(
+            repository_root=repository_root,
         )
-    bundle = _with_artifact_id(
-        {
+        expected_summary = {
+            "schema_version": _LOCAL_EXECUTION_SOURCE_TREE_SCHEMA_VERSION,
+            "selector": _LOCAL_EXECUTION_SOURCE_TREE_SELECTOR,
+            "entrypoints": list(_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS),
+            "resource_paths": list(_LOCAL_EXECUTION_RESOURCE_PATHS),
+            "active_protocol_path": _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH,
+            "canonicalization": _LOCAL_EXECUTION_SOURCE_CANONICALIZATION,
+            "tree_sha256": protocol.local_execution_source_tree_sha256,
+            "file_count": protocol.local_execution_source_file_count,
+            "canonical_bytes": protocol.local_execution_source_canonical_bytes,
+        }
+        if tree_summary != expected_summary:
+            raise ValueError("local Python source tree differs from protocol pin")
+        tree_entries: list[Mapping[str, object]] = []
+        for (
+            source_path,
+            repository_path,
+            raw_bytes,
+            canonical_bytes,
+            canonicalization_kind,
+        ) in tree_files:
+            target = (
+                source_root
+                / "tree"
+                / pathlib.PurePosixPath(repository_path)
+            )
+            _write_bytes_create_only(target, raw_bytes)
+            tree_entries.append(
+                {
+                    "repository_path": repository_path,
+                    "path": _relative_posix(root, target),
+                    "canonicalization_kind": canonicalization_kind,
+                    "canonical_sha256": _sha256_bytes(canonical_bytes),
+                    "canonical_bytes": len(canonical_bytes),
+                    "raw_sha256": _sha256_bytes(raw_bytes),
+                    "raw_bytes": len(raw_bytes),
+                }
+            )
+            if source_path.read_bytes() != raw_bytes:
+                raise RuntimeError(
+                    f"local Python source changed while freezing closure: {source_path}"
+                )
+        source_tree = _with_artifact_id(
+            {**tree_summary, "files": tree_entries}
+        )
+        packaged_active_protocol_source = relationship_product_horizon_protocol_path(
+            "v2"
+        ).resolve()
+        expected_active_protocol_source = (
+            repository_root
+            / pathlib.PurePosixPath(_LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH)
+        ).resolve()
+        if packaged_active_protocol_source != expected_active_protocol_source:
+            raise ValueError("active v2 protocol resource path drifted")
+        active_protocol_source = pathlib.Path(
+            protocol_source or packaged_active_protocol_source
+        ).resolve()
+        if active_protocol_source == packaged_active_protocol_source:
+            _assert_non_reparse_source_path(
+                active_protocol_source,
+                repository_root=repository_root,
+            )
+        elif active_protocol_source != _non_authorizing_test_protocol_path():
+            raise ValueError("active v2 protocol source is not an admitted test protocol")
+        active_protocol_bytes = active_protocol_source.read_bytes()
+        if _sha256_bytes(active_protocol_bytes) != protocol.raw_sha256:
+            raise ValueError("active v2 protocol raw bytes differ from loaded protocol")
+        active_protocol_target = (
+            source_root
+            / "tree"
+            / pathlib.PurePosixPath(_LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH)
+        )
+        _write_bytes_create_only(active_protocol_target, active_protocol_bytes)
+        active_protocol_resource = {
+            "schema_version": _ACTIVE_PROTOCOL_RESOURCE_SCHEMA_VERSION,
+            "repository_path": _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH,
+            "path": _relative_posix(root, active_protocol_target),
+            "protocol_id": protocol.protocol_id,
+            "raw_sha256": protocol.raw_sha256,
+            "raw_bytes": len(active_protocol_bytes),
+        }
+        bundle_core = {
+            "schema_version": "relationship-product-execution-source-bundle.v2",
+            "local_execution_source_tree": source_tree,
+            "active_protocol_resource": active_protocol_resource,
+        }
+    else:
+        paths = _execution_source_paths(campaign_cli=campaign_cli)
+        if tuple(sorted(paths)) != _EXECUTION_SOURCE_KEYS:
+            raise ValueError("execution source path set drifted")
+        protocol_pins = dict(protocol.execution_source_sha256s)
+        if protocol_pins and set(protocol_pins) != set(_EXECUTION_SOURCE_KEYS):
+            raise ValueError("protocol execution source pin set drifted")
+        entries: list[Mapping[str, object]] = []
+        for key in _EXECUTION_SOURCE_KEYS:
+            source_path = paths[key]
+            if not source_path.is_file():
+                raise FileNotFoundError(f"execution source is missing: {source_path}")
+            digest = _sha256_file(source_path)
+            if protocol_pins and protocol_pins[key] != digest:
+                raise ValueError(f"execution source {key} differs from protocol pin")
+            target = source_root / f"{key}{source_path.suffix}"
+            source_bytes = source_path.read_bytes()
+            _write_bytes_create_only(target, source_bytes)
+            entries.append(
+                {
+                    "key": key,
+                    "path": _relative_posix(root, target),
+                    "sha256": digest,
+                    "bytes": len(source_bytes),
+                }
+            )
+        bundle_core = {
             "schema_version": "relationship-product-execution-source-bundle.v1",
             "sources": entries,
         }
-    )
+    bundle = _with_artifact_id(bundle_core)
     _write_json_create_only(source_root / "bundle.json", bundle)
     return bundle
 
@@ -5130,10 +7115,44 @@ def _validate_execution_source_bundle(
 ) -> Mapping[str, object]:
     bundle = _load_json(root / "inputs" / "execution_sources" / "bundle.json")
     _validate_content_addressed(bundle, "execution source bundle")
+    if protocol.is_v2:
+        _require_exact_keys(
+            bundle,
+            {
+                "schema_version",
+                "local_execution_source_tree",
+                "active_protocol_resource",
+                "artifact_id",
+            },
+            "v2 execution source bundle",
+        )
+        if (
+            bundle.get("schema_version")
+            != "relationship-product-execution-source-bundle.v2"
+        ):
+            raise ValueError("execution source bundle schema drifted")
+        _validate_active_protocol_resource(
+            root=root,
+            protocol=protocol,
+            payload=_mapping(
+                bundle.get("active_protocol_resource"),
+                "active protocol resource",
+            ),
+        )
+        _validate_local_execution_source_tree_bundle(
+            root=root,
+            protocol=protocol,
+            payload=_mapping(
+                bundle.get("local_execution_source_tree"),
+                "execution source local tree",
+            ),
+        )
+        return bundle
+
     _require_exact_keys(
         bundle,
         {"schema_version", "sources", "artifact_id"},
-        "execution source bundle",
+        "v1 execution source bundle",
     )
     if bundle.get("schema_version") != "relationship-product-execution-source-bundle.v1":
         raise ValueError("execution source bundle schema drifted")
@@ -5141,9 +7160,13 @@ def _validate_execution_source_bundle(
     if pins and set(pins) != set(_EXECUTION_SOURCE_KEYS):
         raise ValueError("packaged protocol lacks complete execution source pins")
     entries = tuple(
-        _mapping(item, "execution source entry") for item in _list(bundle.get("sources"), "execution source entries")
+        _mapping(item, "execution source entry")
+        for item in _list(bundle.get("sources"), "execution source entries")
     )
-    if tuple(_text(item.get("key"), "execution source key") for item in entries) != _EXECUTION_SOURCE_KEYS:
+    if (
+        tuple(_text(item.get("key"), "execution source key") for item in entries)
+        != _EXECUTION_SOURCE_KEYS
+    ):
         raise ValueError("execution source bundle key/order drifted")
     for entry in entries:
         _require_exact_keys(
@@ -5152,7 +7175,10 @@ def _validate_execution_source_bundle(
             "execution source entry",
         )
         key = _text(entry.get("key"), "execution source key")
-        path = _resolve_relative(root, _text(entry.get("path"), "execution source path"))
+        path = _resolve_relative(
+            root,
+            _text(entry.get("path"), "execution source path"),
+        )
         expected_digest = pins.get(
             key,
             _digest(entry.get("sha256"), "test execution source sha256"),
@@ -5166,9 +7192,686 @@ def _validate_execution_source_bundle(
     return bundle
 
 
+def _validate_active_protocol_resource(
+    *,
+    root: pathlib.Path,
+    protocol: RelationshipProductHorizonProtocol,
+    payload: Mapping[str, object],
+) -> None:
+    _require_exact_keys(
+        payload,
+        {
+            "schema_version",
+            "repository_path",
+            "path",
+            "protocol_id",
+            "raw_sha256",
+            "raw_bytes",
+        },
+        "active protocol resource",
+    )
+    expected_path = (
+        pathlib.PurePosixPath("inputs")
+        / "execution_sources"
+        / "tree"
+        / pathlib.PurePosixPath(_LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH)
+    ).as_posix()
+    if (
+        payload.get("schema_version") != _ACTIVE_PROTOCOL_RESOURCE_SCHEMA_VERSION
+        or payload.get("repository_path") != _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH
+        or payload.get("path") != expected_path
+        or payload.get("protocol_id") != protocol.protocol_id
+        or payload.get("raw_sha256") != protocol.raw_sha256
+    ):
+        raise ValueError("active protocol resource lineage drifted")
+    active_path = _resolve_relative(root, expected_path)
+    active_bytes = active_path.read_bytes()
+    if (
+        _sha256_bytes(active_bytes) != protocol.raw_sha256
+        or payload.get("raw_bytes") != len(active_bytes)
+        or active_bytes != (root / "protocol.json").read_bytes()
+    ):
+        raise ValueError("active protocol resource bytes drifted")
+
+
+def _validate_local_execution_source_tree_bundle(
+    *,
+    root: pathlib.Path,
+    protocol: RelationshipProductHorizonProtocol,
+    payload: Mapping[str, object],
+) -> None:
+    _validate_content_addressed(payload, "local Python source tree")
+    _require_exact_keys(
+        payload,
+        {
+            "schema_version",
+            "selector",
+            "entrypoints",
+            "resource_paths",
+            "active_protocol_path",
+            "canonicalization",
+            "tree_sha256",
+            "file_count",
+            "canonical_bytes",
+            "files",
+            "artifact_id",
+        },
+        "local execution source tree",
+    )
+    expected_summary = {
+        "schema_version": _LOCAL_EXECUTION_SOURCE_TREE_SCHEMA_VERSION,
+        "selector": _LOCAL_EXECUTION_SOURCE_TREE_SELECTOR,
+        "entrypoints": list(_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS),
+        "resource_paths": list(_LOCAL_EXECUTION_RESOURCE_PATHS),
+        "active_protocol_path": _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH,
+        "canonicalization": _LOCAL_EXECUTION_SOURCE_CANONICALIZATION,
+        "tree_sha256": protocol.local_execution_source_tree_sha256,
+        "file_count": protocol.local_execution_source_file_count,
+        "canonical_bytes": protocol.local_execution_source_canonical_bytes,
+    }
+    if {key: payload.get(key) for key in expected_summary} != expected_summary:
+        raise ValueError("local Python source-tree summary differs from protocol")
+
+    entries = tuple(
+        _mapping(item, "local Python source-tree entry")
+        for item in _list(payload.get("files"), "local Python source-tree files")
+    )
+    if len(entries) != protocol.local_execution_source_file_count:
+        raise ValueError("local execution source-tree file count drifted")
+    identity_files: list[Mapping[str, object]] = []
+    observed_paths: list[str] = []
+    observed_casefolds: set[str] = set()
+    for entry in entries:
+        _require_exact_keys(
+            entry,
+            {
+                "repository_path",
+                "path",
+                "canonicalization_kind",
+                "canonical_sha256",
+                "canonical_bytes",
+                "raw_sha256",
+                "raw_bytes",
+            },
+            "local execution source-tree entry",
+        )
+        repository_path = _text(
+            entry.get("repository_path"),
+            "local Python source repository_path",
+        )
+        pure_repository_path = pathlib.PurePosixPath(repository_path)
+        is_python_source = (
+            len(pure_repository_path.parts) >= 4
+            and pure_repository_path.parts[0] == "packages"
+            and pure_repository_path.parts[2] == "src"
+            and pure_repository_path.suffix.lower() == ".py"
+        )
+        is_entrypoint = repository_path in _LOCAL_EXECUTION_SOURCE_ENTRYPOINTS
+        is_resource = repository_path in _LOCAL_EXECUTION_RESOURCE_PATHS
+        if (
+            pure_repository_path.is_absolute()
+            or ".." in pure_repository_path.parts
+            or not (is_python_source or is_entrypoint or is_resource)
+            or pure_repository_path.as_posix() != repository_path
+        ):
+            raise ValueError("local execution source repository path is outside selector")
+        folded = repository_path.casefold()
+        if folded in observed_casefolds:
+            raise ValueError("local Python source-tree path casefold collision")
+        observed_casefolds.add(folded)
+        observed_paths.append(repository_path)
+        expected_artifact_path = (
+            pathlib.PurePosixPath("inputs")
+            / "execution_sources"
+            / "tree"
+            / pure_repository_path
+        ).as_posix()
+        if entry.get("path") != expected_artifact_path:
+            raise ValueError("local Python source-tree artifact path drifted")
+        artifact_path = _resolve_relative(root, expected_artifact_path)
+        raw_bytes = artifact_path.read_bytes()
+        canonical_bytes, canonicalization_kind = (
+            _canonical_local_execution_source_bytes(
+                repository_path=repository_path,
+                raw_bytes=raw_bytes,
+            )
+        )
+        canonical_sha256 = _digest(
+            entry.get("canonical_sha256"),
+            "local Python source canonical_sha256",
+        )
+        raw_sha256 = _digest(
+            entry.get("raw_sha256"),
+            "local Python source raw_sha256",
+        )
+        if (
+            entry.get("canonicalization_kind") != canonicalization_kind
+            or _sha256_bytes(canonical_bytes) != canonical_sha256
+            or entry.get("canonical_bytes") != len(canonical_bytes)
+            or _sha256_bytes(raw_bytes) != raw_sha256
+            or entry.get("raw_bytes") != len(raw_bytes)
+        ):
+            raise ValueError(f"local Python source-tree file drifted: {repository_path}")
+        identity_files.append(
+            {
+                "repository_path": repository_path,
+                "canonicalization_kind": canonicalization_kind,
+                "canonical_sha256": canonical_sha256,
+                "canonical_bytes": len(canonical_bytes),
+            }
+        )
+    expected_order = sorted(observed_paths, key=lambda value: value.encode("utf-8"))
+    if observed_paths != expected_order:
+        raise ValueError("local Python source-tree path ordering drifted")
+    identity = {
+        "schema_version": _LOCAL_EXECUTION_SOURCE_TREE_SCHEMA_VERSION,
+        "selector": _LOCAL_EXECUTION_SOURCE_TREE_SELECTOR,
+        "entrypoints": list(_LOCAL_EXECUTION_SOURCE_ENTRYPOINTS),
+        "resource_paths": list(_LOCAL_EXECUTION_RESOURCE_PATHS),
+        "active_protocol_path": _LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH,
+        "canonicalization": _LOCAL_EXECUTION_SOURCE_CANONICALIZATION,
+        "files": identity_files,
+    }
+    if (
+        sha256_json(identity) != protocol.local_execution_source_tree_sha256
+        or sum(
+            _integer(item["canonical_bytes"], "canonical source bytes")
+            for item in identity_files
+        )
+        != protocol.local_execution_source_canonical_bytes
+    ):
+        raise ValueError("local Python source-tree root digest drifted")
+    expected_tree_paths = sorted(
+        [
+            _text(item.get("path"), "local execution source-tree path")
+            for item in entries
+        ]
+        + [
+            (
+                pathlib.PurePosixPath("inputs")
+                / "execution_sources"
+                / "tree"
+                / pathlib.PurePosixPath(_LOCAL_EXECUTION_ACTIVE_PROTOCOL_PATH)
+            ).as_posix()
+        ],
+        key=lambda value: value.encode("utf-8"),
+    )
+    tree_root = root / "inputs" / "execution_sources" / "tree"
+    observed_tree_paths = sorted(
+        _relative_posix(root, path)
+        for path in tree_root.rglob("*")
+        if path.is_file()
+    )
+    if observed_tree_paths != expected_tree_paths:
+        raise ValueError("local execution source tree contains missing or extra files")
+    observed_file_ids: set[tuple[int, int]] = set()
+    for relative_path in observed_tree_paths:
+        artifact_path = root / pathlib.PurePosixPath(relative_path)
+        _assert_non_reparse_source_path(
+            artifact_path,
+            repository_root=root,
+        )
+        metadata = artifact_path.stat()
+        if metadata.st_nlink != 1:
+            raise ValueError("local execution source tree rejects hard-linked files")
+        file_id = (metadata.st_dev, metadata.st_ino)
+        if file_id in observed_file_ids:
+            raise ValueError("local execution source tree rejects hard-linked files")
+        observed_file_ids.add(file_id)
+
+
+def _source_tree_entry_by_repository_path(
+    source_tree: Mapping[str, object],
+) -> Mapping[str, Mapping[str, object]]:
+    entries = tuple(
+        _mapping(item, "local execution source-tree entry")
+        for item in _list(source_tree.get("files"), "local execution source-tree files")
+    )
+    indexed = {
+        _text(item.get("repository_path"), "source-tree repository_path"): item
+        for item in entries
+    }
+    if len(indexed) != len(entries):
+        raise ValueError("local execution source tree has duplicate repository paths")
+    return indexed
+
+
+def _expected_module_repository_path(
+    *,
+    module_name: str,
+    source_entries: Mapping[str, Mapping[str, object]],
+) -> str:
+    suffix = f"/{module_name.replace('.', '/')}.py"
+    matches = tuple(
+        path
+        for path in source_entries
+        if f"/{path}".endswith(suffix)
+    )
+    if len(matches) != 1:
+        raise ValueError(
+            f"critical local module {module_name} is not unique in the source tree"
+        )
+    return matches[0]
+
+
+def _local_source_top_level_module_names(
+    source_entries: Mapping[str, Mapping[str, object]],
+) -> tuple[str, ...]:
+    names: set[str] = set()
+    for repository_path in source_entries:
+        parts = pathlib.PurePosixPath(repository_path).parts
+        if (
+            len(parts) >= 4
+            and parts[0] == "packages"
+            and parts[2] == "src"
+            and repository_path.endswith(".py")
+        ):
+            names.add(pathlib.PurePosixPath(parts[3]).stem)
+    return tuple(sorted(names, key=lambda value: value.encode("utf-8")))
+
+
+def _module_name_for_repository_path(repository_path: str) -> str:
+    parts = pathlib.PurePosixPath(repository_path).parts
+    if (
+        len(parts) < 4
+        or parts[0] != "packages"
+        or parts[2] != "src"
+        or not repository_path.endswith(".py")
+    ):
+        raise ValueError(
+            f"local module repository path is not importable Python: {repository_path}"
+        )
+    module_parts = list(parts[3:])
+    if module_parts[-1] == "__init__.py":
+        module_parts.pop()
+    else:
+        module_parts[-1] = pathlib.PurePosixPath(module_parts[-1]).stem
+    if not module_parts:
+        raise ValueError(
+            f"local module repository path has no module name: {repository_path}"
+        )
+    return ".".join(module_parts)
+
+
+def _local_module_repository_paths_by_name(
+    source_entries: Mapping[str, Mapping[str, object]],
+) -> Mapping[str, str]:
+    indexed: dict[str, str] = {}
+    for repository_path in source_entries:
+        parts = pathlib.PurePosixPath(repository_path).parts
+        if not (
+            len(parts) >= 4
+            and parts[0] == "packages"
+            and parts[2] == "src"
+            and repository_path.endswith(".py")
+        ):
+            continue
+        module_name = _module_name_for_repository_path(repository_path)
+        if module_name in indexed:
+            raise ValueError(
+                f"loaded local module name/path mapping is not unique: {module_name}"
+            )
+        indexed[module_name] = repository_path
+    return indexed
+
+
+def _expected_volvence_zero_namespace_paths(
+    source_entries: Mapping[str, Mapping[str, object]],
+) -> tuple[str, ...]:
+    paths = {
+        pathlib.PurePosixPath(*pathlib.PurePosixPath(repository_path).parts[:4]).as_posix()
+        for repository_path in source_entries
+        if (
+            len(pathlib.PurePosixPath(repository_path).parts) >= 5
+            and pathlib.PurePosixPath(repository_path).parts[0] == "packages"
+            and pathlib.PurePosixPath(repository_path).parts[2] == "src"
+            and pathlib.PurePosixPath(repository_path).parts[3]
+            == "volvence_zero"
+            and repository_path.endswith(".py")
+        )
+    }
+    if not paths:
+        raise ValueError("local source tree has no volvence_zero namespace roots")
+    return tuple(sorted(paths, key=lambda value: value.encode("utf-8")))
+
+
+def _loaded_local_module_origins(
+    *,
+    tree_root: pathlib.Path,
+    source_entries: Mapping[str, Mapping[str, object]],
+) -> list[Mapping[str, object]]:
+    top_level_names = _local_source_top_level_module_names(source_entries)
+    expected_module_paths = _local_module_repository_paths_by_name(source_entries)
+    origins: list[Mapping[str, object]] = []
+    resolved_tree_root = tree_root.resolve()
+    for module_name, module in sorted(
+        sys.modules.items(),
+        key=lambda item: item[0].encode("utf-8"),
+    ):
+        if module is None or not any(
+            module_name == name or module_name.startswith(f"{name}.")
+            for name in top_level_names
+        ):
+            continue
+        module_values = vars(module)
+        module_file = module_values.get("__file__")
+        if module_file is None and module_name == "volvence_zero":
+            continue
+        if not isinstance(module_file, str) or not module_file:
+            raise RuntimeError(
+                f"loaded local module has no auditable source file: {module_name}"
+            )
+        module_path = pathlib.Path(module_file).resolve()
+        try:
+            repository_path = module_path.relative_to(
+                resolved_tree_root
+            ).as_posix()
+        except ValueError as exc:
+            raise RuntimeError(
+                f"loaded local module escaped the mirrored tree: {module_name}"
+            ) from exc
+        entry = source_entries.get(repository_path)
+        if entry is None:
+            raise RuntimeError(
+                f"loaded local module is absent from the source tree: {module_name}"
+            )
+        raw_sha256 = _digest(
+            entry.get("raw_sha256"),
+            f"loaded local module {module_name} raw sha256",
+        )
+        if _sha256_file(module_path) != raw_sha256:
+            raise RuntimeError(
+                f"loaded local module differs from the source tree: {module_name}"
+            )
+        expected_repository_path = expected_module_paths.get(module_name)
+        if repository_path != expected_repository_path:
+            raise RuntimeError(
+                f"loaded local module name/path mapping drifted: {module_name}"
+            )
+        origins.append(
+            {
+                "module_name": module_name,
+                "repository_path": repository_path,
+                "raw_sha256": raw_sha256,
+            }
+        )
+    return origins
+
+
+def _v2_worker_source_lineage(
+    *,
+    root: pathlib.Path,
+    protocol: RelationshipProductHorizonProtocol,
+    request: Mapping[str, object],
+) -> Mapping[str, object]:
+    if not protocol.is_v2:
+        raise ValueError("worker source lineage is a v2-only contract")
+    bundle = _load_json(root / "inputs" / "execution_sources" / "bundle.json")
+    _validate_content_addressed(bundle, "worker execution source bundle")
+    bundle_id = _digest(
+        request.get("execution_source_bundle_artifact_id"),
+        "worker execution source bundle artifact_id",
+    )
+    if bundle.get("artifact_id") != bundle_id:
+        raise ValueError("worker execution source bundle lineage drifted")
+    source_tree = _mapping(
+        bundle.get("local_execution_source_tree"),
+        "worker local execution source tree",
+    )
+    _validate_content_addressed(source_tree, "worker local execution source tree")
+    tree_sha256 = _digest(
+        request.get("local_execution_source_tree_sha256"),
+        "worker local execution source tree sha256",
+    )
+    if (
+        source_tree.get("tree_sha256") != tree_sha256
+        or tree_sha256 != protocol.local_execution_source_tree_sha256
+    ):
+        raise ValueError("worker local execution source tree root drifted")
+    source_entries = _source_tree_entry_by_repository_path(source_tree)
+    tree_root = root / "inputs" / "execution_sources" / "tree"
+    namespace_module = sys.modules.get("volvence_zero")
+    namespace_values = vars(namespace_module) if namespace_module is not None else {}
+    namespace_path = namespace_values.get("__path__")
+    if namespace_path is None:
+        raise RuntimeError("volvence_zero namespace is not loaded")
+    resolved_tree_root = tree_root.resolve()
+    namespace_search_locations: list[str] = []
+    for value in namespace_path:
+        try:
+            repository_path = pathlib.Path(value).resolve().relative_to(
+                resolved_tree_root
+            ).as_posix()
+        except ValueError as exc:
+            raise RuntimeError(
+                "volvence_zero namespace escaped the mirrored source tree"
+            ) from exc
+        namespace_search_locations.append(repository_path)
+    expected_namespace_locations = list(
+        _expected_volvence_zero_namespace_paths(source_entries)
+    )
+    if namespace_search_locations != expected_namespace_locations:
+        raise RuntimeError("volvence_zero namespace search locations drifted")
+    worker_repository_path = "scripts/run_relationship_lab_product_horizon.py"
+    worker_entry = source_entries.get(worker_repository_path)
+    if worker_entry is None:
+        raise ValueError("worker CLI is absent from the local execution source tree")
+    worker_path = pathlib.Path(sys.argv[0]).resolve()
+    expected_worker_path = (
+        tree_root / pathlib.PurePosixPath(worker_repository_path)
+    ).resolve()
+    worker_raw_sha256 = _digest(
+        worker_entry.get("raw_sha256"),
+        "worker CLI raw sha256",
+    )
+    if (
+        worker_path != expected_worker_path
+        or _sha256_file(worker_path) != worker_raw_sha256
+    ):
+        raise RuntimeError("worker process did not boot from the mirrored CLI")
+    module_origins: list[Mapping[str, object]] = []
+    for module_name in _CRITICAL_LOCAL_MODULE_NAMES:
+        module = sys.modules.get(module_name)
+        module_file = module.__file__ if module is not None else None
+        if not isinstance(module_file, str) or not module_file:
+            raise RuntimeError(f"critical local module is not loaded: {module_name}")
+        module_path = pathlib.Path(module_file).resolve()
+        try:
+            repository_path = module_path.relative_to(tree_root.resolve()).as_posix()
+        except ValueError as exc:
+            raise RuntimeError(
+                f"critical local module escaped the mirrored tree: {module_name}"
+            ) from exc
+        expected_repository_path = _expected_module_repository_path(
+            module_name=module_name,
+            source_entries=source_entries,
+        )
+        entry = source_entries[expected_repository_path]
+        raw_sha256 = _digest(
+            entry.get("raw_sha256"),
+            f"critical module {module_name} raw sha256",
+        )
+        if (
+            repository_path != expected_repository_path
+            or _sha256_file(module_path) != raw_sha256
+        ):
+            raise RuntimeError(
+                f"critical local module differs from the mirrored tree: {module_name}"
+            )
+        module_origins.append(
+            {
+                "module_name": module_name,
+                "repository_path": repository_path,
+                "raw_sha256": raw_sha256,
+            }
+        )
+    return _with_artifact_id(
+        {
+            "schema_version": RELATIONSHIP_PRODUCT_WORKER_SOURCE_LINEAGE_SCHEMA_VERSION,
+            "execution_source_bundle_artifact_id": bundle_id,
+            "local_execution_source_tree_sha256": tree_sha256,
+            "worker_script_repository_path": worker_repository_path,
+            "worker_script_raw_sha256": worker_raw_sha256,
+            "volvence_zero_namespace_search_locations": (
+                namespace_search_locations
+            ),
+            "critical_module_origins": module_origins,
+            "loaded_local_module_origins": _loaded_local_module_origins(
+                tree_root=tree_root,
+                source_entries=source_entries,
+            ),
+        }
+    )
+
+
+def _validate_v2_worker_source_lineage(
+    payload: Mapping[str, object],
+    *,
+    root: pathlib.Path,
+    protocol: RelationshipProductHorizonProtocol,
+    execution_source_bundle_artifact_id: str,
+) -> None:
+    _validate_content_addressed(payload, "worker source lineage")
+    _require_exact_keys(
+        payload,
+        {
+            "schema_version",
+            "execution_source_bundle_artifact_id",
+            "local_execution_source_tree_sha256",
+            "worker_script_repository_path",
+            "worker_script_raw_sha256",
+            "volvence_zero_namespace_search_locations",
+            "critical_module_origins",
+            "loaded_local_module_origins",
+            "artifact_id",
+        },
+        "worker source lineage",
+    )
+    if (
+        payload.get("schema_version")
+        != RELATIONSHIP_PRODUCT_WORKER_SOURCE_LINEAGE_SCHEMA_VERSION
+        or payload.get("execution_source_bundle_artifact_id")
+        != execution_source_bundle_artifact_id
+        or payload.get("local_execution_source_tree_sha256")
+        != protocol.local_execution_source_tree_sha256
+        or payload.get("worker_script_repository_path")
+        != "scripts/run_relationship_lab_product_horizon.py"
+    ):
+        raise ValueError("worker source lineage projection drifted")
+    bundle = _load_json(root / "inputs" / "execution_sources" / "bundle.json")
+    if bundle.get("artifact_id") != execution_source_bundle_artifact_id:
+        raise ValueError("worker source lineage bundle is not the validated bundle")
+    source_tree = _mapping(
+        bundle.get("local_execution_source_tree"),
+        "worker source lineage tree",
+    )
+    source_entries = _source_tree_entry_by_repository_path(source_tree)
+    expected_module_paths = _local_module_repository_paths_by_name(source_entries)
+    expected_namespace_locations = list(
+        _expected_volvence_zero_namespace_paths(source_entries)
+    )
+    if (
+        payload.get("volvence_zero_namespace_search_locations")
+        != expected_namespace_locations
+    ):
+        raise ValueError("worker volvence_zero namespace lineage drifted")
+    worker_entry = source_entries["scripts/run_relationship_lab_product_horizon.py"]
+    if payload.get("worker_script_raw_sha256") != worker_entry.get("raw_sha256"):
+        raise ValueError("worker source lineage CLI digest drifted")
+    origins = tuple(
+        _mapping(item, "critical module origin")
+        for item in _list(
+            payload.get("critical_module_origins"),
+            "critical module origins",
+        )
+    )
+    if tuple(item.get("module_name") for item in origins) != _CRITICAL_LOCAL_MODULE_NAMES:
+        raise ValueError("worker source lineage critical module set/order drifted")
+    tree_root = root / "inputs" / "execution_sources" / "tree"
+    for origin in origins:
+        _require_exact_keys(
+            origin,
+            {"module_name", "repository_path", "raw_sha256"},
+            "critical module origin",
+        )
+        module_name = _text(origin.get("module_name"), "critical module name")
+        repository_path = _expected_module_repository_path(
+            module_name=module_name,
+            source_entries=source_entries,
+        )
+        entry = source_entries[repository_path]
+        artifact_path = tree_root / pathlib.PurePosixPath(repository_path)
+        if (
+            origin.get("repository_path") != repository_path
+            or origin.get("raw_sha256") != entry.get("raw_sha256")
+            or _sha256_file(artifact_path)
+            != _digest(entry.get("raw_sha256"), "critical module raw sha256")
+        ):
+            raise ValueError(f"critical module source lineage drifted: {module_name}")
+    loaded_origins = tuple(
+        _mapping(item, "loaded local module origin")
+        for item in _list(
+            payload.get("loaded_local_module_origins"),
+            "loaded local module origins",
+        )
+    )
+    loaded_names = tuple(
+        _text(item.get("module_name"), "loaded local module name")
+        for item in loaded_origins
+    )
+    if (
+        loaded_names
+        != tuple(sorted(loaded_names, key=lambda value: value.encode("utf-8")))
+        or len(set(loaded_names)) != len(loaded_names)
+        or not set(_CRITICAL_LOCAL_MODULE_NAMES).issubset(loaded_names)
+    ):
+        raise ValueError("worker loaded local module lineage set/order drifted")
+    for origin in loaded_origins:
+        _require_exact_keys(
+            origin,
+            {"module_name", "repository_path", "raw_sha256"},
+            "loaded local module origin",
+        )
+        repository_path = _text(
+            origin.get("repository_path"),
+            "loaded local module repository_path",
+        )
+        module_name = _text(
+            origin.get("module_name"),
+            "loaded local module name",
+        )
+        expected_repository_path = expected_module_paths.get(module_name)
+        if repository_path != expected_repository_path:
+            raise ValueError("loaded local module name/path mapping drifted")
+        entry = source_entries.get(repository_path)
+        if entry is None:
+            raise ValueError("loaded local module is absent from source tree")
+        artifact_path = tree_root / pathlib.PurePosixPath(repository_path)
+        if (
+            origin.get("raw_sha256") != entry.get("raw_sha256")
+            or _sha256_file(artifact_path)
+            != _digest(entry.get("raw_sha256"), "loaded local module raw sha256")
+        ):
+            raise ValueError("loaded local module source lineage drifted")
+
+
+def _subprocess_environment_contract(
+    protocol: RelationshipProductHorizonProtocol,
+) -> Mapping[str, str | None]:
+    return (
+        _SUBPROCESS_ENVIRONMENT_CONTRACT_V2
+        if protocol.is_v2
+        else _SUBPROCESS_ENVIRONMENT_CONTRACT
+    )
+
+
 def _child_environment() -> dict[str, str]:
     environment = os.environ.copy()
+    environment.pop("PYTHONHOME", None)
+    environment.pop("PYTHONPATH", None)
     environment.update(_SUBPROCESS_ENVIRONMENT_CONTRACT)
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    environment["PYTHONSAFEPATH"] = "1"
     return environment
 
 

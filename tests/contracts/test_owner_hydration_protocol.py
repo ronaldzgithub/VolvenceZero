@@ -17,7 +17,160 @@ focuses on the happy round-trip.
 
 from __future__ import annotations
 
+import copy
+import json
+
+import pytest
+
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
+
+
+def _preference_action_forecast_codec_fixture(*, with_condition: bool = True):
+    from volvence_zero.social_cognition import (
+        PreferenceActionForecast,
+        RelationshipConditionReadout,
+        SocialActionCandidatePrediction,
+        SocialActionOutcomeProbability,
+    )
+
+    condition = (
+        RelationshipConditionReadout(
+            condition_label="belonging_erasure",
+            confidence=0.8,
+            normalized_margin=0.25,
+            candidate_scores=(
+                ("belonging_erasure", 0.75),
+                ("agency_displacement", 0.25),
+            ),
+            reader_artifact_id="a" * 64,
+            source_observation_sha256="b" * 64,
+        )
+        if with_condition
+        else None
+    )
+    return PreferenceActionForecast(
+        forecast_id="forecast-1",
+        decision_id="decision-1",
+        interlocutor_id="primary",
+        candidate_predictions=(
+            SocialActionCandidatePrediction(
+                action_id="stay_present_without_probe",
+                outcomes=(
+                    SocialActionOutcomeProbability("helped", 0.7),
+                    SocialActionOutcomeProbability("missed", 0.3),
+                ),
+            ),
+            SocialActionCandidatePrediction(
+                action_id="respect_space_with_return_option",
+                outcomes=(
+                    SocialActionOutcomeProbability("helped", 0.4),
+                    SocialActionOutcomeProbability("missed", 0.6),
+                ),
+            ),
+        ),
+        recommended_action_id="stay_present_without_probe",
+        confidence=0.8,
+        source_record_ids=("preference-record-1",),
+        issued_turn=7,
+        evidence=("owner:preference-about-other", "reader:named-condition"),
+        session_scope="subject-1",
+        condition_readout=condition,
+    )
+
+
+def test_preference_action_forecast_codec_is_lossless_and_freezes_shape() -> None:
+    from volvence_zero.social_cognition import (
+        preference_action_forecast_from_payload,
+        preference_action_forecast_to_payload,
+    )
+
+    forecast = _preference_action_forecast_codec_fixture()
+    payload = preference_action_forecast_to_payload(forecast)
+
+    assert set(payload) == {
+        "forecast_id",
+        "decision_id",
+        "interlocutor_id",
+        "candidate_predictions",
+        "recommended_action_id",
+        "confidence",
+        "source_record_ids",
+        "issued_turn",
+        "evidence",
+        "session_scope",
+        "condition_readout",
+    }
+    assert payload["candidate_predictions"][0] == {
+        "action_id": "stay_present_without_probe",
+        "outcomes": [
+            {"outcome_id": "helped", "probability": 0.7},
+            {"outcome_id": "missed", "probability": 0.3},
+        ],
+    }
+    assert payload["condition_readout"] == {
+        "condition_label": "belonging_erasure",
+        "confidence": 0.8,
+        "normalized_margin": 0.25,
+        "candidate_scores": [
+            {"label": "belonging_erasure", "score": 0.75},
+            {"label": "agency_displacement", "score": 0.25},
+        ],
+        "reader_artifact_id": "a" * 64,
+        "source_observation_sha256": "b" * 64,
+    }
+
+    json_payload = json.loads(json.dumps(payload, sort_keys=True))
+    restored = preference_action_forecast_from_payload(json_payload)
+    assert restored == forecast
+    assert preference_action_forecast_to_payload(restored) == payload
+
+    legacy_probe = _preference_action_forecast_codec_fixture(
+        with_condition=False
+    )
+    assert preference_action_forecast_from_payload(
+        preference_action_forecast_to_payload(legacy_probe)
+    ) == legacy_probe
+
+
+def test_preference_action_forecast_codec_rejects_noncanonical_payloads() -> None:
+    from volvence_zero.social_cognition import (
+        preference_action_forecast_from_payload,
+        preference_action_forecast_to_payload,
+    )
+
+    payload = preference_action_forecast_to_payload(
+        _preference_action_forecast_codec_fixture()
+    )
+
+    with pytest.raises(ValueError, match="fields do not match schema"):
+        preference_action_forecast_from_payload({**payload, "unexpected": True})
+
+    tuple_array = {
+        **payload,
+        "candidate_predictions": tuple(payload["candidate_predictions"]),
+    }
+    with pytest.raises(TypeError, match="must be an array"):
+        preference_action_forecast_from_payload(tuple_array)
+
+    missing_condition_field = copy.deepcopy(payload)
+    del missing_condition_field["condition_readout"]["reader_artifact_id"]
+    with pytest.raises(ValueError, match="fields do not match schema"):
+        preference_action_forecast_from_payload(missing_condition_field)
+
+    boolean_probability = copy.deepcopy(payload)
+    boolean_probability["candidate_predictions"][0]["outcomes"][0][
+        "probability"
+    ] = True
+    with pytest.raises(TypeError, match="must be numeric"):
+        preference_action_forecast_from_payload(boolean_probability)
+
+    for non_finite in (float("nan"), float("inf"), -float("inf"), 10**10000):
+        non_finite_probability = copy.deepcopy(payload)
+        non_finite_probability["candidate_predictions"][0]["outcomes"][0][
+            "probability"
+        ] = non_finite
+        with pytest.raises(ValueError, match="must be finite"):
+            preference_action_forecast_from_payload(non_finite_probability)
 
 
 def test_owner_hydration_matrix_freezes_owner_by_owner_decisions() -> None:
@@ -144,10 +297,15 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
         OtherMindRecordKind,
         OtherMindRecordStatus,
         PreferenceActionOutcomeEvidence,
+        PreferenceActionForecast,
+        RelationshipConditionReadout,
+        SocialActionCandidatePrediction,
+        SocialActionOutcomeProbability,
         SocialPrediction,
         SocialPredictionKind,
         SocialPredictionOutcome,
         SocialScopeKind,
+        preference_action_forecast_to_payload,
     )
     from volvence_zero.social.record_store import PendingSocialPrediction
 
@@ -200,6 +358,45 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
             ),
         )
     )
+    forecast = PreferenceActionForecast(
+        forecast_id="preference-forecast-1",
+        decision_id="decision-1",
+        interlocutor_id="bob",
+        candidate_predictions=(
+            SocialActionCandidatePrediction(
+                action_id="stay_present",
+                outcomes=(
+                    SocialActionOutcomeProbability("helped", 0.6),
+                    SocialActionOutcomeProbability("missed", 0.4),
+                ),
+            ),
+            SocialActionCandidatePrediction(
+                action_id="respect_space",
+                outcomes=(
+                    SocialActionOutcomeProbability("helped", 0.7),
+                    SocialActionOutcomeProbability("missed", 0.3),
+                ),
+            ),
+        ),
+        recommended_action_id="respect_space",
+        confidence=0.7,
+        source_record_ids=("preference-1",),
+        issued_turn=2,
+        evidence=("owner:preference-about-other",),
+        session_scope="session:bob",
+        condition_readout=RelationshipConditionReadout(
+            condition_label="belonging_erasure",
+            confidence=0.8,
+            normalized_margin=0.3,
+            candidate_scores=(
+                ("belonging_erasure", 0.8),
+                ("agency_displacement", 0.2),
+            ),
+            reader_artifact_id="a" * 64,
+            source_observation_sha256="b" * 64,
+        ),
+    )
+    source.set_preference_action_forecasts((forecast,))
     source.set_pending_tom_predictions(
         "belief_about_other",
         (
@@ -244,6 +441,9 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
     exported = source.export_persistence_snapshot()
     assert exported.owner_name == "social_record_store"
     assert exported.schema_version == 4
+    assert exported.payload["preference_action_forecasts"] == [
+        preference_action_forecast_to_payload(forecast)
+    ]
 
     target = SocialRecordStore()
     target.hydrate_from_persistence(exported)
@@ -252,10 +452,84 @@ def test_social_record_store_round_trip_drops_pending_predictions() -> None:
     assert exported.payload == re_exported.payload
     assert target.tom_records("belief_about_other") == source.tom_records("belief_about_other")
     assert target.preference_action_outcomes == source.preference_action_outcomes
+    assert target.preference_action_forecasts == (forecast,)
     assert target.common_ground_dyad_atoms == source.common_ground_dyad_atoms
     assert target.group_regime_for("frame-group:alice+bob+cara") == "problem_solving"
     assert target.group_durability_for("frame-group:alice+bob+cara") > 0.5
     assert target.pending_tom_predictions("belief_about_other") == ()
+
+
+def test_social_record_store_explicitly_adapts_legacy_forecast_payload() -> None:
+    from volvence_zero.social import SocialRecordStore
+
+    legacy_forecast = {
+        "forecast_id": "legacy-forecast-1",
+        "decision_id": "legacy-decision-1",
+        "interlocutor_id": "bob",
+        "candidate_predictions": (
+            {
+                "action_id": "stay_present",
+                "outcomes": (
+                    {"outcome_id": "helped", "probability": "0.7"},
+                    {"outcome_id": "missed", "probability": "0.3"},
+                ),
+            },
+            {
+                "action_id": "respect_space",
+                "outcomes": (
+                    {"outcome_id": "helped", "probability": "0.4"},
+                    {"outcome_id": "missed", "probability": "0.6"},
+                ),
+            },
+        ),
+        "recommended_action_id": "stay_present",
+        "confidence": "0.7",
+        "source_record_ids": ("legacy-record-1",),
+        "issued_turn": "3",
+        "evidence": ("legacy-owner-evidence",),
+    }
+    store = SocialRecordStore()
+    store.hydrate_from_persistence(
+        OwnerPersistenceSnapshot(
+            owner_name="social_record_store",
+            schema_version=1,
+            payload={"preference_action_forecasts": [legacy_forecast]},
+        )
+    )
+
+    restored = store.preference_action_forecasts[0]
+    assert restored.forecast_id == "legacy-forecast-1"
+    assert restored.session_scope == ""
+    assert restored.condition_readout is None
+    assert restored.candidate_predictions[0].outcomes[0].probability == 0.7
+
+
+def test_social_record_store_schema_v4_delegates_to_strict_forecast_codec() -> None:
+    from volvence_zero.owner_hydration import HydrationPayloadInvalidError
+    from volvence_zero.social import SocialRecordStore
+    from volvence_zero.social_cognition import (
+        preference_action_forecast_to_payload,
+    )
+
+    forecast_payload = preference_action_forecast_to_payload(
+        _preference_action_forecast_codec_fixture()
+    )
+    forecast_payload["unexpected"] = True
+
+    with pytest.raises(
+        HydrationPayloadInvalidError,
+        match="fields do not match schema",
+    ):
+        SocialRecordStore().hydrate_from_persistence(
+            OwnerPersistenceSnapshot(
+                owner_name="social_record_store",
+                schema_version=4,
+                payload={
+                    "preference_action_forecasts": [forecast_payload],
+                    "preference_action_outcome_mutation_receipts": [],
+                },
+            )
+        )
 
 
 def test_regime_module_round_trip() -> None:

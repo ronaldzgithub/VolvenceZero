@@ -258,6 +258,35 @@ def test_history_triple_is_not_an_assistant_few_shot_output_schema() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value", "message"),
+    (
+        ("action_id", "outside_closed_action_surface", "closed action surface"),
+        ("observed_outcome_id", "outside_relationship_outcomes", "relationship outcome"),
+        ("rendered_user_reaction", " ", "non-empty string"),
+    ),
+)
+def test_public_history_block_rejects_invalid_exchange_fields(
+    field_name: str,
+    invalid_value: str,
+    message: str,
+) -> None:
+    payload = {
+        "action_id": RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+        "observed_outcome_id": "felt_heard",
+        "rendered_user_reaction": "public reaction",
+    }
+    payload[field_name] = invalid_value
+
+    with pytest.raises(ValueError, match=message):
+        ProductPublicHistoryBlock(
+            ordinal=0,
+            exchange_id="invalid-public-exchange",
+            user_messages=("public turn",),
+            assistant_outcome=canonical_json(payload),
+        )
+
+
 def test_native_full_history_drops_oldest_complete_exchanges_and_receipts_exact_budget() -> None:
     public_input = _public_input(
         "oldest one two three four",

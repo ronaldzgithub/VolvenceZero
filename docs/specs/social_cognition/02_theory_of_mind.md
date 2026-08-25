@@ -157,10 +157,26 @@ observation 与内容寻址的 condition prototypes 做 cosine 比较。它只�
 并拒绝 source hash 不等于本次 forecast request 的 proposal。artifact 同时绑定 embedding model
 id、weights SHA-256、prototype 文本、temperature 与 similarity，禁止无 lineage 的 backend 漂移。
 
+独立的 `FrozenLinearRelationshipConditionReaderArtifact` v2 不替换上述 prototype v1。它以内容
+地址绑定 embedding model source / revision / weights、sentence-transformers runtime、width、
+严格有序 labels、condition-only corpus artifact/raw digest、group-split artifact、确定性
+centroid solver/version，以及逐类 example count / example-id digest、完整 centroid / coefficient /
+bias 的 canonical finite float-hex。offline builder 只接受预先标注的 embedding rows 与这些
+预声明 pin，对每行先做 unit normalization，再生成无超参数的 unit-normalized class-centroid
+linear rule；输入 shape 没有 action、outcome、PE、credit、evaluation 或 judge。inference-only
+runtime 直接校验既有 public semantic embedder 的标准 identity 属性，只消费当前 public text，
+不在线拟合，并继续发布既有 immutable `RelationshipConditionReadout`（全部候选分数、margin、
+confidence、reader artifact id 与 source hash）。artifact owner 同时提供 exact-key
+`from_payload` 与 canonical `to_json/from_json`；fresh child 必须经该 loader 重算 artifact id，
+并拒绝 duplicate key、非 canonical UTF-8 bytes、额外/缺失字段或参数 shape 漂移，consumer
+不得复制解析 schema。
+
 reader 看不到 evaluator、expected action、未来 outcome、PE、credit 或 judge。已见 v3 根因诊断
 中，默认字符哈希 seam 为 `4/12`，冻结 BGE-M3 backend 为 `12/12`、六对 mirror 全部双边正确；
 这只证明正式 owner 链可以发布/恢复命名 readout，并定位旧失败为 semantic backend，不是 fresh
-held-out、P2 formal 或 Readable 通过。下一证据仍须由 P1m 在首次打开前冻结生成配方与 artifact。
+held-out、P2 formal 或 Readable 通过。v2 当前也只建立 reader mechanism：尚未 qualification、
+尚未接入 campaign，不能据此声称 Readable 成立。下一证据仍须由 P1m 在首次打开前冻结生成配方
+与 artifact。
 
 ### P3：exact settlement 与 PE-derived action credit
 
@@ -242,6 +258,8 @@ Implemented Phase 2 scaffold:
 
 ## 变更日志
 
+- 2026-08-24: `RelationshipConditionReadout` 增加 contracts-owner 公共 strict codec；qualification、
+  persistence 与 evidence consumer 复用同一 frozen value shape，禁止各自重建 reader 隐状态或私有 decoder。
 - 2026-08-22: P2d named condition reader。新增 frozen `RelationshipConditionReadout` 与绑定
   embedding weights/prototypes 的内容寻址 artifact；非 owning semantic collaborator 提 proposal，
   preference owner 校验 current-observation hash 后发布。`SocialRecordStore` export 升为 v4，继续

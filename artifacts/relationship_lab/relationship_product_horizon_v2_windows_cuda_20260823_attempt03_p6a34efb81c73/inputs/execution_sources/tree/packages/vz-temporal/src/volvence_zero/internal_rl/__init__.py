@@ -1,0 +1,132 @@
+from volvence_zero.internal_rl.environment import (
+    InternalRLDelayedCreditAssignment,
+    InternalRLEnvStep,
+    InternalRLEnvironment,
+    InternalRLOutcomeMeasurement,
+    InternalRLProofEpisode,
+    InternalRLProofProgress,
+    InternalRLProofSubgoal,
+    InternalRLRewardSource,
+    ResidualControlMode,
+)
+from volvence_zero.internal_rl.counterfactual_selector import (
+    CounterfactualActionExample,
+    CounterfactualActionSelection,
+    KernelResidualActionSelectorArtifact,
+    RELATIONSHIP_CONDITIONED_SELECTOR_FEATURE_SCHEMA_VERSION,
+    ResidualActionSelectorArtifact,
+    fit_kernel_residual_action_selector,
+    fit_residual_action_selector,
+    grouped_cross_validate_kernel_residual_action_selector,
+    grouped_cross_validate_residual_action_selector,
+    residual_action_state_sketch,
+    residual_action_state_vector,
+    residual_action_state_with_committed_control_summary,
+    relationship_conditioned_selector_state_vector,
+    selector_artifact_from_payload,
+    selector_artifact_to_payload,
+    select_counterfactual_actions,
+    summarize_action_selections,
+)
+from volvence_zero.internal_rl.proof_environment import (
+    HierarchicalEpisodeState,
+    HierarchicalLocation,
+    HierarchicalObservation,
+    HierarchicalRouteSpec,
+    HierarchicalStepFeedback,
+    HierarchicalStepResult,
+    HierarchicalTransition,
+    MiniHierarchicalCase,
+    MiniHierarchicalEnvironment,
+    generate_hierarchical_environment,
+    generate_hierarchical_routes,
+)
+from volvence_zero.internal_rl.sandbox import (
+    CausalPolicyCheckpoint,
+    CausalPolicyParameters,
+    CausalPolicyState,
+    DualTrackRollout,
+    DualTrackOptimizationReport,
+    InternalRLSandbox,
+    OptimizationReport,
+    PolicyOptimizationResult,
+    RuntimeActionCapture,
+    RuntimeReplayCheckpoint,
+    RuntimeReplayLineageError,
+    RuntimeReplaySettlement,
+    ZRollout,
+    ZTransition,
+    derive_abstract_action_credit,
+    runtime_replay_policy_distribution,
+)
+
+
+def load_torch_internal_rl():
+    """First-class lazy entry to the torch Internal RL backend (#88).
+
+    The facade stays torch-free; this loader is the sanctioned way to
+    reach ``TorchCausalZPolicy`` / ``TorchInternalRLConfig`` and the PPO
+    trainer without a module-level torch import. Raises ImportError with
+    install guidance when torch is unavailable.
+    """
+
+    from volvence_zero.internal_rl import torch_internal_rl
+
+    return torch_internal_rl
+
+__all__ = [
+    "load_torch_internal_rl",
+    "CounterfactualActionExample",
+    "CounterfactualActionSelection",
+    "KernelResidualActionSelectorArtifact",
+    "RELATIONSHIP_CONDITIONED_SELECTOR_FEATURE_SCHEMA_VERSION",
+    "CausalPolicyCheckpoint",
+    "CausalPolicyParameters",
+    "CausalPolicyState",
+    "DualTrackRollout",
+    "DualTrackOptimizationReport",
+    "HierarchicalEpisodeState",
+    "HierarchicalLocation",
+    "HierarchicalObservation",
+    "HierarchicalRouteSpec",
+    "HierarchicalStepFeedback",
+    "HierarchicalStepResult",
+    "HierarchicalTransition",
+    "InternalRLDelayedCreditAssignment",
+    "InternalRLEnvStep",
+    "InternalRLEnvironment",
+    "InternalRLOutcomeMeasurement",
+    "InternalRLProofEpisode",
+    "InternalRLProofProgress",
+    "InternalRLProofSubgoal",
+    "InternalRLRewardSource",
+    "ResidualControlMode",
+    "ResidualActionSelectorArtifact",
+    "InternalRLSandbox",
+    "MiniHierarchicalCase",
+    "MiniHierarchicalEnvironment",
+    "OptimizationReport",
+    "PolicyOptimizationResult",
+    "RuntimeActionCapture",
+    "RuntimeReplayCheckpoint",
+    "RuntimeReplayLineageError",
+    "RuntimeReplaySettlement",
+    "ZRollout",
+    "ZTransition",
+    "derive_abstract_action_credit",
+    "generate_hierarchical_environment",
+    "generate_hierarchical_routes",
+    "fit_kernel_residual_action_selector",
+    "fit_residual_action_selector",
+    "grouped_cross_validate_kernel_residual_action_selector",
+    "grouped_cross_validate_residual_action_selector",
+    "residual_action_state_sketch",
+    "residual_action_state_vector",
+    "residual_action_state_with_committed_control_summary",
+    "relationship_conditioned_selector_state_vector",
+    "runtime_replay_policy_distribution",
+    "selector_artifact_from_payload",
+    "selector_artifact_to_payload",
+    "select_counterfactual_actions",
+    "summarize_action_selections",
+]

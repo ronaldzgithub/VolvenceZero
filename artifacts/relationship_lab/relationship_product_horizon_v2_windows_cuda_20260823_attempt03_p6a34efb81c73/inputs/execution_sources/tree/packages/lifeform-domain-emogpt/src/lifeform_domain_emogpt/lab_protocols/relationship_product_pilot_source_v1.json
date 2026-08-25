@@ -1,0 +1,360 @@
+{
+  "schema_version": "relationship-product-pilot-source.v1",
+  "owner": {
+    "module": "lifeform_domain_emogpt.lab.relationship_product_pilot_source",
+    "source_role": "development_product_pilot_domain_source_only",
+    "settlement_owner": "lifeform_domain_emogpt.lab.environment.ReactiveRelationshipEnvironment",
+    "runtime_owner_added": false,
+    "runtime_slot_added": false,
+    "p1m_output_dependency": false,
+    "difficulty_tuned_from_p1m": false
+  },
+  "cohort": {
+    "cohort_id": "relationship-product-pilot-development-20260823",
+    "evidence_role": "development_engineering_pilot_only",
+    "subject_count": 8,
+    "subject_seeds": [
+      2026082301,
+      2026082302,
+      2026082303,
+      2026082304,
+      2026082305,
+      2026082306,
+      2026082307,
+      2026082308
+    ],
+    "onboarding_sessions_per_subject": 4,
+    "decision_sessions_per_subject": 24,
+    "per_arm_exogenous_world_clone": true,
+    "arm_identity_affects_source_or_environment_seed": false
+  },
+  "policies": {
+    "condition_ids": [
+      "connection_under_exclusion",
+      "agency_under_override"
+    ],
+    "profiles": {
+      "alpha": {
+        "connection_under_exclusion": "stay_present_without_probe",
+        "agency_under_override": "respect_space_with_return_option"
+      },
+      "beta": {
+        "connection_under_exclusion": "respect_space_with_return_option",
+        "agency_under_override": "stay_present_without_probe"
+      }
+    },
+    "subject_assignment": "zero_based_subject_index_even_alpha_odd_beta",
+    "reversal_from_decision_index": 12,
+    "reversal_policy": "use_complementary_profile"
+  },
+  "schedule": {
+    "domain_ids": [
+      "work",
+      "health",
+      "family",
+      "community",
+      "friends",
+      "intimacy"
+    ],
+    "decisions": [
+      {
+        "decision_index": 0,
+        "phase_id": "stable_work_connection",
+        "stage_id": "stable",
+        "domain_id": "work",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 7,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 1,
+        "phase_id": "stable_health_agency",
+        "stage_id": "stable",
+        "domain_id": "health",
+        "condition_id": "agency_under_override",
+        "virtual_day": 9,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 2,
+        "phase_id": "stable_family_connection",
+        "stage_id": "stable",
+        "domain_id": "family",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 11,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 3,
+        "phase_id": "stable_community_agency",
+        "stage_id": "stable",
+        "domain_id": "community",
+        "condition_id": "agency_under_override",
+        "virtual_day": 14,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 4,
+        "phase_id": "stable_friends_connection",
+        "stage_id": "stable",
+        "domain_id": "friends",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 17,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 5,
+        "phase_id": "stable_intimacy_agency",
+        "stage_id": "stable",
+        "domain_id": "intimacy",
+        "condition_id": "agency_under_override",
+        "virtual_day": 20,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 6,
+        "phase_id": "domain_switch_health_connection",
+        "stage_id": "domain_switch",
+        "domain_id": "health",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 23,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 7,
+        "phase_id": "domain_switch_work_agency",
+        "stage_id": "domain_switch",
+        "domain_id": "work",
+        "condition_id": "agency_under_override",
+        "virtual_day": 26,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 8,
+        "phase_id": "domain_switch_community_connection",
+        "stage_id": "domain_switch",
+        "domain_id": "community",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 29,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 9,
+        "phase_id": "domain_switch_family_agency",
+        "stage_id": "domain_switch",
+        "domain_id": "family",
+        "condition_id": "agency_under_override",
+        "virtual_day": 32,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 10,
+        "phase_id": "pre_gap_friends_connection",
+        "stage_id": "pre_gap",
+        "domain_id": "friends",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 36,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 11,
+        "phase_id": "pre_gap_intimacy_agency",
+        "stage_id": "pre_gap",
+        "domain_id": "intimacy",
+        "condition_id": "agency_under_override",
+        "virtual_day": 40,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 12,
+        "phase_id": "post_gap_reversal_work_connection",
+        "stage_id": "post_gap_reversal",
+        "domain_id": "work",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 62,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 13,
+        "phase_id": "reversal_health_agency",
+        "stage_id": "reversal",
+        "domain_id": "health",
+        "condition_id": "agency_under_override",
+        "virtual_day": 65,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 14,
+        "phase_id": "reversal_family_connection",
+        "stage_id": "reversal",
+        "domain_id": "family",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 68,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 15,
+        "phase_id": "reversal_community_agency",
+        "stage_id": "reversal",
+        "domain_id": "community",
+        "condition_id": "agency_under_override",
+        "virtual_day": 71,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 16,
+        "phase_id": "correction_friends_connection",
+        "stage_id": "correction",
+        "domain_id": "friends",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 74,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": 10
+      },
+      {
+        "decision_index": 17,
+        "phase_id": "correction_intimacy_agency",
+        "stage_id": "correction",
+        "domain_id": "intimacy",
+        "condition_id": "agency_under_override",
+        "virtual_day": 77,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": 11
+      },
+      {
+        "decision_index": 18,
+        "phase_id": "post_correction_health_connection",
+        "stage_id": "post_correction",
+        "domain_id": "health",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 81,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 19,
+        "phase_id": "post_correction_work_agency",
+        "stage_id": "post_correction",
+        "domain_id": "work",
+        "condition_id": "agency_under_override",
+        "virtual_day": 85,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 20,
+        "phase_id": "return_after_gap_community_connection",
+        "stage_id": "return_after_gap",
+        "domain_id": "community",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 107,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 21,
+        "phase_id": "return_after_gap_family_agency",
+        "stage_id": "return_after_gap",
+        "domain_id": "family",
+        "condition_id": "agency_under_override",
+        "virtual_day": 110,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 22,
+        "phase_id": "mixed_stress_intimacy_connection",
+        "stage_id": "mixed_stress",
+        "domain_id": "intimacy",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 114,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 23,
+        "phase_id": "mixed_stress_friends_agency",
+        "stage_id": "mixed_stress",
+        "domain_id": "friends",
+        "condition_id": "agency_under_override",
+        "virtual_day": 119,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      }
+    ]
+  },
+  "reactive_environment": {
+    "environment_version": "relationship-reactive-environment.v1",
+    "seed_namespace": "relationship-product-pilot-reactive-seeds-v1",
+    "outcome_order": [
+      "helped",
+      "felt_heard",
+      "missed",
+      "over_directive"
+    ],
+    "positive_outcomes": [
+      "helped",
+      "felt_heard"
+    ],
+    "preferred_action_probabilities": [
+      0.35,
+      0.55,
+      0.05,
+      0.05
+    ],
+    "nonpreferred_stay_probabilities": [
+      0.05,
+      0.05,
+      0.1,
+      0.8
+    ],
+    "nonpreferred_space_probabilities": [
+      0.05,
+      0.1,
+      0.8,
+      0.05
+    ],
+    "neutral_noop_probabilities": [
+      0.02,
+      0.03,
+      0.7,
+      0.25
+    ]
+  },
+  "context_pressure": {
+    "rendering_version": "relationship-product-pilot-public-renderer.v1",
+    "metric": "concatenated_public_source_text_unicode_codepoints_and_utf8_bytes",
+    "minimum_public_source_characters_per_subject": 40000,
+    "minimum_public_source_utf8_bytes_per_subject": 100000,
+    "token_measurement_status": "not_measured_not_claimed",
+    "token_count": null
+  },
+  "firewall": {
+    "public_view_contains_sealed_condition": false,
+    "public_view_contains_policy_id": false,
+    "public_view_contains_preferred_action": false,
+    "public_view_contains_environment_seed": false,
+    "evaluation_or_judge_feedback_to_learning": false,
+    "model_output_count": 0,
+    "runtime_owner_added": false,
+    "runtime_slot_added": false,
+    "formal_evidence_authorized": false
+  },
+  "claim_boundary": "This local source owner freezes eight development subject seeds, four onboarding sessions, twenty-four decision sessions, complementary alpha/beta policies, typed condition/domain/reversal/gap/correction structure, arm-independent exogenous world clones, deterministic reactive distributions, and a bytes/characters-only public source pressure target. It does not run a model, define any experimental arm, authorize product or formal evidence, measure tokenizer tokens, consume P1m output, expose sealed evaluator truth to the SUT, add a runtime owner or slot, or prove any Appendable, Readable, Learnable, Steerable, integrated, human, or production claim."
+}

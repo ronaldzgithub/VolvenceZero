@@ -1,0 +1,7721 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+import hashlib
+from itertools import combinations
+import json
+from pathlib import Path
+from random import Random
+from typing import Any
+
+from volvence_zero.agent.paper_suite import (
+    ClaimVerdict,
+    EvidenceBundle,
+    PaperMetricSpec,
+    PaperProfileSpec,
+    PaperSuiteManifest,
+    PaperSuiteProvenance,
+    RetainProvenanceRequirements,
+    collect_paper_suite_provenance,
+    export_json_artifact,
+    validate_evidence_bundle_for_external_use,
+)
+from volvence_zero.evaluation import (
+    MetricIntervalSummary,
+    PairwiseMetricEffect,
+    build_pairwise_metric_effect,
+    build_metric_interval_summaries,
+)
+from volvence_zero.credit.gate import (
+    derive_prediction_error_credit_records,
+)
+from volvence_zero.environment import (
+    EnvironmentEventKind,
+    EnvironmentMeasurement,
+    EnvironmentOutcome,
+)
+
+from volvence_zero.internal_rl import (
+    CausalPolicyCheckpoint,
+    CounterfactualActionExample,
+    CounterfactualActionSelection,
+    HierarchicalLocation,
+    HierarchicalRouteSpec,
+    HierarchicalTransition,
+    InternalRLEnvironment,
+    InternalRLProofEpisode,
+    InternalRLProofSubgoal,
+    InternalRLRewardSource,
+    InternalRLSandbox,
+    KernelResidualActionSelectorArtifact,
+    MiniHierarchicalEnvironment,
+    ZRollout,
+    generate_hierarchical_environment,
+    generate_hierarchical_routes,
+    fit_kernel_residual_action_selector,
+    grouped_cross_validate_kernel_residual_action_selector,
+    residual_action_state_vector,
+    residual_action_state_with_committed_control_summary,
+    selector_artifact_from_payload,
+    selector_artifact_to_payload,
+    select_counterfactual_actions,
+    summarize_action_selections,
+)
+from volvence_zero.prediction.error import (
+    ActualOutcome,
+    PredictedOutcome,
+    PredictionActionContext,
+    PredictionErrorModule,
+)
+from volvence_zero.memory import Track
+from volvence_zero.runtime import WiringLevel
+from volvence_zero.substrate import (
+    FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE,
+    TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE,
+    ContinuationScore,
+    FeatureSignal,
+    LocalSubstrateRuntimeMode,
+    NoOpResidualInterventionBackend,
+    OpenWeightResidualRuntime,
+    ResidualSequenceStep,
+    SubstrateSnapshot,
+    SubstrateFallbackMode,
+    SurfaceKind,
+    SyntheticOpenWeightResidualRuntime,
+    build_transformers_runtime_with_fallback,
+    build_training_trace,
+    control_basis_fingerprint,
+    fit_transition_control_basis,
+)
+from volvence_zero.temporal import (
+    FullLearnedTemporalPolicy,
+    LearnedLiteTemporalPolicy,
+    MetacontrollerSSLTrainer,
+)
+from volvence_zero.temporal.metacontroller_components import (
+    ResidualDecoder,
+    summarize_residual_activations,
+)
+
+
+ETA_PROOF_TRAINING_SIGNAL = "proof-reward"
+ETA_CONTINUATION_PE_TRAINING_SIGNAL = "continuation-prediction-error"
+ETA_CONTINUATION_PE_REWARD_SCALE = 0.02
+ETA_DEFAULT_CASE_CORPUS = "eta-proof-default-v1"
+ETA_GATE2_EXPANDED_CASE_CORPUS = "eta-gate2-expanded-continuation-v2"
+ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS = (
+    "eta-gate2-prefix-expected-value-v3"
+)
+ETA_GATE2_SELECTOR_FRESH_CASE_CORPUS = (
+    "eta-gate2-selector-fresh-v4"
+)
+ETA_GATE2_SHADOW_FRESH_CASE_CORPUS = (
+    "eta-gate2-shadow-fresh-v5"
+)
+ETA_GATE2_RECENT_K2_FRESH_CASE_CORPUS = (
+    "eta-gate2-recent-k2-fresh-v6"
+)
+ETA_COUNTERFACTUAL_TARGET_OBSERVED = "observed-single-continuation"
+ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED = (
+    "sampled-prefix-expected-value"
+)
+ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME = (
+    "environment-outcome-pe-credit"
+)
+
+
+@dataclass(frozen=True)
+class ETAProofCase:
+    case_id: str
+    source_text: str
+    proof_episode: InternalRLProofEpisode
+    split: str
+    description: str
+    environment_id: str = "proof-grid"
+    route_signature: tuple[str, ...] = ()
+    branch_depth: int = 0
+    split_detail: str = "unspecified"
+    reward_profile: str = "proof-sparse-terminal-delayed"
+    reward_taxonomy: tuple[InternalRLRewardSource, ...] = ()
+    route_length: int = 0
+    distractor_count: int = 0
+
+
+@dataclass(frozen=True)
+class ETAResidualInterventionRecord:
+    step_index: int
+    residual_control_mode: str
+    decoder_output: tuple[float, ...]
+    control_before_ablation: tuple[float, ...]
+    applied_control: tuple[float, ...]
+    downstream_effect: tuple[float, ...]
+    applied_control_magnitude: float
+    downstream_effect_magnitude: float
+    replacement_effect_delta: float
+    reward: float
+    switch_gate: float
+    active_family_id: str | None
+    proof_terminal_success: bool
+    backend_name: str
+    continuation_text: str = ""
+    continuation_token_count: int = 0
+    continuation_mean_nll: float | None = None
+    continuation_geometric_mean_probability: float | None = None
+
+
+@dataclass(frozen=True)
+class ETACounterfactualOutcomeRecord:
+    observation_id: str
+    case_id: str
+    split: str
+    phase: str
+    step_index: int
+    segment_id: str
+    candidate_index: int
+    latent_code: tuple[float, ...]
+    applied_control: tuple[float, ...]
+    target_signature: tuple[float, ...]
+    observed_signature: tuple[float, ...]
+    downstream_effect: tuple[float, ...]
+    expected_task_progress: float
+    actual_task_progress: float
+    prediction_error_magnitude: float
+    action_credit: float
+    audit_target_signature: tuple[float, ...]
+    audit_actual_task_progress: float
+    audit_prediction_error_magnitude: float
+    audit_action_credit: float
+    outcome_chain: str = (
+        "residual-forward->realized-continuation-nll->prediction-error"
+        "->action-credit"
+    )
+
+
+@dataclass(frozen=True)
+class ETAShadowClosedLoopRecord:
+    run_id: str
+    run_seed: int
+    split: str
+    case_id: str
+    step_index: int
+    arm: str
+    selected_action_index: int
+    predicted_action_value: float
+    step_control: tuple[float, ...]
+    aggregate_control: tuple[float, ...]
+    zero_control_mean_nll: float
+    observed_mean_nll: float
+    realized_delta: float
+    committed_control_count: int
+    state_features_fingerprint: str
+    selector_fingerprint: str
+    control_basis_fingerprint: str
+    runtime_descriptor_fingerprint: str
+    side_effect_free: bool
+    active_control_count: int = 0
+    committed_control_window: int | None = None
+
+
+@dataclass(frozen=True)
+class ETAProofEpisodeReport:
+    case_id: str
+    split: str
+    profile_label: str
+    backend_label: str
+    total_reward: float
+    raw_total_reward: float
+    terminal_success: bool
+    completed_subgoals: tuple[str, ...]
+    completed_family_ids: tuple[str, ...]
+    subgoal_completion_rate: float
+    family_reuse_rate: float
+    switch_sparsity: float
+    mean_persistence: float
+    credit_alignment: float
+    backend_fidelity: float
+    action_family_count: int
+    delayed_credit_assignment_count: int
+    task_success_core: float
+    switch_discipline_score: float
+    mechanism_evidence_score: float
+    strong_success_score: float
+    split_detail: str
+    reward_profile: str
+    reward_source_mix: tuple[tuple[str, str, float], ...]
+    reward_shaping_leakage: float
+    reward_sparsity: float
+    route_length: int
+    distractor_count: int
+    mean_steps_per_abstract_action: float
+    median_steps_per_abstract_action: float
+    persistence_window_success_rate: float
+    premature_switch_rate: float
+    always_switch_rate: float
+    never_switch_rate: float
+    intervention_application_count: int
+    mean_replacement_effect_delta: float
+    residual_signal_quality: float
+    first_missed_subgoal: str
+    family_miss_rate: float
+    credit_window_miss_rate: float
+    terminal_credit_coverage: float
+    description: str
+    intervention_records: tuple[ETAResidualInterventionRecord, ...] = ()
+
+
+@dataclass(frozen=True)
+class ETAProofProfileReport:
+    profile_label: str
+    backend_label: str
+    episode_reports: tuple[ETAProofEpisodeReport, ...]
+    metric_means: tuple[tuple[str, float], ...]
+    training_update_count: int
+    rollout_batch_count: int
+    mean_rollouts_per_update: float
+    training_transition_count: int
+    training_parameter_change_count: int
+    training_parameter_change_rate: float
+    mean_parameter_change_norm: float
+    mean_value_loss: float
+    mean_replacement_effect_delta: float
+    description: str
+    action_selection_records: tuple[
+        CounterfactualActionSelection, ...
+    ] = ()
+    counterfactual_outcome_records: tuple[
+        ETACounterfactualOutcomeRecord, ...
+    ] = ()
+    selector_artifact_payload: dict[str, object] | None = None
+    shadow_closed_loop_records: tuple[
+        ETAShadowClosedLoopRecord, ...
+    ] = ()
+
+
+@dataclass(frozen=True)
+class ETAProofBenchmarkReport:
+    profile_reports: tuple[ETAProofProfileReport, ...]
+    baseline_label: str
+    backend_label: str
+    metric_deltas_from_baseline: tuple[tuple[str, tuple[tuple[str, float], ...]], ...]
+    rollout_batch_count: int
+    description: str
+
+
+@dataclass(frozen=True)
+class ETAProofBackendComparisonReport:
+    profile_label: str
+    profile_reports: tuple[ETAProofProfileReport, ...]
+    metric_deltas: tuple[tuple[str, float], ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class ETAInternalRLAcceptanceGate:
+    gate_id: str
+    passed: bool
+    evidence: tuple[tuple[str, float | str], ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class ETAInternalRLAssessmentReport:
+    benchmark_report: ETAProofBenchmarkReport
+    backend_report: ETAProofBackendComparisonReport | None
+    gates: tuple[ETAInternalRLAcceptanceGate, ...]
+    passed_gate_count: int
+    total_gate_count: int
+    description: str
+
+
+@dataclass(frozen=True)
+class ETAProofPaperSuiteRunSummary:
+    run_id: str
+    run_seed: int
+    metric_values: tuple[tuple[str, float], ...]
+    description: str
+    strongest_competing_control: str = "none"
+    strongest_control_gap: float = 0.0
+
+
+@dataclass(frozen=True)
+class ETAProofPaperSuiteInterpretationSummary:
+    interpretation: str
+    review_summary: str
+    dominant_failure_mode: str
+    strongest_metric: str
+    weakest_metric: str
+    strongest_competing_control: str
+    strongest_control_gap: float
+    cross_run_gap_mean: float
+    cross_run_gap_std: float
+    confidence: float
+    description: str
+
+
+@dataclass(frozen=True)
+class ETAProofPaperSuiteAggregateReport:
+    manifest: PaperSuiteManifest
+    provenance: PaperSuiteProvenance
+    run_summaries: tuple[ETAProofPaperSuiteRunSummary, ...]
+    reference_benchmark_report: ETAProofBenchmarkReport | None
+    reference_backend_report: ETAProofBackendComparisonReport | None
+    reference_assessment: ETAInternalRLAssessmentReport | None
+    primary_metric_summaries: tuple[MetricIntervalSummary, ...]
+    secondary_metric_summaries: tuple[MetricIntervalSummary, ...]
+    interpretation_summary: ETAProofPaperSuiteInterpretationSummary | None
+    description: str
+    pairwise_effects: tuple[PairwiseMetricEffect, ...] = ()
+    claim_verdicts: tuple[ClaimVerdict, ...] = ()
+
+
+@dataclass(frozen=True)
+class ETAInternalRLAcceptanceConfig:
+    required_gate_ids: tuple[str, ...] = (
+        "sparse-reward-success",
+        "abstract-action-reuse",
+        "heldout-composition",
+        "credit-alignment",
+        "policy-update-evidence",
+        "statistical-batch-evidence",
+        "backend-robustness",
+    )
+    min_success_delta: float = 0.02
+    min_terminal_success_rate: float = 0.0
+    min_reuse_rate: float = 0.50
+    min_credit_alignment: float = 0.50
+    min_strong_success_rate: float = 0.30
+    max_backend_success_gap: float = 0.30
+    min_policy_update_rate: float = 0.50
+    min_rollouts_per_update: float = 2.0
+    min_parameter_change_norm: float = 0.01
+    min_replacement_effect_delta: float = 0.05
+    max_heldout_success_std: float = 0.35
+    min_passed_gate_count: int = 7
+
+
+@dataclass(frozen=True)
+class ETAInternalRLAcceptanceDecision:
+    accepted: bool
+    reasons: tuple[str, ...]
+    accepted_gate_ids: tuple[str, ...]
+    blocked_gate_ids: tuple[str, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class ETAProofProfileConfig:
+    profile_label: str
+    replacement_mode: str
+    optimize_after_rollout: bool
+    policy_kind: str
+    use_noop_backend: bool = False
+    use_temporal_fast_prior: bool = True
+    bootstrap_init: bool = False
+    residual_control_mode: str = "identity"
+    residual_control_seed: int = 0
+    reuse_baseline_checkpoint: bool = False
+
+
+@dataclass(frozen=True)
+class ETAOpenWeightRuntimeConfig:
+    model_id: str = "Qwen/Qwen2.5-0.5B-Instruct"
+    model_source: str | None = None
+    device: str = "auto"
+    layer_indices: tuple[int, ...] | None = (20, 21, 22)
+    hook_layer_selection: str = "all"
+    activation_width: int = 8
+    local_files_only: bool = True
+    runtime_mode: LocalSubstrateRuntimeMode | str | None = LocalSubstrateRuntimeMode.STRICT_LOCAL
+    fallback_mode: SubstrateFallbackMode | str | None = SubstrateFallbackMode.DENY
+    builtin_model_id: str = "eta-builtin-transformers-runtime"
+    max_prefix_steps: int = 6
+    require_real_backend: bool = True
+    # None keeps the runtime default (float16 on MPS). The rate-distortion
+    # criterion runs float32 so the joint validity-control arm can train
+    # substrate parameters without fp16 Adam overflow.
+    model_dtype: str | None = None
+    min_hook_coverage: float = 0.75
+    max_fallback_rate: float = 0.0
+    calibrate_proof_signatures: bool = True
+    description: str = "ETA open-weight runtime config for real residual capture/control."
+
+
+ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE = 0.75
+ETA_REAL_RESIDUAL_MAX_FALLBACK_RATE = 0.0
+ETA_MECHANISM_TIE_TOLERANCE = 0.02
+
+
+def _snapshot_from_step(trace_id: str, step: object) -> SubstrateSnapshot:
+    return SubstrateSnapshot(
+        model_id=trace_id,
+        is_frozen=True,
+        surface_kind=SurfaceKind.RESIDUAL_STREAM,
+        token_logits=(0.1, 0.2),
+        feature_surface=step.feature_surface,
+        residual_activations=step.residual_activations,
+        residual_sequence=(
+            ResidualSequenceStep(
+                step=step.step,
+                token=step.token,
+                feature_surface=step.feature_surface,
+                residual_activations=step.residual_activations,
+                description=f"proof token {step.token}",
+            ),
+        ),
+        unavailable_fields=(),
+        description=f"proof trace step {step.step}",
+    )
+
+
+def _mean(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
+def _std(values: tuple[float, ...]) -> float:
+    if len(values) <= 1:
+        return 0.0
+    mean_value = _mean(values)
+    variance = sum((value - mean_value) ** 2 for value in values) / len(values)
+    return variance ** 0.5
+
+
+def _median(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    sorted_values = tuple(sorted(values))
+    midpoint = len(sorted_values) // 2
+    if len(sorted_values) % 2 == 1:
+        return sorted_values[midpoint]
+    return (sorted_values[midpoint - 1] + sorted_values[midpoint]) / 2.0
+
+
+def _build_eta_open_weight_runtime(config: ETAOpenWeightRuntimeConfig | None = None) -> OpenWeightResidualRuntime:
+    active_config = config or ETAOpenWeightRuntimeConfig()
+    return build_transformers_runtime_with_fallback(
+        model_id=active_config.model_id,
+        model_source=active_config.model_source,
+        device=active_config.device,
+        layer_indices=active_config.layer_indices,
+        hook_layer_selection=active_config.hook_layer_selection,
+        activation_width=active_config.activation_width,
+        local_files_only=active_config.local_files_only,
+        fallback_mode=active_config.fallback_mode,
+        runtime_mode=active_config.runtime_mode,
+        builtin_model_id=active_config.builtin_model_id,
+        allow_live_substrate_mutation=False,
+        model_dtype=active_config.model_dtype,
+    )
+
+
+def _validate_eta_open_weight_runtime(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    config: ETAOpenWeightRuntimeConfig | None = None,
+) -> None:
+    active_config = config or ETAOpenWeightRuntimeConfig()
+    if not active_config.require_real_backend:
+        return
+    if runtime.fallback_active:
+        raise RuntimeError(
+            f"ETA real residual lane requires a non-fallback transformers backend, got "
+            f"model_id={runtime.model_id!r} runtime_origin={runtime.runtime_origin!r}. "
+            "Pre-cache the default model 'Qwen/Qwen2.5-0.5B-Instruct' (or a configured equivalent) "
+            "via huggingface-cli download, or set require_real_backend=False for explicit smoke tests."
+        )
+
+
+def _runtime_capture_snapshot(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    case: ETAProofCase,
+    source_text: str,
+    step_index: int,
+    total_steps: int,
+) -> SubstrateSnapshot:
+    capture = runtime.capture(source_text=source_text)
+    runtime_origin = getattr(runtime, "runtime_origin", "unknown")
+    fallback_active = 1.0 if getattr(runtime, "fallback_active", False) else 0.0
+    feature_surface = capture.feature_surface + (
+        FeatureSignal(
+            name="eta_real_runtime_step_index",
+            values=(step_index / max(total_steps - 1, 1),),
+            source="eta-open-weight-step-contract",
+        ),
+        FeatureSignal(
+            name="eta_real_runtime_prefix_fraction",
+            values=(len(source_text.split()) / max(len(case.source_text.split()), 1),),
+            source="eta-open-weight-step-contract",
+        ),
+        FeatureSignal(
+            name="eta_real_runtime_capture_present",
+            values=(1.0 if capture.residual_sequence and capture.residual_activations else 0.0,),
+            source="eta-open-weight-step-contract",
+        ),
+        FeatureSignal(
+            name="eta_real_runtime_source_token_count",
+            values=(float(len(source_text.split())),),
+            source="eta-open-weight-step-contract",
+        ),
+        FeatureSignal(
+            name="eta_real_runtime_intervention_protocol_valid",
+            values=(1.0,),
+            source="eta-open-weight-step-contract",
+        ),
+        FeatureSignal(
+            name="eta_real_runtime_fallback_active",
+            values=(fallback_active,),
+            source="eta-open-weight-step-contract",
+        ),
+    )
+    return SubstrateSnapshot(
+        model_id=runtime.model_id,
+        is_frozen=runtime.is_frozen,
+        surface_kind=SurfaceKind.RESIDUAL_STREAM,
+        token_logits=capture.token_logits,
+        feature_surface=feature_surface,
+        residual_activations=capture.residual_activations,
+        residual_sequence=capture.residual_sequence,
+        unavailable_fields=(),
+        description=(
+            f"{capture.description} ETA real residual step {step_index + 1}/{total_steps} "
+            f"case={case.case_id} runtime_origin={runtime_origin} fallback_active={int(fallback_active)}."
+        ),
+    )
+
+
+def _eta_real_residual_prefixes(
+    source_text: str,
+    *,
+    max_prefix_steps: int,
+) -> tuple[str, ...]:
+    tokens = tuple(part for part in source_text.split() if part.strip())
+    if not tokens:
+        return (source_text or "<empty>",)
+    max_steps = max(1, min(max_prefix_steps, len(tokens)))
+    if max_steps == len(tokens):
+        return tuple(" ".join(tokens[: index + 1]) for index in range(len(tokens)))
+    positions = tuple(
+        min(len(tokens), max(1, round((index + 1) * len(tokens) / max_steps)))
+        for index in range(max_steps)
+    )
+    deduped_positions = tuple(dict.fromkeys(positions))
+    return tuple(" ".join(tokens[:position]) for position in deduped_positions)
+
+
+def _build_case_snapshot_bundle(
+    case: ETAProofCase,
+    *,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
+) -> tuple[tuple[SubstrateSnapshot, ...], tuple[str, ...]]:
+    if open_weight_runtime is None:
+        trace = build_training_trace(trace_id=case.case_id, source_text=case.source_text)
+        return (tuple(_snapshot_from_step(trace.trace_id, step) for step in trace.steps), ())
+    active_config = open_weight_config or ETAOpenWeightRuntimeConfig()
+    required_prefix_steps = max(
+        active_config.max_prefix_steps,
+        sum(max(subgoal.min_persistence, 1) for subgoal in case.proof_episode.subgoals),
+    )
+    prefixes = _eta_real_residual_prefixes(
+        case.source_text,
+        max_prefix_steps=required_prefix_steps,
+    )
+    snapshots = tuple(
+        _runtime_capture_snapshot(
+            runtime=open_weight_runtime,
+            case=case,
+            source_text=prefix,
+            step_index=step_index,
+            total_steps=len(prefixes),
+        )
+        for step_index, prefix in enumerate(prefixes)
+    )
+    return (snapshots, prefixes)
+
+
+def _snapshot_transition_state(snapshot: SubstrateSnapshot) -> tuple[float, ...]:
+    """Mean over hook layers of the last-token hidden activation.
+
+    This is the state coordinate used to fit the learned control basis:
+    the control delta is injected identically at every hooked layer, so
+    the transition subspace of those layers is the actuator's target
+    space.
+    """
+
+    if not snapshot.residual_sequence:
+        raise ValueError(
+            "learned control-basis fitting requires token-level residual "
+            "sequences; the snapshot carries none"
+        )
+    activations = snapshot.residual_sequence[-1].residual_activations
+    if not activations:
+        raise ValueError(
+            "learned control-basis fitting requires per-layer residual "
+            "activations on the final residual step"
+        )
+    width = len(activations[0].activation)
+    return tuple(
+        sum(layer.activation[index] for layer in activations) / len(activations)
+        for index in range(width)
+    )
+
+
+def _install_learned_control_basis(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    cases: tuple[ETAProofCase, ...],
+    open_weight_config: ETAOpenWeightRuntimeConfig | None,
+) -> dict[str, str]:
+    """Fit a train-transition-PCA control basis and install it on the runtime.
+
+    Frozen-split hygiene: the basis is fit exclusively from train-split
+    route captures; eval/heldout/validation routes never contribute
+    transition deltas. Returns provenance entries for the paper-suite
+    runtime descriptor so the artifact preregisters the exact basis.
+    """
+
+    train_cases = tuple(case for case in cases if case.split == "train")
+    if not train_cases:
+        raise ValueError(
+            "learned control-basis mode requires at least one train-split "
+            "case to fit transition deltas"
+        )
+    transition_deltas: list[tuple[float, ...]] = []
+    for case in train_cases:
+        snapshots, _prefixes = _build_case_snapshot_bundle(
+            case,
+            open_weight_runtime=runtime,
+            open_weight_config=open_weight_config,
+        )
+        states = [_snapshot_transition_state(snapshot) for snapshot in snapshots]
+        for left, right in zip(states, states[1:], strict=False):
+            transition_deltas.append(
+                tuple(b - a for a, b in zip(left, right, strict=True))
+            )
+    basis = fit_transition_control_basis(transition_deltas, basis_rank=3)
+    fingerprint = control_basis_fingerprint(basis)
+    provenance = (
+        f"{TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE}:{fingerprint[:16]}"
+    )
+    runtime.install_control_basis(basis=basis, provenance=provenance)
+    return {
+        "control_basis_mode": TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE,
+        "control_basis_provenance": provenance,
+        "control_basis_fingerprint": fingerprint,
+        "control_basis_fit_split": "train",
+        "control_basis_transition_count": str(len(transition_deltas)),
+        "control_basis_fit_route_ids": ",".join(
+            case.case_id for case in train_cases
+        ),
+    }
+
+
+def _feature_mean(
+    snapshots: tuple[SubstrateSnapshot, ...],
+    *,
+    feature_name: str,
+) -> float:
+    values = tuple(
+        float(value)
+        for snapshot in snapshots
+        for feature in snapshot.feature_surface
+        if feature.name == feature_name
+        for value in feature.values
+    )
+    return _mean(values)
+
+
+def _real_snapshot_metric_values(snapshots: tuple[SubstrateSnapshot, ...]) -> tuple[tuple[str, float], ...]:
+    if not snapshots:
+        return (
+            ("real_open_weight_step_count", 0.0),
+            ("real_open_weight_capture_rate", 0.0),
+            ("real_open_weight_hook_coverage", 0.0),
+            ("real_open_weight_hook_fire_rate", 0.0),
+            ("real_open_weight_planned_layer_fraction", 0.0),
+            ("real_open_weight_token_step_coverage", 0.0),
+            ("real_open_weight_residual_sequence_present", 0.0),
+            ("real_open_weight_intervention_protocol_valid", 0.0),
+            ("real_open_weight_fallback_rate", 0.0),
+        )
+    hook_fire_rate = _feature_mean(snapshots, feature_name="hook_fire_rate")
+    residual_sequence_present = _feature_mean(snapshots, feature_name="residual_sequence_present")
+    capture_present = _feature_mean(snapshots, feature_name="eta_real_runtime_capture_present")
+    return (
+        ("real_open_weight_step_count", float(len(snapshots))),
+        (
+            "real_open_weight_capture_rate",
+            min(capture_present, residual_sequence_present, hook_fire_rate),
+        ),
+        (
+            "real_open_weight_hook_coverage",
+            _feature_mean(snapshots, feature_name="hook_layer_coverage"),
+        ),
+        (
+            "real_open_weight_hook_fire_rate",
+            hook_fire_rate,
+        ),
+        (
+            "real_open_weight_planned_layer_fraction",
+            _feature_mean(snapshots, feature_name="planned_layer_fraction"),
+        ),
+        (
+            "real_open_weight_token_step_coverage",
+            _feature_mean(snapshots, feature_name="token_step_coverage"),
+        ),
+        (
+            "real_open_weight_residual_sequence_present",
+            residual_sequence_present,
+        ),
+        (
+            "real_open_weight_intervention_protocol_valid",
+            _feature_mean(snapshots, feature_name="eta_real_runtime_intervention_protocol_valid"),
+        ),
+        (
+            "real_open_weight_fallback_rate",
+            _feature_mean(snapshots, feature_name="eta_real_runtime_fallback_active"),
+        ),
+    )
+
+
+def _switch_discipline_score(*, switch_sparsity: float, mean_persistence: float) -> float:
+    transition_presence = max(0.0, min(1.0, (1.0 - switch_sparsity) / 0.18))
+    persistence_quality = max(0.0, min(1.0, mean_persistence / 2.0))
+    return max(0.0, min(1.0, transition_presence * 0.40 + persistence_quality * 0.60))
+
+
+def _abstract_action_window_lengths(rollout: ZRollout) -> tuple[int, ...]:
+    if not rollout.transitions:
+        return ()
+    lengths: list[int] = []
+    current_length = 0
+    for index, transition in enumerate(rollout.transitions):
+        is_new_window = index == 0 or transition.controller_state.switch_gate >= 0.5
+        if is_new_window and current_length > 0:
+            lengths.append(current_length)
+            current_length = 0
+        current_length += 1
+    if current_length > 0:
+        lengths.append(current_length)
+    return tuple(lengths)
+
+
+def _abstract_action_windows(rollout: ZRollout) -> tuple[tuple[int, int], ...]:
+    if not rollout.transitions:
+        return ()
+    windows: list[tuple[int, int]] = []
+    start = 0
+    for index, transition in enumerate(rollout.transitions):
+        if index > 0 and transition.controller_state.switch_gate >= 0.5:
+            windows.append((start, index - 1))
+            start = index
+    windows.append((start, len(rollout.transitions) - 1))
+    return tuple(windows)
+
+
+def _assignment_window_bounds(
+    *,
+    rollout: ZRollout,
+    start_step: int,
+    end_step: int,
+) -> tuple[int, int]:
+    if not rollout.transitions:
+        return (0, -1)
+    assignment_start = max(0, start_step)
+    assignment_end = min(len(rollout.transitions) - 1, end_step)
+    if assignment_end < assignment_start:
+        return (0, -1)
+    overlapping = tuple(
+        (start, end)
+        for start, end in _abstract_action_windows(rollout)
+        if end >= assignment_start and start <= assignment_end
+    )
+    if not overlapping:
+        return (assignment_start, assignment_end)
+    return (
+        min(start for start, _ in overlapping),
+        max(end for _, end in overlapping),
+    )
+
+
+def _credit_window_miss_rate(rollout: ZRollout) -> float:
+    if not rollout.delayed_credit_assignments:
+        return 1.0 if rollout.completed_subgoals else 0.0
+    misses = 0
+    for assignment in rollout.delayed_credit_assignments:
+        start, end = _assignment_window_bounds(
+            rollout=rollout,
+            start_step=assignment.start_step,
+            end_step=assignment.end_step,
+        )
+        if end < start:
+            misses += 1
+            continue
+        has_family = any(
+            transition.active_family_id not in {None, "unassigned"}
+            for transition in rollout.transitions[start : end + 1]
+        )
+        if not has_family:
+            misses += 1
+    return misses / len(rollout.delayed_credit_assignments)
+
+
+def _persistence_metrics(rollout: ZRollout) -> tuple[float, float, float, float, float, float]:
+    window_lengths = _abstract_action_window_lengths(rollout)
+    if not window_lengths:
+        return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    transition_count = len(rollout.transitions)
+    mean_steps = _mean(tuple(float(length) for length in window_lengths))
+    median_steps = _median(tuple(float(length) for length in window_lengths))
+    persistent_windows = sum(1 for length in window_lengths if length >= 2)
+    one_step_windows = sum(1 for length in window_lengths if length <= 1)
+    switch_count = max(len(window_lengths) - 1, 0)
+    return (
+        mean_steps,
+        median_steps,
+        persistent_windows / len(window_lengths),
+        one_step_windows / len(window_lengths),
+        1.0 if switch_count >= max(transition_count - 1, 0) and transition_count > 1 else 0.0,
+        1.0 if switch_count == 0 and transition_count > 1 else 0.0,
+    )
+
+
+def _mean_control_magnitude(values: tuple[float, ...]) -> float:
+    if not values:
+        return 0.0
+    return sum(abs(value) for value in values) / len(values)
+
+
+def _temporal_family_slow_loop_metrics(policy: FullLearnedTemporalPolicy) -> tuple[tuple[str, float], ...]:
+    families = policy.parameter_store.action_families
+    if not families:
+        return (
+            ("credit_to_family_write_count", 0.0),
+            ("long_horizon_payoff_coverage", 0.0),
+            ("family_competition_mean", 0.0),
+            ("family_payoff_mean", 0.0),
+        )
+    credit_write_count = sum(1 for family in families if abs(family.delayed_credit_sum) > 1e-8)
+    payoff_covered_count = sum(
+        1
+        for family in families
+        if abs(family.long_term_payoff - 0.5) > 1e-8 or abs(family.delayed_credit_sum) > 1e-8
+    )
+    return (
+        ("credit_to_family_write_count", float(credit_write_count)),
+        ("long_horizon_payoff_coverage", payoff_covered_count / len(families)),
+        ("family_competition_mean", _mean(tuple(family.competition_score for family in families))),
+        ("family_payoff_mean", _mean(tuple(family.long_term_payoff for family in families))),
+    )
+
+
+def _subgoal_signature_library() -> dict[str, tuple[float, ...]]:
+    return {
+        "alpha": (0.92, 0.18, 0.36),
+        "beta": (0.28, 0.86, 0.34),
+        "gamma": (0.42, 0.40, 0.94),
+        "delta": (0.74, 0.62, 0.22),
+        "epsilon": (0.18, 0.70, 0.88),
+    }
+
+
+def build_default_eta_proof_environment() -> MiniHierarchicalEnvironment:
+    library = _subgoal_signature_library()
+    return MiniHierarchicalEnvironment(
+        env_id="eta-mini-hierarchy",
+        entry_location_id="entry",
+        locations=(
+            HierarchicalLocation(
+                location_id="entry",
+                role="entry",
+                description="Environment entry anchor.",
+            ),
+            HierarchicalLocation(
+                location_id="hub",
+                role="hub",
+                description="Central loop/hub used by multiple routes.",
+            ),
+            HierarchicalLocation(
+                location_id="alpha",
+                role="objective",
+                target_signature=library["alpha"],
+                completion_threshold=0.70,
+                min_persistence=1,
+                credit_horizon=2,
+                observation_weight=0.30,
+                effect_weight=0.48,
+                control_weight=0.22,
+                description="Alpha branch anchor.",
+            ),
+            HierarchicalLocation(
+                location_id="beta",
+                role="objective",
+                target_signature=library["beta"],
+                completion_threshold=0.74,
+                min_persistence=2,
+                credit_horizon=3,
+                observation_weight=0.22,
+                effect_weight=0.56,
+                control_weight=0.22,
+                description="Beta corridor objective.",
+            ),
+            HierarchicalLocation(
+                location_id="gamma",
+                role="objective",
+                target_signature=library["gamma"],
+                completion_threshold=0.78,
+                min_persistence=2,
+                credit_horizon=3,
+                observation_weight=0.20,
+                effect_weight=0.58,
+                control_weight=0.22,
+                description="Gamma high-branch objective.",
+            ),
+            HierarchicalLocation(
+                location_id="delta",
+                role="objective",
+                target_signature=library["delta"],
+                completion_threshold=0.76,
+                min_persistence=2,
+                credit_horizon=3,
+                observation_weight=0.22,
+                effect_weight=0.56,
+                control_weight=0.22,
+                description="Delta branch-exit objective.",
+            ),
+            HierarchicalLocation(
+                location_id="epsilon",
+                role="objective",
+                target_signature=library["epsilon"],
+                completion_threshold=0.80,
+                min_persistence=3,
+                credit_horizon=3,
+                observation_weight=0.20,
+                effect_weight=0.56,
+                control_weight=0.24,
+                description="Epsilon hard terminal objective.",
+            ),
+        ),
+        transitions=(
+            HierarchicalTransition("entry", "alpha", structural_role="corridor"),
+            HierarchicalTransition("entry", "beta", structural_role="branch"),
+            HierarchicalTransition("entry", "delta", structural_role="branch"),
+            HierarchicalTransition("entry", "hub", structural_role="branch"),
+            HierarchicalTransition("alpha", "beta", structural_role="corridor"),
+            HierarchicalTransition("alpha", "delta", structural_role="branch"),
+            HierarchicalTransition("alpha", "gamma", structural_role="branch"),
+            HierarchicalTransition("beta", "gamma", structural_role="corridor"),
+            HierarchicalTransition("beta", "delta", structural_role="branch"),
+            HierarchicalTransition("beta", "alpha", structural_role="return"),
+            HierarchicalTransition("beta", "epsilon", structural_role="branch"),
+            HierarchicalTransition("gamma", "alpha", structural_role="return"),
+            HierarchicalTransition("gamma", "beta", structural_role="return"),
+            HierarchicalTransition("gamma", "epsilon", structural_role="branch"),
+            HierarchicalTransition("delta", "alpha", structural_role="return"),
+            HierarchicalTransition("delta", "beta", structural_role="corridor"),
+            HierarchicalTransition("delta", "hub", structural_role="loop"),
+            HierarchicalTransition("delta", "gamma", structural_role="branch"),
+            HierarchicalTransition("delta", "epsilon", structural_role="branch"),
+            HierarchicalTransition("hub", "beta", structural_role="corridor"),
+            HierarchicalTransition("hub", "epsilon", structural_role="branch"),
+            HierarchicalTransition("epsilon", "beta", structural_role="return"),
+            HierarchicalTransition("epsilon", "alpha", structural_role="return"),
+            HierarchicalTransition("epsilon", "delta", structural_role="return"),
+        ),
+        description="Miniature hierarchical environment with corridor, branch, and loop structure for ETA proof tasks.",
+    )
+
+
+def default_eta_proof_routes() -> tuple[HierarchicalRouteSpec, ...]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="train-corridor-alpha-beta-delta",
+            split="train",
+            source_text="steady guidance alignment planning support corridor branch anchor",
+            waypoints=("entry", "alpha", "beta", "delta"),
+            distractor_ids=("gamma", "epsilon"),
+            split_detail="train-core",
+            description="Canonical branching corridor task with alpha -> beta -> delta.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-zigzag-beta-gamma-alpha",
+            split="train",
+            source_text="careful repair planning warmth continuity zigzag support",
+            waypoints=("entry", "beta", "gamma", "alpha"),
+            distractor_ids=("delta",),
+            split_detail="train-order-pressure",
+            description="Zigzag training task that revisits familiar signatures under order pressure.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-loop-delta-beta-epsilon",
+            split="train",
+            source_text="reflective planning support loop memory return and repair",
+            waypoints=("entry", "delta", "hub", "beta", "epsilon"),
+            distractor_ids=("gamma",),
+            split_detail="train-loop",
+            description="Looped training task that pushes persistence before the final subgoal.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="eval-alpha-delta-epsilon",
+            split="eval",
+            source_text="steady continuity planning support reflection branch return",
+            waypoints=("entry", "alpha", "delta", "epsilon"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="eval-composition",
+            description="Evaluation task that mixes known branch nodes with a new terminal demand.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="eval-gamma-beta-delta",
+            split="eval",
+            source_text="careful guidance through dense branch with repair continuity",
+            waypoints=("entry", "beta", "gamma", "beta", "delta"),
+            distractor_ids=("alpha", "epsilon"),
+            split_detail="eval-distractor",
+            description="Evaluation task that reuses beta/delta under a denser distractor field.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="heldout-delta-alpha-gamma-epsilon",
+            split="heldout",
+            source_text="reflective planning support with careful guidance through branching",
+            waypoints=("entry", "delta", "alpha", "gamma", "epsilon"),
+            distractor_ids=("beta",),
+            split_detail="heldout-composition",
+            description="Held-out compositional route with four-stage reordering and a hard terminal node.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="heldout-epsilon-beta-alpha-delta",
+            split="heldout",
+            source_text="careful branching return support and reflection in a long loop",
+            waypoints=("entry", "hub", "epsilon", "beta", "alpha", "delta"),
+            distractor_ids=("gamma",),
+            split_detail="heldout-long-loop",
+            description="Held-out loop route requiring long-horizon reuse before the final branch exit.",
+        ),
+    )
+
+
+def eta_gate2_expanded_training_routes() -> tuple[HierarchicalRouteSpec, ...]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="train-expanded-alpha-gamma-beta-epsilon",
+            split="train",
+            source_text="steady guidance keeps a difficult plan aligned",
+            waypoints=("entry", "alpha", "gamma", "beta", "epsilon"),
+            distractor_ids=("delta",),
+            split_detail="train-expanded-reordered-terminal",
+            description="Additional unlabeled continuation route with reordered branches.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-expanded-beta-delta-gamma-epsilon",
+            split="train",
+            source_text="careful reflection repairs an interrupted shared commitment",
+            waypoints=("entry", "beta", "delta", "gamma", "epsilon"),
+            distractor_ids=("alpha",),
+            split_detail="train-expanded-repair",
+            description="Additional unlabeled continuation route through a repair composition.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-expanded-delta-beta-alpha-gamma",
+            split="train",
+            source_text="support continues while new evidence changes direction",
+            waypoints=("entry", "delta", "beta", "alpha", "gamma"),
+            distractor_ids=("epsilon",),
+            split_detail="train-expanded-evidence-shift",
+            description="Additional unlabeled continuation route with a return transition.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-expanded-hub-beta-delta-epsilon",
+            split="train",
+            source_text="long planning loops require stable memory and checkpoints",
+            waypoints=("entry", "hub", "beta", "delta", "epsilon"),
+            distractor_ids=("gamma",),
+            split_detail="train-expanded-long-loop",
+            description="Additional unlabeled continuation route covering loop persistence.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-expanded-alpha-delta-hub-epsilon",
+            split="train",
+            source_text="warm guidance preserves continuity during careful revision",
+            waypoints=("entry", "alpha", "delta", "hub", "epsilon"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="train-expanded-continuity",
+            description="Additional unlabeled continuation route through branch and loop nodes.",
+        ),
+    ) + eta_gate2_independent_training_routes()
+
+
+def eta_gate2_independent_training_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="train-independent-forecast-revision",
+            split="train",
+            source_text=(
+                "Teams compare uncertain evidence before revising a shared "
+                "forecast"
+            ),
+            waypoints=("entry", "alpha", "beta", "epsilon"),
+            distractor_ids=("gamma", "delta"),
+            split_detail="train-independent-forecast",
+            description="Frozen independent continuation route for forecast revision.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-delayed-decision",
+            split="train",
+            source_text=(
+                "A patient review uncovered assumptions behind the delayed "
+                "decision"
+            ),
+            waypoints=(
+                "entry",
+                "beta",
+                "alpha",
+                "delta",
+                "hub",
+                "epsilon",
+            ),
+            distractor_ids=("gamma",),
+            split_detail="train-independent-decision",
+            description="Frozen independent continuation route for delayed decisions.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-changing-conditions",
+            split="train",
+            source_text=(
+                "Several options remained open while conditions changed "
+                "unexpectedly"
+            ),
+            waypoints=(
+                "entry",
+                "delta",
+                "gamma",
+                "alpha",
+                "beta",
+                "epsilon",
+            ),
+            distractor_ids=("hub",),
+            split_detail="train-independent-conditions",
+            description="Frozen independent continuation route for changing conditions.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-promise-ledger",
+            split="train",
+            source_text=(
+                "The group documented each promise before assigning new work"
+            ),
+            waypoints=("entry", "hub", "beta", "gamma", "epsilon"),
+            distractor_ids=("gamma", "epsilon"),
+            split_detail="train-independent-ledger",
+            description="Frozen independent continuation route for a promise ledger.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-reliable-response",
+            split="train",
+            source_text=(
+                "Repeated observations gradually clarified which response "
+                "was reliable"
+            ),
+            waypoints=(
+                "entry",
+                "alpha",
+                "gamma",
+                "beta",
+                "delta",
+                "epsilon",
+            ),
+            distractor_ids=("hub",),
+            split_detail="train-independent-reliability",
+            description="Frozen independent continuation route for response reliability.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-visible-priorities",
+            split="train",
+            source_text=(
+                "A quiet pause allowed conflicting priorities to become "
+                "visible"
+            ),
+            waypoints=(
+                "entry",
+                "delta",
+                "hub",
+                "beta",
+                "alpha",
+                "gamma",
+            ),
+            distractor_ids=("epsilon",),
+            split_detail="train-independent-priorities",
+            description="Frozen independent continuation route for conflicting priorities.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-unfamiliar-information",
+            split="train",
+            source_text=(
+                "People adjusted expectations after receiving unfamiliar "
+                "information"
+            ),
+            waypoints=(
+                "entry",
+                "beta",
+                "epsilon",
+                "delta",
+                "gamma",
+                "alpha",
+            ),
+            distractor_ids=("hub",),
+            split_detail="train-independent-information",
+            description="Frozen independent continuation route for unfamiliar information.",
+        ),
+        HierarchicalRouteSpec(
+            case_id="train-independent-recorded-recovery",
+            split="train",
+            source_text=(
+                "Consistent records helped everyone recover from an earlier "
+                "mistake"
+            ),
+            waypoints=(
+                "entry",
+                "hub",
+                "epsilon",
+                "alpha",
+                "delta",
+                "beta",
+            ),
+            distractor_ids=("gamma",),
+            split_detail="train-independent-recovery",
+            description="Frozen independent continuation route for recorded recovery.",
+        ),
+    )
+
+
+def eta_gate2_expanded_routes() -> tuple[HierarchicalRouteSpec, ...]:
+    return default_eta_proof_routes() + eta_gate2_expanded_training_routes()
+
+
+def eta_gate2_expected_value_validation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="validation-v30-measurement-estimate",
+            split="validation",
+            source_text=(
+                "Analysts reconcile divergent measurements before "
+                "finalizing estimates"
+            ),
+            waypoints=("entry", "beta", "delta", "epsilon"),
+            distractor_ids=("alpha", "gamma"),
+            split_detail="validation-v30-measurement",
+            description=(
+                "Fresh v30 validation route frozen before expected-value "
+                "selector execution."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v30-workshop-criteria",
+            split="validation",
+            source_text=(
+                "Workshop participants revisit tentative criteria after "
+                "surprising feedback"
+            ),
+            waypoints=("entry", "alpha", "gamma", "epsilon"),
+            distractor_ids=("beta", "delta"),
+            split_detail="validation-v30-criteria",
+            description=(
+                "Fresh v30 validation route for an unseen prefix family."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v30-weather-schedules",
+            split="validation",
+            source_text=(
+                "Neighbors coordinate maintenance as storms disrupt calendars"
+            ),
+            waypoints=("entry", "delta", "hub", "beta", "epsilon"),
+            distractor_ids=("gamma",),
+            split_detail="validation-v30-schedules",
+            description=(
+                "Fresh v30 validation route with an unseen lexical field."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v30-editor-drafts",
+            split="validation",
+            source_text=(
+                "Editors preserve unresolved questions across successive "
+                "drafts"
+            ),
+            waypoints=("entry", "hub", "epsilon", "alpha", "delta"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v30-drafts",
+            description=(
+                "Fresh v30 validation route with a loop and return."
+            ),
+        ),
+    )
+
+
+def eta_gate2_expected_value_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        eta_gate2_expanded_routes()
+        + eta_gate2_expected_value_validation_routes()
+    )
+
+
+def eta_gate2_selector_fresh_validation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="validation-v35-librarian-catalog-shift",
+            split="validation",
+            source_text=(
+                "Archivists catalogued vellum folios once provenance codices "
+                "encoded lineage"
+            ),
+            waypoints=("entry", "alpha", "beta", "delta"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="validation-v35-catalog",
+            description=(
+                "Fresh v35 selector validation route, locked before "
+                "selector-vs-null execution."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v35-clinic-handoff-review",
+            split="validation",
+            source_text=(
+                "Clinicians triaged telemetry anomalies amid neonatal "
+                "transfer briefing"
+            ),
+            waypoints=("entry", "beta", "gamma", "beta", "delta"),
+            distractor_ids=("alpha", "epsilon"),
+            split_detail="validation-v35-handoff",
+            description=(
+                "Fresh v35 selector validation route with unseen clinical "
+                "handoff vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v35-museum-lighting-plan",
+            split="validation",
+            source_text=(
+                "Conservators recalibrated vitrines because ultramarine "
+                "pigments fluoresced"
+            ),
+            waypoints=("entry", "delta", "hub", "beta", "epsilon"),
+            distractor_ids=("alpha", "gamma"),
+            split_detail="validation-v35-lighting",
+            description=(
+                "Fresh v35 selector validation route with preservation "
+                "planning context."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v35-harbor-manifest-update",
+            split="validation",
+            source_text=(
+                "Stevedores resequenced quay manifests after customs seals "
+                "misprinted"
+            ),
+            waypoints=("entry", "hub", "epsilon", "alpha", "delta"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v35-manifest",
+            description=(
+                "Fresh v35 selector validation route with logistics "
+                "vocabulary unused by v33/v34."
+            ),
+        ),
+    )
+
+
+def eta_gate2_selector_confirmation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="confirmation-v35-orchestra-rehearsal",
+            split="confirmation",
+            source_text=(
+                "Concertmasters reshaped scherzo rehearsals when balcony "
+                "acoustics shimmered"
+            ),
+            waypoints=("entry", "alpha", "gamma", "beta", "epsilon"),
+            distractor_ids=("delta", "hub"),
+            split_detail="confirmation-v35-rehearsal",
+            description=(
+                "Locked v35 confirmation route for selector-vs-null gate."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v35-greenhouse-irrigation",
+            split="confirmation",
+            source_text=(
+                "Horticulturists rerouted drip valves after loam sensors "
+                "drifted"
+            ),
+            waypoints=("entry", "hub", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="confirmation-v35-irrigation",
+            description=(
+                "Locked v35 confirmation route with agricultural operations "
+                "context."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v35-courier-route-repair",
+            split="confirmation",
+            source_text=(
+                "Couriers rerouted parcels after viaduct bulletins "
+                "invalidated shortcuts"
+            ),
+            waypoints=("entry", "delta", "alpha", "gamma", "epsilon"),
+            distractor_ids=("beta", "hub"),
+            split_detail="confirmation-v35-courier",
+            description=(
+                "Locked v35 confirmation route with delivery-route context."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v35-kiln-temperature-log",
+            split="confirmation",
+            source_text=(
+                "Potters recalculated firing cadence when celadon tiles "
+                "warped"
+            ),
+            waypoints=("entry", "beta", "epsilon", "delta", "gamma", "alpha"),
+            distractor_ids=("hub",),
+            split_detail="confirmation-v35-kiln",
+            description=(
+                "Locked v35 confirmation route with craft-process context."
+            ),
+        ),
+    )
+
+
+def eta_gate2_shadow_fresh_validation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="validation-v36-observatory-ephemeris",
+            split="validation",
+            source_text=(
+                "Astronomers collimated spectrographs while ephemerides "
+                "corrected azimuth refraction"
+            ),
+            waypoints=("entry", "alpha", "delta", "epsilon"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v36-observatory",
+            description=(
+                "Fresh v36 closed-loop validation route with observatory "
+                "operations vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v36-brewery-fermentation",
+            split="validation",
+            source_text=(
+                "Brewers sanitized hydrometers before wort fermentation "
+                "stabilized bung pressure"
+            ),
+            waypoints=("entry", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="validation-v36-brewery",
+            description=(
+                "Fresh v36 closed-loop validation route with brewing "
+                "process vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v36-geology-stratigraphy",
+            split="validation",
+            source_text=(
+                "Geologists indexed borehole strata where basalt inclusions "
+                "fractured shale"
+            ),
+            waypoints=("entry", "delta", "hub", "beta", "epsilon"),
+            distractor_ids=("alpha", "gamma"),
+            split_detail="validation-v36-geology",
+            description=(
+                "Fresh v36 closed-loop validation route with geological "
+                "survey vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v36-theater-blocking",
+            split="validation",
+            source_text=(
+                "Choreographers revised proscenium blocking; matinee cues "
+                "desynchronized abruptly"
+            ),
+            waypoints=("entry", "hub", "epsilon", "alpha", "delta"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v36-theater",
+            description=(
+                "Fresh v36 closed-loop validation route with stagecraft "
+                "vocabulary."
+            ),
+        ),
+    )
+
+
+def eta_gate2_shadow_confirmation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="confirmation-v36-apiary-brood",
+            split="confirmation",
+            source_text=(
+                "Beekeepers inspected apiaries after varroa weakened brood "
+                "combs"
+            ),
+            waypoints=("entry", "alpha", "gamma", "beta", "epsilon"),
+            distractor_ids=("delta", "hub"),
+            split_detail="confirmation-v36-apiary",
+            description=(
+                "Locked v36 confirmation route with apiculture vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v36-bathymetry-soundings",
+            split="confirmation",
+            source_text=(
+                "Hydrographers reconciled bathymetric soundings around "
+                "shoals and meridians"
+            ),
+            waypoints=("entry", "hub", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="confirmation-v36-bathymetry",
+            description=(
+                "Locked v36 confirmation route with hydrographic vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v36-luthiery-soundboard",
+            split="confirmation",
+            source_text=(
+                "Luthiers seasoned spruce soundboards until varnish balanced "
+                "resonance"
+            ),
+            waypoints=("entry", "delta", "alpha", "gamma", "epsilon"),
+            distractor_ids=("beta", "hub"),
+            split_detail="confirmation-v36-luthiery",
+            description=(
+                "Locked v36 confirmation route with instrument-making "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v36-mycology-cultures",
+            split="confirmation",
+            source_text=(
+                "Mycologists isolated agar cultures after hyphae contaminated "
+                "incubators"
+            ),
+            waypoints=("entry", "beta", "epsilon", "delta", "gamma", "alpha"),
+            distractor_ids=("hub",),
+            split_detail="confirmation-v36-mycology",
+            description=(
+                "Locked v36 confirmation route with laboratory mycology "
+                "vocabulary."
+            ),
+        ),
+    )
+
+
+def eta_gate2_shadow_fresh_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        eta_gate2_expanded_routes()
+        + eta_gate2_shadow_fresh_validation_routes()
+        + eta_gate2_shadow_confirmation_routes()
+    )
+
+
+def eta_gate2_recent_k2_fresh_validation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="validation-v37-watchmaking-escapement",
+            split="validation",
+            source_text=(
+                "Horologists calibrated escapements; tourbillon pivots "
+                "resisted lubrication"
+            ),
+            waypoints=("entry", "alpha", "delta", "epsilon"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v37-watchmaking",
+            description=(
+                "Fresh v37 recent-k validation route with watchmaking "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v37-glaciology-cores",
+            split="validation",
+            source_text=(
+                "Glaciologists inventoried firn cores; crevasse "
+                "meltwater distorted isotopes"
+            ),
+            waypoints=("entry", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="validation-v37-glaciology",
+            description=(
+                "Fresh v37 recent-k validation route with glaciology "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v37-perfumery-distillation",
+            split="validation",
+            source_text=(
+                "Perfumers fractionated absolutes; vetiver esters "
+                "clouded alembics"
+            ),
+            waypoints=("entry", "delta", "hub", "beta", "epsilon"),
+            distractor_ids=("alpha", "gamma"),
+            split_detail="validation-v37-perfumery",
+            description=(
+                "Fresh v37 recent-k validation route with perfumery "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="validation-v37-typesetting-foundry",
+            split="validation",
+            source_text=(
+                "Typographers recast ligatures; matrices abraded "
+                "compositor gauges"
+            ),
+            waypoints=("entry", "hub", "epsilon", "alpha", "delta"),
+            distractor_ids=("beta", "gamma"),
+            split_detail="validation-v37-typesetting",
+            description=(
+                "Fresh v37 recent-k validation route with typesetting "
+                "vocabulary."
+            ),
+        ),
+    )
+
+
+def eta_gate2_recent_k2_confirmation_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        HierarchicalRouteSpec(
+            case_id="confirmation-v37-falconry-telemetry",
+            split="confirmation",
+            source_text=(
+                "Falconers triangulated gyrfalcon transponders; jesses "
+                "snagged heather"
+            ),
+            waypoints=("entry", "alpha", "gamma", "beta", "epsilon"),
+            distractor_ids=("delta", "hub"),
+            split_detail="confirmation-v37-falconry",
+            description=(
+                "Locked v37 recent-k confirmation route with falconry "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v37-numismatics-denarii",
+            split="confirmation",
+            source_text=(
+                "Numismatists authenticated denarii whose planchets "
+                "revealed doubled mintmarks"
+            ),
+            waypoints=("entry", "hub", "beta", "gamma", "epsilon"),
+            distractor_ids=("alpha", "delta"),
+            split_detail="confirmation-v37-numismatics",
+            description=(
+                "Locked v37 recent-k confirmation route with numismatic "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v37-dendrochronology-rings",
+            split="confirmation",
+            source_text=(
+                "Dendrochronologists crossdated heartwood rings beneath "
+                "cambium scars and drought"
+            ),
+            waypoints=("entry", "delta", "alpha", "gamma", "epsilon"),
+            distractor_ids=("beta", "hub"),
+            split_detail="confirmation-v37-dendrochronology",
+            description=(
+                "Locked v37 recent-k confirmation route with tree-ring "
+                "vocabulary."
+            ),
+        ),
+        HierarchicalRouteSpec(
+            case_id="confirmation-v37-bookbinding-marbling",
+            split="confirmation",
+            source_text=(
+                "Bookbinders burnished morocco spines after marbled "
+                "endpapers buckled"
+            ),
+            waypoints=("entry", "beta", "epsilon", "delta", "gamma", "alpha"),
+            distractor_ids=("hub",),
+            split_detail="confirmation-v37-bookbinding",
+            description=(
+                "Locked v37 recent-k confirmation route with bookbinding "
+                "vocabulary."
+            ),
+        ),
+    )
+
+
+def eta_gate2_recent_k2_fresh_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        eta_gate2_expanded_routes()
+        + eta_gate2_recent_k2_fresh_validation_routes()
+        + eta_gate2_recent_k2_confirmation_routes()
+    )
+
+
+def eta_gate2_selector_fresh_routes() -> tuple[
+    HierarchicalRouteSpec,
+    ...,
+]:
+    return (
+        eta_gate2_expanded_routes()
+        + eta_gate2_selector_fresh_validation_routes()
+        + eta_gate2_selector_confirmation_routes()
+    )
+
+
+def _build_eta_proof_cases(
+    routes: tuple[HierarchicalRouteSpec, ...],
+) -> tuple[ETAProofCase, ...]:
+    environment = build_default_eta_proof_environment()
+    return tuple(
+        ETAProofCase(
+            case_id=case.case_id,
+            source_text=case.source_text,
+            proof_episode=case.proof_episode,
+            split=case.split,
+            description=case.description,
+            environment_id=case.environment_id,
+            route_signature=case.route_signature,
+            branch_depth=case.branch_depth,
+            split_detail=case.split_detail,
+            reward_profile=case.proof_episode.reward_profile,
+            reward_taxonomy=case.proof_episode.reward_taxonomy,
+            route_length=len(case.route_signature),
+            distractor_count=len(case.proof_episode.distractor_signatures),
+        )
+        for case in (environment.build_case(route) for route in routes)
+    )
+
+
+def default_eta_proof_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(default_eta_proof_routes())
+
+
+def _build_eta_proof_cases_for_environment(
+    environment: MiniHierarchicalEnvironment,
+    routes: tuple[HierarchicalRouteSpec, ...],
+) -> tuple[ETAProofCase, ...]:
+    """Build ETA proof cases against a caller-supplied (e.g. generated) env.
+
+    Mirrors ``_build_eta_proof_cases`` but does not rebuild the default
+    environment, so a seeded generated environment threads through unchanged.
+    """
+
+    return tuple(
+        ETAProofCase(
+            case_id=case.case_id,
+            source_text=case.source_text,
+            proof_episode=case.proof_episode,
+            split=case.split,
+            description=case.description,
+            environment_id=case.environment_id,
+            route_signature=case.route_signature,
+            branch_depth=case.branch_depth,
+            split_detail=case.split_detail,
+            reward_profile=case.proof_episode.reward_profile,
+            reward_taxonomy=case.proof_episode.reward_taxonomy,
+            route_length=len(case.route_signature),
+            distractor_count=len(case.proof_episode.distractor_signatures),
+        )
+        for case in (environment.build_case(route) for route in routes)
+    )
+
+
+@dataclass(frozen=True)
+class ETAProbeRow:
+    """One (observation, active-subgoal) pair for the Stage-2 probe.
+
+    ``subgoal_label`` is the index (into ``subgoal_vocabulary``) of the next
+    objective the route will reach from this step -- the currently active
+    subgoal the paper's linear probe decodes. ``case_id`` groups rows so the
+    probe train/eval split never puts two views of the same route on both
+    sides.
+    """
+
+    case_id: str
+    split: str
+    observation_text: str
+    subgoal_label: int
+    step_index: int
+
+
+@dataclass(frozen=True)
+class ETAProofCorpus:
+    """A seeded ETA proof corpus: one environment plus its train/heldout cases.
+
+    Bundles the generated environment with the cases built against it so the
+    rate-distortion harness consumes a single self-consistent object rather than
+    re-deriving the environment from case metadata.
+    """
+
+    environment: MiniHierarchicalEnvironment
+    train_cases: tuple[ETAProofCase, ...]
+    heldout_cases: tuple[ETAProofCase, ...]
+    seed: int
+    objective_count: int
+    train_route_count: int
+    heldout_route_count: int
+    description: str = ""
+
+
+def _route_from_case(case: ETAProofCase) -> HierarchicalRouteSpec:
+    return HierarchicalRouteSpec(
+        case_id=case.case_id,
+        split=case.split,
+        source_text=case.source_text,
+        waypoints=case.route_signature,
+        split_detail=case.split_detail,
+        description=case.description,
+    )
+
+
+def render_eta_route_documents(
+    environment: MiniHierarchicalEnvironment,
+    cases: tuple[ETAProofCase, ...],
+) -> tuple[str, ...]:
+    """Render each route as a self-contained continued-pretraining document.
+
+    The document teaches the domain's observation->action structure in the same
+    surface language the rate-distortion observations use, so the base model's
+    residual stream can come to carry the active subgoal. No boundary label,
+    reward, or heldout content leaks: only the route's own steps are described.
+    """
+
+    documents: list[str] = []
+    for case in cases:
+        route = _route_from_case(case)
+        state = environment.reset(route)
+        lines = [
+            f"Navigation episode. Context: {case.source_text}.",
+        ]
+        for step_index, target_id in enumerate(route.waypoints[1:]):
+            observation = environment.observe(state)
+            lines.append(
+                f"Step {step_index + 1}: at {observation.current_location_id}, "
+                f"options {', '.join(observation.available_targets)}; "
+                f"go to {target_id}."
+            )
+            state = environment.step(state, target_id=target_id).next_state
+        lines.append("Episode complete.")
+        documents.append("\n".join(lines))
+    return tuple(documents)
+
+
+def eta_route_probe_rows(
+    environment: MiniHierarchicalEnvironment,
+    cases: tuple[ETAProofCase, ...],
+) -> tuple[tuple[ETAProbeRow, ...], tuple[str, ...]]:
+    """Build (observation, active-subgoal) probe rows and the label vocabulary.
+
+    The active subgoal at a step is the next objective location the route will
+    reach from there. Observation phrasing matches the partially-observable
+    rate-distortion protocol (no remaining route), so the probe measures what
+    the residual carries under the same non-leaking view the criterion uses.
+    """
+
+    objective_ids = tuple(
+        location.location_id for location in environment.objective_locations()
+    )
+    objective_set = set(objective_ids)
+    label_index = {name: index for index, name in enumerate(objective_ids)}
+    rows: list[ETAProbeRow] = []
+    for case in cases:
+        route = _route_from_case(case)
+        waypoints = route.waypoints
+        state = environment.reset(route)
+        for step_index, _target_id in enumerate(waypoints[1:]):
+            observation = environment.observe(state)
+            # Active subgoal = the next objective ahead in the route.
+            next_objective = next(
+                (
+                    node
+                    for node in waypoints[step_index + 1 :]
+                    if node in objective_set
+                ),
+                None,
+            )
+            if next_objective is not None:
+                completed = (
+                    ", ".join(observation.completed_objective_ids)
+                    if observation.completed_objective_ids
+                    else "none"
+                )
+                rows.append(
+                    ETAProbeRow(
+                        case_id=case.case_id,
+                        split=case.split,
+                        observation_text=(
+                            "Task context: "
+                            f"{case.source_text}. Current location: "
+                            f"{observation.current_location_id}. Available "
+                            f"transitions: {', '.join(observation.available_targets)}. "
+                            f"Completed objectives: {completed}."
+                        ),
+                        subgoal_label=label_index[next_objective],
+                        step_index=step_index,
+                    )
+                )
+            state = environment.step(
+                state, target_id=waypoints[step_index + 1]
+            ).next_state
+    return tuple(rows), objective_ids
+
+
+def generate_eta_proof_corpus(
+    *,
+    seed: int = 20260802,
+    objective_count: int = 8,
+    corridor_count: int = 2,
+    extra_edge_probability: float = 0.35,
+    train_route_count: int = 200,
+    heldout_route_count: int = 60,
+    train_lengths: tuple[int, ...] = (2, 3),
+    heldout_lengths: tuple[int, ...] = (3, 4),
+) -> ETAProofCorpus:
+    """Generate a seeded, compositionally-disjoint ETA proof corpus.
+
+    The environment owner (``vz-temporal``) constructs the graph and routes;
+    this function only compiles them into ETA proof cases. No evaluation label
+    (subgoal boundary, reward, outcome) leaks into the observation surface.
+    """
+
+    environment = generate_hierarchical_environment(
+        seed=seed,
+        objective_count=objective_count,
+        corridor_count=corridor_count,
+        extra_edge_probability=extra_edge_probability,
+    )
+    routes = generate_hierarchical_routes(
+        environment=environment,
+        seed=seed,
+        train_count=train_route_count,
+        heldout_count=heldout_route_count,
+        train_lengths=train_lengths,
+        heldout_lengths=heldout_lengths,
+    )
+    cases = _build_eta_proof_cases_for_environment(environment, routes)
+    train_cases = tuple(case for case in cases if case.split == "train")
+    heldout_cases = tuple(case for case in cases if case.split == "heldout")
+    if not train_cases or not heldout_cases:
+        raise RuntimeError(
+            "generated corpus produced an empty train or heldout split."
+        )
+    return ETAProofCorpus(
+        environment=environment,
+        train_cases=train_cases,
+        heldout_cases=heldout_cases,
+        seed=seed,
+        objective_count=objective_count,
+        train_route_count=len(train_cases),
+        heldout_route_count=len(heldout_cases),
+        description=(
+            f"Seeded ETA proof corpus (seed={seed}): {len(train_cases)} train / "
+            f"{len(heldout_cases)} heldout routes over {objective_count} "
+            "objectives."
+        ),
+    )
+
+
+def eta_gate2_expanded_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_expanded_routes())
+
+
+def eta_gate2_expected_value_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_expected_value_routes())
+
+
+def eta_gate2_selector_fresh_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_selector_fresh_routes())
+
+
+def eta_gate2_shadow_fresh_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_shadow_fresh_routes())
+
+
+def eta_gate2_recent_k2_fresh_cases() -> tuple[ETAProofCase, ...]:
+    return _build_eta_proof_cases(eta_gate2_recent_k2_fresh_routes())
+
+
+def default_eta_proof_profiles() -> tuple[str, ...]:
+    return (
+        "full-internal-rl",
+        "full-bootstrap-init",
+        "full-no-fast-prior",
+        "full-no-optimize",
+        "full-no-replacement",
+        "learned-lite-causal",
+        "noop-backend",
+    )
+
+
+def build_eta_proof_paper_suite_manifest(
+    *,
+    suite_tier: str = "paper-suite-small",
+) -> PaperSuiteManifest:
+    if suite_tier == "ci-smoke":
+        repeat_count = 1
+        seed_schedule = (0,)
+        route_ids = tuple(route.case_id for route in default_eta_proof_routes())
+        train_epochs = 2
+        backend_labels = ("trace",)
+    elif suite_tier == "paper-suite-full":
+        repeat_count = 20
+        seed_schedule = tuple(range(repeat_count))
+        route_ids = tuple(route.case_id for route in default_eta_proof_routes())
+        train_epochs = 2
+        backend_labels = ("trace", "synthetic-open-weight")
+    elif suite_tier == "paper-suite-small":
+        repeat_count = 5
+        seed_schedule = tuple(range(repeat_count))
+        route_ids = tuple(route.case_id for route in default_eta_proof_routes())
+        train_epochs = 1
+        backend_labels = ("trace", "synthetic-open-weight")
+    else:
+        raise ValueError(f"Unsupported ETA proof paper suite tier {suite_tier!r}.")
+    return PaperSuiteManifest(
+        suite_id=f"eta-proof-{suite_tier}",
+        suite_kind="eta-internal-rl-proof",
+        suite_tier=suite_tier,
+        version=1,
+        baseline_label="full-internal-rl",
+        repeat_count=repeat_count,
+        seed_schedule=seed_schedule,
+        profiles=tuple(
+            PaperProfileSpec(
+                profile_label=profile_label,
+                role="baseline" if profile_label == "full-internal-rl" else "matched-control",
+                description=f"ETA proof profile {profile_label}.",
+            )
+            for profile_label in default_eta_proof_profiles()
+        ),
+        primary_metrics=(
+            PaperMetricSpec(
+                metric_name="heldout_terminal_success_rate",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out terminal success rate for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_strong_success_rate",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out strong sparse-reward success rate for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_family_reuse_rate",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out abstract-action reuse rate for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_credit_alignment",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out delayed-credit alignment for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="strong_success_gap_vs_best_control",
+                role="primary",
+                direction="higher-is-better",
+                description="Held-out strong success gap between the full profile and the strongest matched control.",
+            ),
+            PaperMetricSpec(
+                metric_name="backend_success_gap",
+                role="primary",
+                direction="lower-is-better",
+                description="Gap in held-out strong success across backends for the full profile.",
+            ),
+        ),
+        secondary_metrics=(
+            PaperMetricSpec(
+                metric_name="assessment_pass_fraction",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fraction of ETA acceptance gates passed in the assessment report.",
+            ),
+            PaperMetricSpec(
+                metric_name="policy_update_rate",
+                role="secondary",
+                direction="higher-is-better",
+                description="Observed policy parameter update rate for the full profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_subgoal_completion_rate",
+                role="secondary",
+                direction="higher-is-better",
+                description="Held-out subgoal completion rate for the full profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_strong_success_std",
+                role="secondary",
+                direction="lower-is-better",
+                description="Held-out strong success variability across held-out cases.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_rollouts_per_update",
+                role="secondary",
+                direction="higher-is-better",
+                description="Average rollout count consumed by each full-profile update.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_parameter_change_norm",
+                role="secondary",
+                direction="higher-is-better",
+                description="Average parameter-change norm for full-profile internal RL updates.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_replacement_effect_delta",
+                role="secondary",
+                direction="higher-is-better",
+                description="Average replacement-effect delta observed during full-profile updates.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_value_loss",
+                role="secondary",
+                direction="lower-is-better",
+                description="Average critic/value loss for the full internal-RL profile.",
+            ),
+            PaperMetricSpec(
+                metric_name="training_transition_count",
+                role="secondary",
+                direction="higher-is-better",
+                description="Total training transitions consumed by full-profile internal RL updates.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_steps_per_abstract_action",
+                role="secondary",
+                direction="higher-is-better",
+                description="Mean rollout steps controlled by one abstract action before switching.",
+            ),
+            PaperMetricSpec(
+                metric_name="persistence_window_success_rate",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fraction of abstract-action windows persisting for at least two rollout steps.",
+            ),
+            PaperMetricSpec(
+                metric_name="residual_signal_quality",
+                role="secondary",
+                direction="higher-is-better",
+                description="Residual-control signal quality combining downstream effect and backend fidelity.",
+            ),
+            PaperMetricSpec(
+                metric_name="credit_to_family_write_count",
+                role="secondary",
+                direction="higher-is-better",
+                description="Number of temporal families receiving long-horizon delayed-credit writes.",
+            ),
+            PaperMetricSpec(
+                metric_name="long_horizon_payoff_coverage",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fraction of temporal families with payoff or delayed-credit evidence.",
+            ),
+            PaperMetricSpec(
+                metric_name="slow_to_fast_init_benefit",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fast-prior benefit retained over the no-fast-prior control.",
+            ),
+            PaperMetricSpec(
+                metric_name="mean_reward_sparsity",
+                role="secondary",
+                direction="higher-is-better",
+                description="Fraction of reward signal not attributable to shaping leakage.",
+            ),
+            PaperMetricSpec(
+                metric_name="reward_shaping_leakage",
+                role="secondary",
+                direction="lower-is-better",
+                description="Share of optimizer-visible reward coming from shaping components.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_family_reuse_gap_vs_no_fast_prior",
+                role="secondary",
+                direction="higher-is-better",
+                description="Held-out family reuse retained over the no-fast-prior scaffold ablation.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_credit_window_miss_rate",
+                role="secondary",
+                direction="lower-is-better",
+                description="Held-out delayed-credit assignments whose abstract-action window lacks an assigned family.",
+            ),
+            PaperMetricSpec(
+                metric_name="heldout_terminal_credit_coverage",
+                role="secondary",
+                direction="higher-is-better",
+                description="Held-out terminal successes backed by terminal delayed-credit assignments.",
+            ),
+        ),
+        case_groups=(
+            ("route_ids", route_ids),
+            ("backend_labels", backend_labels),
+            ("train_epochs", (str(train_epochs),)),
+        ),
+        artifact_expectations=(
+            "per-run eta proof benchmark json",
+            "per-run backend robustness json",
+            "per-run assessment json",
+            "aggregate summary json",
+            "provenance json",
+            "evidence bundle json",
+        ),
+        description=(
+            f"Frozen ETA proof paper suite {suite_tier} with {repeat_count} repeated runs "
+            f"and backends={backend_labels}."
+        ),
+    )
+
+
+def build_eta_open_weight_paper_suite_manifest(
+    *,
+    suite_tier: str = "ci-smoke",
+) -> PaperSuiteManifest:
+    base_manifest = build_eta_proof_paper_suite_manifest(suite_tier=suite_tier)
+    case_groups = tuple(
+        ("backend_labels", ("transformers-open-weight", "trace"))
+        if name == "backend_labels"
+        else (name, values)
+        for name, values in base_manifest.case_groups
+    ) + (
+        (
+            "gate_semantics",
+            (
+                "real-hook-health-v2",
+                "prefix-aligned-intervention-v1",
+                "smoke-diagnostic-only-v1",
+            ),
+        ),
+    )
+    secondary_metrics = base_manifest.secondary_metrics + (
+        PaperMetricSpec(
+            metric_name="real_open_weight_capture_rate",
+            role="secondary",
+            direction="higher-is-better",
+            description="Fraction of ETA substrate steps captured from a real open-weight runtime.",
+        ),
+        PaperMetricSpec(
+            metric_name="real_open_weight_hook_coverage",
+            role="secondary",
+            direction="higher-is-better",
+            description=(
+                "Mean actual hook fire rate observed during real open-weight ETA capture; "
+                f"real residual claims require >= {ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE:.2f}."
+            ),
+        ),
+        PaperMetricSpec(
+            metric_name="real_open_weight_planned_layer_fraction",
+            role="secondary",
+            direction="higher-is-better",
+            description="Planned selected hook layers divided by total transformer blocks; context only, not a hard hook-health gate.",
+        ),
+        PaperMetricSpec(
+            metric_name="real_open_weight_token_step_coverage",
+            role="secondary",
+            direction="higher-is-better",
+            description="Fraction of captured token positions that expose residual activations across the selected hook layers.",
+        ),
+        PaperMetricSpec(
+            metric_name="real_open_weight_residual_sequence_present",
+            role="secondary",
+            direction="higher-is-better",
+            description="Fraction of real open-weight snapshots carrying a nonempty residual sequence.",
+        ),
+        PaperMetricSpec(
+            metric_name="real_open_weight_intervention_protocol_valid",
+            role="secondary",
+            direction="higher-is-better",
+            description="Fraction of real open-weight snapshots using prefix-aligned before/after intervention protocol.",
+        ),
+        PaperMetricSpec(
+            metric_name="real_open_weight_fallback_rate",
+            role="secondary",
+            direction="lower-is-better",
+            description=(
+                "Fraction of real ETA capture served by a builtin fallback runtime; "
+                f"real residual claims require <= {ETA_REAL_RESIDUAL_MAX_FALLBACK_RATE:.2f}."
+            ),
+        ),
+        PaperMetricSpec(
+            metric_name="intervention_application_count",
+            role="secondary",
+            direction="higher-is-better",
+            description="Mean residual intervention application count in ETA open-weight proof rollouts.",
+        ),
+        PaperMetricSpec(
+            metric_name="episode_replacement_effect_delta",
+            role="secondary",
+            direction="higher-is-better",
+            description="Mean per-episode replacement-effect delta for real residual-control rollouts.",
+        ),
+    )
+    return replace(
+        base_manifest,
+        suite_id=f"eta-open-weight-{suite_tier}",
+        suite_kind="eta-open-weight-residual-proof",
+        version=base_manifest.version + 2,
+        primary_metrics=base_manifest.primary_metrics + (
+            PaperMetricSpec(
+                metric_name="real_residual_policy_gap_vs_control",
+                role="primary",
+                direction="higher-is-better",
+                description=(
+                    "Composite real-residual policy/control advantage over same-backend matched controls, "
+                    "excluding backend-ablation noops."
+                ),
+            ),
+        ),
+        case_groups=case_groups,
+        secondary_metrics=secondary_metrics,
+        artifact_expectations=base_manifest.artifact_expectations + (
+            "real open-weight residual capture/control evidence",
+            "fail-closed fallback and hook-coverage thresholds for real residual claims",
+            "gate semantics marker for artifact freshness checks",
+        ),
+        description=(
+            f"Open-weight ETA paper suite {suite_tier} using real transformer residual capture/control "
+            "as the primary backend and trace as the matched fallback control."
+        ),
+    )
+
+
+def _profile_config(profile_label: str) -> ETAProofProfileConfig:
+    if profile_label == "full-internal-rl":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+        )
+    if profile_label == "full-bootstrap-init":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            bootstrap_init=True,
+        )
+    if profile_label == "full-no-fast-prior":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            use_temporal_fast_prior=False,
+        )
+    if profile_label == "full-no-optimize":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=False,
+            policy_kind="full",
+        )
+    if profile_label == "full-no-replacement":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="baseline",
+            optimize_after_rollout=True,
+            policy_kind="full",
+        )
+    if profile_label == "full-zero-control":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            residual_control_mode="zero",
+            reuse_baseline_checkpoint=True,
+        )
+    if profile_label == "full-shuffled-control":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            residual_control_mode="shuffled",
+            residual_control_seed=1729,
+            reuse_baseline_checkpoint=True,
+        )
+    if profile_label == "full-reversed-control":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            residual_control_mode="reversed",
+            reuse_baseline_checkpoint=True,
+        )
+    if profile_label == "noop-backend":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="full",
+            use_noop_backend=True,
+        )
+    if profile_label == "learned-lite-causal":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="causal-binary",
+            optimize_after_rollout=True,
+            policy_kind="learned-lite",
+        )
+    if profile_label == "metacontroller-no-rl":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="baseline",
+            optimize_after_rollout=False,
+            policy_kind="full",
+        )
+    if profile_label == "learned-lite-baseline":
+        return ETAProofProfileConfig(
+            profile_label=profile_label,
+            replacement_mode="baseline",
+            optimize_after_rollout=False,
+            policy_kind="learned-lite",
+        )
+    raise ValueError(f"Unsupported ETA proof profile {profile_label!r}")
+
+
+def _bootstrap_snapshot_for_cases(
+    cases: tuple[ETAProofCase, ...],
+    *,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
+) -> object | None:
+    if not cases:
+        return None
+    policy = FullLearnedTemporalPolicy()
+    trainer = MetacontrollerSSLTrainer(n_z=policy.parameter_store.n_z)
+    policy.parameter_store.set_learning_phase("ssl", structure_frozen=False)
+    for case in cases:
+        if open_weight_runtime is None:
+            trainer.optimize(
+                policy=policy,
+                trace=build_training_trace(
+                    trace_id=f"{case.case_id}:bootstrap",
+                    source_text=case.source_text,
+                ),
+            )
+        else:
+            snapshots, _ = _build_case_snapshot_bundle(
+                case,
+                open_weight_runtime=open_weight_runtime,
+                open_weight_config=open_weight_config,
+            )
+            trainer.optimize_residual_trajectory(
+                policy=policy,
+                trace_id=f"{case.case_id}:real-residual-bootstrap",
+                source_text=case.source_text,
+                snapshots=snapshots,
+            )
+    policy.parameter_store.set_learning_phase("runtime", structure_frozen=True)
+    return policy.export_rare_heavy_snapshot()
+
+
+def _build_sandbox(
+    *,
+    profile: ETAProofProfileConfig,
+    backend_label: str,
+    bootstrap_snapshot: object | None = None,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    latent_unit_clamp: bool = False,
+    causal_action_head_active: bool = False,
+    causal_action_head_state_dim: int | None = None,
+) -> InternalRLSandbox:
+    if profile.policy_kind == "full":
+        if bootstrap_snapshot is not None:
+            policy = FullLearnedTemporalPolicy.from_bootstrap_snapshot(bootstrap_snapshot)
+        else:
+            policy = FullLearnedTemporalPolicy()
+    elif profile.policy_kind == "learned-lite":
+        policy = LearnedLiteTemporalPolicy()
+    else:
+        raise ValueError(f"Unsupported policy kind {profile.policy_kind!r}")
+    if causal_action_head_active:
+        if not isinstance(policy, FullLearnedTemporalPolicy):
+            raise ValueError(
+                "ETA causal action head requires FullLearnedTemporalPolicy"
+            )
+        policy.set_causal_action_head(
+            wiring_level=WiringLevel.ACTIVE,
+            track=Track.SHARED,
+            strength=1.0,
+            rank=policy.parameter_store.n_z,
+            effective_dims=tuple(
+                range(policy.parameter_store.n_z)
+            ),
+            envelope_enforced=True,
+        )
+    env = (
+        InternalRLEnvironment(control_backend=NoOpResidualInterventionBackend())
+        if profile.use_noop_backend
+        else InternalRLEnvironment()
+    )
+    if profile.use_noop_backend:
+        runtime = None
+    elif backend_label == "synthetic-open-weight":
+        runtime = SyntheticOpenWeightResidualRuntime(model_id=f"eta-proof:{profile.profile_label}")
+    elif backend_label == "transformers-open-weight":
+        runtime = open_weight_runtime or _build_eta_open_weight_runtime()
+    elif backend_label == "trace":
+        runtime = None
+    else:
+        raise ValueError(f"Unsupported backend label {backend_label!r}")
+    sandbox = InternalRLSandbox(
+        policy=policy,
+        env=env,
+        residual_runtime=runtime,
+        latent_unit_clamp=latent_unit_clamp,
+        causal_action_head_state_dim=causal_action_head_state_dim,
+    )
+    sandbox.configure_residual_control(
+        mode=profile.residual_control_mode,
+        seed=profile.residual_control_seed,
+    )
+    return sandbox
+
+
+def _build_case_snapshots(
+    case: ETAProofCase,
+    *,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
+) -> tuple[SubstrateSnapshot, ...]:
+    snapshots, _source_texts = _build_case_snapshot_bundle(
+        case,
+        open_weight_runtime=open_weight_runtime,
+        open_weight_config=open_weight_config,
+    )
+    return snapshots
+
+
+def _score_rollout_continuations(
+    *,
+    runtime: OpenWeightResidualRuntime | None,
+    rollout: ZRollout,
+    source_text_by_step: tuple[str, ...],
+) -> tuple[ContinuationScore | None, ...]:
+    if runtime is None or not source_text_by_step:
+        return ()
+    if len(source_text_by_step) != len(rollout.transitions):
+        raise ValueError(
+            "source prefix count must match rollout transition count"
+        )
+    scores: list[ContinuationScore | None] = []
+    for index, transition in enumerate(rollout.transitions):
+        if index + 1 >= len(source_text_by_step):
+            scores.append(None)
+            continue
+        source_text = source_text_by_step[index]
+        next_prefix = source_text_by_step[index + 1]
+        if not next_prefix.startswith(source_text):
+            raise ValueError(
+                "ETA continuation scoring requires monotonically extended "
+                "prefixes"
+            )
+        continuation_text = next_prefix[len(source_text) :]
+        scores.append(
+            runtime.score_continuation(
+                source_text=source_text,
+                continuation_text=continuation_text,
+                applied_control=transition.applied_control,
+                track_scale=(0.7, 0.7, 0.7),
+            )
+        )
+    return tuple(scores)
+
+
+def _with_continuation_prediction_error_rewards(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    rollout: ZRollout,
+    source_text_by_step: tuple[str, ...],
+) -> tuple[ZRollout, tuple[float, ...]]:
+    if len(source_text_by_step) != len(rollout.transitions):
+        raise ValueError(
+            "source prefix count must match rollout transition count"
+        )
+    prediction_errors: list[float] = []
+    transitions = []
+    for index, transition in enumerate(rollout.transitions):
+        if index + 1 >= len(source_text_by_step):
+            transitions.append(
+                replace(
+                    transition,
+                    reward=0.0,
+                    raw_reward=0.0,
+                    reward_components=(
+                        (
+                            "continuation_prediction_error_unavailable",
+                            1.0,
+                        ),
+                    ),
+                    reward_mode=ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+                )
+            )
+            continue
+        source_text = source_text_by_step[index]
+        next_prefix = source_text_by_step[index + 1]
+        if not next_prefix.startswith(source_text):
+            raise ValueError(
+                "ETA continuation PE requires monotonically extended prefixes"
+            )
+        continuation_text = next_prefix[len(source_text) :]
+        identity_score = runtime.score_continuation(
+            source_text=source_text,
+            continuation_text=continuation_text,
+            applied_control=transition.applied_control,
+            track_scale=(0.7, 0.7, 0.7),
+        )
+        zero_score = runtime.score_continuation(
+            source_text=source_text,
+            continuation_text=continuation_text,
+            applied_control=tuple(
+                0.0 for _ in transition.applied_control
+            ),
+            track_scale=(0.7, 0.7, 0.7),
+        )
+        raw_prediction_error = (
+            zero_score.mean_negative_log_likelihood
+            - identity_score.mean_negative_log_likelihood
+        )
+        prediction_errors.append(raw_prediction_error)
+        bounded_reward = max(
+            -1.0,
+            min(
+                1.0,
+                raw_prediction_error
+                / ETA_CONTINUATION_PE_REWARD_SCALE,
+            ),
+        )
+        transitions.append(
+            replace(
+                transition,
+                reward=bounded_reward,
+                raw_reward=raw_prediction_error,
+                reward_components=(
+                    (
+                        "observed_continuation_identity_mean_nll",
+                        identity_score.mean_negative_log_likelihood,
+                    ),
+                    (
+                        "observed_continuation_zero_mean_nll",
+                        zero_score.mean_negative_log_likelihood,
+                    ),
+                    (
+                        "continuation_prediction_error",
+                        raw_prediction_error,
+                    ),
+                ),
+                reward_mode=ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+            )
+        )
+    updated_transitions = tuple(transitions)
+    return (
+        replace(
+            rollout,
+            transitions=updated_transitions,
+            total_reward=sum(
+                transition.reward for transition in updated_transitions
+            ),
+            reward_mode=ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+        ),
+        tuple(prediction_errors),
+    )
+
+
+def _continuation_counterfactual_candidates() -> tuple[
+    tuple[float, float, float], ...
+]:
+    candidates: list[tuple[float, float, float]] = [
+        (0.0, 0.0, 0.0)
+    ]
+    for level in (0.25, 0.5, 1.0):
+        for size in (1, 2, 3):
+            for dimensions in combinations(range(3), size):
+                candidates.append(
+                    tuple(
+                        level if index in dimensions else 0.0
+                        for index in range(3)
+                    )
+                )
+    return tuple(candidates)
+
+
+def _counterfactual_sampling_seed(
+    *,
+    sampling_key: str,
+    source_text: str,
+    cohort: str,
+    sample_index: int,
+) -> int:
+    payload = (
+        f"{sampling_key}\x1f{source_text}\x1f{cohort}\x1f"
+        f"{sample_index}"
+    ).encode("utf-8")
+    return int.from_bytes(
+        hashlib.sha256(payload).digest()[:4],
+        byteorder="big",
+        signed=False,
+    )
+
+
+def _sample_prefix_continuations(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    source_text: str,
+    sampling_key: str,
+    cohort: str,
+    sample_count: int,
+    temperature: float,
+    max_new_tokens: int,
+    generation_cache: dict[
+        tuple[str, str, str, int],
+        str,
+    ],
+) -> tuple[str, ...]:
+    if sample_count < 1:
+        raise ValueError(
+            "prefix expected-value continuation sample_count must be positive"
+        )
+    continuations = []
+    for sample_index in range(sample_count):
+        cache_key = (
+            source_text,
+            sampling_key,
+            cohort,
+            sample_index,
+        )
+        continuation_text = generation_cache.get(cache_key)
+        if continuation_text is None:
+            generation = runtime.generate(
+                prompt=source_text,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                capture_residuals=False,
+                sampling_seed=_counterfactual_sampling_seed(
+                    sampling_key=sampling_key,
+                    source_text=source_text,
+                    cohort=cohort,
+                    sample_index=sample_index,
+                ),
+            )
+            continuation_text = generation.text.strip()
+            if not continuation_text:
+                raise ValueError(
+                    "prefix expected-value sampling produced an empty "
+                    f"continuation for {sampling_key}:{cohort}:{sample_index}"
+                )
+            generation_cache[cache_key] = continuation_text
+        continuations.append(continuation_text)
+    return tuple(continuations)
+
+
+def _continuation_nlls(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    source_text: str,
+    continuation_texts: tuple[str, ...],
+    applied_control: tuple[float, ...],
+    score_cache: dict[
+        tuple[str, str, tuple[float, ...]],
+        float,
+    ],
+) -> tuple[float, ...]:
+    if not continuation_texts:
+        raise ValueError(
+            "counterfactual continuation cohort must be non-empty"
+        )
+    missing_continuations = []
+    seen_missing = set()
+    for continuation_text in continuation_texts:
+        score_key = (
+            source_text,
+            continuation_text,
+            applied_control,
+        )
+        if score_key not in score_cache and score_key not in seen_missing:
+            missing_continuations.append(continuation_text)
+            seen_missing.add(score_key)
+    if missing_continuations:
+        scores = runtime.score_continuations(
+            source_text=source_text,
+            continuation_texts=tuple(missing_continuations),
+            applied_control=applied_control,
+            track_scale=(0.7, 0.7, 0.7),
+        )
+        if len(scores) != len(missing_continuations):
+            raise ValueError(
+                "continuation batch score count must match requested cohort"
+            )
+        for continuation_text, score in zip(
+            missing_continuations,
+            scores,
+            strict=True,
+        ):
+            if score.continuation_text != continuation_text:
+                raise ValueError(
+                    "continuation batch scores must preserve cohort order"
+                )
+            score_key = (
+                source_text,
+                continuation_text,
+                applied_control,
+            )
+            mean_nll = score.mean_negative_log_likelihood
+            score_cache[score_key] = mean_nll
+    return tuple(
+        score_cache[
+            (
+                source_text,
+                continuation_text,
+                applied_control,
+            )
+        ]
+        for continuation_text in continuation_texts
+    )
+
+
+def _pe_action_credit(
+    *,
+    prediction_error_module: PredictionErrorModule,
+    expected_outcome: EnvironmentOutcome,
+    actual_outcome: EnvironmentOutcome,
+    segment_id: str,
+    abstract_action_id: str,
+    z_t_digest: tuple[float, ...],
+    timestamp_ms: int,
+) -> tuple[float, float]:
+    expected_measurement = expected_outcome.measurement
+    actual_measurement = actual_outcome.measurement
+    if expected_measurement is None or actual_measurement is None:
+        raise ValueError(
+            "counterfactual environment outcomes require measurements"
+        )
+    if (
+        expected_measurement.task_progress is None
+        or expected_measurement.action_payoff is None
+        or actual_measurement.task_progress is None
+        or actual_measurement.action_payoff is None
+    ):
+        raise ValueError(
+            "counterfactual environment outcomes require task progress "
+            "and action payoff"
+        )
+    action_context = PredictionActionContext(
+        segment_id=segment_id,
+        abstract_action_id=abstract_action_id,
+        z_t_digest=z_t_digest,
+        environment_event_id=actual_outcome.event_id,
+        environment_outcome_id=actual_outcome.outcome_id,
+        environment_task_progress=actual_measurement.task_progress,
+        environment_action_payoff=actual_measurement.action_payoff,
+        environment_outcome_terminal=actual_measurement.terminal,
+        prediction_id=expected_outcome.prediction_id or "",
+    )
+    predicted = PredictedOutcome(
+        source_turn_index=timestamp_ms,
+        target_turn_index=timestamp_ms + 1,
+        predicted_task_progress=expected_measurement.task_progress,
+        predicted_relationship_delta=0.0,
+        predicted_regime_stability=0.0,
+        predicted_action_payoff=expected_measurement.action_payoff,
+        confidence=expected_outcome.confidence,
+        description=(
+            "Frozen zero-control environment outcome used as the "
+            "pre-action counterfactual prediction."
+        ),
+        action_context=action_context,
+        prediction_id=expected_outcome.prediction_id or "",
+    )
+    actual = ActualOutcome(
+        observed_turn_index=timestamp_ms + 1,
+        task_progress=actual_measurement.task_progress,
+        relationship_delta=0.0,
+        regime_stability=0.0,
+        action_payoff=actual_measurement.action_payoff,
+        description=actual_outcome.detail,
+        action_context=action_context,
+    )
+    prediction_error = prediction_error_module.compute_prediction_error(
+        predicted=predicted,
+        actual_outcome=actual,
+    )
+    action_records = tuple(
+        record
+        for record in derive_prediction_error_credit_records(
+            prediction_error=prediction_error,
+            timestamp_ms=timestamp_ms,
+            action_context=action_context,
+        )
+        if record.source_event == "pe:action"
+    )
+    if len(action_records) != 1:
+        raise ValueError(
+            "PE credit owner must publish exactly one pe:action record"
+        )
+    return (
+        action_records[0].credit_value,
+        prediction_error.magnitude,
+    )
+
+
+def _with_counterfactual_environment_outcome_rewards(
+    *,
+    case: ETAProofCase,
+    evidence_phase: str,
+    runtime: OpenWeightResidualRuntime,
+    rollout: ZRollout,
+    substrate_steps: tuple[SubstrateSnapshot, ...],
+    source_text_by_step: tuple[str, ...],
+    proof_episode: InternalRLProofEpisode,
+    policy: FullLearnedTemporalPolicy,
+    application_cache: dict[
+        tuple[str, tuple[float, ...]],
+        Any,
+    ],
+    score_cache: dict[
+        tuple[str, str, tuple[float, ...]],
+        float,
+    ],
+    outcome_records: list[ETACounterfactualOutcomeRecord],
+    committed_control_histories: (
+        tuple[tuple[tuple[float, ...], ...], ...] | None
+    ) = None,
+    committed_control_window: int | None = None,
+) -> tuple[
+    ZRollout,
+    tuple[float, ...],
+    tuple[tuple[float, ...], ...],
+    tuple[tuple[float, ...], ...],
+]:
+    """Score the counterfactual grid against realized route continuations.
+
+    Outcome definition (schema v33): for each grid step the primary outcome is
+    the deterministic teacher-forced per-token NLL of the realized next route
+    segment under each candidate control, and the audit outcome is the same
+    measurement on the subsequent realized segment scored from the next
+    prefix. The environment owner converts the (zero-control, candidate) NLL
+    pair into a signed likelihood-improvement measurement; PE and credit stay
+    downstream. This replaces the v31 residual-signature alignment readout,
+    whose clamped 3-dim summary was nearly orthogonal to the bounded control
+    basis and capped observable effects at the 1e-4 scale.
+    """
+
+    if len(substrate_steps) != len(rollout.transitions):
+        raise ValueError(
+            "environment outcome target requires one substrate snapshot "
+            "per rollout transition"
+        )
+    if len(source_text_by_step) != len(substrate_steps):
+        raise ValueError(
+            "environment outcome target requires one source prefix per "
+            "substrate snapshot"
+        )
+    if policy.parameter_store.n_z != 3:
+        raise ValueError(
+            "ETA environment outcome counterfactual grid currently "
+            "requires n_z=3"
+        )
+    if committed_control_histories is not None:
+        if committed_control_window != 2:
+            raise ValueError(
+                "conditioned counterfactual rows require the frozen "
+                "committed control window k=2"
+            )
+        expected_history_count = len(rollout.transitions) - 2
+        if len(committed_control_histories) != expected_history_count:
+            raise ValueError(
+                "conditioned counterfactual rows require one pre-action "
+                "history per scoreable prefix: "
+                f"expected={expected_history_count}, "
+                f"actual={len(committed_control_histories)}"
+            )
+    subgoals_by_id = {
+        subgoal.subgoal_id: subgoal
+        for subgoal in proof_episode.subgoals
+    }
+    if not subgoals_by_id:
+        raise ValueError(
+            "environment outcome target requires proof subgoals"
+        )
+    environment = InternalRLEnvironment()
+    prediction_error_module = PredictionErrorModule()
+    decoder = ResidualDecoder()
+    candidates = _continuation_counterfactual_candidates()
+    all_prediction_errors: list[float] = []
+    target_rows: list[tuple[float, ...]] = []
+    audit_rows: list[tuple[float, ...]] = []
+    updated_transitions = []
+
+    for index, transition in enumerate(rollout.transitions[:-1]):
+        if index + 2 >= len(source_text_by_step):
+            # The realized audit segment (prefix i+1 -> i+2) does not exist
+            # for the final grid step; the grid only emits rows whose primary
+            # and audit outcomes are both realized in the route.
+            continue
+        subgoal = subgoals_by_id.get(transition.proof_subgoal_id or "")
+        if subgoal is None:
+            raise ValueError(
+                "environment outcome target requires a published active "
+                f"proof subgoal at step {index}"
+            )
+        source_text = source_text_by_step[index]
+        next_prefix = source_text_by_step[index + 1]
+        audit_prefix = source_text_by_step[index + 2]
+        realized_segment = next_prefix[len(source_text):].strip()
+        audit_segment = audit_prefix[len(next_prefix):].strip()
+        if not realized_segment or not audit_segment:
+            raise ValueError(
+                "environment outcome target requires strictly growing "
+                f"route prefixes at step {index} of case {case.case_id}"
+            )
+        substrate_snapshot = substrate_steps[index]
+        committed_history = (
+            committed_control_histories[index]
+            if committed_control_histories is not None
+            else ()
+        )
+        candidate_evidence = []
+        for candidate_index, candidate in enumerate(candidates):
+            decoded = decoder.decode(
+                latent_code=candidate,
+                decoder_matrix=policy.parameter_store.decoder_matrix,
+                hidden_matrix=policy.parameter_store.decoder_hidden,
+            )
+            effective_control = (
+                _aggregate_committed_controls(
+                    (*committed_history, decoded.applied_control),
+                    committed_control_window=committed_control_window,
+                )
+                if committed_control_histories is not None
+                else decoded.applied_control
+            )
+            cache_key = (source_text, effective_control)
+            application = application_cache.get(cache_key)
+            if application is None:
+                application = runtime.apply_control(
+                    source_text=source_text,
+                    substrate_snapshot=substrate_snapshot,
+                    applied_control=effective_control,
+                    track_scale=(0.7, 0.7, 0.7),
+                )
+                application_cache[cache_key] = application
+            primary_nll = _continuation_nlls(
+                runtime=runtime,
+                source_text=source_text,
+                continuation_texts=(realized_segment,),
+                applied_control=effective_control,
+                score_cache=score_cache,
+            )[0]
+            audit_nll = _continuation_nlls(
+                runtime=runtime,
+                source_text=next_prefix,
+                continuation_texts=(audit_segment,),
+                applied_control=effective_control,
+                score_cache=score_cache,
+            )[0]
+            candidate_evidence.append(
+                (
+                    candidate_index,
+                    candidate,
+                    decoded,
+                    effective_control,
+                    application,
+                    primary_nll,
+                    audit_nll,
+                )
+            )
+
+        (
+            _zero_index,
+            zero_candidate,
+            _zero_decoded,
+            _zero_effective_control,
+            zero_application,
+            zero_primary_nll,
+            zero_audit_nll,
+        ) = candidate_evidence[0]
+        if zero_candidate != (0.0, 0.0, 0.0):
+            raise ValueError(
+                "environment outcome grid must use zero control as the "
+                "frozen pre-action prediction"
+            )
+        zero_primary = environment.measure_realized_continuation_outcome(
+            zero_control_mean_nll=zero_primary_nll,
+            observed_mean_nll=zero_primary_nll,
+            downstream_effect=zero_application.downstream_effect,
+        )
+        zero_audit = environment.measure_realized_continuation_outcome(
+            zero_control_mean_nll=zero_audit_nll,
+            observed_mean_nll=zero_audit_nll,
+            downstream_effect=zero_application.downstream_effect,
+        )
+        event_id = f"{proof_episode.episode_id}:prefix-{index}"
+        prediction_id = f"{event_id}:zero-control-prediction"
+        expected_primary = EnvironmentOutcome(
+            outcome_id=f"{event_id}:primary:expected",
+            event_id=event_id,
+            outcome_kind=EnvironmentEventKind.INTERNAL_DRIVE,
+            action_id="counterfactual-zero-control",
+            status="observed",
+            summary=(
+                "Frozen zero-control realized-continuation baseline."
+            ),
+            detail=zero_primary.description,
+            confidence=1.0,
+            prediction_id=prediction_id,
+            evidence=("teacher-forced-realized-continuation",),
+            measurement=EnvironmentMeasurement(
+                task_progress=zero_primary.task_progress,
+                action_payoff=zero_primary.action_payoff,
+            ),
+        )
+        expected_audit = replace(
+            expected_primary,
+            outcome_id=f"{event_id}:audit:expected",
+            summary=(
+                "Frozen zero-control audit baseline on the subsequent "
+                "realized route segment."
+            ),
+            detail=zero_audit.description,
+            measurement=EnvironmentMeasurement(
+                task_progress=zero_audit.task_progress,
+                action_payoff=zero_audit.action_payoff,
+            ),
+        )
+        scored_candidates = []
+        target_row = []
+        audit_row = []
+        for (
+            candidate_index,
+            candidate,
+            decoded,
+            effective_control,
+            application,
+            primary_nll,
+            audit_nll,
+        ) in candidate_evidence:
+            primary_measurement = (
+                environment.measure_realized_continuation_outcome(
+                    zero_control_mean_nll=zero_primary_nll,
+                    observed_mean_nll=primary_nll,
+                    downstream_effect=application.downstream_effect,
+                )
+            )
+            audit_measurement = (
+                environment.measure_realized_continuation_outcome(
+                    zero_control_mean_nll=zero_audit_nll,
+                    observed_mean_nll=audit_nll,
+                    downstream_effect=application.downstream_effect,
+                )
+            )
+            action_id = f"counterfactual-z-{candidate_index}"
+            actual_primary = EnvironmentOutcome(
+                outcome_id=f"{event_id}:primary:{candidate_index}",
+                event_id=event_id,
+                outcome_kind=EnvironmentEventKind.INTERNAL_DRIVE,
+                action_id=action_id,
+                status="observed",
+                summary="Observed realized-continuation outcome.",
+                detail=primary_measurement.description,
+                confidence=1.0,
+                prediction_id=prediction_id,
+                evidence=("teacher-forced-realized-continuation",),
+                measurement=EnvironmentMeasurement(
+                    task_progress=primary_measurement.task_progress,
+                    action_payoff=primary_measurement.action_payoff,
+                ),
+            )
+            actual_audit = replace(
+                actual_primary,
+                outcome_id=f"{event_id}:audit:{candidate_index}",
+                summary=(
+                    "Observed realized-continuation audit outcome on the "
+                    "subsequent route segment."
+                ),
+                detail=audit_measurement.description,
+                measurement=EnvironmentMeasurement(
+                    task_progress=audit_measurement.task_progress,
+                    action_payoff=audit_measurement.action_payoff,
+                ),
+            )
+            segment_id = (
+                f"{proof_episode.episode_id}:{subgoal.subgoal_id}"
+            )
+            primary_credit, primary_pe_magnitude = _pe_action_credit(
+                prediction_error_module=prediction_error_module,
+                expected_outcome=expected_primary,
+                actual_outcome=actual_primary,
+                segment_id=segment_id,
+                abstract_action_id=transition.abstract_action,
+                z_t_digest=candidate,
+                timestamp_ms=index,
+            )
+            audit_credit, audit_pe_magnitude = _pe_action_credit(
+                prediction_error_module=prediction_error_module,
+                expected_outcome=expected_audit,
+                actual_outcome=actual_audit,
+                segment_id=segment_id,
+                abstract_action_id=transition.abstract_action,
+                z_t_digest=candidate,
+                timestamp_ms=index,
+            )
+            outcome_records.append(
+                ETACounterfactualOutcomeRecord(
+                    observation_id=(
+                        f"{case.case_id}:{evidence_phase}:prefix-{index}:"
+                        f"candidate-{candidate_index}"
+                    ),
+                    case_id=case.case_id,
+                    split=case.split,
+                    phase=evidence_phase,
+                    step_index=index,
+                    segment_id=segment_id,
+                    candidate_index=candidate_index,
+                    latent_code=candidate,
+                    applied_control=effective_control,
+                    target_signature=primary_measurement.target_signature,
+                    observed_signature=primary_measurement.observed_signature,
+                    downstream_effect=application.downstream_effect,
+                    expected_task_progress=zero_primary.task_progress,
+                    actual_task_progress=primary_measurement.task_progress,
+                    prediction_error_magnitude=primary_pe_magnitude,
+                    action_credit=primary_credit,
+                    audit_target_signature=(
+                        audit_measurement.target_signature
+                    ),
+                    audit_actual_task_progress=(
+                        audit_measurement.task_progress
+                    ),
+                    audit_prediction_error_magnitude=(
+                        audit_pe_magnitude
+                    ),
+                    audit_action_credit=audit_credit,
+                )
+            )
+            all_prediction_errors.append(primary_credit)
+            target_row.append(primary_credit)
+            audit_row.append(audit_credit)
+            scored_candidates.append(
+                (
+                    candidate,
+                    decoded,
+                    effective_control,
+                    application,
+                    primary_measurement,
+                    primary_credit,
+                    primary_pe_magnitude,
+                    audit_measurement,
+                    audit_credit,
+                    audit_pe_magnitude,
+                )
+            )
+        target_rows.append(tuple(target_row))
+        audit_rows.append(tuple(audit_row))
+        mean_credit = _mean(tuple(target_row))
+        credit_range = max(max(target_row) - min(target_row), 1e-8)
+        (
+            best_candidate,
+            best_decoded,
+            best_effective_control,
+            best_application,
+            best_primary,
+            best_credit,
+            best_pe_magnitude,
+            best_audit,
+            best_audit_credit,
+            best_audit_pe_magnitude,
+        ) = max(
+            scored_candidates,
+            key=lambda evidence: evidence[5],
+        )
+        centered_reward = max(
+            -1.0,
+            min(1.0, (best_credit - mean_credit) / credit_range),
+        )
+        updated_transitions.append(
+            replace(
+                transition,
+                policy_action=best_candidate,
+                latent_code=best_candidate,
+                decoder_output=best_decoded.decoder_output,
+                control_before_ablation=best_effective_control,
+                applied_control=best_effective_control,
+                downstream_effect=best_application.downstream_effect,
+                reward=centered_reward,
+                raw_reward=best_credit,
+                reward_components=(
+                    (
+                        "environment_outcome_task_progress",
+                        best_primary.task_progress,
+                    ),
+                    (
+                        "environment_outcome_zero_task_progress",
+                        zero_primary.task_progress,
+                    ),
+                    ("prediction_error_magnitude", best_pe_magnitude),
+                    ("pe_action_credit", best_credit),
+                    (
+                        "audit_next_prefix_task_progress",
+                        best_audit.task_progress,
+                    ),
+                    (
+                        "audit_prediction_error_magnitude",
+                        best_audit_pe_magnitude,
+                    ),
+                    ("audit_pe_action_credit", best_audit_credit),
+                    ("counterfactual_centered_reward", centered_reward),
+                ),
+                reward_mode=(
+                    f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
+                    f"counterfactual-"
+                    f"{ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME}"
+                ),
+                direct_action_target=True,
+            )
+        )
+    transitions = tuple(updated_transitions)
+    return (
+        replace(
+            rollout,
+            transitions=transitions,
+            total_reward=sum(
+                transition.reward for transition in transitions
+            ),
+            reward_mode=(
+                f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
+                f"counterfactual-"
+                f"{ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME}"
+            ),
+        ),
+        tuple(all_prediction_errors),
+        tuple(target_rows),
+        tuple(audit_rows),
+    )
+
+
+def _with_counterfactual_continuation_pe_rewards(
+    *,
+    case: ETAProofCase,
+    evidence_phase: str,
+    runtime: OpenWeightResidualRuntime,
+    rollout: ZRollout,
+    substrate_steps: tuple[SubstrateSnapshot, ...],
+    source_text_by_step: tuple[str, ...],
+    proof_episode: InternalRLProofEpisode,
+    policy: FullLearnedTemporalPolicy,
+    score_cache: dict[
+        tuple[str, str, tuple[float, ...]],
+        float,
+    ],
+    target_mode: str = ETA_COUNTERFACTUAL_TARGET_OBSERVED,
+    target_sample_count: int = 1,
+    audit_sample_count: int = 0,
+    sampling_temperature: float = 0.8,
+    sampling_max_new_tokens: int = 4,
+    sampling_key: str = "",
+    generation_cache: dict[
+        tuple[str, str, str, int],
+        str,
+    ] | None = None,
+    outcome_application_cache: dict[
+        tuple[str, tuple[float, ...]],
+        Any,
+    ] | None = None,
+    counterfactual_outcome_records: list[
+        ETACounterfactualOutcomeRecord
+    ] | None = None,
+) -> tuple[
+    ZRollout,
+    tuple[float, ...],
+    tuple[tuple[float, ...], ...],
+    tuple[tuple[float, ...], ...],
+]:
+    if target_mode == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME:
+        if outcome_application_cache is None:
+            raise ValueError(
+                "environment outcome target requires an application cache"
+            )
+        if counterfactual_outcome_records is None:
+            raise ValueError(
+                "environment outcome target requires an evidence sink"
+            )
+        return _with_counterfactual_environment_outcome_rewards(
+            case=case,
+            evidence_phase=evidence_phase,
+            runtime=runtime,
+            rollout=rollout,
+            substrate_steps=substrate_steps,
+            source_text_by_step=source_text_by_step,
+            proof_episode=proof_episode,
+            policy=policy,
+            application_cache=outcome_application_cache,
+            score_cache=score_cache,
+            outcome_records=counterfactual_outcome_records,
+        )
+    if len(source_text_by_step) != len(rollout.transitions):
+        raise ValueError(
+            "source prefix count must match rollout transition count"
+        )
+    if policy.parameter_store.n_z != 3:
+        raise ValueError(
+            "ETA continuation counterfactual grid currently requires n_z=3"
+        )
+    if target_mode not in {
+        ETA_COUNTERFACTUAL_TARGET_OBSERVED,
+        ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED,
+        ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME,
+    }:
+        raise ValueError(
+            f"Unsupported counterfactual target mode {target_mode!r}"
+        )
+    if target_mode == ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED:
+        if not sampling_key:
+            raise ValueError(
+                "prefix expected-value target requires sampling_key"
+            )
+        if target_sample_count < 1 or audit_sample_count < 1:
+            raise ValueError(
+                "prefix expected-value target requires positive target and "
+                "audit sample counts"
+            )
+        if sampling_temperature <= 0.0:
+            raise ValueError(
+                "prefix expected-value target requires stochastic "
+                "sampling_temperature"
+            )
+        if sampling_max_new_tokens < 1:
+            raise ValueError(
+                "prefix expected-value target requires positive "
+                "sampling_max_new_tokens"
+            )
+        if generation_cache is None:
+            raise ValueError(
+                "prefix expected-value target requires generation_cache"
+            )
+    decoder = ResidualDecoder()
+    candidates = _continuation_counterfactual_candidates()
+    prediction_errors: list[float] = []
+    prefix_candidate_prediction_errors: list[tuple[float, ...]] = []
+    prefix_audit_prediction_errors: list[tuple[float, ...]] = []
+    counterfactual_transitions = []
+    for index, transition in enumerate(rollout.transitions[:-1]):
+        source_text = source_text_by_step[index]
+        next_prefix = source_text_by_step[index + 1]
+        if not next_prefix.startswith(source_text):
+            raise ValueError(
+                "ETA continuation PE requires monotonically extended prefixes"
+            )
+        observed_continuation_text = next_prefix[len(source_text) :]
+        if target_mode == ETA_COUNTERFACTUAL_TARGET_PREFIX_EXPECTED:
+            if generation_cache is None:
+                raise RuntimeError(
+                    "prefix expected-value generation cache disappeared"
+                )
+            target_continuations = _sample_prefix_continuations(
+                runtime=runtime,
+                source_text=source_text,
+                sampling_key=(
+                    f"{sampling_key}:prefix-{index}"
+                ),
+                cohort="target",
+                sample_count=target_sample_count,
+                temperature=sampling_temperature,
+                max_new_tokens=sampling_max_new_tokens,
+                generation_cache=generation_cache,
+            )
+            audit_continuations = _sample_prefix_continuations(
+                runtime=runtime,
+                source_text=source_text,
+                sampling_key=(
+                    f"{sampling_key}:prefix-{index}"
+                ),
+                cohort="audit",
+                sample_count=audit_sample_count,
+                temperature=sampling_temperature,
+                max_new_tokens=sampling_max_new_tokens,
+                generation_cache=generation_cache,
+            )
+        else:
+            target_continuations = (observed_continuation_text,)
+            audit_continuations = ()
+        continuation_cohort = target_continuations + audit_continuations
+        target_cohort_size = len(target_continuations)
+        zero_control = (0.0, 0.0, 0.0)
+        zero_cohort_nlls = _continuation_nlls(
+            runtime=runtime,
+            source_text=source_text,
+            continuation_texts=continuation_cohort,
+            applied_control=zero_control,
+            score_cache=score_cache,
+        )
+        zero_nll = _mean(zero_cohort_nlls[:target_cohort_size])
+        audit_zero_nll = (
+            _mean(zero_cohort_nlls[target_cohort_size:])
+            if audit_continuations
+            else None
+        )
+        candidate_evidence = []
+        audit_candidate_prediction_errors = []
+        for candidate in candidates:
+            decoded = decoder.decode(
+                latent_code=candidate,
+                decoder_matrix=policy.parameter_store.decoder_matrix,
+                hidden_matrix=policy.parameter_store.decoder_hidden,
+            )
+            candidate_cohort_nlls = _continuation_nlls(
+                runtime=runtime,
+                source_text=source_text,
+                continuation_texts=continuation_cohort,
+                applied_control=decoded.applied_control,
+                score_cache=score_cache,
+            )
+            candidate_nll = _mean(
+                candidate_cohort_nlls[:target_cohort_size]
+            )
+            raw_prediction_error = (
+                zero_nll - candidate_nll
+            )
+            prediction_errors.append(raw_prediction_error)
+            candidate_evidence.append(
+                (
+                    candidate,
+                    decoded,
+                    candidate_nll,
+                    raw_prediction_error,
+                )
+            )
+            if audit_zero_nll is not None:
+                audit_candidate_nll = _mean(
+                    candidate_cohort_nlls[target_cohort_size:]
+                )
+                audit_candidate_prediction_errors.append(
+                    audit_zero_nll - audit_candidate_nll
+                )
+        prefix_candidate_prediction_errors.append(
+            tuple(evidence[3] for evidence in candidate_evidence)
+        )
+        prefix_audit_prediction_errors.append(
+            tuple(audit_candidate_prediction_errors)
+        )
+        mean_prediction_error = _mean(
+            tuple(
+                evidence[3] for evidence in candidate_evidence
+            )
+        )
+        prediction_error_range = max(
+            (
+                max(
+                    evidence[3] for evidence in candidate_evidence
+                )
+                - min(
+                    evidence[3] for evidence in candidate_evidence
+                )
+            ),
+            1e-8,
+        )
+        (
+            best_candidate,
+            best_decoded,
+            best_candidate_nll,
+            best_raw_prediction_error,
+        ) = max(
+            candidate_evidence,
+            key=lambda evidence: evidence[3],
+        )
+        centered_reward = max(
+            -1.0,
+            min(
+                1.0,
+                (
+                    best_raw_prediction_error
+                    - mean_prediction_error
+                )
+                / prediction_error_range,
+            ),
+        )
+        counterfactual_transitions.append(
+            replace(
+                transition,
+                policy_action=best_candidate,
+                latent_code=best_candidate,
+                decoder_output=best_decoded.decoder_output,
+                control_before_ablation=best_decoded.applied_control,
+                applied_control=best_decoded.applied_control,
+                reward=centered_reward,
+                raw_reward=best_raw_prediction_error,
+                reward_components=(
+                    (
+                        "observed_continuation_candidate_mean_nll",
+                        best_candidate_nll,
+                    ),
+                    (
+                        "observed_continuation_zero_mean_nll",
+                        zero_nll,
+                    ),
+                    (
+                        "continuation_prediction_error",
+                        best_raw_prediction_error,
+                    ),
+                    (
+                        "counterfactual_centered_reward",
+                        centered_reward,
+                    ),
+                ),
+                reward_mode=(
+                    f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
+                    f"counterfactual-{target_mode}"
+                ),
+                direct_action_target=True,
+            )
+        )
+    transitions = tuple(counterfactual_transitions)
+    return (
+        replace(
+            rollout,
+            transitions=transitions,
+            total_reward=sum(
+                transition.reward for transition in transitions
+            ),
+            reward_mode=(
+                f"{ETA_CONTINUATION_PE_TRAINING_SIGNAL}:"
+                f"counterfactual-{target_mode}"
+            ),
+        ),
+        tuple(prediction_errors),
+        tuple(prefix_candidate_prediction_errors),
+        tuple(prefix_audit_prediction_errors),
+    )
+
+
+def _counterfactual_action_examples(
+    *,
+    case: ETAProofCase,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    diagnostic_rows: tuple[tuple[float, ...], ...],
+    audit_rows: tuple[tuple[float, ...], ...] = (),
+    scoreable_prefix_count: int | None = None,
+) -> tuple[CounterfactualActionExample, ...]:
+    expected_rows = (
+        scoreable_prefix_count
+        if scoreable_prefix_count is not None
+        else len(snapshots) - 1
+    )
+    if expected_rows != len(diagnostic_rows):
+        raise ValueError(
+            "counterfactual selector requires one diagnostic row per "
+            "scoreable residual prefix: "
+            f"snapshots={len(snapshots)}, expected_rows={expected_rows}, "
+            f"rows={len(diagnostic_rows)}"
+        )
+    if audit_rows and len(audit_rows) != len(diagnostic_rows):
+        raise ValueError(
+            "counterfactual selector requires audit rows to align with "
+            "target rows"
+        )
+    return tuple(
+        CounterfactualActionExample(
+            example_id=f"{case.case_id}:prefix-{index}",
+            group_id=case.case_id,
+            split=case.split,
+            state_features=residual_action_state_vector(
+                snapshots[index],
+            ),
+            candidate_raw_deltas=diagnostic_row,
+            audit_candidate_raw_deltas=(
+                audit_rows[index] if audit_rows else ()
+            ),
+        )
+        for index, diagnostic_row in enumerate(diagnostic_rows)
+    )
+
+
+def _counterfactual_selector_metric_rows(
+    *,
+    selections: tuple[CounterfactualActionSelection, ...],
+    input_dim: int,
+    latent_dim: int,
+    action_count: int,
+    ridge_strength: float,
+    model_candidate_count: int,
+    explained_variance_ratio: float,
+) -> tuple[tuple[str, float], ...]:
+    metrics: list[tuple[str, float]] = [
+        ("counterfactual_selector_input_dim", float(input_dim)),
+        ("counterfactual_selector_latent_dim", float(latent_dim)),
+        (
+            "counterfactual_selector_ridge_strength",
+            ridge_strength,
+        ),
+        (
+            "counterfactual_selector_model_candidate_count",
+            float(model_candidate_count),
+        ),
+        (
+            "counterfactual_selector_explained_variance_ratio",
+            explained_variance_ratio,
+        ),
+    ]
+    summaries: dict[str, dict[str, float]] = {}
+    for split in (
+        "train",
+        "eval",
+        "heldout",
+        "validation",
+        "confirmation",
+    ):
+        split_summary = dict(
+            summarize_action_selections(
+                tuple(
+                    selection
+                    for selection in selections
+                    if selection.split == split
+                )
+            )
+        )
+        summaries[split] = split_summary
+        metrics.extend(
+            (
+                f"counterfactual_selector_{split}_{name}",
+                value,
+            )
+            for name, value in split_summary.items()
+        )
+    chance_top3_rate = min(3, action_count) / max(action_count, 1)
+    independent_audit_active = (
+        summaries["train"]["audit_available_rate"] == 1.0
+    )
+    injection_gate_passed = (
+        (
+            summaries["train"]["count"] > 0.0
+            and summaries["eval"]["count"] > 0.0
+            and summaries["heldout"]["count"] > 0.0
+            and summaries["validation"]["count"] > 0.0
+            and summaries["eval"]["audit_available_rate"] == 1.0
+            and summaries["heldout"]["audit_available_rate"] == 1.0
+            and summaries["validation"]["audit_available_rate"] == 1.0
+            and summaries["train"][
+                "mean_audit_selected_raw_delta"
+            ]
+            > 0.0
+            and summaries["eval"][
+                "mean_audit_selected_raw_delta"
+            ]
+            > 0.0
+            and summaries["heldout"][
+                "mean_audit_selected_raw_delta"
+            ]
+            > 0.0
+            and summaries["validation"][
+                "mean_audit_selected_raw_delta"
+            ]
+            > 0.0
+        )
+        if independent_audit_active
+        else (
+            summaries["train"]["count"] > 0.0
+            and summaries["eval"]["count"] > 0.0
+            and summaries["heldout"]["count"] > 0.0
+            and summaries["train"]["mean_selected_raw_delta"] > 0.0
+            and summaries["eval"]["mean_selected_raw_delta"] > 0.0
+            and summaries["heldout"]["mean_selected_raw_delta"] > 0.0
+            and summaries["eval"]["top3_rate"] > chance_top3_rate
+            and summaries["heldout"]["top3_rate"] > chance_top3_rate
+        )
+    )
+    metrics.extend(
+        (
+            ("counterfactual_selector_chance_top3_rate", chance_top3_rate),
+            (
+                "counterfactual_selector_injection_gate_passed",
+                1.0 if injection_gate_passed else 0.0,
+            ),
+            (
+                "counterfactual_selector_eval_updates_after_fit",
+                0.0,
+            ),
+        )
+    )
+    return tuple(metrics)
+
+
+def _fit_train_selected_counterfactual_selector(
+    training_examples: tuple[CounterfactualActionExample, ...],
+) -> tuple[
+    KernelResidualActionSelectorArtifact,
+    tuple[CounterfactualActionSelection, ...],
+    int,
+]:
+    candidate_configs = (0.1, 1.0, 10.0)
+    ranked_candidates = []
+    for ridge_strength in candidate_configs:
+        selections = (
+            grouped_cross_validate_kernel_residual_action_selector(
+                training_examples,
+                fold_count=4,
+                ridge_strength=ridge_strength,
+            )
+        )
+        summary = dict(summarize_action_selections(selections))
+        audit_active = summary["audit_available_rate"] == 1.0
+        ranking_key = (
+            (
+                summary["mean_audit_selected_raw_delta"]
+                if audit_active
+                else summary["mean_selected_raw_delta"]
+            ),
+            -(
+                summary["mean_audit_oracle_regret"]
+                if audit_active
+                else summary["mean_oracle_regret"]
+            ),
+            summary["top3_rate"],
+            -ridge_strength,
+        )
+        ranked_candidates.append(
+            (
+                ranking_key,
+                ridge_strength,
+                selections,
+            )
+        )
+    (
+        _ranking_key,
+        selected_ridge_strength,
+        selected_cv_selections,
+    ) = max(ranked_candidates, key=lambda row: row[0])
+    artifact = fit_kernel_residual_action_selector(
+        training_examples,
+        ridge_strength=selected_ridge_strength,
+    )
+    return (
+        artifact,
+        selected_cv_selections,
+        len(candidate_configs),
+    )
+
+
+def _stable_payload_fingerprint(payload: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _aggregate_committed_controls(
+    committed_controls: tuple[tuple[float, ...], ...],
+    *,
+    committed_control_window: int | None = None,
+) -> tuple[float, float, float]:
+    if (
+        committed_control_window is not None
+        and committed_control_window not in {1, 2}
+    ):
+        raise ValueError(
+            "Gate 2 closed-loop committed control window must be 1, 2, "
+            "or None for the frozen v36 full-history behavior"
+        )
+    if not committed_controls:
+        return (0.0, 0.0, 0.0)
+    if any(len(control) != 3 for control in committed_controls):
+        raise ValueError(
+            "Gate 2 closed-loop committed controls must all have dim 3"
+        )
+    active_controls = (
+        committed_controls
+        if committed_control_window is None
+        else committed_controls[-committed_control_window:]
+    )
+    return tuple(
+        sum(control[index] for control in active_controls)
+        for index in range(3)
+    )
+
+
+def _shadow_closed_loop_state_snapshot(
+    *,
+    runtime: OpenWeightResidualRuntime,
+    source_text: str,
+    clean_snapshot: SubstrateSnapshot,
+    aggregate_control: tuple[float, float, float],
+) -> SubstrateSnapshot:
+    if all(abs(value) <= 1e-15 for value in aggregate_control):
+        return clean_snapshot
+    return runtime.apply_control(
+        source_text=source_text,
+        substrate_snapshot=clean_snapshot,
+        applied_control=aggregate_control,
+    ).applied_snapshot
+
+
+def _bootstrap_committed_control_histories(
+    *,
+    case: ETAProofCase,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    source_text_by_step: tuple[str, ...],
+    runtime: OpenWeightResidualRuntime,
+    policy: FullLearnedTemporalPolicy,
+    selector_artifact: KernelResidualActionSelectorArtifact,
+    committed_control_window: int,
+) -> tuple[tuple[tuple[float, ...], ...], ...]:
+    if committed_control_window != 2:
+        raise ValueError(
+            "Gate 2 committed-control summary bootstrap is frozen to k=2"
+        )
+    if len(snapshots) != len(source_text_by_step):
+        raise ValueError(
+            "Gate 2 summary bootstrap requires aligned snapshots/prefixes"
+        )
+    candidates = _continuation_counterfactual_candidates()
+    if selector_artifact.action_count != len(candidates):
+        raise ValueError(
+            "Gate 2 summary bootstrap selector action count mismatch"
+        )
+    decoder = ResidualDecoder()
+    committed: tuple[tuple[float, ...], ...] = ()
+    histories: list[tuple[tuple[float, ...], ...]] = []
+    for step_index in range(len(snapshots) - 2):
+        histories.append(committed)
+        aggregate_control = _aggregate_committed_controls(
+            committed,
+            committed_control_window=committed_control_window,
+        )
+        controlled_state = _shadow_closed_loop_state_snapshot(
+            runtime=runtime,
+            source_text=source_text_by_step[step_index],
+            clean_snapshot=snapshots[step_index],
+            aggregate_control=aggregate_control,
+        )
+        predicted_values = selector_artifact.predict_action_values(
+            residual_action_state_vector(controlled_state)
+        )
+        selected_index = max(
+            range(len(predicted_values)),
+            key=lambda index: (predicted_values[index], -index),
+        )
+        decoded = decoder.decode(
+            latent_code=candidates[selected_index],
+            decoder_matrix=policy.parameter_store.decoder_matrix,
+            hidden_matrix=policy.parameter_store.decoder_hidden,
+        )
+        committed = (*committed, decoded.applied_control)
+    if len(histories) != len(snapshots) - 2:
+        raise RuntimeError(
+            f"Gate 2 summary bootstrap history count drifted for {case.case_id}"
+        )
+    return tuple(histories)
+
+
+def _conditioned_summary_training_examples(
+    *,
+    case: ETAProofCase,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    source_text_by_step: tuple[str, ...],
+    rollout: ZRollout,
+    proof_episode: InternalRLProofEpisode,
+    runtime: OpenWeightResidualRuntime,
+    policy: FullLearnedTemporalPolicy,
+    bootstrap_selector: KernelResidualActionSelectorArtifact,
+    score_cache: dict[tuple[str, str, tuple[float, ...]], float],
+    application_cache: dict[tuple[str, tuple[float, ...]], Any],
+    outcome_records: list[ETACounterfactualOutcomeRecord],
+    committed_control_window: int,
+) -> tuple[CounterfactualActionExample, ...]:
+    histories = _bootstrap_committed_control_histories(
+        case=case,
+        snapshots=snapshots,
+        source_text_by_step=source_text_by_step,
+        runtime=runtime,
+        policy=policy,
+        selector_artifact=bootstrap_selector,
+        committed_control_window=committed_control_window,
+    )
+    (
+        _conditioned_rollout,
+        _prediction_errors,
+        target_rows,
+        audit_rows,
+    ) = _with_counterfactual_environment_outcome_rewards(
+        case=case,
+        evidence_phase="summary-state-train",
+        runtime=runtime,
+        rollout=rollout,
+        substrate_steps=snapshots,
+        source_text_by_step=source_text_by_step,
+        proof_episode=proof_episode,
+        policy=policy,
+        application_cache=application_cache,
+        score_cache=score_cache,
+        outcome_records=outcome_records,
+        committed_control_histories=histories,
+        committed_control_window=committed_control_window,
+    )
+    if len(target_rows) != len(histories) or len(audit_rows) != len(histories):
+        raise RuntimeError(
+            "Gate 2 summary training rows lost alignment with committed "
+            f"histories for {case.case_id}"
+        )
+    examples = []
+    for step_index, (history, target_row, audit_row) in enumerate(
+        zip(histories, target_rows, audit_rows, strict=True)
+    ):
+        aggregate_control = _aggregate_committed_controls(
+            history,
+            committed_control_window=committed_control_window,
+        )
+        controlled_state = _shadow_closed_loop_state_snapshot(
+            runtime=runtime,
+            source_text=source_text_by_step[step_index],
+            clean_snapshot=snapshots[step_index],
+            aggregate_control=aggregate_control,
+        )
+        examples.append(
+            CounterfactualActionExample(
+                example_id=(
+                    f"{case.case_id}:summary-prefix-{step_index}"
+                ),
+                group_id=case.case_id,
+                split="train",
+                state_features=(
+                    residual_action_state_with_committed_control_summary(
+                        controlled_state,
+                        committed_controls=history,
+                        committed_control_window=(
+                            committed_control_window
+                        ),
+                        expected_control_dim=3,
+                    )
+                ),
+                candidate_raw_deltas=target_row,
+                audit_candidate_raw_deltas=audit_row,
+            )
+        )
+    return tuple(examples)
+
+
+def _shadow_closed_loop_records(
+    *,
+    run_id: str,
+    run_seed: int,
+    case: ETAProofCase,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    source_text_by_step: tuple[str, ...],
+    runtime: OpenWeightResidualRuntime,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None,
+    policy: FullLearnedTemporalPolicy,
+    selector_artifact: KernelResidualActionSelectorArtifact,
+    control_basis_fingerprint_value: str,
+    score_cache: dict[tuple[str, str, tuple[float, ...]], float],
+    committed_control_window: int | None = None,
+    committed_control_summary_state: bool = False,
+) -> tuple[ETAShadowClosedLoopRecord, ...]:
+    if len(snapshots) != len(source_text_by_step):
+        raise ValueError(
+            "Gate 2 closed-loop SHADOW requires aligned snapshots/prefixes"
+        )
+    scoreable_prefix_count = len(snapshots) - 2
+    if scoreable_prefix_count < 1:
+        raise ValueError(
+            "Gate 2 closed-loop SHADOW requires at least three prefixes"
+        )
+    if (
+        committed_control_summary_state
+        and committed_control_window != 2
+    ):
+        raise ValueError(
+            "Gate 2 committed-control summary state requires k=2"
+        )
+    runtime_descriptor = _open_weight_runtime_descriptor(
+        runtime=runtime,
+        config=open_weight_config,
+    )
+    runtime_descriptor_fingerprint = _stable_payload_fingerprint(
+        runtime_descriptor
+    )
+    selector_fingerprint = selector_artifact.model_fingerprint
+    candidates = _continuation_counterfactual_candidates()
+    if selector_artifact.action_count != len(candidates):
+        raise ValueError(
+            "Gate 2 closed-loop selector action count does not match the "
+            "frozen counterfactual candidate set"
+        )
+    decoder = ResidualDecoder()
+    selector_committed: tuple[tuple[float, ...], ...] = ()
+    permutation_committed: tuple[tuple[float, ...], ...] = ()
+    permutation_offset = (
+        int.from_bytes(
+            hashlib.sha256(
+                f"{run_seed}\x1f{case.case_id}".encode("utf-8")
+            ).digest()[:4],
+            byteorder="big",
+            signed=False,
+        )
+        % len(candidates)
+    )
+    records: list[ETAShadowClosedLoopRecord] = []
+    for step_index in range(scoreable_prefix_count):
+        source_text = source_text_by_step[step_index]
+        next_prefix = source_text_by_step[step_index + 1]
+        if not next_prefix.startswith(source_text):
+            raise ValueError(
+                "Gate 2 closed-loop SHADOW requires monotonically extended "
+                f"prefixes for {case.case_id} at step {step_index}"
+            )
+        realized_segment = next_prefix[len(source_text) :].strip()
+        if not realized_segment:
+            raise ValueError(
+                "Gate 2 closed-loop SHADOW requires a nonempty realized "
+                f"segment for {case.case_id} at step {step_index}"
+            )
+        zero_control = (0.0, 0.0, 0.0)
+        zero_nll = _continuation_nlls(
+            runtime=runtime,
+            source_text=source_text,
+            continuation_texts=(realized_segment,),
+            applied_control=zero_control,
+            score_cache=score_cache,
+        )[0]
+
+        selector_prior_control = _aggregate_committed_controls(
+            selector_committed,
+            committed_control_window=committed_control_window,
+        )
+        selector_state = _shadow_closed_loop_state_snapshot(
+            runtime=runtime,
+            source_text=source_text,
+            clean_snapshot=snapshots[step_index],
+            aggregate_control=selector_prior_control,
+        )
+        selector_features = (
+            residual_action_state_with_committed_control_summary(
+                selector_state,
+                committed_controls=selector_committed,
+                committed_control_window=committed_control_window,
+                expected_control_dim=3,
+            )
+            if committed_control_summary_state
+            else residual_action_state_vector(selector_state)
+        )
+        selector_values = selector_artifact.predict_action_values(
+            selector_features
+        )
+        selector_index = max(
+            range(len(selector_values)),
+            key=lambda index: (selector_values[index], -index),
+        )
+        selector_decoded = decoder.decode(
+            latent_code=candidates[selector_index],
+            decoder_matrix=policy.parameter_store.decoder_matrix,
+            hidden_matrix=policy.parameter_store.decoder_hidden,
+        )
+        selector_committed = (
+            *selector_committed,
+            selector_decoded.applied_control,
+        )
+        selector_aggregate = _aggregate_committed_controls(
+            selector_committed,
+            committed_control_window=committed_control_window,
+        )
+        selector_nll = _continuation_nlls(
+            runtime=runtime,
+            source_text=source_text,
+            continuation_texts=(realized_segment,),
+            applied_control=selector_aggregate,
+            score_cache=score_cache,
+        )[0]
+
+        permutation_prior_control = _aggregate_committed_controls(
+            permutation_committed,
+            committed_control_window=committed_control_window,
+        )
+        permutation_state = _shadow_closed_loop_state_snapshot(
+            runtime=runtime,
+            source_text=source_text,
+            clean_snapshot=snapshots[step_index],
+            aggregate_control=permutation_prior_control,
+        )
+        permutation_features = (
+            residual_action_state_with_committed_control_summary(
+                permutation_state,
+                committed_controls=permutation_committed,
+                committed_control_window=committed_control_window,
+                expected_control_dim=3,
+            )
+            if committed_control_summary_state
+            else residual_action_state_vector(permutation_state)
+        )
+        permutation_values = selector_artifact.predict_action_values(
+            permutation_features
+        )
+        permutation_index = (
+            permutation_offset + step_index
+        ) % len(candidates)
+        permutation_decoded = decoder.decode(
+            latent_code=candidates[permutation_index],
+            decoder_matrix=policy.parameter_store.decoder_matrix,
+            hidden_matrix=policy.parameter_store.decoder_hidden,
+        )
+        permutation_committed = (
+            *permutation_committed,
+            permutation_decoded.applied_control,
+        )
+        permutation_aggregate = _aggregate_committed_controls(
+            permutation_committed,
+            committed_control_window=committed_control_window,
+        )
+        permutation_nll = _continuation_nlls(
+            runtime=runtime,
+            source_text=source_text,
+            continuation_texts=(realized_segment,),
+            applied_control=permutation_aggregate,
+            score_cache=score_cache,
+        )[0]
+
+        arm_values = (
+            (
+                "zero-control",
+                0,
+                selector_values[0],
+                zero_control,
+                zero_control,
+                zero_nll,
+                0,
+                0,
+                (
+                    residual_action_state_with_committed_control_summary(
+                        snapshots[step_index],
+                        committed_controls=(),
+                        committed_control_window=committed_control_window,
+                        expected_control_dim=3,
+                    )
+                    if committed_control_summary_state
+                    else residual_action_state_vector(
+                        snapshots[step_index]
+                    )
+                ),
+            ),
+            (
+                "selector",
+                selector_index,
+                selector_values[selector_index],
+                selector_decoded.applied_control,
+                selector_aggregate,
+                selector_nll,
+                len(selector_committed),
+                min(
+                    len(selector_committed),
+                    committed_control_window
+                    if committed_control_window is not None
+                    else len(selector_committed),
+                ),
+                selector_features,
+            ),
+            (
+                "permutation-null",
+                permutation_index,
+                permutation_values[permutation_index],
+                permutation_decoded.applied_control,
+                permutation_aggregate,
+                permutation_nll,
+                len(permutation_committed),
+                min(
+                    len(permutation_committed),
+                    committed_control_window
+                    if committed_control_window is not None
+                    else len(permutation_committed),
+                ),
+                permutation_features,
+            ),
+        )
+        for (
+            arm,
+            selected_index,
+            predicted_value,
+            step_control,
+            aggregate_control,
+            observed_nll,
+            committed_count,
+            active_count,
+            state_features,
+        ) in arm_values:
+            records.append(
+                ETAShadowClosedLoopRecord(
+                    run_id=run_id,
+                    run_seed=run_seed,
+                    split=case.split,
+                    case_id=case.case_id,
+                    step_index=step_index,
+                    arm=arm,
+                    selected_action_index=selected_index,
+                    predicted_action_value=predicted_value,
+                    step_control=step_control,
+                    aggregate_control=aggregate_control,
+                    zero_control_mean_nll=zero_nll,
+                    observed_mean_nll=observed_nll,
+                    realized_delta=zero_nll - observed_nll,
+                    committed_control_count=committed_count,
+                    state_features_fingerprint=(
+                        _stable_payload_fingerprint(state_features)
+                    ),
+                    selector_fingerprint=selector_fingerprint,
+                    control_basis_fingerprint=(
+                        control_basis_fingerprint_value
+                    ),
+                    runtime_descriptor_fingerprint=(
+                        runtime_descriptor_fingerprint
+                    ),
+                    side_effect_free=False,
+                    active_control_count=active_count,
+                    committed_control_window=committed_control_window,
+                )
+            )
+    if selector_artifact.model_fingerprint != selector_fingerprint:
+        raise RuntimeError(
+            "Gate 2 closed-loop SHADOW mutated the frozen selector artifact"
+        )
+    after_runtime_descriptor = _open_weight_runtime_descriptor(
+        runtime=runtime,
+        config=open_weight_config,
+    )
+    if after_runtime_descriptor != runtime_descriptor:
+        raise RuntimeError(
+            "Gate 2 closed-loop SHADOW mutated the runtime descriptor"
+        )
+    return tuple(
+        replace(record, side_effect_free=True)
+        for record in records
+    )
+
+
+def _counterfactual_diagnostic_metrics(
+    prefix_candidate_prediction_errors: tuple[
+        tuple[float, ...],
+        ...,
+    ],
+) -> tuple[tuple[str, float], ...]:
+    if not prefix_candidate_prediction_errors:
+        return (
+            ("continuation_counterfactual_prefix_count", 0.0),
+            ("continuation_counterfactual_oracle_mean_raw_delta", 0.0),
+            ("continuation_counterfactual_oracle_positive_rate", 0.0),
+            (
+                "continuation_counterfactual_best_fixed_mean_raw_delta",
+                0.0,
+            ),
+            (
+                "continuation_counterfactual_oracle_vs_fixed_gap",
+                0.0,
+            ),
+        )
+    candidate_count = len(prefix_candidate_prediction_errors[0])
+    if candidate_count == 0 or any(
+        len(values) != candidate_count
+        for values in prefix_candidate_prediction_errors
+    ):
+        raise ValueError(
+            "counterfactual diagnostics require a non-empty rectangular "
+            "candidate score grid"
+        )
+    oracle_deltas = tuple(
+        max(values) for values in prefix_candidate_prediction_errors
+    )
+    fixed_candidate_means = tuple(
+        _mean(
+            tuple(
+                values[candidate_index]
+                for values in prefix_candidate_prediction_errors
+            )
+        )
+        for candidate_index in range(candidate_count)
+    )
+    oracle_mean = _mean(oracle_deltas)
+    best_fixed_mean = max(fixed_candidate_means)
+    return (
+        (
+            "continuation_counterfactual_prefix_count",
+            float(len(prefix_candidate_prediction_errors)),
+        ),
+        (
+            "continuation_counterfactual_oracle_mean_raw_delta",
+            oracle_mean,
+        ),
+        (
+            "continuation_counterfactual_oracle_positive_rate",
+            _mean(
+                tuple(
+                    1.0 if value > 0.0 else 0.0
+                    for value in oracle_deltas
+                )
+            ),
+        ),
+        (
+            "continuation_counterfactual_best_fixed_mean_raw_delta",
+            best_fixed_mean,
+        ),
+        (
+            "continuation_counterfactual_oracle_vs_fixed_gap",
+            oracle_mean - best_fixed_mean,
+        ),
+    )
+
+
+def _scoped_counterfactual_diagnostic_metrics(
+    prefix_candidate_prediction_errors: tuple[
+        tuple[float, ...],
+        ...,
+    ],
+    *,
+    scope: str,
+) -> tuple[tuple[str, float], ...]:
+    if not scope or not scope.replace("-", "_").isidentifier():
+        raise ValueError(
+            f"counterfactual diagnostic scope must be an identifier, got {scope!r}"
+        )
+    marker = "continuation_counterfactual_"
+    return tuple(
+        (
+            metric_name.replace(
+                marker,
+                f"{marker}{scope}_",
+                1,
+            ),
+            value,
+        )
+        for metric_name, value in _counterfactual_diagnostic_metrics(
+            prefix_candidate_prediction_errors
+        )
+    )
+
+
+def _snapshot_signature(snapshot: SubstrateSnapshot) -> tuple[float, float, float]:
+    sequence = snapshot.residual_sequence
+    if not sequence:
+        return summarize_residual_activations(snapshot.residual_activations, snapshot.feature_surface)
+    summaries = tuple(
+        summarize_residual_activations(step.residual_activations, step.feature_surface)
+        for step in sequence
+    )
+    return tuple(
+        sum(summary[index] for summary in summaries) / max(len(summaries), 1)
+        for index in range(3)
+    )
+
+
+def _ssl_structure_state(
+    checkpoint: CausalPolicyCheckpoint,
+) -> tuple[object, ...]:
+    snapshot = checkpoint.metacontroller_snapshot
+    return (
+        snapshot.encoder_weights,
+        snapshot.encoder_recurrence,
+        snapshot.switch_weights,
+        snapshot.beta_threshold,
+        snapshot.decoder_matrix,
+        snapshot.decoder_hidden,
+        snapshot.ndim_encoder_parameters,
+        snapshot.ndim_switch_parameters,
+        snapshot.ndim_decoder_parameters,
+        snapshot.encoder_optimizer_state,
+        snapshot.decoder_optimizer_state,
+    )
+
+
+def _calibrate_case_for_real_snapshots(
+    case: ETAProofCase,
+    *,
+    snapshots: tuple[SubstrateSnapshot, ...],
+    enabled: bool,
+) -> ETAProofCase:
+    if not enabled or not snapshots or not case.proof_episode.subgoals:
+        return case
+    signature_count = len(snapshots)
+    subgoal_count = len(case.proof_episode.subgoals)
+    calibrated_subgoals: list[InternalRLProofSubgoal] = []
+    for index, subgoal in enumerate(case.proof_episode.subgoals):
+        if subgoal_count == 1:
+            snapshot_index = signature_count - 1
+        else:
+            snapshot_index = round(index * (signature_count - 1) / max(subgoal_count - 1, 1))
+        target_signature = _snapshot_signature(snapshots[max(0, min(snapshot_index, signature_count - 1))])
+        calibrated_subgoals.append(
+            replace(
+                subgoal,
+                target_signature=target_signature,
+                completion_threshold=min(subgoal.completion_threshold, 0.68),
+                observation_weight=max(subgoal.observation_weight, 0.58),
+                effect_weight=min(subgoal.effect_weight, 0.28),
+                control_weight=min(subgoal.control_weight, 0.14),
+            )
+        )
+    return replace(
+        case,
+        proof_episode=replace(
+            case.proof_episode,
+            subgoals=tuple(calibrated_subgoals),
+            description=(
+                f"{case.proof_episode.description} Calibrated against frozen real residual prefixes."
+                if case.proof_episode.description
+                else "Calibrated against frozen real residual prefixes."
+            ),
+        ),
+    )
+
+
+def _credit_alignment_score(rollout: ZRollout) -> float:
+    sandbox = InternalRLSandbox()
+    return sandbox._delayed_credit_alignment((rollout,))
+
+
+def _reward_source_mix(
+    *,
+    proof_episode: InternalRLProofEpisode,
+    rollout: ZRollout,
+) -> tuple[tuple[str, str, float], ...]:
+    totals: dict[tuple[str, str], float] = {}
+    for transition in rollout.transitions:
+        for component_name, value in transition.reward_components:
+            kind = proof_episode.reward_kind_for(component_name)
+            key = (component_name, kind)
+            totals[key] = totals.get(key, 0.0) + abs(value)
+    return tuple(
+        (component_name, kind, round(total, 4))
+        for (component_name, kind), total in sorted(totals.items())
+    )
+
+
+def _reward_shaping_leakage(reward_source_mix: tuple[tuple[str, str, float], ...]) -> float:
+    total = sum(value for _, _, value in reward_source_mix)
+    if total <= 1e-8:
+        return 0.0
+    shaping = sum(value for _, kind, value in reward_source_mix if kind == "shaping")
+    return round(shaping / total, 4)
+
+
+def _episode_report(
+    *,
+    case: ETAProofCase,
+    rollout: ZRollout,
+    profile_label: str,
+    backend_label: str,
+    family_registry: dict[str, set[str]],
+    continuation_scores: tuple[ContinuationScore | None, ...] = (),
+) -> ETAProofEpisodeReport:
+    if continuation_scores and len(continuation_scores) != len(
+        rollout.transitions
+    ):
+        raise ValueError(
+            "continuation score count must match rollout transition count"
+        )
+    completed_pairs = tuple(zip(rollout.completed_subgoals, rollout.completed_family_ids, strict=True))
+    expected_subgoal_ids = tuple(subgoal.subgoal_id for subgoal in case.proof_episode.subgoals)
+    first_missed_subgoal = next(
+        (subgoal_id for subgoal_id in expected_subgoal_ids if subgoal_id not in rollout.completed_subgoals),
+        "none",
+    )
+    family_miss_rate = (
+        sum(1.0 for family_id in rollout.completed_family_ids if family_id == "unassigned")
+        / len(rollout.completed_family_ids)
+        if rollout.completed_family_ids
+        else (1.0 if rollout.completed_subgoals else 0.0)
+    )
+    credit_window_miss_rate = _credit_window_miss_rate(rollout)
+    terminal_credit_coverage = float(
+        rollout.terminal_success
+        and any(assignment.reason == "terminal-success" for assignment in rollout.delayed_credit_assignments)
+    )
+    reusable_pairs = tuple(
+        (subgoal_id, family_id)
+        for subgoal_id, family_id in completed_pairs
+        if family_id != "unassigned" and family_registry.get(subgoal_id)
+    )
+    reuse_hits = sum(
+        1
+        for subgoal_id, family_id in reusable_pairs
+        if family_id in family_registry[subgoal_id]
+    )
+    subgoal_completion_rate = len(rollout.completed_subgoals) / max(len(case.proof_episode.subgoals), 1)
+    family_reuse_rate = reuse_hits / max(len(reusable_pairs), 1) if reusable_pairs else 0.0
+    switch_sparsity = _mean(tuple(1.0 - transition.controller_state.switch_gate for transition in rollout.transitions))
+    mean_persistence = _mean(tuple(float(transition.controller_state.steps_since_switch) for transition in rollout.transitions))
+    raw_total_reward = sum(transition.raw_reward for transition in rollout.transitions)
+    reward_source_mix = _reward_source_mix(
+        proof_episode=case.proof_episode,
+        rollout=rollout,
+    )
+    reward_shaping_leakage = _reward_shaping_leakage(reward_source_mix)
+    reward_sparsity = round(1.0 - reward_shaping_leakage, 4)
+    (
+        mean_steps_per_abstract_action,
+        median_steps_per_abstract_action,
+        persistence_window_success_rate,
+        premature_switch_rate,
+        always_switch_rate,
+        never_switch_rate,
+    ) = _persistence_metrics(rollout)
+    intervention_application_count = sum(
+        1
+        for transition in rollout.transitions
+        if transition.backend_name != "noop-residual-backend"
+    )
+    mean_replacement_effect_delta = _mean(tuple(transition.replacement_effect_delta for transition in rollout.transitions))
+    residual_signal_quality = _mean(
+        tuple(
+            min(
+                _mean_control_magnitude(transition.downstream_effect) * 2.0
+                + transition.backend_fidelity * 0.50,
+                1.0,
+            )
+            for transition in rollout.transitions
+        )
+    )
+    credit_alignment = _credit_alignment_score(rollout)
+    task_success_core = (
+        float(rollout.terminal_success) * 0.40
+        + subgoal_completion_rate * 0.25
+        + family_reuse_rate * 0.20
+        + credit_alignment * 0.15
+    )
+    switch_discipline_score = _switch_discipline_score(
+        switch_sparsity=switch_sparsity,
+        mean_persistence=mean_persistence,
+    )
+    backend_quality = min(1.0, _mean(tuple(transition.backend_fidelity for transition in rollout.transitions)) / 0.6)
+    mechanism_evidence_score = backend_quality * 0.70 + switch_discipline_score * 0.30
+    strong_success_score = (
+        task_success_core * 0.90
+        + mechanism_evidence_score * 0.10
+    )
+    if not rollout.terminal_success:
+        strong_success_score *= 0.65
+    return ETAProofEpisodeReport(
+        case_id=case.case_id,
+        split=case.split,
+        profile_label=profile_label,
+        backend_label=backend_label,
+        total_reward=rollout.total_reward,
+        raw_total_reward=raw_total_reward,
+        terminal_success=rollout.terminal_success,
+        completed_subgoals=rollout.completed_subgoals,
+        completed_family_ids=rollout.completed_family_ids,
+        subgoal_completion_rate=subgoal_completion_rate,
+        family_reuse_rate=family_reuse_rate,
+        switch_sparsity=switch_sparsity,
+        mean_persistence=mean_persistence,
+        credit_alignment=credit_alignment,
+        backend_fidelity=_mean(tuple(transition.backend_fidelity for transition in rollout.transitions)),
+        action_family_count=len({family_id for family_id in rollout.completed_family_ids if family_id != "unassigned"}),
+        delayed_credit_assignment_count=len(rollout.delayed_credit_assignments),
+        task_success_core=task_success_core,
+        switch_discipline_score=switch_discipline_score,
+        mechanism_evidence_score=mechanism_evidence_score,
+        strong_success_score=strong_success_score,
+        split_detail=case.split_detail,
+        reward_profile=case.reward_profile,
+        reward_source_mix=reward_source_mix,
+        reward_shaping_leakage=reward_shaping_leakage,
+        reward_sparsity=reward_sparsity,
+        route_length=case.route_length,
+        distractor_count=case.distractor_count,
+        mean_steps_per_abstract_action=mean_steps_per_abstract_action,
+        median_steps_per_abstract_action=median_steps_per_abstract_action,
+        persistence_window_success_rate=persistence_window_success_rate,
+        premature_switch_rate=premature_switch_rate,
+        always_switch_rate=always_switch_rate,
+        never_switch_rate=never_switch_rate,
+        intervention_application_count=intervention_application_count,
+        mean_replacement_effect_delta=mean_replacement_effect_delta,
+        residual_signal_quality=residual_signal_quality,
+        first_missed_subgoal=first_missed_subgoal,
+        family_miss_rate=family_miss_rate,
+        credit_window_miss_rate=credit_window_miss_rate,
+        terminal_credit_coverage=terminal_credit_coverage,
+        description=(
+            f"{profile_label} on {case.case_id} ({backend_label}) "
+            f"success={rollout.terminal_success} completed={len(rollout.completed_subgoals)}/{len(case.proof_episode.subgoals)}."
+        ),
+        intervention_records=tuple(
+            ETAResidualInterventionRecord(
+                step_index=transition.step_index,
+                residual_control_mode=transition.residual_control_mode,
+                decoder_output=transition.decoder_output,
+                control_before_ablation=transition.control_before_ablation,
+                applied_control=transition.applied_control,
+                downstream_effect=transition.downstream_effect,
+                applied_control_magnitude=_mean_control_magnitude(
+                    transition.applied_control
+                ),
+                downstream_effect_magnitude=_mean_control_magnitude(
+                    transition.downstream_effect
+                ),
+                replacement_effect_delta=transition.replacement_effect_delta,
+                reward=transition.reward,
+                switch_gate=transition.controller_state.switch_gate,
+                active_family_id=transition.active_family_id,
+                proof_terminal_success=transition.proof_terminal_success,
+                backend_name=transition.backend_name,
+                continuation_text=(
+                    continuation_scores[index].continuation_text
+                    if continuation_scores
+                    and continuation_scores[index] is not None
+                    else ""
+                ),
+                continuation_token_count=(
+                    continuation_scores[index].token_count
+                    if continuation_scores
+                    and continuation_scores[index] is not None
+                    else 0
+                ),
+                continuation_mean_nll=(
+                    continuation_scores[
+                        index
+                    ].mean_negative_log_likelihood
+                    if continuation_scores
+                    and continuation_scores[index] is not None
+                    else None
+                ),
+                continuation_geometric_mean_probability=(
+                    continuation_scores[
+                        index
+                    ].geometric_mean_probability
+                    if continuation_scores
+                    and continuation_scores[index] is not None
+                    else None
+                ),
+            )
+            for index, transition in enumerate(rollout.transitions)
+        ),
+    )
+
+
+def _update_family_registry(registry: dict[str, set[str]], rollout: ZRollout) -> None:
+    for subgoal_id, family_id in zip(rollout.completed_subgoals, rollout.completed_family_ids, strict=True):
+        if family_id == "unassigned":
+            continue
+        registry.setdefault(subgoal_id, set()).add(family_id)
+
+
+def _profile_metric_means(episode_reports: tuple[ETAProofEpisodeReport, ...]) -> tuple[tuple[str, float], ...]:
+    eval_reports = tuple(report for report in episode_reports if report.split == "eval")
+    heldout_reports = tuple(report for report in episode_reports if report.split == "heldout")
+    return (
+        ("mean_total_reward", _mean(tuple(report.total_reward for report in episode_reports))),
+        ("mean_raw_total_reward", _mean(tuple(report.raw_total_reward for report in episode_reports))),
+        ("terminal_success_rate", _mean(tuple(float(report.terminal_success) for report in episode_reports))),
+        ("eval_terminal_success_rate", _mean(tuple(float(report.terminal_success) for report in eval_reports))),
+        ("heldout_terminal_success_rate", _mean(tuple(float(report.terminal_success) for report in heldout_reports))),
+        ("mean_subgoal_completion_rate", _mean(tuple(report.subgoal_completion_rate for report in episode_reports))),
+        ("eval_subgoal_completion_rate", _mean(tuple(report.subgoal_completion_rate for report in eval_reports))),
+        ("heldout_subgoal_completion_rate", _mean(tuple(report.subgoal_completion_rate for report in heldout_reports))),
+        ("mean_family_reuse_rate", _mean(tuple(report.family_reuse_rate for report in episode_reports))),
+        ("eval_family_reuse_rate", _mean(tuple(report.family_reuse_rate for report in eval_reports))),
+        ("heldout_family_reuse_rate", _mean(tuple(report.family_reuse_rate for report in heldout_reports))),
+        ("mean_switch_sparsity", _mean(tuple(report.switch_sparsity for report in episode_reports))),
+        ("mean_reward_sparsity", _mean(tuple(report.reward_sparsity for report in episode_reports))),
+        ("heldout_reward_sparsity", _mean(tuple(report.reward_sparsity for report in heldout_reports))),
+        ("reward_shaping_leakage", _mean(tuple(report.reward_shaping_leakage for report in episode_reports))),
+        ("heldout_reward_shaping_leakage", _mean(tuple(report.reward_shaping_leakage for report in heldout_reports))),
+        ("mean_route_length", _mean(tuple(float(report.route_length) for report in episode_reports))),
+        ("mean_distractor_count", _mean(tuple(float(report.distractor_count) for report in episode_reports))),
+        (
+            "mean_steps_per_abstract_action",
+            _mean(tuple(report.mean_steps_per_abstract_action for report in episode_reports)),
+        ),
+        (
+            "median_steps_per_abstract_action",
+            _median(tuple(report.median_steps_per_abstract_action for report in episode_reports)),
+        ),
+        (
+            "persistence_window_success_rate",
+            _mean(tuple(report.persistence_window_success_rate for report in episode_reports)),
+        ),
+        ("premature_switch_rate", _mean(tuple(report.premature_switch_rate for report in episode_reports))),
+        ("always_switch_rate", _mean(tuple(report.always_switch_rate for report in episode_reports))),
+        ("never_switch_rate", _mean(tuple(report.never_switch_rate for report in episode_reports))),
+        (
+            "intervention_application_count",
+            _mean(tuple(float(report.intervention_application_count) for report in episode_reports)),
+        ),
+        (
+            "episode_replacement_effect_delta",
+            _mean(tuple(report.mean_replacement_effect_delta for report in episode_reports)),
+        ),
+        ("residual_signal_quality", _mean(tuple(report.residual_signal_quality for report in episode_reports))),
+        ("family_miss_rate", _mean(tuple(report.family_miss_rate for report in episode_reports))),
+        ("heldout_family_miss_rate", _mean(tuple(report.family_miss_rate for report in heldout_reports))),
+        ("credit_window_miss_rate", _mean(tuple(report.credit_window_miss_rate for report in episode_reports))),
+        ("heldout_credit_window_miss_rate", _mean(tuple(report.credit_window_miss_rate for report in heldout_reports))),
+        ("terminal_credit_coverage", _mean(tuple(report.terminal_credit_coverage for report in episode_reports))),
+        ("heldout_terminal_credit_coverage", _mean(tuple(report.terminal_credit_coverage for report in heldout_reports))),
+        ("mean_credit_alignment", _mean(tuple(report.credit_alignment for report in episode_reports))),
+        ("eval_credit_alignment", _mean(tuple(report.credit_alignment for report in eval_reports))),
+        ("heldout_credit_alignment", _mean(tuple(report.credit_alignment for report in heldout_reports))),
+        ("mean_task_success_core", _mean(tuple(report.task_success_core for report in episode_reports))),
+        ("eval_task_success_core", _mean(tuple(report.task_success_core for report in eval_reports))),
+        ("heldout_task_success_core", _mean(tuple(report.task_success_core for report in heldout_reports))),
+        ("mean_switch_discipline_score", _mean(tuple(report.switch_discipline_score for report in episode_reports))),
+        ("heldout_switch_discipline_score", _mean(tuple(report.switch_discipline_score for report in heldout_reports))),
+        ("mean_mechanism_evidence_score", _mean(tuple(report.mechanism_evidence_score for report in episode_reports))),
+        ("heldout_mechanism_evidence_score", _mean(tuple(report.mechanism_evidence_score for report in heldout_reports))),
+        ("mean_strong_success_rate", _mean(tuple(report.strong_success_score for report in episode_reports))),
+        ("eval_strong_success_rate", _mean(tuple(report.strong_success_score for report in eval_reports))),
+        ("heldout_strong_success_rate", _mean(tuple(report.strong_success_score for report in heldout_reports))),
+        ("heldout_strong_success_std", _std(tuple(report.strong_success_score for report in heldout_reports))),
+        ("mean_backend_fidelity", _mean(tuple(report.backend_fidelity for report in episode_reports))),
+    )
+
+
+def _control_reports_for_gate(
+    *,
+    report_map: dict[str, ETAProofProfileReport],
+    exclude_labels: tuple[str, ...] = ("full-internal-rl", "full-bootstrap-init"),
+) -> tuple[ETAProofProfileReport, ...]:
+    return tuple(
+        report
+        for label, report in report_map.items()
+        if label not in exclude_labels
+    )
+
+
+def _best_control_metric(
+    *,
+    control_reports: tuple[ETAProofProfileReport, ...],
+    metric_name: str,
+) -> tuple[str, float]:
+    best_label = "none"
+    best_value = 0.0
+    for report in control_reports:
+        candidate_value = dict(report.metric_means).get(metric_name, 0.0)
+        if candidate_value > best_value or best_label == "none":
+            best_label = report.profile_label
+            best_value = candidate_value
+    return best_label, best_value
+
+
+def _eta_mechanism_strength(report: ETAProofProfileReport) -> float:
+    metrics = dict(report.metric_means)
+    return round(
+        max(0.0, metrics.get("temporal_fast_prior_strength", 0.0)) * 0.025
+        + max(0.0, report.mean_replacement_effect_delta) * 1.2,
+        4,
+    )
+
+
+def _eta_mechanism_tie_break_margin(
+    *,
+    raw_success_delta: float,
+    full_report: ETAProofProfileReport,
+    control_report: ETAProofProfileReport | None,
+) -> float:
+    if control_report is None:
+        return 0.0
+    if raw_success_delta < -ETA_MECHANISM_TIE_TOLERANCE:
+        return 0.0
+    return max(0.0, _eta_mechanism_strength(full_report) - _eta_mechanism_strength(control_report))
+
+
+def _eta_effective_success_margin(
+    *,
+    raw_success_delta: float,
+    full_report: ETAProofProfileReport,
+    control_report: ETAProofProfileReport | None,
+) -> float:
+    return max(
+        raw_success_delta,
+        _eta_mechanism_tie_break_margin(
+            raw_success_delta=raw_success_delta,
+            full_report=full_report,
+            control_report=control_report,
+        ),
+    )
+
+
+def _best_eta_sparse_reward_control(
+    *,
+    control_reports: tuple[ETAProofProfileReport, ...],
+) -> ETAProofProfileReport | None:
+    best_report: ETAProofProfileReport | None = None
+    best_success = float("-inf")
+    best_mechanism_strength = float("-inf")
+    for report in control_reports:
+        candidate_success = dict(report.metric_means).get("heldout_strong_success_rate", 0.0)
+        candidate_mechanism_strength = _eta_mechanism_strength(report)
+        if candidate_success > best_success + 1e-9:
+            best_report = report
+            best_success = candidate_success
+            best_mechanism_strength = candidate_mechanism_strength
+            continue
+        if abs(candidate_success - best_success) <= 1e-9 and candidate_mechanism_strength > best_mechanism_strength:
+            best_report = report
+            best_success = candidate_success
+            best_mechanism_strength = candidate_mechanism_strength
+    return best_report
+
+
+def _real_residual_control_score(report: ETAProofProfileReport) -> float:
+    metrics = dict(report.metric_means)
+    causal_replacement = 0.0 if report.profile_label == "full-no-replacement" else 1.0
+    real_backend_evidence = min(metrics.get("real_open_weight_capture_rate", 0.0), 1.0) * (
+        1.0 - min(metrics.get("real_open_weight_fallback_rate", 1.0), 1.0)
+    ) * min(metrics.get("real_open_weight_hook_fire_rate", metrics.get("real_open_weight_hook_coverage", 0.0)), 1.0)
+    protocol_evidence = min(metrics.get("real_open_weight_intervention_protocol_valid", 0.0), 1.0)
+    return round(
+        metrics.get("heldout_strong_success_rate", 0.0)
+        + max(0.0, report.mean_replacement_effect_delta) * 0.25
+        + min(report.training_parameter_change_rate, 1.0) * 0.025
+        + causal_replacement * 0.025
+        + real_backend_evidence * 0.020
+        + protocol_evidence * 0.005,
+        4,
+    )
+
+
+def _real_residual_policy_control_reports(
+    *,
+    report_map: dict[str, ETAProofProfileReport],
+) -> tuple[ETAProofProfileReport, ...]:
+    excluded_labels = {"full-internal-rl", "full-bootstrap-init", "noop-backend"}
+    return tuple(
+        report
+        for label, report in report_map.items()
+        if label not in excluded_labels
+    )
+
+
+def _best_real_residual_policy_control(
+    *,
+    report_map: dict[str, ETAProofProfileReport],
+) -> ETAProofProfileReport | None:
+    controls = _real_residual_policy_control_reports(report_map=report_map)
+    best_report: ETAProofProfileReport | None = None
+    best_score = float("-inf")
+    for report in controls:
+        candidate_score = _real_residual_control_score(report)
+        if candidate_score > best_score:
+            best_report = report
+            best_score = candidate_score
+    return best_report
+
+
+def run_eta_internal_rl_proof_benchmark(
+    *,
+    cases: tuple[ETAProofCase, ...] = default_eta_proof_cases(),
+    profile_labels: tuple[str, ...] = default_eta_proof_profiles(),
+    baseline_label: str = "full-internal-rl",
+    backend_label: str = "trace",
+    train_epochs: int = 2,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
+    use_real_substrate_steps: bool | None = None,
+    training_signal: str = ETA_PROOF_TRAINING_SIGNAL,
+    latent_unit_clamp: bool = False,
+    real_residual_ssl_bootstrap: bool = False,
+    causal_action_head_active: bool = False,
+    causal_action_head_state_dim: int | None = None,
+    continuation_counterfactual_grid: bool = False,
+    counterfactual_action_selector_diagnostic: bool = False,
+    counterfactual_target_mode: str = (
+        ETA_COUNTERFACTUAL_TARGET_OBSERVED
+    ),
+    counterfactual_target_sample_count: int = 1,
+    counterfactual_audit_sample_count: int = 0,
+    counterfactual_sampling_temperature: float = 0.8,
+    counterfactual_sampling_max_new_tokens: int = 4,
+    shadow_closed_loop_arm: bool = False,
+    shadow_committed_control_window: int | None = None,
+    shadow_committed_control_summary_state: bool = False,
+    evidence_run_id: str = "eta-proof-direct",
+    evidence_run_seed: int = 0,
+    control_basis_fingerprint_value: str = "",
+) -> ETAProofBenchmarkReport:
+    if (
+        shadow_committed_control_window is not None
+        and shadow_committed_control_window not in {1, 2}
+    ):
+        raise ValueError(
+            "Gate 2 recent-k diagnostic only permits committed control "
+            "windows 1 and 2"
+        )
+    if (
+        shadow_committed_control_window is not None
+        and not shadow_closed_loop_arm
+    ):
+        raise ValueError(
+            "Gate 2 committed control window requires the closed-loop "
+            "SHADOW arm"
+        )
+    if shadow_committed_control_summary_state and (
+        not shadow_closed_loop_arm
+        or shadow_committed_control_window != 2
+        or counterfactual_target_mode
+        != ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+    ):
+        raise ValueError(
+            "Gate 2 committed-control summary state requires the "
+            "closed-loop SHADOW arm, k=2, and the environment-outcome "
+            "counterfactual target"
+        )
+    if training_signal not in {
+        ETA_PROOF_TRAINING_SIGNAL,
+        ETA_CONTINUATION_PE_TRAINING_SIGNAL,
+    }:
+        raise ValueError(
+            f"Unsupported ETA proof training signal {training_signal!r}."
+        )
+    profile_reports: list[ETAProofProfileReport] = []
+    benchmark_rollout_batch_count = 0
+    active_open_weight_runtime = open_weight_runtime
+    if backend_label == "transformers-open-weight" and active_open_weight_runtime is None:
+        active_open_weight_runtime = _build_eta_open_weight_runtime(open_weight_config)
+    if backend_label == "transformers-open-weight" and active_open_weight_runtime is not None:
+        _validate_eta_open_weight_runtime(
+            runtime=active_open_weight_runtime,
+            config=open_weight_config,
+        )
+    if (
+        training_signal == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+        and (
+            backend_label != "transformers-open-weight"
+            or active_open_weight_runtime is None
+        )
+    ):
+        raise ValueError(
+            "continuation prediction-error training requires a real "
+            "transformers-open-weight runtime"
+        )
+    real_steps_enabled = (
+        backend_label == "transformers-open-weight"
+        if use_real_substrate_steps is None
+        else use_real_substrate_steps
+    )
+    shared_baseline_checkpoint: CausalPolicyCheckpoint | None = None
+    shared_family_registry: dict[str, set[str]] = {}
+    shared_checkpoint_required = any(
+        _profile_config(label).reuse_baseline_checkpoint
+        for label in profile_labels
+    )
+    for profile_label in profile_labels:
+        profile = _profile_config(profile_label)
+        train_cases = tuple(case for case in cases if case.split == "train")
+        eval_cases = tuple(case for case in cases if case.split != "train")
+        bootstrap_enabled = (
+            profile.policy_kind == "full"
+            and (
+                profile.bootstrap_init
+                or (
+                    real_residual_ssl_bootstrap
+                    and profile_label == baseline_label
+                )
+            )
+        )
+        bootstrap_snapshot = None
+        if bootstrap_enabled:
+            bootstrap_snapshot = _bootstrap_snapshot_for_cases(
+                train_cases or eval_cases,
+                open_weight_runtime=(
+                    active_open_weight_runtime
+                    if real_residual_ssl_bootstrap
+                    else None
+                ),
+                open_weight_config=open_weight_config,
+            )
+        sandbox = _build_sandbox(
+            profile=profile,
+            backend_label=backend_label,
+            bootstrap_snapshot=bootstrap_snapshot,
+            open_weight_runtime=active_open_weight_runtime,
+            latent_unit_clamp=latent_unit_clamp,
+            causal_action_head_active=causal_action_head_active,
+            causal_action_head_state_dim=causal_action_head_state_dim,
+        )
+        shared_policy_fingerprint_match_at_eval_start = False
+        if profile.reuse_baseline_checkpoint:
+            if shared_baseline_checkpoint is None:
+                raise ValueError(
+                    "matched residual controls require full-internal-rl "
+                    "to run first and publish a shared trained checkpoint"
+                )
+            sandbox.restore_checkpoint(shared_baseline_checkpoint)
+            family_registry = {
+                key: set(values)
+                for key, values in shared_family_registry.items()
+            }
+            shared_policy_fingerprint_match_at_eval_start = (
+                sandbox.create_checkpoint(
+                    checkpoint_id="shared-policy-pre-eval-audit"
+                ).policy_optimization_fingerprint
+                == shared_baseline_checkpoint.policy_optimization_fingerprint
+            )
+        else:
+            family_registry = {}
+        training_update_count = 0
+        rollout_batch_count = 0
+        training_transition_count = 0
+        training_parameter_change_count = 0
+        parameter_change_norms: list[float] = []
+        value_losses: list[float] = []
+        replacement_effect_deltas: list[float] = []
+        continuation_training_prediction_errors: list[float] = []
+        continuation_counterfactual_diagnostics: list[
+            tuple[float, ...]
+        ] = []
+        selector_training_examples: dict[
+            str,
+            CounterfactualActionExample,
+        ] = {}
+        selector_selections: list[
+            CounterfactualActionSelection
+        ] = []
+        counterfactual_outcome_records: list[
+            ETACounterfactualOutcomeRecord
+        ] = []
+        selector_artifact = None
+        shadow_selector_artifact = None
+        selector_artifact_payload: dict[str, object] | None = None
+        selector_model_candidate_count = 0
+        shadow_closed_loop_records: list[
+            ETAShadowClosedLoopRecord
+        ] = []
+        evaluation_counterfactual_diagnostics: dict[
+            str,
+            list[tuple[float, ...]],
+        ] = {
+            "eval": [],
+            "heldout": [],
+            "validation": [],
+            "confirmation": [],
+        }
+        continuation_score_cache: dict[
+            tuple[str, str, tuple[float, ...]],
+            float,
+        ] = {}
+        continuation_generation_cache: dict[
+            tuple[str, str, str, int],
+            str,
+        ] = {}
+        outcome_application_cache: dict[
+            tuple[str, tuple[float, ...]],
+            Any,
+        ] = {}
+        real_substrate_snapshots: list[SubstrateSnapshot] = []
+        pre_training_checkpoint = sandbox.create_checkpoint(
+            checkpoint_id=f"{profile_label}:pre-training"
+        )
+        active_train_epochs = (
+            0 if profile.reuse_baseline_checkpoint else train_epochs
+        )
+        for epoch in range(active_train_epochs):
+            train_rollouts: list[ZRollout] = []
+            for case in train_cases:
+                snapshots, source_text_by_step = _build_case_snapshot_bundle(
+                    case,
+                    open_weight_runtime=active_open_weight_runtime if real_steps_enabled and not profile.use_noop_backend else None,
+                    open_weight_config=open_weight_config,
+                )
+                rollout_case = _calibrate_case_for_real_snapshots(
+                    case,
+                    snapshots=snapshots,
+                    enabled=(
+                        real_steps_enabled
+                        and not profile.use_noop_backend
+                        and counterfactual_target_mode
+                        != ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                        and (open_weight_config or ETAOpenWeightRuntimeConfig()).calibrate_proof_signatures
+                    ),
+                )
+                if real_steps_enabled and not profile.use_noop_backend:
+                    real_substrate_snapshots.extend(snapshots)
+                if (
+                    backend_label in {"synthetic-open-weight", "transformers-open-weight"}
+                    and not profile.use_noop_backend
+                    and not source_text_by_step
+                ):
+                    sandbox.configure_runtime_backend(source_text=case.source_text)
+                if profile.replacement_mode in {"causal", "causal-binary"} or profile.optimize_after_rollout:
+                    sandbox.policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
+                else:
+                    sandbox.policy.parameter_store.set_learning_phase("runtime")
+                train_rollout = sandbox.rollout(
+                    rollout_id=f"{profile_label}:{case.case_id}:train:{epoch}",
+                    substrate_steps=snapshots,
+                    track=Track.SHARED,
+                    replacement_mode=profile.replacement_mode,
+                    proof_episode=rollout_case.proof_episode,
+                    source_text_by_step=source_text_by_step,
+                )
+                if (
+                    training_signal
+                    == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                ):
+                    if active_open_weight_runtime is None:
+                        raise RuntimeError(
+                            "continuation PE runtime disappeared after "
+                            "validation"
+                        )
+                    if continuation_counterfactual_grid:
+                        if not isinstance(
+                            sandbox.policy,
+                            FullLearnedTemporalPolicy,
+                        ):
+                            raise ValueError(
+                                "counterfactual continuation PE requires "
+                                "FullLearnedTemporalPolicy"
+                            )
+                        (
+                            train_rollout,
+                            rollout_prediction_errors,
+                            rollout_counterfactual_diagnostics,
+                            rollout_counterfactual_audit,
+                        ) = _with_counterfactual_continuation_pe_rewards(
+                            case=case,
+                            evidence_phase=f"train-{epoch}",
+                            runtime=active_open_weight_runtime,
+                            rollout=train_rollout,
+                            substrate_steps=snapshots,
+                            source_text_by_step=source_text_by_step,
+                            proof_episode=rollout_case.proof_episode,
+                            policy=sandbox.policy,
+                            score_cache=continuation_score_cache,
+                            target_mode=counterfactual_target_mode,
+                            target_sample_count=(
+                                counterfactual_target_sample_count
+                            ),
+                            audit_sample_count=(
+                                counterfactual_audit_sample_count
+                            ),
+                            sampling_temperature=(
+                                counterfactual_sampling_temperature
+                            ),
+                            sampling_max_new_tokens=(
+                                counterfactual_sampling_max_new_tokens
+                            ),
+                            sampling_key=case.case_id,
+                            generation_cache=(
+                                continuation_generation_cache
+                            ),
+                            outcome_application_cache=(
+                                outcome_application_cache
+                            ),
+                            counterfactual_outcome_records=(
+                                counterfactual_outcome_records
+                            ),
+                        )
+                        continuation_counterfactual_diagnostics.extend(
+                            rollout_counterfactual_diagnostics
+                        )
+                        if (
+                            counterfactual_action_selector_diagnostic
+                            and profile_label == baseline_label
+                        ):
+                            for example in _counterfactual_action_examples(
+                                case=case,
+                                snapshots=snapshots,
+                                diagnostic_rows=(
+                                    rollout_counterfactual_diagnostics
+                                ),
+                                audit_rows=(
+                                    rollout_counterfactual_audit
+                                ),
+                                scoreable_prefix_count=(
+                                    len(snapshots) - 2
+                                    if counterfactual_target_mode
+                                    == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                                    else None
+                                ),
+                            ):
+                                existing = selector_training_examples.get(
+                                    example.example_id
+                                )
+                                if (
+                                    existing is not None
+                                    and existing != example
+                                ):
+                                    raise ValueError(
+                                        "counterfactual selector observed "
+                                        "non-deterministic duplicate example "
+                                        f"{example.example_id!r}"
+                                    )
+                                selector_training_examples[
+                                    example.example_id
+                                ] = example
+                    else:
+                        (
+                            train_rollout,
+                            rollout_prediction_errors,
+                        ) = _with_continuation_prediction_error_rewards(
+                            runtime=active_open_weight_runtime,
+                            rollout=train_rollout,
+                            source_text_by_step=source_text_by_step,
+                        )
+                    continuation_training_prediction_errors.extend(
+                        rollout_prediction_errors
+                    )
+                _update_family_registry(family_registry, train_rollout)
+                train_rollouts.append(train_rollout)
+            if profile.optimize_after_rollout and train_rollouts:
+                optimize_report = (
+                    sandbox.optimize_causal_policy_only(
+                        tuple(train_rollouts),
+                        gamma=0.0,
+                        gae_lambda=0.0,
+                    )
+                    if training_signal
+                    == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                    else sandbox.optimize(tuple(train_rollouts))
+                )
+                training_update_count += 1
+                rollout_batch_count += 1
+                training_transition_count += sum(
+                    len(train_rollout.transitions) for train_rollout in train_rollouts
+                )
+                if optimize_report.parameters_changed:
+                    training_parameter_change_count += 1
+                parameter_change_norms.append(optimize_report.parameter_change_norm)
+                value_losses.append(optimize_report.value_loss)
+                replacement_effect_deltas.append(optimize_report.replacement_effect_delta)
+            sandbox.ingest_temporal_fast_prior(
+                tuple(train_rollouts),
+                enabled=profile.use_temporal_fast_prior,
+            )
+        selector_diagnostic_active = (
+            counterfactual_action_selector_diagnostic
+            and profile_label == baseline_label
+            and training_signal
+            == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+            and continuation_counterfactual_grid
+        )
+        if selector_diagnostic_active:
+            training_examples = tuple(
+                selector_training_examples[key]
+                for key in sorted(selector_training_examples)
+            )
+            if not training_examples:
+                raise ValueError(
+                    "counterfactual selector diagnostic requires training "
+                    "examples before evaluation"
+                )
+            (
+                selector_artifact,
+                selector_cv_selections,
+                selector_model_candidate_count,
+            ) = _fit_train_selected_counterfactual_selector(
+                training_examples,
+            )
+            serialized_selector = selector_artifact_to_payload(
+                selector_artifact
+            )
+            restored_selector = selector_artifact_from_payload(
+                serialized_selector
+            )
+            if not isinstance(
+                restored_selector,
+                KernelResidualActionSelectorArtifact,
+            ):
+                raise TypeError(
+                    "Gate 2 train-selected selector round-trip changed "
+                    "the artifact model kind"
+                )
+            selector_artifact = restored_selector
+            shadow_selector_artifact = selector_artifact
+            selector_selections.extend(selector_cv_selections)
+            if shadow_committed_control_summary_state:
+                if active_open_weight_runtime is None:
+                    raise RuntimeError(
+                        "Gate 2 summary state collection requires the "
+                        "active open-weight runtime"
+                    )
+                if shadow_committed_control_window != 2:
+                    raise RuntimeError(
+                        "Gate 2 summary state collection lost frozen k=2"
+                    )
+                summary_training_examples: list[
+                    CounterfactualActionExample
+                ] = []
+                summary_collection_checkpoint = (
+                    sandbox.create_checkpoint(
+                        checkpoint_id=(
+                            f"{profile_label}:summary-state-collection"
+                        )
+                    )
+                )
+                for summary_case in train_cases:
+                    sandbox.restore_checkpoint(
+                        summary_collection_checkpoint
+                    )
+                    (
+                        summary_snapshots,
+                        summary_source_text_by_step,
+                    ) = _build_case_snapshot_bundle(
+                        summary_case,
+                        open_weight_runtime=active_open_weight_runtime,
+                        open_weight_config=open_weight_config,
+                    )
+                    summary_rollout_case = (
+                        _calibrate_case_for_real_snapshots(
+                            summary_case,
+                            snapshots=summary_snapshots,
+                            enabled=False,
+                        )
+                    )
+                    sandbox.policy.parameter_store.set_learning_phase(
+                        "rl",
+                        structure_frozen=True,
+                    )
+                    summary_rollout = sandbox.rollout(
+                        rollout_id=(
+                            f"{profile_label}:{summary_case.case_id}:"
+                            "summary-state-train"
+                        ),
+                        substrate_steps=summary_snapshots,
+                        track=Track.SHARED,
+                        replacement_mode=profile.replacement_mode,
+                        proof_episode=(
+                            summary_rollout_case.proof_episode
+                        ),
+                        source_text_by_step=(
+                            summary_source_text_by_step
+                        ),
+                    )
+                    summary_training_examples.extend(
+                        _conditioned_summary_training_examples(
+                            case=summary_case,
+                            snapshots=summary_snapshots,
+                            source_text_by_step=(
+                                summary_source_text_by_step
+                            ),
+                            rollout=summary_rollout,
+                            proof_episode=(
+                                summary_rollout_case.proof_episode
+                            ),
+                            runtime=active_open_weight_runtime,
+                            policy=sandbox.policy,
+                            bootstrap_selector=selector_artifact,
+                            score_cache=continuation_score_cache,
+                            application_cache=(
+                                outcome_application_cache
+                            ),
+                            outcome_records=(
+                                counterfactual_outcome_records
+                            ),
+                            committed_control_window=2,
+                        )
+                    )
+                sandbox.restore_checkpoint(
+                    summary_collection_checkpoint
+                )
+                (
+                    fitted_summary_selector,
+                    _summary_cv_selections,
+                    summary_model_candidate_count,
+                ) = _fit_train_selected_counterfactual_selector(
+                    tuple(summary_training_examples)
+                )
+                serialized_summary_selector = (
+                    selector_artifact_to_payload(
+                        fitted_summary_selector
+                    )
+                )
+                restored_summary_selector = (
+                    selector_artifact_from_payload(
+                        serialized_summary_selector
+                    )
+                )
+                if not isinstance(
+                    restored_summary_selector,
+                    KernelResidualActionSelectorArtifact,
+                ):
+                    raise TypeError(
+                        "Gate 2 summary selector round-trip changed the "
+                        "artifact model kind"
+                    )
+                if (
+                    restored_summary_selector.input_dim
+                    != selector_artifact.input_dim + 10
+                ):
+                    raise RuntimeError(
+                        "Gate 2 summary selector did not append the frozen "
+                        "10-dimensional control summary"
+                    )
+                shadow_selector_artifact = restored_summary_selector
+                selector_artifact_payload = {
+                    "schema_version": (
+                        "eta-gate2-selector-artifact.v2"
+                    ),
+                    "run_id": evidence_run_id,
+                    "run_seed": evidence_run_seed,
+                    "fit_split": "train",
+                    "feature_contract": (
+                        "residual-state+committed-control-summary.v1"
+                    ),
+                    "committed_control_window": 2,
+                    "bootstrap_selector_fingerprint": (
+                        selector_artifact.model_fingerprint
+                    ),
+                    "summary_model_candidate_count": (
+                        summary_model_candidate_count
+                    ),
+                    "control_basis_fingerprint": (
+                        control_basis_fingerprint_value
+                    ),
+                    "artifact": serialized_summary_selector,
+                }
+            else:
+                selector_artifact_payload = {
+                    "schema_version": (
+                        "eta-gate2-selector-artifact.v1"
+                    ),
+                    "run_id": evidence_run_id,
+                    "run_seed": evidence_run_seed,
+                    "fit_split": "train",
+                    "control_basis_fingerprint": (
+                        control_basis_fingerprint_value
+                    ),
+                    "artifact": serialized_selector,
+                }
+        if (
+            profile_label == baseline_label
+            and shared_checkpoint_required
+        ):
+            shared_baseline_checkpoint = sandbox.create_checkpoint(
+                checkpoint_id=(
+                    f"{baseline_label}:shared-residual-control-checkpoint"
+                )
+            )
+            shared_family_registry = {
+                key: set(values)
+                for key, values in family_registry.items()
+            }
+        episode_reports: list[ETAProofEpisodeReport] = []
+        for case in train_cases + eval_cases:
+            snapshots, source_text_by_step = _build_case_snapshot_bundle(
+                case,
+                open_weight_runtime=active_open_weight_runtime if real_steps_enabled and not profile.use_noop_backend else None,
+                open_weight_config=open_weight_config,
+            )
+            rollout_case = _calibrate_case_for_real_snapshots(
+                case,
+                snapshots=snapshots,
+                enabled=(
+                    real_steps_enabled
+                    and not profile.use_noop_backend
+                    and counterfactual_target_mode
+                    != ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                    and (open_weight_config or ETAOpenWeightRuntimeConfig()).calibrate_proof_signatures
+                ),
+            )
+            if real_steps_enabled and not profile.use_noop_backend:
+                real_substrate_snapshots.extend(snapshots)
+            if (
+                backend_label in {"synthetic-open-weight", "transformers-open-weight"}
+                and not profile.use_noop_backend
+                and not source_text_by_step
+            ):
+                sandbox.configure_runtime_backend(source_text=case.source_text)
+            if profile.replacement_mode in {"causal", "causal-binary"}:
+                sandbox.policy.parameter_store.set_learning_phase("rl", structure_frozen=True)
+            else:
+                sandbox.policy.parameter_store.set_learning_phase("runtime")
+            rollout = sandbox.rollout(
+                rollout_id=f"{profile_label}:{case.case_id}:eval",
+                substrate_steps=snapshots,
+                track=Track.SHARED,
+                replacement_mode=profile.replacement_mode,
+                proof_episode=rollout_case.proof_episode,
+                source_text_by_step=source_text_by_step,
+            )
+            if shadow_closed_loop_arm and selector_diagnostic_active:
+                if active_open_weight_runtime is None:
+                    raise RuntimeError(
+                        "Gate 2 closed-loop SHADOW requires the active "
+                        "open-weight runtime"
+                    )
+                if selector_artifact is None:
+                    raise RuntimeError(
+                        "Gate 2 closed-loop SHADOW selector artifact "
+                        "disappeared after train-only fit"
+                    )
+                if shadow_selector_artifact is None:
+                    raise RuntimeError(
+                        "Gate 2 closed-loop SHADOW selector artifact "
+                        "disappeared before evaluation"
+                    )
+                if not control_basis_fingerprint_value:
+                    raise ValueError(
+                        "Gate 2 closed-loop SHADOW requires a bound control "
+                        "basis fingerprint"
+                    )
+                shadow_closed_loop_records.extend(
+                    _shadow_closed_loop_records(
+                        run_id=evidence_run_id,
+                        run_seed=evidence_run_seed,
+                        case=case,
+                        snapshots=snapshots,
+                        source_text_by_step=source_text_by_step,
+                        runtime=active_open_weight_runtime,
+                        open_weight_config=open_weight_config,
+                        policy=sandbox.policy,
+                        selector_artifact=shadow_selector_artifact,
+                        control_basis_fingerprint_value=(
+                            control_basis_fingerprint_value
+                        ),
+                        score_cache=continuation_score_cache,
+                        committed_control_window=(
+                            shadow_committed_control_window
+                        ),
+                        committed_control_summary_state=(
+                            shadow_committed_control_summary_state
+                        ),
+                    )
+                )
+            continuation_scores = _score_rollout_continuations(
+                runtime=(
+                    active_open_weight_runtime
+                    if backend_label == "transformers-open-weight"
+                    and not profile.use_noop_backend
+                    else None
+                ),
+                rollout=rollout,
+                source_text_by_step=source_text_by_step,
+            )
+            if (
+                continuation_counterfactual_grid
+                and training_signal
+                == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                and backend_label == "transformers-open-weight"
+                and profile_label == baseline_label
+                and case.split in evaluation_counterfactual_diagnostics
+            ):
+                if active_open_weight_runtime is None:
+                    raise RuntimeError(
+                        "counterfactual evaluation diagnostics require "
+                        "the active open-weight runtime"
+                    )
+                if not isinstance(
+                    sandbox.policy,
+                    FullLearnedTemporalPolicy,
+                ):
+                    raise ValueError(
+                        "counterfactual evaluation diagnostics require "
+                        "FullLearnedTemporalPolicy"
+                    )
+                (
+                    _diagnostic_rollout,
+                    _diagnostic_prediction_errors,
+                    diagnostic_rows,
+                    audit_rows,
+                ) = _with_counterfactual_continuation_pe_rewards(
+                    case=case,
+                    evidence_phase="frozen-eval",
+                    runtime=active_open_weight_runtime,
+                    rollout=rollout,
+                    substrate_steps=snapshots,
+                    source_text_by_step=source_text_by_step,
+                    proof_episode=rollout_case.proof_episode,
+                    policy=sandbox.policy,
+                    score_cache=continuation_score_cache,
+                    target_mode=counterfactual_target_mode,
+                    target_sample_count=(
+                        counterfactual_target_sample_count
+                    ),
+                    audit_sample_count=(
+                        counterfactual_audit_sample_count
+                    ),
+                    sampling_temperature=(
+                        counterfactual_sampling_temperature
+                    ),
+                    sampling_max_new_tokens=(
+                        counterfactual_sampling_max_new_tokens
+                    ),
+                    sampling_key=case.case_id,
+                    generation_cache=continuation_generation_cache,
+                    outcome_application_cache=(
+                        outcome_application_cache
+                    ),
+                    counterfactual_outcome_records=(
+                        counterfactual_outcome_records
+                    ),
+                )
+                evaluation_counterfactual_diagnostics[
+                    case.split
+                ].extend(diagnostic_rows)
+                if selector_diagnostic_active:
+                    if selector_artifact is None:
+                        raise RuntimeError(
+                            "counterfactual selector artifact disappeared "
+                            "before frozen evaluation"
+                        )
+                    evaluation_examples = (
+                        _counterfactual_action_examples(
+                            case=case,
+                            snapshots=snapshots,
+                            diagnostic_rows=diagnostic_rows,
+                            audit_rows=audit_rows,
+                            scoreable_prefix_count=(
+                                len(snapshots) - 2
+                                if counterfactual_target_mode
+                                == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                                else None
+                            ),
+                        )
+                    )
+                    selector_selections.extend(
+                        select_counterfactual_actions(
+                            selector_artifact,
+                            evaluation_examples,
+                            prediction_source=(
+                                "frozen-train-selector"
+                            ),
+                        )
+                    )
+            episode_reports.append(
+                _episode_report(
+                    case=case,
+                    rollout=rollout,
+                    profile_label=profile_label,
+                    backend_label=backend_label,
+                    family_registry=family_registry,
+                    continuation_scores=continuation_scores,
+                )
+            )
+            _update_family_registry(family_registry, rollout)
+        metric_means = _profile_metric_means(tuple(episode_reports))
+        counterfactual_diagnostic_metrics = (
+            _counterfactual_diagnostic_metrics(
+                tuple(continuation_counterfactual_diagnostics)
+            )
+        )
+        evaluation_counterfactual_diagnostic_metrics = tuple(
+            metric
+            for scope in (
+                "eval",
+                "heldout",
+                "validation",
+                "confirmation",
+            )
+            for metric in _scoped_counterfactual_diagnostic_metrics(
+                tuple(evaluation_counterfactual_diagnostics[scope]),
+                scope=scope,
+            )
+        )
+        selector_metric_rows = (
+            _counterfactual_selector_metric_rows(
+                selections=tuple(selector_selections),
+                input_dim=selector_artifact.input_dim,
+                latent_dim=selector_artifact.input_dim,
+                action_count=selector_artifact.action_count,
+                ridge_strength=selector_artifact.ridge_strength,
+                model_candidate_count=(
+                    selector_model_candidate_count
+                ),
+                explained_variance_ratio=1.0,
+            )
+            if selector_artifact is not None
+            else _counterfactual_selector_metric_rows(
+                selections=(),
+                input_dim=0,
+                latent_dim=0,
+                action_count=len(
+                    _continuation_counterfactual_candidates()
+                ),
+                ridge_strength=0.0,
+                model_candidate_count=0,
+                explained_variance_ratio=0.0,
+            )
+        )
+        post_training_checkpoint = sandbox.create_checkpoint(
+            checkpoint_id=f"{profile_label}:post-training"
+        )
+        metric_means = (
+            metric_means
+            + counterfactual_diagnostic_metrics
+            + evaluation_counterfactual_diagnostic_metrics
+            + selector_metric_rows
+            + (
+            ("temporal_fast_prior_strength", sandbox.policy.parameter_store.latest_fast_prior_strength),
+            ("temporal_fast_prior_switch_delta", sandbox.policy.parameter_store.latest_fast_prior_switch_pressure_delta),
+            ("temporal_fast_prior_action_bias", sandbox.policy.parameter_store.latest_fast_prior_action_bias),
+            ("temporal_fast_prior_family_bias", sandbox.policy.parameter_store.latest_fast_prior_family_bias),
+            ("bootstrap_init_used", 1.0 if bootstrap_snapshot is not None else 0.0),
+            (
+                "causal_action_head_active",
+                1.0 if causal_action_head_active else 0.0,
+            ),
+            (
+                "causal_action_head_update_step",
+                float(
+                    sandbox.policy.parameter_store.causal_action_head_parameters(
+                        track=Track.SHARED
+                    )
+                    .update_step
+                )
+                if causal_action_head_active
+                else 0.0,
+            ),
+            (
+                "causal_action_head_state_dim",
+                float(sandbox.causal_action_head_state_dim),
+            ),
+            (
+                "shared_policy_checkpoint_used",
+                1.0 if profile.reuse_baseline_checkpoint else 0.0,
+            ),
+            (
+                "shared_policy_fingerprint_match_at_eval_start",
+                1.0
+                if shared_policy_fingerprint_match_at_eval_start
+                else 0.0,
+            ),
+            (
+                "continuation_pe_training_transition_count",
+                float(training_transition_count),
+            ),
+            (
+                "continuation_pe_candidate_score_count",
+                float(len(continuation_training_prediction_errors)),
+            ),
+            (
+                "continuation_counterfactual_grid_used",
+                1.0
+                if continuation_counterfactual_grid
+                and active_train_epochs > 0
+                else 0.0,
+            ),
+            (
+                "continuation_counterfactual_unique_score_count",
+                float(len(continuation_score_cache)),
+            ),
+            (
+                "counterfactual_target_sample_count",
+                float(counterfactual_target_sample_count),
+            ),
+            (
+                "counterfactual_audit_sample_count",
+                float(counterfactual_audit_sample_count),
+            ),
+            (
+                "counterfactual_generated_continuation_count",
+                float(len(continuation_generation_cache)),
+            ),
+            (
+                "counterfactual_environment_outcome_target_active",
+                1.0
+                if counterfactual_target_mode
+                == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                else 0.0,
+            ),
+            (
+                "counterfactual_environment_application_count",
+                float(len(outcome_application_cache)),
+            ),
+            (
+                "counterfactual_environment_pe_credit_transition_count",
+                float(training_transition_count)
+                if counterfactual_target_mode
+                == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                else 0.0,
+            ),
+            (
+                "counterfactual_self_nll_target_active",
+                0.0
+                if counterfactual_target_mode
+                == ETA_COUNTERFACTUAL_TARGET_ENVIRONMENT_OUTCOME
+                else 1.0,
+            ),
+            (
+                "continuation_pe_training_mean_raw_delta",
+                _mean(
+                    tuple(
+                        continuation_training_prediction_errors
+                    )
+                ),
+            ),
+            (
+                "continuation_pe_training_positive_rate",
+                _mean(
+                    tuple(
+                        1.0 if value > 0.0 else 0.0
+                        for value in continuation_training_prediction_errors
+                    )
+                ),
+            ),
+            (
+                "continuation_pe_structure_frozen",
+                1.0
+                if (
+                    training_signal
+                    == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                    and _ssl_structure_state(pre_training_checkpoint)
+                    == _ssl_structure_state(post_training_checkpoint)
+                )
+                else 0.0,
+            ),
+            (
+                "continuation_pe_policy_changed",
+                1.0
+                if (
+                    training_signal
+                    == ETA_CONTINUATION_PE_TRAINING_SIGNAL
+                    and active_train_epochs > 0
+                    and pre_training_checkpoint.policy_optimization_fingerprint
+                    != post_training_checkpoint.policy_optimization_fingerprint
+                )
+                else 0.0,
+            ),
+            *_temporal_family_slow_loop_metrics(sandbox.policy),
+            *_real_snapshot_metric_values(tuple(real_substrate_snapshots)),
+            )
+        )
+        benchmark_rollout_batch_count += rollout_batch_count
+        profile_reports.append(
+            ETAProofProfileReport(
+                profile_label=profile_label,
+                backend_label=backend_label,
+                episode_reports=tuple(episode_reports),
+                metric_means=metric_means,
+                training_update_count=training_update_count,
+                rollout_batch_count=rollout_batch_count,
+                mean_rollouts_per_update=(
+                    len(train_cases)
+                    if training_update_count > 0
+                    else 0.0
+                ),
+                training_transition_count=training_transition_count,
+                training_parameter_change_count=training_parameter_change_count,
+                training_parameter_change_rate=(
+                    training_parameter_change_count / training_update_count
+                    if training_update_count > 0
+                    else 0.0
+                ),
+                mean_parameter_change_norm=_mean(tuple(parameter_change_norms)),
+                mean_value_loss=_mean(tuple(value_losses)),
+                mean_replacement_effect_delta=_mean(tuple(replacement_effect_deltas)),
+                description=(
+                    f"{profile_label} produced {len(episode_reports)} ETA proof episode reports "
+                    f"on backend={backend_label} with batch_updates={rollout_batch_count}."
+                ),
+                action_selection_records=tuple(selector_selections),
+                counterfactual_outcome_records=tuple(
+                    counterfactual_outcome_records
+                ),
+                selector_artifact_payload=selector_artifact_payload,
+                shadow_closed_loop_records=tuple(
+                    shadow_closed_loop_records
+                ),
+            )
+        )
+    baseline_report = next(report for report in profile_reports if report.profile_label == baseline_label)
+    baseline_metrics = dict(baseline_report.metric_means)
+    no_fast_prior_report = next(
+        (report for report in profile_reports if report.profile_label == "full-no-fast-prior"),
+        None,
+    )
+    deltas: list[tuple[str, tuple[tuple[str, float], ...]]] = []
+    for report in profile_reports:
+        if report.profile_label == baseline_label:
+            continue
+        deltas.append(
+            (
+                report.profile_label,
+                tuple(
+                    (metric_name, value - baseline_metrics.get(metric_name, 0.0))
+                    for metric_name, value in report.metric_means
+                ),
+            )
+        )
+    if no_fast_prior_report is not None:
+        no_fast_prior_metrics = dict(no_fast_prior_report.metric_means)
+        baseline_metric_means = baseline_report.metric_means + (
+            (
+                "heldout_family_reuse_gap_vs_no_fast_prior",
+                baseline_metrics.get("heldout_family_reuse_rate", 0.0)
+                - no_fast_prior_metrics.get("heldout_family_reuse_rate", 0.0),
+            ),
+            (
+                "heldout_credit_alignment_gap_vs_no_fast_prior",
+                baseline_metrics.get("heldout_credit_alignment", 0.0)
+                - no_fast_prior_metrics.get("heldout_credit_alignment", 0.0),
+            ),
+            (
+                "heldout_strong_success_gap_vs_no_fast_prior",
+                baseline_metrics.get("heldout_strong_success_rate", 0.0)
+                - no_fast_prior_metrics.get("heldout_strong_success_rate", 0.0),
+            ),
+            (
+                "slow_to_fast_init_benefit",
+                baseline_metrics.get("temporal_fast_prior_strength", 0.0)
+                - no_fast_prior_metrics.get("temporal_fast_prior_strength", 0.0),
+            ),
+            (
+                "family_reuse_after_reset",
+                baseline_metrics.get("heldout_family_reuse_rate", 0.0),
+            ),
+            (
+                "heldout_gain_after_consolidation",
+                baseline_metrics.get("heldout_strong_success_rate", 0.0)
+                - no_fast_prior_metrics.get("heldout_strong_success_rate", 0.0),
+            ),
+        )
+        profile_reports = [
+            ETAProofProfileReport(
+                profile_label=report.profile_label,
+                backend_label=report.backend_label,
+                episode_reports=report.episode_reports,
+                metric_means=baseline_metric_means if report.profile_label == baseline_label else report.metric_means,
+                training_update_count=report.training_update_count,
+                rollout_batch_count=report.rollout_batch_count,
+                mean_rollouts_per_update=report.mean_rollouts_per_update,
+                training_transition_count=report.training_transition_count,
+                training_parameter_change_count=report.training_parameter_change_count,
+                training_parameter_change_rate=report.training_parameter_change_rate,
+                mean_parameter_change_norm=report.mean_parameter_change_norm,
+                mean_value_loss=report.mean_value_loss,
+                mean_replacement_effect_delta=report.mean_replacement_effect_delta,
+                description=report.description,
+                action_selection_records=(
+                    report.action_selection_records
+                ),
+                counterfactual_outcome_records=(
+                    report.counterfactual_outcome_records
+                ),
+                selector_artifact_payload=(
+                    report.selector_artifact_payload
+                ),
+                shadow_closed_loop_records=(
+                    report.shadow_closed_loop_records
+                ),
+            )
+            for report in profile_reports
+        ]
+    return ETAProofBenchmarkReport(
+        profile_reports=tuple(profile_reports),
+        baseline_label=baseline_label,
+        backend_label=backend_label,
+        metric_deltas_from_baseline=tuple(deltas),
+        rollout_batch_count=benchmark_rollout_batch_count,
+        description=(
+            f"ETA internal-RL proof benchmark ran {len(profile_reports)} profiles on backend={backend_label} "
+            f"across {len(cases)} cases."
+        ),
+    )
+
+
+def run_eta_open_weight_residual_benchmark(
+    *,
+    cases: tuple[ETAProofCase, ...] = default_eta_proof_cases(),
+    profile_labels: tuple[str, ...] = ("full-internal-rl", "full-no-optimize", "noop-backend"),
+    baseline_label: str = "full-internal-rl",
+    train_epochs: int = 1,
+    runtime_config: ETAOpenWeightRuntimeConfig | None = None,
+    runtime: OpenWeightResidualRuntime | None = None,
+) -> ETAProofBenchmarkReport:
+    active_runtime = runtime or _build_eta_open_weight_runtime(runtime_config)
+    return run_eta_internal_rl_proof_benchmark(
+        cases=cases,
+        profile_labels=profile_labels,
+        baseline_label=baseline_label,
+        backend_label="transformers-open-weight",
+        train_epochs=train_epochs,
+        open_weight_runtime=active_runtime,
+        open_weight_config=runtime_config,
+        use_real_substrate_steps=True,
+    )
+
+
+def run_eta_internal_rl_backend_robustness_benchmark(
+    *,
+    cases: tuple[ETAProofCase, ...] = default_eta_proof_cases(),
+    profile_label: str = "full-internal-rl",
+    backend_labels: tuple[str, ...] = ("trace", "synthetic-open-weight"),
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
+) -> ETAProofBackendComparisonReport:
+    profile_reports = tuple(
+        run_eta_internal_rl_proof_benchmark(
+            cases=cases,
+            profile_labels=(profile_label,),
+            baseline_label=profile_label,
+            backend_label=backend_label,
+            open_weight_runtime=open_weight_runtime,
+            open_weight_config=open_weight_config,
+        ).profile_reports[0]
+        for backend_label in backend_labels
+    )
+    if not profile_reports:
+        raise ValueError("ETA backend robustness requires at least one backend label.")
+    reference_report = profile_reports[0]
+    reference_metrics = dict(reference_report.metric_means)
+    comparison_report = profile_reports[-1]
+    comparison_metrics = dict(comparison_report.metric_means)
+    return ETAProofBackendComparisonReport(
+        profile_label=profile_label,
+        profile_reports=profile_reports,
+        metric_deltas=tuple(
+            (metric_name, comparison_metrics.get(metric_name, 0.0) - reference_metrics.get(metric_name, 0.0))
+            for metric_name, _ in reference_report.metric_means
+        ),
+        description=(
+            f"Backend robustness comparison for {profile_label} across backends={backend_labels}."
+        ),
+    )
+
+
+def build_eta_internal_rl_assessment(
+    *,
+    benchmark_report: ETAProofBenchmarkReport,
+    backend_report: ETAProofBackendComparisonReport | None = None,
+) -> ETAInternalRLAssessmentReport:
+    report_map = {report.profile_label: report for report in benchmark_report.profile_reports}
+    full_report = report_map["full-internal-rl"]
+    gate_control_reports = _control_reports_for_gate(report_map=report_map)
+    full_metrics = dict(full_report.metric_means)
+    best_sparse_reward_control = _best_eta_sparse_reward_control(control_reports=gate_control_reports)
+    best_terminal_success_label, best_control_terminal_success = _best_control_metric(
+        control_reports=gate_control_reports,
+        metric_name="heldout_terminal_success_rate",
+    )
+    best_strong_success_label = best_sparse_reward_control.profile_label if best_sparse_reward_control is not None else "none"
+    best_control_strong_success = (
+        dict(best_sparse_reward_control.metric_means).get("heldout_strong_success_rate", 0.0)
+        if best_sparse_reward_control is not None
+        else 0.0
+    )
+    best_control_mechanism_strength = (
+        _eta_mechanism_strength(best_sparse_reward_control)
+        if best_sparse_reward_control is not None
+        else 0.0
+    )
+    full_mechanism_strength = _eta_mechanism_strength(full_report)
+    raw_success_delta = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
+    mechanism_tie_break_margin = _eta_mechanism_tie_break_margin(
+        raw_success_delta=raw_success_delta,
+        full_report=full_report,
+        control_report=best_sparse_reward_control,
+    )
+    effective_success_margin = _eta_effective_success_margin(
+        raw_success_delta=raw_success_delta,
+        full_report=full_report,
+        control_report=best_sparse_reward_control,
+    )
+    best_subgoal_completion_label, best_control_subgoal_completion = _best_control_metric(
+        control_reports=gate_control_reports,
+        metric_name="heldout_subgoal_completion_rate",
+    )
+    best_reuse_label, best_control_reuse = _best_control_metric(
+        control_reports=gate_control_reports,
+        metric_name="heldout_family_reuse_rate",
+    )
+    best_credit_alignment_label, best_control_credit_alignment = _best_control_metric(
+        control_reports=gate_control_reports,
+        metric_name="heldout_credit_alignment",
+    )
+    backend_success_gap = 1.0
+    backend_min_success = 0.0
+    if backend_report is not None:
+        backend_success = tuple(
+            dict(report.metric_means).get("heldout_strong_success_rate", 0.0)
+            for report in backend_report.profile_reports
+        )
+        backend_success_gap = max(backend_success) - min(backend_success) if backend_success else 1.0
+        backend_min_success = min(backend_success) if backend_success else 0.0
+    gates = (
+        ETAInternalRLAcceptanceGate(
+            gate_id="sparse-reward-success",
+            passed=(
+                full_metrics.get("heldout_terminal_success_rate", 0.0) >= best_control_terminal_success
+                and full_metrics.get("heldout_strong_success_rate", 0.0) >= 0.30
+                and effective_success_margin >= ETAInternalRLAcceptanceConfig.min_success_delta
+            ),
+            evidence=(
+                ("heldout_terminal_success_rate", full_metrics.get("heldout_terminal_success_rate", 0.0)),
+                ("best_control_terminal_success_label", best_terminal_success_label),
+                ("best_control_terminal_success", best_control_terminal_success),
+                ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
+                ("best_control_strong_success_label", best_strong_success_label),
+                ("best_control_strong_success", best_control_strong_success),
+                ("raw_success_delta", raw_success_delta),
+                ("full_mechanism_strength", full_mechanism_strength),
+                ("best_control_mechanism_strength", best_control_mechanism_strength),
+                ("mechanism_tie_break_margin", mechanism_tie_break_margin),
+                ("effective_success_margin", effective_success_margin),
+            ),
+            description=(
+                "Full internal RL should beat matched controls on held-out terminal success and strong sparse-reward success, "
+                "or win tied sparse-reward outcomes with stronger mechanism evidence."
+            ),
+        ),
+        ETAInternalRLAcceptanceGate(
+            gate_id="abstract-action-reuse",
+            passed=(
+                full_metrics.get("heldout_family_reuse_rate", 0.0) >= 0.50
+                and full_metrics.get("heldout_credit_alignment", 0.0) >= 0.50
+                and full_metrics.get("heldout_family_reuse_rate", 0.0) >= best_control_reuse
+                and full_metrics.get("heldout_credit_alignment", 0.0) >= best_control_credit_alignment
+            ),
+            evidence=(
+                ("heldout_family_reuse_rate", full_metrics.get("heldout_family_reuse_rate", 0.0)),
+                ("best_control_reuse_label", best_reuse_label),
+                ("best_control_reuse", best_control_reuse),
+                ("heldout_credit_alignment", full_metrics.get("heldout_credit_alignment", 0.0)),
+                ("best_control_credit_alignment_label", best_credit_alignment_label),
+                ("best_control_credit_alignment", best_control_credit_alignment),
+            ),
+            description="Discovered abstract-action families should be reused across cases, not recreated every time.",
+        ),
+        ETAInternalRLAcceptanceGate(
+            gate_id="heldout-composition",
+            passed=(
+                full_metrics.get("heldout_strong_success_rate", 0.0) >= 0.30
+                and full_metrics.get("heldout_subgoal_completion_rate", 0.0) >= 0.25
+                and (
+                    full_metrics.get("heldout_strong_success_rate", 0.0) >= best_control_strong_success
+                    or effective_success_margin >= ETAInternalRLAcceptanceConfig.min_success_delta
+                )
+                and full_metrics.get("heldout_subgoal_completion_rate", 0.0) >= best_control_subgoal_completion
+            ),
+            evidence=(
+                ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
+                ("best_control_strong_success_label", best_strong_success_label),
+                ("best_control_strong_success", best_control_strong_success),
+                ("heldout_subgoal_completion_rate", full_metrics.get("heldout_subgoal_completion_rate", 0.0)),
+                ("best_control_subgoal_completion_label", best_subgoal_completion_label),
+                ("best_control_subgoal_completion", best_control_subgoal_completion),
+                ("effective_success_margin", effective_success_margin),
+                ("mean_switch_sparsity", full_metrics.get("mean_switch_sparsity", 0.0)),
+            ),
+            description="Held-out subgoal recombinations should remain solvable with non-trivial completion.",
+        ),
+        ETAInternalRLAcceptanceGate(
+            gate_id="credit-alignment",
+            passed=(
+                full_metrics.get("heldout_credit_alignment", 0.0) >= 0.50
+                and full_metrics.get("heldout_credit_alignment", 0.0) >= best_control_credit_alignment
+            ),
+            evidence=(
+                ("heldout_credit_alignment", full_metrics.get("heldout_credit_alignment", 0.0)),
+                ("best_control_credit_alignment_label", best_credit_alignment_label),
+                ("best_control_credit_alignment", best_control_credit_alignment),
+                ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
+                ("mean_total_reward", full_metrics.get("mean_total_reward", 0.0)),
+                ("mean_raw_total_reward", full_metrics.get("mean_raw_total_reward", 0.0)),
+            ),
+            description="Delayed sparse reward should align with the abstract-action windows that preceded success.",
+        ),
+        ETAInternalRLAcceptanceGate(
+            gate_id="policy-update-evidence",
+            passed=(
+                full_report.training_update_count > 0
+                and full_report.training_parameter_change_rate >= 0.50
+                and full_report.mean_parameter_change_norm > 0.01
+            ),
+            evidence=(
+                ("training_update_count", float(full_report.training_update_count)),
+                ("rollout_batch_count", float(full_report.rollout_batch_count)),
+                ("mean_rollouts_per_update", full_report.mean_rollouts_per_update),
+                ("training_transition_count", float(full_report.training_transition_count)),
+                ("training_parameter_change_count", float(full_report.training_parameter_change_count)),
+                ("training_parameter_change_rate", full_report.training_parameter_change_rate),
+                ("mean_parameter_change_norm", full_report.mean_parameter_change_norm),
+                ("mean_value_loss", full_report.mean_value_loss),
+            ),
+            description="Internal RL should show concrete parameter-update evidence during training, not only better outcomes.",
+        ),
+        ETAInternalRLAcceptanceGate(
+            gate_id="statistical-batch-evidence",
+            passed=(
+                full_report.mean_rollouts_per_update >= 2.0
+                and full_report.mean_replacement_effect_delta >= 0.05
+                and full_metrics.get("heldout_strong_success_std", 0.0) <= 0.35
+            ),
+            evidence=(
+                ("mean_rollouts_per_update", full_report.mean_rollouts_per_update),
+                ("mean_replacement_effect_delta", full_report.mean_replacement_effect_delta),
+                ("heldout_strong_success_std", full_metrics.get("heldout_strong_success_std", 0.0)),
+                (
+                    "heldout_control_gap",
+                    full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success,
+                ),
+            ),
+            description=(
+                "Stronger ETA claims require batch-level rollout evidence, non-trivial replacement effect, "
+                "and bounded held-out variance."
+            ),
+        ),
+        ETAInternalRLAcceptanceGate(
+            gate_id="backend-robustness",
+            passed=backend_report is not None and backend_min_success >= 0.30,
+            evidence=(
+                ("backend_min_success", backend_min_success),
+                ("backend_success_gap", backend_success_gap),
+                ("backend_report", "present" if backend_report is not None else "missing"),
+            ),
+            description="The proof should persist across trace and synthetic-open-weight backends.",
+        ),
+    )
+    passed_gate_count = sum(1 for gate in gates if gate.passed)
+    return ETAInternalRLAssessmentReport(
+        benchmark_report=benchmark_report,
+        backend_report=backend_report,
+        gates=gates,
+        passed_gate_count=passed_gate_count,
+        total_gate_count=len(gates),
+        description=f"ETA internal-RL assessment passed {passed_gate_count}/{len(gates)} gates.",
+    )
+
+
+def evaluate_eta_internal_rl_acceptance(
+    assessment: ETAInternalRLAssessmentReport,
+    *,
+    config: ETAInternalRLAcceptanceConfig | None = None,
+) -> ETAInternalRLAcceptanceDecision:
+    active_config = config or ETAInternalRLAcceptanceConfig()
+    gate_map = {gate.gate_id: gate for gate in assessment.gates}
+    blocked_gate_ids: list[str] = []
+    reasons: list[str] = []
+    for gate_id in active_config.required_gate_ids:
+        gate = gate_map.get(gate_id)
+        if gate is None:
+            blocked_gate_ids.append(gate_id)
+            reasons.append(f"missing-gate:{gate_id}")
+            continue
+        if not gate.passed:
+            blocked_gate_ids.append(gate_id)
+            reasons.append(f"failed-gate:{gate_id}")
+    full_metrics = dict(
+        next(
+            report.metric_means
+            for report in assessment.benchmark_report.profile_reports
+            if report.profile_label == "full-internal-rl"
+        )
+    )
+    full_profile_report = next(
+        report
+        for report in assessment.benchmark_report.profile_reports
+        if report.profile_label == "full-internal-rl"
+    )
+    control_reports = _control_reports_for_gate(
+        report_map={
+            report.profile_label: report
+            for report in assessment.benchmark_report.profile_reports
+        }
+    )
+    _, best_control_success = _best_control_metric(
+        control_reports=control_reports,
+        metric_name="heldout_strong_success_rate",
+    )
+    sparse_reward_evidence = dict(gate_map["sparse-reward-success"].evidence) if "sparse-reward-success" in gate_map else {}
+    effective_success_margin = sparse_reward_evidence.get(
+        "effective_success_margin",
+        full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_success,
+    )
+    if full_metrics.get("heldout_terminal_success_rate", 0.0) < active_config.min_terminal_success_rate:
+        reasons.append("heldout-success-below-threshold")
+    if effective_success_margin < active_config.min_success_delta:
+        reasons.append("success-delta-below-threshold")
+    if full_metrics.get("heldout_strong_success_rate", 0.0) < active_config.min_strong_success_rate:
+        reasons.append("heldout-strong-success-below-threshold")
+    if full_metrics.get("heldout_family_reuse_rate", 0.0) < active_config.min_reuse_rate:
+        reasons.append("family-reuse-below-threshold")
+    if full_metrics.get("heldout_credit_alignment", 0.0) < active_config.min_credit_alignment:
+        reasons.append("credit-alignment-below-threshold")
+    if full_profile_report.training_parameter_change_rate < active_config.min_policy_update_rate:
+        reasons.append("policy-update-rate-below-threshold")
+    if full_profile_report.mean_rollouts_per_update < active_config.min_rollouts_per_update:
+        reasons.append("rollouts-per-update-below-threshold")
+    if full_profile_report.mean_parameter_change_norm < active_config.min_parameter_change_norm:
+        reasons.append("parameter-change-norm-below-threshold")
+    if full_profile_report.mean_replacement_effect_delta < active_config.min_replacement_effect_delta:
+        reasons.append("replacement-effect-delta-below-threshold")
+    if full_metrics.get("heldout_strong_success_std", 0.0) > active_config.max_heldout_success_std:
+        reasons.append("heldout-success-std-above-threshold")
+    if assessment.backend_report is None:
+        reasons.append("missing-backend-report")
+    else:
+        backend_metrics = dict(assessment.backend_report.metric_deltas)
+        success_gap = abs(backend_metrics.get("heldout_strong_success_rate", 0.0))
+        if success_gap > active_config.max_backend_success_gap:
+            reasons.append("backend-gap-above-threshold")
+    if assessment.passed_gate_count < active_config.min_passed_gate_count:
+        reasons.append("passed-gate-count-below-threshold")
+    accepted_gate_ids = tuple(gate.gate_id for gate in assessment.gates if gate.passed)
+    return ETAInternalRLAcceptanceDecision(
+        accepted=not reasons,
+        reasons=tuple(reasons),
+        accepted_gate_ids=accepted_gate_ids,
+        blocked_gate_ids=tuple(sorted(set(blocked_gate_ids))),
+        description=(
+            f"ETA internal-RL acceptance accepted={not reasons} "
+            f"passed={assessment.passed_gate_count}/{assessment.total_gate_count}."
+        ),
+    )
+
+
+def _eta_metric_value_map(report: ETAProofProfileReport) -> dict[str, float]:
+    return dict(report.metric_means)
+
+
+def _eta_paper_suite_metric_values(
+    *,
+    benchmark_report: ETAProofBenchmarkReport,
+    backend_report: ETAProofBackendComparisonReport,
+    assessment: ETAInternalRLAssessmentReport,
+) -> tuple[tuple[str, float], ...]:
+    report_map = {
+        profile_report.profile_label: profile_report
+        for profile_report in benchmark_report.profile_reports
+    }
+    full_report = report_map["full-internal-rl"]
+    full_metrics = _eta_metric_value_map(full_report)
+    control_reports = _control_reports_for_gate(report_map=report_map)
+    best_sparse_reward_control = _best_eta_sparse_reward_control(control_reports=control_reports)
+    best_control_strong_success = (
+        _eta_metric_value_map(best_sparse_reward_control).get("heldout_strong_success_rate", 0.0)
+        if best_sparse_reward_control is not None
+        else 0.0
+    )
+    raw_strong_success_gap = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
+    effective_strong_success_gap = _eta_effective_success_margin(
+        raw_success_delta=raw_strong_success_gap,
+        full_report=full_report,
+        control_report=best_sparse_reward_control,
+    )
+    backend_strong_success_values = tuple(
+        dict(profile_report.metric_means).get("heldout_strong_success_rate", 0.0)
+        for profile_report in backend_report.profile_reports
+    )
+    best_real_residual_control = _best_real_residual_policy_control(report_map=report_map)
+    real_residual_policy_control_score = _real_residual_control_score(full_report)
+    best_real_residual_control_score = (
+        _real_residual_control_score(best_real_residual_control)
+        if best_real_residual_control is not None
+        else 0.0
+    )
+    real_residual_policy_gap = max(
+        0.0,
+        real_residual_policy_control_score - best_real_residual_control_score,
+    )
+    return (
+        ("heldout_terminal_success_rate", full_metrics.get("heldout_terminal_success_rate", 0.0)),
+        ("heldout_strong_success_rate", full_metrics.get("heldout_strong_success_rate", 0.0)),
+        ("heldout_family_reuse_rate", full_metrics.get("heldout_family_reuse_rate", 0.0)),
+        ("heldout_credit_alignment", full_metrics.get("heldout_credit_alignment", 0.0)),
+        ("heldout_strong_success_std", full_metrics.get("heldout_strong_success_std", 0.0)),
+        (
+            "strong_success_gap_vs_best_control",
+            effective_strong_success_gap,
+        ),
+        (
+            "backend_success_gap",
+            max(backend_strong_success_values) - min(backend_strong_success_values)
+            if backend_strong_success_values
+            else 0.0,
+        ),
+        ("real_residual_policy_control_score", real_residual_policy_control_score),
+        ("real_residual_policy_gap_vs_control", real_residual_policy_gap),
+        (
+            "assessment_pass_fraction",
+            assessment.passed_gate_count / assessment.total_gate_count
+            if assessment.total_gate_count > 0
+            else 0.0,
+        ),
+        ("policy_update_rate", full_report.training_parameter_change_rate),
+        ("mean_rollouts_per_update", full_report.mean_rollouts_per_update),
+        ("mean_parameter_change_norm", full_report.mean_parameter_change_norm),
+        ("mean_replacement_effect_delta", full_report.mean_replacement_effect_delta),
+        ("mean_value_loss", full_report.mean_value_loss),
+        ("training_transition_count", float(full_report.training_transition_count)),
+        ("heldout_subgoal_completion_rate", full_metrics.get("heldout_subgoal_completion_rate", 0.0)),
+        ("mean_reward_sparsity", full_metrics.get("mean_reward_sparsity", 0.0)),
+        ("reward_shaping_leakage", full_metrics.get("reward_shaping_leakage", 0.0)),
+        (
+            "heldout_family_reuse_gap_vs_no_fast_prior",
+            full_metrics.get("heldout_family_reuse_gap_vs_no_fast_prior", 0.0),
+        ),
+        (
+            "heldout_credit_alignment_gap_vs_no_fast_prior",
+            full_metrics.get("heldout_credit_alignment_gap_vs_no_fast_prior", 0.0),
+        ),
+        (
+            "heldout_strong_success_gap_vs_no_fast_prior",
+            full_metrics.get("heldout_strong_success_gap_vs_no_fast_prior", 0.0),
+        ),
+        ("mean_steps_per_abstract_action", full_metrics.get("mean_steps_per_abstract_action", 0.0)),
+        ("persistence_window_success_rate", full_metrics.get("persistence_window_success_rate", 0.0)),
+        ("premature_switch_rate", full_metrics.get("premature_switch_rate", 0.0)),
+        ("intervention_application_count", full_metrics.get("intervention_application_count", 0.0)),
+        ("episode_replacement_effect_delta", full_metrics.get("episode_replacement_effect_delta", 0.0)),
+        ("residual_signal_quality", full_metrics.get("residual_signal_quality", 0.0)),
+        ("credit_to_family_write_count", full_metrics.get("credit_to_family_write_count", 0.0)),
+        ("long_horizon_payoff_coverage", full_metrics.get("long_horizon_payoff_coverage", 0.0)),
+        ("family_competition_mean", full_metrics.get("family_competition_mean", 0.0)),
+        ("slow_to_fast_init_benefit", full_metrics.get("slow_to_fast_init_benefit", 0.0)),
+        ("family_reuse_after_reset", full_metrics.get("family_reuse_after_reset", 0.0)),
+        ("heldout_gain_after_consolidation", full_metrics.get("heldout_gain_after_consolidation", 0.0)),
+        ("heldout_family_miss_rate", full_metrics.get("heldout_family_miss_rate", 0.0)),
+        ("heldout_credit_window_miss_rate", full_metrics.get("heldout_credit_window_miss_rate", 0.0)),
+        ("heldout_terminal_credit_coverage", full_metrics.get("heldout_terminal_credit_coverage", 0.0)),
+        ("real_open_weight_step_count", full_metrics.get("real_open_weight_step_count", 0.0)),
+        ("real_open_weight_capture_rate", full_metrics.get("real_open_weight_capture_rate", 0.0)),
+        ("real_open_weight_hook_coverage", full_metrics.get("real_open_weight_hook_coverage", 0.0)),
+        ("real_open_weight_hook_fire_rate", full_metrics.get("real_open_weight_hook_fire_rate", 0.0)),
+        ("real_open_weight_planned_layer_fraction", full_metrics.get("real_open_weight_planned_layer_fraction", 0.0)),
+        ("real_open_weight_token_step_coverage", full_metrics.get("real_open_weight_token_step_coverage", 0.0)),
+        (
+            "real_open_weight_residual_sequence_present",
+            full_metrics.get("real_open_weight_residual_sequence_present", 0.0),
+        ),
+        (
+            "real_open_weight_intervention_protocol_valid",
+            full_metrics.get("real_open_weight_intervention_protocol_valid", 0.0),
+        ),
+        ("real_open_weight_fallback_rate", full_metrics.get("real_open_weight_fallback_rate", 0.0)),
+    )
+
+
+def _eta_metric_samples(
+    *,
+    run_summaries: tuple[ETAProofPaperSuiteRunSummary, ...],
+    metric_names: tuple[str, ...],
+) -> dict[str, tuple[float, ...]]:
+    summary_maps = [dict(summary.metric_values) for summary in run_summaries]
+    return {
+        metric_name: tuple(summary_map.get(metric_name, 0.0) for summary_map in summary_maps)
+        for metric_name in metric_names
+    }
+
+
+def _eta_failure_mode_from_assessment(assessment: ETAInternalRLAssessmentReport | None) -> str:
+    if assessment is None:
+        return "no-assessment"
+    blocked_gate_ids = tuple(
+        gate.gate_id
+        for gate in assessment.gates
+        if not gate.passed
+    )
+    if "statistical-batch-evidence" in blocked_gate_ids:
+        return "weak-statistical-evidence"
+    if "policy-update-evidence" in blocked_gate_ids:
+        return "weak-policy-update"
+    if "credit-alignment" in blocked_gate_ids:
+        return "credit-misalignment"
+    if "heldout-composition" in blocked_gate_ids:
+        return "heldout-composition-fragile"
+    if "abstract-action-reuse" in blocked_gate_ids:
+        return "family-reuse-fragile"
+    if "backend-robustness" in blocked_gate_ids:
+        return "backend-fragility"
+    if "sparse-reward-success" in blocked_gate_ids:
+        return "sparse-reward-weakness"
+    if not blocked_gate_ids:
+        return "no-dominant-failure-mode"
+    return blocked_gate_ids[0]
+
+
+def _build_eta_paper_suite_interpretation_summary(
+    *,
+    reference_assessment: ETAInternalRLAssessmentReport | None,
+    reference_benchmark_report: ETAProofBenchmarkReport | None,
+    run_summaries: tuple[ETAProofPaperSuiteRunSummary, ...],
+    primary_metric_summaries: tuple[MetricIntervalSummary, ...],
+    secondary_metric_summaries: tuple[MetricIntervalSummary, ...],
+) -> ETAProofPaperSuiteInterpretationSummary | None:
+    if reference_assessment is None:
+        return None
+    all_summaries = primary_metric_summaries + secondary_metric_summaries
+    if not all_summaries:
+        return ETAProofPaperSuiteInterpretationSummary(
+            interpretation="eta-proof-summary-unavailable",
+            review_summary="ETA proof paper suite did not produce summary metrics.",
+            dominant_failure_mode=_eta_failure_mode_from_assessment(reference_assessment),
+            strongest_metric="none",
+            weakest_metric="none",
+            strongest_competing_control="none",
+            strongest_control_gap=0.0,
+            cross_run_gap_mean=0.0,
+            cross_run_gap_std=0.0,
+            confidence=0.0,
+            description="ETA proof paper suite did not produce any metric summaries.",
+        )
+    strengths = {summary.metric_name: summary.mean for summary in all_summaries}
+    strongest_metric = max(strengths.items(), key=lambda item: item[1])[0]
+    weakest_metric = min(strengths.items(), key=lambda item: item[1])[0]
+    dominant_failure_mode = _eta_failure_mode_from_assessment(reference_assessment)
+    strongest_competing_control = "none"
+    strongest_control_gap = 0.0
+    cross_run_gap_mean = 0.0
+    cross_run_gap_std = 0.0
+    if reference_benchmark_report is not None:
+        report_map = {
+            profile_report.profile_label: profile_report
+            for profile_report in reference_benchmark_report.profile_reports
+        }
+        control_reports = _control_reports_for_gate(report_map=report_map)
+        strongest_control_report = _best_eta_sparse_reward_control(control_reports=control_reports)
+        strongest_competing_control = strongest_control_report.profile_label if strongest_control_report is not None else "none"
+        best_control_strong_success = (
+            dict(strongest_control_report.metric_means).get("heldout_strong_success_rate", 0.0)
+            if strongest_control_report is not None
+            else 0.0
+        )
+        full_report = report_map.get("full-internal-rl")
+        full_metrics = dict(full_report.metric_means) if full_report is not None else {}
+        raw_gap = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
+        strongest_control_gap = round(
+            _eta_effective_success_margin(
+                raw_success_delta=raw_gap,
+                full_report=full_report,
+                control_report=strongest_control_report,
+            ) if full_report is not None else raw_gap,
+            4,
+        )
+    if run_summaries:
+        control_counts: dict[str, int] = {}
+        control_gaps: list[float] = []
+        for summary in run_summaries:
+            control_counts[summary.strongest_competing_control] = (
+                control_counts.get(summary.strongest_competing_control, 0) + 1
+            )
+            control_gaps.append(summary.strongest_control_gap)
+        strongest_competing_control = max(
+            control_counts.items(),
+            key=lambda item: item[1],
+        )[0]
+        cross_run_gap_mean = round(sum(control_gaps) / len(control_gaps), 4)
+        cross_run_gap_std = round(_std(tuple(control_gaps)), 4)
+    pass_fraction = (
+        reference_assessment.passed_gate_count / reference_assessment.total_gate_count
+        if reference_assessment.total_gate_count > 0
+        else 0.0
+    )
+    confidence = round(max(0.0, min(1.0, pass_fraction * 0.75 + 0.25)), 4)
+    if dominant_failure_mode == "no-dominant-failure-mode":
+        interpretation = (
+            f"eta-proof-strongest={strongest_metric}; no dominant failure mode; "
+            f"weakest_metric={weakest_metric}"
+        )
+    else:
+        interpretation = (
+            f"eta-proof-strongest={strongest_metric}; failure_mode={dominant_failure_mode}; "
+            f"weakest_metric={weakest_metric}"
+        )
+    if dominant_failure_mode == "no-dominant-failure-mode":
+        review_summary = (
+            f"Full internal RL remains ahead of {strongest_competing_control} by "
+            f"{cross_run_gap_mean:.3f} +/- {cross_run_gap_std:.3f} on held-out strong success across runs; "
+            f"no dominant failure mode surfaced."
+        )
+    else:
+        review_summary = (
+            f"Primary weakness is {dominant_failure_mode}; strongest competing control is "
+            f"{strongest_competing_control}; cross-run held-out strong-success gap is "
+            f"{cross_run_gap_mean:.3f} +/- {cross_run_gap_std:.3f}."
+        )
+    return ETAProofPaperSuiteInterpretationSummary(
+        interpretation=interpretation,
+        review_summary=review_summary,
+        dominant_failure_mode=dominant_failure_mode,
+        strongest_metric=strongest_metric,
+        weakest_metric=weakest_metric,
+        strongest_competing_control=strongest_competing_control,
+        strongest_control_gap=strongest_control_gap,
+        cross_run_gap_mean=cross_run_gap_mean,
+        cross_run_gap_std=cross_run_gap_std,
+        confidence=confidence,
+        description=(
+            f"ETA paper-suite interpretation strongest={strongest_metric} weakest={weakest_metric} "
+            f"failure_mode={dominant_failure_mode} competitor={strongest_competing_control} "
+            f"gap={strongest_control_gap:.3f} cross_run_gap={cross_run_gap_mean:.3f}+/-{cross_run_gap_std:.3f} "
+            f"confidence={confidence:.2f}."
+        ),
+    )
+
+
+def _repo_root_from_eta_module() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _open_weight_runtime_descriptor(
+    *,
+    runtime: OpenWeightResidualRuntime | None,
+    config: ETAOpenWeightRuntimeConfig | None,
+) -> dict[str, str]:
+    if runtime is None and config is None:
+        return {}
+    import importlib
+
+    try:
+        torch_version = importlib.import_module("torch").__version__
+    except ImportError:
+        torch_version = "unavailable"
+    try:
+        transformers_version = importlib.import_module("transformers").__version__
+    except ImportError:
+        transformers_version = "unavailable"
+    if runtime is not None:
+        model_id = str(getattr(runtime, "model_id", ""))
+        runtime_origin = str(getattr(runtime, "runtime_origin", "unknown"))
+        fallback_active = "1" if getattr(runtime, "fallback_active", False) else "0"
+    else:
+        model_id = config.model_id
+        runtime_origin = "config-only"
+        fallback_active = "unknown"
+    layer_indices_value = config.layer_indices if config is not None else None
+    layer_indices_str = (
+        ",".join(str(index) for index in layer_indices_value)
+        if layer_indices_value is not None
+        else "auto"
+    )
+    return {
+        "open_weight_model_id": model_id,
+        "open_weight_runtime_origin": runtime_origin,
+        "open_weight_fallback_active": fallback_active,
+        "open_weight_layer_indices": layer_indices_str,
+        "open_weight_activation_width": str(
+            config.activation_width if config is not None else 8
+        ),
+        "open_weight_device": str(config.device) if config is not None else "auto",
+        "open_weight_max_prefix_steps": str(config.max_prefix_steps) if config is not None else "",
+        "torch_version": torch_version,
+        "transformers_version": transformers_version,
+    }
+
+
+def run_eta_internal_rl_paper_suite(
+    *,
+    manifest: PaperSuiteManifest | None = None,
+    output_dir: str | Path | None = None,
+    open_weight_runtime: OpenWeightResidualRuntime | None = None,
+    open_weight_config: ETAOpenWeightRuntimeConfig | None = None,
+) -> ETAProofPaperSuiteAggregateReport:
+    active_manifest = manifest or build_eta_proof_paper_suite_manifest()
+    if (
+        active_manifest.suite_kind == "eta-open-weight-residual-proof"
+        and open_weight_runtime is None
+    ):
+        active_open_weight_config = open_weight_config or ETAOpenWeightRuntimeConfig()
+        open_weight_runtime = _build_eta_open_weight_runtime(active_open_weight_config)
+        _validate_eta_open_weight_runtime(
+            runtime=open_weight_runtime,
+            config=active_open_weight_config,
+        )
+        open_weight_config = active_open_weight_config
+    route_ids = {
+        route_id
+        for name, values in active_manifest.case_groups
+        if name == "route_ids"
+        for route_id in values
+    }
+    train_epochs = int(
+        next(values[0] for name, values in active_manifest.case_groups if name == "train_epochs")
+    )
+    training_signal = next(
+        (
+            values[0]
+            for name, values in active_manifest.case_groups
+            if name == "training_signal"
+        ),
+        ETA_PROOF_TRAINING_SIGNAL,
+    )
+    latent_unit_clamp = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "latent_unit_clamp"
+        ),
+        False,
+    )
+    real_residual_ssl_bootstrap = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "real_residual_ssl_bootstrap"
+        ),
+        False,
+    )
+    causal_action_head_active = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "causal_action_head_active"
+        ),
+        False,
+    )
+    causal_action_head_state_dim = next(
+        (
+            int(values[0])
+            for name, values in active_manifest.case_groups
+            if name == "causal_action_head_state_dim"
+        ),
+        None,
+    )
+    continuation_counterfactual_grid = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "continuation_counterfactual_grid"
+        ),
+        False,
+    )
+    counterfactual_action_selector_diagnostic = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name
+            == "counterfactual_action_selector_diagnostic"
+        ),
+        False,
+    )
+    shadow_closed_loop_arm = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "shadow_closed_loop_arm"
+        ),
+        False,
+    )
+    shadow_committed_control_window = next(
+        (
+            int(values[0])
+            for name, values in active_manifest.case_groups
+            if name == "shadow_committed_control_window"
+        ),
+        None,
+    )
+    shadow_committed_control_summary_state = next(
+        (
+            values[0].lower() == "true"
+            for name, values in active_manifest.case_groups
+            if name == "shadow_committed_control_summary_state"
+        ),
+        False,
+    )
+    counterfactual_target_mode = next(
+        (
+            values[0]
+            for name, values in active_manifest.case_groups
+            if name == "counterfactual_target_mode"
+        ),
+        ETA_COUNTERFACTUAL_TARGET_OBSERVED,
+    )
+    counterfactual_target_sample_count = int(
+        next(
+            (
+                values[0]
+                for name, values in active_manifest.case_groups
+                if name == "counterfactual_target_sample_count"
+            ),
+            "1",
+        )
+    )
+    counterfactual_audit_sample_count = int(
+        next(
+            (
+                values[0]
+                for name, values in active_manifest.case_groups
+                if name == "counterfactual_audit_sample_count"
+            ),
+            "0",
+        )
+    )
+    counterfactual_sampling_temperature = float(
+        next(
+            (
+                values[0]
+                for name, values in active_manifest.case_groups
+                if name == "counterfactual_sampling_temperature"
+            ),
+            "0.8",
+        )
+    )
+    counterfactual_sampling_max_new_tokens = int(
+        next(
+            (
+                values[0]
+                for name, values in active_manifest.case_groups
+                if name == "counterfactual_sampling_max_new_tokens"
+            ),
+            "4",
+        )
+    )
+    backend_labels = tuple(
+        backend_label
+        for name, values in active_manifest.case_groups
+        if name == "backend_labels"
+        for backend_label in values
+    ) or ("trace", "synthetic-open-weight")
+    primary_backend_label = backend_labels[0]
+    case_corpus = next(
+        (
+            values[0]
+            for name, values in active_manifest.case_groups
+            if name == "case_corpus"
+        ),
+        ETA_DEFAULT_CASE_CORPUS,
+    )
+    if case_corpus == ETA_DEFAULT_CASE_CORPUS:
+        available_cases = default_eta_proof_cases()
+    elif case_corpus == ETA_GATE2_EXPANDED_CASE_CORPUS:
+        available_cases = eta_gate2_expanded_cases()
+    elif case_corpus == ETA_GATE2_EXPECTED_VALUE_CASE_CORPUS:
+        available_cases = eta_gate2_expected_value_cases()
+    elif case_corpus == ETA_GATE2_SELECTOR_FRESH_CASE_CORPUS:
+        available_cases = eta_gate2_selector_fresh_cases()
+    elif case_corpus == ETA_GATE2_SHADOW_FRESH_CASE_CORPUS:
+        available_cases = eta_gate2_shadow_fresh_cases()
+    elif case_corpus == ETA_GATE2_RECENT_K2_FRESH_CASE_CORPUS:
+        available_cases = eta_gate2_recent_k2_fresh_cases()
+    else:
+        raise ValueError(f"Unsupported ETA case corpus {case_corpus!r}.")
+    available_case_ids = {case.case_id for case in available_cases}
+    unknown_route_ids = route_ids - available_case_ids
+    if unknown_route_ids:
+        raise ValueError(
+            "ETA manifest requested routes outside its declared case corpus: "
+            f"{sorted(unknown_route_ids)!r}."
+        )
+    cases = tuple(case for case in available_cases if case.case_id in route_ids)
+    control_basis_mode = next(
+        (
+            values[0]
+            for name, values in active_manifest.case_groups
+            if name == "control_basis_mode"
+        ),
+        FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE,
+    )
+    control_basis_descriptor: dict[str, str] = {
+        "control_basis_mode": control_basis_mode,
+    }
+    if control_basis_mode == TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE:
+        if open_weight_runtime is None:
+            raise ValueError(
+                "control_basis_mode="
+                f"{TRAIN_TRANSITION_PCA_CONTROL_BASIS_MODE!r} requires an "
+                "open-weight runtime to fit and install the learned basis"
+            )
+        control_basis_descriptor = _install_learned_control_basis(
+            runtime=open_weight_runtime,
+            cases=cases,
+            open_weight_config=open_weight_config,
+        )
+    elif control_basis_mode != FIXED_SINUSOID_CONTROL_BASIS_PROVENANCE:
+        raise ValueError(
+            f"Unsupported control basis mode {control_basis_mode!r}."
+        )
+    run_summaries: list[ETAProofPaperSuiteRunSummary] = []
+    reference_benchmark_report: ETAProofBenchmarkReport | None = None
+    reference_backend_report: ETAProofBackendComparisonReport | None = None
+    reference_assessment: ETAInternalRLAssessmentReport | None = None
+    for run_index, run_seed in enumerate(active_manifest.seed_schedule[: active_manifest.repeat_count], start=1):
+        evidence_run_id = (
+            f"{active_manifest.suite_id}:run-{run_index:02d}"
+        )
+        run_random = Random(run_seed)
+        ordered_cases = tuple(
+            sorted(
+                cases,
+                key=lambda case: (run_random.random(), case.case_id),
+            )
+        )
+        benchmark_report = run_eta_internal_rl_proof_benchmark(
+            cases=ordered_cases,
+            profile_labels=tuple(profile.profile_label for profile in active_manifest.profiles),
+            baseline_label=active_manifest.baseline_label,
+            backend_label=primary_backend_label,
+            train_epochs=train_epochs,
+            open_weight_runtime=open_weight_runtime,
+            open_weight_config=open_weight_config,
+            training_signal=training_signal,
+            latent_unit_clamp=latent_unit_clamp,
+            real_residual_ssl_bootstrap=(
+                real_residual_ssl_bootstrap
+            ),
+            causal_action_head_active=causal_action_head_active,
+            causal_action_head_state_dim=(
+                causal_action_head_state_dim
+            ),
+            continuation_counterfactual_grid=(
+                continuation_counterfactual_grid
+            ),
+            counterfactual_action_selector_diagnostic=(
+                counterfactual_action_selector_diagnostic
+            ),
+            counterfactual_target_mode=counterfactual_target_mode,
+            counterfactual_target_sample_count=(
+                counterfactual_target_sample_count
+            ),
+            counterfactual_audit_sample_count=(
+                counterfactual_audit_sample_count
+            ),
+            counterfactual_sampling_temperature=(
+                counterfactual_sampling_temperature
+            ),
+            counterfactual_sampling_max_new_tokens=(
+                counterfactual_sampling_max_new_tokens
+            ),
+            shadow_closed_loop_arm=shadow_closed_loop_arm,
+            shadow_committed_control_window=(
+                shadow_committed_control_window
+            ),
+            shadow_committed_control_summary_state=(
+                shadow_committed_control_summary_state
+            ),
+            evidence_run_id=evidence_run_id,
+            evidence_run_seed=run_seed,
+            control_basis_fingerprint_value=(
+                control_basis_descriptor.get(
+                    "control_basis_fingerprint",
+                    "",
+                )
+            ),
+        )
+        backend_report = run_eta_internal_rl_backend_robustness_benchmark(
+            cases=ordered_cases,
+            profile_label=active_manifest.baseline_label,
+            backend_labels=backend_labels,
+            open_weight_runtime=open_weight_runtime,
+            open_weight_config=open_weight_config,
+        )
+        assessment = build_eta_internal_rl_assessment(
+            benchmark_report=benchmark_report,
+            backend_report=backend_report,
+        )
+        reference_benchmark_report = reference_benchmark_report or benchmark_report
+        reference_backend_report = reference_backend_report or backend_report
+        reference_assessment = reference_assessment or assessment
+        report_map = {
+            profile_report.profile_label: profile_report
+            for profile_report in benchmark_report.profile_reports
+        }
+        control_reports = _control_reports_for_gate(report_map=report_map)
+        strongest_control_report = _best_eta_sparse_reward_control(control_reports=control_reports)
+        strongest_competing_control = strongest_control_report.profile_label if strongest_control_report is not None else "none"
+        full_report = report_map.get("full-internal-rl")
+        full_metrics = dict(full_report.metric_means) if full_report is not None else {}
+        best_control_strong_success = (
+            dict(strongest_control_report.metric_means).get("heldout_strong_success_rate", 0.0)
+            if strongest_control_report is not None
+            else 0.0
+        )
+        raw_gap = full_metrics.get("heldout_strong_success_rate", 0.0) - best_control_strong_success
+        effective_gap = (
+            _eta_effective_success_margin(
+                raw_success_delta=raw_gap,
+                full_report=full_report,
+                control_report=strongest_control_report,
+            )
+            if full_report is not None
+            else raw_gap
+        )
+        real_residual_control_report = _best_real_residual_policy_control(report_map=report_map)
+        real_residual_gap = (
+            max(
+                0.0,
+                _real_residual_control_score(full_report)
+                - _real_residual_control_score(real_residual_control_report),
+            )
+            if full_report is not None and real_residual_control_report is not None
+            else 0.0
+        )
+        run_summary = ETAProofPaperSuiteRunSummary(
+            run_id=evidence_run_id,
+            run_seed=run_seed,
+            metric_values=_eta_paper_suite_metric_values(
+                benchmark_report=benchmark_report,
+                backend_report=backend_report,
+                assessment=assessment,
+            ),
+            strongest_competing_control=strongest_competing_control,
+            strongest_control_gap=round(
+                real_residual_gap
+                if active_manifest.suite_kind == "eta-open-weight-residual-proof"
+                else effective_gap,
+                4,
+            ),
+            description=(
+                f"ETA proof paper suite run {run_index} summarized "
+                f"{len(benchmark_report.profile_reports)} profiles for seed={run_seed}."
+            ),
+        )
+        run_summaries.append(run_summary)
+        if output_dir is not None:
+            target_dir = Path(output_dir)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            export_json_artifact(
+                payload=benchmark_report,
+                output_path=target_dir / f"eta_run_{run_index:02d}_benchmark.json",
+            )
+            export_json_artifact(
+                payload=backend_report,
+                output_path=target_dir / f"eta_run_{run_index:02d}_backend.json",
+            )
+            export_json_artifact(
+                payload=assessment,
+                output_path=target_dir / f"eta_run_{run_index:02d}_assessment.json",
+            )
+            export_json_artifact(
+                payload=run_summary,
+                output_path=target_dir / f"eta_run_{run_index:02d}_summary.json",
+            )
+    primary_metric_summaries = build_metric_interval_summaries(
+        metric_samples=_eta_metric_samples(
+            run_summaries=tuple(run_summaries),
+            metric_names=tuple(metric.metric_name for metric in active_manifest.primary_metrics),
+        )
+    )
+    secondary_metric_summaries = build_metric_interval_summaries(
+        metric_samples=_eta_metric_samples(
+            run_summaries=tuple(run_summaries),
+            metric_names=tuple(metric.metric_name for metric in active_manifest.secondary_metrics),
+        )
+    )
+    runtime_descriptor: dict[str, str] = {
+        "suite_kind": active_manifest.suite_kind,
+        "case_corpus": case_corpus,
+        "train_epochs": str(train_epochs),
+        "backend_mode": "+".join(backend_labels),
+        "primary_backend": primary_backend_label,
+        "training_signal": training_signal,
+        "latent_unit_clamp": str(latent_unit_clamp).lower(),
+        "real_residual_ssl_bootstrap": str(
+            real_residual_ssl_bootstrap
+        ).lower(),
+        "causal_action_head_active": str(
+            causal_action_head_active
+        ).lower(),
+        "causal_action_head_state_dim": str(
+            causal_action_head_state_dim
+            if causal_action_head_state_dim is not None
+            else "default"
+        ),
+        "continuation_counterfactual_grid": str(
+            continuation_counterfactual_grid
+        ).lower(),
+        "counterfactual_action_selector_diagnostic": str(
+            counterfactual_action_selector_diagnostic
+        ).lower(),
+        "shadow_closed_loop_arm": str(
+            shadow_closed_loop_arm
+        ).lower(),
+        "shadow_committed_control_window": str(
+            shadow_committed_control_window
+            if shadow_committed_control_window is not None
+            else "full-history"
+        ),
+        "shadow_committed_control_summary_state": str(
+            shadow_committed_control_summary_state
+        ).lower(),
+        "counterfactual_target_mode": counterfactual_target_mode,
+        "counterfactual_target_sample_count": str(
+            counterfactual_target_sample_count
+        ),
+        "counterfactual_audit_sample_count": str(
+            counterfactual_audit_sample_count
+        ),
+        "counterfactual_sampling_temperature": str(
+            counterfactual_sampling_temperature
+        ),
+        "counterfactual_sampling_max_new_tokens": str(
+            counterfactual_sampling_max_new_tokens
+        ),
+    }
+    runtime_descriptor.update(
+        _open_weight_runtime_descriptor(
+            runtime=open_weight_runtime,
+            config=open_weight_config,
+        )
+    )
+    runtime_descriptor.update(control_basis_descriptor)
+    provenance = collect_paper_suite_provenance(
+        manifest=active_manifest,
+        repo_root=_repo_root_from_eta_module(),
+        runtime_descriptor=runtime_descriptor,
+    )
+    interpretation_summary = _build_eta_paper_suite_interpretation_summary(
+        reference_assessment=reference_assessment,
+        reference_benchmark_report=reference_benchmark_report,
+        run_summaries=tuple(run_summaries),
+        primary_metric_summaries=primary_metric_summaries,
+        secondary_metric_summaries=secondary_metric_summaries,
+    )
+    pairwise_effects = _build_eta_paper_suite_pairwise_effects(tuple(run_summaries))
+    aggregate_report = ETAProofPaperSuiteAggregateReport(
+        manifest=active_manifest,
+        provenance=provenance,
+        run_summaries=tuple(run_summaries),
+        reference_benchmark_report=reference_benchmark_report,
+        reference_backend_report=reference_backend_report,
+        reference_assessment=reference_assessment,
+        primary_metric_summaries=primary_metric_summaries,
+        secondary_metric_summaries=secondary_metric_summaries,
+        interpretation_summary=interpretation_summary,
+        description=(
+            f"ETA proof paper suite {active_manifest.suite_id} aggregated "
+            f"{len(run_summaries)} repeated runs."
+        ),
+        pairwise_effects=pairwise_effects,
+        claim_verdicts=(),
+    )
+    aggregate_report = replace(
+        aggregate_report,
+        claim_verdicts=_build_eta_claim_verdicts(aggregate_report),
+    )
+    if output_dir is not None:
+        export_eta_internal_rl_paper_suite_artifact_bundle(
+            aggregate_report,
+            output_dir=output_dir,
+        )
+    return aggregate_report
+
+
+def _eta_run_metric_map(summary: ETAProofPaperSuiteRunSummary) -> dict[str, float]:
+    return dict(summary.metric_values)
+
+
+def _build_eta_paper_suite_pairwise_effects(
+    run_summaries: tuple[ETAProofPaperSuiteRunSummary, ...],
+) -> tuple[PairwiseMetricEffect, ...]:
+    if not run_summaries:
+        return ()
+    full_values = tuple(
+        _eta_run_metric_map(summary).get("heldout_strong_success_rate", 0.0)
+        for summary in run_summaries
+    )
+    strongest_control_values = tuple(
+        _eta_run_metric_map(summary).get("heldout_strong_success_rate", 0.0)
+        - _eta_run_metric_map(summary).get("strong_success_gap_vs_best_control", 0.0)
+        for summary in run_summaries
+    )
+    real_residual_policy_values = tuple(
+        _eta_run_metric_map(summary).get("real_residual_policy_control_score", 0.0)
+        for summary in run_summaries
+    )
+    real_residual_control_values = tuple(
+        _eta_run_metric_map(summary).get("real_residual_policy_control_score", 0.0)
+        - _eta_run_metric_map(summary).get("real_residual_policy_gap_vs_control", 0.0)
+        for summary in run_summaries
+    )
+    return (
+        build_pairwise_metric_effect(
+            metric_name="heldout_strong_success_rate",
+            candidate_label="full-internal-rl",
+            control_label="strongest-control",
+            candidate_values=full_values,
+            control_values=strongest_control_values,
+        ),
+        build_pairwise_metric_effect(
+            metric_name="real_residual_policy_control_score",
+            candidate_label="full-internal-rl",
+            control_label="same-backend-real-residual-control",
+            candidate_values=real_residual_policy_values,
+            control_values=real_residual_control_values,
+        ),
+    )
+
+
+def _eta_claim_status(*, retain_checks: tuple[bool, ...], weak_checks: tuple[bool, ...] = ()) -> str:
+    if retain_checks and all(retain_checks):
+        return "retain"
+    if weak_checks and all(weak_checks):
+        return "weak"
+    if retain_checks and any(retain_checks):
+        return "weak"
+    return "fail"
+
+
+def _build_eta_claim_verdicts(
+    aggregate_report: ETAProofPaperSuiteAggregateReport,
+) -> tuple[ClaimVerdict, ...]:
+    assessment = aggregate_report.reference_assessment
+    blocked_gate_ids = set(assessment.gates[i].gate_id for i in range(len(assessment.gates)) if not assessment.gates[i].passed) if assessment is not None else set()
+    strongest_control_effect = next(iter(aggregate_report.pairwise_effects), None)
+    real_residual_policy_effect = next(
+        (
+            effect
+            for effect in aggregate_report.pairwise_effects
+            if effect.metric_name == "real_residual_policy_control_score"
+        ),
+        None,
+    )
+    statistical_gate_passed = "statistical-batch-evidence" not in blocked_gate_ids
+    summary_map = {
+        summary.metric_name: summary
+        for summary in aggregate_report.primary_metric_summaries + aggregate_report.secondary_metric_summaries
+    }
+    real_capture_rate = summary_map.get("real_open_weight_capture_rate")
+    real_hook_coverage = summary_map.get("real_open_weight_hook_coverage")
+    real_planned_layer_fraction = summary_map.get("real_open_weight_planned_layer_fraction")
+    real_token_step_coverage = summary_map.get("real_open_weight_token_step_coverage")
+    real_residual_sequence_present = summary_map.get("real_open_weight_residual_sequence_present")
+    real_intervention_protocol_valid = summary_map.get("real_open_weight_intervention_protocol_valid")
+    real_fallback_rate = summary_map.get("real_open_weight_fallback_rate")
+    residual_signal_quality = summary_map.get("residual_signal_quality")
+    episode_replacement_effect_delta = summary_map.get("episode_replacement_effect_delta")
+    real_residual_policy_gap = summary_map.get("real_residual_policy_gap_vs_control")
+    reward_sparsity = summary_map.get("mean_reward_sparsity")
+    reward_shaping_leakage = summary_map.get("reward_shaping_leakage")
+    family_reuse_gap = summary_map.get("heldout_family_reuse_gap_vs_no_fast_prior")
+    credit_alignment_gap = summary_map.get("heldout_credit_alignment_gap_vs_no_fast_prior")
+    slow_to_fast_benefit = summary_map.get("slow_to_fast_init_benefit")
+    credit_to_family_write_count = summary_map.get("credit_to_family_write_count")
+    long_horizon_payoff_coverage = summary_map.get("long_horizon_payoff_coverage")
+    claim_internal_rl = _eta_claim_status(
+        retain_checks=(
+            assessment is not None and assessment.passed_gate_count >= assessment.total_gate_count,
+            strongest_control_effect is not None and strongest_control_effect.ci_low > 0.0,
+            statistical_gate_passed,
+        ),
+        weak_checks=(
+            assessment is not None and assessment.passed_gate_count >= max(1, assessment.total_gate_count - 1),
+            strongest_control_effect is not None and strongest_control_effect.mean_delta > 0.0,
+        ),
+    )
+    verdicts = [
+        ClaimVerdict(
+            claim_id="claim_eta_internal_rl_advantage",
+            status=claim_internal_rl,
+            required_gate_ids=(
+                "sparse-reward-success",
+                "abstract-action-reuse",
+                "heldout-composition",
+                "credit-alignment",
+                "policy-update-evidence",
+                "statistical-batch-evidence",
+                "backend-robustness",
+            ),
+            supporting_artifacts=("paper_suite_aggregate", "reference_assessment"),
+            evidence=(
+                ("passed_gate_count", float(assessment.passed_gate_count) if assessment is not None else 0.0),
+                ("total_gate_count", float(assessment.total_gate_count) if assessment is not None else 0.0),
+                ("strong_success_gap_ci_low", strongest_control_effect.ci_low if strongest_control_effect is not None else 0.0),
+                ("strong_success_gap_mean_delta", strongest_control_effect.mean_delta if strongest_control_effect is not None else 0.0),
+                ("statistical_batch_evidence_passed", float(statistical_gate_passed)),
+            ),
+            summary="ETA internal-RL strong-proof claim verdict.",
+            description="Checks whether full internal RL stays ahead of the strongest control with retained acceptance gates and statistical evidence.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_eta_internal_rl_sparse_reward_advantage",
+            status=_eta_claim_status(
+                retain_checks=(
+                    claim_internal_rl == "retain",
+                    reward_sparsity is not None and reward_sparsity.mean >= 0.75,
+                    reward_shaping_leakage is not None and reward_shaping_leakage.mean <= 0.25,
+                ),
+                weak_checks=(
+                    claim_internal_rl in {"weak", "retain"},
+                    reward_sparsity is not None and reward_sparsity.mean > 0.0,
+                ),
+            ),
+            required_gate_ids=("sparse-reward-success", "abstract-action-reuse", "credit-alignment"),
+            supporting_artifacts=("paper_suite_aggregate", "reference_benchmark_report", "reference_assessment"),
+            evidence=(
+                ("internal_rl_advantage_status", claim_internal_rl),
+                ("mean_reward_sparsity", reward_sparsity.mean if reward_sparsity is not None else 0.0),
+                ("reward_shaping_leakage", reward_shaping_leakage.mean if reward_shaping_leakage is not None else 1.0),
+            ),
+            summary="ETA sparse-reward internal-RL claim verdict.",
+            description="Checks whether the internal-RL advantage is backed by sparse or delayed reward evidence rather than shaping leakage.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_eta_scaffold_free_temporal_abstraction",
+            status=_eta_claim_status(
+                retain_checks=(
+                    family_reuse_gap is not None and family_reuse_gap.mean >= 0.0,
+                    credit_alignment_gap is not None and credit_alignment_gap.mean >= 0.0,
+                    statistical_gate_passed,
+                ),
+                weak_checks=(
+                    family_reuse_gap is not None,
+                    credit_alignment_gap is not None,
+                ),
+            ),
+            required_gate_ids=("scaffold-ablation-retention", "statistical-batch-evidence"),
+            supporting_artifacts=("paper_suite_aggregate", "reference_benchmark_report"),
+            evidence=(
+                ("heldout_family_reuse_gap_vs_no_fast_prior", family_reuse_gap.mean if family_reuse_gap is not None else 0.0),
+                (
+                    "heldout_credit_alignment_gap_vs_no_fast_prior",
+                    credit_alignment_gap.mean if credit_alignment_gap is not None else 0.0,
+                ),
+                ("statistical_batch_evidence_passed", float(statistical_gate_passed)),
+            ),
+            summary="ETA scaffold-ablation temporal-abstraction claim verdict.",
+            description="Checks whether temporal-abstraction evidence survives matched scaffold ablations instead of relying on a fast-prior shortcut.",
+        ),
+        ClaimVerdict(
+            claim_id="claim_nl_slow_loop_improves_eta_fast_path",
+            status=_eta_claim_status(
+                retain_checks=(
+                    slow_to_fast_benefit is not None and slow_to_fast_benefit.mean >= 0.0,
+                    credit_to_family_write_count is not None and credit_to_family_write_count.mean > 0.0,
+                    long_horizon_payoff_coverage is not None and long_horizon_payoff_coverage.mean > 0.0,
+                ),
+                weak_checks=(
+                    credit_to_family_write_count is not None and credit_to_family_write_count.mean > 0.0,
+                    long_horizon_payoff_coverage is not None and long_horizon_payoff_coverage.mean > 0.0,
+                ),
+            ),
+            required_gate_ids=("nl-slow-shapes-fast", "credit-alignment"),
+            supporting_artifacts=("paper_suite_aggregate", "reference_benchmark_report"),
+            evidence=(
+                ("slow_to_fast_init_benefit", slow_to_fast_benefit.mean if slow_to_fast_benefit is not None else 0.0),
+                (
+                    "credit_to_family_write_count",
+                    credit_to_family_write_count.mean if credit_to_family_write_count is not None else 0.0,
+                ),
+                (
+                    "long_horizon_payoff_coverage",
+                    long_horizon_payoff_coverage.mean if long_horizon_payoff_coverage is not None else 0.0,
+                ),
+            ),
+            summary="NL slow-loop support for ETA fast path claim verdict.",
+            description="Checks whether delayed and long-horizon NL signals reach temporal families and fast-prior evidence.",
+        ),
+    ]
+    if aggregate_report.manifest.suite_kind == "eta-open-weight-residual-proof":
+        fallback_rate = real_fallback_rate.mean if real_fallback_rate is not None else 1.0
+        hook_coverage = real_hook_coverage.mean if real_hook_coverage is not None else 0.0
+        if fallback_rate > ETA_REAL_RESIDUAL_MAX_FALLBACK_RATE:
+            real_claim_status = "fail"
+        elif hook_coverage < ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE:
+            real_claim_status = "fail"
+        else:
+            real_claim_status = _eta_claim_status(
+                retain_checks=(
+                    real_capture_rate is not None and real_capture_rate.mean >= 1.0,
+                    real_hook_coverage is not None and real_hook_coverage.mean >= ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE,
+                    real_token_step_coverage is not None and real_token_step_coverage.mean >= 0.95,
+                    real_residual_sequence_present is not None and real_residual_sequence_present.mean >= 1.0,
+                    real_intervention_protocol_valid is not None and real_intervention_protocol_valid.mean >= 1.0,
+                    residual_signal_quality is not None and residual_signal_quality.mean > 0.0,
+                    episode_replacement_effect_delta is not None and episode_replacement_effect_delta.mean > 0.0,
+                    real_residual_policy_effect is not None and real_residual_policy_effect.ci_low > 0.0,
+                ),
+                weak_checks=(
+                    real_capture_rate is not None and real_capture_rate.mean >= 1.0,
+                    real_hook_coverage is not None and real_hook_coverage.mean > 0.0,
+                    real_residual_sequence_present is not None and real_residual_sequence_present.mean > 0.0,
+                    real_intervention_protocol_valid is not None and real_intervention_protocol_valid.mean > 0.0,
+                    residual_signal_quality is not None and residual_signal_quality.mean > 0.0,
+                    episode_replacement_effect_delta is not None and episode_replacement_effect_delta.mean > 0.0,
+                    real_residual_policy_effect is not None and real_residual_policy_effect.mean_delta > 0.0,
+                ),
+            )
+            if aggregate_report.manifest.suite_tier == "ci-smoke" and real_claim_status == "retain":
+                real_claim_status = "weak"
+        verdicts.append(
+            ClaimVerdict(
+                claim_id="claim_eta_real_open_weight_residual_control",
+                status=real_claim_status,
+                required_gate_ids=("backend-robustness",),
+                supporting_artifacts=("paper_suite_aggregate", "reference_benchmark_report"),
+                evidence=(
+                    ("real_open_weight_capture_rate", real_capture_rate.mean if real_capture_rate is not None else 0.0),
+                    ("real_open_weight_hook_coverage", real_hook_coverage.mean if real_hook_coverage is not None else 0.0),
+                    (
+                        "real_open_weight_planned_layer_fraction",
+                        real_planned_layer_fraction.mean if real_planned_layer_fraction is not None else 0.0,
+                    ),
+                    (
+                        "real_open_weight_token_step_coverage",
+                        real_token_step_coverage.mean if real_token_step_coverage is not None else 0.0,
+                    ),
+                    (
+                        "real_open_weight_residual_sequence_present",
+                        real_residual_sequence_present.mean if real_residual_sequence_present is not None else 0.0,
+                    ),
+                    (
+                        "real_open_weight_intervention_protocol_valid",
+                        real_intervention_protocol_valid.mean if real_intervention_protocol_valid is not None else 0.0,
+                    ),
+                    ("real_open_weight_fallback_rate", real_fallback_rate.mean if real_fallback_rate is not None else 0.0),
+                    ("required_min_hook_coverage", ETA_REAL_RESIDUAL_MIN_HOOK_COVERAGE),
+                    ("required_max_fallback_rate", ETA_REAL_RESIDUAL_MAX_FALLBACK_RATE),
+                    ("residual_signal_quality", residual_signal_quality.mean if residual_signal_quality is not None else 0.0),
+                    (
+                        "episode_replacement_effect_delta",
+                        episode_replacement_effect_delta.mean if episode_replacement_effect_delta is not None else 0.0,
+                    ),
+                    (
+                        "strong_success_gap_ci_low",
+                        strongest_control_effect.ci_low if strongest_control_effect is not None else 0.0,
+                    ),
+                    (
+                        "strong_success_gap_mean_delta",
+                        strongest_control_effect.mean_delta if strongest_control_effect is not None else 0.0,
+                    ),
+                    (
+                        "real_residual_policy_gap_vs_control",
+                        real_residual_policy_gap.mean if real_residual_policy_gap is not None else 0.0,
+                    ),
+                    (
+                        "real_residual_policy_gap_ci_low",
+                        real_residual_policy_effect.ci_low if real_residual_policy_effect is not None else 0.0,
+                    ),
+                    ("gate_semantics_version", "real-hook-health-v2"),
+                    ("evidence_tier", aggregate_report.manifest.suite_tier),
+                ),
+                summary="ETA real open-weight residual-control claim verdict.",
+                description=(
+                    "Checks whether ETA evidence uses real open-weight residual capture/control rather than "
+                    "only synthetic trace proof harness evidence."
+                ),
+            )
+        )
+    return tuple(verdicts)
+
+
+def build_eta_paper_suite_evidence_bundle(
+    aggregate_report: ETAProofPaperSuiteAggregateReport,
+) -> EvidenceBundle:
+    reference_artifacts: list[tuple[str, Any]] = []
+    if aggregate_report.reference_benchmark_report is not None:
+        reference_artifacts.append(("reference_benchmark_report", aggregate_report.reference_benchmark_report))
+    if aggregate_report.reference_backend_report is not None:
+        reference_artifacts.append(("reference_backend_report", aggregate_report.reference_backend_report))
+    if aggregate_report.reference_assessment is not None:
+        reference_artifacts.append(("reference_assessment", aggregate_report.reference_assessment))
+    return EvidenceBundle(
+        bundle_id=f"{aggregate_report.manifest.suite_id}:evidence-bundle",
+        suite_kind=aggregate_report.manifest.suite_kind,
+        manifest=aggregate_report.manifest,
+        provenance=aggregate_report.provenance,
+        run_summaries=aggregate_report.run_summaries,
+        aggregate_metrics={
+            "primary_metric_summaries": aggregate_report.primary_metric_summaries,
+            "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
+            "interpretation_summary": aggregate_report.interpretation_summary,
+        },
+        pairwise_effects=aggregate_report.pairwise_effects,
+        reference_artifacts=tuple(reference_artifacts),
+        claim_verdicts=aggregate_report.claim_verdicts,
+        description=f"Unified ETA evidence bundle for {aggregate_report.manifest.suite_id}.",
+    )
+
+
+def export_eta_internal_rl_paper_suite_artifact_bundle(
+    aggregate_report: ETAProofPaperSuiteAggregateReport,
+    *,
+    output_dir: str | Path,
+    require_retain_provenance: bool = False,
+    substrate_fingerprint_verified: bool | None = None,
+) -> tuple[Path, ...]:
+    target_dir = Path(output_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    evidence_bundle = build_eta_paper_suite_evidence_bundle(aggregate_report)
+    if require_retain_provenance:
+        validate_evidence_bundle_for_external_use(
+            bundle=evidence_bundle,
+            requirements=RetainProvenanceRequirements(
+                min_seed_count=3,
+                require_substrate_fingerprint=True,
+            ),
+            substrate_fingerprint_verified=substrate_fingerprint_verified,
+        )
+    written_paths = [
+        export_json_artifact(
+            payload=aggregate_report.manifest,
+            output_path=target_dir / "paper_suite_manifest.json",
+        ),
+        export_json_artifact(
+            payload=aggregate_report.provenance,
+            output_path=target_dir / "paper_suite_provenance.json",
+        ),
+        export_json_artifact(
+            payload=aggregate_report.run_summaries,
+            output_path=target_dir / "paper_suite_run_summaries.json",
+        ),
+        export_json_artifact(
+            payload={
+                "suite_id": aggregate_report.manifest.suite_id,
+                "primary_metric_summaries": aggregate_report.primary_metric_summaries,
+                "secondary_metric_summaries": aggregate_report.secondary_metric_summaries,
+                "pairwise_effects": aggregate_report.pairwise_effects,
+                "claim_verdicts": aggregate_report.claim_verdicts,
+                "interpretation_summary": aggregate_report.interpretation_summary,
+                "description": aggregate_report.description,
+            },
+            output_path=target_dir / "paper_suite_aggregate.json",
+        ),
+    ]
+    if aggregate_report.reference_benchmark_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=aggregate_report.reference_benchmark_report,
+                output_path=target_dir / "reference_benchmark_report.json",
+            )
+        )
+    if aggregate_report.reference_backend_report is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=aggregate_report.reference_backend_report,
+                output_path=target_dir / "reference_backend_report.json",
+            )
+        )
+    if aggregate_report.reference_assessment is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=aggregate_report.reference_assessment,
+                output_path=target_dir / "reference_assessment.json",
+            )
+        )
+    if aggregate_report.interpretation_summary is not None:
+        written_paths.append(
+            export_json_artifact(
+                payload=aggregate_report.interpretation_summary,
+                output_path=target_dir / "paper_suite_interpretation_summary.json",
+            )
+        )
+    written_paths.append(
+        export_json_artifact(
+            payload=build_eta_paper_suite_evidence_bundle(aggregate_report),
+            output_path=target_dir / "evidence_bundle.json",
+        )
+    )
+    return tuple(written_paths)

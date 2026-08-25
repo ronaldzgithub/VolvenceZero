@@ -1,0 +1,774 @@
+"""Differentiable steered action scoring on the frozen transformers substrate.
+
+ETA Eq.3 requires the metacontroller distortion to be the action
+log-likelihood of the *controlled frozen model*:
+
+    -log p_{theta,phi}(a_t | o_{1:t}, z_{1:t})
+
+Every other forward surface in vz-substrate runs under ``torch.no_grad()``,
+so nothing could train a controller *through* the frozen model. This module
+adds the missing surface: a scorer that injects a per-step residual-stream
+control delta at one hooked block via forward hook, keeps the upper blocks
+inside the autograd graph, and returns the differentiable negative
+log-likelihood of expert actions over a fixed action vocabulary read from
+the frozen LM head.
+
+Ownership and arms:
+
+- Frozen arm (default): base parameters stay ``requires_grad=False``;
+  gradient reaches only the injected control delta. This is the Eq.3 setup.
+- Joint arm (``joint_training=True``): the blocks strictly above the
+  injection layer plus the final norm become trainable. This is an explicit
+  validity control replicating the paper's degenerate joint-training
+  baseline. Pristine weights are snapshotted at construction;
+  ``reset_joint_parameters()`` restores them and ``restore_and_freeze()``
+  returns the shared model to its frozen state. The LM head / tied
+  embeddings stay frozen in both arms (documented deviation: the paper
+  joint-trains the full base model).
+
+This is an offline evidence surface, not a runtime snapshot publisher; it
+adds no snapshot slot.
+"""
+
+from __future__ import annotations
+
+import contextlib
+from dataclasses import dataclass
+from typing import Any, Callable, Sequence
+
+
+@dataclass(frozen=True)
+class SteeredActionOption:
+    """One discrete action choice scored against the frozen LM head."""
+
+    action_id: str
+    surface_text: str
+
+
+@dataclass
+class _PrefixCacheEntry:
+    """Delta-independent lower-stack state cached across hot-loop updates.
+
+    ``prefix_hidden`` is the output of the injection block *before* the control
+    delta is added; it is a constant with respect to the delta and (because the
+    lower blocks stay frozen in both arms) with respect to any joint-arm weight
+    update, so it is computed once and reused. ``upper_call`` records how each
+    upper block and the final norm were invoked during the reference forward so
+    the hot loop can replay them verbatim on any architecture.
+    """
+
+    prefix_hidden: Any
+    upper_call: tuple[tuple[tuple[Any, ...], dict[str, Any]], ...]
+    lengths: Any
+    row_index: Any
+
+
+class TransformersSteeredActionScorer:
+    """Differentiable action NLL through a hook-steered frozen model."""
+
+    def __init__(
+        self,
+        *,
+        torch_module: Any,
+        model: Any,
+        tokenizer: Any,
+        block_modules: Sequence[Any],
+        final_norm_module: Any,
+        injection_layer_index: int,
+        hidden_size: int,
+        device: Any,
+        model_id: str,
+        action_options: tuple[SteeredActionOption, ...],
+        prompt_suffix: str = "\nNext move:",
+        max_length: int = 96,
+        control_norm_ratio: float = 0.25,
+        probe_texts: tuple[str, ...] = (),
+        joint_training: bool = False,
+        prefix_cache: bool = False,
+        forward_context_factory: Callable[[], Any] | None = None,
+        fail_on_truncation: bool = False,
+    ) -> None:
+        if len(action_options) < 2:
+            raise ValueError(
+                "Steered action scoring requires at least two action options."
+            )
+        if not 0 <= injection_layer_index < len(block_modules):
+            raise ValueError(
+                f"injection_layer_index {injection_layer_index} out of range "
+                f"for {len(block_modules)} blocks."
+            )
+        if not 0.0 < control_norm_ratio <= 2.0:
+            raise ValueError(
+                "control_norm_ratio must be in (0, 2]; got "
+                f"{control_norm_ratio!r}."
+            )
+        if type(fail_on_truncation) is not bool:
+            raise TypeError("fail_on_truncation must be an exact bool.")
+        self._torch = torch_module
+        self._model = model
+        self._tokenizer = tokenizer
+        self._blocks = tuple(block_modules)
+        self._final_norm = final_norm_module
+        self._injection_layer_index = injection_layer_index
+        self._hidden_size = hidden_size
+        self._device = device
+        self.model_id = model_id
+        self._options = action_options
+        self._prompt_suffix = prompt_suffix
+        self._max_length = max(8, max_length)
+        self._joint_training = joint_training
+        self._model_dtype = next(iter(model.parameters())).dtype
+        self._prefix_cache_enabled = prefix_cache
+        self._prefix_cache: dict[tuple[str, ...], _PrefixCacheEntry] = {}
+        self._fail_on_truncation = fail_on_truncation
+        self._forward_context_factory = (
+            forward_context_factory
+            if forward_context_factory is not None
+            else contextlib.nullcontext
+        )
+
+        if self._tokenizer.pad_token_id is None:
+            if self._tokenizer.eos_token_id is None:
+                raise ValueError(
+                    f"Tokenizer for {model_id!r} has neither pad nor eos "
+                    "token; batched steered scoring cannot pad."
+                )
+            self._tokenizer.pad_token = self._tokenizer.eos_token
+
+        self._action_index_by_id = {
+            option.action_id: index
+            for index, option in enumerate(action_options)
+        }
+        if len(self._action_index_by_id) != len(action_options):
+            raise ValueError("action_options carry duplicate action_id.")
+        candidate_ids: list[int] = []
+        for option in action_options:
+            token_ids = self._tokenizer(
+                " " + option.surface_text, add_special_tokens=False
+            )["input_ids"]
+            if not token_ids:
+                raise ValueError(
+                    f"Action option {option.surface_text!r} tokenizes to "
+                    "nothing."
+                )
+            candidate_ids.append(int(token_ids[0]))
+        if len(set(candidate_ids)) != len(candidate_ids):
+            raise ValueError(
+                "Action option first tokens collide; the restricted action "
+                f"softmax would be ambiguous: {candidate_ids}."
+            )
+        self._candidate_token_ids = torch_module.tensor(
+            candidate_ids, dtype=torch_module.long, device=device
+        )
+
+        probe_norm = self._probe_hidden_norm(
+            probe_texts
+            or tuple(
+                f"Probe context {index}: available transitions "
+                + ", ".join(
+                    option.surface_text for option in action_options
+                )
+                + self._prompt_suffix
+                for index in range(2)
+            )
+        )
+        self._control_norm_cap = float(control_norm_ratio * probe_norm)
+        self._probe_hidden_norm_value = float(probe_norm)
+
+        self._joint_modules: tuple[Any, ...] = ()
+        self._joint_pristine_state: tuple[dict[str, Any], ...] = ()
+        if joint_training:
+            joint_modules = [
+                self._blocks[index]
+                for index in range(
+                    injection_layer_index + 1, len(self._blocks)
+                )
+            ]
+            joint_modules.append(self._final_norm)
+            self._joint_modules = tuple(joint_modules)
+            self._joint_pristine_state = tuple(
+                {
+                    key: value.detach().to("cpu").clone()
+                    for key, value in module.state_dict().items()
+                }
+                for module in self._joint_modules
+            )
+            for module in self._joint_modules:
+                for parameter in module.parameters():
+                    parameter.requires_grad_(True)
+        else:
+            self._assert_fully_frozen()
+
+    @property
+    def hidden_size(self) -> int:
+        return self._hidden_size
+
+    @property
+    def control_norm_cap(self) -> float:
+        return self._control_norm_cap
+
+    @property
+    def probe_hidden_norm(self) -> float:
+        return self._probe_hidden_norm_value
+
+    @property
+    def injection_layer_index(self) -> int:
+        return self._injection_layer_index
+
+    @property
+    def joint_training(self) -> bool:
+        return self._joint_training
+
+    @property
+    def prefix_cache_enabled(self) -> bool:
+        return self._prefix_cache_enabled
+
+    @property
+    def action_option_ids(self) -> tuple[str, ...]:
+        return tuple(option.action_id for option in self._options)
+
+    def action_index(self, action_id: str) -> int:
+        index = self._action_index_by_id.get(action_id)
+        if index is None:
+            raise KeyError(
+                f"Unknown action_id {action_id!r}; scorer options are "
+                f"{tuple(self._action_index_by_id)}."
+            )
+        return index
+
+    def trainable_parameters(self) -> tuple[Any, ...]:
+        """Substrate-side parameters trained in the joint arm (empty when frozen)."""
+
+        if not self._joint_training:
+            return ()
+        return tuple(
+            parameter
+            for module in self._joint_modules
+            for parameter in module.parameters()
+        )
+
+    def reset_joint_parameters(self) -> None:
+        """Restore pristine upper-block weights before a fresh joint run."""
+
+        if not self._joint_training:
+            raise RuntimeError(
+                "reset_joint_parameters is only valid on a joint-training "
+                "scorer."
+            )
+        torch = self._torch
+        with torch.no_grad():
+            for module, pristine in zip(
+                self._joint_modules, self._joint_pristine_state, strict=True
+            ):
+                module.load_state_dict(
+                    {
+                        key: value.to(self._device)
+                        for key, value in pristine.items()
+                    }
+                )
+
+    def restore_and_freeze(self) -> None:
+        """Restore pristine weights and re-freeze; call after the joint arm ends."""
+
+        if not self._joint_training:
+            raise RuntimeError(
+                "restore_and_freeze is only valid on a joint-training scorer."
+            )
+        self.reset_joint_parameters()
+        for module in self._joint_modules:
+            for parameter in module.parameters():
+                parameter.requires_grad_(False)
+        self._joint_training = False
+        self._joint_modules = ()
+        self._joint_pristine_state = ()
+        self._assert_fully_frozen()
+
+    def action_nll(
+        self,
+        *,
+        source_texts: tuple[str, ...],
+        control_deltas: Any,
+        action_indices: tuple[int, ...],
+    ) -> Any:
+        """Differentiable per-step NLL of expert actions under steering.
+
+        ``control_deltas`` is a torch tensor of shape ``[T, hidden_size]``
+        (any float dtype/device; it is cast inside the graph). Returns a
+        CPU float64 tensor of shape ``[T]`` connected to the autograd graph
+        so temporal-owner objectives can consume it directly.
+        """
+
+        return self._score(
+            source_texts=source_texts,
+            control_deltas=control_deltas,
+            action_indices=action_indices,
+            enable_grad=True,
+        )
+
+    def baseline_action_nll(
+        self,
+        *,
+        source_texts: tuple[str, ...],
+        action_indices: tuple[int, ...],
+    ) -> tuple[float, ...]:
+        """Unsteered (zero-delta) NLL readout; anchors the distortion axis."""
+
+        torch = self._torch
+        with torch.no_grad():
+            values = self._score(
+                source_texts=source_texts,
+                control_deltas=torch.zeros(
+                    (len(source_texts), self._hidden_size),
+                    dtype=torch.float32,
+                ),
+                action_indices=action_indices,
+                enable_grad=False,
+            )
+        return tuple(float(value) for value in values)
+
+    def controlled_action_nll(
+        self,
+        *,
+        source_texts: tuple[str, ...],
+        control_deltas: Any,
+        action_indices: tuple[int, ...],
+    ) -> tuple[float, ...]:
+        """Read-only controlled NLL for offline causal evidence.
+
+        Unlike :meth:`action_nll`, this surface does not construct an autograd
+        graph and cannot train the controller or substrate.  The same norm cap,
+        injection hook, restricted action vocabulary, and frozen-base checks
+        still apply.
+        """
+
+        torch = self._torch
+        with torch.no_grad():
+            values = self._score(
+                source_texts=source_texts,
+                control_deltas=control_deltas,
+                action_indices=action_indices,
+                enable_grad=False,
+            )
+        return tuple(float(value) for value in values)
+
+    def clear_prefix_cache(self) -> None:
+        """Release delta-independent evidence batches without changing weights."""
+
+        self._prefix_cache.clear()
+
+    def _score(
+        self,
+        *,
+        source_texts: tuple[str, ...],
+        control_deltas: Any,
+        action_indices: tuple[int, ...],
+        enable_grad: bool,
+    ) -> Any:
+        torch = self._torch
+        if not source_texts:
+            raise ValueError("source_texts must be non-empty.")
+        if len(source_texts) != len(action_indices):
+            raise ValueError(
+                f"Got {len(source_texts)} texts for {len(action_indices)} "
+                "action indices."
+            )
+        if int(control_deltas.shape[0]) != len(source_texts) or int(
+            control_deltas.shape[1]
+        ) != self._hidden_size:
+            raise ValueError(
+                "control_deltas must be [steps, hidden_size]="
+                f"[{len(source_texts)}, {self._hidden_size}], got "
+                f"{tuple(control_deltas.shape)}."
+            )
+        for index in action_indices:
+            if not 0 <= index < len(self._options):
+                raise ValueError(
+                    f"action index {index} outside the {len(self._options)}"
+                    "-way action vocabulary."
+                )
+        if not self._joint_training:
+            self._assert_fully_frozen()
+
+        batch = len(source_texts)
+        encoded = self._tokenize_batch(
+            [text + self._prompt_suffix for text in source_texts],
+        )
+        input_ids = encoded["input_ids"].to(self._device)
+        attention_mask = encoded["attention_mask"].to(self._device)
+
+        # Differentiable norm cap keeps the steered forward numerically
+        # sane without detaching the graph.
+        deltas = control_deltas.to(dtype=torch.float32)
+        norms = deltas.norm(dim=-1, keepdim=True).clamp_min(1e-9)
+        scale = torch.clamp(self._control_norm_cap / norms, max=1.0)
+        deltas = (deltas * scale).to(self._device, dtype=self._model_dtype)
+
+        grad_context = torch.enable_grad() if enable_grad else torch.no_grad()
+        if self._prefix_cache_enabled:
+            hidden_states, lengths, row_index = self._forward_via_prefix_cache(
+                source_texts=source_texts,
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                deltas=deltas,
+                batch=batch,
+                grad_context=grad_context,
+            )
+        else:
+            hidden_states, lengths, row_index = self._forward_full(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                deltas=deltas,
+                batch=batch,
+                grad_context=grad_context,
+            )
+
+        hidden_last = hidden_states[row_index, lengths]
+        output_embeddings = self._model.get_output_embeddings()
+        candidate_weight = output_embeddings.weight.index_select(
+            0, self._candidate_token_ids
+        )
+        candidate_logits = hidden_last.to(
+            dtype=candidate_weight.dtype
+        ) @ candidate_weight.t()
+        output_bias = getattr(output_embeddings, "bias", None)
+        if output_bias is not None:
+            candidate_logits = candidate_logits + output_bias.index_select(
+                0, self._candidate_token_ids
+            )
+        log_probs = torch.log_softmax(
+            candidate_logits.to(dtype=torch.float32), dim=-1
+        )
+        target = torch.tensor(
+            list(action_indices), dtype=torch.long, device=self._device
+        )
+        nll = -log_probs[row_index, target]
+        # MPS cannot represent float64; hop to CPU first, then widen so the
+        # temporal owner's float64 objective can consume the graph directly.
+        return nll.to(device="cpu").to(dtype=torch.float64)
+
+    def _forward_full(
+        self,
+        *,
+        input_ids: Any,
+        attention_mask: Any,
+        deltas: Any,
+        batch: int,
+        grad_context: Any,
+    ) -> tuple[Any, Any, Any]:
+        """Reference forward: run the whole stack with an injection hook."""
+
+        torch = self._torch
+
+        def hook(module: Any, args: Any, output: Any) -> Any:
+            del module, args
+            hidden = output[0] if isinstance(output, tuple) else output
+            if not isinstance(hidden, torch.Tensor):
+                raise TypeError(
+                    f"Steered scorer hook on {self.model_id!r} saw a "
+                    "non-tensor block output."
+                )
+            adjusted = hidden + deltas.view(batch, 1, self._hidden_size).to(
+                dtype=hidden.dtype
+            )
+            if isinstance(output, tuple):
+                return (adjusted, *output[1:])
+            return adjusted
+
+        # Capture the post-final-norm hidden state directly. The restricted
+        # action softmax only needs the candidate rows of the output
+        # embedding, so materialising the full [batch, seq, vocab] logits
+        # tensor (>10 GiB past a few dozen routes) is pure waste. We project
+        # only the candidate columns from the captured hidden state, which is
+        # numerically identical to the previous full-logits path.
+        captured_hidden: list[Any] = []
+
+        def final_norm_hook(module: Any, args: Any, output: Any) -> None:
+            del module, args
+            hidden = output[0] if isinstance(output, tuple) else output
+            if not isinstance(hidden, torch.Tensor):
+                raise TypeError(
+                    f"Steered scorer final-norm hook on {self.model_id!r} saw "
+                    "a non-tensor output."
+                )
+            captured_hidden.append(hidden)
+            return None
+
+        handle = self._blocks[
+            self._injection_layer_index
+        ].register_forward_hook(hook)
+        norm_handle = self._final_norm.register_forward_hook(final_norm_hook)
+        try:
+            with self._forward_context_factory(), grad_context:
+                # logits_to_keep=1 stops the frozen LM head from projecting the
+                # full sequence over the ~151k vocab; we never read
+                # outputs.logits, so the padded last-position slice it computes
+                # is irrelevant.
+                self._model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    use_cache=False,
+                    logits_to_keep=1,
+                )
+        finally:
+            handle.remove()
+            norm_handle.remove()
+        if len(captured_hidden) != 1:
+            raise RuntimeError(
+                f"Steered scorer on {self.model_id!r} captured "
+                f"{len(captured_hidden)} final-norm outputs; expected exactly "
+                "one."
+            )
+        hidden_states = captured_hidden[0]
+        lengths = attention_mask.sum(dim=-1) - 1
+        row_index = torch.arange(batch, device=self._device)
+        return hidden_states, lengths, row_index
+
+    def _forward_via_prefix_cache(
+        self,
+        *,
+        source_texts: tuple[str, ...],
+        input_ids: Any,
+        attention_mask: Any,
+        deltas: Any,
+        batch: int,
+        grad_context: Any,
+    ) -> tuple[Any, Any, Any]:
+        """Delta hot path: reuse the cached lower-stack prefix, rerun upper blocks.
+
+        The injection delta only enters at the output of the injection block,
+        so blocks ``0..injection`` are a constant with respect to the delta and
+        (lower blocks stay frozen in both arms) with respect to any joint-arm
+        weight update. We compute that prefix once per token surface and, on
+        every subsequent update, add the fresh delta and replay only the upper
+        blocks plus the final norm. This is numerically identical to
+        ``_forward_full``; ``test_prefix_cache_matches_full_forward`` guards it.
+        """
+
+        entry = self._prefix_cache.get(tuple(source_texts))
+        if entry is None:
+            entry = self._build_prefix_entry(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                batch=batch,
+            )
+            self._prefix_cache[tuple(source_texts)] = entry
+
+        steered = entry.prefix_hidden + deltas.view(
+            batch, 1, self._hidden_size
+        ).to(dtype=entry.prefix_hidden.dtype)
+        with self._forward_context_factory(), grad_context:
+            hidden = steered
+            upper_indices = range(
+                self._injection_layer_index + 1, len(self._blocks)
+            )
+            for position, block_index in enumerate(upper_indices):
+                extra_args, kwargs = entry.upper_call[position]
+                output = self._blocks[block_index](hidden, *extra_args, **kwargs)
+                hidden = output[0] if isinstance(output, tuple) else output
+            final_args, final_kwargs = entry.upper_call[-1]
+            final_output = self._final_norm(hidden, *final_args, **final_kwargs)
+            hidden_states = (
+                final_output[0]
+                if isinstance(final_output, tuple)
+                else final_output
+            )
+        return hidden_states, entry.lengths, entry.row_index
+
+    def _build_prefix_entry(
+        self,
+        *,
+        input_ids: Any,
+        attention_mask: Any,
+        batch: int,
+    ) -> _PrefixCacheEntry:
+        """Run one reference forward, recording the delta-independent prefix.
+
+        We capture the injection block's *unsteered* output and the exact
+        positional/keyword arguments every upper block and the final norm were
+        called with, so the hot loop can replay them verbatim regardless of the
+        model architecture (rotary position embeddings, causal masks, etc. are
+        the same tensors across a decoder stack and get reused as constants).
+        """
+
+        torch = self._torch
+        prefix_holder: list[Any] = []
+
+        def capture_prefix(module: Any, args: Any, output: Any) -> None:
+            del module, args
+            hidden = output[0] if isinstance(output, tuple) else output
+            if not isinstance(hidden, torch.Tensor):
+                raise TypeError(
+                    f"Steered scorer prefix hook on {self.model_id!r} saw a "
+                    "non-tensor block output."
+                )
+            prefix_holder.append(hidden.detach())
+            return None
+
+        upper_indices = tuple(
+            range(self._injection_layer_index + 1, len(self._blocks))
+        )
+        recorded: dict[int, tuple[tuple[Any, ...], dict[str, Any]]] = {}
+
+        def make_recorder(slot: int):
+            def pre_hook(module: Any, args: Any, kwargs: dict[str, Any]):
+                del module
+                # args[0] is the running hidden state supplied by the hot loop;
+                # everything else (mask, position embeddings, ...) is constant.
+                extra_args = tuple(args[1:])
+                aux = dict(kwargs)
+                aux.pop("past_key_value", None)
+                aux.pop("past_key_values", None)
+                if "use_cache" in aux:
+                    aux["use_cache"] = False
+                recorded[slot] = (extra_args, aux)
+                return None
+
+            return pre_hook
+
+        handles = [
+            self._blocks[self._injection_layer_index].register_forward_hook(
+                capture_prefix
+            )
+        ]
+        for slot, block_index in enumerate(upper_indices):
+            handles.append(
+                self._blocks[block_index].register_forward_pre_hook(
+                    make_recorder(slot), with_kwargs=True
+                )
+            )
+        final_slot = len(upper_indices)
+        handles.append(
+            self._final_norm.register_forward_pre_hook(
+                make_recorder(final_slot), with_kwargs=True
+            )
+        )
+        try:
+            with self._forward_context_factory(), torch.no_grad():
+                self._model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    use_cache=False,
+                    logits_to_keep=1,
+                )
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        if len(prefix_holder) != 1:
+            raise RuntimeError(
+                f"Steered scorer on {self.model_id!r} captured "
+                f"{len(prefix_holder)} injection outputs; expected exactly one."
+            )
+        expected_slots = len(upper_indices) + 1
+        if len(recorded) != expected_slots:
+            raise RuntimeError(
+                f"Steered scorer on {self.model_id!r} recorded "
+                f"{len(recorded)} upper-call signatures; expected "
+                f"{expected_slots}."
+            )
+        upper_call = tuple(recorded[slot] for slot in range(expected_slots))
+        lengths = attention_mask.sum(dim=-1) - 1
+        row_index = torch.arange(batch, device=self._device)
+        return _PrefixCacheEntry(
+            prefix_hidden=prefix_holder[0],
+            upper_call=upper_call,
+            lengths=lengths,
+            row_index=row_index,
+        )
+
+    def _probe_hidden_norm(self, probe_texts: tuple[str, ...]) -> float:
+        torch = self._torch
+        norms: list[float] = []
+
+        def norm_hook(module: Any, args: Any, output: Any) -> None:
+            del module, args
+            hidden = output[0] if isinstance(output, tuple) else output
+            norms.append(float(hidden.norm(dim=-1).mean()))
+            return None
+
+        encoded = self._tokenize_batch(list(probe_texts))
+        handle = self._blocks[
+            self._injection_layer_index
+        ].register_forward_hook(norm_hook)
+        try:
+            with self._forward_context_factory(), torch.no_grad():
+                self._model(
+                    input_ids=encoded["input_ids"].to(self._device),
+                    attention_mask=encoded["attention_mask"].to(self._device),
+                    use_cache=False,
+                )
+        finally:
+            handle.remove()
+        if not norms:
+            raise RuntimeError(
+                f"Steered scorer probe on {self.model_id!r} captured no "
+                "hidden norm at the injection layer."
+            )
+        return norms[0]
+
+    def _tokenize_batch(self, texts: list[str]) -> dict[str, Any]:
+        tokenize_kwargs: dict[str, Any] = {
+            "return_tensors": "pt",
+            "padding": True,
+            "truncation": not self._fail_on_truncation,
+        }
+        if not self._fail_on_truncation:
+            tokenize_kwargs["max_length"] = self._max_length
+        encoded = self._tokenizer(texts, **tokenize_kwargs)
+        if not self._fail_on_truncation:
+            return encoded
+        try:
+            input_ids = encoded["input_ids"]
+            attention_mask = encoded["attention_mask"]
+        except KeyError as exc:
+            raise ValueError(
+                "strict steered scoring tokenizer must publish input_ids and "
+                "attention_mask"
+            ) from exc
+        torch = self._torch
+        if not isinstance(input_ids, torch.Tensor) or not isinstance(
+            attention_mask, torch.Tensor
+        ):
+            raise TypeError(
+                "strict steered scoring tokenizer outputs must be tensors"
+            )
+        if (
+            input_ids.ndim != 2
+            or attention_mask.ndim != 2
+            or tuple(input_ids.shape) != tuple(attention_mask.shape)
+            or int(input_ids.shape[0]) != len(texts)
+        ):
+            raise ValueError(
+                "strict steered scoring tokenizer batch geometry is invalid"
+            )
+        if not bool(
+            ((attention_mask == 0) | (attention_mask == 1)).all()
+        ):
+            raise ValueError(
+                "strict steered scoring attention_mask must be binary"
+            )
+        token_counts = tuple(
+            int(value)
+            for value in attention_mask.sum(dim=-1).detach().cpu().tolist()
+        )
+        overflow_rows = tuple(
+            index
+            for index, token_count in enumerate(token_counts)
+            if token_count > self._max_length
+        )
+        if int(input_ids.shape[-1]) > self._max_length or overflow_rows:
+            raise ValueError(
+                "strict steered scoring input exceeds max_length before "
+                f"forward: max_length={self._max_length}, "
+                f"token_counts={token_counts}, overflow_rows={overflow_rows}"
+            )
+        return encoded
+
+    def _assert_fully_frozen(self) -> None:
+        for parameter in self._model.parameters():
+            if parameter.requires_grad:
+                raise RuntimeError(
+                    f"Frozen-arm steered scorer on {self.model_id!r} found a "
+                    "trainable base parameter; the substrate contract "
+                    "(R2 frozen basis) is violated."
+                )

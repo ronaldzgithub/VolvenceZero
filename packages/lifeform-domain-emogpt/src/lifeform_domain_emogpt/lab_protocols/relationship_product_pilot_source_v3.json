@@ -1,0 +1,21 @@
+{
+  "schema_version": "relationship-product-pilot-source.v3",
+  "owner": {
+    "module": "lifeform_domain_emogpt.lab.relationship_product_pilot_source_v2",
+    "source_role": "independent_development_product_pilot_domain_source_only",
+    "settlement_owner": "lifeform_domain_emogpt.lab.environment.ReactiveRelationshipEnvironment",
+    "runtime_owner_added": false,
+    "runtime_slot_added": false,
+    "p1m_output_dependency": false,
+    "difficulty_tuned_from_p1m": false
+  },
+  "base_source": {
+    "filename": "relationship_product_pilot_source_v2.json",
+    "schema_version": "relationship-product-pilot-source.v2",
+    "raw_sha256": "ef35ba2637e53c96c2ed86b16a8bb69281cc10e1a2f30c81112a66841f4b23f7",
+    "raw_bytes": 13031,
+    "protocol_id": "9f4ad004f9332a705d3231cb9a3394b4922417878f18487806b0f030bb863161",
+    "relationship": "immutable_semantic_payload_input"
+  },
+  "claim_boundary": "Source v3 binds the immutable, previously published source-v2 semantic payload to the independent source-v2 owner without changing the historical bytes or their owner metadata. The owner materializes zero model outputs, consumes no prior evaluation or outcome, adds no runtime owner or slot, and authorizes only a new exact-source reader qualification preregistration. It proves no Product Horizon effect, formal evidence, Appendable, Readable, Learnable, Steerable, integrated, human, or production claim."
+}

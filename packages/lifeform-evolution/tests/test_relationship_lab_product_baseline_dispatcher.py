@@ -11,6 +11,8 @@ from lifeform_domain_emogpt.lab import RelationshipAction, canonical_json, sha25
 from lifeform_evolution.relationship_lab_baseline import StatelessActionCompletion
 from lifeform_evolution.relationship_lab_product_baseline_dispatcher import (
     DEFAULT_PRODUCT_BASELINE_BGE_REVISION,
+    DEFAULT_PRODUCT_BASELINE_BGE_SENTENCE_TRANSFORMERS_VERSION,
+    DEFAULT_PRODUCT_BASELINE_BGE_WEIGHTS_SHA256,
     DEFAULT_PRODUCT_BASELINE_MODEL_REVISION,
     ProductBaselineCurrentObservationLineage,
     ProductBaselineDecisionBoundary,
@@ -36,7 +38,10 @@ from lifeform_evolution.relationship_lab_product_baselines import (
     RelationshipProductBaselineSuite,
 )
 from lifeform_evolution.relationship_lab_product_model_adapters import (
+    PrecomputedPublicEmbeddingRecord,
+    PrecomputedPublicEmbeddingTable,
     load_precomputed_public_embedding_table,
+    write_precomputed_public_embedding_table,
 )
 
 
@@ -518,6 +523,11 @@ class _FakeSentenceModel:
 
 
 def test_live_revision_pinned_bge_caches_exact_public_text_and_exports_table(tmp_path) -> None:
+    weight_bytes = b"dispatcher fake bge weight bytes"
+    snapshot = tmp_path / "bge-snapshot"
+    snapshot.mkdir()
+    (snapshot / "pytorch_model.bin").write_bytes(weight_bytes)
+    weights_sha256 = hashlib.sha256(weight_bytes).hexdigest()
     model = _FakeSentenceModel()
     factory_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
@@ -528,8 +538,16 @@ def test_live_revision_pinned_bge_caches_exact_public_text_and_exports_table(tmp
     embedder = RevisionPinnedCachedPublicSemanticEmbedder(
         model_source="BAAI/bge-m3",
         model_revision=DEFAULT_PRODUCT_BASELINE_BGE_REVISION,
+        weights_sha256=weights_sha256,
+        sentence_transformers_version=(
+            DEFAULT_PRODUCT_BASELINE_BGE_SENTENCE_TRANSFORMERS_VERSION
+        ),
         device="cuda",
         model_factory=factory,
+        snapshot_path=snapshot,
+        runtime_version_resolver=lambda _name: (
+            DEFAULT_PRODUCT_BASELINE_BGE_SENTENCE_TRANSFORMERS_VERSION
+        ),
     )
     first = embedder.embed("first actual public reaction")
     replay = embedder.embed("first actual public reaction")
@@ -538,12 +556,14 @@ def test_live_revision_pinned_bge_caches_exact_public_text_and_exports_table(tmp
     assert first == replay
     assert first != second
     assert len(factory_calls) == 1
-    assert factory_calls[0][1]["revision"] == DEFAULT_PRODUCT_BASELINE_BGE_REVISION
+    assert factory_calls[0][0] == (str(snapshot.resolve()),)
     assert factory_calls[0][1]["local_files_only"] is True
     assert model.seen == ["first actual public reaction", "second actual public reaction"]
     assert embedder.cached_text_count == 2
     assert "live-public-exact-text-cache" in embedder.name
     assert DEFAULT_PRODUCT_BASELINE_BGE_REVISION in embedder.name
+    assert weights_sha256 in embedder.name
+    assert DEFAULT_PRODUCT_BASELINE_BGE_SENTENCE_TRANSFORMERS_VERSION in embedder.name
 
     policy = _FakeResidentPolicy()
     suite = RelationshipProductBaselineSuite(
@@ -560,6 +580,11 @@ def test_live_revision_pinned_bge_caches_exact_public_text_and_exports_table(tmp
     loaded = load_precomputed_public_embedding_table(output_path)
 
     assert loaded.source_embedder_name == embedder.name
+    assert loaded.source_weights_sha256 == weights_sha256
+    assert (
+        loaded.source_sentence_transformers_version
+        == DEFAULT_PRODUCT_BASELINE_BGE_SENTENCE_TRANSFORMERS_VERSION
+    )
     assert len(loaded.records) == 2
     assert {record.text for record in loaded.records} == {
         "first actual public reaction",
@@ -567,6 +592,14 @@ def test_live_revision_pinned_bge_caches_exact_public_text_and_exports_table(tmp
     }
     with pytest.raises(FileExistsError):
         export_live_public_embedding_table(suite=suite, path=output_path)
+
+    rag_result = suite.run_selective_semantic_rag(
+        public_input=_public_input(),
+        seed=47,
+        top_k=2,
+    )
+    assert rag_result.retrieval_receipt.embedder_id == embedder.name
+    assert weights_sha256 in rag_result.retrieval_receipt.embedder_id
 
 
 def test_formal_config_binds_revisions_and_deterministic_generation_without_loading_models(
@@ -605,6 +638,11 @@ def test_formal_config_binds_revisions_and_deterministic_generation_without_load
 
     assert config.model_revision == DEFAULT_PRODUCT_BASELINE_MODEL_REVISION
     assert config.bge_model_revision == DEFAULT_PRODUCT_BASELINE_BGE_REVISION
+    assert config.bge_weights_sha256 == DEFAULT_PRODUCT_BASELINE_BGE_WEIGHTS_SHA256
+    assert (
+        config.bge_sentence_transformers_version
+        == DEFAULT_PRODUCT_BASELINE_BGE_SENTENCE_TRANSFORMERS_VERSION
+    )
     assert config.context_window_tokens == 32768
     assert config.generation_reserve_tokens == 64
     assert captured_policy_kwargs == {
@@ -622,6 +660,14 @@ def test_formal_config_binds_revisions_and_deterministic_generation_without_load
         "schema_constrained_decoding": True,
     }
     assert captured_bge_kwargs["model_revision"] == DEFAULT_PRODUCT_BASELINE_BGE_REVISION
+    assert (
+        captured_bge_kwargs["weights_sha256"]
+        == DEFAULT_PRODUCT_BASELINE_BGE_WEIGHTS_SHA256
+    )
+    assert (
+        captured_bge_kwargs["sentence_transformers_version"]
+        == DEFAULT_PRODUCT_BASELINE_BGE_SENTENCE_TRANSFORMERS_VERSION
+    )
     assert suite.policy is suite.token_counter is policy
     assert suite.token_budget.generation_reserve_tokens == policy.max_new_tokens == 64
 
@@ -639,6 +685,12 @@ def test_dispatcher_config_rejects_unbounded_or_uncached_chunked_prefill() -> No
         )
     with pytest.raises(TypeError, match="schema_constrained_decoding"):
         ProductBaselineDispatcherConfig(schema_constrained_decoding=1)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="weights_sha256"):
+        ProductBaselineDispatcherConfig(bge_weights_sha256="not-a-digest")
+    with pytest.raises(ValueError, match="canonical package version"):
+        ProductBaselineDispatcherConfig(bge_sentence_transformers_version="not a version")
+    with pytest.raises(ValueError, match="must be exactly BAAI/bge-m3"):
+        ProductBaselineDispatcherConfig(bge_model_source="other/embedder")
 
 
 def test_dispatcher_schema_constraint_is_legacy_off_and_requires_explicit_cli_flag() -> None:
@@ -650,3 +702,57 @@ def test_dispatcher_schema_constraint_is_legacy_off_and_requires_explicit_cli_fl
         dispatcher._parse_args(["--schema-constrained-decoding"]).schema_constrained_decoding
         is True
     )
+    defaults = dispatcher._parse_args([])
+    assert defaults.bge_weights_sha256 == DEFAULT_PRODUCT_BASELINE_BGE_WEIGHTS_SHA256
+    assert (
+        defaults.bge_sentence_transformers_version
+        == DEFAULT_PRODUCT_BASELINE_BGE_SENTENCE_TRANSFORMERS_VERSION
+    )
+    explicit = dispatcher._parse_args(
+        [
+            "--bge-weights-sha256",
+            "a" * 64,
+            "--bge-sentence-transformers-version",
+            "9.8.7",
+        ]
+    )
+    assert explicit.bge_weights_sha256 == "a" * 64
+    assert explicit.bge_sentence_transformers_version == "9.8.7"
+
+
+def test_dispatcher_precomputed_mode_strictly_accepts_legacy_v2_identity(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import lifeform_evolution.relationship_lab_product_baseline_dispatcher as dispatcher
+
+    record = PrecomputedPublicEmbeddingRecord(
+        text="legacy public text",
+        embedding_hex=((1.0).hex(),),
+    )
+    table = PrecomputedPublicEmbeddingTable(
+        source_embedder_name=(
+            "sentence-transformer:BAAI/bge-m3@revision:"
+            f"{DEFAULT_PRODUCT_BASELINE_BGE_REVISION}/model-adapter-v1"
+        ),
+        embedding_width=1,
+        records=(record,),
+    )
+    table_path = tmp_path / "legacy-v2-table.json"
+    write_precomputed_public_embedding_table(table, path=table_path)
+    policy = _FakeResidentPolicy()
+    monkeypatch.setattr(
+        dispatcher,
+        "HFStatelessRelationshipActionPolicy",
+        lambda **_kwargs: policy,
+    )
+
+    suite = build_product_baseline_dispatcher_suite(
+        ProductBaselineDispatcherConfig(
+            semantic_mode=ProductBaselineSemanticMode.PRECOMPUTED,
+            precomputed_embedding_table_path=table_path,
+        )
+    )
+
+    assert suite.policy is policy
+    assert suite.semantic_embedder.name.startswith(table.source_embedder_name)

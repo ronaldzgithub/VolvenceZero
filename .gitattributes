@@ -21,10 +21,66 @@ artifacts/relationship_lab/**/*.md text eol=lf
 artifacts/relationship_lab/**/*.yaml text eol=lf
 artifacts/relationship_lab/**/*.csv text eol=lf
 
+# Frozen Product Horizon execution-source bundles preserve the exact observed
+# checkout bytes, including reviewed CRLF. Never normalize these embedded files.
+artifacts/relationship_lab/relationship_product_horizon_*/inputs/execution_sources/** -text
+
 # Offline evidence protocols are content-addressed from their raw UTF-8 bytes.
 # Keep protocol IDs reproducible across Windows and macOS/Linux checkouts.
 packages/*/src/volvence_zero/offline_evidence/protocols/*.json text eol=lf
 packages/lifeform-evolution/src/lifeform_evolution/protocols/*.json text eol=lf
+
+# Product-horizon preregistration hashes these sources and prompt assets from
+# their checked-out bytes.  Preserve the reviewed byte representation across
+# Windows/POSIX clones; the two prompts and baseline policy intentionally keep
+# their currently frozen bytes verbatim, including existing line endings.
+scripts/run_relationship_lab_product_baseline_dispatcher.py text eol=lf
+scripts/run_relationship_lab_product_horizon.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_baseline_dispatcher.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_baselines.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_baseline.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_horizon.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_model_adapters.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/prompts/relationship_lab_full_history_steelman_v2.txt text eol=crlf
+packages/lifeform-evolution/src/lifeform_evolution/prompts/relationship_lab_rag_steelman_v2.txt text eol=crlf
+packages/lifeform-evolution/src/lifeform_evolution/schemas/relationship_action_choice.schema.json text eol=lf
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_pilot_source.py text eol=lf
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_pilot_source_v2.py text eol=lf
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v1.json text eol=lf
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v2.json text eol=lf
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v3.json text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/protocols/relationship_condition_reader_qualification_v2.json text eol=lf
+
+# Qualification-owned code, launch/attestation owners, validators and direct
+# tests below use explicit reviewed EOL. V2 repository runtime coverage also
+# hashes every file under source roots without EOL normalization; files not
+# listed here remain bound to this anchored checkout's exact raw bytes.
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/relationship_condition_reader.py text eol=crlf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_predictor.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_scorer.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_executor.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_execution_protocol.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_execution.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_runtime_binding.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_repository_runtime_coverage.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_execution_protocol_v2.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_execution_v2.py text eol=lf
+packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification_execution_cli_v2.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_predictor.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_scorer.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_executor.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_execution.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_execution_protocol.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_execution_protocol_v2.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_execution_v2.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_execution_cli_v2.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_runtime_binding.py text eol=lf
+packages/lifeform-evolution/tests/test_relationship_condition_reader_qualification_repository_runtime_coverage.py text eol=lf
+packages/lifeform-evolution/tests/test_run_relationship_condition_reader_qualification_execution.py text eol=lf
+scripts/run_relationship_condition_reader_qualification.py text eol=lf
+scripts/run_relationship_condition_reader_qualification_execution.py text eol=lf
 
 # P4.7 derivation helpers are raw-byte pinned and execute on macOS/Linux too.
 packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_p4_long_context_v4_planning_derivation.py text eol=lf

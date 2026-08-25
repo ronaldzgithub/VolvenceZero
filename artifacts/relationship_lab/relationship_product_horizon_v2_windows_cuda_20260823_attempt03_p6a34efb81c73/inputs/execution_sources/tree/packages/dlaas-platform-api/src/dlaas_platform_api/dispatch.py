@@ -1,0 +1,1497 @@
+"""Typed-envelope dispatch handlers for ``/dlaas/instances/{ai_id}/interactions``.
+
+Each ``interaction_type`` in :class:`dlaas_platform_contracts.InteractionType`
+maps to exactly one async handler in this module. The handlers translate
+typed envelopes into ``LifeformSession`` / ``BrainSession`` calls and
+return a ready-to-serialise JSON body.
+
+Design rules:
+
+1. The dispatcher MUST switch on the typed enum
+   (:func:`dispatch_envelope` below). It MUST NOT inspect natural-language
+   fields (``human_brief``, etc.) to decide the handler — that would
+   violate the no-keyword-matching invariant.
+2. Each handler validates its required ``structured_context`` keys
+   BEFORE calling the kernel. Missing keys raise
+   :class:`DispatchError` which the caller turns into a typed 400.
+3. Handlers may emit one or more :class:`OutputAct` entries plus extra
+   metadata via :func:`output_acts.ok_envelope`. They never mutate the
+   envelope or the session beyond the documented kernel call.
+4. Handlers do NOT touch any cognitive state directly. They only read
+   results returned by the kernel facade and package them into the
+   wire-format response.
+
+Slice 1 wired ``chat`` only. Slice 2 fills in the remaining six types
+(``feedback`` / ``observe`` / ``teach`` / ``task`` / ``report`` /
+``command``) per ``docs/moving forward/dlaas-platform-rollout.md``.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any
+
+from dlaas_platform_contracts import (
+    CommandName,
+    ExperienceBriefSpec,
+    ExperienceReceiptSpec,
+    ExperienceReflectionSpec,
+    FeedbackPayload,
+    FeedbackValence,
+    InteractionEnvelope,
+    InteractionType,
+    ObservationType,
+    OutputAct,
+    feedback_valence_to_outcome_kind,
+    is_experience_observation,
+)
+from lifeform_core.types import TurnTriggerKind
+from lifeform_ingestion import (
+    IngestionComplianceProfile,
+    IngestionPipeline,
+    IngestionSourceKind,
+    envelope_from_text,
+)
+from volvence_zero.dialogue_trace import DialogueExternalOutcomeEvidenceSource
+
+from dlaas_platform_api.output_acts import (
+    ok_envelope,
+    system_act,
+    text_act,
+    tool_call_act,
+    tool_task_act,
+)
+
+
+class DispatchError(Exception):
+    """Raised by a handler when the envelope fails its typed contract.
+
+    Carries an HTTP-friendly ``code`` slug (e.g. ``"missing_field"``)
+    and a ``detail`` string. The route adapter converts it to a
+    structured 400 response. Distinct from
+    :class:`dlaas_platform_api.app._EnvelopeError`, which is raised by
+    the parser BEFORE dispatch.
+    """
+
+    def __init__(self, code: str, detail: str, *, status: int = 400) -> None:
+        super().__init__(detail)
+        self.code = code
+        self.detail = detail
+        self.status = status
+
+
+# ---------------------------------------------------------------------------
+# Top-level dispatch
+# ---------------------------------------------------------------------------
+
+
+async def dispatch_envelope(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+) -> dict[str, Any]:
+    """Route a typed envelope to the matching handler.
+
+    The single switch on :class:`InteractionType` is the SSOT for
+    "which interaction goes to which kernel sink". Adding a new
+    interaction type means: extend the enum, extend this switch, add
+    a handler. The dispatcher refuses to fall through to a default
+    path — every member must be enumerated.
+    """
+    kind = envelope.interaction_type
+    if kind is InteractionType.CHAT:
+        return await _handle_chat(envelope=envelope, session=session, ai_id=ai_id)
+    if kind is InteractionType.FEEDBACK:
+        return await _handle_feedback(envelope=envelope, session=session, ai_id=ai_id)
+    if kind is InteractionType.OBSERVE:
+        return await _handle_observe(envelope=envelope, session=session, ai_id=ai_id)
+    if kind in (InteractionType.TEACH, InteractionType.TASK):
+        return await _handle_apprentice(envelope=envelope, session=session, ai_id=ai_id)
+    if kind is InteractionType.REPORT:
+        return await _handle_report(envelope=envelope, session=session, ai_id=ai_id)
+    if kind is InteractionType.COMMAND:
+        return await _handle_command(envelope=envelope, session=session, ai_id=ai_id)
+    raise DispatchError(  # pragma: no cover - exhaustive switch
+        code="unsupported_interaction_type",
+        detail=(
+            f"interaction_type={kind!r} is in the typed enum but has no "
+            f"handler. This is a contract bug — every InteractionType "
+            f"member must have a dispatcher."
+        ),
+        status=500,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Slice 1 — chat
+# ---------------------------------------------------------------------------
+
+
+async def _handle_chat(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+) -> dict[str, Any]:
+    if not envelope.human_brief.strip():
+        raise DispatchError(
+            code="invalid_human_brief",
+            detail="interaction_type=chat requires a non-empty human_brief",
+        )
+    native_tool_intent = _native_tool_intent(envelope.structured_context)
+    loop_mode = _optional_str(
+        envelope.structured_context, "tool_loop_mode", default="client"
+    )
+    if native_tool_intent is not None or loop_mode == "server":
+        invoker = _session_invoker(session)
+        if loop_mode == "server":
+            from lifeform_affordance import ToolLoopOrchestrator, ToolLoopPolicy
+
+            policy_kwargs: dict[str, Any] = {"server_side_execution": True}
+            override_steps = _optional_int(
+                envelope.structured_context,
+                "tool_loop_max_steps",
+            )
+            if override_steps is not None and override_steps > 0:
+                policy_kwargs["max_tool_steps"] = override_steps
+            override_wall_ms = _optional_int(
+                envelope.structured_context,
+                "tool_loop_max_wall_ms",
+            )
+            if override_wall_ms is not None and override_wall_ms > 0:
+                policy_kwargs["max_wall_ms"] = override_wall_ms
+            orchestrator = ToolLoopOrchestrator(
+                registry=invoker.registry,
+                invoker=invoker,
+                policy=ToolLoopPolicy(**policy_kwargs),
+                contract_id=envelope.contract_id,
+                granted_consents=frozenset(
+                    _optional_str_sequence(
+                        envelope.structured_context,
+                        "granted_consents",
+                    )
+                ),
+            )
+            loop_result = await orchestrator.run(
+                session=session,
+                user_input=envelope.human_brief,
+                initial_intents=(
+                    (native_tool_intent,) if native_tool_intent is not None else ()
+                ),
+            )
+            final_text = getattr(loop_result.final_turn_result.response, "text", "") or ""
+            acts = [text_act(final_text)]
+            for task_id in loop_result.async_task_ids:
+                handle = invoker.get_task_handle(task_id)
+                acts.append(
+                    tool_task_act(
+                        task_id=handle.task_id,
+                        status=handle.status.value,
+                        poll_after_ms=handle.poll_after_ms,
+                    )
+                )
+            return ok_envelope(
+                ai_id=ai_id,
+                contract_id=envelope.contract_id,
+                session_id=envelope.session_id,
+                interaction_type=envelope.interaction_type.value,
+                output_acts=tuple(acts),
+                protocol_version=envelope.protocol_version,
+                extra={
+                    "tool_loop": {
+                        "stop_reason": loop_result.stop_reason.value,
+                        "steps": [_tool_loop_step_to_json(step) for step in loop_result.steps],
+                    }
+                },
+            )
+        if native_tool_intent is None:
+            raise DispatchError(
+                code="missing_tool_choice",
+                detail=(
+                    "structured_context.tool_loop_mode must be 'server' when "
+                    "no structured_context.tool_choice is provided."
+                ),
+            )
+        return ok_envelope(
+            ai_id=ai_id,
+            contract_id=envelope.contract_id,
+            session_id=envelope.session_id,
+            interaction_type=envelope.interaction_type.value,
+            output_acts=(
+                tool_call_act(
+                    call_id=native_tool_intent.stable_call_id,
+                    tool_name=native_tool_intent.descriptor_name,
+                    arguments=dict(native_tool_intent.parameters),
+                ),
+            ),
+            protocol_version=envelope.protocol_version,
+            extra={"tool_loop": {"mode": "client"}},
+        )
+    result = await session.run_turn(envelope.human_brief)
+    response_text = getattr(result.response, "text", "") or ""
+    rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
+    extra: dict[str, Any] = {
+        "active_regime": getattr(result, "active_regime", None),
+        "active_abstract_action": getattr(result, "active_abstract_action", None),
+        "rationale_tags": list(rationale_tags),
+    }
+    extra.update(_cognition_extra(session))
+    return ok_envelope(
+        ai_id=ai_id,
+        contract_id=envelope.contract_id,
+        session_id=envelope.session_id,
+        interaction_type=envelope.interaction_type.value,
+        output_acts=(text_act(response_text),),
+        protocol_version=envelope.protocol_version,
+        extra=extra,
+    )
+
+
+def _session_invoker(session: Any) -> Any:
+    try:
+        return session.mcp_invoker
+    except AttributeError as exc:
+        raise DispatchError(
+            code="tool_invoker_unavailable",
+            detail="session does not expose an affordance invoker",
+            status=501,
+        ) from exc
+
+
+def _native_tool_intent(ctx: Mapping[str, Any]) -> Any:
+    raw = ctx.get("tool_choice")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise DispatchError(
+            code="invalid_tool_choice",
+            detail="structured_context.tool_choice must be an object",
+        )
+    name = raw.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise DispatchError(
+            code="invalid_tool_choice",
+            detail="structured_context.tool_choice.name must be non-empty",
+        )
+    arguments = raw.get("arguments", {})
+    if not isinstance(arguments, Mapping):
+        raise DispatchError(
+            code="invalid_tool_choice",
+            detail="structured_context.tool_choice.arguments must be an object",
+        )
+    from lifeform_affordance import ToolCallIntent
+
+    call_id = raw.get("call_id", "")
+    if call_id is not None and not isinstance(call_id, str):
+        raise DispatchError(
+            code="invalid_tool_choice",
+            detail="structured_context.tool_choice.call_id must be a string",
+        )
+    return ToolCallIntent(
+        descriptor_name=name,
+        parameters=dict(arguments),
+        call_id=call_id or "",
+        plan_ref=_optional_str(ctx, "plan_ref", default=None) or None,
+        source="dlaas_native",
+    )
+
+
+def _tool_loop_step_to_json(step: Any) -> dict[str, Any]:
+    intent = step.intent
+    invocation = step.invocation
+    payload: dict[str, Any] = {
+        "step_index": step.step_index,
+        "tool_name": intent.descriptor_name,
+        "arguments": dict(intent.parameters),
+        "call_id": intent.stable_call_id,
+        "plan_ref": intent.plan_ref,
+        "status": step.status,
+        "elapsed_ms": step.elapsed_ms,
+    }
+    if invocation is not None:
+        payload["invocation"] = {
+            "descriptor_name": invocation.descriptor_name,
+            "status": invocation.status.value,
+            "payload": dict(invocation.payload or {}),
+            "error_class": invocation.error_class,
+            "error_detail": invocation.error_detail,
+            "tool_event_ids": list(invocation.tool_event_ids),
+            "task_id": invocation.task_id,
+            "kernel_summary_truncated": bool(
+                getattr(invocation, "kernel_summary_truncated", False)
+            ),
+        }
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# Slice 2.1 — feedback
+# ---------------------------------------------------------------------------
+
+
+async def _handle_feedback(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+) -> dict[str, Any]:
+    """Translate a typed feedback envelope to ``submit_dialogue_outcome``.
+
+    Wire format mirrors DLaaS public ``feedback`` envelope: the typed
+    valence + optional ``target_response_id`` / ``intensity`` /
+    ``scope`` / ``evidence`` carry directly over. The platform maps
+    :class:`FeedbackValence` to the kernel's
+    :class:`DialogueExternalOutcomeKind` via the explicit table in
+    :func:`feedback_valence_to_outcome_kind` — never via free-text
+    inference.
+    """
+    payload = envelope.feedback
+    if payload is None:
+        raise DispatchError(
+            code="missing_feedback_payload",
+            detail=(
+                "interaction_type=feedback requires a 'feedback' object "
+                "with at least 'valence'."
+            ),
+        )
+    valence = _parse_feedback_valence(payload)
+    kind = feedback_valence_to_outcome_kind(valence)
+    confidence = _coerce_unit_float(
+        payload.intensity, field="feedback.intensity", default=0.9
+    )
+    description = (payload.evidence or envelope.human_brief or "").strip()
+    target_response_id = payload.target_response_id.strip() or None
+    evidence = session.submit_dialogue_outcome(
+        kind=kind,
+        source=DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
+        confidence=confidence,
+        evidence_ref=target_response_id,
+        description=description,
+    )
+    notice = (
+        f"feedback recorded: valence={valence.value!r} → "
+        f"outcome_kind={kind.value!r}"
+    )
+    return ok_envelope(
+        ai_id=ai_id,
+        contract_id=envelope.contract_id,
+        session_id=envelope.session_id,
+        interaction_type=envelope.interaction_type.value,
+        output_acts=(system_act(notice),),
+        protocol_version=envelope.protocol_version,
+        extra={
+            "feedback": {
+                "valence": valence.value,
+                "outcome_kind": kind.value,
+                "scope": payload.scope,
+                "target_response_id": target_response_id or "",
+            },
+            "evidence_id": getattr(evidence, "evidence_id", ""),
+        },
+    )
+
+
+def _parse_feedback_valence(payload: FeedbackPayload) -> FeedbackValence:
+    raw = (payload.valence or "").strip().lower()
+    if not raw:
+        raise DispatchError(
+            code="missing_feedback_valence",
+            detail="feedback.valence is required and must be non-empty.",
+        )
+    try:
+        return FeedbackValence(raw)
+    except ValueError as exc:
+        allowed = ", ".join(v.value for v in FeedbackValence)
+        raise DispatchError(
+            code="invalid_feedback_valence",
+            detail=f"feedback.valence must be one of: {allowed}",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Slice 2.2 — observe
+# ---------------------------------------------------------------------------
+
+
+async def _handle_observe(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+) -> dict[str, Any]:
+    """Route an observation to the matching kernel ingestion sink.
+
+    The observation type is read from
+    ``envelope.structured_context['observation_type']`` and parsed
+    as :class:`ObservationType`. Each kind has its own required
+    fields; missing fields raise a typed ``DispatchError``. There is
+    no default sink — unknown observation types fail at the edge.
+    """
+    obs_type = _parse_observation_type(envelope)
+    ctx = envelope.structured_context
+
+    if obs_type is ObservationType.HOMEWORK_RESULT:
+        return _emit_observe_response(
+            envelope=envelope,
+            ai_id=ai_id,
+            obs_type=obs_type,
+            event_ids=session.submit_task_event(
+                event_id=_required_str(ctx, "event_id", obs_type),
+                task_id=_required_str(ctx, "task_id", obs_type),
+                status=_required_str(ctx, "status", obs_type),
+                summary=_required_str(ctx, "summary", obs_type),
+                detail=_optional_str(ctx, "detail"),
+                due_hint=_optional_str(ctx, "due_hint", default=None),
+                commitment_ref=_optional_str(ctx, "commitment_ref", default=None),
+                confidence=_optional_unit_float(ctx, "confidence", default=0.75),
+            ),
+        )
+
+    if obs_type in (ObservationType.CLASS_NOTE, ObservationType.TEACHER_NOTE):
+        return _emit_observe_response(
+            envelope=envelope,
+            ai_id=ai_id,
+            obs_type=obs_type,
+            event_ids=session.submit_reviewed_knowledge_event(
+                event_id=_required_str(ctx, "event_id", obs_type),
+                knowledge_id=_required_str(ctx, "knowledge_id", obs_type),
+                summary=_required_str(ctx, "summary", obs_type, default=envelope.human_brief),
+                detail=_optional_str(ctx, "detail", default=envelope.human_brief),
+                source_label=_optional_str(
+                    ctx, "source_label", default=obs_type.value
+                ),
+                confidence=_optional_unit_float(ctx, "confidence", default=0.8),
+                relevance_hint=_optional_str(ctx, "relevance_hint"),
+                needs_followup=bool(ctx.get("needs_followup", False)),
+            ),
+        )
+
+    if obs_type is ObservationType.PROFILE_UPDATE:
+        return _emit_observe_response(
+            envelope=envelope,
+            ai_id=ai_id,
+            obs_type=obs_type,
+            event_ids=session.submit_profile_event(
+                event_id=_required_str(ctx, "event_id", obs_type),
+                source=_optional_str(ctx, "source", default=envelope.end_user_ref),
+                preferences=_string_tuple(ctx.get("preferences")),
+                goals=_string_tuple(ctx.get("goals")),
+                consent_grants=_string_tuple(ctx.get("consent_grants")),
+                consent_denials=_string_tuple(ctx.get("consent_denials")),
+                relationship_note=_optional_str(ctx, "relationship_note"),
+                confidence=_optional_unit_float(ctx, "confidence", default=0.75),
+            ),
+        )
+
+    if obs_type is ObservationType.TOOL_RESULT:
+        plan_ref = _optional_str(ctx, "plan_ref", default=None) or None
+        artifact_refs = _optional_str_sequence(ctx, "artifact_refs")
+        tool_result_kwargs: dict[str, Any] = {
+            "event_id": _required_str(ctx, "event_id", obs_type),
+            "tool_name": _required_str(ctx, "tool_name", obs_type),
+            "action_id": _required_str(ctx, "action_id", obs_type),
+            "status": _required_str(ctx, "status", obs_type),
+            "summary": _required_str(ctx, "summary", obs_type),
+            "detail": _optional_str(ctx, "detail"),
+            "confidence": _optional_unit_float(ctx, "confidence", default=0.8),
+        }
+        if plan_ref:
+            tool_result_kwargs["plan_ref"] = plan_ref
+        if artifact_refs:
+            tool_result_kwargs["artifact_refs"] = artifact_refs
+        return _emit_observe_response(
+            envelope=envelope,
+            ai_id=ai_id,
+            obs_type=obs_type,
+            event_ids=session.submit_tool_result(**tool_result_kwargs),
+        )
+
+    if obs_type is ObservationType.CORPUS_INGEST:
+        return await _handle_corpus_ingest(
+            envelope=envelope, session=session, ai_id=ai_id, ctx=ctx
+        )
+
+    if obs_type is ObservationType.KNOWLEDGE_RETIRED:
+        # Q1.3 retire semantics: routed through the same
+        # `submit_reviewed_knowledge_event` sink as CLASS_NOTE so the
+        # semantic owners can detach the matching `knowledge_id` from
+        # any active corpus references. The caller carries the
+        # original `knowledge_id` plus a `retire_reason` so audit /
+        # PE can attribute the change.
+        knowledge_id = _required_str(ctx, "knowledge_id", obs_type)
+        retire_reason = _optional_str(
+            ctx, "retire_reason", default="caller_retired"
+        )
+        summary = _required_str(
+            ctx,
+            "summary",
+            obs_type,
+            default=f"knowledge retired: {knowledge_id}",
+        )
+        return _emit_observe_response(
+            envelope=envelope,
+            ai_id=ai_id,
+            obs_type=obs_type,
+            event_ids=session.submit_reviewed_knowledge_event(
+                event_id=_required_str(ctx, "event_id", obs_type),
+                knowledge_id=knowledge_id,
+                summary=summary,
+                detail=_optional_str(
+                    ctx,
+                    "detail",
+                    default=f"retire_reason={retire_reason}",
+                ),
+                source_label=_optional_str(
+                    ctx,
+                    "source_label",
+                    default=ObservationType.KNOWLEDGE_RETIRED.value,
+                ),
+                confidence=_optional_unit_float(ctx, "confidence", default=0.95),
+                relevance_hint=_optional_str(
+                    ctx, "relevance_hint", default="retired"
+                ),
+                needs_followup=False,
+            ),
+        )
+
+    if obs_type is ObservationType.PERSON_PROFILE:
+        # Digital Employee R16-R20: a BFF-side InboxItem can carry a
+        # counterparty snapshot (customer / colleague / external system).
+        # The kernel does not need a bespoke portal-side table; it needs
+        # a reviewed knowledge event with a stable knowledge_id so
+        # relationship-continuity owners can attach social context to the
+        # twin's session.
+        person_ref = _required_str(ctx, "person_ref", obs_type)
+        person_kind = _required_str(ctx, "person_kind", obs_type)
+        attributes = ctx.get("attributes")
+        attributes_detail = ""
+        if isinstance(attributes, Mapping) and attributes:
+            try:
+                import json
+
+                attributes_detail = " attributes=" + json.dumps(
+                    dict(attributes),
+                    sort_keys=True,
+                    ensure_ascii=False,
+                )
+            except Exception:
+                attributes_detail = " attributes=(unserializable)"
+        return _emit_observe_response(
+            envelope=envelope,
+            ai_id=ai_id,
+            obs_type=obs_type,
+            event_ids=session.submit_reviewed_knowledge_event(
+                event_id=_required_str(ctx, "event_id", obs_type),
+                knowledge_id=_required_str(
+                    ctx,
+                    "knowledge_id",
+                    obs_type,
+                    default=f"counterparty:{person_ref}",
+                ),
+                summary=_required_str(
+                    ctx,
+                    "summary",
+                    obs_type,
+                    default=f"person_profile:{person_kind}:{person_ref}",
+                ),
+                detail=(
+                    _optional_str(ctx, "detail", default=envelope.human_brief)
+                    + attributes_detail
+                ),
+                source_label=_optional_str(
+                    ctx,
+                    "source_label",
+                    default=ObservationType.PERSON_PROFILE.value,
+                ),
+                confidence=_optional_unit_float(ctx, "confidence", default=0.9),
+                relevance_hint=_optional_str(
+                    ctx,
+                    "relevance_hint",
+                    default=f"counterparty:{person_kind}",
+                ),
+                needs_followup=bool(ctx.get("needs_followup", False)),
+            ),
+        )
+
+    if is_experience_observation(obs_type):
+        return _handle_experience_observation(
+            envelope=envelope, session=session, ai_id=ai_id, ctx=ctx, obs_type=obs_type
+        )
+
+    if obs_type is ObservationType.GENERIC_SEMANTIC:
+        # GENERIC_SEMANTIC requires a typed ExternalSemanticEventBatch
+        # which is non-trivial to construct from raw JSON. Slice 2 does
+        # not wire this — Slice 7.x will when we have a proper
+        # typed-batch parser shared with the kernel.
+        raise DispatchError(
+            code="not_implemented",
+            detail=(
+                "observation_type='generic_semantic' is reserved for Slice 7; "
+                "use a more specific observation_type for now."
+            ),
+            status=501,
+        )
+
+    raise DispatchError(  # pragma: no cover - exhaustive
+        code="unsupported_observation_type",
+        detail=(
+            f"observation_type={obs_type!r} has no kernel sink in Slice 2."
+        ),
+        status=501,
+    )
+
+
+async def _handle_corpus_ingest(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+    ctx: Mapping[str, Any],
+) -> dict[str, Any]:
+    """CORPUS_INGEST → ``IngestionPipeline.process_envelope``.
+
+    The platform builds an in-memory ``IngestionEnvelope`` from
+    ``human_brief`` (or an explicit ``corpus_text``) plus the optional
+    ``source_uri`` provenance and runs the standard pipeline. This
+    keeps long-form material on the same code path as PDF / DOCX
+    adapters — the kernel's ``IngestionPipeline`` is the single
+    entry point.
+    """
+    text = (
+        _optional_str(ctx, "corpus_text")
+        or envelope.human_brief
+    ).strip()
+    if not text:
+        raise DispatchError(
+            code="missing_corpus_text",
+            detail=(
+                "observation_type='corpus_ingest' requires either "
+                "structured_context.corpus_text or a non-empty human_brief."
+            ),
+        )
+    source_uri = _optional_str(
+        ctx, "source_uri", default=f"dlaas:{envelope.session_id}"
+    )
+    uploader = _optional_str(ctx, "uploader", default=envelope.end_user_ref)
+    ingestion_envelope = envelope_from_text(
+        text,
+        source_uri=source_uri,
+        uploader=uploader or "system",
+        source_kind=IngestionSourceKind.CORPUS,
+        compliance_profile=IngestionComplianceProfile.FORCED,
+    )
+    pipeline = IngestionPipeline()
+    report = await pipeline.process_envelope(
+        ingestion_envelope,
+        session=session,
+        end_scene_after=False,
+    )
+    notice = (
+        f"corpus ingested: {report.processed_chunks}/{report.total_chunks} "
+        f"chunks ok, skipped={report.skipped_chunks}"
+    )
+    return ok_envelope(
+        ai_id=ai_id,
+        contract_id=envelope.contract_id,
+        session_id=envelope.session_id,
+        interaction_type=envelope.interaction_type.value,
+        output_acts=(system_act(notice),),
+        protocol_version=envelope.protocol_version,
+        extra={
+            "ingestion_report": {
+                "envelope_id": ingestion_envelope.envelope_id,
+                "total_chunks": report.total_chunks,
+                "processed_chunks": report.processed_chunks,
+                "skipped_chunks": report.skipped_chunks,
+                "all_succeeded": report.all_succeeded,
+            },
+            "observation_type": ObservationType.CORPUS_INGEST.value,
+        },
+    )
+
+
+def _emit_observe_response(
+    *,
+    envelope: InteractionEnvelope,
+    ai_id: str,
+    obs_type: ObservationType,
+    event_ids: tuple[str, ...],
+) -> dict[str, Any]:
+    notice = (
+        f"observation recorded: type={obs_type.value!r}, "
+        f"events={len(event_ids)}"
+    )
+    return ok_envelope(
+        ai_id=ai_id,
+        contract_id=envelope.contract_id,
+        session_id=envelope.session_id,
+        interaction_type=envelope.interaction_type.value,
+        output_acts=(system_act(notice),),
+        protocol_version=envelope.protocol_version,
+        extra={
+            "observation_type": obs_type.value,
+            "event_ids": list(event_ids),
+        },
+    )
+
+
+def _handle_experience_observation(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+    ctx: Mapping[str, Any],
+    obs_type: ObservationType,
+) -> dict[str, Any]:
+    """Route a typed ExperienceLoop observation.
+
+    SHADOW behaviour: validate the typed ``ExperienceReceiptSpec`` /
+    ``ExperienceReflectionSpec`` payload (under
+    ``structured_context.experience``) and then fall through to the
+    same ``submit_reviewed_knowledge_event`` sink the legacy
+    ``class_note`` path uses. This keeps the kernel side untouched
+    while every cross-app emitter starts speaking the typed envelope.
+    """
+
+    experience_raw = ctx.get("experience")
+    if not isinstance(experience_raw, Mapping):
+        raise DispatchError(
+            code="missing_experience_payload",
+            detail=(
+                "ExperienceLoop observations must carry a typed "
+                "structured_context.experience object."
+            ),
+        )
+    try:
+        if obs_type is ObservationType.EXPERIENCE_BRIEF:
+            ExperienceBriefSpec.from_json(experience_raw)
+        elif obs_type is ObservationType.EXPERIENCE_REFLECTION_GENERATED:
+            ExperienceReflectionSpec.from_json(experience_raw)
+        else:
+            ExperienceReceiptSpec.from_json(experience_raw)
+    except ValueError as exc:
+        raise DispatchError(
+            code="invalid_experience_payload",
+            detail=str(exc),
+        ) from exc
+
+    domain = str(experience_raw.get("domain") or "experience")
+    experience_id = str(experience_raw.get("experience_id") or "unknown")
+    event_kind = (
+        str(experience_raw.get("event_kind") or "")
+        if obs_type
+        not in (
+            ObservationType.EXPERIENCE_BRIEF,
+            ObservationType.EXPERIENCE_REFLECTION_GENERATED,
+        )
+        else "reflection_generated"
+    )
+    if obs_type is ObservationType.EXPERIENCE_BRIEF:
+        event_kind = "brief_observed"
+    if not event_kind:
+        event_kind = obs_type.value
+    knowledge_id = _optional_str(
+        ctx,
+        "knowledge_id",
+        default=f"{domain}:{experience_id}:{event_kind}",
+    )
+    event_id = _optional_str(
+        ctx,
+        "event_id",
+        default=f"{domain}:{event_kind}:{experience_id}",
+    )
+    summary = _optional_str(
+        ctx,
+        "summary",
+        default=str(experience_raw.get("summary") or envelope.human_brief),
+    )
+    detail = _optional_str(
+        ctx,
+        "detail",
+        default=str(experience_raw.get("detail") or summary),
+    )
+    source_label = _optional_str(
+        ctx,
+        "source_label",
+        default=f"digital-employee.{domain}.{event_kind}",
+    )
+    confidence = _optional_unit_float(ctx, "confidence", default=0.85)
+    needs_followup = bool(ctx.get("needs_followup", False))
+
+    event_ids = session.submit_reviewed_knowledge_event(
+        event_id=event_id,
+        knowledge_id=knowledge_id,
+        summary=summary,
+        detail=detail,
+        source_label=source_label,
+        confidence=confidence,
+        relevance_hint=_optional_str(ctx, "relevance_hint"),
+        needs_followup=needs_followup,
+    )
+    return _emit_observe_response(
+        envelope=envelope,
+        ai_id=ai_id,
+        obs_type=obs_type,
+        event_ids=event_ids,
+    )
+
+
+def _parse_observation_type(envelope: InteractionEnvelope) -> ObservationType:
+    raw = envelope.structured_context.get("observation_type")
+    if not isinstance(raw, str) or not raw.strip():
+        raise DispatchError(
+            code="missing_observation_type",
+            detail=(
+                "interaction_type=observe requires "
+                "structured_context.observation_type (typed enum)."
+            ),
+        )
+    try:
+        return ObservationType(raw.strip().lower())
+    except ValueError as exc:
+        allowed = ", ".join(t.value for t in ObservationType)
+        raise DispatchError(
+            code="invalid_observation_type",
+            detail=f"observation_type must be one of: {allowed}",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Slice 2.3 — teach / task (apprentice)
+# ---------------------------------------------------------------------------
+
+
+async def _handle_apprentice(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+) -> dict[str, Any]:
+    """Apprentice-mode turns (``teach`` / ``task``).
+
+    Both kinds run the regular cognition pipeline but flip the kernel's
+    ``vitals.apprentice_override`` so drive deviation does not feed
+    slow-scale PE for this turn (see
+    :func:`lifeform_core.types.is_apprenticeship_trigger`). The two
+    interaction types differ only in audit label — the wire format
+    keeps them separate so an integrator can filter the ledger by
+    intent later.
+    """
+    if not envelope.human_brief.strip():
+        raise DispatchError(
+            code="invalid_human_brief",
+            detail=(
+                f"interaction_type={envelope.interaction_type.value} "
+                f"requires a non-empty human_brief."
+            ),
+        )
+    result = await session.run_turn(
+        envelope.human_brief, trigger_kind=TurnTriggerKind.APPRENTICE
+    )
+    response_text = getattr(result.response, "text", "") or ""
+    rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
+    extra: dict[str, Any] = {
+        "active_regime": getattr(result, "active_regime", None),
+        "active_abstract_action": getattr(result, "active_abstract_action", None),
+        "rationale_tags": list(rationale_tags),
+        "trigger_kind": TurnTriggerKind.APPRENTICE.value,
+        "mode": envelope.mode.value,
+    }
+    extra.update(_cognition_extra(session))
+    return ok_envelope(
+        ai_id=ai_id,
+        contract_id=envelope.contract_id,
+        session_id=envelope.session_id,
+        interaction_type=envelope.interaction_type.value,
+        output_acts=(text_act(response_text),),
+        protocol_version=envelope.protocol_version,
+        extra=extra,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Slice 2.4 — report + command
+# ---------------------------------------------------------------------------
+
+
+async def _handle_report(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+) -> dict[str, Any]:
+    """Drain the slow loop and surface a minimal report scaffold.
+
+    Slice 2.4 implements the kernel-side hook (``end_scene`` with
+    ``drain_slow_loop=True``), which forces R6 reflection writeback to
+    settle. The actual report rendering (per-week / per-person
+    structured projections) is a Slice 6 / Slice 7 readout from
+    reflection snapshots — by then those projections live behind a
+    typed snapshot enrichment, not behind ad-hoc text formatting.
+    """
+    closed = await session.end_scene(
+        reason=f"dlaas-report:{envelope.session_id}", drain_slow_loop=True
+    )
+    scene_id = getattr(closed, "scene_id", None) if closed is not None else None
+    notice = (
+        "report drain complete: slow loop drained; reflection snapshot ready"
+    )
+    return ok_envelope(
+        ai_id=ai_id,
+        contract_id=envelope.contract_id,
+        session_id=envelope.session_id,
+        interaction_type=envelope.interaction_type.value,
+        output_acts=(system_act(notice),),
+        protocol_version=envelope.protocol_version,
+        extra={
+            "drained": True,
+            "scene_id": scene_id,
+            "report_view": None,  # Slice 6 will populate from reflection snapshot.
+        },
+    )
+
+
+async def _handle_command(
+    *,
+    envelope: InteractionEnvelope,
+    session: Any,
+    ai_id: str,
+) -> dict[str, Any]:
+    """Typed command allowlist dispatch.
+
+    DLaaS public clients put the command identifier in ``human_brief``
+    (see ``DLAAS_README.md`` §"command"). The platform parses it as a
+    :class:`CommandName` enum — anything outside the allowlist is
+    rejected at the edge.
+
+    * ``REFRESH_PERSON_CONTEXT`` →
+      :meth:`LifeformSession.submit_profile_event` carrying the
+      caller-provided ``relationship_note`` (DLaaS doc-stated reason).
+    * ``END_SCENE`` →
+      :meth:`LifeformSession.end_scene` without draining the slow loop.
+    * ``PAUSE_SESSION`` / ``RESUME_SESSION`` → Slice 5.1 placeholders.
+      Today the platform records a ``system`` OutputAct describing
+      the pending wiring; the ops state machine lands in Slice 5.1.
+    """
+    cmd = _parse_command_name(envelope)
+    ctx = envelope.structured_context
+
+    if cmd is CommandName.REFRESH_PERSON_CONTEXT:
+        if not envelope.target_person_ids:
+            raise DispatchError(
+                code="missing_target_person_ids",
+                detail=(
+                    "command=refresh_person_context requires "
+                    "target_person_ids on the envelope (or in "
+                    "structured_context)."
+                ),
+            )
+        event_ids = session.submit_profile_event(
+            event_id=_optional_str(
+                ctx, "event_id", default=f"refresh:{envelope.session_id}"
+            ),
+            source=_optional_str(ctx, "source", default=envelope.end_user_ref),
+            relationship_note=_optional_str(
+                ctx,
+                "relationship_note",
+                default=(
+                    "refresh_person_context: re-pull profile snapshot for "
+                    + ",".join(envelope.target_person_ids)
+                ),
+            ),
+            confidence=_optional_unit_float(ctx, "confidence", default=0.75),
+        )
+        notice = (
+            f"command refresh_person_context: persons="
+            f"{list(envelope.target_person_ids)}"
+        )
+        return ok_envelope(
+            ai_id=ai_id,
+            contract_id=envelope.contract_id,
+            session_id=envelope.session_id,
+            interaction_type=envelope.interaction_type.value,
+            output_acts=(system_act(notice),),
+            protocol_version=envelope.protocol_version,
+            extra={
+                "command": cmd.value,
+                "event_ids": list(event_ids),
+                "target_person_ids": list(envelope.target_person_ids),
+            },
+        )
+
+    if cmd is CommandName.END_SCENE:
+        closed = await session.end_scene(
+            reason=f"dlaas-command:{cmd.value}", drain_slow_loop=False
+        )
+        scene_id = getattr(closed, "scene_id", None) if closed is not None else None
+        return ok_envelope(
+            ai_id=ai_id,
+            contract_id=envelope.contract_id,
+            session_id=envelope.session_id,
+            interaction_type=envelope.interaction_type.value,
+            output_acts=(system_act(f"command end_scene: scene_id={scene_id!r}"),),
+            protocol_version=envelope.protocol_version,
+            extra={"command": cmd.value, "scene_id": scene_id, "drained": False},
+        )
+
+    if cmd in (CommandName.PAUSE_SESSION, CommandName.RESUME_SESSION):
+        notice = (
+            f"command {cmd.value}: ops state machine lands in Slice 5.1; "
+            f"recorded but not yet active."
+        )
+        return ok_envelope(
+            ai_id=ai_id,
+            contract_id=envelope.contract_id,
+            session_id=envelope.session_id,
+            interaction_type=envelope.interaction_type.value,
+            output_acts=(system_act(notice),),
+            protocol_version=envelope.protocol_version,
+            extra={"command": cmd.value, "ops_pending": "Slice 5.1"},
+        )
+
+    if cmd is CommandName.INITIATE_PROACTIVE_FOLLOWUP:
+        followup_brief = _optional_str(ctx, "followup_brief", default="").strip()
+        if not followup_brief:
+            raise DispatchError(
+                code="missing_followup_brief",
+                detail=(
+                    "command=initiate_proactive_followup requires "
+                    "structured_context.followup_brief (the message the "
+                    "lifeform should send to the user). The brief is "
+                    "produced by the platform-ops OutboundScheduler "
+                    "from a vertical-supplied template; the kernel does "
+                    "not infer it from chat text."
+                ),
+            )
+        followup_evidence = _optional_str(ctx, "followup_evidence_ref", default="")
+        result = await session.run_turn(
+            followup_brief, trigger_kind=TurnTriggerKind.APPRENTICE
+        )
+        response_text = getattr(result.response, "text", "") or ""
+        rationale_tags = tuple(getattr(result.response, "rationale_tags", ()) or ())
+        extra: dict[str, Any] = {
+            "command": cmd.value,
+            "trigger_kind": TurnTriggerKind.APPRENTICE.value,
+            "active_regime": getattr(result, "active_regime", None),
+            "active_abstract_action": getattr(
+                result, "active_abstract_action", None
+            ),
+            "rationale_tags": list(rationale_tags),
+            "followup_evidence_ref": followup_evidence,
+        }
+        extra.update(_cognition_extra(session))
+        return ok_envelope(
+            ai_id=ai_id,
+            contract_id=envelope.contract_id,
+            session_id=envelope.session_id,
+            interaction_type=envelope.interaction_type.value,
+            output_acts=(text_act(response_text),),
+            protocol_version=envelope.protocol_version,
+            extra=extra,
+        )
+
+    raise DispatchError(  # pragma: no cover - exhaustive
+        code="unsupported_command",
+        detail=f"command={cmd!r} has no handler.",
+        status=500,
+    )
+
+
+def _parse_command_name(envelope: InteractionEnvelope) -> CommandName:
+    raw = (envelope.human_brief or "").strip().lower()
+    if not raw:
+        raise DispatchError(
+            code="missing_command",
+            detail=(
+                "interaction_type=command requires the command name in "
+                "human_brief (typed CommandName)."
+            ),
+        )
+    try:
+        return CommandName(raw)
+    except ValueError as exc:
+        allowed = ", ".join(c.value for c in CommandName)
+        raise DispatchError(
+            code="invalid_command",
+            detail=f"command must be one of: {allowed}",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Cognition enrichment for the interaction response
+# ---------------------------------------------------------------------------
+
+
+def _cognition_extra(session: Any) -> dict[str, Any]:
+    """Surface the published expression intent + a compact PE / relationship
+    readout on the interaction response ``extra`` block.
+
+    Rationale: the cognitive core already publishes ``expression_intent``
+    (on the ``response_assembly`` snapshot), a structured prediction-error
+    snapshot, and a ``relationship_state`` snapshot whose owner writes a
+    human-readable ``description``. The chat/apprentice handlers previously
+    forwarded only ``active_regime`` / ``active_abstract_action`` /
+    ``rationale_tags``, stripping the very signal the product layer needs to
+    drive the visible avatar + relationship UI (the "subjectivity transport
+    gap"). We mirror the readout builder's snapshot-reading pattern
+    (``response_assembly.expression_intent`` via ``getattr`` on the snapshot
+    value, ``relationship_state.description``) and a compact prediction-error
+    projection. We NEVER reach into owner internals beyond the public
+    snapshot value fields, and we NEVER reconstruct producer state — exactly
+    what ``_build_readout_bundle`` already does.
+
+    This is best-effort enrichment: the chat turn is load-bearing and must
+    not 5xx because a snapshot is absent for a given turn type. Snapshot
+    publication is part of the session contract (the readout endpoints rely
+    on ``latest_active_snapshots``); we read it as documented optional
+    session behaviour and skip enrichment when it is not present.
+    """
+    snapshots = getattr(session, "latest_active_snapshots", None)
+    if not snapshots:
+        return {}
+    extra: dict[str, Any] = {}
+
+    response_assembly = snapshots.get("response_assembly")
+    expression_intent = _snapshot_value_field(response_assembly, "expression_intent")
+    if isinstance(expression_intent, str) and expression_intent:
+        extra["expression_intent"] = expression_intent
+
+    prediction_error = snapshots.get("prediction_error")
+    pe_compact = _prediction_error_compact(prediction_error)
+    if pe_compact is not None:
+        extra["prediction_error"] = pe_compact
+
+    confidence = _kernel_confidence(prediction_error)
+    if confidence is not None:
+        # D-collab-pe (deploy-side collaboration gate): the kernel's
+        # forward-looking calibrated confidence (R-PE readout,
+        # ``next_prediction.confidence``). ``confidence_origin`` lets the
+        # consumer's gate distinguish a real kernel PE signal from a
+        # structural / fallback literal — it must NEVER be fabricated
+        # downstream when this field is absent.
+        extra["confidence"] = confidence
+        extra["confidence_origin"] = "kernel_pe"
+
+    relationship_brief = _snapshot_description(snapshots.get("relationship_state"))
+    if relationship_brief:
+        extra["relationship_brief"] = relationship_brief
+
+    # Digital-employee task progress readout: compact projections of the
+    # three semantic-state owners (plan_intent / open_loop / commitment,
+    # R11) so the product layer can render task progress without an extra
+    # snapshot round-trip. Same redaction posture as relationship_brief:
+    # scalar aggregates + the owner-published free-text goal/step only —
+    # never the raw SemanticRecord lists (those stay on the admin
+    # snapshot-export route).
+    plan_brief = _plan_brief(snapshots.get("plan_intent"))
+    if plan_brief is not None:
+        extra["plan_brief"] = plan_brief
+
+    open_loop_brief = _open_loop_brief(snapshots.get("open_loop"))
+    if open_loop_brief is not None:
+        extra["open_loop_brief"] = open_loop_brief
+
+    commitment_brief = _commitment_brief(snapshots.get("commitment"))
+    if commitment_brief is not None:
+        extra["commitment_brief"] = commitment_brief
+
+    return extra
+
+
+def _snapshot_value(snapshot: Any) -> Any:
+    """Read the published ``snapshot.value``; ``None`` when the slot was
+    not published for this turn (documented optional session behaviour,
+    same posture as ``_snapshot_value_field``). Once a value IS present
+    its type is the slot owner's contract — brief builders below access
+    the dataclass fields directly so a contract violation fails loudly
+    instead of silently dropping the readout.
+    """
+    if snapshot is None:
+        return None
+    return getattr(snapshot, "value", None)
+
+
+def _plan_brief(snapshot: Any) -> dict[str, Any] | None:
+    """Compact projection of the ``plan_intent`` owner's PlanIntentSnapshot.
+
+    ``active_goal`` / ``active_step`` are the owner-published free-text
+    summaries (same exposure level as ``relationship_state.description``).
+    """
+    value = _snapshot_value(snapshot)
+    if value is None:
+        return None
+    return {
+        "active_goal": str(value.active_goal),
+        "active_step": str(value.active_step),
+        "plan_revision_count": int(value.plan_revision_count),
+        "continuity_score": float(value.continuity_score),
+    }
+
+
+def _open_loop_brief(snapshot: Any) -> dict[str, Any] | None:
+    """Compact projection of the ``open_loop`` owner's OpenLoopSnapshot.
+
+    Counts only — the raw unresolved/pending SemanticRecord lists are
+    never surfaced here.
+    """
+    value = _snapshot_value(snapshot)
+    if value is None:
+        return None
+    return {
+        "unresolved_count": len(value.unresolved_loops),
+        "pending_confirmation_count": len(value.pending_confirmations),
+        "closure_readiness": float(value.closure_readiness),
+        "stale_loop_count": int(value.stale_loop_count),
+    }
+
+
+def _commitment_brief(snapshot: Any) -> dict[str, Any] | None:
+    """Compact projection of the ``commitment`` owner's CommitmentSnapshot.
+
+    Counts only — the raw active/at-risk SemanticRecord lists are never
+    surfaced here.
+    """
+    value = _snapshot_value(snapshot)
+    if value is None:
+        return None
+    return {
+        "active_count": len(value.active_commitments),
+        "at_risk_count": len(value.at_risk_commitments),
+        "due_followup_count": int(value.due_followup_count),
+        "stalled_count": int(value.stalled_commitment_count),
+    }
+
+
+def _snapshot_value_field(snapshot: Any, field_name: str) -> Any:
+    """Read ``snapshot.value.<field_name>``; ``None`` when absent.
+
+    Mirrors ``dlaas_platform_api.app._field`` so the dispatch enrichment and
+    the readout builder agree on how a published snapshot value is read.
+    """
+    if snapshot is None:
+        return None
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return None
+    return getattr(value, field_name, None)
+
+
+def _snapshot_description(snapshot: Any) -> str:
+    """Read the publisher-authored ``description`` string off a snapshot.
+
+    Description-only, matching the redaction posture of the readout builder
+    (``app._description``): we surface what the owning module CHOSE to
+    publish about itself, never raw owner internals.
+    """
+    if snapshot is None:
+        return ""
+    value = getattr(snapshot, "value", None)
+    return str(getattr(value, "description", "") or "")
+
+
+def _prediction_error_compact(snapshot: Any) -> dict[str, float] | None:
+    """Compact projection of the prediction-error snapshot.
+
+    Exposes the three numeric axes the cognition store already extracts
+    (``magnitude`` / ``relationship`` / ``task``) so the product layer can
+    drive affect without an extra ``/cognition/snapshots`` round-trip. We
+    only surface scalars that are actually present + numeric.
+
+    The published slot value is the kernel ``PredictionErrorSnapshot``,
+    whose numeric axes live on the nested ``error`` object
+    (``error.magnitude`` / ``error.relationship_error`` /
+    ``error.task_error``). We read that canonical shape first and keep the
+    legacy flat-attribute read as a fallback for pre-publication compact
+    values, so the projection works against the REAL kernel snapshot
+    instead of silently returning ``None`` in production.
+    """
+    if snapshot is None:
+        return None
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return None
+    error = getattr(value, "error", None)
+    out: dict[str, float] = {}
+    axis_sources = (
+        ("magnitude", "magnitude"),
+        ("relationship", "relationship_error"),
+        ("task", "task_error"),
+    )
+    for axis, error_field in axis_sources:
+        raw = getattr(error, error_field, None) if error is not None else None
+        if raw is None:
+            # Legacy/compact value shape: flat axis attributes.
+            raw = getattr(value, axis, None)
+        if isinstance(raw, bool):
+            continue
+        if isinstance(raw, (int, float)):
+            out[axis] = float(raw)
+    return out or None
+
+
+def _kernel_confidence(snapshot: Any) -> float | None:
+    """Calibrated forward-looking confidence off the PE snapshot.
+
+    Reads ``PredictionErrorSnapshot.next_prediction.confidence`` — the
+    kernel's own [0, 1] confidence for the upcoming turn, computed by the
+    PE owner (``PredictionErrorModule._confidence``). This is the single
+    legal kernel-PE confidence source for the deploy-side collaboration
+    gate (upstream half of deploy debt ``D-collab-pe``); ``None`` when the
+    snapshot/field is absent so the consumer can fall back honestly
+    (labelled ``structural`` / ``fallback``) instead of receiving a
+    fabricated literal.
+    """
+    if snapshot is None:
+        return None
+    value = getattr(snapshot, "value", None)
+    if value is None:
+        return None
+    next_prediction = getattr(value, "next_prediction", None)
+    if next_prediction is None:
+        return None
+    raw = getattr(next_prediction, "confidence", None)
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return None
+    return max(0.0, min(1.0, float(raw)))
+
+
+# ---------------------------------------------------------------------------
+# Small typed-validation helpers
+# ---------------------------------------------------------------------------
+
+
+def _required_str(
+    ctx: Mapping[str, Any],
+    key: str,
+    obs_type: ObservationType,
+    *,
+    default: str | None = None,
+) -> str:
+    value = ctx.get(key, default)
+    if value is None or not str(value).strip():
+        raise DispatchError(
+            code="missing_field",
+            detail=(
+                f"observation_type={obs_type.value!r} requires "
+                f"structured_context.{key} (non-empty string)."
+            ),
+        )
+    return str(value)
+
+
+def _optional_str(
+    ctx: Mapping[str, Any],
+    key: str,
+    *,
+    default: str | None = "",
+) -> str:
+    value = ctx.get(key, default)
+    if value is None:
+        return default if default is not None else ""
+    return str(value)
+
+
+def _optional_int(
+    ctx: Mapping[str, Any],
+    key: str,
+) -> int | None:
+    """Read an optional integer field from structured_context.
+
+    Used by callers that want to override a default policy bound
+    (e.g. ``tool_loop_max_steps`` / ``tool_loop_max_wall_ms``).
+    Returns ``None`` when the key is absent or the value cannot be
+    coerced to ``int`` cleanly — the caller decides the fallback.
+    """
+    raw = ctx.get(key)
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        return int(raw)
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw)
+    if isinstance(raw, str):
+        try:
+            return int(raw.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _optional_str_sequence(ctx: Mapping[str, Any], key: str) -> tuple[str, ...]:
+    raw = ctx.get(key, ())
+    if raw is None:
+        return ()
+    if isinstance(raw, str):
+        raise DispatchError(
+            code="invalid_field_type",
+            detail=f"structured_context.{key} must be a list of strings, not a string.",
+        )
+    try:
+        values = tuple(raw)
+    except TypeError as exc:
+        raise DispatchError(
+            code="invalid_field_type",
+            detail=f"structured_context.{key} must be a list of strings.",
+        ) from exc
+    out: list[str] = []
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            raise DispatchError(
+                code="invalid_field_type",
+                detail=f"structured_context.{key} entries must be non-empty strings.",
+            )
+        out.append(value.strip())
+    return tuple(out)
+
+
+def _optional_unit_float(
+    ctx: Mapping[str, Any],
+    key: str,
+    *,
+    default: float,
+) -> float:
+    if key not in ctx:
+        return default
+    raw = ctx[key]
+    return _coerce_unit_float(raw, field=f"structured_context.{key}", default=default)
+
+
+def _coerce_unit_float(raw: Any, *, field: str, default: float) -> float:
+    if raw is None:
+        return default
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        raise DispatchError(
+            code="invalid_field_type",
+            detail=f"{field} must be a numeric value in [0,1].",
+        )
+    value = float(raw)
+    if not 0.0 <= value <= 1.0:
+        raise DispatchError(
+            code="invalid_field_range",
+            detail=f"{field} must be in [0,1], got {value!r}.",
+        )
+    return value
+
+
+def _string_tuple(raw: Any) -> tuple[str, ...]:
+    if raw is None:
+        return ()
+    if isinstance(raw, str):
+        raise DispatchError(
+            code="invalid_field_type",
+            detail=(
+                "expected a list of strings, got a single string. "
+                "Wrap the value in a JSON array even if it has one element."
+            ),
+        )
+    return tuple(str(item) for item in raw)
+
+
+__all__ = [
+    "DispatchError",
+    "OutputAct",
+    "dispatch_envelope",
+]

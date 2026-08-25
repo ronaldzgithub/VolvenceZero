@@ -19,6 +19,7 @@ Runtime owners and propagation wiring are added in later phases.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 import hashlib
@@ -389,6 +390,94 @@ class RelationshipConditionReadout:
             raise ValueError("normalized_margin does not match candidate scores")
 
 
+def relationship_condition_readout_to_payload(
+    readout: RelationshipConditionReadout,
+) -> dict[str, object]:
+    """Serialize one owner-published named condition readout losslessly."""
+
+    if not isinstance(readout, RelationshipConditionReadout):
+        raise TypeError("readout must be a RelationshipConditionReadout")
+    return {
+        "condition_label": readout.condition_label,
+        "confidence": readout.confidence,
+        "normalized_margin": readout.normalized_margin,
+        "candidate_scores": [
+            {"label": label, "score": score}
+            for label, score in readout.candidate_scores
+        ],
+        "reader_artifact_id": readout.reader_artifact_id,
+        "source_observation_sha256": readout.source_observation_sha256,
+    }
+
+
+def relationship_condition_readout_from_payload(
+    payload: object,
+) -> RelationshipConditionReadout:
+    """Strictly reconstruct one readout without compatibility coercions."""
+
+    field_name = "RelationshipConditionReadout"
+    raw = _forecast_payload_mapping(
+        payload,
+        expected={
+            "condition_label",
+            "confidence",
+            "normalized_margin",
+            "candidate_scores",
+            "reader_artifact_id",
+            "source_observation_sha256",
+        },
+        field_name=field_name,
+    )
+    candidate_scores: list[tuple[str, float]] = []
+    for index, item in enumerate(
+        _forecast_payload_list(
+            raw["candidate_scores"],
+            field_name=f"{field_name}.candidate_scores",
+        )
+    ):
+        score_field = f"{field_name}.candidate_scores[{index}]"
+        score_payload = _forecast_payload_mapping(
+            item,
+            expected={"label", "score"},
+            field_name=score_field,
+        )
+        candidate_scores.append(
+            (
+                _forecast_payload_text(
+                    score_payload["label"],
+                    field_name=f"{score_field}.label",
+                ),
+                _forecast_payload_number(
+                    score_payload["score"],
+                    field_name=f"{score_field}.score",
+                ),
+            )
+        )
+    return RelationshipConditionReadout(
+        condition_label=_forecast_payload_text(
+            raw["condition_label"],
+            field_name=f"{field_name}.condition_label",
+        ),
+        confidence=_forecast_payload_number(
+            raw["confidence"],
+            field_name=f"{field_name}.confidence",
+        ),
+        normalized_margin=_forecast_payload_number(
+            raw["normalized_margin"],
+            field_name=f"{field_name}.normalized_margin",
+        ),
+        candidate_scores=tuple(candidate_scores),
+        reader_artifact_id=_forecast_payload_text(
+            raw["reader_artifact_id"],
+            field_name=f"{field_name}.reader_artifact_id",
+        ),
+        source_observation_sha256=_forecast_payload_text(
+            raw["source_observation_sha256"],
+            field_name=f"{field_name}.source_observation_sha256",
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class PreferenceActionForecast:
     """Owner-authored candidate-action forecast frozen before acting.
@@ -447,6 +536,264 @@ class PreferenceActionForecast:
         if self.issued_turn < 0:
             raise ValueError("issued_turn must be >= 0")
         _require_non_empty_unique_tuple("evidence", self.evidence)
+
+
+def preference_action_forecast_to_payload(
+    forecast: PreferenceActionForecast,
+) -> dict[str, object]:
+    """Serialize one frozen forecast without adding owner-persistence policy.
+
+    The payload deliberately matches the ``SocialRecordStore`` schema-v4
+    forecast member byte shape. Artifact envelopes and their schema/version
+    fields belong to the publisher of that artifact; this codec owns only the
+    lossless immutable value shared by owners and evidence tooling.
+    """
+
+    if not isinstance(forecast, PreferenceActionForecast):
+        raise TypeError("forecast must be a PreferenceActionForecast")
+    return {
+        "forecast_id": forecast.forecast_id,
+        "decision_id": forecast.decision_id,
+        "interlocutor_id": forecast.interlocutor_id,
+        "candidate_predictions": [
+            {
+                "action_id": candidate.action_id,
+                "outcomes": [
+                    {
+                        "outcome_id": outcome.outcome_id,
+                        "probability": outcome.probability,
+                    }
+                    for outcome in candidate.outcomes
+                ],
+            }
+            for candidate in forecast.candidate_predictions
+        ],
+        "recommended_action_id": forecast.recommended_action_id,
+        "confidence": forecast.confidence,
+        "source_record_ids": list(forecast.source_record_ids),
+        "issued_turn": forecast.issued_turn,
+        "evidence": list(forecast.evidence),
+        "session_scope": forecast.session_scope,
+        "condition_readout": (
+            None
+            if forecast.condition_readout is None
+            else relationship_condition_readout_to_payload(
+                forecast.condition_readout
+            )
+        ),
+    }
+
+
+def preference_action_forecast_from_payload(
+    payload: object,
+) -> PreferenceActionForecast:
+    """Strictly reconstruct one frozen forecast from its canonical payload.
+
+    This is intentionally not a compatibility decoder: unknown/missing keys,
+    tuple-for-array substitutions, boolean numerics, and scalar coercions all
+    fail loudly. Persistence owners must adapt their explicitly supported
+    legacy schemas before calling this function.
+    """
+
+    raw = _forecast_payload_mapping(
+        payload,
+        expected={
+            "forecast_id",
+            "decision_id",
+            "interlocutor_id",
+            "candidate_predictions",
+            "recommended_action_id",
+            "confidence",
+            "source_record_ids",
+            "issued_turn",
+            "evidence",
+            "session_scope",
+            "condition_readout",
+        },
+        field_name="PreferenceActionForecast",
+    )
+    candidates = tuple(
+        _preference_action_candidate_from_payload(item, index=index)
+        for index, item in enumerate(
+            _forecast_payload_list(
+                raw["candidate_predictions"],
+                field_name="PreferenceActionForecast.candidate_predictions",
+            )
+        )
+    )
+    source_record_ids = tuple(
+        _forecast_payload_text(
+            item,
+            field_name=f"PreferenceActionForecast.source_record_ids[{index}]",
+        )
+        for index, item in enumerate(
+            _forecast_payload_list(
+                raw["source_record_ids"],
+                field_name="PreferenceActionForecast.source_record_ids",
+            )
+        )
+    )
+    evidence = tuple(
+        _forecast_payload_text(
+            item,
+            field_name=f"PreferenceActionForecast.evidence[{index}]",
+        )
+        for index, item in enumerate(
+            _forecast_payload_list(
+                raw["evidence"],
+                field_name="PreferenceActionForecast.evidence",
+            )
+        )
+    )
+    condition_payload = raw["condition_readout"]
+    condition_readout = (
+        None
+        if condition_payload is None
+        else relationship_condition_readout_from_payload(condition_payload)
+    )
+    return PreferenceActionForecast(
+        forecast_id=_forecast_payload_text(
+            raw["forecast_id"],
+            field_name="PreferenceActionForecast.forecast_id",
+        ),
+        decision_id=_forecast_payload_text(
+            raw["decision_id"],
+            field_name="PreferenceActionForecast.decision_id",
+        ),
+        interlocutor_id=_forecast_payload_text(
+            raw["interlocutor_id"],
+            field_name="PreferenceActionForecast.interlocutor_id",
+        ),
+        candidate_predictions=candidates,
+        recommended_action_id=_forecast_payload_text(
+            raw["recommended_action_id"],
+            field_name="PreferenceActionForecast.recommended_action_id",
+        ),
+        confidence=_forecast_payload_number(
+            raw["confidence"],
+            field_name="PreferenceActionForecast.confidence",
+        ),
+        source_record_ids=source_record_ids,
+        issued_turn=_forecast_payload_integer(
+            raw["issued_turn"],
+            field_name="PreferenceActionForecast.issued_turn",
+        ),
+        evidence=evidence,
+        session_scope=_forecast_payload_text(
+            raw["session_scope"],
+            field_name="PreferenceActionForecast.session_scope",
+            allow_empty=True,
+        ),
+        condition_readout=condition_readout,
+    )
+
+
+def _preference_action_candidate_from_payload(
+    payload: object,
+    *,
+    index: int,
+) -> SocialActionCandidatePrediction:
+    field_name = f"PreferenceActionForecast.candidate_predictions[{index}]"
+    raw = _forecast_payload_mapping(
+        payload,
+        expected={"action_id", "outcomes"},
+        field_name=field_name,
+    )
+    outcomes = tuple(
+        _preference_action_outcome_probability_from_payload(
+            item,
+            field_name=f"{field_name}.outcomes[{outcome_index}]",
+        )
+        for outcome_index, item in enumerate(
+            _forecast_payload_list(
+                raw["outcomes"],
+                field_name=f"{field_name}.outcomes",
+            )
+        )
+    )
+    return SocialActionCandidatePrediction(
+        action_id=_forecast_payload_text(
+            raw["action_id"],
+            field_name=f"{field_name}.action_id",
+        ),
+        outcomes=outcomes,
+    )
+
+
+def _preference_action_outcome_probability_from_payload(
+    payload: object,
+    *,
+    field_name: str,
+) -> SocialActionOutcomeProbability:
+    raw = _forecast_payload_mapping(
+        payload,
+        expected={"outcome_id", "probability"},
+        field_name=field_name,
+    )
+    return SocialActionOutcomeProbability(
+        outcome_id=_forecast_payload_text(
+            raw["outcome_id"],
+            field_name=f"{field_name}.outcome_id",
+        ),
+        probability=_forecast_payload_number(
+            raw["probability"],
+            field_name=f"{field_name}.probability",
+        ),
+    )
+
+
+def _forecast_payload_mapping(
+    value: object,
+    *,
+    expected: set[str],
+    field_name: str,
+) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{field_name} must be an object")
+    missing = sorted(expected - set(value))
+    extra = sorted(set(value) - expected)
+    if missing or extra:
+        raise ValueError(
+            f"{field_name} fields do not match schema; "
+            f"missing={missing}, extra={extra}"
+        )
+    return value
+
+
+def _forecast_payload_list(value: object, *, field_name: str) -> list[object]:
+    if not isinstance(value, list):
+        raise TypeError(f"{field_name} must be an array")
+    return value
+
+
+def _forecast_payload_text(
+    value: object,
+    *,
+    field_name: str,
+    allow_empty: bool = False,
+) -> str:
+    if not isinstance(value, str) or (not allow_empty and not value.strip()):
+        qualifier = "text" if allow_empty else "non-empty text"
+        raise TypeError(f"{field_name} must be {qualifier}")
+    return value
+
+
+def _forecast_payload_number(value: object, *, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{field_name} must be numeric")
+    try:
+        finite = math.isfinite(value)
+    except OverflowError as exc:
+        raise ValueError(f"{field_name} must be finite") from exc
+    if not finite:
+        raise ValueError(f"{field_name} must be finite")
+    return value
+
+
+def _forecast_payload_integer(value: object, *, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{field_name} must be an integer")
+    return value
 
 
 @dataclass(frozen=True)
@@ -1392,5 +1739,9 @@ __all__ = [
     "social_prediction_from_memory_signal",
     "preference_action_outcome_evidence_sha256",
     "preference_action_outcome_mutation_sha256",
+    "preference_action_forecast_from_payload",
+    "preference_action_forecast_to_payload",
+    "relationship_condition_readout_from_payload",
+    "relationship_condition_readout_to_payload",
     "tom_record_counts_by_interlocutor",
 ]

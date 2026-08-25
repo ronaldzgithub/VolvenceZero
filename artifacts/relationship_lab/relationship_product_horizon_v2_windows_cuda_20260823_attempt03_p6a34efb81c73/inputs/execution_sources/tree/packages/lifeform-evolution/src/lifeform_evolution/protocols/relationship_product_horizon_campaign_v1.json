@@ -1,0 +1,167 @@
+{
+  "schema_version": "relationship-product-horizon-campaign.v1",
+  "owner": {
+    "module": "lifeform_evolution.relationship_lab_product_horizon",
+    "evidence_role": "development_product_horizon_pilot_only",
+    "production_runtime_modified": false,
+    "formal_evidence_authorized": false
+  },
+  "source": {
+    "schema_version": "relationship-product-pilot-source.v1",
+    "cohort_id": "relationship-product-pilot-development-20260823",
+    "source_protocol_id": "048b73d4a412b4444fb469be0d9daa6d2a26e9920c743804da8f36dc331691ae",
+    "source_protocol_raw_sha256": "c623c33f7f8cdbb31a0e5055cb4b802af479ae2a7aa6cb73c9724c614e8539b0",
+    "source_implementation_sha256": "15162708b3e23071830d0413f1ff7a2a75512f507e37f6e30a47570a593972ae",
+    "public_plan_sha256": "93474269cb5b9d066e68253d6f2e51fbc0d3bf3b6a7fe2a748b140d136bb812b",
+    "sealed_evaluator_bundle_sha256": "d502b78364dcb7024b229f4bb10c0cddb002488c3a360edd7aa0932c345d8b5a",
+    "subject_count": 8,
+    "onboarding_sessions_per_subject": 4,
+    "decision_sessions_per_subject": 24,
+    "arm_identity_affects_exogenous_source_or_environment_seed": false
+  },
+  "arms": [
+    {
+      "arm_id": "volvence_full",
+      "system_family": "volvence",
+      "prior_owner_state": "hydrate_exact_prior",
+      "named_reader": "identity",
+      "pe_credit": "apply",
+      "typed_control": "learned"
+    },
+    {
+      "arm_id": "appendable_frozen_onboarding",
+      "system_family": "volvence",
+      "prior_owner_state": "restore_same_frozen_post_onboarding_boundary_each_decision",
+      "named_reader": "identity",
+      "pe_credit": "apply",
+      "typed_control": "learned_with_gate_checkpoint_persisted_across_decisions"
+    },
+    {
+      "arm_id": "readable_permuted",
+      "system_family": "volvence",
+      "prior_owner_state": "hydrate_exact_prior",
+      "named_reader": "deterministic_stay_space_permutation_reader_intervention",
+      "pe_credit": "apply",
+      "typed_control": "learned"
+    },
+    {
+      "arm_id": "credit_withheld",
+      "system_family": "volvence",
+      "prior_owner_state": "hydrate_exact_prior",
+      "named_reader": "identity",
+      "pe_credit": "derive_but_do_not_apply",
+      "typed_control": "learned"
+    },
+    {
+      "arm_id": "strict_noop",
+      "system_family": "volvence",
+      "prior_owner_state": "hydrate_exact_prior",
+      "named_reader": "identity",
+      "pe_credit": "derive_but_do_not_apply_counterfactual_credit",
+      "typed_control": "force_neutral_noop_after_reader"
+    },
+    {
+      "arm_id": "native_full_history",
+      "system_family": "frozen_qwen_baseline",
+      "context_selection": "chronological_public_history",
+      "online_parameter_update": false
+    },
+    {
+      "arm_id": "selective_rag",
+      "system_family": "frozen_qwen_baseline",
+      "context_selection": "semantic_top_k_public_history",
+      "online_parameter_update": false
+    }
+  ],
+  "execution": {
+    "volvence_fresh_process_per_logical_session": true,
+    "baseline_single_resident_model_with_stateless_calls": true,
+    "baseline_model_source": "Qwen/Qwen2.5-1.5B-Instruct",
+    "baseline_model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "baseline_model_revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+    "baseline_model_weights_sha256": "04d7fb4ec80406436589d31ea38e8d45b9a11cf587ca4eb8a9c8f57415ea6010",
+    "baseline_tokenizer_id": "hf-chat-template:Qwen/Qwen2.5-1.5B-Instruct@sha256:6ca5f3b95dcb6f35062d5a3694917b4a575eba694924a7f10b273569065e0721",
+    "baseline_action_schema_sha256": "764309ff7b1d4aa6e9001a73a8c72407a1fabfd1e9d5c89e7cdf37360054efea",
+    "baseline_generation_config_sha256": "817871a463a6e55538be46f1f30a7347af036f8d7c93e8bd9057c43f6a935553",
+    "baseline_arm_prompt_sha256s": {
+      "native_full_history": "1867fbbdd33e089f6fc6bd1c65e740d31615aff3148d89b5dad711200db4bc26",
+      "selective_rag": "7467edf655740d29a6a0cf744369e66064ce6d905339934f1f8989a708ea58e9"
+    },
+    "baseline_cuda_device": "cuda",
+    "baseline_context_window_tokens": 32768,
+    "baseline_generation_token_reserve": 64,
+    "baseline_generation": {
+      "temperature": 0.0,
+      "top_p": 1.0,
+      "max_new_tokens": 64,
+      "do_sample": false,
+      "prefill_chunk_size": 2048,
+      "generation_use_cache": true,
+      "torch_version": "2.12.0+cu126",
+      "transformers_version": "5.9.0",
+      "seed_namespace": "relationship-product-horizon-qwen-generation-v1",
+      "arm_identity_affects_seed": false,
+      "seed_derivation": "sha256_u64(namespace,cohort_id,subject_scope,decision_index)"
+    },
+    "semantic_embedder": {
+      "model_source": "BAAI/bge-m3",
+      "model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+      "device": "cuda",
+      "stub_fallback_allowed": false,
+      "public_ledger_provenance_required": true,
+      "public_table_artifact_id": "5199276e8857aedfe32abceef8b61b82e1621f473abe733494d68afd5ccc348c",
+      "public_table_raw_sha256": "0369a9068f517303c76a8e5e6b5a990d013e4fc633b9fdf94b6a9f74279a821b",
+      "public_table_record_count": 28,
+      "fresh_process_reobservation_required": true,
+      "fresh_process_reobservation_comparison": "exact_table_artifact_id_and_vector_payload"
+    },
+    "rag_top_k": 8,
+    "output_commit_rule": "create_temporary_root_then_atomic_rename_and_write_manifest_last",
+    "validate_existing_requires_model_or_cuda": false,
+    "execution_source_sha256s": {
+      "baseline_dispatcher_cli": "84e7b3103255cdecfe73a98fc2fd813ecba065449279fabd22f48bdc04d4dd8f",
+      "baseline_dispatcher_implementation": "c4e2e9e315823d951dc6229d60ea93f26fea4537df5dd92634f5114efb11d66d",
+      "baseline_implementation": "63c01955b3bf075d5cc6a48899b26f1aebe8da5e1bb0f9858b934bff865261fc",
+      "baseline_policy_implementation": "b9a28c7a758056e81b50ddba2f9f77e75e8772fa91b1f719afa5d1774aab2c41",
+      "campaign_cli": "f2195cf6a97a5b1f25a763cbf86c4c14543ab9e9ad0a9e289dafbf62b62d68af",
+      "campaign_implementation": "b4ad0b1a23c067512c4c49732ea16ec691501f520ac6a99a119c423103027bb3",
+      "model_adapters_implementation": "63b24069581bcae0104955f7f50a971d53a184a1118885a8ddbbda5d41b8b596"
+    }
+  },
+  "analysis": {
+    "primary_window_decision_indices": [12, 23],
+    "primary_endpoint": "positive_typed_outcome_rate",
+    "safety_endpoint": "missed_or_over_directive_typed_outcome_rate",
+    "secondary_endpoints": [
+      "preferred_action_match_rate",
+      "post_reversal_adaptation_latency",
+      "post_correction_positive_outcome_rate",
+      "return_after_gap_positive_outcome_rate",
+      "safety_negative_outcome_rate"
+    ],
+    "analysis_unit": "subject_world_clone",
+    "development_directional_effect_floor": 0.05,
+    "minimum_subjects_with_positive_paired_effect": 6,
+    "maximum_full_safety_rate_increase_vs_any_comparator": 0.02,
+    "stage_two_admission_requires_all_four_targeted_axis_interventions": true,
+    "stage_two_admission_requires_full_vs_each_strong_baseline": true,
+    "stage_two_admission_requires_safety_noninferiority": true,
+    "no_interim_source_or_threshold_tuning_from_results": true,
+    "single_axis_contrast_claim_authorized": false,
+    "intervention_scope": {
+      "appendable_frozen_onboarding": "holds the post-onboarding owner boundary fixed while retaining the learned gate checkpoint",
+      "readable_permuted": "replaces the named forecast reader with a deterministic stay-space permutation",
+      "credit_withheld": "derives PE credit but withholds its gate update",
+      "strict_noop": "closed-loop typed-executor ablation; PE credit is derived but no counterfactual gate update is fabricated"
+    }
+  },
+  "claim_boundary": {
+    "typed_control_effect_may_be_reported": true,
+    "residual_steerable": false,
+    "user_visible_generation": false,
+    "four_able_complete": false,
+    "human_product_validation": false,
+    "production_active": false,
+    "thesis_validated": false
+  }
+}

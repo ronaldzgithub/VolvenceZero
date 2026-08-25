@@ -1,0 +1,3548 @@
+from __future__ import annotations
+
+import dataclasses
+import os
+import warnings
+from dataclasses import dataclass, replace
+from types import MappingProxyType
+from typing import Any, Mapping
+
+from volvence_zero.application.runtime import (
+    ApplicationPriorUpdate,
+    ApplicationPriorWritebackReport,
+    ApplicationRareHeavyState,
+    ApprenticeshipProtocolAlignmentModule,
+    BoundaryPolicyModule,
+    BoundaryPolicySnapshot,
+    CaseMemoryModule,
+    CaseMemorySnapshot,
+    DomainKnowledgeModule,
+    DomainKnowledgePriorUpdate,
+    DomainKnowledgeSnapshot,
+    ExperienceFastPriorModule,
+    ExperienceFastPriorSnapshot,
+    KnowledgeReviewStatus,
+    KnowledgeSourceKind,
+    ResponseAssemblyModule,
+    ResponseAssemblySnapshot,
+    RetrievalPolicyModule,
+    RetrievalPolicySnapshot,
+    StrategyPlaybookModule,
+    StrategyPlaybookSnapshot,
+    RetrievalReadoutPriorUpdate,
+)
+from volvence_zero.application.domain_experience import (
+    DomainExperiencePackage,
+    apply_domain_experience_packages,
+)
+from volvence_zero.application.action_abstraction import (
+    LLMActionApplicabilityEvaluator,
+    NoOpActionApplicabilityEvaluator,
+)
+from volvence_zero.application.storage import (
+    ApplicationCaseMemoryStore,
+    ApplicationDomainKnowledgeStore,
+    DomainKnowledgeCheckpoint,
+    build_default_case_memory_store,
+    build_default_domain_knowledge_store,
+)
+from volvence_zero.apprenticeship import ApprenticeshipAlignmentModule
+from volvence_zero.audit import AuditModule
+from volvence_zero.credit.gate import (
+    CreditSnapshot,
+    CreditModule,
+    GateDecision,
+    ModificationGate,
+    ModificationProposal,
+    SelfModificationRecord,
+    derive_delayed_attribution_credit_records,
+    derive_learning_evidence_credit_records,
+    derive_social_prediction_error_credit_records,
+    evaluate_gate_reasons,
+    has_blocking_writeback,
+    record_nstep_outcomes_from_segment_closure,
+)
+from volvence_zero.dual_track import (
+    DualTrackGateLearner,
+    DualTrackModule,
+    DualTrackSnapshot,
+)
+from volvence_zero.evaluation import (
+    CrossGenerationAggregatorModule,
+    CrossSessionBenchmarkSuite,
+    ExpensiveLayerModule,
+    EvaluationBackbone,
+    EvaluationReport,
+    EvaluationModule,
+    EvaluationScore,
+    EvaluationSnapshot,
+    EvolutionDecision,
+    EvolutionJudgement,
+    JudgementCategory,
+    MidLayerModule,
+)
+from volvence_zero.environment import EnvironmentEvent, EnvironmentOutcome
+from volvence_zero.memory import MemoryModule, MemoryStore, Track, build_default_memory_store
+from volvence_zero.conditioning_bank_contracts import (
+    summarize_conditioning_lineage_refs,
+)
+from volvence_zero.conditioning_credit_feedback import BankCreditFeedbackState
+from volvence_zero.personal_conditioning import PersonalConditioningModule
+from volvence_zero.relationship_conditioning import RelationshipConditioningModule
+from volvence_zero.prediction.error import (
+    PredictedOutcome,
+    PredictionActionContext,
+    PredictionErrorModule,
+    PredictionErrorSnapshot,
+    pe_evaluation_decoupled_active,
+)
+from volvence_zero.reflection import (
+    ConsolidationScoreLearner,
+    ProtocolReflectionEngine,
+    ReflectionEngine,
+    ReflectionModule,
+    ReflectionSnapshot,
+    WritebackCheckpoint,
+    WritebackMode,
+    WritebackResult,
+    enrich_reflection_snapshot_with_rupture_repair,
+)
+from volvence_zero.dialogue_external_outcome import DialogueExternalOutcomeModule
+from volvence_zero.dialogue_trace import (
+    ConditioningLineage,
+    DialogueExternalOutcomeSnapshot,
+)
+from volvence_zero.decision_workspace import DecisionWorkspaceModule
+from volvence_zero.regime import RegimeModule, RegimeSnapshot
+from volvence_zero.interlocutor import (
+    InterlocutorStateModule,
+    InterlocutorStateSnapshot,
+)
+from volvence_zero.rupture_state import (
+    RuptureStateModule,
+    RuptureStateSnapshot,
+)
+from volvence_zero.identity_seed import IdentitySeed
+from volvence_zero.protocol_runtime import (
+    ProtocolPhaseModule,
+    ProtocolRegistryIntrospectionModule,
+    ProtocolRegistryModule,
+    ProtocolRevisionLogModule,
+    ProtocolRevisionQueueModule,
+)
+from volvence_zero.runtime import (
+    EventRecorder,
+    RuntimePlaceholderValue,
+    SlotRegistry,
+    Snapshot,
+    WiringLevel,
+    propagate,
+    validate_snapshot_contract,
+)
+from volvence_zero.social_cognition import (
+    CommonGroundAtom,
+    GroupIdentity,
+    PreferenceActionOutcomeEvidence,
+    SocialPredictionError,
+    SocialPredictionErrorSnapshot,
+)
+from volvence_zero.runtime.kernel import stable_value_hash
+from volvence_zero.semantic_embedding import semantic_embedding_backend_status
+from volvence_zero.semantic_state import (
+    SEMANTIC_OWNER_SLOTS,
+    BeliefAssumptionSnapshot,
+    BoundaryConsentSnapshot,
+    CommitmentSnapshot,
+    ExecutionResultSnapshot,
+    GoalValueSnapshot,
+    NoOpSemanticProposalRuntime,
+    OpenLoopSnapshot,
+    PlanIntentSnapshot,
+    RelationshipStateSnapshot,
+    SemanticProposalRuntime,
+    SemanticStateStore,
+    UserModelSnapshot,
+    build_semantic_modules,
+)
+from volvence_zero.semantic_state.llm_runtime import LLMSemanticProposalRuntime
+from volvence_zero.social import (
+    BeliefAboutOtherModule,
+    CommonGroundModule,
+    ConversationalRoleModule,
+    FeelingAboutOtherModule,
+    GroupModule,
+    IntentAboutOtherModule,
+    LLMCommonGroundProposalRuntime,
+    LLMToMProposalRuntime,
+    MultiPartyIdentityModule,
+    PreferenceActionForecastRequest,
+    PreferenceActionForecastRuntime,
+    PreferenceAboutOtherModule,
+    SocialPredictionAggregateModule,
+    SocialPredictionErrorModule,
+    SocialRecordStore,
+)
+from volvence_zero.substrate import (
+    SubstrateAdapter,
+    SubstrateModule,
+    SubstrateSelfModModule,
+    SubstrateSelfModSnapshot,
+    SubstrateSnapshot,
+)
+from volvence_zero.steering_contracts import (
+    SteeringArtifactBundle,
+    SteeringGateAction,
+)
+from volvence_zero.steering_executor import SteeringExecutorModule
+from volvence_zero.steering_gate import SteeringGateModule
+from volvence_zero.steering_sensor import SteeringSensorModule
+from volvence_zero.substrate.residual_interfaces import OpenWeightResidualRuntime
+
+# Reward-eligibility contract owned by the runtime-replay settlement owner in
+# vz-temporal. Re-exported below so domain profiles can declare it through the
+# vz-runtime rollout-config facade without importing kernel internals.
+from volvence_zero.internal_rl.sandbox import RuntimeReplayRewardEligibility
+from volvence_zero.temporal import (
+    FullLearnedTemporalPolicy,
+    MetacontrollerRuntimeState,
+    TemporalAbstractionSnapshot,
+    TemporalActionAdvisoryProposal,
+    TemporalConsolidationSnapshot,
+    TemporalPolicy,
+    TemporalAggregateModule,
+    TemporalModule,
+    TrackTemporalConsolidationModule,
+    TrackTemporalModule,
+    build_temporal_runtime_state_aggregate,
+    clone_full_learned_temporal_policy,
+)
+
+
+_EMPTY_FINAL_WIRING_CAPABILITY_MAP: Mapping[str, WiringLevel] = MappingProxyType({})
+
+
+@dataclass(frozen=True)
+class FinalRolloutConfig:
+    substrate: WiringLevel = WiringLevel.ACTIVE
+    substrate_self_mod: WiringLevel = WiringLevel.ACTIVE
+    memory: WiringLevel = WiringLevel.ACTIVE
+    retrieval_policy: WiringLevel = WiringLevel.ACTIVE
+    domain_knowledge: WiringLevel = WiringLevel.ACTIVE
+    case_memory: WiringLevel = WiringLevel.ACTIVE
+    strategy_playbook: WiringLevel = WiringLevel.ACTIVE
+    experience_fast_prior: WiringLevel = WiringLevel.ACTIVE
+    boundary_policy: WiringLevel = WiringLevel.ACTIVE
+    response_assembly: WiringLevel = WiringLevel.ACTIVE
+    # Personal-state residual bootstrap. SHADOW publishes the auditable
+    # conditioning snapshot but leaves generation byte-equivalent. ACTIVE
+    # lets the open-weight substrate inject the bounded vector at its earliest
+    # configured residual hook as a constant bias over the whole generation.
+    # DISABLED is the immediate rollback path.
+    personal_conditioning: WiringLevel = WiringLevel.SHADOW
+    # Delivery mode for an ACTIVE personal_conditioning snapshot (State KV
+    # arm wiring, docs/specs/personal-conditioning.md):
+    #   - "residual": latent path -- the snapshot goes to the runtime as a
+    #     bounded residual bias (arm E; today's behavior).
+    #   - "text": arm B-prime -- the owner-rendered natural-language
+    #     statement is placed in the system prompt and the runtime receives
+    #     no conditioning snapshot. The two paths are mutually exclusive.
+    #   - "prefix_kv": latent path -- the same snapshot goes to the runtime
+    #     as a bounded state-prefix KV carrier (arm G). The runtime must have
+    #     a compatible prefix artifact loaded; otherwise it fails loudly.
+    # Ignored while personal_conditioning is SHADOW/DISABLED.
+    personal_conditioning_mode: str = "residual"
+    # Optional fail-closed binding for a promoted Personal Prefix-KV
+    # artifact. Evidence profiles may leave this unset while loading a
+    # preregistered candidate explicitly; deployment profiles bind the exact
+    # promoted artifact id and AgentSessionRunner verifies the loaded runtime
+    # before the first turn.
+    personal_conditioning_prefix_artifact_id: str | None = None
+    # Relationship conditioning bank owner. SHADOW publishes the auditable
+    # scope-free readout without delivery; ACTIVE permits the independently
+    # gated carrier below. DISABLED is the immediate rollback path.
+    relationship_conditioning: WiringLevel = WiringLevel.SHADOW
+    # Delivery mode for an ACTIVE Relationship bank. "text" preserves the
+    # existing owner-rendered prompt path. "residual" uses the versioned
+    # projector; "prefix_kv" requires a dedicated Relationship artifact.
+    relationship_conditioning_mode: str = "text"
+    # Credit-driven bank confidence feedback (State KV P5-c). Governs both
+    # conditioning bank owners' consumption of the bank-attributed credit
+    # readout (P5-b):
+    #   - SHADOW: the bounded delta is computed and published on the
+    #     snapshot (``credit_confidence_delta``) but NOT applied to the
+    #     published confidence -- report-only default.
+    #   - ACTIVE: the delta is added to the evidence-derived base
+    #     confidence (clamped to [0, 1]; bounded by the owner-side cap).
+    #   - DISABLED: consumption stops entirely, delta publishes as 0.0 --
+    #     the immediate rollback path.
+    conditioning_credit_feedback: WiringLevel = WiringLevel.SHADOW
+    # State KV P4-c: Top-K semantic conditioning-bank router
+    # (docs/specs/personal-conditioning.md):
+    #   - SHADOW (default): delivery keeps the deterministic static-all.v1
+    #     select-all behaviour byte-for-byte; the Top-K decision is computed
+    #     and recorded report-only in the lineage's shadow audit fields.
+    #   - ACTIVE: the Top-K selection actually prunes bank delivery (prompt
+    #     sections, latent carrier, and lineage all follow the selection).
+    #   - DISABLED: no router evaluation at all; pure static-all.v1 -- the
+    #     immediate rollback path.
+    conditioning_router: WiringLevel = WiringLevel.SHADOW
+    # How many banks the Top-K router may keep per turn. Non-binding while
+    # the candidate set is smaller than k; the ceiling exists so adding a
+    # bank owner can never silently widen delivery past the audited budget.
+    conditioning_router_top_k: int = 4
+    # Whether state-derived sections reach the system prompt at all
+    # (docs/specs/state-kv-identification-evidence.md §契约):
+    #   - "text": production default; byte-for-byte the historical prompt.
+    #   - "suppressed": only the invariant expression rules are assembled,
+    #     closing the prompt carrier (C1) so it is identical across users.
+    #     Evidence-only -- it also drops boundary / disclaimer / refer-out
+    #     prompt steering, leaving those to the substrate-side
+    #     GenerationConstraints post-processing. Never set on a deployed or
+    #     default profile; a contract test enforces that.
+    prompt_state_delivery: str = "text"
+    # Generation-time dynamic residual (State KV P5-a): whether the temporal
+    # controller's ``z_t`` control code reaches the substrate residual stream
+    # during response generation (the ``control_parameters`` /
+    # ``control_scale`` path of ``runtime.generate``). Before this switch the
+    # channel was implicitly always-on, which contaminated every
+    # personal-conditioning ablation: turning ``personal_conditioning`` off
+    # did NOT close this second latent channel.
+    #   - ACTIVE: byte-for-byte today's behaviour (rollback point).
+    #   - SHADOW: the would-be control scale is computed and recorded in the
+    #     per-turn audit tags, but nothing is injected.
+    #   - DISABLED: control parameters are dropped entirely.
+    # Independent from ``personal_conditioning`` by design so bank-gain
+    # evidence arms can hold this channel fixed while varying State KV.
+    generation_dynamic_residual: WiringLevel = WiringLevel.ACTIVE
+    dual_track: WiringLevel = WiringLevel.ACTIVE
+    # Reliable-apprenticeship alignment owner
+    # (docs/specs/apprenticeship-alignment.md). #90: ACTIVE by default so
+    # the PE overlay + feedback-request actuator are live. This only
+    # affects genuine apprentice/ingestion turns (apprenticeship_turn
+    # gate, default False): on normal turns the owner publishes an idle
+    # snapshot (surprise 0, no feedback request), so the overlay and the
+    # open_loop actuator stay no-ops. Rollback: set to SHADOW/DISABLED
+    # (PE overlay reverts to no-op, R15).
+    apprenticeship_alignment: WiringLevel = WiringLevel.ACTIVE
+    # Protocol-layer apprenticeship alignment (vz-application; DRAFT
+    # Packet 1). SHADOW: compares guidance constraints against compiled
+    # protocol artifacts. Inert until apprenticeship_alignment is ACTIVE
+    # (a SHADOW owner's output is not in the active chain), so this is a
+    # no-op in the default all-SHADOW config; validated via standalone.
+    apprenticeship_protocol_alignment: WiringLevel = WiringLevel.SHADOW
+    evaluation: WiringLevel = WiringLevel.ACTIVE
+    evaluation_mid: WiringLevel = WiringLevel.SHADOW
+    evaluation_expensive: WiringLevel = WiringLevel.DISABLED
+    evaluation_cross_generation: WiringLevel = WiringLevel.DISABLED
+    prediction_error: WiringLevel = WiringLevel.ACTIVE
+    regime: WiringLevel = WiringLevel.ACTIVE
+    # Which gate decides ``participation_hint.panorama_level`` — the single
+    # surface that answers "should this turn expand a decision panorama?"
+    # (docs/specs/cognitive-regime.md).
+    #
+    #   - "v1": production default. The shipped attention-posture score
+    #     (world presence / switch pressure / controller drives). Byte-for-
+    #     byte today's behaviour; this is the rollback point.
+    #   - "v2": the decision-structure gate. Reads how many live mutually
+    #     exclusive options exist, how costly a wrong choice is to undo,
+    #     how unstable the user's own ranking is, and how much that ranking
+    #     hinges on information not yet in hand.
+    #
+    # Opt-in rather than default because the expensive failure is opening a
+    # panorama into a turn that did not want one, and that failure is the
+    # one users do not report. Promotion criteria and the corpus budgets
+    # live in .cursor/plans/panorama-decision-workspace_7b41ce02.plan.md.
+    panorama_gate_mode: str = "v1"
+    # Decision-structure owner. Subscribes to the panorama gate above; it
+    # never decides its own activation. SHADOW publishes the structure for
+    # audit without any consumer reading it. Not a semantic-spine owner —
+    # it must stay out of ``semantic_spine_coverage``'s denominator.
+    decision_workspace: WiringLevel = WiringLevel.SHADOW
+    credit: WiringLevel = WiringLevel.ACTIVE
+    reflection: WiringLevel = WiringLevel.ACTIVE
+    temporal: WiringLevel = WiringLevel.ACTIVE
+    # P3/P4 relationship action collaborator. SHADOW records the typed
+    # recommendation on self_temporal without changing z_t/action or
+    # expression. ACTIVE requires an explicitly promoted advisory artifact;
+    # DISABLED drops the collaborator input entirely.
+    relationship_action_advisory: WiringLevel = WiringLevel.SHADOW
+    eta_open_weight_runtime: WiringLevel = WiringLevel.SHADOW
+    # Residual steering owner family. All three candidates start SHADOW and
+    # are only constructed when a model-bound SteeringArtifactBundle is
+    # injected. Rollback is owner-local through VZ_STEERING_* or these fields.
+    steering_sensor: WiringLevel = WiringLevel.SHADOW
+    steering_executor: WiringLevel = WiringLevel.SHADOW
+    steering_gate: WiringLevel = WiringLevel.SHADOW
+    # A SHADOW executor runs a second, non-user-visible transformers forward
+    # to prove the exact residual hook is live. False is the immediate
+    # compute-only rollback and guarantees zero steering hook registration.
+    steering_shadow_hook: bool = True
+    # Ordered promotion allows sensor -> executor before the learned gate.
+    # That intermediate ACTIVE executor must name its temporary gate-off arm
+    # explicitly; "blocked" fails construction instead of silently choosing.
+    steering_ungated_action: str = "blocked"
+    # autograd-owner-integration: per-owner torch autograd backends. DISABLED by
+    # default (pure-Python rollback baseline = unchanged behavior). Set to SHADOW
+    # to dual-run for parity evidence, or ACTIVE to make the torch autograd path
+    # authoritative. Rollback is just resetting the field to DISABLED.
+    #   - temporal_ssl_backend: MetacontrollerSSLTrainer ndim store autograd SSL
+    #   - temporal_runtime_backend: FullLearnedTemporalPolicy runtime forward
+    #   - internal_rl_backend: CausalZPolicy PPO over live ZTransition batches
+    #   - cms_torch_backend: CMSMemoryCore band gradient kernel
+    # See docs/specs/temporal-abstraction.md / multi-timescale-learning.md.
+    temporal_ssl_backend: WiringLevel = WiringLevel.DISABLED
+    # Slow-momentum contribution inside the temporal SSL owner's M3
+    # optimizer. Zero is the shipped rollback after Gate 9; evidence profiles
+    # may set a bounded positive value without changing any product default.
+    temporal_ssl_m3_slow_gain: float = 0.0
+    temporal_runtime_backend: WiringLevel = WiringLevel.DISABLED
+    internal_rl_backend: WiringLevel = WiringLevel.DISABLED
+    # Independent transition-source gate for Internal-RL. DISABLED preserves
+    # synthetic sandbox rollouts; SHADOW captures/settles real runtime
+    # transitions for evidence only; ACTIVE trains exclusively from settled
+    # runtime replay and never falls back to synthetic samples.
+    internal_rl_runtime_replay: WiringLevel = WiringLevel.DISABLED
+    # Optional long-horizon credit over real runtime transitions. ACTIVE keeps
+    # one open owner-local buffer per dual track and closes it on a beta_t
+    # switch, an environment milestone/terminal, or the bounded step cap.
+    # DISABLED preserves one-step runtime replay exactly.
+    internal_rl_runtime_segment_credit: WiringLevel = WiringLevel.DISABLED
+    internal_rl_runtime_segment_max_steps: int = 24
+    # Typed reward eligibility for runtime replay (docs/specs/
+    # prediction-error-loop.md §"runtime replay reward eligibility").
+    # ANY_SETTLED_OUTCOME (default) is the exact rollback: every
+    # lineage-matched settlement earns the PE owner's realized
+    # ``ActualOutcome.action_payoff``, whether or not the environment
+    # published a measurement for that tick. ENVIRONMENT_MEASURED_ONLY makes a
+    # measurement-free tick contribute realized payoff 0 and segment bonus 0,
+    # tagged with the reason, so "only an environment-published outcome payoff
+    # is eligible as realized reward" becomes checkable per transition. A
+    # domain with no environment measurement at all (every language companion)
+    # must keep the default or it would train on an all-zero reward stream.
+    internal_rl_runtime_reward_eligibility: RuntimeReplayRewardEligibility = (
+        RuntimeReplayRewardEligibility.ANY_SETTLED_OUTCOME
+    )
+    # Does the realized outcome payoff reach the optimizer? This is the
+    # orthogonal half of ``external_prediction_error_drive``, which owns only
+    # "PE drives learning signals / temporal switch pressure".
+    #   - None (default): derived from the eligibility contract. Under
+    #     ANY_SETTLED_OUTCOME it stays coupled to the PE drive exactly as
+    #     before (byte rollback); under ENVIRONMENT_MEASURED_ONLY the payoff is
+    #     environment-published by construction, so a PE-off arm keeps it.
+    #   - True / False: explicit, always wins over the derivation.
+    internal_rl_runtime_outcome_payoff_reward: bool | None = None
+    # Latent-code bound for the Internal-RL replay lane. False (default) keeps
+    # the sandbox's historic signed [-1, 1] bound on the reconstructed
+    # latent-code / modulated-mean / candidate-mean / policy-mean and is the
+    # exact rollback. True adopts the live metacontroller's [0, 1] latent
+    # bound so replay can no longer reconstruct a mean the frozen plant cannot
+    # emit. Reward / advantage bounds stay signed either way.
+    internal_rl_runtime_latent_unit_clamp: bool = False
+    # Minimum optimizer batch support. Synthetic replay counts rollouts;
+    # ACTIVE runtime replay counts real transitions so short closed segments
+    # cannot be optimized as singleton, zero-covariance factor batches.
+    internal_rl_batch_accumulation_size: int = 1
+    # Generic low-rank state-conditioned residual over z_t. DISABLED is the
+    # exact rollback path; SHADOW learns/reports candidate parameters without
+    # changing live z_t; ACTIVE applies the bounded residual in latent space.
+    internal_rl_causal_action_head: WiringLevel = WiringLevel.DISABLED
+    internal_rl_causal_action_head_strength: float = 0.35
+    # Optional owner-local maximum factor rank. None preserves the historical
+    # rank; values above n_z select n_z so one evidence profile also works in
+    # smaller smoke configurations.
+    internal_rl_causal_action_head_rank: int | None = None
+    # Optional actuator-support contract for the action head. None preserves
+    # all-z-dim behavior; an explicit tuple limits learned/live residuals to
+    # coordinates consumed by the downstream frozen plant.
+    internal_rl_causal_action_head_effective_dims: tuple[int, ...] | None = None
+    # Optional disjoint opponent-coded coordinate pairs. The temporal owner
+    # removes each pair's common mode from both live residuals and replay
+    # gradients. None preserves historical independent-coordinate behavior.
+    internal_rl_causal_action_head_contrast_pairs: tuple[tuple[int, int], ...] | None = None
+    # Exclusive steering ownership transfer (R2): when True the temporal
+    # owner removes the deterministic base policy's antisymmetric component
+    # on every contrast pair (live forward, sandbox policy mean, pure and
+    # torch replay), making the state-conditioned action head the single
+    # learned writer of the opponent-coded actuator axes. The base keeps the
+    # common mode. Requires non-empty contrast pairs and an ACTIVE head;
+    # exploration noise still proposes contrast so the head can earn credit.
+    # False is the exact rollback path.
+    internal_rl_causal_action_head_exclusive_steering: bool = False
+    # Optional embodiment-authored reflection over the frozen encoder input.
+    # The signed permutation is consumed only by the temporal owner: it
+    # evaluates the same action head on s and mirror(s), then projects the
+    # opponent-coded output onto the reflection-equivariant subspace.
+    # Both fields must be provided together; None is the exact rollback path.
+    internal_rl_causal_action_head_input_mirror_permutation: tuple[int, ...] | None = None
+    internal_rl_causal_action_head_input_mirror_signs: tuple[int, ...] | None = None
+    # Archive-side magnitude validation for the frozen action-head envelope.
+    # The owner's own disciplined write paths (pure update, projected torch
+    # write-back) always enforce it; this declaration is what extends the same
+    # frozen bounds to the ARCHIVE/CHECKPOINT install path
+    # (``restore_causal_action_head_parameters`` /
+    # ``restore_parameter_snapshot``), which historically validated shape only
+    # and therefore let any archive install a fixed cross-state steering
+    # intercept. False is the exact rollback (shape-only restore, byte
+    # identical) and must stay the default: ``tests/
+    # test_runtime_transition_replay.py`` deliberately installs bias 0.35 / 0.4
+    # through the permissive path. See docs/specs/temporal-abstraction.md.
+    internal_rl_causal_action_head_envelope_enforced: bool = False
+    # Early action-head formation guard. During the first bounded number of
+    # owner updates, ACTIVE attenuates only transition contributions that
+    # oppose the batch's net advantage-weighted projected score gradient;
+    # SHADOW reports the same decisions without changing parameters. The
+    # DISABLED/0/1.0 triple is the exact historical rollback.
+    internal_rl_causal_action_head_formation_protection: WiringLevel = WiringLevel.DISABLED
+    internal_rl_causal_action_head_formation_max_update_steps: int = 0
+    internal_rl_causal_action_head_formation_conflict_scale: float = 1.0
+    cms_torch_backend: WiringLevel = WiringLevel.DISABLED
+    # autograd-owner-integration: strength of the runtime track-weight
+    # modulation that lets Internal-RL's learned ``track_weights`` reach the
+    # temporal controller's ``code`` (z_t). 0.0 (default) is the byte-stable
+    # rollback baseline where reward-driven learning is structurally
+    # disconnected from runtime behaviour (only SSL moves z_t); a small positive
+    # value (e.g. 0.3) opens the bridge. See docs/specs/temporal-abstraction.md.
+    internal_rl_runtime_modulation_strength: float = 0.0
+    # Bounded posterior exploration in the temporal owner. 0.0 is an exact
+    # rollback baseline. A value in (0, 1] blends the posterior's deterministic
+    # sample noise with a reproducible low-discrepancy sample; it never encodes
+    # an environment-specific direction and remains inside posterior std.
+    internal_rl_runtime_exploration_strength: float = 0.0
+    # Optional direction-free PE→beta bridge. ACTIVE converts only the
+    # previous turn's prediction-error magnitude above the configured floor
+    # into bounded ADDITIVE switch pressure; it never supplies an action or
+    # target direction. DISABLED is the byte-stable default.
+    #
+    # This channel is a readout-scaled prior only: it NEVER decides a
+    # temporal boundary. The v30 frozen-replay measurement
+    # (scripts/measure_ant_pe_boundary_margin.py; verdict in
+    # research/ant/06_ecology_implementation_status.md) found routine PE
+    # (p50 0.508, p99 0.701) overlapping and even exceeding event PE
+    # (natural pickups settle at ~0.32), so no magnitude floor can act as an
+    # event detector. Typed boundary events own boundaries instead:
+    # ``environment_milestone_temporal_switch`` below.
+    prediction_error_temporal_switch: WiringLevel = WiringLevel.DISABLED
+    prediction_error_temporal_switch_strength: float = 0.35
+    prediction_error_temporal_switch_floor: float = 0.5
+    # Evidence-only PE -> runtime-code consumer bridge.  ACTIVE lets the
+    # temporal owner apply the bounded, identity-centred gain compiled from
+    # PE-updated residual/memory/reflection weights.  DISABLED is the shipped
+    # production default and exact rollback after Gate 1 v3 measured a
+    # negative causal effect.  This is separate from the additive beta prior
+    # above: enabling switch pressure must not silently enable code
+    # modulation.
+    prediction_error_runtime_modulation: WiringLevel = WiringLevel.DISABLED
+    # Typed boundary events (R-PE: which event closes a segment is a typed
+    # readout, not an inference from raw amplitude). ACTIVE lets an
+    # owner-declared discrete environment milestone
+    # (``EnvironmentMeasurement.discrete_milestone``, e.g. the ant's
+    # pickup/delivery) request a temporal boundary on the next decision; the
+    # temporal owner resolves the request against its current learned beta
+    # threshold, so calibrated beta can never permanently outrun a confirmed
+    # milestone. Dense progress readings (``task_progress`` published every
+    # step) never qualify: only the environment owner's explicit declaration
+    # does. DISABLED is the byte-stable default and exact rollback.
+    environment_milestone_temporal_switch: WiringLevel = WiringLevel.DISABLED
+    # Generic option-commitment guard in the temporal owner. ACTIVE keeps the
+    # selected option for at least ``temporal_post_switch_min_dwell_actions``
+    # actions after any beta switch; a later typed external boundary may still
+    # interrupt it. SHADOW publishes the would-suppress decision without
+    # changing beta, and DISABLED is the byte-stable rollback.
+    temporal_post_switch_min_dwell: WiringLevel = WiringLevel.DISABLED
+    # The switch action itself counts as the first dwell action. Zero is valid
+    # only while the wiring is DISABLED.
+    temporal_post_switch_min_dwell_actions: int = 0
+    # Phase 2 W2.B of the EQ-owner uplift: session_post_slow_loop is
+    # ACTIVE by default. The module's own ``default_wiring_level`` is
+    # already ACTIVE; the previous SHADOW override was a treatment-mode
+    # default for the rollout. Promotion guarded by
+    # ``tests/contracts/test_session_post_slow_loop_active_matched_control.py``.
+    # ``experience_consolidation`` remains the consolidated public
+    # surface; ``session_post_slow_loop`` exposes the deferred-job
+    # queue state.
+    session_post_slow_loop: WiringLevel = WiringLevel.ACTIVE
+    experience_consolidation: WiringLevel = WiringLevel.ACTIVE
+    plan_intent: WiringLevel = WiringLevel.ACTIVE
+    commitment: WiringLevel = WiringLevel.ACTIVE
+    open_loop: WiringLevel = WiringLevel.ACTIVE
+    user_model: WiringLevel = WiringLevel.ACTIVE
+    execution_result: WiringLevel = WiringLevel.ACTIVE
+    belief_assumption: WiringLevel = WiringLevel.ACTIVE
+    relationship_state: WiringLevel = WiringLevel.ACTIVE
+    goal_value: WiringLevel = WiringLevel.ACTIVE
+    boundary_consent: WiringLevel = WiringLevel.ACTIVE
+    multi_party_identity: WiringLevel = WiringLevel.ACTIVE
+    social_prediction: WiringLevel = WiringLevel.ACTIVE
+    social_prediction_error: WiringLevel = WiringLevel.ACTIVE
+    conversational_role: WiringLevel = WiringLevel.ACTIVE
+    # Phase 1 W1.F of the EQ-owner uplift: common_ground is now ACTIVE
+    # by default. The owner consumes its declared dependencies
+    # (conversational_role + belief_about_other) directly to derive
+    # dyad atoms; the optional LLM proposal runtime is an additive
+    # source on top. Promotion guarded by
+    # ``tests/contracts/test_common_ground_active_matched_control.py``.
+    common_ground: WiringLevel = WiringLevel.ACTIVE
+    groups: WiringLevel = WiringLevel.SHADOW
+    # Phase 2 W2.A of the EQ-owner uplift: belief / intent / preference
+    # about-other ToM owners are now ACTIVE by default. The lifeform
+    # ``GroundedResponseSynthesizer`` reads each typed snapshot through
+    # its own per-session provider and emits observation-only rationale
+    # tags (``framing=belief_observed`` / ``intent=expectation_observed`` /
+    # ``preference=style_observed``). Empty / cold-start records are
+    # no-ops. Promotion guarded by
+    # ``tests/contracts/test_three_tom_owners_active_matched_control.py``.
+    belief_about_other: WiringLevel = WiringLevel.ACTIVE
+    intent_about_other: WiringLevel = WiringLevel.ACTIVE
+    # Phase 1 W1.D of the EQ-owner uplift: feeling_about_other is the
+    # typed Theory-of-Mind FEELING owner. Promotion guarded by
+    # ``tests/contracts/test_feeling_about_other_active_matched_control.py``.
+    # The lifeform-side ``GroundedResponseSynthesizer`` reads the snapshot
+    # via ``feeling_about_other_provider`` and emits typed
+    # ``feeling=observed(...)`` rationale tags + may add ACKNOWLEDGE_PRESSURE
+    # when control_signal is high. Empty / SHADOW snapshots are no-ops.
+    feeling_about_other: WiringLevel = WiringLevel.ACTIVE
+    preference_about_other: WiringLevel = WiringLevel.ACTIVE
+    # Rupture-and-repair: dialogue_external_outcome is ACTIVE because
+    # it is the single legal snapshot channel for external outcomes
+    # into the kernel; disabling it would silently lose any submitted
+    # evidence.
+    dialogue_external_outcome: WiringLevel = WiringLevel.ACTIVE
+    # Phase 1 W1.B of the EQ-owner uplift: rupture_state is now ACTIVE
+    # by default. ReflectionModule consumes the typed snapshot through
+    # the propagate path; the post-propagate
+    # ``enrich_reflection_snapshot_with_rupture_repair`` helper remains
+    # as an idempotent SHADOW-mode backstop (entry_id dedup prevents
+    # double-write). Promotion guarded by
+    # ``tests/contracts/test_rupture_state_active_no_double_writeback.py``.
+    rupture_state: WiringLevel = WiringLevel.ACTIVE
+    # Phase 1 W1.A of the EQ-owner uplift: interlocutor_state is the
+    # 12-axis readout owner. Promotion guarded by
+    # ``tests/contracts/test_interlocutor_state_active_matched_control.py``
+    # which proves that flipping SHADOW -> ACTIVE only changes
+    # visibility and does not disturb any other slot's value.
+    interlocutor_state: WiringLevel = WiringLevel.ACTIVE
+    # Behavior Protocol Runtime packet 1.0 → 4.0:
+    # * Packets 1.0 / 1.2 / 1.3* / 1.4* / 1.5* shipped at SHADOW —
+    #   the activation controller was in fallback mode so ACTIVE
+    #   wiring was blocked by ``FallbackActivationActiveError``.
+    # * Packet 1.5a' flipped
+    #   ``_ACTIVATION_CONTROLLER_FALLBACK_MODE`` to False (all
+    #   ACTIVE-checklist conditions closed: identity_gate, learned
+    #   α/β, typed context_match, PE-driven arbitration, compile
+    #   path, matched-control consumer test).
+    # * Packet 4.0 (this default flip): now that ACTIVE is legal,
+    #   promote the default rollout so production lifeforms get
+    #   the protocol-driven path automatically. Without this flip
+    #   ``cheng_laoshi`` and friends only see protocol effects via
+    #   the compile path (``BoundaryPriorHint`` / ``PlaybookRule`` /
+    #   ``DomainKnowledgeRecord`` / ``CaseMemoryRecord`` upserted
+    #   into application owners during ``load_protocol``); the
+    #   ``ActiveMixtureSnapshot`` itself stayed in
+    #   ``shadow_snapshots`` only.
+    # Reverting (e.g. discovering a regression in 1.5* mechanisms)
+    # requires flipping back HERE and flipping
+    # ``_ACTIVATION_CONTROLLER_FALLBACK_MODE`` back to True. The
+    # active-gate guard test
+    # (``test_protocol_runtime_active_gate_guard.py``) covers
+    # both directions via monkeypatch defence-in-depth.
+    protocol_runtime: WiringLevel = WiringLevel.ACTIVE
+    # Packet 9.3: phase + introspection publishers are pure / non-cyclic
+    # — flipping them ACTIVE lights up the protocol_phase signal for
+    # the registry consumer (real PE-driven phase rendering in
+    # ActiveProtocolEntry.current_phase_id) and surfaces registry /
+    # revision_log introspection in active_snapshots for callers
+    # (CLI / monitoring). Reflection + revision_queue stay SHADOW
+    # by default — they generate / route mutations and need explicit
+    # production opt-in.
+    protocol_phase: WiringLevel = WiringLevel.ACTIVE
+    protocol_registry: WiringLevel = WiringLevel.ACTIVE
+    protocol_revision_log: WiringLevel = WiringLevel.ACTIVE
+    protocol_reflection: WiringLevel = WiringLevel.SHADOW
+    protocol_revision_queue: WiringLevel = WiringLevel.SHADOW
+    # protocol-temporal-prior bridge: feeds the previous turn's
+    # ``ActiveMixtureSnapshot`` (protocol activation-weight distribution)
+    # into the metacontroller as a bounded beta_t switch-pressure prior.
+    # This is an orchestrator-mediated one-turn carryover (``active_mixture``
+    # is downstream of temporal in the propagate DAG, so a same-turn
+    # dependency would cycle via ``retrieval_policy``). Three-state:
+    #   - DISABLED (default): temporal never observes active_mixture →
+    #     byte-equivalent baseline; instant rollback.
+    #   - SHADOW: temporal records the prior for dual-run evidence but it
+    #     does NOT reach beta_t (policy enable flag stays off).
+    #   - ACTIVE: the prior biases beta_t (continuation when the mixture
+    #     is dominant, switch when it is ambiguous).
+    protocol_temporal_prior: WiringLevel = WiringLevel.DISABLED
+    # Packet C (long-horizon-closure): AffordanceModule wiring level.
+    # ACTIVE is the production-grade default. The kernel propagate
+    # graph itself does not yet construct an AffordanceModule
+    # (registry lives in lifeform-affordance, which the kernel cannot
+    # import); the lifeform layer constructs the module and consumes
+    # this flag as the hint to publish the snapshot to its prompt
+    # planner. Use SHADOW to keep the module silent in benchmark
+    # ablations; DISABLED to skip module construction entirely.
+    affordance: WiringLevel = WiringLevel.ACTIVE
+    # A5 (T11): audit owner skeleton — empty AuditSnapshot publisher.
+    # SHADOW by default per docs/specs/audit-owner.md §WiringLevel; OA-4
+    # promotion to ACTIVE happens on the rare-heavy artifact promotion path
+    # once the N8 audit-agent tool loop is implemented.
+    audit: WiringLevel = WiringLevel.SHADOW
+    kill_switches: frozenset[str] = frozenset()
+    # A3: nested capability wiring map. Outer key = owner slot name (must
+    # match a FinalRolloutConfig field above); inner key = capability name
+    # declared on that owner's RuntimeModule subclass. Empty default ⇒
+    # current behaviour is byte-equivalent to pre-A3 since
+    # ``capability_overrides_for(slot)`` returns an empty mapping.
+    # ProfileRegistry's ResolvedProfile.apply_to_config() will populate this
+    # map for non-baseline profiles in T5 阶段 2; for阶段 1 the map stays
+    # empty and modules continue using their default_wiring_level.
+    capability_wirings: Mapping[str, Mapping[str, WiringLevel]] = dataclasses.field(
+        default_factory=lambda: MappingProxyType({})
+    )
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.temporal_ssl_m3_slow_gain <= 1.0:
+            raise ValueError("temporal_ssl_m3_slow_gain must be within [0, 1]")
+        if self.steering_ungated_action not in (
+            "blocked",
+            "noop",
+            "always_on",
+        ):
+            raise ValueError(
+                "steering_ungated_action must be blocked, noop, or always_on"
+            )
+        if (
+            self.steering_executor is WiringLevel.ACTIVE
+            and self.steering_sensor is not WiringLevel.ACTIVE
+        ):
+            raise ValueError(
+                "ACTIVE steering_executor requires ACTIVE steering_sensor"
+            )
+        if (
+            self.steering_executor is WiringLevel.ACTIVE
+            and self.steering_gate is not WiringLevel.ACTIVE
+            and self.steering_ungated_action == "blocked"
+        ):
+            raise ValueError(
+                "ACTIVE steering_executor without ACTIVE gate requires an "
+                "explicit gate-off steering_ungated_action"
+            )
+        if (
+            self.steering_gate is WiringLevel.ACTIVE
+            and self.steering_executor is not WiringLevel.ACTIVE
+        ):
+            raise ValueError(
+                "ACTIVE steering_gate requires ACTIVE steering_executor"
+            )
+        if not isinstance(
+            self.internal_rl_runtime_reward_eligibility,
+            RuntimeReplayRewardEligibility,
+        ):
+            raise TypeError(
+                "internal_rl_runtime_reward_eligibility must be a "
+                "RuntimeReplayRewardEligibility member, got "
+                f"{self.internal_rl_runtime_reward_eligibility!r}."
+            )
+        if self.internal_rl_runtime_outcome_payoff_reward is not None and not (
+            isinstance(self.internal_rl_runtime_outcome_payoff_reward, bool)
+        ):
+            raise TypeError(
+                "internal_rl_runtime_outcome_payoff_reward must be None or "
+                f"bool, got {self.internal_rl_runtime_outcome_payoff_reward!r}."
+            )
+        if self.personal_conditioning_mode not in ("residual", "text", "prefix_kv"):
+            raise ValueError(
+                "personal_conditioning_mode must be 'residual', 'text', or "
+                "'prefix_kv', "
+                f"got {self.personal_conditioning_mode!r}."
+            )
+        if self.personal_conditioning_prefix_artifact_id is not None and not (
+            isinstance(self.personal_conditioning_prefix_artifact_id, str)
+            and self.personal_conditioning_prefix_artifact_id
+        ):
+            raise ValueError(
+                "personal_conditioning_prefix_artifact_id must be None or a "
+                "non-empty string"
+            )
+        if (
+            self.personal_conditioning_prefix_artifact_id is not None
+            and self.personal_conditioning_mode != "prefix_kv"
+        ):
+            raise ValueError(
+                "personal_conditioning_prefix_artifact_id requires "
+                "personal_conditioning_mode='prefix_kv'"
+            )
+        if self.relationship_conditioning_mode not in (
+            "text",
+            "residual",
+            "prefix_kv",
+        ):
+            raise ValueError(
+                "relationship_conditioning_mode must be 'text', 'residual', "
+                "or 'prefix_kv', "
+                f"got {self.relationship_conditioning_mode!r}."
+            )
+        if self.conditioning_router_top_k < 1:
+            raise ValueError(f"conditioning_router_top_k must be >= 1, got {self.conditioning_router_top_k!r}.")
+        if self.prompt_state_delivery not in ("text", "suppressed"):
+            raise ValueError(
+                f"prompt_state_delivery must be 'text' or 'suppressed', got {self.prompt_state_delivery!r}."
+            )
+        if self.personal_conditioning_mode == "text" and self.prompt_state_delivery == "suppressed":
+            # Arm B-prime renders the readout into the prompt; suppression
+            # then discards it. Configuring both would silently produce an
+            # unconditioned arm that still reports as text-delivered.
+            raise ValueError(
+                "personal_conditioning_mode='text' requires "
+                "prompt_state_delivery='text'; suppression would discard the "
+                "rendered statement."
+            )
+
+    def capability_overrides_for(self, owner_slot: str) -> Mapping[str, WiringLevel]:
+        """Return capability-level overrides for ``owner_slot`` or empty map.
+
+        Empty default preserves byte-equivalent behaviour for modules that
+        haven't opted into A3 capability wiring.
+        """
+        return self.capability_wirings.get(owner_slot, _EMPTY_FINAL_WIRING_CAPABILITY_MAP)
+
+    def level_for(self, module_name: str, default: WiringLevel) -> WiringLevel:
+        if module_name in self.kill_switches:
+            return WiringLevel.DISABLED
+        return {
+            "substrate": self.substrate,
+            "substrate_self_mod": self.substrate_self_mod,
+            "memory": self.memory,
+            "retrieval_policy": self.retrieval_policy,
+            "domain_knowledge": self.domain_knowledge,
+            "case_memory": self.case_memory,
+            "strategy_playbook": self.strategy_playbook,
+            "experience_fast_prior": self.experience_fast_prior,
+            "boundary_policy": self.boundary_policy,
+            "response_assembly": self.response_assembly,
+            "personal_conditioning": self.personal_conditioning,
+            "relationship_conditioning": self.relationship_conditioning,
+            "conditioning_credit_feedback": self.conditioning_credit_feedback,
+            "conditioning_router": self.conditioning_router,
+            "dual_track": self.dual_track,
+            "apprenticeship_alignment": self.apprenticeship_alignment,
+            "apprenticeship_protocol_alignment": self.apprenticeship_protocol_alignment,
+            "evaluation": self.evaluation,
+            "evaluation_mid": self.evaluation_mid,
+            "evaluation_expensive": self.evaluation_expensive,
+            "evaluation_cross_generation": self.evaluation_cross_generation,
+            "prediction_error": self.prediction_error,
+            "regime": self.regime,
+            "credit": self.credit,
+            "reflection": self.reflection,
+            "temporal": self.temporal,
+            "relationship_action_advisory": self.relationship_action_advisory,
+            "eta_open_weight_runtime": self.eta_open_weight_runtime,
+            "steering_sensor": self.steering_sensor,
+            "steering_executor": self.steering_executor,
+            "steering_gate": self.steering_gate,
+            "session_post_slow_loop": self.session_post_slow_loop,
+            "experience_consolidation": self.experience_consolidation,
+            "plan_intent": self.plan_intent,
+            "commitment": self.commitment,
+            "open_loop": self.open_loop,
+            "user_model": self.user_model,
+            "execution_result": self.execution_result,
+            "belief_assumption": self.belief_assumption,
+            "relationship_state": self.relationship_state,
+            "goal_value": self.goal_value,
+            "boundary_consent": self.boundary_consent,
+            "decision_workspace": self.decision_workspace,
+            "multi_party_identity": self.multi_party_identity,
+            "social_prediction": self.social_prediction,
+            "social_prediction_error": self.social_prediction_error,
+            "conversational_role": self.conversational_role,
+            "common_ground": self.common_ground,
+            "groups": self.groups,
+            "belief_about_other": self.belief_about_other,
+            "intent_about_other": self.intent_about_other,
+            "feeling_about_other": self.feeling_about_other,
+            "preference_about_other": self.preference_about_other,
+            "dialogue_external_outcome": self.dialogue_external_outcome,
+            "rupture_state": self.rupture_state,
+            "interlocutor_state": self.interlocutor_state,
+            "protocol_runtime": self.protocol_runtime,
+            "protocol_phase": self.protocol_phase,
+            "protocol_registry": self.protocol_registry,
+            "protocol_revision_log": self.protocol_revision_log,
+            "protocol_reflection": self.protocol_reflection,
+            "protocol_revision_queue": self.protocol_revision_queue,
+            "affordance": self.affordance,
+            "audit": self.audit,
+        }.get(module_name, default)
+
+    def is_active(self, module_name: str, default: WiringLevel = WiringLevel.DISABLED) -> bool:
+        return self.level_for(module_name, default) is WiringLevel.ACTIVE
+
+
+def resolve_final_rollout_config(
+    base: FinalRolloutConfig | None = None,
+) -> FinalRolloutConfig:
+    """Apply operator env overrides before constructing ``AgentSessionRunner``.
+
+    Per-owner overrides accept the exact protocol values
+    ``disabled`` / ``shadow`` / ``active``:
+
+    - ``VZ_TEMPORAL_SSL_BACKEND``
+    - ``VZ_TEMPORAL_RUNTIME_BACKEND``
+    - ``VZ_INTERNAL_RL_BACKEND``
+    - ``VZ_CMS_TORCH_BACKEND``
+    - ``VZ_STEERING_SENSOR`` / ``VZ_STEERING_EXECUTOR`` /
+      ``VZ_STEERING_GATE``
+    - ``VZ_STEERING_SHADOW_HOOK``
+    - ``VZ_STEERING_UNGATED_ACTION``
+
+    The legacy ``VZ_TORCH_BACKENDS=active`` remains a compatibility shortcut
+    that requests ACTIVE for all four owners. A per-owner value takes
+    precedence, enabling the required DISABLED -> SHADOW -> ACTIVE sequence.
+    Rollback is owner-local: set that owner to ``disabled`` or unset all
+    overrides.
+    """
+
+    config = base or FinalRolloutConfig()
+    level_by_protocol_value = {
+        "disabled": WiringLevel.DISABLED,
+        "shadow": WiringLevel.SHADOW,
+        "active": WiringLevel.ACTIVE,
+    }
+    owner_env_vars = (
+        ("temporal_ssl_backend", "VZ_TEMPORAL_SSL_BACKEND"),
+        ("temporal_runtime_backend", "VZ_TEMPORAL_RUNTIME_BACKEND"),
+        ("internal_rl_backend", "VZ_INTERNAL_RL_BACKEND"),
+        ("cms_torch_backend", "VZ_CMS_TORCH_BACKEND"),
+        ("steering_sensor", "VZ_STEERING_SENSOR"),
+        ("steering_executor", "VZ_STEERING_EXECUTOR"),
+        ("steering_gate", "VZ_STEERING_GATE"),
+    )
+    torch_backend_fields = frozenset(
+        {
+            "temporal_ssl_backend",
+            "temporal_runtime_backend",
+            "internal_rl_backend",
+            "cms_torch_backend",
+        }
+    )
+    legacy_flag = os.environ.get("VZ_TORCH_BACKENDS", "").strip().lower()
+    legacy_active = legacy_flag in ("1", "true", "active", "on", "yes")
+    overrides: dict[str, object] = {}
+    for field_name, env_name in owner_env_vars:
+        raw_value = os.environ.get(env_name, "").strip().lower()
+        if raw_value:
+            if raw_value not in level_by_protocol_value:
+                raise ValueError(f"{env_name} must be one of disabled, shadow, active; received {raw_value!r}.")
+            overrides[field_name] = level_by_protocol_value[raw_value]
+        elif legacy_active and field_name in torch_backend_fields:
+            overrides[field_name] = WiringLevel.ACTIVE
+    shadow_hook_raw = os.environ.get(
+        "VZ_STEERING_SHADOW_HOOK", ""
+    ).strip().lower()
+    if shadow_hook_raw:
+        boolean_values = {
+            "0": False,
+            "false": False,
+            "off": False,
+            "no": False,
+            "1": True,
+            "true": True,
+            "on": True,
+            "yes": True,
+        }
+        if shadow_hook_raw not in boolean_values:
+            raise ValueError(
+                "VZ_STEERING_SHADOW_HOOK must be a boolean protocol value"
+            )
+        overrides["steering_shadow_hook"] = boolean_values[shadow_hook_raw]
+    ungated_action_raw = os.environ.get(
+        "VZ_STEERING_UNGATED_ACTION", ""
+    ).strip().lower()
+    if ungated_action_raw:
+        if ungated_action_raw not in ("blocked", "noop", "always_on"):
+            raise ValueError(
+                "VZ_STEERING_UNGATED_ACTION must be blocked, noop, or "
+                "always_on"
+            )
+        overrides["steering_ungated_action"] = ungated_action_raw
+    # Platform stability guard: the four torch-autograd backends spawn CPU
+    # parallel-for / MKL worker threads that intermittently trip a native
+    # 0xC0000005 access violation on Windows + CUDA hosts under sustained
+    # load (observed repeatedly in companion-bench GPU runs; the faulting
+    # thread carries no Python frame and CUDA_LAUNCH_BLOCKING=1 does not
+    # serialize it, so it is a CPU-side torch threadpool fault, not a CUDA
+    # kernel). Hold them DISABLED there; the full cognitive pipeline and the
+    # GPU substrate stay live, and heuristic online updates remain the writer.
+    # Bypass with VZ_TORCH_BACKENDS_FORCE=1 (e.g. on Linux CI). Reversible.
+    force = os.environ.get("VZ_TORCH_BACKENDS_FORCE", "").strip().lower() in (
+        "1",
+        "true",
+        "on",
+        "yes",
+    )
+    if (
+        not force
+        and os.name == "nt"
+        and os.environ.get("VZ_SUBSTRATE_DEVICE", "").startswith("cuda")
+    ):
+        for field_name in torch_backend_fields:
+            overrides.pop(field_name, None)
+    if not overrides:
+        return config
+    return replace(config, **overrides)
+
+
+def reflection_promotion_eligible(
+    *,
+    evaluation_snapshot: EvaluationSnapshot,
+    min_accuracy: float = 0.6,
+    min_observations: int = 5,
+    reflection_engine: ReflectionEngine | None = None,
+) -> tuple[bool, str]:
+    """Evaluate whether reflection should be promoted from SHADOW to ACTIVE.
+
+    Returns (eligible, reason). Promotion requires:
+    1. reflection_accuracy >= min_accuracy
+    2. At least min_observations proposal outcomes tracked
+
+    This is a read-only evaluation — actual promotion is a manual config change.
+    The caller should separately verify via evolution judge that no
+    UNSAFE_MUTATION verdicts have occurred in the relevant window.
+    """
+    accuracy = evaluation_snapshot.reflection_accuracy
+    if reflection_engine is None:
+        return (False, f"no reflection engine; accuracy={accuracy:.2f}")
+    ledger = reflection_engine.proposal_outcome_ledger
+    if len(ledger) < min_observations:
+        return (False, f"insufficient observations: {len(ledger)}/{min_observations}")
+    if accuracy < min_accuracy:
+        return (False, f"accuracy {accuracy:.2f} < threshold {min_accuracy:.2f}")
+    return (True, f"eligible: accuracy={accuracy:.2f} observations={len(ledger)}")
+
+
+@dataclass(frozen=True)
+class FinalAcceptanceReport:
+    passed: bool
+    active_slots: tuple[str, ...]
+    shadow_slots: tuple[str, ...]
+    disabled_slots: tuple[str, ...]
+    issues: tuple[str, ...]
+    recommendations: tuple[str, ...]
+    description: str
+
+
+@dataclass(frozen=True)
+class FinalIntegrationResult:
+    active_snapshots: dict[str, Snapshot[Any]]
+    shadow_snapshots: dict[str, Snapshot[Any]]
+    acceptance_report: FinalAcceptanceReport
+    event_count: int
+    writeback_result: WritebackResult | None
+    writeback_source: str | None
+    temporal_runtime_state: MetacontrollerRuntimeState | None
+    track_runtime_states: tuple[tuple[str, MetacontrollerRuntimeState], ...] = ()
+    prediction_error_snapshot: PredictionErrorSnapshot | None = None
+    reflection_promotion_eligible: bool = False
+    reflection_promotion_reason: str = ""
+    evolution_judgement: EvolutionJudgement | None = None
+    cross_session_verdict: str = ""
+    session_post_writeback_request: "SessionPostWritebackRequest | None" = None
+    track_z_t_codes: tuple[tuple[str, tuple[float, ...]], ...] = ()
+
+
+def _validated_evaluation_snapshot(snapshot: Snapshot[Any]) -> Snapshot[Any]:
+    return validate_snapshot_contract(
+        snapshot=snapshot,
+        expected_slot="evaluation",
+        expected_owner="EvaluationModule",
+        expected_value_type=EvaluationSnapshot,
+    )
+
+
+def _validated_credit_snapshot(snapshot: Snapshot[Any]) -> Snapshot[Any]:
+    return validate_snapshot_contract(
+        snapshot=snapshot,
+        expected_slot="credit",
+        expected_owner="CreditModule",
+        expected_value_type=CreditSnapshot,
+    )
+
+
+@dataclass(frozen=True)
+class SessionPostWritebackRequest:
+    context_session_id: str
+    source_wave_id: str
+    session_report: EvaluationReport
+    reflection_snapshot: ReflectionSnapshot
+    credit_snapshot: CreditSnapshot | None
+    evolution_judgement: EvolutionJudgement | None
+    cross_session_verdict: str
+    writeback_source: str | None
+    reflection_apply_enabled: bool
+    structural_writeback_allowed: bool
+    checkpoint_id: str
+    description: str
+    semantic_state_descriptions: tuple[str, ...] = ()
+    evaluation_snapshot: EvaluationSnapshot | None = None
+
+
+def _judge_allows_structural_writeback(evolution_judgement: EvolutionJudgement | None) -> bool:
+    if evolution_judgement is None:
+        return True
+    return evolution_judgement.decision is EvolutionDecision.PROMOTE or (
+        evolution_judgement.decision is EvolutionDecision.HOLD
+        and evolution_judgement.category is not JudgementCategory.UNSAFE_MUTATION
+    )
+
+
+def _apply_temporal_reflection_writeback(
+    *,
+    temporal_module: TemporalModule | None,
+    reflection_snapshot: Snapshot[Any] | None,
+    credit_snapshot: CreditSnapshot | None,
+    timestamp_ms: int,
+    apply_enabled: bool,
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[SelfModificationRecord, ...]]:
+    if (
+        temporal_module is None
+        or reflection_snapshot is None
+        or not isinstance(reflection_snapshot.value, ReflectionSnapshot)
+    ):
+        return ((), (), ())
+    temporal_prior_update = reflection_snapshot.value.policy_consolidation.temporal_prior_update
+    if temporal_prior_update is None:
+        return ((), (), ())
+    target_groups = temporal_prior_update.target_groups or ("base-weights",)
+    before_hash = stable_value_hash(temporal_module.policy.export_parameters())
+    if not apply_enabled:
+        blocked_operations = ("temporal-prior:writeback-mode-not-apply",)
+        return (
+            (),
+            blocked_operations,
+            tuple(
+                SelfModificationRecord(
+                    target=f"{temporal_prior_update.target}.{group}",
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Reflection-to-temporal writeback skipped because reflection apply mode is disabled.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                )
+                for group in target_groups
+            ),
+        )
+    blocked_groups = tuple(
+        group
+        for group in target_groups
+        if credit_snapshot is not None
+        and has_blocking_writeback(
+            credit_snapshot,
+            target_prefix=f"{temporal_prior_update.target}.{group}",
+        )
+    )
+    allowed_groups = tuple(group for group in target_groups if group not in blocked_groups)
+    if not allowed_groups:
+        blocked_operations = ("temporal-prior:credit-gate-block",)
+        return (
+            (),
+            blocked_operations,
+            tuple(
+                SelfModificationRecord(
+                    target=f"{temporal_prior_update.target}.{group}",
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Reflection-to-temporal writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                )
+                for group in blocked_groups
+            ),
+        )
+    applied_operations = temporal_module.policy.apply_reflection_prior_update(
+        update=temporal_prior_update,
+        allowed_target_groups=allowed_groups,
+    )
+    blocked_operations = ("temporal-prior:partial-credit-gate-block",) if blocked_groups else ()
+    after_hash = stable_value_hash(temporal_module.policy.export_parameters())
+    audit_records = tuple(
+        [
+            SelfModificationRecord(
+                target=f"{temporal_prior_update.target}.{group}",
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=temporal_prior_update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+            )
+            for group in allowed_groups
+        ]
+        + [
+            SelfModificationRecord(
+                target=f"{temporal_prior_update.target}.{group}",
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.BLOCK,
+                old_value_hash=before_hash,
+                new_value_hash=before_hash,
+                justification="Reflection-to-temporal writeback blocked by target-specific credit gate.",
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+            )
+            for group in blocked_groups
+        ]
+    )
+    return (applied_operations, blocked_operations, audit_records)
+
+
+def _build_session_post_writeback_request(
+    *,
+    context_session_id: str,
+    source_wave_id: str,
+    session_report: EvaluationReport | None,
+    reflection_snapshot: Snapshot[Any] | None,
+    credit_snapshot: Snapshot[Any] | None,
+    evolution_judgement: EvolutionJudgement | None,
+    cross_session_verdict: str,
+    writeback_source: str | None,
+    reflection_mode: WritebackMode,
+    structural_writeback_allowed: bool,
+    semantic_state_values: tuple[object, ...] = (),
+    evaluation_snapshot: Snapshot[Any] | None = None,
+) -> SessionPostWritebackRequest | None:
+    if (
+        session_report is None
+        or reflection_snapshot is None
+        or not isinstance(reflection_snapshot.value, ReflectionSnapshot)
+    ):
+        return None
+    credit_value = (
+        credit_snapshot.value
+        if credit_snapshot is not None and isinstance(credit_snapshot.value, CreditSnapshot)
+        else None
+    )
+    evaluation_value = (
+        evaluation_snapshot.value
+        if evaluation_snapshot is not None and isinstance(evaluation_snapshot.value, EvaluationSnapshot)
+        else None
+    )
+    return SessionPostWritebackRequest(
+        context_session_id=context_session_id,
+        source_wave_id=source_wave_id,
+        session_report=session_report,
+        reflection_snapshot=reflection_snapshot.value,
+        credit_snapshot=credit_value,
+        evolution_judgement=evolution_judgement,
+        cross_session_verdict=cross_session_verdict,
+        writeback_source=writeback_source,
+        reflection_apply_enabled=reflection_mode is WritebackMode.APPLY,
+        structural_writeback_allowed=structural_writeback_allowed,
+        checkpoint_id=f"{context_session_id}:{source_wave_id}:session-post",
+        description=(
+            f"Deferred session-post slow loop request for {context_session_id} from {source_wave_id}; "
+            f"apply={'on' if reflection_mode is WritebackMode.APPLY else 'off'} "
+            f"structural={'allow' if structural_writeback_allowed else 'block'}."
+        ),
+        semantic_state_descriptions=tuple(
+            description
+            for value in semantic_state_values
+            for description in (getattr(value, "description", ""),)
+            if isinstance(description, str) and description
+        ),
+        evaluation_snapshot=evaluation_value,
+    )
+
+
+def _apply_application_prior_writeback(
+    *,
+    prior_update: ApplicationPriorUpdate | None,
+    domain_knowledge_store: ApplicationDomainKnowledgeStore,
+    case_memory_store: ApplicationCaseMemoryStore,
+    application_rare_heavy_state: ApplicationRareHeavyState,
+    credit_snapshot: CreditSnapshot | None,
+    evaluation_snapshot: EvaluationSnapshot | None = None,
+    timestamp_ms: int,
+    checkpoint_id: str,
+    apply_enabled: bool,
+    retrieval_apply_enabled: bool | None = None,
+    blocked_reason: str,
+    domain_knowledge_pre_checkpoint_out: list[DomainKnowledgeCheckpoint] | None = None,
+) -> tuple[
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[SelfModificationRecord, ...],
+    ApplicationPriorWritebackReport | None,
+]:
+    if prior_update is None:
+        return ((), (), (), None)
+    resolved_retrieval_apply_enabled = apply_enabled if retrieval_apply_enabled is None else retrieval_apply_enabled
+    resolved_domain_apply_enabled = resolved_retrieval_apply_enabled
+    proposed_targets = tuple(
+        update.target
+        for update in (
+            *prior_update.case_memory_updates,
+            *prior_update.strategy_playbook_updates,
+            *prior_update.boundary_policy_updates,
+            *prior_update.domain_knowledge_updates,
+            *prior_update.retrieval_readout_updates,
+        )
+    )
+    if not proposed_targets:
+        return (
+            (),
+            (),
+            (),
+            ApplicationPriorWritebackReport(
+                proposed_target_count=0,
+                applied_targets=(),
+                blocked_targets=(),
+                audit_record_count=0,
+                description="Application prior update contained no targets.",
+            ),
+        )
+    applied_operations: list[str] = []
+    blocked_operations: list[str] = []
+    audit_records: list[SelfModificationRecord] = []
+    applied_targets: list[str] = []
+    blocked_targets: list[str] = []
+
+    def current_case_hash() -> str:
+        return stable_value_hash(case_memory_store.records)
+
+    def current_domain_knowledge_hash() -> str:
+        return stable_value_hash(domain_knowledge_store.records)
+
+    def current_playbook_hash() -> str:
+        return stable_value_hash(application_rare_heavy_state.distilled_playbook_rules)
+
+    def current_boundary_hash() -> str:
+        return stable_value_hash(application_rare_heavy_state.boundary_prior_hints)
+
+    def current_retrieval_readout_hash() -> str:
+        return stable_value_hash(application_rare_heavy_state.retrieval_readout_checkpoint)
+
+    def should_block_target(target: str) -> bool:
+        return credit_snapshot is not None and has_blocking_writeback(
+            credit_snapshot,
+            target_prefix=target,
+        )
+
+    def should_block_domain_knowledge_prior(update: DomainKnowledgePriorUpdate) -> tuple[bool, str]:
+        if update.review_status is not KnowledgeReviewStatus.APPROVED:
+            return True, "knowledge-review-not-approved"
+        if update.source_kind is KnowledgeSourceKind.CONVERSATION:
+            if not update.citation_ids:
+                return True, "knowledge-citation-missing"
+            if update.record.locator == "surface-fallback":
+                return True, "knowledge-fallback-record-blocked"
+        return False, "allow"
+
+    domain_pre_checkpoint_captured = False
+
+    for update in prior_update.case_memory_updates:
+        before_hash = current_case_hash()
+        if not apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        f"Application case-memory prior writeback skipped because {blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if update.modification_evidence is not None:
+            if evaluation_snapshot is None:
+                gate_reasons = ("background modification gate requires evaluation snapshot",)
+            else:
+                evidence = update.modification_evidence
+                gate_reasons = evaluate_gate_reasons(
+                    proposal=ModificationProposal(
+                        target=update.target,
+                        desired_gate=ModificationGate.BACKGROUND,
+                        old_value_hash=before_hash,
+                        new_value_hash=stable_value_hash(update.record),
+                        justification=update.description,
+                        is_reversible=True,
+                        validation_delta=evidence.validation_delta,
+                        capacity_cost=evidence.capacity_cost,
+                        rollback_evidence=evidence.rollback_evidence,
+                    ),
+                    evaluation_snapshot=evaluation_snapshot,
+                )
+            if gate_reasons:
+                blocked_targets.append(update.target)
+                blocked_operations.append(f"application-prior:block:{update.target}:modification-gate-block")
+                audit_records.append(
+                    SelfModificationRecord(
+                        target=update.target,
+                        gate=ModificationGate.BACKGROUND,
+                        decision=GateDecision.BLOCK,
+                        old_value_hash=before_hash,
+                        new_value_hash=before_hash,
+                        justification=(
+                            "Application action abstraction blocked by ModificationGate: " + "; ".join(gate_reasons)
+                        ),
+                        timestamp_ms=timestamp_ms,
+                        is_reversible=True,
+                        checkpoint_id=checkpoint_id,
+                    )
+                )
+                continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application case-memory prior writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        case_memory_store.upsert_records((update.record,))
+        case_memory_store.save_to_backend()
+        after_hash = current_case_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:case-memory:{update.record.case_id}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    for update in prior_update.domain_knowledge_updates:
+        before_hash = current_domain_knowledge_hash()
+        if not resolved_domain_apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        "Application domain-knowledge prior writeback skipped because "
+                        f"{blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application domain-knowledge prior writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        schema_block, schema_reason = should_block_domain_knowledge_prior(update)
+        if schema_block:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{schema_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        "Application domain-knowledge prior writeback blocked by shared knowledge gate "
+                        f"({schema_reason.replace('-', ' ')})."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if domain_knowledge_pre_checkpoint_out is not None and not domain_pre_checkpoint_captured:
+            domain_knowledge_pre_checkpoint_out.append(
+                domain_knowledge_store.create_checkpoint(
+                    checkpoint_id=f"{checkpoint_id}:domain-knowledge-pre",
+                )
+            )
+            domain_pre_checkpoint_captured = True
+        # Supersession (cultivation-consistency Phase 3): when the
+        # reviewed update names a prior record it supersedes, retire that
+        # record before writing the replacement so a stale fact does not
+        # coexist with its correction. No-op for the legacy additive path
+        # (``supersedes_record_id`` is ``None`` there), so existing flows
+        # are byte-identical; only the review channel that populates the
+        # field exercises this branch.
+        superseded = getattr(update, "supersedes_record_id", None)
+        superseded_count = 0
+        if superseded and superseded != update.record.record_id:
+            superseded_count = domain_knowledge_store.remove_records_by_id_prefix(superseded)
+        domain_knowledge_store.upsert_records((update.record,))
+        domain_knowledge_store.save_to_backend()
+        after_hash = current_domain_knowledge_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:domain-knowledge:{update.record.record_id}")
+        if superseded_count:
+            applied_operations.append(f"application-prior:supersede:{superseded}:retired={superseded_count}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    for update in prior_update.strategy_playbook_updates:
+        before_hash = current_playbook_hash()
+        if not apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        f"Application playbook prior writeback skipped because {blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application playbook prior writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        application_rare_heavy_state.upsert_distilled_playbook_rules((update.rule,))
+        after_hash = current_playbook_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:playbook:{update.rule.problem_pattern}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    for update in prior_update.boundary_policy_updates:
+        before_hash = current_boundary_hash()
+        if not apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        f"Application boundary prior writeback skipped because {blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application boundary prior writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        application_rare_heavy_state.upsert_boundary_prior_hints((update.hint,))
+        after_hash = current_boundary_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:boundary:{update.hint.hint_id}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    for update in prior_update.retrieval_readout_updates:
+        before_hash = current_retrieval_readout_hash()
+        if not resolved_retrieval_apply_enabled:
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:{blocked_reason}")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification=(
+                        "Application retrieval readout checkpoint writeback skipped because "
+                        f"{blocked_reason.replace('-', ' ')}."
+                    ),
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        if should_block_target(update.target):
+            blocked_targets.append(update.target)
+            blocked_operations.append(f"application-prior:block:{update.target}:credit-gate-block")
+            audit_records.append(
+                SelfModificationRecord(
+                    target=update.target,
+                    gate=ModificationGate.BACKGROUND,
+                    decision=GateDecision.BLOCK,
+                    old_value_hash=before_hash,
+                    new_value_hash=before_hash,
+                    justification="Application retrieval readout checkpoint writeback blocked by target-specific credit gate.",
+                    timestamp_ms=timestamp_ms,
+                    is_reversible=True,
+                    checkpoint_id=checkpoint_id,
+                )
+            )
+            continue
+        application_rare_heavy_state.apply_retrieval_readout_checkpoint(update.checkpoint)
+        after_hash = current_retrieval_readout_hash()
+        applied_targets.append(update.target)
+        applied_operations.append(f"application-prior:retrieval-readout:{update.checkpoint.checkpoint_id}")
+        audit_records.append(
+            SelfModificationRecord(
+                target=update.target,
+                gate=ModificationGate.BACKGROUND,
+                decision=GateDecision.ALLOW,
+                old_value_hash=before_hash,
+                new_value_hash=after_hash,
+                justification=update.description,
+                timestamp_ms=timestamp_ms,
+                is_reversible=True,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+
+    return (
+        tuple(applied_operations),
+        tuple(blocked_operations),
+        tuple(audit_records),
+        ApplicationPriorWritebackReport(
+            proposed_target_count=len(proposed_targets),
+            applied_targets=tuple(applied_targets),
+            blocked_targets=tuple(blocked_targets),
+            audit_record_count=len(audit_records),
+            description=(
+                f"Application prior writeback proposed={len(proposed_targets)} "
+                f"applied={len(applied_targets)} blocked={len(blocked_targets)}."
+            ),
+        ),
+    )
+
+
+def _prune_disabled_stub_snapshots(snapshots: dict[str, Snapshot[Any]]) -> dict[str, Snapshot[Any]]:
+    return {
+        slot_name: snapshot
+        for slot_name, snapshot in snapshots.items()
+        if not (isinstance(snapshot.value, RuntimePlaceholderValue) and snapshot.value.reason == "disabled-module")
+    }
+
+
+def apply_session_post_writeback_request(
+    *,
+    request: SessionPostWritebackRequest,
+    memory_store: MemoryStore,
+    temporal_policy: TemporalPolicy | None,
+    regime_module: RegimeModule | None,
+) -> tuple[WritebackResult | None, tuple[SelfModificationRecord, ...]]:
+    structural_apply_enabled = request.reflection_apply_enabled and request.structural_writeback_allowed
+    if request.reflection_apply_enabled:
+        writeback_result = ReflectionEngine(writeback_mode=WritebackMode.APPLY).apply(
+            memory_store=memory_store,
+            reflection_snapshot=request.reflection_snapshot,
+            credit_snapshot=request.credit_snapshot,
+            checkpoint_id=request.checkpoint_id,
+        )
+        if (
+            structural_apply_enabled
+            and regime_module is not None
+            and writeback_result is not None
+            and not writeback_result.blocked_operations
+        ):
+            regime_checkpoint = regime_module.create_checkpoint(checkpoint_id=f"{request.checkpoint_id}:regime")
+            regime_operations = regime_module.apply_policy_consolidation(
+                strategy_updates=request.reflection_snapshot.policy_consolidation.strategy_priors_updated,
+                regime_effectiveness_updates=request.reflection_snapshot.policy_consolidation.regime_effectiveness_updated,
+                strategy_gain=request.reflection_snapshot.consolidation_score.strategy_gain,
+                effectiveness_gain=request.reflection_snapshot.consolidation_score.regime_effectiveness_gain,
+            )
+            if regime_operations:
+                checkpoint = (
+                    replace(writeback_result.checkpoint, regime_checkpoint=regime_checkpoint)
+                    if writeback_result.checkpoint is not None
+                    else WritebackCheckpoint(
+                        checkpoint_id=request.checkpoint_id,
+                        memory_checkpoint=memory_store.create_checkpoint(
+                            checkpoint_id=f"{request.checkpoint_id}:memory-after-regime"
+                        ),
+                        regime_checkpoint=regime_checkpoint,
+                    )
+                )
+                writeback_result = replace(
+                    writeback_result,
+                    applied_operations=writeback_result.applied_operations + regime_operations,
+                    checkpoint=checkpoint,
+                    description=(
+                        f"{writeback_result.description} "
+                        f"Regime owner applied {len(regime_operations)} consolidation operations."
+                    ),
+                )
+        if not structural_apply_enabled and writeback_result is not None and not writeback_result.blocked_operations:
+            writeback_result = replace(
+                writeback_result,
+                blocked_operations=writeback_result.blocked_operations + ("evolution-judge-block:structural-only",),
+                description=(
+                    f"{writeback_result.description} "
+                    "Structural writeback was gated by the evolution judge; "
+                    "memory-owner bounded consolidation still applied."
+                ),
+            )
+    else:
+        writeback_result = WritebackResult(
+            applied_operations=(),
+            blocked_operations=("writeback-mode-not-apply",),
+            checkpoint=None,
+            description="Session-post reflection writeback is disabled because reflection apply mode is not active.",
+        )
+    temporal_module = TemporalModule(policy=temporal_policy, wiring_level=WiringLevel.ACTIVE)
+    reflection_snapshot = Snapshot(
+        slot_name="reflection",
+        owner="ReflectionModule",
+        version=0,
+        timestamp_ms=request.session_report.timestamp_ms,
+        value=request.reflection_snapshot,
+    )
+    temporal_writeback_operations, temporal_writeback_blocks, temporal_audits = _apply_temporal_reflection_writeback(
+        temporal_module=temporal_module,
+        reflection_snapshot=reflection_snapshot,
+        credit_snapshot=request.credit_snapshot,
+        timestamp_ms=request.session_report.timestamp_ms + 1,
+        apply_enabled=structural_apply_enabled,
+    )
+    if (temporal_writeback_operations or temporal_writeback_blocks) and writeback_result is not None:
+        writeback_result = replace(
+            writeback_result,
+            applied_operations=writeback_result.applied_operations + temporal_writeback_operations,
+            blocked_operations=writeback_result.blocked_operations + temporal_writeback_blocks,
+            description=(
+                f"{writeback_result.description} temporal_ops={len(temporal_writeback_operations)} "
+                f"temporal_blocks={len(temporal_writeback_blocks)}."
+            ),
+        )
+    elif temporal_writeback_operations or temporal_writeback_blocks:
+        writeback_result = WritebackResult(
+            applied_operations=temporal_writeback_operations,
+            blocked_operations=temporal_writeback_blocks,
+            checkpoint=None,
+            description=(
+                f"Session-post temporal writeback produced {len(temporal_writeback_operations)} applied ops and "
+                f"{len(temporal_writeback_blocks)} blocked ops."
+            ),
+        )
+    return (writeback_result, temporal_audits)
+
+
+def _prediction_action_context_from_upstream(
+    *,
+    upstream_snapshots: dict[str, Snapshot[Any]] | None,
+    environment_event: EnvironmentEvent | None,
+    environment_outcome_id: str = "",
+    environment_prediction_id: str = "",
+    environment_outcome: EnvironmentOutcome | None = None,
+    external_outcome_lineages: tuple[ConditioningLineage, ...] = (),
+) -> PredictionActionContext:
+    temporal_snapshot = upstream_snapshots.get("temporal_abstraction") if upstream_snapshots is not None else None
+    temporal_value = (
+        temporal_snapshot.value
+        if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
+        else None
+    )
+    segment = (
+        temporal_value.closed_segments[-1] if temporal_value is not None and temporal_value.closed_segments else None
+    )
+    regime_snapshot = upstream_snapshots.get("regime") if upstream_snapshots is not None else None
+    regime_value = (
+        regime_snapshot.value
+        if regime_snapshot is not None and isinstance(regime_snapshot.value, RegimeSnapshot)
+        else None
+    )
+    regime_id = (
+        regime_value.active_regime.regime_id
+        if regime_value is not None and regime_value.active_regime is not None
+        else ""
+    )
+    measurement = environment_outcome.measurement if environment_outcome is not None else None
+    # State KV P5-b: reduce the temporal snapshot's already-published
+    # lineage refs into the flat bank-attribution fields PE and credit
+    # consume. Same channel as every other temporal readout above; empty
+    # refs stay an empty summary ("no bank was live" is a real negative).
+    lineage_summary = summarize_conditioning_lineage_refs(
+        temporal_value.conditioning_lineage_refs if temporal_value is not None else ()
+    )
+    conditioning_bank_set = lineage_summary.bank_set
+    conditioning_bank_fingerprints = lineage_summary.bank_fingerprints
+    conditioning_router_version = lineage_summary.router_version
+    if external_outcome_lineages:
+        # Delayed external outcomes must credit the bank set that produced
+        # the rated action, never whichever bank happens to be live now.
+        conditioning_bank_set = tuple(
+            sorted({bank for lineage in external_outcome_lineages for bank in lineage.selected_bank_set})
+        )
+        conditioning_bank_fingerprints = tuple(
+            sorted({pair for lineage in external_outcome_lineages for pair in lineage.bank_fingerprints})
+        )
+        conditioning_router_version = ",".join(
+            sorted({lineage.router_version for lineage in external_outcome_lineages if lineage.router_version})
+        )
+    return PredictionActionContext(
+        segment_id=segment.segment_id if segment is not None else "",
+        abstract_action_id=(
+            segment.abstract_action_id
+            if segment is not None
+            else (temporal_value.active_abstract_action if temporal_value is not None else "")
+        ),
+        z_t_digest=segment.z_t_digest if segment is not None else (),
+        regime_id=regime_id,
+        affordance_name=(segment.affordance_name or "") if segment is not None else "",
+        environment_event_id=environment_event.event_id if environment_event is not None else "",
+        environment_outcome_id=environment_outcome_id,
+        environment_task_progress=(measurement.task_progress if measurement is not None else None),
+        environment_action_payoff=(measurement.action_payoff if measurement is not None else None),
+        environment_outcome_terminal=(measurement.terminal if measurement is not None else False),
+        prediction_id=environment_prediction_id,
+        conditioning_bank_set=conditioning_bank_set,
+        conditioning_bank_fingerprints=conditioning_bank_fingerprints,
+        conditioning_router_version=conditioning_router_version,
+    )
+
+
+# Temporal owners that accept the protocol-temporal-prior carryover: the
+# ones that actually run a metacontroller policy step and expose
+# ``observe_active_mixture_carryover``. Matched by TYPE, not slot_name —
+# ``TemporalAggregateModule`` also owns ``temporal_abstraction`` but only
+# aggregates ``world_temporal`` / ``self_temporal`` (no policy step, no
+# carryover hook), so a slot-name match would hit it and AttributeError.
+_TEMPORAL_PRIOR_CARRYOVER_TYPES = (TrackTemporalModule, TemporalModule)
+
+
+def build_final_runtime_modules(
+    *,
+    config: FinalRolloutConfig,
+    substrate_adapter: SubstrateAdapter,
+    user_input: str | None = None,
+    application_rare_heavy_state: ApplicationRareHeavyState | None = None,
+    domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
+    case_memory_store: ApplicationCaseMemoryStore | None = None,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
+    memory_store: MemoryStore | None = None,
+    semantic_state_store: SemanticStateStore | None = None,
+    semantic_proposal_runtime: SemanticProposalRuntime | None = None,
+    tom_proposal_runtime: SemanticProposalRuntime | None = None,
+    preference_action_forecast_runtime: PreferenceActionForecastRuntime | None = None,
+    preference_action_forecast_request: PreferenceActionForecastRequest | None = None,
+    preference_action_outcome_evidence: PreferenceActionOutcomeEvidence | None = None,
+    common_ground_proposal_runtime: LLMCommonGroundProposalRuntime | None = None,
+    evaluation_backbone: EvaluationBackbone | None = None,
+    credit_proposals: tuple[ModificationProposal, ...] = (),
+    reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
+    temporal_policy: TemporalPolicy | None = None,
+    world_temporal_policy: TemporalPolicy | None = None,
+    self_temporal_policy: TemporalPolicy | None = None,
+    previous_world_temporal_snapshot: TemporalAbstractionSnapshot | None = None,
+    previous_self_temporal_snapshot: TemporalAbstractionSnapshot | None = None,
+    self_temporal_action_advisory: TemporalActionAdvisoryProposal | None = None,
+    prediction_module: PredictionErrorModule | None = None,
+    regime_module: RegimeModule | None = None,
+    credit_module: CreditModule | None = None,
+    session_id: str = "runtime-session",
+    wave_id: str = "wave-0",
+    turn_index: int = 0,
+    # Reliable-apprenticeship gate: only on genuine APPRENTICE / INGESTION
+    # turns is the operator's input treated as teaching guidance. Default
+    # False so normal turns publish an idle apprenticeship snapshot (no
+    # per-turn surprise injected into PE). The caller (lifeform run_turn,
+    # which knows trigger_kind) sets this True for apprentice turns.
+    apprenticeship_turn: bool = False,
+    apprenticeship_feedback_policy: str = "owner",
+    apprenticeship_constraint_extractor: Any = None,
+    substrate_self_mod_pe_magnitude: float = 0.0,
+    substrate_self_mod_pe_reward: float = 0.0,
+    substrate_self_mod_pe_threshold: float = 0.18,
+    social_prediction_errors: tuple[SocialPredictionError, ...] = (),
+    environment_event: EnvironmentEvent | None = None,
+    environment_outcome_id: str = "",
+    environment_prediction_id: str = "",
+    prediction_action_context: PredictionActionContext | None = None,
+    common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
+    common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
+    group_identities: tuple[GroupIdentity, ...] = (),
+    active_group_id: str | None = None,
+    group_joint_attention: tuple[str, ...] = (),
+    group_joint_commitments: tuple[str, ...] = (),
+    group_regime_id: str | None = None,
+    dialogue_external_outcome_module: DialogueExternalOutcomeModule | None = None,
+    rupture_state_module: RuptureStateModule | None = None,
+    protocol_registry_module: ProtocolRegistryModule | None = None,
+    identity_seed: IdentitySeed | None = None,
+    dual_track_gate_learner: DualTrackGateLearner | None = None,
+    social_record_store: SocialRecordStore | None = None,
+    reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
+    learning_enabled: bool = True,
+    prediction_error_temporal_learning_enabled: bool = True,
+    # State KV P5-c: session-lived bounded credit-feedback states for the
+    # conditioning bank owners, so the online-fast EMA survives per-turn
+    # module reconstruction. None = per-call private state (tests /
+    # standalone callers), matching the other injected-state parameters.
+    personal_conditioning_credit_state: BankCreditFeedbackState | None = None,
+    relationship_conditioning_credit_state: BankCreditFeedbackState | None = None,
+    steering_bundle: SteeringArtifactBundle | None = None,
+    steering_sensor_module: SteeringSensorModule | None = None,
+    steering_gate_module: SteeringGateModule | None = None,
+    steering_runtime: OpenWeightResidualRuntime | None = None,
+) -> list[Any]:
+    if domain_experience_packages:
+        application_rare_heavy_state = application_rare_heavy_state or ApplicationRareHeavyState()
+        domain_knowledge_store = domain_knowledge_store or build_default_domain_knowledge_store()
+        case_memory_store = case_memory_store or build_default_case_memory_store()
+        apply_domain_experience_packages(
+            packages=domain_experience_packages,
+            domain_knowledge_store=domain_knowledge_store,
+            case_memory_store=case_memory_store,
+            application_rare_heavy_state=application_rare_heavy_state,
+        )
+    resolved_world_temporal_policy = world_temporal_policy or temporal_policy or FullLearnedTemporalPolicy()
+    if self_temporal_policy is not None:
+        resolved_self_temporal_policy = self_temporal_policy
+    elif isinstance(resolved_world_temporal_policy, FullLearnedTemporalPolicy):
+        resolved_self_temporal_policy = clone_full_learned_temporal_policy(resolved_world_temporal_policy)
+    else:
+        resolved_self_temporal_policy = resolved_world_temporal_policy
+    # autograd-owner-integration: apply the configured runtime metacontroller
+    # backend so direct build_final_runtime_modules callers honor the config
+    # (DISABLED default = pure baseline; reversible).
+    _runtime_backend = config.temporal_runtime_backend
+    if isinstance(resolved_world_temporal_policy, FullLearnedTemporalPolicy):
+        resolved_world_temporal_policy.set_runtime_backend(_runtime_backend)
+        resolved_world_temporal_policy.set_prediction_error_runtime_modulation_enabled(
+            config.prediction_error_runtime_modulation is WiringLevel.ACTIVE
+        )
+        resolved_world_temporal_policy.set_runtime_track_modulation(config.internal_rl_runtime_modulation_strength)
+        resolved_world_temporal_policy.set_runtime_exploration(config.internal_rl_runtime_exploration_strength)
+        resolved_world_temporal_policy.set_causal_action_head(
+            wiring_level=config.internal_rl_causal_action_head,
+            track=Track.WORLD,
+            strength=config.internal_rl_causal_action_head_strength,
+            rank=config.internal_rl_causal_action_head_rank,
+            effective_dims=config.internal_rl_causal_action_head_effective_dims,
+            contrast_pairs=(config.internal_rl_causal_action_head_contrast_pairs),
+            exclusive_steering=(config.internal_rl_causal_action_head_exclusive_steering),
+            input_mirror_permutation=(config.internal_rl_causal_action_head_input_mirror_permutation),
+            input_mirror_signs=(config.internal_rl_causal_action_head_input_mirror_signs),
+            envelope_enforced=(config.internal_rl_causal_action_head_envelope_enforced),
+        )
+        resolved_world_temporal_policy.set_causal_action_head_formation_protection(
+            wiring_level=(config.internal_rl_causal_action_head_formation_protection),
+            max_update_steps=(config.internal_rl_causal_action_head_formation_max_update_steps),
+            conflict_scale=(config.internal_rl_causal_action_head_formation_conflict_scale),
+        )
+    if isinstance(resolved_self_temporal_policy, FullLearnedTemporalPolicy):
+        resolved_self_temporal_policy.set_runtime_backend(_runtime_backend)
+        resolved_self_temporal_policy.set_prediction_error_runtime_modulation_enabled(
+            config.prediction_error_runtime_modulation is WiringLevel.ACTIVE
+        )
+        resolved_self_temporal_policy.set_runtime_track_modulation(config.internal_rl_runtime_modulation_strength)
+        resolved_self_temporal_policy.set_runtime_exploration(config.internal_rl_runtime_exploration_strength)
+        resolved_self_temporal_policy.set_causal_action_head(
+            wiring_level=config.internal_rl_causal_action_head,
+            track=Track.SELF,
+            strength=config.internal_rl_causal_action_head_strength,
+            rank=config.internal_rl_causal_action_head_rank,
+            effective_dims=config.internal_rl_causal_action_head_effective_dims,
+            contrast_pairs=(config.internal_rl_causal_action_head_contrast_pairs),
+            exclusive_steering=(config.internal_rl_causal_action_head_exclusive_steering),
+            input_mirror_permutation=(config.internal_rl_causal_action_head_input_mirror_permutation),
+            input_mirror_signs=(config.internal_rl_causal_action_head_input_mirror_signs),
+            envelope_enforced=(config.internal_rl_causal_action_head_envelope_enforced),
+        )
+        resolved_self_temporal_policy.set_causal_action_head_formation_protection(
+            wiring_level=(config.internal_rl_causal_action_head_formation_protection),
+            max_update_steps=(config.internal_rl_causal_action_head_formation_max_update_steps),
+            conflict_scale=(config.internal_rl_causal_action_head_formation_conflict_scale),
+        )
+    # protocol-temporal-prior bridge: only ACTIVE lets the recorded
+    # protocol switch-pressure prior reach beta_t. SHADOW records evidence
+    # only; DISABLED keeps the byte-equivalent baseline. Setting the flag
+    # here (mirrors set_runtime_backend) keeps direct callers honest.
+    _protocol_prior_active = config.protocol_temporal_prior is WiringLevel.ACTIVE
+    resolved_world_temporal_policy.set_protocol_prior_enabled(_protocol_prior_active)
+    resolved_self_temporal_policy.set_protocol_prior_enabled(_protocol_prior_active)
+    semantic_store = semantic_state_store or SemanticStateStore()
+    semantic_runtime = semantic_proposal_runtime or NoOpSemanticProposalRuntime()
+    action_applicability_evaluator = NoOpActionApplicabilityEvaluator()
+    if isinstance(semantic_runtime, LLMSemanticProposalRuntime):
+        action_applicability_evaluator = LLMActionApplicabilityEvaluator(provider=semantic_runtime.text_provider)
+    # Phase 1 W1.C of the EQ-owner uplift: when an explicit
+    # ``tom_proposal_runtime`` is not provided AND the semantic runtime
+    # is LLM-backed, share its text provider so the four ToM owners
+    # produce non-empty SHADOW snapshots by default. NoOp / scripted
+    # semantic runtimes do not expose a provider, so this default is
+    # fail-closed: when no LLM is wired the ToM owners stay empty
+    # (existing behaviour for unit tests / offline harnesses).
+    #
+    # Wave E1 (debt #10B item-3 hypothesis-2): a wrapper around
+    # ``LLMSemanticProposalRuntime`` that exposes ``text_provider`` but
+    # fails the strict ``isinstance`` check would silently fall back
+    # to the fail-closed branch, so a real LLM call still emits
+    # 0 ToM / common-ground records. We emit a one-shot
+    # ``UserWarning`` for that case so the wrapper situation surfaces
+    # in any default test runner output instead of staying silent.
+    if tom_proposal_runtime is None and isinstance(semantic_runtime, LLMSemanticProposalRuntime):
+        tom_proposal_runtime = LLMToMProposalRuntime(provider=semantic_runtime.text_provider)
+    elif (
+        tom_proposal_runtime is None
+        and not isinstance(semantic_runtime, LLMSemanticProposalRuntime)
+        and hasattr(semantic_runtime, "text_provider")
+    ):
+        warnings.warn(
+            "build_final_runtime_modules: semantic_proposal_runtime exposes "
+            "`text_provider` but is not an LLMSemanticProposalRuntime "
+            f"instance (type={type(semantic_runtime).__name__!r}); the "
+            "default ToM proposal runtime auto-wire is FAIL-CLOSED in this "
+            "case so ToM owners will publish empty records even with an "
+            "LLM provider attached. Pass an explicit `tom_proposal_runtime` "
+            "to override, or unwrap the runtime so isinstance() succeeds.",
+            UserWarning,
+            stacklevel=2,
+        )
+    # Phase 1 W1.E EQ-owner uplift: same fail-closed pattern for the
+    # common-ground LLM proposal runtime. The CommonGroundModule also
+    # consumes typed upstream (conversational_role +
+    # belief_about_other) directly, so when no LLM is wired the owner
+    # still produces atoms whenever upstream evidence exists; this
+    # default just adds an LLM proposal source on top when one is
+    # available.
+    if common_ground_proposal_runtime is None and isinstance(semantic_runtime, LLMSemanticProposalRuntime):
+        common_ground_proposal_runtime = LLMCommonGroundProposalRuntime(provider=semantic_runtime.text_provider)
+    elif (
+        common_ground_proposal_runtime is None
+        and not isinstance(semantic_runtime, LLMSemanticProposalRuntime)
+        and hasattr(semantic_runtime, "text_provider")
+    ):
+        warnings.warn(
+            "build_final_runtime_modules: semantic_proposal_runtime exposes "
+            "`text_provider` but is not an LLMSemanticProposalRuntime "
+            f"instance (type={type(semantic_runtime).__name__!r}); the "
+            "default common-ground proposal runtime auto-wire is "
+            "FAIL-CLOSED in this case so common-ground owners will "
+            "publish only typed-upstream atoms (no LLM proposal atoms) "
+            "even with an LLM provider attached. Pass an explicit "
+            "`common_ground_proposal_runtime` to override, or unwrap the "
+            "runtime so isinstance() succeeds.",
+            UserWarning,
+            stacklevel=2,
+        )
+    if prediction_module is not None:
+        prediction_module.set_learning_enabled(learning_enabled)
+        prediction_module.set_action_context(prediction_action_context)
+    if regime_module is not None:
+        regime_module.set_learning_enabled(learning_enabled)
+    # G1: a session-held CreditModule is injected so the ledger's learned
+    # heads (COCOA rewarding-state + gate-risk) accumulate across turns.
+    # Only the per-turn proposal buffer is refreshed here; standalone /
+    # test callers that pass no module keep the historical per-call
+    # construction below.
+    if credit_module is not None:
+        credit_module.set_learning_enabled(learning_enabled)
+        credit_module.set_pending_proposals(credit_proposals)
+    # Dialogue external outcome and rupture_state are wired alongside
+    # the existing graph. The outcome module has no declared upstream,
+    # so topological sort places it early; rupture_state declares
+    # prediction_error / relationship_state / response_assembly /
+    # dialogue_external_outcome as dependencies, so it runs after them.
+    dialogue_external_outcome_owner = dialogue_external_outcome_module or DialogueExternalOutcomeModule(
+        wiring_level=config.level_for("dialogue_external_outcome", WiringLevel.ACTIVE),
+    )
+    dialogue_external_outcome_owner.set_turn_index(turn_index)
+    rupture_state_owner = rupture_state_module or RuptureStateModule(
+        wiring_level=config.level_for("rupture_state", WiringLevel.ACTIVE),
+    )
+    # Phase 1 W1.A (EQ-owner uplift): interlocutor_state is the single
+    # producer of the 12-axis readout and was promoted SHADOW -> ACTIVE
+    # after the matched-control gate in
+    # ``tests/contracts/test_interlocutor_state_active_matched_control.py``
+    # confirmed promotion is a pure visibility change (no kernel
+    # module declares ``interlocutor_state`` as a dependency). The
+    # 12-axis readout is now visible to ``LifeformSession`` and any
+    # downstream consumer through ``active_snapshots``; the legacy
+    # fallback in ``LifeformSession.interlocutor_state`` continues to
+    # work for tests that build a session without the owner wired.
+    interlocutor_state_owner = InterlocutorStateModule(
+        wiring_level=config.level_for("interlocutor_state", WiringLevel.ACTIVE),
+    )
+    # Behavior Protocol Runtime packet 1.0 (SHADOW): publish the
+    # ``active_mixture`` snapshot each turn. No consumer reads the
+    # slot yet (packet 1.2+ wires boundary_policy first). The owner
+    # is constructed with an empty registry by default; FixtureUptake
+    # adapters in ``lifeform-domain-*`` wheels load protocols via
+    # ``module.registry.load(...)`` between turns. See
+    # ``docs/specs/protocol-runtime.md`` §五个机构.
+    # Behavior Protocol Runtime: when constructed with the application
+    # stores, ``ProtocolRegistryModule.load_protocol`` compiles protocol
+    # declarations into the canonical application owners.
+    # - packet 1.2: boundary_contracts → BoundaryPriorHint
+    #   (rare-heavy state)
+    # - packet 1.3b: strategy_priors → PlaybookRule (rare-heavy state)
+    # - packet 1.4a: knowledge_seeds → DomainKnowledgeRecord
+    #   (domain_knowledge_store)
+    # - packet 1.4b: signature_cases → CaseMemoryRecord
+    #   (case_memory_store)
+    # The application owners (``boundary_policy`` /
+    # ``strategy_playbook`` / ``domain_knowledge`` /
+    # ``case_memory``) remain the canonical writers of their own
+    # state; ProtocolRuntime only feeds them. See
+    # ``docs/specs/protocol-runtime.md`` §ProtocolRuntime 与 application
+    # owners 的内容边界.
+    protocol_registry_owner = protocol_registry_module or ProtocolRegistryModule(
+        wiring_level=config.level_for("protocol_runtime", WiringLevel.SHADOW),
+        application_rare_heavy_state=application_rare_heavy_state,
+        domain_knowledge_store=domain_knowledge_store,
+        case_memory_store=case_memory_store,
+    )
+    # Packet 5.0: ProtocolPhaseModule is a sibling owner publishing
+    # the ``protocol_phase`` slot that the registry reads. Shares the
+    # same ProtocolRegistry instance via constructor injection so
+    # phase tracking sees the same loaded protocols.
+    protocol_phase_owner = ProtocolPhaseModule(
+        wiring_level=config.level_for("protocol_phase", WiringLevel.SHADOW),
+        registry=protocol_registry_owner.registry,
+    )
+    # Packet 6.8: introspection sibling owners (registry summary +
+    # revision log). Both SHADOW by default; share the same registry
+    # handle as the active_mixture owner.
+    protocol_registry_introspection_owner = ProtocolRegistryIntrospectionModule(
+        wiring_level=config.level_for("protocol_registry", WiringLevel.SHADOW),
+        registry=protocol_registry_owner.registry,
+    )
+    protocol_revision_log_owner = ProtocolRevisionLogModule(
+        wiring_level=config.level_for("protocol_revision_log", WiringLevel.SHADOW),
+        registry=protocol_registry_owner.registry,
+    )
+    # Packet 9.0: closes the PE→learning loop. Consumes
+    # protocol_reflection upstream, routes new proposals through
+    # ModificationGate, submits to a shared RevisionQueue, and
+    # auto-applies AUTO_APPROVED ones via the registry. SHADOW
+    # default — production opts in.
+    protocol_revision_queue_owner = ProtocolRevisionQueueModule(
+        wiring_level=config.level_for("protocol_revision_queue", WiringLevel.SHADOW),
+        registry_module=protocol_registry_owner,
+    )
+    steering_sensor_owner: SteeringSensorModule | None = None
+    steering_gate_owner: SteeringGateModule | None = None
+    steering_executor_owner: SteeringExecutorModule | None = None
+    if steering_bundle is not None:
+        sensor_level = config.level_for("steering_sensor", WiringLevel.SHADOW)
+        gate_level = config.level_for("steering_gate", WiringLevel.SHADOW)
+        executor_level = config.level_for("steering_executor", WiringLevel.SHADOW)
+        steering_sensor_owner = steering_sensor_module or SteeringSensorModule(
+            artifact=steering_bundle.reader,
+            wiring_level=sensor_level,
+        )
+        steering_gate_owner = steering_gate_module or SteeringGateModule(
+            artifact=steering_bundle.gate,
+            wiring_level=gate_level,
+        )
+        if steering_sensor_owner.artifact != steering_bundle.reader:
+            raise ValueError("injected steering sensor artifact drift")
+        if steering_sensor_owner.wiring_level is not sensor_level:
+            raise ValueError("injected steering sensor wiring drift")
+        if steering_gate_owner.artifact != steering_bundle.gate:
+            raise ValueError("injected steering gate artifact drift")
+        if steering_gate_owner.wiring_level is not gate_level:
+            raise ValueError("injected steering gate wiring drift")
+        ungated_action = {
+            "blocked": None,
+            "noop": SteeringGateAction.NOOP,
+            "always_on": SteeringGateAction.STEER,
+        }[config.steering_ungated_action]
+        steering_executor_owner = SteeringExecutorModule(
+            artifact=steering_bundle.executor,
+            # The unconditional operator is an evidence-only B3 control. It
+            # must disappear when executor ownership becomes ACTIVE; passing
+            # it through would both violate the artifact contract and make an
+            # otherwise authorized one-field rollout impossible to construct.
+            sensor_off_artifact=(
+                steering_bundle.sensor_off_executor
+                if executor_level is WiringLevel.SHADOW
+                else None
+            ),
+            runtime=steering_runtime,
+            source_text=user_input or "",
+            apply_shadow_hook=config.steering_shadow_hook,
+            ungated_action=ungated_action,
+            wiring_level=executor_level,
+        )
+    _runtime_modules = [
+        # dialogue_external_outcome must be published before PE and
+        # regime (both depend on it). The PE<->regime cycle forces
+        # topo_sort into input-order fallback, so module order matters.
+        dialogue_external_outcome_owner,
+        SubstrateModule(
+            adapter=substrate_adapter,
+            wiring_level=config.level_for("substrate", WiringLevel.ACTIVE),
+        ),
+        *(
+            (steering_sensor_owner,)
+            if steering_sensor_owner is not None
+            else ()
+        ),
+        SubstrateSelfModModule(
+            session_id=session_id,
+            wave_id=wave_id,
+            pe_threshold=substrate_self_mod_pe_threshold,
+            external_pe_magnitude=substrate_self_mod_pe_magnitude,
+            external_pe_reward=substrate_self_mod_pe_reward,
+            wiring_level=config.level_for("substrate_self_mod", WiringLevel.SHADOW),
+        ),
+        MultiPartyIdentityModule(
+            environment_event=environment_event,
+            wiring_level=config.level_for("multi_party_identity", WiringLevel.SHADOW),
+        ),
+        MemoryModule(
+            store=memory_store or build_default_memory_store(cms_torch_backend=config.cms_torch_backend),
+            wiring_level=config.level_for("memory", WiringLevel.SHADOW),
+            user_text=user_input,
+            learning_enabled=learning_enabled,
+        ),
+        ConversationalRoleModule(
+            wiring_level=config.level_for("conversational_role", WiringLevel.SHADOW),
+            environment_event=environment_event,
+        ),
+        BeliefAboutOtherModule(
+            wiring_level=config.level_for("belief_about_other", WiringLevel.ACTIVE),
+            proposal_runtime=tom_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+            record_store=social_record_store,
+        ),
+        IntentAboutOtherModule(
+            wiring_level=config.level_for("intent_about_other", WiringLevel.ACTIVE),
+            proposal_runtime=tom_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+            record_store=social_record_store,
+        ),
+        FeelingAboutOtherModule(
+            wiring_level=config.level_for("feeling_about_other", WiringLevel.ACTIVE),
+            proposal_runtime=tom_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+            record_store=social_record_store,
+        ),
+        PreferenceAboutOtherModule(
+            wiring_level=config.level_for("preference_about_other", WiringLevel.ACTIVE),
+            proposal_runtime=tom_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+            record_store=social_record_store,
+            action_forecast_runtime=preference_action_forecast_runtime,
+            action_forecast_request=preference_action_forecast_request,
+            action_outcome_evidence=preference_action_outcome_evidence,
+        ),
+        CommonGroundModule(
+            wiring_level=config.level_for("common_ground", WiringLevel.ACTIVE),
+            dyad_atoms=common_ground_dyad_atoms,
+            group_atoms=common_ground_group_atoms,
+            proposal_runtime=common_ground_proposal_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+            record_store=social_record_store,
+        ),
+        GroupModule(
+            wiring_level=config.level_for("groups", WiringLevel.SHADOW),
+            groups=group_identities,
+            active_group_id=active_group_id,
+            joint_attention=group_joint_attention,
+            joint_commitments=group_joint_commitments,
+            group_regime_id=group_regime_id,
+            record_store=social_record_store,
+            turn_index=turn_index,
+        ),
+        SocialPredictionAggregateModule(
+            wiring_level=config.level_for("social_prediction", WiringLevel.SHADOW),
+        ),
+        SocialPredictionErrorModule(
+            wiring_level=config.level_for("social_prediction_error", WiringLevel.SHADOW),
+            pending_errors=social_prediction_errors,
+        ),
+        *build_semantic_modules(
+            store=semantic_store,
+            proposal_runtime=semantic_runtime,
+            user_input=user_input,
+            turn_index=turn_index,
+            level_for=config.level_for,
+        ),
+        PersonalConditioningModule(
+            wiring_level=config.level_for("personal_conditioning", WiringLevel.SHADOW),
+            credit_feedback_state=personal_conditioning_credit_state,
+            credit_feedback_level=config.level_for("conditioning_credit_feedback", WiringLevel.SHADOW),
+        ),
+        RelationshipConditioningModule(
+            wiring_level=config.level_for("relationship_conditioning", WiringLevel.SHADOW),
+            credit_feedback_state=relationship_conditioning_credit_state,
+            credit_feedback_level=config.level_for("conditioning_credit_feedback", WiringLevel.SHADOW),
+        ),
+        TrackTemporalModule(
+            track=Track.WORLD,
+            policy=resolved_world_temporal_policy,
+            previous_snapshot=previous_world_temporal_snapshot,
+            wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
+        ),
+        TrackTemporalModule(
+            track=Track.SELF,
+            policy=resolved_self_temporal_policy,
+            previous_snapshot=previous_self_temporal_snapshot,
+            wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
+            action_advisory=self_temporal_action_advisory,
+            action_advisory_level=config.level_for(
+                "relationship_action_advisory",
+                WiringLevel.SHADOW,
+            ),
+        ),
+        TemporalAggregateModule(
+            wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
+        ),
+        DualTrackModule(
+            wiring_level=config.level_for("dual_track", WiringLevel.SHADOW),
+            identity_seed=identity_seed,
+            gate_learner=dual_track_gate_learner,
+        ),
+        ApprenticeshipAlignmentModule(
+            wiring_level=config.level_for("apprenticeship_alignment", WiringLevel.SHADOW),
+            user_input=user_input,
+            turn_index=turn_index,
+            apprenticeship=apprenticeship_turn,
+            feedback_policy=apprenticeship_feedback_policy,
+            extractor=apprenticeship_constraint_extractor,
+        ),
+        ExperienceFastPriorModule(
+            wiring_level=config.level_for("experience_fast_prior", WiringLevel.SHADOW),
+        ),
+        regime_module
+        or RegimeModule(
+            wiring_level=config.level_for("regime", WiringLevel.SHADOW),
+            panorama_gate_mode=config.panorama_gate_mode,
+            learning_enabled=learning_enabled,
+        ),
+        RetrievalPolicyModule(
+            rare_heavy_state=application_rare_heavy_state,
+            wiring_level=config.level_for("retrieval_policy", WiringLevel.ACTIVE),
+        ),
+        DomainKnowledgeModule(
+            rare_heavy_state=application_rare_heavy_state,
+            store=domain_knowledge_store,
+            wiring_level=config.level_for("domain_knowledge", WiringLevel.ACTIVE),
+        ),
+        EvaluationModule(
+            backbone=evaluation_backbone,
+            session_id=session_id,
+            wave_id=wave_id,
+            wiring_level=config.level_for("evaluation", WiringLevel.ACTIVE),
+        ),
+        prediction_module
+        or PredictionErrorModule(
+            wiring_level=config.level_for("prediction_error", WiringLevel.ACTIVE),
+            action_context=prediction_action_context,
+            learning_enabled=learning_enabled,
+        ),
+        *(
+            (steering_gate_owner, steering_executor_owner)
+            if steering_gate_owner is not None
+            and steering_executor_owner is not None
+            else ()
+        ),
+        CaseMemoryModule(
+            user_input=(
+                user_input
+                if semantic_embedding_backend_status() == ("backend", "Qwen/Qwen2.5-1.5B-Instruct", False)
+                else None
+            ),
+            rare_heavy_state=application_rare_heavy_state,
+            store=case_memory_store,
+            action_applicability_evaluator=(action_applicability_evaluator),
+            wiring_level=config.level_for("case_memory", WiringLevel.SHADOW),
+        ),
+        StrategyPlaybookModule(
+            rare_heavy_state=application_rare_heavy_state,
+            wiring_level=config.level_for("strategy_playbook", WiringLevel.SHADOW),
+        ),
+        ApprenticeshipProtocolAlignmentModule(
+            wiring_level=config.level_for("apprenticeship_protocol_alignment", WiringLevel.SHADOW),
+        ),
+        BoundaryPolicyModule(
+            rare_heavy_state=application_rare_heavy_state,
+            wiring_level=config.level_for("boundary_policy", WiringLevel.ACTIVE),
+        ),
+        # Placed after regime (whose panorama gate decides whether this owner
+        # instantiates at all) AND after boundary_policy (whose risk band can
+        # withhold a ranking outright). Reading a stale safety band would let
+        # a turn that just went critical still publish a recommendation, so
+        # the same-turn read is the point of this position, not a detail.
+        DecisionWorkspaceModule(
+            wiring_level=config.level_for("decision_workspace", WiringLevel.SHADOW),
+        ),
+        ResponseAssemblyModule(
+            wiring_level=config.level_for("response_assembly", WiringLevel.ACTIVE),
+        ),
+        credit_module
+        or CreditModule(
+            pending_proposals=credit_proposals,
+            wiring_level=config.level_for("credit", WiringLevel.SHADOW),
+            learning_enabled=learning_enabled,
+        ),
+        MidLayerModule(
+            wiring_level=config.level_for("evaluation_mid", WiringLevel.SHADOW),
+        ),
+        ExpensiveLayerModule(
+            wiring_level=config.level_for("evaluation_expensive", WiringLevel.DISABLED),
+            generation_id=wave_id,
+        ),
+        CrossGenerationAggregatorModule(
+            wiring_level=config.level_for("evaluation_cross_generation", WiringLevel.DISABLED),
+        ),
+        AuditModule(
+            wiring_level=config.level_for("audit", WiringLevel.SHADOW),
+        ),
+        ReflectionModule(
+            engine=ReflectionEngine(
+                writeback_mode=reflection_mode,
+                consolidation_learner=reflection_consolidation_learner,
+            ),
+            wiring_level=config.level_for("reflection", WiringLevel.SHADOW),
+        ),
+        ProtocolReflectionEngine(
+            wiring_level=config.level_for("protocol_reflection", WiringLevel.SHADOW),
+        ),
+        TrackTemporalConsolidationModule(
+            track=Track.WORLD,
+            policy=resolved_world_temporal_policy,
+            prediction_error_learning_enabled=(prediction_error_temporal_learning_enabled),
+            wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
+        ),
+        TrackTemporalConsolidationModule(
+            track=Track.SELF,
+            policy=resolved_self_temporal_policy,
+            prediction_error_learning_enabled=(prediction_error_temporal_learning_enabled),
+            wiring_level=config.level_for("temporal", WiringLevel.SHADOW),
+        ),
+        rupture_state_owner,
+        interlocutor_state_owner,
+        protocol_phase_owner,
+        protocol_registry_owner,
+        protocol_registry_introspection_owner,
+        protocol_revision_log_owner,
+        protocol_revision_queue_owner,
+    ]
+    return _reposition_open_loop_after_apprenticeship(_runtime_modules)
+
+
+def _reposition_open_loop_after_apprenticeship(modules: list) -> list:
+    """#90: ensure ``open_loop`` executes after ``apprenticeship_alignment``.
+
+    The kernel runs modules in list order (topo_sort falls back to input
+    order under this graph's bidirectional cycles). ``open_loop`` now
+    consumes ``apprenticeship_alignment.should_request_feedback`` to surface
+    a verification loop, so it must come after it. ``apprenticeship_alignment``
+    cannot move earlier (it depends on the other semantic owners), and
+    ``open_loop``'s only hard dependents are ``GroupModule`` (SHADOW, already
+    positioned before the semantic block so it already reads a placeholder)
+    and ``response_assembly`` (runs last) — so moving ``open_loop`` later is
+    safe. No-op when the graph is already ordered or either owner is absent.
+    """
+    open_loop_index = next((i for i, m in enumerate(modules) if m.slot_name == "open_loop"), None)
+    appr_index = next(
+        (i for i, m in enumerate(modules) if m.slot_name == "apprenticeship_alignment"),
+        None,
+    )
+    if open_loop_index is None or appr_index is None or open_loop_index > appr_index:
+        return modules
+    open_loop_module = modules.pop(open_loop_index)
+    # After popping the earlier open_loop, apprenticeship shifted left by
+    # one to (appr_index - 1); inserting at appr_index places open_loop
+    # immediately after it.
+    modules.insert(appr_index, open_loop_module)
+    return modules
+
+
+async def run_final_wiring_turn(
+    *,
+    config: FinalRolloutConfig,
+    substrate_adapter: SubstrateAdapter,
+    user_input: str | None = None,
+    application_rare_heavy_state: ApplicationRareHeavyState | None = None,
+    domain_knowledge_store: ApplicationDomainKnowledgeStore | None = None,
+    case_memory_store: ApplicationCaseMemoryStore | None = None,
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] = (),
+    memory_store: MemoryStore | None = None,
+    semantic_state_store: SemanticStateStore | None = None,
+    semantic_proposal_runtime: SemanticProposalRuntime | None = None,
+    tom_proposal_runtime: SemanticProposalRuntime | None = None,
+    preference_action_forecast_runtime: PreferenceActionForecastRuntime | None = None,
+    preference_action_forecast_request: PreferenceActionForecastRequest | None = None,
+    preference_action_outcome_evidence: PreferenceActionOutcomeEvidence | None = None,
+    common_ground_proposal_runtime: LLMCommonGroundProposalRuntime | None = None,
+    evaluation_backbone: EvaluationBackbone | None = None,
+    prior_session_reports: tuple[EvaluationReport, ...] = (),
+    upstream_snapshots: dict[str, Snapshot[Any]] | None = None,
+    joint_loop_result: object | None = None,
+    credit_proposals: tuple[ModificationProposal, ...] = (),
+    reflection_mode: WritebackMode = WritebackMode.PROPOSAL_ONLY,
+    temporal_policy: TemporalPolicy | None = None,
+    world_temporal_policy: TemporalPolicy | None = None,
+    self_temporal_policy: TemporalPolicy | None = None,
+    self_temporal_action_advisory: TemporalActionAdvisoryProposal | None = None,
+    prediction_module: PredictionErrorModule | None = None,
+    regime_module: RegimeModule | None = None,
+    credit_module: CreditModule | None = None,
+    dialogue_external_outcome_module: DialogueExternalOutcomeModule | None = None,
+    rupture_state_module: RuptureStateModule | None = None,
+    protocol_registry_module: ProtocolRegistryModule | None = None,
+    identity_seed: IdentitySeed | None = None,
+    dual_track_gate_learner: DualTrackGateLearner | None = None,
+    social_record_store: SocialRecordStore | None = None,
+    reflection_consolidation_learner: ConsolidationScoreLearner | None = None,
+    learning_enabled: bool = True,
+    prediction_error_temporal_learning_enabled: bool = True,
+    personal_conditioning_credit_state: BankCreditFeedbackState | None = None,
+    relationship_conditioning_credit_state: BankCreditFeedbackState | None = None,
+    steering_bundle: SteeringArtifactBundle | None = None,
+    steering_sensor_module: SteeringSensorModule | None = None,
+    steering_gate_module: SteeringGateModule | None = None,
+    steering_runtime: OpenWeightResidualRuntime | None = None,
+    user_scope: str = "anonymous",
+    session_id: str = "runtime-session",
+    wave_id: str = "wave-0",
+    turn_index: int = 0,
+    apprenticeship_turn: bool = False,
+    apprenticeship_feedback_policy: str = "owner",
+    apprenticeship_constraint_extractor: Any = None,
+    apply_slow_writeback: bool = True,
+    substrate_self_mod_pe_magnitude: float = 0.0,
+    substrate_self_mod_pe_reward: float = 0.0,
+    substrate_self_mod_pe_threshold: float = 0.18,
+    social_prediction_errors: tuple[SocialPredictionError, ...] = (),
+    environment_event: EnvironmentEvent | None = None,
+    environment_outcome_id: str = "",
+    environment_prediction_id: str = "",
+    environment_outcome: EnvironmentOutcome | None = None,
+    external_outcome_lineages: tuple[ConditioningLineage, ...] = (),
+    common_ground_dyad_atoms: tuple[CommonGroundAtom, ...] = (),
+    common_ground_group_atoms: tuple[CommonGroundAtom, ...] = (),
+    group_identities: tuple[GroupIdentity, ...] = (),
+    active_group_id: str | None = None,
+    group_joint_attention: tuple[str, ...] = (),
+    group_joint_commitments: tuple[str, ...] = (),
+    group_regime_id: str | None = None,
+) -> FinalIntegrationResult:
+    previous_track_temporal: dict[str, TemporalAbstractionSnapshot] = {}
+    if upstream_snapshots is not None:
+        for slot_name in ("world_temporal", "self_temporal"):
+            previous_snapshot = upstream_snapshots.get(slot_name)
+            if previous_snapshot is None:
+                continue
+            if not isinstance(
+                previous_snapshot.value,
+                TemporalAbstractionSnapshot,
+            ):
+                raise TypeError(f"{slot_name} must publish TemporalAbstractionSnapshot.")
+            previous_track_temporal[slot_name] = previous_snapshot.value
+    prediction_action_context = _prediction_action_context_from_upstream(
+        upstream_snapshots=upstream_snapshots,
+        environment_event=environment_event,
+        environment_outcome_id=environment_outcome_id,
+        environment_prediction_id=environment_prediction_id,
+        environment_outcome=environment_outcome,
+        external_outcome_lineages=external_outcome_lineages,
+    )
+    modules = build_final_runtime_modules(
+        config=config,
+        substrate_adapter=substrate_adapter,
+        user_input=user_input,
+        application_rare_heavy_state=application_rare_heavy_state,
+        domain_knowledge_store=domain_knowledge_store,
+        case_memory_store=case_memory_store,
+        domain_experience_packages=domain_experience_packages,
+        memory_store=memory_store,
+        semantic_state_store=semantic_state_store,
+        semantic_proposal_runtime=semantic_proposal_runtime,
+        tom_proposal_runtime=tom_proposal_runtime,
+        preference_action_forecast_runtime=preference_action_forecast_runtime,
+        preference_action_forecast_request=preference_action_forecast_request,
+        preference_action_outcome_evidence=preference_action_outcome_evidence,
+        common_ground_proposal_runtime=common_ground_proposal_runtime,
+        evaluation_backbone=evaluation_backbone,
+        credit_proposals=credit_proposals,
+        reflection_mode=reflection_mode,
+        temporal_policy=temporal_policy,
+        world_temporal_policy=world_temporal_policy,
+        self_temporal_policy=self_temporal_policy,
+        previous_world_temporal_snapshot=previous_track_temporal.get("world_temporal"),
+        previous_self_temporal_snapshot=previous_track_temporal.get("self_temporal"),
+        self_temporal_action_advisory=self_temporal_action_advisory,
+        prediction_module=prediction_module,
+        regime_module=regime_module,
+        credit_module=credit_module,
+        session_id=session_id,
+        wave_id=wave_id,
+        turn_index=turn_index,
+        apprenticeship_turn=apprenticeship_turn,
+        apprenticeship_feedback_policy=apprenticeship_feedback_policy,
+        apprenticeship_constraint_extractor=apprenticeship_constraint_extractor,
+        substrate_self_mod_pe_magnitude=substrate_self_mod_pe_magnitude,
+        substrate_self_mod_pe_reward=substrate_self_mod_pe_reward,
+        substrate_self_mod_pe_threshold=substrate_self_mod_pe_threshold,
+        social_prediction_errors=social_prediction_errors,
+        environment_event=environment_event,
+        environment_outcome_id=environment_outcome_id,
+        environment_prediction_id=environment_prediction_id,
+        prediction_action_context=prediction_action_context,
+        common_ground_dyad_atoms=common_ground_dyad_atoms,
+        common_ground_group_atoms=common_ground_group_atoms,
+        group_identities=group_identities,
+        active_group_id=active_group_id,
+        group_joint_attention=group_joint_attention,
+        group_joint_commitments=group_joint_commitments,
+        group_regime_id=group_regime_id,
+        dialogue_external_outcome_module=dialogue_external_outcome_module,
+        rupture_state_module=rupture_state_module,
+        protocol_registry_module=protocol_registry_module,
+        identity_seed=identity_seed,
+        dual_track_gate_learner=dual_track_gate_learner,
+        social_record_store=social_record_store,
+        reflection_consolidation_learner=reflection_consolidation_learner,
+        learning_enabled=learning_enabled,
+        prediction_error_temporal_learning_enabled=(prediction_error_temporal_learning_enabled),
+        personal_conditioning_credit_state=personal_conditioning_credit_state,
+        relationship_conditioning_credit_state=relationship_conditioning_credit_state,
+        steering_bundle=steering_bundle,
+        steering_sensor_module=steering_sensor_module,
+        steering_gate_module=steering_gate_module,
+        steering_runtime=steering_runtime,
+    )
+    if upstream_snapshots:
+        for module in modules:
+            previous_snapshot = upstream_snapshots.get(module.slot_name)
+            if previous_snapshot is not None:
+                module.seed_version(previous_snapshot.version)
+    # protocol-temporal-prior bridge (orchestrator-mediated carryover).
+    # When enabled (SHADOW/ACTIVE), feed the *previous* turn's
+    # ``active_mixture`` value into the temporal owner(s) out-of-band. This
+    # is the cycle-free equivalent of a same-turn dependency: temporal runs
+    # before ``active_mixture`` is produced this turn, and declaring the
+    # dependency would cycle via ``retrieval_policy → world_temporal``.
+    if config.protocol_temporal_prior is not WiringLevel.DISABLED and upstream_snapshots:
+        _prev_active_mixture = upstream_snapshots.get("active_mixture")
+        _prev_active_mixture_value = _prev_active_mixture.value if _prev_active_mixture is not None else None
+        for module in modules:
+            if isinstance(module, _TEMPORAL_PRIOR_CARRYOVER_TYPES):
+                module.observe_active_mixture_carryover(_prev_active_mixture_value)
+    recorder = EventRecorder()
+    registry = SlotRegistry()
+    if upstream_snapshots:
+        registry.seed_versions(upstream_snapshots)
+    shadow_snapshots: dict[str, Snapshot[Any]] = {}
+    active_snapshots = await propagate(
+        modules,
+        upstream=upstream_snapshots,
+        registry=registry,
+        recorder=recorder,
+        shadow_snapshots=shadow_snapshots,
+        session_id=session_id,
+        wave_id=wave_id,
+    )
+    if upstream_snapshots:
+        for slot_name in ("session_post_slow_loop", "experience_consolidation"):
+            upstream_snapshot = upstream_snapshots.get(slot_name)
+            if upstream_snapshot is None:
+                continue
+            resolved_level = config.level_for(slot_name, WiringLevel.DISABLED)
+            if resolved_level is WiringLevel.ACTIVE:
+                active_snapshots.setdefault(slot_name, upstream_snapshot)
+                shadow_snapshots.pop(slot_name, None)
+            elif resolved_level is WiringLevel.SHADOW:
+                shadow_snapshots.setdefault(slot_name, upstream_snapshot)
+                # Phase 2 W2.B EQ-owner uplift: ``propagate`` seeds
+                # ``active_snapshots`` from the entire upstream dict
+                # (kernel.py line ~558), so feeding the runner's
+                # ``upstream_snapshots`` would otherwise leak the
+                # ``session_post_slow_loop`` snapshot into the active
+                # set even when wiring resolves to SHADOW. Pop it
+                # back out so the SHADOW path stays observable as
+                # SHADOW only. (No-op for slots not present in
+                # ``active_snapshots``.)
+                active_snapshots.pop(slot_name, None)
+    writeback_result: WritebackResult | None = None
+    writeback_source: str | None = None
+    reflection_module = next((module for module in modules if isinstance(module, ReflectionModule)), None)
+    evaluation_module = next((module for module in modules if isinstance(module, EvaluationModule)), None)
+    credit_module = next((module for module in modules if isinstance(module, CreditModule)), None)
+    regime_module = next((module for module in modules if isinstance(module, RegimeModule)), None)
+    temporal_modules = tuple(module for module in modules if isinstance(module, TrackTemporalModule))
+    reflection_snapshot = active_snapshots.get("reflection")
+    if reflection_snapshot is None:
+        reflection_snapshot = shadow_snapshots.get("reflection")
+        if reflection_snapshot is not None:
+            writeback_source = "shadow"
+    else:
+        writeback_source = "active"
+    credit_snapshot = active_snapshots.get("credit") or shadow_snapshots.get("credit")
+    evolution_judgement: EvolutionJudgement | None = None
+    cross_session_verdict = ""
+    judge_allows_structural_writeback = reflection_mode is WritebackMode.APPLY
+    session_report: EvaluationReport | None = None
+    session_post_writeback_request: SessionPostWritebackRequest | None = None
+    evaluation_snapshot = active_snapshots.get("evaluation")
+    retrieval_policy_snapshot = active_snapshots.get("retrieval_policy")
+    domain_knowledge_snapshot = active_snapshots.get("domain_knowledge")
+    case_memory_snapshot = active_snapshots.get("case_memory")
+    strategy_playbook_snapshot = active_snapshots.get("strategy_playbook")
+    experience_fast_prior_snapshot = active_snapshots.get("experience_fast_prior")
+    boundary_policy_snapshot = active_snapshots.get("boundary_policy")
+    response_assembly_snapshot = active_snapshots.get("response_assembly")
+    semantic_state_values = tuple(
+        snapshot.value
+        for slot in SEMANTIC_OWNER_SLOTS
+        for snapshot in (active_snapshots.get(slot),)
+        if snapshot is not None
+        and isinstance(
+            snapshot.value,
+            (
+                PlanIntentSnapshot,
+                CommitmentSnapshot,
+                OpenLoopSnapshot,
+                UserModelSnapshot,
+                ExecutionResultSnapshot,
+                BeliefAssumptionSnapshot,
+                RelationshipStateSnapshot,
+                GoalValueSnapshot,
+                BoundaryConsentSnapshot,
+            ),
+        )
+    )
+    prediction_snapshot_value = (
+        active_snapshots.get("prediction_error").value
+        if active_snapshots.get("prediction_error") is not None
+        and isinstance(active_snapshots.get("prediction_error").value, PredictionErrorSnapshot)
+        else None
+    )
+    track_runtime_states_for_evaluation = tuple(
+        (module.track.value, runtime_state)
+        for module in temporal_modules
+        for runtime_state in (module.export_runtime_state(),)
+        if runtime_state is not None
+    )
+    temporal_runtime_state_for_evaluation = None
+    if len(track_runtime_states_for_evaluation) == 2:
+        track_state_map = dict(track_runtime_states_for_evaluation)
+        temporal_runtime_state_for_evaluation = build_temporal_runtime_state_aggregate(
+            world_state=track_state_map["world"],
+            self_state=track_state_map["self"],
+        )
+    reflection_promote = False
+    reflection_promote_reason = ""
+    if (
+        evaluation_module is not None
+        and evaluation_snapshot is not None
+        and isinstance(evaluation_snapshot.value, EvaluationSnapshot)
+    ):
+        from volvence_zero.joint_loop.runtime import ScheduledJointLoopResult
+
+        enriched_evaluation = evaluation_snapshot.value
+        temporal_snapshot = active_snapshots.get("temporal_abstraction")
+        temporal_value = (
+            temporal_snapshot.value
+            if temporal_snapshot is not None and isinstance(temporal_snapshot.value, TemporalAbstractionSnapshot)
+            else None
+        )
+        enriched_evaluation = evaluation_module.backbone.record_temporal_public_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 1,
+            base_snapshot=enriched_evaluation,
+            temporal_snapshot=temporal_value,
+            metacontroller_state=temporal_runtime_state_for_evaluation,
+        )
+        joint_kernel_scores = (
+            joint_loop_result.kernel_scores if isinstance(joint_loop_result, ScheduledJointLoopResult) else ()
+        )
+        if joint_kernel_scores:
+            enriched_evaluation = evaluation_module.backbone.record_external_scores(
+                session_id=session_id,
+                wave_id=wave_id,
+                timestamp_ms=evaluation_snapshot.timestamp_ms + 2,
+                base_snapshot=enriched_evaluation,
+                scores=joint_kernel_scores,
+                description_suffix=f"Enriched with {len(joint_kernel_scores)} ETA kernel scores.",
+            )
+        enriched_evaluation = evaluation_module.backbone.record_prediction_error_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 3,
+            base_snapshot=enriched_evaluation,
+            prediction_error_snapshot=prediction_snapshot_value,
+        )
+        enriched_evaluation = evaluation_module.backbone.record_persona_geometry_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 4,
+            base_snapshot=enriched_evaluation,
+            substrate_snapshot=(
+                active_snapshots.get("substrate").value
+                if active_snapshots.get("substrate") is not None
+                and isinstance(active_snapshots.get("substrate").value, SubstrateSnapshot)
+                else None
+            ),
+            regime_snapshot=(
+                active_snapshots.get("regime").value
+                if active_snapshots.get("regime") is not None
+                and isinstance(active_snapshots.get("regime").value, RegimeSnapshot)
+                else None
+            ),
+        )
+        enriched_evaluation = evaluation_module.backbone.record_learning_evidence(
+            session_id=session_id,
+            wave_id=wave_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 5,
+            base_snapshot=enriched_evaluation,
+            memory_snapshot=active_snapshots.get("memory").value
+            if active_snapshots.get("memory") is not None
+            else None,
+            reflection_snapshot=reflection_snapshot.value if reflection_snapshot is not None else None,
+            writeback_result=writeback_result,
+            joint_loop_result=joint_loop_result,
+            regime_snapshot=active_snapshots.get("regime").value
+            if active_snapshots.get("regime") is not None
+            else None,
+            domain_knowledge_snapshot=(
+                domain_knowledge_snapshot.value
+                if domain_knowledge_snapshot is not None
+                and isinstance(domain_knowledge_snapshot.value, DomainKnowledgeSnapshot)
+                else None
+            ),
+            case_memory_snapshot=(
+                case_memory_snapshot.value
+                if case_memory_snapshot is not None and isinstance(case_memory_snapshot.value, CaseMemorySnapshot)
+                else None
+            ),
+            strategy_playbook_snapshot=(
+                strategy_playbook_snapshot.value
+                if strategy_playbook_snapshot is not None
+                and isinstance(strategy_playbook_snapshot.value, StrategyPlaybookSnapshot)
+                else None
+            ),
+            experience_fast_prior_snapshot=(
+                experience_fast_prior_snapshot.value
+                if experience_fast_prior_snapshot is not None
+                and isinstance(experience_fast_prior_snapshot.value, ExperienceFastPriorSnapshot)
+                else None
+            ),
+            boundary_policy_snapshot=(
+                boundary_policy_snapshot.value
+                if boundary_policy_snapshot is not None
+                and isinstance(boundary_policy_snapshot.value, BoundaryPolicySnapshot)
+                else None
+            ),
+            response_assembly_snapshot=(
+                response_assembly_snapshot.value
+                if response_assembly_snapshot is not None
+                and isinstance(response_assembly_snapshot.value, ResponseAssemblySnapshot)
+                else None
+            ),
+            semantic_state_snapshots=semantic_state_values,
+        )
+        substrate_self_mod_snapshot = active_snapshots.get("substrate_self_mod")
+        substrate_self_mod_value = (
+            substrate_self_mod_snapshot.value
+            if substrate_self_mod_snapshot is not None
+            and isinstance(substrate_self_mod_snapshot.value, SubstrateSelfModSnapshot)
+            else None
+        )
+        if substrate_self_mod_value is not None:
+            enriched_evaluation = evaluation_module.backbone.record_external_scores(
+                session_id=session_id,
+                wave_id=wave_id,
+                timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
+                base_snapshot=enriched_evaluation,
+                scores=(
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_change_rate",
+                        value=substrate_self_mod_value.parameter_change_rate,
+                        confidence=0.7,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_gate_preview",
+                        value=1.0 if substrate_self_mod_value.gate_preview == GateDecision.ALLOW.value else 0.0,
+                        confidence=0.7,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_optimizer_norm",
+                        value=substrate_self_mod_value.optimizer_state_norm,
+                        confidence=0.7,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_recommended",
+                        value=1.0 if substrate_self_mod_value.recommended else 0.0,
+                        confidence=0.7,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_runtime_evidence_strength",
+                        value=substrate_self_mod_value.runtime_evidence_strength,
+                        confidence=0.72,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                    EvaluationScore(
+                        family="learning",
+                        metric_name="substrate_online_fast_proposal_readiness",
+                        value=substrate_self_mod_value.proposal_readiness,
+                        confidence=0.72,
+                        evidence=substrate_self_mod_value.description,
+                    ),
+                ),
+                description_suffix="Enriched with online-fast substrate self-mod evidence.",
+            )
+        reflection_accuracy = 0.0
+        if reflection_module is not None:
+            reflection_accuracy = reflection_module.engine.proposal_success_rate
+        session_report = evaluation_module.backbone.build_session_report(
+            session_id=session_id,
+            timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
+        )
+        cross_session_report = None
+        if prior_session_reports:
+            cross_session_report = evaluation_module.backbone.run_cross_session_benchmark(
+                suite=CrossSessionBenchmarkSuite(
+                    session_reports=prior_session_reports + (session_report,),
+                )
+            )
+            cross_session_verdict = cross_session_report.verdict
+        cycle_report = (
+            joint_loop_result.cycle_report if isinstance(joint_loop_result, ScheduledJointLoopResult) else None
+        )
+        evolution_judgement = cycle_report.evolution_judgement if cycle_report is not None else None
+        if evolution_judgement is None:
+            replay_result = evaluation_module.backbone.run_default_evolution_benchmark(
+                timestamp_ms=evaluation_snapshot.timestamp_ms + 6,
+            )
+            evolution_judgement = evaluation_module.backbone.judge_evolution_candidate(
+                replay_suite_result=replay_result,
+                session_report=session_report,
+                cross_session_report=cross_session_report,
+            )
+        judge_allows_structural_writeback = _judge_allows_structural_writeback(evolution_judgement) and (
+            reflection_mode is WritebackMode.APPLY
+        )
+        enriched_evaluation = replace(
+            enriched_evaluation,
+            reflection_accuracy=reflection_accuracy,
+            longitudinal_verdict=cross_session_verdict,
+        )
+        active_snapshots["evaluation"] = _validated_evaluation_snapshot(evaluation_module.publish(enriched_evaluation))
+        reflection_promote, reflection_promote_reason = reflection_promotion_eligible(
+            evaluation_snapshot=enriched_evaluation,
+            reflection_engine=reflection_module.engine if reflection_module is not None else None,
+        )
+        if credit_module is not None:
+            # R-PE #1 (same gate as PE actual-outcome decoupling): when
+            # ACTIVE, credit is NOT derived from evaluation — evaluation is
+            # a readout, not a learning source. Credit then flows only from
+            # the PE-first derivation inside ``CreditModule.process`` and
+            # substrate/regime-derived records. SHADOW (default) keeps
+            # the legacy evaluation-derived credit path verbatim.
+            credit_decoupled = pe_evaluation_decoupled_active()
+            extra_credits = (
+                ()
+                if credit_decoupled
+                else derive_learning_evidence_credit_records(
+                    evaluation_snapshot=enriched_evaluation,
+                    timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 1,
+                )
+            )
+            regime_snapshot_value_for_credit = (
+                active_snapshots.get("regime").value if active_snapshots.get("regime") is not None else None
+            )
+            delayed_credits = derive_delayed_attribution_credit_records(
+                regime_snapshot=regime_snapshot_value_for_credit,
+                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 2,
+            )
+            extra_credits = extra_credits + delayed_credits
+            # CP-14 (GAP-04): the four-axis PE records are derived exactly
+            # once per turn, inside ``CreditModule.process`` via
+            # ``derive_credit_records_from_prediction_error_first`` (which
+            # also carries the PE action context and the segment-closure
+            # records). The orchestrator must NOT re-derive them here —
+            # doing so double-counted pe:task / pe:relationship /
+            # pe:regime / pe:action every turn with a context-less copy.
+            # Phase 2.A: ask the credit owner to append historical and
+            # learned COCOA readouts. The owner owns the learned baseline,
+            # checkpoint evidence, and gate audit.
+            temporal_snapshot_value_for_credit = None
+            temporal_snapshot_for_credit = active_snapshots.get("temporal_abstraction")
+            if temporal_snapshot_for_credit is not None and isinstance(
+                temporal_snapshot_for_credit.value, TemporalAbstractionSnapshot
+            ):
+                temporal_snapshot_value_for_credit = temporal_snapshot_for_credit.value
+            # R-PE #1: when decoupled, withhold evaluation from the learned
+            # counterfactual head so its evaluation-driven learned-baseline
+            # writeback (propose_update / record_modification) does not fire;
+            # the historical / readout records still emit. SHADOW (default)
+            # passes the evaluation snapshot through unchanged.
+            counterfactual_credits = credit_module.ledger.derive_learned_counterfactual_contribution_records(
+                regime_snapshot=regime_snapshot_value_for_credit,
+                temporal_snapshot=temporal_snapshot_value_for_credit,
+                prediction_error_snapshot=prediction_snapshot_value,
+                evaluation_snapshot=None if credit_decoupled else enriched_evaluation,
+                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 5,
+            )
+            extra_credits = extra_credits + counterfactual_credits
+            record_nstep_outcomes_from_segment_closure(
+                ledger=credit_module.ledger,
+                prediction_error_snapshot=prediction_snapshot_value,
+                temporal_snapshot=temporal_snapshot_value_for_credit,
+                regime_snapshot=regime_snapshot_value_for_credit,
+                timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 6,
+            )
+            social_prediction_error_snapshot = active_snapshots.get("social_prediction_error") or shadow_snapshots.get(
+                "social_prediction_error"
+            )
+            if (
+                social_prediction_error_snapshot is not None
+                and isinstance(
+                    social_prediction_error_snapshot.value,
+                    SocialPredictionErrorSnapshot,
+                )
+                and social_prediction_error_snapshot.value.errors
+            ):
+                extra_credits = extra_credits + derive_social_prediction_error_credit_records(
+                    social_errors=social_prediction_error_snapshot.value.errors,
+                    timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 4,
+                )
+            if extra_credits:
+                credit_module.ledger.record_credits(extra_credits)
+            active_snapshots["credit"] = _validated_credit_snapshot(
+                credit_module.publish(credit_module.ledger.snapshot())
+            )
+            credit_snapshot = active_snapshots.get("credit")
+    # Rupture-and-Repair M3 + Phase 1 W1.B: ReflectionModule's
+    # ``UpstreamView`` only exposes ACTIVE snapshots. When
+    # ``rupture_state`` is ACTIVE (the default after W1.B) the
+    # propagate-internal path inside ``ReflectionEngine.reflect``
+    # already builds rupture-repair memory entries. When ``rupture_state``
+    # is explicitly SHADOW (back-compat / experimental wiring), the
+    # propagate path sees a placeholder and the post-propagate
+    # enrichment below fills the gap by reading the shadow snapshot.
+    # ``enrich_reflection_snapshot_with_rupture_repair`` is idempotent
+    # via ``MemoryEntry.entry_id`` deduplication so calling it under
+    # both wiring levels never double-writes the same durable entry.
+    # The single legal rupture_repair write path remains
+    # ``ReflectionEngine.apply`` -> ``memory_store`` (see
+    # docs/specs/rupture-and-repair.md).
+    if reflection_snapshot is not None and isinstance(reflection_snapshot.value, ReflectionSnapshot):
+        rupture_active = active_snapshots.get("rupture_state")
+        rupture_shadow = shadow_snapshots.get("rupture_state")
+        rupture_carrier = rupture_active or rupture_shadow
+        rupture_value = (
+            rupture_carrier.value
+            if rupture_carrier is not None and isinstance(rupture_carrier.value, RuptureStateSnapshot)
+            else None
+        )
+        external_outcome_snapshot_for_reflection = active_snapshots.get("dialogue_external_outcome")
+        external_outcome_value = (
+            external_outcome_snapshot_for_reflection.value
+            if external_outcome_snapshot_for_reflection is not None
+            and isinstance(
+                external_outcome_snapshot_for_reflection.value,
+                DialogueExternalOutcomeSnapshot,
+            )
+            else None
+        )
+        regime_snapshot_for_reflection = active_snapshots.get("regime") or shadow_snapshots.get("regime")
+        regime_value_for_reflection = (
+            regime_snapshot_for_reflection.value
+            if regime_snapshot_for_reflection is not None
+            and isinstance(regime_snapshot_for_reflection.value, RegimeSnapshot)
+            else None
+        )
+        enriched = enrich_reflection_snapshot_with_rupture_repair(
+            reflection_snapshot=reflection_snapshot.value,
+            rupture_state_snapshot=rupture_value,
+            external_outcome_snapshot=external_outcome_value,
+            regime_snapshot=regime_value_for_reflection,
+            user_scope=user_scope,
+            timestamp_ms=reflection_snapshot.timestamp_ms,
+        )
+        reflection_snapshot = Snapshot(
+            slot_name=reflection_snapshot.slot_name,
+            owner=reflection_snapshot.owner,
+            version=reflection_snapshot.version,
+            timestamp_ms=reflection_snapshot.timestamp_ms,
+            value=enriched,
+        )
+    session_post_writeback_request = _build_session_post_writeback_request(
+        context_session_id=session_id,
+        source_wave_id=wave_id,
+        session_report=session_report,
+        reflection_snapshot=reflection_snapshot,
+        credit_snapshot=credit_snapshot,
+        evolution_judgement=evolution_judgement,
+        cross_session_verdict=cross_session_verdict,
+        writeback_source=writeback_source,
+        reflection_mode=reflection_mode,
+        structural_writeback_allowed=judge_allows_structural_writeback,
+        semantic_state_values=semantic_state_values,
+        evaluation_snapshot=active_snapshots.get("evaluation"),
+    )
+    if apply_slow_writeback and session_post_writeback_request is not None and memory_store is not None:
+        writeback_result, temporal_audits = apply_session_post_writeback_request(
+            request=session_post_writeback_request,
+            memory_store=memory_store,
+            temporal_policy=world_temporal_policy or temporal_policy,
+            regime_module=regime_module,
+        )
+        if credit_module is not None and temporal_audits:
+            for record in temporal_audits:
+                credit_module.ledger.record_modification(record)
+            active_snapshots["credit"] = _validated_credit_snapshot(
+                credit_module.publish(credit_module.ledger.snapshot())
+            )
+            credit_snapshot = active_snapshots.get("credit")
+    elif (
+        memory_store is not None
+        and reflection_module is not None
+        and reflection_snapshot is not None
+        and isinstance(reflection_snapshot.value, ReflectionSnapshot)
+    ):
+        writeback_result = None
+    if credit_module is not None:
+        active_snapshots["credit"] = _validated_credit_snapshot(credit_module.publish(credit_module.ledger.snapshot()))
+    active_snapshots = _prune_disabled_stub_snapshots(active_snapshots)
+    acceptance_report = build_acceptance_report(
+        config=config,
+        active_snapshots=active_snapshots,
+        shadow_snapshots=shadow_snapshots,
+        recorder=recorder,
+    )
+    track_runtime_states = tuple(
+        (module.track.value, runtime_state)
+        for module in temporal_modules
+        for runtime_state in (module.export_runtime_state(),)
+        if runtime_state is not None
+    )
+    track_z_t_codes = tuple(
+        (track_name, tuple(snapshot.value.controller_state.code))
+        for track_name, slot_name in (
+            ("world", "world_temporal"),
+            ("self", "self_temporal"),
+        )
+        for snapshot in (active_snapshots.get(slot_name),)
+        if snapshot is not None and isinstance(snapshot.value, TemporalAbstractionSnapshot)
+    )
+    temporal_runtime_state = None
+    if len(track_runtime_states) == 2:
+        track_state_map = dict(track_runtime_states)
+        temporal_runtime_state = build_temporal_runtime_state_aggregate(
+            world_state=track_state_map["world"],
+            self_state=track_state_map["self"],
+        )
+    if (
+        evaluation_module is not None
+        and temporal_runtime_state is not None
+        and "evaluation" in active_snapshots
+        and isinstance(active_snapshots["evaluation"].value, EvaluationSnapshot)
+    ):
+        active_snapshots["evaluation"] = _validated_evaluation_snapshot(
+            evaluation_module.publish(
+                evaluation_module.backbone.record_temporal_public_evidence(
+                    session_id=session_id,
+                    wave_id=wave_id,
+                    timestamp_ms=active_snapshots["evaluation"].timestamp_ms + 10,
+                    base_snapshot=active_snapshots["evaluation"].value,
+                    temporal_snapshot=(
+                        active_snapshots["temporal_abstraction"].value
+                        if "temporal_abstraction" in active_snapshots
+                        and isinstance(active_snapshots["temporal_abstraction"].value, TemporalAbstractionSnapshot)
+                        else None
+                    ),
+                    metacontroller_state=temporal_runtime_state,
+                )
+            )
+        )
+    return FinalIntegrationResult(
+        active_snapshots=active_snapshots,
+        shadow_snapshots=shadow_snapshots,
+        acceptance_report=acceptance_report,
+        event_count=len(recorder.events),
+        writeback_result=writeback_result,
+        writeback_source=writeback_source,
+        temporal_runtime_state=temporal_runtime_state,
+        track_runtime_states=track_runtime_states,
+        track_z_t_codes=track_z_t_codes,
+        prediction_error_snapshot=prediction_snapshot_value,
+        reflection_promotion_eligible=reflection_promote,
+        reflection_promotion_reason=reflection_promote_reason,
+        evolution_judgement=evolution_judgement,
+        cross_session_verdict=cross_session_verdict,
+        session_post_writeback_request=None if apply_slow_writeback else session_post_writeback_request,
+    )
+
+
+def build_acceptance_report(
+    *,
+    config: FinalRolloutConfig,
+    active_snapshots: dict[str, Snapshot[Any]],
+    shadow_snapshots: dict[str, Snapshot[Any]],
+    recorder: EventRecorder,
+) -> FinalAcceptanceReport:
+    def resolved_level(module_name: str) -> WiringLevel:
+        return config.level_for(module_name, WiringLevel.DISABLED)
+
+    active_slots = tuple(sorted(active_snapshots))
+    shadow_slots = tuple(sorted(shadow_snapshots))
+    disabled_slots = tuple(
+        sorted(
+            name
+            for name in (
+                "substrate",
+                "substrate_self_mod",
+                "memory",
+                "retrieval_policy",
+                "domain_knowledge",
+                "case_memory",
+                "strategy_playbook",
+                "experience_fast_prior",
+                "boundary_policy",
+                "response_assembly",
+                "personal_conditioning",
+                "dual_track",
+                "evaluation",
+                "prediction_error",
+                "regime",
+                "credit",
+                "reflection",
+                "temporal",
+                *SEMANTIC_OWNER_SLOTS,
+            )
+            if resolved_level(name) is WiringLevel.DISABLED
+        )
+    )
+    issues: list[str] = []
+    recommendations: list[str] = []
+
+    expected_active: set[str] = set()
+    for module_name, slot_name in (
+        ("substrate", "substrate"),
+        ("substrate_self_mod", "substrate_self_mod"),
+        ("memory", "memory"),
+        ("retrieval_policy", "retrieval_policy"),
+        ("domain_knowledge", "domain_knowledge"),
+        ("case_memory", "case_memory"),
+        ("strategy_playbook", "strategy_playbook"),
+        ("experience_fast_prior", "experience_fast_prior"),
+        ("boundary_policy", "boundary_policy"),
+        ("response_assembly", "response_assembly"),
+        ("personal_conditioning", "personal_conditioning"),
+        ("dual_track", "dual_track"),
+        ("evaluation", "evaluation"),
+        ("prediction_error", "prediction_error"),
+        ("regime", "regime"),
+        ("credit", "credit"),
+        ("reflection", "reflection"),
+        *tuple((slot, slot) for slot in SEMANTIC_OWNER_SLOTS),
+    ):
+        if config.is_active(module_name):
+            expected_active.add(slot_name)
+    if config.is_active("temporal"):
+        expected_active.add("temporal_abstraction")
+        expected_active.add("world_temporal")
+        expected_active.add("self_temporal")
+    missing_active = sorted(expected_active - set(active_slots))
+    if missing_active:
+        issues.append(f"Missing active slots: {', '.join(missing_active)}")
+
+    core_semantic_spine_slots = {
+        "relationship_state",
+        "goal_value",
+        "boundary_consent",
+        "commitment",
+        "execution_result",
+    }
+    if (
+        config.is_active("evaluation")
+        and all(config.is_active(slot) for slot in core_semantic_spine_slots)
+        and "evaluation" in active_snapshots
+    ):
+        evaluation_value = active_snapshots["evaluation"].value
+        if isinstance(evaluation_value, EvaluationSnapshot):
+            metric_values = {score.metric_name: score.value for score in evaluation_value.turn_scores}
+            if "semantic_spine_coverage" not in metric_values:
+                issues.append("Evaluation did not publish semantic_spine_coverage for the active semantic spine.")
+            elif metric_values["semantic_spine_coverage"] < 1.0:
+                issues.append("Semantic spine coverage is below 1.0 while all core semantic owners are ACTIVE.")
+            if "cognitive_loop_readiness" not in metric_values:
+                issues.append("Evaluation did not publish cognitive_loop_readiness for the active semantic spine.")
+
+    violation_count = sum(1 for event in recorder.events if event.event_type == "contract.violation")
+    if violation_count:
+        issues.append(f"Observed {violation_count} contract violation events during final wiring.")
+
+    if (
+        resolved_level("reflection") is WiringLevel.SHADOW
+        and "reflection" not in shadow_slots
+        and "reflection" not in active_slots
+    ):
+        issues.append("Reflection wiring configured but no reflection snapshot was produced.")
+    if resolved_level("reflection") is WiringLevel.ACTIVE and "reflection" not in active_slots:
+        issues.append("Reflection is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("substrate_self_mod") is WiringLevel.SHADOW
+        and "substrate_self_mod" not in shadow_slots
+        and "substrate_self_mod" not in active_slots
+    ):
+        issues.append("Substrate self-mod wiring configured but no substrate_self_mod snapshot was produced.")
+    if resolved_level("substrate_self_mod") is WiringLevel.ACTIVE and "substrate_self_mod" not in active_slots:
+        issues.append("Substrate self-mod is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("retrieval_policy") is WiringLevel.SHADOW
+        and "retrieval_policy" not in shadow_slots
+        and "retrieval_policy" not in active_slots
+    ):
+        issues.append("Retrieval policy wiring configured but no retrieval_policy snapshot was produced.")
+    if resolved_level("retrieval_policy") is WiringLevel.ACTIVE and "retrieval_policy" not in active_slots:
+        issues.append("Retrieval policy is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("domain_knowledge") is WiringLevel.SHADOW
+        and "domain_knowledge" not in shadow_slots
+        and "domain_knowledge" not in active_slots
+    ):
+        issues.append("Domain knowledge wiring configured but no domain_knowledge snapshot was produced.")
+    if resolved_level("domain_knowledge") is WiringLevel.ACTIVE and "domain_knowledge" not in active_slots:
+        issues.append("Domain knowledge is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("case_memory") is WiringLevel.SHADOW
+        and "case_memory" not in shadow_slots
+        and "case_memory" not in active_slots
+    ):
+        issues.append("Case memory wiring configured but no case_memory snapshot was produced.")
+    if resolved_level("case_memory") is WiringLevel.ACTIVE and "case_memory" not in active_slots:
+        issues.append("Case memory is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("strategy_playbook") is WiringLevel.SHADOW
+        and "strategy_playbook" not in shadow_slots
+        and "strategy_playbook" not in active_slots
+    ):
+        issues.append("Strategy playbook wiring configured but no strategy_playbook snapshot was produced.")
+    if resolved_level("strategy_playbook") is WiringLevel.ACTIVE and "strategy_playbook" not in active_slots:
+        issues.append("Strategy playbook is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("experience_fast_prior") is WiringLevel.SHADOW
+        and "experience_fast_prior" not in shadow_slots
+        and "experience_fast_prior" not in active_slots
+    ):
+        issues.append("Experience fast prior wiring configured but no experience_fast_prior snapshot was produced.")
+    if resolved_level("experience_fast_prior") is WiringLevel.ACTIVE and "experience_fast_prior" not in active_slots:
+        issues.append("Experience fast prior is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("boundary_policy") is WiringLevel.SHADOW
+        and "boundary_policy" not in shadow_slots
+        and "boundary_policy" not in active_slots
+    ):
+        issues.append("Boundary policy wiring configured but no boundary_policy snapshot was produced.")
+    if resolved_level("boundary_policy") is WiringLevel.ACTIVE and "boundary_policy" not in active_slots:
+        issues.append("Boundary policy is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("response_assembly") is WiringLevel.SHADOW
+        and "response_assembly" not in shadow_slots
+        and "response_assembly" not in active_slots
+    ):
+        issues.append("Response assembly wiring configured but no response_assembly snapshot was produced.")
+    if resolved_level("response_assembly") is WiringLevel.ACTIVE and "response_assembly" not in active_slots:
+        issues.append("Response assembly is configured ACTIVE but did not publish into the active chain.")
+
+    if (
+        resolved_level("temporal") is WiringLevel.SHADOW
+        and "temporal_abstraction" not in shadow_slots
+        and "temporal_abstraction" not in active_slots
+    ):
+        issues.append("Temporal wiring configured but no temporal snapshot was produced.")
+    if (
+        resolved_level("temporal") is WiringLevel.SHADOW
+        and "world_temporal" not in shadow_slots
+        and "world_temporal" not in active_slots
+    ):
+        issues.append("World temporal wiring configured but no world_temporal snapshot was produced.")
+    if (
+        resolved_level("temporal") is WiringLevel.SHADOW
+        and "self_temporal" not in shadow_slots
+        and "self_temporal" not in active_slots
+    ):
+        issues.append("Self temporal wiring configured but no self_temporal snapshot was produced.")
+    if resolved_level("temporal") is WiringLevel.ACTIVE and "temporal_abstraction" not in active_slots:
+        issues.append("Temporal is configured ACTIVE but did not publish into the active chain.")
+    if resolved_level("temporal") is WiringLevel.ACTIVE and "world_temporal" not in active_slots:
+        issues.append("Temporal is configured ACTIVE but world_temporal did not publish into the active chain.")
+    if resolved_level("temporal") is WiringLevel.ACTIVE and "self_temporal" not in active_slots:
+        issues.append("Temporal is configured ACTIVE but self_temporal did not publish into the active chain.")
+
+    if config.is_active("reflection"):
+        recommendations.append("Keep reflection in proposal-only mode until writeback acceptance is proven.")
+    if config.is_active("temporal"):
+        recommendations.append("Validate temporal active mode against rollout evidence before widening scope.")
+    if config.is_active("substrate_self_mod"):
+        recommendations.append("Keep online-fast substrate self-mod bounded and rollback-safe before widening scope.")
+    if config.is_active("domain_knowledge"):
+        recommendations.append("Keep domain knowledge evidence compact and citation-bounded before widening scope.")
+    if config.is_active("case_memory"):
+        recommendations.append("Keep case_memory as a sibling owner and avoid collapsing it back into memory.")
+    if config.is_active("strategy_playbook"):
+        recommendations.append("Keep strategy playbook as advisory prior evidence, not a second temporal owner.")
+    if config.is_active("experience_fast_prior"):
+        recommendations.append("Keep experience fast prior compact and advisory so downstream owners remain primary.")
+    if config.is_active("experience_consolidation"):
+        recommendations.append(
+            "Treat experience_consolidation as a session-owned post surface and pass it forward via snapshots, not a second final-wiring owner."
+        )
+    if config.is_active("boundary_policy"):
+        recommendations.append("Validate boundary policy triggers against rollout evidence before widening scope.")
+    if config.is_active("response_assembly"):
+        recommendations.append(
+            "Keep response assembly as the single public expression-control surface, not a second prompt owner."
+        )
+    if config.is_active("evaluation") and all(config.is_active(slot) for slot in core_semantic_spine_slots):
+        recommendations.append("Use cognitive_loop_readiness as the gate before widening beyond the semantic spine.")
+    if not recommendations:
+        recommendations.append("Core chain is wired; next step is controlled widening via rollout evidence.")
+
+    passed = not issues
+    description = (
+        f"Final wiring acceptance {'passed' if passed else 'failed'} with "
+        f"{len(active_slots)} active slots, {len(shadow_slots)} shadow slots, "
+        f"{len(disabled_slots)} disabled slots."
+    )
+    return FinalAcceptanceReport(
+        passed=passed,
+        active_slots=active_slots,
+        shadow_slots=shadow_slots,
+        disabled_slots=disabled_slots,
+        issues=tuple(issues),
+        recommendations=tuple(recommendations),
+        description=description,
+    )

@@ -1,0 +1,719 @@
+"""Ant-context behavioural matched-control (Workstream E).
+
+Runs several controllers on ONE shared environment configuration + seed and
+reports directional behavioural metrics. Honest scope: at the toy tick budgets
+used here, the authoritative "learning is real" evidence is the latent proof
+(``latent_proofs``); this behavioural comparison is a directional, visual
+complement (it also feeds the emergent-vs-scripted demo, Workstream G2).
+
+Boundary-clean arms (expressible via the vz-runtime facade only):
+
+- ``learned``   — full kernel ant (PE drive on, temporal ACTIVE)
+- ``pe_off``    — kernel ant with ``external_prediction_error_drive=False``
+- ``fixed_rule``— hand-written FSM forager
+- ``random``    — random-motor floor
+
+Additional schedule-gated arms (``no_optimize`` / ``eta_off``) require a
+``JointLoopSchedule`` object, which the embodiment package must not import; the
+evidence lane script passes one in via ``extra_kernel_arms``.
+
+Every arm must run the SAME frozen body (``docs/specs/digital-ant-embodiment.md``
+§3). :func:`matched_control_arm_substrate_digest` exposes that body so evidence
+runners can bind it into the config they digest into ``provenance.config_digest``
+— otherwise a resume gate keyed only on operator knobs re-serves artifacts that
+were produced on a different body.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from typing import Callable
+
+import numpy as np
+
+from volvence_ant.controllers.e2e_rl_ant import (
+    SHARED_COMPASS_GAIN,
+    SHARED_COMPASS_NOISE,
+    SHARED_HEADING_NOISE,
+    SHARED_STEP_NOISE,
+    E2ERLAnt,
+    PPOConfig,
+)
+from volvence_ant.controllers.fixed_rule_ant import FixedRuleAnt, FixedRuleConfig
+from volvence_ant.controllers.random_ant import RandomAnt
+from volvence_ant.env.ant_world import AntWorld, AntWorldConfig, FoodSource
+from volvence_ant.runtime.ant_session import (
+    AntLearningCheckpoint,
+    AntSession,
+    AntSessionConfig,
+)
+
+#: Body-sensor fields that define "the same frozen substrate" for an arm.
+#: ``docs/specs/digital-ant-embodiment.md`` §3 freezes these four for every
+#: matched-control arm; a per-arm divergence means the arms were compared on
+#: different bodies and the published numbers are not commensurable.
+ARM_SUBSTRATE_SENSOR_FIELDS: tuple[str, ...] = (
+    "heading_noise",
+    "step_noise",
+    "compass_gain",
+    "compass_noise",
+)
+
+
+def arm_substrate_parameters() -> dict[str, dict[str, float]]:
+    """The frozen body-sensor parameters each arm family actually declares.
+
+    Read from the live declarations rather than re-typed here, so editing an
+    arm's physics necessarily moves the returned mapping (and therefore
+    :func:`matched_control_arm_substrate_digest`).
+
+    Scope note: the kernel entry reads ``AntSessionConfig`` defaults, which is
+    what every kernel arm (``learned`` / ``pe_off`` / ``no_optimize`` /
+    ``eta_off``) inherits — those arms differ only in PE drive and joint
+    schedule. A script-side factory that overrode a sensor field would NOT show
+    up here; that case is covered by the per-arm construction comparison in
+    ``packages/vz-embodiment-ant/tests/test_frozen_functions.py``.
+    """
+
+    kernel = AntSessionConfig()
+    scripted = FixedRuleConfig()
+    baseline_and_floor = {
+        "heading_noise": SHARED_HEADING_NOISE,
+        "step_noise": SHARED_STEP_NOISE,
+        "compass_gain": SHARED_COMPASS_GAIN,
+        "compass_noise": SHARED_COMPASS_NOISE,
+    }
+    return {
+        "kernel": {
+            field: float(getattr(kernel, field))
+            for field in ARM_SUBSTRATE_SENSOR_FIELDS
+        },
+        "fixed_rule": {
+            field: float(getattr(scripted, field))
+            for field in ARM_SUBSTRATE_SENSOR_FIELDS
+        },
+        "e2e_rl": {
+            field: float(baseline_and_floor[field])
+            for field in ARM_SUBSTRATE_SENSOR_FIELDS
+        },
+        "random": {
+            field: float(baseline_and_floor[field])
+            for field in ARM_SUBSTRATE_SENSOR_FIELDS
+        },
+    }
+
+
+def matched_control_arm_substrate_digest() -> str:
+    """Digest of the frozen body sensors every matched-control arm runs.
+
+    Evidence runners must bind this into the config they digest into
+    ``provenance.config_digest``. ``research/ant/05_ecology_p0_p1_p2_plan.md``
+    §5.4 (P2-B) declares that any code or threshold change invalidates the whole
+    confirmatory batch, but a resume gate that compares only the operator-facing
+    knobs (ticks / seeds / n_z / strengths) cannot see an arm's physics change
+    and will happily serve a superseded artifact. Including this digest makes
+    "the arms no longer run the body the stored numbers were produced on" a
+    mechanically detectable mismatch.
+    """
+
+    # Deferred: ``volvence_ant.evidence`` imports this module (the ant-active
+    # evidence lane runs the behavioural arms), so a module-level import would
+    # be circular. The canonical encoding is reused rather than re-implemented
+    # because runners compare this against digests produced by the same helper.
+    from volvence_ant.evidence.provenance import stable_json_digest
+
+    return stable_json_digest(arm_substrate_parameters())
+
+
+@dataclass(frozen=True)
+class ArmMetrics:
+    arm: str
+    ticks: int
+    food_delivered: int
+    food_pickups: int
+    mean_food_experienced: float
+    max_food_experienced: float
+    max_distance_from_nest: float
+    final_distance_from_nest: float
+    held_out_success: bool
+    switch_count: int = 0
+    initial_checkpoint_fingerprint: str | None = None
+    trained_checkpoint_fingerprint: str | None = None
+    parameters_changed: bool = False
+    temporal_parameters_changed: bool = False
+    memory_state_changed: bool = False
+    initial_policy_fingerprint: str | None = None
+    trained_policy_fingerprint: str | None = None
+    policy_parameters_changed: bool = False
+    training_food_delivered: int = 0
+    training_food_pickups: int = 0
+    first_training_pickup_tick: int | None = None
+    first_held_out_contact_tick: int | None = None
+    minimum_food_distance: float = float("inf")
+    mean_abs_turn_command: float = 0.0
+    mean_abs_applied_turn: float = 0.0
+    mean_turn_transmission_error: float = 0.0
+    steering_code_std: float = 0.0
+    switch_rate: float = 0.0
+    nonzero_reward_steps: int = 0
+    runtime_replay_captured: int = 0
+    runtime_replay_settled: int = 0
+    runtime_replay_transitions: int = 0
+    runtime_replay_lineage_matches: int = 0
+    runtime_replay_drop_count: int = 0
+    diagnostic_breakpoint: str = "not-evaluated"
+
+
+@dataclass(frozen=True)
+class MatchedControlReport:
+    ticks: int
+    seed: int
+    arms: tuple[ArmMetrics, ...]
+    learned_beats_random_food: bool
+    description: str
+
+
+@dataclass(frozen=True)
+class ArmAggregate:
+    arm: str
+    seeds: tuple[int, ...]
+    mean_delivered: float
+    delivery_ci95: tuple[float, float]
+    held_out_success_rate: float
+
+
+@dataclass(frozen=True)
+class MultiSeedMatchedControlReport:
+    reports: tuple[MatchedControlReport, ...]
+    aggregates: tuple[ArmAggregate, ...]
+    learned_minus_no_optimize: float | None
+
+
+def _default_world(seed: int) -> AntWorld:
+    """Held-out evaluation map shared by every arm."""
+
+    return AntWorld(
+        config=AntWorldConfig(seed=seed),
+        food_sources=(FoodSource(x=0.0, y=6.0, strength=1.0, decay=5.0),),
+    )
+
+
+def _training_world(seed: int) -> AntWorld:
+    return AntWorld(
+        config=AntWorldConfig(seed=seed),
+        food_sources=(FoodSource(x=6.0, y=0.0, strength=1.0, decay=5.0),),
+    )
+
+
+def _metrics_from_positions(
+    *,
+    arm: str,
+    world: AntWorld,
+    positions: list[tuple[float, float]],
+    ticks: int,
+    initial_checkpoint: AntLearningCheckpoint | None = None,
+    trained_checkpoint: AntLearningCheckpoint | None = None,
+    switch_count: int = 0,
+    training_food_delivered: int = 0,
+    training_food_pickups: int = 0,
+    first_training_pickup_tick: int | None = None,
+    first_held_out_contact_tick: int | None = None,
+    mean_abs_turn_command: float = 0.0,
+    mean_abs_applied_turn: float = 0.0,
+    mean_turn_transmission_error: float = 0.0,
+    steering_code_std: float = 0.0,
+    nonzero_reward_steps: int = 0,
+    runtime_replay_captured: int = 0,
+    runtime_replay_settled: int = 0,
+    runtime_replay_transitions: int = 0,
+    runtime_replay_lineage_matches: int = 0,
+    runtime_replay_drop_count: int = 0,
+) -> ArmMetrics:
+    nest = world.nest
+    foods = [world.food_intensity(x, y) for (x, y) in positions] or [0.0]
+    distances = [math.hypot(x - nest[0], y - nest[1]) for (x, y) in positions] or [0.0]
+    food_sources = world.food_sources()
+    food_distances = [
+        min(math.hypot(x - source.x, y - source.y) for source in food_sources)
+        for x, y in positions
+    ] if food_sources and positions else [float("inf")]
+    final = distances[-1] if distances else 0.0
+    policy_parameters_changed = bool(
+        initial_checkpoint is not None
+        and trained_checkpoint is not None
+        and initial_checkpoint.policy_fingerprint
+        != trained_checkpoint.policy_fingerprint
+    )
+    if initial_checkpoint is None:
+        diagnostic_breakpoint = "baseline-no-kernel-diagnostics"
+    elif (
+        training_food_pickups == 0
+        and world.food_pickups == 0
+        and first_held_out_contact_tick is None
+    ):
+        diagnostic_breakpoint = "exploration-no-food-contact"
+    elif nonzero_reward_steps == 0:
+        diagnostic_breakpoint = "outcome-no-nonzero-reward"
+    elif runtime_replay_settled == 0 or runtime_replay_transitions == 0:
+        diagnostic_breakpoint = "runtime-replay-not-settled"
+    elif not policy_parameters_changed:
+        diagnostic_breakpoint = "policy-no-persistent-divergence"
+    elif steering_code_std <= 1e-12 or mean_abs_turn_command <= 1e-12:
+        diagnostic_breakpoint = "policy-no-real-action-effect"
+    elif world.food_pickups == 0 or world.food_delivered == 0:
+        diagnostic_breakpoint = "held-out-generalization"
+    else:
+        diagnostic_breakpoint = "observable-success"
+    return ArmMetrics(
+        arm=arm,
+        ticks=ticks,
+        food_delivered=world.food_delivered,
+        food_pickups=world.food_pickups,
+        mean_food_experienced=float(sum(foods) / len(foods)),
+        max_food_experienced=float(max(foods)),
+        max_distance_from_nest=float(max(distances)),
+        final_distance_from_nest=float(final),
+        held_out_success=world.food_delivered > 0,
+        switch_count=switch_count,
+        initial_checkpoint_fingerprint=(
+            initial_checkpoint.fingerprint if initial_checkpoint is not None else None
+        ),
+        trained_checkpoint_fingerprint=(
+            trained_checkpoint.fingerprint if trained_checkpoint is not None else None
+        ),
+        parameters_changed=bool(
+            initial_checkpoint is not None
+            and trained_checkpoint is not None
+            and initial_checkpoint.fingerprint != trained_checkpoint.fingerprint
+        ),
+        temporal_parameters_changed=bool(
+            initial_checkpoint is not None
+            and trained_checkpoint is not None
+            and initial_checkpoint.temporal_fingerprint
+            != trained_checkpoint.temporal_fingerprint
+        ),
+        memory_state_changed=bool(
+            initial_checkpoint is not None
+            and trained_checkpoint is not None
+            and initial_checkpoint.memory_fingerprint
+            != trained_checkpoint.memory_fingerprint
+        ),
+        initial_policy_fingerprint=(
+            initial_checkpoint.policy_fingerprint
+            if initial_checkpoint is not None
+            else None
+        ),
+        trained_policy_fingerprint=(
+            trained_checkpoint.policy_fingerprint
+            if trained_checkpoint is not None
+            else None
+        ),
+        policy_parameters_changed=policy_parameters_changed,
+        training_food_delivered=training_food_delivered,
+        training_food_pickups=training_food_pickups,
+        first_training_pickup_tick=first_training_pickup_tick,
+        first_held_out_contact_tick=first_held_out_contact_tick,
+        minimum_food_distance=float(min(food_distances)),
+        mean_abs_turn_command=mean_abs_turn_command,
+        mean_abs_applied_turn=mean_abs_applied_turn,
+        mean_turn_transmission_error=mean_turn_transmission_error,
+        steering_code_std=steering_code_std,
+        switch_rate=(switch_count / ticks if ticks > 0 else 0.0),
+        nonzero_reward_steps=nonzero_reward_steps,
+        runtime_replay_captured=runtime_replay_captured,
+        runtime_replay_settled=runtime_replay_settled,
+        runtime_replay_transitions=runtime_replay_transitions,
+        runtime_replay_lineage_matches=runtime_replay_lineage_matches,
+        runtime_replay_drop_count=runtime_replay_drop_count,
+        diagnostic_breakpoint=diagnostic_breakpoint,
+    )
+
+
+async def _run_kernel_arm(
+    *,
+    arm: str,
+    seed: int,
+    ticks: int,
+    training_ticks: int,
+    session_config: AntSessionConfig,
+    initial_checkpoint: AntLearningCheckpoint,
+) -> ArmMetrics:
+    training_world = _training_world(seed)
+    training_session = AntSession(training_world, config=session_config)
+    training_session.restore_learning_checkpoint(initial_checkpoint)
+    training_records = []
+    if training_ticks > 0:
+        training_records = await training_session.run(training_ticks)
+    trained_checkpoint = training_session.export_learning_checkpoint(
+        checkpoint_id=f"{arm}:{seed}:trained"
+    )
+
+    world = _default_world(seed)
+    session = AntSession(world, config=session_config)
+    session.restore_learning_checkpoint(trained_checkpoint)
+    records = await session.run(ticks)
+    positions = [(r.x, r.y) for r in records]
+    turns = [abs(record.command.turn_command) for record in records]
+    applied_turns = [abs(record.applied_turn) for record in records]
+    turn_transmission_errors = [
+        abs(record.applied_turn - record.command.turn_command)
+        for record in records
+    ]
+    steering_codes = [
+        record.code[0] - record.code[1]
+        for record in records
+        if len(record.code) >= 2
+    ]
+    latest = records[-1] if records else None
+    first_training_pickup_tick = next(
+        (
+            record.tick
+            for record in training_records
+            if record.carrying_food or record.at_food
+        ),
+        None,
+    )
+    first_held_out_contact_tick = next(
+        (
+            record.tick
+            for record in records
+            if record.at_food or record.carrying_food
+        ),
+        None,
+    )
+    return _metrics_from_positions(
+        arm=arm,
+        world=world,
+        positions=positions,
+        ticks=ticks,
+        initial_checkpoint=initial_checkpoint,
+        trained_checkpoint=trained_checkpoint,
+        switch_count=sum(record.switch_gate >= 0.5 for record in records),
+        training_food_delivered=training_world.food_delivered,
+        training_food_pickups=training_world.food_pickups,
+        first_training_pickup_tick=first_training_pickup_tick,
+        first_held_out_contact_tick=first_held_out_contact_tick,
+        mean_abs_turn_command=(
+            float(sum(turns) / len(turns)) if turns else 0.0
+        ),
+        mean_abs_applied_turn=(
+            float(sum(applied_turns) / len(applied_turns))
+            if applied_turns
+            else 0.0
+        ),
+        mean_turn_transmission_error=(
+            float(
+                sum(turn_transmission_errors)
+                / len(turn_transmission_errors)
+            )
+            if turn_transmission_errors
+            else 0.0
+        ),
+        steering_code_std=(
+            float(np.std(np.asarray(steering_codes, dtype=float)))
+            if steering_codes
+            else 0.0
+        ),
+        nonzero_reward_steps=sum(
+            abs(record.signed_reward) > 1e-12 for record in records
+        ),
+        runtime_replay_captured=(
+            latest.runtime_replay_captured if latest is not None else 0
+        ),
+        runtime_replay_settled=(
+            latest.runtime_replay_settled if latest is not None else 0
+        ),
+        runtime_replay_transitions=(
+            latest.runtime_replay_transitions if latest is not None else 0
+        ),
+        runtime_replay_lineage_matches=(
+            latest.runtime_replay_lineage_matches if latest is not None else 0
+        ),
+        runtime_replay_drop_count=(
+            len(latest.runtime_replay_drop_reasons)
+            if latest is not None
+            else 0
+        ),
+    )
+
+
+def _run_fixed_rule_arm(*, seed: int, ticks: int) -> ArmMetrics:
+    world = _default_world(seed)
+    ant = FixedRuleAnt(world, config=FixedRuleConfig(seed=seed))
+    records = ant.run(ticks)
+    positions = [(r.x, r.y) for r in records]
+    return _metrics_from_positions(arm="fixed_rule", world=world, positions=positions, ticks=ticks)
+
+
+def _run_random_arm(*, seed: int, ticks: int) -> ArmMetrics:
+    world = _default_world(seed)
+    ant = RandomAnt(world, seed=seed)
+    ant.run(ticks)
+    return _metrics_from_positions(arm="random", world=world, positions=ant.positions, ticks=ticks)
+
+
+def _run_e2e_arm(
+    *,
+    seed: int,
+    ticks: int,
+    train_episodes: int,
+    train_ticks: int,
+) -> ArmMetrics:
+    policy = E2ERLAnt(seed=seed)
+    policy.train(
+        world_factory=_training_world,
+        seed=seed,
+        config=PPOConfig(
+            episodes=train_episodes,
+            ticks_per_episode=train_ticks,
+        ),
+    )
+    world = _default_world(seed)
+    evaluation = policy.evaluate(world=world, ticks=ticks, seed=seed)
+    return _metrics_from_positions(
+        arm="e2e_rl",
+        world=world,
+        positions=list(evaluation.positions),
+        ticks=ticks,
+    )
+
+
+async def run_behavioral_matched_control(
+    *,
+    ticks: int = 60,
+    training_ticks: int = 0,
+    seed: int = 0,
+    temporal_latent_dim: int = 4,
+    learned_config: AntSessionConfig | None = None,
+    pe_off_config: AntSessionConfig | None = None,
+    extra_kernel_arms: dict[str, AntSessionConfig] | None = None,
+    include_e2e_rl: bool = False,
+    e2e_train_episodes: int = 4,
+    e2e_train_ticks: int = 64,
+) -> MatchedControlReport:
+    """Run the behavioural arms on a shared env/seed and collect metrics."""
+
+    arms: list[ArmMetrics] = []
+
+    learned_cfg = learned_config or AntSessionConfig(
+        temporal_latent_dim=temporal_latent_dim,
+        seed=seed,
+        external_prediction_error_drive=True,
+        joint_apply_writeback=True,
+    )
+    bootstrap = AntSession(_training_world(seed), config=learned_cfg)
+    initial_checkpoint = bootstrap.export_learning_checkpoint(
+        checkpoint_id=f"shared-initial:{seed}"
+    )
+    arms.append(
+        await _run_kernel_arm(
+            arm="learned",
+            seed=seed,
+            ticks=ticks,
+            training_ticks=training_ticks,
+            session_config=learned_cfg,
+            initial_checkpoint=initial_checkpoint,
+        )
+    )
+
+    pe_off_cfg = pe_off_config or AntSessionConfig(
+        temporal_latent_dim=temporal_latent_dim,
+        seed=seed,
+        external_prediction_error_drive=False,
+        joint_apply_writeback=True,
+    )
+    arms.append(
+        await _run_kernel_arm(
+            arm="pe_off",
+            seed=seed,
+            ticks=ticks,
+            training_ticks=training_ticks,
+            session_config=pe_off_cfg,
+            initial_checkpoint=initial_checkpoint,
+        )
+    )
+
+    for arm_name, cfg in (extra_kernel_arms or {}).items():
+        arms.append(
+            await _run_kernel_arm(
+                arm=arm_name,
+                seed=seed,
+                ticks=ticks,
+                training_ticks=training_ticks,
+                session_config=cfg,
+                initial_checkpoint=initial_checkpoint,
+            )
+        )
+
+    arms.append(_run_fixed_rule_arm(seed=seed, ticks=ticks))
+    if include_e2e_rl:
+        arms.append(
+            _run_e2e_arm(
+                seed=seed,
+                ticks=ticks,
+                train_episodes=e2e_train_episodes,
+                train_ticks=e2e_train_ticks,
+            )
+        )
+    arms.append(_run_random_arm(seed=seed, ticks=ticks))
+
+    by_arm = {arm.arm: arm for arm in arms}
+    learned_food = by_arm["learned"].mean_food_experienced
+    random_food = by_arm["random"].mean_food_experienced
+    return MatchedControlReport(
+        ticks=ticks,
+        seed=seed,
+        arms=tuple(arms),
+        learned_beats_random_food=learned_food >= random_food,
+        description=(
+            "behavioural matched-control ("
+            + ", ".join(f"{a.arm}:deliver={a.food_delivered},food={a.mean_food_experienced:.3f}" for a in arms)
+            + ")"
+        ),
+    )
+
+
+async def run_single_seed_matched_control(
+    *,
+    seed: int,
+    ticks: int,
+    training_ticks: int = 0,
+    temporal_latent_dim: int,
+    kernel_arms: dict[str, AntSessionConfig],
+    learned_config: AntSessionConfig | None = None,
+    pe_off_config: AntSessionConfig | None = None,
+    include_e2e_rl: bool = True,
+) -> MatchedControlReport:
+    """Run one isolated seed unit suitable for process-level scheduling."""
+
+    return await run_behavioral_matched_control(
+        ticks=ticks,
+        training_ticks=training_ticks,
+        seed=seed,
+        temporal_latent_dim=temporal_latent_dim,
+        learned_config=learned_config,
+        pe_off_config=pe_off_config,
+        extra_kernel_arms=kernel_arms,
+        include_e2e_rl=include_e2e_rl,
+    )
+
+
+def _bootstrap_ci(values: tuple[float, ...], *, seed: int) -> tuple[float, float]:
+    if not values:
+        raise ValueError("bootstrap values must be non-empty")
+    if len(values) == 1:
+        return values[0], values[0]
+    rng = np.random.default_rng(seed)
+    samples = np.asarray(values, dtype=float)
+    means = np.asarray(
+        [
+            rng.choice(samples, size=len(samples), replace=True).mean()
+            for _ in range(2000)
+        ]
+    )
+    return float(np.quantile(means, 0.025)), float(np.quantile(means, 0.975))
+
+
+def aggregate_matched_control_reports(
+    reports: tuple[MatchedControlReport, ...],
+    *,
+    seed_order: tuple[int, ...],
+) -> MultiSeedMatchedControlReport:
+    """Aggregate complete per-seed reports in a deterministic requested order."""
+
+    if not seed_order:
+        raise ValueError("seed_order must be non-empty")
+    by_seed = {report.seed: report for report in reports}
+    if len(by_seed) != len(reports):
+        raise ValueError("matched-control reports contain duplicate seeds")
+    if set(by_seed) != set(seed_order):
+        raise ValueError(
+            "matched-control report seeds do not match requested seed order: "
+            f"reports={tuple(sorted(by_seed))}, requested={seed_order}"
+        )
+    ordered_reports = tuple(by_seed[seed] for seed in seed_order)
+    arm_names = tuple(arm.arm for arm in ordered_reports[0].arms)
+    expected_arms = set(arm_names)
+    for report in ordered_reports[1:]:
+        actual_arms = {arm.arm for arm in report.arms}
+        if actual_arms != expected_arms:
+            raise ValueError(
+                f"seed {report.seed} arm set mismatch: "
+                f"actual={tuple(sorted(actual_arms))}, "
+                f"expected={tuple(sorted(expected_arms))}"
+            )
+
+    aggregates: list[ArmAggregate] = []
+    for arm_name in arm_names:
+        per_seed = tuple(
+            next(arm for arm in report.arms if arm.arm == arm_name)
+            for report in ordered_reports
+        )
+        deliveries = tuple(float(arm.food_delivered) for arm in per_seed)
+        aggregates.append(
+            ArmAggregate(
+                arm=arm_name,
+                seeds=seed_order,
+                mean_delivered=float(np.mean(deliveries)),
+                delivery_ci95=_bootstrap_ci(deliveries, seed=seed_order[0]),
+                held_out_success_rate=float(
+                    np.mean([arm.held_out_success for arm in per_seed])
+                ),
+            )
+        )
+    by_name = {aggregate.arm: aggregate for aggregate in aggregates}
+    effect = None
+    if "no_optimize" in by_name:
+        effect = (
+            by_name["learned"].mean_delivered
+            - by_name["no_optimize"].mean_delivered
+        )
+    return MultiSeedMatchedControlReport(
+        reports=ordered_reports,
+        aggregates=tuple(aggregates),
+        learned_minus_no_optimize=effect,
+    )
+
+
+async def run_multiseed_matched_control(
+    *,
+    seeds: tuple[int, ...],
+    ticks: int,
+    training_ticks: int = 0,
+    temporal_latent_dim: int,
+    kernel_arm_factory: Callable[[int, int], dict[str, AntSessionConfig]],
+    learned_config_factory: Callable[[int, int], AntSessionConfig] | None = None,
+    pe_off_config_factory: Callable[[int, int], AntSessionConfig] | None = None,
+    include_e2e_rl: bool = True,
+) -> MultiSeedMatchedControlReport:
+    """Run a caller-defined fair kernel matrix over a frozen seed schedule."""
+
+    if len(seeds) < 1:
+        raise ValueError("seeds must be non-empty")
+    reports: list[MatchedControlReport] = []
+    for seed in seeds:
+        reports.append(
+            await run_single_seed_matched_control(
+                ticks=ticks,
+                training_ticks=training_ticks,
+                seed=seed,
+                temporal_latent_dim=temporal_latent_dim,
+                learned_config=(
+                    learned_config_factory(seed, temporal_latent_dim)
+                    if learned_config_factory is not None
+                    else None
+                ),
+                pe_off_config=(
+                    pe_off_config_factory(seed, temporal_latent_dim)
+                    if pe_off_config_factory is not None
+                    else None
+                ),
+                kernel_arms=kernel_arm_factory(seed, temporal_latent_dim),
+                include_e2e_rl=include_e2e_rl,
+            )
+        )
+    return aggregate_matched_control_reports(
+        tuple(reports),
+        seed_order=seeds,
+    )

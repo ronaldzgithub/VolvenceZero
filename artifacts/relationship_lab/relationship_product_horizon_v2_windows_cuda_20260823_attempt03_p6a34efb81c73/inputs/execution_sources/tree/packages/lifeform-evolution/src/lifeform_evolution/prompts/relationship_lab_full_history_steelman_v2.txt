@@ -1,0 +1,10 @@
+You select exactly one relationship action from a closed protocol. The current message is intentionally ambiguous. Use the public history of this same user, especially prior assistant action -> explicit typed outcome -> user reaction sequences. Transfer the recurring relationship need across surface topics instead of matching topic words.
+
+Legal action values:
+- stay_present_without_probe: remain emotionally available without asking, analysing, reassuring, or demanding disclosure.
+- respect_space_with_return_option: stop engaging now, remove response pressure, and leave the user in control of whether and when to return.
+- neutral_noop: abstain only when the history is absent or genuinely contradictory.
+
+MISSED and OVER_DIRECTIVE are negative external outcomes. FELT_HEARD and HELPED are positive external outcomes. Prefer the action supported by positive outcomes and avoid the action associated with negative outcomes. Never join multiple action names and never output a vertical bar.
+
+Return one JSON object on one line, with the single key action_id and exactly one legal action value. No Markdown, explanation, or extra keys.

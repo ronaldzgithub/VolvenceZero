@@ -1,0 +1,4624 @@
+"""aiohttp Application factory + route handlers for the lifeform service.
+
+Routes live in this module rather than spread across packages because
+keeping them together makes the API surface easy to audit. The handlers
+are deliberately thin: each one (a) parses the request DTO, (b) calls into
+``SessionManager`` / ``LifeformSession``, (c) maps the result back to a
+DTO. No business logic.
+
+JSON contract:
+
+* All success responses are JSON objects.
+* All error responses are ``ErrorResponse`` JSON with HTTP status >= 400.
+* Status codes:
+    * 200 OK \u2014 normal response
+    * 201 Created \u2014 ``POST /v1/sessions``
+    * 400 Bad Request \u2014 missing required fields, malformed JSON
+    * 404 Not Found \u2014 unknown ``session_id``
+    * 409 Conflict \u2014 ``session_id`` collision on explicit create
+    * 500 Internal Server Error \u2014 kernel exception (logged, not leaked)
+
+Substrate sharing: ``create_app(substrate_runtime=...)`` accepts a
+single pre-built runtime that is shared across every session this
+service hosts. The runtime is checked at construction time for the
+"frozen substrate" invariant (R2): if its
+``supports_live_substrate_mutation`` flag is True, ``create_app``
+raises rather than silently letting one session's adapter-delta updates
+corrupt every other session's weights. Sharing is the default deployment
+mode for one-GPU, multi-tenant servers.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import pathlib
+import time
+from hashlib import sha256
+from collections.abc import Mapping
+from uuid import uuid4
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from aiohttp import web
+
+if TYPE_CHECKING:
+    from lifeform_service.character_packages import CharacterRuntimeAssets
+    from volvence_zero.substrate import OpenWeightResidualRuntime
+
+from lifeform_service.dto import (
+    CreateSessionResponse,
+    EndSceneResponse,
+    ErrorResponse,
+    HealthResponse,
+    ServiceInfoResponse,
+    SessionStateResponse,
+    TurnResponse,
+)
+from lifeform_service.alpha import (
+    ALPHA_DISCLAIMER,
+    AlphaIdentityProvider,
+    AlphaServiceConfig,
+    alpha_config_to_json,
+)
+from lifeform_core import LlmJsonClient, TurnTriggerKind
+from lifeform_service.companion_evidence_profile import MSC_RUNTIME_PROFILE_NAMES
+from lifeform_service.msc_runtime_collector import (
+    build_msc_runtime_context_payload,
+)
+from lifeform_protocol_runtime import (
+    MentorIntakeApplyMode,
+    MentorIntakeKind,
+    MentorIntakeRequest,
+    build_protocol_revision_proposal,
+    classify_mentor_intake,
+    extract_protocol_from_description,
+    extract_reviewed_knowledge_from_guidance,
+    extract_signature_case_from_guidance,
+    resolve_experience_outcome_kind,
+)
+from lifeform_service.openai_utterance_client import (
+    build_utterance_client_from_env,
+)
+from lifeform_service.live_dialogue_outcome_evidence import (
+    build_live_dialogue_outcome_artifact,
+    write_live_dialogue_outcome_artifact,
+)
+from lifeform_service.protocol_routes import register_protocol_routes
+from lifeform_service.teaching_case import (
+    TeachingCaseService,
+    register_teaching_case_routes,
+)
+from lifeform_service.protocol_uptake import ProtocolUptakeService
+from lifeform_service.relationship_memory_console import (
+    RelationshipMemoryAction,
+    RelationshipMemoryActionConflictError,
+    RelationshipMemoryActionLedger,
+    RelationshipMemoryCorrectionKind,
+    dialogue_outcome_kind_for_action,
+    proposal_memory_entry_id,
+    proposal_to_json,
+    semantic_event_for_action,
+)
+from lifeform_service.relationship_intelligence import (
+    RelationshipAlphaArtifactStore,
+    RelationshipIntelligenceController,
+    load_relationship_outcome_typing_qualification,
+)
+from lifeform_service.relationship_outcome_typing import (
+    LlmStructuredRelationshipOutcomeTyper,
+)
+from lifeform_service.session_manager import (
+    CharacterSelectionError,
+    SessionAlreadyExistsError,
+    SessionManager,
+    SessionNotFoundError,
+    TemplatesNotSupportedError,
+)
+from lifeform_service.simulator_routes import (
+    evict_simulator_cache_entry,
+    install_simulator_cache,
+    register_simulator_routes,
+)
+from lifeform_service.substrate_registry import (
+    SubstrateRuntimeProvider,
+    SubstrateSwapError,
+    UnknownSubstrateModelError,
+    fixed_provider_from_runtime,
+)
+from lifeform_service.vertical_registry import (
+    UnknownVerticalError,
+    VerticalNotAlphaCapableError,
+    VerticalRegistry,
+)
+from lifeform_service.verticals import VerticalSpec
+from volvence_zero.agent.prompts import build_system_prompt
+from volvence_zero.application.types import ResponseAssemblySnapshot
+from volvence_zero.behavior_protocol import ReviewLevel, ReviewStatus
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeEvidenceSource,
+    DialogueExternalOutcomeKind,
+)
+from volvence_zero.memory import (
+    MemorySnapshot,
+    UserIdentity,
+    build_scoped_memory_store,
+    delete_entries_for_scope,
+    list_durable_entries_for_scope,
+)
+from volvence_zero.apprenticeship import ApprenticeshipAlignmentSnapshot
+from volvence_zero.prediction import PredictionErrorSnapshot
+from volvence_zero.relationship_continuity import (
+    RelationshipContinuityConsoleOutcome,
+)
+from volvence_zero.semantic_state import CommitmentSnapshot, OpenLoopSnapshot
+from volvence_zero.temporal import TemporalConsolidationSnapshot
+from volvence_zero.environment import build_primary_environment_frame
+from volvence_zero.social_cognition import SELF_INTERLOCUTOR_ID
+
+
+_LOG = logging.getLogger("lifeform_service")
+
+
+# ---------------------------------------------------------------------------
+# App factory
+# ---------------------------------------------------------------------------
+
+
+def create_app(
+    *,
+    vertical: VerticalSpec | None = None,
+    verticals: Mapping[str, VerticalSpec] | None = None,
+    default_vertical: str | None = None,
+    max_sessions: int = 256,
+    idle_eviction_seconds: float | None = 60 * 30,
+    substrate_runtime: "OpenWeightResidualRuntime | None" = None,
+    substrate_provider: SubstrateRuntimeProvider | None = None,
+    alpha_config: AlphaServiceConfig | None = None,
+    templates_root_dir: str | None = None,
+    protocol_uptake_service: ProtocolUptakeService | None = None,
+    external_llm_client: "LlmJsonClient | None" = None,
+    utterance_backend: Any = None,
+    character_runtime_assets: "CharacterRuntimeAssets | None" = None,
+    companion_evidence_profile: str | None = None,
+    allow_evidence_single_session_mutation: bool = False,
+) -> web.Application:
+    """Build the aiohttp Application.
+
+    Two ways to declare verticals:
+
+    * **Multi-vertical (preferred for browser-chat)**: pass
+      ``verticals={...}`` (the dict returned by
+      :func:`lifeform_service.verticals.discover_verticals`) plus
+      ``default_vertical=<name>``. Sessions can pick any registered
+      vertical at creation time via
+      ``POST /v1/sessions {"vertical": "..."}``; templates and
+      save-as-template are scoped per-session-vertical.
+    * **Single-vertical (legacy / DLaaS)**: pass ``vertical=<spec>``.
+      The service still publishes ``/v1/verticals`` (with one
+      entry) and accepts ``vertical=`` on session creation, but
+      only that one name is accepted.
+
+    Args:
+        vertical: legacy single-vertical entry. Mutually exclusive
+            with ``verticals``.
+        verticals: name -> VerticalSpec map. Combined with
+            ``default_vertical`` to build the registry.
+        default_vertical: the vertical name used by sessions that
+            do not declare ``vertical`` in their request body.
+            Required when ``verticals`` is supplied; ignored when
+            ``vertical`` is supplied (the single vertical's name is
+            the default by definition).
+        templates_root_dir: filesystem root the chat-browser template
+            surface scans. ``GET /v1/templates`` lists
+            ``<root>/<vertical_subdir>/*.json`` filtered by the
+            ``?vertical=`` query (default = the registry's default
+            vertical). Save-as-template writes back into the
+            session's vertical subdir. ``None`` disables the
+            template surface entirely.
+
+    Substrate args (``substrate_runtime`` vs ``substrate_provider``,
+    plus the rest) are unchanged from the prior release.
+    """
+    if substrate_runtime is not None and substrate_provider is not None:
+        raise ValueError("create_app: pass substrate_runtime OR substrate_provider, not both")
+    allow_mutable_evidence_runtime = False
+    if substrate_runtime is not None:
+        mutable = bool(
+            getattr(
+                substrate_runtime,
+                "supports_live_substrate_mutation",
+                False,
+            )
+        )
+        if mutable:
+            profile_allows_mutation = False
+            if companion_evidence_profile is not None:
+                from lifeform_service.companion_evidence_profile import (
+                    resolve_companion_evidence_profile,
+                )
+
+                profile_allows_mutation = resolve_companion_evidence_profile(
+                    companion_evidence_profile
+                ).allow_single_session_live_substrate_mutation
+            if not (allow_evidence_single_session_mutation and profile_allows_mutation and max_sessions == 1):
+                _enforce_frozen_for_sharing(substrate_runtime)
+            allow_mutable_evidence_runtime = True
+        substrate_provider = fixed_provider_from_runtime(
+            substrate_runtime,
+            allow_mutable_evidence_runtime=allow_mutable_evidence_runtime,
+        )
+    alpha = alpha_config or AlphaServiceConfig()
+    alpha_provider = AlphaIdentityProvider(allowed_users=alpha.alpha_users) if alpha.enabled else None
+    registry = _build_vertical_registry(
+        vertical=vertical,
+        verticals=verticals,
+        default_vertical=default_vertical,
+        alpha_enabled=alpha.enabled,
+    )
+    if alpha.enabled and registry.default.alpha_factory is None and registry.default.template_adapter is None:
+        raise ValueError(
+            f"default vertical {registry.default_name!r} does not support "
+            "alpha mode (no alpha_factory and no template_adapter)"
+        )
+    service_templates_root = (
+        pathlib.Path(templates_root_dir).expanduser() if templates_root_dir and templates_root_dir.strip() else None
+    )
+    attach_default_mcp_bundle = os.environ.get("VZ_ATTACH_DEFAULT_MCP_BUNDLE", "1").strip() not in {
+        "0",
+        "false",
+        "False",
+    }
+    manager = SessionManager(
+        vertical_registry=registry,
+        alpha_identity_provider=alpha_provider,
+        alpha_memory_scope_root_dir=alpha.memory_scope_root_dir,
+        max_sessions=max_sessions,
+        idle_eviction_seconds=idle_eviction_seconds,
+        substrate_provider=substrate_provider,
+        templates_root_dir=service_templates_root,
+        protocol_uptake_service=protocol_uptake_service,
+        attach_default_mcp_bundle=attach_default_mcp_bundle,
+        character_runtime_assets=character_runtime_assets,
+    )
+    if substrate_provider is not None and substrate_provider.swap_supported:
+        # Wire the SessionManager's session-clearer as the swap
+        # pre-action so model-swap closes every active session before
+        # the new runtime loads. Set after manager construction
+        # because the callback is a bound method on the manager.
+        substrate_provider.set_pre_swap_callback(manager.close_all_sessions_sync)
+    app = web.Application(middlewares=[_error_middleware])
+    app["session_manager"] = manager
+    # ``vertical_spec`` continues to point at the default vertical so
+    # existing routes (``_handle_info`` / ``_handle_health``) keep
+    # working unchanged. Per-request vertical lookups go through
+    # ``vertical_registry``.
+    app["vertical_spec"] = registry.default
+    app["vertical_registry"] = registry
+    app["substrate_provider"] = substrate_provider
+    app["substrate_runtime"] = substrate_provider.current_runtime if substrate_provider is not None else None
+    app["alpha_config"] = alpha
+    app["companion_evidence_profile"] = companion_evidence_profile
+    # D6 (#alpha-reload): keep the identity provider reachable from
+    # request handlers so the allow-list can be hot-reloaded (reload
+    # endpoint / SIGHUP) without a platform restart.
+    app["alpha_provider"] = alpha_provider
+    app["templates_root_dir"] = service_templates_root
+    # Shared external LLM client. Any vertical / route handler that
+    # wants LLM access reads ``app["external_llm_client"]`` (may be
+    # ``None`` when unconfigured). Same instance the protocol
+    # uptake routes use, so a single API key / quota covers all
+    # opt-in consumers. Verticals that don't need the LLM simply
+    # don't read this key — no behavior change.
+    app["external_llm_client"] = external_llm_client
+    app["protocol_uptake_service"] = protocol_uptake_service
+    app["relationship_memory_action_ledger"] = RelationshipMemoryActionLedger(
+        persistence_root=alpha.memory_scope_root_dir
+    )
+    relationship_controller: RelationshipIntelligenceController | None = None
+    if alpha.relationship_intelligence_enabled:
+        if not alpha.enabled:
+            raise ValueError(
+                "relationship intelligence requires closed alpha to be enabled"
+            )
+        if alpha.evidence_root_dir is None:
+            raise ValueError(
+                "relationship intelligence requires an operational evidence root"
+            )
+        typing_qualification = (
+            load_relationship_outcome_typing_qualification(
+                Path(alpha.relationship_outcome_typing_qualification_path)
+            )
+            if alpha.relationship_outcome_typing_qualification_path is not None
+            else None
+        )
+        outcome_typer = None
+        if typing_qualification is not None and typing_qualification.passed:
+            if external_llm_client is None:
+                raise ValueError(
+                    "passing relationship outcome typing qualification requires "
+                    "the shared structured-JSON LLM client"
+                )
+            outcome_typer = LlmStructuredRelationshipOutcomeTyper(
+                client=external_llm_client,
+                runtime_id=typing_qualification.structured_runtime_id,
+            )
+        relationship_controller = RelationshipIntelligenceController(
+            artifact_store=RelationshipAlphaArtifactStore(
+                evidence_root=Path(alpha.evidence_root_dir),
+                training_candidate_root=(
+                    Path(alpha.relationship_training_candidate_root_dir)
+                    if alpha.relationship_training_candidate_root_dir is not None
+                    else None
+                ),
+            ),
+            state_root=(
+                Path(alpha.memory_scope_root_dir)
+                if alpha.memory_scope_root_dir is not None
+                else None
+            ),
+            typing_qualification=typing_qualification,
+            outcome_typer=outcome_typer,
+        )
+    app["relationship_intelligence_controller"] = relationship_controller
+    app.router.add_get("/", _handle_chat_ui)
+    app.router.add_get("/chat", _handle_chat_ui)
+    app.router.add_get("/v1/health", _handle_health)
+    app.router.add_get("/v1/info", _handle_info)
+    app.router.add_get("/v1/verticals", _handle_list_verticals)
+    app.router.add_get("/v1/models", _handle_list_models)
+    app.router.add_post("/v1/admin/substrate", _handle_swap_substrate)
+    app.router.add_get("/v1/templates", _handle_list_templates)
+    app.router.add_post("/v1/sessions", _handle_create_session)
+    app.router.add_delete("/v1/sessions/{session_id}", _handle_close_session)
+    app.router.add_get("/v1/sessions/{session_id}/state", _handle_session_state)
+    app.router.add_post("/v1/sessions/{session_id}/turns", _handle_turn)
+    app.router.add_post(
+        "/v1/sessions/{session_id}/relationship-turns",
+        _handle_relationship_turn,
+    )
+    app.router.add_post(
+        "/v1/sessions/{session_id}/relationship-outcomes",
+        _handle_relationship_outcome,
+    )
+    app.router.add_post(
+        "/v1/sessions/{session_id}/relationship-followups/execute-due",
+        _handle_relationship_followup,
+    )
+    app.router.add_post(
+        "/v1/sessions/{session_id}/dialogue-outcomes",
+        _handle_dialogue_outcome,
+    )
+    app.router.add_post(
+        "/v1/sessions/{session_id}/mentor-intakes",
+        _handle_mentor_intake,
+    )
+    app.router.add_post("/v1/sessions/{session_id}/pause", _handle_pause_session)
+    app.router.add_post("/v1/sessions/{session_id}/end-scene", _handle_end_scene)
+    app.router.add_post(
+        "/v1/sessions/{session_id}/save-as-template",
+        _handle_save_as_template,
+    )
+    app.router.add_get(
+        "/v1/users/me/relationship-summary",
+        _handle_relationship_summary,
+    )
+    app.router.add_get(
+        "/v1/users/me/relationship-memory",
+        _handle_relationship_memory,
+    )
+    app.router.add_post(
+        "/v1/users/me/relationship-memory/{item_id}/action",
+        _handle_relationship_memory_action,
+    )
+    app.router.add_get(
+        "/v1/users/me/continuity-metrics",
+        _handle_relationship_continuity_metrics,
+    )
+    app.router.add_get(
+        "/v1/users/me/memory/rupture-repair",
+        _handle_rupture_repair_memory,
+    )
+    app.router.add_delete("/v1/users/me/memory", _handle_delete_user_memory)
+    app.router.add_get("/v1/admin/weekly-report", _handle_admin_weekly_report)
+    app.router.add_post("/v1/admin/alpha/reload", _handle_reload_alpha_users)
+    # D6 (#alpha-reload): on POSIX, SIGHUP also triggers a reload so ops
+    # can `kill -HUP <pid>` after editing the allow-list file. Windows has
+    # no SIGHUP; the HTTP endpoint is the cross-platform path.
+    app.on_startup.append(_install_alpha_reload_signal_handler)
+    if protocol_uptake_service is not None:
+        register_protocol_routes(app, uptake_service=protocol_uptake_service)
+    # TeachingCase closure (runtime-ingestion spec): operator
+    # demonstrations enter the kernel exclusively through
+    # IngestionPipeline -> canonical turn path, scoped to dedicated
+    # ``ingestion-`` sessions. Always registered — the service has no
+    # external dependency beyond the ingestion wheel.
+    register_teaching_case_routes(app, service=TeachingCaseService())
+    # Governance-demo simulator routes. The cache is always installed
+    # (default: companion_bench DeterministicFakeUtteranceClient). When
+    # ``utterance_backend`` is ``None`` and ``PROTOCOL_LLM_API_KEY`` is
+    # set, we promote to a live OpenAI-compat utterance backend so the
+    # Run-Simulator button in the chat UI produces realistic user
+    # turns out of the box. ``build_utterance_client_from_env`` fails
+    # loud when provider env is half-set (e.g. ``PROTOCOL_LLM_API_KEY``
+    # set but ``provider=custom`` without ``PROTOCOL_LLM_BASE_URL``);
+    # we do NOT swallow that ValueError here — mirrors the JSON-mode
+    # sibling ``build_client_from_env`` contract and the
+    # ``no-swallow-errors-no-hasattr-abuse.mdc`` rule.
+    resolved_backend = utterance_backend if utterance_backend is not None else build_utterance_client_from_env()
+    install_simulator_cache(app, utterance_backend=resolved_backend)
+    register_simulator_routes(app)
+    return app
+
+
+def _build_vertical_registry(
+    *,
+    vertical: VerticalSpec | None,
+    verticals: Mapping[str, VerticalSpec] | None,
+    default_vertical: str | None,
+    alpha_enabled: bool,
+) -> VerticalRegistry:
+    """Resolve the two ``create_app`` vertical-shape parameters.
+
+    * ``vertical=`` (legacy single-vertical) → 1-entry registry
+      with that vertical as default.
+    * ``verticals=`` + ``default_vertical=`` (multi-vertical) →
+      registry with the named default.
+    * Both / neither → ``ValueError``.
+    """
+    if vertical is not None and verticals is not None:
+        raise ValueError("create_app: pass `vertical=` (single) OR `verticals=` (multi), not both")
+    if vertical is not None:
+        return VerticalRegistry.single(vertical, alpha_enabled=alpha_enabled)
+    if verticals is None or not verticals:
+        raise ValueError(
+            "create_app: at least one vertical is required (pass `vertical=` or `verticals=` with `default_vertical=`)"
+        )
+    if default_vertical is None or not default_vertical.strip():
+        raise ValueError("create_app: `default_vertical=` is required when `verticals=` is supplied")
+    return VerticalRegistry.from_mapping(
+        verticals,
+        default_name=default_vertical.strip(),
+        alpha_enabled=alpha_enabled,
+    )
+
+
+def _enforce_frozen_for_sharing(runtime: "OpenWeightResidualRuntime") -> None:
+    """R2 invariant: a shared runtime must NOT permit live mutation.
+
+    Per-session adapter deltas would corrupt every other session's
+    weights when the underlying ``_model`` is the same Python object.
+    If a deployment legitimately needs per-session adapters, the path
+    is to refactor that mutable state out of the runtime and into the
+    per-session ``SubstrateAdapter`` \u2014 not to flip this flag.
+    """
+    if getattr(runtime, "supports_live_substrate_mutation", False):
+        raise ValueError(
+            "Cannot share a runtime that has supports_live_substrate_mutation=True "
+            "across sessions: per-session adapter-delta updates would corrupt other "
+            "sessions' weights. Build the runtime with "
+            "allow_live_substrate_mutation=False (the default) when sharing."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------------------------
+
+
+@web.middleware
+async def _error_middleware(request: web.Request, handler):
+    try:
+        return await handler(request)
+    except web.HTTPException as exc:
+        # API callers always receive JSON, including errors raised by aiohttp
+        # itself. The browser turn client parses every /v1 response as JSON;
+        # leaking aiohttp's plain-text 500 body turns the real server error
+        # into a misleading "Unexpected non-whitespace" parse failure.
+        if request.path.startswith("/v1/"):
+            return _json_error(
+                status=exc.status,
+                error="http_error",
+                detail=exc.reason or "HTTP request failed",
+            )
+        raise
+    except SessionNotFoundError as exc:
+        return _json_error(
+            status=404,
+            error="session_not_found",
+            detail=str(exc) or "session_id is unknown",
+            extra={"session_id": str(exc)},
+        )
+    except SessionAlreadyExistsError as exc:
+        return _json_error(
+            status=409,
+            error="session_already_exists",
+            detail=str(exc),
+        )
+    except RelationshipMemoryActionConflictError as exc:
+        return _json_error(
+            status=409,
+            error="relationship_memory_action_conflict",
+            detail=str(exc),
+        )
+    except _BadRequest as exc:
+        return _json_error(status=400, error=exc.code, detail=exc.detail)
+    except PermissionError as exc:
+        return _json_error(status=403, error="forbidden", detail=str(exc))
+    except Exception as exc:  # pragma: no cover - defensive
+        _LOG.exception("Unhandled error in lifeform-service handler: %s", exc)
+        return _json_error(
+            status=500,
+            error="internal_error",
+            detail="An unexpected error occurred. Check service logs.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Handlers
+# ---------------------------------------------------------------------------
+
+
+async def _handle_chat_ui(request: web.Request) -> web.Response:  # noqa: ARG001
+    return web.Response(text=_CHAT_UI_HTML, content_type="text/html")
+
+
+async def _handle_health(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    persistence_root = manager.alpha_memory_scope_root_dir
+    persistence_scope_sha256 = (
+        sha256(
+            pathlib.Path(persistence_root)
+            .resolve()
+            .as_posix()
+            .encode("utf-8")
+        ).hexdigest()
+        if persistence_root is not None
+        else None
+    )
+    body = HealthResponse(
+        status="ok",
+        session_count=manager.session_count(),
+        vertical=manager.vertical_name,
+        persistence_scope_sha256=persistence_scope_sha256,
+    )
+    return _json_ok(body.to_json())
+
+
+async def _handle_info(request: web.Request) -> web.Response:
+    spec: VerticalSpec = request.app["vertical_spec"]
+    # Read through the provider so /v1/info reflects the current
+    # post-swap runtime. The launcher / startup-time cache in
+    # app["substrate_runtime"] is only the initial value and goes
+    # stale after the first swap.
+    provider: SubstrateRuntimeProvider | None = request.app.get("substrate_provider")
+    runtime = provider.current_runtime if provider is not None else request.app.get("substrate_runtime")
+    body = ServiceInfoResponse(
+        vertical=spec.name,
+        has_temporal_bootstrap=spec.has_temporal_bootstrap,
+        has_regime_bootstrap=spec.has_regime_bootstrap,
+        bootstraps_dir=spec.bootstraps_dir,
+        scenarios_dir=spec.scenarios_dir,
+        substrate_shared=runtime is not None,
+        substrate_model_id=getattr(runtime, "model_id", None),
+        substrate_runtime_origin=getattr(runtime, "runtime_origin", None),
+        alpha=dict(alpha_config_to_json(request.app["alpha_config"])),
+    )
+    return _json_ok(body.to_json())
+
+
+async def _handle_list_verticals(request: web.Request) -> web.Response:
+    """Report the registry contents and capability flags.
+
+    Used by the chat UI's vertical dropdown. ``alpha_enabled`` is
+    surfaced separately so the UI can grey out alpha-incompatible
+    options when the service is running in alpha mode (rather than
+    duplicating the gate logic on the client).
+    """
+    registry: VerticalRegistry = request.app["vertical_registry"]
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    manager: SessionManager = request.app["session_manager"]
+    return _json_ok(
+        {
+            "default_vertical": registry.default_name,
+            "alpha_enabled": alpha.enabled,
+            "available_character_ids": list(manager.available_character_ids),
+            "verticals": list(registry.summary_for_ui()),
+        }
+    )
+
+
+async def _handle_create_session(request: web.Request) -> web.Response:
+    payload = await _maybe_json(request)
+    requested_id = None
+    template_id: str | None = None
+    requested_vertical: str | None = None
+    requested_character_id: str | None = None
+    if isinstance(payload, dict):
+        raw = payload.get("session_id")
+        if raw is not None and not isinstance(raw, str):
+            raise _BadRequest("invalid_session_id", "session_id must be a string")
+        if isinstance(raw, str):
+            requested_id = raw
+        raw_tpl = payload.get("template_id")
+        if raw_tpl is not None and not isinstance(raw_tpl, str):
+            raise _BadRequest("invalid_template_id", "template_id must be a string")
+        if isinstance(raw_tpl, str) and raw_tpl.strip():
+            template_id = raw_tpl.strip()
+        raw_vertical = payload.get("vertical")
+        if raw_vertical is not None and not isinstance(raw_vertical, str):
+            raise _BadRequest("invalid_vertical", "vertical must be a string")
+        if isinstance(raw_vertical, str) and raw_vertical.strip():
+            requested_vertical = raw_vertical.strip()
+        raw_character = payload.get("character_id")
+        if raw_character is not None and not isinstance(raw_character, str):
+            raise _BadRequest("invalid_character_id", "character_id must be a string")
+        if isinstance(raw_character, str) and raw_character.strip():
+            requested_character_id = raw_character.strip()
+    manager: SessionManager = request.app["session_manager"]
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    user_id = None
+    if alpha.enabled:
+        user_id = _alpha_user_id(request, payload)
+    try:
+        session = await manager.create_session(
+            session_id=requested_id,
+            user_id=user_id,
+            template_id=template_id,
+            vertical_name=requested_vertical,
+            character_id=requested_character_id,
+        )
+    except UnknownVerticalError as exc:
+        return _json_error(status=422, error="unknown_vertical", detail=str(exc))
+    except VerticalNotAlphaCapableError as exc:
+        return _json_error(status=422, error="vertical_not_alpha_capable", detail=str(exc))
+    except CharacterSelectionError as exc:
+        return _json_error(status=422, error="invalid_character_id", detail=str(exc))
+    except TemplatesNotSupportedError as exc:
+        return _json_error(status=503, error="templates_not_supported", detail=str(exc))
+    except FileNotFoundError as exc:
+        return _json_error(status=404, error="template_not_found", detail=str(exc))
+    except SessionAlreadyExistsError:
+        # Re-raise so the middleware's specific handler returns 409
+        # — SessionAlreadyExistsError extends ValueError so we MUST
+        # let it through before the generic ValueError catch below.
+        raise
+    except ValueError as exc:
+        return _json_error(status=400, error="invalid_template_id", detail=str(exc))
+    bound_vertical_name = manager.vertical_name_for(session.session_id)
+    bound_spec = manager.vertical_registry.get(bound_vertical_name)
+    if bound_spec is None:
+        bound_spec = manager.vertical_registry.default
+    body = CreateSessionResponse(
+        session_id=session.session_id,
+        vertical=bound_vertical_name,
+        has_temporal_bootstrap=bound_spec.has_temporal_bootstrap,
+        has_regime_bootstrap=bound_spec.has_regime_bootstrap,
+        character_id=manager.character_id_for(session.session_id),
+        user_id=user_id,
+        service_version=alpha.service_version if alpha.enabled else "",
+        policy_version=alpha.policy_version if alpha.enabled else "",
+        alpha_disclaimer=ALPHA_DISCLAIMER if alpha.enabled else "",
+    )
+    response_payload = body.to_json()
+    response_payload["template_id"] = template_id
+    return _json_ok(response_payload, status=201)
+
+
+async def _handle_list_models(request: web.Request) -> web.Response:
+    """Report available substrate models + the current selection.
+
+    Always returns 200, even when the service has no provider — UI
+    consumers branch on ``swap_supported`` rather than hitting a
+    different status. The shape mirrors ``/v1/templates``: a tuple
+    of typed entries plus discoverable capability flags.
+    """
+    provider: SubstrateRuntimeProvider | None = request.app.get("substrate_provider")
+    spec: VerticalSpec = request.app["vertical_spec"]
+    if provider is None:
+        return _json_ok(
+            {
+                "vertical": spec.name,
+                "swap_supported": False,
+                "current_model_id": None,
+                "current_runtime_origin": None,
+                "swap_count": 0,
+                "last_swap_error": "",
+                "models": [],
+            }
+        )
+    runtime = provider.current_runtime
+    return _json_ok(
+        {
+            "vertical": spec.name,
+            "swap_supported": provider.swap_supported,
+            "current_model_id": provider.current_model_id or None,
+            "current_runtime_origin": (getattr(runtime, "runtime_origin", None) if runtime is not None else None),
+            "swap_count": provider.swap_count,
+            "last_swap_error": provider.last_swap_error,
+            "models": [spec.to_json() for spec in provider.available],
+        }
+    )
+
+
+async def _handle_swap_substrate(request: web.Request) -> web.Response:
+    """Hot-swap the shared substrate runtime to a different model id.
+
+    Only available when the service was started with a swap-capable
+    :class:`SubstrateRuntimeProvider`. Production paths that pass a
+    fixed ``substrate_runtime`` (DLaaS) report ``503``: hot swapping
+    a multi-tenant deployment's base model from a single HTTP route
+    would violate the production contract that all tenants get the
+    same R2 substrate for the contract's lifetime.
+
+    The route is intentionally **not** behind alpha auth: the model
+    selector is a developer affordance on the local browser-chat
+    process. Multi-user deployments must keep this surface internal
+    (firewall / reverse-proxy ACL). We surface that posture in the
+    URL prefix (``/v1/admin/...``) so misuse is loud rather than
+    silent.
+    """
+    provider: SubstrateRuntimeProvider | None = request.app.get("substrate_provider")
+    if provider is None or not provider.swap_supported:
+        return _json_error(
+            status=503,
+            error="substrate_swap_not_supported",
+            detail=(
+                "this service was started without a swap-capable substrate "
+                "provider (typical for DLaaS / fixed-runtime deployments)"
+            ),
+        )
+    payload = await _require_json(request)
+    raw = payload.get("model_id")
+    if not isinstance(raw, str) or not raw.strip():
+        raise _BadRequest("invalid_model_id", "model_id is required and must be a string")
+    model_id = raw.strip()
+    try:
+        result = await provider.swap(model_id)
+    except UnknownSubstrateModelError as exc:
+        return _json_error(status=400, error="unknown_model_id", detail=str(exc))
+    except SubstrateSwapError as exc:
+        # Loader failure: respond 503 with the cause so the operator
+        # can decide whether to retry. Provider has already cleared
+        # the current runtime; UI must call swap again with a known-
+        # good model_id (or restart the service).
+        return _json_error(
+            status=503,
+            error="substrate_load_failed",
+            detail=str(exc),
+            extra={
+                "target_model_id": exc.target_model_id,
+                "previous_model_id": exc.previous_model_id,
+            },
+        )
+    # Swap succeeded. We deliberately do NOT mutate
+    # ``request.app["substrate_runtime"]`` here — aiohttp
+    # deprecates writing into a started app's state, and the right
+    # consumers (``/v1/info``, ``SessionManager.substrate_runtime``)
+    # already read through the provider so they see the new
+    # runtime without a mutable cache.
+    return _json_ok(
+        {
+            "swapped": True,
+            "model_id": result.model_id,
+            "previous_model_id": result.previous_model_id,
+            "runtime_origin": result.runtime_origin,
+            "closed_session_count": result.closed_session_count,
+            "duration_seconds": round(result.duration_seconds, 3),
+        }
+    )
+
+
+async def _handle_list_templates(request: web.Request) -> web.Response:
+    """List templates for a specific vertical.
+
+    Filtering rule: ``?vertical=<name>`` selects which vertical's
+    template subdirectory to scan; default = the registry's
+    default vertical. Unknown vertical names return 422 so the
+    UI can surface a typo / wrong-deployment error rather than
+    silently falling back to the default.
+    """
+    manager: SessionManager = request.app["session_manager"]
+    registry: VerticalRegistry = request.app["vertical_registry"]
+    requested = request.query.get("vertical", "").strip()
+    target_name = requested or registry.default_name
+    if registry.get(target_name) is None:
+        return _json_error(
+            status=422,
+            error="unknown_vertical",
+            detail=(f"vertical {target_name!r} is not registered; available: {sorted(registry.names)!r}"),
+        )
+    adapter = manager.template_adapter_for(target_name)
+    root = manager.templates_dir_for(target_name)
+    if adapter is None or root is None:
+        return _json_ok(
+            {
+                "vertical": target_name,
+                "templates_supported": False,
+                "templates_root_dir": None,
+                "templates": [],
+            }
+        )
+    try:
+        items = adapter.list_templates(root)
+    except (NotADirectoryError, ValueError) as exc:
+        return _json_error(status=500, error="templates_listing_failed", detail=str(exc))
+    return _json_ok(
+        {
+            "vertical": target_name,
+            "templates_supported": True,
+            "templates_root_dir": str(root),
+            "templates": [item.to_json() for item in items],
+        }
+    )
+
+
+async def _handle_save_as_template(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    # Save into the SESSION's vertical subdir, not the service-level
+    # default vertical's. A session created with vertical=einstein
+    # must save under <root>/einstein/, regardless of which vertical
+    # the chat UI happens to be displaying right now.
+    try:
+        session_vertical = manager.vertical_name_for(session_id)
+    except SessionNotFoundError:
+        raise  # middleware → 404
+    adapter = manager.template_adapter_for(session_vertical)
+    root = manager.templates_dir_for(session_vertical)
+    if adapter is None or root is None:
+        return _json_error(
+            status=503,
+            error="templates_not_supported",
+            detail=(
+                f"vertical {session_vertical!r} does not register a template "
+                "adapter or service has no templates_root_dir configured"
+            ),
+        )
+    payload = await _require_json(request)
+    raw_id = payload.get("template_id")
+    if not isinstance(raw_id, str) or not raw_id.strip():
+        raise _BadRequest("invalid_template_id", "template_id is required and must be a string")
+    template_id = raw_id.strip()
+    replay_provenance = payload.get("replay_provenance", "")
+    if not isinstance(replay_provenance, str):
+        raise _BadRequest("invalid_replay_provenance", "replay_provenance must be a string")
+    include_memory = payload.get("include_memory", True)
+    if not isinstance(include_memory, bool):
+        raise _BadRequest("invalid_include_memory", "include_memory must be a boolean")
+    overwrite_existing = payload.get("overwrite_existing", False)
+    if not isinstance(overwrite_existing, bool):
+        raise _BadRequest("invalid_overwrite_existing", "overwrite_existing must be a boolean")
+    session = await manager.get_session(session_id)
+    context = manager.template_context_for(session_id)
+    if context is None:
+        return _json_error(
+            status=409,
+            error="session_not_template_eligible",
+            detail=(
+                f"session {session_id!r} was created via the legacy factory "
+                "path and has no template context; recreate the session with "
+                "a template-aware vertical to enable save-as-template"
+            ),
+        )
+    try:
+        metadata = adapter.save_session_as_template(
+            session=session,
+            context=context,
+            root_dir=root,
+            template_id=template_id,
+            replay_provenance=replay_provenance,
+            include_memory=include_memory,
+            overwrite_existing=overwrite_existing,
+        )
+    except FileExistsError as exc:
+        return _json_error(status=409, error="template_already_exists", detail=str(exc))
+    except (ValueError, TypeError) as exc:
+        return _json_error(status=400, error="invalid_save_request", detail=str(exc))
+    return _json_ok({"saved": metadata.to_json()}, status=201)
+
+
+async def _handle_close_session(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    closed = await manager.close_session(session_id)
+    if not closed:
+        raise SessionNotFoundError(session_id)
+    evict_simulator_cache_entry(request.app, session_id)
+    return _json_ok({"session_id": session_id, "closed": True})
+
+
+async def _handle_session_state(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    session = await manager.get_session(session_id)
+    open_scene = session.open_scene
+    summaries = session.turn_summaries
+    last_summary = summaries[-1] if summaries else None
+    body = SessionStateResponse(
+        session_id=session_id,
+        open_scene_id=open_scene.scene_id if open_scene else None,
+        open_scene_turn_count=open_scene.turn_count if open_scene else 0,
+        closed_scene_count=len(session.closed_scenes),
+        turn_count=len(summaries),
+        pending_followup_count=len(session.all_pending_followups()),
+        last_active_regime=last_summary.active_regime if last_summary else None,
+        last_active_abstract_action=(last_summary.active_abstract_action if last_summary else None),
+        last_response_text=session.latest_response_text,
+    )
+    return _json_ok(body.to_json())
+
+
+async def _handle_turn(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _require_json(request)
+    user_input = payload.get("user_input")
+    if not isinstance(user_input, str) or not user_input.strip():
+        raise _BadRequest("invalid_user_input", "user_input must be a non-empty string")
+    session = await manager.get_session(session_id)
+    trigger_kind = TurnTriggerKind.USER_INPUT
+    environment_frame = None
+    environment_provenance = None
+    environment_consent_context: tuple[str, ...] = ()
+    evidence_profile = None
+    evidence_profile_name = request.app.get("companion_evidence_profile")
+    if evidence_profile_name is not None:
+        from lifeform_service.companion_evidence_profile import (
+            resolve_companion_evidence_profile,
+        )
+
+        evidence_profile = resolve_companion_evidence_profile(str(evidence_profile_name))
+        if evidence_profile.name in MSC_RUNTIME_PROFILE_NAMES:
+            if not evidence_profile.allow_typed_observation_frame:
+                raise RuntimeError("MSC evidence profile lacks observation authority")
+            active_speaker_id = payload.get("active_speaker_id")
+            if active_speaker_id not in {"speaker_1", "speaker_2"}:
+                raise _BadRequest(
+                    "invalid_active_speaker_id",
+                    "MSC active_speaker_id must be speaker_1 or speaker_2",
+                )
+            observation_kind = payload.get("observation_kind")
+            if observation_kind == "persona":
+                trigger_kind = TurnTriggerKind.INGESTION
+            elif observation_kind == "dialogue":
+                trigger_kind = TurnTriggerKind.USER_INPUT
+            else:
+                raise _BadRequest(
+                    "invalid_observation_kind",
+                    "MSC observation_kind must be persona or dialogue",
+                )
+            environment_frame = build_primary_environment_frame(
+                actor_id=active_speaker_id,
+                actor_kind="interlocutor",
+                active_speaker_id=active_speaker_id,
+                addressee_ids=(SELF_INTERLOCUTOR_ID,),
+                subject_ids=(active_speaker_id,),
+                audience_ids=(SELF_INTERLOCUTOR_ID,),
+            )
+            environment_provenance = "msc-runtime-collector-v1"
+            environment_consent_context = (
+                "noncommercial-research-only",
+                "typed-corpus-observation",
+            )
+        elif evidence_profile.turn_trigger_kind == "apprentice":
+            trigger_kind = TurnTriggerKind.APPRENTICE
+        elif evidence_profile.turn_trigger_kind != "user_input":
+            raise RuntimeError(f"unsupported evidence turn trigger kind {evidence_profile.turn_trigger_kind!r}")
+    turn_started = time.perf_counter()
+    result = await session.run_turn(
+        user_input,
+        trigger_kind=trigger_kind,
+        environment_frame=environment_frame,
+        environment_provenance=environment_provenance,
+        environment_consent_context=environment_consent_context,
+    )
+
+    summaries = session.turn_summaries
+    summary = summaries[-1] if summaries else None
+    expression_intent: str | None = None
+    assembly_value: ResponseAssemblySnapshot | None = None
+    assembly = result.active_snapshots.get("response_assembly")
+    if assembly is not None and isinstance(assembly.value, ResponseAssemblySnapshot):
+        assembly_value = assembly.value
+        expression_intent = assembly_value.expression_intent
+    open_loop_count = 0
+    open_loop = result.active_snapshots.get("open_loop")
+    if open_loop is not None and isinstance(open_loop.value, OpenLoopSnapshot):
+        open_loop_count = len(open_loop.value.unresolved_loops)
+    commitment_count = 0
+    commitment = result.active_snapshots.get("commitment")
+    if commitment is not None and isinstance(commitment.value, CommitmentSnapshot):
+        commitment_count = len(commitment.value.active_commitments)
+    pe_magnitude = summary.pe_magnitude if summary is not None else 0.0
+    prediction_error = result.active_snapshots.get("prediction_error")
+    pe_bootstrap = bool(
+        prediction_error is not None
+        and isinstance(prediction_error.value, PredictionErrorSnapshot)
+        and prediction_error.value.bootstrap
+    )
+
+    def temporal_pe_applied(slot_name: str) -> bool:
+        snapshot = result.active_snapshots.get(slot_name)
+        return bool(
+            snapshot is not None
+            and isinstance(snapshot.value, TemporalConsolidationSnapshot)
+            and snapshot.value.prediction_error_applied
+        )
+
+    llm_envelope = _derive_llm_envelope(assembly=assembly_value, user_input=user_input)
+
+    telemetry: dict[str, Any] = {
+        "environment_trigger_kind": result.environment_trigger_kind,
+        "joint_schedule_action": result.joint_schedule_action,
+        "ssl_m3_slow_momentum_norm": result.ssl_m3_slow_momentum_norm,
+        "ssl_m3_slow_gain": result.ssl_m3_slow_gain,
+        "nested_profile_active": result.nested_profile_active,
+        "nested_context_reset_applied": (result.nested_context_reset_applied),
+        "nested_context_reset_total_count": (result.nested_context_reset_total_count),
+        "slow_to_fast_init_benefit": result.slow_to_fast_init_benefit,
+        "slow_to_fast_target_alignment_gain": (result.slow_to_fast_target_alignment_gain),
+    }
+    if evidence_profile is not None and evidence_profile.publish_runtime_context:
+        if assembly_value is None:
+            raise RuntimeError("MSC runtime collector lacks response assembly")
+        telemetry["msc_runtime_context"] = build_msc_runtime_context_payload(
+            result=result,
+            assembly=assembly_value,
+            turn_latency_ms=(time.perf_counter() - turn_started) * 1000.0,
+        )
+    apprenticeship = result.active_snapshots.get("apprenticeship_alignment")
+    if apprenticeship is not None and isinstance(apprenticeship.value, ApprenticeshipAlignmentSnapshot):
+        telemetry.update(
+            {
+                "apprenticeship_active": True,
+                "feedback_requested": (apprenticeship.value.should_request_feedback),
+                "feedback_request_urgency": (apprenticeship.value.feedback_request_urgency),
+                "guidance_surprise": apprenticeship.value.guidance_surprise,
+            }
+        )
+    else:
+        telemetry["apprenticeship_active"] = False
+    memory = result.active_snapshots.get("memory")
+    if memory is not None and isinstance(memory.value, MemorySnapshot):
+        cms = memory.value.cms_state
+        if cms is not None:
+            telemetry.update(
+                {
+                    "cms_variant": cms.variant,
+                    "cms_total_observations": cms.total_observations,
+                    "cms_atlas_replay_active": cms.atlas_replay_active,
+                    "cms_pe_gate_active": cms.titans_pe_gate_active,
+                    "cms_new_knowledge_absorption": (cms.new_knowledge_absorption),
+                    "cms_old_knowledge_retention": (cms.old_knowledge_retention),
+                }
+            )
+    if result.joint_cycle_report is not None:
+        cycle = result.joint_cycle_report
+        telemetry.update(
+            {
+                "joint_cycle_executed": True,
+                "ssl_prediction_loss": cycle.ssl_prediction_loss,
+                "ssl_posterior_drift": cycle.ssl_posterior_drift,
+                "ssl_rollback_applied": cycle.ssl_rollback_applied,
+                "internal_rl_policy_update_applied": (cycle.policy_update_applied),
+                "internal_rl_total_reward": cycle.total_reward,
+            }
+        )
+    else:
+        telemetry["joint_cycle_executed"] = False
+    if result.runtime_replay_report is not None:
+        replay = result.runtime_replay_report
+        telemetry.update(
+            {
+                "runtime_replay_wiring": replay.wiring_level,
+                "runtime_replay_transition_count": replay.transition_count,
+                "runtime_replay_lineage_match_count": (replay.lineage_match_count),
+            }
+        )
+    rare_heavy = result.rare_heavy_result
+    telemetry.update(
+        {
+            "rare_heavy_recommended": bool(rare_heavy is not None and rare_heavy.recommended),
+            "rare_heavy_applied": bool(rare_heavy is not None and rare_heavy.applied),
+            "rare_heavy_import_decision": (rare_heavy.import_decision if rare_heavy is not None else "not-run"),
+            "rare_heavy_pre_import_passed": bool(rare_heavy is not None and rare_heavy.pre_import_passed),
+            "rare_heavy_pre_import_mean_score_delta": (
+                rare_heavy.pre_import_mean_score_delta if rare_heavy is not None else 0.0
+            ),
+        }
+    )
+
+    open_scene = session.open_scene
+    body = TurnResponse(
+        session_id=session_id,
+        scene_id=open_scene.scene_id if open_scene else "scene-?",
+        turn_index=summary.turn_index if summary is not None else 0,
+        response_text=result.response.text,
+        active_regime=result.active_regime,
+        active_abstract_action=result.active_abstract_action,
+        expression_intent=expression_intent,
+        pe_magnitude=pe_magnitude,
+        pe_bootstrap=pe_bootstrap,
+        world_temporal_prediction_error_applied=temporal_pe_applied("world_temporal_consolidation"),
+        self_temporal_prediction_error_applied=temporal_pe_applied("self_temporal_consolidation"),
+        open_loop_count=open_loop_count,
+        commitment_count=commitment_count,
+        response_rationale_tags=tuple(result.response.rationale_tags),
+        safety=_safety_metadata(result.response.rationale_tags),
+        llm_envelope=llm_envelope,
+        evidence_telemetry=telemetry,
+    )
+    return _json_ok(body.to_json())
+
+
+async def _handle_relationship_turn(request: web.Request) -> web.Response:
+    """P4 natural-dialogue entry with a non-user-visible action audit."""
+
+    _require_alpha(request)
+    controller = _require_relationship_intelligence_controller(request)
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _require_json(request)
+    user_input = payload.get("user_input")
+    if not isinstance(user_input, str) or not user_input.strip():
+        raise _BadRequest(
+            "invalid_user_input",
+            "user_input must be a non-empty string",
+        )
+    user_id = _alpha_user_id(request, payload)
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    provider: AlphaIdentityProvider | None = request.app["alpha_provider"]
+    if provider is None:
+        raise RuntimeError("relationship intelligence requires alpha identity")
+    identity = provider.resolve(session_id)
+    if identity is None:
+        raise RuntimeError("relationship intelligence session lacks identity binding")
+    result = await controller.run_turn(
+        session=session,
+        user_input=user_input,
+        subject_scope=identity.scope_key,
+        session_scope=session.session_id,
+    )
+    kernel = result.kernel_result
+    return _json_ok(
+        {
+            "session_id": session_id,
+            "response_text": kernel.response.text,
+            "response_rationale_tags": list(kernel.response.rationale_tags),
+            "relationship_action_status": result.status,
+            "relationship_action_audit": (
+                result.audit.to_json() if result.audit is not None else None
+            ),
+            "gate_credit_update_count": len(result.gate_credit_updates),
+            "user_visible_action_changed": False,
+        }
+    )
+
+
+async def _handle_relationship_outcome(request: web.Request) -> web.Response:
+    """P4 explicit-result entry with the real-user typing prerequisite."""
+
+    _require_alpha(request)
+    controller = _require_relationship_intelligence_controller(request)
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _require_json(request)
+    user_id = _alpha_user_id(request, payload)
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    provider: AlphaIdentityProvider | None = request.app["alpha_provider"]
+    if provider is None:
+        raise RuntimeError("relationship intelligence requires alpha identity")
+    identity = provider.resolve(session_id)
+    if identity is None:
+        raise RuntimeError("relationship intelligence session lacks identity binding")
+    forecast_id = payload.get("forecast_id")
+    decision_id = payload.get("decision_id")
+    action_id = payload.get("action_id")
+    for field_name, value in (
+        ("forecast_id", forecast_id),
+        ("decision_id", decision_id),
+        ("action_id", action_id),
+    ):
+        if not isinstance(value, str) or not value.strip():
+            raise _BadRequest(
+                f"invalid_{field_name}",
+                f"{field_name} must be a non-empty string",
+            )
+    outcome_text = payload.get("outcome_text")
+    if not isinstance(outcome_text, str) or not outcome_text.strip():
+        raise _BadRequest(
+            "invalid_outcome_text",
+            "outcome_text must be a non-empty string",
+        )
+    training_use_authorized = payload.get("training_use_authorized", False)
+    if not isinstance(training_use_authorized, bool):
+        raise _BadRequest(
+            "invalid_training_use_authorized",
+            "training_use_authorized must be a boolean",
+        )
+    try:
+        receipt = await controller.submit_outcome_text(
+            session=session,
+            subject_scope=identity.scope_key,
+            session_scope=session.session_id,
+            forecast_id=forecast_id,
+            decision_id=decision_id,
+            action_id=action_id,
+            outcome_text=outcome_text,
+            training_use_authorized=training_use_authorized,
+        )
+    except (ValueError, PermissionError) as exc:
+        raise _BadRequest("invalid_relationship_outcome", str(exc)) from exc
+    return _json_ok(
+        {
+            "outcome_id": receipt.outcome_id,
+            "forecast_id": receipt.forecast_id,
+            "decision_id": receipt.decision_id,
+            "action_id": receipt.action_id,
+            "kind": receipt.outcome_kind,
+            "confidence": receipt.confidence,
+            "outcome_observation_sha256": receipt.outcome_observation_sha256,
+            "typing_gate_status": receipt.typing_gate_status,
+            "typing_qualification_id": receipt.typing_qualification_id,
+            "typing_qualification_sha256": receipt.typing_qualification_sha256,
+            "typing_runtime_id": receipt.typing_runtime_id,
+            "typing_schema_version": receipt.typing_schema_version,
+            "typing_evidence_basis": receipt.typing_evidence_basis,
+            "needs_human_review": receipt.needs_human_review,
+            "action_exposure_status": receipt.action_exposure_status,
+            "runtime_submission_status": receipt.runtime_submission_status,
+            "submitted_to_runtime": receipt.submitted_to_runtime,
+            "runtime_evidence_id": receipt.runtime_evidence_id,
+            "operational_evidence_ref": receipt.operational_evidence_ref,
+            "training_candidate_ref": receipt.training_candidate_ref,
+        },
+        status=201,
+    )
+
+
+async def _handle_relationship_followup(request: web.Request) -> web.Response:
+    """P4 due-followup entry; all existing consent/cooldown/budget gates apply."""
+
+    _require_alpha(request)
+    _require_relationship_intelligence_controller(request)
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _maybe_json(request)
+    user_id = _alpha_user_id(request, payload)
+    await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    reports = await manager.execute_due_followups(
+        max_turns=1,
+        per_session_max=1,
+        cooldown_seconds=600.0,
+        tenant_allowlist=frozenset({user_id}),
+        session_ids=frozenset({session_id}),
+    )
+    return _json_ok(
+        {
+            "session_id": session_id,
+            "reports": [
+                {
+                    "followup_id": report.followup_id,
+                    "executed": report.executed,
+                    "reason": report.reason,
+                }
+                for report in reports
+            ],
+            "consent_cooldown_budget_gates_applied": True,
+        }
+    )
+
+
+async def _handle_mentor_intake(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _require_json(request)
+    guidance = payload.get("guidance")
+    if not isinstance(guidance, str) or not guidance.strip():
+        raise _BadRequest("invalid_guidance", "guidance must be a non-empty string")
+
+    llm_client: LlmJsonClient | None = request.app.get("external_llm_client")
+    if llm_client is None:
+        return _json_error(
+            status=503,
+            error="mentor_intake_llm_not_configured",
+            detail=("mentor intake requires the shared OpenAI-compatible JSON LLM client."),
+        )
+
+    apply_mode = _parse_mentor_apply_mode(payload.get("apply_mode"))
+    mentor_id = _mentor_id(request, payload)
+    target_protocol_id = _optional_str(payload.get("target_protocol_id"))
+    protocol_id = _optional_str(payload.get("protocol_id")) or _mentor_protocol_id(
+        session_id=session_id,
+        guidance=guidance,
+    )
+    advisor_name = _optional_str(payload.get("advisor_name")) or mentor_id
+    reviewer_level = _parse_review_level(payload.get("reviewer_level"))
+    request_obj = MentorIntakeRequest(
+        guidance=guidance,
+        mentor_id=mentor_id,
+        target_protocol_id=target_protocol_id,
+        apply_mode=apply_mode,
+    )
+
+    try:
+        decision = classify_mentor_intake(request_obj, llm_client=llm_client)
+    except ValueError as exc:
+        return _json_error(
+            status=422,
+            error="mentor_intake_classification_failed",
+            detail=str(exc),
+        )
+
+    response: dict[str, Any] = {
+        "session_id": session_id,
+        "apply_mode": apply_mode.value,
+        "decision": decision.to_json(),
+        "applied": False,
+    }
+    if apply_mode is MentorIntakeApplyMode.CLASSIFY_ONLY:
+        return _json_ok(response)
+
+    if decision.intake_kind not in {
+        MentorIntakeKind.PROTOCOL,
+        MentorIntakeKind.BOUNDARY,
+    }:
+        return await _apply_extended_mentor_intake(
+            request,
+            manager=manager,
+            session_id=session_id,
+            decision=decision,
+            response=response,
+            apply_mode=apply_mode,
+            guidance=guidance,
+            llm_client=llm_client,
+            mentor_id=mentor_id,
+            advisor_name=advisor_name,
+            protocol_id=protocol_id,
+            reviewer_level=reviewer_level,
+            payload=payload,
+        )
+
+    try:
+        candidate = extract_protocol_from_description(
+            guidance,
+            llm_client=llm_client,
+            protocol_id=protocol_id,
+            advisor_name=advisor_name,
+            extractor_id="lifeform-service/mentor-intake",
+        )
+    except (ValueError, RuntimeError) as exc:
+        return _json_error(
+            status=422,
+            error="mentor_protocol_extraction_failed",
+            detail=str(exc),
+        )
+
+    if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW:
+        service: ProtocolUptakeService | None = request.app.get("protocol_uptake_service")
+        if service is None:
+            return _json_error(
+                status=503,
+                error="protocol_uptake_not_configured",
+                detail="submit_for_review requires ProtocolUptakeService.",
+            )
+        submitted_id = await service.submit_candidate(
+            candidate,
+            note=f"mentor-intake:{mentor_id}",
+        )
+        response["submitted_for_review"] = True
+        response["protocol_id"] = submitted_id
+        return _json_ok(response, status=202)
+
+    from dataclasses import replace as _replace
+
+    session = await manager.get_session(session_id)
+    approved_protocol = _replace(
+        candidate.protocol,
+        review_status=ReviewStatus.ACTIVE,
+    )
+    try:
+        applied = session.apply_mentor_intake(
+            approved_protocol,
+            reviewer_id=mentor_id,
+            reviewer_level=reviewer_level,
+            note=f"mentor-intake:{apply_mode.value}",
+        )
+    except (PermissionError, ValueError, TypeError) as exc:
+        return _json_error(
+            status=403 if isinstance(exc, PermissionError) else 400,
+            error="mentor_intake_apply_failed",
+            detail=str(exc),
+        )
+
+    response["applied"] = True
+    response["application"] = applied
+    response["protocol"] = {
+        "protocol_id": approved_protocol.protocol_id,
+        "advisor_name": approved_protocol.advisor_name,
+        "review_status": approved_protocol.review_status.value,
+        "boundary_count": len(approved_protocol.boundary_contracts),
+        "strategy_count": len(approved_protocol.strategy_priors),
+        "knowledge_seed_count": len(approved_protocol.knowledge_seeds),
+        "signature_case_count": len(approved_protocol.signature_cases),
+    }
+    return _json_ok(response)
+
+
+async def _apply_extended_mentor_intake(
+    request: web.Request,
+    *,
+    manager: SessionManager,
+    session_id: str,
+    decision: Any,
+    response: dict[str, Any],
+    apply_mode: MentorIntakeApplyMode,
+    guidance: str,
+    llm_client: LlmJsonClient,
+    mentor_id: str,
+    advisor_name: str,
+    protocol_id: str,
+    reviewer_level: ReviewLevel,
+    payload: dict[str, Any],
+) -> web.Response:
+    """Apply the non-protocol mentor-intake kinds to their canonical owners.
+
+    knowledge -> domain_knowledge; case -> case_memory; experience ->
+    experience consolidation (background-slow record); protocol_revision ->
+    R10 ModificationGate. Gated behind ``LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS``
+    so the whole surface reverts to classified-only (the pre-existing
+    behaviour) when the flag is off.
+    """
+
+    kind = decision.intake_kind
+
+    if not _mentor_intake_extended_kinds_enabled():
+        response["unsupported_reason"] = decision.unsupported_reason or (
+            f"{kind.value} intake apply is disabled (set LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS=1 to enable)."
+        )
+        status = 202 if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW else 422
+        return _json_ok(response, status=status)
+
+    # submit_for_review persistence queues for these kinds are not wired yet;
+    # apply_to_session is the supported live path. Be loud about the gap
+    # rather than silently treating review as apply.
+    if apply_mode is MentorIntakeApplyMode.SUBMIT_FOR_REVIEW and kind in {
+        MentorIntakeKind.KNOWLEDGE,
+        MentorIntakeKind.CASE,
+        MentorIntakeKind.EXPERIENCE,
+    }:
+        response["submitted_for_review"] = False
+        response["unsupported_reason"] = (
+            f"{kind.value} submit_for_review queue is not wired; use apply_to_session for live application."
+        )
+        return _json_ok(response, status=202)
+
+    session = await manager.get_session(session_id)
+
+    if kind is MentorIntakeKind.KNOWLEDGE:
+        try:
+            draft = extract_reviewed_knowledge_from_guidance(
+                guidance,
+                llm_client=llm_client,
+                knowledge_id=_mentor_knowledge_id(session_id=session_id, guidance=guidance),
+                mentor_id=mentor_id,
+            )
+        except (ValueError, RuntimeError) as exc:
+            return _json_error(
+                status=422,
+                error="mentor_knowledge_extraction_failed",
+                detail=str(exc),
+            )
+        try:
+            applied = session.apply_mentor_knowledge(
+                knowledge_id=draft.knowledge_id,
+                summary=draft.summary,
+                detail=draft.detail,
+                confidence=draft.confidence,
+                reviewer_id=mentor_id,
+                source_label=draft.source_label,
+                relevance_hint=draft.relevance_hint,
+            )
+        except (ValueError, TypeError) as exc:
+            return _json_error(
+                status=400,
+                error="mentor_intake_apply_failed",
+                detail=str(exc),
+            )
+        response["applied"] = True
+        response["application"] = applied
+        return _json_ok(response)
+
+    if kind is MentorIntakeKind.CASE:
+        try:
+            case = extract_signature_case_from_guidance(
+                guidance,
+                llm_client=llm_client,
+                case_id=_mentor_case_id(session_id=session_id, guidance=guidance),
+                mentor_id=mentor_id,
+            )
+        except (ValueError, RuntimeError) as exc:
+            return _json_error(
+                status=422,
+                error="mentor_case_extraction_failed",
+                detail=str(exc),
+            )
+        try:
+            applied = session.apply_mentor_case(
+                case,
+                protocol_id=protocol_id,
+                advisor_name=advisor_name,
+                reviewer_id=mentor_id,
+                reviewer_level=reviewer_level,
+                note=f"mentor-intake:{apply_mode.value}",
+            )
+        except (PermissionError, ValueError, TypeError) as exc:
+            return _json_error(
+                status=403 if isinstance(exc, PermissionError) else 400,
+                error="mentor_intake_apply_failed",
+                detail=str(exc),
+            )
+        response["applied"] = True
+        response["application"] = applied
+        return _json_ok(response)
+
+    if kind is MentorIntakeKind.EXPERIENCE:
+        try:
+            outcome_kind = resolve_experience_outcome_kind(payload.get("outcome_kind"))
+        except ValueError as exc:
+            return _json_error(
+                status=422,
+                error="mentor_experience_outcome_required",
+                detail=str(exc),
+            )
+        try:
+            recorded = session.record_mentor_experience(
+                outcome_kind=outcome_kind,
+                reviewer_id=mentor_id,
+                description=guidance,
+                confidence=_clamp_unit_or(payload.get("confidence"), 0.9),
+                evidence_ref=_optional_str(payload.get("evidence_ref")),
+            )
+        except (ValueError, TypeError) as exc:
+            return _json_error(
+                status=400,
+                error="mentor_intake_apply_failed",
+                detail=str(exc),
+            )
+        # Recorded successfully, but consolidation is background-slow: the
+        # outcome does not change the next turn. ``applied`` reflects that the
+        # record was accepted, with the async semantics surfaced in the body.
+        response["applied"] = True
+        response["application"] = recorded
+        return _json_ok(response)
+
+    if kind is MentorIntakeKind.PROTOCOL_REVISION:
+        rev_target_protocol = _optional_str(payload.get("target_protocol_id"))
+        target_entry_id = _optional_str(payload.get("target_entry_id"))
+        target_field = _optional_str(payload.get("target_field"))
+        change_kind = _optional_str(payload.get("change_kind"))
+        missing = [
+            name
+            for name, value in (
+                ("target_protocol_id", rev_target_protocol),
+                ("target_entry_id", target_entry_id),
+                ("target_field", target_field),
+                ("change_kind", change_kind),
+            )
+            if value is None
+        ]
+        if missing:
+            return _json_error(
+                status=422,
+                error="mentor_revision_targets_required",
+                detail=("protocol_revision requires explicit targets; missing: " + ", ".join(missing)),
+            )
+        proposed_payload = payload.get("proposed_payload")
+        if proposed_payload is not None and not isinstance(proposed_payload, dict):
+            return _json_error(
+                status=422,
+                error="mentor_revision_payload_invalid",
+                detail="proposed_payload must be a JSON object when provided.",
+            )
+        try:
+            proposal = build_protocol_revision_proposal(
+                proposal_id=_mentor_revision_id(session_id=session_id, guidance=guidance),
+                target_protocol_id=rev_target_protocol or "",
+                target_field=target_field or "",
+                target_entry_id=target_entry_id or "",
+                change_kind=change_kind or "",
+                summary=guidance,
+                proposed_payload=proposed_payload,
+                required_review_level=reviewer_level,
+            )
+        except ValueError as exc:
+            return _json_error(
+                status=422,
+                error="mentor_revision_build_failed",
+                detail=str(exc),
+            )
+        try:
+            result = session.apply_mentor_protocol_revision(
+                proposal,
+                reviewer_id=mentor_id,
+            )
+        except (ValueError, TypeError) as exc:
+            return _json_error(
+                status=400,
+                error="mentor_intake_apply_failed",
+                detail=str(exc),
+            )
+        response["applied"] = bool(result.get("applies_to_current_session"))
+        response["application"] = result
+        # AUTO_APPROVED + applied -> 200; gate queued / rejected -> 202.
+        status = 200 if response["applied"] else 202
+        return _json_ok(response, status=status)
+
+    # Unknown kind reaching here is a contract violation, not a silent no-op.
+    return _json_error(
+        status=422,
+        error="mentor_intake_kind_unsupported",
+        detail=f"intake_kind {kind.value!r} has no apply path.",
+    )
+
+
+def _mentor_intake_extended_kinds_enabled() -> bool:
+    raw = os.environ.get("LIFEFORM_MENTOR_INTAKE_EXTENDED_KINDS", "").strip()
+    return raw == "1" or raw.lower() in {"true", "yes", "on"}
+
+
+def _mentor_knowledge_id(*, session_id: str, guidance: str) -> str:
+    digest = sha256(f"{session_id}:{guidance}".encode("utf-8")).hexdigest()[:12]
+    return f"mentor-knowledge:{session_id}:{digest}"
+
+
+def _mentor_case_id(*, session_id: str, guidance: str) -> str:
+    digest = sha256(f"{session_id}:{guidance}".encode("utf-8")).hexdigest()[:12]
+    return f"case:{digest}"
+
+
+def _mentor_revision_id(*, session_id: str, guidance: str) -> str:
+    digest = sha256(f"{session_id}:{guidance}".encode("utf-8")).hexdigest()[:12]
+    return f"mentor-revision:{session_id}:{digest}"
+
+
+def _clamp_unit_or(raw: object, default: float) -> float:
+    try:
+        value = float(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+
+def _derive_llm_envelope(
+    *,
+    assembly: ResponseAssemblySnapshot | None,
+    user_input: str,
+) -> dict[str, Any] | None:
+    """Derive a UI-facing view of the prompt envelope from snapshots.
+
+    This is **not** a second owner of prompt state — it re-invokes the
+    same pure ``build_system_prompt(assembly, context=None)`` that the
+    LLM synthesizer calls internally, against the same
+    ``response_assembly`` snapshot that flowed through the runner.
+    Whenever the system prompt template (in
+    ``volvence_zero.agent.prompts``) is updated, this view tracks it
+    automatically.
+
+    We pass ``context=None`` because reconstructing a faithful
+    ``ResponseContext`` would require duplicating the synthesizer's
+    history ring buffer in the service layer (the synthesizer owns
+    that state). Skipping the ``regime_switched`` clause and reading
+    guidance via the regime template registry fallback is acceptable
+    for a debug / demo surface; if reviewers ever need full fidelity
+    we lift the envelope capture into the synthesizer instead.
+    """
+
+    if assembly is None:
+        return None
+    system_prompt = build_system_prompt(assembly=assembly)
+    return {
+        "system_prompt": system_prompt,
+        "user_input": user_input,
+        "regime_id": assembly.regime_id,
+        "regime_name": assembly.regime_name,
+        "expression_intent": assembly.expression_intent,
+    }
+
+
+async def _handle_dialogue_outcome(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _require_json(request)
+    raw_kind = payload.get("kind")
+    if not isinstance(raw_kind, str):
+        raise _BadRequest("invalid_outcome_kind", "kind must be a string")
+    try:
+        kind = DialogueExternalOutcomeKind(raw_kind.lower())
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in DialogueExternalOutcomeKind)
+        raise _BadRequest(
+            "invalid_outcome_kind",
+            f"kind must be one of: {allowed}",
+        ) from exc
+    confidence = payload.get("confidence", 0.9)
+    if not isinstance(confidence, int | float):
+        raise _BadRequest("invalid_confidence", "confidence must be numeric")
+    evidence_ref = payload.get("evidence_ref")
+    if evidence_ref is not None and not isinstance(evidence_ref, str):
+        raise _BadRequest("invalid_evidence_ref", "evidence_ref must be string")
+    description = payload.get("description", "")
+    if not isinstance(description, str):
+        raise _BadRequest("invalid_description", "description must be string")
+    session = await manager.get_session(session_id)
+    raw_turn_index = payload.get("turn_index")
+    if raw_turn_index is not None and not isinstance(raw_turn_index, int):
+        raise _BadRequest("invalid_turn_index", "turn_index must be an integer")
+    # User-facing feedback is consumed by the next kernel turn, so by
+    # default bind it to that upcoming turn. Review tools may pass an
+    # explicit historical turn_index when needed.
+    turn_index = raw_turn_index if isinstance(raw_turn_index, int) else len(session.turn_summaries) + 1
+    # Attribution needs the turn that *produced* the response being rated,
+    # which is the last completed turn -- one behind the consuming turn bound
+    # above. An explicit turn_index from a review tool already names the
+    # historical turn, so it serves as both. With no completed turns there is
+    # no action to attribute to, and -1 keeps the entry out of credit
+    # assignment instead of pinning it to a turn that never ran.
+    action_turn_index = raw_turn_index if isinstance(raw_turn_index, int) else (len(session.turn_summaries) or -1)
+    evidence = session.submit_dialogue_outcome(
+        kind=kind,
+        source=DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
+        confidence=float(confidence),
+        turn_index=turn_index,
+        evidence_ref=evidence_ref or f"service:{session_id}:{kind.value}:turn-{turn_index}:{uuid4().hex[:12]}",
+        description=description,
+        action_turn_index=action_turn_index,
+    )
+    evidence_artifact_ref = _write_live_dialogue_outcome_evidence(
+        request=request,
+        session_id=session_id,
+        session=session,
+        evidence=evidence,
+    )
+    return _json_ok(
+        {
+            "session_id": session_id,
+            "evidence_id": evidence.evidence_id,
+            "kind": evidence.kind.value,
+            "source": evidence.source.value,
+            "confidence": evidence.confidence,
+            "evidence_artifact_ref": evidence_artifact_ref,
+        },
+        status=201,
+    )
+
+
+async def _handle_pause_session(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    await manager.get_session(session_id)
+    return _json_ok(
+        {
+            "session_id": session_id,
+            "paused": True,
+            "message": "Session paused. No memory was deleted.",
+        }
+    )
+
+
+async def _handle_end_scene(request: web.Request) -> web.Response:
+    manager: SessionManager = request.app["session_manager"]
+    session_id = request.match_info["session_id"]
+    payload = await _maybe_json(request)
+    drain = True
+    reason = "scene-end"
+    if isinstance(payload, dict):
+        if "drain_slow_loop" in payload:
+            if not isinstance(payload["drain_slow_loop"], bool):
+                raise _BadRequest("invalid_drain_flag", "drain_slow_loop must be boolean")
+            drain = payload["drain_slow_loop"]
+        if "reason" in payload:
+            if not isinstance(payload["reason"], str):
+                raise _BadRequest("invalid_reason", "reason must be string")
+            reason = payload["reason"]
+    session = await manager.get_session(session_id)
+    scene_started = time.perf_counter()
+    closed = await session.end_scene(reason=reason, drain_slow_loop=drain)
+    scene_latency_ms = (time.perf_counter() - scene_started) * 1000.0
+    evidence_ref = _write_session_evidence(
+        request=request,
+        session_id=session_id,
+        session=session,
+        closed_scene_id=closed.scene_id if closed is not None else None,
+    )
+    memory_snapshot = session.brain_session.runner.memory_store.snapshot(
+        retrieved_entries=()
+    )
+    lifecycle_metrics = dict(memory_snapshot.lifecycle_metrics)
+    end_scene_telemetry: dict[str, Any] = {
+        "nested_context_reset_applied": (lifecycle_metrics.get("last_nested_reset_applied", 0.0) > 0.0),
+        "nested_context_reset_meta_init": (
+            lifecycle_metrics.get("last_nested_reset_meta_init", 0.0)
+            > 0.0
+        ),
+        "nested_context_reset_copy_init": (
+            lifecycle_metrics.get("last_nested_reset_copy_init", 0.0)
+            > 0.0
+        ),
+        "nested_context_reset_conditioned": (
+            lifecycle_metrics.get(
+                "last_nested_reset_context_conditioned", 0.0
+            )
+            > 0.0
+        ),
+        "nested_context_reset_prototype_count": int(
+            lifecycle_metrics.get(
+                "last_nested_reset_prototype_count", 0.0
+            )
+        ),
+        "nested_context_reset_context_match_score": (
+            lifecycle_metrics.get(
+                "last_nested_reset_context_match_score", 0.0
+            )
+        ),
+        "nested_context_reset_total_count": int(lifecycle_metrics.get("nested_context_reset_count", 0.0)),
+        "slow_to_fast_init_benefit": lifecycle_metrics.get("slow_to_fast_init_benefit", 0.0),
+        "slow_to_fast_target_alignment_gain": lifecycle_metrics.get("slow_to_fast_target_alignment_gain", 0.0),
+    }
+    if request.app.get("companion_evidence_profile") in MSC_RUNTIME_PROFILE_NAMES:
+        end_scene_telemetry["msc_runtime_slow_loop_latency_ms"] = (
+            scene_latency_ms
+        )
+    body = EndSceneResponse(
+        session_id=session_id,
+        closed_scene_id=closed.scene_id if closed is not None else None,
+        slow_loop_drained=drain and closed is not None,
+        evidence_artifact_ref=evidence_ref,
+        evidence_telemetry=end_scene_telemetry,
+    )
+    return _json_ok(body.to_json())
+
+
+async def _handle_relationship_summary(request: web.Request) -> web.Response:
+    alpha = _require_alpha(request)
+    user_id = _alpha_user_id(request, None)
+    entries = _scoped_rupture_repair_entries(alpha, user_id)
+    observed = tuple(entry for entry in entries if "repair_outcome:observed" in entry.tags)
+    kinds = sorted({tag.split(":", 1)[1] for entry in entries for tag in entry.tags if tag.startswith("rupture_kind:")})
+    return _json_ok(
+        {
+            "user_id": user_id,
+            "user_scope": user_id,
+            "rupture_repair_count": len(entries),
+            "observed_repair_count": len(observed),
+            "rupture_kinds": kinds,
+            "relationship_stage": None,
+            "preferences": _preferences_from_rupture_memory(entries),
+        }
+    )
+
+
+async def _handle_relationship_memory(request: web.Request) -> web.Response:
+    _require_alpha(request)
+    user_id = _alpha_user_id(request, None)
+    session_id = _required_relationship_memory_session_id(request.query.get("session_id"))
+    manager: SessionManager = request.app["session_manager"]
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    reflection = session.brain_session.relationship_reflection_snapshot()
+    ledger: RelationshipMemoryActionLedger = request.app["relationship_memory_action_ledger"]
+    resolved = ledger.resolved_proposal_ids(
+        user_id=user_id,
+        session_id=session_id,
+    )
+    proposals = (
+        tuple(proposal for proposal in reflection.relationship_update_proposals if proposal.proposal_id not in resolved)
+        if reflection is not None
+        else ()
+    )
+    entries = session.brain_session.relationship_memory_entries()
+    return _json_ok(
+        {
+            "user_id": user_id,
+            "session_id": session_id,
+            "pending_proposals": [proposal_to_json(item) for item in proposals],
+            "durable_entries": [_memory_entry_to_json(item) for item in entries],
+        }
+    )
+
+
+async def _handle_relationship_memory_action(request: web.Request) -> web.Response:
+    alpha = _require_alpha(request)
+    payload = await _require_json(request)
+    user_id = _alpha_user_id(request, payload)
+    session_id = _required_relationship_memory_session_id(payload.get("session_id"))
+    raw_action = payload.get("action")
+    if not isinstance(raw_action, str):
+        raise _BadRequest(
+            "invalid_relationship_memory_action",
+            "action must be a string",
+        )
+    try:
+        action = RelationshipMemoryAction(raw_action)
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in RelationshipMemoryAction)
+        raise _BadRequest(
+            "invalid_relationship_memory_action",
+            f"action must be one of: {allowed}",
+        ) from exc
+    raw_replacement = payload.get("replacement")
+    if raw_replacement is not None and not isinstance(raw_replacement, str):
+        raise _BadRequest(
+            "invalid_relationship_memory_replacement",
+            "replacement must be a string",
+        )
+    replacement = raw_replacement.strip() if isinstance(raw_replacement, str) else None
+    if action is RelationshipMemoryAction.REWRITE and not replacement:
+        raise _BadRequest(
+            "missing_relationship_memory_replacement",
+            "rewrite requires a non-empty replacement",
+        )
+    if action is not RelationshipMemoryAction.REWRITE and replacement is not None:
+        raise _BadRequest(
+            "unexpected_relationship_memory_replacement",
+            "replacement is only accepted for rewrite",
+        )
+    raw_correction_kind = payload.get("correction_kind")
+    if raw_correction_kind is not None and not isinstance(raw_correction_kind, str):
+        raise _BadRequest(
+            "invalid_relationship_memory_correction_kind",
+            "correction_kind must be a string",
+        )
+    correction_kind: RelationshipMemoryCorrectionKind | None = None
+    if isinstance(raw_correction_kind, str):
+        try:
+            correction_kind = RelationshipMemoryCorrectionKind(raw_correction_kind)
+        except ValueError as exc:
+            allowed = ", ".join(item.value for item in RelationshipMemoryCorrectionKind)
+            raise _BadRequest(
+                "invalid_relationship_memory_correction_kind",
+                f"correction_kind must be one of: {allowed}",
+            ) from exc
+    correction_actions = {
+        RelationshipMemoryAction.DELETE,
+        RelationshipMemoryAction.REWRITE,
+        RelationshipMemoryAction.MARK_SENSITIVE,
+        RelationshipMemoryAction.NO_PROACTIVE_MENTION,
+    }
+    if correction_kind is not None and action not in correction_actions:
+        raise _BadRequest(
+            "unexpected_relationship_memory_correction_kind",
+            "correction_kind is only accepted for corrective actions",
+        )
+    if correction_kind is None and action in {
+        RelationshipMemoryAction.DELETE,
+        RelationshipMemoryAction.REWRITE,
+    }:
+        correction_kind = RelationshipMemoryCorrectionKind.CONTENT_INACCURATE
+    if correction_kind is None and action in {
+        RelationshipMemoryAction.MARK_SENSITIVE,
+        RelationshipMemoryAction.NO_PROACTIVE_MENTION,
+    }:
+        correction_kind = RelationshipMemoryCorrectionKind.BOUNDARY_PREFERENCE
+
+    manager: SessionManager = request.app["session_manager"]
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    item_id = request.match_info["item_id"].strip()
+    if not item_id:
+        raise _BadRequest(
+            "invalid_relationship_memory_item_id",
+            "item_id must be non-empty",
+        )
+    ledger: RelationshipMemoryActionLedger = request.app["relationship_memory_action_ledger"]
+    fingerprint = ledger.request_fingerprint(
+        action=action,
+        replacement=replacement,
+        correction_kind=correction_kind,
+    )
+    existing = ledger.existing(
+        user_id=user_id,
+        session_id=session_id,
+        item_id=item_id,
+        request_fingerprint=fingerprint,
+    )
+    if existing is not None:
+        return _json_ok(existing.to_json())
+
+    reflection = session.brain_session.relationship_reflection_snapshot()
+    proposal = (
+        next(
+            (candidate for candidate in reflection.relationship_update_proposals if candidate.proposal_id == item_id),
+            None,
+        )
+        if reflection is not None
+        else None
+    )
+    durable_entry = next(
+        (entry for entry in session.brain_session.relationship_memory_entries() if entry.entry_id == item_id),
+        None,
+    )
+    if proposal is None and durable_entry is None:
+        raise web.HTTPNotFound(reason="relationship memory item not found")
+    if proposal is not None:
+        ledger.ensure_proposal_open(
+            user_id=user_id,
+            session_id=session_id,
+            proposal_id=proposal.proposal_id,
+            request_fingerprint=fingerprint,
+        )
+    if action is RelationshipMemoryAction.SESSION_ONLY and proposal is None:
+        raise _BadRequest(
+            "relationship_memory_item_already_durable",
+            "session_only is only valid for a pending proposal",
+        )
+
+    created_at_ms = _evidence_observed_at_ms(
+        alpha=alpha,
+        raw=payload.get("observed_at_ms"),
+    )
+    owner_operations: tuple[str, ...] = ()
+    replacement_entry_id: str | None = None
+    status = "applied"
+    if action is RelationshipMemoryAction.SESSION_ONLY:
+        status = "session_only"
+    elif action in {
+        RelationshipMemoryAction.MARK_SENSITIVE,
+        RelationshipMemoryAction.NO_PROACTIVE_MENTION,
+    }:
+        batch = semantic_event_for_action(
+            proposal=proposal,
+            item_id=item_id,
+            action=action,
+            replacement=None,
+            created_at_ms=created_at_ms,
+        )
+        owner_operations = session.submit_semantic_events(batch)
+        status = "queued"
+    elif action is RelationshipMemoryAction.KEEP:
+        if durable_entry is not None:
+            status = "unchanged"
+        elif proposal is not None and proposal.target_owner_slot == "memory":
+            owner_operations = session.brain_session.apply_confirmed_relationship_memory_proposal(
+                proposal_id=proposal.proposal_id,
+                timestamp_ms=created_at_ms,
+            )
+        else:
+            batch = semantic_event_for_action(
+                proposal=proposal,
+                item_id=item_id,
+                action=action,
+                replacement=None,
+                created_at_ms=created_at_ms,
+            )
+            owner_operations = session.submit_semantic_events(batch)
+            status = "queued"
+    elif action is RelationshipMemoryAction.DELETE:
+        if durable_entry is not None:
+            removed = session.brain_session.delete_relationship_memory_entry(entry_id=durable_entry.entry_id)
+            if removed is None:
+                raise RuntimeError("Memory owner rejected scoped item deletion")
+            owner_operations = (f"deleted:{removed.entry_id}",)
+        elif proposal is not None and proposal.target_owner_slot == "memory":
+            source_entry_id = proposal_memory_entry_id(proposal)
+            removed = (
+                session.brain_session.delete_relationship_memory_entry(entry_id=source_entry_id)
+                if source_entry_id is not None
+                else None
+            )
+            owner_operations = (f"deleted:{removed.entry_id}",) if removed is not None else ("proposal-dismissed",)
+        else:
+            batch = semantic_event_for_action(
+                proposal=proposal,
+                item_id=item_id,
+                action=action,
+                replacement=None,
+                created_at_ms=created_at_ms,
+            )
+            owner_operations = session.submit_semantic_events(batch)
+            status = "queued"
+    elif action is RelationshipMemoryAction.REWRITE:
+        if durable_entry is not None:
+            rewritten = session.brain_session.rewrite_relationship_memory_entry(
+                entry_id=durable_entry.entry_id,
+                replacement_content=replacement or "",
+                timestamp_ms=created_at_ms,
+            )
+        elif proposal is not None and proposal.target_owner_slot == "memory":
+            source_entry_id = proposal_memory_entry_id(proposal)
+            rewritten = (
+                session.brain_session.rewrite_relationship_memory_entry(
+                    entry_id=source_entry_id,
+                    replacement_content=replacement or "",
+                    timestamp_ms=created_at_ms,
+                )
+                if source_entry_id is not None
+                else None
+            )
+            if rewritten is None and proposal.operation == "remember":
+                session.brain_session.apply_confirmed_relationship_memory_proposal(
+                    proposal_id=proposal.proposal_id,
+                    timestamp_ms=created_at_ms,
+                )
+                rewritten = session.brain_session.rewrite_relationship_memory_entry(
+                    entry_id=source_entry_id or "",
+                    replacement_content=replacement or "",
+                    timestamp_ms=created_at_ms + 1,
+                )
+        else:
+            batch = semantic_event_for_action(
+                proposal=proposal,
+                item_id=item_id,
+                action=action,
+                replacement=replacement,
+                created_at_ms=created_at_ms,
+            )
+            owner_operations = session.submit_semantic_events(batch)
+            status = "queued"
+            rewritten = None
+        if status != "queued":
+            if rewritten is None:
+                raise RuntimeError("Memory owner rejected scoped item rewrite")
+            replacement_entry_id = rewritten.entry_id
+            owner_operations = (f"rewritten:{item_id}->{rewritten.entry_id}",)
+
+    outcome_kind = dialogue_outcome_kind_for_action(action)
+    dialogue_outcome_evidence_id: str | None = None
+    if outcome_kind is not None:
+        consuming_turn = len(session.turn_summaries) + 1
+        action_turn = len(session.turn_summaries) or -1
+        outcome_evidence = session.submit_dialogue_outcome(
+            kind=outcome_kind,
+            source=DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
+            confidence=1.0,
+            turn_index=consuming_turn,
+            action_turn_index=action_turn,
+            evidence_ref=(f"relationship-memory-console:{action.value}:{item_id}:timestamp-{created_at_ms}"),
+            description=(
+                f"User relationship memory correction: {correction_kind.value}"
+                if correction_kind is not None
+                else "User relationship memory correction."
+            ),
+        )
+        dialogue_outcome_evidence_id = outcome_evidence.evidence_id
+
+    record = ledger.record(
+        user_id=user_id,
+        session_id=session_id,
+        item_id=item_id,
+        action=action,
+        request_fingerprint=fingerprint,
+        status=status,
+        owner_operations=owner_operations,
+        replacement_entry_id=replacement_entry_id,
+        correction_kind=correction_kind,
+        dialogue_outcome_evidence_id=dialogue_outcome_evidence_id,
+        dialogue_outcome_kind=outcome_kind,
+        created_at_ms=created_at_ms,
+        resolves_proposal=proposal is not None,
+    )
+    return _json_ok(record.to_json(), status=201)
+
+
+async def _handle_relationship_continuity_metrics(
+    request: web.Request,
+) -> web.Response:
+    alpha = _require_alpha(request)
+    user_id = _alpha_user_id(request, None)
+    session_id = _required_relationship_memory_session_id(request.query.get("session_id"))
+    manager: SessionManager = request.app["session_manager"]
+    session = await manager.get_session(session_id)
+    _require_relationship_memory_session_owner(
+        manager=manager,
+        session_id=session_id,
+        user_id=user_id,
+    )
+    ledger: RelationshipMemoryActionLedger = request.app["relationship_memory_action_ledger"]
+    outcomes = tuple(
+        RelationshipContinuityConsoleOutcome(
+            outcome_id=record.action_id,
+            observed_at_ms=record.created_at_ms,
+            is_correction=record.correction_kind is not None,
+            is_wrong_user_attribution=(
+                record.correction_kind == RelationshipMemoryCorrectionKind.WRONG_USER_ATTRIBUTION.value
+            ),
+            is_boundary_violation=(
+                record.correction_kind == RelationshipMemoryCorrectionKind.BOUNDARY_PREFERENCE.value
+            ),
+            remembered_item_useful=(
+                True
+                if record.action == RelationshipMemoryAction.KEEP.value
+                else False
+                if record.action
+                in {
+                    RelationshipMemoryAction.DELETE.value,
+                    RelationshipMemoryAction.REWRITE.value,
+                }
+                else None
+            ),
+        )
+        for record in ledger.records_for_user(user_id=user_id)
+    )
+    observed_at_ms = _evidence_observed_at_ms(
+        alpha=alpha,
+        raw=request.query.get("observed_at_ms"),
+    )
+    readout = session.brain_session.relationship_continuity_readout(
+        user_id=user_id,
+        observation_id=f"{session_id}:turn-{len(session.turn_summaries)}",
+        observed_at_ms=observed_at_ms,
+        console_outcomes=outcomes,
+    )
+    return _json_ok(readout.to_json())
+
+
+async def _handle_rupture_repair_memory(request: web.Request) -> web.Response:
+    alpha = _require_alpha(request)
+    user_id = _alpha_user_id(request, None)
+    entries = _scoped_rupture_repair_entries(alpha, user_id)
+    return _json_ok(
+        {
+            "user_id": user_id,
+            "entries": [_memory_entry_to_json(entry) for entry in entries],
+        }
+    )
+
+
+async def _handle_delete_user_memory(request: web.Request) -> web.Response:
+    alpha = _require_alpha(request)
+    user_id = _alpha_user_id(request, None)
+    store = _build_scoped_store(alpha, user_id)
+    deleted = delete_entries_for_scope(store, user_scope=user_id)
+    store.save_to_backend()
+    evidence_ref = _write_deletion_evidence(request, user_id=user_id, deleted=deleted)
+    return _json_ok(
+        {
+            "user_id": user_id,
+            "deleted_entry_ids": list(deleted),
+            "evidence_artifact_ref": evidence_ref,
+        }
+    )
+
+
+def _reload_alpha_allow_list(app: web.Application) -> dict[str, Any]:
+    """Re-read the alpha allow-list file and apply it in place (D6).
+
+    Returns a small JSON-safe summary. Raises ``_BadRequest`` when the
+    allow-list is inline (not file-backed) so the caller cannot get a
+    misleading "reloaded" success. Any malformed file propagates as an
+    exception and the previous allow-list stays in force (the provider
+    only swaps in the new set after a successful parse).
+    """
+
+    alpha: AlphaServiceConfig = app["alpha_config"]
+    provider: AlphaIdentityProvider | None = app.get("alpha_provider")
+    if not alpha.enabled or provider is None:
+        raise _BadRequest("alpha_disabled", "closed alpha is disabled")
+    if alpha.alpha_users_path is None:
+        raise _BadRequest(
+            "alpha_users_not_file_backed",
+            "allow-list was supplied inline; nothing to reload from disk",
+        )
+    previous = provider.allowed_users
+    refreshed = provider.reload_allowed_users_from_file(alpha.alpha_users_path)
+    # Keep the frozen config in sync so ``alpha.is_allowed`` (used by the
+    # route-level gate) sees the same set as the provider's bind path.
+    app["alpha_config"] = alpha.with_alpha_users(refreshed)
+    added = sorted(refreshed - previous)
+    removed = sorted(previous - refreshed)
+    _LOG.info(
+        "alpha allow-list reloaded from %s: %d users (+%d/-%d)",
+        alpha.alpha_users_path,
+        len(refreshed),
+        len(added),
+        len(removed),
+    )
+    return {
+        "reloaded": True,
+        "source": alpha.alpha_users_path,
+        "allowed_user_count": len(refreshed),
+        "added_users": added,
+        "removed_users": removed,
+    }
+
+
+async def _handle_reload_alpha_users(request: web.Request) -> web.Response:
+    """``POST /v1/admin/alpha/reload`` — hot-reload the allow-list (D6).
+
+    Lets a new closed-alpha sign-in take effect without restarting the
+    platform: ops append the user to the allow-list file (visible to the
+    running process via the shared PVC) and call this endpoint.
+    """
+
+    summary = _reload_alpha_allow_list(request.app)
+    return _json_ok(summary)
+
+
+async def _install_alpha_reload_signal_handler(app: web.Application) -> None:
+    """Wire SIGHUP → allow-list reload on POSIX (no-op on Windows) (D6)."""
+
+    import asyncio
+    import signal
+
+    if not hasattr(signal, "SIGHUP"):
+        return  # Windows / platforms without SIGHUP — endpoint only.
+
+    def _on_sighup() -> None:
+        try:
+            _reload_alpha_allow_list(app)
+        except Exception as exc:  # pragma: no cover - defensive ops path
+            _LOG.warning("alpha allow-list SIGHUP reload failed: %s", exc)
+
+    loop = asyncio.get_running_loop()
+    try:
+        loop.add_signal_handler(signal.SIGHUP, _on_sighup)
+    except (NotImplementedError, RuntimeError):  # pragma: no cover
+        # Some loops (e.g. on Windows) do not support signal handlers.
+        _LOG.debug("SIGHUP handler not installed; use the reload endpoint")
+
+
+async def _handle_admin_weekly_report(request: web.Request) -> web.Response:
+    alpha = _require_alpha(request)
+    manager: SessionManager = request.app["session_manager"]
+    sessions = await manager.session_summaries()
+    active_users = sorted({str(item["user_id"]) for item in sessions if isinstance(item.get("user_id"), str)})
+    return _json_ok(
+        {
+            "service_version": alpha.service_version,
+            "policy_version": alpha.policy_version,
+            "active_user_count": len(active_users),
+            "active_users": active_users,
+            "session_count": len(sessions),
+            "sessions": list(sessions),
+            "serious_safety_issue_count": 0,
+            "detected_rupture_count": None,
+            "observed_repair_count": None,
+            "memory_deletion_event_count": None,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# JSON helpers
+# ---------------------------------------------------------------------------
+
+
+def _json_ok(payload: dict[str, Any], *, status: int = 200) -> web.Response:
+    return web.json_response(payload, status=status)
+
+
+def _json_error(
+    *,
+    status: int,
+    error: str,
+    detail: str = "",
+    extra: dict[str, Any] | None = None,
+) -> web.Response:
+    body = ErrorResponse(error=error, detail=detail, extra=extra or {})
+    return web.json_response(body.to_json(), status=status)
+
+
+async def _require_json(request: web.Request) -> dict[str, Any]:
+    body = await _maybe_json(request)
+    if not isinstance(body, dict):
+        raise _BadRequest(
+            "invalid_request_body",
+            "Expected a JSON object body.",
+        )
+    return body
+
+
+async def _maybe_json(request: web.Request) -> Any:
+    if not request.body_exists:
+        return None
+    try:
+        text = await request.text()
+    except Exception as exc:
+        raise _BadRequest("invalid_body", f"Could not read body: {exc}") from exc
+    if not text.strip():
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise _BadRequest("invalid_json", f"Body is not valid JSON: {exc}") from exc
+
+
+def _parse_mentor_apply_mode(raw: object) -> MentorIntakeApplyMode:
+    if raw is None:
+        return MentorIntakeApplyMode.CLASSIFY_ONLY
+    if not isinstance(raw, str):
+        raise _BadRequest("invalid_apply_mode", "apply_mode must be a string")
+    try:
+        return MentorIntakeApplyMode(raw.strip() or "classify_only")
+    except ValueError as exc:
+        allowed = ", ".join(mode.value for mode in MentorIntakeApplyMode)
+        raise _BadRequest(
+            "invalid_apply_mode",
+            f"apply_mode must be one of: {allowed}",
+        ) from exc
+
+
+def _parse_review_level(raw: object) -> ReviewLevel:
+    if raw is None:
+        return ReviewLevel.L4
+    if not isinstance(raw, str):
+        raise _BadRequest("invalid_reviewer_level", "reviewer_level must be a string")
+    try:
+        return ReviewLevel(raw.strip().lower())
+    except ValueError as exc:
+        allowed = ", ".join(level.value for level in ReviewLevel)
+        raise _BadRequest(
+            "invalid_reviewer_level",
+            f"reviewer_level must be one of: {allowed}",
+        ) from exc
+
+
+def _mentor_id(request: web.Request, payload: dict[str, Any]) -> str:
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    if alpha.enabled:
+        return _alpha_user_id(request, payload)
+    raw = payload.get("mentor_id") or request.headers.get("X-Mentor-Id")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return "anonymous-mentor"
+
+
+def _optional_str(raw: object) -> str | None:
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
+def _mentor_protocol_id(*, session_id: str, guidance: str) -> str:
+    digest = sha256(f"{session_id}:{guidance}".encode("utf-8")).hexdigest()[:12]
+    return f"mentor:{session_id}:{digest}"
+
+
+class _BadRequest(Exception):
+    def __init__(self, code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.code = code
+        self.detail = detail
+
+
+def _alpha_user_id(request: web.Request, payload: object | None) -> str:
+    header = request.headers.get("X-Alpha-User")
+    body_user = payload.get("user_id") if isinstance(payload, dict) else None
+    user = header or body_user
+    if not isinstance(user, str) or not user.strip():
+        raise _BadRequest("missing_alpha_user", "X-Alpha-User or user_id is required")
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    user_id = user.strip()
+    if not alpha.is_allowed(user_id):
+        raise PermissionError(f"alpha user {user_id!r} is not allowed")
+    return user_id
+
+
+def _require_alpha(request: web.Request) -> AlphaServiceConfig:
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    if not alpha.enabled:
+        raise _BadRequest("alpha_disabled", "closed alpha routes are disabled")
+    if alpha.memory_scope_root_dir is None:
+        raise _BadRequest(
+            "alpha_memory_disabled",
+            "memory_scope_root_dir is required for this alpha route",
+        )
+    return alpha
+
+
+def _require_relationship_intelligence_controller(
+    request: web.Request,
+) -> RelationshipIntelligenceController:
+    controller = request.app.get("relationship_intelligence_controller")
+    if not isinstance(controller, RelationshipIntelligenceController):
+        raise _BadRequest(
+            "relationship_intelligence_disabled",
+            "relationship intelligence closed-alpha shell is disabled",
+        )
+    return controller
+
+
+def _required_relationship_memory_session_id(raw: object) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise _BadRequest(
+            "missing_relationship_memory_session_id",
+            "session_id is required for relationship memory console access",
+        )
+    return raw.strip()
+
+
+def _evidence_observed_at_ms(*, alpha: AlphaServiceConfig, raw: object) -> int:
+    if raw is None:
+        return int(time.time() * 1000)
+    if not alpha.allow_evidence_time_override:
+        raise _BadRequest(
+            "evidence_time_override_disabled",
+            "observed_at_ms is accepted only in isolated evidence mode",
+        )
+    if isinstance(raw, bool):
+        raise _BadRequest(
+            "invalid_observed_at_ms",
+            "observed_at_ms must be a canonical non-negative integer",
+        )
+    if isinstance(raw, int):
+        observed_at_ms = raw
+    elif isinstance(raw, str):
+        try:
+            observed_at_ms = int(raw)
+        except ValueError as exc:
+            raise _BadRequest(
+                "invalid_observed_at_ms",
+                "observed_at_ms must be a canonical non-negative integer",
+            ) from exc
+        if str(observed_at_ms) != raw:
+            raise _BadRequest(
+                "invalid_observed_at_ms",
+                "observed_at_ms must be a canonical non-negative integer",
+            )
+    else:
+        raise _BadRequest(
+            "invalid_observed_at_ms",
+            "observed_at_ms must be a canonical non-negative integer",
+        )
+    if observed_at_ms < 0:
+        raise _BadRequest(
+            "invalid_observed_at_ms",
+            "observed_at_ms must be a canonical non-negative integer",
+        )
+    return observed_at_ms
+
+
+def _require_relationship_memory_session_owner(
+    *,
+    manager: SessionManager,
+    session_id: str,
+    user_id: str,
+) -> None:
+    session_user = manager.session_end_user(session_id)
+    if session_user != user_id:
+        raise PermissionError("relationship memory session does not belong to the authenticated user")
+
+
+def _build_scoped_store(alpha: AlphaServiceConfig, user_id: str):
+    if alpha.memory_scope_root_dir is None:
+        raise _BadRequest(
+            "alpha_memory_disabled",
+            "memory_scope_root_dir is required for scoped memory",
+        )
+    identity = UserIdentity(user_id=user_id, scope_key=user_id)
+    return build_scoped_memory_store(
+        identity=identity,
+        root_dir=alpha.memory_scope_root_dir,
+    )
+
+
+def _scoped_rupture_repair_entries(alpha: AlphaServiceConfig, user_id: str):
+    store = _build_scoped_store(alpha, user_id)
+    return tuple(
+        entry for entry in list_durable_entries_for_scope(store, user_scope=user_id) if "rupture_repair" in entry.tags
+    )
+
+
+def _memory_entry_to_json(entry) -> dict[str, Any]:
+    return {
+        "entry_id": entry.entry_id,
+        "content": entry.content,
+        "track": entry.track.value if hasattr(entry.track, "value") else entry.track,
+        "stratum": entry.stratum,
+        "created_at_ms": entry.created_at_ms,
+        "tags": list(entry.tags),
+    }
+
+
+def _preferences_from_rupture_memory(entries) -> list[str]:
+    preferences: list[str] = []
+    for entry in entries:
+        if "repair_outcome:observed" in entry.tags:
+            preferences.append("slow_down_and_repair_before_planning")
+            break
+    return preferences
+
+
+def _safety_metadata(tags: tuple[str, ...]) -> dict[str, Any]:
+    return {
+        "alpha_disclaimer": ALPHA_DISCLAIMER,
+        "boundary_tags": [
+            tag
+            for tag in tags
+            if tag.startswith("risk=") or tag.startswith("boundary") or tag.startswith("repair_alpha=")
+        ],
+    }
+
+
+def _write_session_evidence(
+    *,
+    request: web.Request,
+    session_id: str,
+    session,
+    closed_scene_id: str | None,
+) -> str | None:
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    if not alpha.enabled or alpha.evidence_root_dir is None:
+        return None
+    root = Path(alpha.evidence_root_dir) / "sessions" / session_id
+    root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "session_id": session_id,
+        "closed_scene_id": closed_scene_id,
+        "service_version": alpha.service_version,
+        "policy_version": alpha.policy_version,
+        "turns": [
+            {
+                "turn_index": summary.turn_index,
+                "scene_id": summary.scene_id,
+                "active_regime": summary.active_regime,
+                "active_abstract_action": summary.active_abstract_action,
+                "pe_magnitude": summary.pe_magnitude,
+                "open_loop_count": summary.open_loop_count,
+                "commitment_count": summary.commitment_count,
+            }
+            for summary in session.turn_summaries
+        ],
+        "latest_active_slots": sorted(session.latest_active_snapshots.keys()),
+        "latest_shadow_slots": sorted(session.latest_shadow_snapshots.keys()),
+        "pending_followup_count": len(session.all_pending_followups()),
+    }
+    path = root / "session_evidence.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return str(path)
+
+
+def _write_live_dialogue_outcome_evidence(
+    *,
+    request: web.Request,
+    session_id: str,
+    session: Any,
+    evidence: DialogueExternalOutcomeEvidence,
+) -> str | None:
+    """Persist typed feedback only for explicitly configured closed alpha."""
+
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    if not alpha.enabled or alpha.evidence_root_dir is None:
+        return None
+    identity_provider: AlphaIdentityProvider | None = request.app["alpha_provider"]
+    if identity_provider is None:
+        raise RuntimeError("closed-alpha live outcome evidence requires an identity provider")
+    identity = identity_provider.resolve(session_id)
+    if identity is None:
+        raise RuntimeError(
+            "closed-alpha live outcome evidence requires a bound session identity"
+        )
+    artifact = build_live_dialogue_outcome_artifact(
+        subject_scope=identity.scope_key,
+        session_id=session_id,
+        evidence=evidence,
+        turn_summaries=session.turn_summaries,
+        service_version=alpha.service_version,
+        policy_version=alpha.policy_version,
+    )
+    path = write_live_dialogue_outcome_artifact(
+        evidence_root=Path(alpha.evidence_root_dir),
+        artifact=artifact,
+    )
+    return str(path)
+
+
+def _write_deletion_evidence(
+    request: web.Request,
+    *,
+    user_id: str,
+    deleted: tuple[str, ...],
+) -> str | None:
+    alpha: AlphaServiceConfig = request.app["alpha_config"]
+    if not alpha.enabled or alpha.evidence_root_dir is None:
+        return None
+    root = Path(alpha.evidence_root_dir) / "deletions" / user_id
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / "deletion_evidence.json"
+    path.write_text(
+        json.dumps(
+            {
+                "user_id": user_id,
+                "deleted_entry_ids": list(deleted),
+                "service_version": alpha.service_version,
+                "policy_version": alpha.policy_version,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return str(path)
+
+
+_CHAT_UI_HTML = r"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Volvence Zero Chat</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body {
+      margin: 0; min-height: 100vh;
+      background: #030712; color: #e5e7eb;
+    }
+    main {
+      /* Full-viewport layout. Removed the 1240x820 cap so wide
+         screens don't waste real estate, and so the governance
+         column has enough horizontal room to render every Slide-7
+         section without vertical scrolling. */
+      width: 100vw; height: 100vh;
+      box-sizing: border-box;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(440px, 34vw);
+      gap: 12px;
+      padding: 12px;
+      background: #111827;
+    }
+    .chat-col {
+      display: grid;
+      /* Extra row hosts the LLM prompt panel above the chat log.
+         The log keeps the elastic 1fr row so it still grows to fill
+         leftover vertical space; the prompt panel collapses to ~28px
+         when its <details> is closed. */
+      grid-template-rows: auto auto auto auto auto 1fr auto;
+      gap: 12px;
+      min-width: 0;
+      min-height: 0;
+    }
+    .prompt-panel {
+      padding: 8px 10px;
+      border: 1px solid #1f2937;
+      border-radius: 10px;
+      background: #030712;
+      font-size: 12px;
+    }
+    .prompt-panel[hidden] { display: none; }
+    .prompt-panel details > summary {
+      cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      list-style: revert;
+      color: #cbd5e1;
+    }
+    .prompt-panel .prompt-label {
+      font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .prompt-panel .prompt-meta {
+      font-family: ui-monospace, Menlo, monospace; color: #cbd5e1;
+      font-size: 11px; margin-left: auto;
+    }
+    .prompt-panel .prompt-text {
+      margin: 6px 0 0; padding: 8px;
+      max-height: 240px; overflow: auto;
+      background: #0b1322; border: 1px solid #1f2937; border-radius: 6px;
+      font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+      white-space: pre-wrap; line-height: 1.45; color: #e2e8f0;
+    }
+    .prompt-panel .prompt-userinput {
+      margin: 6px 0 0; padding: 6px 8px;
+      background: #0b1322; border-left: 3px solid #2563eb; border-radius: 4px;
+      font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+      white-space: pre-wrap; line-height: 1.4; color: #dbeafe;
+    }
+    @media (max-width: 1100px) {
+      main {
+        height: auto;
+        grid-template-columns: 1fr;
+      }
+      .gov-col { order: 2; max-height: none; }
+    }
+    h1 { margin: 0; font-size: 20px; }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    input, textarea, button {
+      font: inherit; border-radius: 10px; border: 1px solid #4b5563;
+      background: #0f172a; color: #f9fafb;
+    }
+    input { padding: 8px 10px; min-width: 180px; }
+    select { padding: 8px 10px; min-width: 220px; }
+    textarea { min-height: 64px; padding: 10px; resize: vertical; }
+    button { padding: 8px 11px; cursor: pointer; background: #1d4ed8; border-color: #2563eb; }
+    button.secondary { background: #111827; border-color: #4b5563; }
+    button.danger { background: #991b1b; border-color: #b91c1c; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    #log {
+      overflow: auto; padding: 12px; border-radius: 12px;
+      background: #030712; border: 1px solid #1f2937;
+    }
+    .msg {
+      max-width: 82%; margin: 9px 0; padding: 10px 12px;
+      border-radius: 14px; white-space: pre-wrap; line-height: 1.45;
+    }
+    .user { margin-left: auto; background: #1d4ed8; }
+    .bot { margin-right: auto; background: #1f2937; }
+    .system {
+      max-width: 100%; color: #9ca3af; background: transparent;
+      border: 1px dashed #374151; font-size: 13px;
+    }
+    .composer { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+
+    /* ----- Governance panel (right column) ----- */
+    /* Two-column internal grid so all 7 Slide-7 sections fit on
+       one screen without scrolling. Section ordering is preserved
+       (Scope -> Regime -> PE -> Owners -> Tags -> Scenes -> Repair);
+       the wide sections (PE sparkline, tag chips, repair banner)
+       span both columns via the .gov-section.span-2 modifier so
+       their content stays readable. ``grid-auto-flow: dense``
+       packs single-column sections into any gap left after a
+       span-2 section. */
+    .gov-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-flow: dense;
+      grid-auto-rows: min-content;
+      gap: 8px;
+      padding: 10px;
+      background: #0b1322;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      overflow: auto;
+      min-width: 0;
+      min-height: 0;
+      font-size: 13px;
+    }
+    .gov-col h2 {
+      grid-column: 1 / -1;
+      margin: 0; font-size: 14px; letter-spacing: 0.04em;
+      color: #cbd5e1; text-transform: uppercase;
+    }
+    .gov-section {
+      padding: 7px 9px;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      background: #030712;
+      min-width: 0;
+    }
+    .gov-section.span-2 { grid-column: 1 / -1; }
+    .gov-section .gov-label {
+      font-size: 11px; color: #94a3b8; letter-spacing: 0.05em;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .gov-section .gov-value {
+      font-family: ui-monospace, Menlo, monospace;
+      color: #f8fafc;
+    }
+    .gov-chip {
+      display: inline-block; padding: 2px 7px; margin: 1px 2px;
+      border-radius: 999px; font-size: 11px; line-height: 1.4;
+      background: #1f2937; color: #cbd5e1; border: 1px solid #374151;
+    }
+    .gov-chip.scope { background: #052e16; color: #86efac; border-color: #166534; }
+    .gov-chip.scope.anon { background: #1f2937; color: #94a3b8; border-color: #374151; }
+    .gov-chip.fsm { background: #1e1b4b; color: #c4b5fd; border-color: #4c1d95; }
+    .gov-chip.safety { background: #3f1d1d; color: #fca5a5; border-color: #b91c1c; }
+    .gov-chip.rationale { background: #052e16; color: #86efac; border-color: #166534; }
+    .gov-regime-band {
+      display: flex; gap: 2px; height: 18px; overflow: hidden;
+      border-radius: 4px;
+    }
+    .gov-regime-cell {
+      flex: 1; background: #1f2937;
+    }
+    .gov-pe-spark { width: 100%; height: 38px; }
+    .gov-counts { display: flex; gap: 14px; }
+    .gov-count { flex: 1; }
+    .gov-count .num {
+      font-size: 22px; font-family: ui-monospace, Menlo, monospace;
+      color: #f8fafc;
+    }
+    .gov-banner {
+      padding: 6px 8px; border-radius: 6px; background: #052e16;
+      color: #bbf7d0; border: 1px solid #166534; font-size: 12px;
+    }
+    .gov-banner.empty { background: #0f172a; color: #94a3b8; border-color: #1f2937; }
+    .memory-console-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .memory-console-status { color: #94a3b8; font-size: 11px; }
+    .memory-console-list {
+      display: grid; gap: 7px; margin-top: 7px;
+      max-height: 260px; overflow: auto;
+    }
+    .memory-console-item {
+      display: grid; gap: 6px; padding: 8px;
+      border: 1px solid #263244; border-radius: 6px; background: #0b1322;
+    }
+    .memory-console-item p {
+      margin: 0; color: #e2e8f0; font-size: 12px; line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+    .memory-console-meta {
+      color: #94a3b8; font-family: ui-monospace, Menlo, monospace;
+      font-size: 10px; overflow-wrap: anywhere;
+    }
+    .memory-console-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+    .memory-console-actions button { padding: 5px 7px; font-size: 11px; }
+    .memory-console-rewrite {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px;
+    }
+    .memory-console-rewrite input { min-width: 0; width: 100%; box-sizing: border-box; }
+    .memory-console-empty {
+      padding: 8px; color: #64748b; border: 1px dashed #263244;
+      border-radius: 6px; font-size: 11px;
+    }
+
+    /* ----- Simulator FSM badge inside chat log ----- */
+    .msg.user .fsm-badge {
+      display: inline-block; margin-left: 8px; padding: 1px 6px;
+      border-radius: 999px; font-size: 11px;
+      background: rgba(196, 181, 253, 0.18); color: #ddd6fe;
+      border: 1px solid rgba(196, 181, 253, 0.35);
+    }
+    .msg.system.gap-banner {
+      text-align: center; font-style: italic; color: #fcd34d;
+      border-style: solid; border-color: rgba(252, 211, 77, 0.45);
+    }
+    /* The protocolsPanel modal carries inline ``display: grid`` to center
+       its inner card; without this rule that inline style wins over the
+       UA stylesheet's ``[hidden] { display: none }`` and the Close button
+       cannot hide the modal. */
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="chat-col">
+      <header>
+        <h1>Volvence Zero Chat</h1>
+        <div id="status" class="msg system">Create a session to start. In alpha mode, set an allowed user id.</div>
+      </header>
+      <section class="bar">
+        <input id="userId" placeholder="alpha user, e.g. alice">
+        <input id="sessionId" placeholder="optional session_id">
+        <select id="verticalSelect" title="Pick which vertical (lifeform domain) builds the session"></select>
+        <select id="templateSelect" title="Pick a saved lifeform template (optional)">
+          <option value="">no template (vertical default)</option>
+        </select>
+        <button id="createBtn">Create Session</button>
+        <button id="saveTemplateBtn" class="secondary" disabled>Save as Template</button>
+        <button id="endBtn" class="secondary" disabled>End Scene</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+        <button id="protocolsBtn" class="secondary" title="Upload PDF / Markdown / task description and review extracted protocols">Protocols</button>
+      </section>
+      <section class="bar">
+        <span id="modelStatus" class="msg system" style="margin: 0; padding: 4px 8px;">substrate: loading...</span>
+        <select id="modelSelect" title="Switch the shared base model (closes all sessions)" disabled></select>
+        <button id="switchModelBtn" class="secondary" disabled>Switch Model</button>
+      </section>
+      <section class="bar">
+        <select id="scenarioSelect" title="Pick a CompanionBench scenario for the user simulator" disabled>
+          <option value="">loading scenarios...</option>
+        </select>
+        <input id="paraphraseSeed" type="number" min="0" value="0" title="paraphrase_seed (must be < scenario.paraphrase_seed_count)" style="min-width: 90px; max-width: 110px;">
+        <button id="runSimBtn" class="secondary" disabled title="Drive the bound session with a scripted, LLM-backed synthetic user">Run Simulator</button>
+        <button id="stopSimBtn" class="secondary" disabled title="Halt the simulator at the next turn boundary">Stop</button>
+        <button class="secondary outcome" data-kind="FELT_HEARD" disabled>Felt heard</button>
+        <button class="secondary outcome" data-kind="HELPED" disabled>Helped</button>
+        <button class="secondary outcome" data-kind="MISSED" disabled>Missed</button>
+        <button class="secondary outcome" data-kind="OVER_DIRECTIVE" disabled>Over-directive</button>
+        <button class="secondary outcome" data-kind="COME_BACK" disabled>Come back</button>
+        <button class="danger outcome" data-kind="UNSAFE" disabled>Unsafe</button>
+      </section>
+      <section id="promptPanel" class="prompt-panel" hidden>
+        <details>
+          <summary>
+            <span class="prompt-label">Last LLM Prompt</span>
+            <span class="prompt-meta" id="promptMeta">(no turns yet)</span>
+          </summary>
+          <pre class="prompt-text" id="promptSystemText"></pre>
+          <div class="prompt-label" style="margin-top: 8px;">Latest user input</div>
+          <div class="prompt-userinput" id="promptUserInput"></div>
+        </details>
+      </section>
+      <section id="log" aria-live="polite"></section>
+      <section class="composer">
+        <textarea id="input" placeholder="Type a message... Ctrl+Enter to send" disabled></textarea>
+        <button id="sendBtn" disabled>Send</button>
+      </section>
+    </div>
+    <aside class="gov-col" id="governance">
+      <h2>Governance Trace</h2>
+      <div class="gov-section">
+        <div class="gov-label">Scope (Slide 7: what is non-transferable)</div>
+        <div class="gov-value">
+          <span id="govScopeChip" class="gov-chip scope anon">anonymous</span>
+        </div>
+        <div style="margin-top: 6px;">
+          <button id="forgetMeBtn" class="danger" disabled
+            title="DELETE /v1/users/me/memory; produces an evidence_artifact_ref">
+            Forget Me
+          </button>
+        </div>
+        <div id="govForgetEvidence" class="gov-label" style="margin-top: 4px;"></div>
+      </div>
+      <div class="gov-section">
+        <div class="gov-label">Regime (R14: persistent regime identity)</div>
+        <div id="govRegimeBand" class="gov-regime-band" title="last 12 turns"></div>
+        <div class="gov-value" id="govRegimeLabel" style="margin-top: 4px;">(no turns yet)</div>
+      </div>
+      <div class="gov-section span-2">
+        <div class="gov-label">Prediction Error (R-PE: PE is a 1st-class object)</div>
+        <svg id="govPeSpark" class="gov-pe-spark" viewBox="0 0 100 38" preserveAspectRatio="none">
+          <polyline id="govPePoly" fill="none" stroke="#fcd34d" stroke-width="1.2"
+            points="" />
+        </svg>
+        <div class="gov-value" id="govPeLast" style="margin-top: 4px;">last: -</div>
+      </div>
+      <div class="gov-section">
+        <div class="gov-label">Semantic Owners (Slide 7: what accrues)</div>
+        <div class="gov-counts">
+          <div class="gov-count">
+            <div class="gov-label" style="margin-bottom: 0;">commitments</div>
+            <div class="num" id="govCommitments">0</div>
+          </div>
+          <div class="gov-count">
+            <div class="gov-label" style="margin-bottom: 0;">open loops</div>
+            <div class="num" id="govOpenLoops">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="gov-section span-2">
+        <div class="gov-label">Safety + Rationale tags</div>
+        <div id="govTagChips" class="gov-value">(no tags yet)</div>
+      </div>
+      <div class="gov-section">
+        <div class="gov-label">Scenes (Slide 7: what decays)</div>
+        <div class="gov-counts">
+          <div class="gov-count">
+            <div class="gov-label" style="margin-bottom: 0;">closed</div>
+            <div class="num" id="govClosedScenes">0</div>
+          </div>
+          <div class="gov-count">
+            <div class="gov-label" style="margin-bottom: 0;">open turn</div>
+            <div class="num" id="govOpenTurn">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="gov-section span-2">
+        <div class="gov-label">Rupture / Repair (Slide 7: repair primitive)</div>
+        <div id="govRelationshipBanner" class="gov-banner empty">
+          set userId + create session to track
+        </div>
+      </div>
+      <div class="gov-section span-2" id="memoryConsoleSection">
+        <div class="memory-console-head">
+          <div class="gov-label" style="margin-bottom: 0;">Relationship Memory</div>
+          <button id="memoryRefreshBtn" class="secondary" disabled>Refresh</button>
+        </div>
+        <div id="memoryConsoleStatus" class="memory-console-status">session required</div>
+        <details open>
+          <summary class="memory-console-status">Pending <span id="memoryPendingCount">0</span></summary>
+          <div id="memoryPendingList" class="memory-console-list"></div>
+        </details>
+        <details>
+          <summary class="memory-console-status">Remembered <span id="memoryDurableCount">0</span></summary>
+          <div id="memoryDurableList" class="memory-console-list"></div>
+        </details>
+      </div>
+    </aside>
+  </main>
+  <div id="protocolsPanel" hidden style="
+    position: fixed; inset: 0; background: rgba(2,6,23,0.75);
+    display: grid; place-items: center; z-index: 50;
+  ">
+    <div style="
+      width: min(720px, calc(100vw - 32px));
+      max-height: calc(100vh - 64px); overflow: auto;
+      background: #111827; border: 1px solid #4b5563; border-radius: 14px;
+      padding: 18px; color: #e5e7eb;
+    ">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <h2 style="margin: 0; font-size: 18px;">Behavior Protocols</h2>
+        <button id="protocolsCloseBtn" class="secondary">Close</button>
+      </div>
+      <div id="protocolsStatus" class="msg system" style="margin-top: 12px;">Loading...</div>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">Upload PDF / Markdown</h3>
+      <div class="bar" style="gap: 6px;">
+        <input type="file" id="protocolUploadFile" accept=".pdf,.md,.markdown,.txt" style="flex: 1; min-width: 220px;">
+        <input id="protocolUploadSeed" placeholder="optional protocol_id seed" style="flex: 1; min-width: 180px;">
+        <button id="protocolUploadBtn" class="secondary">Upload</button>
+      </div>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">From Description</h3>
+      <div class="bar" style="gap: 6px; flex-wrap: wrap;">
+        <input id="protocolDescId" placeholder="protocol_id (e.g. spa-bot)" style="flex: 1; min-width: 200px;">
+        <input id="protocolDescAdvisor" placeholder="advisor_name" style="flex: 1; min-width: 160px;">
+      </div>
+      <textarea id="protocolDescText" placeholder="Free-text role description..." style="margin-top: 6px; min-height: 60px;"></textarea>
+      <button id="protocolDescBtn" class="secondary" style="margin-top: 6px;">Submit Description</button>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">Pending Candidates</h3>
+      <div id="protocolsCandidates"></div>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">Active (this run)</h3>
+      <div id="protocolsApproved"></div>
+      <h3 style="font-size: 14px; margin: 16px 0 6px;">
+        Protocol Library
+        <span id="protocolLibraryDir" style="font-size: 11px; color: #9ca3af; margin-left: 8px;"></span>
+      </h3>
+      <div id="protocolLibraryStatus" class="msg system" style="margin-top: 4px; font-size: 12px;">
+        Disk-backed library lets approved protocols survive service restarts.
+      </div>
+      <div class="bar" style="gap: 6px; margin-top: 6px;">
+        <button id="protocolLibrarySelectAll" class="secondary">Select All</button>
+        <button id="protocolLibraryClearAll" class="secondary">Clear All</button>
+        <button id="protocolLibraryLoadSelected" class="secondary">Load Selected</button>
+        <button id="protocolLibraryReload" class="secondary">Reload from Disk</button>
+      </div>
+      <div id="protocolLibraryEntries" style="margin-top: 8px;"></div>
+    </div>
+  </div>
+  <script>
+    const state = {
+      sessionId: null,
+      sessionVertical: null,
+      templatesSupported: false,
+      swapSupported: false,
+      currentModelId: null,
+      defaultVertical: null,
+      alphaEnabled: false,
+      verticalsByName: {},
+      debug: new URLSearchParams(window.location.search).get("debug") === "1",
+      // ----- Simulator orchestration -----
+      scenariosById: {},
+      simRunning: false,
+      simStopRequested: false,
+      simScenarioId: null,
+      simParaphraseSeed: 0,
+      simSchedule: [],
+      simLastBotText: "",
+      // ----- Governance panel rolling state -----
+      regimeHistory: [],
+      peHistory: [],
+    };
+    const statusEl = document.getElementById("status");
+    const logEl = document.getElementById("log");
+    const inputEl = document.getElementById("input");
+    const userIdEl = document.getElementById("userId");
+    const sessionIdEl = document.getElementById("sessionId");
+    const verticalSelectEl = document.getElementById("verticalSelect");
+    const templateSelectEl = document.getElementById("templateSelect");
+    const createBtn = document.getElementById("createBtn");
+    const sendBtn = document.getElementById("sendBtn");
+    const endBtn = document.getElementById("endBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const saveTemplateBtn = document.getElementById("saveTemplateBtn");
+    const modelStatusEl = document.getElementById("modelStatus");
+    const modelSelectEl = document.getElementById("modelSelect");
+    const switchModelBtn = document.getElementById("switchModelBtn");
+    const outcomeBtns = Array.from(document.querySelectorAll(".outcome"));
+    const scenarioSelectEl = document.getElementById("scenarioSelect");
+    const paraphraseSeedEl = document.getElementById("paraphraseSeed");
+    const runSimBtn = document.getElementById("runSimBtn");
+    const stopSimBtn = document.getElementById("stopSimBtn");
+    const govScopeChip = document.getElementById("govScopeChip");
+    const govRegimeBand = document.getElementById("govRegimeBand");
+    const govRegimeLabel = document.getElementById("govRegimeLabel");
+    const govPePoly = document.getElementById("govPePoly");
+    const govPeLast = document.getElementById("govPeLast");
+    const govCommitments = document.getElementById("govCommitments");
+    const govOpenLoops = document.getElementById("govOpenLoops");
+    const govTagChips = document.getElementById("govTagChips");
+    const govClosedScenes = document.getElementById("govClosedScenes");
+    const govOpenTurn = document.getElementById("govOpenTurn");
+    const govRelationshipBanner = document.getElementById("govRelationshipBanner");
+    const forgetMeBtn = document.getElementById("forgetMeBtn");
+    const govForgetEvidence = document.getElementById("govForgetEvidence");
+    const promptPanel = document.getElementById("promptPanel");
+    const promptSystemText = document.getElementById("promptSystemText");
+    const promptMeta = document.getElementById("promptMeta");
+    const promptUserInput = document.getElementById("promptUserInput");
+    const memoryRefreshBtn = document.getElementById("memoryRefreshBtn");
+    const memoryConsoleStatus = document.getElementById("memoryConsoleStatus");
+    const memoryPendingCount = document.getElementById("memoryPendingCount");
+    const memoryDurableCount = document.getElementById("memoryDurableCount");
+    const memoryPendingList = document.getElementById("memoryPendingList");
+    const memoryDurableList = document.getElementById("memoryDurableList");
+
+    // 12 distinct colours so the regime colour-band stays readable
+    // even on long arcs; the mapping is order-of-first-appearance
+    // (no hard-coded regime->colour table — keeps the band purely a
+    // visual identity signal, not a semantic claim).
+    const REGIME_PALETTE = [
+      "#2563eb", "#16a34a", "#f59e0b", "#dc2626",
+      "#7c3aed", "#0891b2", "#db2777", "#65a30d",
+      "#ea580c", "#0284c7", "#c026d3", "#475569",
+    ];
+    const regimeColourMap = new Map();
+    function regimeColour(regime) {
+      if (!regime) return "#1f2937";
+      if (!regimeColourMap.has(regime)) {
+        const next = REGIME_PALETTE[regimeColourMap.size % REGIME_PALETTE.length];
+        regimeColourMap.set(regime, next);
+      }
+      return regimeColourMap.get(regime);
+    }
+
+    function alphaHeaders() {
+      const user = userIdEl.value.trim();
+      return user ? { "X-Alpha-User": user } : {};
+    }
+    function addMessage(kind, text, opts) {
+      const options = opts || {};
+      const div = document.createElement("div");
+      div.className = `msg ${kind}`;
+      if (options.gapBanner) div.classList.add("gap-banner");
+      div.textContent = text;
+      if (options.fsmAction) {
+        const badge = document.createElement("span");
+        badge.className = "fsm-badge";
+        badge.textContent = options.fsmAction;
+        div.appendChild(badge);
+      }
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    function setReady(ready) {
+      inputEl.disabled = !ready;
+      sendBtn.disabled = !ready;
+      endBtn.disabled = !ready;
+      saveTemplateBtn.disabled = !(ready && state.templatesSupported);
+      outcomeBtns.forEach(btn => { btn.disabled = !ready; });
+      // Run-Simulator is gated on a live session AND a scenario being
+      // available in the dropdown. Stop button is the inverse of Run.
+      const haveScenario = Boolean(scenarioSelectEl.value);
+      runSimBtn.disabled = !(ready && haveScenario) || state.simRunning;
+      stopSimBtn.disabled = !state.simRunning;
+      forgetMeBtn.disabled = !ready;
+      memoryRefreshBtn.disabled = !(ready && state.alphaEnabled);
+    }
+
+    // ----- Governance panel -----
+
+    function updateScopeChip() {
+      const user = userIdEl.value.trim();
+      if (user) {
+        govScopeChip.textContent = `scope: ${user}`;
+        govScopeChip.classList.remove("anon");
+      } else {
+        govScopeChip.textContent = "anonymous";
+        govScopeChip.classList.add("anon");
+      }
+    }
+
+    function renderRegimeBand() {
+      govRegimeBand.innerHTML = "";
+      const recent = state.regimeHistory.slice(-12);
+      for (const regime of recent) {
+        const cell = document.createElement("div");
+        cell.className = "gov-regime-cell";
+        cell.style.background = regimeColour(regime);
+        cell.title = regime || "(none)";
+        govRegimeBand.appendChild(cell);
+      }
+      // Always reserve 12 visual slots so the band keeps a stable
+      // width even when the arc has only fired a few turns.
+      for (let i = recent.length; i < 12; i++) {
+        const cell = document.createElement("div");
+        cell.className = "gov-regime-cell";
+        govRegimeBand.appendChild(cell);
+      }
+    }
+
+    function renderPeSparkline() {
+      const recent = state.peHistory.slice(-20);
+      if (recent.length === 0) {
+        govPePoly.setAttribute("points", "");
+        return;
+      }
+      const maxVal = Math.max(0.001, ...recent);
+      const points = recent
+        .map((v, i) => {
+          const x = recent.length === 1
+            ? 50
+            : (i / (recent.length - 1)) * 100;
+          const y = 38 - Math.max(0, Math.min(1, v / maxVal)) * 36;
+          return `${x.toFixed(2)},${y.toFixed(2)}`;
+        })
+        .join(" ");
+      govPePoly.setAttribute("points", points);
+    }
+
+    function renderTagChips(rationale, safety) {
+      govTagChips.innerHTML = "";
+      let haveAny = false;
+      if (Array.isArray(rationale)) {
+        for (const tag of rationale) {
+          const chip = document.createElement("span");
+          chip.className = "gov-chip rationale";
+          chip.textContent = String(tag);
+          govTagChips.appendChild(chip);
+          haveAny = true;
+        }
+      }
+      if (safety && typeof safety === "object") {
+        for (const [k, v] of Object.entries(safety)) {
+          if (!v) continue;
+          const chip = document.createElement("span");
+          chip.className = "gov-chip safety";
+          chip.textContent = `${k}=${typeof v === "boolean" ? "on" : v}`;
+          govTagChips.appendChild(chip);
+          haveAny = true;
+        }
+      }
+      if (!haveAny) {
+        govTagChips.textContent = "(no tags yet)";
+      }
+    }
+
+    function updatePromptPanel(envelope, fallbackUserInput) {
+      // Render the snapshot-derived view of the system prompt the LLM
+      // saw on the current turn. Server returns `null` for the
+      // deterministic substrate / scope-refusal paths; we keep the
+      // panel hidden in that case rather than displaying a misleading
+      // empty box.
+      if (!envelope || typeof envelope.system_prompt !== "string") {
+        promptPanel.hidden = true;
+        return;
+      }
+      promptPanel.hidden = false;
+      promptSystemText.textContent = envelope.system_prompt;
+      promptUserInput.textContent =
+        envelope.user_input || fallbackUserInput || "(empty)";
+      const regime = envelope.regime_name || envelope.regime_id || "—";
+      const intent = envelope.expression_intent || "—";
+      const chars = envelope.system_prompt.length;
+      promptMeta.textContent = `regime=${regime} · intent=${intent} · system=${chars}c`;
+    }
+
+    function updateGovernancePanel(turnPayload) {
+      if (!turnPayload) return;
+      const regime = turnPayload.active_regime || "";
+      state.regimeHistory.push(regime);
+      renderRegimeBand();
+      govRegimeLabel.textContent = regime
+        ? `${regime} · ${turnPayload.active_abstract_action || "(no z_t)"}`
+        : "(regime not declared)";
+
+      const pe = Number.isFinite(turnPayload.pe_magnitude)
+        ? turnPayload.pe_magnitude
+        : 0;
+      state.peHistory.push(pe);
+      renderPeSparkline();
+      govPeLast.textContent = `last: ${pe.toFixed(3)}`;
+
+      govCommitments.textContent = String(turnPayload.commitment_count || 0);
+      govOpenLoops.textContent = String(turnPayload.open_loop_count || 0);
+      renderTagChips(
+        turnPayload.response_rationale_tags,
+        turnPayload.safety,
+      );
+    }
+
+    async function refreshSessionStateGauges() {
+      if (!state.sessionId) return;
+      try {
+        const payload = await requestJson(
+          `/v1/sessions/${encodeURIComponent(state.sessionId)}/state`,
+          { method: "GET" },
+        );
+        govClosedScenes.textContent = String(payload.closed_scene_count || 0);
+        govOpenTurn.textContent = String(payload.open_scene_turn_count || 0);
+      } catch (err) {
+        // The session-state route IS authoritative on the gauges, so
+        // we must NOT silently swallow. Surface to console so the
+        // operator sees it; leave the gauges showing the previous
+        // values (the next successful refresh repaints).
+        console.warn("governance gauges: /v1/sessions/.../state failed", err);
+      }
+    }
+
+    async function refreshRelationshipSummary() {
+      if (!state.alphaEnabled) {
+        govRelationshipBanner.textContent =
+          "alpha mode disabled; no cross-session memory";
+        govRelationshipBanner.classList.add("empty");
+        return;
+      }
+      const user = userIdEl.value.trim();
+      if (!user) {
+        govRelationshipBanner.textContent =
+          "set userId in the bar above to track ruptures across sessions";
+        govRelationshipBanner.classList.add("empty");
+        return;
+      }
+      try {
+        const payload = await requestJson(
+          "/v1/users/me/relationship-summary",
+          { method: "GET" },
+        );
+        const kinds = (payload.rupture_kinds || []).join(", ") || "(none)";
+        govRelationshipBanner.textContent =
+          `ruptures: ${payload.rupture_repair_count || 0} · `
+          + `repaired: ${payload.observed_repair_count || 0} · `
+          + `kinds: ${kinds}`;
+        if ((payload.rupture_repair_count || 0) > 0) {
+          govRelationshipBanner.classList.remove("empty");
+        } else {
+          govRelationshipBanner.classList.add("empty");
+        }
+      } catch (err) {
+        govRelationshipBanner.textContent =
+          `relationship-summary failed: ${err.message}`;
+        govRelationshipBanner.classList.add("empty");
+      }
+    }
+
+    function memoryActionButton(label, action, item, danger, correctionKind) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.className = danger ? "danger" : "secondary";
+      button.addEventListener("click", () => applyMemoryAction(
+        item,
+        action,
+        undefined,
+        typeof correctionKind === "function" ? correctionKind() : correctionKind,
+      ));
+      return button;
+    }
+
+    function renderMemoryItem(item, pending) {
+      const row = document.createElement("article");
+      row.className = "memory-console-item";
+      const text = document.createElement("p");
+      text.textContent = pending ? item.description : item.content;
+      const meta = document.createElement("div");
+      meta.className = "memory-console-meta";
+      meta.textContent = pending
+        ? `${item.target_owner_slot} / ${item.operation} / ${Math.round(item.confidence * 100)}%`
+        : `${item.track} / ${item.stratum}`;
+      const actions = document.createElement("div");
+      actions.className = "memory-console-actions";
+      const correctionSelect = document.createElement("select");
+      correctionSelect.title = "Correction type";
+      correctionSelect.style.minWidth = "0";
+      correctionSelect.style.fontSize = "11px";
+      for (const [value, label] of [
+        ["content_inaccurate", "Inaccurate"],
+        ["wrong_user_attribution", "Wrong person"],
+        ["stale", "Outdated"],
+      ]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        correctionSelect.appendChild(option);
+      }
+      if (pending) {
+        actions.appendChild(memoryActionButton("Keep", "keep", item, false));
+        actions.appendChild(memoryActionButton("Session only", "session_only", item, false));
+      }
+      actions.appendChild(memoryActionButton(
+        "Delete", "delete", item, true, () => correctionSelect.value,
+      ));
+      actions.appendChild(memoryActionButton(
+        "Sensitive", "mark_sensitive", item, false, "boundary_preference",
+      ));
+      actions.appendChild(memoryActionButton(
+        "Do not mention",
+        "no_proactive_mention",
+        item,
+        false,
+        "boundary_preference",
+      ));
+      actions.appendChild(correctionSelect);
+      const rewrite = document.createElement("div");
+      rewrite.className = "memory-console-rewrite";
+      const rewriteInput = document.createElement("input");
+      rewriteInput.placeholder = "Rewrite memory";
+      rewriteInput.value = pending ? item.description : item.content;
+      const rewriteButton = document.createElement("button");
+      rewriteButton.type = "button";
+      rewriteButton.className = "secondary";
+      rewriteButton.textContent = "Rewrite";
+      rewriteButton.addEventListener("click", () => {
+        const replacement = rewriteInput.value.trim();
+        if (replacement) {
+          applyMemoryAction(
+            item,
+            "rewrite",
+            replacement,
+            correctionSelect.value,
+          );
+        }
+      });
+      rewrite.appendChild(rewriteInput);
+      rewrite.appendChild(rewriteButton);
+      row.appendChild(text);
+      row.appendChild(meta);
+      row.appendChild(actions);
+      row.appendChild(rewrite);
+      return row;
+    }
+
+    function renderMemoryList(container, items, pending) {
+      container.replaceChildren();
+      if (items.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "memory-console-empty";
+        empty.textContent = pending ? "No pending proposals" : "No remembered items";
+        container.appendChild(empty);
+        return;
+      }
+      for (const item of items) container.appendChild(renderMemoryItem(item, pending));
+    }
+
+    async function refreshRelationshipMemory() {
+      if (!state.sessionId || !state.alphaEnabled || !userIdEl.value.trim()) {
+        memoryConsoleStatus.textContent = "alpha session required";
+        memoryPendingCount.textContent = "0";
+        memoryDurableCount.textContent = "0";
+        renderMemoryList(memoryPendingList, [], true);
+        renderMemoryList(memoryDurableList, [], false);
+        return;
+      }
+      memoryRefreshBtn.disabled = true;
+      memoryConsoleStatus.textContent = "loading";
+      try {
+        const payload = await requestJson(
+          `/v1/users/me/relationship-memory?session_id=${encodeURIComponent(state.sessionId)}`,
+          { method: "GET" },
+        );
+        const pending = Array.isArray(payload.pending_proposals)
+          ? payload.pending_proposals : [];
+        const durable = Array.isArray(payload.durable_entries)
+          ? payload.durable_entries : [];
+        memoryPendingCount.textContent = String(pending.length);
+        memoryDurableCount.textContent = String(durable.length);
+        renderMemoryList(memoryPendingList, pending, true);
+        renderMemoryList(memoryDurableList, durable, false);
+        memoryConsoleStatus.textContent = `updated ${new Date().toLocaleTimeString()}`;
+      } catch (err) {
+        memoryConsoleStatus.textContent = `failed: ${err.message}`;
+      } finally {
+        memoryRefreshBtn.disabled = !(state.sessionId && state.alphaEnabled);
+      }
+    }
+
+    async function applyMemoryAction(item, action, replacement, correctionKind) {
+      const itemId = item.proposal_id || item.entry_id;
+      const body = { session_id: state.sessionId, action };
+      if (action === "rewrite") body.replacement = replacement;
+      if (correctionKind) body.correction_kind = correctionKind;
+      memoryConsoleStatus.textContent = `applying ${action}`;
+      try {
+        await requestJson(
+          `/v1/users/me/relationship-memory/${encodeURIComponent(itemId)}/action`,
+          { method: "POST", body: JSON.stringify(body) },
+        );
+        await refreshRelationshipMemory();
+        await refreshRelationshipSummary();
+      } catch (err) {
+        memoryConsoleStatus.textContent = `${action} failed: ${err.message}`;
+      }
+    }
+
+    function resetGovernancePanel() {
+      state.regimeHistory = [];
+      state.peHistory = [];
+      renderRegimeBand();
+      renderPeSparkline();
+      govPeLast.textContent = "last: -";
+      govRegimeLabel.textContent = "(no turns yet)";
+      govCommitments.textContent = "0";
+      govOpenLoops.textContent = "0";
+      govTagChips.textContent = "(no tags yet)";
+      govClosedScenes.textContent = "0";
+      govOpenTurn.textContent = "0";
+      govForgetEvidence.textContent = "";
+    }
+
+    async function forgetMe() {
+      const user = userIdEl.value.trim();
+      if (!user) {
+        addMessage("system", "Set userId before calling Forget Me.");
+        return;
+      }
+      if (!window.confirm(
+        `Forget Me: DELETE /v1/users/me/memory for ${user}?\n\n`
+        + "This erases all durable cross-session entries for this user "
+        + "and emits an evidence_artifact_ref (GDPR Article 17 / PIPL).",
+      )) return;
+      try {
+        const payload = await requestJson(
+          "/v1/users/me/memory",
+          { method: "DELETE" },
+        );
+        const count = (payload.deleted_entry_ids || []).length;
+        addMessage(
+          "system",
+          `Forget Me: deleted ${count} entries for ${user}.`,
+        );
+        if (payload.evidence_artifact_ref) {
+          govForgetEvidence.textContent =
+            `evidence: ${payload.evidence_artifact_ref}`;
+          addMessage(
+            "system",
+            `Evidence artifact: ${payload.evidence_artifact_ref}`,
+          );
+        }
+        await refreshRelationshipSummary();
+      } catch (err) {
+        addMessage("system", `Forget Me failed: ${err.message}`);
+      }
+    }
+    async function loadModels() {
+      try {
+        const payload = await requestJson("/v1/models", { method: "GET" });
+        state.swapSupported = Boolean(payload.swap_supported);
+        state.currentModelId = payload.current_model_id || null;
+        modelSelectEl.innerHTML = "";
+        const models = Array.isArray(payload.models) ? payload.models : [];
+        if (models.length === 0) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "no models advertised";
+          modelSelectEl.appendChild(opt);
+        }
+        for (const item of models) {
+          const opt = document.createElement("option");
+          opt.value = item.model_id;
+          const sizeLabel = item.size_label ? ` (${item.size_label})` : "";
+          opt.textContent = item.display_name
+            ? `${item.display_name}${sizeLabel}`
+            : item.model_id;
+          if (item.notes) opt.title = item.notes;
+          if (item.model_id === state.currentModelId) opt.selected = true;
+          modelSelectEl.appendChild(opt);
+        }
+        modelSelectEl.disabled = !state.swapSupported || models.length === 0;
+        switchModelBtn.disabled = !state.swapSupported || models.length === 0;
+        const statusBits = [`substrate: ${state.currentModelId || "<none>"}`];
+        if (payload.current_runtime_origin) {
+          statusBits.push(payload.current_runtime_origin);
+        }
+        if (!state.swapSupported) statusBits.push("swap disabled");
+        if (payload.last_swap_error) {
+          statusBits.push(`last error: ${payload.last_swap_error}`);
+        }
+        modelStatusEl.textContent = statusBits.join(" | ");
+      } catch (err) {
+        modelStatusEl.textContent = `substrate: failed to load (${err.message})`;
+      }
+    }
+    async function switchModel() {
+      if (!state.swapSupported) return;
+      const targetId = modelSelectEl.value.trim();
+      if (!targetId) return;
+      if (targetId === state.currentModelId) {
+        addMessage("system", `Already running ${targetId}; nothing to do.`);
+        return;
+      }
+      const ok = window.confirm(
+        `Switch substrate to ${targetId}?\n\n`
+          + `This will close all active sessions and load the new model `
+          + `(may take 30s+ depending on size). Existing chats will be lost.`,
+      );
+      if (!ok) return;
+      switchModelBtn.disabled = true;
+      modelSelectEl.disabled = true;
+      const previousStatus = modelStatusEl.textContent;
+      modelStatusEl.textContent = `substrate: switching to ${targetId}...`;
+      try {
+        const payload = await requestJson("/v1/admin/substrate", {
+          method: "POST",
+          body: JSON.stringify({ model_id: targetId }),
+        });
+        addMessage(
+          "system",
+          `Substrate swapped: ${payload.previous_model_id || "(none)"} -> `
+            + `${payload.model_id} | closed ${payload.closed_session_count} sessions `
+            + `| ${payload.duration_seconds.toFixed(2)}s`,
+        );
+        // Active session was killed by the swap.
+        state.sessionId = null;
+        statusEl.textContent = `Substrate ${payload.model_id} ready. Create a new session.`;
+        setReady(false);
+        await loadModels();
+      } catch (err) {
+        addMessage("system", `Switch failed: ${err.message}`);
+        modelStatusEl.textContent = previousStatus;
+        modelSelectEl.disabled = false;
+        switchModelBtn.disabled = false;
+      }
+    }
+    async function loadVerticals() {
+      try {
+        const payload = await requestJson("/v1/verticals", { method: "GET" });
+        state.defaultVertical = payload.default_vertical || null;
+        state.alphaEnabled = Boolean(payload.alpha_enabled);
+        state.verticalsByName = {};
+        verticalSelectEl.innerHTML = "";
+        const items = Array.isArray(payload.verticals) ? payload.verticals : [];
+        for (const item of items) {
+          state.verticalsByName[item.name] = item;
+          const opt = document.createElement("option");
+          opt.value = item.name;
+          // Build label: name + alpha-incompat hint when applicable.
+          let label = item.name;
+          const tags = [];
+          if (item.is_default) tags.push("default");
+          if (item.templates_supported) tags.push("templates");
+          if (state.alphaEnabled && !item.alpha_supported) {
+            tags.push("no-alpha");
+            opt.disabled = true;
+          }
+          if (tags.length > 0) label += ` [${tags.join(", ")}]`;
+          opt.textContent = label;
+          if (item.is_default) opt.selected = true;
+          verticalSelectEl.appendChild(opt);
+        }
+        await loadTemplates();
+      } catch (err) {
+        addMessage("system", `Failed to load verticals: ${err.message}`);
+      }
+    }
+    function selectedVerticalName() {
+      return verticalSelectEl.value || state.defaultVertical || "";
+    }
+    async function loadTemplates() {
+      const vertical = selectedVerticalName();
+      try {
+        const url = vertical
+          ? `/v1/templates?vertical=${encodeURIComponent(vertical)}`
+          : "/v1/templates";
+        const payload = await requestJson(url, { method: "GET" });
+        state.templatesSupported = Boolean(payload.templates_supported);
+        // Reset and refill the dropdown; preserve the leading "no template" option.
+        templateSelectEl.innerHTML = "";
+        const defaultOpt = document.createElement("option");
+        defaultOpt.value = "";
+        defaultOpt.textContent = state.templatesSupported
+          ? "no template (vertical default)"
+          : `templates not supported by ${payload.vertical || "this vertical"}`;
+        templateSelectEl.appendChild(defaultOpt);
+        templateSelectEl.disabled = !state.templatesSupported;
+        if (!state.templatesSupported) return;
+        const items = Array.isArray(payload.templates) ? payload.templates : [];
+        for (const item of items) {
+          const opt = document.createElement("option");
+          opt.value = item.template_id;
+          const label = item.display_name && item.display_name.trim()
+            ? item.display_name
+            : item.template_id;
+          opt.textContent = item.description
+            ? `${item.template_id} — ${label} (${item.description})`
+            : `${item.template_id} — ${label}`;
+          templateSelectEl.appendChild(opt);
+        }
+      } catch (err) {
+        addMessage("system", `Failed to load templates: ${err.message}`);
+      }
+    }
+    async function requestJson(url, options = {}) {
+      const response = await fetch(url, {
+        headers: { "Content-Type": "application/json", ...alphaHeaders(), ...(options.headers || {}) },
+        ...options,
+      });
+      const text = await response.text();
+      let payload = {};
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch (parseError) {
+          throw new Error(
+            `HTTP ${response.status}: ${text.slice(0, 240)} `
+            + `(invalid JSON: ${parseError.message})`,
+          );
+        }
+      }
+      if (!response.ok) {
+        throw new Error(`${payload.error || response.status}: ${payload.detail || text}`);
+      }
+      return payload;
+    }
+    async function createSession() {
+      createBtn.disabled = true;
+      try {
+        const requested = sessionIdEl.value.trim();
+        const templateId = templateSelectEl.value.trim();
+        const verticalName = selectedVerticalName();
+        const body = {};
+        if (requested) body.session_id = requested;
+        if (templateId) body.template_id = templateId;
+        if (verticalName) body.vertical = verticalName;
+        const payload = await requestJson(
+          "/v1/sessions",
+          { method: "POST", body: JSON.stringify(body) },
+        );
+        state.sessionId = payload.session_id;
+        state.sessionVertical = payload.vertical;
+        const templateLabel = payload.template_id ? ` | template ${payload.template_id}` : "";
+        statusEl.textContent = `Session ${state.sessionId} | vertical ${payload.vertical}${templateLabel}`;
+        resetGovernancePanel();
+        updateScopeChip();
+        setReady(true);
+        addMessage("system", `Created session ${state.sessionId} on vertical ${payload.vertical}${templateLabel}`);
+        if (payload.alpha_disclaimer) addMessage("system", payload.alpha_disclaimer);
+        await refreshSessionStateGauges();
+        await refreshRelationshipSummary();
+        await refreshRelationshipMemory();
+        inputEl.focus();
+      } catch (err) {
+        addMessage("system", `Create failed: ${err.message}`);
+      } finally {
+        createBtn.disabled = false;
+      }
+    }
+    async function saveAsTemplate() {
+      if (!state.sessionId || !state.templatesSupported) return;
+      const defaultId = `chat-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      const templateId = window.prompt(
+        "Save current session as template — enter a template id (filename, no extension):",
+        defaultId,
+      );
+      if (!templateId || !templateId.trim()) return;
+      const provenance = window.prompt(
+        "Optional: short provenance note (what was achieved in this chat?)",
+        "",
+      ) || "";
+      saveTemplateBtn.disabled = true;
+      try {
+        const payload = await requestJson(
+          `/v1/sessions/${encodeURIComponent(state.sessionId)}/save-as-template`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              template_id: templateId.trim(),
+              replay_provenance: provenance,
+              include_memory: true,
+              overwrite_existing: false,
+            }),
+          },
+        );
+        const saved = payload.saved || {};
+        addMessage(
+          "system",
+          `Saved template ${saved.template_id} -> ${saved.file_path}`,
+        );
+        // If the dropdown is currently pointing at the session's
+        // vertical, refresh; otherwise the new template lives in
+        // a different vertical's subdir and the operator can
+        // switch the dropdown to see it.
+        if (selectedVerticalName() === state.sessionVertical) {
+          await loadTemplates();
+        }
+      } catch (err) {
+        addMessage("system", `Save-as-template failed: ${err.message}`);
+      } finally {
+        saveTemplateBtn.disabled = !state.templatesSupported;
+      }
+    }
+    async function sendTurnPayload(text, addUserBubble) {
+      // Helper called by both the manual textarea path and the
+      // simulator-driven path. Returns the parsed payload so the
+      // simulator loop can pipe ``response_text`` back into the
+      // simulator's history.
+      if (addUserBubble) addMessage("user", text);
+      const payload = await requestJson(
+        `/v1/sessions/${encodeURIComponent(state.sessionId)}/turns`,
+        {
+          method: "POST",
+          body: JSON.stringify({ user_input: text }),
+        },
+      );
+      addMessage("bot", payload.response_text || "(empty response)");
+      state.simLastBotText = payload.response_text || "";
+      updateGovernancePanel(payload);
+      updatePromptPanel(payload.llm_envelope, text);
+      await refreshSessionStateGauges();
+      if (state.debug) {
+        const tags = payload.response_rationale_tags && payload.response_rationale_tags.length
+          ? ` | tags=${payload.response_rationale_tags.join(",")}`
+          : "";
+        const meta = `turn=${payload.turn_index} | regime=${payload.active_regime || "none"} `
+          + `| intent=${payload.expression_intent || "none"}${tags}`;
+        addMessage("system", meta);
+      }
+      return payload;
+    }
+
+    async function sendTurn() {
+      const text = inputEl.value.trim();
+      if (!text || !state.sessionId) return;
+      inputEl.value = "";
+      setReady(false);
+      try {
+        await sendTurnPayload(text, /*addUserBubble*/ true);
+      } catch (err) {
+        addMessage("system", `Turn failed: ${err.message}`);
+      } finally {
+        setReady(Boolean(state.sessionId));
+        inputEl.focus();
+      }
+    }
+
+    // ----- Simulator orchestration -----
+
+    async function loadScenarios() {
+      try {
+        const payload = await requestJson("/v1/scenarios", { method: "GET" });
+        state.scenariosById = {};
+        scenarioSelectEl.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "no scenario";
+        scenarioSelectEl.appendChild(placeholder);
+        const items = Array.isArray(payload.scenarios) ? payload.scenarios : [];
+        for (const item of items) {
+          state.scenariosById[item.scenario_id] = item;
+          const opt = document.createElement("option");
+          opt.value = item.scenario_id;
+          opt.textContent =
+            `${item.scenario_id} [${item.family} / ${item.language}] `
+            + `(arc=${item.arc_length_sessions}, seeds=${item.paraphrase_seed_count})`;
+          scenarioSelectEl.appendChild(opt);
+        }
+        scenarioSelectEl.disabled = items.length === 0;
+      } catch (err) {
+        addMessage("system", `Failed to load scenarios: ${err.message}`);
+        scenarioSelectEl.disabled = true;
+      }
+    }
+
+    async function initSimulatorForSession(sid, resumeFromSessionId) {
+      const body = {
+        scenario_id: state.simScenarioId,
+        paraphrase_seed: state.simParaphraseSeed,
+      };
+      if (resumeFromSessionId) {
+        body.resume_from_session_id = resumeFromSessionId;
+        if (state.simLastBotText) {
+          body.recent_assistant_text = state.simLastBotText;
+        }
+      }
+      const payload = await requestJson(
+        `/v1/sessions/${encodeURIComponent(sid)}/simulator/init`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      state.simSchedule = Array.isArray(payload.schedule)
+        ? payload.schedule
+        : [];
+      addMessage(
+        "system",
+        `Simulator bound to ${sid}: scenario=${payload.scenario_id} `
+        + `seed=${payload.paraphrase_seed} `
+        + `arc_length_sessions=${payload.arc_length_sessions} `
+        + `identity=${payload.identity.name || "?"}`,
+      );
+      return payload;
+    }
+
+    async function pumpOneSimulatorTurn(initial) {
+      // ``initial`` = true on the first call after /simulator/init,
+      // before any assistant reply is available. Subsequent calls
+      // pass the prior bot text so the simulator's history advances.
+      const body = {};
+      if (!initial && state.simLastBotText) {
+        body.recent_assistant_text = state.simLastBotText;
+      }
+      const payload = await requestJson(
+        `/v1/sessions/${encodeURIComponent(state.sessionId)}/simulator/next-user-turn`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      const fsmAction = payload.fsm_step && payload.fsm_step.action
+        ? payload.fsm_step.action
+        : null;
+      addMessage("user", payload.user_text, { fsmAction });
+      const turnPayload = await sendTurnPayload(
+        payload.user_text,
+        /*addUserBubble*/ false,
+      );
+      // sendTurnPayload already updated state.simLastBotText.
+      return { sim: payload, turn: turnPayload };
+    }
+
+    async function bridgeToNextArcSession(nextGapDays) {
+      // Close the current scene, create a new HTTP session for the
+      // next arc-session, transfer the simulator state across.
+      const oldSid = state.sessionId;
+      try {
+        await requestJson(
+          `/v1/sessions/${encodeURIComponent(oldSid)}/end-scene`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              reason: "simulator-arc-session-end",
+              drain_slow_loop: true,
+            }),
+          },
+        );
+      } catch (err) {
+        addMessage("system", `End-scene failed before bridge: ${err.message}`);
+      }
+      // Visual cue mid-bridge so the user reads the gap as a real
+      // discontinuity rather than the simulator just "going quiet".
+      addMessage(
+        "system",
+        `--- gap: ${nextGapDays} day(s); new session ---`,
+        { gapBanner: true },
+      );
+      const newSidRequest = `${state.simScenarioId}-${state.simParaphraseSeed}-${Date.now()}`;
+      const verticalName = state.sessionVertical || selectedVerticalName();
+      const created = await requestJson("/v1/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: newSidRequest,
+          vertical: verticalName,
+        }),
+      });
+      // Close old HTTP session AFTER /simulator/init transfers state
+      // off it; otherwise the simulator cache evicts before we can
+      // resume_from_session_id.
+      state.sessionId = created.session_id;
+      state.sessionVertical = created.vertical;
+      statusEl.textContent =
+        `Session ${state.sessionId} | vertical ${created.vertical}`;
+      await initSimulatorForSession(state.sessionId, oldSid);
+      try {
+        await requestJson(
+          `/v1/sessions/${encodeURIComponent(oldSid)}`,
+          { method: "DELETE" },
+        );
+      } catch (err) {
+        addMessage("system", `Closing old session ${oldSid} failed: ${err.message}`);
+      }
+      await refreshSessionStateGauges();
+      await refreshRelationshipSummary();
+    }
+
+    async function runSimulator() {
+      if (!state.sessionId) {
+        addMessage("system", "Run Simulator requires a live session.");
+        return;
+      }
+      const scenarioId = scenarioSelectEl.value.trim();
+      if (!scenarioId) {
+        addMessage("system", "Pick a scenario before running the simulator.");
+        return;
+      }
+      const seedRaw = paraphraseSeedEl.value.trim();
+      const seed = seedRaw === "" ? 0 : parseInt(seedRaw, 10);
+      if (!Number.isInteger(seed) || seed < 0) {
+        addMessage("system", "paraphrase_seed must be a non-negative integer.");
+        return;
+      }
+      const meta = state.scenariosById[scenarioId];
+      if (meta && seed >= meta.paraphrase_seed_count) {
+        addMessage(
+          "system",
+          `paraphrase_seed ${seed} >= scenario.paraphrase_seed_count `
+          + `${meta.paraphrase_seed_count} for ${scenarioId}.`,
+        );
+        return;
+      }
+      state.simRunning = true;
+      state.simStopRequested = false;
+      state.simScenarioId = scenarioId;
+      state.simParaphraseSeed = seed;
+      state.simLastBotText = "";
+      setReady(true);
+      try {
+        await initSimulatorForSession(state.sessionId, null);
+        let initialCall = true;
+        while (!state.simStopRequested) {
+          const { sim } = await pumpOneSimulatorTurn(initialCall);
+          initialCall = false;
+          if (sim.arc_position === "arc_end") {
+            addMessage("system", "Simulator arc complete.");
+            break;
+          }
+          if (sim.arc_position === "session_end") {
+            await bridgeToNextArcSession(sim.next_gap_days);
+            // After bridge the schedule keeps a single linear cursor
+            // on the server, so we keep pumping; first call after a
+            // resumed /init should still pass the prior assistant
+            // text (we just appended it via /init).
+            initialCall = true;
+            state.simLastBotText = "";
+          }
+        }
+        if (state.simStopRequested) {
+          addMessage("system", "Simulator stopped on operator request.");
+        }
+      } catch (err) {
+        addMessage("system", `Simulator run failed: ${err.message}`);
+      } finally {
+        state.simRunning = false;
+        state.simStopRequested = false;
+        setReady(Boolean(state.sessionId));
+      }
+    }
+
+    function stopSimulator() {
+      if (!state.simRunning) return;
+      state.simStopRequested = true;
+      addMessage("system", "Stop requested; halting at next turn boundary.");
+    }
+    async function submitOutcome(kind) {
+      if (!state.sessionId) return;
+      try {
+        const payload = await requestJson(`/v1/sessions/${encodeURIComponent(state.sessionId)}/dialogue-outcomes`, {
+          method: "POST",
+          body: JSON.stringify({ kind, confidence: 0.95 }),
+        });
+        addMessage("system", `Submitted feedback: ${payload.kind}`);
+      } catch (err) {
+        addMessage("system", `Feedback failed: ${err.message}`);
+      }
+    }
+    async function endScene() {
+      if (!state.sessionId) return;
+      try {
+        const payload = await requestJson(`/v1/sessions/${encodeURIComponent(state.sessionId)}/end-scene`, {
+          method: "POST",
+          body: JSON.stringify({ reason: "chat-ui-end", drain_slow_loop: true }),
+        });
+        addMessage(
+          "system",
+          `Scene ended: ${payload.closed_scene_id || "none"} | slow_loop=${payload.slow_loop_drained}`,
+        );
+        if (payload.evidence_artifact_ref) {
+          addMessage("system", `Evidence: ${payload.evidence_artifact_ref}`);
+        }
+        await refreshSessionStateGauges();
+        await refreshRelationshipSummary();
+        await refreshRelationshipMemory();
+      } catch (err) {
+        addMessage("system", `End scene failed: ${err.message}`);
+      }
+    }
+    createBtn.addEventListener("click", createSession);
+    sendBtn.addEventListener("click", sendTurn);
+    endBtn.addEventListener("click", endScene);
+    clearBtn.addEventListener("click", () => { logEl.textContent = ""; });
+    saveTemplateBtn.addEventListener("click", saveAsTemplate);
+    switchModelBtn.addEventListener("click", switchModel);
+    verticalSelectEl.addEventListener("change", () => { loadTemplates(); });
+    outcomeBtns.forEach(btn => btn.addEventListener("click", () => submitOutcome(btn.dataset.kind)));
+    runSimBtn.addEventListener("click", runSimulator);
+    stopSimBtn.addEventListener("click", stopSimulator);
+    forgetMeBtn.addEventListener("click", forgetMe);
+    memoryRefreshBtn.addEventListener("click", refreshRelationshipMemory);
+    scenarioSelectEl.addEventListener("change", () => {
+      setReady(Boolean(state.sessionId));
+    });
+    userIdEl.addEventListener("input", () => {
+      updateScopeChip();
+    });
+    userIdEl.addEventListener("change", () => {
+      updateScopeChip();
+      refreshRelationshipSummary();
+      refreshRelationshipMemory();
+    });
+    inputEl.addEventListener("keydown", event => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        sendTurn();
+      }
+    });
+    // ----- Protocol uptake panel -----
+    const protocolsBtn = document.getElementById("protocolsBtn");
+    const protocolsPanel = document.getElementById("protocolsPanel");
+    const protocolsCloseBtn = document.getElementById("protocolsCloseBtn");
+    const protocolsStatus = document.getElementById("protocolsStatus");
+    const protocolsCandidates = document.getElementById("protocolsCandidates");
+    const protocolsApproved = document.getElementById("protocolsApproved");
+    const protocolUploadFile = document.getElementById("protocolUploadFile");
+    const protocolUploadSeed = document.getElementById("protocolUploadSeed");
+    const protocolUploadBtn = document.getElementById("protocolUploadBtn");
+    const protocolDescId = document.getElementById("protocolDescId");
+    const protocolDescAdvisor = document.getElementById("protocolDescAdvisor");
+    const protocolDescText = document.getElementById("protocolDescText");
+    const protocolDescBtn = document.getElementById("protocolDescBtn");
+    const protocolLibraryDir = document.getElementById("protocolLibraryDir");
+    const protocolLibraryStatus = document.getElementById("protocolLibraryStatus");
+    const protocolLibraryEntries = document.getElementById("protocolLibraryEntries");
+    const protocolLibrarySelectAll = document.getElementById("protocolLibrarySelectAll");
+    const protocolLibraryClearAll = document.getElementById("protocolLibraryClearAll");
+    const protocolLibraryLoadSelected = document.getElementById("protocolLibraryLoadSelected");
+    const protocolLibraryReload = document.getElementById("protocolLibraryReload");
+    let protocolLibraryEnabled = false;
+
+    function setProtocolStatus(msg) {
+      protocolsStatus.textContent = msg;
+    }
+
+    function renderCandidate(item, container) {
+      const div = document.createElement("div");
+      div.className = "msg system";
+      div.style.maxWidth = "100%";
+      div.style.marginRight = "0";
+      div.style.marginLeft = "0";
+      const counts = `boundaries=${item.boundary_count} strategies=${item.strategy_count} `
+        + `seeds=${item.knowledge_seed_count} cases=${item.signature_case_count}`;
+      div.innerHTML = `<strong>${item.protocol_id}</strong> &middot; ${item.advisor_name || "(no name)"} &middot; `
+        + `<em>${item.review_status}</em><br>`
+        + `<span style="opacity:.8">${item.description || "(no description)"}</span><br>`
+        + `<span style="font-size:12px;opacity:.7">${counts} &middot; src=${item.provenance ? item.provenance.source_kind : item.source_kind}</span>`;
+      const btnRow = document.createElement("div");
+      btnRow.style.marginTop = "6px";
+      btnRow.style.display = "flex";
+      btnRow.style.gap = "6px";
+      div.appendChild(btnRow);
+      container.appendChild(div);
+      return btnRow;
+    }
+
+    async function loadProtocols() {
+      setProtocolStatus("Loading...");
+      protocolsCandidates.innerHTML = "";
+      protocolsApproved.innerHTML = "";
+      try {
+        const [pendingPayload, approvedPayload] = await Promise.all([
+          requestJson("/v1/protocols/candidates", { method: "GET" }),
+          requestJson("/v1/protocols", { method: "GET" }),
+        ]);
+        const pending = pendingPayload.candidates || [];
+        const approved = approvedPayload.protocols || [];
+        if (pending.length === 0) {
+          protocolsCandidates.innerHTML = "<div class='msg system'>(no pending candidates)</div>";
+        } else {
+          for (const c of pending) {
+            const row = renderCandidate(c, protocolsCandidates);
+            const approveBtn = document.createElement("button");
+            approveBtn.textContent = "Approve";
+            approveBtn.className = "secondary";
+            approveBtn.addEventListener("click", () => approveCandidate(c.protocol_id));
+            const rejectBtn = document.createElement("button");
+            rejectBtn.textContent = "Reject";
+            rejectBtn.className = "danger";
+            rejectBtn.addEventListener("click", () => rejectCandidate(c.protocol_id));
+            row.appendChild(approveBtn);
+            row.appendChild(rejectBtn);
+          }
+        }
+        if (approved.length === 0) {
+          protocolsApproved.innerHTML = "<div class='msg system'>(no protocols active this run)</div>";
+        } else {
+          for (const p of approved) {
+            const row = renderCandidate(p, protocolsApproved);
+            const unloadBtn = document.createElement("button");
+            unloadBtn.textContent = "Unload";
+            unloadBtn.className = "danger";
+            unloadBtn.addEventListener("click", () => unloadProtocol(p.protocol_id));
+            row.appendChild(unloadBtn);
+          }
+        }
+        setProtocolStatus(
+          `Pending: ${pending.length} | Active: ${approved.length}. `
+          + `Active protocols are compiled into the next session's `
+          + `domain knowledge / boundaries / playbook / case memory. `
+          + `Existing sessions keep their original wiring — restart your `
+          + `session (or create a new one) to pick up changes.`
+        );
+        await loadProtocolLibrary();
+      } catch (err) {
+        setProtocolStatus(`Failed to load: ${err.message}`);
+      }
+    }
+
+    async function loadProtocolLibrary() {
+      protocolLibraryEntries.innerHTML = "";
+      try {
+        const resp = await fetch("/v1/protocols/library", {
+          method: "GET",
+          headers: { "Content-Type": "application/json", ...alphaHeaders() },
+        });
+        if (resp.status === 503) {
+          protocolLibraryEnabled = false;
+          protocolLibraryDir.textContent = "(persistence not configured)";
+          protocolLibraryStatus.textContent =
+            "Library mode is off. Restart the service with PROTOCOL_APPROVED_DIR=<path> "
+            + "(or --protocol-approved-dir <path>) to persist approved protocols across restarts.";
+          protocolLibrarySelectAll.disabled = true;
+          protocolLibraryClearAll.disabled = true;
+          protocolLibraryLoadSelected.disabled = true;
+          protocolLibraryReload.disabled = true;
+          return;
+        }
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`library list failed: ${text}`);
+        }
+        protocolLibraryEnabled = true;
+        protocolLibrarySelectAll.disabled = false;
+        protocolLibraryClearAll.disabled = false;
+        protocolLibraryLoadSelected.disabled = false;
+        protocolLibraryReload.disabled = false;
+        const payload = await resp.json();
+        const entries = payload.entries || [];
+        protocolLibraryDir.textContent = `dir: ${payload.approved_dir} (${entries.length} on disk)`;
+        if (entries.length === 0) {
+          protocolLibraryEntries.innerHTML =
+            "<div class='msg system'>(library is empty — approve a candidate to populate it)</div>";
+          protocolLibraryStatus.textContent =
+            "No persisted protocols yet. Upload + approve a candidate to add it to the library.";
+          return;
+        }
+        protocolLibraryStatus.textContent =
+          "Tick the protocols you want active for new sessions, then click 'Load Selected'. "
+          + "Items already active have a green badge; load/unload toggles activation; "
+          + "delete removes the JSON from disk.";
+        for (const entry of entries) {
+          const row = document.createElement("div");
+          row.className = "msg system";
+          row.style.maxWidth = "100%";
+          row.style.marginRight = "0";
+          row.style.marginLeft = "0";
+          const checkboxId = `protoLibCheck_${entry.protocol_id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+          const counts = `boundaries=${entry.boundary_count} strategies=${entry.strategy_count} `
+            + `seeds=${entry.knowledge_seed_count} cases=${entry.signature_case_count}`;
+          const badge = entry.is_active
+            ? `<span style="background:#065f46;color:#d1fae5;padding:1px 6px;border-radius:6px;font-size:11px;margin-left:6px;">active</span>`
+            : `<span style="background:#374151;color:#9ca3af;padding:1px 6px;border-radius:6px;font-size:11px;margin-left:6px;">inactive</span>`;
+          row.innerHTML =
+            `<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">`
+            + `<input type="checkbox" id="${checkboxId}" data-protocol-id="${entry.protocol_id}" ${entry.is_active ? "checked" : ""} style="margin-top:4px;">`
+            + `<div style="flex:1;">`
+            + `<strong>${entry.protocol_id}</strong> &middot; ${entry.advisor_name || "(no name)"}${badge}<br>`
+            + `<span style="opacity:.8">${entry.description || "(no description)"}</span><br>`
+            + `<span style="font-size:12px;opacity:.7">${counts} &middot; src=${entry.source_kind}</span>`
+            + `</div></label>`;
+          const btnRow = document.createElement("div");
+          btnRow.style.marginTop = "6px";
+          btnRow.style.display = "flex";
+          btnRow.style.gap = "6px";
+          btnRow.style.justifyContent = "flex-end";
+          if (entry.is_active) {
+            const unloadBtn = document.createElement("button");
+            unloadBtn.textContent = "Unload";
+            unloadBtn.className = "secondary";
+            unloadBtn.addEventListener("click", () => libraryUnload(entry.protocol_id));
+            btnRow.appendChild(unloadBtn);
+          } else {
+            const loadBtn = document.createElement("button");
+            loadBtn.textContent = "Load";
+            loadBtn.className = "secondary";
+            loadBtn.addEventListener("click", () => libraryLoad(entry.protocol_id));
+            btnRow.appendChild(loadBtn);
+          }
+          const deleteBtn = document.createElement("button");
+          deleteBtn.textContent = "Delete";
+          deleteBtn.className = "danger";
+          deleteBtn.addEventListener("click", () => libraryDelete(entry.protocol_id));
+          btnRow.appendChild(deleteBtn);
+          row.appendChild(btnRow);
+          protocolLibraryEntries.appendChild(row);
+        }
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Library load failed: ${err.message}`;
+      }
+    }
+
+    async function libraryLoad(pid) {
+      try {
+        await requestJson(
+          `/v1/protocols/library/${encodeURIComponent(pid)}/load`,
+          { method: "POST" },
+        );
+        protocolLibraryStatus.textContent = `Loaded ${pid} into active set.`;
+        await loadProtocols();
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Load failed: ${err.message}`;
+      }
+    }
+
+    async function libraryUnload(pid) {
+      try {
+        await requestJson(
+          `/v1/protocols/library/${encodeURIComponent(pid)}/unload`,
+          { method: "POST" },
+        );
+        protocolLibraryStatus.textContent = `Unloaded ${pid} (file kept on disk).`;
+        await loadProtocols();
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Unload failed: ${err.message}`;
+      }
+    }
+
+    async function libraryDelete(pid) {
+      if (!window.confirm(`Delete ${pid} from disk? This cannot be undone.`)) return;
+      try {
+        await requestJson(
+          `/v1/protocols/library/${encodeURIComponent(pid)}`,
+          { method: "DELETE" },
+        );
+        protocolLibraryStatus.textContent = `Deleted ${pid}.`;
+        await loadProtocols();
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Delete failed: ${err.message}`;
+      }
+    }
+
+    async function libraryLoadSelected() {
+      if (!protocolLibraryEnabled) return;
+      const checkboxes = protocolLibraryEntries.querySelectorAll(
+        "input[type=checkbox][data-protocol-id]"
+      );
+      const targetActive = new Set();
+      const currentlyActive = new Set();
+      for (const cb of checkboxes) {
+        if (cb.checked) targetActive.add(cb.dataset.protocolId);
+        if (cb.closest(".msg").innerHTML.includes("background:#065f46")) {
+          currentlyActive.add(cb.dataset.protocolId);
+        }
+      }
+      const toLoad = [...targetActive].filter((id) => !currentlyActive.has(id));
+      const toUnload = [...currentlyActive].filter((id) => !targetActive.has(id));
+      if (toLoad.length === 0 && toUnload.length === 0) {
+        protocolLibraryStatus.textContent = "No changes (selection matches current active set).";
+        return;
+      }
+      protocolLibraryStatus.textContent =
+        `Applying: load ${toLoad.length}, unload ${toUnload.length}...`;
+      try {
+        for (const pid of toLoad) {
+          await requestJson(
+            `/v1/protocols/library/${encodeURIComponent(pid)}/load`,
+            { method: "POST" },
+          );
+        }
+        for (const pid of toUnload) {
+          await requestJson(
+            `/v1/protocols/library/${encodeURIComponent(pid)}/unload`,
+            { method: "POST" },
+          );
+        }
+        protocolLibraryStatus.textContent =
+          `Applied: loaded ${toLoad.length}, unloaded ${toUnload.length}. `
+          + `Restart your chat session to pick up changes.`;
+        await loadProtocols();
+      } catch (err) {
+        protocolLibraryStatus.textContent = `Apply failed: ${err.message}`;
+      }
+    }
+
+    function libraryToggleAll(checked) {
+      const checkboxes = protocolLibraryEntries.querySelectorAll(
+        "input[type=checkbox][data-protocol-id]"
+      );
+      for (const cb of checkboxes) cb.checked = checked;
+    }
+
+    async function approveCandidate(pid) {
+      try {
+        await requestJson(`/v1/protocols/candidates/${encodeURIComponent(pid)}/approve`, { method: "POST" });
+        setProtocolStatus(`Approved ${pid}`);
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Approve failed: ${err.message}`);
+      }
+    }
+    async function rejectCandidate(pid) {
+      const reason = window.prompt(`Reject reason for ${pid}:`, "") || "";
+      try {
+        await requestJson(`/v1/protocols/candidates/${encodeURIComponent(pid)}/reject`, {
+          method: "POST",
+          body: JSON.stringify({ reason }),
+        });
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Reject failed: ${err.message}`);
+      }
+    }
+    async function unloadProtocol(pid) {
+      if (!window.confirm(`Unload ${pid}? This removes its compiled artifacts.`)) return;
+      try {
+        await requestJson(`/v1/protocols/${encodeURIComponent(pid)}`, { method: "DELETE" });
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Unload failed: ${err.message}`);
+      }
+    }
+    async function uploadProtocolFile() {
+      const file = protocolUploadFile.files && protocolUploadFile.files[0];
+      if (!file) {
+        setProtocolStatus("Pick a .pdf / .md / .markdown / .txt file first.");
+        return;
+      }
+      const seed = protocolUploadSeed.value.trim();
+      const form = new FormData();
+      form.append("file", file, file.name);
+      if (seed) form.append("protocol_id_seed", seed);
+      const isMarkdown = /\.(md|markdown|txt)$/i.test(file.name);
+      const url = isMarkdown ? "/v1/protocols/upload-markdown" : "/v1/protocols/upload-pdf";
+      protocolUploadBtn.disabled = true;
+      setProtocolStatus(`Uploading ${file.name} ...`);
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          body: form,
+          headers: { ...alphaHeaders() },
+        });
+        const text = await response.text();
+        const payload = text ? JSON.parse(text) : {};
+        if (!response.ok) {
+          throw new Error(`${payload.error || response.status}: ${payload.detail || text}`);
+        }
+        setProtocolStatus(`Uploaded ${file.name} -> ${payload.protocol_id}`);
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Upload failed: ${err.message}`);
+      } finally {
+        protocolUploadBtn.disabled = false;
+      }
+    }
+    async function submitDescription() {
+      const id = protocolDescId.value.trim();
+      const advisor = protocolDescAdvisor.value.trim();
+      const desc = protocolDescText.value.trim();
+      if (!id || !advisor || !desc) {
+        setProtocolStatus("Description, protocol_id, advisor_name are all required.");
+        return;
+      }
+      protocolDescBtn.disabled = true;
+      setProtocolStatus(`Submitting description for ${id} ...`);
+      try {
+        const payload = await requestJson("/v1/protocols/from-description", {
+          method: "POST",
+          body: JSON.stringify({ description: desc, protocol_id: id, advisor_name: advisor }),
+        });
+        setProtocolStatus(`Submitted ${payload.protocol_id}`);
+        protocolDescText.value = "";
+        await loadProtocols();
+      } catch (err) {
+        setProtocolStatus(`Submit failed: ${err.message}`);
+      } finally {
+        protocolDescBtn.disabled = false;
+      }
+    }
+    if (protocolsBtn) {
+      protocolsBtn.addEventListener("click", () => {
+        protocolsPanel.hidden = false;
+        loadProtocols();
+      });
+      protocolsCloseBtn.addEventListener("click", () => { protocolsPanel.hidden = true; });
+      protocolUploadBtn.addEventListener("click", uploadProtocolFile);
+      protocolDescBtn.addEventListener("click", submitDescription);
+      protocolLibrarySelectAll.addEventListener("click", () => libraryToggleAll(true));
+      protocolLibraryClearAll.addEventListener("click", () => libraryToggleAll(false));
+      protocolLibraryLoadSelected.addEventListener("click", libraryLoadSelected);
+      protocolLibraryReload.addEventListener("click", loadProtocolLibrary);
+    }
+
+    loadModels();
+    // loadVerticals() chains into loadTemplates() so the template
+    // dropdown is filled for whatever vertical was auto-selected.
+    loadVerticals();
+    loadScenarios();
+    resetGovernancePanel();
+    updateScopeChip();
+    refreshRelationshipMemory();
+  </script>
+</body>
+</html>
+"""

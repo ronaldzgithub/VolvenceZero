@@ -152,7 +152,8 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P4.5 cross-process hydration preflight owner | `lifeform-evolution.relationship_lab_p4_cross_process_appendable` | 以 create-only request/receipt/state/report 冻结真实 child-process 的 `OwnerHydrationStore` 链；只比较 correct / empty / same-stage swapped prior state，不新增 owner 或 runtime slot |
 | P4.6-fit model-bound artifact prerequisite owner | `volvence_zero.agent.relationship_p4_steering_artifact_fit` / `vz-runtime` | 只用 canonical strict substrate factory 构造精确 Qwen2.5-1.5B runtime，并把一次 reader/conditional executor/matched sensor-off fit 委托给既有 `fit_steering_artifact_bundle` owner；不复制数学、不接产品 wiring |
 | P4.6-actuation physical residual preflight owner | `volvence_zero.agent.relationship_p4_physical_residual_actuation` / `vz-runtime` | 认证精确 P4.6-fit 根后，以既有 sensor / executor / strict substrate direct hook 跑四臂 synthetic physical-effect preflight；只编排与发布证据，不复制 reader/executor 数学、不生成回复、不接产品 wiring |
-| Product Horizon source owner | `lifeform-domain-emogpt.lab.relationship_product_pilot_source` | 冻结 8 个 matched world clone 的 4 onboarding + 24 decision 公开源，并在不同 frozen value 中持有 environment seed、scene/policy/preferred action 等 sealed evaluator truth；SUT payload 永不含 sealed 字段 |
+| Product Horizon source owners | legacy `lifeform-domain-emogpt.lab.relationship_product_pilot_source` 只拥有 source-v1；independent `lifeform-domain-emogpt.lab.relationship_product_pilot_source_v2` 只拥有 live source-v3 | legacy owner implementation 固定为 `15162708…972ae`，无参数路径/loader 永远默认字节兼容 v1。已公开 source-v2 JSON/owner metadata 只作 immutable base；source-v3 wrapper 逐字节 pin 它并由 independent owner 物化全新 8 个 development world clone、seed/domain/rendering/identity namespace 与每 condition 14 个不复用 public semantic surface。sealed evaluator truth 仍物理分离，当前不接 campaign、不产模型输出或证据结论 |
+| Product Horizon reader 资格预检 owner | `lifeform-evolution.relationship_condition_reader_qualification` | 历史 qualification-v1 原样保留；live qualification-v2 显式从 legacy source-v1 training 与 independent source-v3 challenge 的 public/evaluator snapshot 投影生成 model-free、create-only split。prediction request 每行严格只有 opaque item ID、exact text 与 text SHA，challenge label/group 继续 sealed。当前不加载 BGE/CUDA、不授权 qualification/campaign，也不新增 runtime owner |
 | Product Horizon pulse owner | `lifeform-domain-emogpt.lab.relationship_product_pulse` | 只编排正式 `preference_about_other` owner、named condition reader、`dialogue_external_outcome`→PE→credit 与 `RelationshipActionGate`；发布 onboarding / pre-action / settlement frozen snapshot，不复制 memory、PE、credit 或 gate 数学 |
 | Product Horizon strong-baseline owner | `lifeform-evolution.relationship_lab_product_{baselines,model_adapters,baseline_dispatcher}` | 在逐 decision 公开账本边界内运行 revision-pinned Qwen chronological full-history 与 BGE selective-RAG；一个 resident 模型进程执行 stateless calls，逐请求冻结 token、truncation、retrieval、generation 与 ledger lineage |
 | Product Horizon campaign owner | `lifeform-evolution.relationship_lab_product_horizon` | 执行 5 条 typed Volvence targeted-intervention arm 和 2 条强基线；每个 Volvence logical session 使用 fresh child，父进程在 pre-action receipt fsync 后才提供 typed outcome，全部 action 结束后才发布 sealed sidecar；离线 validator 重算环境、链、指标与报告 |
@@ -1440,6 +1441,39 @@ check、access violation 或 bugcheck。不得用 process affinity、反复重�
 该包即使未来 PASS 也只证明 synthetic proxy 上 exact frozen Qwen 的物理 residual effect；不证明关系语义、
 用户可见生成、PE learning、32K、独立 subject、长陪伴、多 session、production ACTIVE 或四能力闭环。
 
+### Product Horizon source registry 与独立开发 cohort v2
+
+source owner 按不可变 lineage 分版，而不是由一个可变 registry 统管。legacy
+`lifeform-domain-emogpt.lab.relationship_product_pilot_source` 只拥有
+`relationship-product-pilot-source.v1`；其实现 raw SHA-256 固定为
+`15162708b3e23071830d0413f1ff7a2a75512f507e37f6e30a47570a593972ae`，默认 path/loader 仍只选择 v1。
+Product Horizon v1/v2 campaign 都固定该 owner，因此不得为新增 source revision 改写它。v1 JSON raw bytes、
+canonical protocol identity、public plan 与 sealed evaluator bundle 继续由 golden regression 固定。
+
+已公开的 `relationship_product_pilot_source_v2.json` 及其中指向 legacy module 的历史 owner metadata 原样保留；
+它不进入 live owner registry，也不能通过修改 metadata 追溯性换 owner。独立
+`lifeform-domain-emogpt.lab.relationship_product_pilot_source_v2` 是后续 source 的唯一解释与 materialization
+owner；它的 live registry 只登记 `relationship-product-pilot-source.v3`。v3 protocol 逐字节 pin 历史 source-v2
+JSON，把它声明为 `immutable_semantic_payload_input`，并把 owner.module 固定为新模块。archive-only v2 decoder
+只用于复验历史 public/sealed materialized identity，不构成第二个 live owner。v3 的新 protocol identity、public
+plan 与 sealed bundle 必须独立 pin，consumer 不得把 v2/v3 身份混用。
+
+source v2 是一个尚未接入任何 campaign 的独立 development cohort：仍为 8 subjects ×（4 onboarding +
+24 decisions），两个 condition 各占 2 条 onboarding 与 12 条 decision，保留 alpha/beta 平衡、互补 policy、
+decision 12 reversal、每 condition 一次 correction、两段 gap 与完整 horizon stage。它使用与 v1 不相交的
+8 个 seed、新 environment-seed namespace、新 6-domain bank，以及全新的 cohort/phase/subject/session/
+decision/scene/event identity namespace。每个 subject 的每个 condition 恰有 14 个 condition-bearing public
+semantic surface，subject 内不复用；合计 28 个且与 v1 exact surface 零重合。surface 只叙述公开关系事实，
+不得出现 sealed `condition_id / policy_id / preferred_action / future outcome / environment_seed` 或给出应选
+action 的指令；onboarding 已发生的公开 action/outcome 与 canonical candidate-action enum 仍按既有 public
+schema 表达，不得误判为 sealed truth 泄漏。
+
+该 source-owner 包只生成确定性的 public/evaluator frozen value，`model_output_count=0`；不启动模型/GPU，
+不选择实验 arm，不读取 attempt03 outcome，也不连接 Product Horizon campaign。source-v3 当前只允许被新的
+reader qualification revision 显式 pin，不授权 product/formal/human 证据或 Appendable / Readable /
+Learnable / Steerable 任一结论。未来 campaign 若采用该 independent cohort，必须另增 campaign protocol 并
+显式 pin source schema/protocol/owner/materialized identities，不能让当前 Horizon v1/v2 自动漂移。
+
 ### Product Horizon v1（development product-level long-horizon pilot）
 
 Product Horizon v1 是为了尽快得到可用于产品决策的长视野结果而新增的 development lane；它不修改、
@@ -1490,6 +1524,219 @@ primary/safety metric、targeted comparisons、report 与整棵文件树；只�
 过门，本包仍固定 `residual_steerable=false / user_visible_generation=false / four_able_complete=false /
 human_product_validation=false / production_active=false / formal_evidence_authorized=false`。回滚只需停止新的
 campaign/dispatcher CLI 并不消费其 immutable artifact；既有 runtime wiring 与 P4.7 formal design 均不变。
+
+#### Product Horizon v2 证据闭包与晋升口径
+
+v2 是后续新 development attempt 的唯一默认协议；v1 及其 immutable run 保持原字节、原报告和旧式
+`validate-existing --output-dir ...` 可复验，不用 v2 规则重写历史判词。v2 不再使用会同时改变动作身份的
+`readable_permuted`，而固定 `readable_unnamed_legacy`：它只把 frozen prototype-named condition reader
+替换为旧的 unnamed public semantic similarity，其他 owner state、PE-credit 与 typed action surface 不变。
+`volvence_full`、appendable、credit-withheld 和 strict-noop 臂都持久化完整 pre-action forecast；report 直接
+重算 named/unnamed readout、owner continuity/reset、PE receipt、唯一 credit record、gate update 及 matched
+action divergence。即便这些 mechanism receipts 全部闭合，也只可记为
+`internal_typed_control_ablation_effect_observed`，不得自动升级为产品效果。
+v2 的 product stage-two admission 必须先满足该内部 typed-control 机制闭包；任何 direct mechanism evidence
+缺口都必须 fail-closed，不能由 outcome、strong baseline、安全或 durability 结果补足。
+
+产品 stage-two 还要求 8 个 matched world clone、4 onboarding + 24 decision 全量执行，两条 strong baseline
+全部 strict-valid，full 相对每个 targeted comparator 与 baseline 同时过方向门、安全 noninferiority，并在
+post-reversal / correction / post-correction / return-after-gap / mixed-stress 五个预注册窗口中满足 durability
+门。两条 Qwen baseline 必须由同一 resident dispatcher process 执行；offline validator 跨全部 16 条
+subject×baseline chain 聚合并要求唯一 startup attestation artifact 与 PID，不能用“每条链各自有效”冒充
+单 resident。只有上述条件连同 source/BGE pins 全部成立，report 才可发布
+`product_stage_two_effect_observed=true`；这仍是 synthetic typed environment 的 development 结果。
+
+v2 的本地执行闭包以 canonical LF identity 冻结全部 `packages/*/src/**/*.py`、两条 CLI entrypoint 与显式
+JSON/prompt/schema resources；active v2 protocol raw bytes 独立绑定，避免 protocol→tree 自引用。publish 与
+offline validation 都要求 exact file set、raw/canonical digest、无 reparse path、`st_nlink == 1`，并在每个
+onboarding、pre-action、post-action worker receipt 中绑定 mirrored CLI、PEP 420 `volvence_zero` namespace
+search locations、critical origins 以及全部已加载本地 module-name→唯一 repository-path→raw digest。
+v2 `validate-existing` 必须由调用方提供外部 expected protocol ID，禁止从 artifact 自锚。
+
+BGE-M3 证据同时绑定 exact revision、根权重 SHA-256、`sentence-transformers` distribution version、30 条
+typed public input、1024 维向量与 create-only table；fresh child 必须在隔离环境中重算完整 vector payload，
+记录不同的 parent/child PID、绝对解释器路径和当时的 local source-tree digest。Qwen/BGE/HF weights、Python、
+第三方 wheels、Torch/CUDA 仍是 execution/runtime attestation 的独立层，不因 Python source-tree closure 自动
+受信。
+
+v2 无论结果如何仍固定 `residual_steerable=false / user_visible_generation=false /
+four_able_complete=false / human_product_validation=false / production_active=false /
+formal_evidence_authorized=false`。它没有真实 residual hook、用户可见生成、真人独立 subject 或 formal 32K
+因果相关 long-context 操作化，因此 stage-two PASS 也不能证明完整 Steerable、四能力闭环或 P4.7 thesis。
+
+#### source-separated reader development 资格预检
+
+`relationship-condition-reader-qualification-protocol.v1` 只冻结 reader 开发资格问题，不是模型执行协议。
+它从 source v1 的 onboarding public utterance 去重得到 4 条 condition-only training text（每类 2 条），并把
+source v2 的 8 个 voice variant × 28 个共享语义母组投影为 224 条 challenge row。row 计数是 224，但组级
+evaluation unit 只有 28；协议固定 `statistical_independence_claim=false`，不得把 voice suffix 产生的完整
+字符串唯一性写成 224 个独立样本，也不得把 source v2 写成独立产品 cohort。
+
+该 v1 qualification protocol、既有 preflight、Gist、receipt 与失败判词均保持原字节和原 lineage。
+`relationship-condition-reader-qualification-protocol.v2` 是尚未执行的新 preregistration identity：training
+仍显式消费 byte-frozen legacy source-v1 owner，challenge 改为消费 independent owner 发布的 source-v3；v3
+又逐字节绑定历史 source-v2 semantic payload。v2 preflight closure 同时 pin legacy owner、新 owner、v1/v2/v3
+source protocol 与 qualification owner，任何 wrong-owner、raw、protocol/public/sealed identity 漂移都
+fail closed。新增 revision 不修补或授权任何既有 execution protocol、public anchor 或 receipt；执行必须在
+代码稳定后另行冻结全新 preflight、execution protocol、Gist 与 receipt。
+
+source condition 到产品 reader label 的 crosswalk 固定为
+`agency_under_override → agency_displacement` 与
+`connection_under_exclusion → belonging_erasure`。通用 reader 单测中的
+`agency_pressure / belonging_uncertainty` 只是 fixture taxonomy，不是第二套产品契约。reader score 固定为
+unit input 与 unit centroid 的 cosine（加 artifact bias 后 clamp 到 `[-1,1]`）；normalized margin 固定为
+`clamp((top1 - top2) / 2, 0, 1)`。未来资格门要求 224/224 row 与 28/28 group 全部 top1 正确、无 tie，且每行
+normalized margin `>= 0.01`；一个 group 只有在八个 voice row 全部过门时才通过。
+
+preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
+`{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
+元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入
+sealed 子树。这个边界是可审计的输入/步骤 firewall，不是对能任意读取仓库的恶意进程的安全隔离，因此
+`process_firewall_security_claim=false`。
+
+当前 preflight 全程 model-free，协议固定 `model_output_count=0`、
+`qualification_execution_authorized=false`，以及
+`condition_reader_qualified / campaign_execution_admitted / readable_product_effect /
+four_able_complete / formal_evidence_authorized=false`。既有 Product Horizon v2 公开 Gist 不是该 reader
+资格执行器的 external anchor。放行 CUDA 前仍必须冻结独立的 training/artifact-builder、prediction-ledger 与
+model-free scorer 进程：predictor 的业务输入/request envelope 不得得到 repository path 或 sealed challenge
+path；但 child 解释器必须通过独立 launcher 参数得到由冻结 source manifest 推导的 canonical import roots，
+否则无法证明实际执行的是哪份源码。该 code-loading root 不进入 predictor request、训练样本或 challenge
+payload，不能借它越过 label firewall。ledger 必须 create-only 写完、
+file fsync、close/reopen byte-hash 复验并写完成 receipt 后，scorer 才可首次打开 challenge labels。最终 executor
+及 CLI 的 raw source closure 必须另行 pin 并公开锚定。即使资格全过，也只可写成“v1 exact-source
+condition-only training → v2 source-separated 28-group challenge 的 reader development admission”，不能据此
+晋升 campaign、Readable 产品效果、四能力闭环或 formal evidence。
+
+资格执行的 Windows/CUDA owner 进一步拆成三层，且不得由单进程合并：prediction parent 只消费 public
+corpus、opaque predictor request 与 4 条 condition-only training label；两个按顺序启动的 fresh predictor
+process 各自在 `CREATE_SUSPENDED` 后先加入 `KILL_ON_CLOSE + ActiveProcessLimit=1` 的独立 Job Object，再各自
+执行 228 次 pinned BGE-M3 CUDA embedding。两次 embedding table、frozen reader artifact 与 224-row ledger
+必须 byte-exact；parent 还要用已冻结 table + reader 对 224 条 exact text 做 model-free replay，逐字段核对
+top label、softmax confidence、normalized margin、candidate score 与 lineage。只有 ledger 通过 create-only
+`x+b → flush/fsync → 同句柄回读 → close/reopen`，且 commit receipt 再次关闭重开成功，才允许生成包含 sealed
+path 的 scoring request。
+
+scorer 必须是第三个 fresh、model-free Windows Job process。它在首次打开 challenge labels/group split 前，
+先验证 external scoring-request identity、commit、ledger raw identity，并解析全部 224 个 readout，拒绝非 top
+label、伪造 confidence/margin、tie、非 canonical float 或 reader lineage 漂移。源码全集、完整 11-file BGE
+snapshot 与 Python/GPU/import runtime identity 在 anchor 后、每个 predictor 前后、scorer 前后及 final
+validation 组成内容寻址的 chained integrity receipt。v1 runtime 中四个 load-critical distribution pin 只是
+v2 的兼容子集；v2 还必须冻结 sole `site-packages` 下全部 installed distribution 的 RECORD 及 hashed-entry
+复验、全部非排除文件的 RECORD ownership 或显式 raw pin、Python home 顶层全部普通文件与目录名、`Lib`
+（排除 `site-packages`）、`DLLs`、`Library/bin` raw tree，并精确观察高优先级 `pythonXY.zip` 的
+absent/present raw 状态；正式 child admission 只接受 absent，present 即使已 raw-pin 也不得启动。
+RECORD 声明不等于磁盘事实。只允许三类窄例外：`pip/pip3/pip3.<minor>` 环境外 console-script 必须位于
+精确目标、实际 absent 且不能由标准 module import 或 controlled native PATH 加载，只保留 RECORD 声明
+identity；conda 改写的 pip `INSTALLER` 与未受控 `Scripts/wheel.exe` 必须同时保留 declared/observed
+identity 并 raw-pin observed bytes；后者不在协议内声称 conda provenance。其他缺失、越界或 identity
+mismatch 必须 fail closed。Windows absolute RECORD path 的每个 component 还必须拒绝 ADS、Win32
+reserved name/character、尾随点或空格及 filesystem alias，不能用两个字符串重复指向同一文件。只有 `-S`
+保证不执行的 `.pth` 与被 per-child isolated pycache prefix 排除的 `__pycache__/*.pyc` 才可显式排除；
+`__pycache__` 内任何非 `.pyc` 文件仍必须按普通文件走 RECORD ownership 或 raw pin。
+
+V2 还要从冻结 execution source tree 单向推导全部 `packages/*/src` root，遍历其中每个目录与普通文件；
+完整 Python `.py` 集必须与历史 source manifest exact join，其他 package data 按原始字节 pin，repository
+内 `.pyd/.dll` 与 `__pycache__` 外的 `.pyc` 直接拒绝。只有验证过的 `__pycache__/*.pyc` 可计数排除。
+`repository_runtime_coverage` 显式绑定 source-tree schema、artifact ID 与 entry count，validator 再做 Python
+entry exact join 与完整磁盘重观察，禁止跨 manifest 拼接；全部内容固定 checkout raw bytes，不做 EOL
+normalization。active qualification v2 protocol 必须 create-only 写到全部 frozen source root 之外，再由 raw
+bytes、外部 expected protocol ID 与 public anchor 独立绑定，禁止 protocol→coverage 自引用。legacy
+integrity-receipt shape 不新增 repository-coverage 字段：coverage 由 receipt 的 `execution_protocol_id` 间接
+内容绑定，并由每个 phase guard 重观察 exact equality。
+
+repository source/runtime coverage、site-packages 与 Python-home 顶层普通文件要求 `st_nlink == 1`；`Lib`、
+`DLLs`、`Library/bin` raw tree 允许 hardlink，但仍固定 canonical path 与 raw identity，并拒绝
+symlink/reparse。hardlink alias 风险属于 `os_security_boundary=false` 的宿主文件系统边界；整条链不声称
+同用户恶意进程、文件系统或网络层隔离。
+
+三个 child 都必须从空白 allowlist 构造环境，使用精确的
+`-P -S -B -u -X utf8 -X pycache_prefix=<absent-per-child-path> -c`；ambient `PYTHONPATH / PATH /
+CUDA_PATH` 不得继承。`PYTHONPATH` 只由冻结 repository source roots 与 sole frozen `site-packages` 组成；
+native `PATH` 只允许 frozen Python home、`DLLs`、`Library/bin`、`SystemRoot/System32` 与 `SystemRoot`，
+predictor 的 `CUDA_VISIBLE_DEVICES` 固定为 `0`。parent 必须逐 child 精确核对 executable、argv、runtime
+flags、完整 environment hash、完整 `sys.path`、全部已加载 file-backed module 的
+module-name→canonical origin，以及 repository `.py` 的唯一 path→raw hash/bytes exact join，并核对 PEP 420
+`volvence_zero` namespace locations。built-in/frozen module 只有在真实 loader/spec 闭合时才可省略；repo
+`__pycache__` 外 `.pyc`、任意 repo `.pyd/.dll`、site/stdlib 对 repository top-level module name 的 shadow、
+受控 root 外 origin、名称/路径碰撞、ambient poison、`.pth` startup、直接 sourceless bytecode，或
+per-child pycache prefix 被物化都 fail closed；验证过但 child 不读取的 `__pycache__/*.pyc` 只计数排除，
+不声称其 raw bytes 漂移可检测。
+
+正式入口必须先验证一份新的 public Gist 首版锚：owner、filename、唯一 revision 结构、未经认证的 raw
+复观察、execution protocol raw bytes/ID、外部提供的 receipt artifact ID 与当时不存在的 execution root
+必须同时闭合。Product Horizon v2 的既有 Gist、protocol 内自报 ID 或稍后补写的 receipt 均不能授权执行。
+最终正向判词最多为 `exact_source_reader_development_admitted`；负向结果原样保留，且任一结果仍保持
+`campaign_execution_admitted / readable_product_effect / appendable_product_effect /
+learnable_product_effect / steerable_product_effect / four_able_complete /
+formal_evidence_authorized=false`。
+
+2026-08-24 的 execution-anchor v1 首次发布必须原样保留为失败锚：public Gist
+[`5f506d8dcb5a9ed68e10274597ba56e3`](https://gist.github.com/ronaldzgithub/5f506d8dcb5a9ed68e10274597ba56e3) 只有文件
+`relationship_condition_reader_qualification_execution_v1.json` 和唯一 revision
+`63ebb32de5703d6e77c21c13e0f52c9dc2c38560`；两条 revision-pinned/latest raw 都与本地冻结的
+`186131` bytes、SHA-256 `02dd24e68efdd7c988c84ac250d48116d4bba637fbf7dad3add5d9c491614572`
+逐字节相同，且没有创建 receipt、execution root、模型或 CUDA 输出。GitHub REST 同时报告
+`created_at=2026-08-24T12:21:08Z`、`updated_at=2026-08-24T12:21:09Z`，v1 错把二者字面相等当作
+“未经编辑”证据，因而按预注册合同 fail closed；不得伪造时间、加一秒宽限、编辑/删除该 Gist 或把它
+改写为通过结果。
+
+execution-anchor v2 必须用 revision 结构而非顶层时间等值证明首版。独立 observer 固定 GitHub REST
+`2026-03-10`，应用层显式设置的请求头仅有 `Accept / X-GitHub-Api-Version / User-Agent`，禁止主动设置
+`Authorization`、`Cookie`、userinfo，且拒绝非 HTTPS、越界重定向或非 GitHub host；它自身按顺序读取
+base Gist、`/commits?per_page=2&page=1`、唯一 revision、base `raw_url`、revision-pinned raw，再次读取同一
+commits endpoint，并使用有界响应和超时且 fail loudly。两次 commits 响应都必须精确一项，最终一次是本轮
+观察的 linearization point，且 version/URL/committed_at 必须与首次 sole commit 相同；base/revision 必须
+同时为 public、同一 owner/id、只含一个预注册
+filename，sole commit 的 version/URL 必须与 revision endpoint 和 canonical revision raw 闭合，两份 raw
+必须彼此相同并逐字节等于冻结 v2 protocol。调用方不得传入或常量注入 `public=true`、revision count、
+`first_revision=true` 等结论；外部 GitHub JSON 允许 additive 未知字段，但所需字段缺失、错型或 identity
+漂移均拒绝，并记录四份 REST 与两份 raw 的完整 raw hash/bytes。`created_at / updated_at / committed_at`
+只校验 UTC 格式并原样记录，不参与未编辑判定，也不允许任何时间宽限推理；`observed_at_utc` 只能由
+observer 在最终 commits GET 后从本机 UTC clock 生成，CLI/调用方无注入入口。
+
+v2 会改变 observer、CLI、source closure、protocol ID 与 raw，因此必须另建只含 v2 raw 的全新 public Gist；
+不得复用或编辑 v1 Gist。v2 receipt 仍只是 data：生成后必须由独立通道把 artifact ID 显式回填给
+`validate-anchor / execute`，且 receipt 当时不存在的 execution root 必须保持 absent。v2 outer 在任何
+prediction/scoring stage 前还必须要求 child Python 的 canonical executable 与 frozen runtime identity 中的
+Python executable 完全相同；CLI override 只能提供同一路径，不能把模型切到未冻结环境。v2 runtime identity
+必须同时携带上述完整 import-domain closure 与 controlled child import/native-path contract，不能再把
+`four_declared_distributions_exact` 写成 full runtime reproducibility。该合同修正不运行
+reader、模型或 CUDA，也不增加 Readable、campaign 或四能力产品主张。
+
+2026-08-25 的 execution-anchor v2 也必须原样保留为失败谱系：public Gist
+[`8511e3f0fca9db5ef4c8deee2e1b8154`](https://gist.github.com/ronaldzgithub/8511e3f0fca9db5ef4c8deee2e1b8154)
+只有文件 `relationship_condition_reader_qualification_execution_v2.json` 和唯一 revision
+`780cd210550527e6c82368904ef2c9bba9646d3b`；匿名六 GET receipt artifact ID 是
+`283e22af5121b50d7677b2c64d7296305f2f07c7eae74e83a1d4f9a4697e650d`。该 protocol/receipt
+把 proposed execution root 绑定为 `relationship_condition_reader_qualification_v2_windows_cuda_...`，
+但其冻结的 preflight `public/publication_request.json` 仍绑定
+`relationship_condition_reader_qualification_windows_cuda_...`；两者无法由同一次 execute 同时满足，执行在
+建 root、模型和 CUDA 前 fail closed。不得编辑/删除 v2 Gist 或 receipt，也不得用不同 CLI 参数把该内部矛盾
+改写为成功。
+
+后续 execution protocol 的 freeze owner 必须在扫描昂贵 source/runtime closure 和写 create-only protocol
+之前，重新读取已由 preflight binding 固定 raw identity 的 `public/publication_request.json`，并要求其中
+`proposed_execution_root` 与新 protocol proposal canonical 相同、`proposed_execution_root_exists_at_prepare`
+仍为 false；两端必须是逐字符相同的 canonical local-drive path，并拒绝 UNC/device namespace、ADS、Windows
+保留名、非法字符、尾点/尾空格、reparse 与已有 ancestor 的 case/alias 漂移。raw hash/bytes/artifact ID 任一
+不闭合也必须拒绝。executor 仍在建 root 前作第二次 exact-text 语义 join。
+修复后的下一次尝试必须使用匹配 preflight request 的 root，另建全新 protocol、public Gist 与 receipt；不得
+复用 v2 的公开谱系。execute 的外部 `run_nonce` 还必须在 CLI parse 阶段就是 64 位小写 SHA-256，不能等到
+完成 anchor/runtime 重观察后才由 outer core 拒绝。
+
+同日随后冻结但从未外发的 execution-anchor v3 也必须原样保留为本地 superseded 谱系：preflight 根是
+`relationship_condition_reader_qualification_preflight_v3_20260825_p6a78e2bb3f29`，execution protocol ID
+为 `d1398d0393266d2fe991d8bee66cece0230c1e4283d675f1d8210665b156bf49`，raw SHA-256 为
+`d5e104e6169d59d54f18f7216ec59339c9d17090b9900d293c0f74915f31848c`，共 `635003` bytes。提交前回归发现
+source-v2 实现曾覆盖历史 source-v1 owner 的 raw pin；恢复 legacy owner、拆出 independent source-v3 后，
+该 protocol 冻结的 repository runtime coverage 已不再代表修复后的 checkout，因此状态固定为
+`superseded_before_external_publication`，原因固定为
+`product_horizon_v2_source_implementation_pin_repair_invalidated_frozen_repository_runtime_coverage`。
+这不是一次执行失败，也不得补造 Gist 或 receipt：`external_publication_attempted=false / public_gist_created=false`，
+`anchor_receipt_created=false / execution_root_created=false / model_output_count=0 / CUDA_execution_count=0`。
+v3 preflight 与 protocol 只作不可变审计记录；下一次必须从修复后的 committed source tree 重新生成全新
+preflight、execution protocol、Gist、receipt 与 run nonce。
 
 关系域 residual 是并行而分离的 prerequisite：domain adapter 只能把 pre-action owner forecast 与
 非 oracle、已有 PE update 的 typed gate decision 投影为 train/heldout subject-disjoint corpus；`vz-runtime`

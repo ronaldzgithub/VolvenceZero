@@ -1,0 +1,101 @@
+{
+  "schema_version": "relationship-condition-reader-qualification-protocol.v1",
+  "evidence_role": "exact_source_reader_development_admission_only",
+  "sources": {
+    "training": {
+      "schema_version": "relationship-product-pilot-source.v1",
+      "raw_sha256": "c623c33f7f8cdbb31a0e5055cb4b802af479ae2a7aa6cb73c9724c614e8539b0",
+      "raw_bytes": 11914,
+      "protocol_id": "048b73d4a412b4444fb469be0d9daa6d2a26e9920c743804da8f36dc331691ae",
+      "public_plan_id": "93474269cb5b9d066e68253d6f2e51fbc0d3bf3b6a7fe2a748b140d136bb812b",
+      "sealed_bundle_id": "d502b78364dcb7024b229f4bb10c0cddb002488c3a360edd7aa0932c345d8b5a",
+      "selection": "deduplicated_v1_onboarding_user_utterance_only"
+    },
+    "challenge": {
+      "schema_version": "relationship-product-pilot-source.v2",
+      "raw_sha256": "ef35ba2637e53c96c2ed86b16a8bb69281cc10e1a2f30c81112a66841f4b23f7",
+      "raw_bytes": 13031,
+      "protocol_id": "9f4ad004f9332a705d3231cb9a3394b4922417878f18487806b0f030bb863161",
+      "public_plan_id": "7a99d247ecc7c7d0b25cdaba104d4177eb55b83c3860de44c2e8eef5af9157bf",
+      "sealed_bundle_id": "da6cac8fa99476f3ce0cd6b57a0dc3f27b1de417eab8e9a8aa65e777d75a34c6",
+      "selection": "all_v2_onboarding_user_utterance_and_decision_current_input"
+    }
+  },
+  "label_crosswalk": {
+    "agency_under_override": "agency_displacement",
+    "connection_under_exclusion": "belonging_erasure"
+  },
+  "semantic_model": {
+    "model_id": "BAAI/bge-m3",
+    "model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "weights_sha256": "b5e0ce3470abf5ef3831aa1bd5553b486803e83251590ab7ff35a117cf6aad38",
+    "sentence_transformers_version": "5.6.0",
+    "embedding_width": 1024,
+    "device": "cuda",
+    "network_allowed": false,
+    "stub_allowed": false
+  },
+  "reader": {
+    "schema_version": "relationship-condition-reader-artifact.v2",
+    "solver": "unit_normalized_class_centroid_linear",
+    "solver_version": "relationship-condition-centroid-solver.v1",
+    "labels": [
+      "agency_displacement",
+      "belonging_erasure"
+    ],
+    "score_definition": "clamp_-1_1(cosine(unit_input,unit_centroid)+bias).v1",
+    "normalized_margin_definition": "clamp_0_1((top_score-second_score)/2).v1",
+    "runtime_fit_allowed": false
+  },
+  "qualification_gates": {
+    "training_unique_count": 4,
+    "training_count_per_class": 2,
+    "challenge_row_count": 224,
+    "challenge_count_per_class": 112,
+    "challenge_group_count": 28,
+    "rows_per_challenge_group": 8,
+    "required_correct_rows": 224,
+    "required_correct_groups": 28,
+    "group_correctness_rule": "all_eight_rows_correct_and_margin_gate",
+    "challenge_group_assignment": "qualification_owned_surface_kind_plus_source_position.v1",
+    "top1_expected_required": true,
+    "minimum_normalized_margin": 0.01,
+    "minimum_normalized_margin_comparator": ">=",
+    "tie_policy": "fail",
+    "fresh_bge_process_count": 2,
+    "fresh_bge_exact_vector_reobservation_required": true,
+    "reader_artifact_rederived_from_reobservation_required": true,
+    "prediction_ledger_fsync_before_label_release": true,
+    "statistical_independence_claim": false
+  },
+  "execution": {
+    "external_public_anchor_required": true,
+    "prediction_request_surface": "opaque_item_id_exact_text_and_text_sha256_only",
+    "future_execution_source_pinning_required": true,
+    "future_transitive_execution_closure_required": true,
+    "qualification_execution_authorized": false,
+    "model_output_count": 0,
+    "preflight_source_scope": "qualification_preflight_direct_sources_only",
+    "prediction_child_repo_access_allowed": false,
+    "prediction_child_sealed_labels_access_before_ledger_fsync": false,
+    "prediction_process_sees_challenge_labels": false,
+    "process_firewall_security_claim": false,
+    "scoring_process_model_free": true,
+    "preflight_source_sha256s": {
+      "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_pilot_source.py": "b56d04dace2b76d8c1edf8625048249caf083ce100abbdcf50ea9faec32905c0",
+      "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v1.json": "c623c33f7f8cdbb31a0e5055cb4b802af479ae2a7aa6cb73c9724c614e8539b0",
+      "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v2.json": "ef35ba2637e53c96c2ed86b16a8bb69281cc10e1a2f30c81112a66841f4b23f7",
+      "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/relationship_condition_reader.py": "303d61536a3d9f6e77fe6b4ee518ac8ba1028a4390890d564fab366f6d698ea8",
+      "packages/lifeform-evolution/src/lifeform_evolution/relationship_condition_reader_qualification.py": "8cc5332994582eaa43986711cfbc148bbe33bee186e6935de1bb6b585108c72a",
+      "packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_model_adapters.py": "ca96a0c06ba546378d23958052e76bab9ab6ee9991714574d15a059bd0c14553",
+      "scripts/run_relationship_condition_reader_qualification.py": "0b010f51f7045d8c0fa5088b1e7cec9418ebe7b7604dc49a78e6656be760685e"
+    }
+  },
+  "claims": {
+    "condition_reader_qualified": false,
+    "campaign_execution_admitted": false,
+    "readable_product_effect": false,
+    "four_able_complete": false,
+    "formal_evidence_authorized": false
+  }
+}

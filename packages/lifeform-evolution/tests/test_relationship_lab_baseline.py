@@ -127,6 +127,19 @@ class _CharacterActionTokenizer:
         return "".join(chr(token - 1) for token in ids if token != 0)
 
 
+def test_schema_constraint_rejects_non_exact_tokenizer_round_trip() -> None:
+    class WhitespaceNormalizingTokenizer(_CharacterActionTokenizer):
+        @staticmethod
+        def decode(token_ids, *, skip_special_tokens: bool) -> str:
+            return " " + _CharacterActionTokenizer.decode(
+                token_ids,
+                skip_special_tokens=skip_special_tokens,
+            )
+
+    with pytest.raises(ValueError, match="does not decode exactly"):
+        build_canonical_action_json_token_constraint(WhitespaceNormalizingTokenizer())
+
+
 @pytest.mark.parametrize(
     ("candidate_index", "expected_action"),
     tuple(

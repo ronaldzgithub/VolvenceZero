@@ -1,0 +1,1234 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+from dataclasses import dataclass, replace
+from collections.abc import Callable
+from typing import Any, Literal
+
+from volvence_zero.agent.response import ResponseSynthesizer
+from volvence_zero.agent.session import AgentSessionRunner, AgentTurnResult
+from volvence_zero.application.domain_experience import DomainExperiencePackage
+from volvence_zero.application.storage import (
+    ProvisionalReconcileResult,
+    ProvisionalReconcileThresholds,
+)
+from volvence_zero.agent.dialogue_outcome_producers import (
+    tool_outcome_evidence_from_environment_outcome,
+)
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeEvidenceSource,
+    DialogueExternalOutcomeKind,
+    DialogueOutcomeEvidence,
+    DialogueOutcomeResolution,
+)
+from volvence_zero.credit import (
+    CreditRecord,
+    derive_preference_action_forecast_credit_records,
+)
+from volvence_zero.environment import (
+    EnvironmentEvent,
+    EnvironmentEventKind,
+    EnvironmentOutcome,
+)
+from volvence_zero.evaluation import RelationshipContinuityEvaluationModule
+from volvence_zero.identity_seed import IdentitySeed
+from volvence_zero.integration import FinalRolloutConfig, resolve_final_rollout_config
+from volvence_zero.joint_loop import JointLoopSchedule
+from volvence_zero.memory import (
+    AnonymousIdentityProvider,
+    IdentityProvider,
+    MemoryEntry,
+    MemoryStore,
+    MemoryStoreCheckpoint,
+    build_default_memory_store,
+    build_scoped_memory_store,
+    delete_entry_for_scope,
+    list_durable_entries_for_scope,
+    rewrite_entry_for_scope,
+    scope_key_for,
+)
+from volvence_zero.owner_hydration_store import OwnerHydrationStore
+from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
+from volvence_zero.reflection import (
+    ReflectionSnapshot,
+    RelationshipUpdateProposalOperation,
+)
+from volvence_zero.relationship_continuity import (
+    RelationshipContinuityConsoleOutcome,
+    RelationshipContinuitySnapshot,
+)
+from volvence_zero.runtime import WiringLevel
+from volvence_zero.steering_contracts import SteeringArtifactBundle
+from volvence_zero.semantic_state import (
+    ExternalSemanticEventBatch,
+    SemanticEventDelivery,
+    SemanticProposalRuntime,
+    semantic_events_from_profile,
+    semantic_events_from_reviewed_knowledge,
+    semantic_events_from_task_event,
+    semantic_events_from_tool_result,
+)
+from volvence_zero.social import (
+    PreferenceActionForecastRequest,
+    PreferenceActionForecastRuntime,
+)
+from volvence_zero.social_cognition import (
+    PreferenceAboutOtherSnapshot,
+    PreferenceActionForecast,
+    SocialPredictionErrorSnapshot,
+)
+from volvence_zero.semantic_embedding import (
+    reset_semantic_embedding_backend,
+    set_semantic_embedding_backend,
+)
+from volvence_zero.substrate import (
+    OpenWeightResidualRuntime,
+    PeftLoraRareHeavyBackend,
+    SubstrateAdapter,
+    SubstrateTextEncoderBackend,
+    SyntheticOpenWeightResidualRuntime,
+    TransformersOpenWeightResidualRuntime,
+    build_transformers_runtime_with_fallback,
+)
+from volvence_zero.regime import RegimeBootstrap
+from volvence_zero.temporal import (
+    FullLearnedTemporalPolicy,
+    MetacontrollerParameterSnapshot,
+    TemporalActionAdvisoryProposal,
+)
+
+
+SubstrateMode = Literal["synthetic", "hf", "injected"]
+
+# Named temporal controller capacity profiles (#86/#88). The learned ndim
+# metacontroller (GRU encoder + element-wise switch + FFN decoder, pure
+# Python, CPU-runnable) is a complete first-class path selected by profile;
+# the shipped default stays on the legacy 3-dim rollback baseline until the
+# evidence gate (>=500-turn validation_delta) clears promotion.
+TEMPORAL_PROFILE_LATENT_DIMS: dict[str, int] = {
+    "legacy-3dim": 3,
+    "learned-ndim": 16,
+}
+
+
+@dataclass(frozen=True)
+class BrainConfig:
+    """Stable package-facing configuration for the Volvence Zero brain.
+
+    The default synthetic substrate keeps the core package independent from
+    external model weights. Hugging Face / Qwen runtimes are only constructed
+    when ``substrate_mode="hf"`` is selected explicitly.
+    """
+
+    substrate_mode: SubstrateMode = "synthetic"
+    substrate_model_id: str = "Qwen/Qwen2.5-0.5B-Instruct"
+    substrate_model_source: str | None = None
+    substrate_device: str = "auto"
+    substrate_local_files_only: bool = True
+    substrate_fallback_mode: str | None = "deny"
+    # Controller capacity is explicit so evidence runs can exercise the ndim
+    # metacontroller without changing code defaults. Three preserves the
+    # legacy pure-Python rollback baseline; learned-backend promotion profiles
+    # use 16/64/256 behind owner-local WiringLevel gates.
+    temporal_latent_dim: int = 3
+    # Named capacity profile (see TEMPORAL_PROFILE_LATENT_DIMS). When set,
+    # it resolves the effective latent dim; passing both a profile and a
+    # non-default temporal_latent_dim is a config error (single owner for
+    # the capacity knob). None keeps temporal_latent_dim authoritative.
+    temporal_profile: str | None = None
+    application_persistence_dir: str | None = None
+    domain_experience_packages: tuple[DomainExperiencePackage, ...] = ()
+    final_rollout_config: FinalRolloutConfig | None = None
+    # Model-bound steering artifacts are explicit construction-time inputs.
+    # None keeps the owner family absent; loading a bundle never changes its
+    # SHADOW defaults or authorizes promotion by itself.
+    steering_bundle: SteeringArtifactBundle | None = None
+    rare_heavy_enabled: bool = True
+    rare_heavy_trace_window: int = 5
+    rare_heavy_min_traces: int = 4
+    rare_heavy_cooldown_turns: int = 3
+    allow_live_substrate_mutation: bool = False
+    joint_schedule: JointLoopSchedule | None = None
+    joint_apply_ssl_optimization: bool = True
+    joint_apply_policy_optimization: bool = True
+    # Same-substrate component-causal ablation controls (#87 claim 3).
+    # These expose dialogue-runner PE/ETA knobs through the stable package API
+    # so real `lifeform-serve` endpoints can run matched controls.
+    temporal_policy_kind: Literal["full", "learned_lite"] = "full"
+    external_prediction_error_drive: bool = True
+    prediction_error_readout_only: bool = False
+    primary_prediction_error_dominance_enabled: bool = True
+    apprenticeship_feedback_policy: Literal["owner", "random", "disabled"] = "owner"
+    apprenticeship_constraint_extractor: Any = None
+    # Rupture-and-Repair v0 Risk 2 mitigation: LLM-sourced external
+    # outcome proposals are OFF by default. Set this to True ONLY after
+    # reviewing the proposal adapter contract (post-v0 M9). See
+    # docs/specs/rupture-and-repair.md Risk 2.
+    allow_llm_outcome_proposals: bool = False
+    # Rupture-and-Repair M4: directory under which per-user scoped
+    # MemoryStore files are written. Required when the identity
+    # provider resolves a non-None UserIdentity with the ``"persist"``
+    # permission. None (default) keeps the current
+    # no-cross-session-memory behavior.
+    memory_scope_root_dir: str | None = None
+    # NW10 (durable co-evolution): canonical baseline that seeds a fresh
+    # scoped MemoryStore EXACTLY ONCE — on the first session for a scope
+    # (when no prior durable content exists on disk). Lets a baked
+    # LifeformTemplate's memory_checkpoint seed the per-relationship
+    # store, after which the accumulated on-disk state wins and the
+    # character durably co-evolves with the player instead of resetting
+    # to the checkpoint every session. None = no seed (current behavior).
+    memory_seed_checkpoint: MemoryStoreCheckpoint | None = None
+    # Evidence-selectable CMS construction. Defaults are the shipped
+    # multi-frequency CMS and remain unchanged outside an explicit profile.
+    cms_variant: Literal["nested", "independent", "sequential"] = "nested"
+    cms_session_cadence: int = 2
+    cms_background_cadence: int = 4
+    cms_pe_features_enabled: bool = True
+    cms_replay_window_size: int | None = 8
+    cms_context_conditioned_meta_init: bool = False
+    cms_context_prototype_count: int = 8
+    nested_context_reset_mode: Literal["meta-init", "copy-init", "no-init"] = "copy-init"
+    # Packet D (long-horizon-closure): cross-session owner hydration
+    # wiring level. ACTIVE is the production-grade default — long
+    # horizon continuity is the whole point of the lifeform shape,
+    # so a fresh BrainConfig should not silently fall back to
+    # "every session starts from scratch". Concretely:
+    #
+    # * DISABLED — turns the entire hydration path off (also the
+    #   no-side-effects test escape hatch). No OwnerHydrationStore is
+    #   constructed; persist_owners returns ().
+    # * SHADOW — writes hydration payloads after each turn / scene
+    #   close but does NOT load on session create. Useful when an
+    #   operator wants to observe round-trip behavior in logs before
+    #   actually picking up persisted state.
+    # * ACTIVE (default) — both writes AND loads. Anonymous sessions
+    #   without a persistence backend are still safe (the store is
+    #   only constructed when the MemoryStore has a backend, which
+    #   requires identity + memory_scope_root_dir).
+    #
+    # The hydration store reuses the MemoryStore.persistence_backend;
+    # the hydration keys (``owner_hydration/<owner_name>``) do not
+    # collide with the memory checkpoint key.
+    owner_hydration_wiring: WiringLevel = WiringLevel.ACTIVE
+    # Template / bootstrap seed for owner hydration. This is a seed-once
+    # path: Brain.create_session writes each snapshot only if the scoped
+    # backend has no ``owner_hydration/<owner_name>`` key yet. Existing
+    # per-user owner state always wins.
+    owner_hydration_seed_snapshots: tuple[OwnerPersistenceSnapshot, ...] = ()
+    # #91: real text-embedding backend. When ACTIVE (default) and a real
+    # transformers substrate runtime is present, semantic embedding
+    # (dual_track track assignment, evaluation prototypes, application
+    # scoring) is served by the loaded LM's feature surface via
+    # SubstrateTextEncoderBackend instead of the character-hash stub.
+    # Synthetic / injected-non-transformers runtimes always keep the stub,
+    # so the large synthetic-substrate test surface is byte-identical.
+    # DISABLED forces the stub even on a real runtime (rollback). The env
+    # var VZ_SEMANTIC_EMBEDDING_BACKEND=stub is an operator override with
+    # the same effect. Process-global seam: single-substrate only; a
+    # multi-substrate process should leave this DISABLED (#91 follow-up).
+    semantic_embedding_backend_wiring: WiringLevel = WiringLevel.ACTIVE
+    # S1: offline rare-heavy adapter training backend. "builtin" (default)
+    # keeps the runtime's built-in adapter-delta autograd loop — the
+    # documented fallback and rollback target. "peft-lora" installs
+    # PeftLoraRareHeavyBackend on the substrate runtime so every
+    # rare-heavy clone (session_training_phase / joint-loop pipeline)
+    # trains real LoRA matrices on the frozen base model; the artifact
+    # still enters the live runtime only through the existing replay
+    # comparison + ModificationGate path. Requires a real transformers
+    # runtime — configuring it with a synthetic substrate fails loudly.
+    rare_heavy_training_backend: Literal["builtin", "peft-lora"] = "builtin"
+
+    def resolved_temporal_latent_dim(self) -> int:
+        """Resolve the effective controller capacity (profile-aware).
+
+        ``temporal_profile`` and an explicit non-default
+        ``temporal_latent_dim`` are mutually exclusive so the capacity knob
+        keeps a single owner. Fail loudly on unknown profiles.
+        """
+
+        if self.temporal_profile is None:
+            return self.temporal_latent_dim
+        if self.temporal_profile not in TEMPORAL_PROFILE_LATENT_DIMS:
+            raise ValueError(
+                f"unknown temporal_profile {self.temporal_profile!r}; "
+                f"expected one of {sorted(TEMPORAL_PROFILE_LATENT_DIMS)}"
+            )
+        if self.temporal_latent_dim != 3:
+            raise ValueError("pass either temporal_profile or an explicit temporal_latent_dim, not both")
+        return TEMPORAL_PROFILE_LATENT_DIMS[self.temporal_profile]
+
+
+def _seed_owner_hydration_snapshots_once(
+    *,
+    backend: Any,
+    snapshots: tuple[OwnerPersistenceSnapshot, ...],
+) -> None:
+    for snapshot in snapshots:
+        key = f"owner_hydration/{snapshot.owner_name}"
+        if backend.load_checkpoint(key=key) is not None:
+            continue
+        payload = {
+            "owner_name": snapshot.owner_name,
+            "schema_version": snapshot.schema_version,
+            "payload": dict(snapshot.payload),
+            "description": snapshot.description,
+        }
+        backend.save_checkpoint(
+            key=key,
+            data=json.dumps(payload, sort_keys=True).encode("utf-8"),
+            version=1,
+        )
+
+
+class BrainSession:
+    """Synchronous and async facade over ``AgentSessionRunner``."""
+
+    def __init__(self, *, runner: AgentSessionRunner) -> None:
+        self._runner = runner
+        self._relationship_continuity_evaluation = RelationshipContinuityEvaluationModule(
+            persistence_backend=runner.memory_store.persistence_backend
+        )
+
+    @property
+    def runner(self) -> AgentSessionRunner:
+        return self._runner
+
+    @property
+    def session_id(self) -> str:
+        return self._runner.session_id
+
+    def submit_semantic_events(self, events: ExternalSemanticEventBatch) -> tuple[str, ...]:
+        return self._runner.enqueue_semantic_events(events)
+
+    def semantic_event_delivery(
+        self,
+        events: tuple[tuple[str, str], ...],
+    ) -> tuple[SemanticEventDelivery, ...]:
+        """Return semantic-owner-authored external-event delivery proof."""
+
+        return self._runner.semantic_state_store.external_event_delivery(events)
+
+    def memory_entry_count(self) -> int:
+        """Return the Memory owner-published artifact-entry count."""
+
+        return self._runner.memory_store.entry_count()
+
+    def relationship_reflection_snapshot(self) -> ReflectionSnapshot | None:
+        """Return the latest typed reflection readout for product consumers."""
+
+        published = self._runner.upstream_snapshots.get("reflection")
+        if published is None:
+            return None
+        if not isinstance(published.value, ReflectionSnapshot):
+            raise TypeError("reflection slot must publish ReflectionSnapshot for relationship console")
+        return published.value
+
+    def relationship_memory_entries(self) -> tuple[MemoryEntry, ...]:
+        """List this session's scoped durable entries through Memory owner API."""
+
+        return list_durable_entries_for_scope(
+            self._runner.memory_store,
+            user_scope=self._runner.user_scope,
+        )
+
+    def relationship_continuity_readout(
+        self,
+        *,
+        user_id: str,
+        observation_id: str,
+        observed_at_ms: int,
+        console_outcomes: tuple[RelationshipContinuityConsoleOutcome, ...],
+    ) -> RelationshipContinuitySnapshot:
+        """Publish the evaluation owner's read-only seven-day readout."""
+
+        return self._relationship_continuity_evaluation.observe(
+            user_id=user_id,
+            observation_id=observation_id,
+            observed_at_ms=observed_at_ms,
+            snapshots=self._runner.upstream_snapshots,
+            console_outcomes=console_outcomes,
+        )
+
+    def _persist_relationship_memory_or_rollback(
+        self,
+        *,
+        checkpoint: MemoryStoreCheckpoint,
+        failure_message: str,
+    ) -> None:
+        try:
+            persisted = self._runner.memory_store.save_to_backend()
+        except Exception as exc:
+            self._runner.memory_store.restore_checkpoint(checkpoint)
+            raise RuntimeError(failure_message) from exc
+        if persisted:
+            return
+        self._runner.memory_store.restore_checkpoint(checkpoint)
+        raise RuntimeError(failure_message)
+
+    def apply_confirmed_relationship_memory_proposal(
+        self,
+        *,
+        proposal_id: str,
+        timestamp_ms: int,
+    ) -> tuple[str, ...]:
+        """Apply one user-confirmed reflection proposal through Memory owner."""
+
+        reflection = self.relationship_reflection_snapshot()
+        if reflection is None:
+            raise RuntimeError("relationship memory proposal requires a reflection snapshot")
+        proposal = next(
+            (
+                candidate
+                for candidate in reflection.relationship_update_proposals
+                if candidate.proposal_id == proposal_id
+            ),
+            None,
+        )
+        if proposal is None:
+            raise KeyError(proposal_id)
+        if proposal.target_owner_slot != "memory":
+            raise ValueError("apply_confirmed_relationship_memory_proposal only accepts memory proposals")
+
+        evidence_ids = tuple(
+            item.removeprefix("memory_entry:") for item in proposal.source_evidence if item.startswith("memory_entry:")
+        )
+        if len(evidence_ids) != 1 or not evidence_ids[0]:
+            raise ValueError("memory relationship proposal must identify exactly one memory_entry")
+        entry_id = evidence_ids[0]
+        operation = RelationshipUpdateProposalOperation(proposal.operation)
+        new_entries: tuple[MemoryEntry, ...] = ()
+        promoted_entries: tuple[str, ...] = ()
+        decayed_entries: tuple[str, ...] = ()
+        if operation is RelationshipUpdateProposalOperation.REMEMBER:
+            source = next(
+                (entry for entry in reflection.memory_consolidation.new_durable_entries if entry.entry_id == entry_id),
+                None,
+            )
+            if source is None:
+                raise ValueError("remember proposal evidence is absent from reflection memory consolidation")
+            scope_tag = f"user_scope:{self._runner.user_scope}"
+            new_entries = (
+                replace(
+                    source,
+                    tags=tuple(dict.fromkeys((*source.tags, scope_tag))),
+                ),
+            )
+        elif operation is RelationshipUpdateProposalOperation.PROMOTE:
+            promoted_entries = (entry_id,)
+        elif operation is RelationshipUpdateProposalOperation.DECAY:
+            decayed_entries = (entry_id,)
+        else:
+            raise ValueError(f"unsupported memory relationship proposal operation: {operation.value}")
+
+        checkpoint = self._runner.memory_store.create_checkpoint(checkpoint_id=f"relationship-memory:{proposal_id}")
+        applied = self._runner.memory_store.apply_reflection_consolidation(
+            new_durable_entries=new_entries,
+            promoted_entries=promoted_entries,
+            decayed_entries=decayed_entries,
+            beliefs_updated=(),
+            promotion_boost=reflection.consolidation_score.promotion_score,
+            decay_scale=reflection.consolidation_score.decay_score,
+            lesson_count=len(reflection.lessons_extracted),
+            timestamp_ms=timestamp_ms,
+        )
+        if not applied:
+            self._runner.memory_store.restore_checkpoint(checkpoint)
+            raise RuntimeError("Memory owner rejected the confirmed relationship proposal")
+        self._persist_relationship_memory_or_rollback(
+            checkpoint=checkpoint,
+            failure_message=("confirmed relationship memory proposal could not be persisted"),
+        )
+        return applied
+
+    def delete_relationship_memory_entry(self, *, entry_id: str) -> MemoryEntry | None:
+        """Delete one scoped durable entry and persist the Memory owner."""
+
+        checkpoint = self._runner.memory_store.create_checkpoint(checkpoint_id=f"relationship-memory-delete:{entry_id}")
+        removed = delete_entry_for_scope(
+            self._runner.memory_store,
+            user_scope=self._runner.user_scope,
+            entry_id=entry_id,
+        )
+        if removed is not None:
+            self._persist_relationship_memory_or_rollback(
+                checkpoint=checkpoint,
+                failure_message=("relationship memory deletion could not be persisted"),
+            )
+        return removed
+
+    def rewrite_relationship_memory_entry(
+        self,
+        *,
+        entry_id: str,
+        replacement_content: str,
+        timestamp_ms: int,
+    ) -> MemoryEntry | None:
+        """Rewrite one scoped durable entry and persist the Memory owner."""
+
+        checkpoint = self._runner.memory_store.create_checkpoint(
+            checkpoint_id=f"relationship-memory-rewrite:{entry_id}"
+        )
+        replacement = rewrite_entry_for_scope(
+            self._runner.memory_store,
+            user_scope=self._runner.user_scope,
+            entry_id=entry_id,
+            replacement_content=replacement_content,
+            timestamp_ms=timestamp_ms,
+        )
+        if replacement is not None:
+            self._persist_relationship_memory_or_rollback(
+                checkpoint=checkpoint,
+                failure_message=("relationship memory rewrite could not be persisted"),
+            )
+        return replacement
+
+    def submit_environment_outcome(self, outcome: EnvironmentOutcome) -> None:
+        """Submit one canonical outcome to next-turn Prediction Error settlement."""
+
+        self._runner.submit_environment_outcome(outcome)
+
+    def submit_tool_result(
+        self,
+        *,
+        event_id: str,
+        tool_name: str,
+        action_id: str,
+        status: str,
+        summary: str,
+        detail: str,
+        confidence: float = 0.8,
+        artifact_refs: tuple[str, ...] = (),
+        plan_ref: str | None = None,
+        latency_ms: int | None = None,
+        monetary_cost: float = 0.0,
+        reversibility: str = "reversible",
+        environment_state_delta_kind: str = "none",
+        # Per-claim provenance for findings-shaped tools. Threaded through
+        # the existing outcome path rather than a side channel: a claim
+        # that reaches belief_assumption without lineage is exactly the
+        # thing the provenance rule exists to catch.
+        provenance: tuple[object, ...] = (),
+    ) -> tuple[str, ...]:
+        outcome = EnvironmentOutcome(
+            outcome_id=f"{event_id}:outcome",
+            event_id=event_id,
+            outcome_kind=EnvironmentEventKind.TOOL_RESULT,
+            action_id=action_id,
+            status=status,
+            summary=summary,
+            detail=detail,
+            confidence=confidence,
+            prediction_id=plan_ref,
+            evidence=(f"tool:{tool_name}",),
+            latency_ms=latency_ms,
+            monetary_cost=monetary_cost,
+            reversibility=reversibility,
+            environment_state_delta_kind=environment_state_delta_kind,
+        )
+        tool_evidence = tool_outcome_evidence_from_environment_outcome(
+            environment_outcome=outcome,
+            tool_name=tool_name,
+        )
+        if tool_evidence:
+            self._runner.attach_dialogue_outcome_evidence(tool_evidence)
+        self.submit_environment_outcome(outcome)
+        return self.submit_semantic_events(
+            semantic_events_from_tool_result(
+                event_id=event_id,
+                tool_name=tool_name,
+                action_id=action_id,
+                status=status,
+                summary=summary,
+                detail=detail,
+                confidence=confidence,
+                artifact_refs=(
+                    *artifact_refs,
+                    f"environment_outcome:{outcome.outcome_id}",
+                ),
+                plan_ref=plan_ref,
+                provenance=provenance,
+            )
+        )
+
+    def submit_thinking_artifact(
+        self,
+        artifact: object,
+        *,
+        apply_enabled: bool = False,
+    ) -> str:
+        """Route a thinking artifact to its temporal consumer owner (CP-21).
+
+        The ONLY legal path from the lifeform-side thinking loop into the
+        kernel temporal owners: the facade dispatches on
+        ``artifact.consumer_owner`` (``world_temporal`` / ``self_temporal``)
+        and forwards to that owner's ``observe_thinking_artifact`` guard.
+        The owner enforces status / payload-contract / fingerprint checks
+        itself; SHADOW callers keep ``apply_enabled=False`` so the advisory
+        is recorded as evidence without reaching beta_t.
+
+        Returns the owner's typed routing result string; raises for an
+        unknown consumer owner or a temporal policy without the consumer
+        surface (contract violation — fail loudly, no silent drop).
+        """
+
+        from volvence_zero.temporal import FullLearnedTemporalPolicy
+
+        consumer_owner = artifact.consumer_owner
+        if consumer_owner == "world_temporal":
+            policy = self._runner.world_temporal_policy
+        elif consumer_owner == "self_temporal":
+            policy = self._runner.self_temporal_policy
+        else:
+            raise ValueError(
+                f"submit_thinking_artifact: unknown consumer owner "
+                f"{consumer_owner!r}; temporal routing supports "
+                "'world_temporal' and 'self_temporal' only."
+            )
+        if not isinstance(policy, FullLearnedTemporalPolicy):
+            raise TypeError(
+                f"temporal policy for {consumer_owner!r} "
+                f"({type(policy).__name__}) does not expose the thinking "
+                "consumer surface (observe_thinking_artifact)."
+            )
+        return policy.observe_thinking_artifact(
+            artifact=artifact,
+            expected_snapshot_fingerprint=artifact.task_id,
+            consumer_owner=consumer_owner,
+            apply_enabled=apply_enabled,
+        )
+
+    def submit_profile_event(
+        self,
+        *,
+        event_id: str,
+        source: str,
+        preferences: tuple[str, ...] = (),
+        goals: tuple[str, ...] = (),
+        consent_grants: tuple[str, ...] = (),
+        consent_denials: tuple[str, ...] = (),
+        relationship_note: str = "",
+        confidence: float = 0.75,
+    ) -> tuple[str, ...]:
+        return self.submit_semantic_events(
+            semantic_events_from_profile(
+                event_id=event_id,
+                source=source,
+                preferences=preferences,
+                goals=goals,
+                consent_grants=consent_grants,
+                consent_denials=consent_denials,
+                relationship_note=relationship_note,
+                confidence=confidence,
+            )
+        )
+
+    def submit_task_event(
+        self,
+        *,
+        event_id: str,
+        task_id: str,
+        status: str,
+        summary: str,
+        detail: str,
+        due_hint: str | None = None,
+        commitment_ref: str | None = None,
+        confidence: float = 0.75,
+    ) -> tuple[str, ...]:
+        return self.submit_semantic_events(
+            semantic_events_from_task_event(
+                event_id=event_id,
+                task_id=task_id,
+                status=status,
+                summary=summary,
+                detail=detail,
+                due_hint=due_hint,
+                commitment_ref=commitment_ref,
+                confidence=confidence,
+            )
+        )
+
+    def submit_reviewed_knowledge_event(
+        self,
+        *,
+        event_id: str,
+        knowledge_id: str,
+        summary: str,
+        detail: str,
+        source_label: str,
+        confidence: float,
+        relevance_hint: str = "",
+        needs_followup: bool = False,
+    ) -> tuple[str, ...]:
+        return self.submit_semantic_events(
+            semantic_events_from_reviewed_knowledge(
+                event_id=event_id,
+                knowledge_id=knowledge_id,
+                summary=summary,
+                detail=detail,
+                source_label=source_label,
+                confidence=confidence,
+                relevance_hint=relevance_hint,
+                needs_followup=needs_followup,
+            )
+        )
+
+    async def run_turn_async(
+        self,
+        user_input: str,
+        *,
+        environment_event: EnvironmentEvent | None = None,
+        apprenticeship_turn: bool = False,
+    ) -> AgentTurnResult:
+        return await self._runner.run_turn(
+            user_input,
+            environment_event=environment_event,
+            apprenticeship_turn=apprenticeship_turn,
+        )
+
+    async def preview_preference_action_forecast(
+        self,
+        *,
+        request: PreferenceActionForecastRequest,
+        runtime: PreferenceActionForecastRuntime,
+    ) -> PreferenceActionForecast | None:
+        """Public Brain facade for the owner-authored pre-action SHADOW readout."""
+
+        return await self._runner.preview_preference_action_forecast(
+            request=request,
+            runtime=runtime,
+        )
+
+    def stage_self_temporal_action_advisory(
+        self,
+        advisory: TemporalActionAdvisoryProposal,
+    ) -> None:
+        """Public Brain facade for one upcoming self-temporal advisory."""
+
+        self._runner.stage_self_temporal_action_advisory(advisory)
+
+    def relationship_action_credits(
+        self,
+        *,
+        preference_snapshot: object,
+        social_pe_snapshot: object,
+        settled_at_turn: int,
+        timestamp_ms: int,
+    ) -> tuple[CreditRecord, ...]:
+        """Derive action credit through the cognition owner boundary."""
+
+        if not isinstance(preference_snapshot, PreferenceAboutOtherSnapshot):
+            raise TypeError(
+                "preference_about_other must publish PreferenceAboutOtherSnapshot"
+            )
+        if not isinstance(social_pe_snapshot, SocialPredictionErrorSnapshot):
+            raise TypeError(
+                "social_prediction_error must publish SocialPredictionErrorSnapshot"
+            )
+        return derive_preference_action_forecast_credit_records(
+            settlements=preference_snapshot.forecast_settlements,
+            social_errors=social_pe_snapshot.errors,
+            settled_at_turn=settled_at_turn,
+            timestamp_ms=timestamp_ms,
+        )
+
+    async def drain_session_post_slow_loop(self) -> tuple[Any, ...]:
+        """Drain the runner's background session-post slow loop to idle.
+
+        ``run_turn`` fires the slow loop as a fire-and-forget background
+        task (``schedule()``). Under a *shared* substrate runtime
+        (``--substrate-mode hf-shared``) that background task touches the
+        one runtime concurrently with the next turn's foreground generate
+        at ``await`` boundaries, corrupting the runtime's residual-capture
+        state. Serving hosts that share a runtime call this at the turn
+        boundary so the writeback settles before the next turn starts,
+        preserving the "single shared runtime → all access serialised"
+        invariant. Cheap no-op when nothing is pending.
+        """
+
+        return await self._runner.drain_session_post_slow_loop()
+
+    def run_turn(
+        self,
+        user_input: str,
+        *,
+        environment_event: EnvironmentEvent | None = None,
+        apprenticeship_turn: bool = False,
+    ) -> AgentTurnResult:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.run_turn_async(
+                    user_input,
+                    environment_event=environment_event,
+                    apprenticeship_turn=apprenticeship_turn,
+                )
+            )
+        raise RuntimeError("BrainSession.run_turn() cannot be used inside a running event loop; use run_turn_async().")
+
+    def submit_dialogue_outcome_evidence(
+        self,
+        evidence: tuple[DialogueOutcomeEvidence, ...],
+    ) -> DialogueOutcomeResolution | None:
+        """Attach typed dialogue outcome evidence to the most recent trace.
+
+        Used by lifeform-side adapters (for example scene close) that
+        observe a structural outcome after the turn finished. Evidence
+        must be machine-readable; raw text is never inspected.
+        """
+
+        return self._runner.attach_dialogue_outcome_evidence(evidence)
+
+    def submit_dialogue_outcome(
+        self,
+        *,
+        kind: DialogueExternalOutcomeKind,
+        source: DialogueExternalOutcomeEvidenceSource = DialogueExternalOutcomeEvidenceSource.USER_EXPLICIT,
+        confidence: float = 0.9,
+        turn_index: int | None = None,
+        evidence_ref: str | None = None,
+        description: str = "",
+        action_turn_index: int | None = None,
+        forecast_id: str = "",
+        decision_id: str = "",
+        action_id: str = "",
+        typing_qualification_id: str = "",
+        typing_qualification_sha256: str = "",
+        typing_runtime_id: str = "",
+        typing_schema_version: str = "",
+    ) -> DialogueExternalOutcomeEvidence:
+        """Submit a typed external dialogue outcome (Rupture-and-Repair M2).
+
+        Thin pass-through to ``AgentSessionRunner.submit_dialogue_outcome``.
+        Writes only to the ``dialogue_external_outcome`` snapshot buffer
+        and the dialogue trace store; no memory / regime / PE mutation.
+        LLM-sourced outcomes require the runner's
+        ``allow_llm_outcome_proposals`` flag to be True.
+        """
+
+        return self._runner.submit_dialogue_outcome(
+            kind=kind,
+            source=source,
+            confidence=confidence,
+            turn_index=turn_index,
+            evidence_ref=evidence_ref,
+            description=description,
+            action_turn_index=action_turn_index,
+            forecast_id=forecast_id,
+            decision_id=decision_id,
+            action_id=action_id,
+            typing_qualification_id=typing_qualification_id,
+            typing_qualification_sha256=typing_qualification_sha256,
+            typing_runtime_id=typing_runtime_id,
+            typing_schema_version=typing_schema_version,
+        )
+
+    def export_snapshot_replay_artifact(self) -> dict[str, object]:
+        return self._runner.export_snapshot_replay_artifact()
+
+    @property
+    def owner_hydration_store(self) -> OwnerHydrationStore | None:
+        """Packet D (long-horizon-closure): the same OwnerHydrationStore
+        the runner uses for SemanticStateStore hydration. Lifeform
+        layer reads this to hydrate / persist its own owners
+        (FollowupManager, VitalsModule) through the same backend.
+
+        Returns ``None`` when ``BrainConfig.owner_hydration_wiring``
+        is DISABLED or when the MemoryStore has no persistence
+        backend (anonymous session).
+        """
+        return self._runner.owner_hydration_store
+
+    def persist_owners(self) -> tuple[str, ...]:
+        """Packet D (long-horizon-closure): export + persist all
+        runner-owned hydratable owners. Must be called only at scene
+        / session boundaries (never mid-turn). Returns the persisted
+        owner names. ``()`` when hydration is disabled.
+        """
+        return self._runner.persist_owners()
+
+    def reconcile_case_memory_provisional(
+        self,
+        *,
+        now_tick: int,
+        thresholds: ProvisionalReconcileThresholds | None = None,
+    ) -> ProvisionalReconcileResult:
+        """Scene-boundary provisional case sweep (Gap 4 slice 2a).
+
+        Thin pass-through to ``AgentSessionRunner.reconcile_case_memory_provisional``.
+        Lifeform-layer callers (``LifeformSession.end_scene``) use this to
+        drive the case memory lifecycle at scene close. Returns the full
+        result so observers can surface the decision list.
+        """
+        return self._runner.reconcile_case_memory_provisional(
+            now_tick=now_tick,
+            thresholds=thresholds,
+        )
+
+
+class Brain:
+    """Package-first facade for creating brain sessions.
+
+    This class is the stable API boundary for product and service adapters.
+    It accepts domain experience packages and explicit substrate choices, then
+    delegates runtime execution to ``AgentSessionRunner``.
+
+    A pre-trained metacontroller can be injected via ``temporal_bootstrap``
+    (a ``MetacontrollerParameterSnapshot`` exported from a SSL training run).
+    Each ``create_session`` call rebuilds the policy from the snapshot so
+    sessions never share mutable controller state across tenants.
+    """
+
+    def __init__(
+        self,
+        config: BrainConfig | None = None,
+        *,
+        substrate_runtime: OpenWeightResidualRuntime | None = None,
+        substrate_adapter_factory: Callable[[str, int], SubstrateAdapter] | None = None,
+        response_synthesizer: ResponseSynthesizer | None = None,
+        semantic_proposal_runtime: SemanticProposalRuntime | None = None,
+        temporal_bootstrap: MetacontrollerParameterSnapshot | None = None,
+        regime_bootstrap: RegimeBootstrap | None = None,
+        identity_seed: IdentitySeed | None = None,
+        seed_protocols: tuple[Any, ...] = (),
+        memory_store: MemoryStore | None = None,
+        identity_provider: IdentityProvider | None = None,
+    ) -> None:
+        self._config = config or BrainConfig()
+        self._injected_runtime = substrate_runtime
+        self._substrate_adapter_factory = substrate_adapter_factory
+        self._response_synthesizer = response_synthesizer
+        self._semantic_proposal_runtime = semantic_proposal_runtime
+        self._temporal_bootstrap = temporal_bootstrap
+        self._regime_bootstrap = regime_bootstrap
+        self._identity_seed = identity_seed
+        # ``protocol-online-learning-active`` packet (sub-packet A):
+        # seed BehaviorProtocols loaded into every kernel session's
+        # stable ``ProtocolRegistryModule``. Forwarded to
+        # ``AgentSessionRunner`` via ``runner_kwargs`` in
+        # ``create_session`` so each session inherits them at
+        # construction. Empty tuple = no seed (existing behaviour).
+        self._seed_protocols: tuple[Any, ...] = tuple(seed_protocols)
+        self._memory_store = memory_store
+        # Rupture-and-Repair M4: identity provider resolves
+        # ``session_id`` into an optional ``UserIdentity``. Default is
+        # the anonymous provider; existing callers that don't pass a
+        # provider behave exactly as before.
+        self._identity_provider: IdentityProvider = identity_provider or AnonymousIdentityProvider()
+
+    @property
+    def config(self) -> BrainConfig:
+        return self._config
+
+    @property
+    def temporal_bootstrap(self) -> MetacontrollerParameterSnapshot | None:
+        """The trained metacontroller snapshot, if one was injected."""
+        return self._temporal_bootstrap
+
+    @property
+    def regime_bootstrap(self) -> RegimeBootstrap | None:
+        """The calibrated regime selection-weights bootstrap, if injected."""
+        return self._regime_bootstrap
+
+    @property
+    def identity_seed(self) -> IdentitySeed | None:
+        """Lifeform-level identity descriptors fed to ``DualTrackModule``.
+
+        See ``docs/specs/protocol-runtime.md`` checklist condition 1
+        and ``vz-contracts.identity_seed.IdentitySeed``. Pairs with
+        the protocol identity-gate's self-trait branch.
+        """
+
+        return self._identity_seed
+
+    def _clone_kwargs(self) -> dict[str, object]:
+        return {
+            "substrate_runtime": self._injected_runtime,
+            "substrate_adapter_factory": self._substrate_adapter_factory,
+            "response_synthesizer": self._response_synthesizer,
+            "semantic_proposal_runtime": self._semantic_proposal_runtime,
+            "temporal_bootstrap": self._temporal_bootstrap,
+            "regime_bootstrap": self._regime_bootstrap,
+            "identity_seed": self._identity_seed,
+            "seed_protocols": self._seed_protocols,
+            "memory_store": self._memory_store,
+            "identity_provider": self._identity_provider,
+        }
+
+    def with_domain_experience(
+        self,
+        packages: tuple[DomainExperiencePackage, ...],
+    ) -> Brain:
+        return Brain(
+            replace(
+                self._config,
+                domain_experience_packages=self._config.domain_experience_packages + packages,
+            ),
+            **self._clone_kwargs(),
+        )
+
+    def with_temporal_bootstrap(
+        self,
+        snapshot: MetacontrollerParameterSnapshot | None,
+    ) -> Brain:
+        """Return a clone of this Brain with the given trained metacontroller.
+
+        Pass ``None`` to drop the bootstrap and fall back to a fresh policy.
+        """
+        kwargs = self._clone_kwargs()
+        kwargs["temporal_bootstrap"] = snapshot
+        return Brain(self._config, **kwargs)
+
+    def with_regime_bootstrap(
+        self,
+        bootstrap: RegimeBootstrap | None,
+    ) -> Brain:
+        """Return a clone of this Brain with calibrated regime weights.
+
+        Pass ``None`` to drop the bootstrap and fall back to flat weights.
+        """
+        kwargs = self._clone_kwargs()
+        kwargs["regime_bootstrap"] = bootstrap
+        return Brain(self._config, **kwargs)
+
+    def with_identity_seed(
+        self,
+        seed: IdentitySeed | None,
+    ) -> Brain:
+        """Return a clone of this Brain with the given identity seed.
+
+        Pass ``None`` to drop the seed; sessions then publish empty
+        ``self_track.traits`` and the protocol identity gate falls
+        back to the populator-pending SHADOW path.
+        """
+
+        kwargs = self._clone_kwargs()
+        kwargs["identity_seed"] = seed
+        return Brain(self._config, **kwargs)
+
+    def create_session(
+        self,
+        *,
+        session_id: str = "brain-session",
+        response_synthesizer: ResponseSynthesizer | None = None,
+    ) -> BrainSession:
+        """Create a new BrainSession.
+
+        Args:
+            session_id: Stable identifier for the session.
+            response_synthesizer: Optional per-session synthesizer override.
+                When supplied, this synthesizer is used in place of the
+                Brain-level default for THIS session only \u2014 the Brain's own
+                synthesizer is unchanged. Used by the lifeform layer to
+                clone a synthesizer per ``LifeformSession`` so that
+                per-session state (e.g. a ``VitalsModule`` reference) can
+                be bound by closure without sharing mutable state across
+                sessions of the same Brain.
+
+        Rupture-and-Repair M4: when the configured ``identity_provider``
+        resolves ``session_id`` to a non-None ``UserIdentity`` with the
+        ``"persist"`` permission AND ``BrainConfig.memory_scope_root_dir``
+        is set, the session is given a filesystem-backed ``MemoryStore``
+        scoped to that user's directory so rupture-repair entries
+        survive across sessions. Anonymous sessions (the default) keep
+        the current in-memory-only behavior.
+        """
+        runtime = self._resolve_substrate_runtime()
+        self._install_semantic_embedding_backend(runtime)
+        self._install_rare_heavy_training_backend(runtime)
+        synthesizer = response_synthesizer or self._response_synthesizer
+        identity = self._identity_provider.resolve(session_id)
+        user_scope = scope_key_for(identity)
+        # Prefer an explicitly-injected ``Brain.memory_store`` (used by
+        # callers that manage their own persistence). Otherwise, if we
+        # have an identity with persist permission AND a scope root,
+        # build a per-user scoped store; else fall back to the default
+        # in-memory store via the session runner constructor.
+        session_memory_store: MemoryStore | None = self._memory_store
+        if session_memory_store is None and identity is not None and identity.has_permission("persist"):
+            if self._config.memory_scope_root_dir is not None:
+                session_memory_store = build_scoped_memory_store(
+                    identity=identity,
+                    root_dir=self._config.memory_scope_root_dir,
+                    # NW10: seed the per-relationship store once from the
+                    # baked canonical checkpoint, then let it accumulate.
+                    seed_checkpoint=self._config.memory_seed_checkpoint,
+                    cms_variant=self._config.cms_variant,
+                    cms_session_cadence=self._config.cms_session_cadence,
+                    cms_background_cadence=(self._config.cms_background_cadence),
+                    cms_pe_features_enabled=(self._config.cms_pe_features_enabled),
+                    cms_replay_window_size=(self._config.cms_replay_window_size),
+                    cms_torch_backend=resolve_final_rollout_config(self._config.final_rollout_config).cms_torch_backend,
+                    cms_context_conditioned_meta_init=(self._config.cms_context_conditioned_meta_init),
+                    cms_context_prototype_count=(self._config.cms_context_prototype_count),
+                    nested_context_reset_mode=(self._config.nested_context_reset_mode),
+                )
+        if session_memory_store is None:
+            session_memory_store = build_default_memory_store(
+                latent_dim=self._config.resolved_temporal_latent_dim(),
+                cms_variant=self._config.cms_variant,
+                cms_session_cadence=self._config.cms_session_cadence,
+                cms_background_cadence=self._config.cms_background_cadence,
+                cms_pe_features_enabled=self._config.cms_pe_features_enabled,
+                cms_replay_window_size=self._config.cms_replay_window_size,
+                cms_torch_backend=resolve_final_rollout_config(
+                    self._config.final_rollout_config
+                ).cms_torch_backend,
+                cms_context_conditioned_meta_init=(
+                    self._config.cms_context_conditioned_meta_init
+                ),
+                cms_context_prototype_count=self._config.cms_context_prototype_count,
+                nested_context_reset_mode=self._config.nested_context_reset_mode,
+            )
+        # Packet D (long-horizon-closure): build the OwnerHydrationStore
+        # only when (a) hydration wiring is non-DISABLED AND (b) the
+        # memory store actually has a persistence backend. The store
+        # is passed to AgentSessionRunner for SemanticStateStore
+        # hydration on construction; it is also exposed on the
+        # BrainSession so the lifeform layer can hydrate / persist
+        # its own owners through the same backend.
+        owner_hydration_store: OwnerHydrationStore | None = None
+        if self._config.owner_hydration_wiring is not WiringLevel.DISABLED:
+            backend = session_memory_store.persistence_backend if session_memory_store is not None else None
+            if backend is not None:
+                owner_hydration_store = OwnerHydrationStore(
+                    backend=backend,
+                    wiring_level=self._config.owner_hydration_wiring,
+                )
+                _seed_owner_hydration_snapshots_once(
+                    backend=backend,
+                    snapshots=self._config.owner_hydration_seed_snapshots,
+                )
+        runner_kwargs: dict[str, object] = dict(
+            session_id=session_id,
+            config=resolve_final_rollout_config(self._config.final_rollout_config),
+            application_persistence_dir=self._config.application_persistence_dir,
+            domain_experience_packages=self._config.domain_experience_packages,
+            default_residual_runtime=runtime,
+            steering_bundle=self._config.steering_bundle,
+            substrate_adapter_factory=self._substrate_adapter_factory,
+            response_synthesizer=synthesizer,
+            semantic_proposal_runtime=self._semantic_proposal_runtime,
+            temporal_latent_dim=self._config.resolved_temporal_latent_dim(),
+            rare_heavy_enabled=self._config.rare_heavy_enabled,
+            rare_heavy_trace_window=self._config.rare_heavy_trace_window,
+            rare_heavy_min_traces=self._config.rare_heavy_min_traces,
+            rare_heavy_cooldown_turns=(self._config.rare_heavy_cooldown_turns),
+            allow_live_substrate_mutation=(self._config.allow_live_substrate_mutation),
+            joint_schedule=self._config.joint_schedule,
+            joint_apply_ssl_optimization=(self._config.joint_apply_ssl_optimization),
+            joint_apply_policy_optimization=(self._config.joint_apply_policy_optimization),
+            regime_bootstrap=self._regime_bootstrap,
+            identity_seed=self._identity_seed,
+            seed_protocols=self._seed_protocols,
+            memory_store=session_memory_store,
+            allow_llm_outcome_proposals=self._config.allow_llm_outcome_proposals,
+            user_scope=user_scope,
+            owner_hydration_store=owner_hydration_store,
+            external_prediction_error_drive=self._config.external_prediction_error_drive,
+            prediction_error_readout_only=self._config.prediction_error_readout_only,
+            primary_prediction_error_dominance_enabled=(self._config.primary_prediction_error_dominance_enabled),
+            apprenticeship_feedback_policy=self._config.apprenticeship_feedback_policy,
+            apprenticeship_constraint_extractor=(self._config.apprenticeship_constraint_extractor),
+        )
+        if self._temporal_bootstrap is not None:
+            # Build fresh policies per session from the trained snapshot so
+            # sessions never share mutable controller state. Both world and
+            # self tracks are seeded from the same bootstrap; the runner
+            # will clone the world track for the self track when needed.
+            runner_kwargs["world_temporal_policy"] = FullLearnedTemporalPolicy.from_bootstrap_snapshot(
+                self._temporal_bootstrap
+            )
+        elif self._config.temporal_policy_kind == "learned_lite":
+            from volvence_zero.temporal import LearnedLiteTemporalPolicy
+
+            runner_kwargs["temporal_policy"] = LearnedLiteTemporalPolicy()
+        elif self._config.temporal_policy_kind != "full":
+            raise ValueError(f"unknown temporal_policy_kind {self._config.temporal_policy_kind!r}")
+        runner = AgentSessionRunner(**runner_kwargs)
+        return BrainSession(runner=runner)
+
+    def _install_semantic_embedding_backend(self, runtime: OpenWeightResidualRuntime) -> None:
+        """Install the real embedding backend for real transformers runtimes.
+
+        #91: reuse the loaded LM as a text encoder behind the vz-contracts
+        seam. Only a real ``TransformersOpenWeightResidualRuntime`` (which
+        does true forward passes, including the builtin GPT-2 CPU fallback)
+        gets the backend; synthetic / other runtimes keep the deterministic
+        stub so existing synthetic-substrate behavior is unchanged. Disabled
+        via config wiring or ``VZ_SEMANTIC_EMBEDDING_BACKEND=stub``.
+        """
+
+        override = os.environ.get("VZ_SEMANTIC_EMBEDDING_BACKEND", "").strip().lower()
+        if override == "stub" or (
+            self._config.semantic_embedding_backend_wiring is WiringLevel.DISABLED and override != "substrate"
+        ):
+            reset_semantic_embedding_backend()
+            return
+        if isinstance(runtime, TransformersOpenWeightResidualRuntime):
+            # M1 (#91 follow-up): owner-scoped install. A second Brain with a
+            # DIFFERENT substrate in the same process demotes the seam to
+            # the stub for everyone (observable via
+            # semantic_embedding_backend_status()) instead of silently
+            # cross-contaminating embedding spaces.
+            set_semantic_embedding_backend(
+                SubstrateTextEncoderBackend(runtime),
+                owner=runtime.model_id,
+            )
+        else:
+            reset_semantic_embedding_backend()
+
+    def _install_rare_heavy_training_backend(self, runtime: OpenWeightResidualRuntime) -> None:
+        """Install the configured offline rare-heavy training backend (S1).
+
+        ``"builtin"`` leaves the runtime untouched (built-in adapter-delta
+        loop / synthetic heuristic — the rollback target). ``"peft-lora"``
+        installs :class:`PeftLoraRareHeavyBackend` on a real transformers
+        runtime; ``clone_for_rare_heavy`` propagates it into every offline
+        clone, so ``session_training_phase`` orchestration is unchanged.
+        Misconfiguration (peft-lora on a non-transformers runtime) fails
+        loudly instead of silently training the heuristic path.
+        """
+
+        if self._config.rare_heavy_training_backend == "builtin":
+            return
+        if self._config.rare_heavy_training_backend != "peft-lora":
+            raise ValueError(
+                "unknown rare_heavy_training_backend "
+                f"{self._config.rare_heavy_training_backend!r}; "
+                "expected 'builtin' or 'peft-lora'"
+            )
+        if not isinstance(runtime, TransformersOpenWeightResidualRuntime):
+            raise ValueError(
+                "BrainConfig(rare_heavy_training_backend='peft-lora') requires a "
+                "real transformers substrate runtime; got "
+                f"{type(runtime).__name__}. Use substrate_mode='hf' or inject "
+                "a TransformersOpenWeightResidualRuntime."
+            )
+        runtime.set_rare_heavy_training_backend(PeftLoraRareHeavyBackend())
+
+    def _resolve_substrate_runtime(self) -> OpenWeightResidualRuntime:
+        if self._config.substrate_mode == "injected":
+            if self._injected_runtime is None:
+                raise ValueError("BrainConfig(substrate_mode='injected') requires substrate_runtime.")
+            return self._injected_runtime
+        if self._config.substrate_mode == "synthetic":
+            return self._injected_runtime or SyntheticOpenWeightResidualRuntime(model_id="volvence-zero-core-synthetic")
+        if self._config.substrate_mode == "hf":
+            try:
+                return build_transformers_runtime_with_fallback(
+                    model_id=self._config.substrate_model_id,
+                    model_source=self._config.substrate_model_source,
+                    device=self._config.substrate_device,
+                    local_files_only=self._config.substrate_local_files_only,
+                    fallback_mode=self._config.substrate_fallback_mode,
+                )
+            except ModuleNotFoundError as exc:
+                raise RuntimeError(
+                    "BrainConfig(substrate_mode='hf') requires optional dependencies; install with volvence-zero[hf]."
+                ) from exc
+        raise ValueError(f"Unsupported substrate_mode: {self._config.substrate_mode}")

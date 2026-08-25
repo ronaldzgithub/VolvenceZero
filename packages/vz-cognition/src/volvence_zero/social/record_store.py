@@ -53,14 +53,13 @@ from volvence_zero.social_cognition import (
     PreferenceActionOutcomeMutationReceipt,
     PreferenceActionForecast,
     PreferenceActionForecastSettlement,
-    RelationshipConditionReadout,
-    SocialActionCandidatePrediction,
-    SocialActionOutcomeProbability,
     SocialPrediction,
     SocialPredictionError,
     SocialPredictionOutcome,
     SocialScopeKind,
     preference_action_outcome_evidence_sha256,
+    preference_action_forecast_from_payload,
+    preference_action_forecast_to_payload,
 )
 
 SimilarityFn = Callable[[str, str], float]
@@ -928,51 +927,7 @@ def _deserialize_preference_action_outcome_mutation_receipt(
 def _serialize_preference_action_forecast(
     forecast: PreferenceActionForecast,
 ) -> dict[str, Any]:
-    return {
-        "forecast_id": forecast.forecast_id,
-        "decision_id": forecast.decision_id,
-        "interlocutor_id": forecast.interlocutor_id,
-        "candidate_predictions": [
-            {
-                "action_id": candidate.action_id,
-                "outcomes": [
-                    {
-                        "outcome_id": outcome.outcome_id,
-                        "probability": outcome.probability,
-                    }
-                    for outcome in candidate.outcomes
-                ],
-            }
-            for candidate in forecast.candidate_predictions
-        ],
-        "recommended_action_id": forecast.recommended_action_id,
-        "confidence": forecast.confidence,
-        "source_record_ids": list(forecast.source_record_ids),
-        "issued_turn": forecast.issued_turn,
-        "evidence": list(forecast.evidence),
-        "session_scope": forecast.session_scope,
-        "condition_readout": (
-            None
-            if forecast.condition_readout is None
-            else {
-                "condition_label": forecast.condition_readout.condition_label,
-                "confidence": forecast.condition_readout.confidence,
-                "normalized_margin": (
-                    forecast.condition_readout.normalized_margin
-                ),
-                "candidate_scores": [
-                    {"label": label, "score": score}
-                    for label, score in forecast.condition_readout.candidate_scores
-                ],
-                "reader_artifact_id": (
-                    forecast.condition_readout.reader_artifact_id
-                ),
-                "source_observation_sha256": (
-                    forecast.condition_readout.source_observation_sha256
-                ),
-            }
-        ),
-    }
+    return preference_action_forecast_to_payload(forecast)
 
 
 def _deserialize_preference_action_forecast(
@@ -981,93 +936,12 @@ def _deserialize_preference_action_forecast(
     schema_version: int,
 ) -> PreferenceActionForecast:
     try:
-        candidates_blob = blob["candidate_predictions"]
-        source_record_ids = blob["source_record_ids"]
-        evidence = blob["evidence"]
-        if not isinstance(candidates_blob, list | tuple):
-            raise HydrationPayloadInvalidError("PreferenceActionForecast.candidate_predictions must be a list")
-        if not isinstance(source_record_ids, list | tuple):
-            raise HydrationPayloadInvalidError("PreferenceActionForecast.source_record_ids must be a list")
-        if not isinstance(evidence, list | tuple):
-            raise HydrationPayloadInvalidError("PreferenceActionForecast.evidence must be a list")
-        if schema_version >= 4:
-            condition_blob = blob["condition_readout"]
-        else:
-            condition_blob = None
-        condition_readout = None
-        if condition_blob is not None:
-            if not isinstance(condition_blob, Mapping):
-                raise HydrationPayloadInvalidError(
-                    "PreferenceActionForecast.condition_readout must be an object or null"
-                )
-            expected_condition_fields = {
-                "condition_label",
-                "confidence",
-                "normalized_margin",
-                "candidate_scores",
-                "reader_artifact_id",
-                "source_observation_sha256",
-            }
-            if set(condition_blob) != expected_condition_fields:
-                raise HydrationPayloadInvalidError(
-                    "PreferenceActionForecast.condition_readout fields do not match schema v4"
-                )
-            score_blob = condition_blob["candidate_scores"]
-            if not isinstance(score_blob, list | tuple):
-                raise HydrationPayloadInvalidError(
-                    "PreferenceActionForecast.condition_readout candidate_scores must be a list"
-                )
-            candidate_scores: list[tuple[str, float]] = []
-            for item in score_blob:
-                if not isinstance(item, Mapping) or set(item) != {"label", "score"}:
-                    raise HydrationPayloadInvalidError(
-                        "PreferenceActionForecast condition score must contain label/score"
-                    )
-                candidate_scores.append(
-                    (str(item["label"]), float(item["score"]))
-                )
-            condition_readout = RelationshipConditionReadout(
-                condition_label=str(condition_blob["condition_label"]),
-                confidence=float(condition_blob["confidence"]),
-                normalized_margin=float(condition_blob["normalized_margin"]),
-                candidate_scores=tuple(candidate_scores),
-                reader_artifact_id=str(condition_blob["reader_artifact_id"]),
-                source_observation_sha256=str(
-                    condition_blob["source_observation_sha256"]
-                ),
-            )
-        candidates: list[SocialActionCandidatePrediction] = []
-        for candidate_blob in candidates_blob:
-            if not isinstance(candidate_blob, Mapping):
-                raise HydrationPayloadInvalidError("PreferenceActionForecast candidate must be an object")
-            outcomes_blob = candidate_blob["outcomes"]
-            if not isinstance(outcomes_blob, list | tuple):
-                raise HydrationPayloadInvalidError("PreferenceActionForecast candidate outcomes must be a list")
-            candidates.append(
-                SocialActionCandidatePrediction(
-                    action_id=str(candidate_blob["action_id"]),
-                    outcomes=tuple(
-                        SocialActionOutcomeProbability(
-                            outcome_id=str(outcome_blob["outcome_id"]),
-                            probability=float(outcome_blob["probability"]),
-                        )
-                        for outcome_blob in outcomes_blob
-                    ),
-                )
-            )
-        return PreferenceActionForecast(
-            forecast_id=str(blob["forecast_id"]),
-            decision_id=str(blob["decision_id"]),
-            interlocutor_id=str(blob["interlocutor_id"]),
-            candidate_predictions=tuple(candidates),
-            recommended_action_id=str(blob["recommended_action_id"]),
-            confidence=float(blob["confidence"]),
-            source_record_ids=tuple(str(item) for item in source_record_ids),
-            issued_turn=int(blob["issued_turn"]),
-            evidence=tuple(str(item) for item in evidence),
-            session_scope=str(blob.get("session_scope", "")),
-            condition_readout=condition_readout,
+        payload = (
+            blob
+            if schema_version >= 4
+            else _adapt_legacy_preference_action_forecast_payload(blob)
         )
+        return preference_action_forecast_from_payload(payload)
     except KeyError as exc:
         raise HydrationPayloadInvalidError(
             f"SocialRecordStore PreferenceActionForecast missing key {exc.args[0]!r}; blob={blob!r}"
@@ -1076,6 +950,58 @@ def _deserialize_preference_action_forecast(
         raise HydrationPayloadInvalidError(
             f"SocialRecordStore PreferenceActionForecast invalid value: {exc}; blob={blob!r}"
         ) from exc
+
+
+def _adapt_legacy_preference_action_forecast_payload(
+    blob: Mapping[str, Any],
+) -> dict[str, object]:
+    """Normalize SocialRecordStore schemas v1-v3 into the strict v4 shape."""
+
+    candidates_blob = blob["candidate_predictions"]
+    source_record_ids = blob["source_record_ids"]
+    evidence = blob["evidence"]
+    if not isinstance(candidates_blob, list | tuple):
+        raise TypeError("PreferenceActionForecast.candidate_predictions must be a list")
+    if not isinstance(source_record_ids, list | tuple):
+        raise TypeError("PreferenceActionForecast.source_record_ids must be a list")
+    if not isinstance(evidence, list | tuple):
+        raise TypeError("PreferenceActionForecast.evidence must be a list")
+    candidates: list[dict[str, object]] = []
+    for candidate_blob in candidates_blob:
+        if not isinstance(candidate_blob, Mapping):
+            raise TypeError("PreferenceActionForecast candidate must be an object")
+        outcomes_blob = candidate_blob["outcomes"]
+        if not isinstance(outcomes_blob, list | tuple):
+            raise TypeError("PreferenceActionForecast candidate outcomes must be a list")
+        outcomes: list[dict[str, object]] = []
+        for outcome_blob in outcomes_blob:
+            if not isinstance(outcome_blob, Mapping):
+                raise TypeError("PreferenceActionForecast outcome must be an object")
+            outcomes.append(
+                {
+                    "outcome_id": str(outcome_blob["outcome_id"]),
+                    "probability": float(outcome_blob["probability"]),
+                }
+            )
+        candidates.append(
+            {
+                "action_id": str(candidate_blob["action_id"]),
+                "outcomes": outcomes,
+            }
+        )
+    return {
+        "forecast_id": str(blob["forecast_id"]),
+        "decision_id": str(blob["decision_id"]),
+        "interlocutor_id": str(blob["interlocutor_id"]),
+        "candidate_predictions": candidates,
+        "recommended_action_id": str(blob["recommended_action_id"]),
+        "confidence": float(blob["confidence"]),
+        "source_record_ids": [str(item) for item in source_record_ids],
+        "issued_turn": int(blob["issued_turn"]),
+        "evidence": [str(item) for item in evidence],
+        "session_scope": str(blob.get("session_scope", "")),
+        "condition_readout": None,
+    }
 
 
 def _serialize_preference_forecast_settlement(

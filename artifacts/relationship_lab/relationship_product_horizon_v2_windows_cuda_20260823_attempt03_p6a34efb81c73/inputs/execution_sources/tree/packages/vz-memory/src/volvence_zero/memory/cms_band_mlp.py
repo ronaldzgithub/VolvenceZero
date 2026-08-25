@@ -1,0 +1,277 @@
+"""2-layer residual MLP knowledge store used by CMS bands."""
+
+from __future__ import annotations
+
+import math
+
+from volvence_zero.memory.cms_math import _clamp, _init_weight, _matvec
+
+
+class CMSBandMLP:
+    """2-layer residual MLP knowledge store: y = x + W1 @ tanh(W2 @ x).
+
+    W1 initialized to zero so the MLP starts as an identity map.
+    An internal state vector evolves toward targets (like vector mode)
+    while the MLP weights provide additional nonlinear capacity.
+    """
+
+    def __init__(
+        self,
+        *,
+        d_in: int = 16,
+        d_hidden: int = 32,
+        learning_rate: float = 0.1,
+        momentum_beta: float = 0.9,
+    ) -> None:
+        self._d_in = d_in
+        self._d_hidden = d_hidden
+        self._lr = learning_rate
+        self._momentum_beta = momentum_beta
+
+        self._state = [0.0] * d_in
+        self._state_momentum = [0.0] * d_in
+
+        self._w2 = _init_weight(d_hidden * d_in, 0.01)
+        self._w1 = [0.0] * (d_in * d_hidden)
+        self._w2_momentum = [0.0] * (d_hidden * d_in)
+        self._w1_momentum = [0.0] * (d_in * d_hidden)
+
+    def _validate_invariants(self) -> None:
+        """Fail loudly if owner-local MLP state is malformed."""
+
+        if not isinstance(self._d_in, int) or self._d_in <= 0:
+            raise ValueError(f"CMSBandMLP _d_in must be a positive int, got {self._d_in!r}")
+        if not isinstance(self._d_hidden, int) or self._d_hidden <= 0:
+            raise ValueError(
+                f"CMSBandMLP _d_hidden must be a positive int, got {self._d_hidden!r}"
+            )
+        expected_state = self._d_in
+        expected_w1 = self._d_in * self._d_hidden
+        expected_w2 = self._d_hidden * self._d_in
+        groups = (
+            ("_state", self._state, expected_state),
+            ("_state_momentum", self._state_momentum, expected_state),
+            ("_w1", self._w1, expected_w1),
+            ("_w2", self._w2, expected_w2),
+            ("_w1_momentum", self._w1_momentum, expected_w1),
+            ("_w2_momentum", self._w2_momentum, expected_w2),
+        )
+        for name, values, expected_len in groups:
+            if not isinstance(values, list):
+                raise ValueError(f"CMSBandMLP {name} must be a list, got {type(values).__name__}")
+            if len(values) != expected_len:
+                raise ValueError(
+                    f"CMSBandMLP {name} length {len(values)} != expected {expected_len}"
+                )
+            bad = next(
+                (
+                    (index, value)
+                    for index, value in enumerate(values)
+                    if not isinstance(value, (int, float))
+                ),
+                None,
+            )
+            if bad is not None:
+                index, value = bad
+                raise ValueError(
+                    f"CMSBandMLP {name}[{index}] must be numeric, got {type(value).__name__}"
+                )
+
+    @property
+    def d_in(self) -> int:
+        return self._d_in
+
+    @property
+    def d_hidden(self) -> int:
+        return self._d_hidden
+
+    def forward(self, x: tuple[float, ...] | list[float]) -> tuple[float, ...]:
+        self._validate_invariants()
+        if len(x) != self._d_in:
+            raise ValueError(f"CMSBandMLP input length {len(x)} != d_in {self._d_in}")
+        h = _matvec(self._w2, x, self._d_hidden, self._d_in)
+        a = [math.tanh(v) for v in h]
+        residual = _matvec(self._w1, a, self._d_in, self._d_hidden)
+        return tuple(_clamp(x[i] + residual[i]) for i in range(self._d_in))
+
+    def representation_vector(self) -> tuple[float, ...]:
+        return self.forward(self._state)
+
+    def update(
+        self,
+        *,
+        target: tuple[float, ...],
+        lr_scale: float = 1.0,
+        momentum_gate: float = 1.0,
+    ) -> None:
+        self._apply_single_target_update(
+            target=target,
+            lr_scale=lr_scale,
+            momentum_gate=momentum_gate,
+        )
+
+    def update_with_replay(
+        self,
+        *,
+        targets: tuple[tuple[float, ...], ...],
+        weights: tuple[float, ...],
+        lr_scale: float = 1.0,
+        momentum_gate: float = 1.0,
+    ) -> None:
+        """ATLAS-style joint optimization step over a replay window.
+
+        The joint loss
+
+            L = sum_k w_k * || y(x) - t_k ||^2
+
+        has gradient ``2 * (y - sum_k w_k * t_k)`` whenever the weights are
+        normalized to sum to 1, which is identical (up to the constant 2 that
+        is absorbed into the learning rate) to the single-target gradient on
+        the weighted-average target. We therefore run **one** SGD step on
+        the weighted-average target. This keeps ``update_with_replay`` with
+        a single normalized target bit-equal to the legacy ``update``
+        method, which the SHADOW vs ACTIVE protocol relies on.
+
+        See ``docs/specs/cms-atlas-titans-uplift.md`` §3.
+        """
+        self._validate_invariants()
+        if not targets:
+            return
+        if len(targets) != len(weights):
+            raise ValueError(
+                f"replay targets length {len(targets)} != weights length {len(weights)}"
+            )
+        d_in = self._d_in
+        weight_total = 0.0
+        for index, weight in enumerate(weights):
+            if not isinstance(weight, (int, float)):
+                raise ValueError(
+                    f"CMSBandMLP replay weight {index} must be numeric, got {type(weight).__name__}"
+                )
+            weight_total += max(0.0, float(weight))
+        if weight_total <= 1e-9:
+            return
+        averaged = [0.0] * d_in
+        for target, weight in zip(targets, weights, strict=True):
+            if len(target) != d_in:
+                raise ValueError(f"CMSBandMLP replay target length {len(target)} != d_in {d_in}")
+            normalized_weight = max(0.0, weight) / weight_total
+            if normalized_weight <= 0.0:
+                continue
+            for i in range(d_in):
+                value = target[i]
+                if not isinstance(value, (int, float)):
+                    raise ValueError(
+                        f"CMSBandMLP replay target[{i}] must be numeric, got {type(value).__name__}"
+                    )
+                averaged[i] += normalized_weight * float(value)
+        self._apply_single_target_update(
+            target=tuple(averaged),
+            lr_scale=lr_scale,
+            momentum_gate=momentum_gate,
+        )
+
+    def _apply_single_target_update(
+        self,
+        *,
+        target: tuple[float, ...],
+        lr_scale: float,
+        momentum_gate: float,
+    ) -> None:
+        self._validate_invariants()
+        if len(target) != self._d_in:
+            raise ValueError(
+                f"CMSBandMLP target length {len(target)} != d_in {self._d_in}"
+            )
+        x = self._state
+        d_in = self._d_in
+        d_hidden = self._d_hidden
+        beta = _clamp(self._momentum_beta * max(0.0, momentum_gate))
+        lr = self._lr * max(0.0, lr_scale)
+
+        h = _matvec(self._w2, x, d_hidden, d_in)
+        a = [math.tanh(v) for v in h]
+        residual = _matvec(self._w1, a, d_in, d_hidden)
+        y = [x[i] + residual[i] for i in range(d_in)]
+
+        dy = [y[i] - target[i] for i in range(d_in)]
+
+        grad_w1: list[float] = []
+        for i in range(d_in):
+            for j in range(d_hidden):
+                grad_w1.append(dy[i] * a[j])
+
+        grad_a: list[float] = []
+        for j in range(d_hidden):
+            total = 0.0
+            for i in range(d_in):
+                total += dy[i] * self._w1[i * d_hidden + j]
+            grad_a.append(total)
+        grad_h: list[float] = []
+        for j in range(d_hidden):
+            grad_h.append(grad_a[j] * (1.0 - a[j] * a[j]))
+
+        grad_w2: list[float] = []
+        for j in range(d_hidden):
+            for k in range(d_in):
+                grad_w2.append(grad_h[j] * x[k])
+
+        w1_len = d_in * d_hidden
+        for i in range(w1_len):
+            self._w1_momentum[i] = beta * self._w1_momentum[i] + (1.0 - beta) * grad_w1[i]
+            self._w1[i] -= lr * self._w1_momentum[i]
+
+        w2_len = d_hidden * d_in
+        for i in range(w2_len):
+            self._w2_momentum[i] = beta * self._w2_momentum[i] + (1.0 - beta) * grad_w2[i]
+            self._w2[i] -= lr * self._w2_momentum[i]
+
+        for i in range(d_in):
+            error = target[i] - x[i]
+            self._state_momentum[i] = beta * self._state_momentum[i] + (1.0 - beta) * error
+            self._state[i] = _clamp(x[i] + lr * self._state_momentum[i])
+
+    def export_params(self) -> tuple[tuple[float, ...], ...]:
+        return (
+            tuple(self._state),
+            tuple(self._state_momentum),
+            tuple(self._w2),
+            tuple(self._w1),
+            tuple(self._w2_momentum),
+            tuple(self._w1_momentum),
+        )
+
+    def load_representation(self, vector: tuple[float, ...]) -> None:
+        projected = tuple(
+            vector[i % len(vector)] if vector else 0.0
+            for i in range(self._d_in)
+        )
+        self._state = [float(_clamp(value)) for value in projected]
+        self._state_momentum = [0.0] * self._d_in
+
+    def restore_params(self, params: tuple[tuple[float, ...], ...]) -> None:
+        if len(params) != 6:
+            raise ValueError(f"Expected 6 param groups, got {len(params)}")
+        self._state = list(params[0])
+        self._state_momentum = list(params[1])
+        self._w2 = list(params[2])
+        self._w1 = list(params[3])
+        self._w2_momentum = list(params[4])
+        self._w1_momentum = list(params[5])
+        self._validate_invariants()
+
+    def parameter_count(self) -> int:
+        return self._d_in + self._d_hidden * self._d_in + self._d_in * self._d_hidden
+
+    def mix_from(self, other: CMSBandMLP, *, strength: float, factor: float) -> None:
+        self._validate_invariants()
+        other._validate_invariants()
+        rate = _clamp(strength * factor)
+        for i in range(self._d_in):
+            self._state[i] = _clamp(
+                self._state[i] + rate * (other._state[i] - self._state[i])
+            )
+        for i in range(len(self._w1)):
+            self._w1[i] += rate * (other._w1[i] - self._w1[i])
+        for i in range(len(self._w2)):
+            self._w2[i] += rate * (other._w2[i] - self._w2[i])

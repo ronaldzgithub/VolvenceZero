@@ -1,0 +1,371 @@
+{
+  "schema_version": "relationship-product-pilot-source.v2",
+  "owner": {
+    "module": "lifeform_domain_emogpt.lab.relationship_product_pilot_source",
+    "source_role": "independent_development_product_pilot_domain_source_only",
+    "settlement_owner": "lifeform_domain_emogpt.lab.environment.ReactiveRelationshipEnvironment",
+    "runtime_owner_added": false,
+    "runtime_slot_added": false,
+    "p1m_output_dependency": false,
+    "difficulty_tuned_from_p1m": false
+  },
+  "cohort": {
+    "cohort_id": "relationship-product-pilot-independent-development-20260824",
+    "identity_namespace": "relationship-product-pilot-independent-v2",
+    "evidence_role": "development_engineering_pilot_only",
+    "subject_count": 8,
+    "subject_seeds": [
+      2026092401,
+      2026092402,
+      2026092403,
+      2026092404,
+      2026092405,
+      2026092406,
+      2026092407,
+      2026092408
+    ],
+    "onboarding_sessions_per_subject": 4,
+    "decision_sessions_per_subject": 24,
+    "per_arm_exogenous_world_clone": true,
+    "arm_identity_affects_source_or_environment_seed": false
+  },
+  "policies": {
+    "condition_ids": [
+      "connection_under_exclusion",
+      "agency_under_override"
+    ],
+    "profiles": {
+      "alpha": {
+        "connection_under_exclusion": "stay_present_without_probe",
+        "agency_under_override": "respect_space_with_return_option"
+      },
+      "beta": {
+        "connection_under_exclusion": "respect_space_with_return_option",
+        "agency_under_override": "stay_present_without_probe"
+      }
+    },
+    "subject_assignment": "zero_based_subject_index_even_alpha_odd_beta",
+    "reversal_from_decision_index": 12,
+    "reversal_policy": "use_complementary_profile"
+  },
+  "schedule": {
+    "domain_ids": [
+      "maker_studio",
+      "neighborhood_archive",
+      "shared_kitchen",
+      "learning_circle",
+      "travel_planning",
+      "community_garden"
+    ],
+    "decisions": [
+      {
+        "decision_index": 0,
+        "phase_id": "independent_v2_stable_maker_connection",
+        "stage_id": "stable",
+        "domain_id": "maker_studio",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 6,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 1,
+        "phase_id": "independent_v2_stable_archive_agency",
+        "stage_id": "stable",
+        "domain_id": "neighborhood_archive",
+        "condition_id": "agency_under_override",
+        "virtual_day": 9,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 2,
+        "phase_id": "independent_v2_stable_kitchen_connection",
+        "stage_id": "stable",
+        "domain_id": "shared_kitchen",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 12,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 3,
+        "phase_id": "independent_v2_stable_learning_agency",
+        "stage_id": "stable",
+        "domain_id": "learning_circle",
+        "condition_id": "agency_under_override",
+        "virtual_day": 15,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 4,
+        "phase_id": "independent_v2_stable_travel_connection",
+        "stage_id": "stable",
+        "domain_id": "travel_planning",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 18,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 5,
+        "phase_id": "independent_v2_stable_garden_agency",
+        "stage_id": "stable",
+        "domain_id": "community_garden",
+        "condition_id": "agency_under_override",
+        "virtual_day": 21,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 6,
+        "phase_id": "independent_v2_domain_switch_archive_connection",
+        "stage_id": "domain_switch",
+        "domain_id": "neighborhood_archive",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 25,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 7,
+        "phase_id": "independent_v2_domain_switch_maker_agency",
+        "stage_id": "domain_switch",
+        "domain_id": "maker_studio",
+        "condition_id": "agency_under_override",
+        "virtual_day": 28,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 8,
+        "phase_id": "independent_v2_domain_switch_learning_connection",
+        "stage_id": "domain_switch",
+        "domain_id": "learning_circle",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 31,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 9,
+        "phase_id": "independent_v2_domain_switch_kitchen_agency",
+        "stage_id": "domain_switch",
+        "domain_id": "shared_kitchen",
+        "condition_id": "agency_under_override",
+        "virtual_day": 34,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 10,
+        "phase_id": "independent_v2_pre_gap_travel_connection",
+        "stage_id": "pre_gap",
+        "domain_id": "travel_planning",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 38,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 11,
+        "phase_id": "independent_v2_pre_gap_garden_agency",
+        "stage_id": "pre_gap",
+        "domain_id": "community_garden",
+        "condition_id": "agency_under_override",
+        "virtual_day": 42,
+        "active_policy_mode": "base",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 12,
+        "phase_id": "independent_v2_post_gap_reversal_maker_connection",
+        "stage_id": "post_gap_reversal",
+        "domain_id": "maker_studio",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 64,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 13,
+        "phase_id": "independent_v2_reversal_archive_agency",
+        "stage_id": "reversal",
+        "domain_id": "neighborhood_archive",
+        "condition_id": "agency_under_override",
+        "virtual_day": 67,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 14,
+        "phase_id": "independent_v2_reversal_kitchen_connection",
+        "stage_id": "reversal",
+        "domain_id": "shared_kitchen",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 70,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 15,
+        "phase_id": "independent_v2_reversal_learning_agency",
+        "stage_id": "reversal",
+        "domain_id": "learning_circle",
+        "condition_id": "agency_under_override",
+        "virtual_day": 73,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 16,
+        "phase_id": "independent_v2_correction_travel_connection",
+        "stage_id": "correction",
+        "domain_id": "travel_planning",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 76,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": 10
+      },
+      {
+        "decision_index": 17,
+        "phase_id": "independent_v2_correction_garden_agency",
+        "stage_id": "correction",
+        "domain_id": "community_garden",
+        "condition_id": "agency_under_override",
+        "virtual_day": 79,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": 11
+      },
+      {
+        "decision_index": 18,
+        "phase_id": "independent_v2_post_correction_archive_connection",
+        "stage_id": "post_correction",
+        "domain_id": "neighborhood_archive",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 83,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 19,
+        "phase_id": "independent_v2_post_correction_maker_agency",
+        "stage_id": "post_correction",
+        "domain_id": "maker_studio",
+        "condition_id": "agency_under_override",
+        "virtual_day": 87,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 20,
+        "phase_id": "independent_v2_return_after_gap_learning_connection",
+        "stage_id": "return_after_gap",
+        "domain_id": "learning_circle",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 109,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 21,
+        "phase_id": "independent_v2_return_after_gap_kitchen_agency",
+        "stage_id": "return_after_gap",
+        "domain_id": "shared_kitchen",
+        "condition_id": "agency_under_override",
+        "virtual_day": 112,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 22,
+        "phase_id": "independent_v2_mixed_stress_garden_connection",
+        "stage_id": "mixed_stress",
+        "domain_id": "community_garden",
+        "condition_id": "connection_under_exclusion",
+        "virtual_day": 116,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      },
+      {
+        "decision_index": 23,
+        "phase_id": "independent_v2_mixed_stress_travel_agency",
+        "stage_id": "mixed_stress",
+        "domain_id": "travel_planning",
+        "condition_id": "agency_under_override",
+        "virtual_day": 120,
+        "active_policy_mode": "complement",
+        "public_correction_target_index": null
+      }
+    ]
+  },
+  "reactive_environment": {
+    "environment_version": "relationship-reactive-environment.v1",
+    "seed_namespace": "relationship-product-pilot-independent-reactive-seeds-v2",
+    "outcome_order": [
+      "helped",
+      "felt_heard",
+      "missed",
+      "over_directive"
+    ],
+    "positive_outcomes": [
+      "helped",
+      "felt_heard"
+    ],
+    "preferred_action_probabilities": [
+      0.35,
+      0.55,
+      0.05,
+      0.05
+    ],
+    "nonpreferred_stay_probabilities": [
+      0.05,
+      0.05,
+      0.1,
+      0.8
+    ],
+    "nonpreferred_space_probabilities": [
+      0.05,
+      0.1,
+      0.8,
+      0.05
+    ],
+    "neutral_noop_probabilities": [
+      0.02,
+      0.03,
+      0.7,
+      0.25
+    ]
+  },
+  "context_pressure": {
+    "rendering_version": "relationship-product-pilot-public-renderer.v2",
+    "metric": "concatenated_public_source_text_unicode_codepoints_and_utf8_bytes",
+    "minimum_public_source_characters_per_subject": 40000,
+    "minimum_public_source_utf8_bytes_per_subject": 100000,
+    "token_measurement_status": "not_measured_not_claimed",
+    "token_count": null
+  },
+  "semantic_surfaces": {
+    "condition_count": 2,
+    "onboarding_surfaces_per_condition_per_subject": 2,
+    "decision_surfaces_per_condition_per_subject": 12,
+    "total_surfaces_per_condition_per_subject": 14,
+    "reuse_within_subject": false,
+    "v1_exact_surface_overlap_allowed": false,
+    "sealed_literal_in_surface_allowed": false,
+    "action_directive_in_surface_allowed": false
+  },
+  "firewall": {
+    "public_view_contains_sealed_condition": false,
+    "public_view_contains_policy_id": false,
+    "public_view_contains_preferred_action": false,
+    "public_view_contains_environment_seed": false,
+    "evaluation_or_judge_feedback_to_learning": false,
+    "model_output_count": 0,
+    "runtime_owner_added": false,
+    "runtime_slot_added": false,
+    "formal_evidence_authorized": false
+  },
+  "claim_boundary": "This source v2 is an independent local development cohort with eight new subject seeds, four onboarding sessions and twenty-four decisions per subject, balanced typed conditions, complementary policies, reversal, correction, gap and horizon structure, a new domain and identity namespace, and fourteen distinct public semantic surfaces per condition and subject. It materializes zero model outputs, is not connected to any campaign by this source-owner package, does not consume prior outcomes or evaluation, does not authorize product or formal evidence, and proves no Appendable, Readable, Learnable, Steerable, integrated, human, or production claim."
+}
