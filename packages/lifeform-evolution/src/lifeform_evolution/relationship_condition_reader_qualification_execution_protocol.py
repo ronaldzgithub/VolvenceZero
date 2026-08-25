@@ -89,6 +89,10 @@ _BGE_EXPECTED_PATHS = frozenset(
 )
 
 _PREFLIGHT_SCHEMA_VERSION = "relationship-condition-reader-qualification-protocol.v1"
+_PREFLIGHT_SCHEMA_VERSION_V2 = "relationship-condition-reader-qualification-protocol.v2"
+_SUPPORTED_PREFLIGHT_SCHEMA_VERSIONS = frozenset(
+    {_PREFLIGHT_SCHEMA_VERSION, _PREFLIGHT_SCHEMA_VERSION_V2}
+)
 _PREFLIGHT_MANIFEST_SCHEMA_VERSION = "relationship-condition-reader-qualification-preflight-manifest.v1"
 _PREFLIGHT_FILES = (
     ("manifest.json", _PREFLIGHT_MANIFEST_SCHEMA_VERSION, True),
@@ -480,17 +484,21 @@ def build_relationship_condition_reader_execution_preflight_binding(
     *,
     preflight_root: pathlib.Path,
     expected_qualification_protocol_id: str,
+    expected_qualification_protocol_schema_version: str = _PREFLIGHT_SCHEMA_VERSION,
 ) -> Mapping[str, object]:
     """Freeze all eight preflight files; this offline helper opens sealed files."""
 
     root = _absolute_directory(preflight_root, "qualification preflight root")
+    preflight_files = _preflight_files_for_protocol_schema(
+        expected_qualification_protocol_schema_version
+    )
     expected_protocol_id = _digest(
         expected_qualification_protocol_id,
         "expected qualification protocol id",
     )
     rows: list[dict[str, object]] = []
     payloads: dict[str, Mapping[str, object]] = {}
-    for relative_path, schema_version, has_artifact_id in _PREFLIGHT_FILES:
+    for relative_path, schema_version, has_artifact_id in preflight_files:
         path = root / pathlib.PurePosixPath(relative_path)
         raw = _read_stable_regular_file(path, root=root, field_name=f"preflight {relative_path}")
         parsed = _parse_json_object(raw, source=relative_path, max_bytes=4_000_000)
@@ -530,7 +538,12 @@ def build_relationship_condition_reader_execution_preflight_binding(
         "file_count": len(rows),
     }
     binding = _with_artifact_id(core)
-    _validate_preflight_binding_shape(binding)
+    _validate_preflight_binding_shape(
+        binding,
+        expected_qualification_protocol_schema_version=(
+            expected_qualification_protocol_schema_version
+        ),
+    )
     return binding
 
 
@@ -538,17 +551,26 @@ def validate_relationship_condition_reader_execution_preflight_binding(
     payload: Mapping[str, object],
     *,
     preflight_root: pathlib.Path | None = None,
+    expected_qualification_protocol_schema_version: str = _PREFLIGHT_SCHEMA_VERSION,
 ) -> str:
     """Validate binding shape and optionally reobserve all eight preflight files."""
 
     binding = _mapping(payload, "preflight binding")
-    _validate_preflight_binding_shape(binding)
+    _validate_preflight_binding_shape(
+        binding,
+        expected_qualification_protocol_schema_version=(
+            expected_qualification_protocol_schema_version
+        ),
+    )
     if preflight_root is not None:
         observed = build_relationship_condition_reader_execution_preflight_binding(
             preflight_root=preflight_root,
             expected_qualification_protocol_id=_digest(
                 binding["qualification_protocol_id"],
                 "qualification protocol id",
+            ),
+            expected_qualification_protocol_schema_version=(
+                expected_qualification_protocol_schema_version
             ),
         )
         if binding != observed:
@@ -564,10 +586,16 @@ def build_relationship_condition_reader_qualification_execution_protocol(
     runtime_identity: Mapping[str, object],
     proposed_execution_root: pathlib.Path,
     anchor_receipt_relative_path: str,
+    expected_qualification_protocol_schema_version: str = _PREFLIGHT_SCHEMA_VERSION,
 ) -> Mapping[str, object]:
     """Compose the static protocol payload; it does not authorize execution."""
 
-    _validate_preflight_binding_shape(_mapping(preflight_binding, "preflight binding"))
+    _validate_preflight_binding_shape(
+        _mapping(preflight_binding, "preflight binding"),
+        expected_qualification_protocol_schema_version=(
+            expected_qualification_protocol_schema_version
+        ),
+    )
     _validate_source_tree_shape(_mapping(source_tree_manifest, "source tree"))
     _validate_bge_tree_shape(_mapping(bge_snapshot_tree_manifest, "BGE tree"))
     _validate_runtime_identity(_mapping(runtime_identity, "runtime identity"))
@@ -587,7 +615,12 @@ def build_relationship_condition_reader_qualification_execution_protocol(
         "qualification_gates": dict(_QUALIFICATION_GATES),
         "claims": dict(_CLAIMS),
     }
-    _validate_execution_protocol_shape(payload)
+    _validate_execution_protocol_shape(
+        payload,
+        expected_qualification_protocol_schema_version=(
+            expected_qualification_protocol_schema_version
+        ),
+    )
     return payload
 
 
@@ -893,7 +926,34 @@ def _validate_bge_tree_shape(payload: Mapping[str, object]) -> None:
     _validate_artifact_id(payload, "BGE snapshot tree")
 
 
-def _validate_preflight_binding_shape(payload: Mapping[str, object]) -> None:
+def _preflight_files_for_protocol_schema(
+    expected_qualification_protocol_schema_version: str,
+) -> tuple[tuple[str, str, bool], ...]:
+    if (
+        not isinstance(expected_qualification_protocol_schema_version, str)
+        or expected_qualification_protocol_schema_version
+        not in _SUPPORTED_PREFLIGHT_SCHEMA_VERSIONS
+    ):
+        raise ValueError("unsupported qualification preflight protocol schema")
+    return tuple(
+        (
+            path,
+            (
+                expected_qualification_protocol_schema_version
+                if path == "protocol.json"
+                else schema_version
+            ),
+            has_artifact_id,
+        )
+        for path, schema_version, has_artifact_id in _PREFLIGHT_FILES
+    )
+
+
+def _validate_preflight_binding_shape(
+    payload: Mapping[str, object],
+    *,
+    expected_qualification_protocol_schema_version: str = _PREFLIGHT_SCHEMA_VERSION,
+) -> None:
     _exact_keys(
         payload,
         {"schema_version", "qualification_protocol_id", "files", "file_count", "artifact_id"},
@@ -905,9 +965,15 @@ def _validate_preflight_binding_shape(payload: Mapping[str, object]) -> None:
     files = payload["files"]
     if not isinstance(files, list):
         raise ValueError("preflight binding files must be an array")
-    if len(files) != len(_PREFLIGHT_FILES) or payload["file_count"] != len(_PREFLIGHT_FILES):
+    preflight_files = _preflight_files_for_protocol_schema(
+        expected_qualification_protocol_schema_version
+    )
+    if len(files) != len(preflight_files) or payload["file_count"] != len(preflight_files):
         raise ValueError("preflight binding must contain all eight files")
-    expected_by_path = {path: (schema, has_artifact) for path, schema, has_artifact in _PREFLIGHT_FILES}
+    expected_by_path = {
+        path: (schema, has_artifact)
+        for path, schema, has_artifact in preflight_files
+    }
     observed_paths: list[str] = []
     for index, raw_row in enumerate(files):
         row = _mapping(raw_row, f"preflight binding file {index}")
@@ -936,7 +1002,11 @@ def _validate_preflight_binding_shape(payload: Mapping[str, object]) -> None:
     _validate_artifact_id(payload, "preflight binding")
 
 
-def _validate_execution_protocol_shape(payload: Mapping[str, object]) -> None:
+def _validate_execution_protocol_shape(
+    payload: Mapping[str, object],
+    *,
+    expected_qualification_protocol_schema_version: str = _PREFLIGHT_SCHEMA_VERSION,
+) -> None:
     _exact_keys(
         payload,
         {
@@ -959,7 +1029,12 @@ def _validate_execution_protocol_shape(payload: Mapping[str, object]) -> None:
         raise ValueError("execution protocol schema drifted")
     if payload["evidence_role"] != "exact_source_reader_development_admission_only":
         raise ValueError("execution protocol evidence role is overbroad")
-    _validate_preflight_binding_shape(_mapping(payload["qualification_preflight"], "preflight binding"))
+    _validate_preflight_binding_shape(
+        _mapping(payload["qualification_preflight"], "preflight binding"),
+        expected_qualification_protocol_schema_version=(
+            expected_qualification_protocol_schema_version
+        ),
+    )
     _validate_source_tree_shape(_mapping(payload["execution_source_tree"], "source tree"))
     _validate_bge_tree_shape(_mapping(payload["bge_snapshot_tree"], "BGE tree"))
     _validate_runtime_identity(_mapping(payload["runtime_identity"], "runtime identity"))

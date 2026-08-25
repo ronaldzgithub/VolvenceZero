@@ -104,9 +104,13 @@ def _make_bge_snapshot(
     return root
 
 
-def _make_preflight(root: pathlib.Path) -> tuple[pathlib.Path, str]:
+def _make_preflight(
+    root: pathlib.Path,
+    *,
+    protocol_schema_version: str = _PREFLIGHT_SCHEMAS["protocol.json"],
+) -> tuple[pathlib.Path, str]:
     protocol_payload = {
-        "schema_version": _PREFLIGHT_SCHEMAS["protocol.json"],
+        "schema_version": protocol_schema_version,
         "evidence_role": "test-fixture-only",
     }
     protocol_raw = json.dumps(protocol_payload, indent=2, sort_keys=True).encode("utf-8") + b"\n"
@@ -370,6 +374,45 @@ def test_preflight_binding_covers_all_eight_files_and_detects_tampering(
             preflight_root=preflight,
             expected_qualification_protocol_id=qualification_protocol_id,
         )
+
+
+def test_preflight_binding_requires_an_explicit_v2_schema_admission(
+    tmp_path: pathlib.Path,
+) -> None:
+    schema_v2 = "relationship-condition-reader-qualification-protocol.v2"
+    preflight, qualification_protocol_id = _make_preflight(
+        tmp_path / "preflight-v2",
+        protocol_schema_version=schema_v2,
+    )
+
+    with pytest.raises(ValueError, match="preflight schema mismatch: protocol.json"):
+        build_relationship_condition_reader_execution_preflight_binding(
+            preflight_root=preflight,
+            expected_qualification_protocol_id=qualification_protocol_id,
+        )
+
+    binding = build_relationship_condition_reader_execution_preflight_binding(
+        preflight_root=preflight,
+        expected_qualification_protocol_id=qualification_protocol_id,
+        expected_qualification_protocol_schema_version=schema_v2,
+    )
+    protocol_row = next(
+        row for row in binding["files"] if row["path"] == "protocol.json"
+    )
+    assert protocol_row["schema_version"] == schema_v2
+    assert (
+        validate_relationship_condition_reader_execution_preflight_binding(
+            binding,
+            preflight_root=preflight,
+            expected_qualification_protocol_schema_version=schema_v2,
+        )
+        == binding["artifact_id"]
+    )
+    with pytest.raises(
+        ValueError,
+        match="preflight binding schema mismatch: protocol.json",
+    ):
+        validate_relationship_condition_reader_execution_preflight_binding(binding)
 
 
 def test_execution_protocol_requires_external_id_and_honest_claims(

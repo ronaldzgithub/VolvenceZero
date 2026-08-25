@@ -246,9 +246,15 @@ def test_freeze_requires_publication_request_and_protocol_execution_roots_to_mat
     def forbidden_source_scan(**_kwargs: object) -> object:
         raise AssertionError("root mismatch must fail before the expensive source scan")
 
+    observed_preflight_build: dict[str, object] = {}
+
+    def build_preflight_binding(**kwargs: object) -> object:
+        observed_preflight_build.update(kwargs)
+        return preflight_binding
+
     fake_v1_protocol = SimpleNamespace(
         build_relationship_condition_reader_execution_preflight_binding=(
-            lambda **_kwargs: preflight_binding
+            build_preflight_binding
         ),
         build_relationship_condition_reader_execution_source_tree_manifest=forbidden_source_scan,
     )
@@ -257,6 +263,9 @@ def test_freeze_requires_publication_request_and_protocol_execution_roots_to_mat
         cli_module,
         "_load_v2_protocol_module",
         lambda: SimpleNamespace(
+            RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V2=(
+                "relationship-condition-reader-qualification-protocol.v2"
+            ),
             canonical_relationship_condition_reader_qualification_execution_root_v2=(
                 protocol_module.canonical_relationship_condition_reader_qualification_execution_root_v2
             )
@@ -278,6 +287,9 @@ def test_freeze_requires_publication_request_and_protocol_execution_roots_to_mat
         match="publication request proposed execution root differs",
     ):
         cli_module._freeze_protocol(freeze_args)
+    assert observed_preflight_build[
+        "expected_qualification_protocol_schema_version"
+    ] == "relationship-condition-reader-qualification-protocol.v2"
     assert not protocol_output_path.exists()
 
 

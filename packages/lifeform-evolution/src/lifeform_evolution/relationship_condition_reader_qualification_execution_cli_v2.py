@@ -535,6 +535,9 @@ def _freeze_protocol(args: argparse.Namespace) -> Mapping[str, object]:
     preflight = v1_protocol.build_relationship_condition_reader_execution_preflight_binding(
         preflight_root=preflight_root,
         expected_qualification_protocol_id=args.expected_qualification_protocol_id,
+        expected_qualification_protocol_schema_version=(
+            v2_protocol.RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V2
+        ),
     )
     _require_preflight_publication_execution_root(
         protocol_module=v2_protocol,

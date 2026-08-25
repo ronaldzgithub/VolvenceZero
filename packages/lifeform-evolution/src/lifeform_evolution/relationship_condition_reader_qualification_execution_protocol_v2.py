@@ -64,6 +64,18 @@ RELATIONSHIP_READER_EXECUTION_PYTHON_STDLIB_ZIP_V2_SCHEMA_VERSION = (
 RELATIONSHIP_READER_EXECUTION_PYTHON_HOME_TOP_LEVEL_TREE_V2_SCHEMA_VERSION = (
     "relationship-condition-reader-qualification-python-home-top-level-tree.v2"
 )
+RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V1 = (
+    "relationship-condition-reader-qualification-protocol.v1"
+)
+RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V2 = (
+    "relationship-condition-reader-qualification-protocol.v2"
+)
+_SUPPORTED_QUALIFICATION_PROTOCOL_SCHEMA_VERSIONS = frozenset(
+    {
+        RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V1,
+        RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V2,
+    }
+)
 
 V2_GIST_FILENAME = "relationship_condition_reader_qualification_execution_v2.json"
 _WINDOWS_INVALID_EXECUTION_ROOT_CHARACTERS = frozenset('<>:"/\\|?*')
@@ -333,6 +345,29 @@ def validate_relationship_condition_reader_qualification_import_runtime_identity
     return _digest(runtime["artifact_id"], "V2 import runtime artifact id")
 
 
+def _qualification_protocol_schema_version_from_preflight_binding(
+    preflight_binding: Mapping[str, object],
+) -> str:
+    binding = _mapping(preflight_binding, "V2 preflight binding")
+    files = binding.get("files")
+    if not isinstance(files, list):
+        raise ValueError("V2 preflight binding files must be an array")
+    protocol_rows: list[Mapping[str, object]] = []
+    for index, value in enumerate(files):
+        row = _mapping(value, f"V2 preflight binding file {index}")
+        if row.get("path") == "protocol.json":
+            protocol_rows.append(row)
+    if len(protocol_rows) != 1:
+        raise ValueError("V2 preflight binding must contain exactly one protocol.json row")
+    schema_version = _text(
+        protocol_rows[0].get("schema_version"),
+        "V2 qualification protocol schema version",
+    )
+    if schema_version not in _SUPPORTED_QUALIFICATION_PROTOCOL_SCHEMA_VERSIONS:
+        raise ValueError("unsupported V2 qualification protocol schema version")
+    return schema_version
+
+
 def build_relationship_condition_reader_qualification_execution_protocol_v2(
     *,
     preflight_binding: Mapping[str, object],
@@ -345,6 +380,11 @@ def build_relationship_condition_reader_qualification_execution_protocol_v2(
 ) -> Mapping[str, object]:
     """Compose a static V2 protocol; this never observes or authorizes a Gist."""
 
+    qualification_protocol_schema_version = (
+        _qualification_protocol_schema_version_from_preflight_binding(
+            preflight_binding
+        )
+    )
     execution_root_text = canonical_relationship_condition_reader_qualification_execution_root_v2(
         proposed_execution_root,
         "proposed execution root",
@@ -360,6 +400,9 @@ def build_relationship_condition_reader_qualification_execution_protocol_v2(
         runtime_identity=v1_runtime,
         proposed_execution_root=pathlib.Path(execution_root_text),
         anchor_receipt_relative_path=anchor_receipt_relative_path,
+        expected_qualification_protocol_schema_version=(
+            qualification_protocol_schema_version
+        ),
     )
     receipt_path = _relative_receipt_path(anchor_receipt_relative_path)
     payload = {
@@ -426,9 +469,21 @@ def validate_relationship_condition_reader_qualification_execution_protocol_v2(
         _mapping(protocol["bge_snapshot_tree"], "V2 BGE tree"),
         snapshot_root=bge_snapshot_root,
     )
+    preflight_binding = _mapping(
+        protocol["qualification_preflight"],
+        "V2 preflight binding",
+    )
+    qualification_protocol_schema_version = (
+        _qualification_protocol_schema_version_from_preflight_binding(
+            preflight_binding
+        )
+    )
     v1.validate_relationship_condition_reader_execution_preflight_binding(
-        _mapping(protocol["qualification_preflight"], "V2 preflight binding"),
+        preflight_binding,
         preflight_root=preflight_root,
+        expected_qualification_protocol_schema_version=(
+            qualification_protocol_schema_version
+        ),
     )
     return observed_id
 
@@ -906,14 +961,26 @@ def _validate_protocol_shape(protocol: Mapping[str, object]) -> None:
         ),
         execution_source_tree=_mapping(protocol["execution_source_tree"], "V2 source"),
     )
+    preflight_binding = _mapping(
+        protocol["qualification_preflight"],
+        "V2 preflight",
+    )
+    qualification_protocol_schema_version = (
+        _qualification_protocol_schema_version_from_preflight_binding(
+            preflight_binding
+        )
+    )
     # The public V1 composer is the SSOT for all unchanged mechanism fields.
     base = v1.build_relationship_condition_reader_qualification_execution_protocol(
-        preflight_binding=_mapping(protocol["qualification_preflight"], "V2 preflight"),
+        preflight_binding=preflight_binding,
         source_tree_manifest=_mapping(protocol["execution_source_tree"], "V2 source"),
         bge_snapshot_tree_manifest=_mapping(protocol["bge_snapshot_tree"], "V2 BGE"),
         runtime_identity=_v1_runtime_identity_from_v2(runtime),
         proposed_execution_root=pathlib.Path(str(protocol["proposed_execution_root"])),
         anchor_receipt_relative_path=receipt_path,
+        expected_qualification_protocol_schema_version=(
+            qualification_protocol_schema_version
+        ),
     )
     for field_name in (
         "evidence_role",
@@ -3568,6 +3635,8 @@ __all__ = [
     "RELATIONSHIP_READER_EXECUTION_RUNTIME_IDENTITY_V2_SCHEMA_VERSION",
     "RELATIONSHIP_READER_EXECUTION_RUNTIME_RAW_TREE_V2_SCHEMA_VERSION",
     "RELATIONSHIP_READER_EXECUTION_SITE_PACKAGES_COVERAGE_V2_SCHEMA_VERSION",
+    "RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V1",
+    "RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V2",
     "RelationshipConditionReaderQualificationIntegrityGuardV2",
     "V2_GIST_FILENAME",
     "canonical_relationship_condition_reader_qualification_execution_root_v2",

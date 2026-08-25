@@ -505,6 +505,68 @@ def test_historical_v1_protocol_raw_bytes_remain_exact() -> None:
     assert hashlib.sha256(raw).hexdigest() == ("02dd24e68efdd7c988c84ac250d48116d4bba637fbf7dad3add5d9c491614572")
 
 
+def test_v2_protocol_preserves_v1_and_admits_registered_v2_preflight_lineage(
+    frozen_protocol: _FrozenProtocol,
+) -> None:
+    original_binding = frozen_protocol.payload["qualification_preflight"]
+    assert isinstance(original_binding, dict)
+    assert (
+        protocol_v2._qualification_protocol_schema_version_from_preflight_binding(
+            original_binding
+        )
+        == protocol_v2.RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V1
+    )
+
+    payload = copy.deepcopy(frozen_protocol.payload)
+    binding = payload["qualification_preflight"]
+    assert isinstance(binding, dict)
+    rows = binding["files"]
+    assert isinstance(rows, list)
+    protocol_row = next(row for row in rows if row["path"] == "protocol.json")
+    protocol_row["schema_version"] = (
+        protocol_v2.RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V2
+    )
+    _rehash_artifact(binding)
+
+    protocol_v2._validate_protocol_shape(payload)
+    assert (
+        protocol_v2._qualification_protocol_schema_version_from_preflight_binding(
+            binding
+        )
+        == protocol_v2.RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V2
+    )
+
+
+def test_v2_preflight_lineage_rejects_unknown_duplicate_or_missing_protocol_row(
+    frozen_protocol: _FrozenProtocol,
+) -> None:
+    binding = copy.deepcopy(frozen_protocol.payload["qualification_preflight"])
+    assert isinstance(binding, dict)
+    rows = binding["files"]
+    assert isinstance(rows, list)
+    protocol_row = next(row for row in rows if row["path"] == "protocol.json")
+    protocol_row["schema_version"] = "relationship-condition-reader-qualification-protocol.v3"
+    with pytest.raises(ValueError, match="unsupported V2 qualification protocol schema"):
+        protocol_v2._qualification_protocol_schema_version_from_preflight_binding(
+            binding
+        )
+
+    protocol_row["schema_version"] = (
+        protocol_v2.RELATIONSHIP_READER_QUALIFICATION_PROTOCOL_SCHEMA_VERSION_V1
+    )
+    rows.append(copy.deepcopy(protocol_row))
+    with pytest.raises(ValueError, match="exactly one protocol.json row"):
+        protocol_v2._qualification_protocol_schema_version_from_preflight_binding(
+            binding
+        )
+
+    binding["files"] = [row for row in rows if row["path"] != "protocol.json"]
+    with pytest.raises(ValueError, match="exactly one protocol.json row"):
+        protocol_v2._qualification_protocol_schema_version_from_preflight_binding(
+            binding
+        )
+
+
 def test_v2_runtime_identity_freezes_complete_child_import_domains(
     frozen_protocol: _FrozenProtocol,
 ) -> None:

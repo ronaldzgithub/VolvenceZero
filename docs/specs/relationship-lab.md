@@ -1580,6 +1580,13 @@ source protocol 与 qualification owner，任何 wrong-owner、raw、protocol/pu
 fail closed。新增 revision 不修补或授权任何既有 execution protocol、public anchor 或 receipt；执行必须在
 代码稳定后另行冻结全新 preflight、execution protocol、Gist 与 receipt。
 
+execution preflight binding 对 qualification protocol 版本实行显式 admission，而不是 wildcard：历史 v1
+execution composer / validator 的默认值仍严格只接受 qualification-v1；execution-v2 只能从 binding 中唯一的
+`protocol.json` row 推导已注册的 qualification-v1 或 qualification-v2，再把该 exact schema 传给共享 binder、
+composer 与磁盘重观察。这样既保留旧 execution-v2/Gist 对 qualification-v1 的原始可验证 lineage，也允许新
+attempt 绑定 qualification-v2。新的 v2 `freeze-protocol` 入口必须显式要求 qualification-v2；未知版本、缺失或
+重复 `protocol.json` row 均 fail closed，禁止用“兼容所有未来版本”绕过重新审查。
+
 source condition 到产品 reader label 的 crosswalk 固定为
 `agency_under_override → agency_displacement` 与
 `connection_under_exclusion → belonging_erasure`。通用 reader 单测中的
