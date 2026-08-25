@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import os
@@ -20,6 +20,7 @@ from volvence_zero.social_cognition import relationship_condition_readout_to_pay
 
 import lifeform_evolution.relationship_condition_reader_qualification_executor as executor
 import lifeform_evolution.relationship_condition_reader_qualification_execution_protocol as execution_protocol
+import lifeform_evolution.relationship_condition_reader_qualification_predictor as predictor
 import lifeform_evolution.relationship_condition_reader_qualification_scorer as scorer
 from lifeform_evolution.relationship_lab_product_model_adapters import (
     PrecomputedPublicEmbeddingRecord,
@@ -384,6 +385,12 @@ class _FakeLauncher:
                 exit_code=0,
                 job_object_empty=False,
             )
+        if self.mode == "cache_file" and spec.run_ordinal == 1:
+            spec.torchinductor_cache_dir.write_bytes(b"not-a-directory")
+        elif self.mode != "cache_missing" or spec.run_ordinal != 1:
+            spec.torchinductor_cache_dir.mkdir()
+        if self.mode == "cache_nonempty" and spec.run_ordinal == 1:
+            (spec.torchinductor_cache_dir / "unexpected.bin").write_bytes(b"unexpected")
         self._write_child_outputs(spec, mismatch=self.mode == "mismatch")
         return self._result(
             spec=spec,
@@ -431,6 +438,10 @@ class _FakeLauncher:
             source_capsule_used=False,
             repository_import_path_used=True,
             bge_snapshot_tree_verified=False,
+            torchinductor_cache_absent_before_launch=True,
+            torchinductor_cache=executor._observe_cache_directory(
+                spec.torchinductor_cache_dir,
+            ),
         )
 
     @staticmethod
@@ -449,9 +460,12 @@ class _FakeLauncher:
                 "PYTHONPATH": "C:\\ambient-shadow",
                 "SystemRoot": "C:\\Windows",
                 "SECRET_TOKEN": "must-not-cross",
+                "TORCHINDUCTOR_CACHE_DIR": "C:\\ambient-torch-cache",
+                "USERNAME": "qualification-user",
             },
             import_binding=spec.import_binding,
             pycache_prefix=spec.pycache_prefix,
+            torchinductor_cache_dir=spec.torchinductor_cache_dir,
         )
 
     def _write_child_outputs(
@@ -566,7 +580,7 @@ class _FakeLauncher:
             _file_receipt("prediction_ledger.json", ledger),
         ]
         attestation_core: dict[str, object] = {
-            "schema_version": ("relationship-condition-reader-prediction-process-attestation.v3"),
+            "schema_version": ("relationship-condition-reader-prediction-process-attestation.v4"),
             "protocol_id": child["protocol_id"],
             "execution_protocol_id": child["execution_protocol_id"],
             "child_request_artifact_id": child["artifact_id"],
@@ -598,7 +612,7 @@ class _FakeLauncher:
             ),
             "bootstrap_import_roots": [str(path) for path in spec.import_binding.import_roots],
             "environment_contract": {
-                "schema_version": ("relationship-condition-reader-prediction-environment.v2"),
+                "schema_version": ("relationship-condition-reader-prediction-environment.v3"),
                 "projected_keys": list(executor._PREDICTION_ENVIRONMENT_PROJECTION_KEYS),
                 "all_environment_values_hashed": True,
                 "unlisted_environment_variables_recorded": True,
@@ -1025,6 +1039,21 @@ def test_executor_child_failure_never_releases_scoring_request(
     assert not (bundle.execution_root / "scoring_request.json").exists()
 
 
+@pytest.mark.parametrize("mode", ["cache_missing", "cache_file", "cache_nonempty"])
+def test_executor_rejects_unclosed_torchinductor_cache_footprint(
+    tmp_path: pathlib.Path,
+    mode: str,
+) -> None:
+    bundle = _build_preflight(tmp_path)
+    loader = _LoaderSpy()
+
+    with pytest.raises(RuntimeError, match="TorchInductor cache"):
+        _run(bundle, launcher=_FakeLauncher(mode=mode), loader=loader)
+
+    _assert_no_evaluator_open(bundle, loader)
+    assert not (bundle.execution_root / "scoring_request.json").exists()
+
+
 def test_executor_rejects_cross_process_byte_mismatch_before_commit(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -1133,6 +1162,7 @@ def test_parent_preflight_open_set_is_exact_and_excludes_full_validator_inputs(
 def test_formal_environment_is_built_from_exact_allowlist_and_hash_binds_values() -> None:
     binding = _import_binding()
     pycache_prefix = pathlib.Path("D:/formal-capsule/pycache-run-1")
+    torchinductor_cache_dir = pathlib.Path("D:/formal-capsule/torchinductor-cache-run-1")
     environment, projection, contract_id = executor._build_formal_child_environment(
         {
             "PATH": "C:\\ambient-shadow;C:\\other-python",
@@ -1142,9 +1172,14 @@ def test_formal_environment_is_built_from_exact_allowlist_and_hash_binds_values(
             "SECRET_TOKEN": "do-not-inherit",
             "AWS_SECRET_ACCESS_KEY": "do-not-inherit-either",
             "PYTHONPATH": "C:\\ambient-shadow",
+            "KMP_DUPLICATE_LIB_OK": "poison",
+            "KMP_INIT_AT_FORK": "poison",
+            "TORCHINDUCTOR_CACHE_DIR": "C:\\ambient-torch-cache",
+            "USERNAME": "qualification-user",
         },
         import_binding=binding,
         pycache_prefix=pycache_prefix,
+        torchinductor_cache_dir=torchinductor_cache_dir,
     )
 
     assert "SECRET_TOKEN" not in environment
@@ -1152,11 +1187,14 @@ def test_formal_environment_is_built_from_exact_allowlist_and_hash_binds_values(
     assert "CUDA_PATH" not in environment
     assert environment["CUDA_VISIBLE_DEVICES"] == "0"
     assert environment["PYTHONPATH"] != "C:\\ambient-shadow"
+    assert environment["TORCHINDUCTOR_CACHE_DIR"] != "C:\\ambient-torch-cache"
     assert "ambient-shadow" not in environment["PATH"]
     assert "other-python" not in environment["PATH"]
     assert environment == {
         "CUDA_VISIBLE_DEVICES": "0",
         "HF_HUB_OFFLINE": "1",
+        "KMP_DUPLICATE_LIB_OK": "True",
+        "KMP_INIT_AT_FORK": "FALSE",
         "PATH": os.pathsep.join(
             str(path)
             for path in executor.controlled_child_path(
@@ -1173,7 +1211,9 @@ def test_formal_environment_is_built_from_exact_allowlist_and_hash_binds_values(
         "PYTHONUTF8": "1",
         "SystemRoot": "C:\\Windows",
         "TOKENIZERS_PARALLELISM": "false",
+        "TORCHINDUCTOR_CACHE_DIR": str(torchinductor_cache_dir),
         "TRANSFORMERS_OFFLINE": "1",
+        "USERNAME": "qualification-user",
     }
     assert tuple(item.key for item in projection) == tuple(sorted(environment))
     assert all(
@@ -1182,6 +1222,82 @@ def test_formal_environment_is_built_from_exact_allowlist_and_hash_binds_values(
         for item in projection
     )
     assert contract_id == executor._environment_contract_id(projection)
+
+
+@pytest.mark.parametrize(
+    "torchinductor_cache_dir",
+    [
+        pathlib.Path("relative-torch-cache"),
+        pathlib.Path("D:/formal-capsule/pycache-run-1"),
+    ],
+)
+def test_formal_environment_rejects_invalid_torchinductor_cache_path(
+    torchinductor_cache_dir: pathlib.Path,
+) -> None:
+    binding = _import_binding()
+    with pytest.raises(ValueError, match="TorchInductor cache"):
+        executor._build_formal_child_environment(
+            {"SystemRoot": "C:\\Windows", "USERNAME": "qualification-user"},
+            import_binding=binding,
+            pycache_prefix=pathlib.Path("D:/formal-capsule/pycache-run-1"),
+            torchinductor_cache_dir=torchinductor_cache_dir,
+        )
+
+
+@pytest.mark.parametrize("username", [None, ""])
+def test_formal_environment_requires_nonempty_windows_username(
+    username: str | None,
+) -> None:
+    source = {"SystemRoot": "C:\\Windows"}
+    if username is not None:
+        source["USERNAME"] = username
+    with pytest.raises(ValueError, match="formal child environment requires USERNAME"):
+        executor._build_formal_child_environment(
+            source,
+            import_binding=_import_binding(),
+            pycache_prefix=pathlib.Path("D:/formal-capsule/pycache-run-1"),
+            torchinductor_cache_dir=pathlib.Path("D:/formal-capsule/torchinductor-cache-run-1"),
+        )
+
+
+def test_executor_and_predictor_environment_projection_contracts_match() -> None:
+    assert executor._PREDICTION_ENVIRONMENT_PROJECTION_KEYS == predictor._ENVIRONMENT_PROJECTION_KEYS
+
+
+def test_prediction_child_cache_paths_are_distinct_contained_and_create_only(
+    tmp_path: pathlib.Path,
+) -> None:
+    capsule = (tmp_path / "capsule").resolve()
+    capsule.mkdir()
+    binding = _import_binding()
+    base = executor._PredictionChildLaunchSpec(
+        child_request_path=capsule / "child.json",
+        expected_child_request_artifact_id=_sha("child"),
+        training_corpus_path=capsule / "training.json",
+        predictor_request_path=capsule / "predictor.json",
+        output_root=(tmp_path / "execution/run-1").resolve(),
+        capsule_root=capsule,
+        run_ordinal=1,
+        run_nonce=_sha("run-1"),
+        bge_snapshot_path=(tmp_path / "bge").resolve(),
+        import_binding=binding,
+        pycache_prefix=capsule / "pycache-run-1",
+        torchinductor_cache_dir=capsule / "torchinductor-cache-run-1",
+    )
+
+    executor._validate_prediction_child_cache_paths(base)
+    with pytest.raises(ValueError, match="direct child"):
+        executor._validate_prediction_child_cache_paths(
+            replace(
+                base,
+                torchinductor_cache_dir=(tmp_path / "outside-cache").resolve(),
+            )
+        )
+    with pytest.raises(ValueError, match="must be distinct"):
+        executor._validate_prediction_child_cache_paths(replace(base, torchinductor_cache_dir=base.pycache_prefix))
+    base.torchinductor_cache_dir.mkdir()
+    with pytest.raises(FileExistsError, match="must be absent before launch"):
+        executor._validate_prediction_child_cache_paths(base)
 
 
 def test_formal_process_contract_is_suspended_single_process_job() -> None:
@@ -1203,6 +1319,7 @@ def test_formal_process_contract_is_suspended_single_process_job() -> None:
         bge_snapshot_path=pathlib.Path("D:/bge"),
         import_binding=binding,
         pycache_prefix=pathlib.Path("D:/capsule/pycache-run-1"),
+        torchinductor_cache_dir=pathlib.Path("D:/capsule/torchinductor-cache-run-1"),
     )
     assert executor._prediction_child_process_argv(spec)[1:10] == (
         "-P",

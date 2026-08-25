@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import replace
 import hashlib
 import math
@@ -821,14 +822,100 @@ class _FakePredictionStage:
             "bge_snapshot_tree_artifact_id": kwargs["expected_bge_snapshot_tree_artifact_id"],
             "runtime_identity_artifact_id": kwargs["expected_runtime_identity_artifact_id"],
         }
+        capsule = root / "predictor_capsule"
+        capsule.mkdir()
+        runs = []
+        for ordinal in (1, 2):
+            pycache_prefix = capsule / f"pycache-run-{ordinal}"
+            torchinductor_cache = capsule / f"torchinductor-cache-run-{ordinal}"
+            torchinductor_cache.mkdir()
+            environment = {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HF_HUB_OFFLINE": "1",
+                "KMP_DUPLICATE_LIB_OK": "True",
+                "KMP_INIT_AT_FORK": "FALSE",
+                "PATH": "C:\\controlled",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONHASHSEED": "0",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONPATH": "D:\\repository-source",
+                "PYTHONPYCACHEPREFIX": str(pycache_prefix),
+                "PYTHONSAFEPATH": "1",
+                "PYTHONUTF8": "1",
+                "SystemRoot": "C:\\Windows",
+                "TOKENIZERS_PARALLELISM": "false",
+                "TORCHINDUCTOR_CACHE_DIR": str(torchinductor_cache),
+                "TRANSFORMERS_OFFLINE": "1",
+                "USERNAME": "qualification-user",
+            }
+            environment_rows = [
+                {
+                    "key": key,
+                    "value_sha256": hashlib.sha256(value.encode("utf-8")).hexdigest(),
+                    "value_utf8_bytes": len(value.encode("utf-8")),
+                }
+                for key, value in sorted(environment.items())
+            ]
+            environment_contract_id = hashlib.sha256(
+                canonical_json_bytes(
+                    {
+                        "environment_projection": environment_rows,
+                        "environment_built_from_empty_allowlist": True,
+                    }
+                )
+            ).hexdigest()
+            empty_sha = hashlib.sha256(b"").hexdigest()
+            stream_capture = {
+                "raw_sha256": empty_sha,
+                "total_bytes": 0,
+                "retained_prefix_sha256": empty_sha,
+                "retained_prefix_bytes": 0,
+                "prefix_truncated": False,
+            }
+            runs.append(
+                {
+                    "run_ordinal": ordinal,
+                    "run_nonce": hashlib.sha256(f"{_RUN_NONCE}:prediction-child:{ordinal}".encode("utf-8")).hexdigest(),
+                    "process_id": 1000 + ordinal,
+                    "process_argv": ["python.exe", "-c", "frozen-bootstrap"],
+                    "exit_code": 0,
+                    "process_exited": True,
+                    "job_object_empty": True,
+                    "environment_contract_id": environment_contract_id,
+                    "environment_projection": environment_rows,
+                    "creation_flags": 0x08080004,
+                    "shell": False,
+                    "close_fds": True,
+                    "process_created_suspended": True,
+                    "job_assigned_before_resume": True,
+                    "initial_thread_resume_previous_count": 1,
+                    "job_limit_flags": 0x00002008,
+                    "job_active_process_limit": 1,
+                    "stdout_capture": stream_capture,
+                    "stderr_capture": stream_capture,
+                    "torchinductor_cache": {
+                        "path": str(torchinductor_cache),
+                        "absent_before_launch": True,
+                        "materialized": True,
+                        "is_directory": True,
+                        "is_symlink": False,
+                        "is_reparse_point": False,
+                        "empty": True,
+                    },
+                    "source_capsule_used": False,
+                    "repository_import_path_used": True,
+                    "bge_snapshot_path_sha256": _digest("bge-snapshot-path"),
+                    "bge_snapshot_tree_verified": False,
+                }
+            )
         launcher_attestation = _with_artifact_id(
             {
-                "schema_version": ("relationship-condition-reader-qualification-launcher-attestation.v1"),
+                "schema_version": ("relationship-condition-reader-qualification-launcher-attestation.v2"),
                 "qualification_protocol_id": _QUALIFICATION_ID,
                 "execution_protocol_id": _EXECUTION_ID,
                 "child_request_artifact_id": child_request_id,
                 "run_nonce": _RUN_NONCE,
-                "runs": [{"ordinal": 1}, {"ordinal": 2}],
+                "runs": runs,
                 "run_count": 2,
                 "integrity_receipts": receipts,
                 "integrity_receipt_count": 4,
@@ -848,6 +935,10 @@ class _FakePredictionStage:
                 "shell": False,
                 "close_fds": True,
                 "environment_built_from_empty_allowlist": True,
+                "torchinductor_cache_directories_controlled": True,
+                "torchinductor_cache_directories_distinct": True,
+                "torchinductor_cache_directories_materialized": True,
+                "torchinductor_cache_directories_empty": True,
                 "source_capsule_used": False,
                 "repository_import_path_used": True,
                 "bge_snapshot_tree_verified_by_launcher": False,
@@ -1004,6 +1095,88 @@ def test_outer_runner_orders_anchor_all_integrity_phases_and_final_manifest(
         assert result[field_name] is False
     final_path = root / "final_manifest.json"
     assert strict_json_loads(final_path.read_bytes(), max_bytes=2_000_000) == result
+
+
+def _revalidate_outer_launcher(
+    result: Mapping[str, object],
+    *,
+    root: pathlib.Path,
+    launcher: Mapping[str, object],
+) -> None:
+    integrity_receipts = result["integrity_receipts"]
+    assert isinstance(integrity_receipts, list)
+    execution._validate_prediction_launcher_attestation_for_outer_runner(
+        launcher,
+        result=result["prediction_stage_result"],
+        execution_root=root,
+        protocol_id=_EXECUTION_ID,
+        qualification_protocol_id=_QUALIFICATION_ID,
+        run_nonce=_RUN_NONCE,
+        initial_integrity_receipt=integrity_receipts[0],
+        expected_integrity_ids=result["expected_integrity_artifact_ids"],
+    )
+
+
+def test_outer_runner_rejects_nested_torchinductor_cache_receipt_drift(
+    tmp_path: pathlib.Path,
+) -> None:
+    result, _order, _guard, root = _run_fake_outer(tmp_path)
+    launcher = copy.deepcopy(result["prediction_launcher_attestation"])
+    assert isinstance(launcher, dict)
+    runs = launcher["runs"]
+    assert isinstance(runs, list)
+    first = runs[0]
+    assert isinstance(first, dict)
+    cache = first["torchinductor_cache"]
+    assert isinstance(cache, dict)
+    cache.pop("absent_before_launch")
+
+    with pytest.raises(ValueError, match="keys mismatch"):
+        _revalidate_outer_launcher(result, root=root, launcher=launcher)
+
+
+def test_outer_runner_rejects_live_torchinductor_cache_drift(
+    tmp_path: pathlib.Path,
+) -> None:
+    result, _order, _guard, root = _run_fake_outer(tmp_path)
+    cache = root / "predictor_capsule" / "torchinductor-cache-run-1"
+    (cache / "late-write.bin").write_bytes(b"drift")
+
+    with pytest.raises(ValueError, match="cache is not empty"):
+        _revalidate_outer_launcher(
+            result,
+            root=root,
+            launcher=result["prediction_launcher_attestation"],
+        )
+
+
+def test_outer_runner_rejects_launcher_environment_receipt_drift(
+    tmp_path: pathlib.Path,
+) -> None:
+    result, _order, _guard, root = _run_fake_outer(tmp_path)
+    launcher = copy.deepcopy(result["prediction_launcher_attestation"])
+    assert isinstance(launcher, dict)
+    runs = launcher["runs"]
+    assert isinstance(runs, list)
+    first = runs[0]
+    assert isinstance(first, dict)
+    environment_rows = first["environment_projection"]
+    assert isinstance(environment_rows, list)
+    torch_row = next(
+        row for row in environment_rows if isinstance(row, dict) and row.get("key") == "TORCHINDUCTOR_CACHE_DIR"
+    )
+    torch_row["value_sha256"] = _digest("drifted-cache-path")
+    first["environment_contract_id"] = hashlib.sha256(
+        canonical_json_bytes(
+            {
+                "environment_projection": environment_rows,
+                "environment_built_from_empty_allowlist": True,
+            }
+        )
+    ).hexdigest()
+
+    with pytest.raises(ValueError, match="environment value TORCHINDUCTOR_CACHE_DIR drifted"):
+        _revalidate_outer_launcher(result, root=root, launcher=launcher)
 
 
 def test_outer_runner_anchor_failure_precedes_guard_and_root_creation(

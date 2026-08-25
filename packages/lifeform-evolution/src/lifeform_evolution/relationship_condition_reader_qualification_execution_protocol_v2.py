@@ -125,7 +125,7 @@ _RUNTIME_TREE_CACHE_DIRECTORY_NAMES = ("__pycache__",)
 _RUNTIME_TREE_CACHE_BYTECODE_SUFFIXES = (".pyc",)
 _SITE_PACKAGES_EXCLUDED_SITE_STARTUP_SUFFIXES = (".pth",)
 _CHILD_IMPORT_CONTRACT_V2 = {
-    "schema_version": "relationship-condition-reader-qualification-child-import-contract.v2",
+    "schema_version": "relationship-condition-reader-qualification-child-import-contract.v3",
     "python_flag_order": [
         "-P",
         "-S",
@@ -143,6 +143,17 @@ _CHILD_IMPORT_CONTRACT_V2 = {
     "current_working_directory_on_sys_path": False,
     "adjacent_bytecode_cache_read_allowed": False,
     "per_child_isolated_pycache_prefix_required": True,
+    "ambient_torchinductor_cache_dir_inherited": False,
+    "per_child_isolated_torchinductor_cache_required": True,
+    "torchinductor_cache_direct_child_of_predictor_capsule": True,
+    "torchinductor_cache_absent_before_launch_required": True,
+    "torchinductor_cache_materialized_after_child_required": True,
+    "torchinductor_cache_exact_empty_after_child_required": True,
+    "torchinductor_cache_non_reparse_required": True,
+    "torchinductor_cache_outer_reobservation_required": True,
+    "predictor_username_required": True,
+    "predictor_kmp_duplicate_lib_ok": "True",
+    "predictor_kmp_init_at_fork": "FALSE",
     "child_sys_path_exact_validation_required": True,
     "child_module_origin_exact_validation_required": True,
     "ambient_path_inherited": False,

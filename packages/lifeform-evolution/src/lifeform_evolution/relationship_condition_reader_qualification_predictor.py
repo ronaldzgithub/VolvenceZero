@@ -62,7 +62,7 @@ RELATIONSHIP_READER_PREDICTION_TRAINING_CORPUS_SCHEMA_VERSION = (
 )
 RELATIONSHIP_READER_PREDICTION_LEDGER_SCHEMA_VERSION = "relationship-condition-reader-prediction-ledger.v1"
 RELATIONSHIP_READER_PREDICTION_PROCESS_ATTESTATION_SCHEMA_VERSION = (
-    "relationship-condition-reader-prediction-process-attestation.v3"
+    "relationship-condition-reader-prediction-process-attestation.v4"
 )
 RELATIONSHIP_READER_PREDICTION_MANIFEST_SCHEMA_VERSION = "relationship-condition-reader-prediction-manifest.v1"
 RELATIONSHIP_READER_PREDICTOR_REQUEST_SCHEMA_VERSION = (
@@ -89,12 +89,15 @@ _FORBIDDEN_MODULE_NAMES = (
 _ENVIRONMENT_PROJECTION_KEYS = (
     "CUDA_VISIBLE_DEVICES",
     "HF_HUB_OFFLINE",
+    "KMP_DUPLICATE_LIB_OK",
+    "KMP_INIT_AT_FORK",
     "PYTHONHASHSEED",
     "PYTHONPATH",
     "PYTHONPYCACHEPREFIX",
     "PYTHONSAFEPATH",
     "PYTHONDONTWRITEBYTECODE",
     "PYTHONUTF8",
+    "TORCHINDUCTOR_CACHE_DIR",
     "TRANSFORMERS_OFFLINE",
 )
 
@@ -367,7 +370,7 @@ def _run_relationship_condition_reader_prediction_child_core(
             "sys_path": list(sys.path),
             "bootstrap_import_roots": _bootstrap_import_roots(),
             "environment_contract": {
-                "schema_version": ("relationship-condition-reader-prediction-environment.v2"),
+                "schema_version": ("relationship-condition-reader-prediction-environment.v3"),
                 "projected_keys": list(_ENVIRONMENT_PROJECTION_KEYS),
                 "all_environment_values_hashed": True,
                 "unlisted_environment_variables_recorded": True,

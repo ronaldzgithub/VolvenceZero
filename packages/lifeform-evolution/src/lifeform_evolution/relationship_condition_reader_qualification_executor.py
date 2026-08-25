@@ -54,7 +54,7 @@ _TRAINING_LABELS_SCHEMA_VERSION = "relationship-condition-reader-qualification-t
 _TRAINING_CORPUS_SCHEMA_VERSION = "relationship-condition-reader-qualification-training-corpus.v1"
 _CHILD_REQUEST_SCHEMA_VERSION = "relationship-condition-reader-prediction-child-request.v1"
 _PREDICTION_LEDGER_SCHEMA_VERSION = "relationship-condition-reader-prediction-ledger.v1"
-_PREDICTION_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-prediction-process-attestation.v3"
+_PREDICTION_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-prediction-process-attestation.v4"
 _PREDICTION_MANIFEST_SCHEMA_VERSION = "relationship-condition-reader-prediction-manifest.v1"
 _EMBEDDING_TABLE_SCHEMA_VERSION = "relationship-product-public-embedding-table.v2"
 _READER_ARTIFACT_SCHEMA_VERSION = "relationship-condition-reader-artifact.v2"
@@ -118,12 +118,15 @@ _FORMAL_ENVIRONMENT_ALLOWLIST = (
     "SystemRoot",
     "TEMP",
     "TMP",
+    "USERNAME",
     "USERPROFILE",
     "WINDIR",
 )
 _FORMAL_ENVIRONMENT_FIXED = {
     "CUDA_VISIBLE_DEVICES": "0",
     "HF_HUB_OFFLINE": "1",
+    "KMP_DUPLICATE_LIB_OK": "True",
+    "KMP_INIT_AT_FORK": "FALSE",
     "PYTHONHASHSEED": "0",
     "PYTHONDONTWRITEBYTECODE": "1",
     "PYTHONNOUSERSITE": "1",
@@ -135,12 +138,15 @@ _FORMAL_ENVIRONMENT_FIXED = {
 _PREDICTION_ENVIRONMENT_PROJECTION_KEYS = (
     "CUDA_VISIBLE_DEVICES",
     "HF_HUB_OFFLINE",
+    "KMP_DUPLICATE_LIB_OK",
+    "KMP_INIT_AT_FORK",
     "PYTHONHASHSEED",
     "PYTHONPATH",
     "PYTHONPYCACHEPREFIX",
     "PYTHONSAFEPATH",
     "PYTHONDONTWRITEBYTECODE",
     "PYTHONUTF8",
+    "TORCHINDUCTOR_CACHE_DIR",
     "TRANSFORMERS_OFFLINE",
 )
 _PREDICTION_REQUIRED_REPOSITORY_MODULES = frozenset(
@@ -208,6 +214,7 @@ class _PredictionChildLaunchSpec:
     bge_snapshot_path: pathlib.Path | None
     import_binding: QualificationChildImportBinding
     pycache_prefix: pathlib.Path
+    torchinductor_cache_dir: pathlib.Path
 
 
 @dataclass(frozen=True)
@@ -225,6 +232,15 @@ class _BoundedStreamCapture:
     retained_prefix_sha256: str
     retained_prefix_bytes: int
     prefix_truncated: bool
+
+
+@dataclass(frozen=True)
+class _CacheDirectoryObservation:
+    materialized: bool
+    is_directory: bool
+    is_symlink: bool
+    is_reparse_point: bool
+    empty: bool
 
 
 @dataclass(frozen=True)
@@ -249,6 +265,8 @@ class _PredictionChildLaunchResult:
     source_capsule_used: bool
     repository_import_path_used: bool
     bge_snapshot_tree_verified: bool
+    torchinductor_cache_absent_before_launch: bool
+    torchinductor_cache: _CacheDirectoryObservation
 
 
 @dataclass(frozen=True)
@@ -552,9 +570,12 @@ def _execute_relationship_condition_reader_qualification_prediction_stage_core(
             bge_snapshot_path=(None if bge_snapshot_path is None else pathlib.Path(bge_snapshot_path).resolve()),
             import_binding=import_binding,
             pycache_prefix=capsule / f"pycache-run-{ordinal}",
+            torchinductor_cache_dir=capsule / f"torchinductor-cache-run-{ordinal}",
         )
         for ordinal in (1, 2)
     )
+    if len({spec.torchinductor_cache_dir for spec in launch_specs}) != 2:
+        raise RuntimeError("prediction children must use distinct TorchInductor cache directories")
 
     launch_results: list[_PredictionChildLaunchResult] = []
     integrity_receipts: list[Mapping[str, object]] = []
@@ -610,7 +631,7 @@ def _execute_relationship_condition_reader_qualification_prediction_stage_core(
 
     launcher_attestation = _with_artifact_id(
         {
-            "schema_version": ("relationship-condition-reader-qualification-launcher-attestation.v1"),
+            "schema_version": ("relationship-condition-reader-qualification-launcher-attestation.v2"),
             "qualification_protocol_id": qualification_protocol_id,
             "execution_protocol_id": execution_id,
             "child_request_artifact_id": child_request["artifact_id"],
@@ -638,6 +659,10 @@ def _execute_relationship_condition_reader_qualification_prediction_stage_core(
             "shell": False,
             "close_fds": True,
             "environment_built_from_empty_allowlist": True,
+            "torchinductor_cache_directories_controlled": True,
+            "torchinductor_cache_directories_distinct": True,
+            "torchinductor_cache_directories_materialized": True,
+            "torchinductor_cache_directories_empty": True,
             "source_capsule_used": False,
             "repository_import_path_used": True,
             "bge_snapshot_tree_verified_by_launcher": False,
@@ -1470,7 +1495,7 @@ def _validate_prediction_attestation(
     )
     expected_projected_keys = list(_PREDICTION_ENVIRONMENT_PROJECTION_KEYS)
     if (
-        environment_contract["schema_version"] != "relationship-condition-reader-prediction-environment.v2"
+        environment_contract["schema_version"] != "relationship-condition-reader-prediction-environment.v3"
         or environment_contract["projected_keys"] != expected_projected_keys
         or environment_contract["all_environment_values_hashed"] is not True
         or environment_contract["unlisted_environment_variables_recorded"] is not True
@@ -1502,6 +1527,8 @@ def _validate_prediction_attestation(
         raise ValueError("prediction child controlled PYTHONPATH drifted")
     if child_environment["PYTHONPYCACHEPREFIX"] != str(spec.pycache_prefix):
         raise ValueError("prediction child PYTHONPYCACHEPREFIX drifted")
+    if child_environment["TORCHINDUCTOR_CACHE_DIR"] != str(spec.torchinductor_cache_dir):
+        raise ValueError("prediction child TORCHINDUCTOR_CACHE_DIR drifted")
     environment_key_names = _list(
         payload["environment_key_names"],
         "prediction environment_key_names",
@@ -1630,6 +1657,21 @@ def _validate_launch_result(
         raise RuntimeError(f"prediction child {spec.run_ordinal} Job Object is not empty")
     if os.path.lexists(spec.pycache_prefix):
         raise RuntimeError("prediction child pycache prefix was materialized")
+    if result.torchinductor_cache_absent_before_launch is not True:
+        raise RuntimeError("prediction child TorchInductor cache was not absent before launch")
+    observed_cache = _observe_cache_directory(spec.torchinductor_cache_dir)
+    if result.torchinductor_cache != observed_cache:
+        raise RuntimeError("prediction child TorchInductor cache observation drifted")
+    if result.torchinductor_cache != _CacheDirectoryObservation(
+        materialized=True,
+        is_directory=True,
+        is_symlink=False,
+        is_reparse_point=False,
+        empty=True,
+    ):
+        raise RuntimeError(
+            f"prediction child {spec.run_ordinal} TorchInductor cache must be a materialized empty plain directory"
+        )
     if (
         result.creation_flags != _FORMAL_CREATION_FLAGS
         or result.shell is not False
@@ -1696,6 +1738,15 @@ def _launcher_run_attestation_payload(
         "job_active_process_limit": result.job_active_process_limit,
         "stdout_capture": _stream_capture_payload(result.stdout_capture),
         "stderr_capture": _stream_capture_payload(result.stderr_capture),
+        "torchinductor_cache": {
+            "path": str(spec.torchinductor_cache_dir),
+            "absent_before_launch": result.torchinductor_cache_absent_before_launch,
+            "materialized": result.torchinductor_cache.materialized,
+            "is_directory": result.torchinductor_cache.is_directory,
+            "is_symlink": result.torchinductor_cache.is_symlink,
+            "is_reparse_point": result.torchinductor_cache.is_reparse_point,
+            "empty": result.torchinductor_cache.empty,
+        },
         "source_capsule_used": result.source_capsule_used,
         "repository_import_path_used": result.repository_import_path_used,
         "bge_snapshot_path_sha256": hashlib.sha256(str(spec.bge_snapshot_path).encode("utf-8")).hexdigest(),
@@ -2140,6 +2191,73 @@ def _write_bytes_create_only(
     }
 
 
+def _validate_prediction_child_cache_paths(
+    spec: _PredictionChildLaunchSpec,
+) -> None:
+    capsule = pathlib.Path(spec.capsule_root)
+    if not capsule.is_absolute():
+        raise ValueError("formal prediction capsule root must be absolute")
+    capsule_observation = _observe_cache_directory(capsule)
+    if (
+        capsule_observation.materialized is not True
+        or capsule_observation.is_directory is not True
+        or capsule_observation.is_symlink is not False
+        or capsule_observation.is_reparse_point is not False
+    ):
+        raise ValueError("formal prediction capsule root must be a plain directory")
+    pycache = pathlib.Path(spec.pycache_prefix)
+    torchinductor = pathlib.Path(spec.torchinductor_cache_dir)
+    for path, field_name in (
+        (pycache, "pycache prefix"),
+        (torchinductor, "TorchInductor cache directory"),
+    ):
+        if not path.is_absolute():
+            raise ValueError(f"formal prediction {field_name} must be absolute")
+        if path.parent != capsule:
+            raise ValueError(f"formal prediction {field_name} must be a direct child of the capsule")
+    if pycache == torchinductor:
+        raise ValueError("formal prediction Python and TorchInductor cache paths must be distinct")
+    if os.path.lexists(pycache):
+        raise FileExistsError(f"formal prediction pycache prefix must be absent before launch: {pycache}")
+    if os.path.lexists(torchinductor):
+        raise FileExistsError(
+            f"formal prediction TorchInductor cache directory must be absent before launch: {torchinductor}"
+        )
+
+
+def _observe_cache_directory(
+    path: pathlib.Path,
+) -> _CacheDirectoryObservation:
+    source = pathlib.Path(path)
+    if not os.path.lexists(source):
+        return _CacheDirectoryObservation(
+            materialized=False,
+            is_directory=False,
+            is_symlink=False,
+            is_reparse_point=False,
+            empty=False,
+        )
+    before = source.stat(follow_symlinks=False)
+    is_symlink = source.is_symlink()
+    is_reparse_point = bool(
+        os.name == "nt" and getattr(before, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    )
+    is_directory = stat.S_ISDIR(before.st_mode)
+    empty = False
+    if is_directory and not is_symlink and not is_reparse_point:
+        empty = next(source.iterdir(), None) is None
+        after = source.stat(follow_symlinks=False)
+        if _file_identity(before) != _file_identity(after):
+            raise RuntimeError(f"cache directory identity changed during observation: {source}")
+    return _CacheDirectoryObservation(
+        materialized=True,
+        is_directory=is_directory,
+        is_symlink=is_symlink,
+        is_reparse_point=is_reparse_point,
+        empty=empty,
+    )
+
+
 def _launch_windows_fresh_prediction_subprocess(
     spec: _PredictionChildLaunchSpec,
     *,
@@ -2151,8 +2269,7 @@ def _launch_windows_fresh_prediction_subprocess(
         raise RuntimeError("formal relationship-reader prediction requires Windows")
     if spec.bge_snapshot_path is None:
         raise ValueError("formal prediction child requires an explicit BGE snapshot")
-    if os.path.lexists(spec.pycache_prefix):
-        raise FileExistsError(f"formal prediction pycache prefix must be absent before launch: {spec.pycache_prefix}")
+    _validate_prediction_child_cache_paths(spec)
     import _winapi
     import ctypes
     from ctypes import wintypes
@@ -2236,6 +2353,7 @@ def _launch_windows_fresh_prediction_subprocess(
         os.environ,
         import_binding=spec.import_binding,
         pycache_prefix=spec.pycache_prefix,
+        torchinductor_cache_dir=spec.torchinductor_cache_dir,
     )
     argv = list(_prediction_child_process_argv(spec))
     python_executable = spec.import_binding.python_executable
@@ -2346,6 +2464,9 @@ def _launch_windows_fresh_prediction_subprocess(
             raise OSError(ctypes.get_last_error(), "QueryInformationJobObject failed")
         stdout_capture = stdout_drain.finish()
         stderr_capture = stderr_drain.finish()
+        torchinductor_cache = _observe_cache_directory(
+            spec.torchinductor_cache_dir,
+        )
         return _PredictionChildLaunchResult(
             process_id=int(process_id),
             process_argv=tuple(argv),
@@ -2367,6 +2488,8 @@ def _launch_windows_fresh_prediction_subprocess(
             source_capsule_used=False,
             repository_import_path_used=True,
             bge_snapshot_tree_verified=False,
+            torchinductor_cache_absent_before_launch=True,
+            torchinductor_cache=torchinductor_cache,
         )
     finally:
         active_error = sys.exception()
@@ -2541,6 +2664,7 @@ def _build_formal_child_environment(
     *,
     import_binding: QualificationChildImportBinding,
     pycache_prefix: pathlib.Path,
+    torchinductor_cache_dir: pathlib.Path,
 ) -> tuple[
     dict[str, str],
     tuple[_EnvironmentValueReceipt, ...],
@@ -2570,6 +2694,12 @@ def _build_formal_child_environment(
     if not prefix.is_absolute():
         raise ValueError("formal child pycache prefix must be absolute")
     environment["PYTHONPYCACHEPREFIX"] = str(prefix)
+    torchinductor = pathlib.Path(torchinductor_cache_dir)
+    if not torchinductor.is_absolute():
+        raise ValueError("formal child TorchInductor cache directory must be absolute")
+    if torchinductor == prefix:
+        raise ValueError("formal child Python and TorchInductor cache paths must be distinct")
+    environment["TORCHINDUCTOR_CACHE_DIR"] = str(torchinductor)
     system_root = environment.get("SystemRoot")
     if system_root is None or not system_root:
         raise ValueError("formal child environment requires SystemRoot")
@@ -2580,7 +2710,7 @@ def _build_formal_child_environment(
             system_root=pathlib.Path(system_root),
         )
     )
-    for required in ("PATH", "SystemRoot"):
+    for required in ("PATH", "SystemRoot", "USERNAME"):
         if required not in environment or not environment[required]:
             raise ValueError(f"formal child environment requires {required}")
     for key, value in environment.items():

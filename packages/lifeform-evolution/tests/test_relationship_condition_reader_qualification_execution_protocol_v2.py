@@ -605,6 +605,18 @@ def test_v2_runtime_identity_freezes_complete_child_import_domains(
     assert child_contract["ambient_pythonpath_inherited"] is False
     assert child_contract["site_startup_enabled"] is False
     assert child_contract["adjacent_bytecode_cache_read_allowed"] is False
+    assert child_contract["schema_version"] == ("relationship-condition-reader-qualification-child-import-contract.v3")
+    assert child_contract["ambient_torchinductor_cache_dir_inherited"] is False
+    assert child_contract["per_child_isolated_torchinductor_cache_required"] is True
+    assert child_contract["torchinductor_cache_direct_child_of_predictor_capsule"] is True
+    assert child_contract["torchinductor_cache_absent_before_launch_required"] is True
+    assert child_contract["torchinductor_cache_materialized_after_child_required"] is True
+    assert child_contract["torchinductor_cache_exact_empty_after_child_required"] is True
+    assert child_contract["torchinductor_cache_non_reparse_required"] is True
+    assert child_contract["torchinductor_cache_outer_reobservation_required"] is True
+    assert child_contract["predictor_username_required"] is True
+    assert child_contract["predictor_kmp_duplicate_lib_ok"] == "True"
+    assert child_contract["predictor_kmp_init_at_fork"] == "FALSE"
     assert child_contract["child_sys_path_exact_validation_required"] is True
     assert child_contract["child_module_origin_exact_validation_required"] is True
     assert child_contract["ambient_path_inherited"] is False

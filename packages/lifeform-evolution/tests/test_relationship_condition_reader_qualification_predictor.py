@@ -291,7 +291,7 @@ def test_prediction_child_two_fresh_runs_are_byte_exact_and_embed_228_once(
         "manifest.json",
     }
     attestation = json.loads((first_root / "process_attestation.json").read_text(encoding="utf-8"))
-    assert attestation["schema_version"] == ("relationship-condition-reader-prediction-process-attestation.v3")
+    assert attestation["schema_version"] == ("relationship-condition-reader-prediction-process-attestation.v4")
     assert attestation["os_security_boundary"] is False
     assert attestation["execution_protocol_id"] == _sha("execution-protocol")
     assert attestation["python_executable"]
@@ -301,14 +301,20 @@ def test_prediction_child_two_fresh_runs_are_byte_exact_and_embed_228_once(
     assert attestation["environment_contract"]["projected_keys"] == [
         "CUDA_VISIBLE_DEVICES",
         "HF_HUB_OFFLINE",
+        "KMP_DUPLICATE_LIB_OK",
+        "KMP_INIT_AT_FORK",
         "PYTHONHASHSEED",
         "PYTHONPATH",
         "PYTHONPYCACHEPREFIX",
         "PYTHONSAFEPATH",
         "PYTHONDONTWRITEBYTECODE",
         "PYTHONUTF8",
+        "TORCHINDUCTOR_CACHE_DIR",
         "TRANSFORMERS_OFFLINE",
     ]
+    assert attestation["environment_contract"]["schema_version"] == (
+        "relationship-condition-reader-prediction-environment.v3"
+    )
     assert attestation["environment_contract"]["all_environment_values_hashed"] is True
     assert attestation["environment_contract"]["unlisted_environment_variables_recorded"] is True
     assert attestation["environment_key_names"] == sorted(attestation["environment_key_names"])

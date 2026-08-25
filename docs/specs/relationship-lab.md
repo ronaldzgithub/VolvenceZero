@@ -1661,7 +1661,20 @@ symlink/reparse。hardlink alias 风险属于 `os_security_boundary=false` 的�
 `-P -S -B -u -X utf8 -X pycache_prefix=<absent-per-child-path> -c`；ambient `PYTHONPATH / PATH /
 CUDA_PATH` 不得继承。`PYTHONPATH` 只由冻结 repository source roots 与 sole frozen `site-packages` 组成；
 native `PATH` 只允许 frozen Python home、`DLLs`、`Library/bin`、`SystemRoot/System32` 与 `SystemRoot`，
-predictor 的 `CUDA_VISIBLE_DEVICES` 固定为 `0`。parent 必须逐 child 精确核对 executable、argv、runtime
+predictor 的 `CUDA_VISIBLE_DEVICES` 固定为 `0`。predictor 还必须显式继承非空 Windows `USERNAME`，并像
+其他 allowlisted 值一样只以 key、SHA-256 与 UTF-8 byte count 进入完整 environment receipt；它不进入
+精简 plaintext projection，也不是 subject identity、owner state 或产品输入。该字段只关闭 Torch 2.12
+导入 `torch._dynamo` 时 `getpass.getuser()` 在空环境中错误回退 Unix-only `pwd` 的 Windows runtime
+兼容边界；缺失或空值必须在 child 启动前 fail loudly。仅补该字段仍不够：predictor 必须把
+`KMP_DUPLICATE_LIB_OK=True`、`KMP_INIT_AT_FORK=FALSE` 固定在 launch environment，并覆盖 ambient
+`TORCHINDUCTOR_CACHE_DIR`，令两个 child 分别使用
+`predictor_capsule/torchinductor-cache-run-1` 与 `...-run-2`。每个 TorchInductor cache 必须是 capsule 的
+不同直接子路径、与 Python pycache prefix 不同、启动前不存在；成功退出且 Job Object 清空后必须只物化为
+非 symlink、非 reparse 的 exact-empty 普通目录，并保留给 outer runner 再观察。该空目录是冻结 Torch
+runtime 的已知 filesystem side effect，不得删除来伪装无副作用；未来若出现内容，必须另冻完整 tree receipt，
+当前合同直接 fail closed。KMP 两值和受控 cache path 进入 plaintext projection，完整环境仍以全部 key/hash/
+byte count 闭合；对应 nested environment、process attestation、launcher attestation schema 分别为 v3、v4、
+v2。以上不声称 filesystem isolation 或 OS security boundary。parent 必须逐 child 精确核对 executable、argv、runtime
 flags、完整 environment hash、完整 `sys.path`、全部已加载 file-backed module 的
 module-name→canonical origin，以及 repository `.py` 的唯一 path→raw hash/bytes exact join，并核对 PEP 420
 `volvence_zero` namespace locations。built-in/frozen module 只有在真实 loader/spec 闭合时才可省略；repo
@@ -1744,6 +1757,30 @@ source-v2 实现曾覆盖历史 source-v1 owner 的 raw pin；恢复 legacy owne
 `anchor_receipt_created=false / execution_root_created=false / model_output_count=0 / CUDA_execution_count=0`。
 v3 preflight 与 protocol 只作不可变审计记录；下一次必须从修复后的 committed source tree 重新生成全新
 preflight、execution protocol、Gist、receipt 与 run nonce。
+
+同日公开并锚定的 execution-anchor v4 也必须原样保留为一次真实执行失败：public Gist
+[`253fd75c062113c4bc7d23bb82eecc9a`](https://gist.github.com/ronaldzgithub/253fd75c062113c4bc7d23bb82eecc9a)
+只有文件 `relationship_condition_reader_qualification_execution_v2.json` 和唯一 revision
+`24c6e2a8758c5bb92c033d9e49ee415e0c4a0ac7`；revision raw 为 `636096` bytes、SHA-256
+`b105fea18ae62844280f13ed742accb77122ec96c65028864231bfe02d7ec089`。execution protocol ID 为
+`d3b7fe2d2b585d17d682a4972e7e089936085d372ef46d854fb9cc7fbc166aeb`，匿名 GitHub receipt artifact ID
+为 `14be4782f7ad41ed3a6548bf3deda41c1704b8d2e2ffcbf98be7a6d1236491a4`。唯一 execute 使用 root
+`relationship_condition_reader_qualification_v4_windows_cuda_20260825_p723796027a64`；在写完
+`pre_prediction_child_1` 后，fresh predictor child 以 exit code 1 终止，parent 仍写入
+`post_prediction_child_1` integrity receipt 后 fail closed。未产生 embedding table、reader、ledger、report
+或 final manifest，资格与全部产品/四能力主张仍为 false。
+
+v4 的直接失败点固定为 predictor 空环境 allowlist 遗漏 Windows `USERNAME`：冻结的 Torch 2.12 / Transformers
+5.9 import path 进入 `torch._dynamo`，`getpass.getuser()` 在四个用户名环境变量均缺失时尝试导入 Unix-only
+`pwd`，最终表现为 `ModuleNotFoundError: Could not import module 'PreTrainedModel'`。同一 Python/CUDA/BGE
+在普通环境及精确受控环境补入 `USERNAME` 后可加载，故该失败不归因于 BIOS、GPU、driver 或 model
+weight。但 `USERNAME`-only 不是充分修复：完整 BGE load 还会通过 `setdefault` 动态新增
+`KMP_DUPLICATE_LIB_OK=True / KMP_INIT_AT_FORK=FALSE`，并在未预置 cache 时写入
+`TORCHINDUCTOR_CACHE_DIR=%TEMP%\\torchinductor_<username>`、创建 execution root 外且两个 child 共享的空目录；
+这既使 exit-time environment 与 launch receipt 不同，也引入未 pin 的跨 run side effect。下一谱系必须同时
+采用上述 fixed KMP、per-child 受控 TorchInductor cache、post-state 与 outer live reobservation 合同。v4 root
+与 run nonce 已消耗，禁止覆盖或原参数重跑；合同修复后必须重新冻结 source/runtime
+closure，并另建全新 preflight、execution protocol、public Gist、receipt、execution root 与 nonce。
 
 关系域 residual 是并行而分离的 prerequisite：domain adapter 只能把 pre-action owner forecast 与
 非 oracle、已有 PE update 的 typed gate decision 投影为 train/heldout subject-disjoint corpus；`vz-runtime`

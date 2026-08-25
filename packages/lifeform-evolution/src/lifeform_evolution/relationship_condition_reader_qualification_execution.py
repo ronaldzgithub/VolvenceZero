@@ -52,7 +52,7 @@ _REPORT_SCHEMA_VERSION = "relationship-condition-reader-qualification-report.v1"
 _SCORER_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-qualification-scorer-attestation.v3"
 _SCORER_MANIFEST_SCHEMA_VERSION = "relationship-condition-reader-qualification-scorer-manifest.v1"
 _PREDICTION_EXECUTOR_RESULT_SCHEMA_VERSION = "relationship-condition-reader-qualification-executor-result.v1"
-_PREDICTION_LAUNCHER_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-qualification-launcher-attestation.v1"
+_PREDICTION_LAUNCHER_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-qualification-launcher-attestation.v2"
 _SCORER_OUTPUT_PATHS = (
     "report.json",
     "scorer_attestation.json",
@@ -820,6 +820,7 @@ def _validate_prediction_stage_for_outer_runner(
     _validate_prediction_launcher_attestation_for_outer_runner(
         launcher.payload,
         result=result,
+        execution_root=execution_root,
         protocol_id=protocol_id,
         qualification_protocol_id=_digest(
             frozen["qualification_protocol_id"],
@@ -836,6 +837,7 @@ def _validate_prediction_launcher_attestation_for_outer_runner(
     payload: Mapping[str, object],
     *,
     result: Mapping[str, object],
+    execution_root: pathlib.Path,
     protocol_id: str,
     qualification_protocol_id: str,
     run_nonce: str,
@@ -865,6 +867,10 @@ def _validate_prediction_launcher_attestation_for_outer_runner(
             "shell",
             "close_fds",
             "environment_built_from_empty_allowlist",
+            "torchinductor_cache_directories_controlled",
+            "torchinductor_cache_directories_distinct",
+            "torchinductor_cache_directories_materialized",
+            "torchinductor_cache_directories_empty",
             "source_capsule_used",
             "repository_import_path_used",
             "bge_snapshot_tree_verified_by_launcher",
@@ -901,6 +907,10 @@ def _validate_prediction_launcher_attestation_for_outer_runner(
         "shell": False,
         "close_fds": True,
         "environment_built_from_empty_allowlist": True,
+        "torchinductor_cache_directories_controlled": True,
+        "torchinductor_cache_directories_distinct": True,
+        "torchinductor_cache_directories_materialized": True,
+        "torchinductor_cache_directories_empty": True,
         "source_capsule_used": False,
         "repository_import_path_used": True,
         "bge_snapshot_tree_verified_by_launcher": False,
@@ -911,8 +921,24 @@ def _validate_prediction_launcher_attestation_for_outer_runner(
     }
     if any(payload[key] != value for key, value in required.items()):
         raise ValueError("prediction launcher attestation lineage drifted")
-    if len(_list(payload["runs"], "prediction launcher runs")) != 2:
+    runs = _list(payload["runs"], "prediction launcher runs")
+    if len(runs) != 2:
         raise ValueError("prediction launcher must bind two runs")
+    process_ids: list[int] = []
+    cache_paths: list[pathlib.Path] = []
+    for ordinal, value in enumerate(runs, start=1):
+        process_id, cache_path = _validate_prediction_launcher_run_for_outer_runner(
+            _mapping(value, f"prediction launcher run {ordinal}"),
+            ordinal=ordinal,
+            execution_root=execution_root,
+            parent_run_nonce=run_nonce,
+        )
+        process_ids.append(process_id)
+        cache_paths.append(cache_path)
+    if len(set(process_ids)) != 2:
+        raise ValueError("prediction launcher runs must bind distinct process ids")
+    if len(set(cache_paths)) != 2:
+        raise ValueError("prediction launcher runs must bind distinct TorchInductor cache directories")
     receipts = _list(payload["integrity_receipts"], "prediction integrity receipts")
     if len(receipts) != 4:
         raise ValueError("prediction launcher must bind four integrity receipts")
@@ -931,6 +957,224 @@ def _validate_prediction_launcher_attestation_for_outer_runner(
         previous_id = _digest(receipt["artifact_id"], "integrity artifact_id")
     if previous_id != result["last_integrity_receipt_artifact_id"]:
         raise ValueError("prediction launcher integrity chain tail mismatch")
+
+
+def _validate_prediction_launcher_run_for_outer_runner(
+    payload: Mapping[str, object],
+    *,
+    ordinal: int,
+    execution_root: pathlib.Path,
+    parent_run_nonce: str,
+) -> tuple[int, pathlib.Path]:
+    _exact_keys(
+        payload,
+        {
+            "run_ordinal",
+            "run_nonce",
+            "process_id",
+            "process_argv",
+            "exit_code",
+            "process_exited",
+            "job_object_empty",
+            "environment_contract_id",
+            "environment_projection",
+            "creation_flags",
+            "shell",
+            "close_fds",
+            "process_created_suspended",
+            "job_assigned_before_resume",
+            "initial_thread_resume_previous_count",
+            "job_limit_flags",
+            "job_active_process_limit",
+            "stdout_capture",
+            "stderr_capture",
+            "torchinductor_cache",
+            "source_capsule_used",
+            "repository_import_path_used",
+            "bge_snapshot_path_sha256",
+            "bge_snapshot_tree_verified",
+        },
+        f"prediction launcher run {ordinal}",
+    )
+    expected_nonce = hashlib.sha256(f"{parent_run_nonce}:prediction-child:{ordinal}".encode("utf-8")).hexdigest()
+    required = {
+        "run_ordinal": ordinal,
+        "run_nonce": expected_nonce,
+        "exit_code": 0,
+        "process_exited": True,
+        "job_object_empty": True,
+        "creation_flags": 0x08080004,
+        "shell": False,
+        "close_fds": True,
+        "process_created_suspended": True,
+        "job_assigned_before_resume": True,
+        "initial_thread_resume_previous_count": 1,
+        "job_limit_flags": 0x00002008,
+        "job_active_process_limit": 1,
+        "source_capsule_used": False,
+        "repository_import_path_used": True,
+        "bge_snapshot_tree_verified": False,
+    }
+    if any(payload.get(key) != value for key, value in required.items()):
+        raise ValueError(f"prediction launcher run {ordinal} containment contract drifted")
+    process_id = _positive_integer(
+        payload["process_id"],
+        f"prediction launcher run {ordinal} process_id",
+    )
+    _digest(
+        payload["bge_snapshot_path_sha256"],
+        f"prediction launcher run {ordinal} bge_snapshot_path_sha256",
+    )
+    argv = _list(payload["process_argv"], f"prediction launcher run {ordinal} process_argv")
+    if not argv or any(not isinstance(value, str) or not value for value in argv):
+        raise ValueError(f"prediction launcher run {ordinal} process_argv is invalid")
+
+    environment_rows = _list(
+        payload["environment_projection"],
+        f"prediction launcher run {ordinal} environment_projection",
+    )
+    canonical_rows: list[dict[str, object]] = []
+    environment_by_key: dict[str, Mapping[str, object]] = {}
+    for index, value in enumerate(environment_rows):
+        row = _mapping(value, f"prediction launcher run {ordinal} environment row {index}")
+        _exact_keys(
+            row,
+            {"key", "value_sha256", "value_utf8_bytes"},
+            f"prediction launcher run {ordinal} environment row {index}",
+        )
+        key = _text(row["key"], f"prediction launcher run {ordinal} environment key")
+        if key in environment_by_key:
+            raise ValueError(f"prediction launcher run {ordinal} environment keys must be unique")
+        value_sha256 = _digest(
+            row["value_sha256"],
+            f"prediction launcher run {ordinal} environment value_sha256",
+        )
+        value_utf8_bytes = _nonnegative_integer(
+            row["value_utf8_bytes"],
+            f"prediction launcher run {ordinal} environment value_utf8_bytes",
+        )
+        canonical_row = {
+            "key": key,
+            "value_sha256": value_sha256,
+            "value_utf8_bytes": value_utf8_bytes,
+        }
+        canonical_rows.append(canonical_row)
+        environment_by_key[key] = canonical_row
+    if [row["key"] for row in canonical_rows] != sorted(environment_by_key):
+        raise ValueError(f"prediction launcher run {ordinal} environment rows are not canonical")
+    allowed_environment_keys = {
+        "APPDATA",
+        "CUDA_VISIBLE_DEVICES",
+        "HF_HUB_OFFLINE",
+        "KMP_DUPLICATE_LIB_OK",
+        "KMP_INIT_AT_FORK",
+        "LOCALAPPDATA",
+        "PATH",
+        "PYTHONDONTWRITEBYTECODE",
+        "PYTHONHASHSEED",
+        "PYTHONNOUSERSITE",
+        "PYTHONPATH",
+        "PYTHONPYCACHEPREFIX",
+        "PYTHONSAFEPATH",
+        "PYTHONUTF8",
+        "SystemDrive",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "TOKENIZERS_PARALLELISM",
+        "TORCHINDUCTOR_CACHE_DIR",
+        "TRANSFORMERS_OFFLINE",
+        "USERNAME",
+        "USERPROFILE",
+        "WINDIR",
+    }
+    if not set(environment_by_key) <= allowed_environment_keys:
+        raise ValueError(f"prediction launcher run {ordinal} environment contains a non-allowlisted key")
+    expected_contract_id = _sha256_json(
+        {
+            "environment_projection": canonical_rows,
+            "environment_built_from_empty_allowlist": True,
+        }
+    )
+    if payload["environment_contract_id"] != expected_contract_id:
+        raise ValueError(f"prediction launcher run {ordinal} environment contract id mismatch")
+
+    capsule = pathlib.Path(execution_root).resolve() / "predictor_capsule"
+    expected_pycache = capsule / f"pycache-run-{ordinal}"
+    expected_torchinductor = capsule / f"torchinductor-cache-run-{ordinal}"
+    expected_environment_values = {
+        "CUDA_VISIBLE_DEVICES": "0",
+        "HF_HUB_OFFLINE": "1",
+        "KMP_DUPLICATE_LIB_OK": "True",
+        "KMP_INIT_AT_FORK": "FALSE",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "0",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": str(expected_pycache),
+        "PYTHONSAFEPATH": "1",
+        "PYTHONUTF8": "1",
+        "TOKENIZERS_PARALLELISM": "false",
+        "TORCHINDUCTOR_CACHE_DIR": str(expected_torchinductor),
+        "TRANSFORMERS_OFFLINE": "1",
+    }
+    for key, expected_value in expected_environment_values.items():
+        row = environment_by_key.get(key)
+        if row is None:
+            raise ValueError(f"prediction launcher run {ordinal} omitted environment key {key}")
+        encoded = expected_value.encode("utf-8")
+        if row["value_sha256"] != hashlib.sha256(encoded).hexdigest() or row["value_utf8_bytes"] != len(encoded):
+            raise ValueError(f"prediction launcher run {ordinal} environment value {key} drifted")
+    for key in ("PATH", "PYTHONPATH", "SystemRoot", "USERNAME"):
+        receipt = environment_by_key.get(key)
+        if receipt is None or receipt["value_utf8_bytes"] == 0:
+            raise ValueError(f"prediction launcher run {ordinal} requires a non-empty hashed {key}")
+
+    cache = _mapping(
+        payload["torchinductor_cache"],
+        f"prediction launcher run {ordinal} TorchInductor cache",
+    )
+    _exact_keys(
+        cache,
+        {
+            "path",
+            "absent_before_launch",
+            "materialized",
+            "is_directory",
+            "is_symlink",
+            "is_reparse_point",
+            "empty",
+        },
+        f"prediction launcher run {ordinal} TorchInductor cache",
+    )
+    expected_cache_receipt = {
+        "path": str(expected_torchinductor),
+        "absent_before_launch": True,
+        "materialized": True,
+        "is_directory": True,
+        "is_symlink": False,
+        "is_reparse_point": False,
+        "empty": True,
+    }
+    if cache != expected_cache_receipt:
+        raise ValueError(f"prediction launcher run {ordinal} TorchInductor cache receipt drifted")
+    if not capsule.is_dir() or capsule.is_symlink():
+        raise ValueError(f"prediction launcher run {ordinal} capsule is not a plain directory")
+    capsule_stat = capsule.stat(follow_symlinks=False)
+    if os.name == "nt" and getattr(capsule_stat, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        raise ValueError(f"prediction launcher run {ordinal} capsule is a reparse point")
+    if not expected_torchinductor.is_dir() or expected_torchinductor.is_symlink():
+        raise ValueError(f"prediction launcher run {ordinal} TorchInductor cache is not a plain directory")
+    cache_stat = expected_torchinductor.stat(follow_symlinks=False)
+    if os.name == "nt" and getattr(cache_stat, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        raise ValueError(f"prediction launcher run {ordinal} TorchInductor cache is a reparse point")
+    if next(expected_torchinductor.iterdir(), None) is not None:
+        raise ValueError(f"prediction launcher run {ordinal} TorchInductor cache is not empty")
+    cache_after = expected_torchinductor.stat(follow_symlinks=False)
+    if _file_identity(cache_stat) != _file_identity(cache_after):
+        raise ValueError(f"prediction launcher run {ordinal} TorchInductor cache changed during observation")
+    if os.path.lexists(expected_pycache):
+        raise ValueError(f"prediction launcher run {ordinal} Python pycache prefix was materialized")
+    return process_id, expected_torchinductor
 
 
 def _validate_scoring_stage_for_outer_runner(
