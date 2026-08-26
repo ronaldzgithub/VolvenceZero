@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import platform
+import subprocess
 import sys
 from typing import Mapping
 
@@ -580,7 +581,7 @@ class _FakeLauncher:
             _file_receipt("prediction_ledger.json", ledger),
         ]
         attestation_core: dict[str, object] = {
-            "schema_version": ("relationship-condition-reader-prediction-process-attestation.v4"),
+            "schema_version": ("relationship-condition-reader-prediction-process-attestation.v5"),
             "protocol_id": child["protocol_id"],
             "execution_protocol_id": child["execution_protocol_id"],
             "child_request_artifact_id": child["artifact_id"],
@@ -612,10 +613,13 @@ class _FakeLauncher:
             ),
             "bootstrap_import_roots": [str(path) for path in spec.import_binding.import_roots],
             "environment_contract": {
-                "schema_version": ("relationship-condition-reader-prediction-environment.v3"),
+                "schema_version": ("relationship-condition-reader-prediction-environment.v4"),
                 "projected_keys": list(executor._PREDICTION_ENVIRONMENT_PROJECTION_KEYS),
                 "all_environment_values_hashed": True,
                 "unlisted_environment_variables_recorded": True,
+                "key_name_canonicalization": "windows_uppercase",
+                "complete_environment_observation_scope": "cpython_visible_mapping",
+                "raw_win32_environment_block_attested": False,
             },
             "environment_projection": {
                 key: environment.get(key) for key in executor._PREDICTION_ENVIRONMENT_PROJECTION_KEYS
@@ -677,6 +681,29 @@ class _FakeLauncher:
                 attestation_core["interpreter_flags"] = flags
             elif self.mode == "bad_argv":
                 attestation_core["argv"] = [*list(attestation_core["argv"]), "shadow"]
+            elif self.mode in {
+                "bad_environment_key_name_canonicalization",
+                "bad_environment_observation_scope",
+                "bad_raw_win32_environment_attestation",
+            }:
+                contract = dict(attestation_core["environment_contract"])
+                field_and_value_by_mode: dict[str, tuple[str, object]] = {
+                    "bad_environment_key_name_canonicalization": (
+                        "key_name_canonicalization",
+                        "ambient_spelling",
+                    ),
+                    "bad_environment_observation_scope": (
+                        "complete_environment_observation_scope",
+                        "raw_win32_environment_block",
+                    ),
+                    "bad_raw_win32_environment_attestation": (
+                        "raw_win32_environment_block_attested",
+                        True,
+                    ),
+                }
+                field_name, value = field_and_value_by_mode[self.mode]
+                contract[field_name] = value
+                attestation_core["environment_contract"] = contract
         attestation = _artifact(attestation_core)
         manifest = _artifact(
             {
@@ -1094,6 +1121,31 @@ def test_executor_rejects_prediction_runtime_binding_drift_before_handoff(
     _assert_no_evaluator_open(bundle, loader)
 
 
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "bad_environment_key_name_canonicalization",
+        "bad_environment_observation_scope",
+        "bad_raw_win32_environment_attestation",
+    ],
+)
+def test_executor_rejects_environment_honesty_drift_before_commit_and_handoff(
+    tmp_path: pathlib.Path,
+    mode: str,
+) -> None:
+    bundle = _build_preflight(tmp_path)
+    loader = _LoaderSpy()
+    launcher = _FakeLauncher(mode=mode)
+
+    with pytest.raises(ValueError, match="prediction child environment contract drifted"):
+        _run(bundle, launcher=launcher, loader=loader)
+
+    assert len(launcher.calls) == 2
+    assert not (bundle.execution_root / "commit").exists()
+    assert not (bundle.execution_root / "scoring_request.json").exists()
+    _assert_no_evaluator_open(bundle, loader)
+
+
 def test_executor_commit_tamper_prevents_scoring_request_and_label_release(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -1159,14 +1211,15 @@ def test_parent_preflight_open_set_is_exact_and_excludes_full_validator_inputs(
     assert "sealed/group_split.json" not in preflight_opens
 
 
-def test_formal_environment_is_built_from_exact_allowlist_and_hash_binds_values() -> None:
+def test_formal_environment_canonicalizes_windows_keys_and_hash_binds_exact_contract() -> None:
     binding = _import_binding()
     pycache_prefix = pathlib.Path("D:/formal-capsule/pycache-run-1")
     torchinductor_cache_dir = pathlib.Path("D:/formal-capsule/torchinductor-cache-run-1")
     environment, projection, contract_id = executor._build_formal_child_environment(
         {
             "PATH": "C:\\ambient-shadow;C:\\other-python",
-            "SystemRoot": "C:\\Windows",
+            "sYsTeMdRiVe": "C:",
+            "sYsTeMrOoT": "C:\\Windows",
             "CUDA_PATH": "C:\\poison-toolkit",
             "CUDA_VISIBLE_DEVICES": "7",
             "SECRET_TOKEN": "do-not-inherit",
@@ -1209,12 +1262,16 @@ def test_formal_environment_is_built_from_exact_allowlist_and_hash_binds_values(
         "PYTHONSAFEPATH": "1",
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONUTF8": "1",
-        "SystemRoot": "C:\\Windows",
+        "SYSTEMDRIVE": "C:",
+        "SYSTEMROOT": "C:\\Windows",
         "TOKENIZERS_PARALLELISM": "false",
         "TORCHINDUCTOR_CACHE_DIR": str(torchinductor_cache_dir),
         "TRANSFORMERS_OFFLINE": "1",
         "USERNAME": "qualification-user",
     }
+    assert all(key == key.upper() for key in environment)
+    assert "SystemDrive" not in environment
+    assert "SystemRoot" not in environment
     assert tuple(item.key for item in projection) == tuple(sorted(environment))
     assert all(
         item.value_sha256 == _sha(environment[item.key])
@@ -1222,6 +1279,67 @@ def test_formal_environment_is_built_from_exact_allowlist_and_hash_binds_values(
         for item in projection
     )
     assert contract_id == executor._environment_contract_id(projection)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="requires Windows CreateProcess environment semantics")
+def test_formal_environment_survives_real_cpython_createprocess_with_exact_uppercase_receipt(
+    tmp_path: pathlib.Path,
+) -> None:
+    binding = _import_binding()
+    system_root = os.environ.get("SYSTEMROOT") or os.environ.get("SystemRoot")
+    system_drive = os.environ.get("SYSTEMDRIVE") or os.environ.get("SystemDrive")
+    username = os.environ.get("USERNAME")
+    assert system_root
+    assert system_drive
+    assert username
+    environment, projection, contract_id = executor._build_formal_child_environment(
+        {
+            "sYsTeMdRiVe": system_drive,
+            "sYsTeMrOoT": system_root,
+            "uSeRnAmE": username,
+        },
+        import_binding=binding,
+        pycache_prefix=tmp_path / "pycache",
+        torchinductor_cache_dir=tmp_path / "torchinductor-cache",
+    )
+    probe = (
+        "import hashlib,json,os,sys\n"
+        "keys=sorted(os.environ)\n"
+        "payload={'environment_key_names':keys,'environment_value_sha256s':"
+        "{key:hashlib.sha256(os.environ[key].encode('utf-8')).hexdigest() for key in keys}}\n"
+        "sys.stdout.buffer.write(json.dumps(payload,sort_keys=True,separators=(',',':')).encode('utf-8'))\n"
+    )
+
+    completed = subprocess.run(
+        [
+            str(binding.python_executable),
+            "-P",
+            "-S",
+            "-B",
+            "-u",
+            "-X",
+            "utf8",
+            "-c",
+            probe,
+        ],
+        check=True,
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+    )
+
+    child = json.loads(completed.stdout.decode("utf-8"))
+    expected_keys = [item.key for item in projection]
+    expected_hashes = {item.key: item.value_sha256 for item in projection}
+    assert contract_id == executor._environment_contract_id(projection)
+    assert child["environment_key_names"] == expected_keys
+    assert child["environment_value_sha256s"] == expected_hashes
+    assert all(key == key.upper() for key in expected_keys)
+    assert len({key.casefold() for key in expected_keys}) == len(expected_keys)
+    assert "SYSTEMDRIVE" in expected_keys
+    assert "SYSTEMROOT" in expected_keys
+    assert "SystemDrive" not in expected_keys
+    assert "SystemRoot" not in expected_keys
 
 
 @pytest.mark.parametrize(

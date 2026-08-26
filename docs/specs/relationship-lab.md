@@ -1660,7 +1660,7 @@ symlink/reparse。hardlink alias 风险属于 `os_security_boundary=false` 的�
 三个 child 都必须从空白 allowlist 构造环境，使用精确的
 `-P -S -B -u -X utf8 -X pycache_prefix=<absent-per-child-path> -c`；ambient `PYTHONPATH / PATH /
 CUDA_PATH` 不得继承。`PYTHONPATH` 只由冻结 repository source roots 与 sole frozen `site-packages` 组成；
-native `PATH` 只允许 frozen Python home、`DLLs`、`Library/bin`、`SystemRoot/System32` 与 `SystemRoot`，
+native `PATH` 只允许 frozen Python home、`DLLs`、`Library/bin`、`SYSTEMROOT/System32` 与 `SYSTEMROOT`，
 predictor 的 `CUDA_VISIBLE_DEVICES` 固定为 `0`。predictor 还必须显式继承非空 Windows `USERNAME`，并像
 其他 allowlisted 值一样只以 key、SHA-256 与 UTF-8 byte count 进入完整 environment receipt；它不进入
 精简 plaintext projection，也不是 subject identity、owner state 或产品输入。该字段只关闭 Torch 2.12
@@ -1673,8 +1673,14 @@ predictor 的 `CUDA_VISIBLE_DEVICES` 固定为 `0`。predictor 还必须显式�
 非 symlink、非 reparse 的 exact-empty 普通目录，并保留给 outer runner 再观察。该空目录是冻结 Torch
 runtime 的已知 filesystem side effect，不得删除来伪装无副作用；未来若出现内容，必须另冻完整 tree receipt，
 当前合同直接 fail closed。KMP 两值和受控 cache path 进入 plaintext projection，完整环境仍以全部 key/hash/
-byte count 闭合；对应 nested environment、process attestation、launcher attestation schema 分别为 v3、v4、
-v2。以上不声称 filesystem isolation 或 OS security boundary。parent 必须逐 child 精确核对 executable、argv、runtime
+byte count 闭合。execution-anchor v5 对应 nested environment、process attestation、launcher attestation schema
+分别为 v3、v4、v2；v6 收敛包依次升级为 v4、v5、v3，child import contract 同步升级为 v4，并把
+`TOKENIZERS_PARALLELISM` 纳入 predictor plaintext projection。Windows ambient input 允许按 casefold 读取，
+但 formal child environment 与 launcher receipt 的 key 必须统一输出 canonical uppercase；outer runner 同时拒绝
+非 uppercase key 和 casefold 后重复的 key。v6 的“完整环境”观察范围严格限于
+`complete_environment_observation_scope=cpython_visible_mapping`，明确记录
+`raw_win32_environment_block_attested=false`，不把 CPython `os.environ` 可见映射扩大解释成 raw Win32
+environment block。以上不声称 filesystem isolation 或 OS security boundary。parent 必须逐 child 精确核对 executable、argv、runtime
 flags、完整 environment hash、完整 `sys.path`、全部已加载 file-backed module 的
 module-name→canonical origin，以及 repository `.py` 的唯一 path→raw hash/bytes exact join，并核对 PEP 420
 `volvence_zero` namespace locations。built-in/frozen module 只有在真实 loader/spec 闭合时才可省略；repo
@@ -1781,6 +1787,32 @@ weight。但 `USERNAME`-only 不是充分修复：完整 BGE load 还会通过 `
 采用上述 fixed KMP、per-child 受控 TorchInductor cache、post-state 与 outer live reobservation 合同。v4 root
 与 run nonce 已消耗，禁止覆盖或原参数重跑；合同修复后必须重新冻结 source/runtime
 closure，并另建全新 preflight、execution protocol、public Gist、receipt、execution root 与 nonce。
+
+2026-08-25 的 execution-anchor v5 同样必须作为已消耗的真实尝试原样保留。公开 Gist
+[`d2028c0bffba7ef71efc09ac306ebb41`](https://gist.github.com/ronaldzgithub/d2028c0bffba7ef71efc09ac306ebb41)
+只有预注册文件和唯一 revision `582b8bfec94042123f3e010c9503c4ce23ac547c`；execution protocol ID 为
+`4635b642a2cea0abaf5c7abd50a1c0c1365b3b095a9b65a9520a3dd6ef7f81ef`，匿名观察 anchor artifact ID 为
+`c2c250cada9b53c1829acfa02644a147d22239861d2cadd8b950442c6929578f`。唯一 execution root
+`relationship_condition_reader_qualification_v5_windows_cuda_20260825_p723796027a64_c50b54fc1` 与 run nonce
+`a60e100fbb6dd49cf6a6e5cb2f1cbdd004a8d12be89dd031e205bea8c87334cd` 均已消耗，禁止覆盖或原参数重跑。
+launcher attestation artifact ID 为
+`3029ac4d76ddf20d390c3a9959f8e96d9a147943d3f3fd0879594d11d38e88ca`：两个 fresh child 均 exit 0、Job
+Object 清空，并各自完成 228 条 CUDA embedding；两次 `embedding_table.json`、`reader_artifact.json` 与
+`prediction_ledger.json` 的 raw bytes 分别 byte-exact。可是 launcher receipt 保留了 Windows 输入 spelling
+`SystemDrive/SystemRoot`，而 CPython child 可见映射发布 `SYSTEMDRIVE/SYSTEMROOT`；parent 在完整环境 key
+sequence 的大小写一致性验证处 fail closed。上述 byte-exact 是对已落盘中间文件的事实审计，不代表 contract
+gate 已完成。
+
+因此 v5 的终局只能写为 `invalid/incomplete`：没有生成 ledger commit receipt、scoring request、scorer
+输出、qualification report 或 final manifest；尤其不得写成只有正式 scorer/final 判词才可能给出的
+`not_admitted`。v5 不增加 reader admission、Readable 产品效果、campaign 或任何四轴证据。v6 收敛包只是
+最窄 Windows key-canonicalization 修复；下一次 reader-execution attempt 将建立全新的 execution source/runtime
+lineage，其中 source 特指重新冻结的 executor source-tree closure，不是 reactive Product Horizon source-v3
+的版本变更。当前只完成实现/单测合同，尚未冻结新的 preflight、execution protocol、public Gist、anchor、
+execution root 或 nonce，也未授权 CUDA。raw Win32 environment block
+attestation、physical GPU UUID 和 full ambient plan 仍是后续 prerequisite，不能由本收敛包冒充关闭。即使未来
+v6 资格通过，claim ceiling 仍仅为 `exact_source_reader_development_admitted`，所有 Product Horizon、
+Appendable/Readable/Learnable/Steerable 合取、formal/human/production 主张继续为 false。
 
 关系域 residual 是并行而分离的 prerequisite：domain adapter 只能把 pre-action owner forecast 与
 非 oracle、已有 PE update 的 typed gate decision 投影为 train/heldout subject-disjoint corpus；`vz-runtime`

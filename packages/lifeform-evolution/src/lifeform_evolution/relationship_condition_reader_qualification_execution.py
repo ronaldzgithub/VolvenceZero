@@ -52,7 +52,7 @@ _REPORT_SCHEMA_VERSION = "relationship-condition-reader-qualification-report.v1"
 _SCORER_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-qualification-scorer-attestation.v3"
 _SCORER_MANIFEST_SCHEMA_VERSION = "relationship-condition-reader-qualification-scorer-manifest.v1"
 _PREDICTION_EXECUTOR_RESULT_SCHEMA_VERSION = "relationship-condition-reader-qualification-executor-result.v1"
-_PREDICTION_LAUNCHER_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-qualification-launcher-attestation.v2"
+_PREDICTION_LAUNCHER_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-qualification-launcher-attestation.v3"
 _SCORER_OUTPUT_PATHS = (
     "report.json",
     "scorer_attestation.json",
@@ -1035,6 +1035,7 @@ def _validate_prediction_launcher_run_for_outer_runner(
     )
     canonical_rows: list[dict[str, object]] = []
     environment_by_key: dict[str, Mapping[str, object]] = {}
+    environment_by_casefold: dict[str, str] = {}
     for index, value in enumerate(environment_rows):
         row = _mapping(value, f"prediction launcher run {ordinal} environment row {index}")
         _exact_keys(
@@ -1045,6 +1046,16 @@ def _validate_prediction_launcher_run_for_outer_runner(
         key = _text(row["key"], f"prediction launcher run {ordinal} environment key")
         if key in environment_by_key:
             raise ValueError(f"prediction launcher run {ordinal} environment keys must be unique")
+        folded_key = key.casefold()
+        if folded_key in environment_by_casefold:
+            raise ValueError(
+                f"prediction launcher run {ordinal} environment keys must be unique under Windows case folding"
+            )
+        environment_by_casefold[folded_key] = key
+        if key != key.upper():
+            raise ValueError(
+                f"prediction launcher run {ordinal} environment keys must use canonical uppercase spelling"
+            )
         value_sha256 = _digest(
             row["value_sha256"],
             f"prediction launcher run {ordinal} environment value_sha256",
@@ -1077,8 +1088,8 @@ def _validate_prediction_launcher_run_for_outer_runner(
         "PYTHONPYCACHEPREFIX",
         "PYTHONSAFEPATH",
         "PYTHONUTF8",
-        "SystemDrive",
-        "SystemRoot",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
         "TEMP",
         "TMP",
         "TOKENIZERS_PARALLELISM",
@@ -1124,7 +1135,7 @@ def _validate_prediction_launcher_run_for_outer_runner(
         encoded = expected_value.encode("utf-8")
         if row["value_sha256"] != hashlib.sha256(encoded).hexdigest() or row["value_utf8_bytes"] != len(encoded):
             raise ValueError(f"prediction launcher run {ordinal} environment value {key} drifted")
-    for key in ("PATH", "PYTHONPATH", "SystemRoot", "USERNAME"):
+    for key in ("PATH", "PYTHONPATH", "SYSTEMROOT", "USERNAME"):
         receipt = environment_by_key.get(key)
         if receipt is None or receipt["value_utf8_bytes"] == 0:
             raise ValueError(f"prediction launcher run {ordinal} requires a non-empty hashed {key}")

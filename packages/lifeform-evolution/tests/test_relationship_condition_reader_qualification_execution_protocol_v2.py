@@ -605,7 +605,19 @@ def test_v2_runtime_identity_freezes_complete_child_import_domains(
     assert child_contract["ambient_pythonpath_inherited"] is False
     assert child_contract["site_startup_enabled"] is False
     assert child_contract["adjacent_bytecode_cache_read_allowed"] is False
-    assert child_contract["schema_version"] == ("relationship-condition-reader-qualification-child-import-contract.v3")
+    assert child_contract["schema_version"] == ("relationship-condition-reader-qualification-child-import-contract.v4")
+    assert child_contract["key_name_canonicalization"] == "windows_uppercase"
+    assert child_contract["complete_environment_observation_scope"] == "cpython_visible_mapping"
+    assert child_contract["raw_win32_environment_block_attested"] is False
+    assert child_contract["predictor_environment_schema_version"] == (
+        "relationship-condition-reader-prediction-environment.v4"
+    )
+    assert child_contract["predictor_process_attestation_schema_version"] == (
+        "relationship-condition-reader-prediction-process-attestation.v5"
+    )
+    assert child_contract["prediction_launcher_attestation_schema_version"] == (
+        "relationship-condition-reader-qualification-launcher-attestation.v3"
+    )
     assert child_contract["ambient_torchinductor_cache_dir_inherited"] is False
     assert child_contract["per_child_isolated_torchinductor_cache_required"] is True
     assert child_contract["torchinductor_cache_direct_child_of_predictor_capsule"] is True
@@ -624,8 +636,8 @@ def test_v2_runtime_identity_freezes_complete_child_import_domains(
         "<python_environment_root>",
         "<python_environment_root>\\DLLs",
         "<python_environment_root>\\Library\\bin",
-        "<SystemRoot>\\System32",
-        "<SystemRoot>",
+        "<SYSTEMROOT>\\System32",
+        "<SYSTEMROOT>",
     ]
     assert child_contract["ambient_cuda_path_inherited"] is False
     assert child_contract["predictor_cuda_visible_devices"] == "0"

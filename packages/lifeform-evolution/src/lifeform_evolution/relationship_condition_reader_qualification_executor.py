@@ -54,7 +54,7 @@ _TRAINING_LABELS_SCHEMA_VERSION = "relationship-condition-reader-qualification-t
 _TRAINING_CORPUS_SCHEMA_VERSION = "relationship-condition-reader-qualification-training-corpus.v1"
 _CHILD_REQUEST_SCHEMA_VERSION = "relationship-condition-reader-prediction-child-request.v1"
 _PREDICTION_LEDGER_SCHEMA_VERSION = "relationship-condition-reader-prediction-ledger.v1"
-_PREDICTION_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-prediction-process-attestation.v4"
+_PREDICTION_ATTESTATION_SCHEMA_VERSION = "relationship-condition-reader-prediction-process-attestation.v5"
 _PREDICTION_MANIFEST_SCHEMA_VERSION = "relationship-condition-reader-prediction-manifest.v1"
 _EMBEDDING_TABLE_SCHEMA_VERSION = "relationship-product-public-embedding-table.v2"
 _READER_ARTIFACT_SCHEMA_VERSION = "relationship-condition-reader-artifact.v2"
@@ -114,8 +114,8 @@ _MAX_CAPTURED_STREAM_PREFIX_BYTES = 65_536
 _FORMAL_ENVIRONMENT_ALLOWLIST = (
     "APPDATA",
     "LOCALAPPDATA",
-    "SystemDrive",
-    "SystemRoot",
+    "SYSTEMDRIVE",
+    "SYSTEMROOT",
     "TEMP",
     "TMP",
     "USERNAME",
@@ -146,6 +146,7 @@ _PREDICTION_ENVIRONMENT_PROJECTION_KEYS = (
     "PYTHONSAFEPATH",
     "PYTHONDONTWRITEBYTECODE",
     "PYTHONUTF8",
+    "TOKENIZERS_PARALLELISM",
     "TORCHINDUCTOR_CACHE_DIR",
     "TRANSFORMERS_OFFLINE",
 )
@@ -631,7 +632,7 @@ def _execute_relationship_condition_reader_qualification_prediction_stage_core(
 
     launcher_attestation = _with_artifact_id(
         {
-            "schema_version": ("relationship-condition-reader-qualification-launcher-attestation.v2"),
+            "schema_version": ("relationship-condition-reader-qualification-launcher-attestation.v3"),
             "qualification_protocol_id": qualification_protocol_id,
             "execution_protocol_id": execution_id,
             "child_request_artifact_id": child_request["artifact_id"],
@@ -1490,15 +1491,21 @@ def _validate_prediction_attestation(
             "projected_keys",
             "all_environment_values_hashed",
             "unlisted_environment_variables_recorded",
+            "key_name_canonicalization",
+            "complete_environment_observation_scope",
+            "raw_win32_environment_block_attested",
         },
         "prediction environment_contract",
     )
     expected_projected_keys = list(_PREDICTION_ENVIRONMENT_PROJECTION_KEYS)
     if (
-        environment_contract["schema_version"] != "relationship-condition-reader-prediction-environment.v3"
+        environment_contract["schema_version"] != "relationship-condition-reader-prediction-environment.v4"
         or environment_contract["projected_keys"] != expected_projected_keys
         or environment_contract["all_environment_values_hashed"] is not True
         or environment_contract["unlisted_environment_variables_recorded"] is not True
+        or environment_contract["key_name_canonicalization"] != "windows_uppercase"
+        or environment_contract["complete_environment_observation_scope"] != "cpython_visible_mapping"
+        or environment_contract["raw_win32_environment_block_attested"] is not False
     ):
         raise ValueError("prediction child environment contract drifted")
     child_environment = _mapping(
@@ -1535,7 +1542,7 @@ def _validate_prediction_attestation(
     )
     expected_environment_key_names = list(launcher_environment)
     if environment_key_names != expected_environment_key_names:
-        raise ValueError("prediction child complete environment key set drifted")
+        raise ValueError("prediction child complete environment key sequence drifted")
     environment_value_sha256s = _mapping(
         payload["environment_value_sha256s"],
         "prediction environment_value_sha256s",
@@ -2700,9 +2707,9 @@ def _build_formal_child_environment(
     if torchinductor == prefix:
         raise ValueError("formal child Python and TorchInductor cache paths must be distinct")
     environment["TORCHINDUCTOR_CACHE_DIR"] = str(torchinductor)
-    system_root = environment.get("SystemRoot")
+    system_root = environment.get("SYSTEMROOT")
     if system_root is None or not system_root:
-        raise ValueError("formal child environment requires SystemRoot")
+        raise ValueError("formal child environment requires SYSTEMROOT")
     environment["PATH"] = os.pathsep.join(
         str(path)
         for path in controlled_child_path(
@@ -2710,7 +2717,7 @@ def _build_formal_child_environment(
             system_root=pathlib.Path(system_root),
         )
     )
-    for required in ("PATH", "SystemRoot", "USERNAME"):
+    for required in ("PATH", "SYSTEMROOT", "USERNAME"):
         if required not in environment or not environment[required]:
             raise ValueError(f"formal child environment requires {required}")
     for key, value in environment.items():

@@ -842,7 +842,7 @@ class _FakePredictionStage:
                 "PYTHONPYCACHEPREFIX": str(pycache_prefix),
                 "PYTHONSAFEPATH": "1",
                 "PYTHONUTF8": "1",
-                "SystemRoot": "C:\\Windows",
+                "SYSTEMROOT": "C:\\Windows",
                 "TOKENIZERS_PARALLELISM": "false",
                 "TORCHINDUCTOR_CACHE_DIR": str(torchinductor_cache),
                 "TRANSFORMERS_OFFLINE": "1",
@@ -910,7 +910,7 @@ class _FakePredictionStage:
             )
         launcher_attestation = _with_artifact_id(
             {
-                "schema_version": ("relationship-condition-reader-qualification-launcher-attestation.v2"),
+                "schema_version": ("relationship-condition-reader-qualification-launcher-attestation.v3"),
                 "qualification_protocol_id": _QUALIFICATION_ID,
                 "execution_protocol_id": _EXECUTION_ID,
                 "child_request_artifact_id": child_request_id,
@@ -1117,6 +1117,19 @@ def _revalidate_outer_launcher(
     )
 
 
+def _rehash_launcher_environment_contract(run: dict[str, object]) -> None:
+    environment_rows = run["environment_projection"]
+    assert isinstance(environment_rows, list)
+    run["environment_contract_id"] = hashlib.sha256(
+        canonical_json_bytes(
+            {
+                "environment_projection": environment_rows,
+                "environment_built_from_empty_allowlist": True,
+            }
+        )
+    ).hexdigest()
+
+
 def test_outer_runner_rejects_nested_torchinductor_cache_receipt_drift(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -1166,16 +1179,105 @@ def test_outer_runner_rejects_launcher_environment_receipt_drift(
         row for row in environment_rows if isinstance(row, dict) and row.get("key") == "TORCHINDUCTOR_CACHE_DIR"
     )
     torch_row["value_sha256"] = _digest("drifted-cache-path")
-    first["environment_contract_id"] = hashlib.sha256(
-        canonical_json_bytes(
-            {
-                "environment_projection": environment_rows,
-                "environment_built_from_empty_allowlist": True,
-            }
-        )
-    ).hexdigest()
+    _rehash_launcher_environment_contract(first)
 
     with pytest.raises(ValueError, match="environment value TORCHINDUCTOR_CACHE_DIR drifted"):
+        _revalidate_outer_launcher(result, root=root, launcher=launcher)
+
+
+def test_outer_runner_rejects_noncanonical_windows_environment_key(
+    tmp_path: pathlib.Path,
+) -> None:
+    result, _order, _guard, root = _run_fake_outer(tmp_path)
+    launcher = copy.deepcopy(result["prediction_launcher_attestation"])
+    assert isinstance(launcher, dict)
+    runs = launcher["runs"]
+    assert isinstance(runs, list)
+    first = runs[0]
+    assert isinstance(first, dict)
+    environment_rows = first["environment_projection"]
+    assert isinstance(environment_rows, list)
+    system_root = next(
+        row for row in environment_rows if isinstance(row, dict) and row.get("key") == "SYSTEMROOT"
+    )
+    system_root["key"] = "SystemRoot"
+    environment_rows.sort(key=lambda row: row["key"])
+    _rehash_launcher_environment_contract(first)
+
+    with pytest.raises(ValueError, match="canonical uppercase spelling"):
+        _revalidate_outer_launcher(result, root=root, launcher=launcher)
+
+
+def test_outer_runner_rejects_duplicate_casefold_environment_keys(
+    tmp_path: pathlib.Path,
+) -> None:
+    result, _order, _guard, root = _run_fake_outer(tmp_path)
+    launcher = copy.deepcopy(result["prediction_launcher_attestation"])
+    assert isinstance(launcher, dict)
+    runs = launcher["runs"]
+    assert isinstance(runs, list)
+    first = runs[0]
+    assert isinstance(first, dict)
+    environment_rows = first["environment_projection"]
+    assert isinstance(environment_rows, list)
+    system_root = next(
+        row for row in environment_rows if isinstance(row, dict) and row.get("key") == "SYSTEMROOT"
+    )
+    duplicate = copy.deepcopy(system_root)
+    duplicate["key"] = "SystemRoot"
+    environment_rows.append(duplicate)
+    environment_rows.sort(key=lambda row: row["key"])
+    _rehash_launcher_environment_contract(first)
+
+    with pytest.raises(ValueError, match="unique under Windows case folding"):
+        _revalidate_outer_launcher(result, root=root, launcher=launcher)
+
+
+def test_outer_runner_rejects_extra_environment_key(
+    tmp_path: pathlib.Path,
+) -> None:
+    result, _order, _guard, root = _run_fake_outer(tmp_path)
+    launcher = copy.deepcopy(result["prediction_launcher_attestation"])
+    assert isinstance(launcher, dict)
+    runs = launcher["runs"]
+    assert isinstance(runs, list)
+    first = runs[0]
+    assert isinstance(first, dict)
+    environment_rows = first["environment_projection"]
+    assert isinstance(environment_rows, list)
+    secret_value = "must-not-cross-the-boundary"
+    environment_rows.append(
+        {
+            "key": "SECRET_TOKEN",
+            "value_sha256": hashlib.sha256(secret_value.encode("utf-8")).hexdigest(),
+            "value_utf8_bytes": len(secret_value.encode("utf-8")),
+        }
+    )
+    environment_rows.sort(key=lambda row: row["key"])
+    _rehash_launcher_environment_contract(first)
+
+    with pytest.raises(ValueError, match="non-allowlisted key"):
+        _revalidate_outer_launcher(result, root=root, launcher=launcher)
+
+
+def test_outer_runner_rejects_missing_required_environment_key(
+    tmp_path: pathlib.Path,
+) -> None:
+    result, _order, _guard, root = _run_fake_outer(tmp_path)
+    launcher = copy.deepcopy(result["prediction_launcher_attestation"])
+    assert isinstance(launcher, dict)
+    runs = launcher["runs"]
+    assert isinstance(runs, list)
+    first = runs[0]
+    assert isinstance(first, dict)
+    environment_rows = first["environment_projection"]
+    assert isinstance(environment_rows, list)
+    first["environment_projection"] = [
+        row for row in environment_rows if not isinstance(row, dict) or row.get("key") != "SYSTEMROOT"
+    ]
+    _rehash_launcher_environment_contract(first)
+
+    with pytest.raises(ValueError, match="requires a non-empty hashed SYSTEMROOT"):
         _revalidate_outer_launcher(result, root=root, launcher=launcher)
 
 

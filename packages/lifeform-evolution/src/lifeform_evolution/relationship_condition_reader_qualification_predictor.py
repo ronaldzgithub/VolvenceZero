@@ -62,7 +62,7 @@ RELATIONSHIP_READER_PREDICTION_TRAINING_CORPUS_SCHEMA_VERSION = (
 )
 RELATIONSHIP_READER_PREDICTION_LEDGER_SCHEMA_VERSION = "relationship-condition-reader-prediction-ledger.v1"
 RELATIONSHIP_READER_PREDICTION_PROCESS_ATTESTATION_SCHEMA_VERSION = (
-    "relationship-condition-reader-prediction-process-attestation.v4"
+    "relationship-condition-reader-prediction-process-attestation.v5"
 )
 RELATIONSHIP_READER_PREDICTION_MANIFEST_SCHEMA_VERSION = "relationship-condition-reader-prediction-manifest.v1"
 RELATIONSHIP_READER_PREDICTOR_REQUEST_SCHEMA_VERSION = (
@@ -97,6 +97,7 @@ _ENVIRONMENT_PROJECTION_KEYS = (
     "PYTHONSAFEPATH",
     "PYTHONDONTWRITEBYTECODE",
     "PYTHONUTF8",
+    "TOKENIZERS_PARALLELISM",
     "TORCHINDUCTOR_CACHE_DIR",
     "TRANSFORMERS_OFFLINE",
 )
@@ -370,10 +371,13 @@ def _run_relationship_condition_reader_prediction_child_core(
             "sys_path": list(sys.path),
             "bootstrap_import_roots": _bootstrap_import_roots(),
             "environment_contract": {
-                "schema_version": ("relationship-condition-reader-prediction-environment.v3"),
+                "schema_version": ("relationship-condition-reader-prediction-environment.v4"),
                 "projected_keys": list(_ENVIRONMENT_PROJECTION_KEYS),
                 "all_environment_values_hashed": True,
                 "unlisted_environment_variables_recorded": True,
+                "key_name_canonicalization": "windows_uppercase",
+                "complete_environment_observation_scope": "cpython_visible_mapping",
+                "raw_win32_environment_block_attested": False,
             },
             "environment_projection": {key: os.environ.get(key) for key in _ENVIRONMENT_PROJECTION_KEYS},
             "environment_key_names": sorted(os.environ),

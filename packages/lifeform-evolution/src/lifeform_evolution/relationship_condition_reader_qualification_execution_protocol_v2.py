@@ -125,7 +125,17 @@ _RUNTIME_TREE_CACHE_DIRECTORY_NAMES = ("__pycache__",)
 _RUNTIME_TREE_CACHE_BYTECODE_SUFFIXES = (".pyc",)
 _SITE_PACKAGES_EXCLUDED_SITE_STARTUP_SUFFIXES = (".pth",)
 _CHILD_IMPORT_CONTRACT_V2 = {
-    "schema_version": "relationship-condition-reader-qualification-child-import-contract.v3",
+    "schema_version": "relationship-condition-reader-qualification-child-import-contract.v4",
+    "key_name_canonicalization": "windows_uppercase",
+    "complete_environment_observation_scope": "cpython_visible_mapping",
+    "raw_win32_environment_block_attested": False,
+    "predictor_environment_schema_version": "relationship-condition-reader-prediction-environment.v4",
+    "predictor_process_attestation_schema_version": (
+        "relationship-condition-reader-prediction-process-attestation.v5"
+    ),
+    "prediction_launcher_attestation_schema_version": (
+        "relationship-condition-reader-qualification-launcher-attestation.v3"
+    ),
     "python_flag_order": [
         "-P",
         "-S",
@@ -161,8 +171,8 @@ _CHILD_IMPORT_CONTRACT_V2 = {
         "<python_environment_root>",
         "<python_environment_root>\\DLLs",
         "<python_environment_root>\\Library\\bin",
-        "<SystemRoot>\\System32",
-        "<SystemRoot>",
+        "<SYSTEMROOT>\\System32",
+        "<SYSTEMROOT>",
     ],
     "child_path_exact_validation_required": True,
     "ambient_cuda_path_inherited": False,

@@ -291,7 +291,7 @@ def test_prediction_child_two_fresh_runs_are_byte_exact_and_embed_228_once(
         "manifest.json",
     }
     attestation = json.loads((first_root / "process_attestation.json").read_text(encoding="utf-8"))
-    assert attestation["schema_version"] == ("relationship-condition-reader-prediction-process-attestation.v4")
+    assert attestation["schema_version"] == ("relationship-condition-reader-prediction-process-attestation.v5")
     assert attestation["os_security_boundary"] is False
     assert attestation["execution_protocol_id"] == _sha("execution-protocol")
     assert attestation["python_executable"]
@@ -309,14 +309,20 @@ def test_prediction_child_two_fresh_runs_are_byte_exact_and_embed_228_once(
         "PYTHONSAFEPATH",
         "PYTHONDONTWRITEBYTECODE",
         "PYTHONUTF8",
+        "TOKENIZERS_PARALLELISM",
         "TORCHINDUCTOR_CACHE_DIR",
         "TRANSFORMERS_OFFLINE",
     ]
     assert attestation["environment_contract"]["schema_version"] == (
-        "relationship-condition-reader-prediction-environment.v3"
+        "relationship-condition-reader-prediction-environment.v4"
     )
     assert attestation["environment_contract"]["all_environment_values_hashed"] is True
     assert attestation["environment_contract"]["unlisted_environment_variables_recorded"] is True
+    assert attestation["environment_contract"]["key_name_canonicalization"] == "windows_uppercase"
+    assert attestation["environment_contract"]["complete_environment_observation_scope"] == (
+        "cpython_visible_mapping"
+    )
+    assert attestation["environment_contract"]["raw_win32_environment_block_attested"] is False
     assert attestation["environment_key_names"] == sorted(attestation["environment_key_names"])
     assert set(attestation["environment_value_sha256s"]) == set(attestation["environment_key_names"])
     assert all(
