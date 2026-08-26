@@ -295,3 +295,11 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   `b3988b21…2102` 生成并通过独立外部双 ID `validate-existing`。正式树只保留一份 public/evaluator 与
   16,128 个 branch digest，未复制 replay A/B/PID comparator；结论上限仅 `campaign_input_admitted=true`，
   不授权 reader/theta0/forced action/campaign/model/CUDA 或任何能力效果。
+- 2026-08-26 · Phase 2.5 当前入口裁决为 NO-GO：在冻结 campaign protocol 前进行的未预注册、post-hoc
+  public-only scan 中，最终 `f44eb267…3398` cold theta0 对 source-v4 的 5,376 个 reset-state probe 全部
+  gate `noop` 且实际交付 `neutral_noop`；只有 112 个是可达首 preaction，其余 5,264 个是 counterfactual
+  stress probe。对其自身 source-v3 校准 forecast 的终态回放也为 192/192 noop，说明在线 trace 的
+  164/192 steer 不能代表最终冻结 policy；terminal-order/重复截距仅作诊断，不冒充已证明的唯一根因。
+  当前 112-root 三臂 campaign 保持 `campaign_blocked_effect_not_tested`，须在全新 development theta0 lineage
+  中事前冻结 bootstrap 与一次性 opportunity 门后才能恢复；reader rehearsal 继续关闭。本记录不授权
+  campaign、qualification、formal、integrated 或任何四轴效果主张。

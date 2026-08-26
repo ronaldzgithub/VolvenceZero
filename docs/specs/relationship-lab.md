@@ -1884,6 +1884,27 @@ formal、真人或 production ACTIVE，也不运行模型/CUDA、不发布 Gist�
 全程 noop 退化。该诊断仍只属于已见过的 source-v3 bootstrap；它不代替 source-v4 的 cold-theta0
 non-noop opportunity receipt，也不晋升任何能力效果判词。
 
+随后在冻结任何 Phase 2.5 campaign protocol 前进行的 post-hoc public-only 开发扫描暴露了终态缺陷：最终
+`f44eb267…3398` cold theta0 在 source-v4 的 112 roots × 48 public decisions 共 5,376 个 reset-state probe
+上全部 gate `noop`，executor 虽被调用 5,376 次但实际全部交付 `neutral_noop`；其中只有每 root 第一拍共
+112 个是无需先结算前拍即可到达的真实首 preaction，剩余 5,264 个只是同一 post-onboarding 状态上的
+counterfactual stress probe。扫描未打开 sealed evaluator、未调用 environment settlement、未生成新 PE/credit/
+gate update、未运行模型或 CUDA，但 onboarding 合法读取了 448 条已公开 observed outcome，因此不得把它描述为
+“零 outcome read”。更关键的是，把同一最终 cold theta0 回放到其校准 trace 的 192 个原始 forecast 也得到
+0/192 steer，最高 steer probability 仅 `0.4992267833134882`；在线 trace 的 164/192 steer 描述的是移动中的
+checkpoint，不能证明最终冻结 policy 有 opportunity。常数 `typed_source_support=1` 与 bias 构成重复截距，且
+另有 5 拍旧在线路径出现 gate `steer` 而实际交付 `neutral_noop`，共同指向 theta0 bootstrap/终态接受门不充分，
+但不把该相关诊断升级为已证明的唯一因果根因。
+
+该结果只以 retrospective development diagnostic 封存：它不是 prereg、qualification、独立复验或效果证据；
+聚合记录位于 `relationship_product_horizon_theta0_opportunity_retrospective_20260826.json`，raw SHA-256 为
+`3403c9e33ecb2b0044fd0f829f9afe8288b622bf5241964bed210b5e43f4ece5`，并明确声明未保存逐行 trace、未实现
+reproduction validator。
+当前 source-v4 三臂 medium campaign 必须停在 `effect_not_tested`，不得用 forced owner recommendation 制造 steer、
+不得事后改 0.5 threshold/bias/order/seed、挑早期 checkpoint。下一合法动作是在新 development protocol 中预先
+冻结 theta0 bootstrap 与最终 public-opportunity 门，再一次性执行；旧 `d9776631…f24` 的
+`development_theta0_materialized=true` 原判词不回改，但它不再满足 Phase 2.5 campaign 入口。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入
