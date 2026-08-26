@@ -1946,6 +1946,21 @@ Learnable、Steerable、任何四轴效果、真人或 production。
 fail closed。冻结 protocol ID 为 `dfefb9faa24084caa5efd1ded24000784350d7e58c63a34c11949fe4b578841e`，
 raw SHA-256 为 `fd3fa87b8e77e466a90f85da5b804248666ec7bf5a1bdf6e7cdcf8afd1c2867e`。
 
+2026-08-26 首个且唯一的 materialization 绑定 implementation commit `66c2d83a…8dd3`，create-only root 为
+`relationship_product_horizon_theta0_v2_bootstrap_20260826_pdfefb9faa240_c66c2d83a`；manifest artifact ID
+`9012b52f…d00e` 已以外传 protocol/artifact 双 ID完成 model-free exact replay。冻结 schedule 仍为
+96 owner-recommendation / 96 neutral-noop；temporal actual delivery 为 97 neutral、42
+`respect_space_with_return_option`、53 `stay_present_without_probe`，即 95/192 physical nonnoop。唯一 batch
+`adb49198…5d14` 闭合 192 exposure / 192 credit / 192 unique credit；APPLY 为 delta 192 / atomic commit 1，
+WITHHOLD 为 delta 0 / commit 0。终态参数 finite、非全零且未触 cap，cold theta0 v2
+`3acd6e4f…9344` 在同一 192 条 training-support forecast 上选出 190 nonnoop / 2 neutral，因而首个终局为
+`development_theta0_v2_materialized_training_support_opportunity_only_effect_not_tested`。
+
+该 PASS 只闭合“固定 batch 可生成不退化候选”的 adaptive development prerequisite：训练 source、旧 theta0 与
+诊断均已看过，190/192 不是独立泛化率，也不证明动作正确、产品收益、Learnable 或 Steerable。source-v4 尚未由
+新 theta0 扫描，`source_v4_opportunity_established=false`、`campaign_execution_authorized=false` 保持不变；下一步
+只能使用另行冻结且明确 transductive 的 public-only opportunity scanner。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入

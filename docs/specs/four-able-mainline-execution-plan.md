@@ -311,3 +311,10 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   成功也只进入另行冻结的 source-v4 transductive public opportunity scanner，不授权 campaign；reader rehearsal
   继续关闭。冻结 protocol `dfefb9fa…841e`（raw `fd3fa87b…2867e`）；forced actual 与 frozen training-support
   nonnoop 口径分离，全零 terminal 也封存为 no-consumable FAIL，不留下 incomplete root。
+- 2026-08-26 · theta0 v2 首个终局已封存并 exact replay：implementation `66c2d83a…8dd3`、artifact
+  `9012b52f…d00e`、candidate theta0 `3acd6e4f…9344`；forced actual nonnoop 95/192，唯一 batch 的
+  APPLY/WITHHOLD 分别为 `192 updates + 1 commit` / `0 updates + 0 commit`，candidate 在双重使用的
+  training-support 上为 190/192 nonnoop。判词严格为
+  `development_theta0_v2_materialized_training_support_opportunity_only_effect_not_tested`：它只解除 theta0
+  本地退化阻断，不是独立能力效果。source-v4 transductive public opportunity、collection-prefix 动态门与
+  campaign 仍未过门，Phase 2.5 继续 NO-GO；reader rehearsal 继续关闭。
