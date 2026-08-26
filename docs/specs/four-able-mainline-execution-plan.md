@@ -63,10 +63,11 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 
 ## 3. 执行纪律（八条硬约束）
 
-1. **彩排先于锚定**：任何"冻结协议 + 公开锚 + 一次性执行"链路，冻结前必须用一次性
-   开发档协议把**完全相同的执行代码路径**（子进程环境构造、模型/CUDA 加载、ledger 写入、
-   scorer 启动）端到端跑通至少一次（2–3 个 item 即可）。彩排产物明确标记
-   `rehearsal_only=true`，不进任何 ledger。v5 级别的 bug 只允许消耗彩排，不允许消耗公开锚。
+1. **正式档默认彩排，显式豁免时承担工程失败风险**：未来"冻结协议 + 公开锚 + 一次性执行"链路
+   默认先用开发档一次性协议跑通相同代码路径；但本轮 Product Horizon gate/pulse/theta/admission 路线与
+   reader v6 已按用户裁决关闭 rehearsal，除非用户重新开启，不生成 2–3 item rehearsal artifact。无彩排
+   只接受更高的执行失败/烧锚风险，不放宽预注册门、失败封存、分歧门、lineage 或禁止事后调参的纪律；
+   public/outcome-free treatment-reachability admission 是永久机制门，不是 rehearsal，仍必须执行。
 2. **收敛包尺寸**：恢复 AGENTS.md §8 口径——一包一 owner、3–8 个关键文件、完成即提交。
    禁止再出现数百文件级 dirty tree；实验 artifact 与代码分包提交。
 3. **单写入者**：同一时间只有一个任务/agent 拥有本工作区写权限；其他任务只读。
@@ -115,9 +116,9 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 `agency_displacement`：`b7d1796e` 已封存常数偏移下的几何诊断）。判词上限仍为
 `post_hoc_mechanical_writeback_replay_only`，不作因果归因，不重复运行。
 
-**1b（正式档，当前推迟）reader qualification v6 执行**：先按 §3.1 彩排完整执行路径（含 Windows
-大写 key 契约、child 环境门、scorer 启动），彩排通过后才冻结新 execution protocol、
-发新 Gist（不复用 v5 锚）、一次性执行 CUDA qualification。判词上限
+**1b（正式档，当前推迟）reader qualification v6 执行**：rehearsal 已按用户裁决关闭；恢复时先跑
+model-free protocol/runtime preflight，随后直接冻结新 execution protocol、发新 Gist（不复用 v5 锚）并
+一次性执行 CUDA qualification，同时接受执行路径 bug 可能再次消耗该锚的风险。判词上限
 `exact_source_reader_development_admitted`（224/224 row + 28/28 group + margin ≥ 0.01，
 预注册门不改）。2026-08-26 的首个 rehearsal 在完成 formal-path 多轮完整性读取期间由用户停止；
 未完成 root 原样保留为 non-evidence，不消耗 protocol/Gist/formal execution。该线不再阻塞 Phase 2/2.5，
@@ -180,9 +181,10 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 机制与 receipt，因此按用户裁决不另启 reader rehearsal 或独立 2–3 item 彩排 artifact；新 worker 先通过
 model-free `validate-existing`。natural-APPLY dynamic collection-prefix、forced common-batch protocol、首个唯一
 materialization、external-ID `validate-existing` 与 campaign-input public seam 均已闭合。三臂 campaign protocol
-`bc4c0882…587c`（raw `9374a71b…19fa`）及实现现已在本收敛包中冻结但尚未执行；必须先提交该包，随后才可用
-其 commit hash 与 fixed seeds 执行首个唯一中等 root-cluster matrix。禁止在提交前试跑完整矩阵，禁止把 unit
-test 或内存统计校验称为 rehearsal/evidence：
+`bc4c0882…587c`（raw `9374a71b…19fa`）由实现提交 `73e9ed7a…64f91` 完成首个唯一中等
+root-cluster matrix；artifact `05e97726…6300` 与纯读取 exact replay 已由证据提交 `41ebea0f…64edf` 封存。
+该运行没有通过 Learnable manipulation gate，因此当前阶段从“跑矩阵”转为“修复唯一 gate owner 后建立新的
+treatment-reachability prerequisite”；禁止重跑旧矩阵、降低分歧门，或把 unit test/参数变化称为效果证据：
 
 当前 forced common-batch 收敛包已选择 112 个 **root-local** schedule/batch，而不是一个 896-credit global
 batch。protocol `dd0d28a7…aff93` 预注册 public-position schedule 父索引 `13c3f8e2…4e9f`、每 root 只执行一次
@@ -193,13 +195,27 @@ batch。protocol `dd0d28a7…aff93` 预注册 public-position schedule 父索引
 但该 PASS 仍只授权 campaign protocol freeze。按用户裁决未生成 2–3 item experimental rehearsal artifact；普通
 unit tests、schedule identity 校验和 model-free `validate-existing` 保留。
 
-当前 campaign freeze 固定 112 roots × 3 arms × 40 evaluation decisions；collection 0–7 排除于所有 effect
-estimand。三臂均生成但不 apply evaluation credit，故 update count 必须全为零；full 使用 forced-batch learned
-gate，frozen_theta0 使用 cold gate 且 executor 仍可非 noop，strict_noop 在相同 cold gate 上机械强制 noop。
-每拍必须三臂 preaction 全部 durable 后才允许 once-only branch settlement，三臂 postaction 全部 durable 后才
-推进 owner。20,000 次 whole-root paired bootstrap、0.05 practical floor、五段 durability 与 0.02
-`over_directive` safety 门均事前固定。当前没有 campaign report、effect 或 stop/go 判词；下一动作是提交本
-protocol/implementation 收敛包，然后执行一次 unique materialization 与纯读取 external-ID `validate-existing`。
+该 campaign 的 112 roots × 3 arms × 40 evaluation 已完整执行；collection 0–7 仍排除于 effect estimand，
+evaluation credit 仍全部不 apply。full 与 frozen_theta0 的 4,480 个 actual action 全同，尽管 learned/cold
+checkpoint 在 112/112 root 不同，Learnable 仍必须判
+`arm_degeneracy_invalid_contrast_no_claim`；参数移动不是 treatment。frozen_theta0 与 strict_noop 有
+4,325/4,480 actual divergence，Steerable 仅得到 development GO candidate，不升级为能力效果。
+
+修复顺序冻结为三个小包：
+
+1. versioned gate operator v2：无 free bias、移除恒定 support、四个 centred typed feature；只消费完整
+   `RelationshipActionCommonBaselineCredit`，以完整 fixed-balanced schedule membership 计算事前 half-centred
+   development feature-moment score，推荐动作为 noop 时 zero-information；精确 balance 不冒充随机化/ATE/CATE，
+   每个实例只允许一次 cold APPLY/WITHHOLD；learned theta0 的构造/恢复必须由 parent+batch+APPLY receipt
+   完整重放且拒绝净零参数，advisory 必须由 frozen policy+forecast 重放 frozen decision；v1 全部原样保留；
+2. v2 pulse/forced consumer：mechanically 绑定 assignment receipt、actual delivery、v2 frozen decision 与
+   APPLY/WITHHOLD replay，不复用或改名 v1 receipt；
+3. theta0 v3 + permanent treatment-reachability admission：事前冻结 bootstrap `1/512` 与 root-online `1/4`、
+   完整 896-entry development batch、唯一 terminal checkpoint 与 cap-hit FAIL；admission 只读新 source 的
+   public/outcome-free surface，不生成 outcome/PE/credit/update，不是 rehearsal。
+
+三个包与 admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
+预先 sealed reactive source；当前 source-v4 只可作为已花费的 adaptive development training lineage。
 
 1. 冻结选择 N=112 的 development operational marker；每 root 的 8 条 matched collection 不进入效果
    estimand，随后五段各 8 条、共 40 条 evaluation。112 是 synthetic roots，不是真人或 formal N；
@@ -398,3 +414,18 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   receipt，并由 typed external evidence 重算 settlement→matching social PE→credit；同 action 跨臂必须复用
   exact source branch。本包只执行 unit/contract 与纯内存统计校验，不运行完整 campaign、模型、CUDA 或
   Gist。当前不存在 outcome/effect/stop-go；提交本冻结包后才允许首个唯一 materialization。
+- 2026-08-27 · Phase 2.5 首个唯一 development campaign 已终局并封存：implementation
+  `73e9ed7a…64f91`、artifact `05e97726…6300`、证据提交 `41ebea0f…64edf`；336 terminal state、
+  36,066 trace row 经外传双 ID 纯读取 exact replay。full/frozen 的 4,480 个 actual action 全同，故
+  Learnable 为 `arm_degeneracy_invalid_contrast_no_claim`，参数/checkpoint 变化不得冒充 treatment；
+  frozen/strict 有 4,325 个 actual divergence，Steerable 只保留 development GO candidate。campaign 总状态
+  `development_campaign_completed_contrast_invalid_no_claim`，不授权 power prereg、formal 或任一 able 效果。
+- 2026-08-27 · Learnable 修复裁决：拒绝事后挑早期 checkpoint、移动 threshold/bias 或仅靠小 LR 制造 crossing。
+  新 versioned gate operator v2 保留旧 v1 全谱系，删除 free bias/恒定 support，使用四个 centred typed
+  forecast feature；forced assignment 只消费 `e2e25718` 冻结的 common-noop-baseline typed credit，并按完整
+  fixed-balanced schedule 的 half-centred development feature moment 对称更新，owner recommendation 为 noop
+  时发布 zero-information receipt。learned theta0 load 必须携完整 parent/batch/APPLY receipt 重放且净更新非零；
+  SHADOW advisory 必须携 policy+forecast 重放 decision。该 score 不是随机化/因果效应/ATE/CATE/Learnable 证明。bootstrap/online
+  rate 分别预定 `1/512` 与 `1/4`，但须等 v2
+  pulse seam 与 theta0 v3 protocol 各自冻结后才能物化。执行前只读 public/outcome-free treatment-reachability
+  admission 是永久 manipulation gate，不是实验 rehearsal；reader/model/CUDA 继续不启动。

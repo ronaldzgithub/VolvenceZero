@@ -51,8 +51,21 @@
 > `f1a5b2f6…aaf4` / trace `e9cf896b…f295` 经外传双 ID exact replay 与 bytes/size/mtime no-write 复验。
 > 112 个首拍 seam、784 个 owner handoff、896 个 writeback/PE/credit 均闭合；temporal delivered nonnoop
 > 为 `742/896` 且覆盖 112/112 roots。scanner 中 5 个首拍 noop root 原样保留，两个 witness 仍不是 aggregate
-> Steerable。dynamic PASS 只提升 `forced_common_batch_protocol_freeze_authorized=true`；forced-batch execution、
-> evaluation、campaign、formal/unseen/integrated、四轴效果与 production 仍全部 false，reader rehearsal 继续关闭。
+> Steerable。其后 forced common-batch artifact `92880fb7…40d7` 闭合 112 个 root-local 8-credit batch，
+> 112/112 APPLY 非零且零 cap-hit。protocol `bc4c0882…587c` 的首个唯一三臂 campaign 已由 implementation
+> `73e9ed7a…64f91` 生成 artifact `05e97726…6300` 并通过纯读取 exact replay：336 terminal state、36,066
+> trace row；full/frozen 在 4,480 个 evaluation decision 上 actual action 全同，故 Learnable contrast 终局
+> `arm_degeneracy_invalid_contrast_no_claim`，不得用不同 policy/checkpoint/概率冒充 treatment。frozen/strict
+> divergence 为 4,325/4,480，只保留 development Steerable GO candidate。新修复已进入唯一 gate owner 的
+> versioned operator v2：移除 free bias 与恒定 support，以四个 centred typed feature 和事前 half-centred
+> forced-assignment common-noop-baseline credit development feature-moment objective 更新，并对 recommended noop
+> 发布 zero-information receipt；完整 fixed-balanced schedule/entry membership、single cold-batch APPLY/WITHHOLD、
+> parent+batch+APPLY-receipt component replay、净零 theta 拒绝与 policy+forecast→decision advisory replay 均
+> fail closed。精确 balance 不是随机化或
+> causal effect，当前 schema 不提供 randomized enum；v1 谱系不改。
+> 当前仅 owner contract/unit tests，pulse seam、theta0 v3、public/outcome-free treatment-reachability admission 与
+> 新 source campaign 均待完成。reader rehearsal、模型与 CUDA 继续关闭；formal/unseen/integrated/四轴效果与
+> production 全部 false。
 >
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
 > 下方 `Last reconciled` 长段中的 P4.7 v3 只作历史 design freeze 记录；当前 planning authority 以上述 v4a 为准。

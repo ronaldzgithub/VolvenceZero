@@ -2224,11 +2224,66 @@ primary lower bound 与 safety upper bound；practical floor 预注册为 0.05�
 与 power markers 同时报告；任何 GO 只授权设计新的 power/prereg protocol，不构成能力效果结论。
 
 本 protocol 事前固定 `rehearsal_enabled=false / rehearsal_required=false`，且不调用模型、CUDA、Gist 或
-进程 firewall。当前包只冻结协议、实现、public facade 与 model-free contract tests；尚未 materialize 这
-112×3×40 矩阵，尚无 outcome、effect 或 stop/go 结果。首个唯一 materialization 只能在本收敛包提交后执行。
-即使未来 GO，source texts 已 transductively observed、reader 未资格化、virtual gap 不是真实长陪伴、root
-不是真人且 typed executor 不是 residual physical actuation，故仍不得声称 Appendable、Readable、Learnable、
+进程 firewall。冻结实现提交 `73e9ed7a…64f91` 后完成首个唯一 materialization；artifact
+`05e97726…6300` 已由外传 protocol/artifact 双 ID 纯读取重放，并以证据提交 `41ebea0f…64edf` 封存。
+矩阵生成 336 个 terminal state、36,066 行 trace；full 与 frozen_theta0 在 4,480 个 evaluation decision
+上的 actual action **全部相同**，因此 Learnable contrast 按预注册机制门终局为
+`arm_degeneracy_invalid_contrast_no_claim`，campaign 总状态为
+`development_campaign_completed_contrast_invalid_no_claim`。full 虽然 112/112 root 的 learned policy ID/
+checkpoint 均不同于 cold，但 4,400 个 probability 上升、80 个下降仍没有一次跨过 0.5，参数变化不能冒充
+behavior treatment。Steerable development contrast 的 frozen_theta0−strict_noop actual divergence 为
+4,325/4,480，方向、simultaneous lower bound 与 safety 均为正向 GO candidate；它仍不是 formal effect 或完整
+Steerable 证明。source texts 已 transductively observed、reader 未资格化、virtual gap 不是真实长陪伴、root
+不是真人且 typed executor 不是 residual physical actuation，故不得声称 Appendable、Readable、Learnable、
 Steerable、四轴合取、unseen/formal、人类有效性、production ACTIVE 或 thesis 完成。
+
+#### Product Horizon Learnable treatment failure 与 gate operator v2
+
+对 `05e97726…6300` 的只读 trace 审计确认：full/frozen 的 forecast、owner prestate、candidate recommendation
+逐拍相同；cold probability 为 `0.997415–0.998564`，full 为 `0.997428–0.999650`，两臂 4,480/4,480
+gate action 均为 `steer`。theta0 v2 的 free bias 与整个 surface 恒为 1 的 `typed_source_support` 权重都约为
+2.497，仅重复截距即贡献约 4.994 logit。旧 forced batch 还把 exogenous forced action 代入依赖当前 gate
+probability 的 on-policy score；当 gate 已饱和时，nonnoop 负 credit 的梯度被压小，而 noop 负 credit 会大幅
+推高 steer，故不能只靠换小 learning rate、挑早期 checkpoint、移动 threshold 或手调 bias 修复。旧 protocol、
+artifact、receipt 与 invalid 判词全部原样保留。
+
+新 owner contract `lifeform_domain_emogpt.relationship_action_gate_v2` 是既有 relationship-action gate owner 的
+versioned operator，不是第二策略 owner，也不替换 v1 loader。它冻结以下不变量：
+
+- feature 仅含四个 typed owner forecast 的 bounded centred value；删除 free bias 与恒定
+  `typed_source_support`，threshold 永久为 `p > 0.5`；
+- forced exposure 必须绑定完整 content-addressed assignment schedule 与 exact entry member、candidate/noop role、
+  actual delivered action、exact half-centering 与 cold frozen decision；batch 必须按序完整耗尽同一 schedule，
+  不接受调用方自造 schedule/entry digest。`fixed-balanced-half.v1` 只是 development finite-population objective，
+  不冒充 propensity 0.5 或 randomized assignment；当前 schema 刻意不提供 randomized enum，未来 formal source
+  必须另立随机化 owner/schema并证明 pre-outcome seal、条件概率、positivity 与 sequential consistency；
+- 参数贡献固定为 `common_baseline_credit × (assignment − 0.5) × centred_features`；typed credit 来自
+  `e2e25718` 冻结的完整 forecast→ENVIRONMENT evidence→settlement→Social PE→parent action-credit replay，
+  common baseline 永久为同一 pre-action forecast 的 `neutral_noop`。gate 不读取 evaluation/judge、hidden
+  condition、preferred action 或 raw dialogue，也不使用 gate probability 当 forced-action behavior probability；
+- owner recommendation 自身为 `neutral_noop` 时，两种 assignment 没有物理 treatment 差异，必须记作
+  zero-information exposure：credit identity 仍进入 processed receipt，参数贡献严格为零；
+- bootstrap 与 online 两个 learning rate、cap、operator/objective、feature order、threshold、bootstrap source、
+  parent artifact、source batch、APPLY receipt 与 source checkpoint 均进入 artifact identity；每个 gate instance
+  只允许一次 cold batch transition，APPLY/WITHHOLD 都封住后续 transition。receipt 披露
+  informative/zero-information、candidate/noop 与 cap-hit count，WITHHOLD 保持 exact pre-state并保留同批 receipt；
+  learned theta0 的构造与 payload 恢复都只接受 parent bootstrap artifact + exact batch + APPLY receipt
+  components 的完整重放；informative count 非零但参数净变化全零时不得发布 theta0，且 `dataclasses.replace`
+  不能绕过这项类不变量。decision 强制 `p > 0.5 ⇔ STEER`；advisory 必须同时取得 frozen decision、完整
+  frozen policy 与原 forecast 做 exact replay，并把 forecast bytes、policy/checkpoint lineage 全部绑定，不能由
+  caller-authored decision 单独生成。common credit compact payload 不能恢复 parent；batch loader 必须额外取得
+  完整 typed credits 并逐项 exact-match audit projection。
+
+当前只完成这个 owner contract 与 model-free 定向 unit/contract tests；它发布的是 fixed-balanced
+assignment-weighted **feature moment**，不是 treatment effect、ATE/CATE 或 Learnable 证据。尚未接 pulse/forced
+consumer，尚无 theta0 v3 protocol/
+artifact、outcome-free treatment-reachability admission 或新 campaign。下一收敛包必须新增 v2 pulse seam，而不是
+给 v1 receipt 改名；随后 theta0 v3 才可事前冻结 `bootstrap=1/512`、`root-online=1/4`、完整 896-entry
+development batch、唯一 terminal checkpoint 与 cap-hit FAIL。两率来自两个明确时间尺度并须一起进 hash，禁止
+在输出后 sweep/挑候选。执行前 permanent admission 只可读取未来 source 的 public/outcome-free surface，检查
+cold 两侧 headroom 与实际 candidate/noop 可达性；它不是 2–3 item rehearsal，不生成 outcome/PE/credit/update。
+完整 campaign 内仍须以 actual delivered-action divergence、root/segment coverage、reactive endpoint、safety 与
+durability 裁决 Learnable；参数 hash、probability movement、reachability PASS 均不得升级为效果结论。
 
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
