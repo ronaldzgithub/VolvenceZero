@@ -153,14 +153,17 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
    注意
    source-v3 exact texts 已被 v5/v6 资格链见过，只能用于 admission 与 SHADOW；
    各轴 unseen 单轴门必须另立 disjoint source revision。
-   **112-root source-v4 owner（已冻结、admission 待完成）**：独立 owner 不修改上述 8/24 source-v3
+   **112-root source-v4 owner 与 input admission（已完成）**：独立 owner 不修改上述 8/24 source-v3
    envelope 或 admission closure；冻结 112 synthetic roots ×（4 onboarding + 8 collection + 40 evaluation），
    onboarding 为旧 base policy，collection 与 evaluation 共享反转后的 complementary policy，避免在冻结
    evaluation gate 时把过时学习预先设计成负效应；五个 evaluation segment 各 8 条。public trajectory 与
    去身份 causal tape 均须 112/112 唯一，5,376 个 environment seed 全异；现 owner 可确定性 replay
-   16,128 条三动作 branch、不拥有 collection forced action，branch 持久化/byte closure 待 admission。当前不是
-   `campaign_input_admitted`。protocol/public/sealed identity 为 `dbf05262…1d91 / f46336a9…86d6 /
-   51900ec7…8936`；当前也没有 reader table、campaign、模型/CUDA 或效果 authority。
+   16,128 条三动作 branch、不拥有 collection forced action。development admission protocol
+   `b3988b21…2102` 以 implementation commit `b55ce6ad…` 生成单份六文件 compact commitment artifact
+   `4cc1ec45…dd54`，pre-manifest 第二次全重建/磁盘 byte compare 与独立外部双 ID
+   `validate-existing` 均通过，因此只提升 `campaign_input_admitted=true`。source protocol/public/sealed identity
+   为 `dbf05262…1d91 / f46336a9…86d6 / 51900ec7…8936`；reader table、theta0、forced-action schedule、
+   campaign、模型/CUDA 与效果 authority 仍全部为 false/zero。
 3. **功效修正**：下一版 Horizon 每个 durability segment ≥ 6–8 个决策，或增加
    matched worlds；每轴的 N 由该轴独立 power 选择（既有 screen 已显示某 5pp 场景
    需 N=538，禁止用 537 冒充充分样本）。分段样本量必须随报告发布。
@@ -287,3 +290,8 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   `validate-existing` 的 byte-exact 复验。PID 只作 self-reported receipt，
   `fresh_process_independence_proven=false`；唯一新增正判词为 `campaign_input_admitted=true`。
   用户关闭的 reader rehearsal 继续不启动。本记录不授权 campaign、CUDA、formal 或 integrated run。
+- 2026-08-26 · source-v4 medium input 完成：`36466b59` 冻结 112 roots × 48 decisions 的独立 owner；
+  `b55ce6ad` 冻结轻量 development admission；artifact `4cc1ec45…dd54` 由 protocol
+  `b3988b21…2102` 生成并通过独立外部双 ID `validate-existing`。正式树只保留一份 public/evaluator 与
+  16,128 个 branch digest，未复制 replay A/B/PID comparator；结论上限仅 `campaign_input_admitted=true`，
+  不授权 reader/theta0/forced action/campaign/model/CUDA 或任何能力效果。

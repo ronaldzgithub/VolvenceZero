@@ -153,7 +153,7 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P4.6-fit model-bound artifact prerequisite owner | `volvence_zero.agent.relationship_p4_steering_artifact_fit` / `vz-runtime` | 只用 canonical strict substrate factory 构造精确 Qwen2.5-1.5B runtime，并把一次 reader/conditional executor/matched sensor-off fit 委托给既有 `fit_steering_artifact_bundle` owner；不复制数学、不接产品 wiring |
 | P4.6-actuation physical residual preflight owner | `volvence_zero.agent.relationship_p4_physical_residual_actuation` / `vz-runtime` | 认证精确 P4.6-fit 根后，以既有 sensor / executor / strict substrate direct hook 跑四臂 synthetic physical-effect preflight；只编排与发布证据，不复制 reader/executor 数学、不生成回复、不接产品 wiring |
 | Product Horizon source owners | legacy `lifeform-domain-emogpt.lab.relationship_product_pilot_source` 只拥有 source-v1；independent `lifeform-domain-emogpt.lab.relationship_product_pilot_source_v2` 只拥有 live source-v3 | legacy owner implementation 固定为 `15162708…972ae`，无参数路径/loader 永远默认字节兼容 v1。已公开 source-v2 JSON/owner metadata 只作 immutable base；source-v3 wrapper 逐字节 pin 它并由 independent owner 物化全新 8 个 development world clone、seed/domain/rendering/identity namespace 与每 condition 14 个不复用 public semantic surface。sealed evaluator truth 仍物理分离，当前不接 campaign、不产模型输出或证据结论 |
-| Product Horizon medium source-v4 owner | `lifeform-domain-emogpt.lab.relationship_product_horizon_source_v4` | 新 frozen envelope 独立承载 112 roots ×（4 onboarding + 8 collection + 40 evaluation），不修改硬编码 8/24 的 source-v3 owner/envelope 或既有 admission closure。每 root 的 public trajectory 与去身份 causal tape 均唯一；owner 可经既有 environment 确定性 replay 三动作分支但不选择 forced action/arm，持久化 commitment/byte closure 待 admission。当前尚未接 reader/campaign、未产模型/CUDA/效果结论 |
+| Product Horizon medium source-v4 owner | `lifeform-domain-emogpt.lab.relationship_product_horizon_source_v4` | 新 frozen envelope 独立承载 112 roots ×（4 onboarding + 8 collection + 40 evaluation），不修改硬编码 8/24 的 source-v3 owner/envelope 或既有 admission closure。每 root 的 public trajectory 与去身份 causal tape 均唯一；owner 可经既有 environment 确定性 replay 三动作分支但不选择 forced action/arm。commitment/byte closure 已由独立 artifact `4cc1ec45…dd54` 准入；当前仍未接 reader/campaign、未产模型/CUDA/效果结论 |
 | Product Horizon medium source-v4 admission owner | `lifeform-evolution.relationship_product_horizon_source_admission` | 显式 v4 development lane，不修改或自动升级 frozen source-v3 admission。单份 create-only 六文件根持久化 admission/source protocol、public plan、sealed evaluator 与 16,128 个完整 branch preimage 的 compact digest index；第二次全量重建/磁盘 byte compare 通过后才 manifest-last。future consumer 的只读 `validate-existing` 由外部 expected protocol/artifact ID 驱动。只派生 input admission，不复制 replay A/B、PID comparator 或 Gist，不拥有 reader/theta0/forced action/campaign/effect |
 | Product Horizon source-v3 campaign-input admission owner | `lifeform-evolution.relationship_product_source_admission` | 只读既有 independent source owner 与 `ReactiveRelationshipEnvironment`，以 development protocol `98d51d84…6338` 精确 pin raw/canonical/public/sealed identity 及直接执行闭包；官方 cooperative CLI 启动两个 fresh model-free worker，各物化 8/32/192 source inventory 与 576 条三动作 sealed potential-outcome commitment，第三进程 byte-exact 比对。可转移判词不声称 PID 可证明进程独立性。最多派生 `campaign_input_admitted=true`；不验证未来 pre-action→actual-action→reaction runtime 顺序，不授权 campaign/model/CUDA/formal/integrated/四轴结论，也不把已进入 reader 谱系的 source-v3 充作 unseen formal source |
 | Product Horizon reader 资格预检 owner | `lifeform-evolution.relationship_condition_reader_qualification` | 历史 qualification-v1 原样保留；live qualification-v2 显式从 legacy source-v1 training 与 independent source-v3 challenge 的 public/evaluator snapshot 投影生成 model-free、create-only split。prediction request 每行严格只有 opaque item ID、exact text 与 text SHA，challenge label/group 继续 sealed。当前不加载 BGE/CUDA、不授权 qualification/campaign，也不新增 runtime owner |
@@ -1567,8 +1567,8 @@ collection forced-action schedule 属于未来 campaign prereg，不属于 sourc
 public value 不含 condition/policy/preferred action/seed/segment/future outcome，已发生 onboarding action/outcome
 仍可公开。`ReactiveRelationshipEnvironment` 继续是唯一 settlement owner，没有新增 runtime slot。
 
-该 owner 只冻结 medium-matrix 输入候选：112 是合成 root，不是真人样本；当前尚未完成 consumer-specific
-source-v4 admission，也未为全新 public texts 物化真实 BGE table，更没有接 gate、worker 或 CUDA。允许的未来
+该 owner 只冻结 medium-matrix 输入候选：112 是合成 root，不是真人样本；consumer-specific source-v4
+admission 已由 artifact `4cc1ec45…dd54` 完成，但尚未为全新 public texts 物化真实 BGE table，更没有接 gate、worker 或 CUDA。允许的未来
 用途仅是独立 prereg 后的 development 方向、方差/root-level ICC、成本与 full-N feasibility；formal unseen、
 integrated、真人、产品收益和 Appendable/Readable/Learnable/Steerable 判词全部为 false。source-v3 的 8 roots
 可以另作 evaluation 外 theta0 calibration/probe，但不得与这 112 roots 重复或冒充其中一部分。
@@ -1598,8 +1598,9 @@ pinned `ReactiveRelationshipEnvironment` 重算，避免复制第二 truth owner
 `campaign_input_admitted=true` 的最终 manifest；缺 manifest 的中断根一律不是 admitted artifact。future campaign
 消费前仍须由调用方外传 expected protocol/artifact ID 执行只读 `validate-existing`。reader input/qualification、theta0、collection forced-action schedule、campaign
 execution、model/CUDA、formal/unseen/integrated、四能力效果、真人样本与 production authority 均冻结为
-false/zero。当前收敛包只冻结实现与 protocol，正式 admission artifact 尚未执行；生成后必须另包提交，
-未来 112-root campaign 只允许单向 pin 其 artifact ID。
+false/zero。implementation commit `b55ce6ad…` 已生成六文件 artifact `4cc1ec45…dd54`；独立
+`validate-existing` 以外部 protocol `b3988b21…2102` / artifact 双 ID 全量重建并逐文件 byte-exact 通过。
+因此唯一新增正事实是 `campaign_input_admitted=true`；未来 112-root campaign 只允许单向 pin 该 artifact ID。
 
 ### Product Horizon v1（development product-level long-horizon pilot）
 

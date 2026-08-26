@@ -36,9 +36,10 @@
 > `campaign_input_admitted=true`；campaign/runtime-order/model/CUDA/formal/integrated/四轴 authority 仍全部为 false。
 > medium matrix 不重复这 8 个 root：独立 source-v4 owner 已冻结 112 synthetic roots ×（4 onboarding +
 > 8 collection + 40 evaluation），五个 evaluation segment 各 8 条；112 条去身份 causal tape 全异，
-> 5,376 个 environment seed 全异，现 owner 可由既有 environment 确定性 replay 16,128 个
-> action-conditioned branch、不选择 arm/forced action；branch 持久化与 byte closure 仍待 source-v4 admission。
-> 当前仍待 source-v4 consumer-specific admission 与真实 BGE table，未授权 campaign/model/CUDA 或任何效果结论。
+> 5,376 个 environment seed 全异。source-v4 development admission `b3988b21…2102` 已把 public/sealed
+> inventory 与 16,128 个 compact action-conditioned commitment 封存为六文件 artifact
+> `4cc1ec45…dd54`，并由外部 protocol/artifact 双 ID 的 `validate-existing` 全量复验通过。
+> 该事实仅使 `campaign_input_admitted=true`；真实 BGE table、reader/theta0、campaign/model/CUDA 与任何效果结论仍未授权。
 >
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
 > 下方 `Last reconciled` 长段中的 P4.7 v3 只作历史 design freeze 记录；当前 planning authority 以上述 v4a 为准。
