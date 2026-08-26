@@ -1,0 +1,106 @@
+{
+  "schema_version": "relationship-product-horizon-source-admission-protocol.v1",
+  "evidence_tier": "development",
+  "owner": "lifeform_evolution.relationship_product_horizon_source_admission",
+  "source": {
+    "schema_version": "relationship-product-horizon-source.v4",
+    "protocol_raw_sha256": "29162022c011b311369816f74087b16c9b262dc50a7a7434227d150b3b2e8bd3",
+    "protocol_raw_bytes": 4977,
+    "protocol_id": "dbf0526299558842b52f293875520e4524afff0e5a1636ab1fd10da9f74d1d91",
+    "public_plan_sha256": "f46336a95aeac2c7be60616388a31333fb45e46cd18320dae2f9bd25179a86d6",
+    "sealed_bundle_sha256": "51900ec798a8afdbcdab7547b1ad2c7c22fc098122900ec96050a5931c308936"
+  },
+  "direct_execution_closure": [
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_horizon_source_v4.py",
+      "raw_bytes": 100837,
+      "raw_sha256": "9d1ac4a50748871d91a9df20e04b0a1a7566822328a4b99483963eb8c17eb9c4"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_horizon_source_v4.json",
+      "raw_bytes": 4977,
+      "raw_sha256": "29162022c011b311369816f74087b16c9b262dc50a7a7434227d150b3b2e8bd3"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/environment.py",
+      "raw_bytes": 4410,
+      "raw_sha256": "1e860fe637d25789203909dc576687e7446d6acb1f0033ca1d079e8b14268f58"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/dataset.py",
+      "raw_bytes": 60675,
+      "raw_sha256": "8c86dcc211187518d275117f050ddefeaa07942f13105fd4a495473196959465"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/contracts.py",
+      "raw_bytes": 21390,
+      "raw_sha256": "43ec747a9b3fef94f168b5af9b9f515cc00ae2d1a9ae18549eab7e618728d762"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/relationship_action_contracts.py",
+      "raw_bytes": 1190,
+      "raw_sha256": "dc1907cc67d76536b88894f5e06c907ec4651a76acab0fe28531ffe14db2b526"
+    },
+    {
+      "path": "packages/vz-contracts/src/volvence_zero/dialogue_trace.py",
+      "raw_bytes": 22777,
+      "raw_sha256": "595064914d031e79bfb6519d899e52723d657804c6ac0f87d417ed6f38206411"
+    }
+  ],
+  "inventory": {
+    "root_count": 112,
+    "onboarding_session_count": 448,
+    "collection_decision_count": 896,
+    "evaluation_decision_count": 4480,
+    "decision_count": 5376,
+    "action_order": [
+      "stay_present_without_probe",
+      "respect_space_with_return_option",
+      "neutral_noop"
+    ],
+    "action_counterfactual_commitment_count": 16128
+  },
+  "randomness": {
+    "seed_owner": "sealed evaluator decision environment_seed",
+    "selected_action_is_in_draw_hash": true,
+    "common_random_number_design": false,
+    "arm_identity_affects_source_or_environment_seed": false,
+    "all_action_branches_sealed_before_campaign": true
+  },
+  "replay": {
+    "materialization_count": 1,
+    "pre_manifest_full_rebuild_required": true,
+    "consumer_validate_existing_required": true,
+    "byte_exact_required": true,
+    "process_independence_security_claim": false
+  },
+  "claims": {
+    "campaign_input_admission_may_be_derived": true,
+    "campaign_execution_authorized": false,
+    "campaign_runtime_order_verified": false,
+    "collection_forced_action_schedule_frozen": false,
+    "reader_input_materialized": false,
+    "reader_qualified": false,
+    "theta0_materialized": false,
+    "model_execution_authorized": false,
+    "cuda_execution_authorized": false,
+    "formal_evidence_authorized": false,
+    "unseen_single_axis_evidence": false,
+    "integrated_horizon_authorized": false,
+    "appendable_effect": false,
+    "readable_effect": false,
+    "learnable_effect": false,
+    "steerable_effect": false,
+    "four_able_complete": false,
+    "human_validation_complete": false,
+    "human_sample_claimed": false,
+    "production_active": false,
+    "process_independence_proven": false,
+    "source_v3_admission_inherited": false,
+    "common_random_number_design": false,
+    "direction_variance_icc_or_cost_estimated": false,
+    "model_output_count": 0,
+    "cuda_invocation_count": 0
+  },
+  "claim_boundary": "This development-tier protocol admits only the deterministic source-v4 campaign input. A create-only materializer first writes the admission/source protocol, public source plan, sealed evaluator bundle, and compact commitments for all 5,376-by-3 action-conditioned potential outcomes; it then performs a second full semantic rebuild and byte comparison before writing the manifest last. A future consumer must still invoke read-only validate-existing with externally supplied protocol and artifact identities before use. The completed artifact is a six-file root. It intentionally makes no fresh-process or security-independence claim: cooperative PID ceremonies would not change this development input estimand. Random draws are action-specific because selected_action is part of the environment hash; this is not a common-random-number design. Admission does not verify future pre-action receipt ordering, actual-action delivery, PE-credit application, reader input or qualification, theta0 calibration, or campaign execution. It authorizes no model or CUDA run, formal or integrated evidence, Appendable, Readable, Learnable, Steerable or four-axis effect, human evidence, or production ACTIVE. The 112 units are synthetic roots, not people. This Product Horizon protocol shares no estimand, N, protocol identity, or evidence claim with A1 reactive-source qualification or the A2 MSC budget line."
+}
