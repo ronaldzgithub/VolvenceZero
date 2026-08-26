@@ -46,6 +46,17 @@ _DYNAMIC_ROOT = _REPO_ROOT / (
     "relationship_product_horizon_dynamic_collection_prefix_20260826_"
     "p47cea5fae3be_cc275bd908afd"
 )
+_FORCED_ROOT = _REPO_ROOT / (
+    "artifacts/relationship_lab/"
+    "relationship_product_horizon_forced_common_batch_20260827_"
+    "pdd0d28a72f9e_c5d028d9ce41b"
+)
+_FORCED_PROTOCOL_ID = (
+    "dd0d28a72f9e3d046f6aaab2ab2b24c0528c42f767c08610857de8a77f4aff93"
+)
+_FORCED_ARTIFACT_ID = (
+    "92880fb7f6f692475c0fa5f57705e175508788574bc6f0b356887312e57f40d7"
+)
 
 
 def _dependencies() -> subject._Dependencies:
@@ -169,6 +180,150 @@ def test_schedule_index_is_public_position_only_and_root_local() -> None:
     with pytest.raises(ValueError, match="contiguous and ordered from zero"):
         subject.RelationshipProductForcedCollectionScheduleArtifact(
             entries=(*schedules[0].entries, *schedules[1].entries)
+        )
+
+
+def test_public_campaign_input_loader_returns_fresh_typed_arm_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before = {
+        name: (
+            (_FORCED_ROOT / name).read_bytes(),
+            (_FORCED_ROOT / name).stat().st_size,
+            (_FORCED_ROOT / name).stat().st_mtime_ns,
+        )
+        for name in subject._OUTPUT_FILES
+    }
+    reads: list[pathlib.Path] = []
+    original_read_bytes = pathlib.Path.read_bytes
+
+    def tracked_read_bytes(path: pathlib.Path) -> bytes:
+        reads.append(path.resolve())
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(pathlib.Path, "read_bytes", tracked_read_bytes)
+    inputs = subject.load_relationship_product_horizon_forced_campaign_inputs(
+        source_v4_admission_root=_SOURCE_ROOT,
+        reader_root=_READER_ROOT,
+        theta0_v2_root=_THETA_ROOT,
+        scanner_root=_SCANNER_ROOT,
+        dynamic_root=_DYNAMIC_ROOT,
+        forced_common_batch_root=_FORCED_ROOT,
+        expected_forced_protocol_id=_FORCED_PROTOCOL_ID,
+        expected_forced_artifact_id=_FORCED_ARTIFACT_ID,
+    )
+
+    assert inputs.forced_protocol_id == _FORCED_PROTOCOL_ID
+    assert inputs.forced_artifact_id == _FORCED_ARTIFACT_ID
+    assert inputs.public_view.public_plan_sha256 == inputs.public_plan_sha256
+    assert len(inputs.roots) == 112
+    assert not hasattr(inputs, "_dynamic_dependencies")
+    assert not hasattr(inputs, "open_selected_branch_environment")
+    lineage = {item.name: item.value for item in inputs.lineage}
+    assert len(lineage) == len(inputs.lineage)
+    assert inputs.lineage_schema_version == (
+        subject.FORCED_CAMPAIGN_INPUT_LINEAGE_SCHEMA_VERSION
+    )
+    assert inputs.lineage_id == subject.sha256_json(
+        {
+            "schema_version": inputs.lineage_schema_version,
+            "entries": [
+                {"name": item.name, "value": item.value}
+                for item in inputs.lineage
+            ],
+        }
+    )
+    assert lineage["forced_schedule_index_id"] == (
+        "13c3f8e251d1679b38491569fde267a7177429ad251688c3528f993af5cb4e9f"
+    )
+    assert lineage["dynamic_artifact_id"] == (
+        "f1a5b2f6093f0c2a8c86401feb1468867ca8948dabe4a61b832dca1970b4aaf4"
+    )
+    assert lineage["source_v4_source_protocol_id"] == (
+        "dbf0526299558842b52f293875520e4524afff0e5a1636ab1fd10da9f74d1d91"
+    )
+    assert lineage["reader_artifact_id"] == (
+        "ded8c0dcef7ef3aa0c7cdaacfc16e2070787a0f5a3d13f391a16d7f2623dcbb6"
+    )
+    assert lineage["theta0_v2_artifact_id"].startswith(
+        "relationship-action-gate-theta0-sha256:"
+    )
+    forbidden_environment_inputs = {
+        (_SOURCE_ROOT / "source/source_protocol.json").resolve(),
+        (_SOURCE_ROOT / "sealed/evaluator_bundle.json").resolve(),
+        (
+            _SOURCE_ROOT
+            / "sealed/action_counterfactual_commitment_index.json"
+        ).resolve(),
+    }
+    assert forbidden_environment_inputs.isdisjoint(reads)
+    after = {
+        name: (
+            (_FORCED_ROOT / name).read_bytes(),
+            (_FORCED_ROOT / name).stat().st_size,
+            (_FORCED_ROOT / name).stat().st_mtime_ns,
+        )
+        for name in subject._OUTPUT_FILES
+    }
+    assert after == before
+    first = inputs.roots[0]
+    assert first.root_sequence_index == 0
+    assert first.public_root.decision_sessions[8].decision_index == 8
+    assert first.schedule_artifact_id.startswith(
+        "relationship-product-forced-collection-schedule-sha256:"
+    )
+    arms = first.fresh_arm_initializations()
+    assert tuple(item.arm_id.value for item in arms) == (
+        "full",
+        "frozen_theta0",
+        "strict_noop",
+    )
+    full, frozen, strict = arms
+    owners = tuple(item.owner_persistence_snapshot for item in arms)
+    assert owners[0] == owners[1] == owners[2]
+    assert len({id(item) for item in owners}) == 3
+    assert len({id(item.payload) for item in owners}) == 3
+    assert full.batch_receipt == first.apply_receipt
+    assert frozen.batch_receipt == strict.batch_receipt == first.withhold_receipt
+    assert full.frozen_policy.policy_id == first.full_policy_id
+    assert full.frozen_policy.checkpoint.update_count == 8
+    assert frozen.frozen_policy == strict.frozen_policy
+    assert frozen.frozen_policy is not strict.frozen_policy
+    assert frozen.frozen_policy.checkpoint.update_count == 0
+    assert not frozen.frozen_policy.checkpoint.processed_credit_ids
+    assert frozen.frozen_policy.policy_id == first.cold_frozen_policy_id
+    assert full.executor_disposition.value == "apply_candidate"
+    assert frozen.executor_disposition.value == "apply_candidate"
+    assert strict.executor_disposition.value == "force_strict_noop"
+    assert len({id(item.forecast_runtime) for item in arms}) == 3
+    assert len({item.forecast_runtime.runtime_id for item in arms}) == 1
+    with pytest.raises(KeyError, match="absent from table"):
+        full.forecast_runtime.read_condition(
+            "this text is intentionally absent from the frozen table"
+        )
+
+    with pytest.raises(ValueError, match="protocol ID drifted"):
+        subject.load_relationship_product_horizon_forced_campaign_inputs(
+            source_v4_admission_root=_SOURCE_ROOT,
+            reader_root=_READER_ROOT,
+            theta0_v2_root=_THETA_ROOT,
+            scanner_root=_SCANNER_ROOT,
+            dynamic_root=_DYNAMIC_ROOT,
+            forced_common_batch_root=_FORCED_ROOT,
+            expected_forced_protocol_id="e" * 64,
+            expected_forced_artifact_id=_FORCED_ARTIFACT_ID,
+        )
+
+    with pytest.raises(ValueError, match="artifact ID drifted"):
+        subject.load_relationship_product_horizon_forced_campaign_inputs(
+            source_v4_admission_root=_SOURCE_ROOT,
+            reader_root=_READER_ROOT,
+            theta0_v2_root=_THETA_ROOT,
+            scanner_root=_SCANNER_ROOT,
+            dynamic_root=_DYNAMIC_ROOT,
+            forced_common_batch_root=_FORCED_ROOT,
+            expected_forced_protocol_id=_FORCED_PROTOCOL_ID,
+            expected_forced_artifact_id="f" * 64,
         )
 
 

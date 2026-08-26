@@ -2165,6 +2165,21 @@ GO。终局保持
 下一合法动作仅为冻结独立 40-decision development campaign protocol，不能直接执行 campaign，更不能声明
 Learnable、Steerable、Appendable、Readable、reader qualification、formal/unseen/integrated/真人或 production。
 
+后续 campaign 不得直接调用 forced-batch 的私有 dependency loader、解释 terminal owner payload，或复用 live
+owner/gate/reader cache。唯一准入 seam 是
+`load_relationship_product_horizon_forced_campaign_inputs(...)`：它先以调用方提供的 protocol/artifact 双 ID
+完整重放既有 6-file artifact，再为每个 root 发布 typed public root、opaque canonical owner bytes 的 fresh
+hydrate、exact batch/APPLY/WITHHOLD receipts，以及只能由 theta0+receipt 重放的 fresh full/cold frozen policy；
+每次 `fresh_arm_initializations()` 固定发布 full/frozen/strict 的 fresh owner、policy、reader cache 与 executor
+disposition，consumer 不再重建 arm 语义。seam 同时发布后续 prereg 所需的直接 lineage projection；projection
+以 `relationship-product-horizon-forced-campaign-input-lineage.v1` 和整体 content ID 冻结，但不发布路径、
+sealed environment、settle 或 source capability，也不证明未来 runtime order。下一 campaign 包必须另行冻结
+once-only settlement owner，并以同一 decision 的三臂 preaction 全部 append+flush+fsync 的 typed receipt 作为
+唯一开 branch 凭证；在该硬门落地前不允许打开 evaluation truth。这个 seam 只关闭输入 owner 边界，仍不授权
+campaign 执行或 effect claim。依用户裁决，development campaign 保持 rehearsal off：forced delivery、
+动态 writeback、batch transition 已有真实 112-root 上游终局覆盖；只保留 unit/contract、protocol identity 与
+model-free validate-existing，不另造 2–3 item 实验 artifact。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入

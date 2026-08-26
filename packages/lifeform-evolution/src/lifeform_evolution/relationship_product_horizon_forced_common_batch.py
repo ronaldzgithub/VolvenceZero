@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field as dataclass_field, replace
+from enum import Enum
 import math
 import pathlib
 from typing import Mapping
@@ -23,6 +24,7 @@ from lifeform_domain_emogpt.lab.relationship_product_horizon_source_v4 import (
     RelationshipProductHorizonPublicView,
 )
 from lifeform_domain_emogpt.lab.relationship_product_pulse import (
+    RelationshipProductExecutorDisposition,
     RelationshipProductForcedActionRole,
     RelationshipProductForcedCollectionAuthorization,
     RelationshipProductForcedCollectionPreActionSnapshot,
@@ -39,11 +41,22 @@ from lifeform_domain_emogpt.relationship_action_gate import (
     RelationshipActionGateBatchDisposition,
     RelationshipActionGateBatchReceipt,
     RelationshipActionGateCreditBatch,
+    RelationshipActionGateFrozenPolicy,
+    RelationshipActionGateTheta0Artifact,
+)
+from lifeform_domain_emogpt.relationship_condition_reader import (
+    FrozenLinearRelationshipConditionReaderArtifact,
+    FrozenLinearRelationshipConditionReaderRuntime,
+    FrozenLinearRelationshipPreferenceForecastRuntime,
 )
 from lifeform_evolution import (
     relationship_product_horizon_dynamic_collection_prefix as dynamic,
 )
 from lifeform_evolution import relationship_product_horizon_theta0_calibration as cal
+from lifeform_evolution.relationship_lab_product_model_adapters import (
+    PrecomputedPublicEmbeddingTable,
+    PrecomputedPublicSemanticEmbedder,
+)
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 from volvence_zero.social import (
     SocialRecordStore,
@@ -69,6 +82,9 @@ FORCED_COMMON_BATCH_TRANSITION_SCHEMA_VERSION = (
 )
 FORCED_COMMON_BATCH_MANIFEST_SCHEMA_VERSION = (
     "relationship-product-horizon-forced-common-batch-manifest.v1"
+)
+FORCED_CAMPAIGN_INPUT_LINEAGE_SCHEMA_VERSION = (
+    "relationship-product-horizon-forced-campaign-input-lineage.v1"
 )
 FORCED_SAFE_FIRST_PROJECTION_SCHEMA_VERSION = (
     "relationship-product-horizon-forced-safe-first-preaction-projection.v1"
@@ -131,6 +147,196 @@ class RelationshipProductHorizonForcedCommonBatchProtocol:
     raw_bytes: bytes
     protocol_id: str
     raw_sha256: str
+
+
+class RelationshipProductHorizonCampaignArm(str, Enum):
+    """The three frozen development-campaign treatment identities."""
+
+    FULL = "full"
+    FROZEN_THETA0 = "frozen_theta0"
+    STRICT_NOOP = "strict_noop"
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonCampaignLineageEntry:
+    """One immutable identity required by the downstream preregistration."""
+
+    name: str
+    value: str
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonCampaignArmInitialization:
+    """One complete fresh arm start; no mutable state is shared across arms."""
+
+    arm_id: RelationshipProductHorizonCampaignArm
+    owner_persistence_snapshot: OwnerPersistenceSnapshot
+    starting_owner_persistence_sha256: str
+    batch: RelationshipActionGateCreditBatch
+    batch_receipt: RelationshipActionGateBatchReceipt
+    frozen_policy: RelationshipActionGateFrozenPolicy
+    forecast_runtime: FrozenLinearRelationshipPreferenceForecastRuntime
+    executor_disposition: RelationshipProductExecutorDisposition
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonForcedCampaignRootInput:
+    """One verified root-local arm initialization without live shared state."""
+
+    root_sequence_index: int
+    public_root: HorizonPublicRoot
+    schedule_artifact_id: str
+    transition_raw_sha256: str
+    common_terminal_owner_persistence_sha256: str
+    batch: RelationshipActionGateCreditBatch
+    apply_receipt: RelationshipActionGateBatchReceipt
+    withhold_receipt: RelationshipActionGateBatchReceipt
+    full_policy_id: str
+    full_checkpoint_content_sha256: str
+    cold_frozen_policy_id: str
+    _owner_persistence_bytes: bytes = dataclass_field(repr=False, compare=False)
+    _theta0: RelationshipActionGateTheta0Artifact = dataclass_field(
+        repr=False,
+        compare=False,
+    )
+    _cold_random_seed: str = dataclass_field(repr=False, compare=False)
+    _embedding_table: PrecomputedPublicEmbeddingTable = dataclass_field(
+        repr=False,
+        compare=False,
+    )
+    _reader_artifact: FrozenLinearRelationshipConditionReaderArtifact = dataclass_field(
+        repr=False,
+        compare=False,
+    )
+
+    def _fresh_owner_persistence(self) -> OwnerPersistenceSnapshot:
+        """Hydrate a fresh opaque owner envelope from canonical persisted bytes."""
+
+        snapshot = _owner_snapshot_from_payload(
+            cal._parse_json_bytes(
+                self._owner_persistence_bytes,
+                source=(
+                    "forced campaign root "
+                    f"{self.root_sequence_index} terminal owner"
+                ),
+            )
+        )
+        if (
+            social_record_store_persistence_sha256(snapshot)
+            != self.common_terminal_owner_persistence_sha256
+        ):
+            raise ValueError("forced campaign terminal owner identity drifted")
+        return snapshot
+
+    def _fresh_full_policy(self) -> RelationshipActionGateFrozenPolicy:
+        """Replay the exact APPLY receipt into a fresh gate and freeze it."""
+
+        policy = RelationshipActionGate.from_applied_credit_batch(
+            self._theta0,
+            batch=self.batch,
+            receipt=self.apply_receipt,
+            random_seed=self._cold_random_seed,
+        ).freeze_for_evaluation()
+        if (
+            policy.policy_id != self.full_policy_id
+            or policy.checkpoint.content_sha256
+            != self.full_checkpoint_content_sha256
+        ):
+            raise ValueError("forced campaign full policy replay drifted")
+        return policy
+
+    def _fresh_cold_policy(self) -> RelationshipActionGateFrozenPolicy:
+        """Build one fresh WITHHOLD/cold policy for frozen or strict arms."""
+
+        gate = RelationshipActionGate.from_theta0(
+            self._theta0,
+            random_seed=self._cold_random_seed,
+        )
+        plan = gate.plan_credit_batch(self.batch)
+        receipt = gate.commit_credit_batch(
+            plan,
+            disposition=RelationshipActionGateBatchDisposition.WITHHOLD,
+        )
+        if receipt != self.withhold_receipt:
+            raise ValueError("forced campaign WITHHOLD receipt replay drifted")
+        policy = gate.freeze_for_evaluation()
+        if policy.policy_id != self.cold_frozen_policy_id:
+            raise ValueError("forced campaign cold policy replay drifted")
+        return policy
+
+    def _fresh_forecast_runtime(
+        self,
+    ) -> FrozenLinearRelationshipPreferenceForecastRuntime:
+        reader = FrozenLinearRelationshipConditionReaderRuntime(
+            artifact=self._reader_artifact,
+            embedder=PrecomputedPublicSemanticEmbedder(self._embedding_table),
+        )
+        return FrozenLinearRelationshipPreferenceForecastRuntime(reader=reader)
+
+    def fresh_arm_initializations(
+        self,
+    ) -> tuple[RelationshipProductHorizonCampaignArmInitialization, ...]:
+        """Publish the exact arm mapping with three fresh runtime states."""
+
+        full = RelationshipProductHorizonCampaignArmInitialization(
+            arm_id=RelationshipProductHorizonCampaignArm.FULL,
+            owner_persistence_snapshot=self._fresh_owner_persistence(),
+            starting_owner_persistence_sha256=(
+                self.common_terminal_owner_persistence_sha256
+            ),
+            batch=self.batch,
+            batch_receipt=self.apply_receipt,
+            frozen_policy=self._fresh_full_policy(),
+            forecast_runtime=self._fresh_forecast_runtime(),
+            executor_disposition=(
+                RelationshipProductExecutorDisposition.APPLY_CANDIDATE
+            ),
+        )
+        frozen = RelationshipProductHorizonCampaignArmInitialization(
+            arm_id=RelationshipProductHorizonCampaignArm.FROZEN_THETA0,
+            owner_persistence_snapshot=self._fresh_owner_persistence(),
+            starting_owner_persistence_sha256=(
+                self.common_terminal_owner_persistence_sha256
+            ),
+            batch=self.batch,
+            batch_receipt=self.withhold_receipt,
+            frozen_policy=self._fresh_cold_policy(),
+            forecast_runtime=self._fresh_forecast_runtime(),
+            executor_disposition=(
+                RelationshipProductExecutorDisposition.APPLY_CANDIDATE
+            ),
+        )
+        strict = RelationshipProductHorizonCampaignArmInitialization(
+            arm_id=RelationshipProductHorizonCampaignArm.STRICT_NOOP,
+            owner_persistence_snapshot=self._fresh_owner_persistence(),
+            starting_owner_persistence_sha256=(
+                self.common_terminal_owner_persistence_sha256
+            ),
+            batch=self.batch,
+            batch_receipt=self.withhold_receipt,
+            frozen_policy=self._fresh_cold_policy(),
+            forecast_runtime=self._fresh_forecast_runtime(),
+            executor_disposition=(
+                RelationshipProductExecutorDisposition.FORCE_STRICT_NOOP
+            ),
+        )
+        return full, frozen, strict
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonForcedCampaignInputs:
+    """Validated immutable inputs for a separate Product Horizon campaign."""
+
+    forced_protocol_id: str
+    forced_protocol_raw_sha256: str
+    forced_artifact_id: str
+    forced_manifest_raw_sha256: str
+    public_plan_sha256: str
+    lineage_schema_version: str
+    lineage_id: str
+    lineage: tuple[RelationshipProductHorizonCampaignLineageEntry, ...]
+    public_view: RelationshipProductHorizonPublicView
+    roots: tuple[RelationshipProductHorizonForcedCampaignRootInput, ...]
 
 
 @dataclass(frozen=True)
@@ -1805,10 +2011,9 @@ def materialize_relationship_product_horizon_forced_common_batch(
     return manifest
 
 
-def _parse_jsonl(
-    path: pathlib.Path, *, source: str
+def _parse_jsonl_bytes(
+    raw: bytes, *, source: str
 ) -> tuple[Mapping[str, object], ...]:
-    raw = cal._read_regular(path)
     if not raw.endswith(b"\n"):
         raise ValueError(f"{source} must end with a newline")
     records: list[Mapping[str, object]] = []
@@ -1820,6 +2025,12 @@ def _parse_jsonl(
             raise ValueError(f"{source} lines must use canonical bytes")
         records.append(record)
     return tuple(records)
+
+
+def _parse_jsonl(
+    path: pathlib.Path, *, source: str
+) -> tuple[Mapping[str, object], ...]:
+    return _parse_jsonl_bytes(cal._read_regular(path), source=source)
 
 
 def _replay_from_terminal(record: Mapping[str, object]) -> _ForcedBatchReplay:
@@ -2632,7 +2843,7 @@ def _validate_persisted_evidence(
     return derived_replay
 
 
-def validate_relationship_product_horizon_forced_common_batch(
+def _validate_forced_common_batch_artifact(
     *,
     source_v4_admission_root: pathlib.Path,
     reader_root: pathlib.Path,
@@ -2642,7 +2853,7 @@ def validate_relationship_product_horizon_forced_common_batch(
     output_dir: pathlib.Path,
     expected_protocol_id: str,
     expected_artifact_id: str,
-) -> Mapping[str, object]:
+) -> tuple[Mapping[str, object], _Dependencies, bytes]:
     external_protocol = cal._digest(expected_protocol_id, "expected_protocol_id")
     external_artifact = cal._digest(expected_artifact_id, "expected_artifact_id")
     root = pathlib.Path(output_dir)
@@ -2682,7 +2893,323 @@ def validate_relationship_product_horizon_forced_common_batch(
         raise ValueError("forced common-batch manifest content drifted")
     if manifest["artifact_id"] != external_artifact:
         raise ValueError("forced common-batch artifact identity drifted")
+    return manifest, dependencies, manifest_raw
+
+
+def validate_relationship_product_horizon_forced_common_batch(
+    *,
+    source_v4_admission_root: pathlib.Path,
+    reader_root: pathlib.Path,
+    theta0_v2_root: pathlib.Path,
+    scanner_root: pathlib.Path,
+    dynamic_root: pathlib.Path,
+    output_dir: pathlib.Path,
+    expected_protocol_id: str,
+    expected_artifact_id: str,
+) -> Mapping[str, object]:
+    """Validate one existing artifact without mutating any evidence bytes."""
+
+    manifest, _, _ = _validate_forced_common_batch_artifact(
+        source_v4_admission_root=source_v4_admission_root,
+        reader_root=reader_root,
+        theta0_v2_root=theta0_v2_root,
+        scanner_root=scanner_root,
+        dynamic_root=dynamic_root,
+        output_dir=output_dir,
+        expected_protocol_id=expected_protocol_id,
+        expected_artifact_id=expected_artifact_id,
+    )
     return manifest
+
+
+def _campaign_lineage_projection(
+    *,
+    dependencies: _Dependencies,
+    manifest: Mapping[str, object],
+) -> tuple[RelationshipProductHorizonCampaignLineageEntry, ...]:
+    runtime = cal._mapping(dependencies.protocol.payload["runtime_inputs"], "runtime")
+    dynamic_pin = cal._mapping(
+        dependencies.protocol.payload["upstream_dynamic_gate"],
+        "upstream_dynamic_gate",
+    )
+    dynamic_protocol = dependencies.dynamic_dependencies.protocol.payload
+    scanner_pin = cal._mapping(
+        dynamic_protocol["upstream_scanner"],
+        "upstream_scanner",
+    )
+    source_pin = cal._mapping(
+        dynamic_protocol["source_v4_environment"],
+        "source_v4_environment",
+    )
+    files = _file_entries(manifest, source="forced common-batch")
+    values = {
+        "forced_implementation_git_commit": manifest[
+            "implementation_git_commit"
+        ],
+        "forced_schedule_index_id": manifest["schedule_index_id"],
+        "forced_schedule_index_raw_sha256": files[_SCHEDULE_FILENAME][
+            "raw_sha256"
+        ],
+        "forced_collection_trace_raw_sha256": files[_TRACE_FILENAME][
+            "raw_sha256"
+        ],
+        "forced_root_owner_states_raw_sha256": files[_STATE_FILENAME][
+            "raw_sha256"
+        ],
+        "forced_root_batch_transitions_raw_sha256": files[_TRANSITION_FILENAME][
+            "raw_sha256"
+        ],
+        "dynamic_protocol_id": dynamic_pin["protocol_id"],
+        "dynamic_protocol_raw_sha256": dynamic_pin["protocol_raw_sha256"],
+        "dynamic_artifact_id": dynamic_pin["artifact_id"],
+        "dynamic_manifest_raw_sha256": dynamic_pin["manifest_raw_sha256"],
+        "scanner_protocol_id": scanner_pin["protocol_id"],
+        "scanner_protocol_raw_sha256": scanner_pin["protocol_raw_sha256"],
+        "scanner_artifact_id": scanner_pin["artifact_id"],
+        "scanner_manifest_raw_sha256": scanner_pin["manifest_raw_sha256"],
+        "source_v4_admission_protocol_id": runtime[
+            "source_v4_admission_protocol_id"
+        ],
+        "source_v4_admission_artifact_id": runtime[
+            "source_v4_admission_artifact_id"
+        ],
+        "source_v4_admission_manifest_raw_sha256": source_pin[
+            "admission_manifest_raw_sha256"
+        ],
+        "source_v4_source_protocol_id": source_pin["source_protocol_id"],
+        "source_v4_source_protocol_raw_sha256": source_pin[
+            "source_protocol_raw_sha256"
+        ],
+        "source_v4_public_plan_sha256": runtime["source_v4_public_plan_sha256"],
+        "source_v4_public_plan_raw_sha256": runtime[
+            "source_v4_public_plan_raw_sha256"
+        ],
+        "source_v4_sealed_bundle_sha256": runtime[
+            "source_v4_sealed_bundle_sha256"
+        ],
+        "source_v4_sealed_evaluator_raw_sha256": source_pin[
+            "sealed_evaluator_raw_sha256"
+        ],
+        "source_v4_commitment_index_raw_sha256": runtime[
+            "source_v4_commitment_index_raw_sha256"
+        ],
+        "development_reader_package_artifact_id": runtime[
+            "development_reader_package_artifact_id"
+        ],
+        "development_reader_manifest_raw_sha256": runtime[
+            "development_reader_manifest_raw_sha256"
+        ],
+        "embedding_table_artifact_id": runtime["embedding_table_artifact_id"],
+        "embedding_table_raw_sha256": runtime["embedding_table_raw_sha256"],
+        "reader_artifact_id": runtime["reader_artifact_id"],
+        "reader_artifact_raw_sha256": runtime["reader_artifact_raw_sha256"],
+        "theta0_v2_bootstrap_protocol_id": runtime[
+            "theta0_v2_bootstrap_protocol_id"
+        ],
+        "theta0_v2_bootstrap_artifact_id": runtime[
+            "theta0_v2_bootstrap_artifact_id"
+        ],
+        "theta0_v2_manifest_raw_sha256": runtime[
+            "theta0_v2_manifest_raw_sha256"
+        ],
+        "theta0_v2_artifact_id": runtime["theta0_v2_artifact_id"],
+        "theta0_v2_artifact_raw_sha256": runtime[
+            "theta0_v2_artifact_raw_sha256"
+        ],
+        "cold_checkpoint_content_sha256": runtime[
+            "cold_checkpoint_content_sha256"
+        ],
+        "cold_frozen_policy_id": runtime["cold_frozen_policy_id"],
+        "cold_random_seed": runtime["cold_random_seed"],
+    }
+    if any(not isinstance(value, str) or value == "" for value in values.values()):
+        raise ValueError("forced campaign lineage contains a non-text identity")
+    return tuple(
+        RelationshipProductHorizonCampaignLineageEntry(name=name, value=value)
+        for name, value in sorted(values.items())
+    )
+
+
+def load_relationship_product_horizon_forced_campaign_inputs(
+    *,
+    source_v4_admission_root: pathlib.Path,
+    reader_root: pathlib.Path,
+    theta0_v2_root: pathlib.Path,
+    scanner_root: pathlib.Path,
+    dynamic_root: pathlib.Path,
+    forced_common_batch_root: pathlib.Path,
+    expected_forced_protocol_id: str,
+    expected_forced_artifact_id: str,
+) -> RelationshipProductHorizonForcedCampaignInputs:
+    """Load typed campaign inputs only after external-ID evidence replay."""
+
+    manifest, dependencies, manifest_raw = _validate_forced_common_batch_artifact(
+        source_v4_admission_root=source_v4_admission_root,
+        reader_root=reader_root,
+        theta0_v2_root=theta0_v2_root,
+        scanner_root=scanner_root,
+        dynamic_root=dynamic_root,
+        output_dir=forced_common_batch_root,
+        expected_protocol_id=expected_forced_protocol_id,
+        expected_artifact_id=expected_forced_artifact_id,
+    )
+    if (
+        manifest["status"] != _SUCCESS_STATUS
+        or manifest["claims"]["campaign_protocol_freeze_authorized"] is not True
+        or manifest["claims"]["campaign_execution_authorized"] is not False
+    ):
+        raise ValueError("forced common-batch artifact does not authorize campaign freeze")
+
+    root = pathlib.Path(forced_common_batch_root)
+    files = _file_entries(manifest, source="forced common-batch")
+    states_raw = cal._require_raw_sha(
+        root / _STATE_FILENAME,
+        files[_STATE_FILENAME]["raw_sha256"],
+        "root owner states",
+    )
+    transitions_raw = cal._require_raw_sha(
+        root / _TRANSITION_FILENAME,
+        files[_TRANSITION_FILENAME]["raw_sha256"],
+        source="root batch transitions",
+    )
+    states = _parse_jsonl_bytes(states_raw, source="root owner states")
+    transitions = _parse_jsonl_bytes(
+        transitions_raw,
+        source="root batch transitions",
+    )
+    if len(states) != 112 or len(transitions) != 112:
+        raise ValueError("forced campaign input root inventory drifted")
+
+    scanner = dependencies.dynamic_dependencies.scanner_dependencies
+    theta0 = scanner.theta0
+    cold_policy = scanner.frozen_policy
+    campaign_roots = []
+    for root_index, (public_root, state, transition) in enumerate(
+        zip(dependencies.public_view.roots, states, transitions, strict=True)
+    ):
+        if (
+            state["root_sequence_index"] != root_index
+            or transition["root_sequence_index"] != root_index
+            or state["subject_id"] != public_root.subject_id
+            or transition["subject_id"] != public_root.subject_id
+        ):
+            raise ValueError("forced campaign root order or subject join drifted")
+        owner_payload = cal._mapping(
+            state["owner_persistence"],
+            f"root owner state {root_index}",
+        )
+        owner_bytes = cal._canonical_bytes(owner_payload)
+        batch = RelationshipActionGateCreditBatch.from_payload(transition["batch"])
+        apply_receipt = RelationshipActionGateBatchReceipt.from_payload(
+            transition["apply_receipt"]
+        )
+        withhold_receipt = RelationshipActionGateBatchReceipt.from_payload(
+            transition["withhold_receipt"]
+        )
+        bindings = cal._mapping(
+            transition["arm_bindings"],
+            f"root transition {root_index} arm bindings",
+        )
+        if (
+            apply_receipt.batch_id != batch.batch_id
+            or withhold_receipt.batch_id != batch.batch_id
+            or apply_receipt.disposition
+            is not RelationshipActionGateBatchDisposition.APPLY
+            or withhold_receipt.disposition
+            is not RelationshipActionGateBatchDisposition.WITHHOLD
+            or bindings["full"]["receipt_id"] != apply_receipt.receipt_id
+            or bindings["frozen_theta0"]["receipt_id"]
+            != withhold_receipt.receipt_id
+            or bindings["strict_noop"]["receipt_id"]
+            != withhold_receipt.receipt_id
+        ):
+            raise ValueError("forced campaign root batch binding drifted")
+        campaign_root = RelationshipProductHorizonForcedCampaignRootInput(
+            root_sequence_index=root_index,
+            public_root=public_root,
+            schedule_artifact_id=cal._text(
+                transition["schedule_artifact_id"],
+                "schedule_artifact_id",
+            ),
+            transition_raw_sha256=cal._sha256_bytes(
+                cal._canonical_bytes(transition)
+            ),
+            common_terminal_owner_persistence_sha256=cal._digest(
+                state["owner_persistence_sha256"],
+                "owner_persistence_sha256",
+            ),
+            batch=batch,
+            apply_receipt=apply_receipt,
+            withhold_receipt=withhold_receipt,
+            full_policy_id=cal._text(
+                transition["full_policy_id"],
+                "full_policy_id",
+            ),
+            full_checkpoint_content_sha256=cal._digest(
+                transition["full_checkpoint_content_sha256"],
+                "full_checkpoint_content_sha256",
+            ),
+            cold_frozen_policy_id=cal._text(
+                transition["cold_frozen_policy_id"],
+                "cold_frozen_policy_id",
+            ),
+            _owner_persistence_bytes=owner_bytes,
+            _theta0=theta0,
+            _cold_random_seed=cold_policy.random_seed,
+            _embedding_table=scanner.embedding_table,
+            _reader_artifact=scanner.reader_artifact,
+        )
+        # Rebuild the complete typed arm mapping now; the consumer receives no
+        # unchecked persisted policy payload and owns no arm-binding logic.
+        full, frozen, strict = campaign_root.fresh_arm_initializations()
+        owner_full = full.owner_persistence_snapshot
+        owner_frozen = frozen.owner_persistence_snapshot
+        owner_strict = strict.owner_persistence_snapshot
+        if (
+            owner_full is owner_frozen
+            or owner_full is owner_strict
+            or owner_frozen is owner_strict
+            or owner_full != owner_frozen
+            or owner_full != owner_strict
+        ):
+            raise ValueError("forced campaign root owners are not fresh exact copies")
+        if (
+            frozen.frozen_policy is strict.frozen_policy
+            or frozen.frozen_policy != strict.frozen_policy
+            or full.frozen_policy.checkpoint.update_count != 8
+            or frozen.frozen_policy.checkpoint.update_count != 0
+            or strict.frozen_policy.checkpoint.update_count != 0
+            or full.forecast_runtime is frozen.forecast_runtime
+            or full.forecast_runtime is strict.forecast_runtime
+            or frozen.forecast_runtime is strict.forecast_runtime
+        ):
+            raise ValueError("forced campaign arm initialization drifted")
+        campaign_roots.append(campaign_root)
+
+    lineage = _campaign_lineage_projection(
+        dependencies=dependencies,
+        manifest=manifest,
+    )
+    lineage_id = sha256_json(
+        {
+            "schema_version": FORCED_CAMPAIGN_INPUT_LINEAGE_SCHEMA_VERSION,
+            "entries": [
+                {"name": item.name, "value": item.value} for item in lineage
+            ],
+        }
+    )
+    return RelationshipProductHorizonForcedCampaignInputs(
+        forced_protocol_id=dependencies.protocol.protocol_id,
+        forced_protocol_raw_sha256=dependencies.protocol.raw_sha256,
+        forced_artifact_id=cal._digest(manifest["artifact_id"], "artifact_id"),
+        forced_manifest_raw_sha256=cal._sha256_bytes(manifest_raw),
+        public_plan_sha256=dependencies.public_view.public_plan_sha256,
+        lineage_schema_version=FORCED_CAMPAIGN_INPUT_LINEAGE_SCHEMA_VERSION,
+        lineage_id=lineage_id,
+        lineage=lineage,
+        public_view=dependencies.public_view,
+        roots=tuple(campaign_roots),
+    )
 
 
 def _build_manifest(
@@ -2831,10 +3358,17 @@ __all__ = [
     "FORCED_COMMON_BATCH_MANIFEST_SCHEMA_VERSION",
     "FORCED_COMMON_BATCH_PROTOCOL_SCHEMA_VERSION",
     "FORCED_COMMON_BATCH_TRACE_SCHEMA_VERSION",
+    "FORCED_CAMPAIGN_INPUT_LINEAGE_SCHEMA_VERSION",
     "FORCED_SAFE_FIRST_PROJECTION_FIELDS",
     "FORCED_SAFE_FIRST_PROJECTION_SCHEMA_VERSION",
+    "RelationshipProductHorizonCampaignArm",
+    "RelationshipProductHorizonCampaignArmInitialization",
+    "RelationshipProductHorizonCampaignLineageEntry",
+    "RelationshipProductHorizonForcedCampaignInputs",
+    "RelationshipProductHorizonForcedCampaignRootInput",
     "RelationshipProductHorizonForcedCommonBatchProtocol",
     "load_relationship_product_horizon_forced_common_batch_protocol",
+    "load_relationship_product_horizon_forced_campaign_inputs",
     "materialize_relationship_product_horizon_forced_common_batch",
     "relationship_product_horizon_forced_common_batch_protocol_path",
     "validate_relationship_product_horizon_forced_common_batch",
