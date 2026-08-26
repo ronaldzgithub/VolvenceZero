@@ -155,6 +155,18 @@ RELATIONSHIP_PRODUCT_V2_GATE_TRANSITION_SCHEMA_VERSION = (
 RELATIONSHIP_PRODUCT_V2_COLLECTED_BATCH_SCHEMA_VERSION = (
     "relationship-product-collected-credit-batch.v2"
 )
+RELATIONSHIP_PRODUCT_V2_COLLECTION_SEGMENT_SCHEMA_VERSION = (
+    "relationship-product-collection-segment.v2"
+)
+RELATIONSHIP_PRODUCT_V2_SEGMENTED_COLLECTED_BATCH_SCHEMA_VERSION = (
+    "relationship-product-segmented-collected-credit-batch.v2"
+)
+RELATIONSHIP_PRODUCT_V2_SEGMENTED_GATE_TRANSITION_SCHEMA_VERSION = (
+    "relationship-product-segmented-gate-transition.v2"
+)
+RELATIONSHIP_PRODUCT_V2_SEGMENTED_MATCHED_TRANSITIONS_SCHEMA_VERSION = (
+    "relationship-product-segmented-matched-gate-transitions.v2"
+)
 RELATIONSHIP_PRODUCT_V2_MATCHED_TRANSITIONS_SCHEMA_VERSION = (
     "relationship-product-matched-gate-transitions.v2"
 )
@@ -169,6 +181,18 @@ _V2_EXECUTOR_RECEIPT_PREFIX = "relationship-product-v2-executor-receipt-sha256:"
 _V2_FORCED_COMMAND_PREFIX = "relationship-product-v2-forced-command-sha256:"
 _V2_FORCED_RECEIPT_PREFIX = "relationship-product-v2-forced-receipt-sha256:"
 _V2_COLLECTED_BATCH_PREFIX = "relationship-product-v2-collected-batch-sha256:"
+_V2_COLLECTION_SEGMENT_PREFIX = (
+    "relationship-product-v2-collection-segment-sha256:"
+)
+_V2_SEGMENTED_COLLECTED_BATCH_PREFIX = (
+    "relationship-product-v2-segmented-collected-batch-sha256:"
+)
+_V2_SEGMENTED_GATE_TRANSITION_PREFIX = (
+    "relationship-product-v2-segmented-gate-transition-sha256:"
+)
+_V2_SEGMENTED_MATCHED_TRANSITIONS_PREFIX = (
+    "relationship-product-v2-segmented-matched-transitions-sha256:"
+)
 _V2_GATE_TRANSITION_PREFIX = "relationship-product-v2-gate-transition-sha256:"
 _V2_MATCHED_TRANSITIONS_PREFIX = (
     "relationship-product-v2-matched-transitions-sha256:"
@@ -1683,8 +1707,22 @@ class RelationshipProductV2CollectedCreditBatch:
         init=False,
         repr=False,
     )
+    _integrity_sha256: str = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
+        gate_batch = self._validate_components()
+        object.__setattr__(self, "_gate_batch", gate_batch)
+        object.__setattr__(
+            self,
+            "_integrity_sha256",
+            _canonical_sha256(self._core_payload()),
+        )
+
+    def _validate_components(self) -> RelationshipActionGateV2CreditBatch:
         if type(self.settlements) is not tuple or not self.settlements:
             raise ValueError("v2 collected settlements must be a non-empty exact tuple")
         if any(
@@ -1695,21 +1733,17 @@ class RelationshipProductV2CollectedCreditBatch:
         if self.schema_version != RELATIONSHIP_PRODUCT_V2_COLLECTED_BATCH_SCHEMA_VERSION:
             raise ValueError("relationship product v2 collected batch schema mismatch")
         for index, settlement in enumerate(self.settlements):
+            _validate_relationship_product_v2_preaction(
+                settlement.preaction,
+                source=f"v2 collected preaction {index}",
+            )
             _validate_relationship_product_v2_settlement(
                 settlement,
                 source=f"v2 collected settlement {index}",
             )
-        object.__setattr__(
-            self,
-            "_gate_batch",
-            RelationshipActionGateV2CreditBatch(
-                exposures=tuple(
-                    item.forced_exposure for item in self.settlements
-                ),
-                credits=tuple(
-                    item.common_baseline_credit for item in self.settlements
-                ),
-            ),
+        gate_batch = RelationshipActionGateV2CreditBatch(
+            exposures=tuple(item.forced_exposure for item in self.settlements),
+            credits=tuple(item.common_baseline_credit for item in self.settlements),
         )
         for previous, current in zip(
             self.settlements,
@@ -1723,6 +1757,13 @@ class RelationshipProductV2CollectedCreditBatch:
                 raise ValueError(
                     "v2 collected settlements broke owner persistence handoff"
                 )
+        return gate_batch
+
+    def _assert_integrity(self) -> None:
+        if self._validate_components() != self._gate_batch:
+            raise ValueError("v2 collected gate batch mutated after construction")
+        if _canonical_sha256(self._core_payload()) != self._integrity_sha256:
+            raise ValueError("v2 collected provenance mutated after construction")
 
     @property
     def gate_batch(self) -> RelationshipActionGateV2CreditBatch:
@@ -1730,12 +1771,13 @@ class RelationshipProductV2CollectedCreditBatch:
 
     @property
     def collection_id(self) -> str:
-        return f"{_V2_COLLECTED_BATCH_PREFIX}{_canonical_sha256(self._core_payload())}"
+        self._assert_integrity()
+        return f"{_V2_COLLECTED_BATCH_PREFIX}{self._integrity_sha256}"
 
     def _core_payload(self) -> dict[str, object]:
         return {
             "schema_version": self.schema_version,
-            "gate_batch": self.gate_batch.to_payload(),
+            "gate_batch": self._gate_batch.to_payload(),
             "settlements": [
                 _relationship_product_v2_forced_settlement_provenance_payload(
                     item
@@ -1745,7 +1787,246 @@ class RelationshipProductV2CollectedCreditBatch:
         }
 
     def to_payload(self) -> dict[str, object]:
-        return {"collection_id": self.collection_id, **self._core_payload()}
+        self._assert_integrity()
+        return {
+            "collection_id": f"{_V2_COLLECTED_BATCH_PREFIX}{self._integrity_sha256}",
+            **self._core_payload(),
+        }
+
+
+@dataclass(frozen=True)
+class RelationshipProductV2CollectionSegment:
+    """One collection segment with an explicit owner-continuous start."""
+
+    segment_scope_id: str
+    segment_start_owner_persistence_snapshot: OwnerPersistenceSnapshot
+    settlements: tuple[
+        RelationshipProductV2ForcedCollectionSettlementSnapshot,
+        ...,
+    ]
+    schema_version: str = RELATIONSHIP_PRODUCT_V2_COLLECTION_SEGMENT_SCHEMA_VERSION
+    _integrity_sha256: str = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        self._validate_components()
+        object.__setattr__(
+            self,
+            "_integrity_sha256",
+            _canonical_sha256(self._core_payload()),
+        )
+
+    def _validate_components(self) -> None:
+        _require_text(self.segment_scope_id, "segment_scope_id")
+        if (
+            type(self.segment_start_owner_persistence_snapshot)
+            is not OwnerPersistenceSnapshot
+        ):
+            raise TypeError(
+                "segment_start_owner_persistence_snapshot must be OwnerPersistenceSnapshot"
+            )
+        if type(self.settlements) is not tuple or not self.settlements:
+            raise ValueError("v2 collection segment settlements must be non-empty")
+        if any(
+            type(item)
+            is not RelationshipProductV2ForcedCollectionSettlementSnapshot
+            for item in self.settlements
+        ):
+            raise TypeError("v2 collection segment contains an invalid settlement")
+        if self.schema_version != RELATIONSHIP_PRODUCT_V2_COLLECTION_SEGMENT_SCHEMA_VERSION:
+            raise ValueError("relationship product v2 collection segment schema mismatch")
+        if (
+            self.settlements[0].preaction.owner_input_persistence_snapshot
+            != self.segment_start_owner_persistence_snapshot
+        ):
+            raise ValueError("v2 collection segment lost its explicit owner start")
+        if any(
+            item.preaction.forecast.session_scope != self.segment_scope_id
+            for item in self.settlements
+        ):
+            raise ValueError(
+                "v2 collection segment forecast scope differs from segment scope"
+            )
+        for index, settlement in enumerate(self.settlements):
+            _validate_relationship_product_v2_preaction(
+                settlement.preaction,
+                source=f"v2 collection segment preaction {index}",
+            )
+            _validate_relationship_product_v2_settlement(
+                settlement,
+                source=f"v2 collection segment settlement {index}",
+            )
+        for previous, current in zip(
+            self.settlements,
+            self.settlements[1:],
+            strict=False,
+        ):
+            if (
+                previous.owner_persistence_snapshot
+                != current.preaction.owner_input_persistence_snapshot
+            ):
+                raise ValueError(
+                    "v2 collection segment broke owner persistence handoff"
+                )
+        sequence_indices = tuple(
+            item.forced_exposure.sequence_index for item in self.settlements
+        )
+        first = sequence_indices[0]
+        if sequence_indices != tuple(range(first, first + len(sequence_indices))):
+            raise ValueError("v2 collection segment sequence is not contiguous")
+
+    def _assert_integrity(self) -> None:
+        self._validate_components()
+        if _canonical_sha256(self._core_payload()) != self._integrity_sha256:
+            raise ValueError("v2 collection segment mutated after construction")
+
+    @property
+    def first_sequence_index(self) -> int:
+        return self.settlements[0].forced_exposure.sequence_index
+
+    @property
+    def last_sequence_index(self) -> int:
+        return self.settlements[-1].forced_exposure.sequence_index
+
+    @property
+    def segment_start_owner_persistence_sha256(self) -> str:
+        return social_record_store_persistence_sha256(
+            self.segment_start_owner_persistence_snapshot
+        )
+
+    @property
+    def segment_id(self) -> str:
+        self._assert_integrity()
+        return f"{_V2_COLLECTION_SEGMENT_PREFIX}{self._integrity_sha256}"
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "segment_scope_id": self.segment_scope_id,
+            "segment_start_owner_persistence_sha256": (
+                self.segment_start_owner_persistence_sha256
+            ),
+            "first_sequence_index": self.first_sequence_index,
+            "last_sequence_index": self.last_sequence_index,
+            "settlements": [
+                _relationship_product_v2_forced_settlement_provenance_payload(
+                    item
+                )
+                for item in self.settlements
+            ],
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        self._assert_integrity()
+        return {
+            "segment_id": f"{_V2_COLLECTION_SEGMENT_PREFIX}{self._integrity_sha256}",
+            **self._core_payload(),
+        }
+
+
+@dataclass(frozen=True)
+class RelationshipProductV2SegmentedCollectedCreditBatch:
+    """Complete gate batch with explicit owner-segment boundaries."""
+
+    segments: tuple[RelationshipProductV2CollectionSegment, ...]
+    schema_version: str = (
+        RELATIONSHIP_PRODUCT_V2_SEGMENTED_COLLECTED_BATCH_SCHEMA_VERSION
+    )
+    _gate_batch: RelationshipActionGateV2CreditBatch = field(
+        init=False,
+        repr=False,
+    )
+    _gate_batch_id: str = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _integrity_sha256: str = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        gate_batch = self._validate_components()
+        object.__setattr__(self, "_gate_batch", gate_batch)
+        object.__setattr__(self, "_gate_batch_id", gate_batch.batch_id)
+        object.__setattr__(
+            self,
+            "_integrity_sha256",
+            _canonical_sha256(self._core_payload()),
+        )
+
+    def _validate_components(self) -> RelationshipActionGateV2CreditBatch:
+        if type(self.segments) is not tuple or not self.segments:
+            raise ValueError("v2 segmented collection requires non-empty segments")
+        if any(
+            type(item) is not RelationshipProductV2CollectionSegment
+            for item in self.segments
+        ):
+            raise TypeError("v2 segmented collection contains an invalid segment")
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_V2_SEGMENTED_COLLECTED_BATCH_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product v2 segmented collection schema mismatch"
+            )
+        for segment in self.segments:
+            segment._assert_integrity()
+        scope_ids = tuple(item.segment_scope_id for item in self.segments)
+        if len(set(scope_ids)) != len(scope_ids):
+            raise ValueError("v2 segmented collection scope ids must be unique")
+        expected_first = 0
+        for segment in self.segments:
+            if segment.first_sequence_index != expected_first:
+                raise ValueError(
+                    "v2 segmented collection boundaries are not schedule ordered"
+                )
+            expected_first = segment.last_sequence_index + 1
+        settlements = tuple(
+            settlement
+            for segment in self.segments
+            for settlement in segment.settlements
+        )
+        return RelationshipActionGateV2CreditBatch(
+            exposures=tuple(item.forced_exposure for item in settlements),
+            credits=tuple(item.common_baseline_credit for item in settlements),
+        )
+
+    def _assert_integrity(self) -> None:
+        if self._validate_components() != self._gate_batch:
+            raise ValueError("v2 segmented gate batch mutated after construction")
+        if _canonical_sha256(self._core_payload()) != self._integrity_sha256:
+            raise ValueError("v2 segmented collection mutated after construction")
+
+    @property
+    def gate_batch(self) -> RelationshipActionGateV2CreditBatch:
+        return self._gate_batch
+
+    @property
+    def collection_id(self) -> str:
+        self._assert_integrity()
+        return f"{_V2_SEGMENTED_COLLECTED_BATCH_PREFIX}{self._integrity_sha256}"
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "gate_batch_id": self._gate_batch_id,
+            "segments": [item.to_payload() for item in self.segments],
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        self._assert_integrity()
+        return {
+            "collection_id": (
+                f"{_V2_SEGMENTED_COLLECTED_BATCH_PREFIX}{self._integrity_sha256}"
+            ),
+            **self._core_payload(),
+        }
 
 
 @dataclass(frozen=True)
@@ -1768,6 +2049,7 @@ class RelationshipProductV2GateTransition:
             raise TypeError("frozen_policy must be RelationshipActionGateV2FrozenPolicy")
         if self.schema_version != RELATIONSHIP_PRODUCT_V2_GATE_TRANSITION_SCHEMA_VERSION:
             raise ValueError("relationship product v2 gate transition schema mismatch")
+        self.collected_batch._assert_integrity()
         if (
             self.frozen_policy.transition_batch != self.batch
             or self.frozen_policy.transition_receipt != self.gate_receipt
@@ -1870,6 +2152,175 @@ class RelationshipProductV2MatchedGateTransitions:
         return {
             "schema_version": self.schema_version,
             "collected_batch_id": self.applied.collected_batch.collection_id,
+            "applied_transition_id": self.applied.transition_id,
+            "withheld_transition_id": self.withheld.transition_id,
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        return {"transitions_id": self.transitions_id, **self._core_payload()}
+
+
+@dataclass(frozen=True)
+class RelationshipProductV2SegmentedGateTransition:
+    """Exact gate transition from one explicit-start segmented collection."""
+
+    collected_batch: RelationshipProductV2SegmentedCollectedCreditBatch
+    gate_receipt: RelationshipActionGateV2BatchReceipt
+    frozen_policy: RelationshipActionGateV2FrozenPolicy
+    schema_version: str = (
+        RELATIONSHIP_PRODUCT_V2_SEGMENTED_GATE_TRANSITION_SCHEMA_VERSION
+    )
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.collected_batch)
+            is not RelationshipProductV2SegmentedCollectedCreditBatch
+        ):
+            raise TypeError(
+                "collected_batch must be RelationshipProductV2SegmentedCollectedCreditBatch"
+            )
+        if type(self.gate_receipt) is not RelationshipActionGateV2BatchReceipt:
+            raise TypeError("gate_receipt must be RelationshipActionGateV2BatchReceipt")
+        if type(self.frozen_policy) is not RelationshipActionGateV2FrozenPolicy:
+            raise TypeError("frozen_policy must be RelationshipActionGateV2FrozenPolicy")
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_V2_SEGMENTED_GATE_TRANSITION_SCHEMA_VERSION
+        ):
+            raise ValueError("relationship product v2 segmented transition schema mismatch")
+        self.collected_batch._assert_integrity()
+        batch = self.collected_batch.gate_batch
+        if (
+            self.frozen_policy.transition_batch != batch
+            or self.frozen_policy.transition_receipt != self.gate_receipt
+        ):
+            raise ValueError(
+                "v2 segmented transition lost its full batch/receipt components"
+            )
+        replayed = RelationshipActionGateV2.from_credit_batch_transition(
+            self.frozen_policy.artifact,
+            batch=batch,
+            receipt=self.gate_receipt,
+        ).freeze_for_evaluation()
+        if replayed != self.frozen_policy:
+            raise ValueError("v2 segmented transition differs from exact gate replay")
+
+    @property
+    def batch(self) -> RelationshipActionGateV2CreditBatch:
+        return self.collected_batch.gate_batch
+
+    @property
+    def disposition(self) -> RelationshipActionGateBatchDisposition:
+        return self.gate_receipt.disposition
+
+    @property
+    def transition_id(self) -> str:
+        return (
+            f"{_V2_SEGMENTED_GATE_TRANSITION_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    def _core_payload(self) -> dict[str, object]:
+        collected_batch_id = self.collected_batch.collection_id
+        return {
+            "schema_version": self.schema_version,
+            "segmented_collected_batch_id": collected_batch_id,
+            "gate_batch_id": self.collected_batch._gate_batch_id,
+            "gate_receipt_id": self.gate_receipt.receipt_id,
+            "frozen_policy_id": self.frozen_policy.policy_id,
+            "disposition": self.disposition.value,
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        return {"transition_id": self.transition_id, **self._core_payload()}
+
+
+@dataclass(frozen=True)
+class RelationshipProductV2SegmentedMatchedGateTransitions:
+    """APPLY/WITHHOLD pair from exactly one segmented collection."""
+
+    applied: RelationshipProductV2SegmentedGateTransition
+    withheld: RelationshipProductV2SegmentedGateTransition
+    schema_version: str = (
+        RELATIONSHIP_PRODUCT_V2_SEGMENTED_MATCHED_TRANSITIONS_SCHEMA_VERSION
+    )
+
+    def __post_init__(self) -> None:
+        if type(self.applied) is not RelationshipProductV2SegmentedGateTransition:
+            raise TypeError(
+                "applied must be RelationshipProductV2SegmentedGateTransition"
+            )
+        if type(self.withheld) is not RelationshipProductV2SegmentedGateTransition:
+            raise TypeError(
+                "withheld must be RelationshipProductV2SegmentedGateTransition"
+            )
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_V2_SEGMENTED_MATCHED_TRANSITIONS_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product v2 segmented matched transitions schema mismatch"
+            )
+        if self.applied.disposition is not RelationshipActionGateBatchDisposition.APPLY:
+            raise ValueError("segmented matched applied transition must use APPLY")
+        if (
+            self.withheld.disposition
+            is not RelationshipActionGateBatchDisposition.WITHHOLD
+        ):
+            raise ValueError("segmented matched withheld transition must use WITHHOLD")
+        if self.applied.collected_batch != self.withheld.collected_batch:
+            raise ValueError(
+                "segmented matched transitions must share one collected batch"
+            )
+        applied_receipt = self.applied.gate_receipt
+        withheld_receipt = self.withheld.gate_receipt
+        for field_name, applied_value, withheld_value in (
+            ("batch_id", applied_receipt.batch_id, withheld_receipt.batch_id),
+            ("plan_id", applied_receipt.plan_id, withheld_receipt.plan_id),
+            (
+                "pre_checkpoint",
+                applied_receipt.pre_checkpoint_content_sha256,
+                withheld_receipt.pre_checkpoint_content_sha256,
+            ),
+            (
+                "candidate_checkpoint",
+                applied_receipt.candidate_checkpoint_content_sha256,
+                withheld_receipt.candidate_checkpoint_content_sha256,
+            ),
+        ):
+            if applied_value != withheld_value:
+                raise ValueError(
+                    "segmented matched transition "
+                    f"{field_name} differs across dispositions"
+                )
+        if self.applied.frozen_policy.artifact != self.withheld.frozen_policy.artifact:
+            raise ValueError(
+                "segmented matched transitions must share one gate artifact"
+            )
+
+    @property
+    def transitions_id(self) -> str:
+        return (
+            f"{_V2_SEGMENTED_MATCHED_TRANSITIONS_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    def transition_for(
+        self,
+        disposition: RelationshipActionGateBatchDisposition,
+    ) -> RelationshipProductV2SegmentedGateTransition:
+        if disposition is RelationshipActionGateBatchDisposition.APPLY:
+            return self.applied
+        if disposition is RelationshipActionGateBatchDisposition.WITHHOLD:
+            return self.withheld
+        raise TypeError("disposition must be RelationshipActionGateBatchDisposition")
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "segmented_collected_batch_id": (
+                self.applied.collected_batch.collection_id
+            ),
             "applied_transition_id": self.applied.transition_id,
             "withheld_transition_id": self.withheld.transition_id,
         }
@@ -3615,6 +4066,14 @@ def build_relationship_product_v2_collected_credit_batch(
     return RelationshipProductV2CollectedCreditBatch(settlements=settlements)
 
 
+def build_relationship_product_v2_segmented_collected_credit_batch(
+    segments: tuple[RelationshipProductV2CollectionSegment, ...],
+) -> RelationshipProductV2SegmentedCollectedCreditBatch:
+    """Retain explicit owner segments under one complete gate schedule."""
+
+    return RelationshipProductV2SegmentedCollectedCreditBatch(segments=segments)
+
+
 def commit_relationship_product_v2_matched_gate_transitions(
     *,
     artifact: RelationshipActionGateV2Artifact,
@@ -3645,6 +4104,44 @@ def commit_relationship_product_v2_matched_gate_transitions(
         )
 
     return RelationshipProductV2MatchedGateTransitions(
+        applied=_transition(RelationshipActionGateBatchDisposition.APPLY),
+        withheld=_transition(RelationshipActionGateBatchDisposition.WITHHOLD),
+    )
+
+
+def commit_relationship_product_v2_segmented_matched_gate_transitions(
+    *,
+    artifact: RelationshipActionGateV2Artifact,
+    collected_batch: RelationshipProductV2SegmentedCollectedCreditBatch,
+) -> RelationshipProductV2SegmentedMatchedGateTransitions:
+    """Derive an add-only transition pair from one segmented collection."""
+
+    if type(artifact) is not RelationshipActionGateV2Artifact:
+        raise TypeError("artifact must be RelationshipActionGateV2Artifact")
+    if (
+        type(collected_batch)
+        is not RelationshipProductV2SegmentedCollectedCreditBatch
+    ):
+        raise TypeError(
+            "collected_batch must be RelationshipProductV2SegmentedCollectedCreditBatch"
+        )
+    batch = collected_batch.gate_batch
+
+    def _transition(
+        disposition: RelationshipActionGateBatchDisposition,
+    ) -> RelationshipProductV2SegmentedGateTransition:
+        gate = RelationshipActionGateV2(artifact=artifact)
+        receipt = gate.commit_credit_batch(
+            gate.plan_credit_batch(batch),
+            disposition=disposition,
+        )
+        return RelationshipProductV2SegmentedGateTransition(
+            collected_batch=collected_batch,
+            gate_receipt=receipt,
+            frozen_policy=gate.freeze_for_evaluation(),
+        )
+
+    return RelationshipProductV2SegmentedMatchedGateTransitions(
         applied=_transition(RelationshipActionGateBatchDisposition.APPLY),
         withheld=_transition(RelationshipActionGateBatchDisposition.WITHHOLD),
     )
@@ -4310,10 +4807,14 @@ __all__ = [
     "RELATIONSHIP_PRODUCT_PULSE_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_EXECUTOR_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_COLLECTED_BATCH_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_V2_COLLECTION_SEGMENT_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_FORCED_COLLECTION_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_FROZEN_PULSE_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_GATE_TRANSITION_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_MATCHED_TRANSITIONS_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_V2_SEGMENTED_COLLECTED_BATCH_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_V2_SEGMENTED_GATE_TRANSITION_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_V2_SEGMENTED_MATCHED_TRANSITIONS_SCHEMA_VERSION",
     "RelationshipProductExecutorCommand",
     "RelationshipProductExecutorDisposition",
     "RelationshipProductExecutorReceipt",
@@ -4338,6 +4839,7 @@ __all__ = [
     "RelationshipProductSettlementSnapshot",
     "RelationshipProductTemporalDelivery",
     "RelationshipProductV2CollectedCreditBatch",
+    "RelationshipProductV2CollectionSegment",
     "RelationshipProductV2ExecutorCommand",
     "RelationshipProductV2ExecutorReceipt",
     "RelationshipProductV2ForcedCollectionAuthorization",
@@ -4350,10 +4852,15 @@ __all__ = [
     "RelationshipProductV2FrozenSettlementSnapshot",
     "RelationshipProductV2GateTransition",
     "RelationshipProductV2MatchedGateTransitions",
+    "RelationshipProductV2SegmentedCollectedCreditBatch",
+    "RelationshipProductV2SegmentedGateTransition",
+    "RelationshipProductV2SegmentedMatchedGateTransitions",
     "append_relationship_product_onboarding",
     "authorize_relationship_product_pulse_advisory",
     "build_relationship_product_v2_collected_credit_batch",
+    "build_relationship_product_v2_segmented_collected_credit_batch",
     "commit_relationship_product_v2_matched_gate_transitions",
+    "commit_relationship_product_v2_segmented_matched_gate_transitions",
     "prepare_relationship_product_forced_collection_preaction",
     "prepare_relationship_product_frozen_preaction",
     "prepare_relationship_product_preaction",

@@ -65,9 +65,14 @@
 > causal effect，当前 schema 不提供 randomized enum；v1 谱系不改。
 > v2 pulse/forced consumer seam 现已用独立 `.v2` authorization/command/receipt/snapshot 闭合：完整 assignment
 > receipt 决定实际 candidate/noop 交付，settlement 只从实际 temporal delivery 经 owner→Social PE→parent credit
-> 派生 common-baseline credit。pulse-owned collected batch 保留完整 settlement、owner forecast-publication replay 与
-> 相邻 post→input handoff，拒绝 raw gate-only batch；APPLY/WITHHOLD 必须从同一 collection 成对派生，strict-noop
-> 只切 executor disposition；外部 base authorization 不能直接打开 ACTIVE。v1 payload/identity 均未改。当前仍只有
+> 派生 common-baseline credit。pulse-owned continuous collected batch 保留完整 settlement、owner
+> forecast-publication replay 与相邻 post→input handoff；add-only segmented batch 进一步绑定唯一 segment scope、
+> 显式 owner start、段内连续 handoff，并在 flatten 后完整顺序耗尽同一 schedule。generic pulse 不把显式 start
+> 冒充 root reset；theta0 v3 owner 仍须逐 root 证明从 `None` 重放四条 onboarding。两种 collection 使用互不兼容的
+> 专用 transition/commit，均拒绝 raw gate-only batch；针对 owner snapshot 的 shallow-frozen payload，两类 collection
+> 都在构造时 seal provenance，并在 ID/export/transition 边界拒绝 nested mutation；有效既有 continuous v2 的公开
+> constructor signature、canonical payload 与 ID 不变。APPLY/WITHHOLD 必须从同一 collection 成对派生，strict-noop
+> 只切 executor disposition；外部 base authorization 不能直接打开 ACTIVE，v1 payload/identity 均未改。当前仍只有
 > 机制 contract/unit tests，theta0 v3、
 > public/outcome-free treatment-reachability admission 与新 source campaign 均待完成。reader rehearsal、模型与 CUDA
 > 继续关闭；formal/unseen/integrated/四轴效果与
@@ -524,7 +529,7 @@ R8（快照优先）、R10（受控更新）、R12（evaluation 只读）、R15�
 | [companion-ablation.md](./companion-ablation.md) | same-substrate Companion Bench 因果 ablation：9-track 同基底矩阵（raw / ref-harness / camel / volvence-cold / volvence + PE/ETA/active-learning/LoRA component arms）、#87 五 claim retain verdict、单 substrate owner topology、跨家族裁判与 substrate-fingerprint 守门、P0/judge-evidence/P1/P2 阶段 |
 | [seven-day-companion-evidence.md](./seven-day-companion-evidence.md) | 模拟用户 × 真实七日生命周期证据闭环：N+1-based v3 base-only / v4 character-stack、Gate 1/suite v2、强制 smoke、严格 resume、state/sleep 消融与独立审计；历史 v1 formal 已停机且不可原样续跑；A1 formal（nplus1 prereg）已封存 `passed=false`，判词限定为「v1 raw-cosine readout 下无净增益」，重开须过分辨力 + 传导双预检（主线方案 §0 不变量 7/8） |
 | [coding-lab.md](./coding-lab.md) | 编程域持续学习证据 lane：受控演进式合成仓库（隐藏不变量 + pytest oracle 机械判决 + 内容寻址轨迹落盘）；A1 判词收窄后升格为主证据 lane，语义级 PE 不依赖残差 readout 标度。Packet 0 标定 PASS（环境比特级确定、oracle pass rate 0.656 落带、held-out 变体哈希封存）；Packet 1 SHADOW 观察者：语义 PE 分辨力 p≈1e-4、跨进程恢复、`dialogue_external_outcome` 外部结局通道三项 PASS，`forecast_skill=False` 如实封存（scope=合成基底×scripted 轨迹）；Packet 2 记忆注入 vs 长上下文 steelman 进行中 |
-| [four-able-mainline-execution-plan.md](./four-able-mainline-execution-plan.md) | 四能力因果主线执行计划（2026-08-27 状态）：Phase 0 已于 `15887ed1` 收口、Phase 1a 已由 `7c2f24ba`/`b7d1796e` 闭合；开发档/正式档分层、轻量 artifact-plumbing 单测先于唯一执行、3–8 文件单 owner、主任务单写入、本地小包自动提交、外部授权攒批、A1/A2/Horizon 三本账分离。theta0 v2、transductive scanner 与 natural-APPLY dynamic collection-prefix 已依次闭合；下一合法动作仅为冻结并验证 forced common-batch protocol，之后才可另立 Product Horizon development root-cluster matrix prereg。reader v6 formal 链推迟且不阻塞该开发序列；P4.6 development PASS 与 formal host-block 分账，正式 host-dependent 线暂停；四轴 12 槽齐全前不授权 integrated run，不改写既有判词 |
+| [four-able-mainline-execution-plan.md](./four-able-mainline-execution-plan.md) | 四能力因果主线执行计划（2026-08-27 状态）：Phase 0 已于 `15887ed1` 收口、Phase 1a 已由 `7c2f24ba`/`b7d1796e` 闭合；开发档/正式档分层、轻量 artifact-plumbing 单测先于唯一执行、3–8 文件单 owner、主任务单写入、本地小包自动提交、外部授权攒批、A1/A2/Horizon 三本账分离。既有三臂 campaign 已诚实封存 Learnable treatment 退化；versioned gate v2 与 pulse continuous/segmented collection 机制接缝已闭合，下一合法动作是 theta0 v3，再做永久 public/outcome-free treatment-reachability admission。reader/campaign 彩排默认关闭且不阻塞该开发序列；P4.6 development PASS 与 formal host-block 分账，正式 host-dependent 线暂停；四轴 12 槽齐全前不授权 integrated run，不改写既有判词 |
 | [relationship-lab.md](./relationship-lab.md) | 关系智能主证据 lane P0–P1m：P1j v4 one-shot unseen failure 与 P1k-R1 已披露策略应用失败均已封存；P1m 用冻结 recipe/v5 typed realizer 生成 24 对，并完成首轮唯一 Wilson qualification。Qwen prompt/RAG 仍固定选 A（各 24/48、0 flip），fresh structured named reader 为 46/48、24/24 flip；report `9580ddff…fc56` 判 baseline too weak、整体失败并关闭场景版本化。P1l human anchor 仍待 3 rater；fresh reader 只作方向性机制证据，consumer qualification、Volvence advantage、formal/P2/四能力继续关闭 |
 | [human-world-model-ablation.md](./human-world-model-ablation.md) | （冻结 claim registry / debt #87）人类世界模型 thesis 第一阶段 5 条 retain claim（新增 component-causal PE/ETA/主动学习）+ 8 臂 matched-control matrix + 6 项证据门槛 + 4 态结果分级 + 4 条 kill 条件；`first-stage-retained` 前不得宣称 thesis proven |
 | [thesis-v2-proposal.md](../thesis-v2-proposal.md) | #93 有界产品连续性提案：继承 #92/L1/L3 负证据，把 Gate 8/11 真实人类 anchor 作为唯一新 EXIT，明确排除失败 learned uplift 与 production 自动晋升 |

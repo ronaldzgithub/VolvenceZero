@@ -10,18 +10,26 @@ import pytest
 import lifeform_domain_emogpt.lab.relationship_product_pulse as pulse_module
 from lifeform_domain_emogpt.lab.relationship_product_pulse import (
     RelationshipProductExecutorDisposition,
+    RelationshipProductOnboardingInput,
     RelationshipProductPreActionRequest,
     RelationshipProductPulseAuthorization,
     RelationshipProductSettlementInput,
     RelationshipProductV2CollectedCreditBatch,
+    RelationshipProductV2CollectionSegment,
     RelationshipProductV2ExecutorCommand,
     RelationshipProductV2ForcedCollectionAuthorization,
     RelationshipProductV2ForcedCollectionReceipt,
     RelationshipProductV2FrozenPulseAuthorization,
     RelationshipProductV2GateTransition,
     RelationshipProductV2MatchedGateTransitions,
+    RelationshipProductV2SegmentedCollectedCreditBatch,
+    RelationshipProductV2SegmentedGateTransition,
+    RelationshipProductV2SegmentedMatchedGateTransitions,
+    append_relationship_product_onboarding,
     build_relationship_product_v2_collected_credit_batch,
+    build_relationship_product_v2_segmented_collected_credit_batch,
     commit_relationship_product_v2_matched_gate_transitions,
+    commit_relationship_product_v2_segmented_matched_gate_transitions,
     prepare_relationship_product_v2_forced_collection_preaction,
     prepare_relationship_product_v2_frozen_preaction,
     settle_relationship_product_v2_forced_collection,
@@ -136,7 +144,11 @@ def _placeholder_substrate() -> SubstrateSnapshot:
     )
 
 
-def _request(index: int) -> RelationshipProductPreActionRequest:
+def _request(
+    index: int,
+    *,
+    session_scope: str = _SCOPE,
+) -> RelationshipProductPreActionRequest:
     turn = 2 * index + 1
     return RelationshipProductPreActionRequest(
         session_id=f"relationship-product-v2-session-{index}",
@@ -148,7 +160,7 @@ def _request(index: int) -> RelationshipProductPreActionRequest:
             candidate_action_ids=_ACTION_IDS,
             outcome_ids=_OUTCOME_IDS,
             turn_index=turn,
-            session_scope=_SCOPE,
+            session_scope=session_scope,
         ),
         outcome_turn_index=turn + 1,
     )
@@ -277,6 +289,99 @@ async def _collect_batch(
         build_relationship_product_v2_collected_credit_batch(settlements),
         persistence,
     )
+
+
+async def _collect_segmented_batch(
+    artifact: RelationshipActionGateV2Artifact,
+    *,
+    start_index: int,
+    duplicate_segment_scope: bool = False,
+):
+    distinct_scopes = tuple(
+        hashlib.sha256(f"v2-segmented-scope:{start_index}:{segment_index}".encode("utf-8")).hexdigest()
+        for segment_index in range(2)
+    )
+    segment_scopes = (distinct_scopes[0], distinct_scopes[0]) if duplicate_segment_scope else distinct_scopes
+    requests = tuple(
+        _request(
+            start_index + offset,
+            session_scope=segment_scopes[offset // 2],
+        )
+        for offset in range(4)
+    )
+    schedule = RelationshipActionGateV2AssignmentScheduleArtifact(
+        source_artifact_id=f"relationship-product-source-sha256:{'d' * 64}",
+        schedule_scope_id=f"v2-segmented-test-schedule:{start_index}",
+        entries=tuple(
+            RelationshipActionGateV2AssignmentScheduleEntry(
+                decision_id=request.forecast_request.decision_id,
+                sequence_index=offset,
+                assignment_role=(
+                    RelationshipActionGateV2AssignmentRole.CANDIDATE
+                    if offset % 2 == 0
+                    else RelationshipActionGateV2AssignmentRole.NEUTRAL_NOOP
+                ),
+            )
+            for offset, request in enumerate(requests)
+        ),
+    )
+    policy = RelationshipActionGateV2(artifact=artifact).freeze_for_evaluation()
+    segments = []
+    for segment_index, segment_requests in enumerate((requests[:2], requests[2:])):
+        if segment_index == 0:
+            reset = SocialRecordStore().export_persistence_snapshot()
+        else:
+            onboarding = await append_relationship_product_onboarding(
+                owner_persistence_snapshot=None,
+                onboarding=RelationshipProductOnboardingInput(
+                    session_id=f"v2-segmented-onboarding:{start_index}",
+                    session_index=0,
+                    turn_index=0,
+                    public_observation="A separate relationship root begins.",
+                    action_id=RelationshipAction.NEUTRAL_NOOP.value,
+                    observed_outcome_id=DialogueExternalOutcomeKind.MISSED.value,
+                    reaction_summary="The separate root remained unresolved.",
+                    evidence_ref=(hashlib.sha256(f"v2-segmented-reset:{start_index}".encode("utf-8")).hexdigest()),
+                ),
+            )
+            reset = onboarding.owner_persistence_snapshot
+        persistence = reset
+        settlements = []
+        for request in segment_requests:
+            entry = schedule.entry_for_decision(request.forecast_request.decision_id)
+            authorization = RelationshipProductV2ForcedCollectionAuthorization(
+                pulse_authorization=_pulse_authorization(
+                    artifact,
+                    suffix=entry.decision_id,
+                ),
+                frozen_policy=policy,
+                assignment=RelationshipActionGateV2AssignmentReceipt(
+                    schedule_artifact=schedule,
+                    schedule_entry=entry,
+                ),
+            )
+            preaction = await prepare_relationship_product_v2_forced_collection_preaction(
+                request=request,
+                owner_persistence_snapshot=persistence,
+                forecast_runtime=_ForecastRuntime(),
+                authorization=authorization,
+                substrate_snapshot=_placeholder_substrate(),
+            )
+            settlement = await settle_relationship_product_v2_forced_collection(
+                preaction=preaction,
+                settlement_input=_settlement_input(preaction),
+            )
+            settlements.append(settlement)
+            persistence = settlement.owner_persistence_snapshot
+        segments.append(
+            RelationshipProductV2CollectionSegment(
+                segment_scope_id=segment_scopes[segment_index],
+                segment_start_owner_persistence_snapshot=reset,
+                settlements=tuple(settlements),
+            )
+        )
+    collection = build_relationship_product_v2_segmented_collected_credit_batch(tuple(segments))
+    return tuple(segments), collection
 
 
 async def _trained_theta_and_online_batch():
@@ -472,6 +577,125 @@ def test_v2_batch_requires_complete_ordered_actual_settlements() -> None:
     )
     with pytest.raises(ValueError, match="owner persistence handoff"):
         build_relationship_product_v2_collected_credit_batch(reset_settlements)
+
+    mutable_settlements, mutable_collection, _ = asyncio.run(
+        _collect_batch(_seed(), start_index=70)
+    )
+    target_payload = mutable_settlements[0].preaction.owner_input_persistence_snapshot.payload
+    replacement_payload = mutable_settlements[1].preaction.owner_input_persistence_snapshot.payload
+    assert isinstance(target_payload, dict)
+    target_payload.clear()
+    target_payload.update(dict(replacement_payload))
+    with pytest.raises(ValueError):
+        _ = mutable_collection.collection_id
+    with pytest.raises(ValueError):
+        commit_relationship_product_v2_matched_gate_transitions(
+            artifact=_seed(),
+            collected_batch=mutable_collection,
+        )
+
+
+def test_v2_segmented_batch_binds_explicit_segment_starts_and_one_schedule() -> None:
+    segments, collection = asyncio.run(_collect_segmented_batch(_seed(), start_index=80))
+
+    assert isinstance(
+        collection,
+        RelationshipProductV2SegmentedCollectedCreditBatch,
+    )
+    assert len(collection.segments) == 2
+    assert len(collection.gate_batch.credits) == 4
+    assert tuple(exposure.sequence_index for exposure in collection.gate_batch.exposures) == (0, 1, 2, 3)
+    assert collection.to_payload().keys() == {
+        "collection_id",
+        "schema_version",
+        "gate_batch_id",
+        "segments",
+    }
+
+    matched = commit_relationship_product_v2_segmented_matched_gate_transitions(
+        artifact=_seed(),
+        collected_batch=collection,
+    )
+    assert isinstance(
+        matched,
+        RelationshipProductV2SegmentedMatchedGateTransitions,
+    )
+    assert matched.applied.gate_receipt.credit_count == 4
+    assert matched.withheld.gate_receipt.update_count_delta == 0
+    with pytest.raises(TypeError, match="RelationshipProductV2CollectedCreditBatch"):
+        commit_relationship_product_v2_matched_gate_transitions(
+            artifact=_seed(),
+            collected_batch=collection,
+        )
+    with pytest.raises(
+        TypeError,
+        match="RelationshipProductV2SegmentedCollectedCreditBatch",
+    ):
+        commit_relationship_product_v2_segmented_matched_gate_transitions(
+            artifact=_seed(),
+            collected_batch=collection.gate_batch,  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(ValueError, match="explicit owner start"):
+        replace(
+            segments[1],
+            segment_start_owner_persistence_snapshot=(segments[0].segment_start_owner_persistence_snapshot),
+        )
+    with pytest.raises(ValueError, match="forecast scope"):
+        replace(
+            segments[1],
+            segment_scope_id=hashlib.sha256(b"forged-segment-scope").hexdigest(),
+        )
+    with pytest.raises(ValueError, match="schedule ordered"):
+        build_relationship_product_v2_segmented_collected_credit_batch(tuple(reversed(segments)))
+    with pytest.raises(ValueError, match="complete schedule in order"):
+        build_relationship_product_v2_segmented_collected_credit_batch(segments[:1])
+    with pytest.raises(ValueError, match="scope ids must be unique"):
+        asyncio.run(
+            _collect_segmented_batch(
+                _seed(),
+                start_index=90,
+                duplicate_segment_scope=True,
+            )
+        )
+    with pytest.raises(ValueError, match="persistence handoff"):
+        RelationshipProductV2CollectionSegment(
+            segment_scope_id=segments[0].segment_scope_id,
+            segment_start_owner_persistence_snapshot=(
+                segments[0].settlements[1].preaction.owner_input_persistence_snapshot
+            ),
+            settlements=(
+                segments[0].settlements[1],
+                segments[0].settlements[0],
+            ),
+        )
+
+    other_segments, other_collection = asyncio.run(
+        _collect_segmented_batch(_seed(), start_index=100)
+    )
+    other_matched = commit_relationship_product_v2_segmented_matched_gate_transitions(
+        artifact=_seed(),
+        collected_batch=other_collection,
+    )
+    with pytest.raises(ValueError, match="share one collected batch"):
+        RelationshipProductV2SegmentedMatchedGateTransitions(
+            applied=matched.applied,
+            withheld=other_matched.withheld,
+        )
+    assert isinstance(other_matched.applied, RelationshipProductV2SegmentedGateTransition)
+
+    target_payload = other_segments[1].segment_start_owner_persistence_snapshot.payload
+    replacement_payload = other_segments[0].segment_start_owner_persistence_snapshot.payload
+    assert isinstance(target_payload, dict)
+    target_payload.clear()
+    target_payload.update(dict(replacement_payload))
+    with pytest.raises(ValueError):
+        _ = other_collection.collection_id
+    with pytest.raises(ValueError):
+        commit_relationship_product_v2_segmented_matched_gate_transitions(
+            artifact=_seed(),
+            collected_batch=other_collection,
+        )
 
 
 def test_v2_apply_withhold_transition_is_full_and_replayable() -> None:

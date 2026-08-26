@@ -210,10 +210,16 @@ checkpoint 在 112/112 root 不同，Learnable 仍必须判
    完整重放且拒绝净零参数，advisory 必须由 frozen policy+forecast 重放 frozen decision；v1 全部原样保留；
 2. **已闭合** v2 pulse/forced consumer：以独立 `.v2` authorization/command/receipt/snapshot mechanically 绑定
    完整 assignment receipt、policy+forecast replay 后的 v2 frozen decision、actual temporal delivery、
-   owner→Social PE→parent/common-baseline credit；pulse-owned collected batch 保留完整 settlement、owner
-   forecast-publication replay 与连续 post→input handoff，raw gate-only batch 不可提交；APPLY/WITHHOLD 必须由同一
-   collection 成对派生并 exact-match plan/pre/candidate checkpoint。strict-noop 只切 executor disposition，外部
-   base authorization 不能直接打开 ACTIVE，不复用或改名 v1 receipt；
+   owner→Social PE→parent/common-baseline credit；pulse-owned continuous collected batch 保留完整 settlement、
+   owner forecast-publication replay 与全程连续 post→input handoff；add-only segmented batch 绑定唯一 segment scope、
+   显式 immutable owner start 与段内连续 handoff，并在 flatten 后完整顺序耗尽同一 schedule。generic pulse 只证明
+   caller 提供的 segment start，不把它命名为 root reset；theta0 v3 owner 必须另证每 root 从 `None` 精确重放四条
+   onboarding。raw gate-only batch 不可提交，continuous/segmented 各用互不兼容的专用 transition/commit；
+   APPLY/WITHHOLD 必须由同一 collection 成对派生并 exact-match plan/pre/candidate checkpoint。strict-noop 只切
+   executor disposition，外部 base authorization 不能直接打开 ACTIVE；v1 与既有 continuous v2 receipt/payload/ID
+   均不复用、不改名。两类 collection 还在构造时 seal owner provenance，并在 ID/export/transition 边界重放校验，
+   防止 shallow-frozen `OwnerPersistenceSnapshot.payload` 的 nested mutation；有效 continuous 的公开 constructor
+   signature、canonical payload 与 ID 不变；
 3. theta0 v3 + permanent treatment-reachability admission：事前冻结 bootstrap `1/512` 与 root-online `1/4`、
    完整 896-entry development batch、唯一 terminal checkpoint 与 cap-hit FAIL；admission 只读新 source 的
    public/outcome-free surface，不生成 outcome/PE/credit/update，不是 rehearsal。
@@ -255,7 +261,8 @@ ledger 授权字段由 validator 派生，当前合法终局为
 
 入口：Phase 3 出口 + source admission + power 冻结 + host admission + execution admission 各自独立过门。
 内容：全新 protocol identity（不复用 attempt03/v2 任何 root），包含 Phase 2 的全部修正
-（frozen_theta0 臂、加大功效、分段样本量披露），彩排后冻结、公开锚定、一次性执行。
+（frozen_theta0 臂、加大功效、分段样本量披露），经 model-free 真实执行路径校验后冻结、公开锚定、一次性执行。
+彩排默认关闭；只有未来独立事前裁决证明不可替代时，才另立不进入效果证据的彩排协议。
 
 诚实终局集合必须包含：
 - 预注册门 PASS；
@@ -442,3 +449,12 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   strict-noop 只改变 executor bit；外部 base authorization 不能绕过 v2 outer authorization 打开 ACTIVE。
   新类型均为 `.v2`，legacy v1 ID/payload 不变。本包不运行 reader rehearsal、模型、CUDA 或 campaign，也不证明
   treatment reachability/Learnable/Steerable；下一包仍是 theta0 v3，随后才执行永久 public/outcome-free admission。
+- 2026-08-27 · 为 theta0 v3 的 112 个独立 root 增加 add-only segmented collection contract：每段显式绑定唯一
+  `segment_scope_id`、immutable owner start、段内 forecast scope 与 post→input handoff；所有段 flatten 后仍须从
+  sequence 0 开始完整耗尽同一 fixed-balanced schedule。segmented collection 使用独立 transition/matched-pair ID 与
+  commit 入口，旧 continuous v2 签名、payload 与 identity 保持不变。generic pulse 不声称 segment start 是空 root；
+  theta0 v3 owner 仍须逐 root 证明从 `None` 重放四条 onboarding。当前只闭合 model-free 机制，不运行彩排、模型、
+  CUDA 或 campaign。红队发现 owner snapshot payload 可被构造后原地修改；continuous/segmented 现均以 construction-time
+  provenance seal + 边界重放 fail closed，有效旧 constructor signature/canonical payload/ID 不变。segmented compact
+  payload 只持 `gate_batch_id`，但 896-entry gate batch 本身仍有 O(N²) serialization/content-ID 成本；v3 protocol
+  必须事前披露，若不可接受只能另立 gate schema，禁止看见 theta 输出后改。

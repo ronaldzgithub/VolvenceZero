@@ -163,7 +163,7 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | Product Horizon forced common-batch owner | `lifeform-evolution.relationship_product_horizon_forced_common_batch` | 只消费 dynamic gate 的 PASS manifest（禁止读取 natural trace/outcome/credit）及其既有 source-v4/reader/theta0/scanner lineage；事前发布 112 份 root-local 8-entry schedule 的内容寻址父索引，每 root 只执行一次 forced collection 并保存共同 terminal owner persistence、8-credit batch 与 APPLY/WITHHOLD transition。full 只能由 theta0+exact batch+APPLY receipt 重放，frozen/strict 共享同一 WITHHOLD receipt。只可授权后续 campaign protocol freeze，不拥有 40-decision evaluation、effect 或能力判词 |
 | Product Horizon 112-root development campaign owner | `lifeform-evolution.relationship_product_horizon_development_campaign` | 只消费 forced campaign-input seam 与 dynamic public selected-branch facade；执行 full / frozen_theta0 / strict_noop 三个 fresh arm 的 40-decision evaluation，固定 preaction 三臂全部 durable 后才能 once-only settle branch，postaction 三臂全部 durable 后才能推进 owner。以 whole root 为 bootstrap/分析单元发布 development-only stop/go；不拥有 reader qualification、formal/unseen 单轴门、integrated 四轴或 production claim |
 | Product Horizon pulse owner | `lifeform-domain-emogpt.lab.relationship_product_pulse` | 只编排正式 `preference_about_other` owner、named condition reader、`dialogue_external_outcome`→PE→credit 与 `RelationshipActionGate`；发布 onboarding / pre-action / settlement frozen snapshot，不复制 memory、PE、credit 或 gate 数学 |
-| Product Horizon v2 pulse/forced consumer seam | `lifeform-domain-emogpt.lab.relationship_product_pulse`（同一 pulse owner 的 versioned contract） | 独立 `.v2` authorization/command/receipt/snapshot 保留完整 v2 assignment receipt、policy+forecast replay、actual temporal delivery、owner persistence、Social PE 与 parent/common-baseline credit；pulse-owned collected batch 继续保留 full settlements、owner publication replay 及相邻 handoff，拒绝 raw gate-only batch，APPLY/WITHHOLD 从同一 collection 成对派生。strict-noop 仅切 executor disposition，base authorization 不可直接打开 ACTIVE。legacy v1 identity/payload 不改；当前仅 model-free contract，不拥有 source schedule、campaign、effect 或能力判词 |
+| Product Horizon v2 pulse/forced consumer seam | `lifeform-domain-emogpt.lab.relationship_product_pulse`（同一 pulse owner 的 versioned contract） | 独立 `.v2` authorization/command/receipt/snapshot 保留完整 v2 assignment receipt、policy+forecast replay、actual temporal delivery、owner persistence、Social PE 与 parent/common-baseline credit；pulse-owned continuous collection 保留 full settlements、owner publication replay 及全程相邻 handoff，add-only segmented collection 则显式绑定唯一 scope/start、段内 handoff，并在 flatten 后完整耗尽同一 schedule。两类 collection 均以 construction-time provenance seal + ID/export/transition 边界重放阻止 shallow-frozen owner payload 的 nested mutation；有效 continuous 的公开 constructor signature、canonical payload 与 ID 不变。两者使用互不兼容的 transition/commit，均拒绝 raw gate-only batch；generic pulse 不把 caller start 命名为 root reset，theta0 v3 owner 必须另证 onboarding-from-`None`。strict-noop 仅切 executor disposition，base authorization 不可直接打开 ACTIVE。legacy v1 identity/payload 不改；当前仅 model-free contract，不拥有 source schedule、campaign、effect 或能力判词 |
 | Product Horizon strong-baseline owner | `lifeform-evolution.relationship_lab_product_{baselines,model_adapters,baseline_dispatcher}` | 在逐 decision 公开账本边界内运行 revision-pinned Qwen chronological full-history 与 BGE selective-RAG；一个 resident 模型进程执行 stateless calls，逐请求冻结 token、truncation、retrieval、generation 与 ledger lineage |
 | Product Horizon campaign owner | `lifeform-evolution.relationship_lab_product_horizon` | 执行 5 条 typed Volvence targeted-intervention arm 和 2 条强基线；每个 Volvence logical session 使用 fresh child，父进程在 pre-action receipt fsync 后才提供 typed outcome，全部 action 结束后才发布 sealed sidecar；离线 validator 重算环境、链、指标与报告 |
 | Relationship named-action residual fit owner | corpus adapter：`lifeform-domain-emogpt.lab.relationship_residual_fit_corpus`；数学 owner：`volvence_zero.agent.named_action_steering_artifact_training` | 只把 pre-action owner forecast + 非 oracle、PE-trained typed gate 投影为 disjoint named-action corpus；在冻结 substrate 上拟合 reader / bounded multiplicative executor / matched sensor-off，strict-noop 为零 code；v1 仅为 typed enum residual prerequisite |
@@ -2280,12 +2280,21 @@ fixed-balanced assignment-weighted **feature moment** 与可重放的机制 rece
 或 Learnable 证据。v2 seam 使用独立 `.v2` authorization/command/receipt/snapshot：forced authorization 保留完整
 schedule/entry membership，调用方不能提交 concrete action；实际交付前重放 frozen policy+forecast，settlement
 只按 actual temporal delivery 经既有 owner persistence→Social PE→parent action-credit 派生 exact
-common-baseline credit。pulse-owned collected batch 保留完整有序的同 schedule settlement，用 preference owner helper
-重放每拍 input→forecast-publication poststate，并验证相邻 settlement post→next input handoff；raw gate-only batch
-不能提交。APPLY/WITHHOLD 从同一 collection 成对派生，要求 batch/plan/pre/candidate checkpoint 全等；evaluation
-authorization 只能选择 pair 内 exact disposition，strict-noop 只切 executor disposition。仅持 legacy base
-authorization 的公共入口已关闭；v1 receipt/ID/payload 未改。compact transition payload 只作 ID projection，未来
-恢复必须同时提供完整 collected batch/pair components。
+common-baseline credit。pulse-owned continuous collected batch 保留完整有序的同 schedule settlement，用 preference
+owner helper 重放每拍 input→forecast-publication poststate，并验证全程相邻 settlement post→next input handoff；
+add-only segmented collected batch 为每段绑定唯一 `segment_scope_id`、显式 immutable owner start、段内 forecast scope
+与 handoff，段边界可断开 owner lineage，但 flatten 后仍从 sequence 0 完整顺序耗尽同一 schedule。generic pulse
+只验证 caller 提供的 start，不声称它来自空 owner；theta0 v3 owner 必须逐 root 证明从 `None` 精确重放四条
+onboarding。raw gate-only batch 不能提交；continuous 与 segmented 各有专用且互不兼容的 transition/commit。
+APPLY/WITHHOLD 从同一 collection 成对派生，要求 batch/plan/pre/candidate checkpoint 全等；evaluation authorization
+只能选择 pair 内 exact disposition，strict-noop 只切 executor disposition。仅持 legacy base authorization 的公共入口
+已关闭。`OwnerPersistenceSnapshot` 的 dataclass freeze 不会递归冻结其 mapping payload，因此 continuous/segmented
+collection 均在构造时保存 provenance seal，并在 content-ID、export 与 transition 边界重放 preaction/settlement/
+handoff，任何 nested mutation 均 fail closed；有效 continuous v2 的公开 constructor signature、canonical payload/ID
+及 v1 identity 未改。segmented compact payload 只保留 exact `gate_batch_id` 与 full segment provenance；未来恢复必须
+同时提供完整 typed collected batch/pair components。单一 896-entry schedule 仍会在每个 exposure 内重复嵌入完整
+schedule，gate batch 本身存在 O(N²) serialization/content-ID 成本；theta0 v3 protocol 必须事前披露，若不可接受
+须在看见输出前另立 gate schema。
 
 当前尚无 theta0 v3 protocol/artifact、outcome-free treatment-reachability admission 或新 campaign。下一收敛包
 才可事前冻结 theta0 v3 的 `bootstrap=1/512`、`root-online=1/4`、完整 896-entry
