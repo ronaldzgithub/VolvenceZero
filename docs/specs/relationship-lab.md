@@ -1596,9 +1596,37 @@ PE-credit batch、pure plan 与 apply/withhold receipt。它复用而不回改 P
 期间 gate 不变、同 action/outcome/PE/credit、一次 batch 后冻结评估 policy；任何 post-batch policy/restore
 都必须从 exact batch + `APPLY` receipt 重放，单独的任意 post-checkpoint 不获接受。owner receipt 中的
 `atomic_commit_count=1` 只表示进程内 gate 状态一次赋值；磁盘/fsync/crash 原子性、两臂内生后代逐字节一致、
-evaluation 只消费 immutable policy、executor-only strict noop 与 product outcome 均留给后续 consumer 包。
+evaluation 只消费 immutable policy与 product outcome 的 campaign 级聚合均留给后续包。
 本包不接 source-v3、不运行 campaign/CUDA、不修改 attempt03、P4.7 v3 或任何既有公开判词；nonzero theta0
 也不等于 qualified、Learnable、Steerable 或四能力证据。
+
+executor consumer 的独立旁路包使用 `relationship-product-frozen-pulse.v1` 与
+`relationship-product-executor-receipt.v1`，不改变历史 Product Horizon v1/v2 的 protocol、worker、pre/post
+receipt、validator 或 attempt03。新 `FrozenPulseAuthorization` 精确 pin frozen policy id + 完整 checkpoint hash；
+`prepare_relationship_product_frozen_preaction()` 从完整 immutable policy 对 owner 发布的 exact forecast 重算
+`FrozenDecision`，然后才生成共同 intervention candidate。`ExecutorCommand` 只有一个 treatment 字段：
+`apply_candidate` 或 `force_strict_noop`。后者不把 gate mode 改成 `NOOP`，而是在 candidate 已冻结后由 executor
+向 temporal 发布独立、可追溯的 `neutral_noop` advisory。command/receipt 同时绑定 `SocialRecordStore` owner
+对完整 opaque pre-persistence 发布的 canonical SHA-256；协调删改 snapshot+persistence 必须产生新 ID，不能冒充
+原链。
+
+内容寻址 `ExecutorReceipt` 同时绑定 candidate/delivered advisory、最小且完整入 hash 的 temporal `APPLIED`
+delivery projection、actual `delivered_action_id`、policy/checkpoint/update/pending 计数和零 evaluator/judge
+feedback；它不携带未纳入 hash 的完整 temporal snapshot。新 frozen settlement 要求 external outcome、owner
+settlement、完整 social-PE record 与 PE-derived credit 逐层 exact-join receipt 的 delivered action，并强制
+`apply_credit_to_gate=false`。external source 仅接受 `ENVIRONMENT`，settlement snapshot 保留完整 typed input；
+consumer 调用 preference owner 公共纯函数重算完整 settlement。pre/post `SocialRecordStore` persistence 必须经
+hydrate 与 typed public getters exact 对齐 owner snapshot，settlement 后须恢复 exact outcome/settlement 且当前
+forecast 已移除；在实际 settlement 前重新复验 pre payload，post persistence 还必须等于 preference owner 从
+pre + exact input 重放的唯一 canonical transition，防止 snapshot/persistence 协同删改历史。禁止 consumer 解析
+persistence payload。父 campaign 不得再从 top-level `selected_action_id`
+或 embedded gate decision 重建实际动作。单条 receipt 能证明 executor 分叉正确，但 aggregate 仍必须证明 non-noop opportunity 与 actual
+action divergence 均大于零，否则判 `arm_degeneracy_invalid_contrast_no_claim`。primary effect 保持 root-level
+ITT，不可按 opportunity 事后筛样本。首次 treatment 后的 reaction/owner/forecast 是合法内生后代，不要求继续
+跨臂 byte-exact；若需逐 decision exact candidate，协议必须显式从共同 preaction clone 分叉。
+
+该 consumer 包仍未接新 Product Horizon protocol/source 或 runner，不运行模型/CUDA，不产生 Learnable、
+Steerable 或四能力效果证据。下一包必须建立独立 development namespace；不得扩写 attempt03/v2。
 
 #### source-separated reader development 资格预检
 

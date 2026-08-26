@@ -173,11 +173,47 @@ matched learning collection 的 owner 契约固定为：
 
 `freeze_for_evaluation()` 只发布不可变 policy snapshot，不锁死原 mutable gate。实验 consumer 必须在 batch
 处分后弃用 mutable gate，evaluation 只消费该 frozen policy；若后续仍更新原 gate，contrast 必须判 invalid。
-forced-action 字段在本层只是与 forecast/credit 绑定的声明；实际执行、跨臂 reaction/outcome/PE bytes 相同、
-评估期非 noop 机会、strict-noop executor-only 分叉与持久化原子性，均由未来 campaign consumer/receipt
-独立证明，不由本 owner sidecar 冒充。owner 在此只校验 `relationship-action-pe-credit:<settlement>` 与
+forced-action 字段在本层只是与 forecast/credit 绑定的声明；实际执行、跨臂 reaction/outcome/PE bytes 相同与
+持久化原子性，仍由未来 campaign consumer/receipt 独立证明，不由本 owner sidecar 冒充。owner 在此只校验
+`relationship-action-pe-credit:<settlement>` 与
 `social_pe:social-pe:<settlement>` 的 typed ID join；PE 数值是否真由实际 settlement 导出仍须 campaign validator
 从上游 owner receipt 重算。
+
+Product pulse 另以 `relationship-product-frozen-pulse.v1` / `relationship-product-executor-receipt.v1`
+旁路闭合 evaluation consumer，不修改历史 `relationship-product-pulse.v1`：
+
+- `RelationshipProductFrozenPulseAuthorization` 同时 pin artifact id/version、完整 checkpoint content hash 与
+  `FrozenPolicy.policy_id`；legacy artifact authorization 不能单独授权 theta0 evaluation；
+- `prepare_relationship_product_frozen_preaction()` 只接完整 `FrozenPolicy`，由 owner 对当前 exact forecast
+  内部调用 `FrozenPolicy.decide()`；外部 raw decision 不能成为执行入口；
+- `ExecutorCommand` 的唯一 treatment 字段是 `apply_candidate / force_strict_noop`。两条命令的 forecast、policy、
+  checkpoint、完整 frozen decision 与 authorization 必须相同；它还绑定 `SocialRecordStore` owner 对 canonical
+  current-schema pre-persistence 的版本化 SHA-256（owner/schema/完整 opaque payload，非程序化 description 除外），
+  因此 owner snapshot+persistence 协调重封不能沿用旧 command/receipt ID。candidate advisory 在分叉前逐字段相同；
+- `ExecutorReceipt` 内容寻址绑定 candidate advisory、delivered advisory、temporal `APPLIED` 状态与
+  `delivered_action_id`。apply 执行 candidate；strict-noop 保留 candidate receipt，但向 temporal 下发独立、
+  有 lineage 的 `neutral_noop` advisory；gate 本身不切成 `NOOP` mode。receipt 只携带完整入 hash 的最小
+  `TemporalDelivery`，不夹带同一 receipt ID 下可漂移的完整 temporal snapshot；
+- `settle_relationship_product_frozen_pulse()` 只接受 receipt 的 `delivered_action_id` 作为 external/owner
+  outcome 与 PE/credit 的实际 action lineage；external source 必须是 `ENVIRONMENT`，frozen settlement
+  保留完整 `RelationshipProductSettlementInput`。consumer 用 preference owner 公共纯函数从 exact forecast +
+  exact external evidence 重算完整 settlement，然后把 exact owner outcome、完整 social-PE record 与
+  PE-derived credit 逐层连接；credit timestamp 也必须等于冻结 input。pre/post persistence 只能经
+  `SocialRecordStore` hydrate/public typed getters 复核 owner snapshot 的 durable fields：preaction 必须恢复
+  exact pending forecast，settlement 必须移除该 forecast 并恢复 exact outcome/settlement。禁止解析 persistence
+  payload 或新增第二 hydration owner。由于通用 `OwnerPersistenceSnapshot.payload` 是序列化边界 Mapping，真正
+  settlement 前必须重新 hydrate 并与 frozen preaction snapshot 对齐；post persistence 还必须等于 preference
+  owner 从 pre persistence + exact external/owner evidence 重放的唯一 canonical transition，禁止 post snapshot 与
+  persistence 协同删除/注入历史。evaluation 内拒绝 gate credit apply，frozen checkpoint 的 before/after
+  hash、update count 与 pending count 精确不变；
+- `candidate_non_noop=false` 不是 treatment opportunity；campaign aggregate 必须证明至少一次 non-noop candidate、
+  apply 臂实际执行 candidate、paired strict 臂实际执行 noop 且 actual action divergence 非零，否则先于效果方向
+  判 `arm_degeneracy_invalid_contrast_no_claim`。该机会门不允许把 primary effect 改成 opportunity-only 子样本。
+
+上述 sidecar 只闭合 typed offline executor consumer 与实际 action SSOT；尚未接 Product Horizon 新协议/source，
+不运行模型/CUDA，也不证明 Steerable 效果。首次 treatment 前 paired forecast/decision 应 exact-match；动作后的
+reaction、owner state 与后续 forecast 是 treatment 的合法内生后代，除非协议逐 decision 从共同 preaction clone
+分叉，不得为了逐步 byte-match 而跨臂借状态或条件化掉长期中介效应。
 
 ## 5. Temporal advisory 与 causal exposure
 

@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, replace
+from enum import Enum
 
 from volvence_zero.credit import (
     CreditRecord,
@@ -27,6 +28,7 @@ from volvence_zero.credit import (
 from volvence_zero.dialogue_external_outcome import DialogueExternalOutcomeModule
 from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeSnapshot,
 )
 from volvence_zero.memory import Track
@@ -44,6 +46,9 @@ from volvence_zero.social import (
     PreferenceActionForecastRuntime,
     SocialPredictionErrorModule,
     SocialRecordStore,
+    replay_preference_action_forecast_settlement_persistence,
+    settle_preference_action_forecast,
+    social_record_store_persistence_sha256,
 )
 from volvence_zero.social_cognition import (
     PreferenceAboutOtherSnapshot,
@@ -51,6 +56,9 @@ from volvence_zero.social_cognition import (
     PreferenceActionForecastSettlement,
     PreferenceActionOutcomeEvidence,
     SocialPredictionErrorSnapshot,
+    SocialPredictionKind,
+    SocialScopeKind,
+    preference_action_forecast_to_payload,
 )
 from volvence_zero.substrate import SubstrateSnapshot, SurfaceKind
 from volvence_zero.temporal import PlaceholderTemporalPolicy, TrackTemporalModule
@@ -63,21 +71,33 @@ from volvence_zero.temporal_types import (
 from lifeform_domain_emogpt.relationship_action_contracts import (
     RELATIONSHIP_ACTIONS,
     RELATIONSHIP_OUTCOMES,
+    RelationshipAction,
 )
 from lifeform_domain_emogpt.relationship_action_gate import (
     RelationshipActionGate,
     RelationshipActionGateCheckpoint,
     RelationshipActionGateDecision,
+    RelationshipActionGateFrozenDecision,
+    RelationshipActionGateFrozenPolicy,
     RelationshipActionGateMode,
     RelationshipActionGateUpdate,
+    RelationshipGateAction,
     temporal_action_advisory_from_gate_decision,
 )
 
 
 RELATIONSHIP_PRODUCT_PULSE_SCHEMA_VERSION = "relationship-product-pulse.v1"
+RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION = (
+    "relationship-product-frozen-pulse.v1"
+)
+RELATIONSHIP_PRODUCT_EXECUTOR_SCHEMA_VERSION = (
+    "relationship-product-executor-receipt.v1"
+)
 _PREFERENCE_SLOT = "preference_about_other"
 _ACTION_IDS = tuple(action.value for action in RELATIONSHIP_ACTIONS)
 _OUTCOME_IDS = tuple(outcome.value for outcome in RELATIONSHIP_OUTCOMES)
+_EXECUTOR_COMMAND_PREFIX = "relationship-product-executor-command-sha256:"
+_EXECUTOR_RECEIPT_PREFIX = "relationship-product-executor-receipt-sha256:"
 
 
 @dataclass(frozen=True)
@@ -211,6 +231,420 @@ class RelationshipProductPulseAuthorization:
 
 
 @dataclass(frozen=True)
+class RelationshipProductFrozenPulseAuthorization:
+    """Pin one exact immutable gate policy for an offline evaluation pulse."""
+
+    pulse_authorization: RelationshipProductPulseAuthorization
+    allowed_frozen_policy_id: str
+    allowed_checkpoint_content_sha256: str
+    schema_version: str = RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.pulse_authorization,
+            RelationshipProductPulseAuthorization,
+        ):
+            raise TypeError(
+                "pulse_authorization must be RelationshipProductPulseAuthorization"
+            )
+        _require_text(self.allowed_frozen_policy_id, "allowed_frozen_policy_id")
+        _require_sha256(
+            self.allowed_checkpoint_content_sha256,
+            "allowed_checkpoint_content_sha256",
+        )
+        if self.schema_version != RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION:
+            raise ValueError("relationship product frozen authorization schema mismatch")
+
+    @property
+    def authorization_id(self) -> str:
+        return self.pulse_authorization.authorization_id
+
+    def validate_policy(
+        self,
+        policy: RelationshipActionGateFrozenPolicy,
+    ) -> None:
+        if not isinstance(policy, RelationshipActionGateFrozenPolicy):
+            raise TypeError("policy must be RelationshipActionGateFrozenPolicy")
+        if policy.theta0_artifact is None:
+            raise ValueError("frozen product pulse requires an explicit theta0 policy")
+        if policy.policy_id != self.allowed_frozen_policy_id:
+            raise ValueError("frozen policy id is outside pulse authorization")
+        if (
+            policy.checkpoint.content_sha256
+            != self.allowed_checkpoint_content_sha256
+        ):
+            raise ValueError("frozen checkpoint is outside pulse authorization")
+        if (
+            policy.artifact.artifact_id
+            != self.pulse_authorization.allowed_policy_artifact_id
+        ):
+            raise ValueError("frozen policy artifact id is outside pulse authorization")
+        if (
+            policy.artifact.artifact_version
+            != self.pulse_authorization.allowed_policy_artifact_version
+        ):
+            raise ValueError(
+                "frozen policy artifact version is outside pulse authorization"
+            )
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "pulse_authorization": _pulse_authorization_to_payload(
+                self.pulse_authorization
+            ),
+            "allowed_frozen_policy_id": self.allowed_frozen_policy_id,
+            "allowed_checkpoint_content_sha256": (
+                self.allowed_checkpoint_content_sha256
+            ),
+        }
+
+
+class RelationshipProductExecutorDisposition(str, Enum):
+    """The only treatment bit after a frozen intervention candidate exists."""
+
+    APPLY_CANDIDATE = "apply_candidate"
+    FORCE_STRICT_NOOP = "force_strict_noop"
+
+
+class RelationshipProductExecutorStatus(str, Enum):
+    APPLIED_CANDIDATE = "applied_candidate"
+    GATE_NOOP = "gate_noop"
+    STRICT_NOOP = "strict_noop"
+
+
+@dataclass(frozen=True)
+class RelationshipProductExecutorCommand:
+    """Exact frozen-policy command whose sole treatment field is disposition."""
+
+    forecast: PreferenceActionForecast
+    frozen_policy: RelationshipActionGateFrozenPolicy
+    frozen_decision: RelationshipActionGateFrozenDecision
+    authorization: RelationshipProductFrozenPulseAuthorization
+    owner_prestate_sha256: str
+    executor_disposition: RelationshipProductExecutorDisposition
+    schema_version: str = RELATIONSHIP_PRODUCT_EXECUTOR_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.forecast, PreferenceActionForecast):
+            raise TypeError("forecast must be PreferenceActionForecast")
+        if not isinstance(self.frozen_policy, RelationshipActionGateFrozenPolicy):
+            raise TypeError("frozen_policy must be RelationshipActionGateFrozenPolicy")
+        if not isinstance(
+            self.frozen_decision,
+            RelationshipActionGateFrozenDecision,
+        ):
+            raise TypeError(
+                "frozen_decision must be RelationshipActionGateFrozenDecision"
+            )
+        if not isinstance(
+            self.authorization,
+            RelationshipProductFrozenPulseAuthorization,
+        ):
+            raise TypeError(
+                "authorization must be RelationshipProductFrozenPulseAuthorization"
+            )
+        _require_sha256(self.owner_prestate_sha256, "owner_prestate_sha256")
+        if not isinstance(
+            self.executor_disposition,
+            RelationshipProductExecutorDisposition,
+        ):
+            raise TypeError(
+                "executor_disposition must be RelationshipProductExecutorDisposition"
+            )
+        if self.schema_version != RELATIONSHIP_PRODUCT_EXECUTOR_SCHEMA_VERSION:
+            raise ValueError("relationship product executor command schema mismatch")
+        self.authorization.validate_policy(self.frozen_policy)
+        expected = self.frozen_policy.decide(self.forecast)
+        if self.frozen_decision != expected:
+            raise ValueError(
+                "frozen decision differs from exact frozen-policy replay"
+            )
+
+    @property
+    def command_id(self) -> str:
+        return f"{_EXECUTOR_COMMAND_PREFIX}{_canonical_sha256(self._core_payload())}"
+
+    @property
+    def theta0_artifact_id(self) -> str:
+        theta0 = self.frozen_policy.theta0_artifact
+        if theta0 is None:  # Closed by __post_init__; retained for type narrowing.
+            raise RuntimeError("executor command lost theta0 artifact lineage")
+        return theta0.artifact_id
+
+    @property
+    def candidate_action_id(self) -> str:
+        return self.frozen_decision.decision.selected_action_id
+
+    @property
+    def non_noop_opportunity(self) -> bool:
+        return (
+            self.frozen_decision.decision.gate_action
+            is RelationshipGateAction.STEER
+            and self.candidate_action_id
+            != RelationshipAction.NEUTRAL_NOOP.value
+        )
+
+    def _core_payload(self) -> dict[str, object]:
+        policy = self.frozen_policy
+        return {
+            "schema_version": self.schema_version,
+            "forecast": preference_action_forecast_to_payload(self.forecast),
+            "forecast_sha256": _canonical_sha256(
+                preference_action_forecast_to_payload(self.forecast)
+            ),
+            "frozen_policy": {
+                "policy_id": policy.policy_id,
+                "artifact_id": policy.artifact.artifact_id,
+                "artifact_version": policy.artifact.artifact_version,
+                "checkpoint_content_sha256": policy.checkpoint.content_sha256,
+                "checkpoint_update_count": policy.checkpoint.update_count,
+                "theta0_artifact_id": self.theta0_artifact_id,
+                "transition_batch_id": (
+                    policy.transition_batch.batch_id
+                    if policy.transition_batch is not None
+                    else None
+                ),
+                "transition_receipt_id": (
+                    policy.transition_receipt.receipt_id
+                    if policy.transition_receipt is not None
+                    else None
+                ),
+            },
+            "frozen_decision": self.frozen_decision.to_payload(),
+            "authorization": self.authorization.to_payload(),
+            "owner_prestate_sha256": self.owner_prestate_sha256,
+            "executor_disposition": self.executor_disposition.value,
+        }
+
+    def to_payload(self, *, include_command_id: bool = True) -> dict[str, object]:
+        payload = self._core_payload()
+        if include_command_id:
+            return {"command_id": self.command_id, **payload}
+        return payload
+
+
+@dataclass(frozen=True)
+class RelationshipProductTemporalDelivery:
+    """Minimal temporal owner projection committed by an executor receipt."""
+
+    slot_name: str
+    owner: str
+    version: int
+    timestamp_ms: int
+    active_abstract_action: str
+    controller_params_hash: str
+    action_family_version: int
+    action_advisory_id: str
+    action_advisory_status: TemporalActionAdvisoryStatus
+
+    def __post_init__(self) -> None:
+        if self.slot_name != "self_temporal" or self.owner != "SelfTemporalModule":
+            raise ValueError("executor temporal delivery owner envelope drifted")
+        if self.version != 1:
+            raise ValueError("executor temporal delivery version must be one")
+        if (
+            isinstance(self.timestamp_ms, bool)
+            or not isinstance(self.timestamp_ms, int)
+            or self.timestamp_ms < 0
+        ):
+            raise ValueError("executor temporal delivery timestamp is invalid")
+        for field_name, value in (
+            ("active_abstract_action", self.active_abstract_action),
+            ("controller_params_hash", self.controller_params_hash),
+            ("action_advisory_id", self.action_advisory_id),
+        ):
+            _require_text(value, field_name)
+        if (
+            isinstance(self.action_family_version, bool)
+            or not isinstance(self.action_family_version, int)
+            or self.action_family_version < 0
+        ):
+            raise ValueError("executor temporal action_family_version is invalid")
+        if self.action_advisory_status is not TemporalActionAdvisoryStatus.APPLIED:
+            raise ValueError("executor temporal delivery was not applied")
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        snapshot: Snapshot[TemporalAbstractionSnapshot],
+        *,
+        delivered_advisory: TemporalActionAdvisoryProposal,
+    ) -> "RelationshipProductTemporalDelivery":
+        if not isinstance(snapshot, Snapshot):
+            raise TypeError("temporal_snapshot must be a Snapshot")
+        temporal = snapshot.value
+        if not isinstance(temporal, TemporalAbstractionSnapshot):
+            raise TypeError(
+                "temporal_snapshot must publish TemporalAbstractionSnapshot"
+            )
+        if temporal.action_advisory != delivered_advisory:
+            raise ValueError("executor temporal advisory payload drifted")
+        if temporal.active_abstract_action != delivered_advisory.action_id:
+            raise ValueError("executor temporal active action drifted")
+        return cls(
+            slot_name=snapshot.slot_name,
+            owner=snapshot.owner,
+            version=snapshot.version,
+            timestamp_ms=snapshot.timestamp_ms,
+            active_abstract_action=temporal.active_abstract_action,
+            controller_params_hash=temporal.controller_params_hash,
+            action_family_version=temporal.action_family_version,
+            action_advisory_id=delivered_advisory.advisory_id,
+            action_advisory_status=temporal.action_advisory_status,
+        )
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "slot_name": self.slot_name,
+            "owner": self.owner,
+            "version": self.version,
+            "timestamp_ms": self.timestamp_ms,
+            "active_abstract_action": self.active_abstract_action,
+            "controller_params_hash": self.controller_params_hash,
+            "action_family_version": self.action_family_version,
+            "action_advisory_id": self.action_advisory_id,
+            "action_advisory_status": self.action_advisory_status.value,
+        }
+
+
+@dataclass(frozen=True)
+class RelationshipProductExecutorReceipt:
+    """Content-addressed proof of candidate preservation and actual delivery."""
+
+    command: RelationshipProductExecutorCommand
+    candidate_advisory: TemporalActionAdvisoryProposal
+    delivered_advisory: TemporalActionAdvisoryProposal
+    temporal_delivery: RelationshipProductTemporalDelivery
+    schema_version: str = RELATIONSHIP_PRODUCT_EXECUTOR_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.command, RelationshipProductExecutorCommand):
+            raise TypeError("command must be RelationshipProductExecutorCommand")
+        if not isinstance(self.candidate_advisory, TemporalActionAdvisoryProposal):
+            raise TypeError(
+                "candidate_advisory must be TemporalActionAdvisoryProposal"
+            )
+        if not isinstance(self.delivered_advisory, TemporalActionAdvisoryProposal):
+            raise TypeError(
+                "delivered_advisory must be TemporalActionAdvisoryProposal"
+            )
+        if self.schema_version != RELATIONSHIP_PRODUCT_EXECUTOR_SCHEMA_VERSION:
+            raise ValueError("relationship product executor receipt schema mismatch")
+        expected_candidate = authorize_relationship_product_pulse_advisory(
+            self.command.frozen_decision.decision,
+            authorization=self.command.authorization.pulse_authorization,
+        )
+        if self.candidate_advisory != expected_candidate:
+            raise ValueError("executor candidate advisory drifted from gate decision")
+        expected_delivered = _delivered_advisory_for_executor_command(
+            command=self.command,
+            candidate_advisory=expected_candidate,
+        )
+        if self.delivered_advisory != expected_delivered:
+            raise ValueError("executor delivered advisory drifted from disposition")
+        if not isinstance(
+            self.temporal_delivery,
+            RelationshipProductTemporalDelivery,
+        ):
+            raise TypeError(
+                "temporal_delivery must be RelationshipProductTemporalDelivery"
+            )
+        if (
+            self.temporal_delivery.action_advisory_id
+            != self.delivered_advisory.advisory_id
+            or self.temporal_delivery.active_abstract_action
+            != self.delivered_action_id
+        ):
+            raise ValueError("executor temporal delivery lineage drifted")
+
+    @property
+    def receipt_id(self) -> str:
+        return f"{_EXECUTOR_RECEIPT_PREFIX}{_canonical_sha256(self._core_payload())}"
+
+    @property
+    def executor_apply_bit(self) -> bool:
+        return (
+            self.command.executor_disposition
+            is RelationshipProductExecutorDisposition.APPLY_CANDIDATE
+        )
+
+    @property
+    def executor_status(self) -> RelationshipProductExecutorStatus:
+        if not self.executor_apply_bit:
+            return RelationshipProductExecutorStatus.STRICT_NOOP
+        if self.command.non_noop_opportunity:
+            return RelationshipProductExecutorStatus.APPLIED_CANDIDATE
+        return RelationshipProductExecutorStatus.GATE_NOOP
+
+    @property
+    def candidate_applied(self) -> bool:
+        return self.executor_apply_bit
+
+    @property
+    def strict_noop_substituted(self) -> bool:
+        return not self.executor_apply_bit
+
+    @property
+    def delivered_action_id(self) -> str:
+        return self.delivered_advisory.action_id
+
+    @property
+    def action_diverged(self) -> bool:
+        return self.delivered_action_id != self.command.candidate_action_id
+
+    def _core_payload(self) -> dict[str, object]:
+        checkpoint = self.command.frozen_policy.checkpoint
+        return {
+            "schema_version": self.schema_version,
+            "command": self.command.to_payload(),
+            "authorization_id": self.command.authorization.authorization_id,
+            "frozen_policy_id": self.command.frozen_policy.policy_id,
+            "theta0_artifact_id": self.command.theta0_artifact_id,
+            "owner_prestate_sha256": self.command.owner_prestate_sha256,
+            "checkpoint_content_sha256_before": checkpoint.content_sha256,
+            "checkpoint_content_sha256_after": checkpoint.content_sha256,
+            "policy_update_count_before": checkpoint.update_count,
+            "policy_update_count_after": checkpoint.update_count,
+            "evaluation_gate_update_delta": 0,
+            "pending_decision_count_before": len(checkpoint.pending_decisions),
+            "pending_decision_count_after": len(checkpoint.pending_decisions),
+            "forecast_sha256": _canonical_sha256(
+                preference_action_forecast_to_payload(self.command.forecast)
+            ),
+            "frozen_decision": self.command.frozen_decision.to_payload(),
+            "gate_selected_action_id": self.command.candidate_action_id,
+            "intervention_candidate_action_id": self.command.candidate_action_id,
+            "candidate_advisory": _temporal_advisory_to_payload(
+                self.candidate_advisory
+            ),
+            "executor_disposition": self.command.executor_disposition.value,
+            "executor_apply_bit": self.executor_apply_bit,
+            "executor_status": self.executor_status.value,
+            "candidate_non_noop": self.command.non_noop_opportunity,
+            "candidate_applied": self.candidate_applied,
+            "strict_noop_substituted": self.strict_noop_substituted,
+            "delivered_advisory": _temporal_advisory_to_payload(
+                self.delivered_advisory
+            ),
+            "delivered_action_id": self.delivered_action_id,
+            "executed_non_noop": (
+                self.delivered_action_id
+                != RelationshipAction.NEUTRAL_NOOP.value
+            ),
+            "action_diverged": self.action_diverged,
+            "temporal_projection": self.temporal_delivery.to_payload(),
+            "evaluator_or_judge_feedback_received": False,
+        }
+
+    def to_payload(self, *, include_receipt_id: bool = True) -> dict[str, object]:
+        payload = self._core_payload()
+        if include_receipt_id:
+            return {"receipt_id": self.receipt_id, **payload}
+        return payload
+
+
+@dataclass(frozen=True)
 class RelationshipProductPreActionRequest:
     """Outcome-free public request for one relationship decision pulse."""
 
@@ -319,6 +753,76 @@ class RelationshipProductPreActionSnapshot:
 
 
 @dataclass(frozen=True)
+class RelationshipProductFrozenPreActionSnapshot:
+    """Frozen-policy preaction whose actual action is owned by executor receipt."""
+
+    request: RelationshipProductPreActionRequest
+    preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot]
+    forecast: PreferenceActionForecast
+    execution_receipt: RelationshipProductExecutorReceipt
+    owner_persistence_snapshot: OwnerPersistenceSnapshot
+    schema_version: str = RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION:
+            raise ValueError("relationship product frozen preaction schema mismatch")
+        if not isinstance(
+            self.preference_snapshot.value,
+            PreferenceAboutOtherSnapshot,
+        ):
+            raise TypeError(
+                "frozen preaction preference snapshot published unexpected value"
+            )
+        if self.forecast.decision_id != self.request.forecast_request.decision_id:
+            raise ValueError("frozen preaction forecast decision lineage mismatch")
+        if self.forecast.session_scope != self.request.forecast_request.session_scope:
+            raise ValueError("frozen preaction forecast session lineage mismatch")
+        if (
+            self.forecast.interlocutor_id
+            != self.request.forecast_request.interlocutor_id
+            or self.forecast.issued_turn
+            != self.request.forecast_request.turn_index
+        ):
+            raise ValueError("frozen preaction forecast request lineage mismatch")
+        if tuple(
+            candidate.action_id for candidate in self.forecast.candidate_predictions
+        ) != self.request.forecast_request.candidate_action_ids:
+            raise ValueError("frozen preaction forecast action surface drifted")
+        if any(
+            tuple(outcome.outcome_id for outcome in candidate.outcomes)
+            != self.request.forecast_request.outcome_ids
+            for candidate in self.forecast.candidate_predictions
+        ):
+            raise ValueError("frozen preaction forecast outcome surface drifted")
+        if self.execution_receipt.command.forecast != self.forecast:
+            raise ValueError("frozen preaction executor forecast lineage mismatch")
+        matching = tuple(
+            item
+            for item in self.preference_snapshot.value.action_forecasts
+            if item.forecast_id == self.forecast.forecast_id
+        )
+        if matching != (self.forecast,):
+            raise ValueError(
+                "frozen preaction owner snapshot must contain the frozen forecast"
+            )
+        _hydrate_validated_frozen_preaction_owner(self)
+
+    @property
+    def frozen_policy(self) -> RelationshipActionGateFrozenPolicy:
+        return self.execution_receipt.command.frozen_policy
+
+    @property
+    def frozen_decision(self) -> RelationshipActionGateFrozenDecision:
+        return self.execution_receipt.command.frozen_decision
+
+    @property
+    def delivered_action_id(self) -> str:
+        """The only action identity a new environment consumer may settle."""
+
+        return self.execution_receipt.delivered_action_id
+
+
+@dataclass(frozen=True)
 class RelationshipProductSettlementInput:
     """Post-action typed evidence; contains no evaluator or judge fields."""
 
@@ -391,6 +895,415 @@ class RelationshipProductSettlementSnapshot:
             + int(self.credit_applied_to_gate)
         ):
             raise ValueError("settlement gate checkpoint count drifted")
+
+
+@dataclass(frozen=True)
+class RelationshipProductFrozenSettlementSnapshot:
+    """Actual-action PE settlement under an immutable evaluation policy."""
+
+    preaction: RelationshipProductFrozenPreActionSnapshot
+    settlement_input: RelationshipProductSettlementInput
+    external_outcome_snapshot: Snapshot[DialogueExternalOutcomeSnapshot]
+    preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot]
+    social_prediction_error_snapshot: Snapshot[SocialPredictionErrorSnapshot]
+    settlement: PreferenceActionForecastSettlement
+    credit: CreditRecord
+    owner_persistence_snapshot: OwnerPersistenceSnapshot
+    schema_version: str = RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION:
+            raise ValueError("relationship product frozen settlement schema mismatch")
+        if not isinstance(self.settlement_input, RelationshipProductSettlementInput):
+            raise TypeError(
+                "settlement_input must be RelationshipProductSettlementInput"
+            )
+        if self.settlement_input.apply_credit_to_gate:
+            raise ValueError("frozen settlement input cannot apply credit to gate")
+        if not isinstance(
+            self.external_outcome_snapshot.value,
+            DialogueExternalOutcomeSnapshot,
+        ):
+            raise TypeError(
+                "frozen external outcome snapshot published unexpected value"
+            )
+        if not isinstance(
+            self.preference_snapshot.value,
+            PreferenceAboutOtherSnapshot,
+        ):
+            raise TypeError(
+                "frozen preference snapshot published unexpected value"
+            )
+        if not isinstance(
+            self.social_prediction_error_snapshot.value,
+            SocialPredictionErrorSnapshot,
+        ):
+            raise TypeError("frozen social PE snapshot published unexpected value")
+        _validate_frozen_settlement_owner_chain(self)
+        checkpoint = self.preaction.frozen_policy.checkpoint
+        if checkpoint.pending_decisions:
+            raise ValueError("frozen settlement policy cannot contain pending decisions")
+
+    @property
+    def gate_checkpoint(self) -> RelationshipActionGateCheckpoint:
+        return self.preaction.frozen_policy.checkpoint
+
+    @property
+    def credit_applied_to_gate(self) -> bool:
+        return False
+
+    @property
+    def evaluation_gate_update_delta(self) -> int:
+        return 0
+
+
+@dataclass(frozen=True)
+class _RelationshipProductOwnerSettlement:
+    external_outcome_snapshot: Snapshot[DialogueExternalOutcomeSnapshot]
+    preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot]
+    social_prediction_error_snapshot: Snapshot[SocialPredictionErrorSnapshot]
+    settlement: PreferenceActionForecastSettlement
+    credit: CreditRecord
+
+
+def _validate_frozen_settlement_owner_chain(
+    snapshot: RelationshipProductFrozenSettlementSnapshot,
+) -> None:
+    preaction = snapshot.preaction
+    request = preaction.request
+    settlement = snapshot.settlement
+    settlement_input = snapshot.settlement_input
+    _hydrate_validated_frozen_preaction_owner(preaction)
+    _validate_frozen_environment_settlement_input(settlement_input)
+    _validate_settlement_lineage_values(
+        request=request,
+        forecast=preaction.forecast,
+        actual_action_id=preaction.delivered_action_id,
+        settlement_input=settlement_input,
+    )
+    _validate_owner_snapshot_envelope(
+        snapshot.external_outcome_snapshot,
+        slot_name="dialogue_external_outcome",
+        owner="DialogueExternalOutcomeModule",
+        source="frozen external outcome",
+    )
+    external_value = snapshot.external_outcome_snapshot.value
+    if external_value.turn_index != request.outcome_turn_index:
+        raise ValueError("frozen external outcome snapshot turn drifted")
+    if len(external_value.entries) != 1:
+        raise ValueError("frozen settlement requires one external outcome entry")
+    external = external_value.entries[0]
+    external_expected = (
+        ("evidence_id", external.evidence_id, settlement.source_evidence_id),
+        ("turn_index", external.turn_index, request.outcome_turn_index),
+        (
+            "action_turn_index",
+            external.action_turn_index,
+            request.forecast_request.turn_index,
+        ),
+        (
+            "session_scope",
+            external.session_scope,
+            request.forecast_request.session_scope,
+        ),
+        ("forecast_id", external.forecast_id, preaction.forecast.forecast_id),
+        (
+            "decision_id",
+            external.decision_id,
+            request.forecast_request.decision_id,
+        ),
+        ("action_id", external.action_id, preaction.delivered_action_id),
+        ("outcome_id", external.kind.value, settlement.observed_outcome_id),
+        ("confidence", external.confidence, settlement.evidence_confidence),
+    )
+    for field_name, observed, wanted in external_expected:
+        if observed != wanted:
+            raise ValueError(f"frozen external outcome {field_name} mismatch")
+    if external != settlement_input.external_outcome:
+        raise ValueError(
+            "frozen external outcome does not match exact settlement input"
+        )
+
+    expected_settlement = settle_preference_action_forecast(
+        forecast=preaction.forecast,
+        evidence=settlement_input.external_outcome,
+    )
+    if settlement != expected_settlement:
+        raise ValueError(
+            "frozen settlement differs from preference owner exact derivation"
+        )
+
+    settlement_expected = (
+        ("forecast_id", settlement.forecast_id, preaction.forecast.forecast_id),
+        (
+            "decision_id",
+            settlement.decision_id,
+            request.forecast_request.decision_id,
+        ),
+        (
+            "session_scope",
+            settlement.session_scope,
+            request.forecast_request.session_scope,
+        ),
+        (
+            "interlocutor_id",
+            settlement.interlocutor_id,
+            request.forecast_request.interlocutor_id,
+        ),
+        ("action_id", settlement.action_id, preaction.delivered_action_id),
+        ("forecast_issued_turn", settlement.forecast_issued_turn, preaction.forecast.issued_turn),
+        ("observed_turn", settlement.observed_turn, request.outcome_turn_index),
+    )
+    for field_name, observed, wanted in settlement_expected:
+        if observed != wanted:
+            raise ValueError(f"frozen settlement {field_name} mismatch")
+
+    _validate_owner_snapshot_envelope(
+        snapshot.preference_snapshot,
+        slot_name=PreferenceAboutOtherModule.slot_name,
+        owner=PreferenceAboutOtherModule.owner,
+        source="frozen preference",
+    )
+    current_settlements = tuple(
+        item
+        for item in snapshot.preference_snapshot.value.forecast_settlements
+        if item.forecast_id == settlement.forecast_id
+        and item.observed_turn == settlement.observed_turn
+    )
+    if current_settlements != (settlement,):
+        raise ValueError("frozen preference owner settlement payload drifted")
+    current_outcomes = tuple(
+        item
+        for item in snapshot.preference_snapshot.value.action_outcome_evidence
+        if item.evidence_id
+        == settlement_input.owner_outcome_evidence.evidence_id
+    )
+    if current_outcomes != (settlement_input.owner_outcome_evidence,):
+        raise ValueError("frozen preference owner outcome evidence drifted")
+
+    _validate_owner_snapshot_envelope(
+        snapshot.social_prediction_error_snapshot,
+        slot_name="social_prediction_error",
+        owner="SocialPredictionErrorModule",
+        source="frozen social PE",
+    )
+    expected_error_id = f"social-pe:{settlement.settlement_id}"
+    matching_errors = tuple(
+        error
+        for error in snapshot.social_prediction_error_snapshot.value.errors
+        if error.error_id == expected_error_id
+    )
+    if len(matching_errors) != 1:
+        raise ValueError("frozen settlement requires exactly one matching social PE")
+    social_error = matching_errors[0]
+    expected_social_error = (
+        ("prediction_id", social_error.prediction_id, settlement.forecast_id),
+        (
+            "kind",
+            social_error.kind,
+            SocialPredictionKind.PREFERENCE_ABOUT_OTHER,
+        ),
+        ("outcome", social_error.outcome, settlement.outcome),
+        ("owner", social_error.owner, PreferenceAboutOtherModule.owner),
+        ("scope_kind", social_error.scope_kind, SocialScopeKind.INTERLOCUTOR),
+        ("scope_id", social_error.scope_id, settlement.interlocutor_id),
+        (
+            "evidence",
+            social_error.evidence,
+            (
+                f"forecast_settlement:{settlement.settlement_id}",
+                f"external_outcome:{settlement.source_evidence_id}",
+                f"action:{settlement.action_id}",
+                f"observed_outcome:{settlement.observed_outcome_id}",
+                f"predicted_probability={settlement.predicted_probability:.12f}",
+                f"negative_log_likelihood={settlement.negative_log_likelihood:.12f}",
+                "signed_utility_prediction_error="
+                f"{settlement.signed_utility_prediction_error:.12f}",
+            ),
+        ),
+    )
+    for field_name, observed, wanted in expected_social_error:
+        if observed != wanted:
+            raise ValueError(f"frozen settlement social PE {field_name} mismatch")
+    if social_error.magnitude != settlement.magnitude:
+        raise ValueError("frozen settlement social PE magnitude mismatch")
+
+    if snapshot.credit.timestamp_ms != settlement_input.credit_timestamp_ms:
+        raise ValueError("frozen settlement credit timestamp mismatch")
+    expected_credits = derive_preference_action_forecast_credit_records(
+        settlements=(settlement,),
+        social_errors=(social_error,),
+        settled_at_turn=settlement.observed_turn,
+        timestamp_ms=settlement_input.credit_timestamp_ms,
+    )
+    if expected_credits != (snapshot.credit,):
+        raise ValueError("frozen settlement PE-derived credit payload drifted")
+
+    expected_post_persistence = (
+        replay_preference_action_forecast_settlement_persistence(
+            before=preaction.owner_persistence_snapshot,
+            forecast=preaction.forecast,
+            external_evidence=settlement_input.external_outcome,
+            owner_outcome_evidence=settlement_input.owner_outcome_evidence,
+        )
+    )
+    if snapshot.owner_persistence_snapshot != expected_post_persistence:
+        raise ValueError(
+            "frozen settlement persistence is not the exact owner transition"
+        )
+
+    persisted = _hydrate_validated_preference_owner_persistence(
+        preference_snapshot=snapshot.preference_snapshot,
+        owner_persistence_snapshot=snapshot.owner_persistence_snapshot,
+        source="frozen settlement",
+    )
+    persisted_forecasts = tuple(
+        item
+        for item in persisted.preference_action_forecasts
+        if item.forecast_id == preaction.forecast.forecast_id
+    )
+    if persisted_forecasts:
+        raise ValueError(
+            "frozen settlement persistence retained the settled forecast"
+        )
+    persisted_settlements = tuple(
+        item
+        for item in persisted.preference_forecast_settlements
+        if item.forecast_id == preaction.forecast.forecast_id
+    )
+    if persisted_settlements != (settlement,):
+        raise ValueError(
+            "frozen settlement persistence lost the exact settlement"
+        )
+    persisted_outcomes = tuple(
+        item
+        for item in persisted.preference_action_outcomes
+        if item.evidence_id
+        == settlement_input.owner_outcome_evidence.evidence_id
+    )
+    if persisted_outcomes != (settlement_input.owner_outcome_evidence,):
+        raise ValueError(
+            "frozen settlement persistence lost the exact owner outcome evidence"
+        )
+
+
+def _validate_owner_snapshot_envelope(
+    snapshot: Snapshot[object],
+    *,
+    slot_name: str,
+    owner: str,
+    source: str,
+) -> None:
+    if (
+        snapshot.slot_name != slot_name
+        or snapshot.owner != owner
+        or snapshot.version != 1
+        or isinstance(snapshot.timestamp_ms, bool)
+        or not isinstance(snapshot.timestamp_ms, int)
+        or snapshot.timestamp_ms < 0
+    ):
+        raise ValueError(f"{source} snapshot envelope drifted")
+
+
+def _validate_frozen_environment_settlement_input(
+    settlement_input: RelationshipProductSettlementInput,
+) -> None:
+    if not isinstance(settlement_input, RelationshipProductSettlementInput):
+        raise TypeError(
+            "settlement_input must be RelationshipProductSettlementInput"
+        )
+    if (
+        settlement_input.external_outcome.source
+        is not DialogueExternalOutcomeEvidenceSource.ENVIRONMENT
+    ):
+        raise ValueError(
+            "frozen product settlement requires ENVIRONMENT external evidence"
+        )
+
+
+def _hydrate_validated_preference_owner_persistence(
+    *,
+    preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot],
+    owner_persistence_snapshot: OwnerPersistenceSnapshot,
+    source: str,
+) -> SocialRecordStore:
+    """Bind durable public owner fields without reading persistence payload."""
+
+    if not isinstance(preference_snapshot.value, PreferenceAboutOtherSnapshot):
+        raise TypeError(f"{source} preference snapshot value is invalid")
+    if not isinstance(owner_persistence_snapshot, OwnerPersistenceSnapshot):
+        raise TypeError(f"{source} owner persistence snapshot is invalid")
+    store = SocialRecordStore()
+    store.hydrate_from_persistence(owner_persistence_snapshot)
+    if store.export_persistence_snapshot() != owner_persistence_snapshot:
+        raise ValueError(f"{source} owner persistence is not canonical")
+    preference = preference_snapshot.value
+    stable_fields = (
+        (
+            "records",
+            store.tom_records(_PREFERENCE_SLOT),
+            preference.records,
+        ),
+        (
+            "action_outcome_evidence",
+            store.preference_action_outcomes,
+            preference.action_outcome_evidence,
+        ),
+        (
+            "action_forecasts",
+            store.preference_action_forecasts,
+            preference.action_forecasts,
+        ),
+        (
+            "forecast_settlements",
+            store.preference_forecast_settlements,
+            preference.forecast_settlements,
+        ),
+        (
+            "action_outcome_mutation_receipts",
+            store.preference_action_outcome_mutation_receipts,
+            preference.action_outcome_mutation_receipts,
+        ),
+    )
+    for field_name, persisted, published in stable_fields:
+        if persisted != published:
+            raise ValueError(
+                f"{source} owner persistence {field_name} drifted from snapshot"
+            )
+    return store
+
+
+def _hydrate_validated_frozen_preaction_owner(
+    preaction: RelationshipProductFrozenPreActionSnapshot,
+) -> SocialRecordStore:
+    _validate_owner_snapshot_envelope(
+        preaction.preference_snapshot,
+        slot_name=PreferenceAboutOtherModule.slot_name,
+        owner=PreferenceAboutOtherModule.owner,
+        source="frozen preaction preference",
+    )
+    persisted = _hydrate_validated_preference_owner_persistence(
+        preference_snapshot=preaction.preference_snapshot,
+        owner_persistence_snapshot=preaction.owner_persistence_snapshot,
+        source="frozen preaction",
+    )
+    persistence_sha256 = social_record_store_persistence_sha256(
+        preaction.owner_persistence_snapshot
+    )
+    if persistence_sha256 != preaction.execution_receipt.command.owner_prestate_sha256:
+        raise ValueError(
+            "frozen preaction owner state hash drifted from executor command"
+        )
+    persisted_current = tuple(
+        item
+        for item in persisted.preference_action_forecasts
+        if item.forecast_id == preaction.forecast.forecast_id
+    )
+    if persisted_current != (preaction.forecast,):
+        raise ValueError(
+            "frozen preaction persistence must contain the exact forecast"
+        )
+    return persisted
 
 
 async def append_relationship_product_onboarding(
@@ -488,25 +1401,11 @@ async def prepare_relationship_product_preaction(
     store.hydrate_from_persistence(owner_persistence_snapshot)
     gate = RelationshipActionGate(checkpoint=gate_checkpoint)
     checkpoint_before = gate.export_checkpoint()
-    owner_snapshot = await PreferenceAboutOtherModule(
-        turn_index=request.forecast_request.turn_index,
-        wiring_level=WiringLevel.SHADOW,
-        record_store=store,
-        action_forecast_runtime=forecast_runtime,
-        action_forecast_request=request.forecast_request,
-    ).process({})
-    if not isinstance(owner_snapshot.value, PreferenceAboutOtherSnapshot):
-        raise TypeError("preaction preference owner published unexpected snapshot")
-    forecasts = tuple(
-        forecast
-        for forecast in owner_snapshot.value.action_forecasts
-        if forecast.decision_id == request.forecast_request.decision_id
+    owner_snapshot, forecast = await _publish_relationship_product_forecast(
+        request=request,
+        store=store,
+        forecast_runtime=forecast_runtime,
     )
-    if len(forecasts) != 1:
-        raise RuntimeError(
-            "preaction preference owner must publish exactly one current forecast"
-        )
-    forecast = forecasts[0]
     decision = gate.decide(forecast, mode=gate_mode)
     advisory = authorize_relationship_product_pulse_advisory(
         decision,
@@ -529,6 +1428,71 @@ async def prepare_relationship_product_preaction(
     )
 
 
+async def prepare_relationship_product_frozen_preaction(
+    *,
+    request: RelationshipProductPreActionRequest,
+    owner_persistence_snapshot: OwnerPersistenceSnapshot,
+    forecast_runtime: PreferenceActionForecastRuntime,
+    frozen_policy: RelationshipActionGateFrozenPolicy,
+    executor_disposition: RelationshipProductExecutorDisposition,
+    authorization: RelationshipProductFrozenPulseAuthorization,
+    substrate_snapshot: SubstrateSnapshot,
+) -> RelationshipProductFrozenPreActionSnapshot:
+    """Publish one frozen-policy candidate and its executor-only treatment."""
+
+    _validate_placeholder_substrate(substrate_snapshot)
+    if not isinstance(frozen_policy, RelationshipActionGateFrozenPolicy):
+        raise TypeError("frozen_policy must be RelationshipActionGateFrozenPolicy")
+    if not isinstance(
+        executor_disposition,
+        RelationshipProductExecutorDisposition,
+    ):
+        raise TypeError(
+            "executor_disposition must be RelationshipProductExecutorDisposition"
+        )
+    if not isinstance(
+        authorization,
+        RelationshipProductFrozenPulseAuthorization,
+    ):
+        raise TypeError(
+            "authorization must be RelationshipProductFrozenPulseAuthorization"
+        )
+    authorization.validate_policy(frozen_policy)
+    checkpoint_before = frozen_policy.checkpoint
+    store = SocialRecordStore()
+    store.hydrate_from_persistence(owner_persistence_snapshot)
+    owner_snapshot, forecast = await _publish_relationship_product_forecast(
+        request=request,
+        store=store,
+        forecast_runtime=forecast_runtime,
+    )
+    owner_persistence = store.export_persistence_snapshot()
+    frozen_decision = frozen_policy.decide(forecast)
+    command = RelationshipProductExecutorCommand(
+        forecast=forecast,
+        frozen_policy=frozen_policy,
+        frozen_decision=frozen_decision,
+        authorization=authorization,
+        owner_prestate_sha256=social_record_store_persistence_sha256(
+            owner_persistence
+        ),
+        executor_disposition=executor_disposition,
+    )
+    execution_receipt = await _execute_relationship_product_executor_command(
+        command=command,
+        substrate_snapshot=substrate_snapshot,
+    )
+    if frozen_policy.checkpoint != checkpoint_before:
+        raise RuntimeError("frozen product preaction changed the gate checkpoint")
+    return RelationshipProductFrozenPreActionSnapshot(
+        request=request,
+        preference_snapshot=owner_snapshot,
+        forecast=forecast,
+        execution_receipt=execution_receipt,
+        owner_persistence_snapshot=owner_persistence,
+    )
+
+
 async def settle_relationship_product_pulse(
     *,
     preaction: RelationshipProductPreActionSnapshot,
@@ -546,16 +1510,120 @@ async def settle_relationship_product_pulse(
     store = SocialRecordStore()
     store.hydrate_from_persistence(preaction.owner_persistence_snapshot)
     gate = RelationshipActionGate(checkpoint=preaction.gate_checkpoint_after)
+    owner_settlement = await _settle_relationship_product_owner_chain(
+        request=preaction.request,
+        forecast=preaction.forecast,
+        store=store,
+        settlement_input=settlement_input,
+    )
+    gate_update = (
+        gate.observe_credit(owner_settlement.credit)
+        if settlement_input.apply_credit_to_gate
+        else None
+    )
+    return RelationshipProductSettlementSnapshot(
+        preaction=preaction,
+        external_outcome_snapshot=owner_settlement.external_outcome_snapshot,
+        preference_snapshot=owner_settlement.preference_snapshot,
+        social_prediction_error_snapshot=(
+            owner_settlement.social_prediction_error_snapshot
+        ),
+        settlement=owner_settlement.settlement,
+        credit=owner_settlement.credit,
+        gate_update=gate_update,
+        owner_persistence_snapshot=store.export_persistence_snapshot(),
+        gate_checkpoint=gate.export_checkpoint(),
+        credit_applied_to_gate=settlement_input.apply_credit_to_gate,
+    )
 
+
+async def settle_relationship_product_frozen_pulse(
+    *,
+    preaction: RelationshipProductFrozenPreActionSnapshot,
+    settlement_input: RelationshipProductSettlementInput,
+) -> RelationshipProductFrozenSettlementSnapshot:
+    """Settle the executor-delivered action without mutating the frozen gate."""
+
+    if not isinstance(preaction, RelationshipProductFrozenPreActionSnapshot):
+        raise TypeError(
+            "preaction must be RelationshipProductFrozenPreActionSnapshot"
+        )
+    if settlement_input.apply_credit_to_gate:
+        raise ValueError("frozen product settlement cannot apply credit to gate")
+    _validate_frozen_environment_settlement_input(settlement_input)
+    _validate_settlement_lineage_values(
+        request=preaction.request,
+        forecast=preaction.forecast,
+        actual_action_id=preaction.delivered_action_id,
+        settlement_input=settlement_input,
+    )
+    checkpoint_before = preaction.frozen_policy.checkpoint
+    store = _hydrate_validated_frozen_preaction_owner(preaction)
+    owner_settlement = await _settle_relationship_product_owner_chain(
+        request=preaction.request,
+        forecast=preaction.forecast,
+        store=store,
+        settlement_input=settlement_input,
+    )
+    if preaction.frozen_policy.checkpoint != checkpoint_before:
+        raise RuntimeError("frozen product settlement changed the gate checkpoint")
+    return RelationshipProductFrozenSettlementSnapshot(
+        preaction=preaction,
+        settlement_input=settlement_input,
+        external_outcome_snapshot=owner_settlement.external_outcome_snapshot,
+        preference_snapshot=owner_settlement.preference_snapshot,
+        social_prediction_error_snapshot=(
+            owner_settlement.social_prediction_error_snapshot
+        ),
+        settlement=owner_settlement.settlement,
+        credit=owner_settlement.credit,
+        owner_persistence_snapshot=store.export_persistence_snapshot(),
+    )
+
+
+async def _publish_relationship_product_forecast(
+    *,
+    request: RelationshipProductPreActionRequest,
+    store: SocialRecordStore,
+    forecast_runtime: PreferenceActionForecastRuntime,
+) -> tuple[
+    Snapshot[PreferenceAboutOtherSnapshot],
+    PreferenceActionForecast,
+]:
+    owner_snapshot = await PreferenceAboutOtherModule(
+        turn_index=request.forecast_request.turn_index,
+        wiring_level=WiringLevel.SHADOW,
+        record_store=store,
+        action_forecast_runtime=forecast_runtime,
+        action_forecast_request=request.forecast_request,
+    ).process({})
+    if not isinstance(owner_snapshot.value, PreferenceAboutOtherSnapshot):
+        raise TypeError("preaction preference owner published unexpected snapshot")
+    forecasts = tuple(
+        forecast
+        for forecast in owner_snapshot.value.action_forecasts
+        if forecast.decision_id == request.forecast_request.decision_id
+    )
+    if len(forecasts) != 1:
+        raise RuntimeError(
+            "preaction preference owner must publish exactly one current forecast"
+        )
+    return owner_snapshot, forecasts[0]
+
+
+async def _settle_relationship_product_owner_chain(
+    *,
+    request: RelationshipProductPreActionRequest,
+    forecast: PreferenceActionForecast,
+    store: SocialRecordStore,
+    settlement_input: RelationshipProductSettlementInput,
+) -> _RelationshipProductOwnerSettlement:
     # ``SocialRecordStore`` deliberately excludes one-turn ToM pending state
-    # from its cross-session persistence contract.  Preaction and settlement
-    # are two phases of the *same* session, so ask the owner to rebuild that
-    # fast state at the original action turn before presenting the outcome.
-    # This is owner-authored replay, not consumer reconstruction of hidden
-    # fields, and keeps the split API behavior equal to the former in-process
-    # P4.1 loop.
+    # from its cross-session persistence contract. Preaction and settlement
+    # are two phases of the same session, so the owner rebuilds that fast state
+    # at the original action turn before receiving the actual outcome.
     replayed_preaction_owner = await PreferenceAboutOtherModule(
-        turn_index=preaction.request.forecast_request.turn_index,
+        turn_index=request.forecast_request.turn_index,
         wiring_level=WiringLevel.SHADOW,
         record_store=store,
     ).process({})
@@ -566,7 +1634,7 @@ async def settle_relationship_product_pulse(
         raise TypeError("preaction owner fast-state replay published unexpected snapshot")
 
     external_owner = DialogueExternalOutcomeModule(wiring_level=WiringLevel.ACTIVE)
-    external_owner.set_turn_index(preaction.request.outcome_turn_index)
+    external_owner.set_turn_index(request.outcome_turn_index)
     external_owner.append_evidence(settlement_input.external_outcome)
     external_snapshot = await external_owner.process({})
 
@@ -590,8 +1658,8 @@ async def settle_relationship_product_pulse(
     current_settlements = tuple(
         settlement
         for settlement in settled_snapshot.value.forecast_settlements
-        if settlement.forecast_id == preaction.forecast.forecast_id
-        and settlement.observed_turn == preaction.request.outcome_turn_index
+        if settlement.forecast_id == forecast.forecast_id
+        and settlement.observed_turn == request.outcome_turn_index
     )
     if len(current_settlements) != 1:
         raise RuntimeError(
@@ -609,35 +1677,22 @@ async def settle_relationship_product_pulse(
     credits = derive_preference_action_forecast_credit_records(
         settlements=settled_snapshot.value.forecast_settlements,
         social_errors=social_pe_snapshot.value.errors,
-        settled_at_turn=preaction.request.outcome_turn_index,
+        settled_at_turn=request.outcome_turn_index,
         timestamp_ms=settlement_input.credit_timestamp_ms,
     )
     matching_credits = tuple(
-        credit
-        for credit in credits
-        if credit.prediction_id == preaction.forecast.forecast_id
+        credit for credit in credits if credit.prediction_id == forecast.forecast_id
     )
     if len(matching_credits) != 1:
         raise RuntimeError(
             "relationship product pulse must derive exactly one current PE credit"
         )
-    credit = matching_credits[0]
-    gate_update = (
-        gate.observe_credit(credit)
-        if settlement_input.apply_credit_to_gate
-        else None
-    )
-    return RelationshipProductSettlementSnapshot(
-        preaction=preaction,
+    return _RelationshipProductOwnerSettlement(
         external_outcome_snapshot=external_snapshot,
         preference_snapshot=settled_snapshot,
         social_prediction_error_snapshot=social_pe_snapshot,
         settlement=current_settlements[0],
-        credit=credit,
-        gate_update=gate_update,
-        owner_persistence_snapshot=store.export_persistence_snapshot(),
-        gate_checkpoint=gate.export_checkpoint(),
-        credit_applied_to_gate=settlement_input.apply_credit_to_gate,
+        credit=matching_credits[0],
     )
 
 
@@ -695,6 +1750,64 @@ class _OutcomeEvidenceProposalRuntime(SemanticProposalRuntime):
         )
 
 
+async def _execute_relationship_product_executor_command(
+    *,
+    command: RelationshipProductExecutorCommand,
+    substrate_snapshot: SubstrateSnapshot,
+) -> RelationshipProductExecutorReceipt:
+    if not isinstance(command, RelationshipProductExecutorCommand):
+        raise TypeError("command must be RelationshipProductExecutorCommand")
+    _validate_placeholder_substrate(substrate_snapshot)
+    candidate_advisory = authorize_relationship_product_pulse_advisory(
+        command.frozen_decision.decision,
+        authorization=command.authorization.pulse_authorization,
+    )
+    delivered_advisory = _delivered_advisory_for_executor_command(
+        command=command,
+        candidate_advisory=candidate_advisory,
+    )
+    temporal_snapshot = await _apply_typed_environment_advisory(
+        delivered_advisory,
+        substrate_snapshot=substrate_snapshot,
+    )
+    temporal_delivery = RelationshipProductTemporalDelivery.from_snapshot(
+        temporal_snapshot,
+        delivered_advisory=delivered_advisory,
+    )
+    return RelationshipProductExecutorReceipt(
+        command=command,
+        candidate_advisory=candidate_advisory,
+        delivered_advisory=delivered_advisory,
+        temporal_delivery=temporal_delivery,
+    )
+
+
+def _delivered_advisory_for_executor_command(
+    *,
+    command: RelationshipProductExecutorCommand,
+    candidate_advisory: TemporalActionAdvisoryProposal,
+) -> TemporalActionAdvisoryProposal:
+    if (
+        command.executor_disposition
+        is RelationshipProductExecutorDisposition.APPLY_CANDIDATE
+    ):
+        return candidate_advisory
+    command_digest = hashlib.sha256(command.command_id.encode("utf-8")).hexdigest()
+    return replace(
+        candidate_advisory,
+        advisory_id=f"relationship-product-strict-noop-advisory:{command_digest}",
+        action_id=RelationshipAction.NEUTRAL_NOOP.value,
+        evidence_refs=(
+            *candidate_advisory.evidence_refs,
+            f"executor-command:{command.command_id}",
+        ),
+        rationale_codes=(
+            *candidate_advisory.rationale_codes,
+            "executor-disposition:force-strict-noop",
+        ),
+    )
+
+
 async def _apply_typed_environment_advisory(
     advisory: TemporalActionAdvisoryProposal,
     *,
@@ -731,7 +1844,21 @@ def _validate_settlement_lineage(
     preaction: RelationshipProductPreActionSnapshot,
     settlement_input: RelationshipProductSettlementInput,
 ) -> None:
-    request = preaction.request
+    _validate_settlement_lineage_values(
+        request=preaction.request,
+        forecast=preaction.forecast,
+        actual_action_id=preaction.gate_decision.selected_action_id,
+        settlement_input=settlement_input,
+    )
+
+
+def _validate_settlement_lineage_values(
+    *,
+    request: RelationshipProductPreActionRequest,
+    forecast: PreferenceActionForecast,
+    actual_action_id: str,
+    settlement_input: RelationshipProductSettlementInput,
+) -> None:
     external = settlement_input.external_outcome
     owner_evidence = settlement_input.owner_outcome_evidence
     expected = (
@@ -746,7 +1873,7 @@ def _validate_settlement_lineage(
             external.session_scope,
             request.forecast_request.session_scope,
         ),
-        ("external forecast", external.forecast_id, preaction.forecast.forecast_id),
+        ("external forecast", external.forecast_id, forecast.forecast_id),
         (
             "external decision",
             external.decision_id,
@@ -755,7 +1882,7 @@ def _validate_settlement_lineage(
         (
             "external action",
             external.action_id,
-            preaction.gate_decision.selected_action_id,
+            actual_action_id,
         ),
         ("owner outcome turn", owner_evidence.source_turn, request.outcome_turn_index),
         (
@@ -771,7 +1898,7 @@ def _validate_settlement_lineage(
         (
             "owner action",
             owner_evidence.action_id,
-            preaction.gate_decision.selected_action_id,
+            actual_action_id,
         ),
         (
             "owner typed outcome",
@@ -786,13 +1913,75 @@ def _validate_settlement_lineage(
         raise ValueError("owner outcome does not cite external evidence")
 
 
+def _pulse_authorization_to_payload(
+    authorization: RelationshipProductPulseAuthorization,
+) -> dict[str, object]:
+    return {
+        "authorization_id": authorization.authorization_id,
+        "allowed_policy_artifact_id": authorization.allowed_policy_artifact_id,
+        "allowed_policy_artifact_version": (
+            authorization.allowed_policy_artifact_version
+        ),
+        "environment_consumer_only": authorization.environment_consumer_only,
+        "expression_authorized": authorization.expression_authorized,
+        "production_authorized": authorization.production_authorized,
+        "oracle_action_authorized": authorization.oracle_action_authorized,
+    }
+
+
+def _temporal_advisory_to_payload(
+    advisory: TemporalActionAdvisoryProposal,
+) -> dict[str, object]:
+    return {
+        "advisory_id": advisory.advisory_id,
+        "decision_id": advisory.decision_id,
+        "prediction_id": advisory.prediction_id,
+        "action_id": advisory.action_id,
+        "confidence": advisory.confidence,
+        "policy_artifact_id": advisory.policy_artifact_id,
+        "policy_artifact_version": advisory.policy_artifact_version,
+        "evidence_refs": list(advisory.evidence_refs),
+        "rationale_codes": list(advisory.rationale_codes),
+        "evaluator_only": advisory.evaluator_only,
+        "active_authorized": advisory.active_authorized,
+    }
+
+
+def _canonical_sha256(payload: object) -> str:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _require_sha256(value: str, field_name: str) -> None:
+    _require_text(value, field_name)
+    if len(value) != 64 or any(
+        character not in "0123456789abcdef" for character in value
+    ):
+        raise ValueError(f"{field_name} must be a canonical lowercase SHA-256")
+
+
 def _require_text(value: str, field_name: str) -> None:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} must be a non-empty string")
 
 
 __all__ = [
+    "RELATIONSHIP_PRODUCT_EXECUTOR_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_PULSE_SCHEMA_VERSION",
+    "RelationshipProductExecutorCommand",
+    "RelationshipProductExecutorDisposition",
+    "RelationshipProductExecutorReceipt",
+    "RelationshipProductExecutorStatus",
+    "RelationshipProductFrozenPreActionSnapshot",
+    "RelationshipProductFrozenPulseAuthorization",
+    "RelationshipProductFrozenSettlementSnapshot",
     "RelationshipProductOnboardingInput",
     "RelationshipProductOnboardingSnapshot",
     "RelationshipProductPreActionRequest",
@@ -800,8 +1989,11 @@ __all__ = [
     "RelationshipProductPulseAuthorization",
     "RelationshipProductSettlementInput",
     "RelationshipProductSettlementSnapshot",
+    "RelationshipProductTemporalDelivery",
     "append_relationship_product_onboarding",
     "authorize_relationship_product_pulse_advisory",
+    "prepare_relationship_product_frozen_preaction",
     "prepare_relationship_product_preaction",
+    "settle_relationship_product_frozen_pulse",
     "settle_relationship_product_pulse",
 ]
