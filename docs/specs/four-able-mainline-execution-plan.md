@@ -303,3 +303,11 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   当前 112-root 三臂 campaign 保持 `campaign_blocked_effect_not_tested`，须在全新 development theta0 lineage
   中事前冻结 bootstrap 与一次性 opportunity 门后才能恢复；reader rehearsal 继续关闭。本记录不授权
   campaign、qualification、formal、integrated 或任何四轴效果主张。
+- 2026-08-26 · theta0 v2 forced-batch bootstrap 设计冻结：新 adaptive development lineage 显式声明
+  source-v3/f44e 双重使用；192-entry public-position schedule 以块状公式固定为 symbolic role 96/96，实际
+  action 经 executor/environment/owner PE-credit 链结算但不在线 apply，唯一 batch 对同一 plan 同时发布
+  APPLY/WITHHOLD receipt。完整 batch terminal、非零 delta、未触 cap、cold 0/0/0 与 training-support physical
+  nonnoop 均过门才发布候选 v2；FAIL 禁止换顺序/seed/threshold/bias/早期 checkpoint 重试。该包尚未执行，
+  成功也只进入另行冻结的 source-v4 transductive public opportunity scanner，不授权 campaign；reader rehearsal
+  继续关闭。冻结 protocol `dfefb9fa…841e`（raw `fd3fa87b…2867e`）；forced actual 与 frozen training-support
+  nonnoop 口径分离，全零 terminal 也封存为 no-consumable FAIL，不留下 incomplete root。

@@ -1905,6 +1905,47 @@ reproduction validator。
 冻结 theta0 bootstrap 与最终 public-opportunity 门，再一次性执行；旧 `d9776631…f24` 的
 `development_theta0_materialized=true` 原判词不回改，但它不再满足 Phase 2.5 campaign 入口。
 
+#### Product Horizon theta0 v2 forced-batch development bootstrap
+
+`lifeform-evolution.relationship_product_horizon_theta0_v2_bootstrap` 是上述失败后的全新 adaptive development
+lineage；它显式复用已经训练和诊断过的 source-v3 outcome 与 `f44eb267…3398`，因此不是 unseen、独立、formal
+或效果证据。现有 forced-collection owner 只接受 cold nonzero theta0，而 `Theta0Artifact.create()` 也要求至少
+一条已应用 PE credit，所以本包不通过扩写 gate/pulse 契约伪造 zero-init 起点；它固定从 f44e cold checkpoint
+`0/0/0` 起步，并原样继承 reader、feature order、`p > 0.5` threshold、learning rate 0.25 与 cap 4.0。
+
+完整 192-entry schedule 必须在任何 environment 构造、forecast 或本次 outcome 前持久化并 fsync。role 仅由
+public array position 决定：
+
+`owner_recommendation iff ((root_index // 2) + (decision_index // 2)) % 2 == 0`，否则
+`neutral_noop`。它得到全局 96/96、每 root 12/12、每 decision position 跨 8 roots 4/4；这是 symbolic role
+balance，不承诺 owner recommendation 一定是 concrete non-noop。简单 sequence 奇偶被拒绝，因为会与既有
+even/odd profile 与交替 condition 纠缠。schedule artifact ID 必须为
+`relationship-product-forced-collection-schedule-sha256:72b7956b7de8ad47b18dcd16ccd5e3933aae142f4df8683a3e854e2b52e8db91`。
+
+每 root 重置 owner，root 内按实际 forced action 的 reaction/outcome 顺序写回；同一个 f44e cold policy 在
+192 拍中不变。每拍先落不含 temporal timestamp 的稳定 preaction projection，再由现有 reactive environment
+按 temporal actual action 结算，`settle_relationship_product_forced_collection` 只发布 owner settlement→social
+PE→credit，禁止 online apply。192 个 exposure/credit 构成唯一、顺序敏感的 `CreditBatch`；operator 固定使用
+各拍冻结的 probability/features 按序累积并 clip，不冒充无序梯度均值。两个 fresh f44e gate 必须对同一
+batch/plan 分别发布 APPLY 与 WITHHOLD receipt：APPLY 仅一次 state replacement、delta 192；WITHHOLD 零 commit、
+零参数/update delta 且精确保持 base cold state。
+
+发布可消费 theta0 v2 的终局门还要求：192 exposure/credit/unique credit 闭合；实际 forced concrete action 中
+nonnoop 与 neutral 均至少 1；APPLY 参数 delta 至少一项非零；六个终态参数均 finite、至少一项非零且
+`abs(parameter) < 4.0`
+（触 cap 即 FAIL）；new cold restore 为 `0/0/0` 且参数逐项等于 APPLY terminal；在同一 192 条 training-support
+forecast 上按 physical selected action 计至少 1 个 nonnoop。仅 training-support 全 noop 时封存
+`development_theta0_v2_batch_applied_training_support_all_noop_no_consumable_theta0`；其他 terminal gate 失败封存
+`development_theta0_v2_bootstrap_terminal_gate_failed_no_consumable_theta0`。两类失败均不得改 schedule/order/base/
+threshold/bias/seed、挑早期 checkpoint 或多 epoch 重试。成功也只封存
+`development_theta0_v2_materialized_training_support_opportunity_only_effect_not_tested`，随后必须另冻结一次性
+source-v4 transductive public opportunity scanner；本 bootstrap 自身不授权 campaign、reader qualification、
+Learnable、Steerable、任何四轴效果、真人或 production。
+
+协议内所有嵌套对象均使用 exact-key 解析，额外字段、类型别名、operator/owner/causal-firewall 常量漂移均
+fail closed。冻结 protocol ID 为 `dfefb9faa24084caa5efd1ded24000784350d7e58c63a34c11949fe4b578841e`，
+raw SHA-256 为 `fd3fa87b8e77e466a90f85da5b804248666ec7bf5a1bdf6e7cdcf8afd1c2867e`。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入
