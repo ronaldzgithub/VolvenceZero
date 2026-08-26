@@ -327,3 +327,14 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   preaction 的 owner/forecast/decision/action/executor/advisory/
   temporal-controller/cold-policy v1 projection 必须 exact match；不授权 evaluation/
   campaign/effect/formal/四轴。reader rehearsal 按用户裁决继续关闭，本包不另建 2–3 item 彩排 artifact。
+- 2026-08-26 · transductive scanner 首个且唯一终局已封存并 exact replay：implementation
+  `0ffda0a1…1373`、artifact `2dec2e3f…774e4c`。5,376 个 APPLY probe 的 temporal delivered nonnoop 为
+  reachable `107/112`、collection reset-state stress `740/784`、evaluation reset-state stress `4,279/4,480`；后两类仍是
+  post-onboarding reset-state counterfactual probes。两个 canonical APPLY-vs-strict witness 均闭合，112 个
+  evaluation roots 均至少一个 delivered nonnoop，cold checkpoint 全程 `0/0/0`；复验不改变 artifact bytes/mtime。
+  因此只提升 `source_v4_opportunity_established=true` 与
+  `collection_prefix_protocol_freeze_authorized=true`。`collection_prefix_execution_authorized=false` 保持不变，
+  Phase 2.5 的下一合法动作是另立 8-decision collection-only dynamic protocol 并 exact-match 23 字段首拍 seam；
+  5 个首拍 noop root 不得筛除/替换，两个 witness 不作 aggregate Steerable。新协议必须在 natural APPLY sequential
+  gate 与 forced common-collection batch materializer 之间明确选择；若后者不匹配 seam 就停止重设计，不能削弱门。
+  evaluation/campaign/effect/formal/四轴继续 NO-GO，reader rehearsal 继续关闭。

@@ -39,7 +39,16 @@
 > 5,376 个 environment seed 全异。source-v4 development admission `b3988b21…2102` 已把 public/sealed
 > inventory 与 16,128 个 compact action-conditioned commitment 封存为六文件 artifact
 > `4cc1ec45…dd54`，并由外部 protocol/artifact 双 ID 的 `validate-existing` 全量复验通过。
-> 该事实仅使 `campaign_input_admitted=true`；真实 BGE table、reader/theta0、campaign/model/CUDA 与任何效果结论仍未授权。
+> 随后 development reader `ba46775b…f967` 与 theta0 v2 bootstrap `9012b52f…d00e / 3acd6e4f…9344`
+> 已分别封存，但 reader qualification 与任何效果仍未成立。transductive public opportunity protocol
+> `4471c9ab…4d83f`（raw `9ce246b2…35419`）绑定 implementation `0ffda0a1…1373` 完成唯一一次
+> 5,376-probe materialization；artifact `2dec2e3f…774e4c` 经 model-free exact replay 与 bytes/mtime
+> no-write 复验。temporal delivered nonnoop 为 reachable `107/112`、collection reset-state stress `740/784`、
+> evaluation reset-state stress `4,279/4,480`，两个 APPLY-vs-strict witness 均过门。该 PASS 只使
+> `source_v4_opportunity_established=true / collection_prefix_protocol_freeze_authorized=true`；
+> collection-prefix execution、evaluation、campaign、formal/integrated、四轴效果与 production 仍全部 false。
+> 5 个动态可达首拍仍为 noop，未来协议不得筛除或替换这些 root；两 witness 只是 canonical typed-executor
+> 个案，不是 aggregate Steerable 证据。
 >
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
 > 下方 `Last reconciled` 长段中的 P4.7 v3 只作历史 design freeze 记录；当前 planning authority 以上述 v4a 为准。

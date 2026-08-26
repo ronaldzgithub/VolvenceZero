@@ -2004,6 +2004,34 @@ dynamic protocol；`collection_prefix_execution_authorized` 仍为 false，必�
 四十条 evaluation、campaign effect、Readable/Learnable/Steerable、四轴合取、真人与 production authority 仍为 false。
 本阶段按用户裁决不恢复 reader rehearsal，也不新增 2–3 item 彩排 artifact。
 
+2026-08-26 的首个且唯一 materialization 绑定 implementation commit `0ffda0a1…1373`，create-only root 为
+`relationship_product_horizon_transductive_public_opportunity_20260826_p4471c9ab49bc_c0ffda0a1976d`；manifest
+artifact ID 为 `2dec2e3fdaa8f0a535db83f12e8a772cfeaa0459a5de9371a64807b83c774e4c`（raw
+`d0f70972…04577`，7,201 bytes）。外传 protocol/artifact 双 ID 的 model-free `validate-existing` 已重建
+10,968,596-byte stable trace 与 paired witness，并确认复验前后四文件 bytes、大小和 mtime 均未改变。
+
+终局为
+`development_transductive_public_opportunity_present_collection_prefix_protocol_freeze_authorized_effect_not_tested`。
+5,376 个 APPLY probe 的 frozen selected 与 temporal delivered action 精确一致：250 `neutral_noop`、2,408
+`respect_space_with_return_option`、2,718 `stay_present_without_probe`。按预注册类别，delivered nonnoop 为可达
+首拍 `107/112`（107 roots）、collection reset-state stress `740/784`（112 roots）、evaluation reset-state stress
+`4,279/4,480`（112 roots）；两组 canonical witness 的 APPLY 均交付 frozen selected nonnoop，strict 均只把
+actual delivery 替换为 `neutral_noop`，same owner prestate / forecast / frozen decision / candidate advisory /
+frozen policy 全为 true，cold checkpoint 始终 `0/0/0`。reachable-first v1 projection digest 为
+`5eee5690…84d1`，witness artifact 为 `354891ce…0b9e`。
+
+该结果只证明“这个已见 source/reader/theta 候选在 public typed placeholder surface 上没有再次退化为全 noop，
+并存在 strict-noop 可在 typed executor 层改变 temporal delivered action 的 opportunity”。448 次 public onboarding historical outcome
+read 如实保留；5,264 个 stress probe 仍不是动态 trajectory，4,279/4,480 也不是产品成功率、reader 准确率或
+因果效果；两个 witness 也只是预注册 canonical 个案，不是 aggregate Steerable 证据。107/112 同时意味着 5 个
+真实可达首拍仍为 noop，下一协议不得筛除、替换或重采样这些 root。`collection_prefix_protocol_freeze_authorized=true`
+只允许下一包冻结 8-decision collection-only dynamic
+protocol；`collection_prefix_execution_authorized=false`、`campaign_execution_authorized=false` 以及 Readable /
+Learnable / Steerable / 四轴效果仍全部 false。下一协议的 112 条首 preaction 必须 exact-match 已冻结的 23 字段
+projection；它必须先选择“natural APPLY 的 sequential dynamic opportunity gate”或“forced common-collection batch
+materializer”之一，不能混称。若选择后者且 forced-collection executor 导致 seam 不同，必须停止并重新设计，
+禁止削弱本门。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入
