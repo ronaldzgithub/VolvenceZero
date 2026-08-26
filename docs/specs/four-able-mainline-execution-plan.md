@@ -201,14 +201,18 @@ checkpoint 在 112/112 root 不同，Learnable 仍必须判
 `arm_degeneracy_invalid_contrast_no_claim`；参数移动不是 treatment。frozen_theta0 与 strict_noop 有
 4,325/4,480 actual divergence，Steerable 仅得到 development GO candidate，不升级为能力效果。
 
-修复顺序冻结为三个小包：
+theta0 v3 的剩余 prerequisite 顺序冻结为三个小包；前一包完成即提交，不恢复彩排：
 
-1. **已闭合** versioned gate operator v2：无 free bias、移除恒定 support、四个 centred typed feature；只消费完整
+1. **已闭合** versioned gate operator v2 与 add-only federated parent：无 free bias、移除恒定 support、四个 centred typed feature；只消费完整
    `RelationshipActionCommonBaselineCredit`，以完整 fixed-balanced schedule membership 计算事前 half-centred
    development feature-moment score，推荐动作为 noop 时 zero-information；精确 balance 不冒充随机化/ATE/CATE，
    每个实例只允许一次 cold APPLY/WITHHOLD；learned theta0 的构造/恢复必须由 parent+batch+APPLY receipt
-   完整重放且拒绝净零参数，advisory 必须由 frozen policy+forecast 重放 frozen decision；v1 全部原样保留；
-2. **已闭合** v2 pulse/forced consumer：以独立 `.v2` authorization/command/receipt/snapshot mechanically 绑定
+   完整重放且拒绝净零参数，advisory 必须由 frozen policy+forecast 重放 frozen decision。flat 896-entry batch 因
+   O(N²) serialization/content-ID 成本已在 theta output 前否决；新 parent 以连续 offset 绑定 112 个完整 8-credit
+   provenance child、全局校验唯一性/时间顺序，并只产生一个 unique plan identity、一次 parent APPLY/WITHHOLD 与
+   一个 terminal checkpoint。APPLY 固定 `atomic=1 / child_transition=0`；federated transition 必须先凝结为 cold theta0
+   才能 evaluation。同序 flat reference 的 candidate checkpoint byte-exact；旧 flat v2 golden ID 与 v1 全部原样保留；
+2. **基础已闭合、federation consumer 待下一包** v2 pulse/forced consumer：以独立 `.v2` authorization/command/receipt/snapshot mechanically 绑定
    完整 assignment receipt、policy+forecast replay 后的 v2 frozen decision、actual temporal delivery、
    owner→Social PE→parent/common-baseline credit；pulse-owned continuous collected batch 保留完整 settlement、
    owner forecast-publication replay 与全程连续 post→input handoff；add-only segmented batch 绑定唯一 segment scope、
@@ -219,9 +223,13 @@ checkpoint 在 112/112 root 不同，Learnable 仍必须判
    executor disposition，外部 base authorization 不能直接打开 ACTIVE；v1 与既有 continuous v2 receipt/payload/ID
    均不复用、不改名。两类 collection 还在构造时 seal owner provenance，并在 ID/export/transition 边界重放校验，
    防止 shallow-frozen `OwnerPersistenceSnapshot.payload` 的 nested mutation；有效 continuous 的公开 constructor
-   signature、canonical payload 与 ID 不变；
+   signature、canonical payload 与 ID 不变。下一单 owner 包只负责把 112 个 root-local segmented collection 作为
+   完整 child components 接入 gate federation，并冻结 parent order/timing receipt；不能靠 compact ID 重建，也不能
+   产生 child transition；
 3. theta0 v3 + permanent treatment-reachability admission：事前冻结 bootstrap `1/512` 与 root-online `1/4`、
-   完整 896-entry development batch、唯一 terminal checkpoint 与 cap-hit FAIL；admission 只读新 source 的
+   一个含 112 个 provenance child、合计 896 credit 的全局 federated development transition batch、唯一 terminal
+   checkpoint 与 cap-hit FAIL；parent 必须在首个 forecast/outcome 前由外部 owner 持久化，正式 lineage 另证没有
+   child-commit 旁路。admission 只读新 source 的
    public/outcome-free surface，不生成 outcome/PE/credit/update，不是 rehearsal。
 
 三个包与 admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
@@ -458,3 +466,12 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   provenance seal + 边界重放 fail closed，有效旧 constructor signature/canonical payload/ID 不变。segmented compact
   payload 只持 `gate_batch_id`，但 896-entry gate batch 本身仍有 O(N²) serialization/content-ID 成本；v3 protocol
   必须事前披露，若不可接受只能另立 gate schema，禁止看见 theta 输出后改。
+- 2026-08-27 · 算力/serialization 裁决在任何 theta0 v3 输出前完成：拒绝单一 flat 896-entry v2 schedule/batch，
+  选择 add-only gate federation。parent schedule 以连续 global offset 绑定 112 个完整 root-local 8-entry child；
+  post-collection parent batch 保留全部 typed child components，并在全局重放 decision/forecast/assignment/exposure/
+  credit 唯一性、timestamp、同 cold artifact/checkpoint/policy 与 448/448 balance。更新数学、学习率和逐项 cap 顺序未改，
+  小型同序 flat reference 的 candidate checkpoint byte-exact。matched APPLY/WITHHOLD 共享一个 unique parent plan identity、
+  pre/candidate checkpoint；APPLY 为一次 atomic parent commit，receipt 报 `child_transition_count=0`，federated terminal
+  必须先凝结为 cold learned theta0 才能 evaluation。该字段只证明本 parent 内无 child transition；future owner 仍须证明
+  pre-outcome timing 与无外部 child-commit 旁路。当前仅 gate owner + model-free unit contract 闭合；pulse federation
+  consumer、theta0 v3、permanent admission、模型/CUDA/campaign/effect 全部待完成，reader/campaign 彩排继续关闭。

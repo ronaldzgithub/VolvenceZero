@@ -24,6 +24,11 @@ from lifeform_domain_emogpt.relationship_action_gate_v2 import (
     RelationshipActionGateV2Checkpoint,
     RelationshipActionGateV2CreditBatch,
     RelationshipActionGateV2Decision,
+    RelationshipActionGateV2FederatedAssignmentScheduleArtifact,
+    RelationshipActionGateV2FederatedBatchReceipt,
+    RelationshipActionGateV2FederatedCreditBatch,
+    RelationshipActionGateV2FederatedScheduleSegment,
+    commit_relationship_action_gate_v2_federated_matched_transitions,
     relationship_action_gate_v2_features,
     temporal_action_advisory_from_gate_v2_decision,
 )
@@ -204,6 +209,8 @@ def _batch(
         ],
         ...,
     ],
+    *,
+    timestamp_start: int = 5000,
 ) -> RelationshipActionGateV2CreditBatch:
     forecasts = tuple(
         _forecast(suffix, recommended_action_id=recommended) for suffix, _role, recommended, _outcome in specs
@@ -214,7 +221,7 @@ def _batch(
         _common_credit(
             exposure,
             outcome=specs[index][3],
-            timestamp_ms=5000 + index,
+            timestamp_ms=timestamp_start + index,
         )
         for index, exposure in enumerate(exposures)
     )
@@ -238,6 +245,65 @@ def _informative_specs() -> tuple:
             RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
             DialogueExternalOutcomeKind.OVER_DIRECTIVE,
         ),
+    )
+
+
+def _federation(
+    seed: RelationshipActionGateV2Artifact,
+) -> RelationshipActionGateV2FederatedCreditBatch:
+    first = _batch(
+        RelationshipActionGateV2(artifact=seed),
+        (
+            (
+                "federated-a-candidate",
+                RelationshipActionGateV2AssignmentRole.CANDIDATE,
+                RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+                DialogueExternalOutcomeKind.HELPED,
+            ),
+            (
+                "federated-a-noop",
+                RelationshipActionGateV2AssignmentRole.NEUTRAL_NOOP,
+                RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+                DialogueExternalOutcomeKind.OVER_DIRECTIVE,
+            ),
+        ),
+        timestamp_start=5000,
+    )
+    second = _batch(
+        RelationshipActionGateV2(artifact=seed),
+        (
+            (
+                "federated-b-candidate",
+                RelationshipActionGateV2AssignmentRole.CANDIDATE,
+                RelationshipAction.RESPECT_SPACE_WITH_RETURN_OPTION.value,
+                DialogueExternalOutcomeKind.FELT_HEARD,
+            ),
+            (
+                "federated-b-noop",
+                RelationshipActionGateV2AssignmentRole.NEUTRAL_NOOP,
+                RelationshipAction.RESPECT_SPACE_WITH_RETURN_OPTION.value,
+                DialogueExternalOutcomeKind.MISSED,
+            ),
+        ),
+        timestamp_start=6000,
+    )
+    parent = RelationshipActionGateV2FederatedAssignmentScheduleArtifact(
+        source_artifact_id=first.schedule_artifact.source_artifact_id,
+        schedule_scope_id="test-federated-schedule:two-roots",
+        segments=(
+            RelationshipActionGateV2FederatedScheduleSegment(
+                global_start_index=0,
+                child_schedule_artifact=first.schedule_artifact,
+            ),
+            RelationshipActionGateV2FederatedScheduleSegment(
+                global_start_index=len(first.exposures),
+                child_schedule_artifact=second.schedule_artifact,
+            ),
+        ),
+    )
+    return RelationshipActionGateV2FederatedCreditBatch(
+        federated_schedule_artifact=parent,
+        child_batches=(first, second),
     )
 
 
@@ -619,6 +685,299 @@ def test_apply_withhold_replay_and_single_transition_close_exactly() -> None:
     )
     with pytest.raises(ValueError, match="exactly one transition"):
         withhold_gate.plan_credit_batch(batch)
+
+
+def test_federated_batch_commits_once_and_condenses_to_cold_theta0() -> None:
+    seed = _seed(
+        bootstrap_learning_rate=1.0 / 512.0,
+        online_learning_rate=0.25,
+    )
+    federation = _federation(seed)
+    schedule = federation.federated_schedule_artifact
+
+    assert len(schedule.segments) == 2
+    assert len(schedule.flattened_entries) == 4
+    assert RelationshipActionGateV2FederatedAssignmentScheduleArtifact.from_payload(schedule.to_payload()) == schedule
+    with pytest.raises(TypeError):
+        RelationshipActionGateV2FederatedCreditBatch.from_payload(  # type: ignore[call-arg]
+            federation.to_payload()
+        )
+    assert (
+        RelationshipActionGateV2FederatedCreditBatch.from_payload(
+            federation.to_payload(),
+            federated_schedule_artifact=schedule,
+            full_common_credit_batches=tuple(child.credits for child in federation.child_batches),
+        )
+        == federation
+    )
+
+    matched = commit_relationship_action_gate_v2_federated_matched_transitions(
+        artifact=seed,
+        batch=federation,
+    )
+    applied = matched.applied
+    withheld = matched.withheld
+    assert applied.gate_receipt.plan_id == withheld.gate_receipt.plan_id
+    assert (
+        applied.gate_receipt.candidate_checkpoint_content_sha256
+        == withheld.gate_receipt.candidate_checkpoint_content_sha256
+    )
+    assert applied.gate_receipt.atomic_commit_count == 1
+    assert applied.gate_receipt.update_count_delta == 4
+    assert applied.gate_receipt.informative_update_count_delta == 4
+    assert applied.gate_receipt.child_batch_count == 2
+    assert applied.gate_receipt.child_transition_count == 0
+    assert withheld.gate_receipt.atomic_commit_count == 0
+    assert withheld.gate_receipt.update_count_delta == 0
+    assert withheld.gate_receipt.informative_update_count_delta == 0
+    assert withheld.terminal_checkpoint.update_count == 0
+    assert matched.to_payload()["unique_parent_plan_identity_count"] == 1
+    assert matched.to_payload()["child_transition_count"] == 0
+    assert (
+        RelationshipActionGateV2FederatedBatchReceipt.from_payload(applied.gate_receipt.to_payload())
+        == applied.gate_receipt
+    )
+    for field_name, wrong_identity in (
+        ("batch_id", federation.child_batches[0].batch_id),
+        (
+            "federated_schedule_artifact_id",
+            federation.child_batches[0].schedule_artifact.artifact_id,
+        ),
+        (
+            "plan_id",
+            RelationshipActionGateV2(artifact=seed).plan_credit_batch(federation.child_batches[0]).plan_id,
+        ),
+    ):
+        with pytest.raises(ValueError, match="must use prefix"):
+            replace(applied.gate_receipt, **{field_name: wrong_identity})
+    for field_name in (
+        "batch_id",
+        "federated_schedule_artifact_id",
+        "plan_id",
+    ):
+        valid_identity = getattr(applied.gate_receipt, field_name)
+        prefix_without_colon, digest = valid_identity.rsplit(":", 1)
+        nested_identity = f"{prefix_without_colon}:nested:{digest}"
+        with pytest.raises(ValueError, match="one exact prefixed SHA-256"):
+            replace(applied.gate_receipt, **{field_name: nested_identity})
+
+    replayed = RelationshipActionGateV2.from_applied_federated_credit_batch(
+        seed,
+        batch=federation,
+        receipt=applied.gate_receipt,
+    )
+    assert replayed.export_checkpoint() == applied.terminal_checkpoint
+    with pytest.raises(ValueError, match="condensed into a learned theta0"):
+        replayed.freeze_for_evaluation()
+
+    theta0 = RelationshipActionGateV2Artifact.create_learned_theta0_from_federation(
+        parent_artifact=seed,
+        source_batch=federation,
+        apply_receipt=applied.gate_receipt,
+    )
+    theta0.validate_federated_source_transition(
+        parent_artifact=seed,
+        source_batch=federation,
+        apply_receipt=applied.gate_receipt,
+    )
+    assert (
+        RelationshipActionGateV2Artifact.from_payload(
+            theta0.to_payload(),
+            parent_artifact=seed,
+            source_batch=federation,
+            apply_receipt=applied.gate_receipt,
+        )
+        == theta0
+    )
+    cold_gate = RelationshipActionGateV2(artifact=theta0)
+    cold = cold_gate.export_checkpoint()
+    assert cold.weights == applied.terminal_checkpoint.weights
+    assert cold.update_count == 0
+    assert cold.informative_update_count == 0
+    assert cold.processed_credit_ids == ()
+    assert cold_gate.freeze_for_evaluation().checkpoint == cold
+
+    with pytest.raises(TypeError, match="RelationshipActionGateV2CreditBatch"):
+        RelationshipActionGateV2(artifact=seed).plan_credit_batch(federation)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="RelationshipActionGateV2CreditBatch"):
+        RelationshipActionGateV2Artifact.create_learned_theta0(  # type: ignore[arg-type]
+            parent_artifact=seed,
+            source_batch=federation,
+            apply_receipt=applied.gate_receipt,
+        )
+
+
+def test_federated_candidate_checkpoint_is_byte_exact_to_flat_ordered_math() -> None:
+    seed = _seed()
+    federation = _federation(seed)
+    forecasts = tuple(exposure.forecast for exposure in federation.exposures)
+    roles = tuple(exposure.assignment_role for exposure in federation.exposures)
+    flat_exposures = _exposures(
+        RelationshipActionGateV2(artifact=seed),
+        forecasts,
+        roles,
+    )
+    flat_batch = RelationshipActionGateV2CreditBatch(
+        exposures=flat_exposures,
+        credits=federation.credits,
+    )
+
+    flat_plan = RelationshipActionGateV2(artifact=seed).plan_credit_batch(flat_batch)
+    federated_plan = RelationshipActionGateV2(artifact=seed).plan_federated_credit_batch(federation)
+    assert flat_plan.candidate_checkpoint == federated_plan.candidate_checkpoint
+    assert flat_plan.candidate_checkpoint.content_sha256 == federated_plan.candidate_checkpoint.content_sha256
+    assert flat_plan.informative_candidate_count == (federated_plan.informative_candidate_count)
+    assert flat_plan.informative_noop_count == federated_plan.informative_noop_count
+    assert flat_plan.cap_hit_count == federated_plan.cap_hit_count
+
+
+def test_federation_rejects_order_overlap_drift_and_second_transition() -> None:
+    seed = _seed()
+    federation = _federation(seed)
+    first, second = federation.child_batches
+    parent = federation.federated_schedule_artifact
+
+    with pytest.raises(ValueError, match="parent order"):
+        replace(federation, child_batches=(second, first))
+    with pytest.raises(ValueError, match="child batch ids must be unique"):
+        replace(federation, child_batches=(first, first))
+    with pytest.raises(ValueError, match="child artifacts must be unique"):
+        RelationshipActionGateV2FederatedAssignmentScheduleArtifact(
+            source_artifact_id=parent.source_artifact_id,
+            schedule_scope_id="duplicate-child-schedule",
+            segments=(
+                parent.segments[0],
+                RelationshipActionGateV2FederatedScheduleSegment(
+                    global_start_index=len(first.exposures),
+                    child_schedule_artifact=first.schedule_artifact,
+                ),
+            ),
+        )
+
+    duplicate_decision_schedule = replace(
+        first.schedule_artifact,
+        schedule_scope_id="duplicate-decision-other-scope",
+    )
+    with pytest.raises(ValueError, match="decision ids must be globally unique"):
+        RelationshipActionGateV2FederatedAssignmentScheduleArtifact(
+            source_artifact_id=parent.source_artifact_id,
+            schedule_scope_id="duplicate-global-decisions",
+            segments=(
+                parent.segments[0],
+                RelationshipActionGateV2FederatedScheduleSegment(
+                    global_start_index=len(first.exposures),
+                    child_schedule_artifact=duplicate_decision_schedule,
+                ),
+            ),
+        )
+
+    overlapping_second = RelationshipActionGateV2CreditBatch(
+        exposures=second.exposures,
+        credits=tuple(
+            _common_credit(
+                exposure,
+                outcome=credit.external_evidence.kind,
+                timestamp_ms=5001 + index,
+            )
+            for index, (exposure, credit) in enumerate(zip(second.exposures, second.credits, strict=True))
+        ),
+    )
+    with pytest.raises(ValueError, match="globally increasing"):
+        replace(federation, child_batches=(first, overlapping_second))
+
+    wrong_seed = _seed(source_digest="b" * 64)
+    wrong_second = _batch(
+        RelationshipActionGateV2(artifact=wrong_seed),
+        (
+            (
+                "wrong-seed-candidate",
+                RelationshipActionGateV2AssignmentRole.CANDIDATE,
+                RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+                DialogueExternalOutcomeKind.HELPED,
+            ),
+            (
+                "wrong-seed-noop",
+                RelationshipActionGateV2AssignmentRole.NEUTRAL_NOOP,
+                RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+                DialogueExternalOutcomeKind.MISSED,
+            ),
+        ),
+        timestamp_start=7000,
+    )
+    mixed_parent = RelationshipActionGateV2FederatedAssignmentScheduleArtifact(
+        source_artifact_id=parent.source_artifact_id,
+        schedule_scope_id="mixed-checkpoint-parent",
+        segments=(
+            parent.segments[0],
+            RelationshipActionGateV2FederatedScheduleSegment(
+                global_start_index=len(first.exposures),
+                child_schedule_artifact=wrong_second.schedule_artifact,
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="share one gate artifact"):
+        RelationshipActionGateV2FederatedCreditBatch(
+            federated_schedule_artifact=mixed_parent,
+            child_batches=(first, wrong_second),
+        )
+
+    partial = federation.to_payload()
+    partial.pop("credit_count")
+    with pytest.raises(ValueError, match="fields do not match schema"):
+        RelationshipActionGateV2FederatedCreditBatch.from_payload(
+            partial,
+            federated_schedule_artifact=parent,
+            full_common_credit_batches=tuple(child.credits for child in federation.child_batches),
+        )
+    with pytest.raises(ValueError, match="credit groups do not match"):
+        RelationshipActionGateV2FederatedCreditBatch.from_payload(
+            federation.to_payload(),
+            federated_schedule_artifact=parent,
+            full_common_credit_batches=(first.credits,),
+        )
+
+    gate = RelationshipActionGateV2(artifact=seed)
+    gate.commit_federated_credit_batch(
+        gate.plan_federated_credit_batch(federation),
+        disposition=RelationshipActionGateBatchDisposition.WITHHOLD,
+    )
+    with pytest.raises(ValueError, match="exactly one transition"):
+        gate.plan_federated_credit_batch(federation)
+    with pytest.raises(ValueError, match="condensed into a learned theta0"):
+        gate.freeze_for_evaluation()
+
+
+def test_existing_v2_golden_identities_remain_byte_exact() -> None:
+    seed = _seed(
+        bootstrap_learning_rate=1.0 / 512.0,
+        online_learning_rate=0.25,
+    )
+    batch = _batch(RelationshipActionGateV2(artifact=seed), _informative_specs())
+    gate = RelationshipActionGateV2(artifact=seed)
+    plan = gate.plan_credit_batch(batch)
+    receipt = gate.commit_credit_batch(
+        plan,
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+
+    assert seed.artifact_id == (
+        "relationship-action-gate-v2-artifact-sha256:2bcb447911d84ae05fbd882cbab8cc8c4e779357c28a713793778df3e36df165"
+    )
+    assert batch.schedule_artifact.artifact_id == (
+        "relationship-action-gate-v2-assignment-schedule-sha256:"
+        "10776f69e148c4391c0e4e761d45a32eb9fbfeb4bf2b168c29def75d7f393492"
+    )
+    assert batch.batch_id == (
+        "relationship-action-gate-v2-credit-batch-sha256:"
+        "64b7b6065f9a14963c847ea2cc67c23b924a31f5df63f76a8906043e33988e49"
+    )
+    assert plan.plan_id == (
+        "relationship-action-gate-v2-batch-plan-sha256:74b52522a8b53dcd47e7c74198bcc94b95972018b18ad080d3dad5fc0b114773"
+    )
+    assert receipt.receipt_id == (
+        "relationship-action-gate-v2-batch-receipt-sha256:"
+        "432efb8696ec54223969b542c92340ae1487724d242d92f39f1d00ef8a3c4ea5"
+    )
 
 
 def test_batch_rejects_legacy_credit_partial_schedule_and_mutable_shapes() -> None:
