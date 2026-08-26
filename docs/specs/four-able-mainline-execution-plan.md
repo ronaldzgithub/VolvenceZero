@@ -219,3 +219,8 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   （§1.1 宿主行、Phase 0 BIOS 裁决、§5 BIOS 门、Steerable 物理线约束）；§3.6 保留为
   通用"硬件前置不悬置"纪律。既有 host-block receipt 等历史 artifact 不受本次删除影响，
   原样保留。
+- 2026-08-26 · Phase 0 出口达成：dirty tree 已按 owner 分包提交（attempt03 事后诊断
+  `c3850986`、功效规划脚手架 `61c5575f`、本计划 spec `08684268`/`9a0b7d43`/`5406c035`），
+  `git status` 除 `external/vz-bundle` 既有改动外清洁。用户已裁决单写入者：本主线由当前
+  Cursor 主任务独占写入，其余任务（含既有 Codex 任务）转只读；用户同时裁决 32K 长上下文
+  操作化不纳入本计划 Phase 2，留给 P4.7 线。本记录不授权任何 run。
