@@ -1831,6 +1831,46 @@ development input，不是 2–3 item 彩排；输出必须
 `development_unqualified_reader_input=true`；reader qualification、Readable 效果、campaign/formal/integrated/
 四轴/production authority 仍全部为 false。
 
+#### Product Horizon source-v3 evaluation-outside theta0 development calibration
+
+`lifeform-evolution.relationship_product_horizon_theta0_calibration` 是 Phase 2.5 的独立 development bootstrap，
+不是 reader rehearsal、qualification 或 formal run。协议只读并精确 pin 已完成的 source-v3 campaign admission、
+v6 preflight 的 label-free public corpus、实际 CUDA 物化的 development reader bundle 与 gate owner replay seam；
+它不修改任何既有 artifact、Gist、receipt、attempt03 判词或 source identity。
+
+校准进程不调用 source-v3 的 full admission validator，也不打开 `replay_a/replay_b` 的 sealed 文件。它只对
+top manifest、replay-a manifest、admission protocol 与 public source plan 做 raw SHA、canonical content ID、
+claim ceiling 和相互 identity join；source-v3 的完整 sealed admission 已由其原 owner 单独完成。随后机械证明
+source-v3 的 8 roots ×（4 onboarding + 24 decision）共 224 条 reader text，与 preflight 的 224 条
+label-free challenge text、development embedding table 构成 digest+full-text 的 exact ordered permutation；
+duplicate、missing、额外或 session identity 覆盖全部 fail loudly。challenge label 与 group-split 文件均不读取。
+
+实际校准按 public subject 顺序运行。每个 root 从 4 条 onboarding 重建一份新的 owner persistence，但同一个
+zero-init gate checkpoint 连续跨 8 roots 携带；不得 per-root reset 或参数平均。192 个 decision 的每一拍必须：
+
+1. 从 owner snapshot 与冻结 reader→forecast 接缝发布 forecast，并由 learned gate 决定 candidate；
+2. 从 `temporal_snapshot.value.active_abstract_action` 取得真正交付动作，将 outcome-free preaction trace
+   create-only append、flush、`fsync`；
+3. 只有此后才在环境作用域内按唯一 `world_clone_id` join evaluator root，并调用既有
+   `ReactiveRelationshipEnvironment.settle(actual_action)`；
+4. 环境只向外投影 actual action、typed outcome、reaction、evidence ref 与 environment version；condition、
+   policy、preferred action、seed、distribution、draw、evaluation 或 judge feedback 不进入 reader/gate/credit；
+5. 沿正式 owner settlement → social PE → PE-derived credit 链恰好更新 gate 一次，pending 必须 `0→1→0`。
+
+credit timestamp 固定为 `root_index * 52 + 5 + 2 * decision_index`，全局严格递增；终局必须是 192 次 update、
+192 个唯一 processed credit、零 pending。完整 append-only trace 的内容寻址 ID 是 theta0 的
+`source_batch_artifact_id`。只有最终 weight/bias 至少一项非零时才允许发布
+`RelationshipActionGateTheta0Artifact`；strict loader 必须重算内容 ID并验证 source checkpoint，cold restore
+必须参数逐项相同而 `update_count=0 / processed_credit_ids=0 / pending=0`。若 192 次更新后参数仍全零，只能以
+`calibration_completed_no_nonzero_theta0` 封存四文件失败根，不得生成 theta0、换 order/seed 重试选正结果。
+
+输出采用 create-only 五文件成功根（全零时四文件）和 manifest-last；materializer 在 manifest 前从磁盘重读
+protocol/public join/trace/theta0 并 byte compare，`validate-existing` 还必须由调用方外传 expected protocol 与
+artifact 双 ID，model-free 重跑完整 224 join、192 拍 owner/environment/PE-credit 链与 cold theta0。最高正事实
+仅是 `development_theta0_materialized=true`；source-v3 已进入 reader 谱系，不是 unseen evidence。该 artifact
+不证明 reader qualification、non-noop steer opportunity、Learnable、Steerable、任一四轴效果、campaign、
+formal、真人或 production ACTIVE，也不运行模型/CUDA、不发布 Gist。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入
