@@ -203,13 +203,17 @@ checkpoint 在 112/112 root 不同，Learnable 仍必须判
 
 修复顺序冻结为三个小包：
 
-1. versioned gate operator v2：无 free bias、移除恒定 support、四个 centred typed feature；只消费完整
+1. **已闭合** versioned gate operator v2：无 free bias、移除恒定 support、四个 centred typed feature；只消费完整
    `RelationshipActionCommonBaselineCredit`，以完整 fixed-balanced schedule membership 计算事前 half-centred
    development feature-moment score，推荐动作为 noop 时 zero-information；精确 balance 不冒充随机化/ATE/CATE，
    每个实例只允许一次 cold APPLY/WITHHOLD；learned theta0 的构造/恢复必须由 parent+batch+APPLY receipt
    完整重放且拒绝净零参数，advisory 必须由 frozen policy+forecast 重放 frozen decision；v1 全部原样保留；
-2. v2 pulse/forced consumer：mechanically 绑定 assignment receipt、actual delivery、v2 frozen decision 与
-   APPLY/WITHHOLD replay，不复用或改名 v1 receipt；
+2. **已闭合** v2 pulse/forced consumer：以独立 `.v2` authorization/command/receipt/snapshot mechanically 绑定
+   完整 assignment receipt、policy+forecast replay 后的 v2 frozen decision、actual temporal delivery、
+   owner→Social PE→parent/common-baseline credit；pulse-owned collected batch 保留完整 settlement、owner
+   forecast-publication replay 与连续 post→input handoff，raw gate-only batch 不可提交；APPLY/WITHHOLD 必须由同一
+   collection 成对派生并 exact-match plan/pre/candidate checkpoint。strict-noop 只切 executor disposition，外部
+   base authorization 不能直接打开 ACTIVE，不复用或改名 v1 receipt；
 3. theta0 v3 + permanent treatment-reachability admission：事前冻结 bootstrap `1/512` 与 root-online `1/4`、
    完整 896-entry development batch、唯一 terminal checkpoint 与 cap-hit FAIL；admission 只读新 source 的
    public/outcome-free surface，不生成 outcome/PE/credit/update，不是 rehearsal。
@@ -429,3 +433,12 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   rate 分别预定 `1/512` 与 `1/4`，但须等 v2
   pulse seam 与 theta0 v3 protocol 各自冻结后才能物化。执行前只读 public/outcome-free treatment-reachability
   admission 是永久 manipulation gate，不是实验 rehearsal；reader/model/CUDA 继续不启动。
+- 2026-08-27 · v2 pulse/forced consumer seam 已闭合到 model-free owner-contract 边界：forced authorization
+  保存完整 fixed-balanced assignment artifact/entry 与 cold policy，调用方不能提交 concrete action；executor 在
+  temporal delivery 前重放 policy+forecast，settlement 只按 actual delivered action 经既有 owner persistence、
+  Social PE、parent action-credit 派生 exact common-baseline credit。pulse-owned collected batch 保留完整且有序的
+  同 schedule settlement，并由 owner helper 重放 forecast publication、验证相邻 post→input handoff；raw gate-only
+  batch 不能进入 transition。APPLY/WITHHOLD 从同一 collection 成对派生并锁定同一 plan/pre/candidate checkpoint，
+  strict-noop 只改变 executor bit；外部 base authorization 不能绕过 v2 outer authorization 打开 ACTIVE。
+  新类型均为 `.v2`，legacy v1 ID/payload 不变。本包不运行 reader rehearsal、模型、CUDA 或 campaign，也不证明
+  treatment reachability/Learnable/Steerable；下一包仍是 theta0 v3，随后才执行永久 public/outcome-free admission。

@@ -63,8 +63,14 @@
 > parent+batch+APPLY-receipt component replay、净零 theta 拒绝与 policy+forecast→decision advisory replay 均
 > fail closed。精确 balance 不是随机化或
 > causal effect，当前 schema 不提供 randomized enum；v1 谱系不改。
-> 当前仅 owner contract/unit tests，pulse seam、theta0 v3、public/outcome-free treatment-reachability admission 与
-> 新 source campaign 均待完成。reader rehearsal、模型与 CUDA 继续关闭；formal/unseen/integrated/四轴效果与
+> v2 pulse/forced consumer seam 现已用独立 `.v2` authorization/command/receipt/snapshot 闭合：完整 assignment
+> receipt 决定实际 candidate/noop 交付，settlement 只从实际 temporal delivery 经 owner→Social PE→parent credit
+> 派生 common-baseline credit。pulse-owned collected batch 保留完整 settlement、owner forecast-publication replay 与
+> 相邻 post→input handoff，拒绝 raw gate-only batch；APPLY/WITHHOLD 必须从同一 collection 成对派生，strict-noop
+> 只切 executor disposition；外部 base authorization 不能直接打开 ACTIVE。v1 payload/identity 均未改。当前仍只有
+> 机制 contract/unit tests，theta0 v3、
+> public/outcome-free treatment-reachability admission 与新 source campaign 均待完成。reader rehearsal、模型与 CUDA
+> 继续关闭；formal/unseen/integrated/四轴效果与
 > production 全部 false。
 >
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。

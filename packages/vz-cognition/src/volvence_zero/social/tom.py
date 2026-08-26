@@ -901,6 +901,50 @@ def settle_preference_action_forecast(
     )
 
 
+def replay_preference_action_forecast_publication_persistence(
+    *,
+    before: OwnerPersistenceSnapshot,
+    forecast: PreferenceActionForecast,
+) -> OwnerPersistenceSnapshot:
+    """Replay one exact pending-forecast publication through its owner store.
+
+    This is the owner-side inverse of the product pulse's pre-action receipt:
+    every stable field is retained and the exact forecast is appended through
+    the owner's bounded merge semantics.  Consumers therefore do not need to
+    inspect or reconstruct the opaque persistence payload.
+    """
+
+    if not isinstance(before, OwnerPersistenceSnapshot):
+        raise TypeError("before must be OwnerPersistenceSnapshot")
+    if not isinstance(forecast, PreferenceActionForecast):
+        raise TypeError("forecast must be PreferenceActionForecast")
+    store = SocialRecordStore()
+    store.hydrate_from_persistence(before)
+    if any(
+        item.forecast_id == forecast.forecast_id
+        for item in store.preference_action_forecasts
+    ):
+        raise ValueError("owner publication pre-state already contains forecast id")
+    eligible_record_ids = {
+        record.record_id
+        for record in store.tom_records(PreferenceAboutOtherModule.slot_name)
+        if record.interlocutor_id == forecast.interlocutor_id
+        and record.status is OtherMindRecordStatus.ACTIVE
+    }
+    unknown_source_ids = set(forecast.source_record_ids).difference(
+        eligible_record_ids
+    )
+    if unknown_source_ids:
+        raise ValueError(
+            "owner publication forecast references ineligible records: "
+            f"{sorted(unknown_source_ids)!r}"
+        )
+    store.set_preference_action_forecasts(
+        (*store.preference_action_forecasts, forecast)
+    )
+    return store.export_persistence_snapshot()
+
+
 def replay_preference_action_forecast_settlement_persistence(
     *,
     before: OwnerPersistenceSnapshot,
@@ -1388,6 +1432,7 @@ __all__ = [
     "PreferenceAboutOtherModule",
     "preference_action_forecast_expected_utility",
     "preference_action_relationship_outcome_utility",
+    "replay_preference_action_forecast_publication_persistence",
     "replay_preference_action_forecast_settlement_persistence",
     "settle_preference_action_forecast",
     "social_prediction_error_from_preference_action_forecast_settlement",
