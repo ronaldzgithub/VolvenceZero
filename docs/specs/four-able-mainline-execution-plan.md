@@ -178,8 +178,10 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 入口：Phase 2 包 1 的 gate owner 与 executor consumer 分包完成，且所选 Product Horizon source 已
 通过对应 development admission；不等待 reader v6 formal 链。现有 27 项 owner/executor/gate 定向测试已覆盖
 机制与 receipt，因此按用户裁决不另启 reader rehearsal 或独立 2–3 item 彩排 artifact；新 worker 先通过
-model-free `validate-existing`，随后用独立 development prereg JSON + commit hash + fixed seeds 执行中等
-root-cluster 矩阵：
+model-free `validate-existing`。natural-APPLY dynamic collection-prefix 已闭合，但只授权冻结 forced common-batch
+protocol；在该新 protocol、首次唯一 materialization、external-ID `validate-existing` 与全新 campaign prereg
+依次冻结前，本矩阵继续 NO-GO。四项闭合后，才可用独立 development prereg JSON + commit hash + fixed seeds
+执行中等 root-cluster 矩阵：
 
 1. 冻结选择 N=112 的 development operational marker；每 root 的 8 条 matched collection 不进入效果
    estimand，随后五段各 8 条、共 40 条 evaluation。112 是 synthetic roots，不是真人或 formal N；
@@ -345,3 +347,11 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   action 打开 precommitted source-v4 branch并生成 owner writeback→social PE→credit，credit 不在线 apply，cold
   checkpoint 始终 `0/0/0`。PASS 也只授权冻结 forced common-batch protocol，不授权其执行、evaluation、campaign
   或任何能力效果。实现与定向测试已就绪，待冻结提交后首个唯一 materialization；reader rehearsal 继续关闭。
+- 2026-08-27 · natural-APPLY dynamic collection-prefix 首个且唯一终局已封存并 exact replay：implementation
+  `c275bd90…ade4`、artifact `f1a5b2f6…aaf4`、1,906-row trace `e9cf896b…f295`。112 roots / 448 onboarding /
+  896 pre+postaction / 112 first-seam / 784 owner handoff / 896 writeback、branch、PE、credit 与四类唯一 ID 全部
+  闭合；temporal action 为 stay 389 / space 353 / noop 154，742 nonnoop 覆盖 112/112 roots，cold checkpoint
+  896/896 不变且 failure reasons 为空。外传双 ID 的 `validate-existing` 通过，产物 bytes/size/mtime 无写入。
+  该 PASS 只提升 `forced_common_batch_protocol_freeze_authorized=true`：下一合法动作是冻结共同 forced-collection
+  schedule/batch protocol，**不是执行** forced batch、40-decision evaluation 或 Phase 2.5 effect matrix；reader
+  rehearsal 继续关闭，formal/unseen/integrated/四轴 effect 继续 NO-GO。
