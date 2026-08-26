@@ -609,6 +609,46 @@ class HorizonPublicOnboardingSession:
             "rendered_user_reaction": self.rendered_user_reaction,
         }
 
+    @classmethod
+    def from_payload(cls, payload: object) -> "HorizonPublicOnboardingSession":
+        raw = _require_mapping(payload, "source-v4 public onboarding")
+        _require_exact_keys(
+            raw,
+            {
+                "session_id",
+                "session_index",
+                "virtual_day",
+                "public_context_chunk",
+                "user_utterance",
+                "exposed_action_id",
+                "observed_outcome_id",
+                "rendered_user_reaction",
+            },
+            source="source-v4 public onboarding",
+        )
+        return cls(
+            session_id=_require_text(raw["session_id"], "session_id"),
+            session_index=_require_int(raw["session_index"], "session_index"),
+            virtual_day=_require_int(raw["virtual_day"], "virtual_day"),
+            public_context_chunk=_require_text(
+                raw["public_context_chunk"],
+                "public_context_chunk",
+            ),
+            user_utterance=_require_text(raw["user_utterance"], "user_utterance"),
+            exposed_action_id=_require_text(
+                raw["exposed_action_id"],
+                "exposed_action_id",
+            ),
+            observed_outcome_id=_require_text(
+                raw["observed_outcome_id"],
+                "observed_outcome_id",
+            ),
+            rendered_user_reaction=_require_text(
+                raw["rendered_user_reaction"],
+                "rendered_user_reaction",
+            ),
+        )
+
 
 @dataclass(frozen=True)
 class HorizonPublicDecisionSession:
@@ -655,6 +695,63 @@ class HorizonPublicDecisionSession:
                 for action_id, description in self.action_surface
             ],
         }
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "HorizonPublicDecisionSession":
+        raw = _require_mapping(payload, "source-v4 public decision")
+        _require_exact_keys(
+            raw,
+            {
+                "session_id",
+                "decision_id",
+                "decision_index",
+                "virtual_day",
+                "public_context_chunk",
+                "current_input",
+                "public_correction_target_session_id",
+                "action_surface",
+            },
+            source="source-v4 public decision",
+        )
+        surface_raw = raw["action_surface"]
+        if not isinstance(surface_raw, list):
+            raise ValueError("source-v4 public action_surface must be an array")
+        surface: list[tuple[str, str]] = []
+        for index, value in enumerate(surface_raw):
+            item = _require_mapping(value, f"action_surface[{index}]")
+            _require_exact_keys(
+                item,
+                {"action_id", "public_description"},
+                source=f"action_surface[{index}]",
+            )
+            surface.append(
+                (
+                    _require_text(item["action_id"], f"action_surface[{index}].action_id"),
+                    _require_text(
+                        item["public_description"],
+                        f"action_surface[{index}].public_description",
+                    ),
+                )
+            )
+        correction = raw["public_correction_target_session_id"]
+        if correction is not None:
+            correction = _require_text(
+                correction,
+                "public_correction_target_session_id",
+            )
+        return cls(
+            session_id=_require_text(raw["session_id"], "session_id"),
+            decision_id=_require_text(raw["decision_id"], "decision_id"),
+            decision_index=_require_int(raw["decision_index"], "decision_index"),
+            virtual_day=_require_int(raw["virtual_day"], "virtual_day"),
+            public_context_chunk=_require_text(
+                raw["public_context_chunk"],
+                "public_context_chunk",
+            ),
+            current_input=_require_text(raw["current_input"], "current_input"),
+            public_correction_target_session_id=correction,
+            action_surface=tuple(surface),
+        )
 
 
 @dataclass(frozen=True)
@@ -710,6 +807,30 @@ class HorizonPublicRoot:
             "decision_sessions": [item.to_payload() for item in self.decision_sessions],
         }
 
+    @classmethod
+    def from_payload(cls, payload: object) -> "HorizonPublicRoot":
+        raw = _require_mapping(payload, "source-v4 public root")
+        _require_exact_keys(
+            raw,
+            {"subject_id", "onboarding_sessions", "decision_sessions"},
+            source="source-v4 public root",
+        )
+        onboarding_raw = raw["onboarding_sessions"]
+        decisions_raw = raw["decision_sessions"]
+        if not isinstance(onboarding_raw, list) or not isinstance(decisions_raw, list):
+            raise ValueError("source-v4 public root inventories must be arrays")
+        return cls(
+            subject_id=_require_text(raw["subject_id"], "subject_id"),
+            onboarding_sessions=tuple(
+                HorizonPublicOnboardingSession.from_payload(item)
+                for item in onboarding_raw
+            ),
+            decision_sessions=tuple(
+                HorizonPublicDecisionSession.from_payload(item)
+                for item in decisions_raw
+            ),
+        )
+
     @property
     def public_trajectory_sha256(self) -> str:
         return sha256_json(self.to_payload())
@@ -756,6 +877,20 @@ class RelationshipProductHorizonPublicView:
             raise ValueError("source-v4 public view requires 112 unique roots")
         if len({root.public_trajectory_sha256 for root in self.roots}) != _ROOT_COUNT:
             raise ValueError("source-v4 public trajectories must be unique")
+        session_ids = tuple(
+            item.session_id
+            for root in self.roots
+            for item in (*root.onboarding_sessions, *root.decision_sessions)
+        )
+        decision_ids = tuple(
+            item.decision_id
+            for root in self.roots
+            for item in root.decision_sessions
+        )
+        if len(set(session_ids)) != _ROOT_COUNT * (_ONBOARDING_COUNT + _DECISION_COUNT):
+            raise ValueError("source-v4 public session IDs must be globally unique")
+        if len(set(decision_ids)) != _ROOT_COUNT * _DECISION_COUNT:
+            raise ValueError("source-v4 public decision IDs must be globally unique")
         _assert_no_public_truth_leakage(self.to_sut_payload())
 
     def to_sut_payload(self) -> dict[str, object]:
@@ -767,6 +902,24 @@ class RelationshipProductHorizonPublicView:
         }
         _assert_no_public_truth_leakage(payload)
         return payload
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipProductHorizonPublicView":
+        raw = _require_mapping(payload, "source-v4 public view")
+        _require_exact_keys(
+            raw,
+            {"schema_version", "protocol_id", "cohort_id", "roots"},
+            source="source-v4 public view",
+        )
+        roots_raw = raw["roots"]
+        if not isinstance(roots_raw, list):
+            raise ValueError("source-v4 public roots must be an array")
+        return cls(
+            schema_version=_require_text(raw["schema_version"], "schema_version"),
+            protocol_id=_require_text(raw["protocol_id"], "protocol_id"),
+            cohort_id=_require_text(raw["cohort_id"], "cohort_id"),
+            roots=tuple(HorizonPublicRoot.from_payload(item) for item in roots_raw),
+        )
 
     @property
     def public_plan_sha256(self) -> str:

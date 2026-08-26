@@ -9,6 +9,7 @@ import pytest
 
 from lifeform_domain_emogpt.lab.relationship_product_horizon_source_v4 import (
     RELATIONSHIP_PRODUCT_HORIZON_SOURCE_SCHEMA_VERSION,
+    RelationshipProductHorizonPublicView,
     build_relationship_product_horizon_environment,
     build_relationship_product_horizon_evaluator_bundle,
     build_relationship_product_horizon_phase_specs,
@@ -243,6 +244,31 @@ def test_source_v4_public_payload_is_truth_free_and_text_disjoint_from_v3() -> N
         )
     }
     assert not (v3_texts & v4_texts)
+
+
+def test_source_v4_public_view_strictly_round_trips_without_owner_protocol() -> None:
+    public = build_relationship_product_horizon_public_view()
+    payload = public.to_sut_payload()
+    restored = RelationshipProductHorizonPublicView.from_payload(payload)
+
+    assert restored == public
+    assert restored.to_sut_payload() == payload
+    assert restored.public_plan_sha256 == public.public_plan_sha256
+
+    extra = json.loads(json.dumps(payload))
+    extra["roots"][0]["decision_sessions"][0]["condition_id"] = "forbidden"
+    with pytest.raises(ValueError, match="fields drifted"):
+        RelationshipProductHorizonPublicView.from_payload(extra)
+
+    alias = json.loads(json.dumps(payload))
+    alias["roots"][0]["decision_sessions"][0]["decision_index"] = True
+    with pytest.raises(ValueError, match="must be an integer"):
+        RelationshipProductHorizonPublicView.from_payload(alias)
+
+    surface = json.loads(json.dumps(payload))
+    surface["roots"][0]["decision_sessions"][0]["action_surface"].reverse()
+    with pytest.raises(ValueError, match="canonical immutable action surface"):
+        RelationshipProductHorizonPublicView.from_payload(surface)
 
 
 def test_source_v4_loader_fails_loudly_on_schema_or_firewall_drift(tmp_path) -> None:
