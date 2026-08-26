@@ -2032,6 +2032,47 @@ projection；它必须先选择“natural APPLY 的 sequential dynamic opportuni
 materializer”之一，不能混称。若选择后者且 forced-collection executor 导致 seam 不同，必须停止并重新设计，
 禁止削弱本门。
 
+#### Product Horizon natural-APPLY sequential dynamic collection-prefix gate
+
+`lifeform-evolution.relationship_product_horizon_dynamic_collection_prefix` 是 scanner PASS 后唯一先行的
+collection-prefix consumer；它明确选择 **natural `APPLY_CANDIDATE`**，不混入 forced schedule、
+`record_forced_exposure()`、batch apply 或任何 arm/effect estimand。protocol
+`47cea5fae3be13067492785893a7b621285ddce36efbe6c2eefae3331c50dbb2`（raw
+`3f3f7ad3943c1ffffc8d85959c79721b7a19e65f19354a34247fda7d2c0d97f3`，10,948 bytes）精确 pin
+source-v4 admission `4cc1ec45…dd54`、development reader `ba46775b…f967`、theta0 v2
+`3acd6e4f…9344`、scanner `2dec2e3f…74e4`、scanner trace `bc3418bd…b1181` 与 112-row
+first-preaction projection `5eee5690…84d1`。这些输入都已见，因此本门仍是 transductive development，
+不是 reader qualification、unseen 或 formal evidence。
+
+全部 112 个 synthetic root（含 scanner 中 5 个首拍自然 noop root）按 public array order 保留；每 root 的
+四条 onboarding 只经 owner API 追加一次，然后只运行 `decision_index=0..7`。首拍必须在打开该 root 的
+selected branch 前逐字段 exact-match scanner 冻结的 23-field projection；不能只比较 aggregate digest。
+后七拍的 owner input 必须精确等于上一拍 frozen settlement 发布的 owner post-persistence，共 784 个
+逐拍 handoff；root 间 reset，同 root 内禁止 reset。每拍唯一执行链为 frozen theta0
+`prepare_relationship_product_frozen_preaction(APPLY_CANDIDATE)` → temporal actual delivery →
+`settle_relationship_product_frozen_pulse(apply_credit_to_gate=false)`。不得改用 learned preaction，因为其
+pending-decision 语义会破坏本门要求的 cold `0/0/0`。
+
+运行时只先加载 public source/reader/theta/scanner。首个 preaction 已写入 create-only append trace、flush 并
+`fsync` 后，才由 source owner 从 pinned source protocol 重建 sealed evaluator，并与 admission 中的
+`sealed/evaluator_bundle.json` 做 canonical byte exact compare；后续 evaluator 留在 environment facade 内，
+不传给 forecast/reader/gate/executor。每个当前 preaction 都必须先 fsync，之后才以 temporal
+`delivered_action_id` 调 source owner 的 single-action commitment builder，逐 decision×actual-action 对照已封存
+commitment ID，再把唯一 actual reaction/outcome 交给 owner→social PE→credit 链。该顺序是 development
+cooperative typed firewall，不是 OS sandbox；不能虚称整个进程从未读取 sealed bundle。
+
+PASS 是纯机制精确门：112 roots、448 onboarding、896 preaction/postaction/selected-branch/PE/credit、
+112 first-preaction exact match、784 handoff、896 owner persistence writeback、896 commitment match、896 unique
+credit、至少 1 次 temporal delivered nonnoop，并且每拍 frozen checkpoint 都保持同一 cold `0/0/0`；online
+credit apply、gate update、forced executor/schedule、batch apply、evaluation、judge/evaluation feedback、model、
+CUDA 与真人样本均为零。成功终局仅为
+`development_dynamic_collection_prefix_closed_forced_batch_protocol_freeze_authorized_effect_not_tested`，只提升
+`forced_common_batch_protocol_freeze_authorized=true`；forced batch **执行**、40-decision evaluation、campaign、
+任何能力效果与 integrated authority 仍为 false。完整门失败封存
+`development_dynamic_collection_prefix_gate_failed_campaign_blocked_effect_not_tested`，禁止换 root、theta、
+reader、source、顺序或筛除 noop root 重试。当前 protocol/实现已冻结待首个唯一 materialization；按用户裁决
+不恢复 reader rehearsal，也不另建 2–3 item 彩排 artifact。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入

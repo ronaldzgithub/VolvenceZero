@@ -338,3 +338,10 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   5 个首拍 noop root 不得筛除/替换，两个 witness 不作 aggregate Steerable。新协议必须在 natural APPLY sequential
   gate 与 forced common-collection batch materializer 之间明确选择；若后者不匹配 seam 就停止重设计，不能削弱门。
   evaluation/campaign/effect/formal/四轴继续 NO-GO，reader rehearsal 继续关闭。
+- 2026-08-26 · scanner 后续 lane 已明确选择 natural `APPLY_CANDIDATE` sequential dynamic gate，未把 forced
+  common-collection 混入首拍 frozen seam。新 protocol `47cea5fa…0dbb2`（raw `3f3f7ad3…0d97f3`）保留全部
+  112 roots，每 root onboarding 一次、只跑 index 0–7；112 个首拍逐行 exact-match 23 字段 projection，后
+  784 拍必须消费 exact prior settlement owner state。每拍 preaction append+fsync 后才按 temporal delivered
+  action 打开 precommitted source-v4 branch并生成 owner writeback→social PE→credit，credit 不在线 apply，cold
+  checkpoint 始终 `0/0/0`。PASS 也只授权冻结 forced common-batch protocol，不授权其执行、evaluation、campaign
+  或任何能力效果。实现与定向测试已就绪，待冻结提交后首个唯一 materialization；reader rehearsal 继续关闭。
