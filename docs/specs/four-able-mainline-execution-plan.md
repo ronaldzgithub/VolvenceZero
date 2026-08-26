@@ -183,6 +183,13 @@ protocol；在该新 protocol、首次唯一 materialization、external-ID `vali
 依次冻结前，本矩阵继续 NO-GO。四项闭合后，才可用独立 development prereg JSON + commit hash + fixed seeds
 执行中等 root-cluster 矩阵：
 
+当前 forced common-batch 收敛包已选择 112 个 **root-local** schedule/batch，而不是一个 896-credit global
+batch。protocol `dd0d28a7…aff93` 预注册 public-position schedule 父索引 `13c3f8e2…4e9f`、每 root 只执行一次
+八拍 collection、共同 terminal owner persistence，以及 full/frozen/strict 的 APPLY/WITHHOLD/WITHHOLD transition。
+它只读取 dynamic PASS manifest，dynamic natural trace/outcome/credit 读取数为零。代码/协议提交后才允许首次且唯一
+112×8 materialization；PASS 仍只授权 campaign protocol freeze。按用户裁决不生成 2–3 item experimental
+rehearsal artifact；普通 unit tests、schedule identity 校验和 model-free `validate-existing` 保留。
+
 1. 冻结选择 N=112 的 development operational marker；每 root 的 8 条 matched collection 不进入效果
    estimand，随后五段各 8 条、共 40 条 evaluation。112 是 synthetic roots，不是真人或 formal N；
 2. `full − frozen_theta0` 估计 Learnable 的方向、方差与 root-level ICC；
@@ -355,3 +362,10 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   该 PASS 只提升 `forced_common_batch_protocol_freeze_authorized=true`：下一合法动作是冻结共同 forced-collection
   schedule/batch protocol，**不是执行** forced batch、40-decision evaluation 或 Phase 2.5 effect matrix；reader
   rehearsal 继续关闭，formal/unseen/integrated/四轴 effect 继续 NO-GO。
+- 2026-08-27 · forced common-batch 设计已冻结为 112 个 root-local 8-credit batch：protocol
+  `dd0d28a7…aff93`（raw `0a1cec80…51fe`）固定 112 份 local sequence `0..7` schedule 及父索引
+  `13c3f8e2…4e9f`，禁止 global 896-credit batch、跨 root learned policy 或三臂重跑 collection。每 root 的
+  full/frozen/strict 必须共享 exact batch/plan 与同一 terminal owner bytes，transition 为 APPLY/WITHHOLD/
+  同一 WITHHOLD receipt；full 只允许 theta0+batch+APPLY owner replay。dynamic artifact 只读 PASS manifest，
+  natural trace/outcome/credit 读取为零。本包仍未执行 materialization/evaluation，不授权 campaign/effect；按用户
+  裁决不生成实验彩排 artifact，提交冻结后才进行首个唯一 112×8 development run。
