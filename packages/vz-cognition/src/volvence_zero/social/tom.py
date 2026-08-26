@@ -84,6 +84,17 @@ from ._llm_debug import log_proposal_attempt, make_attempt_logger
 from ._llm_parsing import strip_code_fence
 
 
+PREFERENCE_ACTION_RELATIONSHIP_UTILITY_SURFACE_ID = (
+    "preference-action-relationship-outcome-utility.v1"
+)
+_PREFERENCE_ACTION_RELATIONSHIP_OUTCOME_UTILITIES = (
+    (DialogueExternalOutcomeKind.HELPED.value, 1.0),
+    (DialogueExternalOutcomeKind.FELT_HEARD.value, 1.0),
+    (DialogueExternalOutcomeKind.MISSED.value, -1.0),
+    (DialogueExternalOutcomeKind.OVER_DIRECTIVE.value, -1.0),
+)
+
+
 class _OtherMindOwnerModule(RuntimeModule[Any]):
     record_kind: OtherMindRecordKind
     snapshot_type: type[Any]
@@ -621,7 +632,11 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
             )
             settlements_by_forecast[forecast.forecast_id] = settlement
             del pending_by_id[forecast.forecast_id]
-            errors.append(_social_error_from_forecast_settlement(settlement))
+            errors.append(
+                social_prediction_error_from_preference_action_forecast_settlement(
+                    settlement
+                )
+            )
         store.set_preference_action_forecasts(tuple(pending_by_id.values()))
         store.set_preference_forecast_settlements(tuple(settlements_by_forecast.values()))
         return tuple(errors)
@@ -836,18 +851,15 @@ def settle_preference_action_forecast(
         raise ValueError("preference forecast settlement outcome is outside forecast surface") from exc
     epsilon = 1e-12
     negative_log_likelihood = -math.log(max(epsilon, probability))
-    relationship_outcome_utility = {
-        DialogueExternalOutcomeKind.HELPED.value: 1.0,
-        DialogueExternalOutcomeKind.FELT_HEARD.value: 1.0,
-        DialogueExternalOutcomeKind.MISSED.value: -1.0,
-        DialogueExternalOutcomeKind.OVER_DIRECTIVE.value: -1.0,
-    }
     try:
-        observed_utility = relationship_outcome_utility[evidence.kind.value]
-        expected_utility = math.fsum(
-            relationship_outcome_utility[item.outcome_id] * item.probability for item in candidate.outcomes
+        observed_utility = preference_action_relationship_outcome_utility(
+            evidence.kind.value
         )
-    except KeyError as exc:
+        expected_utility = preference_action_forecast_expected_utility(
+            forecast=forecast,
+            action_id=evidence.action_id,
+        )
+    except ValueError as exc:
         raise ValueError(
             "preference forecast settlement requires the frozen relationship outcome utility surface"
         ) from exc
@@ -1004,9 +1016,53 @@ def replay_preference_action_forecast_settlement_persistence(
     return store.export_persistence_snapshot()
 
 
-def _social_error_from_forecast_settlement(
+def preference_action_relationship_outcome_utility(outcome_id: str) -> float:
+    """Return the preference owner's frozen utility for one typed outcome."""
+
+    if not isinstance(outcome_id, str) or not outcome_id.strip():
+        raise TypeError("outcome_id must be non-empty text")
+    utilities = dict(_PREFERENCE_ACTION_RELATIONSHIP_OUTCOME_UTILITIES)
+    try:
+        return utilities[outcome_id]
+    except KeyError as exc:
+        raise ValueError(
+            "outcome_id is outside the frozen preference-action utility surface"
+        ) from exc
+
+
+def preference_action_forecast_expected_utility(
+    *,
+    forecast: PreferenceActionForecast,
+    action_id: str,
+) -> float:
+    """Interpret one action distribution through the preference owner's utility surface."""
+
+    if not isinstance(forecast, PreferenceActionForecast):
+        raise TypeError("forecast must be a PreferenceActionForecast")
+    if not isinstance(action_id, str) or not action_id.strip():
+        raise TypeError("action_id must be non-empty text")
+    candidates = {
+        candidate.action_id: candidate
+        for candidate in forecast.candidate_predictions
+    }
+    try:
+        candidate = candidates[action_id]
+    except KeyError as exc:
+        raise ValueError("action_id is outside the frozen forecast surface") from exc
+    return math.fsum(
+        preference_action_relationship_outcome_utility(item.outcome_id)
+        * item.probability
+        for item in candidate.outcomes
+    )
+
+
+def social_prediction_error_from_preference_action_forecast_settlement(
     settlement: PreferenceActionForecastSettlement,
 ) -> SocialPredictionError:
+    """Publish the exact social PE associated with one owner settlement."""
+
+    if not isinstance(settlement, PreferenceActionForecastSettlement):
+        raise TypeError("settlement must be a PreferenceActionForecastSettlement")
     return SocialPredictionError(
         error_id=f"social-pe:{settlement.settlement_id}",
         prediction_id=settlement.forecast_id,
@@ -1321,6 +1377,7 @@ def _parse_tom_decision(item: object) -> _ToMDecision | None:
 
 
 __all__ = [
+    "PREFERENCE_ACTION_RELATIONSHIP_UTILITY_SURFACE_ID",
     "BeliefAboutOtherModule",
     "FeelingAboutOtherModule",
     "IntentAboutOtherModule",
@@ -1329,6 +1386,9 @@ __all__ = [
     "PreferenceActionForecastRequest",
     "PreferenceActionForecastRuntime",
     "PreferenceAboutOtherModule",
+    "preference_action_forecast_expected_utility",
+    "preference_action_relationship_outcome_utility",
     "replay_preference_action_forecast_settlement_persistence",
     "settle_preference_action_forecast",
+    "social_prediction_error_from_preference_action_forecast_settlement",
 ]

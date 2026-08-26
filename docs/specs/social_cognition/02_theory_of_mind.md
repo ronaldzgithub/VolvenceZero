@@ -207,6 +207,14 @@ level = relationship_action_prediction_error
 track = SELF
 ```
 
+为避免下游复制 utility surface，preference owner 还公开版本化
+`PREFERENCE_ACTION_RELATIONSHIP_UTILITY_SURFACE_ID`、
+`preference_action_relationship_outcome_utility(...)` 与
+`preference_action_forecast_expected_utility(...)` 纯函数，并公开从 exact settlement 生成 matching
+social PE 的 helper。它们只解释 owner 已发布的 frozen value，不新增状态或第二 owner。credit owner 可据此把
+既有 action-specific PE credit 确定性变换为相对同一 forecast `neutral_noop` 的 common-baseline credit；
+assignment、propensity 与 causal estimand 不属于 preference owner，详见 `credit-and-self-modification.md`。
+
 evaluation、oracle、human anchor 与七日 continuity 均不能成为此 credit 的来源。Brain facade
 只把 frozen preference/social-PE snapshots 交给 cognition derivation；lifeform/service 不重建
 owner 隐状态。gate 与 temporal SHADOW contract 见

@@ -47,6 +47,7 @@ from volvence_zero.social.record_store import (
 )
 from volvence_zero.social.role import ConversationalRoleModule
 from volvence_zero.social.tom import (
+    PREFERENCE_ACTION_RELATIONSHIP_UTILITY_SURFACE_ID,
     BeliefAboutOtherModule,
     FeelingAboutOtherModule,
     IntentAboutOtherModule,
@@ -55,8 +56,11 @@ from volvence_zero.social.tom import (
     PreferenceActionForecastRequest,
     PreferenceActionForecastRuntime,
     PreferenceAboutOtherModule,
+    preference_action_forecast_expected_utility,
+    preference_action_relationship_outcome_utility,
     replay_preference_action_forecast_settlement_persistence,
     settle_preference_action_forecast,
+    social_prediction_error_from_preference_action_forecast_settlement,
 )
 
 __all__ = [
@@ -73,6 +77,7 @@ __all__ = [
     "LLMToMProposalRuntime",
     "MultiPartyIdentityModule",
     "PendingSocialPrediction",
+    "PREFERENCE_ACTION_RELATIONSHIP_UTILITY_SURFACE_ID",
     "PreferenceActionForecastProposal",
     "PreferenceActionForecastRequest",
     "PreferenceActionForecastRuntime",
@@ -82,8 +87,11 @@ __all__ = [
     "SocialRecordStore",
     "apply_outcome_to_record",
     "default_summary_similarity",
+    "preference_action_forecast_expected_utility",
+    "preference_action_relationship_outcome_utility",
     "replay_preference_action_forecast_settlement_persistence",
     "social_record_store_persistence_sha256",
     "settle_pending_predictions",
     "settle_preference_action_forecast",
+    "social_prediction_error_from_preference_action_forecast_settlement",
 ]

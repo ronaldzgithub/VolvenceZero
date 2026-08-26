@@ -36,8 +36,18 @@ from volvence_zero.credit.gate import (
     has_blocking_writeback,
     record_nstep_outcomes_from_segment_closure,
 )
+from volvence_zero.credit.relationship_action import (
+    RELATIONSHIP_ACTION_COMMON_BASELINE_ACTION_ID,
+    RELATIONSHIP_ACTION_COMMON_BASELINE_CREDIT_SCHEMA_VERSION,
+    RELATIONSHIP_ACTION_COMMON_BASELINE_FORMULA_ID,
+    RelationshipActionCommonBaselineCredit,
+    derive_preference_action_common_baseline_credit_records,
+)
 
 __all__ = [
+    "RELATIONSHIP_ACTION_COMMON_BASELINE_ACTION_ID",
+    "RELATIONSHIP_ACTION_COMMON_BASELINE_CREDIT_SCHEMA_VERSION",
+    "RELATIONSHIP_ACTION_COMMON_BASELINE_FORMULA_ID",
     "CreditLedger",
     "CreditModule",
     "CreditRecord",
@@ -54,12 +64,14 @@ __all__ = [
     "ModificationProposal",
     "NStepAttributionEntry",
     "RewardingStateHeadState",
+    "RelationshipActionCommonBaselineCredit",
     "SelfModificationRecord",
     "derive_abstract_action_credit_records",
     "derive_counterfactual_contribution_records",
     "derive_credit_records",
     "derive_credit_records_from_prediction_error_first",
     "derive_prediction_error_credit_records",
+    "derive_preference_action_common_baseline_credit_records",
     "derive_preference_action_forecast_credit_records",
     "derive_segment_closure_credit_records",
     "derive_steering_terminal_credit_records",

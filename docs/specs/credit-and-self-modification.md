@@ -46,6 +46,36 @@
 - State KV P5-b：`CreditRecord` 新增 typed 归因字段 `conditioning_bank_set` / `conditioning_bank_fingerprints`，由 `derive_prediction_error_credit_records` / `derive_segment_closure_credit_records` 从 `PredictionActionContext` 原样拷贝（context 文本同时追加 `conditioning_banks=a+b` 便于 grep）。上游填充走既有 temporal 通道：runtime context builder 用 `summarize_conditioning_lineage_refs`（vz-contracts）归约 `TemporalAbstractionSnapshot.conditioning_lineage_refs`；延迟 dialogue outcome 则从 turn trace 解析被评分动作的 lineage，禁止错归到当前轮。空 tuple = 该动作无 live bank（有意义负样本）。`CreditSnapshot.recent_action_lineage_credits` 有界保留环境 action lineage 或 typed bank lineage，避免通用 recent 窗口截断 attribution；credit 不因此新建任何 PE 计算或第二 lineage owner
 - State KV P5-c：conditioning bank owner（Personal / Relationship）作为 `credit` 快照的下游 readout consumer，把 `recent_action_lineage_credits` 中本 bank 归因的 `CreditRecord.credit_value` 经有界 EMA 折算成 `credit_confidence_delta`（±0.15 硬上限，`FinalRolloutConfig.conditioning_credit_feedback` 门控，默认 SHADOW 只发布不施加）。credit owner 不反向感知 conditioning；消费方向保持单向快照读
 
+### Relationship action common-baseline credit（开发合同）
+
+普通 `relationship_action_prediction_error` credit 的基线是**实际交付动作自身**的 expected utility：
+`q × (Y − E_delivered) / 2`。它适合表示 action-specific prediction residual，但不能单独识别
+candidate 相对 noop 的 utility 差；预测完全校准时，即使 candidate 明显优于 noop，该 residual 的期望仍可为零。
+因此未来 assignment-aware gate 不得继续把普通 `CreditRecord` 直接解释为 treatment credit。
+
+`credit` owner 新增独立、内容寻址的 `RelationshipActionCommonBaselineCredit`，只作完整 PE 链的确定性变换：
+
+```text
+parent_action_PE = q × (Y − E_delivered) / 2
+common_baseline_adjustment = q × (E_delivered − E_noop) / 2
+common_baseline_credit = parent_action_PE + common_baseline_adjustment
+                       = q × (Y − E_noop) / 2
+```
+
+其中 `E_noop` 必须由 `preference_about_other` owner 对**同一份行动前冻结 forecast** 的
+`neutral_noop` distribution 通过公共纯函数解释；调用方不能传入任意 baseline，也不能解析
+`CreditRecord.context`。发布前必须从完整 typed external evidence 重放 settlement，全等匹配 owner-authored
+`SocialPredictionError`，再由既有 `derive_preference_action_forecast_credit_records()` 重算并全等匹配 parent
+credit。当前合同只接受 `ENVIRONMENT` evidence 且 confidence 精确为 `1.0`，避免 post-action、arm-dependent
+权重进入学习信号；没有 evaluator、judge、hidden truth 或 assignment 字段。
+
+该 record 本身**不是** causal effect、ATE/CATE 或 Learnable 证据。assignment / propensity / schedule
+membership 仍由独立 source/gate owner 负责。只有未来 consumer 另证 pre-outcome conditional randomization、
+positivity、actual-delivery exact join 与 sequential consistency 后，`(A − 0.5) × common_credit` 才能获得
+相应有限 estimand；固定 4/4 balance 本身不构成随机化。乘 centred features 后得到的是 treatment-effect
+feature moment，也不能自动解释为 ATE/CATE 系数。旧 `CreditRecord`、runtime snapshot 和 v1 consumer 保持不变；
+本合同当前为 `OFFLINE_SHADOW_EVIDENCE_ONLY`，回滚方式是不调用新增 derive API。
+
 ### Internal RL 时间抽象信用分配（ETA 附录 B.5）
 
 通过时间抽象将有效时间范围从 token 级压缩到抽象动作级。每个抽象动作对应一段完整的子目标执行，奖励可直接归因到抽象动作级别。
