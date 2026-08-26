@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
+from dataclasses import replace
 
 import pytest
 
+from volvence_zero.dialogue_trace import (
+    DialogueExternalOutcomeEvidence,
+    DialogueExternalOutcomeEvidenceSource,
+    DialogueExternalOutcomeKind,
+    DialogueExternalOutcomeSnapshot,
+)
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
-from volvence_zero.runtime import WiringLevel
+from volvence_zero.runtime import Snapshot, WiringLevel
 from volvence_zero.semantic_state import (
     SemanticProposal,
     SemanticProposalBatch,
@@ -17,6 +25,7 @@ from volvence_zero.social import (
     PreferenceActionForecastProposal,
     PreferenceActionForecastRequest,
     SocialRecordStore,
+    settle_preference_action_forecast,
 )
 from volvence_zero.social_cognition import (
     OtherMindRecord,
@@ -28,6 +37,7 @@ from volvence_zero.social_cognition import (
     PreferenceActionOutcomeMutationOperation,
     SocialActionCandidatePrediction,
     SocialActionOutcomeProbability,
+    SocialPredictionOutcome,
     preference_action_outcome_evidence_sha256,
 )
 
@@ -74,7 +84,13 @@ def _candidate(action_id: str) -> SocialActionCandidatePrediction:
     )
 
 
-def _forecast(forecast_id: str, decision_id: str, source_id: str) -> PreferenceActionForecast:
+def _forecast(
+    forecast_id: str,
+    decision_id: str,
+    source_id: str,
+    *,
+    session_scope: str = "",
+) -> PreferenceActionForecast:
     return PreferenceActionForecast(
         forecast_id=forecast_id,
         decision_id=decision_id,
@@ -85,7 +101,82 @@ def _forecast(forecast_id: str, decision_id: str, source_id: str) -> PreferenceA
         source_record_ids=(source_id,),
         issued_turn=3,
         evidence=("typed test forecast",),
+        session_scope=session_scope,
     )
+
+
+def test_public_owner_settlement_deriver_is_exact_and_deterministic() -> None:
+    forecast = _forecast(
+        "forecast:settlement",
+        "decision:settlement",
+        "preference:target",
+        session_scope="subject:1",
+    )
+    evidence = DialogueExternalOutcomeEvidence(
+        evidence_id="external:settlement",
+        turn_index=4,
+        kind=DialogueExternalOutcomeKind.MISSED,
+        source=DialogueExternalOutcomeEvidenceSource.ENVIRONMENT,
+        confidence=0.8,
+        evidence_ref="environment:event:4",
+        session_scope="subject:1",
+        action_turn_index=3,
+        forecast_id=forecast.forecast_id,
+        decision_id=forecast.decision_id,
+        action_id="stay_present",
+    )
+
+    first = settle_preference_action_forecast(
+        forecast=forecast,
+        evidence=evidence,
+    )
+    second = settle_preference_action_forecast(
+        forecast=forecast,
+        evidence=evidence,
+    )
+
+    assert first == second
+    assert first.predicted_probability == 0.5
+    assert first.negative_log_likelihood == math.log(2.0)
+    assert first.expected_utility == 0.0
+    assert first.observed_utility == -1.0
+    assert first.signed_utility_prediction_error == -0.5
+    assert first.outcome is SocialPredictionOutcome.UNKNOWN
+    assert first.magnitude == 0.0
+
+    store = SocialRecordStore()
+    store.set_tom_records(
+        "preference_about_other",
+        (_record("target", source_turn=1),),
+    )
+    store.set_preference_action_forecasts((forecast,))
+    external_snapshot = Snapshot(
+        slot_name="dialogue_external_outcome",
+        owner="DialogueExternalOutcomeModule",
+        version=1,
+        timestamp_ms=4,
+        value=DialogueExternalOutcomeSnapshot(
+            turn_index=evidence.turn_index,
+            entries=(evidence,),
+            description="Frozen typed environment evidence for owner parity.",
+        ),
+    )
+    owner_snapshot = asyncio.run(
+        PreferenceAboutOtherModule(
+            wiring_level=WiringLevel.SHADOW,
+            record_store=store,
+            turn_index=evidence.turn_index,
+        ).process({"dialogue_external_outcome": external_snapshot})
+    ).value
+
+    assert owner_snapshot.forecast_settlements == (first,)
+    assert store.preference_action_forecasts == ()
+
+    with pytest.raises(ValueError, match="forecast_id mismatch"):
+        settle_preference_action_forecast(
+            forecast=forecast,
+            evidence=replace(evidence, forecast_id="forecast:other"),
+        )
 
 
 def _seed_store(*, include_keep: bool = False) -> SocialRecordStore:

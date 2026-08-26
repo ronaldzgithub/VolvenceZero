@@ -54,6 +54,7 @@ from volvence_zero.social.tom import (
     PreferenceActionForecastRequest,
     PreferenceActionForecastRuntime,
     PreferenceAboutOtherModule,
+    settle_preference_action_forecast,
 )
 
 __all__ = [
@@ -80,4 +81,5 @@ __all__ = [
     "apply_outcome_to_record",
     "default_summary_similarity",
     "settle_pending_predictions",
+    "settle_preference_action_forecast",
 ]

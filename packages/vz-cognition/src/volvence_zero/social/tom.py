@@ -614,7 +614,7 @@ class PreferenceAboutOtherModule(_OtherMindOwnerModule):
                 raise ValueError(
                     f"external outcome references an unknown pending preference forecast {entry.forecast_id!r}"
                 ) from exc
-            settlement = _settle_preference_action_forecast(
+            settlement = settle_preference_action_forecast(
                 forecast=forecast,
                 evidence=entry,
             )
@@ -802,15 +802,23 @@ class PreferenceActionForecastRuntime(Protocol):
     ) -> PreferenceActionForecastProposal | None: ...
 
 
-def _settle_preference_action_forecast(
+def settle_preference_action_forecast(
     *,
     forecast: PreferenceActionForecast,
     evidence: DialogueExternalOutcomeEvidence,
 ) -> PreferenceActionForecastSettlement:
+    """Derive the preference owner's exact settlement from frozen inputs.
+
+    This pure owner API lets evidence consumers verify a published settlement
+    without reimplementing the owner's probability, utility, or PE math.
+    """
+
     if not forecast.session_scope:
         raise ValueError("preference forecast is unscoped and cannot be settled")
     if evidence.session_scope != forecast.session_scope:
         raise ValueError("preference forecast settlement session_scope mismatch")
+    if evidence.forecast_id != forecast.forecast_id:
+        raise ValueError("preference forecast settlement forecast_id mismatch")
     if evidence.decision_id != forecast.decision_id:
         raise ValueError("preference forecast settlement decision_id mismatch")
     if evidence.action_turn_index != forecast.issued_turn:
@@ -1205,4 +1213,5 @@ __all__ = [
     "PreferenceActionForecastRequest",
     "PreferenceActionForecastRuntime",
     "PreferenceAboutOtherModule",
+    "settle_preference_action_forecast",
 ]

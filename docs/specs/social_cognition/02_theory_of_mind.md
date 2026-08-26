@@ -185,6 +185,10 @@ decision_id / action_id` 时才具有 relationship forecast join。preference ow
 同 decision、同 action 的 pending forecast；每个 forecast 至多一次，未知或冲突 join fail loudly。
 `PreferenceActionForecastSettlement` 发布 predicted probability、NLL、evidence confidence、
 expected / observed utility 与 signed utility PE，并产生 matching `SocialPredictionError`。
+这段结算数学属于 preference owner；owner 以纯函数
+`settle_preference_action_forecast(forecast=..., evidence=...)` 发布同一推导边界。下游证据 consumer
+必须用该 owner API 从冻结 forecast 与 exact external evidence 重算并要求 settlement 全对象相等，
+不得复制概率、utility 或 PE 数学，也不得只核对 join 字段后接受协同伪造的 settlement。
 
 dedicated action credit 还必须精确找到 `social-pe:<settlement_id>`，然后才计算：
 
