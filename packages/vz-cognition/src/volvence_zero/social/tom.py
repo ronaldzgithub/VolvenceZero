@@ -28,6 +28,7 @@ from volvence_zero.dialogue_trace import (
 )
 from volvence_zero.llm_proposal_diagnostics import LLMProposalAttemptCounters
 from volvence_zero.memory import MemorySnapshot
+from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 from volvence_zero.runtime import (
     RuntimeModule,
     RuntimePlaceholderValue,
@@ -888,6 +889,121 @@ def settle_preference_action_forecast(
     )
 
 
+def replay_preference_action_forecast_settlement_persistence(
+    *,
+    before: OwnerPersistenceSnapshot,
+    forecast: PreferenceActionForecast,
+    external_evidence: DialogueExternalOutcomeEvidence,
+    owner_outcome_evidence: PreferenceActionOutcomeEvidence,
+) -> OwnerPersistenceSnapshot:
+    """Replay one product-shaped settlement through preference owner rules.
+
+    The returned canonical persistence is the unique stable post-state for the
+    given owner pre-state and exact typed evidence. It intentionally reuses the
+    owner's record settlement, merge windows, forecast consumption, and
+    settlement append logic so evidence consumers never duplicate those rules.
+    """
+
+    if not isinstance(before, OwnerPersistenceSnapshot):
+        raise TypeError("before must be OwnerPersistenceSnapshot")
+    if not isinstance(forecast, PreferenceActionForecast):
+        raise TypeError("forecast must be PreferenceActionForecast")
+    if not isinstance(external_evidence, DialogueExternalOutcomeEvidence):
+        raise TypeError(
+            "external_evidence must be DialogueExternalOutcomeEvidence"
+        )
+    if not isinstance(owner_outcome_evidence, PreferenceActionOutcomeEvidence):
+        raise TypeError(
+            "owner_outcome_evidence must be PreferenceActionOutcomeEvidence"
+        )
+    if owner_outcome_evidence.interlocutor_id != forecast.interlocutor_id:
+        raise ValueError("owner outcome evidence interlocutor mismatch")
+    if owner_outcome_evidence.source_turn != external_evidence.turn_index:
+        raise ValueError("owner outcome evidence turn mismatch")
+    if owner_outcome_evidence.action_id != external_evidence.action_id:
+        raise ValueError("owner outcome evidence action mismatch")
+    if owner_outcome_evidence.observed_outcome_id != external_evidence.kind.value:
+        raise ValueError("owner outcome evidence outcome mismatch")
+    if external_evidence.evidence_ref not in owner_outcome_evidence.evidence_refs:
+        raise ValueError("owner outcome evidence does not cite external evidence")
+
+    store = SocialRecordStore()
+    store.hydrate_from_persistence(before)
+    current_forecasts = tuple(
+        item
+        for item in store.preference_action_forecasts
+        if item.forecast_id == forecast.forecast_id
+    )
+    if current_forecasts != (forecast,):
+        raise ValueError(
+            "owner transition pre-state must contain the exact pending forecast"
+        )
+
+    replay_owner = PreferenceAboutOtherModule(
+        turn_index=forecast.issued_turn,
+        wiring_level=WiringLevel.SHADOW,
+        record_store=store,
+    )
+    replay_records, replay_errors = replay_owner._settle_and_merge(())
+    replay_owner._snapshot(
+        records=replay_records,
+        control_signal=0.0,
+        proposal_diagnostics=None,
+        settled_errors=replay_errors,
+    )
+
+    proposal = SemanticProposal(
+        proposal_id=owner_outcome_evidence.evidence_id,
+        target_slot=PreferenceAboutOtherModule.slot_name,
+        operation=SemanticProposalOperation.OBSERVE,
+        summary=owner_outcome_evidence.observation_summary,
+        detail=owner_outcome_evidence.reaction_summary,
+        confidence=0.90,
+        evidence=external_evidence.evidence_ref,
+        control_signal=0.0,
+    )
+    new_record = _record_from_proposal(
+        proposal=proposal,
+        kind=PreferenceAboutOtherModule.record_kind,
+        turn_index=owner_outcome_evidence.source_turn,
+    )
+    settlement_owner = PreferenceAboutOtherModule(
+        turn_index=owner_outcome_evidence.source_turn,
+        wiring_level=WiringLevel.SHADOW,
+        record_store=store,
+        action_outcome_evidence=owner_outcome_evidence,
+    )
+    settlement_owner._validate_incoming_action_outcome_against_receipts()
+    settlement_owner._external_outcome_snapshot = DialogueExternalOutcomeSnapshot(
+        turn_index=external_evidence.turn_index,
+        entries=(external_evidence,),
+        description="Owner replay of exact external settlement evidence.",
+    )
+    settled_records, settled_errors = settlement_owner._settle_and_merge(
+        (new_record,)
+    )
+    settlement_owner._snapshot(
+        records=settled_records,
+        control_signal=0.0,
+        proposal_diagnostics=None,
+        settled_errors=settled_errors,
+    )
+    expected_settlement = settle_preference_action_forecast(
+        forecast=forecast,
+        evidence=external_evidence,
+    )
+    current_settlements = tuple(
+        item
+        for item in store.preference_forecast_settlements
+        if item.forecast_id == forecast.forecast_id
+    )
+    if current_settlements != (expected_settlement,):
+        raise RuntimeError(
+            "preference owner replay did not publish the exact settlement"
+        )
+    return store.export_persistence_snapshot()
+
+
 def _social_error_from_forecast_settlement(
     settlement: PreferenceActionForecastSettlement,
 ) -> SocialPredictionError:
@@ -1213,5 +1329,6 @@ __all__ = [
     "PreferenceActionForecastRequest",
     "PreferenceActionForecastRuntime",
     "PreferenceAboutOtherModule",
+    "replay_preference_action_forecast_settlement_persistence",
     "settle_preference_action_forecast",
 ]

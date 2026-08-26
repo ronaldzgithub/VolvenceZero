@@ -25,7 +25,9 @@ from volvence_zero.social import (
     PreferenceActionForecastProposal,
     PreferenceActionForecastRequest,
     SocialRecordStore,
+    replay_preference_action_forecast_settlement_persistence,
     settle_preference_action_forecast,
+    social_record_store_persistence_sha256,
 )
 from volvence_zero.social_cognition import (
     OtherMindRecord,
@@ -177,6 +179,140 @@ def test_public_owner_settlement_deriver_is_exact_and_deterministic() -> None:
             forecast=forecast,
             evidence=replace(evidence, forecast_id="forecast:other"),
         )
+
+
+class _SettlementOutcomeProposalRuntime:
+    runtime_id = "settlement-outcome-owner-replay-test"
+
+    def __init__(self, evidence: PreferenceActionOutcomeEvidence) -> None:
+        self._evidence = evidence
+
+    def propose(
+        self,
+        *,
+        target_slot: str,
+        user_input: str | None,
+        substrate_snapshot: object | None,
+        memory_snapshot: object | None,
+        previous_snapshot: object | None,
+        turn_index: int,
+    ) -> SemanticProposalBatch:
+        del substrate_snapshot, memory_snapshot, previous_snapshot
+        assert target_slot == "preference_about_other"
+        assert user_input == self._evidence.observation_summary
+        assert turn_index == self._evidence.source_turn
+        return SemanticProposalBatch(
+            proposals=(
+                SemanticProposal(
+                    proposal_id=self._evidence.evidence_id,
+                    target_slot=target_slot,
+                    operation=SemanticProposalOperation.OBSERVE,
+                    summary=self._evidence.observation_summary,
+                    detail=self._evidence.reaction_summary,
+                    confidence=0.90,
+                    evidence=self._evidence.evidence_refs[0],
+                    control_signal=0.0,
+                ),
+            ),
+            runtime_id=self.runtime_id,
+            schema_version=1,
+            description="Exact typed settlement outcome proposal.",
+        )
+
+
+def test_public_owner_persistence_replay_matches_real_transition() -> None:
+    forecast = _forecast(
+        "forecast:settlement-transition",
+        "decision:settlement-transition",
+        "preference:target",
+        session_scope="subject:transition",
+    )
+    external = DialogueExternalOutcomeEvidence(
+        evidence_id="external:settlement-transition",
+        turn_index=4,
+        kind=DialogueExternalOutcomeKind.MISSED,
+        source=DialogueExternalOutcomeEvidenceSource.ENVIRONMENT,
+        confidence=0.8,
+        evidence_ref="environment:transition:4",
+        session_scope=forecast.session_scope,
+        action_turn_index=forecast.issued_turn,
+        forecast_id=forecast.forecast_id,
+        decision_id=forecast.decision_id,
+        action_id="stay_present",
+    )
+    owner_outcome = PreferenceActionOutcomeEvidence(
+        evidence_id="preference:settlement-transition",
+        interlocutor_id=forecast.interlocutor_id,
+        observation_summary="current typed transition observation",
+        action_id=external.action_id,
+        observed_outcome_id=external.kind.value,
+        reaction_summary="current typed transition reaction",
+        source_turn=external.turn_index,
+        evidence_refs=(external.evidence_ref,),
+    )
+    before_store = SocialRecordStore()
+    before_store.set_tom_records(
+        "preference_about_other",
+        (_record("target", source_turn=1),),
+    )
+    before_store.set_preference_action_outcomes(
+        (_outcome("target", source_turn=1),)
+    )
+    before_store.set_preference_action_forecasts((forecast,))
+    before = before_store.export_persistence_snapshot()
+    before_sha256 = social_record_store_persistence_sha256(before)
+    assert len(before_sha256) == 64
+    assert before_sha256 == social_record_store_persistence_sha256(
+        replace(before, description="Non-identity log description.")
+    )
+
+    actual_store = SocialRecordStore()
+    actual_store.hydrate_from_persistence(before)
+    asyncio.run(
+        PreferenceAboutOtherModule(
+            wiring_level=WiringLevel.SHADOW,
+            record_store=actual_store,
+            turn_index=forecast.issued_turn,
+        ).process({})
+    )
+    external_snapshot = Snapshot(
+        slot_name="dialogue_external_outcome",
+        owner="DialogueExternalOutcomeModule",
+        version=1,
+        timestamp_ms=4,
+        value=DialogueExternalOutcomeSnapshot(
+            turn_index=external.turn_index,
+            entries=(external,),
+            description="Frozen typed environment transition evidence.",
+        ),
+    )
+    asyncio.run(
+        PreferenceAboutOtherModule(
+            proposal_runtime=_SettlementOutcomeProposalRuntime(owner_outcome),
+            user_input=owner_outcome.observation_summary,
+            turn_index=owner_outcome.source_turn,
+            wiring_level=WiringLevel.SHADOW,
+            record_store=actual_store,
+            action_outcome_evidence=owner_outcome,
+        ).process({"dialogue_external_outcome": external_snapshot})
+    )
+
+    replayed = replay_preference_action_forecast_settlement_persistence(
+        before=before,
+        forecast=forecast,
+        external_evidence=external,
+        owner_outcome_evidence=owner_outcome,
+    )
+
+    assert replayed == actual_store.export_persistence_snapshot()
+    assert social_record_store_persistence_sha256(replayed) != before_sha256
+    restored = SocialRecordStore()
+    restored.hydrate_from_persistence(replayed)
+    assert restored.preference_action_outcomes == (
+        _outcome("target", source_turn=1),
+        owner_outcome,
+    )
+    assert restored.preference_action_forecasts == ()
 
 
 def _seed_store(*, include_keep: bool = False) -> SocialRecordStore:

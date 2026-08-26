@@ -42,6 +42,7 @@ from volvence_zero.social.record_store import (
     SocialRecordStore,
     apply_outcome_to_record,
     default_summary_similarity,
+    social_record_store_persistence_sha256,
     settle_pending_predictions,
 )
 from volvence_zero.social.role import ConversationalRoleModule
@@ -54,6 +55,7 @@ from volvence_zero.social.tom import (
     PreferenceActionForecastRequest,
     PreferenceActionForecastRuntime,
     PreferenceAboutOtherModule,
+    replay_preference_action_forecast_settlement_persistence,
     settle_preference_action_forecast,
 )
 
@@ -80,6 +82,8 @@ __all__ = [
     "SocialRecordStore",
     "apply_outcome_to_record",
     "default_summary_similarity",
+    "replay_preference_action_forecast_settlement_persistence",
+    "social_record_store_persistence_sha256",
     "settle_pending_predictions",
     "settle_preference_action_forecast",
 ]

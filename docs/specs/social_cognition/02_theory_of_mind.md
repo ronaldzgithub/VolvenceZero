@@ -189,6 +189,15 @@ expected / observed utility 与 signed utility PE，并产生 matching `SocialPr
 `settle_preference_action_forecast(forecast=..., evidence=...)` 发布同一推导边界。下游证据 consumer
 必须用该 owner API 从冻结 forecast 与 exact external evidence 重算并要求 settlement 全对象相等，
 不得复制概率、utility 或 PE 数学，也不得只核对 join 字段后接受协同伪造的 settlement。
+需要验证跨 session durable transition 的 consumer 还必须调用 owner 的
+`replay_preference_action_forecast_settlement_persistence(...)`：它从 pre-owner persistence 与 exact
+external/owner evidence 重放同一 generic pending 恢复、record/outcome merge window、forecast 消费和
+settlement append，返回唯一 canonical post persistence。只把 post persistence 与同拍 public snapshot 对齐
+不足以证明合法 transition，因为二者可以一起删除或注入旧历史。
+`SocialRecordStore` 另以 `social_record_store_persistence_sha256(...)` 对 canonical current-schema export 的
+owner name/schema 与完整 opaque payload 做版本化内容寻址；consumer 只能调用该 owner API，不得解释 payload。
+需要固定 pre-state identity 的 executor command/receipt 必须绑定这个 hash，防止 snapshot 与 persistence
+协调重封后仍沿用旧 receipt ID。description 是非程序化日志字段，不进入 state identity。
 
 dedicated action credit 还必须精确找到 `social-pe:<settlement_id>`，然后才计算：
 

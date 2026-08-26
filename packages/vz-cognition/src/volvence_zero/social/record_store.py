@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+import hashlib
+import json
 from typing import Any, Callable
 
 from volvence_zero.owner_hydration import (
@@ -78,6 +80,9 @@ _RECORD_WINDOW = 12
 _ATOM_WINDOW = 12
 CONFIRM_SIMILARITY = 0.60
 DISCONFIRM_SIMILARITY = 0.40
+_SOCIAL_RECORD_PERSISTENCE_HASH_SCHEMA_VERSION = (
+    "social-record-store-persistence-hash.v1"
+)
 MAX_PENDING_AGE_TURNS = 6
 _CONFIRM_CONFIDENCE_GAIN = 0.10
 _DISCONFIRM_CONFIDENCE_LOSS = 0.20
@@ -448,7 +453,6 @@ class SocialRecordStore:
             for group_id, score in group_durability_blob.items()
             if str(group_id).strip()
         }
-
     @property
     def similarity(self) -> SimilarityFn:
         return self._similarity
@@ -684,6 +688,41 @@ class SocialRecordStore:
             score = max(0.0, score - _DISCONFIRM_CONFIDENCE_LOSS)
         self._group_durability[group_id] = score
         return score
+
+
+def social_record_store_persistence_sha256(
+    snapshot: OwnerPersistenceSnapshot,
+) -> str:
+    """Hash one canonical owner persistence payload without exposing its shape."""
+
+    if not isinstance(snapshot, OwnerPersistenceSnapshot):
+        raise TypeError("snapshot must be OwnerPersistenceSnapshot")
+    store = SocialRecordStore()
+    store.hydrate_from_persistence(snapshot)
+    canonical = store.export_persistence_snapshot()
+    if (
+        canonical.owner_name != snapshot.owner_name
+        or canonical.schema_version != snapshot.schema_version
+        or canonical.payload != snapshot.payload
+    ):
+        raise ValueError(
+            "social record persistence must be a canonical current-schema export"
+        )
+    encoded = json.dumps(
+        {
+            "hash_schema_version": (
+                _SOCIAL_RECORD_PERSISTENCE_HASH_SCHEMA_VERSION
+            ),
+            "owner_name": canonical.owner_name,
+            "owner_schema_version": canonical.schema_version,
+            "payload": canonical.payload,
+        },
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _mapping_value(
@@ -1119,5 +1158,6 @@ __all__ = [
     "SocialSettlementResult",
     "apply_outcome_to_record",
     "default_summary_similarity",
+    "social_record_store_persistence_sha256",
     "settle_pending_predictions",
 ]
