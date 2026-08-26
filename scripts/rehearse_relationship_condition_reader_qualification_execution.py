@@ -8,9 +8,11 @@ protocol is frozen and publicly anchored, the identical execution code path
 ledger with fsync, model-free scorer process, chained integrity receipts)
 must complete once against a disposable rehearsal root.
 
-Fidelity contract: this driver mirrors the stage orchestration of
-``_execute_authorized_qualification_with_stages`` exactly — same real
-prediction stage, same real scoring stage, same integrity-guard factory and
+Fidelity contract: this driver mirrors the v2 authorized wrapper
+(``execute_authorized_relationship_condition_reader_qualification_execution_v2``)
+and the stage orchestration of ``_execute_authorized_qualification_with_stages``
+exactly — same v2 protocol validation, same frozen-executable equality gate,
+same v2 integrity-guard factory, same real prediction and scoring stages and
 phase order — with two deliberate differences only:
 
 1. no public-anchor receipt exists and no anchor validator is invoked;
@@ -82,8 +84,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _rehearse(args: argparse.Namespace) -> Mapping[str, object]:
-    protocol_module = importlib.import_module(
-        "lifeform_evolution.relationship_condition_reader_qualification_execution_protocol"
+    protocol_v2_module = importlib.import_module(
+        "lifeform_evolution.relationship_condition_reader_qualification_execution_protocol_v2"
     )
     execution_module = importlib.import_module(
         "lifeform_evolution.relationship_condition_reader_qualification_execution"
@@ -91,16 +93,21 @@ def _rehearse(args: argparse.Namespace) -> Mapping[str, object]:
     executor_module = importlib.import_module(
         "lifeform_evolution.relationship_condition_reader_qualification_executor"
     )
+    execution_v2_module = importlib.import_module(
+        "lifeform_evolution.relationship_condition_reader_qualification_execution_v2"
+    )
 
     protocol_path = pathlib.Path(os.path.abspath(args.execution_protocol_path))
-    protocol, protocol_raw = protocol_module.load_relationship_condition_reader_qualification_execution_protocol(
+    protocol, protocol_raw = protocol_v2_module.load_relationship_condition_reader_qualification_execution_protocol_v2(
         protocol_path,
         expected_protocol_id=args.expected_execution_protocol_id,
     )
-    protocol_id = execution_module._digest(
-        args.expected_execution_protocol_id,
-        "expected_execution_protocol_id",
+    protocol_id = protocol_v2_module.validate_relationship_condition_reader_qualification_execution_protocol_v2(
+        protocol,
+        expected_protocol_id=args.expected_execution_protocol_id,
     )
+    if protocol_id != args.expected_execution_protocol_id:
+        raise ValueError("v2 execution protocol validator returned an unexpected protocol id")
     nonce = execution_module._digest(args.run_nonce, "run_nonce")
 
     frozen = execution_module._extract_frozen_execution_identities(protocol)
@@ -128,11 +135,14 @@ def _rehearse(args: argparse.Namespace) -> Mapping[str, object]:
     )
     preflight_root = pathlib.Path(os.path.abspath(args.preflight_root))
     bge_snapshot_root = pathlib.Path(os.path.abspath(args.bge_snapshot_root))
+    frozen_executable = execution_v2_module._frozen_python_executable(protocol)
     python_executable = pathlib.Path(args.python_executable or sys.executable).resolve()
+    if str(python_executable) != str(frozen_executable):
+        raise ValueError("rehearsal Python differs from the frozen runtime identity executable")
 
-    guard = protocol_module.relationship_condition_reader_qualification_integrity_guard(
+    guard = protocol_v2_module.relationship_condition_reader_qualification_integrity_guard_v2(
         execution_protocol=protocol,
-        expected_execution_protocol_id=args.expected_execution_protocol_id,
+        expected_execution_protocol_id=protocol_id,
         repository_root=repository_root,
         bge_snapshot_root=bge_snapshot_root,
     )
