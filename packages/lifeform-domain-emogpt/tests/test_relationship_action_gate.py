@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from dataclasses import replace
@@ -13,9 +14,12 @@ from lifeform_domain_emogpt.relationship_action_gate import (
     RelationshipActionGateArtifact,
     RelationshipActionGateBatchDisposition,
     RelationshipActionGateBatchPlan,
+    RelationshipActionGateBatchReceipt,
     RelationshipActionGateCheckpoint,
     RelationshipActionGateCreditBatch,
     RelationshipActionGateDecision,
+    RelationshipActionGateForcedExposure,
+    RelationshipActionGateFrozenDecision,
     RelationshipActionGateFrozenPolicy,
     RelationshipActionGateMode,
     RelationshipActionGateTheta0Artifact,
@@ -308,6 +312,76 @@ def test_theta0_artifact_is_nonzero_content_addressed_and_lineage_bound() -> Non
         replace(theta0, bias_hex=(theta0.bias + 0.1).hex())
     with pytest.raises(ValueError, match="content hash mismatch"):
         theta0.validate_source_checkpoint(replace(source, bias=source.bias + 0.01))
+
+
+def test_theta0_artifact_and_transition_payloads_strictly_round_trip() -> None:
+    theta0 = _theta0()
+    batch = _theta0_batch(RelationshipActionGate.from_theta0(theta0))
+    gate = RelationshipActionGate.from_theta0(theta0)
+    plan = gate.plan_credit_batch(batch)
+    applied = gate.commit_credit_batch(
+        plan,
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+    withheld_gate = RelationshipActionGate.from_theta0(theta0)
+    withheld = withheld_gate.commit_credit_batch(
+        withheld_gate.plan_credit_batch(batch),
+        disposition=RelationshipActionGateBatchDisposition.WITHHOLD,
+    )
+
+    assert RelationshipActionGateTheta0Artifact.from_payload(
+        theta0.to_payload()
+    ) == theta0
+    assert RelationshipActionGateFrozenDecision.from_payload(
+        batch.exposures[0].frozen_decision.to_payload()
+    ) == batch.exposures[0].frozen_decision
+    assert RelationshipActionGateForcedExposure.from_payload(
+        batch.exposures[0].to_payload()
+    ) == batch.exposures[0]
+    replayed_batch = RelationshipActionGateCreditBatch.from_payload(
+        batch.to_payload()
+    )
+    assert replayed_batch == batch
+    replayed_receipt = RelationshipActionGateBatchReceipt.from_payload(
+        applied.to_payload()
+    )
+    assert replayed_receipt == applied
+    assert RelationshipActionGateBatchReceipt.from_payload(
+        withheld.to_payload()
+    ) == withheld
+    assert RelationshipActionGate.from_applied_credit_batch(
+        theta0,
+        batch=replayed_batch,
+        receipt=replayed_receipt,
+    ).export_checkpoint() == gate.export_checkpoint()
+
+    for loader, payload in (
+        (RelationshipActionGateTheta0Artifact.from_payload, theta0.to_payload()),
+        (
+            RelationshipActionGateFrozenDecision.from_payload,
+            batch.exposures[0].frozen_decision.to_payload(),
+        ),
+        (
+            RelationshipActionGateForcedExposure.from_payload,
+            batch.exposures[0].to_payload(),
+        ),
+        (RelationshipActionGateCreditBatch.from_payload, batch.to_payload()),
+        (RelationshipActionGateBatchReceipt.from_payload, applied.to_payload()),
+    ):
+        forged = copy.deepcopy(payload)
+        forged["unexpected_field"] = "forbidden"
+        with pytest.raises(ValueError, match="fields do not match schema"):
+            loader(forged)
+
+    forged_batch = copy.deepcopy(batch.to_payload())
+    forged_batch["entries"][0]["credit"]["timestamp_ms"] = True
+    with pytest.raises(ValueError, match="timestamp_ms must be an integer"):
+        RelationshipActionGateCreditBatch.from_payload(forged_batch)
+
+    forged_exposure = copy.deepcopy(batch.exposures[0].to_payload())
+    forged_exposure["exposure_id"] += ":tampered"
+    with pytest.raises(ValueError, match="canonical content"):
+        RelationshipActionGateForcedExposure.from_payload(forged_exposure)
 
 
 def test_theta0_frozen_policy_is_pure_non_noop_and_rejects_forged_cold_state() -> None:

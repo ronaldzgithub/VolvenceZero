@@ -21,6 +21,7 @@ from volvence_zero.credit import CreditRecord
 from volvence_zero.memory import Track
 from volvence_zero.social_cognition import (
     PreferenceActionForecast,
+    preference_action_forecast_from_payload,
     preference_action_forecast_to_payload,
 )
 from volvence_zero.temporal_types import TemporalActionAdvisoryProposal
@@ -235,6 +236,50 @@ class RelationshipActionGateTheta0Artifact:
         )
         artifact.validate_source_checkpoint(source_checkpoint)
         return artifact
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipActionGateTheta0Artifact":
+        """Restore one theta0 artifact from its exact content-addressed shape."""
+
+        raw = _require_exact_mapping(
+            payload,
+            expected={
+                "artifact_id",
+                "schema_version",
+                "operator_id",
+                "feature_order",
+                "threshold_rule",
+                "weights_hex",
+                "bias_hex",
+                "learning_rate_hex",
+                "max_abs_parameter_hex",
+                "source_checkpoint_content_sha256",
+                "source_batch_artifact_id",
+            },
+            source="relationship action gate theta0 artifact",
+        )
+        return cls(
+            artifact_id=_payload_text(raw, "artifact_id"),
+            weights_hex=_payload_text_tuple(raw, "weights_hex"),
+            bias_hex=_payload_text(raw, "bias_hex"),
+            learning_rate_hex=_payload_text(raw, "learning_rate_hex"),
+            max_abs_parameter_hex=_payload_text(
+                raw,
+                "max_abs_parameter_hex",
+            ),
+            source_checkpoint_content_sha256=_payload_text(
+                raw,
+                "source_checkpoint_content_sha256",
+            ),
+            source_batch_artifact_id=_payload_text(
+                raw,
+                "source_batch_artifact_id",
+            ),
+            operator_id=_payload_text(raw, "operator_id"),
+            feature_order=_payload_text_tuple(raw, "feature_order"),
+            threshold_rule=_payload_text(raw, "threshold_rule"),
+            schema_version=_payload_text(raw, "schema_version"),
+        )
 
     @property
     def weights(self) -> tuple[float, ...]:
@@ -580,6 +625,30 @@ class RelationshipActionGateFrozenDecision:
             "decision": self.decision.to_payload(),
         }
 
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipActionGateFrozenDecision":
+        """Restore one pure decision from its exact frozen-policy envelope."""
+
+        raw = _require_exact_mapping(
+            payload,
+            expected={
+                "schema_version",
+                "frozen_policy_id",
+                "checkpoint_content_sha256",
+                "decision",
+            },
+            source="relationship action gate frozen decision",
+        )
+        return cls(
+            decision=RelationshipActionGateDecision.from_payload(raw["decision"]),
+            checkpoint_content_sha256=_payload_text(
+                raw,
+                "checkpoint_content_sha256",
+            ),
+            frozen_policy_id=_payload_text(raw, "frozen_policy_id"),
+            schema_version=_payload_text(raw, "schema_version"),
+        )
+
 
 @dataclass(frozen=True)
 class RelationshipActionGateFrozenPolicy:
@@ -750,6 +819,37 @@ class RelationshipActionGateForcedExposure:
     def to_payload(self) -> dict[str, object]:
         return {"exposure_id": self.exposure_id, **self._core_payload()}
 
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipActionGateForcedExposure":
+        """Restore one content-addressed forced exposure without hidden state."""
+
+        raw = _require_exact_mapping(
+            payload,
+            expected={
+                "exposure_id",
+                "schema_version",
+                "sequence_index",
+                "theta0_artifact_id",
+                "forced_action_id",
+                "forecast",
+                "frozen_decision",
+            },
+            source="relationship action gate forced exposure",
+        )
+        exposure = cls(
+            sequence_index=_payload_int(raw, "sequence_index"),
+            forecast=preference_action_forecast_from_payload(raw["forecast"]),
+            frozen_decision=RelationshipActionGateFrozenDecision.from_payload(
+                raw["frozen_decision"]
+            ),
+            forced_action_id=_payload_text(raw, "forced_action_id"),
+            theta0_artifact_id=_payload_text(raw, "theta0_artifact_id"),
+            schema_version=_payload_text(raw, "schema_version"),
+        )
+        if _payload_text(raw, "exposure_id") != exposure.exposure_id:
+            raise ValueError("forced exposure_id does not match canonical content")
+        return exposure
+
     def _core_payload(self) -> dict[str, object]:
         return {
             "schema_version": self.schema_version,
@@ -836,6 +936,51 @@ class RelationshipActionGateCreditBatch:
 
     def to_payload(self) -> dict[str, object]:
         return {"batch_id": self.batch_id, **self._core_payload()}
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipActionGateCreditBatch":
+        """Restore and revalidate an exact chronological PE-credit batch."""
+
+        raw = _require_exact_mapping(
+            payload,
+            expected={
+                "batch_id",
+                "schema_version",
+                "theta0_artifact_id",
+                "base_checkpoint_content_sha256",
+                "entries",
+            },
+            source="relationship action gate credit batch",
+        )
+        entries = raw["entries"]
+        if not isinstance(entries, list) or not entries:
+            raise ValueError("credit batch entries must be a non-empty array")
+        exposures: list[RelationshipActionGateForcedExposure] = []
+        credits: list[CreditRecord] = []
+        for index, entry in enumerate(entries):
+            item = _require_exact_mapping(
+                entry,
+                expected={"exposure", "credit"},
+                source=f"relationship action gate credit batch entry {index}",
+            )
+            exposures.append(
+                RelationshipActionGateForcedExposure.from_payload(item["exposure"])
+            )
+            credits.append(_credit_record_from_payload(item["credit"]))
+        batch = cls(
+            exposures=tuple(exposures),
+            credits=tuple(credits),
+            schema_version=_payload_text(raw, "schema_version"),
+        )
+        if _payload_text(raw, "theta0_artifact_id") != batch.theta0_artifact_id:
+            raise ValueError("credit batch theta0_artifact_id does not match entries")
+        if _payload_text(raw, "base_checkpoint_content_sha256") != (
+            batch.base_checkpoint_content_sha256
+        ):
+            raise ValueError("credit batch base checkpoint does not match entries")
+        if _payload_text(raw, "batch_id") != batch.batch_id:
+            raise ValueError("credit batch_id does not match canonical content")
+        return batch
 
     def _core_payload(self) -> dict[str, object]:
         return {
@@ -1030,6 +1175,64 @@ class RelationshipActionGateBatchReceipt:
         if include_receipt_id:
             return {"receipt_id": self.receipt_id, **payload}
         return payload
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipActionGateBatchReceipt":
+        """Restore one APPLY/WITHHOLD receipt from its exact canonical shape."""
+
+        raw = _require_exact_mapping(
+            payload,
+            expected={
+                "receipt_id",
+                "schema_version",
+                "batch_id",
+                "plan_id",
+                "disposition",
+                "pre_checkpoint_content_sha256",
+                "candidate_checkpoint_content_sha256",
+                "post_checkpoint_content_sha256",
+                "credit_count",
+                "weight_delta",
+                "bias_delta",
+                "update_count_delta",
+                "atomic_commit_count",
+                "applied_credit_ids",
+            },
+            source="relationship action gate batch receipt",
+        )
+        receipt = cls(
+            batch_id=_payload_text(raw, "batch_id"),
+            plan_id=_payload_text(raw, "plan_id"),
+            disposition=RelationshipActionGateBatchDisposition(
+                _payload_text(raw, "disposition")
+            ),
+            pre_checkpoint_content_sha256=_payload_text(
+                raw,
+                "pre_checkpoint_content_sha256",
+            ),
+            candidate_checkpoint_content_sha256=_payload_text(
+                raw,
+                "candidate_checkpoint_content_sha256",
+            ),
+            post_checkpoint_content_sha256=_payload_text(
+                raw,
+                "post_checkpoint_content_sha256",
+            ),
+            credit_count=_payload_int(raw, "credit_count"),
+            weight_delta=_payload_float_tuple(raw, "weight_delta"),
+            bias_delta=_payload_float(raw, "bias_delta"),
+            update_count_delta=_payload_int(raw, "update_count_delta"),
+            atomic_commit_count=_payload_int(raw, "atomic_commit_count"),
+            applied_credit_ids=_payload_text_tuple(
+                raw,
+                "applied_credit_ids",
+                allow_empty=True,
+            ),
+            schema_version=_payload_text(raw, "schema_version"),
+        )
+        if _payload_text(raw, "receipt_id") != receipt.receipt_id:
+            raise ValueError("batch receipt_id does not match canonical content")
+        return receipt
 
 
 @dataclass(frozen=True)
@@ -1802,6 +2005,70 @@ def _credit_record_payload(credit: CreditRecord) -> dict[str, object]:
     }
 
 
+def _credit_record_from_payload(payload: object) -> CreditRecord:
+    raw = _require_exact_mapping(
+        payload,
+        expected={
+            "record_id",
+            "level",
+            "track",
+            "source_event",
+            "credit_value",
+            "context",
+            "timestamp_ms",
+            "prediction_id",
+            "environment_event_id",
+            "environment_outcome_id",
+            "segment_id",
+            "abstract_action_id",
+            "conditioning_bank_set",
+            "conditioning_bank_fingerprints",
+        },
+        source="relationship action credit record",
+    )
+    fingerprints_raw = raw["conditioning_bank_fingerprints"]
+    if not isinstance(fingerprints_raw, list):
+        raise ValueError(
+            "conditioning_bank_fingerprints must be an array of string pairs"
+        )
+    fingerprints: list[tuple[str, str]] = []
+    for index, pair in enumerate(fingerprints_raw):
+        if not isinstance(pair, list) or len(pair) != 2:
+            raise ValueError(
+                "conditioning_bank_fingerprints must be an array of string pairs"
+            )
+        bank_id, fingerprint = pair
+        if not isinstance(bank_id, str) or not bank_id.strip():
+            raise ValueError(
+                f"conditioning_bank_fingerprints[{index}][0] must be non-empty"
+            )
+        if not isinstance(fingerprint, str) or not fingerprint.strip():
+            raise ValueError(
+                f"conditioning_bank_fingerprints[{index}][1] must be non-empty"
+            )
+        fingerprints.append((bank_id, fingerprint))
+    return CreditRecord(
+        record_id=_payload_text(raw, "record_id"),
+        level=_payload_text(raw, "level"),
+        track=Track(_payload_text(raw, "track")),
+        source_event=_payload_text(raw, "source_event"),
+        credit_value=_payload_float(raw, "credit_value"),
+        context=_payload_text(raw, "context"),
+        timestamp_ms=_payload_int(raw, "timestamp_ms"),
+        prediction_id=_payload_text(raw, "prediction_id"),
+        environment_event_id=_payload_string(raw, "environment_event_id"),
+        environment_outcome_id=_payload_text(raw, "environment_outcome_id"),
+        segment_id=_payload_string(raw, "segment_id"),
+        abstract_action_id=_payload_text(raw, "abstract_action_id"),
+        conditioning_bank_set=_payload_text_tuple(
+            raw,
+            "conditioning_bank_set",
+            allow_empty=True,
+        ),
+        conditioning_bank_fingerprints=tuple(fingerprints),
+    )
+
+
 def _sigmoid(value: float) -> float:
     if value >= 0.0:
         return 1.0 / (1.0 + math.exp(-value))
@@ -1916,6 +2183,13 @@ def _payload_text(payload: Mapping[str, object], key: str) -> str:
     value = payload[key]
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{key} must be a non-empty string")
+    return value
+
+
+def _payload_string(payload: Mapping[str, object], key: str) -> str:
+    value = payload[key]
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must be a string")
     return value
 
 

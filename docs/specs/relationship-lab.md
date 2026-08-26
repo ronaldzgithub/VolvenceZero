@@ -1715,6 +1715,13 @@ evaluation 只消费 immutable policy与 product outcome 的 campaign 级聚合�
 本包不接 source-v3、不运行 campaign/CUDA、不修改 attempt03、P4.7 v3 或任何既有公开判词；nonzero theta0
 也不等于 qualified、Learnable、Steerable 或四能力证据。
 
+future model-free validator 不得在 `lifeform-evolution` 重写这些 owner schema。gate owner 为可独立持久化的
+`Theta0Artifact / FrozenDecision / ForcedExposure / CreditBatch / BatchReceipt` 发布 exact-key、类型严格、
+内容 ID 重算的公共 `from_payload()`；nested forecast 继续调用 forecast owner loader，credit 只在 gate owner
+内按既有 PE-credit 完整 lineage 还原。`BatchPlan` 是从 gate + exact batch 纯重算的临时值，`FrozenPolicy`
+必须从 artifact/checkpoint/transition components 构造并执行 owner replay，二者都不接受仅含摘要 ID 的
+standalone 反序列化。该 replay seam 不新增状态 owner、runtime slot 或证据 authority。
+
 executor consumer 的独立旁路包使用 `relationship-product-frozen-pulse.v1` 与
 `relationship-product-executor-receipt.v1`，不改变历史 Product Horizon v1/v2 的 protocol、worker、pre/post
 receipt、validator 或 attempt03。新 `FrozenPulseAuthorization` 精确 pin frozen policy id + 完整 checkpoint hash；
