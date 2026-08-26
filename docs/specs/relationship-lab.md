@@ -1871,6 +1871,19 @@ artifact 双 ID，model-free 重跑完整 224 join、192 拍 owner/environment/P
 不证明 reader qualification、non-noop steer opportunity、Learnable、Steerable、任一四轴效果、campaign、
 formal、真人或 production ACTIVE，也不运行模型/CUDA、不发布 Gist。
 
+2026-08-26 implementation commit `7922c8a8fe2360e7420f8312aedd2d01f5ca008c` 已按 protocol
+`0e51c343646b971daa144ac098b76221c0b5811d452040c80e776aa003e3678c` 物化 create-only 五文件 bundle
+`d9776631dfc2dbe591369f722ce2bef0d39098bb5f0b3fed00ef45af3ef06f24`；独立 CLI
+`validate-existing` 持外部 protocol/artifact 双 ID model-free 重跑通过。公开 join artifact 为
+`057a43202db7aa71202c8f4e0a77a75cca79ed372efab9e5f8a5fb613b1a7328`，trace artifact 为
+`relationship-product-horizon-theta0-calibration-trace-sha256:a3be9393c41127b5872c5ab85bf6bc5684fe19fa5cabfcc04c48a9960dda5a7a`，
+最终 nonzero cold theta0 为
+`relationship-action-gate-theta0-sha256:f44eb26779e5f483e10b5a3e1a72a1f2a3f28ae79bed76502553472565c53398`。
+192/192 PE-credit update、192 个唯一 processed credit 与零 pending 闭合；校准 trace 中 gate 为 164 次
+`steer`、28 次 `noop`，实际交付为 81 次 stay、78 次 space、33 次 neutral noop，因此本校准自身没有
+全程 noop 退化。该诊断仍只属于已见过的 source-v3 bootstrap；它不代替 source-v4 的 cold-theta0
+non-noop opportunity receipt，也不晋升任何能力效果判词。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入
