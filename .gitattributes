@@ -21,6 +21,11 @@ artifacts/relationship_lab/**/*.md text eol=lf
 artifacts/relationship_lab/**/*.yaml text eol=lf
 artifacts/relationship_lab/**/*.csv text eol=lf
 
+# Product Horizon development campaigns retain byte-exact full replay traces,
+# which can exceed GitHub's ordinary blob limit. LFS preserves the raw bytes
+# while keeping the Git object itself small enough to push.
+artifacts/relationship_lab/relationship_product_horizon_development_campaign_*/campaign_trace.jsonl filter=lfs diff=lfs merge=lfs -text
+
 # Frozen Product Horizon execution-source bundles preserve the exact observed
 # checkout bytes, including reviewed CRLF. Never normalize these embedded files.
 artifacts/relationship_lab/relationship_product_horizon_*/inputs/execution_sources/** -text
