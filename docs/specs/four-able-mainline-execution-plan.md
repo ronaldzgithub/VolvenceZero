@@ -318,3 +318,12 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   `development_theta0_v2_materialized_training_support_opportunity_only_effect_not_tested`：它只解除 theta0
   本地退化阻断，不是独立能力效果。source-v4 transductive public opportunity、collection-prefix 动态门与
   campaign 仍未过门，Phase 2.5 继续 NO-GO；reader rehearsal 继续关闭。
+- 2026-08-26 · source-v4 transductive public opportunity scanner 已冻结待一次性执行：protocol
+  `4471c9ab…4d83f`（raw `9ce246b2…35419`）只读 source-v4 public plan、development reader table/artifact 与
+  theta0 v2 cold policy。112 个 index-0 首拍与 5,264 个 reset-state stress probe 分账；5,376 个
+  APPLY_CANDIDATE 全部走真实 typed placeholder executor，PASS 只按 temporal delivered nonnoop，并要求 reachable/
+  evaluation 各一个相同 prestate 下的 strict-noop actual-action divergence witness。PASS 只提升 protocol-freeze
+  authority，collection-prefix execution 仍为 false；未来另行冻结的 8-decision dynamic protocol 中，112 条首
+  preaction 的 owner/forecast/decision/action/executor/advisory/
+  temporal-controller/cold-policy v1 projection 必须 exact match；不授权 evaluation/
+  campaign/effect/formal/四轴。reader rehearsal 按用户裁决继续关闭，本包不另建 2–3 item 彩排 artifact。

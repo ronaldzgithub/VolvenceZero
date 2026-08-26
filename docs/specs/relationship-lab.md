@@ -158,6 +158,7 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | Product Horizon source-v3 campaign-input admission owner | `lifeform-evolution.relationship_product_source_admission` | 只读既有 independent source owner 与 `ReactiveRelationshipEnvironment`，以 development protocol `98d51d84…6338` 精确 pin raw/canonical/public/sealed identity 及直接执行闭包；官方 cooperative CLI 启动两个 fresh model-free worker，各物化 8/32/192 source inventory 与 576 条三动作 sealed potential-outcome commitment，第三进程 byte-exact 比对。可转移判词不声称 PID 可证明进程独立性。最多派生 `campaign_input_admitted=true`；不验证未来 pre-action→actual-action→reaction runtime 顺序，不授权 campaign/model/CUDA/formal/integrated/四轴结论，也不把已进入 reader 谱系的 source-v3 充作 unseen formal source |
 | Product Horizon reader 资格预检 owner | `lifeform-evolution.relationship_condition_reader_qualification` | 历史 qualification-v1 原样保留；live qualification-v2 显式从 legacy source-v1 training 与 independent source-v3 challenge 的 public/evaluator snapshot 投影生成 model-free、create-only split。prediction request 每行严格只有 opaque item ID、exact text 与 text SHA，challenge label/group 继续 sealed。当前不加载 BGE/CUDA、不授权 qualification/campaign，也不新增 runtime owner |
 | Product Horizon development reader input owner | `lifeform-evolution.relationship_product_horizon_development_reader` | 不恢复 reader rehearsal；独立 development protocol 只把 v6 preflight 的 4 条 training text/label 用于 reader builder，把同一 preflight 的 224 条 label-free public challenge text 与 admitted source-v4 的 1,881 条唯一 reader text 只作 embedding input。一次 pinned BGE CUDA 物化后发布 2,109-row table、frozen reader 与 model-free manifest；本包不冒充已完成 source-v3 admission exact join，该绑定留给 theta0 bundle；不打开 challenge labels/source-v4 sealed truth，不评分、不资格化、不授权 campaign |
+| Product Horizon transductive public opportunity owner | `lifeform-evolution.relationship_product_horizon_transductive_public_opportunity` | 只消费 admitted source-v4 的 public plan、既有 development reader table/artifact 与 theta0 v2 cold policy；从每 root 同一 post-onboarding owner snapshot 扫描 public decision surface，并以真实 typed placeholder executor 发布稳定 projection 与 canonical APPLY/strict-noop witness。只判断 collection-prefix 是否存在非退化执行机会，不打开 sealed truth、不结算 environment、不生成 PE/credit/update、不跑模型/CUDA，也不拥有 campaign/effect |
 | Product Horizon pulse owner | `lifeform-domain-emogpt.lab.relationship_product_pulse` | 只编排正式 `preference_about_other` owner、named condition reader、`dialogue_external_outcome`→PE→credit 与 `RelationshipActionGate`；发布 onboarding / pre-action / settlement frozen snapshot，不复制 memory、PE、credit 或 gate 数学 |
 | Product Horizon strong-baseline owner | `lifeform-evolution.relationship_lab_product_{baselines,model_adapters,baseline_dispatcher}` | 在逐 decision 公开账本边界内运行 revision-pinned Qwen chronological full-history 与 BGE selective-RAG；一个 resident 模型进程执行 stateless calls，逐请求冻结 token、truncation、retrieval、generation 与 ledger lineage |
 | Product Horizon campaign owner | `lifeform-evolution.relationship_lab_product_horizon` | 执行 5 条 typed Volvence targeted-intervention arm 和 2 条强基线；每个 Volvence logical session 使用 fresh child，父进程在 pre-action receipt fsync 后才提供 typed outcome，全部 action 结束后才发布 sealed sidecar；离线 validator 重算环境、链、指标与报告 |
@@ -168,7 +169,7 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P4.7 source-opportunity zero-output preflight owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 以 frozen `RelationshipP4LongContextSourceOpportunityPreflightProtocol` 发布 `RelationshipP4LongContextSourceOpportunityPreflightCertificate`：只投影 source structural contract、精确有限 inventory/digest 与后续 create-only materializer envelope；external anchor 前不授权 materialization，不发布 source row/tape/twin pack/planning atom，也不进入 tuple feasibility |
 | P4.7 A0 external-publication request owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 以 frozen `RelationshipP4LongContextExternalAnchorRequestProtocol` 发布本地 create-only `RelationshipP4LongContextExternalAnchorRequest`；只绑定 public Gist A0 request 的精确 bytes、五个 publication subject 与未来 receipt/admission 要求，不执行网络请求，不把 private origin 当 publication，不授权 materializer 或任何下游阶段 |
 | P4.7-E0 最低行业基线 admission owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 在首条 P4.7 model development output 前，冻结 strong naive ICL/full-history、selective-RAG、CAST-like static gate、oracle-condition executor、direct-patch upper bound 与 strict-noop/reliability 审计；只发布可诊断性 admission，不新增 confirmatory arm，不把外部标签或 judge 回灌学习 |
-| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l,packet1m_qualification,p4_named_reader,p4_pe_learning,p4_cross_process_appendable,p4_steering_artifact_fit,p4_physical_residual_actuation,p4_long_context_causal_campaign,p4_long_context_power_bound,p4_long_context_v4_planning,p4_long_context_source_opportunity_preflight,p4_long_context_external_publication_anchor,product_baseline_dispatcher,product_horizon,relationship_residual_fit}.py`、`scripts/run_relationship_product_{source_admission,horizon_source_admission,horizon_development_reader}.py` + `scripts/generate_relationship_lab_packet1m_dataset*.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1m/P4.3–P4.6，执行/离线复验 development-only Product Horizon 与 relationship typed-residual prerequisite，冻结/复验 P4.7 design prereg、历史 power-admission、preserved v1 history、v4a zero-output plan、source-opportunity zero-output contract、本地 A0 publication request，或执行 source-v3/source-v4 campaign-input admission、development reader 的 materialize/`validate-existing`，或冻结/评分人工盲标 packet |
+| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l,packet1m_qualification,p4_named_reader,p4_pe_learning,p4_cross_process_appendable,p4_steering_artifact_fit,p4_physical_residual_actuation,p4_long_context_causal_campaign,p4_long_context_power_bound,p4_long_context_v4_planning,p4_long_context_source_opportunity_preflight,p4_long_context_external_publication_anchor,product_baseline_dispatcher,product_horizon,relationship_residual_fit}.py`、`scripts/run_relationship_product_{source_admission,horizon_source_admission,horizon_development_reader}.py`、`scripts/run_relationship_product_horizon_transductive_public_opportunity.py` + `scripts/generate_relationship_lab_packet1m_dataset*.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1m/P4.3–P4.6，执行/离线复验 development-only Product Horizon 与 relationship typed-residual prerequisite，冻结/复验 P4.7 design prereg、历史 power-admission、preserved v1 history、v4a zero-output plan、source-opportunity zero-output contract、本地 A0 publication request，或执行 source-v3/source-v4 campaign-input admission、development reader、transductive public opportunity scanner 的 materialize/`validate-existing`，或冻结/评分人工盲标 packet |
 
 硬边界：
 
@@ -1960,6 +1961,48 @@ WITHHOLD 为 delta 0 / commit 0。终态参数 finite、非全零且未触 cap�
 诊断均已看过，190/192 不是独立泛化率，也不证明动作正确、产品收益、Learnable 或 Steerable。source-v4 尚未由
 新 theta0 扫描，`source_v4_opportunity_established=false`、`campaign_execution_authorized=false` 保持不变；下一步
 只能使用另行冻结且明确 transductive 的 public-only opportunity scanner。
+
+#### Product Horizon transductive public-only opportunity scanner
+
+`lifeform-evolution.relationship_product_horizon_transductive_public_opportunity` 是 theta0 v2 与动态 collection-prefix
+之间的一次性 development gate。它明确承认三重已见事实：source-v4 public plan 已用于 development reader，
+同一 public surface 曾被 theta0 v1 事后扫描，theta0 v2 又来自已用 source-v3；因此该 scanner 永远只能称
+transductive，不得称 unseen、formal、reader qualification 或能力效果。
+
+依赖 loader 的允许读取集合被冻结为：source-v4 `manifest.json + public/source_plan.json`、development reader
+`manifest.json + embedding_table.json + reader_artifact.json`、theta0 v2 `manifest.json + theta0_artifact.json`。
+public plan 必须由 source owner 的 nested exact-key `RelationshipProductHorizonPublicView.from_payload()` 恢复。
+禁止调用会重读 sealed evaluator、training/challenge labels、source-v3 settlement 或 PE-credit trace 的三个完整
+validator；dependency manifest 还必须原样证明 campaign 未授权、reader 未资格化、theta0 未形成效果判词。
+
+每个 112 root 只追加四条 public onboarding 一次，因此如实记录 448 次公开 historical outcome read；随后保存同一
+post-onboarding owner snapshot，并让全部 48 个 public decision 分别从该 snapshot 调真实 typed placeholder
+`APPLY_CANDIDATE` executor，不做 decision writeback。只有 `decision_index=0` 的 112 个首 preaction 动态可达；
+`1..7` 的 784 个 collection stress 与 `8..47` 的 4,480 个 evaluation stress 都是 reset-state
+counterfactual probe，合计 5,264 个，不能描述成动态 trajectory。六个纯 public index bucket 各 896 条；scanner
+不得读取 sealed `segment_id`。
+
+5,376 个 APPLY probe 分别记录 frozen selected action 与 temporal delivered action，PASS 只看后者。预注册门为：
+112 个可达首拍 delivered nonnoop 至少 1；4,480 个 evaluation stress delivered nonnoop 至少 1 且至少覆盖一个
+root；随后分别取两类 canonical root/decision order 中首个 temporal-delivered nonnoop，从相同 immutable owner
+prestate、forecast、frozen decision、candidate advisory、policy/checkpoint 补跑一个 `FORCE_STRICT_NOOP`。两个
+witness 都必须证明 APPLY 交付 frozen selected nonnoop、strict 交付 `neutral_noop`、actual action 分歧且 cold
+checkpoint 始终为 `0/0/0`。PASS 时总 executor attempts 为 5,376 APPLY + 2 strict witness；若任一门失败则封存
+`development_transductive_public_opportunity_absent_campaign_blocked_effect_not_tested`，同 protocol 禁止换 theta、
+reader、source、threshold、subset、顺序或 selection rule 重试。
+
+稳定 trace 排除 temporal timestamp 与由其决定的 receipt ID，但保留 deterministic command/advisory/action/
+controller lineage；`validate-existing` 由外传 protocol/artifact 双 ID重建并 byte-compare 全部稳定输出。冻结
+112-row seam 使用冻结的 `relationship-product-horizon-first-preaction-projection.v1`：除 owner/forecast/decision/
+action 外，还绑定 executor status、candidate/delivered advisory、temporal controller/action-family/status 与 cold
+policy/checkpoint，且刻意排除会随新协议改变的 authorization/command ID。protocol ID 为
+`4471c9ab49bcf51c2e29f13f18c7b983352111ccbaec95c9221ab07fd124d83f`，raw SHA-256 为
+`9ce246b22899de14080b792cb7e888eedd20526d408ef757d18fd2903ca35419`。即使 PASS，也只把
+`collection_prefix_protocol_freeze_authorized` 提升为 true，允许另行冻结每 root 8-decision collection-only
+dynamic protocol；`collection_prefix_execution_authorized` 仍为 false，必须等新 prereg 自己闭合执行门。其
+112 条首 preaction projection 必须与本 scanner exact match；
+四十条 evaluation、campaign effect、Readable/Learnable/Steerable、四轴合取、真人与 production authority 仍为 false。
+本阶段按用户裁决不恢复 reader rehearsal，也不新增 2–3 item 彩排 artifact。
 
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
