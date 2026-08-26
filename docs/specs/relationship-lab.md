@@ -153,6 +153,7 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P4.6-fit model-bound artifact prerequisite owner | `volvence_zero.agent.relationship_p4_steering_artifact_fit` / `vz-runtime` | 只用 canonical strict substrate factory 构造精确 Qwen2.5-1.5B runtime，并把一次 reader/conditional executor/matched sensor-off fit 委托给既有 `fit_steering_artifact_bundle` owner；不复制数学、不接产品 wiring |
 | P4.6-actuation physical residual preflight owner | `volvence_zero.agent.relationship_p4_physical_residual_actuation` / `vz-runtime` | 认证精确 P4.6-fit 根后，以既有 sensor / executor / strict substrate direct hook 跑四臂 synthetic physical-effect preflight；只编排与发布证据，不复制 reader/executor 数学、不生成回复、不接产品 wiring |
 | Product Horizon source owners | legacy `lifeform-domain-emogpt.lab.relationship_product_pilot_source` 只拥有 source-v1；independent `lifeform-domain-emogpt.lab.relationship_product_pilot_source_v2` 只拥有 live source-v3 | legacy owner implementation 固定为 `15162708…972ae`，无参数路径/loader 永远默认字节兼容 v1。已公开 source-v2 JSON/owner metadata 只作 immutable base；source-v3 wrapper 逐字节 pin 它并由 independent owner 物化全新 8 个 development world clone、seed/domain/rendering/identity namespace 与每 condition 14 个不复用 public semantic surface。sealed evaluator truth 仍物理分离，当前不接 campaign、不产模型输出或证据结论 |
+| Product Horizon source-v3 campaign-input admission owner | `lifeform-evolution.relationship_product_source_admission` | 只读既有 independent source owner 与 `ReactiveRelationshipEnvironment`，以 development protocol `98d51d84…6338` 精确 pin raw/canonical/public/sealed identity 及直接执行闭包；官方 cooperative CLI 启动两个 fresh model-free worker，各物化 8/32/192 source inventory 与 576 条三动作 sealed potential-outcome commitment，第三进程 byte-exact 比对。可转移判词不声称 PID 可证明进程独立性。最多派生 `campaign_input_admitted=true`；不验证未来 pre-action→actual-action→reaction runtime 顺序，不授权 campaign/model/CUDA/formal/integrated/四轴结论，也不把已进入 reader 谱系的 source-v3 充作 unseen formal source |
 | Product Horizon reader 资格预检 owner | `lifeform-evolution.relationship_condition_reader_qualification` | 历史 qualification-v1 原样保留；live qualification-v2 显式从 legacy source-v1 training 与 independent source-v3 challenge 的 public/evaluator snapshot 投影生成 model-free、create-only split。prediction request 每行严格只有 opaque item ID、exact text 与 text SHA，challenge label/group 继续 sealed。当前不加载 BGE/CUDA、不授权 qualification/campaign，也不新增 runtime owner |
 | Product Horizon pulse owner | `lifeform-domain-emogpt.lab.relationship_product_pulse` | 只编排正式 `preference_about_other` owner、named condition reader、`dialogue_external_outcome`→PE→credit 与 `RelationshipActionGate`；发布 onboarding / pre-action / settlement frozen snapshot，不复制 memory、PE、credit 或 gate 数学 |
 | Product Horizon strong-baseline owner | `lifeform-evolution.relationship_lab_product_{baselines,model_adapters,baseline_dispatcher}` | 在逐 decision 公开账本边界内运行 revision-pinned Qwen chronological full-history 与 BGE selective-RAG；一个 resident 模型进程执行 stateless calls，逐请求冻结 token、truncation、retrieval、generation 与 ledger lineage |
@@ -164,7 +165,7 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P4.7 source-opportunity zero-output preflight owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 以 frozen `RelationshipP4LongContextSourceOpportunityPreflightProtocol` 发布 `RelationshipP4LongContextSourceOpportunityPreflightCertificate`：只投影 source structural contract、精确有限 inventory/digest 与后续 create-only materializer envelope；external anchor 前不授权 materialization，不发布 source row/tape/twin pack/planning atom，也不进入 tuple feasibility |
 | P4.7 A0 external-publication request owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 以 frozen `RelationshipP4LongContextExternalAnchorRequestProtocol` 发布本地 create-only `RelationshipP4LongContextExternalAnchorRequest`；只绑定 public Gist A0 request 的精确 bytes、五个 publication subject 与未来 receipt/admission 要求，不执行网络请求，不把 private origin 当 publication，不授权 materializer 或任何下游阶段 |
 | P4.7-E0 最低行业基线 admission owner | `lifeform-evolution.relationship_lab_p4_long_context_causal_campaign` | 在首条 P4.7 model development output 前，冻结 strong naive ICL/full-history、selective-RAG、CAST-like static gate、oracle-condition executor、direct-patch upper bound 与 strict-noop/reliability 审计；只发布可诊断性 admission，不新增 confirmatory arm，不把外部标签或 judge 回灌学习 |
-| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l,packet1m_qualification,p4_named_reader,p4_pe_learning,p4_cross_process_appendable,p4_steering_artifact_fit,p4_physical_residual_actuation,p4_long_context_causal_campaign,p4_long_context_power_bound,p4_long_context_v4_planning,p4_long_context_source_opportunity_preflight,p4_long_context_external_publication_anchor,product_baseline_dispatcher,product_horizon,relationship_residual_fit}.py` + `scripts/generate_relationship_lab_packet1m_dataset*.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1m/P4.3–P4.6，执行/离线复验 development-only Product Horizon 与 relationship typed-residual prerequisite，冻结/复验 P4.7 design prereg、历史 power-admission、preserved v1 history、v4a zero-output plan、source-opportunity zero-output contract 或本地 A0 publication request，或冻结/评分人工盲标 packet |
+| CLI | `scripts/run_relationship_lab_{stateless_baseline,gate0,packet1,packet1c,packet1e,packet1f,packet1g,packet1i,packet1j,packet1k,packet1l,packet1m_qualification,p4_named_reader,p4_pe_learning,p4_cross_process_appendable,p4_steering_artifact_fit,p4_physical_residual_actuation,p4_long_context_causal_campaign,p4_long_context_power_bound,p4_long_context_v4_planning,p4_long_context_source_opportunity_preflight,p4_long_context_external_publication_anchor,product_baseline_dispatcher,product_horizon,relationship_residual_fit}.py`、`scripts/run_relationship_product_source_admission.py` + `scripts/generate_relationship_lab_packet1m_dataset*.py` | 冻结真实 baseline、重放 Gate 0，运行/恢复审计 P1–P1m/P4.3–P4.6，执行/离线复验 development-only Product Horizon 与 relationship typed-residual prerequisite，冻结/复验 P4.7 design prereg、历史 power-admission、preserved v1 history、v4a zero-output plan、source-opportunity zero-output contract、本地 A0 publication request 或 source-v3 campaign-input admission，或冻结/评分人工盲标 packet |
 
 硬边界：
 
@@ -1487,6 +1488,38 @@ schema 表达，不得误判为 sealed truth 泄漏。
 reader qualification revision 显式 pin，不授权 product/formal/human 证据或 Appendable / Readable /
 Learnable / Steerable 任一结论。未来 campaign 若采用该 independent cohort，必须另增 campaign protocol 并
 显式 pin source schema/protocol/owner/materialized identities，不能让当前 Horizon v1/v2 自动漂移。
+
+### Product Horizon source-v3 campaign-input admission（development）
+
+新的离线 admission owner 是
+`lifeform-evolution.relationship_product_source_admission`。其 protocol
+`relationship-product-source-campaign-admission-protocol.v1` 的内容身份为
+`98d51d845fd0c5753e401b2a63ad71f4acfef0eba4db45982863f6eb67526338`。它是上一段要求的
+**新增 consumer-specific protocol**，不编辑 source-v2/v3 字节，不替换 source owner，也不修改 legacy
+Product Horizon v1/v2。protocol 精确 pin source-v3 raw/canonical/public/sealed identity，并记录 source、
+legacy envelope、reactive environment、dataset、lab contract、action surface 与 external-outcome enum 的
+9-file direct execution closure；该 development 记录不冒充完整 Python transitive runtime closure。
+
+每次准入由两个 fresh、model-free worker 在不同输出根独立物化同一 source：8 subjects、32 onboarding、
+192 decisions。对每个 sealed evaluator decision，worker 以同一 `environment_seed` 对 canonical 三动作分别调用
+既有 `ReactiveRelationshipEnvironment.distribution_for/settle`，在 campaign 前封存 576 条
+action-conditioned distribution、draw、typed outcome、rendered next-user reaction 与 environment evidence ref。
+官方 cooperative CLI 的第三个进程逐文件 byte-exact 比较两个根。缺行、重复 action、seed/distribution/reaction/evidence-ref 漂移、
+source/closure hash 漂移、claim ceiling 提升或非 create-only 覆盖全部 fail loudly。
+
+环境 draw hash 包含 `selected_action`，所以这 576 条是 **action-specific potential-outcome randomness**，
+不是 common-random-number 设计。准入只证明未来输入已确定性封存；它不证明未来 campaign 已遵守“先落
+pre-action receipt，再按实际 delivered action 选择唯一 sealed branch，最后发布下一用户反应”的运行时顺序。
+本地 PID 仅作 self-reported development receipt，不是 OS 安全边界或可转移的独立性证明；manifest 固定
+`fresh_process_independence_proven=false`。输入准入依赖 deterministic owner replay 与 byte identity，
+不依赖一个 PID 无法承担的安全主张。
+
+唯一正判词上限是 `campaign_input_admitted=true`。同一 manifest 必须固定
+`campaign_execution_authorized=false / campaign_runtime_order_verified=false /
+formal_evidence_authorized=false / integrated_horizon_authorized=false / model_output_count=0`，四轴、真人与
+production claim 全为 false。source-v3 exact texts 已进入 reader qualification 谱系，因此这个 admission
+可以供新的 development Horizon 使用，但不得充作 Phase 3 unseen formal source。A1 reactive-source、A2 MSC
+预算与 Product Horizon 继续分账，不共享 estimand、N、protocol identity 或 evidence claim。
 
 ### Product Horizon v1（development product-level long-horizon pilot）
 

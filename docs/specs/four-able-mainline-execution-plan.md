@@ -131,16 +131,25 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 入口：Phase 1a 完成（1b 可仍在途）。
 交付四个互相独立的收敛包：
 
-1. **Learnable/Steerable 新消融拓扑**：冻结 `frozen_theta0` 臂——与 full 共享同一
+1. **Learnable/Steerable 新消融拓扑（prereg-ready 机制已完成）**：`741e7b1b` 冻结
+   nonzero theta0、forced exposure、exact PE-credit batch 与 atomic apply/withhold；`7d476101` /
+   `f6ae1f6a` 冻结 preference owner settlement replay 与 canonical persistence identity；
+   `bc9f1b0a` 冻结共同 candidate 后 executor-only apply/strict-noop、actual delivered action 与完整
+   owner replay receipt。未来 protocol 中 `frozen_theta0` 臂必须与 full 共享同一
    theta0、同 forced-action、同 reaction/outcome/PE/credit 流，唯一差异是参数
    atomic apply bit。receipt 必须证明 `campaign_online_update_count=0`、参数 delta
    精确为零、评估期至少一次非 noop steer；strict-noop 臂与 frozen 臂共享 gate decision
    与 intervention candidate，只切 executor apply bit。任一证明缺失判
    `arm_degeneracy_invalid_contrast_no_claim`。对比定义冻结为：
    Learnable = full − frozen_theta0；Steerable = frozen_theta0 − strict_noop。
-2. **source-v3 campaign admission**：独立收敛包物化 32 onboarding、192 decisions、
-   576 条 sealed action-counterfactual commitments，双 fresh-clone replay + 第三进程
-   比对。上限 `campaign_input_admitted=true`，不授权 campaign execution。注意
+   当前只完成 owner/consumer 机制；campaign-level `campaign_online_update_count=0`、参数零 delta、
+   非 noop opportunity 与 arm divergence 仍须由新 development protocol 证明，不能登记能力效果。
+2. **source-v3 campaign admission（protocol/owner 已冻结，artifact 待执行）**：development protocol
+   `98d51d84…6338` 只复用现有 reactive environment，不重建 engine；独立收敛包物化 32 onboarding、
+   192 decisions、576 条 sealed action-counterfactual commitments，双 fresh-process replay + 第三进程
+   byte-exact 比对。上限 `campaign_input_admitted=true`，不授权 campaign execution。环境 draw hash
+   包含 selected action，明确是 action-specific potential-outcome randomness，不冒充 common-random-number。
+   注意
    source-v3 exact texts 已被 v5/v6 资格链见过，只能用于 admission 与 SHADOW；
    各轴 unseen 单轴门必须另立 disjoint source revision。
 3. **功效修正**：下一版 Horizon 每个 durability segment ≥ 6–8 个决策，或增加
@@ -155,9 +164,10 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 ### Phase 2.5 · 修正后的 Product Horizon 开发矩阵（开发档，下一因果目标）
 
 入口：Phase 2 包 1 的 gate owner 与 executor consumer 分包完成，且所选 Product Horizon source 已
-通过对应 development admission；不等待 reader v6 formal 链。先跑 2–3 item 的轻量同路径 smoke，
-只核对臂机制与 receipt，
-随后用独立 development prereg JSON + commit hash + fixed seeds 执行中等 root-cluster 矩阵：
+通过对应 development admission；不等待 reader v6 formal 链。现有 27 项 owner/executor/gate 定向测试已覆盖
+机制与 receipt，因此按用户裁决不另启 reader rehearsal 或独立 2–3 item 彩排 artifact；新 worker 先通过
+model-free `validate-existing`，随后用独立 development prereg JSON + commit hash + fixed seeds 执行中等
+root-cluster 矩阵：
 
 1. `full − frozen_theta0` 估计 Learnable 的方向、方差与 root-level ICC；
 2. `frozen_theta0 − strict_noop` 估计 Steerable 的方向、方差与 root-level ICC；
@@ -258,3 +268,10 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   闭合。首个 reader v6 rehearsal 由用户停止，未完成根保留为 non-evidence，formal reader 链推迟且
   不阻塞新消融。新增 Phase 2.5 Product Horizon development root-cluster 矩阵作为下一因果目标；
   本地小包 commit 已获持续授权，外部动作才攒批确认。本记录不授权 formal run。
+- 2026-08-26 · Phase 2 机制推进：`741e7b1b`、`7d476101`、`f6ae1f6a`、`bc9f1b0a`
+  已把 frozen-theta0 的 gate owner、preference settlement/persistence identity 与 executor-only strict-noop
+  consumer 闭合到 prereg-ready 边界；尚无 campaign-level non-noop/update/divergence/effect 证据。
+  source-v3 campaign-input admission protocol/owner 冻结为 `98d51d84…6338`，只允许后续 model-free
+  cooperative 双 worker + 第三进程比对派生 input-only admission；PID 只作 self-reported receipt，
+  `fresh_process_independence_proven=false`；artifact 尚待代码提交后按 exact commit 生成。
+  用户关闭的 reader rehearsal 继续不启动。本记录不授权 campaign、CUDA、formal 或 integrated run。

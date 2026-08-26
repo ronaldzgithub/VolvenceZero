@@ -25,6 +25,16 @@
 > CPython-visible observation scope 与 env/process/launcher/child schema；尚无新 protocol/Gist/root/CUDA run，
 > raw Win32 block、physical GPU UUID、full ambient plan 仍待独立 prerequisite，四轴与产品主张没有增加。
 >
+> 四能力 Product Horizon 主线 2026-08-26 状态：Phase 0 已由 `15887ed1` 完成，Phase 1a 写回/reader
+> 塌缩审计已闭合；reader v6 rehearsal 按用户裁决继续关闭且不阻塞 Phase 2/2.5。`741e7b1b`、
+> `7d476101`、`f6ae1f6a`、`bc9f1b0a` 已闭合 nonzero theta0、atomic PE-credit apply/withhold、
+> preference owner replay/persistence identity 与 executor-only strict-noop 到 prereg-ready 机制边界，但尚无
+> campaign-level non-noop/update/divergence/effect。source-v3 campaign-input admission protocol
+> `98d51d84…6338` 只允许官方 cooperative CLI 的两个 model-free worker 物化 8/32/192 inventory 与 576 条
+> action-conditioned commitment，再由第三进程 byte-exact 比对；PID 不作独立性证明。artifact 未完成前
+> `campaign_input_admitted=false`，即使完成也
+> 保持 campaign/runtime-order/model/CUDA/formal/integrated/四轴 authority=false。
+>
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
 > 下方 `Last reconciled` 长段中的 P4.7 v3 只作历史 design freeze 记录；当前 planning authority 以上述 v4a 为准。
 > Last reconciled: 2026-08-23（94 份 spec 全量挂载；Relationship Lab P1j 终局为 `consumer_failed_v4_qualification`；P1k-R1 A 格 report `ba6c5cf7…7138` 判 `substrate_cannot_apply_disclosed_policy`。P1m 首次且唯一 qualification 已在 24 组 generated mirror pair 上终局：prompt/RAG 均 24/48 correct、0/24 flip，fresh structured named reader 46/48、24/24 flip；report `9580ddff…fc56` 判 `prompt_steelman_baseline_too_weak` 并关闭场景版本化，故 P2 formal 与 Volvence advantage 仍未过门。P2-development SHADOW owner/persistence、P2d 命名条件 readout、P3 exact PE-credit gate、P4 collection-only closed-alpha 壳、P4.1 Lab longitudinal canary、P4.2 preference-action 纠删 owner/drill、P4.3 named-reader transmission、P4.4 PE-credit learned-gate transmission 与 P4.5 Windows cross-process owner-hydration preflight 已工程落地。P4.3 在 seen/post-selected matched arms 得到 action match 6/16→16/16、positive outcome 9/16→16/16，只是 Readable 传导的开发证据；P4.4 固定同一 named reader、fixture 与 environment，在两个已见、post-selected 的合成 subject 共 16 decisions 上只切 exact PE→credit 是否应用于 cold learned gate：no-credit 为 0 steer/action/credit apply/parameter update，PE-credit 为 7/16 action change、16/16 credit apply/parameter update，positive 7/16→13/16、reversal 0/14→7/14。P4.5 在每个 pulse 都启动新 `sys.executable` child，并只通过磁盘 `OwnerHydrationStore` 读取本人前缀、空前缀或 paired donor 同阶段前缀；72 次 child 全部可审计，correct/empty forecast presence 改变 16/16，correct/swapped 推荐动作改变 14/16，artifact `675815b9…2052`。P4.7 v1/v2 zero-output designs `5387516a…6d2e` / `666d2e85…3baf` 在任何 subject/model/CUDA-formal/outcome output 前依次被取代；随后曾作为 design authority 的 v3 `9f352778…a282d`（raw `ea8a17a1…359e`，preparation `c5a708ae…f42e`）保留 32/64/192 analysis roots、4+8+8 session、九臂与 8 个唯一 contrast，并补齐 disjoint nonreused donor banks、typed utility/逐 decision 192-root ITT、baseline exact bootstrap/确定性 selection、counterfactual-twin proxy audit、全九臂 generated-action lineage、host-time counterbalance 与完整 joint power DGP；execution/formal 仍为 false，power/source zero-output preflight 前 model output NO-GO。P4.4/P4.5 均固定 `formal_evidence_authorized=false`；真人 outcome typing qualification、独立 subject / 32K context 正式执行、真实 residual 与用户可见 steer、完整 Readable/Learnable/Steerable 与四能力总主张仍未证明）
