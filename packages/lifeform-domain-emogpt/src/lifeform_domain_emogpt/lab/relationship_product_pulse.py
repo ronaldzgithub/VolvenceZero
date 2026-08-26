@@ -77,6 +77,7 @@ from lifeform_domain_emogpt.relationship_action_gate import (
     RelationshipActionGate,
     RelationshipActionGateCheckpoint,
     RelationshipActionGateDecision,
+    RelationshipActionGateForcedExposure,
     RelationshipActionGateFrozenDecision,
     RelationshipActionGateFrozenPolicy,
     RelationshipActionGateMode,
@@ -93,11 +94,35 @@ RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION = (
 RELATIONSHIP_PRODUCT_EXECUTOR_SCHEMA_VERSION = (
     "relationship-product-executor-receipt.v1"
 )
+RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION = (
+    "relationship-product-forced-collection.v1"
+)
+RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEDULE_SCHEMA_VERSION = (
+    "relationship-product-forced-collection-schedule.v1"
+)
+_RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEDULE_ENTRY_SCHEMA_VERSION = (
+    "relationship-product-forced-collection-schedule-entry.v1"
+)
 _PREFERENCE_SLOT = "preference_about_other"
 _ACTION_IDS = tuple(action.value for action in RELATIONSHIP_ACTIONS)
 _OUTCOME_IDS = tuple(outcome.value for outcome in RELATIONSHIP_OUTCOMES)
 _EXECUTOR_COMMAND_PREFIX = "relationship-product-executor-command-sha256:"
 _EXECUTOR_RECEIPT_PREFIX = "relationship-product-executor-receipt-sha256:"
+_FORCED_COLLECTION_COMMAND_PREFIX = (
+    "relationship-product-forced-collection-command-sha256:"
+)
+_FORCED_COLLECTION_AUTHORIZATION_PREFIX = (
+    "relationship-product-forced-collection-authorization-sha256:"
+)
+_FORCED_COLLECTION_SCHEDULE_ENTRY_PREFIX = (
+    "relationship-product-forced-collection-schedule-entry-sha256:"
+)
+_FORCED_COLLECTION_SCHEDULE_PREFIX = (
+    "relationship-product-forced-collection-schedule-sha256:"
+)
+_FORCED_COLLECTION_RECEIPT_PREFIX = (
+    "relationship-product-forced-collection-receipt-sha256:"
+)
 
 
 @dataclass(frozen=True)
@@ -311,6 +336,355 @@ class RelationshipProductExecutorStatus(str, Enum):
     APPLIED_CANDIDATE = "applied_candidate"
     GATE_NOOP = "gate_noop"
     STRICT_NOOP = "strict_noop"
+
+
+class RelationshipProductForcedActionRole(str, Enum):
+    """Frozen symbolic action role for matched collection."""
+
+    OWNER_RECOMMENDATION = "owner_recommendation"
+    NEUTRAL_NOOP = "neutral_noop"
+
+
+@dataclass(frozen=True)
+class RelationshipProductForcedCollectionScheduleEntry:
+    """One symbolic forced action frozen before its forecast is published."""
+
+    decision_id: str
+    sequence_index: int
+    forced_action_role: RelationshipProductForcedActionRole
+    schema_version: str = (
+        _RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEDULE_ENTRY_SCHEMA_VERSION
+    )
+
+    def __post_init__(self) -> None:
+        _require_text(self.decision_id, "decision_id")
+        if (
+            isinstance(self.sequence_index, bool)
+            or not isinstance(self.sequence_index, int)
+            or self.sequence_index < 0
+        ):
+            raise ValueError("sequence_index must be a non-negative integer")
+        if not isinstance(
+            self.forced_action_role,
+            RelationshipProductForcedActionRole,
+        ):
+            raise TypeError(
+                "forced_action_role must be RelationshipProductForcedActionRole"
+            )
+        if (
+            self.schema_version
+            != _RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEDULE_ENTRY_SCHEMA_VERSION
+        ):
+            raise ValueError("forced collection schedule entry schema mismatch")
+
+    @property
+    def entry_id(self) -> str:
+        return (
+            f"{_FORCED_COLLECTION_SCHEDULE_ENTRY_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "decision_id": self.decision_id,
+            "sequence_index": self.sequence_index,
+            "forced_action_role": self.forced_action_role.value,
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        return {"entry_id": self.entry_id, **self._core_payload()}
+
+
+@dataclass(frozen=True)
+class RelationshipProductForcedCollectionScheduleArtifact:
+    """Complete immutable schedule whose identity covers every entry."""
+
+    entries: tuple[RelationshipProductForcedCollectionScheduleEntry, ...]
+    schema_version: str = (
+        RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEDULE_SCHEMA_VERSION
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.entries, tuple) or not self.entries:
+            raise ValueError("forced collection schedule entries must be non-empty")
+        if not all(
+            isinstance(item, RelationshipProductForcedCollectionScheduleEntry)
+            for item in self.entries
+        ):
+            raise TypeError(
+                "forced collection schedule entries have an unexpected type"
+            )
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEDULE_SCHEMA_VERSION
+        ):
+            raise ValueError("forced collection schedule artifact schema mismatch")
+        decision_ids = tuple(item.decision_id for item in self.entries)
+        if len(set(decision_ids)) != len(decision_ids):
+            raise ValueError(
+                "forced collection schedule decision ids must be unique"
+            )
+        sequence_indices = tuple(item.sequence_index for item in self.entries)
+        if sequence_indices != tuple(range(len(self.entries))):
+            raise ValueError(
+                "forced collection schedule sequence indices must be contiguous and "
+                "ordered from zero"
+            )
+
+    @property
+    def artifact_id(self) -> str:
+        return (
+            f"{_FORCED_COLLECTION_SCHEDULE_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    def entry_for_decision(
+        self,
+        decision_id: str,
+    ) -> RelationshipProductForcedCollectionScheduleEntry:
+        _require_text(decision_id, "decision_id")
+        matching = tuple(
+            item for item in self.entries if item.decision_id == decision_id
+        )
+        if len(matching) != 1:
+            raise ValueError(
+                "forced collection schedule must contain exactly one decision entry"
+            )
+        return matching[0]
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "entries": [item.to_payload() for item in self.entries],
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        return {"artifact_id": self.artifact_id, **self._core_payload()}
+
+
+@dataclass(frozen=True)
+class RelationshipProductForcedCollectionAuthorization:
+    """One frozen schedule entry authorized for a specific decision."""
+
+    frozen_pulse_authorization: RelationshipProductFrozenPulseAuthorization
+    schedule_artifact: RelationshipProductForcedCollectionScheduleArtifact
+    decision_id: str
+    schema_version: str = RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.frozen_pulse_authorization,
+            RelationshipProductFrozenPulseAuthorization,
+        ):
+            raise TypeError(
+                "frozen_pulse_authorization must be "
+                "RelationshipProductFrozenPulseAuthorization"
+            )
+        if not isinstance(
+            self.schedule_artifact,
+            RelationshipProductForcedCollectionScheduleArtifact,
+        ):
+            raise TypeError(
+                "schedule_artifact must be "
+                "RelationshipProductForcedCollectionScheduleArtifact"
+            )
+        _require_text(self.decision_id, "decision_id")
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product forced collection authorization schema mismatch"
+            )
+        self.schedule_artifact.entry_for_decision(self.decision_id)
+
+    @property
+    def schedule_entry_id(self) -> str:
+        return self.schedule_entry.entry_id
+
+    @property
+    def schedule_entry(self) -> RelationshipProductForcedCollectionScheduleEntry:
+        return self.schedule_artifact.entry_for_decision(self.decision_id)
+
+    @property
+    def forced_action_schedule_artifact_id(self) -> str:
+        return self.schedule_artifact.artifact_id
+
+    @property
+    def sequence_index(self) -> int:
+        return self.schedule_entry.sequence_index
+
+    @property
+    def forced_action_role(self) -> RelationshipProductForcedActionRole:
+        return self.schedule_entry.forced_action_role
+
+    @property
+    def authorization_id(self) -> str:
+        return (
+            f"{_FORCED_COLLECTION_AUTHORIZATION_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    def validate_policy(
+        self,
+        frozen_policy: RelationshipActionGateFrozenPolicy,
+    ) -> None:
+        self.frozen_pulse_authorization.validate_policy(frozen_policy)
+
+    def validate_decision_id(self, decision_id: str) -> None:
+        _require_text(decision_id, "decision_id")
+        if decision_id != self.decision_id:
+            raise ValueError(
+                "forced collection decision is outside schedule authorization"
+            )
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "frozen_pulse_authorization": self.frozen_pulse_authorization.to_payload(),
+            "forced_action_schedule_artifact_id": (
+                self.forced_action_schedule_artifact_id
+            ),
+            "schedule_entry_id": self.schedule_entry_id,
+            "schedule_entry": self.schedule_entry.to_payload(),
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        return {"authorization_id": self.authorization_id, **self._core_payload()}
+
+
+@dataclass(frozen=True)
+class RelationshipProductForcedCollectionCommand:
+    """Arm-independent command for one cold-theta0 collection exposure."""
+
+    frozen_policy: RelationshipActionGateFrozenPolicy
+    forced_exposure: RelationshipActionGateForcedExposure
+    authorization: RelationshipProductForcedCollectionAuthorization
+    owner_prestate_sha256: str
+    schema_version: str = RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.frozen_policy, RelationshipActionGateFrozenPolicy):
+            raise TypeError("frozen_policy must be RelationshipActionGateFrozenPolicy")
+        if not isinstance(
+            self.forced_exposure,
+            RelationshipActionGateForcedExposure,
+        ):
+            raise TypeError(
+                "forced_exposure must be RelationshipActionGateForcedExposure"
+            )
+        if not isinstance(
+            self.authorization,
+            RelationshipProductForcedCollectionAuthorization,
+        ):
+            raise TypeError(
+                "authorization must be "
+                "RelationshipProductForcedCollectionAuthorization"
+            )
+        _require_sha256(self.owner_prestate_sha256, "owner_prestate_sha256")
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product forced collection command schema mismatch"
+            )
+        self.authorization.validate_policy(self.frozen_policy)
+        self.authorization.validate_decision_id(self.forecast.decision_id)
+        if self.frozen_policy.checkpoint.update_count != 0:
+            raise ValueError("forced collection requires a cold theta0 policy")
+        if self.frozen_policy.theta0_artifact is None:
+            raise ValueError("forced collection requires an explicit theta0 artifact")
+        expected_decision = self.frozen_policy.decide(self.forecast)
+        if self.forced_exposure.frozen_decision != expected_decision:
+            raise ValueError(
+                "forced collection exposure differs from cold-policy replay"
+            )
+        if self.forced_exposure.sequence_index != self.sequence_index:
+            raise ValueError("forced collection exposure sequence drifted")
+        if self.forced_exposure.forced_action_id != self.forced_action_id:
+            raise ValueError(
+                "forced collection concrete action differs from scheduled role"
+            )
+        if self.forced_exposure.theta0_artifact_id != self.theta0_artifact_id:
+            raise ValueError("forced collection theta0 lineage mismatch")
+
+    @property
+    def command_id(self) -> str:
+        return (
+            f"{_FORCED_COLLECTION_COMMAND_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    @property
+    def theta0_artifact_id(self) -> str:
+        theta0 = self.frozen_policy.theta0_artifact
+        if theta0 is None:  # Closed by __post_init__; retained for type narrowing.
+            raise RuntimeError("forced collection command lost theta0 lineage")
+        return theta0.artifact_id
+
+    @property
+    def frozen_decision(self) -> RelationshipActionGateFrozenDecision:
+        return self.forced_exposure.frozen_decision
+
+    @property
+    def forecast(self) -> PreferenceActionForecast:
+        return self.forced_exposure.forecast
+
+    @property
+    def forced_action_schedule_artifact_id(self) -> str:
+        return self.authorization.forced_action_schedule_artifact_id
+
+    @property
+    def sequence_index(self) -> int:
+        return self.authorization.sequence_index
+
+    @property
+    def forced_action_role(self) -> RelationshipProductForcedActionRole:
+        return self.authorization.forced_action_role
+
+    @property
+    def gate_selected_action_id(self) -> str:
+        return self.frozen_decision.decision.selected_action_id
+
+    @property
+    def forced_action_id(self) -> str:
+        return _forced_collection_action_id(
+            forecast=self.forecast,
+            role=self.forced_action_role,
+        )
+
+    @property
+    def gate_would_noop(self) -> bool:
+        return self.frozen_decision.decision.gate_action is RelationshipGateAction.NOOP
+
+    @property
+    def forced_override(self) -> bool:
+        return self.forced_action_id != self.gate_selected_action_id
+
+    def _core_payload(self) -> dict[str, object]:
+        policy = self.frozen_policy
+        return {
+            "schema_version": self.schema_version,
+            "frozen_policy": {
+                "policy_id": policy.policy_id,
+                "artifact_id": policy.artifact.artifact_id,
+                "artifact_version": policy.artifact.artifact_version,
+                "checkpoint_content_sha256": policy.checkpoint.content_sha256,
+                "checkpoint_update_count": policy.checkpoint.update_count,
+                "theta0_artifact_id": self.theta0_artifact_id,
+            },
+            "forced_exposure": self.forced_exposure.to_payload(),
+            "authorization": self.authorization.to_payload(),
+            "owner_prestate_sha256": self.owner_prestate_sha256,
+        }
+
+    def to_payload(self, *, include_command_id: bool = True) -> dict[str, object]:
+        payload = self._core_payload()
+        if include_command_id:
+            return {"command_id": self.command_id, **payload}
+        return payload
 
 
 @dataclass(frozen=True)
@@ -645,6 +1019,124 @@ class RelationshipProductExecutorReceipt:
 
 
 @dataclass(frozen=True)
+class RelationshipProductForcedCollectionReceipt:
+    """Proof that a scheduled collection action was actually delivered."""
+
+    command: RelationshipProductForcedCollectionCommand
+    candidate_advisory: TemporalActionAdvisoryProposal
+    delivered_advisory: TemporalActionAdvisoryProposal
+    temporal_delivery: RelationshipProductTemporalDelivery
+    schema_version: str = RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.command,
+            RelationshipProductForcedCollectionCommand,
+        ):
+            raise TypeError(
+                "command must be RelationshipProductForcedCollectionCommand"
+            )
+        if not isinstance(self.candidate_advisory, TemporalActionAdvisoryProposal):
+            raise TypeError(
+                "candidate_advisory must be TemporalActionAdvisoryProposal"
+            )
+        if not isinstance(self.delivered_advisory, TemporalActionAdvisoryProposal):
+            raise TypeError(
+                "delivered_advisory must be TemporalActionAdvisoryProposal"
+            )
+        if not isinstance(
+            self.temporal_delivery,
+            RelationshipProductTemporalDelivery,
+        ):
+            raise TypeError(
+                "temporal_delivery must be RelationshipProductTemporalDelivery"
+            )
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product forced collection receipt schema mismatch"
+            )
+        expected_candidate = authorize_relationship_product_pulse_advisory(
+            self.command.frozen_decision.decision,
+            authorization=(
+                self.command.authorization.frozen_pulse_authorization
+                .pulse_authorization
+            ),
+        )
+        if self.candidate_advisory != expected_candidate:
+            raise ValueError(
+                "forced collection candidate advisory drifted from gate decision"
+            )
+        expected_delivered = _delivered_advisory_for_forced_collection_command(
+            command=self.command,
+            candidate_advisory=expected_candidate,
+        )
+        if self.delivered_advisory != expected_delivered:
+            raise ValueError(
+                "forced collection delivered advisory drifted from schedule"
+            )
+        if (
+            self.temporal_delivery.action_advisory_id
+            != self.delivered_advisory.advisory_id
+            or self.temporal_delivery.active_abstract_action
+            != self.delivered_action_id
+        ):
+            raise ValueError("forced collection temporal delivery lineage drifted")
+
+    @property
+    def receipt_id(self) -> str:
+        return (
+            f"{_FORCED_COLLECTION_RECEIPT_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    @property
+    def delivered_action_id(self) -> str:
+        return self.delivered_advisory.action_id
+
+    @property
+    def gate_would_noop(self) -> bool:
+        return self.command.gate_would_noop
+
+    @property
+    def forced_override(self) -> bool:
+        return self.command.forced_override
+
+    @property
+    def checkpoint_content_sha256(self) -> str:
+        return self.command.frozen_policy.checkpoint.content_sha256
+
+    @property
+    def policy_update_count(self) -> int:
+        return self.command.frozen_policy.checkpoint.update_count
+
+    @property
+    def pending_decision_count(self) -> int:
+        return len(self.command.frozen_policy.checkpoint.pending_decisions)
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "command": self.command.to_payload(),
+            "candidate_advisory": _temporal_advisory_to_payload(
+                self.candidate_advisory
+            ),
+            "delivered_advisory": _temporal_advisory_to_payload(
+                self.delivered_advisory
+            ),
+            "temporal_projection": self.temporal_delivery.to_payload(),
+        }
+
+    def to_payload(self, *, include_receipt_id: bool = True) -> dict[str, object]:
+        payload = self._core_payload()
+        if include_receipt_id:
+            return {"receipt_id": self.receipt_id, **payload}
+        return payload
+
+
+@dataclass(frozen=True)
 class RelationshipProductPreActionRequest:
     """Outcome-free public request for one relationship decision pulse."""
 
@@ -823,6 +1315,92 @@ class RelationshipProductFrozenPreActionSnapshot:
 
 
 @dataclass(frozen=True)
+class RelationshipProductForcedCollectionPreActionSnapshot:
+    """Cold-theta0 collection pulse with one scheduled delivered action."""
+
+    request: RelationshipProductPreActionRequest
+    preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot]
+    forecast: PreferenceActionForecast
+    execution_receipt: RelationshipProductForcedCollectionReceipt
+    owner_persistence_snapshot: OwnerPersistenceSnapshot
+    schema_version: str = RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product forced collection preaction schema mismatch"
+            )
+        if not isinstance(
+            self.preference_snapshot.value,
+            PreferenceAboutOtherSnapshot,
+        ):
+            raise TypeError(
+                "forced collection preference snapshot published unexpected value"
+            )
+        if not isinstance(
+            self.execution_receipt,
+            RelationshipProductForcedCollectionReceipt,
+        ):
+            raise TypeError(
+                "execution_receipt must be RelationshipProductForcedCollectionReceipt"
+            )
+        if self.forecast.decision_id != self.request.forecast_request.decision_id:
+            raise ValueError("forced collection forecast decision lineage mismatch")
+        if self.forecast.session_scope != self.request.forecast_request.session_scope:
+            raise ValueError("forced collection forecast session lineage mismatch")
+        if (
+            self.forecast.interlocutor_id
+            != self.request.forecast_request.interlocutor_id
+            or self.forecast.issued_turn
+            != self.request.forecast_request.turn_index
+        ):
+            raise ValueError("forced collection forecast request lineage mismatch")
+        if tuple(
+            candidate.action_id for candidate in self.forecast.candidate_predictions
+        ) != self.request.forecast_request.candidate_action_ids:
+            raise ValueError("forced collection forecast action surface drifted")
+        if any(
+            tuple(outcome.outcome_id for outcome in candidate.outcomes)
+            != self.request.forecast_request.outcome_ids
+            for candidate in self.forecast.candidate_predictions
+        ):
+            raise ValueError("forced collection forecast outcome surface drifted")
+        if self.execution_receipt.command.forecast != self.forecast:
+            raise ValueError("forced collection executor forecast lineage mismatch")
+        matching = tuple(
+            item
+            for item in self.preference_snapshot.value.action_forecasts
+            if item.forecast_id == self.forecast.forecast_id
+        )
+        if matching != (self.forecast,):
+            raise ValueError(
+                "forced collection owner snapshot must contain the frozen forecast"
+            )
+        _hydrate_validated_collection_preaction_owner(self)
+
+    @property
+    def frozen_policy(self) -> RelationshipActionGateFrozenPolicy:
+        return self.execution_receipt.command.frozen_policy
+
+    @property
+    def frozen_decision(self) -> RelationshipActionGateFrozenDecision:
+        return self.execution_receipt.command.frozen_decision
+
+    @property
+    def forced_exposure(self) -> RelationshipActionGateForcedExposure:
+        return self.execution_receipt.command.forced_exposure
+
+    @property
+    def delivered_action_id(self) -> str:
+        """The only action identity the collection environment may settle."""
+
+        return self.execution_receipt.delivered_action_id
+
+
+@dataclass(frozen=True)
 class RelationshipProductSettlementInput:
     """Post-action typed evidence; contains no evaluator or judge fields."""
 
@@ -958,6 +1536,91 @@ class RelationshipProductFrozenSettlementSnapshot:
 
 
 @dataclass(frozen=True)
+class RelationshipProductForcedCollectionSettlementSnapshot:
+    """PE-credit settlement for one arm-independent forced exposure."""
+
+    preaction: RelationshipProductForcedCollectionPreActionSnapshot
+    settlement_input: RelationshipProductSettlementInput
+    external_outcome_snapshot: Snapshot[DialogueExternalOutcomeSnapshot]
+    preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot]
+    social_prediction_error_snapshot: Snapshot[SocialPredictionErrorSnapshot]
+    settlement: PreferenceActionForecastSettlement
+    credit: CreditRecord
+    owner_persistence_snapshot: OwnerPersistenceSnapshot
+    schema_version: str = RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product forced collection settlement schema mismatch"
+            )
+        if not isinstance(
+            self.preaction,
+            RelationshipProductForcedCollectionPreActionSnapshot,
+        ):
+            raise TypeError(
+                "preaction must be RelationshipProductForcedCollectionPreActionSnapshot"
+            )
+        if not isinstance(self.settlement_input, RelationshipProductSettlementInput):
+            raise TypeError(
+                "settlement_input must be RelationshipProductSettlementInput"
+            )
+        if self.settlement_input.apply_credit_to_gate:
+            raise ValueError(
+                "forced collection settlement cannot apply credit to gate"
+            )
+        if not isinstance(
+            self.external_outcome_snapshot.value,
+            DialogueExternalOutcomeSnapshot,
+        ):
+            raise TypeError(
+                "forced collection external outcome published unexpected value"
+            )
+        if not isinstance(
+            self.preference_snapshot.value,
+            PreferenceAboutOtherSnapshot,
+        ):
+            raise TypeError(
+                "forced collection preference snapshot published unexpected value"
+            )
+        if not isinstance(
+            self.social_prediction_error_snapshot.value,
+            SocialPredictionErrorSnapshot,
+        ):
+            raise TypeError(
+                "forced collection social PE snapshot published unexpected value"
+            )
+        _validate_immutable_settlement_owner_chain(
+            self,
+            source="forced collection",
+        )
+        checkpoint = self.preaction.frozen_policy.checkpoint
+        if checkpoint.update_count != 0 or checkpoint.pending_decisions:
+            raise ValueError(
+                "forced collection settlement requires unchanged cold theta0"
+            )
+
+    @property
+    def gate_checkpoint(self) -> RelationshipActionGateCheckpoint:
+        return self.preaction.frozen_policy.checkpoint
+
+    @property
+    def forced_exposure(self) -> RelationshipActionGateForcedExposure:
+        return self.preaction.forced_exposure
+
+    @property
+    def credit_applied_to_gate(self) -> bool:
+        return False
+
+    @property
+    def collection_gate_update_delta(self) -> int:
+        return 0
+
+
+@dataclass(frozen=True)
 class _RelationshipProductOwnerSettlement:
     external_outcome_snapshot: Snapshot[DialogueExternalOutcomeSnapshot]
     preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot]
@@ -969,12 +1632,29 @@ class _RelationshipProductOwnerSettlement:
 def _validate_frozen_settlement_owner_chain(
     snapshot: RelationshipProductFrozenSettlementSnapshot,
 ) -> None:
+    _validate_immutable_settlement_owner_chain(snapshot, source="frozen")
+
+
+def _validate_immutable_settlement_owner_chain(
+    snapshot: (
+        RelationshipProductFrozenSettlementSnapshot
+        | RelationshipProductForcedCollectionSettlementSnapshot
+    ),
+    *,
+    source: str,
+) -> None:
     preaction = snapshot.preaction
     request = preaction.request
     settlement = snapshot.settlement
     settlement_input = snapshot.settlement_input
-    _hydrate_validated_frozen_preaction_owner(preaction)
-    _validate_frozen_environment_settlement_input(settlement_input)
+    _hydrate_validated_immutable_preaction_owner(
+        preaction,
+        source=f"{source} preaction",
+    )
+    _validate_immutable_environment_settlement_input(
+        settlement_input,
+        source=source,
+    )
     _validate_settlement_lineage_values(
         request=request,
         forecast=preaction.forecast,
@@ -1208,6 +1888,17 @@ def _validate_owner_snapshot_envelope(
 def _validate_frozen_environment_settlement_input(
     settlement_input: RelationshipProductSettlementInput,
 ) -> None:
+    _validate_immutable_environment_settlement_input(
+        settlement_input,
+        source="frozen",
+    )
+
+
+def _validate_immutable_environment_settlement_input(
+    settlement_input: RelationshipProductSettlementInput,
+    *,
+    source: str,
+) -> None:
     if not isinstance(settlement_input, RelationshipProductSettlementInput):
         raise TypeError(
             "settlement_input must be RelationshipProductSettlementInput"
@@ -1217,7 +1908,7 @@ def _validate_frozen_environment_settlement_input(
         is not DialogueExternalOutcomeEvidenceSource.ENVIRONMENT
     ):
         raise ValueError(
-            "frozen product settlement requires ENVIRONMENT external evidence"
+            f"{source} product settlement requires ENVIRONMENT external evidence"
         )
 
 
@@ -1276,23 +1967,46 @@ def _hydrate_validated_preference_owner_persistence(
 def _hydrate_validated_frozen_preaction_owner(
     preaction: RelationshipProductFrozenPreActionSnapshot,
 ) -> SocialRecordStore:
+    return _hydrate_validated_immutable_preaction_owner(
+        preaction,
+        source="frozen preaction",
+    )
+
+
+def _hydrate_validated_collection_preaction_owner(
+    preaction: RelationshipProductForcedCollectionPreActionSnapshot,
+) -> SocialRecordStore:
+    return _hydrate_validated_immutable_preaction_owner(
+        preaction,
+        source="forced collection preaction",
+    )
+
+
+def _hydrate_validated_immutable_preaction_owner(
+    preaction: (
+        RelationshipProductFrozenPreActionSnapshot
+        | RelationshipProductForcedCollectionPreActionSnapshot
+    ),
+    *,
+    source: str,
+) -> SocialRecordStore:
     _validate_owner_snapshot_envelope(
         preaction.preference_snapshot,
         slot_name=PreferenceAboutOtherModule.slot_name,
         owner=PreferenceAboutOtherModule.owner,
-        source="frozen preaction preference",
+        source=f"{source} preference",
     )
     persisted = _hydrate_validated_preference_owner_persistence(
         preference_snapshot=preaction.preference_snapshot,
         owner_persistence_snapshot=preaction.owner_persistence_snapshot,
-        source="frozen preaction",
+        source=source,
     )
     persistence_sha256 = social_record_store_persistence_sha256(
         preaction.owner_persistence_snapshot
     )
     if persistence_sha256 != preaction.execution_receipt.command.owner_prestate_sha256:
         raise ValueError(
-            "frozen preaction owner state hash drifted from executor command"
+            f"{source} owner state hash drifted from executor command"
         )
     persisted_current = tuple(
         item
@@ -1301,7 +2015,7 @@ def _hydrate_validated_frozen_preaction_owner(
     )
     if persisted_current != (preaction.forecast,):
         raise ValueError(
-            "frozen preaction persistence must contain the exact forecast"
+            f"{source} persistence must contain the exact forecast"
         )
     return persisted
 
@@ -1493,6 +2207,83 @@ async def prepare_relationship_product_frozen_preaction(
     )
 
 
+async def prepare_relationship_product_forced_collection_preaction(
+    *,
+    request: RelationshipProductPreActionRequest,
+    owner_persistence_snapshot: OwnerPersistenceSnapshot,
+    forecast_runtime: PreferenceActionForecastRuntime,
+    frozen_policy: RelationshipActionGateFrozenPolicy,
+    authorization: RelationshipProductForcedCollectionAuthorization,
+    substrate_snapshot: SubstrateSnapshot,
+) -> RelationshipProductForcedCollectionPreActionSnapshot:
+    """Deliver one frozen schedule action while keeping theta0 unchanged."""
+
+    _validate_placeholder_substrate(substrate_snapshot)
+    if not isinstance(frozen_policy, RelationshipActionGateFrozenPolicy):
+        raise TypeError("frozen_policy must be RelationshipActionGateFrozenPolicy")
+    if not isinstance(
+        authorization,
+        RelationshipProductForcedCollectionAuthorization,
+    ):
+        raise TypeError(
+            "authorization must be "
+            "RelationshipProductForcedCollectionAuthorization"
+        )
+    authorization.validate_policy(frozen_policy)
+    authorization.validate_decision_id(request.forecast_request.decision_id)
+    theta0 = frozen_policy.theta0_artifact
+    if theta0 is None or frozen_policy.checkpoint.update_count != 0:
+        raise ValueError("forced collection requires a cold theta0 policy")
+
+    store = SocialRecordStore()
+    store.hydrate_from_persistence(owner_persistence_snapshot)
+    owner_snapshot, forecast = await _publish_relationship_product_forecast(
+        request=request,
+        store=store,
+        forecast_runtime=forecast_runtime,
+    )
+    owner_persistence = store.export_persistence_snapshot()
+    gate = RelationshipActionGate.from_theta0(
+        theta0,
+        checkpoint=frozen_policy.checkpoint,
+        random_seed=frozen_policy.random_seed,
+    )
+    checkpoint_before = gate.export_checkpoint()
+    forced_exposure = gate.record_forced_exposure(
+        forecast,
+        forced_action_id=_forced_collection_action_id(
+            forecast=forecast,
+            role=authorization.forced_action_role,
+        ),
+        sequence_index=authorization.sequence_index,
+    )
+    if gate.export_checkpoint() != checkpoint_before:
+        raise RuntimeError("forced collection changed the cold theta0 checkpoint")
+    command = RelationshipProductForcedCollectionCommand(
+        frozen_policy=frozen_policy,
+        forced_exposure=forced_exposure,
+        authorization=authorization,
+        owner_prestate_sha256=social_record_store_persistence_sha256(
+            owner_persistence
+        ),
+    )
+    execution_receipt = (
+        await _execute_relationship_product_forced_collection_command(
+            command=command,
+            substrate_snapshot=substrate_snapshot,
+        )
+    )
+    if frozen_policy.checkpoint != checkpoint_before:
+        raise RuntimeError("forced collection mutated its frozen policy")
+    return RelationshipProductForcedCollectionPreActionSnapshot(
+        request=request,
+        preference_snapshot=owner_snapshot,
+        forecast=forecast,
+        execution_receipt=execution_receipt,
+        owner_persistence_snapshot=owner_persistence,
+    )
+
+
 async def settle_relationship_product_pulse(
     *,
     preaction: RelationshipProductPreActionSnapshot,
@@ -1568,6 +2359,56 @@ async def settle_relationship_product_frozen_pulse(
     if preaction.frozen_policy.checkpoint != checkpoint_before:
         raise RuntimeError("frozen product settlement changed the gate checkpoint")
     return RelationshipProductFrozenSettlementSnapshot(
+        preaction=preaction,
+        settlement_input=settlement_input,
+        external_outcome_snapshot=owner_settlement.external_outcome_snapshot,
+        preference_snapshot=owner_settlement.preference_snapshot,
+        social_prediction_error_snapshot=(
+            owner_settlement.social_prediction_error_snapshot
+        ),
+        settlement=owner_settlement.settlement,
+        credit=owner_settlement.credit,
+        owner_persistence_snapshot=store.export_persistence_snapshot(),
+    )
+
+
+async def settle_relationship_product_forced_collection(
+    *,
+    preaction: RelationshipProductForcedCollectionPreActionSnapshot,
+    settlement_input: RelationshipProductSettlementInput,
+) -> RelationshipProductForcedCollectionSettlementSnapshot:
+    """Settle one forced action to PE-credit without applying it online."""
+
+    if not isinstance(
+        preaction,
+        RelationshipProductForcedCollectionPreActionSnapshot,
+    ):
+        raise TypeError(
+            "preaction must be RelationshipProductForcedCollectionPreActionSnapshot"
+        )
+    if settlement_input.apply_credit_to_gate:
+        raise ValueError("forced collection cannot apply credit to gate")
+    _validate_immutable_environment_settlement_input(
+        settlement_input,
+        source="forced collection",
+    )
+    _validate_settlement_lineage_values(
+        request=preaction.request,
+        forecast=preaction.forecast,
+        actual_action_id=preaction.delivered_action_id,
+        settlement_input=settlement_input,
+    )
+    checkpoint_before = preaction.frozen_policy.checkpoint
+    store = _hydrate_validated_collection_preaction_owner(preaction)
+    owner_settlement = await _settle_relationship_product_owner_chain(
+        request=preaction.request,
+        forecast=preaction.forecast,
+        store=store,
+        settlement_input=settlement_input,
+    )
+    if preaction.frozen_policy.checkpoint != checkpoint_before:
+        raise RuntimeError("forced collection settlement changed theta0")
+    return RelationshipProductForcedCollectionSettlementSnapshot(
         preaction=preaction,
         settlement_input=settlement_input,
         external_outcome_snapshot=owner_settlement.external_outcome_snapshot,
@@ -1782,6 +2623,85 @@ async def _execute_relationship_product_executor_command(
     )
 
 
+async def _execute_relationship_product_forced_collection_command(
+    *,
+    command: RelationshipProductForcedCollectionCommand,
+    substrate_snapshot: SubstrateSnapshot,
+) -> RelationshipProductForcedCollectionReceipt:
+    if not isinstance(command, RelationshipProductForcedCollectionCommand):
+        raise TypeError(
+            "command must be RelationshipProductForcedCollectionCommand"
+        )
+    _validate_placeholder_substrate(substrate_snapshot)
+    candidate_advisory = authorize_relationship_product_pulse_advisory(
+        command.frozen_decision.decision,
+        authorization=(
+            command.authorization.frozen_pulse_authorization.pulse_authorization
+        ),
+    )
+    delivered_advisory = _delivered_advisory_for_forced_collection_command(
+        command=command,
+        candidate_advisory=candidate_advisory,
+    )
+    temporal_snapshot = await _apply_typed_environment_advisory(
+        delivered_advisory,
+        substrate_snapshot=substrate_snapshot,
+    )
+    temporal_delivery = RelationshipProductTemporalDelivery.from_snapshot(
+        temporal_snapshot,
+        delivered_advisory=delivered_advisory,
+    )
+    return RelationshipProductForcedCollectionReceipt(
+        command=command,
+        candidate_advisory=candidate_advisory,
+        delivered_advisory=delivered_advisory,
+        temporal_delivery=temporal_delivery,
+    )
+
+
+def _forced_collection_action_id(
+    *,
+    forecast: PreferenceActionForecast,
+    role: RelationshipProductForcedActionRole,
+) -> str:
+    if not isinstance(forecast, PreferenceActionForecast):
+        raise TypeError("forecast must be PreferenceActionForecast")
+    if role is RelationshipProductForcedActionRole.OWNER_RECOMMENDATION:
+        return forecast.recommended_action_id
+    if role is RelationshipProductForcedActionRole.NEUTRAL_NOOP:
+        return RelationshipAction.NEUTRAL_NOOP.value
+    raise TypeError("role must be RelationshipProductForcedActionRole")
+
+
+def _delivered_advisory_for_forced_collection_command(
+    *,
+    command: RelationshipProductForcedCollectionCommand,
+    candidate_advisory: TemporalActionAdvisoryProposal,
+) -> TemporalActionAdvisoryProposal:
+    command_digest = hashlib.sha256(command.command_id.encode("utf-8")).hexdigest()
+    return replace(
+        candidate_advisory,
+        advisory_id=(
+            "relationship-product-forced-collection-advisory:"
+            f"{command_digest}"
+        ),
+        action_id=command.forced_action_id,
+        evidence_refs=(
+            *candidate_advisory.evidence_refs,
+            f"forced-collection-command:{command.command_id}",
+            (
+                "forced-action-schedule-entry:"
+                f"{command.authorization.schedule_entry_id}"
+            ),
+        ),
+        rationale_codes=(
+            *candidate_advisory.rationale_codes,
+            f"forced-action-role:{command.forced_action_role.value}",
+            "collection-only:no-online-gate-update",
+        ),
+    )
+
+
 def _delivered_advisory_for_executor_command(
     *,
     command: RelationshipProductExecutorCommand,
@@ -1973,12 +2893,22 @@ def _require_text(value: str, field_name: str) -> None:
 
 __all__ = [
     "RELATIONSHIP_PRODUCT_EXECUTOR_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_FORCED_COLLECTION_SCHEDULE_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_FROZEN_PULSE_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_PULSE_SCHEMA_VERSION",
     "RelationshipProductExecutorCommand",
     "RelationshipProductExecutorDisposition",
     "RelationshipProductExecutorReceipt",
     "RelationshipProductExecutorStatus",
+    "RelationshipProductForcedActionRole",
+    "RelationshipProductForcedCollectionAuthorization",
+    "RelationshipProductForcedCollectionCommand",
+    "RelationshipProductForcedCollectionPreActionSnapshot",
+    "RelationshipProductForcedCollectionReceipt",
+    "RelationshipProductForcedCollectionScheduleArtifact",
+    "RelationshipProductForcedCollectionScheduleEntry",
+    "RelationshipProductForcedCollectionSettlementSnapshot",
     "RelationshipProductFrozenPreActionSnapshot",
     "RelationshipProductFrozenPulseAuthorization",
     "RelationshipProductFrozenSettlementSnapshot",
@@ -1992,8 +2922,10 @@ __all__ = [
     "RelationshipProductTemporalDelivery",
     "append_relationship_product_onboarding",
     "authorize_relationship_product_pulse_advisory",
+    "prepare_relationship_product_forced_collection_preaction",
     "prepare_relationship_product_frozen_preaction",
     "prepare_relationship_product_preaction",
     "settle_relationship_product_frozen_pulse",
+    "settle_relationship_product_forced_collection",
     "settle_relationship_product_pulse",
 ]

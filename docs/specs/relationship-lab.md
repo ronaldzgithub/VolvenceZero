@@ -1739,7 +1739,34 @@ action divergence 均大于零，否则判 `arm_degeneracy_invalid_contrast_no_c
 ITT，不可按 opportunity 事后筛样本。首次 treatment 后的 reaction/owner/forecast 是合法内生后代，不要求继续
 跨臂 byte-exact；若需逐 decision exact candidate，协议必须显式从共同 preaction clone 分叉。
 
-该 consumer 包仍未接新 Product Horizon protocol/source 或 runner，不运行模型/CUDA，不产生 Learnable、
+matched collection 不复用上述 evaluation 的二值 disposition。独立
+`relationship-product-forced-collection.v1` lane 只消费外部 schedule owner 发布的完整 content-addressed typed
+artifact：全部 entry 进入 artifact hash，decision 必须唯一，sequence 必须按 tuple 顺序从 0 连续；每项只有
+decision、sequence 与闭域 role（`owner_recommendation / neutral_noop`）。authorization 持有整份 artifact，按
+decision exact lookup 唯一 member，再与既有 frozen-policy authorization 绑定；不得把调用方提供的孤立 digest
+当作已冻结 schedule，也不接受调用方直接给 concrete action。owner forecast 发布后，
+consumer 机械派生 concrete action，并从 exact cold theta0 重建 gate、调用
+`record_forced_exposure()`。因此即使 theta0 当拍判 `NOOP`，预注册的 `owner_recommendation` 仍会经独立
+forced advisory 真正交给 temporal；candidate 与 delivered advisory、schedule entry、完整 opaque owner prestate
+的 canonical SHA-256、
+temporal `APPLIED` projection、checkpoint/update/pending 零变化都进入内容寻址 receipt。
+
+collection settlement 只能接受 receipt 的 `delivered_action_id` 和 `ENVIRONMENT` evidence，沿用同一
+owner settlement→social PE→PE-derived credit 链，并强制 `apply_credit_to_gate=false`。它产出
+`ForcedExposure + CreditRecord`，供父 campaign 在八拍结束后组装唯一共同 `CreditBatch`；pulse 本身不拥有
+schedule、不知道 arm，也不选择 APPLY/WITHHOLD。三臂不得各自重跑 collection：父 campaign 必须先完成一次
+共同 collection，再把同一 batch/plan 分叉为 full=`APPLY`、frozen_theta0=`WITHHOLD`、
+strict_noop=同一 `WITHHOLD` receipt，evaluation 才复用上述 executor-only 二值分叉。当前定向 fixture 已覆盖
+theta0 would-noop 时 recommendation 的 actual delivery、零 gate mutation、actual-action PE-credit join、
+noop role 正向全链、伪造 exposure/authorization/delivery 拒绝、schedule/temporal identity 敏感性及同 batch 三份
+plan identity；这仍只是 mechanism closure。`CreditBatch` 本身不拥有 schedule 或 collection receipt，父 campaign
+必须在首次 forecast/output 前 pin 预期 schedule artifact ID，并另证索引恰为 0–7、每项 exposure/credit 与
+settlement receipt exact join、collection
+只执行一次、三臂共享同一 batch/plan 且 disposition 恰为 `APPLY/WITHHOLD/WITHHOLD`。本 API 没有
+evaluator/judge 输入字段，但不得用 receipt 中的常量冒充 no-leak；future dependency validator 还必须 exact-join
+admitted source-v4 commitment 与实际 `ENVIRONMENT` evidence。
+
+这两个 consumer 包仍未接新 Product Horizon protocol/source 或 runner，不运行模型/CUDA，不产生 Learnable、
 Steerable 或四能力效果证据。下一包必须建立独立 development namespace；不得扩写 attempt03/v2。
 
 #### source-separated reader development 资格预检

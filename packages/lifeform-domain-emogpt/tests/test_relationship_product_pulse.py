@@ -13,15 +13,22 @@ from lifeform_domain_emogpt.lab.relationship_product_pulse import (
     RelationshipProductExecutorDisposition,
     RelationshipProductExecutorReceipt,
     RelationshipProductExecutorStatus,
+    RelationshipProductForcedActionRole,
+    RelationshipProductForcedCollectionAuthorization,
+    RelationshipProductForcedCollectionReceipt,
+    RelationshipProductForcedCollectionScheduleArtifact,
+    RelationshipProductForcedCollectionScheduleEntry,
     RelationshipProductFrozenPulseAuthorization,
     RelationshipProductOnboardingInput,
     RelationshipProductPreActionRequest,
     RelationshipProductPulseAuthorization,
     RelationshipProductSettlementInput,
     append_relationship_product_onboarding,
+    prepare_relationship_product_forced_collection_preaction,
     prepare_relationship_product_frozen_preaction,
     prepare_relationship_product_preaction,
     settle_relationship_product_frozen_pulse,
+    settle_relationship_product_forced_collection,
     settle_relationship_product_pulse,
 )
 from lifeform_domain_emogpt.relationship_action_contracts import (
@@ -31,7 +38,9 @@ from lifeform_domain_emogpt.relationship_action_contracts import (
 )
 from lifeform_domain_emogpt.relationship_action_gate import (
     RelationshipActionGate,
+    RelationshipActionGateBatchDisposition,
     RelationshipActionGateCheckpoint,
+    RelationshipActionGateCreditBatch,
     RelationshipActionGateDecision,
     RelationshipActionGateFrozenPolicy,
     RelationshipActionGateMode,
@@ -293,6 +302,39 @@ def _prepare_frozen_preaction(
     )
 
 
+def _prepare_forced_collection_preaction(
+    *,
+    policy: RelationshipActionGateFrozenPolicy,
+    owner_state,
+    role: RelationshipProductForcedActionRole,
+    decision_index: int = 0,
+):
+    request = _request(decision_index=decision_index)
+    schedule_entry = RelationshipProductForcedCollectionScheduleEntry(
+        decision_id=request.forecast_request.decision_id,
+        sequence_index=decision_index,
+        forced_action_role=role,
+    )
+    schedule_artifact = RelationshipProductForcedCollectionScheduleArtifact(
+        entries=(schedule_entry,),
+    )
+    authorization = RelationshipProductForcedCollectionAuthorization(
+        frozen_pulse_authorization=_frozen_authorization(policy),
+        schedule_artifact=schedule_artifact,
+        decision_id=schedule_entry.decision_id,
+    )
+    return asyncio.run(
+        prepare_relationship_product_forced_collection_preaction(
+            request=request,
+            owner_persistence_snapshot=owner_state,
+            forecast_runtime=_reader(),
+            frozen_policy=policy,
+            authorization=authorization,
+            substrate_snapshot=_placeholder_substrate(),
+        )
+    )
+
+
 def test_product_onboarding_is_fresh_child_safe_and_snapshot_only() -> None:
     assert {field.name for field in fields(RelationshipProductOnboardingInput)} == {
         "session_id",
@@ -534,6 +576,361 @@ def test_product_pulse_rejects_postaction_lineage_drift_and_non_placeholder() ->
                     external_outcome=drifted_external,
                 ),
             )
+        )
+
+
+def test_forced_collection_delivers_recommendation_when_theta0_would_noop() -> None:
+    owner_state = asyncio.run(_seed_owner_state())
+    policy = _frozen_policy(bias=-2.0)
+    checkpoint_before = policy.checkpoint
+    preaction = _prepare_forced_collection_preaction(
+        policy=policy,
+        owner_state=owner_state,
+        role=RelationshipProductForcedActionRole.OWNER_RECOMMENDATION,
+    )
+    command = preaction.execution_receipt.command
+    receipt = preaction.execution_receipt
+
+    assert command.gate_would_noop
+    assert command.gate_selected_action_id == RelationshipAction.NEUTRAL_NOOP.value
+    assert preaction.forecast.recommended_action_id != (
+        RelationshipAction.NEUTRAL_NOOP.value
+    )
+    assert command.forced_action_id == preaction.forecast.recommended_action_id
+    assert receipt.forced_override
+    assert receipt.delivered_action_id == preaction.forecast.recommended_action_id
+    assert receipt.temporal_delivery.active_abstract_action == (
+        preaction.forecast.recommended_action_id
+    )
+    assert command.forced_exposure.forced_action_id == receipt.delivered_action_id
+    assert command.forced_exposure.sequence_index == 0
+    assert command.forced_action_schedule_artifact_id == (
+        command.authorization.schedule_artifact.artifact_id
+    )
+    assert policy.checkpoint == checkpoint_before
+    assert policy.checkpoint.update_count == 0
+    assert not policy.checkpoint.pending_decisions
+    receipt_payload = receipt.to_payload()
+    assert receipt.checkpoint_content_sha256 == checkpoint_before.content_sha256
+    assert receipt.policy_update_count == 0
+    assert receipt.pending_decision_count == 0
+    assert "evaluator_or_judge_feedback_received" not in receipt_payload
+    assert command.authorization.authorization_id == (
+        "relationship-product-forced-collection-authorization-sha256:"
+        "2dab99754cb91f1bdf0404777355124fb8ed00a76b7b73dc85c0b65e05d57a6c"
+    )
+    assert command.authorization.schedule_artifact.artifact_id == (
+        "relationship-product-forced-collection-schedule-sha256:"
+        "02784a821a2eb3cf4cb12ef1cdca942a4babee29eda498d57b4bde3311ed2e0b"
+    )
+    assert command.authorization.schedule_entry_id == (
+        "relationship-product-forced-collection-schedule-entry-sha256:"
+        "3a3c8b92b6bacd7b4438399c9044d2a0016d0726fe857ca73a108ea6252b25ce"
+    )
+    assert command.command_id == (
+        "relationship-product-forced-collection-command-sha256:"
+        "5e3009cfc0cb8807ab2e77002c9ce9f971da98d0de45744f8dabe01536b59659"
+    )
+    fixed_receipt = replace(
+        receipt,
+        temporal_delivery=replace(
+            receipt.temporal_delivery,
+            timestamp_ms=1_700_000_000_000,
+        ),
+    )
+    assert fixed_receipt.receipt_id == (
+        "relationship-product-forced-collection-receipt-sha256:"
+        "25ab8435eb41fa4fe27ebe44e248d01c01098c9e8cd7889f8461a7184992b693"
+    )
+
+    settlement_input = replace(
+        _FrozenDeterministicFakeWorld().settle(preaction=preaction),
+        apply_credit_to_gate=False,
+    )
+    settled = asyncio.run(
+        settle_relationship_product_forced_collection(
+            preaction=preaction,
+            settlement_input=settlement_input,
+        )
+    )
+    assert settled.settlement.action_id == receipt.delivered_action_id
+    assert settled.credit.abstract_action_id == receipt.delivered_action_id
+    assert settled.forced_exposure == command.forced_exposure
+    assert not settled.credit_applied_to_gate
+    assert settled.collection_gate_update_delta == 0
+    assert settled.gate_checkpoint == checkpoint_before
+
+    batch = RelationshipActionGateCreditBatch(
+        exposures=(settled.forced_exposure,),
+        credits=(settled.credit,),
+    )
+    theta0 = policy.theta0_artifact
+    assert theta0 is not None
+    full_gate = RelationshipActionGate.from_theta0(
+        theta0,
+        random_seed=policy.random_seed,
+    )
+    frozen_gate = RelationshipActionGate.from_theta0(
+        theta0,
+        random_seed=policy.random_seed,
+    )
+    strict_gate = RelationshipActionGate.from_theta0(
+        theta0,
+        random_seed=policy.random_seed,
+    )
+    full_plan = full_gate.plan_credit_batch(batch)
+    frozen_plan = frozen_gate.plan_credit_batch(batch)
+    strict_plan = strict_gate.plan_credit_batch(batch)
+    assert full_plan == frozen_plan == strict_plan
+    full_receipt = full_gate.commit_credit_batch(
+        full_plan,
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+    frozen_receipt = frozen_gate.commit_credit_batch(
+        frozen_plan,
+        disposition=RelationshipActionGateBatchDisposition.WITHHOLD,
+    )
+    strict_receipt = strict_gate.commit_credit_batch(
+        strict_plan,
+        disposition=RelationshipActionGateBatchDisposition.WITHHOLD,
+    )
+    assert full_receipt.batch_id == frozen_receipt.batch_id == batch.batch_id
+    assert full_receipt.plan_id == frozen_receipt.plan_id == strict_receipt.plan_id
+    assert full_receipt.candidate_checkpoint_content_sha256 == (
+        frozen_receipt.candidate_checkpoint_content_sha256
+    )
+    assert frozen_receipt == strict_receipt
+    assert full_gate.update_count == 1
+    assert frozen_gate.export_checkpoint() == strict_gate.export_checkpoint()
+    assert frozen_gate.export_checkpoint() == checkpoint_before
+
+
+def test_forced_collection_neutral_role_delivers_and_settles_noop() -> None:
+    owner_state = asyncio.run(_seed_owner_state())
+    policy = _frozen_policy(bias=2.0)
+    preaction = _prepare_forced_collection_preaction(
+        policy=policy,
+        owner_state=owner_state,
+        role=RelationshipProductForcedActionRole.NEUTRAL_NOOP,
+    )
+    receipt = preaction.execution_receipt
+
+    assert not receipt.gate_would_noop
+    assert receipt.forced_override
+    assert receipt.delivered_action_id == RelationshipAction.NEUTRAL_NOOP.value
+    settlement_input = replace(
+        _FrozenDeterministicFakeWorld().settle(preaction=preaction),
+        apply_credit_to_gate=False,
+    )
+    settled = asyncio.run(
+        settle_relationship_product_forced_collection(
+            preaction=preaction,
+            settlement_input=settlement_input,
+        )
+    )
+    assert settled.settlement.action_id == RelationshipAction.NEUTRAL_NOOP.value
+    assert settled.credit.abstract_action_id == (
+        RelationshipAction.NEUTRAL_NOOP.value
+    )
+    assert settled.forced_exposure.forced_action_id == (
+        RelationshipAction.NEUTRAL_NOOP.value
+    )
+
+
+def test_forced_collection_schedule_requires_complete_canonical_membership() -> None:
+    entry_zero = RelationshipProductForcedCollectionScheduleEntry(
+        decision_id="decision-zero",
+        sequence_index=0,
+        forced_action_role=RelationshipProductForcedActionRole.OWNER_RECOMMENDATION,
+    )
+    entry_one = RelationshipProductForcedCollectionScheduleEntry(
+        decision_id="decision-one",
+        sequence_index=1,
+        forced_action_role=RelationshipProductForcedActionRole.NEUTRAL_NOOP,
+    )
+    schedule = RelationshipProductForcedCollectionScheduleArtifact(
+        entries=(entry_zero, entry_one),
+    )
+
+    assert schedule.entry_for_decision("decision-zero") == entry_zero
+    assert schedule.to_payload()["entries"] == [
+        entry_zero.to_payload(),
+        entry_one.to_payload(),
+    ]
+    changed_unselected_entry = replace(
+        entry_one,
+        forced_action_role=RelationshipProductForcedActionRole.OWNER_RECOMMENDATION,
+    )
+    changed_schedule = replace(
+        schedule,
+        entries=(entry_zero, changed_unselected_entry),
+    )
+    assert changed_schedule.artifact_id != schedule.artifact_id
+
+    with pytest.raises(ValueError, match="decision ids must be unique"):
+        replace(
+            schedule,
+            entries=(entry_zero, replace(entry_one, decision_id="decision-zero")),
+        )
+    with pytest.raises(ValueError, match="contiguous and ordered from zero"):
+        replace(
+            schedule,
+            entries=(entry_zero, replace(entry_one, sequence_index=2)),
+        )
+    with pytest.raises(ValueError, match="contiguous and ordered from zero"):
+        replace(schedule, entries=(entry_one, entry_zero))
+    with pytest.raises(ValueError, match="exactly one decision entry"):
+        schedule.entry_for_decision("not-a-member")
+
+
+def test_forced_collection_contract_rejects_forged_action_and_online_credit() -> None:
+    owner_state = asyncio.run(_seed_owner_state())
+    policy = _frozen_policy(bias=-2.0)
+    preaction = _prepare_forced_collection_preaction(
+        policy=policy,
+        owner_state=owner_state,
+        role=RelationshipProductForcedActionRole.OWNER_RECOMMENDATION,
+    )
+    command = preaction.execution_receipt.command
+    receipt = preaction.execution_receipt
+
+    command_fields = {field.name for field in fields(command)}
+    assert "arm" not in command_fields
+    assert "executor_disposition" not in command_fields
+    assert "forced_action_id" not in command_fields
+    assert command_fields == {
+        "frozen_policy",
+        "forced_exposure",
+        "authorization",
+        "owner_prestate_sha256",
+        "schema_version",
+    }
+    authorization_fields = {
+        field.name for field in fields(command.authorization)
+    }
+    assert authorization_fields == {
+        "frozen_pulse_authorization",
+        "schedule_artifact",
+        "decision_id",
+        "schema_version",
+    }
+
+    with pytest.raises(ValueError, match="concrete action differs"):
+        changed_entry = replace(
+            command.authorization.schedule_entry,
+            forced_action_role=RelationshipProductForcedActionRole.NEUTRAL_NOOP,
+        )
+        changed_schedule = replace(
+            command.authorization.schedule_artifact,
+            entries=(changed_entry,),
+        )
+        replace(
+            command,
+            authorization=replace(
+                command.authorization,
+                schedule_artifact=changed_schedule,
+            ),
+        )
+    with pytest.raises(ValueError, match="concrete action differs"):
+        replace(
+            command,
+            forced_exposure=replace(
+                command.forced_exposure,
+                forced_action_id=RelationshipAction.NEUTRAL_NOOP.value,
+            ),
+        )
+    with pytest.raises(ValueError, match="checkpoint is outside"):
+        replace(
+            command,
+            authorization=replace(
+                command.authorization,
+                frozen_pulse_authorization=replace(
+                    command.authorization.frozen_pulse_authorization,
+                    allowed_checkpoint_content_sha256="0" * 64,
+                ),
+            ),
+        )
+    with pytest.raises(ValueError, match="exactly one decision entry"):
+        replace(
+            command,
+            authorization=replace(
+                command.authorization,
+                decision_id="different-product-decision",
+            ),
+        )
+    extra_entry = RelationshipProductForcedCollectionScheduleEntry(
+        decision_id="different-product-decision",
+        sequence_index=1,
+        forced_action_role=RelationshipProductForcedActionRole.NEUTRAL_NOOP,
+    )
+    expanded_schedule = replace(
+        command.authorization.schedule_artifact,
+        entries=(*command.authorization.schedule_artifact.entries, extra_entry),
+    )
+    different_schedule_command = replace(
+        command,
+        authorization=replace(
+            command.authorization,
+            schedule_artifact=expanded_schedule,
+        ),
+    )
+    assert expanded_schedule.artifact_id != (
+        command.authorization.schedule_artifact.artifact_id
+    )
+    assert different_schedule_command.command_id != command.command_id
+    with pytest.raises(ValueError, match="delivered advisory drifted"):
+        RelationshipProductForcedCollectionReceipt(
+            command=command,
+            candidate_advisory=receipt.candidate_advisory,
+            delivered_advisory=replace(
+                receipt.delivered_advisory,
+                action_id=RelationshipAction.NEUTRAL_NOOP.value,
+            ),
+            temporal_delivery=receipt.temporal_delivery,
+        )
+    changed_projection = replace(
+        receipt,
+        temporal_delivery=replace(
+            receipt.temporal_delivery,
+            controller_params_hash="different-controller-params",
+        ),
+    )
+    assert changed_projection.receipt_id != receipt.receipt_id
+
+    settlement_input = _FrozenDeterministicFakeWorld().settle(
+        preaction=preaction
+    )
+    with pytest.raises(ValueError, match="cannot apply credit"):
+        asyncio.run(
+            settle_relationship_product_forced_collection(
+                preaction=preaction,
+                settlement_input=settlement_input,
+            )
+        )
+    settlement_input = replace(settlement_input, apply_credit_to_gate=False)
+    with pytest.raises(ValueError, match="external action lineage mismatch"):
+        asyncio.run(
+            settle_relationship_product_forced_collection(
+                preaction=preaction,
+                settlement_input=replace(
+                    settlement_input,
+                    external_outcome=replace(
+                        settlement_input.external_outcome,
+                        action_id=RelationshipAction.NEUTRAL_NOOP.value,
+                    ),
+                ),
+            )
+        )
+    settled = asyncio.run(
+        settle_relationship_product_forced_collection(
+            preaction=preaction,
+            settlement_input=settlement_input,
+        )
+    )
+    with pytest.raises(ValueError, match="persistence is not the exact owner transition"):
+        replace(
+            settled,
+            owner_persistence_snapshot=preaction.owner_persistence_snapshot,
         )
 
 
