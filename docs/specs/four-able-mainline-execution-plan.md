@@ -73,7 +73,7 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 4. **确认攒批**：待人工授权的外部动作（Gist 发布、commit、执行授权、硬件操作）维护成
    单张待办清单，攒批一次确认；agent 在等待期间不做重复性只读盘点，转而推进
    不依赖该授权的并行工作或结束 turn。
-5. **提交节奏**：本机有 WHEA 硬件告警历史，任何超过一个收敛包的未提交改动都是裸露风险；
+5. **提交节奏**：任何超过一个收敛包的未提交改动都是裸露风险；
    每包完成即提交（按 AGENTS.md §13 中文规范）。
 6. **硬件前置不悬置**：任何硬件/宿主前置条件只允许两种状态——已完成，或已正式
    记录"推迟 + 对应证据线暂停"。禁止维持"永远差一步"的默认绕行。
@@ -166,7 +166,7 @@ ledger 授权字段由 validator 派生，当前合法终局为
 
 ### Phase 4 · integrated Product Horizon（正式档，唯一四轴合取实验)
 
-入口：Phase 3 出口 + source admission + power 冻结 + host/execution admission 各自独立过门。
+入口：Phase 3 出口 + source admission + power 冻结 + execution admission 各自独立过门。
 内容：全新 protocol identity（不复用 attempt03/v2 任何 root），包含 Phase 2 的全部修正
 （frozen_theta0 臂、加大功效、分段样本量披露），彩排后冻结、公开锚定、一次性执行。
 
@@ -191,7 +191,6 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
 
 | 门 | 时点 | 选项 | 默认 |
 |---|---|---|---|
-| BIOS 裁决 | Phase 0 | 刷机+宿主资格 / 正式推迟 P4.6 | 无默认，必须显式二选一 |
 | reader FAIL 分支 | Phase 1b 后 | 修 reader 设计（开发档迭代）再走新资格链；不换门重试 | — |
 | A2 预算 | Phase 2.4 | cost probe 后：中等矩阵 / 换硬件计价 / 压采集成本 | 先 probe，禁止直开 501 |
 | frozen-better 复现分支 | Phase 3 Appendable | 若修正后 Appendable 单轴门仍为负：如实封存"持续写回在该环境无净增益"，四轴主张按缺口收窄，不得绕过该轴 | — |
@@ -216,3 +215,7 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
 - 2026-08-26 · 初版冻结：固化 attempt03 复盘（36/50 分歧、消融退化、reader 塌缩、
   功效量化）、v5 失败教训（彩排强制）、证据分档、八条执行纪律与 Phase 0–5 路线。
   本记录不授权任何 run。
+- 2026-08-26 · 按用户确认宿主/BIOS 问题已解决，从计划中整体移除相关裁决项与约束
+  （§1.1 宿主行、Phase 0 BIOS 裁决、§5 BIOS 门、Steerable 物理线约束）；§3.6 保留为
+  通用"硬件前置不悬置"纪律。既有 host-block receipt 等历史 artifact 不受本次删除影响，
+  原样保留。
