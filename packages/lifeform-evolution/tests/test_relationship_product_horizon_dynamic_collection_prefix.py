@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import replace
+from dataclasses import fields, replace
 import json
 import pathlib
 
@@ -12,6 +12,7 @@ from lifeform_domain_emogpt.lab.relationship_product_pulse import (
     RelationshipProductExecutorDisposition,
     settle_relationship_product_frozen_pulse,
 )
+from volvence_zero.dialogue_trace import DialogueExternalOutcomeKind
 from volvence_zero.social import social_record_store_persistence_sha256
 
 
@@ -34,6 +35,17 @@ _SCANNER_ROOT = _REPO_ROOT / (
     "artifacts/relationship_lab/"
     "relationship_product_horizon_transductive_public_opportunity_20260826_"
     "p4471c9ab49bc_c0ffda0a1976d"
+)
+_DYNAMIC_ROOT = _REPO_ROOT / (
+    "artifacts/relationship_lab/"
+    "relationship_product_horizon_dynamic_collection_prefix_20260826_"
+    "p47cea5fae3be_cc275bd908afd"
+)
+_DYNAMIC_PROTOCOL_ID = (
+    "47cea5fae3be13067492785893a7b621285ddce36efbe6c2eefae3331c50dbb2"
+)
+_DYNAMIC_ARTIFACT_ID = (
+    "f1a5b2f6093f0c2a8c86401feb1468867ca8948dabe4a61b832dca1970b4aaf4"
 )
 
 
@@ -295,6 +307,126 @@ def test_one_root_closes_eight_sequential_actual_action_settlements() -> None:
     assert handoffs == 7
     assert credit_count == 8
     assert nonnoop >= 1
+
+
+def test_public_selected_branch_facade_binds_canonical_view_and_typed_action() -> None:
+    dependencies = _dependencies()
+    environment = (
+        subject.open_relationship_product_horizon_selected_branch_environment(
+            source_v4_admission_root=_SOURCE_ROOT,
+            reader_root=_READER_ROOT,
+            theta0_v2_root=_THETA_ROOT,
+            scanner_root=_SCANNER_ROOT,
+            dynamic_collection_prefix_root=_DYNAMIC_ROOT,
+            expected_dynamic_protocol_id=_DYNAMIC_PROTOCOL_ID,
+            expected_dynamic_artifact_id=_DYNAMIC_ARTIFACT_ID,
+        )
+    )
+    root = dependencies.public_view.roots[0]
+    decision = root.decision_sessions[8]
+    action = subject.RelationshipAction.STAY_PRESENT_WITHOUT_PROBE
+    outcome = environment.settle(
+        public_root=root,
+        public_decision=decision,
+        selected_action=action,
+    )
+
+    assert isinstance(
+        environment,
+        subject.RelationshipProductHorizonSelectedBranchEnvironment,
+    )
+    assert not hasattr(environment, "__dict__")
+    for forbidden in (
+        "dependencies",
+        "source_v4_admission_root",
+        "source_path",
+        "condition",
+        "policy",
+        "preferred_action",
+    ):
+        assert not hasattr(environment, forbidden)
+        assert not hasattr(outcome, forbidden)
+    assert isinstance(
+        outcome,
+        subject.RelationshipProductHorizonSelectedBranchOutcome,
+    )
+    assert outcome.environment_subject_id == root.subject_id
+    assert outcome.selected_action is action
+    assert isinstance(outcome.typed_outcome, DialogueExternalOutcomeKind)
+    assert {field.name for field in fields(outcome)} == {
+        "environment_subject_id",
+        "selected_action",
+        "typed_outcome",
+        "rendered_user_reaction",
+        "environment_evidence_ref",
+        "environment_version",
+        "commitment_id",
+    }
+    assert outcome.to_payload()["selected_action_id"] == action.value
+    assert outcome.to_payload()["typed_outcome_id"] == outcome.typed_outcome.value
+
+    changed_decision = replace(
+        decision,
+        current_input=f"{decision.current_input} altered",
+    )
+    with pytest.raises(ValueError, match="public decision is not canonical"):
+        environment.settle(
+            public_root=root,
+            public_decision=changed_decision,
+            selected_action=action,
+        )
+    changed_root = replace(
+        root,
+        decision_sessions=(
+            *root.decision_sessions[:8],
+            changed_decision,
+            *root.decision_sessions[9:],
+        ),
+    )
+    with pytest.raises(ValueError, match="public root is not canonical"):
+        environment.settle(
+            public_root=changed_root,
+            public_decision=changed_root.decision_sessions[8],
+            selected_action=action,
+        )
+    with pytest.raises(TypeError, match="selected_action must be RelationshipAction"):
+        environment.settle(
+            public_root=root,
+            public_decision=decision,
+            selected_action=action.value,
+        )
+
+
+def test_public_selected_branch_opener_rejects_external_ids_before_sealed_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened: list[bool] = []
+
+    def forbidden_scope(**_: object) -> None:
+        opened.append(True)
+        raise AssertionError("sealed scope must not open after an external ID mismatch")
+
+    monkeypatch.setattr(subject, "_SelectedBranchEnvironmentScope", forbidden_scope)
+    common = {
+        "source_v4_admission_root": _SOURCE_ROOT,
+        "reader_root": _READER_ROOT,
+        "theta0_v2_root": _THETA_ROOT,
+        "scanner_root": _SCANNER_ROOT,
+        "dynamic_collection_prefix_root": _DYNAMIC_ROOT,
+    }
+    with pytest.raises(ValueError, match="protocol ID drifted"):
+        subject.open_relationship_product_horizon_selected_branch_environment(
+            **common,
+            expected_dynamic_protocol_id="0" * 64,
+            expected_dynamic_artifact_id=_DYNAMIC_ARTIFACT_ID,
+        )
+    with pytest.raises(ValueError, match="artifact ID drifted"):
+        subject.open_relationship_product_horizon_selected_branch_environment(
+            **common,
+            expected_dynamic_protocol_id=_DYNAMIC_PROTOCOL_ID,
+            expected_dynamic_artifact_id="0" * 64,
+        )
+    assert opened == []
 
 
 def test_artifact_lifecycle_is_create_only_manifest_last_and_read_only(

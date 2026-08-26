@@ -36,6 +36,7 @@ from lifeform_evolution import relationship_product_horizon_theta0_calibration a
 from lifeform_evolution import (
     relationship_product_horizon_transductive_public_opportunity as scan,
 )
+from volvence_zero.dialogue_trace import DialogueExternalOutcomeKind
 from volvence_zero.social import social_record_store_persistence_sha256
 from volvence_zero.social_cognition import preference_action_forecast_to_payload
 
@@ -72,6 +73,41 @@ class RelationshipProductHorizonDynamicCollectionPrefixProtocol:
     raw_bytes: bytes
     protocol_id: str
     raw_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class RelationshipProductHorizonSelectedBranchOutcome:
+    """Public actual-action outcome with no sealed policy or condition fields."""
+
+    environment_subject_id: str
+    selected_action: RelationshipAction
+    typed_outcome: DialogueExternalOutcomeKind
+    rendered_user_reaction: str
+    environment_evidence_ref: str
+    environment_version: str
+    commitment_id: str
+
+    def __post_init__(self) -> None:
+        cal._text(self.environment_subject_id, "environment_subject_id")
+        if not isinstance(self.selected_action, RelationshipAction):
+            raise TypeError("selected_action must be RelationshipAction")
+        if not isinstance(self.typed_outcome, DialogueExternalOutcomeKind):
+            raise TypeError("typed_outcome must be DialogueExternalOutcomeKind")
+        cal._text(self.rendered_user_reaction, "rendered_user_reaction")
+        cal._text(self.environment_evidence_ref, "environment_evidence_ref")
+        cal._text(self.environment_version, "environment_version")
+        cal._digest(self.commitment_id, "commitment_id")
+
+    def to_payload(self) -> Mapping[str, object]:
+        return {
+            "environment_subject_id": self.environment_subject_id,
+            "selected_action_id": self.selected_action.value,
+            "typed_outcome_id": self.typed_outcome.value,
+            "rendered_user_reaction": self.rendered_user_reaction,
+            "environment_evidence_ref": self.environment_evidence_ref,
+            "environment_version": self.environment_version,
+            "commitment_id": self.commitment_id,
+        }
 
 
 @dataclass(frozen=True)
@@ -1026,6 +1062,278 @@ class _SelectedBranchEnvironmentScope:
         )
 
 
+class RelationshipProductHorizonSelectedBranchEnvironment:
+    """Opaque selected-branch facade over one validated canonical public view."""
+
+    __slots__ = ("__public_roots", "__scope")
+
+    def __init__(
+        self,
+        *,
+        _scope: _SelectedBranchEnvironmentScope,
+        _public_view: RelationshipProductHorizonPublicView,
+    ) -> None:
+        if not isinstance(_scope, _SelectedBranchEnvironmentScope):
+            raise TypeError("_scope must be _SelectedBranchEnvironmentScope")
+        if not isinstance(_public_view, RelationshipProductHorizonPublicView):
+            raise TypeError("_public_view must be RelationshipProductHorizonPublicView")
+        self.__scope = _scope
+        self.__public_roots = _public_view.roots
+
+    def settle(
+        self,
+        *,
+        public_root: HorizonPublicRoot,
+        public_decision: HorizonPublicDecisionSession,
+        selected_action: RelationshipAction,
+    ) -> RelationshipProductHorizonSelectedBranchOutcome:
+        """Resolve exactly one actual action against the canonical public view."""
+
+        if not isinstance(public_root, HorizonPublicRoot):
+            raise TypeError("public_root must be HorizonPublicRoot")
+        if not isinstance(public_decision, HorizonPublicDecisionSession):
+            raise TypeError(
+                "public_decision must be HorizonPublicDecisionSession"
+            )
+        if not isinstance(selected_action, RelationshipAction):
+            raise TypeError("selected_action must be RelationshipAction")
+        matching_roots = tuple(
+            root
+            for root in self.__public_roots
+            if root.subject_id == public_root.subject_id
+        )
+        if matching_roots != (public_root,):
+            raise ValueError("selected-branch public root is not canonical")
+        matching_decisions = tuple(
+            decision
+            for decision in matching_roots[0].decision_sessions
+            if decision.decision_id == public_decision.decision_id
+        )
+        if matching_decisions != (public_decision,):
+            raise ValueError("selected-branch public decision is not canonical")
+        if selected_action.value not in {
+            action_id for action_id, _description in public_decision.action_surface
+        }:
+            raise ValueError("selected action is outside the canonical public surface")
+
+        resolved = self.__scope.settle(
+            public_root=public_root,
+            public_decision=public_decision,
+            delivered_action_id=selected_action.value,
+        )
+        try:
+            resolved_action = RelationshipAction(resolved.selected_action_id)
+        except ValueError as exc:
+            raise ValueError(
+                "selected-branch scope returned an unknown relationship action"
+            ) from exc
+        try:
+            typed_outcome = DialogueExternalOutcomeKind(resolved.typed_outcome_id)
+        except ValueError as exc:
+            raise ValueError(
+                "selected-branch scope returned an unknown typed outcome"
+            ) from exc
+        if (
+            resolved.environment_subject_id != public_root.subject_id
+            or resolved_action is not selected_action
+        ):
+            raise ValueError("selected-branch actual-action binding drifted")
+        return RelationshipProductHorizonSelectedBranchOutcome(
+            environment_subject_id=resolved.environment_subject_id,
+            selected_action=resolved_action,
+            typed_outcome=typed_outcome,
+            rendered_user_reaction=resolved.rendered_user_reaction,
+            environment_evidence_ref=resolved.environment_evidence_ref,
+            environment_version=resolved.environment_version,
+            commitment_id=resolved.commitment_id,
+        )
+
+
+def _validated_environment_dependencies(
+    *,
+    source_v4_admission_root: pathlib.Path,
+    reader_root: pathlib.Path,
+    theta0_v2_root: pathlib.Path,
+    scanner_root: pathlib.Path,
+    dynamic_collection_prefix_root: pathlib.Path,
+    expected_dynamic_protocol_id: str,
+    expected_dynamic_artifact_id: str,
+) -> _Dependencies:
+    external_protocol = cal._digest(
+        expected_dynamic_protocol_id,
+        "expected_dynamic_protocol_id",
+    )
+    external_artifact = cal._digest(
+        expected_dynamic_artifact_id,
+        "expected_dynamic_artifact_id",
+    )
+    root = pathlib.Path(dynamic_collection_prefix_root)
+    manifest_raw = cal._read_regular(root / "manifest.json")
+    manifest = cal._parse_json_bytes(
+        manifest_raw,
+        source="dynamic selected-branch input manifest",
+    )
+    if manifest_raw != cal._canonical_bytes(manifest):
+        raise ValueError("dynamic selected-branch input manifest must be canonical")
+    if manifest["protocol_id"] != external_protocol:
+        raise ValueError("external dynamic selected-branch protocol ID drifted")
+    if manifest["artifact_id"] != external_artifact:
+        raise ValueError("external dynamic selected-branch artifact ID drifted")
+    if manifest["artifact_id"] != sha256_json(
+        {key: value for key, value in manifest.items() if key != "artifact_id"}
+    ):
+        raise ValueError("dynamic selected-branch artifact identity drifted")
+    claims = cal._mapping(manifest["claims"], "dynamic selected-branch claims")
+    if (
+        manifest["schema_version"]
+        != DYNAMIC_COLLECTION_PREFIX_MANIFEST_SCHEMA_VERSION
+        or manifest["status"] != _SUCCESS_STATUS
+        or claims["forced_common_batch_protocol_freeze_authorized"] is not True
+        or claims["campaign_execution_authorized"] is not False
+        or claims["formal_evidence_authorized"] is not False
+    ):
+        raise ValueError("dynamic selected-branch authority envelope drifted")
+    if cal._regular_file_inventory(root) != _OUTPUT_FILES:
+        raise ValueError("dynamic selected-branch input inventory drifted")
+    files = scan._file_entries(manifest, source="dynamic selected-branch input")
+    if frozenset(files) != frozenset({"protocol.json", _TRACE_FILENAME}):
+        raise ValueError("dynamic selected-branch file inventory drifted")
+    for relative in ("protocol.json", _TRACE_FILENAME):
+        entry = files[relative]
+        cal._exact_keys(
+            entry,
+            {"path", "raw_bytes", "raw_sha256"},
+            f"dynamic selected-branch file {relative}",
+        )
+        raw = cal._read_regular(root / relative)
+        if (
+            len(raw)
+            != cal._integer(entry["raw_bytes"], f"{relative}.raw_bytes")
+            or cal._sha256_bytes(raw)
+            != cal._digest(entry["raw_sha256"], f"{relative}.raw_sha256")
+        ):
+            raise ValueError(
+                f"dynamic selected-branch file bytes drifted: {relative}"
+            )
+
+    dependencies = _load_dependencies(
+        source_v4_admission_root=pathlib.Path(source_v4_admission_root),
+        reader_root=pathlib.Path(reader_root),
+        theta0_v2_root=pathlib.Path(theta0_v2_root),
+        scanner_root=pathlib.Path(scanner_root),
+    )
+    source_pin = cal._mapping(
+        dependencies.protocol.payload["source_v4_environment"],
+        "source_v4_environment",
+    )
+    scanner_pin = cal._mapping(
+        dependencies.protocol.payload["upstream_scanner"],
+        "upstream_scanner",
+    )
+    expected_lineage = (
+        ("protocol_id", manifest["protocol_id"], dependencies.protocol.protocol_id),
+        (
+            "protocol_raw_sha256",
+            manifest["protocol_raw_sha256"],
+            dependencies.protocol.raw_sha256,
+        ),
+        (
+            "source_v4_admission_artifact_id",
+            manifest["source_v4_admission_artifact_id"],
+            source_pin["admission_artifact_id"],
+        ),
+        (
+            "source_v4_public_plan_sha256",
+            manifest["source_v4_public_plan_sha256"],
+            dependencies.public_view.public_plan_sha256,
+        ),
+        (
+            "source_v4_sealed_evaluator_bundle_sha256",
+            manifest["source_v4_sealed_evaluator_bundle_sha256"],
+            source_pin["sealed_evaluator_bundle_sha256"],
+        ),
+        (
+            "source_v4_commitment_index_raw_sha256",
+            manifest["source_v4_commitment_index_raw_sha256"],
+            source_pin["commitment_index_raw_sha256"],
+        ),
+        (
+            "upstream_scanner_protocol_id",
+            manifest["upstream_scanner_protocol_id"],
+            scanner_pin["protocol_id"],
+        ),
+        (
+            "upstream_scanner_artifact_id",
+            manifest["upstream_scanner_artifact_id"],
+            scanner_pin["artifact_id"],
+        ),
+        (
+            "development_reader_artifact_id",
+            manifest["development_reader_artifact_id"],
+            dependencies.scanner_dependencies.reader_artifact.artifact_id,
+        ),
+        (
+            "embedding_table_artifact_id",
+            manifest["embedding_table_artifact_id"],
+            dependencies.scanner_dependencies.embedding_table.artifact_id,
+        ),
+        (
+            "theta0_v2_artifact_id",
+            manifest["theta0_v2_artifact_id"],
+            dependencies.scanner_dependencies.theta0.artifact_id,
+        ),
+        (
+            "cold_checkpoint_content_sha256",
+            manifest["cold_checkpoint_content_sha256"],
+            (
+                dependencies.scanner_dependencies.frozen_policy.checkpoint
+                .content_sha256
+            ),
+        ),
+        (
+            "cold_frozen_policy_id",
+            manifest["cold_frozen_policy_id"],
+            dependencies.scanner_dependencies.frozen_policy.policy_id,
+        ),
+    )
+    for field_name, observed, expected in expected_lineage:
+        if observed != expected:
+            raise ValueError(
+                f"dynamic selected-branch {field_name} lineage drifted"
+            )
+    if cal._read_regular(root / "protocol.json") != dependencies.protocol.raw_bytes:
+        raise ValueError("dynamic selected-branch protocol bytes drifted")
+    return dependencies
+
+
+def open_relationship_product_horizon_selected_branch_environment(
+    *,
+    source_v4_admission_root: pathlib.Path,
+    reader_root: pathlib.Path,
+    theta0_v2_root: pathlib.Path,
+    scanner_root: pathlib.Path,
+    dynamic_collection_prefix_root: pathlib.Path,
+    expected_dynamic_protocol_id: str,
+    expected_dynamic_artifact_id: str,
+) -> RelationshipProductHorizonSelectedBranchEnvironment:
+    """Validate one external dynamic artifact and open its opaque environment."""
+
+    dependencies = _validated_environment_dependencies(
+        source_v4_admission_root=source_v4_admission_root,
+        reader_root=reader_root,
+        theta0_v2_root=theta0_v2_root,
+        scanner_root=scanner_root,
+        dynamic_collection_prefix_root=dynamic_collection_prefix_root,
+        expected_dynamic_protocol_id=expected_dynamic_protocol_id,
+        expected_dynamic_artifact_id=expected_dynamic_artifact_id,
+    )
+    scope = _SelectedBranchEnvironmentScope(dependencies=dependencies)
+    return RelationshipProductHorizonSelectedBranchEnvironment(
+        _scope=scope,
+        _public_view=dependencies.public_view,
+    )
+
+
 def _stable_first_preaction_projection(
     *,
     root_sequence_index: int,
@@ -1767,8 +2075,11 @@ __all__ = [
     "DYNAMIC_COLLECTION_PREFIX_PROTOCOL_SCHEMA_VERSION",
     "DYNAMIC_COLLECTION_PREFIX_TRACE_SCHEMA_VERSION",
     "RelationshipProductHorizonDynamicCollectionPrefixProtocol",
+    "RelationshipProductHorizonSelectedBranchEnvironment",
+    "RelationshipProductHorizonSelectedBranchOutcome",
     "load_relationship_product_horizon_dynamic_collection_prefix_protocol",
     "materialize_relationship_product_horizon_dynamic_collection_prefix",
+    "open_relationship_product_horizon_selected_branch_environment",
     "relationship_product_horizon_dynamic_collection_prefix_protocol_path",
     "validate_relationship_product_horizon_dynamic_collection_prefix",
 ]

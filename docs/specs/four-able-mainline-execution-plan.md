@@ -178,10 +178,11 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 入口：Phase 2 包 1 的 gate owner 与 executor consumer 分包完成，且所选 Product Horizon source 已
 通过对应 development admission；不等待 reader v6 formal 链。现有 27 项 owner/executor/gate 定向测试已覆盖
 机制与 receipt，因此按用户裁决不另启 reader rehearsal 或独立 2–3 item 彩排 artifact；新 worker 先通过
-model-free `validate-existing`。natural-APPLY dynamic collection-prefix 已闭合，但只授权冻结 forced common-batch
-protocol；在该新 protocol、首次唯一 materialization、external-ID `validate-existing` 与全新 campaign prereg
-依次冻结前，本矩阵继续 NO-GO。四项闭合后，才可用独立 development prereg JSON + commit hash + fixed seeds
-执行中等 root-cluster 矩阵：
+model-free `validate-existing`。natural-APPLY dynamic collection-prefix、forced common-batch protocol、首个唯一
+materialization、external-ID `validate-existing` 与 campaign-input public seam 均已闭合。三臂 campaign protocol
+`bc4c0882…587c`（raw `9374a71b…19fa`）及实现现已在本收敛包中冻结但尚未执行；必须先提交该包，随后才可用
+其 commit hash 与 fixed seeds 执行首个唯一中等 root-cluster matrix。禁止在提交前试跑完整矩阵，禁止把 unit
+test 或内存统计校验称为 rehearsal/evidence：
 
 当前 forced common-batch 收敛包已选择 112 个 **root-local** schedule/batch，而不是一个 896-credit global
 batch。protocol `dd0d28a7…aff93` 预注册 public-position schedule 父索引 `13c3f8e2…4e9f`、每 root 只执行一次
@@ -191,6 +192,14 @@ batch。protocol `dd0d28a7…aff93` 预注册 public-position schedule 父索引
 `validate-existing` 重放通过且 6 文件 bytes/size/mtime 不变。112/112 roots 的 APPLY 参数均非零且无 cap-hit，
 但该 PASS 仍只授权 campaign protocol freeze。按用户裁决未生成 2–3 item experimental rehearsal artifact；普通
 unit tests、schedule identity 校验和 model-free `validate-existing` 保留。
+
+当前 campaign freeze 固定 112 roots × 3 arms × 40 evaluation decisions；collection 0–7 排除于所有 effect
+estimand。三臂均生成但不 apply evaluation credit，故 update count 必须全为零；full 使用 forced-batch learned
+gate，frozen_theta0 使用 cold gate 且 executor 仍可非 noop，strict_noop 在相同 cold gate 上机械强制 noop。
+每拍必须三臂 preaction 全部 durable 后才允许 once-only branch settlement，三臂 postaction 全部 durable 后才
+推进 owner。20,000 次 whole-root paired bootstrap、0.05 practical floor、五段 durability 与 0.02
+`over_directive` safety 门均事前固定。当前没有 campaign report、effect 或 stop/go 判词；下一动作是提交本
+protocol/implementation 收敛包，然后执行一次 unique materialization 与纯读取 external-ID `validate-existing`。
 
 1. 冻结选择 N=112 的 development operational marker；每 root 的 8 条 matched collection 不进入效果
    estimand，随后五段各 8 条、共 40 条 evaluation。112 是 synthetic roots，不是真人或 formal N；
@@ -378,3 +387,14 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   为 448 recommendation/448 noop；actual action 为 stay 218 / space 209 / noop 469，即 427 physical nonnoop，
   覆盖 112/112 roots。双 ID 只读复验及三路审计 GO。终局仅提升 `campaign_protocol_freeze_authorized=true`；
   campaign execution/effect/四轴/reader qualification/formal/unseen/真人/production 继续 false。
+- 2026-08-27 · Phase 2.5 三臂 development campaign 已冻结待提交、未执行：protocol
+  `bc4c0882…587c`（raw `9374a71b…19fa`）完整绑定 forced artifact `92880fb7…40d7` 与 38 项 direct
+  lineage；dynamic owner 新增只暴露 typed action/outcome 的 public selected-branch facade。矩阵固定
+  112 roots × full/frozen_theta0/strict_noop × decision 8–47，Learnable=`full−frozen_theta0`、
+  Steerable=`frozen_theta0−strict_noop`，三臂 evaluation credit 均不 apply。每拍三臂 preaction/postaction
+  分别以 durable group receipt 隔离 source open 与 owner advance；报告使用 20,000 次 whole-root paired
+  bootstrap、0.05 practical floor、五段 point-estimate durability 与 0.02 safety upper 门。用户裁决的
+  `rehearsal=false` 已写入 protocol。离线 validator 还会从上游 frozen initialization 重放完整 executor
+  receipt，并由 typed external evidence 重算 settlement→matching social PE→credit；同 action 跨臂必须复用
+  exact source branch。本包只执行 unit/contract 与纯内存统计校验，不运行完整 campaign、模型、CUDA 或
+  Gist。当前不存在 outcome/effect/stop-go；提交本冻结包后才允许首个唯一 materialization。
