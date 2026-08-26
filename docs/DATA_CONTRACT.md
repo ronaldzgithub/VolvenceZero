@@ -2840,6 +2840,14 @@ rows 和预声明 pins；online runtime 只读 current public text 与 identity-
 `from_json`，由 owner 重算 artifact id 并拒绝 duplicate key、非 canonical UTF-8 bytes、额外/
 缺失字段和参数 shape drift；consumer 不得重建 loader schema。该 v2 尚未 qualification、尚未
 接入 campaign，只是 reader mechanism，不构成 Readable 结论。
+`FrozenLinearRelationshipPreferenceForecastRuntime` 是不新增 slot/owner 的薄 consumer：它只接受上述
+exact frozen reader runtime，以 named readout 的 label/confidence 定义 condition-equivalence similarity，
+再按既有 `BoundedRelationshipPreferenceForecastRuntime` 的固定默认 prior/evidence weight 从 owner histories
+生成 proposal，并把同一
+`RelationshipConditionReadout` 原样交给 `PreferenceAboutOtherModule` 校验/发布。adapter 没有 fit、
+training-label/label-truth、evaluator、judge、sealed/future outcome truth 或 gate 输入；其存在不等于 reader 已
+qualification，也不授权
+source-v4 campaign。
 
 P4.2 correction/redaction 不新增 slot 或第二写者。调用方提交 frozen
 `PreferenceActionOutcomeMutation`，必须带 `mutation_id / target_evidence_id /

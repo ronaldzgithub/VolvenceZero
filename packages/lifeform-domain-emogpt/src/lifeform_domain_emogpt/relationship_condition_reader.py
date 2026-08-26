@@ -777,6 +777,72 @@ class FrozenLinearRelationshipConditionReaderRuntime:
         return readout
 
 
+class FrozenLinearRelationshipPreferenceForecastRuntime:
+    """Bind one frozen linear readout to the existing preference forecast owner."""
+
+    def __init__(
+        self,
+        *,
+        reader: FrozenLinearRelationshipConditionReaderRuntime,
+    ) -> None:
+        if type(reader) is not FrozenLinearRelationshipConditionReaderRuntime:
+            raise TypeError(
+                "reader must be FrozenLinearRelationshipConditionReaderRuntime"
+            )
+        self._reader = reader
+        self._delegate = BoundedRelationshipPreferenceForecastRuntime(
+            similarity=self._condition_similarity,
+        )
+        self.runtime_id = (
+            "relationship-condition-linear-forecast.v2:"
+            f"{reader.artifact.artifact_id}"
+        )
+
+    @property
+    def artifact(self) -> FrozenLinearRelationshipConditionReaderArtifact:
+        return self._reader.artifact
+
+    def read_condition(self, text: str) -> RelationshipConditionReadout:
+        return self._reader.read_condition(text)
+
+    def _condition_similarity(self, left: str, right: str) -> float:
+        left_readout = self.read_condition(left)
+        right_readout = self.read_condition(right)
+        if left_readout.condition_label != right_readout.condition_label:
+            return 0.0
+        return min(left_readout.confidence, right_readout.confidence)
+
+    def propose(
+        self,
+        *,
+        request: PreferenceActionForecastRequest,
+        records: tuple[OtherMindRecord, ...],
+        action_outcomes: tuple[PreferenceActionOutcomeEvidence, ...],
+    ) -> PreferenceActionForecastProposal | None:
+        proposal = self._delegate.propose(
+            request=request,
+            records=records,
+            action_outcomes=action_outcomes,
+        )
+        if proposal is None:
+            return None
+        current = self.read_condition(request.current_observation)
+        return replace(
+            proposal,
+            evidence=tuple(
+                dict.fromkeys(
+                    (
+                        *proposal.evidence,
+                        f"runtime:{self.runtime_id}",
+                        f"condition_reader:{self.artifact.artifact_id}",
+                        f"condition_label:{current.condition_label}",
+                    )
+                )
+            ),
+            condition_readout=current,
+        )
+
+
 def _cosine(
     left: tuple[float, ...],
     right: tuple[float, ...],
@@ -928,6 +994,7 @@ def _require_strict_ordered_labels(labels: tuple[str, ...]) -> None:
 __all__ = [
     "FrozenLinearRelationshipConditionReaderArtifact",
     "FrozenLinearRelationshipConditionReaderRuntime",
+    "FrozenLinearRelationshipPreferenceForecastRuntime",
     "FrozenRelationshipTextEmbedder",
     "LabeledRelationshipConditionEmbeddingRow",
     "PrototypeRelationshipPreferenceForecastRuntime",

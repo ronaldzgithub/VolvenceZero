@@ -1800,6 +1800,15 @@ unit input 与 unit centroid 的 cosine（加 artifact bias 后 clamp 到 `[-1,1
 `clamp((top1 - top2) / 2, 0, 1)`。未来资格门要求 224/224 row 与 28/28 group 全部 top1 正确、无 tie，且每行
 normalized margin `>= 0.01`；一个 group 只有在八个 voice row 全部过门时才通过。
 
+`FrozenLinearRelationshipPreferenceForecastRuntime` 只关闭 reader→正式 preference forecast proposal 的机制
+接缝：构造器必须拿到 exact `FrozenLinearRelationshipConditionReaderRuntime`，以 reader 发布的
+label/confidence 计算 condition-equivalence similarity，再复用既有 bounded owner collaborator；current readout
+仍由 `PreferenceAboutOtherModule` 按 observation hash 校验后写入 forecast。adapter 没有 fit、training label、
+可调 forecast 超参数、sealed evaluator、judge、future outcome truth 或 gate 参数输入，不创建第二
+reader/forecast owner。定向 fixture 的
+全 surface 推荐动作一致性只证明接缝可执行；v6 qualification、source-v4 BGE table、theta0 与 campaign authority
+仍分别为未完成，不能从 adapter 推导 Readable 或产品效果。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入

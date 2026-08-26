@@ -17,6 +17,7 @@ from lifeform_domain_emogpt.lab import (
 from lifeform_domain_emogpt.relationship_condition_reader import (
     FrozenLinearRelationshipConditionReaderArtifact,
     FrozenLinearRelationshipConditionReaderRuntime,
+    FrozenLinearRelationshipPreferenceForecastRuntime,
     LabeledRelationshipConditionEmbeddingRow,
     PrototypeRelationshipPreferenceForecastRuntime,
     RelationshipConditionPrototype,
@@ -175,6 +176,40 @@ def _fixture_runtime() -> PrototypeRelationshipPreferenceForecastRuntime:
     return PrototypeRelationshipPreferenceForecastRuntime(
         artifact=artifact,
         embedder=_FixtureEmbedder(vectors),
+    )
+
+
+def _linear_fixture_forecast_runtime() -> tuple[
+    FrozenLinearRelationshipPreferenceForecastRuntime,
+    _FrozenFixtureEmbedder,
+]:
+    dataset = load_relationship_transfer_dataset(
+        package_name="relationship_transfer_v3"
+    )
+    condition_vectors = {
+        "latent_condition_agency_pressure_v3": (1.0, 0.0),
+        "latent_condition_belonging_uncertainty_v3": (0.0, 1.0),
+    }
+    history_bindings = dict(dataset.history_condition_bindings)
+    vectors: dict[str, tuple[float, ...]] = {}
+    for observation in dataset.observations:
+        for history in observation.histories:
+            vectors[history.user_utterance] = condition_vectors[
+                history_bindings[history.event_id]
+            ]
+        dynamic = dataset.dynamic_for_scene(observation.scene_id)
+        assert dynamic.probe_condition_id is not None
+        vectors[observation.current_input] = condition_vectors[
+            dynamic.probe_condition_id
+        ]
+    embedder = _FrozenFixtureEmbedder(vectors)
+    reader = FrozenLinearRelationshipConditionReaderRuntime(
+        artifact=_linear_artifact(),
+        embedder=embedder,
+    )
+    return (
+        FrozenLinearRelationshipPreferenceForecastRuntime(reader=reader),
+        embedder,
     )
 
 
@@ -467,6 +502,89 @@ def test_frozen_linear_reader_runtime_rejects_embedder_identity_drift_without_fi
             embedder=embedder,
         )
     assert embedder.calls == []
+
+
+async def test_frozen_linear_reader_adapter_publishes_owner_forecasts() -> None:
+    view = load_relationship_p2_development_view()
+    evaluator = load_relationship_p2_development_evaluator_bundle()
+    expected_actions = {
+        item.episode_id: item.preferred_action_id for item in evaluator.truths
+    }
+    runtime, embedder = _linear_fixture_forecast_runtime()
+
+    assert runtime.runtime_id == (
+        "relationship-condition-linear-forecast.v2:"
+        "904529084332d60b99742a16c91458d9d946f41ab7f227a8bb66ca2910720659"
+    )
+    assert runtime.artifact == _linear_artifact()
+    assert "fit" not in type(runtime).__dict__
+    assert set(inspect.signature(runtime.propose).parameters) == {
+        "request",
+        "records",
+        "action_outcomes",
+    }
+    assert set(inspect.signature(type(runtime).__init__).parameters) == {
+        "self",
+        "reader",
+    }
+
+    runs = tuple(
+        [
+            await run_p2_development_episode(
+                episode,
+                forecast_runtime=runtime,
+            )
+            for episode in view.episodes
+        ]
+    )
+
+    assert all(
+        run.forecast.recommended_action_id == expected_actions[run.episode_id]
+        for run in runs
+    )
+    assert all(run.forecast.condition_readout is not None for run in runs)
+    assert {
+        run.forecast.condition_readout.condition_label
+        for run in runs
+        if run.forecast.condition_readout is not None
+    } == {"agency_pressure", "belonging_uncertainty"}
+    assert all(
+        run.forecast.condition_readout.reader_artifact_id
+        == runtime.artifact.artifact_id
+        for run in runs
+        if run.forecast.condition_readout is not None
+    )
+    assert all(
+        f"condition_reader:{runtime.artifact.artifact_id}"
+        in run.forecast.evidence
+        for run in runs
+    )
+    assert all(
+        f"runtime:{runtime.runtime_id}" in run.forecast.evidence
+        for run in runs
+    )
+    assert embedder.calls
+
+    with pytest.raises(
+        TypeError,
+        match="FrozenLinearRelationshipConditionReaderRuntime",
+    ):
+        FrozenLinearRelationshipPreferenceForecastRuntime(reader=object())
+    reader_subclass = type(
+        "ReaderSubclass",
+        (FrozenLinearRelationshipConditionReaderRuntime,),
+        {},
+    )
+    with pytest.raises(
+        TypeError,
+        match="FrozenLinearRelationshipConditionReaderRuntime",
+    ):
+        FrozenLinearRelationshipPreferenceForecastRuntime(
+            reader=reader_subclass(
+                artifact=_linear_artifact(),
+                embedder=_FrozenFixtureEmbedder({"unused": (1.0, 0.0)}),
+            )
+        )
 
 
 def test_prototype_v1_artifact_and_runtime_identity_remain_pinned() -> None:
