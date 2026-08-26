@@ -1393,7 +1393,7 @@ $env:PYTHONNOUSERSITE='1'
   artifacts\relationship_lab\p4_windows_cuda_steering_fit_qwen25_15b_20260822
 ```
 
-### P4.6-actuation canonical physical residual preflight（已实现，host-blocked）
+### P4.6-actuation canonical physical residual preflight（development PASS，formal host-blocked）
 
 下一单一因果包由 `vz-runtime.agent.relationship_p4_physical_residual_actuation` 唯一编排，冻结 protocol
 `c6cb84f0ba174d575f901c25e70f20421ebb232d6b9a7c18892f31ee33413244`。它在构造 GPU runtime 前先调用
@@ -1432,10 +1432,24 @@ format、14/14 physical source hash、原 12/12 fit source hash与 no-torch prot
 两条 `WHEA-Logger 19 / Processor Core / Corrected Machine Check / Internal parity error / APIC 32`。近
 120 天本机另有 96 条 WHEA 19、5 条 WHEA 1、66 个 Python AppCrash archive 与 16 次 bugcheck；主板仍为
 MSI PRO Z790-P WIFI BIOS `A.B0`（2024-01-10），microcode registry revision `0x120`。因此 physical GPU
-run 没有启动、没有发布 output，当前协议被 host-stability gate 阻断。block receipt SHA-256 为
+run 在该历史时点没有启动、没有发布 output，协议被 host-stability gate 阻断。block receipt SHA-256 为
 `5e02aec731db429fa699176edd8cd6cf44c52e68193c6a0d22c32112c8c4a34f`。
 
-恢复资格必须先由人类更新到 MSI 当前 BIOS（含 Intel microcode `0x12F` 或以后版本）、加载 Intel Default
+用户随后调整 BIOS settings 并授权 development CUDA 重试；同一 protocol 的独立 development run 已封存于
+`artifacts/relationship_lab/p4_windows_cuda_physical_residual_actuation_bios_retry_20260823/`：manifest
+artifact `6b6f5e4f4f4ff3a9d18014e258dfda6a5ca7d6e6910675cc599bf4ec7b834a99`、execution attestation
+`9a33a698b95d923d6a4e82b64471213d529b0cbbf6a30ca24644860211e6dde1`，136 receipts、544 arm
+evaluations/runtime forwards、13/13 checks 全部为 true，终局严格限定为
+`synthetic_proxy_physical_residual_actuation_passed_development_only`。该运行证明冻结 synthetic proxy
+上的 development physical residual path 可执行；不把 BIOS settings 变更升级成 firmware/microcode 或真实
+host qualification。
+
+2026-08-26 复核仍观测到 BIOS `A.B0`（2024-01-10）、microcode `0x120 < 0x12F`，且没有真实
+`windows_cuda_host_stability_qualifications` root；当前 source tree 也只与历史 protocol 的 14 个 source pin
+中的 3 个一致。因此该 PASS 是历史、冻结、development-only 证据，不是 current-build qualification。
+执行裁决是：development CUDA 可继续；依赖宿主资格的 formal Steerable / integrated 证据线暂停。
+
+恢复**正式宿主资格**必须先由人类更新到 MSI 当前 BIOS（含 Intel microcode `0x12F` 或以后版本）、加载 Intel Default
 Settings，冷启动并核对有效版本；随后另开内容寻址 host-stability qualification，要求不新增 WHEA machine
 check、access violation 或 bugcheck。不得用 process affinity、反复重试或一次短 PASS 替代固件/设置修复。
 该包即使未来 PASS 也只证明 synthetic proxy 上 exact frozen Qwen 的物理 residual effect；不证明关系语义、
@@ -2431,11 +2445,12 @@ hash 保留。预注册主审、精确 Windows/CUDA fit 与离线重建均已完
 独立长期实验、production ACTIVE 或四能力结论，也不允许再次运行同一 recipe；回滚 consumer 时不删除
 任何已发布证据。
 
-P4.6-actuation 同样不新增 slot、产品 wiring 或数学 owner。代码回滚只需停止新 CLI 并不再消费其未来
-create-only output；当前没有 physical run artifact 可删除。host block receipt 必须按原 hash 保留。
-退出条件不是“某次测试碰巧通过”，而是 BIOS / microcode / Intel Default Settings 完成人工修复、新的
-host-stability qualification 通过、protocol 14 个 source hash 仍匹配，再经独立 run gate 放行。任何
-source 漂移都先产生新 protocol id；不得在当前不稳定主机上重试以挑选 PASS。
+P4.6-actuation 同样不新增 slot、产品 wiring 或数学 owner。代码回滚只需停止新 CLI 和当前 consumer；
+已封存的 development physical run artifact、原 host block receipt 与所有失败/通过边界必须按原 hash 保留，
+不得删除或迁移成正式证据。正式退出条件不是“某次 development 测试碰巧通过”，而是 BIOS / microcode /
+Intel Default Settings 完成人工修复、新的 host-stability qualification 通过、执行时 source pin 全部匹配，
+再经独立 formal run gate 放行。任何 source 漂移都先产生新 protocol id；development CUDA 可以继续，
+但不得通过重复运行挑选 formal PASS。
 
 P4.7 同样没有 runtime/live/product wiring。回滚只需停止
 `run_relationship_lab_p4_long_context_causal_campaign.py` / `run_relationship_lab_p4_long_context_power_bound.py` /

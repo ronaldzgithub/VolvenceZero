@@ -23,7 +23,7 @@
 目标禁止的是**冒充结论**（小样本当充分样本、prompt 对比当因果证据、代理指标当产品效果）；
 它不要求每次迭代都执行最重的锚定仪式。证据强度分档见 §2。
 
-## 1. 现状快照（2026-08-26，HEAD `7381743b`）
+## 1. 现状快照（2026-08-26，证据基线 commit `7381743b`）
 
 ### 1.1 已有判词（全部冻结，不回改）
 
@@ -34,6 +34,7 @@
 | 失败面极小 | full vs frozen / vs unnamed 各 36 个分歧决策（union 50）；主窗口净差 -9/96 与 -4/96；`return_after_gap` -18.75% 来自 16 个决策中的净 3 个 | 失败可逐条审计；同时说明当前功效在掷硬币边缘 |
 | reader 塌缩 | full 臂 named reader 192/192 全部输出 `agency_displacement`；reader-error 子集净差 -15/48、correct 子集 +6/48（correctness 与 condition 完全混杂，不作因果归因） | 命名读出内容失效是最可疑根因，但需 qualification + 写回审计分别闭合 |
 | v5 资格执行失败 | launcher `SystemDrive/SystemRoot` 与 CPython `SYSTEMDRIVE/SYSTEMROOT` 键大小写在 parent 环境门 fail closed；root/nonce 已消耗，判 `invalid/incomplete` | 一个冻结协议 + 公开 Gist 锚被一个"彩排一次即可发现"的工程 bug 烧掉；v6 修复已提交（`7381743b`），尚无新 protocol/Gist/root/CUDA run |
+| P4.6 双层状态 | 历史 development artifact `6b6f5e4f…34a99`：136 receipts、544 arm evaluations、13/13 checks PASS；当前 BIOS `A.B0`、microcode `0x120 < 0x12F`，且无真实 host-qualification root | **开发 CUDA 可继续；正式宿主资格仍未通过。**该历史 artifact 只证明 development-only synthetic proxy actuation，不授权正式 host-dependent Steerable 槽或四能力主张 |
 | 四轴 ledger | 12 槽（每轴 mechanism → SHADOW → unseen single-axis）当前 **0/12** 正式 PASS | 任何 integrated run 无准入 |
 
 ### 1.2 执行复盘结论（2026-08-26 审计，本计划的直接动机）
@@ -55,7 +56,7 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 | 运行时闭包 | 记录 model/weights/协议 hash 即可 | 完整 source-tree / runtime / process 闭包（现行 relationship-lab 口径） |
 | 复验 | 可重跑脚本 + 固定 seed | 独立 validate-existing / fresh-clone replay / 第三进程比对 |
 | 结论上限 | `development`，不得进入四轴 ledger 正式槽、不得对外引用 | 按各协议冻结判词 |
-| 人工确认 | 不需要 | 外部副作用（Gist、commit、执行授权）需确认，按 §3.4 攒批 |
+| 人工确认 | 本地收敛包 commit 已获持续授权，完成即提交 | 仅外部副作用（push、Gist、formal execution、硬件操作）按 §3.4 攒批确认 |
 
 **硬规则**：开发档结果**永远不能**升级为正式档证据——需要正式结论时用正式档重跑；
 反之，正式档协议冻结前的一切探索必须在开发档完成，禁止拿正式锚做调试。
@@ -70,9 +71,9 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
    禁止再出现数百文件级 dirty tree；实验 artifact 与代码分包提交。
 3. **单写入者**：同一时间只有一个任务/agent 拥有本工作区写权限；其他任务只读。
    跨任务协调走 goal / 阶段汇报，不靠互发停止指令。
-4. **确认攒批**：待人工授权的外部动作（Gist 发布、commit、执行授权、硬件操作）维护成
-   单张待办清单，攒批一次确认；agent 在等待期间不做重复性只读盘点，转而推进
-   不依赖该授权的并行工作或结束 turn。
+4. **确认攒批**：待人工授权的外部动作（push、Gist 发布、formal execution、硬件操作）维护成
+   单张待办清单，攒批一次确认；本地 3–8 文件收敛包完成即提交，不再逐次询问。agent 在等待期间
+   不做重复性只读盘点，转而推进不依赖该授权的并行工作或结束 turn。
 5. **提交节奏**：任何超过一个收敛包的未提交改动都是裸露风险；
    每包完成即提交（按 AGENTS.md §13 中文规范）。
 6. **硬件前置不悬置**：任何硬件/宿主前置条件只允许两种状态——已完成，或已正式
@@ -89,36 +90,41 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 每阶段列出：入口条件 → 交付物 → 出口判据。阶段内允许并行；跨阶段依赖不得跳过。
 除 Phase 0 外，每阶段的执行档位已标注。
 
-### Phase 0 · 工作区收口（立即，无实验）
+### Phase 0 · 工作区收口（已完成：`15887ed1`，无实验）
 
 入口：无。
 交付：
 
-1. 当前 dirty tree 按 owner 拆包提交：attempt03 分歧/owner-history 审计脚本与产物一包、
-   power planning scaffold 一包、evaluations 报告一包、v4–v6 preflight artifact 一包。
-2. 单写入者声明：指定当前主任务，其余任务转只读。
+1. dirty tree 已按 owner 分包提交：reader qualification v4–v6 谱系/preflight `96feb2ae`、
+   attempt03 事后诊断 `c3850986`、power planning scaffold `61c5575f`、计划 SSOT
+   `08684268`/`9a0b7d43`/`5406c035`。
+2. 单写入者已声明：当前主任务是唯一写入者，其余 agent/任务只读。
 
-出口：`git status` 清洁（除声明保留项）；后续阶段单写入者明确。
+出口已于 `15887ed1` 登记。判定口径是“本包目标路径清洁 + 既有 dirty-path allowlist 明确”，
+不是为了追求全仓零噪声而回退用户 submodule、删除历史 artifact 或反复清理后续阶段的未完成根。
 
 ### Phase 1 · attempt03 诊断闭合 + reader qualification 执行（开发档 + 正式档各一件）
 
 入口：Phase 0 完成。
 两条线并行，互不阻塞：
 
-**1a（开发档）attempt03 写回审计闭合**：对 full/frozen 全部 384 个 transition 做机械重放，
+**1a（开发档，已完成）attempt03 写回审计闭合**：`7c2f24ba` 已对 full/frozen 全部
+384 个 transition 做机械重放，
 逐行闭合 settlement→PE→credit→gate→owner→下一拍；中间 gate checkpoint 标记
 `rederived_endpoint_bound`。同时闭合 reader 塌缩根因（为什么 192/192 全输出
-`agency_displacement`：centroid 退化 / 输入分布漂移 / bias 项误差，三选一或组合）。
-判词上限 `post_hoc_mechanical_writeback_replay_only`，不作因果归因。
+`agency_displacement`：`b7d1796e` 已封存常数偏移下的几何诊断）。判词上限仍为
+`post_hoc_mechanical_writeback_replay_only`，不作因果归因，不重复运行。
 
-**1b（正式档）reader qualification v6 执行**：先按 §3.1 彩排完整执行路径（含 Windows
+**1b（正式档，当前推迟）reader qualification v6 执行**：先按 §3.1 彩排完整执行路径（含 Windows
 大写 key 契约、child 环境门、scorer 启动），彩排通过后才冻结新 execution protocol、
 发新 Gist（不复用 v5 锚）、一次性执行 CUDA qualification。判词上限
 `exact_source_reader_development_admitted`（224/224 row + 28/28 group + margin ≥ 0.01，
-预注册门不改）。
+预注册门不改）。2026-08-26 的首个 rehearsal 在完成 formal-path 多轮完整性读取期间由用户停止；
+未完成 root 原样保留为 non-evidence，不消耗 protocol/Gist/formal execution。该线不再阻塞 Phase 2/2.5，
+但在 Readable unseen formal gate 前仍须回到此处完成资格链。
 
-出口：1a 审计 artifact 封存；1b 得到 PASS 或 FAIL 终局（FAIL 原样封存，回到 reader
-设计修正，不换门重试）。
+出口：1a 审计 artifact 已封存，因此 Phase 2/2.5 可继续；1b 是独立 Readable formal 前置，
+恢复时必须得到 PASS 或 FAIL 终局（FAIL 原样封存，回到 reader 设计修正，不换门重试）。
 
 ### Phase 2 · 协议修正设计（开发档为主）
 
@@ -146,9 +152,26 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 
 出口：四包各自提交，协议设计冻结为 prereg-ready 草案（尚不执行）。
 
+### Phase 2.5 · 修正后的 Product Horizon 开发矩阵（开发档，下一因果目标）
+
+入口：Phase 2 包 1 的 gate owner 与 executor consumer 分包完成，且所选 Product Horizon source 已
+通过对应 development admission；不等待 reader v6 formal 链。先跑 2–3 item 的轻量同路径 smoke，
+只核对臂机制与 receipt，
+随后用独立 development prereg JSON + commit hash + fixed seeds 执行中等 root-cluster 矩阵：
+
+1. `full − frozen_theta0` 估计 Learnable 的方向、方差与 root-level ICC；
+2. `frozen_theta0 − strict_noop` 估计 Steerable 的方向、方差与 root-level ICC；
+3. 同时报告非 noop 机会数、arm divergence、每 segment 决策数、wall/GPU 成本与 full-N feasibility；
+4. 方向为负或接近零则停止对应 formal 大运行；方向为正但低于 practical floor 仍如实记为
+   `directionally_positive_below_practical_floor`，不得改门；
+5. 本矩阵使用 Product Horizon roots，**不是** A2 的 50–100 dyad 中等矩阵，二者不共享 N、estimand、
+   protocol identity 或 evidence claim。
+
+出口：development 终局和 stop/go 建议封存；无论结果如何都不进入 12 槽 formal ledger。
+
 ### Phase 3 · 四轴单轴门（正式档）
 
-入口：Phase 2 包 1、2 完成；对应轴的 SHADOW receipt 就绪。
+入口：Phase 2 包 1、2 完成；Phase 2.5 对应 contrast 已封存且没有触发 stop；对应轴的 SHADOW receipt 就绪。
 内容：按 12 槽 prerequisite ledger 逐轴推进 mechanism → SHADOW → unseen single-axis：
 
 | 轴 | 当前机制层 | 缺口 |
@@ -156,7 +179,7 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 | Appendable | hydration/owner-history 前置证据（`675815b9…2052` 等） | SHADOW 槽 + unseen 单轴门；须直面 attempt03 的 frozen-better 负信号 |
 | Readable | Phase 1b 的 reader admission | 合格 SHADOW + unseen 系统门（disjoint source） |
 | Learnable | PE→credit→gate 可重放 | `frozen_theta0` 新臂的 unseen 单轴证据 |
-| Steerable | fit/synthetic 前置工件 | 产品 SHADOW + 非 noop receipt + unseen 单轴效果（含真实 residual actuation） |
+| Steerable | fit + P4.6 development-only physical artifact `6b6f5e4f…34a99` | 产品 SHADOW + 非 noop receipt + unseen 单轴效果；依赖真实 residual/host 的 formal 槽在 host qualification 前暂停 |
 
 每个 unseen 单轴门使用与既有资格链 disjoint 的 source revision，正式档全套锚定。
 ledger 授权字段由 validator 派生，当前合法终局为
@@ -166,7 +189,7 @@ ledger 授权字段由 validator 派生，当前合法终局为
 
 ### Phase 4 · integrated Product Horizon（正式档，唯一四轴合取实验)
 
-入口：Phase 3 出口 + source admission + power 冻结 + execution admission 各自独立过门。
+入口：Phase 3 出口 + source admission + power 冻结 + host admission + execution admission 各自独立过门。
 内容：全新 protocol identity（不复用 attempt03/v2 任何 root），包含 Phase 2 的全部修正
 （frozen_theta0 臂、加大功效、分段样本量披露），彩排后冻结、公开锚定、一次性执行。
 
@@ -191,7 +214,9 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
 
 | 门 | 时点 | 选项 | 默认 |
 |---|---|---|---|
+| 宿主裁决（已完成） | Phase 0 | 推迟正式 host qualification；development CUDA 继续；host-dependent formal Steerable/Integrated 线暂停 | 不以 BIOS settings 变更替代 microcode/qualification |
 | reader FAIL 分支 | Phase 1b 后 | 修 reader 设计（开发档迭代）再走新资格链；不换门重试 | — |
+| Horizon development stop/go | Phase 2.5 | Learnable/Steerable 方向、方差/ICC、成本与 practical-floor 缺口 | 负或近零停止 formal 大运行 |
 | A2 预算 | Phase 2.4 | cost probe 后：中等矩阵 / 换硬件计价 / 压采集成本 | 先 probe，禁止直开 501 |
 | frozen-better 复现分支 | Phase 3 Appendable | 若修正后 Appendable 单轴门仍为负：如实封存"持续写回在该环境无净增益"，四轴主张按缺口收窄，不得绕过该轴 | — |
 | integrated 授权 | Phase 4 入口 | 仅 ledger 12/12 + 各 admission 齐全 | 缺任一即 `not_authorized` |
@@ -224,3 +249,12 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   `git status` 除 `external/vz-bundle` 既有改动外清洁。用户已裁决单写入者：本主线由当前
   Cursor 主任务独占写入，其余任务（含既有 Codex 任务）转只读；用户同时裁决 32K 长上下文
   操作化不纳入本计划 Phase 2，留给 P4.7 线。本记录不授权任何 run。
+- 2026-08-26 · 事实修正：`9a0b7d43` 把“用户已修改 BIOS settings、CUDA 可重试”误记为
+  “正式宿主前提已解决”。后续实测仍为 BIOS `A.B0` / microcode `0x120 < 0x12F`，且不存在
+  真实 host-qualification root；同时历史 P4.6 artifact `6b6f5e4f…34a99` 已以 13/13 checks
+  封存 development-only PASS。现明确裁决为“development CUDA 继续；formal host qualification
+  推迟；host-dependent formal 线暂停”，不重写上述错误提交或任何历史 artifact。
+- 2026-08-26 · Phase 0/1 状态校正：Phase 0 不重复；Phase 1a 已由 `7c2f24ba`/`b7d1796e`
+  闭合。首个 reader v6 rehearsal 由用户停止，未完成根保留为 non-evidence，formal reader 链推迟且
+  不阻塞新消融。新增 Phase 2.5 Product Horizon development root-cluster 矩阵作为下一因果目标；
+  本地小包 commit 已获持续授权，外部动作才攒批确认。本记录不授权 formal run。
