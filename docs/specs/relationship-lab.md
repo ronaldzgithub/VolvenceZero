@@ -1578,6 +1578,28 @@ four_able_complete=false / human_product_validation=false / production_active=fa
 formal_evidence_authorized=false`。它没有真实 residual hook、用户可见生成、真人独立 subject 或 formal 32K
 因果相关 long-context 操作化，因此 stage-two PASS 也不能证明完整 Steerable、四能力闭环或 P4.7 thesis。
 
+#### 下一版 Product Horizon 的 Learnable/Steerable owner 前置包
+
+attempt03 的 `credit_withheld` 因未应用 credit 而保持 gate update 为零，行为上退化为 strict noop；该历史臂名、
+receipt 与判词原样保留，但 `volvence_full - credit_withheld` 不得再被解释为 Learnable 的独立贡献。下一版
+development protocol 必须改用共同 nonzero `frozen_theta0` 的三臂拓扑，并冻结：
+
+- `Learnable = full - frozen_theta0`：两臂共享 theta0、forced-action collection、reaction/outcome/PE/exact credit
+  batch 与 update operator，唯一差异是 atomic apply bit；
+- `Steerable = frozen_theta0 - strict_noop`：两臂共享冻结 gate decision 与 intervention candidate，唯一差异是
+  executor apply bit；
+- `frozen_theta0` receipt 必须证明 campaign online update count 为 0、参数 delta 精确为零且 evaluation 至少一次
+  非 noop steer；任一臂退化都判 `arm_degeneracy_invalid_contrast_no_claim`。
+
+当前 owner 前置包只新增 `RelationshipActionGate` 的内容寻址 theta0、纯 frozen policy、forced exposure、exact
+PE-credit batch、pure plan 与 apply/withhold receipt。它复用而不回改 P4.7 §2006–2016 的隔离方法：collection
+期间 gate 不变、同 action/outcome/PE/credit、一次 batch 后冻结评估 policy；任何 post-batch policy/restore
+都必须从 exact batch + `APPLY` receipt 重放，单独的任意 post-checkpoint 不获接受。owner receipt 中的
+`atomic_commit_count=1` 只表示进程内 gate 状态一次赋值；磁盘/fsync/crash 原子性、两臂内生后代逐字节一致、
+evaluation 只消费 immutable policy、executor-only strict noop 与 product outcome 均留给后续 consumer 包。
+本包不接 source-v3、不运行 campaign/CUDA、不修改 attempt03、P4.7 v3 或任何既有公开判词；nonzero theta0
+也不等于 qualified、Learnable、Steerable 或四能力证据。
+
 #### source-separated reader development 资格预检
 
 `relationship-condition-reader-qualification-protocol.v1` 只冻结 reader 开发资格问题，不是模型执行协议。

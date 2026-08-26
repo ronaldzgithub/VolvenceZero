@@ -145,6 +145,40 @@ credit_value = signed_utility_prediction_error × evidence_confidence
 - checkpoint 绑定 artifact id/version、参数、update count、已消费 credit 与 pending decision；
   state root 按 subject hash 隔离。
 
+### 4.3 `frozen_theta0` 实验 sidecar（offline SHADOW）
+
+下一版 Product Horizon 的 Learnable/Steerable 拆分使用独立 sidecar 类型，不修改上述生产/历史
+`relationship-action-gate.v1` 契约：legacy `RelationshipActionGateArtifact / Decision / Checkpoint` 的字段、
+payload、mode enum、默认零初始化、`p > 0.5` 阈值、逐条 `observe_credit()` 与历史
+`checkpoint_sha256`（仅参数状态 digest）均保持原语义。
+
+`RelationshipActionGateTheta0Artifact` 只供显式 opt-in 的新实验使用。它以 canonical IEEE-754 hex
+冻结五维参数、bias、learning rate、parameter cap、operator、feature order 与 threshold rule；其
+`source_checkpoint_content_sha256` 必须是 source checkpoint **完整 canonical payload** 的 hash，不能填旧的
+三字段 `checkpoint_sha256`。`source_batch_artifact_id` 必须以 canonical SHA-256 结尾，并来自本次 evaluation
+之外已冻结的 pre-run/calibration batch。非零 theta0、有合法 lineage 或能产生非 noop 决策，都不等于 theta0
+已 qualification，更不单独证明 Learnable 或 Steerable。
+
+matched learning collection 的 owner 契约固定为：
+
+- `FrozenPolicy / FrozenDecision` 发布绑定 checkpoint full-content hash、policy id 与 random seed 的纯决策；调用
+  不登记 pending decision；cold 之外的 policy/restore 必须携带 exact batch + `APPLY` receipt 并由 owner 从
+  theta0 重放出同一 checkpoint，禁止只提交一份任意 cap 内 post-checkpoint；
+- `ForcedExposure` 只允许声明的 forced action 等于该 forecast 的 recommendation 或 `neutral_noop`，否则
+  二元 gate 会把另一非推荐动作的 outcome 错归因为 `STEER` credit；
+- `CreditBatch` 按时间顺序绑定同一 cold theta0 policy、forced action 与 exact `SELF`-track social-PE credit；
+- `BatchPlan` 纯计算 candidate checkpoint，不改变 owner；`BatchReceipt` 的 apply/withhold 是唯一分叉：withhold
+  必须 `post==pre`、delta/count/processed credit 均不变，apply 必须一次性替换 gate 的**进程内状态引用**并登记
+  全部 credit。`atomic_commit_count=1` 不声称磁盘写入、fsync 或 crash recovery 具有事务原子性。
+
+`freeze_for_evaluation()` 只发布不可变 policy snapshot，不锁死原 mutable gate。实验 consumer 必须在 batch
+处分后弃用 mutable gate，evaluation 只消费该 frozen policy；若后续仍更新原 gate，contrast 必须判 invalid。
+forced-action 字段在本层只是与 forecast/credit 绑定的声明；实际执行、跨臂 reaction/outcome/PE bytes 相同、
+评估期非 noop 机会、strict-noop executor-only 分叉与持久化原子性，均由未来 campaign consumer/receipt
+独立证明，不由本 owner sidecar 冒充。owner 在此只校验 `relationship-action-pe-credit:<settlement>` 与
+`social_pe:social-pe:<settlement>` 的 typed ID join；PE 数值是否真由实际 settlement 导出仍须 campaign validator
+从上游 owner receipt 重算。
+
 ## 5. Temporal advisory 与 causal exposure
 
 `TemporalActionAdvisoryProposal` 只携带 action identity、forecast/decision、policy artifact、
