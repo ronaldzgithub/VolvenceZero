@@ -1,0 +1,101 @@
+{
+  "schema_version": "relationship-product-source-campaign-admission-protocol.v1",
+  "evidence_tier": "development",
+  "owner": "lifeform_evolution.relationship_product_source_admission",
+  "source": {
+    "schema_version": "relationship-product-pilot-source.v3",
+    "protocol_raw_sha256": "09b0fe4adad95a23dda06570e6720381ebac46f1ebacfb13b57924671f45b22f",
+    "protocol_raw_bytes": 1410,
+    "protocol_sha256": "d17a49edc5dc549a325648f9c430340d0d3e7cabe634ba339506bd7e56b24be8",
+    "public_plan_sha256": "4f5e8c1508b533d9d64434c5e3ba6a8e9b95814b070fec21ff2d03841746bb05",
+    "sealed_bundle_sha256": "7ddec3e160967381a51e6ffdf2362924619249e8b43ffc0a531aaf2015cdc18d"
+  },
+  "direct_execution_closure": [
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_pilot_source_v2.py",
+      "raw_bytes": 61936,
+      "raw_sha256": "887991420af52df58fbf58b3b35f326c4245b2f7fef0c27dd51a360e17eff21d"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_pilot_source.py",
+      "raw_bytes": 67709,
+      "raw_sha256": "15162708b3e23071830d0413f1ff7a2a75512f507e37f6e30a47570a593972ae"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v3.json",
+      "raw_bytes": 1410,
+      "raw_sha256": "09b0fe4adad95a23dda06570e6720381ebac46f1ebacfb13b57924671f45b22f"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v2.json",
+      "raw_bytes": 13031,
+      "raw_sha256": "ef35ba2637e53c96c2ed86b16a8bb69281cc10e1a2f30c81112a66841f4b23f7"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/environment.py",
+      "raw_bytes": 4410,
+      "raw_sha256": "1e860fe637d25789203909dc576687e7446d6acb1f0033ca1d079e8b14268f58"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/dataset.py",
+      "raw_bytes": 60675,
+      "raw_sha256": "8c86dcc211187518d275117f050ddefeaa07942f13105fd4a495473196959465"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/contracts.py",
+      "raw_bytes": 21390,
+      "raw_sha256": "43ec747a9b3fef94f168b5af9b9f515cc00ae2d1a9ae18549eab7e618728d762"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/relationship_action_contracts.py",
+      "raw_bytes": 1190,
+      "raw_sha256": "dc1907cc67d76536b88894f5e06c907ec4651a76acab0fe28531ffe14db2b526"
+    },
+    {
+      "path": "packages/vz-contracts/src/volvence_zero/dialogue_trace.py",
+      "raw_bytes": 22777,
+      "raw_sha256": "595064914d031e79bfb6519d899e52723d657804c6ac0f87d417ed6f38206411"
+    }
+  ],
+  "inventory": {
+    "subject_count": 8,
+    "onboarding_session_count": 32,
+    "decision_count": 192,
+    "action_order": [
+      "stay_present_without_probe",
+      "respect_space_with_return_option",
+      "neutral_noop"
+    ],
+    "action_counterfactual_commitment_count": 576
+  },
+  "randomness": {
+    "seed_owner": "sealed evaluator decision environment_seed",
+    "selected_action_is_in_draw_hash": true,
+    "common_random_number_design": false,
+    "arm_identity_affects_source_or_environment_seed": false,
+    "all_action_branches_sealed_before_campaign": true
+  },
+  "replay": {
+    "cooperative_materializer_process_count": 2,
+    "cooperative_comparison_process_count": 1,
+    "byte_exact_required": true,
+    "process_independence_security_claim": false
+  },
+  "claims": {
+    "campaign_input_admission_may_be_derived": true,
+    "campaign_execution_authorized": false,
+    "campaign_runtime_order_verified": false,
+    "formal_evidence_authorized": false,
+    "integrated_horizon_authorized": false,
+    "appendable_effect": false,
+    "readable_effect": false,
+    "learnable_effect": false,
+    "steerable_effect": false,
+    "four_able_complete": false,
+    "human_validation_complete": false,
+    "production_active": false,
+    "fresh_process_independence_proven": false,
+    "model_output_count": 0
+  },
+  "claim_boundary": "This development-tier protocol admits only the deterministic source-v3 campaign input after the cooperative official CLI launches two fresh model-free materializer workers and a third comparator, and their public, sealed-evaluator, and 192-by-3 action-conditioned potential-outcome bytes agree. The transferable validation claim is byte identity and deterministic owner replay, not process independence: local PIDs are self-reported receipts, process_independence_security_claim=false, and a malicious same-user producer is out of scope. Random draws are action-specific because selected_action is part of the environment hash; this is not a common-random-number design. Admission does not verify the future runtime order in which a pre-action receipt must precede selection of the actually delivered action branch and publication of the next user reaction. It does not authorize a campaign, model or CUDA execution, formal evidence, an unseen single-axis gate, an integrated Product Horizon, any Appendable, Readable, Learnable, Steerable or four-axis effect, human evidence, or production ACTIVE. Source-v3 has already appeared in reader qualification lineage and cannot be reused as unseen formal evidence. This protocol is Product Horizon-only and shares no estimand, N, protocol identity, or evidence claim with A1 reactive-source qualification or the A2 MSC budget line."
+}

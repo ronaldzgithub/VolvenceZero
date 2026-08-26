@@ -144,10 +144,11 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
    Learnable = full − frozen_theta0；Steerable = frozen_theta0 − strict_noop。
    当前只完成 owner/consumer 机制；campaign-level `campaign_online_update_count=0`、参数零 delta、
    非 noop opportunity 与 arm divergence 仍须由新 development protocol 证明，不能登记能力效果。
-2. **source-v3 campaign admission（protocol/owner 已冻结，artifact 待执行）**：development protocol
+2. **source-v3 campaign admission（已完成）**：development protocol
    `98d51d84…6338` 只复用现有 reactive environment，不重建 engine；独立收敛包物化 32 onboarding、
-   192 decisions、576 条 sealed action-counterfactual commitments，双 fresh-process replay + 第三进程
-   byte-exact 比对。上限 `campaign_input_admitted=true`，不授权 campaign execution。环境 draw hash
+   192 decisions、576 条 sealed action-counterfactual commitments，双 model-free worker replay + 第三进程
+   byte-exact 比对。artifact `982d6f8e…0f59` 精确绑定实现提交 `d8119f25…` 并通过独立
+   `validate-existing`；上限 `campaign_input_admitted=true`，不授权 campaign execution。环境 draw hash
    包含 selected action，明确是 action-specific potential-outcome randomness，不冒充 common-random-number。
    注意
    source-v3 exact texts 已被 v5/v6 资格链见过，只能用于 admission 与 SHADOW；
@@ -271,7 +272,8 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
 - 2026-08-26 · Phase 2 机制推进：`741e7b1b`、`7d476101`、`f6ae1f6a`、`bc9f1b0a`
   已把 frozen-theta0 的 gate owner、preference settlement/persistence identity 与 executor-only strict-noop
   consumer 闭合到 prereg-ready 边界；尚无 campaign-level non-noop/update/divergence/effect 证据。
-  source-v3 campaign-input admission protocol/owner 冻结为 `98d51d84…6338`，只允许后续 model-free
-  cooperative 双 worker + 第三进程比对派生 input-only admission；PID 只作 self-reported receipt，
-  `fresh_process_independence_proven=false`；artifact 尚待代码提交后按 exact commit 生成。
+  source-v3 campaign-input admission protocol/owner 冻结为 `98d51d84…6338`；精确绑定 `d8119f25…` 的
+  artifact `982d6f8e…0f59` 已由 model-free cooperative 双 worker 物化并通过第三进程与独立
+  `validate-existing` 的 byte-exact 复验。PID 只作 self-reported receipt，
+  `fresh_process_independence_proven=false`；唯一新增正判词为 `campaign_input_admitted=true`。
   用户关闭的 reader rehearsal 继续不启动。本记录不授权 campaign、CUDA、formal 或 integrated run。

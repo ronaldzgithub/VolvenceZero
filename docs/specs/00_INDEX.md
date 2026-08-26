@@ -31,9 +31,9 @@
 > preference owner replay/persistence identity 与 executor-only strict-noop 到 prereg-ready 机制边界，但尚无
 > campaign-level non-noop/update/divergence/effect。source-v3 campaign-input admission protocol
 > `98d51d84…6338` 只允许官方 cooperative CLI 的两个 model-free worker 物化 8/32/192 inventory 与 576 条
-> action-conditioned commitment，再由第三进程 byte-exact 比对；PID 不作独立性证明。artifact 未完成前
-> `campaign_input_admitted=false`，即使完成也
-> 保持 campaign/runtime-order/model/CUDA/formal/integrated/四轴 authority=false。
+> action-conditioned commitment，再由第三进程 byte-exact 比对；PID 不作独立性证明。精确绑定实现提交
+> `d8119f25…` 的 artifact `982d6f8e…0f59` 已通过独立 `validate-existing`，因此仅
+> `campaign_input_admitted=true`；campaign/runtime-order/model/CUDA/formal/integrated/四轴 authority 仍全部为 false。
 >
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
 > 下方 `Last reconciled` 长段中的 P4.7 v3 只作历史 design freeze 记录；当前 planning authority 以上述 v4a 为准。

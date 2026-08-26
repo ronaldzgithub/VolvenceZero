@@ -1521,6 +1521,14 @@ production claim 全为 false。source-v3 exact texts 已进入 reader qualifica
 可以供新的 development Horizon 使用，但不得充作 Phase 3 unseen formal source。A1 reactive-source、A2 MSC
 预算与 Product Horizon 继续分账，不共享 estimand、N、protocol identity 或 evidence claim。
 
+2026-08-26 已完成一次精确绑定实现提交
+`d8119f25a96a35336f1c843394f2e5d2ce8f00b4` 的 model-free materialization。最终 manifest artifact ID 为
+`982d6f8ea5c65dddfd11a3cf0847cbccf376b3860de139e175c6ce480d7e0f59`，materialization artifact ID 为
+`f5189228c9aa915672557b8f2a4bdeefda75acbf74ca0bb54293c87493d6cd54`；两个 replay 根逐文件 byte-exact，
+独立 `validate-existing` 持外部 expected protocol ID 复验通过。该事实只把
+`campaign_input_admitted` 提升为 true；执行授权、运行时顺序、正式证据、integrated Horizon、四轴效果、
+真人与 production 判词均保持 false。本次没有运行 reader rehearsal、模型或 CUDA。
+
 ### Product Horizon v1（development product-level long-horizon pilot）
 
 Product Horizon v1 是为了尽快得到可用于产品决策的长视野结果而新增的 development lane；它不修改、
