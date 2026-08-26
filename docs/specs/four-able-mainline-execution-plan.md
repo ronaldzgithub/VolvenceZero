@@ -186,9 +186,11 @@ protocol；在该新 protocol、首次唯一 materialization、external-ID `vali
 当前 forced common-batch 收敛包已选择 112 个 **root-local** schedule/batch，而不是一个 896-credit global
 batch。protocol `dd0d28a7…aff93` 预注册 public-position schedule 父索引 `13c3f8e2…4e9f`、每 root 只执行一次
 八拍 collection、共同 terminal owner persistence，以及 full/frozen/strict 的 APPLY/WITHHOLD/WITHHOLD transition。
-它只读取 dynamic PASS manifest，dynamic natural trace/outcome/credit 读取数为零。代码/协议提交后才允许首次且唯一
-112×8 materialization；PASS 仍只授权 campaign protocol freeze。按用户裁决不生成 2–3 item experimental
-rehearsal artifact；普通 unit tests、schedule identity 校验和 model-free `validate-existing` 保留。
+它只读取 dynamic PASS manifest，dynamic natural trace/outcome/credit 读取数为零。implementation
+`5d028d9c…2798` 的首次且唯一 112×8 materialization 已发布 artifact `92880fb7…40d7` 并 PASS；显式双 ID
+`validate-existing` 重放通过且 6 文件 bytes/size/mtime 不变。112/112 roots 的 APPLY 参数均非零且无 cap-hit，
+但该 PASS 仍只授权 campaign protocol freeze。按用户裁决未生成 2–3 item experimental rehearsal artifact；普通
+unit tests、schedule identity 校验和 model-free `validate-existing` 保留。
 
 1. 冻结选择 N=112 的 development operational marker；每 root 的 8 条 matched collection 不进入效果
    estimand，随后五段各 8 条、共 40 条 evaluation。112 是 synthetic roots，不是真人或 formal N；
@@ -369,3 +371,10 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   同一 WITHHOLD receipt；full 只允许 theta0+batch+APPLY owner replay。dynamic artifact 只读 PASS manifest，
   natural trace/outcome/credit 读取为零。本包仍未执行 materialization/evaluation，不授权 campaign/effect；按用户
   裁决不生成实验彩排 artifact，提交冻结后才进行首个唯一 112×8 development run。
+- 2026-08-27 · 首个唯一 forced common-batch materialization 已由 implementation `5d028d9c…2798` 发布为
+  artifact `92880fb7…40d7`，证据提交 `327ee3f4…`。112 roots、112 个 unique 8-credit batch、112 APPLY 与
+  112 canonical WITHHOLD 全部 exact join；每个 APPLY 为 8 updates + 1 atomic commit，112/112 参数变化非零，
+  最大绝对终态参数 `3.028261 < cap 4.0`，零 cap-hit，full 全部可由 theta0+batch+receipt 重放。symbolic role
+  为 448 recommendation/448 noop；actual action 为 stay 218 / space 209 / noop 469，即 427 physical nonnoop，
+  覆盖 112/112 roots。双 ID 只读复验及三路审计 GO。终局仅提升 `campaign_protocol_freeze_authorized=true`；
+  campaign execution/effect/四轴/reader qualification/formal/unseen/真人/production 继续 false。

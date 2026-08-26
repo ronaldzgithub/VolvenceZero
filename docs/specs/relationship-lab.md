@@ -2147,6 +2147,24 @@ dynamic 112×8 又已闭合 source-v4 sequential writeback/commitment runtime；
 和 model-free `validate-existing` 不算实验彩排。首个完整 112×8 materialization 必须在本 protocol/implementation
 提交冻结后才运行一次；运行前不得写后续 campaign prereg，PASS 后也只允许冻结它，不能直接启动 effect matrix。
 
+implementation `5d028d9ce41b126862bf438ea8e1ad8c95de2798` 的首个且唯一 materialization 已发布 6-file
+artifact `92880fb7f6f692475c0fa5f57705e175508788574bc6f0b356887312e57f40d7`（证据提交
+`327ee3f4…`）。trace `ec3e9f35…97535` 闭合 112 roots、448 onboarding、896 pre/postaction、784 handoff、
+896 writeback/credit 与 112 first-seam exact match；112 个 terminal owner envelope 均 hydrate/export/hash exact
+round-trip 且 SHA 唯一。112 个 unique 8-credit batch 均为 APPLY `8 updates + 1 atomic commit`、WITHHOLD
+`0 updates + 0 commit`，frozen/strict 共享 canonical WITHHOLD/cold policy，112/112 full policy 均可由
+theta0+exact batch+APPLY receipt 重放。112/112 root 参数变化非零且 finite，最大绝对终态参数
+`3.028260527824261 < cap 4.0`，cap-hit 为零。
+
+schedule 的 symbolic role 是 448 recommendation / 448 noop；实际交付是 stay 218 / space 209 / noop 469，
+即 427 physical nonnoop，112/112 roots 各有 3–4 次。不得把 448 recommendation role 写成 448 次物理 steer。
+显式 protocol/artifact 双 ID `validate-existing` 完整通过，复验前后 6 文件 bytes/size/mtime 不变；三路只读审计
+GO。终局保持
+`development_forced_common_collection_batches_materialized_campaign_protocol_freeze_authorized_effect_not_tested`：
+只提升 `campaign_protocol_freeze_authorized=true`。这些共同 owner bytes 是未来三臂起点，不表示三臂已经执行；
+下一合法动作仅为冻结独立 40-decision development campaign protocol，不能直接执行 campaign，更不能声明
+Learnable、Steerable、Appendable、Readable、reader qualification、formal/unseen/integrated/真人或 production。
+
 preflight 的 public predictor envelope 只发布 protocol/public-corpus identity、224 条
 `{item_id, text, text_sha256}` 与计数；session/subject/source-position/surface/group/condition/phase/decision
 元数据不得进入该 envelope。training labels、challenge labels 与 qualification-owned group split 分文件写入
