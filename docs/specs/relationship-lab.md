@@ -153,6 +153,7 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | P4.6-fit model-bound artifact prerequisite owner | `volvence_zero.agent.relationship_p4_steering_artifact_fit` / `vz-runtime` | 只用 canonical strict substrate factory 构造精确 Qwen2.5-1.5B runtime，并把一次 reader/conditional executor/matched sensor-off fit 委托给既有 `fit_steering_artifact_bundle` owner；不复制数学、不接产品 wiring |
 | P4.6-actuation physical residual preflight owner | `volvence_zero.agent.relationship_p4_physical_residual_actuation` / `vz-runtime` | 认证精确 P4.6-fit 根后，以既有 sensor / executor / strict substrate direct hook 跑四臂 synthetic physical-effect preflight；只编排与发布证据，不复制 reader/executor 数学、不生成回复、不接产品 wiring |
 | Product Horizon source owners | legacy `lifeform-domain-emogpt.lab.relationship_product_pilot_source` 只拥有 source-v1；independent `lifeform-domain-emogpt.lab.relationship_product_pilot_source_v2` 只拥有 live source-v3 | legacy owner implementation 固定为 `15162708…972ae`，无参数路径/loader 永远默认字节兼容 v1。已公开 source-v2 JSON/owner metadata 只作 immutable base；source-v3 wrapper 逐字节 pin 它并由 independent owner 物化全新 8 个 development world clone、seed/domain/rendering/identity namespace 与每 condition 14 个不复用 public semantic surface。sealed evaluator truth 仍物理分离，当前不接 campaign、不产模型输出或证据结论 |
+| Product Horizon medium source-v4 owner | `lifeform-domain-emogpt.lab.relationship_product_horizon_source_v4` | 新 frozen envelope 独立承载 112 roots ×（4 onboarding + 8 collection + 40 evaluation），不修改硬编码 8/24 的 source-v3 owner/envelope 或既有 admission closure。每 root 的 public trajectory 与去身份 causal tape 均唯一；owner 可经既有 environment 确定性 replay 三动作分支但不选择 forced action/arm，持久化 commitment/byte closure 待 admission。当前尚未接 reader/campaign、未产模型/CUDA/效果结论 |
 | Product Horizon source-v3 campaign-input admission owner | `lifeform-evolution.relationship_product_source_admission` | 只读既有 independent source owner 与 `ReactiveRelationshipEnvironment`，以 development protocol `98d51d84…6338` 精确 pin raw/canonical/public/sealed identity 及直接执行闭包；官方 cooperative CLI 启动两个 fresh model-free worker，各物化 8/32/192 source inventory 与 576 条三动作 sealed potential-outcome commitment，第三进程 byte-exact 比对。可转移判词不声称 PID 可证明进程独立性。最多派生 `campaign_input_admitted=true`；不验证未来 pre-action→actual-action→reaction runtime 顺序，不授权 campaign/model/CUDA/formal/integrated/四轴结论，也不把已进入 reader 谱系的 source-v3 充作 unseen formal source |
 | Product Horizon reader 资格预检 owner | `lifeform-evolution.relationship_condition_reader_qualification` | 历史 qualification-v1 原样保留；live qualification-v2 显式从 legacy source-v1 training 与 independent source-v3 challenge 的 public/evaluator snapshot 投影生成 model-free、create-only split。prediction request 每行严格只有 opaque item ID、exact text 与 text SHA，challenge label/group 继续 sealed。当前不加载 BGE/CUDA、不授权 qualification/campaign，也不新增 runtime owner |
 | Product Horizon pulse owner | `lifeform-domain-emogpt.lab.relationship_product_pulse` | 只编排正式 `preference_about_other` owner、named condition reader、`dialogue_external_outcome`→PE→credit 与 `RelationshipActionGate`；发布 onboarding / pre-action / settlement frozen snapshot，不复制 memory、PE、credit 或 gate 数学 |
@@ -1528,6 +1529,48 @@ production claim 全为 false。source-v3 exact texts 已进入 reader qualifica
 独立 `validate-existing` 持外部 expected protocol ID 复验通过。该事实只把
 `campaign_input_admitted` 提升为 true；执行授权、运行时顺序、正式证据、integrated Horizon、四轴效果、
 真人与 production 判词均保持 false。本次没有运行 reader rehearsal、模型或 CUDA。
+
+### Product Horizon source-v4 112-root medium development source
+
+`lifeform-domain-emogpt.lab.relationship_product_horizon_source_v4` 是独立的新 owner；不得扩写
+`relationship_product_pilot_source_v2.py`，因为后者的 8-root/24-decision envelope 与 source-v3 admission
+direct closure 已冻结。source-v4 protocol 固定 112 个不同 synthetic root，每 root 含 4 条公开历史
+onboarding、8 条 matched collection 与 40 条 evaluation。evaluation 按 `post_reversal / correction /
+post_correction / return_after_gap / mixed_stress` 分成五段，每段 8 条且两个 typed condition 各 4 条；
+onboarding 只发布旧 base-policy 历史；反转发生在 collection 前，8 条 collection 与随后 40 条 evaluation
+共同使用 complementary policy，两处 gap 均精确为 14 个空白 virtual days。这样未来 evaluation 全臂冻结 gate 时，
+`full − frozen_theta0` 隔离的是 collection PE-credit 对当前 policy 的一次 atomic apply，不会把过时 policy
+学习天然设计成负向。
+correction 段只允许回指同 root、同 condition 的 decision 0–7 collection 记录，禁止回指
+post-reversal 或本 correction 段的已处理条目；每 condition 采用确定性 4↔4 置换，使 8 条 collection
+各被更正一次，禁止有放回抽样造成重复/遗漏并把目标覆盖率漂移混入后续 estimand。
+更正内容是 outcome-independent 的旧记录适用范围澄清：文案显式覆盖“无论当时结果好坏”，不声明
+过去 action/outcome 的真值，也不改变当前 complementary policy。target permutation 在任何 campaign branch
+打开前已由 tape seed 冻结；未来 worker 禁止依据 sealed outcome 重选 target 或改写文案。
+protocol raw SHA/bytes 为 `29162022…8bd3 / 4977`，canonical protocol ID 为
+`dbf05262…1d91`，public plan 与 sealed evaluator bundle ID 分别为 `f46336a9…86d6`、
+`51900ec7…8936`；这些 identity 由 golden regression 固定，v3 loader 与 v4 loader 互不升级。
+
+root、tape、renderer 与逐 decision environment seed 使用不同 SHA-256 namespace 从 protocol identity 和
+root counter 内容派生；arm identity 永不入 seed。112 条 `public_trajectory_sha256` 必须全异；更严格的
+`causal_tape_signature` 删除 root/seed/session/scene ID、绝对日期与纯 filler 后，仍绑定有序 role、segment、
+condition、policy mode、domain、surface recipe 与 correction topology，并必须 112/112 唯一。全部 5,376 个
+environment seed 及 session/decision/scene ID 全局唯一，source-v4 public fragment 与 source-v3 exact fragment
+零重合。跨三臂共享一个 exogenous root 是 paired design，所以统计 root N 是 112，不是 336 或 5,376。
+
+source 为 5,376 decisions 发布可结算 truth；既有 environment 可对 canonical 三动作确定性 replay 合计
+16,128 个 action-conditioned branch，但当前 owner 包不持久化 commitments，也不声称 byte closure；这些
+属于下一 consumer-specific admission。
+collection forced-action schedule 属于未来 campaign prereg，不属于 source owner。既有 environment draw hash
+包含 selected action，因此这些分支是 action-specific potential-outcome randomness，不冒充 common-random-number。
+public value 不含 condition/policy/preferred action/seed/segment/future outcome，已发生 onboarding action/outcome
+仍可公开。`ReactiveRelationshipEnvironment` 继续是唯一 settlement owner，没有新增 runtime slot。
+
+该 owner 只冻结 medium-matrix 输入候选：112 是合成 root，不是真人样本；当前尚未完成 consumer-specific
+source-v4 admission，也未为全新 public texts 物化真实 BGE table，更没有接 gate、worker 或 CUDA。允许的未来
+用途仅是独立 prereg 后的 development 方向、方差/root-level ICC、成本与 full-N feasibility；formal unseen、
+integrated、真人、产品收益和 Appendable/Readable/Learnable/Steerable 判词全部为 false。source-v3 的 8 roots
+可以另作 evaluation 外 theta0 calibration/probe，但不得与这 112 roots 重复或冒充其中一部分。
 
 ### Product Horizon v1（development product-level long-horizon pilot）
 

@@ -34,6 +34,11 @@
 > action-conditioned commitment，再由第三进程 byte-exact 比对；PID 不作独立性证明。精确绑定实现提交
 > `d8119f25…` 的 artifact `982d6f8e…0f59` 已通过独立 `validate-existing`，因此仅
 > `campaign_input_admitted=true`；campaign/runtime-order/model/CUDA/formal/integrated/四轴 authority 仍全部为 false。
+> medium matrix 不重复这 8 个 root：独立 source-v4 owner 已冻结 112 synthetic roots ×（4 onboarding +
+> 8 collection + 40 evaluation），五个 evaluation segment 各 8 条；112 条去身份 causal tape 全异，
+> 5,376 个 environment seed 全异，现 owner 可由既有 environment 确定性 replay 16,128 个
+> action-conditioned branch、不选择 arm/forced action；branch 持久化与 byte closure 仍待 source-v4 admission。
+> 当前仍待 source-v4 consumer-specific admission 与真实 BGE table，未授权 campaign/model/CUDA 或任何效果结论。
 >
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
 > 下方 `Last reconciled` 长段中的 P4.7 v3 只作历史 design freeze 记录；当前 planning authority 以上述 v4a 为准。

@@ -49,6 +49,9 @@ packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_prod
 packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v1.json text eol=lf
 packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v2.json text eol=lf
 packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_pilot_source_v3.json text eol=lf
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_horizon_source_v4.py text eol=lf
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_horizon_source_v4.json text eol=lf
+packages/lifeform-domain-emogpt/tests/test_relationship_product_horizon_source_v4.py text eol=lf
 packages/lifeform-evolution/src/lifeform_evolution/protocols/relationship_condition_reader_qualification_v2.json text eol=lf
 
 # Qualification-owned code, launch/attestation owners, validators and direct

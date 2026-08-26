@@ -153,6 +153,14 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
    注意
    source-v3 exact texts 已被 v5/v6 资格链见过，只能用于 admission 与 SHADOW；
    各轴 unseen 单轴门必须另立 disjoint source revision。
+   **112-root source-v4 owner（已冻结、admission 待完成）**：独立 owner 不修改上述 8/24 source-v3
+   envelope 或 admission closure；冻结 112 synthetic roots ×（4 onboarding + 8 collection + 40 evaluation），
+   onboarding 为旧 base policy，collection 与 evaluation 共享反转后的 complementary policy，避免在冻结
+   evaluation gate 时把过时学习预先设计成负效应；五个 evaluation segment 各 8 条。public trajectory 与
+   去身份 causal tape 均须 112/112 唯一，5,376 个 environment seed 全异；现 owner 可确定性 replay
+   16,128 条三动作 branch、不拥有 collection forced action，branch 持久化/byte closure 待 admission。当前不是
+   `campaign_input_admitted`。protocol/public/sealed identity 为 `dbf05262…1d91 / f46336a9…86d6 /
+   51900ec7…8936`；当前也没有 reader table、campaign、模型/CUDA 或效果 authority。
 3. **功效修正**：下一版 Horizon 每个 durability segment ≥ 6–8 个决策，或增加
    matched worlds；每轴的 N 由该轴独立 power 选择（既有 screen 已显示某 5pp 场景
    需 N=538，禁止用 537 冒充充分样本）。分段样本量必须随报告发布。
@@ -170,12 +178,14 @@ v5 因缺彩排烧掉公开锚。§3 的纪律条款逐条针对这些损耗。
 model-free `validate-existing`，随后用独立 development prereg JSON + commit hash + fixed seeds 执行中等
 root-cluster 矩阵：
 
-1. `full − frozen_theta0` 估计 Learnable 的方向、方差与 root-level ICC；
-2. `frozen_theta0 − strict_noop` 估计 Steerable 的方向、方差与 root-level ICC；
-3. 同时报告非 noop 机会数、arm divergence、每 segment 决策数、wall/GPU 成本与 full-N feasibility；
-4. 方向为负或接近零则停止对应 formal 大运行；方向为正但低于 practical floor 仍如实记为
+1. 冻结选择 N=112 的 development operational marker；每 root 的 8 条 matched collection 不进入效果
+   estimand，随后五段各 8 条、共 40 条 evaluation。112 是 synthetic roots，不是真人或 formal N；
+2. `full − frozen_theta0` 估计 Learnable 的方向、方差与 root-level ICC；
+3. `frozen_theta0 − strict_noop` 估计 Steerable 的方向、方差与 root-level ICC；
+4. 同时报告非 noop 机会数、arm divergence、每 segment 决策数、wall/GPU 成本与 full-N feasibility；
+5. 方向为负或接近零则停止对应 formal 大运行；方向为正但低于 practical floor 仍如实记为
    `directionally_positive_below_practical_floor`，不得改门；
-5. 本矩阵使用 Product Horizon roots，**不是** A2 的 50–100 dyad 中等矩阵，二者不共享 N、estimand、
+6. 本矩阵使用 Product Horizon roots，**不是** A2 的 50–100 dyad 中等矩阵，二者不共享 N、estimand、
    protocol identity 或 evidence claim。
 
 出口：development 终局和 stop/go 建议封存；无论结果如何都不进入 12 槽 formal ledger。

@@ -1,0 +1,141 @@
+{
+  "schema_version": "relationship-product-horizon-source.v4",
+  "owner": {
+    "module": "lifeform_domain_emogpt.lab.relationship_product_horizon_source_v4",
+    "source_role": "independent_medium_matrix_development_source_only",
+    "settlement_owner": "lifeform_domain_emogpt.lab.environment.ReactiveRelationshipEnvironment",
+    "runtime_owner_added": false,
+    "runtime_slot_added": false,
+    "p1m_output_dependency": false,
+    "difficulty_tuned_from_prior_outcome": false
+  },
+  "cohort": {
+    "cohort_id": "relationship-product-horizon-medium-development-20260826",
+    "evidence_role": "development_direction_variance_icc_and_cost_only",
+    "root_count": 112,
+    "onboarding_sessions_per_root": 4,
+    "collection_decisions_per_root": 8,
+    "evaluation_decisions_per_root": 40,
+    "master_seed_namespace": "relationship-product-horizon-source-v4-master-seeds",
+    "per_arm_exogenous_root_clone": true,
+    "arm_identity_affects_source_or_environment_seed": false
+  },
+  "policies": {
+    "condition_ids": [
+      "connection_under_exclusion",
+      "agency_under_override"
+    ],
+    "profiles": {
+      "alpha": {
+        "connection_under_exclusion": "stay_present_without_probe",
+        "agency_under_override": "respect_space_with_return_option"
+      },
+      "beta": {
+        "connection_under_exclusion": "respect_space_with_return_option",
+        "agency_under_override": "stay_present_without_probe"
+      }
+    },
+    "root_assignment": "zero_based_root_index_even_alpha_odd_beta",
+    "evaluation_policy": "use_complementary_profile"
+  },
+  "schedule": {
+    "condition_count_per_eight_decision_block": 4,
+    "segments": [
+      {
+        "segment_id": "matched_collection",
+        "decision_count": 8,
+        "policy_mode": "complement",
+        "minimum_gap_before_days": 0
+      },
+      {
+        "segment_id": "post_reversal",
+        "decision_count": 8,
+        "policy_mode": "complement",
+        "minimum_gap_before_days": 14
+      },
+      {
+        "segment_id": "correction",
+        "decision_count": 8,
+        "policy_mode": "complement",
+        "minimum_gap_before_days": 0
+      },
+      {
+        "segment_id": "post_correction",
+        "decision_count": 8,
+        "policy_mode": "complement",
+        "minimum_gap_before_days": 0
+      },
+      {
+        "segment_id": "return_after_gap",
+        "decision_count": 8,
+        "policy_mode": "complement",
+        "minimum_gap_before_days": 14
+      },
+      {
+        "segment_id": "mixed_stress",
+        "decision_count": 8,
+        "policy_mode": "complement",
+        "minimum_gap_before_days": 0
+      }
+    ],
+    "domain_ids": [
+      "cooperative_workshop",
+      "local_history_project",
+      "shared_meal_roster",
+      "peer_learning_group",
+      "joint_trip_logistics",
+      "neighborhood_garden",
+      "mutual_aid_shift",
+      "creative_collective"
+    ],
+    "role_ids": [
+      "peer_collaborator",
+      "group_coordinator",
+      "close_friend",
+      "family_member",
+      "project_partner",
+      "community_peer",
+      "learning_partner",
+      "travel_companion"
+    ]
+  },
+  "reactive_environment": {
+    "environment_version": "relationship-reactive-environment.v1",
+    "seed_namespace": "relationship-product-horizon-source-v4-reactive-seeds",
+    "outcome_order": [
+      "helped",
+      "felt_heard",
+      "missed",
+      "over_directive"
+    ],
+    "positive_outcomes": [
+      "helped",
+      "felt_heard"
+    ],
+    "preferred_action_probabilities": [0.35, 0.55, 0.05, 0.05],
+    "nonpreferred_stay_probabilities": [0.05, 0.05, 0.10, 0.80],
+    "nonpreferred_space_probabilities": [0.05, 0.10, 0.80, 0.05],
+    "neutral_noop_probabilities": [0.02, 0.03, 0.70, 0.25]
+  },
+  "rendering": {
+    "version": "relationship-product-horizon-public-renderer.v4",
+    "condition_surface_recipes_per_condition": 12,
+    "reflection_recipes": 12,
+    "neutral_context_recipes": 12,
+    "minimum_public_source_characters_per_root": 12000,
+    "minimum_public_source_utf8_bytes_per_root": 30000,
+    "token_measurement_status": "not_measured_not_claimed"
+  },
+  "firewall": {
+    "public_view_contains_sealed_condition": false,
+    "public_view_contains_policy_or_preferred_action": false,
+    "public_view_contains_seed_or_environment_truth": false,
+    "collection_forced_action_owned_by_source": false,
+    "evaluation_or_judge_feedback_to_learning": false,
+    "model_output_count": 0,
+    "formal_evidence_authorized": false,
+    "integrated_execution_authorized": false,
+    "human_sample_claimed": false
+  },
+  "claim_boundary": "This source freezes 112 distinct synthetic Product Horizon roots for a development-only medium matrix. It may support direction, variance, root-level ICC, runtime cost, and feasibility estimates after a separately preregistered campaign. It is not a human sample, formal unseen evidence, an integrated run, or proof of Appendable, Readable, Learnable, Steerable, product benefit, or production readiness."
+}
