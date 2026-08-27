@@ -1,0 +1,210 @@
+{
+  "schema_version": "relationship-product-horizon-source-v5-admission-protocol.v1",
+  "evidence_tier": "development",
+  "owner": "lifeform_evolution.relationship_product_horizon_source_v5_admission",
+  "source": {
+    "schema_version": "relationship-product-horizon-source.v5",
+    "protocol_raw_sha256": "33623a4409d3e5419207340e08bd90462b6b1675afb089433b89fbdb2d859134",
+    "protocol_raw_bytes": 17908,
+    "protocol_id": "71dc200630bf09ee66ce47b9f45460f30ec14cd3ff4e08366c7946497babad9b",
+    "public_view_schema_version": "relationship-product-horizon-public-view.v4",
+    "evaluator_schema_version": "relationship-product-horizon-evaluator-bundle.v4",
+    "public_plan_sha256": "bab2ff2291b95d4eef6107a58ebf4575b08490775bee71b2ad99a5b029e09f6c",
+    "sealed_bundle_sha256": "01026dd6ec00c58762e8d62263d3a114a954c04c8e9ff6cbd7e09ed7054ab0ab",
+    "reader_text_occurrence_count": 5824,
+    "reader_text_unique_count": 3946,
+    "reader_text_inventory_sha256": "13794eb5b73c9d9f6d69553278c03b0f3121b5eb450efdff41f85a1987dbb082"
+  },
+  "exclusion_inputs": {
+    "source_v3_admission": {
+      "admission_protocol_id": "98d51d845fd0c5753e401b2a63ad71f4acfef0eba4db45982863f6eb67526338",
+      "admission_artifact_id": "982d6f8ea5c65dddfd11a3cf0847cbccf376b3860de139e175c6ce480d7e0f59",
+      "public_content_id": "4f5e8c1508b533d9d64434c5e3ba6a8e9b95814b070fec21ff2d03841746bb05",
+      "public_raw_sha256": "eb3d5f855397169183dc7ab658510a14be791078bedae06324a5f99faea7eea4",
+      "reader_text_occurrence_count": 224,
+      "reader_text_unique_count": 224,
+      "reader_text_inventory_sha256": "0287c4e8a2d9bcb6e0bc90bd5f973e08cbb42859b6f33dde422bbd8511f82ca9"
+    },
+    "source_v4_admission": {
+      "admission_protocol_id": "b3988b21200bf0b9239de08ac683d74b589b3cb6f75a62592373bf8a358f2102",
+      "admission_artifact_id": "4cc1ec455a40ffde2b994601f963527ea7d2300191b212b2e4988d2f6ccedd54",
+      "public_content_id": "f46336a95aeac2c7be60616388a31333fb45e46cd18320dae2f9bd25179a86d6",
+      "public_raw_sha256": "e59af9a36f76dff91e6a304743b0301a3da24b46042080b008655ea1a5532e7f",
+      "reader_text_occurrence_count": 5824,
+      "reader_text_unique_count": 1881,
+      "reader_text_inventory_sha256": "1248b73917ed330df5c6b103f0e49bd22b20771da13f2767ea4fe4d44a2e029c"
+    },
+    "adaptive_reader_input_registry": {
+      "scope": "closed_product_horizon_registry_at_protocol_freeze",
+      "future_input_requires_new_protocol": true,
+      "source_v3_public_is_subset_of_development_reader_table": true,
+      "source_v4_public_is_subset_of_development_reader_table": true,
+      "development_reader_table": {
+        "package_protocol_id": "a1ea1e30fd7b6de64bf7ad4beb20f38a608a42c71848fb74505ecb17c9a7866e",
+        "package_artifact_id": "ba46775bbd53dee75f834669952a52c8c058efe05a063fa298cd6fd47283f967",
+        "table_artifact_id": "fd1f8a4a77a9f7edbdf1d24b15c1a921acb7d2e71e15e2f6427f1ddeed3f409d",
+        "table_raw_sha256": "8fc04e114f7b9270b823da7bcf7c2343a9757fc048fd9821f939df4c181b0b69",
+        "reader_text_unique_count": 2109,
+        "reader_text_inventory_sha256": "63cd396fad67bdc3bfebe8e8c578477175bf377808ce4d81e9c9bc47abe7f9ae"
+      },
+      "attempt03_table": {
+        "campaign_protocol_id": "6a34efb81c7313595314693aef0a6bf8596582273808830ed2d36f5155ce8099",
+        "reobservation_artifact_id": "1bf3c14769eeec48637d427c35ab9edfafe399fc627605f00a2338f0cfa47dab",
+        "reobservation_raw_sha256": "5fd5c0f19ed07733b8a67067c8a37de1d2b4ed687183b731d0e18076311805c7",
+        "table_artifact_id": "75ef759e82a1490dd0a8ce7402ce2e77e156ca957196caa44705386b0a12af57",
+        "table_raw_sha256": "894b508f4cfaebea24f66076b17ba8bf1ea812ac61ef36605b6cda8b2fad32fc",
+        "reader_text_unique_count": 30,
+        "reader_text_inventory_sha256": "f99d9f812c5defba76e65f5524b910a126900aa5550ab0d5f5325c9f04d16ce4"
+      },
+      "qualification_v5_table_lineage_only": {
+        "qualification_protocol_id": "723796027a64a627f8f858e4499d5956ad43d7c45bbc20e20f7b04fd197c8e6b",
+        "execution_protocol_id": "4635b642a2cea0abaf5c7abd50a1c0c1365b3b095a9b65a9520a3dd6ef7f81ef",
+        "prediction_manifest_artifact_id": "5e07b23f127c1bb55cf411f65a8749c39e57a5f94cd2a1f995b97dd79b4e50f0",
+        "prediction_manifest_raw_sha256": "730218fdf9d8c795ad36355528bc0de0248c98b2d221f20b28cfb351ba258647",
+        "table_artifact_id": "100c69283aa33d70db65752f649362e2376d5acbf158e4b26ce33cd1b862870b",
+        "table_raw_sha256": "e3f1bb6bf6947c474f6829bed78dade6947dd32ee238b3a9d6fd1d040ba8ee41",
+        "reader_text_unique_count": 228,
+        "reader_text_inventory_sha256": "900d147d20f4649ff26ef6f0f60ec6db2d120496f1aebbd32c2a5b8ecd8c67f3",
+        "exact_subset_of_development_reader_table": true
+      },
+      "union_unique_count": 2135,
+      "union_inventory_sha256": "bd2353b578f6b86e0410423fa98deeb1eb998ab9d5c8c9291aed83b987fb4a31"
+    }
+  },
+  "direct_execution_closure": [
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_horizon_source_v5.py",
+      "raw_bytes": 35256,
+      "raw_sha256": "202e3b2fbd612e2d0b07323de03f0e9fb2c05d1644f21b6796aff68a537b1211"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_horizon_source_v5.json",
+      "raw_bytes": 17908,
+      "raw_sha256": "33623a4409d3e5419207340e08bd90462b6b1675afb089433b89fbdb2d859134"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_horizon_source_v4.py",
+      "raw_bytes": 107193,
+      "raw_sha256": "aff55eefa496cb4cf29bf31b638cfcf1041d4f079b8a37181fb64f3883890a72"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_horizon_source_v4.json",
+      "raw_bytes": 4977,
+      "raw_sha256": "29162022c011b311369816f74087b16c9b262dc50a7a7434227d150b3b2e8bd3"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/environment.py",
+      "raw_bytes": 4410,
+      "raw_sha256": "1e860fe637d25789203909dc576687e7446d6acb1f0033ca1d079e8b14268f58"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/dataset.py",
+      "raw_bytes": 60675,
+      "raw_sha256": "8c86dcc211187518d275117f050ddefeaa07942f13105fd4a495473196959465"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/contracts.py",
+      "raw_bytes": 21390,
+      "raw_sha256": "43ec747a9b3fef94f168b5af9b9f515cc00ae2d1a9ae18549eab7e618728d762"
+    },
+    {
+      "path": "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/relationship_action_contracts.py",
+      "raw_bytes": 1190,
+      "raw_sha256": "dc1907cc67d76536b88894f5e06c907ec4651a76acab0fe28531ffe14db2b526"
+    },
+    {
+      "path": "packages/vz-contracts/src/volvence_zero/dialogue_trace.py",
+      "raw_bytes": 22777,
+      "raw_sha256": "595064914d031e79bfb6519d899e52723d657804c6ac0f87d417ed6f38206411"
+    },
+    {
+      "path": "packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_model_adapters.py",
+      "raw_bytes": 35660,
+      "raw_sha256": "ca96a0c06ba546378d23958052e76bab9ab6ee9991714574d15a059bd0c14553"
+    },
+    {
+      "path": "packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_baselines.py",
+      "raw_bytes": 48367,
+      "raw_sha256": "947a9ad59847e4233344adeadd61929b4ddf492aed18dc1d4b954c2bb48efa0d"
+    },
+    {
+      "path": "packages/lifeform-evolution/src/lifeform_evolution/relationship_product_horizon_source_admission.py",
+      "raw_bytes": 32489,
+      "raw_sha256": "a7aeecd8ed74d4aac39d7dee04c6f98f9714fa161d3c486783f3f535224faadc"
+    }
+  ],
+  "inventory": {
+    "root_count": 112,
+    "onboarding_session_count": 448,
+    "collection_decision_count": 896,
+    "evaluation_decision_count": 4480,
+    "decision_count": 5376,
+    "action_order": [
+      "stay_present_without_probe",
+      "respect_space_with_return_option",
+      "neutral_noop"
+    ],
+    "action_counterfactual_commitment_count": 16128
+  },
+  "randomness": {
+    "seed_owner": "sealed evaluator decision environment_seed",
+    "selected_action_is_in_draw_hash": true,
+    "common_random_number_design": false,
+    "arm_identity_affects_source_or_environment_seed": false,
+    "all_action_branches_sealed_before_campaign": true
+  },
+  "replay": {
+    "materialization_count": 1,
+    "pre_manifest_full_rebuild_required": true,
+    "consumer_validate_existing_required": true,
+    "external_expected_protocol_and_artifact_ids_required": true,
+    "byte_exact_required": true,
+    "read_only_validation_required": true,
+    "process_independence_security_claim": false
+  },
+  "claims": {
+    "campaign_input_admission_may_be_derived": true,
+    "exact_disjoint_admission_may_be_derived": true,
+    "campaign_protocol_frozen": false,
+    "campaign_materialized": false,
+    "campaign_execution_authorized": false,
+    "campaign_runtime_order_verified": false,
+    "preaction_durable_before_branch_verified": false,
+    "actual_delivered_action_join_verified": false,
+    "postaction_barrier_verified": false,
+    "forecast_runtime_arm_blinding_verified": false,
+    "forecast_runtime_scope_blinding_verified": false,
+    "forecast_runtime_order_blinding_verified": false,
+    "source_v5_embedding_table_materialized": false,
+    "reader_fit_count": 0,
+    "reader_qualified": false,
+    "theta_handoff_materialized": false,
+    "geometric_reachability_established": false,
+    "credit_achievability_established": false,
+    "treatment_reachability_admitted": false,
+    "model_execution_authorized": false,
+    "cuda_execution_authorized": false,
+    "formal_evidence_authorized": false,
+    "unseen_single_axis_evidence": false,
+    "integrated_horizon_authorized": false,
+    "appendable_effect": false,
+    "readable_effect": false,
+    "learnable_effect": false,
+    "steerable_effect": false,
+    "four_able_complete": false,
+    "human_validation_complete": false,
+    "human_sample_claimed": false,
+    "production_active": false,
+    "semantic_novelty_established": false,
+    "dgp_independence_established": false,
+    "statistical_independence_established": false,
+    "process_independence_proven": false,
+    "common_random_number_design": false,
+    "a1_reactive_source_evidence_inherited": false,
+    "a2_msc_budget_evidence_inherited": false,
+    "model_output_count": 0,
+    "cuda_invocation_count": 0,
+    "rehearsal_execution_count": 0
+  },
+  "claim_boundary": "This development-tier protocol admits only the source-v5 synthetic Product Horizon campaign input after exact owner replay, public-to-sealed trajectory joining, all 5,376-by-3 action-conditioned branch commitments, and full-string exclusion against source-v3, source-v4, and the closed adaptive reader-input registry existing at this protocol freeze. The registry union contains the development reader table plus the attempt03 table; source-v3, source-v4, and qualification-v5 are mechanically verified subsets of that development table, while qualification-v5 remains lineage-only. Any future adaptive reader input requires a new protocol identity. Exact string disjointness is not semantic novelty, DGP independence, statistical independence, or unseen evidence. Materialization is create-only and writes the manifest last after a second full semantic rebuild and byte comparison; this is cooperative live ordering, not power-loss durability or process-security independence. A future consumer must invoke read-only validate-existing with externally supplied protocol and artifact identities. Random draws remain action-specific because selected_action enters the environment hash, so this is not a common-random-number design. Admission does not freeze or execute a campaign, establish runtime preaction or postaction ordering, prove forecast arm, scope, or call-order blinding, materialize a source-v5 embedding table, fit or qualify a reader, export theta, prove geometric reachability or PE-credit achievability, run a model, CUDA, or rehearsal, or authorize formal, unseen, integrated, four-able, human, or production evidence. The 112 roots are synthetic units, not people. This Product Horizon artifact inherits no estimand, N, protocol identity, or evidence claim from A1 reactive-source qualification or the A2 MSC budget line."
+}
