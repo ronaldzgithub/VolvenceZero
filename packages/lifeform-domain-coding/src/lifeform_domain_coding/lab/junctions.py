@@ -17,10 +17,12 @@ keyword routing.
 from __future__ import annotations
 
 import hashlib
+import math
 import pathlib
 
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from typing import Sequence
 
 from lifeform_domain_coding.lab.trajectory import read_trajectory
 
@@ -163,6 +165,64 @@ def _state_key(
 ) -> str:
     reads_bucket = min(investigate_count, 3)
     return f"{category}|reads={reads_bucket}|edited={int(has_edited)}|tests={test_state}"
+
+
+def state_key_for(
+    *,
+    category: str,
+    investigate_count: int,
+    has_edited: bool,
+    test_state: str,
+) -> str:
+    """Public state-key constructor (single SSOT with :func:`extract_junctions`)."""
+
+    return _state_key(
+        category=category,
+        investigate_count=investigate_count,
+        has_edited=has_edited,
+        test_state=test_state,
+    )
+
+
+def action_class_for_tool(tool_name: str) -> str:
+    """Protocol action class of one sandbox tool (unknown tools -> invalid)."""
+
+    return _TOOL_TO_ACTION.get(tool_name, ACTION_INVALID)
+
+
+def transcript_protocol_state(
+    tool_calls: Sequence[tuple[str, bool, object]],
+) -> dict[str, object]:
+    """Protocol state implied by a prefix of completed tool calls.
+
+    Twin of the per-decision state machine inside
+    :func:`extract_junctions`, restricted to the live view a hand sees:
+    ``(tool_name, succeeded, exit_code)`` per completed call. Submit
+    never appears in a transcript prefix, and unknown tools map to
+    :data:`ACTION_INVALID` which advances nothing — both matching the
+    offline extractor exactly.
+    """
+
+    investigate_count = 0
+    has_edited = False
+    test_state = "none"
+    for tool_name, succeeded, exit_code in tool_calls:
+        action = _TOOL_TO_ACTION.get(str(tool_name), ACTION_INVALID)
+        if action == ACTION_INVESTIGATE:
+            investigate_count += 1
+        elif action == ACTION_EDIT:
+            has_edited = True
+        elif action == ACTION_TEST:
+            if not succeeded:
+                test_state = "failed"
+            else:
+                test_state = "passed" if exit_code == 0 else "failed"
+    return {
+        "investigate_count": investigate_count,
+        "reads_bucket": min(investigate_count, 3),
+        "has_edited": has_edited,
+        "test_state": test_state,
+    }
 
 
 def _state_text(
@@ -504,6 +564,238 @@ def corpus_manifest(
     }
 
 
+# ---------------------------------------------------------------------------
+# Interventional (RCT) calibration — Packet 3.5
+# ---------------------------------------------------------------------------
+
+#: Metadata key a forcing hand writes into its marked ``hand_decision``;
+#: the trajectory is the SSOT, assignment analysis never reads run state.
+FORCED_ASSIGNMENT_METADATA_KEY = "forced_action_assignment"
+FORCED_ASSIGNMENT_SCHEMA_VERSION = "coding-lab-forced-action-assignment.v1"
+
+ASSIGNMENT_ARM_INTERVENTION = "intervention"
+ASSIGNMENT_ARM_CONTROL = "control"
+
+
+@dataclass(frozen=True)
+class InterventionalAssignmentRecord:
+    """One randomized junction assignment lifted from one trajectory.
+
+    ``assigned_action`` is the randomized draw (intention-to-treat unit);
+    ``realized_action`` is what actually happened next (equal to the
+    assignment when compliant). Control-arm records carry the natural
+    action as ``realized_action`` and ``assigned_action=None``.
+    """
+
+    trajectory_sha256: str
+    provenance: str
+    category: str
+    state_key: str
+    arm: str
+    assigned_action: str | None
+    realized_action: str
+    compliant: bool
+    decide_attempts: int
+    step_index: int
+    episode_passed: bool
+
+
+def extract_forced_assignment(
+    trajectory_path: pathlib.Path,
+) -> InterventionalAssignmentRecord | None:
+    """Lift the (at most one) forced-action assignment out of one episode log."""
+
+    path = pathlib.Path(trajectory_path)
+    events = read_trajectory(path)
+    outcomes = [e for e in events if e["event_type"] == "oracle_outcome"]
+    if not outcomes:
+        raise IncompleteTrajectoryError(
+            f"trajectory has no oracle_outcome (still in flight?): {path!s}"
+        )
+    passed = bool(outcomes[0]["payload"]["passed"])
+    presented = next(e for e in events if e["event_type"] == "task_presented")
+    category = str(presented["payload"]["category"])
+    sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+
+    marked = [
+        e
+        for e in events
+        if e["event_type"] == "hand_decision"
+        and FORCED_ASSIGNMENT_METADATA_KEY in (e["payload"].get("metadata") or {})
+    ]
+    if not marked:
+        return None
+    if len(marked) > 1:
+        raise ValueError(
+            f"trajectory carries {len(marked)} forced-action assignments; the "
+            f"one-shot contract allows at most one: {path!s}"
+        )
+    payload = marked[0]["payload"]
+    record = payload["metadata"][FORCED_ASSIGNMENT_METADATA_KEY]
+    if record.get("schema_version") != FORCED_ASSIGNMENT_SCHEMA_VERSION:
+        raise ValueError(
+            f"forced-action assignment schema mismatch in {path!s}: "
+            f"{record.get('schema_version')!r}"
+        )
+    arm = str(record["arm"])
+    if arm not in (ASSIGNMENT_ARM_INTERVENTION, ASSIGNMENT_ARM_CONTROL):
+        raise ValueError(f"unknown assignment arm {arm!r} in {path!s}")
+    assigned = record["assigned_action"]
+    if arm == ASSIGNMENT_ARM_INTERVENTION and assigned not in JUNCTION_ACTIONS:
+        raise ValueError(f"intervention assignment outside protocol surface: {assigned!r}")
+    if arm == ASSIGNMENT_ARM_CONTROL and assigned is not None:
+        raise ValueError("control assignments must carry assigned_action=None")
+    step_index = int(record["step_index"])
+    if step_index != int(payload["step_index"]):
+        raise ValueError(
+            f"assignment step_index {step_index} disagrees with its decision "
+            f"event {payload['step_index']} in {path!s}"
+        )
+    return InterventionalAssignmentRecord(
+        trajectory_sha256=sha256,
+        provenance=f"{path.parent.parent.name}/{path.stem}#s{step_index}",
+        category=category,
+        state_key=str(record["state_key"]),
+        arm=arm,
+        assigned_action=assigned,
+        realized_action=str(record["realized_action"]),
+        compliant=bool(record["compliant"]),
+        decide_attempts=int(record["decide_attempts"]),
+        step_index=step_index,
+        episode_passed=passed,
+    )
+
+
+def collect_forced_assignments(
+    trajectory_paths: tuple[pathlib.Path, ...],
+) -> tuple[InterventionalAssignmentRecord, ...]:
+    """Extract assignments from settled trajectories (in-flight logs skipped)."""
+
+    records: list[InterventionalAssignmentRecord] = []
+    incomplete = 0
+    for path in trajectory_paths:
+        try:
+            record = extract_forced_assignment(path)
+        except IncompleteTrajectoryError:
+            incomplete += 1
+            continue
+        if record is not None:
+            records.append(record)
+    if incomplete:
+        print(f"[interventional] skipped {incomplete} in-flight trajectories")
+    return tuple(records)
+
+
+def wilson_interval(passes: int, trials: int, *, z: float = 1.959963984540054) -> tuple[float, float]:
+    """95% (by default) Wilson score interval for a binomial proportion."""
+
+    if trials < 1:
+        raise ValueError("wilson interval requires trials >= 1")
+    if not 0 <= passes <= trials:
+        raise ValueError("passes must lie in [0, trials]")
+    phat = passes / trials
+    denominator = 1.0 + z * z / trials
+    centre = phat + z * z / (2.0 * trials)
+    margin = z * math.sqrt((phat * (1.0 - phat) + z * z / (4.0 * trials)) / trials)
+    return (
+        max(0.0, (centre - margin) / denominator),
+        min(1.0, (centre + margin) / denominator),
+    )
+
+
+@dataclass(frozen=True)
+class InterventionalActionOutcomeStat:
+    """Intention-to-treat outcome record for one (state key, assigned action) cell."""
+
+    state_key: str
+    assigned_action: str
+    trials: int
+    passes: int
+    compliant_trials: int
+
+    @property
+    def pass_rate(self) -> float:
+        return self.passes / self.trials
+
+    @property
+    def compliance_rate(self) -> float:
+        return self.compliant_trials / self.trials
+
+    def wilson(self) -> tuple[float, float]:
+        return wilson_interval(self.passes, self.trials)
+
+
+def build_interventional_action_outcome_table(
+    records: tuple[InterventionalAssignmentRecord, ...],
+) -> dict[str, tuple[InterventionalActionOutcomeStat, ...]]:
+    """ITT pass statistics per (state key, assigned action).
+
+    Only intervention-arm records enter; analysis is by ASSIGNMENT, not
+    by realized action, so noncompliance dilutes rather than biases.
+    """
+
+    cells: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0, 0])
+    for record in records:
+        if record.arm != ASSIGNMENT_ARM_INTERVENTION:
+            continue
+        assert record.assigned_action is not None  # enforced at extraction
+        cell = cells[(record.state_key, record.assigned_action)]
+        cell[0] += 1
+        cell[1] += int(record.episode_passed)
+        cell[2] += int(record.compliant)
+    table: dict[str, list[InterventionalActionOutcomeStat]] = defaultdict(list)
+    for (state_key, action), (trials, passes, compliant) in cells.items():
+        table[state_key].append(
+            InterventionalActionOutcomeStat(
+                state_key=state_key,
+                assigned_action=action,
+                trials=trials,
+                passes=passes,
+                compliant_trials=compliant,
+            )
+        )
+    return {
+        state_key: tuple(sorted(stats, key=lambda s: s.assigned_action))
+        for state_key, stats in table.items()
+    }
+
+
+def interventional_expert_actions(
+    records: tuple[InterventionalAssignmentRecord, ...],
+    *,
+    min_action_support: int = DEFAULT_MIN_ACTION_SUPPORT,
+    min_pass_rate_margin: float = DEFAULT_MIN_PASS_RATE_MARGIN,
+) -> dict[str, str]:
+    """``state_key -> interventionally credited expert move``.
+
+    Same support/margin rule as the observational
+    :func:`credit_expert_actions` so the two tables stay directly
+    comparable; the difference is that these cells were randomized, so a
+    margin here is causal rather than observational.
+    """
+
+    if min_action_support < 1:
+        raise ValueError("min_action_support must be >= 1")
+    if not 0.0 < min_pass_rate_margin < 1.0:
+        raise ValueError("min_pass_rate_margin must be in (0, 1)")
+    table = build_interventional_action_outcome_table(records)
+    experts: dict[str, str] = {}
+    for state_key in sorted(table):
+        supported = [s for s in table[state_key] if s.trials >= min_action_support]
+        if len(supported) < 2:
+            continue
+        best = max(supported, key=lambda s: (s.pass_rate, s.trials, s.assigned_action))
+        trailing = [
+            stat
+            for stat in supported
+            if stat.assigned_action != best.assigned_action
+            and best.pass_rate - stat.pass_rate >= min_pass_rate_margin
+        ]
+        if trailing:
+            experts[state_key] = best.assigned_action
+    return experts
+
+
 __all__ = [
     "ACTION_EDIT",
     "ACTION_SURFACES",
@@ -511,19 +803,33 @@ __all__ = [
     "ACTION_INVESTIGATE",
     "ACTION_SUBMIT",
     "ACTION_TEST",
+    "ASSIGNMENT_ARM_CONTROL",
+    "ASSIGNMENT_ARM_INTERVENTION",
     "DEFAULT_MIN_ACTION_SUPPORT",
     "DEFAULT_MIN_PASS_RATE_MARGIN",
+    "FORCED_ASSIGNMENT_METADATA_KEY",
+    "FORCED_ASSIGNMENT_SCHEMA_VERSION",
     "JUNCTION_ACTIONS",
     "NEUTRAL_STATE_TEXT",
     "ActionOutcomeStat",
     "ContrastiveJunction",
     "IncompleteTrajectoryError",
+    "InterventionalActionOutcomeStat",
+    "InterventionalAssignmentRecord",
     "JunctionRecord",
+    "action_class_for_tool",
     "build_action_outcome_table",
     "build_contrastive_corpus",
+    "build_interventional_action_outcome_table",
+    "collect_forced_assignments",
     "collect_junctions",
     "corpus_manifest",
     "credit_expert_actions",
+    "extract_forced_assignment",
     "extract_junctions",
+    "interventional_expert_actions",
     "split_corpus",
+    "state_key_for",
+    "transcript_protocol_state",
+    "wilson_interval",
 ]

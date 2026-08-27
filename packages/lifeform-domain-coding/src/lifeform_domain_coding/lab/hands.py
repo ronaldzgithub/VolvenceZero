@@ -16,6 +16,7 @@ Two implementations share one protocol:
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import os
 import time
@@ -25,6 +26,18 @@ from dataclasses import dataclass, field
 from random import Random
 from typing import Any, Protocol
 
+from lifeform_domain_coding.lab.junctions import (
+    ACTION_EDIT,
+    ACTION_INVESTIGATE,
+    ACTION_SUBMIT,
+    ACTION_TEST,
+    FORCED_ASSIGNMENT_METADATA_KEY,
+    FORCED_ASSIGNMENT_SCHEMA_VERSION,
+    JUNCTION_ACTIONS,
+    action_class_for_tool,
+    state_key_for,
+    transcript_protocol_state,
+)
 from lifeform_domain_coding.lab.tasks import ChainTask, FileEdit
 
 MODE_CORRECT = "correct"
@@ -263,6 +276,314 @@ class MemoryAwareScriptedHand(ScriptedHand):
         if needle in context.context_preamble:
             return MODE_CORRECT
         return MODE_ACCEPTANCE_SABOTAGE
+
+
+# ---------------------------------------------------------------------------
+# Forced-action wrapper (Packet 3.5 junction RCT)
+# ---------------------------------------------------------------------------
+
+_FORCED_DIRECTIVE_MARKER = "[FORCED-ACTION DIRECTIVE]"
+_FORCED_DIRECTIVE_TOOL_HINTS: dict[str, str] = {
+    ACTION_EDIT: "write_file",
+    ACTION_TEST: "run_test",
+}
+
+
+def _forced_directive(action_class: str) -> str:
+    tool_hint = _FORCED_DIRECTIVE_TOOL_HINTS[action_class]
+    return (
+        f"\n\n{_FORCED_DIRECTIVE_MARKER} For your NEXT action only, you MUST call a "
+        f"tool of class {action_class} ({tool_hint}). Choose the specific target "
+        "and content yourself; afterwards continue the task normally."
+    )
+
+
+def _action_class_of(action: HandAction) -> str:
+    if action.kind == "submit":
+        return ACTION_SUBMIT
+    return action_class_for_tool(action.tool_name)
+
+
+@dataclass(frozen=True)
+class ForcedActionAssignment:
+    """Randomized per-episode assignment, drawn and logged by the runner.
+
+    ``assigned_action=None`` marks a control episode: the wrapper only
+    annotates the first target-state decision, never changes behaviour.
+    """
+
+    target_state_keys: tuple[str, ...]
+    assigned_action: str | None
+    assignment_id: str
+
+    def __post_init__(self) -> None:
+        if not self.target_state_keys:
+            raise ValueError("assignment requires at least one target state key")
+        if self.assigned_action is not None and self.assigned_action not in JUNCTION_ACTIONS:
+            raise ValueError(
+                f"assigned_action must be one of {JUNCTION_ACTIONS} or None, "
+                f"got {self.assigned_action!r}"
+            )
+        if not self.assignment_id:
+            raise ValueError("assignment_id must be non-empty")
+
+
+class ForcedActionHand:
+    """One-shot junction intervention wrapper (Packet 3.5 RCT machinery).
+
+    Tracks the protocol state implied by the completed-call transcript
+    (same SSOT state machine as the junction corpus). At the FIRST
+    decision whose state key is in the assignment's target set it
+    realizes the assigned action class exactly once:
+
+    * ``submit`` / ``investigate`` — realized directly by the wrapper
+      (deterministic compliance, no ground-truth leakage: submit takes no
+      parameters, investigate is ``list_dir "."``);
+    * ``edit`` / ``test`` — realized by constraining the inner hand via a
+      directive appended to ``context_preamble`` (the hand picks its own
+      target/content, so no oracle knowledge enters). Compliance is
+      checked against the protocol action class with bounded retries;
+      the analysis unit is the ASSIGNMENT (intention-to-treat), so a
+      noncompliant episode keeps its natural action and its record.
+
+    Control assignments annotate the natural decision without changing
+    it. Every trigger writes one metadata record into the trajectory's
+    ``hand_decision`` event — the trajectory stays the analysis SSOT.
+    """
+
+    def __init__(
+        self,
+        *,
+        inner: Hand,
+        category: str,
+        assignment: ForcedActionAssignment,
+        max_constraint_attempts: int = 2,
+    ) -> None:
+        if max_constraint_attempts < 1:
+            raise ValueError("max_constraint_attempts must be >= 1")
+        self._inner = inner
+        self._category = category
+        self._assignment = assignment
+        self._max_constraint_attempts = max_constraint_attempts
+        self._triggered = False
+
+    def hand_id(self) -> str:
+        label = self._assignment.assigned_action or "control"
+        return f"forced[{label}]+{self._inner.hand_id()}"
+
+    @property
+    def triggered(self) -> bool:
+        return self._triggered
+
+    def _base_record(self, *, state_key: str, step_index: int) -> dict[str, Any]:
+        return {
+            "schema_version": FORCED_ASSIGNMENT_SCHEMA_VERSION,
+            "assignment_id": self._assignment.assignment_id,
+            "state_key": state_key,
+            "step_index": step_index,
+        }
+
+    async def decide(self, context: HandContext) -> HandDecision:
+        if self._triggered:
+            return await self._inner.decide(context)
+        state = transcript_protocol_state(
+            tuple(
+                (entry.tool_name, entry.succeeded, entry.result.get("exit_code"))
+                for entry in context.transcript
+            )
+        )
+        state_key = state_key_for(
+            category=self._category,
+            investigate_count=int(state["investigate_count"]),
+            has_edited=bool(state["has_edited"]),
+            test_state=str(state["test_state"]),
+        )
+        if state_key not in self._assignment.target_state_keys:
+            return await self._inner.decide(context)
+        self._triggered = True
+        record = self._base_record(state_key=state_key, step_index=context.step_index)
+        assigned = self._assignment.assigned_action
+
+        if assigned is None:
+            decision = await self._inner.decide(context)
+            record.update(
+                {
+                    "arm": "control",
+                    "assigned_action": None,
+                    "realized_action": _action_class_of(decision.action),
+                    "compliant": True,
+                    "decide_attempts": 1,
+                    "realization": "natural",
+                }
+            )
+            return HandDecision(
+                action=decision.action,
+                metadata={**decision.metadata, FORCED_ASSIGNMENT_METADATA_KEY: record},
+            )
+
+        if assigned == ACTION_SUBMIT:
+            record.update(
+                {
+                    "arm": "intervention",
+                    "assigned_action": assigned,
+                    "realized_action": ACTION_SUBMIT,
+                    "compliant": True,
+                    "decide_attempts": 0,
+                    "realization": "direct",
+                }
+            )
+            return HandDecision(
+                action=HandAction(kind="submit", note="forced:submit"),
+                metadata={FORCED_ASSIGNMENT_METADATA_KEY: record},
+            )
+
+        if assigned == ACTION_INVESTIGATE:
+            record.update(
+                {
+                    "arm": "intervention",
+                    "assigned_action": assigned,
+                    "realized_action": ACTION_INVESTIGATE,
+                    "compliant": True,
+                    "decide_attempts": 0,
+                    "realization": "direct",
+                }
+            )
+            return HandDecision(
+                action=HandAction(
+                    kind="tool", tool_name="list_dir", parameters={"path": "."}
+                ),
+                metadata={FORCED_ASSIGNMENT_METADATA_KEY: record},
+            )
+
+        # edit / test: constrain the inner hand, intention-to-treat.
+        directive = _forced_directive(assigned)
+        constrained = dataclasses.replace(
+            context, context_preamble=context.context_preamble + directive
+        )
+        decision: HandDecision | None = None
+        attempts = 0
+        compliant = False
+        for _ in range(self._max_constraint_attempts):
+            attempts += 1
+            decision = await self._inner.decide(constrained)
+            if _action_class_of(decision.action) == assigned:
+                compliant = True
+                break
+        assert decision is not None  # max_constraint_attempts >= 1
+        record.update(
+            {
+                "arm": "intervention",
+                "assigned_action": assigned,
+                "realized_action": _action_class_of(decision.action),
+                "compliant": compliant,
+                "decide_attempts": attempts,
+                "realization": "constraint",
+            }
+        )
+        return HandDecision(
+            action=decision.action,
+            metadata={**decision.metadata, FORCED_ASSIGNMENT_METADATA_KEY: record},
+        )
+
+
+class ConstraintAwareScriptedHand(ScriptedHand):
+    """Closed-loop scripted hand that obeys forced-action directives (smoke only).
+
+    Calibration device for the Packet 3.5 machinery. Two deliberate
+    differences from :class:`ScriptedHand`:
+
+    * it obeys ``[FORCED-ACTION DIRECTIVE]`` constraints, letting the
+      compliant edit/test realization path be exercised without API
+      cost. The forced-edit realization appends a trailing newline to
+      the task's first reference path — a syntactically inert write
+      chosen WITHOUT consulting the edit's ground-truth content;
+    * its plan is CLOSED-LOOP: progress is derived from the transcript
+      (which reads/writes actually completed) rather than from
+      ``step_index`` arithmetic, so an injected forced step shifts the
+      plan instead of derailing it — mirroring how a real API hand
+      adapts to its own history.
+    """
+
+    def hand_id(self) -> str:
+        return f"constraint-aware-{super().hand_id()}"
+
+    async def decide(self, context: HandContext) -> HandDecision:
+        task = self._tasks_by_id[context.task_id]
+        if _FORCED_DIRECTIVE_MARKER in context.context_preamble:
+            directive_class = (
+                ACTION_EDIT if "class edit" in context.context_preamble else ACTION_TEST
+            )
+            first_path = (
+                task.reference_edits[0].path if task.reference_edits else "src/config.py"
+            )
+            if directive_class == ACTION_EDIT:
+                # mode=append so the closed-loop plan below does not count
+                # this inert write as the task's real (overwrite) edit.
+                action = HandAction(
+                    kind="tool",
+                    tool_name="write_file",
+                    parameters={"path": first_path, "content": "\n", "mode": "append"},
+                )
+            else:
+                module_name = first_path.rsplit("/", 1)[-1]
+                test_path = _FAST_TEST_BY_MODULE.get(module_name, "tests/fast/test_config.py")
+                action = HandAction(
+                    kind="tool", tool_name="run_test", parameters={"test_path": test_path}
+                )
+            return HandDecision(
+                action=action, metadata={"scripted_mode": "constraint_compliant"}
+            )
+
+        mode = self._effective_mode(context, task, self.episode_mode(context.task_id))
+        edits = self._edits_for_mode(task, mode)
+        edited_paths = tuple(dict.fromkeys(edit.path for edit in edits))
+        metadata = {"scripted_mode": mode}
+        reads_completed: dict[str, str] = {}
+        overwrites_done: set[str] = set()
+        test_run = False
+        for entry in context.transcript:
+            if entry.tool_name == "read_file" and entry.succeeded:
+                reads_completed[str(entry.parameters.get("path"))] = str(
+                    entry.result.get("content", "")
+                )
+            elif entry.tool_name == "write_file" and entry.parameters.get("mode") == "overwrite":
+                overwrites_done.add(str(entry.parameters.get("path")))
+            elif entry.tool_name == "run_test":
+                test_run = True
+        for path in edited_paths:
+            if path not in reads_completed:
+                return HandDecision(
+                    action=HandAction(
+                        kind="tool", tool_name="read_file", parameters={"path": path}
+                    ),
+                    metadata=metadata,
+                )
+        for path in edited_paths:
+            if path not in overwrites_done:
+                content = reads_completed[path]
+                for edit in edits:
+                    if edit.path == path:
+                        content = apply_edit_to_text(content, edit)
+                return HandDecision(
+                    action=HandAction(
+                        kind="tool",
+                        tool_name="write_file",
+                        parameters={"path": path, "content": content, "mode": "overwrite"},
+                    ),
+                    metadata=metadata,
+                )
+        module_name = edited_paths[0].rsplit("/", 1)[-1] if edited_paths else ""
+        fast_test = _FAST_TEST_BY_MODULE.get(module_name)
+        if fast_test is not None and not test_run:
+            return HandDecision(
+                action=HandAction(
+                    kind="tool", tool_name="run_test", parameters={"test_path": fast_test}
+                ),
+                metadata=metadata,
+            )
+        return HandDecision(
+            action=HandAction(kind="submit", note=f"scripted:{mode}"), metadata=metadata
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +829,9 @@ class OpenAICompatHand:
 
 __all__ = [
     "APIHandConfig",
+    "ConstraintAwareScriptedHand",
+    "ForcedActionAssignment",
+    "ForcedActionHand",
     "Hand",
     "HandAction",
     "HandContext",

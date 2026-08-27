@@ -357,6 +357,38 @@ conventions=convention_export_all，digest 预算 3500 字符）。
   P2.5、P3a expert 间隙、P3b 三门在玩具规模如实 FAIL；P4 以正确理由
   BLOCK（validation 余量 + contract integrity）。
 
+## 7.10 Packet 3.5：junction 介入式 RCT 标定（结构就绪，smoke 已过）
+
+背景：§7.5 的 `credit_expert_actions` 是观察性条件通过率，已登记
+survivorship/难度混杂。本包把 (状态键, 动作) 单元改为**随机化**测量，
+是 Packet 3.6（episode 通过率判据）的 expert 目标来源。
+
+模块：`lab/hands.py` 的 `ForcedActionAssignment` / `ForcedActionHand` /
+`ConstraintAwareScriptedHand`（闭环 smoke 手）；`lab/junctions.py` 的
+`transcript_protocol_state` / `state_key_for`（与 `extract_junctions`
+同一状态机 SSOT）、`extract_forced_assignment` / ITT 表 /
+`interventional_expert_actions` / `wilson_interval`；runner
+`lifeform_evolution/coding_lab_interventional.py` + CLI
+`scripts/run_coding_lab_packet35_interventional.py`
+（smoke / freeze-prereg / formal，formal 强制 prereg SHA-256）。
+
+- **随机化单位**：每 episode 由 seeded draw 指定 control 或一个协议动作；
+  在首个命中目标状态键的决策点**一次性**实现：submit/investigate 由包装器
+  直接实现（零真值泄漏），edit/test 经 context 指令约束内层手（有界重试，
+  intention-to-treat：不服从保留自然动作与记录）。assignment 以 metadata
+  记入轨迹 `hand_decision`，轨迹是唯一分析 SSOT，重复标记 fail loudly。
+- **诚实边界**：ITT 通过率对"给定已到达状态的指派动作"是因果的；哪些状态
+  被到达仍是观察性的。介入表与观察表分歧是**发现**（混杂实证），不是失败。
+  本包不授权任何能力主张。
+- **smoke 判词（2026-08-27，`packet35_smoke_20260827a`，development）**：
+  4 链 × 8 集 scripted，32/32 触发（首决策状态键），intervention 28 /
+  control 4，四类动作 compliance 全 1.0；expert map 空（单元支持度不足，
+  预期行为——formal 规模才有资格产出 map）。修复两个机制 bug 并回归：
+  相对 output root 会让 `git worktree add` 把 worktree 落进链 repo（现强制
+  绝对化）；开环 ScriptedHand 被注入步打乱（smoke 手改为闭环 transcript 推进）。
+- **formal 前置**：prereg 冻结目标状态键（取自既有 838 轨迹语料的高支持键）、
+  cell 最小支持、margin、seed 与 API 手；预算随攒批确认。
+
 ## 8. 变更纪律
 
 **2026-08-12 注 bug 锚定修复（非模板变更，版本不递增）**：fix_bug 的
