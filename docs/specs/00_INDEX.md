@@ -108,7 +108,12 @@
 > 5,824 次 reader occurrence 的 3,946 条 unique text 与 spent source-v4 exact 零交集，subject/session/decision/seed/world/scene/environment identity 及去身份 `causal_tape_signature` 也不相交。
 > 这只建立 identity-disjoint、尚未消费的 synthetic candidate，不证明 semantic novelty、DGP independence 或 unseen。
 > 它尚未 source-admit，且未对
-> source-v3/全部 adaptive inputs 闭合 disjoint。下一合法顺序是 source-v5 admission→v5-only embedding table
+> source-v3/全部 adaptive inputs 闭合 disjoint。add-only source-v5 admission owner/protocol
+> `d07bdb21…fcd4` 现已冻结 protocol-freeze 时的 closed registry：development 2,109 + attempt03 30
+> 的全文 union 为 2,135，qualification-v5 228、source-v3 224、source-v4 1,881 均作为已证明
+> development-table subset 建账；临时目录 model-free materialization 5 tests PASS，并重算 16,128 个
+> 三动作 commitment。永久 evidence root 仍须等 exact implementation commit 后单次生成，故此刻不登记
+> `campaign_input_admitted=true`。下一合法顺序是该永久 source-v5 admission→v5-only embedding table
 >（旧 reader 不重训）→attempt03 full typed federation 跨 commit handoff→permanent public/outcome-free
 > treatment-reachability admission；后者不是 rehearsal。reader qualification、reachability admission、campaign、模型/CUDA、formal/unseen/integrated/四轴效果与
 > production 继续全部 false。

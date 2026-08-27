@@ -2553,8 +2553,27 @@ outcome/reaction，sealed evaluator 仍拥有 448 条 onboarding truth 与 5,376
 reactive environment，也没有运行 current-decision action/outcome settlement、model/CUDA/rehearsal、embedding、
 reader fit、PE、credit 或 gate update。source admission、theta handoff、reachability、semantic novelty、DGP
 independence 与 unseen authority 均未建立。
-下一包须先以独立 admission 将 source-v5 对 source-v3/其他 adaptive reader inputs 的 exact-disjoint 与三动作
-counterfactual/lineage 一并封存；随后只为 v5 public texts 生成 pinned embedding table，旧 frozen reader 不重训
+
+独立 source-v5 admission owner/protocol 已 add-only 实现，protocol `d07bdb21…fcd4` 冻结的不是开放式
+“all inputs”，而是 protocol-freeze 时的 closed Product Horizon registry：development reader table 2,109 条与
+attempt03 table 30 条的全文 union 为 2,135（两表重合 4）；source-v3 224、source-v4 1,881 与
+qualification-v5 228 均须机械证明为 development table subset。admission 对 source-v5 3,946 条与上述每本账先做
+full-string intersection，再核 digest/inventory；attempt03 table 必须由 frozen reobservation receipt 绑定
+campaign protocol/table，qualification-v5 table 必须由 prediction manifest 绑定 qualification/execution protocol
+与 table raw/artifact。exact 零交集不能升级为 semantic novelty、DGP/statistical
+independence 或 unseen。未来新增任何 adaptive reader input 都要求全新 protocol identity。
+
+materializer 复用既有 v4 causal engine 的公开 commitment seam，但先强制 v5 evaluator protocol/sealed identity，
+随后重算 5,376 decisions×3 actions=16,128 个 owner-defined branch digest。七文件 root 保存 admission/source
+protocol、public plan、sealed evaluator、compact commitments、七本 exact digest-text inventory 与 manifest；输出
+create-only，六个 pre-manifest 文件写完后再做第二次完整 semantic rebuild 和 byte compare，最后才写 manifest。
+Windows scanner 拒绝 symlink/reparse/hardlink；这仍是 cooperative live ordering，不是断电、ADS 或恶意同用户的
+security/process-independence 证明。当前 owner/protocol 在临时目录的 5 项 model-free test 已 PASS；但永久 root
+必须等 exact implementation commit 冻结后再由 CLI 单次生成，所以此处仍不把 protocol 的
+`campaign_input_admission_may_be_derived=true` 写成 repository evidence 的 `campaign_input_admitted=true`。
+
+永久 manifest 经外传 protocol/artifact 双 ID read-only `validate-existing` PASS 后，才可只为 v5 public texts
+生成 pinned embedding table，旧 frozen reader 不重训
 （`reader_fit_count=0`）。attempt03 完整 typed federation 跨 exact implementation commit 的 handoff 仍是另一项
 硬前置，禁止用 compact theta JSON、pickle、monkeypatch 或放宽 exact-HEAD guard 绕过。
 
