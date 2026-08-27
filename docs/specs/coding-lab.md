@@ -184,6 +184,27 @@ conventions=convention_export_all，digest 预算 3500 字符）。
   为仪器迭代证据：2/3 门过，scaling 0.1088 惜败，暴露裸 id 不可
   行动问题。
 
+### 6.6.1 Packet 2 v3 扩链判词（2026-08-28，已产出）
+
+工件：`coding_lab_packet2_formal_v3_qwen3codernext_20260827`（24 链 ×
+10 集 × 3 臂 = 720 集，prereg SHA `caf9590a…1b83`，门与 conventions 与
+v2 完全一致；首跑在 Windows 连续暴露三个 Mac 时代平台边界——相对
+worktree 路径、`os.kill` 死 PID 语义、只读 git 对象——均已修复入库并
+经断点续跑零重复预算完成）：
+
+- `memory_gate = True`（**3× 规模独立复制**）：brain vs stateless 均值
+  +0.0169，bootstrap 5% 下界 **+0.0076 > 0**（v2 为 +0.0061@8 链；
+  新增 16 条链是独立样本，方向与量级复制成立）。
+- `quality_gate = True` 且**升级为严格正**：brain vs steelman 均值
+  +0.0144，下界 **+0.0048 > 0**——v2 只能主张非劣（下界 −0.0045），
+  24 链下结构化记忆**严格优于**全历史转录，不再只是打平。
+- `scaling_gate = False`（**如实封存，发丝级惜败**）：token 比
+  0.10592 对门 0.10（brain 883 vs steelman 8334 tok，实际 9.44× 压缩
+  对门槛 10×）。不重跑、不改门；效率主张如实降级为"约 9.4× 压缩下
+  质量严格更优"。v2 的 3/3 判词保留原字节，二者是不同规模下的两次
+  独立测量，对外引用必须并列陈述而非择优。
+- 通过率：brain 0.496 > stateless 0.458 > steelman 0.442。
+
 ## 6.5 断点续跑与瞬时故障纪律（API 手长跑）
 
 - **链级检查点**：标定 runner 每条链完成时写 `chains/chain-XX/rows.json`；
