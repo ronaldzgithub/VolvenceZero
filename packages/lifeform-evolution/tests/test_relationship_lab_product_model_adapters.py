@@ -15,6 +15,9 @@ from lifeform_evolution.relationship_lab_product_baselines import (
     ProductCurrentObservation,
     ProductPublicHistoryBlock,
 )
+from lifeform_evolution.relationship_lab_product_batch_model_adapter import (
+    bge_m3_batch_public_semantic_embedder,
+)
 from lifeform_evolution.relationship_lab_product_model_adapters import (
     BGE_M3_MODEL_ID,
     BGE_M3_MODEL_REVISION,
@@ -314,7 +317,7 @@ def test_bge_m3_batch_adapter_preserves_order_and_fixed_encode_contract(
 ) -> None:
     snapshot, weights_sha256 = _fake_bge_snapshot(tmp_path)
     model = _FakeBatchSentenceTransformer()
-    embedder = bge_m3_public_semantic_embedder(
+    embedder = bge_m3_batch_public_semantic_embedder(
         device="cuda",
         weights_sha256=weights_sha256,
         model_factory=lambda *_args, **_kwargs: model,
@@ -354,7 +357,7 @@ def test_bge_m3_batch_adapter_rejects_bad_input_before_model_load(
         factory_calls.append((args, kwargs))
         return _FakeBatchSentenceTransformer()
 
-    embedder = bge_m3_public_semantic_embedder(
+    embedder = bge_m3_batch_public_semantic_embedder(
         weights_sha256=weights_sha256,
         model_factory=factory,
         snapshot_path=snapshot,
@@ -382,7 +385,7 @@ def test_bge_m3_batch_adapter_rejects_malformed_model_output(
 ) -> None:
     snapshot, weights_sha256 = _fake_bge_snapshot(tmp_path)
     model = _FakeBatchSentenceTransformer(rows)
-    embedder = bge_m3_public_semantic_embedder(
+    embedder = bge_m3_batch_public_semantic_embedder(
         weights_sha256=weights_sha256,
         model_factory=lambda *_args, **_kwargs: model,
         snapshot_path=snapshot,

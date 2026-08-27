@@ -22,6 +22,9 @@ from lifeform_domain_emogpt.lab.relationship_product_horizon_source_v4 import (
     RELATIONSHIP_PRODUCT_HORIZON_PUBLIC_VIEW_SCHEMA_VERSION,
     RelationshipProductHorizonPublicView,
 )
+from lifeform_evolution.relationship_lab_product_batch_model_adapter import (
+    bge_m3_batch_public_semantic_embedder,
+)
 from lifeform_evolution.relationship_lab_product_model_adapters import (
     BGE_M3_MODEL_ID,
     BGE_M3_MODEL_REVISION,
@@ -31,7 +34,6 @@ from lifeform_evolution.relationship_lab_product_model_adapters import (
     PRECOMPUTED_PUBLIC_EMBEDDING_TABLE_SCHEMA_VERSION,
     PrecomputedPublicEmbeddingRecord,
     PrecomputedPublicEmbeddingTable,
-    bge_m3_public_semantic_embedder,
     bge_m3_weight_pinned_embedder_identity,
 )
 from lifeform_evolution.relationship_product_horizon_source_v5_admission import (
@@ -41,13 +43,13 @@ from lifeform_evolution.relationship_product_horizon_source_v5_admission import 
 
 
 SOURCE_V5_EMBEDDING_TABLE_PROTOCOL_SCHEMA_VERSION = (
-    "relationship-product-horizon-source-v5-embedding-table-protocol.v1"
+    "relationship-product-horizon-source-v5-embedding-table-protocol.v2"
 )
 SOURCE_V5_EMBEDDING_TABLE_MANIFEST_SCHEMA_VERSION = (
-    "relationship-product-horizon-source-v5-embedding-table-manifest.v1"
+    "relationship-product-horizon-source-v5-embedding-table-manifest.v2"
 )
 
-_PROTOCOL_FILENAME = "relationship_product_horizon_source_v5_embedding_table_v1.json"
+_PROTOCOL_FILENAME = "relationship_product_horizon_source_v5_embedding_table_v2.json"
 _EXPECTED_OUTPUT_FILES = frozenset(
     {"protocol.json", "embedding_table.json", "manifest.json"}
 )
@@ -177,6 +179,7 @@ def load_relationship_product_horizon_source_v5_embedding_table_protocol(
             "evidence_tier",
             "owner",
             "purpose",
+            "predecessor_failure",
             "source_admission",
             "public_embedding_input",
             "semantic_model",
@@ -198,6 +201,20 @@ def load_relationship_product_horizon_source_v5_embedding_table_protocol(
         raise ValueError("source-v5 embedding-table owner drifted")
     if payload["purpose"] != "materialize_source_v5_only_public_embedding_table_without_reader_fit":
         raise ValueError("source-v5 embedding-table purpose drifted")
+
+    predecessor = _mapping(payload["predecessor_failure"], "predecessor_failure")
+    expected_predecessor: dict[str, object] = {
+        "protocol_id": "e5e3aac68d4248e2e21116b2fd44abb82f4493065eb014992ed9761883a8947f",
+        "implementation_git_commit": "db0e949ff0d89ee6c88967fd5f7f8a6ea21cd13e",
+        "terminal": "pre_embedding_admission_closure_incompatible",
+        "failed_before_first_embedding_api_call": True,
+        "embedding_api_call_count": 0,
+        "cuda_model_load_count": 0,
+        "output_artifact_created": False,
+        "retry_under_predecessor_protocol_forbidden": True,
+    }
+    if predecessor != expected_predecessor:
+        raise ValueError("source-v5 embedding predecessor failure lineage drifted")
 
     admission = _mapping(payload["source_admission"], "source_admission")
     expected_admission: dict[str, object] = {
@@ -263,7 +280,7 @@ def load_relationship_product_horizon_source_v5_embedding_table_protocol(
 
     execution = _mapping(payload["execution_contract"], "execution_contract")
     expected_execution: dict[str, object] = {
-        "encode_api": "embed_many.v1",
+        "encode_api": "batch_extension.embed_many.v1",
         "batch_size": 32,
         "embedding_api_call_count": 1,
         "embedding_vector_count": 3946,
@@ -301,8 +318,9 @@ def load_relationship_product_horizon_source_v5_embedding_table_protocol(
     expected_closure = (
         "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/contracts.py",
         "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_horizon_source_v4.py",
-        "packages/lifeform-evolution/src/lifeform_evolution/protocols/relationship_product_horizon_source_v5_embedding_table_v1.json",
+        "packages/lifeform-evolution/src/lifeform_evolution/protocols/relationship_product_horizon_source_v5_embedding_table_v2.json",
         "packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_model_adapters.py",
+        "packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_batch_model_adapter.py",
         "packages/lifeform-evolution/src/lifeform_evolution/relationship_product_horizon_source_v5_admission.py",
         "packages/lifeform-evolution/src/lifeform_evolution/relationship_product_horizon_source_v5_embedding_table.py",
         "scripts/run_relationship_product_horizon_source_v5_embedding_table.py",
@@ -378,7 +396,7 @@ def materialize_relationship_product_horizon_source_v5_embedding_table(
 
     protocol = load_relationship_product_horizon_source_v5_embedding_table_protocol()
     semantic = protocol.semantic_model
-    embedder = bge_m3_public_semantic_embedder(
+    embedder = bge_m3_batch_public_semantic_embedder(
         device=_text(semantic["device"], "semantic_model.device"),
         model_revision=_text(
             semantic["model_revision"], "semantic_model.model_revision"

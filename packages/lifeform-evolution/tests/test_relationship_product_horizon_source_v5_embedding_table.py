@@ -15,6 +15,9 @@ from lifeform_evolution.relationship_lab_product_model_adapters import (
     BGE_M3_WEIGHT_BYTES_SHA256,
     bge_m3_weight_pinned_embedder_identity,
 )
+from lifeform_evolution.relationship_product_horizon_source_v5_admission import (
+    load_relationship_product_horizon_source_v5_admission_protocol,
+)
 
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -48,6 +51,25 @@ class _FakePinnedBatchBge:
     ) -> tuple[tuple[float, ...], ...]:
         self.calls.append((texts, batch_size))
         return tuple((float(index + 1), -1.0) for index, _text in enumerate(texts))
+
+
+def test_table_v2_and_source_admission_v1_closures_are_jointly_satisfiable() -> None:
+    admission_protocol, admission_protocol_id = (
+        load_relationship_product_horizon_source_v5_admission_protocol()
+    )
+    table_protocol = (
+        subject.load_relationship_product_horizon_source_v5_embedding_table_protocol()
+    )
+
+    assert admission_protocol_id == table_protocol.source_admission["protocol_id"]
+    assert admission_protocol["direct_execution_closure"][9] == {
+        "path": "packages/lifeform-evolution/src/lifeform_evolution/relationship_lab_product_model_adapters.py",
+        "raw_bytes": 35660,
+        "raw_sha256": "ca96a0c06ba546378d23958052e76bab9ab6ee9991714574d15a059bd0c14553",
+    }
+    assert table_protocol.payload["predecessor_failure"][
+        "terminal"
+    ] == "pre_embedding_admission_closure_incompatible"
 
 
 def _admission_receipt(
@@ -216,7 +238,7 @@ def test_validate_existing_replays_without_constructing_a_live_embedder(
     monkeypatch.setattr(subject, "_load_public_inventory", lambda **_kwargs: inventory)
     monkeypatch.setattr(
         subject,
-        "bge_m3_public_semantic_embedder",
+        "bge_m3_batch_public_semantic_embedder",
         lambda **_kwargs: pytest.fail("validate-existing loaded BGE"),
     )
 
