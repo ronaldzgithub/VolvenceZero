@@ -32,7 +32,7 @@ from lifeform_domain_coding.lab.generation import EnvSpec, generate_environment
 from lifeform_domain_coding.lab.hands import APIHandConfig, Hand, OpenAICompatHand, ScriptedHand
 from lifeform_domain_coding.lab.heldout import seal_heldout_variants
 from lifeform_domain_coding.lab.tasks import ChainTask, generate_task_chain
-from lifeform_domain_coding.lab.workspace import ChainWorkspace
+from lifeform_domain_coding.lab.workspace import ChainWorkspace, remove_tree
 
 HAND_SCRIPTED = "scripted"
 HAND_API = "api"
@@ -182,7 +182,7 @@ async def _run_chain(
     if config.resume and chain_dir.exists():
         # Interrupted mid-chain: whole-chain rerun keeps the chain repo's
         # merge history deterministic instead of reconstructing git state.
-        shutil.rmtree(chain_dir)
+        remove_tree(chain_dir)
     workspace = ChainWorkspace(spec=spec, chain_root=chain_dir)
     workspace.initialize()
     chain = generate_task_chain(spec, chain_seed=chain_index, length=config.episodes_per_chain)

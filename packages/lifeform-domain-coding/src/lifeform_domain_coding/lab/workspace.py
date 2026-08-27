@@ -21,8 +21,10 @@ never git object ids.
 from __future__ import annotations
 
 import ast
+import os
 import pathlib
 import shutil
+import stat
 import subprocess
 from dataclasses import dataclass
 
@@ -49,6 +51,23 @@ _GIT_ENV = {
     "GIT_CONFIG_SYSTEM": "/dev/null",
     "HOME": "/tmp",
 }
+
+
+def remove_tree(root: pathlib.Path) -> None:
+    """Delete a chain/arm directory tree, tolerating git's read-only objects.
+
+    Windows sets the read-only attribute on ``.git/objects`` files, which
+    makes a plain ``shutil.rmtree`` fail with ``PermissionError`` (POSIX
+    ignores the bit, which is why the Mac-era runners never saw this).
+    Every resume-wipe of a directory containing an inner git repo must go
+    through this helper.
+    """
+
+    def _clear_readonly_and_retry(func, path, _exc_info):  # noqa: ANN001
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+    shutil.rmtree(root, onerror=_clear_readonly_and_retry)
 
 
 def directory_bytes(root: pathlib.Path) -> int:

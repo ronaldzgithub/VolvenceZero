@@ -38,6 +38,7 @@ for _pkg in ("lifeform-evolution", "lifeform-domain-coding"):
     sys.path.insert(0, str(_REPO_ROOT / "packages" / _pkg / "src"))
 
 from lifeform_domain_coding.lab.episode import EpisodeBudget  # noqa: E402
+from lifeform_domain_coding.lab.workspace import remove_tree  # noqa: E402
 from lifeform_domain_coding.lab.hands import (  # noqa: E402
     APIHandConfig,
     MemoryAwareScriptedHand,
@@ -108,7 +109,7 @@ async def _run_all_arms(
                     rows.append(ArmEpisodeRow(**item))
                 continue
             if arm_root.exists():
-                shutil.rmtree(arm_root)
+                remove_tree(arm_root)
             cell_rows = await run_chain_arm(
                 arm=arm,
                 config=config,

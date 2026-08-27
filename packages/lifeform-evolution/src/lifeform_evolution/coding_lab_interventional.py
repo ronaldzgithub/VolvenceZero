@@ -51,7 +51,7 @@ from lifeform_domain_coding.lab.junctions import (
     wilson_interval,
 )
 from lifeform_domain_coding.lab.tasks import ChainTask, generate_task_chain
-from lifeform_domain_coding.lab.workspace import ChainWorkspace
+from lifeform_domain_coding.lab.workspace import ChainWorkspace, remove_tree
 
 HAND_SCRIPTED = "scripted"
 HAND_API = "api"
@@ -187,7 +187,7 @@ async def _run_chain(
     if config.resume and rows_path.is_file():
         return _load_chain_rows(rows_path)
     if config.resume and chain_dir.exists():
-        shutil.rmtree(chain_dir)
+        remove_tree(chain_dir)
     workspace = ChainWorkspace(spec=spec, chain_root=chain_dir)
     workspace.initialize()
     chain = generate_task_chain(spec, chain_seed=chain_index, length=config.episodes_per_chain)
