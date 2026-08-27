@@ -22,7 +22,7 @@ import os
 import pathlib
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Callable, Mapping, Protocol
+from typing import Callable, Mapping, overload, Protocol
 
 from lifeform_domain_emogpt.lab import canonical_json, sha256_json
 from lifeform_evolution.relationship_lab_product_baselines import (
@@ -308,7 +308,12 @@ class _SentenceEmbeddingVector(Protocol):
     def tolist(self) -> list[float]: ...
 
 
+class _SentenceEmbeddingMatrix(Protocol):
+    def tolist(self) -> list[list[float]]: ...
+
+
 class _SentenceEmbeddingModel(Protocol):
+    @overload
     def encode(
         self,
         text: str,
@@ -318,6 +323,17 @@ class _SentenceEmbeddingModel(Protocol):
         show_progress_bar: bool,
     ) -> _SentenceEmbeddingVector: ...
 
+    @overload
+    def encode(
+        self,
+        text: list[str],
+        *,
+        batch_size: int,
+        normalize_embeddings: bool,
+        convert_to_numpy: bool,
+        show_progress_bar: bool,
+    ) -> _SentenceEmbeddingMatrix: ...
+
 
 class RevisionPinnedProductHistorySemanticEmbedder(ProductHistorySemanticEmbedder, Protocol):
     """Public semantic encoder with inspectable, exact model provenance."""
@@ -326,6 +342,20 @@ class RevisionPinnedProductHistorySemanticEmbedder(ProductHistorySemanticEmbedde
     model_revision: str
     weights_sha256: str
     sentence_transformers_version: str
+
+
+class RevisionPinnedBatchProductHistorySemanticEmbedder(
+    RevisionPinnedProductHistorySemanticEmbedder,
+    Protocol,
+):
+    """Revision-pinned encoder with an explicit fixed-size batch surface."""
+
+    def embed_many(
+        self,
+        texts: tuple[str, ...],
+        *,
+        batch_size: int,
+    ) -> tuple[tuple[float, ...], ...]: ...
 
 
 class RevisionPinnedBgeM3PublicSemanticEmbedder:
@@ -434,6 +464,53 @@ class RevisionPinnedBgeM3PublicSemanticEmbedder:
             raise ValueError("BGE embedding values must be finite")
         return vector
 
+    def embed_many(
+        self,
+        texts: tuple[str, ...],
+        *,
+        batch_size: int,
+    ) -> tuple[tuple[float, ...], ...]:
+        """Embed one immutable ordered batch without fallback or resizing."""
+
+        if not isinstance(texts, tuple) or not texts:
+            raise ValueError("texts must be a non-empty tuple")
+        for index, text in enumerate(texts):
+            _require_non_empty_text(text, f"texts[{index}]")
+        _require_positive_int(batch_size, "batch_size")
+        encoded = self._ensure_model().encode(
+            list(texts),
+            batch_size=batch_size,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+        raw_rows = encoded.tolist()
+        if not isinstance(raw_rows, list) or len(raw_rows) != len(texts):
+            raise ValueError("BGE batch output row count must match input text count")
+        rows: list[tuple[float, ...]] = []
+        expected_width: int | None = None
+        for row_index, raw_row in enumerate(raw_rows):
+            if not isinstance(raw_row, list) or not raw_row:
+                raise ValueError(f"BGE batch output row {row_index} must be non-empty")
+            if any(
+                isinstance(value, bool) or not isinstance(value, (int, float))
+                for value in raw_row
+            ):
+                raise ValueError(
+                    f"BGE batch output row {row_index} values must be numeric"
+                )
+            row = tuple(float(value) for value in raw_row)
+            if not all(math.isfinite(value) for value in row):
+                raise ValueError(
+                    f"BGE batch output row {row_index} values must be finite"
+                )
+            if expected_width is None:
+                expected_width = len(row)
+            elif len(row) != expected_width:
+                raise ValueError("BGE batch output rows must have one fixed width")
+            rows.append(row)
+        return tuple(rows)
+
 
 def bge_m3_public_semantic_embedder(
     *,
@@ -445,7 +522,7 @@ def bge_m3_public_semantic_embedder(
     snapshot_path: pathlib.Path | None = None,
     snapshot_resolver: Callable[..., str | os.PathLike[str]] | None = None,
     runtime_version_resolver: Callable[[str], str] | None = None,
-) -> RevisionPinnedProductHistorySemanticEmbedder:
+) -> RevisionPinnedBatchProductHistorySemanticEmbedder:
     """Return lazy BGE pinned to offline revision bytes and runtime version."""
 
     return RevisionPinnedBgeM3PublicSemanticEmbedder(
@@ -860,6 +937,7 @@ __all__ = [
     "PrecomputedPublicSemanticEmbedder",
     "ResolvedBgeM3Snapshot",
     "RevisionPinnedBgeM3PublicSemanticEmbedder",
+    "RevisionPinnedBatchProductHistorySemanticEmbedder",
     "RevisionPinnedProductHistorySemanticEmbedder",
     "bge_m3_public_semantic_embedder",
     "bge_m3_weight_bytes_sha256",

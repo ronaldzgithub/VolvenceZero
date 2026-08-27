@@ -131,6 +131,14 @@ class _FakeEmbeddingVector:
         return list(self._values)
 
 
+class _FakeEmbeddingMatrix:
+    def __init__(self, rows: object) -> None:
+        self._rows = rows
+
+    def tolist(self) -> object:
+        return self._rows
+
+
 class _FakeSentenceTransformer:
     def __init__(self) -> None:
         self.calls: list[tuple[str, bool, bool, bool]] = []
@@ -147,6 +155,40 @@ class _FakeSentenceTransformer:
             (text, normalize_embeddings, convert_to_numpy, show_progress_bar)
         )
         return _FakeEmbeddingVector([1.0, -0.25])
+
+
+class _FakeBatchSentenceTransformer:
+    def __init__(self, rows: object | None = None) -> None:
+        self.calls: list[
+            tuple[list[str], int, bool, bool, bool]
+        ] = []
+        self._rows = rows
+
+    def encode(
+        self,
+        texts: list[str],
+        *,
+        batch_size: int,
+        normalize_embeddings: bool,
+        convert_to_numpy: bool,
+        show_progress_bar: bool,
+    ) -> _FakeEmbeddingMatrix:
+        self.calls.append(
+            (
+                list(texts),
+                batch_size,
+                normalize_embeddings,
+                convert_to_numpy,
+                show_progress_bar,
+            )
+        )
+        rows = self._rows
+        if rows is None:
+            rows = [
+                [float(index + 1), float(-(index + 1))]
+                for index, _text in enumerate(texts)
+            ]
+        return _FakeEmbeddingMatrix(rows)
 
 
 def _fake_bge_snapshot(tmp_path, *, weight_bytes: bytes = b"frozen fake bge weights"):
@@ -265,6 +307,90 @@ def test_bge_m3_adapter_snapshot_resolver_is_local_only_and_revision_pinned(
             "local_files_only": True,
         }
     ]
+
+
+def test_bge_m3_batch_adapter_preserves_order_and_fixed_encode_contract(
+    tmp_path,
+) -> None:
+    snapshot, weights_sha256 = _fake_bge_snapshot(tmp_path)
+    model = _FakeBatchSentenceTransformer()
+    embedder = bge_m3_public_semantic_embedder(
+        device="cuda",
+        weights_sha256=weights_sha256,
+        model_factory=lambda *_args, **_kwargs: model,
+        snapshot_path=snapshot,
+        runtime_version_resolver=lambda _name: BGE_M3_SENTENCE_TRANSFORMERS_VERSION,
+    )
+
+    texts = ("public alpha", "public beta", "public alpha")
+    assert embedder.embed_many(texts, batch_size=2) == (
+        (1.0, -1.0),
+        (2.0, -2.0),
+        (3.0, -3.0),
+    )
+    assert model.calls == [([*texts], 2, True, True, False)]
+
+
+@pytest.mark.parametrize(
+    ("texts", "batch_size", "message"),
+    [
+        ((), 2, "non-empty tuple"),
+        (["public"], 2, "non-empty tuple"),
+        (("",), 2, "non-empty string"),
+        (("public",), 0, "positive integer"),
+        (("public",), True, "positive integer"),
+    ],
+)
+def test_bge_m3_batch_adapter_rejects_bad_input_before_model_load(
+    tmp_path,
+    texts,
+    batch_size,
+    message,
+) -> None:
+    snapshot, weights_sha256 = _fake_bge_snapshot(tmp_path)
+    factory_calls: list[object] = []
+
+    def factory(*args: object, **kwargs: object) -> _FakeBatchSentenceTransformer:
+        factory_calls.append((args, kwargs))
+        return _FakeBatchSentenceTransformer()
+
+    embedder = bge_m3_public_semantic_embedder(
+        weights_sha256=weights_sha256,
+        model_factory=factory,
+        snapshot_path=snapshot,
+        runtime_version_resolver=lambda _name: BGE_M3_SENTENCE_TRANSFORMERS_VERSION,
+    )
+    with pytest.raises(ValueError, match=message):
+        embedder.embed_many(texts, batch_size=batch_size)
+    assert factory_calls == []
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        ([[1.0, 2.0]], "row count"),
+        ([[1.0], []], "must be non-empty"),
+        ([[1.0], [2.0, 3.0]], "fixed width"),
+        ([[1.0], [True]], "must be numeric"),
+        ([[1.0], [float("nan")]], "must be finite"),
+    ],
+)
+def test_bge_m3_batch_adapter_rejects_malformed_model_output(
+    tmp_path,
+    rows,
+    message,
+) -> None:
+    snapshot, weights_sha256 = _fake_bge_snapshot(tmp_path)
+    model = _FakeBatchSentenceTransformer(rows)
+    embedder = bge_m3_public_semantic_embedder(
+        weights_sha256=weights_sha256,
+        model_factory=lambda *_args, **_kwargs: model,
+        snapshot_path=snapshot,
+        runtime_version_resolver=lambda _name: BGE_M3_SENTENCE_TRANSFORMERS_VERSION,
+    )
+    with pytest.raises(ValueError, match=message):
+        embedder.embed_many(("first", "second"), batch_size=2)
+    assert len(model.calls) == 1
 
 
 def test_precomputed_table_build_load_and_strict_query_are_content_addressed(
