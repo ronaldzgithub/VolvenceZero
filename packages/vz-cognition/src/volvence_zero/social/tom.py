@@ -945,19 +945,36 @@ def replay_preference_action_forecast_publication_persistence(
     return store.export_persistence_snapshot()
 
 
-def replay_preference_action_forecast_settlement_persistence(
+@dataclass(frozen=True)
+class PreferenceActionForecastSettlementPersistenceReplay:
+    """Exact owner post-state plus the settled errors published on that turn."""
+
+    owner_persistence_snapshot: OwnerPersistenceSnapshot
+    owner_settled_errors: tuple[SocialPredictionError, ...]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.owner_persistence_snapshot, OwnerPersistenceSnapshot):
+            raise TypeError("owner_persistence_snapshot has an unexpected type")
+        if not isinstance(self.owner_settled_errors, tuple) or any(
+            not isinstance(item, SocialPredictionError)
+            for item in self.owner_settled_errors
+        ):
+            raise TypeError("owner_settled_errors must be a typed tuple")
+
+
+def replay_preference_action_forecast_settlement_transition(
     *,
     before: OwnerPersistenceSnapshot,
     forecast: PreferenceActionForecast,
     external_evidence: DialogueExternalOutcomeEvidence,
     owner_outcome_evidence: PreferenceActionOutcomeEvidence,
-) -> OwnerPersistenceSnapshot:
+) -> PreferenceActionForecastSettlementPersistenceReplay:
     """Replay one product-shaped settlement through preference owner rules.
 
-    The returned canonical persistence is the unique stable post-state for the
-    given owner pre-state and exact typed evidence. It intentionally reuses the
-    owner's record settlement, merge windows, forecast consumption, and
-    settlement append logic so evidence consumers never duplicate those rules.
+    The replay publishes both the unique canonical post-state and the exact
+    owner errors lifted into the same-turn social PE snapshot. It intentionally
+    reuses record settlement, merge windows, forecast consumption, and
+    settlement append rules so validators never duplicate owner semantics.
     """
 
     if not isinstance(before, OwnerPersistenceSnapshot):
@@ -1038,7 +1055,7 @@ def replay_preference_action_forecast_settlement_persistence(
     settled_records, settled_errors = settlement_owner._settle_and_merge(
         (new_record,)
     )
-    settlement_owner._snapshot(
+    settlement_snapshot = settlement_owner._snapshot(
         records=settled_records,
         control_signal=0.0,
         proposal_diagnostics=None,
@@ -1057,7 +1074,27 @@ def replay_preference_action_forecast_settlement_persistence(
         raise RuntimeError(
             "preference owner replay did not publish the exact settlement"
         )
-    return store.export_persistence_snapshot()
+    return PreferenceActionForecastSettlementPersistenceReplay(
+        owner_persistence_snapshot=store.export_persistence_snapshot(),
+        owner_settled_errors=settlement_snapshot.settled_errors,
+    )
+
+
+def replay_preference_action_forecast_settlement_persistence(
+    *,
+    before: OwnerPersistenceSnapshot,
+    forecast: PreferenceActionForecast,
+    external_evidence: DialogueExternalOutcomeEvidence,
+    owner_outcome_evidence: PreferenceActionOutcomeEvidence,
+) -> OwnerPersistenceSnapshot:
+    """Compatibility projection of the exact settlement transition post-state."""
+
+    return replay_preference_action_forecast_settlement_transition(
+        before=before,
+        forecast=forecast,
+        external_evidence=external_evidence,
+        owner_outcome_evidence=owner_outcome_evidence,
+    ).owner_persistence_snapshot
 
 
 def preference_action_relationship_outcome_utility(outcome_id: str) -> float:
@@ -1426,6 +1463,7 @@ __all__ = [
     "FeelingAboutOtherModule",
     "IntentAboutOtherModule",
     "LLMToMProposalRuntime",
+    "PreferenceActionForecastSettlementPersistenceReplay",
     "PreferenceActionForecastProposal",
     "PreferenceActionForecastRequest",
     "PreferenceActionForecastRuntime",
@@ -1434,6 +1472,7 @@ __all__ = [
     "preference_action_relationship_outcome_utility",
     "replay_preference_action_forecast_publication_persistence",
     "replay_preference_action_forecast_settlement_persistence",
+    "replay_preference_action_forecast_settlement_transition",
     "settle_preference_action_forecast",
     "social_prediction_error_from_preference_action_forecast_settlement",
 ]

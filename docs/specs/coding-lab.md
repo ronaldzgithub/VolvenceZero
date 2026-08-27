@@ -401,6 +401,20 @@ survivorship/难度混杂。本包把 (状态键, 动作) 单元改为**随机�
   绝对化）；开环 ScriptedHand 被注入步打乱（smoke 手改为闭环 transcript 推进）。
 - **formal 前置**：prereg 冻结目标状态键（取自既有 838 轨迹语料的高支持键）、
   cell 最小支持、margin、seed 与 API 手；预算随攒批确认。
+- **formal 判词（2026-08-27，`packet35_formal_qwen3codernext_20260827`，
+  prereg SHA `1c6f2c20…59fd`）**：24 链 × 10 集，240/240 触发（类别感知单键），
+  intervention 188 / control 52，wall 56min / prompt 6.9M tok。介入式 expert map
+  产出 2 个因果背书单元：`fix_bug|reads=1|edited=0|tests=none → edit`
+  （pass 1.000 [Wilson 0.816,1.000]，n=17；forced 早 submit 0/23 因果证实必败）、
+  `refactor_alias|reads=2|edited=0|tests=none → investigate`（1.000 [0.566,1.000]）。
+  与观察表零分歧（control 侧对比面不足，`observational_control_expert_actions` 空）。
+  两项诚实边界：(1) **类别级地板/天花板**——add_helper / config_feature /
+  extend_report 在 `convention_export_all` 下 control 自然通过率全 0%、
+  refactor_alias 全 100%，此前 0.4375 的带内标定是掩盖了每类饱和的平均值；
+  这三类的介入单元全部 0% 无信息，难度旋钮需按类校准后才可能产出其单元。
+  (2) **指令依从不对称**——test 类约束依从率仅 0.49（extend_report /
+  refactor_alias 为 0），ITT 口径下如实稀释。Packet 3.6 的可用 steer 面因此
+  收窄为已有因果 expert 的状态键；无 expert 的状态 gate 只能 noop。
 
 ## 8. 变更纪律
 
