@@ -201,7 +201,8 @@ checkpoint 在 112/112 root 不同，Learnable 仍必须判
 `arm_degeneracy_invalid_contrast_no_claim`；参数移动不是 treatment。frozen_theta0 与 strict_noop 有
 4,325/4,480 actual divergence，Steerable 仅得到 development GO candidate，不升级为能力效果。
 
-theta0 v3 的剩余 prerequisite 顺序冻结为三个小包；前一包完成即提交，不恢复彩排：
+theta0 v3 的机制路线冻结为三个小包；前两包已经闭合，第三包完成后仍须执行独立 permanent admission，
+全程不恢复彩排：
 
 1. **已闭合** versioned gate operator v2 与 add-only federated parent：无 free bias、移除恒定 support、四个 centred typed feature；只消费完整
    `RelationshipActionCommonBaselineCredit`，以完整 fixed-balanced schedule membership 计算事前 half-centred
@@ -212,7 +213,7 @@ theta0 v3 的剩余 prerequisite 顺序冻结为三个小包；前一包完成�
    provenance child、全局校验唯一性/时间顺序，并只产生一个 unique plan identity、一次 parent APPLY/WITHHOLD 与
    一个 terminal checkpoint。APPLY 固定 `atomic=1 / child_transition=0`；federated transition 必须先凝结为 cold theta0
    才能 evaluation。同序 flat reference 的 candidate checkpoint byte-exact；旧 flat v2 golden ID 与 v1 全部原样保留；
-2. **基础已闭合、federation consumer 待下一包** v2 pulse/forced consumer：以独立 `.v2` authorization/command/receipt/snapshot mechanically 绑定
+2. **已闭合** v2 pulse/forced consumer 与 add-only federation join：以独立 `.v2` authorization/command/receipt/snapshot mechanically 绑定
    完整 assignment receipt、policy+forecast replay 后的 v2 frozen decision、actual temporal delivery、
    owner→Social PE→parent/common-baseline credit；pulse-owned continuous collected batch 保留完整 settlement、
    owner forecast-publication replay 与全程连续 post→input handoff；add-only segmented batch 绑定唯一 segment scope、
@@ -223,14 +224,19 @@ theta0 v3 的剩余 prerequisite 顺序冻结为三个小包；前一包完成�
    executor disposition，外部 base authorization 不能直接打开 ACTIVE；v1 与既有 continuous v2 receipt/payload/ID
    均不复用、不改名。两类 collection 还在构造时 seal owner provenance，并在 ID/export/transition 边界重放校验，
    防止 shallow-frozen `OwnerPersistenceSnapshot.payload` 的 nested mutation；有效 continuous 的公开 constructor
-   signature、canonical payload 与 ID 不变。下一单 owner 包只负责把 112 个 root-local segmented collection 作为
-   完整 child components 接入 gate federation，并冻结 parent order/timing receipt；不能靠 compact ID 重建，也不能
-   产生 child transition；
-3. theta0 v3 + permanent treatment-reachability admission：事前冻结 bootstrap `1/512` 与 root-online `1/4`、
+   signature、canonical payload 与 ID 不变。federated collection 必须显式取得完整 parent schedule 与按 parent order
+   排列的完整 segmented child components；全局拒绝重复 collection/segment/scope 与非递增 credit time，loader 必须
+   同时取得完整 typed parent/children，不能靠 compact ID 重建。matched wrapper 只调用 gate-owned parent factory，
+   只产生一个 APPLY/WITHHOLD pair，固定 `child_transition_count=0`，不循环 child transition、不生成旧
+   `FrozenPolicy`。本机制只能证明 membership/order/timestamp ordering；parent 在首个 forecast/outcome 前 create-only
+   持久化及无 external child-commit 旁路必须由下一包的 durable owner receipt 另证；
+3. **下一包** theta0 v3 owner/protocol：事前冻结 bootstrap `1/512` 与 root-online `1/4`、
    一个含 112 个 provenance child、合计 896 credit 的全局 federated development transition batch、唯一 terminal
    checkpoint 与 cap-hit FAIL；parent 必须在首个 forecast/outcome 前由外部 owner 持久化，正式 lineage 另证没有
-   child-commit 旁路。admission 只读新 source 的
-   public/outcome-free surface，不生成 outcome/PE/credit/update，不是 rehearsal。
+   child-commit 旁路。
+
+三个机制包之后独立执行 permanent treatment-reachability admission；它只读新 source 的
+public/outcome-free surface，不生成 outcome/PE/credit/update，不是 rehearsal。
 
 三个包与 admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
 预先 sealed reactive source；当前 source-v4 只可作为已花费的 adaptive development training lineage。

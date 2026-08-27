@@ -17,6 +17,8 @@ from lifeform_domain_emogpt.lab.relationship_product_pulse import (
     RelationshipProductV2CollectedCreditBatch,
     RelationshipProductV2CollectionSegment,
     RelationshipProductV2ExecutorCommand,
+    RelationshipProductV2FederatedCollectedCreditBatch,
+    RelationshipProductV2FederatedMatchedGateTransitions,
     RelationshipProductV2ForcedCollectionAuthorization,
     RelationshipProductV2ForcedCollectionReceipt,
     RelationshipProductV2FrozenPulseAuthorization,
@@ -27,7 +29,9 @@ from lifeform_domain_emogpt.lab.relationship_product_pulse import (
     RelationshipProductV2SegmentedMatchedGateTransitions,
     append_relationship_product_onboarding,
     build_relationship_product_v2_collected_credit_batch,
+    build_relationship_product_v2_federated_collected_credit_batch,
     build_relationship_product_v2_segmented_collected_credit_batch,
+    commit_relationship_product_v2_federated_matched_gate_transitions,
     commit_relationship_product_v2_matched_gate_transitions,
     commit_relationship_product_v2_segmented_matched_gate_transitions,
     prepare_relationship_product_v2_forced_collection_preaction,
@@ -52,6 +56,9 @@ from lifeform_domain_emogpt.relationship_action_gate_v2 import (
     RelationshipActionGateV2AssignmentScheduleArtifact,
     RelationshipActionGateV2AssignmentScheduleEntry,
     RelationshipActionGateV2CreditBatch,
+    RelationshipActionGateV2FederatedAssignmentScheduleArtifact,
+    RelationshipActionGateV2FederatedCreditBatch,
+    RelationshipActionGateV2FederatedScheduleSegment,
     temporal_action_advisory_from_gate_v2_decision,
 )
 from volvence_zero.dialogue_trace import (
@@ -384,6 +391,32 @@ async def _collect_segmented_batch(
     return tuple(segments), collection
 
 
+def _federated_schedule(
+    child_collected_batches: tuple[
+        RelationshipProductV2SegmentedCollectedCreditBatch,
+        ...,
+    ],
+    *,
+    scope_suffix: str,
+) -> RelationshipActionGateV2FederatedAssignmentScheduleArtifact:
+    offset = 0
+    segments = []
+    for collection in child_collected_batches:
+        child_schedule = collection.gate_batch.schedule_artifact
+        segments.append(
+            RelationshipActionGateV2FederatedScheduleSegment(
+                global_start_index=offset,
+                child_schedule_artifact=child_schedule,
+            )
+        )
+        offset += len(child_schedule.entries)
+    return RelationshipActionGateV2FederatedAssignmentScheduleArtifact(
+        source_artifact_id=(child_collected_batches[0].gate_batch.schedule_artifact.source_artifact_id),
+        schedule_scope_id=f"v2-pulse-federation:{scope_suffix}",
+        segments=tuple(segments),
+    )
+
+
 async def _trained_theta_and_online_batch():
     seed = _seed()
     seed_settlements, seed_batch, _persistence = await _collect_batch(
@@ -695,6 +728,196 @@ def test_v2_segmented_batch_binds_explicit_segment_starts_and_one_schedule() -> 
         commit_relationship_product_v2_segmented_matched_gate_transitions(
             artifact=_seed(),
             collected_batch=other_collection,
+        )
+
+
+def test_v2_federated_collection_retains_children_and_commits_only_parent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed = _seed()
+    _first_segments, first = asyncio.run(_collect_segmented_batch(seed, start_index=120))
+    _second_segments, second = asyncio.run(_collect_segmented_batch(seed, start_index=130))
+    children = (first, second)
+    parent = _federated_schedule(children, scope_suffix="complete")
+    collection = build_relationship_product_v2_federated_collected_credit_batch(
+        federated_schedule_artifact=parent,
+        child_collected_batches=children,
+    )
+
+    assert isinstance(
+        collection,
+        RelationshipProductV2FederatedCollectedCreditBatch,
+    )
+    assert collection.child_collected_batches == children
+    assert isinstance(collection.gate_batch, RelationshipActionGateV2FederatedCreditBatch)
+    assert collection.gate_batch.federated_schedule_artifact == parent
+    assert collection.gate_batch.child_batches == tuple(item.gate_batch for item in children)
+    assert tuple(item.global_start_index for item in parent.segments) == (0, 4)
+    assert collection.gate_batch.exposures == tuple(
+        exposure for child in children for exposure in child.gate_batch.exposures
+    )
+    assert collection.gate_batch.credits == tuple(credit for child in children for credit in child.gate_batch.credits)
+    timestamps = tuple(item.parent_action_credit.timestamp_ms for item in collection.gate_batch.credits)
+    assert all(left < right for left, right in zip(timestamps, timestamps[1:], strict=False))
+    payload = collection.to_payload()
+    assert payload.keys() == {
+        "collection_id",
+        "schema_version",
+        "federated_schedule_artifact_id",
+        "gate_batch_id",
+        "child_collection_count",
+        "credit_count",
+        "child_collections",
+    }
+    assert (
+        RelationshipProductV2FederatedCollectedCreditBatch.from_payload(
+            payload,
+            federated_schedule_artifact=parent,
+            full_child_collected_batches=children,
+        )
+        == collection
+    )
+    tampered_payload = dict(payload)
+    tampered_payload["credit_count"] = 7
+    with pytest.raises(ValueError, match="payload mismatch"):
+        RelationshipProductV2FederatedCollectedCreditBatch.from_payload(
+            tampered_payload,
+            federated_schedule_artifact=parent,
+            full_child_collected_batches=children,
+        )
+    typed_drift_payload = dict(payload)
+    typed_drift_payload["credit_count"] = 8.0
+    with pytest.raises(ValueError, match="payload mismatch"):
+        RelationshipProductV2FederatedCollectedCreditBatch.from_payload(
+            typed_drift_payload,
+            federated_schedule_artifact=parent,
+            full_child_collected_batches=children,
+        )
+    container_drift_payload = dict(payload)
+    child_payloads = container_drift_payload["child_collections"]
+    assert isinstance(child_payloads, list)
+    container_drift_payload["child_collections"] = tuple(child_payloads)
+    with pytest.raises(ValueError, match="payload mismatch"):
+        RelationshipProductV2FederatedCollectedCreditBatch.from_payload(
+            container_drift_payload,
+            federated_schedule_artifact=parent,
+            full_child_collected_batches=children,
+        )
+
+    def _reject_flat_child_commit(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise AssertionError("pulse federation attempted a flat child transition")
+
+    monkeypatch.setattr(
+        RelationshipActionGateV2,
+        "commit_credit_batch",
+        _reject_flat_child_commit,
+    )
+    matched = commit_relationship_product_v2_federated_matched_gate_transitions(
+        artifact=seed,
+        collected_batch=collection,
+    )
+    assert isinstance(
+        matched,
+        RelationshipProductV2FederatedMatchedGateTransitions,
+    )
+    assert matched.collected_batch is collection
+    assert matched.applied.batch == collection.gate_batch
+    assert matched.withheld.batch == collection.gate_batch
+    assert matched.applied.gate_receipt.plan_id == matched.withheld.gate_receipt.plan_id
+    assert (
+        matched.applied.gate_receipt.pre_checkpoint_content_sha256
+        == matched.withheld.gate_receipt.pre_checkpoint_content_sha256
+    )
+    assert (
+        matched.applied.gate_receipt.candidate_checkpoint_content_sha256
+        == matched.withheld.gate_receipt.candidate_checkpoint_content_sha256
+    )
+    assert matched.applied.gate_receipt.atomic_commit_count == 1
+    assert matched.applied.gate_receipt.update_count_delta == 8
+    assert matched.applied.gate_receipt.child_batch_count == 2
+    assert matched.applied.gate_receipt.child_transition_count == 0
+    assert matched.withheld.gate_receipt.atomic_commit_count == 0
+    assert matched.withheld.gate_receipt.update_count_delta == 0
+    assert matched.withheld.gate_receipt.child_transition_count == 0
+    assert matched.applied.terminal_checkpoint.update_count == 8
+    assert matched.withheld.terminal_checkpoint.update_count == 0
+    matched_payload = matched.to_payload()
+    assert matched_payload["child_transition_count"] == 0
+    assert (
+        RelationshipProductV2FederatedMatchedGateTransitions.from_payload(
+            matched_payload,
+            collected_batch=collection,
+            gate_matched_transitions=matched.gate_matched_transitions,
+        )
+        == matched
+    )
+    typed_drift_matched_payload = dict(matched_payload)
+    typed_drift_matched_payload["child_transition_count"] = False
+    with pytest.raises(ValueError, match="payload mismatch"):
+        RelationshipProductV2FederatedMatchedGateTransitions.from_payload(
+            typed_drift_matched_payload,
+            collected_batch=collection,
+            gate_matched_transitions=matched.gate_matched_transitions,
+        )
+    with pytest.raises(
+        TypeError,
+        match="RelationshipProductV2FederatedCollectedCreditBatch",
+    ):
+        commit_relationship_product_v2_federated_matched_gate_transitions(
+            artifact=seed,
+            collected_batch=collection.gate_batch,  # type: ignore[arg-type]
+        )
+
+
+def test_v2_federated_collection_rejects_partial_reorder_credit_time_and_mutation() -> None:
+    seed = _seed()
+    first_segments, first = asyncio.run(_collect_segmented_batch(seed, start_index=140))
+    second_segments, second = asyncio.run(_collect_segmented_batch(seed, start_index=150))
+    children = (first, second)
+    parent = _federated_schedule(children, scope_suffix="rejection")
+
+    with pytest.raises(ValueError, match="at least two exact child collections"):
+        build_relationship_product_v2_federated_collected_credit_batch(
+            federated_schedule_artifact=parent,
+            child_collected_batches=(first,),
+        )
+    with pytest.raises(ValueError, match="parent order"):
+        build_relationship_product_v2_federated_collected_credit_batch(
+            federated_schedule_artifact=parent,
+            child_collected_batches=tuple(reversed(children)),
+        )
+
+    _earlier_segments, earlier = asyncio.run(_collect_segmented_batch(seed, start_index=135))
+    time_reversed_children = (first, earlier)
+    time_reversed_parent = _federated_schedule(
+        time_reversed_children,
+        scope_suffix="time-reversed",
+    )
+    with pytest.raises(ValueError, match="globally increasing"):
+        build_relationship_product_v2_federated_collected_credit_batch(
+            federated_schedule_artifact=time_reversed_parent,
+            child_collected_batches=time_reversed_children,
+        )
+
+    collection = build_relationship_product_v2_federated_collected_credit_batch(
+        federated_schedule_artifact=parent,
+        child_collected_batches=children,
+    )
+    target_payload = second_segments[1].segment_start_owner_persistence_snapshot.payload
+    replacement_payload = first_segments[0].segment_start_owner_persistence_snapshot.payload
+    assert isinstance(target_payload, dict)
+    assert isinstance(replacement_payload, dict)
+    target_payload.clear()
+    target_payload.update(dict(replacement_payload))
+    with pytest.raises(ValueError):
+        _ = collection.collection_id
+    with pytest.raises(ValueError):
+        collection.to_payload()
+    with pytest.raises(ValueError):
+        commit_relationship_product_v2_federated_matched_gate_transitions(
+            artifact=seed,
+            collected_batch=collection,
         )
 
 

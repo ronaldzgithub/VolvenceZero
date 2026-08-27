@@ -97,9 +97,14 @@ from lifeform_domain_emogpt.relationship_action_gate_v2 import (
     RelationshipActionGateV2AssignmentRole,
     RelationshipActionGateV2BatchReceipt,
     RelationshipActionGateV2CreditBatch,
+    RelationshipActionGateV2FederatedAssignmentScheduleArtifact,
+    RelationshipActionGateV2FederatedCreditBatch,
+    RelationshipActionGateV2FederatedMatchedTransitions,
+    RelationshipActionGateV2FederatedTransition,
     RelationshipActionGateV2ForcedExposure,
     RelationshipActionGateV2FrozenDecision,
     RelationshipActionGateV2FrozenPolicy,
+    commit_relationship_action_gate_v2_federated_matched_transitions,
     temporal_action_advisory_from_gate_v2_decision,
 )
 
@@ -167,6 +172,12 @@ RELATIONSHIP_PRODUCT_V2_SEGMENTED_GATE_TRANSITION_SCHEMA_VERSION = (
 RELATIONSHIP_PRODUCT_V2_SEGMENTED_MATCHED_TRANSITIONS_SCHEMA_VERSION = (
     "relationship-product-segmented-matched-gate-transitions.v2"
 )
+RELATIONSHIP_PRODUCT_V2_FEDERATED_COLLECTED_BATCH_SCHEMA_VERSION = (
+    "relationship-product-federated-collected-credit-batch.v2"
+)
+RELATIONSHIP_PRODUCT_V2_FEDERATED_MATCHED_TRANSITIONS_SCHEMA_VERSION = (
+    "relationship-product-federated-matched-gate-transitions.v2"
+)
 RELATIONSHIP_PRODUCT_V2_MATCHED_TRANSITIONS_SCHEMA_VERSION = (
     "relationship-product-matched-gate-transitions.v2"
 )
@@ -192,6 +203,12 @@ _V2_SEGMENTED_GATE_TRANSITION_PREFIX = (
 )
 _V2_SEGMENTED_MATCHED_TRANSITIONS_PREFIX = (
     "relationship-product-v2-segmented-matched-transitions-sha256:"
+)
+_V2_FEDERATED_COLLECTED_BATCH_PREFIX = (
+    "relationship-product-v2-federated-collected-batch-sha256:"
+)
+_V2_FEDERATED_MATCHED_TRANSITIONS_PREFIX = (
+    "relationship-product-v2-federated-matched-transitions-sha256:"
 )
 _V2_GATE_TRANSITION_PREFIX = "relationship-product-v2-gate-transition-sha256:"
 _V2_MATCHED_TRANSITIONS_PREFIX = (
@@ -2330,6 +2347,313 @@ class RelationshipProductV2SegmentedMatchedGateTransitions:
 
 
 @dataclass(frozen=True)
+class RelationshipProductV2FederatedCollectedCreditBatch:
+    """Ordered pulse provenance for one externally frozen gate federation.
+
+    The caller must provide the complete parent schedule artifact.  This type
+    proves exact child membership, order, and globally increasing credit time;
+    durable proof that the parent was persisted before collection belongs to
+    the external campaign/theta owner rather than this in-memory pulse owner.
+    """
+
+    federated_schedule_artifact: (
+        RelationshipActionGateV2FederatedAssignmentScheduleArtifact
+    )
+    child_collected_batches: tuple[
+        RelationshipProductV2SegmentedCollectedCreditBatch,
+        ...,
+    ]
+    schema_version: str = (
+        RELATIONSHIP_PRODUCT_V2_FEDERATED_COLLECTED_BATCH_SCHEMA_VERSION
+    )
+    _gate_batch: RelationshipActionGateV2FederatedCreditBatch = field(
+        init=False,
+        repr=False,
+    )
+    _gate_batch_id: str = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _integrity_sha256: str = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        gate_batch = self._validate_components()
+        object.__setattr__(self, "_gate_batch", gate_batch)
+        object.__setattr__(self, "_gate_batch_id", gate_batch.batch_id)
+        object.__setattr__(
+            self,
+            "_integrity_sha256",
+            _canonical_sha256(self._core_payload()),
+        )
+
+    def _validate_components(self) -> RelationshipActionGateV2FederatedCreditBatch:
+        if (
+            type(self.federated_schedule_artifact)
+            is not RelationshipActionGateV2FederatedAssignmentScheduleArtifact
+        ):
+            raise TypeError(
+                "federated_schedule_artifact must be an exact v2 federated schedule"
+            )
+        if (
+            type(self.child_collected_batches) is not tuple
+            or len(self.child_collected_batches) < 2
+        ):
+            raise ValueError(
+                "v2 pulse federation requires at least two exact child collections"
+            )
+        if any(
+            type(item)
+            is not RelationshipProductV2SegmentedCollectedCreditBatch
+            for item in self.child_collected_batches
+        ):
+            raise TypeError(
+                "v2 pulse federation child collections have an invalid type"
+            )
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_V2_FEDERATED_COLLECTED_BATCH_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product v2 federated collection schema mismatch"
+            )
+        for item in self.child_collected_batches:
+            item._assert_integrity()
+        collection_ids = tuple(
+            item.collection_id for item in self.child_collected_batches
+        )
+        if len(set(collection_ids)) != len(collection_ids):
+            raise ValueError(
+                "v2 pulse federation child collection ids must be unique"
+            )
+        segments = tuple(
+            segment
+            for collection in self.child_collected_batches
+            for segment in collection.segments
+        )
+        segment_ids = tuple(item.segment_id for item in segments)
+        if len(set(segment_ids)) != len(segment_ids):
+            raise ValueError("v2 pulse federation segment ids must be globally unique")
+        segment_scope_ids = tuple(item.segment_scope_id for item in segments)
+        if len(set(segment_scope_ids)) != len(segment_scope_ids):
+            raise ValueError(
+                "v2 pulse federation segment scope ids must be globally unique"
+            )
+        return RelationshipActionGateV2FederatedCreditBatch(
+            federated_schedule_artifact=self.federated_schedule_artifact,
+            child_batches=tuple(
+                item.gate_batch for item in self.child_collected_batches
+            ),
+        )
+
+    def _assert_integrity(self) -> None:
+        if self._validate_components() != self._gate_batch:
+            raise ValueError("v2 pulse federated gate batch mutated after construction")
+        if _canonical_sha256(self._core_payload()) != self._integrity_sha256:
+            raise ValueError("v2 pulse federated provenance mutated after construction")
+
+    @property
+    def gate_batch(self) -> RelationshipActionGateV2FederatedCreditBatch:
+        self._assert_integrity()
+        return self._gate_batch
+
+    @property
+    def collection_id(self) -> str:
+        self._assert_integrity()
+        return (
+            f"{_V2_FEDERATED_COLLECTED_BATCH_PREFIX}{self._integrity_sha256}"
+        )
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "federated_schedule_artifact_id": (
+                self.federated_schedule_artifact.artifact_id
+            ),
+            "gate_batch_id": self._gate_batch_id,
+            "child_collection_count": len(self.child_collected_batches),
+            "credit_count": len(self._gate_batch.credits),
+            "child_collections": [
+                item.to_payload() for item in self.child_collected_batches
+            ],
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        self._assert_integrity()
+        return {
+            "collection_id": (
+                f"{_V2_FEDERATED_COLLECTED_BATCH_PREFIX}"
+                f"{self._integrity_sha256}"
+            ),
+            **self._core_payload(),
+        }
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: object,
+        *,
+        federated_schedule_artifact: (
+            RelationshipActionGateV2FederatedAssignmentScheduleArtifact
+        ),
+        full_child_collected_batches: tuple[
+            RelationshipProductV2SegmentedCollectedCreditBatch,
+            ...,
+        ],
+    ) -> "RelationshipProductV2FederatedCollectedCreditBatch":
+        if type(payload) is not dict:
+            raise TypeError("v2 pulse federated collection payload must be an exact dict")
+        collection = cls(
+            federated_schedule_artifact=federated_schedule_artifact,
+            child_collected_batches=full_child_collected_batches,
+        )
+        expected = collection.to_payload()
+        if expected != payload or _canonical_sha256(expected) != _canonical_sha256(
+            payload
+        ):
+            raise ValueError("v2 pulse federated collection payload mismatch")
+        return collection
+
+
+@dataclass(frozen=True)
+class RelationshipProductV2FederatedMatchedGateTransitions:
+    """Pulse provenance joined to one gate-owned parent APPLY/WITHHOLD pair."""
+
+    collected_batch: RelationshipProductV2FederatedCollectedCreditBatch
+    gate_matched_transitions: RelationshipActionGateV2FederatedMatchedTransitions
+    schema_version: str = (
+        RELATIONSHIP_PRODUCT_V2_FEDERATED_MATCHED_TRANSITIONS_SCHEMA_VERSION
+    )
+    _integrity_sha256: str = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        self._validate_components()
+        object.__setattr__(
+            self,
+            "_integrity_sha256",
+            _canonical_sha256(self._core_payload()),
+        )
+
+    def _validate_components(self) -> None:
+        if (
+            type(self.collected_batch)
+            is not RelationshipProductV2FederatedCollectedCreditBatch
+        ):
+            raise TypeError(
+                "collected_batch must be RelationshipProductV2FederatedCollectedCreditBatch"
+            )
+        if (
+            type(self.gate_matched_transitions)
+            is not RelationshipActionGateV2FederatedMatchedTransitions
+        ):
+            raise TypeError(
+                "gate_matched_transitions must be exact v2 federated matched transitions"
+            )
+        if (
+            self.schema_version
+            != RELATIONSHIP_PRODUCT_V2_FEDERATED_MATCHED_TRANSITIONS_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                "relationship product v2 federated matched transitions schema mismatch"
+            )
+        self.collected_batch._assert_integrity()
+        batch = self.collected_batch.gate_batch
+        if self.gate_matched_transitions.applied.batch != batch:
+            raise ValueError(
+                "v2 pulse federated APPLY transition lost the full collected batch"
+            )
+        if self.gate_matched_transitions.withheld.batch != batch:
+            raise ValueError(
+                "v2 pulse federated WITHHOLD transition lost the full collected batch"
+            )
+
+    def _assert_integrity(self) -> None:
+        self._validate_components()
+        if _canonical_sha256(self._core_payload()) != self._integrity_sha256:
+            raise ValueError("v2 pulse federated transition provenance mutated")
+
+    @property
+    def applied(self) -> RelationshipActionGateV2FederatedTransition:
+        self._assert_integrity()
+        return self.gate_matched_transitions.applied
+
+    @property
+    def withheld(self) -> RelationshipActionGateV2FederatedTransition:
+        self._assert_integrity()
+        return self.gate_matched_transitions.withheld
+
+    @property
+    def transitions_id(self) -> str:
+        self._assert_integrity()
+        return (
+            f"{_V2_FEDERATED_MATCHED_TRANSITIONS_PREFIX}"
+            f"{self._integrity_sha256}"
+        )
+
+    def _core_payload(self) -> dict[str, object]:
+        batch = self.gate_matched_transitions.applied.batch
+        return {
+            "schema_version": self.schema_version,
+            "federated_collected_batch_id": self.collected_batch.collection_id,
+            "federated_schedule_artifact_id": (
+                batch.federated_schedule_artifact.artifact_id
+            ),
+            "gate_batch_id": batch.batch_id,
+            "gate_matched_transitions_id": (
+                self.gate_matched_transitions.transitions_id
+            ),
+            "child_batch_count": len(batch.child_batches),
+            "child_transition_count": 0,
+            "credit_count": len(batch.credits),
+            "applied_transition_id": self.gate_matched_transitions.applied.transition_id,
+            "withheld_transition_id": (
+                self.gate_matched_transitions.withheld.transition_id
+            ),
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        self._assert_integrity()
+        return {
+            "transitions_id": (
+                f"{_V2_FEDERATED_MATCHED_TRANSITIONS_PREFIX}"
+                f"{self._integrity_sha256}"
+            ),
+            **self._core_payload(),
+        }
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: object,
+        *,
+        collected_batch: RelationshipProductV2FederatedCollectedCreditBatch,
+        gate_matched_transitions: RelationshipActionGateV2FederatedMatchedTransitions,
+    ) -> "RelationshipProductV2FederatedMatchedGateTransitions":
+        if type(payload) is not dict:
+            raise TypeError(
+                "v2 pulse federated matched transitions payload must be an exact dict"
+            )
+        matched = cls(
+            collected_batch=collected_batch,
+            gate_matched_transitions=gate_matched_transitions,
+        )
+        expected = matched.to_payload()
+        if expected != payload or _canonical_sha256(expected) != _canonical_sha256(
+            payload
+        ):
+            raise ValueError("v2 pulse federated matched transitions payload mismatch")
+        return matched
+
+
+@dataclass(frozen=True)
 class RelationshipProductV2FrozenPulseAuthorization:
     """Authorize one exact replayed APPLY/WITHHOLD v2 evaluation policy."""
 
@@ -4074,6 +4398,24 @@ def build_relationship_product_v2_segmented_collected_credit_batch(
     return RelationshipProductV2SegmentedCollectedCreditBatch(segments=segments)
 
 
+def build_relationship_product_v2_federated_collected_credit_batch(
+    *,
+    federated_schedule_artifact: (
+        RelationshipActionGateV2FederatedAssignmentScheduleArtifact
+    ),
+    child_collected_batches: tuple[
+        RelationshipProductV2SegmentedCollectedCreditBatch,
+        ...,
+    ],
+) -> RelationshipProductV2FederatedCollectedCreditBatch:
+    """Join complete pulse children to an externally frozen parent order."""
+
+    return RelationshipProductV2FederatedCollectedCreditBatch(
+        federated_schedule_artifact=federated_schedule_artifact,
+        child_collected_batches=child_collected_batches,
+    )
+
+
 def commit_relationship_product_v2_matched_gate_transitions(
     *,
     artifact: RelationshipActionGateV2Artifact,
@@ -4144,6 +4486,34 @@ def commit_relationship_product_v2_segmented_matched_gate_transitions(
     return RelationshipProductV2SegmentedMatchedGateTransitions(
         applied=_transition(RelationshipActionGateBatchDisposition.APPLY),
         withheld=_transition(RelationshipActionGateBatchDisposition.WITHHOLD),
+    )
+
+
+def commit_relationship_product_v2_federated_matched_gate_transitions(
+    *,
+    artifact: RelationshipActionGateV2Artifact,
+    collected_batch: RelationshipProductV2FederatedCollectedCreditBatch,
+) -> RelationshipProductV2FederatedMatchedGateTransitions:
+    """Commit one gate-owned parent pair while retaining pulse provenance."""
+
+    if type(artifact) is not RelationshipActionGateV2Artifact:
+        raise TypeError("artifact must be RelationshipActionGateV2Artifact")
+    if (
+        type(collected_batch)
+        is not RelationshipProductV2FederatedCollectedCreditBatch
+    ):
+        raise TypeError(
+            "collected_batch must be RelationshipProductV2FederatedCollectedCreditBatch"
+        )
+    collected_batch._assert_integrity()
+    return RelationshipProductV2FederatedMatchedGateTransitions(
+        collected_batch=collected_batch,
+        gate_matched_transitions=(
+            commit_relationship_action_gate_v2_federated_matched_transitions(
+                artifact=artifact,
+                batch=collected_batch.gate_batch,
+            )
+        ),
     )
 
 
@@ -4808,6 +5178,8 @@ __all__ = [
     "RELATIONSHIP_PRODUCT_V2_EXECUTOR_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_COLLECTED_BATCH_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_COLLECTION_SEGMENT_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_V2_FEDERATED_COLLECTED_BATCH_SCHEMA_VERSION",
+    "RELATIONSHIP_PRODUCT_V2_FEDERATED_MATCHED_TRANSITIONS_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_FORCED_COLLECTION_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_FROZEN_PULSE_SCHEMA_VERSION",
     "RELATIONSHIP_PRODUCT_V2_GATE_TRANSITION_SCHEMA_VERSION",
@@ -4842,6 +5214,8 @@ __all__ = [
     "RelationshipProductV2CollectionSegment",
     "RelationshipProductV2ExecutorCommand",
     "RelationshipProductV2ExecutorReceipt",
+    "RelationshipProductV2FederatedCollectedCreditBatch",
+    "RelationshipProductV2FederatedMatchedGateTransitions",
     "RelationshipProductV2ForcedCollectionAuthorization",
     "RelationshipProductV2ForcedCollectionCommand",
     "RelationshipProductV2ForcedCollectionPreActionSnapshot",
@@ -4858,7 +5232,9 @@ __all__ = [
     "append_relationship_product_onboarding",
     "authorize_relationship_product_pulse_advisory",
     "build_relationship_product_v2_collected_credit_batch",
+    "build_relationship_product_v2_federated_collected_credit_batch",
     "build_relationship_product_v2_segmented_collected_credit_batch",
+    "commit_relationship_product_v2_federated_matched_gate_transitions",
     "commit_relationship_product_v2_matched_gate_transitions",
     "commit_relationship_product_v2_segmented_matched_gate_transitions",
     "prepare_relationship_product_forced_collection_preaction",
