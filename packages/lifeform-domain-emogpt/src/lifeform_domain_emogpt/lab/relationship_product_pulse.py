@@ -104,8 +104,12 @@ from lifeform_domain_emogpt.relationship_action_gate_v2 import (
     RelationshipActionGateV2ForcedExposure,
     RelationshipActionGateV2FrozenDecision,
     RelationshipActionGateV2FrozenPolicy,
+    RelationshipActionGateV2OnlineExposure,
+    RelationshipActionGateV2OnlineSession,
+    RelationshipActionGateV2OnlineTransition,
     commit_relationship_action_gate_v2_federated_matched_transitions,
     temporal_action_advisory_from_gate_v2_decision,
+    temporal_action_advisory_from_gate_v2_online_exposure,
 )
 
 
@@ -154,6 +158,12 @@ RELATIONSHIP_PRODUCT_V2_CONDENSED_THETA0_AUTHORIZATION_SCHEMA_VERSION = (
 RELATIONSHIP_PRODUCT_V2_EXECUTOR_SCHEMA_VERSION = (
     "relationship-product-executor-receipt.v2"
 )
+RELATIONSHIP_PRODUCT_V2_ONLINE_PULSE_SCHEMA_VERSION = (
+    "relationship-product-online-pulse.v2"
+)
+RELATIONSHIP_PRODUCT_V2_ONLINE_EXECUTOR_SCHEMA_VERSION = (
+    "relationship-product-online-executor-receipt.v2"
+)
 RELATIONSHIP_PRODUCT_V2_FORCED_COLLECTION_SCHEMA_VERSION = (
     "relationship-product-forced-collection.v2"
 )
@@ -195,6 +205,15 @@ _V2_FORCED_AUTHORIZATION_PREFIX = (
 )
 _V2_EXECUTOR_COMMAND_PREFIX = "relationship-product-v2-executor-command-sha256:"
 _V2_EXECUTOR_RECEIPT_PREFIX = "relationship-product-v2-executor-receipt-sha256:"
+_V2_ONLINE_AUTHORIZATION_PREFIX = (
+    "relationship-product-v2-online-authorization-sha256:"
+)
+_V2_ONLINE_EXECUTOR_COMMAND_PREFIX = (
+    "relationship-product-v2-online-executor-command-sha256:"
+)
+_V2_ONLINE_EXECUTOR_RECEIPT_PREFIX = (
+    "relationship-product-v2-online-executor-receipt-sha256:"
+)
 _V2_FORCED_COMMAND_PREFIX = "relationship-product-v2-forced-command-sha256:"
 _V2_FORCED_RECEIPT_PREFIX = "relationship-product-v2-forced-receipt-sha256:"
 _V2_COLLECTED_BATCH_PREFIX = "relationship-product-v2-collected-batch-sha256:"
@@ -2965,6 +2984,100 @@ class RelationshipProductV2CondensedTheta0FrozenPulseAuthorization:
 
 
 @dataclass(frozen=True)
+class RelationshipProductV2OnlinePulseAuthorization:
+    """Prebind one online APPLY/WITHHOLD arm to an exact cold theta0."""
+
+    theta0_authorization: RelationshipProductV2CondensedTheta0FrozenPulseAuthorization
+    gate_disposition: RelationshipActionGateBatchDisposition
+    owner_session_scope: str
+    schema_version: str = RELATIONSHIP_PRODUCT_V2_ONLINE_PULSE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.theta0_authorization)
+            is not RelationshipProductV2CondensedTheta0FrozenPulseAuthorization
+        ):
+            raise TypeError(
+                "theta0_authorization must be an exact condensed theta0 authorization"
+            )
+        if type(self.gate_disposition) is not RelationshipActionGateBatchDisposition:
+            raise TypeError(
+                "gate_disposition must be RelationshipActionGateBatchDisposition"
+            )
+        _require_text(self.owner_session_scope, "owner_session_scope")
+        if self.schema_version != RELATIONSHIP_PRODUCT_V2_ONLINE_PULSE_SCHEMA_VERSION:
+            raise ValueError("relationship product v2 online authorization schema mismatch")
+        if (
+            self.learned_theta0_artifact.artifact_kind
+            is not RelationshipActionGateV2ArtifactKind.LEARNED_THETA0
+        ):
+            raise ValueError("online pulse requires an exact learned theta0 artifact")
+        cold = self.theta0_authorization.frozen_policy.checkpoint
+        if (
+            cold.update_count != 0
+            or cold.informative_update_count != 0
+            or cold.processed_credit_ids
+            or cold.weights != self.learned_theta0_artifact.weights
+        ):
+            raise ValueError("online pulse must begin at the exact cold learned theta0")
+
+    @property
+    def pulse_authorization(self) -> RelationshipProductPulseAuthorization:
+        return self.theta0_authorization.pulse_authorization
+
+    @property
+    def learned_theta0_artifact(self) -> RelationshipActionGateV2Artifact:
+        return self.theta0_authorization.learned_theta0_artifact
+
+    @property
+    def cold_initial_chain_id(self) -> str:
+        return RelationshipActionGateV2OnlineSession(
+            artifact=self.learned_theta0_artifact,
+            disposition=self.gate_disposition,
+        ).current_chain_id
+
+    @property
+    def authorization_id(self) -> str:
+        return (
+            f"{_V2_ONLINE_AUTHORIZATION_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    def validate_session(
+        self,
+        session: RelationshipActionGateV2OnlineSession,
+    ) -> None:
+        if type(session) is not RelationshipActionGateV2OnlineSession:
+            raise TypeError("session must be RelationshipActionGateV2OnlineSession")
+        if session.artifact != self.learned_theta0_artifact:
+            raise ValueError("online session learned theta0 differs from authorization")
+        if session.disposition is not self.gate_disposition:
+            raise ValueError("online session disposition differs from authorization")
+
+    def validate_request(self, request: RelationshipProductPreActionRequest) -> None:
+        if type(request) is not RelationshipProductPreActionRequest:
+            raise TypeError("request must be RelationshipProductPreActionRequest")
+        if request.forecast_request.session_scope != self.owner_session_scope:
+            raise ValueError("online request owner scope differs from authorization")
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "theta0_authorization": self.theta0_authorization.to_payload(),
+            "gate_disposition": self.gate_disposition.value,
+            "owner_session_scope": self.owner_session_scope,
+            "cold_initial_chain_id": self.cold_initial_chain_id,
+            "executor_disposition": (
+                RelationshipProductExecutorDisposition.APPLY_CANDIDATE.value
+            ),
+            "evaluation_or_judge_feedback_received": False,
+        }
+
+    def to_payload(self) -> dict[str, object]:
+        return {"authorization_id": self.authorization_id, **self._core_payload()}
+
+
+@dataclass(frozen=True)
 class RelationshipProductV2ForcedCollectionAuthorization:
     """Authorize one full v2 assignment receipt under a cold policy."""
 
@@ -3085,6 +3198,62 @@ class RelationshipProductV2ExecutorCommand:
             "authorization": self.authorization.to_payload(),
             "owner_prestate_sha256": self.owner_prestate_sha256,
             "executor_disposition": self.executor_disposition.value,
+        }
+
+    def to_payload(self, *, include_command_id: bool = True) -> dict[str, object]:
+        payload = self._core_payload()
+        return {"command_id": self.command_id, **payload} if include_command_id else payload
+
+
+@dataclass(frozen=True)
+class RelationshipProductV2OnlineExecutorCommand:
+    """One natural online action under a prebound learning disposition."""
+
+    online_exposure: RelationshipActionGateV2OnlineExposure
+    authorization: RelationshipProductV2OnlinePulseAuthorization
+    owner_prestate_sha256: str
+    schema_version: str = RELATIONSHIP_PRODUCT_V2_ONLINE_EXECUTOR_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.online_exposure) is not RelationshipActionGateV2OnlineExposure:
+            raise TypeError("online_exposure must be RelationshipActionGateV2OnlineExposure")
+        if type(self.authorization) is not RelationshipProductV2OnlinePulseAuthorization:
+            raise TypeError("authorization must be RelationshipProductV2OnlinePulseAuthorization")
+        _require_sha256(self.owner_prestate_sha256, "owner_prestate_sha256")
+        if self.schema_version != RELATIONSHIP_PRODUCT_V2_ONLINE_EXECUTOR_SCHEMA_VERSION:
+            raise ValueError("relationship product v2 online executor schema mismatch")
+        decision = self.online_exposure.frozen_decision.decision
+        if decision.artifact_id != self.authorization.learned_theta0_artifact.artifact_id:
+            raise ValueError("online executor decision artifact differs from authorization")
+        if self.forecast.session_scope != self.authorization.owner_session_scope:
+            raise ValueError("online executor owner scope differs from authorization")
+        if self.online_exposure.delivered_action_id != decision.selected_action_id:
+            raise ValueError("online executor must preserve the exact learned gate action")
+
+    @property
+    def forecast(self) -> PreferenceActionForecast:
+        return self.online_exposure.forecast
+
+    @property
+    def delivered_action_id(self) -> str:
+        return self.online_exposure.delivered_action_id
+
+    @property
+    def command_id(self) -> str:
+        return (
+            f"{_V2_ONLINE_EXECUTOR_COMMAND_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "online_exposure": self.online_exposure.to_payload(),
+            "authorization": self.authorization.to_payload(),
+            "owner_prestate_sha256": self.owner_prestate_sha256,
+            "executor_disposition": (
+                RelationshipProductExecutorDisposition.APPLY_CANDIDATE.value
+            ),
         }
 
     def to_payload(self, *, include_command_id: bool = True) -> dict[str, object]:
@@ -3245,6 +3414,90 @@ class RelationshipProductV2ExecutorReceipt:
 
 
 @dataclass(frozen=True)
+class RelationshipProductV2OnlineExecutorReceipt:
+    """Logical proof of one exact online action before any source outcome."""
+
+    command: RelationshipProductV2OnlineExecutorCommand
+    authorized_advisory: TemporalActionAdvisoryProposal
+    temporal_delivery: RelationshipProductTemporalDelivery
+    schema_version: str = RELATIONSHIP_PRODUCT_V2_ONLINE_EXECUTOR_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.command) is not RelationshipProductV2OnlineExecutorCommand:
+            raise TypeError("command must be RelationshipProductV2OnlineExecutorCommand")
+        if type(self.authorized_advisory) is not TemporalActionAdvisoryProposal:
+            raise TypeError("authorized_advisory must be TemporalActionAdvisoryProposal")
+        if type(self.temporal_delivery) is not RelationshipProductTemporalDelivery:
+            raise TypeError("temporal_delivery must be RelationshipProductTemporalDelivery")
+        if self.schema_version != RELATIONSHIP_PRODUCT_V2_ONLINE_EXECUTOR_SCHEMA_VERSION:
+            raise ValueError("relationship product v2 online executor receipt schema mismatch")
+        advisory = self.authorized_advisory
+        exposure = self.command.online_exposure
+        decision = exposure.frozen_decision.decision
+        expected = (
+            ("decision", advisory.decision_id, decision.decision_id),
+            ("prediction", advisory.prediction_id, decision.forecast_id),
+            ("action", advisory.action_id, exposure.delivered_action_id),
+            ("artifact", advisory.policy_artifact_id, decision.artifact_id),
+            ("artifact version", advisory.policy_artifact_version, 2),
+        )
+        for field_name, observed, wanted in expected:
+            if observed != wanted:
+                raise ValueError(f"online executor advisory {field_name} drifted")
+        if advisory.active_authorized is not True or advisory.evaluator_only is not False:
+            raise ValueError("online executor advisory authorization boundary drifted")
+        required_refs = {
+            exposure.parent_chain_id,
+            exposure.exposure_id,
+            f"lab-authorization:{self.command.authorization.pulse_authorization.authorization_id}",
+            f"lab-online-authorization:{self.command.authorization.authorization_id}",
+        }
+        if not required_refs.issubset(advisory.evidence_refs):
+            raise ValueError("online executor advisory lineage references are incomplete")
+        required_rationale = {
+            "scope:offline-reactive-environment-only",
+            "expression:forbidden",
+            "production:forbidden",
+            "executor-disposition:apply-exact-online-candidate",
+        }
+        if not required_rationale.issubset(advisory.rationale_codes):
+            raise ValueError("online executor advisory scope boundary drifted")
+        _validate_relationship_product_v2_temporal_delivery(
+            self.temporal_delivery,
+            advisory,
+        )
+
+    @property
+    def receipt_id(self) -> str:
+        return (
+            f"{_V2_ONLINE_EXECUTOR_RECEIPT_PREFIX}"
+            f"{_canonical_sha256(self._core_payload())}"
+        )
+
+    @property
+    def delivered_action_id(self) -> str:
+        return self.authorized_advisory.action_id
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "command": self.command.to_payload(),
+            "gate_disposition": self.command.authorization.gate_disposition.value,
+            "authorized_advisory": _temporal_advisory_to_payload(
+                self.authorized_advisory
+            ),
+            "delivered_action_id": self.delivered_action_id,
+            "temporal_projection": self.temporal_delivery.to_payload(),
+            "evaluation_gate_update_delta_before_outcome": 0,
+            "evaluator_or_judge_feedback_received": False,
+        }
+
+    def to_payload(self, *, include_receipt_id: bool = True) -> dict[str, object]:
+        payload = self._core_payload()
+        return {"receipt_id": self.receipt_id, **payload} if include_receipt_id else payload
+
+
+@dataclass(frozen=True)
 class RelationshipProductV2ForcedCollectionReceipt:
     """Proof that one assignment-derived v2 collection action was delivered."""
 
@@ -3340,6 +3593,58 @@ class RelationshipProductV2FrozenPreActionSnapshot:
 
 
 @dataclass(frozen=True)
+class RelationshipProductV2OnlinePreActionSnapshot:
+    """Logical pre-action barrier retaining one live-session pending exposure."""
+
+    request: RelationshipProductPreActionRequest
+    owner_input_persistence_snapshot: OwnerPersistenceSnapshot
+    preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot]
+    forecast: PreferenceActionForecast
+    execution_receipt: RelationshipProductV2OnlineExecutorReceipt
+    owner_persistence_snapshot: OwnerPersistenceSnapshot
+    schema_version: str = RELATIONSHIP_PRODUCT_V2_ONLINE_PULSE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.execution_receipt) is not RelationshipProductV2OnlineExecutorReceipt:
+            raise TypeError(
+                "execution_receipt must be RelationshipProductV2OnlineExecutorReceipt"
+            )
+        if self.schema_version != RELATIONSHIP_PRODUCT_V2_ONLINE_PULSE_SCHEMA_VERSION:
+            raise ValueError("relationship product v2 online preaction schema mismatch")
+        _validate_relationship_product_v2_preaction(
+            self,
+            source="v2 online preaction",
+        )
+        self.authorization.validate_request(self.request)
+        if self.online_exposure.forecast != self.forecast:
+            raise ValueError("v2 online preaction exposure forecast lineage mismatch")
+
+    @property
+    def authorization(self) -> RelationshipProductV2OnlinePulseAuthorization:
+        return self.execution_receipt.command.authorization
+
+    @property
+    def online_exposure(self) -> RelationshipActionGateV2OnlineExposure:
+        return self.execution_receipt.command.online_exposure
+
+    @property
+    def delivered_action_id(self) -> str:
+        return self.execution_receipt.delivered_action_id
+
+    @property
+    def parent_chain_id(self) -> str:
+        return self.online_exposure.parent_chain_id
+
+    @property
+    def gate_transition_count_before(self) -> int:
+        return self.online_exposure.sequence_index
+
+    @property
+    def gate_checkpoint_content_sha256_before(self) -> str:
+        return self.online_exposure.frozen_decision.checkpoint_content_sha256
+
+
+@dataclass(frozen=True)
 class RelationshipProductV2ForcedCollectionPreActionSnapshot:
     request: RelationshipProductPreActionRequest
     owner_input_persistence_snapshot: OwnerPersistenceSnapshot
@@ -3400,6 +3705,74 @@ class RelationshipProductV2FrozenSettlementSnapshot:
     @property
     def evaluation_gate_update_delta(self) -> int:
         return 0
+
+
+@dataclass(frozen=True)
+class RelationshipProductV2OnlineSettlementSnapshot:
+    """One owner-derived PE credit and its exact online gate transition."""
+
+    preaction: RelationshipProductV2OnlinePreActionSnapshot
+    settlement_input: RelationshipProductSettlementInput
+    external_outcome_snapshot: Snapshot[DialogueExternalOutcomeSnapshot]
+    preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot]
+    social_prediction_error_snapshot: Snapshot[SocialPredictionErrorSnapshot]
+    settlement: PreferenceActionForecastSettlement
+    credit: CreditRecord
+    common_baseline_credit: RelationshipActionCommonBaselineCredit
+    owner_persistence_snapshot: OwnerPersistenceSnapshot
+    gate_transition: RelationshipActionGateV2OnlineTransition
+    schema_version: str = RELATIONSHIP_PRODUCT_V2_ONLINE_PULSE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.preaction) is not RelationshipProductV2OnlinePreActionSnapshot:
+            raise TypeError("preaction must be RelationshipProductV2OnlinePreActionSnapshot")
+        if type(self.gate_transition) is not RelationshipActionGateV2OnlineTransition:
+            raise TypeError("gate_transition must be RelationshipActionGateV2OnlineTransition")
+        if self.schema_version != RELATIONSHIP_PRODUCT_V2_ONLINE_PULSE_SCHEMA_VERSION:
+            raise ValueError("relationship product v2 online settlement schema mismatch")
+        _validate_relationship_product_v2_online_owner_evidence_projection(
+            self.settlement_input
+        )
+        _validate_relationship_product_v2_settlement(self, source="v2 online")
+        transition = self.gate_transition
+        if transition.plan.exposure != self.preaction.online_exposure:
+            raise ValueError("v2 online transition exposure differs from preaction")
+        if transition.plan.credit != self.common_baseline_credit:
+            raise ValueError("v2 online transition credit differs from owner common credit")
+        if transition.receipt.disposition is not self.preaction.authorization.gate_disposition:
+            raise ValueError("v2 online transition disposition differs from authorization")
+        if transition.receipt.parent_chain_id != self.preaction.parent_chain_id:
+            raise ValueError("v2 online transition parent chain differs from preaction")
+        if transition.receipt.sequence_index != self.preaction.gate_transition_count_before:
+            raise ValueError("v2 online transition sequence differs from preaction")
+        if transition.receipt.pre_checkpoint_content_sha256 != (
+            self.preaction.gate_checkpoint_content_sha256_before
+        ):
+            raise ValueError("v2 online transition pre-checkpoint differs from preaction")
+        if transition.receipt.post_checkpoint_content_sha256 != (
+            transition.terminal_checkpoint.content_sha256
+        ):
+            raise ValueError("v2 online transition terminal checkpoint drifted")
+
+    @property
+    def credit_applied_to_gate(self) -> bool:
+        return self.gate_transition.receipt.credit_applied_to_gate
+
+    @property
+    def evaluation_gate_update_delta(self) -> int:
+        return self.gate_transition.receipt.update_count_delta
+
+    @property
+    def gate_transition_count_after(self) -> int:
+        return self.gate_transition_count_before + 1
+
+    @property
+    def gate_transition_count_before(self) -> int:
+        return self.preaction.gate_transition_count_before
+
+    @property
+    def terminal_checkpoint_content_sha256(self) -> str:
+        return self.gate_transition.terminal_checkpoint.content_sha256
 
 
 @dataclass(frozen=True)
@@ -3538,6 +3911,7 @@ def _validate_relationship_product_v2_temporal_delivery(
 def _validate_relationship_product_v2_preaction(
     preaction: (
         RelationshipProductV2FrozenPreActionSnapshot
+        | RelationshipProductV2OnlinePreActionSnapshot
         | RelationshipProductV2ForcedCollectionPreActionSnapshot
     ),
     *,
@@ -3592,6 +3966,7 @@ def _validate_relationship_product_v2_preaction(
 def _validate_relationship_product_v2_settlement(
     snapshot: (
         RelationshipProductV2FrozenSettlementSnapshot
+        | RelationshipProductV2OnlineSettlementSnapshot
         | RelationshipProductV2ForcedCollectionSettlementSnapshot
     ),
     *,
@@ -3646,6 +4021,7 @@ def _validate_immutable_settlement_owner_chain(
         RelationshipProductFrozenSettlementSnapshot
         | RelationshipProductForcedCollectionSettlementSnapshot
         | RelationshipProductV2FrozenSettlementSnapshot
+        | RelationshipProductV2OnlineSettlementSnapshot
         | RelationshipProductV2ForcedCollectionSettlementSnapshot
     ),
     *,
@@ -3920,6 +4296,23 @@ def _validate_immutable_environment_settlement_input(
         )
 
 
+def _validate_relationship_product_v2_online_owner_evidence_projection(
+    settlement_input: RelationshipProductSettlementInput,
+) -> None:
+    if type(settlement_input) is not RelationshipProductSettlementInput:
+        raise TypeError("settlement_input must be RelationshipProductSettlementInput")
+    external = settlement_input.external_outcome
+    owner_evidence = settlement_input.owner_outcome_evidence
+    if (
+        owner_evidence.evidence_id != external.evidence_id
+        or owner_evidence.reaction_summary != external.description
+        or owner_evidence.evidence_refs != (external.evidence_ref,)
+    ):
+        raise ValueError(
+            "v2 online owner evidence must be the exact environment reaction projection"
+        )
+
+
 def _hydrate_validated_preference_owner_persistence(
     *,
     preference_snapshot: Snapshot[PreferenceAboutOtherSnapshot],
@@ -3995,6 +4388,7 @@ def _hydrate_validated_immutable_preaction_owner(
         RelationshipProductFrozenPreActionSnapshot
         | RelationshipProductForcedCollectionPreActionSnapshot
         | RelationshipProductV2FrozenPreActionSnapshot
+        | RelationshipProductV2OnlinePreActionSnapshot
         | RelationshipProductV2ForcedCollectionPreActionSnapshot
     ),
     *,
@@ -4466,6 +4860,129 @@ def _authorize_relationship_product_v2_pulse_advisory(
     )
 
 
+def _authorize_relationship_product_v2_online_pulse_advisory(
+    *,
+    exposure: RelationshipActionGateV2OnlineExposure,
+    session: RelationshipActionGateV2OnlineSession,
+    authorization: RelationshipProductV2OnlinePulseAuthorization,
+) -> TemporalActionAdvisoryProposal:
+    """Authorize only the active session's exact pending online action."""
+
+    if type(exposure) is not RelationshipActionGateV2OnlineExposure:
+        raise TypeError("exposure must be RelationshipActionGateV2OnlineExposure")
+    if type(authorization) is not RelationshipProductV2OnlinePulseAuthorization:
+        raise TypeError("authorization must be RelationshipProductV2OnlinePulseAuthorization")
+    authorization.validate_session(session)
+    advisory = temporal_action_advisory_from_gate_v2_online_exposure(
+        exposure,
+        session=session,
+    )
+    return replace(
+        advisory,
+        active_authorized=True,
+        evidence_refs=(
+            *advisory.evidence_refs,
+            f"lab-authorization:{authorization.pulse_authorization.authorization_id}",
+            f"lab-online-authorization:{authorization.authorization_id}",
+        ),
+        rationale_codes=(
+            *advisory.rationale_codes,
+            "executor-disposition:apply-exact-online-candidate",
+            "scope:offline-reactive-environment-only",
+            "expression:forbidden",
+            "production:forbidden",
+        ),
+    )
+
+
+async def prepare_relationship_product_v2_online_preaction(
+    *,
+    request: RelationshipProductPreActionRequest,
+    owner_persistence_snapshot: OwnerPersistenceSnapshot,
+    forecast_runtime: PreferenceActionForecastRuntime,
+    online_session: RelationshipActionGateV2OnlineSession,
+    authorization: RelationshipProductV2OnlinePulseAuthorization,
+    substrate_snapshot: SubstrateSnapshot,
+    temporal_delivery_timestamp_ms: int | None = None,
+) -> RelationshipProductV2OnlinePreActionSnapshot:
+    """Close one logical online pre-action barrier without opening the source."""
+
+    _validate_placeholder_substrate(substrate_snapshot)
+    if type(authorization) is not RelationshipProductV2OnlinePulseAuthorization:
+        raise TypeError("authorization must be RelationshipProductV2OnlinePulseAuthorization")
+    authorization.validate_session(online_session)
+    authorization.validate_request(request)
+    if (
+        online_session.pending_exposure is not None
+        or online_session.pending_plan is not None
+    ):
+        raise ValueError("online session already has an unresolved preaction")
+    if (
+        temporal_delivery_timestamp_ms is not None
+        and type(temporal_delivery_timestamp_ms) is not int
+    ):
+        raise TypeError("temporal_delivery_timestamp_ms must be an int or None")
+    if (
+        temporal_delivery_timestamp_ms is not None
+        and temporal_delivery_timestamp_ms < 0
+    ):
+        raise ValueError("temporal_delivery_timestamp_ms must be non-negative")
+
+    parent_chain_id = online_session.current_chain_id
+    transition_count = online_session.transition_count
+    checkpoint_before = online_session.export_checkpoint()
+    store = SocialRecordStore()
+    store.hydrate_from_persistence(owner_persistence_snapshot)
+    owner_snapshot, forecast = await _publish_relationship_product_forecast(
+        request=request,
+        store=store,
+        forecast_runtime=forecast_runtime,
+    )
+    if (
+        online_session.current_chain_id != parent_chain_id
+        or online_session.transition_count != transition_count
+        or online_session.export_checkpoint() != checkpoint_before
+        or online_session.pending_exposure is not None
+        or online_session.pending_plan is not None
+    ):
+        raise RuntimeError("online session changed while the forecast owner was publishing")
+
+    owner_persistence = store.export_persistence_snapshot()
+    decision = online_session.decide(forecast)
+    exposure = online_session.record_exposure(
+        forecast,
+        delivered_action_id=decision.decision.selected_action_id,
+    )
+    if (
+        exposure.parent_chain_id != parent_chain_id
+        or exposure.sequence_index != transition_count
+        or exposure.frozen_decision.checkpoint_content_sha256
+        != checkpoint_before.content_sha256
+    ):
+        raise RuntimeError("online exposure did not preserve the captured completed prefix")
+    command = RelationshipProductV2OnlineExecutorCommand(
+        online_exposure=exposure,
+        authorization=authorization,
+        owner_prestate_sha256=social_record_store_persistence_sha256(
+            owner_persistence
+        ),
+    )
+    execution_receipt = await _execute_relationship_product_v2_online_command(
+        command=command,
+        online_session=online_session,
+        substrate_snapshot=substrate_snapshot,
+        temporal_delivery_timestamp_ms=temporal_delivery_timestamp_ms,
+    )
+    return RelationshipProductV2OnlinePreActionSnapshot(
+        request=request,
+        owner_input_persistence_snapshot=owner_persistence_snapshot,
+        preference_snapshot=owner_snapshot,
+        forecast=forecast,
+        execution_receipt=execution_receipt,
+        owner_persistence_snapshot=owner_persistence,
+    )
+
+
 async def prepare_relationship_product_v2_frozen_preaction(
     *,
     request: RelationshipProductPreActionRequest,
@@ -4589,6 +5106,62 @@ async def prepare_relationship_product_v2_forced_collection_preaction(
         forecast=forecast,
         execution_receipt=execution_receipt,
         owner_persistence_snapshot=owner_persistence,
+    )
+
+
+async def settle_relationship_product_v2_online_pulse(
+    *,
+    preaction: RelationshipProductV2OnlinePreActionSnapshot,
+    settlement_input: RelationshipProductSettlementInput,
+    online_session: RelationshipActionGateV2OnlineSession,
+) -> RelationshipProductV2OnlineSettlementSnapshot:
+    """Settle one actual outcome and commit the prebound online disposition."""
+
+    if type(preaction) is not RelationshipProductV2OnlinePreActionSnapshot:
+        raise TypeError("preaction must be RelationshipProductV2OnlinePreActionSnapshot")
+    preaction.authorization.validate_session(online_session)
+    if online_session.pending_exposure != preaction.online_exposure:
+        raise ValueError("online settlement does not match the active pending preaction")
+    if online_session.pending_plan is not None:
+        raise ValueError("online settlement found an externally sealed pending credit plan")
+    owner_settlement, owner_persistence = (
+        await _settle_relationship_product_v2_online_owner_chain(
+            preaction=preaction,
+            settlement_input=settlement_input,
+            online_session=online_session,
+        )
+    )
+    common_credit = _derive_relationship_product_v2_common_credit(
+        preaction=preaction,
+        settlement_input=settlement_input,
+        owner_settlement=owner_settlement,
+    )
+    plan = online_session.plan_credit(preaction.online_exposure, common_credit)
+    transition = online_session.commit_credit(plan)
+    if online_session.current_chain_id == preaction.parent_chain_id:
+        raise RuntimeError("online settlement did not append its transition to the chain")
+    if (
+        online_session.pending_exposure is not None
+        or online_session.pending_plan is not None
+    ):
+        raise RuntimeError("online settlement left unexpected pending gate state")
+    if online_session.transition_count != preaction.gate_transition_count_before + 1:
+        raise RuntimeError("online settlement transition count did not advance exactly once")
+    if online_session.export_checkpoint() != transition.terminal_checkpoint:
+        raise RuntimeError("online settlement terminal checkpoint differs from live session")
+    return RelationshipProductV2OnlineSettlementSnapshot(
+        preaction=preaction,
+        settlement_input=settlement_input,
+        external_outcome_snapshot=owner_settlement.external_outcome_snapshot,
+        preference_snapshot=owner_settlement.preference_snapshot,
+        social_prediction_error_snapshot=(
+            owner_settlement.social_prediction_error_snapshot
+        ),
+        settlement=owner_settlement.settlement,
+        credit=owner_settlement.credit,
+        common_baseline_credit=common_credit,
+        owner_persistence_snapshot=owner_persistence,
+        gate_transition=transition,
     )
 
 
@@ -4947,10 +5520,77 @@ async def _settle_relationship_product_v2_owner_chain(
     return owner_settlement, store.export_persistence_snapshot()
 
 
+async def _settle_relationship_product_v2_online_owner_chain(
+    *,
+    preaction: RelationshipProductV2OnlinePreActionSnapshot,
+    settlement_input: RelationshipProductSettlementInput,
+    online_session: RelationshipActionGateV2OnlineSession,
+) -> tuple[_RelationshipProductOwnerSettlement, OwnerPersistenceSnapshot]:
+    if type(settlement_input) is not RelationshipProductSettlementInput:
+        raise TypeError("settlement_input must be RelationshipProductSettlementInput")
+    if settlement_input.apply_credit_to_gate:
+        raise ValueError(
+            "v2 online settlement disposition is prebound; per-outcome apply bit is forbidden"
+        )
+    _validate_immutable_environment_settlement_input(
+        settlement_input,
+        source="v2 online",
+    )
+    if settlement_input.external_outcome.confidence != 1.0:
+        raise ValueError("v2 online common-baseline credit requires confidence 1.0")
+    _validate_relationship_product_v2_online_owner_evidence_projection(
+        settlement_input
+    )
+    _validate_settlement_lineage_values(
+        request=preaction.request,
+        forecast=preaction.forecast,
+        actual_action_id=preaction.delivered_action_id,
+        settlement_input=settlement_input,
+    )
+    preaction.authorization.validate_session(online_session)
+    exposure = preaction.online_exposure
+    if online_session.pending_exposure != exposure:
+        raise ValueError("v2 online owner settlement requires the exact pending exposure")
+    if online_session.pending_plan is not None:
+        raise ValueError("v2 online owner settlement found an externally sealed plan")
+    if (
+        online_session.current_chain_id != preaction.parent_chain_id
+        or online_session.transition_count
+        != preaction.gate_transition_count_before
+        or online_session.export_checkpoint().content_sha256
+        != preaction.gate_checkpoint_content_sha256_before
+    ):
+        raise ValueError("v2 online session completed prefix differs from preaction")
+
+    store = _hydrate_validated_immutable_preaction_owner(
+        preaction,
+        source="v2 online preaction",
+    )
+    owner_settlement = await _settle_relationship_product_owner_chain(
+        request=preaction.request,
+        forecast=preaction.forecast,
+        store=store,
+        settlement_input=settlement_input,
+    )
+    preaction.authorization.validate_session(online_session)
+    if (
+        online_session.pending_exposure != exposure
+        or online_session.pending_plan is not None
+        or online_session.current_chain_id != preaction.parent_chain_id
+        or online_session.transition_count
+        != preaction.gate_transition_count_before
+        or online_session.export_checkpoint().content_sha256
+        != preaction.gate_checkpoint_content_sha256_before
+    ):
+        raise RuntimeError("v2 online session changed while owner settlement was publishing")
+    return owner_settlement, store.export_persistence_snapshot()
+
+
 def _derive_relationship_product_v2_common_credit(
     *,
     preaction: (
         RelationshipProductV2FrozenPreActionSnapshot
+        | RelationshipProductV2OnlinePreActionSnapshot
         | RelationshipProductV2ForcedCollectionPreActionSnapshot
     ),
     settlement_input: RelationshipProductSettlementInput,
@@ -5128,6 +5768,52 @@ async def _execute_relationship_product_v2_executor_command(
         temporal_delivery=RelationshipProductTemporalDelivery.from_snapshot(
             temporal_snapshot,
             delivered_advisory=delivered_advisory,
+        ),
+    )
+
+
+async def _execute_relationship_product_v2_online_command(
+    *,
+    command: RelationshipProductV2OnlineExecutorCommand,
+    online_session: RelationshipActionGateV2OnlineSession,
+    substrate_snapshot: SubstrateSnapshot,
+    temporal_delivery_timestamp_ms: int | None,
+) -> RelationshipProductV2OnlineExecutorReceipt:
+    if type(command) is not RelationshipProductV2OnlineExecutorCommand:
+        raise TypeError("command must be RelationshipProductV2OnlineExecutorCommand")
+    command.authorization.validate_session(online_session)
+    if online_session.pending_exposure != command.online_exposure:
+        raise ValueError("online executor requires the exact active pending exposure")
+    if online_session.pending_plan is not None:
+        raise ValueError("online executor found an externally sealed pending credit plan")
+    _validate_placeholder_substrate(substrate_snapshot)
+    advisory = _authorize_relationship_product_v2_online_pulse_advisory(
+        exposure=command.online_exposure,
+        session=online_session,
+        authorization=command.authorization,
+    )
+    temporal_snapshot = await _apply_typed_environment_advisory(
+        advisory,
+        substrate_snapshot=substrate_snapshot,
+        publication_timestamp_ms=temporal_delivery_timestamp_ms,
+    )
+    command.authorization.validate_session(online_session)
+    exposure = command.online_exposure
+    if (
+        online_session.pending_exposure != exposure
+        or online_session.pending_plan is not None
+        or online_session.current_chain_id != exposure.parent_chain_id
+        or online_session.transition_count != exposure.sequence_index
+        or online_session.export_checkpoint().content_sha256
+        != exposure.frozen_decision.checkpoint_content_sha256
+    ):
+        raise RuntimeError("online session changed during temporal delivery")
+    return RelationshipProductV2OnlineExecutorReceipt(
+        command=command,
+        authorized_advisory=advisory,
+        temporal_delivery=RelationshipProductTemporalDelivery.from_snapshot(
+            temporal_snapshot,
+            delivered_advisory=advisory,
         ),
     )
 
@@ -5506,6 +6192,11 @@ __all__ = [
     "RelationshipProductV2FrozenSettlementSnapshot",
     "RelationshipProductV2GateTransition",
     "RelationshipProductV2MatchedGateTransitions",
+    "RelationshipProductV2OnlineExecutorCommand",
+    "RelationshipProductV2OnlineExecutorReceipt",
+    "RelationshipProductV2OnlinePreActionSnapshot",
+    "RelationshipProductV2OnlinePulseAuthorization",
+    "RelationshipProductV2OnlineSettlementSnapshot",
     "RelationshipProductV2SegmentedCollectedCreditBatch",
     "RelationshipProductV2SegmentedGateTransition",
     "RelationshipProductV2SegmentedMatchedGateTransitions",
@@ -5522,9 +6213,11 @@ __all__ = [
     "prepare_relationship_product_preaction",
     "prepare_relationship_product_v2_forced_collection_preaction",
     "prepare_relationship_product_v2_frozen_preaction",
+    "prepare_relationship_product_v2_online_preaction",
     "settle_relationship_product_frozen_pulse",
     "settle_relationship_product_forced_collection",
     "settle_relationship_product_pulse",
     "settle_relationship_product_v2_forced_collection",
     "settle_relationship_product_v2_frozen_pulse",
+    "settle_relationship_product_v2_online_pulse",
 ]

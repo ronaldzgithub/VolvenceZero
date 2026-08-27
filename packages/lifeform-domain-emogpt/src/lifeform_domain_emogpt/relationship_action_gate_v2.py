@@ -4240,6 +4240,12 @@ class RelationshipActionGateV2OnlineSession:
     def pending_exposure(self) -> RelationshipActionGateV2OnlineExposure | None:
         return self._pending_exposure
 
+    @property
+    def pending_plan(self) -> RelationshipActionGateV2OnlinePlan | None:
+        """Publish the immutable sealed plan, if another consumer created one."""
+
+        return self._pending_plan
+
     def export_checkpoint(self) -> RelationshipActionGateV2Checkpoint:
         return self._checkpoint
 

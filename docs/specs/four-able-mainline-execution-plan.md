@@ -146,21 +146,26 @@ reader training/source/solver 设计，随后用全新 protocol identity 与新�
 ### Phase 2 · 协议修正设计（开发档为主）
 
 入口：Phase 1a 完成（1b 可仍在途）。
-交付四个互相独立的收敛包：
+交付五个互相独立的收敛包：
 
-1. **Learnable/Steerable 新消融拓扑（prereg-ready 机制已完成）**：`741e7b1b` 冻结
-   nonzero theta0、forced exposure、exact PE-credit batch 与 atomic apply/withhold；`7d476101` /
+1. **Learnable/Steerable 新消融拓扑（在线 estimand 的 owner/pulse 机制已完成）**：`741e7b1b`
+   冻结 nonzero theta0、forced exposure、exact PE-credit batch 与 atomic apply/withhold；`7d476101` /
    `f6ae1f6a` 冻结 preference owner settlement replay 与 canonical persistence identity；
    `bc9f1b0a` 冻结共同 candidate 后 executor-only apply/strict-noop、actual delivered action 与完整
-   owner replay receipt。未来 protocol 中 `frozen_theta0` 臂必须与 full 共享同一
-   theta0、同 forced-action、同 reaction/outcome/PE/credit 流，唯一差异是参数
-   atomic apply bit。receipt 必须证明 `campaign_online_update_count=0`、参数 delta
-   精确为零、评估期至少一次非 noop steer；strict-noop 臂与 frozen 臂共享 gate decision
-   与 intervention candidate，只切 executor apply bit。任一证明缺失判
-   `arm_degeneracy_invalid_contrast_no_claim`。对比定义冻结为：
-   Learnable = full − frozen_theta0；Steerable = frozen_theta0 − strict_noop。
-   当前只完成 owner/consumer 机制；campaign-level `campaign_online_update_count=0`、参数零 delta、
-   非 noop opportunity 与 arm divergence 仍须由新 development protocol 证明，不能登记能力效果。
+   owner replay receipt。首个 112-root campaign 随后证明“评估前一次 8-credit batch”不足以操作化
+   online-fast Learnable，因此新 protocol 不再把 evaluation gate 全冻住：`full` 与
+   `frozen_theta0` 从同一个 condensed cold theta0、同 owner start、同 source/environment seed 和同
+   action-branch content 起步，两臂 executor 都施加 learned selected action；每拍 actual outcome 经
+   owner settlement→Social PE→common credit 后，full 由事前绑定的 session 逐拍 APPLY，frozen 逐拍
+   WITHHOLD。settle API 不接 apply bit，轨迹分叉后的 forecast/credit 是 treatment descendant，不再要求
+   跨臂相等。receipt 必须证明 full `generated/applied/update=40/40/40`、frozen=`40/0/0` 且 terminal
+   byte-exact initial；原 40-slot 窗口只登记 39 个 downstream-exposed update。strict-noop 仍与 frozen
+   共享 gate decision/candidate、只切 executor apply bit；always-on/random-gate 则另属 Steerable control
+   authorization，不能混入 Learnable session。任一处理量、non-noop opportunity 或 actual divergence 硬门缺失，
+   均判 `arm_degeneracy_invalid_contrast_no_claim`。对比定义仍为 Learnable = full − frozen_theta0；
+   旧 `frozen_theta0 − strict_noop` 只证明 actuation-vs-abstention，只有再胜过 always/random 才允许择时
+   Steerable。当前已闭合 gate owner 与 pulse **逻辑 barrier**；多臂 fsync、source branch、40-slot durable
+   campaign 与效果门仍待独立 consumer 包，不能登记能力效果。
 2. **source-v3 campaign admission（已完成）**：development protocol
    `98d51d84…6338` 只复用现有 reactive environment，不重建 engine；独立收敛包物化 32 onboarding、
    192 decisions、576 条 sealed action-counterfactual commitments，双 model-free worker replay + 第三进程
@@ -286,10 +291,21 @@ attempt03 已在新 create-only 根完成正式 materialization，并在 detache
    authorization 重放了 synthetic forced settlement→PE→credit 与一次 parent APPLY/WITHHOLD；condensation 后的
    candidate/strict evaluation preaction 没有新增 outcome、PE、credit 或 gate update。全程未运行模型、CUDA、campaign
    或彩排，也尚未把 attempt03 artifact 用作新 source 的 treatment-reachability 证据。
+5. **已闭合 online evaluation pulse 的逻辑 consumer seam**：
+   `RelationshipProductV2OnlinePulseAuthorization` 复用上述完整 condensed authorization，并在任何 evaluation
+   outcome 前把 session 永久固定为 APPLY 或 WITHHOLD。prepare 只从 live completed head 发布 owner forecast、登记
+   one pending exposure、执行 exact learned action 的 offline SHADOW temporal projection，再返回 construction-validated logical
+   preaction barrier；settle 先 exact-join pending exposure、actual action、owner state 与 settlement，再从 Social PE
+   派生完整 common credit，最后由 session 预绑定 disposition plan/commit。settle API 不接 disposition，复用的
+   `apply_credit_to_gate` 在两臂都必须为 false；失败后 pending 不自动清除。普通热路径不导出或重放 full chain，
+   completed restore 只接完整 typed chain。该 seam 不写磁盘、不打开 source branch，也不声称 crash durability；
+   campaign 必须另证整组 preaction+barrier fsync 先于 reactive branch，postaction+transition fsync 先于下一拍，
+   durable unresolved tail 一律 fail-stop。
 
-三个机制包与 cold evaluation authorization seam 现已闭合。下一包另立 permanent
-treatment-reachability admission；它只读新 source 的 public/outcome-free surface，不生成
-outcome/PE/credit/update，不是 rehearsal。当前 `treatment_reachability_admitted=false`。
+gate owner、cold authorization 与 pulse logical consumer 现已闭合。下一独立 owner 包只实现 Product Horizon 的
+多臂 durable barrier/恢复扫描和 40-slot online campaign 接线，不执行矩阵；permanent treatment-reachability
+admission 仍须另立协议，只读新 source 的 public/outcome-free surface，不生成 outcome/PE/credit/update，也不是
+rehearsal。当前 `treatment_reachability_admitted=false`，source-v5 admission 与 achievability 账也均未闭合。
 
 permanent admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
 预先 sealed reactive source；当前 source-v4 只可作为已花费的 adaptive development training lineage。
@@ -599,14 +615,25 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   chain lineage。receipt 分列 candidate/applied cap 与 nonzero delta，`informative_count` 不冒充 effective dose。
   定向 contract 固定 40 APPLY=`generated/applied/update 40/40/40`，40 WITHHOLD=`40/0/0` 且 terminal
   exact initial；但只有前 39 次 update 在原 40-slot horizon 内拥有 downstream action exposure。
-  本包只闭合 gate owner completed-transition 机制；在途 crash recovery 与 physical timing 仍须下一 pulse durable
-  receipt，pulse/campaign尚未执行，model/CUDA/rehearsal count=0。
+  该包只闭合 gate owner completed-transition 机制；当时仍待 pulse logical barrier 与 campaign durable receipt。
+  前者现已闭合，in-flight crash recovery 与 physical timing 仍只属于 future campaign；campaign 尚未执行，
+  model/CUDA/rehearsal count=0。
 - 2026-08-27 · 后续三条设计同时冻结边界但尚未实现：其一，reachability 分成 outcome-free binary-gate
   geometric distance 与读取 actual PE-credit receipt 的 achievability dose，二者不得共用 PASS；其二，Steerable
   增加 always-adopt-owner-recommendation 与 pre-outcome rate-matched random-gate，旧 run 因 frozen gate
   4,480/4,480 STEER 而使 always arm 完全退化，未来 conditional-vs-always/random actual divergence 是硬门；
-  其三，第 40 次 update 若需行为暴露必须事前新增 terminal probe。下一收敛包是 v2 evaluation pulse consumer，
-  不回改 frozen campaign，也不先启动 source-v5 CUDA 或 integrated run。
+  其三，第 40 次 update 若需行为暴露必须事前新增 terminal probe。v2 evaluation pulse consumer 随后已闭合；
+  下一收敛包是 corrected-online campaign 的 durable barrier/恢复扫描，不回改 frozen campaign，也不先启动
+  source-v5 CUDA 或 integrated run。
+- 2026-08-27 · v2 online evaluation pulse consumer 已闭合 model-free **逻辑**边界：online authorization
+  exact-wrap condensed cold theta0 并事前固定 APPLY/WITHHOLD；prepare 绑定 current chain/checkpoint、owner forecast、
+  pending exposure、learned selected action、authorized SHADOW advisory 与 temporal delivery，settle 只从 actual
+  environment outcome 经 owner→Social PE→common credit 后调用 live session plan/commit。调用方不能在 outcome 后
+  传 disposition，旧 `apply_credit_to_gate` 两臂均强制 false；full/frozen 首拍同 forecast/decision/action，首拍后
+  receipt 分别为 `generated/applied/update=1/1/1` 与 `1/0/0`，下一拍分别读取 updated/cold checkpoint。pending
+  阻止第二 preaction，temporal failure 保留 fail-stop pending；普通两拍路径不导出/重放全 chain，completed restore
+  只接受完整 typed chain。pulse 不拥有 fsync/source branch，因此 campaign physical barrier、crash-tail invalidation、
+  40-slot `40/40/39` 终局与效果仍全待执行；本包未运行 model/CUDA/rehearsal/campaign，不建立 Learnable 结论。
 - 2026-08-27 · 用户裁决新增 coding lane 为四能力主张的主要证明载体：编程域拥有免费客观 oracle
   （pytest 结局是 `ENVIRONMENT` typed source，可合法进入学习环路），关系域受 R12 与"无免费客观结局"
   的结构性限制，其产品主张改由未来真人验证承担，本文件关系线各阶段照常作为 development/机制 lane 推进。

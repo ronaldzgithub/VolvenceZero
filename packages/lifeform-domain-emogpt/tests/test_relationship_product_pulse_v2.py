@@ -25,6 +25,8 @@ from lifeform_domain_emogpt.lab.relationship_product_pulse import (
     RelationshipProductV2FrozenPulseAuthorization,
     RelationshipProductV2GateTransition,
     RelationshipProductV2MatchedGateTransitions,
+    RelationshipProductV2OnlineExecutorCommand,
+    RelationshipProductV2OnlinePulseAuthorization,
     RelationshipProductV2SegmentedCollectedCreditBatch,
     RelationshipProductV2SegmentedGateTransition,
     RelationshipProductV2SegmentedMatchedGateTransitions,
@@ -37,8 +39,10 @@ from lifeform_domain_emogpt.lab.relationship_product_pulse import (
     commit_relationship_product_v2_segmented_matched_gate_transitions,
     prepare_relationship_product_v2_forced_collection_preaction,
     prepare_relationship_product_v2_frozen_preaction,
+    prepare_relationship_product_v2_online_preaction,
     settle_relationship_product_v2_forced_collection,
     settle_relationship_product_v2_frozen_pulse,
+    settle_relationship_product_v2_online_pulse,
 )
 from lifeform_domain_emogpt.relationship_action_contracts import (
     RELATIONSHIP_ACTIONS,
@@ -60,6 +64,7 @@ from lifeform_domain_emogpt.relationship_action_gate_v2 import (
     RelationshipActionGateV2FederatedAssignmentScheduleArtifact,
     RelationshipActionGateV2FederatedCreditBatch,
     RelationshipActionGateV2FederatedScheduleSegment,
+    RelationshipActionGateV2OnlineSession,
     temporal_action_advisory_from_gate_v2_decision,
 )
 from volvence_zero.dialogue_trace import (
@@ -225,6 +230,23 @@ def _settlement_input(preaction) -> RelationshipProductSettlementInput:
         owner_outcome_evidence=owner_evidence,
         credit_timestamp_ms=preaction.request.outcome_turn_index * 1000,
         apply_credit_to_gate=False,
+    )
+
+
+def _online_settlement_input(preaction) -> RelationshipProductSettlementInput:
+    settlement_input = _settlement_input(preaction)
+    owner_evidence = settlement_input.owner_outcome_evidence
+    external = replace(
+        settlement_input.external_outcome,
+        description=owner_evidence.reaction_summary,
+    )
+    return replace(
+        settlement_input,
+        external_outcome=external,
+        owner_outcome_evidence=replace(
+            owner_evidence,
+            evidence_id=external.evidence_id,
+        ),
     )
 
 
@@ -453,6 +475,34 @@ async def _federated_condensed_theta0(*, start_index: int):
         apply_receipt=matched.applied.gate_receipt,
     )
     return seed, matched, learned_theta0
+
+
+@pytest.fixture(scope="module")
+def _online_theta0_bundle():
+    return asyncio.run(_federated_condensed_theta0(start_index=300))
+
+
+def _online_authorizations(bundle):
+    _seed_artifact, matched, learned_theta0 = bundle
+    theta0_authorization = RelationshipProductV2CondensedTheta0FrozenPulseAuthorization(
+        pulse_authorization=_pulse_authorization(
+            learned_theta0,
+            suffix="online-evaluation",
+        ),
+        learned_theta0_artifact=learned_theta0,
+        source_federated_matched_transitions=matched,
+    )
+    return tuple(
+        RelationshipProductV2OnlinePulseAuthorization(
+            theta0_authorization=theta0_authorization,
+            gate_disposition=disposition,
+            owner_session_scope=_SCOPE,
+        )
+        for disposition in (
+            RelationshipActionGateBatchDisposition.APPLY,
+            RelationshipActionGateBatchDisposition.WITHHOLD,
+        )
+    )
 
 
 async def _trained_theta_and_online_batch():
@@ -1511,3 +1561,518 @@ def test_v2_strict_noop_changes_only_executor_bit() -> None:
         _online_settlements[0].preaction.execution_receipt,
         RelationshipProductV2ForcedCollectionReceipt,
     )
+
+
+def test_v2_online_pulse_prebinds_matched_apply_withhold_before_outcome(
+    _online_theta0_bundle,
+) -> None:
+    applied_authorization, withheld_authorization = _online_authorizations(
+        _online_theta0_bundle
+    )
+    learned_theta0 = applied_authorization.learned_theta0_artifact
+    initial_owner = SocialRecordStore().export_persistence_snapshot()
+    request = _request(400)
+
+    async def _run_first(authorization):
+        session = RelationshipActionGateV2OnlineSession(
+            artifact=learned_theta0,
+            disposition=authorization.gate_disposition,
+        )
+        preaction = await prepare_relationship_product_v2_online_preaction(
+            request=request,
+            owner_persistence_snapshot=initial_owner,
+            forecast_runtime=_ForecastRuntime(),
+            online_session=session,
+            authorization=authorization,
+            substrate_snapshot=_placeholder_substrate(),
+            temporal_delivery_timestamp_ms=801_000,
+        )
+        settlement = await settle_relationship_product_v2_online_pulse(
+            preaction=preaction,
+            settlement_input=_online_settlement_input(preaction),
+            online_session=session,
+        )
+        return session, preaction, settlement
+
+    applied_session, applied_preaction, applied = asyncio.run(
+        _run_first(applied_authorization)
+    )
+    withheld_session, withheld_preaction, withheld = asyncio.run(
+        _run_first(withheld_authorization)
+    )
+
+    assert applied_authorization.theta0_authorization == (
+        withheld_authorization.theta0_authorization
+    )
+    assert applied_authorization.authorization_id != (
+        withheld_authorization.authorization_id
+    )
+    assert applied_preaction.forecast == withheld_preaction.forecast
+    assert applied_preaction.online_exposure.frozen_decision == (
+        withheld_preaction.online_exposure.frozen_decision
+    )
+    assert applied_preaction.delivered_action_id == withheld_preaction.delivered_action_id
+    assert applied_preaction.execution_receipt.command.owner_prestate_sha256 == (
+        withheld_preaction.execution_receipt.command.owner_prestate_sha256
+    )
+    assert isinstance(
+        applied_preaction.execution_receipt.command,
+        RelationshipProductV2OnlineExecutorCommand,
+    )
+    assert applied.common_baseline_credit == withheld.common_baseline_credit
+    assert applied.owner_persistence_snapshot == withheld.owner_persistence_snapshot
+
+    assert applied.gate_transition.receipt.generated_credit_count == 1
+    assert applied.gate_transition.receipt.applied_credit_count == 1
+    assert applied.gate_transition.receipt.update_count_delta == 1
+    assert (
+        applied.gate_transition.receipt.candidate_nonzero_parameter_update_count
+        == 1
+    )
+    assert applied.gate_transition.receipt.applied_nonzero_parameter_update_count == 1
+    assert applied.credit_applied_to_gate is True
+    assert applied_session.export_checkpoint().update_count == 1
+    assert applied_session.export_checkpoint().weights != learned_theta0.weights
+    assert withheld.gate_transition.receipt.generated_credit_count == 1
+    assert withheld.gate_transition.receipt.applied_credit_count == 0
+    assert withheld.gate_transition.receipt.update_count_delta == 0
+    assert (
+        withheld.gate_transition.receipt.candidate_nonzero_parameter_update_count
+        == 1
+    )
+    assert withheld.gate_transition.receipt.applied_nonzero_parameter_update_count == 0
+    assert withheld.credit_applied_to_gate is False
+    assert withheld_session.export_checkpoint().update_count == 0
+    assert withheld_session.export_checkpoint().weights == learned_theta0.weights
+    assert inspect.signature(settle_relationship_product_v2_online_pulse).parameters.keys() == {
+        "preaction",
+        "settlement_input",
+        "online_session",
+    }
+    for authorization in (applied_authorization, withheld_authorization):
+        payload = authorization.to_payload()
+        assert payload["evaluation_or_judge_feedback_received"] is False
+        assert payload["executor_disposition"] == "apply_candidate"
+
+
+def test_v2_online_pulse_next_preaction_reads_prior_terminal_checkpoint(
+    _online_theta0_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    applied_authorization, withheld_authorization = _online_authorizations(
+        _online_theta0_bundle
+    )
+    learned_theta0 = applied_authorization.learned_theta0_artifact
+
+    def _forbid_hot_path_chain_export(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise AssertionError("online hot path exported or replayed a full chain")
+
+    monkeypatch.setattr(
+        RelationshipActionGateV2OnlineSession,
+        "export_transition_chain",
+        _forbid_hot_path_chain_export,
+    )
+    monkeypatch.setattr(
+        RelationshipActionGateV2OnlineSession,
+        "from_transition_chain",
+        _forbid_hot_path_chain_export,
+    )
+
+    async def _two_preactions(authorization):
+        session = RelationshipActionGateV2OnlineSession(
+            artifact=learned_theta0,
+            disposition=authorization.gate_disposition,
+        )
+        first = await prepare_relationship_product_v2_online_preaction(
+            request=_request(410),
+            owner_persistence_snapshot=SocialRecordStore().export_persistence_snapshot(),
+            forecast_runtime=_ForecastRuntime(),
+            online_session=session,
+            authorization=authorization,
+            substrate_snapshot=_placeholder_substrate(),
+            temporal_delivery_timestamp_ms=821_000,
+        )
+        first_settlement = await settle_relationship_product_v2_online_pulse(
+            preaction=first,
+            settlement_input=_online_settlement_input(first),
+            online_session=session,
+        )
+        terminal_chain_id = session.current_chain_id
+        second = await prepare_relationship_product_v2_online_preaction(
+            request=_request(411),
+            owner_persistence_snapshot=first_settlement.owner_persistence_snapshot,
+            forecast_runtime=_ForecastRuntime(),
+            online_session=session,
+            authorization=authorization,
+            substrate_snapshot=_placeholder_substrate(),
+            temporal_delivery_timestamp_ms=823_000,
+        )
+        return first_settlement, terminal_chain_id, second
+
+    applied_first, applied_terminal_chain_id, applied_second = asyncio.run(
+        _two_preactions(applied_authorization)
+    )
+    withheld_first, withheld_terminal_chain_id, withheld_second = asyncio.run(
+        _two_preactions(withheld_authorization)
+    )
+
+    assert applied_second.parent_chain_id == applied_terminal_chain_id
+    assert withheld_second.parent_chain_id == withheld_terminal_chain_id
+    assert applied_second.gate_transition_count_before == 1
+    assert withheld_second.gate_transition_count_before == 1
+    assert applied_second.gate_checkpoint_content_sha256_before == (
+        applied_first.terminal_checkpoint_content_sha256
+    )
+    assert withheld_second.gate_checkpoint_content_sha256_before == (
+        withheld_first.terminal_checkpoint_content_sha256
+    )
+    assert applied_second.online_exposure.frozen_decision.decision.update_count == 1
+    assert withheld_second.online_exposure.frozen_decision.decision.update_count == 0
+    assert applied_second.forecast == withheld_second.forecast
+    assert applied_second.delivered_action_id == withheld_second.delivered_action_id
+
+
+def test_v2_online_pulse_rejects_mismatch_without_gate_mutation(
+    _online_theta0_bundle,
+) -> None:
+    applied_authorization, withheld_authorization = _online_authorizations(
+        _online_theta0_bundle
+    )
+    wrong_scope_session = RelationshipActionGateV2OnlineSession(
+        artifact=applied_authorization.learned_theta0_artifact,
+        disposition=applied_authorization.gate_disposition,
+    )
+    wrong_scope_checkpoint = wrong_scope_session.export_checkpoint()
+    with pytest.raises(ValueError, match="owner scope differs"):
+        asyncio.run(
+            prepare_relationship_product_v2_online_preaction(
+                request=_request(
+                    419,
+                    session_scope=hashlib.sha256(b"wrong-online-owner-scope").hexdigest(),
+                ),
+                owner_persistence_snapshot=SocialRecordStore().export_persistence_snapshot(),
+                forecast_runtime=_ForecastRuntime(),
+                online_session=wrong_scope_session,
+                authorization=applied_authorization,
+                substrate_snapshot=_placeholder_substrate(),
+            )
+        )
+    assert wrong_scope_session.export_checkpoint() == wrong_scope_checkpoint
+    assert wrong_scope_session.transition_count == 0
+    assert wrong_scope_session.pending_exposure is None
+
+    wrong_disposition_session = RelationshipActionGateV2OnlineSession(
+        artifact=applied_authorization.learned_theta0_artifact,
+        disposition=withheld_authorization.gate_disposition,
+    )
+    wrong_disposition_checkpoint = wrong_disposition_session.export_checkpoint()
+    with pytest.raises(ValueError, match="disposition differs"):
+        asyncio.run(
+            prepare_relationship_product_v2_online_preaction(
+                request=_request(419),
+                owner_persistence_snapshot=SocialRecordStore().export_persistence_snapshot(),
+                forecast_runtime=_ForecastRuntime(),
+                online_session=wrong_disposition_session,
+                authorization=applied_authorization,
+                substrate_snapshot=_placeholder_substrate(),
+            )
+        )
+    assert wrong_disposition_session.export_checkpoint() == wrong_disposition_checkpoint
+    assert wrong_disposition_session.transition_count == 0
+    assert wrong_disposition_session.pending_exposure is None
+
+    session = RelationshipActionGateV2OnlineSession(
+        artifact=applied_authorization.learned_theta0_artifact,
+        disposition=applied_authorization.gate_disposition,
+    )
+    preaction = asyncio.run(
+        prepare_relationship_product_v2_online_preaction(
+            request=_request(420),
+            owner_persistence_snapshot=SocialRecordStore().export_persistence_snapshot(),
+            forecast_runtime=_ForecastRuntime(),
+            online_session=session,
+            authorization=applied_authorization,
+            substrate_snapshot=_placeholder_substrate(),
+            temporal_delivery_timestamp_ms=841_000,
+        )
+    )
+    checkpoint_before = session.export_checkpoint()
+    chain_before = session.current_chain_id
+    pending_before = session.pending_exposure
+    valid_input = _online_settlement_input(preaction)
+
+    wrong_scope_authorization = replace(
+        applied_authorization,
+        owner_session_scope=hashlib.sha256(
+            b"rewrapped-online-owner-scope"
+        ).hexdigest(),
+    )
+    with pytest.raises(ValueError, match="owner scope differs"):
+        replace(
+            preaction.execution_receipt.command,
+            authorization=wrong_scope_authorization,
+        )
+
+    def _assert_pending_unchanged() -> None:
+        assert session.export_checkpoint() == checkpoint_before
+        assert session.current_chain_id == chain_before
+        assert session.pending_exposure == pending_before
+        assert session.pending_plan is None
+        assert session.transition_count == 0
+
+    with pytest.raises(ValueError, match="cannot export while an exposure is pending"):
+        session.export_transition_chain()
+
+    with pytest.raises(ValueError, match="per-outcome apply bit is forbidden"):
+        asyncio.run(
+            settle_relationship_product_v2_online_pulse(
+                preaction=preaction,
+                settlement_input=replace(valid_input, apply_credit_to_gate=True),
+                online_session=session,
+            )
+        )
+    _assert_pending_unchanged()
+
+    evidence_mutations = (
+        replace(
+            valid_input,
+            owner_outcome_evidence=replace(
+                valid_input.owner_outcome_evidence,
+                evidence_id="injected-owner-evidence-id",
+            ),
+        ),
+        replace(
+            valid_input,
+            owner_outcome_evidence=replace(
+                valid_input.owner_outcome_evidence,
+                reaction_summary="Injected evaluator reaction text.",
+            ),
+        ),
+        replace(
+            valid_input,
+            owner_outcome_evidence=replace(
+                valid_input.owner_outcome_evidence,
+                evidence_refs=(hashlib.sha256(b"injected-evidence-ref").hexdigest(),),
+            ),
+        ),
+    )
+    for drifted in evidence_mutations:
+        with pytest.raises(ValueError, match="exact environment reaction projection"):
+            asyncio.run(
+                settle_relationship_product_v2_online_pulse(
+                    preaction=preaction,
+                    settlement_input=drifted,
+                    online_session=session,
+                )
+            )
+        _assert_pending_unchanged()
+
+    other_action = RelationshipAction.NEUTRAL_NOOP.value
+    if other_action == preaction.delivered_action_id:
+        other_action = RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value
+    with pytest.raises(ValueError, match="external action lineage mismatch"):
+        asyncio.run(
+            settle_relationship_product_v2_online_pulse(
+                preaction=preaction,
+                settlement_input=replace(
+                    valid_input,
+                    external_outcome=replace(
+                        valid_input.external_outcome,
+                        action_id=other_action,
+                    ),
+                ),
+                online_session=session,
+            )
+        )
+    _assert_pending_unchanged()
+
+    wrong_arm_checkpoint = wrong_disposition_session.export_checkpoint()
+    with pytest.raises(ValueError, match="disposition differs"):
+        asyncio.run(
+            settle_relationship_product_v2_online_pulse(
+                preaction=preaction,
+                settlement_input=valid_input,
+                online_session=wrong_disposition_session,
+            )
+        )
+    assert wrong_disposition_session.export_checkpoint() == wrong_arm_checkpoint
+    assert wrong_disposition_session.transition_count == 0
+    assert wrong_disposition_session.pending_exposure is None
+    _assert_pending_unchanged()
+
+    with pytest.raises(ValueError, match="unresolved preaction"):
+        asyncio.run(
+            prepare_relationship_product_v2_online_preaction(
+                request=_request(421),
+                owner_persistence_snapshot=preaction.owner_persistence_snapshot,
+                forecast_runtime=_ForecastRuntime(),
+                online_session=session,
+                authorization=applied_authorization,
+                substrate_snapshot=_placeholder_substrate(),
+            )
+        )
+    settled = asyncio.run(
+        settle_relationship_product_v2_online_pulse(
+            preaction=preaction,
+            settlement_input=valid_input,
+            online_session=session,
+        )
+    )
+    assert settled.gate_transition_count_after == 1
+    assert session.export_transition_chain().transitions == (
+        settled.gate_transition,
+    )
+    with pytest.raises(ValueError, match="exact environment reaction projection"):
+        replace(settled, settlement_input=evidence_mutations[0])
+    with pytest.raises(ValueError, match="active pending preaction"):
+        asyncio.run(
+            settle_relationship_product_v2_online_pulse(
+                preaction=preaction,
+                settlement_input=valid_input,
+                online_session=session,
+            )
+        )
+
+
+def test_v2_online_pulse_detects_session_change_during_temporal_await(
+    _online_theta0_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    applied_authorization, _withheld_authorization = _online_authorizations(
+        _online_theta0_bundle
+    )
+    session = RelationshipActionGateV2OnlineSession(
+        artifact=applied_authorization.learned_theta0_artifact,
+        disposition=applied_authorization.gate_disposition,
+    )
+    original_apply = pulse_module._apply_typed_environment_advisory
+
+    async def _change_session_during_await(*args: object, **kwargs: object):
+        snapshot = await original_apply(*args, **kwargs)
+        session._chain_id = (
+            "relationship-action-gate-v2-online-chain-sha256:"
+            f"{'f' * 64}"
+        )
+        return snapshot
+
+    monkeypatch.setattr(
+        pulse_module,
+        "_apply_typed_environment_advisory",
+        _change_session_during_await,
+    )
+    with pytest.raises(RuntimeError, match="changed during temporal delivery"):
+        asyncio.run(
+            prepare_relationship_product_v2_online_preaction(
+                request=_request(435),
+                owner_persistence_snapshot=SocialRecordStore().export_persistence_snapshot(),
+                forecast_runtime=_ForecastRuntime(),
+                online_session=session,
+                authorization=applied_authorization,
+                substrate_snapshot=_placeholder_substrate(),
+            )
+        )
+    assert session.pending_exposure is not None
+    assert session.transition_count == 0
+
+
+def test_v2_online_pulse_detects_public_plan_sealed_during_owner_await(
+    _online_theta0_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    applied_authorization, _withheld_authorization = _online_authorizations(
+        _online_theta0_bundle
+    )
+    session = RelationshipActionGateV2OnlineSession(
+        artifact=applied_authorization.learned_theta0_artifact,
+        disposition=applied_authorization.gate_disposition,
+    )
+    preaction = asyncio.run(
+        prepare_relationship_product_v2_online_preaction(
+            request=_request(436),
+            owner_persistence_snapshot=SocialRecordStore().export_persistence_snapshot(),
+            forecast_runtime=_ForecastRuntime(),
+            online_session=session,
+            authorization=applied_authorization,
+            substrate_snapshot=_placeholder_substrate(),
+            temporal_delivery_timestamp_ms=871_000,
+        )
+    )
+    settlement_input = _online_settlement_input(preaction)
+    original_settle_owner = pulse_module._settle_relationship_product_owner_chain
+
+    async def _seal_plan_during_owner_await(*args: object, **kwargs: object):
+        owner_settlement = await original_settle_owner(*args, **kwargs)
+        common_credit = pulse_module._derive_relationship_product_v2_common_credit(
+            preaction=preaction,
+            settlement_input=settlement_input,
+            owner_settlement=owner_settlement,
+        )
+        session.plan_credit(preaction.online_exposure, common_credit)
+        return owner_settlement
+
+    monkeypatch.setattr(
+        pulse_module,
+        "_settle_relationship_product_owner_chain",
+        _seal_plan_during_owner_await,
+    )
+    with pytest.raises(RuntimeError, match="changed while owner settlement was publishing"):
+        asyncio.run(
+            settle_relationship_product_v2_online_pulse(
+                preaction=preaction,
+                settlement_input=settlement_input,
+                online_session=session,
+            )
+        )
+    assert session.pending_exposure == preaction.online_exposure
+    assert session.pending_plan is not None
+    assert session.transition_count == 0
+
+
+def test_v2_online_pulse_temporal_failure_leaves_fail_stop_pending_state(
+    _online_theta0_bundle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    applied_authorization, _withheld_authorization = _online_authorizations(
+        _online_theta0_bundle
+    )
+    session = RelationshipActionGateV2OnlineSession(
+        artifact=applied_authorization.learned_theta0_artifact,
+        disposition=applied_authorization.gate_disposition,
+    )
+    checkpoint_before = session.export_checkpoint()
+
+    async def _fail_temporal_delivery(*args: object, **kwargs: object):
+        del args, kwargs
+        raise RuntimeError("injected temporal delivery failure")
+
+    monkeypatch.setattr(
+        pulse_module,
+        "_apply_typed_environment_advisory",
+        _fail_temporal_delivery,
+    )
+    with pytest.raises(RuntimeError, match="injected temporal delivery failure"):
+        asyncio.run(
+            prepare_relationship_product_v2_online_preaction(
+                request=_request(430),
+                owner_persistence_snapshot=SocialRecordStore().export_persistence_snapshot(),
+                forecast_runtime=_ForecastRuntime(),
+                online_session=session,
+                authorization=applied_authorization,
+                substrate_snapshot=_placeholder_substrate(),
+            )
+        )
+    assert session.pending_exposure is not None
+    assert session.transition_count == 0
+    assert session.export_checkpoint() == checkpoint_before
+    with pytest.raises(ValueError, match="unresolved preaction"):
+        asyncio.run(
+            prepare_relationship_product_v2_online_preaction(
+                request=_request(431),
+                owner_persistence_snapshot=SocialRecordStore().export_persistence_snapshot(),
+                forecast_runtime=_ForecastRuntime(),
+                online_session=session,
+                authorization=applied_authorization,
+                substrate_snapshot=_placeholder_substrate(),
+            )
+        )
