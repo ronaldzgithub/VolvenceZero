@@ -2,15 +2,17 @@
 
 The v1 gate is immutable evidence lineage.  This module introduces a separate
 operator for new Product Horizon development protocols.  It deliberately has
-no free bias, excludes the constant ``typed_source_support`` feature, and
-learns from forced action assignments with a frozen centred-design objective
-instead of treating forced actions as samples from the gate's own policy.
+no free bias and excludes the constant ``typed_source_support`` feature.  The
+bootstrap path learns from forced action assignments with a frozen
+centred-design objective.  The add-only online path starts from the condensed
+learned theta0 and applies or withholds one natural-decision PE-credit update
+at a time through a replay-complete transition chain.
 
 Only replay-checked
 :class:`~volvence_zero.credit.RelationshipActionCommonBaselineCredit` values
-are accepted.  The fixed-balanced objective is a development feature score,
-not a randomized or causal-effect claim.  Evaluation, judge, hidden-condition,
-and raw-text inputs are outside this API.
+are accepted.  Neither the fixed-balanced objective nor the natural
+Bernoulli-score update is a randomized or causal-effect claim.  Evaluation,
+judge, hidden-condition, and raw-text inputs are outside this API.
 """
 
 from __future__ import annotations
@@ -69,8 +71,32 @@ RELATIONSHIP_ACTION_GATE_V2_FEDERATED_TRANSITION_SCHEMA_VERSION = (
 RELATIONSHIP_ACTION_GATE_V2_FEDERATED_MATCHED_TRANSITIONS_SCHEMA_VERSION = (
     "relationship-action-gate-federated-matched-transitions.v2"
 )
+RELATIONSHIP_ACTION_GATE_V2_ONLINE_EXPOSURE_SCHEMA_VERSION = (
+    "relationship-action-gate-online-exposure.v2"
+)
+RELATIONSHIP_ACTION_GATE_V2_ONLINE_PLAN_SCHEMA_VERSION = (
+    "relationship-action-gate-online-plan.v2"
+)
+RELATIONSHIP_ACTION_GATE_V2_ONLINE_RECEIPT_SCHEMA_VERSION = (
+    "relationship-action-gate-online-receipt.v2"
+)
+RELATIONSHIP_ACTION_GATE_V2_ONLINE_TRANSITION_SCHEMA_VERSION = (
+    "relationship-action-gate-online-transition.v2"
+)
+RELATIONSHIP_ACTION_GATE_V2_ONLINE_CHAIN_SCHEMA_VERSION = (
+    "relationship-action-gate-online-chain.v2"
+)
+RELATIONSHIP_ACTION_GATE_V2_ONLINE_POLICY_SCHEMA_VERSION = (
+    "relationship-action-gate-online-policy.v2"
+)
 RELATIONSHIP_ACTION_GATE_V2_OPERATOR_ID = "bias-free-centred-assignment-logistic-gate.v2"
 RELATIONSHIP_ACTION_GATE_V2_OBJECTIVE_ID = "common-noop-credit-times-half-centred-assignment-feature-moment.v1"
+RELATIONSHIP_ACTION_GATE_V2_ONLINE_OPERATOR_ID = (
+    "bias-free-natural-action-logistic-gate.v1"
+)
+RELATIONSHIP_ACTION_GATE_V2_ONLINE_OBJECTIVE_ID = (
+    "common-noop-credit-times-natural-action-residual-feature-moment.v1"
+)
 RELATIONSHIP_ACTION_GATE_V2_THRESHOLD_RULE = "steer_probability_strictly_greater_than_0.5"
 RELATIONSHIP_ACTION_GATE_V2_FEATURE_ORDER = (
     "forecast_confidence_centered",
@@ -106,6 +132,17 @@ _FEDERATED_RECEIPT_PREFIX = (
 _FEDERATED_TRANSITION_PREFIX = "relationship-action-gate-v2-federated-transition-sha256:"
 _FEDERATED_MATCHED_TRANSITIONS_PREFIX = (
     "relationship-action-gate-v2-federated-matched-transitions-sha256:"
+)
+_ONLINE_EXPOSURE_PREFIX = "relationship-action-gate-v2-online-exposure-sha256:"
+_ONLINE_PLAN_PREFIX = "relationship-action-gate-v2-online-plan-sha256:"
+_ONLINE_RECEIPT_PREFIX = "relationship-action-gate-v2-online-receipt-sha256:"
+_ONLINE_TRANSITION_PREFIX = "relationship-action-gate-v2-online-transition-sha256:"
+_ONLINE_CHAIN_PREFIX = "relationship-action-gate-v2-online-chain-sha256:"
+_ONLINE_POLICY_PREFIX = "relationship-action-gate-v2-online-policy-sha256:"
+_ONLINE_DECISION_RATIONALE_CODES = (
+    "policy:bias-free-online-natural-action-logistic-gate-v1",
+    "inputs:typed-owner-forecast-only",
+    "learning:pe-common-credit-online-sequential-only",
 )
 
 
@@ -3180,6 +3217,1391 @@ def commit_relationship_action_gate_v2_federated_matched_transitions(
     )
 
 
+@dataclass(frozen=True)
+class RelationshipActionGateV2OnlineExposure:
+    """One natural evaluation action emitted from an exact online checkpoint."""
+
+    sequence_index: int
+    parent_chain_id: str
+    forecast: PreferenceActionForecast
+    frozen_decision: RelationshipActionGateV2FrozenDecision
+    delivered_action_id: str
+    schema_version: str = RELATIONSHIP_ACTION_GATE_V2_ONLINE_EXPOSURE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.sequence_index) is not int or self.sequence_index < 0:
+            raise ValueError("online exposure sequence_index must be non-negative")
+        _require_content_id_prefix(
+            self.parent_chain_id,
+            prefix=_ONLINE_CHAIN_PREFIX,
+            field_name="parent_chain_id",
+        )
+        _require_exact_forecast_shape(self.forecast)
+        if type(self.frozen_decision) is not RelationshipActionGateV2FrozenDecision:
+            raise TypeError("frozen_decision must be RelationshipActionGateV2FrozenDecision")
+        legacy._require_text(self.delivered_action_id, "delivered_action_id")
+        decision = self.frozen_decision.decision
+        if (
+            decision.forecast_id != self.forecast.forecast_id
+            or decision.decision_id != self.forecast.decision_id
+            or decision.recommended_action_id != self.forecast.recommended_action_id
+        ):
+            raise ValueError("online exposure forecast/decision lineage mismatch")
+        if self.delivered_action_id != decision.selected_action_id:
+            raise ValueError("online exposure must deliver the exact learned gate action")
+        if self.schema_version != RELATIONSHIP_ACTION_GATE_V2_ONLINE_EXPOSURE_SCHEMA_VERSION:
+            raise ValueError("relationship action gate v2 online exposure schema mismatch")
+
+    @property
+    def informative(self) -> bool:
+        return self.forecast.recommended_action_id != RelationshipAction.NEUTRAL_NOOP.value
+
+    @property
+    def exposure_id(self) -> str:
+        return f"{_ONLINE_EXPOSURE_PREFIX}{legacy._canonical_sha256(self._core_payload())}"
+
+    def to_payload(self) -> dict[str, object]:
+        return {"exposure_id": self.exposure_id, **self._core_payload()}
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipActionGateV2OnlineExposure":
+        raw = legacy._require_exact_mapping(
+            payload,
+            expected={
+                "exposure_id",
+                "schema_version",
+                "sequence_index",
+                "parent_chain_id",
+                "forecast",
+                "frozen_decision",
+                "delivered_action_id",
+            },
+            source="relationship action gate v2 online exposure",
+        )
+        exposure = cls(
+            sequence_index=legacy._payload_int(raw, "sequence_index"),
+            parent_chain_id=legacy._payload_text(raw, "parent_chain_id"),
+            forecast=preference_action_forecast_from_payload(raw["forecast"]),
+            frozen_decision=RelationshipActionGateV2FrozenDecision.from_payload(
+                raw["frozen_decision"]
+            ),
+            delivered_action_id=legacy._payload_text(raw, "delivered_action_id"),
+            schema_version=legacy._payload_text(raw, "schema_version"),
+        )
+        if legacy._payload_text(raw, "exposure_id") != exposure.exposure_id:
+            raise ValueError("relationship action gate v2 online exposure_id mismatch")
+        return exposure
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "sequence_index": self.sequence_index,
+            "parent_chain_id": self.parent_chain_id,
+            "forecast": preference_action_forecast_to_payload(self.forecast),
+            "frozen_decision": self.frozen_decision.to_payload(),
+            "delivered_action_id": self.delivered_action_id,
+        }
+
+
+@dataclass(frozen=True)
+class RelationshipActionGateV2OnlinePlan:
+    """Pure one-credit candidate update under the natural gate decision."""
+
+    artifact: RelationshipActionGateV2Artifact
+    parent_chain_id: str
+    exposure: RelationshipActionGateV2OnlineExposure
+    credit: RelationshipActionCommonBaselineCredit
+    pre_checkpoint: RelationshipActionGateV2Checkpoint
+    candidate_checkpoint: RelationshipActionGateV2Checkpoint
+    actual_steer_indicator: int
+    informative: bool
+    gradient_scale_hex: str
+    candidate_weight_delta_hex: tuple[str, ...]
+    candidate_cap_hit_count: int
+    evaluation_or_judge_feedback_received: bool = False
+    operator_id: str = RELATIONSHIP_ACTION_GATE_V2_ONLINE_OPERATOR_ID
+    objective_id: str = RELATIONSHIP_ACTION_GATE_V2_ONLINE_OBJECTIVE_ID
+    schema_version: str = RELATIONSHIP_ACTION_GATE_V2_ONLINE_PLAN_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.artifact) is not RelationshipActionGateV2Artifact:
+            raise TypeError("artifact must be RelationshipActionGateV2Artifact")
+        if self.artifact.artifact_kind is not RelationshipActionGateV2ArtifactKind.LEARNED_THETA0:
+            raise ValueError("online transition requires a learned theta0 artifact")
+        _require_content_id_prefix(
+            self.parent_chain_id,
+            prefix=_ONLINE_CHAIN_PREFIX,
+            field_name="parent_chain_id",
+        )
+        if type(self.exposure) is not RelationshipActionGateV2OnlineExposure:
+            raise TypeError("exposure must be RelationshipActionGateV2OnlineExposure")
+        if type(self.credit) is not RelationshipActionCommonBaselineCredit:
+            raise TypeError("credit must be RelationshipActionCommonBaselineCredit")
+        if type(self.pre_checkpoint) is not RelationshipActionGateV2Checkpoint:
+            raise TypeError("pre_checkpoint must be RelationshipActionGateV2Checkpoint")
+        if type(self.candidate_checkpoint) is not RelationshipActionGateV2Checkpoint:
+            raise TypeError("candidate_checkpoint must be RelationshipActionGateV2Checkpoint")
+        if self.operator_id != RELATIONSHIP_ACTION_GATE_V2_ONLINE_OPERATOR_ID:
+            raise ValueError("relationship action gate v2 online operator mismatch")
+        if self.objective_id != RELATIONSHIP_ACTION_GATE_V2_ONLINE_OBJECTIVE_ID:
+            raise ValueError("relationship action gate v2 online objective mismatch")
+        if self.schema_version != RELATIONSHIP_ACTION_GATE_V2_ONLINE_PLAN_SCHEMA_VERSION:
+            raise ValueError("relationship action gate v2 online plan schema mismatch")
+        if self.evaluation_or_judge_feedback_received is not False:
+            raise ValueError("evaluation or judge feedback cannot enter online gate learning")
+        if type(self.actual_steer_indicator) is not int or self.actual_steer_indicator not in {0, 1}:
+            raise ValueError("actual_steer_indicator must be 0 or 1")
+        if type(self.informative) is not bool:
+            raise TypeError("informative must be bool")
+        if type(self.candidate_weight_delta_hex) is not tuple or len(
+            self.candidate_weight_delta_hex
+        ) != len(RELATIONSHIP_ACTION_GATE_V2_FEATURE_ORDER):
+            raise ValueError("candidate_weight_delta_hex has the wrong shape")
+        if any(type(value) is not str for value in self.candidate_weight_delta_hex):
+            raise TypeError("candidate_weight_delta_hex must contain exact strings")
+        if (
+            type(self.candidate_cap_hit_count) is not int
+            or self.candidate_cap_hit_count < 0
+        ):
+            raise ValueError(
+                "candidate_cap_hit_count must be a non-negative integer"
+            )
+        if self.pre_checkpoint.artifact_id != self.artifact.artifact_id:
+            raise ValueError("online plan pre-checkpoint artifact mismatch")
+        if self.candidate_checkpoint.artifact_id != self.artifact.artifact_id:
+            raise ValueError("online plan candidate-checkpoint artifact mismatch")
+        decision = self.exposure.frozen_decision.decision
+        if decision.artifact_id != self.artifact.artifact_id:
+            raise ValueError("online plan decision artifact mismatch")
+        if decision.update_count != self.pre_checkpoint.update_count:
+            raise ValueError("online plan decision update_count is stale")
+        if self.exposure.frozen_decision.checkpoint_content_sha256 != (
+            self.pre_checkpoint.content_sha256
+        ):
+            raise ValueError("online plan exposure checkpoint is stale")
+        if self.exposure.parent_chain_id != self.parent_chain_id:
+            raise ValueError("online plan exposure parent-chain lineage mismatch")
+        if self.credit.forecast != self.exposure.forecast:
+            raise ValueError("online common credit forecast lineage mismatch")
+        delivered = self.exposure.delivered_action_id
+        if self.credit.external_evidence.action_id != delivered:
+            raise ValueError("online common credit delivered-action lineage mismatch")
+        if self.credit.settlement.action_id != delivered:
+            raise ValueError("online common credit settlement action mismatch")
+        if self.credit.parent_action_credit.abstract_action_id != delivered:
+            raise ValueError("online parent credit delivered-action lineage mismatch")
+        expected = _relationship_action_gate_v2_online_candidate_fields(
+            artifact=self.artifact,
+            pre_checkpoint=self.pre_checkpoint,
+            exposure=self.exposure,
+            credit=self.credit,
+        )
+        (
+            expected_candidate,
+            expected_indicator,
+            expected_informative,
+            expected_scale,
+            expected_delta,
+            expected_cap_hits,
+        ) = expected
+        if self.candidate_checkpoint != expected_candidate:
+            raise ValueError("online candidate checkpoint differs from exact operator replay")
+        if self.actual_steer_indicator != expected_indicator:
+            raise ValueError("online actual steer indicator mismatch")
+        if self.informative is not expected_informative:
+            raise ValueError("online informative classification mismatch")
+        if self.gradient_scale_hex != expected_scale.hex():
+            raise ValueError("online gradient scale mismatch")
+        if self.candidate_weight_delta_hex != tuple(value.hex() for value in expected_delta):
+            raise ValueError("online candidate weight delta mismatch")
+        if self.candidate_cap_hit_count != expected_cap_hits:
+            raise ValueError("online candidate cap-hit count mismatch")
+
+    @property
+    def sequence_index(self) -> int:
+        return self.exposure.sequence_index
+
+    @property
+    def candidate_nonzero_parameter_delta(self) -> bool:
+        return any(
+            legacy._finite_float_from_hex(value, "candidate_weight_delta_hex")
+            != 0.0
+            for value in self.candidate_weight_delta_hex
+        )
+
+    @property
+    def plan_id(self) -> str:
+        return f"{_ONLINE_PLAN_PREFIX}{legacy._canonical_sha256(self._core_payload())}"
+
+    def to_payload(self) -> dict[str, object]:
+        return {"plan_id": self.plan_id, **self._core_payload()}
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: object,
+        *,
+        artifact: RelationshipActionGateV2Artifact,
+        full_common_credit: RelationshipActionCommonBaselineCredit,
+    ) -> "RelationshipActionGateV2OnlinePlan":
+        if type(full_common_credit) is not RelationshipActionCommonBaselineCredit:
+            raise TypeError("full_common_credit must be RelationshipActionCommonBaselineCredit")
+        raw = legacy._require_exact_mapping(
+            payload,
+            expected={
+                "plan_id",
+                "schema_version",
+                "operator_id",
+                "objective_id",
+                "artifact_id",
+                "parent_chain_id",
+                "sequence_index",
+                "exposure",
+                "credit",
+                "pre_checkpoint",
+                "candidate_checkpoint",
+                "actual_steer_indicator",
+                "informative",
+                "gradient_scale_hex",
+                "candidate_weight_delta_hex",
+                "candidate_cap_hit_count",
+                "evaluation_or_judge_feedback_received",
+            },
+            source="relationship action gate v2 online plan",
+        )
+        if raw["credit"] != full_common_credit.to_payload():
+            raise ValueError("online common credit audit projection mismatch")
+        delta = raw["candidate_weight_delta_hex"]
+        if not isinstance(delta, list) or any(not isinstance(value, str) for value in delta):
+            raise ValueError("candidate_weight_delta_hex must be an array of strings")
+        plan = cls(
+            artifact=artifact,
+            parent_chain_id=legacy._payload_text(raw, "parent_chain_id"),
+            exposure=RelationshipActionGateV2OnlineExposure.from_payload(raw["exposure"]),
+            credit=full_common_credit,
+            pre_checkpoint=RelationshipActionGateV2Checkpoint.from_payload(
+                raw["pre_checkpoint"]
+            ),
+            candidate_checkpoint=RelationshipActionGateV2Checkpoint.from_payload(
+                raw["candidate_checkpoint"]
+            ),
+            actual_steer_indicator=legacy._payload_int(raw, "actual_steer_indicator"),
+            informative=legacy._payload_bool(raw, "informative"),
+            gradient_scale_hex=legacy._payload_text(raw, "gradient_scale_hex"),
+            candidate_weight_delta_hex=tuple(delta),
+            candidate_cap_hit_count=legacy._payload_int(
+                raw, "candidate_cap_hit_count"
+            ),
+            evaluation_or_judge_feedback_received=legacy._payload_bool(
+                raw,
+                "evaluation_or_judge_feedback_received",
+            ),
+            operator_id=legacy._payload_text(raw, "operator_id"),
+            objective_id=legacy._payload_text(raw, "objective_id"),
+            schema_version=legacy._payload_text(raw, "schema_version"),
+        )
+        if legacy._payload_text(raw, "artifact_id") != plan.artifact.artifact_id:
+            raise ValueError("online plan artifact identity mismatch")
+        if legacy._payload_int(raw, "sequence_index") != plan.sequence_index:
+            raise ValueError("online plan sequence identity mismatch")
+        if legacy._payload_text(raw, "plan_id") != plan.plan_id:
+            raise ValueError("relationship action gate v2 online plan_id mismatch")
+        return plan
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "operator_id": self.operator_id,
+            "objective_id": self.objective_id,
+            "artifact_id": self.artifact.artifact_id,
+            "parent_chain_id": self.parent_chain_id,
+            "sequence_index": self.sequence_index,
+            "exposure": self.exposure.to_payload(),
+            "credit": self.credit.to_payload(),
+            "pre_checkpoint": self.pre_checkpoint.to_payload(),
+            "candidate_checkpoint": self.candidate_checkpoint.to_payload(),
+            "actual_steer_indicator": self.actual_steer_indicator,
+            "informative": self.informative,
+            "gradient_scale_hex": self.gradient_scale_hex,
+            "candidate_weight_delta_hex": list(self.candidate_weight_delta_hex),
+            "candidate_cap_hit_count": self.candidate_cap_hit_count,
+            "evaluation_or_judge_feedback_received": (
+                self.evaluation_or_judge_feedback_received
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class RelationshipActionGateV2OnlineReceipt:
+    """Exact one-credit APPLY/WITHHOLD receipt for the online operator."""
+
+    plan_id: str
+    parent_chain_id: str
+    sequence_index: int
+    exposure_id: str
+    credit_record_id: str
+    disposition: legacy.RelationshipActionGateBatchDisposition
+    pre_checkpoint_content_sha256: str
+    candidate_checkpoint_content_sha256: str
+    post_checkpoint_content_sha256: str
+    pre_update_count: int
+    candidate_update_count: int
+    post_update_count: int
+    pre_informative_update_count: int
+    candidate_informative_update_count: int
+    post_informative_update_count: int
+    applied_weight_delta_hex: tuple[str, ...]
+    candidate_cap_hit_count: int
+    applied_cap_hit_count: int
+    candidate_nonzero_parameter_update_count: int
+    applied_nonzero_parameter_update_count: int
+    generated_credit_count: int
+    applied_credit_count: int
+    update_count_delta: int
+    informative_update_count_delta: int
+    atomic_commit_count: int
+    applied_credit_ids: tuple[str, ...]
+    credit_applied_to_gate: bool
+    evaluation_or_judge_feedback_received: bool = False
+    operator_id: str = RELATIONSHIP_ACTION_GATE_V2_ONLINE_OPERATOR_ID
+    objective_id: str = RELATIONSHIP_ACTION_GATE_V2_ONLINE_OBJECTIVE_ID
+    schema_version: str = RELATIONSHIP_ACTION_GATE_V2_ONLINE_RECEIPT_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        _require_content_id_prefix(
+            self.plan_id,
+            prefix=_ONLINE_PLAN_PREFIX,
+            field_name="plan_id",
+        )
+        _require_content_id_prefix(
+            self.parent_chain_id,
+            prefix=_ONLINE_CHAIN_PREFIX,
+            field_name="parent_chain_id",
+        )
+        _require_content_id_prefix(
+            self.exposure_id,
+            prefix=_ONLINE_EXPOSURE_PREFIX,
+            field_name="exposure_id",
+        )
+        legacy._require_text(self.credit_record_id, "credit_record_id")
+        if type(self.sequence_index) is not int or self.sequence_index < 0:
+            raise ValueError("online receipt sequence_index must be non-negative")
+        if type(self.disposition) is not legacy.RelationshipActionGateBatchDisposition:
+            raise TypeError("disposition must be RelationshipActionGateBatchDisposition")
+        for name, value in (
+            ("pre_checkpoint_content_sha256", self.pre_checkpoint_content_sha256),
+            ("candidate_checkpoint_content_sha256", self.candidate_checkpoint_content_sha256),
+            ("post_checkpoint_content_sha256", self.post_checkpoint_content_sha256),
+        ):
+            legacy._require_sha256(value, name)
+        count_fields = (
+            ("pre_update_count", self.pre_update_count),
+            ("candidate_update_count", self.candidate_update_count),
+            ("post_update_count", self.post_update_count),
+            ("pre_informative_update_count", self.pre_informative_update_count),
+            ("candidate_informative_update_count", self.candidate_informative_update_count),
+            ("post_informative_update_count", self.post_informative_update_count),
+            ("candidate_cap_hit_count", self.candidate_cap_hit_count),
+            ("applied_cap_hit_count", self.applied_cap_hit_count),
+            (
+                "candidate_nonzero_parameter_update_count",
+                self.candidate_nonzero_parameter_update_count,
+            ),
+            (
+                "applied_nonzero_parameter_update_count",
+                self.applied_nonzero_parameter_update_count,
+            ),
+            ("generated_credit_count", self.generated_credit_count),
+            ("applied_credit_count", self.applied_credit_count),
+            ("update_count_delta", self.update_count_delta),
+            ("informative_update_count_delta", self.informative_update_count_delta),
+            ("atomic_commit_count", self.atomic_commit_count),
+        )
+        if any(type(value) is not int or value < 0 for _name, value in count_fields):
+            raise ValueError("online receipt counts must be non-negative integers")
+        if self.generated_credit_count != 1:
+            raise ValueError("online receipt must bind exactly one generated credit")
+        if self.candidate_nonzero_parameter_update_count not in {0, 1}:
+            raise ValueError("candidate nonzero parameter update count must be 0 or 1")
+        if self.applied_nonzero_parameter_update_count not in {0, 1}:
+            raise ValueError("applied nonzero parameter update count must be 0 or 1")
+        if type(self.applied_weight_delta_hex) is not tuple or len(
+            self.applied_weight_delta_hex
+        ) != len(RELATIONSHIP_ACTION_GATE_V2_FEATURE_ORDER):
+            raise ValueError("online receipt applied weight delta has the wrong shape")
+        if any(type(value) is not str for value in self.applied_weight_delta_hex):
+            raise TypeError("applied_weight_delta_hex must contain exact strings")
+        observed_applied_nonzero = int(
+            any(
+                legacy._finite_float_from_hex(value, "applied_weight_delta_hex")
+                != 0.0
+                for value in self.applied_weight_delta_hex
+            )
+        )
+        if self.applied_nonzero_parameter_update_count != observed_applied_nonzero:
+            raise ValueError(
+                "applied nonzero parameter count differs from applied delta"
+            )
+        if type(self.applied_credit_ids) is not tuple or any(
+            type(value) is not str for value in self.applied_credit_ids
+        ):
+            raise TypeError("applied_credit_ids must be an exact tuple of strings")
+        if type(self.credit_applied_to_gate) is not bool:
+            raise TypeError("credit_applied_to_gate must be bool")
+        if self.evaluation_or_judge_feedback_received is not False:
+            raise ValueError("evaluation or judge feedback cannot enter online gate learning")
+        if self.operator_id != RELATIONSHIP_ACTION_GATE_V2_ONLINE_OPERATOR_ID:
+            raise ValueError("relationship action gate v2 online receipt operator mismatch")
+        if self.objective_id != RELATIONSHIP_ACTION_GATE_V2_ONLINE_OBJECTIVE_ID:
+            raise ValueError("relationship action gate v2 online receipt objective mismatch")
+        if self.schema_version != RELATIONSHIP_ACTION_GATE_V2_ONLINE_RECEIPT_SCHEMA_VERSION:
+            raise ValueError("relationship action gate v2 online receipt schema mismatch")
+        if self.candidate_update_count != self.pre_update_count + 1:
+            raise ValueError("online candidate update count must advance by one")
+        if self.candidate_informative_update_count not in {
+            self.pre_informative_update_count,
+            self.pre_informative_update_count + 1,
+        }:
+            raise ValueError("online candidate informative count is invalid")
+        if self.disposition is legacy.RelationshipActionGateBatchDisposition.APPLY:
+            if self.post_checkpoint_content_sha256 != self.candidate_checkpoint_content_sha256:
+                raise ValueError("applied online receipt must publish the candidate checkpoint")
+            if self.post_update_count != self.candidate_update_count:
+                raise ValueError("applied online receipt post update count mismatch")
+            if self.post_informative_update_count != self.candidate_informative_update_count:
+                raise ValueError("applied online receipt post informative count mismatch")
+            if (
+                self.applied_credit_count != 1
+                or self.update_count_delta != 1
+                or self.atomic_commit_count != 1
+                or self.applied_credit_ids != (self.credit_record_id,)
+                or not self.credit_applied_to_gate
+            ):
+                raise ValueError("applied online receipt credit/update counts do not close")
+            if self.applied_cap_hit_count != self.candidate_cap_hit_count:
+                raise ValueError("applied online receipt cap-hit count mismatch")
+            if (
+                self.applied_nonzero_parameter_update_count
+                != self.candidate_nonzero_parameter_update_count
+            ):
+                raise ValueError(
+                    "applied online receipt nonzero parameter count mismatch"
+                )
+            expected_informative_delta = (
+                self.candidate_informative_update_count
+                - self.pre_informative_update_count
+            )
+            if self.informative_update_count_delta != expected_informative_delta:
+                raise ValueError("applied online receipt informative delta mismatch")
+        else:
+            if self.post_checkpoint_content_sha256 != self.pre_checkpoint_content_sha256:
+                raise ValueError("withheld online receipt must preserve the pre checkpoint")
+            if self.post_update_count != self.pre_update_count:
+                raise ValueError("withheld online receipt post update count mismatch")
+            if self.post_informative_update_count != self.pre_informative_update_count:
+                raise ValueError("withheld online receipt post informative count mismatch")
+            if any(
+                (
+                    self.applied_credit_count,
+                    self.update_count_delta,
+                    self.informative_update_count_delta,
+                    self.atomic_commit_count,
+                    self.applied_cap_hit_count,
+                    self.applied_nonzero_parameter_update_count,
+                )
+            ):
+                raise ValueError("withheld online receipt cannot update or commit")
+            if self.applied_credit_ids or self.credit_applied_to_gate:
+                raise ValueError("withheld online receipt cannot apply credit")
+            if any(
+                legacy._finite_float_from_hex(value, "applied_weight_delta_hex") != 0.0
+                for value in self.applied_weight_delta_hex
+            ):
+                raise ValueError("withheld online receipt parameter delta must be zero")
+
+    @property
+    def receipt_id(self) -> str:
+        return f"{_ONLINE_RECEIPT_PREFIX}{legacy._canonical_sha256(self._core_payload())}"
+
+    def to_payload(self) -> dict[str, object]:
+        return {"receipt_id": self.receipt_id, **self._core_payload()}
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "RelationshipActionGateV2OnlineReceipt":
+        raw = legacy._require_exact_mapping(
+            payload,
+            expected={
+                "receipt_id",
+                "schema_version",
+                "operator_id",
+                "objective_id",
+                "plan_id",
+                "parent_chain_id",
+                "sequence_index",
+                "exposure_id",
+                "credit_record_id",
+                "disposition",
+                "pre_checkpoint_content_sha256",
+                "candidate_checkpoint_content_sha256",
+                "post_checkpoint_content_sha256",
+                "pre_update_count",
+                "candidate_update_count",
+                "post_update_count",
+                "pre_informative_update_count",
+                "candidate_informative_update_count",
+                "post_informative_update_count",
+                "applied_weight_delta_hex",
+                "candidate_cap_hit_count",
+                "applied_cap_hit_count",
+                "candidate_nonzero_parameter_update_count",
+                "applied_nonzero_parameter_update_count",
+                "generated_credit_count",
+                "applied_credit_count",
+                "update_count_delta",
+                "informative_update_count_delta",
+                "atomic_commit_count",
+                "applied_credit_ids",
+                "credit_applied_to_gate",
+                "evaluation_or_judge_feedback_received",
+            },
+            source="relationship action gate v2 online receipt",
+        )
+        delta = raw["applied_weight_delta_hex"]
+        if not isinstance(delta, list) or any(not isinstance(value, str) for value in delta):
+            raise ValueError("applied_weight_delta_hex must be an array of strings")
+        receipt = cls(
+            plan_id=legacy._payload_text(raw, "plan_id"),
+            parent_chain_id=legacy._payload_text(raw, "parent_chain_id"),
+            sequence_index=legacy._payload_int(raw, "sequence_index"),
+            exposure_id=legacy._payload_text(raw, "exposure_id"),
+            credit_record_id=legacy._payload_text(raw, "credit_record_id"),
+            disposition=legacy.RelationshipActionGateBatchDisposition(
+                legacy._payload_text(raw, "disposition")
+            ),
+            pre_checkpoint_content_sha256=legacy._payload_text(
+                raw, "pre_checkpoint_content_sha256"
+            ),
+            candidate_checkpoint_content_sha256=legacy._payload_text(
+                raw, "candidate_checkpoint_content_sha256"
+            ),
+            post_checkpoint_content_sha256=legacy._payload_text(
+                raw, "post_checkpoint_content_sha256"
+            ),
+            pre_update_count=legacy._payload_int(raw, "pre_update_count"),
+            candidate_update_count=legacy._payload_int(raw, "candidate_update_count"),
+            post_update_count=legacy._payload_int(raw, "post_update_count"),
+            pre_informative_update_count=legacy._payload_int(
+                raw, "pre_informative_update_count"
+            ),
+            candidate_informative_update_count=legacy._payload_int(
+                raw, "candidate_informative_update_count"
+            ),
+            post_informative_update_count=legacy._payload_int(
+                raw, "post_informative_update_count"
+            ),
+            applied_weight_delta_hex=tuple(delta),
+            candidate_cap_hit_count=legacy._payload_int(
+                raw, "candidate_cap_hit_count"
+            ),
+            applied_cap_hit_count=legacy._payload_int(raw, "applied_cap_hit_count"),
+            candidate_nonzero_parameter_update_count=legacy._payload_int(
+                raw, "candidate_nonzero_parameter_update_count"
+            ),
+            applied_nonzero_parameter_update_count=legacy._payload_int(
+                raw, "applied_nonzero_parameter_update_count"
+            ),
+            generated_credit_count=legacy._payload_int(raw, "generated_credit_count"),
+            applied_credit_count=legacy._payload_int(raw, "applied_credit_count"),
+            update_count_delta=legacy._payload_int(raw, "update_count_delta"),
+            informative_update_count_delta=legacy._payload_int(
+                raw, "informative_update_count_delta"
+            ),
+            atomic_commit_count=legacy._payload_int(raw, "atomic_commit_count"),
+            applied_credit_ids=legacy._payload_text_tuple(
+                raw, "applied_credit_ids", allow_empty=True
+            ),
+            credit_applied_to_gate=legacy._payload_bool(raw, "credit_applied_to_gate"),
+            evaluation_or_judge_feedback_received=legacy._payload_bool(
+                raw, "evaluation_or_judge_feedback_received"
+            ),
+            operator_id=legacy._payload_text(raw, "operator_id"),
+            objective_id=legacy._payload_text(raw, "objective_id"),
+            schema_version=legacy._payload_text(raw, "schema_version"),
+        )
+        if legacy._payload_text(raw, "receipt_id") != receipt.receipt_id:
+            raise ValueError("relationship action gate v2 online receipt_id mismatch")
+        return receipt
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "operator_id": self.operator_id,
+            "objective_id": self.objective_id,
+            "plan_id": self.plan_id,
+            "parent_chain_id": self.parent_chain_id,
+            "sequence_index": self.sequence_index,
+            "exposure_id": self.exposure_id,
+            "credit_record_id": self.credit_record_id,
+            "disposition": self.disposition.value,
+            "pre_checkpoint_content_sha256": self.pre_checkpoint_content_sha256,
+            "candidate_checkpoint_content_sha256": (
+                self.candidate_checkpoint_content_sha256
+            ),
+            "post_checkpoint_content_sha256": self.post_checkpoint_content_sha256,
+            "pre_update_count": self.pre_update_count,
+            "candidate_update_count": self.candidate_update_count,
+            "post_update_count": self.post_update_count,
+            "pre_informative_update_count": self.pre_informative_update_count,
+            "candidate_informative_update_count": (
+                self.candidate_informative_update_count
+            ),
+            "post_informative_update_count": self.post_informative_update_count,
+            "applied_weight_delta_hex": list(self.applied_weight_delta_hex),
+            "candidate_cap_hit_count": self.candidate_cap_hit_count,
+            "applied_cap_hit_count": self.applied_cap_hit_count,
+            "candidate_nonzero_parameter_update_count": (
+                self.candidate_nonzero_parameter_update_count
+            ),
+            "applied_nonzero_parameter_update_count": (
+                self.applied_nonzero_parameter_update_count
+            ),
+            "generated_credit_count": self.generated_credit_count,
+            "applied_credit_count": self.applied_credit_count,
+            "update_count_delta": self.update_count_delta,
+            "informative_update_count_delta": self.informative_update_count_delta,
+            "atomic_commit_count": self.atomic_commit_count,
+            "applied_credit_ids": list(self.applied_credit_ids),
+            "credit_applied_to_gate": self.credit_applied_to_gate,
+            "evaluation_or_judge_feedback_received": (
+                self.evaluation_or_judge_feedback_received
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class RelationshipActionGateV2OnlineTransition:
+    """One replay-complete sequential online transition."""
+
+    plan: RelationshipActionGateV2OnlinePlan
+    receipt: RelationshipActionGateV2OnlineReceipt
+    terminal_checkpoint: RelationshipActionGateV2Checkpoint
+    schema_version: str = RELATIONSHIP_ACTION_GATE_V2_ONLINE_TRANSITION_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.plan) is not RelationshipActionGateV2OnlinePlan:
+            raise TypeError("plan must be RelationshipActionGateV2OnlinePlan")
+        if type(self.receipt) is not RelationshipActionGateV2OnlineReceipt:
+            raise TypeError("receipt must be RelationshipActionGateV2OnlineReceipt")
+        if type(self.terminal_checkpoint) is not RelationshipActionGateV2Checkpoint:
+            raise TypeError("terminal_checkpoint must be RelationshipActionGateV2Checkpoint")
+        if self.schema_version != RELATIONSHIP_ACTION_GATE_V2_ONLINE_TRANSITION_SCHEMA_VERSION:
+            raise ValueError("relationship action gate v2 online transition schema mismatch")
+        expected_receipt = _relationship_action_gate_v2_online_receipt(
+            self.plan,
+            disposition=self.receipt.disposition,
+        )
+        if self.receipt != expected_receipt:
+            raise ValueError("online receipt differs from exact plan replay")
+        expected_terminal = (
+            self.plan.candidate_checkpoint
+            if self.receipt.disposition is legacy.RelationshipActionGateBatchDisposition.APPLY
+            else self.plan.pre_checkpoint
+        )
+        if self.terminal_checkpoint != expected_terminal:
+            raise ValueError("online terminal checkpoint differs from disposition")
+
+    @property
+    def transition_id(self) -> str:
+        return f"{_ONLINE_TRANSITION_PREFIX}{legacy._canonical_sha256(self._core_payload())}"
+
+    def to_payload(self) -> dict[str, object]:
+        return {"transition_id": self.transition_id, **self._core_payload()}
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: object,
+        *,
+        artifact: RelationshipActionGateV2Artifact,
+        full_common_credit: RelationshipActionCommonBaselineCredit,
+    ) -> "RelationshipActionGateV2OnlineTransition":
+        raw = legacy._require_exact_mapping(
+            payload,
+            expected={
+                "transition_id",
+                "schema_version",
+                "plan",
+                "receipt",
+                "terminal_checkpoint",
+            },
+            source="relationship action gate v2 online transition",
+        )
+        transition = cls(
+            plan=RelationshipActionGateV2OnlinePlan.from_payload(
+                raw["plan"],
+                artifact=artifact,
+                full_common_credit=full_common_credit,
+            ),
+            receipt=RelationshipActionGateV2OnlineReceipt.from_payload(raw["receipt"]),
+            terminal_checkpoint=RelationshipActionGateV2Checkpoint.from_payload(
+                raw["terminal_checkpoint"]
+            ),
+            schema_version=legacy._payload_text(raw, "schema_version"),
+        )
+        if legacy._payload_text(raw, "transition_id") != transition.transition_id:
+            raise ValueError("relationship action gate v2 online transition_id mismatch")
+        return transition
+
+    def _core_payload(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "plan": self.plan.to_payload(),
+            "receipt": self.receipt.to_payload(),
+            "terminal_checkpoint": self.terminal_checkpoint.to_payload(),
+        }
+
+
+@dataclass(frozen=True)
+class RelationshipActionGateV2OnlineTransitionChain:
+    """Ordered full typed lineage; a terminal checkpoint alone is insufficient."""
+
+    artifact: RelationshipActionGateV2Artifact
+    disposition: legacy.RelationshipActionGateBatchDisposition
+    initial_checkpoint: RelationshipActionGateV2Checkpoint
+    transitions: tuple[RelationshipActionGateV2OnlineTransition, ...]
+    schema_version: str = RELATIONSHIP_ACTION_GATE_V2_ONLINE_CHAIN_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.artifact) is not RelationshipActionGateV2Artifact:
+            raise TypeError("artifact must be RelationshipActionGateV2Artifact")
+        if self.artifact.artifact_kind is not RelationshipActionGateV2ArtifactKind.LEARNED_THETA0:
+            raise ValueError("online chain requires a learned theta0 artifact")
+        if type(self.disposition) is not legacy.RelationshipActionGateBatchDisposition:
+            raise TypeError("disposition must be RelationshipActionGateBatchDisposition")
+        if type(self.initial_checkpoint) is not RelationshipActionGateV2Checkpoint:
+            raise TypeError("initial_checkpoint must be RelationshipActionGateV2Checkpoint")
+        if type(self.transitions) is not tuple or any(
+            type(item) is not RelationshipActionGateV2OnlineTransition
+            for item in self.transitions
+        ):
+            raise TypeError("transitions must be an exact tuple of online transitions")
+        if self.schema_version != RELATIONSHIP_ACTION_GATE_V2_ONLINE_CHAIN_SCHEMA_VERSION:
+            raise ValueError("relationship action gate v2 online chain schema mismatch")
+        if (
+            self.initial_checkpoint.artifact_id != self.artifact.artifact_id
+            or self.initial_checkpoint.weights != self.artifact.weights
+            or self.initial_checkpoint.update_count != 0
+            or self.initial_checkpoint.informative_update_count != 0
+            or self.initial_checkpoint.processed_credit_ids
+        ):
+            raise ValueError("online chain must begin at the exact cold learned theta0")
+        current = self.initial_checkpoint
+        prefix_transition_ids: list[str] = []
+        credit_ids: set[str] = set()
+        decision_ids: set[str] = set()
+        forecast_ids: set[str] = set()
+        previous_timestamp: int | None = None
+        for index, transition in enumerate(self.transitions):
+            plan = transition.plan
+            exposure = plan.exposure
+            credit = plan.credit
+            parent_chain_id = _relationship_action_gate_v2_online_chain_id_from_ids(
+                artifact=self.artifact,
+                disposition=self.disposition,
+                initial_checkpoint=self.initial_checkpoint,
+                transition_ids=tuple(prefix_transition_ids),
+            )
+            if plan.artifact != self.artifact:
+                raise ValueError("online chain transition artifact mismatch")
+            if transition.receipt.disposition is not self.disposition:
+                raise ValueError("online chain transition disposition drifted")
+            if exposure.sequence_index != index or plan.sequence_index != index:
+                raise ValueError("online chain sequence must be contiguous from zero")
+            if plan.parent_chain_id != parent_chain_id:
+                raise ValueError("online chain parent identity mismatch")
+            if exposure.parent_chain_id != parent_chain_id:
+                raise ValueError("online chain exposure parent identity mismatch")
+            if plan.pre_checkpoint != current:
+                raise ValueError("online chain pre-checkpoint handoff mismatch")
+            expected_decision = _relationship_action_gate_v2_online_decide(
+                artifact=self.artifact,
+                checkpoint=current,
+                forecast=exposure.forecast,
+            )
+            if exposure.frozen_decision != expected_decision:
+                raise ValueError("online chain contains a forged or stale frozen decision")
+            if credit.record_id in credit_ids:
+                raise ValueError("online chain common credit ids must be unique")
+            if exposure.forecast.decision_id in decision_ids:
+                raise ValueError("online chain decision ids must be unique")
+            if exposure.forecast.forecast_id in forecast_ids:
+                raise ValueError("online chain forecast ids must be unique")
+            timestamp = credit.parent_action_credit.timestamp_ms
+            if previous_timestamp is not None and timestamp <= previous_timestamp:
+                raise ValueError("online chain credit timestamps must be strictly increasing")
+            credit_ids.add(credit.record_id)
+            decision_ids.add(exposure.forecast.decision_id)
+            forecast_ids.add(exposure.forecast.forecast_id)
+            previous_timestamp = timestamp
+            current = transition.terminal_checkpoint
+            prefix_transition_ids.append(transition.transition_id)
+
+    @property
+    def terminal_checkpoint(self) -> RelationshipActionGateV2Checkpoint:
+        return (
+            self.initial_checkpoint
+            if not self.transitions
+            else self.transitions[-1].terminal_checkpoint
+        )
+
+    @property
+    def generated_credit_count(self) -> int:
+        return len(self.transitions)
+
+    @property
+    def applied_credit_count(self) -> int:
+        return sum(item.receipt.credit_applied_to_gate for item in self.transitions)
+
+    @property
+    def downstream_exposed_applied_update_count(self) -> int:
+        return sum(
+            item.receipt.credit_applied_to_gate for item in self.transitions[:-1]
+        )
+
+    @property
+    def chain_id(self) -> str:
+        return _relationship_action_gate_v2_online_chain_id(
+            artifact=self.artifact,
+            disposition=self.disposition,
+            initial_checkpoint=self.initial_checkpoint,
+            transitions=self.transitions,
+        )
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "chain_id": self.chain_id,
+            "schema_version": self.schema_version,
+            "artifact_id": self.artifact.artifact_id,
+            "disposition": self.disposition.value,
+            "initial_checkpoint": self.initial_checkpoint.to_payload(),
+            "transitions": [item.to_payload() for item in self.transitions],
+            "terminal_checkpoint": self.terminal_checkpoint.to_payload(),
+        }
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: object,
+        *,
+        artifact: RelationshipActionGateV2Artifact,
+        full_common_credits: tuple[RelationshipActionCommonBaselineCredit, ...],
+    ) -> "RelationshipActionGateV2OnlineTransitionChain":
+        if type(full_common_credits) is not tuple or any(
+            type(item) is not RelationshipActionCommonBaselineCredit
+            for item in full_common_credits
+        ):
+            raise TypeError("full_common_credits must contain exact typed credits")
+        raw = legacy._require_exact_mapping(
+            payload,
+            expected={
+                "chain_id",
+                "schema_version",
+                "artifact_id",
+                "disposition",
+                "initial_checkpoint",
+                "transitions",
+                "terminal_checkpoint",
+            },
+            source="relationship action gate v2 online chain",
+        )
+        serialized = raw["transitions"]
+        if not isinstance(serialized, list):
+            raise ValueError("online chain transitions must be an array")
+        if len(serialized) != len(full_common_credits):
+            raise ValueError("online chain typed credit count does not match transitions")
+        chain = cls(
+            artifact=artifact,
+            disposition=legacy.RelationshipActionGateBatchDisposition(
+                legacy._payload_text(raw, "disposition")
+            ),
+            initial_checkpoint=RelationshipActionGateV2Checkpoint.from_payload(
+                raw["initial_checkpoint"]
+            ),
+            transitions=tuple(
+                RelationshipActionGateV2OnlineTransition.from_payload(
+                    item,
+                    artifact=artifact,
+                    full_common_credit=full_common_credits[index],
+                )
+                for index, item in enumerate(serialized)
+            ),
+            schema_version=legacy._payload_text(raw, "schema_version"),
+        )
+        if legacy._payload_text(raw, "artifact_id") != artifact.artifact_id:
+            raise ValueError("online chain artifact identity mismatch")
+        if RelationshipActionGateV2Checkpoint.from_payload(
+            raw["terminal_checkpoint"]
+        ) != chain.terminal_checkpoint:
+            raise ValueError("online chain terminal checkpoint projection mismatch")
+        if legacy._payload_text(raw, "chain_id") != chain.chain_id:
+            raise ValueError("relationship action gate v2 online chain_id mismatch")
+        return chain
+
+
+class RelationshipActionGateV2OnlineSession:
+    """Sequential online-fast owner restored only from a complete typed chain."""
+
+    def __init__(
+        self,
+        *,
+        artifact: RelationshipActionGateV2Artifact,
+        disposition: legacy.RelationshipActionGateBatchDisposition,
+    ) -> None:
+        if type(artifact) is not RelationshipActionGateV2Artifact:
+            raise TypeError("artifact must be RelationshipActionGateV2Artifact")
+        if artifact.artifact_kind is not RelationshipActionGateV2ArtifactKind.LEARNED_THETA0:
+            raise ValueError("online session requires a learned theta0 artifact")
+        if type(disposition) is not legacy.RelationshipActionGateBatchDisposition:
+            raise TypeError("disposition must be RelationshipActionGateBatchDisposition")
+        self._artifact = artifact
+        self._disposition = disposition
+        self._initial_checkpoint = RelationshipActionGateV2Checkpoint(
+            artifact_id=artifact.artifact_id,
+            weights=artifact.weights,
+            update_count=0,
+            informative_update_count=0,
+            processed_credit_ids=(),
+        )
+        self._checkpoint = self._initial_checkpoint
+        self._transitions: list[RelationshipActionGateV2OnlineTransition] = []
+        self._transition_ids: list[str] = []
+        self._credit_ids: set[str] = set()
+        self._decision_ids: set[str] = set()
+        self._forecast_ids: set[str] = set()
+        self._pending_exposure: RelationshipActionGateV2OnlineExposure | None = None
+        self._pending_plan: RelationshipActionGateV2OnlinePlan | None = None
+        self._chain_id = _relationship_action_gate_v2_online_chain_id_from_ids(
+            artifact=artifact,
+            disposition=disposition,
+            initial_checkpoint=self._initial_checkpoint,
+            transition_ids=(),
+        )
+
+    @classmethod
+    def from_transition_chain(
+        cls,
+        chain: RelationshipActionGateV2OnlineTransitionChain,
+    ) -> "RelationshipActionGateV2OnlineSession":
+        if type(chain) is not RelationshipActionGateV2OnlineTransitionChain:
+            raise TypeError("chain must be RelationshipActionGateV2OnlineTransitionChain")
+        session = cls(
+            artifact=chain.artifact,
+            disposition=chain.disposition,
+        )
+        if session._initial_checkpoint != chain.initial_checkpoint:
+            raise ValueError("online chain initial checkpoint differs from learned theta0")
+        for expected in chain.transitions:
+            persisted_exposure = expected.plan.exposure
+            exposure = session.record_exposure(
+                persisted_exposure.forecast,
+                delivered_action_id=persisted_exposure.delivered_action_id,
+            )
+            if exposure != persisted_exposure:
+                raise ValueError(
+                    "online persisted exposure differs from exact sequential replay"
+                )
+            plan = session.plan_credit(exposure, expected.plan.credit)
+            if plan != expected.plan:
+                raise ValueError("online persisted plan differs from exact sequential replay")
+            actual = session.commit_credit(plan)
+            if actual != expected:
+                raise ValueError("online persisted transition differs from exact replay")
+        if session.export_transition_chain() != chain:
+            raise ValueError("online reconstructed chain differs from persisted chain")
+        return session
+
+    @property
+    def artifact(self) -> RelationshipActionGateV2Artifact:
+        return self._artifact
+
+    @property
+    def disposition(self) -> legacy.RelationshipActionGateBatchDisposition:
+        return self._disposition
+
+    @property
+    def transition_count(self) -> int:
+        return len(self._transitions)
+
+    @property
+    def current_chain_id(self) -> str:
+        return self._chain_id
+
+    @property
+    def pending_exposure(self) -> RelationshipActionGateV2OnlineExposure | None:
+        return self._pending_exposure
+
+    def export_checkpoint(self) -> RelationshipActionGateV2Checkpoint:
+        return self._checkpoint
+
+    def export_transition_chain(self) -> RelationshipActionGateV2OnlineTransitionChain:
+        if self._pending_exposure is not None:
+            raise ValueError(
+                "online transition chain cannot export while an exposure is pending"
+            )
+        return RelationshipActionGateV2OnlineTransitionChain(
+            artifact=self._artifact,
+            disposition=self._disposition,
+            initial_checkpoint=self._initial_checkpoint,
+            transitions=tuple(self._transitions),
+        )
+
+    def decide(
+        self,
+        forecast: PreferenceActionForecast,
+    ) -> RelationshipActionGateV2FrozenDecision:
+        if self._pending_exposure is not None:
+            raise ValueError(
+                "online exposure is pending settlement; next decision is forbidden"
+            )
+        return _relationship_action_gate_v2_online_decide(
+            artifact=self._artifact,
+            checkpoint=self._checkpoint,
+            forecast=forecast,
+        )
+
+    def record_exposure(
+        self,
+        forecast: PreferenceActionForecast,
+        *,
+        delivered_action_id: str,
+    ) -> RelationshipActionGateV2OnlineExposure:
+        if self._pending_exposure is not None:
+            raise ValueError(
+                "online exposure is pending settlement; another exposure is forbidden"
+            )
+        _require_exact_forecast_shape(forecast)
+        if forecast.decision_id in self._decision_ids:
+            raise ValueError("online decision id was already consumed")
+        if forecast.forecast_id in self._forecast_ids:
+            raise ValueError("online forecast id was already consumed")
+        exposure = RelationshipActionGateV2OnlineExposure(
+            sequence_index=self.transition_count,
+            parent_chain_id=self._chain_id,
+            forecast=forecast,
+            frozen_decision=self.decide(forecast),
+            delivered_action_id=delivered_action_id,
+        )
+        self._pending_exposure = exposure
+        return exposure
+
+    def plan_credit(
+        self,
+        exposure: RelationshipActionGateV2OnlineExposure,
+        credit: RelationshipActionCommonBaselineCredit,
+    ) -> RelationshipActionGateV2OnlinePlan:
+        if type(exposure) is not RelationshipActionGateV2OnlineExposure:
+            raise TypeError("exposure must be RelationshipActionGateV2OnlineExposure")
+        if type(credit) is not RelationshipActionCommonBaselineCredit:
+            raise TypeError("credit must be RelationshipActionCommonBaselineCredit")
+        if self._pending_exposure is None:
+            raise ValueError("online credit requires one pending recorded exposure")
+        if exposure != self._pending_exposure:
+            raise ValueError("online credit does not settle the exact pending exposure")
+        if self._pending_plan is not None:
+            raise ValueError("online pending exposure already has a sealed credit plan")
+        if exposure.sequence_index != self.transition_count:
+            raise ValueError("online exposure sequence is stale or skipped")
+        if exposure.parent_chain_id != self._chain_id:
+            raise ValueError("online exposure parent chain is stale")
+        expected_decision = _relationship_action_gate_v2_online_decide(
+            artifact=self._artifact,
+            checkpoint=self._checkpoint,
+            forecast=exposure.forecast,
+        )
+        if exposure.frozen_decision != expected_decision:
+            raise ValueError("online exposure frozen decision is stale or forged")
+        if credit.record_id in self._credit_ids:
+            raise ValueError("online common-baseline credit was already processed or withheld")
+        if exposure.forecast.decision_id in self._decision_ids:
+            raise ValueError("online decision id was already consumed")
+        if exposure.forecast.forecast_id in self._forecast_ids:
+            raise ValueError("online forecast id was already consumed")
+        if self._transitions:
+            previous_timestamp = self._transitions[-1].plan.credit.parent_action_credit.timestamp_ms
+            if credit.parent_action_credit.timestamp_ms <= previous_timestamp:
+                raise ValueError("online credit timestamps must be strictly increasing")
+        plan = _relationship_action_gate_v2_online_plan(
+            artifact=self._artifact,
+            parent_chain_id=self._chain_id,
+            pre_checkpoint=self._checkpoint,
+            exposure=exposure,
+            credit=credit,
+        )
+        self._pending_plan = plan
+        return plan
+
+    def commit_credit(
+        self,
+        plan: RelationshipActionGateV2OnlinePlan,
+    ) -> RelationshipActionGateV2OnlineTransition:
+        if type(plan) is not RelationshipActionGateV2OnlinePlan:
+            raise TypeError("plan must be RelationshipActionGateV2OnlinePlan")
+        if self._pending_exposure is None or self._pending_plan is None:
+            raise ValueError("online commit requires one sealed pending credit plan")
+        if plan != self._pending_plan:
+            raise ValueError("online commit differs from the sealed pending credit plan")
+        expected = _relationship_action_gate_v2_online_plan(
+            artifact=self._artifact,
+            parent_chain_id=self._chain_id,
+            pre_checkpoint=self._checkpoint,
+            exposure=self._pending_exposure,
+            credit=self._pending_plan.credit,
+        )
+        if plan != expected:
+            raise ValueError("online plan differs from current pure transition")
+        receipt = _relationship_action_gate_v2_online_receipt(
+            plan,
+            disposition=self._disposition,
+        )
+        terminal = (
+            plan.candidate_checkpoint
+            if self._disposition is legacy.RelationshipActionGateBatchDisposition.APPLY
+            else plan.pre_checkpoint
+        )
+        transition = RelationshipActionGateV2OnlineTransition(
+            plan=plan,
+            receipt=receipt,
+            terminal_checkpoint=terminal,
+        )
+        self._checkpoint = terminal
+        self._transitions.append(transition)
+        self._transition_ids.append(transition.transition_id)
+        self._credit_ids.add(plan.credit.record_id)
+        self._decision_ids.add(plan.exposure.forecast.decision_id)
+        self._forecast_ids.add(plan.exposure.forecast.forecast_id)
+        self._chain_id = _relationship_action_gate_v2_online_chain_id_from_ids(
+            artifact=self._artifact,
+            disposition=self._disposition,
+            initial_checkpoint=self._initial_checkpoint,
+            transition_ids=tuple(self._transition_ids),
+        )
+        self._pending_exposure = None
+        self._pending_plan = None
+        return transition
+
+
+def _relationship_action_gate_v2_online_chain_id(
+    *,
+    artifact: RelationshipActionGateV2Artifact,
+    disposition: legacy.RelationshipActionGateBatchDisposition,
+    initial_checkpoint: RelationshipActionGateV2Checkpoint,
+    transitions: tuple[RelationshipActionGateV2OnlineTransition, ...],
+) -> str:
+    return _relationship_action_gate_v2_online_chain_id_from_ids(
+        artifact=artifact,
+        disposition=disposition,
+        initial_checkpoint=initial_checkpoint,
+        transition_ids=tuple(item.transition_id for item in transitions),
+    )
+
+
+def _relationship_action_gate_v2_online_chain_id_from_ids(
+    *,
+    artifact: RelationshipActionGateV2Artifact,
+    disposition: legacy.RelationshipActionGateBatchDisposition,
+    initial_checkpoint: RelationshipActionGateV2Checkpoint,
+    transition_ids: tuple[str, ...],
+) -> str:
+    payload = {
+        "schema_version": RELATIONSHIP_ACTION_GATE_V2_ONLINE_CHAIN_SCHEMA_VERSION,
+        "artifact_id": artifact.artifact_id,
+        "disposition": disposition.value,
+        "initial_checkpoint_content_sha256": initial_checkpoint.content_sha256,
+        "transition_ids": list(transition_ids),
+    }
+    return f"{_ONLINE_CHAIN_PREFIX}{legacy._canonical_sha256(payload)}"
+
+
+def _relationship_action_gate_v2_online_policy_id(
+    *,
+    artifact: RelationshipActionGateV2Artifact,
+    checkpoint: RelationshipActionGateV2Checkpoint,
+) -> str:
+    payload = {
+        "schema_version": RELATIONSHIP_ACTION_GATE_V2_ONLINE_POLICY_SCHEMA_VERSION,
+        "artifact_id": artifact.artifact_id,
+        "checkpoint_content_sha256": checkpoint.content_sha256,
+    }
+    return f"{_ONLINE_POLICY_PREFIX}{legacy._canonical_sha256(payload)}"
+
+
+def _relationship_action_gate_v2_online_decide(
+    *,
+    artifact: RelationshipActionGateV2Artifact,
+    checkpoint: RelationshipActionGateV2Checkpoint,
+    forecast: PreferenceActionForecast,
+) -> RelationshipActionGateV2FrozenDecision:
+    return _frozen_decide(
+        artifact=artifact,
+        checkpoint=checkpoint,
+        policy_id=_relationship_action_gate_v2_online_policy_id(
+            artifact=artifact,
+            checkpoint=checkpoint,
+        ),
+        forecast=forecast,
+        rationale_codes=_ONLINE_DECISION_RATIONALE_CODES,
+    )
+
+
+def _relationship_action_gate_v2_online_candidate_fields(
+    *,
+    artifact: RelationshipActionGateV2Artifact,
+    pre_checkpoint: RelationshipActionGateV2Checkpoint,
+    exposure: RelationshipActionGateV2OnlineExposure,
+    credit: RelationshipActionCommonBaselineCredit,
+) -> tuple[
+    RelationshipActionGateV2Checkpoint,
+    int,
+    bool,
+    float,
+    tuple[float, ...],
+    int,
+]:
+    decision = exposure.frozen_decision.decision
+    indicator = int(decision.gate_action is legacy.RelationshipGateAction.STEER)
+    informative = exposure.informative
+    scale = (
+        artifact.online_learning_rate
+        * credit.credit_value
+        * (float(indicator) - decision.steer_probability)
+        if informative
+        else 0.0
+    )
+    raw_weights = tuple(
+        weight + scale * feature
+        for weight, feature in zip(
+            pre_checkpoint.weights,
+            decision.features,
+            strict=True,
+        )
+    )
+    cap = artifact.max_abs_parameter
+    cap_hits = sum(abs(value) > cap for value in raw_weights)
+    weights = tuple(max(-cap, min(cap, value)) for value in raw_weights)
+    delta = tuple(
+        after - before
+        for before, after in zip(pre_checkpoint.weights, weights, strict=True)
+    )
+    candidate = RelationshipActionGateV2Checkpoint(
+        artifact_id=artifact.artifact_id,
+        weights=weights,
+        update_count=pre_checkpoint.update_count + 1,
+        informative_update_count=(
+            pre_checkpoint.informative_update_count + int(informative)
+        ),
+        processed_credit_ids=tuple(
+            sorted({*pre_checkpoint.processed_credit_ids, credit.record_id})
+        ),
+    )
+    return candidate, indicator, informative, scale, delta, cap_hits
+
+
+def _relationship_action_gate_v2_online_plan(
+    *,
+    artifact: RelationshipActionGateV2Artifact,
+    parent_chain_id: str,
+    pre_checkpoint: RelationshipActionGateV2Checkpoint,
+    exposure: RelationshipActionGateV2OnlineExposure,
+    credit: RelationshipActionCommonBaselineCredit,
+) -> RelationshipActionGateV2OnlinePlan:
+    candidate, indicator, informative, scale, delta, cap_hits = (
+        _relationship_action_gate_v2_online_candidate_fields(
+            artifact=artifact,
+            pre_checkpoint=pre_checkpoint,
+            exposure=exposure,
+            credit=credit,
+        )
+    )
+    return RelationshipActionGateV2OnlinePlan(
+        artifact=artifact,
+        parent_chain_id=parent_chain_id,
+        exposure=exposure,
+        credit=credit,
+        pre_checkpoint=pre_checkpoint,
+        candidate_checkpoint=candidate,
+        actual_steer_indicator=indicator,
+        informative=informative,
+        gradient_scale_hex=scale.hex(),
+        candidate_weight_delta_hex=tuple(value.hex() for value in delta),
+        candidate_cap_hit_count=cap_hits,
+    )
+
+
+def _relationship_action_gate_v2_online_receipt(
+    plan: RelationshipActionGateV2OnlinePlan,
+    *,
+    disposition: legacy.RelationshipActionGateBatchDisposition,
+) -> RelationshipActionGateV2OnlineReceipt:
+    if type(plan) is not RelationshipActionGateV2OnlinePlan:
+        raise TypeError("plan must be RelationshipActionGateV2OnlinePlan")
+    if type(disposition) is not legacy.RelationshipActionGateBatchDisposition:
+        raise TypeError("disposition must be RelationshipActionGateBatchDisposition")
+    pre = plan.pre_checkpoint
+    candidate = plan.candidate_checkpoint
+    candidate_nonzero_count = int(plan.candidate_nonzero_parameter_delta)
+    if disposition is legacy.RelationshipActionGateBatchDisposition.APPLY:
+        post = candidate
+        applied_delta = plan.candidate_weight_delta_hex
+        applied_count = 1
+        update_delta = 1
+        informative_delta = int(plan.informative)
+        atomic = 1
+        applied_ids = (plan.credit.record_id,)
+        applied = True
+        applied_cap_hits = plan.candidate_cap_hit_count
+        applied_nonzero_count = candidate_nonzero_count
+    else:
+        post = pre
+        applied_delta = tuple((0.0).hex() for _ in RELATIONSHIP_ACTION_GATE_V2_FEATURE_ORDER)
+        applied_count = 0
+        update_delta = 0
+        informative_delta = 0
+        atomic = 0
+        applied_ids = ()
+        applied = False
+        applied_cap_hits = 0
+        applied_nonzero_count = 0
+    return RelationshipActionGateV2OnlineReceipt(
+        plan_id=plan.plan_id,
+        parent_chain_id=plan.parent_chain_id,
+        sequence_index=plan.sequence_index,
+        exposure_id=plan.exposure.exposure_id,
+        credit_record_id=plan.credit.record_id,
+        disposition=disposition,
+        pre_checkpoint_content_sha256=pre.content_sha256,
+        candidate_checkpoint_content_sha256=candidate.content_sha256,
+        post_checkpoint_content_sha256=post.content_sha256,
+        pre_update_count=pre.update_count,
+        candidate_update_count=candidate.update_count,
+        post_update_count=post.update_count,
+        pre_informative_update_count=pre.informative_update_count,
+        candidate_informative_update_count=candidate.informative_update_count,
+        post_informative_update_count=post.informative_update_count,
+        applied_weight_delta_hex=applied_delta,
+        candidate_cap_hit_count=plan.candidate_cap_hit_count,
+        applied_cap_hit_count=applied_cap_hits,
+        candidate_nonzero_parameter_update_count=candidate_nonzero_count,
+        applied_nonzero_parameter_update_count=applied_nonzero_count,
+        generated_credit_count=1,
+        applied_credit_count=applied_count,
+        update_count_delta=update_delta,
+        informative_update_count_delta=informative_delta,
+        atomic_commit_count=atomic,
+        applied_credit_ids=applied_ids,
+        credit_applied_to_gate=applied,
+    )
+
+
 def relationship_action_gate_v2_features(
     forecast: PreferenceActionForecast,
 ) -> tuple[float, ...]:
@@ -3203,6 +4625,83 @@ def _require_exact_forecast_shape(forecast: PreferenceActionForecast) -> None:
     replayed = preference_action_forecast_from_payload(preference_action_forecast_to_payload(forecast))
     if replayed != forecast:
         raise TypeError("forecast must use the immutable canonical owner shape")
+
+
+def temporal_action_advisory_from_gate_v2_online_exposure(
+    exposure: RelationshipActionGateV2OnlineExposure,
+    *,
+    session: RelationshipActionGateV2OnlineSession,
+) -> TemporalActionAdvisoryProposal:
+    """Publish one SHADOW advisory for the active owner's pending exposure."""
+
+    if type(exposure) is not RelationshipActionGateV2OnlineExposure:
+        raise TypeError("exposure must be RelationshipActionGateV2OnlineExposure")
+    if type(session) is not RelationshipActionGateV2OnlineSession:
+        raise TypeError("session must be RelationshipActionGateV2OnlineSession")
+    if exposure.sequence_index != session.transition_count:
+        raise ValueError("online exposure sequence does not follow the active session")
+    if exposure.parent_chain_id != session.current_chain_id:
+        raise ValueError("online exposure parent chain differs from active session")
+    if exposure != session.pending_exposure:
+        raise ValueError("online advisory requires the exact pending exposure")
+    expected = _relationship_action_gate_v2_online_decide(
+        artifact=session.artifact,
+        checkpoint=session.export_checkpoint(),
+        forecast=exposure.forecast,
+    )
+    if exposure.frozen_decision != expected:
+        raise ValueError("online exposure differs from exact active-session replay")
+    decision = exposure.frozen_decision.decision
+    confidence = (
+        decision.steer_probability
+        if decision.gate_action is legacy.RelationshipGateAction.STEER
+        else 1.0 - decision.steer_probability
+    )
+    checkpoint_ref = (
+        "relationship-action-gate-v2-checkpoint-sha256:"
+        f"{exposure.frozen_decision.checkpoint_content_sha256}"
+    )
+    forecast_payload = preference_action_forecast_to_payload(exposure.forecast)
+    forecast_ref = (
+        "preference-action-forecast-sha256:"
+        f"{legacy._canonical_sha256(forecast_payload)}"
+    )
+    advisory_lineage = {
+        "forecast": forecast_payload,
+        "online_exposure": exposure.to_payload(),
+        "parent_chain_id": session.current_chain_id,
+    }
+    return TemporalActionAdvisoryProposal(
+        advisory_id=(
+            "relationship-action-advisory-v2-online-sha256:"
+            f"{legacy._canonical_sha256(advisory_lineage)}"
+        ),
+        decision_id=decision.decision_id,
+        prediction_id=decision.forecast_id,
+        action_id=exposure.delivered_action_id,
+        confidence=confidence,
+        policy_artifact_id=decision.artifact_id,
+        policy_artifact_version=2,
+        evidence_refs=tuple(
+            dict.fromkeys(
+                (
+                    *decision.evidence_refs,
+                    exposure.frozen_decision.frozen_policy_id,
+                    checkpoint_ref,
+                    forecast_ref,
+                    session.current_chain_id,
+                    exposure.exposure_id,
+                )
+            )
+        ),
+        rationale_codes=(
+            *decision.rationale_codes,
+            f"gate:{decision.gate_action.value}",
+            "lineage:online-transition-chain-and-checkpoint-bound",
+        ),
+        evaluator_only=False,
+        active_authorized=False,
+    )
 
 
 def temporal_action_advisory_from_gate_v2_decision(
@@ -3265,6 +4764,7 @@ def _frozen_decide(
     checkpoint: RelationshipActionGateV2Checkpoint,
     policy_id: str,
     forecast: PreferenceActionForecast,
+    rationale_codes: tuple[str, ...] | None = None,
 ) -> RelationshipActionGateV2FrozenDecision:
     features = relationship_action_gate_v2_features(forecast)
     logit = math.fsum(weight * feature for weight, feature in zip(checkpoint.weights, features, strict=True))
@@ -3287,9 +4787,13 @@ def _frozen_decide(
         update_count=checkpoint.update_count,
         evidence_refs=tuple(dict.fromkeys((*forecast.source_record_ids, *forecast.evidence))),
         rationale_codes=(
-            "policy:bias-free-centred-assignment-logistic-gate-v2",
-            "inputs:typed-owner-forecast-only",
-            "learning:common-noop-credit-development-feature-moment-only",
+            rationale_codes
+            if rationale_codes is not None
+            else (
+                "policy:bias-free-centred-assignment-logistic-gate-v2",
+                "inputs:typed-owner-forecast-only",
+                "learning:common-noop-credit-development-feature-moment-only",
+            )
         ),
     )
     return RelationshipActionGateV2FrozenDecision(
@@ -3329,6 +4833,14 @@ __all__ = [
     "RELATIONSHIP_ACTION_GATE_V2_FROZEN_DECISION_SCHEMA_VERSION",
     "RELATIONSHIP_ACTION_GATE_V2_FROZEN_POLICY_SCHEMA_VERSION",
     "RELATIONSHIP_ACTION_GATE_V2_OBJECTIVE_ID",
+    "RELATIONSHIP_ACTION_GATE_V2_ONLINE_CHAIN_SCHEMA_VERSION",
+    "RELATIONSHIP_ACTION_GATE_V2_ONLINE_EXPOSURE_SCHEMA_VERSION",
+    "RELATIONSHIP_ACTION_GATE_V2_ONLINE_OBJECTIVE_ID",
+    "RELATIONSHIP_ACTION_GATE_V2_ONLINE_OPERATOR_ID",
+    "RELATIONSHIP_ACTION_GATE_V2_ONLINE_PLAN_SCHEMA_VERSION",
+    "RELATIONSHIP_ACTION_GATE_V2_ONLINE_POLICY_SCHEMA_VERSION",
+    "RELATIONSHIP_ACTION_GATE_V2_ONLINE_RECEIPT_SCHEMA_VERSION",
+    "RELATIONSHIP_ACTION_GATE_V2_ONLINE_TRANSITION_SCHEMA_VERSION",
     "RELATIONSHIP_ACTION_GATE_V2_OPERATOR_ID",
     "RELATIONSHIP_ACTION_GATE_V2_THRESHOLD_RULE",
     "RelationshipActionGateV2",
@@ -3354,7 +4866,14 @@ __all__ = [
     "RelationshipActionGateV2ForcedExposure",
     "RelationshipActionGateV2FrozenDecision",
     "RelationshipActionGateV2FrozenPolicy",
+    "RelationshipActionGateV2OnlineExposure",
+    "RelationshipActionGateV2OnlinePlan",
+    "RelationshipActionGateV2OnlineReceipt",
+    "RelationshipActionGateV2OnlineSession",
+    "RelationshipActionGateV2OnlineTransition",
+    "RelationshipActionGateV2OnlineTransitionChain",
     "commit_relationship_action_gate_v2_federated_matched_transitions",
     "relationship_action_gate_v2_features",
     "temporal_action_advisory_from_gate_v2_decision",
+    "temporal_action_advisory_from_gate_v2_online_exposure",
 ]

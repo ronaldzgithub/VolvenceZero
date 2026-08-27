@@ -588,3 +588,22 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   DGP-independent 或 unseen。下一顺序固定为：source-v5 admission 与全 adaptive-input
   disjoint closure → v5-only embedding table（旧 reader `fit_count=0`）→ attempt03 typed federation 跨 commit
   handoff → permanent public/outcome-free reachability；任何一步不得用 compact projection bypass。
+- 2026-08-27 · Learnable estimand 经重新操作化审计后修正：旧 attempt03 的三个 arm 在 40 拍 evaluation 内
+  都不 apply credit，故 `full-frozen_theta0` 只测了 evaluation 前一个 8-credit batch，不是 online-fast 持续学习；
+  旧 protocol/verdict/receipt 原样保留。新 gate-v2 owner 采用 add-only sequential contract：full/frozen 从同一个
+  cold learned theta0 与 owner start 分叉，且在 outcome 前分别永久绑定 APPLY/WITHHOLD；每拍 actual
+  settlement→PE→common credit 后按冻结 disposition commit，调用方不能逐拍改位。公式
+  固定为无 bias 的 `online_lr × credit × (actual_steer_indicator−p) × centred_features`，逐项 cap。完整 typed
+  transition chain 才能恢复，裸 checkpoint、跳拍、重排、重复 credit、stale decision 与 evaluator/judge 输入均
+  fail closed；one-pending barrier 禁止未结算时发布第二动作或导出旧 prefix，policy identity 也不读取含 outcome 的
+  chain lineage。receipt 分列 candidate/applied cap 与 nonzero delta，`informative_count` 不冒充 effective dose。
+  定向 contract 固定 40 APPLY=`generated/applied/update 40/40/40`，40 WITHHOLD=`40/0/0` 且 terminal
+  exact initial；但只有前 39 次 update 在原 40-slot horizon 内拥有 downstream action exposure。
+  本包只闭合 gate owner completed-transition 机制；在途 crash recovery 与 physical timing 仍须下一 pulse durable
+  receipt，pulse/campaign尚未执行，model/CUDA/rehearsal count=0。
+- 2026-08-27 · 后续三条设计同时冻结边界但尚未实现：其一，reachability 分成 outcome-free binary-gate
+  geometric distance 与读取 actual PE-credit receipt 的 achievability dose，二者不得共用 PASS；其二，Steerable
+  增加 always-adopt-owner-recommendation 与 pre-outcome rate-matched random-gate，旧 run 因 frozen gate
+  4,480/4,480 STEER 而使 always arm 完全退化，未来 conditional-vs-always/random actual divergence 是硬门；
+  其三，第 40 次 update 若需行为暴露必须事前新增 terminal probe。下一收敛包是 v2 evaluation pulse consumer，
+  不回改 frozen campaign，也不先启动 source-v5 CUDA 或 integrated run。

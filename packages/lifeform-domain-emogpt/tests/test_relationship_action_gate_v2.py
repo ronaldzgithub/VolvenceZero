@@ -12,6 +12,8 @@ from lifeform_domain_emogpt.relationship_action_gate import (
 from lifeform_domain_emogpt.relationship_action_gate_v2 import (
     RELATIONSHIP_ACTION_GATE_V2_FEATURE_ORDER,
     RELATIONSHIP_ACTION_GATE_V2_OBJECTIVE_ID,
+    RELATIONSHIP_ACTION_GATE_V2_ONLINE_OBJECTIVE_ID,
+    RELATIONSHIP_ACTION_GATE_V2_ONLINE_OPERATOR_ID,
     RelationshipActionGateV2,
     RelationshipActionGateV2Artifact,
     RelationshipActionGateV2ArtifactKind,
@@ -28,9 +30,16 @@ from lifeform_domain_emogpt.relationship_action_gate_v2 import (
     RelationshipActionGateV2FederatedBatchReceipt,
     RelationshipActionGateV2FederatedCreditBatch,
     RelationshipActionGateV2FederatedScheduleSegment,
+    RelationshipActionGateV2OnlineExposure,
+    RelationshipActionGateV2OnlinePlan,
+    RelationshipActionGateV2OnlineReceipt,
+    RelationshipActionGateV2OnlineSession,
+    RelationshipActionGateV2OnlineTransition,
+    RelationshipActionGateV2OnlineTransitionChain,
     commit_relationship_action_gate_v2_federated_matched_transitions,
     relationship_action_gate_v2_features,
     temporal_action_advisory_from_gate_v2_decision,
+    temporal_action_advisory_from_gate_v2_online_exposure,
 )
 from volvence_zero.credit import (
     RelationshipActionCommonBaselineCredit,
@@ -307,6 +316,90 @@ def _federation(
     )
 
 
+def _learned_theta0(
+    *,
+    bootstrap_learning_rate: float = 1.0 / 512.0,
+    bootstrap_pair_count: int = 1,
+    online_learning_rate: float = 0.25,
+    max_abs_parameter: float = 4.0,
+) -> RelationshipActionGateV2Artifact:
+    seed = _seed(
+        bootstrap_learning_rate=bootstrap_learning_rate,
+        online_learning_rate=online_learning_rate,
+        max_abs_parameter=max_abs_parameter,
+    )
+    specs = (
+        _informative_specs()
+        if bootstrap_pair_count == 1
+        else tuple(
+            item
+            for index in range(bootstrap_pair_count)
+            for item in (
+                (
+                    f"candidate-helped-{index}",
+                    RelationshipActionGateV2AssignmentRole.CANDIDATE,
+                    RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+                    DialogueExternalOutcomeKind.HELPED,
+                ),
+                (
+                    f"noop-over-directive-{index}",
+                    RelationshipActionGateV2AssignmentRole.NEUTRAL_NOOP,
+                    RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+                    DialogueExternalOutcomeKind.OVER_DIRECTIVE,
+                ),
+            )
+        )
+    )
+    batch = _batch(RelationshipActionGateV2(artifact=seed), specs)
+    gate = RelationshipActionGateV2(artifact=seed)
+    receipt = gate.commit_credit_batch(
+        gate.plan_credit_batch(batch),
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+    return RelationshipActionGateV2Artifact.create_learned_theta0(
+        parent_artifact=seed,
+        source_batch=batch,
+        apply_receipt=receipt,
+    )
+
+
+def _online_step(
+    session: RelationshipActionGateV2OnlineSession,
+    *,
+    suffix: str,
+    outcome: DialogueExternalOutcomeKind,
+    timestamp_ms: int,
+    recommended_action_id: str = RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+) -> RelationshipActionGateV2OnlineTransition:
+    forecast = _forecast(suffix, recommended_action_id=recommended_action_id)
+    return _online_step_for_forecast(
+        session,
+        forecast=forecast,
+        outcome=outcome,
+        timestamp_ms=timestamp_ms,
+    )
+
+
+def _online_step_for_forecast(
+    session: RelationshipActionGateV2OnlineSession,
+    *,
+    forecast: PreferenceActionForecast,
+    outcome: DialogueExternalOutcomeKind,
+    timestamp_ms: int,
+) -> RelationshipActionGateV2OnlineTransition:
+    decision = session.decide(forecast)
+    exposure = session.record_exposure(
+        forecast,
+        delivered_action_id=decision.decision.selected_action_id,
+    )
+    credit = _common_credit(
+        exposure,
+        outcome=outcome,
+        timestamp_ms=timestamp_ms,
+    )
+    return session.commit_credit(session.plan_credit(exposure, credit))
+
+
 def test_v2_feature_threshold_and_frozen_advisory_lineage() -> None:
     gate = RelationshipActionGateV2(artifact=_seed())
     forecast = _forecast("feature")
@@ -323,6 +416,13 @@ def test_v2_feature_threshold_and_frozen_advisory_lineage() -> None:
     assert frozen.decision.features[0] == pytest.approx(0.6)
     assert frozen.decision.gate_action is RelationshipGateAction.NOOP
     assert frozen.decision.steer_probability == 0.5
+    assert policy.policy_id == (
+        "relationship-action-gate-v2-frozen-policy-sha256:"
+        "54bf9e617e4ea387ae2641363d0bfbb166d8c0f10f20a9afbaadc748e7c5eaf3"
+    )
+    assert frozen.checkpoint_content_sha256 == (
+        "5656821386b4b64b5ddd9fe8fecaff20d072d8995d41efe139d85fa3e8ccf8ea"
+    )
     assert RelationshipActionGateV2Decision.from_payload(frozen.decision.to_payload()) == frozen.decision
 
     with pytest.raises(ValueError, match="strict probability threshold"):
@@ -341,6 +441,10 @@ def test_v2_feature_threshold_and_frozen_advisory_lineage() -> None:
     assert advisory.action_id == RelationshipAction.NEUTRAL_NOOP.value
     assert advisory.active_authorized is False
     assert advisory.policy_artifact_id == frozen.decision.artifact_id
+    assert advisory.advisory_id == (
+        "relationship-action-advisory-v2-sha256:"
+        "c8b2725f99d65d5f73f426ac447cb87029d2f47dc945d5cca6bfedc8147b3bb3"
+    )
     assert frozen.frozen_policy_id in advisory.evidence_refs
     assert any("checkpoint-sha256" in item for item in advisory.evidence_refs)
     assert any("preference-action-forecast-sha256" in item for item in advisory.evidence_refs)
@@ -1034,3 +1138,541 @@ def test_v1_module_contract_remains_separate() -> None:
         RelationshipActionGateV2Artifact.from_payload(
             {**seed.to_payload(), "schema_version": "relationship-action-gate.v1"}
         )
+
+
+def test_online_v2_two_apply_steps_chain_and_payload_replay() -> None:
+    theta0 = _learned_theta0()
+    session = RelationshipActionGateV2OnlineSession(
+        artifact=theta0,
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+    initial = session.export_checkpoint()
+
+    first = _online_step(
+        session,
+        suffix="online-apply-0",
+        outcome=DialogueExternalOutcomeKind.HELPED,
+        timestamp_ms=7000,
+    )
+    second = _online_step(
+        session,
+        suffix="online-apply-1",
+        outcome=DialogueExternalOutcomeKind.OVER_DIRECTIVE,
+        timestamp_ms=7001,
+    )
+
+    assert first.plan.pre_checkpoint == initial
+    assert second.plan.pre_checkpoint == first.terminal_checkpoint
+    assert second.plan.exposure.frozen_decision.checkpoint_content_sha256 == (
+        first.terminal_checkpoint.content_sha256
+    )
+    assert second.plan.exposure.frozen_decision.decision.update_count == 1
+    assert session.export_checkpoint().update_count == 2
+    assert len(session.export_checkpoint().processed_credit_ids) == 2
+    assert first.plan.operator_id == RELATIONSHIP_ACTION_GATE_V2_ONLINE_OPERATOR_ID
+    assert first.plan.objective_id == RELATIONSHIP_ACTION_GATE_V2_ONLINE_OBJECTIVE_ID
+    assert first.receipt.credit_applied_to_gate is True
+    assert first.receipt.evaluation_or_judge_feedback_received is False
+
+    chain = session.export_transition_chain()
+    restored_payload = RelationshipActionGateV2OnlineTransitionChain.from_payload(
+        chain.to_payload(),
+        artifact=theta0,
+        full_common_credits=tuple(item.plan.credit for item in chain.transitions),
+    )
+    assert restored_payload == chain
+    restored_session = RelationshipActionGateV2OnlineSession.from_transition_chain(chain)
+    assert restored_session.export_checkpoint() == session.export_checkpoint()
+    assert restored_session.export_transition_chain() == chain
+
+    next_forecast = _forecast("online-advisory-after-two")
+    next_decision = session.decide(next_forecast)
+    next_exposure = session.record_exposure(
+        next_forecast,
+        delivered_action_id=next_decision.decision.selected_action_id,
+    )
+    advisory = temporal_action_advisory_from_gate_v2_online_exposure(
+        next_exposure,
+        session=session,
+    )
+    assert advisory.action_id == next_exposure.delivered_action_id
+    assert advisory.active_authorized is False
+    assert chain.chain_id in advisory.evidence_refs
+
+
+def test_online_v2_formula_covers_steer_noop_and_parameter_cap() -> None:
+    theta0 = _learned_theta0()
+
+    for suffix, forecast, outcome, expected_indicator in (
+        (
+            "steer",
+            _forecast("online-formula-steer"),
+            DialogueExternalOutcomeKind.HELPED,
+            1,
+        ),
+        (
+            "noop",
+            replace(
+                _forecast("online-formula-noop"),
+                confidence=0.2,
+                candidate_predictions=(
+                    _candidate(
+                        RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value,
+                        (0.05, 0.05, 0.45, 0.45),
+                    ),
+                    *_forecast(
+                        "online-formula-noop"
+                    ).candidate_predictions[1:],
+                ),
+            ),
+            DialogueExternalOutcomeKind.MISSED,
+            0,
+        ),
+    ):
+        session = RelationshipActionGateV2OnlineSession(
+            artifact=theta0,
+            disposition=RelationshipActionGateBatchDisposition.APPLY,
+        )
+        decision = session.decide(forecast)
+        exposure = session.record_exposure(
+            forecast,
+            delivered_action_id=decision.decision.selected_action_id,
+        )
+        credit = _common_credit(
+            exposure,
+            outcome=outcome,
+            timestamp_ms=7500 + expected_indicator,
+        )
+        plan = session.plan_credit(exposure, credit)
+        expected_scale = (
+            theta0.online_learning_rate
+            * credit.credit_value
+            * (float(expected_indicator) - decision.decision.steer_probability)
+        )
+        expected_raw = tuple(
+            weight + expected_scale * feature
+            for weight, feature in zip(
+                plan.pre_checkpoint.weights,
+                decision.decision.features,
+                strict=True,
+            )
+        )
+        expected_weights = tuple(
+            max(-theta0.max_abs_parameter, min(theta0.max_abs_parameter, value))
+            for value in expected_raw
+        )
+        assert plan.actual_steer_indicator == expected_indicator, suffix
+        assert float.fromhex(plan.gradient_scale_hex) == pytest.approx(expected_scale)
+        assert plan.candidate_checkpoint.weights == pytest.approx(expected_weights)
+        assert tuple(
+            float.fromhex(value) for value in plan.candidate_weight_delta_hex
+        ) == pytest.approx(
+            tuple(
+                after - before
+                for before, after in zip(
+                    plan.pre_checkpoint.weights,
+                    expected_weights,
+                    strict=True,
+                )
+            )
+        )
+        transition = session.commit_credit(plan)
+        assert transition.receipt.candidate_nonzero_parameter_update_count == int(
+            plan.candidate_nonzero_parameter_delta
+        )
+        assert transition.receipt.applied_nonzero_parameter_update_count == int(
+            plan.candidate_nonzero_parameter_delta
+        )
+
+    capped = RelationshipActionGateV2OnlineSession(
+        artifact=_learned_theta0(
+            online_learning_rate=0.5,
+            max_abs_parameter=0.5,
+        ),
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+    cap_transition = None
+    for index in range(200):
+        forecast = _forecast(f"online-cap-{index}")
+        decision = capped.decide(forecast)
+        exposure = capped.record_exposure(
+            forecast,
+            delivered_action_id=decision.decision.selected_action_id,
+        )
+        credit = _common_credit(
+            exposure,
+            outcome=DialogueExternalOutcomeKind.HELPED,
+            timestamp_ms=7600 + index,
+        )
+        plan = capped.plan_credit(exposure, credit)
+        cap_transition = capped.commit_credit(plan)
+        if plan.candidate_cap_hit_count:
+            break
+    assert cap_transition is not None
+    assert cap_transition.plan.candidate_cap_hit_count > 0
+    assert cap_transition.receipt.candidate_cap_hit_count > 0
+    assert cap_transition.receipt.applied_cap_hit_count == (
+        cap_transition.receipt.candidate_cap_hit_count
+    )
+    assert max(abs(value) for value in cap_transition.terminal_checkpoint.weights) == 0.5
+
+    frozen_at_cap = RelationshipActionGateV2OnlineSession(
+        artifact=_learned_theta0(
+            bootstrap_learning_rate=0.5,
+            bootstrap_pair_count=8,
+            online_learning_rate=0.5,
+            max_abs_parameter=0.5,
+        ),
+        disposition=RelationshipActionGateBatchDisposition.WITHHOLD,
+    )
+    frozen_forecast = _forecast("online-withhold-cap")
+    frozen_decision = frozen_at_cap.decide(frozen_forecast)
+    frozen_exposure = frozen_at_cap.record_exposure(
+        frozen_forecast,
+        delivered_action_id=frozen_decision.decision.selected_action_id,
+    )
+    frozen_credit = _common_credit(
+        frozen_exposure,
+        outcome=DialogueExternalOutcomeKind.HELPED,
+        timestamp_ms=9000,
+    )
+    frozen_plan = frozen_at_cap.plan_credit(frozen_exposure, frozen_credit)
+    frozen_transition = frozen_at_cap.commit_credit(frozen_plan)
+    assert frozen_transition.receipt.candidate_cap_hit_count > 0
+    assert frozen_transition.receipt.candidate_nonzero_parameter_update_count == 1
+    assert frozen_transition.receipt.applied_cap_hit_count == 0
+    assert frozen_transition.receipt.applied_nonzero_parameter_update_count == 0
+    assert frozen_transition.terminal_checkpoint == frozen_plan.pre_checkpoint
+
+
+def test_online_v2_forty_apply_vs_withhold_transitions_close_exactly() -> None:
+    theta0 = _learned_theta0()
+    full = RelationshipActionGateV2OnlineSession(
+        artifact=theta0,
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+    frozen = RelationshipActionGateV2OnlineSession(
+        artifact=theta0,
+        disposition=RelationshipActionGateBatchDisposition.WITHHOLD,
+    )
+    full_initial = full.export_checkpoint()
+    frozen_initial = frozen.export_checkpoint()
+    assert full_initial == frozen_initial
+    first_forecast = _forecast("online-matched-initial")
+    assert full.decide(first_forecast) == frozen.decide(first_forecast)
+
+    full_transitions = []
+    frozen_transitions = []
+    outcomes = (
+        DialogueExternalOutcomeKind.HELPED,
+        DialogueExternalOutcomeKind.OVER_DIRECTIVE,
+        DialogueExternalOutcomeKind.FELT_HEARD,
+        DialogueExternalOutcomeKind.MISSED,
+    )
+    for index in range(40):
+        forecast = _forecast(f"online-matched-{index}")
+        full_transitions.append(
+            _online_step_for_forecast(
+                full,
+                forecast=forecast,
+                outcome=outcomes[index % len(outcomes)],
+                timestamp_ms=8000 + index,
+            )
+        )
+        frozen_transitions.append(
+            _online_step_for_forecast(
+                frozen,
+                forecast=forecast,
+                outcome=outcomes[index % len(outcomes)],
+                timestamp_ms=8000 + index,
+            )
+        )
+        full_transition = full_transitions[-1]
+        frozen_transition = frozen_transitions[-1]
+        assert full_transition.plan.exposure.forecast is forecast
+        assert frozen_transition.plan.exposure.forecast is forecast
+        if (
+            full_transition.plan.exposure.delivered_action_id
+            == frozen_transition.plan.exposure.delivered_action_id
+        ):
+            assert full_transition.plan.credit == frozen_transition.plan.credit
+
+    assert full.export_checkpoint().update_count == 40
+    assert len(full.export_checkpoint().processed_credit_ids) == 40
+    assert sum(item.receipt.generated_credit_count for item in full_transitions) == 40
+    assert sum(item.receipt.applied_credit_count for item in full_transitions) == 40
+    assert sum(item.receipt.update_count_delta for item in full_transitions) == 40
+    assert all(item.receipt.credit_applied_to_gate for item in full_transitions)
+    assert all(
+        item.receipt.applied_nonzero_parameter_update_count
+        == item.receipt.candidate_nonzero_parameter_update_count
+        for item in full_transitions
+    )
+    assert all(
+        item.receipt.applied_cap_hit_count == item.receipt.candidate_cap_hit_count
+        for item in full_transitions
+    )
+    assert frozen.export_checkpoint() == frozen_initial
+    assert sum(item.receipt.generated_credit_count for item in frozen_transitions) == 40
+    assert sum(item.receipt.applied_credit_count for item in frozen_transitions) == 0
+    assert sum(item.receipt.update_count_delta for item in frozen_transitions) == 0
+    assert all(not item.receipt.credit_applied_to_gate for item in frozen_transitions)
+    assert any(
+        item.receipt.candidate_nonzero_parameter_update_count
+        for item in frozen_transitions
+    )
+    assert all(
+        item.receipt.applied_nonzero_parameter_update_count == 0
+        and item.receipt.applied_cap_hit_count == 0
+        for item in frozen_transitions
+    )
+    assert all(
+        item.receipt.post_checkpoint_content_sha256
+        == item.receipt.pre_checkpoint_content_sha256
+        for item in frozen_transitions
+    )
+    assert max(abs(value) for value in full.export_checkpoint().weights) <= (
+        theta0.max_abs_parameter
+    )
+    full_chain = full.export_transition_chain()
+    frozen_chain = frozen.export_transition_chain()
+    assert full_chain.generated_credit_count == 40
+    assert full_chain.applied_credit_count == 40
+    assert full_chain.downstream_exposed_applied_update_count == 39
+    assert frozen_chain.generated_credit_count == 40
+    assert frozen_chain.applied_credit_count == 0
+    assert frozen_chain.downstream_exposed_applied_update_count == 0
+    for session, chain in ((full, full_chain), (frozen, frozen_chain)):
+        restored_chain = RelationshipActionGateV2OnlineTransitionChain.from_payload(
+            chain.to_payload(),
+            artifact=theta0,
+            full_common_credits=tuple(item.plan.credit for item in chain.transitions),
+        )
+        assert restored_chain == chain
+        assert RelationshipActionGateV2OnlineSession.from_transition_chain(
+            restored_chain
+        ).export_checkpoint() == session.export_checkpoint()
+    tampered = {
+        **full_chain.to_payload(),
+        "terminal_checkpoint": full_initial.to_payload(),
+    }
+    with pytest.raises(ValueError, match="terminal checkpoint projection"):
+        RelationshipActionGateV2OnlineTransitionChain.from_payload(
+            tampered,
+            artifact=theta0,
+            full_common_credits=tuple(
+                item.plan.credit for item in full_chain.transitions
+            ),
+        )
+
+
+def test_online_v2_zero_information_processes_credit_without_parameter_signal() -> None:
+    session = RelationshipActionGateV2OnlineSession(
+        artifact=_learned_theta0(),
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+    forecast = _forecast(
+        "online-zero-information",
+        recommended_action_id=RelationshipAction.NEUTRAL_NOOP.value,
+    )
+    decision = session.decide(forecast)
+    exposure = session.record_exposure(
+        forecast,
+        delivered_action_id=decision.decision.selected_action_id,
+    )
+    credit = _common_credit(
+        exposure,
+        outcome=DialogueExternalOutcomeKind.MISSED,
+        timestamp_ms=9000,
+    )
+    plan = session.plan_credit(exposure, credit)
+
+    assert plan.informative is False
+    assert float.fromhex(plan.gradient_scale_hex) == 0.0
+    assert plan.candidate_checkpoint.weights == plan.pre_checkpoint.weights
+    assert plan.candidate_checkpoint.update_count == 1
+    assert plan.candidate_checkpoint.informative_update_count == 0
+    transition = session.commit_credit(plan)
+    assert transition.receipt.update_count_delta == 1
+    assert transition.receipt.informative_update_count_delta == 0
+
+
+def test_online_v2_rejects_stale_reordered_duplicate_and_feedback_shapes() -> None:
+    theta0 = _learned_theta0()
+    session = RelationshipActionGateV2OnlineSession(
+        artifact=theta0,
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+    forecast = _forecast("online-reject-0")
+    decision = session.decide(forecast)
+    exposure = session.record_exposure(
+        forecast,
+        delivered_action_id=decision.decision.selected_action_id,
+    )
+    assert session.pending_exposure == exposure
+    with pytest.raises(ValueError, match="pending settlement"):
+        session.decide(_forecast("online-reject-premature-decision"))
+    with pytest.raises(ValueError, match="another exposure is forbidden"):
+        session.record_exposure(
+            _forecast("online-reject-premature-exposure"),
+            delivered_action_id=decision.decision.selected_action_id,
+        )
+    with pytest.raises(ValueError, match="cannot export"):
+        session.export_transition_chain()
+    forged_parent = replace(
+        exposure,
+        parent_chain_id=(
+            "relationship-action-gate-v2-online-chain-sha256:" + "f" * 64
+        ),
+    )
+    with pytest.raises(ValueError, match="parent chain differs"):
+        temporal_action_advisory_from_gate_v2_online_exposure(
+            forged_parent,
+            session=session,
+        )
+    credit = _common_credit(
+        exposure,
+        outcome=DialogueExternalOutcomeKind.HELPED,
+        timestamp_ms=10000,
+    )
+    with pytest.raises(TypeError, match="RelationshipActionCommonBaselineCredit"):
+        session.plan_credit(  # type: ignore[arg-type]
+            exposure,
+            credit.parent_action_credit,
+        )
+    plan = session.plan_credit(exposure, credit)
+    with pytest.raises(ValueError, match="already has a sealed credit plan"):
+        session.plan_credit(exposure, credit)
+    with pytest.raises(ValueError, match="evaluation or judge feedback"):
+        replace(plan, evaluation_or_judge_feedback_received=True)
+    wrong_action = (
+        RelationshipAction.NEUTRAL_NOOP.value
+        if exposure.delivered_action_id != RelationshipAction.NEUTRAL_NOOP.value
+        else RelationshipAction.STAY_PRESENT_WITHOUT_PROBE.value
+    )
+    with pytest.raises(ValueError, match="exact learned gate action"):
+        replace(exposure, delivered_action_id=wrong_action)
+
+    first = session.commit_credit(plan)
+    assert session.pending_exposure is None
+    with pytest.raises(ValueError, match="pending recorded exposure"):
+        session.plan_credit(exposure, credit)
+    with pytest.raises(ValueError, match="sealed pending credit plan"):
+        session.commit_credit(plan)
+    with pytest.raises(ValueError, match="decision id was already consumed"):
+        session.record_exposure(
+            replace(forecast, forecast_id="online-reject-new-forecast-id"),
+            delivered_action_id=decision.decision.selected_action_id,
+        )
+    with pytest.raises(ValueError, match="forecast id was already consumed"):
+        session.record_exposure(
+            replace(forecast, decision_id="online-reject-new-decision-id"),
+            delivered_action_id=decision.decision.selected_action_id,
+        )
+
+    second_forecast = _forecast("online-reject-1")
+    second_decision = session.decide(second_forecast)
+    second_exposure = session.record_exposure(
+        second_forecast,
+        delivered_action_id=second_decision.decision.selected_action_id,
+    )
+    with pytest.raises(ValueError, match="already processed or withheld"):
+        session.plan_credit(second_exposure, credit)
+    second_credit = _common_credit(
+        second_exposure,
+        outcome=DialogueExternalOutcomeKind.MISSED,
+        timestamp_ms=10001,
+    )
+    second = session.commit_credit(
+        session.plan_credit(second_exposure, second_credit)
+    )
+    with pytest.raises(ValueError, match="disposition drifted"):
+        RelationshipActionGateV2OnlineTransitionChain(
+            artifact=theta0,
+            disposition=RelationshipActionGateBatchDisposition.WITHHOLD,
+            initial_checkpoint=RelationshipActionGateV2OnlineSession(
+                artifact=theta0,
+                disposition=RelationshipActionGateBatchDisposition.WITHHOLD,
+            ).export_checkpoint(),
+            transitions=(first,),
+        )
+    with pytest.raises(ValueError, match="sequence must be contiguous"):
+        RelationshipActionGateV2OnlineTransitionChain(
+            artifact=theta0,
+            disposition=RelationshipActionGateBatchDisposition.APPLY,
+            initial_checkpoint=RelationshipActionGateV2OnlineSession(
+                artifact=theta0,
+                disposition=RelationshipActionGateBatchDisposition.APPLY,
+            ).export_checkpoint(),
+            transitions=(second, first),
+        )
+    with pytest.raises(ValueError, match="sequence must be contiguous"):
+        RelationshipActionGateV2OnlineTransitionChain(
+            artifact=theta0,
+            disposition=RelationshipActionGateBatchDisposition.APPLY,
+            initial_checkpoint=RelationshipActionGateV2OnlineSession(
+                artifact=theta0,
+                disposition=RelationshipActionGateBatchDisposition.APPLY,
+            ).export_checkpoint(),
+            transitions=(first, first),
+        )
+    with pytest.raises(ValueError, match="non-cold v2 checkpoint"):
+        RelationshipActionGateV2(
+            artifact=theta0,
+            checkpoint=session.export_checkpoint(),
+        )
+
+
+def test_online_v2_exact_types_and_receipts_round_trip() -> None:
+    session = RelationshipActionGateV2OnlineSession(
+        artifact=_learned_theta0(),
+        disposition=RelationshipActionGateBatchDisposition.APPLY,
+    )
+    transition = _online_step(
+        session,
+        suffix="online-golden",
+        outcome=DialogueExternalOutcomeKind.HELPED,
+        timestamp_ms=12000,
+    )
+
+    assert transition.plan.exposure.exposure_id == (
+        "relationship-action-gate-v2-online-exposure-sha256:"
+        "3c2b4ca5ed884e9019b6e0fd9f5dc446bf99a6972bc1aa30d381761772d4707a"
+    )
+    assert transition.plan.exposure.frozen_decision.frozen_policy_id == (
+        "relationship-action-gate-v2-online-policy-sha256:"
+        "c79ceb278591d5152c385d4fc4cac9e6e196ab7ec237ae242618f96ac92f8745"
+    )
+    assert transition.plan.plan_id == (
+        "relationship-action-gate-v2-online-plan-sha256:"
+        "3b1d1d18cf1e4fd6174309a11dcb4e29aca079c677be45ee0aa0534840fbb354"
+    )
+    assert transition.receipt.receipt_id == (
+        "relationship-action-gate-v2-online-receipt-sha256:"
+        "a4a92697f1b54870c5dfcc4af6c36c6952c89d1b28009d698d7547b4f46fd0cd"
+    )
+    assert transition.transition_id == (
+        "relationship-action-gate-v2-online-transition-sha256:"
+        "390ff8933acfb5e65a5f27be0e8c09c615c9d5e31bfcf53f495a1f452bdce008"
+    )
+    assert session.export_transition_chain().chain_id == (
+        "relationship-action-gate-v2-online-chain-sha256:"
+        "6ed42db5f37bff02b5402ecec42cd8aac4937f052a28e8d101da36fbd3de2d2b"
+    )
+
+    assert RelationshipActionGateV2OnlineExposure.from_payload(
+        transition.plan.exposure.to_payload()
+    ) == transition.plan.exposure
+    assert RelationshipActionGateV2OnlinePlan.from_payload(
+        transition.plan.to_payload(),
+        artifact=session.artifact,
+        full_common_credit=transition.plan.credit,
+    ) == transition.plan
+    assert RelationshipActionGateV2OnlineReceipt.from_payload(
+        transition.receipt.to_payload()
+    ) == transition.receipt
+    assert RelationshipActionGateV2OnlineTransition.from_payload(
+        transition.to_payload(),
+        artifact=session.artifact,
+        full_common_credit=transition.plan.credit,
+    ) == transition

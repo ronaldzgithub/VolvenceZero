@@ -2382,6 +2382,69 @@ permanent public/outcome-free admission；它不是 rehearsal，也不生成 out
 完整 campaign 内仍须以 actual delivered-action divergence、root/segment coverage、reactive endpoint、safety 与
 durability 裁决 Learnable；参数 hash、probability movement、reachability PASS 均不得升级为效果结论。
 
+2026-08-27 对 attempt03 的重新操作化审计进一步确认：冻结三臂在 40 个 evaluation decision 内都只生成
+credit、从不 apply，`full` 与 `frozen_theta0` 的唯一差异只是 evaluation 开始前 8-decision forced batch 的一次
+APPLY/WITHHOLD。因此旧 run 的 `full-frozen_theta0` 实际估计的是一次 batch transition，不是 R1 所指的
+online-fast 持续学习。旧 protocol、artifact、`arm_degeneracy_invalid_contrast_no_claim` 与所有 receipt 原样冻结；
+不得回写成在线实验，也不得用 112/112 参数变化或 4,480 个零动作分歧声称 Learnable。
+
+新 Learnable estimand 必须另立 protocol identity，并在 arm fork 前共享同一 forced collection、同一个凝结后的
+cold learned theta0、同一 owner start、source/environment seed 与 action-branch content：
+
+- `full` 在每个 evaluation settlement 后逐拍 APPLY actual PE→common-baseline credit；
+- `frozen_theta0` 对同拍 pure candidate 逐拍 WITHHOLD，executor 仍执行 learned decision，terminal checkpoint 必须
+  byte-exact 等于 initial；
+- 首次 update 后 probability、actual action、reaction、owner state、后续 forecast 与 credit 的 arm-local 分叉是
+  treatment descendant，不是混淆；validator 只继续要求每臂 post→next-pre handoff，以及同 root/decision/action 的
+  branch byte identity，不再错误要求分叉后的 forecast/credit 跨臂相同。
+
+为此 gate-v2 owner 新增 add-only sequential online contract，旧 cold batch/federation API 不变。online objective
+另立为无 free bias 的
+`online_lr × common_credit × (actual_steer_indicator − preaction_probability) × centred_features`，逐项受既有
+parameter cap 约束；它是 PE-credit 驱动的 development update rule，不声称随机策略梯度或无偏因果估计。
+每拍 immutable plan/receipt/transition 必须绑定完整 forecast、decision、actual delivered action、typed credit、parent
+chain、pre/candidate/post checkpoint、delta/count/cap 与 APPLY/WITHHOLD。恢复只能从 cold learned theta0 + 从 0
+连续的完整 typed chain exact replay，禁止裸 checkpoint、跳拍、重排、重复 credit、stale decision、compact credit
+projection 或 evaluator/judge 输入。owner recommendation 为 noop 时没有 gate-vs-noop 对照，credit 仍处理但参数贡献与
+informative delta 为零。当前包只闭合 model-free gate owner；pulse consumer、durable multi-arm barrier、campaign
+protocol 与实际 experiment 均待后续独立收敛包。
+
+处理位现由 online session 在任何 evaluation outcome 前一次性冻结，并进入 chain identity；逐拍 commit 不再接收
+APPLY/WITHHOLD 参数，因此不能看见 credit 后选择性应用。行为 policy identity 只绑定 artifact + checkpoint，不绑定
+含历史 outcome/credit 的 parent chain；后者另由 exposure/plan 保存，防止 frozen 参数在身份层形成 outcome-dependent
+策略侧通道。session 同时维护 one-pending-exposure / one-sealed-plan barrier：在途 action 未结算时禁止发布下一决策、
+登记第二 exposure/credit plan，或导出会遗漏在途状态的 completed prefix；decision/forecast/credit ID 在产生下一次
+物理动作前即拒绝重复。receipt 分列 `candidate_*` 与 `applied_*` 的 cap hit、nonzero parameter update，WITHHOLD
+即使 pure candidate 非零，applied 两项仍必须为零。`informative_update_count` 只表示 non-noop gate contrast 存在，
+不得替代 actual delta 用作 achievability dose。
+
+该 gate chain 仍只恢复已完成 transition，不包含 pulse 的 physical executor receipt，也不能单独证明进程崩溃前
+是否已有未结算 preaction。下一 pulse consumer 必须把 committed chain、pending exposure、SHADOW executor receipt
+和 durable preaction barrier exact-join，并在 unresolved preaction 上 fail-stop；在此之前不得把 gate replay 写成
+source timing、crash durability 或 Product Horizon 因果证据。逐拍 advisory 只消费 active owner session 的 exact
+pending exposure 与缓存 chain head，不在热路径全链 replay；完整 replay 只留在导入/恢复边界。
+
+40-decision 窗口的 terminal contract 必须分列：`generated=40 / full applied=40 / frozen applied=0`，同时
+`full update_count_delta=40 / frozen=0`。但第 40 次 settlement 后的 update 在既有窗口内没有下一动作可受其影响，
+故 `downstream_exposed_update_count=39`；若要让末次 update 也获得行为暴露，必须事前新增 terminal probe，不得
+事后把 40 个 update 都写成 40 个行为 treatment slot。
+
+永久 treatment admission 同时拆为两本账。outcome-free `geometric reachability` 只回答 cap/dose 内能否跨过
+二元 `theta·x=0` gate boundary，并报告最小 L2/L∞ 距离和 root/segment coverage；它不能声称三动作 argmax
+可达，也不能授权 effect。`credit achievability` 必须消费 actual owner update receipt，以
+`signed_logit_progress=-a(Δtheta·x)`、相对 flip distance 的 ratio 与 same-forecast exact replay flip 判断实际
+PE-credit dose 是否够大；它读取 outcome/credit，不能与前者共用 outcome-free PASS。历史 source-v3/v4 credit
+只能标作 `spent_credit_counterfactual_operator_replay`，不能冒充 source-v5 actual update。
+
+Steerable 也不得继续只用 strict-noop 作头条 steelman。attempt03 的 frozen gate 实为 4,480/4,480 次
+`gate_action=STEER`；155 次 delivered noop 来自 owner recommendation 自身为 noop，所以
+`always_adopt_owner_recommendation` 在旧 run 上与 frozen 完全退化。新 campaign 必须用 add-only gate-control
+authorization 接入 always-adopt 与 pre-outcome frozen random schedule，不能调用带 free bias 的 v1 ALWAYS/RANDOM、
+不能伪造 v2 decision，也不能把 gate control 塞进 executor bit。只有 conditional-vs-always 与
+conditional-vs-random 的 actual delivered-action divergence/root/segment coverage 均过预注册硬门，且 random dose
+rate 在容差内，才允许把结果称为择时/条件化 Steerable；否则仍是 actuation-vs-abstention 或
+`arm_degeneracy_invalid_contrast_no_claim`。
+
 由于 source-v3 exact texts 已进入 reader qualification、source-v4 已进入 theta0 v3 adaptive bootstrap，二者都只能
 继续作为 spent/transductive lineage，不能供 permanent admission 重新命名为新输入。为此新增 identity-disjoint
 synthetic source-v5 candidate owner，而不把“尚未消费”写成 statistically/DGP-independent 或 unseen。该薄 owner
