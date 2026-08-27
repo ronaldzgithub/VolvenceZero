@@ -25,7 +25,10 @@ from volvence_zero.social import (
     PreferenceActionForecastProposal,
     PreferenceActionForecastRequest,
     SocialRecordStore,
+    SocialPredictionErrorModule,
     replay_preference_action_forecast_settlement_persistence,
+    replay_preference_action_forecast_settlement_transition,
+    replay_social_prediction_error_snapshot,
     settle_preference_action_forecast,
     social_record_store_persistence_sha256,
 )
@@ -286,7 +289,7 @@ def test_public_owner_persistence_replay_matches_real_transition() -> None:
             description="Frozen typed environment transition evidence.",
         ),
     )
-    asyncio.run(
+    actual_settlement_snapshot = asyncio.run(
         PreferenceAboutOtherModule(
             proposal_runtime=_SettlementOutcomeProposalRuntime(owner_outcome),
             user_input=owner_outcome.observation_summary,
@@ -303,8 +306,26 @@ def test_public_owner_persistence_replay_matches_real_transition() -> None:
         external_evidence=external,
         owner_outcome_evidence=owner_outcome,
     )
+    transition_replay = replay_preference_action_forecast_settlement_transition(
+        before=before,
+        forecast=forecast,
+        external_evidence=external,
+        owner_outcome_evidence=owner_outcome,
+    )
+    actual_social_pe_snapshot = asyncio.run(
+        SocialPredictionErrorModule().process(
+            {"preference_about_other": actual_settlement_snapshot}
+        )
+    )
 
     assert replayed == actual_store.export_persistence_snapshot()
+    assert transition_replay.owner_persistence_snapshot == replayed
+    assert transition_replay.owner_settled_errors == (
+        actual_settlement_snapshot.value.settled_errors
+    )
+    assert replay_social_prediction_error_snapshot(
+        owner_settled_errors=transition_replay.owner_settled_errors,
+    ) == actual_social_pe_snapshot.value
     assert social_record_store_persistence_sha256(replayed) != before_sha256
     restored = SocialRecordStore()
     restored.hydrate_from_persistence(replayed)
