@@ -79,22 +79,25 @@ from volvence_zero.social import (
 
 
 THETA0_V3_BOOTSTRAP_PROTOCOL_SCHEMA_VERSION = (
-    "relationship-product-horizon-theta0-v3-bootstrap-protocol.v1"
+    "relationship-product-horizon-theta0-v3-bootstrap-protocol.v2"
 )
 THETA0_V3_BOOTSTRAP_TRACE_SCHEMA_VERSION = (
-    "relationship-product-horizon-theta0-v3-bootstrap-trace.v1"
+    "relationship-product-horizon-theta0-v3-bootstrap-trace.v2"
 )
 THETA0_V3_BOOTSTRAP_TRANSITION_BUNDLE_SCHEMA_VERSION = (
     "relationship-product-horizon-theta0-v3-transition-bundle.v1"
 )
 THETA0_V3_BOOTSTRAP_MANIFEST_SCHEMA_VERSION = (
-    "relationship-product-horizon-theta0-v3-bootstrap-manifest.v1"
+    "relationship-product-horizon-theta0-v3-bootstrap-manifest.v2"
 )
 THETA0_V3_BOOTSTRAP_PROTOCOL_RAW_SHA256 = (
-    "c7e2d75fdeb3d825d3074351d369870c4578375aabff6ba94dcea0db8ed5883f"
+    "8306017942f014892f3e9652d63a51c7ea7240cdf1e88c2e437255395483e38f"
+)
+THETA0_V3_BOOTSTRAP_PROTOCOL_ID = (
+    "f5c33f5c94f90bc701e8306193da790054a2af29196499bd91e1689d68841d26"
 )
 
-_PROTOCOL_FILENAME = "relationship_product_horizon_theta0_v3_bootstrap_v1.json"
+_PROTOCOL_FILENAME = "relationship_product_horizon_theta0_v3_bootstrap_v2.json"
 _SCHEDULE_FILENAME = "parent_schedule.json"
 _TRACE_FILENAME = "theta0_v3_trace.jsonl"
 _TRANSITION_FILENAME = "federated_transition_bundle.json"
@@ -111,11 +114,18 @@ _BASE_OUTPUT_FILES = frozenset(
 )
 _SUCCESS_OUTPUT_FILES = frozenset({*_BASE_OUTPUT_FILES, _THETA_FILENAME})
 _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[4]
-_IMPLEMENTATION_OWNED_PATHS = (
+_OWNER_RELATIVE_PATH = (
     "packages/lifeform-evolution/src/lifeform_evolution/"
-    "relationship_product_horizon_theta0_v3_bootstrap.py",
+    "relationship_product_horizon_theta0_v3_bootstrap.py"
+)
+_IMPLEMENTATION_OWNED_PATHS = (
+    "packages/vz-contracts/src/volvence_zero/runtime/kernel.py",
+    "packages/vz-temporal/src/volvence_zero/temporal/interface.py",
+    "packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/"
+    "relationship_product_pulse.py",
+    _OWNER_RELATIVE_PATH,
     "packages/lifeform-evolution/src/lifeform_evolution/protocols/"
-    "relationship_product_horizon_theta0_v3_bootstrap_v1.json",
+    "relationship_product_horizon_theta0_v3_bootstrap_v2.json",
     "scripts/run_relationship_product_horizon_theta0_v3_bootstrap.py",
 )
 _MATERIALIZATION_CLEAN_SCOPE = (
@@ -362,6 +372,7 @@ def load_relationship_product_horizon_theta0_v3_bootstrap_protocol(
             "owner",
             "purpose",
             "adaptive_lineage",
+            "retired_replay_lineage",
             "implementation_lineage",
             "source_v4_admission",
             "development_reader",
@@ -389,10 +400,13 @@ def load_relationship_product_horizon_theta0_v3_bootstrap_protocol(
     ):
         raise ValueError("theta0 v3 bootstrap protocol identity drifted")
     _validate_protocol(payload)
+    protocol_id = sha256_json(payload)
+    if protocol_id != THETA0_V3_BOOTSTRAP_PROTOCOL_ID:
+        raise ValueError("theta0 v3 bootstrap protocol canonical identity drifted")
     return RelationshipProductHorizonTheta0V3BootstrapProtocol(
         payload=payload,
         raw_bytes=raw,
-        protocol_id=sha256_json(payload),
+        protocol_id=protocol_id,
         raw_sha256=_sha256_bytes(raw),
     )
 
@@ -427,6 +441,33 @@ def _validate_protocol(payload: Mapping[str, object]) -> None:
             "rehearsal_execution_authorized": False,
         },
     )
+    _require_exact_contract(
+        payload["retired_replay_lineage"],
+        source="retired_replay_lineage",
+        expected={
+            "protocol_id": (
+                "9c48a8e3d17f59b8bf62a7868c390a8b81af9eb1aef8dfb3096e08ee58dc12b5"
+            ),
+            "protocol_raw_sha256": (
+                "c7e2d75fdeb3d825d3074351d369870c4578375aabff6ba94dcea0db8ed5883f"
+            ),
+            "implementation_git_commit": (
+                "79891e3b6cab59e29de037570d1d4605bd1346ff"
+            ),
+            "materialized_manifest_artifact_id": (
+                "0c596cd5f0a13d26dca5aeee5a3f83f2e32dc20b7d31991708cf1797e326076c"
+            ),
+            "validate_existing_passed": False,
+            "scientific_terminal": False,
+            "downstream_authority": False,
+            "partial_resume_allowed": False,
+            "output_root_reuse_allowed": False,
+            "failure_reason": (
+                "temporal_delivery_wall_clock_timestamp_made_forced_receipt_"
+                "and_downstream_lineage_non_replayable"
+            ),
+        },
+    )
     implementation = cal._mapping(
         payload["implementation_lineage"], "implementation_lineage"
     )
@@ -437,6 +478,8 @@ def _validate_protocol(payload: Mapping[str, object]) -> None:
             "materialize_clean_scope",
             "owned_paths",
             "validate_commit_must_exist",
+            "validate_head_must_equal_implementation_commit",
+            "validate_clean_scope_must_match_implementation_commit",
             "validate_owned_paths_must_match_commit",
         },
         "implementation_lineage",
@@ -445,6 +488,12 @@ def _validate_protocol(payload: Mapping[str, object]) -> None:
         implementation["materialize_head_must_equal_implementation_commit"]
         is not True
         or implementation["validate_commit_must_exist"] is not True
+        or implementation["validate_head_must_equal_implementation_commit"]
+        is not True
+        or implementation[
+            "validate_clean_scope_must_match_implementation_commit"
+        ]
+        is not True
         or implementation["validate_owned_paths_must_match_commit"] is not True
         or tuple(cal._list(implementation["owned_paths"], "owned_paths"))
         != _IMPLEMENTATION_OWNED_PATHS
@@ -530,6 +579,33 @@ def _validate_protocol(payload: Mapping[str, object]) -> None:
         )
     ):
         raise ValueError("theta0 v3 durability claim ceiling drifted")
+    _require_exact_contract(
+        payload["root_owner_replay"],
+        source="root_owner_replay",
+        expected={
+            "owner_reset_input": "literal_none",
+            "onboarding_count_per_root": 4,
+            "onboarding_order": "source_v4_public_onboarding_array_order",
+            "segment_count_per_root": 1,
+            "segment_scope": "source_v4_subject_id",
+            "segment_start_equals_post_onboarding_snapshot": True,
+            "settlement_handoff_required": True,
+            "temporal_delivery_timestamp_owner": "SelfTemporalModule",
+            "temporal_delivery_timestamp_clock": (
+                "protocol_frozen_offline_logical_milliseconds"
+            ),
+            "temporal_delivery_timestamp_formula": (
+                "root_index_times_20_plus_4_plus_2_times_decision_index"
+            ),
+            "temporal_delivery_timestamp_globally_strictly_increasing": True,
+            "temporal_delivery_precedes_credit_timestamp_by_ms": 1,
+            "wall_clock_temporal_delivery_timestamp_forbidden": True,
+            "credit_timestamp_formula": (
+                "root_index_times_20_plus_5_plus_2_times_decision_index"
+            ),
+            "credit_timestamp_globally_strictly_increasing": True,
+        },
+    )
     claims = cal._mapping(payload["claims"], "claims")
     if any(type(value) is not bool for value in claims.values()):
         raise ValueError("theta0 v3 claims must be exact booleans")
@@ -992,6 +1068,10 @@ def _credit_timestamp(root_index: int, decision_index: int) -> int:
     return root_index * 20 + 5 + 2 * decision_index
 
 
+def _temporal_delivery_timestamp(root_index: int, decision_index: int) -> int:
+    return root_index * 20 + 4 + 2 * decision_index
+
+
 def _canonical_bytes(payload: object) -> bytes:
     return (canonical_json(payload) + "\n").encode("utf-8")
 
@@ -1023,12 +1103,9 @@ def _verify_implementation_checkout(
     *,
     protocol: RelationshipProductHorizonTheta0V3BootstrapProtocol,
     implementation_git_commit: str,
-    require_current_head: bool,
 ) -> _ImplementationCheckoutReceipt:
     commit = cal._git_commit(implementation_git_commit)
-    expected_owner = (
-        _REPOSITORY_ROOT / _IMPLEMENTATION_OWNED_PATHS[0]
-    ).resolve(strict=True)
+    expected_owner = (_REPOSITORY_ROOT / _OWNER_RELATIVE_PATH).resolve(strict=True)
     if os.path.normcase(str(expected_owner)) != os.path.normcase(
         str(pathlib.Path(__file__).resolve(strict=True))
     ):
@@ -1045,10 +1122,9 @@ def _verify_implementation_checkout(
     ).stdout.strip()
     if resolved_commit != commit:
         raise ValueError("theta0 v3 implementation commit does not exist exactly")
-    if require_current_head:
-        head = _run_git("rev-parse", "HEAD").stdout.strip()
-        if head != commit:
-            raise ValueError("theta0 v3 implementation commit does not match HEAD")
+    head = _run_git("rev-parse", "HEAD").stdout.strip()
+    if head != commit:
+        raise ValueError("theta0 v3 implementation commit does not match HEAD")
 
     implementation = cal._mapping(
         protocol.payload["implementation_lineage"], "implementation_lineage"
@@ -1070,24 +1146,23 @@ def _verify_implementation_checkout(
                 "theta0 v3 owned implementation differs from frozen commit"
             )
         raise RuntimeError("theta0 v3 git diff failed for owned implementation")
-    if require_current_head:
-        clean_scope = tuple(
-            cal._list(
-                implementation["materialize_clean_scope"],
-                "materialize_clean_scope",
-            )
+    clean_scope = tuple(
+        cal._list(
+            implementation["materialize_clean_scope"],
+            "materialize_clean_scope",
         )
-        dirty = _run_git(
-            "status",
-            "--porcelain=v1",
-            "--untracked-files=all",
-            "--",
-            *clean_scope,
-        ).stdout
-        if dirty:
-            raise ValueError(
-                "theta0 v3 materialization code scope differs from frozen HEAD"
-            )
+    )
+    dirty = _run_git(
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--",
+        *clean_scope,
+    ).stdout
+    if dirty:
+        raise ValueError(
+            "theta0 v3 materialization code scope differs from frozen HEAD"
+        )
     owned_blob_ids = tuple(
         (path, _run_git("rev-parse", f"{commit}:{path}").stdout.strip())
         for path in owned_paths
@@ -1373,6 +1448,7 @@ async def _run_bootstrap(
     postaction_count = 0
     owner_handoff_count = 0
     owner_writeback_change_count = 0
+    previous_temporal_delivery_timestamp = -1
     previous_credit_timestamp = -1
     delivered_action_counts: Counter[str] = Counter()
     forecast_ids: set[str] = set()
@@ -1483,16 +1559,28 @@ async def _run_bootstrap(
                 frozen_policy=frozen_policy,
                 assignment=assignment,
             )
+            temporal_delivery_timestamp = _temporal_delivery_timestamp(
+                root_index,
+                decision.decision_index,
+            )
+            if temporal_delivery_timestamp <= previous_temporal_delivery_timestamp:
+                raise RuntimeError(
+                    "theta0 v3 temporal delivery timestamps are not increasing"
+                )
+            previous_temporal_delivery_timestamp = temporal_delivery_timestamp
             preaction = await prepare_relationship_product_v2_forced_collection_preaction(
                 request=_request(subject_id=root.subject_id, decision=decision),
                 owner_persistence_snapshot=owner_persistence,
                 forecast_runtime=dependencies.forecast_runtime,
                 authorization=authorization,
                 substrate_snapshot=cal._placeholder_substrate(),
+                temporal_delivery_timestamp_ms=temporal_delivery_timestamp,
             )
             if (
                 preaction.frozen_policy != frozen_policy
                 or preaction.forced_exposure.assignment != assignment
+                or preaction.execution_receipt.temporal_delivery.timestamp_ms
+                != temporal_delivery_timestamp
                 or preaction.delivered_action_id
                 != (
                     preaction.forecast.recommended_action_id
@@ -1525,6 +1613,7 @@ async def _run_bootstrap(
                     "forecast_id": preaction.forecast.forecast_id,
                     "forced_exposure_id": preaction.forced_exposure.exposure_id,
                     "forced_receipt_id": preaction.execution_receipt.receipt_id,
+                    "temporal_delivery_timestamp_ms": temporal_delivery_timestamp,
                     "delivered_action_id": preaction.delivered_action_id,
                     "owner_input_persistence_sha256": owner_input_sha,
                     "owner_forecast_poststate_sha256": (
@@ -1561,6 +1650,10 @@ async def _run_bootstrap(
                 raise RuntimeError("theta0 v3 selected environment branch drifted")
             commitment_ids.add(branch.commitment_id)
             timestamp = _credit_timestamp(root_index, decision.decision_index)
+            if timestamp - temporal_delivery_timestamp != 1:
+                raise RuntimeError(
+                    "theta0 v3 temporal delivery did not precede credit by one"
+                )
             if timestamp <= previous_credit_timestamp:
                 raise RuntimeError("theta0 v3 credit timestamps are not increasing")
             previous_credit_timestamp = timestamp
@@ -2029,6 +2122,16 @@ def _build_manifest(
         "postaction_count": replay.postaction_count,
         "owner_handoff_count": replay.owner_handoff_count,
         "owner_writeback_change_count": replay.owner_writeback_change_count,
+        "temporal_delivery_timestamp_clock": (
+            "protocol_frozen_offline_logical_milliseconds"
+        ),
+        "temporal_delivery_timestamp_formula": (
+            "root_index_times_20_plus_4_plus_2_times_decision_index"
+        ),
+        "temporal_delivery_timestamp_count": replay.preaction_count,
+        "temporal_delivery_timestamp_min": _temporal_delivery_timestamp(0, 0),
+        "temporal_delivery_timestamp_max": _temporal_delivery_timestamp(111, 7),
+        "temporal_delivery_precedes_credit_timestamp_by_ms": 1,
         "credit_count": len(replay.federated_collection.gate_batch.credits),
         "delivered_action_counts": replay.delivered_action_counts,
         "published_theta0_artifact_id": (
@@ -2071,7 +2174,6 @@ def materialize_relationship_product_horizon_theta0_v3_bootstrap(
     implementation_checkout = _verify_implementation_checkout(
         protocol=protocol,
         implementation_git_commit=implementation_git_commit,
-        require_current_head=True,
     )
     commit = implementation_checkout.implementation_git_commit
     root = pathlib.Path(output_dir)
@@ -2206,7 +2308,6 @@ def _validate_artifact(
     implementation_checkout = _verify_implementation_checkout(
         protocol=dependencies.protocol,
         implementation_git_commit=commit,
-        require_current_head=False,
     )
     expected_owned_blob_ids = [
         {"path": path, "git_blob_id": blob_id}
@@ -2322,6 +2423,7 @@ __all__ = [
     "RelationshipProductHorizonTheta0V3BootstrapProtocol",
     "RelationshipProductHorizonTheta0V3Bundle",
     "THETA0_V3_BOOTSTRAP_MANIFEST_SCHEMA_VERSION",
+    "THETA0_V3_BOOTSTRAP_PROTOCOL_ID",
     "THETA0_V3_BOOTSTRAP_PROTOCOL_SCHEMA_VERSION",
     "load_relationship_product_horizon_theta0_v3_bootstrap_protocol",
     "load_relationship_product_horizon_theta0_v3_bundle",

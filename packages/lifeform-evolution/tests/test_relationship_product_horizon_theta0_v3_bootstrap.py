@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import ast
 from collections import Counter
 import inspect
@@ -51,10 +52,24 @@ def test_protocol_freezes_non_rehearsal_adaptive_claim_ceiling(
 ) -> None:
     loaded = subject.load_relationship_product_horizon_theta0_v3_bootstrap_protocol()
     assert loaded.raw_sha256 == subject.THETA0_V3_BOOTSTRAP_PROTOCOL_RAW_SHA256
+    assert loaded.protocol_id == subject.THETA0_V3_BOOTSTRAP_PROTOCOL_ID
+    assert loaded.payload["schema_version"].endswith(".v2")
     assert loaded.payload["adaptive_lineage"]["rehearsal_execution_authorized"] is False
     assert loaded.payload["adaptive_lineage"]["source_v4_unseen_evidence"] is False
     assert loaded.payload["implementation_lineage"]["owned_paths"] == list(
         subject._IMPLEMENTATION_OWNED_PATHS
+    )
+    assert (
+        loaded.payload["implementation_lineage"][
+            "validate_head_must_equal_implementation_commit"
+        ]
+        is True
+    )
+    assert (
+        loaded.payload["implementation_lineage"][
+            "validate_clean_scope_must_match_implementation_commit"
+        ]
+        is True
     )
     assert loaded.payload["development_reader"]["condition_reader_qualified"] is False
     assert loaded.payload["gate_v2"]["feature_order"] == list(
@@ -67,7 +82,29 @@ def test_protocol_freezes_non_rehearsal_adaptive_claim_ceiling(
     assert loaded.payload["claims"]["learnable_effect"] is False
     assert loaded.payload["claims"]["steerable_effect"] is False
     assert loaded.payload["claims"]["campaign_execution_authorized"] is False
-
+    assert loaded.payload["retired_replay_lineage"] == {
+        "protocol_id": (
+            "9c48a8e3d17f59b8bf62a7868c390a8b81af9eb1aef8dfb3096e08ee58dc12b5"
+        ),
+        "protocol_raw_sha256": (
+            "c7e2d75fdeb3d825d3074351d369870c4578375aabff6ba94dcea0db8ed5883f"
+        ),
+        "implementation_git_commit": (
+            "79891e3b6cab59e29de037570d1d4605bd1346ff"
+        ),
+        "materialized_manifest_artifact_id": (
+            "0c596cd5f0a13d26dca5aeee5a3f83f2e32dc20b7d31991708cf1797e326076c"
+        ),
+        "validate_existing_passed": False,
+        "scientific_terminal": False,
+        "downstream_authority": False,
+        "partial_resume_allowed": False,
+        "output_root_reuse_allowed": False,
+        "failure_reason": (
+            "temporal_delivery_wall_clock_timestamp_made_forced_receipt_"
+            "and_downstream_lineage_non_replayable"
+        ),
+    }
     payload = json.loads(
         subject.relationship_product_horizon_theta0_v3_bootstrap_protocol_path().read_text(
             encoding="utf-8"
@@ -80,6 +117,101 @@ def test_protocol_freezes_non_rehearsal_adaptive_claim_ceiling(
         subject.load_relationship_product_horizon_theta0_v3_bootstrap_protocol(
             mutated
         )
+
+
+def test_protocol_freezes_temporal_delivery_logical_clock_before_credit() -> None:
+    protocol = subject.load_relationship_product_horizon_theta0_v3_bootstrap_protocol()
+    replay = protocol.payload["root_owner_replay"]
+
+    assert replay["temporal_delivery_timestamp_owner"] == "SelfTemporalModule"
+    assert replay["temporal_delivery_timestamp_formula"] == (
+        "root_index_times_20_plus_4_plus_2_times_decision_index"
+    )
+    assert replay["wall_clock_temporal_delivery_timestamp_forbidden"] is True
+    timestamps = tuple(
+        subject._temporal_delivery_timestamp(root_index, decision_index)
+        for root_index in range(112)
+        for decision_index in range(8)
+    )
+    credits = tuple(
+        subject._credit_timestamp(root_index, decision_index)
+        for root_index in range(112)
+        for decision_index in range(8)
+    )
+
+    assert len(timestamps) == len(set(timestamps)) == 896
+    assert timestamps == tuple(sorted(timestamps))
+    assert timestamps[0] == 4
+    assert timestamps[-1] == 2238
+    assert all(
+        credit - temporal == 1
+        for temporal, credit in zip(timestamps, credits, strict=True)
+    )
+
+
+def test_owner_executes_and_ledgers_frozen_temporal_delivery_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class StopAfterFirstPreaction(RuntimeError):
+        pass
+
+    dependencies = _dependencies()
+    seed = subject._build_seed(dependencies.protocol)
+    parent, children = subject._build_federated_schedule(dependencies.public_view)
+    checkout = _checkout()
+    persisted_parent = subject._canonical_bytes(parent.to_payload())
+    durable_parent = subject._durable_parent_receipt(
+        protocol_id=dependencies.protocol.protocol_id,
+        implementation_git_commit="a" * 40,
+        implementation_checkout=checkout,
+        parent_schedule=parent,
+        persisted_raw=persisted_parent,
+    )
+    sink = cal._MemoryTraceSink()
+    ledger = subject._Ledger(sink)
+    original_append = subject._Ledger.append
+
+    def append_until_first_preaction(
+        self: subject._Ledger,
+        *,
+        record_type: str,
+        payload: dict[str, object],
+    ) -> object:
+        row = original_append(self, record_type=record_type, payload=payload)
+        if record_type == "preaction":
+            raise StopAfterFirstPreaction
+        return row
+
+    monkeypatch.setattr(subject._Ledger, "append", append_until_first_preaction)
+
+    with pytest.raises(StopAfterFirstPreaction):
+        asyncio.run(
+            subject._run_bootstrap(
+                dependencies=dependencies,
+                seed_artifact=seed,
+                parent_schedule=parent,
+                child_schedules=children,
+                durable_parent=durable_parent,
+                implementation_checkout=checkout,
+                implementation_git_commit="a" * 40,
+                ledger=ledger,
+            )
+        )
+
+    rows = tuple(json.loads(line) for line in ledger.raw_bytes.splitlines())
+    assert tuple(row["record_type"] for row in rows) == (
+        "parent_schedule_durable",
+        "root_begin",
+        "onboarding_append",
+        "onboarding_append",
+        "onboarding_append",
+        "onboarding_append",
+        "preaction",
+    )
+    assert rows[-1]["temporal_delivery_timestamp_ms"] == 4
+    assert rows[-1]["forced_receipt_id"].startswith(
+        "relationship-product-v2-forced-receipt-sha256:"
+    )
 
 
 def test_public_only_schedule_and_seed_match_every_frozen_pin() -> None:
@@ -304,17 +436,15 @@ def test_git_lineage_requires_head_and_clean_materialization_scope(
     receipt = subject._verify_implementation_checkout(
         protocol=protocol,
         implementation_git_commit=commit,
-        require_current_head=True,
     )
     assert receipt.implementation_git_commit == commit
-    assert len(receipt.owned_blob_ids) == 3
+    assert len(receipt.owned_blob_ids) == len(subject._IMPLEMENTATION_OWNED_PATHS) == 6
 
     head = "c" * 40
     with pytest.raises(ValueError, match="does not match HEAD"):
         subject._verify_implementation_checkout(
             protocol=protocol,
             implementation_git_commit=commit,
-            require_current_head=True,
         )
 
     head = commit
@@ -323,7 +453,6 @@ def test_git_lineage_requires_head_and_clean_materialization_scope(
         subject._verify_implementation_checkout(
             protocol=protocol,
             implementation_git_commit=commit,
-            require_current_head=True,
         )
 
 
@@ -343,6 +472,12 @@ def test_actual_child_transition_counts_drive_terminal_serializers() -> None:
     bootstrap_source = inspect.getsource(subject._run_bootstrap)
     assert "assignment.receipt_id" not in bootstrap_source
     assert "preaction.forced_exposure.assignment_receipt_id" in bootstrap_source
+    assert "temporal_delivery_timestamp_ms=temporal_delivery_timestamp" in (
+        bootstrap_source
+    )
+    assert '"temporal_delivery_timestamp_ms": temporal_delivery_timestamp' in (
+        bootstrap_source
+    )
 
 
 def test_output_root_must_be_disjoint_and_closed_trace_must_match(

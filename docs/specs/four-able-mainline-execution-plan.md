@@ -201,11 +201,11 @@ checkpoint 在 112/112 root 不同，Learnable 仍必须判
 `arm_degeneracy_invalid_contrast_no_claim`；参数移动不是 treatment。frozen_theta0 与 strict_noop 有
 4,325/4,480 actual divergence，Steerable 仅得到 development GO candidate，不升级为能力效果。
 
-theta0 v3 的机制路线冻结为三个小包；前两包已经闭合，第三包的 owner / protocol / CLI
-已由 `9a6dfc04` 冻结。首个 create-only materialization 在首条持久化 preaction 前因 typed assignment
-ID 字段误用而 implementation-failed，未形成科学终局或 theta0；该根禁止续跑/覆盖。本修正提交只替换为
-既有 owner 发布的 `forced_exposure.assignment_receipt_id`，不改变 protocol、rate、cap、schedule、threshold、
-checkpoint、source 或 reader。新根完成执行终局后仍须独立冻结并执行 permanent admission，全程不恢复彩排：
+theta0 v3 的机制路线冻结为三个小包；gate 与 pulse 已闭合。protocol.v1 attempt01 因 typed assignment
+ID 误用在首条 persisted preaction 前失败；attempt02 虽完成 112×8 materialization，却因 temporal publisher
+墙钟进入 forced receipt 而未通过 byte-exact `validate-existing`。两根均禁止续跑/覆盖且无下游 authority。
+live protocol.v2 另立 identity，冻结 owner-side logical clock 与完整 publisher/pulse lineage；下一步直接使用
+新 create-only 根做正式 materialization + external 双 ID 复验，全程不恢复 2–3 item 彩排：
 
 1. **已闭合** versioned gate operator v2 与 add-only federated parent：无 free bias、移除恒定 support、四个 centred typed feature；只消费完整
    `RelationshipActionCommonBaselineCredit`，以完整 fixed-balanced schedule membership 计算事前 half-centred
@@ -234,22 +234,21 @@ checkpoint、source 或 reader。新根完成执行终局后仍须独立冻结�
    `FrozenPolicy`。本机制只能证明 membership/order/timestamp ordering；parent 在首个 forecast/outcome 前 create-only
    持久化必须由第三包的唯一 materialization receipt 另证；该 receipt 只能从 actual APPLY/WITHHOLD 建立
    accepted persisted lineage 内 `child_transition_count=0`，不证明 external/OS 路径不存在；
-3. **实现/协议已冻结，首个 implementation attempt 已失败，待修正后新根完成** theta0 v3 owner/protocol：protocol
-   `9c48a8e3…c12b`（raw `c7e2d75f…883f`）事前冻结 bootstrap `1/512`、root-online `1/4`、
+3. **protocol.v2/实现已冻结，待新根正式 materialization + validation** theta0 v3 owner：live protocol
+   `f5c33f5c…1d26`（raw `83060179…e38f`）事前冻结 bootstrap `1/512`、root-online `1/4`、
    cap `4.0`、一个含 112 个 provenance child / 896 credit 的全局 federated development parent，以及
-   cap-hit、零 informative update、非有限/全零参数与不完整计数的 FAIL 门。在创建输出根之前，owner 必须证明
-   supplied commit 存在且等于 HEAD、owner/protocol/CLI 的 git blob 属于该 commit，且 `packages` 与本 CLI
+   cap-hit、零 informative update、非有限/全零参数与不完整计数的 FAIL 门。materialize 与 validate 都必须证明
+   supplied commit 存在且等于 HEAD，runtime/temporal/pulse/theta/protocol/CLI 六个 git blob 属于该 commit，且 `packages` 与本 CLI
    无 tracked/untracked 漂移；输出根还必须与 source/reader 冻结根及仓库 `packages/scripts` 代码域隔离。parent schedule create-only 写入、
    flush/fsync、同句柄回读、close/reopen byte-exact 后，durable owner-path receipt 才能成为 ledger row 0；
    每 root 从字面 `None` 重放四条 onboarding，448 次 onboarding write、784 次段内 handoff 和 896 次
-   outcome writeback 均为终局门。收齐后只调用一次 parent transition factory，最终 child count 必须来自
+   outcome writeback 均为终局门。每拍 temporal delivery 时间固定 `root*20+4+2*decision`，credit 固定晚 1；
+   896 个 producer timestamp 全局递增，禁止 wall clock、consumer replace 与 validator normalization。收齐后只调用一次 parent transition factory，最终 child count 必须来自
    APPLY/WITHHOLD actual receipt，不得硬编码为零；closed trace 还必须在 transition/manifest 前 reopen byte-exact。
-   定向 model-free tests 只闭合这些代码/契约与固定 schedule/seed identity。commit `9a6dfc04` 的首个
-   create-only attempt 在完成 parent receipt、root 0 的四条 onboarding、但尚未持久化首条 preaction 时，因读取不存在的
-   `RelationshipActionGateV2AssignmentReceipt.receipt_id` 抛出 `AttributeError`；当时一个 public preaction/forecast/forced
-   exposure 已在内存构造，但 persisted preaction=0，environment/sealed outcome/PE/credit 均未打开。三文件 partial root
-   原样保留，失败报告 SHA-256 为 `421ad709…e733e`。这不是 scientific terminal，也没有 theta0 v3 artifact；durable 完整 federation、
-   root reset 与 accepted-lineage 无 child transition 仍为 false，只能由修正 implementation commit 上的新 create-only 根建立。
+   v1 attempt01 三文件 partial root 与报告 `421ad709…e733e` 原样保留。attempt02 六文件约 41MB 根也只在本机
+   原样保留：materialization manifest `0c596cd5…076c` 的正字段被随后 validation FAIL 否决；首差在 ledger row 6
+   `temporal_projection.timestamp_ms` 及派生 forced receipt ID，compact 报告 `a795fdcf…5cf7`。因此当前仍没有
+   accepted theta0 v3 artifact，durable 完整 federation、root reset 与 accepted-lineage 无 child transition 仍为 false。
 
 三个机制包之后独立执行 permanent treatment-reachability admission；它只读新 source 的
 public/outcome-free surface，不生成 outcome/PE/credit/update，不是 rehearsal。
@@ -517,3 +516,12 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   112×8 materialization，随即用外部
   protocol/artifact ID 纯读取复验；之后才冻结 permanent public/outcome-free treatment-reachability admission。
   彩排继续关闭，admission 仍不得被命名为 rehearsal。
+- 2026-08-27 · 上述第二次 attempt 已完成 112×8 materialization，但自动 `validate-existing` 在 ledger row 6
+  因 forced receipt 内 `temporal_projection.timestamp_ms` 使用墙钟而 byte drift；该 timestamp 继续传染 child/federated
+  collection、transition、theta 与 manifest identity，故拒绝 validator normalization。attempt02 manifest
+  `0c596cd5…076c` 不被接受，六文件根本机原样保留，compact failure report `a795fdcf…5cf7`，全部下游 claim=false。
+  add-only runtime `publish_at`、TrackTemporal standalone publisher 与 v2 forced pulse logical-time seam 已分别闭合；live
+  theta protocol.v2 `f5c33f5c…1d26`（raw `83060179…e38f`）冻结 `temporal=root*20+4+2*decision`、
+  `credit=temporal+1`、runtime/temporal/pulse/theta/protocol/CLI 六 blob lineage，以及 materialize/validate 共用 exact
+  implementation HEAD + clean scope。下一动作是新 create-only 根的正式
+  materialization + external 双 ID validation；不插入彩排，v1 两次失败均不重写。

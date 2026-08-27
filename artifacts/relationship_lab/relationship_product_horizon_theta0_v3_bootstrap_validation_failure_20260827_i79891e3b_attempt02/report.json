@@ -1,0 +1,78 @@
+{
+  "accepted_artifact_id": null,
+  "attempt_claims_accepted": false,
+  "campaign_execution_count": 0,
+  "corrective_protocol_id": "f5c33f5c94f90bc701e8306193da790054a2af29196499bd91e1689d68841d26",
+  "corrective_protocol_raw_sha256": "8306017942f014892f3e9652d63a51c7ea7240cdf1e88c2e437255395483e38f",
+  "cuda_execution_count": 0,
+  "downstream_authority": false,
+  "effect_claim_authorized": false,
+  "failure_class": "implementation_replay_contract_error_after_complete_materialization",
+  "first_replay_difference": {
+    "actual_forced_receipt_id": "relationship-product-v2-forced-receipt-sha256:dccc96daef5b52d827f8c591abb54fb4630b850495e19c74f1572125dfaf29ba",
+    "actual_ledger_row_id": "0e7003a48fc47560bccc520151c865416689b0e2ebea1ef2fe6f6769578a216a",
+    "differing_owner_field": "temporal_projection.timestamp_ms",
+    "differing_record_type": "preaction",
+    "physical_sequence_index": 6,
+    "same_assignment_forecast_exposure_owner_fields": true,
+    "validator_exception": {
+      "message": "theta0 v3 deterministic ledger bytes drifted",
+      "type": "ValueError"
+    }
+  },
+  "implementation_git_commit": "79891e3b6cab59e29de037570d1d4605bd1346ff",
+  "materialization_manifest": {
+    "artifact_id": "0c596cd5f0a13d26dca5aeee5a3f83f2e32dc20b7d31991708cf1797e326076c",
+    "child_transition_count": 0,
+    "completed_root_count": 112,
+    "credit_count": 896,
+    "published_theta0_artifact_id": "relationship-action-gate-v2-artifact-sha256:dded60c6fd97232c7fe121dd3a8fcd429818db366fb48dac4f6030ef782fd2f7",
+    "status": "development_theta0_v3_federated_materialized_treatment_reachability_admission_next_effect_not_tested",
+    "terminal_failure_reasons": []
+  },
+  "model_output_count": 0,
+  "output_root": "artifacts/relationship_lab/relationship_product_horizon_theta0_v3_bootstrap_20260827_p9c48a8e3_i79891e3b_attempt02",
+  "output_root_committed": false,
+  "output_root_retained_local": true,
+  "partial_resume_allowed": false,
+  "protocol_id": "9c48a8e3d17f59b8bf62a7868c390a8b81af9eb1aef8dfb3096e08ee58dc12b5",
+  "protocol_raw_sha256": "c7e2d75fdeb3d825d3074351d369870c4578375aabff6ba94dcea0db8ed5883f",
+  "rehearsal_execution_count": 0,
+  "report_schema_version": "relationship-product-horizon-theta0-v3-bootstrap-validation-failure.v1",
+  "retry_boundary": "Do not resume, overwrite, delete, or admit this root. The materialization manifest records what the implementation produced, but validate-existing did not accept those bytes. A new protocol identity must freeze a producer-owned deterministic temporal delivery clock, pin the runtime/temporal/pulse implementation lineage, and use a new create-only output root. Rates, cap, schedule, threshold, checkpoint, source, reader, and effect claim ceiling remain unchanged.",
+  "root_inventory": [
+    {
+      "path": "federated_transition_bundle.json",
+      "raw_bytes": 23442564,
+      "raw_sha256": "400c6c5163c11676b8dee2c1b89afe9e3d70a2478349ee20c485f5c5eaf1e82d"
+    },
+    {
+      "path": "manifest.json",
+      "raw_bytes": 8626,
+      "raw_sha256": "e1fff4b1555cdf83898f33e2dc8e913d1801f4b4ab98e2e713ca3efd9f5b530c"
+    },
+    {
+      "path": "parent_schedule.json",
+      "raw_bytes": 382326,
+      "raw_sha256": "c1f8680644072ac666f44eafe44e1ca8979e03525550d0c110e84eb51df6fdba"
+    },
+    {
+      "path": "protocol.json",
+      "raw_bytes": 13129,
+      "raw_sha256": "c7e2d75fdeb3d825d3074351d369870c4578375aabff6ba94dcea0db8ed5883f"
+    },
+    {
+      "path": "theta0_artifact.json",
+      "raw_bytes": 1527,
+      "raw_sha256": "82bea8466044501e3d41cb5c056de8b1a17a863651f43410dded812a646b0861"
+    },
+    {
+      "path": "theta0_v3_trace.jsonl",
+      "raw_bytes": 17036188,
+      "raw_sha256": "080fd071385ae44457f840b2a149f6074eca4cf8b92a322eca33957571944990"
+    }
+  ],
+  "scientific_terminal": false,
+  "treatment_reachability_claim_authorized": false,
+  "validate_existing_passed": false
+}
