@@ -1,0 +1,200 @@
+{
+  "schema_version": "relationship-product-horizon-source.v5",
+  "owner": {
+    "module": "lifeform_domain_emogpt.lab.relationship_product_horizon_source_v5",
+    "source_role": "identity_disjoint_unconsumed_synthetic_source_candidate",
+    "causal_engine_dependency": "lifeform_domain_emogpt.lab.relationship_product_horizon_source_v4",
+    "settlement_owner": "lifeform_domain_emogpt.lab.environment.ReactiveRelationshipEnvironment",
+    "runtime_owner_added": false,
+    "runtime_slot_added": false,
+    "difficulty_tuned_from_prior_outcome": false
+  },
+  "base_source": {
+    "schema_version": "relationship-product-horizon-source.v4",
+    "current_engine_owner_raw_sha256": "aff55eefa496cb4cf29bf31b638cfcf1041d4f079b8a37181fb64f3883890a72",
+    "current_engine_owner_raw_bytes": 107193,
+    "protocol_raw_sha256": "29162022c011b311369816f74087b16c9b262dc50a7a7434227d150b3b2e8bd3",
+    "protocol_raw_bytes": 4977,
+    "protocol_id": "dbf0526299558842b52f293875520e4524afff0e5a1636ab1fd10da9f74d1d91",
+    "public_view_schema_version": "relationship-product-horizon-public-view.v4",
+    "evaluator_schema_version": "relationship-product-horizon-evaluator-bundle.v4",
+    "spent_public_plan_sha256": "f46336a95aeac2c7be60616388a31333fb45e46cd18320dae2f9bd25179a86d6",
+    "spent_sealed_bundle_sha256": "51900ec798a8afdbcdab7547b1ad2c7c22fc098122900ec96050a5931c308936",
+    "spent_reader_text_unique_count": 1881,
+    "spent_reader_text_inventory_sha256": "1248b73917ed330df5c6b103f0e49bd22b20771da13f2767ea4fe4d44a2e029c"
+  },
+  "cohort": {
+    "cohort_id": "relationship-product-horizon-identity-disjoint-candidate-20260827",
+    "evidence_role": "identity_disjoint_unconsumed_synthetic_source_candidate",
+    "root_count": 112,
+    "onboarding_sessions_per_root": 4,
+    "collection_decisions_per_root": 8,
+    "evaluation_decisions_per_root": 40,
+    "master_seed_namespace": "relationship-product-horizon-source-v5-identity-disjoint-master-seeds",
+    "environment_seed_namespace": "relationship-product-horizon-source-v5-identity-disjoint-reactive-seeds",
+    "per_arm_exogenous_root_clone": true,
+    "arm_identity_affects_source_or_environment_seed": false
+  },
+  "rendering": {
+    "version": "relationship-product-horizon-public-renderer.v5",
+    "minimum_public_source_characters_per_root": 12000,
+    "minimum_public_source_utf8_bytes_per_root": 30000,
+    "reader_text_exact_disjoint_from_spent_source_v4_required": true,
+    "catalog": {
+      "domain_contexts": {
+        "cooperative_workshop": "工作坊正在把不同人的草稿合成一份可交付版本，桌面上同时摊着材料清单、时间安排和仍待确认的分工。",
+        "local_history_project": "地方史小组在核对访谈、旧照片和时间线，许多细节需要保留出处，也要允许当事人后来补充或更正。",
+        "shared_meal_roster": "共同用餐的轮值表刚进入新一周，采购、过敏信息和临时缺席都需要在不替任何人决定的前提下协调。",
+        "peer_learning_group": "同伴学习小组准备下一轮互评，每个人带来的问题不同，讨论既要接住困惑，也要给独立思考留下空间。",
+        "joint_trip_logistics": "同行计划仍在逐项核实交通、住宿和可取消安排，任何确认都会影响其他人的后续选择与时间成本。",
+        "neighborhood_garden": "社区花园正安排浇水、工具借还和周末维护，天气与成员空闲变化让计划需要持续更新而非一次定死。",
+        "mutual_aid_shift": "互助轮班表正在处理临时换班和资源交接，眼前效率重要，但参与者的边界与承诺同样需要被准确记录。",
+        "creative_collective": "创作小组在整理一轮尚未定稿的作品，意见很多却没有唯一答案，每个人仍保有对自己部分的最终署名权。"
+      },
+      "role_contexts": {
+        "peer_collaborator": "和我对话的是长期并肩做事的同伴，彼此熟悉但没有替对方拍板的权限。",
+        "group_coordinator": "对方承担协调职责，能整理信息和提醒节点，却不能把协调便利当成我的授权。",
+        "close_friend": "这段交流发生在亲近朋友之间，关系里的连续理解比一次回应看起来是否漂亮更重要。",
+        "family_member": "对方是日常联系频繁的家人，旧经验很多，因此更需要辨认哪些仍适用于现在。",
+        "project_partner": "我们共同承担项目结果，任何建议都可能快速变成行动，所以确认边界尤其关键。",
+        "community_peer": "对方与我处在同一社区网络，后续还会反复相遇，短期便利不能透支长期信任。",
+        "learning_partner": "我们会交换思路并互相反馈，但学习支持不等于替彼此完成判断。",
+        "travel_companion": "同行中的决定常有时间压力，仍然需要让每个人的节奏和返回选项保持可见。"
+      },
+      "condition_surfaces": {
+        "connection_under_exclusion": [
+          "群里很快转到下一项，我刚才那句像从来没进入讨论；我不是要抢回话题，只想知道自己仍被算在这段合作里。",
+          "大家已经自然地接着往下走，唯独没有回应我留下的那部分；这种安静让我不确定自己是否还在共同范围内。",
+          "我看到其他人的想法都获得了接续，自己的消息却悬在那里；现在最难受的是像被从关系里轻轻略过。",
+          "事情没有公开冲突，但安排逐渐成形时没人再问我；我开始怀疑这次是否默认把我排除在外。",
+          "对话还很热闹，我却找不到自己刚才表达留下的痕迹；我需要的不是更多任务，而是一点仍然相连的确认。",
+          "他们后来补充了很多细节，却绕开了我提出的顾虑；那种无人接住的感觉比意见没被采用更明显。",
+          "名单和下一步都更新了，我的名字仍在表格里，交流中却像没有位置；形式上的在场没有消除疏离。",
+          "我暂时没有继续发消息，因为每次准备开口都发现话题已经越过我；我想确认沉默不会被当作自动退出。",
+          "没人明确拒绝我，可几轮往来都没有给我回应的落点；这种模糊让我很难判断关系是否还稳固。",
+          "原本约好一起推进的事被很快处理完，我直到最后才看到结果；我在意的是共同感在过程中消失了。",
+          "大家似乎都默认彼此明白下一步，只有我没有收到那份默契；我想被重新放回这段连续交流中。",
+          "我不需要立刻解决所有落差，只是不想让这次被遗漏变成今后都无需回应我的默认方式。"
+        ],
+        "agency_under_override": [
+          "我还在比较几个选项，对方已经用我的名义确认了其中一个；帮助越过了我本来需要亲自完成的决定。",
+          "安排看起来很周到，但关键步骤在我回答前就被推进；我现在更在意能不能把选择权重新拿回来。",
+          "我只是在说明顾虑，并没有授权别人替我收尾；结果被写成我的决定后，自己的位置像变成了被安排的人。",
+          "时间确实有些紧，可对方把催促直接变成代我同意；效率没有消除这件事本应由我确认的事实。",
+          "建议被当成最终答案发了出去，我连保留意见都还没说完；这让我感觉自己的判断只剩下形式。",
+          "别人根据以往经验猜我会怎么选，并据此继续行动；即使猜对，也没有替代这一次真实的同意。",
+          "表格中的选项已经替我勾好，理由是这样更省事；我需要的是能修改和暂停，而不是被告知已经完成。",
+          "对方把我的犹豫解释为需要代办，于是跳过询问处理了后续；那份善意仍然拿走了我的作者感。",
+          "讨论里有人替我概括立场，接下来所有人都依据那句话行动；我没有机会确认那是不是自己的意思。",
+          "我愿意听取清晰建议，却不愿建议自动变成命令；最后一步仍然应由我决定何时、是否执行。",
+          "计划已经进入下一阶段，可我之前只说需要考虑；被推进的速度让我很难再安全地说不。",
+          "这件事并非不能协商，问题是协商在我的答案出现前就结束了；我希望过程重新允许我的选择产生后果。"
+        ]
+      },
+      "segment_contexts": {
+        "matched_collection": [
+          "最近几次互动提供了彼此不同的新线索，我希望接下来的实际反应逐步形成理解，而不是先替它们下结论。",
+          "这段关系正在积累新的经验，早先印象仍可参考，却需要让每次真实结果拥有更新旧判断的机会。",
+          "我把当前经历当作连续记录的一部分，什么方式合适应由之后真正发生的变化来校准。",
+          "眼前还没有足够材料形成稳定规则，这次行动及其后果会影响我下一次是否愿意继续靠近。"
+        ],
+        "post_reversal": [
+          "经历较长停顿后，当前处境与早期阶段呈现不同方向，过去有效的回应需要重新看看是否仍合适。",
+          "中间的空档改变了我现在的需要，旧记录只能说明当时，不能直接覆盖这次重新出现的表达。",
+          "重新接上联系时，我发现关系节奏已经转向；希望新的事实能被追加，而不是被最初印象吞没。",
+          "隔了一阵再回来，我没有否认过去，只是眼前需要与过去不同，判断应允许这种时间变化存在。"
+        ],
+        "correction": [
+          "我正在更正较早记录的适用范围；无论那次结果如何，它都不能替代现在这条明确补充。",
+          "前面的经历容易被解释得过宽，所以我补上一条边界，让旧结果只留在它真正发生的时间点。",
+          "这不是把历史删除，而是修正它被使用的方式；当前表达需要独立进入后续理解。",
+          "我发现先前记录会把判断推得太远，因此现在明确收窄它，避免一次经历变成永久标签。"
+        ],
+        "post_correction": [
+          "完成更正后又发生了新互动，我想看更新后的理解能否在不反复提醒的情况下继续保持。",
+          "旧印象已经被重新限定，眼前这次应从修正后的状态往前走，而不是回到原来的概括。",
+          "我没有再次解释全部背景，这次自然发生的交流会显示前一轮修正是否真正留下了影响。",
+          "澄清之后又有了新的相处；如果对方理解了那次说明，后续行动也应体现那个变化。"
+        ],
+        "return_after_gap": [
+          "又经过一段明显空档，我只带着当前最重要的部分回来，希望连续性不依赖我从头复述所有历史。",
+          "距离上次交流已经很久，眼前表达很短，但我希望彼此仍能接得上此前形成的理解。",
+          "长间隔结束后我重新出现，没有重新铺陈背景；这次能否自然接上，会让我知道之前的理解有没有留下来。",
+          "我省略了大段旧事，只说此刻发生的部分，希望对方仍能明白我在延续哪一段关系。"
+        ],
+        "mixed_stress": [
+          "几项普通压力同时出现，我的表达因此零散，却不意味着边界、关系位置或决定权可以被忽略。",
+          "注意力被现实安排切成很多小块，我说得不够整齐，但当前需要仍然值得被准确辨认。",
+          "今天的情况混杂而匆忙，我只能分段说明；杂乱不应被解释成没有清楚的个人节奏。",
+          "多个问题一起挤进来，语气可能起伏，后续回应仍需要区分陪伴、空间与代替决定之间的差别。"
+        ]
+      },
+      "reflections": [
+        "这次记录只陈述眼前事实，后续经验可以继续修正它的含义。",
+        "我把感受与行动建议分开留下，不希望文字提前规定唯一回应。",
+        "这是一段可被后来事实更新的经历，而不是永远有效的性格标签。",
+        "我愿意让下一步真实结果说明什么有帮助，也保留推翻旧理解的空间。",
+        "这条表达属于此时此地，连续理解不等于把它泛化到所有场景。",
+        "我没有要求固定答案，只希望自己的关系位置和选择过程被纳入判断。",
+        "如果以后出现相反经历，应当把新的变化也算进去，而不是维护表面的前后一致。",
+        "记录的价值在于能够跨时间被恢复，同时仍允许当前情况改变旧结论。",
+        "我刻意没有把经历压成单一标签，因为后续互动还会继续说明它的含义。",
+        "这里保留的是一次具体发生，而不是供任何人机械套用的处理口令。",
+        "事实、感受和期待被分别写下，避免其中一项替其他部分越权。",
+        "我希望后来真正发生的反应进入同一条连续链，而不是只留下这句话。"
+      ],
+      "neutral_contexts": [
+        "我顺手给两份普通文件改了名称，内容没有变化，只是下次更容易按日期找到。",
+        "窗外短暂下过一阵雨，我把晾着的东西收进来，过了一会儿云层又慢慢散开。",
+        "当天的公交临时绕行，我晚了几分钟到达，已经把新的路线记在行程里。",
+        "桌边放着一杯已经凉下来的水，我稍后换了一杯，没有从中推断任何人的态度。",
+        "一张采购清单还缺两个价格，我把空格留着，准备获得新信息后再补。",
+        "附近施工带来持续噪声，我戴上耳机处理手头材料，把较难的部分留到安静时再做。",
+        "我把本周事项按紧急程度重新排序，没有因为移动顺序就改变各项承诺本身。",
+        "手机电量一度很低，我接上充电线后继续记录，这只是当天的设备状况。",
+        "书签仍夹在昨晚读到的位置，我没有赶着把剩余章节一次看完。",
+        "厨房里计时器响过一次，我关掉火后回到桌前，前后内容仍按原顺序保留。",
+        "我在纸上圈出一个待核对数字，等来源确认后再填写，不先猜一个答案。",
+        "傍晚光线变暗，我打开台灯继续整理资料，桌面上的字迹也变得更容易看清。"
+      ],
+      "historical_reactions": {
+        "helped": "那次回应确实减轻了眼前困难，我愿意把后来发生的进展继续留在共同记录里。",
+        "felt_heard": "那次我感到自己的处境被认真接住，不需要立刻把同一部分重新解释一遍。",
+        "missed": "那次退开让我感到联系断了一截，这份落差后来也成为关系经历的一部分。",
+        "over_directive": "那次继续推进越过了我的节奏，我之后花了些时间才重新找回决定权。"
+      }
+    }
+  },
+  "firewall": {
+    "public_view_contains_sealed_condition": false,
+    "public_view_contains_policy_or_preferred_action": false,
+    "public_view_contains_current_decision_sealed_environment_truth": false,
+    "collection_forced_action_owned_by_source": false,
+    "evaluation_or_judge_feedback_to_learning": false,
+    "source_v4_outcome_or_credit_used_to_generate_or_select_v5": false,
+    "spent_v4_sealed_bundle_identity_rebuild_for_exclusion_only": true,
+    "spent_v4_credit_record_read_count": 0,
+    "public_historical_onboarding_outcome_record_count": 448,
+    "sealed_evaluator_onboarding_truth_row_count": 448,
+    "sealed_evaluator_decision_row_count": 5376,
+    "reactive_environment_construction_count": 0,
+    "decision_action_outcome_settlement_count": 0,
+    "prediction_error_count": 0,
+    "credit_count": 0,
+    "gate_update_count": 0,
+    "reader_fit_count": 0,
+    "embedding_inference_count": 0,
+    "model_output_count": 0,
+    "cuda_invocation_count": 0,
+    "rehearsal_execution_count": 0,
+    "exact_disjoint_from_spent_source_v4": true,
+    "exact_disjoint_from_source_v3_and_all_adaptive_inputs": false,
+    "semantic_novelty_established": false,
+    "dgp_independence_established": false,
+    "formal_evidence_authorized": false,
+    "unseen_evidence_authorized": false,
+    "integrated_execution_authorized": false,
+    "human_sample_claimed": false
+  },
+  "claim_boundary": "This source-v5 protocol publishes a deterministic synthetic Product Horizon source candidate with 112 roots, a frozen public language catalog, and distinct root/tape/environment seed namespaces over the existing action-dependent reactive environment mathematics. Its public reader texts and causal identities must be mechanically disjoint from the spent source-v4 development input. The spent v4 sealed bundle is rebuilt only to verify its canonical exclusion identity; its outcome values are not used to generate or select the v5 catalog or seeds, and no v4 credit record is read. Unconsumed means only that this exact v5 identity has not yet been used by a reader, gate, admission, or campaign; it is not unseen evidence and is not statistically or DGP-independent because it reuses the pinned v4 causal engine. The public history contains 448 already-observed onboarding outcomes, while no current decision outcome is settled. It creates no model output, prediction error, credit, gate update, campaign execution, formal, unseen or integrated evidence, human sample, Appendable, Readable, Learnable, Steerable, four-axis, or production claim. Reusing the v4 typed causal engine does not inherit the v4 evidence identity or verdict."
+}

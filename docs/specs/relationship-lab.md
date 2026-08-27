@@ -2363,13 +2363,14 @@ durability 裁决 Learnable；参数 hash、probability movement、reachability 
 继续作为 spent/transductive lineage，不能供 permanent admission 重新命名为新输入。为此新增 identity-disjoint
 synthetic source-v5 candidate owner，而不把“尚未消费”写成 statistically/DGP-independent 或 unseen。该薄 owner
 `relationship-product-horizon-source.v5` owner，而不复制或回改 100K 行的 v4 engine：v5 protocol
-`7393f58b…6ab8`（raw `ae1b24f0…494b`）分列 current v4 causal owner/protocol bytes 与实际 spent v4
+`71dc2006…ad9b`（raw `33623a44…9134`）分列 current v4 causal owner/protocol bytes 与实际 spent v4
 public/sealed/inventory identity，另冻全新 public
 catalog、cohort 与 root/tape/environment namespace；owner 用 v5 identity 驱动 112×（4 onboarding + 8 collection +
 40 evaluation）typed evaluator，再从 evaluator owner rows 构造 public snapshot，并将 public trajectory hash 回接
-sealed manifest。model-free projection 固定 `public_plan=971517a7…6cae / sealed_bundle=451fea01…3851`，发布
-5,824 次 reader occurrence / 3,988 个 exact unique text；构造门已证明它们与 spent source-v4 的 1,881 条
-reader text 交集为空，且 subject/session/decision/root/tape/world/scene/environment identity 集合全部不相交，
+sealed manifest。model-free projection 固定 `public_plan=bab2ff22…9f6c / sealed_bundle=01026dd6…b0ab`，发布
+5,824 次 reader occurrence / 3,946 个 exact unique text；构造门已证明它们与 spent source-v4 的 1,881 条
+reader text 交集为空，且 subject/session/decision/root/tape/world/scene/environment identity 与去身份
+`causal_tape_signature` 集合全部不相交，
 112 个 public↔sealed trajectory exact join。v4 public/evaluator schema 名只表示复用冻结 shape，不继承 v4
 evidence identity 或 verdict。
 

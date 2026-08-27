@@ -564,8 +564,8 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
 - 2026-08-27 · identity-disjoint synthetic source-v5 candidate owner/protocol 已冻结：不复制 v4 大 owner，
   分列 pin current v4 owner/protocol bytes 与实际 spent public/sealed/inventory identity，再以新 protocol、全新
   public catalog 与独立 seed namespace 构造 112×（4+8+40）projections；full transitive closure 留给 admission。
-  protocol/public/sealed identity 为 `7393f58b…6ab8 / 971517a7…6cae / 451fea01…3851`。
-  5,824 次 reader occurrence 形成 3,988 条 unique text，与 spent source-v4 1,881 条 exact text 零交集；
+  protocol/public/sealed identity 为 `71dc2006…ad9b / bab2ff22…9f6c / 01026dd6…b0ab`。
+  5,824 次 reader occurrence 形成 3,946 条 unique text，与 spent source-v4 1,881 条 exact text 零交集；
   root/tape/world/subject/session/decision/scene/environment identities 也全不相交。该包只冻结 source owner，
   public history 保留 448 条已观察 onboarding outcome/reaction；current-decision settlement、environment
   construction、model/CUDA/rehearsal/embedding/reader fit/PE/credit/update 均为零。exact-disjoint 不等于 semantic、

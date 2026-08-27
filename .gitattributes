@@ -57,6 +57,9 @@ packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relatio
 packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_horizon_source_v4.py text eol=lf
 packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_horizon_source_v4.json text eol=lf
 packages/lifeform-domain-emogpt/tests/test_relationship_product_horizon_source_v4.py text eol=lf
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab/relationship_product_horizon_source_v5.py text eol=lf
+packages/lifeform-domain-emogpt/src/lifeform_domain_emogpt/lab_protocols/relationship_product_horizon_source_v5.json text eol=lf
+packages/lifeform-domain-emogpt/tests/test_relationship_product_horizon_source_v5.py text eol=lf
 packages/lifeform-evolution/src/lifeform_evolution/relationship_product_horizon_source_admission.py text eol=lf
 packages/lifeform-evolution/tests/test_relationship_product_horizon_source_admission.py text eol=lf
 scripts/run_relationship_product_horizon_source_admission.py text eol=lf

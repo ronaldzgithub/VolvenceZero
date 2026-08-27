@@ -96,9 +96,15 @@
 > 双 ID 完整重放 PASS，六文件 fingerprints 不变。compact receipt `4c3c414b…aab5`（raw `cae85ed0…af6c`）接受的是 development mechanism
 > terminal，不是 effect scientific terminal。condensed learned-theta0 cold evaluation authorization seam 已以
 > add-only pulse contract 和 model-free 单测闭合；它只建立 federated condensation→`0/0/()` cold evaluation 的机制
-> 接口，不是 reachability/effect evidence。下一合法动作是设计并冻结独立 permanent public/outcome-free
-> treatment-reachability admission；它不是
-> rehearsal。reader qualification、reachability admission、campaign、模型/CUDA、formal/unseen/integrated/四轴效果与
+> 接口，不是 reachability/effect evidence。审计确认 source-v3/v4 均已花费后，薄 source-v5 owner 已以新 protocol
+> `71dc2006…ad9b` 冻结独立 public catalog 与 seed identity，分列 pin current v4 owner/protocol bytes 与实际 spent
+> public/sealed/inventory identity；model-free projections 为 `public=bab2ff22…9f6c / sealed=01026dd6…b0ab`，
+> 5,824 次 reader occurrence 的 3,946 条 unique text 与 spent source-v4 exact 零交集，subject/session/decision/seed/world/scene/environment identity 及去身份 `causal_tape_signature` 也不相交。
+> 这只建立 identity-disjoint、尚未消费的 synthetic candidate，不证明 semantic novelty、DGP independence 或 unseen。
+> 它尚未 source-admit，且未对
+> source-v3/全部 adaptive inputs 闭合 disjoint。下一合法顺序是 source-v5 admission→v5-only embedding table
+>（旧 reader 不重训）→attempt03 full typed federation 跨 commit handoff→permanent public/outcome-free
+> treatment-reachability admission；后者不是 rehearsal。reader qualification、reachability admission、campaign、模型/CUDA、formal/unseen/integrated/四轴效果与
 > production 继续全部 false。
 >
 > 本文件是代码探索的**默认起点**。改代码前先查本索引定位目标能力域，再读对应 spec。
