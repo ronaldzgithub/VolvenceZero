@@ -405,6 +405,10 @@ class Snapshot:
 - `slot_name` 在整个系统中唯一，一个 slot 只有一个 owner
 - `version` 每次发布递增，消费者可用于检测变更
 - `value` 必须是 frozen dataclass 或不可变类型
+- `RuntimeModule.publish(...)` 继续使用真实 UTC 发布时间；需要完整 envelope 可重放的
+  standalone/offline owner 可调用 add-only `publish_at(..., timestamp_ms=...)`，但必须显式
+  提供非负整数逻辑时间。该入口不授权 consumer 事后替换 producer snapshot，也不改变
+  live runtime 的墙钟默认值。
 
 ### 2.2 Track（轨道标记）
 
@@ -2368,6 +2372,9 @@ class RuntimeModule(ABC, Generic[ValueT]):
 
     def publish(self, value: ValueT) -> Snapshot[ValueT]:
         """Increment version and wrap a frozen value in a Snapshot."""
+
+    def publish_at(self, value: ValueT, *, timestamp_ms: int) -> Snapshot[ValueT]:
+        """Publish an offline/standalone owner envelope at a deterministic timestamp."""
 
     @abstractmethod
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[ValueT]:

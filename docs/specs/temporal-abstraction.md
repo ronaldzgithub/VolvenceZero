@@ -336,6 +336,12 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 - 当前 `TemporalModule` 已直接消费 `prediction_error` slot；高 PE 不再只经 evaluation 旁路感知，而是直接进入 owner-side update / scheduling surface
 - 当前默认主链已拆成 staged temporal surfaces：`TrackTemporalModule` 先以 `substrate + memory` 产出 same-wave early control；`TrackTemporalConsolidationModule` 再以 `reflection + prediction_error` 做 owner-side late consolidation；公共 `temporal_abstraction` 由 `TemporalAggregateModule` 聚合 `world_temporal` / `self_temporal` 后发布，避免靠共享可变状态偷渡 same-wave 顺序
 - **P3 relationship action advisory（2026-08-22）**：`TemporalAbstractionSnapshot` 可选携带 frozen `TemporalActionAdvisoryProposal` 与 `TemporalActionAdvisoryStatus`，只由 `self_temporal` 消费。proposal 绑定 decision / prediction / action、policy artifact、confidence、typed rationale 与 evidence refs，不含表达文本。`FinalRolloutConfig.relationship_action_advisory` 默认 `SHADOW`：记录 `SHADOW_RECORDED`，native `active_abstract_action` 严格不变；`DISABLED` 不发布；`ACTIVE` 只有 `active_authorized=true` 且非 evaluator artifact 才发布 `APPLIED`，否则 fail loudly。aggregate 只转发 self owner 的 advisory。P3/P4 vertical 输出固定 `active_authorized=false`，所以当前 closed alpha 不改变用户可见表达；回滚只需把该单字段降为 DISABLED。完整 causal-exposure 防火墙见 [`relationship-intelligence-closed-alpha.md`](./relationship-intelligence-closed-alpha.md)。
+- **standalone logical publication time（2026-08-27）**：`TrackTemporalModule.process_standalone(...)`
+  可选接收非负整数 `publication_timestamp_ms`，并由 temporal publisher 直接发布该 snapshot
+  envelope；相同输入与相同逻辑时间必须产生 byte-exact 可重放的 frozen snapshot。未传值时
+  继续走 `RuntimeModule.publish(...)` 的真实 UTC，live `process(...)` 完全不变。该入口只解决
+  离线 evidence receipt 的 content-addressed lineage，不是 outcome、PE、credit、evaluation 或
+  treatment 输入；consumer 禁止用 `dataclasses.replace` 事后改 producer timestamp。
 - 当前 `TrackTemporalConsolidationModule` 已开始直接消费 `credit` 快照中的 abstract-action / session-level evidence，把 delayed credit 写回 action-family 的 `outcome_driven_score`、`long_term_payoff`、`delayed_credit_sum`；这条路径不引入新的 owner，而是在 temporal owner 内完成 family competition 的结果驱动更新
 - 当前 live dual-track path 已进一步收敛：track policy 会缓存 consolidation 阶段观察到的 `reflection` 证据，并在后续 early-control `step()` 中作为 owner-side context 参与切换/编码；这让 public dual-track path 不再系统性丢失 reflection
 - 当前 heuristic / learned-lite fallback 的公开 action label 已降级为更中性的 latent-family 风格标签，避免 benchmark 仅靠手工语义名就显得“像 ETA”
@@ -399,6 +405,9 @@ L(φ) = Σ_{(o,a)~D*} Σ_t [
 
 ## 变更日志
 
+- 2026-08-27: 为离线 standalone evidence 增加 owner-side deterministic publication timestamp。
+  默认 runtime/standalone 路径仍用真实 UTC；显式逻辑时间必须是非负整数，且在 temporal
+  publisher 发布时进入完整 snapshot envelope，禁止 consumer 后改或 validator 归一化。
 - 2026-08-22: 增加 subgoal abstraction working-set 专门 spec 入口。该设计不改变当前
   runtime：raw readout 不自动物化，WORLD/SELF temporal owner 仍是各自 bank 单写者，
   `beta_t` segment termination 与 artifact retirement 明确分离，production ACTIVE 未授权。

@@ -26,6 +26,8 @@ from volvence_zero.memory import Track
 from volvence_zero.runtime import WiringLevel
 from volvence_zero.substrate import (
     ExpertActionTarget,
+    SubstrateSnapshot,
+    SurfaceKind,
     TraceStep,
     TrainingTrace,
     build_training_trace,
@@ -35,7 +37,9 @@ from volvence_zero.temporal.interface import (
     FullLearnedTemporalPolicy,
     LearnedLiteTemporalPolicy,
     MetacontrollerParameterStore,
+    PlaceholderTemporalPolicy,
     TemporalStep,
+    TrackTemporalModule,
 )
 from volvence_zero.temporal_types import TemporalAbstractionSnapshot
 from volvence_zero.tensor_backend import is_torch_available
@@ -60,6 +64,64 @@ def _trace(trace_id: str = "vz-temporal-contract") -> object:
         trace_id=trace_id,
         source_text="steady waters carry the harbor plan through changing tides",
     )
+
+
+def _placeholder_substrate() -> SubstrateSnapshot:
+    return SubstrateSnapshot(
+        model_id="frozen-temporal-contract-fixture",
+        is_frozen=True,
+        surface_kind=SurfaceKind.PLACEHOLDER,
+        token_logits=(),
+        feature_surface=(),
+        residual_activations=(),
+        residual_sequence=(),
+        unavailable_fields=(),
+        description="deterministic standalone publication fixture",
+    )
+
+
+def test_track_temporal_standalone_accepts_deterministic_publication_timestamp() -> None:
+    async def publish(timestamp_ms: int):
+        return await TrackTemporalModule(
+            track=Track.SELF,
+            policy=PlaceholderTemporalPolicy(),
+            wiring_level=WiringLevel.ACTIVE,
+        ).process_standalone(
+            substrate_snapshot=_placeholder_substrate(),
+            publication_timestamp_ms=timestamp_ms,
+        )
+
+    first = asyncio.run(publish(41))
+    replay = asyncio.run(publish(41))
+
+    assert first.timestamp_ms == 41
+    assert replay == first
+
+
+@pytest.mark.parametrize("timestamp_ms", [True, 1.5, "41"])
+def test_track_temporal_standalone_rejects_non_integer_publication_timestamp(
+    timestamp_ms,
+) -> None:
+    module = TrackTemporalModule(
+        track=Track.SELF,
+        policy=PlaceholderTemporalPolicy(),
+    )
+
+    with pytest.raises(TypeError, match="publication_timestamp_ms"):
+        asyncio.run(
+            module.process_standalone(
+                substrate_snapshot=_placeholder_substrate(),
+                publication_timestamp_ms=timestamp_ms,
+            )
+        )
+
+    valid = asyncio.run(
+        module.process_standalone(
+            substrate_snapshot=_placeholder_substrate(),
+            publication_timestamp_ms=0,
+        )
+    )
+    assert valid.version == 1
 
 
 def test_delayed_credit_assignment_publishes_completion_margin() -> None:

@@ -558,15 +558,35 @@ class RuntimeModule(ABC, Generic[ValueT]):
         if version > self._version:
             self._version = version
 
-    def publish(self, value: ValueT) -> Snapshot[ValueT]:
+    def publish_at(
+        self,
+        value: ValueT,
+        *,
+        timestamp_ms: int,
+    ) -> Snapshot[ValueT]:
+        """Publish one owner snapshot at an explicit envelope timestamp.
+
+        This add-only seam is for deterministic standalone/offline owners that
+        must make the complete snapshot envelope content-addressable. Runtime
+        callers should continue to use :meth:`publish`, which preserves the
+        wall-clock publication contract.
+        """
+
+        if type(timestamp_ms) is not int:
+            raise TypeError("timestamp_ms must be an int")
+        if timestamp_ms < 0:
+            raise ValueError("timestamp_ms must be non-negative")
         self._version += 1
         return Snapshot(
             slot_name=self.slot_name,
             owner=self.owner,
             version=self._version,
-            timestamp_ms=utc_now_ms(),
+            timestamp_ms=timestamp_ms,
             value=value,
         )
+
+    def publish(self, value: ValueT) -> Snapshot[ValueT]:
+        return self.publish_at(value, timestamp_ms=utc_now_ms())
 
     @abstractmethod
     async def process(self, upstream: Mapping[str, Snapshot[Any]]) -> Snapshot[ValueT]:

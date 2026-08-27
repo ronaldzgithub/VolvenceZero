@@ -195,3 +195,54 @@ def test_slot_registry_rejects_second_owner():
     registry.register(ProducerModule())
     with pytest.raises(OwnershipViolationError):
         registry.register(DuplicateProducerModule())
+
+
+def test_publish_at_uses_explicit_timestamp_and_preserves_version_order():
+    module = ProducerModule()
+
+    first = module.publish_at(
+        ProducerValue(description="first deterministic snapshot", value=1),
+        timestamp_ms=17,
+    )
+    second = module.publish_at(
+        ProducerValue(description="second deterministic snapshot", value=2),
+        timestamp_ms=23,
+    )
+
+    assert (first.timestamp_ms, first.version) == (17, 1)
+    assert (second.timestamp_ms, second.version) == (23, 2)
+
+
+@pytest.mark.parametrize("timestamp_ms", [True, 1.5, "17", None])
+def test_publish_at_rejects_non_integer_timestamp_without_version_mutation(
+    timestamp_ms,
+):
+    module = ProducerModule()
+
+    with pytest.raises(TypeError, match="timestamp_ms must be an int"):
+        module.publish_at(
+            ProducerValue(description="invalid timestamp", value=1),
+            timestamp_ms=timestamp_ms,
+        )
+
+    valid = module.publish_at(
+        ProducerValue(description="first valid snapshot", value=2),
+        timestamp_ms=0,
+    )
+    assert valid.version == 1
+
+
+def test_publish_at_rejects_negative_timestamp_without_version_mutation():
+    module = ProducerModule()
+
+    with pytest.raises(ValueError, match="timestamp_ms must be non-negative"):
+        module.publish_at(
+            ProducerValue(description="negative timestamp", value=1),
+            timestamp_ms=-1,
+        )
+
+    valid = module.publish_at(
+        ProducerValue(description="first valid snapshot", value=2),
+        timestamp_ms=0,
+    )
+    assert valid.version == 1

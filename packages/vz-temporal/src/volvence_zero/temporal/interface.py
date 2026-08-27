@@ -6180,6 +6180,14 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
         substrate_snapshot = kwargs.get("substrate_snapshot")
         if not isinstance(substrate_snapshot, SubstrateSnapshot):
             raise TypeError("substrate_snapshot must be a SubstrateSnapshot.")
+        publication_timestamp_ms = kwargs.get("publication_timestamp_ms")
+        if (
+            publication_timestamp_ms is not None
+            and type(publication_timestamp_ms) is not int
+        ):
+            raise TypeError("publication_timestamp_ms must be an int or None")
+        if publication_timestamp_ms is not None and publication_timestamp_ms < 0:
+            raise ValueError("publication_timestamp_ms must be non-negative")
         memory_snapshot = kwargs.get("memory_snapshot")
         reflection_snapshot = kwargs.get("reflection_snapshot")
         experience_fast_prior_snapshot = kwargs.get("experience_fast_prior_snapshot")
@@ -6226,7 +6234,12 @@ class TrackTemporalModule(RuntimeModule[TemporalAbstractionSnapshot]):
             action_advisory_status=action_advisory_status,
         )
         self._previous_snapshot = snapshot_value
-        return self.publish(snapshot_value)
+        if publication_timestamp_ms is None:
+            return self.publish(snapshot_value)
+        return self.publish_at(
+            snapshot_value,
+            timestamp_ms=publication_timestamp_ms,
+        )
 
 
 def _apply_track_prediction_error_signal(
