@@ -340,6 +340,13 @@ def test_streaming_sink_is_create_only_fsync_bound_and_has_no_linear_cache(
         failed.append_many_fsync(
             ({"schema_version": "unit.v1", "record_type": "not-durable"},)
         )
+    assert failed.failed is True
+    failed_size = failed_path.stat().st_size
+    with pytest.raises(RuntimeError, match="permanently failed closed"):
+        failed.append_many_fsync(
+            ({"schema_version": "unit.v1", "record_type": "forbidden-reuse"},)
+        )
+    assert failed_path.stat().st_size == failed_size
     failed.close()
 
 

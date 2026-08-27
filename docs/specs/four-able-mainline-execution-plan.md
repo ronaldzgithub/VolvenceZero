@@ -616,15 +616,15 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   定向 contract 固定 40 APPLY=`generated/applied/update 40/40/40`，40 WITHHOLD=`40/0/0` 且 terminal
   exact initial；但只有前 39 次 update 在原 40-slot horizon 内拥有 downstream action exposure。
   该包只闭合 gate owner completed-transition 机制；当时仍待 pulse logical barrier 与 campaign durable receipt。
-  前者现已闭合，in-flight crash recovery 与 physical timing 仍只属于 future campaign；campaign 尚未执行，
-  model/CUDA/rehearsal count=0。
+  pulse 与 add-only physical ledger mechanism 现均已闭合；source-v5 admission、scientific protocol/matrix/effect
+  仍未执行，model/CUDA/rehearsal count=0。
 - 2026-08-27 · 后续三条设计同时冻结边界但尚未实现：其一，reachability 分成 outcome-free binary-gate
   geometric distance 与读取 actual PE-credit receipt 的 achievability dose，二者不得共用 PASS；其二，Steerable
   增加 always-adopt-owner-recommendation 与 pre-outcome rate-matched random-gate，旧 run 因 frozen gate
   4,480/4,480 STEER 而使 always arm 完全退化，未来 conditional-vs-always/random actual divergence 是硬门；
-  其三，第 40 次 update 若需行为暴露必须事前新增 terminal probe。v2 evaluation pulse consumer 随后已闭合；
-  下一收敛包是 corrected-online campaign 的 durable barrier/恢复扫描，不回改 frozen campaign，也不先启动
-  source-v5 CUDA 或 integrated run。
+  其三，第 40 次 update 若需行为暴露必须事前新增 terminal probe。v2 evaluation pulse 与 corrected-online
+  durable ledger mechanism 随后均已闭合；下一科学顺序仍是 source-v5 admission→v5-only table→typed theta
+  handoff→reachability/achievability，再冻结 controls/campaign，不回改 frozen campaign，也不先启动 integrated run。
 - 2026-08-27 · v2 online evaluation pulse consumer 已闭合 model-free **逻辑**边界：online authorization
   exact-wrap condensed cold theta0 并事前固定 APPLY/WITHHOLD；prepare 绑定 current chain/checkpoint、owner forecast、
   pending exposure、learned selected action、authorized SHADOW advisory 与 temporal delivery，settle 只从 actual
@@ -632,8 +632,25 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   传 disposition，旧 `apply_credit_to_gate` 两臂均强制 false；full/frozen 首拍同 forecast/decision/action，首拍后
   receipt 分别为 `generated/applied/update=1/1/1` 与 `1/0/0`，下一拍分别读取 updated/cold checkpoint。pending
   阻止第二 preaction，temporal failure 保留 fail-stop pending；普通两拍路径不导出/重放全 chain，completed restore
-  只接受完整 typed chain。pulse 不拥有 fsync/source branch，因此 campaign physical barrier、crash-tail invalidation、
-  40-slot `40/40/39` 终局与效果仍全待执行；本包未运行 model/CUDA/rehearsal/campaign，不建立 Learnable 结论。
+  只接受完整 typed chain。pulse 不拥有 fsync/source branch；后续 add-only physical owner 已闭合 generic
+  barrier 与 crash-tail invalidation，但 source-v5/campaign authority、真实 40-slot matrix 与效果仍全待执行。本包未运行
+  model/CUDA/rehearsal/campaign，不建立 Learnable 结论。
+- 2026-08-27 · corrected-online physical ledger mechanism 已闭合：公开构造面只接受 create-only path，sink 由
+  owner 私有持有，no-op/memory sink 不再能旁路 live physical writer。full/frozen 每拍 public request projection
+  必须 exact matched，并共享同一 forecast runtime object；两条 preaction rows 与 group receipt 均 fsync 后才调用 lazy source。
+  source request 删除 arm/authorization/owner/gate/forecast 及由 arm-local preaction bytes 派生的 barrier/receipt/prefix 标识，只发布 public decision + 按公共 candidate-action order 规范化的
+  unique actual actions；source 按 action 返回单一 shared branch，campaign owner 派生 arm-local evidence，并独占
+  `root*10000+slot` credit clock，因此同 action 不再能按臂分叉 outcome、caller 也不能注入 credit timestamp。
+  post rows/receipt durable 后才发布 next；最终 terminal fsync 返回后才生成 serializable live completion acknowledgement 与 live
+  `ledger_complete`。裸 terminal bytes 与可离线重建的 acknowledgement 都不足以证明历史 fsync 返回；跨线程 terminal fsync 在途时 count 仍为 0，
+  concurrent close fail closed。scanner 从一次 frozen regular-file byte snapshot 重放 matched request、source receipt、
+  preference owner current→pre→post、PE owner snapshot、credit、gate chain 与 terminal；有无 caller acknowledgement 的完整
+  terminal bytes均只判 `terminal_content_valid_durability_unproven_no_resume`，重签 PE-description/owner-writeback mutant 与所有 torn prefix 拒绝。
+  定向 lint PASS，preference replay + physical barrier 共 27 tests PASS；small-N 只作 mechanism/fault fixture。该裸 JSONL 无 manifest；
+  `ledger_complete` 只属于 live owner 内存态，未来持久化证据必须另有可信 completion provenance/manifest/anchor。
+  generic mechanism 虽要求 exact same runtime object，但 scope 不同且调用顺序固定 full→frozen，故显式记录 runtime arm-invariance、
+  session-scope blinding、call-order blinding 均未验证，不能称科学上的 APPLY/WITHHOLD 单比特隔离；source-v5 identity/admission、scientific
+  protocol/matrix/effect、model/CUDA/rehearsal 均为 false/zero。
 - 2026-08-27 · 用户裁决新增 coding lane 为四能力主张的主要证明载体：编程域拥有免费客观 oracle
   （pytest 结局是 `ENVIRONMENT` typed source，可合法进入学习环路），关系域受 R12 与"无免费客观结局"
   的结构性限制，其产品主张改由未来真人验证承担，本文件关系线各阶段照常作为 development/机制 lane 推进。

@@ -1,9 +1,11 @@
-"""Development-only 112-root Product Horizon causal campaign.
+"""Product Horizon development campaign and add-only durability mechanisms.
 
-This owner consumes the already frozen forced common-batch artifact and runs
-three immutable evaluation arms.  It estimates only synthetic, transductive
-development contrasts.  It never qualifies the reader, invokes a model or
-CUDA, applies evaluation credit to a gate, or authorizes formal evidence.
+The historical v1 owner consumes the frozen forced common-batch artifact and
+runs three immutable evaluation arms.  Its protocol, runner and verdict remain
+unchanged.  The add-only corrected-online surface below owns only a two-arm
+canonical JSONL/fsync barrier.  It can apply PE-derived online credit through
+the already typed pulse, but it does not admit a source, freeze a scientific
+campaign, invoke a model/CUDA, or authorize an effect claim.
 """
 
 from __future__ import annotations
@@ -11,13 +13,16 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 from dataclasses import dataclass
+from enum import Enum
 import hashlib
+import io
 import json
 import math
 import os
 import pathlib
+import threading
 import time
-from typing import BinaryIO, Callable, Mapping, Protocol, Sequence
+from typing import Awaitable, BinaryIO, Callable, Mapping, Protocol, Sequence
 
 from lifeform_domain_emogpt.lab.contracts import sha256_json
 from lifeform_domain_emogpt.lab.relationship_product_horizon_source_v4 import (
@@ -35,13 +40,29 @@ from lifeform_domain_emogpt.lab.relationship_product_pulse import (
     RelationshipProductPulseAuthorization,
     RelationshipProductSettlementInput,
     RelationshipProductTemporalDelivery,
+    RelationshipProductV2OnlineExecutorCommand,
+    RelationshipProductV2OnlineExecutorReceipt,
+    RelationshipProductV2OnlinePreActionSnapshot,
+    RelationshipProductV2OnlinePulseAuthorization,
+    RelationshipProductV2OnlineSettlementSnapshot,
     prepare_relationship_product_frozen_preaction,
+    prepare_relationship_product_v2_online_preaction,
     settle_relationship_product_frozen_pulse,
+    settle_relationship_product_v2_online_pulse,
 )
 from lifeform_domain_emogpt.relationship_action_contracts import (
     RELATIONSHIP_ACTIONS,
     RELATIONSHIP_OUTCOMES,
     RelationshipAction,
+)
+from lifeform_domain_emogpt.relationship_action_gate import (
+    RelationshipActionGateBatchDisposition,
+)
+from lifeform_domain_emogpt.relationship_action_gate_v2 import (
+    RelationshipActionGateV2OnlineExposure,
+    RelationshipActionGateV2OnlineSession,
+    RelationshipActionGateV2OnlineTransition,
+    RelationshipActionGateV2OnlineTransitionChain,
 )
 from lifeform_evolution import (
     relationship_product_horizon_dynamic_collection_prefix as dynamic,
@@ -58,14 +79,22 @@ from volvence_zero.dialogue_trace import (
     DialogueExternalOutcomeEvidenceSource,
     DialogueExternalOutcomeKind,
 )
-from volvence_zero.credit import derive_preference_action_forecast_credit_records
+from volvence_zero.credit import (
+    derive_preference_action_common_baseline_credit_records,
+    derive_preference_action_forecast_credit_records,
+)
 from volvence_zero.owner_hydration import OwnerPersistenceSnapshot
 from volvence_zero.social import (
     PreferenceAboutOtherModule,
     PreferenceActionForecastRequest,
+    PreferenceActionForecastRuntime,
     SocialRecordStore,
+    replay_preference_action_forecast_publication_persistence,
+    replay_preference_action_forecast_settlement_transition,
+    replay_social_prediction_error_snapshot,
     settle_preference_action_forecast,
     social_record_store_persistence_sha256,
+    social_prediction_error_from_preference_action_forecast_settlement,
 )
 from volvence_zero.social_cognition import (
     PreferenceActionForecast,
@@ -106,6 +135,19 @@ DEVELOPMENT_CAMPAIGN_MANIFEST_SCHEMA_VERSION = (
 DEVELOPMENT_CAMPAIGN_BARRIER_SCHEMA_VERSION = (
     "relationship-product-horizon-development-campaign-barrier.v1"
 )
+ONLINE_PHYSICAL_TRACE_SCHEMA_VERSION = (
+    "relationship-product-horizon-corrected-online-physical-trace.v1"
+)
+ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION = (
+    "relationship-product-horizon-corrected-online-physical-barrier.v1"
+)
+ONLINE_PHYSICAL_MECHANISM_SCHEMA_VERSION = (
+    "relationship-product-horizon-corrected-online-physical-mechanism.v1"
+)
+ONLINE_PHYSICAL_SOURCE_SCHEMA_VERSION = (
+    "relationship-product-horizon-corrected-online-source-branch.v1"
+)
+ONLINE_PHYSICAL_CREDIT_CLOCK_STRIDE = 10_000
 
 _PROTOCOL_FILENAME = "relationship_product_horizon_development_campaign_v1.json"
 _PLAN_FILENAME = "campaign_plan.json"
@@ -280,6 +322,8 @@ class _RowSink(Protocol):
         self, rows: Sequence[Mapping[str, object]]
     ) -> _DurableRows: ...
 
+    def fail_closed(self) -> None: ...
+
     def close(self) -> None: ...
 
 
@@ -290,6 +334,7 @@ class _DigestRowSink:
         self._row_count = 0
         self._raw_bytes = 0
         self._digest = hashlib.sha256()
+        self._failed = False
 
     @property
     def row_count(self) -> int:
@@ -303,6 +348,10 @@ class _DigestRowSink:
     def raw_sha256(self) -> str:
         return self._digest.hexdigest()
 
+    @property
+    def failed(self) -> bool:
+        return self._failed
+
     def _write(self, raw: bytes) -> None:
         del raw
 
@@ -312,34 +361,43 @@ class _DigestRowSink:
     def append_many_fsync(
         self, rows: Sequence[Mapping[str, object]]
     ) -> _DurableRows:
+        if self._failed:
+            raise RuntimeError("campaign JSONL sink is permanently failed closed")
         if not rows:
             raise ValueError("durable row group cannot be empty")
-        start_index = self._row_count
-        start_offset = self._raw_bytes
-        group_digest = hashlib.sha256()
-        row_ids: list[str] = []
-        for payload in rows:
-            core = {"physical_sequence_index": self._row_count, **payload}
-            if "row_id" in core:
-                raise ValueError("row_id is owned by the streaming sink")
-            row_id = sha256_json(core)
-            raw = cal._canonical_bytes({"row_id": row_id, **core})
-            self._write(raw)
-            self._digest.update(raw)
-            group_digest.update(raw)
-            self._raw_bytes += len(raw)
-            self._row_count += 1
-            row_ids.append(row_id)
-        self._sync()
-        return _DurableRows(
-            start_index=start_index,
-            end_index=self._row_count - 1,
-            row_ids=tuple(row_ids),
-            rows_raw_sha256=group_digest.hexdigest(),
-            byte_offset_start=start_offset,
-            byte_offset_end=self._raw_bytes,
-            stream_prefix_raw_sha256=self._digest.hexdigest(),
-        )
+        try:
+            start_index = self._row_count
+            start_offset = self._raw_bytes
+            group_digest = hashlib.sha256()
+            row_ids: list[str] = []
+            for payload in rows:
+                core = {"physical_sequence_index": self._row_count, **payload}
+                if "row_id" in core:
+                    raise ValueError("row_id is owned by the streaming sink")
+                row_id = sha256_json(core)
+                raw = cal._canonical_bytes({"row_id": row_id, **core})
+                self._write(raw)
+                self._digest.update(raw)
+                group_digest.update(raw)
+                self._raw_bytes += len(raw)
+                self._row_count += 1
+                row_ids.append(row_id)
+            self._sync()
+            return _DurableRows(
+                start_index=start_index,
+                end_index=self._row_count - 1,
+                row_ids=tuple(row_ids),
+                rows_raw_sha256=group_digest.hexdigest(),
+                byte_offset_start=start_offset,
+                byte_offset_end=self._raw_bytes,
+                stream_prefix_raw_sha256=self._digest.hexdigest(),
+            )
+        except BaseException:
+            self._failed = True
+            raise
+
+    def fail_closed(self) -> None:
+        self._failed = True
 
     def close(self) -> None:
         return
@@ -366,6 +424,893 @@ class _CreateOnlyStreamingJsonlSink(_DigestRowSink):
         if not self._closed:
             self._handle.close()
             self._closed = True
+
+
+class RelationshipProductHorizonOnlineArm(str, Enum):
+    """Closed arm surface for the corrected Learnable physical mechanism."""
+
+    FULL = "full"
+    FROZEN_THETA0 = "frozen_theta0"
+
+
+_ONLINE_PHYSICAL_ARMS = (
+    RelationshipProductHorizonOnlineArm.FULL,
+    RelationshipProductHorizonOnlineArm.FROZEN_THETA0,
+)
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonOnlineArmBinding:
+    """One exclusive live owner/session binding; no gate-control arm fits here."""
+
+    arm_id: RelationshipProductHorizonOnlineArm
+    authorization: RelationshipProductV2OnlinePulseAuthorization
+    initial_owner_persistence_snapshot: OwnerPersistenceSnapshot
+    forecast_runtime: PreferenceActionForecastRuntime
+
+    def __post_init__(self) -> None:
+        if type(self.arm_id) is not RelationshipProductHorizonOnlineArm:
+            raise TypeError("arm_id must be RelationshipProductHorizonOnlineArm")
+        if type(self.authorization) is not RelationshipProductV2OnlinePulseAuthorization:
+            raise TypeError(
+                "authorization must be RelationshipProductV2OnlinePulseAuthorization"
+            )
+        if type(self.initial_owner_persistence_snapshot) is not OwnerPersistenceSnapshot:
+            raise TypeError(
+                "initial_owner_persistence_snapshot must be OwnerPersistenceSnapshot"
+            )
+        runtime_id = self.forecast_runtime.runtime_id
+        if type(runtime_id) is not str or not runtime_id.strip():
+            raise TypeError("forecast_runtime must publish a non-empty runtime_id")
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonOnlinePreactionBarrier:
+    """Capability minted only after the complete two-arm preaction group fsyncs."""
+
+    barrier_id: str
+    receipt_row_id: str
+    mechanism_run_id: str
+    root_sequence_index: int
+    slot_index: int
+    arm_order: tuple[RelationshipProductHorizonOnlineArm, ...]
+    preaction_executor_receipt_ids: tuple[str, ...]
+    stream_prefix_raw_sha256: str
+    schema_version: str = ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonOnlineSourceOpenCapability:
+    """Public arm-redacted token; the live owner passes it only after fsync."""
+
+    source_capability_id: str
+    mechanism_run_id: str
+    root_sequence_index: int
+    slot_index: int
+    schema_version: str = ONLINE_PHYSICAL_SOURCE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("source_capability_id", self.source_capability_id),
+            ("mechanism_run_id", self.mechanism_run_id),
+        ):
+            if type(value) is not str or not value.strip():
+                raise ValueError(f"{field_name} must be non-empty")
+        if type(self.root_sequence_index) is not int or self.root_sequence_index < 0:
+            raise ValueError("root_sequence_index must be a non-negative integer")
+        if type(self.slot_index) is not int or self.slot_index < 0:
+            raise ValueError("slot_index must be a non-negative integer")
+        if self.schema_version != ONLINE_PHYSICAL_SOURCE_SCHEMA_VERSION:
+            raise ValueError("online source-open capability schema mismatch")
+
+    @property
+    def capability_id(self) -> str:
+        return sha256_json(self.to_payload())
+
+    def to_payload(self) -> Mapping[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "source_capability_id": self.source_capability_id,
+            "mechanism_run_id": self.mechanism_run_id,
+            "root_sequence_index": self.root_sequence_index,
+            "slot_index": self.slot_index,
+        }
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonOnlineSourceRequest:
+    """Arm-redacted public decision plus unique delivered actions."""
+
+    open_capability: RelationshipProductHorizonOnlineSourceOpenCapability
+    decision_id: str
+    interlocutor_id: str
+    current_observation: str
+    observation_ref: str
+    candidate_action_ids: tuple[str, ...]
+    outcome_ids: tuple[str, ...]
+    turn_index: int
+    outcome_turn_index: int
+    selected_actions: tuple[RelationshipAction, ...]
+    schema_version: str = ONLINE_PHYSICAL_SOURCE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.open_capability) is not (
+            RelationshipProductHorizonOnlineSourceOpenCapability
+        ):
+            raise TypeError("open_capability has an unexpected type")
+        for field_name, value in (
+            ("decision_id", self.decision_id),
+            ("interlocutor_id", self.interlocutor_id),
+            ("current_observation", self.current_observation),
+            ("observation_ref", self.observation_ref),
+        ):
+            if type(value) is not str or not value.strip():
+                raise ValueError(f"{field_name} must be non-empty")
+        for field_name, values in (
+            ("candidate_action_ids", self.candidate_action_ids),
+            ("outcome_ids", self.outcome_ids),
+        ):
+            if (
+                type(values) is not tuple
+                or not values
+                or any(type(item) is not str or not item.strip() for item in values)
+                or len(set(values)) != len(values)
+            ):
+                raise ValueError(f"{field_name} must be a non-empty unique tuple")
+        if (
+            type(self.turn_index) is not int
+            or self.turn_index < 0
+            or type(self.outcome_turn_index) is not int
+            or self.outcome_turn_index < 0
+        ):
+            raise ValueError("source request turns must be non-negative integers")
+        if (
+            type(self.selected_actions) is not tuple
+            or not self.selected_actions
+            or len(self.selected_actions) > len(_ONLINE_PHYSICAL_ARMS)
+            or any(type(item) is not RelationshipAction for item in self.selected_actions)
+            or len(set(self.selected_actions)) != len(self.selected_actions)
+        ):
+            raise ValueError("selected_actions must be one unique typed action set")
+        selected_action_ids = tuple(item.value for item in self.selected_actions)
+        if set(selected_action_ids).difference(self.candidate_action_ids):
+            raise ValueError("selected_actions must be public candidate actions")
+        canonical_selected_action_ids = tuple(
+            action_id
+            for action_id in self.candidate_action_ids
+            if action_id in set(selected_action_ids)
+        )
+        if selected_action_ids != canonical_selected_action_ids:
+            raise ValueError(
+                "selected_actions must follow the public candidate-action order"
+            )
+        if self.schema_version != ONLINE_PHYSICAL_SOURCE_SCHEMA_VERSION:
+            raise ValueError("online source request schema mismatch")
+
+    @property
+    def source_request_id(self) -> str:
+        return sha256_json(self.to_payload())
+
+    def to_payload(self) -> Mapping[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "open_capability": self.open_capability.to_payload(),
+            "decision_id": self.decision_id,
+            "interlocutor_id": self.interlocutor_id,
+            "current_observation": self.current_observation,
+            "observation_ref": self.observation_ref,
+            "candidate_action_ids": list(self.candidate_action_ids),
+            "outcome_ids": list(self.outcome_ids),
+            "turn_index": self.turn_index,
+            "outcome_turn_index": self.outcome_turn_index,
+            "selected_actions": [item.value for item in self.selected_actions],
+        }
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonOnlineSourceBranch:
+    """Action-keyed environment-only response; owner evidence is derived later."""
+
+    source_request_id: str
+    source_capability_id: str
+    selected_action: RelationshipAction
+    typed_outcome: DialogueExternalOutcomeKind
+    rendered_user_reaction: str
+    environment_evidence_ref: str
+    environment_version: str
+    schema_version: str = ONLINE_PHYSICAL_SOURCE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("source_request_id", self.source_request_id),
+            ("source_capability_id", self.source_capability_id),
+            ("rendered_user_reaction", self.rendered_user_reaction),
+            ("environment_evidence_ref", self.environment_evidence_ref),
+            ("environment_version", self.environment_version),
+        ):
+            if type(value) is not str or not value.strip():
+                raise ValueError(f"{field_name} must be non-empty")
+        if type(self.selected_action) is not RelationshipAction:
+            raise TypeError("selected_action must be RelationshipAction")
+        if type(self.typed_outcome) is not DialogueExternalOutcomeKind:
+            raise TypeError("typed_outcome must be DialogueExternalOutcomeKind")
+        if self.schema_version != ONLINE_PHYSICAL_SOURCE_SCHEMA_VERSION:
+            raise ValueError("online source branch schema mismatch")
+
+    @property
+    def branch_id(self) -> str:
+        return sha256_json(self.to_payload())
+
+    def to_payload(self) -> Mapping[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "source_request_id": self.source_request_id,
+            "source_capability_id": self.source_capability_id,
+            "selected_action": self.selected_action.value,
+            "typed_outcome": self.typed_outcome.value,
+            "rendered_user_reaction": self.rendered_user_reaction,
+            "environment_evidence_ref": self.environment_evidence_ref,
+            "environment_version": self.environment_version,
+        }
+
+
+class RelationshipProductHorizonOnlineSettlementSource(Protocol):
+    """Opened source receives no arm, authorization, owner, gate, or forecast."""
+
+    async def settle_actions(
+        self,
+        *,
+        request: RelationshipProductHorizonOnlineSourceRequest,
+    ) -> tuple[RelationshipProductHorizonOnlineSourceBranch, ...]: ...
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonOnlineSettlementSourceDescriptor:
+    """Lazy opener held inert until the first durable preaction capability."""
+
+    source_capability_id: str
+    open_source: Callable[
+        [RelationshipProductHorizonOnlineSourceOpenCapability],
+        Awaitable[RelationshipProductHorizonOnlineSettlementSource],
+    ]
+
+    def __post_init__(self) -> None:
+        if type(self.source_capability_id) is not str or not (
+            self.source_capability_id.strip()
+        ):
+            raise ValueError("source_capability_id must be non-empty")
+        if not callable(self.open_source):
+            raise TypeError("open_source must be callable")
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonOnlineSlotCompletion:
+    """Serializable live acknowledgement; not historical durability provenance."""
+
+    completion_id: str
+    postaction_receipt_row_id: str
+    mechanism_run_id: str
+    root_sequence_index: int
+    slot_index: int
+    arm_order: tuple[RelationshipProductHorizonOnlineArm, ...]
+    transition_ids: tuple[str, ...]
+    terminal_row_id: str | None
+    next_slot_authorized: bool
+    ledger_complete: bool
+    stream_prefix_raw_sha256: str
+    schema_version: str = ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("completion_id", self.completion_id),
+            ("postaction_receipt_row_id", self.postaction_receipt_row_id),
+            ("mechanism_run_id", self.mechanism_run_id),
+            ("stream_prefix_raw_sha256", self.stream_prefix_raw_sha256),
+        ):
+            if type(value) is not str or not value.strip():
+                raise ValueError(f"{field_name} must be non-empty")
+        if type(self.root_sequence_index) is not int or self.root_sequence_index < 0:
+            raise ValueError("root_sequence_index must be a non-negative integer")
+        if type(self.slot_index) is not int or self.slot_index < 0:
+            raise ValueError("slot_index must be a non-negative integer")
+        if self.arm_order != _ONLINE_PHYSICAL_ARMS:
+            raise ValueError("completion arm order drifted")
+        if (
+            type(self.transition_ids) is not tuple
+            or len(self.transition_ids) != len(_ONLINE_PHYSICAL_ARMS)
+            or any(type(item) is not str or not item.strip() for item in self.transition_ids)
+        ):
+            raise ValueError("completion transition_ids drifted")
+        if self.terminal_row_id is not None and (
+            type(self.terminal_row_id) is not str or not self.terminal_row_id.strip()
+        ):
+            raise ValueError("terminal_row_id must be null or non-empty")
+        if type(self.next_slot_authorized) is not bool or type(self.ledger_complete) is not bool:
+            raise TypeError("completion flags must be bool")
+        if self.ledger_complete != (self.terminal_row_id is not None):
+            raise ValueError("completion terminal identity and complete flag disagree")
+        if self.next_slot_authorized == self.ledger_complete:
+            raise ValueError("completion next-slot and terminal flags disagree")
+        if self.schema_version != ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION:
+            raise ValueError("online slot completion schema mismatch")
+        cal._digest(
+            self.postaction_receipt_row_id,
+            "completion postaction receipt row id",
+        )
+        cal._digest(self.stream_prefix_raw_sha256, "completion stream prefix")
+        if self.terminal_row_id is not None:
+            cal._digest(self.terminal_row_id, "completion terminal row id")
+        if self.completion_id != sha256_json(self._core_payload()):
+            raise ValueError("online slot completion content identity drifted")
+
+    def _core_payload(self) -> Mapping[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "postaction_receipt_row_id": self.postaction_receipt_row_id,
+            "mechanism_run_id": self.mechanism_run_id,
+            "root_sequence_index": self.root_sequence_index,
+            "slot_index": self.slot_index,
+            "arm_order": [item.value for item in self.arm_order],
+            "transition_ids": list(self.transition_ids),
+            "terminal_row_id": self.terminal_row_id,
+            "next_slot_authorized": self.next_slot_authorized,
+            "ledger_complete": self.ledger_complete,
+            "stream_prefix_raw_sha256": self.stream_prefix_raw_sha256,
+        }
+
+    def to_payload(self) -> Mapping[str, object]:
+        return {"completion_id": self.completion_id, **self._core_payload()}
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: object,
+    ) -> "RelationshipProductHorizonOnlineSlotCompletion":
+        raw = cal._mapping(payload, "online slot completion")
+        cal._exact_keys(
+            raw,
+            {
+                "completion_id",
+                "schema_version",
+                "postaction_receipt_row_id",
+                "mechanism_run_id",
+                "root_sequence_index",
+                "slot_index",
+                "arm_order",
+                "transition_ids",
+                "terminal_row_id",
+                "next_slot_authorized",
+                "ledger_complete",
+                "stream_prefix_raw_sha256",
+            },
+            "online slot completion",
+        )
+        terminal_raw = raw["terminal_row_id"]
+        if terminal_raw is not None:
+            terminal_raw = cal._digest(terminal_raw, "completion terminal row id")
+        completion = cls(
+            completion_id=cal._digest(raw["completion_id"], "completion id"),
+            postaction_receipt_row_id=cal._digest(
+                raw["postaction_receipt_row_id"],
+                "completion postaction receipt row id",
+            ),
+            mechanism_run_id=cal._text(
+                raw["mechanism_run_id"], "completion mechanism run id"
+            ),
+            root_sequence_index=cal._integer(
+                raw["root_sequence_index"], "completion root sequence index"
+            ),
+            slot_index=cal._integer(raw["slot_index"], "completion slot index"),
+            arm_order=tuple(
+                RelationshipProductHorizonOnlineArm(
+                    cal._text(item, "completion arm id")
+                )
+                for item in cal._list(raw["arm_order"], "completion arm order")
+            ),
+            transition_ids=tuple(
+                cal._text(item, "completion transition id")
+                for item in cal._list(
+                    raw["transition_ids"], "completion transition ids"
+                )
+            ),
+            terminal_row_id=terminal_raw,
+            next_slot_authorized=cal._boolean(
+                raw["next_slot_authorized"], "completion next-slot flag"
+            ),
+            ledger_complete=cal._boolean(
+                raw["ledger_complete"], "completion ledger flag"
+            ),
+            stream_prefix_raw_sha256=cal._digest(
+                raw["stream_prefix_raw_sha256"], "completion stream prefix"
+            ),
+            schema_version=cal._text(
+                raw["schema_version"], "completion schema version"
+            ),
+        )
+        if completion.to_payload() != raw:
+            raise ValueError("online slot completion did not roundtrip")
+        return completion
+
+
+@dataclass
+class _OnlinePhysicalArmState:
+    binding: RelationshipProductHorizonOnlineArmBinding
+    session: RelationshipActionGateV2OnlineSession
+    owner_persistence_snapshot: OwnerPersistenceSnapshot
+    authorization_raw: bytes
+
+
+class RelationshipProductHorizonOnlinePhysicalBarrier:
+    """Single-writer full/frozen ledger with durable-before-source/next ordering.
+
+    This is a mechanism API, not a scientific campaign protocol.  It privately
+    creates one file-backed sink and opens the caller's generic source only after
+    the first durable preaction receipt.  It never verifies source-v5 admission.
+    A failure at any prepare/source/commit/write/fsync point poisons this owner
+    and its sink permanently; no resume or truncation API exists.
+    """
+
+    def __init__(
+        self,
+        *,
+        path: pathlib.Path,
+        mechanism_run_id: str,
+        root_sequence_index: int,
+        bindings: tuple[RelationshipProductHorizonOnlineArmBinding, ...],
+        source_descriptor: RelationshipProductHorizonOnlineSettlementSourceDescriptor,
+        substrate_snapshot: SubstrateSnapshot,
+        expected_slot_count: int = 40,
+    ) -> None:
+        if type(mechanism_run_id) is not str or not mechanism_run_id.strip():
+            raise ValueError("mechanism_run_id must be non-empty")
+        if type(root_sequence_index) is not int or root_sequence_index < 0:
+            raise ValueError("root_sequence_index must be a non-negative integer")
+        if (
+            type(expected_slot_count) is not int
+            or expected_slot_count < 1
+            or expected_slot_count > 10_000
+        ):
+            raise ValueError("expected_slot_count must be in [1, 10000]")
+        if type(bindings) is not tuple or tuple(item.arm_id for item in bindings) != (
+            _ONLINE_PHYSICAL_ARMS
+        ):
+            raise ValueError("online physical bindings must be exact full/frozen order")
+        if type(source_descriptor) is not (
+            RelationshipProductHorizonOnlineSettlementSourceDescriptor
+        ):
+            raise TypeError("source_descriptor has an unexpected type")
+        source_capability_id = source_descriptor.source_capability_id
+        if type(substrate_snapshot) is not SubstrateSnapshot:
+            raise TypeError("substrate_snapshot must be SubstrateSnapshot")
+
+        full, frozen = bindings
+        if (
+            full.authorization.gate_disposition
+            is not RelationshipActionGateBatchDisposition.APPLY
+            or frozen.authorization.gate_disposition
+            is not RelationshipActionGateBatchDisposition.WITHHOLD
+            or full.authorization.theta0_authorization
+            != frozen.authorization.theta0_authorization
+            or full.authorization.owner_session_scope
+            == frozen.authorization.owner_session_scope
+            or full.forecast_runtime is not frozen.forecast_runtime
+        ):
+            raise ValueError(
+                "online physical arms must share theta0 and bind APPLY/WITHHOLD "
+                "under exclusive owner scopes and one exact forecast runtime object; "
+                "scientific runtime arm invariance is qualified separately"
+            )
+        initial_owners = tuple(
+            _seal_online_owner_snapshot(item.initial_owner_persistence_snapshot)
+            for item in bindings
+        )
+        if _owner_snapshot_payload(initial_owners[0]) != _owner_snapshot_payload(
+            initial_owners[1]
+        ):
+            raise ValueError("online physical arms must share exact owner-start bytes")
+
+        self._mechanism_run_id = mechanism_run_id
+        self._root_sequence_index = root_sequence_index
+        self._source_descriptor = source_descriptor
+        self._source: RelationshipProductHorizonOnlineSettlementSource | None = None
+        self._source_capability_id = source_capability_id
+        self._substrate_snapshot = substrate_snapshot
+        self._expected_slot_count = expected_slot_count
+        self._slot_index = 0
+        self._failed = False
+        self._closed = False
+        self._terminal_durable = False
+        self._operation_lock = threading.Lock()
+        self._last_credit_timestamp_ms: int | None = None
+        self._postaction_receipt_row_ids: list[str] = []
+        self._source_open_count = 0
+        self._source_call_count = 0
+        self._source_branch_receipt_ids_by_slot: list[tuple[str, ...]] = []
+        self._states: dict[
+            RelationshipProductHorizonOnlineArm,
+            _OnlinePhysicalArmState,
+        ] = {}
+        for binding, owner in zip(bindings, initial_owners, strict=True):
+            session = RelationshipActionGateV2OnlineSession(
+                artifact=binding.authorization.learned_theta0_artifact,
+                disposition=binding.authorization.gate_disposition,
+            )
+            binding.authorization.validate_session(session)
+            self._states[binding.arm_id] = _OnlinePhysicalArmState(
+                binding=binding,
+                session=session,
+                owner_persistence_snapshot=owner,
+                authorization_raw=cal._canonical_bytes(
+                    binding.authorization.to_payload()
+                ),
+            )
+        checkpoints = tuple(
+            self._states[arm].session.export_checkpoint()
+            for arm in _ONLINE_PHYSICAL_ARMS
+        )
+        if checkpoints[0] != checkpoints[1] or checkpoints[0].update_count != 0:
+            raise ValueError("online physical arms do not share one cold theta0 checkpoint")
+
+        self._sink = _CreateOnlyStreamingJsonlSink(pathlib.Path(path))
+        try:
+            self._header_durable = self._sink.append_many_fsync(
+                (
+                    _online_physical_header_payload(
+                        mechanism_run_id=self._mechanism_run_id,
+                        root_sequence_index=self._root_sequence_index,
+                        expected_slot_count=self._expected_slot_count,
+                        source_capability_id=self._source_capability_id,
+                        states=self._states,
+                    ),
+                )
+            )
+        except BaseException:
+            self._failed = True
+            self._sink.fail_closed()
+            raise
+
+    @property
+    def failed(self) -> bool:
+        return self._failed
+
+    @property
+    def completed_slot_count(self) -> int:
+        return self._slot_index
+
+    @property
+    def ledger_complete(self) -> bool:
+        return self._terminal_durable and not self._failed
+
+    async def execute_slot(
+        self,
+        *,
+        requests: tuple[
+            tuple[
+                RelationshipProductHorizonOnlineArm,
+                RelationshipProductPreActionRequest,
+            ],
+            ...,
+        ],
+        temporal_delivery_timestamp_ms: int,
+    ) -> RelationshipProductHorizonOnlineSlotCompletion:
+        if self._failed:
+            raise RuntimeError("online physical barrier is permanently failed closed")
+        if self._closed:
+            raise RuntimeError("online physical barrier is closed")
+        if self._terminal_durable:
+            raise RuntimeError("online physical barrier is already terminal")
+        if (
+            type(temporal_delivery_timestamp_ms) is not int
+            or temporal_delivery_timestamp_ms < 0
+        ):
+            raise ValueError(
+                "temporal_delivery_timestamp_ms must be a non-negative integer"
+            )
+        if type(requests) is not tuple or tuple(item[0] for item in requests) != (
+            _ONLINE_PHYSICAL_ARMS
+        ):
+            raise ValueError("online physical requests must be exact full/frozen order")
+        if any(type(item[1]) is not RelationshipProductPreActionRequest for item in requests):
+            raise TypeError("online physical requests must contain exact typed requests")
+        _validate_online_matched_public_requests(requests)
+        if not self._operation_lock.acquire(blocking=False):
+            raise RuntimeError("online physical barrier rejects concurrent or reentrant use")
+        if self._failed or self._closed or self._terminal_durable:
+            self._operation_lock.release()
+            if self._failed:
+                raise RuntimeError("online physical barrier is permanently failed closed")
+            if self._closed:
+                raise RuntimeError("online physical barrier is closed")
+            raise RuntimeError("online physical barrier is already terminal")
+
+        slot_index = self._slot_index
+        try:
+            credit_timestamp_ms = _online_physical_credit_timestamp_ms(
+                root_sequence_index=self._root_sequence_index,
+                slot_index=slot_index,
+            )
+            if (
+                self._last_credit_timestamp_ms is not None
+                and credit_timestamp_ms <= self._last_credit_timestamp_ms
+            ):
+                raise ValueError("online credit logical time must increase strictly")
+            prepared: list[
+                tuple[
+                    RelationshipProductHorizonOnlineArm,
+                    RelationshipProductV2OnlinePreActionSnapshot,
+                ]
+            ] = []
+            preaction_rows: list[Mapping[str, object]] = []
+            for physical_index, (arm, request) in enumerate(requests):
+                state = self._states[arm]
+                if cal._canonical_bytes(state.binding.authorization.to_payload()) != (
+                    state.authorization_raw
+                ):
+                    raise RuntimeError("online authorization changed after initialization")
+                state.owner_persistence_snapshot = _seal_online_owner_snapshot(
+                    state.owner_persistence_snapshot
+                )
+                preaction = await prepare_relationship_product_v2_online_preaction(
+                    request=request,
+                    owner_persistence_snapshot=state.owner_persistence_snapshot,
+                    forecast_runtime=state.binding.forecast_runtime,
+                    online_session=state.session,
+                    authorization=state.binding.authorization,
+                    substrate_snapshot=self._substrate_snapshot,
+                    temporal_delivery_timestamp_ms=(
+                        temporal_delivery_timestamp_ms
+                    ),
+                )
+                _validate_live_online_preaction(
+                    arm=arm,
+                    slot_index=slot_index,
+                    state=state,
+                    preaction=preaction,
+                )
+                prepared.append((arm, preaction))
+                preaction_rows.append(
+                    _online_preaction_payload(
+                        mechanism_run_id=self._mechanism_run_id,
+                        root_sequence_index=self._root_sequence_index,
+                        slot_index=slot_index,
+                        arm=arm,
+                        physical_arm_order_index=physical_index,
+                        preaction=preaction,
+                    )
+                )
+
+            durable_preaction_rows = self._sink.append_many_fsync(
+                tuple(preaction_rows)
+            )
+            barrier = _mint_online_preaction_barrier(
+                sink=self._sink,
+                mechanism_run_id=self._mechanism_run_id,
+                root_sequence_index=self._root_sequence_index,
+                slot_index=slot_index,
+                preactions=tuple(prepared),
+                durable_preactions=durable_preaction_rows,
+            )
+            open_capability = _online_source_open_capability(
+                source_capability_id=self._source_capability_id,
+                barrier=barrier,
+            )
+            if self._source is None:
+                source = await self._source_descriptor.open_source(open_capability)
+                if source is None or not callable(source.settle_actions):
+                    raise TypeError("source opener returned an invalid source")
+                self._source = source
+                self._source_open_count += 1
+            source_request = _online_source_request_from_preactions(
+                open_capability=open_capability,
+                preactions=tuple(prepared),
+            )
+            source_branches = await self._source.settle_actions(
+                request=source_request
+            )
+            branches_by_action = _validate_online_source_branches(
+                source_capability_id=self._source_capability_id,
+                source_request=source_request,
+                source_branches=source_branches,
+            )
+            self._source_call_count += 1
+            source_inputs = tuple(
+                (
+                    arm,
+                    _online_settlement_input_from_source_branch(
+                        preaction=preaction,
+                        branch=branches_by_action[
+                            RelationshipAction(preaction.delivered_action_id)
+                        ],
+                        credit_timestamp_ms=credit_timestamp_ms,
+                    ),
+                )
+                for arm, preaction in prepared
+            )
+
+            settled_or_errors = await asyncio.gather(
+                *(
+                    settle_relationship_product_v2_online_pulse(
+                        preaction=preaction,
+                        settlement_input=settlement_input,
+                        online_session=self._states[arm].session,
+                    )
+                    for (arm, preaction), (_, settlement_input) in zip(
+                        prepared,
+                        source_inputs,
+                        strict=True,
+                    )
+                ),
+                return_exceptions=True,
+            )
+            first_error = next(
+                (
+                    item
+                    for item in settled_or_errors
+                    if isinstance(item, BaseException)
+                ),
+                None,
+            )
+            if first_error is not None:
+                raise RuntimeError("online pair settlement or commit failed") from first_error
+            settlements = tuple(
+                (arm, item)
+                for (arm, _), item in zip(
+                    prepared,
+                    settled_or_errors,
+                    strict=True,
+                )
+            )
+            if any(
+                type(item) is not RelationshipProductV2OnlineSettlementSnapshot
+                for _, item in settlements
+            ):
+                raise TypeError("online pair settlement returned an unexpected type")
+
+            postaction_rows: list[Mapping[str, object]] = []
+            for physical_index, ((arm, preaction), (_, settlement_input), (_, item)) in enumerate(
+                zip(prepared, source_inputs, settlements, strict=True)
+            ):
+                state = self._states[arm]
+                source_branch = branches_by_action[
+                    RelationshipAction(preaction.delivered_action_id)
+                ]
+                _validate_live_online_settlement(
+                    arm=arm,
+                    slot_index=slot_index,
+                    state=state,
+                    preaction=preaction,
+                    settlement_input=settlement_input,
+                    settlement=item,
+                )
+                postaction_rows.append(
+                    _online_postaction_payload(
+                        mechanism_run_id=self._mechanism_run_id,
+                        root_sequence_index=self._root_sequence_index,
+                        slot_index=slot_index,
+                        arm=arm,
+                        physical_arm_order_index=physical_index,
+                        barrier=barrier,
+                        source_request=source_request,
+                        source_branch=source_branch,
+                        settlement=item,
+                        terminal_chain_id=state.session.current_chain_id,
+                    )
+                )
+            durable_postactions = self._sink.append_many_fsync(
+                tuple(postaction_rows)
+            )
+            durable_post_receipt = _append_online_postaction_receipt(
+                sink=self._sink,
+                mechanism_run_id=self._mechanism_run_id,
+                root_sequence_index=self._root_sequence_index,
+                slot_index=slot_index,
+                barrier=barrier,
+                settlements=settlements,
+                durable_postactions=durable_postactions,
+                source_request=source_request,
+                source_branches=source_branches,
+                next_slot_authorized=(
+                    slot_index + 1 < self._expected_slot_count
+                ),
+            )
+            post_receipt_row_id = durable_post_receipt.row_ids[0]
+            self._postaction_receipt_row_ids.append(post_receipt_row_id)
+            self._source_branch_receipt_ids_by_slot.append(
+                tuple(item.branch_id for item in source_branches)
+            )
+
+            for arm, item in settlements:
+                self._states[arm].owner_persistence_snapshot = (
+                    _seal_online_owner_snapshot(item.owner_persistence_snapshot)
+                )
+            self._last_credit_timestamp_ms = credit_timestamp_ms
+
+            terminal_row_id: str | None = None
+            is_terminal_slot = slot_index + 1 == self._expected_slot_count
+            if is_terminal_slot:
+                terminal = self._sink.append_many_fsync(
+                    (
+                        _online_terminal_payload(
+                            mechanism_run_id=self._mechanism_run_id,
+                            root_sequence_index=self._root_sequence_index,
+                            expected_slot_count=self._expected_slot_count,
+                            source_capability_id=self._source_capability_id,
+                            states=self._states,
+                            postaction_receipt_row_ids=tuple(
+                                self._postaction_receipt_row_ids
+                            ),
+                            source_open_count=self._source_open_count,
+                            source_call_count=self._source_call_count,
+                            source_branch_receipt_ids_by_slot=tuple(
+                                self._source_branch_receipt_ids_by_slot
+                            ),
+                        ),
+                    )
+                )
+                terminal_row_id = terminal.row_ids[0]
+            self._slot_index = slot_index + 1
+            self._terminal_durable = is_terminal_slot
+            completion_core = {
+                "schema_version": ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION,
+                "postaction_receipt_row_id": post_receipt_row_id,
+                "mechanism_run_id": self._mechanism_run_id,
+                "root_sequence_index": self._root_sequence_index,
+                "slot_index": slot_index,
+                "arm_order": [arm.value for arm in _ONLINE_PHYSICAL_ARMS],
+                "transition_ids": [
+                    item.gate_transition.transition_id for _, item in settlements
+                ],
+                "terminal_row_id": terminal_row_id,
+                "next_slot_authorized": (
+                    self._slot_index < self._expected_slot_count
+                ),
+                "ledger_complete": self._terminal_durable,
+                "stream_prefix_raw_sha256": self._sink.raw_sha256,
+            }
+            return RelationshipProductHorizonOnlineSlotCompletion(
+                completion_id=sha256_json(completion_core),
+                postaction_receipt_row_id=post_receipt_row_id,
+                mechanism_run_id=self._mechanism_run_id,
+                root_sequence_index=self._root_sequence_index,
+                slot_index=slot_index,
+                arm_order=_ONLINE_PHYSICAL_ARMS,
+                transition_ids=tuple(
+                    item.gate_transition.transition_id for _, item in settlements
+                ),
+                terminal_row_id=terminal_row_id,
+                next_slot_authorized=(
+                    self._slot_index < self._expected_slot_count
+                ),
+                ledger_complete=self._terminal_durable,
+                stream_prefix_raw_sha256=self._sink.raw_sha256,
+            )
+        except BaseException as exc:
+            self._failed = True
+            self._sink.fail_closed()
+            if isinstance(exc, Exception):
+                raise RuntimeError(
+                    f"online physical barrier failed closed at slot {slot_index}"
+                ) from exc
+            raise
+        finally:
+            self._operation_lock.release()
+
+    def close(self) -> None:
+        if not self._operation_lock.acquire(blocking=False):
+            raise RuntimeError("online physical barrier rejects concurrent close")
+        try:
+            if not self._closed:
+                if not self._terminal_durable:
+                    self._failed = True
+                    self._sink.fail_closed()
+                self._sink.close()
+                self._closed = True
+        except BaseException:
+            self._failed = True
+            self._sink.fail_closed()
+            raise
+        finally:
+            self._operation_lock.release()
 
 
 def relationship_product_horizon_development_campaign_protocol_path() -> pathlib.Path:
@@ -694,6 +1639,949 @@ def _owner_snapshot_from_payload(payload: object) -> OwnerPersistenceSnapshot:
     return snapshot
 
 
+def _seal_online_owner_snapshot(
+    snapshot: OwnerPersistenceSnapshot,
+) -> OwnerPersistenceSnapshot:
+    """Detach the shallow-frozen owner envelope through canonical bytes."""
+
+    raw = cal._canonical_bytes(_owner_snapshot_payload(snapshot))
+    payload = cal._parse_json_bytes(raw, source="online owner persistence seal")
+    sealed = _owner_snapshot_from_payload(payload)
+    if cal._canonical_bytes(_owner_snapshot_payload(sealed)) != raw:
+        raise ValueError("online owner persistence seal changed canonical bytes")
+    return sealed
+
+
+def _online_request_payload(
+    request: RelationshipProductPreActionRequest,
+) -> Mapping[str, object]:
+    forecast_request = request.forecast_request
+    return {
+        "session_id": request.session_id,
+        "forecast_request": {
+            "decision_id": forecast_request.decision_id,
+            "interlocutor_id": forecast_request.interlocutor_id,
+            "current_observation": forecast_request.current_observation,
+            "observation_ref": forecast_request.observation_ref,
+            "candidate_action_ids": list(forecast_request.candidate_action_ids),
+            "outcome_ids": list(forecast_request.outcome_ids),
+            "turn_index": forecast_request.turn_index,
+            "session_scope": forecast_request.session_scope,
+        },
+        "outcome_turn_index": request.outcome_turn_index,
+    }
+
+
+def _online_request_from_payload(payload: object) -> RelationshipProductPreActionRequest:
+    raw = cal._mapping(payload, "online physical request")
+    cal._exact_keys(
+        raw,
+        {"session_id", "forecast_request", "outcome_turn_index"},
+        "online physical request",
+    )
+    forecast_raw = cal._mapping(
+        raw["forecast_request"], "online physical forecast request"
+    )
+    cal._exact_keys(
+        forecast_raw,
+        {
+            "decision_id",
+            "interlocutor_id",
+            "current_observation",
+            "observation_ref",
+            "candidate_action_ids",
+            "outcome_ids",
+            "turn_index",
+            "session_scope",
+        },
+        "online physical forecast request",
+    )
+    return RelationshipProductPreActionRequest(
+        session_id=cal._text(raw["session_id"], "request session_id"),
+        forecast_request=PreferenceActionForecastRequest(
+            decision_id=cal._text(
+                forecast_raw["decision_id"], "request decision_id"
+            ),
+            interlocutor_id=cal._text(
+                forecast_raw["interlocutor_id"], "request interlocutor_id"
+            ),
+            current_observation=cal._text(
+                forecast_raw["current_observation"], "request observation"
+            ),
+            observation_ref=cal._text(
+                forecast_raw["observation_ref"], "request observation_ref"
+            ),
+            candidate_action_ids=tuple(
+                cal._text(item, "request candidate action")
+                for item in cal._list(
+                    forecast_raw["candidate_action_ids"],
+                    "request candidate actions",
+                )
+            ),
+            outcome_ids=tuple(
+                cal._text(item, "request outcome")
+                for item in cal._list(
+                    forecast_raw["outcome_ids"], "request outcomes"
+                )
+            ),
+            turn_index=cal._integer(
+                forecast_raw["turn_index"], "request turn_index"
+            ),
+            session_scope=cal._text(
+                forecast_raw["session_scope"], "request session_scope"
+            ),
+        ),
+        outcome_turn_index=cal._integer(
+            raw["outcome_turn_index"], "request outcome_turn_index"
+        ),
+    )
+
+
+def _online_public_request_projection(
+    request: RelationshipProductPreActionRequest,
+) -> Mapping[str, object]:
+    forecast_request = request.forecast_request
+    return {
+        "decision_id": forecast_request.decision_id,
+        "interlocutor_id": forecast_request.interlocutor_id,
+        "current_observation": forecast_request.current_observation,
+        "observation_ref": forecast_request.observation_ref,
+        "candidate_action_ids": list(forecast_request.candidate_action_ids),
+        "outcome_ids": list(forecast_request.outcome_ids),
+        "turn_index": forecast_request.turn_index,
+        "outcome_turn_index": request.outcome_turn_index,
+    }
+
+
+def _validate_online_matched_public_requests(
+    requests: tuple[
+        tuple[
+            RelationshipProductHorizonOnlineArm,
+            RelationshipProductPreActionRequest,
+        ],
+        ...,
+    ],
+) -> None:
+    projections = tuple(
+        cal._canonical_bytes(_online_public_request_projection(request))
+        for _, request in requests
+    )
+    if len(projections) != len(_ONLINE_PHYSICAL_ARMS) or len(set(projections)) != 1:
+        raise ValueError(
+            "online physical arms must share one exact public request projection"
+        )
+
+
+def _online_source_open_capability(
+    *,
+    source_capability_id: str,
+    barrier: RelationshipProductHorizonOnlinePreactionBarrier,
+) -> RelationshipProductHorizonOnlineSourceOpenCapability:
+    return RelationshipProductHorizonOnlineSourceOpenCapability(
+        source_capability_id=source_capability_id,
+        mechanism_run_id=barrier.mechanism_run_id,
+        root_sequence_index=barrier.root_sequence_index,
+        slot_index=barrier.slot_index,
+    )
+
+
+def _online_source_request_from_preactions(
+    *,
+    open_capability: RelationshipProductHorizonOnlineSourceOpenCapability,
+    preactions: tuple[
+        tuple[
+            RelationshipProductHorizonOnlineArm,
+            RelationshipProductV2OnlinePreActionSnapshot,
+        ],
+        ...,
+    ],
+) -> RelationshipProductHorizonOnlineSourceRequest:
+    requests = tuple((arm, preaction.request) for arm, preaction in preactions)
+    _validate_online_matched_public_requests(requests)
+    public = preactions[0][1].request.forecast_request
+    delivered_action_ids = {
+        preaction.delivered_action_id for _, preaction in preactions
+    }
+    selected_actions = tuple(
+        RelationshipAction(action_id)
+        for action_id in public.candidate_action_ids
+        if action_id in delivered_action_ids
+    )
+    return RelationshipProductHorizonOnlineSourceRequest(
+        open_capability=open_capability,
+        decision_id=public.decision_id,
+        interlocutor_id=public.interlocutor_id,
+        current_observation=public.current_observation,
+        observation_ref=public.observation_ref,
+        candidate_action_ids=public.candidate_action_ids,
+        outcome_ids=public.outcome_ids,
+        turn_index=public.turn_index,
+        outcome_turn_index=preactions[0][1].request.outcome_turn_index,
+        selected_actions=selected_actions,
+    )
+
+
+def _validate_online_source_branches(
+    *,
+    source_capability_id: str,
+    source_request: RelationshipProductHorizonOnlineSourceRequest,
+    source_branches: tuple[RelationshipProductHorizonOnlineSourceBranch, ...],
+) -> Mapping[RelationshipAction, RelationshipProductHorizonOnlineSourceBranch]:
+    if type(source_branches) is not tuple or any(
+        type(item) is not RelationshipProductHorizonOnlineSourceBranch
+        for item in source_branches
+    ):
+        raise TypeError("source returned an unexpected branch tuple")
+    if tuple(item.selected_action for item in source_branches) != (
+        source_request.selected_actions
+    ):
+        raise ValueError("source must return one exact action-keyed branch tuple")
+    request_id = source_request.source_request_id
+    if any(
+        item.source_request_id != request_id
+        or item.source_capability_id != source_capability_id
+        or item.typed_outcome not in RELATIONSHIP_OUTCOMES
+        for item in source_branches
+    ):
+        raise ValueError("source branch lineage or product outcome drifted")
+    return {item.selected_action: item for item in source_branches}
+
+
+def _online_source_open_capability_from_payload(
+    payload: object,
+) -> RelationshipProductHorizonOnlineSourceOpenCapability:
+    raw = cal._mapping(payload, "online source-open capability")
+    cal._exact_keys(
+        raw,
+        {
+            "schema_version",
+            "source_capability_id",
+            "mechanism_run_id",
+            "root_sequence_index",
+            "slot_index",
+        },
+        "online source-open capability",
+    )
+    capability = RelationshipProductHorizonOnlineSourceOpenCapability(
+        source_capability_id=cal._text(
+            raw["source_capability_id"], "source capability id"
+        ),
+        mechanism_run_id=cal._text(
+            raw["mechanism_run_id"], "source mechanism run id"
+        ),
+        root_sequence_index=cal._integer(
+            raw["root_sequence_index"], "source root sequence index"
+        ),
+        slot_index=cal._integer(raw["slot_index"], "source slot index"),
+        schema_version=cal._text(raw["schema_version"], "source schema version"),
+    )
+    if capability.to_payload() != raw:
+        raise ValueError("online source-open capability did not roundtrip")
+    return capability
+
+
+def _online_source_request_from_payload(
+    payload: object,
+) -> RelationshipProductHorizonOnlineSourceRequest:
+    raw = cal._mapping(payload, "online source request")
+    cal._exact_keys(
+        raw,
+        {
+            "schema_version",
+            "open_capability",
+            "decision_id",
+            "interlocutor_id",
+            "current_observation",
+            "observation_ref",
+            "candidate_action_ids",
+            "outcome_ids",
+            "turn_index",
+            "outcome_turn_index",
+            "selected_actions",
+        },
+        "online source request",
+    )
+    request = RelationshipProductHorizonOnlineSourceRequest(
+        open_capability=_online_source_open_capability_from_payload(
+            raw["open_capability"]
+        ),
+        decision_id=cal._text(raw["decision_id"], "source decision id"),
+        interlocutor_id=cal._text(
+            raw["interlocutor_id"], "source interlocutor id"
+        ),
+        current_observation=cal._text(
+            raw["current_observation"], "source current observation"
+        ),
+        observation_ref=cal._text(
+            raw["observation_ref"], "source observation ref"
+        ),
+        candidate_action_ids=tuple(
+            cal._text(item, "source candidate action")
+            for item in cal._list(
+                raw["candidate_action_ids"], "source candidate actions"
+            )
+        ),
+        outcome_ids=tuple(
+            cal._text(item, "source outcome")
+            for item in cal._list(raw["outcome_ids"], "source outcomes")
+        ),
+        turn_index=cal._integer(raw["turn_index"], "source turn index"),
+        outcome_turn_index=cal._integer(
+            raw["outcome_turn_index"], "source outcome turn index"
+        ),
+        selected_actions=tuple(
+            RelationshipAction(cal._text(item, "source selected action"))
+            for item in cal._list(
+                raw["selected_actions"], "source selected actions"
+            )
+        ),
+        schema_version=cal._text(raw["schema_version"], "source schema version"),
+    )
+    if request.to_payload() != raw:
+        raise ValueError("online source request did not roundtrip")
+    return request
+
+
+def _online_source_branch_from_payload(
+    payload: object,
+) -> RelationshipProductHorizonOnlineSourceBranch:
+    raw = cal._mapping(payload, "online source branch")
+    cal._exact_keys(
+        raw,
+        {
+            "schema_version",
+            "source_request_id",
+            "source_capability_id",
+            "selected_action",
+            "typed_outcome",
+            "rendered_user_reaction",
+            "environment_evidence_ref",
+            "environment_version",
+        },
+        "online source branch",
+    )
+    branch = RelationshipProductHorizonOnlineSourceBranch(
+        source_request_id=cal._digest(
+            raw["source_request_id"], "source request id"
+        ),
+        source_capability_id=cal._text(
+            raw["source_capability_id"], "source capability id"
+        ),
+        selected_action=RelationshipAction(
+            cal._text(raw["selected_action"], "source selected action")
+        ),
+        typed_outcome=DialogueExternalOutcomeKind(
+            cal._text(raw["typed_outcome"], "source typed outcome")
+        ),
+        rendered_user_reaction=cal._text(
+            raw["rendered_user_reaction"], "source rendered reaction"
+        ),
+        environment_evidence_ref=cal._text(
+            raw["environment_evidence_ref"], "source environment evidence ref"
+        ),
+        environment_version=cal._text(
+            raw["environment_version"], "source environment version"
+        ),
+        schema_version=cal._text(raw["schema_version"], "source schema version"),
+    )
+    if branch.to_payload() != raw:
+        raise ValueError("online source branch did not roundtrip")
+    return branch
+
+
+def _online_settlement_input_from_source_branch(
+    *,
+    preaction: RelationshipProductV2OnlinePreActionSnapshot,
+    branch: RelationshipProductHorizonOnlineSourceBranch,
+    credit_timestamp_ms: int,
+) -> RelationshipProductSettlementInput:
+    return _online_settlement_input_from_components(
+        request=preaction.request,
+        forecast=preaction.forecast,
+        delivered_action_id=preaction.delivered_action_id,
+        branch=branch,
+        credit_timestamp_ms=credit_timestamp_ms,
+    )
+
+
+def _online_physical_credit_timestamp_ms(
+    *,
+    root_sequence_index: int,
+    slot_index: int,
+) -> int:
+    if type(root_sequence_index) is not int or root_sequence_index < 0:
+        raise ValueError("root_sequence_index must be a non-negative integer")
+    if (
+        type(slot_index) is not int
+        or slot_index < 0
+        or slot_index >= ONLINE_PHYSICAL_CREDIT_CLOCK_STRIDE
+    ):
+        raise ValueError("slot_index is outside the online physical credit clock")
+    return root_sequence_index * ONLINE_PHYSICAL_CREDIT_CLOCK_STRIDE + slot_index
+
+
+def _online_settlement_input_from_components(
+    *,
+    request: RelationshipProductPreActionRequest,
+    forecast: PreferenceActionForecast,
+    delivered_action_id: str,
+    branch: RelationshipProductHorizonOnlineSourceBranch,
+    credit_timestamp_ms: int,
+) -> RelationshipProductSettlementInput:
+    action = RelationshipAction(delivered_action_id)
+    if branch.selected_action is not action:
+        raise ValueError("source branch action differs from executor delivery")
+    evidence_id = "relationship-product-online-outcome:" + sha256_json(
+        {
+            "source_branch_id": branch.branch_id,
+            "forecast_id": forecast.forecast_id,
+            "session_scope": forecast.session_scope,
+        }
+    )
+    external = DialogueExternalOutcomeEvidence(
+        evidence_id=evidence_id,
+        turn_index=request.outcome_turn_index,
+        kind=branch.typed_outcome,
+        source=DialogueExternalOutcomeEvidenceSource.ENVIRONMENT,
+        confidence=1.0,
+        evidence_ref=branch.environment_evidence_ref,
+        description=branch.rendered_user_reaction,
+        session_scope=forecast.session_scope,
+        action_turn_index=request.forecast_request.turn_index,
+        forecast_id=forecast.forecast_id,
+        decision_id=forecast.decision_id,
+        action_id=action.value,
+    )
+    owner = PreferenceActionOutcomeEvidence(
+        evidence_id=evidence_id,
+        interlocutor_id=forecast.interlocutor_id,
+        observation_summary=request.forecast_request.current_observation,
+        action_id=action.value,
+        observed_outcome_id=branch.typed_outcome.value,
+        reaction_summary=branch.rendered_user_reaction,
+        source_turn=request.outcome_turn_index,
+        evidence_refs=(branch.environment_evidence_ref,),
+    )
+    return RelationshipProductSettlementInput(
+        external_outcome=external,
+        owner_outcome_evidence=owner,
+        credit_timestamp_ms=credit_timestamp_ms,
+        apply_credit_to_gate=False,
+    )
+
+
+def _online_physical_header_payload(
+    *,
+    mechanism_run_id: str,
+    root_sequence_index: int,
+    expected_slot_count: int,
+    source_capability_id: str,
+    states: Mapping[
+        RelationshipProductHorizonOnlineArm,
+        _OnlinePhysicalArmState,
+    ],
+) -> Mapping[str, object]:
+    return {
+        "schema_version": ONLINE_PHYSICAL_TRACE_SCHEMA_VERSION,
+        "record_type": "online_physical_header",
+        "mechanism_schema_version": ONLINE_PHYSICAL_MECHANISM_SCHEMA_VERSION,
+        "mechanism_run_id": mechanism_run_id,
+        "root_sequence_index": root_sequence_index,
+        "expected_slot_count": expected_slot_count,
+        "arm_order": [arm.value for arm in _ONLINE_PHYSICAL_ARMS],
+        "arm_initializations": [
+            {
+                "arm_id": arm.value,
+                "gate_disposition": state.binding.authorization.gate_disposition.value,
+                "executor_disposition": "apply_candidate",
+                "authorization": state.binding.authorization.to_payload(),
+                "authorization_raw_sha256": cal._sha256_bytes(
+                    state.authorization_raw
+                ),
+                "owner_session_scope": (
+                    state.binding.authorization.owner_session_scope
+                ),
+                "forecast_runtime_id": state.binding.forecast_runtime.runtime_id,
+                "initial_owner_persistence": _owner_snapshot_payload(
+                    state.owner_persistence_snapshot
+                ),
+                "initial_owner_persistence_sha256": (
+                    social_record_store_persistence_sha256(
+                        state.owner_persistence_snapshot
+                    )
+                ),
+                "cold_chain_id": state.session.current_chain_id,
+                "cold_checkpoint": state.session.export_checkpoint().to_payload(),
+            }
+            for arm, state in (
+                (arm, states[arm]) for arm in _ONLINE_PHYSICAL_ARMS
+            )
+        ],
+        "source_capability_id": source_capability_id,
+        "credit_clock_owner": "RelationshipProductHorizonOnlinePhysicalBarrier",
+        "credit_clock_stride": ONLINE_PHYSICAL_CREDIT_CLOCK_STRIDE,
+        "forecast_runtime_object_identity_shared_in_live_constructor": True,
+        "forecast_runtime_arm_invariance_verified_by_mechanism": False,
+        "forecast_runtime_session_scope_blinding_verified_by_mechanism": False,
+        "forecast_runtime_call_order_blinding_verified_by_mechanism": False,
+        "source_v5_identity_bound_by_mechanism": False,
+        "source_v5_admission_verified_by_mechanism": False,
+        "scientific_campaign_protocol_freeze_authorized": False,
+        "campaign_matrix_executed": False,
+        "effect_estimand_executed": False,
+        "model_invocation_count": 0,
+        "cuda_execution_count": 0,
+        "rehearsal_execution_count": 0,
+        "windows_directory_entry_durability_claimed": False,
+        "file_handle_flush_fsync_acknowledgement_only": True,
+    }
+
+
+def _validate_live_online_preaction(
+    *,
+    arm: RelationshipProductHorizonOnlineArm,
+    slot_index: int,
+    state: _OnlinePhysicalArmState,
+    preaction: RelationshipProductV2OnlinePreActionSnapshot,
+) -> None:
+    if type(preaction) is not RelationshipProductV2OnlinePreActionSnapshot:
+        raise TypeError("online physical preaction has an unexpected type")
+    session = state.session
+    command = preaction.execution_receipt.command
+    if (
+        preaction.authorization != state.binding.authorization
+        or command.authorization != state.binding.authorization
+        or preaction.owner_input_persistence_snapshot
+        != state.owner_persistence_snapshot
+        or preaction.gate_transition_count_before != slot_index
+        or preaction.online_exposure.sequence_index != slot_index
+        or preaction.parent_chain_id != session.current_chain_id
+        or preaction.gate_checkpoint_content_sha256_before
+        != session.export_checkpoint().content_sha256
+        or session.transition_count != slot_index
+        or session.pending_exposure != preaction.online_exposure
+        or session.pending_plan is not None
+        or preaction.delivered_action_id
+        != preaction.online_exposure.frozen_decision.decision.selected_action_id
+        or command.owner_prestate_sha256
+        != social_record_store_persistence_sha256(
+            preaction.owner_persistence_snapshot
+        )
+        or preaction.authorization.gate_disposition
+        is not (
+            RelationshipActionGateBatchDisposition.APPLY
+            if arm is RelationshipProductHorizonOnlineArm.FULL
+            else RelationshipActionGateBatchDisposition.WITHHOLD
+        )
+    ):
+        raise RuntimeError("online physical preaction lineage drifted")
+    _seal_online_owner_snapshot(preaction.owner_input_persistence_snapshot)
+    _seal_online_owner_snapshot(preaction.owner_persistence_snapshot)
+    receipt_payload = preaction.execution_receipt.to_payload()
+    if (
+        receipt_payload["evaluation_gate_update_delta_before_outcome"] != 0
+        or receipt_payload["evaluator_or_judge_feedback_received"] is not False
+    ):
+        raise RuntimeError("online physical preaction crossed the outcome boundary")
+
+
+def _online_preaction_payload(
+    *,
+    mechanism_run_id: str,
+    root_sequence_index: int,
+    slot_index: int,
+    arm: RelationshipProductHorizonOnlineArm,
+    physical_arm_order_index: int,
+    preaction: RelationshipProductV2OnlinePreActionSnapshot,
+) -> Mapping[str, object]:
+    owner_input = _seal_online_owner_snapshot(
+        preaction.owner_input_persistence_snapshot
+    )
+    owner_preaction = _seal_online_owner_snapshot(
+        preaction.owner_persistence_snapshot
+    )
+    exposure = preaction.online_exposure
+    receipt = preaction.execution_receipt
+    return {
+        "schema_version": ONLINE_PHYSICAL_TRACE_SCHEMA_VERSION,
+        "record_type": "online_preaction",
+        "mechanism_run_id": mechanism_run_id,
+        "root_sequence_index": root_sequence_index,
+        "slot_index": slot_index,
+        "arm_id": arm.value,
+        "physical_arm_order_index": physical_arm_order_index,
+        "request": _online_request_payload(preaction.request),
+        "owner_input_persistence": _owner_snapshot_payload(owner_input),
+        "owner_input_persistence_sha256": (
+            social_record_store_persistence_sha256(owner_input)
+        ),
+        "owner_preaction_persistence": _owner_snapshot_payload(owner_preaction),
+        "owner_preaction_persistence_sha256": (
+            social_record_store_persistence_sha256(owner_preaction)
+        ),
+        "authorization_id": preaction.authorization.authorization_id,
+        "gate_disposition": preaction.authorization.gate_disposition.value,
+        "owner_session_scope": preaction.authorization.owner_session_scope,
+        "learned_theta0_artifact_id": (
+            preaction.authorization.learned_theta0_artifact.artifact_id
+        ),
+        "parent_chain_id": preaction.parent_chain_id,
+        "gate_transition_count_before": preaction.gate_transition_count_before,
+        "gate_checkpoint_content_sha256_before": (
+            preaction.gate_checkpoint_content_sha256_before
+        ),
+        "forecast": preference_action_forecast_to_payload(preaction.forecast),
+        "online_exposure": exposure.to_payload(),
+        "executor_command_id": receipt.command.command_id,
+        "executor_receipt_id": receipt.receipt_id,
+        "executor_receipt": receipt.to_payload(),
+        "delivered_action_id": preaction.delivered_action_id,
+        "source_opened": False,
+        "outcome_received": False,
+        "evaluation_or_judge_feedback_received": False,
+    }
+
+
+def _mint_online_preaction_barrier(
+    *,
+    sink: _RowSink,
+    mechanism_run_id: str,
+    root_sequence_index: int,
+    slot_index: int,
+    preactions: tuple[
+        tuple[
+            RelationshipProductHorizonOnlineArm,
+            RelationshipProductV2OnlinePreActionSnapshot,
+        ],
+        ...,
+    ],
+    durable_preactions: _DurableRows,
+) -> RelationshipProductHorizonOnlinePreactionBarrier:
+    arm_order = tuple(arm for arm, _ in preactions)
+    receipt_ids = tuple(
+        preaction.execution_receipt.receipt_id for _, preaction in preactions
+    )
+    if arm_order != _ONLINE_PHYSICAL_ARMS or len(durable_preactions.row_ids) != 2:
+        raise ValueError("online preaction barrier requires one exact arm pair")
+    core = {
+        "barrier_schema_version": ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION,
+        "mechanism_run_id": mechanism_run_id,
+        "root_sequence_index": root_sequence_index,
+        "slot_index": slot_index,
+        "arm_order": [arm.value for arm in arm_order],
+        "preaction_row_ids": list(durable_preactions.row_ids),
+        "preaction_executor_receipt_ids": list(receipt_ids),
+        "preaction_rows_start_index": durable_preactions.start_index,
+        "preaction_rows_end_index": durable_preactions.end_index,
+        "preaction_rows_raw_sha256": durable_preactions.rows_raw_sha256,
+        "durable_prefix_byte_count_before_receipt": (
+            durable_preactions.byte_offset_end
+        ),
+        "durable_prefix_raw_sha256_before_receipt": (
+            durable_preactions.stream_prefix_raw_sha256
+        ),
+    }
+    barrier_id = sha256_json(core)
+    durable_receipt = sink.append_many_fsync(
+        (
+            {
+                "schema_version": ONLINE_PHYSICAL_TRACE_SCHEMA_VERSION,
+                "record_type": "online_preaction_group_fsync",
+                "barrier_id": barrier_id,
+                "source_open_authorized": True,
+                **core,
+            },
+        )
+    )
+    return RelationshipProductHorizonOnlinePreactionBarrier(
+        barrier_id=barrier_id,
+        receipt_row_id=durable_receipt.row_ids[0],
+        mechanism_run_id=mechanism_run_id,
+        root_sequence_index=root_sequence_index,
+        slot_index=slot_index,
+        arm_order=arm_order,
+        preaction_executor_receipt_ids=receipt_ids,
+        stream_prefix_raw_sha256=durable_receipt.stream_prefix_raw_sha256,
+    )
+
+
+def _validate_live_online_settlement(
+    *,
+    arm: RelationshipProductHorizonOnlineArm,
+    slot_index: int,
+    state: _OnlinePhysicalArmState,
+    preaction: RelationshipProductV2OnlinePreActionSnapshot,
+    settlement_input: RelationshipProductSettlementInput,
+    settlement: RelationshipProductV2OnlineSettlementSnapshot,
+) -> None:
+    expected_disposition = (
+        RelationshipActionGateBatchDisposition.APPLY
+        if arm is RelationshipProductHorizonOnlineArm.FULL
+        else RelationshipActionGateBatchDisposition.WITHHOLD
+    )
+    transition = settlement.gate_transition
+    session = state.session
+    expected_applied = arm is RelationshipProductHorizonOnlineArm.FULL
+    if (
+        settlement.preaction != preaction
+        or settlement.settlement_input != settlement_input
+        or transition.receipt.disposition is not expected_disposition
+        or settlement.credit_applied_to_gate is not expected_applied
+        or settlement.evaluation_gate_update_delta != int(expected_applied)
+        or settlement.gate_transition_count_before != slot_index
+        or settlement.gate_transition_count_after != slot_index + 1
+        or transition.receipt.parent_chain_id != preaction.parent_chain_id
+        or transition.receipt.sequence_index != slot_index
+        or session.transition_count != slot_index + 1
+        or session.current_chain_id == preaction.parent_chain_id
+        or session.export_checkpoint() != transition.terminal_checkpoint
+        or session.pending_exposure is not None
+        or session.pending_plan is not None
+        or settlement.common_baseline_credit.forecast != preaction.forecast
+        or settlement.common_baseline_credit.external_evidence
+        != settlement_input.external_outcome
+    ):
+        raise RuntimeError("online physical settlement lineage drifted")
+    if arm is RelationshipProductHorizonOnlineArm.FROZEN_THETA0:
+        cold = state.binding.authorization.theta0_authorization.frozen_policy.checkpoint
+        if transition.terminal_checkpoint != cold:
+            raise RuntimeError("frozen_theta0 changed its exact cold checkpoint")
+    _seal_online_owner_snapshot(settlement.owner_persistence_snapshot)
+
+
+def _online_postaction_payload(
+    *,
+    mechanism_run_id: str,
+    root_sequence_index: int,
+    slot_index: int,
+    arm: RelationshipProductHorizonOnlineArm,
+    physical_arm_order_index: int,
+    barrier: RelationshipProductHorizonOnlinePreactionBarrier,
+    source_request: RelationshipProductHorizonOnlineSourceRequest,
+    source_branch: RelationshipProductHorizonOnlineSourceBranch,
+    settlement: RelationshipProductV2OnlineSettlementSnapshot,
+    terminal_chain_id: str,
+) -> Mapping[str, object]:
+    preaction = settlement.preaction
+    settlement_input = settlement.settlement_input
+    owner_post = _seal_online_owner_snapshot(
+        settlement.owner_persistence_snapshot
+    )
+    return {
+        "schema_version": ONLINE_PHYSICAL_TRACE_SCHEMA_VERSION,
+        "record_type": "online_postaction",
+        "mechanism_run_id": mechanism_run_id,
+        "root_sequence_index": root_sequence_index,
+        "slot_index": slot_index,
+        "arm_id": arm.value,
+        "physical_arm_order_index": physical_arm_order_index,
+        "preaction_barrier_id": barrier.barrier_id,
+        "preaction_barrier_receipt_row_id": barrier.receipt_row_id,
+        "source_request_id": source_request.source_request_id,
+        "source_request": source_request.to_payload(),
+        "source_branch_id": source_branch.branch_id,
+        "source_branch": source_branch.to_payload(),
+        "executor_receipt_id": preaction.execution_receipt.receipt_id,
+        "delivered_action_id": preaction.delivered_action_id,
+        "external_outcome_evidence": _external_outcome_evidence_payload(
+            settlement_input.external_outcome
+        ),
+        "owner_outcome_evidence": _owner_outcome_evidence_payload(
+            settlement_input.owner_outcome_evidence
+        ),
+        "credit_timestamp_ms": settlement_input.credit_timestamp_ms,
+        "settlement": _forecast_settlement_payload(settlement.settlement),
+        "social_prediction_error": cal._social_pe_payload(
+            settlement.social_prediction_error_snapshot.value
+        ),
+        "parent_action_credit": cal._credit_payload(settlement.credit),
+        "common_baseline_credit": settlement.common_baseline_credit.to_payload(),
+        "owner_postaction_persistence": _owner_snapshot_payload(owner_post),
+        "owner_postaction_persistence_sha256": (
+            social_record_store_persistence_sha256(owner_post)
+        ),
+        "gate_transition": settlement.gate_transition.to_payload(),
+        "gate_transition_id": settlement.gate_transition.transition_id,
+        "parent_chain_id": preaction.parent_chain_id,
+        "terminal_chain_id": terminal_chain_id,
+        "gate_transition_count_before": settlement.gate_transition_count_before,
+        "gate_transition_count_after": settlement.gate_transition_count_after,
+        "terminal_checkpoint_content_sha256": (
+            settlement.terminal_checkpoint_content_sha256
+        ),
+        "credit_generated_count": 1,
+        "credit_applied_count": int(settlement.credit_applied_to_gate),
+        "gate_update_count_delta": settlement.evaluation_gate_update_delta,
+        "evaluation_or_judge_feedback_received": False,
+    }
+
+
+def _append_online_postaction_receipt(
+    *,
+    sink: _RowSink,
+    mechanism_run_id: str,
+    root_sequence_index: int,
+    slot_index: int,
+    barrier: RelationshipProductHorizonOnlinePreactionBarrier,
+    settlements: tuple[
+        tuple[
+            RelationshipProductHorizonOnlineArm,
+            RelationshipProductV2OnlineSettlementSnapshot,
+        ],
+        ...,
+    ],
+    durable_postactions: _DurableRows,
+    source_request: RelationshipProductHorizonOnlineSourceRequest,
+    source_branches: tuple[RelationshipProductHorizonOnlineSourceBranch, ...],
+    next_slot_authorized: bool,
+) -> _DurableRows:
+    if (
+        tuple(arm for arm, _ in settlements) != _ONLINE_PHYSICAL_ARMS
+        or len(durable_postactions.row_ids) != 2
+    ):
+        raise ValueError("online postaction receipt requires one exact arm pair")
+    if type(next_slot_authorized) is not bool:
+        raise TypeError("next_slot_authorized must be bool")
+    core = {
+        "barrier_schema_version": ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION,
+        "mechanism_run_id": mechanism_run_id,
+        "preaction_barrier_id": barrier.barrier_id,
+        "preaction_barrier_receipt_row_id": barrier.receipt_row_id,
+        "source_request_id": source_request.source_request_id,
+        "source_branch_ids": [item.branch_id for item in source_branches],
+        "root_sequence_index": root_sequence_index,
+        "slot_index": slot_index,
+        "arm_order": [arm.value for arm in _ONLINE_PHYSICAL_ARMS],
+        "postaction_row_ids": list(durable_postactions.row_ids),
+        "gate_transition_ids": [
+            item.gate_transition.transition_id for _, item in settlements
+        ],
+        "postaction_rows_start_index": durable_postactions.start_index,
+        "postaction_rows_end_index": durable_postactions.end_index,
+        "postaction_rows_raw_sha256": durable_postactions.rows_raw_sha256,
+        "durable_prefix_byte_count_before_receipt": (
+            durable_postactions.byte_offset_end
+        ),
+        "durable_prefix_raw_sha256_before_receipt": (
+            durable_postactions.stream_prefix_raw_sha256
+        ),
+    }
+    return sink.append_many_fsync(
+        (
+            {
+                "schema_version": ONLINE_PHYSICAL_TRACE_SCHEMA_VERSION,
+                "record_type": "online_postaction_group_fsync",
+                "postaction_receipt_id": sha256_json(core),
+                "next_slot_authorized": next_slot_authorized,
+                **core,
+            },
+        )
+    )
+
+
+def _online_terminal_payload(
+    *,
+    mechanism_run_id: str,
+    root_sequence_index: int,
+    expected_slot_count: int,
+    source_capability_id: str,
+    states: Mapping[
+        RelationshipProductHorizonOnlineArm,
+        _OnlinePhysicalArmState,
+    ],
+    postaction_receipt_row_ids: tuple[str, ...],
+    source_open_count: int,
+    source_call_count: int,
+    source_branch_receipt_ids_by_slot: tuple[tuple[str, ...], ...],
+) -> Mapping[str, object]:
+    if len(postaction_receipt_row_ids) != expected_slot_count:
+        raise RuntimeError("online terminal postaction receipt inventory is incomplete")
+    if (
+        source_open_count != 1
+        or source_call_count != expected_slot_count
+        or len(source_branch_receipt_ids_by_slot) != expected_slot_count
+        or any(not item for item in source_branch_receipt_ids_by_slot)
+    ):
+        raise RuntimeError("online terminal source receipt inventory is incomplete")
+    chains = {
+        arm: states[arm].session.export_transition_chain()
+        for arm in _ONLINE_PHYSICAL_ARMS
+    }
+    full = chains[RelationshipProductHorizonOnlineArm.FULL]
+    frozen = chains[RelationshipProductHorizonOnlineArm.FROZEN_THETA0]
+    if (
+        full.generated_credit_count != expected_slot_count
+        or full.applied_credit_count != expected_slot_count
+        or full.terminal_checkpoint.update_count != expected_slot_count
+        or full.downstream_exposed_applied_update_count
+        != max(0, expected_slot_count - 1)
+        or frozen.generated_credit_count != expected_slot_count
+        or frozen.applied_credit_count != 0
+        or frozen.terminal_checkpoint != frozen.initial_checkpoint
+        or frozen.downstream_exposed_applied_update_count != 0
+    ):
+        raise RuntimeError("online terminal Learnable treatment invariants failed")
+    core = {
+        "mechanism_schema_version": ONLINE_PHYSICAL_MECHANISM_SCHEMA_VERSION,
+        "mechanism_run_id": mechanism_run_id,
+        "root_sequence_index": root_sequence_index,
+        "completed_slot_count": expected_slot_count,
+        "arm_order": [arm.value for arm in _ONLINE_PHYSICAL_ARMS],
+        "postaction_receipt_row_ids": list(postaction_receipt_row_ids),
+        "settlement_source_capability_id": source_capability_id,
+        "settlement_source_open_count": source_open_count,
+        "settlement_source_call_count": source_call_count,
+        "credit_clock_owner": "RelationshipProductHorizonOnlinePhysicalBarrier",
+        "credit_clock_stride": ONLINE_PHYSICAL_CREDIT_CLOCK_STRIDE,
+        "forecast_runtime_object_identity_shared_in_live_constructor": True,
+        "forecast_runtime_arm_invariance_verified_by_mechanism": False,
+        "forecast_runtime_session_scope_blinding_verified_by_mechanism": False,
+        "forecast_runtime_call_order_blinding_verified_by_mechanism": False,
+        "source_branch_receipt_ids_by_slot": [
+            list(item) for item in source_branch_receipt_ids_by_slot
+        ],
+        "arm_terminals": [
+            {
+                "arm_id": arm.value,
+                "gate_disposition": states[
+                    arm
+                ].binding.authorization.gate_disposition.value,
+                "transition_chain": chains[arm].to_payload(),
+                "generated_credit_count": chains[arm].generated_credit_count,
+                "applied_credit_count": chains[arm].applied_credit_count,
+                "gate_update_count": chains[arm].terminal_checkpoint.update_count,
+                "downstream_exposed_applied_update_count": (
+                    chains[arm].downstream_exposed_applied_update_count
+                ),
+                "terminal_owner_persistence": _owner_snapshot_payload(
+                    states[arm].owner_persistence_snapshot
+                ),
+                "terminal_owner_persistence_sha256": (
+                    social_record_store_persistence_sha256(
+                        states[arm].owner_persistence_snapshot
+                    )
+                ),
+            }
+            for arm in _ONLINE_PHYSICAL_ARMS
+        ],
+        "source_v5_identity_bound_by_mechanism": False,
+        "source_v5_admission_verified_by_mechanism": False,
+        "campaign_matrix_executed": False,
+        "effect_estimand_executed": False,
+        "learnable_effect_claimed": False,
+        "steerable_effect_claimed": False,
+        "four_able_complete": False,
+        "formal_evidence_authorized": False,
+        "production_active": False,
+    }
+    return {
+        "schema_version": ONLINE_PHYSICAL_TRACE_SCHEMA_VERSION,
+        "record_type": "online_physical_terminal",
+        "terminal_id": sha256_json(core),
+        **core,
+    }
+
+
 def _request(
     *,
     root: HorizonPublicRoot,
@@ -876,6 +2764,110 @@ def _owner_outcome_evidence_payload(
         "source_turn": evidence.source_turn,
         "evidence_refs": list(evidence.evidence_refs),
     }
+
+
+def _external_outcome_evidence_from_payload(
+    payload: object,
+) -> DialogueExternalOutcomeEvidence:
+    raw = cal._mapping(payload, "online external outcome evidence")
+    cal._exact_keys(
+        raw,
+        set(
+            _external_outcome_evidence_payload(
+                DialogueExternalOutcomeEvidence(
+                    evidence_id="shape",
+                    turn_index=0,
+                    kind=DialogueExternalOutcomeKind.HELPED,
+                    source=DialogueExternalOutcomeEvidenceSource.ENVIRONMENT,
+                    confidence=1.0,
+                    evidence_ref="shape",
+                )
+            )
+        ),
+        "online external outcome evidence",
+    )
+    typing_fields = (
+        "typing_qualification_id",
+        "typing_qualification_sha256",
+        "typing_runtime_id",
+        "typing_schema_version",
+    )
+    typing_values = tuple(raw[field] for field in typing_fields)
+    if any(type(value) is not str for value in typing_values):
+        raise ValueError("online typing lineage fields must be strings")
+    evidence = DialogueExternalOutcomeEvidence(
+        evidence_id=cal._text(raw["evidence_id"], "external evidence_id"),
+        turn_index=cal._integer(raw["turn_index"], "external turn_index"),
+        kind=DialogueExternalOutcomeKind(
+            cal._text(raw["kind"], "external outcome kind")
+        ),
+        source=DialogueExternalOutcomeEvidenceSource(
+            cal._text(raw["source"], "external source")
+        ),
+        confidence=float.fromhex(
+            cal._text(raw["confidence_hex"], "external confidence")
+        ),
+        evidence_ref=cal._text(raw["evidence_ref"], "external evidence_ref"),
+        description=cal._text(raw["description"], "external description"),
+        session_scope=cal._text(raw["session_scope"], "external session_scope"),
+        action_turn_index=cal._integer(
+            raw["action_turn_index"], "external action_turn_index"
+        ),
+        forecast_id=cal._text(raw["forecast_id"], "external forecast_id"),
+        decision_id=cal._text(raw["decision_id"], "external decision_id"),
+        action_id=cal._text(raw["action_id"], "external action_id"),
+        typing_qualification_id=typing_values[0],
+        typing_qualification_sha256=typing_values[1],
+        typing_runtime_id=typing_values[2],
+        typing_schema_version=typing_values[3],
+    )
+    if _external_outcome_evidence_payload(evidence) != raw:
+        raise ValueError("online external outcome evidence did not roundtrip")
+    return evidence
+
+
+def _owner_outcome_evidence_from_payload(
+    payload: object,
+) -> PreferenceActionOutcomeEvidence:
+    raw = cal._mapping(payload, "online owner outcome evidence")
+    cal._exact_keys(
+        raw,
+        {
+            "evidence_id",
+            "interlocutor_id",
+            "observation_summary",
+            "action_id",
+            "observed_outcome_id",
+            "reaction_summary",
+            "source_turn",
+            "evidence_refs",
+        },
+        "online owner outcome evidence",
+    )
+    evidence = PreferenceActionOutcomeEvidence(
+        evidence_id=cal._text(raw["evidence_id"], "owner evidence_id"),
+        interlocutor_id=cal._text(
+            raw["interlocutor_id"], "owner interlocutor_id"
+        ),
+        observation_summary=cal._text(
+            raw["observation_summary"], "owner observation_summary"
+        ),
+        action_id=cal._text(raw["action_id"], "owner action_id"),
+        observed_outcome_id=cal._text(
+            raw["observed_outcome_id"], "owner observed_outcome_id"
+        ),
+        reaction_summary=cal._text(
+            raw["reaction_summary"], "owner reaction_summary"
+        ),
+        source_turn=cal._integer(raw["source_turn"], "owner source_turn"),
+        evidence_refs=tuple(
+            cal._text(item, "owner evidence_ref")
+            for item in cal._list(raw["evidence_refs"], "owner evidence_refs")
+        ),
+    )
+    if _owner_outcome_evidence_payload(evidence) != raw:
+        raise ValueError("online owner outcome evidence did not roundtrip")
+    return evidence
 
 
 def _forecast_settlement_payload(
@@ -2233,8 +4225,18 @@ class _PersistedRow:
 
 
 class _CanonicalJsonlReader:
-    def __init__(self, path: pathlib.Path) -> None:
-        self._handle = pathlib.Path(path).open("rb")
+    def __init__(
+        self,
+        path: pathlib.Path | None = None,
+        *,
+        raw: bytes | None = None,
+    ) -> None:
+        if (path is None) is (raw is None):
+            raise ValueError("canonical JSONL reader requires exactly path or raw")
+        if raw is not None:
+            self._handle: BinaryIO = io.BytesIO(raw)
+        else:
+            self._handle = pathlib.Path(path).open("rb")
         self._digest = hashlib.sha256()
         self._byte_count = 0
         self._row_count = 0
@@ -2597,6 +4599,1164 @@ def _verify_group_receipt(
         != members[-1].prefix_raw_sha256_after
     ):
         raise ValueError(f"campaign {prefix} durable group receipt drifted")
+
+
+class RelationshipProductHorizonOnlineLedgerStatus(str, Enum):
+    """Persisted bytes never authorize recovery or historical durability claims."""
+
+    FRESH = "fresh"
+    TERMINAL_CONTENT_VALID_DURABILITY_UNPROVEN = (
+        "terminal_content_valid_durability_unproven_no_resume"
+    )
+    INVALID_INTERRUPTED_TAIL = "invalid_interrupted_tail_no_resume_or_truncate"
+
+
+@dataclass(frozen=True)
+class RelationshipProductHorizonOnlineLedgerScan:
+    status: RelationshipProductHorizonOnlineLedgerStatus
+    row_count: int
+    raw_bytes: int
+    raw_sha256: str | None
+    terminal_id: str | None
+    failure_type: str | None
+    failure_message: str | None
+    source_open_count: int = 0
+    append_count: int = 0
+    resume_authorized: bool = False
+
+
+@dataclass(frozen=True)
+class _OnlinePersistedSlot:
+    preactions: tuple[_PersistedRow, _PersistedRow]
+    preaction_receipt: _PersistedRow
+    postactions: tuple[_PersistedRow, _PersistedRow]
+    postaction_receipt: _PersistedRow
+
+
+@dataclass(frozen=True)
+class _OnlinePersistedLedger:
+    header: _PersistedRow
+    slots: tuple[_OnlinePersistedSlot, ...]
+    terminal: _PersistedRow
+    row_count: int
+    raw_bytes: int
+    raw_sha256: str
+
+
+_ONLINE_TRACE_BASE = frozenset(
+    {"row_id", "physical_sequence_index", "schema_version", "record_type"}
+)
+_ONLINE_TRACE_FIELDS = {
+    "online_physical_header": _ONLINE_TRACE_BASE
+    | {
+        "mechanism_schema_version",
+        "mechanism_run_id",
+        "root_sequence_index",
+        "expected_slot_count",
+        "arm_order",
+        "arm_initializations",
+        "source_capability_id",
+        "credit_clock_owner",
+        "credit_clock_stride",
+        "forecast_runtime_object_identity_shared_in_live_constructor",
+        "forecast_runtime_arm_invariance_verified_by_mechanism",
+        "forecast_runtime_session_scope_blinding_verified_by_mechanism",
+        "forecast_runtime_call_order_blinding_verified_by_mechanism",
+        "source_v5_identity_bound_by_mechanism",
+        "source_v5_admission_verified_by_mechanism",
+        "scientific_campaign_protocol_freeze_authorized",
+        "campaign_matrix_executed",
+        "effect_estimand_executed",
+        "model_invocation_count",
+        "cuda_execution_count",
+        "rehearsal_execution_count",
+        "windows_directory_entry_durability_claimed",
+        "file_handle_flush_fsync_acknowledgement_only",
+    },
+    "online_preaction": _ONLINE_TRACE_BASE
+    | {
+        "mechanism_run_id",
+        "root_sequence_index",
+        "slot_index",
+        "arm_id",
+        "physical_arm_order_index",
+        "request",
+        "owner_input_persistence",
+        "owner_input_persistence_sha256",
+        "owner_preaction_persistence",
+        "owner_preaction_persistence_sha256",
+        "authorization_id",
+        "gate_disposition",
+        "owner_session_scope",
+        "learned_theta0_artifact_id",
+        "parent_chain_id",
+        "gate_transition_count_before",
+        "gate_checkpoint_content_sha256_before",
+        "forecast",
+        "online_exposure",
+        "executor_command_id",
+        "executor_receipt_id",
+        "executor_receipt",
+        "delivered_action_id",
+        "source_opened",
+        "outcome_received",
+        "evaluation_or_judge_feedback_received",
+    },
+    "online_preaction_group_fsync": _ONLINE_TRACE_BASE
+    | {
+        "barrier_id",
+        "source_open_authorized",
+        "barrier_schema_version",
+        "mechanism_run_id",
+        "root_sequence_index",
+        "slot_index",
+        "arm_order",
+        "preaction_row_ids",
+        "preaction_executor_receipt_ids",
+        "preaction_rows_start_index",
+        "preaction_rows_end_index",
+        "preaction_rows_raw_sha256",
+        "durable_prefix_byte_count_before_receipt",
+        "durable_prefix_raw_sha256_before_receipt",
+    },
+    "online_postaction": _ONLINE_TRACE_BASE
+    | {
+        "mechanism_run_id",
+        "root_sequence_index",
+        "slot_index",
+        "arm_id",
+        "physical_arm_order_index",
+        "preaction_barrier_id",
+        "preaction_barrier_receipt_row_id",
+        "source_request_id",
+        "source_request",
+        "source_branch_id",
+        "source_branch",
+        "executor_receipt_id",
+        "delivered_action_id",
+        "external_outcome_evidence",
+        "owner_outcome_evidence",
+        "credit_timestamp_ms",
+        "settlement",
+        "social_prediction_error",
+        "parent_action_credit",
+        "common_baseline_credit",
+        "owner_postaction_persistence",
+        "owner_postaction_persistence_sha256",
+        "gate_transition",
+        "gate_transition_id",
+        "parent_chain_id",
+        "terminal_chain_id",
+        "gate_transition_count_before",
+        "gate_transition_count_after",
+        "terminal_checkpoint_content_sha256",
+        "credit_generated_count",
+        "credit_applied_count",
+        "gate_update_count_delta",
+        "evaluation_or_judge_feedback_received",
+    },
+    "online_postaction_group_fsync": _ONLINE_TRACE_BASE
+    | {
+        "postaction_receipt_id",
+        "next_slot_authorized",
+        "barrier_schema_version",
+        "mechanism_run_id",
+        "preaction_barrier_id",
+        "preaction_barrier_receipt_row_id",
+        "source_request_id",
+        "source_branch_ids",
+        "root_sequence_index",
+        "slot_index",
+        "arm_order",
+        "postaction_row_ids",
+        "gate_transition_ids",
+        "postaction_rows_start_index",
+        "postaction_rows_end_index",
+        "postaction_rows_raw_sha256",
+        "durable_prefix_byte_count_before_receipt",
+        "durable_prefix_raw_sha256_before_receipt",
+    },
+    "online_physical_terminal": _ONLINE_TRACE_BASE
+    | {
+        "terminal_id",
+        "mechanism_schema_version",
+        "mechanism_run_id",
+        "root_sequence_index",
+        "completed_slot_count",
+        "arm_order",
+        "postaction_receipt_row_ids",
+        "settlement_source_capability_id",
+        "settlement_source_open_count",
+        "settlement_source_call_count",
+        "credit_clock_owner",
+        "credit_clock_stride",
+        "forecast_runtime_object_identity_shared_in_live_constructor",
+        "forecast_runtime_arm_invariance_verified_by_mechanism",
+        "forecast_runtime_session_scope_blinding_verified_by_mechanism",
+        "forecast_runtime_call_order_blinding_verified_by_mechanism",
+        "source_branch_receipt_ids_by_slot",
+        "arm_terminals",
+        "source_v5_identity_bound_by_mechanism",
+        "source_v5_admission_verified_by_mechanism",
+        "campaign_matrix_executed",
+        "effect_estimand_executed",
+        "learnable_effect_claimed",
+        "steerable_effect_claimed",
+        "four_able_complete",
+        "formal_evidence_authorized",
+        "production_active",
+    },
+}
+
+
+def _require_online_trace_row(
+    row: _PersistedRow,
+    *,
+    record_type: str,
+) -> Mapping[str, object]:
+    payload = row.payload
+    cal._exact_keys(
+        payload,
+        set(_ONLINE_TRACE_FIELDS[record_type]),
+        f"online physical {record_type} row",
+    )
+    if (
+        payload["schema_version"] != ONLINE_PHYSICAL_TRACE_SCHEMA_VERSION
+        or payload["record_type"] != record_type
+    ):
+        raise ValueError(f"online physical {record_type} identity drifted")
+    return payload
+
+
+def _read_online_physical_ledger(
+    *,
+    raw: bytes,
+    expected_slot_count: int,
+) -> _OnlinePersistedLedger:
+    reader = _CanonicalJsonlReader(raw=raw)
+    try:
+        header = reader.next(source="online physical header")
+        _require_online_trace_row(
+            header,
+            record_type="online_physical_header",
+        )
+        slots: list[_OnlinePersistedSlot] = []
+        for slot_index in range(expected_slot_count):
+            preactions = (
+                reader.next(source=f"online preaction {slot_index}/full"),
+                reader.next(source=f"online preaction {slot_index}/frozen"),
+            )
+            pre_payloads = tuple(
+                _require_online_trace_row(item, record_type="online_preaction")
+                for item in preactions
+            )
+            pre_receipt = reader.next(
+                source=f"online preaction receipt {slot_index}"
+            )
+            pre_receipt_payload = _require_online_trace_row(
+                pre_receipt,
+                record_type="online_preaction_group_fsync",
+            )
+            _verify_group_receipt(
+                receipt=pre_receipt,
+                members=preactions,
+                prefix="preaction",
+            )
+            pre_core = {
+                key: value
+                for key, value in pre_receipt_payload.items()
+                if key
+                not in {
+                    "row_id",
+                    "physical_sequence_index",
+                    "schema_version",
+                    "record_type",
+                    "barrier_id",
+                    "source_open_authorized",
+                }
+            }
+            if (
+                pre_receipt_payload["barrier_id"] != sha256_json(pre_core)
+                or pre_receipt_payload["source_open_authorized"] is not True
+                or pre_receipt_payload["barrier_schema_version"]
+                != ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION
+            ):
+                raise ValueError("online preaction group receipt identity drifted")
+
+            postactions = (
+                reader.next(source=f"online postaction {slot_index}/full"),
+                reader.next(source=f"online postaction {slot_index}/frozen"),
+            )
+            post_payloads = tuple(
+                _require_online_trace_row(item, record_type="online_postaction")
+                for item in postactions
+            )
+            post_receipt = reader.next(
+                source=f"online postaction receipt {slot_index}"
+            )
+            post_receipt_payload = _require_online_trace_row(
+                post_receipt,
+                record_type="online_postaction_group_fsync",
+            )
+            _verify_group_receipt(
+                receipt=post_receipt,
+                members=postactions,
+                prefix="postaction",
+            )
+            post_core = {
+                key: value
+                for key, value in post_receipt_payload.items()
+                if key
+                not in {
+                    "row_id",
+                    "physical_sequence_index",
+                    "schema_version",
+                    "record_type",
+                    "postaction_receipt_id",
+                    "next_slot_authorized",
+                }
+            }
+            if (
+                post_receipt_payload["postaction_receipt_id"]
+                != sha256_json(post_core)
+                or post_receipt_payload["next_slot_authorized"]
+                is not (slot_index + 1 < expected_slot_count)
+                or post_receipt_payload["barrier_schema_version"]
+                != ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION
+            ):
+                raise ValueError("online postaction group receipt identity drifted")
+            persisted_source_requests = tuple(
+                _online_source_request_from_payload(item["source_request"])
+                for item in post_payloads
+            )
+            if persisted_source_requests[0] != persisted_source_requests[1]:
+                raise ValueError("online postaction source requests differ")
+            persisted_source_branches = tuple(
+                _online_source_branch_from_payload(item["source_branch"])
+                for item in post_payloads
+            )
+            source_branch_ids_by_action: dict[RelationshipAction, str] = {}
+            for branch, payload in zip(
+                persisted_source_branches,
+                post_payloads,
+                strict=True,
+            ):
+                branch_id = cal._digest(
+                    payload["source_branch_id"],
+                    "persisted source branch id",
+                )
+                prior = source_branch_ids_by_action.get(branch.selected_action)
+                if prior is not None and prior != branch_id:
+                    raise ValueError("same-action source branch ids differ")
+                source_branch_ids_by_action[branch.selected_action] = branch_id
+            if set(source_branch_ids_by_action) != set(
+                persisted_source_requests[0].selected_actions
+            ):
+                raise ValueError("persisted source branch action inventory drifted")
+            expected_source_branch_ids = [
+                source_branch_ids_by_action[action]
+                for action in persisted_source_requests[0].selected_actions
+            ]
+            expected_arms = [arm.value for arm in _ONLINE_PHYSICAL_ARMS]
+            if (
+                [item["arm_id"] for item in pre_payloads] != expected_arms
+                or [item["arm_id"] for item in post_payloads] != expected_arms
+                or [item["physical_arm_order_index"] for item in pre_payloads]
+                != [0, 1]
+                or [item["physical_arm_order_index"] for item in post_payloads]
+                != [0, 1]
+                or any(item["slot_index"] != slot_index for item in pre_payloads)
+                or any(item["slot_index"] != slot_index for item in post_payloads)
+                or pre_receipt_payload["slot_index"] != slot_index
+                or post_receipt_payload["slot_index"] != slot_index
+                or pre_receipt_payload["arm_order"] != expected_arms
+                or post_receipt_payload["arm_order"] != expected_arms
+                or pre_receipt_payload["preaction_executor_receipt_ids"]
+                != [item["executor_receipt_id"] for item in pre_payloads]
+                or post_receipt_payload["gate_transition_ids"]
+                != [item["gate_transition_id"] for item in post_payloads]
+                or len({item["source_request_id"] for item in post_payloads}) != 1
+                or post_receipt_payload["source_request_id"]
+                != post_payloads[0]["source_request_id"]
+                or post_receipt_payload["source_branch_ids"]
+                != expected_source_branch_ids
+                or any(
+                    item["preaction_barrier_id"]
+                    != pre_receipt_payload["barrier_id"]
+                    for item in post_payloads
+                )
+                or any(
+                    item["preaction_barrier_receipt_row_id"]
+                    != pre_receipt.payload["row_id"]
+                    for item in post_payloads
+                )
+                or post_receipt_payload["preaction_barrier_id"]
+                != pre_receipt_payload["barrier_id"]
+                or post_receipt_payload["preaction_barrier_receipt_row_id"]
+                != pre_receipt.payload["row_id"]
+            ):
+                raise ValueError("online physical slot group grammar drifted")
+            slots.append(
+                _OnlinePersistedSlot(
+                    preactions=preactions,
+                    preaction_receipt=pre_receipt,
+                    postactions=postactions,
+                    postaction_receipt=post_receipt,
+                )
+            )
+        terminal = reader.next(source="online physical terminal")
+        terminal_payload = _require_online_trace_row(
+            terminal,
+            record_type="online_physical_terminal",
+        )
+        terminal_core = {
+            key: value
+            for key, value in terminal_payload.items()
+            if key
+            not in {
+                "row_id",
+                "physical_sequence_index",
+                "schema_version",
+                "record_type",
+                "terminal_id",
+            }
+        }
+        if terminal_payload["terminal_id"] != sha256_json(terminal_core):
+            raise ValueError("online physical terminal identity drifted")
+        reader.require_eof(source="online physical ledger")
+        return _OnlinePersistedLedger(
+            header=header,
+            slots=tuple(slots),
+            terminal=terminal,
+            row_count=reader.row_count,
+            raw_bytes=reader.raw_bytes,
+            raw_sha256=reader.raw_sha256,
+        )
+    finally:
+        reader.close()
+
+
+def _replay_online_physical_ledger(
+    *,
+    ledger: _OnlinePersistedLedger,
+    mechanism_run_id: str,
+    root_sequence_index: int,
+    bindings: tuple[RelationshipProductHorizonOnlineArmBinding, ...],
+    expected_source_capability_id: str,
+    expected_slot_count: int,
+) -> str:
+    if type(bindings) is not tuple or tuple(item.arm_id for item in bindings) != (
+        _ONLINE_PHYSICAL_ARMS
+    ):
+        raise ValueError("online scan bindings must be exact full/frozen order")
+    full, frozen = bindings
+    if (
+        full.authorization.gate_disposition
+        is not RelationshipActionGateBatchDisposition.APPLY
+        or frozen.authorization.gate_disposition
+        is not RelationshipActionGateBatchDisposition.WITHHOLD
+        or full.authorization.theta0_authorization
+        != frozen.authorization.theta0_authorization
+        or full.authorization.owner_session_scope
+        == frozen.authorization.owner_session_scope
+        or full.forecast_runtime is not frozen.forecast_runtime
+    ):
+        raise ValueError("online scan mechanical arm binding drifted")
+
+    header = ledger.header.payload
+    initializations = tuple(
+        cal._mapping(item, "online arm initialization")
+        for item in cal._list(
+            header["arm_initializations"], "online arm initializations"
+        )
+    )
+    if len(initializations) != 2:
+        raise ValueError("online header arm initialization count drifted")
+    expected_arms = [arm.value for arm in _ONLINE_PHYSICAL_ARMS]
+    if (
+        header["mechanism_schema_version"]
+        != ONLINE_PHYSICAL_MECHANISM_SCHEMA_VERSION
+        or header["mechanism_run_id"] != mechanism_run_id
+        or header["root_sequence_index"] != root_sequence_index
+        or header["expected_slot_count"] != expected_slot_count
+        or header["arm_order"] != expected_arms
+        or header["source_capability_id"] != expected_source_capability_id
+        or header["credit_clock_owner"]
+        != "RelationshipProductHorizonOnlinePhysicalBarrier"
+        or header["credit_clock_stride"] != ONLINE_PHYSICAL_CREDIT_CLOCK_STRIDE
+        or header[
+            "forecast_runtime_object_identity_shared_in_live_constructor"
+        ]
+        is not True
+        or header["forecast_runtime_arm_invariance_verified_by_mechanism"]
+        is not False
+        or header[
+            "forecast_runtime_session_scope_blinding_verified_by_mechanism"
+        ]
+        is not False
+        or header[
+            "forecast_runtime_call_order_blinding_verified_by_mechanism"
+        ]
+        is not False
+        or header["source_v5_identity_bound_by_mechanism"] is not False
+        or header["source_v5_admission_verified_by_mechanism"] is not False
+        or header["scientific_campaign_protocol_freeze_authorized"] is not False
+        or header["campaign_matrix_executed"] is not False
+        or header["effect_estimand_executed"] is not False
+        or header["model_invocation_count"] != 0
+        or header["cuda_execution_count"] != 0
+        or header["rehearsal_execution_count"] != 0
+        or header["windows_directory_entry_durability_claimed"] is not False
+        or header["file_handle_flush_fsync_acknowledgement_only"] is not True
+    ):
+        raise ValueError("online physical header contract drifted")
+
+    states: dict[
+        RelationshipProductHorizonOnlineArm,
+        tuple[
+            RelationshipProductHorizonOnlineArmBinding,
+            RelationshipActionGateV2OnlineSession,
+            OwnerPersistenceSnapshot,
+        ],
+    ] = {}
+    for arm, binding, initialization in zip(
+        _ONLINE_PHYSICAL_ARMS,
+        bindings,
+        initializations,
+        strict=True,
+    ):
+        cal._exact_keys(
+            initialization,
+            {
+                "arm_id",
+                "gate_disposition",
+                "executor_disposition",
+                "authorization",
+                "authorization_raw_sha256",
+                "owner_session_scope",
+                "forecast_runtime_id",
+                "initial_owner_persistence",
+                "initial_owner_persistence_sha256",
+                "cold_chain_id",
+                "cold_checkpoint",
+            },
+            "online arm initialization",
+        )
+        owner = _owner_snapshot_from_payload(
+            initialization["initial_owner_persistence"]
+        )
+        authorization_raw = cal._canonical_bytes(
+            binding.authorization.to_payload()
+        )
+        session = RelationshipActionGateV2OnlineSession(
+            artifact=binding.authorization.learned_theta0_artifact,
+            disposition=binding.authorization.gate_disposition,
+        )
+        binding.authorization.validate_session(session)
+        if (
+            initialization["arm_id"] != arm.value
+            or initialization["gate_disposition"]
+            != binding.authorization.gate_disposition.value
+            or initialization["executor_disposition"] != "apply_candidate"
+            or initialization["authorization"]
+            != binding.authorization.to_payload()
+            or initialization["authorization_raw_sha256"]
+            != cal._sha256_bytes(authorization_raw)
+            or initialization["owner_session_scope"]
+            != binding.authorization.owner_session_scope
+            or initialization["forecast_runtime_id"]
+            != binding.forecast_runtime.runtime_id
+            or owner
+            != _seal_online_owner_snapshot(
+                binding.initial_owner_persistence_snapshot
+            )
+            or initialization["initial_owner_persistence_sha256"]
+            != social_record_store_persistence_sha256(owner)
+            or initialization["cold_chain_id"] != session.current_chain_id
+            or initialization["cold_checkpoint"]
+            != session.export_checkpoint().to_payload()
+        ):
+            raise ValueError("online physical arm initialization drifted")
+        states[arm] = (binding, session, owner)
+    if _owner_snapshot_payload(states[_ONLINE_PHYSICAL_ARMS[0]][2]) != (
+        _owner_snapshot_payload(states[_ONLINE_PHYSICAL_ARMS[1]][2])
+    ):
+        raise ValueError("online physical persisted owner starts differ")
+
+    credits: dict[
+        RelationshipProductHorizonOnlineArm,
+        list[object],
+    ] = {arm: [] for arm in _ONLINE_PHYSICAL_ARMS}
+    post_receipt_ids: list[str] = []
+    source_branch_receipt_ids_by_slot: list[list[str]] = []
+    previous_credit_timestamp_ms: int | None = None
+    for slot_index, persisted_slot in enumerate(ledger.slots):
+        pre_receipt_payload = persisted_slot.preaction_receipt.payload
+        post_receipt_payload = persisted_slot.postaction_receipt.payload
+        requests = tuple(
+            (
+                arm,
+                _online_request_from_payload(
+                    persisted_slot.preactions[index].payload["request"]
+                ),
+            )
+            for index, arm in enumerate(_ONLINE_PHYSICAL_ARMS)
+        )
+        _validate_online_matched_public_requests(requests)
+        post_credit_timestamps = tuple(
+            cal._integer(
+                row.payload["credit_timestamp_ms"],
+                "online pair credit timestamp",
+            )
+            for row in persisted_slot.postactions
+        )
+        if (
+            pre_receipt_payload["mechanism_run_id"] != mechanism_run_id
+            or post_receipt_payload["mechanism_run_id"] != mechanism_run_id
+            or pre_receipt_payload["root_sequence_index"]
+            != root_sequence_index
+            or post_receipt_payload["root_sequence_index"]
+            != root_sequence_index
+            or len(set(post_credit_timestamps)) != 1
+            or post_credit_timestamps[0]
+            != _online_physical_credit_timestamp_ms(
+                root_sequence_index=root_sequence_index,
+                slot_index=slot_index,
+            )
+            or (
+                previous_credit_timestamp_ms is not None
+                and post_credit_timestamps[0] <= previous_credit_timestamp_ms
+            )
+        ):
+            raise ValueError("online persisted pair receipt or logical time drifted")
+        previous_credit_timestamp_ms = post_credit_timestamps[0]
+
+        open_capability = RelationshipProductHorizonOnlineSourceOpenCapability(
+            source_capability_id=expected_source_capability_id,
+            mechanism_run_id=mechanism_run_id,
+            root_sequence_index=root_sequence_index,
+            slot_index=slot_index,
+        )
+        public = requests[0][1].forecast_request
+        delivered_action_ids = {
+            cal._text(row.payload["delivered_action_id"], "delivered action")
+            for row in persisted_slot.preactions
+        }
+        selected_actions = tuple(
+            RelationshipAction(action_id)
+            for action_id in public.candidate_action_ids
+            if action_id in delivered_action_ids
+        )
+        expected_source_request = RelationshipProductHorizonOnlineSourceRequest(
+            open_capability=open_capability,
+            decision_id=public.decision_id,
+            interlocutor_id=public.interlocutor_id,
+            current_observation=public.current_observation,
+            observation_ref=public.observation_ref,
+            candidate_action_ids=public.candidate_action_ids,
+            outcome_ids=public.outcome_ids,
+            turn_index=public.turn_index,
+            outcome_turn_index=requests[0][1].outcome_turn_index,
+            selected_actions=selected_actions,
+        )
+        persisted_source_requests = tuple(
+            _online_source_request_from_payload(row.payload["source_request"])
+            for row in persisted_slot.postactions
+        )
+        if any(item != expected_source_request for item in persisted_source_requests):
+            raise ValueError("online persisted source request drifted")
+        branch_by_action: dict[
+            RelationshipAction,
+            RelationshipProductHorizonOnlineSourceBranch,
+        ] = {}
+        for row in persisted_slot.postactions:
+            branch = _online_source_branch_from_payload(row.payload["source_branch"])
+            prior = branch_by_action.get(branch.selected_action)
+            if prior is not None and prior != branch:
+                raise ValueError("same-action source branch differs across arms")
+            branch_by_action[branch.selected_action] = branch
+            if (
+                row.payload["source_request_id"]
+                != expected_source_request.source_request_id
+                or row.payload["source_branch_id"] != branch.branch_id
+            ):
+                raise ValueError("online persisted source receipt identity drifted")
+        source_branches = tuple(
+            branch_by_action[action]
+            for action in expected_source_request.selected_actions
+        )
+        _validate_online_source_branches(
+            source_capability_id=expected_source_capability_id,
+            source_request=expected_source_request,
+            source_branches=source_branches,
+        )
+        if (
+            post_receipt_payload["source_request_id"]
+            != expected_source_request.source_request_id
+            or post_receipt_payload["source_branch_ids"]
+            != [item.branch_id for item in source_branches]
+        ):
+            raise ValueError("online persisted source group receipt drifted")
+        source_branch_receipt_ids_by_slot.append(
+            [item.branch_id for item in source_branches]
+        )
+        for physical_index, arm in enumerate(_ONLINE_PHYSICAL_ARMS):
+            binding, session, current_owner = states[arm]
+            pre = persisted_slot.preactions[physical_index].payload
+            post = persisted_slot.postactions[physical_index].payload
+            request = requests[physical_index][1]
+            owner_input = _owner_snapshot_from_payload(
+                pre["owner_input_persistence"]
+            )
+            owner_preaction = _owner_snapshot_from_payload(
+                pre["owner_preaction_persistence"]
+            )
+            receipt_payload = cal._mapping(
+                pre["executor_receipt"], "online executor receipt"
+            )
+            command_payload = cal._mapping(
+                receipt_payload["command"], "online executor command"
+            )
+            exposure = RelationshipActionGateV2OnlineExposure.from_payload(
+                command_payload["online_exposure"]
+            )
+            command = RelationshipProductV2OnlineExecutorCommand(
+                online_exposure=exposure,
+                authorization=binding.authorization,
+                owner_prestate_sha256=cal._digest(
+                    command_payload["owner_prestate_sha256"],
+                    "online command owner prestate",
+                ),
+            )
+            receipt = RelationshipProductV2OnlineExecutorReceipt(
+                command=command,
+                authorized_advisory=_temporal_advisory_from_payload(
+                    receipt_payload["authorized_advisory"]
+                ),
+                temporal_delivery=_temporal_delivery_from_payload(
+                    receipt_payload["temporal_projection"]
+                ),
+            )
+            replayed_exposure = session.record_exposure(
+                exposure.forecast,
+                delivered_action_id=exposure.delivered_action_id,
+            )
+            replayed_owner_preaction = (
+                replay_preference_action_forecast_publication_persistence(
+                    before=current_owner,
+                    forecast=exposure.forecast,
+                )
+            )
+            if (
+                request.forecast_request.session_scope
+                != binding.authorization.owner_session_scope
+                or request.forecast_request.decision_id
+                != exposure.forecast.decision_id
+                or owner_input != current_owner
+                or owner_preaction != replayed_owner_preaction
+                or pre["owner_input_persistence_sha256"]
+                != social_record_store_persistence_sha256(owner_input)
+                or pre["owner_preaction_persistence_sha256"]
+                != social_record_store_persistence_sha256(owner_preaction)
+                or command.owner_prestate_sha256
+                != social_record_store_persistence_sha256(owner_preaction)
+                or command.to_payload() != command_payload
+                or receipt.to_payload() != receipt_payload
+                or replayed_exposure != exposure
+                or pre["mechanism_run_id"] != mechanism_run_id
+                or pre["root_sequence_index"] != root_sequence_index
+                or pre["slot_index"] != slot_index
+                or pre["arm_id"] != arm.value
+                or pre["physical_arm_order_index"] != physical_index
+                or pre["authorization_id"]
+                != binding.authorization.authorization_id
+                or pre["gate_disposition"]
+                != binding.authorization.gate_disposition.value
+                or pre["owner_session_scope"]
+                != binding.authorization.owner_session_scope
+                or pre["learned_theta0_artifact_id"]
+                != binding.authorization.learned_theta0_artifact.artifact_id
+                or pre["parent_chain_id"] != exposure.parent_chain_id
+                or pre["gate_transition_count_before"] != slot_index
+                or pre["gate_checkpoint_content_sha256_before"]
+                != exposure.frozen_decision.checkpoint_content_sha256
+                or pre["forecast"]
+                != preference_action_forecast_to_payload(exposure.forecast)
+                or pre["online_exposure"] != exposure.to_payload()
+                or pre["executor_command_id"] != command.command_id
+                or pre["executor_receipt_id"] != receipt.receipt_id
+                or pre["delivered_action_id"] != exposure.delivered_action_id
+                or pre["source_opened"] is not False
+                or pre["outcome_received"] is not False
+                or pre["evaluation_or_judge_feedback_received"] is not False
+            ):
+                raise ValueError("online persisted preaction typed replay drifted")
+
+            external = _external_outcome_evidence_from_payload(
+                post["external_outcome_evidence"]
+            )
+            owner_evidence = _owner_outcome_evidence_from_payload(
+                post["owner_outcome_evidence"]
+            )
+            expected_settlement_input = _online_settlement_input_from_components(
+                request=request,
+                forecast=exposure.forecast,
+                delivered_action_id=exposure.delivered_action_id,
+                branch=branch_by_action[
+                    RelationshipAction(exposure.delivered_action_id)
+                ],
+                credit_timestamp_ms=post_credit_timestamps[0],
+            )
+            if (
+                external != expected_settlement_input.external_outcome
+                or owner_evidence
+                != expected_settlement_input.owner_outcome_evidence
+                or external.source
+                is not DialogueExternalOutcomeEvidenceSource.ENVIRONMENT
+                or external.action_id != exposure.delivered_action_id
+                or external.forecast_id != exposure.forecast.forecast_id
+                or external.decision_id != exposure.forecast.decision_id
+                or external.session_scope != exposure.forecast.session_scope
+                or owner_evidence.evidence_id != external.evidence_id
+                or owner_evidence.interlocutor_id
+                != exposure.forecast.interlocutor_id
+                or owner_evidence.observation_summary
+                != request.forecast_request.current_observation
+                or owner_evidence.action_id != external.action_id
+                or owner_evidence.observed_outcome_id != external.kind.value
+                or owner_evidence.reaction_summary != external.description
+                or owner_evidence.source_turn != external.turn_index
+                or owner_evidence.evidence_refs != (external.evidence_ref,)
+            ):
+                raise ValueError("online persisted source-owner projection drifted")
+            owner_post = _owner_snapshot_from_payload(
+                post["owner_postaction_persistence"]
+            )
+            owner_replay = replay_preference_action_forecast_settlement_transition(
+                before=owner_preaction,
+                forecast=exposure.forecast,
+                external_evidence=external,
+                owner_outcome_evidence=owner_evidence,
+            )
+            replayed_owner_post = owner_replay.owner_persistence_snapshot
+            if owner_post != replayed_owner_post:
+                raise ValueError("online persisted owner settlement replay drifted")
+            replayed_social_errors = owner_replay.owner_settled_errors
+            settlement = settle_preference_action_forecast(
+                forecast=exposure.forecast,
+                evidence=external,
+            )
+            social_error = (
+                social_prediction_error_from_preference_action_forecast_settlement(
+                    settlement
+                )
+            )
+            pe_payload = cal._mapping(
+                post["social_prediction_error"], "online social PE"
+            )
+            cal._exact_keys(
+                pe_payload,
+                {"description", "errors"},
+                "online social PE",
+            )
+            expected_pe_payload = cal._social_pe_payload(
+                replay_social_prediction_error_snapshot(
+                    owner_settled_errors=replayed_social_errors,
+                )
+            )
+            if pe_payload != expected_pe_payload:
+                raise ValueError("online persisted full PE snapshot drifted")
+            common_credits = derive_preference_action_common_baseline_credit_records(
+                forecasts=(exposure.forecast,),
+                external_evidence=(external,),
+                settlements=(settlement,),
+                social_errors=(social_error,),
+                settled_at_turn=settlement.observed_turn,
+                timestamp_ms=cal._integer(
+                    post["credit_timestamp_ms"], "online credit timestamp"
+                ),
+            )
+            if len(common_credits) != 1:
+                raise ValueError("online common-baseline credit derivation drifted")
+            common_credit = common_credits[0]
+            transition = RelationshipActionGateV2OnlineTransition.from_payload(
+                post["gate_transition"],
+                artifact=binding.authorization.learned_theta0_artifact,
+                full_common_credit=common_credit,
+            )
+            plan = session.plan_credit(exposure, common_credit)
+            actual_transition = session.commit_credit(plan)
+            expected_applied = arm is RelationshipProductHorizonOnlineArm.FULL
+            if (
+                post["mechanism_run_id"] != mechanism_run_id
+                or post["root_sequence_index"] != root_sequence_index
+                or post["slot_index"] != slot_index
+                or post["arm_id"] != arm.value
+                or post["physical_arm_order_index"] != physical_index
+                or post["preaction_barrier_id"]
+                != persisted_slot.preaction_receipt.payload["barrier_id"]
+                or post["preaction_barrier_receipt_row_id"]
+                != persisted_slot.preaction_receipt.payload["row_id"]
+                or post["settlement"]
+                != _forecast_settlement_payload(settlement)
+                or post["parent_action_credit"]
+                != cal._credit_payload(common_credit.parent_action_credit)
+                or post["common_baseline_credit"] != common_credit.to_payload()
+                or transition != actual_transition
+                or post["gate_transition_id"] != transition.transition_id
+                or post["parent_chain_id"] != exposure.parent_chain_id
+                or post["terminal_chain_id"] != session.current_chain_id
+                or post["gate_transition_count_before"] != slot_index
+                or post["gate_transition_count_after"] != slot_index + 1
+                or post["terminal_checkpoint_content_sha256"]
+                != transition.terminal_checkpoint.content_sha256
+                or post["credit_generated_count"] != 1
+                or post["credit_applied_count"] != int(expected_applied)
+                or post["gate_update_count_delta"] != int(expected_applied)
+                or post["owner_postaction_persistence_sha256"]
+                != social_record_store_persistence_sha256(owner_post)
+                or owner_post != replayed_owner_post
+                or post["executor_receipt_id"] != receipt.receipt_id
+                or post["delivered_action_id"] != exposure.delivered_action_id
+                or post["evaluation_or_judge_feedback_received"] is not False
+            ):
+                raise ValueError("online persisted postaction typed replay drifted")
+            credits[arm].append(common_credit)
+            states[arm] = (binding, session, owner_post)
+        post_receipt_ids.append(
+            cal._digest(
+                persisted_slot.postaction_receipt.payload["row_id"],
+                "online postaction receipt row_id",
+            )
+        )
+
+    terminal = ledger.terminal.payload
+    terminal_items = tuple(
+        cal._mapping(item, "online arm terminal")
+        for item in cal._list(terminal["arm_terminals"], "online arm terminals")
+    )
+    if len(terminal_items) != 2:
+        raise ValueError("online terminal arm count drifted")
+    for arm, item in zip(_ONLINE_PHYSICAL_ARMS, terminal_items, strict=True):
+        cal._exact_keys(
+            item,
+            {
+                "arm_id",
+                "gate_disposition",
+                "transition_chain",
+                "generated_credit_count",
+                "applied_credit_count",
+                "gate_update_count",
+                "downstream_exposed_applied_update_count",
+                "terminal_owner_persistence",
+                "terminal_owner_persistence_sha256",
+            },
+            "online arm terminal",
+        )
+        binding, session, owner = states[arm]
+        persisted_chain = RelationshipActionGateV2OnlineTransitionChain.from_payload(
+            item["transition_chain"],
+            artifact=binding.authorization.learned_theta0_artifact,
+            full_common_credits=tuple(credits[arm]),
+        )
+        replayed_chain = session.export_transition_chain()
+        terminal_owner = _owner_snapshot_from_payload(
+            item["terminal_owner_persistence"]
+        )
+        if (
+            persisted_chain != replayed_chain
+            or item["arm_id"] != arm.value
+            or item["gate_disposition"]
+            != binding.authorization.gate_disposition.value
+            or item["generated_credit_count"]
+            != replayed_chain.generated_credit_count
+            or item["applied_credit_count"]
+            != replayed_chain.applied_credit_count
+            or item["gate_update_count"]
+            != replayed_chain.terminal_checkpoint.update_count
+            or item["downstream_exposed_applied_update_count"]
+            != replayed_chain.downstream_exposed_applied_update_count
+            or terminal_owner != owner
+            or item["terminal_owner_persistence_sha256"]
+            != social_record_store_persistence_sha256(owner)
+        ):
+            raise ValueError("online persisted terminal typed replay drifted")
+    if (
+        terminal["mechanism_schema_version"]
+        != ONLINE_PHYSICAL_MECHANISM_SCHEMA_VERSION
+        or terminal["mechanism_run_id"] != mechanism_run_id
+        or terminal["root_sequence_index"] != root_sequence_index
+        or terminal["completed_slot_count"] != expected_slot_count
+        or terminal["arm_order"] != expected_arms
+        or terminal["postaction_receipt_row_ids"] != post_receipt_ids
+        or terminal["settlement_source_capability_id"]
+        != expected_source_capability_id
+        or terminal["settlement_source_open_count"] != 1
+        or terminal["settlement_source_call_count"] != expected_slot_count
+        or terminal["credit_clock_owner"]
+        != "RelationshipProductHorizonOnlinePhysicalBarrier"
+        or terminal["credit_clock_stride"] != ONLINE_PHYSICAL_CREDIT_CLOCK_STRIDE
+        or terminal[
+            "forecast_runtime_object_identity_shared_in_live_constructor"
+        ]
+        is not True
+        or terminal["forecast_runtime_arm_invariance_verified_by_mechanism"]
+        is not False
+        or terminal[
+            "forecast_runtime_session_scope_blinding_verified_by_mechanism"
+        ]
+        is not False
+        or terminal[
+            "forecast_runtime_call_order_blinding_verified_by_mechanism"
+        ]
+        is not False
+        or terminal["source_branch_receipt_ids_by_slot"]
+        != source_branch_receipt_ids_by_slot
+        or terminal["source_v5_identity_bound_by_mechanism"] is not False
+        or terminal["source_v5_admission_verified_by_mechanism"] is not False
+        or terminal["campaign_matrix_executed"] is not False
+        or terminal["effect_estimand_executed"] is not False
+        or terminal["learnable_effect_claimed"] is not False
+        or terminal["steerable_effect_claimed"] is not False
+        or terminal["four_able_complete"] is not False
+        or terminal["formal_evidence_authorized"] is not False
+        or terminal["production_active"] is not False
+    ):
+        raise ValueError("online physical terminal claim boundary drifted")
+    return cal._digest(terminal["terminal_id"], "online terminal_id")
+
+
+def validate_relationship_product_horizon_online_physical_barrier(
+    *,
+    path: pathlib.Path,
+    mechanism_run_id: str,
+    root_sequence_index: int,
+    bindings: tuple[RelationshipProductHorizonOnlineArmBinding, ...],
+    expected_source_capability_id: str,
+    terminal_completion: RelationshipProductHorizonOnlineSlotCompletion | None = None,
+    expected_slot_count: int = 40,
+) -> RelationshipProductHorizonOnlineLedgerScan:
+    """Validate terminal content; historical durability remains unproven."""
+
+    if terminal_completion is not None and type(terminal_completion) is not (
+        RelationshipProductHorizonOnlineSlotCompletion
+    ):
+        raise TypeError("terminal_completion must be null or the exact typed receipt")
+
+    source = pathlib.Path(path)
+    before = cal._read_regular(source)
+    try:
+        ledger = _read_online_physical_ledger(
+            raw=before,
+            expected_slot_count=expected_slot_count,
+        )
+        if (
+            ledger.raw_bytes != len(before)
+            or ledger.raw_sha256 != cal._sha256_bytes(before)
+        ):
+            raise ValueError("online parsed ledger differs from the frozen input bytes")
+        terminal_id = _replay_online_physical_ledger(
+            ledger=ledger,
+            mechanism_run_id=mechanism_run_id,
+            root_sequence_index=root_sequence_index,
+            bindings=bindings,
+            expected_source_capability_id=expected_source_capability_id,
+            expected_slot_count=expected_slot_count,
+        )
+        final_slot = ledger.slots[-1]
+        expected_transition_ids = tuple(
+            cal._text(
+                row.payload["gate_transition_id"],
+                "terminal completion transition id",
+            )
+            for row in final_slot.postactions
+        )
+        if terminal_completion is not None:
+            if (
+                terminal_completion.mechanism_run_id != mechanism_run_id
+                or terminal_completion.root_sequence_index != root_sequence_index
+                or terminal_completion.slot_index != expected_slot_count - 1
+                or terminal_completion.arm_order != _ONLINE_PHYSICAL_ARMS
+                or terminal_completion.transition_ids != expected_transition_ids
+                or terminal_completion.postaction_receipt_row_id
+                != final_slot.postaction_receipt.payload["row_id"]
+                or terminal_completion.terminal_row_id
+                != ledger.terminal.payload["row_id"]
+                or terminal_completion.next_slot_authorized is not False
+                or terminal_completion.ledger_complete is not True
+                or terminal_completion.stream_prefix_raw_sha256
+                != ledger.raw_sha256
+            ):
+                raise ValueError("online terminal completion acknowledgement drifted")
+        return RelationshipProductHorizonOnlineLedgerScan(
+            status=(
+                RelationshipProductHorizonOnlineLedgerStatus
+                .TERMINAL_CONTENT_VALID_DURABILITY_UNPROVEN
+            ),
+            row_count=ledger.row_count,
+            raw_bytes=ledger.raw_bytes,
+            raw_sha256=ledger.raw_sha256,
+            terminal_id=terminal_id,
+            failure_type=None,
+            failure_message=None,
+        )
+    finally:
+        if cal._read_regular(source) != before:
+            raise RuntimeError("online validate-existing modified the ledger")
+
+
+def scan_relationship_product_horizon_online_physical_barrier(
+    *,
+    path: pathlib.Path,
+    mechanism_run_id: str,
+    root_sequence_index: int,
+    bindings: tuple[RelationshipProductHorizonOnlineArmBinding, ...],
+    expected_source_capability_id: str,
+    terminal_completion: RelationshipProductHorizonOnlineSlotCompletion | None = None,
+    expected_slot_count: int = 40,
+) -> RelationshipProductHorizonOnlineLedgerScan:
+    """Classify startup state; invalid prefixes are never truncated or resumed."""
+
+    source = pathlib.Path(path)
+    if not source.exists():
+        return RelationshipProductHorizonOnlineLedgerScan(
+            status=RelationshipProductHorizonOnlineLedgerStatus.FRESH,
+            row_count=0,
+            raw_bytes=0,
+            raw_sha256=None,
+            terminal_id=None,
+            failure_type=None,
+            failure_message=None,
+        )
+    before = cal._read_regular(source)
+    try:
+        result = validate_relationship_product_horizon_online_physical_barrier(
+            path=source,
+            mechanism_run_id=mechanism_run_id,
+            root_sequence_index=root_sequence_index,
+            bindings=bindings,
+            expected_source_capability_id=expected_source_capability_id,
+            terminal_completion=terminal_completion,
+            expected_slot_count=expected_slot_count,
+        )
+        if cal._read_regular(source) != before:
+            raise RuntimeError("online startup scan input changed during validation")
+        return result
+    except (OSError, TypeError, ValueError, RuntimeError) as exc:
+        after = cal._read_regular(source)
+        if after != before:
+            raise RuntimeError("online startup scanner modified invalid evidence") from exc
+        return RelationshipProductHorizonOnlineLedgerScan(
+            status=(
+                RelationshipProductHorizonOnlineLedgerStatus.INVALID_INTERRUPTED_TAIL
+            ),
+            row_count=0,
+            raw_bytes=len(before),
+            raw_sha256=cal._sha256_bytes(before),
+            terminal_id=None,
+            failure_type=type(exc).__name__,
+            failure_message=str(exc),
+        )
 
 
 def _expected_persisted_transition_binding(
@@ -4154,9 +7314,28 @@ __all__ = [
     "DEVELOPMENT_CAMPAIGN_REPORT_SCHEMA_VERSION",
     "DEVELOPMENT_CAMPAIGN_TERMINAL_STATE_SCHEMA_VERSION",
     "DEVELOPMENT_CAMPAIGN_TRACE_SCHEMA_VERSION",
+    "ONLINE_PHYSICAL_BARRIER_SCHEMA_VERSION",
+    "ONLINE_PHYSICAL_CREDIT_CLOCK_STRIDE",
+    "ONLINE_PHYSICAL_MECHANISM_SCHEMA_VERSION",
+    "ONLINE_PHYSICAL_SOURCE_SCHEMA_VERSION",
+    "ONLINE_PHYSICAL_TRACE_SCHEMA_VERSION",
     "RelationshipProductHorizonDevelopmentCampaignProtocol",
+    "RelationshipProductHorizonOnlineArm",
+    "RelationshipProductHorizonOnlineArmBinding",
+    "RelationshipProductHorizonOnlineLedgerScan",
+    "RelationshipProductHorizonOnlineLedgerStatus",
+    "RelationshipProductHorizonOnlinePhysicalBarrier",
+    "RelationshipProductHorizonOnlinePreactionBarrier",
+    "RelationshipProductHorizonOnlineSettlementSourceDescriptor",
+    "RelationshipProductHorizonOnlineSettlementSource",
+    "RelationshipProductHorizonOnlineSourceBranch",
+    "RelationshipProductHorizonOnlineSourceOpenCapability",
+    "RelationshipProductHorizonOnlineSourceRequest",
+    "RelationshipProductHorizonOnlineSlotCompletion",
     "load_relationship_product_horizon_development_campaign_protocol",
     "materialize_relationship_product_horizon_development_campaign",
     "relationship_product_horizon_development_campaign_protocol_path",
+    "scan_relationship_product_horizon_online_physical_barrier",
     "validate_relationship_product_horizon_development_campaign",
+    "validate_relationship_product_horizon_online_physical_barrier",
 ]

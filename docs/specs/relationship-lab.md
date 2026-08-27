@@ -162,9 +162,9 @@ Steerable 已在关系域成立。P1–P4 必须分别通过路线图中的门�
 | Product Horizon dynamic collection-prefix owner | `lifeform-evolution.relationship_product_horizon_dynamic_collection_prefix` | 只消费 admitted source-v4、development reader、theta0 v2 与 frozen scanner seam；以 natural APPLY 顺序执行 112 roots × 8 collection decisions。每拍 public preaction 先 fsync，再由 environment facade 按 temporal actual action 打开已承诺 branch并经正式 owner 发布 writeback→PE→credit；credit 不 apply gate，cold policy 不变。对后续 campaign 只新增外传双 ID 校验后的 public selected-branch facade：输入 typed `RelationshipAction`、输出 typed outcome，不暴露路径、sealed condition/policy/preferred action 或 source dependency。dynamic owner 不拥有 campaign 的 barrier、统计或效果判词 |
 | Product Horizon forced common-batch owner | `lifeform-evolution.relationship_product_horizon_forced_common_batch` | 只消费 dynamic gate 的 PASS manifest（禁止读取 natural trace/outcome/credit）及其既有 source-v4/reader/theta0/scanner lineage；事前发布 112 份 root-local 8-entry schedule 的内容寻址父索引，每 root 只执行一次 forced collection 并保存共同 terminal owner persistence、8-credit batch 与 APPLY/WITHHOLD transition。full 只能由 theta0+exact batch+APPLY receipt 重放，frozen/strict 共享同一 WITHHOLD receipt。只可授权后续 campaign protocol freeze，不拥有 40-decision evaluation、effect 或能力判词 |
 | Product Horizon 112-root development campaign owner | `lifeform-evolution.relationship_product_horizon_development_campaign` | 只消费 forced campaign-input seam 与 dynamic public selected-branch facade；执行 full / frozen_theta0 / strict_noop 三个 fresh arm 的 40-decision evaluation，固定 preaction 三臂全部 durable 后才能 once-only settle branch，postaction 三臂全部 durable 后才能推进 owner。以 whole root 为 bootstrap/分析单元发布 development-only stop/go；不拥有 reader qualification、formal/unseen 单轴门、integrated 四轴或 production claim |
-| Product Horizon corrected-online campaign physical barrier（待实现） | add-only `lifeform-evolution.relationship_product_horizon_development_campaign` 新 protocol identity | 旧三臂 campaign/判词原样保留；新 owner 必须为每 root 的 full/frozen Learnable pair 从同一 cold theta0 分别建立独占 live session；future strict/always/random controls 另经 gate-control authorization 接入，不得冒充 online session。整组 online logical preaction canonical append+flush+fsync 后才把 typed delivered action交给 reactive source，整组 postaction/owner state/common credit/gate transition/new head durable 后才允许下一拍。启动/恢复先扫描 ledger；durable unresolved preaction、commit 后缺 postaction、缺臂/重复/乱序 barrier 均判 attempt invalid，禁止从旧 completed prefix继续。该 owner 尚未实现或执行，不授权 Learnable/Steerable effect |
+| Product Horizon corrected-online campaign physical barrier | add-only `lifeform-evolution.relationship_product_horizon_development_campaign` mechanism identity；scientific protocol identity 仍未冻结 | 旧三臂 campaign/判词原样保留；owner 私有 create-only file sink，为 full/frozen Learnable pair 从同一 cold theta0 分别建立独占 live session并要求共享同一 forecast runtime object。每拍先要求 public request projection exact matched，再将全组 online logical preaction rows 与 group receipt 分别 flush+`os.fsync`；随后才延迟打开 generic source，且 source 只能看到不含 arm-local preaction hash/receipt 的 public decision + 按 public candidate-action order 规范化的 unique delivered actions，并按 action 返回共享 branch。campaign owner 派生 arm-local evidence，credit clock 固定为 `root*10000+slot`；全组 postaction rows/receipt durable 后才推进。terminal fsync 返回后 live owner 才产生 serializable completion acknowledgement 与 `ledger_complete=true`；其 persisted bytes/ack 最多判 `terminal_content_valid_durability_unproven_no_resume`，不证明历史 fsync 返回。scanner 调正式 owner replay重放 source、owner current→pre→post、完整 PE、credit 与 gate chain；任意 prefix/torn/duplicate/reorder/orphan 均 invalid，无 resume/truncate。共享 runtime object 不证明 scope/order treatment-blind；机制显式记录 arm-invariance/scope-blinding/order-blinding 均未验证，须在 scientific protocol 前另做 admission。该机制不绑定 source-v5、不冻结 campaign 或 effect，不授权 Learnable/Steerable |
 | Product Horizon pulse owner | `lifeform-domain-emogpt.lab.relationship_product_pulse` | 只编排正式 `preference_about_other` owner、named condition reader、`dialogue_external_outcome`→PE→credit 与 `RelationshipActionGate`；发布 onboarding / pre-action / settlement frozen snapshot，不复制 memory、PE、credit 或 gate 数学 |
-| Product Horizon v2 online pulse logical consumer | `lifeform-domain-emogpt.lab.relationship_product_pulse` | exact-wrap condensed cold theta0 的 online authorization 在 outcome 前绑定一个 owner session scope 与 APPLY/WITHHOLD；prepare 从 active completed head 发布 owner forecast、one pending exposure、exact learned action、authorized SHADOW temporal delivery，返回不打开 source 的 construction-validated logical preaction barrier。settle 不接 disposition，且两臂 legacy apply bit 均为 false；只从 exact ENVIRONMENT reaction 经 owner settlement→Social PE→common credit 后调用 live plan/commit。await 返回后复核 exposure/plan/session，失败保留 pending。pulse 不写磁盘、不裁决 crash tail；future campaign 在 canonical append/fsync 前必须重验并封存 shallow-frozen owner payload，物理 barrier 唯一属于该 corrected-online campaign |
+| Product Horizon v2 online pulse logical consumer | `lifeform-domain-emogpt.lab.relationship_product_pulse` | exact-wrap condensed cold theta0 的 online authorization 在 outcome 前绑定一个 owner session scope 与 APPLY/WITHHOLD；prepare 从 active completed head 发布 owner forecast、one pending exposure、exact learned action、authorized SHADOW temporal delivery，返回不打开 source 的 construction-validated logical preaction barrier。settle 不接 disposition，且两臂 legacy apply bit 均为 false；只从 exact ENVIRONMENT reaction 经 owner settlement→Social PE→common credit 后调用 live plan/commit。await 返回后复核 exposure/plan/session，失败保留 pending。pulse 不写磁盘、不裁决 crash tail；上列 physical owner 已在 canonical append/fsync 前重验并封存 shallow-frozen owner payload，scientific source/campaign authority 仍未建立 |
 | Product Horizon gate v2 federation owner | `lifeform-domain-emogpt.relationship_action_gate_v2`（既有 gate owner 的 add-only v2 contract） | 以 pre-outcome timing 由外部 owner 证明的 parent index 绑定多个完整 root-local child schedule/batch，保持原 v2 ordered feature-moment/cap 数学，只提交一个全局 APPLY/WITHHOLD parent transition与 terminal checkpoint。receipt 精确声明本 parent 内 `child_transition_count=0`；联邦结果必须凝结为 cold learned theta0 后才能 evaluation。gate 机制与下列 pulse federation consumer 已闭合；theta0 v3 bootstrap attempt03 artifact `dde0fc78…9777` 已在 detached exact implementation commit 上完整重放 PASS，接受单次 896-update parent APPLY、0-update WITHHOLD 与 accepted-lineage `child_transition_count=0`。这仍只是 development mechanism receipt，campaign/effect 均未成立 |
 | Product Horizon v2 pulse/forced consumer seam | `lifeform-domain-emogpt.lab.relationship_product_pulse`（同一 pulse owner 的 versioned contract） | 独立 `.v2` authorization/command/receipt/snapshot 保留完整 v2 assignment receipt、policy+forecast replay、actual temporal delivery、owner persistence、Social PE 与 parent/common-baseline credit；pulse-owned continuous collection 保留 full settlements、owner publication replay 及全程相邻 handoff，add-only segmented collection 则显式绑定唯一 scope/start、段内 handoff，并在 flatten 后完整耗尽同一 schedule。两类 collection 均以 construction-time provenance seal + ID/export/transition 边界重放阻止 shallow-frozen owner payload 的 nested mutation；有效 continuous 的公开 constructor signature、canonical payload 与 ID 不变。两者使用互不兼容的 transition/commit，均拒绝 raw gate-only batch；generic pulse 不把 caller start 命名为 root reset，theta0 v3 owner 必须另证 onboarding-from-`None`。federated collection 要求完整外部 parent + ordered full segmented children，全局拒绝重复 collection/segment/scope 与倒序 credit time；matched wrapper 只接 gate-owned 单次 parent pair，`child_transition_count=0`，不生成旧 `FrozenPolicy`，loader 不能只靠 IDs 恢复。add-only condensed-theta0 authorization 在构造/恢复时重放完整 federated wrapper，并由 gate canonical factory 重导完整 learned artifact exact-equal（含 rate/cap），之后只冻结不可变 lineage、learned artifact 和 `0/0/()` cold policy；source APPLY 与 evaluation transition 分账，evaluation receipt 固定后者为 `null`。strict-noop 仅切 executor disposition，base authorization 不可直接打开 ACTIVE；legacy v1 与既有 continuous v2 identity/payload 不改。theta0 v3 bootstrap attempt03 已闭合 durable owner-path timing、root reset 与 112×8 execution receipt；cold evaluation authorization 机制接缝也已闭合，但 permanent treatment reachability、campaign、effect 与能力判词仍未成立 |
 | Product Horizon theta0 v3 bootstrap owner | `lifeform-evolution.relationship_product_horizon_theta0_v3_bootstrap` | live development protocol.v2 `f5c33f5c…1d26`（raw `83060179…e38f`）在 v1 attempt02 完成 materialization 但 deterministic validation 因 temporal 墙钟漂移失败后另立 identity；冻结 `root*20+4+2*decision` 的 owner-side temporal delivery logical clock，credit 固定晚 1，并 pin runtime/temporal/pulse/theta/protocol/CLI 六个 blob；materialize 与 validate 都必须位于 exact implementation HEAD 且 clean scope 无漂移。theta0 v3 bootstrap attempt03 在 implementation `af6cc60b…ad74` 上完成 112 roots / 896 credits 并发布 artifact `dde0fc78…9777`、learned theta0 `dded60c6…2f7`；materialization 运行期间、自动 validation 前的 docs-only 并发 commit 使 main HEAD 前移，exact-HEAD guard 在 replay 前正确拒绝；随后 detached exact-commit 双 ID `validate-existing` 完整重放 PASS、六文件 fingerprints 不变。compact receipt `4c3c414b…aab5`（raw `cae85ed0…af6c`）只接受 development mechanism terminal；v1 attempt01/02 均原样保留且无下游 authority，不运行模型、CUDA、campaign 或彩排，reachability/effect/formal/unseen/四轴/真人/production 继续为 false |
@@ -2386,7 +2386,8 @@ APPLY/WITHHOLD，candidate/strict command 仍只差 executor disposition。model
 重放了 synthetic forced settlement→PE→credit 与一次 parent APPLY/WITHHOLD；condensation 后的 candidate/strict
 evaluation preaction 没有新增 outcome、PE、credit 或 update，也未消费 attempt03 artifact 形成 reachability/effect
 结论。permanent public/outcome-free admission 仍是独立待办；它不是 rehearsal，也不生成
-outcome/PE/credit/update。当前紧邻实现包先闭合 corrected-online campaign 的物理 barrier，二者互不替代。
+outcome/PE/credit/update。corrected-online campaign 的物理 barrier 现已 add-only 闭合；它与 permanent
+reachability/achievability 两本账互不替代，也不授权直接启动 scientific run。
 完整 campaign 内仍须以 actual delivered-action divergence、root/segment coverage、reactive endpoint、safety 与
 durability 裁决 Learnable；参数 hash、probability movement、reachability PASS 均不得升级为效果结论。
 
@@ -2414,8 +2415,8 @@ parameter cap 约束；它是 PE-credit 驱动的 development update rule，不�
 chain、pre/candidate/post checkpoint、delta/count/cap 与 APPLY/WITHHOLD。恢复只能从 cold learned theta0 + 从 0
 连续的完整 typed chain exact replay，禁止裸 checkpoint、跳拍、重排、重复 credit、stale decision、compact credit
 projection 或 evaluator/judge 输入。owner recommendation 为 noop 时没有 gate-vs-noop 对照，credit 仍处理但参数贡献与
-informative delta 为零。gate owner 与 pulse logical consumer 现已闭合；durable multi-arm barrier、campaign protocol
-与实际 experiment 仍待后续独立收敛包。
+informative delta 为零。gate owner、pulse logical consumer 与 durable multi-arm ledger mechanism 现已闭合；
+source-v5 admission、scientific campaign protocol、always/random controls 与实际 experiment 仍待后续独立收敛包。
 
 处理位现由 online session 在任何 evaluation outcome 前一次性冻结，并进入 chain identity；逐拍 commit 不再接收
 APPLY/WITHHOLD 参数，因此不能看见 credit 后选择性应用。行为 policy identity 只绑定 artifact + checkpoint，不绑定
@@ -2431,8 +2432,8 @@ authorization，并在 outcome 前冻结 APPLY/WITHHOLD。`prepare_relationship_
 completed head 发布 owner forecast、登记唯一 pending exposure、机械保留 learned selected action，随后只在 frozen
 placeholder substrate 上发布 authorized SHADOW temporal projection，返回包含 owner pre/postforecast、exposure、
 advisory 与 executor receipt 的 construction-validated **逻辑 preaction barrier**；它不打开 reactive source。
-由于 owner persistence payload 只是 shallow-frozen，future campaign 在 canonical append/fsync 前必须重新验证并
-封存该对象；pulse 本身不把 construction validation 升级为磁盘不可变性。settle 入口不接
+由于 owner persistence payload 只是 shallow-frozen，physical campaign owner 现会在 canonical append/fsync 前
+重新验证并以 canonical bytes 封存该对象；pulse 本身仍不把 construction validation 升级为磁盘不可变性。settle 入口不接
 disposition，且复用 settlement input 的 `apply_credit_to_gate` 在两臂均必须为 false；actual environment outcome 经
 owner settlement→Social PE→完整 common credit 后，才调用 active session plan/commit。forecast/settlement async
 边界两侧都复核 chain/checkpoint/pending，失败不清除 pending；下一 preaction 因此 fail-stop。
@@ -2443,8 +2444,47 @@ session，只缓存 chain head/count/checkpoint，不逐拍 export/from-transiti
 Learnable arms（当前为 full/frozen pair）的 logical preaction 全组
 canonical append+fsync 后才打开 reactive branch，再把 postaction、owner poststate、common credit、transition 与新
 head 全组 fsync 后才允许下一拍。durable preaction 无 matching completion、或内存 commit 后 postaction 未 fsync，
-均判 attempt invalid，禁止丢弃 pending 后从旧 prefix 继续。在 campaign 物理 barrier 闭合前，pulse receipt 不得写成
-source timing、crash durability 或 Product Horizon 因果证据。
+均判 attempt invalid，禁止丢弃 pending 后从旧 prefix 继续。physical barrier 现只把该顺序闭合为 generic mechanism；
+pulse receipt 仍不得单独写成 source timing、crash durability 或 Product Horizon 因果证据。
+
+add-only physical owner 的 production 构造面只接受目标 path，并在内部 create-only 打开唯一 file-backed sink；
+`_DigestRowSink` 等 memory/no-op sink 不进入公开构造面，caller 也不持有可旁路 append 的 sink reference。每组
+preaction rows 与 preaction receipt 各自 flush+`os.fsync` 后，才首次调用 lazy source opener；后续每拍的
+`settle_actions` 也只能在该拍 durable receipt 后发生。给 source 的 request 删除 arm、authorization、owner、gate、
+forecast 与 arm-local session/scope，也不携带 barrier/receipt/stream-prefix 等由 preaction bytes 派生的私有标识；只保留跨臂 byte-exact 的 public decision 和按公共 candidate-action order
+规范化的 actual action 集，不能用 full/frozen 物理顺序侧漏 arm。source 对每个 action 只能返回一个 typed branch receipt；同拍同 action 的 outcome、reaction、environment
+reference/version 必须 exact shared，credit timestamp 与 external/owner evidence 均由 campaign owner 派生，禁止 source
+按 arm 改结局或控制 owner writeback。公开 source-open capability 本身可构造、可预测；它只记录 physical owner 在
+preaction fsync 返回后才调用 opener 的 live 顺序，不证明 durability、不可伪造性、source 独占或外部未旁路调用，后者仍由
+future source-v5 admission 资格化。
+
+postaction rows 与 post receipt durable 后才更新 next-slot capability；最终 terminal row 的 fsync 返回前，
+`completed_slot_count` 不前移且 `ledger_complete=false`。只读 scanner 从一次冻结的 regular-file bytes 解析，并把
+parsed length/SHA 绑回该 byte snapshot；它不调用 source、forecast runtime、model 或 append。scanner 逐拍验证
+run/root/slot/arm/receipt grammar、matched public request、source request/branch、owner public forecast persistence replay、
+owner settlement post-state与 same-turn settled errors、完整 Social PE snapshot、common credit、gate transition 和 terminal
+chain。由于 terminal bytes 可能已写入但最后一次 fsync 抛错，bytes 本身不能证明调用成功返回；live owner 只在返回后
+生成 content-addressed `RelationshipProductHorizonOnlineSlotCompletion`，但该对象可由公开 payload 离线重建，不能成为
+历史 durability provenance。scanner 无论是否收到它，完整 terminal bytes 最多只判
+`terminal_content_valid_durability_unproven_no_resume`；若收到，只校验 caller acknowledgement 与 terminal row、最终 stream
+SHA、最后 transition pair 一致，不升级证据等级。任意 partial/torn/resigned semantic tail 仍落入
+`invalid_interrupted_tail_no_resume_or_truncate`。
+
+该 schema 的默认 scientific slot count 是 40，small-N 只允许 mechanism/fault fixture；`ledger_complete` 只属于仍存活的
+owner 在 terminal fsync 成功返回后的内存状态，持久化 JSONL 与可序列化 completion acknowledgement 均不能恢复该历史事实，
+也不能授权 resume、truncate 或 evidence promotion；未来 scientific artifact 必须另有可信的独立 completion provenance / manifest / anchor。
+file flush + `os.fsync` 只证明 live owner 当时收到当前 OS file-handle acknowledgement，不证明
+Windows directory-entry persistence、断电恢复或独立历史锚。header/terminal 都明确记录
+`source_v5_identity_bound_by_mechanism=false`、`source_v5_admission_verified_by_mechanism=false`，因此 generic test source
+消费不能被重命名为 source-v5 admission/campaign evidence。本包 model/CUDA/rehearsal/scientific campaign count 均为零。
+
+两臂 binding 还必须持有同一个 forecast runtime object，以阻止 caller 直接注入两个同名而行为不同的实例；但这不足以
+证明科学上的 APPLY/WITHHOLD 单比特隔离：runtime 仍能读取两臂不同的 `owner_session_scope`，且 live 调用顺序固定
+full→frozen。header/terminal 因此显式冻结 `forecast_runtime_arm_invariance_verified_by_mechanism=false`、
+`forecast_runtime_session_scope_blinding_verified_by_mechanism=false`、
+`forecast_runtime_call_order_blinding_verified_by_mechanism=false`。future scientific protocol 必须先冻结 blinded scope/order，
+并通过独立 runtime arm-invariance admission；generic mechanism 不证明 runtime pure/deterministic/treatment-blind。
+credit timestamp 不再由 caller 传入，而由 physical owner 唯一计算 `root_sequence_index*10000+slot_index`，scanner exact replay。
 
 40-decision 窗口的 terminal contract 必须分列：`generated=40 / full applied=40 / frozen applied=0`，同时
 `full update_count_delta=40 / frozen=0`。但第 40 次 settlement 后的 update 在既有窗口内没有下一动作可受其影响，
