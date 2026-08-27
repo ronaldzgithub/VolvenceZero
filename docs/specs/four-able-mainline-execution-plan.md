@@ -302,9 +302,10 @@ attempt03 已在新 create-only 根完成正式 materialization，并在 detache
    campaign 必须另证整组 preaction+barrier fsync 先于 reactive branch，postaction+transition fsync 先于下一拍，
    durable unresolved tail 一律 fail-stop。
 
-gate owner、cold authorization、pulse logical consumer、多臂 durable barrier/恢复扫描机制与 source-v5 input
-admission 现已闭合。下一独立包只为 admitted source-v5 public texts 生成 pinned embedding table，不执行矩阵；
-permanent treatment-reachability admission 仍须另立协议，只读新 source 的 public/outcome-free surface，不生成
+gate owner、cold authorization、pulse logical consumer、多臂 durable barrier/恢复扫描机制、source-v5 input
+admission 与 v5-only public embedding table 现已闭合。table artifact `6420a25c…b45a` 为
+3,946×1,024、97,596,362 bytes，reader fit/inference=0；它只关闭 input plumbing，不登记 Readable。
+下一独立包是 attempt03 full typed federation 跨 commit handoff；permanent treatment-reachability admission 仍须另立协议，只读新 source 的 public/outcome-free surface，不生成
 outcome/PE/credit/update，也不是 rehearsal。当前 `treatment_reachability_admitted=false`，achievability 账仍未闭合。
 
 permanent admission 未闭合前不冻结或启动下一次 integrated/development campaign。新效果矩阵必须使用新的、
@@ -669,6 +670,13 @@ integrated PASS 之后的产品级验证需要独立真人受试者、知情同�
   owner-defined 三动作 commitment；pre-manifest 双重 rebuild、byte compare 及外传双 ID read-only
   `validate-existing` 均 PASS。最高正字段仅 `campaign_input_admitted=true`；embedding、reader fit、theta handoff、
   runtime blinding、reachability/achievability、campaign/effect/model/CUDA/formal/四轴均仍 false/zero。
+- 2026-08-28 · source-v5 public embedding table 已完成：v1 `e5e3aac6…947f` 的唯一实际 attempt 因
+  shared adapter closure 自冲突在首个 embedding call 前 fail-closed，0 BGE/CUDA load、0 output，禁止重试；
+  successor v2 `9d54eb03…8f6e` 将 admission-pinned base adapter 与 add-only batch extension 分离。
+  exact implementation `9813e80d…6381` 生成三文件 artifact `6420a25c…b45a`，table content ID
+  `431b959a…28a4`、raw SHA `86e826d8…4837`，3,946×1,024、97,596,362 bytes；外传双 ID
+  model-free `validate-existing` PASS。`source_v5_embedding_table_materialized=true`，但 reader fit/inference=0，
+  Readable、theta handoff、geometric reachability、PE-credit achievability、campaign/effect/formal/四轴仍未建立。
 - 2026-08-27 · 用户裁决新增 coding lane 为四能力主张的主要证明载体：编程域拥有免费客观 oracle
   （pytest 结局是 `ENVIRONMENT` typed source，可合法进入学习环路），关系域受 R12 与"无免费客观结局"
   的结构性限制，其产品主张改由未来真人验证承担，本文件关系线各阶段照常作为 development/机制 lane 推进。
